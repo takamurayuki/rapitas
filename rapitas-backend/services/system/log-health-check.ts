@@ -48,6 +48,20 @@ interface Grouped {
   normalizedMsg: string;
   sampleStack?: string;
   count: number;
+  /**
+   * One occurrence's message exactly as logged, before normalisation.
+   *
+   * The signature deliberately strips the varying parts so every occurrence
+   * groups together — but that same normalised string is also used as the
+   * concern's TITLE, so identifiers vanish from the only text the agent gets:
+   * "Execution error for task #: Task # not found" names no task. Tasks 695,
+   * 699, 700 and 701 all completed as 修正不要 because nothing in the filing
+   * said which task, when, or how often (measured 2026-08-28).
+   */
+  sampleMsg: string;
+  /** Epoch ms of the first and last occurrence seen, when the log carried times. */
+  firstSeenMs?: number;
+  lastSeenMs?: number;
 }
 
 /** Numeric level → concern severity. */
@@ -170,6 +184,10 @@ export function groupEntries(entries: ParsedLogEntry[]): Grouped[] {
       existing.count++;
       existing.level = Math.max(existing.level, entry.level);
       if (!existing.sampleStack && entry.stack) existing.sampleStack = entry.stack;
+      if (entry.time !== undefined) {
+        existing.firstSeenMs = Math.min(existing.firstSeenMs ?? entry.time, entry.time);
+        existing.lastSeenMs = Math.max(existing.lastSeenMs ?? entry.time, entry.time);
+      }
     } else {
       groups.set(signature, {
         signature,
@@ -178,6 +196,9 @@ export function groupEntries(entries: ParsedLogEntry[]): Grouped[] {
         normalizedMsg,
         sampleStack: entry.stack,
         count: 1,
+        sampleMsg: entry.msg || '(メッセージなし)',
+        firstSeenMs: entry.time,
+        lastSeenMs: entry.time,
       });
     }
   }
@@ -197,12 +218,31 @@ async function fileGroupedConcerns(
     const label = levelLabel(g.level);
     const prefix = opts.projectLabel ? `(${opts.projectLabel}) ` : '';
     const title = `[ログ:${label}] ${prefix}${g.normalizedMsg.slice(0, 100)}`;
+    // The title carries the NORMALISED signature so occurrences group, which
+    // strips exactly the identifiers an investigator needs. Put the raw form
+    // back here — one real occurrence, how many, and over what window — or the
+    // task is unactionable and completes as 修正不要 (tasks 695/699/700/701).
+    const occurrence = [`発生回数: ${g.count} 回`];
+    if (g.firstSeenMs !== undefined && g.lastSeenMs !== undefined) {
+      const span =
+        g.firstSeenMs === g.lastSeenMs
+          ? new Date(g.firstSeenMs).toISOString()
+          : `${new Date(g.firstSeenMs).toISOString()} 〜 ${new Date(g.lastSeenMs).toISOString()}`;
+      occurrence.push(`発生時刻: ${span}`);
+    }
     const detailParts = [
       `ロガー: ${g.name}`,
       `レベル: ${label}`,
       opts.projectLabel ? `プロジェクト: ${opts.projectLabel}` : 'ソース: rapitas バックエンド',
+      ...occurrence,
       '',
       'ログから検出された warning/error です。頻発する場合は原因調査を推奨します。',
+      '',
+      '実際のログ行（正規化前。タイトルの `#` はグループ化のため数値を除いたもので、',
+      '調査にはこちらの値を使うこと）:',
+      '```text',
+      g.sampleMsg.slice(0, 600),
+      '```',
     ];
     if (g.sampleStack) detailParts.push('', '例:', g.sampleStack.slice(0, 800));
 
