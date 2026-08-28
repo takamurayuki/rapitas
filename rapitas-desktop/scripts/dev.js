@@ -2123,10 +2123,24 @@ async function hotRestartBackend() {
   isHotRestarting = true;
   try {
     console.log('\n🔥 Hot-restarting backend server...');
-    console.log('  Step 1/2: Stopping backend completely...');
+    console.log('  Step 1/3: Stopping backend completely...');
     await stopBackendCompletely();
 
-    console.log('  Step 2/2: Starting backend...');
+    // Cheap when healthy — the cache check returns after two console.logs — but
+    // it is the only thing that repairs a broken generated client. Without it a
+    // corrupted client survives every hot restart, and hot restart is the path
+    // the auto-update takes, so nothing ever regenerates: on 2026-08-28 a
+    // client carrying a `cpuTimeMs` column that no schema declares survived
+    // 13 hours and every restart, failing every agentExecution query.
+    console.log('  Step 2/3: Verifying the generated Prisma Client...');
+    try {
+      syncDatabaseAndGenerateClient();
+    } catch (err) {
+      console.error('❌ Prisma client check failed during hot restart:', err.message);
+      console.log('  Starting backend anyway — the previous client is still in place.');
+    }
+
+    console.log('  Step 3/3: Starting backend...');
     crashTimestamps = []; // ホットリスタート時はクラッシュカウンターをリセット
     startBackend();
     console.log('✅ Hot restart completed.');
