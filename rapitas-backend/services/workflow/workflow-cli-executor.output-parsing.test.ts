@@ -220,6 +220,23 @@ describe('executeCLIAgent — status advances FORWARD only', () => {
     expect(regressCall).toBeUndefined();
   });
 
+  test('conditionally flips task.status off todo when a phase advances workflowStatus (#706)', async () => {
+    // Reproduces task #666: the startup reaper can revert task.status to
+    // 'todo' mid-run while workflowStatus keeps advancing — the epilogue must
+    // correct status back to 'in-progress' whenever it advances workflowStatus.
+    wf.readWorkflowFileImpl = async () => '# Research\n...';
+    wf.taskWorkflowState = { ...wf.taskWorkflowState!, workflowStatus: 'draft' };
+
+    await run(researchTransition());
+
+    expect(spies.taskUpdateMany).toHaveBeenCalledTimes(1);
+    const [call] = spies.taskUpdateMany.mock.calls[0] as [
+      { where: { id: number; status: string }; data: { status: string } },
+    ];
+    expect(call.where).toEqual({ id: 1, status: 'todo' });
+    expect(call.data).toEqual({ status: 'in-progress' });
+  });
+
   test('auto-approves the plan and reports plan_approved when settings allow it', async () => {
     wf.readWorkflowFileImpl = async () => '# Plan\n...';
     wf.taskWorkflowState = { ...wf.taskWorkflowState!, workflowStatus: 'draft' };

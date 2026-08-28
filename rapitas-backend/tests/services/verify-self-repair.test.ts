@@ -152,6 +152,9 @@ describe('attemptVerifyRepair', () => {
     // 上限到達時は再実行を駆動しない（block するのみ）
     expect(enqueue).not.toHaveBeenCalled();
     expect(startProcessing).not.toHaveBeenCalled();
+    // task 705: budget-exhausted (not the non-convergence cutoff) must NOT set
+    // cutoffRecorded — caller still records its own verify_validation_failed.
+    expect(r.cutoffRecorded).toBeUndefined();
   });
 
   test('bounce 時に再キュー投入＋ランナー起動で自走させること（単発実行の詰まり対策）', async () => {
@@ -204,7 +207,7 @@ describe('attemptVerifyRepair', () => {
   });
 
   test('境界値: prior = max-1 は bounce する（attempt = max）こと', async () => {
-    // Default max is 2 (DEFAULT_MAX_VERIFY_REPAIRS); prior=1 is the last bounce-able attempt.
+    // Default max is 2 (DEFAULT_VERIFY_REPAIR_LIMIT, blocked-task-policy.ts); prior=1 is the last bounce-able attempt.
     mockPrisma.workflowTransition.count.mockResolvedValue(1);
     mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
     const r = await attemptVerifyRepair(1, 'in_progress', 'fail', 'v');
@@ -213,8 +216,9 @@ describe('attemptVerifyRepair', () => {
   });
 
   // NOTE: RAPITAS_MAX_VERIFY_REPAIRS is read into a MODULE-LEVEL constant
-  // (DEFAULT_MAX_VERIFY_REPAIRS) at import time, so setting the env var from a
-  // test cannot change it post-import. The runtime-configurable disable path is
+  // (DEFAULT_VERIFY_REPAIR_LIMIT, blocked-task-policy.ts) at import time, so
+  // setting the env var from a test cannot change it post-import. The
+  // runtime-configurable disable path is
   // UserSettings.verifyRepairLimit=0 (covered below), which resolveMaxRepairs()
   // reads dynamically on every call.
 
@@ -361,6 +365,9 @@ describe('attemptVerifyRepair', () => {
     expect(rt.metadata.criterionIndex).toBe(1);
     expect(rt.metadata.count).toBe(2);
     expect(rt.metadata.reason).toBe(R3);
+    // task 705: cutoffRecorded=true tells callers this call already recorded
+    // its own terminal transition — they must NOT record verify_validation_failed too.
+    expect(r.cutoffRecorded).toBe(true);
   });
 
   test('収束中: 毎回異なる指摘（A→B→C）は回数に関わらず bounce を継続すること（受入基準3）', async () => {

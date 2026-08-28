@@ -28,3 +28,4 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `AlarmClockPlus`          | 学習時間の記録（学習ロードマップの「学習を記録」ボタン・記録モーダル。注: `Timer`＝ポモドーロ/見積時間とは別概念） |
 | `AlarmClock`              | メモのリマインダー（quick-capture / /memos のリマインダー行アイコン・一覧のリマインダーバッジ。注: `AlarmClockPlus`＝学習時間の記録とは別概念） |
 | `ChartNoAxesCombined`     | 自己成長台帳ダッシュボード（nav: /agents/growth。ページ見出し・5指標カードの共通アイコン — 同一ページ内の同一概念として再利用） |
+| `ChartScatter`            | 効率フロンティア（ワークフロー実行パラメータの多目標パレート最適化ダッシュボード。nav: /agents/pareto、ページ見出し・空状態 — 同一概念の再利用。注: `ChartNoAxesCombined`＝成長台帳、`ChartSpline`＝単語帳の学習分析とは別概念） |

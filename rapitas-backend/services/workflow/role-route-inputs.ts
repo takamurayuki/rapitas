@@ -78,7 +78,8 @@ export async function routeModelForRole(opts: {
     const [
       { getStableSmartRoute },
       { resolveRoleProviderPreferences },
-      { computeMinTierWithReason, detectHighRisk },
+      { computeMinTierWithReason },
+      { detectHighRisk },
       { WorkflowQueueService },
       { recentThemeEscalation },
       { resolveProvenTier, resolvePremiumAdvantage },
@@ -86,6 +87,7 @@ export async function routeModelForRole(opts: {
       import('../ai/model-route-stability'),
       import('./role-provider-resolver'),
       import('./routing-policy'),
+      import('./risk-detection'),
       import('./workflow-queue'),
       import('./outcome-telemetry'),
       import('./role-evidence'),

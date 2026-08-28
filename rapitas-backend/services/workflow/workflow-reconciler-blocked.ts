@@ -9,7 +9,10 @@
  *      (workflow-reconciler-requeue, unchanged).
  *   3. escalateAbandonedBlocked  — one-shot escalation of what retry will NOT
  *      touch (awaiting_question / exhausted budget / retry cap / too old), so
- *      exclusion no longer means abandonment.
+ *      exclusion no longer means abandonment; when a task was ALREADY
+ *      escalated in a prior cycle, this same pass instead checks whether the
+ *      re-escalation interval has elapsed (task 703 — bounds how long a task
+ *      can sit silently blocked past its first notification).
  * Not responsible for scheduling — called only from workflow-reconciler.
  */
 import { prisma } from '../../config/database';
@@ -23,7 +26,7 @@ import {
   VERIFY_NON_CONVERGENCE_CAUSE,
 } from './blocked-task-policy';
 import { resolveBlockedTaskEvidence } from './blocked-task-evidence';
-import { escalateBlockedTask } from './blocked-task-escalation';
+import { escalateBlockedTask, reescalateIfOverdue } from './blocked-task-escalation';
 
 const log = createLogger('workflow-reconciler');
 
@@ -197,6 +200,13 @@ export async function escalateAbandonedBlocked(nowMs: number): Promise<number> {
       .count({ where: { taskId: t.id, cause: 'blocked_auto_retry' } })
       .catch(() => 0);
 
+    // Unwindowed, mirroring requeueBlockedTasks' totalPrNotCreated (task
+    // 713) — a full reset does not reset this count, so classification stays
+    // in sync with what retry actually stopped attempting.
+    const prNotCreatedCount = await prisma.workflowTransition
+      .count({ where: { taskId: t.id, cause: 'verify_pr_not_created' } })
+      .catch(() => 0);
+
     // Mirror requeueBlockedTasks' non-convergence skip (task 619, same window)
     // so the classifier sees exactly the signal retry acted on — a drift here
     // would double-handle or abandon the cutoff task.
@@ -217,6 +227,7 @@ export async function escalateAbandonedBlocked(nowMs: number): Promise<number> {
       verifyRepairLimit,
       attempts,
       nonConverged: nonConvergedCount > 0,
+      prNotCreatedCount,
     });
     if (classification === 'retryable') continue; // requeueBlockedTasks owns it
 
@@ -226,7 +237,20 @@ export async function escalateAbandonedBlocked(nowMs: number): Promise<number> {
       classification,
       nowMs,
     );
-    if (did) escalated++;
+    if (did) {
+      escalated++;
+      continue;
+    }
+
+    // Already escalated in a prior cycle — check whether it is overdue for a
+    // periodic re-notification instead (task 703).
+    const reescalated = await reescalateIfOverdue(
+      prisma,
+      { id: t.id, title: t.title, themeId: t.themeId },
+      classification,
+      nowMs,
+    );
+    if (reescalated) escalated++;
   }
   return escalated;
 }

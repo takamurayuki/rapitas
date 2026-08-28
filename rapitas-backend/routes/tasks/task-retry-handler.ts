@@ -69,6 +69,12 @@ export async function retryTask(id: number, setStatus: (code: number) => void): 
   // (isWithinRecoveryGrace, which only inspects the latest transition's cause)
   // blind to this reset, so the todo/workflowStatus mismatch gets flagged as
   // a fresh incident instead of being recognized as a known retry (task #602).
+  // Before task 709 this call only fired for the verify_done rollback case, so
+  // every other workflowStatus (research_done/plan_created/plan_approved/
+  // in_progress/draft/null) left `status='todo'` reset with no transition
+  // recorded, and the self-incident watcher's Pattern B fired on the shape
+  // immediately — it is now recorded unconditionally, whether or not
+  // rolledBackTo is set.
   //
   // NOTE (task #715): `status='todo'` while `workflowStatus` stays advanced is
   // NOT itself the defect — incident-signature-detectors.ts's own

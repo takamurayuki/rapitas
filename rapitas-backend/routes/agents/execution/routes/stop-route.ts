@@ -19,6 +19,7 @@ import {
 import { releaseTaskExecutionLock } from '../shared/execution-lock';
 import { removeWorktree } from '../../../../services/agents/orchestrator/git-operations/worktree/worktree-ops';
 import { resolveTaskWorkingDirectory } from '../../../../services/task/task-resolver';
+import { recordTransition } from '../../../../services/workflow/transition-recorder';
 
 const log = createLogger('routes:agent-execution:stop');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -130,8 +131,24 @@ export const stopRoute = new Elysia().post(
 
       // NOTE: Reset task status to 'todo' so it doesn't stay in a limbo state.
       try {
+        const current = await prisma.task
+          .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+          .catch(() => null);
+        const workflowStatus = current?.workflowStatus ?? null;
         await prisma.task.update({ where: { id: taskId }, data: { status: 'todo' } });
         log.info(`[stop-execution] Reset task ${taskId} status to 'todo'`);
+        // Record the revert so isWithinRecoveryGrace (incident-signature-detectors.ts)
+        // can grant this deliberate `status='todo'` × advanced `workflowStatus`
+        // shape its recovery grace period (task 709: previously unrecorded,
+        // causing an immediate Pattern B false positive — task #602).
+        await recordTransition({
+          taskId,
+          fromStatus: workflowStatus,
+          toStatus: workflowStatus ?? 'draft',
+          actor: 'user',
+          cause: 'manual_execution_stop_revert',
+          metadata: { reason: 'manual_stop_execution' },
+        }).catch(() => {});
       } catch (taskErr) {
         log.error({ err: taskErr }, `[stop-execution] Failed to reset task ${taskId} status`);
       }

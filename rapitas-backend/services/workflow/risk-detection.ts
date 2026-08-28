@@ -1,0 +1,281 @@
+/**
+ * risk-detection
+ *
+ * Detects whether task text and/or a plan touch a high-risk domain
+ * (auth / payment / schema-migration / security) via STRONG / DATA-layer /
+ * WEAK-signal regex groups, so a downstream tier decision can force a
+ * stronger model. Not responsible for turning that boolean into a model
+ * tier — see routing-policy, which consumes `detectHighRisk`'s output as
+ * `riskHigh`.
+ *
+ * Pure functions only — no I/O — so they are cheap and unit-testable.
+ */
+import { extractPlanDeclaredFiles } from './plan-declared-files';
+
+/**
+ * STRONG risk signals: authn-authz, money, and attack-class vocabulary that
+ * almost never appears in this app's benign domain text. Any hit forces
+ * premium immediately, with no context requirement — false negatives here are
+ * far more expensive than over-firing, so this list must never be relaxed.
+ * NOTE: 認証 stays strong on purpose — it is the core auth word; CLI-auth
+ * task over-firing is accepted as the safe side.
+ * NOTE: \btoken\b does NOT match LLM-usage vocabulary — `_` and a trailing
+ * `s` are word characters, so `MAX_TOKENS` / `tokens used` have no word
+ * boundary around "token" and never fire (asserted by the LLM-context tests).
+ */
+// NOTE: 決済 carries a lookaround because Japanese has no word boundaries —
+// 「解決済み」(already resolved) contains it verbatim and is everywhere in plans.
+// Task 660 was pinned to premium for all of its implement/verify phases by a
+// single 「別リクエストが既に解決済み」 in a decision table.
+const STRONG_RISK_RE =
+  /(\bauth\b|認証|ログイン|\blogin\b|password|パスワード|\btoken\b|secret|credential|(?<![解議判])決済(?!み)|課金|payment|billing|rbac|csrf|xss|sql\s*injection)/i;
+
+/**
+ * Data-layer signals: work that CHANGES the schema, not work that merely uses
+ * the ORM. Every signal is structural — a schema file, a migration directory,
+ * the Prisma DSL, or the command that applies a change.
+ *
+ * NOTE: this used to be `/(prisma|schema\.prisma|migration|migrate)/i`, which
+ * matched the bare word `prisma`. In this codebase almost every backend file
+ * imports the client, so any plan that quoted an import line was classified as
+ * high-risk and forced to a premium model. Measured 2026-08-24 over 114 plans:
+ * the old pattern fired on 62%, and of the plans it flagged on this signal
+ * alone only 5 of 34 actually touched the schema — an 85% false-positive rate.
+ * Task 627, a mechanical "split this file" refactor, ran its implementer on the
+ * top-tier model because its plan quoted
+ * `import { prisma } from '../../config';`.
+ *
+ * Natural-language phrasing was evaluated and deliberately rejected: plans
+ * discuss the schema mostly to say they are NOT touching it
+ * (「スキーマ変更なし」「スキーマ変更は不要」), so matching 「スキーマ変更」 fired on
+ * 54 plans and pointed the wrong way. The ban-sentence sanitizer below cannot
+ * catch every such phrasing, which is why the signal is structural instead.
+ *
+ * The same 114 plans under the current pattern: 32% fire, and every plan that
+ * genuinely edits a schema file or migration still does.
+ *
+ * NOTE: The ban-sentence sanitize step is the user-approved design (task 631
+ * Q1 answer: 「禁止文サニタイズを追加(解釈2・推奨)」) — only the data-layer
+ * signals are evaluated on sanitized text; every other signal group sees the
+ * full text unchanged.
+ */
+// PATH part (judged on the plan's DECLARED paths in declared-files mode, task
+// 661) and DSL part (always full text); the composite is the legacy form.
+const DATA_RISK_PLAN_PATH_RE = /(prisma[\/]schema|schema\.prisma|\.prisma\b|migrations?[\/])/i;
+const DATA_RISK_PLAN_DSL_RE =
+  /(prisma\s+(?:db\s+push|migrate\b)|@@(?:index|unique|map)\b|^\s*model\s+[A-Z]\w*\s*\{)/im;
+const DATA_RISK_PLAN_RE = new RegExp(
+  `${DATA_RISK_PLAN_PATH_RE.source}|${DATA_RISK_PLAN_DSL_RE.source}`,
+  'im',
+);
+
+/**
+ * Data-layer signals for TASK TEXT, which is prose describing intent rather
+ * than quoted code. 「migration を追加する」 is a real signal there, while the
+ * same words inside a plan are usually a file listing or a quoted import —
+ * hence the split.
+ *
+ * NOTE: this used to assume "task text carries no code". Measured false: of
+ * 134 recent tasks 10 were risk-flagged, and all 7 that fired on THIS regex
+ * were false positives — quoted `prisma.task.findUnique` mocks, a
+ * "prisma schema migration" search string used as example data, and
+ * boilerplate saying schema changes are 不要 / 必要な場合は. None of the 7
+ * touched a schema, yet each pinned all four roles to the premium floor.
+ * TEXT_NON_INTENT_RE strips those non-intent spans before matching.
+ */
+const DATA_RISK_TEXT_RE = /(prisma|schema\.prisma|migration|migrate|マイグレーション)/i;
+
+/**
+ * A sentence segment (bounded by 。 or a newline) that BANS schema changes,
+ * e.g. 「Prisma スキーマ変更禁止(再起動を要するため)」「スキーマ変更は不可」.
+ * The WHOLE segment is removed so a leading "Prisma" token is stripped too.
+ * The {0,10} gap keeps this narrow: a sentence that both touches and bans the
+ * schema in distant clauses is left intact (fires — the safe side).
+ */
+const SCHEMA_BAN_SENTENCE_RE =
+  /[^。\n]*(?:スキーマ|schema)[^。\n]{0,10}?(?:禁止|不可|できない|行わない|しないこと|不要|必要ない)[^。\n]*(?:。|(?=\n)|$)/gi;
+
+/**
+ * Spans of task text that QUOTE or NAME code rather than state intent, removed
+ * before the data-layer match: inline code spans, short double-quoted literals
+ * (example queries / error strings), Prisma CLIENT calls
+ * (`prisma.<model>.<method>` — reading rows is not a schema change) and mock
+ * mentions. Deliberately NOT applied to plan.md, where a backticked
+ * `prisma/schema/...` path IS the signal.
+ */
+/**
+ * Fenced code blocks in task text: pasted logs, traces and code. Same rule as
+ * the inline spans below — quoted output is evidence, not intent. Task 661
+ * (a task ABOUT the risk detector) pasted a routing trace whose own
+ * adoptedReason string names スキーマ/認証/決済/セキュリティ, and that quote alone
+ * pinned its researcher to premium.
+ */
+const FENCED_BLOCK_RE = new RegExp('```[\\s\\S]*?```', 'g');
+
+const TEXT_NON_INTENT_RE =
+  /`[^`]*`|"[^"\n]{0,80}"|prisma\s*\.\s*\w+\s*\.\s*\w+|prisma\s*(?:モック|mock)/gi;
+
+/**
+ * A sentence making schema work HYPOTHETICAL rather than planned, e.g.
+ * 「Prisma スキーマ変更が必要な場合は plan.md に明記して承認を待つ」. This is
+ * standing boilerplate in many task descriptions — it says what to do IF the
+ * need arises, so it must not by itself buy a premium floor.
+ */
+const SCHEMA_HYPOTHETICAL_SENTENCE_RE =
+  /[^。\n]*(?:スキーマ|schema)[^。\n]{0,20}?(?:必要な場合|必要であれば|必要なら)[^。\n]*(?:。|(?=\n)|$)/gi;
+
+/**
+ * A line where a risk word is EXPLICITLY ruled out rather than planned.
+ * Plans state their non-goals as often as their goals — 「『バグ』でも『セキュリティ』
+ * でもなく」「Prisma スキーマ変更は不要」「非対象(やらないこと): Prisma スキーマ変更」
+ * — and a decision NOT to touch something must not buy a premium model.
+ *
+ * Line-bounded on purpose: plans express these as markdown table rows and
+ * bullets, where the row is the unit of decision. The {0,60} gap keeps it
+ * narrow — a risk word and a distant unrelated negation stay intact (fires,
+ * the safe side). Generalises SCHEMA_BAN_SENTENCE_RE from schema to the whole
+ * risk vocabulary.
+ */
+const RISK_NEGATION_LINE_RE = new RegExp(
+  '^[^\\n]*?(?:スキーマ|schema|セキュリティ|security|認証|auth|暗号|権限|決済|payment|課金|billing|prisma)' +
+    '[^\\n]{0,60}?(?:でもなく|ではなく|ではない|ではありません|該当しない|対象外|非対象|やらないこと|不要|必要ない|触らない|変更しない|足さない|行わない|しないこと|禁止|不可)' +
+    '[^\\n]*$',
+  'gim',
+);
+
+/**
+ * Prisma CLIENT calls (`prisma.<model>.<method>`) named in a plan. Reading or
+ * writing rows is not a schema change, so unlike a `prisma/schema/...` path
+ * this is never the data-layer signal — plans cite it constantly when
+ * describing existing query sites.
+ */
+const PRISMA_CLIENT_CALL_RE = new RegExp('prisma\\s*\\.\\s*\\w+\\s*\\.\\s*\\w+', 'gi');
+
+/**
+ * WEAK signals: words this app's own domain vocabulary collides with (study
+ * tasks say 暗号, UI copy says 権限, reviews mention セキュリティ). Measured
+ * 38% of tasks premium-forced by contextless matching. Each weak word only
+ * fires when its positive-context regex ALSO matches somewhere in the same
+ * text (proximity not required — over-firing is the safe side).
+ */
+const WEAK_SIGNAL_GATES: ReadonlyArray<{ word: RegExp; context: RegExp }> = [
+  {
+    word: /(暗号|encryption|encrypt|decrypt)/i,
+    context: /(鍵|key|復号|ハッシュ|hash|署名|sign|TLS|SSL|証明書|cert|crypto|AES|RSA|実装|修正)/i,
+  },
+  {
+    word: /(権限|permission)/i,
+    context: /(auth|rbac|アクセス制御|access\s*control|認可|scope|role|ロール|token)/i,
+  },
+  {
+    word: /(セキュリティ|security)/i,
+    context: /(脆弱性|vuln|修正|対策|inject|xss|csrf|サニタイ|escape|patch|漏洩|攻撃|エスケープ)/i,
+  },
+];
+
+/**
+ * Risky file-path markers, judged against the paths a plan DECLARES it will
+ * change (plan-declared-files.ts); only a plan declaring no path falls back to
+ * the scrubbed full text. `\.prisma\b` lets a declared `core.prisma` fire alone
+ * (in the fallback it merely duplicates DATA_RISK_PLAN_RE — no change there).
+ */
+const HIGH_RISK_PATH_RE =
+  /(prisma[\\/]schema|migrations?[\\/]|[\\/]auth|payment|billing|security|\.prisma\b)/i;
+
+/**
+ * Whether one body of text signals high-risk work: strong signals fire alone,
+ * data-layer signals fire after ban-sentence stripping, weak signals need
+ * their context gate. Extracted so task text and plan get identical rules.
+ * `planDataRe` narrows the plan's data-layer signal (declared mode: DSL only).
+ */
+/**
+ * Remove the lines where a risk word is explicitly ruled out — 「足さない」
+ * 「スキーマ変更は不要」「非対象(やらないこと)」. Exported so the evidence layer can
+ * apply it BEFORE extracting a plan's declared change targets: parsePlanFiles
+ * captures every backticked path, including the one in a row whose answer was
+ * "do not touch it" (task 658).
+ *
+ * @param text - plan.md or task text. / plan.md またはタスク本文
+ * @returns The text with ruled-out lines blanked. / 除外行を空白化した本文
+ */
+export function stripRuledOutLines(text: string): string {
+  return text.replace(SCHEMA_BAN_SENTENCE_RE, ' ').replace(RISK_NEGATION_LINE_RE, ' ');
+}
+
+function scrubForRisk(text: string, kind: 'text' | 'plan'): string {
+  const base = text
+    .replace(SCHEMA_BAN_SENTENCE_RE, ' ')
+    .replace(RISK_NEGATION_LINE_RE, ' ')
+    .replace(PRISMA_CLIENT_CALL_RE, ' ');
+  if (kind === 'plan') return base;
+  return base
+    .replace(FENCED_BLOCK_RE, ' ')
+    .replace(SCHEMA_HYPOTHETICAL_SENTENCE_RE, ' ')
+    .replace(TEXT_NON_INTENT_RE, ' ');
+}
+
+function matchesHighRisk(
+  text: string,
+  kind: 'text' | 'plan',
+  planDataRe: RegExp = DATA_RISK_PLAN_RE,
+): boolean {
+  // Every signal reads the SCRUBBED text. The strong list and the weak gates
+  // used to read the raw input while only the data-layer regex saw the scrub,
+  // so a negated risk word still fired: task 659's plan named セキュリティ once,
+  // inside 「『バグ』でも『セキュリティ』でもなく」, and that bought a premium
+  // implementer. A scrub only some signals honour is not a scrub.
+  const scrubbed = scrubForRisk(text, kind);
+  if (STRONG_RISK_RE.test(scrubbed)) return true;
+  const dataRe = kind === 'plan' ? planDataRe : DATA_RISK_TEXT_RE;
+  if (dataRe.test(scrubbed)) return true;
+  return WEAK_SIGNAL_GATES.some((g) => g.word.test(scrubbed) && g.context.test(scrubbed));
+}
+
+/**
+ * Detect high-risk work from task text and (optionally) the plan.
+ *
+ * Path-shaped signals are judged against the files the plan DECLARES it will
+ * change, not every path it mentions (task 661): a dependency table or non-goal
+ * row naming `prisma/schema/...` is not a schema change, while a declared
+ * `prisma/schema/core.prisma` row IS one even when it says マイグレーションは不要
+ * (the line scrub used to erase such a row — a false negative). Intent signals
+ * (STRONG / DSL / WEAK) still read the whole scrubbed plan; a plan declaring no
+ * path falls back to the legacy full-text probe — the safe side.
+ *
+ * @param opts.text - Task title + description + labels. / タスク本文
+ * @param opts.planContent - plan.md content, when available. / 計画書の内容
+ * @param opts.planScope - 'declared' (default) or 'full' = legacy full-text
+ *   probe, for measurement and regression pinning only. / パス判定の対象範囲
+ * @returns Whether the work is high-risk and why. / 高リスク判定と理由
+ */
+export function detectHighRisk(opts: {
+  text?: string | null;
+  planContent?: string | null;
+  planScope?: 'declared' | 'full';
+}): { high: boolean; reason?: string } {
+  const text = (opts.text ?? '').toString();
+  if (matchesHighRisk(text, 'text')) {
+    return {
+      high: true,
+      reason: 'task text matches a high-risk domain (data/auth/payment/security)',
+    };
+  }
+  const plan = opts.planContent ?? '';
+  if (!plan) return { high: false };
+  const declared = opts.planScope === 'full' ? [] : extractPlanDeclaredFiles(plan);
+  // Fallback (no declared path) uses the scrubbed probe — it used to test the
+  // RAW plan, so a row that ruled a file OUT still counted as touching it.
+  const high =
+    declared.length > 0
+      ? matchesHighRisk(plan, 'plan', DATA_RISK_PLAN_DSL_RE) ||
+        declared.some((p) => HIGH_RISK_PATH_RE.test(p) || DATA_RISK_PLAN_PATH_RE.test(p))
+      : matchesHighRisk(plan, 'plan') || HIGH_RISK_PATH_RE.test(scrubForRisk(plan, 'plan'));
+  if (!high) return { high: false };
+  return {
+    high: true,
+    reason:
+      declared.length > 0
+        ? 'plan declares changes to high-risk files (schema/migration/auth/payment/security)'
+        : 'plan touches high-risk files (schema/migration/auth/payment/security)',
+  };
+}
