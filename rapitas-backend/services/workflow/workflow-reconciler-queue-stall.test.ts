@@ -34,6 +34,8 @@ const resolveTaskWorkflowStateMock = mock(() =>
 );
 const hasLiveExecutionMock = mock(() => Promise.resolve(false));
 const startProcessingMock = mock(() => {});
+// 既定は「ランナー停止中」= kick が有効な状況。稼働中の分岐は個別テストで切り替える。
+const isProcessingMock = mock(() => false);
 const notifyStallReleasedMock = mock(() => Promise.resolve());
 const notifyQueueStarvationMock = mock(() => Promise.resolve());
 const logCycleEventMock = mock(() => {});
@@ -60,7 +62,10 @@ mock.module('./workflow-queue', () => ({
 }));
 mock.module('./workflow-runner', () => ({
   WorkflowRunner: {
-    getInstance: () => ({ startProcessing: startProcessingMock }),
+    getInstance: () => ({
+      startProcessing: startProcessingMock,
+      isProcessing: isProcessingMock,
+    }),
   },
 }));
 mock.module('./auto-run/auto-run-selection', () => ({
@@ -263,5 +268,47 @@ describe('detectQueueStarvation', () => {
     primeStarvedCounts();
     expect(await detectQueueStarvation(NOW + QUEUE_STARVATION_THRESHOLD_MS * 2)).toBe(0);
     expect(startProcessingMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('detectQueueStarvation — ランナー稼働中は「再起動した」と報告しない', () => {
+  // 実測 2026-08-28: [reconciler] Queue starvation detected 78件 と
+  // [WorkflowRunner] Already running 78件 が完全に一致していた。ランナーは
+  // 動いており kick は毎回 no-op なのに、episode が解除されないため毎サイクル
+  // 「再起動した」と報告し続けていた。
+  function primeStarvedCounts(queued = 1): void {
+    countMock.mockImplementation(((args: { where: { status: string } }) =>
+      Promise.resolve(args.where.status === 'running' ? 0 : queued)) as never);
+  }
+
+  test('稼働中なら発火数0を返し、通知もしない', async () => {
+    isProcessingMock.mockReturnValue(true);
+    primeStarvedCounts();
+    await detectQueueStarvation(NOW); // 初回観測でトラッカーを起動
+    const fired = await detectQueueStarvation(NOW + QUEUE_STARVATION_THRESHOLD_MS * 2);
+
+    expect(fired).toBe(0);
+    expect(notifyQueueStarvationMock).not.toHaveBeenCalled();
+  });
+
+  test('同一エピソード中に何度呼ばれても報告は1回だけ', async () => {
+    isProcessingMock.mockReturnValue(true);
+    primeStarvedCounts();
+    await detectQueueStarvation(NOW);
+    for (let i = 0; i < 5; i++) {
+      await detectQueueStarvation(NOW + QUEUE_STARVATION_THRESHOLD_MS * (2 + i));
+    }
+    expect(notifyQueueStarvationMock).not.toHaveBeenCalled();
+  });
+
+  test('停止中なら従来どおり kick して通知する', async () => {
+    isProcessingMock.mockReturnValue(false);
+    primeStarvedCounts();
+    await detectQueueStarvation(NOW);
+    const fired = await detectQueueStarvation(NOW + QUEUE_STARVATION_THRESHOLD_MS * 2);
+
+    expect(fired).toBe(1);
+    expect(startProcessingMock).toHaveBeenCalled();
+    expect(notifyQueueStarvationMock).toHaveBeenCalled();
   });
 });
