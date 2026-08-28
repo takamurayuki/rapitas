@@ -45,6 +45,7 @@ const mockPrisma = {
   },
   workflowTransition: {
     findMany: mock(() => Promise.resolve([])),
+    create: mock(() => Promise.resolve({ id: 1 })),
   },
   agentExecution: {
     findMany: mock(() => Promise.resolve([])),
@@ -127,6 +128,8 @@ mock.module('../../../config/logger', () => ({
 const { tasksRoutes } = await import('../../../routes/tasks/tasks');
 const { taskSuggestionRoutes } = await import('../../../routes/tasks/task-suggestions');
 const { AppError } = await import('../../../middleware/error-handler');
+const { detectTriStateDesync } =
+  await import('../../../services/workflow/incident-signature-detectors');
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {
@@ -685,5 +688,120 @@ describe('POST /tasks/:id/retry', () => {
     );
 
     expect(res.status).toBe(404);
+  });
+
+  test('verify_done 以外の workflowStatus でも task_retried 遷移を記録すること (task #602 の再発防止)', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({
+      status: 'blocked',
+      workflowStatus: 'in_progress',
+    });
+    mockPrisma.task.update.mockResolvedValue({
+      id: 5,
+      status: 'todo',
+      workflowStatus: 'in_progress',
+    });
+
+    await app.handle(new Request('http://localhost/tasks/5/retry', { method: 'POST' }));
+
+    expect(mockPrisma.workflowTransition.create).toHaveBeenCalledTimes(1);
+    const call = mockPrisma.workflowTransition.create.mock.calls[0]![0] as {
+      data: { taskId: number; fromStatus: string | null; toStatus: string; cause: string };
+    };
+    expect(call.data.taskId).toBe(5);
+    expect(call.data.cause).toBe('task_retried');
+    expect(call.data.fromStatus).toBe('in_progress');
+    expect(call.data.toStatus).toBe('in_progress');
+    // workflowStatus itself must stay untouched — only status resets to todo.
+    const updateArg = mockPrisma.task.update.mock.calls[0]![0] as {
+      data: { status: string; workflowStatus?: string };
+    };
+    expect(updateArg.data.workflowStatus).toBeUndefined();
+  });
+
+  test('workflowStatus が null でも例外にならず draft へフォールバック記録すること', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({ status: 'failed', workflowStatus: null });
+    mockPrisma.task.update.mockResolvedValue({ id: 5, status: 'todo', workflowStatus: null });
+
+    const res = await app.handle(new Request('http://localhost/tasks/5/retry', { method: 'POST' }));
+
+    expect(res.status).toBe(200);
+    const call = mockPrisma.workflowTransition.create.mock.calls[0]![0] as {
+      data: { fromStatus: string | null; toStatus: string };
+    };
+    expect(call.data.fromStatus).toBe('draft');
+    expect(call.data.toStatus).toBe('draft');
+  });
+
+  test('retry が書き込む task_retried 遷移により、直後の detectTriStateDesync が矛盾なしと判定すること (受入基準1の実証)', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({
+      status: 'blocked',
+      workflowStatus: 'in_progress',
+    });
+    mockPrisma.task.update.mockResolvedValue({
+      id: 5,
+      status: 'todo',
+      workflowStatus: 'in_progress',
+    });
+
+    await app.handle(new Request('http://localhost/tasks/5/retry', { method: 'POST' }));
+
+    const call = mockPrisma.workflowTransition.create.mock.calls[0]![0] as {
+      data: { fromStatus: string | null; toStatus: string; cause: string };
+    };
+    const nowMs = 1_000_000;
+    // 検出器の観点では、task_retried遷移が記録され猶予窓内であれば
+    // status=todo と workflowStatus=in_progress の組み合わせは矛盾ではなく
+    // 意図された再開待ち状態として扱われる。これが本システムにおける
+    // 「整合性を持つ単一の状態」の定義そのもの（RECOVERY_REQUEUE_CAUSES参照）。
+    const desyncAfterFix = detectTriStateDesync({
+      taskStatus: 'todo',
+      workflowStatus: 'in_progress',
+      latestSessionStatus: null,
+      latestExecutionStatus: null,
+      latestTransitionCause: call.data.cause,
+      latestTransitionAtMs: nowMs,
+      nowMs,
+    });
+    expect(desyncAfterFix).toBeNull();
+
+    // 対照実験: 修正前の挙動（遷移が一切記録されない = latestTransitionCause が
+    // 古い無関係な値のまま）を再現すると、同じ todo/in_progress の組み合わせは
+    // 依然として不整合と判定される。task #602 はまさにこの経路で誤検出された。
+    const desyncBeforeFix = detectTriStateDesync({
+      taskStatus: 'todo',
+      workflowStatus: 'in_progress',
+      latestSessionStatus: null,
+      latestExecutionStatus: null,
+      latestTransitionCause: 'verify_validation_failed',
+      latestTransitionAtMs: nowMs - 60_000,
+      nowMs,
+    });
+    expect(desyncBeforeFix).not.toBeNull();
+    expect(desyncBeforeFix?.kind).toBe('todo_status_workflow_advanced');
+  });
+
+  test('task_retried の WorkflowTransition 追記は自己修復予算(ActivityLog起点)に影響しないこと', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({
+      status: 'blocked',
+      workflowStatus: 'in_progress',
+    });
+    mockPrisma.task.update.mockResolvedValue({
+      id: 5,
+      status: 'todo',
+      workflowStatus: 'in_progress',
+    });
+
+    await app.handle(new Request('http://localhost/tasks/5/retry', { method: 'POST' }));
+
+    // countPriorRepairs系(verify-self-repair.ts / ci-self-repair.ts)と
+    // reconcilerの再試行済みガードは ActivityLog.action==='task_retried' を
+    // 参照する。この呼び出しは本修正の有無に関わらず1回のみ発生する
+    // (無条件呼び出しは既存実装のまま、今回のWorkflowTransition追記とは独立)。
+    expect(mockPrisma.activityLog.create).toHaveBeenCalledTimes(1);
+    const activityCall = mockPrisma.activityLog.create.mock.calls[0]![0] as {
+      data: { taskId: number; action: string };
+    };
+    expect(activityCall.data.taskId).toBe(5);
+    expect(activityCall.data.action).toBe('task_retried');
   });
 });

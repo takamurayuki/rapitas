@@ -64,19 +64,43 @@ export async function retryTask(id: number, setStatus: (code: number) => void): 
     data: { status: 'todo', ...(rolledBackTo ? { workflowStatus: rolledBackTo } : {}) },
   });
 
-  if (rolledBackTo) {
-    await recordTransition({
-      taskId: id,
-      fromStatus: 'verify_done',
-      toStatus: rolledBackTo,
-      actor: 'user',
-      cause: 'task_retried',
-      metadata: { from: task.status },
-    }).catch(() => {});
-  }
+  // Always record the retry transition — a status revert with no matching
+  // WorkflowTransition row leaves detectTriStateDesync's recovery-grace check
+  // (isWithinRecoveryGrace, which only inspects the latest transition's cause)
+  // blind to this reset, so the todo/workflowStatus mismatch gets flagged as
+  // a fresh incident instead of being recognized as a known retry (task #602).
+  //
+  // NOTE (task #715): `status='todo'` while `workflowStatus` stays advanced is
+  // NOT itself the defect — incident-signature-detectors.ts's own
+  // RECOVERY_REQUEUE_CAUSES doc block establishes this as the intentional
+  // resume shape shared with reconciler_requeue/artifact_reuse_fastforward
+  // (task #672 self-healed to status=done/workflowStatus=completed via normal
+  // dispatch with zero data repair — proof the shape converges on its own).
+  // The defect this diff fixes is that the shape's causing transition was
+  // never written, so `isWithinRecoveryGrace` had nothing to recognize and
+  // treated a stale unrelated transition as "latest" forever. Writing this row
+  // is what lets `detectTriStateDesync` correctly judge the state as
+  // consistent-in-flight instead of contradictory — see the assertion against
+  // `detectTriStateDesync` directly in task-routes.test.ts for the proof.
+  //
+  // This write does NOT touch the self-repair budget: countPriorRepairs
+  // (verify-self-repair.ts / ci-self-repair.ts) and the reconciler's
+  // "already retried" guards (workflow-reconciler-requeue.ts:164,
+  // workflow-reconciler-blocked.ts:182) all key off `ActivityLog.action ===
+  // 'task_retried'`, not `WorkflowTransition.cause` — that ActivityLog row
+  // below is written unconditionally regardless of this change.
+  await recordTransition({
+    taskId: id,
+    fromStatus: task.workflowStatus ?? 'draft',
+    toStatus: rolledBackTo ?? task.workflowStatus ?? 'draft',
+    actor: 'user',
+    cause: 'task_retried',
+    metadata: { from: task.status },
+  }).catch(() => {});
 
   // countPriorRepairs resets the self-repair budget at the most recent
   // `task_retried` entry, so this row is what grants the retry a fresh slate.
+  // Unconditional and unrelated to the WorkflowTransition write above (see NOTE).
   await prisma.activityLog
     .create({
       data: {
