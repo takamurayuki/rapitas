@@ -134,6 +134,10 @@ export async function saveExecutionResult(
     modelName?: string;
     /** LLM API call count for this execution (CLI: num_turns; API: apiCalls). */
     llmCallCount?: number;
+    /** Measured child-process CPU time in ms, from process-resource-sampler. */
+    cpuTimeMs?: number | null;
+    /** Measured child-process peak RSS in KB, from process-resource-sampler. */
+    peakRssKb?: number | null;
   },
   fileLogger: ExecutionFileLogger,
   existingData?: {
@@ -141,6 +145,8 @@ export async function saveExecutionResult(
     tokensUsed?: number | null;
     executionTimeMs?: number | null;
     claudeSessionId?: string | null;
+    cpuTimeMs?: number | null;
+    peakRssKb?: number | null;
   },
   opts?: { investigationMode?: boolean },
 ): Promise<void> {
@@ -154,6 +160,21 @@ export async function saveExecutionResult(
   // Prior IPC bugs let stringified values through and corrupted ~1k rows.
   const safeCostUsd = toFiniteNumber(result.costUsd);
   const safeLlmCallCount = toFiniteNumber(result.llmCallCount);
+  // Resource telemetry (task #714): CPU time accumulates across resumes/continuations,
+  // peak RSS tracks the worst-case value seen across the whole execution's lifetime.
+  // A resourceUpdate key is only ever included when a real (non-null) value exists —
+  // omitting the key (rather than writing null) preserves whatever the column already
+  // holds instead of clobbering it.
+  const safeCpuTimeMs = toFiniteNumber(result.cpuTimeMs);
+  const safePeakRssKb = toFiniteNumber(result.peakRssKb);
+  const resourceUpdate = {
+    ...(safeCpuTimeMs !== null && {
+      cpuTimeMs: (existingData?.cpuTimeMs ?? 0) + safeCpuTimeMs,
+    }),
+    ...(safePeakRssKb !== null && {
+      peakRssKb: Math.max(existingData?.peakRssKb ?? 0, safePeakRssKb),
+    }),
+  };
   const usageUpdate =
     !result.waitingForInput &&
     (safeCostUsd !== null || result.modelName || safeLlmCallCount !== null)
@@ -187,6 +208,7 @@ export async function saveExecutionResult(
       questionDetails: toJsonString(result.questionDetails),
       claudeSessionId: result.claudeSessionId || existingData?.claudeSessionId || null,
       ...usageUpdate,
+      ...resourceUpdate,
     },
   });
 

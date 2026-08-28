@@ -327,6 +327,8 @@ export async function executeContinuationInternal(
         tokensUsed: execution.tokensUsed,
         executionTimeMs: execution.executionTimeMs,
         claudeSessionId: execution.claudeSessionId,
+        cpuTimeMs: execution.cpuTimeMs,
+        peakRssKb: execution.peakRssKb,
       },
     );
     emitResultEvent(result, execution.id, execution.sessionId, taskId, (event) =>

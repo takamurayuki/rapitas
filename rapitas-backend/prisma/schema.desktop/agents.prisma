@@ -129,6 +129,8 @@ model AgentExecution {
   questionDetails   String?   // JSON stored as string
   claudeSessionId   String?   // Claude Code CLI session ID for --resume
   llmCallCount      Int       @default(0)
+  cpuTimeMs         Int?      // Measured child-process CPU time in ms (accumulated across resumes)
+  peakRssKb         Int?      // Measured child-process peak RSS in KB (max across resumes)
   // Execution lease: which process instance owns this run, and when it last
   // proved it is alive. Replaces timestamp-origin comparisons (createdAt vs
   // serverStartedAt) for dead-run detection — origin comparisons leak whenever

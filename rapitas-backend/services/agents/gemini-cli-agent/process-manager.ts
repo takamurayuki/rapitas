@@ -11,6 +11,7 @@ import type { GeminiCliAgentConfig } from './types';
 import { createLogger } from '../../../config/logger';
 import { buildSanitizedSpawnEnv } from '../../../utils/agent';
 import { registerProcess } from '../agent-process-tracker';
+import { startResourceSampling } from '../process-resource-sampler';
 
 const logger = createLogger('gemini-cli-agent:process-manager');
 
@@ -246,6 +247,7 @@ export function spawnGeminiProcess(
       startedAt: new Date().toISOString(),
       parentPid: process.pid,
     });
+    startResourceSampling(proc.pid);
   }
 
   // Feed the prompt via stdin then close it so Gemini knows the prompt
