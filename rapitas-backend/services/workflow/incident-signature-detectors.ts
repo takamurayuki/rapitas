@@ -190,6 +190,18 @@ export interface TriStateDesyncInput {
   latestTransitionAtMs?: number | null;
   /** updatedAt of that AgentSession, epoch ms — feeds only the Pattern A settle-window guard. */
   latestSessionUpdatedAtMs?: number | null;
+  /**
+   * Whether the task's theme has auto-run enabled (`ThemeAutoRun.enabled`).
+   * `false` makes Pattern B's `todo` × advanced-`workflowStatus` shape a
+   * legitimate indefinite wait rather than an anomaly: a retry against a
+   * paused theme resets `status` to 'todo' to resume once dispatched, but a
+   * paused theme never dispatches, so the shape outlives
+   * DESYNC_RECOVERY_SETTLE_MS and Pattern B fired forever (task #715, e.g.
+   * tasks #602/#646/#647, themeId=25). `null`/`undefined` (unresolved) is
+   * treated as enabled — mirrors isWithinRecoveryGrace: incomplete input must
+   * never silently widen suppression.
+   */
+  themeAutoRunEnabled?: boolean | null;
   /** Current time (ms) — the recovery grace guard needs it to age the transition. */
   nowMs?: number;
   /** Pattern B recovery grace override (default DESYNC_RECOVERY_SETTLE_MS). */
@@ -240,7 +252,11 @@ function isWithinPatternASettle(input: TriStateDesyncInput): boolean {
  * RECOVERY_REQUEUE_CAUSES (reconciler_requeue / artifact_reuse_fastforward /
  * task_retried), which produces exactly that shape by design (see
  * isWithinRecoveryGrace; past the window detectStagnation covers a
- * still-undispatched task, so the detection net keeps a backstop).
+ * still-undispatched task, so the detection net keeps a backstop) —
+ * EXCEPT ALSO when the task's theme has auto-run disabled
+ * (`themeAutoRunEnabled === false`), where the shape is an indefinite,
+ * legitimate wait rather than a transient one (task #715, see
+ * TriStateDesyncInput.themeAutoRunEnabled).
  *
  * @param input - Cross-entity state snapshot. / 三面の状態スナップショット
  * @returns Detected pattern + human-readable summary, or null. / 検出結果またはnull
@@ -268,6 +284,9 @@ export function detectTriStateDesync(
     ADVANCED_WORKFLOW_STATUSES.has(input.workflowStatus)
   ) {
     if (isWithinRecoveryGrace(input)) return null;
+    // Theme auto-run disabled → nothing will ever dispatch this task, so the
+    // wait is legitimate and indefinite, not a stuck/corrupted state (#715).
+    if (input.themeAutoRunEnabled === false) return null;
     return {
       kind: 'todo_status_workflow_advanced',
       detail: `task.status=todo のまま workflowStatus が前進済み(${input.workflowStatus})`,

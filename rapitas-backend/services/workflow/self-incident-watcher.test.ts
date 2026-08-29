@@ -24,6 +24,7 @@ const notificationFindFirstMock = mock((_args: unknown) => Promise.resolve<unkno
 const prFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
 const activityLogFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
 const workflowFileFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
+const themeAutoRunFindManyMock = mock((_args: unknown) => Promise.resolve([] as unknown[]));
 const submitConcernMock = mock((_input: unknown) => Promise.resolve(1));
 const notifyIntakeQuestionPendingMock = mock((_input: unknown) =>
   Promise.resolve<unknown>({ id: 1 }),
@@ -47,6 +48,7 @@ mock.module('../../config/database', () => ({
     gitHubPullRequest: { findFirst: prFindFirstMock },
     activityLog: { findFirst: activityLogFindFirstMock },
     workflowFile: { findFirst: workflowFileFindFirstMock },
+    themeAutoRun: { findMany: themeAutoRunFindManyMock },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
@@ -105,6 +107,7 @@ describe('runSelfIncidentWatch', () => {
     prFindFirstMock.mockReset().mockResolvedValue(null);
     activityLogFindFirstMock.mockReset().mockResolvedValue(null);
     workflowFileFindFirstMock.mockReset().mockResolvedValue(null);
+    themeAutoRunFindManyMock.mockReset().mockResolvedValue([]);
     submitConcernMock.mockReset().mockResolvedValue(1);
     notifyIntakeQuestionPendingMock.mockReset().mockResolvedValue({ id: 1 });
   });
@@ -590,6 +593,7 @@ describe('runSelfIncidentWatch — awaiting_question re-notification', () => {
     sessionFindFirstMock.mockReset().mockResolvedValue(null);
     executionFindFirstMock.mockReset().mockResolvedValue(null);
     queueItemFindFirstMock.mockReset().mockResolvedValue(null);
+    themeAutoRunFindManyMock.mockReset().mockResolvedValue([]);
     submitConcernMock.mockReset().mockResolvedValue(1);
     notifyIntakeQuestionPendingMock.mockReset().mockResolvedValue({ id: 1 });
   });
