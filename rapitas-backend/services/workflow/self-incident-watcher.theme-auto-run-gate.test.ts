@@ -1,12 +1,12 @@
 /**
- * self-incident-watcher.pattern-a-grace.test
+ * self-incident-watcher.theme-auto-run-gate.test
  *
- * Watcher-level integration coverage for the Pattern A
- * (`session_failed_execution_active`) settle window (task 718), added as a
- * new file rather than growing self-incident-watcher.test.ts past the
- * component size limit. Verifies the concern is suppressed within the grace
- * window and filed once it settles, using the same mocked-prisma harness as
- * self-incident-watcher.test.ts.
+ * Watcher-level integration coverage for the Pattern B theme-auto-run gate
+ * (task #715), added as a new file rather than growing
+ * self-incident-watcher.test.ts past the component size limit. Verifies the
+ * watcher resolves each candidate's theme via `ThemeAutoRun.enabled` and
+ * passes it through to detectTriStateDesync, using the same mocked-prisma
+ * harness as self-incident-watcher.test.ts.
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
@@ -57,26 +57,30 @@ mock.module('../communication/notification-service', () => ({
 }));
 
 const { runSelfIncidentWatch, WATCH_INTERVAL_MS } = await import('./self-incident-watcher');
-const { PATTERN_A_SETTLE_MS } = await import('./incident-signature-detectors');
 
-let clockMs = Date.parse('2026-08-28T00:00:00.000Z');
+let clockMs = Date.parse('2026-08-30T00:00:00.000Z');
 function nextPassTime(): number {
   clockMs += WATCH_INTERVAL_MS * 2;
   return clockMs;
 }
 
-function failedSessionActiveExecTask(now: number, over: Record<string, unknown> = {}) {
+// Mirrors task #602/#646/#647: retried against a paused theme (themeId=25),
+// status reset to 'todo' while workflowStatus stayed mid-phase. updatedAt is
+// kept fresh so detectStagnation never fires here — these tests isolate
+// Pattern B (todo × advanced workflowStatus) in the watcher's own findings.
+function pausedThemeTask(now: number, over: Record<string, unknown> = {}) {
   return {
-    id: 715,
+    id: 602,
     title: '状態不整合タスク',
-    status: 'in-progress',
-    workflowStatus: 'research_done',
-    updatedAt: new Date(now - 60_000), // fresh → stagnation must NOT fire
+    status: 'todo',
+    workflowStatus: 'in_progress',
+    updatedAt: new Date(now - 60_000),
+    themeId: 25,
     ...over,
   };
 }
 
-describe('pattern A settle window at the watcher level (#718)', () => {
+describe('theme auto-run gate for pattern B (#715)', () => {
   beforeEach(() => {
     taskFindManyMock.mockReset().mockResolvedValue([]);
     taskFindUniqueMock.mockReset().mockResolvedValue(null);
@@ -94,15 +98,10 @@ describe('pattern A settle window at the watcher level (#718)', () => {
     notifyIntakeQuestionPendingMock.mockReset().mockResolvedValue({ id: 1 });
   });
 
-  test('does NOT file a desync concern 60s after the session failed (within grace)', async () => {
+  test('does NOT file a desync concern for a task whose theme has auto-run disabled', async () => {
     const now = nextPassTime();
-    taskFindManyMock.mockResolvedValue([failedSessionActiveExecTask(now)]);
-    sessionFindFirstMock.mockResolvedValue({
-      id: 3156,
-      status: 'failed',
-      updatedAt: new Date(now - 60_000),
-      agentExecutions: [{ id: 3139, status: 'running' }],
-    });
+    taskFindManyMock.mockResolvedValue([pausedThemeTask(now)]);
+    themeAutoRunFindManyMock.mockResolvedValue([{ themeId: 25 }]);
 
     const filed = await runSelfIncidentWatch(now);
 
@@ -110,21 +109,60 @@ describe('pattern A settle window at the watcher level (#718)', () => {
     expect(submitConcernMock).not.toHaveBeenCalled();
   });
 
-  test('files a desync concern once the session update settled past the threshold', async () => {
+  test('still files a desync concern for a task whose theme has auto-run enabled', async () => {
     const now = nextPassTime();
-    taskFindManyMock.mockResolvedValue([failedSessionActiveExecTask(now)]);
-    sessionFindFirstMock.mockResolvedValue({
-      id: 3156,
-      status: 'failed',
-      updatedAt: new Date(now - PATTERN_A_SETTLE_MS),
-      agentExecutions: [{ id: 3139, status: 'running' }],
-    });
+    taskFindManyMock.mockResolvedValue([pausedThemeTask(now, { id: 646 })]);
+    themeAutoRunFindManyMock.mockResolvedValue([]); // no disabled row for themeId 25
 
     const filed = await runSelfIncidentWatch(now);
 
     expect(filed).toBe(1);
     const input = submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(input.dedupKey).toBe('self-incident:tristate-desync:session-failed-exec-active');
-    expect(input.severity).toBe('high');
+    expect(input.dedupKey).toBe('self-incident:tristate-desync:todo-workflow-advanced');
+  });
+
+  test('still files a desync concern for an unthemed task (fail open)', async () => {
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([pausedThemeTask(now, { id: 647, themeId: null })]);
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(1);
+    expect(themeAutoRunFindManyMock).not.toHaveBeenCalled();
+  });
+
+  test('queries ThemeAutoRun once per pass, scoped to the candidates’ distinct theme ids', async () => {
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([
+      pausedThemeTask(now, { id: 602, themeId: 25 }),
+      pausedThemeTask(now, { id: 646, themeId: 25 }),
+      pausedThemeTask(now, { id: 700, themeId: 9 }),
+    ]);
+    themeAutoRunFindManyMock.mockResolvedValue([{ themeId: 25 }]);
+
+    await runSelfIncidentWatch(now);
+
+    expect(themeAutoRunFindManyMock).toHaveBeenCalledTimes(1);
+    const query = themeAutoRunFindManyMock.mock.calls[0]?.[0] as {
+      where: { themeId: { in: number[] }; enabled: boolean };
+    };
+    expect(new Set(query.where.themeId.in)).toEqual(new Set([25, 9]));
+    expect(query.where.enabled).toBe(false);
+  });
+
+  test('a disabled theme does not suppress the stagnation signature for the same task', async () => {
+    // Pattern B suppression must not blanket-silence other detectors —
+    // stagnation still applies to an in-flight, un-dispatched task.
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([
+      pausedThemeTask(now, { status: 'in-progress', updatedAt: new Date(now - 40 * 60 * 1000) }),
+    ]);
+    themeAutoRunFindManyMock.mockResolvedValue([{ themeId: 25 }]);
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(1);
+    const input = submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(input.dedupKey).toBe('self-incident:stagnation');
   });
 });

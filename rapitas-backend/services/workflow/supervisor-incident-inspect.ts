@@ -29,6 +29,7 @@ export interface SupervisorTaskRef {
   status: string;
   workflowStatus: string | null;
   updatedAt: Date;
+  themeId: number | null;
 }
 
 /** The watcher's fileFinding, injected to avoid a circular import. */
