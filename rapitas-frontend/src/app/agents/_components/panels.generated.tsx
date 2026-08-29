@@ -9,10 +9,12 @@ import { SystemStatusPanel } from './SystemStatusPanel';
 import { RecoveryMetricsPanel } from './RecoveryMetricsPanel';
 import { ErrorDiagnosisPanel } from './ErrorDiagnosisPanel';
 import { ProbeMetricsPanel } from './ProbeMetricsPanel';
+import { ResourceContentionPanel } from './ResourceContentionPanel';
 
 export const AGENTS_PANELS: { id: string; Component: ComponentType }[] = [
   { id: 'system-status', Component: SystemStatusPanel },
   { id: 'recovery-metrics', Component: RecoveryMetricsPanel },
   { id: 'error-diagnosis', Component: ErrorDiagnosisPanel },
   { id: 'probe-metrics', Component: ProbeMetricsPanel },
+  { id: 'resource-contention', Component: ResourceContentionPanel },
 ];

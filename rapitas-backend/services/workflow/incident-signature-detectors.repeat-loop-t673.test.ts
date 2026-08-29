@@ -55,7 +55,7 @@ describe('detectRepeatLoop — task #673 invariantViolation repeat (task #681 fi
         nowMs: DETECTED_AT_MS,
         taskStatus: 'in-progress',
       }),
-    ).toEqual({ cause: 'verify_pr_not_created', count: 2 });
+    ).toEqual({ cause: 'verify_pr_not_created', count: 2, via: 'invariant' });
   });
 
   // Contrast case: without the invariantViolation flags the same 2-count

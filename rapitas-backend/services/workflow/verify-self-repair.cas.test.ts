@@ -17,6 +17,9 @@ const mockPrisma = {
   workflowTransition: {
     count: mock(() => Promise.resolve(0)),
     findFirst: mock(() => Promise.resolve(null)),
+    // task 619 の非収束判定は過去の repair 理由を読む。既定 [] は criteria 空の
+    // 短絡（verify-self-repair.ts:143）に先回りされ、既存 CAS ケースを不変に保つ。
+    findMany: mock(() => Promise.resolve([] as { metadata: string | null }[])),
   },
   task: {
     updateMany: mock(() => Promise.resolve({ count: 1 })),
@@ -40,6 +43,14 @@ mock.module('./transition-recorder', () => ({ recordTransition }));
 // 起動（副作用）をテストプロセスに持ち込まないための最小モック。
 mock.module('./auto-run/theme-auto-run-service', () => ({
   isThemeAutoRunActive: () => Promise.resolve(true),
+}));
+// 非収束カットオフ経路は escalateBlockedTask を dynamic import する。実 DB 副作用を
+// 持ち込まないよう spy 化（フルミラー必須 — mock.module はモジュール全体を置換する）。
+const escalateBlockedTask = mock(() => Promise.resolve(true));
+mock.module('./blocked-task-escalation', () => ({
+  escalateBlockedTask,
+  BLOCKED_ESCALATED_CAUSE: 'blocked_escalated',
+  countEscalatedBlocked: () => Promise.resolve(0),
 }));
 
 const { attemptVerifyRepair } = await import('./verify-self-repair');
@@ -102,5 +113,55 @@ describe('attemptVerifyRepair — stale-verdict CAS guard', () => {
     const result = await attemptVerifyRepair(551, 'verify_done', 'reason', 'verify body');
     expect(result.bounced).toBe(false);
     expect(result.stale).toBeUndefined();
+    // 予算枯渇は非収束カットオフではない — cutoffRecorded は立たず、caller は自分の
+    // verify_validation_failed を記録してよい（下の非収束ケースとの対照）。
+    expect(result.cutoffRecorded).toBeUndefined();
+  });
+
+  // task 710 の根治点の回帰ピン: 非収束カットオフ経路が「自分で終端遷移を記録し、
+  // cutoffRecorded=true で caller にそれを伝える」ことを実 production コード
+  // (verify-self-repair.ts:400) を走らせて実証する。caller
+  // (status-transition.ts / verify-adversarial-review.ts) はこのフラグと
+  // wasNonConvergenceCutoffJustRecorded を見て自分の verify_validation_failed /
+  // adversarial_review_failed を記録しない — これが #674 で観測された
+  // verify_repair_non_convergence の 43ms 後に adversarial_review_failed が
+  // 二重記録され反復ループ誤検出を招いたバグの根本原因対策。
+  test('非収束カットオフは自ら verify_repair_non_convergence を記録し cutoffRecorded:true を返す', async () => {
+    // task 614 実データ型フィクスチャ（verify-self-repair.test.ts と同型）:
+    // 受入基準1が R1・R3 の2回指摘され、収束していない。
+    const CRITERIA_JSON = JSON.stringify([
+      'tests/services/test-triage.test.ts のすべてのテストが成功する',
+      '`detectRepeatLoop` が bounce 回数との対応関係を検証する',
+      '`escalateBlockedTask` が通知を送る',
+    ]);
+    const R1 =
+      '受入基準1「tests/services/test-triage.test.ts のすべてのテストが成功する」が一切対応されていない';
+    const R2 =
+      'detectRepeatLoop の phase_completed:* 除外が bounce 回数との対応関係を検証していない';
+    const R3 =
+      '受入基準1 に対して diff は test-triage.test.ts を一切変更しておらず、元原因にも触れていない';
+    mockPrisma.task.findUnique.mockResolvedValue({
+      themeId: 5,
+      title: '対象タスク',
+      acceptanceCriteria: CRITERIA_JSON,
+    } as unknown as null);
+    mockPrisma.workflowTransition.findMany.mockResolvedValue(
+      [R1, R2].map((reason, i) => ({
+        metadata: JSON.stringify({ attempt: i + 1, max: 10, reason }),
+      })),
+    );
+
+    const result = await attemptVerifyRepair(614, 'in_progress', R3, 'verify body');
+
+    // 終端シグナル: production が実際に cutoffRecorded を立てる（trivial でない）。
+    expect(result.bounced).toBe(false);
+    expect(result.stale).toBeUndefined();
+    expect(result.cutoffRecorded).toBe(true);
+    // このカットオフ経路自身が唯一の終端遷移として非収束 cause を記録する。
+    expect(recordTransition).toHaveBeenCalledTimes(1);
+    const rt = recordTransition.mock.calls[0]?.[0] as { cause: string };
+    expect(rt.cause).toBe('verify_repair_non_convergence');
+    // 実装フェーズへは戻さずエスカレーションする（bounce しない証跡）。
+    expect(escalateBlockedTask).toHaveBeenCalledTimes(1);
   });
 });

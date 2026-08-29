@@ -36,6 +36,9 @@ export type CycleEventName =
   | 'task.deferred'
   // merge barrier (task 573): selection held while the theme's own PR is open
   | 'task.barrier_hold'
+  // resource-contention gate (task 725): selection held one cycle because the
+  // host CPU is busy AND the run is intentionally parallelized
+  | 'task.resource_hold'
   // workflow phase progression
   | 'phase.transition'
   // task terminal / hold states
