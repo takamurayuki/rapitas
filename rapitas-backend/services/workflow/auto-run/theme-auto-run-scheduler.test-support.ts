@@ -43,6 +43,8 @@ export const mockQueueItemFindFirst = mock(() =>
 export const mockQueueItemUpdateMany = mock(() => Promise.resolve({ count: 0 }));
 /** Counts `actor:'user'` transitions after a failure — the revival check. */
 export const mockTransitionCount = mock(() => Promise.resolve(0));
+/** Resource-contention gate hold record (task 725) — default unused (gate off in tests). */
+export const mockActivityLogCreate = mock(() => Promise.resolve({}));
 
 mock.module('../../../config', () => ({
   prisma: {
@@ -62,6 +64,9 @@ mock.module('../../../config', () => ({
     },
     workflowTransition: {
       count: mockTransitionCount,
+    },
+    activityLog: {
+      create: mockActivityLogCreate,
     },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
@@ -334,6 +339,7 @@ export const mockNotifyAllDone = mock(() => Promise.resolve());
 export const mockNotifyAllBlocked = mock(() => Promise.resolve());
 export const mockNotifyHangBackstop = mock(() => Promise.resolve());
 export const mockNotifyTaskVanished = mock(() => Promise.resolve());
+export const mockNotifyResourceContentionHold = mock(() => Promise.resolve());
 
 mock.module('./auto-run-notifications', () => ({
   notifyAwaitingPlanApproval: mockNotifyAwaitingPlanApproval,
@@ -343,6 +349,37 @@ mock.module('./auto-run-notifications', () => ({
   notifyAllBlocked: mockNotifyAllBlocked,
   notifyHangBackstop: mockNotifyHangBackstop,
   notifyTaskVanished: mockNotifyTaskVanished,
+  notifyResourceContentionHold: mockNotifyResourceContentionHold,
+}));
+
+// ---------------------------------------------------------------------------
+// resource-telemetry / resource-contention-gate (task 725) — default to the
+// gate's own OFF state so every pre-existing scheduler test is unaffected
+// regardless of RAPITAS_RESOURCE_GATE_ENABLED. Dedicated resource-gate tests
+// override these mocks to exercise the hold path.
+// ---------------------------------------------------------------------------
+export const mockGetHostCpuBusyPercent = mock(() => null as number | null);
+
+mock.module('../../system/resource-telemetry', () => ({
+  startResourceTelemetryIfEnabled: () => {},
+  stopResourceTelemetry: () => {},
+  getHostCpuBusyPercent: mockGetHostCpuBusyPercent,
+  computeBusyPercent: () => null,
+}));
+
+export const mockEvaluateResourceGate = mock(() => ({
+  hold: false,
+  cpuBusyPercent: null as number | null,
+  thresholdPercent: 85,
+  effectiveMaxConcurrency: 1,
+}));
+export const mockConsumeResourceGateOverride = mock(() => false);
+export const mockRequestResourceGateOverride = mock(() => {});
+
+mock.module('./resource-contention-gate', () => ({
+  evaluateResourceGate: mockEvaluateResourceGate,
+  requestResourceGateOverride: mockRequestResourceGateOverride,
+  consumeResourceGateOverride: mockConsumeResourceGateOverride,
 }));
 
 // ---------------------------------------------------------------------------
@@ -479,6 +516,12 @@ const ALL_MOCKS = [
   mockReleaseStaleActiveItems,
   mockStopTaskAgents,
   mockStopThemeAgents,
+  mockActivityLogCreate,
+  mockNotifyResourceContentionHold,
+  mockGetHostCpuBusyPercent,
+  mockEvaluateResourceGate,
+  mockConsumeResourceGateOverride,
+  mockRequestResourceGateOverride,
 ];
 
 /** Clear call history AND restore each mock's default resolved value/behaviour. */
@@ -515,4 +558,14 @@ export function resetAllMocks(): void {
   mockStopTaskAgents.mockResolvedValue({ stoppedCount: 0, executionIds: [] });
   mockStopThemeAgents.mockResolvedValue({ stoppedCount: 0, executionIds: [] });
   mockReleaseStaleActiveItems.mockResolvedValue(0);
+  mockActivityLogCreate.mockResolvedValue({});
+  mockNotifyResourceContentionHold.mockResolvedValue(undefined);
+  mockGetHostCpuBusyPercent.mockReturnValue(null);
+  mockEvaluateResourceGate.mockReturnValue({
+    hold: false,
+    cpuBusyPercent: null,
+    thresholdPercent: 85,
+    effectiveMaxConcurrency: 1,
+  });
+  mockConsumeResourceGateOverride.mockReturnValue(false);
 }

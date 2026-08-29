@@ -22,10 +22,12 @@ const readWorkflowFile = mock(() => Promise.resolve('plan content'));
 const agentExecutionFindFirst = mock(() => Promise.resolve(null));
 const taskFindUnique = mock(() => Promise.resolve({ title: 'Task', acceptanceCriteria: null }));
 const agentExecutionConfigFindUnique = mock(() => Promise.resolve(null));
+const appendEventMock = mock(() => Promise.resolve({ id: 1 }));
 
 mock.module('../orchestrator/git-operations/core/diff-structured', () => ({ getDiff }));
 mock.module('../../../utils/ai-client', () => ({ sendAIMessage }));
 mock.module('../../workflow/workflow-file-utils', () => ({ resolveWorkflowDir, readWorkflowFile }));
+mock.module('../../memory/timeline', () => ({ appendEvent: appendEventMock }));
 mock.module('../../../config/database', () => ({
   prisma: {
     agentExecution: { findFirst: agentExecutionFindFirst },
@@ -42,6 +44,11 @@ const {
   parseReviewVerdict,
   isAdversarialReviewEnabled,
   reviewDiffAdversarially,
+  jurorIsRested,
+  recordJurorOutcome,
+  resetJurorHealth,
+  JUROR_TIMEOUT_STRIKES,
+  JUROR_COOLOFF_MS,
 } = await import('./adversarial-diff-review');
 
 describe('buildDiffReviewPrompt', () => {
@@ -258,6 +265,8 @@ describe('reviewDiffAdversarially', () => {
     agentExecutionFindFirst.mockReset();
     taskFindUnique.mockReset();
     agentExecutionConfigFindUnique.mockReset();
+    appendEventMock.mockReset();
+    appendEventMock.mockResolvedValue({ id: 1 });
     getDiff.mockReset();
     getDiff.mockResolvedValue([
       { filename: 'a.ts', status: 'M', additions: 1, deletions: 0, patch: '+line' },
@@ -396,5 +405,66 @@ describe('reviewDiffAdversarially', () => {
     await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
     // First call must NOT be 'claude' (the implementer's own provider).
     expect(calledProviders[0]).not.toBe('claude');
+  });
+
+  it('records the adversarial_review timeline event by default (suppressEventLog omitted)', async () => {
+    await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
+    expect(appendEventMock).toHaveBeenCalledTimes(1);
+    expect(appendEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: 'adversarial_review' }),
+    );
+  });
+
+  it('skips the adversarial_review timeline event when suppressEventLog is true (dry-run)', async () => {
+    await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt', suppressEventLog: true });
+    expect(appendEventMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('ジャッジの連続タイムアウトを短絡する', () => {
+  // 実測 2026-08-28: adversarial ログ29件がすべてタイムアウト、うち26件が同一
+  // プロバイダ。jurors は Promise.all なのでレビューは最も遅い1人を待つ。必ず
+  // タイムアウトする相手を毎回120秒待って 'unknown' を受け取っていた。
+  const NOW = 1_800_000_000_000;
+
+  beforeEach(() => {
+    resetJurorHealth();
+  });
+
+  it('規定回数に満たないタイムアウトでは休ませない', () => {
+    for (let i = 0; i < JUROR_TIMEOUT_STRIKES - 1; i++) {
+      recordJurorOutcome('chatgpt', true, NOW);
+    }
+    expect(jurorIsRested('chatgpt', NOW)).toBe(false);
+  });
+
+  it('規定回数の連続タイムアウトで休ませる', () => {
+    for (let i = 0; i < JUROR_TIMEOUT_STRIKES; i++) {
+      recordJurorOutcome('chatgpt', true, NOW);
+    }
+    expect(jurorIsRested('chatgpt', NOW)).toBe(true);
+  });
+
+  it('冷却期間を過ぎれば再び試す', () => {
+    for (let i = 0; i < JUROR_TIMEOUT_STRIKES; i++) {
+      recordJurorOutcome('chatgpt', true, NOW);
+    }
+    expect(jurorIsRested('chatgpt', NOW + JUROR_COOLOFF_MS + 1)).toBe(false);
+  });
+
+  it('1回でも応答すれば連続カウントを捨てる', () => {
+    for (let i = 0; i < JUROR_TIMEOUT_STRIKES - 1; i++) {
+      recordJurorOutcome('chatgpt', true, NOW);
+    }
+    recordJurorOutcome('chatgpt', false, NOW);
+    recordJurorOutcome('chatgpt', true, NOW);
+    expect(jurorIsRested('chatgpt', NOW)).toBe(false);
+  });
+
+  it('休ませるのは当該プロバイダだけ', () => {
+    for (let i = 0; i < JUROR_TIMEOUT_STRIKES; i++) {
+      recordJurorOutcome('chatgpt', true, NOW);
+    }
+    expect(jurorIsRested('claude', NOW)).toBe(false);
   });
 });

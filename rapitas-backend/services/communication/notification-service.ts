@@ -206,6 +206,33 @@ export async function notifyIntakeQuestionPending(params: {
 }
 
 /**
+ * Notify that a stale `awaiting_question` task had its recommended option
+ * auto-adopted after a long unattended wait (see
+ * workflow-reconciler-question-auto-answer.ts). Distinct from
+ * {@link notifyIntakeQuestionPending} — that one asks the user to respond;
+ * this one tells them a response was already applied on their behalf.
+ *
+ * @param taskId - Task whose question was auto-answered. / 自動採用したタスクID
+ * @param taskTitle - Task title for the message. / 通知本文用のタスク名
+ * @param recommendedLabel - Label of the option that was adopted. / 採用した選択肢の表示文
+ * @param elapsedMinutes - Minutes the question sat unanswered. / 無応答だった分数
+ */
+export async function notifyQuestionAutoAnswered(
+  taskId: number,
+  taskTitle: string,
+  recommendedLabel: string,
+  elapsedMinutes: number,
+) {
+  return createNotification({
+    type: 'system',
+    title: '質問の推奨案を自動採用しました',
+    message: `タスク「${taskTitle}」の質問で推奨『${recommendedLabel}』を自動採用しました（${elapsedMinutes}分無応答）。変更する場合は基準を訂正して再実行してください。`,
+    link: `/?panel=${taskId}`,
+    metadata: { taskId, reason: 'auto_recommended', recommendedLabel, elapsedMinutes },
+  });
+}
+
+/**
  * Send a pomodoro completion notification.
  */
 export async function notifyPomodoroCompleted(taskTitle: string | null, completedCount: number) {

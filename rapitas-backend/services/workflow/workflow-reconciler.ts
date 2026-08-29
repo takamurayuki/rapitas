@@ -273,6 +273,7 @@ export async function reconcileOnce(): Promise<{
   blockedEscalated: number;
   undispatchableTodos: number;
   questionPauses: number;
+  questionAutoAnswered: number;
   autoApproveStalls: number;
   staleQueueItemsCancelled: number;
   staleRunningItemsReleased: number;
@@ -291,6 +292,7 @@ export async function reconcileOnce(): Promise<{
     blockedEscalated: 0,
     undispatchableTodos: 0,
     questionPauses: 0,
+    questionAutoAnswered: 0,
     autoApproveStalls: 0,
     staleQueueItemsCancelled: 0,
     staleRunningItemsReleased: 0,
@@ -356,6 +358,16 @@ export async function reconcileOnce(): Promise<{
       const { healOrphanedQuestionPause } = await import('./workflow-reconciler-question-pause');
       return healOrphanedQuestionPause(nowMs);
     });
+    // Auto-adopt a stale question's recommended option once it has sat
+    // unattended past RAPITAS_QUESTION_AUTO_ANSWER_MS (default 60m) — an
+    // absent operator (nights, incident response) must not stall a task
+    // indefinitely at awaiting_question.
+    const questionAutoAnswered = await runHealPass('healStaleQuestionAutoAnswer', async () => {
+      const { healStaleQuestionAutoAnswer } =
+        await import('./workflow-reconciler-question-auto-answer');
+      const { autoAnswered } = await healStaleQuestionAutoAnswer(new Date(nowMs));
+      return autoAnswered;
+    });
     const orphanTasks = await runHealPass('flagOrphanTasks', () => flagOrphanTasks(nowMs));
     // Re-run auto-approval lost by a save request that died mid-flight
     // (critic-gate wall time > client timeout) — plan_created + active
@@ -412,6 +424,7 @@ export async function reconcileOnce(): Promise<{
       blockedEscalated,
       undispatchableTodos,
       questionPauses,
+      questionAutoAnswered,
       autoApproveStalls,
       staleQueueItemsCancelled,
       staleRunningItemsReleased,

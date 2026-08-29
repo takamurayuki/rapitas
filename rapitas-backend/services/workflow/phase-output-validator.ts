@@ -198,7 +198,12 @@ export function validateVerify(content: string): ValidationResult {
   // reports "0 failed" — was wrongly flagged as a hallucinated pass and blocked.
   // Require a non-zero count (or an explicit fail mark) instead.
   const failureSignals = [
-    /\b([1-9]\d*)\s+failed/i, // "10 failed" — not "0 failed"
+    // "10 failed" — not "0 failed", and not an IDENTIFIER followed by a status
+    // word: task 718's verify.md cited "session #3156 failed 時刻 …" as the
+    // evidence it was told to record, and the gate read 3156 failing tests
+    // (the UI then showed ~3000 failures for a report whose every suite was
+    // green). A number written with a # sigil is an id, never a count.
+    /(?<!#)\b([1-9]\d*)\s+failed/i,
     /tests?\s+([1-9]\d*)\s+failed/i,
     /test\s+files?[\s\S]{0,80}?([1-9]\d*)\s+failed/i,
     /失敗\s*(?:した)?テスト\s*(?:数|件数)?\s*[:：]?\s*([1-9]\d*)/, // "失敗テスト数: 3", not ": 0"
@@ -262,6 +267,22 @@ export function validateVerify(content: string): ValidationResult {
     // failure verdict — the referenced section is scanned/exempted separately.
     if (/残課題|フォローアップ/.test(line)) return false;
     if (documentsOutOfScopeEscalation && attributesFailureOutOfScope(line)) return false;
+    // A line that names one of the ADVISORY machine checks right before its ❌
+    // is reporting that check's result, not casting the verifier's own verdict.
+    // Task 718 opened a section "受入基準チェックへの対応（機械判定 acceptance:
+    // ❌ 1件）" to explain why the advisory hit was wrong — the criterion said
+    // "do NOT change X", and token matching finds no changed file for a
+    // negative — and the honesty gate counted the heading as a failure.
+    if (/(?:機械判定|自動検証|機械受入|advisory|acceptance|scope)[^\n❌]{0,24}❌/i.test(line)) {
+      return false;
+    }
+    // A plan item the operator WITHDREW is not a failure to implement it. The
+    // approved plan cannot be edited, so when a supervisor strikes an item the
+    // verifier's checklist has to carry that row somehow — task 710 wrote
+    // "❌ 実施せず（監督者訂正により撤回）" and was bounced three rounds running
+    // for it. Only the explicit word for withdrawal is honoured; "実施せず" on
+    // its own still counts, because that is also how a real omission reads.
+    if (/撤回|withdrawn/i.test(line)) return false;
     // "❌ 適用不能" is a verdict that the item does not apply here, not a failing
     // check. Feasibility tasks answer "does this idea map onto this codebase?"
     // and a NO is the honest answer: task 602 reported four ❌ 適用不能 rows

@@ -88,6 +88,13 @@ export const MAX_PR_RECOVERY_ATTEMPTS = 3;
  * resolveMaxRepairs and {@link resolveVerifyRepairLimit} below — the two
  * previously hardcoded different fallbacks (2 vs 3), which only diverged when
  * no UserSettings row existed (task 705). / 修復予算の既定値（単一ソース）
+ *
+ * NOTE (task 727): task#710 observed 4 `verify_repair` bounces in one window
+ * despite this default being 2 — unconfirmed whether the live UserSettings
+ * row had `verifyRepairLimit` set above the default (UI-configurable, see
+ * {@link resolveVerifyRepairLimit}) or the count/limit comparison itself has
+ * a gap. `blocked-task-policy.test.ts` pins this default and exercises the
+ * UserSettings override at 2/3/4 so a future regression here is caught.
  */
 export const DEFAULT_VERIFY_REPAIR_LIMIT = Math.max(
   0,

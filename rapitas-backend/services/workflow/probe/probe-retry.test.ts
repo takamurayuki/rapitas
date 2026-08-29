@@ -105,4 +105,29 @@ describe('runProbeWithRetry', () => {
     expect(result.outcome).toBe('permanent_failure');
     expect(result.attempts).toBe(PROBE_MAX_RETRIES + 1);
   });
+
+  it('honors a per-target timeoutMs override instead of the default PROBE_TIMEOUT_MS', async () => {
+    const target: ProbeTarget = {
+      id: 'agent-endpoint',
+      run: () => new Promise((resolve) => setTimeout(resolve, 40)),
+      timeoutMs: 10,
+    };
+
+    const result = await runProbeWithRetry(target, CTX, 1000);
+
+    expect(result.outcome).toBe('permanent_failure');
+    expect(result.errorMessage).toContain('probe timeout after 10ms');
+  });
+
+  it('succeeds when the work fits within a raised per-target timeoutMs', async () => {
+    const target: ProbeTarget = {
+      id: 'agent-endpoint',
+      run: () => new Promise((resolve) => setTimeout(resolve, 40)),
+      timeoutMs: 200,
+    };
+
+    const result = await runProbeWithRetry(target, CTX, 1000);
+
+    expect(result).toMatchObject({ outcome: 'success', attempts: 1, errorMessage: null });
+  });
 });

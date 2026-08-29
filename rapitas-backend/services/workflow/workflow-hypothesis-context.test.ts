@@ -147,7 +147,7 @@ describe('buildHypothesisContext', () => {
   it('embeds the taskId into the evidence-recording API snippet (ja)', async () => {
     const md = await buildHypothesisContext(777);
 
-    expect(md).toContain('taskId:777');
+    expect(md).toContain('"taskId":777');
   });
 
   it('renders the English variant with English headers, guide, and taskId', async () => {
@@ -158,7 +158,7 @@ describe('buildHypothesisContext', () => {
     expect(md).toContain('# Hypothesis Ledger');
     expect(md).toContain('## Open hypotheses');
     expect(md).toContain('## Hypothesis-thinking instructions');
-    expect(md).toContain('taskId:321');
+    expect(md).toContain('"taskId":321');
     expect(md).not.toContain('仮説台帳');
   });
 
@@ -173,5 +173,37 @@ describe('buildHypothesisContext', () => {
     const md = await buildHypothesisContext(1);
 
     expect(md).toBe('');
+  });
+});
+
+describe('buildHypothesisContext — 証拠記録の例は送信可能なJSONであること', () => {
+  // 旧文言は `{stance:"for"|"against", detail, artifact, taskId:1, phase}` という
+  // 疑似JSONで、キーが無引用符・値なし・選択肢記法だった。エージェントがそのまま
+  // 送るため 400 Failed to parse JSON が毎日発生し、タスク670/683/702 が症状を
+  // 追ったが原因に到達しなかった（起票に path/method が無かったため）。
+  const extractExample = (md: string): string => {
+    const m = md.match(/\{"stance"[^`]*\}/);
+    return m ? m[0] : '';
+  };
+
+  it('日本語版の例が JSON.parse できる', async () => {
+    const md = await buildHypothesisContext(777, 'ja');
+    const ex = extractExample(md);
+    expect(ex).not.toBe('');
+    const parsed = JSON.parse(ex) as Record<string, unknown>;
+    expect(parsed.taskId).toBe(777);
+    expect(parsed.stance).toBe('for');
+    expect(typeof parsed.artifact).toBe('string');
+  });
+
+  it('英語版の例が JSON.parse できる', async () => {
+    const md = await buildHypothesisContext(321, 'en');
+    const parsed = JSON.parse(extractExample(md)) as Record<string, unknown>;
+    expect(parsed.taskId).toBe(321);
+  });
+
+  it('選択肢記法 "for"|"against" を本文中に残さない', async () => {
+    const md = await buildHypothesisContext(1, 'ja');
+    expect(md).not.toContain('"for"|"against"');
   });
 });

@@ -252,6 +252,34 @@ export async function notifyZeroProgressWhileRunning(
   });
 }
 
+/**
+ * Auto-run held next-task selection for one cycle: the host CPU is busy AND
+ * the run is intentionally parallelized (task 725, RAPITAS_RESOURCE_GATE_ENABLED).
+ * The busy% reported is HOST-WIDE, not attributable to this theme specifically
+ * — the copy says so to avoid a false impression of per-theme blame.
+ *
+ * @param themeId - Theme whose next-task selection was held. / 対象テーマ
+ * @param cpuBusyPercent - Host CPU busy percentage at decision time. / ホストCPU使用率(%)
+ * @param thresholdPercent - Configured hold threshold. / しきい値(%)
+ */
+export async function notifyResourceContentionHold(
+  themeId: number,
+  cpuBusyPercent: number,
+  thresholdPercent: number,
+): Promise<void> {
+  const theme = await prisma.theme
+    .findUnique({ where: { id: themeId }, select: { name: true } })
+    .catch(() => null);
+  await notifyOnce({
+    type: 'auto_run_resource_hold',
+    themeId,
+    title: '自動実行: リソース逼迫のため次タスクの着手を見送りました',
+    message: `テーマ「${theme?.name ?? themeId}」の次タスク着手を1サイクル見送りました（ホスト全体のCPU使用率 ${Math.round(
+      cpuBusyPercent,
+    )}% がしきい値 ${thresholdPercent}% を超過）。次回のスケジューラtickで再評価します。ダッシュボードから今すぐ実行できます。`,
+  });
+}
+
 /** All tasks for the theme are done; auto-run went idle. */
 export async function notifyAllDone(themeId: number): Promise<void> {
   const theme = await prisma.theme

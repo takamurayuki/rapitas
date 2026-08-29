@@ -1488,6 +1488,9 @@
     "description": "グローバルショートカットとアプリ内ショートカットを管理できます",
     "globalShortcuts": "グローバルショートカット",
     "globalDescription": "アプリがバックグラウンドにある時でもウィンドウを最前面に表示します",
+    "captureShortcuts": "クイックキャプチャショートカット",
+    "captureDescription": "デスクトップのどこからでもアイデアを素早く入力するポップアップを開きます",
+    "duplicateGlobalCaptureNote": "グローバルショートカットとクイックキャプチャショートカットに同じ組み合わせを設定した場合は、グローバルショートカットが優先されます。",
     "currentSetting": "現在の設定",
     "pressKey": "キーを押してください...",
     "clickToEnter": "クリックしてキーボードで入力",
@@ -1825,6 +1828,22 @@
       "queueDepth": "キュー滞留数",
       "activePreviews": "起動中のプレビュー数",
       "uptime": "稼働時間"
+    },
+    "resourceContention": {
+      "title": "リソース競合ゲート",
+      "enabled": "有効",
+      "disabled": "無効",
+      "hostCpuNote": "ホスト全体のCPU使用率です。特定テーマへの帰属は行いません。",
+      "currentCpu": "現在のCPU使用率",
+      "threshold": "しきい値",
+      "effectiveMaxConcurrency": "実効並列度",
+      "unsampled": "未計測",
+      "empty": "見送り履歴はありません",
+      "loadFailed": "リソース競合ゲート情報の取得に失敗しました",
+      "deferredAt": "見送り日時",
+      "theme": "テーマ",
+      "runNow": "今すぐ実行",
+      "nextTick": "次回のスケジューラtickで再評価します"
     },
     "repairConvergence": {
       "title": "自己修復ループの収束状況",
@@ -2276,6 +2295,49 @@
     "createPlan": "計画作成",
     "runResearch": "リサーチ実行",
     "runVerification": "検証実行",
+    "dryRun": {
+      "title": "ドライラン",
+      "button": "ドライラン実行",
+      "running": "実行中...",
+      "error": "ドライランの実行に失敗しました",
+      "resultOk": "✅ 通過見込み（副作用なし）",
+      "resultNg": "⚠️ 差し戻しの可能性あり（副作用なし）",
+      "gateLabel": "決定的ゲート",
+      "completionGateLabel": "完了ゲート",
+      "juryLabel": "アドバーサリアルレビュー",
+      "pass": "通過",
+      "fail": "不通過",
+      "juryVerdict": {
+        "pass": "合格",
+        "fail": "不合格",
+        "unknown": "未実施・判定不能"
+      },
+      "baseBranchSha": "ベースブランチ SHA: {sha}",
+      "baseBranchShaUnavailable": "ベースブランチ SHA を取得できませんでした",
+      "skippedOperationsTitle": "この操作でスキップされる処理",
+      "skippedOperations": {
+        "commit": "コミット",
+        "push": "プッシュ",
+        "pr_creation": "PR作成",
+        "merge": "マージ",
+        "worktree_cleanup": "worktree のクリーンアップ",
+        "status_transition": "状態遷移",
+        "notification": "通知送信"
+      },
+      "historyTitle": "過去のドライラン履歴",
+      "historyEmpty": "まだドライランは実行されていません",
+      "checkDrift": "環境変化を確認",
+      "driftChecking": "確認中...",
+      "driftNone": "ベースブランチに変化はありません",
+      "driftDetected": "ベースブランチが{count}コミット進んでいます（結果が古くなっている可能性があります）",
+      "driftNote": {
+        "report_not_found": "指定されたドライランレポートが見つかりません",
+        "sha_not_recorded": "このレポートにはベースブランチのSHAが記録されていません",
+        "worktree_not_found": "このタスクの worktree が見つかりません",
+        "current_sha_unresolved": "現在のベースブランチのSHAを取得できませんでした",
+        "check_failed": "環境変化の確認に失敗しました"
+      }
+    },
     "approvePlan": "計画を承認",
     "rejectPlan": "計画を却下",
     "planApprovalRequired": "計画の承認が必要です",
@@ -2361,7 +2423,9 @@
       "otherFreeText": "その他（自由記述）",
       "freeTextInputPlaceholder": "選択肢に当てはまらない場合はこちらに入力...",
       "submit": "送信",
-      "freeTextRequiredNotice": "この質問は自由入力が必要です: {reason}"
+      "freeTextRequiredNotice": "この質問は自由入力が必要です: {reason}",
+      "recommendedBadge": "（推奨）",
+      "recommendedReasonLabel": "推奨理由："
     },
     "roles": {
       "researcher": {

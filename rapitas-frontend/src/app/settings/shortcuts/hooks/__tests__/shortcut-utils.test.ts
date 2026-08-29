@@ -4,6 +4,7 @@ import {
   MODIFIER_KEYS,
   AVAILABLE_KEYS,
   DEFAULT_GLOBAL_SHORTCUT,
+  DEFAULT_CAPTURE_SHORTCUT,
   parseGlobalShortcut,
   buildGlobalShortcut,
   formatShortcutDisplay,
@@ -27,6 +28,10 @@ describe('constants', () => {
 
   it('DEFAULT_GLOBAL_SHORTCUT is Ctrl+Alt+R', () => {
     expect(DEFAULT_GLOBAL_SHORTCUT).toBe('Ctrl+Alt+R');
+  });
+
+  it('DEFAULT_CAPTURE_SHORTCUT is Ctrl+Alt+I (must match shortcut_config.rs)', () => {
+    expect(DEFAULT_CAPTURE_SHORTCUT).toBe('Ctrl+Alt+I');
   });
 });
 

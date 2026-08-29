@@ -144,6 +144,15 @@ export interface StructuredQuestionOption {
   label: string;
   /** One-line consequence of choosing this option, folded into the composed answer. / 選択時の影響 */
   consequence: string;
+  /**
+   * True when choosing this option would change a gate's verification
+   * threshold/condition. Excludes this option from the backend's stale-question
+   * auto-answer heal pass even when recommended — see
+   * rapitas-backend/services/workflow/question-options-parser.ts. Purely
+   * informational on the frontend; a human may still pick it manually.
+   * NOTE: keep in sync with rapitas-backend/services/workflow/question-options-parser.ts
+   */
+  mutatesGate?: boolean;
 }
 
 /** One machine-readable question parsed from a `json:options` block. */
@@ -158,6 +167,13 @@ export interface StructuredQuestion {
   freeTextRequired: boolean;
   /** Why free text is required; non-null only when freeTextRequired. / 自由入力が必要な理由 */
   freeTextReason: string | null;
+  /**
+   * `key` of the option the question author recommends, or null when absent /
+   * invalid (e.g. references no existing option). / 推奨する選択肢のkey
+   */
+  recommendedKey: string | null;
+  /** 1-2 sentence rationale for `recommendedKey`; null when absent. / 推奨理由 */
+  recommendedReason: string | null;
 }
 
 /** Parsed content of a `json:options` fenced block. */
@@ -205,6 +221,7 @@ export function parseOptionsBlock(md: string): StructuredQuestionsBlock | null {
             key: o.key,
             label: o.label,
             consequence: typeof o.consequence === 'string' ? o.consequence : '',
+            mutatesGate: o.mutatesGate === true,
           });
         }
       }
@@ -212,7 +229,27 @@ export function parseOptionsBlock(md: string): StructuredQuestionsBlock | null {
       const freeTextReason = typeof q.freeTextReason === 'string' ? q.freeTextReason : null;
       // Neither answerable path is available — this question can't be rendered.
       if (!freeTextRequired && options.length === 0) return null;
-      questions.push({ id, summary, options, freeTextRequired, freeTextReason });
+      // Defensive parse (same policy as freeTextReason above): an absent or
+      // malformed `recommended`/`recommendedReason`, or a `recommended` key
+      // that names no existing option, silently degrades to "no
+      // recommendation" instead of rejecting the whole question — question.md
+      // files saved before this field existed must keep rendering.
+      const recommendedKeyRaw = typeof q.recommended === 'string' ? q.recommended : null;
+      const recommendedKey =
+        recommendedKeyRaw && options.some((o) => o.key === recommendedKeyRaw)
+          ? recommendedKeyRaw
+          : null;
+      const recommendedReason =
+        recommendedKey && typeof q.recommendedReason === 'string' ? q.recommendedReason : null;
+      questions.push({
+        id,
+        summary,
+        options,
+        freeTextRequired,
+        freeTextReason,
+        recommendedKey,
+        recommendedReason,
+      });
     }
     return { questions };
   } catch {
