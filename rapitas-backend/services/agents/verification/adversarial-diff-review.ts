@@ -413,13 +413,15 @@ async function askJuror(provider: AIProvider, prompt: string): Promise<JurorVerd
  *
  * @param params.taskId - Task under review. / 対象タスク
  * @param params.worktreePath - The task's git worktree (diff source). / worktree
+ * @param params.suppressEventLog - Skip the `adversarial_review` timeline write (dry-run callers record their own `dry_run_executed` event instead, keeping judge-calibration data free of non-production verdicts). / タイムライン記録を抑止する（ドライラン専用）
  * @returns The aggregated jury verdict. / 陪審の集計判定
  */
 export async function reviewDiffAdversarially(params: {
   taskId: number;
   worktreePath: string | null | undefined;
+  suppressEventLog?: boolean;
 }): Promise<DiffReviewResult> {
-  const { taskId, worktreePath } = params;
+  const { taskId, worktreePath, suppressEventLog } = params;
   if (!isAdversarialReviewEnabled() || !worktreePath) {
     return { verdict: 'unknown', severity: 0, reasons: [], judged: false };
   }
@@ -481,23 +483,25 @@ export async function reviewDiffAdversarially(params: {
     const jurors = await Promise.all(panel.map((provider) => askJuror(provider, prompt)));
     const aggregated = aggregateJuryVerdicts(jurors);
 
-    // Durable per-juror record — the raw material for calibrating judge
-    // reliability against realized task outcomes (Weaver-style weighting).
-    void appendEvent({
-      eventType: 'adversarial_review',
-      actorType: 'system',
-      payload: {
-        taskId,
-        verdict: aggregated.verdict,
-        severity: aggregated.severity,
-        jurors: jurors.map((j) => ({
-          provider: j.provider,
-          verdict: j.verdict,
-          severity: j.severity,
-        })),
-      },
-      correlationId: `task-${taskId}`,
-    }).catch(() => {});
+    // Durable per-juror record for judge-reliability calibration; skipped for
+    // dry runs (suppressEventLog) — a dry-run verdict isn't a realized outcome.
+    if (!suppressEventLog) {
+      void appendEvent({
+        eventType: 'adversarial_review',
+        actorType: 'system',
+        payload: {
+          taskId,
+          verdict: aggregated.verdict,
+          severity: aggregated.severity,
+          jurors: jurors.map((j) => ({
+            provider: j.provider,
+            verdict: j.verdict,
+            severity: j.severity,
+          })),
+        },
+        correlationId: `task-${taskId}`,
+      }).catch(() => {});
+    }
 
     if (aggregated.verdict !== 'unknown') {
       log.info(
