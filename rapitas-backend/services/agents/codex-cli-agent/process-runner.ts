@@ -24,6 +24,7 @@ import {
   killProcessTreeSafely,
   captureDescendants,
 } from '../agent-process-tracker';
+import { startResourceSampling, stopResourceSampling } from '../process-resource-sampler';
 
 const logger = createLogger('codex-cli-agent/process-runner');
 
@@ -371,6 +372,10 @@ function buildCloseResult(
   startTime: number,
   parseArtifacts: (output: string) => AgentArtifact[],
   parseCommits: (output: string) => GitCommitInfo[],
+  resourceStats: { cpuTimeMs: number | null; peakRssKb: number | null } = {
+    cpuTimeMs: null,
+    peakRssKb: null,
+  },
 ): AgentExecutionResult {
   const executionTimeMs = Date.now() - startTime;
   const artifacts = parseArtifacts(state.outputBuffer);
@@ -392,6 +397,7 @@ function buildCloseResult(
       questionKey,
       claudeSessionId: state.codexSessionId || undefined,
       modelName: state.actualModel || config.model,
+      ...resourceStats,
     };
   }
 
@@ -413,6 +419,7 @@ function buildCloseResult(
     claudeSessionId: state.codexSessionId || undefined,
     modelName: state.actualModel || config.model,
     errorMessage,
+    ...resourceStats,
   };
 }
 
@@ -493,6 +500,7 @@ export async function spawnCodexProcess(
           startedAt: new Date().toISOString(),
           parentPid: process.pid,
         });
+        startResourceSampling(state.process.pid);
       }
 
       // Write prompt to stdin for investigation mode
@@ -551,9 +559,14 @@ export async function spawnCodexProcess(
         timers.cleanupIdle();
         const executionTimeMs = Date.now() - startTime;
 
+        let resourceStats: { cpuTimeMs: number | null; peakRssKb: number | null } = {
+          cpuTimeMs: null,
+          peakRssKb: null,
+        };
         if (state.process?.pid) {
           const closedPid = state.process.pid;
           unregisterProcess(closedPid);
+          resourceStats = stopResourceSampling(closedPid);
           // On Windows, 'close' (stdio closed) does NOT guarantee the process
           // exited — mirrors claude-execution-runner.ts's same reap-after-grace.
           // killProcessTreeSafely refuses to touch a port-3001 (backend) process.
@@ -615,6 +628,7 @@ export async function spawnCodexProcess(
           startTime,
           parseArtifacts,
           parseCommits,
+          resourceStats,
         );
 
         if (result.waitingForInput) {

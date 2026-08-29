@@ -37,20 +37,24 @@ export function classifyProbeFailure(error: unknown): 'transient' | 'permanent' 
   return TRANSIENT_PATTERN.test(message) ? 'transient' : 'permanent';
 }
 
-/** Race a probe attempt against PROBE_TIMEOUT_MS, always clearing the timer. */
+/**
+ * Race a probe attempt against its timeout budget, always clearing the timer.
+ * Uses `target.timeoutMs` when set, otherwise the shared PROBE_TIMEOUT_MS.
+ */
 async function runWithTimeout(
   target: ProbeTarget,
   ctx: ProbeContext,
   attempt: number,
 ): Promise<void> {
+  const timeoutMs = target.timeoutMs ?? PROBE_TIMEOUT_MS;
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     await Promise.race([
       target.run(ctx, attempt),
       new Promise<never>((_, reject) => {
         timer = setTimeout(
-          () => reject(new Error(`probe timeout after ${PROBE_TIMEOUT_MS}ms`)),
-          PROBE_TIMEOUT_MS,
+          () => reject(new Error(`probe timeout after ${timeoutMs}ms`)),
+          timeoutMs,
         );
       }),
     ]);
