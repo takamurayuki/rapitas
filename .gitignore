@@ -25,6 +25,11 @@ analysis-result.json
 # of it.
 .wf-*
 .wf[0-9]*
+# Agent PID files. agent-process-tracker writes them under process.cwd(),
+# which is the worktree ROOT when the CLI runs there — the rapitas-backend/
+# ignore never applies, and auto-commit's `git add -A` swept two of them into
+# task 710's diff (bounced by the diff review as unplanned artifacts).
+.agent-pids/
 
 # Memory system vector DB
 rapitas-backend/data/
