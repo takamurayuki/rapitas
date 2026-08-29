@@ -22,6 +22,7 @@ export const QUESTION_FORMAT_GUIDANCE_JA =
   '- `freeTextRequired: true` は「選択肢で表現できない入力（APIキー・ファイルパス等の秘匿・可変情報）」の場合のみ使用し、理由を `freeTextReason` に1行で明記する。それ以外の論点は必ず選択肢で表現すること。\n' +
   '- `consequence` にはその選択肢を選んだ場合の影響・変更範囲を1行で書く。\n' +
   '- **`recommended` と `recommendedReason` は必須。** `recommended` には自分ならどの `options` を選ぶか、その `key` を1つ書く。`recommendedReason` には根拠を1〜2文で書き、「低リスクだから」のような一般論ではなく、plan.md の該当箇所・実測値・テスト結果のいずれかを具体的に引用する。判断できない場合は空欄にせず、`freeTextRequired: true` にしてその理由を `freeTextReason` に書く。\n' +
+  '- ゲートの検証条件・しきい値を変える選択肢には `mutatesGate: true` を付与する。この指定がある選択肢は、推奨に指定されていても無応答タイムアウトによる自動採用の対象外になり、人間の回答を待つ。\n' +
   '- ブロックは1個のみ保存する（複数あるとUIは最初の1個のみ使用する）。';
 
 export const QUESTION_FORMAT_GUIDANCE_EN =
@@ -34,4 +35,5 @@ export const QUESTION_FORMAT_GUIDANCE_EN =
   '- Use `freeTextRequired: true` ONLY when the answer genuinely cannot be expressed as options (secrets/variable input like an API key or file path); state why in `freeTextReason` (one line). Every other issue MUST be expressed as options.\n' +
   '- `consequence` is a one-line description of the impact of choosing that option.\n' +
   '- **`recommended` and `recommendedReason` are REQUIRED.** Put the `key` of the option you yourself would pick in `recommended`. State the rationale in `recommendedReason` (1-2 sentences) — cite a specific plan.md section, a measurement, or a test result, not a generic claim like "it is lower risk". If you truly cannot judge, do not leave it blank — set `freeTextRequired: true` and explain why in `freeTextReason` instead.\n' +
+  "- Set `mutatesGate: true` on any option that would change a gate's verification condition or threshold. Such an option is excluded from unattended auto-answer on timeout even when recommended, and always waits for a human.\n" +
   '- Include AT MOST ONE block (if multiple are present, the UI uses only the first).';

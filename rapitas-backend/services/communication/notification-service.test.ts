@@ -31,6 +31,7 @@ mock.module('./webhook-notification-service', () => ({ sendWebhookNotification }
 
 const {
   notifyIntakeQuestionPending,
+  notifyQuestionAutoAnswered,
   INTAKE_QUESTION_NOTIFICATION_TITLE,
   INTAKE_QUESTION_NOTIFY_WINDOW_MS,
 } = await import('./notification-service');
@@ -106,5 +107,34 @@ describe('notifyIntakeQuestionPending', () => {
       (c) => (c[0] as { data: { link: string } }).data.link,
     );
     expect(links).toEqual(['/?panel=578', '/?panel=579']);
+  });
+});
+
+describe('notifyQuestionAutoAnswered', () => {
+  beforeEach(() => {
+    notificationCreate
+      .mockReset()
+      .mockImplementation((args: { data: Record<string, unknown> }) =>
+        Promise.resolve({ id: 1, ...args.data }),
+      );
+    broadcast.mockReset();
+  });
+
+  it('creates a system notification naming the auto-adopted option and elapsed wait', async () => {
+    await notifyQuestionAutoAnswered(734, '推奨自動採用のテストタスク', '選択肢A', 61);
+
+    expect(notificationCreate).toHaveBeenCalledTimes(1);
+    const data = (notificationCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+    expect(data.type).toBe('system');
+    expect(data.message).toContain('推奨自動採用のテストタスク');
+    expect(data.message).toContain('選択肢A');
+    expect(data.message).toContain('61分無応答');
+    expect(data.link).toBe('/?panel=734');
+    expect(JSON.parse(String(data.metadata))).toEqual({
+      taskId: 734,
+      reason: 'auto_recommended',
+      recommendedLabel: '選択肢A',
+      elapsedMinutes: 61,
+    });
   });
 });

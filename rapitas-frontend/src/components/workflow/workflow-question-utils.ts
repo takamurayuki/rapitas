@@ -144,6 +144,15 @@ export interface StructuredQuestionOption {
   label: string;
   /** One-line consequence of choosing this option, folded into the composed answer. / 選択時の影響 */
   consequence: string;
+  /**
+   * True when choosing this option would change a gate's verification
+   * threshold/condition. Excludes this option from the backend's stale-question
+   * auto-answer heal pass even when recommended — see
+   * rapitas-backend/services/workflow/question-options-parser.ts. Purely
+   * informational on the frontend; a human may still pick it manually.
+   * NOTE: keep in sync with rapitas-backend/services/workflow/question-options-parser.ts
+   */
+  mutatesGate?: boolean;
 }
 
 /** One machine-readable question parsed from a `json:options` block. */
@@ -212,6 +221,7 @@ export function parseOptionsBlock(md: string): StructuredQuestionsBlock | null {
             key: o.key,
             label: o.label,
             consequence: typeof o.consequence === 'string' ? o.consequence : '',
+            mutatesGate: o.mutatesGate === true,
           });
         }
       }
