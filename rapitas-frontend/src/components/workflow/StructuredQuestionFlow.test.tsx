@@ -35,6 +35,8 @@ const QUESTIONS: StructuredQuestion[] = [
     ],
     freeTextRequired: false,
     freeTextReason: null,
+    recommendedKey: null,
+    recommendedReason: null,
   },
   {
     id: 'Q2',
@@ -42,8 +44,23 @@ const QUESTIONS: StructuredQuestion[] = [
     options: [],
     freeTextRequired: true,
     freeTextReason: '選択肢で表現できない秘匿情報のため',
+    recommendedKey: null,
+    recommendedReason: null,
   },
 ];
+
+const QUESTION_WITH_RECOMMENDATION: StructuredQuestion = {
+  id: 'Q1',
+  summary: '達成すべきゴール',
+  options: [
+    { key: 'A', label: '速度を優先する', consequence: '実装は最小限にする' },
+    { key: 'B', label: '品質を優先する', consequence: 'テストを手厚くする' },
+  ],
+  freeTextRequired: false,
+  freeTextReason: null,
+  recommendedKey: 'B',
+  recommendedReason: 'plan.md §テスト戦略の実測値に基づき品質優先が妥当',
+};
 
 describe('StructuredQuestionFlow', () => {
   beforeEach(() => {
@@ -125,6 +142,37 @@ describe('StructuredQuestionFlow', () => {
     // Heading and table cell prove Markdown structure survived (not raw text).
     expect(screen.getByRole('heading', { name: '背景' })).toBeInTheDocument();
     expect(screen.getByText('質問タブ')).toBeInTheDocument();
+  });
+
+  it('shows the recommended option first with a badge and renders the recommendation reason', () => {
+    render(
+      <StructuredQuestionFlow
+        questions={[QUESTION_WITH_RECOMMENDATION]}
+        submitting={false}
+        onSubmitAll={vi.fn()}
+      />,
+    );
+    const buttons = screen
+      .getAllByRole('button')
+      .filter((b) => b.textContent?.includes('優先する'));
+    expect(buttons[0].textContent).toContain('品質を優先する');
+    expect(buttons[0].textContent).toContain('questionPanel.recommendedBadge');
+    expect(screen.getByText('questionPanel.recommendedReasonLabel')).toBeInTheDocument();
+    expect(
+      screen.getByText(/plan\.md §テスト戦略の実測値に基づき品質優先が妥当/),
+    ).toBeInTheDocument();
+  });
+
+  it('shows no recommendation badge or reason when recommendedKey is unset', () => {
+    render(
+      <StructuredQuestionFlow
+        questions={[QUESTIONS[0]]}
+        submitting={false}
+        onSubmitAll={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText('questionPanel.recommendedBadge')).not.toBeInTheDocument();
+    expect(screen.queryByText('questionPanel.recommendedReasonLabel')).not.toBeInTheDocument();
   });
 
   it('does not render the body wrapper when body is empty or omitted', () => {

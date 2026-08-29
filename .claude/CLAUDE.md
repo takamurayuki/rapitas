@@ -179,6 +179,7 @@ Resume only after the user answers.
 - For scope decisions: `options: ["A: 最小限の変更", "B: 標準的なリファクタリング", "C: 包括的な再設計"]`
 - For approach decisions: `options: ["方法A: (具体的な説明)", "方法B: (具体的な説明)"]`
 - When multiple independent questions exist, ask them as separate AskUserQuestion calls with individual option sets.
+- When saving the machine-readable `json:options` block in question.md (see the Workflow API's question-format guidance), each question MUST also set `recommended` (the `key` of the option you would pick) and `recommendedReason` (1-2 sentences citing a plan.md section, a measurement, or a test result — not a generic claim). If you cannot judge, do not omit these fields — set `freeTextRequired: true` and state why in `freeTextReason` instead.
 
 #### Step 2 — Plan (`plan.md`)
 
