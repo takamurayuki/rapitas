@@ -59,6 +59,6 @@ describe('detectRepeatLoop — #674 false positive (task 708 repro)', () => {
         nowMs: DETECTED_AT_MS,
         taskStatus: 'in-progress',
       }),
-    ).toEqual({ cause: 'file_saved:verify', count: 3 });
+    ).toEqual({ cause: 'file_saved:verify', count: 3, via: 'general' });
   });
 });
