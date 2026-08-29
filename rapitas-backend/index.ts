@@ -221,6 +221,7 @@ import { startAutoRestartMergedCodeScheduler } from './services/scheduling/auto-
 import { startMemoReminderScheduler } from './services/scheduling/memo-reminder-scheduler';
 import { AutoMergeWatcher } from './services/workflow/auto-merge-watcher';
 import { startWorkflowReconciler } from './services/workflow/workflow-reconciler';
+import { startResourceTelemetryIfEnabled } from './services/system/resource-telemetry';
 
 // Start server
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -309,6 +310,7 @@ const runStartupWarmup = async (): Promise<void> => {
   await timed('memo-reminder-scheduler', () => startMemoReminderScheduler());
   await timed('auto-merge-watcher', () => AutoMergeWatcher.getInstance().start());
   await timed('workflow-reconciler', () => startWorkflowReconciler());
+  await timed('resource-telemetry', () => startResourceTelemetryIfEnabled());
 
   log.info('Startup warm-up complete');
 };

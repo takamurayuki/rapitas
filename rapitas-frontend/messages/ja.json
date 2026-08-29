@@ -1826,6 +1826,22 @@
       "activePreviews": "起動中のプレビュー数",
       "uptime": "稼働時間"
     },
+    "resourceContention": {
+      "title": "リソース競合ゲート",
+      "enabled": "有効",
+      "disabled": "無効",
+      "hostCpuNote": "ホスト全体のCPU使用率です。特定テーマへの帰属は行いません。",
+      "currentCpu": "現在のCPU使用率",
+      "threshold": "しきい値",
+      "effectiveMaxConcurrency": "実効並列度",
+      "unsampled": "未計測",
+      "empty": "見送り履歴はありません",
+      "loadFailed": "リソース競合ゲート情報の取得に失敗しました",
+      "deferredAt": "見送り日時",
+      "theme": "テーマ",
+      "runNow": "今すぐ実行",
+      "nextTick": "次回のスケジューラtickで再評価します"
+    },
     "repairConvergence": {
       "title": "自己修復ループの収束状況",
       "convergenceRate": "収束率",

@@ -27,9 +27,15 @@ import {
   shouldHoldForBarrier,
 } from '../../scheduling/merge-barrier/merge-barrier';
 import { setCurrentTask } from './theme-auto-run-service';
-import { notifyAllDone, notifyAllBlocked } from './auto-run-notifications';
+import {
+  notifyAllDone,
+  notifyAllBlocked,
+  notifyResourceContentionHold,
+} from './auto-run-notifications';
 import { countEscalatedBlocked } from '../blocked-task-escalation';
 import { broadcastAutoRunUpdateImpl } from './auto-run-lifecycle';
+import { getHostCpuBusyPercent } from '../../system/resource-telemetry';
+import { evaluateResourceGate, consumeResourceGateOverride } from './resource-contention-gate';
 
 const log = createLogger('theme-auto-run-scheduler');
 
@@ -53,6 +59,53 @@ export async function selectAndEnqueueNextTask(
   // No current task — select and enqueue the next one
   if (globalActive >= AUTO_RUN_GLOBAL_MAX_CONCURRENCY) {
     return; // global limit reached
+  }
+
+  // Resource-contention gate (task 725, default OFF): when a session has
+  // intentionally raised concurrency above 1 AND the host CPU is busy, hold
+  // next-task selection for one cycle instead of piling on more agents. A
+  // pending manual override ("今すぐ実行") bypasses this check entirely for
+  // exactly one cycle, so it is consumed before the gate is even evaluated.
+  if (
+    process.env.RAPITAS_RESOURCE_GATE_ENABLED === 'true' &&
+    !consumeResourceGateOverride(themeId)
+  ) {
+    const thresholdPercent = Number(process.env.RAPITAS_RESOURCE_CPU_THRESHOLD_PERCENT || 85);
+    const gate = evaluateResourceGate({
+      enabled: true,
+      effectiveMaxConcurrency: WorkflowQueueService.getInstance().getMaxConcurrency(),
+      hostCpuBusyPercent: getHostCpuBusyPercent(),
+      thresholdPercent,
+      overridden: false,
+    });
+    if (gate.hold && gate.cpuBusyPercent !== null) {
+      logCycleEvent('task.resource_hold', {
+        theme: themeId,
+        cause: 'host_cpu_busy',
+        cpuBusyPercent: gate.cpuBusyPercent,
+        thresholdPercent: gate.thresholdPercent,
+        effectiveMaxConcurrency: gate.effectiveMaxConcurrency,
+        msg: 'resource-contention gate — holding next-task selection for one cycle',
+      });
+      await prisma.activityLog
+        .create({
+          data: {
+            taskId: null,
+            action: 'auto_run.resource_deferred',
+            metadata: JSON.stringify({
+              themeId,
+              cpuBusyPercent: gate.cpuBusyPercent,
+              thresholdPercent: gate.thresholdPercent,
+              effectiveMaxConcurrency: gate.effectiveMaxConcurrency,
+            }),
+          },
+        })
+        .catch((err) => {
+          log.warn({ err, themeId }, '[ThemeAutoRunScheduler] Failed to record resource hold');
+        });
+      await notifyResourceContentionHold(themeId, gate.cpuBusyPercent, gate.thresholdPercent);
+      return;
+    }
   }
 
   // Merge barrier (task 573 C, default OFF): while the theme still has an
