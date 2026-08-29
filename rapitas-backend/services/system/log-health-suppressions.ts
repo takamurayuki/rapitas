@@ -113,6 +113,20 @@ const SUPPRESSIONS: Suppression[] = [
     because: '実行結果の記録 — 原因は当該実行のログ側に出ており、二重起票になる',
   },
   {
+    // ログ出力箇所: fallback-executor.ts:113-123 の logger.warn。checkNeedsFallback
+    // （fallback-decision.ts:22-53）がプロバイダ障害を検知し、代替エージェント設定で
+    // 再試行を開始する時点の告知ログ — 障害の検出自体は意図した分類ロジックであり、
+    // 欠陥ではない。同一イベントは services/ai/recovery-metrics/ が既に
+    // taskId・phase・fromProvider・strategy・outcome 付きで構造化記録しており、
+    // ログ経由の起票は重複になる。フォールバックが最終的に失敗した場合は別シグネチャ
+    // （上記の Execution ended with status: failed）で捕捉されるため、本ルールで
+    // 最終失敗の可視性が失われることはない（#758）。
+    test: /Provider failed — retrying with alternative agent config/i,
+    logger: /task-executor/i,
+    because:
+      'フォールバック機構が代替エージェントで再試行を開始した告知ログ — 障害検出は意図した分類ロジックであり、同一イベントはrecovery-metricsが既に構造化記録している',
+  },
+  {
     // ログ出力箇所: middleware/error-handler.ts:165-170 の `code === 'PARSE'` 分岐
     // （#683 で追加）。JSONパース失敗はここで log.warn（ERRORではなくWARN）+ status 400
     // として処理される。ParseError の message は elysia 側で "Bad Request" 固定

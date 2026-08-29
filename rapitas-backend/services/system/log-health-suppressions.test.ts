@@ -57,6 +57,7 @@ const SUPPRESSED: [string, string][] = [
     'workflow:verify-self-repair',
     '[verify-repair] Non-convergence check failed — failing open (no cutoff)',
   ],
+  ['task-executor', '[TaskExecutor] Provider failed — retrying with alternative agent config'],
 ];
 
 const KEPT: [string, string][] = [
@@ -109,6 +110,18 @@ describe('classifyLogSignature', () => {
     // Task #702: the phrase alone must not suppress an unrelated logger reusing it.
     expect(
       classifyLogSignature('some-other-logger', 'Bad Request: Failed to parse JSON').suppressed,
+    ).toBe(false);
+  });
+
+  test('"Provider failed — retrying with alternative agent config" is scoped to task-executor only', () => {
+    // Task #758: workflow-provider-fallback.ts emits a similar-sounding phrase
+    // ("Provider failed — retrying with Smart Router fallback") from a different
+    // logger; that is a separate mechanism and must not be filed under this rule.
+    expect(
+      classifyLogSignature(
+        'workflow-provider-fallback',
+        'Provider failed — retrying with alternative agent config',
+      ).suppressed,
     ).toBe(false);
   });
 });
