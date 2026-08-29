@@ -68,7 +68,7 @@ export interface AutoResumeDecision {
  * @param exec - Candidate execution fields. / 候補実行
  * @param opts.now - Current time. / 現在時刻
  * @param opts.hasNewerExecution - A newer execution already exists for the task. / 後続実行の有無
- * @param opts.taskStatus - The owning task's status. / タスク状態
+ * @param opts.taskStatus - The owning task's status. `blocked`/`failed` are excluded — those states can only be exited by an explicit retry. / タスク状態(`blocked`/`failed`は自動再開の対象外)
  * @param opts.hasWorkingDirectory - Theme working directory configured. / 作業Dir設定有無
  * @returns Whether to resume, with the reason. / 判定と理由
  */
@@ -83,7 +83,15 @@ export function decideAutoResume(
 ): AutoResumeDecision {
   if (exec.status !== 'interrupted') return { resume: false, reason: `status=${exec.status}` };
   if (!opts.hasWorkingDirectory) return { resume: false, reason: 'no themeWorkingDirectory' };
-  if (opts.taskStatus === 'done' || opts.taskStatus === 'cancelled') {
+  // blocked/failed are the same "explicit retry only" states as
+  // task-retry-handler.ts's RETRYABLE_STATUSES — auto-resuming them replays
+  // a parked-before intent and causes transition_rejected loops (task #729).
+  if (
+    opts.taskStatus === 'done' ||
+    opts.taskStatus === 'cancelled' ||
+    opts.taskStatus === 'blocked' ||
+    opts.taskStatus === 'failed'
+  ) {
     return { resume: false, reason: `task ${opts.taskStatus}` };
   }
   if (opts.hasNewerExecution) {

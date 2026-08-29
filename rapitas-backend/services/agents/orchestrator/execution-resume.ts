@@ -118,6 +118,7 @@ export async function resumeInterruptedExecution(
     lastOutput,
     logSummary.slice(-2000),
     execution.errorMessage,
+    task.workflowStatus,
   );
 
   let agentConfig: AgentConfigInput = {
