@@ -85,7 +85,10 @@ mock.module('../../services/agents/agent-orchestrator', () => ({
           deletions: 0,
           alreadyCommitted: false,
         }),
-      createPullRequest: () => Promise.resolve(prResultFixture),
+      createPullRequest: () => {
+        createPullRequestCalls++;
+        return Promise.resolve(prResultFixture);
+      },
       removeWorktree: () => Promise.resolve(),
     }),
   },
@@ -114,6 +117,14 @@ mock.module('../../services/github/pr-duplicate-guard', () => ({
   releasePrCreationLock: () => Promise.resolve(),
 }));
 
+// `git rev-list --count origin/<base>..HEAD` seen by countCommitsAhead. The
+// default says the branch IS ahead so the existing tests keep exercising the
+// gh path; the no-change test sets it to '0'.
+let revListFixture = '1';
+let createPullRequestCalls = 0;
+mock.module('../../services/github/git-exec', () => ({
+  runGitCommand: () => Promise.resolve(revListFixture),
+}));
 mock.module('../../services/workflow/pre-pr-base-sync', () => ({
   syncBaseIntoBranch: () =>
     Promise.resolve({ status: 'skipped', changedFiles: 0, conflicts: [], detail: 'no worktree' }),
@@ -158,5 +169,33 @@ describe('performAutoCommitAndPR — Auto-PR失敗時のログ出力', () => {
     expect(loggedObj).not.toHaveProperty('error');
     expect(loggedObj.err).toBeInstanceOf(Error);
     expect((loggedObj.err as Error).message).toBe(prResultFixture.error);
+  });
+});
+
+describe('performAutoCommitAndPR — base より進んだコミットが無ければ gh を呼ばない', () => {
+  test('rev-list が 0 なら createPullRequest を呼ばず、no-change として WARN で記録する', async () => {
+    errorLogCalls.length = 0;
+    warnLogCalls.length = 0;
+    filesChangedFixture = 0;
+    revListFixture = '0';
+    createPullRequestCalls = 0;
+    prResultFixture = { success: false, error: 'gh should not have been called' };
+    const result = await performAutoCommitAndPR(739, '# 検証結果');
+    expect(createPullRequestCalls).toBe(0);
+    expect(result.autoPRResult?.success).toBe(false);
+    expect(result.autoPRResult?.error).toContain('No commits between');
+    expect(errorLogCalls.find(([, msg]) => msg.includes('task 739'))).toBeUndefined();
+    expect(warnLogCalls.find(([, msg]) => msg.includes('task 739'))).toBeDefined();
+    revListFixture = '1';
+  });
+
+  test('rev-list が 1 以上なら従来どおり createPullRequest を呼ぶ', async () => {
+    filesChangedFixture = 1;
+    revListFixture = '3';
+    createPullRequestCalls = 0;
+    prResultFixture = { success: false, error: 'gh: authentication failed' };
+    await performAutoCommitAndPR(687, '# 検証結果');
+    expect(createPullRequestCalls).toBe(1);
+    revListFixture = '1';
   });
 });

@@ -22,6 +22,7 @@ import {
   releasePrCreationLock,
 } from '../../services/github/pr-duplicate-guard';
 import { syncBaseIntoBranch, type BaseSyncResult } from '../../services/workflow/pre-pr-base-sync';
+import { runGitCommand } from '../../services/github/git-exec';
 
 const log = createLogger('routes:workflow:auto-commit');
 
@@ -61,6 +62,26 @@ export type AutoCommitPRResult = {
   verificationBlocked?: boolean;
   error?: string;
 };
+
+/**
+ * Commits on HEAD that the remote base does not have.
+ *
+ * Fails OPEN: when git cannot answer (no remote-tracking ref, not a repo) the
+ * caller proceeds to the PR attempt, which decides for itself.
+ *
+ * @param cwd - Worktree or checkout to inspect. / 対象の作業ツリー
+ * @param baseBranch - PR base branch name (remote-tracking `origin/<base>` is compared). / ベースブランチ
+ * @returns Number of commits ahead, or null when unknown. / 先行コミット数（不明なら null）
+ */
+export async function countCommitsAhead(cwd: string, baseBranch: string): Promise<number | null> {
+  try {
+    const out = await runGitCommand(['rev-list', '--count', `origin/${baseBranch}..HEAD`], cwd);
+    const n = parseInt(out, 10);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Classify whether a failed commit/PR outcome means "no change was needed"
@@ -346,13 +367,27 @@ export async function performAutoCommitAndPR(
             // raw checkout can sit on the base branch when the worktree is gone
             // (task 594: head resolved to "develop" and PR creation failed with
             // head==base despite the session branch being pushed).
-            const prResult = await orchestrator.createPullRequest(
-              gitCwd,
-              prTitle,
-              prBody,
-              targetBranch,
-              branchName ?? undefined,
-            );
+            // Ask git before asking GitHub. A branch with nothing ahead of the
+            // base cannot become a PR; `gh pr create` reports that as a failure
+            // and the gh client logs every failed command at ERROR — six times
+            // in one day for no-change completions (tasks 699/700/707/735/736/
+            // 739). The "No commits between" wording is kept on purpose: it is
+            // what isNoChangeCompletion classifies, so the no-change path below
+            // is unchanged; only the pointless gh call and its ERROR line go.
+            const aheadOfBase = await countCommitsAhead(gitCwd, targetBranch);
+            const prResult =
+              aheadOfBase === 0
+                ? {
+                    success: false as const,
+                    error: `No commits between ${targetBranch} and ${branchName ?? 'HEAD'} — nothing to publish (skipped before gh pr create)`,
+                  }
+                : await orchestrator.createPullRequest(
+                    gitCwd,
+                    prTitle,
+                    prBody,
+                    targetBranch,
+                    branchName ?? undefined,
+                  );
             result.autoPRResult = prResult;
 
             if (prResult.success) {
