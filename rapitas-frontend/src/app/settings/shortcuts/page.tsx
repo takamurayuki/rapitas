@@ -5,7 +5,7 @@ import { Keyboard, Info } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useShortcutSettings } from './hooks/useShortcutSettings';
-import { GlobalShortcutSection } from './components/global-shortcut-section';
+import { ShortcutRecorderSection } from './components/shortcut-recorder-section';
 import { InAppShortcutsSection } from './components/in-app-shortcuts-section';
 
 /**
@@ -32,6 +32,21 @@ export default function ShortcutSettingsPage() {
     toggleGlobalModifier,
     handleSaveGlobal,
     handleResetGlobal,
+    // Quick-capture shortcut
+    currentCaptureShortcut,
+    captureModifiers,
+    captureKey,
+    setCaptureKey,
+    isLoadingCapture,
+    isSavingCapture,
+    captureMessage,
+    isRecordingCapture,
+    setIsRecordingCapture,
+    newCaptureShortcut,
+    hasCaptureChanges,
+    toggleCaptureModifier,
+    handleSaveCapture,
+    handleResetCapture,
     // In-app shortcuts
     shortcuts,
     editingId,
@@ -48,7 +63,7 @@ export default function ShortcutSettingsPage() {
     handleResetAll,
   } = useShortcutSettings();
 
-  if (isLoadingGlobal) {
+  if (isLoadingGlobal || isLoadingCapture) {
     return <LoadingSpinner />;
   }
 
@@ -65,15 +80,17 @@ export default function ShortcutSettingsPage() {
         </div>
       </div>
 
-      <GlobalShortcutSection
-        currentGlobalShortcut={currentGlobalShortcut}
-        globalModifiers={globalModifiers}
-        globalKey={globalKey}
-        isRecordingGlobal={isRecordingGlobal}
-        isSavingGlobal={isSavingGlobal}
-        globalMessage={globalMessage}
-        newGlobalShortcut={newGlobalShortcut}
-        hasGlobalChanges={hasGlobalChanges}
+      <ShortcutRecorderSection
+        title={t('globalShortcuts')}
+        description={t('globalDescription')}
+        currentShortcut={currentGlobalShortcut}
+        modifiers={globalModifiers}
+        activeKey={globalKey}
+        isRecording={isRecordingGlobal}
+        isSaving={isSavingGlobal}
+        message={globalMessage}
+        newShortcut={newGlobalShortcut}
+        hasChanges={hasGlobalChanges}
         onToggleRecording={() => setIsRecordingGlobal(!isRecordingGlobal)}
         onToggleModifier={toggleGlobalModifier}
         onKeyChange={(key) => {
@@ -81,6 +98,26 @@ export default function ShortcutSettingsPage() {
         }}
         onSave={handleSaveGlobal}
         onReset={handleResetGlobal}
+      />
+
+      <ShortcutRecorderSection
+        title={t('captureShortcuts')}
+        description={t('captureDescription')}
+        currentShortcut={currentCaptureShortcut}
+        modifiers={captureModifiers}
+        activeKey={captureKey}
+        isRecording={isRecordingCapture}
+        isSaving={isSavingCapture}
+        message={captureMessage}
+        newShortcut={newCaptureShortcut}
+        hasChanges={hasCaptureChanges}
+        onToggleRecording={() => setIsRecordingCapture(!isRecordingCapture)}
+        onToggleModifier={toggleCaptureModifier}
+        onKeyChange={(key) => {
+          setCaptureKey(key);
+        }}
+        onSave={handleSaveCapture}
+        onReset={handleResetCapture}
       />
 
       <InAppShortcutsSection
@@ -105,6 +142,7 @@ export default function ShortcutSettingsPage() {
           <Info className="w-5 h-5 text-indigo-500 dark:text-indigo-400 shrink-0 mt-0.5" />
           <div className="text-sm text-indigo-700 dark:text-indigo-300 space-y-1">
             <p>{t('globalInfo')}</p>
+            <p>{t('duplicateGlobalCaptureNote')}</p>
             <p>{t('inAppInfo')}</p>
             {!isTauriEnv && (
               <p className="text-amber-600 dark:text-amber-400">{t('desktopOnly')}</p>

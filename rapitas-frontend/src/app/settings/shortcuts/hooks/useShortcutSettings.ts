@@ -1,369 +1,104 @@
 'use client';
 // use-shortcut-settings
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { isTauri } from '@/utils/tauri';
-import { useShortcutStore, type ShortcutId, type ShortcutBinding } from '@/stores/shortcut-store';
-import { createLogger } from '@/lib/logger';
 import { useTranslations } from 'next-intl';
-import {
-  type ModifierKey,
-  AVAILABLE_KEYS,
-  DEFAULT_GLOBAL_SHORTCUT,
-  parseGlobalShortcut,
-  buildGlobalShortcut,
-  resolveKeyFromEvent,
-} from './shortcut-utils';
+import { DEFAULT_GLOBAL_SHORTCUT, DEFAULT_CAPTURE_SHORTCUT } from './shortcut-utils';
+import { useShortcutSlot } from './use-shortcut-slot';
+import { useInAppShortcuts } from './use-in-app-shortcuts';
 
 // Re-export so consumers that imported from this file keep working
-export type { ModifierKey };
+export type { ModifierKey } from './shortcut-utils';
 export {
   AVAILABLE_KEYS,
   DEFAULT_GLOBAL_SHORTCUT,
+  DEFAULT_CAPTURE_SHORTCUT,
   parseGlobalShortcut,
   buildGlobalShortcut,
   MODIFIER_KEYS,
   formatShortcutDisplay,
 } from './shortcut-utils';
 
-const logger = createLogger('useShortcutSettings');
-
-// ────────────────────────────────────────────────────────────────────────────
-// Keyboard Recording Hooks
-// ────────────────────────────────────────────────────────────────────────────
-
 /**
- * Hook for recording global keyboard shortcuts.
- */
-function useGlobalShortcutRecording(
-  isRecording: boolean,
-  onRecord: (modifiers: ModifierKey[], key: string) => void,
-  onStop: () => void,
-) {
-  useEffect(() => {
-    if (!isRecording) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
-
-      const modifiers: ModifierKey[] = [];
-      if (e.ctrlKey) modifiers.push('Ctrl');
-      if (e.altKey) modifiers.push('Alt');
-      if (e.shiftKey) modifiers.push('Shift');
-
-      const key = resolveKeyFromEvent(e);
-      if (key && AVAILABLE_KEYS.includes(key)) {
-        onRecord(modifiers, key);
-      }
-      onStop();
-    };
-
-    window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [isRecording, onRecord, onStop]);
-}
-
-/**
- * Hook for recording in-app keyboard shortcuts.
- */
-function useInAppShortcutRecording(
-  isRecording: boolean,
-  editingId: ShortcutId | null,
-  onRecord: (binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'>) => void,
-  onStop: () => void,
-) {
-  useEffect(() => {
-    if (!isRecording || !editingId) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
-
-      const key = resolveKeyFromEvent(e);
-      if (!key) return;
-
-      const binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'> = {
-        key,
-        meta: e.ctrlKey || e.metaKey,
-        shift: e.shiftKey,
-        ctrl: false,
-      };
-
-      onRecord(binding);
-      onStop();
-    };
-
-    window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [isRecording, editingId, onRecord, onStop]);
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Main Hook
-// ────────────────────────────────────────────────────────────────────────────
-
-/**
- * Manages global shortcut state, in-app shortcut editing, and keyboard recording.
+ * Manages global shortcut state (main + quick-capture), in-app shortcut
+ * editing, and keyboard recording. Orchestrates one `useShortcutSlot`
+ * instance per global shortcut and one `useInAppShortcuts` instance.
  *
  * @returns All state and handler functions needed by the Shortcuts settings page
  */
 export function useShortcutSettings() {
   const [isTauriEnv, setIsTauriEnv] = useState(false);
-  const t = useTranslations('shortcuts');
   const tc = useTranslations('common');
-  const tLabels = useTranslations('shortcuts.labels');
-
-  const [currentGlobalShortcut, setCurrentGlobalShortcut] = useState(DEFAULT_GLOBAL_SHORTCUT);
-  const [globalModifiers, setGlobalModifiers] = useState<ModifierKey[]>(['Ctrl', 'Alt']);
-  const [globalKey, setGlobalKey] = useState('R');
-  const [isLoadingGlobal, setIsLoadingGlobal] = useState(true);
-  const [isSavingGlobal, setIsSavingGlobal] = useState(false);
-  const [globalMessage, setGlobalMessage] = useState<{
-    type: 'success' | 'error';
-    text: string;
-  } | null>(null);
-  const [isRecordingGlobal, setIsRecordingGlobal] = useState(false);
-
-  const { shortcuts, updateShortcut, resetShortcut, resetAll, findDuplicate, getDefault } =
-    useShortcutStore();
-  const [editingId, setEditingId] = useState<ShortcutId | null>(null);
-  const [editBinding, setEditBinding] = useState<Pick<
-    ShortcutBinding,
-    'key' | 'meta' | 'shift' | 'ctrl'
-  > | null>(null);
-  const [isRecordingInApp, setIsRecordingInApp] = useState(false);
-  const [inAppMessage, setInAppMessage] = useState<{
-    type: 'success' | 'error';
-    text: string;
-  } | null>(null);
-  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
   useEffect(() => {
     setIsTauriEnv(isTauri());
   }, []);
 
-  const loadGlobalShortcut = useCallback(async () => {
-    if (!isTauriEnv) {
-      const saved = localStorage.getItem('globalShortcut');
-      if (saved) {
-        setCurrentGlobalShortcut(saved);
-        const { modifiers, key } = parseGlobalShortcut(saved);
-        setGlobalModifiers(modifiers);
-        setGlobalKey(key);
-      }
-      setIsLoadingGlobal(false);
-      return;
-    }
+  const global = useShortcutSlot({
+    getCommand: 'get_global_shortcut',
+    setCommand: 'set_global_shortcut',
+    localStorageKey: 'globalShortcut',
+    defaultShortcut: DEFAULT_GLOBAL_SHORTCUT,
+    isTauriEnv,
+  });
 
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const result = await invoke('get_global_shortcut');
-      const shortcut = String(result);
-      setCurrentGlobalShortcut(shortcut);
-      const { modifiers, key } = parseGlobalShortcut(shortcut);
-      setGlobalModifiers(modifiers);
-      setGlobalKey(key);
-    } catch (e) {
-      logger.error('Failed to load shortcut:', e);
-    } finally {
-      setIsLoadingGlobal(false);
-    }
-  }, [isTauriEnv]);
+  const capture = useShortcutSlot({
+    getCommand: 'get_capture_shortcut',
+    setCommand: 'set_capture_shortcut',
+    localStorageKey: 'captureShortcut',
+    defaultShortcut: DEFAULT_CAPTURE_SHORTCUT,
+    isTauriEnv,
+  });
 
-  useEffect(() => {
-    loadGlobalShortcut();
-  }, [loadGlobalShortcut]);
-
-  // Handle global shortcut recording result
-  const handleGlobalRecord = useCallback((modifiers: ModifierKey[], key: string) => {
-    setGlobalModifiers(modifiers);
-    setGlobalKey(key);
-    setGlobalMessage(null);
-  }, []);
-
-  // Handle in-app shortcut recording result
-  const handleInAppRecord = useCallback(
-    (binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'>) => {
-      setEditBinding(binding);
-      if (editingId) {
-        const dup = findDuplicate(editingId, binding);
-        setDuplicateWarning(dup ? t('duplicateWith', { label: tLabels(dup.id) }) : null);
-      }
-    },
-    [editingId, findDuplicate, t, tLabels],
-  );
-
-  // Use extracted keyboard recording hooks
-  useGlobalShortcutRecording(
-    isRecordingGlobal,
-    handleGlobalRecord,
-    useCallback(() => setIsRecordingGlobal(false), []),
-  );
-
-  useInAppShortcutRecording(
-    isRecordingInApp,
-    editingId,
-    handleInAppRecord,
-    useCallback(() => setIsRecordingInApp(false), []),
-  );
-
-  const toggleGlobalModifier = (mod: ModifierKey) => {
-    setGlobalModifiers((prev) =>
-      prev.includes(mod) ? prev.filter((m) => m !== mod) : [...prev, mod],
-    );
-    setGlobalMessage(null);
-  };
-
-  const handleSaveGlobal = async () => {
-    if (globalModifiers.length === 0) {
-      setGlobalMessage({ type: 'error', text: t('selectModifiers') });
-      return;
-    }
-
-    const newShortcut = buildGlobalShortcut(globalModifiers, globalKey);
-    setIsSavingGlobal(true);
-    setGlobalMessage(null);
-
-    if (!isTauriEnv) {
-      localStorage.setItem('globalShortcut', newShortcut);
-      setCurrentGlobalShortcut(newShortcut);
-      setGlobalMessage({
-        type: 'success',
-        text: t('changedToShortcut', { shortcut: newShortcut }),
-      });
-      setIsSavingGlobal(false);
-      return;
-    }
-
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('set_global_shortcut', {
-        shortcut: newShortcut,
-      });
-      setCurrentGlobalShortcut(newShortcut);
-      setGlobalMessage({
-        type: 'success',
-        text: t('changedToShortcut', { shortcut: newShortcut }),
-      });
-    } catch (e) {
-      const errorMsg = e instanceof Error ? e.message : String(e);
-      setGlobalMessage({
-        type: 'error',
-        text: `${t('changeFailed')} ${errorMsg}`,
-      });
-    } finally {
-      setIsSavingGlobal(false);
-    }
-  };
-
-  const handleResetGlobal = () => {
-    const { modifiers, key } = parseGlobalShortcut(DEFAULT_GLOBAL_SHORTCUT);
-    setGlobalModifiers(modifiers);
-    setGlobalKey(key);
-    setGlobalMessage(null);
-  };
-
-  const startEditing = (id: ShortcutId) => {
-    const current = shortcuts.find((s) => s.id === id);
-    if (!current) return;
-    setEditingId(id);
-    setEditBinding({
-      key: current.key,
-      meta: current.meta,
-      shift: current.shift,
-      ctrl: current.ctrl,
-    });
-    setDuplicateWarning(null);
-    setInAppMessage(null);
-  };
-
-  const cancelEditing = () => {
-    setEditingId(null);
-    setEditBinding(null);
-    setDuplicateWarning(null);
-    setIsRecordingInApp(false);
-  };
-
-  const handleSaveInApp = () => {
-    if (!editingId || !editBinding) return;
-
-    const dup = findDuplicate(editingId, editBinding);
-    if (dup) {
-      setInAppMessage({
-        type: 'error',
-        text: t('cannotSaveDuplicate', { label: tLabels(dup.id) }),
-      });
-      return;
-    }
-
-    updateShortcut(editingId, editBinding);
-    setInAppMessage({ type: 'success', text: t('shortcutChanged') });
-    setTimeout(() => setInAppMessage(null), 3000);
-    setEditingId(null);
-    setEditBinding(null);
-    setDuplicateWarning(null);
-  };
-
-  const handleResetInApp = (id: ShortcutId) => {
-    const def = getDefault(id);
-    if (def) {
-      const dup = findDuplicate(id, def);
-      if (dup) {
-        setInAppMessage({
-          type: 'error',
-          text: t('defaultConflictsWith', { label: tLabels(dup.id) }),
-        });
-        return;
-      }
-    }
-    resetShortcut(id);
-    if (editingId === id) cancelEditing();
-    setInAppMessage({ type: 'success', text: t('resetDone') });
-    setTimeout(() => setInAppMessage(null), 3000);
-  };
-
-  const handleResetAll = () => {
-    resetAll();
-    cancelEditing();
-    setInAppMessage({ type: 'success', text: t('resetAllDone') });
-    setTimeout(() => setInAppMessage(null), 3000);
-  };
-
-  const newGlobalShortcut = buildGlobalShortcut(globalModifiers, globalKey);
-  const hasGlobalChanges = newGlobalShortcut !== currentGlobalShortcut;
+  const inApp = useInAppShortcuts();
 
   return {
     isTauriEnv,
-    currentGlobalShortcut,
-    globalModifiers,
-    globalKey,
-    setGlobalKey,
-    isLoadingGlobal,
-    isSavingGlobal,
-    globalMessage,
-    isRecordingGlobal,
-    setIsRecordingGlobal,
-    newGlobalShortcut,
-    hasGlobalChanges,
-    toggleGlobalModifier,
-    handleSaveGlobal,
-    handleResetGlobal,
-    shortcuts,
-    editingId,
-    editBinding,
-    isRecordingInApp,
-    setIsRecordingInApp,
-    inAppMessage,
-    duplicateWarning,
-    getDefault,
-    startEditing,
-    cancelEditing,
-    handleSaveInApp,
-    handleResetInApp,
-    handleResetAll,
+    // Global shortcut (main)
+    currentGlobalShortcut: global.currentShortcut,
+    globalModifiers: global.modifiers,
+    globalKey: global.key,
+    setGlobalKey: global.setKey,
+    isLoadingGlobal: global.isLoading,
+    isSavingGlobal: global.isSaving,
+    globalMessage: global.message,
+    isRecordingGlobal: global.isRecording,
+    setIsRecordingGlobal: global.setIsRecording,
+    newGlobalShortcut: global.newShortcut,
+    hasGlobalChanges: global.hasChanges,
+    toggleGlobalModifier: global.toggleModifier,
+    handleSaveGlobal: global.handleSave,
+    handleResetGlobal: global.handleReset,
+    // Quick-capture shortcut
+    currentCaptureShortcut: capture.currentShortcut,
+    captureModifiers: capture.modifiers,
+    captureKey: capture.key,
+    setCaptureKey: capture.setKey,
+    isLoadingCapture: capture.isLoading,
+    isSavingCapture: capture.isSaving,
+    captureMessage: capture.message,
+    isRecordingCapture: capture.isRecording,
+    setIsRecordingCapture: capture.setIsRecording,
+    newCaptureShortcut: capture.newShortcut,
+    hasCaptureChanges: capture.hasChanges,
+    toggleCaptureModifier: capture.toggleModifier,
+    handleSaveCapture: capture.handleSave,
+    handleResetCapture: capture.handleReset,
+    // In-app shortcuts
+    shortcuts: inApp.shortcuts,
+    editingId: inApp.editingId,
+    editBinding: inApp.editBinding,
+    isRecordingInApp: inApp.isRecordingInApp,
+    setIsRecordingInApp: inApp.setIsRecordingInApp,
+    inAppMessage: inApp.inAppMessage,
+    duplicateWarning: inApp.duplicateWarning,
+    getDefault: inApp.getDefault,
+    startEditing: inApp.startEditing,
+    cancelEditing: inApp.cancelEditing,
+    handleSaveInApp: inApp.handleSaveInApp,
+    handleResetInApp: inApp.handleResetInApp,
+    handleResetAll: inApp.handleResetAll,
     tc,
   };
 }

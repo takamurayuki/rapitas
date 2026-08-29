@@ -1,28 +1,32 @@
 'use client';
-// global-shortcut-section
+// shortcut-recorder-section
 
 import { Keyboard, Save, RotateCcw, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { MODIFIER_KEYS, AVAILABLE_KEYS, type ModifierKey } from '../hooks/useShortcutSettings';
 
-/** Props for GlobalShortcutSection. */
-interface GlobalShortcutSectionProps {
+/** Props for ShortcutRecorderSection. */
+interface ShortcutRecorderSectionProps {
+  /** Section title / セクションタイトル */
+  title: string;
+  /** Section description / セクション説明 */
+  description: string;
   /** The currently persisted shortcut string / 現在保存されているショートカット */
-  currentGlobalShortcut: string;
+  currentShortcut: string;
   /** Active modifier keys in the editor / エディタでアクティブな修飾キー */
-  globalModifiers: ModifierKey[];
+  modifiers: ModifierKey[];
   /** Active main key in the editor / エディタでアクティブなメインキー */
-  globalKey: string;
+  activeKey: string;
   /** Whether keyboard recording mode is active / キーボード録音モードがアクティブか */
-  isRecordingGlobal: boolean;
+  isRecording: boolean;
   /** Whether a save operation is in progress / 保存処理中かどうか */
-  isSavingGlobal: boolean;
+  isSaving: boolean;
   /** Feedback message after save or error / 保存後のフィードバックメッセージ */
-  globalMessage: { type: 'success' | 'error'; text: string } | null;
+  message: { type: 'success' | 'error'; text: string } | null;
   /** The shortcut that would be saved with current selections / 現在の選択で保存されるショートカット */
-  newGlobalShortcut: string;
+  newShortcut: string;
   /** Whether the editor differs from the persisted value / エディタが保存値と異なるか */
-  hasGlobalChanges: boolean;
+  hasChanges: boolean;
   /** Toggle recording mode on/off / 録音モードの切り替え */
   onToggleRecording: () => void;
   /** Toggle a modifier key on/off / 修飾キーの切り替え */
@@ -36,40 +40,41 @@ interface GlobalShortcutSectionProps {
 }
 
 /**
- * Global shortcut configuration card.
- * Renders current value, record button, modifier toggles, key selector, and save/reset actions.
+ * Shortcut configuration card, reused for both the main global shortcut
+ * and the quick-capture shortcut. Renders current value, record button,
+ * modifier toggles, key selector, and save/reset actions.
  */
-export function GlobalShortcutSection({
-  currentGlobalShortcut,
-  globalModifiers,
-  globalKey,
-  isRecordingGlobal,
-  isSavingGlobal,
-  globalMessage,
-  newGlobalShortcut,
-  hasGlobalChanges,
+export function ShortcutRecorderSection({
+  title,
+  description,
+  currentShortcut,
+  modifiers,
+  activeKey,
+  isRecording,
+  isSaving,
+  message,
+  newShortcut,
+  hasChanges,
   onToggleRecording,
   onToggleModifier,
   onKeyChange,
   onSave,
   onReset,
-}: GlobalShortcutSectionProps) {
+}: ShortcutRecorderSectionProps) {
   const t = useTranslations('shortcuts');
   const tc = useTranslations('common');
 
   return (
     <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6 mb-6">
-      <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50 mb-1">
-        {t('globalShortcuts')}
-      </h2>
-      <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">{t('globalDescription')}</p>
+      <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50 mb-1">{title}</h2>
+      <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">{description}</p>
 
       {/* Current value display */}
       <div className="bg-zinc-50 dark:bg-zinc-900 rounded-lg p-4 mb-4">
         <div className="flex items-center justify-between">
           <span className="text-sm text-zinc-500 dark:text-zinc-400">{t('currentSetting')}</span>
           <kbd className="px-4 py-2 bg-zinc-100 dark:bg-zinc-700 rounded-lg text-lg font-mono font-semibold text-zinc-800 dark:text-zinc-200 border border-zinc-300 dark:border-zinc-600 shadow-sm">
-            {currentGlobalShortcut}
+            {currentShortcut}
           </kbd>
         </div>
       </div>
@@ -79,14 +84,14 @@ export function GlobalShortcutSection({
         <button
           onClick={onToggleRecording}
           className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-dashed transition-all ${
-            isRecordingGlobal
+            isRecording
               ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
               : 'border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400'
           }`}
         >
           <Keyboard className="w-5 h-5" />
           <span className="text-sm font-medium">
-            {isRecordingGlobal ? t('pressKey') : t('clickToEnter')}
+            {isRecording ? t('pressKey') : t('clickToEnter')}
           </span>
         </button>
       </div>
@@ -109,7 +114,7 @@ export function GlobalShortcutSection({
               key={mod}
               onClick={() => onToggleModifier(mod)}
               className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
-                globalModifiers.includes(mod)
+                modifiers.includes(mod)
                   ? 'bg-indigo-500 text-white border-indigo-500 shadow-sm'
                   : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-600 hover:bg-zinc-200 dark:hover:bg-zinc-600'
               }`}
@@ -126,45 +131,45 @@ export function GlobalShortcutSection({
           {t('key')}
         </label>
         <select
-          value={globalKey}
+          value={activeKey}
           onChange={(e) => onKeyChange(e.target.value)}
           className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:border-indigo-400 appearance-none"
         >
-          {AVAILABLE_KEYS.filter((k) => k !== '/').map((key) => (
-            <option key={key} value={key}>
-              {key}
+          {AVAILABLE_KEYS.filter((k) => k !== '/').map((availableKey) => (
+            <option key={availableKey} value={availableKey}>
+              {availableKey}
             </option>
           ))}
         </select>
       </div>
 
       {/* New shortcut preview */}
-      {hasGlobalChanges && (
+      {hasChanges && (
         <div className="bg-zinc-50 dark:bg-zinc-900 rounded-lg p-4 mb-4">
           <div className="flex items-center justify-between">
             <span className="text-sm text-zinc-600 dark:text-zinc-400">{t('newShortcut')}</span>
             <kbd className="px-4 py-2 rounded-lg text-lg font-mono font-semibold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700">
-              {newGlobalShortcut}
+              {newShortcut}
             </kbd>
           </div>
         </div>
       )}
 
       {/* Feedback message */}
-      {globalMessage && (
+      {message && (
         <div
           className={`flex items-center gap-2 p-3 rounded-lg mb-4 ${
-            globalMessage.type === 'success'
+            message.type === 'success'
               ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
               : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
           }`}
         >
-          {globalMessage.type === 'success' ? (
+          {message.type === 'success' ? (
             <CheckCircle className="w-4 h-4 shrink-0" />
           ) : (
             <AlertCircle className="w-4 h-4 shrink-0" />
           )}
-          <span className="text-sm">{globalMessage.text}</span>
+          <span className="text-sm">{message.text}</span>
         </div>
       )}
 
@@ -172,14 +177,10 @@ export function GlobalShortcutSection({
       <div className="flex items-center gap-3">
         <button
           onClick={onSave}
-          disabled={!hasGlobalChanges || isSavingGlobal || globalModifiers.length === 0}
+          disabled={!hasChanges || isSaving || modifiers.length === 0}
           className="flex items-center gap-2 px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white disabled:text-zinc-500 dark:disabled:text-zinc-400 rounded-lg text-sm font-medium transition-colors"
         >
-          {isSavingGlobal ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Save className="w-4 h-4" />
-          )}
+          {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           {tc('save')}
         </button>
         <button

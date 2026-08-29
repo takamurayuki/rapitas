@@ -69,6 +69,9 @@ export const AVAILABLE_KEYS = [
 /** Default global shortcut string used for resets. */
 export const DEFAULT_GLOBAL_SHORTCUT = 'Ctrl+Alt+R';
 
+/** Default quick-capture shortcut string used for resets. */
+export const DEFAULT_CAPTURE_SHORTCUT = 'Ctrl+Alt+I';
+
 /**
  * Parses a shortcut string like "Ctrl+Alt+R" into modifiers and key.
  *
