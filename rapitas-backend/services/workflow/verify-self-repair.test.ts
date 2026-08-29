@@ -46,6 +46,36 @@ describe('buildRepairFeedbackBlock', () => {
     // The sanitized reason must not re-introduce a scannable count.
     expect(/\d+\s+failed/i.test(block)).toBe(false);
   });
+
+  // Task 727 ケース5a: verifyContent から失敗テストの file:line だけでなく、
+  // 次行以降のメソッド名・エラーメッセージも抽出して含める（file:line 単独行の
+  // 直後にテスト名・Error 行が続くランナー出力形式を想定）。
+  test('verifyContent から失敗テストの file:line・メソッド名・エラーメッセージを抽出して含めること', () => {
+    const verifyContent = [
+      '## テスト結果',
+      'FAIL services/workflow/__tests__/verify-self-repair.test.ts:418',
+      '  identifyNonConvergence should cutoff after 2 identical causes',
+      '  Error: expected true to equal false',
+    ].join('\n');
+    const block = buildRepairFeedbackBlock('自己矛盾を検出', 1, verifyContent);
+    expect(block).toMatch(/Failed test:.*\.(test|spec)\.ts:\d+/);
+    expect(block).toContain('services/workflow/__tests__/verify-self-repair.test.ts:418');
+    expect(block).toContain('identifyNonConvergence should cutoff after 2 identical causes');
+    expect(block).toContain('Error: expected true to equal false');
+  });
+
+  // Task 727 ケース5b: 抽出した周辺テキストからも数値集計は除去され、file:line は保持される。
+  test('抽出した失敗詳細から数値集計は除去され、file:line は保持されること', () => {
+    const verifyContent = 'services/foo.test.ts:99 — 3 failed while running the suite';
+    const block = buildRepairFeedbackBlock('reason', 1, verifyContent);
+    expect(/\d+\s+failed/i.test(block)).toBe(false);
+    expect(block).toContain('services/foo.test.ts:99');
+  });
+
+  test('verifyContent が無ければ従来通り失敗詳細行を含めないこと', () => {
+    const block = buildRepairFeedbackBlock('reason', 1);
+    expect(block).not.toContain('Failed test:');
+  });
 });
 
 describe('mergeRepairFeedback', () => {
