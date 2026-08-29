@@ -5,8 +5,8 @@
 //! (see shortcut_config).
 
 use crate::shortcut_config::{
-    load_capture_shortcut_config, load_shortcut_config, parse_shortcut_from_config,
-    save_shortcut_key,
+    load_capture_shortcut_config, load_shortcut_config, load_todo_shortcut_config,
+    parse_shortcut_from_config, save_shortcut_key,
 };
 
 /// Tauri command: get the current shortcut configuration.
@@ -15,9 +15,11 @@ pub fn get_global_shortcut(app: tauri::AppHandle) -> String {
     load_shortcut_config(&app)
 }
 
-/// Re-register both global shortcuts (main + quick capture) from config.
-/// unregister_all first so a stale registration never lingers; when both keys
-/// are configured to the same combo it only registers once (main wins).
+/// Re-register all three global shortcuts (main + quick capture + today's
+/// todo) from config. unregister_all first so a stale registration never
+/// lingers; pairwise-compares every combo against the ones already
+/// registered so a key shared by two or three of them only registers once
+/// (main wins over capture, both win over todo).
 pub fn reregister_all_shortcuts(app: &tauri::AppHandle) -> Result<(), String> {
     use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
@@ -31,11 +33,22 @@ pub fn reregister_all_shortcuts(app: &tauri::AppHandle) -> Result<(), String> {
             .register(sc)
             .map_err(|e| format!("Failed to register shortcut: {e}"))?;
     }
-    if let Some(sc) = parse_shortcut_from_config(&load_capture_shortcut_config(app)) {
+
+    let capture_sc = parse_shortcut_from_config(&load_capture_shortcut_config(app));
+    if let Some(sc) = capture_sc {
         if main_sc != Some(sc) {
             app.global_shortcut()
                 .register(sc)
                 .map_err(|e| format!("Failed to register capture shortcut: {e}"))?;
+        }
+    }
+
+    let todo_sc = parse_shortcut_from_config(&load_todo_shortcut_config(app));
+    if let Some(sc) = todo_sc {
+        if main_sc != Some(sc) && capture_sc != Some(sc) {
+            app.global_shortcut()
+                .register(sc)
+                .map_err(|e| format!("Failed to register todo shortcut: {e}"))?;
         }
     }
     Ok(())

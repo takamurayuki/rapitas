@@ -5710,5 +5710,13 @@
       "recordingWithLevel": "録音中... (音量:{freqAvg} rms:{rms} 無音:{silenceSec}s)",
       "listeningWithLevel": "話してください... (音量:{freqAvg} rms:{rms})"
     }
+  },
+  "todayTodo": {
+    "title": "今日のTodo",
+    "empty": "着手できるタスクがありません",
+    "allSnoozed": "すべてのタスクがスヌーズされています",
+    "closeAria": "閉じる (Esc)",
+    "snoozeAria": "24時間スヌーズ",
+    "clearSnoozeButton": "スヌーズ解除 ({count}件)"
   }
 }
