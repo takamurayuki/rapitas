@@ -138,6 +138,12 @@ describe('syncBaseIntoBranch', () => {
       (c) => c.args.includes('merge') && c.args.includes('--abort'),
     );
     expect(abortCall?.opts?.skipLog).toBe(true);
+    // The initial merge failure is also fully handled here — skipLog suppresses
+    // the generic git-exec ERROR log for it too (task 737).
+    const initialMergeCall = callsWithOpts.find(
+      (c) => c.args.includes('merge') && !c.args.includes('--abort'),
+    );
+    expect(initialMergeCall?.opts?.skipLog).toBe(true);
   });
 
   it('merge fails WITHOUT content conflicts (infra) → skipped (fail-open)', async () => {
@@ -156,6 +162,10 @@ describe('syncBaseIntoBranch', () => {
       (c) => c.args.includes('merge') && c.args.includes('--abort'),
     );
     expect(abortCall?.opts?.skipLog).toBe(true);
+    const initialMergeCall = callsWithOpts.find(
+      (c) => c.args.includes('merge') && !c.args.includes('--abort'),
+    );
+    expect(initialMergeCall?.opts?.skipLog).toBe(true);
   });
 
   it('clean merge but re-verification NG → reverify_failed (PR withheld)', async () => {
