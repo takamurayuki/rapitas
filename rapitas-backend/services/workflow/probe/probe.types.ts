@@ -35,6 +35,13 @@ export interface ProbeTarget {
    *   caches on retry instead of re-reading the same stale result.
    */
   run: (ctx: ProbeContext, attempt: number) => Promise<void>;
+  /**
+   * Per-target timeout override in ms. Falls back to probe-retry's
+   * PROBE_TIMEOUT_MS when omitted — only targets whose real work can
+   * legitimately exceed that default (e.g. agent-endpoint, which awaits CLI
+   * subprocess spawns) need to set this.
+   */
+  timeoutMs?: number;
 }
 
 /** Result of runProbeWithRetry for one target. */
