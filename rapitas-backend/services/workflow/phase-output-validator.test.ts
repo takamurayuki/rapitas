@@ -677,3 +677,29 @@ ${row}
     expect(r.ok).toBe(false);
   });
 });
+
+describe('validateVerify — 撤回された計画項目の ❌（task 710 実データ）', () => {
+  const doc = (row: string) => `# 検証レポート
+## 検証結果サマリ
+スコープ内は all tests pass。
+## テスト結果
+62 pass / 0 fail
+${row}
+## チェックリスト
+- ok`;
+
+  test('「❌ 実施せず（監督者訂正により撤回）」は失敗ではない', () => {
+    expect(
+      validateVerify(
+        doc(
+          '| `VerifyRepairResult` に `cutoff` を追加 | ❌ 実施せず（監督者訂正により撤回） | 差分0行 |',
+        ),
+      ).ok,
+    ).toBe(true);
+  });
+
+  test('「実施せず」だけの ❌ は従来どおり落とす', () => {
+    const r = validateVerify(doc('| 失効処理の追加 | ❌ 実施せず | 時間切れ |'));
+    expect(r.ok).toBe(false);
+  });
+});
