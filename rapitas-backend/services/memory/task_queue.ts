@@ -17,6 +17,29 @@ type TaskHandler = (payload: Record<string, unknown>) => Promise<void>;
 // own — reapStuckProcessing() is what unsticks it.
 const STUCK_PROCESSING_THRESHOLD_MS = 5 * 60 * 1000;
 
+// Defined locally (not imported from services/agents/abstraction/retry-policy.ts) to
+// avoid a cross-domain dependency from services/memory into services/agents.
+function parseIntEnv(name: string, defaultValue: number): number {
+  const raw = process.env[name];
+  if (!raw) return defaultValue;
+  const parsed = parseInt(raw, 10);
+  if (Number.isNaN(parsed)) return defaultValue;
+  return parsed;
+}
+
+/**
+ * Computes the retry backoff delay for a failed task, in milliseconds.
+ *
+ * @param attempts - Total failed attempts so far (including the current one) / 今回を含む累計失敗回数
+ * @returns Delay in ms before the task should be retried, clamped to the configured max / リトライまでの待機時間(ms)
+ */
+export function computeRetryDelayMs(attempts: number): number {
+  const baseMs = parseIntEnv('RAPITAS_MEMORY_QUEUE_RETRY_BASE_MS', 30_000);
+  const maxMs = parseIntEnv('RAPITAS_MEMORY_QUEUE_RETRY_MAX_MS', 300_000);
+  const exponent = Math.max(0, attempts - 1);
+  return Math.min(maxMs, baseMs * 2 ** exponent);
+}
+
 export class MemoryTaskQueueProcessor {
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private handlers = new Map<string, TaskHandler>();
@@ -141,13 +164,19 @@ export class MemoryTaskQueueProcessor {
             'Task moved to dead_letter',
           );
         } else {
-          // Retry: return to pending
+          // Retry: return to pending, delayed by backoff so a transient
+          // startup-window failure isn't retried within the same poll tick.
+          const delayMs = computeRetryDelayMs(newAttempts);
           await prisma.memoryTaskQueue.update({
             where: { id: task.id },
-            data: { status: 'pending', errorMessage: message },
+            data: {
+              status: 'pending',
+              errorMessage: message,
+              scheduledAt: new Date(Date.now() + delayMs),
+            },
           });
           log.warn(
-            { taskType: task.taskType, taskId: task.id, attempts: newAttempts },
+            { taskType: task.taskType, taskId: task.id, attempts: newAttempts, delayMs },
             'Task failed, will retry',
           );
         }
@@ -210,6 +239,48 @@ export class MemoryTaskQueueProcessor {
     }
 
     return { reapedToPending, reapedToDeadLetter };
+  }
+
+  /**
+   * Fetch the most recent dead_letter rows for diagnosis.
+   *
+   * @param limit - Max rows to return / 取得件数上限
+   * @returns Dead-letter rows with `payload` parsed (falls back to `{ _raw }` on parse failure) / payloadをパース済みのdead_letter行一覧
+   */
+  async getDeadLetterTasks(limit = 50): Promise<
+    Array<{
+      id: number;
+      taskType: string;
+      payload: Record<string, unknown>;
+      errorMessage: string | null;
+      attempts: number;
+      createdAt: Date;
+      updatedAt: Date;
+    }>
+  > {
+    const rows = await prisma.memoryTaskQueue.findMany({
+      where: { status: 'dead_letter' },
+      orderBy: { updatedAt: 'desc' },
+      take: limit,
+    });
+
+    return rows.map((row) => {
+      let payload: Record<string, unknown>;
+      try {
+        payload = JSON.parse(row.payload) as Record<string, unknown>;
+      } catch {
+        payload = { _raw: row.payload };
+      }
+      return {
+        id: row.id,
+        taskType: row.taskType,
+        payload,
+        errorMessage: row.errorMessage,
+        attempts: row.attempts,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      };
+    });
   }
 
   /**

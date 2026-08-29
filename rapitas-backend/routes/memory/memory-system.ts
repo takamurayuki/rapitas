@@ -130,6 +130,16 @@ export const memorySystemRoutes = new Elysia({ prefix: '/memory' })
     return { ...status, embeddingCount };
   })
 
+  // GET /memory/queue/dead-letter - Diagnose dead_letter rows (taskType/payload/errorMessage)
+  .get(
+    '/queue/dead-letter',
+    async ({ query }) => {
+      const limit = query.limit ? parseInt(query.limit) : 50;
+      return memoryTaskQueue.getDeadLetterTasks(Number.isFinite(limit) && limit > 0 ? limit : 50);
+    },
+    { query: t.Object({ limit: t.Optional(t.String()) }) },
+  )
+
   // POST /memory/forgetting/sweep - Manual forgetting sweep
   .post('/forgetting/sweep', async () => {
     const result = await runForgettingSweep();
