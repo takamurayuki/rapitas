@@ -52,6 +52,11 @@ const mockIsLogConcernStillRecurring = mock(() => Promise.resolve(null as boolea
 // runs test files in isolation; run them the same way locally.
 mock.module('./log-concern-recurrence', () => ({
   isLogConcernStillRecurring: mockIsLogConcernStillRecurring,
+  // Same contract as the real helper: the fragment after the `[ログ:LEVEL]` mark.
+  fragmentFromLogConcernTitle: (title: string | null | undefined) =>
+    title && /^\[ログ:(?:FATAL|ERROR|WARN)\]/.test(title)
+      ? title.replace(/^\[ログ:[A-Z]+\]\s*/, '')
+      : null,
 }));
 
 const mockListIdeas = mock(() =>
@@ -476,4 +481,23 @@ describe('promoteBacklogForTheme — ログ由来の懸念の再発確認', () =
       expect(mockMarkConcernResolved).not.toHaveBeenCalled();
     }
   });
+});
+
+test('source が unknown でも [ログ:] タイトルなら再発確認の対象にする（#4792 回帰）', async () => {
+  mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 5 });
+  mockTaskCount.mockResolvedValue(0);
+  mockListIdeas.mockResolvedValue({ ideas: [], total: 0 });
+  mockListConcerns.mockResolvedValue({ concerns: [{ id: 4792, severity: 'high' }], total: 1 });
+  mockGetConcern.mockResolvedValue({
+    id: 4792,
+    source: 'unknown',
+    title: '[ログ:ERROR] tauri-notification: diag: sendNotification resolved OK',
+  } as never);
+  mockIsLogConcernStillRecurring.mockResolvedValue(false);
+  mockConvertConcernToTask.mockClear();
+  mockMarkConcernResolved.mockClear();
+  const created = await promoteBacklogForTheme(3);
+  expect(created).toBe(0);
+  expect(mockConvertConcernToTask).not.toHaveBeenCalled();
+  expect(mockMarkConcernResolved).toHaveBeenCalledWith(4792, true);
 });

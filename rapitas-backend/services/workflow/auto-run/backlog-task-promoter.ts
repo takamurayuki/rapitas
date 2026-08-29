@@ -18,7 +18,7 @@ import {
   getConcern,
   markConcernResolved,
 } from '../../memory/concern-backlog-service';
-import { isLogConcernStillRecurring } from './log-concern-recurrence';
+import { isLogConcernStillRecurring, fragmentFromLogConcernTitle } from './log-concern-recurrence';
 import { listIdeas, markIdeaAsUsed } from '../../memory/idea-box-service';
 import { createTask } from '../../task/task-mutations';
 import { logCycleEvent } from '../../observability';
@@ -129,7 +129,13 @@ async function promoteConcern(
     // (five such tasks on 2026-08-30 for one resolved Prisma mismatch).
     // Retire it here; anything still recurring is promoted as before.
     const full = await getConcern(concern.id).catch(() => null);
-    if (full?.source === 'log_health') {
+    // Concerns filed before the source column exist as 'unknown'; their
+    // `[ログ:LEVEL]` title is the reliable mark (concern #4792 from 08-05 slipped
+    // past a source-only check and became task #756 on the first live cycle).
+    const logDerived =
+      full != null &&
+      (full.source === 'log_health' || fragmentFromLogConcernTitle(full.title) !== null);
+    if (full && logDerived) {
       const recurring = await isLogConcernStillRecurring(full);
       if (recurring === false) {
         await markConcernResolved(concern.id, true);
