@@ -47,6 +47,18 @@ export const DESYNC_RECOVERY_SETTLE_MS =
   parseInt(process.env.RAPITAS_INCIDENT_DESYNC_SETTLE_MS ?? '', 10) || 30 * 60 * 1000;
 
 /**
+ * Grace period after a failed session's own last update during which Pattern
+ * A (`session_failed_execution_active`) is EXPECTED, not anomalous (default
+ * 130s). Rationale (#718): the verify post-save pipeline marks a session
+ * failed while its own execution is still running the pipeline (jury ~120s +
+ * commit/PR); DESYNC_RECOVERY_SETTLE_MS's 30m is sized for a much
+ * longer-lived recovery shape (Pattern B) and would delay a genuinely hung
+ * execution's detection by the same amount if reused here.
+ */
+export const PATTERN_A_SETTLE_MS =
+  parseInt(process.env.RAPITAS_INCIDENT_PATTERN_A_SETTLE_MS ?? '', 10) || 130_000;
+
+/**
  * Transition causes that DELIBERATELY produce `task.status='todo'` with an
  * advanced workflowStatus: reconciler_requeue keeps workflowStatus so the
  * resume mapping re-enters at the right phase (workflow-reconciler-requeue),
@@ -176,10 +188,14 @@ export interface TriStateDesyncInput {
   latestTransitionCause?: string | null;
   /** createdAt of that transition, epoch ms (null/undefined = unknown). */
   latestTransitionAtMs?: number | null;
+  /** updatedAt of that AgentSession, epoch ms — feeds only the Pattern A settle-window guard. */
+  latestSessionUpdatedAtMs?: number | null;
   /** Current time (ms) — the recovery grace guard needs it to age the transition. */
   nowMs?: number;
-  /** Recovery grace override (default DESYNC_RECOVERY_SETTLE_MS). */
+  /** Pattern B recovery grace override (default DESYNC_RECOVERY_SETTLE_MS). */
   settleMs?: number;
+  /** Pattern A settle-window override (default PATTERN_A_SETTLE_MS). */
+  patternASettleMs?: number;
 }
 
 /** Which desync pattern was detected. */
@@ -201,10 +217,25 @@ function isWithinRecoveryGrace(input: TriStateDesyncInput): boolean {
 }
 
 /**
+ * True when the session's own last update is within the Pattern A settle
+ * window (#718). Requires BOTH timestamps — with either missing the guard
+ * stays off, so detection sensitivity never silently degrades (mirrors
+ * isWithinRecoveryGrace).
+ */
+function isWithinPatternASettle(input: TriStateDesyncInput): boolean {
+  if (input.latestSessionUpdatedAtMs == null || input.nowMs === undefined) return false;
+  return (
+    input.nowMs - input.latestSessionUpdatedAtMs < (input.patternASettleMs ?? PATTERN_A_SETTLE_MS)
+  );
+}
+
+/**
  * Detects a Task/AgentSession/AgentExecution state contradiction. Pattern A
  * (session terminally failed but its execution still active) is checked first
  * and wins when both apply — the session/execution anomaly is the more urgent
- * signal. Pattern B: task.status still 'todo' while the workflow advanced —
+ * signal — EXCEPT within PATTERN_A_SETTLE_MS of the session's own last update
+ * (see isWithinPatternASettle, #718). Pattern B: task.status still 'todo'
+ * while the workflow advanced —
  * EXCEPT within the recovery grace window after a cause in
  * RECOVERY_REQUEUE_CAUSES (reconciler_requeue / artifact_reuse_fastforward /
  * task_retried), which produces exactly that shape by design (see
@@ -223,6 +254,7 @@ export function detectTriStateDesync(
     input.latestExecutionStatus !== null &&
     ACTIVE_EXECUTION_STATUSES.has(input.latestExecutionStatus)
   ) {
+    if (isWithinPatternASettle(input)) return null;
     return {
       kind: 'session_failed_execution_active',
       detail:
