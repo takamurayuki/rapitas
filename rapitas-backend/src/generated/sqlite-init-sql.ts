@@ -119,6 +119,8 @@ CREATE TABLE "AgentExecution" (
     "questionDetails" TEXT,
     "claudeSessionId" TEXT,
     "llmCallCount" INTEGER NOT NULL DEFAULT 0,
+    "cpuTimeMs" INTEGER,
+    "peakRssKb" INTEGER,
     "ownerId" TEXT,
     "heartbeatAt" DATETIME,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

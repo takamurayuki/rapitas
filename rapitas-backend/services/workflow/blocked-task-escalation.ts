@@ -54,6 +54,11 @@ const REASON_COPY: Record<BlockedExclusionReason, { needs: string; notificationT
     needs: '自動再試行の上限に達しました。手動での調査が必要です。',
     notificationType: 'blocked_escalation',
   },
+  pr_recovery_exhausted: {
+    needs:
+      'PR作成の自動復旧（軽量リトライ）を繰り返しても PR を作成できませんでした。GitHub 連携・権限・リポジトリ状態の手動確認が必要です。',
+    notificationType: 'blocked_escalation',
+  },
   abandoned_old: {
     needs: '長期間放置されています（自動再試行の対象期間外）。手動での調査が必要です。',
     notificationType: 'blocked_escalation',

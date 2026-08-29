@@ -35,6 +35,39 @@ export async function resolveGitRoot(dir: string): Promise<string | null> {
   }
 }
 
+/** Max age for a validation-failure transition to count as "just recorded by this call". */
+const VALIDATION_FAILURE_RECENCY_WINDOW_MS = 30_000;
+
+/**
+ * Whether the HTTP file-save gate (status-transition.ts) already recorded its
+ * own `verify_validation_failed` transition for this task moments ago.
+ *
+ * status-transition.ts exhausts attemptVerifyRepair() and records
+ * `verify_validation_failed` SYNCHRONOUSLY during the agent's verify.md save.
+ * The CLI/orchestrator epilogue (resolveVerifyPhaseStatus) runs afterwards on
+ * its own copy of the same hard-fail validation and, without this check, calls
+ * attemptVerifyRepair() a second time — exhausting it again and recording a
+ * second `verify_validation_failed` transition ~10s later for the identical
+ * failure. Two rows for one event then trips self-incident-watcher's
+ * repeat-loop detector (60-minute window, threshold 2) as a false-positive
+ * retry loop (task 720). Mirrors wasNonConvergenceCutoffJustRecorded's
+ * DB-read pattern (routes/workflow/handlers/file-save/shared.ts).
+ *
+ * @param taskId - Task id / タスクID
+ * @returns Whether the failure transition was just recorded / 直近に失敗遷移が記録されたか
+ */
+export async function wasVerifyValidationFailureJustRecorded(taskId: number): Promise<boolean> {
+  const last = await prisma.workflowTransition
+    .findFirst({
+      where: { taskId },
+      orderBy: { createdAt: 'desc' },
+      select: { cause: true, createdAt: true },
+    })
+    .catch(() => null);
+  if (!last || last.cause !== 'verify_validation_failed') return false;
+  return Date.now() - last.createdAt.getTime() <= VALIDATION_FAILURE_RECENCY_WINDOW_MS;
+}
+
 /**
  * Whether a task already has a created PR — an app-linked GitHubPullRequest row
  * or a task.githubPrId. Used to gate verify-time completion on a PR existing, so

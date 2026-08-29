@@ -65,6 +65,24 @@ export const VERIFY_NON_CONVERGENCE_CAUSE = 'verify_repair_non_convergence';
 export const PR_RETRY_LIGHTWEIGHT_CAUSE = 'verify_pr_retry_lightweight';
 
 /**
+ * Escalate a task blocked by repeated PR-creation failures
+ * (`verify_pr_not_created`) after this many total occurrences, independent of
+ * `MAX_BLOCKED_RETRY` (task 713).
+ *
+ * Before this constant existed, "escalate after 3 PR-creation failures" was
+ * only an EMERGENT property of two independently-tuned budgets interacting:
+ * one lightweight PR-only retry (blocked-pr-retry-recovery.ts) precedes each
+ * full reset, and `MAX_BLOCKED_RETRY` full resets are allowed, so exhaustion
+ * happened to land on the 3rd `verify_pr_not_created` (1 lightweight retry +
+ * 2 full-reset rounds). That alignment was never guaranteed by any single
+ * piece of code — changing `MAX_BLOCKED_RETRY` alone would silently shift it.
+ * This constant makes "escalate within 3 PR-creation failures" a direct,
+ * testable criterion on the actual failure count, so it holds regardless of
+ * `MAX_BLOCKED_RETRY`'s value. / PR作成失敗の直接的な早期エスカレーション基準
+ */
+export const MAX_PR_RECOVERY_ATTEMPTS = 3;
+
+/**
  * Default verify→implement repair budget when UserSettings.verifyRepairLimit
  * is unset. Single source of truth shared by verify-self-repair's
  * resolveMaxRepairs and {@link resolveVerifyRepairLimit} below — the two
@@ -82,7 +100,8 @@ export type BlockedExclusionReason =
   | 'verify_no_convergence'
   | 'abandoned_old'
   | 'verify_repair_exhausted'
-  | 'retry_cap_exhausted';
+  | 'retry_cap_exhausted'
+  | 'pr_recovery_exhausted';
 
 /** Classification of a blocked task: retryable, or an exclusion reason. */
 export type BlockedClassification = BlockedExclusionReason | 'retryable';
@@ -104,6 +123,13 @@ export interface BlockedClassificationInput {
    * / 非収束打ち切り済みか
    */
   nonConverged?: boolean;
+  /**
+   * Total `verify_pr_not_created` transitions ever recorded for the task
+   * (unwindowed — a full reset discards the implementation but the PR-creation
+   * failure pattern persists, task 713). Drives the `pr_recovery_exhausted`
+   * classification independently of `attempts`. / PR作成失敗の累計回数
+   */
+  prNotCreatedCount?: number;
 }
 
 /**
@@ -141,6 +167,11 @@ export function classifyBlockedExclusion(input: BlockedClassificationInput): Blo
   if (input.nonConverged) return 'verify_no_convergence';
   if (input.ageMs > MAX_ORPHAN_REQUEUE_AGE_MS) return 'abandoned_old';
   if (input.repairs >= input.verifyRepairLimit) return 'verify_repair_exhausted';
+  // Checked before the generic retry cap (task 713): a task blocked purely by
+  // repeated PR-creation failures is classified by that specific failure mode
+  // — see MAX_PR_RECOVERY_ATTEMPTS — rather than the coincidentally-aligned
+  // generic budget below, which drifts if MAX_BLOCKED_RETRY ever changes.
+  if ((input.prNotCreatedCount ?? 0) >= MAX_PR_RECOVERY_ATTEMPTS) return 'pr_recovery_exhausted';
   if (input.attempts >= MAX_BLOCKED_RETRY) return 'retry_cap_exhausted';
   return 'retryable';
 }

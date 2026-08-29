@@ -304,6 +304,60 @@ function jurorTimeoutMs(): number {
   return Number.isFinite(v) && v > 0 ? v : 120_000;
 }
 
+/** Consecutive timeouts before a juror is rested. */
+export const JUROR_TIMEOUT_STRIKES = 3;
+
+/** How long a rested juror is skipped before being tried again. */
+export const JUROR_COOLOFF_MS = 30 * 60_000;
+
+/**
+ * Per-provider timeout history, in memory on purpose.
+ *
+ * Jurors run under `Promise.all`, so the review waits for the SLOWEST one: a
+ * provider that always times out adds the full timeout to every single review.
+ * On 2026-08-28 all 29 adversarial log lines were timeouts, 26 of them the same
+ * provider — roughly an hour of added latency for verdicts that were 'unknown'
+ * before they were asked. Resting it costs nothing: a skipped juror returns the
+ * same 'unknown' it would have returned, just immediately.
+ */
+const jurorHealth = new Map<AIProvider, { strikes: number; skipUntilMs: number }>();
+
+/** Clear the juror timeout history. Test-only — never call from production code. */
+export function resetJurorHealth(): void {
+  jurorHealth.clear();
+}
+
+/**
+ * Whether a juror is currently rested after repeated timeouts.
+ *
+ * @param provider - Judge provider. / ジャッジのプロバイダ
+ * @param nowMs - Current time (ms). / 現在時刻
+ * @returns true while the juror should be skipped. / 休ませる間は true
+ */
+export function jurorIsRested(provider: AIProvider, nowMs: number): boolean {
+  return (jurorHealth.get(provider)?.skipUntilMs ?? 0) > nowMs;
+}
+
+/**
+ * Record one juror attempt so repeated timeouts eventually rest the provider.
+ *
+ * @param provider - Judge provider. / ジャッジのプロバイダ
+ * @param timedOut - Whether this attempt timed out. / タイムアウトしたか
+ * @param nowMs - Current time (ms). / 現在時刻
+ */
+export function recordJurorOutcome(provider: AIProvider, timedOut: boolean, nowMs: number): void {
+  if (!timedOut) {
+    jurorHealth.delete(provider);
+    return;
+  }
+  const prev = jurorHealth.get(provider);
+  const strikes = (prev?.strikes ?? 0) + 1;
+  jurorHealth.set(provider, {
+    strikes,
+    skipUntilMs: strikes >= JUROR_TIMEOUT_STRIKES ? nowMs + JUROR_COOLOFF_MS : 0,
+  });
+}
+
 /**
  * Ask one juror (provider) for an independent verdict. Never throws.
  *
@@ -325,10 +379,12 @@ async function askJuror(provider: AIProvider, prompt: string): Promise<JurorVerd
         messages: [{ role: 'user', content: prompt }],
       }).then((res) => {
         const v = parseReviewVerdict(res.content);
+        recordJurorOutcome(provider, false, Date.now());
         return { provider, verdict: v.verdict, severity: v.severity, reasons: v.reasons };
       }),
       new Promise<JurorVerdict>((resolve) => {
         timer = setTimeout(() => {
+          recordJurorOutcome(provider, true, Date.now());
           log.warn(
             { provider, timeoutMs },
             '[adversarial-review] Juror timed out — counting as unknown',
@@ -410,7 +466,19 @@ export async function reviewDiffAdversarially(params: {
       ...JUDGE_PROVIDERS.filter((p) => p !== implProvider),
       ...JUDGE_PROVIDERS.filter((p) => p === implProvider),
     ];
-    const jurors = await Promise.all(order.map((provider) => askJuror(provider, prompt)));
+    // Skip jurors resting after repeated timeouts — they would only add the
+    // full timeout to this review and answer 'unknown' anyway. If that would
+    // empty the panel, ask everyone: a blind gate is worse than a slow one.
+    const nowMs = Date.now();
+    const awake = order.filter((p) => !jurorIsRested(p, nowMs));
+    const panel = awake.length > 0 ? awake : order;
+    if (panel.length < order.length) {
+      log.info(
+        { rested: order.filter((p) => !panel.includes(p)) },
+        '[adversarial-review] Skipping jurors that keep timing out',
+      );
+    }
+    const jurors = await Promise.all(panel.map((provider) => askJuror(provider, prompt)));
     const aggregated = aggregateJuryVerdicts(jurors);
 
     // Durable per-juror record — the raw material for calibrating judge

@@ -200,6 +200,13 @@ export async function escalateAbandonedBlocked(nowMs: number): Promise<number> {
       .count({ where: { taskId: t.id, cause: 'blocked_auto_retry' } })
       .catch(() => 0);
 
+    // Unwindowed, mirroring requeueBlockedTasks' totalPrNotCreated (task
+    // 713) — a full reset does not reset this count, so classification stays
+    // in sync with what retry actually stopped attempting.
+    const prNotCreatedCount = await prisma.workflowTransition
+      .count({ where: { taskId: t.id, cause: 'verify_pr_not_created' } })
+      .catch(() => 0);
+
     // Mirror requeueBlockedTasks' non-convergence skip (task 619, same window)
     // so the classifier sees exactly the signal retry acted on — a drift here
     // would double-handle or abandon the cutoff task.
@@ -220,6 +227,7 @@ export async function escalateAbandonedBlocked(nowMs: number): Promise<number> {
       verifyRepairLimit,
       attempts,
       nonConverged: nonConvergedCount > 0,
+      prNotCreatedCount,
     });
     if (classification === 'retryable') continue; // requeueBlockedTasks owns it
 

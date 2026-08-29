@@ -1558,6 +1558,24 @@ function computePrismaPrepareHash() {
  * @param {string} currentHash
  * @returns {boolean}
  */
+/**
+ * Whether a generated Prisma client still matches the schema copy shipped
+ * beside it.
+ *
+ * @param {string} clientEntry - Path to the client's index.js.
+ * @returns {boolean} false when the client looks partially written or clobbered.
+ */
+function isGeneratedClientSelfConsistent(clientEntry) {
+  try {
+    const embeddedSchema = path.join(path.dirname(clientEntry), 'schema.prisma');
+    if (!fs.existsSync(embeddedSchema)) return false;
+    // One second of slack: a single generate writes these back to back.
+    return fs.statSync(embeddedSchema).mtimeMs >= fs.statSync(clientEntry).mtimeMs - 1000;
+  } catch {
+    return false;
+  }
+}
+
 function isPrismaPrepareCacheValid(currentHash) {
   if (!currentHash) return false;
   if (!fs.existsSync(PRISMA_PREPARE_STAMP)) return false;
@@ -1568,6 +1586,16 @@ function isPrismaPrepareCacheValid(currentHash) {
     if (!fs.existsSync(PRISMA_CLIENT_OUTPUT)) return false;
     if (!fs.existsSync(PRISMA_POSTGRES_CLIENT_OUTPUT)) return false;
     if (fs.statSync(SQLITE_INIT_SQL_OUTPUT).size === 0) return false;
+    // The stamp fingerprints the INPUT schema, so a client corrupted after the
+    // fact stays "valid" forever. On 2026-08-28 a `prisma generate` run from
+    // outside dev.js left index.js carrying a `cpuTimeMs` column that exists in
+    // neither the schema nor the database; the stamp still matched, generation
+    // was skipped on every restart, and every agentExecution read and write
+    // failed for hours. A full generate writes the client and its embedded
+    // schema copy together, so the copy being OLDER than the client is proof
+    // the output was written by something other than a complete generate.
+    if (!isGeneratedClientSelfConsistent(PRISMA_CLIENT_OUTPUT)) return false;
+    if (!isGeneratedClientSelfConsistent(PRISMA_POSTGRES_CLIENT_OUTPUT)) return false;
   } catch {
     return false;
   }
@@ -2095,10 +2123,24 @@ async function hotRestartBackend() {
   isHotRestarting = true;
   try {
     console.log('\n🔥 Hot-restarting backend server...');
-    console.log('  Step 1/2: Stopping backend completely...');
+    console.log('  Step 1/3: Stopping backend completely...');
     await stopBackendCompletely();
 
-    console.log('  Step 2/2: Starting backend...');
+    // Cheap when healthy — the cache check returns after two console.logs — but
+    // it is the only thing that repairs a broken generated client. Without it a
+    // corrupted client survives every hot restart, and hot restart is the path
+    // the auto-update takes, so nothing ever regenerates: on 2026-08-28 a
+    // client carrying a `cpuTimeMs` column that no schema declares survived
+    // 13 hours and every restart, failing every agentExecution query.
+    console.log('  Step 2/3: Verifying the generated Prisma Client...');
+    try {
+      syncDatabaseAndGenerateClient();
+    } catch (err) {
+      console.error('❌ Prisma client check failed during hot restart:', err.message);
+      console.log('  Starting backend anyway — the previous client is still in place.');
+    }
+
+    console.log('  Step 3/3: Starting backend...');
     crashTimestamps = []; // ホットリスタート時はクラッシュカウンターをリセット
     startBackend();
     console.log('✅ Hot restart completed.');

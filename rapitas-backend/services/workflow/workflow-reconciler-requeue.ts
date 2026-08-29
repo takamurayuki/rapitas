@@ -15,6 +15,7 @@ import {
   BLOCKED_RETRY_SETTLE_MS,
   MAX_ORPHAN_REQUEUE_AGE_MS,
   MAX_BLOCKED_RETRY,
+  MAX_PR_RECOVERY_ATTEMPTS,
   resolveVerifyRepairLimit,
   VERIFY_NON_CONVERGENCE_CAUSE,
   PR_RETRY_LIGHTWEIGHT_CAUSE,
@@ -200,6 +201,23 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
       log.info(
         { taskId: t.id, nonConverged },
         '[reconciler] Blocked task was cut off for non-convergence — leaving blocked (needs split/spec revision), not auto-retrying',
+      );
+      continue;
+    }
+
+    // PR-creation-recovery exhaustion (task 713): unwindowed, so a full reset
+    // does not reset this count — the PR-creation failure pattern persists
+    // across resets even though the implementation gets discarded. Checked
+    // BEFORE the lightweight retry below so an exhausted task stops
+    // attempting PR creation entirely (matches classifyBlockedExclusion's
+    // pr_recovery_exhausted, which then escalates it on the next pass).
+    const totalPrNotCreated = await prisma.workflowTransition
+      .count({ where: { taskId: t.id, cause: 'verify_pr_not_created' } })
+      .catch(() => 0);
+    if (totalPrNotCreated >= MAX_PR_RECOVERY_ATTEMPTS) {
+      log.info(
+        { taskId: t.id, totalPrNotCreated },
+        '[reconciler] Blocked task exhausted PR-creation recovery — leaving blocked for escalation, not auto-retrying',
       );
       continue;
     }

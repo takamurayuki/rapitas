@@ -216,3 +216,49 @@ describe('readGlobalEntries', () => {
     expect(entries.some((e) => e.msg === 'no time')).toBe(true);
   });
 });
+
+describe('groupEntries — 調査に必要な具体値を保持する (tasks 695/699/700/701)', () => {
+  // 正規化シグネチャがそのままタイトルになるため、タイトルからは識別子が消える。
+  // 「Task # not found」はどのタスクの話か示さず、実際にこの4件は
+  // 調査の取っかかりが無いまま「修正不要」で完了した。
+  const entries = [
+    {
+      level: 50,
+      name: 'workflow-runner',
+      msg: '[WorkflowRunner] Execution error for task 705: Task 705 not found',
+      time: 1_787_850_000_000,
+    },
+    {
+      level: 50,
+      name: 'workflow-runner',
+      msg: '[WorkflowRunner] Execution error for task 712: Task 712 not found',
+      time: 1_787_853_600_000,
+    },
+  ];
+
+  it('シグネチャは数値を除いて1グループにまとめる', () => {
+    const groups = groupEntries(entries);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.normalizedMsg).toContain('task #');
+    expect(groups[0]?.count).toBe(2);
+  });
+
+  it('正規化前の生メッセージを1件保持する', () => {
+    const groups = groupEntries(entries);
+    expect(groups[0]?.sampleMsg).toBe(
+      '[WorkflowRunner] Execution error for task 705: Task 705 not found',
+    );
+  });
+
+  it('発生時刻の範囲を保持する', () => {
+    const groups = groupEntries(entries);
+    expect(groups[0]?.firstSeenMs).toBe(1_787_850_000_000);
+    expect(groups[0]?.lastSeenMs).toBe(1_787_853_600_000);
+  });
+
+  it('時刻の無いログでも生メッセージは残る', () => {
+    const groups = groupEntries([{ level: 50, name: 'x', msg: 'boom 42' }]);
+    expect(groups[0]?.sampleMsg).toBe('boom 42');
+    expect(groups[0]?.firstSeenMs).toBeUndefined();
+  });
+});

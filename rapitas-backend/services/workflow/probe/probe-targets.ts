@@ -40,8 +40,18 @@ async function runAgentEndpointProbe(ctx: ProbeContext, attempt: number): Promis
   }
 }
 
+/**
+ * discoverModels awaits every provider probe in parallel (see
+ * model-discovery/index.ts), and openai-probe's own CLI subprocess timeout is
+ * 8000ms — the slowest of the four. The default PROBE_TIMEOUT_MS (3000ms)
+ * left almost no margin against that and misclassified a slow-but-healthy
+ * CLI spawn as a permanent failure (task 719). 12000ms keeps a real margin
+ * above that 8000ms worst case.
+ */
+const AGENT_ENDPOINT_TIMEOUT_MS = 12_000;
+
 /** All probe targets run before a phase transition, in declaration order. */
 export const PROBE_TARGETS: ProbeTarget[] = [
   { id: 'db', run: runDbProbe },
-  { id: 'agent-endpoint', run: runAgentEndpointProbe },
+  { id: 'agent-endpoint', run: runAgentEndpointProbe, timeoutMs: AGENT_ENDPOINT_TIMEOUT_MS },
 ];
