@@ -189,6 +189,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     startTime: number,
     resolve: (result: AgentExecutionResult) => void,
     taskId?: number,
+    resourceStats?: { cpuTimeMs: number | null; peakRssKb: number | null },
   ): () => void {
     return buildResolveAfterParse(
       this as unknown as Parameters<typeof buildResolveAfterParse>[0],
@@ -231,6 +232,7 @@ export class ClaudeCodeAgent extends BaseAgent {
         }
       },
       this.config.investigationMode,
+      resourceStats,
     );
   }
 
@@ -294,8 +296,15 @@ export class ClaudeCodeAgent extends BaseAgent {
     }
 
     return new Promise((resolve) => {
-      runClaudeExecution(this, task, workDir, startTime, timeout, resolve, (code, wd, st, res) =>
-        this.buildResolveAfterParse(code, wd, st, res, task.id),
+      runClaudeExecution(
+        this,
+        task,
+        workDir,
+        startTime,
+        timeout,
+        resolve,
+        (code, wd, st, res, resourceStats) =>
+          this.buildResolveAfterParse(code, wd, st, res, task.id, resourceStats),
       );
     });
   }
