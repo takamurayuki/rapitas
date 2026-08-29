@@ -121,6 +121,51 @@ describe('pattern B recovery grace (#636)', () => {
   });
 });
 
+// task #715: a retry against a theme with auto-run disabled resets status to
+// 'todo' while leaving workflowStatus mid-phase, exactly like the recovery
+// causes above — but since a paused theme never dispatches, the shape never
+// settles and Pattern B fired forever (tasks #602/#646/#647, themeId=25).
+describe('pattern B suppressed by a disabled theme auto-run (#715)', () => {
+  const pausedThemeTask: TriStateDesyncInput = {
+    taskStatus: 'todo',
+    workflowStatus: 'in_progress',
+    latestSessionStatus: null,
+    latestExecutionStatus: null,
+    latestTransitionCause: 'verify_validation_failed',
+    latestTransitionAtMs: NOW - 4 * 24 * 60 * 60 * 1000,
+    nowMs: NOW,
+    themeAutoRunEnabled: false,
+  };
+
+  it('does NOT detect pattern B when the theme auto-run is disabled, however long it has waited', () => {
+    expect(detectTriStateDesync(pausedThemeTask)).toBeNull();
+  });
+
+  it('still detects pattern B when the theme auto-run is enabled', () => {
+    const result = detectTriStateDesync({ ...pausedThemeTask, themeAutoRunEnabled: true });
+    expect(result?.kind).toBe('todo_status_workflow_advanced');
+  });
+
+  it('still detects pattern B when the theme auto-run state is unresolved (fail open)', () => {
+    const result = detectTriStateDesync({ ...pausedThemeTask, themeAutoRunEnabled: null });
+    expect(result?.kind).toBe('todo_status_workflow_advanced');
+  });
+
+  it('still detects pattern B when themeAutoRunEnabled is simply omitted (fail open)', () => {
+    const { themeAutoRunEnabled: _omitted, ...withoutThemeState } = pausedThemeTask;
+    expect(detectTriStateDesync(withoutThemeState)?.kind).toBe('todo_status_workflow_advanced');
+  });
+
+  it('does NOT let a disabled theme auto-run suppress pattern A', () => {
+    const result = detectTriStateDesync({
+      ...pausedThemeTask,
+      latestSessionStatus: 'failed',
+      latestExecutionStatus: 'running',
+    });
+    expect(result?.kind).toBe('session_failed_execution_active');
+  });
+});
+
 // task 709 / task #602: three more code paths revert status to 'todo' without
 // changing workflowStatus (backend shutdown, manual stop, stale-execution
 // recovery). Before task 709 none recorded a transition, so the grace guard

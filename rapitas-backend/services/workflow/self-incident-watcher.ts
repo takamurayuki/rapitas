@@ -77,6 +77,30 @@ interface CandidateTask {
   status: string;
   workflowStatus: string | null;
   updatedAt: Date;
+  /** Theme the task belongs to (null = unthemed) — feeds the Pattern B auto-run gate. */
+  themeId: number | null;
+}
+
+/**
+ * Resolves each candidate's theme auto-run enabled state in one batch query
+ * (task #715) — avoids an N+1 `ThemeAutoRun` lookup per candidate. Only
+ * themes with an explicit `enabled: false` row are recorded; every other
+ * themeId (no row, enabled: true, or unthemed) is absent from the map, and
+ * detectTriStateDesync treats a missing entry as "enabled" (fail open — see
+ * TriStateDesyncInput.themeAutoRunEnabled).
+ *
+ * @param themeIds - Distinct, non-null theme ids among this pass's candidates. / 候補のテーマID一覧
+ * @returns Set of theme ids whose auto-run is explicitly disabled. / 自動実行が無効なテーマID集合
+ */
+async function resolveDisabledAutoRunThemeIds(themeIds: number[]): Promise<Set<number>> {
+  if (themeIds.length === 0) return new Set();
+  const disabled = await prisma.themeAutoRun
+    .findMany({
+      where: { themeId: { in: themeIds }, enabled: false },
+      select: { themeId: true },
+    })
+    .catch(() => [] as { themeId: number }[]);
+  return new Set(disabled.map((d) => d.themeId));
 }
 
 /** Formats + files one finding as a dedup-keyed concern. Never throws. */
@@ -132,7 +156,11 @@ async function fileFinding(args: {
 }
 
 /** Runs all three detectors over one task and files a concern per finding. */
-async function inspectTask(task: CandidateTask, nowMs: number): Promise<number> {
+async function inspectTask(
+  task: CandidateTask,
+  nowMs: number,
+  disabledAutoRunThemeIds: Set<number>,
+): Promise<number> {
   const state = await gatherTaskState(task, nowMs, REPEAT_LOOP_WINDOW_MS);
   let filed = 0;
 
@@ -180,6 +208,7 @@ async function inspectTask(task: CandidateTask, nowMs: number): Promise<number> 
     latestTransitionCause: latestTransition?.cause ?? null,
     latestTransitionAtMs: state.latestTransitionAtMs,
     latestSessionUpdatedAtMs: state.latestSessionUpdatedAtMs,
+    themeAutoRunEnabled: task.themeId != null ? !disabledAutoRunThemeIds.has(task.themeId) : null,
     nowMs,
   });
   if (desync) {
@@ -257,7 +286,14 @@ async function inspectAwaitingQuestionTasks(nowMs: number): Promise<number> {
   const candidates = await prisma.task
     .findMany({
       where: { parentId: null, workflowStatus: 'awaiting_question' },
-      select: { id: true, title: true, status: true, workflowStatus: true, updatedAt: true },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        workflowStatus: true,
+        updatedAt: true,
+        themeId: true,
+      },
       orderBy: { updatedAt: 'asc' },
       take: MAX_CANDIDATES,
     })
@@ -328,16 +364,29 @@ export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<
   const candidates = await prisma.task
     .findMany({
       where: { parentId: null, updatedAt: { gte: new Date(nowMs - CANDIDATE_LOOKBACK_MS) } },
-      select: { id: true, title: true, status: true, workflowStatus: true, updatedAt: true },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        workflowStatus: true,
+        updatedAt: true,
+        themeId: true,
+      },
       orderBy: { updatedAt: 'asc' },
       take: MAX_CANDIDATES,
     })
     .catch(() => [] as CandidateTask[]);
 
+  // Resolved once per pass (not per task) — feeds Pattern B's auto-run gate.
+  const candidateThemeIds = [
+    ...new Set(candidates.map((t) => t.themeId).filter((id): id is number => id != null)),
+  ];
+  const disabledAutoRunThemeIds = await resolveDisabledAutoRunThemeIds(candidateThemeIds);
+
   let filed = 0;
   for (const task of candidates) {
     try {
-      filed += await inspectTask(task, nowMs);
+      filed += await inspectTask(task, nowMs, disabledAutoRunThemeIds);
     } catch (err) {
       // One broken task must not starve the rest of the scan.
       log.warn({ err, taskId: task.id }, '[self-incident] task inspection failed — continuing');
