@@ -286,6 +286,8 @@ export async function resumeInterruptedExecution(
         tokensUsed: execution.tokensUsed,
         executionTimeMs: execution.executionTimeMs,
         claudeSessionId: execution.claudeSessionId,
+        cpuTimeMs: execution.cpuTimeMs,
+        peakRssKb: execution.peakRssKb,
       },
     );
     emitResultEvent(result, execution.id, execution.sessionId, taskId, (event) =>

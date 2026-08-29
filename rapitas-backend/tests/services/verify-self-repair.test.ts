@@ -206,6 +206,41 @@ describe('attemptVerifyRepair', () => {
     expect(content).toContain('VERIFY BODY');
   });
 
+  // Task 727 ケース5a: 却下された verify.md の失敗テスト file:line だけでなく、
+  // 次行のエラーメッセージも差し戻しフィードバックに具体的な位置情報として含める。
+  test('差し戻しフィードバックが verify.md 中の失敗テスト file:line・エラーメッセージを含むこと', async () => {
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+    readWorkflowFile.mockResolvedValue(null);
+    const verifyContent = [
+      '## テスト結果',
+      'FAIL services/workflow/__tests__/verify-self-repair.test.ts:418',
+      '  Error: expected true to equal false',
+    ].join('\n');
+    await attemptVerifyRepair(1, 'in_progress', '自己矛盾を検出', verifyContent);
+
+    const args = writeWorkflowFile.mock.calls[0] as unknown[];
+    const content = args[2] as string;
+    expect(content).toMatch(/Failed test:.*\.(test|spec)\.ts:\d+/);
+    expect(content).toContain('services/workflow/__tests__/verify-self-repair.test.ts:418');
+    expect(content).toContain('Error: expected true to equal false');
+  });
+
+  // Task 727 ケース5b: 抽出した失敗詳細からも数値集計（\d+\s+failed）は除去されること
+  // （phase-output-validator.ts の自己矛盾検知の再発防止、task 494 の教訓）。
+  test('差し戻しフィードバックに数値集計（N failed）が再混入しないこと', async () => {
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+    readWorkflowFile.mockResolvedValue(null);
+    // NOTE: verifyContent 自体 (prior として素通しされる元本文) に数値集計を含めると
+    // sanitize 対象外の既存本文と衝突するため、reason 側でのみ数値集計を検証する。
+    const verifyContent = 'services/foo.test.ts:99 — assertion failed unexpectedly';
+    await attemptVerifyRepair(1, 'in_progress', 'claims pass (Tests 3 failed)', verifyContent);
+
+    const args = writeWorkflowFile.mock.calls[0] as unknown[];
+    const content = args[2] as string;
+    expect(/\d+\s+failed/i.test(content)).toBe(false);
+    expect(content).toContain('services/foo.test.ts:99');
+  });
+
   test('境界値: prior = max-1 は bounce する（attempt = max）こと', async () => {
     // Default max is 2 (DEFAULT_VERIFY_REPAIR_LIMIT, blocked-task-policy.ts); prior=1 is the last bounce-able attempt.
     mockPrisma.workflowTransition.count.mockResolvedValue(1);

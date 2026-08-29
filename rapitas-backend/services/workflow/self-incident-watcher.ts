@@ -20,8 +20,10 @@ import {
   detectUnansweredQuestion,
   STAGNATION_THRESHOLD_MS,
   DESYNC_RECOVERY_SETTLE_MS,
+  PATTERN_A_SETTLE_MS,
   REPEAT_LOOP_WINDOW_MS,
   REPEAT_LOOP_MIN_COUNT,
+  INVARIANT_REPEAT_LOOP_MIN_COUNT,
 } from './incident-signature-detectors';
 import { gatherTaskState, formatIncidentDetail } from './self-incident-evidence';
 import type { GatheredTaskState } from './self-incident-evidence';
@@ -177,6 +179,7 @@ async function inspectTask(task: CandidateTask, nowMs: number): Promise<number> 
     latestExecutionStatus: state.latestExecutionStatus,
     latestTransitionCause: latestTransition?.cause ?? null,
     latestTransitionAtMs: state.latestTransitionAtMs,
+    latestSessionUpdatedAtMs: state.latestSessionUpdatedAtMs,
     nowMs,
   });
   if (desync) {
@@ -197,7 +200,8 @@ async function inspectTask(task: CandidateTask, nowMs: number): Promise<number> 
           desync.kind === 'todo_status_workflow_advanced'
             ? `即時判定（ただし回復遷移 reconciler_requeue/artifact_reuse_fastforward/task_retried から` +
               `${Math.round(DESYNC_RECOVERY_SETTLE_MS / 60_000)}分間は定着待ちとして除外）`
-            : '即時判定（閾値なし — 状態スナップショットの矛盾を直接検出）',
+            : `即時判定（ただしセッション最終更新から${Math.round(PATTERN_A_SETTLE_MS / 1000)}秒間は` +
+              `定着待ちとして除外）`,
         severity: 'high',
         nowMs,
       })
@@ -223,7 +227,7 @@ async function inspectTask(task: CandidateTask, nowMs: number): Promise<number> 
           `遷移が${loop.count}回発生しています。同じ失敗と再試行を繰り返すループの疑いがあります。`,
         thresholdDescription:
           `${Math.round(REPEAT_LOOP_WINDOW_MS / 60_000)}分以内に同一causeが` +
-          `${REPEAT_LOOP_MIN_COUNT}回以上`,
+          `${loop.via === 'invariant' ? INVARIANT_REPEAT_LOOP_MIN_COUNT : REPEAT_LOOP_MIN_COUNT}回以上`,
         severity: 'high',
         nowMs,
       })

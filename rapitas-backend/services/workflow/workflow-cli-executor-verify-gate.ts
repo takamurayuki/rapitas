@@ -16,7 +16,10 @@ import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 import { recordTransition, type TransitionActor } from './transition-recorder';
 import { evaluateCompletionGate } from './completion-gate';
 import { writeBlockedStatusDurable } from './durable-blocked-write';
-import { taskHasLinkedPr } from './workflow-cli-executor-helpers';
+import {
+  taskHasLinkedPr,
+  wasVerifyValidationFailureJustRecorded,
+} from './workflow-cli-executor-helpers';
 
 // NOTE: Same logger name as the executor body — keeps the observed log `name`
 // field identical after the file split.
@@ -51,7 +54,14 @@ export async function resolveVerifyPhaseStatus(params: {
   // FAIL), the rejection owns the task's next step. Running the completion
   // epilogue anyway would commit/PR/complete over the bounce (task 485).
   const { hasFreshVerifyRejection } = await import('./verify-self-repair');
-  const verifyRejected = await hasFreshVerifyRejection(taskId).catch(() => false);
+  // Also honor a `verify_validation_failed` the HTTP save gate already
+  // recorded moments ago — hasFreshVerifyRejection() doesn't cover that cause
+  // (it owns terminal-block recording, not rejection-freshness detection), so
+  // without this the epilogue below re-runs attemptVerifyRepair() a second
+  // time and double-records the same failure as two transitions (task 720).
+  const verifyRejected =
+    (await hasFreshVerifyRejection(taskId).catch(() => false)) ||
+    (await wasVerifyValidationFailureJustRecorded(taskId).catch(() => false));
   if (currentWfStatus === 'completed') {
     // The HTTP handler already completed it — don't touch / regress.
     phaseStatus = 'completed';

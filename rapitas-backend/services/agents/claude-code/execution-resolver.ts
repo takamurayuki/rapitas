@@ -77,6 +77,7 @@ export function buildResolveAfterParse(
   getCommits: () => GitCommitInfo[],
   checkPlanCreated?: () => Promise<boolean>,
   investigationMode?: boolean,
+  resourceStats?: { cpuTimeMs: number | null; peakRssKb: number | null },
 ): () => void {
   return () => {
     const artifacts = getArtifacts();
@@ -88,24 +89,33 @@ export function buildResolveAfterParse(
     // so every resolve() path below carries it.
     const finalMessage = ctx.finalResultText?.trim() || undefined;
     /** Spread real-cost fields (from stream-json `result`) into the resolved value. */
-    const usageFields: Partial<AgentExecutionResult> = usage
-      ? {
-          costUsd: usage.costUsd,
-          inputTokens: usage.inputTokens,
-          outputTokens: usage.outputTokens,
-          cacheReadInputTokens: usage.cacheReadInputTokens,
-          cacheCreationInputTokens: usage.cacheCreationInputTokens,
-          modelName: usage.modelName,
-          tokensUsed:
-            (usage.inputTokens ?? 0) +
-            (usage.outputTokens ?? 0) +
-            (usage.cacheReadInputTokens ?? 0) +
-            (usage.cacheCreationInputTokens ?? 0),
-          // NOTE: num_turns from stream-json result = total assistant LLM calls for this CLI session.
-          llmCallCount: usage.numTurns,
-          finalMessage,
-        }
-      : { finalMessage };
+    const usageFields: Partial<AgentExecutionResult> = {
+      ...(usage
+        ? {
+            costUsd: usage.costUsd,
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            cacheReadInputTokens: usage.cacheReadInputTokens,
+            cacheCreationInputTokens: usage.cacheCreationInputTokens,
+            modelName: usage.modelName,
+            tokensUsed:
+              (usage.inputTokens ?? 0) +
+              (usage.outputTokens ?? 0) +
+              (usage.cacheReadInputTokens ?? 0) +
+              (usage.cacheCreationInputTokens ?? 0),
+            // NOTE: num_turns from stream-json result = total assistant LLM calls for this CLI session.
+            llmCallCount: usage.numTurns,
+            finalMessage,
+          }
+        : { finalMessage }),
+      // Resource telemetry (task #714) — merged unconditionally (even when
+      // sampling never captured a value) so every resolve() branch below
+      // carries the same keys via `...usageFields`, matching the waitingForInput
+      // exception noted in plan.md (the sampler is stopped before close, so a
+      // value is already final by the time any branch runs).
+      cpuTimeMs: resourceStats?.cpuTimeMs ?? null,
+      peakRssKb: resourceStats?.peakRssKb ?? null,
+    };
 
     // Tags the fact of a wall-clock kill (regardless of success/failure below) so
     // downstream fallback-decision logic can skip provider-error classification —

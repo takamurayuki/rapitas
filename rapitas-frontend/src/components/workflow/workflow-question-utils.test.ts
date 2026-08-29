@@ -121,6 +121,8 @@ describe('parseOptionsBlock', () => {
       ],
       freeTextRequired: false,
       freeTextReason: null,
+      recommendedKey: null,
+      recommendedReason: null,
     });
     expect(block?.questions[1]).toEqual({
       id: 'Q2',
@@ -128,6 +130,8 @@ describe('parseOptionsBlock', () => {
       options: [],
       freeTextRequired: true,
       freeTextReason: '選択肢で表現できない秘匿情報のため',
+      recommendedKey: null,
+      recommendedReason: null,
     });
   });
 
@@ -150,6 +154,51 @@ describe('parseOptionsBlock', () => {
     const md =
       '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[],"freeTextRequired":false}]}\n```';
     expect(parseOptionsBlock(md)).toBeNull();
+  });
+
+  it('parses recommended/recommendedReason when present and valid', () => {
+    const md =
+      '```json:options\n' +
+      JSON.stringify({
+        questions: [
+          {
+            id: 'Q1',
+            summary: '達成すべきゴール',
+            options: [
+              { key: 'A', label: '速度を優先する', consequence: '実装は最小限にする' },
+              { key: 'B', label: '品質を優先する', consequence: 'テストを手厚くする' },
+            ],
+            freeTextRequired: false,
+            freeTextReason: null,
+            recommended: 'B',
+            recommendedReason: 'plan.md §テスト戦略の実測値に基づき品質優先が妥当',
+          },
+        ],
+      }) +
+      '\n```';
+    const block = parseOptionsBlock(md);
+    expect(block?.questions[0].recommendedKey).toBe('B');
+    expect(block?.questions[0].recommendedReason).toBe(
+      'plan.md §テスト戦略の実測値に基づき品質優先が妥当',
+    );
+  });
+
+  it('degrades to no recommendation when recommended/recommendedReason are missing (backward compat)', () => {
+    const block = parseOptionsBlock(VALID_OPTIONS_MD);
+    expect(block?.questions[0].recommendedKey).toBeNull();
+    expect(block?.questions[0].recommendedReason).toBeNull();
+  });
+
+  it('degrades to no recommendation when recommended has an invalid type or names no existing option', () => {
+    const mdInvalidType =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"a"}],"freeTextRequired":false,"recommended":42,"recommendedReason":"x"}]}\n```';
+    expect(parseOptionsBlock(mdInvalidType)?.questions[0].recommendedKey).toBeNull();
+
+    const mdUnknownKey =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"a"}],"freeTextRequired":false,"recommended":"Z","recommendedReason":"x"}]}\n```';
+    const parsed = parseOptionsBlock(mdUnknownKey);
+    expect(parsed?.questions[0].recommendedKey).toBeNull();
+    expect(parsed?.questions[0].recommendedReason).toBeNull();
   });
 });
 

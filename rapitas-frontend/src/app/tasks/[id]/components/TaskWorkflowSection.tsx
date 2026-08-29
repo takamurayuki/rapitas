@@ -12,8 +12,19 @@ import { resolveBlockedCauseLabel } from '@/components/workflow/workflow-blocked
 import CriticHistorySection from '@/components/workflow/CriticHistorySection';
 import RepairStagnationBanner from '@/components/workflow/RepairStagnationBanner';
 import RepairIterationMetricsPanel from '@/components/workflow/RepairIterationMetricsPanel';
+import DryRunPanel from '@/components/workflow/DryRunPanel';
 import PhaseBreakdown from '@/feature/tasks/components/detail/PhaseBreakdown';
 import { useWorkflowDisabledToggle } from '../hooks/useWorkflowDisabledToggle';
+
+// Statuses where a worktree is likely to exist — DryRunPanel is not shown
+// before this (it would just 404). See workflow-handlers-dry-run.ts.
+const DRY_RUN_VISIBLE_STATUSES: ReadonlySet<WorkflowStatus> = new Set([
+  'plan_approved',
+  'in_progress',
+  'blocked',
+  'verify_done',
+  'completed',
+]);
 
 export interface TaskWorkflowSectionProps {
   task: Task;
@@ -439,6 +450,10 @@ export default function TaskWorkflowSection({
 
       <RepairStagnationBanner taskId={taskId} />
       <RepairIterationMetricsPanel taskId={taskId} />
+
+      {currentWorkflowStatus && DRY_RUN_VISIBLE_STATUSES.has(currentWorkflowStatus) && (
+        <DryRunPanel taskId={taskId} />
+      )}
 
       <CriticHistorySection taskId={taskId} />
 

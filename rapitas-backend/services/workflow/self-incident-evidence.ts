@@ -36,6 +36,8 @@ export interface GatheredTaskState {
   windowedCauses: RepeatLoopTransition[];
   latestSessionId: number | null;
   latestSessionStatus: string | null;
+  /** updatedAt of that session, epoch ms (null = no session). Feeds the Pattern A settle-window guard. */
+  latestSessionUpdatedAtMs: number | null;
   latestExecutionId: number | null;
   latestExecutionStatus: string | null;
   /** True when any ACTIVE_EXEC-status execution exists for the task. */
@@ -106,6 +108,7 @@ export async function gatherTaskState(
       select: {
         id: true,
         status: true,
+        updatedAt: true,
         agentExecutions: {
           orderBy: { createdAt: 'desc' },
           take: 1,
@@ -160,6 +163,7 @@ export async function gatherTaskState(
     })),
     latestSessionId: latestSession?.id ?? null,
     latestSessionStatus: latestSession?.status ?? null,
+    latestSessionUpdatedAtMs: latestSession?.updatedAt?.getTime() ?? null,
     latestExecutionId: latestSession?.agentExecutions[0]?.id ?? null,
     latestExecutionStatus: latestSession?.agentExecutions[0]?.status ?? null,
     hasLiveExecution: liveExec !== null,
