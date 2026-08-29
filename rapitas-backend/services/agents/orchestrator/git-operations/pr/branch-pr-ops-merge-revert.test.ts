@@ -87,7 +87,13 @@ mock.module('../worktree/worktree-guard', () => ({
   ensureNotPrimaryWorkTree: async () => {},
   isBackendPrimaryCheckout: async () => primaryWorkTree,
   findConflictingWorktreeForBranch: async () => null,
-  recoverFromUnresolvedMerge: async () => false,
+  // NOTE: Recorded into `calls` (same array as executed git commands) so tests
+  // can assert this ran BEFORE the post-merge `git checkout` — task 743 added
+  // this call to close the one unguarded checkout path (see below).
+  recoverFromUnresolvedMerge: async () => {
+    calls.push('recoverFromUnresolvedMerge');
+    return false;
+  },
 }));
 mock.module('../../../../github/gh-client', () => ({
   runGhCommandWithBody: async (): Promise<string> => 'https://github.com/x/y/pull/99',
@@ -246,6 +252,45 @@ describe('mergePullRequest — branch-protection "head behind base" is retriable
     expect(result.success).toBe(false);
     expect(result.retriable).toBeUndefined();
     expect(calls.some((c) => /pr update-branch/.test(c))).toBe(false);
+  });
+});
+
+describe('mergePullRequest — post-merge local sync self-heals an unresolved index (task 743)', () => {
+  test('calls recoverFromUnresolvedMerge before the post-merge checkout on a non-primary worktree', async () => {
+    primaryWorkTree = false;
+    script = [
+      { match: /pr view 42 --json commits/, result: '1' },
+      { match: /pr merge 42/, result: '' },
+      { match: /^git checkout develop/, result: '' },
+      { match: /^git pull/, result: '' },
+    ];
+
+    const result = await mergePullRequest('/repo/.worktrees/task-1', 42, 5, 'develop');
+
+    expect(result.success).toBe(true);
+    const recoverIndex = calls.indexOf('recoverFromUnresolvedMerge');
+    const checkoutIndex = calls.findIndex((c) => /^git checkout develop/.test(c));
+    // Before this fix, this path never called recoverFromUnresolvedMerge, so a
+    // worktree left with an unresolved MERGE_HEAD/CHERRY_PICK_HEAD from a prior
+    // failed merge would fail this checkout with git's "you need to resolve
+    // your current index first" (the exact task-743 log). Asserting the call
+    // happened, and happened before the checkout, locks the fix in place.
+    expect(recoverIndex).toBeGreaterThanOrEqual(0);
+    expect(checkoutIndex).toBeGreaterThanOrEqual(0);
+    expect(recoverIndex).toBeLessThan(checkoutIndex);
+  });
+
+  test('skips recoverFromUnresolvedMerge on the PRIMARY working tree (sync itself is skipped)', async () => {
+    primaryWorkTree = true;
+    script = [
+      { match: /pr view 42 --json commits/, result: '1' },
+      { match: /pr merge 42/, result: '' },
+    ];
+
+    const result = await mergePullRequest('/repo', 42, 5, 'develop');
+
+    expect(result.success).toBe(true);
+    expect(calls.includes('recoverFromUnresolvedMerge')).toBe(false);
   });
 });
 
