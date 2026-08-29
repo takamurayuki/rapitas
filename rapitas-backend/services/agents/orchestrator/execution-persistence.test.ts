@@ -386,4 +386,117 @@ describe('saveExecutionResult()', () => {
 
     expect(prisma.agentSession.update).not.toHaveBeenCalled();
   });
+
+  // ── cpuTimeMs / peakRssKb（資源テレメトリ, task #714） ────────────────────
+
+  test('資源テレメトリ: 既存値なし → 実測値をそのまま書き込む', async () => {
+    const prisma = makePrisma();
+    const state = makeState();
+    const fileLogger = makeFileLogger();
+
+    await saveExecutionResult(
+      prisma as never,
+      1,
+      2,
+      state,
+      { success: true, cpuTimeMs: 1200, peakRssKb: 51200 },
+      fileLogger,
+    );
+
+    const updateArg = prisma.agentExecution.update.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(updateArg.data.cpuTimeMs).toBe(1200);
+    expect(updateArg.data.peakRssKb).toBe(51200);
+  });
+
+  test('資源テレメトリ: 既存値あり → CPU時間は加算、RSSは最大値を採用する', async () => {
+    const prisma = makePrisma();
+    const state = makeState();
+    const fileLogger = makeFileLogger();
+
+    await saveExecutionResult(
+      prisma as never,
+      1,
+      2,
+      state,
+      { success: true, cpuTimeMs: 800, peakRssKb: 30000 },
+      fileLogger,
+      { cpuTimeMs: 1000, peakRssKb: 60000 },
+    );
+
+    const updateArg = prisma.agentExecution.update.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(updateArg.data.cpuTimeMs).toBe(1800);
+    expect(updateArg.data.peakRssKb).toBe(60000);
+  });
+
+  test('資源テレメトリ: null/未計測は書き込みキー自体を省く（既存値を上書きしない）', async () => {
+    const prisma = makePrisma();
+    const state = makeState();
+    const fileLogger = makeFileLogger();
+
+    await saveExecutionResult(
+      prisma as never,
+      1,
+      2,
+      state,
+      { success: true, cpuTimeMs: null, peakRssKb: null },
+      fileLogger,
+      { cpuTimeMs: 1000, peakRssKb: 60000 },
+    );
+
+    const updateArg = prisma.agentExecution.update.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(updateArg.data.cpuTimeMs).toBeUndefined();
+    expect(updateArg.data.peakRssKb).toBeUndefined();
+  });
+
+  test('資源テレメトリ: waitingForInput=true でも欠落しない', async () => {
+    const prisma = makePrisma();
+    const state = makeState();
+    const fileLogger = makeFileLogger();
+
+    await saveExecutionResult(
+      prisma as never,
+      1,
+      2,
+      state,
+      { success: false, waitingForInput: true, cpuTimeMs: 500, peakRssKb: 20000 },
+      fileLogger,
+    );
+
+    const updateArg = prisma.agentExecution.update.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(updateArg.data.cpuTimeMs).toBe(500);
+    expect(updateArg.data.peakRssKb).toBe(20000);
+  });
+
+  test('資源テレメトリ: 文字列化された数値も安全な数値へ補正する', async () => {
+    const prisma = makePrisma();
+    const state = makeState();
+    const fileLogger = makeFileLogger();
+
+    await saveExecutionResult(
+      prisma as never,
+      1,
+      2,
+      state,
+      {
+        success: true,
+        cpuTimeMs: '"900"' as unknown as number,
+        peakRssKb: '"40000"' as unknown as number,
+      },
+      fileLogger,
+    );
+
+    const updateArg = prisma.agentExecution.update.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(updateArg.data.cpuTimeMs).toBe(900);
+    expect(updateArg.data.peakRssKb).toBe(40000);
+  });
 });

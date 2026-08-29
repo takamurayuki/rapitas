@@ -23,6 +23,7 @@ import {
   killProcessTreeSafely,
   captureDescendants,
 } from '../agent-process-tracker';
+import { startResourceSampling, stopResourceSampling } from '../process-resource-sampler';
 import { getClaudePath, buildSpawnCommand } from './cli-utils';
 import { buildSanitizedSpawnEnv } from '../../../utils/agent';
 import { buildStructuredPrompt } from './prompt-builder';
@@ -244,6 +245,7 @@ export function runClaudeExecution(
     workDir: string,
     startTime: number,
     resolve: (result: AgentExecutionResult) => void,
+    resourceStats?: { cpuTimeMs: number | null; peakRssKb: number | null },
   ) => () => void,
 ): void {
   // In --resume or --continue mode, use the prompt (user response) as-is
@@ -321,6 +323,7 @@ export function runClaudeExecution(
         startedAt: new Date().toISOString(),
         parentPid: process.pid,
       });
+      startResourceSampling(agent.process.pid);
     }
 
     writePromptToStdin(agent, prompt).catch((err) => {
@@ -410,12 +413,17 @@ export function runClaudeExecution(
       agent.emitOutputInternal(output, true);
     });
 
+    let resourceStats: { cpuTimeMs: number | null; peakRssKb: number | null } = {
+      cpuTimeMs: null,
+      peakRssKb: null,
+    };
     agent.process.on('close', (code: number | null) => {
       monitor.cleanup();
       cleanupPromptFile();
       if (agent.process?.pid) {
         const closedPid = agent.process.pid;
         unregisterProcess(closedPid);
+        resourceStats = stopResourceSampling(closedPid);
         // On Windows, 'close' (stdio closed) does NOT guarantee the process
         // exited — a completed `claude --print` agent can stay resident and pile
         // up as a zombie. Reap its tree after a short grace if still alive.
@@ -459,7 +467,13 @@ export function runClaudeExecution(
       // Skip if already resolved by timeout
       if (agent.getStatus() === 'failed') return;
 
-      const resolveAfterParse = buildResolveAfterParse(code, workDir, startTime, resolve);
+      const resolveAfterParse = buildResolveAfterParse(
+        code,
+        workDir,
+        startTime,
+        resolve,
+        resourceStats,
+      );
 
       // If a Worker exists, send parse-complete and wait for results;
       // otherwise fall back to direct execution

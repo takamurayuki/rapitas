@@ -24,6 +24,7 @@ import {
   stopGeminiProcess,
   checkGeminiAvailability,
 } from './process-manager';
+import { stopResourceSampling } from '../process-resource-sampler';
 import { parseArtifacts, parseCommits } from './output-parser';
 import { buildStructuredPrompt } from './prompt-builder';
 import { attachStreamHandlers } from './stream-handler';
@@ -186,6 +187,9 @@ export class GeminiCliAgent extends BaseAgent {
           // onClose
           (code) => {
             this.detectedQuestion = detectedQuestionRef.value;
+            const resourceStats = this.process?.pid
+              ? stopResourceSampling(this.process.pid)
+              : { cpuTimeMs: null, peakRssKb: null };
 
             if (this.status === 'cancelled') {
               resolve({
@@ -193,6 +197,7 @@ export class GeminiCliAgent extends BaseAgent {
                 output: this.outputBuffer,
                 errorMessage: 'Execution cancelled',
                 executionTimeMs: Date.now() - startTime,
+                ...resourceStats,
               });
               return;
             }
@@ -221,6 +226,7 @@ export class GeminiCliAgent extends BaseAgent {
                 // NOTE: Re-using claudeSessionId field for session continuation (checkpoint ID takes priority)
                 claudeSessionId: this.checkpointId || this.geminiSessionId || undefined,
                 modelName: this.config.model,
+                ...resourceStats,
               });
               return;
             }
@@ -247,6 +253,7 @@ export class GeminiCliAgent extends BaseAgent {
               claudeSessionId: this.checkpointId || this.geminiSessionId || undefined,
               modelName: this.config.model,
               errorMessage,
+              ...resourceStats,
             });
           },
           // onStatusFailed
