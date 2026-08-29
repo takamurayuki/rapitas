@@ -57,7 +57,11 @@ export async function resolvePrConflicts(
   }
 
   try {
-    await runGitCommand(['merge', `origin/${baseBranch}`, '--no-edit'], wt);
+    // NOTE: skipLog suppresses the ERROR runGitCommand would emit — merge
+    // failures (conflict or otherwise) are fully handled in the catch block
+    // below via the returned ConflictResolveResult, same rationale as the
+    // merge --abort call further down.
+    await runGitCommand(['merge', `origin/${baseBranch}`, '--no-edit'], wt, { skipLog: true });
     // Clean merge — push the updated head branch.
     await runGitCommand(['push', 'origin', `${tmpBranch}:${headBranch}`], wt);
     return {
