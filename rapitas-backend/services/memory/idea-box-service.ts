@@ -12,6 +12,7 @@ import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 import { narrowEnum } from '../../utils/common/type-guards';
 import { findSaturatedTheme, findNearDuplicate } from './theme-saturation';
 import { resolveTaskThemeId, resolveDefaultThemeId } from './theme-resolution';
+import { evaluateIdeaDomainFit, isDomainGateEnabled, getDomainGateMode } from './idea-domain-gate';
 
 // Re-exported for backward compatibility — these lived here before being
 // shared with concern-backlog-service.ts (see theme-resolution.ts). Existing
@@ -199,6 +200,27 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
   if (themeId == null && input.scope !== 'global') {
     if (input.taskId != null) themeId = await resolveTaskThemeId(input.taskId);
     if (themeId == null) themeId = await resolveDefaultThemeId();
+  }
+
+  // Domain-fit gate (#738): idea #5592 (media-conversion proposal) was attached
+  // to the ime-live-converter theme and auto-promoted into task #602 with no
+  // matching code in that repo. Lexical bigram-containment check between the
+  // idea text and the theme's own material flags a gross mismatch before the
+  // idea is stored. Default mode 'log' only records the mismatch (threshold is
+  // an unvalidated heuristic); RAPITAS_IDEA_DOMAIN_GATE_MODE=enforce also
+  // reassigns themeId=null so the existing uncategorized-idea skip in
+  // backlog-task-promoter.ts (auto-promotion) keeps it from becoming another
+  // empty-target task. Skipped for human submissions (see isHumanSubmission).
+  if (!isHumanSubmission && themeId != null && isDomainGateEnabled()) {
+    const domainFit = await evaluateIdeaDomainFit({ title, content, themeId });
+    if (domainFit.mismatch) {
+      const mode = getDomainGateMode();
+      log.info(
+        { title: input.title, themeId, score: domainFit.score, mode, reason: domainFit.reason },
+        '[idea-box] Domain-fit gate flagged mismatch',
+      );
+      if (mode === 'enforce') themeId = null;
+    }
   }
 
   // Quality-Diversity gate (R5): the lexical filters above catch re-files, not

@@ -2,7 +2,7 @@
  * IdeaBox Service テスト
  * idea-box-service.ts のビジネスロジックのユニットテスト
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
 
 const mockKnowledgeEntry = {
   findFirst: mock(() => Promise.resolve(null)),
@@ -127,6 +127,55 @@ describe('IdeaBox Service', () => {
 
       const call = mockKnowledgeEntry.findMany.mock.calls[0][0];
       expect(call.where.NOT).toBeDefined();
+    });
+  });
+
+  describe('ドメイン整合ゲート', () => {
+    const mediaIdea = {
+      title: 'コンテキスト認識型プリセット推奨エンジン',
+      content: '動画/画像のメディア変換設定において、過去の変換履歴からプリセットを自動推薦する',
+      themeId: 7,
+      source: 'agent_execution',
+    };
+    const imeTheme = {
+      name: 'ime-live-converter',
+      description: '日本語IME向けのリアルタイム変換ライブラリ',
+      repositoryUrl: null,
+      workingDirectory: null,
+    };
+
+    beforeEach(() => {
+      mockPrisma.theme.findFirst.mockReset().mockReturnValue(Promise.resolve(imeTheme));
+    });
+
+    afterEach(() => {
+      delete process.env.RAPITAS_IDEA_DOMAIN_GATE_MODE;
+    });
+
+    test('enforceモードでmismatch時にthemeIdがnullへ退避される', async () => {
+      process.env.RAPITAS_IDEA_DOMAIN_GATE_MODE = 'enforce';
+
+      await submitIdea(mediaIdea);
+
+      const call = mockKnowledgeEntry.create.mock.calls[0][0];
+      expect(call.data.themeId).toBeNull();
+    });
+
+    test('既定(logモード)ではmismatchでもthemeIdが維持される', async () => {
+      await submitIdea(mediaIdea);
+
+      const call = mockKnowledgeEntry.create.mock.calls[0][0];
+      expect(call.data.themeId).toBe(7);
+    });
+
+    test('source:userはゲートをバイパスしthemeIdが維持される', async () => {
+      process.env.RAPITAS_IDEA_DOMAIN_GATE_MODE = 'enforce';
+
+      await submitIdea({ ...mediaIdea, source: 'user' });
+
+      expect(mockPrisma.theme.findFirst).not.toHaveBeenCalled();
+      const call = mockKnowledgeEntry.create.mock.calls[0][0];
+      expect(call.data.themeId).toBe(7);
     });
   });
 
