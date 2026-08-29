@@ -15,6 +15,7 @@ const mockKnowledgeEntryCount = mock(() => Promise.resolve(0));
 const mockKnowledgeEntryGroupBy = mock(() => Promise.resolve([]));
 const mockKnowledgeEntryUpdate = mock(() => Promise.resolve({}));
 const mockKnowledgeEntryCreate = mock(() => Promise.resolve({ id: 1 }));
+const mockKnowledgeEntryDelete = mock(() => Promise.resolve({}));
 
 const mockGitHubIssueFindMany = mock(() => Promise.resolve([]));
 const mockThemeFindFirst = mock(() => Promise.resolve(null));
@@ -34,6 +35,7 @@ mock.module('../../config/database', () => ({
       groupBy: mockKnowledgeEntryGroupBy,
       update: mockKnowledgeEntryUpdate,
       create: mockKnowledgeEntryCreate,
+      delete: mockKnowledgeEntryDelete,
     },
     gitHubIssue: {
       findMany: mockGitHubIssueFindMany,
@@ -68,6 +70,9 @@ const {
   normalizeConcernSeverity,
   markConcernResolved,
   getConcern,
+  setConcernStatus,
+  deleteConcern,
+  convertConcernToTask,
   listConcerns,
   getConcernStats,
   submitConcern,
@@ -85,6 +90,7 @@ function resetMocks() {
   mockKnowledgeEntryGroupBy.mockReset().mockResolvedValue([]);
   mockKnowledgeEntryUpdate.mockReset().mockResolvedValue({});
   mockKnowledgeEntryCreate.mockReset().mockResolvedValue({ id: 1 });
+  mockKnowledgeEntryDelete.mockReset().mockResolvedValue({});
   mockGitHubIssueFindMany.mockReset().mockResolvedValue([]);
   mockThemeFindFirst.mockReset().mockResolvedValue(null);
   mockThemeFindMany.mockReset().mockResolvedValue([]);
@@ -184,6 +190,119 @@ describe('markConcernResolved', () => {
 
     expect(result).toBe(false);
     expect(mockKnowledgeEntryUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// ─── setConcernStatus / deleteConcern / convertConcernToTask — concernId 境界値 ──
+// Regression coverage for #744: an out-of-range concernId (e.g. a huge float
+// parsed from a route param) must never reach `prisma.knowledgeEntry` — Prisma
+// throws PrismaClientValidationError ("Unable to fit value ... into a 64-bit
+// signed integer") when it does, which previously reached the DB unguarded.
+
+const OUT_OF_RANGE_CONCERN_ID = 6.0316055619162455e31;
+
+describe('setConcernStatus', () => {
+  beforeEach(resetMocks);
+
+  it('範囲外の concernId は findFirst を呼ばず false を返す', async () => {
+    const result = await setConcernStatus(OUT_OF_RANGE_CONCERN_ID, 'dismissed');
+
+    expect(result).toBe(false);
+    expect(mockKnowledgeEntryFindFirst).not.toHaveBeenCalled();
+    expect(mockKnowledgeEntryUpdate).not.toHaveBeenCalled();
+  });
+
+  it('存在する concern のステータスを更新して true を返す', async () => {
+    mockKnowledgeEntryFindFirst.mockResolvedValue({ id: 1 });
+
+    const result = await setConcernStatus(1, 'dismissed');
+
+    expect(result).toBe(true);
+    const call = mockKnowledgeEntryUpdate.mock.calls[0][0];
+    expect(call.data.sourceId).toBe('dismissed');
+  });
+
+  it('concern が見つからない場合は false を返す', async () => {
+    mockKnowledgeEntryFindFirst.mockResolvedValue(null);
+
+    const result = await setConcernStatus(999, 'open');
+
+    expect(result).toBe(false);
+    expect(mockKnowledgeEntryUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('deleteConcern', () => {
+  beforeEach(resetMocks);
+
+  it('範囲外の concernId は findFirst を呼ばず false を返す', async () => {
+    const result = await deleteConcern(OUT_OF_RANGE_CONCERN_ID);
+
+    expect(result).toBe(false);
+    expect(mockKnowledgeEntryFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('存在する concern を削除して true を返す', async () => {
+    mockKnowledgeEntryFindFirst.mockResolvedValue({ id: 1 });
+
+    const result = await deleteConcern(1);
+
+    expect(result).toBe(true);
+  });
+
+  it('concern が見つからない場合は false を返す', async () => {
+    mockKnowledgeEntryFindFirst.mockResolvedValue(null);
+
+    const result = await deleteConcern(999);
+
+    expect(result).toBe(false);
+  });
+});
+
+describe('convertConcernToTask', () => {
+  const CONCERN_ROW = {
+    id: 1,
+    title: 'Auth flaw',
+    content: 'JWT not validated',
+    category: 'security',
+    tags: '["severity:high"]',
+    sourceId: 'open',
+    themeId: 5,
+    taskId: null,
+    createdAt: new Date(),
+  };
+
+  beforeEach(resetMocks);
+
+  it('範囲外の concernId は findFirst を呼ばず null を返す', async () => {
+    const result = await convertConcernToTask(OUT_OF_RANGE_CONCERN_ID);
+
+    expect(result).toBeNull();
+    expect(mockKnowledgeEntryFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('concern が見つからない場合は null を返す', async () => {
+    mockKnowledgeEntryFindFirst.mockResolvedValue(null);
+
+    const result = await convertConcernToTask(999);
+
+    expect(result).toBeNull();
+  });
+
+  it('既にタスク化済みの concern は例外を投げる', async () => {
+    mockKnowledgeEntryFindFirst.mockResolvedValue({ ...CONCERN_ROW, sourceId: 'task_42' });
+
+    await expect(convertConcernToTask(1)).rejects.toThrow('この懸念は既にタスク化されています');
+  });
+
+  it('未タスク化の concern をタスクへ変換し taskId を返す', async () => {
+    mockKnowledgeEntryFindFirst.mockResolvedValue(CONCERN_ROW);
+
+    const result = await convertConcernToTask(1);
+
+    expect(result).toBe(100);
+    const call = mockKnowledgeEntryUpdate.mock.calls[0][0];
+    expect(call.data.sourceId).toBe('task_100');
   });
 });
 

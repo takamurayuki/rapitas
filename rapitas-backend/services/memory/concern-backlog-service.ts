@@ -32,6 +32,20 @@ const CONCERN_NEARDUP_JACCARD = (() => {
 
 const log = createLogger('memory:concern-backlog');
 
+/**
+ * True when a concern id is safe to bind into a Prisma `where: { id }` clause.
+ * Callers (route params, GitHub sync payloads) may pass out-of-range floats;
+ * Prisma throws PrismaClientValidationError before this reaches SQLite when
+ * the value doesn't fit a 64-bit signed integer, so this must be checked
+ * before any `knowledgeEntry` query runs. / concernId が Prisma に渡して安全か
+ *
+ * @param concernId - Candidate concern id / 判定対象の懸念ID
+ * @returns True when safe to query with / クエリに使って安全なら true
+ */
+function isValidConcernId(concernId: number): boolean {
+  return Number.isSafeInteger(concernId) && concernId > 0;
+}
+
 /** What kind of concern this is. */
 export const CONCERN_TYPES = ['bug', 'refactor', 'security', 'perf', 'other'] as const;
 export type ConcernType = (typeof CONCERN_TYPES)[number];
@@ -437,6 +451,7 @@ export async function listConcerns(options: {
  * @returns Concern or null when not found / 懸念、無ければ null
  */
 export async function getConcern(concernId: number): Promise<ConcernEntry | null> {
+  if (!isValidConcernId(concernId)) return null;
   const row = await prisma.knowledgeEntry.findFirst({
     where: { id: concernId, sourceType: 'concern' },
     select: CONCERN_SELECT,
@@ -458,6 +473,7 @@ export async function getConcern(concernId: number): Promise<ConcernEntry | null
  * @returns True when the concern's status actually changed / 変化したか
  */
 export async function markConcernResolved(concernId: number, resolved: boolean): Promise<boolean> {
+  if (!isValidConcernId(concernId)) return false;
   const row = await prisma.knowledgeEntry.findFirst({
     where: { id: concernId, sourceType: 'concern' },
     select: { id: true, sourceId: true },
@@ -484,6 +500,7 @@ export async function setConcernStatus(
   concernId: number,
   status: 'dismissed' | 'open',
 ): Promise<boolean> {
+  if (!isValidConcernId(concernId)) return false;
   const existing = await prisma.knowledgeEntry.findFirst({
     where: { id: concernId, sourceType: 'concern' },
     select: { id: true },
@@ -496,6 +513,7 @@ export async function setConcernStatus(
 
 /** Deletes a concern. */
 export async function deleteConcern(concernId: number): Promise<boolean> {
+  if (!isValidConcernId(concernId)) return false;
   const existing = await prisma.knowledgeEntry.findFirst({
     where: { id: concernId, sourceType: 'concern' },
     select: { id: true },
@@ -530,6 +548,7 @@ const TYPE_PREFIX: Record<ConcernType, string> = {
  * @returns Created task id, or null on failure / 作成タスクID
  */
 export async function convertConcernToTask(concernId: number): Promise<number | null> {
+  if (!isValidConcernId(concernId)) return null;
   const row = await prisma.knowledgeEntry.findFirst({
     where: { id: concernId, sourceType: 'concern' },
     select: CONCERN_SELECT,
