@@ -1,21 +1,67 @@
 /**
- * Tests for verify-self-repair's feedback-block helpers.
+ * Tests for verify-self-repair's feedback-block helpers and the
+ * attemptVerifyRepair repair-budget double-check (task 749).
  *
- * Focuses on the pure functions behind writeRepairFeedback: reason
- * sanitisation (no numeric failure tallies survive), marker wrapping, and
- * replace-not-stack merging — the trio that stops a past rejection from
- * poisoning the next validateVerify cycle (task 494's repair loop).
+ * The feedback-block describes cover the pure functions behind
+ * writeRepairFeedback: reason sanitisation (no numeric failure tallies
+ * survive), marker wrapping, and replace-not-stack merging — the trio that
+ * stops a past rejection from poisoning the next validateVerify cycle
+ * (task 494's repair loop).
+ *
+ * mock.module is registered below BEFORE verify-self-repair is imported
+ * (via a top-level dynamic import, same pattern as verify-self-repair.cas.test.ts)
+ * so the pure-function tests and the new attemptVerifyRepair tests can share
+ * one file without a static import loading the real prisma client first.
  */
 
-import { describe, expect, test } from 'bun:test';
-import {
+import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { validateVerify } from './phase-output-validator';
+
+const noopLogger = { info: () => {}, warn: mock(() => {}), error: () => {}, debug: () => {} };
+
+const mockPrisma = {
+  userSettings: { findFirst: mock(() => Promise.resolve(null)) },
+  activityLog: { findFirst: mock(() => Promise.resolve(null)) },
+  workflowTransition: {
+    count: mock(() => Promise.resolve(0)),
+    findFirst: mock(() => Promise.resolve(null)),
+    findMany: mock(() => Promise.resolve([] as { metadata: string | null }[])),
+  },
+  task: {
+    updateMany: mock(() => Promise.resolve({ count: 1 })),
+    findFirst: mock(() => Promise.resolve(null)),
+    findUnique: mock(() => Promise.resolve(null)),
+  },
+  workflowFile: { findFirst: mock(() => Promise.resolve(null)) },
+};
+const readWorkflowFile = mock(() => Promise.resolve(''));
+const writeWorkflowFile = mock(() => Promise.resolve());
+const recordTransition = mock(() => Promise.resolve());
+
+mock.module('../../config/logger', () => ({ createLogger: () => noopLogger }));
+mock.module('../../config/database', () => ({
+  prisma: mockPrisma,
+  ensureDatabaseConnection: () => Promise.resolve(),
+}));
+mock.module('./workflow-file-utils', () => ({ readWorkflowFile, writeWorkflowFile }));
+mock.module('./transition-recorder', () => ({ recordTransition }));
+mock.module('./auto-run/theme-auto-run-service', () => ({
+  isThemeAutoRunActive: () => Promise.resolve(true),
+}));
+mock.module('./blocked-task-escalation', () => ({
+  escalateBlockedTask: mock(() => Promise.resolve(true)),
+  BLOCKED_ESCALATED_CAUSE: 'blocked_escalated',
+  countEscalatedBlocked: () => Promise.resolve(0),
+}));
+
+const {
   sanitizeRepairReason,
   buildRepairFeedbackBlock,
   mergeRepairFeedback,
   REPAIR_FEEDBACK_START,
   REPAIR_FEEDBACK_END,
-} from './verify-self-repair';
-import { validateVerify } from './phase-output-validator';
+  attemptVerifyRepair,
+} = await import('./verify-self-repair');
 
 describe('sanitizeRepairReason', () => {
   test.each([
@@ -117,5 +163,51 @@ bun test: 12 passed, 0 failed
       ),
     );
     expect(validateVerify(merged).ok).toBe(true);
+  });
+});
+
+describe('attemptVerifyRepair — 修復予算のダブルチェック (task 749)', () => {
+  beforeEach(() => {
+    mockPrisma.userSettings.findFirst.mockReset().mockResolvedValue(null);
+    mockPrisma.activityLog.findFirst.mockReset().mockResolvedValue(null);
+    mockPrisma.workflowTransition.count.mockReset().mockResolvedValue(0);
+    mockPrisma.workflowTransition.findMany.mockReset().mockResolvedValue([]);
+    mockPrisma.task.updateMany.mockReset().mockResolvedValue({ count: 1 });
+    mockPrisma.task.findUnique.mockReset().mockResolvedValue(null);
+    mockPrisma.workflowFile.findFirst.mockReset().mockResolvedValue(null);
+    readWorkflowFile.mockReset().mockResolvedValue('');
+    writeWorkflowFile.mockReset().mockResolvedValue(undefined);
+    recordTransition.mockReset().mockResolvedValue(undefined);
+  });
+
+  // 既定 verifyRepairLimit=2 の境界値: prior=0/1 は再チェックを通過してbounceする。
+  test.each([0, 1])(
+    '既定上限2で prior=%i なら再チェック後も bounce する（attempt = prior+1）',
+    async (prior) => {
+      mockPrisma.workflowTransition.count.mockResolvedValue(prior);
+      const result = await attemptVerifyRepair(700, 'research_done', 'reason', 'verify body');
+      expect(result.bounced).toBe(true);
+      expect(result.attempt).toBe(prior + 1);
+      expect(recordTransition).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  test('既定上限2で prior=2 は初回チェックで遮断され recordTransition は呼ばれない', async () => {
+    mockPrisma.workflowTransition.count.mockResolvedValue(2);
+    const result = await attemptVerifyRepair(700, 'research_done', 'reason', 'verify body');
+    expect(result.bounced).toBe(false);
+    expect(recordTransition).not.toHaveBeenCalled();
+  });
+
+  // task#603/#710 の再現: 初回読み取り(prior=1)は予算内だが、コミット直前の再クエリでは
+  // 別の呼び出し経路が同時に verify_repair を記録済みで prior=2（max=2）に達している。
+  test('二重呼び出し: 初回読み取り後に別経路が予算を使い切っていれば再チェックで遮断する', async () => {
+    mockPrisma.workflowTransition.count.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    const result = await attemptVerifyRepair(700, 'research_done', 'reason', 'verify body');
+    expect(result.bounced).toBe(false);
+    expect(recordTransition).not.toHaveBeenCalled();
+    // 再チェック失敗時は状態を一切変更しない(CASもフィードバック書込も行わない)。
+    expect(mockPrisma.task.updateMany).not.toHaveBeenCalled();
+    expect(writeWorkflowFile).not.toHaveBeenCalled();
   });
 });

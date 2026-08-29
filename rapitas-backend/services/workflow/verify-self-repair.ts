@@ -341,6 +341,32 @@ async function writeRepairFeedback(
 }
 
 /**
+ * Call sites of {@link attemptVerifyRepair}, for repair-budget telemetry only
+ * (task 749) — never used for control flow. A path not matching any entry
+ * resolves to 'unknown'.
+ */
+const REPAIR_CALLER_LABELS: ReadonlyArray<readonly [string, string]> = [
+  ['file-save/status-transition', 'http_save'],
+  ['file-save/verify-adversarial-review', 'adversarial_review'],
+  ['file-save/verify-commit-pr-gate-blocked', 'commit_pr_gate'],
+  ['workflow-api-executor', 'api_executor'],
+  ['workflow-cli-executor-verify-gate', 'cli_epilogue'],
+];
+
+/**
+ * Best-effort caller attribution from the call stack — telemetry only, so
+ * next time this task's budget is exceeded (task#603/#710) the recorded
+ * transition metadata identifies which of the several call sites raced.
+ *
+ * @returns A known caller label, or 'unknown'. / 呼び出し元識別子
+ */
+function resolveRepairCaller(): string {
+  const stack = new Error().stack ?? '';
+  for (const [needle, label] of REPAIR_CALLER_LABELS) if (stack.includes(needle)) return label;
+  return 'unknown';
+}
+
+/**
  * Attempt a verify→implement self-repair bounce. Returns `bounced:false` (caller
  * should block) once the per-task attempt cap is reached, or when repairs are
  * disabled (RAPITAS_MAX_VERIFY_REPAIRS=0).
@@ -370,10 +396,11 @@ export async function attemptVerifyRepair(
     return { bounced: false, stale: true };
   }
 
+  const caller = resolveRepairCaller();
   const prior = await countPriorRepairs(taskId);
   if (prior >= max) {
     log.warn(
-      { taskId, prior, max },
+      { taskId, caller, prior, max },
       '[verify-repair] Repair attempts exhausted — caller should block',
     );
     return { bounced: false };
@@ -424,7 +451,28 @@ export async function attemptVerifyRepair(
     return { bounced: false, cutoffRecorded: true };
   }
 
-  const attempt = prior + 1;
+  // Double-check (task 749): re-query the repair count immediately before the
+  // commit sequence below (CAS + feedback + recordTransition), not right after
+  // the initial read above — closes the TOCTOU window where a concurrent
+  // attemptVerifyRepair() call for the same task (a different caller in
+  // REPAIR_CALLER_LABELS) recorded its own verify_repair transition in between,
+  // which is how task#603/#710 recorded 3-4 bounces despite max=2. Placed
+  // BEFORE any state mutation so a failed recheck leaves the task untouched
+  // (same contract as the initial budget check above).
+  const recheckPrior = await countPriorRepairs(taskId);
+  log.info(
+    { taskId, caller, prior, recheckPrior, max },
+    '[verify-repair] Repair-budget telemetry before commit',
+  );
+  if (recheckPrior >= max) {
+    log.warn(
+      { taskId, caller, prior, recheckPrior, max },
+      '[verify-repair] Recheck found the budget exhausted since the initial read — blocking (TOCTOU guard)',
+    );
+    return { bounced: false };
+  }
+
+  const attempt = recheckPrior + 1;
   const newStatus = await resolveImplementEntryStatus(taskId);
 
   // Compare-and-swap: only roll back if STILL at the status this repair
@@ -462,7 +510,7 @@ export async function attemptVerifyRepair(
     actor: 'system',
     cause: REPAIR_CAUSE,
     phase: 'verify',
-    metadata: { attempt, max, reason },
+    metadata: { attempt, max, reason, caller },
   });
 
   // Self-drive the re-run: a single/manual execution has no poller, so a
