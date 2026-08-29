@@ -117,6 +117,9 @@ export async function checkGitDiff(workDir: string, logPrefix: string): Promise<
   const branchCommits = existingBases.length
     ? await runGitCommand(['rev-list', '--count', 'HEAD', '--not', ...existingBases], workDir, {
         timeoutMs: 5000,
+        // NOTE: failure here is already treated as "no branch-specific commits"
+        // by the .catch(() => '') below — same rationale as the rev-parse loop above.
+        skipLog: true,
       }).catch(() => '')
     : '';
   if (branchCommits && parseInt(branchCommits, 10) > 0) {

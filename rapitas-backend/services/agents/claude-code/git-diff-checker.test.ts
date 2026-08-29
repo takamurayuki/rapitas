@@ -219,6 +219,31 @@ describe('checkGitDiff', () => {
     expect(await checkGitDiff(WORK_DIR, LOG_PREFIX)).toBe(false);
   });
 
+  it('回帰: rev-list --count 呼び出しには skipLog: true が渡される（呼び出し元が .catch で握り潰す失敗でERRORログを出さない） (#750)', async () => {
+    // task 750: `git rev-list --count HEAD --not origin/develop develop origin/main
+    // main origin/master master` が一過性要因で失敗すると github-service:git-exec に
+    // ERROR ログが出続けていた (K-6084)。呼び出し元は既に .catch(() => '') で失敗を
+    // 許容しており、108-116行目の rev-parse --verify ループと同じ理由で skipLog: true
+    // が必要。
+    mockRunGitCommand.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return 'true';
+      if (args[0] === 'rev-parse' && args[1] === '--verify') return 'abc1234';
+      if (args[0] === 'rev-list') return '0';
+      return '';
+    });
+
+    await checkGitDiff(WORK_DIR, LOG_PREFIX);
+
+    const revListCalls = mockRunGitCommand.mock.calls.filter(
+      (call) => (call[0] as string[])[0] === 'rev-list',
+    );
+    expect(revListCalls.length).toBe(1);
+    for (const call of revListCalls) {
+      const opts = call[2] as { skipLog?: boolean } | undefined;
+      expect(opts?.skipLog).toBe(true);
+    }
+  });
+
   it('回帰: 候補 base ref の rev-parse --verify は skipLog: true を渡す (#692)', async () => {
     // このリポジトリには master が存在しないため BASE_REF_CANDIDATES の総当たりで
     // rev-parse --verify --quiet master/origin/master が毎回失敗し、
