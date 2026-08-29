@@ -51,6 +51,7 @@ const SUPPRESSED: [string, string][] = [
     'gh command failed: gh pr create --title [Task-#] no commits between develop and bugfix/t#-x',
   ],
   ['error-handler', 'Bad Request: Failed to parse JSON'],
+  ['ai:provider-cooldown', 'Provider placed in cooldown'],
 ];
 
 const KEPT: [string, string][] = [
@@ -103,6 +104,13 @@ describe('classifyLogSignature', () => {
     // Task #702: the phrase alone must not suppress an unrelated logger reusing it.
     expect(
       classifyLogSignature('some-other-logger', 'Bad Request: Failed to parse JSON').suppressed,
+    ).toBe(false);
+  });
+
+  test('"Provider placed in cooldown" is scoped to the ai:provider-cooldown logger only', () => {
+    // Task #759: an unrelated logger reusing this phrase must still be filed.
+    expect(
+      classifyLogSignature('some-other-logger', 'Provider placed in cooldown').suppressed,
     ).toBe(false);
   });
 });

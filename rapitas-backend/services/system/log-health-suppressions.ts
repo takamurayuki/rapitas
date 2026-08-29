@@ -122,6 +122,16 @@ const SUPPRESSIONS: Suppression[] = [
     because:
       'middleware/error-handler.ts:165-170 のPARSE分岐(#683)がlog.warn+400で処理しており、ERRORとして起票される経路は存在しない',
   },
+  {
+    // ログ出力箇所: services/ai/provider-cooldown.ts:149 の markProviderCooldown()。
+    // 呼び出し元(agent-fallback.ts, workflow-provider-fallback.ts,
+    // gemini-cli-agent/stream-handler.ts)はquota/rate_limit/auth/transient
+    // エラー検知時にプロバイダを一時停止し代替へフォールバックする、意図した挙動を記録する。
+    test: /Provider placed in cooldown/i,
+    logger: /ai:provider-cooldown/i,
+    because:
+      'フォールバック機構がquota/rate_limit等を検知しプロバイダを一時停止した記録 — 代替プロバイダへの自動切替が正常に働いた側',
+  },
 ];
 
 /** Result of classifying one log signature. */
