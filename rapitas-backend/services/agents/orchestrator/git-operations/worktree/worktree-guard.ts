@@ -184,58 +184,74 @@ export async function isBackendPrimaryCheckout(workingDirectory: string): Promis
 }
 
 /**
- * Detect and clear a stuck `MERGE_HEAD` (unresolved merge state) left in a
- * worktree, so a subsequent `git checkout` / `git add` / `git commit` never
- * fails with git's `error: you need to resolve your current index first`.
- * This state is left behind when `pre-pr-base-sync.ts`'s own `merge --abort`
- * fails or never runs (e.g. the process is killed mid-merge) — with nothing
- * else clearing it, the worktree stays permanently wedged (task 691).
+ * One unresolved-index state git can leave a worktree in, and how to clear it.
+ * `headRef` is the ref file git creates while the operation is in progress;
+ * `abortCmd` is the corresponding abort command.
+ */
+const UNRESOLVED_STATES: ReadonlyArray<{ headRef: string; abortCmd: string; label: string }> = [
+  { headRef: 'MERGE_HEAD', abortCmd: 'git merge --abort', label: 'MERGE_HEAD' },
+  // task 743: a killed/failed cherry-pick leaves CHERRY_PICK_HEAD with the same
+  // unresolved-index symptom ("you need to resolve your current index first")
+  // that MERGE_HEAD produces, but the MERGE_HEAD-only check above never caught it.
+  { headRef: 'CHERRY_PICK_HEAD', abortCmd: 'git cherry-pick --abort', label: 'CHERRY_PICK_HEAD' },
+];
+
+/**
+ * Detect and clear a stuck `MERGE_HEAD` or `CHERRY_PICK_HEAD` (unresolved
+ * merge/cherry-pick state) left in a worktree, so a subsequent `git checkout`
+ * / `git add` / `git commit` never fails with git's `error: you need to
+ * resolve your current index first`. This state is left behind when
+ * `pre-pr-base-sync.ts`'s own `merge --abort` fails or never runs (e.g. the
+ * process is killed mid-merge/mid-cherry-pick) — with nothing else clearing
+ * it, the worktree stays permanently wedged (task 691, widened to
+ * CHERRY_PICK_HEAD in task 743).
  *
  * NOTE: The `logger.error(...)` call in the catch block below (this file,
- * "Detected unresolved MERGE_HEAD but merge --abort failed") is the source of
- * the task 731 ERROR log ("Command failed: git merge --abort" / "fatal: There
- * is no merge to abort (MERGE_HEAD missing)"). Root cause: the MERGE_HEAD
- * check above goes through `execGitReadonly`'s TTL cache (default 30s, see
- * ../core/git-exec.ts). Aborting the merge changes real git state without
- * touching that cache, so a second call for the same directory within the TTL
- * window (e.g. createBranch followed by createCommit in
- * workflow-auto-commit.ts) would see the stale "MERGE_HEAD exists" result and
- * retry the abort, which then fails with git's "There is no merge to abort" —
- * a false-positive ERROR log for an already-recovered worktree. Clearing the
- * cache for this directory right after a successful abort keeps the next
- * check honest.
+ * "Detected unresolved <state> but abort failed") is the source of the task
+ * 731 ERROR log ("Command failed: git merge --abort" / "fatal: There is no
+ * merge to abort (MERGE_HEAD missing)"). Root cause: the headRef check above
+ * goes through `execGitReadonly`'s TTL cache (default 30s, see
+ * ../core/git-exec.ts). Aborting changes real git state without touching that
+ * cache, so a second call for the same directory within the TTL window (e.g.
+ * createBranch followed by createCommit in workflow-auto-commit.ts) would see
+ * the stale "head ref exists" result and retry the abort, which then fails
+ * with git's "There is no merge/cherry-pick to abort" — a false-positive
+ * ERROR log for an already-recovered worktree. Clearing the cache for this
+ * directory right after a successful abort keeps the next check honest.
  *
  * @param workingDirectory - Directory to check and, if needed, recover. / 確認・復旧対象ディレクトリ
- * @returns true when an unresolved merge was found and aborted. / 未解決マージを検知しabortした場合true
+ * @returns true when an unresolved merge/cherry-pick was found and aborted. / 未解決マージ/cherry-pickを検知しabortした場合true
  */
 export async function recoverFromUnresolvedMerge(workingDirectory: string): Promise<boolean> {
-  try {
-    await execGitReadonly('git rev-parse --verify -q MERGE_HEAD', { cwd: workingDirectory });
-  } catch {
-    // No MERGE_HEAD — nothing to recover.
-    return false;
+  for (const state of UNRESOLVED_STATES) {
+    try {
+      await execGitReadonly(`git rev-parse --verify -q ${state.headRef}`, {
+        cwd: workingDirectory,
+      });
+    } catch {
+      // This head ref is absent — nothing to recover for this state.
+      continue;
+    }
+    try {
+      await execAsync(state.abortCmd, { cwd: workingDirectory });
+      clearGitCache(workingDirectory);
+      logger.warn(
+        { workingDirectory },
+        `[worktree-guard] Found unresolved ${state.label}; aborted it to unblock the git operation`,
+      );
+      return true;
+    } catch (error) {
+      // See the JSDoc NOTE above: this trip reflects a genuine abort failure
+      // (the TTL-cache false-positive scenario is prevented by the
+      // clearGitCache(workingDirectory) call on the success path above).
+      logger.error(
+        { err: error, workingDirectory },
+        `[worktree-guard] Detected unresolved ${state.label} but ${state.abortCmd} failed`,
+      );
+      return false;
+    }
   }
-  try {
-    await execAsync('git merge --abort', { cwd: workingDirectory });
-    clearGitCache(workingDirectory);
-    logger.warn(
-      { workingDirectory },
-      '[worktree-guard] Found unresolved MERGE_HEAD; aborted it to unblock the git operation',
-    );
-    return true;
-  } catch (error) {
-    // This logger.error(...) call is the exact source of the task 731 ERROR log
-    // ("Command failed: git merge --abort" / "fatal: There is no merge to abort
-    // (MERGE_HEAD missing)"). The `clearGitCache(workingDirectory)` call above
-    // (added for task 731) prevents the stale-cache scenario documented in this
-    // function's JSDoc from ever reaching this catch block again; any future
-    // trip here reflects a genuine abort failure worth investigating.
-    logger.error(
-      { err: error, workingDirectory },
-      '[worktree-guard] Detected unresolved MERGE_HEAD but merge --abort failed',
-    );
-    return false;
-  }
+  return false;
 }
 
 /** Internal exec type used by findConflictingWorktreeForBranch (injectable for tests). */

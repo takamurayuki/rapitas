@@ -9,7 +9,11 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from '../../../../../config/logger';
-import { isPrimaryWorkTree, findConflictingWorktreeForBranch } from '../worktree/worktree-guard';
+import {
+  isPrimaryWorkTree,
+  findConflictingWorktreeForBranch,
+  recoverFromUnresolvedMerge,
+} from '../worktree/worktree-guard';
 import { isHeadBehindError, isAlreadyUpToDate } from '../../../../github/gh-retry';
 import { ghPath } from './gh-cli-path';
 
@@ -80,6 +84,11 @@ export async function mergePullRequest(
           '[mergePullRequest] baseBranch is already used by another worktree — skipping local checkout+pull sync',
         );
       } else {
+        // task 743: unlike createBranch/commitChanges/createCommit, this
+        // post-merge checkout was never guarded against a leftover unresolved
+        // MERGE_HEAD/CHERRY_PICK_HEAD — self-heal first so it doesn't fail
+        // with git's "you need to resolve your current index first".
+        await recoverFromUnresolvedMerge(workingDirectory);
         await execFileAsync('git', ['checkout', baseBranch], { cwd: workingDirectory });
         await execFileAsync('git', ['pull'], { cwd: workingDirectory });
       }

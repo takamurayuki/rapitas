@@ -321,3 +321,65 @@ describe('recoverFromUnresolvedMerge', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// recoverFromUnresolvedMerge — CHERRY_PICK_HEAD (task 743)
+// ---------------------------------------------------------------------------
+// Task 743's ERROR log ("Command failed: git checkout ... / error: you need
+// to resolve your current index first") reproduces from ANY unresolved-index
+// state, not only a failed merge. Before this fix, recoverFromUnresolvedMerge
+// checked MERGE_HEAD only, so a worktree left with an unresolved cherry-pick
+// still failed the next checkout unrecovered.
+
+/** Create a temp repo left with an unresolved cherry-pick conflict (CHERRY_PICK_HEAD set). */
+function initRepoWithUnresolvedCherryPick(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'wt-guard-cherry-'));
+  const run = (cmd: string) => execSync(cmd, { cwd: dir, stdio: 'pipe' });
+  run('git init -q -b main');
+  run('git config user.email test@example.com');
+  run('git config user.name Test');
+  writeFileSync(join(dir, 'f.txt'), 'base\n');
+  run('git add -A');
+  run('git commit -q -m base');
+  run('git checkout -q -b feature');
+  writeFileSync(join(dir, 'f.txt'), 'feature-change\n');
+  run('git commit -q -am feature-change');
+  const cherryPickSha = execSync('git rev-parse feature', { cwd: dir, encoding: 'utf8' }).trim();
+  run('git checkout -q main');
+  writeFileSync(join(dir, 'f.txt'), 'main-change\n');
+  run('git commit -q -am main-change');
+  try {
+    run(`git cherry-pick ${cherryPickSha}`);
+  } catch {
+    // Expected: conflicting cherry-pick stops with CHERRY_PICK_HEAD set and an unresolved index.
+  }
+  return dir;
+}
+
+describe('recoverFromUnresolvedMerge — CHERRY_PICK_HEAD', () => {
+  test('バグ再現: 未解決cherry-pickが残る worktree では checkout が "resolve your current index first" で失敗すること', () => {
+    const dir = initRepoWithUnresolvedCherryPick();
+    try {
+      expect(() => execSync('git checkout -q main', { cwd: dir, stdio: 'pipe' })).toThrow(
+        /resolve your current index first/,
+      );
+    } finally {
+      cleanupDir(dir);
+    }
+  });
+
+  test('未解決cherry-pickを検知しabortして後続のcheckoutを回復させること', async () => {
+    const dir = initRepoWithUnresolvedCherryPick();
+    try {
+      await expect(recoverFromUnresolvedMerge(dir)).resolves.toBe(true);
+      // CHERRY_PICK_HEAD is gone.
+      expect(() =>
+        execSync('git rev-parse --verify -q CHERRY_PICK_HEAD', { cwd: dir, stdio: 'pipe' }),
+      ).toThrow();
+      // The operation that failed before recovery now succeeds.
+      expect(() => execSync('git checkout -q main', { cwd: dir, stdio: 'pipe' })).not.toThrow();
+    } finally {
+      cleanupDir(dir);
+    }
+  });
+});
