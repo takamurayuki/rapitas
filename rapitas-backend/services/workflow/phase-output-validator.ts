@@ -276,6 +276,13 @@ export function validateVerify(content: string): ValidationResult {
     if (/(?:機械判定|自動検証|機械受入|advisory|acceptance|scope)[^\n❌]{0,24}❌/i.test(line)) {
       return false;
     }
+    // A plan item the operator WITHDREW is not a failure to implement it. The
+    // approved plan cannot be edited, so when a supervisor strikes an item the
+    // verifier's checklist has to carry that row somehow — task 710 wrote
+    // "❌ 実施せず（監督者訂正により撤回）" and was bounced three rounds running
+    // for it. Only the explicit word for withdrawal is honoured; "実施せず" on
+    // its own still counts, because that is also how a real omission reads.
+    if (/撤回|withdrawn/i.test(line)) return false;
     // "❌ 適用不能" is a verdict that the item does not apply here, not a failing
     // check. Feasibility tasks answer "does this idea map onto this codebase?"
     // and a NO is the honest answer: task 602 reported four ❌ 適用不能 rows
