@@ -43,6 +43,13 @@ describe('resolvePrConflicts', () => {
     const abortCall = calls.find((c) => c.args.includes('merge') && c.args.includes('--abort'));
     expect(abortCall).toBeDefined();
     expect(abortCall?.opts?.skipLog).toBe(true);
+    // Task 737: the initial merge failure is also fully handled here (returned
+    // as ConflictResolveResult), so its ERROR log is suppressed too.
+    const initialMergeCall = calls.find(
+      (c) => c.args.includes('merge') && !c.args.includes('--abort'),
+    );
+    expect(initialMergeCall).toBeDefined();
+    expect(initialMergeCall?.opts?.skipLog).toBe(true);
   });
 
   it('clean merge → merge --abort is never called', async () => {

@@ -225,10 +225,15 @@ export async function syncBaseIntoBranch(p: {
     return { status: 'skipped', changedFiles: 0, conflicts: [], detail: `fetch失敗: ${message}` };
   }
 
-  // 2. Merge origin/<base> into the current (task) branch.
+  // 2. Merge origin/<base> into the current (task) branch. skipLog suppresses
+  //    the generic runGitCommand ERROR log — merge failures (conflict or
+  //    otherwise) are fully handled below with our own warn/info logs, same
+  //    rationale as the merge --abort calls further down (task 689).
   let mergeStdout: string;
   try {
-    mergeStdout = await deps.runGit(['merge', `origin/${p.baseBranch}`, '--no-edit'], p.gitCwd);
+    mergeStdout = await deps.runGit(['merge', `origin/${p.baseBranch}`, '--no-edit'], p.gitCwd, {
+      skipLog: true,
+    });
   } catch {
     // Merge stopped — collect the conflicting files.
     let conflicts: string[] = [];
