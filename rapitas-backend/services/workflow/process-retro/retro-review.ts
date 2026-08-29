@@ -12,13 +12,14 @@ import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { submitConcern } from '../../memory/concern-backlog-service';
 import { resolveSelfDevelopmentThemeId } from '../self-development-theme';
+import { resolveVerifyRepairLimit } from '../blocked-task-policy';
 import { appendEvent } from '../../memory/timeline';
 import { sendAIMessage } from '../../../utils/ai-client';
 import {
   buildEvidenceBundle,
   fetchRetroRows,
   isCleanRound,
-  isRoutineSingleRepair,
+  isRoutineBudgetedRepair,
 } from './retro-evidence';
 import { buildDedupKey, parseFindingsResult, selectConcerns } from './retro-parse';
 import { RETRO_SYSTEM_PROMPT, buildRetroPrompt, formatEvidenceSummary } from './retro-prompt';
@@ -115,8 +116,24 @@ export async function runProcessRetro(taskId: number): Promise<void> {
       return;
     }
 
-    if (isRoutineSingleRepair(bundle)) {
-      log.debug({ taskId }, '[process-retro] one successful routine repair - AI call skipped');
+    // Fail-open: an unreadable UserSettings row falls back to
+    // DEFAULT_VERIFY_REPAIR_LIMIT via resolveVerifyRepairLimit(null), same
+    // pattern as verify-self-repair.ts's resolveMaxRepairs. findFirst() with
+    // no where/orderBy is intentional: UserSettings (prisma/schema/system.prisma)
+    // is a single-row, app-global settings table with no owning-user column —
+    // this is the same lookup used by 8+ existing call sites across
+    // services/workflow (e.g. verify-self-repair.ts's resolveMaxRepairs,
+    // automation-policy.ts, plan-auto-approve.ts), not a new multi-tenant risk.
+    const settings = (await prisma.userSettings.findFirst().catch(() => null)) as {
+      verifyRepairLimit?: number | null;
+    } | null;
+    const repairLimit = resolveVerifyRepairLimit(settings);
+
+    if (isRoutineBudgetedRepair(bundle, repairLimit)) {
+      log.debug(
+        { taskId, repairCount: bundle.repairCount, repairLimit },
+        '[process-retro] budget-compliant repair round - AI call skipped',
+      );
       return;
     }
 
@@ -124,7 +141,7 @@ export async function runProcessRetro(taskId: number): Promise<void> {
     const response = await sendAIMessage({
       provider: 'claude',
       systemPrompt: RETRO_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: buildRetroPrompt(bundle) }],
+      messages: [{ role: 'user', content: buildRetroPrompt(bundle, repairLimit) }],
       maxTokens: RETRO_MAX_TOKENS,
     });
 
