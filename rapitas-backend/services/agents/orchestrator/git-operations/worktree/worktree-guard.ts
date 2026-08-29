@@ -15,7 +15,7 @@ import { existsSync } from 'fs';
 import { resolve } from 'path';
 import { promisify } from 'util';
 import { createLogger } from '../../../../../config/logger';
-import { execGitReadonly } from '../core/git-exec';
+import { clearGitCache, execGitReadonly } from '../core/git-exec';
 
 const execAsync = promisify(exec);
 
@@ -191,6 +191,20 @@ export async function isBackendPrimaryCheckout(workingDirectory: string): Promis
  * fails or never runs (e.g. the process is killed mid-merge) — with nothing
  * else clearing it, the worktree stays permanently wedged (task 691).
  *
+ * NOTE: The `logger.error(...)` call in the catch block below (this file,
+ * "Detected unresolved MERGE_HEAD but merge --abort failed") is the source of
+ * the task 731 ERROR log ("Command failed: git merge --abort" / "fatal: There
+ * is no merge to abort (MERGE_HEAD missing)"). Root cause: the MERGE_HEAD
+ * check above goes through `execGitReadonly`'s TTL cache (default 30s, see
+ * ../core/git-exec.ts). Aborting the merge changes real git state without
+ * touching that cache, so a second call for the same directory within the TTL
+ * window (e.g. createBranch followed by createCommit in
+ * workflow-auto-commit.ts) would see the stale "MERGE_HEAD exists" result and
+ * retry the abort, which then fails with git's "There is no merge to abort" —
+ * a false-positive ERROR log for an already-recovered worktree. Clearing the
+ * cache for this directory right after a successful abort keeps the next
+ * check honest.
+ *
  * @param workingDirectory - Directory to check and, if needed, recover. / 確認・復旧対象ディレクトリ
  * @returns true when an unresolved merge was found and aborted. / 未解決マージを検知しabortした場合true
  */
@@ -203,12 +217,19 @@ export async function recoverFromUnresolvedMerge(workingDirectory: string): Prom
   }
   try {
     await execAsync('git merge --abort', { cwd: workingDirectory });
+    clearGitCache(workingDirectory);
     logger.warn(
       { workingDirectory },
       '[worktree-guard] Found unresolved MERGE_HEAD; aborted it to unblock the git operation',
     );
     return true;
   } catch (error) {
+    // This logger.error(...) call is the exact source of the task 731 ERROR log
+    // ("Command failed: git merge --abort" / "fatal: There is no merge to abort
+    // (MERGE_HEAD missing)"). The `clearGitCache(workingDirectory)` call above
+    // (added for task 731) prevents the stale-cache scenario documented in this
+    // function's JSDoc from ever reaching this catch block again; any future
+    // trip here reflects a genuine abort failure worth investigating.
     logger.error(
       { err: error, workingDirectory },
       '[worktree-guard] Detected unresolved MERGE_HEAD but merge --abort failed',
