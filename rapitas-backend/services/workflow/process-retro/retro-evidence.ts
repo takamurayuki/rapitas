@@ -10,7 +10,7 @@
  */
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
-import { PR_RETRY_LIGHTWEIGHT_CAUSE } from '../blocked-task-policy';
+import { DEFAULT_VERIFY_REPAIR_LIMIT, PR_RETRY_LIGHTWEIGHT_CAUSE } from '../blocked-task-policy';
 import type {
   CauseCounts,
   EvidenceBundle,
@@ -292,14 +292,56 @@ export function isCleanRound(bundle: EvidenceBundle): boolean {
 }
 
 /**
- * A single successful repair is the workflow doing its normal job, not a
- * systemic process incident. Reviewing every such completion with an LLM was
- * both noisy and expensive. Keep AI review for repeated repairs, replans,
- * critic loops, anomalies, and genuine invariant violations.
+ * A repair round that stays within the configured verify→implement repair
+ * budget (see resolveVerifyRepairLimit, blocked-task-policy.ts) is the
+ * workflow doing its normal job, not a systemic process incident — reviewing
+ * every such completion with an LLM was both noisy and expensive. Keep AI
+ * review for over-budget repairs, replans, critic loops, anomalies, and
+ * genuine invariant violations.
+ *
+ * NOTE (task 732): previously fixed at `repairCount === 1`, so a
+ * budget-exact 2-repair completion (the default verifyRepairLimit) still
+ * reached the AI reviewer and was misclassified as systemic (K-7493, filed
+ * from task#727, itself a budget-exact 2-repair completion) — the retro AI
+ * was never wrong about the workflow, only the pre-filter's threshold was
+ * stale relative to the configurable budget.
+ *
+ * This function can only ever run against a COMPLETED task (runProcessRetro
+ * is invoked from outcome-telemetry.ts only when finalStatus === 'completed'),
+ * and completion here is only reachable after passing TWO independent
+ * pre-existing safety nets that this function does not duplicate or bypass:
+ *  1. A hard repair-count cap: verify-self-repair.ts's resolveMaxRepairs
+ *     enforces `repairLimit`; exceeding it ends the task as
+ *     verify_repair_exhausted (blocked_task_escalation), never a silent
+ *     extra bounce (blocked-task-policy.ts:105-111).
+ *  2. Same-criterion non-convergence detection: verify-self-repair.ts:383-420
+ *     (`detectRepairNonConvergence` / VERIFY_NON_CONVERGENCE_CAUSE) escalates
+ *     to `blocked` via blocked-task-escalation.ts the moment the same
+ *     acceptance criterion is indicted twice — the exact "same failure
+ *     repeats because feedback was too vague" scenario this concern worries
+ *     about. Such a task is blocked, not completed, and therefore never
+ *     reaches this function.
+ * Per-repair feedback granularity (failing test file:line + surrounding
+ * context, or per-check CI log excerpts) is likewise already implemented
+ * independently of this function, in verify-self-repair.ts's
+ * extractFailureDetails/buildRepairFeedbackBlock and ci-self-repair.ts's
+ * fetchFailedCheckLogExcerpt. This function's only job is to stop the
+ * retrospective classifier from re-litigating rounds that already passed
+ * both safety nets above.
+ *
+ * @param bundle - The evidence bundle. / 証拠バンドル
+ * @param repairLimit - Effective verify→implement repair budget (see
+ *   resolveVerifyRepairLimit). Defaults to DEFAULT_VERIFY_REPAIR_LIMIT for
+ *   callers that have not resolved UserSettings. / 有効な修復予算
+ * @returns true when the round is a budget-compliant repair. / 予算内の修復なら true
  */
-export function isRoutineSingleRepair(bundle: EvidenceBundle): boolean {
+export function isRoutineBudgetedRepair(
+  bundle: EvidenceBundle,
+  repairLimit: number = DEFAULT_VERIFY_REPAIR_LIMIT,
+): boolean {
   return (
-    bundle.repairCount === 1 &&
+    bundle.repairCount >= 1 &&
+    bundle.repairCount <= repairLimit &&
     bundle.replanCount === 0 &&
     bundle.criticRebounds === 0 &&
     bundle.anomalyCount === 0 &&
