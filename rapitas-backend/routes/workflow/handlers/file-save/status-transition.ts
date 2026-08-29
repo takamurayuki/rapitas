@@ -193,8 +193,11 @@ export async function computeAndApplyStatusTransition(params: {
             // (verify-self-repair.ts) — recording `verify_validation_failed`
             // here too would duplicate it (task 674: two rows 43ms apart;
             // task 705 independently hit the same duplicate-record defect and
-            // converged on this same DB-read check during merge).
-            if (!(await wasNonConvergenceCutoffJustRecorded(taskId))) {
+            // converged on this same DB-read check during merge; task 715
+            // recurred even with that DB-read guard, so `repair.cutoffRecorded`
+            // — the in-band signal from THIS exact attemptVerifyRepair() call,
+            // task 710 — is checked first as the authoritative source).
+            if (!repair.cutoffRecorded && !(await wasNonConvergenceCutoffJustRecorded(taskId))) {
               await recordTransition({
                 taskId,
                 fromStatus: currentStatus ?? null,

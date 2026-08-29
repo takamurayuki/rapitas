@@ -61,6 +61,15 @@ export function StructuredQuestionFlow({
 
   const current = questions[Math.min(idx, total - 1)];
   const isLast = idx >= total - 1;
+  // Recommended option (if any) is surfaced first so the user's first glance
+  // lands on it; the underlying option/key order is untouched (composeStructuredAnswer
+  // and the `selections` audit still key off `current.options`, not this display order).
+  const recommendedOption = current.recommendedKey
+    ? (current.options.find((o) => o.key === current.recommendedKey) ?? null)
+    : null;
+  const orderedOptions = recommendedOption
+    ? [recommendedOption, ...current.options.filter((o) => o.key !== recommendedOption.key)]
+    : current.options;
 
   const handleAnswer = async (answerText: string) => {
     const matchedOption = current.options.find((o) => o.label === answerText);
@@ -153,13 +162,15 @@ export function StructuredQuestionFlow({
         question={{
           taskId: 0,
           text: current.summary,
-          options: current.options.map((o) => o.label),
+          options: orderedOptions.map((o) => o.label),
         }}
         submitting={(submitting || confirming) && isLast}
         onAnswer={handleAnswer}
         freeTextOnly={current.freeTextRequired}
         hideFreeText={!current.freeTextRequired}
         freeTextReason={current.freeTextRequired ? current.freeTextReason : null}
+        recommendedLabel={recommendedOption?.label ?? null}
+        recommendedReason={recommendedOption ? current.recommendedReason : null}
         submitLabel={
           isLast ? t('intakeQuestionFlow.submitAll') : t('intakeQuestionFlow.nextQuestion')
         }

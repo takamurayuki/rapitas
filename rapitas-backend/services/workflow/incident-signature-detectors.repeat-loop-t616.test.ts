@@ -58,6 +58,6 @@ describe('detectRepeatLoop — #616 false positive (concern #621 repro)', () => 
         nowMs: DETECTED_AT_MS,
         taskStatus: 'in-progress',
       }),
-    ).toEqual({ cause: 'phase_completed:implementer', count: 3 });
+    ).toEqual({ cause: 'phase_completed:implementer', count: 3, via: 'general' });
   });
 });
