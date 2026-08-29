@@ -3,8 +3,9 @@
  *
  * Verifies revalidatePendingBacklog: oldest pending entries are re-run through
  * validateEntry, the sweep budget bounds the fetch, archived entries are
- * excluded, and a single failing entry doesn't halt the sweep. Own file —
- * mock.module is process-global.
+ * excluded, and a single failing entry doesn't halt the sweep. Also covers
+ * validateEntry's 'skipped' outcome for a KnowledgeEntry deleted before its
+ * queued validate task ran. Own file — mock.module is process-global.
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
@@ -30,7 +31,7 @@ interface PendingEntry {
 }
 
 let pendingEntries: PendingEntry[] = [];
-/** Entry ids findUnique should pretend don't exist (forces validateEntry to throw). */
+/** Entry ids findUnique should pretend don't exist (forces validateEntry to return 'skipped'). */
 let missingIds: number[] = [];
 const entryUpdates: Array<{ id: number; status: string }> = [];
 const findManyArgs: Array<{ where: Record<string, unknown>; take?: number }> = [];
@@ -59,7 +60,7 @@ mock.module('../../config/database', () => ({
   },
 }));
 
-const { revalidatePendingBacklog } = await import('./validation');
+const { revalidatePendingBacklog, validateEntry } = await import('./validation');
 
 function pending(id: number): PendingEntry {
   return {
@@ -107,19 +108,38 @@ describe('revalidatePendingBacklog', () => {
     });
   });
 
-  test('a failing entry is counted and does not halt the sweep', async () => {
+  test('a missing entry is counted as skipped and does not halt the sweep', async () => {
     pendingEntries = [pending(1), pending(2), pending(3)];
-    missingIds = [2]; // validateEntry throws "KnowledgeEntry not found: 2"
+    missingIds = [2]; // validateEntry returns 'skipped' instead of throwing
 
     const result = await revalidatePendingBacklog();
     expect(result.examined).toBe(3);
     expect(result.validated).toBe(2);
-    expect(result.failed).toBe(1);
+    expect(result.skipped).toBe(1);
+    expect(result.failed).toBe(0);
     expect(entryUpdates.map((u) => u.id)).toEqual([1, 3]);
   });
 
   test('empty backlog is a no-op', async () => {
     const result = await revalidatePendingBacklog();
-    expect(result).toEqual({ examined: 0, validated: 0, rejected: 0, conflict: 0, failed: 0 });
+    expect(result).toEqual({
+      examined: 0,
+      validated: 0,
+      rejected: 0,
+      conflict: 0,
+      skipped: 0,
+      failed: 0,
+    });
+  });
+});
+
+describe('validateEntry', () => {
+  test('returns skipped without throwing when the target KnowledgeEntry is missing', async () => {
+    missingIds = [1];
+
+    const result = await validateEntry(1);
+
+    expect(result.status).toBe('skipped');
+    expect(result.reason).toContain('見つかりません');
   });
 });
