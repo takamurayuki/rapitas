@@ -65,6 +65,11 @@ describe('decideAutoResume', () => {
     expect(decideAutoResume(exec(), { ...OK_OPTS, taskStatus: 'cancelled' }).resume).toBe(false);
   });
 
+  it('skips blocked/failed tasks', () => {
+    expect(decideAutoResume(exec(), { ...OK_OPTS, taskStatus: 'blocked' }).resume).toBe(false);
+    expect(decideAutoResume(exec(), { ...OK_OPTS, taskStatus: 'failed' }).resume).toBe(false);
+  });
+
   it('skips when a newer execution already took the task over', () => {
     const d = decideAutoResume(exec(), { ...OK_OPTS, hasNewerExecution: true });
     expect(d.resume).toBe(false);

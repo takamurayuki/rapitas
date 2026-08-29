@@ -141,6 +141,10 @@ export type AgentExecutionResult = {
   modelName?: string;
   /** LLM API call count for this execution. CLI: from stream-json num_turns. API: 1 per callApi. */
   llmCallCount?: number;
+  /** Measured child-process CPU time in ms, sampled by process-resource-sampler. null when unmeasured. */
+  cpuTimeMs?: number | null;
+  /** Measured child-process peak RSS in KB, sampled by process-resource-sampler. null when unmeasured. */
+  peakRssKb?: number | null;
   /**
    * The agent's FINAL assistant message only (Claude Code stream-json `result`
    * event). Unlike `output` — which concatenates every streamed assistant

@@ -58,7 +58,10 @@ export type TimelineEventType =
   // written by verify-completion-inflight so a stuck/blocked verdict can be
   // audited against what the pipeline was actually doing at the time.
   | 'verify_pipeline_started'
-  | 'verify_pipeline_settled';
+  | 'verify_pipeline_settled'
+  // NOTE: task 723 — a user-triggered dry-run of the verify gate + jury,
+  // recorded so results can be listed/compared without a new table.
+  | 'dry_run_executed';
 
 export type ActorType = 'user' | 'agent' | 'system';
 

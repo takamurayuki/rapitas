@@ -48,6 +48,18 @@ interface WorkflowQuestionPanelProps {
    * textarea instead of the free-text row being silently always-available.
    */
   freeTextReason?: string | null;
+  /**
+   * Label of the option the question author recommends (must match an entry
+   * in `question.options` verbatim). When set, that option's button is
+   * badged "(推奨)". Unset for live/legacy questions, which carry no
+   * recommendation.
+   */
+  recommendedLabel?: string | null;
+  /**
+   * 1-2 sentence rationale for `recommendedLabel`, rendered below the option
+   * buttons. Only meaningful together with `recommendedLabel`.
+   */
+  recommendedReason?: string | null;
 }
 
 /**
@@ -63,6 +75,8 @@ export function WorkflowQuestionPanel({
   submitLabel,
   hideFreeText = false,
   freeTextReason = null,
+  recommendedLabel = null,
+  recommendedReason = null,
 }: WorkflowQuestionPanelProps) {
   const t = useTranslations('workflow');
   const tc = useTranslations('common');
@@ -150,7 +164,14 @@ export function WorkflowQuestionPanel({
                 >
                   {key}
                 </span>
-                <span className="flex-1 text-sm">{option}</span>
+                <span className="flex-1 text-sm">
+                  {option}
+                  {recommendedLabel === option && (
+                    <span className="ml-2 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-800/60 dark:text-amber-200">
+                      {t('questionPanel.recommendedBadge')}
+                    </span>
+                  )}
+                </span>
               </div>
             </button>
           );
@@ -160,6 +181,13 @@ export function WorkflowQuestionPanel({
       {isDefault && (
         <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
           {t('questionPanel.defaultOptionsNote')}
+        </p>
+      )}
+
+      {recommendedReason && (
+        <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+          <span className="font-medium">{t('questionPanel.recommendedReasonLabel')}</span>{' '}
+          {recommendedReason}
         </p>
       )}
 

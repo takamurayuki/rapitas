@@ -233,7 +233,7 @@ describe('detectRepeatLoop', () => {
       windowMs: 60 * 60 * 1000,
       minCount: 3,
     });
-    expect(result).toEqual({ cause: 'ci_repair', count: 3 });
+    expect(result).toEqual({ cause: 'ci_repair', count: 3, via: 'general' });
   });
 
   it('does NOT detect below minCount', () => {
@@ -257,7 +257,7 @@ describe('detectRepeatLoop', () => {
         windowMs,
         minCount: 3,
       }),
-    ).toEqual({ cause: 'ci_repair', count: 3 });
+    ).toEqual({ cause: 'ci_repair', count: 3, via: 'general' });
     // One 1ms beyond the window start → only 2 counted → no detection.
     expect(
       detectRepeatLoop({
@@ -283,7 +283,7 @@ describe('detectRepeatLoop', () => {
       nowMs: NOW,
       minCount: 3,
     });
-    expect(result).toEqual({ cause: 'verify_repair', count: 4 });
+    expect(result).toEqual({ cause: 'verify_repair', count: 4, via: 'general' });
   });
 
   it('breaks a count tie deterministically by cause name ascending', () => {
@@ -299,7 +299,7 @@ describe('detectRepeatLoop', () => {
       nowMs: NOW,
       minCount: 3,
     });
-    expect(result).toEqual({ cause: 'ci_repair', count: 3 });
+    expect(result).toEqual({ cause: 'ci_repair', count: 3, via: 'general' });
   });
 
   // 受入(b): operator manual recovery is intervention, not a loop.
@@ -358,7 +358,7 @@ describe('detectRepeatLoop', () => {
       taskStatus: 'in-progress',
       minCount: 3,
     });
-    expect(result).toEqual({ cause: 'ci_repair', count: 3 });
+    expect(result).toEqual({ cause: 'ci_repair', count: 3, via: 'general' });
   });
 
   it('still detects when taskStatus is omitted (backward compatibility)', () => {
@@ -367,7 +367,7 @@ describe('detectRepeatLoop', () => {
       nowMs: NOW,
       minCount: 3,
     });
-    expect(result).toEqual({ cause: 'ci_repair', count: 3 });
+    expect(result).toEqual({ cause: 'ci_repair', count: 3, via: 'general' });
   });
 
   // #607 repro (task 614): a healthy repair cycle (initial implement + 2
@@ -403,7 +403,7 @@ describe('detectRepeatLoop', () => {
       nowMs: NOW,
       minCount: 3,
     });
-    expect(result).toEqual({ cause: 'verify_repair', count: 3 });
+    expect(result).toEqual({ cause: 'verify_repair', count: 3, via: 'general' });
   });
 
   // The phase_completed exclusion is scoped to the known-healthy repair-cycle
@@ -421,7 +421,7 @@ describe('detectRepeatLoop', () => {
       nowMs: NOW,
       minCount: 3,
     });
-    expect(result).toEqual({ cause: 'phase_completed:implementer', count: 3 });
+    expect(result).toEqual({ cause: 'phase_completed:implementer', count: 3, via: 'general' });
   });
 
   // The forgiveness budget is bounded by the bounces observed *up to that
@@ -442,7 +442,7 @@ describe('detectRepeatLoop', () => {
       nowMs: NOW,
       minCount: 3,
     });
-    expect(result).toEqual({ cause: 'phase_completed:implementer', count: 3 });
+    expect(result).toEqual({ cause: 'phase_completed:implementer', count: 3, via: 'general' });
   });
 
   // Two bounces (one verify_repair, one ci_repair), each preceding the
@@ -492,7 +492,7 @@ describe('detectRepeatLoop', () => {
       nowMs: NOW,
       minCount: 3,
     });
-    expect(result).toEqual({ cause: 'phase_completed:implementer', count: 4 });
+    expect(result).toEqual({ cause: 'phase_completed:implementer', count: 4, via: 'general' });
   });
 
   // Task 673/681: independent low-threshold path for invariantViolation-flagged
@@ -514,7 +514,7 @@ describe('detectRepeatLoop', () => {
       minCount: 3,
       invariantMinCount: 2,
     });
-    expect(result).toEqual({ cause: 'verify_pr_not_created', count: 2 });
+    expect(result).toEqual({ cause: 'verify_pr_not_created', count: 2, via: 'invariant' });
   });
 
   it('does NOT detect the same 2-count pattern when invariantViolation is false (existing behavior preserved)', () => {
@@ -553,7 +553,7 @@ describe('detectRepeatLoop', () => {
       nowMs: now,
     });
     expect(result).not.toBeNull();
-    expect(result).toEqual({ cause: 'verify_pr_not_created', count: 2 });
+    expect(result).toEqual({ cause: 'verify_pr_not_created', count: 2, via: 'invariant' });
   });
 });
 
