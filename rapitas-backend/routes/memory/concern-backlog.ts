@@ -98,7 +98,7 @@ export const concernBacklogRoutes = new Elysia()
     '/concerns/:id',
     async ({ params, body, set }) => {
       const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!Number.isSafeInteger(id) || id <= 0) {
         set.status = 400;
         return { error: 'Invalid ID' };
       }
@@ -123,7 +123,7 @@ export const concernBacklogRoutes = new Elysia()
     '/concerns/:id',
     async ({ params, set }) => {
       const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!Number.isSafeInteger(id) || id <= 0) {
         set.status = 400;
         return { error: 'Invalid ID' };
       }
@@ -142,7 +142,7 @@ export const concernBacklogRoutes = new Elysia()
     '/concerns/:id/convert-to-task',
     async ({ params, set }) => {
       const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!Number.isSafeInteger(id) || id <= 0) {
         set.status = 400;
         return { error: 'Invalid ID' };
       }
