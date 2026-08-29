@@ -29,7 +29,7 @@ const {
   extractCriticReasons,
   isCriticFollowRejection,
   isCleanRound,
-  isRoutineSingleRepair,
+  isRoutineBudgetedRepair,
   buildEvidenceBundle,
   fetchRetroRows,
   PR_RECOVERY_CAUSES,
@@ -468,25 +468,37 @@ describe('isCleanRound', () => {
   });
 });
 
-describe('isRoutineSingleRepair', () => {
+describe('isRoutineBudgetedRepair', () => {
   const bundle = (over: Partial<ReturnType<typeof buildEvidenceBundle>> = {}) => ({
     ...buildEvidenceBundle([], { taskId: 1, title: 't' }),
     ...over,
   });
 
   test('recognizes exactly one repair with no other process anomaly as routine', () => {
-    expect(isRoutineSingleRepair(bundle({ repairCount: 1 }))).toBe(true);
+    expect(isRoutineBudgetedRepair(bundle({ repairCount: 1 }))).toBe(true);
+  });
+
+  test('recognizes a budget-exact repair count (default limit 2) as routine (task 732 / #727)', () => {
+    expect(isRoutineBudgetedRepair(bundle({ repairCount: 2 }))).toBe(true);
+  });
+
+  test('does not treat a repair count above the default limit (3 > 2) as routine', () => {
+    expect(isRoutineBudgetedRepair(bundle({ repairCount: 3 }))).toBe(false);
+  });
+
+  test('honors an explicit repairLimit override from UserSettings', () => {
+    expect(isRoutineBudgetedRepair(bundle({ repairCount: 3 }), 3)).toBe(true);
+    expect(isRoutineBudgetedRepair(bundle({ repairCount: 2 }), 1)).toBe(false);
   });
 
   test.each([
-    ['repairCount', 2],
     ['replanCount', 1],
     ['criticRebounds', 1],
     ['anomalyCount', 1],
     ['criticFollowRejections', 1],
     ['invariantCount', 1],
-  ] as const)('does not treat %s=%d as a routine single repair', (field, value) => {
-    expect(isRoutineSingleRepair(bundle({ repairCount: 1, [field]: value }))).toBe(false);
+  ] as const)('does not treat %s=%d as a routine budgeted repair', (field, value) => {
+    expect(isRoutineBudgetedRepair(bundle({ repairCount: 1, [field]: value }))).toBe(false);
   });
 });
 

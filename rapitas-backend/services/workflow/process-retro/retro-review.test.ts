@@ -23,10 +23,12 @@ mock.module('../../../config/logger', () => ({
 const transitionFindMany = mock(() => Promise.resolve([])) as any;
 
 const taskFindUnique = mock(() => Promise.resolve({ title: 'テストタスク' })) as any;
+const userSettingsFindFirst = mock(() => Promise.resolve(null)) as any;
 mock.module('../../../config/database', () => ({
   prisma: {
     workflowTransition: { findMany: transitionFindMany },
     task: { findUnique: taskFindUnique },
+    userSettings: { findFirst: userSettingsFindFirst },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
@@ -61,11 +63,17 @@ const row = (cause: string, atMs: number, toStatus = 'in_progress') => ({
   createdAt: new Date(atMs),
 });
 
-/** 修復系causeを1つ含む「クリーンでない」遷移履歴。 */
+/**
+ * 修復系causeが既定予算(2回)を超える「クリーンでない」遷移履歴 — AI呼び出しへ
+ * 到達する経路を検証する共通フィクスチャ。予算内(2回)は別途
+ * isRoutineBudgetedRepair でスキップされるため(task 732)、3回にして over-budget
+ * を保つ。
+ */
 const dirtyRows = () => [
   row('file_saved:research', 0, 'research_done'),
   row('verify_repair', 60_000),
   row('verify_repair', 120_000),
+  row('verify_repair', 150_000),
   row('file_saved:verify', 180_000, 'completed'),
 ];
 
@@ -84,6 +92,8 @@ beforeEach(() => {
   transitionFindMany.mockResolvedValue(dirtyRows());
   taskFindUnique.mockReset();
   taskFindUnique.mockResolvedValue({ title: 'テストタスク' });
+  userSettingsFindFirst.mockReset();
+  userSettingsFindFirst.mockResolvedValue(null);
   sendAIMessage.mockReset();
   sendAIMessage.mockResolvedValue({ content: '{"findings":[]}', tokensUsed: 1 });
   submitConcern.mockReset();
@@ -122,6 +132,34 @@ describe('runProcessRetro', () => {
 
     expect(sendAIMessage).not.toHaveBeenCalled();
     expect(submitConcern).not.toHaveBeenCalled();
+  });
+
+  test('budget-exact repair (2 repairs within the default limit) is handled by code without an AI call (task 732 / #727)', async () => {
+    transitionFindMany.mockResolvedValue([
+      row('file_saved:research', 0, 'research_done'),
+      row('verify_repair', 60_000),
+      row('verify_repair', 120_000),
+      row('file_saved:verify', 180_000, 'completed'),
+    ]);
+
+    await runProcessRetro(727);
+
+    expect(sendAIMessage).not.toHaveBeenCalled();
+    expect(submitConcern).not.toHaveBeenCalled();
+  });
+
+  test('a repair count exceeding a UserSettings-configured lower budget still calls the AI', async () => {
+    userSettingsFindFirst.mockResolvedValue({ verifyRepairLimit: 1 });
+    transitionFindMany.mockResolvedValue([
+      row('file_saved:research', 0, 'research_done'),
+      row('verify_repair', 60_000),
+      row('verify_repair', 120_000),
+      row('file_saved:verify', 180_000, 'completed'),
+    ]);
+
+    await runProcessRetro(1);
+
+    expect(sendAIMessage).toHaveBeenCalledTimes(1);
   });
 
   test('happy path: systemicなfindingがdedupKey付きで起票される', async () => {

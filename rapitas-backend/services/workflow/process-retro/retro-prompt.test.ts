@@ -222,4 +222,49 @@ describe('buildRetroPrompt / RETRO_SYSTEM_PROMPT', () => {
     const md = buildRetroPrompt(bundle({ prRecoveryCount: 1 }));
     expect(md).not.toContain('PR作成再試行系(pr_recovery)の反復');
   });
+
+  test('システムプロンプトは修復予算内のverify_repair/ci_repair反復を単独でsystemicの根拠にしない指示を含む(task732)', () => {
+    expect(RETRO_SYSTEM_PROMPT).toContain('verify_repair・ci_repair');
+    expect(RETRO_SYSTEM_PROMPT).toContain('修復予算');
+  });
+
+  test('verify_repairの反復が既定の修復予算(2回)以内なら反復ヒントに予算内注記を添える(task732/#727)', () => {
+    const incident = bundle({
+      repairCount: 2,
+      timeline: [
+        row({ cause: 'verify_repair', metadata: '{}', createdAt: new Date(0) }),
+        row({ cause: 'verify_repair', metadata: '{}', createdAt: new Date(60_000) }),
+      ],
+    });
+    const md = buildRetroPrompt(incident);
+    expect(md).toContain('- verify_repair: 2回');
+    expect(md).toContain('修復系(verify_repair/ci_repair)の反復: 2回(設定された修復予算2回以内');
+  });
+
+  test('verify_repairの反復が予算を超える場合は予算内注記を出力しない', () => {
+    const incident = bundle({
+      repairCount: 3,
+      timeline: [
+        row({ cause: 'verify_repair', metadata: '{}', createdAt: new Date(0) }),
+        row({ cause: 'verify_repair', metadata: '{}', createdAt: new Date(60_000) }),
+        row({ cause: 'verify_repair', metadata: '{}', createdAt: new Date(120_000) }),
+      ],
+    });
+    const md = buildRetroPrompt(incident);
+    expect(md).toContain('- verify_repair: 3回');
+    expect(md).not.toContain('修復系(verify_repair/ci_repair)の反復');
+  });
+
+  test('repairLimitを明示すると予算内判定がそれに従う', () => {
+    const incident = bundle({
+      repairCount: 3,
+      timeline: [
+        row({ cause: 'ci_repair', metadata: '{}', createdAt: new Date(0) }),
+        row({ cause: 'ci_repair', metadata: '{}', createdAt: new Date(60_000) }),
+        row({ cause: 'ci_repair', metadata: '{}', createdAt: new Date(120_000) }),
+      ],
+    });
+    const md = buildRetroPrompt(incident, 3);
+    expect(md).toContain('修復系(verify_repair/ci_repair)の反復: 3回(設定された修復予算3回以内');
+  });
 });

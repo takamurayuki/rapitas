@@ -15,7 +15,7 @@ const log = createLogger('memory:validation');
  * Validate a knowledge entry against duplicates and conflicts.
  */
 export async function validateEntry(entryId: number): Promise<{
-  status: 'validated' | 'rejected' | 'conflict';
+  status: 'validated' | 'rejected' | 'conflict' | 'skipped';
   reason: string;
   duplicateOf?: number;
 }> {
@@ -24,7 +24,14 @@ export async function validateEntry(entryId: number): Promise<{
   });
 
   if (!entry) {
-    throw new Error(`KnowledgeEntry not found: ${entryId}`);
+    // Deletion raced ahead of the queued validate task — this is not
+    // retryable (every retry hits the same missing row), so we skip
+    // instead of throwing to avoid a deterministic dead_letter.
+    log.warn({ entryId }, 'validateEntry: 対象のKnowledgeEntryが見つからずスキップ');
+    return {
+      status: 'skipped',
+      reason: '対象のKnowledgeEntryが見つかりません（削除された可能性があります）',
+    };
   }
 
   // Stage 1: Heuristic - exact duplicate detection by contentHash
@@ -186,9 +193,10 @@ export async function validateEntry(entryId: number): Promise<{
  * unvalidated, so recall could never trust-boost them.
  *
  * validateEntry always terminates a pending status (validated / rejected /
- * conflict — LLM or vector failure falls through to 'validated'), so a plain
- * oldest-first fetch drains the backlog without a cursor; entries that throw
- * are retried on a later sweep.
+ * conflict / skipped — LLM or vector failure falls through to 'validated',
+ * a deleted target falls through to 'skipped'), so a plain oldest-first
+ * fetch drains the backlog without a cursor; entries that throw for other
+ * reasons are retried on a later sweep.
  *
  * @param limit - Max entries to validate in this sweep; defaults to
  *   RAPITAS_KB_PENDING_SWEEP_BUDGET or 100. / 1回の検証上限
@@ -199,6 +207,7 @@ export async function revalidatePendingBacklog(limit?: number): Promise<{
   validated: number;
   rejected: number;
   conflict: number;
+  skipped: number;
   failed: number;
 }> {
   const rawBudget = Number(process.env.RAPITAS_KB_PENDING_SWEEP_BUDGET);
@@ -219,6 +228,7 @@ export async function revalidatePendingBacklog(limit?: number): Promise<{
     validated: 0,
     rejected: 0,
     conflict: 0,
+    skipped: 0,
     failed: 0,
   };
 
