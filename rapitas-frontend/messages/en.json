@@ -1826,6 +1826,22 @@
       "activePreviews": "Active previews",
       "uptime": "Uptime"
     },
+    "resourceContention": {
+      "title": "Resource contention gate",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "hostCpuNote": "Host-wide CPU usage. Not attributed to any specific theme.",
+      "currentCpu": "Current CPU usage",
+      "threshold": "Threshold",
+      "effectiveMaxConcurrency": "Effective concurrency",
+      "unsampled": "Not sampled yet",
+      "empty": "No deferrals recorded",
+      "loadFailed": "Failed to load resource contention gate info",
+      "deferredAt": "Deferred at",
+      "theme": "Theme",
+      "runNow": "Run now",
+      "nextTick": "Re-evaluated on the next scheduler tick"
+    },
     "repairConvergence": {
       "title": "Self-repair loop convergence",
       "convergenceRate": "Convergence rate",
