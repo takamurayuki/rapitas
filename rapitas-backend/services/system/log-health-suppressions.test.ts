@@ -41,6 +41,10 @@ const SUPPRESSED: [string, string][] = [
     '[WorkflowCLIExecutor] verify.md self-contradicts: claims all tests pass',
   ],
   ['agents:verification-gate', 'Automated verification failed — blocking'],
+  [
+    'routes:workflow:auto-commit',
+    '[Workflow] Automated verification failed — aborting auto-commit/PR',
+  ],
   ['exec-log', '[ExecLog:#] Execution ended with status: failed'],
   [
     'github-service:client',
@@ -60,6 +64,7 @@ const KEPT: [string, string][] = [
     "gh command failed: gh pr create --title [Task-#] no commits between develop and bugfix/t#-x: base sha can't be blank",
   ],
   ['error-handler', 'Prisma Error'],
+  ['routes:workflow:auto-commit', 'Automated verification failed — aborting PR review'],
 ];
 
 describe('classifyLogSignature', () => {

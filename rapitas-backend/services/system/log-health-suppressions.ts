@@ -92,12 +92,16 @@ const SUPPRESSIONS: Suppression[] = [
       'gh pr create 対象ブランチに差分がない — isNoChangeCompletion が安全な無差分完了として扱う想定内の失敗',
   },
   {
-    // blockTaskForVerification が検証ゲートの発動を報告している行。止めた側であって、
-    // 壊れた側ではない。実測 2026-08-27: これがタスク685として起票され、直すべき
+    // blockTaskForVerification（agents:verification-gate）と performAutoCommitAndPR
+    // （routes:workflow:auto-commit, workflow-auto-commit.ts:200-203）は同一の検証
+    // ゲート失敗イベントに対してそれぞれ独自のERRORログを出す。止めた側であって、
+    // 壊れた側ではない。実測 2026-08-27: 前者がタスク685として起票され、直すべき
     // バグが無いため、エージェントは「ERRORログを減らす」を出力抑制で達成しようとした。
-    // 存在しない欠陥を指示すると、症状を消す方向に流れる。
-    test: /Automated verification failed — blocking/i,
-    because: '検証ゲートが基準未達を捕捉してタスクを止めた — ゲートが働いた側',
+    // 存在しない欠陥を指示すると、症状を消す方向に流れる。実測 2026-08-29: 後者側の
+    // 文言が抑制対象外だったため、同じ検証ゲート失敗イベントがタスク730として再度
+    // 起票された（K-6442/K-7506）。両方の文言をここで吸収する。
+    test: /Automated verification failed — (blocking|aborting auto-commit\/PR)/i,
+    because: '検証ゲートが基準未達を捕捉してタスク/auto-commitを止めた — ゲートが働いた側',
   },
   {
     // 実行の結末を記録する行。原因は当の実行自身のログに出ているので、
