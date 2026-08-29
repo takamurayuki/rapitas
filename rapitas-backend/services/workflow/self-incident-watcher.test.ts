@@ -307,6 +307,43 @@ describe('runSelfIncidentWatch', () => {
     expect(String(input.title)).toContain('反復ループ');
   });
 
+  // Task 710: invariantViolation-flagged transitions use a lower threshold
+  // (INVARIANT_REPEAT_LOOP_MIN_COUNT=2) than the general path
+  // (REPEAT_LOOP_MIN_COUNT=3) — the notification text must reflect the
+  // threshold that actually fired, not always the general one.
+  test('invariant経路で検出した場合、閾値表示に INVARIANT_REPEAT_LOOP_MIN_COUNT(2) を反映すること', async () => {
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([
+      stagnantTask(now, { id: 674, updatedAt: new Date(now - 60_000) }),
+    ]);
+    transitionFindManyMock.mockImplementation((args: unknown) => {
+      const where = (args as { where: { createdAt?: unknown } }).where;
+      if (!where.createdAt) return Promise.resolve([]);
+      return Promise.resolve([
+        {
+          cause: 'adversarial_review_failed',
+          createdAt: new Date(now - 5 * 60 * 1000),
+          actor: 'system',
+          invariantViolation: true,
+        },
+        {
+          cause: 'adversarial_review_failed',
+          createdAt: new Date(now - 10 * 60 * 1000),
+          actor: 'system',
+          invariantViolation: true,
+        },
+      ]);
+    });
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(1);
+    const input = submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(input.dedupKey).toBe('self-incident:repeat-loop:adversarial_review_failed');
+    expect(String(input.detail)).toContain('2回以上');
+    expect(String(input.detail)).not.toContain('3回以上');
+  });
+
   // 受入(a): a never-started todo backlog item files nothing however stale it is.
   test('a stale never-started todo task (draft workflow, no history) files nothing', async () => {
     const now = nextPassTime();

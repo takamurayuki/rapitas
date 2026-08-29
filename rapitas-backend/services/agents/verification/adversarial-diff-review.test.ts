@@ -22,10 +22,12 @@ const readWorkflowFile = mock(() => Promise.resolve('plan content'));
 const agentExecutionFindFirst = mock(() => Promise.resolve(null));
 const taskFindUnique = mock(() => Promise.resolve({ title: 'Task', acceptanceCriteria: null }));
 const agentExecutionConfigFindUnique = mock(() => Promise.resolve(null));
+const appendEventMock = mock(() => Promise.resolve({ id: 1 }));
 
 mock.module('../orchestrator/git-operations/core/diff-structured', () => ({ getDiff }));
 mock.module('../../../utils/ai-client', () => ({ sendAIMessage }));
 mock.module('../../workflow/workflow-file-utils', () => ({ resolveWorkflowDir, readWorkflowFile }));
+mock.module('../../memory/timeline', () => ({ appendEvent: appendEventMock }));
 mock.module('../../../config/database', () => ({
   prisma: {
     agentExecution: { findFirst: agentExecutionFindFirst },
@@ -263,6 +265,8 @@ describe('reviewDiffAdversarially', () => {
     agentExecutionFindFirst.mockReset();
     taskFindUnique.mockReset();
     agentExecutionConfigFindUnique.mockReset();
+    appendEventMock.mockReset();
+    appendEventMock.mockResolvedValue({ id: 1 });
     getDiff.mockReset();
     getDiff.mockResolvedValue([
       { filename: 'a.ts', status: 'M', additions: 1, deletions: 0, patch: '+line' },
@@ -401,6 +405,19 @@ describe('reviewDiffAdversarially', () => {
     await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
     // First call must NOT be 'claude' (the implementer's own provider).
     expect(calledProviders[0]).not.toBe('claude');
+  });
+
+  it('records the adversarial_review timeline event by default (suppressEventLog omitted)', async () => {
+    await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
+    expect(appendEventMock).toHaveBeenCalledTimes(1);
+    expect(appendEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: 'adversarial_review' }),
+    );
+  });
+
+  it('skips the adversarial_review timeline event when suppressEventLog is true (dry-run)', async () => {
+    await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt', suppressEventLog: true });
+    expect(appendEventMock).not.toHaveBeenCalled();
   });
 });
 

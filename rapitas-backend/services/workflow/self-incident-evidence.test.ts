@@ -66,6 +66,7 @@ describe('gatherTaskState', () => {
     sessionFindFirstMock.mockResolvedValue({
       id: 91,
       status: 'failed',
+      updatedAt: new Date(NOW - 60_000),
       agentExecutions: [{ id: 402, status: 'running' }],
     });
     executionFindFirstMock.mockResolvedValue({ id: 402 });
@@ -89,6 +90,7 @@ describe('gatherTaskState', () => {
     ]);
     expect(state.latestSessionId).toBe(91);
     expect(state.latestSessionStatus).toBe('failed');
+    expect(state.latestSessionUpdatedAtMs).toBe(NOW - 60_000);
     expect(state.latestExecutionId).toBe(402);
     expect(state.latestExecutionStatus).toBe('running');
     expect(state.hasLiveExecution).toBe(true);
@@ -104,6 +106,7 @@ describe('gatherTaskState', () => {
     expect(state.windowedCauses).toEqual([]);
     expect(state.latestSessionId).toBeNull();
     expect(state.latestSessionStatus).toBeNull();
+    expect(state.latestSessionUpdatedAtMs).toBeNull();
     expect(state.latestExecutionId).toBeNull();
     expect(state.latestExecutionStatus).toBeNull();
     expect(state.hasLiveExecution).toBe(false);

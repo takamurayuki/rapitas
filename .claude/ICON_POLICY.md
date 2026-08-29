@@ -118,6 +118,8 @@ history is lost.
 | `MessageSquarePlus`      | エージェントへの追加指示（実行完了後の継続指示 `ContinuationForm`/`ExecutionCompletedPanel`、および計画の修正依頼 `PlanRevisionRequest` — いずれも「走っている/走り終えたエージェントに文章で指示を足す」同一概念の再利用） |
 | `LifeBuoy`                | リカバリーメトリクス（エージェント実行フォールバックの種別×戦略別 成功率/レイテンシ/コスト集計。`RecoveryMetricsPanel` ヘッダー） |
 | `Repeat`                   | 修復反復のデータ表示（`RepairConvergenceCard` の反復収束集計、`RepairStagnationBanner` の verify_repair/ci_repair 反復回数閾値到達バナー — 同一概念「修復反復」の再利用。注: `TaskCard`/`RecurrenceSelector` 等の「繰り返しタスク」用途とはグリフが重複する既存の未解消事項 — アイデアボックスに改善提案として起票済み） |
+| `Thermometer`              | リソース競合ゲート（ホストCPU逼迫時のauto-run選定保留。`ResourceContentionPanel` ヘッダー。注: `Gauge`＝懸念の種別「パフォーマンス」、`Cpu`は既存の未整理な複数用途と別概念） |
+| `GitCompare`               | ドライラン実行・環境差分比較（`DryRunPanel` のドライラン実行ボタン + 過去レポートの環境変化確認導線。実装時に他用途での使用なしを確認済み） |
 
 > The table above is also being split into per-letter reference files
 > (`.claude/icon-policy/glyphs-a-f.md`, `glyphs-g-m.md`, `glyphs-n-s.md`,

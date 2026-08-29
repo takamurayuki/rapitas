@@ -96,4 +96,28 @@ describe('WorkflowQuestionPanel', () => {
     );
     expect(screen.queryByText(/freeTextRequiredNotice/)).not.toBeInTheDocument();
   });
+
+  it('badges the option matching recommendedLabel and shows the recommendation reason', () => {
+    render(
+      <WorkflowQuestionPanel
+        question={baseQuestion}
+        submitting={false}
+        onAnswer={vi.fn()}
+        recommendedLabel="選択肢B"
+        recommendedReason="plan.md §設計判断の根拠を参照"
+      />,
+    );
+    const optionB = screen.getByText('選択肢B').closest('button');
+    expect(optionB?.textContent).toContain('questionPanel.recommendedBadge');
+    const optionA = screen.getByText('選択肢A').closest('button');
+    expect(optionA?.textContent).not.toContain('questionPanel.recommendedBadge');
+    expect(screen.getByText('questionPanel.recommendedReasonLabel')).toBeInTheDocument();
+    expect(screen.getByText(/plan\.md §設計判断の根拠を参照/)).toBeInTheDocument();
+  });
+
+  it('does not show the recommendation badge/reason when recommendedLabel is unset (live question compat)', () => {
+    render(<WorkflowQuestionPanel question={baseQuestion} submitting={false} onAnswer={vi.fn()} />);
+    expect(screen.queryByText('questionPanel.recommendedBadge')).not.toBeInTheDocument();
+    expect(screen.queryByText('questionPanel.recommendedReasonLabel')).not.toBeInTheDocument();
+  });
 });

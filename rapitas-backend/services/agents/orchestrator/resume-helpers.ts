@@ -20,6 +20,7 @@ const logger = createLogger('resume-helpers');
  * @param lastOutput - Tail of previous output / 前回出力の末尾
  * @param logSummary - Recent log entries / 最近のログエントリ
  * @param errorMessage - Interruption reason if any / 中断理由
+ * @param workflowStatus - Current task workflowStatus, if known / 現在のタスクworkflowStatus
  * @returns Formatted prompt string / フォーマット済みプロンプト
  */
 export function buildResumePrompt(
@@ -27,6 +28,7 @@ export function buildResumePrompt(
   lastOutput: string,
   logSummary: string,
   errorMessage: string | null,
+  workflowStatus?: string | null,
 ): string {
   let prompt = `# 作業再開
 
@@ -64,11 +66,19 @@ ${errorMessage}
 `;
   }
 
+  if (workflowStatus) {
+    prompt += `
+## 現在のワークフロー状態
+このタスクの現在の workflowStatus は \`${workflowStatus}\` です。中断前に想定していたフェーズと異なっている可能性があります。
+`;
+  }
+
   prompt += `
 ## 指示
 上記の情報を基に、中断されたタスクを続行してください。
 - 既に完了した作業は繰り返さないでください
 - 中断された地点から作業を再開してください
+- ファイルを保存する前に、必ず GET /workflow/tasks/{タスクID}/files で現在保存済みの内容と workflowStatus を確認してください。直前の保存が拒否された場合は、同じ内容を再送信せず、エラーメッセージの指示に従ってください
 - 不明な点があれば質問してください
 `;
 

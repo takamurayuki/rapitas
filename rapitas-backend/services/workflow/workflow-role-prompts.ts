@@ -5,32 +5,10 @@
  * question-format guidance, role instructions). Does not assemble contexts or
  * read workflow files — that is the role context builders' job.
  */
-
-// question.md の機械可読フォーマット規約（researcher/planner/implementer 共通）。
-// UI（StructuredQuestionFlow）がこの `json:options` フェンスブロックを解析して
-// 選択肢ボタンを描画する。無ければ旧形式（`## 質問N`/自由記述）にフォールバックする
-// ため必須ではないが、ユーザーの回答負担を選択のみに抑えるため既定で促す。
-const QUESTION_FORMAT_GUIDANCE_JA =
-  '## question.md 保存時の推奨フォーマット（機械可読ブロック・選択肢UI用）\n' +
-  'question.md を保存する場合、質問文（Markdownの表・見出し等は自由に使ってよい）に加えて、末尾に以下の `json:options` フェンスブロックを1個だけ付与してください（UIがこれを解析し、ユーザーは自由記述ではなくボタンで回答できます）。\n\n' +
-  '```json:options\n' +
-  '{ "questions": [ { "id": "Q1", "summary": "一行要約", "options": [ {"key":"A","label":"選択肢の文言","consequence":"選んだ場合の変更範囲を1行で"} ], "freeTextRequired": false, "freeTextReason": null } ] }\n' +
-  '```\n\n' +
-  '- 1論点 = 1つの `questions[]` 要素。各質問に **2〜4個の `options`** を付け、`key` は質問内で一意にする。\n' +
-  '- `freeTextRequired: true` は「選択肢で表現できない入力（APIキー・ファイルパス等の秘匿・可変情報）」の場合のみ使用し、理由を `freeTextReason` に1行で明記する。それ以外の論点は必ず選択肢で表現すること。\n' +
-  '- `consequence` にはその選択肢を選んだ場合の影響・変更範囲を1行で書く。\n' +
-  '- ブロックは1個のみ保存する（複数あるとUIは最初の1個のみ使用する）。';
-
-const QUESTION_FORMAT_GUIDANCE_EN =
-  '## Recommended format when saving question.md (machine-readable block for the choice UI)\n' +
-  'When saving question.md, in addition to the question prose (Markdown tables/headings are fine), append EXACTLY ONE `json:options` fenced block at the end (the UI parses it so the user can answer by clicking a button instead of typing).\n\n' +
-  '```json:options\n' +
-  '{ "questions": [ { "id": "Q1", "summary": "one-line summary", "options": [ {"key":"A","label":"option text","consequence":"one-line impact if chosen"} ], "freeTextRequired": false, "freeTextReason": null } ] }\n' +
-  '```\n\n' +
-  '- One issue = one `questions[]` entry. Give each question **2-4 `options`**, with a `key` unique within that question.\n' +
-  '- Use `freeTextRequired: true` ONLY when the answer genuinely cannot be expressed as options (secrets/variable input like an API key or file path); state why in `freeTextReason` (one line). Every other issue MUST be expressed as options.\n' +
-  '- `consequence` is a one-line description of the impact of choosing that option.\n' +
-  '- Include AT MOST ONE block (if multiple are present, the UI uses only the first).';
+import {
+  QUESTION_FORMAT_GUIDANCE_JA,
+  QUESTION_FORMAT_GUIDANCE_EN,
+} from './workflow-question-format-guidance';
 
 /** Researcher-role prompt texts. */
 export interface ResearcherTexts {

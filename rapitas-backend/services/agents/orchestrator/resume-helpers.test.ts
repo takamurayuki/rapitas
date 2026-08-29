@@ -100,6 +100,19 @@ describe('buildResumePrompt', () => {
     expect(withError).toContain('timeout after 30s');
     expect(withoutError).not.toContain('## 中断理由');
   });
+
+  test('includes a workflow-status section when workflowStatus is provided', () => {
+    const prompt = buildResumePrompt(task, '', '', null, 'plan_approved');
+    expect(prompt).toContain('## 現在のワークフロー状態');
+    expect(prompt).toContain('plan_approved');
+  });
+
+  test('omits the workflow-status section when workflowStatus is null/omitted', () => {
+    const withoutArg = buildResumePrompt(task, '', '', null);
+    const withNull = buildResumePrompt(task, '', '', null, null);
+    expect(withoutArg).not.toContain('## 現在のワークフロー状態');
+    expect(withNull).not.toContain('## 現在のワークフロー状態');
+  });
 });
 
 describe('resolveAgentConfig', () => {
