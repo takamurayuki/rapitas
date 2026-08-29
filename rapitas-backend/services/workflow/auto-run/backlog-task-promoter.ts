@@ -12,7 +12,13 @@
  */
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
-import { listConcerns, convertConcernToTask } from '../../memory/concern-backlog-service';
+import {
+  listConcerns,
+  convertConcernToTask,
+  getConcern,
+  markConcernResolved,
+} from '../../memory/concern-backlog-service';
+import { isLogConcernStillRecurring } from './log-concern-recurrence';
 import { listIdeas, markIdeaAsUsed } from '../../memory/idea-box-service';
 import { createTask } from '../../task/task-mutations';
 import { logCycleEvent } from '../../observability';
@@ -118,6 +124,28 @@ async function promoteConcern(
   concern: { id: number; severity: string; title?: string },
 ): Promise<boolean> {
   try {
+    // A log-derived concern whose signature has gone quiet is an outage that
+    // already ended: promoting it buys three agent phases to conclude 修正不要
+    // (five such tasks on 2026-08-30 for one resolved Prisma mismatch).
+    // Retire it here; anything still recurring is promoted as before.
+    const full = await getConcern(concern.id).catch(() => null);
+    if (full?.source === 'log_health') {
+      const recurring = await isLogConcernStillRecurring(full);
+      if (recurring === false) {
+        await markConcernResolved(concern.id, true);
+        log.info(
+          { themeId, concernId: concern.id, title: full.title.slice(0, 80) },
+          '[backlog-promoter] Log concern has not recurred in 24h — resolved without a task',
+        );
+        logCycleEvent('backlog.concern_stale_resolved', {
+          theme: themeId,
+          kind: 'concern',
+          concernId: concern.id,
+          msg: 'log-derived concern silent for 24h; resolved instead of promoted',
+        });
+        return false;
+      }
+    }
     const taskId = await convertConcernToTask(concern.id);
     if (!taskId) return false;
     await markAutoCreated(taskId);

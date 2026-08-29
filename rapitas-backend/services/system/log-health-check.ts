@@ -129,7 +129,7 @@ const COMMAND_ARGS_RE = /\s--\S[^\n]*/g;
  * Normalizes a message so volatile parts (ids, counts, hex) collapse, letting
  * "task 12 failed" and "task 34 failed" group together.
  */
-function normalizeMessage(raw: string): string {
+export function normalizeMessage(raw: string): string {
   return (
     raw
       .replace(UUID_RE, '#') // whole UUIDs first — see UUID_RE

@@ -27,6 +27,7 @@ export type CycleEventName =
   | 'theme.stopped'
   // backlog refill (起票)
   | 'backlog.promoted'
+  | 'backlog.concern_stale_resolved'
   | 'backlog.refill'
   // task scheduling
   | 'task.selected'

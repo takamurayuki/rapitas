@@ -33,9 +33,25 @@ const mockListConcerns = mock(() =>
   Promise.resolve({ concerns: [] as Array<{ id: number; severity: string }>, total: 0 }),
 );
 const mockConvertConcernToTask = mock((_id: number) => Promise.resolve<number | null>(null));
+// Default concern is agent-filed: the recurrence check only runs for
+// source 'log_health', so the existing promotion tests are untouched.
+const mockGetConcern = mock((id: number) =>
+  Promise.resolve({ id, source: 'agent', title: `concern ${id}` } as never),
+);
+const mockMarkConcernResolved = mock((_id: number, _resolved: boolean) => Promise.resolve(true));
 mock.module('../../memory/concern-backlog-service', () => ({
   listConcerns: mockListConcerns,
   convertConcernToTask: mockConvertConcernToTask,
+  getConcern: mockGetConcern,
+  markConcernResolved: mockMarkConcernResolved,
+}));
+// null = unknown (fail open), false = silent for 24h, true = still recurring.
+const mockIsLogConcernStillRecurring = mock(() => Promise.resolve(null as boolean | null));
+// NOTE: bun's mock.module is process-global, so this replacement also reaches
+// log-concern-recurrence.test.ts if both files share a process. The verify gate
+// runs test files in isolation; run them the same way locally.
+mock.module('./log-concern-recurrence', () => ({
+  isLogConcernStillRecurring: mockIsLogConcernStillRecurring,
 }));
 
 const mockListIdeas = mock(() =>
@@ -416,5 +432,48 @@ describe('promoteBacklogForTheme — idea promotion', () => {
 
     expect(created).toBe(1);
     expect(noopLog.warn).toHaveBeenCalled();
+  });
+});
+
+describe('promoteBacklogForTheme — ログ由来の懸念の再発確認', () => {
+  test('24h 再発が無い log_health 懸念は resolved にしてタスク化しない', async () => {
+    mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 5 });
+    mockTaskCount.mockResolvedValue(0);
+    mockListIdeas.mockResolvedValue({ ideas: [], total: 0 });
+    mockListConcerns.mockResolvedValue({ concerns: [{ id: 40, severity: 'high' }], total: 1 });
+    mockGetConcern.mockResolvedValue({
+      id: 40,
+      source: 'log_health',
+      title: '[ログ:ERROR] Invalid `prisma.x()` invocation',
+    } as never);
+    mockIsLogConcernStillRecurring.mockResolvedValue(false);
+    mockConvertConcernToTask.mockClear();
+    mockMarkConcernResolved.mockClear();
+    const created = await promoteBacklogForTheme(3);
+    expect(created).toBe(0);
+    expect(mockConvertConcernToTask).not.toHaveBeenCalled();
+    expect(mockMarkConcernResolved).toHaveBeenCalledWith(40, true);
+  });
+
+  test('再発中（true）や不明（null）の log_health 懸念は従来どおりタスク化する', async () => {
+    for (const answer of [true, null]) {
+      mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 5 });
+      mockTaskCount.mockResolvedValue(0);
+      mockListIdeas.mockResolvedValue({ ideas: [], total: 0 });
+      mockListConcerns.mockResolvedValue({ concerns: [{ id: 41, severity: 'high' }], total: 1 });
+      mockGetConcern.mockResolvedValue({
+        id: 41,
+        source: 'log_health',
+        title: '[ログ:ERROR] still happening',
+      } as never);
+      mockIsLogConcernStillRecurring.mockResolvedValue(answer);
+      mockConvertConcernToTask.mockClear();
+      mockConvertConcernToTask.mockResolvedValue(602);
+      mockMarkConcernResolved.mockClear();
+      const created = await promoteBacklogForTheme(3);
+      expect(created).toBe(1);
+      expect(mockConvertConcernToTask).toHaveBeenCalledWith(41);
+      expect(mockMarkConcernResolved).not.toHaveBeenCalled();
+    }
   });
 });
