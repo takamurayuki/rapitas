@@ -2361,7 +2361,9 @@
       "otherFreeText": "その他（自由記述）",
       "freeTextInputPlaceholder": "選択肢に当てはまらない場合はこちらに入力...",
       "submit": "送信",
-      "freeTextRequiredNotice": "この質問は自由入力が必要です: {reason}"
+      "freeTextRequiredNotice": "この質問は自由入力が必要です: {reason}",
+      "recommendedBadge": "（推奨）",
+      "recommendedReasonLabel": "推奨理由："
     },
     "roles": {
       "researcher": {
