@@ -22,6 +22,7 @@ import { agentExecutionRouter } from '../execution-management/agent-execution-ro
 import { agentSessionRouter } from '../crud/agent-session-router';
 import { agentAuditRouter, taskExecutionLogsRouter } from '../monitoring/agent-audit-router';
 import { agentSystemRouter } from '../system/agent-system-router';
+import { resourceGateRouter } from '../system/resource-gate-router';
 import { agentCrudRouter } from '../crud/agent-crud-router';
 import { agentApiKeyRouter } from '../config/agent-api-key-router';
 import { agentTestRouter } from '../monitoring/agent-test-router';
@@ -38,6 +39,7 @@ export const aiAgentRoutes = new Elysia()
   .use(agentAuditRouter)
   .use(taskExecutionLogsRouter)
   .use(agentSystemRouter)
+  .use(resourceGateRouter)
   .use(agentCrudRouter)
   .use(agentApiKeyRouter)
   .use(agentTestRouter)

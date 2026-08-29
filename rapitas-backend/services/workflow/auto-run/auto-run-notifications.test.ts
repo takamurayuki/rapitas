@@ -12,11 +12,13 @@ const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () 
 const notificationFindFirstMock = mock(() => Promise.resolve(null as { id: number } | null));
 const notificationCreateMock = mock(() => Promise.resolve({}));
 const taskFindUniqueMock = mock(() => Promise.resolve({ title: 'stalled task' }));
+const themeFindUniqueMock = mock(() => Promise.resolve({ name: 'テストテーマ' }));
 
 mock.module('../../../config', () => ({
   prisma: {
     notification: { findFirst: notificationFindFirstMock, create: notificationCreateMock },
     task: { findUnique: taskFindUniqueMock },
+    theme: { findUnique: themeFindUniqueMock },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
   logger: noopLogger,
@@ -28,12 +30,14 @@ mock.module('../../../config/logger', () => ({
   createLogger: () => noopLogger,
 }));
 
-const { notifyStallReleased, notifyQueueStarvation } = await import('./auto-run-notifications');
+const { notifyStallReleased, notifyQueueStarvation, notifyResourceContentionHold } =
+  await import('./auto-run-notifications');
 
 beforeEach(() => {
   notificationFindFirstMock.mockReset().mockResolvedValue(null);
   notificationCreateMock.mockReset().mockResolvedValue({});
   taskFindUniqueMock.mockReset().mockResolvedValue({ title: 'stalled task' });
+  themeFindUniqueMock.mockReset().mockResolvedValue({ name: 'テストテーマ' });
 });
 
 describe('notifyStallReleased', () => {
@@ -83,6 +87,28 @@ describe('notifyQueueStarvation', () => {
     // 1回目の作成後は未読が存在する状態をシミュレート。
     notificationFindFirstMock.mockResolvedValue({ id: 10 });
     await notifyQueueStarvation(617, 4);
+
+    expect(notificationCreateMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('notifyResourceContentionHold', () => {
+  test('creates one notification with the theme-scoped dedup key', async () => {
+    await notifyResourceContentionHold(42, 91, 85);
+
+    expect(notificationCreateMock).toHaveBeenCalledTimes(1);
+    const data = (
+      notificationCreateMock.mock.calls[0]?.[0] as { data: { type: string; metadata: string } }
+    ).data;
+    expect(data.type).toBe('auto_run_resource_hold');
+    expect(JSON.parse(data.metadata).dedupKey).toBe('auto_run_resource_hold:theme-42');
+  });
+
+  test('連続2tick呼び出しでも未読が残っている間は1件しか作成されない', async () => {
+    await notifyResourceContentionHold(42, 91, 85);
+    // 1回目の作成後は未読が存在する状態をシミュレート。
+    notificationFindFirstMock.mockResolvedValue({ id: 11 });
+    await notifyResourceContentionHold(42, 93, 85);
 
     expect(notificationCreateMock).toHaveBeenCalledTimes(1);
   });

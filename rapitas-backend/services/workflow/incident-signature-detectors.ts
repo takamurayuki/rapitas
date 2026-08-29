@@ -47,6 +47,18 @@ export const DESYNC_RECOVERY_SETTLE_MS =
   parseInt(process.env.RAPITAS_INCIDENT_DESYNC_SETTLE_MS ?? '', 10) || 30 * 60 * 1000;
 
 /**
+ * Grace period after a failed session's own last update during which Pattern
+ * A (`session_failed_execution_active`) is EXPECTED, not anomalous (default
+ * 130s). Rationale (#718): the verify post-save pipeline marks a session
+ * failed while its own execution is still running the pipeline (jury ~120s +
+ * commit/PR); DESYNC_RECOVERY_SETTLE_MS's 30m is sized for a much
+ * longer-lived recovery shape (Pattern B) and would delay a genuinely hung
+ * execution's detection by the same amount if reused here.
+ */
+export const PATTERN_A_SETTLE_MS =
+  parseInt(process.env.RAPITAS_INCIDENT_PATTERN_A_SETTLE_MS ?? '', 10) || 130_000;
+
+/**
  * Transition causes that DELIBERATELY produce `task.status='todo'` with an
  * advanced workflowStatus: reconciler_requeue keeps workflowStatus so the
  * resume mapping re-enters at the right phase (workflow-reconciler-requeue),
@@ -176,10 +188,14 @@ export interface TriStateDesyncInput {
   latestTransitionCause?: string | null;
   /** createdAt of that transition, epoch ms (null/undefined = unknown). */
   latestTransitionAtMs?: number | null;
+  /** updatedAt of that AgentSession, epoch ms — feeds only the Pattern A settle-window guard. */
+  latestSessionUpdatedAtMs?: number | null;
   /** Current time (ms) — the recovery grace guard needs it to age the transition. */
   nowMs?: number;
-  /** Recovery grace override (default DESYNC_RECOVERY_SETTLE_MS). */
+  /** Pattern B recovery grace override (default DESYNC_RECOVERY_SETTLE_MS). */
   settleMs?: number;
+  /** Pattern A settle-window override (default PATTERN_A_SETTLE_MS). */
+  patternASettleMs?: number;
 }
 
 /** Which desync pattern was detected. */
@@ -201,10 +217,25 @@ function isWithinRecoveryGrace(input: TriStateDesyncInput): boolean {
 }
 
 /**
+ * True when the session's own last update is within the Pattern A settle
+ * window (#718). Requires BOTH timestamps — with either missing the guard
+ * stays off, so detection sensitivity never silently degrades (mirrors
+ * isWithinRecoveryGrace).
+ */
+function isWithinPatternASettle(input: TriStateDesyncInput): boolean {
+  if (input.latestSessionUpdatedAtMs == null || input.nowMs === undefined) return false;
+  return (
+    input.nowMs - input.latestSessionUpdatedAtMs < (input.patternASettleMs ?? PATTERN_A_SETTLE_MS)
+  );
+}
+
+/**
  * Detects a Task/AgentSession/AgentExecution state contradiction. Pattern A
  * (session terminally failed but its execution still active) is checked first
  * and wins when both apply — the session/execution anomaly is the more urgent
- * signal. Pattern B: task.status still 'todo' while the workflow advanced —
+ * signal — EXCEPT within PATTERN_A_SETTLE_MS of the session's own last update
+ * (see isWithinPatternASettle, #718). Pattern B: task.status still 'todo'
+ * while the workflow advanced —
  * EXCEPT within the recovery grace window after a cause in
  * RECOVERY_REQUEUE_CAUSES (reconciler_requeue / artifact_reuse_fastforward /
  * task_retried), which produces exactly that shape by design (see
@@ -223,6 +254,7 @@ export function detectTriStateDesync(
     input.latestExecutionStatus !== null &&
     ACTIVE_EXECUTION_STATUSES.has(input.latestExecutionStatus)
   ) {
+    if (isWithinPatternASettle(input)) return null;
     return {
       kind: 'session_failed_execution_active',
       detail:
@@ -381,7 +413,7 @@ const REPAIR_BOUNCE_CAUSES = new Set(['verify_repair', 'ci_repair']);
  * @param input.windowMs - Window size (default 60m). / 集計窓
  * @param input.minCount - Detection threshold (default 3). / 検出しきい値
  * @param input.invariantMinCount - Detection threshold for invariantViolation-flagged transitions only (default 2, see {@link INVARIANT_REPEAT_LOOP_MIN_COUNT}). / invariantViolation付き遷移専用のしきい値
- * @returns The dominant looping cause + count, or null. / 最多ループcauseまたはnull
+ * @returns The dominant looping cause + count + which threshold path (`via`) picked it, or null. / 最多ループcause・count・判定経路またはnull
  */
 export function detectRepeatLoop(input: {
   transitions: RepeatLoopTransition[];
@@ -390,7 +422,7 @@ export function detectRepeatLoop(input: {
   windowMs?: number;
   minCount?: number;
   invariantMinCount?: number;
-}): { cause: string; count: number } | null {
+}): { cause: string; count: number; via: 'general' | 'invariant' } | null {
   if (input.taskStatus !== undefined && TERMINAL_TASK_STATUSES.has(input.taskStatus)) return null;
   const windowMs = input.windowMs ?? REPEAT_LOOP_WINDOW_MS;
   const minCount = input.minCount ?? REPEAT_LOOP_MIN_COUNT;
@@ -441,7 +473,7 @@ export function detectRepeatLoop(input: {
     }
   }
 
-  let best: { cause: string; count: number } | null = null;
+  let best: { cause: string; count: number; via: 'general' | 'invariant' } | null = null;
   for (const [cause, count] of counts) {
     if (count < minCount) continue;
     if (
@@ -449,7 +481,7 @@ export function detectRepeatLoop(input: {
       count > best.count ||
       (count === best.count && cause.localeCompare(best.cause) < 0)
     ) {
-      best = { cause, count };
+      best = { cause, count, via: 'general' };
     }
   }
   for (const [cause, count] of invariantCounts) {
@@ -459,7 +491,7 @@ export function detectRepeatLoop(input: {
       count > best.count ||
       (count === best.count && cause.localeCompare(best.cause) < 0)
     ) {
-      best = { cause, count };
+      best = { cause, count, via: 'invariant' };
     }
   }
   return best;

@@ -6,3 +6,4 @@
 export { agentSystemRouter } from './agent-system-router';
 export { agentVersionManagementRoutes } from './agent-version-management';
 export { smartRouterRoutes } from './smart-router-routes';
+export { resourceGateRouter } from './resource-gate-router';

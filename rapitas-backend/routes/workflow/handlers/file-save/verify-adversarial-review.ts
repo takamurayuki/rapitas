@@ -273,8 +273,12 @@ export async function runAdversarialDiffReview(params: {
           // The non-convergence cutoff already recorded its OWN
           // `verify_repair_non_convergence` transition for this rejection
           // (verify-self-repair.ts) — recording `adversarial_review_failed`
-          // here too would duplicate it (task 674: two rows 43ms apart).
-          if (!(await wasNonConvergenceCutoffJustRecorded(taskId))) {
+          // here too would duplicate it (task 674: two rows 43ms apart; task
+          // 715 recurred even with the wasNonConvergenceCutoffJustRecorded
+          // DB-read guard below, so `repair.cutoffRecorded` — the in-band
+          // signal from THIS exact attemptVerifyRepair() call, task 710 — is
+          // checked first as the authoritative source).
+          if (!repair.cutoffRecorded && !(await wasNonConvergenceCutoffJustRecorded(taskId))) {
             await recordTransition({
               taskId,
               // newStatus is 'verify_done' here unless the bounce above rolled
