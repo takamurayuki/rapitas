@@ -285,7 +285,8 @@ Only then begin implementation.
 
 **Stop and report immediately if any of the following occur:**
 
-- A file not listed in plan.md needs to be changed
+- A **protected** file not listed in plan.md needs to be changed — `services/agents/verification/`, `services/workflow/{completion-gate,phase-output-validator,verify-self-repair,phase-critic}*`, `.github/workflows/`, `.husky/`, `scripts/{pre-commit-check,auto-fix-commit}*`. Touching these outside the plan is a HARD gate failure (anti-tampering tripwire).
+  For any **other** file outside plan.md: do not stop. The plan-scope check is ADVISORY (demoted in task 298) — make the change, and record the file and the reason in verify.md's changed-files table.
 - A test fails and self-correction has failed 3 times
 - A new design decision is required mid-implementation
 
