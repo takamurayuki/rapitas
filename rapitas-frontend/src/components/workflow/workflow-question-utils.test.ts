@@ -116,8 +116,18 @@ describe('parseOptionsBlock', () => {
       id: 'Q1',
       summary: '達成すべきゴール',
       options: [
-        { key: 'A', label: '速度を優先する', consequence: '実装は最小限にする' },
-        { key: 'B', label: '品質を優先する', consequence: 'テストを手厚くする' },
+        {
+          key: 'A',
+          label: '速度を優先する',
+          consequence: '実装は最小限にする',
+          mutatesGate: false,
+        },
+        {
+          key: 'B',
+          label: '品質を優先する',
+          consequence: 'テストを手厚くする',
+          mutatesGate: false,
+        },
       ],
       freeTextRequired: false,
       freeTextReason: null,
@@ -199,6 +209,24 @@ describe('parseOptionsBlock', () => {
     const parsed = parseOptionsBlock(mdUnknownKey);
     expect(parsed?.questions[0].recommendedKey).toBeNull();
     expect(parsed?.questions[0].recommendedReason).toBeNull();
+  });
+
+  it('parses mutatesGate:true on an option', () => {
+    const md =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"a","mutatesGate":true}],"freeTextRequired":false}]}\n```';
+    expect(parseOptionsBlock(md)?.questions[0].options[0].mutatesGate).toBe(true);
+  });
+
+  it('parses mutatesGate:false on an option', () => {
+    const md =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"a","mutatesGate":false}],"freeTextRequired":false}]}\n```';
+    expect(parseOptionsBlock(md)?.questions[0].options[0].mutatesGate).toBe(false);
+  });
+
+  it('defaults mutatesGate to false when unspecified (backward compat)', () => {
+    const md =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"a"}],"freeTextRequired":false}]}\n```';
+    expect(parseOptionsBlock(md)?.questions[0].options[0].mutatesGate).toBe(false);
   });
 });
 

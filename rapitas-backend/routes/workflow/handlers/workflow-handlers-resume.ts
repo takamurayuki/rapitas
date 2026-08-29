@@ -8,6 +8,7 @@
 
 import { prisma } from '../../../config';
 import { recordTransition } from '../../../services/workflow/transition-recorder';
+import type { TransitionActor } from '../../../services/workflow/transition-recorder';
 import { ValidationError, NotFoundError } from '../../../middleware/error-handler';
 import { createLogger } from '../../../config';
 import type { WorkflowStatus } from '../../../services/workflow/workflow-types';
@@ -138,13 +139,145 @@ function parseSelections(raw: unknown): AnswerSelection[] | undefined {
   return out.length > 0 ? out : undefined;
 }
 
+/** Input to {@link applyIntakeQuestionAnswer}. */
+export interface ApplyIntakeAnswerParams {
+  taskId: number;
+  answer: string;
+  /** Who is recorded as having answered (HTTP callers always pass 'user'). / 記録するactor */
+  actor: TransitionActor;
+  /** Label folded into the description/question.md answer headings (e.g. 'ユーザー選択'). / 回答元ラベル */
+  sourceLabel: string;
+  selections?: AnswerSelection[];
+  /** Extra fields merged into the recorded transition's metadata. / 追加メタデータ */
+  extraMetadata?: Record<string, unknown>;
+}
+
 /**
- * Apply a user's free-text / choice answer to a workflow QUESTION (the intake
- * quality gate's `question.md` asking for goals/constraints/acceptance, or any
- * spec-clarification question). The answer is appended to the task description as
- * a 仕様補足 section AND seeded into the structured `goals` field so the intake
- * gate sees a non-empty spec instead of re-asking; question.md is archived and the
- * workflow is reset to `draft` so research re-runs with the enrichment.
+ * Core logic for applying an answer to a workflow QUESTION (the intake quality
+ * gate's `question.md` asking for goals/constraints/acceptance, or any
+ * spec-clarification question). The answer is appended to the task description
+ * as a 仕様補足 section AND seeded into the structured `goals` field so the
+ * intake gate sees a non-empty spec instead of re-asking; question.md is
+ * archived and the workflow is reset to `draft` so research re-runs with the
+ * enrichment.
+ *
+ * Transport-agnostic on purpose: {@link handleAnswerWorkflowQuestion} (HTTP,
+ * `actor:'user'`) and the stale-question auto-answer heal pass (in-process,
+ * `actor:'system'`) both call this directly so the goals/question.md/plan.md
+ * handling never drifts between the two callers.
+ *
+ * @param params - Answer to apply. / 適用する回答
+ * @returns The task id and the status it was reset to. / 反映後の状態
+ * @throws {NotFoundError} タスクが見つからない場合
+ */
+export async function applyIntakeQuestionAnswer(params: ApplyIntakeAnswerParams): Promise<{
+  taskId: number;
+  ok: true;
+  toStatus: WorkflowStatus;
+}> {
+  const { taskId, answer, actor, sourceLabel, selections, extraMetadata } = params;
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { id: true, description: true, goals: true, workflowStatus: true, status: true },
+  });
+  if (!task) {
+    throw new NotFoundError('Task not found');
+  }
+
+  // Seed the structured goals so the intake gate sees a non-empty spec (else it
+  // re-asks the same question on the re-run).
+  let goals: string[] = [];
+  try {
+    const parsed = JSON.parse(task.goals ?? '[]');
+    if (Array.isArray(parsed)) goals = parsed.filter((g): g is string => typeof g === 'string');
+  } catch {
+    /* malformed goals JSON — start fresh */
+  }
+  if (!goals.includes(answer)) goals.push(answer);
+
+  const clarified = `${task.description ?? ''}\n\n## 仕様補足（${sourceLabel}）\n${answer}`.trim();
+
+  // This intake pause never had a live agent session (question.md was saved
+  // then the process exited) — the researcher's own execution loop
+  // misreported that pause as a phase failure, which left task.status
+  // stuck at 'blocked' (see workflow-cli-executor.ts's awaiting_question
+  // handling). Answering only resets workflowStatus; without also clearing
+  // a stale 'blocked' here, the task stays permanently unschedulable even
+  // after the user answers (WorkflowOrchestrator refuses to advance any
+  // 'blocked' task). Only touch it when 'blocked' — never override a
+  // status set for an unrelated reason.
+  const statusUpdate = task.status === 'blocked' ? { status: 'todo' as const } : {};
+
+  await prisma.task.update({
+    where: { id: taskId },
+    data: {
+      description: clarified,
+      goals: JSON.stringify(goals),
+      workflowStatus: 'draft',
+      updatedAt: new Date(),
+      ...statusUpdate,
+    },
+  });
+
+  // Append the answer to question.md BEFORE archiving, so the archived
+  // WorkflowFileVersion keeps an audit trail of what was actually answered
+  // (writeWorkflowFile itself moves the pre-append content into
+  // WorkflowFileVersion, then archiveWorkflowFile moves the appended version
+  // there too — archiveWorkflowFile's own signature is unchanged).
+  const questionContent = await readWorkflowFile(taskId, 'question');
+  if (questionContent != null) {
+    const answerBlock = `\n\n## 回答（${sourceLabel}）\n${answer}`;
+    await writeWorkflowFile(taskId, 'question', `${questionContent}${answerBlock}`).catch(() => {});
+  }
+
+  // Archive question.md so it is no longer a pending question.
+  await archiveWorkflowFile(taskId, 'question').catch(() => {});
+
+  // The plan was derived from the spec as it stood BEFORE this answer, so it
+  // now contradicts it. Archive it too and let the planner regenerate.
+  //
+  // Task 662 is what this costs otherwise: an operator answer widened the scope
+  // to include a UI card, the implementer built exactly that, and the
+  // adversarial reviewer — which reads plan.md, not the task description —
+  // rejected the diff four times in a row for violating the stale plan's
+  // 「非対象（やらないこと）: UIカードの新規追加」. The planner tried to rewrite it
+  // and was refused (`transition_rejected`: plan is not an allowed file type at
+  // plan_approved), so nothing could break the loop. Keeping the plan is not
+  // even the cheap option: one planner re-run cost ~$1 on that task, the four
+  // wasted implement+verify cycles cost ~$8.
+  //
+  // Unconditional on purpose. Detecting whether an answer 'materially' changes
+  // scope is the same kind of guess that keeps being wrong; regenerating one
+  // cheap phase is the reliable option.
+  await archiveWorkflowFile(taskId, 'plan').catch(() => {});
+
+  await recordTransition({
+    taskId,
+    fromStatus: (task.workflowStatus as WorkflowStatus) ?? 'draft',
+    toStatus: 'draft',
+    actor,
+    cause: 'intake_question_answered',
+    metadata: { ...(selections ? { selections } : {}), ...(extraMetadata ?? {}) },
+  });
+
+  log.info(
+    { taskId, actor },
+    '[Workflow:Answer] Recorded answer to workflow question; reset to draft',
+  );
+
+  // Errors are logged inside triggerReExecutionAfterAnswer and never thrown —
+  // a failed auto re-run must not fail this response (the answer itself is
+  // already durably recorded above; the user can still re-run manually).
+  await triggerReExecutionAfterAnswer(taskId);
+
+  return { taskId, ok: true, toStatus: 'draft' };
+}
+
+/**
+ * HTTP entry point for {@link applyIntakeQuestionAnswer}: validates the
+ * request (taskId, `X-Rapitas-Source` header, non-blank answer) and maps
+ * thrown errors to the response status, then delegates.
  *
  * Without this, an intake `question.md` was displayed in the Q&A tab but had no
  * answer path (the interactive panel only handled live mid-execution questions),
@@ -216,137 +349,61 @@ export async function handleAnswerWorkflowQuestion({
   }
   const selections = parseSelections((body as { selections?: unknown })?.selections);
 
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    select: { id: true, description: true, goals: true, workflowStatus: true, status: true },
-  });
-  if (!task) {
-    set.status = 404;
-    throw new NotFoundError('Task not found');
-  }
-
-  // Seed the structured goals so the intake gate sees a non-empty spec (else it
-  // re-asks the same question on the re-run).
-  let goals: string[] = [];
   try {
-    const parsed = JSON.parse(task.goals ?? '[]');
-    if (Array.isArray(parsed)) goals = parsed.filter((g): g is string => typeof g === 'string');
-  } catch {
-    /* malformed goals JSON — start fresh */
+    return await applyIntakeQuestionAnswer({
+      taskId,
+      answer,
+      actor: 'user',
+      sourceLabel: ANSWER_SOURCE_LABELS[answerSource],
+      selections,
+    });
+  } catch (err) {
+    if (err instanceof NotFoundError) set.status = 404;
+    throw err;
   }
-  if (!goals.includes(answer)) goals.push(answer);
+}
 
-  const clarified =
-    `${task.description ?? ''}\n\n## 仕様補足（${ANSWER_SOURCE_LABELS[answerSource]}）\n${answer}`.trim();
-
-  // This intake pause never had a live agent session (question.md was saved
-  // then the process exited) — the researcher's own execution loop
-  // misreported that pause as a phase failure, which left task.status
-  // stuck at 'blocked' (see workflow-cli-executor.ts's awaiting_question
-  // handling). Answering only resets workflowStatus; without also clearing
-  // a stale 'blocked' here, the task stays permanently unschedulable even
-  // after the user answers (WorkflowOrchestrator refuses to advance any
-  // 'blocked' task). Only touch it when 'blocked' — never override a
-  // status set for an unrelated reason.
-  const statusUpdate = task.status === 'blocked' ? { status: 'todo' as const } : {};
-
-  await prisma.task.update({
-    where: { id: taskId },
-    data: {
-      description: clarified,
-      goals: JSON.stringify(goals),
-      workflowStatus: 'draft',
-      updatedAt: new Date(),
-      ...statusUpdate,
-    },
-  });
-
-  // Append the user's answer to question.md BEFORE archiving, so the archived
-  // WorkflowFileVersion keeps an audit trail of what was actually answered
-  // (writeWorkflowFile itself moves the pre-append content into
-  // WorkflowFileVersion, then archiveWorkflowFile moves the appended version
-  // there too — archiveWorkflowFile's own signature is unchanged).
-  const questionContent = await readWorkflowFile(taskId, 'question');
-  if (questionContent != null) {
-    const answerBlock = `\n\n## 回答（${ANSWER_SOURCE_LABELS[answerSource]}）\n${answer}`;
-    await writeWorkflowFile(taskId, 'question', `${questionContent}${answerBlock}`).catch(() => {});
-  }
-
-  // Archive question.md so it is no longer a pending question.
-  await archiveWorkflowFile(taskId, 'question').catch(() => {});
-
-  // The plan was derived from the spec as it stood BEFORE this answer, so it
-  // now contradicts it. Archive it too and let the planner regenerate.
-  //
-  // Task 662 is what this costs otherwise: an operator answer widened the scope
-  // to include a UI card, the implementer built exactly that, and the
-  // adversarial reviewer — which reads plan.md, not the task description —
-  // rejected the diff four times in a row for violating the stale plan's
-  // 「非対象（やらないこと）: UIカードの新規追加」. The planner tried to rewrite it
-  // and was refused (`transition_rejected`: plan is not an allowed file type at
-  // plan_approved), so nothing could break the loop. Keeping the plan is not
-  // even the cheap option: one planner re-run cost ~$1 on that task, the four
-  // wasted implement+verify cycles cost ~$8.
-  //
-  // Unconditional on purpose. Detecting whether an answer 'materially' changes
-  // scope is the same kind of guess that keeps being wrong; regenerating one
-  // cheap phase is the reliable option.
-  await archiveWorkflowFile(taskId, 'plan').catch(() => {});
-
-  await recordTransition({
-    taskId,
-    fromStatus: (task.workflowStatus as WorkflowStatus) ?? 'draft',
-    toStatus: 'draft',
-    actor: 'user',
-    cause: 'intake_question_answered',
-    metadata: selections ? { selections } : {},
-  });
-
-  log.info(
-    { taskId },
-    '[Workflow:Answer] Recorded user answer to workflow question; reset to draft',
-  );
-
-  // Errors are logged inside triggerReExecutionAfterAnswer and never thrown —
-  // a failed auto re-run must not fail this response (the answer itself is
-  // already durably recorded above; the user can still re-run manually).
-  await triggerReExecutionAfterAnswer(taskId);
-
-  return { taskId, ok: true, toStatus: 'draft' };
+/** Input to {@link applyResumeFromQuestionAnswer}. */
+export interface ApplyResumeAnswerParams {
+  taskId: number;
+  /** Who is recorded as having resolved the pause (HTTP callers always pass 'user'). / 記録するactor */
+  actor: TransitionActor;
+  /** Extra fields merged into the recorded transition's metadata. / 追加メタデータ */
+  extraMetadata?: Record<string, unknown>;
 }
 
 /**
- * `awaiting_question` 状態のタスクを、質問発生前の status に復帰させる。
+ * Core logic to resume an `awaiting_question` task back to the status it was
+ * in before the question was raised.
  *
  * 復帰先 status は `WorkflowTransition` の最新 `to_status='awaiting_question'`
  * 行の `metadata.previousStatus` から取得する。metadata に値が無い古い遷移は
- * `in_progress` を fallback に使う。
+ * `in_progress` を fallback に使う。question.md は archive しない — 実装フェーズ発
+ * の質問は plan.md が生きたままの状態で再開する必要があるため。
  *
- * @param ctx - Elysia ハンドラコンテキスト
+ * Transport-agnostic on purpose: {@link handleResumeFromQuestion} (HTTP,
+ * `actor:'user'`) and the stale-question auto-answer heal pass (in-process,
+ * `actor:'system'`) both call this directly.
+ *
+ * @param params - Resume request. / 再開リクエスト
  * @returns 新しい workflowStatus と復帰先の根拠 / 復帰した状態オブジェクト
- * @throws {ValidationError} taskId が不正、または status が awaiting_question でない場合
+ * @throws {ValidationError} status が awaiting_question でない場合
  * @throws {NotFoundError} タスクが見つからない場合
  */
-export async function handleResumeFromQuestion({ params, set }: ResumeContext): Promise<{
+export async function applyResumeFromQuestionAnswer(params: ApplyResumeAnswerParams): Promise<{
   taskId: number;
   fromStatus: WorkflowStatus;
   toStatus: WorkflowStatus;
   source: 'transition_metadata' | 'fallback';
 }> {
-  const taskId = parseInt(params.taskId, 10);
-  if (Number.isNaN(taskId)) {
-    set.status = 400;
-    throw new ValidationError('Invalid taskId');
-  }
+  const { taskId, actor, extraMetadata } = params;
 
   const task = await resolveTaskWorkflowState(taskId);
   if (!task) {
-    set.status = 404;
     throw new NotFoundError('Task not found');
   }
 
   if (task.workflowStatus !== 'awaiting_question') {
-    set.status = 400;
     throw new ValidationError(
       `Cannot resume: task ${taskId} is in status "${task.workflowStatus}", expected "awaiting_question"`,
     );
@@ -376,7 +433,7 @@ export async function handleResumeFromQuestion({ params, set }: ResumeContext): 
   }
 
   log.info(
-    `[Workflow:Resume] Task ${taskId}: awaiting_question → ${resumeStatus} (source=${source})`,
+    `[Workflow:Resume] Task ${taskId}: awaiting_question → ${resumeStatus} (source=${source}, actor=${actor})`,
   );
 
   await prisma.task.update({
@@ -388,9 +445,9 @@ export async function handleResumeFromQuestion({ params, set }: ResumeContext): 
     taskId,
     fromStatus: 'awaiting_question',
     toStatus: resumeStatus,
-    actor: 'user',
+    actor,
     cause: 'question_resolved',
-    metadata: { source },
+    metadata: { source, ...(extraMetadata ?? {}) },
   });
 
   return {
@@ -399,4 +456,34 @@ export async function handleResumeFromQuestion({ params, set }: ResumeContext): 
     toStatus: resumeStatus,
     source,
   };
+}
+
+/**
+ * HTTP entry point for {@link applyResumeFromQuestionAnswer}: validates
+ * taskId and maps thrown errors to the response status, then delegates.
+ *
+ * @param ctx - Elysia ハンドラコンテキスト
+ * @returns 新しい workflowStatus と復帰先の根拠 / 復帰した状態オブジェクト
+ * @throws {ValidationError} taskId が不正、または status が awaiting_question でない場合
+ * @throws {NotFoundError} タスクが見つからない場合
+ */
+export async function handleResumeFromQuestion({ params, set }: ResumeContext): Promise<{
+  taskId: number;
+  fromStatus: WorkflowStatus;
+  toStatus: WorkflowStatus;
+  source: 'transition_metadata' | 'fallback';
+}> {
+  const taskId = parseInt(params.taskId, 10);
+  if (Number.isNaN(taskId)) {
+    set.status = 400;
+    throw new ValidationError('Invalid taskId');
+  }
+
+  try {
+    return await applyResumeFromQuestionAnswer({ taskId, actor: 'user' });
+  } catch (err) {
+    if (err instanceof NotFoundError) set.status = 404;
+    else if (err instanceof ValidationError) set.status = 400;
+    throw err;
+  }
 }

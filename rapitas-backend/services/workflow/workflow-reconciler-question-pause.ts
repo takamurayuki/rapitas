@@ -29,9 +29,14 @@ const QUESTION_PAUSE_SETTLE_MS = 2 * 60 * 1000;
  */
 const MAX_RESTORES_PER_TASK = 3;
 
-/** Task states that legitimately outlive an unarchived `question.md`. */
-const TERMINAL_TASK_STATUSES = new Set(['done', 'cancelled', 'archived']);
-const TERMINAL_WORKFLOW_STATUSES = new Set(['completed', 'verify_done']);
+/**
+ * Task states that legitimately outlive an unarchived `question.md`. Exported
+ * so other question-pause-adjacent heal passes (e.g.
+ * workflow-reconciler-question-auto-answer.ts) share the exact same terminal
+ * set instead of redefining it and drifting apart.
+ */
+export const TERMINAL_TASK_STATUSES = new Set(['done', 'cancelled', 'archived']);
+export const TERMINAL_WORKFLOW_STATUSES = new Set(['completed', 'verify_done']);
 
 /**
  * Re-pause tasks whose `question.md` is still live but whose `workflowStatus`
