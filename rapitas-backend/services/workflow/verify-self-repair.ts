@@ -7,8 +7,7 @@
  * implementer phase with the failure as feedback, so the runner re-runs
  * implement → verify automatically. Bounded by a per-task attempt cap (counted
  * from WorkflowTransition rows — no schema change); once exhausted the caller
- * blocks as before. Not responsible for spawning agents — the status-driven
- * WorkflowRunner picks up the re-implement phase on its next poll.
+ * blocks as before. Not responsible for spawning agents.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
@@ -60,18 +59,13 @@ async function resolveMaxRepairs(): Promise<number> {
 }
 
 /**
- * Start of the current repair window: the most recent point at which the slate
- * was wiped.
- *
- * Two things wipe it. A manual retry, obviously. And REPLACING the acceptance
- * criteria — reasons recorded against the old ones cite criteria by NUMBER, and
- * after a replacement those numbers point at different criteria, so neither the
- * budget nor the convergence check may carry them forward. Task 672 had its
- * criteria corrected mid-flight and the next single bounce tripped the cutoff
- * on two pre-correction reasons.
+ * Start of the current repair window (most recent wipe): a manual retry, or
+ * REPLACING acceptance criteria — old reasons cite criteria by number, and a
+ * replacement repoints those numbers (task 672 tripped the cutoff on two
+ * pre-correction reasons after criteria were corrected mid-flight).
  *
  * @param taskId - Task id / タスクID
- * @returns Window start, or null when the slate was never wiped. / 窓の起点、無ければ null
+ * @returns Window start, or null when never wiped. / 窓の起点、無ければ null
  */
 async function resolveRepairWindowStart(taskId: number): Promise<Date | null> {
   const row = await prisma.activityLog
@@ -90,11 +84,10 @@ async function resolveRepairWindowStart(taskId: number): Promise<Date | null> {
  * @returns Prior repair count / これまでの修復回数
  */
 async function countPriorRepairs(taskId: number): Promise<number> {
-  // Reset the budget on each manual retry: count only repair bounces SINCE the
-  // most recent `task_retried` (recorded by POST /tasks/:id/retry). Without this,
-  // a retried blocked task whose worktree was cleaned re-runs verify on an empty
-  // tree, fails, and — finding the OLD budget already exhausted — re-blocks
-  // instead of bouncing to the implementer, so the implementation is never redone.
+  // Reset the budget on each manual retry: count only bounces SINCE the most
+  // recent `task_retried`. Without this, a retried blocked task whose worktree
+  // was cleaned re-verifies an empty tree, finds the OLD budget exhausted, and
+  // re-blocks instead of bouncing — the implementation is never redone.
   const windowStart = await resolveRepairWindowStart(taskId);
   return prisma.workflowTransition
     .count({
@@ -105,11 +98,9 @@ async function countPriorRepairs(taskId: number): Promise<number> {
       },
     })
     .catch((err) => {
-      // FAIL CLOSED: a count error must NOT read as "0 prior repairs" — that
-      // would let the caller (prior >= max) keep bouncing indefinitely because
-      // every failed count resets the apparent budget to zero. Returning
-      // MAX_SAFE_INTEGER makes `prior >= max` true for any configured max, so
-      // the caller blocks instead of looping when the budget can't be verified.
+      // FAIL CLOSED: a count error must NOT read as "0 prior repairs" (that
+      // would reset the budget and bounce forever). MAX_SAFE_INTEGER makes
+      // `prior >= max` true for any configured max, so the caller blocks.
       log.warn(
         { err, taskId },
         '[verify-repair] Failed to count prior repairs — treating budget as exhausted',
@@ -119,11 +110,10 @@ async function countPriorRepairs(taskId: number): Promise<number> {
 }
 
 /**
- * Detect a non-converging repair loop (task 619): map current + prior repair
- * reasons (same window as countPriorRepairs — see resolveRepairWindowStart) onto the acceptance
- * criteria; 2+ flags on one criterion = cutoff. FAIL OPEN throughout — unlike
- * countPriorRepairs' fail-closed budget, an unidentifiable reason / missing
- * criteria / DB error must NOT stop a possibly-progressing task.
+ * Detect a non-converging repair loop (task 619): 2+ flags on one criterion
+ * across current + prior reasons (same window as countPriorRepairs) = cutoff.
+ * FAIL OPEN — unlike countPriorRepairs' fail-closed budget, an unidentifiable
+ * reason / missing criteria / DB error must never stop a progressing task.
  *
  * @param taskId - Task id / タスクID
  * @param currentReason - The reason about to trigger this bounce / 今回の差し戻し理由
@@ -174,12 +164,9 @@ async function detectRepairNonConvergence(
     }
     const verdict = detectNonConvergence(currentReason, priorReasons, criteria);
 
-    // Make the fail-open audible. The detector stays silent both when a task IS
-    // converging and when it simply cannot read the criteria — task 666 spent
-    // ten bounces in the second state with nothing to show for it, because a
-    // no-cutoff verdict looks identical either way. A window this deep where
-    // NOTHING was ever identified is the signature of a detector that is not
-    // working, not of a task making progress.
+    // Make the fail-open audible: a no-cutoff verdict looks the same whether
+    // a task is genuinely converging or the detector simply can't read the
+    // criteria — task 666 burned ten bounces in the latter state unnoticed.
     if (!verdict.cutoff && priorReasons.length >= 2) {
       const everIdentified = [...priorReasons, currentReason].some(
         (r) => identifyIndictedCriteria(r, criteria).length > 0,
@@ -228,10 +215,10 @@ const REPAIR_FEEDBACK_BLOCK_RE =
   /<!--\s*repair-feedback:start\s*-->[\s\S]*?<!--\s*repair-feedback:end\s*-->/gi;
 
 /**
- * Sanitize numeric failure tallies out of a validator reason before it is
- * appended to verify.md. The raw reason quotes failure evidence like
- * "(1 failed | Tests 3 failed)"; the next validateVerify pass would re-detect
- * those counts and make the self-contradiction PERMANENT (task 494's loop).
+ * Sanitize numeric failure tallies (e.g. "1 failed | Tests 3 failed") out of a
+ * validator reason before it is appended to verify.md — the next validateVerify
+ * pass would otherwise re-detect those counts and make the self-contradiction
+ * PERMANENT (task 494's loop).
  *
  * @param reason - Raw validator summary. / バリデータの生の要約
  * @returns Reason with count phrases replaced by a neutral marker. / 数値集計を除去した要約
@@ -250,21 +237,62 @@ export function sanitizeRepairReason(reason: string): string {
   );
 }
 
+/** File:line token for a test file, e.g. "services/foo.test.ts:42". */
+const FAILURE_LOCATION_RE = /([\w./\\-]+\.(?:test|spec)\.tsx?):(\d+)/;
+
+/**
+ * Up to 3 distinct failing-test file:line pointers extracted from verify.md,
+ * paired with detail text pulled from trailing/FOLLOWING lines (task 727) —
+ * runners typically emit "FAIL foo.test.ts:42\n  should X\n  Error: Y", so
+ * re-quoting only the match line would drop the test name / error message.
+ */
+function extractFailureDetails(text: string): { shown: string[]; more: number } {
+  const seen = new Set<string>();
+  const shown: string[] = [];
+  let more = 0;
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const m = FAILURE_LOCATION_RE.exec(lines[i]);
+    if (!m || seen.has(`${m[1]}:${m[2]}`)) continue;
+    seen.add(`${m[1]}:${m[2]}`);
+    const trailing = lines[i].slice((m.index ?? 0) + m[0].length).trim();
+    const following = lines
+      .slice(i + 1, i + 3)
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .join(' ');
+    const ctx = sanitizeRepairReason([trailing, following].filter(Boolean).join(' ')).slice(0, 100);
+    if (shown.length < 3) shown.push(`Failed test: ${m[1]}:${m[2]} — ${ctx}`);
+    else more += 1;
+  }
+  return { shown, more };
+}
+
 /**
  * Build the marker-wrapped feedback block appended to verify.md. One short
  * paragraph — never the full rejected file nor a long quote, both of which
- * re-fed the failure counts into the next validation cycle.
+ * re-fed the failure counts into the next validation cycle. With verifyContent,
+ * also lists up to 3 concrete failing-test pointers (task 727).
  *
  * @param reason - Validator summary (will be sanitized). / バリデータ要約（内部で無害化）
  * @param attempt - 1-based repair attempt. / 試行回数
+ * @param verifyContent - Rejected verify.md body, for failure-location extraction. / 却下されたverify.md本文（抽出用）
  * @returns The block including start/end markers. / マーカー付きブロック
  */
-export function buildRepairFeedbackBlock(reason: string, attempt: number): string {
+export function buildRepairFeedbackBlock(
+  reason: string,
+  attempt: number,
+  verifyContent?: string,
+): string {
+  const { shown, more } = verifyContent
+    ? extractFailureDetails(verifyContent)
+    : { shown: [], more: 0 };
   return [
     REPAIR_FEEDBACK_START,
     `# 検証フェーズからの差し戻し（自己修復 ${attempt} 回目）`,
     '',
     `直前の検証 (verify.md) が不合格でした。判定要約: ${sanitizeRepairReason(reason)}`,
+    ...(shown.length ? ['', ...shown, ...(more > 0 ? [`...他 ${more} 件`] : [])] : []),
     '',
     '上の verify.md 本文に記載された失敗（失敗テスト・型/lint エラー・未達の受け入れ基準）を確認し、以下を厳守して **実装を修正** してください:',
     '- 失敗を実際に解消する。「成功した」と書くだけ・テスト結果を偽るのは禁止。テストを実際に通すこと。',
@@ -303,11 +331,10 @@ async function writeRepairFeedback(
   attempt: number,
 ): Promise<void> {
   try {
-    // Verification feedback belongs to the verify artifact, not question.md
-    // (Q&A). The implementer context reads verify.md for this on re-run.
+    // Belongs on verify.md, not question.md (Q&A) — the implementer re-reads it.
     const prior = (await readWorkflowFile(taskId, 'verify')) ?? verifyContent ?? '';
-    const next = mergeRepairFeedback(prior, buildRepairFeedbackBlock(reason, attempt));
-    await writeWorkflowFile(taskId, 'verify', next);
+    const block = buildRepairFeedbackBlock(reason, attempt, verifyContent);
+    await writeWorkflowFile(taskId, 'verify', mergeRepairFeedback(prior, block));
   } catch (err) {
     log.warn({ err, taskId }, '[verify-repair] Failed to write repair feedback to verify.md');
   }
@@ -333,9 +360,8 @@ export async function attemptVerifyRepair(
   const max = await resolveMaxRepairs();
   if (max === 0) return { bounced: false };
 
-  // A completed task is never rolled back by a verify verdict, even when the
-  // caller's snapshot says so — completion means a newer verify already passed
-  // (and typically a PR exists); this verdict is stale by definition.
+  // A completed task is never rolled back — completion means a newer verify
+  // already passed (typically with a PR); this verdict is stale by definition.
   if (currentStatus === 'completed') {
     log.warn(
       { taskId },
@@ -353,9 +379,8 @@ export async function attemptVerifyRepair(
     return { bounced: false };
   }
 
-  // Non-convergence cutoff (task 619): the SAME criterion flagged by 2+ repair
-  // reasons (repetition, not consecutiveness — A→B→A) means treading water;
-  // bounce no further, escalate instead. Independent of the count cap above.
+  // Non-convergence cutoff (task 619): same criterion flagged 2+ times (not
+  // necessarily consecutive, e.g. A→B→A) means treading water — escalate.
   const verdict = await detectRepairNonConvergence(taskId, reason);
   if (verdict.cutoff) {
     const detail = `受入基準${verdict.criterionIndex}が${verdict.count}回の差し戻しで一度も対応されていません。タスク分割または仕様の見直しが必要です。`;
@@ -363,8 +388,7 @@ export async function attemptVerifyRepair(
       .findUnique({ where: { id: taskId }, select: { title: true, themeId: true } })
       .catch(() => null);
     try {
-      // Dynamic import (ensureRunnerResumes pattern): keeps the escalation
-      // module + its dependency chain out of this module's static graph.
+      // Dynamic import: keeps the escalation module out of this module's static graph.
       const { escalateBlockedTask } = await import('./blocked-task-escalation');
       await escalateBlockedTask(
         prisma,
@@ -403,14 +427,10 @@ export async function attemptVerifyRepair(
   const attempt = prior + 1;
   const newStatus = await resolveImplementEntryStatus(taskId);
 
-  // Compare-and-swap: only roll back if the workflow is STILL at the status
-  // this repair evaluated. A verify_repair verdict computed against a stale
-  // verify.md can land AFTER a legitimate completion — observed on task 551:
-  // an amended plan let a re-verify pass (verify_passed → completed, PR #351
-  // created at 20:45), then a late repair for the SUPERSEDED failing verify
-  // un-completed the task to plan_approved at 20:46. Same failure family and
-  // same guard as the phase-critic gate's task-494 CAS. With no snapshot to
-  // compare (currentStatus null), refuse to stomp terminal states instead.
+  // Compare-and-swap: only roll back if STILL at the status this repair
+  // evaluated — a stale verdict landing after a legitimate completion would
+  // otherwise un-complete it (task 551, same guard family as task-494's CAS).
+  // With no snapshot (currentStatus null), refuse to stomp terminal states.
   const rolled = await prisma.task
     .updateMany({
       where: {
@@ -445,11 +465,10 @@ export async function attemptVerifyRepair(
     metadata: { attempt, max, reason },
   });
 
-  // Self-drive the re-run. The WorkflowRunner only polls while an AIOrchestra
-  // session or theme-auto-run is active; a single/manual execution has no poller,
-  // so a bounce would otherwise park the task at in-progress forever (the very
-  // stuck-state this loop is meant to avoid). Re-queue + idempotently start the
-  // runner so implement → verify actually re-runs regardless of launch mode.
+  // Self-drive the re-run: a single/manual execution has no poller, so a
+  // bounce would otherwise park the task at in-progress forever. Re-queue +
+  // idempotently start the runner so implement→verify re-runs regardless of
+  // launch mode.
   await ensureRunnerResumes(taskId).catch((err) =>
     log.warn({ err, taskId }, '[verify-repair] Failed to re-queue for self-repair'),
   );
@@ -462,16 +481,13 @@ export async function attemptVerifyRepair(
 }
 
 /**
- * Whether the most recent workflow transition for this task is a fresh
- * verify-phase rejection — a self-repair bounce, an adversarial-review FAIL,
- * a non-convergence cutoff, or a failed PR-creation attempt (see rejectionCauses).
- *
- * The CLI executor's verify epilogue runs AFTER the agent's HTTP verify.md save,
- * so a bounce recorded during that save must veto the epilogue's commit/PR/
- * complete path. Without this check the epilogue completed task 485 seconds
- * after the jury had bounced it, clobbering the self-repair loop. The freshness
- * window guards against stale rows from earlier attempts when a later save
- * bypassed the HTTP handler (executor fallback extraction).
+ * Whether the most recent transition for this task is a fresh verify-phase
+ * rejection (bounce / adversarial-review FAIL / non-convergence cutoff /
+ * failed PR-creation — see rejectionCauses). The CLI executor's epilogue runs
+ * AFTER the agent's HTTP verify.md save, so a bounce recorded during that save
+ * must veto commit/PR/complete — without this, task 485's epilogue completed
+ * seconds after the jury bounced it. The freshness window guards against stale
+ * rows from a save that bypassed the HTTP handler.
  *
  * @param taskId - Task id / タスクID
  * @param windowMs - Max age for the rejection to count. / 有効期間
@@ -489,12 +505,10 @@ export async function hasFreshVerifyRejection(
     })
     .catch(() => null);
   if (!last) return false;
-  // NOTE: VERIFY_NON_CONVERGENCE_CAUSE counts as a rejection too — a cutoff
-  // task (task 619) is blocked-for-escalation and must not be completed by a
-  // late executor epilogue any more than a bounced one. 'verify_pr_not_created'
-  // is also a rejection: the HTTP file-save gate (verify-commit-pr-pipeline.ts)
-  // already tried and failed to produce a PR — without it here, the executor
-  // epilogue re-runs the same doomed PR attempt a second time (task 673).
+  // NOTE: VERIFY_NON_CONVERGENCE_CAUSE also counts — a cutoff task (619) must
+  // not be completed by a late epilogue either. 'verify_pr_not_created' too:
+  // the HTTP gate already failed to produce a PR, so without it here the
+  // epilogue retries the same doomed PR attempt (task 673).
   const rejectionCauses = [
     REPAIR_CAUSE,
     'adversarial_review_failed',
@@ -506,17 +520,15 @@ export async function hasFreshVerifyRejection(
 }
 
 /**
- * Re-queue the task and ensure the WorkflowRunner is processing, so the
- * implement→verify re-run happens for a SINGLE/MANUAL execution that has no
- * poller driving it.
+ * Re-queue + ensure the WorkflowRunner is processing, so implement→verify
+ * re-runs for a SINGLE/MANUAL execution with no poller.
  *
- * Skips entirely when the task's theme has ACTIVE auto-run: that scheduler
- * already re-enqueues its current task (with its themeId, so the global
- * concurrency gate counts it) and starts the runner. Enqueuing here too would
- * add a themeId-LESS item the gate can't see — letting the scheduler launch a
- * second task concurrently (the "multiple agents started before others
- * finished" bug). Idempotent: enqueue throws when an active item already exists
- * — swallowed. The per-task single-agent mutex prevents a duplicate agent.
+ * Skips when the theme has ACTIVE auto-run: that scheduler already
+ * re-enqueues its task (with themeId, visible to the concurrency gate).
+ * Enqueuing here too would add a themeId-LESS item the gate can't see,
+ * letting the scheduler launch a second task concurrently. Idempotent
+ * (duplicate enqueue throws, swallowed); the per-task mutex prevents a
+ * duplicate agent.
  *
  * @param taskId - Task to resume / 再開対象タスク
  */
