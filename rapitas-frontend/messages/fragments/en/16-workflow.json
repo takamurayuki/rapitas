@@ -99,7 +99,9 @@
       "otherFreeText": "Other (free text)",
       "freeTextInputPlaceholder": "If none of the options fit, type here...",
       "submit": "Submit",
-      "freeTextRequiredNotice": "This question requires free-text input: {reason}"
+      "freeTextRequiredNotice": "This question requires free-text input: {reason}",
+      "recommendedBadge": "(Recommended)",
+      "recommendedReasonLabel": "Recommended reason:"
     },
     "roles": {
       "researcher": {

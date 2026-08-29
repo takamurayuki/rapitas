@@ -23,6 +23,11 @@ import {
   handleRunVerification,
 } from '../handlers/workflow-handlers';
 import { handleRevisePlan } from '../handlers/workflow-handlers-plan-revision';
+import {
+  handleDryRun,
+  handleDryRunHistory,
+  handleDryRunDrift,
+} from '../handlers/workflow-handlers-dry-run';
 import { computeRepairIterationMetrics } from '../../../services/workflow/repair-iteration-metrics';
 
 // Re-export helpers and types for consumers that import from this path
@@ -106,6 +111,21 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
    */
   .post('/tasks/:taskId/run-verification', (ctx) =>
     handleRunVerification(ctx as Parameters<typeof handleRunVerification>[0]),
+  )
+
+  /**
+   * User-facing dry run: the same verify gate + completion gate + adversarial
+   * jury the production verify pipeline runs, WITHOUT commit/PR/merge/status
+   * transition. See services/workflow/dry-run-orchestrator.ts.
+   */
+  .post('/tasks/:taskId/dry-run', (ctx) => handleDryRun(ctx as Parameters<typeof handleDryRun>[0]))
+
+  .get('/tasks/:taskId/dry-run/history', (ctx) =>
+    handleDryRunHistory(ctx as Parameters<typeof handleDryRunHistory>[0]),
+  )
+
+  .get('/tasks/:taskId/dry-run/:reportId/drift', (ctx) =>
+    handleDryRunDrift(ctx as Parameters<typeof handleDryRunDrift>[0]),
   )
 
   .post('/workflow/tasks/:taskId/advance', (ctx) =>
