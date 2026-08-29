@@ -632,3 +632,48 @@ ${extra}`;
     expect(r.summary).toContain('self-contradicts');
   });
 });
+
+describe('validateVerify — # 付きIDに続く failed は件数ではない（task 718 実データ）', () => {
+  const doc = (row: string) => `# 検証レポート
+## 検証結果サマリ
+スコープ内は all tests pass。
+## テスト結果
+62 pass / 0 fail
+${row}
+## チェックリスト
+- ok`;
+
+  test('「session #3156 failed 時刻」を失敗3156件と読まない', () => {
+    expect(validateVerify(doc('| session #3156 failed 時刻 | 2026-08-28T00:18:29.658Z |')).ok).toBe(
+      true,
+    );
+  });
+
+  test('# の無い件数表記は従来どおり失敗として捕まえる', () => {
+    const r = validateVerify(doc('Tests: 3156 failed, 2 passed'));
+    expect(r.ok).toBe(false);
+    expect(r.summary).toContain('self-contradicts');
+  });
+});
+
+describe('validateVerify — advisory チェックの結果を報告する行の ❌（task 718 実データ）', () => {
+  const doc = (row: string) => `# 検証レポート
+## 検証結果サマリ
+スコープ内は all tests pass。
+## テスト結果
+62 pass / 0 fail
+${row}
+## チェックリスト
+- ok`;
+
+  test('「機械判定 acceptance: ❌ 1件」の見出しは検証者の判定ではない', () => {
+    expect(
+      validateVerify(doc('## 受入基準チェックへの対応（機械判定 acceptance: ❌ 1件）')).ok,
+    ).toBe(true);
+  });
+
+  test('advisory 語の無い ❌ 判定は従来どおり落とす', () => {
+    const r = validateVerify(doc('| 認証トークンの失効処理 | ❌ 未実装 |'));
+    expect(r.ok).toBe(false);
+  });
+});
