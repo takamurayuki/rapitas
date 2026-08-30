@@ -160,6 +160,17 @@ const SUPPRESSIONS: Suppression[] = [
     because:
       'フォールバック機構がquota/rate_limit等を検知しプロバイダを一時停止した記録 — 代替プロバイダへの自動切替が正常に働いた側',
   },
+  {
+    // ログ出力箇所: services/agents/claude-code/cli-utils.ts:65 の resolveCliPath()。
+    // `where` による事前解決が失敗しても、呼び出し元は buildSpawnCommand で
+    // spawn(..., { shell: true }) を使うため cmd.exe が実行時にPATHを再解決し、
+    // CLI実行自体には影響しない（cli-utils.ts:62-64のNOTE参照）。resolveCliPathは
+    // cliPathCacheでプロセス生存期間中1回のみ再解決を試みるため多重発火もしない（#779）。
+    test: /\[resolveCliPath\] Failed to resolve .+, using relative path/i,
+    logger: /claude-code-agent/i,
+    because:
+      'shell:trueによるspawnがcmd.exeで実行時にPATHを再解決するためCLI実行には影響しない — fail-openで継続している',
+  },
 ];
 
 /** Result of classifying one log signature. */
