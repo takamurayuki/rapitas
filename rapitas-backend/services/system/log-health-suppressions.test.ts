@@ -60,6 +60,7 @@ const SUPPRESSED: [string, string][] = [
   ],
   ['task-executor', '[TaskExecutor] Provider failed — retrying with alternative agent config'],
   ['memory:task-queue', 'Stuck processing task requeued as pending'],
+  ['claude-code-agent', '[resolveCliPath] Failed to resolve claude, using relative path'],
 ];
 
 const KEPT: [string, string][] = [
@@ -148,6 +149,16 @@ describe('classifyLogSignature', () => {
     expect(
       classifyLogSignature('memory:task-queue', 'Stuck processing task moved to dead_letter')
         .suppressed,
+    ).toBe(false);
+  });
+
+  test('"[resolveCliPath] Failed to resolve" is scoped to the claude-code-agent logger only', () => {
+    // Task #779: an unrelated logger reusing this phrase must still be filed.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        '[resolveCliPath] Failed to resolve claude, using relative path',
+      ).suppressed,
     ).toBe(false);
   });
 });
