@@ -58,6 +58,7 @@ const SUPPRESSED: [string, string][] = [
     '[verify-repair] Non-convergence check failed — failing open (no cutoff)',
   ],
   ['task-executor', '[TaskExecutor] Provider failed — retrying with alternative agent config'],
+  ['memory:task-queue', 'Stuck processing task requeued as pending'],
 ];
 
 const KEPT: [string, string][] = [
@@ -72,6 +73,7 @@ const KEPT: [string, string][] = [
   ],
   ['error-handler', 'Prisma Error'],
   ['routes:workflow:auto-commit', 'Automated verification failed — aborting PR review'],
+  ['memory:task-queue', 'Stuck processing task moved to dead_letter'],
 ];
 
 describe('classifyLogSignature', () => {
@@ -122,6 +124,22 @@ describe('classifyLogSignature', () => {
         'workflow-provider-fallback',
         'Provider failed — retrying with alternative agent config',
       ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"Stuck processing task requeued as pending" is scoped to memory:task-queue only', () => {
+    // Task #761: the phrase alone must not suppress an unrelated logger reusing it.
+    expect(
+      classifyLogSignature('some-other-logger', 'Stuck processing task requeued as pending')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('the dead_letter transition stays visible even though the requeue is suppressed', () => {
+    // Task #761: a real permanent failure must not be swallowed by the requeue rule.
+    expect(
+      classifyLogSignature('memory:task-queue', 'Stuck processing task moved to dead_letter')
+        .suppressed,
     ).toBe(false);
   });
 });
