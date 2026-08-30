@@ -3,8 +3,9 @@
 
 import { useTranslations } from 'next-intl';
 import { Spinner } from '@/components/ui/spinner';
-import { ExecutionLogViewer, type ExecutionLogStatus } from '../ExecutionLogViewer';
+import type { ExecutionLogStatus } from '../ExecutionLogViewer';
 import { SubtaskLogTabs } from '../SubtaskLogTabs';
+import { PhaseTimeline } from '../phase-timeline';
 import type { Task } from '@/types';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { ContinuationForm } from './ContinuationForm';
@@ -12,6 +13,8 @@ import { IdleExecutionForm } from './idle-execution-form';
 import { AgentQuestionCard } from './agent-question-card';
 
 export type ExecutionBodyProps = {
+  /** Task ID — feeds the phase timeline's `GET /workflow/tasks/:taskId/phase-timeline` fetch. */
+  taskId: number;
   isRunning: boolean;
   isCompleted: boolean;
   isCancelled: boolean;
@@ -74,6 +77,7 @@ export type ExecutionBodyProps = {
  * @param props - Derived state and handlers from useExecutionManager.
  */
 export function ExecutionBody({
+  taskId,
   isRunning,
   isCompleted,
   isCancelled,
@@ -82,8 +86,8 @@ export function ExecutionBody({
   isExecuting,
   logs,
   showLogs,
-  logViewerStatus,
-  isSseConnected,
+  logViewerStatus: _logViewerStatus,
+  isSseConnected: _isSseConnected,
   executionError,
   pollingSessionMode: _pollingSessionMode,
   hasQuestion,
@@ -141,15 +145,7 @@ export function ExecutionBody({
               maxHeight={300}
             />
           ) : logs.length > 0 ? (
-            <ExecutionLogViewer
-              logs={logs}
-              status={logViewerStatus}
-              isConnected={isSseConnected}
-              isRunning={isRunning}
-              collapsible={false}
-              maxHeight={300}
-              resizable
-            />
+            <PhaseTimeline taskId={taskId} isRunning={isRunning} liveLogs={logs} />
           ) : (
             // NOTE: Before the first log line streams in (or when there's no
             // log viewer to show at all — e.g. a non-subtask run whose
@@ -182,15 +178,7 @@ export function ExecutionBody({
             maxHeight={300}
           />
         ) : logs.length > 0 && showLogs ? (
-          <ExecutionLogViewer
-            logs={logs}
-            status={logViewerStatus}
-            isConnected={isSseConnected}
-            isRunning={false}
-            collapsible={false}
-            maxHeight={300}
-            resizable
-          />
+          <PhaseTimeline taskId={taskId} isRunning={false} liveLogs={logs} />
         ) : null}
         <ContinuationForm
           continueInstruction={continueInstruction}
@@ -205,30 +193,14 @@ export function ExecutionBody({
   // Cancelled state — status shown in header badge
   if (isCancelled) {
     return logs.length > 0 && showLogs ? (
-      <ExecutionLogViewer
-        logs={logs}
-        status="cancelled"
-        isConnected={false}
-        isRunning={false}
-        collapsible={false}
-        maxHeight={300}
-        resizable
-      />
+      <PhaseTimeline taskId={taskId} isRunning={false} liveLogs={logs} />
     ) : null;
   }
 
   // Interrupted state — status shown in header badge
   if (isInterrupted) {
     return logs.length > 0 && showLogs ? (
-      <ExecutionLogViewer
-        logs={logs}
-        status="failed"
-        isConnected={false}
-        isRunning={false}
-        collapsible={false}
-        maxHeight={300}
-        resizable
-      />
+      <PhaseTimeline taskId={taskId} isRunning={false} liveLogs={logs} />
     ) : null;
   }
 
@@ -242,15 +214,7 @@ export function ExecutionBody({
           </p>
         )}
         {logs.length > 0 && showLogs && (
-          <ExecutionLogViewer
-            logs={logs}
-            status="failed"
-            isConnected={false}
-            isRunning={false}
-            collapsible={false}
-            maxHeight={300}
-            resizable
-          />
+          <PhaseTimeline taskId={taskId} isRunning={false} liveLogs={logs} />
         )}
       </div>
     );

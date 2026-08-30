@@ -2137,6 +2137,37 @@
       "kbQuality": {
         "title": "Knowledge Quality",
         "seriesLabel": "Validated ratio"
+      },
+      "retroKpi": {
+        "sectionTitle": "Self-Improvement KPIs",
+        "sectionSubtitle": "Same definitions as the supervisor baseline locked on 2026-08-30 (7-day rolling windows). Badges compare this week with last week: green is better, red is worse",
+        "emptyHint": "Weekly KPI trends will appear here once workflow transitions are recorded",
+        "vsPrevWeek": "vs last week",
+        "repairRate": {
+          "title": "Repair Rate",
+          "seriesLabel": "Repair rate"
+        },
+        "autoMerge": {
+          "title": "Auto-Merge / Parked",
+          "mergedLabel": "Auto-merged",
+          "exhaustedLabel": "Merge retries exhausted"
+        },
+        "conflictFiled": {
+          "title": "Merge Conflicts Filed",
+          "seriesLabel": "Conflicts filed"
+        },
+        "noChangeConfirmed": {
+          "title": "Verified No-Change",
+          "seriesLabel": "Count"
+        },
+        "nonConvergence": {
+          "title": "Repair Non-Convergence",
+          "seriesLabel": "Count"
+        },
+        "leadTime": {
+          "title": "Lead Time Median",
+          "seriesLabel": "Duration (min)"
+        }
       }
     },
     "missSignatures": {
@@ -5956,5 +5987,37 @@
       "recordingWithLevel": "Recording... (level:{freqAvg} rms:{rms} silence:{silenceSec}s)",
       "listeningWithLevel": "Please speak... (level:{freqAvg} rms:{rms})"
     }
+  },
+  "phaseTimeline": {
+    "phaseLabel": {
+      "research": "Research",
+      "plan": "Plan",
+      "implement": "Implement",
+      "verify": "Verify"
+    },
+    "sectionTitle": "{phase}",
+    "sectionTitleIteration": "{phase} (attempt {n})",
+    "status": {
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "summary": {
+      "completed": "✓ {duration} ({lines} lines)",
+      "failed": "✗ {duration} ({lines} lines)",
+      "runningEmpty": "Running… waiting for logs",
+      "verifyPassFail": "{pass} pass / {fail} fail"
+    },
+    "filter": {
+      "all": "All",
+      "warnOnly": "Warnings only"
+    },
+    "scrollToBottom": "Jump to latest",
+    "boundaryUncertain": "Phase boundary could not be confirmed",
+    "noLogsYet": "Waiting for logs…",
+    "loadingDetail": "Loading…",
+    "loadFailed": "Failed to load logs",
+    "expandAria": "Expand phase",
+    "collapseAria": "Collapse phase"
   }
 }

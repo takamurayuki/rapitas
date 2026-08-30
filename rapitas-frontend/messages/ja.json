@@ -2137,6 +2137,37 @@
       "kbQuality": {
         "title": "知識の質",
         "seriesLabel": "検証済み比率"
+      },
+      "retroKpi": {
+        "sectionTitle": "自己改善KPI",
+        "sectionSubtitle": "監督者が2026-08-30に固定した基線と同一定義のKPI（7日ローリング窓）。バッジは今週と先週の差分で、改善は緑・悪化は赤",
+        "emptyHint": "ワークフロー遷移が記録されると、ここに週次のKPI推移が表示されます",
+        "vsPrevWeek": "先週比",
+        "repairRate": {
+          "title": "差し戻し率",
+          "seriesLabel": "差し戻し率"
+        },
+        "autoMerge": {
+          "title": "自動マージ／駐機",
+          "mergedLabel": "自動マージ成功",
+          "exhaustedLabel": "マージ試行上限到達"
+        },
+        "conflictFiled": {
+          "title": "マージ競合起票",
+          "seriesLabel": "競合起票件数"
+        },
+        "noChangeConfirmed": {
+          "title": "検証で修正不要と確認",
+          "seriesLabel": "件数"
+        },
+        "nonConvergence": {
+          "title": "修復非収束",
+          "seriesLabel": "件数"
+        },
+        "leadTime": {
+          "title": "リードタイム中央値",
+          "seriesLabel": "所要時間（分）"
+        }
       }
     },
     "missSignatures": {
@@ -5956,5 +5987,37 @@
       "recordingWithLevel": "録音中... (音量:{freqAvg} rms:{rms} 無音:{silenceSec}s)",
       "listeningWithLevel": "話してください... (音量:{freqAvg} rms:{rms})"
     }
+  },
+  "phaseTimeline": {
+    "phaseLabel": {
+      "research": "調査",
+      "plan": "計画",
+      "implement": "実装",
+      "verify": "検証"
+    },
+    "sectionTitle": "{phase}",
+    "sectionTitleIteration": "{phase} ({n}回目)",
+    "status": {
+      "running": "実行中",
+      "completed": "完了",
+      "failed": "失敗"
+    },
+    "summary": {
+      "completed": "✓ {duration} ({lines}行)",
+      "failed": "✗ {duration} ({lines}行)",
+      "runningEmpty": "実行中…ログを待機しています",
+      "verifyPassFail": "{pass} pass / {fail} fail"
+    },
+    "filter": {
+      "all": "すべて",
+      "warnOnly": "⚠のみ"
+    },
+    "scrollToBottom": "末尾へ",
+    "boundaryUncertain": "フェーズ遷移の判定が不確実です",
+    "noLogsYet": "ログを待機しています…",
+    "loadingDetail": "読み込み中…",
+    "loadFailed": "ログの取得に失敗しました",
+    "expandAria": "フェーズを展開",
+    "collapseAria": "フェーズを折りたたむ"
   }
 }

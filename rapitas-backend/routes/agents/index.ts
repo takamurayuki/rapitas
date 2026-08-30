@@ -21,6 +21,7 @@ import { agentVersionManagementRoutes } from './system/agent-version-management'
 import { smartRouterRoutes } from './system/smart-router-routes';
 import { executionForkRoutes } from './execution-management/execution-fork-routes';
 import { previewRoutes } from './preview/preview-routes';
+import monitoringExecutionLogEntriesRoute from './monitoring/execution-log-entries.routes';
 
 export * from './crud';
 export * from './config';
@@ -45,4 +46,5 @@ export const agentsDomainRoutes = new Elysia()
   .use(agentVersionManagementRoutes)
   .use(smartRouterRoutes)
   .use(executionForkRoutes)
-  .use(previewRoutes);
+  .use(previewRoutes)
+  .use(monitoringExecutionLogEntriesRoute);

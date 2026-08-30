@@ -345,6 +345,7 @@ export function ExecutionSection({
       {capability === 'ready' && (
         <div id="execution-section-content" className="p-4 space-y-3">
           <ExecutionBody
+            taskId={taskId}
             isRunning={isRunning}
             isCompleted={isCompleted}
             isCancelled={isCancelled}
