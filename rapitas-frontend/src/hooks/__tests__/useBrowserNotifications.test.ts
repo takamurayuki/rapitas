@@ -1,6 +1,10 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useBrowserNotifications } from '../common/useBrowserNotifications';
 
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({
     debug: vi.fn(),

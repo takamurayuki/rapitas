@@ -11,6 +11,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { createNotification } from '../communication/notification-service';
+import { buildNotificationI18n } from '../communication/notification-i18n';
 
 const logger = createLogger('memo-reminder-scheduler');
 
@@ -46,6 +47,7 @@ export async function fireDueMemoReminders(now: Date = new Date()): Promise<numb
         message: text,
         link: '/memos',
         metadata: { memoId: memo.id },
+        i18n: buildNotificationI18n('memo_reminder', { message: text }),
       });
     } catch (error) {
       await prisma.memo.update({ where: { id: memo.id }, data: { remindedAt: null } });

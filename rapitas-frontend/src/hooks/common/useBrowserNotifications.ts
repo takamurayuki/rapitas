@@ -10,9 +10,11 @@
  * reconnection, and event parsing.
  */
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { createLogger } from '@/lib/logger';
 import { sharedEventSource } from '@/lib/sse/shared-event-source';
 import { isTauri } from '@/utils/tauri';
+import { resolveNotificationText } from '@/components/notifications/notification-type-icons';
 
 const logger = createLogger('useBrowserNotifications');
 
@@ -88,6 +90,7 @@ interface UseBrowserNotificationsOptions {
  */
 export function useBrowserNotifications(options: UseBrowserNotificationsOptions = {}) {
   const { enabled = true, onNotification } = options;
+  const t = useTranslations('notification');
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [unreadCount, setUnreadCount] = useState(0);
   const onNotificationRef = useRef(onNotification);
@@ -116,54 +119,59 @@ export function useBrowserNotifications(options: UseBrowserNotificationsOptions 
 
   // Show a native OS notification (Tauri plugin in the desktop app, browser
   // Notification API elsewhere).
-  const showNotification = useCallback((payload: SSENotificationPayload) => {
-    if (typeof window === 'undefined') return;
-    const { notification } = payload;
-    // Reminders alert even while focused (the user asked for OS-level
-    // visibility); everything else stays quiet unless the window is in the
-    // background, to avoid double-alerting on top of the in-app UI.
-    if (!REMINDER_TYPES.has(notification.type) && document.hasFocus()) return;
+  const showNotification = useCallback(
+    (payload: SSENotificationPayload) => {
+      if (typeof window === 'undefined') return;
+      const { notification } = payload;
+      // Reminders alert even while focused (the user asked for OS-level
+      // visibility); everything else stays quiet unless the window is in the
+      // background, to avoid double-alerting on top of the in-app UI.
+      if (!REMINDER_TYPES.has(notification.type) && document.hasFocus()) return;
 
-    if (isTauri()) {
-      // The app's OWN always-on-top toast window — per user decision, Windows
-      // toasts are not used at all: the OS can silently drop them (AUMID,
-      // focus assist, per-app settings) and WebView2's Notification API is
-      // non-functional anyway.
-      void (async () => {
-        try {
-          const { invoke } = await import('@tauri-apps/api/core');
-          await invoke('show_toast_window', {
-            title: notification.title,
-            body: notification.message,
-            link: notification.link ?? null,
-            memoId: extractMemoId(notification.metadata),
-          });
-        } catch (e) {
-          logger.errorThrottled('Toast window failed:', e);
-          reportNotificationError(e instanceof Error ? e.message : String(e));
-        }
-      })();
-      return;
-    }
+      const { title, message } = resolveNotificationText(t, notification);
 
-    if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    const icon = '/icon-192x192.png';
+      if (isTauri()) {
+        // The app's OWN always-on-top toast window — per user decision, Windows
+        // toasts are not used at all: the OS can silently drop them (AUMID,
+        // focus assist, per-app settings) and WebView2's Notification API is
+        // non-functional anyway.
+        void (async () => {
+          try {
+            const { invoke } = await import('@tauri-apps/api/core');
+            await invoke('show_toast_window', {
+              title,
+              body: message,
+              link: notification.link ?? null,
+              memoId: extractMemoId(notification.metadata),
+            });
+          } catch (e) {
+            logger.errorThrottled('Toast window failed:', e);
+            reportNotificationError(e instanceof Error ? e.message : String(e));
+          }
+        })();
+        return;
+      }
 
-    const n = new Notification(notification.title, {
-      body: notification.message,
-      icon,
-      tag: `rapitas-${notification.id}`,
-      silent: false,
-    });
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      const icon = '/icon-192x192.png';
 
-    n.onclick = () => {
-      window.focus();
-      n.close();
-    };
+      const n = new Notification(title, {
+        body: message,
+        icon,
+        tag: `rapitas-${notification.id}`,
+        silent: false,
+      });
 
-    // Auto-close after 5 seconds
-    setTimeout(() => n.close(), 5000);
-  }, []);
+      n.onclick = () => {
+        window.focus();
+        n.close();
+      };
+
+      // Auto-close after 5 seconds
+      setTimeout(() => n.close(), 5000);
+    },
+    [t],
+  );
 
   // Subscribe to notification events on the SHARED SSE connection. A dedicated
   // per-mount EventSource here previously added to the browser's 6-per-origin

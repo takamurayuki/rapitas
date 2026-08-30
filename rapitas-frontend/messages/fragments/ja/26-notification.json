@@ -20,6 +20,188 @@
     "list": {
       "markAllRead": "すべて既読にする",
       "markRead": "既読"
+    },
+    "types": {
+      "task_created": {
+        "title": "タスクを作成しました",
+        "message": "{taskTitle}"
+      },
+      "task_created_subtask": {
+        "title": "サブタスクを作成しました",
+        "message": "{taskTitle}"
+      },
+      "task_completed": {
+        "title": "タスク完了",
+        "message": "「{taskTitle}」が完了しました"
+      },
+      "agent_execution_completed": {
+        "title": "AI実行完了",
+        "message": "「{taskTitle}」のAI実行が完了しました"
+      },
+      "agent_execution_failed": {
+        "title": "AI実行失敗",
+        "message": "「{taskTitle}」のAI実行が失敗しました"
+      },
+      "approval_requested": {
+        "title": "承認リクエスト",
+        "message": "「{title}」の承認が必要です"
+      },
+      "auth_failure": {
+        "title": "Claude 認証切れ",
+        "message": "Claude CLI の認証が切れたため、自動実行エージェントが起動できません。統合ターミナルで `claude login` を実行して再認証してください。再認証後、ブロックされたタスクは自動で再試行されます。"
+      },
+      "intake_question_pending": {
+        "title": "確認の質問が回答待ちです",
+        "message": "タスク #{taskId}「{taskTitle}」は確認の質問に回答があるまで進みません。通知を開いて回答してください。"
+      },
+      "question_auto_answered": {
+        "title": "質問の推奨案を自動採用しました",
+        "message": "タスク「{taskTitle}」の質問で推奨『{recommendedLabel}』を自動採用しました（{elapsedMinutes}分無応答）。変更する場合は基準を訂正して再実行してください。"
+      },
+      "pomodoro_completed": {
+        "title": "ポモドーロ完了",
+        "message": "「{taskTitle}」のポモドーロ #{completedCount} が完了しました"
+      },
+      "pomodoro_completed_no_task": {
+        "title": "ポモドーロ完了",
+        "message": "ポモドーロ #{completedCount} が完了しました"
+      },
+      "auto_run_awaiting_approval": {
+        "title": "自動実行: 計画の承認待ち",
+        "message": "「{taskLabel}」の実装計画が承認待ちです。承認するまで自動実行は一時停止します。"
+      },
+      "auto_run_awaiting_answer": {
+        "title": "自動実行: エージェントが回答を待っています",
+        "message": "「{taskLabel}」のエージェントが質問への回答を待っています。回答するまでこのテーマの自動実行は停止したままです。"
+      },
+      "auto_run_hang_backstop": {
+        "title": "自動実行: タスクが時間上限で停止しました",
+        "message": "タスク #{taskId}「{taskLabel}」が時間上限（{wallMinutes}分）を超えたため停止しました — ログを確認して再実行してください。"
+      },
+      "auto_run_task_skipped": {
+        "title": "自動実行: タスクをスキップしました",
+        "message": "「{taskLabel}」が失敗またはブロックされたためスキップしました: {reason}"
+      },
+      "auto_run_task_vanished": {
+        "title": "自動実行: タスクが見つかりませんでした",
+        "message": "タスク #{taskId} の行が見つからないため、自動実行はこのタスクをスキップして次へ進みます。"
+      },
+      "auto_run_all_blocked": {
+        "title": "自動実行: 実行可能なタスクがすべてブロックされています",
+        "message": "テーマ「{themeName}」は完了ではなく閉塞しています: blocked タスクが {blockedCount} 件残っています（うち対応待ちエスカレーション {escalatedCount} 件）。回答・分割・調査など人の対応が必要です。"
+      },
+      "auto_run_stall_released": {
+        "title": "自動実行: 停滞していたキュー項目を自動解除しました",
+        "message": "タスク #{taskId}「{taskLabel}」に残留していたキュー項目 {releasedCount} 件を自動解除しました（理由: {cause}）。自動実行は次のタスクへ進みます。"
+      },
+      "auto_run_queue_starved": {
+        "title": "自動実行: キューが消費されていません",
+        "message": "実行中 0 件のままキュー待ちが約 {waitedMinutes} 分間消費されませんでした{taskRef}。ワークフローランナーを再起動して消費を再開させました。"
+      },
+      "auto_run_zero_progress": {
+        "title": "自動実行: 実行が進んでいません（空回りの疑い）",
+        "message": "テーマは running を報告し続けていますが、タスク #{taskId}「{taskLabel}」の実行（AgentExecution）が {elapsedMinutes} 分間 1件も作成されていません。enqueue→cancel の反復など、実行が空回りしている可能性があります。"
+      },
+      "auto_run_resource_hold": {
+        "title": "自動実行: リソース逼迫のため次タスクの着手を見送りました",
+        "message": "テーマ「{themeName}」の次タスク着手を1サイクル見送りました（ホスト全体のCPU使用率 {cpuBusyPercent}% がしきい値 {thresholdPercent}% を超過）。次回のスケジューラtickで再評価します。ダッシュボードから今すぐ実行できます。"
+      },
+      "auto_run_all_done": {
+        "title": "自動実行: すべてのタスクが完了",
+        "message": "テーマ「{themeName}」の対象タスクをすべて処理しました。自動実行を終了します。"
+      },
+      "blocked_escalation": {
+        "title": "ブロックされたタスクが対応待ちです",
+        "message": "#{taskId}「{taskTitle}」は自動再試行の対象外です（理由: {reason}）。{reason, select, awaiting_question {質問への回答が必要です。回答するまでこのタスクは再開されません。} verify_repair_exhausted {検証修復の予算を使い切りました。タスクの分割が必要です。} verify_no_convergence {差し戻しが収束していません（同一の受入基準が繰り返し未対応）。タスク分割または仕様の見直しが必要です。} retry_cap_exhausted {自動再試行の上限に達しました。手動での調査が必要です。} pr_recovery_exhausted {PR作成の自動復旧（軽量リトライ）を繰り返しても PR を作成できませんでした。GitHub 連携・権限・リポジトリ状態の手動確認が必要です。} abandoned_old {長期間放置されています（自動再試行の対象期間外）。手動での調査が必要です。} other {}}{detail}"
+      },
+      "blocked_escalation_reescalated": {
+        "title": "ブロックされたタスクが対応待ちです（継続）",
+        "message": "#{taskId}「{taskTitle}」はエスカレーション後も{hours}時間解決されていません（理由: {reason}）。{reason, select, awaiting_question {質問への回答が必要です。回答するまでこのタスクは再開されません。} verify_repair_exhausted {検証修復の予算を使い切りました。タスクの分割が必要です。} verify_no_convergence {差し戻しが収束していません（同一の受入基準が繰り返し未対応）。タスク分割または仕様の見直しが必要です。} retry_cap_exhausted {自動再試行の上限に達しました。手動での調査が必要です。} pr_recovery_exhausted {PR作成の自動復旧（軽量リトライ）を繰り返しても PR を作成できませんでした。GitHub 連携・権限・リポジトリ状態の手動確認が必要です。} abandoned_old {長期間放置されています（自動再試行の対象期間外）。手動での調査が必要です。} other {}}"
+      },
+      "auto_pr_created": {
+        "title": "自動PR作成完了",
+        "message": "タスク「{taskTitle}」のPRを自動作成しました: {prUrl}"
+      },
+      "auto_pr_merged": {
+        "title": "自動マージ完了",
+        "message": "タスク「{taskTitle}」のPRを自動マージしました（{mergeStrategy}）"
+      },
+      "auto_pr_merge_failed": {
+        "title": "自動マージ失敗",
+        "message": "タスク「{taskTitle}」のPR自動マージに失敗しました: {error}"
+      },
+      "knowledge_extracted": {
+        "title": "ナレッジ自動抽出完了",
+        "message": "タスク「{taskTitle}」から{count}件のナレッジを抽出しました"
+      },
+      "knowledge_reminder": {
+        "title": "忘れかけているナレッジ（{count}件）",
+        "message": "復習しませんか？ {lines}"
+      },
+      "daily_report": {
+        "title": "デイリーレポート {date}",
+        "message": "{message}"
+      },
+      "memo_reminder": {
+        "title": "メモのリマインダー",
+        "message": "{message}"
+      },
+      "auto_merge_success": {
+        "title": "自動マージ完了",
+        "message": "{message}"
+      },
+      "auto_merge_failed": {
+        "title": "自動マージ失敗",
+        "message": "{message}"
+      },
+      "auto_merge_timeout": {
+        "title": "自動マージ保留（CIタイムアウト）",
+        "message": "{message}"
+      },
+      "auto_merge_conflict_unresolved": {
+        "title": "自動マージ保留（競合未解消）",
+        "message": "{message}"
+      },
+      "auto_merge_conflict_filed": {
+        "title": "競合を自動解消中",
+        "message": "{message}"
+      },
+      "pr_ci_completed": {
+        "title": "CI通過で完了",
+        "message": "{message}"
+      },
+      "auto_merge_ci_repair_no_diff": {
+        "title": "自動マージ保留（差分なしで終了）",
+        "message": "{message}"
+      },
+      "auto_merge_ci_repair": {
+        "title": "CI失敗を自動修正中",
+        "message": "{message}"
+      },
+      "auto_merge_ci_failed": {
+        "title": "自動マージ保留（CI失敗・修復上限）",
+        "message": "{message}"
+      },
+      "duplicate_open_prs": {
+        "title": "同一タスクに複数のopen PR",
+        "message": "{message}"
+      },
+      "auto_merge_exhausted": {
+        "title": "自動マージ停止（再試行上限）",
+        "message": "{message}"
+      },
+      "auto_pr_identity_mismatch": {
+        "title": "自動PR作成を中止しました",
+        "message": "{message}"
+      },
+      "base_sync_conflict_unresolved": {
+        "title": "PR作成前のbase取り込みで競合を解消できませんでした",
+        "message": "{message}"
+      },
+      "base_sync_reverify_failed": {
+        "title": "base取り込み後の再検証に失敗しました",
+        "message": "{message}"
+      }
     }
   }
 }

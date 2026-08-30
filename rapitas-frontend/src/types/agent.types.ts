@@ -173,17 +173,14 @@ export type NotificationMetadata = {
 
 export type Notification = {
   id: number;
-  type:
-    | 'approval_request'
-    | 'task_created'
-    | 'task_completed'
-    | 'agent_error'
-    | 'daily_summary'
-    | 'pr_review_requested'
-    | 'agent_execution_started'
-    | 'knowledge_extracted'
-    | 'knowledge_reminder'
-    | 'memo_reminder';
+  /**
+   * Backend `NotificationType` values plus ad-hoc strings from the several
+   * `prisma.notification.create` call sites that predate that union (see
+   * notification-service.ts for the canonical list). Kept as `string` here —
+   * unknown values fall back to a neutral icon (notification-type-icons.ts),
+   * so the frontend never needs to enumerate every backend type.
+   */
+  type: string;
   title: string;
   message: string;
   link?: string | null;

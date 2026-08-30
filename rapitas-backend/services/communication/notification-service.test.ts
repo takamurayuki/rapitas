@@ -68,6 +68,10 @@ describe('notifyIntakeQuestionPending', () => {
     expect(JSON.parse(String(data.metadata))).toEqual({
       taskId: 578,
       reason: 'intake_question_pending',
+      i18n: {
+        key: 'notification.types.intake_question_pending.title',
+        params: { taskId: 578, taskTitle: '質問待ちのタスク' },
+      },
     });
   });
 
@@ -135,6 +139,14 @@ describe('notifyQuestionAutoAnswered', () => {
       reason: 'auto_recommended',
       recommendedLabel: '選択肢A',
       elapsedMinutes: 61,
+      i18n: {
+        key: 'notification.types.question_auto_answered.title',
+        params: {
+          taskTitle: '推奨自動採用のテストタスク',
+          recommendedLabel: '選択肢A',
+          elapsedMinutes: 61,
+        },
+      },
     });
   });
 });

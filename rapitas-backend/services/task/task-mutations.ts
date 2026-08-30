@@ -10,6 +10,7 @@ import { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
 import { UserBehaviorService } from '../../src/services/user-behavior-service';
 import { notifyTaskCompleted, createNotification } from '../communication/notification-service';
+import { buildNotificationI18n } from '../communication/notification-i18n';
 import { onGeneratedTaskCompleted } from '../scheduling/recurring-task-service';
 import { createSubtask, createParentTask } from './task-create-helpers';
 import { syncParentStatusFromSubtasks } from './task-parent-status-sync';
@@ -141,6 +142,9 @@ export async function createTask(prisma: PrismaInstance, input: CreateTaskInput)
           metadata: JSON.stringify({
             taskId: task.id,
             parentId: task.parentId ?? null,
+            i18n: buildNotificationI18n(parentId ? 'task_created_subtask' : 'task_created', {
+              taskTitle: task.title,
+            }),
           }),
         },
       })

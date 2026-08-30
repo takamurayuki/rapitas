@@ -9,6 +9,7 @@
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { logCycleEvent } from '../../services/observability';
+import { buildNotificationI18n } from '../../services/communication/notification-i18n';
 
 const log = createLogger('routes:workflow:activity-logger');
 
@@ -92,10 +93,15 @@ export async function logAutoPR(
   await prisma.notification.create({
     data: {
       type: 'auto_pr_created',
-      title: 'Auto PR Creation Complete',
-      message: `PR for task "${taskTitle}" was automatically created: ${prUrl}`,
+      title: '自動PR作成完了',
+      message: `タスク「${taskTitle}」のPRを自動作成しました: ${prUrl}`,
       link: prUrl || `/tasks/${taskId}`,
-      metadata: JSON.stringify({ taskId, prUrl, prNumber }),
+      metadata: JSON.stringify({
+        taskId,
+        prUrl,
+        prNumber,
+        i18n: buildNotificationI18n('auto_pr_created', { taskTitle, prUrl }),
+      }),
     },
   });
 
@@ -136,10 +142,15 @@ export async function logAutoMerge(
   await prisma.notification.create({
     data: {
       type: 'auto_pr_merged',
-      title: 'Auto Merge Complete',
-      message: `PR for task "${taskTitle}" was automatically merged (${mergeStrategy})`,
+      title: '自動マージ完了',
+      message: `タスク「${taskTitle}」のPRを自動マージしました（${mergeStrategy}）`,
       link: prUrl || `/tasks/${taskId}`,
-      metadata: JSON.stringify({ taskId, prNumber, mergeStrategy }),
+      metadata: JSON.stringify({
+        taskId,
+        prNumber,
+        mergeStrategy,
+        i18n: buildNotificationI18n('auto_pr_merged', { taskTitle, mergeStrategy }),
+      }),
     },
   });
 
@@ -173,10 +184,15 @@ export async function logAutoMergeFailure(
     await prisma.notification.create({
       data: {
         type: 'auto_pr_merge_failed',
-        title: 'Auto Merge Failed',
-        message: `Automatic merge of PR for task "${taskTitle}" failed: ${error}`,
+        title: '自動マージ失敗',
+        message: `タスク「${taskTitle}」のPR自動マージに失敗しました: ${error}`,
         link: prUrl || `/tasks/${taskId}`,
-        metadata: JSON.stringify({ taskId, prNumber, error }),
+        metadata: JSON.stringify({
+          taskId,
+          prNumber,
+          error,
+          i18n: buildNotificationI18n('auto_pr_merge_failed', { taskTitle, error }),
+        }),
       },
     });
   } catch (notifError) {

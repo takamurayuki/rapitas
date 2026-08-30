@@ -15,6 +15,7 @@ import { memoryTaskQueue } from './index';
 import { getInsensitiveMode } from '../../config/db-provider';
 import { findSemanticDuplicate, findLexicalDuplicate } from './dedup';
 import { boostDecayOnAccess } from './forgetting';
+import { notifyKnowledgeExtracted } from '../communication/notification-service';
 
 const log = createLogger('memory:task-knowledge');
 
@@ -119,16 +120,7 @@ export async function extractKnowledgeFromTask(taskId: number): Promise<number[]
         payload: { taskId, entriesCreated: entryIds.length, entryIds },
       });
 
-      // Create notification
-      await prisma.notification.create({
-        data: {
-          type: 'knowledge_extracted',
-          title: 'ナレッジ自動抽出完了',
-          message: `タスク「${task.title}」から${entryIds.length}件のナレッジを抽出しました`,
-          link: `/knowledge`,
-          metadata: JSON.stringify({ taskId, entryIds }),
-        },
-      });
+      await notifyKnowledgeExtracted(taskId, task.title, entryIds);
 
       log.info({ taskId, count: entryIds.length }, 'Knowledge extracted from task');
     }

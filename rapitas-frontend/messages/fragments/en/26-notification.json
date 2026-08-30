@@ -20,6 +20,188 @@
     "list": {
       "markAllRead": "Mark all as read",
       "markRead": "Read"
+    },
+    "types": {
+      "task_created": {
+        "title": "Task created",
+        "message": "{taskTitle}"
+      },
+      "task_created_subtask": {
+        "title": "Subtask created",
+        "message": "{taskTitle}"
+      },
+      "task_completed": {
+        "title": "Task completed",
+        "message": "\"{taskTitle}\" is complete"
+      },
+      "agent_execution_completed": {
+        "title": "AI run complete",
+        "message": "The AI run for \"{taskTitle}\" is complete"
+      },
+      "agent_execution_failed": {
+        "title": "AI run failed",
+        "message": "The AI run for \"{taskTitle}\" failed"
+      },
+      "approval_requested": {
+        "title": "Approval requested",
+        "message": "\"{title}\" needs your approval"
+      },
+      "auth_failure": {
+        "title": "Claude authentication expired",
+        "message": "Auto-run agents cannot start because the Claude CLI authentication expired. Run `claude login` in the integrated terminal to re-authenticate. Blocked tasks will retry automatically once you do."
+      },
+      "intake_question_pending": {
+        "title": "A clarifying question is waiting for an answer",
+        "message": "Task #{taskId} \"{taskTitle}\" will not proceed until the clarifying question is answered. Open the notification to answer."
+      },
+      "question_auto_answered": {
+        "title": "Auto-adopted the recommended answer",
+        "message": "Auto-adopted the recommendation '{recommendedLabel}' for task \"{taskTitle}\"'s question ({elapsedMinutes} min unanswered). Correct the criteria and re-run if you want a different answer."
+      },
+      "pomodoro_completed": {
+        "title": "Pomodoro complete",
+        "message": "Pomodoro #{completedCount} for \"{taskTitle}\" is complete"
+      },
+      "pomodoro_completed_no_task": {
+        "title": "Pomodoro complete",
+        "message": "Pomodoro #{completedCount} is complete"
+      },
+      "auto_run_awaiting_approval": {
+        "title": "Auto-run: waiting for plan approval",
+        "message": "The implementation plan for \"{taskLabel}\" is waiting for approval. Auto-run is paused until it is approved."
+      },
+      "auto_run_awaiting_answer": {
+        "title": "Auto-run: agent is waiting for an answer",
+        "message": "The agent working on \"{taskLabel}\" is waiting for an answer to its question. Auto-run for this theme stays paused until it is answered."
+      },
+      "auto_run_hang_backstop": {
+        "title": "Auto-run: task stopped at the time limit",
+        "message": "Task #{taskId} \"{taskLabel}\" was stopped after exceeding its time limit ({wallMinutes} min) — check the logs and re-run."
+      },
+      "auto_run_task_skipped": {
+        "title": "Auto-run: task skipped",
+        "message": "\"{taskLabel}\" was skipped because it failed or was blocked: {reason}"
+      },
+      "auto_run_task_vanished": {
+        "title": "Auto-run: task not found",
+        "message": "Task #{taskId}'s row could not be found, so auto-run skipped it and moved on."
+      },
+      "auto_run_all_blocked": {
+        "title": "Auto-run: every runnable task is blocked",
+        "message": "Theme \"{themeName}\" is wedged, not done: {blockedCount} blocked task(s) remain ({escalatedCount} already escalated). Human action (answer, split, or investigate) is needed."
+      },
+      "auto_run_stall_released": {
+        "title": "Auto-run: released a stalled queue item",
+        "message": "Released {releasedCount} leftover queue item(s) for task #{taskId} \"{taskLabel}\" (reason: {cause}). Auto-run continues to the next task."
+      },
+      "auto_run_queue_starved": {
+        "title": "Auto-run: the queue is not draining",
+        "message": "0 running tasks while the queue sat unconsumed for about {waitedMinutes} min{taskRef}. Restarted the workflow runner to resume consumption."
+      },
+      "auto_run_zero_progress": {
+        "title": "Auto-run: no progress (possible spin loop)",
+        "message": "The theme keeps reporting running, but task #{taskId} \"{taskLabel}\" has produced zero executions (AgentExecution) for {elapsedMinutes} min. This may be an enqueue/cancel spin loop."
+      },
+      "auto_run_resource_hold": {
+        "title": "Auto-run: held off starting the next task (resource pressure)",
+        "message": "Held off starting the next task for theme \"{themeName}\" for one cycle (host-wide CPU busy {cpuBusyPercent}% exceeded the {thresholdPercent}% threshold). Will re-evaluate next scheduler tick — you can also start it now from the dashboard."
+      },
+      "auto_run_all_done": {
+        "title": "Auto-run: all tasks complete",
+        "message": "All target tasks for theme \"{themeName}\" are processed. Auto-run is finishing."
+      },
+      "blocked_escalation": {
+        "title": "A blocked task needs attention",
+        "message": "#{taskId} \"{taskTitle}\" is excluded from automatic retry (reason: {reason}). {reason, select, awaiting_question {An answer is required — this task will not resume until it is answered.} verify_repair_exhausted {The verification-repair budget is exhausted — the task needs to be split.} verify_no_convergence {Rejections are not converging (the same acceptance criteria keep failing) — split the task or revisit the spec.} retry_cap_exhausted {The automatic retry limit was reached — manual investigation is needed.} pr_recovery_exhausted {Automatic PR-creation recovery (light retry) repeatedly failed to create a PR — check the GitHub integration, permissions, and repository state manually.} abandoned_old {This has been idle for a long time (outside the auto-retry window) — manual investigation is needed.} other {}}{detail}"
+      },
+      "blocked_escalation_reescalated": {
+        "title": "A blocked task still needs attention (continued)",
+        "message": "#{taskId} \"{taskTitle}\" is still unresolved {hours} hours after escalation (reason: {reason}). {reason, select, awaiting_question {An answer is required — this task will not resume until it is answered.} verify_repair_exhausted {The verification-repair budget is exhausted — the task needs to be split.} verify_no_convergence {Rejections are not converging (the same acceptance criteria keep failing) — split the task or revisit the spec.} retry_cap_exhausted {The automatic retry limit was reached — manual investigation is needed.} pr_recovery_exhausted {Automatic PR-creation recovery (light retry) repeatedly failed to create a PR — check the GitHub integration, permissions, and repository state manually.} abandoned_old {This has been idle for a long time (outside the auto-retry window) — manual investigation is needed.} other {}}"
+      },
+      "auto_pr_created": {
+        "title": "Auto PR creation complete",
+        "message": "Automatically created a PR for task \"{taskTitle}\": {prUrl}"
+      },
+      "auto_pr_merged": {
+        "title": "Auto merge complete",
+        "message": "Automatically merged the PR for task \"{taskTitle}\" ({mergeStrategy})"
+      },
+      "auto_pr_merge_failed": {
+        "title": "Auto merge failed",
+        "message": "Automatic merge of the PR for task \"{taskTitle}\" failed: {error}"
+      },
+      "knowledge_extracted": {
+        "title": "Knowledge auto-extraction complete",
+        "message": "Extracted {count} knowledge entries from task \"{taskTitle}\""
+      },
+      "knowledge_reminder": {
+        "title": "Knowledge you might be forgetting ({count})",
+        "message": "Time for a review? {lines}"
+      },
+      "daily_report": {
+        "title": "Daily report {date}",
+        "message": "{message}"
+      },
+      "memo_reminder": {
+        "title": "Memo reminder",
+        "message": "{message}"
+      },
+      "auto_merge_success": {
+        "title": "Auto merge complete",
+        "message": "{message}"
+      },
+      "auto_merge_failed": {
+        "title": "Auto merge failed",
+        "message": "{message}"
+      },
+      "auto_merge_timeout": {
+        "title": "Auto merge held (CI timed out)",
+        "message": "{message}"
+      },
+      "auto_merge_conflict_unresolved": {
+        "title": "Auto merge held (conflict unresolved)",
+        "message": "{message}"
+      },
+      "auto_merge_conflict_filed": {
+        "title": "Auto-resolving a conflict",
+        "message": "{message}"
+      },
+      "pr_ci_completed": {
+        "title": "Completed on CI pass",
+        "message": "{message}"
+      },
+      "auto_merge_ci_repair_no_diff": {
+        "title": "Auto merge held (repair produced no diff)",
+        "message": "{message}"
+      },
+      "auto_merge_ci_repair": {
+        "title": "Auto-repairing a CI failure",
+        "message": "{message}"
+      },
+      "auto_merge_ci_failed": {
+        "title": "Auto merge held (CI failed, repair limit reached)",
+        "message": "{message}"
+      },
+      "duplicate_open_prs": {
+        "title": "Multiple open PRs for the same task",
+        "message": "{message}"
+      },
+      "auto_merge_exhausted": {
+        "title": "Auto merge stopped (retry limit reached)",
+        "message": "{message}"
+      },
+      "auto_pr_identity_mismatch": {
+        "title": "Auto PR creation cancelled",
+        "message": "{message}"
+      },
+      "base_sync_conflict_unresolved": {
+        "title": "Could not resolve a conflict while syncing base before PR creation",
+        "message": "{message}"
+      },
+      "base_sync_reverify_failed": {
+        "title": "Re-verification after syncing base failed",
+        "message": "{message}"
+      }
     }
   }
 }

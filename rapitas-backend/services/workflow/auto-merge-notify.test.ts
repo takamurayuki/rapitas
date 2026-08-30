@@ -38,7 +38,15 @@ describe('notify', () => {
       title: 't',
       message: 'm',
       link: '/tasks/42',
-      metadata: JSON.stringify({ taskId: 42 }),
+    });
+    const metadata = JSON.parse(args.data.metadata as string) as {
+      taskId: number;
+      i18n: { key: string; params: { message: string } };
+    };
+    expect(metadata.taskId).toBe(42);
+    expect(metadata.i18n).toEqual({
+      key: 'notification.types.auto_merge_blocked.title',
+      params: { message: 'm' },
     });
   });
 
@@ -87,6 +95,6 @@ describe('notify', () => {
 
     const [args] = create.mock.calls[0] as [{ data: { link: string; metadata: string } }];
     expect(args.data.link).toBe('/tasks/999');
-    expect(args.data.metadata).toBe(JSON.stringify({ taskId: 999 }));
+    expect((JSON.parse(args.data.metadata) as { taskId: number }).taskId).toBe(999);
   });
 });
