@@ -10,6 +10,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getAppHidden, subscribeAppHidden } from './app-visibility-store';
+import { useOnVisible } from './useOnVisible';
 
 /**
  * Format a millisecond duration as a compact clock string.
@@ -51,8 +53,25 @@ export function useElapsedTime(
 
   useEffect(() => {
     if (!active || !startedAt) return;
-    const id = setInterval(() => tick((n) => n + 1), 1000);
+    const id = setInterval(() => {
+      // Skip while hidden — WebView2 keeps ticking in the background
+      // otherwise. getAppHidden() covers minimize, which occlusion-disabled
+      // WebView2 doesn't report via document.hidden.
+      if ((typeof document !== 'undefined' && document.hidden) || getAppHidden()) return;
+      tick((n) => n + 1);
+    }, 1000);
     return () => clearInterval(id);
+  }, [active, startedAt]);
+
+  // Force one immediate recompute on return from background so the display
+  // doesn't sit frozen at its pre-hidden value until the next tick.
+  useOnVisible(() => {
+    if (active && startedAt) tick((n) => n + 1);
+  });
+  useEffect(() => {
+    return subscribeAppHidden(() => {
+      if (!getAppHidden() && active && startedAt) tick((n) => n + 1);
+    });
   }, [active, startedAt]);
 
   const base = Number.isFinite(baseOffsetMs) && baseOffsetMs > 0 ? baseOffsetMs : 0;
