@@ -11,6 +11,10 @@
  */
 import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
+import {
+  buildNotificationI18n,
+  type NotificationI18n,
+} from '../../communication/notification-i18n';
 
 const log = createLogger('auto-run-notifications');
 
@@ -23,6 +27,8 @@ interface NotifyParams {
   title: string;
   message: string;
   link?: string;
+  /** i18n pointer for locale-aware re-translation — see notification-i18n.ts. */
+  i18n?: NotificationI18n;
 }
 
 /** Dedup scope: task id when known, else theme, else a queue-global bucket. */
@@ -62,6 +68,7 @@ async function notifyOnce(params: NotifyParams): Promise<void> {
           dedupKey: `${params.type}:${dedupScope(params)}`,
           themeId: params.themeId,
           taskId: params.taskId ?? null,
+          ...(params.i18n ? { i18n: params.i18n } : {}),
         }),
       },
     });
@@ -80,23 +87,27 @@ async function taskLabel(taskId: number): Promise<string> {
 
 /** Auto-run paused: a plan is waiting for the user's approval. */
 export async function notifyAwaitingPlanApproval(themeId: number, taskId: number): Promise<void> {
+  const label = await taskLabel(taskId);
   await notifyOnce({
     type: 'auto_run_awaiting_approval',
     themeId,
     taskId,
     title: '自動実行: 計画の承認待ち',
-    message: `「${await taskLabel(taskId)}」の実装計画が承認待ちです。承認するまで自動実行は一時停止します。`,
+    message: `「${label}」の実装計画が承認待ちです。承認するまで自動実行は一時停止します。`,
+    i18n: buildNotificationI18n('auto_run_awaiting_approval', { taskLabel: label }),
   });
 }
 
 /** Auto-run held: the agent asked a question and is waiting for an answer. */
 export async function notifyAwaitingUserAnswer(themeId: number, taskId: number): Promise<void> {
+  const label = await taskLabel(taskId);
   await notifyOnce({
     type: 'auto_run_awaiting_answer',
     themeId,
     taskId,
     title: '自動実行: エージェントが回答を待っています',
-    message: `「${await taskLabel(taskId)}」のエージェントが質問への回答を待っています。回答するまでこのテーマの自動実行は停止したままです。`,
+    message: `「${label}」のエージェントが質問への回答を待っています。回答するまでこのテーマの自動実行は停止したままです。`,
+    i18n: buildNotificationI18n('auto_run_awaiting_answer', { taskLabel: label }),
   });
 }
 
@@ -106,12 +117,18 @@ export async function notifyHangBackstop(
   taskId: number,
   wallMinutes: number,
 ): Promise<void> {
+  const label = await taskLabel(taskId);
   await notifyOnce({
     type: 'auto_run_hang_backstop',
     themeId,
     taskId,
     title: '自動実行: タスクが時間上限で停止しました',
-    message: `タスク #${taskId}「${await taskLabel(taskId)}」が時間上限（${wallMinutes}分）を超えたため停止しました — ログを確認して再実行してください。`,
+    message: `タスク #${taskId}「${label}」が時間上限（${wallMinutes}分）を超えたため停止しました — ログを確認して再実行してください。`,
+    i18n: buildNotificationI18n('auto_run_hang_backstop', {
+      taskId,
+      taskLabel: label,
+      wallMinutes,
+    }),
   });
 }
 
@@ -121,12 +138,14 @@ export async function notifyTaskSkipped(
   taskId: number,
   reason: string,
 ): Promise<void> {
+  const label = await taskLabel(taskId);
   await notifyOnce({
     type: 'auto_run_task_skipped',
     themeId,
     taskId,
     title: '自動実行: タスクをスキップしました',
-    message: `「${await taskLabel(taskId)}」が失敗またはブロックされたためスキップしました: ${reason}`,
+    message: `「${label}」が失敗またはブロックされたためスキップしました: ${reason}`,
+    i18n: buildNotificationI18n('auto_run_task_skipped', { taskLabel: label, reason }),
   });
 }
 
@@ -144,6 +163,7 @@ export async function notifyTaskVanished(themeId: number, taskId: number): Promi
     taskId,
     title: '自動実行: タスクが見つかりませんでした',
     message: `タスク #${taskId} の行が見つからないため、自動実行はこのタスクをスキップして次へ進みます。`,
+    i18n: buildNotificationI18n('auto_run_task_vanished', { taskId }),
   });
 }
 
@@ -164,11 +184,17 @@ export async function notifyAllBlocked(
   const theme = await prisma.theme
     .findUnique({ where: { id: themeId }, select: { name: true } })
     .catch(() => null);
+  const themeName = theme?.name ?? String(themeId);
   await notifyOnce({
     type: 'auto_run_all_blocked',
     themeId,
     title: '自動実行: 実行可能なタスクがすべてブロックされています',
-    message: `テーマ「${theme?.name ?? themeId}」は完了ではなく閉塞しています: blocked タスクが ${blockedCount} 件残っています（うち対応待ちエスカレーション ${escalatedCount} 件）。回答・分割・調査など人の対応が必要です。`,
+    message: `テーマ「${themeName}」は完了ではなく閉塞しています: blocked タスクが ${blockedCount} 件残っています（うち対応待ちエスカレーション ${escalatedCount} 件）。回答・分割・調査など人の対応が必要です。`,
+    i18n: buildNotificationI18n('auto_run_all_blocked', {
+      themeName,
+      blockedCount,
+      escalatedCount,
+    }),
   });
 }
 
@@ -194,12 +220,19 @@ export async function notifyStallReleased(
   releasedCount: number,
   cause: StallReleaseCause,
 ): Promise<void> {
+  const label = await taskLabel(taskId);
   await notifyOnce({
     type: 'auto_run_stall_released',
     themeId,
     taskId,
     title: '自動実行: 停滞していたキュー項目を自動解除しました',
-    message: `タスク #${taskId}「${await taskLabel(taskId)}」に残留していたキュー項目 ${releasedCount} 件を自動解除しました（理由: ${cause}）。自動実行は次のタスクへ進みます。`,
+    message: `タスク #${taskId}「${label}」に残留していたキュー項目 ${releasedCount} 件を自動解除しました（理由: ${cause}）。自動実行は次のタスクへ進みます。`,
+    i18n: buildNotificationI18n('auto_run_stall_released', {
+      taskId,
+      taskLabel: label,
+      releasedCount,
+      cause,
+    }),
   });
 }
 
@@ -215,14 +248,14 @@ export async function notifyQueueStarvation(
   taskId: number | null,
   waitedMinutes: number,
 ): Promise<void> {
+  const taskRef = taskId != null ? `（先頭: タスク #${taskId}）` : '';
   await notifyOnce({
     type: 'auto_run_queue_starved',
     themeId: null,
     taskId: taskId ?? undefined,
     title: '自動実行: キューが消費されていません',
-    message: `実行中 0 件のままキュー待ちが約 ${waitedMinutes} 分間消費されませんでした${
-      taskId != null ? `（先頭: タスク #${taskId}）` : ''
-    }。ワークフローランナーを再起動して消費を再開させました。`,
+    message: `実行中 0 件のままキュー待ちが約 ${waitedMinutes} 分間消費されませんでした${taskRef}。ワークフローランナーを再起動して消費を再開させました。`,
+    i18n: buildNotificationI18n('auto_run_queue_starved', { waitedMinutes, taskRef }),
   });
 }
 
@@ -241,14 +274,18 @@ export async function notifyZeroProgressWhileRunning(
   taskId: number,
   elapsedMinutes: number,
 ): Promise<void> {
+  const label = await taskLabel(taskId);
   await notifyOnce({
     type: 'auto_run_zero_progress',
     themeId,
     taskId,
     title: '自動実行: 実行が進んでいません（空回りの疑い）',
-    message: `テーマは running を報告し続けていますが、タスク #${taskId}「${await taskLabel(
+    message: `テーマは running を報告し続けていますが、タスク #${taskId}「${label}」の実行（AgentExecution）が ${elapsedMinutes} 分間 1件も作成されていません。enqueue→cancel の反復など、実行が空回りしている可能性があります。`,
+    i18n: buildNotificationI18n('auto_run_zero_progress', {
       taskId,
-    )}」の実行（AgentExecution）が ${elapsedMinutes} 分間 1件も作成されていません。enqueue→cancel の反復など、実行が空回りしている可能性があります。`,
+      taskLabel: label,
+      elapsedMinutes,
+    }),
   });
 }
 
@@ -270,13 +307,18 @@ export async function notifyResourceContentionHold(
   const theme = await prisma.theme
     .findUnique({ where: { id: themeId }, select: { name: true } })
     .catch(() => null);
+  const themeName = theme?.name ?? String(themeId);
+  const cpuBusyRounded = Math.round(cpuBusyPercent);
   await notifyOnce({
     type: 'auto_run_resource_hold',
     themeId,
     title: '自動実行: リソース逼迫のため次タスクの着手を見送りました',
-    message: `テーマ「${theme?.name ?? themeId}」の次タスク着手を1サイクル見送りました（ホスト全体のCPU使用率 ${Math.round(
-      cpuBusyPercent,
-    )}% がしきい値 ${thresholdPercent}% を超過）。次回のスケジューラtickで再評価します。ダッシュボードから今すぐ実行できます。`,
+    message: `テーマ「${themeName}」の次タスク着手を1サイクル見送りました（ホスト全体のCPU使用率 ${cpuBusyRounded}% がしきい値 ${thresholdPercent}% を超過）。次回のスケジューラtickで再評価します。ダッシュボードから今すぐ実行できます。`,
+    i18n: buildNotificationI18n('auto_run_resource_hold', {
+      themeName,
+      cpuBusyPercent: cpuBusyRounded,
+      thresholdPercent,
+    }),
   });
 }
 
@@ -285,10 +327,12 @@ export async function notifyAllDone(themeId: number): Promise<void> {
   const theme = await prisma.theme
     .findUnique({ where: { id: themeId }, select: { name: true } })
     .catch(() => null);
+  const themeName = theme?.name ?? String(themeId);
   await notifyOnce({
     type: 'auto_run_all_done',
     themeId,
     title: '自動実行: すべてのタスクが完了',
-    message: `テーマ「${theme?.name ?? themeId}」の対象タスクをすべて処理しました。自動実行を終了します。`,
+    message: `テーマ「${themeName}」の対象タスクをすべて処理しました。自動実行を終了します。`,
+    i18n: buildNotificationI18n('auto_run_all_done', { themeName }),
   });
 }

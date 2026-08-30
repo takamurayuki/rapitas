@@ -19,6 +19,7 @@ import { submitConcern } from '../memory/concern-backlog-service';
 import { resolveSelfDevelopmentThemeId } from './self-development-theme';
 import type { BlockedExclusionReason } from './blocked-task-policy';
 import { BLOCKED_REESCALATION_INTERVAL_MS } from './blocked-task-policy';
+import { buildNotificationI18n } from '../communication/notification-i18n';
 
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 
@@ -117,7 +118,17 @@ export async function escalateBlockedTask(
         title: 'ブロックされたタスクが対応待ちです',
         message: `#${task.id}「${task.title}」は自動再試行の対象外です（理由: ${reason}）。${copy.needs}${detail ? ` ${detail}` : ''}`,
         link: `/tasks?taskId=${task.id}`,
-        metadata: JSON.stringify({ taskId: task.id, reason, source: 'blocked_escalation' }),
+        metadata: JSON.stringify({
+          taskId: task.id,
+          reason,
+          source: 'blocked_escalation',
+          i18n: buildNotificationI18n('blocked_escalation', {
+            taskId: task.id,
+            taskTitle: task.title,
+            reason,
+            detail: detail ? ` ${detail}` : '',
+          }),
+        }),
       },
     });
   } catch (err) {
@@ -214,7 +225,17 @@ export async function reescalateIfOverdue(
         title: 'ブロックされたタスクが対応待ちです（継続）',
         message: `#${task.id}「${task.title}」はエスカレーション後も${hours}時間解決されていません（理由: ${reason}）。${copy.needs}`,
         link: `/tasks?taskId=${task.id}`,
-        metadata: JSON.stringify({ taskId: task.id, reason, source: 'blocked_reescalation' }),
+        metadata: JSON.stringify({
+          taskId: task.id,
+          reason,
+          source: 'blocked_reescalation',
+          i18n: buildNotificationI18n('blocked_escalation_reescalated', {
+            taskId: task.id,
+            taskTitle: task.title,
+            reason,
+            hours,
+          }),
+        }),
       },
     });
   } catch (err) {

@@ -19,6 +19,7 @@ import { useToast } from '@/components/ui/toast/ToastContainer';
 import { sharedEventSource } from '@/lib/sse/shared-event-source';
 import { API_BASE_URL } from '@/utils/api';
 import { isTauri } from '@/utils/tauri';
+import { resolveNotificationText } from './notification-type-icons';
 
 /** Types worth an interruptive toast — quiet ones stay bell-only. */
 const TOASTED_TYPES = new Set(['memo_reminder', 'habit_reminder', 'schedule_reminder']);
@@ -94,11 +95,12 @@ export function NotificationToaster() {
     link: string | null;
     metadata?: string | null;
   }) => {
+    const { title, message } = resolveNotificationText(t, n);
     if (isTauri()) {
       void import('@tauri-apps/api/core').then(({ invoke }) =>
         invoke('show_toast_window', {
-          title: n.title,
-          body: n.message,
+          title,
+          body: message,
           link: n.link,
           memoId: extractMemoId(n.metadata),
         }).catch(() => {}),
@@ -106,7 +108,7 @@ export function NotificationToaster() {
       return;
     }
     showToast(
-      `${n.title}: ${n.message}`,
+      `${title}: ${message}`,
       'info',
       n.link
         ? { action: { label: t('open'), onClick: () => router.push(n.link as string) } }
@@ -129,8 +131,9 @@ export function NotificationToaster() {
       if (!document.hasFocus()) return;
       if (!TOASTED_TYPES.has(notification.type)) return;
       const link = notification.link;
+      const { title, message } = resolveNotificationText(t, notification);
       showToast(
-        `${notification.title}: ${notification.message}`,
+        `${title}: ${message}`,
         'info',
         link ? { action: { label: t('open'), onClick: () => router.push(link) } } : undefined,
       );

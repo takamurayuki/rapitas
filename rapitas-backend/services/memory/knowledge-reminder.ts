@@ -8,6 +8,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { boostDecayOnAccess } from './forgetting';
 import { appendEvent } from './timeline';
+import { buildNotificationI18n } from '../communication/notification-i18n';
 
 const log = createLogger('memory:reminder');
 
@@ -122,15 +123,20 @@ export async function scanAndRemind(): Promise<ReminderScanResult> {
         (e) =>
           `「${e.title}」（${e.daysSinceAccess >= 0 ? `${e.daysSinceAccess}日間アクセスなし` : '未アクセス'}、記憶強度${Math.round(e.decayScore * 100)}%）`,
       );
+      const lineText = lines.join('、');
       await prisma.notification.create({
         data: {
           type: 'knowledge_reminder',
           title: `忘れかけているナレッジ（${reminderEntries.length}件）`,
-          message: `復習しませんか？ ${lines.join('、')}`,
+          message: `復習しませんか？ ${lineText}`,
           link: `/knowledge`,
           metadata: JSON.stringify({
             entryIds: reminderEntries.map((e) => e.id),
             count: reminderEntries.length,
+            i18n: buildNotificationI18n('knowledge_reminder', {
+              count: reminderEntries.length,
+              lines: lineText,
+            }),
           }),
         },
       });
