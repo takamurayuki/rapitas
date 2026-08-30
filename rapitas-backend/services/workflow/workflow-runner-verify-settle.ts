@@ -14,11 +14,20 @@ import { hasVerifyCompletionInFlight } from './verify-completion-inflight';
  * no static DB-writing dependency (runner tests mock `../../config` alone).
  * Any failure yields false — the caller then falls through to `stuck`.
  *
+ * A fresh verify-phase rejection (adversarial-review FAIL, bounce,
+ * non-convergence cutoff, failed PR creation) vetoes the landed-artifact
+ * completion: the jury's verdict owns the task's next step, and a PR merely
+ * existing on record must not overrule it (task 755 — jury FAIL immediately
+ * followed by settle force-completing from PR #537). Mirrors the same guard
+ * already used by the HTTP/CLI epilogue (workflow-cli-executor-verify-gate.ts).
+ *
  * @param taskId - Task about to be judged stuck. / stuck 判定直前のタスクID
  * @returns True when the task was completed from landed evidence. / 実在確認で完了した場合 true
  */
 async function recoverFromLandedArtifact(taskId: number): Promise<boolean> {
   try {
+    const { hasFreshVerifyRejection } = await import('./verify-self-repair');
+    if (await hasFreshVerifyRejection(taskId).catch(() => false)) return false;
     const { recoverFromLandedArtifact: recover } =
       await import('./verify-settle-artifact-recovery');
     return await recover(taskId);
