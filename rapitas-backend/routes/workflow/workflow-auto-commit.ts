@@ -6,7 +6,7 @@
  * Not responsible for route definitions or file persistence.
  */
 
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { prisma, getProjectRoot } from '../../config';
 import { AgentOrchestrator } from '../../services/agents/agent-orchestrator';
 import { createLogger } from '../../config/logger';
@@ -469,13 +469,13 @@ export async function performAutoCommitAndPR(
     }
 
     // Clean up git worktree after commit/PR/merge is complete.
-    // NOTE: baseDir must be the *target* repository (workingDirectory) so the
-    // worktree's parent git context matches. Passing the rapitas source root
-    // here would either fail silently or operate against the wrong repo.
+    // NOTE: baseDir is the worktree's parent repo, derived from worktreePath
+    // (<root>/.worktrees/<name>). workingDirectory can BE the worktree since
+    // resolveCommitCwd (task 774) — passing it tripped the removal guard.
     const worktreePath = latestSession?.worktreePath;
     if (worktreePath) {
       try {
-        await orchestrator.removeWorktree(workingDirectory, worktreePath);
+        await orchestrator.removeWorktree(dirname(dirname(worktreePath)), worktreePath);
         await prisma.agentSession.update({
           where: { id: latestSession.id },
           data: { worktreePath: null },
