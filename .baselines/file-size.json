@@ -10,9 +10,6 @@
     "rapitas-backend/services/workflow/workflow-cli-executor.ts": {
       "lineCount": 1189
     },
-    "rapitas-backend/services/agents/verification/automated-verifier.ts": {
-      "lineCount": 957
-    },
     "rapitas-backend/services/agents/orchestrator/task-executor.ts": {
       "lineCount": 800
     },
