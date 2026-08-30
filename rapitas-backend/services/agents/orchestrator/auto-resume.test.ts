@@ -30,6 +30,8 @@ const OK_OPTS = {
   hasNewerExecution: false,
   taskStatus: 'todo',
   hasWorkingDirectory: true,
+  maxAutoResumes: 2,
+  maxAgeMs: 24 * 60 * 60 * 1000,
 };
 
 describe('countResumeAttempts', () => {
@@ -93,5 +95,19 @@ describe('decideAutoResume', () => {
   it('still resumes with exactly one prior attempt (budget is 2)', () => {
     const once = exec({ output: '[再開] 中断された作業を再開します...\n…' });
     expect(decideAutoResume(once, OK_OPTS).resume).toBe(true);
+  });
+
+  it('respects a custom maxAutoResumes — budget exhausted after 1 resume', () => {
+    const once = exec({ output: '[再開] 中断された作業を再開します...\n…' });
+    const d = decideAutoResume(once, { ...OK_OPTS, maxAutoResumes: 1 });
+    expect(d.resume).toBe(false);
+    expect(d.reason).toContain('budget');
+  });
+
+  it('respects a custom maxAgeMs — too old under a shorter freshness window', () => {
+    const twoHoursOld = exec({ createdAt: new Date(NOW.getTime() - 2 * 60 * 60 * 1000) });
+    const d = decideAutoResume(twoHoursOld, { ...OK_OPTS, maxAgeMs: 60 * 60 * 1000 });
+    expect(d.resume).toBe(false);
+    expect(d.reason).toContain('too old');
   });
 });

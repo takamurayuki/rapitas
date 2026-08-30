@@ -14,20 +14,12 @@
  */
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
+import { getRecoveryPolicy } from '../../../config/recovery-policy';
 
 const log = createLogger('orchestrator:auto-resume');
 
 /** Marker execution-resume.ts appends to output on every resume attempt. */
 const RESUME_MARKER = '[再開] 中断された作業を再開します';
-/** Max automatic resumes per execution — beyond this, a human (or the phase
- * retry machinery) must decide; unbounded auto-resume of a crashing run
- * would loop forever. */
-const MAX_AUTO_RESUMES = 2;
-/** Only resume interruptions younger than this — a days-old session has
- * stale context and the workflow has usually moved on via artifact reuse. */
-const MAX_AGE_MS = 24 * 60 * 60 * 1000;
-/** Cap per invocation — a mass interruption should not fan out uncontrolled. */
-const MAX_PER_PASS = 3;
 
 /**
  * Whether automatic resume is enabled. The UserSettings toggle
@@ -70,6 +62,11 @@ export interface AutoResumeDecision {
  * @param opts.hasNewerExecution - A newer execution already exists for the task. / 後続実行の有無
  * @param opts.taskStatus - The owning task's status. `blocked`/`failed` are excluded — those states can only be exited by an explicit retry. / タスク状態(`blocked`/`failed`は自動再開の対象外)
  * @param opts.hasWorkingDirectory - Theme working directory configured. / 作業Dir設定有無
+ * @param opts.maxAutoResumes - Max automatic resumes per execution — beyond this, a human
+ *   (or the phase retry machinery) must decide; unbounded auto-resume of a crashing run
+ *   would loop forever. / 最大自動再開回数
+ * @param opts.maxAgeMs - Only resume interruptions younger than this — a days-old session
+ *   has stale context and the workflow has usually moved on via artifact reuse. / 再開可能な最大経過時間
  * @returns Whether to resume, with the reason. / 判定と理由
  */
 export function decideAutoResume(
@@ -79,6 +76,8 @@ export function decideAutoResume(
     hasNewerExecution: boolean;
     taskStatus: string | null;
     hasWorkingDirectory: boolean;
+    maxAutoResumes: number;
+    maxAgeMs: number;
   },
 ): AutoResumeDecision {
   if (exec.status !== 'interrupted') return { resume: false, reason: `status=${exec.status}` };
@@ -98,9 +97,11 @@ export function decideAutoResume(
     return { resume: false, reason: 'a newer execution already took over the task' };
   }
   const age = opts.now.getTime() - exec.createdAt.getTime();
-  if (age > MAX_AGE_MS) return { resume: false, reason: `too old (${Math.round(age / 3600000)}h)` };
+  if (age > opts.maxAgeMs) {
+    return { resume: false, reason: `too old (${Math.round(age / 3600000)}h)` };
+  }
   const attempts = countResumeAttempts(exec.output);
-  if (attempts >= MAX_AUTO_RESUMES) {
+  if (attempts >= opts.maxAutoResumes) {
     return { resume: false, reason: `resume budget exhausted (${attempts} attempts)` };
   }
   return { resume: true, reason: 'ok' };
@@ -116,10 +117,11 @@ export function decideAutoResume(
  */
 export async function autoResumeInterruptedExecutions(executionIds: number[]): Promise<number> {
   if (executionIds.length === 0 || !(await isAutoResumeEnabled())) return 0;
+  const policy = getRecoveryPolicy();
 
   let started = 0;
   for (const executionId of executionIds) {
-    if (started >= MAX_PER_PASS) {
+    if (started >= policy.maxPerPass) {
       log.warn(
         { remaining: executionIds.length - started },
         '[auto-resume] per-pass cap reached — remaining interruptions left for the banner',
@@ -169,6 +171,8 @@ export async function autoResumeInterruptedExecutions(executionIds: number[]): P
         hasNewerExecution: !!newer,
         taskStatus: task.status,
         hasWorkingDirectory: !!task.theme?.workingDirectory,
+        maxAutoResumes: policy.maxAutoResumes,
+        maxAgeMs: policy.maxAgeMs,
       });
       if (!decision.resume) {
         log.info({ executionId, taskId: task.id, reason: decision.reason }, '[auto-resume] skip');
@@ -185,7 +189,7 @@ export async function autoResumeInterruptedExecutions(executionIds: number[]): P
           data: {
             type: 'agent_execution_resumed',
             title: 'エージェント実行を自動再開',
-            message: `「${task.title}」の中断された作業を自動的に再開しました（再開 ${countResumeAttempts(execution.output) + 1}/${MAX_AUTO_RESUMES} 回目）。`,
+            message: `「${task.title}」の中断された作業を自動的に再開しました（再開 ${countResumeAttempts(execution.output) + 1}/${policy.maxAutoResumes} 回目）。`,
             link: `/tasks/${task.id}`,
           },
         })

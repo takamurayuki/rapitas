@@ -10,13 +10,14 @@
  */
 
 import { createLogger } from '../../../config';
+import { getRecoveryPolicy } from '../../../config/recovery-policy';
 import type { OrchestratorContext } from './types';
 import { LEASE_STALE_MS } from './execution-heartbeat';
 import { updateAffectedSessions, updateAffectedTasks } from './stale-recovery-helpers';
 
 const logger = createLogger('execution-lease-sweep');
 
-const LEASE_SWEEP_INTERVAL_MS = 60_000;
+const LEASE_SWEEP_INTERVAL_MS = getRecoveryPolicy().leaseSweepIntervalMs;
 // Module-level singleton: the sweep must never run twice per process, so the
 // timer and both entry points live together in this file (do not re-split).
 let leaseSweepTimer: NodeJS.Timeout | null = null;

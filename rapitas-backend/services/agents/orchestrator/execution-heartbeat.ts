@@ -8,18 +8,25 @@
  * Not responsible for sweeping dead leases — see stale-execution-recovery.ts.
  */
 import { createLogger } from '../../../config';
+import { getRecoveryPolicy } from '../../../config/recovery-policy';
 import type { PrismaClientInstance } from './types';
 import { EXECUTION_OWNER_ID } from '../execution-owner';
 
 const logger = createLogger('execution-heartbeat');
 
+// NOTE: resolved once at module load — recovery-policy.ts's env-var/profile
+// resolution happens here only, so importers of these plain-number exports
+// (execution-lease-sweep.ts, hard-failure-reconciler.ts) need no changes.
+const recoveryPolicy = getRecoveryPolicy();
+
 /** Refresh cadence. Must be comfortably below LEASE_STALE_MS. */
-export const HEARTBEAT_INTERVAL_MS = 15_000;
+export const HEARTBEAT_INTERVAL_MS = recoveryPolicy.heartbeatIntervalMs;
 /**
- * A running/pending row whose heartbeat is older than this is dead — six
- * missed beats, generous enough for GC pauses and DB hiccups.
+ * A running/pending row whose heartbeat is older than this is dead — see
+ * config/recovery-policy.ts for the per-environment default (six missed
+ * beats in production, generous enough for GC pauses and DB hiccups).
  */
-export const LEASE_STALE_MS = 90_000;
+export const LEASE_STALE_MS = recoveryPolicy.leaseStaleMs;
 
 const timers = new Map<number, NodeJS.Timeout>();
 

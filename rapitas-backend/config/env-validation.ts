@@ -3,6 +3,7 @@
  * Validates required environment variables at startup
  */
 import { createLogger } from './logger';
+import { getRecoveryPolicy } from './recovery-policy';
 
 const log = createLogger('env-validation');
 
@@ -41,6 +42,17 @@ const ENV_VARS: EnvVar[] = [
   { name: 'RAPITAS_GIT_EXEC_CACHE_TTL_MS', required: false, defaultValue: '30000' },
   // TTL in milliseconds for the git remote URL cache (git remote get-url origin).
   { name: 'RAPITAS_GIT_REMOTE_CACHE_TTL_MS', required: false, defaultValue: '30000' },
+
+  // Recovery policy overrides (all optional). The actual resolved default depends
+  // on NODE_ENV (production vs development — see config/recovery-policy.ts), so no
+  // single defaultValue is listed here; the resolved snapshot is logged separately
+  // by getRecoveryPolicy() below.
+  { name: 'RAPITAS_RECOVERY_HEARTBEAT_INTERVAL_MS', required: false },
+  { name: 'RAPITAS_RECOVERY_LEASE_STALE_MS', required: false },
+  { name: 'RAPITAS_RECOVERY_LEASE_SWEEP_INTERVAL_MS', required: false },
+  { name: 'RAPITAS_RECOVERY_MAX_AUTO_RESUMES', required: false },
+  { name: 'RAPITAS_RECOVERY_MAX_AGE_MS', required: false },
+  { name: 'RAPITAS_RECOVERY_MAX_PER_PASS', required: false },
 ];
 
 export function validateEnvironment(): void {
@@ -72,4 +84,9 @@ export function validateEnvironment(): void {
   }
 
   log.info('Environment variables validated successfully');
+
+  // Triggers the recovery-policy resolved-snapshot log (once per process) —
+  // this is the "設定変更イベントの記録" (config-change event record) for the
+  // recovery-policy layer: timestamp = this log line, diff = against profile default.
+  getRecoveryPolicy();
 }
