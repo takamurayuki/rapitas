@@ -47,6 +47,7 @@ let research: string | null = `対象: \`${SUPPRESSIONS}\``;
 const fresh = () => new Date(nowMs - 60_000); // 1 min old — well inside the freshness window
 let openPrs: Array<{ prNumber: number; linkedTaskId: number | null; createdAt: Date | null }> = [];
 let prFiles: Record<number, string[]> = { 533: [SUPPRESSIONS] };
+const parked = new Set<number>();
 
 /** Deterministic collaborators: file tokens are whatever sits inside backticks. */
 const deps = {
@@ -55,6 +56,7 @@ const deps = {
   artifact: async (_id: number, type: 'plan' | 'research') => (type === 'plan' ? plan : research),
   parseFiles: (c: string) => [...c.matchAll(/`([^`]+)`/g)].map((m) => m[1]!),
   overlap: async (a: string[], b: string[]) => b.filter((f) => a.includes(f)),
+  isParked: async (linkedTaskId: number) => parked.has(linkedTaskId),
   now: () => nowMs,
 };
 
@@ -69,6 +71,7 @@ beforeEach(() => {
   research = `対象: \`${SUPPRESSIONS}\``;
   openPrs = [{ prNumber: 533, linkedTaskId: 758, createdAt: fresh() }];
   prFiles = { 533: [SUPPRESSIONS] };
+  parked.clear();
   delete process.env.RAPITAS_IMPLEMENT_OVERLAP_HOLD;
 });
 
@@ -135,6 +138,14 @@ describe('guardImplementOverlap', () => {
       { prNumber: 467, linkedTaskId: 671, createdAt: null },
     ];
     prFiles = { 435: [SUPPRESSIONS], 467: [SUPPRESSIONS] };
+    expect((await run()).done).toBe(false);
+    expect(events.length).toBe(0);
+  });
+
+  test('auto-merge が枯渇駐機した PR は待たない（#764⇄#537 の循環待ち事例）', async () => {
+    openPrs = [{ prNumber: 537, linkedTaskId: 755, createdAt: fresh() }];
+    prFiles = { 537: [SUPPRESSIONS] };
+    parked.add(755);
     expect((await run()).done).toBe(false);
     expect(events.length).toBe(0);
   });
