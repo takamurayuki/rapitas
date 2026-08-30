@@ -1,5 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { useElapsedTime } from '../common/useElapsedTime';
+import { setAppHidden } from '../common/app-visibility-store';
 
 describe('useElapsedTime', () => {
   beforeEach(() => {
@@ -9,6 +10,7 @@ describe('useElapsedTime', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    setAppHidden(false);
   });
 
   it('returns null when inactive', () => {
@@ -74,6 +76,65 @@ describe('useElapsedTime', () => {
     const { unmount } = renderHook(() => useElapsedTime('2026-01-01T00:00:00.000Z', true));
     unmount();
     expect(clearSpy).toHaveBeenCalled();
+  });
+
+  describe('可視性連動（document.hidden / app-visibility-store）', () => {
+    it('document.hidden の間はtickが進まない', () => {
+      const { result } = renderHook(() => useElapsedTime('2026-01-01T00:00:00.000Z', true));
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+      expect(result.current).toBe('0:03');
+
+      vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+      expect(result.current).toBe('0:03');
+    });
+
+    it('visibilitychange で表示に戻った瞬間に正しい値へ即座に更新される', () => {
+      const { result } = renderHook(() => useElapsedTime('2026-01-01T00:00:00.000Z', true));
+      const hiddenSpy = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+      expect(result.current).toBe('0:00');
+
+      hiddenSpy.mockReturnValue(false);
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(result.current).toBe('0:05');
+    });
+
+    it('getAppHidden() の間はtickが進まない（最小化）', () => {
+      const { result } = renderHook(() => useElapsedTime('2026-01-01T00:00:00.000Z', true));
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(result.current).toBe('0:02');
+
+      setAppHidden(true);
+      act(() => {
+        vi.advanceTimersByTime(4000);
+      });
+      expect(result.current).toBe('0:02');
+    });
+
+    it('最小化から復帰した瞬間に正しい値へ即座に更新される', () => {
+      const { result } = renderHook(() => useElapsedTime('2026-01-01T00:00:00.000Z', true));
+      setAppHidden(true);
+      act(() => {
+        vi.advanceTimersByTime(7000);
+      });
+      expect(result.current).toBe('0:00');
+
+      act(() => {
+        setAppHidden(false);
+      });
+      expect(result.current).toBe('0:07');
+    });
   });
 
   describe('baseOffsetMs（累積実働ベース、task #560）', () => {

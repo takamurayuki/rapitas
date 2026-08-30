@@ -16,6 +16,8 @@ import type { LiveQuestion } from '@/stores/execution-state-store';
 import { resolveQuestionOptions, secondsUntil } from './workflow-question-utils';
 import { isImeComposing } from '@/utils/ime';
 import { MarkdownView } from '../markdown/MarkdownView';
+import { getAppHidden, subscribeAppHidden } from '@/hooks/common/app-visibility-store';
+import { useOnVisible } from '@/hooks/common/useOnVisible';
 
 interface WorkflowQuestionPanelProps {
   /** The pending question to answer. */
@@ -101,10 +103,27 @@ export function WorkflowQuestionPanel({
       setRemaining(null);
       return;
     }
+    const isHidden = () => (typeof document !== 'undefined' && document.hidden) || getAppHidden();
     const tick = () => setRemaining(secondsUntil(question.timeoutDeadline, Date.now()));
     tick();
-    const id = setInterval(tick, 1000);
+    const id = setInterval(() => {
+      if (isHidden()) return;
+      tick();
+    }, 1000);
     return () => clearInterval(id);
+  }, [question.timeoutDeadline]);
+
+  // Force one immediate recompute on return from background so the countdown
+  // doesn't sit frozen at its pre-hidden value until the next tick.
+  useOnVisible(() => {
+    if (question.timeoutDeadline) setRemaining(secondsUntil(question.timeoutDeadline, Date.now()));
+  });
+  useEffect(() => {
+    return subscribeAppHidden(() => {
+      if (!getAppHidden() && question.timeoutDeadline) {
+        setRemaining(secondsUntil(question.timeoutDeadline, Date.now()));
+      }
+    });
   }, [question.timeoutDeadline]);
 
   const answer = (freeText.trim() || selected).trim();

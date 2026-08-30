@@ -5,10 +5,11 @@
  * body, the hideFreeText / freeTextReason display branches, and option
  * selection triggering onAnswer.
  */
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { WorkflowQuestionPanel } from './WorkflowQuestionPanel';
 import type { LiveQuestion } from '@/stores/execution-state-store';
+import { setAppHidden } from '@/hooks/common/app-visibility-store';
 
 vi.mock('next-intl', () => ({
   useTranslations: () => (key: string, values?: Record<string, unknown>) =>
@@ -119,5 +120,96 @@ describe('WorkflowQuestionPanel', () => {
     render(<WorkflowQuestionPanel question={baseQuestion} submitting={false} onAnswer={vi.fn()} />);
     expect(screen.queryByText('questionPanel.recommendedBadge')).not.toBeInTheDocument();
     expect(screen.queryByText('questionPanel.recommendedReasonLabel')).not.toBeInTheDocument();
+  });
+
+  describe('自動継続カウントダウン（timeoutDeadline）', () => {
+    const questionWithDeadline: LiveQuestion = {
+      ...baseQuestion,
+      timeoutDeadline: '2026-01-01T00:01:00.000Z',
+    };
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      setAppHidden(false);
+    });
+
+    it('1秒ごとに残り秒数が減っていく', () => {
+      render(
+        <WorkflowQuestionPanel
+          question={questionWithDeadline}
+          submitting={false}
+          onAnswer={vi.fn()}
+        />,
+      );
+      expect(screen.getByText('60')).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+      expect(screen.getByText('57')).toBeInTheDocument();
+    });
+
+    it('document.hidden の間はカウントダウンが停止する', () => {
+      render(
+        <WorkflowQuestionPanel
+          question={questionWithDeadline}
+          submitting={false}
+          onAnswer={vi.fn()}
+        />,
+      );
+      const hiddenSpy = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+      expect(screen.getByText('60')).toBeInTheDocument();
+      hiddenSpy.mockRestore();
+    });
+
+    it('visibilitychange で表示に戻った瞬間に正しい残り秒数へ即座に更新される', () => {
+      render(
+        <WorkflowQuestionPanel
+          question={questionWithDeadline}
+          submitting={false}
+          onAnswer={vi.fn()}
+        />,
+      );
+      const hiddenSpy = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(screen.getByText('60')).toBeInTheDocument();
+
+      hiddenSpy.mockReturnValue(false);
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(screen.getByText('50')).toBeInTheDocument();
+      hiddenSpy.mockRestore();
+    });
+
+    it('最小化（getAppHidden）から復帰した瞬間に正しい残り秒数へ即座に更新される', () => {
+      render(
+        <WorkflowQuestionPanel
+          question={questionWithDeadline}
+          submitting={false}
+          onAnswer={vi.fn()}
+        />,
+      );
+      setAppHidden(true);
+      act(() => {
+        vi.advanceTimersByTime(15_000);
+      });
+      expect(screen.getByText('60')).toBeInTheDocument();
+
+      act(() => {
+        setAppHidden(false);
+      });
+      expect(screen.getByText('45')).toBeInTheDocument();
+    });
   });
 });
