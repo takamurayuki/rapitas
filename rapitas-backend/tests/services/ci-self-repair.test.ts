@@ -195,6 +195,48 @@ describe('attemptCiRepair', () => {
     const r = await attemptCiRepair(5, ['Test Backend']);
     expect(r.bounced).toBe(true);
   });
+
+  test('re-enqueue が非重複エラーで失敗した場合、status を todo に戻し workflow_queue_enqueue_failed を記録すること', async () => {
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+    enqueue.mockRejectedValueOnce(new Error('DB connection timeout'));
+
+    const r = await attemptCiRepair(1, ['Test Backend']);
+
+    expect(r.bounced).toBe(true); // the CI-repair bounce itself still succeeded
+    // Second task.update call (first is the in-progress reset) reverts to todo.
+    const revertCall = mockPrisma.task.update.mock.calls[1][0] as { data: { status: string } };
+    expect(revertCall.data.status).toBe('todo');
+    // Second recordTransition call (first is ci_repair) records the new cause.
+    const secondTransition = recordTransition.mock.calls[1][0] as {
+      fromStatus: string;
+      toStatus: string;
+      cause: string;
+      metadata: { reason: string; error: string; taskStatusFrom: string; taskStatusTo: string };
+    };
+    expect(secondTransition.cause).toBe('workflow_queue_enqueue_failed');
+    expect(secondTransition.metadata.reason).toBe('enqueue_failed');
+    expect(secondTransition.metadata.error).toBe('DB connection timeout');
+    // fromStatus/toStatus track WORKFLOW status (unchanged — plan_approved here,
+    // since a plan.md exists), matching the agent_lifecycle_shutdown_revert
+    // convention; the actual task.status flip is asserted via metadata below.
+    expect(secondTransition.fromStatus).toBe('plan_approved');
+    expect(secondTransition.toStatus).toBe('plan_approved');
+    expect(secondTransition.metadata.taskStatusFrom).toBe('in-progress');
+    expect(secondTransition.metadata.taskStatusTo).toBe('todo');
+  });
+
+  test('re-enqueue が "already in the queue" で失敗した場合は todo に戻さないこと', async () => {
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+    enqueue.mockRejectedValueOnce(new Error('Task 1 is already in the queue (status: queued)'));
+
+    const r = await attemptCiRepair(1, ['Test Backend']);
+
+    expect(r.bounced).toBe(true);
+    // Only the initial in-progress reset — no todo-revert update.
+    expect(mockPrisma.task.update).toHaveBeenCalledTimes(1);
+    // Only the ci_repair transition — no enqueue-failure transition.
+    expect(recordTransition).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('attemptCiRepair — CIログ抜粋 (ciContext)', () => {

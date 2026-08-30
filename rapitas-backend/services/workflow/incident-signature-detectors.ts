@@ -78,7 +78,8 @@ export const PATTERN_A_SETTLE_MS =
  * stale-execution recovery (`stale-recovery-helpers.ts` `updateAffectedTasks`).
  * Before task 709 none recorded a `WorkflowTransition`, so
  * `isWithinRecoveryGrace` had no row to find and Pattern B fired immediately
- * on a shape these paths create on purpose (task #602).
+ * on a shape these paths create on purpose (task #602). `workflow_queue_
+ * enqueue_failed` (task 786): same revert, from `ci-self-repair.ts`'s enqueue().
  */
 const RECOVERY_REQUEUE_CAUSES = new Set([
   'reconciler_requeue',
@@ -87,6 +88,7 @@ const RECOVERY_REQUEUE_CAUSES = new Set([
   'agent_lifecycle_shutdown_revert',
   'manual_execution_stop_revert',
   'stale_execution_recovery_revert',
+  'workflow_queue_enqueue_failed',
 ]);
 
 /**
