@@ -364,6 +364,8 @@ describe('escalateAbandonedBlocked（受入基準5まわり・プレモーテム
     const call = escalateBlockedTask.mock.calls[0] as unknown[];
     expect((call[1] as { id: number }).id).toBe(597);
     expect(call[2]).toBe('awaiting_question');
+    // task 770: 呼び出し元が保持する t.workflowStatus が末尾引数として伝搬すること
+    expect(call[5]).toBe('awaiting_question');
   });
 
   test('2日超の古い blocked は abandoned_old でエスカレーションされる（条件4の救済）', async () => {
