@@ -29,6 +29,12 @@ vi.mock('../components/WeeklyMetricChart', () => ({
   },
 }));
 
+// The retro KPI section fetches its own data; stub it so this file stays
+// focused on the growth-ledger cards (see RetroKpiSection.test.tsx).
+vi.mock('../components/RetroKpiSection', () => ({
+  RetroKpiSection: () => <div data-testid="retro-kpi-section" />,
+}));
+
 import AgentGrowthPage from '../page';
 
 /** Builds one API-shaped window with all-null rates unless overridden. */

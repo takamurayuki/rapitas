@@ -23,6 +23,7 @@ import {
 import { getUsdJpyRate } from './currency-config';
 import { paretoFrontierRouter } from './pareto-frontier-router';
 import { computeGrowthLedgerMetrics } from '../../../services/self-improvement/growth-ledger-metrics';
+import { computeRetroKpiMetrics } from '../../../services/self-improvement/retro-kpi-metrics';
 import { readJudgeEvalResult } from '../../../services/observability/eval-judge-results';
 import type { DateRange } from './types';
 
@@ -283,6 +284,24 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
     } catch (error) {
       log.error({ err: error }, 'Error computing growth ledger metrics');
       return { error: 'Failed to compute growth ledger metrics' };
+    }
+  })
+
+  /**
+   * Weekly self-improvement KPI ledger (task #774): repair rate, auto-merge
+   * outcome counts, no-change confirmations, non-convergence count and
+   * lead-time median from WorkflowTransition. Machine-readable so loop_review
+   * can consume it. Defaults follow the supervisor baseline: 7-day windows, 8 weeks.
+   */
+  .get('/retro-kpi', async ({ query }) => {
+    try {
+      const windowDays = Math.min(30, Math.max(1, parseInt(query.windowDays as string) || 7));
+      const windowCount = Math.min(26, Math.max(1, parseInt(query.windowCount as string) || 8));
+      const data = await computeRetroKpiMetrics({ windowDays, windowCount });
+      return { success: true, data };
+    } catch (error) {
+      log.error({ err: error }, 'Error computing retro kpi metrics');
+      return { error: 'Failed to compute retro kpi metrics' };
     }
   })
 
