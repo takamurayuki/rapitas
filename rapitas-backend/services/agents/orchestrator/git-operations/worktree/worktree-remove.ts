@@ -40,11 +40,10 @@ export async function removeWorktree(
   worktreePath: string,
   deleteBranch: boolean = true,
 ): Promise<void> {
-  // NOTE: Validate path before any destructive operation — prevents accidental deletion of .git/ or main repo
+  // NOTE: Validate path before any destructive operation — prevents accidental deletion of .git/ or main repo.
+  // isPathSafeForWorktreeOperation already logs the rejection reason via git-operations/safety;
+  // do not duplicate that log here (see K-8046/K-8047 — same event, two concerns).
   if (!isPathSafeForWorktreeOperation(worktreePath, baseDir)) {
-    logger.error(
-      `[removeWorktree] REFUSED to remove unsafe path: ${worktreePath} (baseDir: ${baseDir})`,
-    );
     return;
   }
 
