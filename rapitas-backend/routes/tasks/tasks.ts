@@ -420,7 +420,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       try {
         const task = await prisma.task.findUnique({
           where: { id },
-          select: { workingDirectory: true },
+          select: { workingDirectory: true, theme: { select: { workingDirectory: true } } },
         });
 
         if (task) {
@@ -438,7 +438,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
             },
           });
 
-          const baseDir = task.workingDirectory || getProjectRoot();
+          const baseDir = task.workingDirectory ?? task.theme?.workingDirectory ?? getProjectRoot();
 
           for (const session of sessionsWithWorktrees) {
             if (session.worktreePath) {

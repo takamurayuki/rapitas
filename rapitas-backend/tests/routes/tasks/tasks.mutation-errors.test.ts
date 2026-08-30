@@ -49,6 +49,7 @@ mock.module('../../../services/communication/notification-service', () => ({
   AUTH_FAILURE_NOTIFICATION_TITLE: 'Claude 認証切れ',
   notifyAuthenticationFailure: mock(() => Promise.resolve()),
   notifyPomodoroCompleted: mock(() => Promise.resolve()),
+  notifyKnowledgeExtracted: mock(() => Promise.resolve()),
 }));
 mock.module('../../../src/services/user-behavior-service', () => ({
   UserBehaviorService: {
@@ -117,6 +118,7 @@ mock.module('../../../config/logger', () => ({
 
 const { tasksRoutes } = await import('../../../routes/tasks/tasks');
 const { AppError } = await import('../../../middleware/error-handler');
+const { getProjectRoot } = await import('../../../config');
 const worktreeOps =
   await import('../../../services/agents/orchestrator/git-operations/worktree/worktree-ops');
 const removeWorktree = worktreeOps.removeWorktree as ReturnType<typeof mock>;
@@ -255,6 +257,45 @@ describe('DELETE /tasks/:id 保護ガードとworktreeクリーンアップ', ()
     // the DB pointer is never cleared for this session.
     expect(mockPrisma.agentSession.update).not.toHaveBeenCalled();
     expect(mockPrisma.task.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+  });
+
+  test('task.workingDirectoryが無い場合はtheme.workingDirectoryをbaseDirにすること', async () => {
+    mockPrisma.task.findUnique
+      .mockResolvedValueOnce({ isProtected: false }) // guard check
+      .mockResolvedValueOnce({
+        workingDirectory: null,
+        theme: { workingDirectory: '/repo/theme-dir' },
+      }); // cleanup lookup
+    mockPrisma.agentSession.findMany.mockResolvedValue([
+      { id: 5, worktreePath: '/repo/theme-dir/.worktrees/task-1' },
+    ]);
+    mockPrisma.task.delete.mockResolvedValue({ id: 1 });
+
+    const res = await app.handle(new Request('http://localhost/tasks/1', { method: 'DELETE' }));
+
+    expect(res.status).toBe(200);
+    expect(removeWorktree).toHaveBeenCalledWith(
+      '/repo/theme-dir',
+      '/repo/theme-dir/.worktrees/task-1',
+    );
+  });
+
+  test('task.workingDirectoryもtheme.workingDirectoryも無い場合はgetProjectRoot()にフォールバックすること', async () => {
+    mockPrisma.task.findUnique
+      .mockResolvedValueOnce({ isProtected: false }) // guard check
+      .mockResolvedValueOnce({ workingDirectory: null, theme: null }); // cleanup lookup
+    mockPrisma.agentSession.findMany.mockResolvedValue([
+      { id: 5, worktreePath: `${getProjectRoot()}/.worktrees/task-1` },
+    ]);
+    mockPrisma.task.delete.mockResolvedValue({ id: 1 });
+
+    const res = await app.handle(new Request('http://localhost/tasks/1', { method: 'DELETE' }));
+
+    expect(res.status).toBe(200);
+    expect(removeWorktree).toHaveBeenCalledWith(
+      getProjectRoot(),
+      `${getProjectRoot()}/.worktrees/task-1`,
+    );
   });
 
   test('クリーンアップ自体が例外を投げても削除は続行すること', async () => {

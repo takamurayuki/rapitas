@@ -65,13 +65,13 @@ async function deleteTaskWithArtifacts(taskId: number): Promise<void> {
   try {
     const task = await prisma.task.findUnique({
       where: { id: taskId },
-      select: { workingDirectory: true },
+      select: { workingDirectory: true, theme: { select: { workingDirectory: true } } },
     });
     const sessions = await prisma.agentSession.findMany({
       where: { worktreePath: { not: null }, config: { taskId } },
       select: { id: true, worktreePath: true },
     });
-    const baseDir = task?.workingDirectory || getProjectRoot();
+    const baseDir = task?.workingDirectory ?? task?.theme?.workingDirectory ?? getProjectRoot();
     for (const s of sessions) {
       if (!s.worktreePath) continue;
       try {
