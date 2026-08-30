@@ -7,7 +7,7 @@
  * Not responsible for prompt building or artifact parsing.
  */
 
-import { spawn } from 'child_process';
+import { spawnLowPriority } from '../process-priority';
 import type { ChildProcess } from 'child_process';
 import type { AgentExecutionResult, AgentArtifact, GitCommitInfo } from '../base-agent';
 import type { QuestionWaitingState } from '../question-detection';
@@ -473,7 +473,7 @@ export async function spawnCodexProcess(
       const [finalCommand, finalArgs] = buildSpawnCommand(codexPath, args, isWindows);
       const env = buildProcessEnv(config, isWindows);
 
-      state.process = spawn(finalCommand, finalArgs, {
+      state.process = spawnLowPriority(finalCommand, finalArgs, {
         cwd: workDir,
         shell: true,
         windowsHide: true,

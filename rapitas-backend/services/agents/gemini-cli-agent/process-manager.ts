@@ -6,6 +6,7 @@
  */
 
 import { spawn, ChildProcess, execSync } from 'child_process';
+import { spawnLowPriority } from '../process-priority';
 import { existsSync } from 'fs';
 import type { GeminiCliAgentConfig } from './types';
 import { createLogger } from '../../../config/logger';
@@ -218,7 +219,7 @@ export function spawnGeminiProcess(
     `[ProcessManager] Spawning Gemini (prompt via stdin)`,
   );
 
-  const proc = spawn(finalCommand, finalArgs, {
+  const proc = spawnLowPriority(finalCommand, finalArgs, {
     cwd: workDir,
     shell: true,
     windowsHide: true, // NOTE: Prevents TCP handle inheritance — stops CLI process from inheriting port 3001 socket

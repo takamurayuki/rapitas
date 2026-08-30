@@ -12,20 +12,11 @@
  * Windows a child inherits BELOW_NORMAL / IDLE from its parent, so lowering
  * the shell wrapper is enough to cover tsc and the bun workers it starts.
  */
-import os from 'node:os';
-import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
-import { createLogger } from '../../../config/logger';
-
-const log = createLogger('agents:verification:quiet');
+import type { ChildProcess, SpawnOptions } from 'child_process';
+import { LOW_PRIORITY, lowerProcessPriority, spawnLowPriority } from '../process-priority';
 
 /** node:os priority for verification children (Windows BELOW_NORMAL_PRIORITY_CLASS). */
-export const VERIFY_CHILD_PRIORITY = os.constants.priority.PRIORITY_BELOW_NORMAL;
-
-/** `RAPITAS_VERIFY_QUIET=off|0|false` restores normal-priority children. Default ON. */
-export function isQuietVerificationEnabled(): boolean {
-  const raw = (process.env.RAPITAS_VERIFY_QUIET ?? '').trim().toLowerCase();
-  return !(raw === 'off' || raw === '0' || raw === 'false');
-}
+export const VERIFY_CHILD_PRIORITY = LOW_PRIORITY;
 
 /** `RAPITAS_VERIFY_PARALLEL=1|on|true` restores the old all-at-once check fan-out. Default sequential. */
 export function areVerificationChecksSequential(): boolean {
@@ -34,10 +25,8 @@ export function areVerificationChecksSequential(): boolean {
 }
 
 /**
- * Lower a freshly spawned verification child to BELOW_NORMAL priority.
- *
- * Best effort: a missing pid (mocked spawn, spawn failure) or an OS refusal
- * is logged at debug level and never fails the check.
+ * Lower a freshly spawned verification child to BELOW_NORMAL priority
+ * (`RAPITAS_VERIFY_QUIET=off` keeps normal priority).
  *
  * @param pid - Child process id from `spawn()`. / spawn した子プロセスの pid
  * @param setPriority - Override for tests. / テスト用差し替え
@@ -45,30 +34,20 @@ export function areVerificationChecksSequential(): boolean {
  */
 export function lowerVerificationPriority(
   pid: number | undefined,
-  setPriority: (pid: number, priority: number) => void = os.setPriority,
+  setPriority?: (pid: number, priority: number) => void,
 ): boolean {
-  if (pid === undefined || !isQuietVerificationEnabled()) return false;
-  try {
-    setPriority(pid, VERIFY_CHILD_PRIORITY);
-    return true;
-  } catch (err) {
-    log.debug({ err, pid }, '[verify] could not lower child priority');
-    return false;
-  }
+  return lowerProcessPriority(pid, 'RAPITAS_VERIFY_QUIET', setPriority);
 }
 
 /**
- * `spawn()` for verification commands: the child starts, then drops to
- * BELOW_NORMAL before it has done any real work.
+ * `spawn()` for verification commands at BELOW_NORMAL priority.
  *
  * @param command - Shell command line. / 実行するコマンド
  * @param options - Passed to `spawn()` unchanged. / spawn オプション
  * @returns The child process. / 子プロセス
  */
 export function spawnQuiet(command: string, options: SpawnOptions): ChildProcess {
-  const child = spawn(command, options);
-  lowerVerificationPriority(child.pid);
-  return child;
+  return spawnLowPriority(command, [], options, 'RAPITAS_VERIFY_QUIET');
 }
 
 /**
