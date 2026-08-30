@@ -14,6 +14,7 @@ import { logAutoCommit, logAutoPR } from './workflow-activity-logger';
 import { runVerificationGate } from '../../services/agents/verification/verification-gate';
 import { resolveAutomationPolicy } from '../../services/workflow/automation-policy';
 import { linkAutoCreatedPr } from '../../services/github/pr-link';
+import { resolveCommitCwd } from './commit-cwd';
 import { FOREIGN_PR_ERROR_PREFIX } from '../../services/agents/orchestrator/git-operations/pr/branch-pr-ops';
 import { notify } from '../../services/workflow/auto-merge-notify';
 import {
@@ -161,9 +162,8 @@ export async function performAutoCommitAndPR(
     });
 
     if (!task) return result;
-
-    // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
-    const workingDirectory = execConfig?.workingDirectory || task.theme?.workingDirectory;
+    // CRITICAL: explicit cwd → task worktree → theme dir (see commit-cwd.ts; task 774).
+    const workingDirectory = await resolveCommitCwd(execConfig, task, taskId);
     if (!workingDirectory) {
       log.warn(`[workflow] Task ${taskId} rejected: workingDirectory not configured.`);
       return {
