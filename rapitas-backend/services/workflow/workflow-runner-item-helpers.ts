@@ -105,6 +105,11 @@ export async function raceWorkflowAdvance(
   taskId: number,
   phaseTimeoutMs: number,
 ): Promise<WorkflowAdvanceResult> {
+  // NOTE: Breadcrumb for the silent first-advance hang after a restart
+  // (2026-08-30: 16 min with zero log lines). If this line is the last one
+  // before silence, the hang is inside advanceWorkflow — between this log and
+  // the next stage log (preflight done → overlap guard → prepare → probe).
+  log.info({ taskId, phaseTimeoutMs }, '[WorkflowRunner] Advancing workflow (race armed)');
   const executionPromise = orchestrator.advanceWorkflow(taskId);
   const timeoutPromise = new Promise<never>((_, reject) => {
     setTimeout(() => {

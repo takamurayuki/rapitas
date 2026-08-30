@@ -216,5 +216,9 @@ export async function runPreflight(taskId: number) {
     }
   }
 
+  log.info(
+    { taskId, currentStatus, role: transition.role },
+    '[WorkflowOrchestrator] Preflight done — dispatching role',
+  );
   return { done: false as const, task, workflowMode, currentStatus, transition };
 }
