@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import type { LucideIcon } from 'lucide-react';
+import type React from 'react';
 
 const TOOLTIP_STYLE = {
   backgroundColor: 'var(--color-zinc-800, #27272a)',
@@ -40,8 +41,14 @@ interface WeeklyMetricChartProps {
   iconColorClass: string;
   data: WeeklyMetricPoint[];
   series: WeeklyMetricSeries[];
-  /** `percent` renders the Y axis as 0-100% and formats values accordingly; `count` renders a plain numeric axis. */
-  valueFormat: 'percent' | 'count';
+  /**
+   * `percent` renders the Y axis as 0-100% and formats values accordingly;
+   * `count` renders a plain numeric axis; `minutes` renders a plain numeric
+   * axis with a `分` unit suffix on ticks and tooltip values.
+   */
+  valueFormat: 'percent' | 'count' | 'minutes';
+  /** Optional slot rendered right-aligned in the card header (e.g. diff badges). */
+  headerExtra?: React.ReactNode;
   emptyMessage: string;
   noDataLabel: string;
 }
@@ -64,13 +71,22 @@ export function WeeklyMetricChart({
   valueFormat,
   emptyMessage,
   noDataLabel,
+  headerExtra,
 }: WeeklyMetricChartProps) {
   const hasAnyValue = data.some((point) =>
     series.some((s) => typeof point[s.dataKey] === 'number'),
   );
 
-  const formatValue = (value: number) =>
-    valueFormat === 'percent' ? `${(value * 100).toFixed(1)}%` : value.toFixed(1);
+  const formatValue = (value: number) => {
+    if (valueFormat === 'percent') return `${(value * 100).toFixed(1)}%`;
+    if (valueFormat === 'minutes') return `${value.toFixed(0)}分`;
+    return value.toFixed(1);
+  };
+  const formatTick = (v: unknown) => {
+    if (valueFormat === 'percent') return `${Math.round(Number(v) * 100)}%`;
+    if (valueFormat === 'minutes') return `${v}分`;
+    return `${v}`;
+  };
 
   return (
     <div className="p-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm">
@@ -79,6 +95,7 @@ export function WeeklyMetricChart({
           <Icon className="w-5 h-5" />
         </div>
         <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{title}</h3>
+        {headerExtra && <div className="ml-auto flex items-center gap-2">{headerExtra}</div>}
       </div>
 
       {data.length > 0 && hasAnyValue ? (
@@ -105,9 +122,7 @@ export function WeeklyMetricChart({
               tick={{ fontSize: 11 }}
               className="fill-zinc-500"
               domain={valueFormat === 'percent' ? [0, 1] : ['auto', 'auto']}
-              tickFormatter={(v) =>
-                valueFormat === 'percent' ? `${Math.round(Number(v) * 100)}%` : `${v}`
-              }
+              tickFormatter={formatTick}
             />
             <Tooltip
               contentStyle={TOOLTIP_STYLE}

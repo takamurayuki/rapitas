@@ -138,6 +138,7 @@ history is lost.
 | `Hammer`                    | 通知の種別「CI失敗の自動修正中」（auto_merge_ci_repair, auto_merge_ci_repair_no_diff） |
 | `Files`                     | 通知の種別「同一タスクへの重複PR検出」（duplicate_open_prs） |
 | `GitPullRequestArrow`       | 通知の種別「自動PR作成完了」（auto_pr_created） |
+| `TimerReset`                | タスクのリードタイム中央値（/agents/growth 自己改善KPIセクションの「リードタイム中央値」カード。最初の遷移から completed までの所要分。注: `Timer`＝ポモドーロ/見積時間、`TimerOff`＝自動実行の時間上限停止、`AlarmClockPlus`＝学習時間の記録とは別概念） |
 
 > The table above is also being split into per-letter reference files
 > (`.claude/icon-policy/glyphs-a-f.md`, `glyphs-g-m.md`, `glyphs-n-s.md`,
