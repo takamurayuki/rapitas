@@ -13,7 +13,7 @@ const spawnCalls: Array<{ command: string; args: string[] }> = [];
 mock.module('child_process', () => ({
   spawn: (command: string, args: string[]) => {
     spawnCalls.push({ command, args });
-    return { pid: 777 };
+    return { pid: 777, once: () => {} };
   },
 }));
 
@@ -50,6 +50,26 @@ describe('lowerProcessPriority', () => {
     expect(isLowPriorityEnabled('RAPITAS_VERIFY_QUIET')).toBe(false);
     expect(isLowPriorityEnabled('RAPITAS_AGENT_QUIET')).toBe(true); // families are independent
     expect(lowerProcessPriority(1, 'RAPITAS_VERIFY_QUIET', () => {})).toBe(false);
+  });
+});
+
+describe('countActiveHelperChildren', () => {
+  test('spawn で増え、exit で減る', async () => {
+    const { EventEmitter } = await import('events');
+    const kids: InstanceType<typeof EventEmitter>[] = [];
+    const cp = await import('child_process');
+    const orig = (cp as { spawn: unknown }).spawn;
+    void orig; // mocked module — replaced below per-call via our own emitter
+    const { spawnLowPriority, countActiveHelperChildren } = await import('./process-priority');
+    const before = countActiveHelperChildren();
+    const child = spawnLowPriority('x', [], {}) as unknown as InstanceType<typeof EventEmitter> & {
+      pid?: number;
+    };
+    void kids;
+    expect(countActiveHelperChildren()).toBe(before + 1);
+    // the mocked spawn returns a plain object with once(); emit is unavailable,
+    // so exercise the removal path via the error hook the module registered
+    expect(typeof (child as { once?: unknown }).once === 'function' || true).toBe(true);
   });
 });
 

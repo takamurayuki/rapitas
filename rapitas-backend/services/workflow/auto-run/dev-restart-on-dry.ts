@@ -161,6 +161,19 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
     diag('phase-running', { runningPhases });
     return false;
   }
+  // A verify run's shell children inherit the listen socket; restarting while
+  // one is alive strands the dead backend's :3001 LISTEN (ghost socket —
+  // observed three times 2026-08-30/31). Helper children include agent CLIs.
+  try {
+    const { countActiveHelperChildren } = await import('../../agents/process-priority');
+    const helperChildren = countActiveHelperChildren();
+    if (helperChildren > 0) {
+      diag('helper-children-running', { helperChildren });
+      return false;
+    }
+  } catch {
+    // Fail open: the counter is a safety refinement, never a restart blocker.
+  }
 
   if (!(await restartEnabled())) {
     diag('restartOnAutoRunDry=off');

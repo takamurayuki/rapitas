@@ -77,5 +77,29 @@ export function spawnLowPriority(
 ): ChildProcess {
   const child = spawn(command, args, options);
   lowerProcessPriority(child.pid, flag);
+  // Track liveness so restart gates can refuse to kill the backend while a
+  // helper (verification run, agent CLI) is mid-flight: children spawned via
+  // a shell inherit the listen socket, and a restart during a verify run left
+  // the dead backend's :3001 LISTEN alive three times on 2026-08-30/31.
+  if (child.pid !== undefined) {
+    activeChildren.add(child.pid);
+    const done = () => {
+      if (child.pid !== undefined) activeChildren.delete(child.pid);
+    };
+    child.once('exit', done);
+    child.once('error', done);
+  }
   return child;
+}
+
+/** Pids of helper children currently running (see spawnLowPriority). */
+const activeChildren = new Set<number>();
+
+/**
+ * How many helper children (verification commands, agent CLIs) are running.
+ *
+ * @returns Live child count. / 生存中の子プロセス数
+ */
+export function countActiveHelperChildren(): number {
+  return activeChildren.size;
 }
