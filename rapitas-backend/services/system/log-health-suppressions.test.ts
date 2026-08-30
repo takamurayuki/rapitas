@@ -19,6 +19,10 @@ const SUPPRESSED: [string, string][] = [
     'workflow-reconciler-queue-stall',
     '[reconciler] Queue starvation detected — restarted WorkflowRunner processing',
   ],
+  [
+    'workflow-reconciler-queue-stall',
+    '[reconciler] Queue has items while the runner is already processing — a kick cannot help; not restarting',
+  ],
   ['theme-auto-run-scheduler', '[ThemeAutoRunScheduler] Task # was already queued; tracking it'],
   [
     'auto-restart-merged-code-scheduler',

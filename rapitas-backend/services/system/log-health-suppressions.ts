@@ -43,8 +43,15 @@ const SUPPRESSIONS: Suppression[] = [
     because: 'プライマリ保護ガードが働いた',
   },
   {
-    test: /Queue starvation detected — restarted|re-enqueued to resume|was already queued; tracking/i,
-    because: '自己修復が成功している — 検出して回復した記録',
+    // workflow-reconciler-queue-stall.ts の detectQueueStarvation が出す対の
+    // ログ。「restarted」側は既にここで抑制済みだったが、runner が既に処理中で
+    // kick が no-op になるケースの文言（同ファイル130-147行、"a kick cannot help;
+    // not restarting"）は別文言のため未マッチだった。#761/#730と同型の抑制網の
+    // 対象漏れ — 実際に何かが壊れているわけではなく、runner稼働中の待機を記録
+    // しているだけ（#781）。
+    test: /Queue starvation detected — restarted|re-enqueued to resume|was already queued; tracking|kick cannot help; not restarting/i,
+    because:
+      '自己修復が成功している、または runner 稼働中の待機を記録しているだけ — 検出して回復/継続した記録',
   },
   {
     test: /Working tree dirty (at boundary )?— (skipping|restart skipped)/i,
