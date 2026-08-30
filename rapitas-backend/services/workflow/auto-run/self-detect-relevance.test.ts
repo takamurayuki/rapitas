@@ -32,6 +32,23 @@ describe('parseSelfDetectSignature', () => {
       cause: 'verify_repair',
     });
   });
+  test('アンカーが detail の対象タスク欄にしか無い場合も解析する（#787）', () => {
+    const title =
+      '[Bug] [自己検出] 状態不整合: task.status=todo のまま workflowStatus が前進済み(research_done)';
+    const detail = [
+      '## 概要',
+      '状態が矛盾。',
+      '',
+      '## 対象タスク',
+      '- #784「枯渇アイドルタイマー」',
+    ].join('\n');
+    expect(parseSelfDetectSignature(title, detail)).toEqual({
+      kind: 'state_mismatch',
+      anchorTaskId: 784,
+      cause: null,
+    });
+  });
+
   test('自己検出以外・回顧は対象外（null）', () => {
     expect(parseSelfDetectSignature('[Concern] [回顧] 修復ループ: 診断してください')).toBeNull();
     expect(parseSelfDetectSignature('[ログ:ERROR] 何か')).toBeNull();

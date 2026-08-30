@@ -36,6 +36,7 @@ export interface SelfDetectSignature {
  */
 export function parseSelfDetectSignature(
   title: string | null | undefined,
+  detail?: string | null,
 ): SelfDetectSignature | null {
   if (!title || !title.includes('[自己検出]')) return null;
   const kind = title.includes('状態不整合')
@@ -44,8 +45,12 @@ export function parseSelfDetectSignature(
       ? ('repeat_loop' as const)
       : null;
   if (!kind) return null;
-  const anchor = title.match(/[:：]\s*#(\d+)/);
-  const cause = title.match(/cause=([A-Za-z0-9_:.-]+)/);
+  // The anchor may live in the title (反復ループ) or only in the detail's
+  // 対象タスク section (状態不整合 — task 787 slipped past a title-only parse).
+  const anchor =
+    title.match(/[:：]\s*#(\d+)/) ?? (detail ?? '').match(/対象タスク[^#]{0,40}#(\d+)/);
+  const cause = `${title}
+${detail ?? ''}`.match(/cause=([A-Za-z0-9_:.-]+)/);
   return {
     kind,
     anchorTaskId: anchor ? Number(anchor[1]) : null,
@@ -107,11 +112,12 @@ const ADVANCED_WF = new Set([
 export async function isSelfDetectConcernStillRelevant(
   concern: {
     title: string | null | undefined;
+    detail?: string | null;
     createdAt: Date | string | number | null | undefined;
   },
   deps: Partial<RelevanceDeps> = {},
 ): Promise<boolean | null> {
-  const sig = parseSelfDetectSignature(concern.title);
+  const sig = parseSelfDetectSignature(concern.title, concern.detail);
   if (!sig || sig.anchorTaskId == null) return null;
   const d: RelevanceDeps = { ...defaultDeps, ...deps };
   try {
