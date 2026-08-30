@@ -327,6 +327,25 @@ export async function computeAndApplyStatusTransition(params: {
         },
         '[Workflow] Invariant violations detected after status update',
       );
+      // Task 766: attempt code-specific self-repair AFTER the transition above
+      // is fully recorded (never before — that would risk the double-record
+      // shape task 674/705/710 already hit) and only when the non-convergence
+      // cutoff did NOT already escalate this save to blocked.
+      const missingFileViolation = violations.find((v) => v.code === 'missing_file');
+      if (missingFileViolation && !invariantCutoffRecorded) {
+        const { repairMissingFile } =
+          await import('../../../../services/workflow/invariant-repair');
+        const repair = await repairMissingFile(taskId, missingFileViolation).catch((err) => {
+          log.warn({ err, taskId }, '[Workflow] repairMissingFile threw — failing open');
+          return { repaired: false as const };
+        });
+        if (repair.repaired) {
+          log.info(
+            { taskId, newStatus: repair.newStatus },
+            '[Workflow] missing_file violation self-repaired (workflowStatus rolled back)',
+          );
+        }
+      }
     }
   }
 

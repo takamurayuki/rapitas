@@ -44,6 +44,14 @@ mock.module('../../../../services/workflow/verify-invariant-repair', () => ({
   attemptInvariantCutoff: mockAttemptInvariantCutoff,
 }));
 
+// Task 766: missing_file self-repair is dispatched from the same violations
+// list — mocked so this file stays focused on the cutoff wiring (repair's
+// own behavior is covered by invariant-repair.test.ts).
+const mockRepairMissingFile = mock(() => Promise.resolve({ repaired: false })) as any;
+mock.module('../../../../services/workflow/invariant-repair', () => ({
+  repairMissingFile: mockRepairMissingFile,
+}));
+
 const mockMarkLatestExecutionFailed = mock(() => Promise.resolve()) as any;
 mock.module('./shared', () => ({
   markLatestExecutionFailed: mockMarkLatestExecutionFailed,
@@ -75,6 +83,7 @@ describe('computeAndApplyStatusTransition — 不変条件カットオフの配�
     mockMarkLatestExecutionFailed.mockClear();
     mockCheckWorkflowInvariants.mockReset().mockResolvedValue([]);
     mockAttemptInvariantCutoff.mockReset().mockResolvedValue(false);
+    mockRepairMissingFile.mockReset().mockResolvedValue({ repaired: false });
   });
 
   test('violation なしなら attemptInvariantCutoff を呼ばず従来どおり file_saved:verify を記録すること', async () => {
@@ -111,6 +120,14 @@ describe('computeAndApplyStatusTransition — 不変条件カットオフの配�
     expect(mockTaskUpdate).not.toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'blocked' }) }),
     );
+    // Task 766: カットオフが発生しなかった missing_file 違反は自己修復を試みる。
+    expect(mockRepairMissingFile).toHaveBeenCalledWith(
+      572,
+      expect.objectContaining({
+        code: 'missing_file',
+        message: 'workflowStatus="verify_done" but plan.md is missing',
+      }),
+    );
   });
 
   test('再発違反（task #572 shape）はカットオフのみが記録され file_saved:verify は記録されないこと', async () => {
@@ -133,6 +150,8 @@ describe('computeAndApplyStatusTransition — 不変条件カットオフの配�
     expect(mockMarkLatestExecutionFailed).toHaveBeenCalledTimes(1);
     // workflowStatus 自体は確定済みのまま — 遷移経路上の矛盾シグナルとして残す。
     expect(result.newStatus).toBe('verify_done');
+    // Task 766: カットオフでブロック済みのため自己修復は試みない（ブロック直後の巻き戻しを避ける）。
+    expect(mockRepairMissingFile).not.toHaveBeenCalled();
   });
 
   test('attemptInvariantCutoff が例外を投げても fail-open し通常の記録を継続すること', async () => {

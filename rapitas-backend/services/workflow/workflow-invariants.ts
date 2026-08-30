@@ -40,7 +40,7 @@ const PLAN_SENSITIVE_STATUSES = new Set<WorkflowStatus>([
  * @param wf - Normalized workflowStatus being checked. / 検査対象の正規化済みステータス
  * @returns True when the plan phase (and thus plan.md) is expected. / planフェーズが必須ならtrue
  */
-async function resolveIncludePlan(
+export async function resolveIncludePlan(
   workflowMode: string | null | undefined,
   wf: WorkflowStatus,
 ): Promise<boolean> {
@@ -56,9 +56,19 @@ function fileTypeOf(fileName: string): string {
   return fileName.replace(/\.md$/, '');
 }
 
+/**
+ * Stable violation codes so dashboards — and the per-code repair dispatcher
+ * (task 766, see invariant-repair.ts) — can group/branch reliably.
+ * `task_not_found` is a distinct terminal case: no task row exists to repair.
+ */
+export type ViolationCode =
+  | 'missing_file'
+  | 'status_mismatch'
+  | 'incomplete_subtasks'
+  | 'task_not_found';
+
 export interface Violation {
-  /** Stable code so dashboards can group: missing_file / status_mismatch / regression. */
-  code: string;
+  code: ViolationCode;
   message: string;
 }
 
