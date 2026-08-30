@@ -45,7 +45,7 @@ export async function resolveMaxRepairs(): Promise<number> {
  * @param taskId - Task id / タスクID
  * @returns Window start, or null when never wiped. / 窓の起点、無ければ null
  */
-async function resolveRepairWindowStart(taskId: number): Promise<Date | null> {
+export async function resolveRepairWindowStart(taskId: number): Promise<Date | null> {
   const row = await prisma.activityLog
     .findFirst({
       where: { taskId, action: { in: ['task_retried', 'acceptance_criteria_changed'] } },
