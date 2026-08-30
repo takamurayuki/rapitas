@@ -274,6 +274,16 @@ export async function runPhaseEpilogue(params: {
               ? violations.map((v) => `${v.code}:${v.message}`).join(' | ')
               : undefined,
         });
+        // Task 766: attempt missing_file self-repair AFTER the transition
+        // above is recorded (auto-run path counterpart to status-transition.ts).
+        const missingFileViolation = violations.find((v) => v.code === 'missing_file');
+        if (missingFileViolation) {
+          const { repairMissingFile } = await import('./invariant-repair');
+          await repairMissingFile(taskId, missingFileViolation).catch((err) => {
+            log.warn({ err, taskId }, '[WorkflowCLIExecutor] repairMissingFile threw — failing open');
+            return { repaired: false as const };
+          });
+        }
 
         // Auto-approve plan when the user's settings allow it. Without
         // this, the orchestrator-driven planner phase would land on
