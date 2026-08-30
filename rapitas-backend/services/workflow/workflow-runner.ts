@@ -366,7 +366,7 @@ export class WorkflowRunner {
         // fail the item — return it to the queue so the next poll re-checks
         // once the in-flight phase has advanced the workflowStatus.
         if (result.skipped) {
-          log.info(
+          log[result.held ? 'debug' : 'info'](
             { taskId: item.taskId, phase: currentStatus, held: result.held },
             result.held
               ? `[WorkflowRunner] Implementer held (${result.held}) — re-queuing item`

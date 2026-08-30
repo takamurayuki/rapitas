@@ -44,9 +44,8 @@ const SUPPRESSIONS = 'rapitas-backend/services/system/log-health-suppressions.ts
 let nowMs = 1_000_000;
 let plan: string | null = null;
 let research: string | null = `対象: \`${SUPPRESSIONS}\``;
-let openPrs: Array<{ prNumber: number; linkedTaskId: number | null }> = [
-  { prNumber: 533, linkedTaskId: 758 },
-];
+const fresh = () => new Date(nowMs - 60_000); // 1 min old — well inside the freshness window
+let openPrs: Array<{ prNumber: number; linkedTaskId: number | null; createdAt: Date | null }> = [];
 let prFiles: Record<number, string[]> = { 533: [SUPPRESSIONS] };
 
 /** Deterministic collaborators: file tokens are whatever sits inside backticks. */
@@ -68,7 +67,7 @@ beforeEach(() => {
   nowMs = 1_000_000;
   plan = null;
   research = `対象: \`${SUPPRESSIONS}\``;
-  openPrs = [{ prNumber: 533, linkedTaskId: 758 }];
+  openPrs = [{ prNumber: 533, linkedTaskId: 758, createdAt: fresh() }];
   prFiles = { 533: [SUPPRESSIONS] };
   delete process.env.RAPITAS_IMPLEMENT_OVERLAP_HOLD;
 });
@@ -124,8 +123,18 @@ describe('guardImplementOverlap', () => {
   });
 
   test('自タスクの PR は待つ理由にならない', async () => {
-    openPrs = [{ prNumber: 540, linkedTaskId: 759 }];
+    openPrs = [{ prNumber: 540, linkedTaskId: 759, createdAt: fresh() }];
     prFiles = { 540: [SUPPRESSIONS] };
+    expect((await run()).done).toBe(false);
+    expect(events.length).toBe(0);
+  });
+
+  test('6時間以上開きっぱなしの stale PR は待つ理由にならない（#435/#467 事例）', async () => {
+    openPrs = [
+      { prNumber: 435, linkedTaskId: 643, createdAt: new Date(nowMs - 7 * 60 * 60 * 1000) },
+      { prNumber: 467, linkedTaskId: 671, createdAt: null },
+    ];
+    prFiles = { 435: [SUPPRESSIONS], 467: [SUPPRESSIONS] };
     expect((await run()).done).toBe(false);
     expect(events.length).toBe(0);
   });

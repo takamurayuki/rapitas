@@ -101,7 +101,7 @@ describe('getOpenAutoPrsForTheme', () => {
     expect(prs.map((p) => p.prNumber)).toEqual([358, 363]);
     expect(findManyPr).toHaveBeenCalledWith({
       where: { state: 'open', linkedTaskId: { in: [559, 563] } },
-      select: { prNumber: true, linkedTaskId: true },
+      select: { prNumber: true, linkedTaskId: true, createdAt: true },
     });
   });
 

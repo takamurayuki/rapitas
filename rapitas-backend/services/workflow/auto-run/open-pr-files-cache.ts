@@ -24,6 +24,8 @@ export const PR_FILES_CACHE_TTL_MS = 60_000;
 export interface OpenAutoPr {
   prNumber: number;
   linkedTaskId: number | null;
+  /** PR row creation time; consumers use it to ignore stale PRs. */
+  createdAt: Date | null;
 }
 
 interface CacheEntry {
@@ -55,7 +57,10 @@ export interface PrFilesDeps {
 
 const defaultDeps: PrFilesDeps = {
   execGh: async (command, cwd) => {
-    const { stdout } = await execAsync(command, { cwd, encoding: 'utf8' });
+    // NOTE: 15s cap — an uncapped gh (credential prompt, dead network) blocked
+    // the runner's whole processQueue for 16 minutes on 2026-08-30. A timeout
+    // surfaces as an exec error and the caller already fails open on those.
+    const { stdout } = await execAsync(command, { cwd, encoding: 'utf8', timeout: 15_000 });
     return stdout;
   },
   now: () => Date.now(),
@@ -82,7 +87,7 @@ export async function getOpenAutoPrsForTheme(
     if (tasks.length === 0) return [];
     const rows = await prisma.gitHubPullRequest.findMany({
       where: { state: 'open', linkedTaskId: { in: tasks.map((t) => t.id) } },
-      select: { prNumber: true, linkedTaskId: true },
+      select: { prNumber: true, linkedTaskId: true, createdAt: true },
     });
     return rows;
   } catch (err) {

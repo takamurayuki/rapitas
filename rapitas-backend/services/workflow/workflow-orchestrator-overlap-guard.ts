@@ -24,6 +24,14 @@ import type { RoleTransition, WorkflowStatus } from './workflow-types';
 
 const log = createLogger('workflow:overlap-guard');
 
+/**
+ * Only PRs younger than this can hold the implementer. A healthy auto-PR
+ * merges in ~17 min (7-day median); one still open after 6 h is parked on a
+ * red CI or abandoned (#435/#467 held #755 on 2026-08-30) and waiting on it
+ * only burns the ceiling.
+ */
+export const OVERLAP_PR_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
 /** Per-task hold start (epoch ms); deleted on release. */
 const holdSince = new Map<number, number>();
 /** Per-task timeout-release time; no fresh hold starts within one ceiling of it. */
@@ -37,7 +45,9 @@ export function isImplementOverlapHoldEnabled(): boolean {
 
 /** Collaborators, injectable for tests. Defaults resolve lazily to stay out of the scheduler's static import graph. */
 export interface OverlapGuardDeps {
-  openPrs: (themeId: number) => Promise<Array<{ prNumber: number; linkedTaskId: number | null }>>;
+  openPrs: (
+    themeId: number,
+  ) => Promise<Array<{ prNumber: number; linkedTaskId: number | null; createdAt: Date | null }>>;
   prFiles: (cwd: string, prNumber: number) => Promise<string[]>;
   artifact: (taskId: number, fileType: 'plan' | 'research') => Promise<string | null>;
   parseFiles: (content: string) => string[];
@@ -105,8 +115,13 @@ export async function guardImplementOverlap(
   if (themeId == null || !cwd) return { done: false };
   const d: OverlapGuardDeps = { ...defaultDeps, ...deps };
   try {
-    // The task's own PR (re-runs, ci_repair) is never a reason to wait.
-    const openPrs = (await d.openPrs(themeId)).filter((pr) => pr.linkedTaskId !== taskId);
+    // The task's own PR (re-runs, ci_repair) is never a reason to wait, and
+    // neither is a stale one — only a PR fresh enough to merge soon holds us.
+    const freshSince = d.now() - OVERLAP_PR_MAX_AGE_MS;
+    const openPrs = (await d.openPrs(themeId)).filter(
+      (pr) =>
+        pr.linkedTaskId !== taskId && pr.createdAt != null && pr.createdAt.getTime() >= freshSince,
+    );
     if (openPrs.length === 0) return release(taskId, 'no_open_pr', d.now());
     const artifact = (await d.artifact(taskId, 'plan')) ?? (await d.artifact(taskId, 'research'));
     const planFiles = artifact ? d.parseFiles(artifact) : [];
