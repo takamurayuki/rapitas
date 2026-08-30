@@ -64,7 +64,10 @@ const SUPPRESSIONS: Suppression[] = [
     because: '任意プロバイダが不在なだけ — 必須ではない',
   },
   {
-    test: /fail-open|skipping \(fail-open\)/i,
+    // #760: 実際の呼び出し箇所の大半は "failing open"（ハイフン無し動詞句）を使っており
+    // "fail-open"（ハイフン付き名詞句）のみにマッチする旧正規表現では拾えなかった。
+    // 例: critic-gate.ts:90, completion-gate.ts:110, verify-self-repair.ts:185 ほか。
+    test: /fail(?:ing)?-open|failing open|skipping \(fail-open\)/i,
     because: '明示的に fail-open として継続している',
   },
   {
@@ -122,6 +125,17 @@ const SUPPRESSIONS: Suppression[] = [
     logger: /task-executor/i,
     because:
       'フォールバック機構が代替エージェントで再試行を開始した告知ログ — 障害検出は意図した分類ロジックであり、同一イベントはrecovery-metricsが既に構造化記録している',
+  },
+  {
+    // ログ出力箇所: task_queue.ts:230-233 の log.warn（reapStuckProcessing内）。
+    // attempts < maxAttempts の行を pending に差し戻し、次回ポーリングで自動リトライ
+    // させる自己修復の成功記録であり、壊れた側ではない（#761）。maxAttempts到達で
+    // dead_letter に送られる場合は別シグネチャ（'Stuck processing task moved to
+    // dead_letter'、ERROR）で記録されるため、本ルールで恒久失敗の可視性は失われない。
+    test: /Stuck processing task requeued as pending/i,
+    logger: /memory:task-queue/i,
+    because:
+      'reapStuckProcessing の自己修復が成功した記録 — 次回ポーリングで自動リトライされ、maxAttempts到達時は別シグネチャ(dead_letter)で記録される',
   },
   {
     // ログ出力箇所: middleware/error-handler.ts:165-170 の `code === 'PARSE'` 分岐
