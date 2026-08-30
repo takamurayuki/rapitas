@@ -231,9 +231,13 @@ describe('AgentWorkerManager', () => {
       const result = await cleanupFn('/some/base/dir');
 
       expect(result).toBe(3);
+      // baseDir does not exist in the test env, so computeWorktreeKeepPaths
+      // (worktree-keep-list.ts) hits readdir's ENOENT branch and resolves []
+      // for the 3rd arg before this delegation is asserted.
       expect(mockCleanupStaleWorktrees).toHaveBeenCalledWith(
         expect.any(Function),
         '/some/base/dir',
+        [],
       );
     });
   });
@@ -519,7 +523,9 @@ describe('AgentWorkerManager', () => {
       mockCleanupStaleWorktrees.mockResolvedValueOnce(2);
       const result = await manager.cleanupStaleWorktrees('/repo');
       expect(result).toBe(2);
-      expect(mockCleanupStaleWorktrees).toHaveBeenCalledWith(expect.any(Function), '/repo');
+      // '/repo' does not exist here either, so keepPaths resolves to [] — see
+      // the sibling assertion above for the full ENOENT-fallback rationale.
+      expect(mockCleanupStaleWorktrees).toHaveBeenCalledWith(expect.any(Function), '/repo', []);
     });
 
     it('commitChanges は git.commitChanges に委譲する', async () => {
