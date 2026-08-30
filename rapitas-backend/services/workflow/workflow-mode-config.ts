@@ -127,7 +127,23 @@ function toggleJson(s: Pick<WorkflowModeSettings, 'includePlan' | 'autoVerify'>)
  * @returns The selected workflow mode. / 選択されたワークフローモード
  */
 export async function selectModeByComplexity(score: number): Promise<WorkflowMode> {
-  const all = await getAllModeSettings();
+  return pickModeForScore(score, await getAllModeSettings());
+}
+
+/**
+ * Pure band resolution for a complexity score (testable without the DB).
+ *
+ * @param score - 0-100 complexity score. / 複雑度スコア
+ * @param all - Per-mode settings. / モード別設定
+ * @returns The selected workflow mode. / 選択されたモード
+ */
+export function pickModeForScore(
+  score: number,
+  all: Record<
+    WorkflowMode,
+    Pick<WorkflowModeSettings, 'isEnabled' | 'complexityMin' | 'complexityMax'>
+  >,
+): WorkflowMode {
   const order: WorkflowMode[] = [...WORKFLOW_MODES];
   for (const m of order) {
     const s = all[m];
@@ -136,7 +152,10 @@ export async function selectModeByComplexity(score: number): Promise<WorkflowMod
   if (score <= 35 && all.lightweight.isEnabled) return 'lightweight';
   if (score <= 70 && all.standard.isEnabled) return 'standard';
   if (all.comprehensive.isEnabled) return 'comprehensive';
-  return order.find((m) => all[m].isEnabled) ?? 'comprehensive';
+  // A score ABOVE every enabled band must clamp DOWN to the highest enabled
+  // tier, not fall through to the lowest: with comprehensive disabled, a
+  // score-76 task resolved to lightweight and 18 files went unplanned (#784).
+  return [...order].reverse().find((m) => all[m].isEnabled) ?? 'comprehensive';
 }
 
 /** Tier rank of each mode (ceremony level): lightweight < standard < comprehensive. */

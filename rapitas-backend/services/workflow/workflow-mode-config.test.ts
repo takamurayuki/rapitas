@@ -183,3 +183,21 @@ describe('recommendModeFromSettings', () => {
     expect(recommendModeFromSettings(80, all)).toBe('comprehensive');
   });
 });
+
+describe('pickModeForScore — 有効帯を超えるスコアのクランプ', () => {
+  const bands = (compEnabled: boolean) => ({
+    lightweight: { isEnabled: true, complexityMin: 0, complexityMax: 36 },
+    standard: { isEnabled: true, complexityMin: 37, complexityMax: 74 },
+    comprehensive: { isEnabled: compEnabled, complexityMin: 75, complexityMax: 100 },
+  });
+  it('comprehensive 無効時、スコア76は最上位の有効モード standard に落ちる（#784）', async () => {
+    const { pickModeForScore } = await import('./workflow-mode-config');
+    expect(pickModeForScore(76, bands(false) as never)).toBe('standard');
+  });
+  it('comprehensive 有効時は帯どおり comprehensive', async () => {
+    const { pickModeForScore } = await import('./workflow-mode-config');
+    expect(pickModeForScore(76, bands(true) as never)).toBe('comprehensive');
+    expect(pickModeForScore(20, bands(true) as never)).toBe('lightweight');
+    expect(pickModeForScore(50, bands(true) as never)).toBe('standard');
+  });
+});
