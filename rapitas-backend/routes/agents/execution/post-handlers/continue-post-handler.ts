@@ -55,12 +55,16 @@ export async function handleContinueResult(params: HandleContinueResultParams): 
     // NOTE: Clean up worktree after successful continued execution
     if (executionDir !== workingDirectory) {
       try {
-        await agentWorkerManager.removeWorktree(workingDirectory, executionDir);
-        await prisma.agentSession.update({
-          where: { id: targetSessionId },
-          data: { worktreePath: null },
-        });
-        log.info(`[continue-execution] Cleaned up worktree for task ${taskId}`);
+        const removed = await agentWorkerManager.removeWorktree(workingDirectory, executionDir);
+        if (removed) {
+          await prisma.agentSession.update({
+            where: { id: targetSessionId },
+            data: { worktreePath: null },
+          });
+          log.info(`[continue-execution] Cleaned up worktree for task ${taskId}`);
+        } else {
+          log.warn(`[continue-execution] removeWorktree refused for task ${taskId}`);
+        }
       } catch (cleanupErr) {
         log.warn(
           { err: cleanupErr },

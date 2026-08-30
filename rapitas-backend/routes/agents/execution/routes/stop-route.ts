@@ -114,12 +114,16 @@ export const stopRoute = new Elysia().post(
         for (const session of sessionsToClean) {
           if (!session.worktreePath) continue;
           try {
-            await removeWorktree(workingDirectory, session.worktreePath);
-            await prisma.agentSession.update({
-              where: { id: session.id },
-              data: { worktreePath: null },
-            });
-            log.info(`[stop-execution] Cleaned up worktree: ${session.worktreePath}`);
+            const removed = await removeWorktree(workingDirectory, session.worktreePath);
+            if (removed) {
+              await prisma.agentSession.update({
+                where: { id: session.id },
+                data: { worktreePath: null },
+              });
+              log.info(`[stop-execution] Cleaned up worktree: ${session.worktreePath}`);
+            } else {
+              log.warn(`[stop-execution] removeWorktree refused: ${session.worktreePath}`);
+            }
           } catch (worktreeError) {
             log.error(
               { err: worktreeError },

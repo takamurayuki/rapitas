@@ -210,11 +210,10 @@ class AgentWorker {
           break;
 
         case 'remove-worktree':
-          await this.orchestrator.removeWorktree(
+          result = await this.orchestrator.removeWorktree(
             data.baseDir as string,
             data.worktreePath as string,
           );
-          result = true;
           break;
 
         case 'cleanup-stale-worktrees':

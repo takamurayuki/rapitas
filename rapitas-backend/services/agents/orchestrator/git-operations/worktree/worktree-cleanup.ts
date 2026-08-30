@@ -77,8 +77,12 @@ export async function cleanupStaleWorktrees(
 
       logger.info(`[cleanupStaleWorktrees] Removing stale worktree: ${wtPath}`);
       try {
-        await removeWorktree(baseDir, wtPath);
-        cleanedCount++;
+        const removed = await removeWorktree(baseDir, wtPath);
+        if (removed) {
+          cleanedCount++;
+        } else {
+          logger.warn(`[cleanupStaleWorktrees] removeWorktree refused or failed: ${wtPath}`);
+        }
       } catch (error) {
         logger.warn({ err: error }, `[cleanupStaleWorktrees] Failed to remove ${wtPath}`);
       }
@@ -173,18 +177,24 @@ export async function cleanupOrphanedWorktrees(
 
       try {
         // Remove the worktree if it exists
-        await removeWorktree(baseDir, session.worktreePath);
-        cleanedCount++;
+        const removed = await removeWorktree(baseDir, session.worktreePath);
+        if (removed) {
+          cleanedCount++;
 
-        // Clear the worktreePath in the database
-        await prisma.agentSession.update({
-          where: { id: session.id },
-          data: { worktreePath: null },
-        });
+          // Clear the worktreePath in the database
+          await prisma.agentSession.update({
+            where: { id: session.id },
+            data: { worktreePath: null },
+          });
 
-        logger.info(
-          `[cleanupOrphanedWorktrees] Cleaned up worktree for session ${session.id} (${session.status}): ${session.worktreePath}`,
-        );
+          logger.info(
+            `[cleanupOrphanedWorktrees] Cleaned up worktree for session ${session.id} (${session.status}): ${session.worktreePath}`,
+          );
+        } else {
+          logger.warn(
+            `[cleanupOrphanedWorktrees] removeWorktree refused for session ${session.id}: ${session.worktreePath}`,
+          );
+        }
       } catch (error) {
         logger.warn(
           { err: error },

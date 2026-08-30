@@ -34,17 +34,18 @@ const logger = createLogger('git-operations/worktree-ops');
  * @param baseDir - The main repository root / メインリポジトリのルート
  * @param worktreePath - Absolute path to the worktree to remove / 削除するworktreeの絶対パス
  * @param deleteBranch - Whether to delete the associated branch (default: true) / 関連するブランチを削除するか（デフォルト: true）
+ * @returns Whether the worktree directory was actually removed (or was already gone) / worktreeディレクトリが実際に削除された（または既に存在しなかった）か
  */
 export async function removeWorktree(
   baseDir: string,
   worktreePath: string,
   deleteBranch: boolean = true,
-): Promise<void> {
+): Promise<boolean> {
   // NOTE: Validate path before any destructive operation — prevents accidental deletion of .git/ or main repo.
   // isPathSafeForWorktreeOperation already logs the rejection reason via git-operations/safety;
   // do not duplicate that log here (see K-8046/K-8047 — same event, two concerns).
   if (!isPathSafeForWorktreeOperation(worktreePath, baseDir)) {
-    return;
+    return false;
   }
 
   // NOTE: Wait for any in-flight dependency setup (setup-worktree.cjs) to complete before
@@ -125,12 +126,14 @@ export async function removeWorktree(
     logger.debug({ err: preErr }, '[removeWorktree] pre-prune failed (non-fatal)');
   }
 
+  let removed = false;
   try {
     await execFileAsync('git', ['worktree', 'remove', worktreePath, '--force'], {
       cwd: baseDir,
       encoding: 'utf8',
     });
     logger.info(`[removeWorktree] Removed worktree: ${worktreePath}`);
+    removed = true;
   } catch (error) {
     // NOTE: If git worktree remove fails (e.g., already deleted), try filesystem cleanup
     logger.warn(
@@ -150,14 +153,14 @@ export async function removeWorktree(
             logger.error(
               `[removeWorktree] REFUSED fs cleanup: ${worktreePath} contains .git directory (likely main repo, not worktree)`,
             );
-            return;
+            return false;
           }
         } catch {
           // NOTE: stat failed — proceed with caution, but the path validation above should protect us
         }
       }
 
-      const removed = await rmDirWithRetry(worktreePath);
+      removed = await rmDirWithRetry(worktreePath);
       if (removed) {
         logger.info(`[removeWorktree] Cleaned up directory: ${worktreePath}`);
       } else {
@@ -165,6 +168,10 @@ export async function removeWorktree(
           `[removeWorktree] Could not remove ${worktreePath} after retries (held handles); leaving for the cleanup scheduler`,
         );
       }
+    } else {
+      // NOTE: git worktree remove failed but the directory is already gone —
+      // treat the end state (no directory) as successfully removed.
+      removed = true;
     }
   }
 
@@ -238,4 +245,6 @@ export async function removeWorktree(
   // NOTE: Invalidate the GitHub remote URL cache for this path so a future
   // worktree reusing the same directory cannot receive a stale owner/repo.
   clearGitRemoteCache(worktreePath);
+
+  return removed;
 }

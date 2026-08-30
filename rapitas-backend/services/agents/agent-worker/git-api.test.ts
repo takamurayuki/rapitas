@@ -101,17 +101,25 @@ describe('createWorktree', () => {
 });
 
 describe('removeWorktree', () => {
-  test('delegates to ipc with a 5 minute timeout and no return value', async () => {
-    ipcMock.mockResolvedValue(undefined);
+  test('delegates to ipc with a 5 minute timeout and returns true when the worktree was removed', async () => {
+    ipcMock.mockResolvedValue(true);
 
     const result = await removeWorktree(ipc, '/repo', '/repo-worktrees/task-9');
 
-    expect(result).toBeUndefined();
+    expect(result).toBe(true);
     expect(ipcMock).toHaveBeenCalledWith(
       'remove-worktree',
       { baseDir: '/repo', worktreePath: '/repo-worktrees/task-9' },
       5 * 60 * 1000,
     );
+  });
+
+  test('returns false when the ipc response is not exactly true (refused or failed)', async () => {
+    ipcMock.mockResolvedValue(false);
+
+    const result = await removeWorktree(ipc, '/repo', '/repo-worktrees/task-9');
+
+    expect(result).toBe(false);
   });
 });
 

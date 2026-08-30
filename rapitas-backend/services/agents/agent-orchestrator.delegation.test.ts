@@ -72,7 +72,7 @@ const gitOpsMocks = {
   revertChanges: mock((_wd: string) => Promise.resolve(true)),
   createBranch: mock((_wd: string, _name: string) => Promise.resolve(true)),
   createWorktree: mock((..._args: unknown[]) => Promise.resolve('/tmp/worktree')),
-  removeWorktree: mock((..._args: unknown[]) => Promise.resolve()),
+  removeWorktree: mock((..._args: unknown[]) => Promise.resolve(true)),
   cleanupStaleWorktrees: mock((..._args: unknown[]) => Promise.resolve(3)),
   createCommit: mock((..._args: unknown[]) =>
     Promise.resolve({ hash: 'h1', branch: 'main', filesChanged: 2, additions: 5, deletions: 1 }),
@@ -111,7 +111,7 @@ mock.module('./orchestrator/git-operations', () => ({
   ensureGitRepository: mock(() => Promise.resolve()),
   validateAndSetupRemote: mock(() => Promise.resolve()),
   createWorktree: mock(() => Promise.resolve('')),
-  removeWorktree: mock(() => Promise.resolve()),
+  removeWorktree: mock(() => Promise.resolve(true)),
   cleanupStaleWorktrees: mock(() => Promise.resolve(0)),
 }));
 
@@ -359,7 +359,7 @@ describe('git operations delegation', () => {
     const orchestrator = getOrchestrator();
 
     await orchestrator.createWorktree('/base', 'branch', 42, 'https://repo.git', 'develop');
-    await orchestrator.removeWorktree('/base', '/base/wt-42');
+    await expect(orchestrator.removeWorktree('/base', '/base/wt-42')).resolves.toBe(true);
     await expect(orchestrator.cleanupStaleWorktrees('/base')).resolves.toBe(3);
 
     expect(gitOpsMocks.createWorktree).toHaveBeenCalledWith(
@@ -373,6 +373,13 @@ describe('git operations delegation', () => {
     // NOTE: keepPaths (2nd arg, default []) added by ddb4bd89 (worktree keep-list
     // protection) — the delegation always forwards it (task 600).
     expect(gitOpsMocks.cleanupStaleWorktrees).toHaveBeenCalledWith('/base', []);
+  });
+
+  test('removeWorktree returns false when the underlying git operation refuses/fails', async () => {
+    const orchestrator = getOrchestrator();
+    gitOpsMocks.removeWorktree.mockResolvedValueOnce(false);
+
+    await expect(orchestrator.removeWorktree('/base', '/base/wt-42')).resolves.toBe(false);
   });
 });
 
