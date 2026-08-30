@@ -43,8 +43,15 @@ const SUPPRESSIONS: Suppression[] = [
     because: 'プライマリ保護ガードが働いた',
   },
   {
-    test: /Queue starvation detected — restarted|re-enqueued to resume|was already queued; tracking/i,
-    because: '自己修復が成功している — 検出して回復した記録',
+    // workflow-reconciler-queue-stall.ts の detectQueueStarvation が出す対の
+    // ログ。「restarted」側は既にここで抑制済みだったが、runner が既に処理中で
+    // kick が no-op になるケースの文言（同ファイル130-147行、"a kick cannot help;
+    // not restarting"）は別文言のため未マッチだった。#761/#730と同型の抑制網の
+    // 対象漏れ — 実際に何かが壊れているわけではなく、runner稼働中の待機を記録
+    // しているだけ（#781）。
+    test: /Queue starvation detected — restarted|re-enqueued to resume|was already queued; tracking|kick cannot help; not restarting/i,
+    because:
+      '自己修復が成功している、または runner 稼働中の待機を記録しているだけ — 検出して回復/継続した記録',
   },
   {
     test: /Working tree dirty (at boundary )?— (skipping|restart skipped)/i,
@@ -173,6 +180,17 @@ const SUPPRESSIONS: Suppression[] = [
     logger: /ai:provider-cooldown/i,
     because:
       'フォールバック機構がquota/rate_limit等を検知しプロバイダを一時停止した記録 — 代替プロバイダへの自動切替が正常に働いた側',
+  },
+  {
+    // ログ出力箇所: services/agents/claude-code/cli-utils.ts:65 の resolveCliPath()。
+    // `where` による事前解決が失敗しても、呼び出し元は buildSpawnCommand で
+    // spawn(..., { shell: true }) を使うため cmd.exe が実行時にPATHを再解決し、
+    // CLI実行自体には影響しない（cli-utils.ts:62-64のNOTE参照）。resolveCliPathは
+    // cliPathCacheでプロセス生存期間中1回のみ再解決を試みるため多重発火もしない（#779）。
+    test: /\[resolveCliPath\] Failed to resolve .+, using relative path/i,
+    logger: /claude-code-agent/i,
+    because:
+      'shell:trueによるspawnがcmd.exeで実行時にPATHを再解決するためCLI実行には影響しない — fail-openで継続している',
   },
 ];
 

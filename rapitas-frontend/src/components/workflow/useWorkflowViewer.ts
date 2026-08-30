@@ -8,7 +8,18 @@ import { useWorkflowFiles } from '@/hooks/workflow/useWorkflowFiles';
 import { useLocaleStore } from '@/stores/locale-store';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { API_BASE_URL } from '@/utils/api';
+import { sharedEventSource } from '@/lib/sse/shared-event-source';
+import { getAppHidden, subscribeAppHidden } from '@/hooks/common/app-visibility-store';
+import { useOnVisible } from '@/hooks/common/useOnVisible';
 import type { WorkflowMode } from './CompactWorkflowSelector';
+
+const ACTIVE_STATUSES = new Set<WorkflowStatus>([
+  'draft',
+  'research_done',
+  'plan_created',
+  'plan_approved',
+  'in_progress',
+]);
 
 const STATUS_ORDER: Record<string, number> = {
   draft: 0,
@@ -174,28 +185,60 @@ export function useWorkflowViewer({
   }, [stopPolling]);
 
   // Keep the viewer live during an ACTIVE workflow so md files saved by the
-  // agent (research/plan/verify) reflect without a manual reload. Polling stops
-  // automatically once the workflow reaches a terminal state.
+  // agent (research/plan/verify) reflect without a manual reload. Primary
+  // signal is the shared SSE connection (`phase_transition`/`item_update`,
+  // filtered to this task); 3s polling is only a fallback for whenever SSE is
+  // disconnected while the window is visible — never while hidden, since
+  // sharedEventSource itself closes the connection on hide and reopening a
+  // poller there would defeat the point of this effect (backend visibility
+  // hardening).
+  const status = (effectiveStatus ?? fetchedStatus ?? workflowStatus) as WorkflowStatus | null;
+  const isTerminal = status === 'completed' || status === 'verify_done';
+  const shouldTrack = !isTerminal && (isExecuting || (!!status && ACTIVE_STATUSES.has(status)));
+
   useEffect(() => {
-    const ACTIVE_STATUSES = new Set<WorkflowStatus>([
-      'draft',
-      'research_done',
-      'plan_created',
-      'plan_approved',
-      'in_progress',
-    ]);
-    const status = (effectiveStatus ?? fetchedStatus ?? workflowStatus) as WorkflowStatus | null;
-    const isTerminal = status === 'completed' || status === 'verify_done';
-    // Poll while an agent is executing (it writes the md files) OR the workflow
-    // is in an active status — but never once the workflow has terminated, so a
-    // stale "executing" flag can't keep polling forever.
-    const shouldPoll = !isTerminal && (isExecuting || (!!status && ACTIVE_STATUSES.has(status)));
-    if (shouldPoll) {
-      startPolling(3000);
-      return () => stopPolling();
+    if (!shouldTrack) {
+      stopPolling();
+      return;
     }
-    stopPolling();
-  }, [effectiveStatus, fetchedStatus, workflowStatus, isExecuting, startPolling, stopPolling]);
+
+    const isHidden = () => (typeof document !== 'undefined' && document.hidden) || getAppHidden();
+
+    const handleTaskEvent = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data) as { taskId?: number };
+        if (data?.taskId === taskId) refetch();
+      } catch {
+        // Malformed payload — ignore; the next event or fallback polling catches up.
+      }
+    };
+    const unsubPhase = sharedEventSource.subscribe('phase_transition', handleTaskEvent);
+    const unsubItem = sharedEventSource.subscribe('item_update', handleTaskEvent);
+
+    const syncFallbackPolling = (connected: boolean) => {
+      if (!connected && !isHidden()) startPolling(3000);
+      else stopPolling();
+    };
+    const unsubConn = sharedEventSource.onConnectionChange(syncFallbackPolling);
+    const handleVisibilityChange = () => syncFallbackPolling(sharedEventSource.isConnected());
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    const unsubAppHidden = subscribeAppHidden(() =>
+      syncFallbackPolling(sharedEventSource.isConnected()),
+    );
+
+    return () => {
+      unsubPhase();
+      unsubItem();
+      unsubConn();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      unsubAppHidden();
+      stopPolling();
+    };
+  }, [shouldTrack, taskId, refetch, startPolling, stopPolling]);
+
+  useOnVisible(() => {
+    if (shouldTrack) refetch();
+  });
 
   const handleAdvance = useCallback(async () => {
     setIsAdvancing(true);
@@ -238,13 +281,6 @@ export function useWorkflowViewer({
     }
   }, [fetchedStatus, stopPolling, refetch]);
 
-  // Start polling when plan_approved as backend will auto-advance
-  useEffect(() => {
-    if (effectiveStatus === 'plan_approved' && !pollingRef.current) {
-      startPolling(3000);
-    }
-  }, [effectiveStatus, startPolling]);
-
   const activeFile = useMemo(() => {
     if (!files) return null;
     return files[activeTab];
@@ -260,7 +296,14 @@ export function useWorkflowViewer({
     };
   }, [files]);
 
-  const isPolling = pollingRef.current !== null;
+  // `shouldTrack` covers SSE-driven tracking (the common case, no JS interval);
+  // `pollingRef.current !== null` covers the fallback/one-shot polling windows
+  // (SSE disconnected, or handleAdvance's transient post-advance poll) where
+  // shouldTrack may still be false. Consumers (WorkflowViewer's next-phase
+  // button) read this as "is the workflow being auto-tracked right now" —
+  // narrowing it to the JS-timer-only definition would make the button
+  // reappear during SSE-driven ACTIVE tracking (see plan.md §isPollingの意味論保持).
+  const isPolling = shouldTrack || pollingRef.current !== null;
 
   /**
    * Callback passed to CompactWorkflowSelector when complexity analysis completes.

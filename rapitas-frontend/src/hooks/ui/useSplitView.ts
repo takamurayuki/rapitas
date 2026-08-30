@@ -34,17 +34,19 @@ export function useSplitView(): UseSplitViewReturn {
     }
   }, []);
 
-  // Check state on mount and periodically
+  // Check state on mount and on events that can actually change it (manual
+  // window resize, or the window regaining visibility after being hidden).
   useEffect(() => {
     // Run initial check asynchronously
     const timer = setTimeout(() => checkSplitViewStatus(), 0);
 
-    // Periodically check state (detect manual window resize, etc.)
-    const interval = setInterval(checkSplitViewStatus, 1000);
+    window.addEventListener('resize', checkSplitViewStatus);
+    document.addEventListener('visibilitychange', checkSplitViewStatus);
 
     return () => {
       clearTimeout(timer);
-      clearInterval(interval);
+      window.removeEventListener('resize', checkSplitViewStatus);
+      document.removeEventListener('visibilitychange', checkSplitViewStatus);
     };
   }, [checkSplitViewStatus]);
 
