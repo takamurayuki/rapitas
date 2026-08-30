@@ -15,7 +15,6 @@
  * so the gate covers runtime breakage, not just lint/types. Not responsible for
  * committing or the retry loop.
  */
-import { spawn } from 'child_process';
 import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { dirname, extname, join, relative, resolve } from 'path';
 import { createLogger } from '../../../config/logger';
@@ -24,6 +23,7 @@ import { triageTestFailures } from './test-triage';
 import { buildTriagedTestCheck } from './test-triage-report';
 import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
 import { evaluateAcceptanceSelfCheck } from './acceptance-self-check';
+import { runProjectChecks, spawnQuiet } from './quiet-verification';
 import { assertSafeGitRef } from '../../../utils/common/branch-name-generator';
 
 const log = createLogger('agents:automated-verifier');
@@ -116,7 +116,7 @@ function runCmd(
     let stdout = '';
     let stderr = '';
     let settled = false;
-    const child = spawn(command, { cwd, shell: true, windowsHide: true });
+    const child = spawnQuiet(command, { cwd, shell: true, windowsHide: true });
     const finish = (code: number) => {
       if (settled) return;
       settled = true;
@@ -915,12 +915,12 @@ export async function runAutomatedVerification(
   const testParts: VerificationCheck[] = [];
   const formatParts: VerificationCheck[] = [];
   for (const [projectRoot, relFiles] of groups) {
-    const [lint, type, test, format] = await Promise.all([
-      lintProject(projectRoot, workdir, relFiles),
-      typecheckProject(projectRoot, workdir, relFiles),
-      testProject(projectRoot, workdir, relFiles),
-      formatProject(projectRoot, workdir, relFiles),
-    ]);
+    const [lint, type, test, format] = await runProjectChecks({
+      lint: () => lintProject(projectRoot, workdir, relFiles),
+      type: () => typecheckProject(projectRoot, workdir, relFiles),
+      test: () => testProject(projectRoot, workdir, relFiles),
+      format: () => formatProject(projectRoot, workdir, relFiles),
+    });
     if (lint) lintParts.push(lint);
     if (type) typeParts.push(type);
     if (test) testParts.push(test);
