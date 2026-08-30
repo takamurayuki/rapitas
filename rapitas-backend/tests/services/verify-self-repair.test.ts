@@ -248,6 +248,9 @@ describe('attemptVerifyRepair', () => {
     const r = await attemptVerifyRepair(1, 'in_progress', 'fail', 'v');
     expect(r.bounced).toBe(true);
     expect(r.attempt).toBe(2);
+    // task 770: リトライなし（activityLog 既定 null）なら windowStart は null であること
+    const rt = recordTransition.mock.calls[0][0] as { metadata: { windowStart: string | null } };
+    expect(rt.metadata.windowStart).toBeNull();
   });
 
   // NOTE: RAPITAS_MAX_VERIFY_REPAIRS is read into a MODULE-LEVEL constant
@@ -325,6 +328,9 @@ describe('attemptVerifyRepair', () => {
     const firstCall = mockPrisma.workflowTransition.count.mock.calls[0] as unknown as unknown[];
     const countArgs = firstCall[0] as { where: { createdAt?: { gt: Date } } };
     expect(countArgs.where.createdAt?.gt).toEqual(retriedAt);
+    // task 770: windowStart はリトライ時刻の ISO 文字列と一致すること
+    const rt = recordTransition.mock.calls[0][0] as { metadata: { windowStart: string | null } };
+    expect(rt.metadata.windowStart).toBe(retriedAt.toISOString());
   });
 
   test('受入基準の差し替えも収束判定の窓の境界になること', async () => {

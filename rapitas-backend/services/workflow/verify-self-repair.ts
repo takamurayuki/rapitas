@@ -23,6 +23,7 @@ import {
   resolveMaxRepairs,
   countPriorRepairs,
   detectRepairNonConvergence,
+  resolveRepairWindowStart,
 } from './verify-self-repair-budget';
 import { writeRepairFeedback } from './verify-self-repair-feedback';
 import { ensureRunnerResumes, resolveRepairCaller } from './verify-self-repair-resume';
@@ -121,6 +122,7 @@ export async function attemptVerifyRepair(
         'verify_no_convergence',
         Date.now(),
         detail,
+        currentStatus ?? null,
       );
     } catch (err) {
       log.warn({ err, taskId }, '[verify-repair] Non-convergence escalation failed');
@@ -201,6 +203,11 @@ export async function attemptVerifyRepair(
   // append its rejection block to a verify.md that already passed.
   await writeRepairFeedback(taskId, reason, verifyContent, attempt);
 
+  // Diagnostic only (task 770): records whether the budget window was reset by
+  // a manual retry / criteria change since the last repair, so a later incident
+  // investigation can tell a legitimate reset from a TOCTOU without live DB access.
+  const windowStart = await resolveRepairWindowStart(taskId).catch(() => null);
+
   await recordTransition({
     taskId,
     fromStatus: currentStatus ?? null,
@@ -208,7 +215,7 @@ export async function attemptVerifyRepair(
     actor: 'system',
     cause: REPAIR_CAUSE,
     phase: 'verify',
-    metadata: { attempt, max, reason, caller },
+    metadata: { attempt, max, reason, caller, windowStart: windowStart?.toISOString() ?? null },
   });
 
   // Self-drive the re-run: a single/manual execution has no poller, so a
