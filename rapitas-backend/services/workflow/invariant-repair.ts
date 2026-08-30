@@ -108,7 +108,10 @@ export async function repairMissingFile(
     .update({ where: { id: taskId }, data: { workflowStatus: target, updatedAt: new Date() } })
     .then(() => true)
     .catch((err) => {
-      log.warn({ err, taskId }, '[invariant-repair] task.update failed during repair — failing open');
+      log.warn(
+        { err, taskId },
+        '[invariant-repair] task.update failed during repair — failing open',
+      );
       return false;
     });
   if (!updated) return { repaired: false, reason: 'db_update_failed' };

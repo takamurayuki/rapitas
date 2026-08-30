@@ -333,7 +333,8 @@ export async function computeAndApplyStatusTransition(params: {
       // cutoff did NOT already escalate this save to blocked.
       const missingFileViolation = violations.find((v) => v.code === 'missing_file');
       if (missingFileViolation && !invariantCutoffRecorded) {
-        const { repairMissingFile } = await import('../../../../services/workflow/invariant-repair');
+        const { repairMissingFile } =
+          await import('../../../../services/workflow/invariant-repair');
         const repair = await repairMissingFile(taskId, missingFileViolation).catch((err) => {
           log.warn({ err, taskId }, '[Workflow] repairMissingFile threw — failing open');
           return { repaired: false as const };

@@ -76,7 +76,10 @@ describe('repairMissingFile', () => {
   });
 
   test('修復不可（後続ファイルが存在）: research.md も plan.md も無いのに verify.md だけ存在 → repaired:false', async () => {
-    mockTaskFindUnique.mockResolvedValue({ workflowStatus: 'verify_done', workflowMode: 'standard' });
+    mockTaskFindUnique.mockResolvedValue({
+      workflowStatus: 'verify_done',
+      workflowMode: 'standard',
+    });
     mockWorkflowFileFindMany.mockResolvedValue([{ fileType: 'verify' }]);
 
     const result = await repairMissingFile(
@@ -90,7 +93,10 @@ describe('repairMissingFile', () => {
   });
 
   test('修復不可（安全な巻き戻し先を超えてファイルが存在）: research.md のみ present、plan/verify 不足だが verify.md が存在 → repaired:false', async () => {
-    mockTaskFindUnique.mockResolvedValue({ workflowStatus: 'verify_done', workflowMode: 'standard' });
+    mockTaskFindUnique.mockResolvedValue({
+      workflowStatus: 'verify_done',
+      workflowMode: 'standard',
+    });
     mockWorkflowFileFindMany.mockResolvedValue([{ fileType: 'research' }, { fileType: 'verify' }]);
 
     const result = await repairMissingFile(

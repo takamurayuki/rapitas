@@ -280,7 +280,10 @@ export async function runPhaseEpilogue(params: {
         if (missingFileViolation) {
           const { repairMissingFile } = await import('./invariant-repair');
           await repairMissingFile(taskId, missingFileViolation).catch((err) => {
-            log.warn({ err, taskId }, '[WorkflowCLIExecutor] repairMissingFile threw — failing open');
+            log.warn(
+              { err, taskId },
+              '[WorkflowCLIExecutor] repairMissingFile threw — failing open',
+            );
             return { repaired: false as const };
           });
         }
