@@ -197,16 +197,18 @@ async function inspectTask(
     }
   }
 
-  // Timeline reads oldest-first (self-incident-evidence), so the newest
-  // transition — whose cause decides the recovery grace for Pattern B — is last.
-  const latestTransition = state.timeline[state.timeline.length - 1];
+  // Pattern B's recovery grace scans the whole timeline, not just the newest
+  // cause (#775): a live process's delayed save can land after a recovery
+  // transition has already aged off the "latest" slot.
   const desync = detectTriStateDesync({
     taskStatus: task.status,
     workflowStatus: task.workflowStatus,
     latestSessionStatus: state.latestSessionStatus,
     latestExecutionStatus: state.latestExecutionStatus,
-    latestTransitionCause: latestTransition?.cause ?? null,
-    latestTransitionAtMs: state.latestTransitionAtMs,
+    recentTransitions: state.timeline.map((t) => ({
+      cause: t.cause,
+      createdAtMs: new Date(t.createdAt).getTime(),
+    })),
     latestSessionUpdatedAtMs: state.latestSessionUpdatedAtMs,
     themeAutoRunEnabled: task.themeId != null ? !disabledAutoRunThemeIds.has(task.themeId) : null,
     nowMs,
