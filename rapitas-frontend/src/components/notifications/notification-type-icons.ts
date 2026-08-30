@@ -230,12 +230,20 @@ export function resolveNotificationText(
   if (!i18n || !i18n.key.endsWith('.title')) {
     return { title: notification.title, message: notification.message };
   }
-  const messageKey = i18n.key.replace(/\.title$/, '.message');
+  // The backend stores the FULL path (notification.types.x.title) while `t`
+  // is already scoped to the `notification` namespace — passing it unchanged
+  // resolved notification.notification.types... and rendered the raw key.
+  const titleKey = i18n.key.replace(/^notification\./, '');
+  const messageKey = titleKey.replace(/\.title$/, '.message');
   try {
-    return {
-      title: t(i18n.key, i18n.params),
-      message: t(messageKey, i18n.params),
-    };
+    const title = t(titleKey, i18n.params);
+    const message = t(messageKey, i18n.params);
+    // next-intl returns the key path (no throw) on a missing message — fall
+    // back to the stored strings instead of showing the raw key to the user.
+    if (title.includes('.title') || message.includes('.message')) {
+      return { title: notification.title, message: notification.message };
+    }
+    return { title, message };
   } catch {
     return { title: notification.title, message: notification.message };
   }
