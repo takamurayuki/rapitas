@@ -198,4 +198,61 @@ describe('useBackendHealth', () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
+
+  it('sets isIntentionalRestart after 3 consecutive health-check failures', async () => {
+    mockFetch.mockRejectedValue(new Error('Connection refused'));
+
+    const { result } = renderHook(() => useBackendHealth({ retryIntervalMs: 1000 }));
+
+    // Initial check fails, but that alone is below the default threshold of 3.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(mockFetch.mock.calls.length).toBeLessThan(3);
+    expect(result.current.isIntentionalRestart).toBe(false);
+
+    // A further tick accumulates enough consecutive failures to cross the
+    // threshold.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(mockFetch.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(result.current.isIntentionalRestart).toBe(true);
+  });
+
+  it('resets the fallback counter on a successful check between failures', async () => {
+    // 2 failures, then a success (resets the counter), then failures resume.
+    mockFetch
+      .mockRejectedValueOnce(new Error('Connection refused'))
+      .mockRejectedValueOnce(new Error('Connection refused'))
+      .mockResolvedValueOnce({ ok: true })
+      .mockRejectedValue(new Error('Connection refused'));
+
+    const { result } = renderHook(() =>
+      useBackendHealth({ intervalMs: 1000, retryIntervalMs: 1000 }),
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    // The success response is consumed within this window, resetting the
+    // counter before the default threshold of 3 would otherwise be reached.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(result.current.isIntentionalRestart).toBe(false);
+
+    // Only 1-2 consecutive failures have accumulated since the reset — still
+    // below threshold.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(result.current.isIntentionalRestart).toBe(false);
+
+    // Enough failures since the reset to cross the threshold again.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(result.current.isIntentionalRestart).toBe(true);
+  });
 });

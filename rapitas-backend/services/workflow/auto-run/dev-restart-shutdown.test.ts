@@ -27,6 +27,9 @@ const gracefulShutdownMock = mock(() => {
   callOrder.push('gracefulShutdown');
   return Promise.resolve();
 });
+const realtimeShutdownMock = mock(() => {
+  callOrder.push('realtimeShutdown');
+});
 
 // Singleton mocks; implementation is swapped per test via `activeStopMock`.
 let activeStopMock: () => Promise<void> = stopProcessingMock;
@@ -44,6 +47,10 @@ mock.module('../../agents/agent-orchestrator', () => ({
       getActiveExecutionCount: () => 0,
     }),
   },
+}));
+
+mock.module('../../communication/realtime-service', () => ({
+  realtimeService: { shutdown: realtimeShutdownMock },
 }));
 
 // Prevent process.exit from killing the test runner.
@@ -78,7 +85,8 @@ mock.module('../../observability', () => ({
 }));
 
 // Dynamically import AFTER all mock.module calls.
-const { maybeRestartForUpdate, recordStartupCommit } = await import('./dev-restart-on-dry');
+const { maybeRestartForUpdate, recordStartupCommit, gracefulRestart } =
+  await import('./dev-restart-on-dry');
 
 afterAll(() => {
   // Restore process.exit so other tests are unaffected.
@@ -211,5 +219,43 @@ describe('gracefulRestart() — call order', () => {
     expect(callOrder.indexOf('gracefulShutdown')).toBeGreaterThan(
       callOrder.indexOf('stopProcessing'),
     );
+  });
+});
+
+describe('gracefulRestart() — SSE shutdown broadcast', () => {
+  test('calls realtimeService.shutdown() before stopProcessing and gracefulShutdown, then exits with 75', async () => {
+    callOrder.length = 0;
+    realtimeShutdownMock.mockClear();
+    stopProcessingMock.mockClear();
+    gracefulShutdownMock.mockClear();
+    exitMock.mockClear();
+    activeStopMock = stopProcessingMock;
+
+    await gracefulRestart();
+    // process.exit(75) is scheduled via a 300ms setTimeout after the awaited
+    // shutdown steps resolve — wait past it before asserting.
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    expect(callOrder).toEqual(['realtimeShutdown', 'stopProcessing', 'gracefulShutdown']);
+    expect(exitMock).toHaveBeenCalledWith(75);
+  });
+
+  test('realtimeService.shutdown() throwing does not prevent the rest of the shutdown sequence', async () => {
+    callOrder.length = 0;
+    stopProcessingMock.mockClear();
+    gracefulShutdownMock.mockClear();
+    exitMock.mockClear();
+    activeStopMock = stopProcessingMock;
+    realtimeShutdownMock.mockImplementationOnce(() => {
+      callOrder.push('realtimeShutdown');
+      throw new Error('simulated broadcast failure');
+    });
+
+    await gracefulRestart();
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    expect(callOrder).toContain('stopProcessing');
+    expect(callOrder).toContain('gracefulShutdown');
+    expect(exitMock).toHaveBeenCalledWith(75);
   });
 });

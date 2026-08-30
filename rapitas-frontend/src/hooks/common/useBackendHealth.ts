@@ -21,6 +21,8 @@ type UseBackendHealthOptions = {
   onReconnectAction?: () => void;
   /** Callback called on disconnection */
   onDisconnectAction?: () => void;
+  /** 連続ヘルスチェック失敗がこの回数に達したら、SSEのshutdownイベントを受信していなくても意図的な再起動とみなす。デフォルト: 3 */
+  restartFallbackThreshold?: number;
 };
 
 /**
@@ -28,6 +30,9 @@ type UseBackendHealthOptions = {
  * Calls onReconnect callback when disconnect→recovery is detected.
  * When shutdown event is received via SSE, treats it as intentional restart
  * and sets isIntentionalRestart flag to true.
+ * Also falls back to the same flag when health checks fail
+ * restartFallbackThreshold times in a row, covering restarts whose SSE
+ * shutdown event never arrives (e.g. the app was backgrounded).
  */
 export function useBackendHealth(options: UseBackendHealthOptions = {}) {
   const {
@@ -35,11 +40,13 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
     retryIntervalMs = 2000,
     onReconnectAction,
     onDisconnectAction,
+    restartFallbackThreshold = 3,
   } = options;
 
   const [status, setStatus] = useState<BackendHealthStatus>('checking');
   const [isIntentionalRestart, setIsIntentionalRestart] = useState(false);
   const wasDisconnectedRef = useRef(false);
+  const consecutiveFailureCountRef = useRef(0);
   const onReconnectRef = useRef(onReconnectAction);
   const onDisconnectRef = useRef(onDisconnectAction);
 
@@ -83,6 +90,7 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
       clearTimeout(timeoutId);
 
       if (res.ok) {
+        consecutiveFailureCountRef.current = 0;
         if (wasDisconnectedRef.current) {
           wasDisconnectedRef.current = false;
           setIsIntentionalRestart(false);
@@ -97,6 +105,13 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
           wasDisconnectedRef.current = true;
           logger.warn(`Backend disconnected: ${res.status} ${res.statusText}`);
           onDisconnectRef.current?.();
+        }
+        consecutiveFailureCountRef.current += 1;
+        if (consecutiveFailureCountRef.current >= restartFallbackThreshold) {
+          logger.warn(
+            `Health check failed ${consecutiveFailureCountRef.current} times in a row — treating as restart in progress`,
+          );
+          setIsIntentionalRestart(true);
         }
         setStatus('disconnected');
       }
@@ -114,9 +129,16 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
         logger.warn(`Backend health check failed: ${errorMessage}`, error);
         onDisconnectRef.current?.();
       }
+      consecutiveFailureCountRef.current += 1;
+      if (consecutiveFailureCountRef.current >= restartFallbackThreshold) {
+        logger.warn(
+          `Health check failed ${consecutiveFailureCountRef.current} times in a row — treating as restart in progress`,
+        );
+        setIsIntentionalRestart(true);
+      }
       setStatus('disconnected');
     }
-  }, []);
+  }, [restartFallbackThreshold]);
 
   // Single interval that adjusts based on status
   useEffect(() => {
