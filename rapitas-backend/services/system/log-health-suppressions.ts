@@ -64,7 +64,10 @@ const SUPPRESSIONS: Suppression[] = [
     because: '任意プロバイダが不在なだけ — 必須ではない',
   },
   {
-    test: /fail-open|skipping \(fail-open\)/i,
+    // #760: 実際の呼び出し箇所の大半は "failing open"（ハイフン無し動詞句）を使っており
+    // "fail-open"（ハイフン付き名詞句）のみにマッチする旧正規表現では拾えなかった。
+    // 例: critic-gate.ts:90, completion-gate.ts:110, verify-self-repair.ts:185 ほか。
+    test: /fail(?:ing)?-open|failing open|skipping \(fail-open\)/i,
     because: '明示的に fail-open として継続している',
   },
   {

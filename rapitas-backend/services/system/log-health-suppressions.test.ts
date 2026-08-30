@@ -51,6 +51,12 @@ const SUPPRESSED: [string, string][] = [
     'gh command failed: gh pr create --title [Task-#] no commits between develop and bugfix/t#-x',
   ],
   ['error-handler', 'Bad Request: Failed to parse JSON'],
+  ['routes:workflow:handlers:files', '[Workflow] Phase critic gate timed out — failing open'],
+  ['workflow:completion-gate', '[CompletionGate] diff check failed — failing open'],
+  [
+    'workflow:verify-self-repair',
+    '[verify-repair] Non-convergence check failed — failing open (no cutoff)',
+  ],
   ['task-executor', '[TaskExecutor] Provider failed — retrying with alternative agent config'],
   ['memory:task-queue', 'Stuck processing task requeued as pending'],
 ];
