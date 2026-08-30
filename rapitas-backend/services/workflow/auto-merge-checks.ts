@@ -25,6 +25,9 @@ const DEFAULT_BLOCKING_CHECKS = [
   'Test SQLite Compatible Suite',
   'Check Rust Code',
   'Lint Markdown files',
+  // The ratchet was decorative until 2026-08-30: nine files crossed the hard
+  // limit on develop while PRs merged past a red file-size check.
+  'Enforce per-file line limits (with ratchet baseline)',
   'Lint GitHub Actions workflows',
   'Secret scanning',
   // Build gates: never auto-merge code that doesn't build. (macOS/Windows build

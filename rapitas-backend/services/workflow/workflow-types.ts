@@ -94,4 +94,11 @@ export interface WorkflowAdvanceResult {
    * / 別フェーズ実行中のためエージェントを起動せず戻った場合に true。
    */
   skipped?: boolean;
+  /**
+   * Set with `skipped` when the implementer was HELD (not busy): the files its
+   * research/plan names are still changing in another open auto-PR. The runner
+   * re-queues the item exactly as for `skipped`; the text is for the log.
+   * / 実装フェーズをオープンPRとのファイル重複で保留した理由。
+   */
+  held?: string;
 }
