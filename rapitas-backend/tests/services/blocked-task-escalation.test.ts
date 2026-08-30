@@ -162,6 +162,33 @@ describe('escalateBlockedTask', () => {
     expect(did).toBe(true);
     expect(recordTransition).toHaveBeenCalledTimes(1);
   });
+
+  // task 770: fromStatus/toStatus に無効な 'blocked' 固定値ではなく、呼び出し元が
+  // 保持している実際の workflowStatus を記録できること。
+  test('workflowStatus 指定時: 遷移の fromStatus/toStatus がその値になること', async () => {
+    const did = await escalateBlockedTask(
+      prisma,
+      task,
+      'verify_repair_exhausted',
+      NOW,
+      undefined,
+      'verify_done',
+    );
+
+    expect(did).toBe(true);
+    const rt = recordTransition.mock.calls[0][0] as { fromStatus: string; toStatus: string };
+    expect(rt.fromStatus).toBe('verify_done');
+    expect(rt.toStatus).toBe('verify_done');
+  });
+
+  test('workflowStatus 省略時: 遷移の fromStatus/toStatus は従来どおり blocked になること（回帰防止）', async () => {
+    const did = await escalateBlockedTask(prisma, task, 'verify_repair_exhausted', NOW);
+
+    expect(did).toBe(true);
+    const rt = recordTransition.mock.calls[0][0] as { fromStatus: string; toStatus: string };
+    expect(rt.fromStatus).toBe('blocked');
+    expect(rt.toStatus).toBe('blocked');
+  });
 });
 
 describe('reescalateIfOverdue', () => {
@@ -216,6 +243,40 @@ describe('reescalateIfOverdue', () => {
 
     expect(did).toBe(false);
     expect(createNotification).not.toHaveBeenCalled();
+  });
+
+  // task 770: escalateBlockedTask と同じ workflowStatus 引数の契約を確認する。
+  test('workflowStatus 指定時: 遷移の fromStatus/toStatus がその値になること', async () => {
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      createdAt: new Date(NOW - (FOUR_HOURS_MS + 60 * 1000)),
+    });
+
+    const did = await reescalateIfOverdue(
+      prisma,
+      task,
+      'verify_repair_exhausted',
+      NOW,
+      undefined,
+      'verify_done',
+    );
+
+    expect(did).toBe(true);
+    const rt = recordTransition.mock.calls[0][0] as { fromStatus: string; toStatus: string };
+    expect(rt.fromStatus).toBe('verify_done');
+    expect(rt.toStatus).toBe('verify_done');
+  });
+
+  test('workflowStatus 省略時: 遷移の fromStatus/toStatus は従来どおり blocked になること（回帰防止）', async () => {
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      createdAt: new Date(NOW - (FOUR_HOURS_MS + 60 * 1000)),
+    });
+
+    const did = await reescalateIfOverdue(prisma, task, 'verify_repair_exhausted', NOW);
+
+    expect(did).toBe(true);
+    const rt = recordTransition.mock.calls[0][0] as { fromStatus: string; toStatus: string };
+    expect(rt.fromStatus).toBe('blocked');
+    expect(rt.toStatus).toBe('blocked');
   });
 });
 

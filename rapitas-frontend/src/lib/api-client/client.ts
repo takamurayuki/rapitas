@@ -346,7 +346,10 @@ export class APIClient {
       const elapsed = Date.now() - requestStartedAt;
       const msg = `Request timeout after ${elapsed}ms — ${requestLabel}`;
 
-      logger.error('[api-client] timeout', { requestLabel, elapsedMs: elapsed });
+      // errorThrottled with a stable key (no elapsedMs): a backend restart
+      // times out every in-flight GET at once and flooded the console
+      // (2026-08-30). The elapsed time still travels in the abort message.
+      logger.errorThrottled('[api-client] timeout', requestLabel);
       timeoutController.abort(new Error(msg));
     }, timeoutMs);
 

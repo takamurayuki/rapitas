@@ -126,7 +126,11 @@ export function useDeveloperMode(taskId: number) {
    */
   const restoreExecutionState = async () => {
     try {
-      const statusRes = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-status`);
+      // 15s cap: a mid-restart backend accepts but never answers — an unbounded
+      // fetch pinned isRestoringState=true and froze the panel on the skeleton (2026-08-30).
+      const statusRes = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-status`, {
+        signal: AbortSignal.timeout(15_000),
+      });
       if (!statusRes.ok) return null;
 
       const statusData = await statusRes.json();
@@ -150,7 +154,9 @@ export function useDeveloperMode(taskId: number) {
       let fullOutput = statusData.output || '';
       if (!fullOutput) {
         try {
-          const logsRes = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-logs`);
+          const logsRes = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-logs`, {
+            signal: AbortSignal.timeout(15_000),
+          });
           if (logsRes.ok) {
             const logsData = await logsRes.json();
             if (logsData.logs?.length > 0) {

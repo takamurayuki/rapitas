@@ -9,412 +9,76 @@
  * independently re-run this setup without leaking into unrelated suites (e.g.
  * auto-run-selection.test.ts, theme-auto-run-service.test.ts).
  *
- * Every dependency of theme-auto-run-scheduler.ts is replaced with a
- * controllable mock so the scheduler's OWN branching logic (not the already
- * independently-tested selection/service helpers) is what gets exercised.
+ * This file is a barrel: the actual mock.module() definitions live in the
+ * sibling `.collaborator-mocks.ts` (data/infra collaborators) and
+ * `.decision-mocks.ts` (the scheduler's own decision-layer collaborators)
+ * files — split out under task 765 to stay under the file-size ratchet. New
+ * mock.module() definitions belong in one of those two files, not here. This
+ * file only re-exports them, imports the SUT after they've run, and defines
+ * the test-harness helpers (`internal`, `resetSchedulerSingleton`, `makeState`,
+ * `resetAllMocks`) that operate across both groups.
  */
-import { mock } from 'bun:test';
+export * from './theme-auto-run-scheduler.test-support.collaborator-mocks';
+export * from './theme-auto-run-scheduler.test-support.decision-mocks';
+
 import type { ThemeAutoRunState } from './theme-auto-run-service';
 
-// ---------------------------------------------------------------------------
-// Silent logger (mirrors the shape used elsewhere: info/warn/error/debug)
-// ---------------------------------------------------------------------------
-const silentLogger = {
-  info: () => {},
-  warn: () => {},
-  error: () => {},
-  debug: () => {},
-};
-
-// ---------------------------------------------------------------------------
-// prisma (config) mocks
-// ---------------------------------------------------------------------------
-export const mockTaskCount = mock(() => Promise.resolve(0));
-export const mockTaskFindMany = mock(() => Promise.resolve([] as Array<{ id: number }>));
-export const mockTaskUpdate = mock(() => Promise.resolve({}));
-export const mockTaskFindUnique = mock(() =>
-  Promise.resolve(null as { workflowStatus: string } | null),
-);
-export const mockThemeAutoRunUpdateMany = mock(() => Promise.resolve({ count: 0 }));
-export const mockThemeAutoRunCount = mock(() => Promise.resolve(0));
-export const mockQueueItemFindFirst = mock(() =>
-  Promise.resolve(null as { id: number; status: string; errorMessage: string | null } | null),
-);
-export const mockQueueItemUpdateMany = mock(() => Promise.resolve({ count: 0 }));
-/** Counts `actor:'user'` transitions after a failure — the revival check. */
-export const mockTransitionCount = mock(() => Promise.resolve(0));
-/** Resource-contention gate hold record (task 725) — default unused (gate off in tests). */
-export const mockActivityLogCreate = mock(() => Promise.resolve({}));
-
-mock.module('../../../config', () => ({
-  prisma: {
-    task: {
-      count: mockTaskCount,
-      findMany: mockTaskFindMany,
-      update: mockTaskUpdate,
-      findUnique: mockTaskFindUnique,
-    },
-    themeAutoRun: {
-      updateMany: mockThemeAutoRunUpdateMany,
-      count: mockThemeAutoRunCount,
-    },
-    workflowQueueItem: {
-      findFirst: mockQueueItemFindFirst,
-      updateMany: mockQueueItemUpdateMany,
-    },
-    workflowTransition: {
-      count: mockTransitionCount,
-    },
-    activityLog: {
-      create: mockActivityLogCreate,
-    },
-  },
-  ensureDatabaseConnection: () => Promise.resolve(),
-  getDbProvider: () => 'postgresql',
-  getInsensitiveMode: () => ({}),
-  getProjectRoot: () => '/tmp/rapitas-test',
-  logger: silentLogger,
-  createLogger: () => silentLogger,
-}));
-
-mock.module('../../../config/logger', () => ({
-  getBackendLogFilePath: () => '/tmp/rapitas-test/backend.log',
-  logger: silentLogger,
-  createLogger: () => silentLogger,
-}));
-
-// ---------------------------------------------------------------------------
-// task-resolver mocks
-// ---------------------------------------------------------------------------
-export const mockResolveTaskThemeId = mock(() =>
-  Promise.resolve(null as { id: number; themeId: number | null } | null),
-);
-export const mockResolveTaskWorkflowState = mock(() =>
-  Promise.resolve(
-    null as {
-      id: number;
-      status: string;
-      workflowStatus: string | null;
-      workflowMode: string | null;
-      parentId: number | null;
-    } | null,
-  ),
-);
-export const mockResolveTaskWorkingDirectory = mock(() =>
-  Promise.resolve(
-    null as {
-      themeId: number | null;
-      workingDirectory: string | null;
-      theme: { workingDirectory: string | null } | null;
-    } | null,
-  ),
-);
-
-mock.module('../../task/task-resolver', () => ({
-  resolveTaskWithTheme: mock(() => Promise.resolve(null)),
-  resolveTaskWithThemeAndCategory: mock(() => Promise.resolve(null)),
-  resolveTaskForExecution: mock(() => Promise.resolve(null)),
-  resolveTaskWorkingDirectory: mockResolveTaskWorkingDirectory,
-  resolveTaskWorkflowState: mockResolveTaskWorkflowState,
-  resolveTaskTitle: mock(() => Promise.resolve(null)),
-  resolveTaskThemeId: mockResolveTaskThemeId,
-  resolveTaskForComplexityAnalysis: mock(() => Promise.resolve(null)),
-  resolveTaskSubtaskInfo: mock(() => Promise.resolve(null)),
-  resolveTaskForPlanApproval: mock(() => Promise.resolve(null)),
-  resolveTaskForAutoMerge: mock(() => Promise.resolve(null)),
-  resolveTaskForLearning: mock(() => Promise.resolve(null)),
-}));
-
-// ---------------------------------------------------------------------------
-// workflow-queue / workflow-runner / agent-worker-manager / realtime-service
-// ---------------------------------------------------------------------------
-export const mockEnqueue = mock(() => Promise.resolve({}));
-
-mock.module('../workflow-queue', () => ({
-  WorkflowQueueService: {
-    getInstance: () => ({
-      setMaxConcurrency: () => {},
-      getMaxConcurrency: () => 1,
-      enqueue: mockEnqueue,
-      dequeue: () => Promise.resolve(null),
-      updateStatus: () => Promise.resolve({}),
-      retryIfPossible: () => Promise.resolve(false),
-      cancel: () => Promise.resolve({}),
-      updatePriority: () => Promise.resolve({}),
-      getQueueState: () => Promise.resolve({}),
-      getSessionItems: () => Promise.resolve([]),
-      recoverStaleItems: () => Promise.resolve(0),
-      findByTaskId: () => Promise.resolve(null),
-    }),
-  },
-}));
-
-export const mockStartProcessing = mock(() => {});
-
-mock.module('../workflow-runner', () => ({
-  WorkflowRunner: {
-    getInstance: () => ({
-      startProcessing: mockStartProcessing,
-      stopProcessing: () => Promise.resolve(),
-      abortTask: () => 0,
-      getStatus: () => ({ activeItems: 0, queuedItems: 0, maxConcurrency: 1, isRunning: false }),
-      resumeAfterApproval: () => Promise.resolve(true),
-    }),
-  },
-}));
-
-export const mockRevertChanges = mock(() => Promise.resolve(true));
-
-mock.module('../../agents/agent-worker-manager', () => ({
-  AgentWorkerManager: {
-    getInstance: () => ({ revertChanges: mockRevertChanges }),
-  },
-}));
-
-export const mockBroadcast = mock(() => {});
-
-mock.module('../../communication/realtime-service', () => ({
-  RealtimeService: class {},
-  realtimeService: { broadcast: mockBroadcast },
-}));
-
-// ---------------------------------------------------------------------------
-// backlog-task-promoter / dev-restart-on-dry / observability
-// ---------------------------------------------------------------------------
-export const mockHasPromotableBacklog = mock(() => Promise.resolve(false));
-export const mockPromoteBacklogForTheme = mock(() => Promise.resolve(0));
-
-mock.module('./backlog-task-promoter', () => ({
-  hasPromotableBacklog: mockHasPromotableBacklog,
-  promoteBacklogForTheme: mockPromoteBacklogForTheme,
-}));
-
-export const mockRecordStartupCommit = mock(() => Promise.resolve());
-export const mockMaybeRestartForUpdate = mock(() => Promise.resolve(false));
-export const mockRecordTransition = mock(() => Promise.resolve());
-mock.module('../transition-recorder', () => ({ recordTransition: mockRecordTransition }));
-
-mock.module('./dev-restart-on-dry', () => ({
-  recordStartupCommit: mockRecordStartupCommit,
-  maybeRestartForUpdate: mockMaybeRestartForUpdate,
-}));
-
-export const mockLogCycleEvent = mock(() => {});
-
-mock.module('../../observability', () => ({
-  logCycleEvent: mockLogCycleEvent,
-  getCycleLogFilePath: () => '/tmp/rapitas-test/cycle.ndjson',
-}));
-
-// ---------------------------------------------------------------------------
-// auto-run-selection (pure helper module) — fully replaced with controllable
-// mocks so the scheduler's OWN decisions are what's under test, not selection.
-// ---------------------------------------------------------------------------
-export const mockGetGlobalAutoRunActiveCount = mock(() => Promise.resolve(0));
-export const mockGetThemeActiveQueueItems = mock(() =>
-  Promise.resolve([] as Array<{ id: number; taskId: number; status: string }>),
-);
-export const mockIsAwaitingUserAnswer = mock(() => Promise.resolve(false));
-// Liveness check for the hang backstop — default false so existing backstop
-// tests (tenure exceeded → force-stop) keep exercising the kill path.
-export const mockHasLiveExecution = mock(() => Promise.resolve(false));
-// 進捗時刻: 既定は「進捗なし」(=0) にして、既存のバックストップ発火テストを維持する。
-export const mockResolveLastProgressAt = mock(() => Promise.resolve(0));
-export const mockSelectNextTask = mock(() =>
-  Promise.resolve({ found: false, reason: 'all_done' } as
-    | { found: true; taskId: number }
-    | { found: false; reason: 'all_done' | 'concurrency_limit' | 'awaiting_approval' }),
-);
-
-/** Test-tunable constants — kept small so cooldown/hang-backstop tests run fast. */
-export const TEST_AUTO_RUN_GLOBAL_MAX_CONCURRENCY = 1;
-export const TEST_POLL_INTERVAL_MS = 12_000;
-export const TEST_COOLDOWN_MS = 5;
-export const TEST_MAX_TASK_WALL_MS = 1_000;
-
-mock.module('./auto-run-selection', () => ({
-  AUTO_RUN_GLOBAL_MAX_CONCURRENCY: TEST_AUTO_RUN_GLOBAL_MAX_CONCURRENCY,
-  POLL_INTERVAL_MS: TEST_POLL_INTERVAL_MS,
-  COOLDOWN_MS: TEST_COOLDOWN_MS,
-  MAX_TASK_WALL_MS: TEST_MAX_TASK_WALL_MS,
-  priorityRank: (p: string | null | undefined) => (p ? 0 : 2),
-  isTaskBlocked: (status: string) => status === 'blocked',
-  getGlobalAutoRunActiveCount: mockGetGlobalAutoRunActiveCount,
-  getThemeActiveQueueItems: mockGetThemeActiveQueueItems,
-  isAwaitingUserAnswer: mockIsAwaitingUserAnswer,
-  hasLiveExecution: mockHasLiveExecution,
-  resolveLastProgressAt: mockResolveLastProgressAt,
-  HANG_BACKSTOP_HEARTBEAT_MS: 5 * 60_000,
-  selectNextTask: mockSelectNextTask,
-  // R6 learnable-band signal — null means "no data", i.e. the legacy ordering.
-  recentThemeSuccessRate: mock(() => Promise.resolve(null)),
-  valueBandScore: () => 0,
-  // Real (trivial) logic — no test needs to override "is any item waiting_approval".
-  hasItemAwaitingApproval: (items: Array<{ status: string }>) =>
-    items.some((i) => i.status === 'waiting_approval'),
-  // Scope-overlap helpers (task 573 B) — bun mock.module must mirror EVERY
-  // export. Defaults are "no overlap" so legacy scheduler tests are unaffected.
-  hasScopeOverlap: () => false,
-  overlappingFiles: () => [] as string[],
-}));
-
-// ---------------------------------------------------------------------------
-// open-pr-files-cache (task 573 B) — no open auto-PRs by default so the
-// scheduler's selection path stays on its legacy behavior in existing tests.
-// ---------------------------------------------------------------------------
-export const mockGetOpenAutoPrsForTheme = mock(() =>
-  Promise.resolve([] as Array<{ prNumber: number; linkedTaskId: number | null }>),
-);
-export const mockGetPrChangedFiles = mock(() => Promise.resolve([] as string[]));
-
-mock.module('./open-pr-files-cache', () => ({
-  PR_FILES_CACHE_TTL_MS: 60_000,
-  clearPrFilesCache: () => {},
-  getOpenAutoPrsForTheme: mockGetOpenAutoPrsForTheme,
-  getPrChangedFiles: mockGetPrChangedFiles,
-}));
-
-// ---------------------------------------------------------------------------
-// merge-barrier (task 573 C) — default OFF; barrier decision mirrors the real
-// pure logic so a test can flip the toggle mock and exercise the hold path.
-// ---------------------------------------------------------------------------
-export const mockReadMergeBarrierEnabled = mock(() => false);
-
-mock.module('../../scheduling/merge-barrier/merge-barrier', () => ({
-  MERGE_BARRIER_DEFAULT_MAX_HOLD_MS: 30 * 60 * 1000,
-  getMergeBarrierMaxHoldMs: () => 30 * 60 * 1000,
-  readMergeBarrierEnabled: mockReadMergeBarrierEnabled,
-  writeMergeBarrierEnabled: mock(() => {}),
-  shouldHoldForBarrier: (
-    enabled: boolean,
-    openPrExists: boolean,
-    holdSinceMs: number | null,
-    nowMs: number,
-    maxHoldMs: number,
-  ) => {
-    if (!enabled || !openPrExists) return false;
-    if (holdSinceMs === null) return true;
-    return nowMs - holdSinceMs < maxHoldMs;
-  },
-}));
-
-// ---------------------------------------------------------------------------
-// theme-auto-run-service — fully replaced; the scheduler's calls into it are
-// what several tests assert on directly (e.g. onTaskCompleted, setCurrentTask).
-// ---------------------------------------------------------------------------
-export const mockFindByStatuses = mock(() => Promise.resolve([] as ThemeAutoRunState[]));
-export const mockSetCurrentTask = mock(() => Promise.resolve());
-export const mockOnTaskCompleted = mock(() => Promise.resolve());
-export const mockOnTaskFailed = mock(() => Promise.resolve());
-export const mockOnAwaitingPlanApproval = mock(() => Promise.resolve());
-export const mockResumeAutoRun = mock(() => Promise.resolve(null as ThemeAutoRunState | null));
-export const mockFinalizeStop = mock(() => Promise.resolve());
-export const mockGetAutoRunState = mock(() => Promise.resolve(null as ThemeAutoRunState | null));
-export const mockStartAutoRun = mock(() => Promise.resolve({} as ThemeAutoRunState));
-
-mock.module('./theme-auto-run-service', () => ({
-  AUTO_RUN_STATUSES: ['idle', 'running', 'paused', 'stopping'],
-  narrowAutoRunStatus: (s: string | null | undefined) => s ?? 'idle',
-  isAutoRunHandlingTask: () => false,
-  getOrCreateAutoRun: mock(() => Promise.resolve({})),
-  getAutoRunState: mockGetAutoRunState,
-  startAutoRun: mockStartAutoRun,
-  pauseAutoRun: mock(() => Promise.resolve({})),
-  resumeAutoRun: mockResumeAutoRun,
-  stopAutoRun: mock(() => Promise.resolve({})),
-  finalizeStop: mockFinalizeStop,
-  setCurrentTask: mockSetCurrentTask,
-  onTaskCompleted: mockOnTaskCompleted,
-  onTaskFailed: mockOnTaskFailed,
-  onAwaitingPlanApproval: mockOnAwaitingPlanApproval,
-  isThemeAutoRunActive: mock(() => Promise.resolve(false)),
-  findByStatuses: mockFindByStatuses,
-}));
-
-// ---------------------------------------------------------------------------
-// auto-run-notifications
-// ---------------------------------------------------------------------------
-export const mockNotifyAwaitingPlanApproval = mock(() => Promise.resolve());
-export const mockNotifyAwaitingUserAnswer = mock(() => Promise.resolve());
-export const mockNotifyTaskSkipped = mock(() => Promise.resolve());
-export const mockNotifyAllDone = mock(() => Promise.resolve());
-export const mockNotifyAllBlocked = mock(() => Promise.resolve());
-export const mockNotifyHangBackstop = mock(() => Promise.resolve());
-export const mockNotifyTaskVanished = mock(() => Promise.resolve());
-export const mockNotifyResourceContentionHold = mock(() => Promise.resolve());
-
-mock.module('./auto-run-notifications', () => ({
-  notifyAwaitingPlanApproval: mockNotifyAwaitingPlanApproval,
-  notifyAwaitingUserAnswer: mockNotifyAwaitingUserAnswer,
-  notifyTaskSkipped: mockNotifyTaskSkipped,
-  notifyAllDone: mockNotifyAllDone,
-  notifyAllBlocked: mockNotifyAllBlocked,
-  notifyHangBackstop: mockNotifyHangBackstop,
-  notifyTaskVanished: mockNotifyTaskVanished,
-  notifyResourceContentionHold: mockNotifyResourceContentionHold,
-}));
-
-// ---------------------------------------------------------------------------
-// resource-telemetry / resource-contention-gate (task 725) — default to the
-// gate's own OFF state so every pre-existing scheduler test is unaffected
-// regardless of RAPITAS_RESOURCE_GATE_ENABLED. Dedicated resource-gate tests
-// override these mocks to exercise the hold path.
-// ---------------------------------------------------------------------------
-export const mockGetHostCpuBusyPercent = mock(() => null as number | null);
-
-mock.module('../../system/resource-telemetry', () => ({
-  startResourceTelemetryIfEnabled: () => {},
-  stopResourceTelemetry: () => {},
-  getHostCpuBusyPercent: mockGetHostCpuBusyPercent,
-  computeBusyPercent: () => null,
-}));
-
-export const mockEvaluateResourceGate = mock(() => ({
-  hold: false,
-  cpuBusyPercent: null as number | null,
-  thresholdPercent: 85,
-  effectiveMaxConcurrency: 1,
-}));
-export const mockConsumeResourceGateOverride = mock(() => false);
-export const mockRequestResourceGateOverride = mock(() => {});
-
-mock.module('./resource-contention-gate', () => ({
-  evaluateResourceGate: mockEvaluateResourceGate,
-  requestResourceGateOverride: mockRequestResourceGateOverride,
-  consumeResourceGateOverride: mockConsumeResourceGateOverride,
-}));
-
-// ---------------------------------------------------------------------------
-// auto-run-stall-guard (terminal-task residue release — task 618). Default 0 =
-// "nothing released" so every legacy wait-branch test keeps its old behavior.
-// ---------------------------------------------------------------------------
-export const mockReleaseStaleActiveItems = mock(() => Promise.resolve(0));
-
-mock.module('./auto-run-stall-guard', () => ({
-  releaseStaleActiveItems: mockReleaseStaleActiveItems,
-}));
-
-// blocked-task-escalation (all_blocked reporting — task 615)
-export const mockCountEscalatedBlocked = mock(() => Promise.resolve(0));
-
-mock.module('../blocked-task-escalation', () => ({
-  escalateBlockedTask: mock(() => Promise.resolve(false)),
-  countEscalatedBlocked: mockCountEscalatedBlocked,
-  BLOCKED_ESCALATED_CAUSE: 'blocked_escalated',
-}));
-
-// stop-task-agents (dynamically imported inside stopThemeExecution)
-export const mockStopTaskAgents = mock(() =>
-  Promise.resolve({ stoppedCount: 0, executionIds: [] }),
-);
-export const mockStopThemeAgents = mock(() =>
-  Promise.resolve({ stoppedCount: 0, executionIds: [] }),
-);
-
-mock.module('../../agents/stop-task-agents', () => ({
-  stopTaskAgents: mockStopTaskAgents,
-  stopThemeAgents: mockStopThemeAgents,
-}));
+import {
+  mockTaskCount,
+  mockTaskFindMany,
+  mockTaskUpdate,
+  mockTransitionCount,
+  mockTaskFindUnique,
+  mockThemeAutoRunUpdateMany,
+  mockThemeAutoRunCount,
+  mockQueueItemFindFirst,
+  mockQueueItemUpdateMany,
+  mockResolveTaskThemeId,
+  mockResolveTaskWorkflowState,
+  mockResolveTaskWorkingDirectory,
+  mockEnqueue,
+  mockStartProcessing,
+  mockRevertChanges,
+  mockBroadcast,
+  mockHasPromotableBacklog,
+  mockPromoteBacklogForTheme,
+  mockRecordStartupCommit,
+  mockMaybeRestartForUpdate,
+  mockRecordTransition,
+  mockLogCycleEvent,
+  mockStopTaskAgents,
+  mockStopThemeAgents,
+  mockActivityLogCreate,
+} from './theme-auto-run-scheduler.test-support.collaborator-mocks';
+import {
+  mockGetGlobalAutoRunActiveCount,
+  mockGetThemeActiveQueueItems,
+  mockIsAwaitingUserAnswer,
+  mockHasLiveExecution,
+  mockResolveLastProgressAt,
+  mockSelectNextTask,
+  mockFindByStatuses,
+  mockSetCurrentTask,
+  mockOnTaskCompleted,
+  mockOnTaskFailed,
+  mockOnAwaitingPlanApproval,
+  mockResumeAutoRun,
+  mockFinalizeStop,
+  mockGetAutoRunState,
+  mockStartAutoRun,
+  mockNotifyAwaitingPlanApproval,
+  mockNotifyAwaitingUserAnswer,
+  mockNotifyTaskSkipped,
+  mockNotifyAllDone,
+  mockNotifyHangBackstop,
+  mockNotifyTaskVanished,
+  mockNotifyResourceContentionHold,
+  mockGetHostCpuBusyPercent,
+  mockEvaluateResourceGate,
+  mockConsumeResourceGateOverride,
+  mockRequestResourceGateOverride,
+  mockReleaseStaleActiveItems,
+} from './theme-auto-run-scheduler.test-support.decision-mocks';
 
 // ---------------------------------------------------------------------------
 // Import the SUT after every dependency is mocked.

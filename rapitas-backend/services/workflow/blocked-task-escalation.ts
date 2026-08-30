@@ -19,6 +19,7 @@ import { submitConcern } from '../memory/concern-backlog-service';
 import { resolveSelfDevelopmentThemeId } from './self-development-theme';
 import type { BlockedExclusionReason } from './blocked-task-policy';
 import { BLOCKED_REESCALATION_INTERVAL_MS } from './blocked-task-policy';
+import { buildNotificationI18n } from '../communication/notification-i18n';
 
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 
@@ -81,6 +82,13 @@ const REASON_COPY: Record<BlockedExclusionReason, { needs: string; notificationT
  * @param detail - Case-specific evidence appended to the notification message
  *          and the concern detail (e.g. which criterion was flagged how many
  *          times — the static REASON_COPY cannot carry that). / 個別根拠文
+ * @param workflowStatus - The task's actual workflowStatus at escalation time,
+ *          when the caller has it on hand. Recorded as the transition's
+ *          fromStatus/toStatus instead of the hardcoded `'blocked'` literal,
+ *          which is not a valid workflowStatus value (task.status and
+ *          workflowStatus are distinct columns) and misled a prior incident
+ *          investigation (task 770). Omitted callers keep the old behavior. /
+ *          エスカレーション時点の実際の workflowStatus（省略時は従来通り）
  * @returns true when escalated now; false when already escalated (or the
  *          idempotency check failed — fail-closed against duplicates). / 実施有無
  */
@@ -90,6 +98,7 @@ export async function escalateBlockedTask(
   reason: BlockedExclusionReason,
   nowMs: number,
   detail?: string,
+  workflowStatus?: string | null,
 ): Promise<boolean> {
   // Permanent idempotency gate. A count failure escalates NOTHING — repeating
   // a notification is worse than deferring it to the next cycle.
@@ -117,7 +126,17 @@ export async function escalateBlockedTask(
         title: 'ブロックされたタスクが対応待ちです',
         message: `#${task.id}「${task.title}」は自動再試行の対象外です（理由: ${reason}）。${copy.needs}${detail ? ` ${detail}` : ''}`,
         link: `/tasks?taskId=${task.id}`,
-        metadata: JSON.stringify({ taskId: task.id, reason, source: 'blocked_escalation' }),
+        metadata: JSON.stringify({
+          taskId: task.id,
+          reason,
+          source: 'blocked_escalation',
+          i18n: buildNotificationI18n('blocked_escalation', {
+            taskId: task.id,
+            taskTitle: task.title,
+            reason,
+            detail: detail ? ` ${detail}` : '',
+          }),
+        }),
       },
     });
   } catch (err) {
@@ -150,8 +169,8 @@ export async function escalateBlockedTask(
 
   await recordTransition({
     taskId: task.id,
-    fromStatus: 'blocked',
-    toStatus: 'blocked',
+    fromStatus: workflowStatus ?? 'blocked',
+    toStatus: workflowStatus ?? 'blocked',
     actor: 'system',
     cause: BLOCKED_ESCALATED_CAUSE,
     metadata: { reason },
@@ -176,6 +195,11 @@ export async function escalateBlockedTask(
  * @param reason - Exclusion classification (reused for notification copy). / 除外理由
  * @param nowMs - Current time (ms). / 現在時刻
  * @param thresholdMs - Re-escalation interval, injectable for tests. / 再エスカレーション間隔
+ * @param workflowStatus - The task's actual workflowStatus at re-escalation
+ *          time, when the caller has it on hand. Recorded as the transition's
+ *          fromStatus/toStatus instead of the hardcoded `'blocked'` literal
+ *          (see {@link escalateBlockedTask}). Omitted callers keep the old
+ *          behavior. / エスカレーション時点の実際の workflowStatus（省略時は従来通り）
  * @returns true when re-escalated now; false when not yet due (or the lookup
  *          failed — fail-closed, matching escalateBlockedTask). / 実施有無
  */
@@ -185,6 +209,7 @@ export async function reescalateIfOverdue(
   reason: BlockedExclusionReason,
   nowMs: number,
   thresholdMs: number = BLOCKED_REESCALATION_INTERVAL_MS,
+  workflowStatus?: string | null,
 ): Promise<boolean> {
   let last: { createdAt: Date } | null;
   try {
@@ -214,7 +239,17 @@ export async function reescalateIfOverdue(
         title: 'ブロックされたタスクが対応待ちです（継続）',
         message: `#${task.id}「${task.title}」はエスカレーション後も${hours}時間解決されていません（理由: ${reason}）。${copy.needs}`,
         link: `/tasks?taskId=${task.id}`,
-        metadata: JSON.stringify({ taskId: task.id, reason, source: 'blocked_reescalation' }),
+        metadata: JSON.stringify({
+          taskId: task.id,
+          reason,
+          source: 'blocked_reescalation',
+          i18n: buildNotificationI18n('blocked_escalation_reescalated', {
+            taskId: task.id,
+            taskTitle: task.title,
+            reason,
+            hours,
+          }),
+        }),
       },
     });
   } catch (err) {
@@ -223,8 +258,8 @@ export async function reescalateIfOverdue(
 
   await recordTransition({
     taskId: task.id,
-    fromStatus: 'blocked',
-    toStatus: 'blocked',
+    fromStatus: workflowStatus ?? 'blocked',
+    toStatus: workflowStatus ?? 'blocked',
     actor: 'system',
     cause: BLOCKED_REESCALATED_CAUSE,
     metadata: { reason },

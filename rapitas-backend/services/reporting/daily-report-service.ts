@@ -13,6 +13,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { getCycleLogFilePath } from '../observability/cycle-event-logger';
 import { createNotification } from '../communication/notification-service';
+import { buildNotificationI18n } from '../communication/notification-i18n';
 import {
   DAILY_REPORT_WINDOW_MS,
   buildDailyReportData,
@@ -210,11 +211,13 @@ export async function runDailyReport(): Promise<number> {
     }
   }
 
+  const summaryMessage = formatDailyReportSummary(data);
   await createNotification({
     type: 'daily_report',
     title,
-    message: formatDailyReportSummary(data),
+    message: summaryMessage,
     link: '/agents/daily-report',
+    i18n: buildNotificationI18n('daily_report', { date, message: summaryMessage }),
     metadata: {
       date,
       windowStart: data.windowStart,

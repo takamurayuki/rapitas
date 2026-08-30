@@ -5,6 +5,7 @@
  * deciding outcomes — only for creating the Notification rows with a cooldown.
  */
 import { prisma } from '../../config/database';
+import { buildNotificationI18n } from '../communication/notification-i18n';
 
 /**
  * Dedup window for "保留" notifications. A task that is perpetually blocked
@@ -51,7 +52,17 @@ export async function notify(p: NotifyParams): Promise<void> {
         title: p.title,
         message: p.message,
         link,
-        metadata: JSON.stringify({ taskId: p.taskId }),
+        // NOTE: This helper only receives the already-formatted title/message
+        // (dynamic values like PR numbers are baked in by the many callers
+        // across auto-merge-watcher.ts/auto-merge-ci-failure.ts/etc. — out of
+        // this task's scope to touch). The title translates fully (it is
+        // always static copy); the message is passed through untranslated via
+        // the `message` param — see notification.types.<type>.message in the
+        // fragment files, which render `{message}` verbatim in both locales.
+        metadata: JSON.stringify({
+          taskId: p.taskId,
+          i18n: buildNotificationI18n(p.type, { message: p.message }),
+        }),
       },
     })
     .catch(() => {});

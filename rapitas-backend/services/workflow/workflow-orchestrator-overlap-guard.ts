@@ -52,6 +52,8 @@ export interface OverlapGuardDeps {
   artifact: (taskId: number, fileType: 'plan' | 'research') => Promise<string | null>;
   parseFiles: (content: string) => string[];
   overlap: (planFiles: string[], prFiles: string[]) => Promise<string[]>;
+  /** Whether the PR's auto-merge is parked (exhausted) — such a PR merges only after outside help. */
+  isParked: (linkedTaskId: number) => Promise<boolean>;
   now: () => number;
 }
 
@@ -73,6 +75,15 @@ const defaultDeps: OverlapGuardDeps = {
   overlap: async (planFiles, prFiles) => {
     const { overlappingFiles } = await import('./auto-run/auto-run-selection');
     return overlappingFiles(planFiles, prFiles);
+  },
+  isParked: async (linkedTaskId) => {
+    const { prisma } = await import('../../config');
+    const latest = await prisma.workflowTransition.findFirst({
+      where: { taskId: linkedTaskId, cause: { in: ['auto_merged', 'auto_merge_exhausted'] } },
+      orderBy: { createdAt: 'desc' },
+      select: { cause: true },
+    });
+    return latest?.cause === 'auto_merge_exhausted';
   },
   now: () => Date.now(),
 };
@@ -118,10 +129,18 @@ export async function guardImplementOverlap(
     // The task's own PR (re-runs, ci_repair) is never a reason to wait, and
     // neither is a stale one — only a PR fresh enough to merge soon holds us.
     const freshSince = d.now() - OVERLAP_PR_MAX_AGE_MS;
-    const openPrs = (await d.openPrs(themeId)).filter(
+    const candidates = (await d.openPrs(themeId)).filter(
       (pr) =>
         pr.linkedTaskId !== taskId && pr.createdAt != null && pr.createdAt.getTime() >= freshSince,
     );
+    // An exhausted-parked PR only merges after outside help — often exactly
+    // the held task's own job (#764 split verify-self-repair.ts to unblock
+    // PR #537, and the guard held #764 waiting for #537: a circular wait).
+    const openPrs: typeof candidates = [];
+    for (const pr of candidates) {
+      if (pr.linkedTaskId != null && (await d.isParked(pr.linkedTaskId))) continue;
+      openPrs.push(pr);
+    }
     if (openPrs.length === 0) return release(taskId, 'no_open_pr', d.now());
     const artifact = (await d.artifact(taskId, 'plan')) ?? (await d.artifact(taskId, 'research'));
     const planFiles = artifact ? d.parseFiles(artifact) : [];

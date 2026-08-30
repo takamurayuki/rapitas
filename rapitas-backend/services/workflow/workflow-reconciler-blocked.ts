@@ -236,6 +236,8 @@ export async function escalateAbandonedBlocked(nowMs: number): Promise<number> {
       { id: t.id, title: t.title, themeId: t.themeId },
       classification,
       nowMs,
+      undefined,
+      t.workflowStatus,
     );
     if (did) {
       escalated++;
@@ -249,6 +251,8 @@ export async function escalateAbandonedBlocked(nowMs: number): Promise<number> {
       { id: t.id, title: t.title, themeId: t.themeId },
       classification,
       nowMs,
+      undefined,
+      t.workflowStatus,
     );
     if (reescalated) escalated++;
   }

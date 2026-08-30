@@ -63,7 +63,7 @@ history is lost.
 | `ListPlus`                | タスク作成 / タスク起票 (task_created、quick-capture のタスクモードタブ — 同一概念の再利用) |
 | `CopyCheck`               | 一括選択モード（複数タスク/サブタスクの一括操作。旧 `ListChecks` — `ListTodo`＝サブタスクと視覚的に紛らわしいため 2026-07 に移行） |
 | `ListChecks`              | 提案タスクの完了条件バレット（`TaskSuggestionDetail`） |
-| `CheckCircle2`            | 完了したワークフロータブ                 |
+| `CheckCircle2`            | 完了したワークフロータブ（通知の種別「自動実行: 全タスク完了」auto_run_all_done、「CI通過で完了」pr_ci_completed も同一概念「完了」として再利用） |
 | `PriorityIcon` (chevrons) | タスク/アイデアの優先度                  |
 | `Globe`                   | スコープ「グローバル」                   |
 | `FolderOpen`              | 汎用フォルダ（ディレクトリ選択・ログ等） |
@@ -77,7 +77,7 @@ history is lost.
 | `SplitSquareVertical`     | ターミナルのペイン上下分割               |
 | `Server`                  | バックエンドサーバー本体の状態 (BackendConnectionError, agents SystemStatusPanel status pill) |
 | `PlayCircle`              | いま実際に実行中のエージェント数 (SystemStatusPanel activeExecutions) |
-| `Layers3`                 | 自動実行キューの積み上げ件数 (SystemStatusPanel queueDepth) |
+| `Layers3`                 | 自動実行キューの積み上げ件数 (SystemStatusPanel queueDepth。通知の種別「自動実行: キュー未消費」auto_run_queue_starved も同一概念「キュー」の再利用) |
 | `Sprout`                  | 記憶の成長 (nav: /agents/memory)         |
 | `Library`                 | 知識ベース (nav: /knowledge グループ; 知識関連の通知・サジェストパネルでの再利用も可) |
 | `Search`                  | 知識ブラウザ (nav: /knowledge)           |
@@ -110,6 +110,7 @@ history is lost.
 | `AlarmClockPlus`          | 学習時間の記録（学習ロードマップの「学習を記録」ボタン・記録モーダル。注: `Timer`＝ポモドーロ/見積時間とは別概念） |
 | `NotepadText`             | メモ（軽量メモ機能。nav: /memos、ページヘッダー、quick-capture のメモモードタブ。注: `NotebookTabs`＝ノート、`StickyNote`＝検索結果のノート種別と混同しないこと） |
 | `AlarmClock`              | メモのリマインダー（quick-capture / /memos のリマインダー行アイコン・一覧のリマインダーバッジ。注: `AlarmClockPlus`＝学習時間の記録とは別概念） |
+| `BookOpen`                | 通知の種別「忘れかけているナレッジ」（`NotificationBell` の knowledge_reminder。既存実装で未登録だったグリフを本タスクで正式登録。注: `BookOpenText`＝単語カードの辞書情報編集とは別概念） |
 | `IterationCw`             | 品質ループレビュー（バックログ定期ジョブ loop_review — 差し戻し指標の週次自己観測と停滞の自動起票。カテゴリアイコンピッカー登録は中立的な再掲で対象外） |
 | `MonitorCheck`            | 本線 CI 監視（バックログ定期ジョブ ci_watch — 本線ブランチの赤ワークフローを懸念に自動起票） |
 | `ChartNoAxesCombined`     | 自己成長台帳ダッシュボード（nav: /agents/growth。ページ見出し・5指標カードの共通アイコン — 同一ページ内の同一概念として再利用） |
@@ -118,8 +119,25 @@ history is lost.
 | `MessageSquarePlus`      | エージェントへの追加指示（実行完了後の継続指示 `ContinuationForm`/`ExecutionCompletedPanel`、および計画の修正依頼 `PlanRevisionRequest` — いずれも「走っている/走り終えたエージェントに文章で指示を足す」同一概念の再利用） |
 | `LifeBuoy`                | リカバリーメトリクス（エージェント実行フォールバックの種別×戦略別 成功率/レイテンシ/コスト集計。`RecoveryMetricsPanel` ヘッダー） |
 | `Repeat`                   | 修復反復のデータ表示（`RepairConvergenceCard` の反復収束集計、`RepairStagnationBanner` の verify_repair/ci_repair 反復回数閾値到達バナー — 同一概念「修復反復」の再利用。注: `TaskCard`/`RecurrenceSelector` 等の「繰り返しタスク」用途とはグリフが重複する既存の未解消事項 — アイデアボックスに改善提案として起票済み） |
-| `Thermometer`              | リソース競合ゲート（ホストCPU逼迫時のauto-run選定保留。`ResourceContentionPanel` ヘッダー。注: `Gauge`＝懸念の種別「パフォーマンス」、`Cpu`は既存の未整理な複数用途と別概念） |
+| `Thermometer`              | リソース競合ゲート（ホストCPU逼迫時のauto-run選定保留。`ResourceContentionPanel` ヘッダー、通知の種別「自動実行: リソース逼迫で見送り」auto_run_resource_hold も同一概念の再利用。注: `Gauge`＝懸念の種別「パフォーマンス」、`Cpu`は既存の未整理な複数用途と別概念） |
 | `GitCompare`               | ドライラン実行・環境差分比較（`DryRunPanel` のドライラン実行ボタン + 過去レポートの環境変化確認導線。実装時に他用途での使用なしを確認済み） |
+| `BadgeCheck`               | 通知の種別「承認リクエスト」（`NotificationBell` の approval_request） |
+| `TriangleAlert`            | 通知の種別「エージェントエラー」（`NotificationBell` の agent_error。既存の `verdict-chip`/`emoji-to-lucide` の警告表示と同一概念の再利用） |
+| `FileText`                 | 通知の種別「日次サマリー」（`NotificationBell` の daily_summary。レポート/文書全般を表す既存の慣用アイコンの再利用） |
+| `Eye`                      | 通知の種別「PRレビュー依頼」（`NotificationBell` の pr_review_requested。既存の「詳細を見る/表示切替」の Eye と同一の「見る・確認する」概念の再利用） |
+| `PlayCircle`                | 通知の種別「エージェント実行開始」（`NotificationBell` の agent_execution_started。`SystemStatusPanel` の実行中エージェント数と同一概念「実行中」の再利用） |
+| `Hourglass`                | 通知の種別「自動実行: 承認待ち／回答待ち」（auto_run_awaiting_approval, auto_run_awaiting_answer） |
+| `TimerOff`                 | 通知の種別「自動実行: 時間上限で停止」（auto_run_hang_backstop） |
+| `SkipForward`               | 通知の種別「自動実行: タスクをスキップ」（auto_run_task_skipped） |
+| `OctagonAlert`              | 通知の種別「ブロックされたタスク／テーマの対応待ち」（auto_run_all_blocked, blocked_escalation, blocked_escalation_needs_answer） |
+| `Unlock`                    | 通知の種別「自動実行: 停滞キュー項目の自動解除」（auto_run_stall_released） |
+| `CircleOff`                 | 通知の種別「自動実行: 実行の空回り検知」（auto_run_zero_progress） |
+| `GitMerge`                  | 通知の種別「自動マージ成功／PR自動マージ完了」（auto_merge_success, auto_pr_merged） |
+| `CircleAlert`               | 通知の種別「自動マージ失敗・保留系」（auto_merge_failed, auto_merge_timeout, auto_merge_exhausted, auto_merge_ci_failed, auto_pr_merge_failed, auto_pr_identity_mismatch） |
+| `GitFork`                   | 通知の種別「マージ／base取り込みの競合」（auto_merge_conflict_filed, auto_merge_conflict_unresolved, base_sync_conflict_unresolved, base_sync_reverify_failed。注: `GitCompare`＝ドライラン差分比較とは別概念） |
+| `Hammer`                    | 通知の種別「CI失敗の自動修正中」（auto_merge_ci_repair, auto_merge_ci_repair_no_diff） |
+| `Files`                     | 通知の種別「同一タスクへの重複PR検出」（duplicate_open_prs） |
+| `GitPullRequestArrow`       | 通知の種別「自動PR作成完了」（auto_pr_created） |
 
 > The table above is also being split into per-letter reference files
 > (`.claude/icon-policy/glyphs-a-f.md`, `glyphs-g-m.md`, `glyphs-n-s.md`,

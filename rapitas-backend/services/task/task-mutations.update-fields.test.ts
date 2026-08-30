@@ -110,6 +110,9 @@ function createMockPrisma() {
     studyStreak: {
       upsert: mock(() => Promise.resolve({})) as ReturnType<typeof mock>,
     },
+    activityLog: {
+      create: mock(() => Promise.resolve({})) as ReturnType<typeof mock>,
+    },
   };
 }
 
