@@ -74,6 +74,16 @@ export async function advanceAfterResearchSave(
           ? violations.map((v) => `${v.code}:${v.message}`).join(' | ')
           : undefined,
     });
+    // Task 766: attempt missing_file self-repair AFTER the transition above
+    // is recorded (research-phase counterpart to status-transition.ts).
+    const missingFileViolation = violations.find((v) => v.code === 'missing_file');
+    if (missingFileViolation) {
+      const { repairMissingFile } = await import('../../../../services/workflow/invariant-repair');
+      await repairMissingFile(taskIdNum, missingFileViolation).catch((err) => {
+        log.warn({ err, taskId: taskIdNum }, '[API] repairMissingFile threw — failing open');
+        return { repaired: false as const };
+      });
+    }
   }
   await prisma.agentSession
     .update({

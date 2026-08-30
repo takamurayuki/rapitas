@@ -95,6 +95,13 @@ mock.module('../../../services/workflow/workflow-invariants', () => ({
   },
 }));
 
+// ---- invariant-repair mock (task 766) ----
+// Not this file's concern (covered by invariant-repair.test.ts); stubbed so
+// status-transition.ts's missing_file self-repair dispatch is a no-op here.
+mock.module('../../../services/workflow/invariant-repair', () => ({
+  repairMissingFile: mock(() => Promise.resolve({ repaired: false })),
+}));
+
 // ---- mojibake mock ----
 mock.module('../../../utils/common/mojibake-detector', () => ({
   detectReplacementLoss: () => ({ detected: false }),
