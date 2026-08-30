@@ -166,6 +166,47 @@ describe('pattern B suppressed by a disabled theme auto-run (#715)', () => {
   });
 });
 
+// task #769 / task #755: auto_approve_plan (not in RECOVERY_REQUEUE_CAUSES)
+// advanced workflowStatus to plan_approved while task.status stayed 'todo'
+// because the task was still sitting in the dispatch queue — Pattern B fired
+// on a normal pre-dispatch wait since detectTriStateDesync never received the
+// same hasActiveQueueItem signal detectStagnation already uses.
+describe('pattern B suppressed by an active queue item (#769)', () => {
+  const queuedTask: TriStateDesyncInput = {
+    taskStatus: 'todo',
+    workflowStatus: 'plan_approved',
+    latestSessionStatus: null,
+    latestExecutionStatus: null,
+    latestTransitionCause: 'auto_approve_plan',
+    latestTransitionAtMs: NOW - 60_000,
+    nowMs: NOW,
+    hasActiveQueueItem: true,
+  };
+
+  it('does NOT detect pattern B when an active queue item exists, regardless of cause', () => {
+    expect(detectTriStateDesync(queuedTask)).toBeNull();
+  });
+
+  it('still detects pattern B when there is no active queue item', () => {
+    const result = detectTriStateDesync({ ...queuedTask, hasActiveQueueItem: false });
+    expect(result?.kind).toBe('todo_status_workflow_advanced');
+  });
+
+  it('still detects pattern B when hasActiveQueueItem is simply omitted (fail open)', () => {
+    const { hasActiveQueueItem: _omitted, ...withoutQueueState } = queuedTask;
+    expect(detectTriStateDesync(withoutQueueState)?.kind).toBe('todo_status_workflow_advanced');
+  });
+
+  it('does NOT let an active queue item suppress pattern A', () => {
+    const result = detectTriStateDesync({
+      ...queuedTask,
+      latestSessionStatus: 'failed',
+      latestExecutionStatus: 'running',
+    });
+    expect(result?.kind).toBe('session_failed_execution_active');
+  });
+});
+
 // task 709 / task #602: three more code paths revert status to 'todo' without
 // changing workflowStatus (backend shutdown, manual stop, stale-execution
 // recovery). Before task 709 none recorded a transition, so the grace guard

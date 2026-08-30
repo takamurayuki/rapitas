@@ -209,6 +209,7 @@ async function inspectTask(
     latestTransitionAtMs: state.latestTransitionAtMs,
     latestSessionUpdatedAtMs: state.latestSessionUpdatedAtMs,
     themeAutoRunEnabled: task.themeId != null ? !disabledAutoRunThemeIds.has(task.themeId) : null,
+    hasActiveQueueItem: state.hasActiveQueueItem,
     nowMs,
   });
   if (desync) {
