@@ -198,3 +198,87 @@ describe.each([
     expect(result?.kind).toBe('todo_status_workflow_advanced');
   });
 });
+
+// task #775: execution-lease-sweep reverted task #774 to 'todo' via
+// stale_execution_recovery_revert, but the execution it declared dead was
+// still alive and later saved verify.md itself — a newer, non-recovery
+// `file_saved:verify` transition. The single-latest-cause check only ever
+// looked at that newest cause and missed the still-fresh (220s old) recovery
+// transition sitting one row behind it, filing Pattern B on a state the
+// recovery path had just created on purpose.
+describe('pattern B recovery grace scans the transition window, not just the latest cause (#775)', () => {
+  const revertThenVerifySave: TriStateDesyncInput = {
+    taskStatus: 'todo',
+    workflowStatus: 'verify_done',
+    latestSessionStatus: null,
+    latestExecutionStatus: null,
+    recentTransitions: [
+      { cause: 'stale_execution_recovery_revert', createdAtMs: NOW - 220_000 },
+      { cause: 'file_saved:verify', createdAtMs: NOW - 1_000 },
+    ],
+    nowMs: NOW,
+  };
+
+  it('does NOT detect pattern B when a recovery cause is 220s old even though the newest cause is not (#774 repro)', () => {
+    expect(detectTriStateDesync(revertThenVerifySave)).toBeNull();
+  });
+
+  it('detects again once every recovery cause in the window has settled past the threshold', () => {
+    const result = detectTriStateDesync({
+      ...revertThenVerifySave,
+      recentTransitions: [
+        { cause: 'stale_execution_recovery_revert', createdAtMs: NOW - DESYNC_RECOVERY_SETTLE_MS },
+        { cause: 'file_saved:verify', createdAtMs: NOW - 1_000 },
+      ],
+    });
+    expect(result?.kind).toBe('todo_status_workflow_advanced');
+  });
+
+  it('suppresses 1ms inside the grace window via the windowed scan', () => {
+    const result = detectTriStateDesync({
+      ...revertThenVerifySave,
+      recentTransitions: [
+        {
+          cause: 'stale_execution_recovery_revert',
+          createdAtMs: NOW - DESYNC_RECOVERY_SETTLE_MS + 1,
+        },
+        { cause: 'file_saved:verify', createdAtMs: NOW - 1_000 },
+      ],
+    });
+    expect(result).toBeNull();
+  });
+
+  it('suppresses when multiple recovery causes are present in the window', () => {
+    expect(
+      detectTriStateDesync({
+        ...revertThenVerifySave,
+        recentTransitions: [
+          { cause: 'stale_execution_recovery_revert', createdAtMs: NOW - 220_000 },
+          { cause: 'reconciler_requeue', createdAtMs: NOW - 100_000 },
+          { cause: 'file_saved:verify', createdAtMs: NOW - 1_000 },
+        ],
+      }),
+    ).toBeNull();
+  });
+
+  it('falls back to latestTransitionCause/latestTransitionAtMs when recentTransitions is empty', () => {
+    expect(
+      detectTriStateDesync({
+        ...revertThenVerifySave,
+        recentTransitions: [],
+        latestTransitionCause: 'stale_execution_recovery_revert',
+        latestTransitionAtMs: NOW - 220_000,
+      }),
+    ).toBeNull();
+  });
+
+  it('still detects when recentTransitions is empty and the fallback cause is not a recovery cause', () => {
+    const result = detectTriStateDesync({
+      ...revertThenVerifySave,
+      recentTransitions: [],
+      latestTransitionCause: 'file_saved:verify',
+      latestTransitionAtMs: NOW - 1_000,
+    });
+    expect(result?.kind).toBe('todo_status_workflow_advanced');
+  });
+});

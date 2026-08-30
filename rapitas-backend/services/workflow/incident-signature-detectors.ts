@@ -60,33 +60,25 @@ export const PATTERN_A_SETTLE_MS =
 
 /**
  * Transition causes that DELIBERATELY produce `task.status='todo'` with an
- * advanced workflowStatus: reconciler_requeue keeps workflowStatus so the
- * resume mapping re-enters at the right phase (workflow-reconciler-requeue),
- * artifact_reuse_fastforward advances workflowStatus of a still-todo task
- * before dispatch (artifact-reuse-reconciler), and task_retried resets
- * status to 'todo' while rolling workflowStatus back to a resume point —
- * see `routes/tasks/task-retry-handler.ts` `resolveRollbackTarget()`
- * (rolls verify_done back to plan_approved/research_done) and its caller
- * `retryTask()`, which writes `{ status: 'todo', workflowStatus: rolledBackTo }`
- * in the same `prisma.task.update` call. This is the same shape as the other
- * two causes, triggered by a manual retry instead of the reconciler (#680,
- * task #672 filed 139s after a task_retried transition to research_done;
- * task #672 subsequently self-resolved to status=done/workflowStatus=completed
- * via normal dispatch with no data repair applied, confirming the shape was
- * transient and self-healing rather than a corrupted state). blocked_auto_retry
- * is NOT here — it resets workflowStatus to 'draft', which Pattern B never
- * matches.
+ * advanced workflowStatus: `reconciler_requeue` keeps workflowStatus so resume
+ * re-enters at the right phase (workflow-reconciler-requeue);
+ * `artifact_reuse_fastforward` advances workflowStatus of a still-todo task
+ * before dispatch (artifact-reuse-reconciler); `task_retried` resets status to
+ * 'todo' while rolling workflowStatus back to a resume point — see
+ * `routes/tasks/task-retry-handler.ts` `resolveRollbackTarget()`/`retryTask()`
+ * (#680, task #672 filed 139s after a `task_retried` to research_done, then
+ * self-resolved to done/completed via normal dispatch with no data repair,
+ * confirming the shape is transient/self-healing). `blocked_auto_retry` is NOT
+ * here — it resets workflowStatus to 'draft', which Pattern B never matches.
  *
- * agent_lifecycle_shutdown_revert / manual_execution_stop_revert /
- * stale_execution_recovery_revert (task 709): three more code paths revert
- * `task.status` to 'todo' without changing `workflowStatus` — backend
- * shutdown (`lifecycle-manager.ts` `saveAgentState`), a manual stop
- * (`stop-route.ts`), and stale-execution recovery
- * (`stale-recovery-helpers.ts` `updateAffectedTasks`). Before task 709 none
- * of the three recorded a `WorkflowTransition`, so `isWithinRecoveryGrace`
- * had no row to find and Pattern B fired immediately on a shape those paths
- * create on purpose (task #602). Recording these three causes closes that
- * gap the same way `task_retried` already does.
+ * `agent_lifecycle_shutdown_revert` / `manual_execution_stop_revert` /
+ * `stale_execution_recovery_revert` (task 709): three more paths revert
+ * `task.status` to 'todo' without touching `workflowStatus` — backend
+ * shutdown (`lifecycle-manager.ts`), a manual stop (`stop-route.ts`), and
+ * stale-execution recovery (`stale-recovery-helpers.ts` `updateAffectedTasks`).
+ * Before task 709 none recorded a `WorkflowTransition`, so
+ * `isWithinRecoveryGrace` had no row to find and Pattern B fired immediately
+ * on a shape these paths create on purpose (task #602).
  */
 const RECOVERY_REQUEUE_CAUSES = new Set([
   'reconciler_requeue',
@@ -188,6 +180,8 @@ export interface TriStateDesyncInput {
   latestTransitionCause?: string | null;
   /** createdAt of that transition, epoch ms (null/undefined = unknown). */
   latestTransitionAtMs?: number | null;
+  /** Recent transitions to scan for a recovery cause; empty/omitted falls back to latestTransitionCause/latestTransitionAtMs (#775). */
+  recentTransitions?: { cause: string; createdAtMs: number }[];
   /** updatedAt of that AgentSession, epoch ms — feeds only the Pattern A settle-window guard. */
   latestSessionUpdatedAtMs?: number | null;
   /**
@@ -216,16 +210,20 @@ export type TriStateDesyncKind =
   | 'todo_status_workflow_advanced';
 
 /**
- * True when the newest transition is a deliberate recovery that has not yet
- * settled — Pattern B must not fire on a state the reconciler just created on
- * purpose (#636). Requires cause AND both timestamps: with incomplete inputs
- * the guard stays off so detection sensitivity never silently degrades.
+ * True when a recovery cause fired within the grace window (#636); scans
+ * `recentTransitions` if given, else falls back to the single
+ * `latestTransitionCause`/`latestTransitionAtMs` pair (#775).
  */
 function isWithinRecoveryGrace(input: TriStateDesyncInput): boolean {
-  if (input.latestTransitionCause == null) return false;
-  if (!RECOVERY_REQUEUE_CAUSES.has(input.latestTransitionCause)) return false;
-  if (input.latestTransitionAtMs == null || input.nowMs === undefined) return false;
-  return input.nowMs - input.latestTransitionAtMs < (input.settleMs ?? DESYNC_RECOVERY_SETTLE_MS);
+  if (input.nowMs === undefined) return false;
+  const nowMs = input.nowMs;
+  const settleMs = input.settleMs ?? DESYNC_RECOVERY_SETTLE_MS;
+  const list = input.recentTransitions?.length
+    ? input.recentTransitions
+    : input.latestTransitionCause != null && input.latestTransitionAtMs != null
+      ? [{ cause: input.latestTransitionCause, createdAtMs: input.latestTransitionAtMs }]
+      : [];
+  return list.some((t) => RECOVERY_REQUEUE_CAUSES.has(t.cause) && nowMs - t.createdAtMs < settleMs);
 }
 
 /**
