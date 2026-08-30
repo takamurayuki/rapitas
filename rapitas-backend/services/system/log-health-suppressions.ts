@@ -113,6 +113,20 @@ const SUPPRESSIONS: Suppression[] = [
     because: '実行結果の記録 — 原因は当該実行のログ側に出ており、二重起票になる',
   },
   {
+    // ログ出力箇所: fallback-decision.ts:50-58 の logger.warn（checkNeedsFallback
+    // 内）。成功扱いの出力からプロバイダ障害の兆候を classifyAgentError が検知し、
+    // フォールバックへ切り替えると判定した時点の告知ログ — 検出ロジック自体は意図した
+    // 分類であり、欠陥ではない。同一イベントは services/ai/recovery-metrics/ が既に
+    // taskId・phase・fromProvider・strategy・outcome 付きで構造化記録しており、ログ
+    // 経由の起票は重複になる。フォールバックが最終的に失敗した場合は別シグネチャ
+    // （下記の Execution ended with status: failed）で捕捉されるため、本ルールで
+    // 最終失敗の可視性が失われることはない（#782）。
+    test: /Detected provider error in successful output — forcing fallback/i,
+    logger: /task-executor/i,
+    because:
+      '成功出力からプロバイダ障害の兆候を検知しフォールバックへ切り替えた告知ログ — 検出は意図した分類ロジックであり、同一イベントはrecovery-metricsが既に構造化記録している',
+  },
+  {
     // ログ出力箇所: fallback-executor.ts:113-123 の logger.warn。checkNeedsFallback
     // （fallback-decision.ts:22-53）がプロバイダ障害を検知し、代替エージェント設定で
     // 再試行を開始する時点の告知ログ — 障害の検出自体は意図した分類ロジックであり、
