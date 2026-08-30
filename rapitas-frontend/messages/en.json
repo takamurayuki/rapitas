@@ -5998,5 +5998,37 @@
       "recordingWithLevel": "Recording... (level:{freqAvg} rms:{rms} silence:{silenceSec}s)",
       "listeningWithLevel": "Please speak... (level:{freqAvg} rms:{rms})"
     }
+  },
+  "phaseTimeline": {
+    "phaseLabel": {
+      "research": "Research",
+      "plan": "Plan",
+      "implement": "Implement",
+      "verify": "Verify"
+    },
+    "sectionTitle": "{phase}",
+    "sectionTitleIteration": "{phase} (attempt {n})",
+    "status": {
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "summary": {
+      "completed": "✓ {duration} ({lines} lines)",
+      "failed": "✗ {duration} ({lines} lines)",
+      "runningEmpty": "Running… waiting for logs",
+      "verifyPassFail": "{pass} pass / {fail} fail"
+    },
+    "filter": {
+      "all": "All",
+      "warnOnly": "Warnings only"
+    },
+    "scrollToBottom": "Jump to latest",
+    "boundaryUncertain": "Phase boundary could not be confirmed",
+    "noLogsYet": "Waiting for logs…",
+    "loadingDetail": "Loading…",
+    "loadFailed": "Failed to load logs",
+    "expandAria": "Expand phase",
+    "collapseAria": "Collapse phase"
   }
 }
