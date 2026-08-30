@@ -20,6 +20,7 @@ import {
   type ConvergenceVerdict,
 } from './verify-convergence';
 import { VERIFY_NON_CONVERGENCE_CAUSE, DEFAULT_VERIFY_REPAIR_LIMIT } from './blocked-task-policy';
+import { attemptInvariantCutoff } from './verify-invariant-repair';
 
 const log = createLogger('workflow:verify-self-repair');
 
@@ -448,6 +449,15 @@ export async function attemptVerifyRepair(
       { taskId, criterionIndex: verdict.criterionIndex, count: verdict.count },
       '[verify-repair] Repair loop not converging — cutting off (caller should block)',
     );
+    return { bounced: false, cutoffRecorded: true };
+  }
+
+  // Invariant non-convergence (task 755, logic in verify-invariant-repair.ts to
+  // avoid growing this file): same checkWorkflowInvariants code recurring 2+
+  // cycles (task #572) records its own terminal transition; a first-time
+  // violation alone is a no-op (must not newly block a previously-passing task).
+  const windowStart = await resolveRepairWindowStart(taskId);
+  if (await attemptInvariantCutoff(taskId, currentStatus, reason, windowStart)) {
     return { bounced: false, cutoffRecorded: true };
   }
 

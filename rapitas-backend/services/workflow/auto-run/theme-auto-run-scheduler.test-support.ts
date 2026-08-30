@@ -192,6 +192,12 @@ mock.module('./backlog-task-promoter', () => ({
 export const mockRecordStartupCommit = mock(() => Promise.resolve());
 export const mockMaybeRestartForUpdate = mock(() => Promise.resolve(false));
 
+/** Stale-terminal reset audit trail (task 755) — see auto-run-advance-select.ts. */
+export const mockRecordTransition = mock(() => Promise.resolve());
+mock.module('../transition-recorder', () => ({
+  recordTransition: mockRecordTransition,
+}));
+
 mock.module('./dev-restart-on-dry', () => ({
   recordStartupCommit: mockRecordStartupCommit,
   maybeRestartForUpdate: mockMaybeRestartForUpdate,
@@ -493,6 +499,7 @@ const ALL_MOCKS = [
   mockPromoteBacklogForTheme,
   mockRecordStartupCommit,
   mockMaybeRestartForUpdate,
+  mockRecordTransition,
   mockLogCycleEvent,
   mockGetGlobalAutoRunActiveCount,
   mockGetThemeActiveQueueItems,

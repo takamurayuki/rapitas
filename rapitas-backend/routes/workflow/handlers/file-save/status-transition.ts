@@ -13,6 +13,7 @@ import type { WorkflowFileType } from '../../core/workflow-helpers';
 import { researchConcludesNoChange } from '../../../../services/workflow/completion-gate';
 import { recordTransition } from '../../../../services/workflow/transition-recorder';
 import { checkWorkflowInvariants } from '../../../../services/workflow/workflow-invariants';
+import { attemptInvariantCutoff } from '../../../../services/workflow/verify-invariant-repair';
 import { markLatestExecutionFailed, wasNonConvergenceCutoffJustRecorded } from './shared';
 
 const log = createLogger('routes:workflow:handlers:files');
@@ -247,6 +248,35 @@ export async function computeAndApplyStatusTransition(params: {
     // violations but DO NOT throw — the file was already saved on disk
     // and rolling back would create a worse "ghost" state.
     const violations = await checkWorkflowInvariants(taskId);
+    // Invariant non-convergence (task 755): a violation code that keeps
+    // recurring across newStatus-confirm cycles used to be logged forever
+    // with no corrective action (task #572: the same missing_file:...plan.md
+    // violation recorded twice, 2h43m apart). Checked BEFORE the transition
+    // below so the recurrence window does not see this save's own row yet.
+    // No windowStart boundary (unlike verify-self-repair's repair-budget
+    // reset) — this HTTP-handler path has no "manual retry" reset concept,
+    // so the full task history is compared.
+    let invariantCutoffRecorded = false;
+    if (violations.length > 0) {
+      invariantCutoffRecorded = await attemptInvariantCutoff(
+        taskId,
+        currentStatus ?? null,
+        violations.map((v) => `${v.code}:${v.message}`).join(' | '),
+        null,
+      ).catch((err) => {
+        log.warn({ err, taskId }, '[Workflow] attemptInvariantCutoff threw — failing open');
+        return false;
+      });
+      if (invariantCutoffRecorded) {
+        await prisma.task
+          .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
+          .catch(() => {});
+        await markLatestExecutionFailed(
+          taskId,
+          `不変条件違反が複数サイクルで再発したためブロックしました: ${violations.map((v) => v.code).join(', ')}`,
+        );
+      }
+    }
     // awaiting_question への遷移時のみ、復帰先 status を metadata に保存する
     const transitionMetadata: Record<string, unknown> = {
       sizeBytes: savedContent.length,
@@ -254,24 +284,30 @@ export async function computeAndApplyStatusTransition(params: {
     if (newStatus === 'awaiting_question' && currentStatus) {
       transitionMetadata.previousStatus = currentStatus;
     }
-    await recordTransition({
-      taskId,
-      fromStatus: currentStatus ?? null,
-      toStatus: newStatus,
-      actor: 'system',
-      cause: researchCompleted
-        ? 'research_no_change_complete'
-        : verifyRerunAlreadyDone
-          ? 'verify_rerun_already_done'
-          : `file_saved:${fileType}`,
-      phase: fileType,
-      metadata: transitionMetadata,
-      invariantViolation: violations.length > 0,
-      invariantMessage:
-        violations.length > 0
-          ? violations.map((v) => `${v.code}:${v.message}`).join(' | ')
-          : undefined,
-    });
+    // Skip the generic transition when the cutoff above already recorded its
+    // OWN terminal transition for this save — recording both would duplicate
+    // the same event (the same double-record shape verify-self-repair.ts
+    // already guards against via repair.cutoffRecorded).
+    if (!invariantCutoffRecorded) {
+      await recordTransition({
+        taskId,
+        fromStatus: currentStatus ?? null,
+        toStatus: newStatus,
+        actor: 'system',
+        cause: researchCompleted
+          ? 'research_no_change_complete'
+          : verifyRerunAlreadyDone
+            ? 'verify_rerun_already_done'
+            : `file_saved:${fileType}`,
+        phase: fileType,
+        metadata: transitionMetadata,
+        invariantViolation: violations.length > 0,
+        invariantMessage:
+          violations.length > 0
+            ? violations.map((v) => `${v.code}:${v.message}`).join(' | ')
+            : undefined,
+      });
+    }
     if (violations.length > 0) {
       const missingFiles = violations
         .filter((v) => v.code === 'missing_file')
