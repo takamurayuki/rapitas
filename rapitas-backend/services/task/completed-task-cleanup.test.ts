@@ -342,6 +342,25 @@ describe('cleanupCompletedTasks — deleteTaskWithArtifacts の副作用', () =>
     });
   });
 
+  test('task.workingDirectoryが無くtheme.workingDirectoryがある場合 → themeのworkingDirectoryがbaseDirとして使われること', async () => {
+    taskFindMany.mockResolvedValueOnce([completedTask(25)]);
+    knowledgeEntryCount.mockResolvedValueOnce(1);
+    taskFindUnique.mockResolvedValueOnce({
+      workingDirectory: null,
+      theme: { workingDirectory: '/projects/theme-dir' },
+    });
+    agentSessionFindMany.mockResolvedValueOnce([
+      { id: 5, worktreePath: '/projects/theme-dir/.worktrees/a' },
+    ]);
+
+    await cleanupCompletedTasks({ keepRecent: 0 });
+
+    expect(removeWorktreeMock).toHaveBeenCalledWith(
+      '/projects/theme-dir',
+      '/projects/theme-dir/.worktrees/a',
+    );
+  });
+
   test('taskのworkingDirectoryが無い場合 → getProjectRootがbaseDirとして使われること', async () => {
     taskFindMany.mockResolvedValueOnce([completedTask(21)]);
     knowledgeEntryCount.mockResolvedValueOnce(1);

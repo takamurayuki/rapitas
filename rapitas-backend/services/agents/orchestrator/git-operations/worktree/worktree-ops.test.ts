@@ -92,9 +92,10 @@ mock.module('node:fs/promises', () => ({
   mkdir: mock(() => Promise.resolve()),
   appendFile: mock(() => Promise.resolve()),
 }));
+const mockIsPathSafeForWorktreeOperation = mock(() => true);
 mock.module('../core/safety', () => ({
   WORKTREE_DIR: '.worktrees',
-  isPathSafeForWorktreeOperation: mock(() => true),
+  isPathSafeForWorktreeOperation: mockIsPathSafeForWorktreeOperation,
   normalizePath: mock((path: string) => path.replace(/\\/g, '/')),
 }));
 mock.module('./dependency-installer', () => ({
@@ -197,6 +198,8 @@ describe('removeWorktree', () => {
     mockAwaitWorktreeDependencies.mockResolvedValue(undefined);
     mockClearWorktreeDependenciesTracking.mockReset();
     mockClearGitRemoteCache.mockReset();
+    mockIsPathSafeForWorktreeOperation.mockReset();
+    mockIsPathSafeForWorktreeOperation.mockReturnValue(true);
 
     mockExecFile.mockReset();
     mockExecFile.mockImplementation(
@@ -319,6 +322,23 @@ describe('removeWorktree', () => {
 
     expect(mockClearGitRemoteCache).toHaveBeenCalledTimes(1);
     expect(mockClearGitRemoteCache).toHaveBeenCalledWith(mockWorktreePath);
+  });
+
+  test('returns early without running any git/fs cleanup when the path is unsafe', async () => {
+    mockIsPathSafeForWorktreeOperation.mockReturnValueOnce(false);
+
+    let thrownError: unknown;
+    try {
+      await removeWorktree(mockWorktreePath, mockWorktreePath, false);
+    } catch (err) {
+      thrownError = err;
+    }
+
+    expect(thrownError).toBeUndefined();
+    expect(mockExecFile).not.toHaveBeenCalled();
+    expect(mockAwaitWorktreeDependencies).not.toHaveBeenCalled();
+    expect(mockClearWorktreeDependenciesTracking).not.toHaveBeenCalled();
+    expect(mockClearGitRemoteCache).not.toHaveBeenCalled();
   });
 });
 
