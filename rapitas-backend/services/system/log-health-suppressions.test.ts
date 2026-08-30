@@ -52,6 +52,7 @@ const SUPPRESSED: [string, string][] = [
   ],
   ['error-handler', 'Bad Request: Failed to parse JSON'],
   ['ai:provider-cooldown', 'Provider placed in cooldown'],
+  ['task-executor', '[TaskExecutor] Provider failed — retrying with alternative agent config'],
 ];
 
 const KEPT: [string, string][] = [
@@ -111,6 +112,18 @@ describe('classifyLogSignature', () => {
     // Task #759: an unrelated logger reusing this phrase must still be filed.
     expect(
       classifyLogSignature('some-other-logger', 'Provider placed in cooldown').suppressed,
+    ).toBe(false);
+  });
+
+  test('"Provider failed — retrying with alternative agent config" is scoped to task-executor only', () => {
+    // Task #758: workflow-provider-fallback.ts emits a similar-sounding phrase
+    // ("Provider failed — retrying with Smart Router fallback") from a different
+    // logger; that is a separate mechanism and must not be filed under this rule.
+    expect(
+      classifyLogSignature(
+        'workflow-provider-fallback',
+        'Provider failed — retrying with alternative agent config',
+      ).suppressed,
     ).toBe(false);
   });
 });
