@@ -245,7 +245,10 @@ describe('runVerifyCommitPrCompletion — 競合解消タスクは PR の mergea
 
   test('PR 番号が無ければ照会せず完了（fail open）', async () => {
     const res = await runVerifyCommitPrCompletion(
-      buildParams({ isConflictResolutionTask: true, conflictTask: { title: '競合解消', githubPrId: null } }),
+      buildParams({
+        isConflictResolutionTask: true,
+        conflictTask: { title: '競合解消', githubPrId: null },
+      }),
     );
     expect(prVerdictCalls.length).toBe(0);
     expect(res.taskMarkedDone).toBe(true);
