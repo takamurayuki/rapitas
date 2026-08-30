@@ -12,8 +12,16 @@
  */
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
 
+const warnCalls: Array<[unknown, string]> = [];
 mock.module('../../../../config/logger', () => ({
-  createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
+  createLogger: () => ({
+    info: () => {},
+    warn: (fields: unknown, msg: string) => {
+      warnCalls.push([fields, msg]);
+    },
+    error: () => {},
+    debug: () => {},
+  }),
 }));
 
 const mockFindUnique = mock(() => Promise.resolve({ workflowStatus: 'verify_done' })) as any;
@@ -80,6 +88,7 @@ function buildParams() {
 describe('runAdversarialDiffReview — 非収束カットオフの二重記録防止', () => {
   beforeEach(() => {
     transitionCalls.length = 0;
+    warnCalls.length = 0;
     mockRecordTransition.mockClear();
     mockTaskUpdate.mockClear();
     mockMarkLatestExecutionFailed.mockClear();
@@ -116,5 +125,38 @@ describe('runAdversarialDiffReview — 非収束カットオフの二重記録�
         data: expect.objectContaining({ status: 'blocked' }),
       }),
     );
+  });
+});
+
+describe('runAdversarialDiffReview — stale-verdict compare-and-swap (task 783)', () => {
+  beforeEach(() => {
+    transitionCalls.length = 0;
+    warnCalls.length = 0;
+    mockRecordTransition.mockClear();
+    mockTaskUpdate.mockClear();
+    mockMarkLatestExecutionFailed.mockClear();
+    mockFindUnique.mockReset().mockResolvedValue({ workflowStatus: 'verify_done' });
+    mockAttemptVerifyRepair.mockReset().mockResolvedValue({ bounced: false });
+  });
+
+  test('タスクが verify_done から既に離脱していれば rollback を完全にスキップし reasons 付きで警告すること', async () => {
+    mockFindUnique.mockReset().mockResolvedValue({ workflowStatus: 'completed' });
+
+    const result = await runAdversarialDiffReview(buildParams());
+
+    expect(result.staleVerifyRequest).toBe(true);
+    expect(result.newStatus).toBe('completed');
+    expect(result.verifyGateBlocked).toBe(false);
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+    expect(mockUpdateMany).not.toHaveBeenCalled();
+    expect(transitionCalls).toHaveLength(0);
+
+    const staleWarn = warnCalls.find(
+      ([, msg]) =>
+        msg ===
+        '[Workflow] Adversarial review FAIL arrived after the workflow moved on — skipping rollback entirely',
+    );
+    expect(staleWarn).toBeDefined();
+    expect((staleWarn?.[0] as { reasons?: string[] })?.reasons).toEqual(['実装が空']);
   });
 });

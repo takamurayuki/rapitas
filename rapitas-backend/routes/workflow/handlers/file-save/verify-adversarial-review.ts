@@ -115,7 +115,11 @@ export async function runAdversarialDiffReview(params: {
             staleVerifyRequest = true;
             if (liveAfterRecovery?.workflowStatus) newStatus = liveAfterRecovery.workflowStatus;
             log.warn(
-              { taskId, actualStatus: liveAfterRecovery?.workflowStatus },
+              {
+                taskId,
+                actualStatus: liveAfterRecovery?.workflowStatus,
+                reasons: activeReview.reasons.slice(0, 5),
+              },
               '[Workflow] Worktree rebuild recovery finished after the workflow moved on — skipping',
             );
           } else {
@@ -149,7 +153,12 @@ export async function runAdversarialDiffReview(params: {
           staleVerifyRequest = true;
           if (liveTask?.workflowStatus) newStatus = liveTask.workflowStatus;
           log.warn(
-            { taskId, recoveryReason: recovery.reason, actualStatus: liveTask?.workflowStatus },
+            {
+              taskId,
+              recoveryReason: recovery.reason,
+              actualStatus: liveTask?.workflowStatus,
+              reasons: activeReview.reasons.slice(0, 5),
+            },
             '[Workflow] Recovery-blocked verdict arrived after the workflow moved on — skipping',
           );
         } else {
@@ -220,7 +229,12 @@ export async function runAdversarialDiffReview(params: {
           // isn't true in the DB.
           if (liveTask?.workflowStatus) newStatus = liveTask.workflowStatus;
           log.warn(
-            { taskId, severity: activeReview.severity, actualStatus: liveTask?.workflowStatus },
+            {
+              taskId,
+              severity: activeReview.severity,
+              actualStatus: liveTask?.workflowStatus,
+              reasons: activeReview.reasons.slice(0, 5),
+            },
             '[Workflow] Adversarial review FAIL arrived after the workflow moved on — skipping rollback entirely',
           );
         } else {
