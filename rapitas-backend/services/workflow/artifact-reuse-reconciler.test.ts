@@ -63,6 +63,11 @@ mock.module('./transition-recorder', () => ({
   recordTransition: mockRecordTransition,
 }));
 
+let pendingRevisionFixture: string | null = null;
+mock.module('./workflow-plan-revision-context', () => ({
+  getPendingPlanRevision: () => Promise.resolve(pendingRevisionFixture),
+}));
+
 const { reconcileStatusFromExistingArtifacts } = await import('./artifact-reuse-reconciler');
 
 const REUSABLE_RESEARCH = '# 調査結果\n\n十分な内容の調査レポートです。要件を満たしています。';
@@ -71,6 +76,7 @@ const THIN_CONTENT = '短い';
 
 describe('reconcileStatusFromExistingArtifacts', () => {
   beforeEach(() => {
+    pendingRevisionFixture = null;
     mockTaskUpdate.mockClear();
     mockRecordTransition.mockClear();
     mockResolveWorkflowDir.mockClear();
@@ -133,6 +139,13 @@ describe('reconcileStatusFromExistingArtifacts', () => {
     fileContents.plan = REUSABLE_PLAN;
     const result = await reconcileStatusFromExistingArtifacts(1, 'research_done', true);
     expect(result).toEqual({ status: 'plan_created', advanced: true });
+  });
+
+  test('does not reuse plan.md while a plan revision is pending (task 755)', async () => {
+    pendingRevisionFixture = '新規ファイル3件を計画に明記してください';
+    fileContents.plan = REUSABLE_PLAN;
+    const result = await reconcileStatusFromExistingArtifacts(1, 'research_done', true);
+    expect(result).toEqual({ status: 'research_done', advanced: false });
   });
 
   test('leaves research_done unchanged when plan.md does not exist yet', async () => {

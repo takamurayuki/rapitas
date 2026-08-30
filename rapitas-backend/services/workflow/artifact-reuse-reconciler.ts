@@ -64,7 +64,12 @@ export async function reconcileStatusFromExistingArtifacts(
 
   if (includePlan && target === 'research_done') {
     const plan = await readWorkflowFile(taskId, 'plan').catch(() => null);
-    const planReusable = !!plan && isReusableArtifact('plan', plan);
+    // A pending revision means a human rejected this exact plan.md; reusing it
+    // fast-forwards past the planner and silently drops the instruction (task
+    // 755, 2026-08-30: the jury failed the same unrevised plan a third time).
+    const { getPendingPlanRevision } = await import('./workflow-plan-revision-context');
+    const revisionPending = (await getPendingPlanRevision(taskId)) !== null;
+    const planReusable = !revisionPending && !!plan && isReusableArtifact('plan', plan);
     if (planReusable) target = 'plan_created';
   }
 
