@@ -51,8 +51,11 @@ describe('extractNotificationI18n', () => {
 
 describe('resolveNotificationText', () => {
   it('translates via i18n metadata when present', () => {
+    // NOTE: the translator is scoped to the `notification` namespace, so the
+    // resolver strips the stored full-path prefix before calling it (the
+    // unstripped form rendered raw keys in the bell — fixed 2026-08-30).
     const t = (key: string, params?: Record<string, unknown>) =>
-      key === 'notification.types.task_completed.title'
+      key === 'types.task_completed.title'
         ? 'Task completed'
         : `"${(params as { taskTitle: string }).taskTitle}" is done`;
     const notification = {
