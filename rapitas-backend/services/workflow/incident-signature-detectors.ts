@@ -202,6 +202,19 @@ export interface TriStateDesyncInput {
    * never silently widen suppression.
    */
   themeAutoRunEnabled?: boolean | null;
+  /**
+   * True when a queued/running/waiting_approval WorkflowQueueItem exists for
+   * the task (same signal detectStagnation already uses). Pattern B's
+   * `todo`×advanced-`workflowStatus` shape is a normal pre-dispatch wait while
+   * the task sits in the queue, not a stuck/corrupted state — detectStagnation
+   * already excludes this case (incident-signature-detectors.ts line 173) but
+   * detectTriStateDesync never received the same signal, so any cause NOT in
+   * RECOVERY_REQUEUE_CAUSES (e.g. auto_approve_plan) fired Pattern B on a
+   * queued task (#769, task #755). `undefined` (unresolved) is treated as
+   * false — mirrors themeAutoRunEnabled's fail-open default in the opposite
+   * direction: an unknown queue state must never silently suppress detection.
+   */
+  hasActiveQueueItem?: boolean;
   /** Current time (ms) — the recovery grace guard needs it to age the transition. */
   nowMs?: number;
   /** Pattern B recovery grace override (default DESYNC_RECOVERY_SETTLE_MS). */
@@ -256,7 +269,11 @@ function isWithinPatternASettle(input: TriStateDesyncInput): boolean {
  * EXCEPT ALSO when the task's theme has auto-run disabled
  * (`themeAutoRunEnabled === false`), where the shape is an indefinite,
  * legitimate wait rather than a transient one (task #715, see
- * TriStateDesyncInput.themeAutoRunEnabled).
+ * TriStateDesyncInput.themeAutoRunEnabled) —
+ * EXCEPT ALSO when the task has an active queue item
+ * (`hasActiveQueueItem === true`), where the shape is a normal pre-dispatch
+ * wait regardless of transition cause (task #769, see
+ * TriStateDesyncInput.hasActiveQueueItem).
  *
  * @param input - Cross-entity state snapshot. / 三面の状態スナップショット
  * @returns Detected pattern + human-readable summary, or null. / 検出結果またはnull
@@ -287,6 +304,9 @@ export function detectTriStateDesync(
     // Theme auto-run disabled → nothing will ever dispatch this task, so the
     // wait is legitimate and indefinite, not a stuck/corrupted state (#715).
     if (input.themeAutoRunEnabled === false) return null;
+    // Queued for dispatch → the shape is a normal pre-dispatch wait, not a
+    // stuck/corrupted state, regardless of the transition cause (#769).
+    if (input.hasActiveQueueItem === true) return null;
     return {
       kind: 'todo_status_workflow_advanced',
       detail: `task.status=todo のまま workflowStatus が前進済み(${input.workflowStatus})`,
