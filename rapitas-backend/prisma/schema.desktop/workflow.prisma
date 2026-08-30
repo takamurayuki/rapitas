@@ -211,6 +211,15 @@ model ThemeAutoRun {
   lastError      String?
   lastRunAt      DateTime?
   startedAt      DateTime?
+  // Idle-stop timer (task 784). idleSince: when the theme last went idle with
+  // no work (timer origin; cleared on start). idleStoppedAt: set when the timer
+  // expired and auto-run was disabled — distinguishes an idle-stop (auto
+  // re-armed on a manual filing / nightly refill) from a USER stop (never
+  // re-armed; finalizeStop leaves it null). lastSelfRefillAt: when the nightly
+  // backlog self-refill last ran for this theme (once-per-window guard).
+  idleSince        DateTime?
+  idleStoppedAt    DateTime?
+  lastSelfRefillAt DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

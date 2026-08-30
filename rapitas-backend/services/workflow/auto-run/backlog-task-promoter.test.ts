@@ -89,6 +89,16 @@ mock.module('../../observability', () => ({
   logCycleEvent: mockLogCycleEvent,
 }));
 
+// Nightly self-refill gate (task 784) — hasPromotableBacklog delegates the
+// window/timer decision here. Defaults to true (window open) so every
+// pre-existing hasPromotableBacklog test keeps exercising the cap/backlog
+// logic unaffected; the dedicated describe block below overrides it to false.
+const mockShouldRefillBacklogNow = mock(() => Promise.resolve(true));
+mock.module('./auto-run-idle-timer', () => ({
+  IDLE_BYPASS_CONCERN_SEVERITIES: new Set(['urgent', 'high']),
+  shouldRefillBacklogNow: mockShouldRefillBacklogNow,
+}));
+
 const { hasPromotableBacklog, promoteBacklogForTheme } = await import('./backlog-task-promoter');
 
 function resetMocks() {
@@ -111,6 +121,8 @@ function resetMocks() {
   mockLogCycleEvent.mockClear();
   noopLog.info.mockClear();
   noopLog.warn.mockClear();
+  mockShouldRefillBacklogNow.mockReset();
+  mockShouldRefillBacklogNow.mockResolvedValue(true);
 }
 
 describe('hasPromotableBacklog', () => {
@@ -184,6 +196,17 @@ describe('hasPromotableBacklog', () => {
     mockListConcerns.mockRejectedValue(new Error('concern query failed'));
     mockListIdeas.mockRejectedValue(new Error('idea query failed'));
     expect(await hasPromotableBacklog(1)).toBe(false);
+  });
+
+  test('returns false outside the nightly self-refill window even with open concerns/ideas (task 784)', async () => {
+    mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 2 });
+    mockTaskCount.mockResolvedValue(0);
+    mockListConcerns.mockResolvedValue({ concerns: [{ id: 1, severity: 'high' }], total: 1 });
+    mockShouldRefillBacklogNow.mockResolvedValue(false);
+
+    expect(await hasPromotableBacklog(1)).toBe(false);
+    // The gate is checked before probing concerns/ideas at all.
+    expect(mockListConcerns).not.toHaveBeenCalled();
   });
 });
 

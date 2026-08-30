@@ -86,6 +86,55 @@ describe('applyPendingClientColumns', () => {
     await applyPendingClientColumns(1, { restartOnAutoRunDry: true }, ref);
     expect(ref.restartOnAutoRunDry).toBe(true);
   });
+
+  // Idle-stop timer + nightly self-refill window (task 784).
+  test('writes idleStopMinutes and mirrors it (PATCH → GET round trip)', async () => {
+    const ref: Record<string, unknown> = {};
+    await applyPendingClientColumns(1, { idleStopMinutes: 90 }, ref);
+    expect(updateCalls).toEqual([{ idleStopMinutes: 90 }]);
+    expect(ref.idleStopMinutes).toBe(90);
+  });
+
+  test('idleStopMinutes: 0 disables the timer and is persisted as 0', async () => {
+    const ref: Record<string, unknown> = {};
+    await applyPendingClientColumns(1, { idleStopMinutes: 0 }, ref);
+    expect(updateCalls).toEqual([{ idleStopMinutes: 0 }]);
+    expect(ref.idleStopMinutes).toBe(0);
+  });
+
+  test('clamps idleStopMinutes into 0..1440 (24h) and floors floats', async () => {
+    const ref: Record<string, unknown> = {};
+    await applyPendingClientColumns(1, { idleStopMinutes: 99_999 }, ref);
+    await applyPendingClientColumns(1, { idleStopMinutes: -3 }, ref);
+    await applyPendingClientColumns(1, { idleStopMinutes: 45.7 }, ref);
+    expect(updateCalls).toEqual([
+      { idleStopMinutes: 1440 },
+      { idleStopMinutes: 0 },
+      { idleStopMinutes: 45 },
+    ]);
+    expect(ref.idleStopMinutes).toBe(45);
+  });
+
+  test('writes selfRefillWindowStart and mirrors it', async () => {
+    const ref: Record<string, unknown> = {};
+    await applyPendingClientColumns(1, { selfRefillWindowStart: '04:30' }, ref);
+    expect(updateCalls).toEqual([{ selfRefillWindowStart: '04:30' }]);
+    expect(ref.selfRefillWindowStart).toBe('04:30');
+  });
+
+  test("selfRefillWindowStart: '' disables self-refill and is persisted as ''", async () => {
+    const ref: Record<string, unknown> = {};
+    await applyPendingClientColumns(1, { selfRefillWindowStart: '' }, ref);
+    expect(updateCalls).toEqual([{ selfRefillWindowStart: '' }]);
+    expect(ref.selfRefillWindowStart).toBe('');
+  });
+
+  test('a malformed selfRefillWindowStart is REJECTED — write skipped, ref left untouched', async () => {
+    const ref: Record<string, unknown> = {};
+    await applyPendingClientColumns(1, { selfRefillWindowStart: '3pm' }, ref);
+    expect(updateCalls).toEqual([]);
+    expect(ref.selfRefillWindowStart).toBeUndefined();
+  });
 });
 
 describe('applyAutoRestartOnMergedCode', () => {

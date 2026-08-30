@@ -19,6 +19,11 @@ export const systemSchemas = {
     autoCreateFromBacklogLimit: t.Optional(t.Number()),
     restartOnAutoRunDry: t.Optional(t.Boolean()),
     verifyRepairLimit: t.Optional(t.Number()),
+    // Idle-stop timer (task 784): minutes, 0 = off; clamped in settings-extra-fields.ts.
+    idleStopMinutes: t.Optional(t.Number()),
+    // Nightly self-refill window start: '' (off) or local "HH:MM"; format
+    // validated in settings-extra-fields.ts (invalid values are rejected there).
+    selfRefillWindowStart: t.Optional(t.String()),
     autoRestartOnMergedCode: t.Optional(t.Boolean()),
     retroReviewEnabled: t.Optional(t.Boolean()),
     mergeBarrierEnabled: t.Optional(t.Boolean()),

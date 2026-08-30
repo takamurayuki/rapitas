@@ -142,6 +142,79 @@ mock.module('./theme-auto-run-service', () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// auto-run-idle-timer (task 784) — fully replaced. Pure predicates keep their
+// real logic (small, deterministic, no I/O) so scheduler tests exercise
+// genuine countdown/window arithmetic; the impure (DB-touching) functions are
+// controllable mocks.
+// ---------------------------------------------------------------------------
+export const mockGetIdleStopMinutes = mock(() => Promise.resolve(60));
+export const mockGetSelfRefillWindowStart = mock(() => Promise.resolve('03:00'));
+export const mockCountHumanOriginTodo = mock(() => Promise.resolve(0));
+export const mockAttemptCriticalConcernBypass = mock(() => Promise.resolve(false));
+export const mockStopThemeForIdleTimeout = mock(() => Promise.resolve());
+export const mockShouldRefillBacklogNow = mock(() => Promise.resolve(false));
+export const mockMarkSelfRefillSucceeded = mock(() => Promise.resolve());
+
+const WINDOW_START_RE_TEST = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+mock.module('./auto-run-idle-timer', () => ({
+  DEFAULT_IDLE_STOP_MINUTES: 60,
+  MAX_IDLE_STOP_MINUTES: 24 * 60,
+  DEFAULT_SELF_REFILL_WINDOW_START: '03:00',
+  IDLE_BYPASS_CONCERN_SEVERITIES: new Set(['urgent', 'high']),
+  normalizeIdleStopMinutes: (v: unknown) =>
+    typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(1440, Math.floor(v))) : 60,
+  normalizeSelfRefillWindowStart: (v: unknown) =>
+    typeof v === 'string' && (v === '' || WINDOW_START_RE_TEST.test(v)) ? v : '03:00',
+  getIdleStopMinutes: mockGetIdleStopMinutes,
+  getSelfRefillWindowStart: mockGetSelfRefillWindowStart,
+  isIdleTimerActivelyCounting: (
+    state: { enabled: boolean; status: string; idleSince: Date | string | null },
+    idleStopMinutes: number,
+    now: Date,
+  ) => {
+    if (idleStopMinutes <= 0) return false;
+    if (!state.enabled || state.status !== 'idle' || !state.idleSince) return false;
+    const since = typeof state.idleSince === 'string' ? new Date(state.idleSince) : state.idleSince;
+    if (Number.isNaN(since.getTime())) return false;
+    return now.getTime() - since.getTime() < idleStopMinutes * 60_000;
+  },
+  isIdleTimerExpired: (
+    idleSince: Date | string | null | undefined,
+    idleStopMinutes: number,
+    now: Date,
+  ) => {
+    if (idleStopMinutes <= 0 || !idleSince) return false;
+    const since = typeof idleSince === 'string' ? new Date(idleSince) : idleSince;
+    if (Number.isNaN(since.getTime())) return false;
+    return now.getTime() - since.getTime() >= idleStopMinutes * 60_000;
+  },
+  isWithinSelfRefillWindow: (now: Date, windowStart: string) => {
+    const m = WINDOW_START_RE_TEST.exec(windowStart);
+    if (!m) return false;
+    const openToday = new Date(now.getTime());
+    openToday.setHours(Number(m[1]), Number(m[2]), 0, 0);
+    return now.getTime() >= openToday.getTime();
+  },
+  hasRefilledToday: (lastSelfRefillAt: Date | string | null, now: Date) => {
+    if (!lastSelfRefillAt) return false;
+    const last =
+      typeof lastSelfRefillAt === 'string' ? new Date(lastSelfRefillAt) : lastSelfRefillAt;
+    if (Number.isNaN(last.getTime())) return false;
+    return (
+      last.getFullYear() === now.getFullYear() &&
+      last.getMonth() === now.getMonth() &&
+      last.getDate() === now.getDate()
+    );
+  },
+  shouldRefillBacklogNow: mockShouldRefillBacklogNow,
+  countHumanOriginTodo: mockCountHumanOriginTodo,
+  attemptCriticalConcernBypass: mockAttemptCriticalConcernBypass,
+  stopThemeForIdleTimeout: mockStopThemeForIdleTimeout,
+  markSelfRefillSucceeded: mockMarkSelfRefillSucceeded,
+}));
+
+// ---------------------------------------------------------------------------
 // auto-run-notifications
 // ---------------------------------------------------------------------------
 export const mockNotifyAwaitingPlanApproval = mock(() => Promise.resolve());
@@ -152,8 +225,10 @@ export const mockNotifyAllBlocked = mock(() => Promise.resolve());
 export const mockNotifyHangBackstop = mock(() => Promise.resolve());
 export const mockNotifyTaskVanished = mock(() => Promise.resolve());
 export const mockNotifyResourceContentionHold = mock(() => Promise.resolve());
+export const mockNotifyIdleStopped = mock(() => Promise.resolve());
 
 mock.module('./auto-run-notifications', () => ({
+  notifyIdleStopped: mockNotifyIdleStopped,
   notifyAwaitingPlanApproval: mockNotifyAwaitingPlanApproval,
   notifyAwaitingUserAnswer: mockNotifyAwaitingUserAnswer,
   notifyTaskSkipped: mockNotifyTaskSkipped,

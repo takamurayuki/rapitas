@@ -27,6 +27,10 @@ import {
   mockLogCycleEvent,
   mockBroadcast,
   mockRecordTransition,
+  mockShouldRefillBacklogNow,
+  mockGetIdleStopMinutes,
+  mockGetSelfRefillWindowStart,
+  mockMarkSelfRefillSucceeded,
 } from './theme-auto-run-scheduler.test-support';
 
 let scheduler: ThemeAutoRunScheduler;
@@ -72,21 +76,55 @@ describe('advanceTheme — selection: no task found', () => {
     expect(mockThemeAutoRunUpdateMany).not.toHaveBeenCalled();
   });
 
-  it('skips backlog refill too when a restart fires at the all_done quiet point', async () => {
+  it('skips the dev restart (not backlog refill) when the idle timer is armed at the dry point', async () => {
     mockSelectNextTask.mockResolvedValue({ found: false, reason: 'all_done' });
+    mockGetIdleStopMinutes.mockResolvedValue(60); // armed
     mockMaybeRestartForUpdate.mockResolvedValue(true);
 
     await internal(scheduler).advanceTheme(1, null, 'priority', 0, null);
 
+    // The task-boundary restart check (before selection) still ran once;
+    // the all_done-branch restart is skipped while the timer is armed.
+    expect(mockMaybeRestartForUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it('still allows the dry-point restart when the idle timer is disabled', async () => {
+    mockSelectNextTask.mockResolvedValue({ found: false, reason: 'all_done' });
+    mockGetIdleStopMinutes.mockResolvedValue(0); // disabled
+    mockMaybeRestartForUpdate.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+    await internal(scheduler).advanceTheme(1, null, 'priority', 0, null);
+
+    expect(mockMaybeRestartForUpdate).toHaveBeenCalledTimes(2);
     expect(mockPromoteBacklogForTheme).not.toHaveBeenCalled();
   });
 
-  it('stays active when all_done but the backlog refills at least one task', async () => {
+  it('does not attempt a refill (or call promoteBacklogForTheme) outside the self-refill gate', async () => {
     mockSelectNextTask.mockResolvedValue({ found: false, reason: 'all_done' });
+    mockShouldRefillBacklogNow.mockResolvedValue(false);
+
+    await internal(scheduler).advanceTheme(1, null, 'priority', 0, null);
+
+    expect(mockPromoteBacklogForTheme).not.toHaveBeenCalled();
+    expect(mockThemeAutoRunUpdateMany).toHaveBeenCalledWith({
+      where: { themeId: 1 },
+      data: expect.objectContaining({ status: 'idle', enabled: true, currentTaskId: null }),
+    });
+    expect(mockLogCycleEvent).toHaveBeenCalledWith(
+      'theme.idle',
+      expect.objectContaining({ cause: 'all_done_backlog_empty' }),
+    );
+  });
+
+  it('stays active when the self-refill gate allows it and the backlog refills at least one task', async () => {
+    mockSelectNextTask.mockResolvedValue({ found: false, reason: 'all_done' });
+    mockShouldRefillBacklogNow.mockResolvedValue(true);
     mockPromoteBacklogForTheme.mockResolvedValue(2);
 
     await internal(scheduler).advanceTheme(1, null, 'priority', 0, null);
 
+    expect(mockPromoteBacklogForTheme).toHaveBeenCalledWith(1);
+    expect(mockMarkSelfRefillSucceeded).toHaveBeenCalledWith(1, expect.any(Date));
     expect(mockLogCycleEvent).toHaveBeenCalledWith(
       'backlog.refill',
       expect.objectContaining({ created: 2 }),
@@ -95,21 +133,41 @@ describe('advanceTheme — selection: no task found', () => {
     expect(mockNotifyAllDone).not.toHaveBeenCalled();
   });
 
-  it('goes idle-but-armed when all_done and the backlog yields nothing', async () => {
+  it('goes idle-but-armed (idleSince recorded) when all_done and the backlog yields nothing', async () => {
     mockSelectNextTask.mockResolvedValue({ found: false, reason: 'all_done' });
+    mockShouldRefillBacklogNow.mockResolvedValue(true);
     mockPromoteBacklogForTheme.mockResolvedValue(0);
 
     await internal(scheduler).advanceTheme(1, null, 'priority', 0, null);
 
     expect(mockThemeAutoRunUpdateMany).toHaveBeenCalledWith({
       where: { themeId: 1 },
-      data: { status: 'idle', enabled: true, currentTaskId: null },
+      data: { status: 'idle', enabled: true, currentTaskId: null, idleSince: expect.any(Date) },
     });
+    expect(mockMarkSelfRefillSucceeded).not.toHaveBeenCalled();
     expect(mockNotifyAllDone).toHaveBeenCalledWith(1);
+  });
+
+  it('attaches refillSkippedReason to theme.idle when the gate held the refill', async () => {
+    mockSelectNextTask.mockResolvedValue({ found: false, reason: 'all_done' });
+    mockShouldRefillBacklogNow.mockResolvedValue(false);
+    mockGetIdleStopMinutes.mockResolvedValue(0); // disabled → reason falls through to the window check
+    mockGetSelfRefillWindowStart.mockResolvedValue('');
+
+    await internal(scheduler).advanceTheme(1, null, 'priority', 0, null);
+
+    expect(mockLogCycleEvent).toHaveBeenCalledWith(
+      'theme.idle',
+      expect.objectContaining({
+        cause: 'all_done_backlog_empty',
+        refillSkippedReason: 'outside_window',
+      }),
+    );
   });
 
   it('treats a rejected backlog promotion as zero created (caught) and still idles', async () => {
     mockSelectNextTask.mockResolvedValue({ found: false, reason: 'all_done' });
+    mockShouldRefillBacklogNow.mockResolvedValue(true);
     mockPromoteBacklogForTheme.mockImplementation(() =>
       Promise.reject(new Error('backlog svc down')),
     );

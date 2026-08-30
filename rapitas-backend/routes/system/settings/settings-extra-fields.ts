@@ -25,6 +25,11 @@ import type { UserSettingsUpdateBody } from './settings-types';
 
 const log = createLogger('routes:settings');
 
+/** Max idleStopMinutes accepted on write (24h) — task 784. */
+const MAX_IDLE_STOP_MINUTES = 1440;
+/** Local "HH:MM" format required for selfRefillWindowStart — task 784. */
+const SELF_REFILL_WINDOW_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 /**
  * Persist the "pending client regeneration" columns via cast writes: the
  * Prisma client type does not include these columns until it is regenerated
@@ -42,7 +47,13 @@ export async function applyPendingClientColumns(
   body: UserSettingsUpdateBody,
   settingsRef: Record<string, unknown>,
 ): Promise<void> {
-  const { restartOnAutoRunDry, verifyRepairLimit, workflowDisabledGlobally } = body;
+  const {
+    restartOnAutoRunDry,
+    verifyRepairLimit,
+    workflowDisabledGlobally,
+    idleStopMinutes,
+    selfRefillWindowStart,
+  } = body;
 
   if (restartOnAutoRunDry !== undefined) {
     await prisma.userSettings
@@ -80,6 +91,42 @@ export async function applyPendingClientColumns(
       })
       .catch((err) => log.warn({ err }, 'workflowDisabledGlobally persist failed'));
     settingsRef.workflowDisabledGlobally = workflowDisabledGlobally;
+  }
+
+  // Idle-stop timer (task 784): clamp to 0..1440 minutes (24h); 0 disables it.
+  if (idleStopMinutes !== undefined) {
+    const clamped = Math.max(0, Math.min(MAX_IDLE_STOP_MINUTES, Math.floor(idleStopMinutes)));
+    await prisma.userSettings
+      .update({
+        where: { id: settingsId },
+        data: { idleStopMinutes: clamped } as unknown as Parameters<
+          typeof prisma.userSettings.update
+        >[0]['data'],
+      })
+      .catch((err) => log.warn({ err }, 'idleStopMinutes persist failed'));
+    settingsRef.idleStopMinutes = clamped;
+  }
+
+  // Nightly self-refill window (task 784): '' disables it. An invalid "HH:MM"
+  // is REJECTED (write skipped, warning logged) rather than silently
+  // defaulted — a bad value must never land in the row.
+  if (selfRefillWindowStart !== undefined) {
+    if (selfRefillWindowStart !== '' && !SELF_REFILL_WINDOW_RE.test(selfRefillWindowStart)) {
+      log.warn(
+        { selfRefillWindowStart },
+        'selfRefillWindowStart rejected — not "" or a valid "HH:MM"; write skipped',
+      );
+    } else {
+      await prisma.userSettings
+        .update({
+          where: { id: settingsId },
+          data: { selfRefillWindowStart } as unknown as Parameters<
+            typeof prisma.userSettings.update
+          >[0]['data'],
+        })
+        .catch((err) => log.warn({ err }, 'selfRefillWindowStart persist failed'));
+      settingsRef.selfRefillWindowStart = selfRefillWindowStart;
+    }
   }
 }
 

@@ -76,6 +76,15 @@ model UserSettings {
   // verifier's failure is fed back to the implementer to fix and re-verify, up
   // to this many times. 0 disables auto-repair. See verify-self-repair.ts.
   verifyRepairLimit           Int       @default(2)
+  // Idle-stop timer (task 784): once a theme's auto-run runs dry (queue and
+  // active executions empty) and NO new task is filed for this many minutes,
+  // auto-run is stopped (ThemeAutoRun.enabled=false) with a notification.
+  // 0 disables the timer. See auto-run-idle-timer.ts / auto-run-lifecycle.ts.
+  idleStopMinutes             Int       @default(60)
+  // Nightly self-refill window (task 784): backlog self-refill (concerns/ideas
+  // -> tasks) runs at most once per day, not before this local "HH:MM". Empty
+  // string disables self-refill entirely. See backlog-task-promoter.ts.
+  selfRefillWindowStart       String    @default("03:00")
   // Global automation defaults (task-level overrides win, then these, then env).
   autoCommitDefault           Boolean   @default(false) // Default: auto-commit on completion
   autoCreatePRDefault         Boolean   @default(false) // Default: auto-create PR on completion

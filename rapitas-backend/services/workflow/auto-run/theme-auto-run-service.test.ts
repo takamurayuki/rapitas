@@ -139,6 +139,20 @@ describe('startAutoRun', () => {
     expect(mockUpsert).not.toHaveBeenCalled();
     expect(result.status).toBe('running');
   });
+
+  it('clears idleSince/idleStoppedAt (task 784: a start ends any idle-stop timer)', async () => {
+    mockFindUnique.mockResolvedValue(null);
+    mockUpsert.mockResolvedValue(makeRecord({ status: 'running' }));
+
+    const result = await startAutoRun(42);
+
+    expect(mockUpdateMany).toHaveBeenCalledWith({
+      where: { themeId: 42 },
+      data: { idleSince: null, idleStoppedAt: null },
+    });
+    expect(result.idleSince).toBeNull();
+    expect(result.idleStoppedAt).toBeNull();
+  });
 });
 
 describe('pauseAutoRun', () => {
@@ -209,6 +223,15 @@ describe('finalizeStop', () => {
     expect(mockUpdateMany).toHaveBeenCalledWith({
       where: { themeId: 42 },
       data: { status: 'idle', enabled: false, currentTaskId: null },
+    });
+  });
+
+  it('also clears idleSince/idleStoppedAt (task 784: a USER stop is never auto re-armed)', async () => {
+    mockUpdateMany.mockResolvedValue({ count: 1 });
+    await finalizeStop(42);
+    expect(mockUpdateMany).toHaveBeenCalledWith({
+      where: { themeId: 42 },
+      data: { idleSince: null, idleStoppedAt: null },
     });
   });
 });

@@ -12,7 +12,7 @@ import { createLogger } from '../../../config/logger';
 import { resolveTaskWorkingDirectory } from '../../task/task-resolver';
 import { AgentWorkerManager } from '../../agents/agent-worker-manager';
 import { realtimeService } from '../../communication/realtime-service';
-import { hasPromotableBacklog } from './backlog-task-promoter';
+import { hasPromotableBacklog, promoteBacklogForTheme } from './backlog-task-promoter';
 import { logCycleEvent } from '../../observability';
 import { getThemeActiveQueueItems, hasItemAwaitingApproval } from './auto-run-selection';
 import {
@@ -21,6 +21,16 @@ import {
   startAutoRun,
   type ThemeAutoRunState,
 } from './theme-auto-run-service';
+import {
+  getIdleStopMinutes,
+  isIdleTimerActivelyCounting,
+  isIdleTimerExpired,
+  countHumanOriginTodo,
+  attemptCriticalConcernBypass,
+  stopThemeForIdleTimeout,
+  shouldRefillBacklogNow,
+  markSelfRefillSucceeded,
+} from './auto-run-idle-timer';
 
 const log = createLogger('theme-auto-run-scheduler');
 
@@ -51,50 +61,202 @@ export async function processStoppingThemesImpl(
   }
 }
 
+/** Cause codes for an idle theme resuming (mirrors the `theme.resumed` event). */
+type ResumeCause = 'new_todo' | 'backlog_promotable' | 'concern_bypass' | 'manual_task_rearm';
+
+/** Start an idle theme and record why (log + cycle event + SSE). */
+async function resumeIdleTheme(themeId: number, cause: ResumeCause, todo: number): Promise<void> {
+  await startAutoRun(themeId);
+  broadcastAutoRunUpdateImpl(themeId);
+  log.info(
+    { themeId, todo, cause },
+    '[ThemeAutoRunScheduler] new work appeared — auto-resumed idle theme',
+  );
+  logCycleEvent('theme.resumed', {
+    theme: themeId,
+    todo,
+    cause,
+    msg: 'idle theme auto-resumed (new work appeared)',
+  });
+}
+
+/**
+ * Handle a single ARMED (enabled:true) idle theme: resume on human-filed work
+ * or a promotable backlog, otherwise run the idle-stop timer (task 784).
+ *
+ * @returns true when this pass stopped the theme (timer expired). / タイマー満了で停止したら true
+ */
+async function processArmedIdleTheme(
+  prisma: PrismaClient,
+  state: ThemeAutoRunState,
+  idleStopMinutes: number,
+  now: Date,
+): Promise<boolean> {
+  // Mirror selectNextTask's eligibility (parentId:null — the scheduler only
+  // drives TOP-LEVEL tasks; subtasks are run by AIOrchestra). Counting
+  // subtasks here let a stuck todo SUBTASK resume the theme, which then went
+  // straight back to all_done because selection skips it — a 12s idle⇄running
+  // flap that never made progress.
+  const todo = await prisma.task
+    .count({ where: { themeId: state.themeId, status: 'todo', parentId: null } })
+    .catch(() => 0);
+
+  if (!state.idleSince) {
+    // A row that went idle before the timer existed (or before this write
+    // path started stamping idleSince): check for immediate work first —
+    // same as the timer-disabled legacy path — then start the timer.
+    if (todo > 0) {
+      await resumeIdleTheme(state.themeId, 'new_todo', todo);
+      return false;
+    }
+    if (await hasPromotableBacklog(state.themeId, now)) {
+      await resumeIdleTheme(state.themeId, 'backlog_promotable', 0);
+      return false;
+    }
+    if (idleStopMinutes > 0) {
+      await prisma.themeAutoRun
+        .updateMany({
+          where: { themeId: state.themeId },
+          data: { idleSince: now } as unknown as Parameters<
+            typeof prisma.themeAutoRun.updateMany
+          >[0]['data'],
+        })
+        .catch(() => {});
+    }
+    return false;
+  }
+
+  const activelyCounting = isIdleTimerActivelyCounting(
+    { enabled: state.enabled, status: state.status, idleSince: state.idleSince },
+    idleStopMinutes,
+    now,
+  );
+
+  if (activelyCounting) {
+    // Countdown running (task 784, design points 2 & 3): a human filing or a
+    // high/urgent concern returns the theme to normal operation immediately;
+    // an ordinary backlog refill stays HELD until the countdown ends.
+    const humanTodo = await countHumanOriginTodo(state.themeId);
+    if (humanTodo > 0) {
+      await resumeIdleTheme(state.themeId, 'new_todo', humanTodo);
+      return false;
+    }
+    if (await attemptCriticalConcernBypass(state.themeId)) {
+      await resumeIdleTheme(state.themeId, 'concern_bypass', 0);
+      return false;
+    }
+    return false; // still counting down, nothing to do this pass
+  }
+
+  if (idleStopMinutes > 0) {
+    // Not counting down and the timer is armed → it has expired.
+    if (!isIdleTimerExpired(state.idleSince, idleStopMinutes, now)) return false;
+    await stopThemeForIdleTimeout(state.themeId);
+    broadcastAutoRunUpdateImpl(state.themeId);
+    return true;
+  }
+
+  // Timer disabled (idleStopMinutes=0): legacy resume — a fresh todo short-
+  // circuits the (gated) backlog check, matching the pre-784 behaviour.
+  if (todo > 0) {
+    await resumeIdleTheme(state.themeId, 'new_todo', todo);
+    return false;
+  }
+  if (await hasPromotableBacklog(state.themeId, now)) {
+    await resumeIdleTheme(state.themeId, 'backlog_promotable', 0);
+  }
+  return false;
+}
+
+/**
+ * Handle a single STOPPED (enabled:false) idle theme (task 784): a USER stop
+ * (idleStoppedAt null) stays stopped forever. A TIMER stop re-arms on a
+ * human-filed task (design point 5 — "手動でタスクが起票されたら…自動再アーム");
+ * severity-high concerns and the nightly self-refill window deliberately do
+ * NOT re-arm it (they only bypass the countdown BEFORE the stop — see
+ * processArmedIdleTheme) — the theme still learns (self-refills in place)
+ * but stays off until a human re-arms it.
+ */
+async function processStoppedIdleTheme(
+  prisma: PrismaClient,
+  state: ThemeAutoRunState,
+  now: Date,
+): Promise<void> {
+  if (!state.idleStoppedAt) return; // user stop → stay stopped
+
+  const manualTodo = await prisma.task
+    .count({
+      where: {
+        themeId: state.themeId,
+        status: 'todo',
+        parentId: null,
+        autoCreatedFromBacklog: false,
+      },
+    })
+    .catch(() => 0);
+  if (manualTodo > 0) {
+    await resumeIdleTheme(state.themeId, 'manual_task_rearm', manualTodo);
+    return;
+  }
+
+  // Learning loop maintained while stopped (design point 6): self-refill may
+  // still run in place, but it does NOT re-arm auto-run (design point 5).
+  if (await shouldRefillBacklogNow(state.themeId, now)) {
+    const created = await promoteBacklogForTheme(state.themeId).catch((err) => {
+      log.warn(
+        { err, themeId: state.themeId },
+        '[ThemeAutoRunScheduler] Backlog self-refill while stopped failed',
+      );
+      return 0;
+    });
+    logCycleEvent('backlog.refill_while_stopped', {
+      theme: state.themeId,
+      created,
+      msg: 'nightly self-refill ran while auto-run is idle-stopped (not re-armed)',
+    });
+    if (created > 0) await markSelfRefillSucceeded(state.themeId, now);
+  }
+}
+
 /**
  * Auto-resume themes that completed all work and went idle-but-ARMED
  * (enabled:true) once new work appears — a fresh todo task, or a backlog item
- * that can now be promoted (a backlog job added a concern/idea, or a freed cap
- * slot). This is what makes auto-run self-sustaining instead of dying at the
- * first dry. A USER stop leaves enabled:false and is never auto-resumed.
+ * that can now be promoted. This is what makes auto-run self-sustaining
+ * instead of dying at the first dry. A USER stop leaves enabled:false and is
+ * never auto-resumed by this loop.
+ *
+ * Idle-stop timer (task 784): an armed idle theme with no work for
+ * idleStopMinutes is stopped (enabled:false, notification, cycle event). A
+ * TIMER stop is re-armed only by a manual task filing after the stop; a USER
+ * stop never is. See processArmedIdleTheme / processStoppedIdleTheme.
  *
  * @param prisma - Prisma client / Prismaクライアント
  * @param idle - Themes currently in 'idle' status / アイドル状態のテーマ一覧
+ * @param now - Decision time (injectable for tests) / 判定時刻
+ * @returns true when this pass idle-stopped at least one theme. / この回でタイムアウト停止したテーマがあれば true
  */
 export async function processIdleThemesImpl(
   prisma: PrismaClient,
   idle: ThemeAutoRunState[],
-): Promise<void> {
+  now: Date = new Date(),
+): Promise<boolean> {
+  if (idle.length === 0) return false;
+  const idleStopMinutes = await getIdleStopMinutes();
+  let idleTimedOut = false;
   for (const state of idle) {
-    if (!state.enabled) continue; // user-stopped → stay stopped
     try {
-      // Mirror selectNextTask's eligibility (parentId:null — the scheduler only
-      // drives TOP-LEVEL tasks; subtasks are run by AIOrchestra). Counting
-      // subtasks here let a stuck todo SUBTASK resume the theme, which then went
-      // straight back to all_done because selection skips it — a 12s idle⇄running
-      // flap that never made progress.
-      const todo = await prisma.task
-        .count({ where: { themeId: state.themeId, status: 'todo', parentId: null } })
-        .catch(() => 0);
-      const hasWork = todo > 0 || (await hasPromotableBacklog(state.themeId));
-      if (!hasWork) continue;
-
-      await startAutoRun(state.themeId);
-      broadcastAutoRunUpdateImpl(state.themeId);
-      log.info(
-        { themeId: state.themeId, todo },
-        '[ThemeAutoRunScheduler] new work appeared — auto-resumed idle theme',
-      );
-      logCycleEvent('theme.resumed', {
-        theme: state.themeId,
-        todo,
-        cause: todo > 0 ? 'new_todo' : 'backlog_promotable',
-        msg: 'idle theme auto-resumed (new work appeared)',
-      });
+      if (!state.enabled) {
+        await processStoppedIdleTheme(prisma, state, now);
+        continue;
+      }
+      if (await processArmedIdleTheme(prisma, state, idleStopMinutes, now)) {
+        idleTimedOut = true;
+      }
     } catch (err) {
       log.warn({ err, themeId: state.themeId }, '[ThemeAutoRunScheduler] idle auto-resume failed');
     }
   }
+  return idleTimedOut;
 }
 
 /**

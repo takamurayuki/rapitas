@@ -25,3 +25,4 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `ScanSearch`              | 検出漏れ兆候の学習・レビュー（nav: /agents/miss-signatures、ページ見出し、バックログ定期ジョブ miss_ledger — 同一概念の再利用。注: `Search`＝知識ブラウザとは別概念） |
 | `Radar`                   | プリフライトprobeメトリクス（フェーズ遷移前probeのターゲット別成功率・レイテンシ集計。`ProbeMetricsPanel` ヘッダー） |
 | `Stethoscope`              | LLMエラー診断（信頼度スコア付き診断結果パネル、`ErrorDiagnosisPanel` ヘッダー。注: `src/components/category/icons` 等のカテゴリアイコンピッカー登録は中立的な再掲で対象外） |
+| `PowerOff`                | 通知の種別「自動実行: 新規起票がないため停止」（`NotificationBell` の auto_run_idle_stopped — 枯渇アイドルタイマー満了による auto-run 停止。注: `TimerOff`＝時間上限による単一タスク停止、`CheckCircle2`＝全タスク完了とは別概念） |

@@ -1374,6 +1374,13 @@
       "restartOnDryDescription": "At the quiet point when auto-run runs out of tasks (0 running agents), safely restarts only if there are new commits since startup, applying committed fixes before moving on to the next auto-created task (rate-limited to once per 10 minutes). Only active in dev startup.",
       "autoRestartMergedLabel": "Auto-restart when merged code is detected (dev)",
       "autoRestartMergedDescription": "Every 15 minutes, detects commits merged to origin's develop branch since startup that are not active yet, and only when the system is idle (0 running agents) safely pulls them in and restarts (rate-limited to once per 30 minutes). Only active in dev startup.",
+      "idleStopLabel": "Idle stop after running dry (minutes)",
+      "idleStopDescription": "Stops auto-run when no new task is filed (manually, or auto-filed from a high/urgent concern) for this many minutes after the theme runs out of tasks. Filing a task manually re-arms it automatically. 0 disables the timer.",
+      "idleStopUnit": "min",
+      "selfRefillWindowLabel": "Nightly self-refill window start",
+      "selfRefillWindowDescription": "Runs the backlog self-refill (concerns/ideas → tasks) at most once a day, not before this time (high/urgent concerns are filed regardless). Clear it to disable self-refill.",
+      "selfRefillWindowDisable": "Disable",
+      "selfRefillWindowDisabled": "Disabled (no self-refill)",
       "savingSuffix": " (saving…)"
     },
     "ciTimingDashboard": {
@@ -2137,6 +2144,37 @@
       "kbQuality": {
         "title": "Knowledge Quality",
         "seriesLabel": "Validated ratio"
+      },
+      "retroKpi": {
+        "sectionTitle": "Self-Improvement KPIs",
+        "sectionSubtitle": "Same definitions as the supervisor baseline locked on 2026-08-30 (7-day rolling windows). Badges compare this week with last week: green is better, red is worse",
+        "emptyHint": "Weekly KPI trends will appear here once workflow transitions are recorded",
+        "vsPrevWeek": "vs last week",
+        "repairRate": {
+          "title": "Repair Rate",
+          "seriesLabel": "Repair rate"
+        },
+        "autoMerge": {
+          "title": "Auto-Merge / Parked",
+          "mergedLabel": "Auto-merged",
+          "exhaustedLabel": "Merge retries exhausted"
+        },
+        "conflictFiled": {
+          "title": "Merge Conflicts Filed",
+          "seriesLabel": "Conflicts filed"
+        },
+        "noChangeConfirmed": {
+          "title": "Verified No-Change",
+          "seriesLabel": "Count"
+        },
+        "nonConvergence": {
+          "title": "Repair Non-Convergence",
+          "seriesLabel": "Count"
+        },
+        "leadTime": {
+          "title": "Lead Time Median",
+          "seriesLabel": "Duration (min)"
+        }
       }
     },
     "missSignatures": {
@@ -3132,6 +3170,10 @@
       "auto_run_all_done": {
         "title": "Auto-run: all tasks complete",
         "message": "All target tasks for theme \"{themeName}\" are processed. Auto-run is finishing."
+      },
+      "auto_run_idle_stopped": {
+        "title": "Auto-run: stopped — no new tasks were filed",
+        "message": "Theme \"{themeName}\" ran out of tasks and nothing new was filed, so auto-run was stopped. It can resume once you file a task manually or the nightly self-refill window opens."
       },
       "blocked_escalation": {
         "title": "A blocked task needs attention",

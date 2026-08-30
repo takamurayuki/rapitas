@@ -22,7 +22,10 @@ import {
   mockResumeAutoRun,
   mockBroadcast,
   mockMaybeRestartForUpdate,
+  mockStopThemeForIdleTimeout,
 } from './theme-auto-run-scheduler.test-support';
+
+const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
 
 beforeEach(() => {
   resetAllMocks();
@@ -215,6 +218,47 @@ describe('tick (dispatch)', () => {
 
     await internal(scheduler).tick();
 
+    expect(mockMaybeRestartForUpdate).toHaveBeenCalledWith(0);
+  });
+
+  // task 784, design point 7: the idle-stop timer takes priority over the
+  // dev-dry restart. processIdleThemesImpl's boolean return (whether this
+  // tick idle-stopped at least one theme) must propagate all the way through
+  // tick() to gate the trailing maybeRestartForUpdate(0) call — not just be
+  // computed and discarded.
+  it('skips the trailing maybeRestartForUpdate(0) on a tick that idle-stops a theme', async () => {
+    const scheduler = ThemeAutoRunScheduler.getInstance();
+    internal(scheduler).running = true;
+    mockFindByStatuses.mockResolvedValue([
+      makeState({
+        themeId: 7,
+        status: 'idle',
+        enabled: true,
+        idleSince: minutesAgo(61), // past the default 60-minute idleStopMinutes
+      }),
+    ]);
+
+    await internal(scheduler).tick();
+
+    expect(mockStopThemeForIdleTimeout).toHaveBeenCalledWith(7);
+    expect(mockMaybeRestartForUpdate).not.toHaveBeenCalledWith(0);
+  });
+
+  it('still calls maybeRestartForUpdate(0) on a tick where no theme idle-stops', async () => {
+    const scheduler = ThemeAutoRunScheduler.getInstance();
+    internal(scheduler).running = true;
+    mockFindByStatuses.mockResolvedValue([
+      makeState({
+        themeId: 7,
+        status: 'idle',
+        enabled: true,
+        idleSince: minutesAgo(10), // still counting down
+      }),
+    ]);
+
+    await internal(scheduler).tick();
+
+    expect(mockStopThemeForIdleTimeout).not.toHaveBeenCalled();
     expect(mockMaybeRestartForUpdate).toHaveBeenCalledWith(0);
   });
 });
