@@ -40,6 +40,10 @@ export type CycleEventName =
   // resource-contention gate (task 725): selection held one cycle because the
   // host CPU is busy AND the run is intentionally parallelized
   | 'task.resource_hold'
+  // implementer overlap hold (2026-08-30): the implementer is held because the
+  // files its research/plan names are still changing in an open auto-PR
+  | 'task.implement_overlap_hold'
+  | 'task.implement_overlap_released'
   // workflow phase progression
   | 'phase.transition'
   // task terminal / hold states
