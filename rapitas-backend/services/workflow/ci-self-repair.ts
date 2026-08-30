@@ -26,6 +26,18 @@ const log = createLogger('workflow:ci-self-repair');
 /** WorkflowTransition.cause used to count + identify CI-repair bounces. */
 export const CI_REPAIR_CAUSE = 'ci_repair';
 
+/**
+ * WorkflowTransition.cause recorded when the post-repair re-enqueue fails for
+ * a reason OTHER than a race (`already in the queue`). Before this cause
+ * existed, that failure left `task.status='in-progress'` with nobody holding a
+ * `WorkflowQueueItem` — an orphan that only `requeueOrphanTasks` (45-minute
+ * poll, `workflow-reconciler-requeue.ts`) would eventually notice (task 786 /
+ * #785: the 16:50:13 reconciler_requeue matched this exact enqueue-failure
+ * shape). Reverting `status` to 'todo' immediately lets the next reconcile
+ * pass (60s) pick it back up instead of waiting 45 minutes.
+ */
+export const ENQUEUE_FAILED_CAUSE = 'workflow_queue_enqueue_failed';
+
 /** Per-check tail budget for CI log excerpts injected into the feedback. */
 const MAX_LOG_LINES_PER_CHECK = 50;
 /** Total byte budget (across all checks) for CI log excerpts. */
@@ -277,9 +289,46 @@ export async function attemptCiRepair(
     await WorkflowQueueService.getInstance().enqueue({ taskId, priority: 60 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    // 'already in the queue' just means a tick raced us — fine.
-    if (!msg.includes('already in the queue')) {
-      log.warn({ err, taskId }, '[ci-repair] Failed to re-enqueue task');
+    if (msg.includes('already in the queue')) {
+      // A tick raced us — fine, the existing queue item covers this run.
+    } else {
+      // enqueue() failed before a WorkflowQueueItem was created, so nobody will
+      // ever dispatch this task — revert to 'todo' (keeping workflowStatus) so
+      // the next reconcile pass (60s) re-queues it instead of the 45-minute
+      // orphan sweep having to catch it.
+      log.warn(
+        { err, taskId },
+        '[ci-repair] Failed to re-enqueue task — reverting to todo for immediate reconciler pickup',
+      );
+      await prisma.task
+        .update({ where: { id: taskId }, data: { status: 'todo', updatedAt: new Date() } })
+        .catch((updateErr) =>
+          log.warn(
+            { err: updateErr, taskId },
+            '[ci-repair] Failed to revert status to todo after enqueue failure',
+          ),
+        );
+      // fromStatus/toStatus record WORKFLOW status (schema.prisma:134-137), which
+      // is unchanged here — only task.status flips ('in-progress' -> 'todo'), the
+      // same convention as the sibling revert causes (see lifecycle-manager.ts's
+      // agent_lifecycle_shutdown_revert). isWithinRecoveryGrace only keys off
+      // `cause` + timestamp (incident-signature-detectors.ts:219-229), so this
+      // does not affect Pattern-B exclusion. The actual task.status change is
+      // recorded explicitly in metadata for audit-trail completeness.
+      await recordTransition({
+        taskId,
+        fromStatus: newStatus,
+        toStatus: newStatus,
+        actor: 'system',
+        cause: ENQUEUE_FAILED_CAUSE,
+        phase: 'verify',
+        metadata: {
+          reason: 'enqueue_failed',
+          error: msg,
+          taskStatusFrom: 'in-progress',
+          taskStatusTo: 'todo',
+        },
+      });
     }
   }
 

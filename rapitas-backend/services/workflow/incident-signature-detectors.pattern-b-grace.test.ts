@@ -175,6 +175,7 @@ describe.each([
   ['agent_lifecycle_shutdown_revert', 'backend shutdown (lifecycle-manager.ts)'],
   ['manual_execution_stop_revert', 'manual stop (stop-route.ts)'],
   ['stale_execution_recovery_revert', 'stale-execution recovery (stale-recovery-helpers.ts)'],
+  ['workflow_queue_enqueue_failed', 'post-repair re-enqueue failure (ci-self-repair.ts, task 786)'],
 ])('pattern B recovery grace for %s — %s', (cause) => {
   const reverted: TriStateDesyncInput = {
     taskStatus: 'todo',
