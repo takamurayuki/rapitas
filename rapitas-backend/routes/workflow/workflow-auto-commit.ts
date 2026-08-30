@@ -145,18 +145,14 @@ export async function performAutoCommitAndPR(
     const autoMergePR = execConfig ? execConfig.autoMergePR : policy.autoMergePR;
     result.requested = { autoCommit, autoCreatePR, autoMergePR };
 
-    if (!autoCommit && !autoCreatePR && !autoMergePR) {
-      return result;
-    }
+    if (!autoCommit && !autoCreatePR && !autoMergePR) return result;
 
     const task = await prisma.task.findUnique({
       where: { id: taskId },
       include: {
         theme: true,
         developerModeConfig: {
-          include: {
-            agentSessions: { orderBy: { lastActivityAt: 'desc' }, take: 1 },
-          },
+          include: { agentSessions: { orderBy: { lastActivityAt: 'desc' }, take: 1 } },
         },
       },
     });
@@ -474,25 +470,29 @@ export async function performAutoCommitAndPR(
     // resolveCommitCwd (task 774) — passing it tripped the removal guard.
     const worktreePath = latestSession?.worktreePath;
     if (worktreePath) {
+      // NOTE: removeError stays undefined only on a confirmed removal — a refusal
+      // (safety guard) and a thrown error both fall through to the same failure
+      // branch, since either way the directory was NOT actually removed.
+      let removeError: string | undefined;
       try {
-        await orchestrator.removeWorktree(dirname(dirname(worktreePath)), worktreePath);
+        const baseDir = dirname(dirname(worktreePath));
+        const removed = await orchestrator.removeWorktree(baseDir, worktreePath);
+        if (!removed) removeError = 'removeWorktree refused or failed';
+      } catch (cleanupError) {
+        removeError = cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
+      }
+
+      if (removeError) {
+        // NOTE: Cleanup failure should not fail the overall workflow
+        log.error({ err: removeError }, `[Workflow] Worktree cleanup failed: ${worktreePath}`);
+        result.worktreeCleanupResult = { success: false, worktreePath, error: removeError };
+      } else {
         await prisma.agentSession.update({
           where: { id: latestSession.id },
           data: { worktreePath: null },
         });
         result.worktreeCleanupResult = { success: true, worktreePath };
         log.info(`[Workflow] Worktree cleaned up for task ${taskId}: ${worktreePath}`);
-      } catch (cleanupError) {
-        // NOTE: Cleanup failure should not fail the overall workflow
-        log.error(
-          { err: cleanupError },
-          `[Workflow] Worktree cleanup failed for task ${taskId}: ${worktreePath}`,
-        );
-        result.worktreeCleanupResult = {
-          success: false,
-          worktreePath,
-          error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
-        };
       }
     }
   } catch (error) {

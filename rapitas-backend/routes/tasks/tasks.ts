@@ -441,20 +441,23 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
           const baseDir = task.workingDirectory || getProjectRoot();
 
           for (const session of sessionsWithWorktrees) {
-            if (session.worktreePath) {
-              try {
-                await removeWorktree(baseDir, session.worktreePath);
-                await prisma.agentSession.update({
-                  where: { id: session.id },
-                  data: { worktreePath: null },
-                });
-                logger.info(`[tasks] Cleaned up worktree for task ${id}: ${session.worktreePath}`);
-              } catch (worktreeError) {
-                logger.warn(
-                  { err: worktreeError },
-                  `[tasks] Failed to clean up worktree for task ${id}: ${session.worktreePath}`,
-                );
+            if (!session.worktreePath) continue;
+            try {
+              const removed = await removeWorktree(baseDir, session.worktreePath);
+              if (!removed) {
+                logger.warn(`[tasks] worktree remove refused: task ${id} ${session.worktreePath}`);
+                continue;
               }
+              await prisma.agentSession.update({
+                where: { id: session.id },
+                data: { worktreePath: null },
+              });
+              logger.info(`[tasks] Cleaned up worktree for task ${id}: ${session.worktreePath}`);
+            } catch (worktreeError) {
+              logger.warn(
+                { err: worktreeError },
+                `[tasks] Failed to clean up worktree for task ${id}: ${session.worktreePath}`,
+              );
             }
           }
         }
@@ -622,10 +625,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
 
       // Verify subtasks belong to this parent
       const validSubtasks = await prisma.task.findMany({
-        where: {
-          id: { in: subtaskIds },
-          parentId,
-        },
+        where: { id: { in: subtaskIds }, parentId },
         select: { id: true },
       });
 

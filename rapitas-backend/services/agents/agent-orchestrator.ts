@@ -489,7 +489,7 @@ export class AgentOrchestrator {
    * @param baseDir - Main repository root / メインリポジトリルート
    * @param worktreePath - Worktree path to remove / 削除するworktreeパス
    */
-  async removeWorktree(baseDir: string, worktreePath: string): Promise<void> {
+  async removeWorktree(baseDir: string, worktreePath: string): Promise<boolean> {
     return this.gitOps.removeWorktree(baseDir, worktreePath);
   }
 

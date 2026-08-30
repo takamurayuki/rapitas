@@ -75,10 +75,17 @@ async function deleteTaskWithArtifacts(taskId: number): Promise<void> {
     for (const s of sessions) {
       if (!s.worktreePath) continue;
       try {
-        await removeWorktree(baseDir, s.worktreePath);
-        await prisma.agentSession
-          .update({ where: { id: s.id }, data: { worktreePath: null } })
-          .catch(() => {});
+        const removed = await removeWorktree(baseDir, s.worktreePath);
+        if (removed) {
+          await prisma.agentSession
+            .update({ where: { id: s.id }, data: { worktreePath: null } })
+            .catch(() => {});
+        } else {
+          log.warn(
+            { taskId, worktreePath: s.worktreePath },
+            '[cleanup] removeWorktree refused or failed',
+          );
+        }
       } catch (wtErr) {
         log.warn(
           { err: wtErr, taskId, worktreePath: s.worktreePath },

@@ -61,15 +61,17 @@ export async function createWorktree(
  * @param ipc - IPC sender / IPC送信関数
  * @param baseDir - Main repository root / メインリポジトリルート
  * @param worktreePath - Worktree path to remove / 削除するworktreeパス
+ * @returns Whether the worktree was actually removed / worktreeが実際に削除されたか
  */
 export async function removeWorktree(
   ipc: IpcSender,
   baseDir: string,
   worktreePath: string,
-): Promise<void> {
+): Promise<boolean> {
   // NOTE: 5 min timeout — `git worktree remove --force` plus filesystem rm of
   // a populated worktree (including node_modules) can take 1-2 min on Windows.
-  await ipc('remove-worktree', { baseDir, worktreePath }, 5 * 60 * 1000);
+  const result = await ipc('remove-worktree', { baseDir, worktreePath }, 5 * 60 * 1000);
+  return result === true;
 }
 
 /**

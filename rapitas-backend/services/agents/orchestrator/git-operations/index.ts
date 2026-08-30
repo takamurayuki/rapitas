@@ -166,7 +166,7 @@ export class GitOperations {
     baseDir: string,
     worktreePath: string,
     deleteBranch: boolean = true,
-  ): Promise<void> {
+  ): Promise<boolean> {
     return removeWorktree(baseDir, worktreePath, deleteBranch);
   }
 

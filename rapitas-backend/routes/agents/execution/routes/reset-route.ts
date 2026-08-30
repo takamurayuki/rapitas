@@ -129,8 +129,10 @@ export const resetRoute = new Elysia().post(
 
         if (latestSession.worktreePath && workingDirectory) {
           try {
-            await removeWorktree(workingDirectory, latestSession.worktreePath);
-            revertedChanges = true;
+            revertedChanges = await removeWorktree(workingDirectory, latestSession.worktreePath);
+            if (!revertedChanges) {
+              revertSkippedReason = 'removeWorktree refused or failed';
+            }
           } catch (revertError) {
             log.warn(
               { err: revertError, taskId, worktreePath: latestSession.worktreePath },
@@ -145,13 +147,17 @@ export const resetRoute = new Elysia().post(
           revertSkippedReason = 'Task working directory is not configured.';
         }
 
+        // NOTE: Only clear worktreePath when removeWorktree actually removed the
+        // directory — otherwise the DB would report the worktree as gone while it
+        // still exists on disk, and cleanupOrphanedWorktrees would lose track of it
+        // (K-8047: safety guard refused removal but the caller cleared the path anyway).
         await prisma.agentSession.update({
           where: { id: latestSession.id },
           data: {
             status: 'reset',
             completedAt: new Date(),
             errorMessage: 'リセットされました',
-            worktreePath: null,
+            worktreePath: revertedChanges ? null : latestSession.worktreePath,
           },
         });
 

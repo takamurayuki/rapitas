@@ -412,10 +412,7 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
  */
 async function resolveBaseBranch(taskId: number): Promise<string> {
   const task = await prisma.task
-    .findUnique({
-      where: { id: taskId },
-      select: { theme: { select: { defaultBranch: true } } },
-    })
+    .findUnique({ where: { id: taskId }, select: { theme: { select: { defaultBranch: true } } } })
     .catch(() => null);
   return task?.theme?.defaultBranch || 'develop';
 }
@@ -497,12 +494,13 @@ async function cleanupWorktree(
   sessionId: number,
 ): Promise<void> {
   try {
-    await agentWorkerManager.removeWorktree(workDir, executionDir);
-    await prisma.agentSession.update({
-      where: { id: sessionId },
-      data: { worktreePath: null },
-    });
-    log.info({ sessionId }, 'Worktree cleaned up');
+    const removed = await agentWorkerManager.removeWorktree(workDir, executionDir);
+    if (removed) {
+      await prisma.agentSession.update({ where: { id: sessionId }, data: { worktreePath: null } });
+      log.info({ sessionId }, 'Worktree cleaned up');
+    } else {
+      log.warn({ sessionId }, 'removeWorktree refused or failed');
+    }
   } catch (err) {
     log.warn({ err, sessionId }, 'Worktree cleanup failed');
   }
