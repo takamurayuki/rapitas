@@ -19,6 +19,7 @@ import {
   markConcernResolved,
 } from '../../memory/concern-backlog-service';
 import { isLogConcernStillRecurring, fragmentFromLogConcernTitle } from './log-concern-recurrence';
+import { isSelfDetectConcernStillRelevant } from './self-detect-relevance';
 import { listIdeas, markIdeaAsUsed } from '../../memory/idea-box-service';
 import { createTask } from '../../task/task-mutations';
 import { logCycleEvent } from '../../observability';
@@ -148,6 +149,27 @@ async function promoteConcern(
           kind: 'concern',
           concernId: concern.id,
           msg: 'log-derived concern silent for 24h; resolved instead of promoted',
+        });
+        return false;
+      }
+    }
+    // Same idea for [自己検出] alarms (状態不整合 / 反復ループ): they alarm on a
+    // live condition, and 25 of the week's 31 no-change completions were such
+    // filings whose condition had already healed. [回顧] diagnostics are
+    // deliberately NOT gated (#768 produced real follow-up work).
+    if (full) {
+      const relevant = await isSelfDetectConcernStillRelevant(full);
+      if (relevant === false) {
+        await markConcernResolved(concern.id, true);
+        log.info(
+          { themeId, concernId: concern.id, title: full.title.slice(0, 80) },
+          '[backlog-promoter] Self-detect alarm no longer holds — resolved without a task',
+        );
+        logCycleEvent('backlog.concern_stale_resolved', {
+          theme: themeId,
+          kind: 'concern',
+          concernId: concern.id,
+          msg: 'self-detect alarm condition already healed; resolved instead of promoted',
         });
         return false;
       }
