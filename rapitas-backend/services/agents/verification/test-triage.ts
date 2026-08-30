@@ -8,7 +8,7 @@
  *
  * Does not modify database state; concern filing is the caller's responsibility.
  */
-import { spawn } from 'child_process';
+import { spawnQuiet } from './quiet-verification';
 import { existsSync } from 'fs';
 import { join, relative } from 'path';
 import { randomBytes } from 'crypto';
@@ -45,7 +45,7 @@ function runTriageCmd(
     let stdout = '';
     let stderr = '';
     let settled = false;
-    const child = spawn(command, { cwd, shell: true, windowsHide: true });
+    const child = spawnQuiet(command, { cwd, shell: true, windowsHide: true });
     const finish = (code: number) => {
       if (settled) return;
       settled = true;

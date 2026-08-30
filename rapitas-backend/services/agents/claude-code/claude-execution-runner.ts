@@ -10,7 +10,7 @@
  * 500-line per-file limit. The function reads and writes the agent's
  * `/** @internal *\/` public state directly.
  */
-import { spawn } from 'child_process';
+import { spawnLowPriority } from '../process-priority';
 import { writeFileSync, unlinkSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -301,7 +301,7 @@ export function runClaudeExecution(
   try {
     logger.info(`${agent.logPrefix} Final command: ${finalCommand}`);
 
-    agent.process = spawn(finalCommand, finalArgs, {
+    agent.process = spawnLowPriority(finalCommand, finalArgs, {
       cwd: workDir,
       shell: true,
       windowsHide: true, // NOTE: Prevents TCP handle inheritance — stops CLI process from inheriting port 3001 socket

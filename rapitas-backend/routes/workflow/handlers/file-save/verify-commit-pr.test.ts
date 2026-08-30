@@ -79,6 +79,26 @@ mock.module('./verify-commit-pr-side-effects', () => ({
   },
 }));
 
+let prVerdictFixture: { dirty: boolean; state: string | null } = { dirty: false, state: 'CLEAN' };
+const prVerdictCalls: Array<{ taskId: number; prNumber: number }> = [];
+mock.module('./conflict-pr-merge-state', () => ({
+  readConflictPrVerdict: (taskId: number, prNumber: number) => {
+    prVerdictCalls.push({ taskId, prNumber });
+    return Promise.resolve(prVerdictFixture);
+  },
+}));
+let repairFixture: { bounced: boolean; newStatus?: string; attempt?: number; stale?: boolean } = {
+  bounced: true,
+  newStatus: 'plan_approved',
+  attempt: 1,
+};
+const repairCalls: Array<{ reason: string }> = [];
+mock.module('../../../../services/workflow/verify-self-repair', () => ({
+  attemptVerifyRepair: (_taskId: number, _status: string | null, reason: string) => {
+    repairCalls.push({ reason });
+    return Promise.resolve(repairFixture);
+  },
+}));
 const { runVerifyCommitPrCompletion } = await import('./verify-commit-pr');
 
 /** Builds the params for one completion invocation. / 1回分の完了処理パラメータを組み立てる。 */
@@ -103,6 +123,11 @@ beforeEach(() => {
   transitionCalls.length = 0;
   sideEffectsCalls.length = 0;
   mockRecordTransition.mockClear();
+  prVerdictFixture = { dirty: false, state: 'CLEAN' };
+  prVerdictCalls.length = 0;
+  repairFixture = { bounced: true, newStatus: 'plan_approved', attempt: 1 };
+  repairCalls.length = 0;
+  mockPrisma.task.update.mockClear();
   autoCommitPRResultFixture = {
     requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
     autoCommitResult: { success: true, filesChanged: 0 },
@@ -171,5 +196,61 @@ describe('runVerifyCommitPrCompletion — 完了遷移のCAS（二重記録防�
 
     expect(res.taskMarkedDone).toBe(false);
     expect(transitionCalls.length).toBe(0);
+  });
+});
+
+describe('runVerifyCommitPrCompletion — 競合解消タスクは PR の mergeable を確認してから完了する', () => {
+  const conflictParams = () =>
+    buildParams({
+      isConflictResolutionTask: true,
+      conflictTask: { title: 'PR #534 の競合を解消', githubPrId: 534 },
+    });
+
+  test('PR が DIRTY のままなら完了せず self-repair で差し戻す（#762 再起票の再発防止）', async () => {
+    prVerdictFixture = { dirty: true, state: 'DIRTY' };
+    const res = await runVerifyCommitPrCompletion(conflictParams());
+    expect(prVerdictCalls).toEqual([{ taskId: 594, prNumber: 534 }]);
+    expect(res.taskMarkedDone).toBe(false);
+    expect(res.newStatus).toBe('plan_approved');
+    expect(repairCalls.length).toBe(1);
+    expect(repairCalls[0]?.reason).toContain('#534');
+    expect(transitionCalls.some((t) => t.cause === 'conflict_resolution_completed')).toBe(false);
+    expect(updateManyCalls.length).toBe(0);
+  });
+
+  test('DIRTY かつ修復予算を使い切っていればブロックし conflict_pr_still_dirty を記録', async () => {
+    prVerdictFixture = { dirty: true, state: 'DIRTY' };
+    repairFixture = { bounced: false };
+    const res = await runVerifyCommitPrCompletion(conflictParams());
+    expect(res.taskMarkedDone).toBe(false);
+    expect(mockPrisma.task.update).toHaveBeenCalledTimes(1);
+    expect(transitionCalls.map((t) => t.cause)).toEqual(['conflict_pr_still_dirty']);
+  });
+
+  test('DIRTY でも verdict が stale なら何もしない（先に進んだワークフローを壊さない）', async () => {
+    prVerdictFixture = { dirty: true, state: 'DIRTY' };
+    repairFixture = { bounced: false, stale: true };
+    const res = await runVerifyCommitPrCompletion(conflictParams());
+    expect(res.taskMarkedDone).toBe(false);
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    expect(transitionCalls.length).toBe(0);
+  });
+
+  test('PR が CLEAN なら従来どおり conflict_resolution_completed で完了', async () => {
+    const res = await runVerifyCommitPrCompletion(conflictParams());
+    expect(prVerdictCalls.length).toBe(1);
+    expect(res.taskMarkedDone).toBe(true);
+    expect(transitionCalls.map((t) => t.cause)).toEqual(['conflict_resolution_completed']);
+  });
+
+  test('PR 番号が無ければ照会せず完了（fail open）', async () => {
+    const res = await runVerifyCommitPrCompletion(
+      buildParams({
+        isConflictResolutionTask: true,
+        conflictTask: { title: '競合解消', githubPrId: null },
+      }),
+    );
+    expect(prVerdictCalls.length).toBe(0);
+    expect(res.taskMarkedDone).toBe(true);
   });
 });

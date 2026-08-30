@@ -15,6 +15,7 @@ import {
 } from '../agents/task-execution-lock';
 import { narrowWorkflowStatus } from './workflow-types.guards.generated';
 import { runPreflight } from './workflow-orchestrator-preflight';
+import { guardImplementOverlap } from './workflow-orchestrator-overlap-guard';
 import { prepareAgentAndPrompt } from './workflow-orchestrator-agent-prep';
 import { runPreflightProbe } from './workflow-orchestrator-preflight-probe';
 import { guardPlanValidity } from './workflow-orchestrator-plan-guard';
@@ -139,6 +140,11 @@ export class WorkflowOrchestrator {
     const preflight = await runPreflight(taskId);
     if (preflight.done) return preflight.result;
     const { task, workflowMode, currentStatus, transition } = preflight;
+
+    // Before any agent/prompt work: hold the implementer while its files are
+    // still changing in another open auto-PR (skipped → the runner re-queues).
+    const overlap = await guardImplementOverlap(taskId, transition, task, currentStatus);
+    if (overlap.done) return overlap.result;
 
     const prep = await prepareAgentAndPrompt(taskId, transition, currentStatus);
     if (prep.done) return prep.result;

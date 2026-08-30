@@ -366,9 +366,11 @@ export class WorkflowRunner {
         // fail the item — return it to the queue so the next poll re-checks
         // once the in-flight phase has advanced the workflowStatus.
         if (result.skipped) {
-          log.info(
-            { taskId: item.taskId, phase: currentStatus },
-            '[WorkflowRunner] Phase already running elsewhere — re-queuing item',
+          log[result.held ? 'debug' : 'info'](
+            { taskId: item.taskId, phase: currentStatus, held: result.held },
+            result.held
+              ? `[WorkflowRunner] Implementer held (${result.held}) — re-queuing item`
+              : '[WorkflowRunner] Phase already running elsewhere — re-queuing item',
           );
           await this.queue.updateStatus(item.id, 'queued', { currentPhase: currentStatus });
           this.broadcastItemUpdate(item.id, item.taskId, 'execution_requeued', currentStatus);

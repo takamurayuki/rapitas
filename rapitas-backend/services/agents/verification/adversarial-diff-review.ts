@@ -32,7 +32,7 @@ import { appendEvent } from '../../memory/timeline';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { resolvePreferredBaseBranch } from '../../task/task-resolver';
-
+import { mapJurors } from './juror-scheduling';
 const log = createLogger('verification:adversarial-diff-review');
 
 /** Max diff characters sent to the judge (keeps token cost bounded). */
@@ -480,7 +480,7 @@ export async function reviewDiffAdversarially(params: {
         '[adversarial-review] Skipping jurors that keep timing out',
       );
     }
-    const jurors = await Promise.all(panel.map((provider) => askJuror(provider, prompt)));
+    const jurors = await mapJurors(panel, (provider) => askJuror(provider, prompt));
     const aggregated = aggregateJuryVerdicts(jurors);
 
     // Durable per-juror record for judge-reliability calibration; skipped for

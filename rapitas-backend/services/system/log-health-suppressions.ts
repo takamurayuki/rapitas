@@ -64,7 +64,10 @@ const SUPPRESSIONS: Suppression[] = [
     because: '任意プロバイダが不在なだけ — 必須ではない',
   },
   {
-    test: /fail-open|skipping \(fail-open\)/i,
+    // #760: 実際の呼び出し箇所の大半は "failing open"（ハイフン無し動詞句）を使っており
+    // "fail-open"（ハイフン付き名詞句）のみにマッチする旧正規表現では拾えなかった。
+    // 例: critic-gate.ts:90, completion-gate.ts:110, verify-self-repair.ts:185 ほか。
+    test: /fail(?:ing)?-open|failing open|skipping \(fail-open\)/i,
     because: '明示的に fail-open として継続している',
   },
   {
@@ -110,6 +113,31 @@ const SUPPRESSIONS: Suppression[] = [
     because: '実行結果の記録 — 原因は当該実行のログ側に出ており、二重起票になる',
   },
   {
+    // ログ出力箇所: fallback-executor.ts:113-123 の logger.warn。checkNeedsFallback
+    // （fallback-decision.ts:22-53）がプロバイダ障害を検知し、代替エージェント設定で
+    // 再試行を開始する時点の告知ログ — 障害の検出自体は意図した分類ロジックであり、
+    // 欠陥ではない。同一イベントは services/ai/recovery-metrics/ が既に
+    // taskId・phase・fromProvider・strategy・outcome 付きで構造化記録しており、
+    // ログ経由の起票は重複になる。フォールバックが最終的に失敗した場合は別シグネチャ
+    // （上記の Execution ended with status: failed）で捕捉されるため、本ルールで
+    // 最終失敗の可視性が失われることはない（#758）。
+    test: /Provider failed — retrying with alternative agent config/i,
+    logger: /task-executor/i,
+    because:
+      'フォールバック機構が代替エージェントで再試行を開始した告知ログ — 障害検出は意図した分類ロジックであり、同一イベントはrecovery-metricsが既に構造化記録している',
+  },
+  {
+    // ログ出力箇所: task_queue.ts:230-233 の log.warn（reapStuckProcessing内）。
+    // attempts < maxAttempts の行を pending に差し戻し、次回ポーリングで自動リトライ
+    // させる自己修復の成功記録であり、壊れた側ではない（#761）。maxAttempts到達で
+    // dead_letter に送られる場合は別シグネチャ（'Stuck processing task moved to
+    // dead_letter'、ERROR）で記録されるため、本ルールで恒久失敗の可視性は失われない。
+    test: /Stuck processing task requeued as pending/i,
+    logger: /memory:task-queue/i,
+    because:
+      'reapStuckProcessing の自己修復が成功した記録 — 次回ポーリングで自動リトライされ、maxAttempts到達時は別シグネチャ(dead_letter)で記録される',
+  },
+  {
     // ログ出力箇所: middleware/error-handler.ts:165-170 の `code === 'PARSE'` 分岐
     // （#683 で追加）。JSONパース失敗はここで log.warn（ERRORではなくWARN）+ status 400
     // として処理される。ParseError の message は elysia 側で "Bad Request" 固定
@@ -121,6 +149,16 @@ const SUPPRESSIONS: Suppression[] = [
     logger: /error-handler/i,
     because:
       'middleware/error-handler.ts:165-170 のPARSE分岐(#683)がlog.warn+400で処理しており、ERRORとして起票される経路は存在しない',
+  },
+  {
+    // ログ出力箇所: services/ai/provider-cooldown.ts:149 の markProviderCooldown()。
+    // 呼び出し元(agent-fallback.ts, workflow-provider-fallback.ts,
+    // gemini-cli-agent/stream-handler.ts)はquota/rate_limit/auth/transient
+    // エラー検知時にプロバイダを一時停止し代替へフォールバックする、意図した挙動を記録する。
+    test: /Provider placed in cooldown/i,
+    logger: /ai:provider-cooldown/i,
+    because:
+      'フォールバック機構がquota/rate_limit等を検知しプロバイダを一時停止した記録 — 代替プロバイダへの自動切替が正常に働いた側',
   },
 ];
 

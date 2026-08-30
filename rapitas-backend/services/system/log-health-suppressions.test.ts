@@ -51,6 +51,15 @@ const SUPPRESSED: [string, string][] = [
     'gh command failed: gh pr create --title [Task-#] no commits between develop and bugfix/t#-x',
   ],
   ['error-handler', 'Bad Request: Failed to parse JSON'],
+  ['ai:provider-cooldown', 'Provider placed in cooldown'],
+  ['routes:workflow:handlers:files', '[Workflow] Phase critic gate timed out — failing open'],
+  ['workflow:completion-gate', '[CompletionGate] diff check failed — failing open'],
+  [
+    'workflow:verify-self-repair',
+    '[verify-repair] Non-convergence check failed — failing open (no cutoff)',
+  ],
+  ['task-executor', '[TaskExecutor] Provider failed — retrying with alternative agent config'],
+  ['memory:task-queue', 'Stuck processing task requeued as pending'],
 ];
 
 const KEPT: [string, string][] = [
@@ -65,6 +74,7 @@ const KEPT: [string, string][] = [
   ],
   ['error-handler', 'Prisma Error'],
   ['routes:workflow:auto-commit', 'Automated verification failed — aborting PR review'],
+  ['memory:task-queue', 'Stuck processing task moved to dead_letter'],
 ];
 
 describe('classifyLogSignature', () => {
@@ -103,6 +113,41 @@ describe('classifyLogSignature', () => {
     // Task #702: the phrase alone must not suppress an unrelated logger reusing it.
     expect(
       classifyLogSignature('some-other-logger', 'Bad Request: Failed to parse JSON').suppressed,
+    ).toBe(false);
+  });
+
+  test('"Provider placed in cooldown" is scoped to the ai:provider-cooldown logger only', () => {
+    // Task #759: an unrelated logger reusing this phrase must still be filed.
+    expect(
+      classifyLogSignature('some-other-logger', 'Provider placed in cooldown').suppressed,
+    ).toBe(false);
+  });
+
+  test('"Provider failed — retrying with alternative agent config" is scoped to task-executor only', () => {
+    // Task #758: workflow-provider-fallback.ts emits a similar-sounding phrase
+    // ("Provider failed — retrying with Smart Router fallback") from a different
+    // logger; that is a separate mechanism and must not be filed under this rule.
+    expect(
+      classifyLogSignature(
+        'workflow-provider-fallback',
+        'Provider failed — retrying with alternative agent config',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"Stuck processing task requeued as pending" is scoped to memory:task-queue only', () => {
+    // Task #761: the phrase alone must not suppress an unrelated logger reusing it.
+    expect(
+      classifyLogSignature('some-other-logger', 'Stuck processing task requeued as pending')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('the dead_letter transition stays visible even though the requeue is suppressed', () => {
+    // Task #761: a real permanent failure must not be swallowed by the requeue rule.
+    expect(
+      classifyLogSignature('memory:task-queue', 'Stuck processing task moved to dead_letter')
+        .suppressed,
     ).toBe(false);
   });
 });
