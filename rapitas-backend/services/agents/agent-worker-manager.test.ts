@@ -110,7 +110,7 @@ mock.module('./agent-worker/public-api', () => ({
 
 const mockCreateBranch = mock(async () => true);
 const mockCreateWorktree = mock(async () => '/tmp/worktree');
-const mockRemoveWorktree = mock(async () => {});
+const mockRemoveWorktree = mock(async () => true);
 const mockCleanupStaleWorktrees = mock(async () => 0);
 const mockCreateCommit = mock(async () => ({
   hash: 'h',
@@ -514,9 +514,17 @@ describe('AgentWorkerManager', () => {
       );
     });
 
-    it('removeWorktree は git.removeWorktree に委譲する', async () => {
-      await manager.removeWorktree('/repo', '/tmp/wt-1');
+    it('removeWorktree は git.removeWorktree に委譲し、戻り値をそのまま返す', async () => {
+      mockRemoveWorktree.mockResolvedValueOnce(true);
+      const result = await manager.removeWorktree('/repo', '/tmp/wt-1');
+      expect(result).toBe(true);
       expect(mockRemoveWorktree).toHaveBeenCalledWith(expect.any(Function), '/repo', '/tmp/wt-1');
+    });
+
+    it('removeWorktree が false を返した場合はそのまま false を返す', async () => {
+      mockRemoveWorktree.mockResolvedValueOnce(false);
+      const result = await manager.removeWorktree('/repo', '/tmp/wt-1');
+      expect(result).toBe(false);
     });
 
     it('cleanupStaleWorktrees は git.cleanupStaleWorktrees に委譲する', async () => {

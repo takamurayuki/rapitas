@@ -65,7 +65,7 @@ mock.module('../../config', () => ({
   getProjectRoot: getProjectRootMock,
 }));
 
-const removeWorktreeMock = mock(() => Promise.resolve()) as ReturnType<typeof mock>;
+const removeWorktreeMock = mock(() => Promise.resolve(true)) as ReturnType<typeof mock>;
 
 mock.module('../agents/orchestrator/git-operations/worktree/worktree-ops', () => ({
   ensureGitRepository: () => Promise.resolve(),
@@ -121,7 +121,7 @@ beforeEach(() => {
   getProjectRootMock.mockReset();
   getProjectRootMock.mockReturnValue('/tmp/project-root');
   removeWorktreeMock.mockReset();
-  removeWorktreeMock.mockResolvedValue(undefined);
+  removeWorktreeMock.mockResolvedValue(true);
   extractKnowledgeFromTaskMock.mockReset();
   extractKnowledgeFromTaskMock.mockResolvedValue([]);
 });
@@ -342,6 +342,25 @@ describe('cleanupCompletedTasks — deleteTaskWithArtifacts の副作用', () =>
     });
   });
 
+  test('task.workingDirectoryが無くtheme.workingDirectoryがある場合 → themeのworkingDirectoryがbaseDirとして使われること', async () => {
+    taskFindMany.mockResolvedValueOnce([completedTask(25)]);
+    knowledgeEntryCount.mockResolvedValueOnce(1);
+    taskFindUnique.mockResolvedValueOnce({
+      workingDirectory: null,
+      theme: { workingDirectory: '/projects/theme-dir' },
+    });
+    agentSessionFindMany.mockResolvedValueOnce([
+      { id: 5, worktreePath: '/projects/theme-dir/.worktrees/a' },
+    ]);
+
+    await cleanupCompletedTasks({ keepRecent: 0 });
+
+    expect(removeWorktreeMock).toHaveBeenCalledWith(
+      '/projects/theme-dir',
+      '/projects/theme-dir/.worktrees/a',
+    );
+  });
+
   test('taskのworkingDirectoryが無い場合 → getProjectRootがbaseDirとして使われること', async () => {
     taskFindMany.mockResolvedValueOnce([completedTask(21)]);
     knowledgeEntryCount.mockResolvedValueOnce(1);
@@ -351,6 +370,24 @@ describe('cleanupCompletedTasks — deleteTaskWithArtifacts の副作用', () =>
     await cleanupCompletedTasks({ keepRecent: 0 });
 
     expect(removeWorktreeMock).toHaveBeenCalledWith('/tmp/project-root', '/wt/b');
+  });
+
+  test('removeWorktreeがfalseを返す場合 → agentSession.updateは呼ばれないこと', async () => {
+    taskFindMany.mockResolvedValueOnce([completedTask(25)]);
+    knowledgeEntryCount.mockResolvedValueOnce(1);
+    taskFindUnique.mockResolvedValueOnce({ workingDirectory: '/projects/task-25' });
+    agentSessionFindMany.mockResolvedValueOnce([
+      { id: 5, worktreePath: '/projects/task-25/.worktrees/a' },
+    ]);
+    removeWorktreeMock.mockResolvedValueOnce(false);
+
+    await cleanupCompletedTasks({ keepRecent: 0 });
+
+    expect(removeWorktreeMock).toHaveBeenCalledWith(
+      '/projects/task-25',
+      '/projects/task-25/.worktrees/a',
+    );
+    expect(agentSessionUpdate).not.toHaveBeenCalled();
   });
 
   test('worktreePathがnullのセッションは除去処理をスキップすること', async () => {

@@ -72,6 +72,7 @@ let prResultFixture: { success: false; error: string } = {
   error: 'no commits between develop and feature/t687',
 };
 let filesChangedFixture = 0;
+let removeWorktreeFixture = true;
 mock.module('../../services/agents/agent-orchestrator', () => ({
   AgentOrchestrator: {
     getInstance: () => ({
@@ -89,7 +90,7 @@ mock.module('../../services/agents/agent-orchestrator', () => ({
         createPullRequestCalls++;
         return Promise.resolve(prResultFixture);
       },
-      removeWorktree: () => Promise.resolve(),
+      removeWorktree: () => Promise.resolve(removeWorktreeFixture),
     }),
   },
 }));
@@ -197,5 +198,59 @@ describe('performAutoCommitAndPR — base より進んだコミットが無け�
     await performAutoCommitAndPR(687, '# 検証結果');
     expect(createPullRequestCalls).toBe(1);
     revListFixture = '1';
+  });
+});
+
+describe('performAutoCommitAndPR — removeWorktree の戻り値を worktreeCleanupResult に反映する (task 790 / K-8046)', () => {
+  const worktreePath = 'C:\\work\\project\\.worktrees\\task-687';
+
+  test('removeWorktree が false を返す場合、success:false を記録しDBを更新しない', async () => {
+    filesChangedFixture = 1;
+    revListFixture = '1';
+    prResultFixture = { success: false, error: 'gh: authentication failed' };
+    removeWorktreeFixture = false;
+    mockPrisma.agentSession.update.mockClear();
+    mockPrisma.task.findUnique.mockResolvedValueOnce({
+      id: 687,
+      title: 'テストタスク',
+      theme: { workingDirectory: 'C:\\work\\project', defaultBranch: 'develop' },
+      developerModeConfig: {
+        agentSessions: [{ id: 1, branchName: 'feature/t687', worktreePath }],
+      },
+    });
+
+    const result = await performAutoCommitAndPR(687, '# 検証結果');
+
+    expect(result.worktreeCleanupResult).toEqual({
+      success: false,
+      worktreePath,
+      error: 'removeWorktree refused or failed',
+    });
+    expect(mockPrisma.agentSession.update).not.toHaveBeenCalled();
+    removeWorktreeFixture = true;
+  });
+
+  test('removeWorktree が true を返す場合、success:true を記録しDBを更新する', async () => {
+    filesChangedFixture = 1;
+    revListFixture = '1';
+    prResultFixture = { success: false, error: 'gh: authentication failed' };
+    removeWorktreeFixture = true;
+    mockPrisma.agentSession.update.mockClear();
+    mockPrisma.task.findUnique.mockResolvedValueOnce({
+      id: 687,
+      title: 'テストタスク',
+      theme: { workingDirectory: 'C:\\work\\project', defaultBranch: 'develop' },
+      developerModeConfig: {
+        agentSessions: [{ id: 1, branchName: 'feature/t687', worktreePath }],
+      },
+    });
+
+    const result = await performAutoCommitAndPR(687, '# 検証結果');
+
+    expect(result.worktreeCleanupResult).toEqual({ success: true, worktreePath });
+    expect(mockPrisma.agentSession.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { worktreePath: null },
+    });
   });
 });

@@ -26,7 +26,12 @@ const mockDb = {
     deleteMany: mock(() => Promise.resolve({ count: 0 })),
   },
   agentSession: {
+    findMany: mock(() => Promise.resolve([])),
     update: mock(() => Promise.resolve({})),
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
+  },
+  workflowQueueItem: {
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
   },
 };
 
@@ -40,8 +45,11 @@ const mockAgentWorkerGetInstance = mock(() => ({
   revertChanges: mock(),
 }));
 
-const mockRemoveWorktreeFn = mock(() => Promise.resolve(undefined));
+const mockRemoveWorktreeFn = mock(() => Promise.resolve(true));
 const mockReleaseTaskExecLock = mock(() => Promise.resolve(undefined));
+const mockResolveTaskWorkingDirectory = mock(() => Promise.resolve(null));
+const mockStopTaskAgents = mock(() => Promise.resolve({ stoppedCount: 0 }));
+const mockRecordTransition = mock(() => Promise.resolve());
 
 // ---------------------------------------------------------------------------
 // Module mocks — must be registered before dynamic imports
@@ -92,8 +100,22 @@ mock.module(
 
 // NOTE: Mock stop-task-agents to prevent loading agent-orchestrator and its deep dependency chain.
 mock.module('../../../../services/agents/stop-task-agents', () => ({
-  stopTaskAgents: mock(() => Promise.resolve({ stopped: [], failed: [] })),
+  stopTaskAgents: mockStopTaskAgents,
   stopThemeAgents: mock(() => Promise.resolve()),
+}));
+
+mock.module('../../../../services/task/task-resolver', () => ({
+  resolveTaskWorkingDirectory: mockResolveTaskWorkingDirectory,
+}));
+
+mock.module('../../../../services/workflow/auto-run/theme-auto-run-service', () => ({
+  getAutoRunState: mock(() => Promise.resolve(null)),
+  finalizeStop: mock(() => Promise.resolve()),
+  isAutoRunHandlingTask: mock(() => false),
+}));
+
+mock.module('../../../../services/workflow/transition-recorder', () => ({
+  recordTransition: mockRecordTransition,
 }));
 
 // ---------------------------------------------------------------------------
@@ -123,11 +145,23 @@ function resetMocks() {
   mockDb.agentExecution.findUnique.mockClear();
   mockDb.agentExecution.update.mockClear();
   mockDb.agentExecutionLog.deleteMany.mockClear();
+  mockDb.agentSession.findMany.mockReset();
+  mockDb.agentSession.findMany.mockResolvedValue([]);
   mockDb.agentSession.update.mockClear();
+  mockDb.agentSession.updateMany.mockClear();
+  mockDb.workflowQueueItem.updateMany.mockClear();
   mockOrchestratorInst.stopExecution.mockClear();
-  mockRemoveWorktreeFn.mockClear();
+  mockRemoveWorktreeFn.mockReset();
+  mockRemoveWorktreeFn.mockResolvedValue(true);
   mockReleaseTaskExecLock.mockClear();
+  mockResolveTaskWorkingDirectory.mockReset();
+  mockResolveTaskWorkingDirectory.mockResolvedValue(null);
+  mockStopTaskAgents.mockReset();
+  mockStopTaskAgents.mockResolvedValue({ stoppedCount: 1 });
+  mockRecordTransition.mockClear();
 }
+
+const BASE = 'http://localhost/tasks';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -333,5 +367,51 @@ describe('stop-route worktree cleanup', () => {
 
     // Verify worktree cleanup is not called when no worktree path
     expect(mockRemoveWorktree).not.toHaveBeenCalled();
+  });
+
+  it('does not clear worktreePath when removeWorktree returns false (task 790 / K-8046)', async () => {
+    const taskId = 321;
+    const worktreePath = '/test/repo/.worktrees/task-321-abc123';
+
+    mockResolveTaskWorkingDirectory.mockResolvedValue({
+      workingDirectory: '/test/repo',
+      themeId: null,
+    });
+    mockPrisma.agentSession.findMany.mockResolvedValue([{ id: 789, worktreePath }]);
+    mockRemoveWorktree.mockResolvedValue(false);
+
+    const res = await stopRoute.handle(
+      new Request(`${BASE}/${taskId}/stop-execution`, { method: 'POST' }),
+    );
+    const body = await res.json();
+
+    expect(body.success).toBe(true);
+    expect(mockRemoveWorktree).toHaveBeenCalledWith('/test/repo', worktreePath);
+    expect(mockPrisma.agentSession.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ worktreePath: null }) }),
+    );
+  });
+
+  it('clears worktreePath when removeWorktree returns true', async () => {
+    const taskId = 322;
+    const worktreePath = '/test/repo/.worktrees/task-322-abc123';
+
+    mockResolveTaskWorkingDirectory.mockResolvedValue({
+      workingDirectory: '/test/repo',
+      themeId: null,
+    });
+    mockPrisma.agentSession.findMany.mockResolvedValue([{ id: 790, worktreePath }]);
+    mockRemoveWorktree.mockResolvedValue(true);
+
+    const res = await stopRoute.handle(
+      new Request(`${BASE}/${taskId}/stop-execution`, { method: 'POST' }),
+    );
+    const body = await res.json();
+
+    expect(body.success).toBe(true);
+    expect(mockPrisma.agentSession.update).toHaveBeenCalledWith({
+      where: { id: 790 },
+      data: { worktreePath: null },
+    });
   });
 });

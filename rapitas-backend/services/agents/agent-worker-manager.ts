@@ -206,7 +206,7 @@ export class AgentWorkerManager {
    * @param baseDir - Main repository root / メインリポジトリルート
    * @param worktreePath - Worktree to remove / 削除するworktreeパス
    */
-  async removeWorktree(baseDir: string, worktreePath: string): Promise<void> {
+  async removeWorktree(baseDir: string, worktreePath: string): Promise<boolean> {
     return git.removeWorktree(this.ipc.bind(this), baseDir, worktreePath);
   }
 

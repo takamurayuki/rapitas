@@ -5998,5 +5998,37 @@
       "recordingWithLevel": "録音中... (音量:{freqAvg} rms:{rms} 無音:{silenceSec}s)",
       "listeningWithLevel": "話してください... (音量:{freqAvg} rms:{rms})"
     }
+  },
+  "phaseTimeline": {
+    "phaseLabel": {
+      "research": "調査",
+      "plan": "計画",
+      "implement": "実装",
+      "verify": "検証"
+    },
+    "sectionTitle": "{phase}",
+    "sectionTitleIteration": "{phase} ({n}回目)",
+    "status": {
+      "running": "実行中",
+      "completed": "完了",
+      "failed": "失敗"
+    },
+    "summary": {
+      "completed": "✓ {duration} ({lines}行)",
+      "failed": "✗ {duration} ({lines}行)",
+      "runningEmpty": "実行中…ログを待機しています",
+      "verifyPassFail": "{pass} pass / {fail} fail"
+    },
+    "filter": {
+      "all": "すべて",
+      "warnOnly": "⚠のみ"
+    },
+    "scrollToBottom": "末尾へ",
+    "boundaryUncertain": "フェーズ遷移の判定が不確実です",
+    "noLogsYet": "ログを待機しています…",
+    "loadingDetail": "読み込み中…",
+    "loadFailed": "ログの取得に失敗しました",
+    "expandAria": "フェーズを展開",
+    "collapseAria": "フェーズを折りたたむ"
   }
 }
