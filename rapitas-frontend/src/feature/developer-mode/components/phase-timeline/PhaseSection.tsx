@@ -19,7 +19,14 @@ import type { PhaseType } from '../../utils/phase-selector';
 import type { PhaseIteration } from '../../hooks/usePhaseTimeline';
 import { usePhaseLogStreaming } from '../../hooks/usePhaseLogStreaming';
 import { PhaseSectionHeader } from './PhaseSectionHeader';
-import { PhaseLogViewer } from './PhaseLogViewer';
+import dynamic from 'next/dynamic';
+
+// NOTE: dynamic import keeps react-window and the virtualized viewer out of
+// the eager shared chunk — the static import pushed one chunk to 807 KB
+// against the 500 KB eager budget. Logs render client-side only anyway.
+const PhaseLogViewer = dynamic(() => import('./PhaseLogViewer').then((m) => m.PhaseLogViewer), {
+  ssr: false,
+});
 import { formatPhaseSummary } from './format-phase-summary';
 
 interface ExecutionLogEntryRow {

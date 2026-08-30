@@ -10,6 +10,13 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { PhaseSection } from '../PhaseSection';
 import type { PhaseIteration } from '../../../hooks/usePhaseTimeline';
 
+// NOTE: PhaseSection loads PhaseLogViewer via next/dynamic (bundle budget);
+// resolve it synchronously in tests so render assertions see the viewer.
+vi.mock('next/dynamic', async () => {
+  const mod = await vi.importActual<typeof import('../PhaseLogViewer')>('../PhaseLogViewer');
+  return { __esModule: true, default: () => mod.PhaseLogViewer };
+});
+
 vi.mock('next-intl', () => ({
   useTranslations: () => (key: string, params?: Record<string, unknown>) =>
     params ? `${key}:${JSON.stringify(params)}` : key,
