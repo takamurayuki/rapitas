@@ -44,9 +44,18 @@ export const mockQueueItemUpdateMany = mock(() => Promise.resolve({ count: 0 }))
 export const mockTransitionCount = mock(() => Promise.resolve(0));
 /** Resource-contention gate hold record (task 725) — default unused (gate off in tests). */
 export const mockActivityLogCreate = mock(() => Promise.resolve({}));
+/** UserSettings row for the idle-stop timer (task 784) — null → defaults (60 min armed). */
+export const mockUserSettingsFindFirst = mock(() =>
+  Promise.resolve(
+    null as { idleStopMinutes?: number | null; selfRefillWindowStart?: string | null } | null,
+  ),
+);
 
 mock.module('../../../config', () => ({
   prisma: {
+    userSettings: {
+      findFirst: mockUserSettingsFindFirst,
+    },
     task: {
       count: mockTaskCount,
       findMany: mockTaskFindMany,

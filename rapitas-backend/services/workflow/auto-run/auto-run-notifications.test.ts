@@ -30,8 +30,12 @@ mock.module('../../../config/logger', () => ({
   createLogger: () => noopLogger,
 }));
 
-const { notifyStallReleased, notifyQueueStarvation, notifyResourceContentionHold } =
-  await import('./auto-run-notifications');
+const {
+  notifyStallReleased,
+  notifyQueueStarvation,
+  notifyResourceContentionHold,
+  notifyIdleStopped,
+} = await import('./auto-run-notifications');
 
 beforeEach(() => {
   notificationFindFirstMock.mockReset().mockResolvedValue(null);
@@ -109,6 +113,34 @@ describe('notifyResourceContentionHold', () => {
     // 1回目の作成後は未読が存在する状態をシミュレート。
     notificationFindFirstMock.mockResolvedValue({ id: 11 });
     await notifyResourceContentionHold(42, 93, 85);
+
+    expect(notificationCreateMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('notifyIdleStopped (task 784)', () => {
+  test('creates one theme-scoped notification carrying the metadata.i18n pointer', async () => {
+    await notifyIdleStopped(42);
+
+    expect(notificationCreateMock).toHaveBeenCalledTimes(1);
+    const data = (
+      notificationCreateMock.mock.calls[0]?.[0] as {
+        data: { type: string; message: string; metadata: string };
+      }
+    ).data;
+    expect(data.type).toBe('auto_run_idle_stopped');
+    const metadata = JSON.parse(data.metadata);
+    expect(metadata.dedupKey).toBe('auto_run_idle_stopped:theme-42');
+    expect(metadata.i18n).toEqual({
+      key: 'notification.types.auto_run_idle_stopped.title',
+      params: { themeName: 'テストテーマ' },
+    });
+  });
+
+  test('an unread idle-stop notification for the theme suppresses a re-fire', async () => {
+    await notifyIdleStopped(42);
+    notificationFindFirstMock.mockResolvedValue({ id: 12 });
+    await notifyIdleStopped(42);
 
     expect(notificationCreateMock).toHaveBeenCalledTimes(1);
   });

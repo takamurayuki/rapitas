@@ -110,6 +110,10 @@
         "title": "Auto-run: all tasks complete",
         "message": "All target tasks for theme \"{themeName}\" are processed. Auto-run is finishing."
       },
+      "auto_run_idle_stopped": {
+        "title": "Auto-run: stopped — no new tasks were filed",
+        "message": "Theme \"{themeName}\" ran out of tasks and nothing new was filed, so auto-run was stopped. It can resume once you file a task manually or the nightly self-refill window opens."
+      },
       "blocked_escalation": {
         "title": "A blocked task needs attention",
         "message": "#{taskId} \"{taskTitle}\" is excluded from automatic retry (reason: {reason}). {reason, select, awaiting_question {An answer is required — this task will not resume until it is answered.} verify_repair_exhausted {The verification-repair budget is exhausted — the task needs to be split.} verify_no_convergence {Rejections are not converging (the same acceptance criteria keep failing) — split the task or revisit the spec.} retry_cap_exhausted {The automatic retry limit was reached — manual investigation is needed.} pr_recovery_exhausted {Automatic PR-creation recovery (light retry) repeatedly failed to create a PR — check the GitHub integration, permissions, and repository state manually.} abandoned_old {This has been idle for a long time (outside the auto-retry window) — manual investigation is needed.} other {}}{detail}"

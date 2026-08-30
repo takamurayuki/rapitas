@@ -25,10 +25,16 @@ export type CycleEventName =
   | 'theme.idle'
   | 'theme.resumed'
   | 'theme.stopped'
+  // idle-stop timer (task 784): the theme ran dry and no new task was filed
+  // for idleStopMinutes, so auto-run was disabled (enabled=false)
+  | 'auto_run.idle_stopped'
   // backlog refill (起票)
   | 'backlog.promoted'
   | 'backlog.concern_stale_resolved'
   | 'backlog.refill'
+  // self-refill while the theme is idle-stopped (task 784): learning loop
+  // maintained per design point 6, but does NOT re-arm auto-run
+  | 'backlog.refill_while_stopped'
   // task scheduling
   | 'task.selected'
   | 'task.enqueued'

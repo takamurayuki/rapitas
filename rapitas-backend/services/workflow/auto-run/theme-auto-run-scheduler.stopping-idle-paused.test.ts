@@ -21,11 +21,21 @@ import {
   mockTaskUpdate,
   mockTaskCount,
   mockHasPromotableBacklog,
+  mockPromoteBacklogForTheme,
   mockStartAutoRun,
   mockGetThemeActiveQueueItems,
   mockQueueItemFindFirst,
   mockResumeAutoRun,
+  mockGetIdleStopMinutes,
+  mockCountHumanOriginTodo,
+  mockAttemptCriticalConcernBypass,
+  mockStopThemeForIdleTimeout,
+  mockShouldRefillBacklogNow,
+  mockMarkSelfRefillSucceeded,
+  mockLogCycleEvent,
 } from './theme-auto-run-scheduler.test-support';
+
+const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
 
 let scheduler: ThemeAutoRunScheduler;
 
@@ -122,6 +132,135 @@ describe('processIdleThemes', () => {
 
     expect(mockStartAutoRun).not.toHaveBeenCalledWith(1);
     expect(mockStartAutoRun).toHaveBeenCalledWith(2);
+  });
+
+  it('returns false when nothing timed out this pass', async () => {
+    const timedOut = await internal(scheduler).processIdleThemes([
+      makeState({ enabled: true, themeId: 7 }),
+    ]);
+    expect(timedOut).toBe(false);
+  });
+});
+
+describe('processIdleThemes — idle-stop timer (task 784)', () => {
+  it('a human-filed task during the countdown resumes immediately (bypasses the wait)', async () => {
+    mockGetIdleStopMinutes.mockResolvedValue(60);
+    mockCountHumanOriginTodo.mockResolvedValue(1);
+
+    await internal(scheduler).processIdleThemes([
+      makeState({ enabled: true, themeId: 7, status: 'idle', idleSince: minutesAgo(10) }),
+    ]);
+
+    expect(mockStartAutoRun).toHaveBeenCalledWith(7);
+    expect(mockStopThemeForIdleTimeout).not.toHaveBeenCalled();
+  });
+
+  it('a high/urgent concern bypass during the countdown resumes immediately', async () => {
+    mockGetIdleStopMinutes.mockResolvedValue(60);
+    mockCountHumanOriginTodo.mockResolvedValue(0);
+    mockAttemptCriticalConcernBypass.mockResolvedValue(true);
+
+    await internal(scheduler).processIdleThemes([
+      makeState({ enabled: true, themeId: 7, status: 'idle', idleSince: minutesAgo(10) }),
+    ]);
+
+    expect(mockStartAutoRun).toHaveBeenCalledWith(7);
+  });
+
+  it('keeps waiting while the countdown has not expired and nothing bypasses it', async () => {
+    mockGetIdleStopMinutes.mockResolvedValue(60);
+    mockCountHumanOriginTodo.mockResolvedValue(0);
+    mockAttemptCriticalConcernBypass.mockResolvedValue(false);
+
+    const timedOut = await internal(scheduler).processIdleThemes([
+      makeState({ enabled: true, themeId: 7, status: 'idle', idleSince: minutesAgo(10) }),
+    ]);
+
+    expect(timedOut).toBe(false);
+    expect(mockStartAutoRun).not.toHaveBeenCalled();
+    expect(mockStopThemeForIdleTimeout).not.toHaveBeenCalled();
+  });
+
+  it('stops the theme once the countdown expires, and processIdleThemes returns true', async () => {
+    mockGetIdleStopMinutes.mockResolvedValue(60);
+
+    const timedOut = await internal(scheduler).processIdleThemes([
+      makeState({ enabled: true, themeId: 7, status: 'idle', idleSince: minutesAgo(61) }),
+    ]);
+
+    expect(timedOut).toBe(true);
+    expect(mockStopThemeForIdleTimeout).toHaveBeenCalledWith(7);
+    expect(mockBroadcast).toHaveBeenCalledWith(
+      'orchestra',
+      'auto_run_update',
+      expect.objectContaining({ themeId: 7 }),
+    );
+    expect(mockStartAutoRun).not.toHaveBeenCalled();
+  });
+
+  it('a legacy row with no idleSince yet checks for work, then starts the timer instead of stopping', async () => {
+    mockGetIdleStopMinutes.mockResolvedValue(60);
+    mockTaskCount.mockResolvedValue(0);
+    mockHasPromotableBacklog.mockResolvedValue(false);
+
+    const timedOut = await internal(scheduler).processIdleThemes([
+      makeState({ enabled: true, themeId: 7, idleSince: null }),
+    ]);
+
+    expect(timedOut).toBe(false);
+    expect(mockStopThemeForIdleTimeout).not.toHaveBeenCalled();
+    expect(mockStartAutoRun).not.toHaveBeenCalled();
+  });
+});
+
+describe('processIdleThemes — re-arm after an idle-stop (task 784)', () => {
+  it('a USER stop (no idleStoppedAt) is left untouched', async () => {
+    await internal(scheduler).processIdleThemes([
+      makeState({ enabled: false, themeId: 7, idleStoppedAt: null }),
+    ]);
+    expect(mockTaskCount).not.toHaveBeenCalled();
+    expect(mockStartAutoRun).not.toHaveBeenCalled();
+    expect(mockShouldRefillBacklogNow).not.toHaveBeenCalled();
+  });
+
+  it('re-arms (startAutoRun) when a manually-filed task appears after a timer stop', async () => {
+    mockTaskCount.mockResolvedValue(1);
+
+    await internal(scheduler).processIdleThemes([
+      makeState({ enabled: false, themeId: 7, idleStoppedAt: minutesAgo(5) }),
+    ]);
+
+    expect(mockStartAutoRun).toHaveBeenCalledWith(7);
+  });
+
+  it('self-refills IN PLACE while stopped without re-arming (learning loop kept separate)', async () => {
+    mockTaskCount.mockResolvedValue(0);
+    mockShouldRefillBacklogNow.mockResolvedValue(true);
+    mockPromoteBacklogForTheme.mockResolvedValue(1);
+
+    await internal(scheduler).processIdleThemes([
+      makeState({ enabled: false, themeId: 7, idleStoppedAt: minutesAgo(5) }),
+    ]);
+
+    expect(mockPromoteBacklogForTheme).toHaveBeenCalledWith(7);
+    expect(mockMarkSelfRefillSucceeded).toHaveBeenCalledWith(7, expect.any(Date));
+    expect(mockLogCycleEvent).toHaveBeenCalledWith(
+      'backlog.refill_while_stopped',
+      expect.objectContaining({ theme: 7, created: 1 }),
+    );
+    expect(mockStartAutoRun).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when the window is closed and nothing was manually filed', async () => {
+    mockTaskCount.mockResolvedValue(0);
+    mockShouldRefillBacklogNow.mockResolvedValue(false);
+
+    await internal(scheduler).processIdleThemes([
+      makeState({ enabled: false, themeId: 7, idleStoppedAt: minutesAgo(5) }),
+    ]);
+
+    expect(mockPromoteBacklogForTheme).not.toHaveBeenCalled();
+    expect(mockStartAutoRun).not.toHaveBeenCalled();
   });
 });
 

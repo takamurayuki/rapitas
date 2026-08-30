@@ -1259,6 +1259,8 @@ CREATE TABLE "UserSettings" (
     "autoCreateFromBacklogLimit" INTEGER NOT NULL DEFAULT 0,
     "restartOnAutoRunDry" BOOLEAN NOT NULL DEFAULT false,
     "verifyRepairLimit" INTEGER NOT NULL DEFAULT 2,
+    "idleStopMinutes" INTEGER NOT NULL DEFAULT 60,
+    "selfRefillWindowStart" TEXT NOT NULL DEFAULT '03:00',
     "autoCommitDefault" BOOLEAN NOT NULL DEFAULT false,
     "autoCreatePRDefault" BOOLEAN NOT NULL DEFAULT false,
     "autoMergePRDefault" BOOLEAN NOT NULL DEFAULT false,
@@ -1530,6 +1532,9 @@ CREATE TABLE "ThemeAutoRun" (
     "lastError" TEXT,
     "lastRunAt" DATETIME,
     "startedAt" DATETIME,
+    "idleSince" DATETIME,
+    "idleStoppedAt" DATETIME,
+    "lastSelfRefillAt" DATETIME,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );

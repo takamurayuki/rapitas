@@ -28,6 +28,7 @@ import {
   ListPlus,
   OctagonAlert,
   PlayCircle,
+  PowerOff,
   SkipForward,
   Sunrise,
   Thermometer,
@@ -67,6 +68,7 @@ const typeColors: Record<string, string> = {
   auto_run_resource_hold:
     'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
   auto_run_all_done: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
+  auto_run_idle_stopped: 'bg-zinc-100 dark:bg-zinc-800/60 text-zinc-600 dark:text-zinc-300',
   blocked_escalation: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
   blocked_escalation_needs_answer: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
   auto_merge_success: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
@@ -122,6 +124,7 @@ const typeIconComponents: Record<string, LucideIcon> = {
   auto_run_zero_progress: CircleOff,
   auto_run_resource_hold: Thermometer,
   auto_run_all_done: CheckCircle2,
+  auto_run_idle_stopped: PowerOff,
   blocked_escalation: OctagonAlert,
   blocked_escalation_needs_answer: OctagonAlert,
   auto_merge_success: GitMerge,

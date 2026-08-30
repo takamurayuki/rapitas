@@ -243,6 +243,13 @@
       "restartOnDryDescription": "At the quiet point when auto-run runs out of tasks (0 running agents), safely restarts only if there are new commits since startup, applying committed fixes before moving on to the next auto-created task (rate-limited to once per 10 minutes). Only active in dev startup.",
       "autoRestartMergedLabel": "Auto-restart when merged code is detected (dev)",
       "autoRestartMergedDescription": "Every 15 minutes, detects commits merged to origin's develop branch since startup that are not active yet, and only when the system is idle (0 running agents) safely pulls them in and restarts (rate-limited to once per 30 minutes). Only active in dev startup.",
+      "idleStopLabel": "Idle stop after running dry (minutes)",
+      "idleStopDescription": "Stops auto-run when no new task is filed (manually, or auto-filed from a high/urgent concern) for this many minutes after the theme runs out of tasks. Filing a task manually re-arms it automatically. 0 disables the timer.",
+      "idleStopUnit": "min",
+      "selfRefillWindowLabel": "Nightly self-refill window start",
+      "selfRefillWindowDescription": "Runs the backlog self-refill (concerns/ideas → tasks) at most once a day, not before this time (high/urgent concerns are filed regardless). Clear it to disable self-refill.",
+      "selfRefillWindowDisable": "Disable",
+      "selfRefillWindowDisabled": "Disabled (no self-refill)",
       "savingSuffix": " (saving…)"
     },
     "ciTimingDashboard": {

@@ -28,6 +28,10 @@ export interface UserSettingsUpdateBody {
   restartOnAutoRunDry?: boolean;
   /** Max verify->implement self-repair cycles before a task is blocked (0 = off). */
   verifyRepairLimit?: number;
+  /** Minutes of no new filing after auto-run runs dry before it is stopped (0 = off). */
+  idleStopMinutes?: number;
+  /** Local "HH:MM" the nightly backlog self-refill window opens ('' = self-refill off). */
+  selfRefillWindowStart?: string;
   /** Dev: auto-restart when merged-but-inactive commits are detected on origin (file-backed, no DB column). */
   autoRestartOnMergedCode?: boolean;
   /** Process retrospective on task completion (file-backed, no DB column; default ON). */

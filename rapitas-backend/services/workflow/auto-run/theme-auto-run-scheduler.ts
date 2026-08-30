@@ -160,7 +160,7 @@ export class ThemeAutoRunScheduler {
       await this.processStoppingThemes(byStatus('stopping'));
       await this.processRunningThemes(byStatus('running'));
       await this.processPausedThemes(byStatus('paused'));
-      await this.processIdleThemes(byStatus('idle'));
+      const idleTimedOut = await this.processIdleThemes(byStatus('idle'));
 
       // Apply committed fixes during the brief 0-agent gap BETWEEN tasks. The
       // all_done branch alone (advanceTheme → maybeRestartForUpdate) missed this:
@@ -174,7 +174,14 @@ export class ThemeAutoRunScheduler {
       // by that gate), (c) HEAD moved past the startup commit, and (d) the 10-min
       // rate limit allows it. That is exactly "apply when idle + something new,
       // without disturbing work".
-      await maybeRestartForUpdate(0);
+      // Design point 7 (task 784): an idle-stop that fired this tick takes
+      // priority over the dev restart — skip it for this pass (afterwards the
+      // stopped theme's enabled:false keeps the no-armed-theme gate closed).
+      if (idleTimedOut) {
+        log.info('[ThemeAutoRunScheduler] idle-stop fired — skipping dev restart this tick');
+      } else {
+        await maybeRestartForUpdate(0);
+      }
     } catch (err) {
       log.error({ err }, '[ThemeAutoRunScheduler] Tick error');
     }
@@ -185,9 +192,14 @@ export class ThemeAutoRunScheduler {
     await processStoppingThemesImpl(prisma, stopping);
   }
 
-  /** Auto-resume idle-but-armed themes once new work appears (see auto-run-lifecycle). */
-  private async processIdleThemes(idle: ThemeAutoRunState[]): Promise<void> {
-    await processIdleThemesImpl(prisma, idle);
+  /**
+   * Auto-resume idle-but-armed themes once new work appears, run the idle-stop
+   * timer, and re-arm idle-stopped themes (see auto-run-lifecycle).
+   *
+   * @returns true when this tick idle-stopped at least one theme. / この tick でタイムアウト停止したテーマがあれば true
+   */
+  private async processIdleThemes(idle: ThemeAutoRunState[]): Promise<boolean> {
+    return processIdleThemesImpl(prisma, idle);
   }
 
   /** For paused themes, check whether approval was granted and auto-resume. */

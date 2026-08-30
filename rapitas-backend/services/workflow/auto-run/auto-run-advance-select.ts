@@ -1,15 +1,15 @@
 /**
  * auto-run-advance-select
  *
- * The no-current-task branch of the auto-run scheduler's advance step: global
- * concurrency gate, merge barrier, self-deploy restart checks, next-task
- * selection, all_done/all_blocked idling with backlog refill, and enqueue.
+ * The no-current-task branch of the auto-run scheduler's advance step:
+ * global concurrency gate, resource/merge-barrier holds (auto-run-advance-
+ * gates.ts), self-deploy restart checks, next-task selection, all_done/
+ * all_blocked idling with gated backlog refill (task 784), and enqueue.
  * Extracted verbatim from ThemeAutoRunScheduler.advanceTheme (task 628).
  * Not responsible for resolving the CURRENT task (see auto-run-advance-active).
  */
 import type { PrismaClient } from '../../../generated/prisma-postgres';
 import { createLogger } from '../../../config/logger';
-import { WorkflowQueueService } from '../workflow-queue';
 import { promoteBacklogForTheme } from './backlog-task-promoter';
 import { maybeRestartForUpdate } from './dev-restart-on-dry';
 import { logCycleEvent } from '../../observability';
@@ -18,24 +18,22 @@ import {
   overlappingFiles,
   selectNextTask,
   recentThemeSuccessRate,
-  type ScopeOverlapContext,
 } from './auto-run-selection';
-import { getOpenAutoPrsForTheme, getPrChangedFiles } from './open-pr-files-cache';
-import {
-  getMergeBarrierMaxHoldMs,
-  readMergeBarrierEnabled,
-  shouldHoldForBarrier,
-} from '../../scheduling/merge-barrier/merge-barrier';
+import { getOpenAutoPrsForTheme } from './open-pr-files-cache';
+import { checkResourceContentionGate, checkMergeBarrierGate } from './auto-run-advance-gates';
+import { buildScopeOverlapContext } from './auto-run-advance-scope';
 import { setCurrentTask } from './theme-auto-run-service';
 import {
-  notifyAllDone,
-  notifyAllBlocked,
-  notifyResourceContentionHold,
-} from './auto-run-notifications';
+  getIdleStopMinutes,
+  getSelfRefillWindowStart,
+  isWithinSelfRefillWindow,
+  shouldRefillBacklogNow,
+  markSelfRefillSucceeded,
+} from './auto-run-idle-timer';
+import { notifyAllDone, notifyAllBlocked } from './auto-run-notifications';
 import { countEscalatedBlocked } from '../blocked-task-escalation';
 import { broadcastAutoRunUpdateImpl } from './auto-run-lifecycle';
-import { getHostCpuBusyPercent } from '../../system/resource-telemetry';
-import { evaluateResourceGate, consumeResourceGateOverride } from './resource-contention-gate';
+import { WorkflowQueueService } from '../workflow-queue';
 import { recordTransition } from '../transition-recorder';
 
 const log = createLogger('theme-auto-run-scheduler');
@@ -62,84 +60,10 @@ export async function selectAndEnqueueNextTask(
     return; // global limit reached
   }
 
-  // Resource-contention gate (task 725, default OFF): when a session has
-  // intentionally raised concurrency above 1 AND the host CPU is busy, hold
-  // next-task selection for one cycle instead of piling on more agents. A
-  // pending manual override ("今すぐ実行") bypasses this check entirely for
-  // exactly one cycle, so it is consumed before the gate is even evaluated.
-  if (
-    process.env.RAPITAS_RESOURCE_GATE_ENABLED === 'true' &&
-    !consumeResourceGateOverride(themeId)
-  ) {
-    const thresholdPercent = Number(process.env.RAPITAS_RESOURCE_CPU_THRESHOLD_PERCENT || 85);
-    const gate = evaluateResourceGate({
-      enabled: true,
-      effectiveMaxConcurrency: WorkflowQueueService.getInstance().getMaxConcurrency(),
-      hostCpuBusyPercent: getHostCpuBusyPercent(),
-      thresholdPercent,
-      overridden: false,
-    });
-    if (gate.hold && gate.cpuBusyPercent !== null) {
-      logCycleEvent('task.resource_hold', {
-        theme: themeId,
-        cause: 'host_cpu_busy',
-        cpuBusyPercent: gate.cpuBusyPercent,
-        thresholdPercent: gate.thresholdPercent,
-        effectiveMaxConcurrency: gate.effectiveMaxConcurrency,
-        msg: 'resource-contention gate — holding next-task selection for one cycle',
-      });
-      await prisma.activityLog
-        .create({
-          data: {
-            taskId: null,
-            action: 'auto_run.resource_deferred',
-            metadata: JSON.stringify({
-              themeId,
-              cpuBusyPercent: gate.cpuBusyPercent,
-              thresholdPercent: gate.thresholdPercent,
-              effectiveMaxConcurrency: gate.effectiveMaxConcurrency,
-            }),
-          },
-        })
-        .catch((err) => {
-          log.warn({ err, themeId }, '[ThemeAutoRunScheduler] Failed to record resource hold');
-        });
-      await notifyResourceContentionHold(themeId, gate.cpuBusyPercent, gate.thresholdPercent);
-      return;
-    }
-  }
+  if (await checkResourceContentionGate(prisma, themeId)) return;
 
-  // Merge barrier (task 573 C, default OFF): while the theme still has an
-  // OPEN auto-created PR, hold next-task selection until it merges/closes —
-  // or until the hold ceiling passes (deadlock release for a PR stuck open
-  // on red CI / manual review). Open-PR lookup failures fail open (no hold).
   const openAutoPrs = await getOpenAutoPrsForTheme(prisma, themeId).catch(() => []);
-  if (readMergeBarrierEnabled()) {
-    const holdSince = barrierHoldSince.get(themeId) ?? null;
-    if (
-      shouldHoldForBarrier(
-        true,
-        openAutoPrs.length > 0,
-        holdSince,
-        Date.now(),
-        getMergeBarrierMaxHoldMs(),
-      )
-    ) {
-      if (holdSince === null) barrierHoldSince.set(themeId, Date.now());
-      logCycleEvent('task.barrier_hold', {
-        theme: themeId,
-        cause: 'open_pr_wait',
-        prNumbers: openAutoPrs.map((p) => p.prNumber),
-        holdMs: holdSince === null ? 0 : Date.now() - holdSince,
-        msg: 'merge barrier — holding next-task selection until the open auto-PR merges',
-      });
-      return;
-    }
-    // Released: PR set went empty (merged/closed) or the hold timed out.
-    barrierHoldSince.delete(themeId);
-  } else {
-    barrierHoldSince.delete(themeId);
-  }
+  if (checkMergeBarrierGate(themeId, openAutoPrs, barrierHoldSince)) return;
 
   const skipIds: number[] = [];
   // Get blocked task IDs to skip
@@ -217,78 +141,7 @@ export async function selectAndEnqueueNextTask(
 
   if (!result.found) {
     if (result.reason === 'all_done' || result.reason === 'all_blocked') {
-      // all_blocked shares the all_done idle path on purpose (task 615):
-      // staying 'running' against a fully-wedged theme would spin forever,
-      // and a backlog refill is the natural unblocker (a promoted todo lets
-      // processIdleThemes resume). Only the REPORTING differs below, so a
-      // wedged loop is never mistaken for a normal completion.
-      const allBlocked = result.reason === 'all_blocked';
-      // Optional dev safety: when enabled, this quiet point (no live agents) is
-      // the safe moment to restart and pick up committed fixes BEFORE creating
-      // more tasks. Only fires when HEAD moved since boot + no agents anywhere +
-      // not rate-limited; otherwise it's a no-op. If it restarts, stop here.
-      if (await maybeRestartForUpdate(themeId)) return;
-
-      // Before idling, refill from the backlog (open concerns first, then ideas
-      // once concerns are clear) up to the per-theme cap, so a theme that ran
-      // out of work keeps progressing. When tasks were created, stay active —
-      // the next tick selects them.
-      const created = await promoteBacklogForTheme(themeId).catch((err) => {
-        log.warn({ err, themeId }, '[ThemeAutoRunScheduler] Backlog promotion failed');
-        return 0;
-      });
-      if (created > 0) {
-        log.info(
-          `[ThemeAutoRunScheduler] Theme ${themeId} — promoted ${created} backlog task(s); staying active`,
-        );
-        logCycleEvent('backlog.refill', {
-          theme: themeId,
-          created,
-          msg: 'refilled from backlog — staying active',
-        });
-        broadcastAutoRunUpdateImpl(themeId);
-        return;
-      }
-      // All tasks done and backlog empty/capped/disabled — go idle but stay
-      // ARMED (enabled:true) so processIdleThemes auto-resumes when new work
-      // appears (a backlog job adds a concern/idea, or a freed cap slot lets a
-      // promotion happen). A USER stop sets enabled:false (finalizeStop) and is
-      // therefore never auto-resumed. This closes the perpetual loop.
-      await prisma.themeAutoRun.updateMany({
-        where: { themeId },
-        data: { status: 'idle', enabled: true, currentTaskId: null },
-      });
-      if (allBlocked) {
-        // Wedged, not finished: report with a DISTINCT cause + notification so
-        // the dead loop is visible (previously indistinguishable from idle).
-        // Same 'theme.idle' event as all_done — the machine distinction is the
-        // `cause` field ('all_blocked' vs 'all_done_backlog_empty'), keeping
-        // the cycle-event taxonomy untouched.
-        const blockedCount = await prisma.task
-          .count({ where: { themeId, status: 'blocked', parentId: null } })
-          .catch(() => 0);
-        const escalatedCount = await countEscalatedBlocked(prisma).catch(() => 0);
-        log.info(
-          `[ThemeAutoRunScheduler] Theme ${themeId} — ALL remaining tasks blocked (${blockedCount}), idle (armed)`,
-        );
-        logCycleEvent('theme.idle', {
-          theme: themeId,
-          cause: 'all_blocked',
-          blocked: blockedCount,
-          escalated: escalatedCount,
-          msg: 'all runnable tasks are blocked — wedged, idle but armed',
-        });
-        await notifyAllBlocked(themeId, blockedCount, escalatedCount);
-      } else {
-        log.info(`[ThemeAutoRunScheduler] Theme ${themeId} — all tasks done, idle (armed)`);
-        logCycleEvent('theme.idle', {
-          theme: themeId,
-          cause: 'all_done_backlog_empty',
-          msg: 'all tasks done, idle but armed (awaiting new work)',
-        });
-        await notifyAllDone(themeId);
-      }
-      broadcastAutoRunUpdateImpl(themeId);
+      await handleNoWorkFound(prisma, themeId, result.reason === 'all_blocked');
     }
     return;
   }
@@ -353,42 +206,121 @@ export async function selectAndEnqueueNextTask(
 }
 
 /**
- * Build the scope-overlap selection context (task 573 B): the union of
- * changed files across the theme's open auto-PRs (gh, TTL-cached) plus a
- * plan-file loader (WorkflowFile plan → parsePlanFiles). Returns undefined
- * whenever there is nothing to compare (no open PRs, no cwd, no files) so
- * selection keeps its legacy path.
+ * No task was found (all_done/all_blocked): try the dev-dry restart (skipped
+ * while the idle timer is armed — design point 7, stop takes priority over
+ * restart), then a gated backlog refill (task 784), then go idle-but-armed.
  *
- * @param prisma - Prisma client / Prismaクライアント
- * @param themeId - Theme being advanced / 対象テーマ
- * @param openAutoPrs - The theme's open auto-created PRs / オープン自動PR一覧
+ * all_blocked shares the all_done idle path on purpose (task 615): staying
+ * 'running' against a fully-wedged theme would spin forever, and a backlog
+ * refill is the natural unblocker. Only the REPORTING differs, so a wedged
+ * loop is never mistaken for a normal completion.
  */
-async function buildScopeOverlapContext(
+async function handleNoWorkFound(
   prisma: PrismaClient,
   themeId: number,
-  openAutoPrs: Array<{ prNumber: number }>,
-): Promise<ScopeOverlapContext | undefined> {
-  if (openAutoPrs.length === 0) return undefined;
-  const theme = await prisma.theme
-    .findUnique({ where: { id: themeId }, select: { workingDirectory: true } })
-    .catch(() => null);
-  const cwd = theme?.workingDirectory;
-  if (!cwd) return undefined;
+  allBlocked: boolean,
+): Promise<void> {
+  // Design point 7 (task 784): the idle-stop takes priority — when the idle
+  // timer is armed this dry point starts the timer instead of restarting
+  // (the task-boundary restart above already covered HEAD movement between
+  // tasks).
+  const idleTimerArmed = (await getIdleStopMinutes()) > 0;
+  if (!idleTimerArmed && (await maybeRestartForUpdate(themeId))) return;
 
-  const fileSets = await Promise.all(openAutoPrs.map((pr) => getPrChangedFiles(cwd, pr.prNumber)));
-  const openPrFiles = [...new Set(fileSets.flat())];
-  if (openPrFiles.length === 0) return undefined; // gh failed for all → fail-open
+  // Before idling, try a gated backlog refill (task 784: held while the idle
+  // timer is actively counting, or outside the nightly self-refill window)
+  // so a theme that ran out of work keeps progressing when allowed. When
+  // tasks were created, stay active — the next tick selects them.
+  const now = new Date();
+  const canRefill = await shouldRefillBacklogNow(themeId, now);
+  let created = 0;
+  if (canRefill) {
+    created = await promoteBacklogForTheme(themeId).catch((err) => {
+      log.warn({ err, themeId }, '[ThemeAutoRunScheduler] Backlog promotion failed');
+      return 0;
+    });
+    if (created > 0) {
+      await markSelfRefillSucceeded(themeId, now);
+      log.info(
+        `[ThemeAutoRunScheduler] Theme ${themeId} — promoted ${created} backlog task(s); staying active`,
+      );
+      logCycleEvent('backlog.refill', {
+        theme: themeId,
+        created,
+        msg: 'refilled from backlog — staying active',
+      });
+      broadcastAutoRunUpdateImpl(themeId);
+      return;
+    }
+  }
 
-  return {
-    openPrFiles,
-    getPlanFiles: async (taskId: number) => {
-      // Lazy import keeps the workflow-file module graph out of this
-      // scheduler's static test surface.
-      const { readWorkflowFile } = await import('../workflow-file-utils');
-      const { parsePlanFiles } = await import('../../agents/verification/scope-check');
-      const plan = await readWorkflowFile(taskId, 'plan').catch(() => null);
-      if (!plan) return []; // no plan (lightweight) → never deferred
-      return parsePlanFiles(plan);
-    },
-  };
+  // All tasks done and backlog empty/capped/disabled/held — go idle but stay
+  // ARMED (enabled:true) so processIdleThemes auto-resumes when new work
+  // appears. A USER stop sets enabled:false (finalizeStop) and is therefore
+  // never auto-resumed. This closes the perpetual loop. idleSince is set in
+  // the SAME write (task 784) — the idle-stop timer's origin.
+  await prisma.themeAutoRun.updateMany({
+    where: { themeId },
+    data: {
+      status: 'idle',
+      enabled: true,
+      currentTaskId: null,
+      idleSince: now,
+    } as unknown as Parameters<typeof prisma.themeAutoRun.updateMany>[0]['data'],
+  });
+
+  // Observability (task 784): why self-refill was skipped, attached to the
+  // SAME theme.idle event below instead of a separate cycle-event type.
+  const refillSkippedReason = canRefill ? undefined : await computeRefillSkippedReason(now);
+
+  if (allBlocked) {
+    // Wedged, not finished: report with a DISTINCT cause + notification so
+    // the dead loop is visible (previously indistinguishable from idle).
+    // Same 'theme.idle' event as all_done — the machine distinction is the
+    // `cause` field ('all_blocked' vs 'all_done_backlog_empty'), keeping
+    // the cycle-event taxonomy untouched.
+    const blockedCount = await prisma.task
+      .count({ where: { themeId, status: 'blocked', parentId: null } })
+      .catch(() => 0);
+    const escalatedCount = await countEscalatedBlocked(prisma).catch(() => 0);
+    log.info(
+      `[ThemeAutoRunScheduler] Theme ${themeId} — ALL remaining tasks blocked (${blockedCount}), idle (armed)`,
+    );
+    logCycleEvent('theme.idle', {
+      theme: themeId,
+      cause: 'all_blocked',
+      blocked: blockedCount,
+      escalated: escalatedCount,
+      refillSkippedReason,
+      msg: 'all runnable tasks are blocked — wedged, idle but armed',
+    });
+    await notifyAllBlocked(themeId, blockedCount, escalatedCount);
+  } else {
+    log.info(`[ThemeAutoRunScheduler] Theme ${themeId} — all tasks done, idle (armed)`);
+    logCycleEvent('theme.idle', {
+      theme: themeId,
+      cause: 'all_done_backlog_empty',
+      refillSkippedReason,
+      msg: 'all tasks done, idle but armed (awaiting new work)',
+    });
+    await notifyAllDone(themeId);
+  }
+  broadcastAutoRunUpdateImpl(themeId);
+}
+
+/**
+ * Best-effort explanation for why shouldRefillBacklogNow returned false at
+ * the just-idled instant (idleSince == now), for the theme.idle cycle event
+ * (task 784). Re-derives from the same pure predicates rather than changing
+ * shouldRefillBacklogNow's boolean contract.
+ */
+async function computeRefillSkippedReason(
+  now: Date,
+): Promise<'outside_window' | 'already_refilled_today' | 'timer_active'> {
+  // idleSince was just set to `now` in the same write, so at this exact
+  // instant the timer (when armed) is always actively counting (elapsed=0).
+  if ((await getIdleStopMinutes()) > 0) return 'timer_active';
+  const windowStart = await getSelfRefillWindowStart();
+  if (!isWithinSelfRefillWindow(now, windowStart)) return 'outside_window';
+  return 'already_refilled_today';
 }

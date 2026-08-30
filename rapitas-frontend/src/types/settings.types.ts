@@ -31,6 +31,10 @@ export type UserSettings = {
   restartOnAutoRunDry?: boolean;
   /** Max verify->implement self-repair cycles before a task is blocked (0 = off). */
   verifyRepairLimit?: number;
+  /** 枯渇後に新規起票が無いままこの分数が経過すると auto-run を停止する（0 = 無効）。 */
+  idleStopMinutes?: number;
+  /** バックログ自己補充を許可する夜間ウィンドウの開始時刻 "HH:MM"（'' = 自己補充無効）。 */
+  selfRefillWindowStart?: string;
   /** マージ済みだが未活性のコード検知時、アイドル時に安全に自動再起動する。 */
   autoRestartOnMergedCode?: boolean;
   autoCommitDefault?: boolean;

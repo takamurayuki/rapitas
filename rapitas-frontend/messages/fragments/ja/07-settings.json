@@ -243,6 +243,13 @@
       "restartOnDryDescription": "自動実行でタスクが無くなった静止点（実行中エージェント0）で、起動後に新しいコミットがある場合のみ安全に再起動し、コミット済みの修正を反映してから次の自動起票へ進みます（10分のレート制限つき）。dev 起動時のみ有効。",
       "autoRestartMergedLabel": "マージ済みコードを検知したら自動再起動（開発用）",
       "autoRestartMergedDescription": "起動後に origin の develop へマージされた未反映のコミットを15分ごとに検知し、実行中エージェントが0件のアイドル時のみ安全に取り込んで再起動します（30分のレート制限つき）。dev起動時のみ有効。",
+      "idleStopLabel": "枯渇後のアイドル停止（分）",
+      "idleStopDescription": "タスクが枯渇してからこの分数のあいだ新規の起票（手動起票、または重大度 high 以上の懸念の自動起票）が無ければ自動実行を停止します。停止後に手動でタスクを起票すると自動的に再開します。0で無効。",
+      "idleStopUnit": "分",
+      "selfRefillWindowLabel": "自己補充の夜間ウィンドウ開始時刻",
+      "selfRefillWindowDescription": "懸念・アイデアからのバックログ自己補充を、この時刻以降に1日1回だけ実行します（重大度 high 以上の懸念は時刻に関係なく起票）。空にすると自己補充を無効にします。",
+      "selfRefillWindowDisable": "無効にする",
+      "selfRefillWindowDisabled": "無効（自己補充しない）",
       "savingSuffix": "（保存中…）"
     },
     "ciTimingDashboard": {

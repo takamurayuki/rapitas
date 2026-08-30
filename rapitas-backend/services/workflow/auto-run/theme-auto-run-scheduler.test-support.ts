@@ -49,6 +49,7 @@ import {
   mockStopTaskAgents,
   mockStopThemeAgents,
   mockActivityLogCreate,
+  mockUserSettingsFindFirst,
 } from './theme-auto-run-scheduler.test-support.collaborator-mocks';
 import {
   mockGetGlobalAutoRunActiveCount,
@@ -73,6 +74,14 @@ import {
   mockNotifyHangBackstop,
   mockNotifyTaskVanished,
   mockNotifyResourceContentionHold,
+  mockNotifyIdleStopped,
+  mockGetIdleStopMinutes,
+  mockGetSelfRefillWindowStart,
+  mockCountHumanOriginTodo,
+  mockAttemptCriticalConcernBypass,
+  mockStopThemeForIdleTimeout,
+  mockShouldRefillBacklogNow,
+  mockMarkSelfRefillSucceeded,
   mockGetHostCpuBusyPercent,
   mockEvaluateResourceGate,
   mockConsumeResourceGateOverride,
@@ -91,7 +100,7 @@ export interface SchedulerInternal {
   running: boolean;
   tick(): Promise<void>;
   processStoppingThemes(states: ThemeAutoRunState[]): Promise<void>;
-  processIdleThemes(states: ThemeAutoRunState[]): Promise<void>;
+  processIdleThemes(states: ThemeAutoRunState[]): Promise<boolean>;
   processPausedThemes(states: ThemeAutoRunState[]): Promise<void>;
   processRunningThemes(states: ThemeAutoRunState[]): Promise<void>;
   advanceTheme(
@@ -128,6 +137,9 @@ export function makeState(overrides: Partial<ThemeAutoRunState> = {}): ThemeAuto
     lastError: null,
     lastRunAt: null,
     startedAt: null,
+    idleSince: null,
+    idleStoppedAt: null,
+    lastSelfRefillAt: null,
     updatedAt: new Date().toISOString(),
     ...overrides,
   };
@@ -185,6 +197,15 @@ const ALL_MOCKS = [
   mockEvaluateResourceGate,
   mockConsumeResourceGateOverride,
   mockRequestResourceGateOverride,
+  mockUserSettingsFindFirst,
+  mockNotifyIdleStopped,
+  mockGetIdleStopMinutes,
+  mockGetSelfRefillWindowStart,
+  mockCountHumanOriginTodo,
+  mockAttemptCriticalConcernBypass,
+  mockStopThemeForIdleTimeout,
+  mockShouldRefillBacklogNow,
+  mockMarkSelfRefillSucceeded,
 ];
 
 /** Clear call history AND restore each mock's default resolved value/behaviour. */
@@ -223,6 +244,15 @@ export function resetAllMocks(): void {
   mockReleaseStaleActiveItems.mockResolvedValue(0);
   mockActivityLogCreate.mockResolvedValue({});
   mockNotifyResourceContentionHold.mockResolvedValue(undefined);
+  mockUserSettingsFindFirst.mockResolvedValue(null);
+  mockNotifyIdleStopped.mockResolvedValue(undefined);
+  mockGetIdleStopMinutes.mockResolvedValue(60);
+  mockGetSelfRefillWindowStart.mockResolvedValue('03:00');
+  mockCountHumanOriginTodo.mockResolvedValue(0);
+  mockAttemptCriticalConcernBypass.mockResolvedValue(false);
+  mockStopThemeForIdleTimeout.mockResolvedValue(undefined);
+  mockShouldRefillBacklogNow.mockResolvedValue(false);
+  mockMarkSelfRefillSucceeded.mockResolvedValue(undefined);
   mockGetHostCpuBusyPercent.mockReturnValue(null);
   mockEvaluateResourceGate.mockReturnValue({
     hold: false,

@@ -110,6 +110,10 @@
         "title": "自動実行: すべてのタスクが完了",
         "message": "テーマ「{themeName}」の対象タスクをすべて処理しました。自動実行を終了します。"
       },
+      "auto_run_idle_stopped": {
+        "title": "自動実行: 新規起票がないため停止しました",
+        "message": "テーマ「{themeName}」はタスクが枯渇し、新規の起票がなかったため自動実行を停止しました。手動でタスクを起票するか、夜間の自己補充ウィンドウが開くと再開できます。"
+      },
       "blocked_escalation": {
         "title": "ブロックされたタスクが対応待ちです",
         "message": "#{taskId}「{taskTitle}」は自動再試行の対象外です（理由: {reason}）。{reason, select, awaiting_question {質問への回答が必要です。回答するまでこのタスクは再開されません。} verify_repair_exhausted {検証修復の予算を使い切りました。タスクの分割が必要です。} verify_no_convergence {差し戻しが収束していません（同一の受入基準が繰り返し未対応）。タスク分割または仕様の見直しが必要です。} retry_cap_exhausted {自動再試行の上限に達しました。手動での調査が必要です。} pr_recovery_exhausted {PR作成の自動復旧（軽量リトライ）を繰り返しても PR を作成できませんでした。GitHub 連携・権限・リポジトリ状態の手動確認が必要です。} abandoned_old {長期間放置されています（自動再試行の対象期間外）。手動での調査が必要です。} other {}}{detail}"
