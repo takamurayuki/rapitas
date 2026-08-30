@@ -17,6 +17,7 @@ import {
   runVerifyCommitPrPipeline,
   type CommitPrCompletionOutcome,
 } from './verify-commit-pr-pipeline';
+import { readConflictPrVerdict } from './conflict-pr-merge-state';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -74,6 +75,43 @@ export async function runVerifyCommitPrCompletion(params: {
     // Conflict-resolution task: the fix was already pushed to the existing PR
     // branch, so there is no new commit/PR to make and the scope check does not
     // apply. Complete directly — the PR (task.githubPrId) is what carries the work.
+    // GitHub, not verify.md, is the evidence that the conflict is gone: #762
+    // completed here while PR #534 was still CONFLICTING, and the auto-merge
+    // watcher re-filed the identical task 20 minutes later. A PR GitHub still
+    // reports DIRTY goes through the bounded self-repair loop instead.
+    const prNumber = conflictTask?.githubPrId ?? null;
+    const prVerdict = prNumber == null ? null : await readConflictPrVerdict(taskId, prNumber);
+    if (prVerdict?.dirty) {
+      const reason = `PR #${prNumber} は GitHub 上でまだ競合状態です（mergeStateStatus=DIRTY）。base ブランチの最新を取り込んで競合を解消し、PR ブランチへ push してから再検証してください。`;
+      const { attemptVerifyRepair } =
+        await import('../../../../services/workflow/verify-self-repair');
+      const repair = await attemptVerifyRepair(taskId, newStatus ?? null, reason, savedContent);
+      if (repair.bounced && repair.newStatus) {
+        log.warn(
+          { taskId, prNumber, attempt: repair.attempt, newStatus: repair.newStatus },
+          '[Workflow] Conflict-resolution PR still DIRTY on GitHub — re-running implement→verify (self-repair)',
+        );
+        newStatus = repair.newStatus;
+      } else if (!repair.stale) {
+        log.warn(
+          { taskId, prNumber },
+          '[Workflow] Conflict-resolution PR still DIRTY on GitHub and repairs exhausted — blocking task',
+        );
+        await prisma.task
+          .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
+          .catch(() => {});
+        await recordTransition({
+          taskId,
+          fromStatus: 'verify_done',
+          toStatus: 'blocked',
+          actor: 'system',
+          cause: 'conflict_pr_still_dirty',
+          phase: 'verify',
+          metadata: { prNumber, state: prVerdict.state },
+        });
+      }
+      return { newStatus, taskMarkedDone, autoCommitPRResult };
+    }
     // Compare-and-swap on verify_done: a concurrent duplicate of this save
     // (task 594 recorded the same completion twice, 242ms apart) must not
     // record a second completion transition — only the request that actually
