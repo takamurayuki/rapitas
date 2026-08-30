@@ -70,6 +70,14 @@ const resolveTaskWorkflowStateMock = mock((): Promise<TaskWorkflowState | null> 
   return Promise.resolve(idx >= 0 ? resolveWorkflowStateSequence[idx] : null);
 });
 
+// waitForVerifyCompletion's landed-artifact recovery now checks for a fresh
+// verify rejection first (task 772) — mocked false here so this file's
+// in-flight scenarios are unaffected; the guard itself is covered by
+// workflow-runner-verify-settle.test.ts.
+mock.module('./verify-self-repair', () => ({
+  hasFreshVerifyRejection: mock(() => Promise.resolve(false)),
+}));
+
 mock.module('../task/task-resolver', () => ({
   resolveTaskWorkflowState: resolveTaskWorkflowStateMock,
   resolveTaskForPlanApproval: mock(() => Promise.resolve(null)),
