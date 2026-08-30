@@ -62,6 +62,10 @@ const SUPPRESSED: [string, string][] = [
     'workflow:verify-self-repair',
     '[verify-repair] Non-convergence check failed — failing open (no cutoff)',
   ],
+  [
+    'task-executor',
+    '[TaskExecutor] Detected provider error in successful output — forcing fallback',
+  ],
   ['task-executor', '[TaskExecutor] Provider failed — retrying with alternative agent config'],
   ['memory:task-queue', 'Stuck processing task requeued as pending'],
   ['claude-code-agent', '[resolveCliPath] Failed to resolve claude, using relative path'],
@@ -125,6 +129,16 @@ describe('classifyLogSignature', () => {
     // Task #759: an unrelated logger reusing this phrase must still be filed.
     expect(
       classifyLogSignature('some-other-logger', 'Provider placed in cooldown').suppressed,
+    ).toBe(false);
+  });
+
+  test('"Detected provider error in successful output — forcing fallback" is scoped to task-executor only', () => {
+    // Task #782: an unrelated logger reusing this phrase must still be filed.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        'Detected provider error in successful output — forcing fallback',
+      ).suppressed,
     ).toBe(false);
   });
 
