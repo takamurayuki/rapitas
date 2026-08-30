@@ -18,9 +18,9 @@ import {
   getThemeActiveQueueItems,
   hasItemAwaitingApproval,
   isAwaitingUserAnswer,
-  hasLiveExecution,
   resolveLastProgressAt,
 } from './auto-run-selection';
+import { liveOrQueuedBehind } from './queue-wait-exemption';
 import {
   setCurrentTask,
   onTaskCompleted,
@@ -99,7 +99,7 @@ export async function advanceActiveTask(
     const withinHardCeiling = tenureMs < MAX_TASK_WALL_MS * 3;
     const progressedRecently = sinceProgressMs < MAX_TASK_WALL_MS && withinHardCeiling;
     const executionIsLive =
-      withinHardCeiling && !progressedRecently && (await hasLiveExecution(prisma, currentTaskId));
+      withinHardCeiling && !progressedRecently && (await liveOrQueuedBehind(prisma, currentTaskId));
     // CRITICAL: deferring must FALL THROUGH to the normal resolution below,
     // never return. Returning here wedged the whole theme: task 594 finished
     // while over the tenure wall, so every tick saw "progressed 429s ago",
