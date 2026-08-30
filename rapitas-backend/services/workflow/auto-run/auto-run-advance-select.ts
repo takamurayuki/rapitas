@@ -36,6 +36,7 @@ import { countEscalatedBlocked } from '../blocked-task-escalation';
 import { broadcastAutoRunUpdateImpl } from './auto-run-lifecycle';
 import { getHostCpuBusyPercent } from '../../system/resource-telemetry';
 import { evaluateResourceGate, consumeResourceGateOverride } from './resource-contention-gate';
+import { recordTransition } from '../transition-recorder';
 
 const log = createLogger('theme-auto-run-scheduler');
 
@@ -303,11 +304,26 @@ export async function selectAndEnqueueNextTask(
     .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
     .catch(() => null);
   if (picked?.workflowStatus === 'verify_done' || picked?.workflowStatus === 'completed') {
+    const fromStatus = picked.workflowStatus;
     await prisma.task
       .update({ where: { id: taskId }, data: { workflowStatus: 'draft' } })
       .catch(() => {});
+    // NOTE (task 755): this reset used to skip recordTransition, leaving no
+    // audit trail for how the task got back to draft — the same shape every
+    // other reconciler reset (blocked_auto_retry, reconciler_reset_undispatchable)
+    // already records. Not added to RECOVERY_REQUEUE_CAUSES — this write moves
+    // workflowStatus to 'draft' (the consistent not-started shape), so it never
+    // produces the todo×advanced-workflowStatus desync Pattern B watches for.
+    await recordTransition({
+      taskId,
+      fromStatus,
+      toStatus: 'draft',
+      actor: 'system',
+      cause: 'stale_terminal_reset',
+      metadata: { reason: 'auto_run_rerun_stale_terminal_workflow_status' },
+    }).catch(() => {});
     log.info(
-      `[ThemeAutoRunScheduler] Task ${taskId} re-run — reset stale workflowStatus ${picked.workflowStatus} → draft`,
+      `[ThemeAutoRunScheduler] Task ${taskId} re-run — reset stale workflowStatus ${fromStatus} → draft`,
     );
   }
 
