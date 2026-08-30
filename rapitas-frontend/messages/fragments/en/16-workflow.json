@@ -295,6 +295,49 @@
       "submit": "Send request",
       "submitting": "Sending...",
       "failed": "Could not send the revision request"
+    },
+    "dryRun": {
+      "title": "Dry run",
+      "button": "Run dry run",
+      "running": "Running...",
+      "error": "Failed to run the dry run",
+      "resultOk": "✅ Likely to pass (no side effects)",
+      "resultNg": "⚠️ May be bounced (no side effects)",
+      "gateLabel": "Deterministic gate",
+      "completionGateLabel": "Completion gate",
+      "juryLabel": "Adversarial review",
+      "pass": "Pass",
+      "fail": "Fail",
+      "juryVerdict": {
+        "pass": "Pass",
+        "fail": "Fail",
+        "unknown": "Not run / undetermined"
+      },
+      "baseBranchSha": "Base branch SHA: {sha}",
+      "baseBranchShaUnavailable": "Could not resolve the base branch SHA",
+      "skippedOperationsTitle": "Operations skipped by this run",
+      "skippedOperations": {
+        "commit": "Commit",
+        "push": "Push",
+        "pr_creation": "PR creation",
+        "merge": "Merge",
+        "worktree_cleanup": "Worktree cleanup",
+        "status_transition": "Status transition",
+        "notification": "Notifications"
+      },
+      "historyTitle": "Past dry runs",
+      "historyEmpty": "No dry runs have been made yet",
+      "checkDrift": "Check for drift",
+      "driftChecking": "Checking...",
+      "driftNone": "No change on the base branch",
+      "driftDetected": "The base branch has moved {count} commits ahead (this result may be stale)",
+      "driftNote": {
+        "report_not_found": "The requested dry-run report could not be found",
+        "sha_not_recorded": "This report did not record a base branch SHA",
+        "worktree_not_found": "This task's worktree could not be found",
+        "current_sha_unresolved": "Could not resolve the current base branch SHA",
+        "check_failed": "Failed to check for drift"
+      }
     }
   }
 }
