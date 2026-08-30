@@ -20,6 +20,7 @@ import { createLogger } from '../../../config/logger';
 import { AgentOrchestrator } from '../../agents/agent-orchestrator';
 import { WorkflowRunner } from '../workflow-runner';
 import { logCycleEvent } from '../../observability';
+import { realtimeService } from '../../communication/realtime-service';
 
 const execFileAsync = promisify(execFile);
 const log = createLogger('auto-run:dev-restart');
@@ -218,7 +219,15 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
 }
 
 /** Graceful shutdown then exit with the restart code dev.js watches for. */
-async function gracefulRestart(): Promise<void> {
+export async function gracefulRestart(): Promise<void> {
+  // Broadcast the shared SSE 'shutdown' event before tearing anything down, so
+  // the frontend's restart-blocking modal (server-restart-store) can pick it up
+  // the same way it already does for auto-restart-merged-code's shutdown path.
+  try {
+    realtimeService.shutdown();
+  } catch (err) {
+    log.warn({ err }, '[dev-restart] realtime shutdown broadcast failed; continuing shutdown');
+  }
   // Backstop: if gracefulShutdown hangs, exit anyway so the restart can't wedge
   // the backend (neither serving nor relaunching). Resolved path clears this.
   const hardExit = setTimeout(() => {

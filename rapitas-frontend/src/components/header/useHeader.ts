@@ -92,7 +92,7 @@ export function useHeader(): UseHeaderReturn {
   const [isTauriEnv, setIsTauriEnv] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [isRestarting, setIsRestarting] = useState(false);
+  const isRestarting = useServerRestartStore((s) => s.isRestarting);
   const [restartConfirmDialog, setRestartConfirmDialog] = useState<{
     open: boolean;
     activeExecutions: number;
@@ -166,7 +166,6 @@ export function useHeader(): UseHeaderReturn {
    * Fires the restart API call and polls until the server is back up.
    */
   const executeRestart = async () => {
-    setIsRestarting(true);
     // Flag the restart globally so the logger + connection-error UI go quiet
     // immediately, before the SSE shutdown event would otherwise set it.
     useServerRestartStore.getState().setRestarting(true);
@@ -202,7 +201,6 @@ export function useHeader(): UseHeaderReturn {
           // intentionally ignore - server not ready yet, continue polling
         }
       }
-      setIsRestarting(false);
       // Restart didn't complete in time — re-enable logging so real errors show.
       useServerRestartStore.getState().setRestarting(false);
       showToast(t('restartTimeout'), 'error');
