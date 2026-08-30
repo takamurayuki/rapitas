@@ -27,6 +27,7 @@ import {
 } from './verify-self-repair-budget';
 import { writeRepairFeedback } from './verify-self-repair-feedback';
 import { ensureRunnerResumes, resolveRepairCaller } from './verify-self-repair-resume';
+import { attemptInvariantCutoff } from './verify-invariant-repair';
 
 const log = createLogger('workflow:verify-self-repair');
 
@@ -150,15 +151,14 @@ export async function attemptVerifyRepair(
     );
     return { bounced: false, cutoffRecorded: true };
   }
+  // Task 755: recurring checkWorkflowInvariants violations (task #572) — see verify-invariant-repair.ts.
+  const invariantWindow = await resolveRepairWindowStart(taskId);
+  if (await attemptInvariantCutoff(taskId, currentStatus, reason, invariantWindow))
+    return { bounced: false, cutoffRecorded: true };
 
-  // Double-check (task 749): re-query the repair count immediately before the
-  // commit sequence below (CAS + feedback + recordTransition), not right after
-  // the initial read above — closes the TOCTOU window where a concurrent
-  // attemptVerifyRepair() call for the same task (a different caller in
-  // REPAIR_CALLER_LABELS) recorded its own verify_repair transition in between,
-  // which is how task#603/#710 recorded 3-4 bounces despite max=2. Placed
-  // BEFORE any state mutation so a failed recheck leaves the task untouched
-  // (same contract as the initial budget check above).
+  // Double-check (task 749): re-query right before the commit sequence — closes
+  // the TOCTOU window where a concurrent attemptVerifyRepair() call recorded its
+  // own verify_repair transition in between (task#603/#710 saw 3-4 bounces despite max=2).
   const recheckPrior = await countPriorRepairs(taskId);
   log.info(
     { taskId, caller, prior, recheckPrior, max },

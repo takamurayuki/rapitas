@@ -4,8 +4,8 @@
  * bun:test mock.module() definitions for theme-auto-run-scheduler's
  * data/infrastructure collaborators: prisma (config), task-resolver,
  * workflow-queue, workflow-runner, agent-worker-manager, realtime-service,
- * backlog-task-promoter, dev-restart-on-dry, observability, and
- * stop-task-agents. Split out of theme-auto-run-scheduler.test-support.ts
+ * backlog-task-promoter, dev-restart-on-dry, observability, transition-recorder,
+ * and stop-task-agents. Split out of theme-auto-run-scheduler.test-support.ts
  * (task 765) to stay under the file-size ratchet; the barrel file re-exports
  * everything below so existing *.test.ts imports are unaffected.
  *
@@ -195,6 +195,9 @@ mock.module('./dev-restart-on-dry', () => ({
   recordStartupCommit: mockRecordStartupCommit,
   maybeRestartForUpdate: mockMaybeRestartForUpdate,
 }));
+
+export const mockRecordTransition = mock(() => Promise.resolve());
+mock.module('../transition-recorder', () => ({ recordTransition: mockRecordTransition }));
 
 export const mockLogCycleEvent = mock(() => {});
 

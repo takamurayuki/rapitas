@@ -22,6 +22,7 @@ export * from './theme-auto-run-scheduler.test-support.collaborator-mocks';
 export * from './theme-auto-run-scheduler.test-support.decision-mocks';
 
 import type { ThemeAutoRunState } from './theme-auto-run-service';
+
 import {
   mockTaskCount,
   mockTaskFindMany,
@@ -43,6 +44,7 @@ import {
   mockPromoteBacklogForTheme,
   mockRecordStartupCommit,
   mockMaybeRestartForUpdate,
+  mockRecordTransition,
   mockLogCycleEvent,
   mockStopTaskAgents,
   mockStopThemeAgents,
@@ -153,6 +155,7 @@ const ALL_MOCKS = [
   mockPromoteBacklogForTheme,
   mockRecordStartupCommit,
   mockMaybeRestartForUpdate,
+  mockRecordTransition,
   mockLogCycleEvent,
   mockGetGlobalAutoRunActiveCount,
   mockGetThemeActiveQueueItems,

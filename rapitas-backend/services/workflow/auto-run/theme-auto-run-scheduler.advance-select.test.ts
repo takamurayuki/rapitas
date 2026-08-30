@@ -26,6 +26,7 @@ import {
   mockSetCurrentTask,
   mockLogCycleEvent,
   mockBroadcast,
+  mockRecordTransition,
 } from './theme-auto-run-scheduler.test-support';
 
 let scheduler: ThemeAutoRunScheduler;
@@ -148,6 +149,40 @@ describe('advanceTheme — selection: task found', () => {
       expect(mockEnqueue).toHaveBeenCalledWith({ taskId: 201, themeId: 1, priority: 50 });
     },
   );
+
+  // task 755: this reset used to skip recordTransition, leaving no audit
+  // trail for how a re-run task got back to 'draft' (task #572's timeline
+  // was missing exactly this row between reconciler_requeue and the next
+  // research_done — see incident-signature-detectors RECOVERY_REQUEUE_CAUSES
+  // note on why the cause is intentionally NOT added to that set).
+  it.each(['verify_done', 'completed'])(
+    'records a stale_terminal_reset transition when resetting a re-run task from %s',
+    async (staleStatus) => {
+      mockSelectNextTask.mockResolvedValue({ found: true, taskId: 204 });
+      mockTaskFindUnique.mockResolvedValue({ workflowStatus: staleStatus });
+
+      await internal(scheduler).advanceTheme(1, null, 'priority', 0, null);
+
+      expect(mockRecordTransition).toHaveBeenCalledWith(
+        expect.objectContaining({
+          taskId: 204,
+          fromStatus: staleStatus,
+          toStatus: 'draft',
+          actor: 'system',
+          cause: 'stale_terminal_reset',
+        }),
+      );
+    },
+  );
+
+  it('does not record a transition when a freshly-selected task needs no reset', async () => {
+    mockSelectNextTask.mockResolvedValue({ found: true, taskId: 205 });
+    mockTaskFindUnique.mockResolvedValue({ workflowStatus: 'draft' });
+
+    await internal(scheduler).advanceTheme(1, null, 'priority', 0, null);
+
+    expect(mockRecordTransition).not.toHaveBeenCalled();
+  });
 
   it('tracks the task without re-enqueuing when a race already queued it', async () => {
     mockSelectNextTask.mockResolvedValue({ found: true, taskId: 202 });
