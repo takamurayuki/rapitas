@@ -31,9 +31,6 @@
     "rapitas-backend/services/memory/concern-backlog-service.ts": {
       "lineCount": 631
     },
-    "rapitas-backend/services/workflow/verify-self-repair.ts": {
-      "lineCount": 611
-    },
     "rapitas-backend/services/agents/agent-orchestrator.ts": {
       "lineCount": 587
     },
