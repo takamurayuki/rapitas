@@ -124,6 +124,17 @@ const SUPPRESSIONS: Suppression[] = [
       'フォールバック機構が代替エージェントで再試行を開始した告知ログ — 障害検出は意図した分類ロジックであり、同一イベントはrecovery-metricsが既に構造化記録している',
   },
   {
+    // ログ出力箇所: task_queue.ts:230-233 の log.warn（reapStuckProcessing内）。
+    // attempts < maxAttempts の行を pending に差し戻し、次回ポーリングで自動リトライ
+    // させる自己修復の成功記録であり、壊れた側ではない（#761）。maxAttempts到達で
+    // dead_letter に送られる場合は別シグネチャ（'Stuck processing task moved to
+    // dead_letter'、ERROR）で記録されるため、本ルールで恒久失敗の可視性は失われない。
+    test: /Stuck processing task requeued as pending/i,
+    logger: /memory:task-queue/i,
+    because:
+      'reapStuckProcessing の自己修復が成功した記録 — 次回ポーリングで自動リトライされ、maxAttempts到達時は別シグネチャ(dead_letter)で記録される',
+  },
+  {
     // ログ出力箇所: middleware/error-handler.ts:165-170 の `code === 'PARSE'` 分岐
     // （#683 で追加）。JSONパース失敗はここで log.warn（ERRORではなくWARN）+ status 400
     // として処理される。ParseError の message は elysia 側で "Bad Request" 固定
