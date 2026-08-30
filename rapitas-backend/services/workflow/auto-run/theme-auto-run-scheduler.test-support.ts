@@ -191,12 +191,8 @@ mock.module('./backlog-task-promoter', () => ({
 
 export const mockRecordStartupCommit = mock(() => Promise.resolve());
 export const mockMaybeRestartForUpdate = mock(() => Promise.resolve(false));
-
-/** Stale-terminal reset audit trail (task 755) — see auto-run-advance-select.ts. */
 export const mockRecordTransition = mock(() => Promise.resolve());
-mock.module('../transition-recorder', () => ({
-  recordTransition: mockRecordTransition,
-}));
+mock.module('../transition-recorder', () => ({ recordTransition: mockRecordTransition }));
 
 mock.module('./dev-restart-on-dry', () => ({
   recordStartupCommit: mockRecordStartupCommit,
@@ -398,9 +394,7 @@ mock.module('./auto-run-stall-guard', () => ({
   releaseStaleActiveItems: mockReleaseStaleActiveItems,
 }));
 
-// ---------------------------------------------------------------------------
 // blocked-task-escalation (all_blocked reporting — task 615)
-// ---------------------------------------------------------------------------
 export const mockCountEscalatedBlocked = mock(() => Promise.resolve(0));
 
 mock.module('../blocked-task-escalation', () => ({
@@ -409,9 +403,7 @@ mock.module('../blocked-task-escalation', () => ({
   BLOCKED_ESCALATED_CAUSE: 'blocked_escalated',
 }));
 
-// ---------------------------------------------------------------------------
 // stop-task-agents (dynamically imported inside stopThemeExecution)
-// ---------------------------------------------------------------------------
 export const mockStopTaskAgents = mock(() =>
   Promise.resolve({ stoppedCount: 0, executionIds: [] }),
 );

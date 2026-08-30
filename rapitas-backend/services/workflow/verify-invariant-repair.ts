@@ -87,7 +87,8 @@ async function detectInvariantNonConvergence(
  * @param taskId - Task being verified / 検証対象タスク
  * @param currentStatus - workflowStatus at the time this repair attempt started / 現在のstatus
  * @param reason - The repair-triggering reason from the caller (for metadata only). / 差し戻し理由
- * @param windowStart - Start of the current repair window (shared with the caller's own count). / 修復ウィンドウ起点
+ * @param windowStart - Start of the repair window, or null to compare the full task history
+ *   (the HTTP-save path has no "manual retry" reset concept). / 修復ウィンドウ起点（null なら全履歴）
  * @returns True when a cutoff transition was recorded (caller must return `{bounced:false, cutoffRecorded:true}`). / cutoffを記録したか
  */
 export async function attemptInvariantCutoff(
