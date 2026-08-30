@@ -46,9 +46,6 @@
     "rapitas-backend/index.ts": {
       "lineCount": 572
     },
-    "rapitas-backend/services/workflow/auto-run/theme-auto-run-scheduler.test-support.ts": {
-      "lineCount": 571
-    },
     "rapitas-backend/services/memory/hypothesis-service.ts": {
       "lineCount": 561
     },
