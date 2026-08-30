@@ -5,6 +5,7 @@ import { AlertTriangle, ChartNoAxesCombined } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useGrowthLedgerData } from './useGrowthLedgerData';
 import { WeeklyMetricChart, type WeeklyMetricPoint } from './components/WeeklyMetricChart';
+import { RetroKpiSection } from './components/RetroKpiSection';
 import type { GrowthLedgerWindow } from './types';
 
 /** Skeleton loader shown while the initial data fetch is in-flight. */
@@ -179,6 +180,8 @@ export default function AgentGrowthPage() {
             />
           </div>
         )}
+
+        <RetroKpiSection />
       </div>
     </div>
   );
