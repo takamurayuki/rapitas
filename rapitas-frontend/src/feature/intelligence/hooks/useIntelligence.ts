@@ -81,12 +81,12 @@ export function useSuggestedTasks() {
   const [data, setData] = useState<SuggestedTasksResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const fetch = useCallback(async (limit: number = 5) => {
+  const fetch = useCallback(async (limit: number = 5, scope?: 'today' | 'all') => {
     setLoading(true);
     try {
-      const res = await globalThis.fetch(
-        `${API_BASE_URL}/intelligence/suggested-tasks?limit=${limit}`,
-      );
+      const query = new URLSearchParams({ limit: String(limit) });
+      if (scope) query.set('scope', scope);
+      const res = await globalThis.fetch(`${API_BASE_URL}/intelligence/suggested-tasks?${query}`);
       if (res.ok) {
         setData(await res.json());
       }

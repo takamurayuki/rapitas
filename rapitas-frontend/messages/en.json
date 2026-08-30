@@ -5774,5 +5774,13 @@
       "recordingWithLevel": "Recording... (level:{freqAvg} rms:{rms} silence:{silenceSec}s)",
       "listeningWithLevel": "Please speak... (level:{freqAvg} rms:{rms})"
     }
+  },
+  "todayTodo": {
+    "title": "Today's Todo",
+    "empty": "No tasks to start right now",
+    "allSnoozed": "All tasks are snoozed",
+    "closeAria": "Close (Esc)",
+    "snoozeAria": "Snooze for 24 hours",
+    "clearSnoozeButton": "Clear snooze ({count})"
   }
 }

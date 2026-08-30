@@ -24,6 +24,7 @@ interface TaskRow {
   theme: { id: number; name: string } | null;
   taskLabels: unknown[];
   pomodoroSessions: Array<{ id: number }>;
+  completedAt: Date | null;
 }
 
 let taskRows: TaskRow[] = [];
@@ -62,6 +63,7 @@ function task(overrides: Partial<TaskRow>): TaskRow {
     theme: null,
     taskLabels: [],
     pomodoroSessions: [],
+    completedAt: null,
     ...overrides,
   };
 }
@@ -201,6 +203,38 @@ describe('getSuggestedTasks — limit', () => {
     const result = await getSuggestedTasks(2);
     expect(result.suggestions).toHaveLength(2);
     expect(result.suggestions.map((s) => s.taskId)).toEqual([1, 2]);
+  });
+});
+
+describe('getSuggestedTasks — scope パラメータ', () => {
+  test('scope 未指定は従来どおり全件を対象にする（completedAt があっても除外しない）', async () => {
+    taskRows = [
+      task({ id: 1, priority: 'low' }),
+      task({ id: 2, priority: 'low', completedAt: new Date('2024-03-10') }),
+    ];
+    const result = await getSuggestedTasks(5);
+    expect(result.suggestions.map((s) => s.taskId).sort()).toEqual([1, 2]);
+  });
+
+  test('scope="today" は completedAt が非nullのタスクを除外する', async () => {
+    taskRows = [
+      task({ id: 1, priority: 'low' }),
+      task({ id: 2, priority: 'low', completedAt: new Date('2024-03-10') }),
+    ];
+    const result = await getSuggestedTasks(5, 'today');
+    expect(result.suggestions.map((s) => s.taskId)).toEqual([1]);
+  });
+
+  test('scope="today" でも未完了タスクのみなら件数は変わらない', async () => {
+    taskRows = [task({ id: 1, priority: 'low' }), task({ id: 2, priority: 'medium' })];
+    const result = await getSuggestedTasks(5, 'today');
+    expect(result.suggestions).toHaveLength(2);
+  });
+
+  test('scope="all" は明示指定でも従来どおり completedAt で絞り込まない', async () => {
+    taskRows = [task({ id: 1, priority: 'low', completedAt: new Date('2024-03-10') })];
+    const result = await getSuggestedTasks(5, 'all');
+    expect(result.suggestions.map((s) => s.taskId)).toEqual([1]);
   });
 });
 

@@ -1,10 +1,11 @@
 //! shortcut_config
 //!
 //! Persistence and parsing for the global keyboard shortcuts: the one that
-//! brings the Rapitas window to the foreground and the one that opens the
-//! quick idea-capture popup. Both strings are stored in the same JSON file
-//! `<app_config_dir>/shortcut.json` (keys `shortcut` / `captureShortcut`,
-//! e.g. `Ctrl+Alt+R`) and parsed into
+//! brings the Rapitas window to the foreground, the one that opens the
+//! quick idea-capture popup, and the one that opens today's suggested-todo
+//! popup. All three strings are stored in the same JSON file
+//! `<app_config_dir>/shortcut.json` (keys `shortcut` / `captureShortcut` /
+//! `todoShortcut`, e.g. `Ctrl+Alt+R`) and parsed into
 //! `tauri_plugin_global_shortcut::Shortcut` when the app starts or when the
 //! user changes one from the UI.
 
@@ -13,6 +14,7 @@ use tauri::Manager;
 
 const DEFAULT_SHORTCUT: &str = "Ctrl+Alt+R";
 const DEFAULT_CAPTURE_SHORTCUT: &str = "Ctrl+Alt+I";
+const DEFAULT_TODO_SHORTCUT: &str = "Ctrl+Alt+T";
 
 /// Get the path to the shortcut configuration file.
 pub fn shortcut_config_path(app: &tauri::AppHandle) -> PathBuf {
@@ -45,6 +47,11 @@ pub fn load_shortcut_config(app: &tauri::AppHandle) -> String {
 /// Load the quick idea-capture shortcut string from saved configuration.
 pub fn load_capture_shortcut_config(app: &tauri::AppHandle) -> String {
     load_config_key(app, "captureShortcut", DEFAULT_CAPTURE_SHORTCUT)
+}
+
+/// Load the today's-todo shortcut string from saved configuration.
+pub fn load_todo_shortcut_config(app: &tauri::AppHandle) -> String {
+    load_config_key(app, "todoShortcut", DEFAULT_TODO_SHORTCUT)
 }
 
 /// Merge-write one shortcut key into shortcut.json, preserving the other keys.

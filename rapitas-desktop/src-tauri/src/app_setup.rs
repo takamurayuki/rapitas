@@ -12,9 +12,11 @@ use tauri::{
 
 use crate::quick_capture::show_quick_capture_window;
 use crate::shortcut_config::{
-    load_capture_shortcut_config, load_shortcut_config, parse_shortcut_from_config,
+    load_capture_shortcut_config, load_shortcut_config, load_todo_shortcut_config,
+    parse_shortcut_from_config,
 };
 use crate::shortcuts::reregister_all_shortcuts;
+use crate::today_todo::show_today_todo_window;
 use crate::window_commands::show_main_window;
 
 /// Set up the system tray icon and menu.
@@ -68,7 +70,8 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Set up the global shortcuts (defaults: Ctrl+Alt+R to bring the window to
-/// the foreground, Ctrl+Alt+I to open the quick idea-capture popup).
+/// the foreground, Ctrl+Alt+I to open the quick idea-capture popup, Ctrl+Alt+T
+/// to open today's suggested-todo popup).
 fn setup_global_shortcut(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     use tauri_plugin_global_shortcut::ShortcutState;
 
@@ -79,9 +82,15 @@ fn setup_global_shortcut(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                     // Re-read config on each press so runtime shortcut changes
                     // dispatch correctly without rebuilding this handler.
                     let capture = parse_shortcut_from_config(&load_capture_shortcut_config(app));
+                    let todo = parse_shortcut_from_config(&load_todo_shortcut_config(app));
                     if capture == Some(*sc) {
                         println!("[Shortcut] Capture shortcut pressed - opening quick capture");
                         if let Err(e) = show_quick_capture_window(app) {
+                            eprintln!("[Shortcut] {e}");
+                        }
+                    } else if todo == Some(*sc) {
+                        println!("[Shortcut] Todo shortcut pressed - opening today's todo");
+                        if let Err(e) = show_today_todo_window(app) {
                             eprintln!("[Shortcut] {e}");
                         }
                     } else {
@@ -96,9 +105,10 @@ fn setup_global_shortcut(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
     // unregister_all inside also clears any stale registration from a previous crash
     reregister_all_shortcuts(app.handle()).map_err(std::io::Error::other)?;
     println!(
-        "Global shortcuts registered: {} (main), {} (capture)",
+        "Global shortcuts registered: {} (main), {} (capture), {} (todo)",
         load_shortcut_config(app.handle()),
-        load_capture_shortcut_config(app.handle())
+        load_capture_shortcut_config(app.handle()),
+        load_todo_shortcut_config(app.handle())
     );
 
     Ok(())
@@ -184,6 +194,7 @@ pub fn run() {
             crate::shortcuts::get_capture_shortcut,
             crate::shortcuts::set_capture_shortcut,
             crate::quick_capture::open_quick_capture,
+            crate::today_todo::open_today_todo,
             crate::toast::show_toast_window,
             crate::toast::toast_ready,
             crate::toast::toast_dismiss,
