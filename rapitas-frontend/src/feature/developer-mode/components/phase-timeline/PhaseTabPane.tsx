@@ -159,7 +159,15 @@ export function PhaseTabPane({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- iterKey stands in for iteration.executionIds (the iteration object is re-created by the 5s timeline poll)
   }, [isLive, liveSignal, iterKey]);
 
-  const rawLogs = useMemo(() => fetchedLogs ?? [], [fetchedLogs]);
+  // The model belongs IN the log (operator feedback), not in a separate meta
+  // row. Newer executions store a "[Claude Code] Model: …" banner line; for
+  // older ones synthesize an equivalent line from the timeline's modelName.
+  const rawLogs = useMemo(() => {
+    const logs = fetchedLogs ?? [];
+    if (!iteration.modelName || logs.length === 0) return logs;
+    const hasModelLine = logs.some((l) => l.includes('] Model: ') || l.startsWith('Model: '));
+    return hasModelLine ? logs : [`Model: ${iteration.modelName}`, ...logs];
+  }, [fetchedLogs, iteration.modelName]);
   const entries = useMemo(() => transformLogsToSimple(rawLogs), [rawLogs]);
 
   const matcher = useMemo(
@@ -231,12 +239,6 @@ export function PhaseTabPane({
     // Forced-dark terminal canvas: `.dark` (class-strategy variant) makes the
     // shared row styles resolve to their dark palette on every app theme.
     <div className="dark relative bg-zinc-950 font-mono">
-      {iteration.modelName && (
-        <div className="flex items-center gap-1.5 border-b border-zinc-800/70 px-3 py-1 font-mono text-[10px] text-zinc-500">
-          <span className="text-zinc-600">model:</span>
-          {iteration.modelName}
-        </div>
-      )}
       {fetchError ? (
         <div className="px-3 py-4 text-xs text-red-400">{t('loadFailed')}</div>
       ) : !isLive && fetchedLogs === null ? (
