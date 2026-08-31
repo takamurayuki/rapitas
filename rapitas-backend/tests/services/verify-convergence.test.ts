@@ -194,6 +194,48 @@ describe('素のファイル名を含む受入基準 (task 666 実測)', () => {
   });
 });
 
+describe('汎用ワークフローアーティファクト名の誤マッチ防止 (task #800/#803 実測再現)', () => {
+  test('verify.md を含む受入基準は、汎用アーティファクト名では指摘されない', () => {
+    const criteria = ['verify.md 保存時の repair-feedback ブロックが自己増幅ループを起こさない'];
+    const reason =
+      'verify.md self-contradicts: claims all tests pass while body contains failure signals (Tests 2 failed)';
+    expect(identifyIndictedCriteria(reason, criteria)).toEqual([]);
+  });
+
+  test('内容の異なる2回のverify.md系差し戻しはcutoffしない（task #800 の誤検出再現）', () => {
+    const criteria = ['verify.md 保存時の repair-feedback ブロックが自己増幅ループを起こさない'];
+    const priorReasons = [
+      'verify.md self-contradicts: claims all tests pass while body contains failure signals (Tests 2 failed)',
+    ];
+    const currentReason = 'verify.md explicitly marks the verification as failed.';
+    expect(detectNonConvergence(currentReason, priorReasons, criteria)).toEqual({ cutoff: false });
+  });
+
+  test('バッククォート引用の verify.md もトークン化しない', () => {
+    const criteria = ['`verify.md` に検証結果が記録されている'];
+    const reason =
+      'verify.md self-contradicts: claims all tests pass while body contains failure signals';
+    expect(identifyIndictedCriteria(reason, criteria)).toEqual([]);
+  });
+
+  test.each(['plan.md', 'research.md', 'question.md'])(
+    '%s も汎用アーティファクト名としてトークン化しない',
+    (name) => {
+      const criteria = [`${name} の内容が正しい`];
+      const reason = `${name} が壊れています`;
+      expect(identifyIndictedCriteria(reason, criteria)).toEqual([]);
+    },
+  );
+
+  test('汎用アーティファクト名と紛らわしくない具体的なファイル名は引き続き指摘対象になる', () => {
+    const criteria = [
+      '`verify-self-repair-feedback.ts` の buildRepairFeedbackBlock が基準情報を含む',
+    ];
+    const reason = 'verify-self-repair-feedback.ts に基準情報が含まれていない';
+    expect(identifyIndictedCriteria(reason, criteria)).toEqual([1]);
+  });
+});
+
 describe('ファイル風トークンの誤検出防止', () => {
   test('大文字始まりの語に続く句点は拡張子として扱わない', () => {
     // 「...されている。All tests fail」のような散文でトークンを作らない。
