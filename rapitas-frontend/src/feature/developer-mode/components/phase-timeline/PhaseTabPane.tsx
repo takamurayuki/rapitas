@@ -118,7 +118,14 @@ export function PhaseTabPane({
   liveLogLines,
 }: PhaseTabPaneProps) {
   const t = useTranslations('phaseTimeline');
-  const [fetchedLogs, setFetchedLogs] = useState<string[] | null>(null);
+  // Machine log lines (Starting execution / Result / tool markers …) localize
+  // through this translator — without it they render raw English and the
+  // bubbles mix languages (operator feedback).
+  const tLog = useTranslations('devMode.logTransformer');
+  // Kept as per-execution groups: one iteration can bundle several executions
+  // (continuation runs / uncertain boundaries), and the pane inserts a divider
+  // between them so multi-run logs stay readable (operator feedback).
+  const [fetchedLogs, setFetchedLogs] = useState<string[][] | null>(null);
   const [fetchError, setFetchError] = useState(false);
   // Whether the pane is scrolled to (near) the bottom — hides the 末尾へ button.
   const [atBottom, setAtBottom] = useState(false);
@@ -145,7 +152,7 @@ export function PhaseTabPane({
     let cancelled = false;
     Promise.all(iteration.executionIds.map(fetchExecutionLogLines))
       .then((groups) => {
-        if (!cancelled) setFetchedLogs(groups.flat());
+        if (!cancelled) setFetchedLogs(groups);
       })
       .catch(() => {
         if (!cancelled && !isLive) setFetchError(true); // live: SSE lines still render
@@ -171,15 +178,21 @@ export function PhaseTabPane({
   // row. Newer executions store a "[Claude Code] Model: …" banner line; for
   // older ones synthesize an equivalent line from the timeline's modelName.
   const rawLogs = useMemo(() => {
+    // Multi-execution iterations get a divider line between runs so the
+    // concatenated logs stay readable per run.
+    const total = fetchedLogs?.length ?? 0;
+    const storedFlat = (fetchedLogs ?? []).flatMap((group, i) =>
+      total > 1 ? [t('runDivider', { n: i + 1, total }), ...group] : group,
+    );
     // Live pane renders the SSE stream directly (real time). When the stream
     // contains this execution's start banner it is complete from the top;
     // otherwise (opened mid-run) prepend the stored catch-up base.
     let source: string[];
     if (isLive && liveLogLines) {
       const hasStartBanner = liveLogLines.some((l) => l.includes('Starting execution'));
-      source = hasStartBanner ? liveLogLines : [...(fetchedLogs ?? []), ...liveLogLines];
+      source = hasStartBanner ? liveLogLines : [...storedFlat, ...liveLogLines];
     } else {
-      source = fetchedLogs ?? [];
+      source = storedFlat;
     }
     // Normalize the runner-emitted "[Claude Code] Model: …" banner to the same
     // plain "Model: …" form as the synthesized line — one style everywhere.
@@ -192,8 +205,8 @@ export function PhaseTabPane({
     const startIdx = logs.findIndex((l) => l.includes('Starting execution'));
     const at = startIdx >= 0 ? startIdx + 1 : 0;
     return [...logs.slice(0, at), `Model: ${iteration.modelName}`, ...logs.slice(at)];
-  }, [fetchedLogs, isLive, liveLogLines, iteration.modelName]);
-  const entries = useMemo(() => transformLogsToSimple(rawLogs), [rawLogs]);
+  }, [fetchedLogs, isLive, liveLogLines, iteration.modelName, t]);
+  const entries = useMemo(() => transformLogsToSimple(rawLogs, tLog), [rawLogs, tLog]);
 
   const matcher = useMemo(
     () => buildSearchMatcher(searchQuery, searchOpts),

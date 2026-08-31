@@ -48,6 +48,7 @@
       "caseSensitive": "大文字と小文字を区別する",
       "wholeWord": "単語単位で検索する",
       "regex": "正規表現を使用する"
-    }
+    },
+    "runDivider": "─────── 実行 {n}/{total} ───────"
   }
 }

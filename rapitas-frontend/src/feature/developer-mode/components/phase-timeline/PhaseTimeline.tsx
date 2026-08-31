@@ -53,6 +53,9 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
   // Reuse the original log-viewer header title (実行ログ) so the tabbed view
   // keeps the pre-#785 header composition.
   const tHeader = useTranslations('devMode.logViewerHeader');
+  // Localizes machine log lines in the flat fallback views (same translator
+  // the pane uses — keeps bubble language uniform).
+  const tLog = useTranslations('devMode.logTransformer');
   const { phases, taskStatus, plannedMode, loading, refetch } = usePhaseTimeline(taskId);
   const [filterWarnOnly, setFilterWarnOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -203,7 +206,7 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
   // runs). While running, the tab strip renders from the planned mode instead
   // and the pane shows the live stream in real time.
   if (phases.length === 0 && !isRunning) {
-    const entries = transformLogsToSimple(liveLogs);
+    const entries = transformLogsToSimple(liveLogs, tLog);
     return <SimpleLogEntryList entries={entries} />;
   }
 
@@ -419,7 +422,7 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
         <div className="dark bg-zinc-950 font-mono">
           {phases.length === 0 && isRunning && liveTail.length > 0 ? (
             <div className="max-h-[340px] overflow-y-auto px-1 py-1">
-              <SimpleLogEntryList entries={transformLogsToSimple(liveTail)} />
+              <SimpleLogEntryList entries={transformLogsToSimple(liveTail, tLog)} />
             </div>
           ) : (
             <div className="px-3 py-4 text-xs text-zinc-500">{t('noLogsYet')}</div>

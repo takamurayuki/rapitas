@@ -6048,6 +6048,7 @@
       "caseSensitive": "Match case",
       "wholeWord": "Match whole word",
       "regex": "Use regular expression"
-    }
+    },
+    "runDivider": "─────── run {n}/{total} ───────"
   }
 }
