@@ -25,6 +25,20 @@ const MIN_TOKEN_LEN = 6;
  */
 const FILE_TOKEN_RE = /[A-Za-z0-9_\-][A-Za-z0-9_\-./\\]*\.[a-z0-9]{1,6}/g;
 
+/**
+ * Generic workflow-artifact names (WorkflowFile.fileType + `.md`) excluded from
+ * feature-token candidacy. phase-output-validator's failure messages always
+ * carry a `verify.md ...` prefix regardless of the actual cause (task #800:
+ * `verify.md self-contradicts: ...` / `verify.md explicitly marks the
+ * verification as failed.`), so a criterion that merely mentions the artifact
+ * by name (not an unusual thing for a workflow-focused task to do) makes
+ * EVERY repair reason match it — collapsing genuinely distinct rejections
+ * into one falsely-repeated criterion and mis-firing the cutoff (task #800:
+ * 2026-08-31T04:21:59Z and 05:20:34Z). The other three share the same
+ * structural hazard (e.g. `plan_invalid_replan` always mentions `plan.md`).
+ */
+const WORKFLOW_ARTIFACT_TOKENS = new Set(['research.md', 'question.md', 'plan.md', 'verify.md']);
+
 /** Verdict of the non-convergence check. */
 export interface ConvergenceVerdict {
   /** True when the repair loop must be cut off (same criterion flagged 2+ times). */
@@ -71,6 +85,10 @@ const NUMBER_PATTERNS = [
  * and path-like tokens (e.g. `tests/services/test-triage.test.ts`). Plain
  * prose is deliberately NOT tokenized — common words shared across criteria
  * would make an unrelated reason match and falsely cut off a progressing task.
+ * Generic workflow-artifact names (`verify.md` etc., see
+ * WORKFLOW_ARTIFACT_TOKENS) are excluded for the same reason: they are not
+ * project source files but the workflow's own vocabulary, near-guaranteed to
+ * appear in unrelated repair reasons.
  *
  * @param criterion - Criterion body text. / 基準本文
  * @returns Distinct tokens of length >= MIN_TOKEN_LEN. / 特徴トークン
@@ -79,7 +97,7 @@ function extractFeatureTokens(criterion: string): string[] {
   const tokens = new Set<string>();
   for (const m of criterion.matchAll(/`([^`]+)`/g)) {
     const t = m[1].trim();
-    if (t.length >= MIN_TOKEN_LEN) tokens.add(t);
+    if (t.length >= MIN_TOKEN_LEN && !WORKFLOW_ARTIFACT_TOKENS.has(t.toLowerCase())) tokens.add(t);
   }
   // File-like: an ASCII path or bare filename ending in a lowercase extension.
   //
@@ -95,11 +113,16 @@ function extractFeatureTokens(criterion: string): string[] {
   // avoid — it would stop a task that is genuinely progressing.
   for (const m of criterion.matchAll(FILE_TOKEN_RE)) {
     const t = m[0];
-    if (t.length >= MIN_TOKEN_LEN) tokens.add(t);
+    if (t.length >= MIN_TOKEN_LEN && !WORKFLOW_ARTIFACT_TOKENS.has(t.toLowerCase())) tokens.add(t);
     // Reasons often cite just the basename while the criterion spells the full
     // path.
     const base = t.split(/[/\\\\]/).pop() ?? '';
-    if (base.length >= MIN_TOKEN_LEN && base.includes('.')) tokens.add(base);
+    if (
+      base.length >= MIN_TOKEN_LEN &&
+      base.includes('.') &&
+      !WORKFLOW_ARTIFACT_TOKENS.has(base.toLowerCase())
+    )
+      tokens.add(base);
   }
   return [...tokens];
 }
