@@ -163,7 +163,9 @@ export function PhaseTabPane({
   // row. Newer executions store a "[Claude Code] Model: …" banner line; for
   // older ones synthesize an equivalent line from the timeline's modelName.
   const rawLogs = useMemo(() => {
-    const logs = fetchedLogs ?? [];
+    // Normalize the runner-emitted "[Claude Code] Model: …" banner to the same
+    // plain "Model: …" form as the synthesized line — one style everywhere.
+    const logs = (fetchedLogs ?? []).map((l) => l.replace(/^\[[^\]]+\] Model: /, 'Model: '));
     if (!iteration.modelName || logs.length === 0) return logs;
     const hasModelLine = logs.some((l) => l.includes('] Model: ') || l.startsWith('Model: '));
     if (hasModelLine) return logs;
