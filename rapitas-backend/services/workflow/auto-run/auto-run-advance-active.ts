@@ -159,23 +159,26 @@ export async function advanceActiveTask(
       // Task 793: this write left no WorkflowTransition row, so downstream
       // retro analysis (retro-evidence.ts) could not tell why a task went
       // blocked here versus any other blocked path.
-      // NOTE: fromStatus/toStatus track task.workflowStatus (see the
-      // transition-recorder header) and this path does NOT change it — only
-      // task.status flips to 'blocked'. Recording workflowStatus on both sides
-      // is the same self-loop shape blocked-task-escalation uses for the same
-      // situation; the status flip itself is captured in metadata so the row
-      // still shows what actually changed.
+      // NOTE: this path flips task.status to 'blocked', so the row records a
+      // REAL transition INTO blocked — fromStatus is the task's prior state
+      // (its workflowStatus, or task.status when the workflow never started),
+      // toStatus is 'blocked'. That matches the actual DB change and lets
+      // computePhaseTimings (retro-evidence.ts) attribute the timeline
+      // correctly; a self-loop (from===to) would have shown "nothing changed".
+      // 'blocked' is already an established timeline state here (see
+      // blocked-task-escalation and the retro dwell table). The unchanged
+      // workflowStatus is preserved in metadata for context.
       const wallMinutes = Math.round(MAX_TASK_WALL_MS / 60000);
       await recordTransition({
         taskId: currentTaskId,
-        fromStatus: wallBudgetState?.workflowStatus ?? 'blocked',
-        toStatus: wallBudgetState?.workflowStatus ?? 'blocked',
+        fromStatus: wallBudgetState?.workflowStatus ?? wallBudgetState?.status ?? null,
+        toStatus: 'blocked',
         actor: 'system',
         cause: 'auto_run_hang_backstop',
         metadata: {
           wallMinutes,
+          workflowStatus: wallBudgetState?.workflowStatus ?? null,
           taskStatusFrom: wallBudgetState?.status ?? null,
-          taskStatusTo: 'blocked',
         },
       }).catch(() => {});
       await onTaskFailed(themeId, `Task ${currentTaskId} timed out (auto-run hang guard)`);

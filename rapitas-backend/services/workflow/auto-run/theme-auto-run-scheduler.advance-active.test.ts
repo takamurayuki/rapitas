@@ -90,20 +90,21 @@ describe('advanceTheme — hang backstop', () => {
     expect(mockOnTaskFailed).toHaveBeenCalledWith(1, expect.stringContaining('100'));
     // Recurses with currentTaskId=null and globalActive decremented by 1.
     expect(mockBroadcast).toHaveBeenCalled();
-    // Task 793: the row must name the backstop as the cause, keep the
-    // unchanged workflowStatus on both sides (only task.status flipped), and
-    // carry the actual status flip in metadata.
+    // Task 793: the row must name the backstop as the cause AND record a real
+    // transition INTO blocked — fromStatus is the task's prior state
+    // (workflowStatus 'plan_approved'), toStatus is 'blocked'. A self-loop
+    // (from===to) would have hidden that the task actually became blocked.
     expect(mockRecordTransition).toHaveBeenCalledTimes(1);
     expect(mockRecordTransition).toHaveBeenCalledWith({
       taskId: 100,
       fromStatus: 'plan_approved',
-      toStatus: 'plan_approved',
+      toStatus: 'blocked',
       actor: 'system',
       cause: 'auto_run_hang_backstop',
       metadata: {
         wallMinutes: expect.any(Number),
+        workflowStatus: 'plan_approved',
         taskStatusFrom: 'in-progress',
-        taskStatusTo: 'blocked',
       },
     });
   });
