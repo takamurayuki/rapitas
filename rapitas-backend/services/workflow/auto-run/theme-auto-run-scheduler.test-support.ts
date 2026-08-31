@@ -87,6 +87,7 @@ import {
   mockConsumeResourceGateOverride,
   mockRequestResourceGateOverride,
   mockReleaseStaleActiveItems,
+  mockIsOverlapHeld,
 } from './theme-auto-run-scheduler.test-support.decision-mocks';
 
 // ---------------------------------------------------------------------------
@@ -172,6 +173,7 @@ const ALL_MOCKS = [
   mockGetGlobalAutoRunActiveCount,
   mockGetThemeActiveQueueItems,
   mockIsAwaitingUserAnswer,
+  mockHasLiveExecution,
   mockSelectNextTask,
   mockFindByStatuses,
   mockSetCurrentTask,
@@ -206,6 +208,7 @@ const ALL_MOCKS = [
   mockStopThemeForIdleTimeout,
   mockShouldRefillBacklogNow,
   mockMarkSelfRefillSucceeded,
+  mockIsOverlapHeld,
 ];
 
 /** Clear call history AND restore each mock's default resolved value/behaviour. */
@@ -261,4 +264,5 @@ export function resetAllMocks(): void {
     effectiveMaxConcurrency: 1,
   });
   mockConsumeResourceGateOverride.mockReturnValue(false);
+  mockIsOverlapHeld.mockReturnValue(false);
 }

@@ -33,6 +33,8 @@ import {
   mockSetCurrentTask,
   mockBroadcast,
   mockReleaseStaleActiveItems,
+  mockIsOverlapHeld,
+  mockRecordTransition,
 } from './theme-auto-run-scheduler.test-support';
 
 let scheduler: ThemeAutoRunScheduler;
@@ -70,6 +72,13 @@ describe('advanceTheme — hang backstop', () => {
 
   it('force-stops and blocks a genuinely wedged task, then advances past it', async () => {
     mockIsAwaitingUserAnswer.mockResolvedValue(false);
+    mockResolveTaskWorkflowState.mockResolvedValue({
+      id: 100,
+      status: 'in-progress',
+      workflowStatus: 'plan_approved',
+      workflowMode: null,
+      parentId: null,
+    });
 
     await internal(scheduler).advanceTheme(1, 100, 'priority', 1, staleLastRunAt());
 
@@ -81,6 +90,35 @@ describe('advanceTheme — hang backstop', () => {
     expect(mockOnTaskFailed).toHaveBeenCalledWith(1, expect.stringContaining('100'));
     // Recurses with currentTaskId=null and globalActive decremented by 1.
     expect(mockBroadcast).toHaveBeenCalled();
+    // Task 793: the row must name the backstop as the cause AND record a real
+    // transition INTO blocked — fromStatus is the task's prior state
+    // (workflowStatus 'plan_approved'), toStatus is 'blocked'. A self-loop
+    // (from===to) would have hidden that the task actually became blocked.
+    expect(mockRecordTransition).toHaveBeenCalledTimes(1);
+    expect(mockRecordTransition).toHaveBeenCalledWith({
+      taskId: 100,
+      fromStatus: 'plan_approved',
+      toStatus: 'blocked',
+      actor: 'system',
+      cause: 'auto_run_hang_backstop',
+      metadata: {
+        wallMinutes: expect.any(Number),
+        workflowStatus: 'plan_approved',
+        taskStatusFrom: 'in-progress',
+      },
+    });
+  });
+
+  it('does not force-stop a task held by the overlap guard — the wait is queued behind an open auto-PR, not wedged (task 793)', async () => {
+    mockIsAwaitingUserAnswer.mockResolvedValue(false);
+    mockIsOverlapHeld.mockReturnValue(true);
+
+    await internal(scheduler).advanceTheme(1, 100, 'priority', 1, staleLastRunAt());
+
+    expect(mockNotifyHangBackstop).not.toHaveBeenCalled();
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+    expect(mockOnTaskFailed).not.toHaveBeenCalled();
+    expect(mockHasLiveExecution).not.toHaveBeenCalled();
   });
 
   it('defers the backstop while a live (fresh-heartbeat) execution is running — slow ≠ wedged (task 563)', async () => {

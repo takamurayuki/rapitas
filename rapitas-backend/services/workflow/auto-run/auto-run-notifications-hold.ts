@@ -11,6 +11,7 @@
 import { prisma } from '../../../config';
 import { buildNotificationI18n } from '../../communication/notification-i18n';
 import { notifyOnce, taskLabel } from './auto-run-notifications-shared';
+import { MAX_BLOCKED_RETRY } from '../blocked-task-policy';
 
 /** Auto-run paused: a plan is waiting for the user's approval. */
 export async function notifyAwaitingPlanApproval(themeId: number, taskId: number): Promise<void> {
@@ -50,11 +51,12 @@ export async function notifyHangBackstop(
     themeId,
     taskId,
     title: '自動実行: タスクが時間上限で停止しました',
-    message: `タスク #${taskId}「${label}」が時間上限（${wallMinutes}分）を超えたため停止しました — ログを確認して再実行してください。`,
+    message: `タスク #${taskId}「${label}」が時間上限（${wallMinutes}分）を超えたため停止しました。このテーマで自動実行が有効であれば、自動再試行の残り回数がある限り数分以内に自動的に再試行されます（上限${MAX_BLOCKED_RETRY}回）。今すぐ手動で再実行すると、その自動再試行の機会を1回消費します — 緊急でなければログの確認だけにとどめ、自動再試行の結果を待ってください。`,
     i18n: buildNotificationI18n('auto_run_hang_backstop', {
       taskId,
       taskLabel: label,
       wallMinutes,
+      maxBlockedRetry: MAX_BLOCKED_RETRY,
     }),
   });
 }

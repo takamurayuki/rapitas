@@ -289,3 +289,13 @@ mock.module('../blocked-task-escalation', () => ({
   countEscalatedBlocked: mockCountEscalatedBlocked,
   BLOCKED_ESCALATED_CAUSE: 'blocked_escalated',
 }));
+
+// ---------------------------------------------------------------------------
+// workflow-orchestrator-overlap-guard (task 793) — default false so existing
+// hang-backstop tests keep exercising the force-stop path unaffected.
+// ---------------------------------------------------------------------------
+export const mockIsOverlapHeld = mock(() => false);
+
+mock.module('../workflow-orchestrator-overlap-guard', () => ({
+  isOverlapHeld: mockIsOverlapHeld,
+}));

@@ -38,6 +38,8 @@ import { isTaskVanishedMessage } from '../queue-vanished-task-policy';
 import { releaseStaleActiveItems } from './auto-run-stall-guard';
 import { stopThemeExecutionImpl, broadcastAutoRunUpdateImpl } from './auto-run-lifecycle';
 import { selectAndEnqueueNextTask } from './auto-run-advance-select';
+import { isOverlapHeld } from '../workflow-orchestrator-overlap-guard';
+import { recordTransition } from '../transition-recorder';
 
 const log = createLogger('theme-auto-run-scheduler');
 
@@ -74,6 +76,19 @@ export async function advanceActiveTask(
   if (lastRunAt && tenureMs >= MAX_TASK_WALL_MS) {
     if (await isAwaitingUserAnswer(prisma, currentTaskId)) {
       await notifyAwaitingUserAnswer(themeId, currentTaskId);
+      return;
+    }
+    // EXEMPT a task held by the overlap guard (task 793): the implementer has
+    // not even started — it is queued behind another open auto-PR touching
+    // the same files — so the tenure wall is measuring wait time, not stuck
+    // work. In task 784's timeline the 16:51 manual retry was confirmed to
+    // follow exactly this misread (implement_overlap_hold at 16:04 → hang
+    // backstop at 16:49); the 18:21 retry matches the same shape but only on
+    // circumstantial evidence (no hold log survived the 17:34 self-restart).
+    if (isOverlapHeld(currentTaskId)) {
+      log.info(
+        `[ThemeAutoRunScheduler] Task ${currentTaskId} over tenure wall but held by the overlap guard — deferring hang backstop (theme ${themeId})`,
+      );
       return;
     }
     // Measure time since PROGRESS, not tenure. A multi-phase task legitimately
@@ -134,9 +149,38 @@ export async function advanceActiveTask(
       // lifecycle notifications above).
       await notifyHangBackstop(themeId, currentTaskId, Math.round(MAX_TASK_WALL_MS / 60000));
       await stopThemeExecutionImpl(prisma, themeId, currentTaskId);
+      // Read the row BEFORE the blocked write so the transition below can
+      // carry the pre-stop task.status (resolveTaskWorkflowState is the
+      // existing task-resolver helper; it returns null on a DB miss).
+      const wallBudgetState = await resolveTaskWorkflowState(currentTaskId);
       await prisma.task
         .update({ where: { id: currentTaskId }, data: { status: 'blocked' } })
         .catch(() => {});
+      // Task 793: this write left no WorkflowTransition row, so downstream
+      // retro analysis (retro-evidence.ts) could not tell why a task went
+      // blocked here versus any other blocked path.
+      // NOTE: this path flips task.status to 'blocked', so the row records a
+      // REAL transition INTO blocked — fromStatus is the task's prior state
+      // (its workflowStatus, or task.status when the workflow never started),
+      // toStatus is 'blocked'. That matches the actual DB change and lets
+      // computePhaseTimings (retro-evidence.ts) attribute the timeline
+      // correctly; a self-loop (from===to) would have shown "nothing changed".
+      // 'blocked' is already an established timeline state here (see
+      // blocked-task-escalation and the retro dwell table). The unchanged
+      // workflowStatus is preserved in metadata for context.
+      const wallMinutes = Math.round(MAX_TASK_WALL_MS / 60000);
+      await recordTransition({
+        taskId: currentTaskId,
+        fromStatus: wallBudgetState?.workflowStatus ?? wallBudgetState?.status ?? null,
+        toStatus: 'blocked',
+        actor: 'system',
+        cause: 'auto_run_hang_backstop',
+        metadata: {
+          wallMinutes,
+          workflowStatus: wallBudgetState?.workflowStatus ?? null,
+          taskStatusFrom: wallBudgetState?.status ?? null,
+        },
+      }).catch(() => {});
       await onTaskFailed(themeId, `Task ${currentTaskId} timed out (auto-run hang guard)`);
       broadcastAutoRunUpdateImpl(themeId);
       await new Promise((r) => setTimeout(r, COOLDOWN_MS));
