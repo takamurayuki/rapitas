@@ -441,6 +441,16 @@ export async function applyResumeFromQuestionAnswer(params: ApplyResumeAnswerPar
     data: { workflowStatus: resumeStatus, updatedAt: new Date() },
   });
 
+  // Status-desync backstop (task #804; mirrors the executor epilogue's #706
+  // fix): this handler advances workflowStatus but left task.status alone,
+  // so a task whose status had reverted to 'todo' (stale-heartbeat lease
+  // sweep) stayed desynced until the next dispatch. Conditional so a
+  // concurrent 'blocked' set by another actor is never clobbered.
+  await prisma.task.updateMany({
+    where: { id: taskId, status: 'todo' },
+    data: { status: 'in-progress' },
+  });
+
   await recordTransition({
     taskId,
     fromStatus: 'awaiting_question',
