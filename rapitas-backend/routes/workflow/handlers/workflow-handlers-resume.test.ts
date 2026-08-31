@@ -10,12 +10,14 @@ import { describe, expect, test, mock, beforeEach, afterAll } from 'bun:test';
 // ---- prisma mock ----
 const mockFindUnique = mock(() => Promise.resolve<Record<string, unknown> | null>(null));
 const mockUpdate = mock(() => Promise.resolve({}));
+const mockUpdateMany = mock(() => Promise.resolve({ count: 0 }));
 const mockFindFirstTransition = mock(() => Promise.resolve<Record<string, unknown> | null>(null));
 const mockFindFirstExecution = mock(() => Promise.resolve<Record<string, unknown> | null>(null));
 const mockPrisma = {
   task: {
     findUnique: mockFindUnique,
     update: mockUpdate,
+    updateMany: mockUpdateMany,
   },
   workflowTransition: {
     findFirst: mockFindFirstTransition,
@@ -79,6 +81,7 @@ const { handleAnswerWorkflowQuestion, handleResumeFromQuestion } =
 beforeEach(() => {
   mockFindUnique.mockReset();
   mockUpdate.mockReset().mockResolvedValue({});
+  mockUpdateMany.mockReset().mockResolvedValue({ count: 0 });
   mockFindFirstTransition.mockReset();
   mockFindFirstExecution.mockReset().mockResolvedValue(null);
   mockRecordTransition.mockReset().mockResolvedValue(undefined);
@@ -513,5 +516,29 @@ describe('handleResumeFromQuestion', () => {
       /expected "awaiting_question"/,
     );
     expect(set.status).toBe(400);
+  });
+
+  // Regression test (task #804, reproduces the tri-state desync also fixed
+  // once before under #706/#6825): execution-lease-sweep can revert
+  // task.status to 'todo' on a stale heartbeat while the process is actually
+  // still alive and later resolves the question. Without the backstop below,
+  // resuming only advanced workflowStatus (e.g. to 'plan_approved'), leaving
+  // status='todo' desynced from it.
+  test('syncs a stale task.status="todo" to "in-progress" when resuming (task #804 desync backstop)', async () => {
+    mockResolveTaskWorkflowState.mockResolvedValue({
+      id: 803,
+      workflowStatus: 'awaiting_question',
+    });
+    mockFindFirstTransition.mockResolvedValue({
+      metadata: { previousStatus: 'plan_approved' },
+      fromStatus: 'plan_approved',
+    });
+
+    await handleResumeFromQuestion({ params: { taskId: '803' }, set: {} });
+
+    expect(mockUpdateMany).toHaveBeenCalledWith({
+      where: { id: 803, status: 'todo' },
+      data: { status: 'in-progress' },
+    });
   });
 });
