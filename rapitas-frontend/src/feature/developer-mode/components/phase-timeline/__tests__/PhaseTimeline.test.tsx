@@ -51,7 +51,7 @@ describe('PhaseTimeline', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders a section for the implement phase (no rail or tabs)', async () => {
+  it('renders phase TABS and auto-selects the running phase (#796 tab redesign)', async () => {
     mockFetch.mockReturnValue(
       jsonResponse({
         success: true,
@@ -71,9 +71,15 @@ describe('PhaseTimeline', () => {
 
     await waitFor(() => expect(screen.getAllByRole('button').length).toBeGreaterThan(0));
 
-    expect(screen.getByText(/phaseLabel\.implement/)).toBeInTheDocument();
-    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
-    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+    // Tab strip exists with one tab per phase; the running phase (verify) is selected.
+    expect(screen.getByRole('tablist')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /phaseLabel\.implement/ })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: /phaseLabel\.verify/ })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      ),
+    );
   });
 
   it('falls back to the flat log list when the task has no phase data', async () => {

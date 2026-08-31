@@ -6029,6 +6029,8 @@
     "loadingDetail": "Loading…",
     "loadFailed": "Failed to load logs",
     "expandAria": "Expand phase",
-    "collapseAria": "Collapse phase"
+    "collapseAria": "Collapse phase",
+    "jumpToRunning": "Jump to running",
+    "iterationChip": "Run {n}"
   }
 }
