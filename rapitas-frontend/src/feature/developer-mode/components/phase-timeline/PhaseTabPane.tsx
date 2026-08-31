@@ -166,7 +166,12 @@ export function PhaseTabPane({
     const logs = fetchedLogs ?? [];
     if (!iteration.modelName || logs.length === 0) return logs;
     const hasModelLine = logs.some((l) => l.includes('] Model: ') || l.startsWith('Model: '));
-    return hasModelLine ? logs : [`Model: ${iteration.modelName}`, ...logs];
+    if (hasModelLine) return logs;
+    // Right after the "Starting execution" banner — same slot the newer
+    // runner-emitted Model line occupies.
+    const startIdx = logs.findIndex((l) => l.includes('Starting execution'));
+    const at = startIdx >= 0 ? startIdx + 1 : 0;
+    return [...logs.slice(0, at), `Model: ${iteration.modelName}`, ...logs.slice(at)];
   }, [fetchedLogs, iteration.modelName]);
   const entries = useMemo(() => transformLogsToSimple(rawLogs), [rawLogs]);
 
