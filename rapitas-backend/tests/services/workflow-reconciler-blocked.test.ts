@@ -14,7 +14,10 @@ const mockPrisma = {
     update: mock(() => Promise.resolve({})),
   },
   agentExecution: { findFirst: mock(() => Promise.resolve(null as unknown)) },
-  workflowTransition: { count: mock(() => Promise.resolve(0)) },
+  workflowTransition: {
+    count: mock(() => Promise.resolve(0)),
+    findFirst: mock(() => Promise.resolve(null as unknown)),
+  },
   themeAutoRun: { findMany: mock(() => Promise.resolve([{ themeId: 1 }] as unknown[])) },
   userSettings: { findFirst: mock(() => Promise.resolve(null as unknown)) },
   activityLog: { findFirst: mock(() => Promise.resolve(null as unknown)) },
@@ -52,7 +55,7 @@ mock.module('../../services/workflow/blocked-pr-retry-recovery', () => ({
   attemptPrOnlyRecovery,
 }));
 
-const { correctBlockedByEvidence, escalateAbandonedBlocked } =
+const { correctBlockedByEvidence, escalateAbandonedBlocked, healBlockedStatusDesync } =
   await import('../../services/workflow/workflow-reconciler-blocked');
 const { requeueBlockedTasks } = await import('../../services/workflow/workflow-reconciler-requeue');
 const {
@@ -83,6 +86,7 @@ beforeEach(() => {
   mockPrisma.task.update.mockReset().mockResolvedValue({});
   mockPrisma.agentExecution.findFirst.mockReset().mockResolvedValue(null);
   mockPrisma.workflowTransition.count.mockReset().mockResolvedValue(0);
+  mockPrisma.workflowTransition.findFirst.mockReset().mockResolvedValue(null);
   mockPrisma.themeAutoRun.findMany.mockReset().mockResolvedValue([{ themeId: 1 }]);
   mockPrisma.userSettings.findFirst.mockReset().mockResolvedValue(null);
   mockPrisma.activityLog.findFirst.mockReset().mockResolvedValue(null);
@@ -591,5 +595,64 @@ describe('classifyBlockedExclusion（task 705: タスク#684タイムライン�
     });
 
     expect(classification).toBe('retry_cap_exhausted');
+  });
+});
+
+describe('healBlockedStatusDesync（task 802: status/workflowStatus 不整合の復旧）', () => {
+  const BLOCKED_AT = new Date(NOW - 30 * 60 * 1000);
+
+  function mockTransitions(opts: { hasBlocked: boolean; hasUserAdvance: boolean }) {
+    mockPrisma.workflowTransition.findFirst.mockImplementation(
+      (args: { where: { toStatus?: string; actor?: string } }) => {
+        if (args.where.toStatus === 'blocked') {
+          return Promise.resolve(opts.hasBlocked ? { createdAt: BLOCKED_AT } : null);
+        }
+        if (args.where.actor === 'user') {
+          return Promise.resolve(opts.hasUserAdvance ? { id: 1 } : null);
+        }
+        return Promise.resolve(null);
+      },
+    );
+  }
+
+  test('status=blocked + workflowStatus=plan_approved + actor:user遷移ありで status のみ todo へ復旧される', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([
+      blockedTask({ id: 800, workflowStatus: 'plan_approved' }),
+    ]);
+    mockTransitions({ hasBlocked: true, hasUserAdvance: true });
+
+    const healed = await healBlockedStatusDesync(NOW);
+
+    expect(healed).toBe(1);
+    const tu = mockPrisma.task.update.mock.calls[0][0] as {
+      data: { status: string; workflowStatus?: string };
+    };
+    expect(tu.data.status).toBe('todo');
+    expect(tu.data.workflowStatus).toBeUndefined();
+    const rt = recordTransition.mock.calls[0][0] as { cause: string; toStatus: string };
+    expect(rt.cause).toBe('status_desync_healed');
+    expect(rt.toStatus).toBe('plan_approved');
+  });
+
+  test('workflowStatus=draft（人手先行の痕跡なし）では対象外', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([blockedTask({ id: 801, workflowStatus: 'draft' })]);
+    mockTransitions({ hasBlocked: true, hasUserAdvance: true });
+
+    const healed = await healBlockedStatusDesync(NOW);
+
+    expect(healed).toBe(0);
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+  });
+
+  test('actor:user 遷移が無い（システム由来の前進のみ）場合は対象外', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([
+      blockedTask({ id: 802, workflowStatus: 'plan_approved' }),
+    ]);
+    mockTransitions({ hasBlocked: true, hasUserAdvance: false });
+
+    const healed = await healBlockedStatusDesync(NOW);
+
+    expect(healed).toBe(0);
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
   });
 });

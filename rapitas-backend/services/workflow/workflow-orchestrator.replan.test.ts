@@ -180,6 +180,33 @@ mock.module('./workflow-orchestrator-preflight-probe', () => ({
   runPreflightProbe: mock(() => Promise.resolve({ done: false })),
 }));
 
+// Controllable overlap-hold guard (task 802): default not-held so existing
+// tests are unaffected; two tests below flip this to prove guardPlanValidity
+// now runs BEFORE guardImplementOverlap in workflow-orchestrator.ts.
+let overlapHeld = false;
+const guardImplementOverlapMock = mock(() =>
+  Promise.resolve(
+    overlapHeld
+      ? {
+          done: true as const,
+          result: {
+            success: true,
+            role: 'implementer',
+            status: 'plan_approved',
+            skipped: true,
+            held: 'open auto-PR still changes test.ts',
+          },
+        }
+      : { done: false as const },
+  ),
+);
+mock.module('./workflow-orchestrator-overlap-guard', () => ({
+  guardImplementOverlap: guardImplementOverlapMock,
+  isImplementOverlapHoldEnabled: () => true,
+  isOverlapHeld: () => false,
+  resetOverlapGuardState: () => {},
+}));
+
 // Import AFTER all mock.module calls.
 const { WorkflowOrchestrator } = await import('./workflow-orchestrator');
 
@@ -201,6 +228,8 @@ describe('WorkflowOrchestrator — implementer plan-validity guard', () => {
     scheduleWorkflowRedispatchMock.mockClear();
     planFileContent = null;
     isPlanReusable = false;
+    overlapHeld = false;
+    guardImplementOverlapMock.mockClear();
   });
 
   test('lightweight mode has no plan phase — the guard is skipped even with no plan.md', async () => {
@@ -317,5 +346,38 @@ describe('WorkflowOrchestrator — implementer plan-validity guard', () => {
 
     // Acceptance criterion 2: at the cap the task stays blocked — no redispatch.
     expect(scheduleWorkflowRedispatchMock).not.toHaveBeenCalled();
+  });
+
+  test('an overlap-held task with an invalid plan.md rolls back immediately, without waiting on the hold (task 802 guard order)', async () => {
+    taskFindUniqueMock.mockImplementation(() => Promise.resolve(makeTask()));
+    planFileContent = null;
+    isPlanReusable = false;
+    workflowTransitionCountMock.mockImplementation(() => Promise.resolve(1));
+    overlapHeld = true;
+
+    const orchestrator = WorkflowOrchestrator.getInstance();
+    const result = await orchestrator.advanceWorkflow(1);
+
+    expect(result.status).toBe('draft');
+    const replanTransition = recordTransitionMock.mock.calls.find(
+      (c) => (c[0] as { cause: string }).cause === 'plan_invalid_replan',
+    );
+    expect(replanTransition).toBeDefined();
+    // guardPlanValidity short-circuited before the overlap guard ever ran.
+    expect(guardImplementOverlapMock).not.toHaveBeenCalled();
+  });
+
+  test('an overlap-held task with a valid plan.md is still held (skipped) as before', async () => {
+    taskFindUniqueMock.mockImplementation(() => Promise.resolve(makeTask()));
+    planFileContent = '# Plan\n\nA fully fleshed out implementation plan.';
+    isPlanReusable = true;
+    overlapHeld = true;
+
+    const orchestrator = WorkflowOrchestrator.getInstance();
+    const result = await orchestrator.advanceWorkflow(1);
+
+    expect(guardImplementOverlapMock).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: 'plan_approved', skipped: true });
+    expect(executeCLIAgentMock).not.toHaveBeenCalled();
   });
 });

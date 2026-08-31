@@ -5,9 +5,14 @@
  * within one reconciler cycle — do not re-order:
  *   1. correctBlockedByEvidence  — corrects PROVEN-successful blocked tasks to
  *      done (no re-run, no duplicate PR), removing them before the retry runs.
- *   2. requeueBlockedTasks       — blind retry of the evidence-less remainder
+ *   2. healBlockedStatusDesync   — restores `status` to `todo` for tasks a
+ *      human already pushed forward via `workflowStatus` (task 802) while
+ *      `status` stayed `blocked`, BEFORE the blind retry sees them — this
+ *      keeps the two passes' `status:'blocked'` candidate query mutually
+ *      exclusive across one cycle instead of racing on the same rows.
+ *   3. requeueBlockedTasks       — blind retry of the evidence-less remainder
  *      (workflow-reconciler-requeue, unchanged).
- *   3. escalateAbandonedBlocked  — one-shot escalation of what retry will NOT
+ *   4. escalateAbandonedBlocked  — one-shot escalation of what retry will NOT
  *      touch (awaiting_question / exhausted budget / retry cap / too old), so
  *      exclusion no longer means abandonment; when a task was ALREADY
  *      escalated in a prior cycle, this same pass instead checks whether the
@@ -22,6 +27,7 @@ import { ACTIVE_EXEC } from './workflow-reconciler-requeue';
 import {
   BLOCKED_RETRY_SETTLE_MS,
   classifyBlockedExclusion,
+  HUMAN_ADVANCED_WORKFLOW_STATUSES,
   resolveVerifyRepairLimit,
   VERIFY_NON_CONVERGENCE_CAUSE,
 } from './blocked-task-policy';
@@ -148,6 +154,79 @@ export async function correctBlockedByEvidence(nowMs: number): Promise<number> {
     );
   }
   return corrected;
+}
+
+/** Transition cause recorded when {@link healBlockedStatusDesync} restores `status`. */
+export const STATUS_DESYNC_HEALED_CAUSE = 'status_desync_healed';
+
+/**
+ * Restores `Task.status` to `todo` for tasks a human already pushed forward
+ * via `PUT /tasks/:id/status` (`workflowStatus`) while `status` stayed
+ * `blocked` — the two fields are updated independently by that endpoint (task
+ * 802: task #800 sat invisible to the auto-run scheduler for 45.1 min because
+ * `status='blocked'` excludes a task from `selectNextTask` regardless of how
+ * far `workflowStatus` has advanced).
+ *
+ * Only touches `status`; `workflowStatus` is left exactly as the human set
+ * it — the human's forward progress is the thing being trusted here, not
+ * discarded like {@link requeueBlockedTasks}'s blind full reset would.
+ *
+ * @param nowMs - Current time (ms). / 現在時刻
+ * @returns Number of tasks healed this cycle. / 復旧件数
+ */
+export async function healBlockedStatusDesync(nowMs: number): Promise<number> {
+  const tasks = await findBlockedCandidates(nowMs);
+  const candidates = tasks.filter(
+    (t): t is typeof t & { workflowStatus: string } =>
+      t.workflowStatus != null && HUMAN_ADVANCED_WORKFLOW_STATUSES.includes(t.workflowStatus),
+  );
+  if (candidates.length === 0) return 0;
+
+  let healed = 0;
+  for (const t of candidates) {
+    if (await hasLiveExecution(t.id)) continue;
+
+    const lastBlocked = await prisma.workflowTransition
+      .findFirst({
+        where: { taskId: t.id, toStatus: 'blocked' },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      })
+      .catch(() => null);
+    // No 'blocked' transition on record at all — can't establish that a user
+    // transition happened AFTER the block, so don't guess (fail closed).
+    if (!lastBlocked) continue;
+
+    const userAdvance = await prisma.workflowTransition
+      .findFirst({
+        where: {
+          taskId: t.id,
+          actor: 'user',
+          createdAt: { gt: lastBlocked.createdAt },
+        },
+        select: { id: true },
+      })
+      .catch(() => null);
+    if (!userAdvance) continue;
+
+    await prisma.task
+      .update({ where: { id: t.id }, data: { status: 'todo', updatedAt: new Date() } })
+      .catch(() => {});
+    await recordTransition({
+      taskId: t.id,
+      fromStatus: t.workflowStatus,
+      toStatus: t.workflowStatus,
+      actor: 'system',
+      cause: STATUS_DESYNC_HEALED_CAUSE,
+      metadata: { blockedAt: lastBlocked.createdAt.toISOString() },
+    }).catch(() => {});
+    healed++;
+    log.info(
+      { taskId: t.id, workflowStatus: t.workflowStatus },
+      '[reconciler] Healed status/workflowStatus desync -> status: todo',
+    );
+  }
+  return healed;
 }
 
 /**

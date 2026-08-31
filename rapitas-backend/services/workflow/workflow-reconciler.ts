@@ -269,6 +269,7 @@ export async function reconcileOnce(): Promise<{
   completedDesyncs: number;
   requeuedOrphans: number;
   blockedEvidenceCorrected: number;
+  statusDesyncsHealed: number;
   retriedBlocked: number;
   blockedEscalated: number;
   undispatchableTodos: number;
@@ -288,6 +289,7 @@ export async function reconcileOnce(): Promise<{
     completedDesyncs: 0,
     requeuedOrphans: 0,
     blockedEvidenceCorrected: 0,
+    statusDesyncsHealed: 0,
     retriedBlocked: 0,
     blockedEscalated: 0,
     undispatchableTodos: 0,
@@ -332,6 +334,14 @@ export async function reconcileOnce(): Promise<{
     const blockedEvidenceCorrected = await runHealPass('correctBlockedByEvidence', async () => {
       const { correctBlockedByEvidence } = await import('./workflow-reconciler-blocked');
       return correctBlockedByEvidence(nowMs);
+    });
+    // Restore `status` for tasks a human already advanced via `workflowStatus`
+    // while `status` stayed 'blocked' (task 802) — BEFORE the blind retry
+    // below, so a healed task's status:'blocked' row is gone from that pass'
+    // own candidate query by the time it runs (same-cycle exclusion).
+    const statusDesyncsHealed = await runHealPass('healBlockedStatusDesync', async () => {
+      const { healBlockedStatusDesync } = await import('./workflow-reconciler-blocked');
+      return healBlockedStatusDesync(nowMs);
     });
     // Auto-retry blocked tasks so the perpetual loop self-heals instead of idling
     // with a cap full of permanently-blocked tasks.
@@ -420,6 +430,7 @@ export async function reconcileOnce(): Promise<{
       completedDesyncs,
       requeuedOrphans,
       blockedEvidenceCorrected,
+      statusDesyncsHealed,
       retriedBlocked,
       blockedEscalated,
       undispatchableTodos,
