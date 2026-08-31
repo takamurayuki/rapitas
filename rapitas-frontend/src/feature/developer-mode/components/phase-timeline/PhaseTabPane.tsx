@@ -119,7 +119,15 @@ export function PhaseTabPane({
   const t = useTranslations('phaseTimeline');
   const [fetchedLogs, setFetchedLogs] = useState<string[] | null>(null);
   const [fetchError, setFetchError] = useState(false);
+  // Whether the pane is scrolled to (near) the bottom — hides the 末尾へ button.
+  const [atBottom, setAtBottom] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const updateAtBottom = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    setAtBottom(el.scrollTop + el.clientHeight >= el.scrollHeight - 24);
+  }, []);
 
   // Iteration switched (tab / repair selector) — drop the previous logs.
   const iterKey = iteration.executionIds.join(',');
@@ -214,6 +222,11 @@ export function PhaseTabPane({
   // below the pane adjusts and persists the log height.
   const resize = useResizableLogHeight(DEFAULT_PANE_HEIGHT);
 
+  // Content or pane height changed — the bottom position may have moved.
+  useEffect(() => {
+    updateAtBottom();
+  }, [filteredEntries, fetchedLogs, resize.height, updateAtBottom]);
+
   return (
     // Forced-dark terminal canvas: `.dark` (class-strategy variant) makes the
     // shared row styles resolve to their dark palette on every app theme.
@@ -233,7 +246,10 @@ export function PhaseTabPane({
       ) : (
         <div
           ref={containerRef}
-          onScroll={isLive ? handleScroll : undefined}
+          onScroll={() => {
+            if (isLive) handleScroll();
+            updateAtBottom();
+          }}
           style={{ height: resize.height }}
           className="overflow-y-auto px-1 py-1"
         >
@@ -259,7 +275,7 @@ export function PhaseTabPane({
       >
         <div className="h-0.5 w-12 rounded-full bg-zinc-600 opacity-40 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100" />
       </div>
-      {filteredEntries.length > 0 && !(isLive && autoScroll) && (
+      {filteredEntries.length > 0 && !(isLive && autoScroll) && !atBottom && (
         <button
           type="button"
           onClick={scrollToBottom}

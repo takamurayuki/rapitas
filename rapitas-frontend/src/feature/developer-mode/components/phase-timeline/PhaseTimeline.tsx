@@ -167,9 +167,11 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
 
   // Header badge from TASK status: 進行中 until every flow is done — a phase
   // finishing must not flip the badge to 完了 (operator feedback).
-  const effectiveStatus = taskStatus ?? (runningPhase ? 'in_progress' : 'completed');
+  // NOTE: Task.status vocabulary is done/todo/in-progress/blocked/cancelled
+  // (hyphenated) — normalize before matching.
+  const effectiveStatus = (taskStatus ?? (runningPhase ? 'in-progress' : 'done')).replace('-', '_');
   const statusBadge =
-    effectiveStatus === 'completed' ? (
+    effectiveStatus === 'done' || effectiveStatus === 'completed' ? (
       <span className="flex items-center gap-1 rounded bg-green-500/20 px-2 py-0.5 text-xs text-green-400">
         <CheckCircle2 className="h-3 w-3" />
         {t('statusLabel.completed')}

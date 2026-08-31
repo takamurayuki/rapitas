@@ -179,7 +179,9 @@ export default function TaskDetailViewBody({
           the run controls behind an accordion; standing alone fixes both. */}
       {showAIPanel && (
         <div id="td-execution" className="scroll-mt-16">
-          <ErrorBoundary section={tDev('executionSection.title')}>
+          {/* mb-6: the section card carries its own bottom margin, so the
+              fallback needs one too or it sits flush against the workflow card. */}
+          <ErrorBoundary section={tDev('executionSection.title')} className="mb-6">
             <TaskAISection
               task={task}
               taskId={taskId}
