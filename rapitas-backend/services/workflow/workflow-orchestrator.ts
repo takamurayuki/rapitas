@@ -141,6 +141,13 @@ export class WorkflowOrchestrator {
     if (preflight.done) return preflight.result;
     const { task, workflowMode, currentStatus, transition } = preflight;
 
+    // Cheap DB-only check first: an invalid plan.md must be caught before the
+    // implementer overlap hold (which can wait up to 30 min) rather than after
+    // it — otherwise detection is delayed by however long the hold lasts
+    // (task 800: 45.1 min plan_approved stay before plan_invalid_replan fired).
+    const guard = await guardPlanValidity(taskId, transition, workflowMode, language);
+    if (guard.done) return guard.result;
+
     // Before any agent/prompt work: hold the implementer while its files are
     // still changing in another open auto-PR (skipped → the runner re-queues).
     const overlap = await guardImplementOverlap(taskId, transition, task, currentStatus);
@@ -152,9 +159,6 @@ export class WorkflowOrchestrator {
 
     const probe = await runPreflightProbe(taskId, transition.role, agentConfig, currentStatus);
     if (probe.done) return probe.result;
-
-    const guard = await guardPlanValidity(taskId, transition, workflowMode, language);
-    if (guard.done) return guard.result;
 
     const context = await buildExecutionContext(taskId, transition, task, language, workflowMode);
     const effectiveModelId = await resolveEffectiveModel(
