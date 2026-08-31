@@ -499,6 +499,14 @@ describe('hasFreshVerifyRejection', () => {
     expect(await hasFreshVerifyRejection(1)).toBe(true);
   });
 
+  test('直近 transition が verify_invariant_no_convergence なら true（不変条件カットオフ後のPR再試行を防止、task 794 回帰）', async () => {
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      cause: 'verify_invariant_no_convergence',
+      createdAt: new Date(),
+    });
+    expect(await hasFreshVerifyRejection(1)).toBe(true);
+  });
+
   test('直近 transition が別 cause なら false', async () => {
     mockPrisma.workflowTransition.findFirst.mockResolvedValue({
       cause: 'verify_passed',
