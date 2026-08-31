@@ -48,7 +48,8 @@ const REASON_COPY: Record<BlockedExclusionReason, { needs: string; notificationT
   },
   verify_no_convergence: {
     needs:
-      '差し戻しが収束していません（同一の受入基準が繰り返し未対応）。タスク分割または仕様の見直しが必要です。',
+      '差し戻しが収束していません（同一の受入基準が繰り返し未対応）。タスク分割または仕様の見直しが必要です。' +
+      '再計画はエージェントからは実行できません — タスク詳細ページの「計画の修正を依頼」（POST /workflow/tasks/:id/revise-plan）から人が依頼してください。',
     notificationType: 'blocked_escalation',
   },
   retry_cap_exhausted: {

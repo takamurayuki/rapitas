@@ -27,7 +27,7 @@ import {
 } from './verify-self-repair-budget';
 import { writeRepairFeedback } from './verify-self-repair-feedback';
 import { ensureRunnerResumes, resolveRepairCaller } from './verify-self-repair-resume';
-import { attemptInvariantCutoff } from './verify-invariant-repair';
+import { attemptInvariantCutoff, INVARIANT_NON_CONVERGENCE_CAUSE } from './verify-invariant-repair';
 
 const log = createLogger('workflow:verify-self-repair');
 
@@ -258,14 +258,16 @@ export async function hasFreshVerifyRejection(
     })
     .catch(() => null);
   if (!last) return false;
-  // NOTE: VERIFY_NON_CONVERGENCE_CAUSE also counts — a cutoff task (619) must
-  // not be completed by a late epilogue either. 'verify_pr_not_created' too:
-  // the HTTP gate already failed to produce a PR, so without it here the
-  // epilogue retries the same doomed PR attempt (task 673).
+  // NOTE: VERIFY_NON_CONVERGENCE_CAUSE / INVARIANT_NON_CONVERGENCE_CAUSE also
+  // count — a cutoff task (619, 794) must not be completed by a late epilogue
+  // either. 'verify_pr_not_created' too: the HTTP gate already failed to
+  // produce a PR, so without it here the epilogue retries the same doomed PR
+  // attempt (task 673).
   const rejectionCauses = [
     REPAIR_CAUSE,
     'adversarial_review_failed',
     VERIFY_NON_CONVERGENCE_CAUSE,
+    INVARIANT_NON_CONVERGENCE_CAUSE,
     'verify_pr_not_created',
   ];
   if (!rejectionCauses.includes(last.cause)) return false;
