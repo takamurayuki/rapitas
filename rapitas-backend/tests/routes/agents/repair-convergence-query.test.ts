@@ -90,6 +90,64 @@ describe('computeRepairConvergenceStats', () => {
     expect(stats.convergedCount).toBe(0);
     expect(stats.pendingCount).toBe(1);
   });
+
+  // task 798: identified/unidentified is derived read-only from data
+  // verify-self-repair.ts already records (metadata.reason) matched against
+  // Task.acceptanceCriteria via the same identifyIndictedCriteria the repair
+  // loop's own cutoff uses — no change to the protected repair-loop module.
+  it('splits verify_repair rows into identified/unidentified via reason-vs-criteria matching (task 798)', () => {
+    const criteria = JSON.stringify(['`detectRepeatLoop` が bounce 回数を検証する']);
+    const repairTransitions: RepairTransitionRow[] = [
+      // task 1: reason cites the criterion's backtick identifier -> identified.
+      {
+        taskId: 1,
+        cause: 'verify_repair',
+        metadata: JSON.stringify({ reason: 'detectRepeatLoop の検証が不足している' }),
+      },
+      // task 1: generic reason, no number/token match -> unidentified.
+      {
+        taskId: 1,
+        cause: 'verify_repair',
+        metadata: JSON.stringify({ reason: '受入基準を満たしていません' }),
+      },
+      // task 2: same generic reason -> unidentified.
+      {
+        taskId: 2,
+        cause: 'verify_repair',
+        metadata: JSON.stringify({ reason: '受入基準を満たしていません' }),
+      },
+      // task 3: has criteria but metadata predates the `reason` field -> excluded (no signal).
+      { taskId: 3, cause: 'verify_repair', metadata: JSON.stringify({ attempt: 1 }) },
+      // ci_repair rows carry no acceptance-criteria reasoning -> excluded from both buckets.
+      { taskId: 4, cause: 'ci_repair', metadata: JSON.stringify({ reason: 'CI failed' }) },
+    ];
+    const taskStatuses: TaskFinalState[] = [
+      { taskId: 1, status: 'in-progress', acceptanceCriteria: criteria },
+      { taskId: 2, status: 'in-progress', acceptanceCriteria: criteria },
+      { taskId: 3, status: 'in-progress', acceptanceCriteria: criteria },
+      { taskId: 4, status: 'in-progress', acceptanceCriteria: criteria },
+    ];
+
+    const stats = computeRepairConvergenceStats(repairTransitions, taskStatuses);
+
+    expect(stats.verifyRepairIdentifiedCount).toBe(1);
+    expect(stats.verifyRepairUnidentifiedCount).toBe(2);
+    expect(stats.verifyRepairUnidentifiedRate).toBeCloseTo(2 / 3, 4);
+  });
+
+  it('returns rate 0 when no verify_repair row can be classified (no criteria / no reason)', () => {
+    const stats = computeRepairConvergenceStats(
+      [
+        { taskId: 1, cause: 'verify_repair', metadata: null },
+        { taskId: 2, cause: 'verify_repair', metadata: JSON.stringify({ reason: 'fail' }) },
+      ],
+      [{ taskId: 2, status: 'in-progress', acceptanceCriteria: null }],
+    );
+
+    expect(stats.verifyRepairIdentifiedCount).toBe(0);
+    expect(stats.verifyRepairUnidentifiedCount).toBe(0);
+    expect(stats.verifyRepairUnidentifiedRate).toBe(0);
+  });
 });
 
 describe('getRepairConvergenceStats', () => {

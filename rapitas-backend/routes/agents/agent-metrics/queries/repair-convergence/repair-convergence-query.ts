@@ -10,6 +10,10 @@
  */
 
 import { prisma } from '../../../../../config/database';
+import {
+  parseAcceptanceCriteria,
+  identifyIndictedCriteria,
+} from '../../../../../services/workflow/verify-convergence';
 
 /** WorkflowTransition.cause values that mark a self-repair bounce. */
 const REPAIR_CAUSES = ['verify_repair', 'ci_repair'] as const;
@@ -22,11 +26,15 @@ const BLOCKED_STATUSES = new Set(['blocked']);
 export interface RepairTransitionRow {
   taskId: number;
   cause: string;
+  /** Raw WorkflowTransition.metadata JSON string, when available (task 798: `verify_repair` rows carry `{reason}`, read-only reuse of data verify-self-repair.ts already records — not written by this module). */
+  metadata?: string | null;
 }
 
 export interface TaskFinalState {
   taskId: number;
   status: string;
+  /** Raw Task.acceptanceCriteria column value (task 798: classifies verify_repair reasons as identified/unidentified via the same matcher the repair loop itself uses). */
+  acceptanceCriteria?: unknown;
 }
 
 /** Count of tasks that needed exactly N repair iterations. */
@@ -59,6 +67,22 @@ export interface RepairConvergenceStats {
   iterationDistribution: IterationBucket[];
   /** Raw attempt counts split by repair mechanism (verify vs CI). */
   attemptsByCause: RepairCauseBreakdown[];
+  /**
+   * Of verify_repair bounces whose task has acceptance criteria AND whose
+   * recorded reason could be classified (task 798), how many could NOT be
+   * mapped to any criterion by identifyIndictedCriteria — the same matcher
+   * verify-self-repair's non-convergence cutoff uses, applied here read-only
+   * against data it already records (`metadata.reason` + Task.acceptanceCriteria)
+   * to measure feedback precision without touching the protected repair-loop
+   * module. ci_repair rows carry no acceptance-criteria reasoning and are
+   * excluded from both counts, as are rows whose task has no criteria or whose
+   * metadata lacks a `reason` string (no signal either way, not counted as 0).
+   */
+  verifyRepairIdentifiedCount: number;
+  /** See {@link verifyRepairIdentifiedCount}. */
+  verifyRepairUnidentifiedCount: number;
+  /** verifyRepairUnidentifiedCount / (identified + unidentified); 0 when no row could be classified yet. */
+  verifyRepairUnidentifiedRate: number;
 }
 
 /**
@@ -126,6 +150,23 @@ export function computeRepairConvergenceStats(
     };
   });
 
+  const criteriaByTask = new Map(
+    taskStatuses.map((t) => [t.taskId, parseAcceptanceCriteria(t.acceptanceCriteria ?? null)]),
+  );
+  let verifyRepairIdentifiedCount = 0;
+  let verifyRepairUnidentifiedCount = 0;
+  for (const row of repairTransitions) {
+    if (row.cause !== 'verify_repair') continue;
+    const criteria = criteriaByTask.get(row.taskId);
+    // No criteria to match against → no signal either way (excluded, not "unidentified").
+    if (!criteria || criteria.length === 0) continue;
+    const reason = parseReason(row.metadata);
+    if (reason === null) continue;
+    if (identifyIndictedCriteria(reason, criteria).length > 0) verifyRepairIdentifiedCount++;
+    else verifyRepairUnidentifiedCount++;
+  }
+  const verifyRepairIdentifiedTotal = verifyRepairIdentifiedCount + verifyRepairUnidentifiedCount;
+
   return {
     tasksEnteredRepairLoop,
     convergedCount,
@@ -136,7 +177,32 @@ export function computeRepairConvergenceStats(
     averageIterationsToConvergence,
     iterationDistribution,
     attemptsByCause,
+    verifyRepairIdentifiedCount,
+    verifyRepairUnidentifiedCount,
+    verifyRepairUnidentifiedRate:
+      verifyRepairIdentifiedTotal > 0
+        ? round4(verifyRepairUnidentifiedCount / verifyRepairIdentifiedTotal)
+        : 0,
   };
+}
+
+/**
+ * Extract the `reason` string verify-self-repair.ts already records on every
+ * verify_repair WorkflowTransition. Returns null (not '') when the row has no
+ * usable reason — callers must treat that as "no signal" rather than counting
+ * it toward either identified/unidentified bucket.
+ *
+ * @param metadata - Raw metadata column value. / 生の metadata 列値
+ * @returns The reason text, or null when absent/unparseable. / 理由文字列、無ければ null
+ */
+function parseReason(metadata: string | null | undefined): string | null {
+  if (!metadata) return null;
+  try {
+    const parsed = JSON.parse(metadata) as { reason?: unknown };
+    return typeof parsed.reason === 'string' && parsed.reason ? parsed.reason : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -149,7 +215,7 @@ export function computeRepairConvergenceStats(
 export async function getRepairConvergenceStats(): Promise<RepairConvergenceStats> {
   const repairTransitions = await prisma.workflowTransition.findMany({
     where: { cause: { in: [...REPAIR_CAUSES] } },
-    select: { taskId: true, cause: true },
+    select: { taskId: true, cause: true, metadata: true },
   });
 
   if (repairTransitions.length === 0) {
@@ -159,10 +225,14 @@ export async function getRepairConvergenceStats(): Promise<RepairConvergenceStat
   const taskIds = Array.from(new Set(repairTransitions.map((t) => t.taskId)));
   const tasks = await prisma.task.findMany({
     where: { id: { in: taskIds } },
-    select: { id: true, status: true },
+    select: { id: true, status: true, acceptanceCriteria: true },
   });
 
-  const taskStatuses: TaskFinalState[] = tasks.map((t) => ({ taskId: t.id, status: t.status }));
+  const taskStatuses: TaskFinalState[] = tasks.map((t) => ({
+    taskId: t.id,
+    status: t.status,
+    acceptanceCriteria: t.acceptanceCriteria,
+  }));
   return computeRepairConvergenceStats(repairTransitions, taskStatuses);
 }
 
