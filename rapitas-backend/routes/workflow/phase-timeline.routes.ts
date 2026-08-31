@@ -32,7 +32,7 @@ const phaseTimelineRoutes = new Elysia({ prefix: '/workflow' }).get(
     }
 
     try {
-      const [config, transitions, planFile] = await Promise.all([
+      const [config, transitions, planFile, task] = await Promise.all([
         prisma.developerModeConfig.findUnique({
           where: { taskId },
           include: {
@@ -56,7 +56,15 @@ const phaseTimelineRoutes = new Elysia({ prefix: '/workflow' }).get(
           where: { taskId, fileType: 'plan' },
           select: { id: true },
         }),
+        // Task status drives the header badge (進行中/ブロック中/完了) — phase
+        // data alone can't distinguish "between phases" from "all done".
+        prisma.task.findUnique({ where: { id: taskId }, select: { status: true } }),
       ]);
+
+      const modelByExecutionId = new Map<number, string | null>();
+      for (const session of config?.agentSessions ?? []) {
+        for (const e of session.agentExecutions) modelByExecutionId.set(e.id, e.modelName);
+      }
 
       const rawExecutions: RawPhaseExecution[] = (config?.agentSessions ?? []).flatMap((session) =>
         session.agentExecutions.map((e) => ({
@@ -102,11 +110,28 @@ const phaseTimelineRoutes = new Elysia({ prefix: '/workflow' }).get(
           const logText = iteration.executionIds
             .map((id) => logTextByExecutionId.get(id) ?? '')
             .join('\n');
-          return { ...iteration, summary: generateSummary(iteration, phase.phaseType, logText) };
+          // Last non-null model wins — a repair retry within the iteration may
+          // have escalated to a different model than the first attempt.
+          const modelName =
+            [...iteration.executionIds]
+              .reverse()
+              .map((id) => modelByExecutionId.get(id))
+              .find((m) => m != null) ?? null;
+          return {
+            ...iteration,
+            modelName,
+            summary: generateSummary(iteration, phase.phaseType, logText),
+          };
         }),
       }));
 
-      return { success: true, taskId, phases: phasesWithSummary, workflowMode };
+      return {
+        success: true,
+        taskId,
+        phases: phasesWithSummary,
+        workflowMode,
+        taskStatus: task?.status ?? null,
+      };
     } catch (err) {
       log.error({ err, taskId }, '[phase-timeline] failed to build phase timeline');
       ctx.set.status = 500;

@@ -6,7 +6,8 @@
  * The log pane for ONE phase iteration inside the tabbed execution-log view
  * (task #796 redesign of #785). Always expanded — tab selection replaces the
  * old accordion — and styled as a terminal: forced-dark, monospace, dark
- * canvas regardless of the app theme.
+ * canvas regardless of the app theme. Search is VSCode-style: matches are
+ * highlighted in place (never filtered out) and navigated via the header.
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -31,8 +32,16 @@ const MAX_RENDERED_ENTRIES = 1500;
 /** Default pane height (px) before the user drags the grip. */
 const DEFAULT_PANE_HEIGHT = 340;
 
-/** How the header search box matches log lines. */
-export type SearchMode = 'partial' | 'exact' | 'regex';
+/** Marker class for match <mark>s — the navigation effect queries these. */
+const MARK_CLASS = 'pt-search-mark';
+const ACTIVE_MARK_CLASSES = ['!bg-orange-400', '!text-zinc-900'];
+
+/** VSCode-style independent search toggles. */
+export interface SearchOpts {
+  caseSensitive: boolean;
+  wholeWord: boolean;
+  useRegex: boolean;
+}
 
 interface ExecutionLogEntryRow {
   logChunk: string;
@@ -51,21 +60,20 @@ async function fetchExecutionLogLines(executionId: number): Promise<string[]> {
  * empty / an invalid user regex (both mean "no active search").
  *
  * @param query - Raw query text from the header search box / 検索クエリ
- * @param mode - Matching mode / 検索モード
+ * @param opts - VSCode-style match toggles / 検索トグル
  * @returns Matcher regex or null / マッチャ正規表現（無効時 null）
  */
-export function buildSearchMatcher(query: string, mode: SearchMode): RegExp | null {
-  const q = query.trim();
+export function buildSearchMatcher(query: string, opts: SearchOpts): RegExp | null {
+  const q = opts.useRegex ? query : query.trim();
   if (!q) return null;
   try {
-    if (mode === 'regex') return new RegExp(q, 'i');
-    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    if (mode === 'exact') {
+    let src = opts.useRegex ? q : q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (opts.wholeWord) {
       // Whole-token match: not embedded inside a longer word/number run.
       // Unicode classes keep it meaningful for Japanese identifiers too.
-      return new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, 'iu');
+      src = `(?<![\\p{L}\\p{N}_])(?:${src})(?![\\p{L}\\p{N}_])`;
     }
-    return new RegExp(escaped, 'i');
+    return new RegExp(src, `gu${opts.caseSensitive ? '' : 'i'}`);
   } catch {
     return null; // NOTE: invalid user regex is treated as "no search", not an error state.
   }
@@ -74,11 +82,13 @@ export function buildSearchMatcher(query: string, mode: SearchMode): RegExp | nu
 export interface PhaseTabPaneProps {
   iteration: PhaseIteration;
   filterWarnOnly: boolean;
-  /** Debounced query from the header search box ('' = no filter). */
+  /** Debounced query from the header search box ('' = no search). */
   searchQuery: string;
-  /** Matching mode for the search box. */
-  searchMode: SearchMode;
-  /** Reports how many entries matched the active search (0 when idle). */
+  /** VSCode-style search toggles. */
+  searchOpts: SearchOpts;
+  /** 0-based index of the active match occurrence (header navigation). */
+  activeMatchIndex: number;
+  /** Reports the total number of match occurrences currently rendered. */
   onMatchCount?: (n: number) => void;
   /** True while this iteration is the currently-running one (drives polling + tail follow). */
   isLive: boolean;
@@ -90,8 +100,9 @@ export interface PhaseTabPaneProps {
  * @param iteration - The iteration whose logs to show / 表示する反復
  * @param filterWarnOnly - "⚠のみ" filter state / 警告のみフィルタ
  * @param searchQuery - Debounced search query / 検索クエリ
- * @param searchMode - Search matching mode / 検索モード
- * @param onMatchCount - Match-count reporter for the header / ヒット数通知
+ * @param searchOpts - Search toggles / 検索トグル
+ * @param activeMatchIndex - Active match to scroll to / アクティブな一致
+ * @param onMatchCount - Occurrence-count reporter for the header / ヒット数通知
  * @param isLive - Whether this iteration is running / 実行中かどうか
  * @param liveSignal - Live stream growth signal / ライブ行数シグナル
  */
@@ -99,7 +110,8 @@ export function PhaseTabPane({
   iteration,
   filterWarnOnly,
   searchQuery,
-  searchMode,
+  searchOpts,
+  activeMatchIndex,
   onMatchCount,
   isLive,
   liveSignal,
@@ -143,34 +155,34 @@ export function PhaseTabPane({
   const entries = useMemo(() => transformLogsToSimple(rawLogs), [rawLogs]);
 
   const matcher = useMemo(
-    () => buildSearchMatcher(searchQuery, searchMode),
-    [searchQuery, searchMode],
+    () => buildSearchMatcher(searchQuery, searchOpts),
+    [searchQuery, searchOpts],
   );
 
-  const filteredEntries = useMemo(() => {
-    let out = filterWarnOnly
-      ? entries.filter((e) => e.category === 'error' || e.category === 'warning')
-      : entries;
-    if (matcher) out = out.filter((e) => matcher.test(e.message));
-    return out;
-  }, [entries, filterWarnOnly, matcher]);
+  // Search never filters (VSCode semantics) — only the ⚠ quick-filter does.
+  const filteredEntries = useMemo(
+    () =>
+      filterWarnOnly
+        ? entries.filter((e) => e.category === 'error' || e.category === 'warning')
+        : entries,
+    [entries, filterWarnOnly],
+  );
 
-  useEffect(() => {
-    onMatchCount?.(matcher ? filteredEntries.length : 0);
-  }, [matcher, filteredEntries.length, onMatchCount]);
-
-  // Wraps matches in <mark> — same visual as the pre-#785 viewer's highlighter.
+  // Wraps matches in <mark> — MARK_CLASS lets the navigation effect find them.
   const highlightText = useCallback(
     (text: string): React.ReactNode => {
       if (!matcher) return text;
-      const g = new RegExp(matcher.source, matcher.flags.replace('g', '') + 'g');
+      const g = new RegExp(matcher.source, matcher.flags);
       const parts: React.ReactNode[] = [];
       let last = 0;
       for (const m of text.matchAll(g)) {
         if (m.index === undefined || m[0] === '') break; // zero-length guard
         if (m.index > last) parts.push(text.slice(last, m.index));
         parts.push(
-          <mark key={m.index} className="rounded bg-yellow-600/50 px-0.5 text-yellow-200">
+          <mark
+            key={m.index}
+            className={`${MARK_CLASS} rounded bg-yellow-600/50 px-0.5 text-yellow-200`}
+          >
             {m[0]}
           </mark>,
         );
@@ -183,6 +195,19 @@ export function PhaseTabPane({
     [matcher],
   );
 
+  // After render: count occurrences, style the active one, scroll it into view.
+  useEffect(() => {
+    const root = containerRef.current;
+    const marks = root ? Array.from(root.getElementsByClassName(MARK_CLASS)) : [];
+    onMatchCount?.(matcher ? marks.length : 0);
+    marks.forEach((el, i) => {
+      if (i === activeMatchIndex) el.classList.add(...ACTIVE_MARK_CLASSES);
+      else el.classList.remove(...ACTIVE_MARK_CLASSES);
+    });
+    const active = marks[activeMatchIndex];
+    if (active && matcher) active.scrollIntoView({ block: 'nearest' });
+  }, [matcher, activeMatchIndex, filteredEntries, fetchedLogs, onMatchCount]);
+
   const { autoScroll, handleScroll, handleScrollStart, handleScrollEnd, scrollToBottom } =
     usePhaseLogStreaming(isLive ? rawLogs.length : 0, containerRef);
   // Drag-to-resize (restored from the pre-#785 viewer, same hook): the grip
@@ -193,6 +218,12 @@ export function PhaseTabPane({
     // Forced-dark terminal canvas: `.dark` (class-strategy variant) makes the
     // shared row styles resolve to their dark palette on every app theme.
     <div className="dark relative bg-zinc-950 font-mono">
+      {iteration.modelName && (
+        <div className="flex items-center gap-1.5 border-b border-zinc-800/70 px-3 py-1 font-mono text-[10px] text-zinc-500">
+          <span className="text-zinc-600">model:</span>
+          {iteration.modelName}
+        </div>
+      )}
       {fetchError ? (
         <div className="px-3 py-4 text-xs text-red-400">{t('loadFailed')}</div>
       ) : !isLive && fetchedLogs === null ? (

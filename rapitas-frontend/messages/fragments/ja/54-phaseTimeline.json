@@ -34,13 +34,20 @@
     "iterationChip": "{n}回目",
     "resizeLog": "ログの高さを変更",
     "searchPlaceholder": "ログを検索",
-    "matchCount": "{count}件",
-    "searchModeLabel": "検索モード",
     "clearSearch": "検索をクリア",
-    "searchMode": {
-      "partial": "部分一致",
-      "exact": "完全一致",
-      "regex": "正規表現"
+    "noResults": "結果なし",
+    "prevMatch": "前の一致項目",
+    "nextMatch": "次の一致項目",
+    "statusLabel": {
+      "inProgress": "進行中",
+      "blocked": "ブロック中",
+      "completed": "完了",
+      "cancelled": "キャンセル"
+    },
+    "searchToggle": {
+      "caseSensitive": "大文字と小文字を区別する",
+      "wholeWord": "単語単位で検索する",
+      "regex": "正規表現を使用する"
     }
   }
 }
