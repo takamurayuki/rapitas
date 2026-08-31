@@ -135,6 +135,8 @@ export class GeminiCliAgent extends BaseAgent {
       );
 
       this.emitOutput(`${this.logPrefix} Starting execution...\n`);
+      // Persist the model into the stored log stream (parity with claude runner).
+      this.emitOutput(`${this.logPrefix} Model: ${this.config.model ?? 'default'}\n`);
       this.emitOutput(`${this.logPrefix} Working directory: ${workDir}\n`);
 
       try {

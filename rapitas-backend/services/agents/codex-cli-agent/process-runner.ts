@@ -463,6 +463,8 @@ export async function spawnCodexProcess(
     logger.info(`${logPrefix} Spawn cwd: ${workDir}`);
 
     callbacks.emitOutput(`${logPrefix} Starting execution...\n`);
+    // Persist the model into the stored log stream (parity with claude runner).
+    callbacks.emitOutput(`${logPrefix} Model: ${config.model ?? 'default'}\n`);
     callbacks.emitOutput(`${logPrefix} Working directory: ${workDir}\n`);
     callbacks.emitOutput(`${logPrefix} Timeout: ${timeout / 1000}s\n`);
     callbacks.emitOutput(

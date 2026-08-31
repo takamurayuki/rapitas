@@ -284,6 +284,9 @@ export function runClaudeExecution(
   logger.info(`${agent.logPrefix} Args: ${args.join(' ')}`);
 
   agent.emitOutputInternal(`${agent.logPrefix} Starting execution...\n`);
+  // Persist the model into the stored log stream — the live banner from
+  // task-executor is NOT stored, so per-iteration log views lacked it.
+  agent.emitOutputInternal(`${agent.logPrefix} Model: ${agent.config.model ?? 'default'}\n`);
   agent.emitOutputInternal(`${agent.logPrefix} Working directory: ${workDir}\n`);
   agent.emitOutputInternal(`${agent.logPrefix} Timeout: ${timeout / 1000}s\n`);
   agent.emitOutputInternal(
