@@ -441,13 +441,11 @@ export async function applyResumeFromQuestionAnswer(params: ApplyResumeAnswerPar
     data: { workflowStatus: resumeStatus, updatedAt: new Date() },
   });
 
-  // Same status-desync backstop as workflow-cli-executor-epilogue.ts (task
-  // #706): this handler advances workflowStatus but historically left
-  // task.status untouched, so a task answered while status had reverted to
-  // 'todo' (execution-lease-sweep on a stale heartbeat, see task #804) stayed
-  // desynced (status='todo' × workflowStatus=e.g. 'plan_approved') until the
-  // next dispatch. Conditional on the DB row so a status set concurrently by
-  // another actor (e.g. 'blocked') is never clobbered.
+  // Status-desync backstop (task #804; mirrors the executor epilogue's #706
+  // fix): this handler advances workflowStatus but left task.status alone,
+  // so a task whose status had reverted to 'todo' (stale-heartbeat lease
+  // sweep) stayed desynced until the next dispatch. Conditional so a
+  // concurrent 'blocked' set by another actor is never clobbered.
   await prisma.task.updateMany({
     where: { id: taskId, status: 'todo' },
     data: { status: 'in-progress' },
