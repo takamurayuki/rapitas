@@ -12,14 +12,26 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Terminal, Search, X, CheckCircle2, AlertCircle } from 'lucide-react';
+import {
+  Terminal,
+  Search,
+  X,
+  CheckCircle2,
+  OctagonAlert,
+  Square,
+  CaseSensitive,
+  WholeWord,
+  Regex,
+  ChevronUp,
+  ChevronDown,
+} from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { SimpleLogEntryList } from '../simple-log-entry/simple-log-entry';
 import { transformLogsToSimple } from '../../utils/log-message-transformer';
 import { usePhaseTimeline } from '../../hooks/usePhaseTimeline';
 import type { PhaseType } from '../../utils/phase-selector';
 import { PhaseTabBar, type PhaseTabInfo } from './PhaseTabBar';
-import { PhaseTabPane, type SearchMode } from './PhaseTabPane';
+import { PhaseTabPane, type SearchOpts } from './PhaseTabPane';
 
 const POLL_INTERVAL_MS = 5000;
 const SEARCH_DEBOUNCE_MS = 200;
@@ -38,15 +50,20 @@ export interface PhaseTimelineProps {
  */
 export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProps) {
   const t = useTranslations('phaseTimeline');
-  // Reuse the original log-viewer header vocabulary (実行ログ + status labels)
-  // so the tabbed view keeps the pre-#785 header composition.
+  // Reuse the original log-viewer header title (実行ログ) so the tabbed view
+  // keeps the pre-#785 header composition.
   const tHeader = useTranslations('devMode.logViewerHeader');
-  const { phases, loading, refetch } = usePhaseTimeline(taskId);
+  const { phases, taskStatus, loading, refetch } = usePhaseTimeline(taskId);
   const [filterWarnOnly, setFilterWarnOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [searchMode, setSearchMode] = useState<SearchMode>('partial');
-  const [matchCount, setMatchCount] = useState(0);
+  const [searchOpts, setSearchOpts] = useState<SearchOpts>({
+    caseSensitive: false,
+    wholeWord: false,
+    useRegex: false,
+  });
+  const [matchTotal, setMatchTotal] = useState(0);
+  const [activeMatch, setActiveMatch] = useState(0);
   const [selectedPhase, setSelectedPhase] = useState<PhaseType | null>(null);
   const [selectedIteration, setSelectedIteration] = useState<number | null>(null);
   // Once the user picks a tab by hand, stop auto-following the running phase
@@ -54,16 +71,26 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
   const manualNavRef = useRef(false);
 
   useEffect(() => {
-    if (!isRunning) return;
+    if (!isRunning) {
+      // Run just ended — one more fetch so the header badge shows the final
+      // task status instead of the last mid-run poll's snapshot.
+      void refetch();
+      return;
+    }
     const interval = setInterval(() => void refetch(), POLL_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [isRunning, refetch]);
 
-  // Debounce so the (potentially large) filter/highlight pass doesn't run per keystroke.
+  // Debounce so the (potentially large) highlight pass doesn't run per keystroke.
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(searchQuery), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // New query/toggles/tab — restart match navigation from the first hit.
+  useEffect(() => {
+    setActiveMatch(0);
+  }, [debouncedQuery, searchOpts, selectedPhase, selectedIteration]);
 
   const runningPhase = useMemo<PhaseType | null>(() => {
     for (const phase of phases) {
@@ -71,14 +98,6 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
     }
     return null;
   }, [phases]);
-
-  // Overall outcome for the header badge: failed when the LAST iteration of
-  // any phase ended failed (repaired failures don't count).
-  const overallFailed = useMemo(
-    () =>
-      phases.some((phase) => phase.iterations[phase.iterations.length - 1]?.status === 'failed'),
-    [phases],
-  );
 
   // Auto-follow: select the running phase (or the last phase with data) while
   // the user hasn't navigated manually.
@@ -115,7 +134,21 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
   const paneIsLive =
     isRunning && currentPhase?.phaseType === runningPhase && activeIteration?.status === 'running';
 
-  const handleMatchCount = useCallback((n: number) => setMatchCount(n), []);
+  const handleMatchCount = useCallback((n: number) => {
+    setMatchTotal(n);
+    setActiveMatch((a) => (n === 0 ? 0 : Math.min(a, n - 1)));
+  }, []);
+
+  const goNextMatch = useCallback(
+    () => setActiveMatch((a) => (matchTotal === 0 ? 0 : (a + 1) % matchTotal)),
+    [matchTotal],
+  );
+  const goPrevMatch = useCallback(
+    () => setActiveMatch((a) => (matchTotal === 0 ? 0 : (a - 1 + matchTotal) % matchTotal)),
+    [matchTotal],
+  );
+
+  const toggleOpt = (key: keyof SearchOpts) => setSearchOpts((o) => ({ ...o, [key]: !o[key] }));
 
   if (loading && phases.length === 0) {
     return (
@@ -132,26 +165,49 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
     return <SimpleLogEntryList entries={entries} />;
   }
 
-  const statusBadge = runningPhase ? (
-    <span className="flex items-center gap-1.5 rounded bg-blue-500/20 px-2 py-0.5 text-xs text-blue-400">
-      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400" />
-      {tHeader('statusRunning')}
-    </span>
-  ) : overallFailed ? (
-    <span className="flex items-center gap-1 rounded bg-red-500/20 px-2 py-0.5 text-xs text-red-400">
-      <AlertCircle className="h-3 w-3" />
-      {tHeader('statusFailed')}
-    </span>
-  ) : (
-    <span className="flex items-center gap-1 rounded bg-green-500/20 px-2 py-0.5 text-xs text-green-400">
-      <CheckCircle2 className="h-3 w-3" />
-      {tHeader('statusCompleted')}
-    </span>
-  );
+  // Header badge from TASK status: 進行中 until every flow is done — a phase
+  // finishing must not flip the badge to 完了 (operator feedback).
+  // NOTE: Task.status vocabulary is done/todo/in-progress/blocked/cancelled
+  // (hyphenated) — normalize before matching.
+  const effectiveStatus = (taskStatus ?? (runningPhase ? 'in-progress' : 'done')).replace('-', '_');
+  const statusBadge =
+    effectiveStatus === 'done' || effectiveStatus === 'completed' ? (
+      <span className="flex items-center gap-1 rounded bg-green-500/20 px-2 py-0.5 text-xs text-green-400">
+        <CheckCircle2 className="h-3 w-3" />
+        {t('statusLabel.completed')}
+      </span>
+    ) : effectiveStatus === 'blocked' ? (
+      <span className="flex items-center gap-1 rounded bg-orange-500/20 px-2 py-0.5 text-xs text-orange-400">
+        <OctagonAlert className="h-3 w-3" />
+        {t('statusLabel.blocked')}
+      </span>
+    ) : effectiveStatus === 'cancelled' ? (
+      <span className="flex items-center gap-1 rounded bg-zinc-500/20 px-2 py-0.5 text-xs text-zinc-400">
+        <Square className="h-3 w-3" />
+        {t('statusLabel.cancelled')}
+      </span>
+    ) : (
+      <span className="flex items-center gap-1.5 rounded bg-blue-500/20 px-2 py-0.5 text-xs text-blue-400">
+        <span
+          className={`h-1.5 w-1.5 rounded-full bg-blue-400 ${runningPhase ? 'animate-pulse' : ''}`}
+        />
+        {t('statusLabel.inProgress')}
+      </span>
+    );
+
+  const searchToggles: Array<{
+    key: keyof SearchOpts;
+    Icon: typeof CaseSensitive;
+    label: string;
+  }> = [
+    { key: 'caseSensitive', Icon: CaseSensitive, label: t('searchToggle.caseSensitive') },
+    { key: 'wholeWord', Icon: WholeWord, label: t('searchToggle.wholeWord') },
+    { key: 'useRegex', Icon: Regex, label: t('searchToggle.regex') },
+  ];
 
   return (
     <div className="overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900">
-      {/* Header: 実行ログ title + overall status badge (pre-#785 composition), search + filters right */}
+      {/* Header: 実行ログ title + task status badge, VSCode-style search right */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-700/70 bg-zinc-800 px-3 py-1.5">
         <div className="flex min-w-0 items-center gap-2">
           <Terminal className="h-4 w-4 shrink-0 text-green-400" />
@@ -166,42 +222,76 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') setSearchQuery('');
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (e.shiftKey) goPrevMatch();
+                  else goNextMatch();
+                }
               }}
               placeholder={t('searchPlaceholder')}
               aria-label={t('searchPlaceholder')}
-              className="w-56 rounded border border-zinc-600 bg-zinc-900 py-1 pl-7 pr-6 text-xs text-zinc-200 transition-all placeholder:text-zinc-500 focus:w-72 focus:border-indigo-400 focus:outline-none"
+              className="w-64 rounded border border-zinc-600 bg-zinc-900 py-1 pl-7 pr-[5.5rem] text-xs text-zinc-200 transition-all placeholder:text-zinc-500 focus:w-80 focus:border-indigo-400 focus:outline-none"
             />
             <Search className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-zinc-500" />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                aria-label={t('clearSearch')}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            )}
+            <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
+              {searchToggles.map(({ key, Icon, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => toggleOpt(key)}
+                  aria-pressed={searchOpts[key]}
+                  aria-label={label}
+                  title={label}
+                  className={`rounded p-0.5 ${
+                    searchOpts[key]
+                      ? 'bg-indigo-500/40 text-indigo-200'
+                      : 'text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                </button>
+              ))}
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  aria-label={t('clearSearch')}
+                  className="rounded p-0.5 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
           </div>
-          <select
-            value={searchMode}
-            onChange={(e) => setSearchMode(e.target.value as SearchMode)}
-            aria-label={t('searchModeLabel')}
-            className="rounded border border-zinc-600 bg-zinc-900 px-1 py-1 text-[11px] text-zinc-300 focus:border-indigo-400 focus:outline-none"
-          >
-            <option value="partial">{t('searchMode.partial')}</option>
-            <option value="exact">{t('searchMode.exact')}</option>
-            <option value="regex">{t('searchMode.regex')}</option>
-          </select>
-          {debouncedQuery.trim() && (
+          {debouncedQuery.trim() !== '' && (
             <span
-              className={`whitespace-nowrap text-[11px] ${
-                matchCount > 0 ? 'text-zinc-400' : 'text-amber-400'
+              className={`whitespace-nowrap font-mono text-[11px] ${
+                matchTotal > 0 ? 'text-zinc-400' : 'text-amber-400'
               }`}
             >
-              {t('matchCount', { count: matchCount })}
+              {matchTotal > 0 ? `${activeMatch + 1}/${matchTotal}` : t('noResults')}
             </span>
           )}
+          <button
+            type="button"
+            onClick={goPrevMatch}
+            disabled={matchTotal === 0}
+            aria-label={t('prevMatch')}
+            title={t('prevMatch')}
+            className="rounded p-0.5 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 disabled:opacity-30"
+          >
+            <ChevronUp className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={goNextMatch}
+            disabled={matchTotal === 0}
+            aria-label={t('nextMatch')}
+            title={t('nextMatch')}
+            className="rounded p-0.5 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 disabled:opacity-30"
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
           {manualNavRef.current && runningPhase && selectedPhase !== runningPhase && (
             <button
               type="button"
@@ -275,7 +365,8 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
           iteration={activeIteration}
           filterWarnOnly={filterWarnOnly}
           searchQuery={debouncedQuery}
-          searchMode={searchMode}
+          searchOpts={searchOpts}
+          activeMatchIndex={activeMatch}
           onMatchCount={handleMatchCount}
           isLive={paneIsLive === true}
           liveSignal={liveLogs.length}

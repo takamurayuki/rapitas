@@ -34,8 +34,9 @@ mock.module('../../../../services/workflow/transition-recorder', () => ({
 mock.module('../../../../services/workflow/automation-policy', () => ({
   resolveLandingMode: () => 'none',
 }));
+const markLatestExecutionFailedMock = mock(() => Promise.resolve());
 mock.module('./shared', () => ({
-  markLatestExecutionFailed: mock(() => Promise.resolve()),
+  markLatestExecutionFailed: markLatestExecutionFailedMock,
 }));
 mock.module('./verify-commit-pr-gate-blocked', () => ({
   handleVerifyGateBlocked: mock(() => Promise.resolve({})),
@@ -112,5 +113,30 @@ describe('runVerifyCommitPrPipeline — リカバリ後の再試行を待つこ�
     expect(outcome.taskMarkedDone).toBe(true);
     expect(outcome.newStatus).toBe('verify_done');
     expect(sideEffectsCalls).toEqual([653]);
+  });
+});
+
+describe('runVerifyCommitPrPipeline — PR未作成時の失敗メッセージ（task 793）', () => {
+  test('prRequested && !prSatisfied で、軽量な自動リトライが控えている旨を markLatestExecutionFailed に伝えること', async () => {
+    markLatestExecutionFailedMock.mockClear();
+    performAutoCommitAndPRMock.mockImplementationOnce(() =>
+      Promise.resolve({
+        verificationBlocked: false,
+        requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+        autoCommitResult: { success: true, filesChanged: 1 },
+        autoPRResult: { success: false, error: 'PR作成に失敗しました' },
+      }),
+    );
+
+    await runVerifyCommitPrPipeline({
+      taskId: 793,
+      savedContent: '# 検証結果',
+      preferredBaseBranchForVerify: null,
+    });
+
+    expect(markLatestExecutionFailedMock).toHaveBeenCalledWith(
+      793,
+      expect.stringContaining('数分以内にPR再作成のみを行う軽量な自動リトライが1回行われます'),
+    );
   });
 });

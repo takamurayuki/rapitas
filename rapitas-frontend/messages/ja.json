@@ -3137,7 +3137,7 @@
       },
       "auto_run_hang_backstop": {
         "title": "自動実行: タスクが時間上限で停止しました",
-        "message": "タスク #{taskId}「{taskLabel}」が時間上限（{wallMinutes}分）を超えたため停止しました — ログを確認して再実行してください。"
+        "message": "タスク #{taskId}「{taskLabel}」が時間上限（{wallMinutes}分）を超えたため停止しました。このテーマで自動実行が有効であれば、自動再試行の残り回数がある限り数分以内に自動的に再試行されます（上限{maxBlockedRetry}回）。今すぐ手動で再実行すると、その自動再試行の機会を1回消費します — 緊急でなければログの確認だけにとどめ、自動再試行の結果を待ってください。"
       },
       "auto_run_task_skipped": {
         "title": "自動実行: タスクをスキップしました",
@@ -6034,13 +6034,20 @@
     "iterationChip": "{n}回目",
     "resizeLog": "ログの高さを変更",
     "searchPlaceholder": "ログを検索",
-    "matchCount": "{count}件",
-    "searchModeLabel": "検索モード",
     "clearSearch": "検索をクリア",
-    "searchMode": {
-      "partial": "部分一致",
-      "exact": "完全一致",
-      "regex": "正規表現"
+    "noResults": "結果なし",
+    "prevMatch": "前の一致項目",
+    "nextMatch": "次の一致項目",
+    "statusLabel": {
+      "inProgress": "進行中",
+      "blocked": "ブロック中",
+      "completed": "完了",
+      "cancelled": "キャンセル"
+    },
+    "searchToggle": {
+      "caseSensitive": "大文字と小文字を区別する",
+      "wholeWord": "単語単位で検索する",
+      "regex": "正規表現を使用する"
     }
   }
 }

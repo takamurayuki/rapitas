@@ -3137,7 +3137,7 @@
       },
       "auto_run_hang_backstop": {
         "title": "Auto-run: task stopped at the time limit",
-        "message": "Task #{taskId} \"{taskLabel}\" was stopped after exceeding its time limit ({wallMinutes} min) — check the logs and re-run."
+        "message": "Task #{taskId} \"{taskLabel}\" was stopped after exceeding its time limit ({wallMinutes} min). If auto-run is enabled for this theme, it will retry automatically within a few minutes as long as retry attempts remain (up to {maxBlockedRetry} times). Retrying manually right now consumes one of those automatic attempts — unless it's urgent, just check the logs and let the automatic retry happen."
       },
       "auto_run_task_skipped": {
         "title": "Auto-run: task skipped",
@@ -6034,13 +6034,20 @@
     "iterationChip": "Run {n}",
     "resizeLog": "Resize log height",
     "searchPlaceholder": "Search logs",
-    "matchCount": "{count} hits",
-    "searchModeLabel": "Search mode",
     "clearSearch": "Clear search",
-    "searchMode": {
-      "partial": "Partial",
-      "exact": "Exact",
-      "regex": "Regex"
+    "noResults": "No results",
+    "prevMatch": "Previous match",
+    "nextMatch": "Next match",
+    "statusLabel": {
+      "inProgress": "In progress",
+      "blocked": "Blocked",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "searchToggle": {
+      "caseSensitive": "Match case",
+      "wholeWord": "Match whole word",
+      "regex": "Use regular expression"
     }
   }
 }

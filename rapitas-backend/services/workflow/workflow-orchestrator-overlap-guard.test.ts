@@ -29,7 +29,7 @@ mock.module('../scheduling/merge-barrier/merge-barrier', () => ({
   getMergeBarrierMaxHoldMs: () => MAX_HOLD_MS,
 }));
 
-const { guardImplementOverlap, resetOverlapGuardState } =
+const { guardImplementOverlap, resetOverlapGuardState, isOverlapHeld } =
   await import('./workflow-orchestrator-overlap-guard');
 
 const IMPLEMENTER = { role: 'implementer', outputFile: null, nextStatus: 'in_progress' } as const;
@@ -172,5 +172,24 @@ describe('guardImplementOverlap', () => {
   test('RAPITAS_IMPLEMENT_OVERLAP_HOLD=off で無効化', async () => {
     process.env.RAPITAS_IMPLEMENT_OVERLAP_HOLD = 'off';
     expect((await run()).done).toBe(false);
+  });
+});
+
+describe('isOverlapHeld', () => {
+  test('保留発生直後は true を返す', async () => {
+    await run();
+    expect(isOverlapHeld(759)).toBe(true);
+  });
+
+  test('解放後は false を返す', async () => {
+    await run();
+    nowMs += 60_000;
+    openPrs = [];
+    await run();
+    expect(isOverlapHeld(759)).toBe(false);
+  });
+
+  test('一度も保留されていない taskId は false を返す', () => {
+    expect(isOverlapHeld(999999)).toBe(false);
   });
 });

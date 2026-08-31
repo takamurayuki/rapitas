@@ -34,13 +34,20 @@
     "iterationChip": "Run {n}",
     "resizeLog": "Resize log height",
     "searchPlaceholder": "Search logs",
-    "matchCount": "{count} hits",
-    "searchModeLabel": "Search mode",
     "clearSearch": "Clear search",
-    "searchMode": {
-      "partial": "Partial",
-      "exact": "Exact",
-      "regex": "Regex"
+    "noResults": "No results",
+    "prevMatch": "Previous match",
+    "nextMatch": "Next match",
+    "statusLabel": {
+      "inProgress": "In progress",
+      "blocked": "Blocked",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "searchToggle": {
+      "caseSensitive": "Match case",
+      "wholeWord": "Match whole word",
+      "regex": "Use regular expression"
     }
   }
 }

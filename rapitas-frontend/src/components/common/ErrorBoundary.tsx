@@ -11,6 +11,9 @@ interface ErrorBoundaryProps {
   fallback?: ReactNode;
   onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
   section?: string;
+  /** Extra classes for the default fallback card (e.g. `mb-6` to keep the
+   * page rhythm when the crashed child carried its own outer margin). */
+  className?: string;
 }
 
 // NOTE: ErrorBoundaryInner is a class component (required for
@@ -58,7 +61,11 @@ class ErrorBoundaryInner extends Component<ErrorBoundaryInnerProps, ErrorBoundar
       }
 
       return (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/30">
+        <div
+          className={`rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/30${
+            this.props.className ? ` ${this.props.className}` : ''
+          }`}
+        >
           <p className="mb-2 text-sm font-medium text-red-800 dark:text-red-300">
             {this.props.errorTitle}
           </p>

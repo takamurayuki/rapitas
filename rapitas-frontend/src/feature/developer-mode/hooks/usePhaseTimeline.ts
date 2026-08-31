@@ -32,6 +32,8 @@ export interface PhaseIteration {
   logLineCount: number;
   boundaryUncertain: boolean;
   summary: PhaseIterationSummary;
+  /** Model that ran this iteration (last non-null across its executions). */
+  modelName?: string | null;
 }
 
 export interface PhaseSegment {
@@ -45,12 +47,15 @@ interface PhaseTimelineResponse {
   success: boolean;
   phases?: PhaseSegment[];
   workflowMode?: WorkflowTimelineMode;
+  taskStatus?: string | null;
   error?: string;
 }
 
 export interface UsePhaseTimelineResult {
   phases: PhaseSegment[];
   workflowMode: WorkflowTimelineMode | null;
+  /** Task-level status (in_progress/blocked/completed/…) — null on old backends. */
+  taskStatus: string | null;
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
@@ -60,7 +65,10 @@ export interface UsePhaseTimelineResult {
 // execution section) reuse the last successful fetch instead of re-hitting
 // the API immediately; refetch() (called on poll ticks while running) always
 // bypasses it.
-const cache = new Map<number, { phases: PhaseSegment[]; workflowMode: WorkflowTimelineMode }>();
+const cache = new Map<
+  number,
+  { phases: PhaseSegment[]; workflowMode: WorkflowTimelineMode; taskStatus: string | null }
+>();
 
 /**
  * Loads and caches the phase-timeline for one task.
@@ -74,6 +82,7 @@ export function usePhaseTimeline(taskId: number): UsePhaseTimelineResult {
   const [workflowMode, setWorkflowMode] = useState<WorkflowTimelineMode | null>(
     cached?.workflowMode ?? null,
   );
+  const [taskStatus, setTaskStatus] = useState<string | null>(cached?.taskStatus ?? null);
   const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
   const taskIdRef = useRef(taskId);
@@ -86,9 +95,14 @@ export function usePhaseTimeline(taskId: number): UsePhaseTimelineResult {
       if (!res.ok || !data.success || !data.phases || !data.workflowMode) {
         throw new Error(data.error ?? `HTTP ${res.status}`);
       }
-      cache.set(taskId, { phases: data.phases, workflowMode: data.workflowMode });
+      cache.set(taskId, {
+        phases: data.phases,
+        workflowMode: data.workflowMode,
+        taskStatus: data.taskStatus ?? null,
+      });
       setPhases(data.phases);
       setWorkflowMode(data.workflowMode);
+      setTaskStatus(data.taskStatus ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -104,10 +118,11 @@ export function usePhaseTimeline(taskId: number): UsePhaseTimelineResult {
       const next = cache.get(taskId);
       setPhases(next?.phases ?? []);
       setWorkflowMode(next?.workflowMode ?? null);
+      setTaskStatus(next?.taskStatus ?? null);
       setLoading(!next);
     }
     void fetchTimeline();
   }, [taskId, fetchTimeline]);
 
-  return { phases, workflowMode, loading, error, refetch: fetchTimeline };
+  return { phases, workflowMode, taskStatus, loading, error, refetch: fetchTimeline };
 }
