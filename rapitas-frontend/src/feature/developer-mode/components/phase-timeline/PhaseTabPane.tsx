@@ -181,8 +181,9 @@ export function PhaseTabPane({
     // Multi-execution iterations get a divider line between runs so the
     // concatenated logs stay readable per run.
     const total = fetchedLogs?.length ?? 0;
+    // Divider only BETWEEN runs — a leading "実行 1/N" line is just noise.
     const storedFlat = (fetchedLogs ?? []).flatMap((group, i) =>
-      total > 1 ? [t('runDivider', { n: i + 1, total }), ...group] : group,
+      total > 1 && i > 0 ? [t('runDivider', { n: i + 1, total }), ...group] : group,
     );
     // Live pane renders the SSE stream directly (real time). When the stream
     // contains this execution's start banner it is complete from the top;
