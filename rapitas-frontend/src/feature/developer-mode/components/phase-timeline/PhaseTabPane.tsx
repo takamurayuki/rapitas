@@ -90,10 +90,11 @@ export interface PhaseTabPaneProps {
   activeMatchIndex: number;
   /** Reports the total number of match occurrences currently rendered. */
   onMatchCount?: (n: number) => void;
-  /** True while this iteration is the currently-running one (drives polling + tail follow). */
+  /** True while this iteration is the currently-running one (drives tail follow). */
   isLive: boolean;
-  /** Live line count signal from the execution stream — bumps trigger a stored-log refetch. */
-  liveSignal: number;
+  /** Real-time SSE lines for the CURRENT execution (sliced from its start
+   * banner by the parent) — null when this iteration is not live. */
+  liveLogLines: string[] | null;
 }
 
 /**
@@ -104,7 +105,7 @@ export interface PhaseTabPaneProps {
  * @param activeMatchIndex - Active match to scroll to / アクティブな一致
  * @param onMatchCount - Occurrence-count reporter for the header / ヒット数通知
  * @param isLive - Whether this iteration is running / 実行中かどうか
- * @param liveSignal - Live stream growth signal / ライブ行数シグナル
+ * @param liveLogLines - Real-time lines while running / ライブログ行
  */
 export function PhaseTabPane({
   iteration,
@@ -114,7 +115,7 @@ export function PhaseTabPane({
   activeMatchIndex,
   onMatchCount,
   isLive,
-  liveSignal,
+  liveLogLines,
 }: PhaseTabPaneProps) {
   const t = useTranslations('phaseTimeline');
   const [fetchedLogs, setFetchedLogs] = useState<string[] | null>(null);
@@ -136,36 +137,53 @@ export function PhaseTabPane({
     setFetchError(false);
   }, [iterKey]);
 
-  // Stored logs are segmented per iteration by the backend; the raw live
-  // stream is NOT (it spans the whole session), so even the running
-  // iteration reads stored logs. Deps are iterKey/liveSignal — NOT the
-  // fetched state — so a completed iteration fetches once and a live one
-  // refetches only when the stream actually grows (no self-retrigger loop).
+  // Fetch stored logs once per iteration: the display base for completed
+  // iterations, and the catch-up base for a live pane opened mid-run (page
+  // reload) whose SSE stream lacks the execution's earlier lines.
   useEffect(() => {
+    if (fetchedLogs !== null || fetchError) return;
     let cancelled = false;
     Promise.all(iteration.executionIds.map(fetchExecutionLogLines))
       .then((groups) => {
-        if (!cancelled) {
-          setFetchedLogs(groups.flat());
-          setFetchError(false);
-        }
+        if (!cancelled) setFetchedLogs(groups.flat());
       })
       .catch(() => {
-        if (!cancelled && !isLive) setFetchError(true); // live errors are transient — next signal retries
+        if (!cancelled && !isLive) setFetchError(true); // live: SSE lines still render
       });
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- iterKey stands in for iteration.executionIds (the iteration object is re-created by the 5s timeline poll)
-  }, [isLive, liveSignal, iterKey]);
+  }, [fetchedLogs, fetchError, isLive, iterKey]);
+
+  // Execution just finished — drop the mid-run snapshot and refetch the full
+  // stored log so the completed view is authoritative.
+  const prevIsLiveRef = useRef(isLive);
+  useEffect(() => {
+    if (prevIsLiveRef.current && !isLive) {
+      setFetchedLogs(null);
+      setFetchError(false);
+    }
+    prevIsLiveRef.current = isLive;
+  }, [isLive]);
 
   // The model belongs IN the log (operator feedback), not in a separate meta
   // row. Newer executions store a "[Claude Code] Model: …" banner line; for
   // older ones synthesize an equivalent line from the timeline's modelName.
   const rawLogs = useMemo(() => {
+    // Live pane renders the SSE stream directly (real time). When the stream
+    // contains this execution's start banner it is complete from the top;
+    // otherwise (opened mid-run) prepend the stored catch-up base.
+    let source: string[];
+    if (isLive && liveLogLines) {
+      const hasStartBanner = liveLogLines.some((l) => l.includes('Starting execution'));
+      source = hasStartBanner ? liveLogLines : [...(fetchedLogs ?? []), ...liveLogLines];
+    } else {
+      source = fetchedLogs ?? [];
+    }
     // Normalize the runner-emitted "[Claude Code] Model: …" banner to the same
     // plain "Model: …" form as the synthesized line — one style everywhere.
-    const logs = (fetchedLogs ?? []).map((l) => l.replace(/^\[[^\]]+\] Model: /, 'Model: '));
+    const logs = source.map((l) => l.replace(/^\[[^\]]+\] Model: /, 'Model: '));
     if (!iteration.modelName || logs.length === 0) return logs;
     const hasModelLine = logs.some((l) => l.includes('] Model: ') || l.startsWith('Model: '));
     if (hasModelLine) return logs;
@@ -174,7 +192,7 @@ export function PhaseTabPane({
     const startIdx = logs.findIndex((l) => l.includes('Starting execution'));
     const at = startIdx >= 0 ? startIdx + 1 : 0;
     return [...logs.slice(0, at), `Model: ${iteration.modelName}`, ...logs.slice(at)];
-  }, [fetchedLogs, iteration.modelName]);
+  }, [fetchedLogs, isLive, liveLogLines, iteration.modelName]);
   const entries = useMemo(() => transformLogsToSimple(rawLogs), [rawLogs]);
 
   const matcher = useMemo(

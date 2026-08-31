@@ -58,7 +58,10 @@ const phaseTimelineRoutes = new Elysia({ prefix: '/workflow' }).get(
         }),
         // Task status drives the header badge (進行中/ブロック中/完了) — phase
         // data alone can't distinguish "between phases" from "all done".
-        prisma.task.findUnique({ where: { id: taskId }, select: { status: true } }),
+        prisma.task.findUnique({
+          where: { id: taskId },
+          select: { status: true, workflowMode: true, complexityScore: true },
+        }),
       ]);
 
       const modelByExecutionId = new Map<number, string | null>();
@@ -131,6 +134,10 @@ const phaseTimelineRoutes = new Elysia({ prefix: '/workflow' }).get(
         phases: phasesWithSummary,
         workflowMode,
         taskStatus: task?.status ?? null,
+        // Planned mode (complexity staging) — lets the UI render the full
+        // expected tab strip before the first execution even starts.
+        plannedMode: task?.workflowMode ?? null,
+        complexityScore: task?.complexityScore ?? null,
       };
     } catch (err) {
       log.error({ err, taskId }, '[phase-timeline] failed to build phase timeline');
