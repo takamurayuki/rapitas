@@ -70,7 +70,13 @@ export function inferCostPer1k(modelId: string, tier: ModelTier): number {
     case 'standard':
       // gpt-4o-class hovers around $0.008, sonnet around $0.006 — average.
       return 0.006;
-    case 'premium':
-      return modelId.toLowerCase().includes('opus') ? 0.025 : 0.012;
+    case 'premium': {
+      // Mythos-class (fable/mythos) sits ABOVE Opus in Anthropic's actual
+      // pricing — must be checked before the opus branch or cheapest()
+      // picks fable/mythos as the "cheap premium" option (#797).
+      const id = modelId.toLowerCase();
+      if (/fable|mythos/.test(id)) return 0.04;
+      return id.includes('opus') ? 0.025 : 0.012;
+    }
   }
 }
