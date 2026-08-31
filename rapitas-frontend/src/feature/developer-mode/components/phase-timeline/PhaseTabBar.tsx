@@ -14,7 +14,6 @@ import {
   FileText,
   Code,
   FlaskConical,
-  Loader2,
   CheckCircle2,
   XCircle,
   type LucideIcon,
@@ -30,14 +29,14 @@ const PHASE_ICON: Record<PhaseType, LucideIcon> = {
   verify: FlaskConical,
 };
 
-const STATUS_ICON: Record<PhaseRunStatus, LucideIcon> = {
-  running: Loader2,
+// NOTE: `running` has no lucide icon — a spinning icon glyph renders warped
+// at small sizes, so the running state draws a clean CSS ring spinner instead.
+const STATUS_ICON: Record<Exclude<PhaseRunStatus, 'running'>, LucideIcon> = {
   completed: CheckCircle2,
   failed: XCircle,
 };
 
-const STATUS_COLOR: Record<PhaseRunStatus, string> = {
-  running: 'text-blue-400',
+const STATUS_COLOR: Record<Exclude<PhaseRunStatus, 'running'>, string> = {
   completed: 'text-emerald-400',
   failed: 'text-red-400',
 };
@@ -66,8 +65,8 @@ export function PhaseTabBar({ tabs, selected, onSelect }: PhaseTabBarProps) {
     <div role="tablist" className="flex items-stretch gap-0.5 overflow-x-auto px-1 pt-1">
       {tabs.map(({ phaseType, latestStatus, iterationCount }) => {
         const PhaseIcon = PHASE_ICON[phaseType];
-        const StatusIcon = STATUS_ICON[latestStatus];
         const active = phaseType === selected;
+        const StatusIcon = latestStatus === 'running' ? null : STATUS_ICON[latestStatus];
         return (
           <button
             key={phaseType}
@@ -88,11 +87,16 @@ export function PhaseTabBar({ tabs, selected, onSelect }: PhaseTabBarProps) {
                 {iterationCount}
               </span>
             )}
-            <StatusIcon
-              className={`h-3.5 w-3.5 ${STATUS_COLOR[latestStatus]} ${
-                latestStatus === 'running' ? 'animate-spin' : ''
-              }`}
-            />
+            {StatusIcon ? (
+              <StatusIcon
+                className={`h-3.5 w-3.5 ${STATUS_COLOR[latestStatus as Exclude<PhaseRunStatus, 'running'>]}`}
+              />
+            ) : (
+              <span
+                aria-hidden
+                className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-blue-400 border-t-transparent"
+              />
+            )}
           </button>
         );
       })}

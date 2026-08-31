@@ -10,18 +10,19 @@
  * for this task (manual non-workflow runs).
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { Terminal, Search, X, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { SimpleLogEntryList } from '../simple-log-entry/simple-log-entry';
 import { transformLogsToSimple } from '../../utils/log-message-transformer';
 import { usePhaseTimeline } from '../../hooks/usePhaseTimeline';
 import type { PhaseType } from '../../utils/phase-selector';
 import { PhaseTabBar, type PhaseTabInfo } from './PhaseTabBar';
-import { PhaseTabPane } from './PhaseTabPane';
-import { formatPhaseSummary } from './format-phase-summary';
+import { PhaseTabPane, type SearchMode } from './PhaseTabPane';
 
 const POLL_INTERVAL_MS = 5000;
+const SEARCH_DEBOUNCE_MS = 200;
 
 export interface PhaseTimelineProps {
   taskId: number;
@@ -37,8 +38,15 @@ export interface PhaseTimelineProps {
  */
 export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProps) {
   const t = useTranslations('phaseTimeline');
+  // Reuse the original log-viewer header vocabulary (実行ログ + status labels)
+  // so the tabbed view keeps the pre-#785 header composition.
+  const tHeader = useTranslations('devMode.logViewerHeader');
   const { phases, loading, refetch } = usePhaseTimeline(taskId);
   const [filterWarnOnly, setFilterWarnOnly] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [searchMode, setSearchMode] = useState<SearchMode>('partial');
+  const [matchCount, setMatchCount] = useState(0);
   const [selectedPhase, setSelectedPhase] = useState<PhaseType | null>(null);
   const [selectedIteration, setSelectedIteration] = useState<number | null>(null);
   // Once the user picks a tab by hand, stop auto-following the running phase
@@ -51,12 +59,26 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
     return () => clearInterval(interval);
   }, [isRunning, refetch]);
 
+  // Debounce so the (potentially large) filter/highlight pass doesn't run per keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const runningPhase = useMemo<PhaseType | null>(() => {
     for (const phase of phases) {
       if (phase.iterations.some((it) => it.status === 'running')) return phase.phaseType;
     }
     return null;
   }, [phases]);
+
+  // Overall outcome for the header badge: failed when the LAST iteration of
+  // any phase ended failed (repaired failures don't count).
+  const overallFailed = useMemo(
+    () =>
+      phases.some((phase) => phase.iterations[phase.iterations.length - 1]?.status === 'failed'),
+    [phases],
+  );
 
   // Auto-follow: select the running phase (or the last phase with data) while
   // the user hasn't navigated manually.
@@ -93,6 +115,8 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
   const paneIsLive =
     isRunning && currentPhase?.phaseType === runningPhase && activeIteration?.status === 'running';
 
+  const handleMatchCount = useCallback((n: number) => setMatchCount(n), []);
+
   if (loading && phases.length === 0) {
     return (
       <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
@@ -108,27 +132,76 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
     return <SimpleLogEntryList entries={entries} />;
   }
 
-  const summaryText = activeIteration
-    ? formatPhaseSummary(activeIteration.summary, currentPhase!.phaseType, t)
-    : null;
+  const statusBadge = runningPhase ? (
+    <span className="flex items-center gap-1.5 rounded bg-blue-500/20 px-2 py-0.5 text-xs text-blue-400">
+      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400" />
+      {tHeader('statusRunning')}
+    </span>
+  ) : overallFailed ? (
+    <span className="flex items-center gap-1 rounded bg-red-500/20 px-2 py-0.5 text-xs text-red-400">
+      <AlertCircle className="h-3 w-3" />
+      {tHeader('statusFailed')}
+    </span>
+  ) : (
+    <span className="flex items-center gap-1 rounded bg-green-500/20 px-2 py-0.5 text-xs text-green-400">
+      <CheckCircle2 className="h-3 w-3" />
+      {tHeader('statusCompleted')}
+    </span>
+  );
 
   return (
     <div className="overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900">
-      {/* Terminal-style header: status/summary left, filters right */}
-      <div className="flex items-center justify-between gap-2 border-b border-zinc-700/70 bg-zinc-900 px-3 py-1.5">
-        <div className="flex min-w-0 items-center gap-2 text-[11px] text-zinc-400">
-          <span
-            className={`h-2 w-2 shrink-0 rounded-full ${
-              runningPhase ? 'animate-pulse bg-emerald-400' : 'bg-zinc-600'
-            }`}
-          />
-          <span className="truncate font-mono">
-            {runningPhase
-              ? `${t(`phaseLabel.${runningPhase}`)} ${t('status.running')}`
-              : (summaryText ?? t('status.completed'))}
-          </span>
+      {/* Header: 実行ログ title + overall status badge (pre-#785 composition), search + filters right */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-700/70 bg-zinc-800 px-3 py-1.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <Terminal className="h-4 w-4 shrink-0 text-green-400" />
+          <span className="text-sm font-medium text-zinc-200">{tHeader('title')}</span>
+          {statusBadge}
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setSearchQuery('');
+              }}
+              placeholder={t('searchPlaceholder')}
+              aria-label={t('searchPlaceholder')}
+              className="w-56 rounded border border-zinc-600 bg-zinc-900 py-1 pl-7 pr-6 text-xs text-zinc-200 transition-all placeholder:text-zinc-500 focus:w-72 focus:border-indigo-400 focus:outline-none"
+            />
+            <Search className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-zinc-500" />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                aria-label={t('clearSearch')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+          <select
+            value={searchMode}
+            onChange={(e) => setSearchMode(e.target.value as SearchMode)}
+            aria-label={t('searchModeLabel')}
+            className="rounded border border-zinc-600 bg-zinc-900 px-1 py-1 text-[11px] text-zinc-300 focus:border-indigo-400 focus:outline-none"
+          >
+            <option value="partial">{t('searchMode.partial')}</option>
+            <option value="exact">{t('searchMode.exact')}</option>
+            <option value="regex">{t('searchMode.regex')}</option>
+          </select>
+          {debouncedQuery.trim() && (
+            <span
+              className={`whitespace-nowrap text-[11px] ${
+                matchCount > 0 ? 'text-zinc-400' : 'text-amber-400'
+              }`}
+            >
+              {t('matchCount', { count: matchCount })}
+            </span>
+          )}
           {manualNavRef.current && runningPhase && selectedPhase !== runningPhase && (
             <button
               type="button"
@@ -201,7 +274,11 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
         <PhaseTabPane
           iteration={activeIteration}
           filterWarnOnly={filterWarnOnly}
-          liveLogLines={paneIsLive ? liveLogs : null}
+          searchQuery={debouncedQuery}
+          searchMode={searchMode}
+          onMatchCount={handleMatchCount}
+          isLive={paneIsLive === true}
+          liveSignal={liveLogs.length}
         />
       )}
     </div>

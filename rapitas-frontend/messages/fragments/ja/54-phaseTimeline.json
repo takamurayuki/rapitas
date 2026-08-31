@@ -31,6 +31,16 @@
     "expandAria": "フェーズを展開",
     "collapseAria": "フェーズを折りたたむ",
     "jumpToRunning": "実行中へ",
-    "iterationChip": "{n}回目"
+    "iterationChip": "{n}回目",
+    "resizeLog": "ログの高さを変更",
+    "searchPlaceholder": "ログを検索",
+    "matchCount": "{count}件",
+    "searchModeLabel": "検索モード",
+    "clearSearch": "検索をクリア",
+    "searchMode": {
+      "partial": "部分一致",
+      "exact": "完全一致",
+      "regex": "正規表現"
+    }
   }
 }
