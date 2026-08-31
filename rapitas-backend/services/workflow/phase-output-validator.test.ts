@@ -4,6 +4,7 @@
 
 import { describe, expect, test } from 'bun:test';
 import { validatePlan, validateResearch, validateVerify } from './phase-output-validator';
+import { buildRepairFeedbackBlock, mergeRepairFeedback } from './verify-self-repair-feedback';
 
 describe('validatePlan', () => {
   test('rejects empty content', () => {
@@ -701,5 +702,64 @@ ${row}
   test('「実施せず」だけの ❌ は従来どおり落とす', () => {
     const r = validateVerify(doc('| 失効処理の追加 | ❌ 実施せず | 時間切れ |'));
     expect(r.ok).toBe(false);
+  });
+});
+
+describe('validateVerify — repair-feedback の自己増幅ループ（task 800 / #798 実データ）', () => {
+  // #798: バリデータ判定要約に含まれる文字通りの "(❌)" 引用が repair-feedback
+  // ブロックへ転記され、次回スキャンで失敗シグナルとして再検出→再差し戻し→
+  // ❌ 引用が増える、という永久ループが報告された。
+  const passingBody = `# 検証レポート
+## 検証結果サマリ
+✅ 検証成功 — 全テスト通過
+## テスト結果
+bun test: 12 passed, 0 failed
+## チェックリスト消化状況
+- [x] done`;
+
+  test('バリデータ要約の文字通りの "(❌)" 引用を含む repair-feedback ブロックは通過する', () => {
+    // buildRepairFeedbackBlock 自体（実プロダクションコード）で、crossMarkFailure
+    // が返す evidence '❌' を reason に埋め込んだ差し戻し文言を生成する。
+    const rejectionReason =
+      'verify.md self-contradicts: claims all tests pass while body contains failure signals (❌). ' +
+      'Verifier likely hallucinated success — re-run with stricter test-honesty prompt.';
+    const block = buildRepairFeedbackBlock(rejectionReason, 1, passingBody);
+    const merged = mergeRepairFeedback(passingBody, block);
+
+    expect(merged).toContain('failure signals (❌)');
+    const result = validateVerify(merged);
+    expect(result.ok).toBe(true);
+  });
+
+  test('複数回の差し戻し（❌ 引用が積み重なる想定）でも通過し続ける', () => {
+    let content = passingBody;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const reason = `verify.md self-contradicts: ... failure signals (❌ | ❌ | ❌). attempt=${attempt}`;
+      const block = buildRepairFeedbackBlock(reason, attempt, content);
+      content = mergeRepairFeedback(content, block);
+      expect(validateVerify(content).ok).toBe(true);
+    }
+  });
+});
+
+describe('validateVerify — スコープ外の未着手項目（task 800 付随観察）', () => {
+  const doc = (row: string) => `# 検証レポート
+## 検証結果サマリ
+スコープ内は all tests pass。
+## テスト結果
+${row}
+## チェックリスト
+- ok`;
+
+  test('「❌ 未着手（スコープ外）」はスコープ外を表す中立語彙として通す', () => {
+    const row = '| 付随機能Xの追加 | ❌ 未着手（スコープ外） | 別タスクで対応 |';
+    expect(validateVerify(doc(row)).ok).toBe(true);
+  });
+
+  test('スコープ外の注記が無い「❌ 未着手」は従来どおり失敗として捕まえる', () => {
+    const row = '| 認証トークンの失効処理 | ❌ 未着手 | 要修正 |';
+    const r = validateVerify(doc(row));
+    expect(r.ok).toBe(false);
+    expect(r.summary).toContain('self-contradicts');
   });
 });

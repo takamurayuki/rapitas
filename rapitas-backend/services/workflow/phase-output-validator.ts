@@ -288,7 +288,18 @@ export function validateVerify(content: string): ValidationResult {
     // and a NO is the honest answer: task 602 reported four ❌ 適用不能 rows
     // ("IMEに『解像度』『変換プリセット』の概念は存在しない") beside a passing
     // summary, and was blocked as a hallucinated pass for four rounds.
-    if (/❌[^\n]{0,8}(?:適用不能|該当なし|非該当|対象外|N\/A|not\s+applicable)/i.test(line)) {
+    // "スコープ外" joins the same list (task 800): a scope table honestly
+    // marking an out-of-scope item "❌ 未着手（スコープ外）" is not a failure to
+    // implement it — "未着手" alone (no スコープ外 annotation) still falls
+    // through to the default `return true` below, so a genuinely incomplete
+    // in-scope item is still caught. The window is widened from 8 to 15
+    // characters so "未着手" (2 chars) plus the full-width parenthesis can sit
+    // between ❌ and スコープ外 without pushing it out of range.
+    if (
+      /❌[^\n]{0,15}(?:適用不能|該当なし|非該当|対象外|スコープ外|N\/A|not\s+applicable)/i.test(
+        line,
+      )
+    ) {
       return false;
     }
     return true;
