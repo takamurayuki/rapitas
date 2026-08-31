@@ -48,6 +48,7 @@ interface PhaseTimelineResponse {
   phases?: PhaseSegment[];
   workflowMode?: WorkflowTimelineMode;
   taskStatus?: string | null;
+  plannedMode?: string | null;
   error?: string;
 }
 
@@ -56,6 +57,8 @@ export interface UsePhaseTimelineResult {
   workflowMode: WorkflowTimelineMode | null;
   /** Task-level status (in_progress/blocked/completed/…) — null on old backends. */
   taskStatus: string | null;
+  /** Planned workflow mode from complexity staging (lightweight/standard/comprehensive). */
+  plannedMode: string | null;
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
@@ -67,7 +70,12 @@ export interface UsePhaseTimelineResult {
 // bypasses it.
 const cache = new Map<
   number,
-  { phases: PhaseSegment[]; workflowMode: WorkflowTimelineMode; taskStatus: string | null }
+  {
+    phases: PhaseSegment[];
+    workflowMode: WorkflowTimelineMode;
+    taskStatus: string | null;
+    plannedMode: string | null;
+  }
 >();
 
 /**
@@ -83,6 +91,7 @@ export function usePhaseTimeline(taskId: number): UsePhaseTimelineResult {
     cached?.workflowMode ?? null,
   );
   const [taskStatus, setTaskStatus] = useState<string | null>(cached?.taskStatus ?? null);
+  const [plannedMode, setPlannedMode] = useState<string | null>(cached?.plannedMode ?? null);
   const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
   const taskIdRef = useRef(taskId);
@@ -99,10 +108,12 @@ export function usePhaseTimeline(taskId: number): UsePhaseTimelineResult {
         phases: data.phases,
         workflowMode: data.workflowMode,
         taskStatus: data.taskStatus ?? null,
+        plannedMode: data.plannedMode ?? null,
       });
       setPhases(data.phases);
       setWorkflowMode(data.workflowMode);
       setTaskStatus(data.taskStatus ?? null);
+      setPlannedMode(data.plannedMode ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -119,10 +130,11 @@ export function usePhaseTimeline(taskId: number): UsePhaseTimelineResult {
       setPhases(next?.phases ?? []);
       setWorkflowMode(next?.workflowMode ?? null);
       setTaskStatus(next?.taskStatus ?? null);
+      setPlannedMode(next?.plannedMode ?? null);
       setLoading(!next);
     }
     void fetchTimeline();
   }, [taskId, fetchTimeline]);
 
-  return { phases, workflowMode, taskStatus, loading, error, refetch: fetchTimeline };
+  return { phases, workflowMode, taskStatus, plannedMode, loading, error, refetch: fetchTimeline };
 }

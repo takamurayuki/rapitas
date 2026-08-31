@@ -43,8 +43,9 @@ const STATUS_COLOR: Record<Exclude<PhaseRunStatus, 'running'>, string> = {
 
 export interface PhaseTabInfo {
   phaseType: PhaseType;
-  /** Latest iteration's status — drives the tab's status glyph. */
-  latestStatus: PhaseRunStatus;
+  /** Latest iteration's status — drives the tab's status glyph. `pending`
+   * means the phase is planned (complexity staging) but hasn't run yet. */
+  latestStatus: PhaseRunStatus | 'pending';
   iterationCount: number;
 }
 
@@ -66,7 +67,10 @@ export function PhaseTabBar({ tabs, selected, onSelect }: PhaseTabBarProps) {
       {tabs.map(({ phaseType, latestStatus, iterationCount }) => {
         const PhaseIcon = PHASE_ICON[phaseType];
         const active = phaseType === selected;
-        const StatusIcon = latestStatus === 'running' ? null : STATUS_ICON[latestStatus];
+        const StatusIcon =
+          latestStatus === 'running' || latestStatus === 'pending'
+            ? null
+            : STATUS_ICON[latestStatus];
         return (
           <button
             key={phaseType}
@@ -90,6 +94,12 @@ export function PhaseTabBar({ tabs, selected, onSelect }: PhaseTabBarProps) {
             {StatusIcon ? (
               <StatusIcon
                 className={`h-3.5 w-3.5 ${STATUS_COLOR[latestStatus as Exclude<PhaseRunStatus, 'running'>]}`}
+              />
+            ) : latestStatus === 'pending' ? (
+              // Planned but not started — hollow ring.
+              <span
+                aria-hidden
+                className="h-3 w-3 shrink-0 rounded-full border-2 border-zinc-600"
               />
             ) : (
               <span

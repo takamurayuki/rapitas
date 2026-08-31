@@ -53,7 +53,7 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
   // Reuse the original log-viewer header title (実行ログ) so the tabbed view
   // keeps the pre-#785 header composition.
   const tHeader = useTranslations('devMode.logViewerHeader');
-  const { phases, taskStatus, loading, refetch } = usePhaseTimeline(taskId);
+  const { phases, taskStatus, plannedMode, loading, refetch } = usePhaseTimeline(taskId);
   const [filterWarnOnly, setFilterWarnOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -99,6 +99,16 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
     return null;
   }, [phases]);
 
+  // Real-time tail for the CURRENT execution: the raw SSE stream spans the
+  // whole session, so slice from the last start banner (each execution —
+  // including repair retries — emits its own).
+  const liveTail = useMemo(() => {
+    for (let i = liveLogs.length - 1; i >= 0; i--) {
+      if (liveLogs[i].includes('Starting execution')) return liveLogs.slice(i);
+    }
+    return liveLogs;
+  }, [liveLogs]);
+
   // Auto-follow: select the running phase (or the last phase with data) while
   // the user hasn't navigated manually.
   useEffect(() => {
@@ -110,15 +120,45 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
     }
   }, [runningPhase, phases, selectedPhase]);
 
-  const tabs = useMemo<PhaseTabInfo[]>(
-    () =>
-      phases.map((phase) => ({
-        phaseType: phase.phaseType,
-        latestStatus: phase.iterations[phase.iterations.length - 1]?.status ?? 'completed',
-        iterationCount: phase.iterations.length,
-      })),
-    [phases],
-  );
+  // NOTE: Task.status vocabulary is done/todo/in-progress/blocked/cancelled
+  // (hyphenated) — normalize before matching.
+  const normalizedStatus = (taskStatus ?? '').replace('-', '_');
+  const isTerminalStatus = ['done', 'completed', 'cancelled'].includes(normalizedStatus);
+
+  // Full expected tab strip from the planned mode (complexity staging):
+  // phases that haven't run yet appear as pending tabs while the task is
+  // still active, so the strip is visible from the moment complexity lands.
+  const tabs = useMemo<PhaseTabInfo[]>(() => {
+    const expected: PhaseType[] =
+      plannedMode === 'lightweight'
+        ? ['research', 'implement', 'verify']
+        : ['research', 'plan', 'implement', 'verify'];
+    const actual = new Map(phases.map((p) => [p.phaseType, p]));
+    const list: PhaseTabInfo[] = [];
+    for (const phaseType of expected) {
+      const seg = actual.get(phaseType);
+      if (seg) {
+        list.push({
+          phaseType,
+          latestStatus: seg.iterations[seg.iterations.length - 1]?.status ?? 'completed',
+          iterationCount: seg.iterations.length,
+        });
+      } else if (!isTerminalStatus) {
+        list.push({ phaseType, latestStatus: 'pending', iterationCount: 0 });
+      }
+    }
+    // Safety: keep any actual phase the expected list didn't predict.
+    for (const p of phases) {
+      if (!list.some((tab) => tab.phaseType === p.phaseType)) {
+        list.push({
+          phaseType: p.phaseType,
+          latestStatus: p.iterations[p.iterations.length - 1]?.status ?? 'completed',
+          iterationCount: p.iterations.length,
+        });
+      }
+    }
+    return list;
+  }, [phases, plannedMode, isTerminalStatus]);
 
   const currentPhase = phases.find((p) => p.phaseType === selectedPhase) ?? null;
   const iterations = currentPhase?.iterations ?? [];
@@ -159,8 +199,10 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
     );
   }
 
-  // No phase data — fall back to the flat list (manual non-workflow runs).
-  if (phases.length === 0) {
+  // No phase data AND nothing running — flat fallback (manual non-workflow
+  // runs). While running, the tab strip renders from the planned mode instead
+  // and the pane shows the live stream in real time.
+  if (phases.length === 0 && !isRunning) {
     const entries = transformLogsToSimple(liveLogs);
     return <SimpleLogEntryList entries={entries} />;
   }
@@ -169,7 +211,7 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
   // finishing must not flip the badge to 完了 (operator feedback).
   // NOTE: Task.status vocabulary is done/todo/in-progress/blocked/cancelled
   // (hyphenated) — normalize before matching.
-  const effectiveStatus = (taskStatus ?? (runningPhase ? 'in-progress' : 'done')).replace('-', '_');
+  const effectiveStatus = taskStatus ? normalizedStatus : runningPhase ? 'in_progress' : 'done';
   const statusBadge =
     effectiveStatus === 'done' || effectiveStatus === 'completed' ? (
       <span className="flex items-center gap-1 rounded bg-green-500/20 px-2 py-0.5 text-xs text-green-400">
@@ -360,7 +402,7 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
         </div>
       )}
 
-      {activeIteration && (
+      {activeIteration ? (
         <PhaseTabPane
           iteration={activeIteration}
           filterWarnOnly={filterWarnOnly}
@@ -369,8 +411,20 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
           activeMatchIndex={activeMatch}
           onMatchCount={handleMatchCount}
           isLive={paneIsLive === true}
-          liveSignal={liveLogs.length}
+          liveLogLines={paneIsLive ? liveTail : null}
         />
+      ) : (
+        // Pending tab, or the pre-first-execution window: show the live
+        // stream when nothing is segmented yet, else a placeholder.
+        <div className="dark bg-zinc-950 font-mono">
+          {phases.length === 0 && isRunning && liveTail.length > 0 ? (
+            <div className="max-h-[340px] overflow-y-auto px-1 py-1">
+              <SimpleLogEntryList entries={transformLogsToSimple(liveTail)} />
+            </div>
+          ) : (
+            <div className="px-3 py-4 text-xs text-zinc-500">{t('noLogsYet')}</div>
+          )}
+        </div>
       )}
     </div>
   );
