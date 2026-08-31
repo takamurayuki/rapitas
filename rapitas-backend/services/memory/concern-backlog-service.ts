@@ -16,6 +16,7 @@ import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 import { narrowEnum } from '../../utils/common/type-guards';
 import { findSaturatedTheme, findNearDuplicate } from './theme-saturation';
 import { resolveTaskThemeId, resolveDefaultThemeId } from './theme-resolution';
+import { resolveFiling, type RecurrencePolicy } from './concern-recurrence-policy';
 
 // Re-exported for backward compatibility — log-health-check.ts imports
 // resolveDefaultThemeId from this module.
@@ -127,6 +128,7 @@ export interface SubmitConcernInput {
    * root-cause concern be filed repeatedly. / 同一原因の重複登録を防ぐ安定キー。
    */
   dedupKey?: string;
+  recurrencePolicy?: RecurrencePolicy;
 }
 
 function contentHash(input: string): string {
@@ -208,11 +210,8 @@ export async function submitConcern(input: SubmitConcernInput): Promise<number> 
     ? contentHash(`concern-dedup:${input.dedupKey}`)
     : contentHash(`concern:${input.title}:${input.detail}`);
 
-  const blockingId = await findBlockingDuplicate(hash);
-  if (blockingId != null) {
-    log.debug({ id: blockingId }, 'Duplicate concern skipped (live concern exists)');
-    return blockingId;
-  }
+  const decision = await resolveFiling(prisma, { input, hash, severity, findBlockingDuplicate });
+  if (decision.reuseId != null) return decision.reuseId;
 
   // Anti-monoculture: concerns are the bigger flood source — the agent re-files
   // near-identical "gen:type-guards / SSOT / Prettier-drift" concerns as it works
@@ -257,8 +256,9 @@ export async function submitConcern(input: SubmitConcernInput): Promise<number> 
 
   // 'agent' fallback mirrors hypothesis-service's `input.source ?? 'agent'`; every
   // current caller passes source explicitly, so this only guards future direct calls.
-  const tags = [`severity:${severity}`, `source:${input.source ?? 'agent'}`];
+  const tags = [`severity:${decision.severity ?? severity}`, `source:${input.source ?? 'agent'}`];
   if (input.location?.trim()) tags.push(`loc:${input.location.trim()}`);
+  if (decision.extraTag) tags.push(decision.extraTag);
 
   // Always attribute a concern to a real theme, mirroring submitIdea's same
   // invariant (idea-box-service.ts): use the caller's themeId, else the
@@ -279,12 +279,12 @@ export async function submitConcern(input: SubmitConcernInput): Promise<number> 
       // sourceId encodes the lifecycle status ('open' | 'task_<id>' | 'dismissed').
       sourceId: 'open',
       title: input.title,
-      content: input.detail,
+      content: decision.detail ?? input.detail,
       contentHash: hash,
       // category holds the type so getConcernStats can group by it.
       category: type,
       tags: JSON.stringify(tags),
-      confidence: SEVERITY_WEIGHT[severity],
+      confidence: SEVERITY_WEIGHT[decision.severity ?? severity],
       themeId,
       taskId: input.originTaskId ?? null,
       forgettingStage: 'active',
@@ -297,7 +297,7 @@ export async function submitConcern(input: SubmitConcernInput): Promise<number> 
     {
       id: entry.id,
       type,
-      severity,
+      severity: decision.severity ?? severity,
       themeId,
       originTaskId: input.originTaskId,
       source: input.source,

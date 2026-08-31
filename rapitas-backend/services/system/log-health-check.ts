@@ -126,6 +126,17 @@ const ABS_PATH_RE = new RegExp(
 const COMMAND_ARGS_RE = /\s--\S[^\n]*/g;
 
 /**
+ * Everything after `git command failed: git <subcommand>` — the subcommand
+ * itself (checkout / merge / push / ...) survives; positional arguments
+ * (branch names, refs, paths) do not. `--flag` arguments are already handled
+ * by COMMAND_ARGS_RE above, so this only needs to catch the single-dash /
+ * bare-positional case COMMAND_ARGS_RE misses (e.g. `git checkout -b
+ * feature/aaa` vs `git checkout -b feature/bbb`), which otherwise makes the
+ * same failing command a new signature — and a new task — per branch name.
+ */
+const GIT_POSITIONAL_ARGS_RE = /(git command failed: git \S+)[^\n]*/;
+
+/**
  * Normalizes a message so volatile parts (ids, counts, hex) collapse, letting
  * "task 12 failed" and "task 34 failed" group together.
  */
@@ -144,6 +155,9 @@ export function normalizeMessage(raw: string): string {
       .replace(ABS_PATH_RE, '<path>')
       // Same command, different arguments, is the same failure.
       .replace(COMMAND_ARGS_RE, ' …')
+      // Same git subcommand, different positional args (branch name, ref) —
+      // see GIT_POSITIONAL_ARGS_RE.
+      .replace(GIT_POSITIONAL_ARGS_RE, '$1 …')
       .replace(/0x[0-9a-fA-F]+/g, '#')
       .replace(/[0-9a-fA-F]{8,}/g, '#') // hashes / bare hex ids
       .replace(/\d+/g, '#')
@@ -257,6 +271,10 @@ async function fileGroupedConcerns(
       // by project — NOT title+detail, which drift between runs via the sample
       // stack and the max level (label). Keeps one concern per recurring cause.
       dedupKey: `log:${opts.projectLabel ?? 'backend'}|${g.signature}`,
+      // Aggregates same-signature refilings instead of one row per occurrence
+      // (task #801) — instanceValue keeps the raw (pre-normalization) log line
+      // an investigator needs, since the dedupKey/title only carry the signature.
+      recurrencePolicy: { enabled: true, instanceValue: g.sampleMsg.slice(0, 300) },
     });
     filed++;
   }

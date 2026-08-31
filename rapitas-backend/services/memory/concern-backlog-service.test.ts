@@ -475,6 +475,98 @@ describe('submitConcern — lifecycle-aware dedup', () => {
   });
 });
 
+// ─── submitConcern — recurrencePolicy aggregation (#801) ───────────────────────
+
+describe('submitConcern — recurrencePolicy aggregation', () => {
+  beforeEach(resetMocks);
+
+  it('files exactly one concern when the same signature is detected twice in a row', async () => {
+    mockKnowledgeEntryFindMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: 11,
+        sourceId: 'open',
+        tags: JSON.stringify(['severity:high']),
+        content: '1回目の詳細',
+      },
+    ]);
+    mockKnowledgeEntryCreate.mockResolvedValueOnce({ id: 11 });
+
+    const firstId = await submitConcern({
+      title: '状態不整合の懸念',
+      detail: '1回目の詳細',
+      dedupKey: 'self-incident:tristate-desync',
+      recurrencePolicy: { enabled: true, instanceValue: 'taskId:100' },
+    });
+    const secondId = await submitConcern({
+      title: '状態不整合の懸念',
+      detail: '2回目の詳細',
+      dedupKey: 'self-incident:tristate-desync',
+      recurrencePolicy: { enabled: true, instanceValue: 'taskId:200' },
+    });
+
+    expect(firstId).toBe(11);
+    expect(secondId).toBe(11);
+    expect(mockKnowledgeEntryCreate).toHaveBeenCalledTimes(1);
+    expect(mockKnowledgeEntryUpdate).toHaveBeenCalledTimes(1);
+    const updateCall = mockKnowledgeEntryUpdate.mock.calls[0][0] as {
+      data: { content: string; tags: string };
+    };
+    expect(updateCall.data.content).toContain('### 発生記録');
+    expect(JSON.parse(updateCall.data.tags)).toContain('occurrence:2');
+  });
+
+  it('escalates severity and references the prior entry for a done-task recurrence within the window', async () => {
+    const completedAt = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000);
+    mockKnowledgeEntryFindMany.mockResolvedValue([
+      { id: 22, sourceId: 'task_50', tags: '[]', content: '過去の詳細' },
+    ]);
+    mockTaskFindUnique.mockResolvedValue({ status: 'done', completedAt });
+
+    await submitConcern({
+      title: 'git command failed 懸念',
+      detail: '新しい詳細',
+      severity: 'medium',
+      dedupKey: 'log:backend|git|error|checkout',
+      recurrencePolicy: { enabled: true, instanceValue: 'git checkout -b feature/aaa' },
+    });
+
+    expect(mockKnowledgeEntryCreate).toHaveBeenCalledTimes(1);
+    const call = mockKnowledgeEntryCreate.mock.calls[0][0] as {
+      data: { content: string; tags: string };
+    };
+    expect(call.data.content).toContain('### 再発');
+    expect(call.data.content).toContain('#22');
+    const tags = JSON.parse(call.data.tags) as string[];
+    expect(tags).toContain('recurrenceOf:22');
+    expect(tags).toContain('severity:high'); // medium escalated to high
+  });
+
+  it('files a plain new concern (no escalation) for a done-task recurrence outside the window', async () => {
+    const completedAt = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000);
+    mockKnowledgeEntryFindMany.mockResolvedValue([
+      { id: 23, sourceId: 'task_51', tags: '[]', content: '過去の詳細' },
+    ]);
+    mockTaskFindUnique.mockResolvedValue({ status: 'done', completedAt });
+
+    await submitConcern({
+      title: '状態不整合の懸念',
+      detail: '新しい詳細',
+      severity: 'medium',
+      dedupKey: 'self-incident:tristate-desync-old',
+      recurrencePolicy: { enabled: true, instanceValue: 'taskId:300' },
+    });
+
+    expect(mockKnowledgeEntryCreate).toHaveBeenCalledTimes(1);
+    const call = mockKnowledgeEntryCreate.mock.calls[0][0] as {
+      data: { content: string; tags: string };
+    };
+    expect(call.data.content).not.toContain('### 再発');
+    const tags = JSON.parse(call.data.tags) as string[];
+    expect(tags).not.toContain('recurrenceOf:23');
+    expect(tags).toContain('severity:medium'); // unchanged, no escalation
+  });
+});
+
 // ─── getConcern ───────────────────────────────────────────────────────────────
 
 describe('getConcern', () => {

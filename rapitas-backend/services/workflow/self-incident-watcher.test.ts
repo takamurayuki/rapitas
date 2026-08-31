@@ -126,6 +126,13 @@ describe('runSelfIncidentWatch', () => {
     expect(input.originTaskId).toBe(546);
     expect(input.type).toBe('bug');
     expect(input.severity).toBe('medium');
+    // #801: recurrence aggregation opts in with the task-varying instance
+    // value, keeping the signature itself (dedupKey, asserted above) stable.
+    expect(input.recurrencePolicy).toEqual({
+      enabled: true,
+      instanceValue: 'taskId:546',
+      detectedAt: now,
+    });
     expect(String(input.detail)).toContain('## 直近の遷移タイムライン(最大10件)');
     expect(String(input.detail)).toContain('## 検出条件');
   });

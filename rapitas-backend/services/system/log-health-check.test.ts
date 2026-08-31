@@ -109,6 +109,29 @@ describe('groupEntries', () => {
     expect(groups).toHaveLength(2);
   });
 
+  it('collapses git positional arguments (branch names) into one signature (#801)', () => {
+    // 実測 2026-08-31: task 801 監査で「git command failed: …」が同分内に
+    // ペア起票されていた。COMMAND_ARGS_RE は `--flag` 以降しか除去せず、
+    // `-b <branch>` の単一ダッシュ引数・ブランチ名(位置引数)が残っていたため。
+    const groups = groupEntries([
+      entry({ level: 50, name: 'git', msg: 'git command failed: git checkout -b feature/aaa' }),
+      entry({ level: 50, name: 'git', msg: 'git command failed: git checkout -b feature/bbb' }),
+    ]);
+    expect(groups).toHaveLength(1);
+    // サブコマンド(checkout)は所見として残す。ブランチ名は発生ごとの詳細。
+    expect(groups[0].normalizedMsg).toContain('git checkout');
+    expect(groups[0].normalizedMsg).not.toContain('feature/');
+  });
+
+  it('still collapses the existing git --flag case after the positional-args rule (#801 regression guard)', () => {
+    const groups = groupEntries([
+      entry({ level: 50, name: 'git', msg: 'git command failed: git merge --abort' }),
+      entry({ level: 50, name: 'git', msg: 'git command failed: git merge --abort now' }),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].normalizedMsg).toContain('git merge');
+  });
+
   it('drops a line that reports a guard doing its job', () => {
     // The health check files what is BROKEN. A refusal prevented the problem.
     const groups = groupEntries([
