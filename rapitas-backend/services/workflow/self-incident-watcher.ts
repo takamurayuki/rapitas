@@ -144,6 +144,14 @@ async function fileFinding(args: {
       // A dismissed or resolved concern no longer blocks, so a genuine
       // recurrence after triage still files again.
       dedupKey: `self-incident:${args.signature}`,
+      // Aggregates same-signature refilings across tasks instead of one row
+      // per detection (#801) — taskId is the instance-varying value the
+      // signature itself deliberately excludes (see the dedupKey comment above).
+      recurrencePolicy: {
+        enabled: true,
+        instanceValue: `taskId:${args.task.id}`,
+        detectedAt: args.nowMs,
+      },
     });
     return true;
   } catch (err) {
