@@ -48,4 +48,13 @@ describe('inferCostPer1k', () => {
     expect(inferCostPer1k('claude-opus-4-8', 'premium')).toBe(0.025);
     expect(inferCostPer1k('gpt-5', 'premium')).toBe(0.012);
   });
+
+  test('premium帯でfable/mythosはopusより高い単価になる（#797: opus未満誤推定でcheapest()がfableを誤選択していたバグ）', () => {
+    expect(inferCostPer1k('claude-fable-5', 'premium')).toBeGreaterThan(
+      inferCostPer1k('claude-opus-4-8', 'premium'),
+    );
+    expect(inferCostPer1k('claude-mythos-5', 'premium')).toBeGreaterThan(
+      inferCostPer1k('claude-opus-4-8', 'premium'),
+    );
+  });
 });
