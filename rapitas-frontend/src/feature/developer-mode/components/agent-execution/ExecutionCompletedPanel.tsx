@@ -15,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { isImeComposing } from '@/utils/ime';
+import { useTaskPrAvailability } from '../../hooks/useTaskPrAvailability';
 import type { PrState } from './agent-execution-types';
 import { formatTokenCount, formatCostUsd } from './agent-execution-utils';
 import { PrMergeSection } from './PrMergeSection';
@@ -88,6 +89,8 @@ export function ExecutionCompletedPanel({
   const router = useRouter();
   const t = useTranslations('devMode.executionCompletedPanel');
   const [prError, setPrError] = useState<string | null>(null);
+  // Hide "PRを開く" when no PR exists for this task (operator feedback).
+  const prAvailability = useTaskPrAvailability(taskId, true);
   const phaseKey =
     pollingSessionMode && pollingSessionMode.startsWith('workflow-')
       ? (WORKFLOW_PHASE_KEYS[pollingSessionMode] ?? null)
@@ -181,13 +184,15 @@ export function ExecutionCompletedPanel({
                 <RefreshCw className="w-4 h-4" />
                 {t('reset')}
               </button>
-              <button
-                onClick={openTaskPr}
-                className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
-              >
-                <ExternalLink className="w-4 h-4" />
-                {t('openPr')}
-              </button>
+              {prAvailability === 'available' && (
+                <button
+                  onClick={openTaskPr}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  {t('openPr')}
+                </button>
+              )}
             </div>
           </div>
         </div>

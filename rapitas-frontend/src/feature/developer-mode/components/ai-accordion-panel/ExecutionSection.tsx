@@ -18,6 +18,7 @@ import { API_BASE_URL } from '@/utils/api';
 import { PillButton } from '@/components/ui/pill-button';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
+import { useTaskPrAvailability } from '../../hooks/useTaskPrAvailability';
 import { ExecutionBody } from './ExecutionBody';
 import { ExecutionCapabilityGuide, type ExecutionCapability } from './ExecutionCapabilityGuide';
 
@@ -151,6 +152,9 @@ export function ExecutionSection({
   const router = useRouter();
   const t = useTranslations('devMode.executionSection');
   const [prError, setPrError] = useState<string | null>(null);
+  // Hide "PRを開く" when the completed task never produced a PR — a button
+  // that only errors on click reads as broken (operator feedback).
+  const prAvailability = useTaskPrAvailability(taskId, isCompleted);
 
   // NOTE: task.status reflects the manual status toggle, which is independent of
   // workflow polling state. We guard the run button on both to prevent re-running
@@ -227,17 +231,19 @@ export function ExecutionSection({
               >
                 {t('reset')}
               </PillButton>
-              <PillButton
-                icon={GitPullRequest}
-                color="emerald"
-                iconVariant="plain"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openTaskPr();
-                }}
-              >
-                {t('openPr')}
-              </PillButton>
+              {prAvailability === 'available' && (
+                <PillButton
+                  icon={GitPullRequest}
+                  color="emerald"
+                  iconVariant="plain"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openTaskPr();
+                  }}
+                >
+                  {t('openPr')}
+                </PillButton>
+              )}
             </>
           )}
           {isCancelled && (
