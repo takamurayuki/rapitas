@@ -206,7 +206,7 @@ export async function runVerifyCommitPrPipeline(params: {
         .catch(() => {});
       await markLatestExecutionFailed(
         taskId,
-        `検証は通過しましたがPRが作成されませんでした: ${reason}。完了にはPR作成が必要です。`,
+        `検証は通過しましたがPRが作成されませんでした: ${reason}。完了にはPR作成が必要です。まだ自動リカバリの再試行回数に余裕があれば、数分以内にPR再作成のみを行う軽量な自動リトライが1回行われます — 緊急でなければ、今すぐの手動リトライは控えて自動リトライの結果を待ってください。`,
       );
       await recordTransition({
         taskId,

@@ -43,6 +43,11 @@ export function isImplementOverlapHoldEnabled(): boolean {
   return !(raw === 'off' || raw === '0' || raw === 'false');
 }
 
+/** Whether the task is currently held on an open auto-PR overlap (task 793: exempts it from the hang backstop). */
+export function isOverlapHeld(taskId: number): boolean {
+  return holdSince.has(taskId);
+}
+
 /** Collaborators, injectable for tests. Defaults resolve lazily to stay out of the scheduler's static import graph. */
 export interface OverlapGuardDeps {
   openPrs: (
