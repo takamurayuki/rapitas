@@ -452,18 +452,16 @@ export async function spawnCodexProcess(
       process.env.CODEX_CLI_PATH || (isWindows ? 'codex.cmd' : 'codex'),
     );
 
-    // Log spawn info
-    const argsForLog = args.map((a, i) => {
-      if (i === args.length - 1 && a.length > 100) return `<prompt:${a.length}chars>`;
-      return a;
-    });
-    logger.info(`${logPrefix} Platform: ${process.platform}, Codex: ${codexPath}`);
-    logger.info(`${logPrefix} Timeout: ${timeout}ms, Prompt: ${prompt.length} chars`);
+    const argsForLog = args.map((a, i) =>
+      i === args.length - 1 && a.length > 100 ? `<prompt:${a.length}chars>` : a,
+    );
+    logger.info(
+      `${logPrefix} Platform: ${process.platform}, Codex: ${codexPath}, Timeout: ${timeout}ms, Prompt: ${prompt.length} chars`,
+    );
     logger.info(`${logPrefix} Spawn argv: ${JSON.stringify([codexPath, ...argsForLog])}`);
     logger.info(`${logPrefix} Spawn cwd: ${workDir}`);
 
     callbacks.emitOutput(`${logPrefix} Starting execution...\n`);
-    // Persist the model into the stored log stream (parity with claude runner).
     callbacks.emitOutput(`${logPrefix} Model: ${config.model ?? 'default'}\n`);
     callbacks.emitOutput(`${logPrefix} Working directory: ${workDir}\n`);
     callbacks.emitOutput(`${logPrefix} Timeout: ${timeout / 1000}s\n`);
