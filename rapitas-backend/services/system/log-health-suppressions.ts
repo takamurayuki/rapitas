@@ -192,6 +192,21 @@ const SUPPRESSIONS: Suppression[] = [
     because:
       'shell:trueによるspawnがcmd.exeで実行時にPATHを再解決するためCLI実行には影響しない — fail-openで継続している',
   },
+  {
+    // ログ出力箇所: claude-code-agent/agent-core.ts の stop()/killProcessForQuestion()、
+    // codex-cli-agent/index.ts、gemini-cli-agent/process-manager.ts の各 taskkill 呼び出し。
+    // log-format-parser.ts:82 は err が付与されたログで err.message を msg として優先す
+    // るため、normalizedMsg は呼び出し元のカスタム文言ではなく execSync が投げる
+    // 「Command failed: taskkill /PID # /T /F」に統一される（#810）。taskkill の失敗は
+    // 大半が対象PIDが呼び出し時点で既に終了済みのレース（agent-process-tracker.ts:230-236
+    // のコメントが同種の失敗を「likely means the process already exited」と説明）で、直後の
+    // process.kill() フォールバックが回復する。フォールバックまで失敗した場合は別シグネチャ
+    // 「process.kill() also failed」（既にwarnで記録済み）として可視性が残る。
+    test: /Command failed: taskkill \/PID # \/T \/F/i,
+    logger: /claude-code-agent|codex-cli-agent|gemini-cli-agent/i,
+    because:
+      'taskkillの第一試行失敗は対象PIDが既に終了済みのレースが大半で、process.kill()フォールバックが回復する — フォールバックも失敗した場合は別シグネチャで可視化される',
+  },
 ];
 
 /** Result of classifying one log signature. */

@@ -215,7 +215,10 @@ export class CodexCliAgent extends BaseAgent {
             logger.info(`${this.logPrefix} Process ${pid} killed via taskkill`);
           }
         } catch (e) {
-          logger.error({ err: e }, `${this.logPrefix} taskkill failed`);
+          // Same benign race as agent-core.ts's stop() — the process usually
+          // already exited between the null-check and the call; the fallback
+          // below recovers it.
+          logger.warn({ err: e }, `${this.logPrefix} taskkill failed`);
           try {
             this.process.kill();
           } catch (killErr) {

@@ -325,7 +325,10 @@ export class ClaudeCodeAgent extends BaseAgent {
           logger.info(`${this.logPrefix} Process ${pid} killed via taskkill (question detected)`);
         }
       } catch (e) {
-        logger.error({ err: e }, `${this.logPrefix} taskkill failed (question detected)`);
+        // taskkill fails most often because the target PID already exited between
+        // the null-check and the call (idle-monitor.ts:129 treats the identical
+        // failure the same way) — the process.kill() fallback below recovers it.
+        logger.warn({ err: e }, `${this.logPrefix} taskkill failed (question detected)`);
         try {
           this.process.kill();
         } catch (killErr) {
@@ -354,7 +357,10 @@ export class ClaudeCodeAgent extends BaseAgent {
             logger.info(`${this.logPrefix} Process ${pid} killed via taskkill`);
           }
         } catch (e) {
-          logger.error({ err: e }, `${this.logPrefix} taskkill failed`);
+          // Same benign race as killProcessForQuestion() above — the fallback
+          // below recovers it, and idle-monitor.ts already logs the identical
+          // failure at warn.
+          logger.warn({ err: e }, `${this.logPrefix} taskkill failed`);
           try {
             this.process.kill();
           } catch (killErr) {
