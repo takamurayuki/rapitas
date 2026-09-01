@@ -231,6 +231,12 @@ ${
     fullPrompt += `curl -X PUT http://127.0.0.1:${process.env.PORT || '3001'}/workflow/tasks/${taskId}/files/${transition.outputFile} \\\n`;
     fullPrompt += `  -H 'Content-Type: application/json' \\\n`;
     fullPrompt += `  -d '{"content":"${cliT.contentPlaceholder}"}'\n\`\`\`\n\n`;
+    if (transition.outputFile === 'verify') {
+      fullPrompt +=
+        language === 'ja'
+          ? '保存後の自動処理（品質ゲート・敵対的レビュー・コミット/PR作成）には数分かかる場合があります。同じ内容を再送信しないでください。\n\n'
+          : 'The post-save automation (quality gate, adversarial review, commit/PR creation) can take several minutes. Do not resend the same content.\n\n';
+    }
     fullPrompt += `${cliT.powershellCommand}\n\`\`\`powershell\n`;
     fullPrompt += `$content = @'\n${cliT.contentPlaceholder}\n'@\n`;
     fullPrompt += `$body = @{ content = $content } | ConvertTo-Json -Depth 10\n`;

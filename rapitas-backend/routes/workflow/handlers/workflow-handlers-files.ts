@@ -104,7 +104,12 @@ export async function handleSaveFile({
     // NOTE: guardStatusTransition may fast-forward draft → research_done and
     // mutates resolved.task.workflowStatus in place — currentStatus below must
     // be read AFTER this call so it sees the fast-forwarded value.
-    const currentStatusForGuard = await guardStatusTransition(taskId, fileType, resolved);
+    const guardResult = await guardStatusTransition(taskId, fileType, resolved);
+    if (!guardResult.ok) {
+      set.status = guardResult.httpStatus;
+      return guardResult.body;
+    }
+    const currentStatusForGuard = guardResult.status;
 
     await guardParentSubtasksTerminal(taskId, fileType, currentStatusForGuard);
 
