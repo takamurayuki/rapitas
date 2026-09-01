@@ -607,7 +607,6 @@ export async function spawnCodexProcess(
             true,
           );
         }
-
         // Handle cancelled state
         if (state.status === 'cancelled') {
           resolve({
@@ -615,6 +614,7 @@ export async function spawnCodexProcess(
             output: state.outputBuffer,
             errorMessage: 'Execution cancelled',
             executionTimeMs,
+            failureType: 'cancelled',
           });
           return;
         }

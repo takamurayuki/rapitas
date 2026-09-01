@@ -126,6 +126,7 @@ export type AgentExecutionResult = {
     | 'type_error'
     | 'timeout'
     | 'wall_clock_timeout'
+    | 'cancelled'
     | 'unknown';
   /** Real cost (USD) reported by Claude Code's stream-json `result` event. */
   costUsd?: number;
