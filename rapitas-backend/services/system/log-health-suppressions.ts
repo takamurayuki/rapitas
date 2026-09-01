@@ -207,6 +207,19 @@ const SUPPRESSIONS: Suppression[] = [
     because:
       'taskkillの第一試行失敗は対象PIDが既に終了済みのレースが大半で、process.kill()フォールバックが回復する — フォールバックも失敗した場合は別シグネチャで可視化される',
   },
+  {
+    // ログ出力箇所: auto-run-idle-timer.ts:300-303 の stopThemeForIdleTimeout。
+    // 新規起票が無いテーマの自動実行を安全側に停止する、設計どおりのidle-stop処理
+    // (task 784)。DB更新に成功した後の記録ログであり、直前のDB書き込み失敗
+    // ('stopThemeForIdleTimeout write failed', 同ファイル297行目)とは別文言のため
+    // 本ルールでは対象外のまま残り、書き込み失敗の可視性は失われない。停止は
+    // 同一関数内で logCycleEvent('auto_run.idle_stopped', …) と notifyIdleStopped()
+    // により、サイクルログ・in-app通知の2経路で既に可視化されている（#823）。
+    test: /Idle-stop timer expired for theme # \(enabled=false\)/i,
+    logger: /auto-run:idle-timer/i,
+    because:
+      'idle-stopタイマーが満了しテーマの自動実行を停止した設計どおりの記録 — logCycleEventとnotifyIdleStoppedで既に可視化されている',
+  },
 ];
 
 /** Result of classifying one log signature. */
