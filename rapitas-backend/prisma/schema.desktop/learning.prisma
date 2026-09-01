@@ -70,13 +70,14 @@ model StudyStreak {
 // Deliberately no FK to StudyGoal: history must survive goal deletion, same
 // rationale as VocabReviewLog.
 model StudySession {
-  id        Int      @id @default(autoincrement())
-  goalId    Int? // StudyGoal.id at recording time (no FK by design)
-  minutes   Int
-  source    String   @default("manual") // manual | pomodoro | vocab
-  note      String?
-  studiedAt DateTime @default(now())
-  createdAt DateTime @default(now())
+  id                Int      @id @default(autoincrement())
+  goalId            Int? // StudyGoal.id at recording time (no FK by design)
+  minutes           Int
+  source            String   @default("manual") // manual | pomodoro | vocab
+  note              String?
+  studiedAt         DateTime @default(now())
+  createdAt         DateTime @default(now())
+  pomodoroSessionId Int?     @unique // PomodoroSession.id at recording time (no FK by design, dedup key for automatic pomodoro study-time recording)
 
   @@index([studiedAt])
   @@index([goalId, studiedAt])

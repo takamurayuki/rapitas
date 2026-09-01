@@ -72,7 +72,10 @@ export function useStudyGoals() {
   );
 
   const updateGoal = useCallback(
-    async (id: number, patch: Partial<StudyGoalDraft> & { status?: StudyGoalStatus }) => {
+    async (
+      id: number,
+      patch: Partial<StudyGoalDraft> & { status?: StudyGoalStatus; themeId?: number | null },
+    ) => {
       try {
         const body: Record<string, unknown> = { ...patch };
         if (patch.title !== undefined) body.title = patch.title.trim();
