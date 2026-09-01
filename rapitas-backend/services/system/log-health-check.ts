@@ -137,12 +137,40 @@ const COMMAND_ARGS_RE = /\s--\S[^\n]*/g;
 const GIT_POSITIONAL_ARGS_RE = /(git command failed: git \S+)[^\n]*/;
 
 /**
+ * Matches "Process exited with code N" — see PROCESS_EXIT_ANCHOR usage below.
+ */
+const PROCESS_EXIT_ANCHOR_RE = /Process exited with code \d+/;
+
+/**
+ * Folds the unlabeled CLI-transcript tail that execution-resolver.ts (and the
+ * sibling codex/gemini runners) append straight after "Process exited with
+ * code N" — arbitrary conversation/tool-output text that differs on every
+ * failing run even when the underlying cause repeats, so left as-is it makes
+ * the same recurring failure file a brand new concern every time (K-8332,
+ * task #806, measured 2026-08-31). Labeled sections the resolver may still
+ * append (【Standard Error Output】, 【Session Resume Mode】, …) are kept
+ * verbatim — they can distinguish genuinely different causes — only the
+ * unlabeled runs of text between/after them collapse to one placeholder.
+ */
+function foldProcessExitTail(msg: string): string {
+  const anchor = PROCESS_EXIT_ANCHOR_RE.exec(msg);
+  if (!anchor) return msg;
+  const head = msg.slice(0, anchor.index);
+  const rest = msg.slice(anchor.index + anchor[0].length);
+  const labelIdx = rest.indexOf('【');
+  const tail = labelIdx === -1 ? rest : rest.slice(0, labelIdx);
+  const afterLabel = labelIdx === -1 ? '' : rest.slice(labelIdx);
+  const folded = tail.trim() ? ' …' : tail;
+  return `${head}Process exited with code #${folded}${afterLabel}`;
+}
+
+/**
  * Normalizes a message so volatile parts (ids, counts, hex) collapse, letting
  * "task 12 failed" and "task 34 failed" group together.
  */
 export function normalizeMessage(raw: string): string {
   return (
-    raw
+    foldProcessExitTail(raw)
       .replace(UUID_RE, '#') // whole UUIDs first — see UUID_RE
       // A JSON payload carries the whole variable state of a failure. Left in,
       // one repeating cause becomes a new signature per occurrence: measured
