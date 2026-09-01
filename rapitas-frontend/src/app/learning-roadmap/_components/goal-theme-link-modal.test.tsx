@@ -41,7 +41,7 @@ describe('GoalThemeLinkModal', () => {
     render(
       <GoalThemeLinkModal goal={baseGoal} themes={themes} onSave={vi.fn()} onClose={vi.fn()} />,
     );
-    const select = screen.getByRole('combobox') as HTMLSelectElement;
+    const select = screen.getByRole('combobox', { name: /themeLabel/ }) as HTMLSelectElement;
     expect(select.value).toBe('5');
   });
 
@@ -50,7 +50,9 @@ describe('GoalThemeLinkModal', () => {
     render(
       <GoalThemeLinkModal goal={baseGoal} themes={themes} onSave={onSave} onClose={vi.fn()} />,
     );
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: '' } });
+    fireEvent.change(screen.getByRole('combobox', { name: /themeLabel/ }), {
+      target: { value: '' },
+    });
     fireEvent.click(screen.getByText('save'));
     expect(onSave).toHaveBeenCalledWith(1, null);
   });
@@ -60,7 +62,9 @@ describe('GoalThemeLinkModal', () => {
     render(
       <GoalThemeLinkModal goal={baseGoal} themes={themes} onSave={onSave} onClose={vi.fn()} />,
     );
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: '6' } });
+    fireEvent.change(screen.getByRole('combobox', { name: /themeLabel/ }), {
+      target: { value: '6' },
+    });
     fireEvent.click(screen.getByText('save'));
     expect(onSave).toHaveBeenCalledWith(1, 6);
   });

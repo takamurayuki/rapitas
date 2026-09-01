@@ -109,7 +109,10 @@
       "description": "このテーマ配下のタスクでポモドーロ（作業）を完了すると、自動的に学習時間として記録されます。",
       "themeLabel": "テーマ",
       "unlinkedOption": "紐づけなし",
-      "noThemesWarning": "テーマがまだありません"
+      "noThemesWarning": "テーマがまだありません",
+      "categoryLabel": "カテゴリ",
+      "allCategories": "すべてのカテゴリ",
+      "uncategorized": "未分類"
     }
   }
 }

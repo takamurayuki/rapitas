@@ -4008,7 +4008,10 @@
       "description": "Completed work pomodoros on tasks under this theme are automatically logged as study time.",
       "themeLabel": "Theme",
       "unlinkedOption": "No theme",
-      "noThemesWarning": "No themes yet"
+      "noThemesWarning": "No themes yet",
+      "categoryLabel": "Category",
+      "allCategories": "All categories",
+      "uncategorized": "Uncategorized"
     }
   },
   "vocabulary": {
