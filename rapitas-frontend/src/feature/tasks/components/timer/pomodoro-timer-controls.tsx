@@ -14,7 +14,6 @@
 'use client';
 import { Play, Pause, Square, Check, AlarmClockPlus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import IconButton from '@/components/ui/button/IconButton';
 
 interface PomodoroTimerControlsProps {
   isBreakTime: boolean;
@@ -42,7 +41,11 @@ const TINT_INDIGO =
 const TINT_GREEN =
   'bg-green-50 text-green-600 hover:bg-green-100 ' +
   'dark:bg-green-500/15 dark:text-green-400 dark:hover:bg-green-500/25';
-const RING_SQUARE = 'rounded-lg border border-zinc-300 dark:border-zinc-600';
+// Neutral tint: same face language as the colored actions, hue carries the
+// priority (saturated = state-changing, zinc = auxiliary).
+const TINT_ZINC =
+  'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700 ' +
+  'dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200';
 
 export default function PomodoroTimerControls({
   isBreakTime,
@@ -111,25 +114,24 @@ export default function PomodoroTimerControls({
       >
         <Check className="h-5 w-5" />
       </button>
-      {/* Checkpoint/cancel stay as uniform ring-ghost squares. */}
-      <IconButton
+      <button
+        type="button"
         onClick={onCheckpoint}
-        variant="ghost"
-        size="lg"
-        className={RING_SQUARE}
-        icon={<AlarmClockPlus />}
+        className={`${TINT_BASE} ${TINT_ZINC} p-2.5`}
         aria-label={t('checkpointButton')}
         title={t('checkpointTooltip')}
-      />
-      <IconButton
+      >
+        <AlarmClockPlus className="h-5 w-5" />
+      </button>
+      <button
+        type="button"
         onClick={onStop}
-        variant="ghost"
-        size="lg"
-        className={RING_SQUARE}
-        icon={<Square />}
+        className={`${TINT_BASE} ${TINT_ZINC} p-2.5`}
         aria-label={t('cancel')}
         title={t('cancelTooltip')}
-      />
+      >
+        <Square className="h-5 w-5" />
+      </button>
     </div>
   );
 }
