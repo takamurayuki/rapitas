@@ -261,6 +261,7 @@ jobs:
           src/components/__tests__/LanguageSwitcher.test.tsx
           src/components/copilot/__tests__/CopilotChatPanel.test.tsx
           src/feature/tasks/components/__tests__/TaskCard.test.tsx
+          src/feature/tasks/components/timer/PomodoroTimer.test.tsx
           src/app/ideas/_components/__tests__/IdeaBoxHeader.test.tsx
           src/app/ideas/_components/__tests__/IdeasClient.test.tsx
           src/hooks/__tests__/useBackendHealth.test.ts
