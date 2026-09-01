@@ -72,6 +72,15 @@ const SUPPRESSED: [string, string][] = [
   ['claude-code-agent', 'Command failed: taskkill /PID # /T /F'],
   ['codex-cli-agent', 'Command failed: taskkill /PID # /T /F'],
   ['gemini-cli-agent:process-manager', 'Command failed: taskkill /PID # /T /F'],
+  [
+    'git-operations/worktree-ops',
+    "Command failed: git worktree remove <path> … fatal: '<path>' is not a working tree",
+  ],
+  [
+    'auto-run:idle-timer',
+    '[auto-run-idle-timer] Idle-stop timer expired for theme # (enabled=false)',
+  ],
+  ['routes:workflow:auto-commit', '[Workflow] Worktree cleanup failed: <path>'],
 ];
 
 const KEPT: [string, string][] = [
@@ -88,6 +97,17 @@ const KEPT: [string, string][] = [
   ['routes:workflow:auto-commit', 'Automated verification failed — aborting PR review'],
   ['memory:task-queue', 'Stuck processing task moved to dead_letter'],
   ['claude-code-agent', 'process.kill() also failed'],
+  [
+    'git-operations/worktree-ops',
+    "Command failed: git worktree remove <path> … error: failed to delete '<path>': Permission denied",
+  ],
+  ['git-operations/worktree-ops', 'Could not remove <path> after retries (held handles)'],
+  ['git-operations/worktree-ops', 'REFUSED fs cleanup: <path> contains .git directory'],
+  ['auto-run:idle-timer', '[auto-run-idle-timer] stopThemeForIdleTimeout write failed'],
+  [
+    'git-operations/worktree-ops',
+    '[cleanupOrphanedWorktrees] Failed to remove orphaned directory after retries: <path>',
+  ],
 ];
 
 describe('classifyLogSignature', () => {
@@ -199,5 +219,69 @@ describe('classifyLogSignature', () => {
     expect(classifyLogSignature('claude-code-agent', 'process.kill() also failed').suppressed).toBe(
       false,
     );
+  });
+
+  test('"git worktree remove ... is not a working tree" is scoped to the worktree-ops logger only', () => {
+    // Task #824: an unrelated logger reusing this phrase must still be filed.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        "Command failed: git worktree remove <path> … fatal: '<path>' is not a working tree",
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('a Permission Denied worktree-remove failure (K-7336) stays visible', () => {
+    // Task #824: only the "is not a working tree" fallback is a no-op self-heal.
+    // A Permission Denied failure means the fs fallback did not run cleanly and
+    // must not be hidden by this rule.
+    expect(
+      classifyLogSignature(
+        'git-operations/worktree-ops',
+        "Command failed: git worktree remove <path> … error: failed to delete '<path>': Permission denied",
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"Idle-stop timer expired" is scoped to the auto-run:idle-timer logger only', () => {
+    // Task #823: an unrelated logger reusing this phrase must still be filed.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        '[auto-run-idle-timer] Idle-stop timer expired for theme # (enabled=false)',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('a failed idle-stop DB write stays visible even though the expiry record is suppressed', () => {
+    // Task #823: only the successful stop record is suppressed. If the DB
+    // update itself fails, that is a distinct, unsuppressed signature — the
+    // real-defect case must not be hidden.
+    expect(
+      classifyLogSignature(
+        'auto-run:idle-timer',
+        '[auto-run-idle-timer] stopThemeForIdleTimeout write failed',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"[Workflow] Worktree cleanup failed" is scoped to routes:workflow:auto-commit only', () => {
+    // Task #821/K-8422: an unrelated logger reusing this phrasing must still be filed.
+    expect(
+      classifyLogSignature('some-other-logger', '[Workflow] Worktree cleanup failed: <path>')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('a permanently stuck worktree removal stays visible via the scheduler signature', () => {
+    // Task #821: the immediate-attempt warn is suppressed because the 30-minute
+    // cleanupOrphanedWorktrees scheduler retries, but a retry-exhausted failure
+    // from that scheduler is a distinct, unsuppressed signature.
+    expect(
+      classifyLogSignature(
+        'git-operations/worktree-ops',
+        '[cleanupOrphanedWorktrees] Failed to remove orphaned directory after retries: <path>',
+      ).suppressed,
+    ).toBe(false);
   });
 });
