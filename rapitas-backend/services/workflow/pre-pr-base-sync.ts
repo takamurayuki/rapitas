@@ -162,8 +162,13 @@ export async function resolveConflictsWithAuxCli(p: {
     const { runGitCommand } = await import('../github/git-exec');
     await runGitCommand(['add', '-A'], p.gitCwd);
     // core.editor=true keeps `merge --continue` non-interactive (it otherwise
-    // opens an editor for the merge commit message).
-    await runGitCommand(['-c', 'core.editor=true', 'merge', '--continue'], p.gitCwd);
+    // opens an editor for the merge commit message). skipLog suppresses the
+    // generic runGitCommand ERROR log — a failure here is fully handled by
+    // the catch below (log.warn at line ~176), same rationale as the
+    // merge --abort calls in syncBaseIntoBranch (task 689).
+    await runGitCommand(['-c', 'core.editor=true', 'merge', '--continue'], p.gitCwd, {
+      skipLog: true,
+    });
     return true;
   } catch (err) {
     if (err instanceof Error && err.name === 'ClaudeCliUnavailableError') {
