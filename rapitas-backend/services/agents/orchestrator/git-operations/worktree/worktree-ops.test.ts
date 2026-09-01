@@ -114,7 +114,8 @@ mock.module('../../../../../utils/common/branch-name-generator', () => ({
     new RegExp(`(?:^|[/-])t${taskId}(?:[/-]|$)`).test(branchName),
 }));
 
-const { cleanupOrphanedWorktrees, removeWorktree, rmDirWithRetry } = await import('./worktree-ops');
+const { cleanupOrphanedWorktrees, cleanupStaleWorktrees, removeWorktree, rmDirWithRetry } =
+  await import('./worktree-ops');
 
 // ---------------------------------------------------------------------------
 // rmDirWithRetry
@@ -251,6 +252,16 @@ describe('removeWorktree', () => {
     expect(mockClearWorktreeDependenciesTracking).toHaveBeenCalledWith(mockWorktreePath);
   });
 
+  test('passes a timeout on the git worktree remove call so a hang cannot block the phase (#809)', async () => {
+    await removeWorktree(mockBaseDir, mockWorktreePath, false);
+    const removeCall = mockExecFile.mock.calls.find((c) => {
+      const argv = Array.isArray(c[1]) ? (c[1] as string[]) : [];
+      return [c[0], ...argv].join(' ').includes('git worktree remove');
+    });
+    const opts = removeCall?.[2] as { timeout?: number } | undefined;
+    expect(opts?.timeout).toBe(60_000);
+  });
+
   test('attempts rm when git worktree remove fails and directory exists', async () => {
     mockExecFile.mockImplementation(
       (file: string, args: unknown, options: unknown, callback?: unknown) => {
@@ -384,6 +395,19 @@ branch refs/heads/feature/task-123
         return { kill: mock(() => undefined) };
       },
     );
+  });
+
+  test('passes a timeout on the git worktree list call so a hang cannot block cleanup (#809)', async () => {
+    // The filesystem-orphan scan (which issues the `git worktree list` call
+    // under test) only runs when the worktree root exists.
+    mockExistsSync.mockImplementation(() => true);
+    await cleanupOrphanedWorktrees(mockBaseDir);
+    const listCall = mockExecFile.mock.calls.find((c) => {
+      const argv = Array.isArray(c[1]) ? (c[1] as string[]) : [];
+      return [c[0], ...argv].join(' ').includes('git worktree list --porcelain');
+    });
+    const opts = listCall?.[2] as { timeout?: number } | undefined;
+    expect(opts?.timeout).toBe(60_000);
   });
 
   test('cleans up database-tracked orphaned worktrees', async () => {
@@ -550,5 +574,42 @@ branch refs/heads/feature/task-123
       recursive: true,
       force: true,
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// cleanupStaleWorktrees
+// ---------------------------------------------------------------------------
+
+describe('cleanupStaleWorktrees', () => {
+  const mockBaseDir = '/test/repo';
+
+  beforeEach(() => {
+    mockExecFile.mockReset();
+    worktreeListStdout = `worktree /test/repo
+HEAD abcd1234
+
+`;
+    mockExecFile.mockImplementation(
+      (file: string, args: unknown, options: unknown, callback?: unknown) => {
+        const argv = Array.isArray(args) ? (args as string[]) : [];
+        const cb = (typeof options === 'function' ? options : callback) as
+          | ((error: Error | null, result: unknown) => void)
+          | undefined;
+        const command = [file, ...argv].join(' ');
+        cb?.(null, makeExecResult(command));
+        return { kill: mock(() => undefined) };
+      },
+    );
+  });
+
+  test('passes a timeout on the git worktree prune call so a hang cannot block startup (#809)', async () => {
+    await cleanupStaleWorktrees(mockBaseDir);
+    const pruneCall = mockExecFile.mock.calls.find((c) => {
+      const argv = Array.isArray(c[1]) ? (c[1] as string[]) : [];
+      return [c[0], ...argv].join(' ') === 'git worktree prune';
+    });
+    const opts = pruneCall?.[2] as { timeout?: number } | undefined;
+    expect(opts?.timeout).toBe(60_000);
   });
 });

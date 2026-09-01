@@ -23,6 +23,14 @@ import { ghPath } from './gh-cli-path';
 const execFileAsync = promisify(execFile);
 const logger = createLogger('git-operations/pr-merge-ops');
 
+// Local git reads/writes normally finish in well under a second; 60s leaves
+// generous headroom while still bounding a lock-contention or auth-prompt
+// hang so the implementer phase can't sit blocked past its wall-clock budget.
+const GIT_OP_TIMEOUT_MS = 60_000;
+// `gh` calls and `git pull` hit the network; 120s gives real requests
+// headroom while still bounding a hang so the phase can't stall on it.
+const GIT_SLOW_OP_TIMEOUT_MS = 120_000;
+
 /**
  * Auto-merge a pull request.
  * Uses squash merge when commit count >= threshold, otherwise merge commit.
@@ -53,7 +61,7 @@ export async function mergePullRequest(
     const { stdout } = await execFileAsync(
       ghPath(),
       ['pr', 'view', String(prNumber), '--json', 'commits', '--jq', '.commits | length'],
-      { cwd: workingDirectory, encoding: 'utf8' },
+      { cwd: workingDirectory, encoding: 'utf8', timeout: GIT_SLOW_OP_TIMEOUT_MS },
     );
     const commitCount = parseInt(stdout.trim(), 10) || 1;
     const mergeStrategy = commitCount >= commitThreshold ? 'squash' : 'merge';
@@ -62,6 +70,7 @@ export async function mergePullRequest(
     await execFileAsync(ghPath(), ['pr', 'merge', String(prNumber), mergeFlag, '--delete-branch'], {
       cwd: workingDirectory,
       encoding: 'utf8',
+      timeout: GIT_SLOW_OP_TIMEOUT_MS,
     });
 
     // Post-merge local sync. On the PRIMARY checkout this `git checkout` + pull
@@ -89,8 +98,14 @@ export async function mergePullRequest(
         // MERGE_HEAD/CHERRY_PICK_HEAD — self-heal first so it doesn't fail
         // with git's "you need to resolve your current index first".
         await recoverFromUnresolvedMerge(workingDirectory);
-        await execFileAsync('git', ['checkout', baseBranch], { cwd: workingDirectory });
-        await execFileAsync('git', ['pull'], { cwd: workingDirectory });
+        await execFileAsync('git', ['checkout', baseBranch], {
+          cwd: workingDirectory,
+          timeout: GIT_OP_TIMEOUT_MS,
+        });
+        await execFileAsync('git', ['pull'], {
+          cwd: workingDirectory,
+          timeout: GIT_SLOW_OP_TIMEOUT_MS,
+        });
       }
     }
 
@@ -105,6 +120,7 @@ export async function mergePullRequest(
         await execFileAsync(ghPath(), ['pr', 'update-branch', String(prNumber)], {
           cwd: workingDirectory,
           encoding: 'utf8',
+          timeout: GIT_SLOW_OP_TIMEOUT_MS,
         });
         return {
           success: false,

@@ -24,6 +24,11 @@ import { preflightWorktree } from './worktree-preflight';
 const execFileAsync = promisify(execFile);
 const logger = createLogger('git-operations/worktree-ops');
 
+// Local git reads/writes normally finish in well under a second; 60s leaves
+// generous headroom while still bounding a lock-contention or auth-prompt
+// hang so the implementer phase can't sit blocked past its wall-clock budget.
+const GIT_OP_TIMEOUT_MS = 60_000;
+
 /**
  * Create a git worktree with a new branch for isolated task execution.
  *
@@ -63,9 +68,11 @@ export async function createWorktree(
     // lists them). Otherwise a removed worktree makes its branch look "in use"
     // below and forces a divergent unique branch — orphaning the PR's commits on
     // a ci_repair re-run that means to reuse the existing feature branch.
-    await execFileAsync('git', ['worktree', 'prune'], { cwd: baseDir, encoding: 'utf8' }).catch(
-      () => {},
-    );
+    await execFileAsync('git', ['worktree', 'prune'], {
+      cwd: baseDir,
+      encoding: 'utf8',
+      timeout: GIT_OP_TIMEOUT_MS,
+    }).catch(() => {});
 
     // Ground-truth reuse: if THIS task already has a live worktree registered
     // in git, reuse it directly instead of going through branch-name
@@ -85,7 +92,7 @@ export async function createWorktree(
         const { stdout: worktreeList } = await execFileAsync(
           'git',
           ['worktree', 'list', '--porcelain'],
-          { cwd: baseDir, encoding: 'utf8' },
+          { cwd: baseDir, encoding: 'utf8', timeout: GIT_OP_TIMEOUT_MS },
         );
         const taskDirPattern = new RegExp(`[\\\\/]task-${taskId}-[^\\\\/]+$`);
         for (const line of worktreeList.split('\n')) {
@@ -115,6 +122,7 @@ export async function createWorktree(
         {
           cwd: baseDir,
           encoding: 'utf8',
+          timeout: GIT_OP_TIMEOUT_MS,
         },
       );
 
@@ -156,6 +164,7 @@ export async function createWorktree(
       {
         cwd: baseDir,
         encoding: 'utf8',
+        timeout: GIT_OP_TIMEOUT_MS,
       },
     );
 
@@ -166,6 +175,7 @@ export async function createWorktree(
       await execFileAsync('git', ['worktree', 'add', worktreePath, effectiveBranchName], {
         cwd: baseDir,
         encoding: 'utf8',
+        timeout: GIT_OP_TIMEOUT_MS,
       });
     } else {
       let parentBranch = 'develop';
@@ -180,6 +190,7 @@ export async function createWorktree(
         const originExists = await execFileAsync('git', ['branch', '-r', '--list', originRef], {
           cwd: baseDir,
           encoding: 'utf8',
+          timeout: GIT_OP_TIMEOUT_MS,
         })
           .then((r) => !!r.stdout.trim())
           .catch(() => false);
@@ -189,6 +200,7 @@ export async function createWorktree(
           const localExists = await execFileAsync('git', ['branch', '--list', baseBranch], {
             cwd: baseDir,
             encoding: 'utf8',
+            timeout: GIT_OP_TIMEOUT_MS,
           })
             .then((r) => !!r.stdout.trim())
             .catch(() => false);
@@ -211,12 +223,14 @@ export async function createWorktree(
             {
               cwd: baseDir,
               encoding: 'utf8',
+              timeout: GIT_OP_TIMEOUT_MS,
             },
           );
           if (!developCheck.trim()) {
             const { stdout: mainCheck } = await execFileAsync('git', ['branch', '--list', 'main'], {
               cwd: baseDir,
               encoding: 'utf8',
+              timeout: GIT_OP_TIMEOUT_MS,
             });
             parentBranch = mainCheck.trim() ? 'main' : 'master';
           }
@@ -234,6 +248,7 @@ export async function createWorktree(
         {
           cwd: baseDir,
           encoding: 'utf8',
+          timeout: GIT_OP_TIMEOUT_MS,
         },
       );
     }
@@ -255,6 +270,7 @@ export async function createWorktree(
         {
           cwd: worktreePath,
           encoding: 'utf8',
+          timeout: GIT_OP_TIMEOUT_MS,
         },
       );
       let excludePath = excludeRel.trim();

@@ -453,13 +453,13 @@ export function runClaudeExecution(
       );
       logger.info(`${agent.logPrefix} Final output length: ${agent.outputBuffer.length}`);
       logger.info(`${agent.logPrefix} Last 500 chars of output: ${agent.outputBuffer.slice(-500)}`);
-
       if (agent.getStatus() === 'cancelled') {
         resolve({
           success: false,
           output: agent.outputBuffer,
           errorMessage: 'Execution cancelled',
           executionTimeMs,
+          failureType: 'cancelled',
         });
         return;
       }

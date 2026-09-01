@@ -146,6 +146,47 @@ describe('determineExecutionStatus()', () => {
       errorMessage: 'boom',
     });
   });
+
+  // #808: 意図的なキャンセル終了は failed(ERROR) ではなく cancelled(WARN) に分類する
+  test('failureType=cancelled → cancelled に遷移し、logExecutionEnd を cancelled で呼ぶ', () => {
+    const state = makeState();
+    const fileLogger = makeFileLogger();
+
+    const status = determineExecutionStatus(
+      {
+        success: false,
+        errorMessage: 'Execution cancelled',
+        failureType: 'cancelled',
+        tokensUsed: 3,
+        executionTimeMs: 4,
+      },
+      fileLogger,
+      state,
+    );
+
+    expect(status).toBe('cancelled');
+    expect(state.status).toBe('cancelled');
+    expect(fileLogger.logExecutionEnd).toHaveBeenCalledWith('cancelled', {
+      success: false,
+      tokensUsed: 3,
+      executionTimeMs: 4,
+      errorMessage: 'Execution cancelled',
+    });
+  });
+
+  test('waitingForInput=true かつ failureType=cancelled → waiting_for_input を優先する', () => {
+    const state = makeState();
+    const fileLogger = makeFileLogger();
+
+    const status = determineExecutionStatus(
+      { success: false, waitingForInput: true, failureType: 'cancelled' },
+      fileLogger,
+      state,
+    );
+
+    expect(status).toBe('waiting_for_input');
+    expect(fileLogger.logExecutionEnd).not.toHaveBeenCalled();
+  });
 });
 
 // ── saveExecutionResult() ────────────────────────────────────────────────────

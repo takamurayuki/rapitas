@@ -199,6 +199,7 @@ export class GeminiCliAgent extends BaseAgent {
                 output: this.outputBuffer,
                 errorMessage: 'Execution cancelled',
                 executionTimeMs: Date.now() - startTime,
+                failureType: 'cancelled',
                 ...resourceStats,
               });
               return;
