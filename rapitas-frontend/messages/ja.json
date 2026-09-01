@@ -725,7 +725,8 @@
       "pending": "CI: 実行中",
       "noChecks": "CI: 設定なし",
       "unknown": "CI: 不明",
-      "viewPrTooltip": "PR #{number} を開く"
+      "viewPrTooltip": "PR #{number} を開く",
+      "viewCiTooltip": "PR #{number} のCI実行を表示"
     },
     "preview": {
       "title": "ライブプレビュー",
@@ -2288,7 +2289,11 @@
       "noRunsHint": "プッシュやプルリクエストでCIが走ると、ここに表示されます。",
       "noIntegrationsTitle": "連携済みのリポジトリがありません",
       "noIntegrationsHint": "リポジトリを連携すると、CIの実行状況をここで確認できます。",
-      "linkRepository": "リポジトリを連携"
+      "linkRepository": "リポジトリを連携",
+      "filteredByBranch": "このブランチのCI実行のみ表示中",
+      "clearFilter": "絞り込みを解除",
+      "runCount": "{count}件のワークフロー",
+      "noRunsForBranch": "このブランチのCI実行はありません"
     },
     "error": {
       "title": "GitHub でエラーが発生しました",

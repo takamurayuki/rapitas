@@ -89,7 +89,9 @@ export const pullRequestReadRoutes = new Elysia()
   .get('/pull-requests/by-task/:taskId', async (context) => {
     const { taskId } = context.params as { taskId: string };
     const tid = parseInt(taskId);
-    const select = { id: true, prNumber: true, url: true, state: true } as const;
+    // headBranch: lets the task-detail CI badge deep-link into the CI/CD view
+    // filtered to this PR's branch instead of the PR page.
+    const select = { id: true, prNumber: true, url: true, state: true, headBranch: true } as const;
 
     let pr = await prisma.gitHubPullRequest.findFirst({
       where: { linkedTaskId: tid },

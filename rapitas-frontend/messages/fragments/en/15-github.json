@@ -77,7 +77,11 @@
       "noRunsHint": "Runs will appear here once CI triggers from a push or pull request.",
       "noIntegrationsTitle": "No linked repositories",
       "noIntegrationsHint": "Link a repository to see its CI run status here.",
-      "linkRepository": "Link repository"
+      "linkRepository": "Link repository",
+      "filteredByBranch": "Showing CI runs for this branch only",
+      "clearFilter": "Clear filter",
+      "runCount": "{count} workflows",
+      "noRunsForBranch": "No CI runs for this branch"
     },
     "error": {
       "title": "An error occurred in GitHub",

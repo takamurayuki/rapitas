@@ -252,7 +252,8 @@
       "pending": "CI: 実行中",
       "noChecks": "CI: 設定なし",
       "unknown": "CI: 不明",
-      "viewPrTooltip": "PR #{number} を開く"
+      "viewPrTooltip": "PR #{number} を開く",
+      "viewCiTooltip": "PR #{number} のCI実行を表示"
     },
     "preview": {
       "title": "ライブプレビュー",

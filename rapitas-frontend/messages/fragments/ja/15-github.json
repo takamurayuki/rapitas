@@ -77,7 +77,11 @@
       "noRunsHint": "プッシュやプルリクエストでCIが走ると、ここに表示されます。",
       "noIntegrationsTitle": "連携済みのリポジトリがありません",
       "noIntegrationsHint": "リポジトリを連携すると、CIの実行状況をここで確認できます。",
-      "linkRepository": "リポジトリを連携"
+      "linkRepository": "リポジトリを連携",
+      "filteredByBranch": "このブランチのCI実行のみ表示中",
+      "clearFilter": "絞り込みを解除",
+      "runCount": "{count}件のワークフロー",
+      "noRunsForBranch": "このブランチのCI実行はありません"
     },
     "error": {
       "title": "GitHub でエラーが発生しました",

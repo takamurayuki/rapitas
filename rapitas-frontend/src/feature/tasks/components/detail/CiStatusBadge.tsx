@@ -94,8 +94,15 @@ export default function CiStatusBadge({ taskId }: { taskId: number }) {
     try {
       const res = await fetch(`${API_BASE_URL}/github/pull-requests/by-task/${taskId}`);
       if (!res.ok) return;
-      const pr = (await res.json()) as { id?: number };
-      if (pr.id != null) router.push(`/github/pull-requests/${pr.id}`);
+      const pr = (await res.json()) as { id?: number; headBranch?: string | null };
+      // A CI badge should land on the CI view (operator feedback: linking to
+      // the PR page reads as an inconsistency) — branch-filtered so only this
+      // PR's runs show. PR page stays the fallback for old rows w/o headBranch.
+      if (pr.headBranch) {
+        router.push(`/github/actions?branch=${encodeURIComponent(pr.headBranch)}`);
+      } else if (pr.id != null) {
+        router.push(`/github/pull-requests/${pr.id}`);
+      }
     } catch {
       /* not_synced/not_created — nothing to navigate to; badge stays as-is */
     }
@@ -110,7 +117,7 @@ export default function CiStatusBadge({ taskId }: { taskId: number }) {
       type="button"
       onClick={handleClick}
       className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-80 ${className}`}
-      title={t('viewPrTooltip', { number: data.prNumber ?? 0 })}
+      title={t('viewCiTooltip', { number: data.prNumber ?? 0 })}
     >
       <Icon className={`h-3.5 w-3.5 ${spin ? 'animate-spin' : ''}`} aria-hidden="true" />
       {t(labelKey)}
