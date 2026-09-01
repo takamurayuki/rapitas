@@ -164,44 +164,64 @@ export async function cleanupOrphanedWorktrees(
     logger.debug(
       `[cleanupOrphanedWorktrees] Found ${orphanedSessions.length} orphaned sessions with worktree paths`,
     );
-    let keptSessionCount = 0;
 
+    // NOTE: A single worktree directory (task-<id>-<hash>, see
+    // worktree-keep-list.ts) can be referenced by many AgentSession rows
+    // (retries, self-repair bounces). Grouping by worktreePath before calling
+    // removeWorktree avoids re-running git/setup-worktree.cjs once per row —
+    // without it, N sessions sharing one path produced N redundant
+    // removeWorktree calls (#825: 160 WARNs in ~81s for a single path).
+    const sessionsByPath = new Map<string, { id: number; status: string }[]>();
     for (const session of orphanedSessions) {
       if (!session.worktreePath) continue;
-      if (keepSet.has(normalizePath(session.worktreePath))) {
-        // Per-item "nothing to do" noise — one line per still-live task on
+      const group = sessionsByPath.get(session.worktreePath);
+      if (group) {
+        group.push({ id: session.id, status: session.status });
+      } else {
+        sessionsByPath.set(session.worktreePath, [{ id: session.id, status: session.status }]);
+      }
+    }
+
+    let keptSessionCount = 0;
+
+    for (const [worktreePath, sessions] of sessionsByPath) {
+      if (keepSet.has(normalizePath(worktreePath))) {
+        // Per-group "nothing to do" noise — one line per still-live task on
         // every cleanup cycle. Debug-only; see the summary after the loop.
         logger.debug(
-          `[cleanupOrphanedWorktrees] Skipping session ${session.id} worktree — owning task is still live: ${session.worktreePath}`,
+          `[cleanupOrphanedWorktrees] Skipping ${sessions.length} session(s) worktree — owning task is still live: ${worktreePath}`,
         );
-        keptSessionCount++;
+        keptSessionCount += sessions.length;
         continue;
       }
 
       try {
         // Remove the worktree if it exists
-        const removed = await removeWorktree(baseDir, session.worktreePath);
+        const removed = await removeWorktree(baseDir, worktreePath);
         if (removed) {
           cleanedCount++;
 
-          // Clear the worktreePath in the database
-          await prisma.agentSession.update({
-            where: { id: session.id },
+          // Clear worktreePath on EVERY session row sharing this path — not
+          // just the first — so none of them linger as future orphan
+          // candidates.
+          const sessionIds = sessions.map((s) => s.id);
+          await prisma.agentSession.updateMany({
+            where: { id: { in: sessionIds } },
             data: { worktreePath: null },
           });
 
           logger.info(
-            `[cleanupOrphanedWorktrees] Cleaned up worktree for session ${session.id} (${session.status}): ${session.worktreePath}`,
+            `[cleanupOrphanedWorktrees] Cleaned up worktree for ${sessions.length} session(s) (ids: ${sessionIds.join(',')}): ${worktreePath}`,
           );
         } else {
           logger.warn(
-            `[cleanupOrphanedWorktrees] removeWorktree refused for session ${session.id}: ${session.worktreePath}`,
+            `[cleanupOrphanedWorktrees] removeWorktree refused for ${sessions.length} session(s) (ids: ${sessions.map((s) => s.id).join(',')}): ${worktreePath}`,
           );
         }
       } catch (error) {
         logger.warn(
           { err: error },
-          `[cleanupOrphanedWorktrees] Failed to clean up session ${session.id} worktree: ${session.worktreePath}`,
+          `[cleanupOrphanedWorktrees] Failed to clean up ${sessions.length} session(s) (ids: ${sessions.map((s) => s.id).join(',')}) worktree: ${worktreePath}`,
         );
       }
     }

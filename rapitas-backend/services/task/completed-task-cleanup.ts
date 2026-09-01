@@ -72,25 +72,34 @@ async function deleteTaskWithArtifacts(taskId: number): Promise<void> {
       select: { id: true, worktreePath: true },
     });
     const baseDir = task?.workingDirectory ?? task?.theme?.workingDirectory ?? getProjectRoot();
+
+    // NOTE: Multiple AgentSession rows for this task can share one worktree
+    // directory (retries, self-repair bounces). Group by worktreePath before
+    // calling removeWorktree so a shared path is only torn down once — see
+    // the matching fix + rationale in worktree-cleanup.ts (#825).
+    const sessionsByPath = new Map<string, number[]>();
     for (const s of sessions) {
       if (!s.worktreePath) continue;
+      const ids = sessionsByPath.get(s.worktreePath);
+      if (ids) {
+        ids.push(s.id);
+      } else {
+        sessionsByPath.set(s.worktreePath, [s.id]);
+      }
+    }
+
+    for (const [worktreePath, sessionIds] of sessionsByPath) {
       try {
-        const removed = await removeWorktree(baseDir, s.worktreePath);
+        const removed = await removeWorktree(baseDir, worktreePath);
         if (removed) {
           await prisma.agentSession
-            .update({ where: { id: s.id }, data: { worktreePath: null } })
+            .updateMany({ where: { id: { in: sessionIds } }, data: { worktreePath: null } })
             .catch(() => {});
         } else {
-          log.warn(
-            { taskId, worktreePath: s.worktreePath },
-            '[cleanup] removeWorktree refused or failed',
-          );
+          log.warn({ taskId, worktreePath }, '[cleanup] removeWorktree refused or failed');
         }
       } catch (wtErr) {
-        log.warn(
-          { err: wtErr, taskId, worktreePath: s.worktreePath },
-          '[cleanup] worktree remove failed',
-        );
+        log.warn({ err: wtErr, taskId, worktreePath }, '[cleanup] worktree remove failed');
       }
     }
   } catch (err) {

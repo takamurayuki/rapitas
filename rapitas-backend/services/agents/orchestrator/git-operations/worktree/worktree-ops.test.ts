@@ -8,6 +8,7 @@ const mockPrisma = {
   agentSession: {
     findMany: mock(() => Promise.resolve([])),
     update: mock(() => Promise.resolve({})),
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
   },
   // computeWorktreeKeepPaths (used by cleanupOrphanedWorktrees's new liveness
   // guard) queries this — empty means "no live task owns any worktree here",
@@ -363,6 +364,7 @@ describe('cleanupOrphanedWorktrees', () => {
   beforeEach(() => {
     mockPrisma.agentSession.findMany.mockReset();
     mockPrisma.agentSession.update.mockReset();
+    mockPrisma.agentSession.updateMany.mockReset();
     mockPrisma.task.findMany.mockReset();
     mockExecFile.mockReset();
     mockExistsSync.mockReset();
@@ -372,6 +374,7 @@ describe('cleanupOrphanedWorktrees', () => {
 
     mockPrisma.agentSession.findMany.mockResolvedValue([]);
     mockPrisma.agentSession.update.mockResolvedValue({});
+    mockPrisma.agentSession.updateMany.mockResolvedValue({ count: 0 });
     mockPrisma.task.findMany.mockResolvedValue([]);
     mockExistsSync.mockImplementation(() => false);
     mockFsRm.mockResolvedValue(undefined);
@@ -438,7 +441,31 @@ branch refs/heads/feature/task-123
         status: true,
       },
     });
-    expect(mockPrisma.agentSession.update).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.agentSession.updateMany).toHaveBeenCalledTimes(2);
+  });
+
+  test('groups sessions sharing the same worktreePath: removeWorktree called once, all session ids cleared (#825)', async () => {
+    mockPrisma.agentSession.findMany.mockResolvedValue([
+      { id: 1, worktreePath: '/test/repo/.worktrees/task-621-abc', status: 'completed' },
+      { id: 2, worktreePath: '/test/repo/.worktrees/task-621-abc', status: 'failed' },
+      { id: 3, worktreePath: '/test/repo/.worktrees/task-621-abc', status: 'cancelled' },
+    ] as never);
+
+    const cleanedCount = await cleanupOrphanedWorktrees(mockBaseDir);
+
+    // One unique directory → one removeWorktree call and one cleanedCount increment,
+    // even though three session rows reference it.
+    expect(cleanedCount).toBe(1);
+    const removeWorktreeCalls = mockExecFile.mock.calls.filter((c) => {
+      const argv = Array.isArray(c[1]) ? (c[1] as string[]) : [];
+      return [c[0], ...argv].join(' ').includes('git worktree remove');
+    });
+    expect(removeWorktreeCalls).toHaveLength(1);
+    expect(mockPrisma.agentSession.updateMany).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.agentSession.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: [1, 2, 3] } },
+      data: { worktreePath: null },
+    });
   });
 
   test('skips a worktree whose AgentSession is terminal but the owning Task is still live', async () => {
@@ -462,7 +489,7 @@ branch refs/heads/feature/task-123
     const cleanedCount = await cleanupOrphanedWorktrees(mockBaseDir);
 
     expect(cleanedCount).toBe(0);
-    expect(mockPrisma.agentSession.update).not.toHaveBeenCalled();
+    expect(mockPrisma.agentSession.updateMany).not.toHaveBeenCalled();
   });
 
   test('continues processing multiple database-tracked worktrees', async () => {
@@ -482,7 +509,7 @@ branch refs/heads/feature/task-123
     const cleanedCount = await cleanupOrphanedWorktrees(mockBaseDir);
 
     expect(cleanedCount).toBe(2);
-    expect(mockPrisma.agentSession.update).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.agentSession.updateMany).toHaveBeenCalledTimes(2);
   });
 
   test('skips null worktree paths', async () => {
@@ -502,7 +529,7 @@ branch refs/heads/feature/task-123
     const cleanedCount = await cleanupOrphanedWorktrees(mockBaseDir);
 
     expect(cleanedCount).toBe(1);
-    expect(mockPrisma.agentSession.update).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.agentSession.updateMany).toHaveBeenCalledTimes(1);
   });
 
   test('filesystem orphan: EBUSY all attempts does not throw and cleanup loop continues', async () => {
