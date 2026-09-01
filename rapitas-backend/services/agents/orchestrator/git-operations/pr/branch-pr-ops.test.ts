@@ -10,6 +10,7 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 // Scripted exec: maps a matched command substring → stdout, or throws when the
 // value is an Error. Records every issued command for assertions.
 let calls: string[] = [];
+let callOpts: Array<{ cmd: string; opts: { timeout?: number } }> = [];
 let script: Array<{ match: RegExp; result: string | Error }> = [];
 // Controls the return value of the mocked findConflictingWorktreeForBranch.
 let conflictingWorktreePath: string | null = null;
@@ -27,8 +28,9 @@ let ghWithBodyCalls: Array<{
 }> = [];
 let ghWithBodyResult: string | Error = '';
 
-function runScripted(cmd: string): { stdout: string; stderr: string } {
+function runScripted(cmd: string, opts?: { timeout?: number }): { stdout: string; stderr: string } {
   calls.push(cmd);
+  if (opts) callOpts.push({ cmd, opts });
   for (const s of script) {
     if (s.match.test(cmd)) {
       if (s.result instanceof Error) throw s.result;
@@ -58,9 +60,10 @@ const execFileMockImpl = (
     e: Error | null,
     r?: unknown,
   ) => void;
+  const opts = typeof _opts === 'function' ? undefined : (_opts as { timeout?: number });
   const cmd = [file, ...argv].join(' ');
   try {
-    callback(null, runScripted(cmd));
+    callback(null, runScripted(cmd, opts));
   } catch (err) {
     callback(err as Error);
   }
@@ -123,6 +126,7 @@ const rejected = () =>
 
 beforeEach(() => {
   calls = [];
+  callOpts = [];
   script = [];
   conflictingWorktreePath = null;
   ghWithBodyCalls = [];
@@ -344,6 +348,21 @@ describe('createPullRequest — push 分岐耐性', () => {
     expect(create!.baseArgs[baseIdx + 1]).toBe('release');
   });
 
+  test('git push には長めのタイムアウトが設定されること (#809)', async () => {
+    ghWithBodyResult = 'https://github.com/x/y/pull/8';
+    script = [
+      { match: /git branch --list develop/, result: 'develop\n' },
+      { match: /git branch --show-current/, result: 'feature/timeout-check\n' },
+      { match: /git push -u origin feature\/timeout-check$/, result: '' },
+      { match: /pr list --head/, result: '' },
+    ];
+
+    await createPullRequest('/repo', 't', 'b');
+
+    const pushCall = callOpts.find((c) => /^git push -u origin/.test(c.cmd));
+    expect(pushCall?.opts.timeout).toBe(120_000);
+  });
+
   test('分岐以外の push 失敗 (認証等) は PR 失敗として返すこと', async () => {
     script = [
       { match: /git branch --list develop/, result: 'develop\n' },
@@ -500,6 +519,23 @@ describe('createBranch — worktree使用中チェック', () => {
     expect(calls.some((c) => /git checkout feature\/list-fail$/.test(c))).toBe(true);
   });
 
+  test('git checkout には短めのタイムアウトが設定されること (#809)', async () => {
+    script = [
+      {
+        match: /git branch --list feature\/checkout-timeout$/,
+        result: 'feature/checkout-timeout\n',
+      },
+      { match: /git checkout feature\/checkout-timeout$/, result: '' },
+    ];
+
+    await createBranch('/working-dir', 'feature/checkout-timeout');
+
+    const checkoutCall = callOpts.find((c) =>
+      /^git checkout feature\/checkout-timeout$/.test(c.cmd),
+    );
+    expect(checkoutCall?.opts.timeout).toBe(60_000);
+  });
+
   test('新規ブランチ作成（-b）は worktree チェックなしで実行されること（回帰確認）', async () => {
     script = [
       { match: /git branch --list feature\/new-branch$/, result: '' }, // 存在しない
@@ -546,5 +582,21 @@ describe('mergePullRequest — worktree使用中チェック', () => {
     expect(result.success).toBe(true);
     expect(calls.some((c) => /git checkout develop$/.test(c))).toBe(true);
     expect(calls.some((c) => /git pull$/.test(c))).toBe(true);
+  });
+
+  test('post-merge の checkout は短め、pull は長めのタイムアウトになること (#809)', async () => {
+    script = [
+      { match: /pr view \d+ --json commits/, result: '3\n' },
+      { match: /pr merge \d+ --merge --delete-branch/, result: '' },
+      { match: /git checkout develop$/, result: '' },
+      { match: /git pull$/, result: '' },
+    ];
+
+    await mergePullRequest('/working-dir', 1, 5, 'develop');
+
+    const checkoutCall = callOpts.find((c) => /^git checkout develop$/.test(c.cmd));
+    const pullCall = callOpts.find((c) => /^git pull$/.test(c.cmd));
+    expect(checkoutCall?.opts.timeout).toBe(60_000);
+    expect(pullCall?.opts.timeout).toBe(120_000);
   });
 });

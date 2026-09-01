@@ -21,6 +21,11 @@ export { getDiff } from './diff-structured';
 const execFileAsync = promisify(execFile);
 const logger = createLogger('git-operations/core-ops');
 
+// Local git reads/writes normally finish in well under a second; 60s leaves
+// generous headroom while still bounding a lock-contention or auth-prompt
+// hang so the implementer phase can't sit blocked past its wall-clock budget.
+const GIT_OP_TIMEOUT_MS = 60_000;
+
 /**
  * Delete the agent's transient `.wf-*` files (e.g. `.wf-tmp.md` for workflow
  * file saves, `.wf-concern.json` for concern/idea filing) from the working
@@ -56,6 +61,7 @@ export async function getGitDiff(workingDirectory: string): Promise<string> {
       cwd: workingDirectory,
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024,
+      timeout: GIT_OP_TIMEOUT_MS,
     });
     return stdout;
   } catch (error) {
@@ -76,11 +82,13 @@ export async function getFullGitDiff(workingDirectory: string): Promise<string> 
       cwd: workingDirectory,
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024,
+      timeout: GIT_OP_TIMEOUT_MS,
     });
     const { stdout: unstaged } = await execFileAsync('git', ['diff'], {
       cwd: workingDirectory,
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024,
+      timeout: GIT_OP_TIMEOUT_MS,
     });
     const { stdout: untracked } = await execFileAsync(
       'git',
@@ -88,6 +96,7 @@ export async function getFullGitDiff(workingDirectory: string): Promise<string> 
       {
         cwd: workingDirectory,
         encoding: 'utf8',
+        timeout: GIT_OP_TIMEOUT_MS,
       },
     );
 
@@ -125,7 +134,10 @@ export async function commitChanges(
     // current index first" — self-heal before staging.
     await recoverFromUnresolvedMerge(workingDirectory);
     await removeTransientWorkflowFiles(workingDirectory);
-    await execFileAsync('git', ['add', '-A'], { cwd: workingDirectory });
+    await execFileAsync('git', ['add', '-A'], {
+      cwd: workingDirectory,
+      timeout: GIT_OP_TIMEOUT_MS,
+    });
 
     const fullMessage = taskTitle
       ? `${message}\n\nTask: ${taskTitle}\n\nCo-Authored-By: Claude Code <noreply@anthropic.com>`
@@ -137,11 +149,13 @@ export async function commitChanges(
     await execFileAsync('git', ['commit', '-m', fullMessage], {
       cwd: workingDirectory,
       encoding: 'utf8',
+      timeout: GIT_OP_TIMEOUT_MS,
     });
 
     const { stdout: hash } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
       cwd: workingDirectory,
       encoding: 'utf8',
+      timeout: GIT_OP_TIMEOUT_MS,
     });
 
     return { success: true, commitHash: hash.trim() };
@@ -185,20 +199,28 @@ export async function createCommit(
   const { stdout: currentBranch } = await execFileAsync('git', ['branch', '--show-current'], {
     cwd: workingDirectory,
     encoding: 'utf8',
+    timeout: GIT_OP_TIMEOUT_MS,
   });
   const branch = currentBranch.trim();
 
   if (branch === 'main' || branch === 'master' || branch === 'develop') {
     const featureBranch = `feature/auto-${Date.now()}`;
-    await execFileAsync('git', ['checkout', '-b', featureBranch], { cwd: workingDirectory });
+    await execFileAsync('git', ['checkout', '-b', featureBranch], {
+      cwd: workingDirectory,
+      timeout: GIT_OP_TIMEOUT_MS,
+    });
   }
 
   await removeTransientWorkflowFiles(workingDirectory);
-  await execFileAsync('git', ['add', '-A'], { cwd: workingDirectory });
+  await execFileAsync('git', ['add', '-A'], {
+    cwd: workingDirectory,
+    timeout: GIT_OP_TIMEOUT_MS,
+  });
 
   const { stdout: diffStat } = await execFileAsync('git', ['diff', '--cached', '--numstat'], {
     cwd: workingDirectory,
     encoding: 'utf8',
+    timeout: GIT_OP_TIMEOUT_MS,
   });
 
   let filesChanged = 0;
@@ -228,10 +250,12 @@ export async function createCommit(
     const { stdout: existingHash } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
       cwd: workingDirectory,
       encoding: 'utf8',
+      timeout: GIT_OP_TIMEOUT_MS,
     });
     const { stdout: existingBranch } = await execFileAsync('git', ['branch', '--show-current'], {
       cwd: workingDirectory,
       encoding: 'utf8',
+      timeout: GIT_OP_TIMEOUT_MS,
     });
     // Report what the BRANCH contains, not what this no-op staged. Returning
     // zeros here is true of the auto-commit step but reads downstream as "this
@@ -251,15 +275,18 @@ export async function createCommit(
   await execFileAsync('git', ['commit', '-m', fullMessage], {
     cwd: workingDirectory,
     encoding: 'utf8',
+    timeout: GIT_OP_TIMEOUT_MS,
   });
 
   const { stdout: hash } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
     cwd: workingDirectory,
     encoding: 'utf8',
+    timeout: GIT_OP_TIMEOUT_MS,
   });
   const { stdout: finalBranch } = await execFileAsync('git', ['branch', '--show-current'], {
     cwd: workingDirectory,
     encoding: 'utf8',
+    timeout: GIT_OP_TIMEOUT_MS,
   });
 
   return {
@@ -296,6 +323,7 @@ async function statBranchAgainstBase(
     const { stdout } = await execFileAsync('git', ['diff', '--numstat', `${base}..HEAD`], {
       cwd,
       encoding: 'utf8',
+      timeout: GIT_OP_TIMEOUT_MS,
     });
     let filesChanged = 0;
     let additions = 0;

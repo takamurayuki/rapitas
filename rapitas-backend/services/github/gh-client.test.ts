@@ -13,6 +13,7 @@ import { describe, it, expect, mock, beforeEach } from 'bun:test';
 // Mutable state shared with the execFile mock closure so we can change
 // behavior per test without calling mockImplementationOnce.
 let capturedArgs: string[] = [];
+let capturedOpts: { timeout?: number } = {};
 let shouldGhFail = false;
 // failCount: fail this many times before succeeding (0 = always succeed unless shouldGhFail)
 let failCount = 0;
@@ -24,10 +25,11 @@ const mockExecFile = mock(
   (
     _bin: string,
     args: string[],
-    _opts: object,
+    opts: object,
     cb: (err: Error | null, result?: { stdout: string; stderr: string }) => void,
   ) => {
     capturedArgs = [...args];
+    capturedOpts = opts as { timeout?: number };
     if (shouldGhFail) {
       const err = Object.assign(new Error('gh: command failed'), { stderr: 'mock stderr' });
       cb(err);
@@ -177,6 +179,25 @@ describe('runGhCommandWithBody', () => {
     const paths = (mockWriteFile.mock.calls as [string, string, string][]).map(([p]) => p);
     const unique = new Set(paths);
     expect(unique.size).toBe(3);
+  });
+});
+
+describe('runGhCommand timeout (#809)', () => {
+  beforeEach(() => {
+    capturedArgs = [];
+    capturedOpts = {};
+    shouldGhFail = false;
+    failCount = 0;
+    ghStdout = '';
+    mockExecFile.mockClear();
+  });
+
+  it('渡す options に timeout: GH_CLI_TIMEOUT_MS (120秒) が含まれること', async () => {
+    ghStdout = 'ok';
+
+    await runGhCommand(['pr', 'view', '1']);
+
+    expect(capturedOpts.timeout).toBe(120_000);
   });
 });
 

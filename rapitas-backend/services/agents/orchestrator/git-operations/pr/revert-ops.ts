@@ -17,6 +17,11 @@ import { isPrimaryWorkTree } from '../worktree/worktree-guard';
 const execFileAsync = promisify(execFile);
 const logger = createLogger('git-operations/revert-ops');
 
+// Local git reads/writes normally finish in well under a second; 60s leaves
+// generous headroom while still bounding a lock-contention or auth-prompt
+// hang so the implementer phase can't sit blocked past its wall-clock budget.
+const GIT_OP_TIMEOUT_MS = 60_000;
+
 /**
  * Revert all changes in a working directory.
  * Protects .worktrees/ and .agent-pids/ directories from being deleted by git clean.
@@ -45,12 +50,19 @@ export async function revertChanges(workingDirectory: string): Promise<boolean> 
       return false;
     }
 
-    await execFileAsync('git', ['reset', 'HEAD'], { cwd: workingDirectory });
-    await execFileAsync('git', ['checkout', '--', '.'], { cwd: workingDirectory });
+    await execFileAsync('git', ['reset', 'HEAD'], {
+      cwd: workingDirectory,
+      timeout: GIT_OP_TIMEOUT_MS,
+    });
+    await execFileAsync('git', ['checkout', '--', '.'], {
+      cwd: workingDirectory,
+      timeout: GIT_OP_TIMEOUT_MS,
+    });
     // NOTE: Use -fd (not -fdx) and explicitly exclude .worktrees/ to prevent deleting active worktrees.
     // Also exclude .agent-pids/ to avoid breaking process tracking.
     await execFileAsync('git', ['clean', '-fd', '-e', '.worktrees', '-e', '.agent-pids'], {
       cwd: workingDirectory,
+      timeout: GIT_OP_TIMEOUT_MS,
     });
     return true;
   } catch (error) {

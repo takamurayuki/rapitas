@@ -12,6 +12,7 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 // Scripted exec: maps a matched command substring → stdout, or throws when the
 // value is an Error. Records every issued command for assertions.
 let calls: string[] = [];
+let callOpts: Array<{ cmd: string; opts: { timeout?: number } }> = [];
 let script: Array<{ match: RegExp; result: string | Error }> = [];
 
 // Tracks calls to runGhCommandWithBody and controls its return value.
@@ -22,8 +23,9 @@ let ghWithBodyCalls: Array<{
 }> = [];
 let ghWithBodyResult: string | Error = '';
 
-function runScripted(cmd: string): { stdout: string; stderr: string } {
+function runScripted(cmd: string, opts?: { timeout?: number }): { stdout: string; stderr: string } {
   calls.push(cmd);
+  if (opts) callOpts.push({ cmd, opts });
   for (const s of script) {
     if (s.match.test(cmd)) {
       if (s.result instanceof Error) throw s.result;
@@ -47,9 +49,10 @@ const execFileMockImpl = (
     e: Error | null,
     r?: unknown,
   ) => void;
+  const opts = typeof _opts === 'function' ? undefined : (_opts as { timeout?: number });
   const cmd = [file, ...argv].join(' ');
   try {
-    callback(null, runScripted(cmd));
+    callback(null, runScripted(cmd, opts));
   } catch (err) {
     callback(err as Error);
   }
@@ -94,6 +97,7 @@ const { createPullRequest } = await import('./pr-create-ops');
 
 beforeEach(() => {
   calls = [];
+  callOpts = [];
   script = [];
   ghWithBodyCalls = [];
   ghWithBodyResult = '';
@@ -130,6 +134,22 @@ describe('createPullRequest — headBranch 明示解決', () => {
     const headFlag = args.indexOf('--head');
     expect(headFlag).toBeGreaterThan(-1);
     expect(args[headFlag + 1]).toBe('feature/t594-add-accessible-stall-recovery');
+  });
+
+  test('git push には長めのタイムアウト(120秒)が設定されること (#809)', async () => {
+    ghWithBodyResult = 'https://github.com/x/y/pull/20';
+    script = [
+      { match: /git branch --list develop/, result: 'develop\n' },
+      { match: /git push -u origin feature\/timeout-check$/, result: '' },
+      { match: /pr list --head/, result: '' },
+    ];
+
+    await createPullRequest('/repo', 't', 'b', 'develop', 'feature/timeout-check');
+
+    const pushCall = callOpts.find((c) =>
+      /^git push -u origin feature\/timeout-check$/.test(c.cmd),
+    );
+    expect(pushCall?.opts.timeout).toBe(120_000);
   });
 
   test('headBranch === base のときは push/gh を一切呼ばず明示エラーを返すこと', async () => {

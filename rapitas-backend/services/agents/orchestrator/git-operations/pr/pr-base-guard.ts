@@ -17,6 +17,10 @@ import { ghPath } from './gh-cli-path';
 const execFileAsync = promisify(execFile);
 const logger = createLogger('git-operations/pr-base-guard');
 
+// `gh` calls hit the network (GitHub API); 120s gives real requests headroom
+// while still bounding a hang so the implementer phase can't stall on it.
+const GIT_SLOW_OP_TIMEOUT_MS = 120_000;
+
 /**
  * Ensure a PR's base matches the intended target, retargeting if gh opened it
  * against a different branch. Best-effort — a failure is logged, not thrown, so
@@ -35,13 +39,14 @@ export async function ensurePrBase(
     const { stdout } = await execFileAsync(
       ghPath(),
       ['pr', 'view', String(prNumber), '--json', 'baseRefName', '--jq', '.baseRefName'],
-      { cwd: workingDirectory, encoding: 'utf8' },
+      { cwd: workingDirectory, encoding: 'utf8', timeout: GIT_SLOW_OP_TIMEOUT_MS },
     );
     const actual = stdout.trim();
     if (actual && actual !== intended) {
       await execFileAsync(ghPath(), ['pr', 'edit', String(prNumber), '--base', intended], {
         cwd: workingDirectory,
         encoding: 'utf8',
+        timeout: GIT_SLOW_OP_TIMEOUT_MS,
       });
       logger.info(`[createPullRequest] Corrected PR #${prNumber} base ${actual} -> ${intended}`);
     }

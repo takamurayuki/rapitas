@@ -16,12 +16,14 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
 let calls: string[] = [];
+let callOpts: Array<{ cmd: string; opts: { timeout?: number } }> = [];
 let script: Array<{ match: RegExp; result: string | Error }> = [];
 // Controls the return value of the mocked isPrimaryWorkTree.
 let primaryWorkTree = false;
 
-function runScripted(cmd: string): { stdout: string; stderr: string } {
+function runScripted(cmd: string, opts?: { timeout?: number }): { stdout: string; stderr: string } {
   calls.push(cmd);
+  if (opts) callOpts.push({ cmd, opts });
   for (const s of script) {
     if (s.match.test(cmd)) {
       if (s.result instanceof Error) throw s.result;
@@ -44,9 +46,10 @@ const execFileMockImpl = (
     e: Error | null,
     r?: unknown,
   ) => void;
+  const opts = typeof _opts === 'function' ? undefined : (_opts as { timeout?: number });
   const cmd = [file, ...argv].join(' ');
   try {
-    callback(null, runScripted(cmd));
+    callback(null, runScripted(cmd, opts));
   } catch (err) {
     callback(err as Error);
   }
@@ -103,6 +106,7 @@ const { revertChanges, mergePullRequest, createPullRequest } = await import('./b
 
 beforeEach(() => {
   calls = [];
+  callOpts = [];
   script = [];
   primaryWorkTree = false;
 });
@@ -133,6 +137,19 @@ describe('revertChanges — PRIMARY working tree guard', () => {
     expect(cleanCall).toContain('-fd');
     expect(cleanCall).toContain('-e .worktrees');
     expect(cleanCall).toContain('-e .agent-pids');
+  });
+
+  test('the reset/checkout/clean sequence carries a timeout so a hang cannot block the phase (#809)', async () => {
+    primaryWorkTree = false;
+
+    await revertChanges('/repo/.worktrees/task-3');
+
+    const resetCall = callOpts.find((c) => /^git reset HEAD$/.test(c.cmd));
+    const checkoutCall = callOpts.find((c) => /^git checkout -- \.$/.test(c.cmd));
+    const cleanCall = callOpts.find((c) => c.cmd.startsWith('git clean'));
+    expect(resetCall?.opts.timeout).toBe(60_000);
+    expect(checkoutCall?.opts.timeout).toBe(60_000);
+    expect(cleanCall?.opts.timeout).toBe(60_000);
   });
 
   test('a mid-sequence git failure on a non-primary worktree returns false (not throw)', async () => {
@@ -327,6 +344,25 @@ describe('createPullRequest — ensurePrBase corrects a drifted base right after
 
     expect(result.success).toBe(true);
     expect(calls.some((c) => /pr edit 99 --base/.test(c))).toBe(false);
+  });
+
+  test('ensurePrBase の gh 呼び出しには長めのタイムアウトが設定されること (#809)', async () => {
+    script = [
+      { match: /branch --list develop/, result: '' },
+      { match: /branch -r --list origin\/develop/, result: 'origin/develop' },
+      { match: /branch --show-current/, result: 'feature/my-branch' },
+      { match: /^git push -u origin feature\/my-branch$/, result: '' },
+      { match: /pr list --head feature\/my-branch/, result: 'null' },
+      { match: /pr view 99 --json baseRefName/, result: 'main' },
+      { match: /pr edit 99 --base develop/, result: '' },
+    ];
+
+    await createPullRequest('/repo', 'My PR', 'body');
+
+    const viewCall = callOpts.find((c) => /pr view 99 --json baseRefName/.test(c.cmd));
+    const editCall = callOpts.find((c) => /pr edit 99 --base develop/.test(c.cmd));
+    expect(viewCall?.opts.timeout).toBe(120_000);
+    expect(editCall?.opts.timeout).toBe(120_000);
   });
 
   test('a failure verifying/correcting the base does not fail PR creation (best-effort)', async () => {
