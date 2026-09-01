@@ -72,6 +72,7 @@ const SUPPRESSED: [string, string][] = [
   ['claude-code-agent', 'Command failed: taskkill /PID # /T /F'],
   ['codex-cli-agent', 'Command failed: taskkill /PID # /T /F'],
   ['gemini-cli-agent:process-manager', 'Command failed: taskkill /PID # /T /F'],
+  ['routes:workflow:auto-commit', '[Workflow] Worktree cleanup failed: <path>'],
 ];
 
 const KEPT: [string, string][] = [
@@ -88,6 +89,10 @@ const KEPT: [string, string][] = [
   ['routes:workflow:auto-commit', 'Automated verification failed — aborting PR review'],
   ['memory:task-queue', 'Stuck processing task moved to dead_letter'],
   ['claude-code-agent', 'process.kill() also failed'],
+  [
+    'git-operations/worktree-ops',
+    '[cleanupOrphanedWorktrees] Failed to remove orphaned directory after retries: <path>',
+  ],
 ];
 
 describe('classifyLogSignature', () => {
@@ -199,5 +204,25 @@ describe('classifyLogSignature', () => {
     expect(classifyLogSignature('claude-code-agent', 'process.kill() also failed').suppressed).toBe(
       false,
     );
+  });
+
+  test('"[Workflow] Worktree cleanup failed" is scoped to routes:workflow:auto-commit only', () => {
+    // Task #821/K-8422: an unrelated logger reusing this phrasing must still be filed.
+    expect(
+      classifyLogSignature('some-other-logger', '[Workflow] Worktree cleanup failed: <path>')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('a permanently stuck worktree removal stays visible via the scheduler signature', () => {
+    // Task #821: the immediate-attempt warn is suppressed because the 30-minute
+    // cleanupOrphanedWorktrees scheduler retries, but a retry-exhausted failure
+    // from that scheduler is a distinct, unsuppressed signature.
+    expect(
+      classifyLogSignature(
+        'git-operations/worktree-ops',
+        '[cleanupOrphanedWorktrees] Failed to remove orphaned directory after retries: <path>',
+      ).suppressed,
+    ).toBe(false);
   });
 });
