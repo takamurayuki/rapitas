@@ -18,6 +18,14 @@ import type { GhRetryPolicy } from './gh-retry';
 const log = createLogger('github-service:client');
 const execFileAsync = promisify(execFile);
 
+// `gh` calls hit the GitHub API over the network; 120s gives real requests
+// headroom while still bounding a hang so a caller awaiting this call can't
+// stall indefinitely (e.g. the implementer phase's PR-creation step).
+// Declared independently of git-operations' GIT_SLOW_OP_TIMEOUT_MS (same
+// value) to avoid a services/github -> services/agents/orchestrator import,
+// matching the existing SETUP_TIMEOUT_MS double-declaration pattern.
+const GH_CLI_TIMEOUT_MS = 120_000;
+
 // gh binary path. execFile takes the executable + an args array and does NOT go
 // through a shell, so arguments (issue titles/bodies with spaces, quotes, etc.)
 // are passed literally and need no escaping. The Windows path must therefore be
@@ -44,6 +52,7 @@ export async function runGhCommand(
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024, // 10MB
       windowsHide: true,
+      timeout: GH_CLI_TIMEOUT_MS,
     });
     return stdout.trim();
   } catch (error) {

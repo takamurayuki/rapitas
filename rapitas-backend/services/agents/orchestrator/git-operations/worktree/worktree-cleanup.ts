@@ -23,6 +23,8 @@ import { rmDirWithRetry } from './dir-remove-retry';
 // services/github/gh-client.ts for the established pattern.
 const execFileAsync = promisify(execFile);
 const logger = createLogger('git-operations/worktree-ops');
+// Bounds a lock-contention or auth-prompt hang so cleanup can't stall startup.
+const GIT_OP_TIMEOUT_MS = 60_000;
 
 /**
  * Clean up stale worktrees left over from crashes or abnormal exits.
@@ -38,11 +40,12 @@ export async function cleanupStaleWorktrees(
   let cleanedCount = 0;
 
   try {
-    await execFileAsync('git', ['worktree', 'prune'], { cwd: baseDir });
+    await execFileAsync('git', ['worktree', 'prune'], { cwd: baseDir, timeout: GIT_OP_TIMEOUT_MS });
 
     const { stdout } = await execFileAsync('git', ['worktree', 'list', '--porcelain'], {
       cwd: baseDir,
       encoding: 'utf8',
+      timeout: GIT_OP_TIMEOUT_MS,
     });
 
     const worktreeDir = join(baseDir, WORKTREE_DIR);
@@ -218,6 +221,7 @@ export async function cleanupOrphanedWorktrees(
           {
             cwd: baseDir,
             encoding: 'utf8',
+            timeout: GIT_OP_TIMEOUT_MS,
           },
         );
 

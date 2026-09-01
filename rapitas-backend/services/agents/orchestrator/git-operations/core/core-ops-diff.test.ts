@@ -15,6 +15,8 @@ import { beforeEach, describe, expect, mock, test } from 'bun:test';
 // `promisify(exec)` at module load) even though these tests never call getDiff.
 // ---------------------------------------------------------------------------
 
+type Call = { file: string; args: string[]; opts?: { timeout?: number } };
+let calls: Call[] = [];
 let script: Array<{ match: RegExp; result: string | Error }> = [];
 
 function runScripted(file: string, args: string[]): { stdout: string; stderr: string } {
@@ -35,6 +37,8 @@ const execFileMockImpl = (
   cb?: (e: Error | null, r?: unknown) => void,
 ) => {
   const argv = Array.isArray(args) ? (args as string[]) : [];
+  const opts = typeof optsOrCb === 'function' ? undefined : (optsOrCb as { timeout?: number });
+  calls.push({ file, args: argv, opts });
   const callback = (typeof optsOrCb === 'function' ? optsOrCb : cb) as (
     e: Error | null,
     r?: unknown,
@@ -98,6 +102,7 @@ mock.module('../worktree/worktree-guard', () => ({
 const { getGitDiff, getFullGitDiff } = await import('./core-ops');
 
 beforeEach(() => {
+  calls = [];
   script = [];
 });
 
@@ -106,6 +111,12 @@ describe('getGitDiff', () => {
     script = [{ match: /^git diff$/, result: 'diff --git a/x b/x\n+added\n' }];
     const diff = await getGitDiff('/repo');
     expect(diff).toBe('diff --git a/x b/x\n+added\n');
+  });
+
+  test('passes a timeout so a hung git process cannot block the phase indefinitely (#809)', async () => {
+    script = [{ match: /^git diff$/, result: 'diff\n' }];
+    await getGitDiff('/repo');
+    expect(calls[0]?.opts?.timeout).toBe(60_000);
   });
 
   test('returns empty string when git fails', async () => {

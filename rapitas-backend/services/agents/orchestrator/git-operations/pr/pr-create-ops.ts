@@ -20,6 +20,14 @@ import { ensurePrBase } from './pr-base-guard';
 const execFileAsync = promisify(execFile);
 const logger = createLogger('git-operations/pr-create-ops');
 
+// Local git reads/writes normally finish in well under a second; 60s leaves
+// generous headroom while still bounding a lock-contention or auth-prompt
+// hang so the implementer phase can't sit blocked past its wall-clock budget.
+const GIT_OP_TIMEOUT_MS = 60_000;
+// `git push` and `gh` calls hit the network; 120s gives real requests
+// headroom while still bounding a hang so the phase can't stall on it.
+const GIT_SLOW_OP_TIMEOUT_MS = 120_000;
+
 /** Matches git's various "remote is ahead / you must fetch first" push errors. */
 function isNonFastForwardError(message: string): boolean {
   return /non-fast-forward|\[rejected\]|fetch first|tip of your current branch is behind|Updates were rejected/i.test(
@@ -44,27 +52,39 @@ function isNonFastForwardError(message: string): boolean {
  */
 async function pushBranchForPr(cwd: string, branch: string): Promise<string> {
   try {
-    await execFileAsync('git', ['push', '-u', 'origin', branch], { cwd });
+    await execFileAsync('git', ['push', '-u', 'origin', branch], {
+      cwd,
+      timeout: GIT_SLOW_OP_TIMEOUT_MS,
+    });
     return branch;
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     if (!isNonFastForwardError(msg)) throw error;
 
-    const { stdout: sha } = await execFileAsync('git', ['rev-parse', '--short', 'HEAD'], { cwd });
+    const { stdout: sha } = await execFileAsync('git', ['rev-parse', '--short', 'HEAD'], {
+      cwd,
+      timeout: GIT_OP_TIMEOUT_MS,
+    });
     const unique = `${branch}-${sha.trim()}`;
     logger.warn(
       `[createPullRequest] origin/${branch} has diverged; pushing unique branch ${unique} instead`,
     );
     // Rename the local branch so HEAD (and gh's inferred PR head) match the push.
-    await execFileAsync('git', ['branch', '-M', unique], { cwd });
+    await execFileAsync('git', ['branch', '-M', unique], { cwd, timeout: GIT_OP_TIMEOUT_MS });
     try {
-      await execFileAsync('git', ['push', '-u', 'origin', unique], { cwd });
+      await execFileAsync('git', ['push', '-u', 'origin', unique], {
+        cwd,
+        timeout: GIT_SLOW_OP_TIMEOUT_MS,
+      });
     } catch (err2) {
       const msg2 = err2 instanceof Error ? err2.message : String(err2);
       if (!isNonFastForwardError(msg2)) throw err2;
       // The commit-unique branch also diverged — it is tied to THIS exact commit,
       // so a lease-guarded force can only restore identical work.
-      await execFileAsync('git', ['push', '-u', '--force-with-lease', 'origin', unique], { cwd });
+      await execFileAsync('git', ['push', '-u', '--force-with-lease', 'origin', unique], {
+        cwd,
+        timeout: GIT_SLOW_OP_TIMEOUT_MS,
+      });
     }
     return unique;
   }
@@ -122,6 +142,7 @@ export async function createPullRequest(
       const local = await execFileAsync('git', ['branch', '--list', b], {
         cwd: workingDirectory,
         encoding: 'utf8',
+        timeout: GIT_OP_TIMEOUT_MS,
       })
         .then((r) => !!r.stdout.trim())
         .catch(() => false);
@@ -129,6 +150,7 @@ export async function createPullRequest(
       return await execFileAsync('git', ['branch', '-r', '--list', `origin/${b}`], {
         cwd: workingDirectory,
         encoding: 'utf8',
+        timeout: GIT_OP_TIMEOUT_MS,
       })
         .then((r) => !!r.stdout.trim())
         .catch(() => false);
@@ -167,6 +189,7 @@ export async function createPullRequest(
         {
           cwd: workingDirectory,
           encoding: 'utf8',
+          timeout: GIT_OP_TIMEOUT_MS,
         },
       );
       resolvedHead = currentBranchRaw.trim();
@@ -206,7 +229,7 @@ export async function createPullRequest(
           '--jq',
           '.[0]',
         ],
-        { cwd: workingDirectory, encoding: 'utf8' },
+        { cwd: workingDirectory, encoding: 'utf8', timeout: GIT_SLOW_OP_TIMEOUT_MS },
       );
       const trimmed = existing.trim();
       if (trimmed && trimmed !== 'null') {
@@ -246,6 +269,7 @@ export async function createPullRequest(
                 {
                   cwd: workingDirectory,
                   encoding: 'utf8',
+                  timeout: GIT_SLOW_OP_TIMEOUT_MS,
                 },
               );
               logger.info(

@@ -19,12 +19,11 @@ import { join, resolve } from 'node:path';
 // `promisify(exec)` at module load) even though these tests never call getDiff.
 // ---------------------------------------------------------------------------
 
-type Call = { file: string; args: string[] };
+type Call = { file: string; args: string[]; opts?: { timeout?: number } };
 let calls: Call[] = [];
 let script: Array<{ match: RegExp; result: string | Error }> = [];
 
 function runScripted(file: string, args: string[]): { stdout: string; stderr: string } {
-  calls.push({ file, args });
   const cmd = [file, ...args].join(' ');
   for (const s of script) {
     if (s.match.test(cmd)) {
@@ -42,6 +41,8 @@ const execFileMockImpl = (
   cb?: (e: Error | null, r?: unknown) => void,
 ) => {
   const argv = Array.isArray(args) ? (args as string[]) : [];
+  const opts = typeof optsOrCb === 'function' ? undefined : (optsOrCb as { timeout?: number });
+  calls.push({ file, args: argv, opts });
   const callback = (typeof optsOrCb === 'function' ? optsOrCb : cb) as (
     e: Error | null,
     r?: unknown,
@@ -200,6 +201,21 @@ describe('commitChanges', () => {
     expect(remaining).not.toContain('.wf-concern.json');
   });
 
+  test('passes a timeout so a hung git process cannot block the phase indefinitely (#809)', async () => {
+    const dir = join(TMP_ROOT, 'commit-has-timeout');
+    await mkdir(dir, { recursive: true });
+    script = [
+      { match: /^git add -A$/, result: '' },
+      { match: /^git commit -m/, result: '' },
+      { match: /^git rev-parse HEAD$/, result: 'timeout1\n' },
+    ];
+
+    await commitChanges(dir, 'msg');
+
+    const commitCall = calls.find((c) => c.args[0] === 'commit');
+    expect(commitCall?.opts?.timeout).toBe(60_000);
+  });
+
   test('returns success:false with the underlying error when commit fails', async () => {
     const dir = join(TMP_ROOT, 'commit-fails');
     await mkdir(dir, { recursive: true });
@@ -333,6 +349,23 @@ describe('createCommit', () => {
     expect(result.filesChanged).toBe(1);
     expect(result.additions).toBe(0);
     expect(result.deletions).toBe(0);
+  });
+
+  test('propagates a timeout-killed commit through the existing catch path (#809)', async () => {
+    const dir = join(TMP_ROOT, 'createcommit-timeout-kill');
+    await mkdir(dir, { recursive: true });
+    const timeoutErr = Object.assign(new Error('command timed out'), {
+      killed: true,
+      signal: 'SIGTERM',
+    });
+    script = [
+      { match: /^git branch --show-current$/, result: 'feature/timeout\n' },
+      { match: /^git diff --cached --numstat$/, result: '1\t0\ta.ts\n' },
+      { match: /^git add -A$/, result: '' },
+      { match: /^git commit -m/, result: timeoutErr },
+    ];
+
+    await expect(createCommit(dir, 'msg')).rejects.toThrow(/command timed out/);
   });
 
   test('deletes transient .wf-* files before staging', async () => {

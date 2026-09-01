@@ -21,6 +21,11 @@ import {
 const execFileAsync = promisify(execFile);
 const logger = createLogger('git-operations/branch-ops');
 
+// Local git reads/writes normally finish in well under a second; 60s leaves
+// generous headroom while still bounding a lock-contention or auth-prompt
+// hang so the implementer phase can't sit blocked past its wall-clock budget.
+const GIT_OP_TIMEOUT_MS = 60_000;
+
 /**
  * Create a new branch and check it out, or check out an existing branch.
  *
@@ -39,6 +44,7 @@ export async function createBranch(workingDirectory: string, branchName: string)
     await recoverFromUnresolvedMerge(workingDirectory);
     const { stdout } = await execFileAsync('git', ['branch', '--list', branchName], {
       cwd: workingDirectory,
+      timeout: GIT_OP_TIMEOUT_MS,
     });
 
     if (stdout.trim()) {
@@ -56,10 +62,16 @@ export async function createBranch(workingDirectory: string, branchName: string)
         return false;
       }
       logger.info(`[createBranch] Branch ${branchName} already exists, checking out`);
-      await execFileAsync('git', ['checkout', branchName], { cwd: workingDirectory });
+      await execFileAsync('git', ['checkout', branchName], {
+        cwd: workingDirectory,
+        timeout: GIT_OP_TIMEOUT_MS,
+      });
     } else {
       logger.info(`[createBranch] Creating new branch ${branchName}`);
-      await execFileAsync('git', ['checkout', '-b', branchName], { cwd: workingDirectory });
+      await execFileAsync('git', ['checkout', '-b', branchName], {
+        cwd: workingDirectory,
+        timeout: GIT_OP_TIMEOUT_MS,
+      });
     }
     return true;
   } catch (error) {
