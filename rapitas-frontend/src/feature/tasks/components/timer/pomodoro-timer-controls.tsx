@@ -1,9 +1,15 @@
 /**
  * pomodoroTimerControls
  *
- * Icon-only control row for the Pomodoro timer (start / pause / resume /
- * checkpoint / complete / stop). Extracted from PomodoroTimer.tsx to keep
- * that file under the project's file-size limit.
+ * Control row for the Pomodoro timer (start / pause / resume / checkpoint /
+ * complete / cancel). Extracted from PomodoroTimer.tsx to keep that file
+ * under the project's file-size limit.
+ *
+ * Visual grammar (operator-approved, 2026-09-02): soft-tint faces for the
+ * two state-changing actions (start/pause = indigo tint, complete = green
+ * tint), ring-ghost squares for checkpoint/cancel. No solid fills — tinted
+ * faces carry the priority without shouting. Idle state shows one LABELED
+ * wide start button (a lone small icon read as sparse).
  */
 'use client';
 import { Play, Pause, Square, Check, AlarmClockPlus } from 'lucide-react';
@@ -23,17 +29,20 @@ interface PomodoroTimerControlsProps {
   onCheckpoint: () => void;
 }
 
-// Filled circular action (start/pause/complete): solid disc, STROKED white
-// glyph — the icon interior stays unfilled (operator-approved inverted style).
-// Matches IconButton lg metrics (p-2.5 disc, h-5 w-5 glyph).
-const FILLED_BASE =
-  'flex items-center justify-center rounded-lg p-2.5 text-white transition-colors ' +
+// Soft-tint squares: pale face + saturated stroked glyph, no border.
+// Matches IconButton lg metrics (p-2.5, h-5 w-5 glyph).
+const TINT_BASE =
+  'flex items-center justify-center rounded-lg transition-colors ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ' +
   'disabled:cursor-not-allowed disabled:opacity-50';
-const FILLED_INDIGO =
-  'bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600';
+const TINT_INDIGO =
+  'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 ' +
+  'dark:bg-indigo-500/15 dark:text-indigo-400 dark:hover:bg-indigo-500/25';
 // Green (not emerald) per ui-design-language: success/completed = green.
-const FILLED_GREEN = 'bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-500';
+const TINT_GREEN =
+  'bg-green-50 text-green-600 hover:bg-green-100 ' +
+  'dark:bg-green-500/15 dark:text-green-400 dark:hover:bg-green-500/25';
+const RING_SQUARE = 'rounded-lg border border-zinc-300 dark:border-zinc-600';
 
 export default function PomodoroTimerControls({
   isBreakTime,
@@ -54,15 +63,17 @@ export default function PomodoroTimerControls({
   if (!isTimerRunning) {
     return (
       <div className="flex gap-3 justify-center">
+        {/* Idle: a single small icon read as sparse — give start a label and
+            width so the resting state feels like a proper call to action. */}
         <button
           type="button"
           onClick={onStart}
           disabled={isOtherTaskRunning}
-          className={`${FILLED_BASE} ${FILLED_INDIGO}`}
-          aria-label={t('start')}
+          className={`${TINT_BASE} ${TINT_INDIGO} gap-2 px-6 py-2.5 text-sm font-medium`}
           title={t('start')}
         >
-          <Play className="h-5 w-5" />
+          <Play className="h-4 w-4" />
+          {t('start')}
         </button>
       </div>
     );
@@ -74,7 +85,7 @@ export default function PomodoroTimerControls({
         <button
           type="button"
           onClick={onResume}
-          className={`${FILLED_BASE} ${FILLED_INDIGO}`}
+          className={`${TINT_BASE} ${TINT_INDIGO} p-2.5`}
           aria-label={t('resumeWork')}
           title={t('resumeWork')}
         >
@@ -84,44 +95,37 @@ export default function PomodoroTimerControls({
         <button
           type="button"
           onClick={onPause}
-          className={`${FILLED_BASE} ${FILLED_INDIGO}`}
+          className={`${TINT_BASE} ${TINT_INDIGO} p-2.5`}
           aria-label={t('pause')}
           title={t('pause')}
         >
           <Pause className="h-5 w-5" />
         </button>
       )}
-      {/* Zero-fill transport cluster (operator-approved): no button carries a
-          background. Priority reads from the primary's ring + accent glyph,
-          then icon tints, then plain ghosts — fills read as unrefined here. */}
       <button
         type="button"
         onClick={onComplete}
-        className={`${FILLED_BASE} ${FILLED_GREEN}`}
+        className={`${TINT_BASE} ${TINT_GREEN} p-2.5`}
         aria-label={t('complete')}
         title={t('completeTooltip')}
       >
         <Check className="h-5 w-5" />
       </button>
-      {/* Uniform ring row (operator feedback: mixed treatments read as
-          disjointed). Checkpoint is icon-only like the rest — its behavior
-          lives in the tooltip. */}
+      {/* Checkpoint/cancel stay as uniform ring-ghost squares. */}
       <IconButton
         onClick={onCheckpoint}
         variant="ghost"
         size="lg"
-        className="rounded-lg border border-zinc-300 dark:border-zinc-600"
+        className={RING_SQUARE}
         icon={<AlarmClockPlus />}
         aria-label={t('checkpointButton')}
         title={t('checkpointTooltip')}
       />
-      {/* Cancel discards time, so it is the QUIETEST control (ghost, smaller)
-          — visual priority: start/pause > complete > checkpoint > cancel. */}
       <IconButton
         onClick={onStop}
         variant="ghost"
         size="lg"
-        className="rounded-lg border border-zinc-300 dark:border-zinc-600"
+        className={RING_SQUARE}
         icon={<Square />}
         aria-label={t('cancel')}
         title={t('cancelTooltip')}
