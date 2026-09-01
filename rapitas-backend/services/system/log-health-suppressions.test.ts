@@ -72,6 +72,10 @@ const SUPPRESSED: [string, string][] = [
   ['claude-code-agent', 'Command failed: taskkill /PID # /T /F'],
   ['codex-cli-agent', 'Command failed: taskkill /PID # /T /F'],
   ['gemini-cli-agent:process-manager', 'Command failed: taskkill /PID # /T /F'],
+  [
+    'git-operations/worktree-ops',
+    "Command failed: git worktree remove <path> … fatal: '<path>' is not a working tree",
+  ],
 ];
 
 const KEPT: [string, string][] = [
@@ -88,6 +92,12 @@ const KEPT: [string, string][] = [
   ['routes:workflow:auto-commit', 'Automated verification failed — aborting PR review'],
   ['memory:task-queue', 'Stuck processing task moved to dead_letter'],
   ['claude-code-agent', 'process.kill() also failed'],
+  [
+    'git-operations/worktree-ops',
+    "Command failed: git worktree remove <path> … error: failed to delete '<path>': Permission denied",
+  ],
+  ['git-operations/worktree-ops', 'Could not remove <path> after retries (held handles)'],
+  ['git-operations/worktree-ops', 'REFUSED fs cleanup: <path> contains .git directory'],
 ];
 
 describe('classifyLogSignature', () => {
@@ -199,5 +209,27 @@ describe('classifyLogSignature', () => {
     expect(classifyLogSignature('claude-code-agent', 'process.kill() also failed').suppressed).toBe(
       false,
     );
+  });
+
+  test('"git worktree remove ... is not a working tree" is scoped to the worktree-ops logger only', () => {
+    // Task #824: an unrelated logger reusing this phrase must still be filed.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        "Command failed: git worktree remove <path> … fatal: '<path>' is not a working tree",
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('a Permission Denied worktree-remove failure (K-7336) stays visible', () => {
+    // Task #824: only the "is not a working tree" fallback is a no-op self-heal.
+    // A Permission Denied failure means the fs fallback did not run cleanly and
+    // must not be hidden by this rule.
+    expect(
+      classifyLogSignature(
+        'git-operations/worktree-ops',
+        "Command failed: git worktree remove <path> … error: failed to delete '<path>': Permission denied",
+      ).suppressed,
+    ).toBe(false);
   });
 });

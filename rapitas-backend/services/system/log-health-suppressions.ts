@@ -207,6 +207,19 @@ const SUPPRESSIONS: Suppression[] = [
     because:
       'taskkillの第一試行失敗は対象PIDが既に終了済みのレースが大半で、process.kill()フォールバックが回復する — フォールバックも失敗した場合は別シグネチャで可視化される',
   },
+  {
+    // ログ出力箇所: worktree-remove.ts:154-158 の logger.warn（removeWorktree内、
+    // git worktree remove の catch ブロック）。「is not a working tree」は当該
+    // パスの登録エントリが既に prune 済み/削除済みであることを示すだけで、直後の
+    // 187-191行がexistsSync(worktreePath)===falseならremoved=trueとして扱う
+    // フォールバック（実質的に既に望む終了状態）。恒久的に削除できないケースは
+    // 別シグネチャ「Could not remove ... after retries」「REFUSED fs cleanup」で
+    // 可視化されるため、本ルールで恒久失敗の可視性は失われない（#824）。
+    test: /Command failed: git worktree remove .* is not a working tree/i,
+    logger: /git-operations\/worktree-ops/i,
+    because:
+      'git worktree remove失敗は登録エントリの陳腐化を示すだけで、直後のfsフォールバックが既に削除済み状態として扱う — 恒久失敗は別シグネチャ(Could not remove.../REFUSED fs cleanup)で可視化される',
+  },
 ];
 
 /** Result of classifying one log signature. */
