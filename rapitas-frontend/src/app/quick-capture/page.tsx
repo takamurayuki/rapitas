@@ -109,11 +109,23 @@ export default function QuickCapturePage() {
   }, []);
 
   // Re-shown via the global shortcut: fresh capture session (mode is kept).
+  // The popup webview persists hidden for the app's whole lifetime, so a page
+  // loaded days ago can silently go stale (dev HMR drops, new UI never lands
+  // — observed 2026-09-02: task picker missing). Reload a sufficiently old
+  // page on show instead of reusing it.
   useEffect(() => {
     if (!isTauri()) return;
+    const loadedAt = Date.now();
+    const MAX_PAGE_AGE_MS = 6 * 60 * 60 * 1000;
     let unlisten: (() => void) | undefined;
     import('@tauri-apps/api/event').then(({ listen }) => {
-      listen('quick-capture:show', () => setSessionKey((k) => k + 1)).then((fn) => {
+      listen('quick-capture:show', () => {
+        if (Date.now() - loadedAt > MAX_PAGE_AGE_MS) {
+          window.location.reload();
+          return;
+        }
+        setSessionKey((k) => k + 1);
+      }).then((fn) => {
         unlisten = fn;
       });
     });
