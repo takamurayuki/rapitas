@@ -29,6 +29,7 @@ const knowledgeEntryCount = mock(() => Promise.resolve(0)) as ReturnType<typeof 
 const taskFindUnique = mock(() => Promise.resolve(null)) as ReturnType<typeof mock>;
 const agentSessionFindMany = mock(() => Promise.resolve([])) as ReturnType<typeof mock>;
 const agentSessionUpdate = mock(() => Promise.resolve({})) as ReturnType<typeof mock>;
+const agentSessionUpdateMany = mock(() => Promise.resolve({ count: 0 })) as ReturnType<typeof mock>;
 const taskDelete = mock(() => Promise.resolve({})) as ReturnType<typeof mock>;
 
 const fakePrisma = {
@@ -39,7 +40,11 @@ const fakePrisma = {
     delete: taskDelete,
   },
   knowledgeEntry: { count: knowledgeEntryCount },
-  agentSession: { findMany: agentSessionFindMany, update: agentSessionUpdate },
+  agentSession: {
+    findMany: agentSessionFindMany,
+    update: agentSessionUpdate,
+    updateMany: agentSessionUpdateMany,
+  },
 };
 
 mock.module('../../config/database', () => ({
@@ -116,6 +121,8 @@ beforeEach(() => {
   agentSessionFindMany.mockResolvedValue([]);
   agentSessionUpdate.mockReset();
   agentSessionUpdate.mockResolvedValue({});
+  agentSessionUpdateMany.mockReset();
+  agentSessionUpdateMany.mockResolvedValue({ count: 0 });
   taskDelete.mockReset();
   taskDelete.mockResolvedValue({});
   getProjectRootMock.mockReset();
@@ -336,8 +343,32 @@ describe('cleanupCompletedTasks — deleteTaskWithArtifacts の副作用', () =>
       '/projects/task-20',
       '/projects/task-20/.worktrees/a',
     );
-    expect(agentSessionUpdate).toHaveBeenCalledWith({
-      where: { id: 1 },
+    expect(agentSessionUpdateMany).toHaveBeenCalledWith({
+      where: { id: { in: [1] } },
+      data: { worktreePath: null },
+    });
+  });
+
+  test('複数セッションが同一worktreePathを共有する場合 → removeWorktreeは1回だけ呼ばれ、全セッションIDがupdateManyでクリアされること (#825)', async () => {
+    taskFindMany.mockResolvedValueOnce([completedTask(26)]);
+    knowledgeEntryCount.mockResolvedValueOnce(1);
+    taskFindUnique.mockResolvedValueOnce({ workingDirectory: '/projects/task-26' });
+    agentSessionFindMany.mockResolvedValueOnce([
+      { id: 10, worktreePath: '/projects/task-26/.worktrees/shared' },
+      { id: 11, worktreePath: '/projects/task-26/.worktrees/shared' },
+      { id: 12, worktreePath: '/projects/task-26/.worktrees/shared' },
+    ]);
+
+    await cleanupCompletedTasks({ keepRecent: 0 });
+
+    expect(removeWorktreeMock).toHaveBeenCalledTimes(1);
+    expect(removeWorktreeMock).toHaveBeenCalledWith(
+      '/projects/task-26',
+      '/projects/task-26/.worktrees/shared',
+    );
+    expect(agentSessionUpdateMany).toHaveBeenCalledTimes(1);
+    expect(agentSessionUpdateMany).toHaveBeenCalledWith({
+      where: { id: { in: [10, 11, 12] } },
       data: { worktreePath: null },
     });
   });

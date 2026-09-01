@@ -13,6 +13,7 @@ const mockPrisma = {
   agentSession: {
     findMany: mock(() => Promise.resolve([])),
     update: mock(() => Promise.resolve({})),
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
   },
 };
 
@@ -142,6 +143,8 @@ beforeEach(() => {
   mockPrisma.agentSession.findMany.mockResolvedValue([]);
   mockPrisma.agentSession.update.mockReset();
   mockPrisma.agentSession.update.mockResolvedValue({});
+  mockPrisma.agentSession.updateMany.mockReset();
+  mockPrisma.agentSession.updateMany.mockResolvedValue({ count: 0 });
 
   worktreeListStdout = `worktree /test/repo
 HEAD abcd1234
@@ -229,7 +232,7 @@ describe('cleanupOrphanedWorktrees — refused/failed removal is not treated as 
     const cleanedCount = await cleanupOrphanedWorktrees(mockBaseDir);
 
     expect(cleanedCount).toBe(0);
-    expect(mockPrisma.agentSession.update).not.toHaveBeenCalled();
+    expect(mockPrisma.agentSession.updateMany).not.toHaveBeenCalled();
   });
 
   test('increments cleanedCount and clears worktreePath when removeWorktree returns true', async () => {
@@ -240,7 +243,7 @@ describe('cleanupOrphanedWorktrees — refused/failed removal is not treated as 
     const cleanedCount = await cleanupOrphanedWorktrees(mockBaseDir);
 
     expect(cleanedCount).toBe(1);
-    expect(mockPrisma.agentSession.update).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.agentSession.updateMany).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -31,6 +31,9 @@
     "cancelTooltip": "時間を保存せずセッションを終了",
     "completeTooltip": "作業を完了して時間を保存",
     "checkpointTooltip": "セッションを続けたまま、ここまでの作業時間を保存",
-    "focusMode": "集中表示"
+    "focusMode": "集中表示",
+    "floatEmptyState": "実行中のポモドーロはありません",
+    "floatTransparencyToggle": "透過表示を切り替え",
+    "floatClose": "フローティングウィンドウを閉じる"
   }
 }

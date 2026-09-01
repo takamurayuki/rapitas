@@ -31,6 +31,9 @@
     "cancelTooltip": "End the session without saving time",
     "completeTooltip": "Complete the work and save the time",
     "checkpointTooltip": "Save the time so far without ending the session",
-    "focusMode": "Focus view"
+    "focusMode": "Focus view",
+    "floatEmptyState": "No pomodoro is running",
+    "floatTransparencyToggle": "Toggle glass mode",
+    "floatClose": "Close floating window"
   }
 }
