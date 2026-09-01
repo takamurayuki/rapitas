@@ -101,6 +101,15 @@
       "save": "記録する",
       "saved": "学習時間を記録しました",
       "failed": "記録に失敗しました"
+    },
+    "themeLink": {
+      "button": "テーマを紐づけ",
+      "linkedBadge": "テーマ: {theme}",
+      "modalTitle": "テーマに紐づけ",
+      "description": "このテーマ配下のタスクでポモドーロ（作業）を完了すると、自動的に学習時間として記録されます。",
+      "themeLabel": "テーマ",
+      "unlinkedOption": "紐づけなし",
+      "noThemesWarning": "テーマがまだありません"
     }
   }
 }

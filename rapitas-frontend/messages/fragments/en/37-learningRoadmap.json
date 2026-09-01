@@ -101,6 +101,15 @@
       "save": "Log",
       "saved": "Study time logged",
       "failed": "Failed to log"
+    },
+    "themeLink": {
+      "button": "Link theme",
+      "linkedBadge": "Theme: {theme}",
+      "modalTitle": "Link to theme",
+      "description": "Completed work pomodoros on tasks under this theme are automatically logged as study time.",
+      "themeLabel": "Theme",
+      "unlinkedOption": "No theme",
+      "noThemesWarning": "No themes yet"
     }
   }
 }
