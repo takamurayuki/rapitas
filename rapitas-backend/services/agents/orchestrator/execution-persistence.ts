@@ -53,6 +53,7 @@ export function determineExecutionStatus(
     tokensUsed?: number;
     executionTimeMs?: number;
     errorMessage?: string;
+    failureType?: string;
   },
   fileLogger: ExecutionFileLogger,
   state: ExecutionState,
@@ -62,6 +63,15 @@ export function determineExecutionStatus(
     state.status = 'waiting_for_input';
     fileLogger.logStatusChange('running', 'waiting_for_input', 'Question detected');
     return 'waiting_for_input';
+  } else if (result.failureType === 'cancelled') {
+    state.status = 'cancelled';
+    fileLogger.logExecutionEnd('cancelled', {
+      success: false,
+      tokensUsed: result.tokensUsed,
+      executionTimeMs: result.executionTimeMs,
+      errorMessage: result.errorMessage,
+    });
+    return 'cancelled';
   } else if (result.success) {
     if (opts?.investigationMode) {
       state.status = 'post_processing';
@@ -107,6 +117,7 @@ export async function saveExecutionResult(
     tokensUsed?: number;
     executionTimeMs?: number;
     errorMessage?: string;
+    failureType?: string;
     question?: string;
     questionType?: string;
     questionDetails?: unknown;
