@@ -69,18 +69,21 @@ export default function PomodoroTimerControls({
       ) : (
         <IconButton
           onClick={onPause}
-          variant="warning"
+          variant="primary"
           size="lg"
           icon={<Pause />}
           aria-label={t('pause')}
           title={t('pause')}
         />
       )}
+      {/* Semantic green lives on the ICON only — the row keeps a single
+          accent fill (start/pause) per the ui-design-language "one accent"
+          rule; a second filled hue reads as the candy-button tell. */}
       <IconButton
         onClick={onComplete}
-        variant="success"
+        variant="secondary"
         size="lg"
-        icon={<CheckCircle2 />}
+        icon={<CheckCircle2 className="text-green-600 dark:text-green-400" />}
         aria-label={t('complete')}
         title={t('completeTooltip')}
       />
