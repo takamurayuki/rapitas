@@ -20,6 +20,8 @@
     "complete": "Complete",
     "stop": "Stop",
     "start": "Start",
+    "checkpointButton": "Record work time",
+    "checkpointToast": "Recorded {minutes} minutes of work time",
     "completedCount": "Completed",
     "totalTime": "Total time",
     "dailyAverage": "Daily average",

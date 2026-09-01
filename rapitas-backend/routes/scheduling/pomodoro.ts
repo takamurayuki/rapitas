@@ -10,6 +10,7 @@ import {
   resumePomodoro,
   completePomodoro,
   cancelPomodoro,
+  checkpointPomodoro,
   getStatistics,
   getHistory,
 } from '../../services/scheduling/pomodoro-service';
@@ -118,6 +119,23 @@ export const pomodoroRoutes = new Elysia({ prefix: '/pomodoro' })
         success: false,
         error: error instanceof Error ? error.message : '完了処理に失敗しました',
       };
+    }
+  })
+
+  .post('/sessions/:id/checkpoint', async ({ params, set }) => {
+    try {
+      const sessionId = parseInt(params.id);
+      if (isNaN(sessionId)) {
+        set.status = 400;
+        return { success: false, error: '無効なセッションIDです' };
+      }
+      const result = await checkpointPomodoro(sessionId);
+      return { success: true, ...result };
+    } catch (error) {
+      log.error({ err: error }, 'Checkpoint pomodoro error');
+      const message = error instanceof Error ? error.message : '途中記録に失敗しました';
+      set.status = message === 'セッションが見つかりません' ? 404 : 400;
+      return { success: false, error: message };
     }
   })
 

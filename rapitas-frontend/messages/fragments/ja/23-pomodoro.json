@@ -20,6 +20,8 @@
     "complete": "完了",
     "stop": "停止",
     "start": "開始",
+    "checkpointButton": "作業時間を記録",
+    "checkpointToast": "作業時間を{minutes}分記録しました",
     "completedCount": "完了数",
     "totalTime": "合計時間",
     "dailyAverage": "日平均",
