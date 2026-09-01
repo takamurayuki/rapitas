@@ -20,7 +20,9 @@ import { isReusableArtifact } from '../../../../services/workflow/phase-output-v
 import { recordTransition } from '../../../../services/workflow/transition-recorder';
 import { normalizeWorkflowStatus } from '../../../../services/workflow/workflow-invariants';
 import { findRecentCriticBounce } from '../../../../services/workflow/phase-critic';
+import { hasVerifyCompletionInFlight } from '../../../../services/workflow/verify-completion-inflight';
 import type { WorkflowStatus } from '../../../../services/workflow/workflow-types';
+import { HTTP_STATUS } from '../../../../utils/common/http-status';
 import { ALLOWED_FILE_TYPES_BY_STATUS } from './shared';
 
 const log = createLogger('routes:workflow:handlers:files');
@@ -31,6 +33,15 @@ const log = createLogger('routes:workflow:handlers:files');
  * stages can never drift from the resolver.
  */
 export type ResolvedWorkflowTask = NonNullable<Awaited<ReturnType<typeof resolveWorkflowDir>>>;
+
+/**
+ * Result of the status-transition guard: either the status it evaluated
+ * against, or an early HTTP response (status + body) the handler must return
+ * as-is without running the rest of the save pipeline.
+ */
+export type GuardStatusTransitionOutcome =
+  | { ok: true; status: WorkflowStatus }
+  | { ok: false; status: WorkflowStatus; httpStatus: number; body: Record<string, unknown> };
 
 /**
  * Validates the :fileType route param against the known workflow file types.
@@ -73,14 +84,14 @@ export async function resolveTargetTask(taskId: number): Promise<ResolvedWorkflo
  * @param taskId - Task being saved to / 対象タスク
  * @param fileType - File type being saved / 保存対象ファイル種別
  * @param resolved - Resolved workflow context (mutated on fast-forward) / 解決済みコンテキスト
- * @returns The status the guard evaluated against (post fast-forward) / ガード適用時のステータス
+ * @returns ok:true with the status the guard evaluated against (post fast-forward), or ok:false with an HTTP response to return as-is
  * @throws {ValidationError} When the file type is not allowed in the current status
  */
 export async function guardStatusTransition(
   taskId: number,
   fileType: WorkflowFileType,
   resolved: ResolvedWorkflowTask,
-): Promise<WorkflowStatus> {
+): Promise<GuardStatusTransitionOutcome> {
   // NOTE: normalizeWorkflowStatus handles null/undefined/empty-string — an empty workflowStatus
   // would cause ALLOWED_FILE_TYPES_BY_STATUS[""] to return undefined and skip the guard entirely.
   let currentStatusForGuard = normalizeWorkflowStatus(resolved.task.workflowStatus);
@@ -123,6 +134,50 @@ export async function guardStatusTransition(
 
   const allowedForCurrent = ALLOWED_FILE_TYPES_BY_STATUS[currentStatusForGuard];
   if (allowedForCurrent && !allowedForCurrent.has(fileType)) {
+    // The saving agent's own curl waits ~120s before its Bash tool gives up
+    // and retries, but runVerifyPostSaveAutomation (quality gate → adversarial
+    // jury → commit/PR/merge) runs synchronously in the SAME request and can
+    // take well over that (task 825: ~262s). Without this check, that retry
+    // is indistinguishable from a genuinely invalid transition and gets
+    // recorded as invariantViolation — once per retry — even though nothing
+    // is actually wrong. Only the agent's own in-flight automation can match
+    // all three conditions below, so this cannot mask a real bad transition.
+    if (
+      fileType === 'verify' &&
+      currentStatusForGuard === 'verify_done' &&
+      hasVerifyCompletionInFlight(taskId)
+    ) {
+      log.info(
+        { taskId },
+        '[Workflow] verify.md resave ignored — post-save automation already in flight',
+      );
+      await recordTransition({
+        taskId,
+        fromStatus: currentStatusForGuard,
+        toStatus: currentStatusForGuard,
+        actor: 'system',
+        cause: 'verify_inflight_retry_ignored',
+        phase: 'verify',
+        metadata: {
+          attemptedFileType: fileType,
+          reason: 'post-save automation already in flight for this task',
+        },
+      });
+      return {
+        ok: false,
+        status: currentStatusForGuard,
+        httpStatus: HTTP_STATUS.ACCEPTED,
+        body: {
+          success: true,
+          alreadyInFlight: true,
+          workflowStatus: currentStatusForGuard,
+          message:
+            '直前に保存した verify.md の後続自動化（品質ゲート/敵対的レビュー/コミット・PR作成）がまだ進行中です。' +
+            '新しい内容は保存されていません。数分待ってから GET /workflow/tasks/{taskId}/files で最新状態を確認してください。' +
+            '同じ内容を再送信する必要はありません。',
+        },
+      };
+    }
     log.warn(
       {
         taskId,
@@ -178,7 +233,7 @@ export async function guardStatusTransition(
     );
   }
 
-  return currentStatusForGuard;
+  return { ok: true, status: currentStatusForGuard };
 }
 
 /**

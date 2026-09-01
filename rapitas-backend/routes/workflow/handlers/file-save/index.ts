@@ -12,6 +12,7 @@ export {
   guardStatusTransition,
   guardParentSubtasksTerminal,
   type ResolvedWorkflowTask,
+  type GuardStatusTransitionOutcome,
 } from './guards';
 export { prepareAndPersistContent, type ContentPrepOutcome } from './content-prep';
 export { computeAndApplyStatusTransition, type StatusTransitionOutcome } from './status-transition';

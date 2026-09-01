@@ -11,6 +11,7 @@ describe('HTTP_STATUS', () => {
   test('contains expected status code values', () => {
     expect(HTTP_STATUS.OK).toBe(200);
     expect(HTTP_STATUS.CREATED).toBe(201);
+    expect(HTTP_STATUS.ACCEPTED).toBe(202);
     expect(HTTP_STATUS.NO_CONTENT).toBe(204);
     expect(HTTP_STATUS.BAD_REQUEST).toBe(400);
     expect(HTTP_STATUS.UNAUTHORIZED).toBe(401);
@@ -26,6 +27,7 @@ describe('HTTP_STATUS', () => {
     const keys = Object.keys(HTTP_STATUS);
     expect(keys).toContain('OK');
     expect(keys).toContain('CREATED');
+    expect(keys).toContain('ACCEPTED');
     expect(keys).toContain('NO_CONTENT');
     expect(keys).toContain('BAD_REQUEST');
     expect(keys).toContain('UNAUTHORIZED');
@@ -35,7 +37,7 @@ describe('HTTP_STATUS', () => {
     expect(keys).toContain('UNPROCESSABLE_ENTITY');
     expect(keys).toContain('TOO_MANY_REQUESTS');
     expect(keys).toContain('INTERNAL_SERVER_ERROR');
-    expect(keys.length).toBe(11);
+    expect(keys.length).toBe(12);
   });
 
   test('values are all numbers', () => {
