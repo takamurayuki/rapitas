@@ -72,6 +72,10 @@ const SUPPRESSED: [string, string][] = [
   ['claude-code-agent', 'Command failed: taskkill /PID # /T /F'],
   ['codex-cli-agent', 'Command failed: taskkill /PID # /T /F'],
   ['gemini-cli-agent:process-manager', 'Command failed: taskkill /PID # /T /F'],
+  [
+    'auto-run:idle-timer',
+    '[auto-run-idle-timer] Idle-stop timer expired for theme # (enabled=false)',
+  ],
   ['routes:workflow:auto-commit', '[Workflow] Worktree cleanup failed: <path>'],
 ];
 
@@ -89,6 +93,7 @@ const KEPT: [string, string][] = [
   ['routes:workflow:auto-commit', 'Automated verification failed — aborting PR review'],
   ['memory:task-queue', 'Stuck processing task moved to dead_letter'],
   ['claude-code-agent', 'process.kill() also failed'],
+  ['auto-run:idle-timer', '[auto-run-idle-timer] stopThemeForIdleTimeout write failed'],
   [
     'git-operations/worktree-ops',
     '[cleanupOrphanedWorktrees] Failed to remove orphaned directory after retries: <path>',
@@ -204,6 +209,28 @@ describe('classifyLogSignature', () => {
     expect(classifyLogSignature('claude-code-agent', 'process.kill() also failed').suppressed).toBe(
       false,
     );
+  });
+
+  test('"Idle-stop timer expired" is scoped to the auto-run:idle-timer logger only', () => {
+    // Task #823: an unrelated logger reusing this phrase must still be filed.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        '[auto-run-idle-timer] Idle-stop timer expired for theme # (enabled=false)',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('a failed idle-stop DB write stays visible even though the expiry record is suppressed', () => {
+    // Task #823: only the successful stop record is suppressed. If the DB
+    // update itself fails, that is a distinct, unsuppressed signature — the
+    // real-defect case must not be hidden.
+    expect(
+      classifyLogSignature(
+        'auto-run:idle-timer',
+        '[auto-run-idle-timer] stopThemeForIdleTimeout write failed',
+      ).suppressed,
+    ).toBe(false);
   });
 
   test('"[Workflow] Worktree cleanup failed" is scoped to routes:workflow:auto-commit only', () => {
