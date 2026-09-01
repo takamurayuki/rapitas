@@ -45,10 +45,10 @@ const SUPPRESSIONS: Suppression[] = [
   {
     // workflow-reconciler-queue-stall.ts の detectQueueStarvation が出す対の
     // ログ。「restarted」側は既にここで抑制済みだったが、runner が既に処理中で
-    // kick が no-op になるケースの文言（同ファイル130-147行、"a kick cannot help;
-    // not restarting"）は別文言のため未マッチだった。#761/#730と同型の抑制網の
+    // kick が no-op になるケースの文言(同ファイル130-147行、"a kick cannot help;
+    // not restarting")は別文言のため未マッチだった。#761/#730と同型の抑制網の
     // 対象漏れ — 実際に何かが壊れているわけではなく、runner稼働中の待機を記録
-    // しているだけ（#781）。
+    // しているだけ(#781)。
     test: /Queue starvation detected — restarted|re-enqueued to resume|was already queued; tracking|kick cannot help; not restarting/i,
     because:
       '自己修復が成功している、または runner 稼働中の待機を記録しているだけ — 検出して回復/継続した記録',
@@ -71,8 +71,8 @@ const SUPPRESSIONS: Suppression[] = [
     because: '任意プロバイダが不在なだけ — 必須ではない',
   },
   {
-    // #760: 実際の呼び出し箇所の大半は "failing open"（ハイフン無し動詞句）を使っており
-    // "fail-open"（ハイフン付き名詞句）のみにマッチする旧正規表現では拾えなかった。
+    // #760: 実際の呼び出し箇所の大半は "failing open"(ハイフン無し動詞句)を使っており
+    // "fail-open"(ハイフン付き名詞句)のみにマッチする旧正規表現では拾えなかった。
     // 例: critic-gate.ts:90, completion-gate.ts:110, verify-self-repair.ts:185 ほか。
     test: /fail(?:ing)?-open|failing open|skipping \(fail-open\)/i,
     because: '明示的に fail-open として継続している',
@@ -206,6 +206,19 @@ const SUPPRESSIONS: Suppression[] = [
     logger: /claude-code-agent|codex-cli-agent|gemini-cli-agent/i,
     because:
       'taskkillの第一試行失敗は対象PIDが既に終了済みのレースが大半で、process.kill()フォールバックが回復する — フォールバックも失敗した場合は別シグネチャで可視化される',
+  },
+  {
+    // ログ出力箇所: worktree-remove.ts:154-158 の logger.warn（removeWorktree内、
+    // git worktree remove の catch ブロック）。「is not a working tree」は当該
+    // パスの登録エントリが既に prune 済み/削除済みであることを示すだけで、直後の
+    // 187-191行がexistsSync(worktreePath)===falseならremoved=trueとして扱う
+    // フォールバック（実質的に既に望む終了状態）。恒久的に削除できないケースは
+    // 別シグネチャ「Could not remove ... after retries」「REFUSED fs cleanup」で
+    // 可視化されるため、本ルールで恒久失敗の可視性は失われない（#824）。
+    test: /Command failed: git worktree remove .* is not a working tree/i,
+    logger: /git-operations\/worktree-ops/i,
+    because:
+      'git worktree remove失敗は登録エントリの陳腐化を示すだけで、直後のfsフォールバックが既に削除済み状態として扱う — 恒久失敗は別シグネチャ(Could not remove.../REFUSED fs cleanup)で可視化される',
   },
   {
     // ログ出力箇所: auto-run-idle-timer.ts:300-303 の stopThemeForIdleTimeout。
