@@ -230,6 +230,29 @@ describe('performAutoCommitAndPR — removeWorktree の戻り値を worktreeClea
     removeWorktreeFixture = true;
   });
 
+  test('worktree削除失敗はwarnで記録されerrorでは記録されない (task 816 / K-8326)', async () => {
+    filesChangedFixture = 1;
+    revListFixture = '1';
+    prResultFixture = { success: false, error: 'gh: authentication failed' };
+    removeWorktreeFixture = false;
+    mockPrisma.task.findUnique.mockResolvedValueOnce({
+      id: 687,
+      title: 'テストタスク',
+      theme: { workingDirectory: 'C:\\work\\project', defaultBranch: 'develop' },
+      developerModeConfig: {
+        agentSessions: [{ id: 1, branchName: 'feature/t687', worktreePath }],
+      },
+    });
+    warnLogCalls.length = 0;
+    errorLogCalls.length = 0;
+
+    await performAutoCommitAndPR(687, '# 検証結果');
+
+    expect(warnLogCalls.some(([, msg]) => msg.includes('Worktree cleanup failed'))).toBe(true);
+    expect(errorLogCalls.some(([, msg]) => msg.includes('Worktree cleanup failed'))).toBe(false);
+    removeWorktreeFixture = true;
+  });
+
   test('removeWorktree が true を返す場合、success:true を記録しDBを更新する', async () => {
     filesChangedFixture = 1;
     revListFixture = '1';

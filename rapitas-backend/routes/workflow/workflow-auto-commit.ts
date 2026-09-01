@@ -483,8 +483,8 @@ export async function performAutoCommitAndPR(
       }
 
       if (removeError) {
-        // NOTE: Cleanup failure should not fail the overall workflow
-        log.error({ err: removeError }, `[Workflow] Worktree cleanup failed: ${worktreePath}`);
+        // NOTE: warn, not error (task 816) — cleanup failure must not fail the workflow; the cleanup scheduler retries and self-heals.
+        log.warn({ err: removeError }, `[Workflow] Worktree cleanup failed: ${worktreePath}`);
         result.worktreeCleanupResult = { success: false, worktreePath, error: removeError };
       } else {
         await prisma.agentSession.update({
