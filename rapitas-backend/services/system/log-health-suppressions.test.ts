@@ -76,6 +76,7 @@ const SUPPRESSED: [string, string][] = [
     'auto-run:idle-timer',
     '[auto-run-idle-timer] Idle-stop timer expired for theme # (enabled=false)',
   ],
+  ['routes:workflow:auto-commit', '[Workflow] Worktree cleanup failed: <path>'],
 ];
 
 const KEPT: [string, string][] = [
@@ -93,6 +94,10 @@ const KEPT: [string, string][] = [
   ['memory:task-queue', 'Stuck processing task moved to dead_letter'],
   ['claude-code-agent', 'process.kill() also failed'],
   ['auto-run:idle-timer', '[auto-run-idle-timer] stopThemeForIdleTimeout write failed'],
+  [
+    'git-operations/worktree-ops',
+    '[cleanupOrphanedWorktrees] Failed to remove orphaned directory after retries: <path>',
+  ],
 ];
 
 describe('classifyLogSignature', () => {
@@ -224,6 +229,26 @@ describe('classifyLogSignature', () => {
       classifyLogSignature(
         'auto-run:idle-timer',
         '[auto-run-idle-timer] stopThemeForIdleTimeout write failed',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"[Workflow] Worktree cleanup failed" is scoped to routes:workflow:auto-commit only', () => {
+    // Task #821/K-8422: an unrelated logger reusing this phrasing must still be filed.
+    expect(
+      classifyLogSignature('some-other-logger', '[Workflow] Worktree cleanup failed: <path>')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('a permanently stuck worktree removal stays visible via the scheduler signature', () => {
+    // Task #821: the immediate-attempt warn is suppressed because the 30-minute
+    // cleanupOrphanedWorktrees scheduler retries, but a retry-exhausted failure
+    // from that scheduler is a distinct, unsuppressed signature.
+    expect(
+      classifyLogSignature(
+        'git-operations/worktree-ops',
+        '[cleanupOrphanedWorktrees] Failed to remove orphaned directory after retries: <path>',
       ).suppressed,
     ).toBe(false);
   });

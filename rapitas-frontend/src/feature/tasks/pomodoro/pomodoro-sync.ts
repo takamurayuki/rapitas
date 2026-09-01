@@ -15,10 +15,18 @@ import { API_BASE_URL } from '@/utils/api';
  * notification toast, and quick capture ALL fired start/complete/cancel for
  * the same session (server log: 「完了可能なセッションが見つかりません」races
  * on completion). Only the main window owns backend sync.
+ *
+ * /pomodoro-float is excluded for the same reason: it mounts its own
+ * usePomodoroStore instance with an independent tick, so without this
+ * exclusion it would race main on start/complete. Its Checkpoint button
+ * does not call this module directly — it delegates via a Tauri event to
+ * main instead (see pomodoro-store.ts's checkpoint-request listener).
  */
-const isSyncOwner = (): boolean =>
+export const isSyncOwner = (): boolean =>
   typeof window === 'undefined' ||
-  !['/notification-toast', '/quick-capture'].some((p) => window.location.pathname.startsWith(p));
+  !['/notification-toast', '/quick-capture', '/pomodoro-float'].some((p) =>
+    window.location.pathname.startsWith(p),
+  );
 
 /**
  * Sync object with methods to notify the backend about Pomodoro session events.

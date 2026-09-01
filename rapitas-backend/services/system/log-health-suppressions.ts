@@ -220,6 +220,22 @@ const SUPPRESSIONS: Suppression[] = [
     because:
       'idle-stopタイマーが満了しテーマの自動実行を停止した設計どおりの記録 — logCycleEventとnotifyIdleStoppedで既に可視化されている',
   },
+  {
+    // ログ出力箇所: routes/workflow/workflow-auto-commit.ts:487 の log.warn
+    // （performAutoCommitAndPR内）。task 816 で log.error → log.warn へ格下げ済み
+    // （同ファイル486行目のNOTE）だが、格下げ後もWARN以上を懸念化する
+    // groupEntries（log-health-check.ts:208）の対象から漏れておらず、task 821/
+    // K-8422として再度起票された。worktreePathはDBから消さず（489行目のブロック
+    // のみ実行、null化は成功時のみ）30分毎のcleanupOrphanedWorktreesスケジューラ
+    // が同一パスを再試行して自己修復する設計であり、直すべき欠陥は無い。恒久的に
+    // 回収できないケースは別シグネチャ「[cleanupOrphanedWorktrees] Failed to
+    // remove orphaned directory after retries」（logger: git-operations/
+    // worktree-ops）で可視化され続けるため、本ルールで恒久失敗の可視性は失われない。
+    test: /\[Workflow\] Worktree cleanup failed: <path>/i,
+    logger: /routes:workflow:auto-commit/i,
+    because:
+      'cleanupOrphanedWorktreesスケジューラが30分毎に同一パスを再試行して自己修復する — 恒久失敗は別シグネチャ(git-operations/worktree-ops)で可視化される',
+  },
 ];
 
 /** Result of classifying one log signature. */
