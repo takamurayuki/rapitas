@@ -6,7 +6,7 @@
  * that file under the project's file-size limit.
  */
 'use client';
-import { Play, Pause, Square, CheckCircle2, AlarmClockPlus } from 'lucide-react';
+import { Play, Pause, Square, Check, AlarmClockPlus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import IconButton from '@/components/ui/button/IconButton';
 
@@ -22,6 +22,18 @@ interface PomodoroTimerControlsProps {
   onStop: () => void;
   onCheckpoint: () => void;
 }
+
+// Filled circular action (start/pause/complete): solid disc, STROKED white
+// glyph — the icon interior stays unfilled (operator-approved inverted style).
+// Matches IconButton lg metrics (p-2.5 disc, h-5 w-5 glyph).
+const FILLED_BASE =
+  'flex items-center justify-center rounded-full p-2.5 text-white transition-colors ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ' +
+  'disabled:cursor-not-allowed disabled:opacity-50';
+const FILLED_INDIGO =
+  'bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600';
+// Green (not emerald) per ui-design-language: success/completed = green.
+const FILLED_GREEN = 'bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-500';
 
 export default function PomodoroTimerControls({
   isBreakTime,
@@ -42,16 +54,16 @@ export default function PomodoroTimerControls({
   if (!isTimerRunning) {
     return (
       <div className="flex gap-3 justify-center">
-        <IconButton
+        <button
+          type="button"
           onClick={onStart}
           disabled={isOtherTaskRunning}
-          variant="ghost"
-          size="lg"
-          className="rounded-full border border-zinc-300 dark:border-zinc-600"
-          icon={<Play className="text-indigo-600 dark:text-indigo-400" />}
+          className={`${FILLED_BASE} ${FILLED_INDIGO}`}
           aria-label={t('start')}
           title={t('start')}
-        />
+        >
+          <Play className="h-5 w-5" />
+        </button>
       </div>
     );
   }
@@ -59,38 +71,38 @@ export default function PomodoroTimerControls({
   return (
     <div className="flex gap-3 justify-center">
       {isPaused ? (
-        <IconButton
+        <button
+          type="button"
           onClick={onResume}
-          variant="ghost"
-          size="lg"
-          className="rounded-full border border-zinc-300 dark:border-zinc-600"
-          icon={<Play className="text-indigo-600 dark:text-indigo-400" />}
+          className={`${FILLED_BASE} ${FILLED_INDIGO}`}
           aria-label={t('resumeWork')}
           title={t('resumeWork')}
-        />
+        >
+          <Play className="h-5 w-5" />
+        </button>
       ) : (
-        <IconButton
+        <button
+          type="button"
           onClick={onPause}
-          variant="ghost"
-          size="lg"
-          className="rounded-full border border-zinc-300 dark:border-zinc-600"
-          icon={<Pause className="text-indigo-600 dark:text-indigo-400" />}
+          className={`${FILLED_BASE} ${FILLED_INDIGO}`}
           aria-label={t('pause')}
           title={t('pause')}
-        />
+        >
+          <Pause className="h-5 w-5" />
+        </button>
       )}
       {/* Zero-fill transport cluster (operator-approved): no button carries a
           background. Priority reads from the primary's ring + accent glyph,
           then icon tints, then plain ghosts — fills read as unrefined here. */}
-      <IconButton
+      <button
+        type="button"
         onClick={onComplete}
-        variant="ghost"
-        size="lg"
-        className="rounded-full border border-zinc-300 dark:border-zinc-600"
-        icon={<CheckCircle2 className="text-green-600 dark:text-green-400" />}
+        className={`${FILLED_BASE} ${FILLED_GREEN}`}
         aria-label={t('complete')}
         title={t('completeTooltip')}
-      />
+      >
+        <Check className="h-5 w-5" />
+      </button>
       {/* Uniform ring row (operator feedback: mixed treatments read as
           disjointed). Checkpoint is icon-only like the rest — its behavior
           lives in the tooltip. */}
