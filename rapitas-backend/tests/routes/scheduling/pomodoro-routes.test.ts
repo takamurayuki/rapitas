@@ -13,6 +13,9 @@ const mockCompletePomodoro = mock(() =>
   Promise.resolve({ session: { id: 1 }, completedPomodoros: 1 }),
 );
 const mockCancelPomodoro = mock(() => Promise.resolve({ id: 1 }));
+const mockCheckpointPomodoro = mock(() =>
+  Promise.resolve({ studyMinutesRecorded: 0, currentElapsed: 0, remainingSeconds: 1500 }),
+);
 const mockGetStatistics = mock(() => Promise.resolve({ totalSessions: 0, totalMinutes: 0 }));
 const mockGetHistory = mock(() => Promise.resolve({ sessions: [], total: 0 }));
 
@@ -23,6 +26,7 @@ mock.module('../../../services/scheduling/pomodoro-service', () => ({
   resumePomodoro: mockResumePomodoro,
   completePomodoro: mockCompletePomodoro,
   cancelPomodoro: mockCancelPomodoro,
+  checkpointPomodoro: mockCheckpointPomodoro,
   getStatistics: mockGetStatistics,
   getHistory: mockGetHistory,
 }));
@@ -44,6 +48,7 @@ function resetAllMocks() {
   mockResumePomodoro.mockReset();
   mockCompletePomodoro.mockReset();
   mockCancelPomodoro.mockReset();
+  mockCheckpointPomodoro.mockReset();
   mockGetStatistics.mockReset();
   mockGetHistory.mockReset();
 
@@ -56,6 +61,11 @@ function resetAllMocks() {
     completedPomodoros: 1,
   });
   mockCancelPomodoro.mockResolvedValue({ id: 1, status: 'cancelled' });
+  mockCheckpointPomodoro.mockResolvedValue({
+    studyMinutesRecorded: 5,
+    currentElapsed: 300,
+    remainingSeconds: 1200,
+  });
   mockGetStatistics.mockResolvedValue({ totalSessions: 5, totalMinutes: 125 });
   mockGetHistory.mockResolvedValue({ sessions: [], total: 0 });
 }
@@ -203,6 +213,66 @@ describe('POST /pomodoro/sessions/:id/pause', () => {
 
     const res = await app.handle(
       new Request('http://localhost/pomodoro/sessions/1/pause', { method: 'POST' }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.success).toBe(false);
+  });
+});
+
+describe('POST /pomodoro/sessions/:id/checkpoint', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('途中記録できること', async () => {
+    mockCheckpointPomodoro.mockResolvedValue({
+      studyMinutesRecorded: 12,
+      currentElapsed: 720,
+      remainingSeconds: 780,
+    });
+
+    const res = await app.handle(
+      new Request('http://localhost/pomodoro/sessions/1/checkpoint', { method: 'POST' }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.studyMinutesRecorded).toBe(12);
+  });
+
+  test('無効なセッションIDで400を返すこと', async () => {
+    const res = await app.handle(
+      new Request('http://localhost/pomodoro/sessions/abc/checkpoint', { method: 'POST' }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.success).toBe(false);
+  });
+
+  test('存在しないセッションで404を返すこと', async () => {
+    mockCheckpointPomodoro.mockRejectedValue(new Error('セッションが見つかりません'));
+
+    const res = await app.handle(
+      new Request('http://localhost/pomodoro/sessions/999/checkpoint', { method: 'POST' }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.success).toBe(false);
+  });
+
+  test('active以外のセッションで400を返すこと', async () => {
+    mockCheckpointPomodoro.mockRejectedValue(new Error('記録可能なセッションが見つかりません'));
+
+    const res = await app.handle(
+      new Request('http://localhost/pomodoro/sessions/1/checkpoint', { method: 'POST' }),
     );
     const body = await res.json();
 

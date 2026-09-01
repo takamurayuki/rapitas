@@ -32,8 +32,13 @@ const localDayStart = (d: Date): Date => {
 /**
  * Record one study block and bump that day's StudyStreak minutes.
  *
- * @param input - Minutes (rounded, must be >= 1 after rounding), optional goal attribution, source, note, timestamp / 分数・目標・記録元・メモ・日時
- * @returns The created StudySession row / 作成された学習セッション行
+ * When `pomodoroSessionId` is set, this upserts the StudySession row keyed on
+ * that id instead of always creating a new one — a mid-session checkpoint
+ * followed by the completion record must overwrite the same row rather than
+ * accumulate two, since both represent the same pomodoro's study time.
+ *
+ * @param input - Minutes (rounded, must be >= 1 after rounding), optional goal attribution, source, note, timestamp, pomodoro dedup key / 分数・目標・記録元・メモ・日時・ポモドーロ重複防止キー
+ * @returns The created or updated StudySession row / 作成または更新された学習セッション行
  * @throws {Error} When minutes rounds to zero or below / 分数が0以下の場合
  */
 export async function recordStudySession(input: RecordStudySessionInput) {
@@ -42,21 +47,53 @@ export async function recordStudySession(input: RecordStudySessionInput) {
     throw new Error('学習時間(分)は1以上で指定してください');
   }
   const studiedAt = input.studiedAt ?? new Date();
+  const day = localDayStart(studiedAt);
+  const pomodoroSessionId = input.pomodoroSessionId ?? null;
+
+  if (pomodoroSessionId == null) {
+    const [session] = await prisma.$transaction([
+      prisma.studySession.create({
+        data: {
+          minutes,
+          goalId: input.goalId ?? null,
+          source: input.source ?? 'manual',
+          note: input.note ?? null,
+          studiedAt,
+          pomodoroSessionId: null,
+        },
+      }),
+      prisma.studyStreak.upsert({
+        where: { date: day },
+        update: { studyMinutes: { increment: minutes } },
+        create: { date: day, studyMinutes: minutes, tasksCompleted: 0 },
+      }),
+    ]);
+    return session;
+  }
+
+  // Same pomodoroSessionId as an earlier checkpoint/completion: overwrite its
+  // minutes (upsert.update) and apply only the delta to the streak, so the
+  // day's aggregate reflects the latest total instead of double-counting.
+  const existing = await prisma.studySession.findUnique({ where: { pomodoroSessionId } });
+  const delta = minutes - (existing?.minutes ?? 0);
+
   const [session] = await prisma.$transaction([
-    prisma.studySession.create({
-      data: {
+    prisma.studySession.upsert({
+      where: { pomodoroSessionId },
+      create: {
         minutes,
         goalId: input.goalId ?? null,
         source: input.source ?? 'manual',
         note: input.note ?? null,
         studiedAt,
-        pomodoroSessionId: input.pomodoroSessionId ?? null,
+        pomodoroSessionId,
       },
+      update: { minutes, studiedAt },
     }),
     prisma.studyStreak.upsert({
-      where: { date: localDayStart(studiedAt) },
-      update: { studyMinutes: { increment: minutes } },
-      create: { date: localDayStart(studiedAt), studyMinutes: minutes, tasksCompleted: 0 },
+      where: { date: day },
+      update: { studyMinutes: { increment: delta } },
+      create: { date: day, studyMinutes: Math.max(delta, 0), tasksCompleted: 0 },
     }),
   ]);
   return session;

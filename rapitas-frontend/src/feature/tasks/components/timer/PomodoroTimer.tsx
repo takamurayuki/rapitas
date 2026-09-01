@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { type TimeEntry } from '@/types';
-import { Circle, Play, Pause, Square, Coffee, Hourglass } from 'lucide-react';
+import { Circle, Coffee, Hourglass } from 'lucide-react';
 import Tomato from '@/components/icons/Tomato';
 import { useTranslations } from 'next-intl';
 import {
@@ -11,8 +11,11 @@ import {
   DEFAULT_SHORT_BREAK,
   DEFAULT_LONG_BREAK,
 } from '../../pomodoro/pomodoro-store';
+import { syncPomodoroToBackend } from '../../pomodoro/pomodoro-sync';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
+import { useToast } from '@/components/ui/toast/ToastContainer';
+import PomodoroTimerControls from './pomodoro-timer-controls';
 
 const logger = createLogger('PomodoroTimer');
 
@@ -60,6 +63,7 @@ export default function PomodoroTimer({
   const t = useTranslations('pomodoro');
   const tTask = useTranslations('task');
   const store = usePomodoroStore();
+  const { showToast } = useToast();
 
   // NOTE: null = attribute time to the parent task itself
   const [selectedSubtaskId, setSelectedSubtaskId] = useState<number | null>(null);
@@ -203,6 +207,15 @@ export default function PomodoroTimer({
       onUpdate();
     } catch (err) {
       logger.error('Failed to complete task:', err);
+    }
+  };
+
+  const handleCheckpoint = async () => {
+    const result = await syncPomodoroToBackend.checkpoint();
+    // 0 minutes means either no theme-linked study goal or too little time
+    // elapsed to round up to a minute — nothing meaningful to report.
+    if (result && result.studyMinutesRecorded > 0) {
+      showToast(t('checkpointToast', { minutes: result.studyMinutesRecorded }), 'success');
     }
   };
 
@@ -398,58 +411,18 @@ export default function PomodoroTimer({
         )}
 
       {!showBreakDialog && !showBreakEndDialog && (
-        <div className="flex gap-3 justify-center">
-          {isBreakTime ? null : isTimerRunning ? (
-            <>
-              {isPaused ? (
-                <button
-                  onClick={handleResumeTimer}
-                  className="flex items-center gap-2 px-8 py-4 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-semibold transition-all"
-                >
-                  <Play className="w-5 h-5" />
-                  {t('resumeWork')}
-                </button>
-              ) : (
-                <button
-                  onClick={handlePauseTimer}
-                  className="flex items-center gap-2 px-8 py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-semibold transition-all"
-                >
-                  <Pause className="w-5 h-5" />
-                  {t('pause')}
-                </button>
-              )}
-              <button
-                onClick={handleCompleteTask}
-                className="flex items-center gap-2 px-8 py-4 bg-green-500 hover:bg-green-600 text-white rounded-xl font-semibold transition-all"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path
-                    fillRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                {t('complete')}
-              </button>
-              <button
-                onClick={handleStopTimer}
-                className="flex items-center gap-2 px-8 py-4 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold transition-all"
-              >
-                <Square className="w-5 h-5" />
-                {t('stop')}
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={handleStartTimer}
-              disabled={isOtherTaskRunning}
-              className="flex items-center gap-2 px-12 py-5 bg-indigo-500 hover:bg-indigo-600 disabled:bg-zinc-400 disabled:cursor-not-allowed text-white rounded-xl font-bold text-lg transition-all"
-            >
-              <Play className="w-6 h-6" />
-              {t('start')}
-            </button>
-          )}
-        </div>
+        <PomodoroTimerControls
+          isBreakTime={isBreakTime}
+          isTimerRunning={isTimerRunning}
+          isPaused={isPaused}
+          isOtherTaskRunning={isOtherTaskRunning}
+          onStart={handleStartTimer}
+          onPause={handlePauseTimer}
+          onResume={handleResumeTimer}
+          onComplete={handleCompleteTask}
+          onStop={handleStopTimer}
+          onCheckpoint={handleCheckpoint}
+        />
       )}
     </div>
   );

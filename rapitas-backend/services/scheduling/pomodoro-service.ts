@@ -215,6 +215,59 @@ export async function completePomodoro(sessionId: number) {
   };
 }
 
+export interface CheckpointResult {
+  studyMinutesRecorded: number;
+  currentElapsed: number;
+  remainingSeconds: number;
+}
+
+/**
+ * Record study time for an in-progress work session's elapsed time so far,
+ * without transitioning its status — the session stays active/paused and the
+ * timer keeps running afterward. Only 'active' sessions are eligible; paused
+ * and completed/cancelled sessions are rejected so the recorded elapsed time
+ * always reflects real, still-ticking work.
+ *
+ * @param sessionId - Target PomodoroSession id / 対象セッションID
+ * @returns Minutes recorded so far for this session (0 when the session is a
+ * break or its task has no linked study goal) plus elapsed/remaining seconds / このセッションの累計記録分数(休憩または学習目標未紐づけなら0)と経過・残り秒数
+ * @throws {Error} When the session does not exist or is not active / セッションが存在しない・active以外の場合
+ */
+export async function checkpointPomodoro(sessionId: number): Promise<CheckpointResult> {
+  const session = await prisma.pomodoroSession.findUnique({ where: { id: sessionId } });
+
+  if (!session) {
+    throw new Error('セッションが見つかりません');
+  }
+  if (session.status !== 'active') {
+    throw new Error('記録可能なセッションが見つかりません');
+  }
+
+  const currentElapsed = Math.min(
+    session.elapsed + Math.floor((Date.now() - session.startedAt.getTime()) / 1000),
+    session.duration,
+  );
+
+  let studyMinutesRecorded = 0;
+  if (session.type === 'work' && session.taskId) {
+    await recordPomodoroStudyTime({
+      taskId: session.taskId,
+      pomodoroSessionId: session.id,
+      durationSeconds: currentElapsed,
+    });
+    const studySession = await prisma.studySession.findUnique({
+      where: { pomodoroSessionId: session.id },
+    });
+    studyMinutesRecorded = studySession?.minutes ?? 0;
+  }
+
+  return {
+    studyMinutesRecorded,
+    currentElapsed,
+    remainingSeconds: Math.max(0, session.duration - currentElapsed),
+  };
+}
+
 /**
  * Cancel a pomodoro.
  */

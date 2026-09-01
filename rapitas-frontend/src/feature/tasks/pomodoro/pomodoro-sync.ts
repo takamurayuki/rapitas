@@ -82,4 +82,34 @@ export const syncPomodoroToBackend = {
       })
       .catch(() => {});
   },
+
+  /**
+   * Records study time for the active session's elapsed-so-far without
+   * changing its status. Unlike the fire-and-forget methods above, the
+   * caller needs the recorded minute count to show a toast — so this
+   * resolves with the result instead of returning void.
+   *
+   * @returns Recorded minutes, or null when there is no active session, the
+   * call is not the sync owner, or the request failed / 記録分数(no-op時はnull)
+   */
+  checkpoint: async (): Promise<{ studyMinutesRecorded: number } | null> => {
+    if (!isSyncOwner()) return null;
+    try {
+      const activeRes = await fetch(`${API_BASE_URL}/pomodoro/active`);
+      const activeData = (await activeRes.json()) as { session?: { id: number } };
+      const sessionId = activeData.session?.id;
+      if (!sessionId) return null;
+
+      const res = await fetch(`${API_BASE_URL}/pomodoro/sessions/${sessionId}/checkpoint`, {
+        method: 'POST',
+      });
+      if (!res.ok) return null;
+
+      const data = (await res.json()) as { success: boolean; studyMinutesRecorded?: number };
+      if (!data.success || typeof data.studyMinutesRecorded !== 'number') return null;
+      return { studyMinutesRecorded: data.studyMinutesRecorded };
+    } catch {
+      return null;
+    }
+  },
 };
