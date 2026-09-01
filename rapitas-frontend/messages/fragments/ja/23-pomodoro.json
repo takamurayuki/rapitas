@@ -26,6 +26,10 @@
     "totalTime": "合計時間",
     "dailyAverage": "日平均",
     "dailyPomodoroCount": "日別ポモドーロ数",
-    "taskFocusTime": "タスク別集中時間"
+    "taskFocusTime": "タスク別集中時間",
+    "cancel": "キャンセル",
+    "cancelTooltip": "時間を保存せずセッションを終了",
+    "completeTooltip": "作業を完了して時間を保存",
+    "checkpointTooltip": "セッションを続けたまま、ここまでの作業時間を保存"
   }
 }
