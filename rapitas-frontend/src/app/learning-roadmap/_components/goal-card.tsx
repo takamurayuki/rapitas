@@ -8,7 +8,7 @@
  * scores). Actions: edit, complete, delete.
  */
 import { useTranslations, useFormatter } from 'next-intl';
-import { Pencil, Trash2, Check, GraduationCap, Timer } from 'lucide-react';
+import { Pencil, Trash2, Check, GraduationCap, Timer, Cable } from 'lucide-react';
 import type { StudyGoal } from './roadmap.types';
 
 interface GoalCardProps {
@@ -16,14 +16,23 @@ interface GoalCardProps {
   onEdit: (goal: StudyGoal) => void;
   onComplete: (goal: StudyGoal) => void;
   onDelete: (goal: StudyGoal) => void;
+  linkedThemeName: string | null;
+  onLinkTheme: (goal: StudyGoal) => void;
 }
 
 /**
  * Render one goal card.
  *
- * @param props - Goal and action callbacks. / 目標と操作コールバック。
+ * @param props - Goal, action callbacks, and the linked theme's name (if any). / 目標・操作コールバック・紐づけ済みテーマ名。
  */
-export function StudyGoalCard({ goal, onEdit, onComplete, onDelete }: GoalCardProps) {
+export function StudyGoalCard({
+  goal,
+  onEdit,
+  onComplete,
+  onDelete,
+  linkedThemeName,
+  onLinkTheme,
+}: GoalCardProps) {
   const t = useTranslations('learningRoadmap');
   const format = useFormatter();
 
@@ -49,6 +58,12 @@ export function StudyGoalCard({ goal, onEdit, onComplete, onDelete }: GoalCardPr
             >
               {t(`types.${goal.type}`)}
             </span>
+            {linkedThemeName && (
+              <span className="inline-flex items-center gap-1 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                <Cable className="h-3 w-3" aria-hidden="true" />
+                {t('themeLink.linkedBadge', { theme: linkedThemeName })}
+              </span>
+            )}
             <h2 className="truncate text-base font-semibold text-zinc-900 dark:text-zinc-100">
               {goal.title}
             </h2>
@@ -75,6 +90,14 @@ export function StudyGoalCard({ goal, onEdit, onComplete, onDelete }: GoalCardPr
               <Check className="h-4 w-4" />
             </button>
           )}
+          <button
+            onClick={() => onLinkTheme(goal)}
+            aria-label={t('themeLink.button')}
+            title={t('themeLink.button')}
+            className="rounded p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-indigo-600 dark:hover:bg-zinc-800"
+          >
+            <Cable className="h-4 w-4" />
+          </button>
           <button
             onClick={() => onEdit(goal)}
             aria-label={t('edit')}

@@ -4,7 +4,7 @@
  * Business logic for the pomodoro timer.
  */
 import { prisma } from '../../config/database';
-import { recordStudySession } from '../learning/study-time';
+import { recordPomodoroStudyTime } from '../learning/study-time';
 
 // Default settings
 const WORK_DURATION = 25 * 60; // 25 minutes
@@ -184,20 +184,14 @@ export async function completePomodoro(sessionId: number) {
       },
     });
 
-    // Pomodoros on study-goal-linked tasks also count as study time on the
-    // learning roadmap (StudySession + StudyStreak) — no manual logging needed.
-    const task = await prisma.task.findUnique({
-      where: { id: session.taskId },
-      select: { studyGoalId: true },
+    // Pomodoros on study-goal-linked (directly or via theme) tasks also count
+    // as study time on the learning roadmap (StudySession + StudyStreak) — no
+    // manual logging needed. Best-effort: never blocks pomodoro completion.
+    await recordPomodoroStudyTime({
+      taskId: session.taskId,
+      pomodoroSessionId: session.id,
+      durationSeconds: session.duration,
     });
-    const minutes = Math.round(session.duration / 60);
-    if (task?.studyGoalId && minutes >= 1) {
-      await recordStudySession({
-        minutes,
-        goalId: task.studyGoalId,
-        source: 'pomodoro',
-      });
-    }
   }
 
   // Determine next session type

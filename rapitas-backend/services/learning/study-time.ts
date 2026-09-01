@@ -7,6 +7,9 @@
  * source recorded the time (manual log, pomodoro, vocab review).
  */
 import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
+
+const logger = createLogger('study-time');
 
 export type StudySource = 'manual' | 'pomodoro' | 'vocab';
 
@@ -16,6 +19,7 @@ export interface RecordStudySessionInput {
   source?: StudySource;
   note?: string | null;
   studiedAt?: Date;
+  pomodoroSessionId?: number | null;
 }
 
 /** Local midnight of a timestamp — same day convention as /study-streaks/record. */
@@ -46,6 +50,7 @@ export async function recordStudySession(input: RecordStudySessionInput) {
         source: input.source ?? 'manual',
         note: input.note ?? null,
         studiedAt,
+        pomodoroSessionId: input.pomodoroSessionId ?? null,
       },
     }),
     prisma.studyStreak.upsert({
@@ -81,4 +86,55 @@ export async function deleteStudySession(id: number) {
     data: { studyMinutes: 0 },
   });
   return session;
+}
+
+export interface RecordPomodoroStudyTimeInput {
+  taskId: number;
+  pomodoroSessionId: number;
+  durationSeconds: number;
+}
+
+/**
+ * Resolve which StudyGoal (if any) a completed work pomodoro should credit,
+ * then record the study time. Direct task-to-goal linking (Task.studyGoalId)
+ * takes priority over theme-based linking (Task.themeId -> StudyGoal.themeId,
+ * oldest active goal only — see plan.md "目標解決ロジック"). Best-effort: any
+ * failure is logged and swallowed so it never blocks pomodoro completion.
+ *
+ * @param input - Task id, the completed PomodoroSession id (dedup key), and its duration in seconds / タスクID・ポモドーロセッションID・秒数
+ */
+export async function recordPomodoroStudyTime(input: RecordPomodoroStudyTimeInput): Promise<void> {
+  try {
+    const task = await prisma.task.findUnique({
+      where: { id: input.taskId },
+      select: { studyGoalId: true, themeId: true },
+    });
+    if (!task) return;
+
+    let goalId: number | null = task.studyGoalId ?? null;
+    if (!goalId && task.themeId) {
+      const goal = await prisma.studyGoal.findFirst({
+        where: { themeId: task.themeId, status: 'active' },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+      });
+      goalId = goal?.id ?? null;
+    }
+    if (!goalId) return;
+
+    const minutes = Math.ceil(input.durationSeconds / 60);
+    if (minutes < 1) return;
+
+    await recordStudySession({
+      minutes,
+      goalId,
+      source: 'pomodoro',
+      pomodoroSessionId: input.pomodoroSessionId,
+    });
+  } catch (error) {
+    logger.warn(
+      { error, taskId: input.taskId, pomodoroSessionId: input.pomodoroSessionId },
+      'Failed to auto-record pomodoro study time',
+    );
+  }
 }

@@ -19,11 +19,34 @@ const mockPrisma = {
   timeEntry: {
     create: mock(() => Promise.resolve({})),
   },
+  // Consulted only on work-session completion, to resolve the study goal
+  // (direct or theme-based) that recordPomodoroStudyTime should credit.
+  task: {
+    findUnique: mock(() => Promise.resolve(null)),
+  },
+  studyGoal: {
+    findFirst: mock(() => Promise.resolve(null)),
+  },
+  studySession: {
+    create: mock(() => Promise.resolve({ id: 1 })),
+  },
+  studyStreak: {
+    upsert: mock(() => Promise.resolve({})),
+  },
+  $transaction: mock((ops: Promise<unknown>[]) => Promise.all(ops)),
 };
 
 mock.module('../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
   prisma: mockPrisma,
+}));
+mock.module('../../config/logger', () => ({
+  createLogger: () => ({
+    info: () => {},
+    error: () => {},
+    warn: () => {},
+    debug: () => {},
+  }),
 }));
 
 const {
@@ -280,6 +303,14 @@ describe('completePomodoro', () => {
     mockPrisma.pomodoroSession.findUnique.mockReset();
     mockPrisma.pomodoroSession.update.mockReset();
     mockPrisma.timeEntry.create.mockReset();
+    mockPrisma.task.findUnique.mockReset();
+    mockPrisma.task.findUnique.mockResolvedValue(null);
+    mockPrisma.studyGoal.findFirst.mockReset();
+    mockPrisma.studyGoal.findFirst.mockResolvedValue(null);
+    mockPrisma.studySession.create.mockReset();
+    mockPrisma.studySession.create.mockResolvedValue({ id: 1 });
+    mockPrisma.studyStreak.upsert.mockReset();
+    mockPrisma.studyStreak.upsert.mockResolvedValue({});
   });
 
   test('active/paused以外のセッションでエラーをスローすること', async () => {
@@ -413,6 +444,162 @@ describe('completePomodoro', () => {
     expect(createCall.data.taskId).toBe(42);
     expect(createCall.data.duration).toBeCloseTo(1500 / 3600, 4); // hours
     expect(createCall.data.note).toContain('25分');
+  });
+
+  test('work完了かつタスクがstudyGoalIdに直接紐づく場合StudySessionを自動記録すること', async () => {
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue({
+      id: 1,
+      status: 'active',
+      elapsed: 1500,
+      startedAt: now,
+      duration: 1500,
+      type: 'work',
+      completedPomodoros: 0,
+      taskId: 42,
+    });
+    mockPrisma.pomodoroSession.update.mockResolvedValue({
+      id: 1,
+      status: 'completed',
+      elapsed: 1500,
+      duration: 1500,
+      type: 'work',
+      completedPomodoros: 1,
+      task: { id: 42, title: 'Test', status: 'todo' },
+    });
+    mockPrisma.task.findUnique.mockResolvedValue({ studyGoalId: 7, themeId: null });
+
+    await completePomodoro(1);
+
+    expect(mockPrisma.studyGoal.findFirst).not.toHaveBeenCalled();
+    const createCall = mockPrisma.studySession.create.mock.calls[0]![0] as {
+      data: { goalId: number; minutes: number; source: string; pomodoroSessionId: number };
+    };
+    expect(createCall.data).toEqual(
+      expect.objectContaining({ goalId: 7, minutes: 25, source: 'pomodoro', pomodoroSessionId: 1 }),
+    );
+  });
+
+  test('work完了かつタスクのthemeId経由でStudySessionを自動記録すること', async () => {
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue({
+      id: 2,
+      status: 'active',
+      elapsed: 1500,
+      startedAt: now,
+      duration: 1500,
+      type: 'work',
+      completedPomodoros: 0,
+      taskId: 43,
+    });
+    mockPrisma.pomodoroSession.update.mockResolvedValue({
+      id: 2,
+      status: 'completed',
+      elapsed: 1500,
+      duration: 1500,
+      type: 'work',
+      completedPomodoros: 1,
+      task: { id: 43, title: 'Test', status: 'todo' },
+    });
+    mockPrisma.task.findUnique.mockResolvedValue({ studyGoalId: null, themeId: 12 });
+    mockPrisma.studyGoal.findFirst.mockResolvedValue({ id: 88 });
+
+    await completePomodoro(2);
+
+    expect(mockPrisma.studyGoal.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ themeId: 12, status: 'active' }),
+      }),
+    );
+    const createCall = mockPrisma.studySession.create.mock.calls[0]![0] as {
+      data: { goalId: number; pomodoroSessionId: number };
+    };
+    expect(createCall.data).toEqual(expect.objectContaining({ goalId: 88, pomodoroSessionId: 2 }));
+  });
+
+  test('紐づけの無いテーマ/タスクではStudySessionを記録しないこと', async () => {
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue({
+      id: 3,
+      status: 'active',
+      elapsed: 1500,
+      startedAt: now,
+      duration: 1500,
+      type: 'work',
+      completedPomodoros: 0,
+      taskId: 44,
+    });
+    mockPrisma.pomodoroSession.update.mockResolvedValue({
+      id: 3,
+      status: 'completed',
+      elapsed: 1500,
+      duration: 1500,
+      type: 'work',
+      completedPomodoros: 1,
+      task: { id: 44, title: 'Test', status: 'todo' },
+    });
+    mockPrisma.task.findUnique.mockResolvedValue({ studyGoalId: null, themeId: null });
+
+    await completePomodoro(3);
+
+    expect(mockPrisma.studySession.create).not.toHaveBeenCalled();
+  });
+
+  test('60秒のポモドーロは1分としてStudySessionに記録すること(切り上げ境界)', async () => {
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue({
+      id: 4,
+      status: 'active',
+      elapsed: 60,
+      startedAt: now,
+      duration: 60,
+      type: 'work',
+      completedPomodoros: 0,
+      taskId: 42,
+    });
+    mockPrisma.pomodoroSession.update.mockResolvedValue({
+      id: 4,
+      status: 'completed',
+      elapsed: 60,
+      duration: 60,
+      type: 'work',
+      completedPomodoros: 1,
+      task: { id: 42, title: 'Test', status: 'todo' },
+    });
+    mockPrisma.task.findUnique.mockResolvedValue({ studyGoalId: 7, themeId: null });
+
+    await completePomodoro(4);
+
+    const createCall = mockPrisma.studySession.create.mock.calls[0]![0] as {
+      data: { minutes: number };
+    };
+    expect(createCall.data.minutes).toBe(1);
+  });
+
+  test('61秒のポモドーロは2分としてStudySessionに記録すること(切り上げ境界)', async () => {
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue({
+      id: 5,
+      status: 'active',
+      elapsed: 61,
+      startedAt: now,
+      duration: 61,
+      type: 'work',
+      completedPomodoros: 0,
+      taskId: 42,
+    });
+    mockPrisma.pomodoroSession.update.mockResolvedValue({
+      id: 5,
+      status: 'completed',
+      elapsed: 61,
+      duration: 61,
+      type: 'work',
+      completedPomodoros: 1,
+      task: { id: 42, title: 'Test', status: 'todo' },
+    });
+    mockPrisma.task.findUnique.mockResolvedValue({ studyGoalId: 7, themeId: null });
+
+    await completePomodoro(5);
+
+    const createCall = mockPrisma.studySession.create.mock.calls[0]![0] as {
+      data: { minutes: number };
+    };
+    expect(createCall.data.minutes).toBe(2);
   });
 
   test('break完了時はTimeEntryを作成しないこと', async () => {

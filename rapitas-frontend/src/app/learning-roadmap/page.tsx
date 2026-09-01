@@ -7,14 +7,16 @@
  * goals (skill / exam) plus science-based pacing analytics — distributed
  * practice, retrieval practice, consistency, and deadline pacing.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { AlarmClockPlus, Milestone, Plus } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
+import { useFilterDataStore } from '@/stores/filter-data-store';
 import { useStudyGoals } from './_components/use-study-goals';
 import { StudyGoalCard } from './_components/goal-card';
 import { GoalFormModal } from './_components/goal-form-modal';
+import { GoalThemeLinkModal } from './_components/goal-theme-link-modal';
 import { LogSessionModal } from './_components/log-session-modal';
 import { RoadmapAnalytics } from './_components/roadmap-analytics';
 import type { StudyGoal, StudyGoalDraft } from './_components/roadmap.types';
@@ -23,13 +25,20 @@ export default function LearningRoadmapPage() {
   const t = useTranslations('learningRoadmap');
   const confirm = useConfirmDialog();
   const { goals, isLoading, createGoal, updateGoal, deleteGoal } = useStudyGoals();
+  const themes = useFilterDataStore((s) => s.themes);
+  const initFilterData = useFilterDataStore((s) => s.initializeData);
   const [editorState, setEditorState] = useState<{ open: boolean; goal: StudyGoal | null }>({
     open: false,
     goal: null,
   });
   const [isLogOpen, setIsLogOpen] = useState(false);
+  const [themeLinkGoal, setThemeLinkGoal] = useState<StudyGoal | null>(null);
   // Bumped after each time log so the self-fetching analytics refetches.
   const [analyticsRefresh, setAnalyticsRefresh] = useState(0);
+
+  useEffect(() => {
+    initFilterData();
+  }, [initFilterData]);
 
   const handleSave = async (draft: StudyGoalDraft, id: number | null) =>
     id == null ? createGoal(draft) : updateGoal(id, draft);
@@ -100,6 +109,8 @@ export default function LearningRoadmapPage() {
                 onEdit={(g) => setEditorState({ open: true, goal: g })}
                 onComplete={handleComplete}
                 onDelete={handleDelete}
+                linkedThemeName={themes.find((th) => th.id === goal.themeId)?.name ?? null}
+                onLinkTheme={setThemeLinkGoal}
               />
             ))}
           </div>
@@ -118,6 +129,8 @@ export default function LearningRoadmapPage() {
                   onEdit={(g) => setEditorState({ open: true, goal: g })}
                   onComplete={handleComplete}
                   onDelete={handleDelete}
+                  linkedThemeName={themes.find((th) => th.id === goal.themeId)?.name ?? null}
+                  onLinkTheme={setThemeLinkGoal}
                 />
               ))}
             </div>
@@ -138,6 +151,15 @@ export default function LearningRoadmapPage() {
           goals={active}
           onClose={() => setIsLogOpen(false)}
           onLogged={() => setAnalyticsRefresh((n) => n + 1)}
+        />
+      )}
+
+      {themeLinkGoal && (
+        <GoalThemeLinkModal
+          goal={themeLinkGoal}
+          themes={themes}
+          onSave={(id, themeId) => updateGoal(id, { themeId })}
+          onClose={() => setThemeLinkGoal(null)}
         />
       )}
     </div>

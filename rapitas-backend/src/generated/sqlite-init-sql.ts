@@ -882,7 +882,8 @@ CREATE TABLE "StudySession" (
     "source" TEXT NOT NULL DEFAULT 'manual',
     "note" TEXT,
     "studiedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "pomodoroSessionId" INTEGER
 );
 
 -- CreateTable
@@ -1769,6 +1770,9 @@ CREATE UNIQUE INDEX "StudyGoal_legacySource_legacyId_key" ON "StudyGoal"("legacy
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StudyStreak_date_key" ON "StudyStreak"("date");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "StudySession_pomodoroSessionId_key" ON "StudySession"("pomodoroSessionId");
 
 -- CreateIndex
 CREATE INDEX "StudySession_studiedAt_idx" ON "StudySession"("studiedAt");
