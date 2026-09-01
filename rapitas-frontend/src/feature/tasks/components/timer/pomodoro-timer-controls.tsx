@@ -45,9 +45,10 @@ export default function PomodoroTimerControls({
         <IconButton
           onClick={onStart}
           disabled={isOtherTaskRunning}
-          variant="primary"
+          variant="ghost"
           size="lg"
-          icon={<Play />}
+          className="rounded-full border border-zinc-300 dark:border-zinc-600"
+          icon={<Play className="text-indigo-600 dark:text-indigo-400" />}
           aria-label={t('start')}
           title={t('start')}
         />
@@ -60,28 +61,30 @@ export default function PomodoroTimerControls({
       {isPaused ? (
         <IconButton
           onClick={onResume}
-          variant="primary"
+          variant="ghost"
           size="lg"
-          icon={<Play />}
+          className="rounded-full border border-zinc-300 dark:border-zinc-600"
+          icon={<Play className="text-indigo-600 dark:text-indigo-400" />}
           aria-label={t('resumeWork')}
           title={t('resumeWork')}
         />
       ) : (
         <IconButton
           onClick={onPause}
-          variant="primary"
+          variant="ghost"
           size="lg"
-          icon={<Pause />}
+          className="rounded-full border border-zinc-300 dark:border-zinc-600"
+          icon={<Pause className="text-indigo-600 dark:text-indigo-400" />}
           aria-label={t('pause')}
           title={t('pause')}
         />
       )}
-      {/* Semantic green lives on the ICON only — the row keeps a single
-          accent fill (start/pause) per the ui-design-language "one accent"
-          rule; a second filled hue reads as the candy-button tell. */}
+      {/* Zero-fill transport cluster (operator-approved): no button carries a
+          background. Priority reads from the primary's ring + accent glyph,
+          then icon tints, then plain ghosts — fills read as unrefined here. */}
       <IconButton
         onClick={onComplete}
-        variant="secondary"
+        variant="ghost"
         size="lg"
         icon={<CheckCircle2 className="text-green-600 dark:text-green-400" />}
         aria-label={t('complete')}
@@ -94,7 +97,7 @@ export default function PomodoroTimerControls({
         onClick={onCheckpoint}
         aria-label={t('checkpointButton')}
         title={t('checkpointTooltip')}
-        className="flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        className="flex items-center gap-1.5 rounded-lg px-2.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
       >
         <AlarmClockPlus className="h-4 w-4" />
         {t('checkpointButton')}
