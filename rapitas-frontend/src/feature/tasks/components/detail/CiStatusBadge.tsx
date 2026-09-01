@@ -94,12 +94,18 @@ export default function CiStatusBadge({ taskId }: { taskId: number }) {
     try {
       const res = await fetch(`${API_BASE_URL}/github/pull-requests/by-task/${taskId}`);
       if (!res.ok) return;
-      const pr = (await res.json()) as { id?: number; headBranch?: string | null };
+      const pr = (await res.json()) as {
+        id?: number;
+        headBranch?: string | null;
+        integrationId?: number | null;
+      };
       // A CI badge should land on the CI view (operator feedback: linking to
-      // the PR page reads as an inconsistency) — branch-filtered so only this
-      // PR's runs show. PR page stays the fallback for old rows w/o headBranch.
+      // the PR page reads as an inconsistency) — repository + branch filtered
+      // so only this PR's runs show. PR page stays the fallback for old rows.
       if (pr.headBranch) {
-        router.push(`/github/actions?branch=${encodeURIComponent(pr.headBranch)}`);
+        const integration =
+          pr.integrationId != null ? `&integration=${encodeURIComponent(pr.integrationId)}` : '';
+        router.push(`/github/actions?branch=${encodeURIComponent(pr.headBranch)}${integration}`);
       } else if (pr.id != null) {
         router.push(`/github/pull-requests/${pr.id}`);
       }
