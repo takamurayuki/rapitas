@@ -7,6 +7,7 @@
  */
 
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { join } from 'node:path';
 
 const mockPrisma = {
   agentSession: {
@@ -196,6 +197,23 @@ describe('removeWorktree — return-value signal', () => {
     const result = await removeWorktree(mockBaseDir, mockWorktreePath, false);
 
     expect(result).toBe(false);
+  });
+
+  test('uses different timeouts for the teardown script (slow) and git worktree remove (fast) (#809)', async () => {
+    const teardownScriptPath = join(mockWorktreePath, 'scripts', 'setup-worktree.cjs');
+    mockExistsSync.mockImplementation((p: string) => p === teardownScriptPath);
+
+    await removeWorktree(mockBaseDir, mockWorktreePath, false);
+
+    const teardownCall = mockExecFile.mock.calls.find((c) =>
+      (Array.isArray(c[1]) ? (c[1] as string[]) : []).includes('--teardown'),
+    );
+    const removeCall = mockExecFile.mock.calls.find((c) => {
+      const argv = Array.isArray(c[1]) ? (c[1] as string[]) : [];
+      return [c[0], ...argv].join(' ').includes('git worktree remove');
+    });
+    expect((teardownCall?.[2] as { timeout?: number } | undefined)?.timeout).toBe(120_000);
+    expect((removeCall?.[2] as { timeout?: number } | undefined)?.timeout).toBe(60_000);
   });
 });
 

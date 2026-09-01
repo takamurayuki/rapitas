@@ -37,6 +37,13 @@ export async function checkNeedsFallback(
     return { needsFallback: false, errorBlob };
   }
 
+  // NOTE: A cancelled execution (user stop or wall-clock self-termination) is an
+  // intentional stop, not provider evidence — starting a fallback agent for it
+  // would run an agent the user/system deliberately halted (#808).
+  if (result.failureType === 'cancelled') {
+    return { needsFallback: false, errorBlob };
+  }
+
   let needsFallback = !result.success;
 
   if (!needsFallback && !disableFallback) {

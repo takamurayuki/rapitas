@@ -93,6 +93,35 @@ describe('checkNeedsFallback — wall_clock_timeout バイパス (task 546)', ()
   });
 });
 
+describe('checkNeedsFallback — cancelled バイパス (#808)', () => {
+  test('cancelled + 失敗 → needsFallback:false、分類器を呼ばない', async () => {
+    classifyCallCount = 0;
+    const result = createResult({
+      success: false,
+      failureType: 'cancelled',
+      errorMessage: 'Execution cancelled',
+      output: 'partial work ... 429 rate limit example text',
+    });
+
+    const decision = await checkNeedsFallback(result, 'claude-code');
+    expect(decision.needsFallback).toBe(false);
+    expect(classifyCallCount).toBe(0);
+  });
+
+  test('cancelled でも errorBlob は従来どおり構築される', async () => {
+    const result = createResult({
+      success: false,
+      failureType: 'cancelled',
+      errorMessage: 'Execution cancelled',
+      output: 'tail of output',
+    });
+
+    const decision = await checkNeedsFallback(result, 'claude-code');
+    expect(decision.errorBlob).toContain('Execution cancelled');
+    expect(decision.errorBlob).toContain('tail of output');
+  });
+});
+
 describe('checkNeedsFallback — 既存判定の維持', () => {
   test('通常の失敗（failureType 未設定）→ needsFallback:true', async () => {
     const result = createResult({ success: false, errorMessage: 'build failed' });

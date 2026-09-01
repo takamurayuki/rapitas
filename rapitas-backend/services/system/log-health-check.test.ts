@@ -169,6 +169,45 @@ describe('groupEntries', () => {
     expect(groups[0].sampleStack).toBe('at foo()');
   });
 
+  it('collapses the raw CLI transcript tail after "Process exited with code N" (#806, K-8332)', () => {
+    // 実測 2026-08-31: execution-resolver.ts が exit code の直後にラベル無しの
+    // 生stdoutテール(会話transcript)を連結するため、実行のたびに違う文言となり
+    // 同じ「CLIプロセス異常終了」が毎回別の懸念として起票されていた。
+    const groups = groupEntries([
+      entry({
+        level: 50,
+        name: 'claude-code',
+        msg: 'Process exited with code 255\ntest-support.decision-mocks.ts services/workflow/auto-run/theme-...\n[Tool Done: Bash] (2.2s)\nESLint clean.',
+      }),
+      entry({
+        level: 50,
+        name: 'claude-code',
+        msg: 'Process exited with code 255\nSome completely different tool transcript with other file names and commands.',
+      }),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.normalizedMsg).toBe('Process exited with code # …');
+  });
+
+  it('keeps labeled sections after the exit code intact (does not swallow 【Standard Error Output】)', () => {
+    // 【label】区間はラベル無しの生テールとは別原因を示しうるため、畳み込み対象外
+    // にとどめる(#694の「原因ごとに別懸念」意図を維持)。
+    const groups = groupEntries([
+      entry({
+        level: 50,
+        name: 'claude-code',
+        msg: 'Process exited with code 1\n\n【Standard Error Output】\nauthentication failed: token expired',
+      }),
+      entry({
+        level: 50,
+        name: 'claude-code',
+        msg: 'Process exited with code 1\n\n【Standard Error Output】\nnetwork unreachable',
+      }),
+    ]);
+    expect(groups).toHaveLength(2);
+    expect(groups[0]?.normalizedMsg).toContain('【Standard Error Output】');
+  });
+
   it('skips sub-warn entries', () => {
     const groups = groupEntries([
       entry({ level: 30, name: 'x', msg: 'info noise' }),

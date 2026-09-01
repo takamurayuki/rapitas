@@ -28,6 +28,15 @@ import { rmDirWithRetry } from './dir-remove-retry';
 const execFileAsync = promisify(execFile);
 const logger = createLogger('git-operations/worktree-ops');
 
+// Local git reads/writes normally finish in well under a second; 60s leaves
+// generous headroom while still bounding a lock-contention or auth-prompt
+// hang so the implementer phase can't sit blocked past its wall-clock budget.
+const GIT_OP_TIMEOUT_MS = 60_000;
+// The teardown script is a node child process that unlinks node_modules
+// junctions — heavier than a plain git call, so it gets the same longer
+// budget as other setup/teardown scripts (see worktree-preflight.ts).
+const GIT_SLOW_OP_TIMEOUT_MS = 120_000;
+
 /**
  * Remove a git worktree and prune stale entries.
  *
@@ -66,6 +75,7 @@ export async function removeWorktree(
       const { stdout } = await execFileAsync('git', ['worktree', 'list', '--porcelain'], {
         cwd: baseDir,
         encoding: 'utf8',
+        timeout: GIT_OP_TIMEOUT_MS,
       });
 
       const entries = stdout.split('\n\n').filter(Boolean);
@@ -101,6 +111,7 @@ export async function removeWorktree(
       await execFileAsync(process.execPath, [teardownScript, '--teardown'], {
         cwd: worktreePath,
         encoding: 'utf8',
+        timeout: GIT_SLOW_OP_TIMEOUT_MS,
       });
       logger.info('[removeWorktree] Unlinked shared resources via setup-worktree.cjs --teardown');
     } catch (tdErr) {
@@ -121,7 +132,11 @@ export async function removeWorktree(
   // during the prior cleanup). Without this, `git worktree remove` may
   // refuse with "is not a working tree".
   try {
-    await execFileAsync('git', ['worktree', 'prune'], { cwd: baseDir, encoding: 'utf8' });
+    await execFileAsync('git', ['worktree', 'prune'], {
+      cwd: baseDir,
+      encoding: 'utf8',
+      timeout: GIT_OP_TIMEOUT_MS,
+    });
   } catch (preErr) {
     logger.debug({ err: preErr }, '[removeWorktree] pre-prune failed (non-fatal)');
   }
@@ -131,6 +146,7 @@ export async function removeWorktree(
     await execFileAsync('git', ['worktree', 'remove', worktreePath, '--force'], {
       cwd: baseDir,
       encoding: 'utf8',
+      timeout: GIT_OP_TIMEOUT_MS,
     });
     logger.info(`[removeWorktree] Removed worktree: ${worktreePath}`);
     removed = true;
@@ -180,6 +196,7 @@ export async function removeWorktree(
       const { stdout: mergedBranches } = await execFileAsync('git', ['branch', '--merged'], {
         cwd: baseDir,
         encoding: 'utf8',
+        timeout: GIT_OP_TIMEOUT_MS,
       });
 
       const isMerged = mergedBranches
@@ -191,6 +208,7 @@ export async function removeWorktree(
         await execFileAsync('git', ['branch', '-d', branchName], {
           cwd: baseDir,
           encoding: 'utf8',
+          timeout: GIT_OP_TIMEOUT_MS,
         });
         logger.info(`[removeWorktree] Deleted merged branch: ${branchName}`);
       } else {
@@ -202,13 +220,14 @@ export async function removeWorktree(
         const { stdout: uniqueCountRaw } = await execFileAsync(
           'git',
           ['rev-list', branchName, '--not', '--remotes', '--count'],
-          { cwd: baseDir, encoding: 'utf8' },
+          { cwd: baseDir, encoding: 'utf8', timeout: GIT_OP_TIMEOUT_MS },
         );
         const uniqueCount = parseInt(uniqueCountRaw.trim(), 10);
         if (Number.isFinite(uniqueCount) && uniqueCount > 0) {
           const { stdout: tip } = await execFileAsync('git', ['rev-parse', '--short', branchName], {
             cwd: baseDir,
             encoding: 'utf8',
+            timeout: GIT_OP_TIMEOUT_MS,
           });
           logger.warn(
             `[removeWorktree] KEEPING unmerged branch ${branchName} — ${uniqueCount} commit(s) exist on no remote (tip ${tip.trim()}). Push or recover (git checkout -b <name> ${tip.trim()}) before deleting.`,
@@ -218,6 +237,7 @@ export async function removeWorktree(
           await execFileAsync('git', ['branch', '-D', branchName], {
             cwd: baseDir,
             encoding: 'utf8',
+            timeout: GIT_OP_TIMEOUT_MS,
           });
           logger.info(
             `[removeWorktree] Force deleted unmerged branch (all commits pushed): ${branchName}`,
@@ -231,7 +251,7 @@ export async function removeWorktree(
 
   // Prune stale worktree metadata regardless of removal success
   try {
-    await execFileAsync('git', ['worktree', 'prune'], { cwd: baseDir });
+    await execFileAsync('git', ['worktree', 'prune'], { cwd: baseDir, timeout: GIT_OP_TIMEOUT_MS });
   } catch (pruneError) {
     logger.warn({ err: pruneError }, '[removeWorktree] git worktree prune failed');
   }

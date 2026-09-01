@@ -316,6 +316,9 @@ describe('spawnCodexProcess — close handling', () => {
     const result = await resultPromise;
     expect(result.success).toBe(false);
     expect(result.errorMessage).toBe('Execution cancelled');
+    // #808: downstream determineExecutionStatus()/checkNeedsFallback() key off
+    // this tag to route cancellations away from the failed/ERROR path.
+    expect(result.failureType).toBe('cancelled');
     // The cancelled short-circuit must not overwrite status back to completed.
     expect(callbacks.onStatusChange).not.toHaveBeenCalled();
   });

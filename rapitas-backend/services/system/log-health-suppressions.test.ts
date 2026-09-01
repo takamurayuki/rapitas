@@ -69,6 +69,9 @@ const SUPPRESSED: [string, string][] = [
   ['task-executor', '[TaskExecutor] Provider failed — retrying with alternative agent config'],
   ['memory:task-queue', 'Stuck processing task requeued as pending'],
   ['claude-code-agent', '[resolveCliPath] Failed to resolve claude, using relative path'],
+  ['claude-code-agent', 'Command failed: taskkill /PID # /T /F'],
+  ['codex-cli-agent', 'Command failed: taskkill /PID # /T /F'],
+  ['gemini-cli-agent:process-manager', 'Command failed: taskkill /PID # /T /F'],
 ];
 
 const KEPT: [string, string][] = [
@@ -84,6 +87,7 @@ const KEPT: [string, string][] = [
   ['error-handler', 'Prisma Error'],
   ['routes:workflow:auto-commit', 'Automated verification failed — aborting PR review'],
   ['memory:task-queue', 'Stuck processing task moved to dead_letter'],
+  ['claude-code-agent', 'process.kill() also failed'],
 ];
 
 describe('classifyLogSignature', () => {
@@ -178,5 +182,22 @@ describe('classifyLogSignature', () => {
         '[resolveCliPath] Failed to resolve claude, using relative path',
       ).suppressed,
     ).toBe(false);
+  });
+
+  test('"Command failed: taskkill" is scoped to the CLI-agent loggers only', () => {
+    // Task #810: an unrelated logger hitting the same execSync failure text
+    // (e.g. a git-operations timeout) must still be filed.
+    expect(
+      classifyLogSignature('some-other-logger', 'Command failed: taskkill /PID # /T /F').suppressed,
+    ).toBe(false);
+  });
+
+  test('a failed process.kill() fallback after taskkill stays visible', () => {
+    // Task #810: only the first taskkill attempt is suppressed. If the
+    // process.kill() fallback also fails, that is a distinct, unsuppressed
+    // signature — the real-defect case must not be hidden.
+    expect(classifyLogSignature('claude-code-agent', 'process.kill() also failed').suppressed).toBe(
+      false,
+    );
   });
 });
