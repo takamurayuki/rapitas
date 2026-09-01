@@ -86,28 +86,30 @@ export default function PomodoroTimerControls({
         onClick={onComplete}
         variant="ghost"
         size="lg"
+        className="rounded-full border border-zinc-300 dark:border-zinc-600"
         icon={<CheckCircle2 className="text-green-600 dark:text-green-400" />}
         aria-label={t('complete')}
         title={t('completeTooltip')}
       />
-      {/* Checkpoint is the one non-universal glyph in the row — it keeps a
-          small text label (operator-approved design); the rest are icon-only. */}
-      <button
-        type="button"
+      {/* Uniform ring row (operator feedback: mixed treatments read as
+          disjointed). Checkpoint is icon-only like the rest — its behavior
+          lives in the tooltip. */}
+      <IconButton
         onClick={onCheckpoint}
+        variant="ghost"
+        size="lg"
+        className="rounded-full border border-zinc-300 dark:border-zinc-600"
+        icon={<AlarmClockPlus />}
         aria-label={t('checkpointButton')}
         title={t('checkpointTooltip')}
-        className="flex items-center gap-1.5 rounded-lg px-2.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-      >
-        <AlarmClockPlus className="h-4 w-4" />
-        {t('checkpointButton')}
-      </button>
+      />
       {/* Cancel discards time, so it is the QUIETEST control (ghost, smaller)
           — visual priority: start/pause > complete > checkpoint > cancel. */}
       <IconButton
         onClick={onStop}
         variant="ghost"
-        size="md"
+        size="lg"
+        className="rounded-full border border-zinc-300 dark:border-zinc-600"
         icon={<Square />}
         aria-label={t('cancel')}
         title={t('cancelTooltip')}
