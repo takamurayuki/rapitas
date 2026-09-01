@@ -184,6 +184,7 @@ pub fn run() {
             crate::shortcuts::get_capture_shortcut,
             crate::shortcuts::set_capture_shortcut,
             crate::quick_capture::open_quick_capture,
+            crate::pomodoro_float::toggle_pomodoro_float,
             crate::toast::show_toast_window,
             crate::toast::toast_ready,
             crate::toast::toast_dismiss,

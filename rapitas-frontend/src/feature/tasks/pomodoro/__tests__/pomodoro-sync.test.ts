@@ -13,9 +13,19 @@ import { syncPomodoroToBackend } from '../pomodoro-sync';
 
 const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+/** Stubs window.location.pathname for the isSyncOwner path-exclusion checks. */
+function setPathname(pathname: string): void {
+  Object.defineProperty(window, 'location', {
+    value: { ...window.location, pathname },
+    writable: true,
+    configurable: true,
+  });
+}
+
 describe('syncPomodoroToBackend', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    setPathname('/');
   });
 
   describe('start', () => {
@@ -125,6 +135,35 @@ describe('syncPomodoroToBackend', () => {
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
       expect(() => syncPomodoroToBackend.cancel()).not.toThrow();
       await flushPromises();
+    });
+  });
+
+  describe('isSyncOwner via pathname exclusion', () => {
+    it.each(['/pomodoro-float', '/quick-capture'])(
+      'does not call fetch for start/complete/cancel on %s',
+      async (pathname) => {
+        setPathname(pathname);
+        const fetchMock = vi.fn().mockResolvedValue({});
+        vi.stubGlobal('fetch', fetchMock);
+
+        syncPomodoroToBackend.start(1, 1500);
+        syncPomodoroToBackend.complete(1);
+        syncPomodoroToBackend.cancel();
+        await flushPromises();
+
+        expect(fetchMock).not.toHaveBeenCalled();
+      },
+    );
+
+    it('calls fetch for start on the main window path "/"', async () => {
+      setPathname('/');
+      const fetchMock = vi.fn().mockResolvedValue({});
+      vi.stubGlobal('fetch', fetchMock);
+
+      syncPomodoroToBackend.start(1, 1500);
+      await flushPromises();
+
+      expect(fetchMock).toHaveBeenCalledWith('http://test:3001/pomodoro/start', expect.anything());
     });
   });
 });

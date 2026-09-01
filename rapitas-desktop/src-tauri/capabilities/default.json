@@ -1,7 +1,7 @@
 {
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main", "external-view", "quick-capture", "notification-toast"],
+  "windows": ["main", "external-view", "quick-capture", "notification-toast", "pomodoro-float"],
   "permissions": [
     "core:default",
     "shell:allow-open",

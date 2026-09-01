@@ -26,6 +26,7 @@ mod shortcut_config;
 
 mod app_setup;
 mod browser;
+mod pomodoro_float;
 mod quick_capture;
 mod shortcuts;
 mod toast;
