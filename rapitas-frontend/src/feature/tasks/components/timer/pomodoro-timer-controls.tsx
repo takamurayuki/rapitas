@@ -27,7 +27,7 @@ interface PomodoroTimerControlsProps {
 // glyph — the icon interior stays unfilled (operator-approved inverted style).
 // Matches IconButton lg metrics (p-2.5 disc, h-5 w-5 glyph).
 const FILLED_BASE =
-  'flex items-center justify-center rounded-full p-2.5 text-white transition-colors ' +
+  'flex items-center justify-center rounded-lg p-2.5 text-white transition-colors ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ' +
   'disabled:cursor-not-allowed disabled:opacity-50';
 const FILLED_INDIGO =
@@ -110,7 +110,7 @@ export default function PomodoroTimerControls({
         onClick={onCheckpoint}
         variant="ghost"
         size="lg"
-        className="rounded-full border border-zinc-300 dark:border-zinc-600"
+        className="rounded-lg border border-zinc-300 dark:border-zinc-600"
         icon={<AlarmClockPlus />}
         aria-label={t('checkpointButton')}
         title={t('checkpointTooltip')}
@@ -121,7 +121,7 @@ export default function PomodoroTimerControls({
         onClick={onStop}
         variant="ghost"
         size="lg"
-        className="rounded-full border border-zinc-300 dark:border-zinc-600"
+        className="rounded-lg border border-zinc-300 dark:border-zinc-600"
         icon={<Square />}
         aria-label={t('cancel')}
         title={t('cancelTooltip')}
