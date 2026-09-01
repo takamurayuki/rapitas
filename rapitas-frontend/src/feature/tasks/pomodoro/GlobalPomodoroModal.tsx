@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
   Focus,
+  PictureInPicture2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -26,6 +27,8 @@ import { createLogger } from '@/lib/logger';
 import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 const logger = createLogger('GlobalPomodoroModal');
+
+const isTauri = (): boolean => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 interface GlobalPomodoroModalProps {
   isOpen: boolean;
@@ -76,6 +79,31 @@ export default function GlobalPomodoroModal({
         /* best-effort persistence */
       }
       return !v;
+    });
+  };
+
+  // Floating window toggle — mirrors the Rust side's visibility state so the
+  // button stays correct whether the window was opened/closed from here or
+  // from the float window's own close button (or Alt+F4).
+  const [isFloatOpen, setIsFloatOpen] = useState(false);
+  useEffect(() => {
+    if (!isTauri()) return;
+    let unlisten: (() => void) | undefined;
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen<boolean>('pomodoro-float://visibility-changed', (e) => {
+        setIsFloatOpen(e.payload);
+      }).then((fn) => {
+        unlisten = fn;
+      });
+    });
+    return () => unlisten?.();
+  }, []);
+  const toggleFloatWindow = () => {
+    if (!isTauri()) return;
+    import('@tauri-apps/api/core').then(({ invoke }) => {
+      invoke<boolean>('toggle_pomodoro_float')
+        .then(setIsFloatOpen)
+        .catch((err) => logger.error('Failed to toggle pomodoro float window:', err));
     });
   };
 
@@ -244,6 +272,21 @@ export default function GlobalPomodoroModal({
             >
               <Focus className="w-5 h-5" />
             </button>
+            {isTauri() && (
+              <button
+                onClick={toggleFloatWindow}
+                aria-pressed={isFloatOpen}
+                aria-label={t('floatWindowToggle')}
+                title={t('floatWindowToggle')}
+                className={`p-2 rounded-lg transition-colors ${
+                  isFloatOpen
+                    ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
+                    : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                <PictureInPicture2 className="w-5 h-5" />
+              </button>
+            )}
             <button
               onClick={onClose}
               aria-label={tc('close')}

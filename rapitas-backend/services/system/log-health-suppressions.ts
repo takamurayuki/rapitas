@@ -45,10 +45,10 @@ const SUPPRESSIONS: Suppression[] = [
   {
     // workflow-reconciler-queue-stall.ts の detectQueueStarvation が出す対の
     // ログ。「restarted」側は既にここで抑制済みだったが、runner が既に処理中で
-    // kick が no-op になるケースの文言（同ファイル130-147行、"a kick cannot help;
-    // not restarting"）は別文言のため未マッチだった。#761/#730と同型の抑制網の
+    // kick が no-op になるケースの文言(同ファイル130-147行、"a kick cannot help;
+    // not restarting")は別文言のため未マッチだった。#761/#730と同型の抑制網の
     // 対象漏れ — 実際に何かが壊れているわけではなく、runner稼働中の待機を記録
-    // しているだけ（#781）。
+    // しているだけ(#781)。
     test: /Queue starvation detected — restarted|re-enqueued to resume|was already queued; tracking|kick cannot help; not restarting/i,
     because:
       '自己修復が成功している、または runner 稼働中の待機を記録しているだけ — 検出して回復/継続した記録',
@@ -71,8 +71,8 @@ const SUPPRESSIONS: Suppression[] = [
     because: '任意プロバイダが不在なだけ — 必須ではない',
   },
   {
-    // #760: 実際の呼び出し箇所の大半は "failing open"（ハイフン無し動詞句）を使っており
-    // "fail-open"（ハイフン付き名詞句）のみにマッチする旧正規表現では拾えなかった。
+    // #760: 実際の呼び出し箇所の大半は "failing open"(ハイフン無し動詞句)を使っており
+    // "fail-open"(ハイフン付き名詞句)のみにマッチする旧正規表現では拾えなかった。
     // 例: critic-gate.ts:90, completion-gate.ts:110, verify-self-repair.ts:185 ほか。
     test: /fail(?:ing)?-open|failing open|skipping \(fail-open\)/i,
     because: '明示的に fail-open として継続している',
@@ -219,6 +219,35 @@ const SUPPRESSIONS: Suppression[] = [
     logger: /git-operations\/worktree-ops/i,
     because:
       'git worktree remove失敗は登録エントリの陳腐化を示すだけで、直後のfsフォールバックが既に削除済み状態として扱う — 恒久失敗は別シグネチャ(Could not remove.../REFUSED fs cleanup)で可視化される',
+  },
+  {
+    // ログ出力箇所: auto-run-idle-timer.ts:300-303 の stopThemeForIdleTimeout。
+    // 新規起票が無いテーマの自動実行を安全側に停止する、設計どおりのidle-stop処理
+    // (task 784)。DB更新に成功した後の記録ログであり、直前のDB書き込み失敗
+    // ('stopThemeForIdleTimeout write failed', 同ファイル297行目)とは別文言のため
+    // 本ルールでは対象外のまま残り、書き込み失敗の可視性は失われない。停止は
+    // 同一関数内で logCycleEvent('auto_run.idle_stopped', …) と notifyIdleStopped()
+    // により、サイクルログ・in-app通知の2経路で既に可視化されている（#823）。
+    test: /Idle-stop timer expired for theme # \(enabled=false\)/i,
+    logger: /auto-run:idle-timer/i,
+    because:
+      'idle-stopタイマーが満了しテーマの自動実行を停止した設計どおりの記録 — logCycleEventとnotifyIdleStoppedで既に可視化されている',
+  },
+  {
+    // ログ出力箇所: routes/workflow/workflow-auto-commit.ts:487 の log.warn
+    // （performAutoCommitAndPR内）。task 816 で log.error → log.warn へ格下げ済み
+    // （同ファイル486行目のNOTE）だが、格下げ後もWARN以上を懸念化する
+    // groupEntries（log-health-check.ts:208）の対象から漏れておらず、task 821/
+    // K-8422として再度起票された。worktreePathはDBから消さず（489行目のブロック
+    // のみ実行、null化は成功時のみ）30分毎のcleanupOrphanedWorktreesスケジューラ
+    // が同一パスを再試行して自己修復する設計であり、直すべき欠陥は無い。恒久的に
+    // 回収できないケースは別シグネチャ「[cleanupOrphanedWorktrees] Failed to
+    // remove orphaned directory after retries」（logger: git-operations/
+    // worktree-ops）で可視化され続けるため、本ルールで恒久失敗の可視性は失われない。
+    test: /\[Workflow\] Worktree cleanup failed: <path>/i,
+    logger: /routes:workflow:auto-commit/i,
+    because:
+      'cleanupOrphanedWorktreesスケジューラが30分毎に同一パスを再試行して自己修復する — 恒久失敗は別シグネチャ(git-operations/worktree-ops)で可視化される',
   },
 ];
 

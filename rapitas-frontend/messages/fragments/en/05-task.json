@@ -146,7 +146,8 @@
       "workDuration": "Work duration",
       "shortBreak": "Short break",
       "longBreak": "Long break",
-      "minutes": "{count} min"
+      "minutes": "{count} min",
+      "floatWindowToggle": "Show in floating window"
     },
     "fileUploader": {
       "downloadFailed": "Failed to download",
