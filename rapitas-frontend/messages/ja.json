@@ -3030,7 +3030,8 @@
     "cancel": "キャンセル",
     "cancelTooltip": "時間を保存せずセッションを終了",
     "completeTooltip": "作業を完了して時間を保存",
-    "checkpointTooltip": "セッションを続けたまま、ここまでの作業時間を保存"
+    "checkpointTooltip": "セッションを続けたまま、ここまでの作業時間を保存",
+    "focusMode": "集中表示"
   },
   "kanban": {
     "prevWeek": "前の週",

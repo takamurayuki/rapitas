@@ -11,6 +11,7 @@ import {
   BarChart3,
   ChevronDown,
   ChevronUp,
+  Focus,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -58,6 +59,25 @@ export default function GlobalPomodoroModal({
   } | null>(null);
   const [mounted, setMounted] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  // 集中表示: タイマーと操作以外（リンク/統計/設定）を隠す。localStorage 永続。
+  const [focusMode, setFocusMode] = useState(false);
+  useEffect(() => {
+    try {
+      setFocusMode(localStorage.getItem('pomodoro-focus') === '1');
+    } catch {
+      /* storage unavailable — default to full view */
+    }
+  }, []);
+  const toggleFocusMode = () => {
+    setFocusMode((v) => {
+      try {
+        localStorage.setItem('pomodoro-focus', v ? '0' : '1');
+      } catch {
+        /* best-effort persistence */
+      }
+      return !v;
+    });
+  };
 
   // Mount portal only on client side
   useEffect(() => {
@@ -210,26 +230,43 @@ export default function GlobalPomodoroModal({
               {tTask('timeManagement')}
             </h2>
           </div>
-          <button
-            onClick={onClose}
-            aria-label={tc('close')}
-            className="p-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors shrink-0"
-            title={tc('close')}
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={toggleFocusMode}
+              aria-pressed={focusMode}
+              aria-label={t('focusMode')}
+              title={t('focusMode')}
+              className={`p-2 rounded-lg transition-colors ${
+                focusMode
+                  ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
+                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+              }`}
+            >
+              <Focus className="w-5 h-5" />
+            </button>
+            <button
+              onClick={onClose}
+              aria-label={tc('close')}
+              className="p-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors shrink-0"
+              title={tc('close')}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
-          <Link
-            href={`${getTaskDetailPath(currentTaskId)}${getTaskDetailPath(currentTaskId).includes('?') ? '&' : '?'}showHeader=true`}
-            className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1.5 min-w-0"
-            onClick={onClose}
-          >
-            <span className="truncate">{currentTaskTitle}</span>
-            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-          </Link>
-        </div>
+        {!focusMode && (
+          <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
+            <Link
+              href={`${getTaskDetailPath(currentTaskId)}${getTaskDetailPath(currentTaskId).includes('?') ? '&' : '?'}showHeader=true`}
+              className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5 min-w-0"
+              onClick={onClose}
+            >
+              <span className="truncate">{currentTaskTitle}</span>
+              <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+            </Link>
+          </div>
+        )}
 
         <div className="p-4">
           <PomodoroTimer
@@ -244,155 +281,163 @@ export default function GlobalPomodoroModal({
           />
         </div>
 
-        <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-800">
-          <div className="flex items-center gap-2 mb-2">
-            <BarChart3 className="w-4 h-4 text-emerald-500" />
-            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              {t('todayStats')}
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white dark:bg-zinc-900 rounded-lg p-3 border border-zinc-200 dark:border-zinc-700">
-              <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                {state.todayCompletedPomodoros || 0}
-              </div>
-              <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                {t('completedPomodoros')}
-              </div>
+        {!focusMode && (
+          <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center gap-2 mb-2">
+              <BarChart3 className="w-4 h-4 text-emerald-500" />
+              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                {t('todayStats')}
+              </span>
             </div>
-            <div className="bg-white dark:bg-zinc-900 rounded-lg p-3 border border-zinc-200 dark:border-zinc-700">
-              <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                {formatTime(state.todayTotalWorkSeconds || 0)}
-              </div>
-              <div className="text-xs text-zinc-500 dark:text-zinc-400">{t('totalWorkTime')}</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="border-t border-zinc-200 dark:border-zinc-800">
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="w-full px-4 py-3 flex items-center justify-between text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <Settings className="w-4 h-4" />
-              {t('settings')}
-            </div>
-            {showSettings ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-
-          {showSettings && (
-            <div className="px-4 pb-4 space-y-4">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm text-zinc-600 dark:text-zinc-400">
-                    {t('notificationSound')}
-                  </label>
-                  <button
-                    onClick={() =>
-                      state.updateSettings({
-                        soundEnabled: !state.settings.soundEnabled,
-                      })
-                    }
-                    className={`p-2 rounded-lg transition-colors ${
-                      state.settings.soundEnabled
-                        ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600'
-                        : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400'
-                    }`}
-                  >
-                    {state.settings.soundEnabled ? (
-                      <Volume2 className="w-4 h-4" />
-                    ) : (
-                      <VolumeX className="w-4 h-4" />
-                    )}
-                  </button>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white dark:bg-zinc-900 rounded-lg p-3 border border-zinc-200 dark:border-zinc-700">
+                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                  {state.todayCompletedPomodoros || 0}
                 </div>
-                {state.settings.soundEnabled && (
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-zinc-500">{t('volumeLow')}</span>
-                    <input
-                      type="range"
-                      min="0.1"
-                      max="1"
-                      step="0.1"
-                      value={state.settings.soundVolume}
-                      onChange={(e) =>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {t('completedPomodoros')}
+                </div>
+              </div>
+              <div className="bg-white dark:bg-zinc-900 rounded-lg p-3 border border-zinc-200 dark:border-zinc-700">
+                <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                  {formatTime(state.todayTotalWorkSeconds || 0)}
+                </div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400">{t('totalWorkTime')}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!focusMode && (
+          <div className="border-t border-zinc-200 dark:border-zinc-800">
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="w-full px-4 py-3 flex items-center justify-between text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Settings className="w-4 h-4" />
+                {t('settings')}
+              </div>
+              {showSettings ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
+            </button>
+
+            {showSettings && (
+              <div className="px-4 pb-4 space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm text-zinc-600 dark:text-zinc-400">
+                      {t('notificationSound')}
+                    </label>
+                    <button
+                      onClick={() =>
                         state.updateSettings({
-                          soundVolume: parseFloat(e.target.value),
+                          soundEnabled: !state.settings.soundEnabled,
                         })
                       }
-                      className="flex-1 h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
-                    <span className="text-xs text-zinc-500">{t('volumeHigh')}</span>
+                      className={`p-2 rounded-lg transition-colors ${
+                        state.settings.soundEnabled
+                          ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400'
+                      }`}
+                    >
+                      {state.settings.soundEnabled ? (
+                        <Volume2 className="w-4 h-4" />
+                      ) : (
+                        <VolumeX className="w-4 h-4" />
+                      )}
+                    </button>
                   </div>
-                )}
-              </div>
+                  {state.settings.soundEnabled && (
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-zinc-500">{t('volumeLow')}</span>
+                      <input
+                        type="range"
+                        min="0.1"
+                        max="1"
+                        step="0.1"
+                        value={state.settings.soundVolume}
+                        onChange={(e) =>
+                          state.updateSettings({
+                            soundVolume: parseFloat(e.target.value),
+                          })
+                        }
+                        className="flex-1 h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                      />
+                      <span className="text-xs text-zinc-500">{t('volumeHigh')}</span>
+                    </div>
+                  )}
+                </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-                    {t('workDuration')}
-                  </label>
-                  <select
-                    value={state.settings.pomodoroDuration / 60}
-                    onChange={(e) =>
-                      state.updateSettings({
-                        pomodoroDuration: parseInt(e.target.value) * 60,
-                      })
-                    }
-                    className="w-full px-2 py-1.5 text-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg"
-                  >
-                    {[15, 20, 25, 30, 45, 60].map((min) => (
-                      <option key={min} value={min}>
-                        {t('minutes', { count: min })}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-                    {t('shortBreak')}
-                  </label>
-                  <select
-                    value={state.settings.shortBreakDuration / 60}
-                    onChange={(e) =>
-                      state.updateSettings({
-                        shortBreakDuration: parseInt(e.target.value) * 60,
-                      })
-                    }
-                    className="w-full px-2 py-1.5 text-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg"
-                  >
-                    {[3, 5, 10, 15].map((min) => (
-                      <option key={min} value={min}>
-                        {t('minutes', { count: min })}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-                    {t('longBreak')}
-                  </label>
-                  <select
-                    value={state.settings.longBreakDuration / 60}
-                    onChange={(e) =>
-                      state.updateSettings({
-                        longBreakDuration: parseInt(e.target.value) * 60,
-                      })
-                    }
-                    className="w-full px-2 py-1.5 text-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg"
-                  >
-                    {[10, 15, 20, 30].map((min) => (
-                      <option key={min} value={min}>
-                        {t('minutes', { count: min })}
-                      </option>
-                    ))}
-                  </select>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+                      {t('workDuration')}
+                    </label>
+                    <select
+                      value={state.settings.pomodoroDuration / 60}
+                      onChange={(e) =>
+                        state.updateSettings({
+                          pomodoroDuration: parseInt(e.target.value) * 60,
+                        })
+                      }
+                      className="w-full px-2 py-1.5 text-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg"
+                    >
+                      {[15, 20, 25, 30, 45, 60].map((min) => (
+                        <option key={min} value={min}>
+                          {t('minutes', { count: min })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+                      {t('shortBreak')}
+                    </label>
+                    <select
+                      value={state.settings.shortBreakDuration / 60}
+                      onChange={(e) =>
+                        state.updateSettings({
+                          shortBreakDuration: parseInt(e.target.value) * 60,
+                        })
+                      }
+                      className="w-full px-2 py-1.5 text-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg"
+                    >
+                      {[3, 5, 10, 15].map((min) => (
+                        <option key={min} value={min}>
+                          {t('minutes', { count: min })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+                      {t('longBreak')}
+                    </label>
+                    <select
+                      value={state.settings.longBreakDuration / 60}
+                      onChange={(e) =>
+                        state.updateSettings({
+                          longBreakDuration: parseInt(e.target.value) * 60,
+                        })
+                      }
+                      className="w-full px-2 py-1.5 text-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg"
+                    >
+                      {[10, 15, 20, 30].map((min) => (
+                        <option key={min} value={min}>
+                          {t('minutes', { count: min })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

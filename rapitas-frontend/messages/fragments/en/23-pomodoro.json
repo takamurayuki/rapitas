@@ -30,6 +30,7 @@
     "cancel": "Cancel",
     "cancelTooltip": "End the session without saving time",
     "completeTooltip": "Complete the work and save the time",
-    "checkpointTooltip": "Save the time so far without ending the session"
+    "checkpointTooltip": "Save the time so far without ending the session",
+    "focusMode": "Focus view"
   }
 }
