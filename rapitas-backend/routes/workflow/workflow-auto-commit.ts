@@ -483,8 +483,11 @@ export async function performAutoCommitAndPR(
       }
 
       if (removeError) {
-        // NOTE: Cleanup failure should not fail the overall workflow
-        log.error({ err: removeError }, `[Workflow] Worktree cleanup failed: ${worktreePath}`);
+        // NOTE: Cleanup failure should not fail the overall workflow. Logged at
+        // warn (not error, task 816) — worktree-cleanup-scheduler retries every
+        // 30 min and self-heals, matching the severity dir-remove-retry.ts uses
+        // for the same "all removal attempts failed" condition.
+        log.warn({ err: removeError }, `[Workflow] Worktree cleanup failed: ${worktreePath}`);
         result.worktreeCleanupResult = { success: false, worktreePath, error: removeError };
       } else {
         await prisma.agentSession.update({
