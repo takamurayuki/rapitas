@@ -38,6 +38,9 @@ mock.module('../../config/database', () => ({
 }));
 mock.module('../../services/communication/notification-service', () => ({
   notifyTaskCompleted: mock(() => Promise.resolve()),
+  // Full mirror: task-mutations.ts now also imports createNotification —
+  // an incomplete mock.module makes the IMPORT itself throw (bun rule).
+  createNotification: mock(() => Promise.resolve({ id: 1 })),
 }));
 mock.module('../../src/services/user-behavior-service', () => ({
   UserBehaviorService: {

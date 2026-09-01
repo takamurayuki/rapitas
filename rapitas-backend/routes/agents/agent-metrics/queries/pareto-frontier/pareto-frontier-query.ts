@@ -10,6 +10,7 @@
  */
 
 import { prisma } from '../../../../../config/database';
+import { WORKFLOW_MODES } from '../../../../../services/workflow/workflow-types';
 import { toInt, toNumber } from '../../metric-coercion';
 import { markParetoOptimal } from './pareto-dominance';
 import { MIN_RELIABLE_SAMPLES, meanInterval, round, wilsonInterval } from './pareto-statistics';
@@ -39,7 +40,8 @@ const MAX_ROWS = 20000;
 /** Executions still in flight carry no outcome and are excluded from every objective. */
 const NON_TERMINAL_STATUSES = new Set(['pending', 'running', 'waiting_for_input']);
 
-const WORKFLOW_TYPES: readonly WorkflowType[] = ['lightweight', 'standard', 'comprehensive'];
+// SSOT: mode names come from WORKFLOW_MODES (check-ssot-drift Domain D).
+const WORKFLOW_TYPES: readonly WorkflowType[] = WORKFLOW_MODES;
 
 /** Objective/CI descriptor shared by both endpoints. */
 export const PARETO_METRICS_INFO: ParetoMetricsInfo = {
