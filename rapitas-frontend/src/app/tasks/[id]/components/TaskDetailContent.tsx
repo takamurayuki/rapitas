@@ -7,6 +7,7 @@ import TaskDetailModals from './TaskDetailModals';
 import { TaskDetailQuickNav, type QuickNavSection } from './TaskDetailQuickNav';
 import { Info, Bot, GitBranch, ListTodo } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { openPomodoroFloatWindow } from '@/feature/tasks/pomodoro/pomodoro-float-launcher';
 import type { WorkflowFile } from '@/types';
 import type { Priority } from '@/types';
 
@@ -39,8 +40,6 @@ export interface TaskDetailContentProps {
   isPageMode: boolean;
   isThisTaskTimer: boolean;
   pomodoroState: { isTimerRunning: boolean; taskId?: number | null };
-  showPomodoroModal: boolean;
-  setShowPomodoroModal: (v: boolean) => void;
   showDevModeConfig: boolean;
   setShowDevModeConfig: (v: boolean) => void;
   showSaveTemplateDialog: boolean;
@@ -76,8 +75,6 @@ export default function TaskDetailContent({
   isPageMode,
   isThisTaskTimer,
   pomodoroState,
-  showPomodoroModal,
-  setShowPomodoroModal,
   showDevModeConfig,
   setShowDevModeConfig,
   showSaveTemplateDialog,
@@ -149,7 +146,7 @@ export default function TaskDetailContent({
         isThisTaskTimer={isThisTaskTimer}
         pomodoroState={pomodoroState}
         onBack={onBack}
-        onOpenPomodoro={() => setShowPomodoroModal(true)}
+        onOpenPomodoro={() => void openPomodoroFloatWindow()}
         onDeleteTask={taskActions.deleteTask}
         onOpenSaveTemplate={() => setShowSaveTemplateDialog(true)}
       />
@@ -168,8 +165,6 @@ export default function TaskDetailContent({
       <TaskDetailModals
         task={task}
         taskId={taskId}
-        showPomodoroModal={showPomodoroModal}
-        onClosePomodoroModal={() => setShowPomodoroModal(false)}
         showDevModeConfig={showDevModeConfig}
         onCloseDevModeConfig={() => setShowDevModeConfig(false)}
         devModeConfig={devModeConfig}

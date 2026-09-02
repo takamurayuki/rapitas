@@ -29,15 +29,13 @@ fn build_pomodoro_float_window(app: &tauri::AppHandle) -> Result<tauri::WebviewW
         tauri::WebviewUrl::App("pomodoro-float".into()),
     )
     .title("Rapitas Pomodoro")
-    .inner_size(300.0, 380.0)
+    .inner_size(400.0, 640.0)
+    .min_inner_size(340.0, 460.0)
     .decorations(false)
     .always_on_top(false)
     .skip_taskbar(false)
-    .resizable(false)
-    // NOTE: builder-level transparency rendered the whole window WHITE on
-    // Windows WebView2 (observed 2026-09-02). Opaque until a runtime glass
-    // effect (acrylic / window-vibrancy) replaces it.
-    .transparent(false)
+    .resizable(true)
+    .transparent(true)
     .center()
     .build()
     .map_err(|e| format!("Failed to create pomodoro-float window: {e}"))
@@ -57,53 +55,22 @@ pub fn show_or_create_pomodoro_float_window(app: &tauri::AppHandle) -> Result<()
     Ok(())
 }
 
-/// Toggle the Pomodoro floating window's visibility, creating it on first use.
-///
-/// Returns the new visibility state so the caller (main window UI) can sync
-/// its toggle button without a separate query round-trip. Broadcasts
-/// `pomodoro-float://visibility-changed` to all windows so any listener
-/// (e.g. the float window's own close button having triggered a hide) stays
-/// in sync regardless of which window initiated the toggle.
+/// Tauri command: bring the Pomodoro floating window to the foreground,
+/// creating it if needed. Replaces GlobalPomodoroModal's open/close as the
+/// only entry point now that the modal is deleted.
 ///
 /// # Errors
 /// Returns a message when the webview window cannot be created.
-pub fn toggle_pomodoro_float_window(app: &tauri::AppHandle) -> Result<bool, String> {
-    if let Some(win) = app.get_webview_window(WINDOW_LABEL) {
-        let is_visible = win.is_visible().unwrap_or(false);
-        let new_state = if is_visible {
-            let _ = win.hide();
-            false
-        } else {
-            let _ = win.show();
-            let _ = win.set_focus();
-            true
-        };
-        let _ = app.emit("pomodoro-float://visibility-changed", new_state);
-        return Ok(new_state);
-    }
-
-    let win = build_pomodoro_float_window(app)?;
+#[tauri::command]
+pub fn focus_pomodoro_float(app: tauri::AppHandle) -> Result<(), String> {
+    let win = match app.get_webview_window(WINDOW_LABEL) {
+        Some(win) => win,
+        None => build_pomodoro_float_window(&app)?,
+    };
+    let _ = win.unminimize();
+    let _ = win.show();
     let _ = win.set_focus();
-    let _ = app.emit("pomodoro-float://visibility-changed", true);
-    Ok(true)
-}
-
-/// Tauri command: toggle the Pomodoro floating window (used by the main window's toggle button).
-#[tauri::command]
-pub fn toggle_pomodoro_float(app: tauri::AppHandle) -> Result<bool, String> {
-    toggle_pomodoro_float_window(&app)
-}
-
-/// Tauri command: query whether the Pomodoro floating window is currently visible.
-///
-/// Used by `GlobalPomodoroModal` on mount to sync its toggle button state,
-/// since the window may already be showing from app startup before the modal
-/// ever subscribes to the visibility-changed event.
-#[tauri::command]
-pub fn pomodoro_float_is_visible(app: tauri::AppHandle) -> bool {
-    app.get_webview_window(WINDOW_LABEL)
-        .and_then(|win| win.is_visible().ok())
-        .unwrap_or(false)
+    Ok(())
 }
 
 /// Tauri command: set the Pomodoro floating window's always-on-top state.
