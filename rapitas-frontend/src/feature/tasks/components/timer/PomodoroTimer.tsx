@@ -434,6 +434,7 @@ export default function PomodoroTimer({
           onComplete={handleCompleteTask}
           onStop={handleStopTimer}
           onCheckpoint={handleCheckpoint}
+          onCutBreak={() => store.cutBreakShort()}
         />
       )}
     </div>

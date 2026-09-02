@@ -193,6 +193,21 @@ export const usePomodoroStore = create<PomodoroState>()(
         });
       },
 
+      cutBreakShort: () => {
+        // Early break exit (operator request 2026-09-03): unlike endBreak,
+        // only the ELAPSED break time is added — crediting the full duration
+        // for a break the user cut short would inflate the break stats.
+        const state = get();
+        const newState = {
+          isBreakTime: false,
+          pomodoroSeconds: 0,
+          accumulatedBreakSeconds: state.accumulatedBreakSeconds + state.pomodoroSeconds,
+          showBreakEndDialog: false,
+        };
+        set(newState);
+        broadcastState(newState);
+      },
+
       endBreak: () => {
         const state = get();
         const breakDuration =

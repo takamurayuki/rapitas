@@ -56,6 +56,7 @@ function createState(overrides: Partial<State> = {}): State {
     takeBreak: vi.fn(),
     skipBreak: vi.fn(),
     endBreak: vi.fn(),
+    cutBreakShort: vi.fn(),
     tick: vi.fn(),
     updateSettings: vi.fn(),
     _initializeTimer: vi.fn(),
