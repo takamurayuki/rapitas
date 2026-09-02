@@ -7,7 +7,7 @@
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter,
+    Emitter, Manager,
 };
 
 use crate::quick_capture::show_quick_capture_window;
@@ -93,15 +93,41 @@ fn setup_global_shortcut(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
             .build(),
     )?;
 
-    // unregister_all inside also clears any stale registration from a previous crash
-    reregister_all_shortcuts(app.handle()).map_err(std::io::Error::other)?;
-    println!(
-        "Global shortcuts registered: {} (main), {} (capture)",
-        load_shortcut_config(app.handle()),
-        load_capture_shortcut_config(app.handle())
-    );
+    // unregister_all() only clears THIS process's own shortcut registry
+    // (tauri-plugin-global-shortcut keeps a per-instance map) — it does NOT
+    // release a hotkey held by another process (e.g. a zombie Rapitas
+    // instance) at the OS level. register() below can therefore legitimately
+    // fail on a clean, non-crashed process; that failure must not be fatal.
+    if let Err(e) = reregister_all_shortcuts(app.handle()) {
+        eprintln!("[Shortcut] registration failed, continuing without global shortcuts: {e}");
+        notify_shortcut_registration_failure(app.handle());
+    } else {
+        println!(
+            "Global shortcuts registered: {} (main), {} (capture)",
+            load_shortcut_config(app.handle()),
+            load_capture_shortcut_config(app.handle())
+        );
+    }
 
     Ok(())
+}
+
+/// Queue an in-app toast warning for a global-shortcut registration failure.
+/// Written directly into PendingToast (not via the show_toast_window command)
+/// because that command is async and does a blocking WebView2 round-trip —
+/// calling it synchronously from .setup() risks deadlocking the boot sequence.
+/// The toast window is created later in .setup() (create_toast_window) and
+/// its page pulls this payload via the existing toast_ready flow.
+fn notify_shortcut_registration_failure(app: &tauri::AppHandle) {
+    let payload = serde_json::json!({
+        "title": "ショートカット登録に失敗しました",
+        "body": "ショートカットが他プロセスに使用されています。旧インスタンスの終了後に再起動してください。",
+        "link": null,
+        "memoId": null,
+    });
+    if let Some(state) = app.try_state::<crate::toast::PendingToast>() {
+        *state.pending.lock().unwrap() = Some(payload);
+    }
 }
 
 /// Register the app's AppUserModelID for toast notifications.
@@ -184,8 +210,7 @@ pub fn run() {
             crate::shortcuts::get_capture_shortcut,
             crate::shortcuts::set_capture_shortcut,
             crate::quick_capture::open_quick_capture,
-            crate::pomodoro_float::toggle_pomodoro_float,
-            crate::pomodoro_float::pomodoro_float_is_visible,
+            crate::pomodoro_float::focus_pomodoro_float,
             crate::pomodoro_float::set_pomodoro_float_always_on_top,
             crate::toast::show_toast_window,
             crate::toast::toast_ready,
