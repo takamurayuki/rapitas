@@ -4,9 +4,8 @@
  * Pure detection predicates for the self-incident watcher: stagnation of a
  * non-terminal task, tri-state desync across Task/AgentSession/AgentExecution,
  * a same-cause repeat loop, and an intake question left unanswered too long.
- * DB-independent by design — every input is a
- * plain snapshot assembled by the caller, so each detector is unit-testable
- * at its boundaries. NOT responsible for evidence gathering or concern filing.
+ * DB-independent by design — every input is a plain snapshot assembled by the
+ * caller, so each detector is unit-testable. NOT responsible for evidence gathering or concern filing.
  */
 import { ACTIVE_EXEC } from './workflow-reconciler-requeue';
 
@@ -23,37 +22,31 @@ export const REPEAT_LOOP_MIN_COUNT =
   parseInt(process.env.RAPITAS_INCIDENT_LOOP_MIN_COUNT ?? '', 10) || 3;
 
 /**
- * Minimum same-cause invariantViolation transitions within the window to count
- * as a loop (default 2, lower than REPEAT_LOOP_MIN_COUNT). An invariantViolation
- * is the system itself flagging a contract breach, a strong signal that does not
- * need the general threshold's forgiveness-budget churn allowance (task 673: 2
- * `verify_pr_not_created` invariantViolations 70s apart went undetected under
- * the default minCount=3/window=60m).
+ * Minimum same-cause invariantViolation transitions within the window to count as a loop
+ * (default 2, lower than REPEAT_LOOP_MIN_COUNT) — an invariantViolation is the system itself
+ * flagging a contract breach and needs no forgiveness-budget allowance (task 673:
+ * 2 `verify_pr_not_created` invariantViolations 70s apart went undetected at minCount=3/window=60m).
  */
 export const INVARIANT_REPEAT_LOOP_MIN_COUNT =
   parseInt(process.env.RAPITAS_INCIDENT_INVARIANT_LOOP_MIN_COUNT ?? '', 10) || 2;
 
 /**
- * Grace period after a deliberate recovery transition during which the
- * `todo × advanced-workflow` shape is EXPECTED, not anomalous (default 30m).
- * Rationale (#636): requeueOrphanTasks resets status to 'todo' while keeping
- * workflowStatus on purpose so auto-run resumes mid-workflow — the watcher
- * fired Pattern B 59s later and filed the reconciler's own heal as a
- * high-severity bug. 30m matches STAGNATION_THRESHOLD_MS: past that point a
- * still-undispatched task is caught by detectStagnation anyway, so shrinking
- * Pattern B here does not open a detection gap.
+ * Grace period after a deliberate recovery transition during which the `todo × advanced-workflow`
+ * shape is EXPECTED, not anomalous (default 30m). Rationale (#636): requeueOrphanTasks resets
+ * status to 'todo' while keeping workflowStatus on purpose so auto-run resumes mid-workflow —
+ * the watcher fired Pattern B 59s later and filed the reconciler's own heal as a high-severity
+ * bug. 30m matches STAGNATION_THRESHOLD_MS: past that a still-undispatched task is caught by
+ * detectStagnation anyway, so shrinking Pattern B here does not open a detection gap.
  */
 export const DESYNC_RECOVERY_SETTLE_MS =
   parseInt(process.env.RAPITAS_INCIDENT_DESYNC_SETTLE_MS ?? '', 10) || 30 * 60 * 1000;
 
 /**
- * Grace period after a failed session's own last update during which Pattern
- * A (`session_failed_execution_active`) is EXPECTED, not anomalous (default
- * 130s). Rationale (#718): the verify post-save pipeline marks a session
- * failed while its own execution is still running the pipeline (jury ~120s +
- * commit/PR); DESYNC_RECOVERY_SETTLE_MS's 30m is sized for a much
- * longer-lived recovery shape (Pattern B) and would delay a genuinely hung
- * execution's detection by the same amount if reused here.
+ * Grace period after a failed session's own last update during which Pattern A
+ * (`session_failed_execution_active`) is EXPECTED, not anomalous (default 130s).
+ * Rationale (#718): the verify post-save pipeline marks a session failed while its own
+ * execution is still running the pipeline (jury ~120s + commit/PR); DESYNC_RECOVERY_SETTLE_MS's
+ * 30m is sized for the longer-lived Pattern B and would delay hung-execution detection here.
  */
 export const PATTERN_A_SETTLE_MS =
   parseInt(process.env.RAPITAS_INCIDENT_PATTERN_A_SETTLE_MS ?? '', 10) || 130_000;
@@ -349,10 +342,9 @@ export interface RepeatLoopTransition {
   actor: string;
   /**
    * True when this transition was recorded as an invariant violation (system
-   * self-detected contract breach). Feeds an independent, lower-threshold
-   * detection path — see {@link INVARIANT_REPEAT_LOOP_MIN_COUNT}. Optional for
-   * backward compatibility with existing callers that don't set it (treated as
-   * false / not counted).
+   * self-detected contract breach) — feeds an independent, lower-threshold path,
+   * see {@link INVARIANT_REPEAT_LOOP_MIN_COUNT}. Optional for backward compat
+   * (unset = false / not counted).
    */
   invariantViolation?: boolean;
 }
@@ -385,30 +377,30 @@ const FILE_SAVED_VERIFY_CAUSE = 'file_saved:verify';
  */
 const REPAIR_BOUNCE_CAUSES = new Set(['verify_repair', 'ci_repair']);
 
+/** True when `cause` is a self-repair bounce cause (verify_repair/ci_repair). */
+export function isRepairBounceCause(cause: string): boolean {
+  return REPAIR_BOUNCE_CAUSES.has(cause);
+}
 /**
- * Detects a same-cause repeat loop: the same transition cause firing at least
- * `minCount` times within the trailing window. Ties between causes with equal
- * counts break deterministically by cause name (localeCompare ascending).
- * Transitions with actor='user' are excluded — operator manual recovery is
- * intervention, not a loop (actor-based, so any future manual cause is covered).
- * Causes prefixed `phase_completed:` are forgiven, but only when a preceding
- * `verify_repair`/`ci_repair` bounce actually re-authorizes that specific
- * firing: transitions are walked in chronological order with a running
- * "forgiveness budget" that starts at 1 (the initial pass, granted only if
- * the window contains at least one bounce at all) and gains 1 for every
- * bounce encountered so far. Each `phase_completed:*` firing spends one unit
- * of budget if available; if the budget is already spent, that firing is a
- * genuine anomaly and is counted (e.g. #607, task 614: 1 implement + 2
- * verify_repair bounces, each bounce preceding its re-implement, fully
- * explains 3 firings and is not reported as a loop; the same mechanism also
- * explains #616's 1 implement + 2 verify_repair bounces — see
- * incident-signature-detectors.repeat-loop-t616.test.ts for the exact
- * replayed transition window). Requiring the bounce to chronologically precede the firing it
- * forgives (rather than just summing bounce counts anywhere in the window) closes a gap where
- * phase_completed churn front-loaded before any bounce — which a same-window bounce cannot causally
- * explain — would otherwise be waved through by coincidental later bounces of a *different* cause
- * (verify_repair and ci_repair combined). A `phase_completed:*` repetition with zero bounces
- * anywhere in the window is never forgiven at all.
+ * Detects a same-cause repeat loop: the same transition cause firing at least `minCount` times
+ * within the trailing window (REPAIR_BOUNCE_CAUSES causes use `repairBounceMinCount` instead — see
+ * the task-837 paragraph below). Ties break deterministically by cause name (localeCompare
+ * ascending). actor='user' transitions are excluded — manual recovery is intervention, not a loop.
+ * Causes prefixed `phase_completed:` are forgiven, but only when a preceding `verify_repair`/
+ * `ci_repair` bounce actually re-authorizes that specific firing: transitions are walked in
+ * chronological order with a running "forgiveness budget" that starts at 1 (the initial pass,
+ * granted only if the window contains at least one bounce at all) and gains 1 for every bounce
+ * encountered so far. Each `phase_completed:*` firing spends one unit of budget if available; if
+ * the budget is already spent, that firing is a genuine anomaly and is counted (e.g. #607, task
+ * 614: 1 implement + 2 verify_repair bounces, each bounce preceding its re-implement, fully
+ * explains 3 firings and is not reported as a loop; the same mechanism also explains #616's 1
+ * implement + 2 verify_repair bounces — see incident-signature-detectors.repeat-loop-t616.test.ts
+ * for the exact replayed transition window). Requiring the bounce to chronologically precede the
+ * firing it forgives (rather than just summing bounce counts anywhere in the window) closes a gap
+ * where phase_completed churn front-loaded before any bounce — which a same-window bounce cannot
+ * causally explain — would otherwise be waved through by coincidental later bounces of a
+ * *different* cause (verify_repair and ci_repair combined). A `phase_completed:*` repetition with
+ * zero bounces anywhere in the window is never forgiven at all.
  * `file_saved:verify` (see {@link FILE_SAVED_VERIFY_CAUSE}) is forgiven the same way, through its
  * own independent budget running in parallel — a repair cycle emits both a `phase_completed:*` and
  * a `file_saved:verify` per round, and each cause needs its own full budget rather than splitting
@@ -416,10 +408,16 @@ const REPAIR_BOUNCE_CAUSES = new Set(['verify_repair', 'ci_repair']);
  * verify save + 2 verify_repair bounces, each preceding a re-implement and a re-save, produced 3
  * `phase_completed:implementer` AND 3 `file_saved:verify` firings — see
  * incident-signature-detectors.repeat-loop-t708.test.ts for the replayed window).
- * A terminal taskStatus (see TERMINAL_TASK_STATUSES) short-circuits to null —
- * a task that has already finished is not "looping" even if it churned through
- * several retry cycles on the way there (mirrors detectStagnation's guard;
- * caught a false positive on #607, which completed 12s before the report).
+ * REPAIR_BOUNCE_CAUSES themselves (`verify_repair`/`ci_repair`, see {@link isRepairBounceCause})
+ * are matched against `repairBounceMinCount` instead of `minCount`. This generalizes task 835's
+ * `verify_repair`-only budget guard to also cover `ci_repair`: a task that legitimately exhausts
+ * its repair budget (e.g. verifyRepairLimit=3 producing exactly 3 `verify_repair` bounces) must
+ * not itself be misreported as a loop — only bounces beyond the caller-supplied budget are
+ * flagged (task 837).
+ * A terminal taskStatus (see TERMINAL_TASK_STATUSES) short-circuits to null — a finished task is
+ * not "looping" even if it churned through retry cycles on the way there (mirrors
+ * detectStagnation's guard; caught a false positive on #607, which completed 12s before the
+ * report).
  *
  * @param input.transitions - Task transitions (any order). / 対象タスクの遷移一覧
  * @param input.nowMs - Current time (ms). / 現在時刻
@@ -427,7 +425,7 @@ const REPAIR_BOUNCE_CAUSES = new Set(['verify_repair', 'ci_repair']);
  * @param input.windowMs - Window size (default 60m). / 集計窓
  * @param input.minCount - Detection threshold (default 3). / 検出しきい値
  * @param input.invariantMinCount - Detection threshold for invariantViolation-flagged transitions only (default 2, see {@link INVARIANT_REPEAT_LOOP_MIN_COUNT}). / invariantViolation付き遷移専用のしきい値
- * @param input.verifyRepairMinCount - Detection threshold applied to `verify_repair` ONLY (task 835; defaults to `minCount`). Callers pass the effective repair budget + 1, so spending the whole budget is not itself reported as a loop while a true overrun still is. / verify_repair専用のしきい値（修復予算+1を渡す）
+ * @param input.repairBounceMinCount - Detection threshold for REPAIR_BOUNCE_CAUSES (verify_repair/ci_repair) only; defaults to minCount. Callers pass the effective repair budget + 1, so spending the whole budget is not itself reported as a loop while a true overrun still is (task 837, generalizes task 835's verify_repair-only guard, see isRepairBounceCause). / 修復バウンス系cause専用のしきい値（修復予算+1を渡す）
  * @returns The dominant looping cause + count + which threshold path (`via`) picked it, or null. / 最多ループcause・count・判定経路またはnull
  */
 export function detectRepeatLoop(input: {
@@ -437,15 +435,16 @@ export function detectRepeatLoop(input: {
   windowMs?: number;
   minCount?: number;
   invariantMinCount?: number;
-  verifyRepairMinCount?: number;
+  repairBounceMinCount?: number;
 }): { cause: string; count: number; via: 'general' | 'invariant' } | null {
   if (input.taskStatus !== undefined && TERMINAL_TASK_STATUSES.has(input.taskStatus)) return null;
   const windowMs = input.windowMs ?? REPEAT_LOOP_WINDOW_MS;
   const minCount = input.minCount ?? REPEAT_LOOP_MIN_COUNT;
   const invariantMinCount = input.invariantMinCount ?? INVARIANT_REPEAT_LOOP_MIN_COUNT;
-  // task 835: `verify_repair` fires once per repair round, so spending a budget of N legitimately
-  // produces N firings — judge it against the caller-resolved budget, not the static min count.
-  const verifyRepairMinCount = input.verifyRepairMinCount ?? minCount;
+  // task 837 (generalizes task 835): REPAIR_BOUNCE_CAUSES fire once per repair round, so spending
+  // a budget of N legitimately produces N firings — judge it against the caller-resolved budget,
+  // not the static min count.
+  const repairBounceMinCount = input.repairBounceMinCount ?? minCount;
   const windowStart = input.nowMs - windowMs;
 
   const windowed = input.transitions
@@ -494,7 +493,7 @@ export function detectRepeatLoop(input: {
 
   let best: { cause: string; count: number; via: 'general' | 'invariant' } | null = null;
   for (const [cause, count] of counts) {
-    if (count < (cause === 'verify_repair' ? verifyRepairMinCount : minCount)) continue;
+    if (count < (REPAIR_BOUNCE_CAUSES.has(cause) ? repairBounceMinCount : minCount)) continue;
     if (
       best === null ||
       count > best.count ||
