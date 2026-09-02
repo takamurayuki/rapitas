@@ -10,6 +10,7 @@ import { useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { Mic } from 'lucide-react';
 import { useVoiceInput } from './VoiceInputProvider';
+import { VOICE_INPUT_DISABLED } from './VoiceInputProvider';
 
 interface InlineMicButtonProps {
   /** The input element to target (pass via ref). */
@@ -20,7 +21,9 @@ interface InlineMicButtonProps {
   className?: string;
 }
 
-export default function InlineMicButton({ inputRef, onText, className }: InlineMicButtonProps) {
+// NOTE: voice input disabled — the gate wrapper below keeps hooks
+// unconditional inside the inner component (rules-of-hooks).
+function InlineMicButtonInner({ inputRef, onText, className }: InlineMicButtonProps) {
   const { openVoiceInput } = useVoiceInput();
   const t = useTranslations('devTools');
 
@@ -45,4 +48,9 @@ export default function InlineMicButton({ inputRef, onText, className }: InlineM
       <Mic className="w-4 h-4" />
     </button>
   );
+}
+
+export default function InlineMicButton(props: InlineMicButtonProps) {
+  if (VOICE_INPUT_DISABLED) return null;
+  return <InlineMicButtonInner {...props} />;
 }

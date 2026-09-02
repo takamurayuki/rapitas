@@ -22,6 +22,7 @@ import { Spinner } from '@/components/ui/spinner';
 // NOTE: Use the app-wide API base — a host differing from the page's (127.0.0.1
 // vs localhost) is cross-site to the browser and the CSRF guard rejects POSTs.
 import { API_BASE_URL as BACKEND_URL } from '@/utils/api';
+import { VOICE_INPUT_DISABLED } from './VoiceInputProvider';
 
 /** Voice command from backend. */
 interface VoiceCommandResponse {
@@ -48,7 +49,9 @@ interface VoiceInputBarProps {
   target?: VoiceTarget;
 }
 
-export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBarProps) {
+// NOTE: voice input disabled — the gate wrapper below keeps hooks
+// unconditional inside the inner component (rules-of-hooks).
+function VoiceInputBarInner({ isOpen, onClose, target }: VoiceInputBarProps) {
   const router = useRouter();
   const t = useTranslations('devTools');
   const tCommon = useTranslations('common');
@@ -472,4 +475,9 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
       </div>
     </div>
   );
+}
+
+export default function VoiceInputBar(props: VoiceInputBarProps) {
+  if (VOICE_INPUT_DISABLED) return null;
+  return <VoiceInputBarInner {...props} />;
 }
