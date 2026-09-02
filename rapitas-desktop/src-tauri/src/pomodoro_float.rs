@@ -35,7 +35,11 @@ fn build_pomodoro_float_window(app: &tauri::AppHandle) -> Result<tauri::WebviewW
     .always_on_top(false)
     .skip_taskbar(false)
     .resizable(true)
-    .transparent(true)
+    // NOTE: transparent(true) renders the WHOLE window white on this
+    // machine's WebView2 (verified twice, 2026-09-02) — the page content
+    // never composites. Opaque until glass ships via window-vibrancy
+    // acrylic, which bypasses the transparent-window compositing path.
+    .transparent(false)
     .center()
     .build()
     .map_err(|e| format!("Failed to create pomodoro-float window: {e}"))
