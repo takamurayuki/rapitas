@@ -27,24 +27,59 @@ const isTauri = (): boolean => typeof window !== 'undefined' && '__TAURI_INTERNA
 // fights skip_taskbar(false); glass mode re-enables it as an overlay.
 async function syncAlwaysOnTop(mode: TransparencyMode): Promise<void> {
   if (!isTauri()) return;
-  const { invoke } = await import('@tauri-apps/api/core');
-  await invoke('set_pomodoro_float_always_on_top', { on: mode === 'glass' });
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('set_pomodoro_float_always_on_top', { on: mode === 'glass' });
+  } catch {
+    // Non-fatal — always-on-top is a nicety, not required for correctness.
+  }
+}
+
+// Applies/clears window-vibrancy acrylic on the Rust side. Never throws to
+// the caller — `set_pomodoro_float_acrylic` itself always resolves, but a
+// missing/denied command (e.g. capabilities misconfiguration) still throws
+// on invoke, so this falls back to `false` rather than propagating.
+async function syncAcrylic(mode: TransparencyMode): Promise<boolean> {
+  if (!isTauri()) return false;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return await invoke<boolean>('set_pomodoro_float_acrylic', { enabled: mode === 'glass' });
+  } catch {
+    return false;
+  }
 }
 
 /**
  * Returns the current transparency mode and a toggler that persists the change.
  *
- * @returns Current mode and a function to flip it / 現在のモードと切替関数
+ * @returns Current mode, whether acrylic is actually applied, and a function to flip mode / 現在のモード・acrylic適用可否・切替関数
  */
-export function useTransparencyMode(): { mode: TransparencyMode; toggleMode: () => void } {
+export function useTransparencyMode(): {
+  mode: TransparencyMode;
+  acrylicApplied: boolean;
+  toggleMode: () => void;
+} {
   const [mode, setMode] = useState<TransparencyMode>(DEFAULT_MODE);
+  const [acrylicApplied, setAcrylicApplied] = useState(false);
 
   useEffect(() => {
     setMode(readStoredMode());
   }, []);
 
   useEffect(() => {
-    void syncAlwaysOnTop(mode);
+    let cancelled = false;
+    // Sequenced (not concurrent) — both resolve the same '@tauri-apps/api/core'
+    // dynamic import, and firing them in parallel races that module resolution
+    // under Vitest's mock. Sequencing has no functional cost: neither command
+    // depends on the other's result (plan.md 設計判断の根拠 「実装者への申し送り事項」#4).
+    void syncAlwaysOnTop(mode)
+      .then(() => syncAcrylic(mode))
+      .then((applied) => {
+        if (!cancelled) setAcrylicApplied(applied);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [mode]);
 
   const toggleMode = useCallback(() => {
@@ -55,5 +90,5 @@ export function useTransparencyMode(): { mode: TransparencyMode; toggleMode: () 
     });
   }, []);
 
-  return { mode, toggleMode };
+  return { mode, acrylicApplied, toggleMode };
 }
