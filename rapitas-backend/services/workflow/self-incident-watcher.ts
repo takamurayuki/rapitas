@@ -25,6 +25,7 @@ import {
   REPEAT_LOOP_MIN_COUNT,
   INVARIANT_REPEAT_LOOP_MIN_COUNT,
 } from './incident-signature-detectors';
+import { resolveVerifyRepairLimit } from './blocked-task-policy';
 import { gatherTaskState, formatIncidentDetail } from './self-incident-evidence';
 import type { GatheredTaskState } from './self-incident-evidence';
 import { inspectSupervisorSignatures } from './supervisor-incident-inspect';
@@ -168,6 +169,7 @@ async function inspectTask(
   task: CandidateTask,
   nowMs: number,
   disabledAutoRunThemeIds: Set<number>,
+  verifyRepairMinCount: number,
 ): Promise<number> {
   const state = await gatherTaskState(task, nowMs, REPEAT_LOOP_WINDOW_MS);
   let filed = 0;
@@ -253,6 +255,7 @@ async function inspectTask(
     transitions: state.windowedCauses,
     nowMs,
     taskStatus: task.status,
+    verifyRepairMinCount,
   });
   if (loop) {
     if (
@@ -264,9 +267,17 @@ async function inspectTask(
         explanation:
           `直近${Math.round(REPEAT_LOOP_WINDOW_MS / 60_000)}分以内に同一cause(${loop.cause})の` +
           `遷移が${loop.count}回発生しています。同じ失敗と再試行を繰り返すループの疑いがあります。`,
+        // Must state the threshold that actually fired (task 710) — which for
+        // `verify_repair` is now the budget-derived one, not the static min.
         thresholdDescription:
           `${Math.round(REPEAT_LOOP_WINDOW_MS / 60_000)}分以内に同一causeが` +
-          `${loop.via === 'invariant' ? INVARIANT_REPEAT_LOOP_MIN_COUNT : REPEAT_LOOP_MIN_COUNT}回以上`,
+          `${
+            loop.via === 'invariant'
+              ? INVARIANT_REPEAT_LOOP_MIN_COUNT
+              : loop.cause === 'verify_repair'
+                ? verifyRepairMinCount
+                : REPEAT_LOOP_MIN_COUNT
+          }回以上`,
         severity: 'high',
         nowMs,
       })
@@ -393,10 +404,19 @@ export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<
   ];
   const disabledAutoRunThemeIds = await resolveDisabledAutoRunThemeIds(candidateThemeIds);
 
+  // Also resolved once per pass (task 835): the repeat-loop threshold for
+  // `verify_repair` is the repair budget + 1, so spending the budget in full
+  // is not itself reported as a loop while a genuine overrun still is.
+  // Falls back to the default budget when the settings row is missing/unreadable.
+  const settings = (await prisma.userSettings.findFirst().catch(() => null)) as {
+    verifyRepairLimit?: number | null;
+  } | null;
+  const verifyRepairMinCount = resolveVerifyRepairLimit(settings) + 1;
+
   let filed = 0;
   for (const task of candidates) {
     try {
-      filed += await inspectTask(task, nowMs, disabledAutoRunThemeIds);
+      filed += await inspectTask(task, nowMs, disabledAutoRunThemeIds, verifyRepairMinCount);
     } catch (err) {
       // One broken task must not starve the rest of the scan.
       log.warn({ err, taskId: task.id }, '[self-incident] task inspection failed — continuing');
