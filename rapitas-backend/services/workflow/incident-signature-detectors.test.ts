@@ -555,6 +555,57 @@ describe('detectRepeatLoop', () => {
     expect(result).not.toBeNull();
     expect(result).toEqual({ cause: 'verify_pr_not_created', count: 2, via: 'invariant' });
   });
+  // ── task 835: verify_repair threshold follows the repair budget ────────────
+  // `verify_repair` fires once per repair round, so a task that legitimately
+  // spends a budget of N produces N firings. The static REPEAT_LOOP_MIN_COUNT
+  // (3) reported every budget=3 task as a loop; the caller now injects
+  // `resolveVerifyRepairLimit(settings) + 1` instead.
+  const vr = (msAgo: number): RepeatLoopTransition => at(msAgo, 'verify_repair');
+
+  it('falls back to minCount for verify_repair when verifyRepairMinCount is omitted', () => {
+    expect(
+      detectRepeatLoop({
+        transitions: [vr(1_000), vr(2_000), vr(3_000)],
+        nowMs: NOW,
+        minCount: 3,
+      }),
+    ).toEqual({ cause: 'verify_repair', count: 3, via: 'general' });
+  });
+
+  it('does NOT flag verify_repair below the budget-derived threshold', () => {
+    expect(
+      detectRepeatLoop({
+        transitions: [vr(1_000), vr(2_000), vr(3_000)],
+        nowMs: NOW,
+        minCount: 3,
+        verifyRepairMinCount: 4,
+      }),
+    ).toBeNull();
+  });
+
+  it('flags verify_repair once it reaches the budget-derived threshold', () => {
+    expect(
+      detectRepeatLoop({
+        transitions: [vr(1_000), vr(2_000), vr(3_000), vr(4_000)],
+        nowMs: NOW,
+        minCount: 3,
+        verifyRepairMinCount: 4,
+      }),
+    ).toEqual({ cause: 'verify_repair', count: 4, via: 'general' });
+  });
+
+  // ci_repair has no UserSettings-resolvable budget, so it must keep using the
+  // static threshold even when a verify_repair threshold is supplied.
+  it('leaves ci_repair on the static minCount when verifyRepairMinCount is raised', () => {
+    expect(
+      detectRepeatLoop({
+        transitions: [at(1_000), at(2_000), at(3_000)],
+        nowMs: NOW,
+        minCount: 3,
+        verifyRepairMinCount: 4,
+      }),
+    ).toEqual({ cause: 'ci_repair', count: 3, via: 'general' });
+  });
 });
 
 describe('detectUnansweredQuestion', () => {
