@@ -70,7 +70,6 @@ export const PATTERN_A_SETTLE_MS =
  * self-resolved to done/completed via normal dispatch with no data repair,
  * confirming the shape is transient/self-healing). `blocked_auto_retry` is NOT
  * here — it resets workflowStatus to 'draft', which Pattern B never matches.
- *
  * `agent_lifecycle_shutdown_revert` / `manual_execution_stop_revert` /
  * `stale_execution_recovery_revert` (task 709): three more paths revert
  * `task.status` to 'todo' without touching `workflowStatus` — backend
@@ -79,7 +78,7 @@ export const PATTERN_A_SETTLE_MS =
  * Before task 709 none recorded a `WorkflowTransition`, so
  * `isWithinRecoveryGrace` had no row to find and Pattern B fired immediately
  * on a shape these paths create on purpose (task #602). `workflow_queue_
- * enqueue_failed` (task 786): same revert, from `ci-self-repair.ts`'s enqueue().
+ * enqueue_failed` (786) / `auto_run_stop_revert` (830): ditto, via enqueue() / `stopThemeExecutionImpl`.
  */
 const RECOVERY_REQUEUE_CAUSES = new Set([
   'reconciler_requeue',
@@ -89,6 +88,7 @@ const RECOVERY_REQUEUE_CAUSES = new Set([
   'manual_execution_stop_revert',
   'stale_execution_recovery_revert',
   'workflow_queue_enqueue_failed',
+  'auto_run_stop_revert',
 ]);
 
 /**
