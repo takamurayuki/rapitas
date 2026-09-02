@@ -14,6 +14,7 @@ import type { Task, Priority } from '@/types';
 import { useAutosizeTextarea } from '@/hooks/ui/useAutosizeTextarea';
 import { PrioritySelector } from '@/app/tasks/new/components/PrioritySelector';
 import NoteLinksSection from '../NoteLinksSection';
+import DurationInput from '@/components/ui/hours-minutes-input/HoursMinutesInput';
 
 interface SubtaskEditFormProps {
   /** The subtask being edited — needed so notes can be linked to its ID. */
@@ -132,14 +133,9 @@ export function SubtaskEditForm({
               <Clock className="w-3.5 h-3.5" />
               {t('subtaskEstimatedHours')}
             </label>
-            <input
-              type="number"
-              step="0.5"
-              min="0"
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:border-indigo-400"
-              placeholder="0"
+            <DurationInput
               value={editingSubtaskEstimatedHours}
-              onChange={(e) => onSetEditingEstimatedHours(e.target.value)}
+              onChange={onSetEditingEstimatedHours}
               aria-label={t('subtaskEstimatedHours')}
             />
           </div>
@@ -149,14 +145,9 @@ export function SubtaskEditForm({
               <Timer className="w-3.5 h-3.5" />
               {t('subtaskActualHours')}
             </label>
-            <input
-              type="number"
-              step="0.1"
-              min="0"
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:border-indigo-400"
-              placeholder="0"
+            <DurationInput
               value={editingSubtaskActualHours}
-              onChange={(e) => onSetEditingActualHours(e.target.value)}
+              onChange={onSetEditingActualHours}
               aria-label={t('subtaskActualHours')}
             />
           </div>
