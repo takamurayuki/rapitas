@@ -345,7 +345,9 @@ export default function PomodoroTimer({
           control row's visual grammar — pale face, no heavy border, the
           duration as a small chip instead of a bare "(15min)" line. */}
       {showBreakDialog && (
-        <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-500/20 dark:bg-green-500/10">
+        {/* Neutral card face — the tinted buttons need contrast against it
+            (a green face swallowed the green button, 2026-09-03). */}
+        <div className="mb-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/50">
           <div className="mb-3 flex items-center justify-center gap-2 text-center">
             <span className="text-sm font-medium text-green-700 dark:text-green-300">
               {t('breakPrompt', { breakType })}
@@ -363,7 +365,7 @@ export default function PomodoroTimer({
             </button>
             <button
               onClick={handleSkipBreak}
-              className="rounded-lg bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-200 hover:text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
+              className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
             >
               {t('skip')}
             </button>
@@ -373,7 +375,7 @@ export default function PomodoroTimer({
 
       {/* Same compact grammar as the break prompt, indigo = back-to-work. */}
       {showBreakEndDialog && (
-        <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-500/20 dark:bg-indigo-500/10">
+        <div className="mb-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/50">
           <div className="mb-3 text-center text-sm font-medium text-indigo-700 dark:text-indigo-300">
             {t('breakEndMessage')}
           </div>
