@@ -118,6 +118,12 @@ describe('attemptVerifyRepair', () => {
     // NOTE: task 619 — non-convergence inputs must reset per test.
     mockPrisma.workflowTransition.findMany.mockReset();
     mockPrisma.workflowTransition.findMany.mockResolvedValue([]);
+    // NOTE (task 832 premortem #1): workflowTransition.findFirst is shared with
+    // the `hasFreshVerifyRejection` describe below. Without a reset here, an
+    // implementation it sets earlier in a full-suite run leaks into this
+    // describe's window-boundary query and only fails when run alongside it.
+    mockPrisma.workflowTransition.findFirst.mockReset();
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue(null);
     escalateBlockedTask.mockReset();
     escalateBlockedTask.mockResolvedValue(true);
   });
@@ -354,6 +360,75 @@ describe('attemptVerifyRepair', () => {
     expect(actions).toContain('acceptance_criteria_changed');
   });
 
+  // task 832 実測 (#827, #830): question_resolved / plan_invalid_replan は
+  // WorkflowTransition.cause に記録されるため、窓の境界クエリは ActivityLog
+  // だけでなく WorkflowTransition も参照しなければならない。
+  test('question_resolved 後の最初の verify_repair ではカットオフに達しないこと（#827/#830 回帰）', async () => {
+    const resolvedAt = new Date('2026-01-03T00:00:00Z');
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      cause: 'question_resolved',
+      createdAt: resolvedAt,
+    });
+    mockPrisma.workflowTransition.count.mockResolvedValue(0);
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+
+    const r = await attemptVerifyRepair(1, 'in_progress', 'fail', 'v');
+
+    expect(r.bounced).toBe(true);
+    expect(r.attempt).toBe(1);
+    const countArgs = mockPrisma.workflowTransition.count.mock.calls[0][0] as {
+      where: { createdAt?: { gt: Date } };
+    };
+    expect(countArgs.where.createdAt?.gt).toEqual(resolvedAt);
+    const rt = recordTransition.mock.calls[0][0] as { metadata: { windowStart: string | null } };
+    expect(rt.metadata.windowStart).toBe(resolvedAt.toISOString());
+  });
+
+  test('plan_invalid_replan 後の最初の verify_repair ではカットオフに達しないこと', async () => {
+    const replanAt = new Date('2026-01-04T00:00:00Z');
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      cause: 'plan_invalid_replan',
+      createdAt: replanAt,
+    });
+    mockPrisma.workflowTransition.count.mockResolvedValue(0);
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+
+    const r = await attemptVerifyRepair(1, 'in_progress', 'fail', 'v');
+
+    expect(r.bounced).toBe(true);
+    expect(r.attempt).toBe(1);
+    const rt = recordTransition.mock.calls[0][0] as { metadata: { windowStart: string | null } };
+    expect(rt.metadata.windowStart).toBe(replanAt.toISOString());
+  });
+
+  test('窓境界クエリが question_resolved と plan_invalid_replan の両方を対象にすること', async () => {
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+    await attemptVerifyRepair(1, 'in_progress', 'fail', 'v');
+
+    const whereArg = mockPrisma.workflowTransition.findFirst.mock.calls[0]?.[0] as {
+      where: { cause: { in: string[] } };
+    };
+    expect(whereArg.where.cause.in).toContain('question_resolved');
+    expect(whereArg.where.cause.in).toContain('plan_invalid_replan');
+  });
+
+  test('ActivityLog と WorkflowTransition の両境界がヒットしたら新しい方を採用すること', async () => {
+    const olderActivity = new Date('2026-01-01T00:00:00Z');
+    const newerTransition = new Date('2026-01-05T00:00:00Z');
+    mockPrisma.activityLog.findFirst.mockResolvedValue({ createdAt: olderActivity });
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      cause: 'question_resolved',
+      createdAt: newerTransition,
+    });
+    mockPrisma.workflowTransition.count.mockResolvedValue(0);
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+
+    await attemptVerifyRepair(1, 'in_progress', 'fail', 'v');
+
+    const rt = recordTransition.mock.calls[0][0] as { metadata: { windowStart: string | null } };
+    expect(rt.metadata.windowStart).toBe(newerTransition.toISOString());
+  });
+
   // ---- 非収束打ち切り（task 619）----
   // task 614 実データ型のフィクスチャ: 基準1がパス、基準2が識別子で特定できる。
   const CRITERIA_JSON = JSON.stringify([
@@ -466,6 +541,26 @@ describe('attemptVerifyRepair', () => {
 
     expect(r.bounced).toBe(true);
     expect(escalateBlockedTask).not.toHaveBeenCalled();
+  });
+
+  // task 832: 非収束判定 (detectRepairNonConvergence) も countPriorRepairs と
+  // 同じ窓境界 (question_resolved 等) を共有していること — 複製クエリのまま
+  // だと ActivityLog/WorkflowTransition の境界追加が非収束判定に反映されない。
+  test('非収束判定の過去理由クエリも question_resolved 境界でスコープされること', async () => {
+    withCriteria();
+    const resolvedAt = new Date('2026-01-06T00:00:00Z');
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      cause: 'question_resolved',
+      createdAt: resolvedAt,
+    });
+    mockPrisma.workflowTransition.findMany.mockResolvedValue(priorRows(R1, R2));
+
+    await attemptVerifyRepair(614, 'in_progress', R3, 'v');
+
+    const findManyArgs = mockPrisma.workflowTransition.findMany.mock.calls[0][0] as {
+      where: { createdAt?: { gt: Date } };
+    };
+    expect(findManyArgs.where.createdAt?.gt).toEqual(resolvedAt);
   });
 });
 

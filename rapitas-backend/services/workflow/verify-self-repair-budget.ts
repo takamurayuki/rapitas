@@ -37,23 +37,40 @@ export async function resolveMaxRepairs(): Promise<number> {
 }
 
 /**
- * Start of the current repair window (most recent wipe): a manual retry, or
- * REPLACING acceptance criteria — old reasons cite criteria by number, and a
- * replacement repoints those numbers (task 672 tripped the cutoff on two
- * pre-correction reasons after criteria were corrected mid-flight).
+ * Start of the current repair window (most recent wipe): a manual retry,
+ * REPLACING acceptance criteria, a question being resolved, or a plan being
+ * regenerated after being deemed invalid — old reasons cite state (criterion
+ * numbers, plan sections) that a wipe repoints or invalidates (task 672
+ * tripped the cutoff on two pre-correction reasons after criteria were
+ * corrected mid-flight; task 832 found the same persisted-count problem for
+ * `question_resolved` / `plan_invalid_replan`, #827 #830). Whichever boundary
+ * is most recent wins.
  *
  * @param taskId - Task id / タスクID
  * @returns Window start, or null when never wiped. / 窓の起点、無ければ null
  */
 export async function resolveRepairWindowStart(taskId: number): Promise<Date | null> {
-  const row = await prisma.activityLog
-    .findFirst({
-      where: { taskId, action: { in: ['task_retried', 'acceptance_criteria_changed'] } },
-      orderBy: { createdAt: 'desc' },
-      select: { createdAt: true },
-    })
-    .catch(() => null);
-  return row?.createdAt ?? null;
+  const [activityRow, transitionRow] = await Promise.all([
+    prisma.activityLog
+      .findFirst({
+        where: { taskId, action: { in: ['task_retried', 'acceptance_criteria_changed'] } },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      })
+      .catch(() => null),
+    prisma.workflowTransition
+      .findFirst({
+        where: { taskId, cause: { in: ['question_resolved', 'plan_invalid_replan'] } },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      })
+      .catch(() => null),
+  ]);
+  const candidates = [activityRow?.createdAt, transitionRow?.createdAt].filter(
+    (d): d is Date => d instanceof Date,
+  );
+  if (candidates.length === 0) return null;
+  return candidates.reduce((latest, d) => (d > latest ? d : latest));
 }
 
 /**
@@ -110,24 +127,16 @@ export async function detectRepairNonConvergence(
     // Short-circuit BEFORE any transition query: no criteria → nothing to match.
     if (criteria.length === 0) return { cutoff: false };
 
-    // A manual retry grants a fresh slate — and so does REPLACING the acceptance
-    // criteria. Reasons recorded against the old criteria cite them by number,
-    // and after a replacement those numbers point at different criteria: task
-    // 672 had its criteria corrected mid-flight and the next single bounce
-    // tripped the cutoff on two pre-correction reasons. Whichever boundary is
-    // more recent wins.
-    const boundary = await prisma.activityLog
-      .findFirst({
-        where: { taskId, action: { in: ['task_retried', 'acceptance_criteria_changed'] } },
-        orderBy: { createdAt: 'desc' },
-        select: { createdAt: true },
-      })
-      .catch(() => null);
+    // Share the same window boundary as countPriorRepairs (task 832) — a manual
+    // retry, a criteria replacement, a question resolution, or a plan
+    // regeneration all grant a fresh slate, since reasons recorded before the
+    // wipe cite state (criterion numbers, plan sections) the wipe repoints.
+    const windowStart = await resolveRepairWindowStart(taskId);
     const rows = await prisma.workflowTransition.findMany({
       where: {
         taskId,
         cause: REPAIR_CAUSE,
-        ...(boundary ? { createdAt: { gt: boundary.createdAt } } : {}),
+        ...(windowStart ? { createdAt: { gt: windowStart } } : {}),
       },
       select: { metadata: true },
     });
