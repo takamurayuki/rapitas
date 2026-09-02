@@ -28,23 +28,33 @@ export function useAutoWindowHeight(ref: RefObject<HTMLDivElement | null>): void
     if (!isTauri() || !el) return;
 
     let raf = 0;
-    let lastApplied = 0;
+    let applying = false;
     const apply = () => {
       raf = 0;
+      if (applying) return;
       const target = Math.min(Math.max(Math.ceil(el.scrollHeight), MIN_HEIGHT), MAX_HEIGHT);
-      // Re-applying the same height would still nudge a user's manual resize.
-      if (target === lastApplied) return;
-      lastApplied = target;
+      applying = true;
       void (async () => {
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        const { LogicalSize } = await import('@tauri-apps/api/dpi');
+        const { PhysicalSize } = await import('@tauri-apps/api/dpi');
         const win = getCurrentWindow();
         const [size, scale] = await Promise.all([win.innerSize(), win.scaleFactor()]);
-        const width = Math.round(size.width / scale);
-        await win.setSize(new LogicalSize(width, target));
-      })().catch(() => {
-        /* window may be mid-close; sizing is best-effort */
-      });
+        // Anti-oscillation guards (a resize feedback loop here pegged the
+        // WebView2 processes at several cores, 2026-09-02):
+        // - pass the width back as the EXACT physical value — round-tripping
+        //   it through logical px drifts on fractional DPI scales, and each
+        //   drift reflows the content and re-fires the observer;
+        // - skip when the height is already within 2px of the target.
+        const targetPhysical = Math.round(target * scale);
+        if (Math.abs(size.height - targetPhysical) <= 2 * scale) return;
+        await win.setSize(new PhysicalSize(size.width, targetPhysical));
+      })()
+        .catch(() => {
+          /* window may be mid-close; sizing is best-effort */
+        })
+        .finally(() => {
+          applying = false;
+        });
     };
 
     const ro = new ResizeObserver(() => {
