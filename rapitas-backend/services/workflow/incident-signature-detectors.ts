@@ -403,24 +403,19 @@ const REPAIR_BOUNCE_CAUSES = new Set(['verify_repair', 'ci_repair']);
  * explains 3 firings and is not reported as a loop; the same mechanism also
  * explains #616's 1 implement + 2 verify_repair bounces — see
  * incident-signature-detectors.repeat-loop-t616.test.ts for the exact
- * replayed transition window). Requiring the bounce to
- * chronologically precede the firing it forgives (rather than just summing
- * bounce counts anywhere in the window) closes a gap where phase_completed
- * churn front-loaded before any bounce — which a same-window bounce cannot
- * causally explain — would otherwise be waved through by coincidental later
- * bounces of a *different* cause (verify_repair and ci_repair combined). A
- * `phase_completed:*` repetition with zero bounces anywhere in the window is
- * never forgiven at all.
- * `file_saved:verify` (see {@link FILE_SAVED_VERIFY_CAUSE}) is forgiven the
- * same way, through its own independent budget running in parallel — a
- * repair cycle emits both a `phase_completed:*` and a `file_saved:verify`
- * per round, and each cause needs its own full budget rather than splitting
- * one shared budget between them (task 708, concern on #674: 1 initial
- * implement + 1 initial verify save + 2 verify_repair bounces, each
- * preceding a re-implement and a re-save, produced 3
+ * replayed transition window). Requiring the bounce to chronologically precede the firing it
+ * forgives (rather than just summing bounce counts anywhere in the window) closes a gap where
+ * phase_completed churn front-loaded before any bounce — which a same-window bounce cannot causally
+ * explain — would otherwise be waved through by coincidental later bounces of a *different* cause
+ * (verify_repair and ci_repair combined). A `phase_completed:*` repetition with zero bounces
+ * anywhere in the window is never forgiven at all.
+ * `file_saved:verify` (see {@link FILE_SAVED_VERIFY_CAUSE}) is forgiven the same way, through its
+ * own independent budget running in parallel — a repair cycle emits both a `phase_completed:*` and
+ * a `file_saved:verify` per round, and each cause needs its own full budget rather than splitting
+ * one shared budget between them (task 708, concern on #674: 1 initial implement + 1 initial
+ * verify save + 2 verify_repair bounces, each preceding a re-implement and a re-save, produced 3
  * `phase_completed:implementer` AND 3 `file_saved:verify` firings — see
- * incident-signature-detectors.repeat-loop-t708.test.ts for the replayed
- * window).
+ * incident-signature-detectors.repeat-loop-t708.test.ts for the replayed window).
  * A terminal taskStatus (see TERMINAL_TASK_STATUSES) short-circuits to null —
  * a task that has already finished is not "looping" even if it churned through
  * several retry cycles on the way there (mirrors detectStagnation's guard;
@@ -432,6 +427,7 @@ const REPAIR_BOUNCE_CAUSES = new Set(['verify_repair', 'ci_repair']);
  * @param input.windowMs - Window size (default 60m). / 集計窓
  * @param input.minCount - Detection threshold (default 3). / 検出しきい値
  * @param input.invariantMinCount - Detection threshold for invariantViolation-flagged transitions only (default 2, see {@link INVARIANT_REPEAT_LOOP_MIN_COUNT}). / invariantViolation付き遷移専用のしきい値
+ * @param input.verifyRepairMinCount - Detection threshold applied to `verify_repair` ONLY (task 835; defaults to `minCount`). Callers pass the effective repair budget + 1, so spending the whole budget is not itself reported as a loop while a true overrun still is. / verify_repair専用のしきい値（修復予算+1を渡す）
  * @returns The dominant looping cause + count + which threshold path (`via`) picked it, or null. / 最多ループcause・count・判定経路またはnull
  */
 export function detectRepeatLoop(input: {
@@ -441,11 +437,15 @@ export function detectRepeatLoop(input: {
   windowMs?: number;
   minCount?: number;
   invariantMinCount?: number;
+  verifyRepairMinCount?: number;
 }): { cause: string; count: number; via: 'general' | 'invariant' } | null {
   if (input.taskStatus !== undefined && TERMINAL_TASK_STATUSES.has(input.taskStatus)) return null;
   const windowMs = input.windowMs ?? REPEAT_LOOP_WINDOW_MS;
   const minCount = input.minCount ?? REPEAT_LOOP_MIN_COUNT;
   const invariantMinCount = input.invariantMinCount ?? INVARIANT_REPEAT_LOOP_MIN_COUNT;
+  // task 835: `verify_repair` fires once per repair round, so spending a budget of N legitimately
+  // produces N firings — judge it against the caller-resolved budget, not the static min count.
+  const verifyRepairMinCount = input.verifyRepairMinCount ?? minCount;
   const windowStart = input.nowMs - windowMs;
 
   const windowed = input.transitions
@@ -494,7 +494,7 @@ export function detectRepeatLoop(input: {
 
   let best: { cause: string; count: number; via: 'general' | 'invariant' } | null = null;
   for (const [cause, count] of counts) {
-    if (count < minCount) continue;
+    if (count < (cause === 'verify_repair' ? verifyRepairMinCount : minCount)) continue;
     if (
       best === null ||
       count > best.count ||

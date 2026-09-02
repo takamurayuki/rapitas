@@ -24,6 +24,7 @@ const prFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null))
 const activityLogFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
 const workflowFileFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
 const themeAutoRunFindManyMock = mock((_args: unknown) => Promise.resolve([] as unknown[]));
+const userSettingsFindFirstMock = mock(() => Promise.resolve<unknown>(null));
 const submitConcernMock = mock((_input: unknown) => Promise.resolve(1));
 const notifyIntakeQuestionPendingMock = mock((_input: unknown) =>
   Promise.resolve<unknown>({ id: 1 }),
@@ -46,6 +47,7 @@ mock.module('../../config/database', () => ({
     activityLog: { findFirst: activityLogFindFirstMock },
     workflowFile: { findFirst: workflowFileFindFirstMock },
     themeAutoRun: { findMany: themeAutoRunFindManyMock },
+    userSettings: { findFirst: userSettingsFindFirstMock },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
@@ -94,6 +96,7 @@ describe('theme auto-run gate for pattern B (#715)', () => {
     activityLogFindFirstMock.mockReset().mockResolvedValue(null);
     workflowFileFindFirstMock.mockReset().mockResolvedValue(null);
     themeAutoRunFindManyMock.mockReset().mockResolvedValue([]);
+    userSettingsFindFirstMock.mockReset().mockResolvedValue(null);
     submitConcernMock.mockReset().mockResolvedValue(1);
     notifyIntakeQuestionPendingMock.mockReset().mockResolvedValue({ id: 1 });
   });

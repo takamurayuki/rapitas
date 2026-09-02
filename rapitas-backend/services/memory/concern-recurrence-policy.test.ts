@@ -23,6 +23,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 function fakePrisma(opts: {
   rows?: RecurrenceCandidateEntry[];
   task?: { status: string; completedAt: Date | null } | null;
+  /** Per-taskId lookup for windows holding rows from several follow-up tasks; falls back to `task`. / taskId別の解決結果 */
+  tasksById?: Record<number, { status: string; completedAt: Date | null } | null>;
   findManyThrows?: boolean;
 }): RecurrencePrisma & { update: ReturnType<typeof mock> } {
   const update = mock(() => Promise.resolve({}));
@@ -35,7 +37,10 @@ function fakePrisma(opts: {
       update,
     },
     task: {
-      findUnique: () => Promise.resolve(opts.task ?? null),
+      findUnique: (args) =>
+        Promise.resolve(
+          opts.tasksById ? (opts.tasksById[args.where.id] ?? null) : (opts.task ?? null),
+        ),
     },
     update,
   };
@@ -100,6 +105,39 @@ describe('resolveRecurrence', () => {
     const prisma = fakePrisma({ findManyThrows: true });
     const result = await resolveRecurrence(prisma, 'hash1', RECURRENCE_WINDOW_DAYS);
     expect(result.action).toBe('new');
+  });
+
+  // Task 835: findMany has no orderBy, so a done row arriving before a live
+  // one used to short-circuit to recurrence-of-done and file a sibling concern
+  // instead of merging into the live row (#7412 done → #8613 live → #835).
+  // A live duplicate must win in either row order.
+  describe('live rows win over done rows regardless of findMany order', () => {
+    const doneRow = { id: 1, sourceId: 'task_10', tags: '[]', content: 'done row' };
+    const liveRow = { id: 2, sourceId: 'task_20', tags: '[]', content: 'live row' };
+    const nowMs = Date.now();
+    const tasksById = {
+      10: { status: 'done', completedAt: new Date(nowMs - 1 * DAY_MS) },
+      20: { status: 'in-progress', completedAt: null },
+    };
+
+    it('merges into the live row when the done row comes first', async () => {
+      const prisma = fakePrisma({ rows: [doneRow, liveRow], tasksById });
+      const result = await resolveRecurrence(prisma, 'hash1', RECURRENCE_WINDOW_DAYS, nowMs);
+      expect(result).toEqual({ action: 'merged-open', targetEntry: liveRow });
+    });
+
+    it('merges into the live row when the live row comes first', async () => {
+      const prisma = fakePrisma({ rows: [liveRow, doneRow], tasksById });
+      const result = await resolveRecurrence(prisma, 'hash1', RECURRENCE_WINDOW_DAYS, nowMs);
+      expect(result).toEqual({ action: 'merged-open', targetEntry: liveRow });
+    });
+
+    // With no live row left, the done row still escalates as a recurrence.
+    it('still reports recurrence-of-done when every candidate row is terminal', async () => {
+      const prisma = fakePrisma({ rows: [doneRow], tasksById });
+      const result = await resolveRecurrence(prisma, 'hash1', RECURRENCE_WINDOW_DAYS, nowMs);
+      expect(result).toEqual({ action: 'recurrence-of-done', targetEntry: doneRow });
+    });
   });
 });
 
