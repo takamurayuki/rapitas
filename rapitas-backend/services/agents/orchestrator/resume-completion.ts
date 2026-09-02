@@ -12,6 +12,7 @@
 import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
 import { orchestrator } from '../../core/orchestrator-instance';
+import { ResumeLockConflictError } from './execution-resume';
 
 const log = createLogger('routes:agent-resume');
 
@@ -62,6 +63,16 @@ export function handleResumeCompletion(
       }
     })
     .catch(async (error) => {
+      if (
+        error instanceof ResumeLockConflictError ||
+        (error as Error)?.name === 'ResumeLockConflictError'
+      ) {
+        log.info(
+          { taskId: task.id },
+          '[resume] Skipped: task-execution lock already held by another run',
+        );
+        return;
+      }
       log.error({ err: error }, '[resume] Resume execution error');
       await handleResumeError(task, execution, error);
     });

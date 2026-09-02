@@ -14,6 +14,7 @@
  */
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
+import { isTaskExecutionLocked } from '../task-execution-lock';
 
 const log = createLogger('orchestrator:auto-resume');
 
@@ -70,6 +71,7 @@ export interface AutoResumeDecision {
  * @param opts.hasNewerExecution - A newer execution already exists for the task. / 後続実行の有無
  * @param opts.taskStatus - The owning task's status. `blocked`/`failed` are excluded — those states can only be exited by an explicit retry. / タスク状態(`blocked`/`failed`は自動再開の対象外)
  * @param opts.hasWorkingDirectory - Theme working directory configured. / 作業Dir設定有無
+ * @param opts.hasActiveLock - The shared task-execution lock is already held for this task (another run is in flight). / 排他ロック保持中か
  * @returns Whether to resume, with the reason. / 判定と理由
  */
 export function decideAutoResume(
@@ -79,10 +81,14 @@ export function decideAutoResume(
     hasNewerExecution: boolean;
     taskStatus: string | null;
     hasWorkingDirectory: boolean;
+    hasActiveLock: boolean;
   },
 ): AutoResumeDecision {
   if (exec.status !== 'interrupted') return { resume: false, reason: `status=${exec.status}` };
   if (!opts.hasWorkingDirectory) return { resume: false, reason: 'no themeWorkingDirectory' };
+  if (opts.hasActiveLock) {
+    return { resume: false, reason: 'a task-execution lock is already held for this task' };
+  }
   // blocked/failed are the same "explicit retry only" states as
   // task-retry-handler.ts's RETRYABLE_STATUSES — auto-resuming them replays
   // a parked-before intent and causes transition_rejected loops (task #729).
@@ -169,6 +175,7 @@ export async function autoResumeInterruptedExecutions(executionIds: number[]): P
         hasNewerExecution: !!newer,
         taskStatus: task.status,
         hasWorkingDirectory: !!task.theme?.workingDirectory,
+        hasActiveLock: isTaskExecutionLocked(task.id),
       });
       if (!decision.resume) {
         log.info({ executionId, taskId: task.id, reason: decision.reason }, '[auto-resume] skip');
