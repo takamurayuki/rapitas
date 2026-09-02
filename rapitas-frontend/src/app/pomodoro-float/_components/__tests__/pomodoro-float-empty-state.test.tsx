@@ -1,9 +1,9 @@
 /**
  * pomodoroFloatEmptyState.test
  *
- * Verifies the idle UI shows the last used task (or the "no task" label),
- * the configured duration, and that Start calls startTimer with the
- * lastUsedTaskId/lastUsedTaskTitle pair (including the taskless null case).
+ * Verifies the idle UI shows the handed-over/last-used task with a Start
+ * button, and — with no task — only points at the task detail page (sessions
+ * are task-bound; there is no taskless start and no in-float picker).
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -40,7 +40,7 @@ describe('PomodoroFloatEmptyState', () => {
     expect(startTimer).toHaveBeenCalledWith(5, 'My Task');
   });
 
-  it('prompts for a task and keeps Start disabled when no task was used yet (design A: no taskless sessions)', () => {
+  it('points at the task detail page and hides Start when no task was handed over', () => {
     const startTimer = vi.fn();
     mockUsePomodoroStore.mockReturnValue({
       lastUsedTaskId: null,
@@ -51,11 +51,8 @@ describe('PomodoroFloatEmptyState', () => {
 
     render(<PomodoroFloatEmptyState />);
 
-    expect(screen.getByText('pomodoro.floatPickTaskPrompt')).toBeInTheDocument();
-
-    const startButton = screen.getByText('pomodoro.start').closest('button');
-    expect(startButton).toBeDisabled();
-    fireEvent.click(screen.getByText('pomodoro.start'));
+    expect(screen.getByText('pomodoro.floatOpenFromTaskDetail')).toBeInTheDocument();
+    expect(screen.queryByText('pomodoro.start')).not.toBeInTheDocument();
     expect(startTimer).not.toHaveBeenCalled();
   });
 });

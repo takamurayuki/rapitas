@@ -48,6 +48,7 @@ function createState(overrides: Partial<State> = {}): State {
     todayTotalWorkSeconds: 0,
     lastStatDate: null,
     _hasHydrated: true,
+    setLastUsedTask: vi.fn(),
     startTimer: vi.fn(),
     pauseTimer: vi.fn(),
     resumeTimer: vi.fn(),

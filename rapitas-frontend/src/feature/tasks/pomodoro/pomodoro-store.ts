@@ -95,6 +95,15 @@ export const usePomodoroStore = create<PomodoroState>()(
         set({ settings: { ...state.settings, ...newSettings } });
       },
 
+      setLastUsedTask: (taskId: number, taskTitle: string) => {
+        // Task handover from the task detail page to the (separate-webview)
+        // float window: broadcast so the float's idle screen re-renders with
+        // the task without needing a rehydrate.
+        const newState = { lastUsedTaskId: taskId, lastUsedTaskTitle: taskTitle };
+        set(newState);
+        broadcastState(newState);
+      },
+
       startTimer: (taskId: number | null, taskTitle: string | null) => {
         // Eagerly warm up AudioContext to satisfy browser autoplay policy on first user gesture.
         getAudioContext();
