@@ -5,9 +5,10 @@
  * replays #833's real transition window against detectRepeatLoop. Three
  * `verify_repair` bounces are what a repair budget of 3 produces when it is
  * spent in full, yet the static REPEAT_LOOP_MIN_COUNT (3) reported them as a
- * loop. The detector now takes the caller-resolved budget (limit + 1), so the
- * same window is a loop only when it actually overruns the budget in force.
- * No mocks, pure snapshot inputs.
+ * loop. The detector now takes the caller-resolved budget (limit + 1) via
+ * `repairBounceMinCount` (task 837 generalized task 835's `verifyRepairMinCount`
+ * to also cover `ci_repair`), so the same window is a loop only when it
+ * actually overruns the budget in force. No mocks, pure snapshot inputs.
  */
 import { describe, it, expect } from 'bun:test';
 import { detectRepeatLoop, type RepeatLoopTransition } from './incident-signature-detectors';
@@ -50,7 +51,7 @@ describe('detectRepeatLoop — #833 verify_repair false positive (task 835 repro
         transitions: TASK_833_WINDOW,
         nowMs: DETECTED_AT_MS,
         taskStatus: 'in-progress',
-        verifyRepairMinCount: 4,
+        repairBounceMinCount: 4,
       }),
     ).toBeNull();
   });
@@ -63,7 +64,7 @@ describe('detectRepeatLoop — #833 verify_repair false positive (task 835 repro
         transitions: TASK_833_WINDOW,
         nowMs: DETECTED_AT_MS,
         taskStatus: 'in-progress',
-        verifyRepairMinCount: 3,
+        repairBounceMinCount: 3,
       }),
     ).toEqual({ cause: 'verify_repair', count: 3, via: 'general' });
   });

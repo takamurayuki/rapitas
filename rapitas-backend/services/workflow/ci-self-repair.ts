@@ -19,6 +19,7 @@ import { recordTransition } from './transition-recorder';
 import { WorkflowQueueService } from './workflow-queue';
 import { countWithFailClosed } from '../../utils/database/fail-closed-count';
 import { ghPath, readPrChecks, readHeadSha } from './auto-merge-checks';
+import { DEFAULT_MAX_CI_REPAIRS } from './blocked-task-policy';
 
 const execAsync = promisify(exec);
 const log = createLogger('workflow:ci-self-repair');
@@ -48,12 +49,6 @@ export interface CiRepairContext {
   cwd: string;
   prNumber: number;
 }
-
-/** Max CI-failure → fix cycles before giving up and flagging for review. */
-const DEFAULT_MAX_CI_REPAIRS = Math.max(
-  0,
-  parseInt(process.env.RAPITAS_MAX_CI_REPAIRS ?? '2', 10) || 2,
-);
 
 export interface CiRepairResult {
   /** True when the task was bounced for a fix (watcher must keep watching, NOT block). */

@@ -11,6 +11,7 @@ import {
   detectTriStateDesync,
   detectRepeatLoop,
   detectUnansweredQuestion,
+  isRepairBounceCause,
   STAGNATION_THRESHOLD_MS,
   UNANSWERED_QUESTION_THRESHOLD_MS,
   type StagnationInput,
@@ -555,56 +556,95 @@ describe('detectRepeatLoop', () => {
     expect(result).not.toBeNull();
     expect(result).toEqual({ cause: 'verify_pr_not_created', count: 2, via: 'invariant' });
   });
-  // ── task 835: verify_repair threshold follows the repair budget ────────────
-  // `verify_repair` fires once per repair round, so a task that legitimately
-  // spends a budget of N produces N firings. The static REPEAT_LOOP_MIN_COUNT
-  // (3) reported every budget=3 task as a loop; the caller now injects
-  // `resolveVerifyRepairLimit(settings) + 1` instead.
-  const vr = (msAgo: number): RepeatLoopTransition => at(msAgo, 'verify_repair');
 
-  it('falls back to minCount for verify_repair when verifyRepairMinCount is omitted', () => {
-    expect(
-      detectRepeatLoop({
-        transitions: [vr(1_000), vr(2_000), vr(3_000)],
+  // Task 837: repairBounceMinCount lets a caller apply a dynamic threshold to
+  // REPAIR_BOUNCE_CAUSES (verify_repair/ci_repair) only, so a task that
+  // legitimately exhausts a raised repair budget is not misreported as a loop.
+  describe('repairBounceMinCount (task 837)', () => {
+    it('falls back to minCount when repairBounceMinCount is not provided (backward compat)', () => {
+      const result = detectRepeatLoop({
+        transitions: [
+          at(1_000, 'verify_repair'),
+          at(2_000, 'verify_repair'),
+          at(3_000, 'verify_repair'),
+        ],
         nowMs: NOW,
         minCount: 3,
-      }),
-    ).toEqual({ cause: 'verify_repair', count: 3, via: 'general' });
+      });
+      expect(result).toEqual({ cause: 'verify_repair', count: 3, via: 'general' });
+    });
+
+    it('does NOT detect verify_repair at exactly the exhausted budget (count 3, repairBounceMinCount 4)', () => {
+      const result = detectRepeatLoop({
+        transitions: [
+          at(1_000, 'verify_repair'),
+          at(2_000, 'verify_repair'),
+          at(3_000, 'verify_repair'),
+        ],
+        nowMs: NOW,
+        minCount: 3,
+        repairBounceMinCount: 4,
+      });
+      expect(result).toBeNull();
+    });
+
+    it('detects verify_repair once it exceeds repairBounceMinCount (count 4, repairBounceMinCount 4)', () => {
+      const result = detectRepeatLoop({
+        transitions: [
+          at(1_000, 'verify_repair'),
+          at(2_000, 'verify_repair'),
+          at(3_000, 'verify_repair'),
+          at(4_000, 'verify_repair'),
+        ],
+        nowMs: NOW,
+        minCount: 3,
+        repairBounceMinCount: 4,
+      });
+      expect(result).toEqual({ cause: 'verify_repair', count: 4, via: 'general' });
+    });
+
+    it('does not detect a verify_repair/ci_repair mix when each stays below repairBounceMinCount', () => {
+      const result = detectRepeatLoop({
+        transitions: [
+          at(1_000, 'verify_repair'),
+          at(2_000, 'verify_repair'),
+          at(3_000, 'verify_repair'),
+          at(4_000, 'ci_repair'),
+          at(5_000, 'ci_repair'),
+          at(6_000, 'ci_repair'),
+        ],
+        nowMs: NOW,
+        minCount: 3,
+        repairBounceMinCount: 4,
+      });
+      expect(result).toBeNull();
+    });
+
+    it('leaves non-bounce causes on the static minCount even when repairBounceMinCount is raised', () => {
+      const result = detectRepeatLoop({
+        transitions: [
+          at(1_000, 'phase_completed:implementer'),
+          at(2_000, 'phase_completed:implementer'),
+          at(3_000, 'phase_completed:implementer'),
+        ],
+        nowMs: NOW,
+        minCount: 3,
+        repairBounceMinCount: 10,
+      });
+      expect(result).toEqual({ cause: 'phase_completed:implementer', count: 3, via: 'general' });
+    });
+  });
+});
+
+describe('isRepairBounceCause (task 837)', () => {
+  it('returns true for verify_repair and ci_repair', () => {
+    expect(isRepairBounceCause('verify_repair')).toBe(true);
+    expect(isRepairBounceCause('ci_repair')).toBe(true);
   });
 
-  it('does NOT flag verify_repair below the budget-derived threshold', () => {
-    expect(
-      detectRepeatLoop({
-        transitions: [vr(1_000), vr(2_000), vr(3_000)],
-        nowMs: NOW,
-        minCount: 3,
-        verifyRepairMinCount: 4,
-      }),
-    ).toBeNull();
-  });
-
-  it('flags verify_repair once it reaches the budget-derived threshold', () => {
-    expect(
-      detectRepeatLoop({
-        transitions: [vr(1_000), vr(2_000), vr(3_000), vr(4_000)],
-        nowMs: NOW,
-        minCount: 3,
-        verifyRepairMinCount: 4,
-      }),
-    ).toEqual({ cause: 'verify_repair', count: 4, via: 'general' });
-  });
-
-  // ci_repair has no UserSettings-resolvable budget, so it must keep using the
-  // static threshold even when a verify_repair threshold is supplied.
-  it('leaves ci_repair on the static minCount when verifyRepairMinCount is raised', () => {
-    expect(
-      detectRepeatLoop({
-        transitions: [at(1_000), at(2_000), at(3_000)],
-        nowMs: NOW,
-        minCount: 3,
-        verifyRepairMinCount: 4,
-      }),
-    ).toEqual({ cause: 'ci_repair', count: 3, via: 'general' });
+  it('returns false for other causes', () => {
+    expect(isRepairBounceCause('phase_completed:implementer')).toBe(false);
+    expect(isRepairBounceCause('file_saved:verify')).toBe(false);
   });
 });
 
