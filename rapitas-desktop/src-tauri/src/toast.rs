@@ -67,7 +67,12 @@ pub fn create_toast_window(app: &tauri::AppHandle) -> Result<(), String> {
         tauri::WebviewUrl::App("notification-toast".into()),
     )
     .title("Rapitas Notification")
-    .inner_size(TOAST_WIDTH, TOAST_HEIGHT)
+    // 1x1 at build time: Windows can clamp the far-off-screen builder position
+    // back onto the screen, and the window is visible from build() until the
+    // park below — at full size that flashed the empty card at boot
+    // (2026-09-02). A clamped 1px window is imperceptible; the real size is
+    // restored right after parking (and re-asserted on every show).
+    .inner_size(1.0, 1.0)
     .decorations(false)
     .always_on_top(true)
     .skip_taskbar(true)
@@ -83,6 +88,9 @@ pub fn create_toast_window(app: &tauri::AppHandle) -> Result<(), String> {
     // set_position after creation is applied as given.
     if let Some(win) = app.get_webview_window("notification-toast") {
         park_toast(&win);
+        // Restore the real size only once safely off-screen, so the page
+        // pre-warms with the layout it will actually show at.
+        let _ = win.set_size(tauri::LogicalSize::new(TOAST_WIDTH, TOAST_HEIGHT));
     }
     Ok(())
 }
