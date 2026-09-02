@@ -17,6 +17,8 @@ interface DurationInputProps {
   /** Decimal hours as a string ('' when unset) — matches legacy form state. */
   value: string;
   onChange: (decimalHours: string) => void;
+  /** Forwarded to the number field - some callers persist on blur. */
+  onBlur?: () => void;
   'aria-label': string;
 }
 
@@ -39,6 +41,7 @@ function toHours(raw: string, unit: DurationUnit): string {
 export default function DurationInput({
   value,
   onChange,
+  onBlur,
   'aria-label': ariaLabel,
 }: DurationInputProps) {
   // Initial unit follows the display rule: minutes under 1h, hours from 1h.
@@ -58,6 +61,7 @@ export default function DurationInput({
         placeholder="0"
         value={display(value, unit)}
         onChange={(e) => onChange(toHours(e.target.value, unit))}
+        onBlur={onBlur}
         aria-label={ariaLabel}
         className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:border-indigo-400"
       />

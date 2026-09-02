@@ -8,6 +8,7 @@ import { useAutosizeTextarea } from '@/hooks/ui/useAutosizeTextarea';
 import { isImeComposing } from '@/utils/ime';
 import { PrioritySelector } from './PrioritySelector';
 import { usePriorityOptions } from './PrioritySelector';
+import DurationInput from '@/components/ui/hours-minutes-input/HoursMinutesInput';
 
 interface SubtaskFormProps {
   title: string;
@@ -101,14 +102,9 @@ export function SubtaskForm({
             <Clock className="w-3.5 h-3.5" />
             {t('subtaskEstimatedHours')}
           </label>
-          <input
-            type="number"
-            step="0.5"
-            min="0"
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:border-indigo-400"
-            placeholder="0"
+          <DurationInput
             value={estimatedHours}
-            onChange={(e) => onEstimatedHoursChange(e.target.value)}
+            onChange={onEstimatedHoursChange}
             aria-label={t('subtaskEstimatedHours')}
           />
         </div>
