@@ -177,7 +177,10 @@ export default function TaskDetailViewBody({
           compete for space with an unrelated conversational feature, which
           both mismatched this card's height against its siblings and hid
           the run controls behind an accordion; standing alone fixes both. */}
-      {showAIPanel && (
+      {/* Hidden entirely for themes without a workingDirectory (operator
+          request 2026-09-02): agents cannot run there, so the section only
+          ever showed setup guidance — noise on non-development tasks. */}
+      {showAIPanel && !!task.theme?.workingDirectory && (
         <div id="td-execution" className="scroll-mt-16">
           {/* mb-6: the section card carries its own bottom margin, so the
               fallback needs one too or it sits flush against the workflow card. */}
