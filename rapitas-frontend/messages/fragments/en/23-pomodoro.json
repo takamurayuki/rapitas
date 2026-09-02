@@ -45,6 +45,7 @@
     "volumeHigh": "High",
     "workDuration": "Work duration",
     "minutes": "{count} min",
-    "floatOpenFromTaskDetail": "Start a Pomodoro from a task's detail page"
+    "floatOpenFromTaskDetail": "Start a Pomodoro from a task's detail page",
+    "floatGoToTask": "Open task"
   }
 }

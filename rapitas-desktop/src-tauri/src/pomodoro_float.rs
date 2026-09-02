@@ -30,7 +30,7 @@ fn build_pomodoro_float_window(app: &tauri::AppHandle) -> Result<tauri::WebviewW
     )
     .title("Rapitas Pomodoro")
     .inner_size(400.0, 640.0)
-    .min_inner_size(340.0, 460.0)
+    .min_inner_size(340.0, 200.0)
     .decorations(false)
     .always_on_top(false)
     .skip_taskbar(false)

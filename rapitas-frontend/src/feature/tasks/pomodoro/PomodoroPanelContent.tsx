@@ -22,6 +22,17 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('PomodoroPanelContent');
 
+// Ask the Rust side to front the main window and route it to the task page.
+async function openTaskInMainWindow(taskId: number): Promise<void> {
+  if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('open_task_in_main', { taskId });
+  } catch (err) {
+    logger.error('Failed to open task in main window:', err);
+  }
+}
+
 interface PomodoroPanelContentProps {
   taskId: number;
   taskTitle: string;
@@ -95,9 +106,16 @@ export default function PomodoroPanelContent({
     <div>
       {!focusMode && (
         <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800 rounded-t-xl">
-          <span className="text-sm text-zinc-700 dark:text-zinc-300 truncate block">
+          {/* Fronts the MAIN window on that task's page (open_task_in_main →
+              TaskNavigateListener) — the float itself must never navigate. */}
+          <button
+            type="button"
+            onClick={() => void openTaskInMainWindow(taskId)}
+            title={t('floatGoToTask')}
+            className="block max-w-full truncate text-left text-sm text-blue-600 hover:underline dark:text-blue-400"
+          >
             {taskTitle}
-          </span>
+          </button>
         </div>
       )}
 

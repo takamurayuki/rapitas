@@ -220,6 +220,7 @@ pub fn run() {
             crate::browser::open_split_view,
             crate::browser::open_url_in_browser,
             crate::window_commands::get_window_decorations,
+            crate::window_commands::open_task_in_main,
             crate::voice_commands::voice_model_status,
             crate::voice_commands::voice_start_recording,
             crate::voice_commands::voice_stop_recording,

@@ -3032,7 +3032,8 @@
     "volumeHigh": "大",
     "workDuration": "作業時間",
     "minutes": "{count}分",
-    "floatOpenFromTaskDetail": "タスク詳細画面からポモドーロを開始できます"
+    "floatOpenFromTaskDetail": "タスク詳細画面からポモドーロを開始できます",
+    "floatGoToTask": "タスクを開く"
   },
   "kanban": {
     "prevWeek": "前の週",
