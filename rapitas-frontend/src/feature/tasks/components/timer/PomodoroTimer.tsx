@@ -344,9 +344,9 @@ export default function PomodoroTimer({
       {/* Compact soft-tint prompt (operator request 2026-09-03): matches the
           control row's visual grammar — pale face, no heavy border, the
           duration as a small chip instead of a bare "(15min)" line. */}
+      {/* NOTE: neutral card face — the tinted buttons need contrast against
+          it (a green face swallowed the green button, 2026-09-03). */}
       {showBreakDialog && (
-        {/* Neutral card face — the tinted buttons need contrast against it
-            (a green face swallowed the green button, 2026-09-03). */}
         <div className="mb-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/50">
           <div className="mb-3 flex items-center justify-center gap-2 text-center">
             <span className="text-sm font-medium text-green-700 dark:text-green-300">
