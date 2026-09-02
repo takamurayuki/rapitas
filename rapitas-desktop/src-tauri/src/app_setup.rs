@@ -243,12 +243,12 @@ pub fn run() {
             if let Err(e) = crate::toast::create_toast_window(app.handle()) {
                 eprintln!("[Toast] pre-warm failed: {e}");
             }
-            // Show the Pomodoro floating window from the first launch (plan.md
-            // 「起動時表示」) instead of waiting for the modal's toggle button.
-            if let Err(e) =
-                crate::pomodoro_float::show_or_create_pomodoro_float_window(app.handle())
-            {
-                eprintln!("[Pomodoro] float window startup failed: {e}");
+            // Pre-warm the Pomodoro floating window HIDDEN (operator decision
+            // 2026-09-02): it opens from the task detail page, not at startup,
+            // and is shown/hidden rather than recreated — recreating the
+            // webview whites out on this WebView2 build.
+            if let Err(e) = crate::pomodoro_float::prewarm_pomodoro_float_window(app.handle()) {
+                eprintln!("[Pomodoro] float window pre-warm failed: {e}");
             }
             Ok(())
         })
@@ -261,9 +261,12 @@ pub fn run() {
                     let _ = window.emit("rapitas:window-hide", ());
                     println!("[Tray] Window hidden to system tray");
                 } else if window.label() == "pomodoro-float" {
-                    // Let the × button (and Alt+F4) actually destroy this window
-                    // instead of hiding it — plan.md 設計判断の根拠 #「close用の新規
-                    // コマンド要否」. Notify listeners before the window is gone.
+                    // Hide instead of destroy: recreating this webview after a
+                    // real close renders all-white on this WebView2 build, so
+                    // the window lives hidden for the app's lifetime and the
+                    // task detail entry point just show()s it again.
+                    api.prevent_close();
+                    let _ = window.hide();
                     let _ = window.emit("pomodoro-float://visibility-changed", false);
                 }
             }

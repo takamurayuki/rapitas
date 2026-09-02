@@ -20,10 +20,10 @@ import PomodoroFloatEmptyState from './pomodoro-float-empty-state';
 
 const isTauri = (): boolean => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
-// NOTE: close() (not hide()) — app_setup.rs's CloseRequested handler only
-// forces hide-on-close for the "main" window label, so this actually destroys
-// the window. Re-showing it goes through the header's Pomodoro button, which
-// recreates it via focus_pomodoro_float (same builder used at app startup).
+// NOTE: close() fires CloseRequested, which app_setup.rs intercepts for this
+// label and turns into hide() — the webview is never destroyed (recreation
+// whites out on this WebView2 build). Re-showing goes through
+// focus_pomodoro_float from the task detail page's time-management button.
 async function closeFloatWindow(): Promise<void> {
   if (!isTauri()) return;
   const { getCurrentWindow } = await import('@tauri-apps/api/window');

@@ -1,13 +1,12 @@
 //! pomodoro_float
 //!
 //! Frameless, draggable floating window that mirrors the Pomodoro timer
-//! outside the main window. Shown automatically at app startup and kept
-//! taskbar-resident (plan.md 「起動時表示」「タスクバー常駐」) — unlike the
-//! prior toggle-only design, closing it (the × button) now destroys the
-//! window for real; app_setup.rs's CloseRequested handler only intercepts
-//! the "main" window label, so this window is not force-hidden. Reopening
-//! goes through the same get-or-build path as the main window's toggle
-//! button.
+//! outside the main window. Created HIDDEN at app startup and toggled via
+//! show/hide from then on (operator decision 2026-09-02): recreating the
+//! webview after a real close renders an all-white window on this WebView2
+//! build, so app_setup.rs's CloseRequested handler now hides this window
+//! (like "main") instead of letting it be destroyed. The task detail page's
+//! time-management button is the entry point that shows it.
 
 use tauri::{Emitter, Manager};
 use window_vibrancy::{apply_acrylic, clear_acrylic};
@@ -41,22 +40,24 @@ fn build_pomodoro_float_window(app: &tauri::AppHandle) -> Result<tauri::WebviewW
     // never composites. Opaque until glass ships via window-vibrancy
     // acrylic, which bypasses the transparent-window compositing path.
     .transparent(false)
+    // Created hidden: the window pre-warms at startup and is only shown from
+    // the task detail entry point (show/hide — never destroyed/recreated,
+    // recreation whites out on this WebView2 build).
+    .visible(false)
     .center()
     .build()
     .map_err(|e| format!("Failed to create pomodoro-float window: {e}"))
 }
 
-/// Show the Pomodoro floating window at app startup, creating it if needed.
+/// Pre-warm the Pomodoro floating window at app startup: create it hidden so
+/// later opens are a plain `show()` (no webview recreation — see module doc).
 ///
 /// # Errors
 /// Returns a message when the webview window cannot be created.
-pub fn show_or_create_pomodoro_float_window(app: &tauri::AppHandle) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window(WINDOW_LABEL) {
-        let _ = win.show();
-    } else {
+pub fn prewarm_pomodoro_float_window(app: &tauri::AppHandle) -> Result<(), String> {
+    if app.get_webview_window(WINDOW_LABEL).is_none() {
         build_pomodoro_float_window(app)?;
     }
-    let _ = app.emit("pomodoro-float://visibility-changed", true);
     Ok(())
 }
 
@@ -75,6 +76,7 @@ pub fn focus_pomodoro_float(app: tauri::AppHandle) -> Result<(), String> {
     let _ = win.unminimize();
     let _ = win.show();
     let _ = win.set_focus();
+    let _ = app.emit("pomodoro-float://visibility-changed", true);
     Ok(())
 }
 
