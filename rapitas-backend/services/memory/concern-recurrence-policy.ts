@@ -103,20 +103,37 @@ export async function resolveRecurrence(
       select: { id: true, sourceId: true, tags: true, content: true },
     });
     const windowMs = windowDays * 24 * 60 * 60 * 1000;
+    // Resolved up front, then judged in two passes (task 835): the findMany
+    // above has no orderBy, so returning on the first matching row made the
+    // verdict depend on row order — a done row arriving before a still-live
+    // one filed a NEW concern instead of merging into the live one, splitting
+    // one signature across sibling rows (#7412 done → #8613 live → #835).
+    // A live duplicate now always wins, whatever order the rows came back in.
+    const resolved: Array<{
+      row: RecurrenceCandidateEntry;
+      task: { status: string; completedAt: Date | null } | null;
+      isTaskRow: boolean;
+    }> = [];
     for (const row of rows) {
-      const sourceId = row.sourceId ?? 'open';
-      const taskMatch = sourceId.match(/^task_(\d+)$/);
-      if (!taskMatch) return { action: 'merged-open', targetEntry: row }; // 'open' or 'dismissed' → still live
-      const task = await prismaClient.task
-        .findUnique({
-          where: { id: Number(taskMatch[1]) },
-          select: { status: true, completedAt: true },
-        })
-        .catch(() => null);
-      if (!task) continue;
-      if (!TERMINAL_TASK_STATUSES.includes(task.status))
+      const taskMatch = (row.sourceId ?? 'open').match(/^task_(\d+)$/);
+      const task = taskMatch
+        ? await prismaClient.task
+            .findUnique({
+              where: { id: Number(taskMatch[1]) },
+              select: { status: true, completedAt: true },
+            })
+            .catch(() => null)
+        : null;
+      resolved.push({ row, task, isTaskRow: taskMatch !== null });
+    }
+
+    for (const { row, task, isTaskRow } of resolved) {
+      if (!isTaskRow) return { action: 'merged-open', targetEntry: row }; // 'open' or 'dismissed' → still live
+      if (task && !TERMINAL_TASK_STATUSES.includes(task.status))
         return { action: 'merged-open', targetEntry: row };
-      if (task.completedAt && nowMs - task.completedAt.getTime() <= windowMs) {
+    }
+    for (const { row, task } of resolved) {
+      if (task?.completedAt && nowMs - task.completedAt.getTime() <= windowMs) {
         return { action: 'recurrence-of-done', targetEntry: row };
       }
     }

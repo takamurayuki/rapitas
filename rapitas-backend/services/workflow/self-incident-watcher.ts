@@ -283,6 +283,8 @@ async function inspectTask(
         explanation:
           `直近${Math.round(REPEAT_LOOP_WINDOW_MS / 60_000)}分以内に同一cause(${loop.cause})の` +
           `遷移が${loop.count}回発生しています。同じ失敗と再試行を繰り返すループの疑いがあります。`,
+        // Must state the threshold that actually fired (task 710) — which for
+        // REPAIR_BOUNCE_CAUSES is now the budget-derived one, not the static min.
         thresholdDescription: `${Math.round(REPEAT_LOOP_WINDOW_MS / 60_000)}分以内に同一causeが${effectiveMinCount}回以上`,
         severity: 'high',
         nowMs,
@@ -410,9 +412,12 @@ export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<
   ];
   const disabledAutoRunThemeIds = await resolveDisabledAutoRunThemeIds(candidateThemeIds);
 
-  // Resolved once per pass, not per task (task 837): a task that legitimately
-  // exhausts its verify_repair/ci_repair budget must not be misreported as a
-  // repeat loop — see detectRepeatLoop's task-837 JSDoc paragraph.
+  // Resolved once per pass, not per task (task 837, generalizes task 835's
+  // verify_repair-only budget guard to also cover ci_repair): a task that
+  // legitimately exhausts its verify_repair/ci_repair budget must not be
+  // misreported as a repeat loop — see detectRepeatLoop's task-837 JSDoc
+  // paragraph. Falls back to the default budget when the settings row is
+  // missing/unreadable (see resolveMaxRepairs).
   const verifyRepairLimit = await resolveMaxRepairs();
   const repairBounceMinCount = Math.max(
     REPEAT_LOOP_MIN_COUNT,

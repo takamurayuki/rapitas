@@ -324,6 +324,83 @@ describe('runSelfIncidentWatch', () => {
     expect(String(input.title)).toContain('反復ループ');
   });
 
+  // Task 835: `verify_repair` fires once per repair round, so a task that
+  // spends a UI-configured budget of 3 in full produced exactly the 3 firings
+  // the static threshold reported as a loop. The watcher now resolves
+  // UserSettings.verifyRepairLimit once per pass and raises the threshold to
+  // limit + 1, so a fully-spent budget is no longer filed as an incident.
+  test('verify_repair×3 は verifyRepairLimit=3 のとき反復ループとして起票しないこと', async () => {
+    const now = nextPassTime();
+    userSettingsFindFirstMock.mockResolvedValue({ verifyRepairLimit: 3 });
+    taskFindManyMock.mockResolvedValue([
+      stagnantTask(now, { id: 833, updatedAt: new Date(now - 60_000) }),
+    ]);
+    transitionFindManyMock.mockImplementation((args: unknown) => {
+      const where = (args as { where: { createdAt?: unknown } }).where;
+      if (!where.createdAt) return Promise.resolve([]);
+      return Promise.resolve([
+        { cause: 'verify_repair', createdAt: new Date(now - 5 * 60 * 1000), actor: 'system' },
+        { cause: 'verify_repair', createdAt: new Date(now - 10 * 60 * 1000), actor: 'system' },
+        { cause: 'verify_repair', createdAt: new Date(now - 15 * 60 * 1000), actor: 'system' },
+      ]);
+    });
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(0);
+    expect(submitConcernMock).not.toHaveBeenCalled();
+  });
+
+  // Same window, default budget (2): the 3rd bounce IS an overrun, so the
+  // signature must still fire — the fix narrows detection, never removes it.
+  test('同じ窓でも既定予算(2)なら予算超過として起票すること', async () => {
+    const now = nextPassTime();
+    userSettingsFindFirstMock.mockResolvedValue(null);
+    taskFindManyMock.mockResolvedValue([
+      stagnantTask(now, { id: 833, updatedAt: new Date(now - 60_000) }),
+    ]);
+    transitionFindManyMock.mockImplementation((args: unknown) => {
+      const where = (args as { where: { createdAt?: unknown } }).where;
+      if (!where.createdAt) return Promise.resolve([]);
+      return Promise.resolve([
+        { cause: 'verify_repair', createdAt: new Date(now - 5 * 60 * 1000), actor: 'system' },
+        { cause: 'verify_repair', createdAt: new Date(now - 10 * 60 * 1000), actor: 'system' },
+        { cause: 'verify_repair', createdAt: new Date(now - 15 * 60 * 1000), actor: 'system' },
+      ]);
+    });
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(1);
+    const input = submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(input.dedupKey).toBe('self-incident:repeat-loop:verify_repair');
+    // The filed concern must quote the threshold that fired (task 710), which
+    // for verify_repair is the budget-derived one: default budget 2 → 3.
+    expect(String(input.detail)).toContain('3回以上');
+  });
+
+  // The settings lookup must never break the pass: detection-only by design.
+  test('UserSettings 取得が失敗しても既定予算にフォールバックし例外を投げないこと', async () => {
+    const now = nextPassTime();
+    userSettingsFindFirstMock.mockImplementation(() => Promise.reject(new Error('db down')));
+    taskFindManyMock.mockResolvedValue([
+      stagnantTask(now, { id: 833, updatedAt: new Date(now - 60_000) }),
+    ]);
+    transitionFindManyMock.mockImplementation((args: unknown) => {
+      const where = (args as { where: { createdAt?: unknown } }).where;
+      if (!where.createdAt) return Promise.resolve([]);
+      return Promise.resolve([
+        { cause: 'verify_repair', createdAt: new Date(now - 5 * 60 * 1000), actor: 'system' },
+        { cause: 'verify_repair', createdAt: new Date(now - 10 * 60 * 1000), actor: 'system' },
+        { cause: 'verify_repair', createdAt: new Date(now - 15 * 60 * 1000), actor: 'system' },
+      ]);
+    });
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(1);
+  });
+
   // Task 710: invariantViolation-flagged transitions use a lower threshold
   // (INVARIANT_REPEAT_LOOP_MIN_COUNT=2) than the general path
   // (REPEAT_LOOP_MIN_COUNT=3) — the notification text must reflect the

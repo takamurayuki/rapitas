@@ -3032,8 +3032,7 @@
     "volumeHigh": "High",
     "workDuration": "Work duration",
     "minutes": "{count} min",
-    "floatPickTaskPrompt": "Select a task to start",
-    "floatPickTaskLabel": "Choose a task"
+    "floatOpenFromTaskDetail": "Start a Pomodoro from a task's detail page"
   },
   "kanban": {
     "prevWeek": "Previous week",

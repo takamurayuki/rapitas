@@ -146,7 +146,7 @@ export default function TaskDetailContent({
         isThisTaskTimer={isThisTaskTimer}
         pomodoroState={pomodoroState}
         onBack={onBack}
-        onOpenPomodoro={() => void openPomodoroFloatWindow()}
+        onOpenPomodoro={() => void openPomodoroFloatWindow({ id: task.id, title: task.title })}
         onDeleteTask={taskActions.deleteTask}
         onOpenSaveTemplate={() => setShowSaveTemplateDialog(true)}
       />

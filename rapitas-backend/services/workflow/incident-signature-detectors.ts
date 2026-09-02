@@ -415,13 +415,15 @@ export function isRepairBounceCause(cause: string): boolean {
  * `phase_completed:implementer` AND 3 `file_saved:verify` firings — see
  * incident-signature-detectors.repeat-loop-t708.test.ts for the replayed window).
  * REPAIR_BOUNCE_CAUSES themselves (`verify_repair`/`ci_repair`, see {@link isRepairBounceCause})
- * are matched against `repairBounceMinCount` instead of `minCount` (task 837): a task that
- * legitimately exhausts its repair budget (e.g. verifyRepairLimit=3 producing exactly 3
- * `verify_repair` bounces) must not itself be misreported as a loop — only bounces beyond the
- * caller-supplied budget are flagged.
+ * are matched against `repairBounceMinCount` instead of `minCount`. This generalizes task 835's
+ * `verify_repair`-only budget guard to also cover `ci_repair`: a task that legitimately exhausts
+ * its repair budget (e.g. verifyRepairLimit=3 producing exactly 3 `verify_repair` bounces) must
+ * not itself be misreported as a loop — only bounces beyond the caller-supplied budget are
+ * flagged (task 837).
  * A terminal taskStatus (see TERMINAL_TASK_STATUSES) short-circuits to null — a finished task is
  * not "looping" even if it churned through retry cycles on the way there (mirrors
- * detectStagnation's guard; caught a false positive on #607).
+ * detectStagnation's guard; caught a false positive on #607, which completed 12s before the
+ * report).
  *
  * @param input.transitions - Task transitions (any order). / 対象タスクの遷移一覧
  * @param input.nowMs - Current time (ms). / 現在時刻
@@ -429,7 +431,7 @@ export function isRepairBounceCause(cause: string): boolean {
  * @param input.windowMs - Window size (default 60m). / 集計窓
  * @param input.minCount - Detection threshold (default 3). / 検出しきい値
  * @param input.invariantMinCount - Detection threshold for invariantViolation-flagged transitions only (default 2, see {@link INVARIANT_REPEAT_LOOP_MIN_COUNT}). / invariantViolation付き遷移専用のしきい値
- * @param input.repairBounceMinCount - Detection threshold for REPAIR_BOUNCE_CAUSES (verify_repair/ci_repair) only; defaults to minCount (task 837, see isRepairBounceCause). / 修復バウンス系cause専用のしきい値
+ * @param input.repairBounceMinCount - Detection threshold for REPAIR_BOUNCE_CAUSES (verify_repair/ci_repair) only; defaults to minCount. Callers pass the effective repair budget + 1, so spending the whole budget is not itself reported as a loop while a true overrun still is (task 837, generalizes task 835's verify_repair-only guard, see isRepairBounceCause). / 修復バウンス系cause専用のしきい値（修復予算+1を渡す）
  * @returns The dominant looping cause + count + which threshold path (`via`) picked it, or null. / 最多ループcause・count・判定経路またはnull
  */
 export function detectRepeatLoop(input: {
@@ -445,6 +447,9 @@ export function detectRepeatLoop(input: {
   const windowMs = input.windowMs ?? REPEAT_LOOP_WINDOW_MS;
   const minCount = input.minCount ?? REPEAT_LOOP_MIN_COUNT;
   const invariantMinCount = input.invariantMinCount ?? INVARIANT_REPEAT_LOOP_MIN_COUNT;
+  // task 837 (generalizes task 835): REPAIR_BOUNCE_CAUSES fire once per repair round, so spending
+  // a budget of N legitimately produces N firings — judge it against the caller-resolved budget,
+  // not the static min count.
   const repairBounceMinCount = input.repairBounceMinCount ?? minCount;
   const windowStart = input.nowMs - windowMs;
 

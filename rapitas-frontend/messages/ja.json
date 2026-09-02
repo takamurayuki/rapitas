@@ -3032,8 +3032,7 @@
     "volumeHigh": "大",
     "workDuration": "作業時間",
     "minutes": "{count}分",
-    "floatPickTaskPrompt": "開始するタスクを選択してください",
-    "floatPickTaskLabel": "タスクを選ぶ"
+    "floatOpenFromTaskDetail": "タスク詳細画面からポモドーロを開始できます"
   },
   "kanban": {
     "prevWeek": "前の週",

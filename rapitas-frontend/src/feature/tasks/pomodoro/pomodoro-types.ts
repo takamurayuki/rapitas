@@ -56,6 +56,7 @@ export interface PomodoroState {
 
   _hasHydrated: boolean;
 
+  setLastUsedTask: (taskId: number, taskTitle: string) => void;
   startTimer: (taskId: number | null, taskTitle: string | null) => void;
   pauseTimer: () => void;
   resumeTimer: () => void;

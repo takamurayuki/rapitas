@@ -212,6 +212,7 @@ pub fn run() {
             crate::quick_capture::open_quick_capture,
             crate::pomodoro_float::focus_pomodoro_float,
             crate::pomodoro_float::set_pomodoro_float_always_on_top,
+            crate::pomodoro_float::set_pomodoro_float_acrylic,
             crate::toast::show_toast_window,
             crate::toast::toast_ready,
             crate::toast::toast_dismiss,
