@@ -102,6 +102,24 @@ export default function PomodoroPanelContent({
   // Re-fetch when the target task changes; stopTimer is a stable store action.
   useEffect(fetchTaskContext, [taskId, stopTimer]);
 
+  // Re-fetch on every SHOW of the float window: subtasks added from the main
+  // window while the float was hidden must appear in the selector (operator
+  // report 2026-09-03). The window is long-lived, so mount-time fetches alone
+  // go stale.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
+    let unlisten: (() => void) | undefined;
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen<boolean>('pomodoro-float://visibility-changed', (event) => {
+        if (event.payload) fetchTaskContext();
+      }).then((fn) => {
+        unlisten = fn;
+      });
+    });
+    return () => unlisten?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchTaskContext is recreated per render; the listener only needs the latest via closure re-registration on taskId change
+  }, [taskId]);
+
   return (
     <div>
       {!focusMode && (
