@@ -152,6 +152,9 @@ export default function PomodoroTimer({
           breakDuration: breakHours,
           startedAt: startTime.toISOString(),
           endedAt: endTime.toISOString(),
+          // Study time for pomodoro work is recorded by the session path —
+          // this flag stops the time-entry route from recording it again.
+          source: 'pomodoro',
         }),
       });
 
@@ -204,6 +207,7 @@ export default function PomodoroTimer({
           note: t('complete'),
           startedAt: startTime.toISOString(),
           endedAt: endTime.toISOString(),
+          source: 'pomodoro',
         }),
       });
 
