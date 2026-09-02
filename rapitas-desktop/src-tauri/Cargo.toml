@@ -30,6 +30,8 @@ tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
 # boundary (avoids UTF-8 corruption when a multibyte char spans read chunks).
 portable-pty = "0.9"
 base64 = "0.22"
+# Pomodoro float window glass transparency (acrylic) — see pomodoro_float.rs.
+window-vibrancy = "0.6"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["winuser", "processthreadsapi", "psapi", "shellapi", "winreg", "dwmapi"] }

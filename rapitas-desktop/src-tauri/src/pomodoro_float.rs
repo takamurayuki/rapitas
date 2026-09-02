@@ -10,6 +10,7 @@
 //! button.
 
 use tauri::{Emitter, Manager};
+use window_vibrancy::{apply_acrylic, clear_acrylic};
 
 const WINDOW_LABEL: &str = "pomodoro-float";
 
@@ -91,4 +92,48 @@ pub fn set_pomodoro_float_always_on_top(app: tauri::AppHandle, on: bool) -> Resu
             .map_err(|e| format!("Failed to set always-on-top: {e}"))?;
     }
     Ok(())
+}
+
+/// Tauri command: apply or clear the acrylic glass effect on the Pomodoro
+/// floating window. The window itself stays `transparent(false)` (see
+/// `build_pomodoro_float_window` — `transparent(true)` whites out the whole
+/// window on this WebView2 build); acrylic supplies the glass look via DWM
+/// composition instead, which requires the webview's own background to
+/// be alpha-0 or the opaque webview paints over the acrylic blur.
+///
+/// Never returns `Err` to the caller — on any failure (unsupported platform,
+/// pre-1809 Windows build, missing window) it resets to the opaque state and
+/// returns `Ok(false)` so the frontend can fall back to the opaque CSS
+/// without the invoke promise rejecting (plan.md 設計判断の根拠 「適用失敗時の戻り値」).
+///
+/// # Errors
+/// Never returns `Err` — see above.
+#[tauri::command]
+pub fn set_pomodoro_float_acrylic(app: tauri::AppHandle, enabled: bool) -> Result<bool, String> {
+    let win = match app.get_webview_window(WINDOW_LABEL) {
+        Some(win) => win,
+        None => return Ok(false),
+    };
+
+    if !enabled {
+        let _ = clear_acrylic(&win);
+        let _ = win.set_background_color(None);
+        return Ok(false);
+    }
+
+    if win.set_background_color(Some(tauri::webview::Color(0, 0, 0, 0))).is_err() {
+        let _ = clear_acrylic(&win);
+        let _ = win.set_background_color(None);
+        return Ok(false);
+    }
+
+    match apply_acrylic(&win, Some((0, 0, 0, 1))) {
+        Ok(()) => Ok(true),
+        Err(e) => {
+            eprintln!("[pomodoro-float] apply_acrylic failed, falling back to opaque: {e}");
+            let _ = clear_acrylic(&win);
+            let _ = win.set_background_color(None);
+            Ok(false)
+        }
+    }
 }

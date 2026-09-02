@@ -39,13 +39,14 @@ async function minimizeFloatWindow(): Promise<void> {
 export default function PomodoroFloatView() {
   const t = useTranslations('pomodoro');
   const state = usePomodoroStore();
-  const { mode, toggleMode } = useTransparencyMode();
+  const { mode, acrylicApplied, toggleMode } = useTransparencyMode();
   const { focusMode, toggleFocusMode } = useFocusMode();
   useFloatPageBackground(mode);
 
-  const isGlass = mode === 'glass';
-  // .transparent(true) is always set on the Rust side — toggling between modes
-  // is purely a CSS surface swap, no window rebuild.
+  // The window stays .transparent(false) on the Rust side (WebView2 whites
+  // out otherwise) — glass mode instead applies window-vibrancy acrylic
+  // natively and falls back to the opaque surface here if that failed.
+  const isGlass = mode === 'glass' && acrylicApplied;
   const surfaceCls = isGlass
     ? 'bg-white/55 dark:bg-zinc-900/55 backdrop-blur-md border border-white/20 dark:border-white/10'
     : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800';

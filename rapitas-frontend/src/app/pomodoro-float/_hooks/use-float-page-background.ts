@@ -3,10 +3,12 @@
  *
  * Makes the html/body of the /pomodoro-float route transparent while glass
  * mode is active. globals.css paints `body { background: var(--background) }`
- * on every page unconditionally, which otherwise fills the WebView opaque and
- * defeats the window's `.transparent(true)` — so the OS composites a solid
- * page instead of the desktop behind it. Scoped to inline style on this route
- * only; the global stylesheet is left untouched so no other page is affected.
+ * on every page unconditionally, which otherwise paints over the webview's
+ * alpha-0 background (set natively by `set_pomodoro_float_acrylic`) and hides
+ * the window-vibrancy acrylic blur composited by the OS behind it. The window
+ * itself stays `.transparent(false)` — see pomodoro_float.rs. Scoped to inline
+ * style on this route only; the global stylesheet is left untouched so no
+ * other page is affected.
  */
 'use client';
 
