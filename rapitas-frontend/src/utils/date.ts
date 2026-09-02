@@ -97,3 +97,20 @@ export function formatDate(
   // medium: YYYY/MM/DD
   return `${d.getFullYear()}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getDate().toString().padStart(2, '0')}`;
 }
+
+/**
+ * App-standard timestamp: `yyyy/mm/dd HH:mm:ss`, locale-independent
+ * (operator decision 2026-09-03 — every datetime display uses this shape).
+ *
+ * @param date - Date or ISO string / Date か ISO 文字列
+ * @returns "2026/09/03 02:45:07" style string / 統一フォーマットの日時文字列
+ */
+export function formatDateTime(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return '';
+  const p2 = (n: number): string => n.toString().padStart(2, '0');
+  return (
+    `${d.getFullYear()}/${p2(d.getMonth() + 1)}/${p2(d.getDate())} ` +
+    `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`
+  );
+}
