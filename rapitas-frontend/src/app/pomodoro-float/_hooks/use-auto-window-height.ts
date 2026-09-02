@@ -29,9 +29,17 @@ export function useAutoWindowHeight(ref: RefObject<HTMLDivElement | null>): void
 
     let raf = 0;
     let applying = false;
+    let dirty = false;
     const apply = () => {
       raf = 0;
-      if (applying) return;
+      // Don't DROP events that land mid-apply — remember them and re-run once
+      // the in-flight apply settles, or the final content height is missed
+      // and the window sticks at a partial-load size (seen 2026-09-02: the
+      // float opened at roughly half its content height).
+      if (applying) {
+        dirty = true;
+        return;
+      }
       const target = Math.min(Math.max(Math.ceil(el.scrollHeight), MIN_HEIGHT), MAX_HEIGHT);
       applying = true;
       void (async () => {
@@ -54,17 +62,45 @@ export function useAutoWindowHeight(ref: RefObject<HTMLDivElement | null>): void
         })
         .finally(() => {
           applying = false;
+          if (dirty) {
+            dirty = false;
+            if (!raf) raf = requestAnimationFrame(apply);
+          }
         });
     };
 
-    const ro = new ResizeObserver(() => {
-      if (!raf) raf = requestAnimationFrame(apply);
-    });
+    // Trailing debounce: while the user drags the window edge, content
+    // rewraps keep firing the observer — applying immediately makes the
+    // auto-height fight the drag with churning native resizes (black repaint
+    // bands, 2026-09-02). Settle 250ms after the last change, then fit once.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const schedule = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!raf) raf = requestAnimationFrame(apply);
+      }, 250);
+    };
+    const ro = new ResizeObserver(schedule);
     ro.observe(el);
     apply();
+
+    // Re-fit on every show: the window is long-lived (hidden, never
+    // destroyed), so a manual resize would otherwise stick for every later
+    // open — each open should start content-fitted again.
+    let unlisten: (() => void) | undefined;
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen<boolean>('pomodoro-float://visibility-changed', (event) => {
+        if (event.payload) schedule();
+      }).then((fn) => {
+        unlisten = fn;
+      });
+    });
+
     return () => {
       ro.disconnect();
+      clearTimeout(timer);
       if (raf) cancelAnimationFrame(raf);
+      unlisten?.();
     };
   }, [ref]);
 }

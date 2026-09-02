@@ -40,6 +40,11 @@ fn build_pomodoro_float_window(app: &tauri::AppHandle) -> Result<tauri::WebviewW
     // never composites. Opaque until glass ships via window-vibrancy
     // acrylic, which bypasses the transparent-window compositing path.
     .transparent(false)
+    // Opaque dark surface behind the webview: WebView2 repaints lag behind
+    // native resizes, and the exposed strip otherwise flashes BLACK while
+    // dragging the window edge (2026-09-02). zinc-900 matches the app's dark
+    // surface; in light theme a dark flash is still less jarring than black.
+    .background_color(tauri::webview::Color(24, 24, 27, 255))
     // Created hidden: the window pre-warms at startup and is only shown from
     // the task detail entry point (show/hide — never destroyed/recreated,
     // recreation whites out on this WebView2 build).
