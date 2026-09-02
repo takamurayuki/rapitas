@@ -56,6 +56,8 @@ export const usePomodoroStore = create<PomodoroState>()(
     (set, get) => ({
       taskId: null,
       taskTitle: null,
+      lastUsedTaskId: null,
+      lastUsedTaskTitle: null,
       isTimerRunning: false,
       isPaused: false,
       isBreakTime: false,
@@ -93,13 +95,15 @@ export const usePomodoroStore = create<PomodoroState>()(
         set({ settings: { ...state.settings, ...newSettings } });
       },
 
-      startTimer: (taskId: number, taskTitle: string) => {
+      startTimer: (taskId: number | null, taskTitle: string | null) => {
         // Eagerly warm up AudioContext to satisfy browser autoplay policy on first user gesture.
         getAudioContext();
 
         const newState = {
           taskId,
           taskTitle,
+          lastUsedTaskId: taskId,
+          lastUsedTaskTitle: taskTitle,
           isTimerRunning: true,
           isPaused: false,
           isBreakTime: false,
@@ -209,6 +213,8 @@ export const usePomodoroStore = create<PomodoroState>()(
       partialize: (state) => ({
         taskId: state.taskId,
         taskTitle: state.taskTitle,
+        lastUsedTaskId: state.lastUsedTaskId,
+        lastUsedTaskTitle: state.lastUsedTaskTitle,
         isTimerRunning: state.isTimerRunning,
         isPaused: state.isPaused,
         isBreakTime: state.isBreakTime,

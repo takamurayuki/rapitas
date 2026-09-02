@@ -59,6 +59,8 @@ const store = () => usePomodoroStore.getState();
 const INITIAL = {
   taskId: null,
   taskTitle: null,
+  lastUsedTaskId: null,
+  lastUsedTaskTitle: null,
   isTimerRunning: false,
   isPaused: false,
   isBreakTime: false,
@@ -132,6 +134,30 @@ describe('pomodoroStore', () => {
       expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 1000);
     });
 
+    it('starts a taskless session and records it as null in lastUsedTaskId', () => {
+      store().startTimer(null, null);
+      const s = store();
+
+      expect(s.taskId).toBeNull();
+      expect(s.taskTitle).toBeNull();
+      expect(s.lastUsedTaskId).toBeNull();
+      expect(s.lastUsedTaskTitle).toBeNull();
+      expect(s.isTimerRunning).toBe(true);
+      expect(syncPomodoroToBackend.start).toHaveBeenCalledWith(
+        null,
+        DEFAULT_SETTINGS.pomodoroDuration,
+        'work',
+      );
+    });
+
+    it('records the started task as the last used task', () => {
+      store().startTimer(5, 'My Task');
+      const s = store();
+
+      expect(s.lastUsedTaskId).toBe(5);
+      expect(s.lastUsedTaskTitle).toBe('My Task');
+    });
+
     it('resets stale session fields left over from a previous run', () => {
       usePomodoroStore.setState({
         pomodoroCount: 3,
@@ -192,6 +218,14 @@ describe('pomodoroStore', () => {
       const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
       store().stopTimer();
       expect(clearIntervalSpy).not.toHaveBeenCalled();
+    });
+
+    it('keeps lastUsedTaskId/lastUsedTaskTitle after stopping', () => {
+      store().startTimer(2, 'Task');
+      store().stopTimer();
+      const s = store();
+      expect(s.lastUsedTaskId).toBe(2);
+      expect(s.lastUsedTaskTitle).toBe('Task');
     });
   });
 
