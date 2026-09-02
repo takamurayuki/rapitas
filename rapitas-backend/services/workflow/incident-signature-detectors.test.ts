@@ -563,7 +563,11 @@ describe('detectRepeatLoop', () => {
   describe('repairBounceMinCount (task 837)', () => {
     it('falls back to minCount when repairBounceMinCount is not provided (backward compat)', () => {
       const result = detectRepeatLoop({
-        transitions: [at(1_000, 'verify_repair'), at(2_000, 'verify_repair'), at(3_000, 'verify_repair')],
+        transitions: [
+          at(1_000, 'verify_repair'),
+          at(2_000, 'verify_repair'),
+          at(3_000, 'verify_repair'),
+        ],
         nowMs: NOW,
         minCount: 3,
       });
@@ -572,7 +576,11 @@ describe('detectRepeatLoop', () => {
 
     it('does NOT detect verify_repair at exactly the exhausted budget (count 3, repairBounceMinCount 4)', () => {
       const result = detectRepeatLoop({
-        transitions: [at(1_000, 'verify_repair'), at(2_000, 'verify_repair'), at(3_000, 'verify_repair')],
+        transitions: [
+          at(1_000, 'verify_repair'),
+          at(2_000, 'verify_repair'),
+          at(3_000, 'verify_repair'),
+        ],
         nowMs: NOW,
         minCount: 3,
         repairBounceMinCount: 4,

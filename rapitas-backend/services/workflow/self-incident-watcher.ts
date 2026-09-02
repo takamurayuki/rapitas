@@ -283,8 +283,7 @@ async function inspectTask(
         explanation:
           `直近${Math.round(REPEAT_LOOP_WINDOW_MS / 60_000)}分以内に同一cause(${loop.cause})の` +
           `遷移が${loop.count}回発生しています。同じ失敗と再試行を繰り返すループの疑いがあります。`,
-        thresholdDescription:
-          `${Math.round(REPEAT_LOOP_WINDOW_MS / 60_000)}分以内に同一causeが${effectiveMinCount}回以上`,
+        thresholdDescription: `${Math.round(REPEAT_LOOP_WINDOW_MS / 60_000)}分以内に同一causeが${effectiveMinCount}回以上`,
         severity: 'high',
         nowMs,
       })
