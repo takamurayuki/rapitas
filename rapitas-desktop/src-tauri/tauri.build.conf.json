@@ -5,6 +5,9 @@
     "beforeDevCommand": "",
     "frontendDist": "../public"
   },
+  "app": {
+    "macOSPrivateApi": true
+  },
   "bundle": {
     "active": true,
     "targets": ["deb", "rpm", "nsis", "msi", "dmg", "app"],

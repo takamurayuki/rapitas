@@ -27,11 +27,19 @@
     ],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:* https: ipc: http://ipc.localhost https://tauri.localhost; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
-    }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,
-    "targets": ["deb", "rpm", "nsis", "msi", "dmg", "app"],
+    "targets": [
+      "deb",
+      "rpm",
+      "nsis",
+      "msi",
+      "dmg",
+      "app"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -49,7 +57,12 @@
         ]
       },
       "rpm": {
-        "depends": ["gtk3", "webkit2gtk4.1", "libappindicator-gtk3", "librsvg2"]
+        "depends": [
+          "gtk3",
+          "webkit2gtk4.1",
+          "libappindicator-gtk3",
+          "librsvg2"
+        ]
       }
     },
     "windows": {
