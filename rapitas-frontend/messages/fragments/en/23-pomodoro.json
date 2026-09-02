@@ -35,6 +35,15 @@
     "floatNoTaskLabel": "No task",
     "floatTransparencyToggle": "Toggle glass mode",
     "floatClose": "Close floating window",
-    "floatMinimize": "Minimize floating window"
+    "floatMinimize": "Minimize floating window",
+    "todayStats": "Today's stats",
+    "completedPomodoros": "Completed pomodoros",
+    "totalWorkTime": "Total work time",
+    "settings": "Settings",
+    "notificationSound": "Notification sound",
+    "volumeLow": "Low",
+    "volumeHigh": "High",
+    "workDuration": "Work duration",
+    "minutes": "{count} min"
   }
 }

@@ -135,21 +135,6 @@
       "cardSubtasksCount": "サブタスク{count}件",
       "cardLabelsCount": "ラベル{count}件"
     },
-    "globalPomodoroModal": {
-      "todayStats": "今日の統計",
-      "completedPomodoros": "完了ポモドーロ",
-      "totalWorkTime": "合計作業時間",
-      "settings": "設定",
-      "notificationSound": "通知音",
-      "volumeLow": "小",
-      "volumeHigh": "大",
-      "workDuration": "作業時間",
-      "shortBreak": "短い休憩",
-      "longBreak": "長い休憩",
-      "minutes": "{count}分",
-      "floatWindowToggle": "別ウィンドウで表示",
-      "focusMode": "集中表示"
-    },
     "fileUploader": {
       "downloadFailed": "ダウンロードに失敗しました",
       "uploadFailed": "アップロードに失敗しました",

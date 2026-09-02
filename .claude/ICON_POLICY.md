@@ -138,10 +138,9 @@ history is lost.
 | `Hammer`                    | 通知の種別「CI失敗の自動修正中」（auto_merge_ci_repair, auto_merge_ci_repair_no_diff） |
 | `Files`                     | 通知の種別「同一タスクへの重複PR検出」（duplicate_open_prs） |
 | `GitPullRequestArrow`       | 通知の種別「自動PR作成完了」（auto_pr_created） |
-| `Focus`                    | ポモドーロの集中表示トグル（GlobalPomodoroModal ヘッダー — タイマーと操作以外を隠すモード切替） |
+| `Focus`                    | ポモドーロの集中表示トグル（ポモドーロ独立ウィンドウ `pomodoro-float` ヘッダー — タイマーと操作以外を隠すモード切替） |
 | `TimerReset`                | タスクのリードタイム中央値（/agents/growth 自己改善KPIセクションの「リードタイム中央値」カード。最初の遷移から completed までの所要分。注: `Timer`＝ポモドーロ/見積時間、`TimerOff`＝自動実行の時間上限停止、`AlarmClockPlus`＝学習時間の記録とは別概念） |
 | `Cable`                     | 学習目標のテーマ紐づけ（`StudyGoal`をテーマに関連付け、テーマ配下タスクのポモドーロ作業時間を自動集計する機能。学習ロードマップの目標カード「テーマを紐づけ」ボタン＋紐づけ済みバッジ＋`GoalThemeLinkModal`。注: `Link2`＝ノートエディタのハイパーリンク挿入・依存関係ツリー表示の汎用リンクとは別概念） |
-| `PictureInPicture2`         | ポモドーロの別ウィンドウ表示トグル（`GlobalPomodoroModal` ヘッダーの「別ウィンドウで表示」ボタン） |
 | `GlassWater`                | ポモドーロ フローティングウィンドウの透過⇄不透明トグル（`pomodoro-float` ページ内のガラスモード切替ボタン。注: `Sparkles`＝AI生成/おすすめ操作とは別概念のため流用しない） |
 | `Minus`                     | ウィンドウのタスクバー最小化（`pomodoro-float-view.tsx` の−ボタン。既存の差分バッジ減少値・複雑度インジケータ等の`Minus`とは画面・文脈が分離しており実利用上の混同リスクは低い） |
 

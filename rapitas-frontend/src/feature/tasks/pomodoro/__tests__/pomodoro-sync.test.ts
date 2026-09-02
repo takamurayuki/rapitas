@@ -9,7 +9,15 @@ vi.mock('@/utils/api', () => ({
   API_BASE_URL: 'http://test:3001',
 }));
 
+// Hoisted once for the whole file — dynamic import() caches the module after
+// its first resolution, so re-mocking with vi.doMock between individual
+// tests silently no-ops on the second+ call. A single shared mock avoids that.
+vi.mock('@tauri-apps/api/event', () => ({ emitTo: vi.fn().mockResolvedValue(undefined) }));
+
+import { emitTo } from '@tauri-apps/api/event';
 import { syncPomodoroToBackend } from '../pomodoro-sync';
+
+const emitToMock = vi.mocked(emitTo);
 
 const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -164,6 +172,68 @@ describe('syncPomodoroToBackend', () => {
       await flushPromises();
 
       expect(fetchMock).toHaveBeenCalledWith('http://test:3001/pomodoro/start', expect.anything());
+    });
+  });
+
+  describe('float window delegation', () => {
+    /** Stubs `'__TAURI_INTERNALS__' in window` for the isFloatWindow() check. */
+    function setTauriInternals(present: boolean): void {
+      if (present) {
+        (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+      } else {
+        delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
+      }
+    }
+
+    afterEach(() => {
+      setTauriInternals(false);
+    });
+
+    beforeEach(() => {
+      emitToMock.mockClear();
+      emitToMock.mockResolvedValue(undefined);
+    });
+
+    it('cancel() emits pomodoro-float:cancel-request to main instead of fetching, under Tauri on /pomodoro-float', async () => {
+      setPathname('/pomodoro-float');
+      setTauriInternals(true);
+      const fetchMock = vi.fn().mockResolvedValue({});
+      vi.stubGlobal('fetch', fetchMock);
+
+      syncPomodoroToBackend.cancel();
+      await flushPromises();
+      await flushPromises();
+
+      expect(emitToMock).toHaveBeenCalledWith('main', 'pomodoro-float:cancel-request');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('checkpoint() emits pomodoro-float:checkpoint-request to main instead of fetching, under Tauri on /pomodoro-float', async () => {
+      setPathname('/pomodoro-float');
+      setTauriInternals(true);
+      const fetchMock = vi.fn().mockResolvedValue({});
+      vi.stubGlobal('fetch', fetchMock);
+
+      const result = await syncPomodoroToBackend.checkpoint();
+      await flushPromises();
+      await flushPromises();
+
+      expect(emitToMock).toHaveBeenCalledWith('main', 'pomodoro-float:checkpoint-request');
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(result).toBeNull();
+    });
+
+    it('cancel() does not delegate on /pomodoro-float without __TAURI_INTERNALS__ (existing jsdom/browser test env)', async () => {
+      setPathname('/pomodoro-float');
+      setTauriInternals(false);
+      const fetchMock = vi.fn().mockResolvedValue({});
+      vi.stubGlobal('fetch', fetchMock);
+
+      syncPomodoroToBackend.cancel();
+      await flushPromises();
+
+      expect(emitToMock).not.toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
     });
   });
 });

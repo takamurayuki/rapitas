@@ -29,7 +29,6 @@ export interface UseTaskActionsParams {
   isThisTaskTimer: boolean;
   pomodoroState: { isTimerRunning: boolean };
   stopTimer: () => void;
-  setShowPomodoroModal: (show: boolean) => void;
   setShowCompleteOverlay: (show: boolean) => void;
 }
 
@@ -47,7 +46,6 @@ export function useTaskActions({
   isThisTaskTimer,
   pomodoroState,
   stopTimer,
-  setShowPomodoroModal,
   setShowCompleteOverlay,
 }: UseTaskActionsParams) {
   const router = useRouter();
@@ -145,7 +143,6 @@ export function useTaskActions({
       if (isThisTaskTimer && pomodoroState.isTimerRunning) {
         stopTimer();
       }
-      setShowPomodoroModal(false);
       router.back();
     } catch (err) {
       logger.error(err);
@@ -157,7 +154,6 @@ export function useTaskActions({
     isThisTaskTimer,
     pomodoroState.isTimerRunning,
     stopTimer,
-    setShowPomodoroModal,
     router,
     showToast,
     confirm,
