@@ -13,4 +13,8 @@ export {
   sweepDeadLeaseExecutions,
 } from './stale-execution-recovery';
 
-export { resumeInterruptedExecution, buildResumePrompt } from './execution-resume';
+export {
+  resumeInterruptedExecution,
+  buildResumePrompt,
+  ResumeLockConflictError,
+} from './execution-resume';

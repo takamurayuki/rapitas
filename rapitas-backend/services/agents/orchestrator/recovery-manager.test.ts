@@ -37,10 +37,17 @@ const resumeInterruptedExecutionMock = mock(async () => ({
   waitingForInput: false,
 }));
 const buildResumePromptMock = mock(() => 'resume prompt');
+class MockResumeLockConflictError extends Error {
+  constructor(public readonly taskId: number) {
+    super(`Task ${taskId} already has an active execution — refusing duplicate resume`);
+    this.name = 'ResumeLockConflictError';
+  }
+}
 
 mock.module('./execution-resume', () => ({
   resumeInterruptedExecution: resumeInterruptedExecutionMock,
   buildResumePrompt: buildResumePromptMock,
+  ResumeLockConflictError: MockResumeLockConflictError,
 }));
 
 const recoveryManager = await import('./recovery-manager');
@@ -74,7 +81,7 @@ describe('recovery-manager barrel', () => {
     expect(result).toBe('resume prompt');
   });
 
-  test('barrel が想定する6シンボルのみを公開している', () => {
+  test('barrel が想定する7シンボルのみを公開している', () => {
     expect(Object.keys(recoveryManager).sort()).toEqual(
       [
         'buildResumePrompt',
@@ -85,6 +92,8 @@ describe('recovery-manager barrel', () => {
         // heartbeat age, exported alongside the startup recovery pass.
         'sweepDeadLeaseExecutions',
         'startExecutionLeaseSweep',
+        // Task 840: benign-skip marker for a per-task execution-lock conflict.
+        'ResumeLockConflictError',
       ].sort(),
     );
   });

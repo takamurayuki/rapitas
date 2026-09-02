@@ -14,6 +14,7 @@
  */
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
+import { isTaskExecutionLocked } from '../task-execution-lock';
 
 const log = createLogger('orchestrator:auto-resume');
 
@@ -70,6 +71,7 @@ export interface AutoResumeDecision {
  * @param opts.hasNewerExecution - A newer execution already exists for the task. / 後続実行の有無
  * @param opts.taskStatus - The owning task's status. `blocked`/`failed` are excluded — those states can only be exited by an explicit retry. / タスク状態(`blocked`/`failed`は自動再開の対象外)
  * @param opts.hasWorkingDirectory - Theme working directory configured. / 作業Dir設定有無
+ * @param opts.isTaskLocked - The task already holds an active execution lock. / タスクが既にロック中か
  * @returns Whether to resume, with the reason. / 判定と理由
  */
 export function decideAutoResume(
@@ -79,6 +81,7 @@ export function decideAutoResume(
     hasNewerExecution: boolean;
     taskStatus: string | null;
     hasWorkingDirectory: boolean;
+    isTaskLocked: boolean;
   },
 ): AutoResumeDecision {
   if (exec.status !== 'interrupted') return { resume: false, reason: `status=${exec.status}` };
@@ -96,6 +99,12 @@ export function decideAutoResume(
   }
   if (opts.hasNewerExecution) {
     return { resume: false, reason: 'a newer execution already took over the task' };
+  }
+  if (opts.isTaskLocked) {
+    return {
+      resume: false,
+      reason: 'task execution already locked (an active run is in progress)',
+    };
   }
   const age = opts.now.getTime() - exec.createdAt.getTime();
   if (age > MAX_AGE_MS) return { resume: false, reason: `too old (${Math.round(age / 3600000)}h)` };
@@ -169,6 +178,7 @@ export async function autoResumeInterruptedExecutions(executionIds: number[]): P
         hasNewerExecution: !!newer,
         taskStatus: task.status,
         hasWorkingDirectory: !!task.theme?.workingDirectory,
+        isTaskLocked: isTaskExecutionLocked(task.id),
       });
       if (!decision.resume) {
         log.info({ executionId, taskId: task.id, reason: decision.reason }, '[auto-resume] skip');

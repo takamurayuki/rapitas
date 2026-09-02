@@ -5,14 +5,37 @@
  * the guard matrix). The prisma/orchestrator shell is exercised through the
  * manual-resume flow it reuses.
  */
-import { describe, it, expect, mock } from 'bun:test';
+import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
-mock.module('../../../config/database', () => ({ prisma: {} }));
+const findUniqueMock = mock(async () => null as unknown);
+const findFirstMock = mock(async () => null as unknown);
+const taskUpdateMock = mock(async () => ({}));
+const notificationCreateMock = mock(async () => ({}));
+
+mock.module('../../../config/database', () => ({
+  prisma: {
+    agentExecution: { findUnique: findUniqueMock, findFirst: findFirstMock },
+    task: { update: taskUpdateMock },
+    notification: { create: notificationCreateMock },
+    userSettings: { findFirst: mock(async () => ({ autoResumeInterruptedTasks: true })) },
+  },
+}));
 mock.module('../../../config/logger', () => ({
   createLogger: () => ({ info: mock(() => {}), warn: mock(() => {}), error: mock(() => {}) }),
 }));
 
-const { countResumeAttempts, decideAutoResume } = await import('./auto-resume');
+const isTaskExecutionLockedMock = mock(() => false);
+mock.module('../task-execution-lock', () => ({
+  isTaskExecutionLocked: isTaskExecutionLockedMock,
+}));
+
+const handleResumeCompletionMock = mock(() => {});
+mock.module('./resume-completion', () => ({
+  handleResumeCompletion: handleResumeCompletionMock,
+}));
+
+const { countResumeAttempts, decideAutoResume, autoResumeInterruptedExecutions } =
+  await import('./auto-resume');
 
 const NOW = new Date('2026-08-07T12:00:00Z');
 
@@ -30,6 +53,7 @@ const OK_OPTS = {
   hasNewerExecution: false,
   taskStatus: 'todo',
   hasWorkingDirectory: true,
+  isTaskLocked: false,
 };
 
 describe('countResumeAttempts', () => {
@@ -93,5 +117,68 @@ describe('decideAutoResume', () => {
   it('still resumes with exactly one prior attempt (budget is 2)', () => {
     const once = exec({ output: '[再開] 中断された作業を再開します...\n…' });
     expect(decideAutoResume(once, OK_OPTS).resume).toBe(true);
+  });
+
+  it('isTaskLocked=true のとき resume しない', () => {
+    const d = decideAutoResume(exec(), { ...OK_OPTS, isTaskLocked: true });
+    expect(d.resume).toBe(false);
+    expect(d.reason).toContain('locked');
+  });
+});
+
+describe('autoResumeInterruptedExecutions — ロック中タスクのスキップ', () => {
+  beforeEach(() => {
+    findUniqueMock.mockClear();
+    findFirstMock.mockClear();
+    taskUpdateMock.mockClear();
+    notificationCreateMock.mockClear();
+    handleResumeCompletionMock.mockClear();
+    isTaskExecutionLockedMock.mockClear();
+    isTaskExecutionLockedMock.mockImplementation(() => false);
+  });
+
+  const execution = {
+    id: 10,
+    status: 'interrupted',
+    // NOTE: autoResumeInterruptedExecutions uses the real clock (new Date()) for
+    // the freshness check, not the fixed NOW constant used elsewhere in this file.
+    createdAt: new Date(),
+    output: 'previous output',
+    session: {
+      config: {
+        task: {
+          id: 5,
+          title: 'テストタスク',
+          description: null,
+          status: 'todo',
+          theme: { name: 'テーマ', workingDirectory: 'C:\\Users\\test\\project' },
+        },
+      },
+    },
+  };
+
+  it('isTaskExecutionLocked=true のとき task.update/notification.create/handleResumeCompletion を呼ばない', async () => {
+    findUniqueMock.mockImplementationOnce(async () => execution);
+    findFirstMock.mockImplementationOnce(async () => null);
+    isTaskExecutionLockedMock.mockImplementation(() => true);
+
+    const started = await autoResumeInterruptedExecutions([10]);
+
+    expect(started).toBe(0);
+    expect(taskUpdateMock).not.toHaveBeenCalled();
+    expect(notificationCreateMock).not.toHaveBeenCalled();
+    expect(handleResumeCompletionMock).not.toHaveBeenCalled();
+  });
+
+  it('isTaskExecutionLocked=false かつ他条件が満たされていれば resume を開始する', async () => {
+    findUniqueMock.mockImplementationOnce(async () => execution);
+    findFirstMock.mockImplementationOnce(async () => null);
+    isTaskExecutionLockedMock.mockImplementation(() => false);
+
+    const started = await autoResumeInterruptedExecutions([10]);
+
+    expect(started).toBe(1);
+    expect(taskUpdateMock).toHaveBeenCalledTimes(1);
+    expect(handleResumeCompletionMock).toHaveBeenCalledTimes(1);
   });
 });
