@@ -3034,7 +3034,8 @@
     "minutes": "{count}分",
     "floatOpenFromTaskDetail": "タスク詳細画面からポモドーロを開始できます",
     "floatGoToTask": "タスクを開く",
-    "syncFailed": "バックエンドへの記録に失敗しました。時間は保存されていない可能性があります"
+    "syncFailed": "バックエンドへの記録に失敗しました。時間は保存されていない可能性があります",
+    "breakDurationChip": "{minutes}分"
   },
   "kanban": {
     "prevWeek": "前の週",

@@ -341,26 +341,29 @@ export default function PomodoroTimer({
         </div>
       </div>
 
+      {/* Compact soft-tint prompt (operator request 2026-09-03): matches the
+          control row's visual grammar — pale face, no heavy border, the
+          duration as a small chip instead of a bare "(15min)" line. */}
       {showBreakDialog && (
-        <div className="mb-6 p-6 bg-green-50 dark:bg-green-950 rounded-xl border-2 border-green-500">
-          <div className="text-center mb-4">
-            <div className="text-lg font-semibold text-green-700 dark:text-green-300 mb-2">
+        <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-500/20 dark:bg-green-500/10">
+          <div className="mb-3 flex items-center justify-center gap-2 text-center">
+            <span className="text-sm font-medium text-green-700 dark:text-green-300">
               {t('breakPrompt', { breakType })}
-            </div>
-            <div className="text-sm text-zinc-600 dark:text-zinc-400">
-              ({pomodoroCount % 4 === 0 ? '15' : '5'}min)
-            </div>
+            </span>
+            <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-500/20 dark:text-green-300">
+              {t('breakDurationChip', { minutes: pomodoroCount % 4 === 0 ? 15 : 5 })}
+            </span>
           </div>
-          <div className="flex gap-3 justify-center">
+          <div className="flex justify-center gap-2">
             <button
               onClick={handleTakeBreak}
-              className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors"
+              className="rounded-lg bg-green-50 px-4 py-2 text-sm font-medium text-green-600 transition-colors hover:bg-green-100 dark:bg-green-500/15 dark:text-green-400 dark:hover:bg-green-500/25"
             >
               {t('takeBreak')}
             </button>
             <button
               onClick={handleSkipBreak}
-              className="px-6 py-3 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-900 dark:text-zinc-50 rounded-lg font-medium transition-colors"
+              className="rounded-lg bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-200 hover:text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
             >
               {t('skip')}
             </button>
@@ -368,19 +371,20 @@ export default function PomodoroTimer({
         </div>
       )}
 
+      {/* Same compact grammar as the break prompt, indigo = back-to-work. */}
       {showBreakEndDialog && (
-        <div className="mb-6 p-6 bg-indigo-50 dark:bg-indigo-950 rounded-xl border-2 border-indigo-500">
-          <div className="text-center mb-4">
-            <div className="text-lg font-semibold text-indigo-700 dark:text-indigo-300">
-              {t('breakEndMessage')}
-            </div>
+        <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-500/20 dark:bg-indigo-500/10">
+          <div className="mb-3 text-center text-sm font-medium text-indigo-700 dark:text-indigo-300">
+            {t('breakEndMessage')}
           </div>
-          <button
-            onClick={handleBreakEnd}
-            className="w-full px-6 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-colors"
-          >
-            {t('resumeWork')}
-          </button>
+          <div className="flex justify-center">
+            <button
+              onClick={handleBreakEnd}
+              className="rounded-lg bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-100 dark:bg-indigo-500/15 dark:text-indigo-400 dark:hover:bg-indigo-500/25"
+            >
+              {t('resumeWork')}
+            </button>
+          </div>
         </div>
       )}
 
