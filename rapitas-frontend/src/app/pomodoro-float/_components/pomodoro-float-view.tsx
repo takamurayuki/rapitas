@@ -9,7 +9,7 @@
  */
 'use client';
 
-import { X, GlassWater } from 'lucide-react';
+import { X, Minus, GlassWater } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import {
   usePomodoroStore,
@@ -23,10 +23,20 @@ import PomodoroFloatEmptyState from './pomodoro-float-empty-state';
 
 const isTauri = (): boolean => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
+// NOTE: close() (not hide()) — app_setup.rs's CloseRequested handler only
+// forces hide-on-close for the "main" window label, so this actually
+// destroys the window. Re-showing it goes through GlobalPomodoroModal's
+// toggle button, which recreates it via the same builder used at app startup.
 async function closeFloatWindow(): Promise<void> {
   if (!isTauri()) return;
-  const { invoke } = await import('@tauri-apps/api/core');
-  await invoke('toggle_pomodoro_float');
+  const { getCurrentWindow } = await import('@tauri-apps/api/window');
+  await getCurrentWindow().close();
+}
+
+async function minimizeFloatWindow(): Promise<void> {
+  if (!isTauri()) return;
+  const { getCurrentWindow } = await import('@tauri-apps/api/window');
+  await getCurrentWindow().minimize();
 }
 
 async function requestCheckpoint(): Promise<void> {
@@ -48,7 +58,9 @@ export default function PomodoroFloatView() {
     : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800';
   const textShadowCls = isGlass ? '[text-shadow:0_1px_3px_rgba(0,0,0,0.45)]' : '';
 
-  const showTimer = state.taskId !== null && state.isTimerRunning;
+  // taskId may legitimately be null for a taskless session (plan.md データモデル
+  // — lastUsedTaskId), so isTimerRunning alone decides whether to show the ring.
+  const showTimer = state.isTimerRunning;
   const remaining = showTimer ? Math.max(0, getRemainingTime(state)) : 0;
   const total = state.isBreakTime
     ? state.pomodoroCount % 4 === 0
@@ -78,6 +90,15 @@ export default function PomodoroFloatView() {
           }`}
         >
           <GlassWater className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => void minimizeFloatWindow()}
+          aria-label={t('floatMinimize')}
+          title={t('floatMinimize')}
+          className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
+        >
+          <Minus className="h-4 w-4" />
         </button>
         <button
           type="button"

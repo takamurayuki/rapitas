@@ -31,6 +31,8 @@ function createState(overrides: Partial<State> = {}): State {
   return {
     taskId: 1,
     taskTitle: 'Write tests',
+    lastUsedTaskId: 1,
+    lastUsedTaskTitle: 'Write tests',
     isTimerRunning: true,
     isPaused: false,
     isBreakTime: false,

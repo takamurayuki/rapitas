@@ -4,15 +4,19 @@
  * Verifies the default mode, persistence on toggle, and restoring a
  * previously-stored mode on mount.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useTransparencyMode } from '../use-transparency-mode';
 
 const STORAGE_KEY = 'rapitas.pomodoroFloat.transparencyMode';
 
+const mockInvoke = vi.fn();
+vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }));
+
 describe('useTransparencyMode', () => {
   beforeEach(() => {
     window.localStorage.clear();
+    mockInvoke.mockClear();
   });
 
   it('defaults to "glass" when localStorage is empty', () => {
@@ -33,5 +37,14 @@ describe('useTransparencyMode', () => {
     window.localStorage.setItem(STORAGE_KEY, 'opaque');
     const { result } = renderHook(() => useTransparencyMode());
     expect(result.current.mode).toBe('opaque');
+  });
+
+  it('does not invoke the always-on-top command outside a Tauri environment', async () => {
+    const { result } = renderHook(() => useTransparencyMode());
+    await act(async () => {
+      result.current.toggleMode();
+      await Promise.resolve();
+    });
+    expect(mockInvoke).not.toHaveBeenCalled();
   });
 });
