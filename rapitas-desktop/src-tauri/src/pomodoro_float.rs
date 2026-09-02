@@ -34,7 +34,10 @@ fn build_pomodoro_float_window(app: &tauri::AppHandle) -> Result<tauri::WebviewW
     .always_on_top(false)
     .skip_taskbar(false)
     .resizable(false)
-    .transparent(true)
+    // NOTE: builder-level transparency rendered the whole window WHITE on
+    // Windows WebView2 (observed 2026-09-02). Opaque until a runtime glass
+    // effect (acrylic / window-vibrancy) replaces it.
+    .transparent(false)
     .center()
     .build()
     .map_err(|e| format!("Failed to create pomodoro-float window: {e}"))
