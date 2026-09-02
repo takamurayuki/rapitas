@@ -121,7 +121,10 @@ pub fn set_pomodoro_float_acrylic(app: tauri::AppHandle, enabled: bool) -> Resul
         return Ok(false);
     }
 
-    if win.set_background_color(Some(tauri::webview::Color(0, 0, 0, 0))).is_err() {
+    if win
+        .set_background_color(Some(tauri::webview::Color(0, 0, 0, 0)))
+        .is_err()
+    {
         let _ = clear_acrylic(&win);
         let _ = win.set_background_color(None);
         return Ok(false);
