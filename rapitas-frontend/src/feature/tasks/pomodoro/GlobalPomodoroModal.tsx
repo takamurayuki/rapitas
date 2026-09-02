@@ -88,6 +88,14 @@ export default function GlobalPomodoroModal({
   const [isFloatOpen, setIsFloatOpen] = useState(false);
   useEffect(() => {
     if (!isTauri()) return;
+    // The float window is now shown at app startup (before this modal ever
+    // mounts), so query its actual visibility once here instead of relying
+    // solely on the visibility-changed event going forward.
+    import('@tauri-apps/api/core').then(({ invoke }) => {
+      invoke<boolean>('pomodoro_float_is_visible')
+        .then(setIsFloatOpen)
+        .catch((err) => logger.error('Failed to query pomodoro float visibility:', err));
+    });
     let unlisten: (() => void) | undefined;
     import('@tauri-apps/api/event').then(({ listen }) => {
       listen<boolean>('pomodoro-float://visibility-changed', (e) => {

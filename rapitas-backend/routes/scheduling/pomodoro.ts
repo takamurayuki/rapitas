@@ -35,7 +35,7 @@ export const pomodoroRoutes = new Elysia({ prefix: '/pomodoro' })
     async ({ body, set }) => {
       try {
         const b = body as {
-          taskId?: number;
+          taskId?: number | null;
           duration?: number;
           type?: 'work' | 'short_break' | 'long_break';
           completedPomodoros?: number;
@@ -55,7 +55,7 @@ export const pomodoroRoutes = new Elysia({ prefix: '/pomodoro' })
     },
     {
       body: t.Object({
-        taskId: t.Optional(t.Number()),
+        taskId: t.Optional(t.Nullable(t.Number())),
         duration: t.Optional(t.Number({ minimum: 60, maximum: 7200 })),
         type: t.Optional(
           t.Union([t.Literal('work'), t.Literal('short_break'), t.Literal('long_break')]),

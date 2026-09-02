@@ -142,6 +142,24 @@ describe('POST /pomodoro/start', () => {
     expect(body.session).toEqual(session);
   });
 
+  test('taskIdがnullでも開始できること', async () => {
+    const session = { id: 1, status: 'active', taskId: null };
+    mockStartPomodoro.mockResolvedValue(session);
+
+    const res = await app.handle(
+      new Request('http://localhost/pomodoro/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: null, duration: 1500 }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.session).toEqual(session);
+  });
+
   test('bodyなしでも開始できること', async () => {
     const session = { id: 1, status: 'active' };
     mockStartPomodoro.mockResolvedValue(session);
