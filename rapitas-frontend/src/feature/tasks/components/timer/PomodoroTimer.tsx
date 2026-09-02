@@ -92,6 +92,19 @@ export default function PomodoroTimer({
         }),
       });
 
+      // A pre-selected subtask goes in-progress on start (operator flow
+      // 2026-09-03: select -> start -> subtask 進行中 -> complete -> done).
+      if (selectedSubtaskId != null) {
+        await fetch(`${API_BASE_URL}/tasks/${selectedSubtaskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: 'in-progress',
+            startedAt: new Date().toISOString(),
+          }),
+        });
+      }
+
       onUpdate();
     } catch (err) {
       logger.error('Failed to start timer:', err);
@@ -390,10 +403,13 @@ export default function PomodoroTimer({
         </div>
       )}
 
-      {/* Subtask selector — pick where to attribute this session's work time */}
+      {/* Subtask selector — pick where to attribute this session's time and
+          status changes. Visible from IDLE too (operator flow 2026-09-03):
+          the pick must happen before Start so starting can flip the subtask
+          to in-progress. Unselected = the parent task receives both. */}
       {!showBreakDialog &&
         !showBreakEndDialog &&
-        (isTimerRunning || isPaused) &&
+        !isBreakTime &&
         subtasks &&
         subtasks.length > 0 && (
           <div className="w-full mb-4 px-2">
