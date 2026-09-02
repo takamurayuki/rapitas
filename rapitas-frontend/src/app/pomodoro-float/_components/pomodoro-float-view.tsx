@@ -13,7 +13,7 @@ import { X, Minus, GlassWater, Focus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { usePomodoroStore } from '@/feature/tasks/pomodoro/pomodoro-store';
 import PomodoroPanelContent from '@/feature/tasks/pomodoro/PomodoroPanelContent';
-import { useTransparencyMode } from '../_hooks/use-transparency-mode';
+import { useTransparencyMode, GLASS_AVAILABLE } from '../_hooks/use-transparency-mode';
 import { useFocusMode } from '../_hooks/use-focus-mode';
 import { useFloatPageBackground } from '../_hooks/use-float-page-background';
 import PomodoroFloatEmptyState from './pomodoro-float-empty-state';
@@ -79,20 +79,24 @@ export default function PomodoroFloatView() {
         >
           <Focus className="h-4 w-4" />
         </button>
-        <button
-          type="button"
-          onClick={toggleMode}
-          aria-pressed={isGlass}
-          aria-label={t('floatTransparencyToggle')}
-          title={t('floatTransparencyToggle')}
-          className={`rounded-lg p-1.5 transition-colors ${
-            isGlass
-              ? 'text-indigo-500 dark:text-indigo-400'
-              : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
-          }`}
-        >
-          <GlassWater className="h-4 w-4" />
-        </button>
+        {/* NOTE: hidden while glass is disabled (alpha-0 background whites
+            out this WebView2 — see GLASS_DISABLED in use-transparency-mode). */}
+        {GLASS_AVAILABLE && (
+          <button
+            type="button"
+            onClick={toggleMode}
+            aria-pressed={isGlass}
+            aria-label={t('floatTransparencyToggle')}
+            title={t('floatTransparencyToggle')}
+            className={`rounded-lg p-1.5 transition-colors ${
+              isGlass
+                ? 'text-indigo-500 dark:text-indigo-400'
+                : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
+            }`}
+          >
+            <GlassWater className="h-4 w-4" />
+          </button>
+        )}
         <button
           type="button"
           onClick={() => void minimizeFloatWindow()}
