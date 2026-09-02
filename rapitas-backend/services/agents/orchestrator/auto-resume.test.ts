@@ -30,6 +30,7 @@ const OK_OPTS = {
   hasNewerExecution: false,
   taskStatus: 'todo',
   hasWorkingDirectory: true,
+  hasActiveLock: false,
 };
 
 describe('countResumeAttempts', () => {
@@ -74,6 +75,12 @@ describe('decideAutoResume', () => {
     const d = decideAutoResume(exec(), { ...OK_OPTS, hasNewerExecution: true });
     expect(d.resume).toBe(false);
     expect(d.reason).toContain('newer execution');
+  });
+
+  it('skips when a task-execution lock is already held for this task', () => {
+    const d = decideAutoResume(exec(), { ...OK_OPTS, hasActiveLock: true });
+    expect(d.resume).toBe(false);
+    expect(d.reason).toContain('lock');
   });
 
   it('skips executions older than the freshness window', () => {
