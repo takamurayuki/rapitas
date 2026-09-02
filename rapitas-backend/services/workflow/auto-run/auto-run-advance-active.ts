@@ -148,7 +148,9 @@ export async function advanceActiveTask(
       // surfaces in the NotificationBell (same pattern as the other auto-run
       // lifecycle notifications above).
       await notifyHangBackstop(themeId, currentTaskId, Math.round(MAX_TASK_WALL_MS / 60000));
-      await stopThemeExecutionImpl(prisma, themeId, currentTaskId);
+      await stopThemeExecutionImpl(prisma, themeId, currentTaskId, {
+        recordRevertTransition: false,
+      });
       // Read the row BEFORE the blocked write so the transition below can
       // carry the pre-stop task.status (resolveTaskWorkflowState is the
       // existing task-resolver helper; it returns null on a DB miss).

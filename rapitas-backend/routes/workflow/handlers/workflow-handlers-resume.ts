@@ -18,77 +18,12 @@ import {
   readWorkflowFile,
   writeWorkflowFile,
 } from '../../../services/workflow/workflow-file-utils';
+import {
+  triggerReExecutionAfterAnswer,
+  triggerRedispatchAfterResume,
+} from './workflow-handlers-resume-redispatch';
 
 const log = createLogger('routes:workflow:resume');
-
-/**
- * Best-effort auto re-trigger after an intake question is answered.
- *
- * This pause never had a live agent process to resume (see
- * handleAnswerWorkflowQuestion's doc comment) — without this, a manually
- * executed task (auto-run disabled for its theme) just sat at
- * workflowStatus='draft' forever, needing the user to notice and click
- * "実行" again themselves. That silently contradicted the frontend's own
- * phase-completion message, which always claims "次のフェーズへ自動で進みます"
- * for the researcher phase regardless of whether it ended in a question.
- *
- * Reuses the SAME agent config the task's last execution used (falls back to
- * the execute route's own default-agent resolution when none is found).
- * Never throws — errors are logged and swallowed so a failed auto re-run
- * cannot fail the caller's own response; a theme with auto-run currently
- * active will reject this with 409 (harmless — the scheduler already owns
- * that task).
- *
- * @param taskId - Task whose question was just answered. / 回答されたタスクID
- */
-async function triggerReExecutionAfterAnswer(taskId: number): Promise<void> {
-  try {
-    // NOTE: A task run through the workflow CLI executor (research/plan/verify
-    // phases) never gets an AgentExecution row via this session→config chain —
-    // that relation is populated by a different execution path. Task 513
-    // (research already ran, a mid-research question paused it, answered,
-    // never resumed) had zero AgentExecution rows despite research.md
-    // existing, proving lastExecution is null for exactly the common case
-    // this function exists to handle. Previously this returned early here,
-    // silently skipping the re-run entirely — contradicting this function's
-    // own doc comment, which already promised execute-route's default-agent
-    // resolution as the fallback. Proceed with agentConfigId left undefined
-    // instead so that fallback actually runs.
-    const lastExecution = await prisma.agentExecution.findFirst({
-      where: { session: { config: { taskId } } },
-      orderBy: { createdAt: 'desc' },
-      select: { agentConfigId: true },
-    });
-    if (!lastExecution) {
-      log.info(
-        { taskId },
-        '[Workflow:Answer] No prior execution found for this task — re-running with the default agent config',
-      );
-    }
-
-    const port = process.env.PORT || '3001';
-    const apiToken = process.env.RAPITAS_API_TOKEN;
-    const res = await fetch(`http://127.0.0.1:${port}/tasks/${taskId}/execute`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
-      },
-      body: JSON.stringify({ agentConfigId: lastExecution?.agentConfigId ?? undefined }),
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      log.warn(
-        { taskId, status: res.status, body },
-        '[Workflow:Answer] Auto re-run request was rejected — task remains draft until manually re-run',
-      );
-      return;
-    }
-    log.info({ taskId }, '[Workflow:Answer] Auto re-run triggered after question answer');
-  } catch (err) {
-    log.warn({ err, taskId }, '[Workflow:Answer] Auto re-run trigger failed (non-fatal)');
-  }
-}
 
 interface ResumeContext {
   params: { taskId: string };
@@ -459,6 +394,11 @@ export async function applyResumeFromQuestionAnswer(params: ApplyResumeAnswerPar
     cause: 'question_resolved',
     metadata: { source, ...(extraMetadata ?? {}) },
   });
+
+  // Errors are logged inside triggerRedispatchAfterResume and never thrown —
+  // a failed nudge must not fail this response (the resume itself is already
+  // durably recorded above).
+  await triggerRedispatchAfterResume(taskId);
 
   return {
     taskId,

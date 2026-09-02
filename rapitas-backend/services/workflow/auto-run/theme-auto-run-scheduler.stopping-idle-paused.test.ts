@@ -20,6 +20,7 @@ import {
   mockRevertChanges,
   mockTaskUpdate,
   mockTaskCount,
+  mockRecordTransition,
   mockHasPromotableBacklog,
   mockPromoteBacklogForTheme,
   mockStartAutoRun,
@@ -347,7 +348,45 @@ describe('stopThemeExecution', () => {
 
     expect(mockStopThemeAgents).toHaveBeenCalledWith(10, 100, { errorMessage: 'Auto-run stopped' });
     expect(mockRevertChanges).toHaveBeenCalledWith('/repo/work');
-    expect(mockTaskUpdate).toHaveBeenCalledWith({ where: { id: 100 }, data: { status: 'todo' } });
+    expect(mockTaskUpdate).toHaveBeenCalledWith({
+      where: { id: 100 },
+      data: { status: 'todo' },
+      select: { workflowStatus: true },
+    });
+  });
+
+  it('records an auto_run_stop_revert transition so Pattern B grants it recovery grace (task 830)', async () => {
+    mockResolveTaskWorkingDirectory.mockResolvedValue({
+      themeId: 10,
+      workingDirectory: '/repo/work',
+      theme: null,
+    });
+    mockTaskUpdate.mockResolvedValue({ workflowStatus: 'plan_approved' });
+
+    await internal(scheduler).stopThemeExecution(10, 100);
+
+    expect(mockRecordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: 100,
+        fromStatus: 'plan_approved',
+        toStatus: 'plan_approved',
+        actor: 'system',
+        cause: 'auto_run_stop_revert',
+      }),
+    );
+  });
+
+  it('does not record a transition when the task update itself fails', async () => {
+    mockResolveTaskWorkingDirectory.mockResolvedValue({
+      themeId: 10,
+      workingDirectory: '/repo/work',
+      theme: null,
+    });
+    mockTaskUpdate.mockImplementation(() => Promise.reject(new Error('db down')));
+
+    await internal(scheduler).stopThemeExecution(10, 100);
+
+    expect(mockRecordTransition).not.toHaveBeenCalled();
   });
 
   it('falls back to the theme working directory when the task has none of its own', async () => {
@@ -373,7 +412,11 @@ describe('stopThemeExecution', () => {
 
     expect(mockRevertChanges).not.toHaveBeenCalled();
     // The task must still be reset even without a working directory to revert.
-    expect(mockTaskUpdate).toHaveBeenCalledWith({ where: { id: 100 }, data: { status: 'todo' } });
+    expect(mockTaskUpdate).toHaveBeenCalledWith({
+      where: { id: 100 },
+      data: { status: 'todo' },
+      select: { workflowStatus: true },
+    });
   });
 
   it('swallows an unexpected resolveTaskWorkingDirectory throw without propagating', async () => {

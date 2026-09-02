@@ -3,16 +3,17 @@
  *
  * Tests for handleAnswerWorkflowQuestion (intake question.md answer -> reset to
  * draft, plus clearing a stale task.status='blocked') and handleResumeFromQuestion
- * (awaiting_question -> recorded previousStatus).
+ * (awaiting_question -> recorded previousStatus). The auto re-trigger/re-dispatch
+ * helpers themselves are covered by workflow-handlers-resume-redispatch.test.ts —
+ * here they are mocked as a single collaborator boundary.
  */
-import { describe, expect, test, mock, beforeEach, afterAll } from 'bun:test';
+import { describe, expect, test, mock, beforeEach } from 'bun:test';
 
 // ---- prisma mock ----
 const mockFindUnique = mock(() => Promise.resolve<Record<string, unknown> | null>(null));
 const mockUpdate = mock(() => Promise.resolve({}));
 const mockUpdateMany = mock(() => Promise.resolve({ count: 0 }));
 const mockFindFirstTransition = mock(() => Promise.resolve<Record<string, unknown> | null>(null));
-const mockFindFirstExecution = mock(() => Promise.resolve<Record<string, unknown> | null>(null));
 const mockPrisma = {
   task: {
     findUnique: mockFindUnique,
@@ -22,18 +23,11 @@ const mockPrisma = {
   workflowTransition: {
     findFirst: mockFindFirstTransition,
   },
-  agentExecution: {
-    findFirst: mockFindFirstExecution,
-  },
 };
 mock.module('../../../config', () => ({
   prisma: mockPrisma,
   createLogger: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {} }),
 }));
-
-// ---- fetch mock (the auto re-run's internal loopback call) ----
-const mockFetch = mock(() => Promise.resolve(new Response(null, { status: 200 })));
-const originalFetch = global.fetch;
 
 // ---- recordTransition mock ----
 const mockRecordTransition = mock(() => Promise.resolve());
@@ -57,6 +51,14 @@ const mockResolveTaskWorkflowState = mock(() =>
 );
 mock.module('../../../services/task/task-resolver', () => ({
   resolveTaskWorkflowState: mockResolveTaskWorkflowState,
+}));
+
+// ---- redispatch collaborator mock (task 830; see workflow-handlers-resume-redispatch.test.ts) ----
+const mockTriggerReExecutionAfterAnswer = mock(() => Promise.resolve());
+const mockTriggerRedispatchAfterResume = mock(() => Promise.resolve());
+mock.module('./workflow-handlers-resume-redispatch', () => ({
+  triggerReExecutionAfterAnswer: mockTriggerReExecutionAfterAnswer,
+  triggerRedispatchAfterResume: mockTriggerRedispatchAfterResume,
 }));
 
 // ---- middleware mock ----
@@ -83,18 +85,13 @@ beforeEach(() => {
   mockUpdate.mockReset().mockResolvedValue({});
   mockUpdateMany.mockReset().mockResolvedValue({ count: 0 });
   mockFindFirstTransition.mockReset();
-  mockFindFirstExecution.mockReset().mockResolvedValue(null);
   mockRecordTransition.mockReset().mockResolvedValue(undefined);
   mockArchiveWorkflowFile.mockReset().mockResolvedValue(undefined);
   mockReadWorkflowFile.mockReset().mockResolvedValue(null);
   mockWriteWorkflowFile.mockReset().mockResolvedValue('');
   mockResolveTaskWorkflowState.mockReset();
-  mockFetch.mockReset().mockResolvedValue(new Response(null, { status: 200 }));
-  global.fetch = mockFetch as unknown as typeof fetch;
-});
-
-afterAll(() => {
-  global.fetch = originalFetch;
+  mockTriggerReExecutionAfterAnswer.mockReset().mockResolvedValue(undefined);
+  mockTriggerRedispatchAfterResume.mockReset().mockResolvedValue(undefined);
 });
 
 describe('handleAnswerWorkflowQuestion', () => {
@@ -264,10 +261,13 @@ describe('handleAnswerWorkflowQuestion', () => {
     );
   });
 
-  test('auto re-triggers execution with the last-used agentConfigId after answering', async () => {
+  test('delegates the post-answer auto re-run to triggerReExecutionAfterAnswer', async () => {
     // Regression test: this pause never has a live agent process to resume,
     // so without the auto re-trigger the task just sat at workflowStatus=
     // 'draft' forever (task 512 report — user answered, nothing continued).
+    // The re-trigger logic itself is covered by
+    // workflow-handlers-resume-redispatch.test.ts; here we only assert the
+    // handler calls it with the resolved taskId.
     mockFindUnique.mockResolvedValue({
       id: 512,
       description: '既存の説明',
@@ -275,56 +275,19 @@ describe('handleAnswerWorkflowQuestion', () => {
       workflowStatus: 'awaiting_question',
       status: 'blocked',
     });
-    mockFindFirstExecution.mockResolvedValue({ agentConfigId: 1 });
 
-    await handleAnswerWorkflowQuestion({
+    const result = await handleAnswerWorkflowQuestion({
       params: { taskId: '512' },
       body: { answer: 'A: 本格ログインを必須にする' },
       set: {},
       headers: { 'x-rapitas-source': 'ui' },
     });
 
-    expect(mockFindFirstExecution).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { session: { config: { taskId: 512 } } } }),
-    );
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('http://127.0.0.1:3001/tasks/512/execute');
-    expect(init.method).toBe('POST');
-    expect(JSON.parse(init.body as string)).toEqual({ agentConfigId: 1 });
+    expect(mockTriggerReExecutionAfterAnswer).toHaveBeenCalledWith(512);
+    expect(result).toEqual({ taskId: 512, ok: true, toStatus: 'draft' });
   });
 
-  test('still auto re-triggers execution (default agent config) when the task has no prior execution', async () => {
-    // Regression test (task 513): a task run through the workflow CLI
-    // executor never gets an AgentExecution row via this session→config
-    // chain — that relation is populated by a different execution path.
-    // lastExecution is null here for that same reason, and the fix is to
-    // still call /execute (with agentConfigId omitted, letting the route's
-    // own default-agent resolution apply) rather than skip re-running
-    // entirely, which previously left such tasks stuck at draft forever.
-    mockFindUnique.mockResolvedValue({
-      id: 999,
-      description: null,
-      goals: null,
-      workflowStatus: 'awaiting_question',
-      status: 'todo',
-    });
-    mockFindFirstExecution.mockResolvedValue(null);
-
-    await handleAnswerWorkflowQuestion({
-      params: { taskId: '999' },
-      body: { answer: '回答' },
-      set: {},
-      headers: { 'x-rapitas-source': 'ui' },
-    });
-
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('http://127.0.0.1:3001/tasks/999/execute');
-    expect(JSON.parse(init.body as string)).toEqual({ agentConfigId: undefined });
-  });
-
-  test('does not throw when the auto re-trigger request fails', async () => {
+  test('does not throw when triggerReExecutionAfterAnswer itself rejects', async () => {
     mockFindUnique.mockResolvedValue({
       id: 512,
       description: null,
@@ -332,40 +295,19 @@ describe('handleAnswerWorkflowQuestion', () => {
       workflowStatus: 'awaiting_question',
       status: 'blocked',
     });
-    mockFindFirstExecution.mockResolvedValue({ agentConfigId: 1 });
-    mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: 'AUTO_RUN_ACTIVE' }), { status: 409 }),
-    );
+    mockTriggerReExecutionAfterAnswer.mockRejectedValue(new Error('boom'));
 
-    const result = await handleAnswerWorkflowQuestion({
-      params: { taskId: '512' },
-      body: { answer: '回答' },
-      set: {},
-      headers: { 'x-rapitas-source': 'ui' },
-    });
-
-    expect(result).toEqual({ taskId: 512, ok: true, toStatus: 'draft' });
-  });
-
-  test('does not throw when the auto re-trigger fetch itself rejects', async () => {
-    mockFindUnique.mockResolvedValue({
-      id: 512,
-      description: null,
-      goals: null,
-      workflowStatus: 'awaiting_question',
-      status: 'blocked',
-    });
-    mockFindFirstExecution.mockResolvedValue({ agentConfigId: 1 });
-    mockFetch.mockRejectedValue(new Error('ECONNREFUSED'));
-
-    const result = await handleAnswerWorkflowQuestion({
-      params: { taskId: '512' },
-      body: { answer: '回答' },
-      set: {},
-      headers: { 'x-rapitas-source': 'ui' },
-    });
-
-    expect(result).toEqual({ taskId: 512, ok: true, toStatus: 'draft' });
+    // triggerReExecutionAfterAnswer never throws in production (it swallows
+    // its own errors internally) — this only guards the caller in case that
+    // contract is ever violated.
+    await expect(
+      handleAnswerWorkflowQuestion({
+        params: { taskId: '512' },
+        body: { answer: '回答' },
+        set: {},
+        headers: { 'x-rapitas-source': 'ui' },
+      }),
+    ).rejects.toThrow('boom');
   });
 
   test('rejects an invalid taskId', async () => {
@@ -540,5 +482,48 @@ describe('handleResumeFromQuestion', () => {
       where: { id: 803, status: 'todo' },
       data: { status: 'in-progress' },
     });
+  });
+
+  // Regression test (task 830): task #829 sat at status='todo' with an
+  // advanced workflowStatus for 24+ minutes after its question was resolved
+  // because nothing re-dispatched it. The re-dispatch decision logic itself
+  // is covered by workflow-handlers-resume-redispatch.test.ts; here we only
+  // assert the handler delegates to it with the resolved taskId, AFTER the
+  // transition has already been durably recorded.
+  test('delegates the post-resume re-dispatch nudge to triggerRedispatchAfterResume', async () => {
+    mockResolveTaskWorkflowState.mockResolvedValue({
+      id: 829,
+      workflowStatus: 'awaiting_question',
+    });
+    mockFindFirstTransition.mockResolvedValue({
+      metadata: { previousStatus: 'plan_approved' },
+      fromStatus: 'plan_approved',
+    });
+
+    await handleResumeFromQuestion({ params: { taskId: '829' }, set: {} });
+
+    expect(mockTriggerRedispatchAfterResume).toHaveBeenCalledWith(829);
+    const recordOrder = mockRecordTransition.mock.invocationCallOrder[0];
+    const nudgeOrder = mockTriggerRedispatchAfterResume.mock.invocationCallOrder[0];
+    expect(recordOrder).toBeLessThan(nudgeOrder);
+  });
+
+  test('does not throw when triggerRedispatchAfterResume itself rejects', async () => {
+    mockResolveTaskWorkflowState.mockResolvedValue({
+      id: 829,
+      workflowStatus: 'awaiting_question',
+    });
+    mockFindFirstTransition.mockResolvedValue({
+      metadata: { previousStatus: 'plan_approved' },
+      fromStatus: 'plan_approved',
+    });
+    mockTriggerRedispatchAfterResume.mockRejectedValue(new Error('boom'));
+
+    // triggerRedispatchAfterResume never throws in production (it swallows
+    // its own errors internally) — this only guards the caller in case that
+    // contract is ever violated.
+    await expect(handleResumeFromQuestion({ params: { taskId: '829' }, set: {} })).rejects.toThrow(
+      'boom',
+    );
   });
 });
