@@ -120,10 +120,14 @@ export default function PomodoroTimer({
         : (actualHours ?? 0);
     const newActualHours = targetPriorActual + workHours;
 
-    try {
-      const endTime = new Date();
-      const startTime = new Date(store.timerStartTime);
+    // Capture before stopTimer resets it, and stop the UI FIRST — a slow or
+    // restarting backend must never hold the button hostage (the button read
+    // as dead during a backend init window, 2026-09-02).
+    const endTime = new Date();
+    const startTime = new Date(store.timerStartTime);
+    store.stopTimer();
 
+    try {
       await fetch(`${API_BASE_URL}/tasks/${targetId}/time-entries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -150,10 +154,10 @@ export default function PomodoroTimer({
         });
       }
 
-      store.stopTimer();
       onUpdate();
     } catch (err) {
       logger.error('Failed to stop timer:', err);
+      showToast(t('syncFailed'), 'error');
     }
   };
 
@@ -169,10 +173,12 @@ export default function PomodoroTimer({
         ? (subtasks?.find((s) => s.id === selectedSubtaskId)?.actualHours ?? 0)
         : (actualHours ?? 0);
 
-    try {
-      const endTime = new Date();
-      const startTime = new Date(store.timerStartTime);
+    // Stop the UI first — see handleStopTimer.
+    const endTime = new Date();
+    const startTime = new Date(store.timerStartTime);
+    store.stopTimer();
 
+    try {
       await fetch(`${API_BASE_URL}/tasks/${targetId}/time-entries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -203,10 +209,10 @@ export default function PomodoroTimer({
         });
       }
 
-      store.stopTimer();
       onUpdate();
     } catch (err) {
       logger.error('Failed to complete task:', err);
+      showToast(t('syncFailed'), 'error');
     }
   };
 

@@ -3033,7 +3033,8 @@
     "workDuration": "Work duration",
     "minutes": "{count} min",
     "floatOpenFromTaskDetail": "Start a Pomodoro from a task's detail page",
-    "floatGoToTask": "Open task"
+    "floatGoToTask": "Open task",
+    "syncFailed": "Failed to sync with the backend — the time may not have been saved"
   },
   "kanban": {
     "prevWeek": "Previous week",
