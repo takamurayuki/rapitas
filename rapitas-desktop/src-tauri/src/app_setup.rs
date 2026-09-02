@@ -185,6 +185,8 @@ pub fn run() {
             crate::shortcuts::set_capture_shortcut,
             crate::quick_capture::open_quick_capture,
             crate::pomodoro_float::toggle_pomodoro_float,
+            crate::pomodoro_float::pomodoro_float_is_visible,
+            crate::pomodoro_float::set_pomodoro_float_always_on_top,
             crate::toast::show_toast_window,
             crate::toast::toast_ready,
             crate::toast::toast_dismiss,
@@ -215,15 +217,29 @@ pub fn run() {
             if let Err(e) = crate::toast::create_toast_window(app.handle()) {
                 eprintln!("[Toast] pre-warm failed: {e}");
             }
+            // Show the Pomodoro floating window from the first launch (plan.md
+            // 「起動時表示」) instead of waiting for the modal's toggle button.
+            if let Err(e) =
+                crate::pomodoro_float::show_or_create_pomodoro_float_window(app.handle())
+            {
+                eprintln!("[Pomodoro] float window startup failed: {e}");
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Hide window to system tray instead of closing
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
-                let _ = window.emit("rapitas:window-hide", ());
-                println!("[Tray] Window hidden to system tray");
+                if window.label() == "main" {
+                    // Hide the main window to the system tray instead of closing.
+                    api.prevent_close();
+                    let _ = window.hide();
+                    let _ = window.emit("rapitas:window-hide", ());
+                    println!("[Tray] Window hidden to system tray");
+                } else if window.label() == "pomodoro-float" {
+                    // Let the × button (and Alt+F4) actually destroy this window
+                    // instead of hiding it — plan.md 設計判断の根拠 #「close用の新規
+                    // コマンド要否」. Notify listeners before the window is gone.
+                    let _ = window.emit("pomodoro-float://visibility-changed", false);
+                }
             }
             // Native visibility signal for the frontend (useAppVisibility).
             // WebView2 occlusion is disabled to avoid a black-screen bug, so

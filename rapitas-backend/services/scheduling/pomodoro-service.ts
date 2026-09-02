@@ -44,7 +44,7 @@ export async function getActiveSession() {
  * Start a pomodoro.
  */
 export async function startPomodoro(params: {
-  taskId?: number;
+  taskId?: number | null;
   duration?: number;
   type?: PomodoroType;
   completedPomodoros?: number;

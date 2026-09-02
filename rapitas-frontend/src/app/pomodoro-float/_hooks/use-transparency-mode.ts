@@ -20,6 +20,17 @@ function readStoredMode(): TransparencyMode {
   return stored === 'opaque' || stored === 'glass' ? stored : DEFAULT_MODE;
 }
 
+const isTauri = (): boolean => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+// NOTE: always_on_top is intentionally opposite of taskbar presence — the
+// window builder starts with it false (plan.md 設計判断の根拠 #1) so it never
+// fights skip_taskbar(false); glass mode re-enables it as an overlay.
+async function syncAlwaysOnTop(mode: TransparencyMode): Promise<void> {
+  if (!isTauri()) return;
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke('set_pomodoro_float_always_on_top', { on: mode === 'glass' });
+}
+
 /**
  * Returns the current transparency mode and a toggler that persists the change.
  *
@@ -31,6 +42,10 @@ export function useTransparencyMode(): { mode: TransparencyMode; toggleMode: () 
   useEffect(() => {
     setMode(readStoredMode());
   }, []);
+
+  useEffect(() => {
+    void syncAlwaysOnTop(mode);
+  }, [mode]);
 
   const toggleMode = useCallback(() => {
     setMode((prev) => {

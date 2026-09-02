@@ -28,6 +28,7 @@
     "core:window:allow-is-maximized",
     "core:window:allow-is-fullscreen",
     "core:window:allow-set-fullscreen",
+    "core:window:allow-set-always-on-top",
     "updater:default",
     "process:allow-restart",
     "notification:default"
