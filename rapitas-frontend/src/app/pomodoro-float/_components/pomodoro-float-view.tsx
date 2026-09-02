@@ -62,9 +62,10 @@ export default function PomodoroFloatView() {
   const displayTaskTitle = state.isTimerRunning ? state.taskTitle : state.lastUsedTaskTitle;
   const showTimer = displayTaskId !== null;
 
-  // Content-fitted window height (no scrollbars — the window grows instead).
+  // Content-fitted window height, re-fit only on show and on these layout
+  // flips (no continuous observation — see use-auto-window-height).
   const contentRef = useRef<HTMLDivElement | null>(null);
-  useAutoWindowHeight(contentRef);
+  useAutoWindowHeight(contentRef, [showTimer, focusMode, state.isTimerRunning, state.isBreakTime]);
 
   return (
     <div

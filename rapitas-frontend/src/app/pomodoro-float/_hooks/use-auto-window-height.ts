@@ -1,10 +1,12 @@
 /**
  * useAutoWindowHeight
  *
- * Resizes the Pomodoro floating window to fit its content height (operator
- * request 2026-09-02: no scrollbars — the window adapts instead). Observes the
- * content wrapper and calls the Tauri window API with the CURRENT width kept,
- * so the user's manual width choice survives. No-op outside Tauri.
+ * Fits the Pomodoro floating window's height to its content at discrete
+ * moments only: mount, window show, and layout-changing state flips the
+ * caller lists in `deps`. Deliberately NO ResizeObserver — continuous
+ * observation created resize feedback loops that pegged WebView2 at multiple
+ * cores twice on 2026-09-02; with one-shot fits a loop is structurally
+ * impossible. No-op outside Tauri.
  */
 'use client';
 
@@ -18,89 +20,55 @@ const MAX_HEIGHT = 1000;
 const isTauri = (): boolean => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 /**
- * Keep the window height in sync with the observed element's content height.
+ * Fit the window height to the observed element's content height once per
+ * trigger: on mount, on each show, and whenever `deps` change.
  *
  * @param ref - Content wrapper whose natural height drives the window height / ウインドウ高さの基準となるコンテンツ要素
+ * @param deps - Layout-changing state (e.g. idle/running, focus mode) / 再フィットを起こすレイアウト状態
  */
-export function useAutoWindowHeight(ref: RefObject<HTMLDivElement | null>): void {
+export function useAutoWindowHeight(ref: RefObject<HTMLDivElement | null>, deps: unknown[]): void {
   useEffect(() => {
     const el = ref.current;
     if (!isTauri() || !el) return;
 
-    let raf = 0;
-    let applying = false;
-    let dirty = false;
-    const apply = () => {
-      raf = 0;
-      // Don't DROP events that land mid-apply — remember them and re-run once
-      // the in-flight apply settles, or the final content height is missed
-      // and the window sticks at a partial-load size (seen 2026-09-02: the
-      // float opened at roughly half its content height).
-      if (applying) {
-        dirty = true;
-        return;
-      }
+    let cancelled = false;
+    const fit = async () => {
+      // Double rAF: let the triggering render actually lay out first.
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      if (cancelled) return;
       const target = Math.min(Math.max(Math.ceil(el.scrollHeight), MIN_HEIGHT), MAX_HEIGHT);
-      applying = true;
-      void (async () => {
-        const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        const { PhysicalSize } = await import('@tauri-apps/api/dpi');
-        const win = getCurrentWindow();
-        const [size, scale] = await Promise.all([win.innerSize(), win.scaleFactor()]);
-        // Anti-oscillation guards (a resize feedback loop here pegged the
-        // WebView2 processes at several cores, 2026-09-02):
-        // - pass the width back as the EXACT physical value — round-tripping
-        //   it through logical px drifts on fractional DPI scales, and each
-        //   drift reflows the content and re-fires the observer;
-        // - skip when the height is already within 2px of the target.
-        const targetPhysical = Math.round(target * scale);
-        if (Math.abs(size.height - targetPhysical) <= 2 * scale) return;
-        await win.setSize(new PhysicalSize(size.width, targetPhysical));
-      })()
-        .catch(() => {
-          /* window may be mid-close; sizing is best-effort */
-        })
-        .finally(() => {
-          applying = false;
-          if (dirty) {
-            dirty = false;
-            if (!raf) raf = requestAnimationFrame(apply);
-          }
-        });
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      const { PhysicalSize } = await import('@tauri-apps/api/dpi');
+      const win = getCurrentWindow();
+      const [size, scale] = await Promise.all([win.innerSize(), win.scaleFactor()]);
+      const targetPhysical = Math.round(target * scale);
+      if (Math.abs(size.height - targetPhysical) <= 2 * scale) return;
+      // Width passes through as the exact physical value — a logical round
+      // trip drifts on fractional DPI scales.
+      await win.setSize(new PhysicalSize(size.width, targetPhysical));
     };
+    void fit().catch(() => {
+      /* window may be mid-close; sizing is best-effort */
+    });
 
-    // Trailing debounce: while the user drags the window edge, content
-    // rewraps keep firing the observer — applying immediately makes the
-    // auto-height fight the drag with churning native resizes (black repaint
-    // bands, 2026-09-02). Settle 250ms after the last change, then fit once.
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const schedule = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (!raf) raf = requestAnimationFrame(apply);
-      }, 250);
-    };
-    const ro = new ResizeObserver(schedule);
-    ro.observe(el);
-    apply();
-
-    // Re-fit on every show: the window is long-lived (hidden, never
-    // destroyed), so a manual resize would otherwise stick for every later
-    // open — each open should start content-fitted again.
+    // Re-fit on show: the window is long-lived (hidden, never destroyed), so
+    // a manual resize would otherwise stick for every later open.
     let unlisten: (() => void) | undefined;
     import('@tauri-apps/api/event').then(({ listen }) => {
       listen<boolean>('pomodoro-float://visibility-changed', (event) => {
-        if (event.payload) schedule();
+        if (event.payload)
+          void fit().catch(() => {
+            /* best-effort */
+          });
       }).then((fn) => {
         unlisten = fn;
       });
     });
 
     return () => {
-      ro.disconnect();
-      clearTimeout(timer);
-      if (raf) cancelAnimationFrame(raf);
+      cancelled = true;
       unlisten?.();
     };
-  }, [ref]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deps is the caller's trigger list
+  }, [ref, ...deps]);
 }
