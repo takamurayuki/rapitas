@@ -3031,7 +3031,9 @@
     "volumeLow": "小",
     "volumeHigh": "大",
     "workDuration": "作業時間",
-    "minutes": "{count}分"
+    "minutes": "{count}分",
+    "floatPickTaskPrompt": "開始するタスクを選択してください",
+    "floatPickTaskLabel": "タスクを選ぶ"
   },
   "kanban": {
     "prevWeek": "前の週",

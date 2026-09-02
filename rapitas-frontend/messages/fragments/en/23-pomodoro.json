@@ -44,6 +44,8 @@
     "volumeLow": "Low",
     "volumeHigh": "High",
     "workDuration": "Work duration",
-    "minutes": "{count} min"
+    "minutes": "{count} min",
+    "floatPickTaskPrompt": "Select a task to start",
+    "floatPickTaskLabel": "Choose a task"
   }
 }

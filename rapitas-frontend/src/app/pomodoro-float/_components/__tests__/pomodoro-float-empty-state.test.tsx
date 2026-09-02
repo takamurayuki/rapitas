@@ -40,7 +40,7 @@ describe('PomodoroFloatEmptyState', () => {
     expect(startTimer).toHaveBeenCalledWith(5, 'My Task');
   });
 
-  it('shows the no-task label and calls startTimer(null, null) when no task was used yet', () => {
+  it('prompts for a task and keeps Start disabled when no task was used yet (design A: no taskless sessions)', () => {
     const startTimer = vi.fn();
     mockUsePomodoroStore.mockReturnValue({
       lastUsedTaskId: null,
@@ -51,9 +51,11 @@ describe('PomodoroFloatEmptyState', () => {
 
     render(<PomodoroFloatEmptyState />);
 
-    expect(screen.getByText('pomodoro.floatNoTaskLabel')).toBeInTheDocument();
+    expect(screen.getByText('pomodoro.floatPickTaskPrompt')).toBeInTheDocument();
 
+    const startButton = screen.getByText('pomodoro.start').closest('button');
+    expect(startButton).toBeDisabled();
     fireEvent.click(screen.getByText('pomodoro.start'));
-    expect(startTimer).toHaveBeenCalledWith(null, null);
+    expect(startTimer).not.toHaveBeenCalled();
   });
 });
