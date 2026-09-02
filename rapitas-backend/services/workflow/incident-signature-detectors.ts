@@ -24,11 +24,10 @@ export const REPEAT_LOOP_MIN_COUNT =
 
 /**
  * Minimum same-cause invariantViolation transitions within the window to count
- * as a loop (default 2, lower than REPEAT_LOOP_MIN_COUNT). An invariantViolation
- * is the system itself flagging a contract breach, a strong signal that does not
- * need the general threshold's forgiveness-budget churn allowance (task 673: 2
- * `verify_pr_not_created` invariantViolations 70s apart went undetected under
- * the default minCount=3/window=60m).
+ * as a loop (default 2, lower than REPEAT_LOOP_MIN_COUNT) — an invariantViolation
+ * is the system itself flagging a contract breach and needs no forgiveness-budget
+ * allowance (task 673: 2 `verify_pr_not_created` invariantViolations 70s apart
+ * went undetected under the default minCount=3/window=60m).
  */
 export const INVARIANT_REPEAT_LOOP_MIN_COUNT =
   parseInt(process.env.RAPITAS_INCIDENT_INVARIANT_LOOP_MIN_COUNT ?? '', 10) || 2;
@@ -349,10 +348,9 @@ export interface RepeatLoopTransition {
   actor: string;
   /**
    * True when this transition was recorded as an invariant violation (system
-   * self-detected contract breach). Feeds an independent, lower-threshold
-   * detection path — see {@link INVARIANT_REPEAT_LOOP_MIN_COUNT}. Optional for
-   * backward compatibility with existing callers that don't set it (treated as
-   * false / not counted).
+   * self-detected contract breach) — feeds an independent, lower-threshold path,
+   * see {@link INVARIANT_REPEAT_LOOP_MIN_COUNT}. Optional for backward compat
+   * (unset = false / not counted).
    */
   invariantViolation?: boolean;
 }
@@ -385,46 +383,45 @@ const FILE_SAVED_VERIFY_CAUSE = 'file_saved:verify';
  */
 const REPAIR_BOUNCE_CAUSES = new Set(['verify_repair', 'ci_repair']);
 
+/** True when `cause` is a self-repair bounce cause (verify_repair/ci_repair). */
+export function isRepairBounceCause(cause: string): boolean {
+  return REPAIR_BOUNCE_CAUSES.has(cause);
+}
 /**
- * Detects a same-cause repeat loop: the same transition cause firing at least
- * `minCount` times within the trailing window. Ties between causes with equal
- * counts break deterministically by cause name (localeCompare ascending).
- * Transitions with actor='user' are excluded — operator manual recovery is
- * intervention, not a loop (actor-based, so any future manual cause is covered).
- * Causes prefixed `phase_completed:` are forgiven, but only when a preceding
- * `verify_repair`/`ci_repair` bounce actually re-authorizes that specific
- * firing: transitions are walked in chronological order with a running
- * "forgiveness budget" that starts at 1 (the initial pass, granted only if
- * the window contains at least one bounce at all) and gains 1 for every
- * bounce encountered so far. Each `phase_completed:*` firing spends one unit
- * of budget if available; if the budget is already spent, that firing is a
- * genuine anomaly and is counted (e.g. #607, task 614: 1 implement + 2
- * verify_repair bounces, each bounce preceding its re-implement, fully
- * explains 3 firings and is not reported as a loop; the same mechanism also
- * explains #616's 1 implement + 2 verify_repair bounces — see
- * incident-signature-detectors.repeat-loop-t616.test.ts for the exact
- * replayed transition window). Requiring the bounce to
- * chronologically precede the firing it forgives (rather than just summing
- * bounce counts anywhere in the window) closes a gap where phase_completed
- * churn front-loaded before any bounce — which a same-window bounce cannot
- * causally explain — would otherwise be waved through by coincidental later
- * bounces of a *different* cause (verify_repair and ci_repair combined). A
- * `phase_completed:*` repetition with zero bounces anywhere in the window is
- * never forgiven at all.
- * `file_saved:verify` (see {@link FILE_SAVED_VERIFY_CAUSE}) is forgiven the
- * same way, through its own independent budget running in parallel — a
- * repair cycle emits both a `phase_completed:*` and a `file_saved:verify`
- * per round, and each cause needs its own full budget rather than splitting
- * one shared budget between them (task 708, concern on #674: 1 initial
- * implement + 1 initial verify save + 2 verify_repair bounces, each
- * preceding a re-implement and a re-save, produced 3
+ * Detects a same-cause repeat loop: the same transition cause firing at least `minCount` times
+ * within the trailing window (REPAIR_BOUNCE_CAUSES causes use `repairBounceMinCount` instead — see
+ * the task-837 paragraph below). Ties break deterministically by cause name (localeCompare
+ * ascending). actor='user' transitions are excluded — manual recovery is intervention, not a loop.
+ * Causes prefixed `phase_completed:` are forgiven, but only when a preceding `verify_repair`/
+ * `ci_repair` bounce actually re-authorizes that specific firing: transitions are walked in
+ * chronological order with a running "forgiveness budget" that starts at 1 (the initial pass,
+ * granted only if the window contains at least one bounce at all) and gains 1 for every bounce
+ * encountered so far. Each `phase_completed:*` firing spends one unit of budget if available; if
+ * the budget is already spent, that firing is a genuine anomaly and is counted (e.g. #607, task
+ * 614: 1 implement + 2 verify_repair bounces, each bounce preceding its re-implement, fully
+ * explains 3 firings and is not reported as a loop; the same mechanism also explains #616's 1
+ * implement + 2 verify_repair bounces — see incident-signature-detectors.repeat-loop-t616.test.ts
+ * for the exact replayed transition window). Requiring the bounce to chronologically precede the
+ * firing it forgives (rather than just summing bounce counts anywhere in the window) closes a gap
+ * where phase_completed churn front-loaded before any bounce — which a same-window bounce cannot
+ * causally explain — would otherwise be waved through by coincidental later bounces of a
+ * *different* cause (verify_repair and ci_repair combined). A `phase_completed:*` repetition with
+ * zero bounces anywhere in the window is never forgiven at all.
+ * `file_saved:verify` (see {@link FILE_SAVED_VERIFY_CAUSE}) is forgiven the same way, through its
+ * own independent budget running in parallel — a repair cycle emits both a `phase_completed:*` and
+ * a `file_saved:verify` per round, and each cause needs its own full budget rather than splitting
+ * one shared budget between them (task 708, concern on #674: 1 initial implement + 1 initial
+ * verify save + 2 verify_repair bounces, each preceding a re-implement and a re-save, produced 3
  * `phase_completed:implementer` AND 3 `file_saved:verify` firings — see
- * incident-signature-detectors.repeat-loop-t708.test.ts for the replayed
- * window).
- * A terminal taskStatus (see TERMINAL_TASK_STATUSES) short-circuits to null —
- * a task that has already finished is not "looping" even if it churned through
- * several retry cycles on the way there (mirrors detectStagnation's guard;
- * caught a false positive on #607, which completed 12s before the report).
+ * incident-signature-detectors.repeat-loop-t708.test.ts for the replayed window).
+ * REPAIR_BOUNCE_CAUSES themselves (`verify_repair`/`ci_repair`, see {@link isRepairBounceCause})
+ * are matched against `repairBounceMinCount` instead of `minCount` (task 837): a task that
+ * legitimately exhausts its repair budget (e.g. verifyRepairLimit=3 producing exactly 3
+ * `verify_repair` bounces) must not itself be misreported as a loop — only bounces beyond the
+ * caller-supplied budget are flagged.
+ * A terminal taskStatus (see TERMINAL_TASK_STATUSES) short-circuits to null — a finished task is
+ * not "looping" even if it churned through retry cycles on the way there (mirrors
+ * detectStagnation's guard; caught a false positive on #607).
  *
  * @param input.transitions - Task transitions (any order). / 対象タスクの遷移一覧
  * @param input.nowMs - Current time (ms). / 現在時刻
@@ -432,6 +429,7 @@ const REPAIR_BOUNCE_CAUSES = new Set(['verify_repair', 'ci_repair']);
  * @param input.windowMs - Window size (default 60m). / 集計窓
  * @param input.minCount - Detection threshold (default 3). / 検出しきい値
  * @param input.invariantMinCount - Detection threshold for invariantViolation-flagged transitions only (default 2, see {@link INVARIANT_REPEAT_LOOP_MIN_COUNT}). / invariantViolation付き遷移専用のしきい値
+ * @param input.repairBounceMinCount - Detection threshold for REPAIR_BOUNCE_CAUSES (verify_repair/ci_repair) only; defaults to minCount (task 837, see isRepairBounceCause). / 修復バウンス系cause専用のしきい値
  * @returns The dominant looping cause + count + which threshold path (`via`) picked it, or null. / 最多ループcause・count・判定経路またはnull
  */
 export function detectRepeatLoop(input: {
@@ -441,11 +439,13 @@ export function detectRepeatLoop(input: {
   windowMs?: number;
   minCount?: number;
   invariantMinCount?: number;
+  repairBounceMinCount?: number;
 }): { cause: string; count: number; via: 'general' | 'invariant' } | null {
   if (input.taskStatus !== undefined && TERMINAL_TASK_STATUSES.has(input.taskStatus)) return null;
   const windowMs = input.windowMs ?? REPEAT_LOOP_WINDOW_MS;
   const minCount = input.minCount ?? REPEAT_LOOP_MIN_COUNT;
   const invariantMinCount = input.invariantMinCount ?? INVARIANT_REPEAT_LOOP_MIN_COUNT;
+  const repairBounceMinCount = input.repairBounceMinCount ?? minCount;
   const windowStart = input.nowMs - windowMs;
 
   const windowed = input.transitions
@@ -494,7 +494,7 @@ export function detectRepeatLoop(input: {
 
   let best: { cause: string; count: number; via: 'general' | 'invariant' } | null = null;
   for (const [cause, count] of counts) {
-    if (count < minCount) continue;
+    if (count < (REPAIR_BOUNCE_CAUSES.has(cause) ? repairBounceMinCount : minCount)) continue;
     if (
       best === null ||
       count > best.count ||

@@ -25,6 +25,11 @@ const prFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null))
 const activityLogFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
 const workflowFileFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
 const themeAutoRunFindManyMock = mock((_args: unknown) => Promise.resolve([] as unknown[]));
+// Task 837: resolveMaxRepairs() reads UserSettings.verifyRepairLimit once per
+// pass; default null → DEFAULT_VERIFY_REPAIR_LIMIT fallback (existing tests
+// below never override this, so their repairBounceMinCount stays at the
+// pre-task-837 default of REPEAT_LOOP_MIN_COUNT).
+const userSettingsFindFirstMock = mock(() => Promise.resolve<unknown>(null));
 const submitConcernMock = mock((_input: unknown) => Promise.resolve(1));
 const notifyIntakeQuestionPendingMock = mock((_input: unknown) =>
   Promise.resolve<unknown>({ id: 1 }),
@@ -49,6 +54,7 @@ mock.module('../../config/database', () => ({
     activityLog: { findFirst: activityLogFindFirstMock },
     workflowFile: { findFirst: workflowFileFindFirstMock },
     themeAutoRun: { findMany: themeAutoRunFindManyMock },
+    userSettings: { findFirst: userSettingsFindFirstMock },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
@@ -108,6 +114,7 @@ describe('runSelfIncidentWatch', () => {
     activityLogFindFirstMock.mockReset().mockResolvedValue(null);
     workflowFileFindFirstMock.mockReset().mockResolvedValue(null);
     themeAutoRunFindManyMock.mockReset().mockResolvedValue([]);
+    userSettingsFindFirstMock.mockReset().mockResolvedValue(null);
     submitConcernMock.mockReset().mockResolvedValue(1);
     notifyIntakeQuestionPendingMock.mockReset().mockResolvedValue({ id: 1 });
   });
@@ -352,6 +359,72 @@ describe('runSelfIncidentWatch', () => {
     expect(input.dedupKey).toBe('self-incident:repeat-loop:adversarial_review_failed');
     expect(String(input.detail)).toContain('2回以上');
     expect(String(input.detail)).not.toContain('3回以上');
+  });
+
+  // Task 837 (task #833 repro): a task whose UserSettings.verifyRepairLimit is
+  // raised to 3 legitimately produces exactly 3 verify_repair bounces — this
+  // must NOT be misreported as a repeat loop.
+  test('does not file a repeat-loop concern when verify_repair count matches a raised verifyRepairLimit (task 833 repro)', async () => {
+    const now = nextPassTime();
+    userSettingsFindFirstMock.mockResolvedValue({ verifyRepairLimit: 3 });
+    taskFindManyMock.mockResolvedValue([
+      stagnantTask(now, { id: 833, updatedAt: new Date(now - 60_000) }),
+    ]);
+    transitionFindManyMock.mockImplementation((args: unknown) => {
+      const where = (args as { where: { createdAt?: unknown } }).where;
+      if (!where.createdAt) return Promise.resolve([]);
+      return Promise.resolve([
+        { cause: 'verify_repair', createdAt: new Date(now - 5 * 60 * 1000), actor: 'system' },
+        { cause: 'verify_repair', createdAt: new Date(now - 10 * 60 * 1000), actor: 'system' },
+        { cause: 'verify_repair', createdAt: new Date(now - 15 * 60 * 1000), actor: 'system' },
+      ]);
+    });
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(0);
+    expect(submitConcernMock).not.toHaveBeenCalled();
+  });
+
+  // Same raised budget (3), but a 4th verify_repair exceeds it — a genuine
+  // anomaly beyond the configured budget must still be detected.
+  test('files a repeat-loop concern when verify_repair count exceeds a raised verifyRepairLimit', async () => {
+    const now = nextPassTime();
+    userSettingsFindFirstMock.mockResolvedValue({ verifyRepairLimit: 3 });
+    taskFindManyMock.mockResolvedValue([
+      stagnantTask(now, { id: 834, updatedAt: new Date(now - 60_000) }),
+    ]);
+    transitionFindManyMock.mockImplementation((args: unknown) => {
+      const where = (args as { where: { createdAt?: unknown } }).where;
+      if (!where.createdAt) return Promise.resolve([]);
+      return Promise.resolve([
+        { cause: 'verify_repair', createdAt: new Date(now - 4 * 60 * 1000), actor: 'system' },
+        { cause: 'verify_repair', createdAt: new Date(now - 8 * 60 * 1000), actor: 'system' },
+        { cause: 'verify_repair', createdAt: new Date(now - 12 * 60 * 1000), actor: 'system' },
+        { cause: 'verify_repair', createdAt: new Date(now - 16 * 60 * 1000), actor: 'system' },
+      ]);
+    });
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(1);
+    const input = submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(input.dedupKey).toBe('self-incident:repeat-loop:verify_repair');
+  });
+
+  // resolveMaxRepairs() must be resolved once per pass, not once per candidate
+  // task, to avoid an N DB round-trips per watch pass (task 837).
+  test('resolves the repair budget exactly once per pass regardless of candidate count', async () => {
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([
+      stagnantTask(now, { id: 1, updatedAt: new Date(now - 60_000) }),
+      stagnantTask(now, { id: 2, updatedAt: new Date(now - 60_000) }),
+      stagnantTask(now, { id: 3, updatedAt: new Date(now - 60_000) }),
+    ]);
+
+    await runSelfIncidentWatch(now);
+
+    expect(userSettingsFindFirstMock.mock.calls.length).toBe(1);
   });
 
   // 受入(a): a never-started todo backlog item files nothing however stale it is.
