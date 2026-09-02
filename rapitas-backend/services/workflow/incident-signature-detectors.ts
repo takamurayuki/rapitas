@@ -4,9 +4,8 @@
  * Pure detection predicates for the self-incident watcher: stagnation of a
  * non-terminal task, tri-state desync across Task/AgentSession/AgentExecution,
  * a same-cause repeat loop, and an intake question left unanswered too long.
- * DB-independent by design — every input is a
- * plain snapshot assembled by the caller, so each detector is unit-testable
- * at its boundaries. NOT responsible for evidence gathering or concern filing.
+ * DB-independent by design — every input is a plain snapshot assembled by the
+ * caller, so each detector is unit-testable. NOT responsible for evidence gathering or concern filing.
  */
 import { ACTIVE_EXEC } from './workflow-reconciler-requeue';
 
@@ -23,36 +22,31 @@ export const REPEAT_LOOP_MIN_COUNT =
   parseInt(process.env.RAPITAS_INCIDENT_LOOP_MIN_COUNT ?? '', 10) || 3;
 
 /**
- * Minimum same-cause invariantViolation transitions within the window to count
- * as a loop (default 2, lower than REPEAT_LOOP_MIN_COUNT) — an invariantViolation
- * is the system itself flagging a contract breach and needs no forgiveness-budget
- * allowance (task 673: 2 `verify_pr_not_created` invariantViolations 70s apart
- * went undetected under the default minCount=3/window=60m).
+ * Minimum same-cause invariantViolation transitions within the window to count as a loop
+ * (default 2, lower than REPEAT_LOOP_MIN_COUNT) — an invariantViolation is the system itself
+ * flagging a contract breach and needs no forgiveness-budget allowance (task 673:
+ * 2 `verify_pr_not_created` invariantViolations 70s apart went undetected at minCount=3/window=60m).
  */
 export const INVARIANT_REPEAT_LOOP_MIN_COUNT =
   parseInt(process.env.RAPITAS_INCIDENT_INVARIANT_LOOP_MIN_COUNT ?? '', 10) || 2;
 
 /**
- * Grace period after a deliberate recovery transition during which the
- * `todo × advanced-workflow` shape is EXPECTED, not anomalous (default 30m).
- * Rationale (#636): requeueOrphanTasks resets status to 'todo' while keeping
- * workflowStatus on purpose so auto-run resumes mid-workflow — the watcher
- * fired Pattern B 59s later and filed the reconciler's own heal as a
- * high-severity bug. 30m matches STAGNATION_THRESHOLD_MS: past that point a
- * still-undispatched task is caught by detectStagnation anyway, so shrinking
- * Pattern B here does not open a detection gap.
+ * Grace period after a deliberate recovery transition during which the `todo × advanced-workflow`
+ * shape is EXPECTED, not anomalous (default 30m). Rationale (#636): requeueOrphanTasks resets
+ * status to 'todo' while keeping workflowStatus on purpose so auto-run resumes mid-workflow —
+ * the watcher fired Pattern B 59s later and filed the reconciler's own heal as a high-severity
+ * bug. 30m matches STAGNATION_THRESHOLD_MS: past that a still-undispatched task is caught by
+ * detectStagnation anyway, so shrinking Pattern B here does not open a detection gap.
  */
 export const DESYNC_RECOVERY_SETTLE_MS =
   parseInt(process.env.RAPITAS_INCIDENT_DESYNC_SETTLE_MS ?? '', 10) || 30 * 60 * 1000;
 
 /**
- * Grace period after a failed session's own last update during which Pattern
- * A (`session_failed_execution_active`) is EXPECTED, not anomalous (default
- * 130s). Rationale (#718): the verify post-save pipeline marks a session
- * failed while its own execution is still running the pipeline (jury ~120s +
- * commit/PR); DESYNC_RECOVERY_SETTLE_MS's 30m is sized for a much
- * longer-lived recovery shape (Pattern B) and would delay a genuinely hung
- * execution's detection by the same amount if reused here.
+ * Grace period after a failed session's own last update during which Pattern A
+ * (`session_failed_execution_active`) is EXPECTED, not anomalous (default 130s).
+ * Rationale (#718): the verify post-save pipeline marks a session failed while its own
+ * execution is still running the pipeline (jury ~120s + commit/PR); DESYNC_RECOVERY_SETTLE_MS's
+ * 30m is sized for the longer-lived Pattern B and would delay hung-execution detection here.
  */
 export const PATTERN_A_SETTLE_MS =
   parseInt(process.env.RAPITAS_INCIDENT_PATTERN_A_SETTLE_MS ?? '', 10) || 130_000;
