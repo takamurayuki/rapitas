@@ -273,15 +273,18 @@ if (typeof window !== 'undefined') {
     closeAudioContext();
   });
 
-  // The pomodoro-float window delegates Checkpoint here (via a Tauri event)
-  // instead of calling syncPomodoroToBackend.checkpoint() itself, because
+  // The pomodoro-float window delegates Checkpoint and Cancel here (via Tauri
+  // events) instead of calling syncPomodoroToBackend itself, because
   // /pomodoro-float is excluded from isSyncOwner. Registered at module level
-  // (not inside a component) so it keeps working even if GlobalPomodoroModal
-  // is closed while the float window stays open.
+  // (not inside a component) so it keeps working for the lifetime of the main
+  // window regardless of what is currently rendered.
   if ('__TAURI_INTERNALS__' in window) {
     import('@tauri-apps/api/event').then(({ listen }) => {
       listen('pomodoro-float:checkpoint-request', () => {
         void syncPomodoroToBackend.checkpoint();
+      });
+      listen('pomodoro-float:cancel-request', () => {
+        void syncPomodoroToBackend.cancel();
       });
     });
   }

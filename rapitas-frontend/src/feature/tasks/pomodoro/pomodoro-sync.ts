@@ -18,15 +18,31 @@ import { API_BASE_URL } from '@/utils/api';
  *
  * /pomodoro-float is excluded for the same reason: it mounts its own
  * usePomodoroStore instance with an independent tick, so without this
- * exclusion it would race main on start/complete. Its Checkpoint button
- * does not call this module directly — it delegates via a Tauri event to
- * main instead (see pomodoro-store.ts's checkpoint-request listener).
+ * exclusion it would race main on start/complete. Its Cancel/Checkpoint
+ * buttons do not call the backend directly — they delegate via a Tauri event
+ * to main instead (see pomodoro-store.ts's cancel-request/checkpoint-request
+ * listeners).
  */
 export const isSyncOwner = (): boolean =>
   typeof window === 'undefined' ||
   !['/notification-toast', '/quick-capture', '/pomodoro-float'].some((p) =>
     window.location.pathname.startsWith(p),
   );
+
+// The float window is a non-owner that still needs its Cancel/Checkpoint to
+// reach the backend — it re-emits the action to main, the sole sync owner,
+// instead of POSTing itself. Gated on __TAURI_INTERNALS__ so jsdom/browser
+// tests (which set neither) never attempt the dynamic @tauri-apps import.
+const isFloatWindow = (): boolean =>
+  typeof window !== 'undefined' &&
+  window.location.pathname.startsWith('/pomodoro-float') &&
+  '__TAURI_INTERNALS__' in window;
+
+/** Re-emit a float-originated action to the main window's store listener. */
+async function delegateToMain(event: string): Promise<void> {
+  const { emitTo } = await import('@tauri-apps/api/event');
+  await emitTo('main', event);
+}
 
 /**
  * Sync object with methods to notify the backend about Pomodoro session events.
@@ -78,7 +94,10 @@ export const syncPomodoroToBackend = {
    * Cancels the currently active backend session.
    */
   cancel: (): void => {
-    if (!isSyncOwner()) return;
+    if (!isSyncOwner()) {
+      if (isFloatWindow()) void delegateToMain('pomodoro-float:cancel-request');
+      return;
+    }
     fetch(`${API_BASE_URL}/pomodoro/active`)
       .then((res) => res.json())
       .then((data: { session?: { id: number } }) => {
@@ -101,7 +120,10 @@ export const syncPomodoroToBackend = {
    * call is not the sync owner, or the request failed / 記録分数(no-op時はnull)
    */
   checkpoint: async (): Promise<{ studyMinutesRecorded: number } | null> => {
-    if (!isSyncOwner()) return null;
+    if (!isSyncOwner()) {
+      if (isFloatWindow()) void delegateToMain('pomodoro-float:checkpoint-request');
+      return null;
+    }
     try {
       const activeRes = await fetch(`${API_BASE_URL}/pomodoro/active`);
       const activeData = (await activeRes.json()) as { session?: { id: number } };

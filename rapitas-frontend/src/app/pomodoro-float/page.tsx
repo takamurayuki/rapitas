@@ -3,10 +3,11 @@
 /**
  * PomodoroFloatPage
  *
- * Frameless always-on-top Pomodoro popup opened from GlobalPomodoroModal's
- * "show in floating window" toggle. Reads the same usePomodoroStore
- * instance that main uses (synced via BroadcastChannel/localStorage) —
- * no bespoke state plumbing needed here.
+ * Frameless Pomodoro window shown at app startup and focused by the header /
+ * task-detail Pomodoro buttons (via focus_pomodoro_float). It is the sole
+ * surface for the time-management panel now that the modal is gone. Reads the
+ * same usePomodoroStore instance that main uses (synced via
+ * BroadcastChannel/localStorage) — no bespoke state plumbing needed here.
  */
 import { useEffect } from 'react';
 import PomodoroFloatView from './_components/pomodoro-float-view';
@@ -36,7 +37,7 @@ export default function PomodoroFloatPage() {
     import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
       import('@tauri-apps/api/dpi').then(({ LogicalSize }) => {
         getCurrentWindow()
-          .setSize(new LogicalSize(300, 380))
+          .setSize(new LogicalSize(400, 640))
           .catch(() => {});
       });
     });

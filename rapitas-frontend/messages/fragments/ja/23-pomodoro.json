@@ -35,6 +35,15 @@
     "floatNoTaskLabel": "タスクなし",
     "floatTransparencyToggle": "透過表示を切り替え",
     "floatClose": "フローティングウィンドウを閉じる",
-    "floatMinimize": "フローティングウィンドウを最小化"
+    "floatMinimize": "フローティングウィンドウを最小化",
+    "todayStats": "今日の統計",
+    "completedPomodoros": "完了ポモドーロ",
+    "totalWorkTime": "合計作業時間",
+    "settings": "設定",
+    "notificationSound": "通知音",
+    "volumeLow": "小",
+    "volumeHigh": "大",
+    "workDuration": "作業時間",
+    "minutes": "{count}分"
   }
 }

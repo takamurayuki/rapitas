@@ -80,7 +80,6 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
   } = useTaskDetailData({ resolvedTaskId });
 
   // ─── Pomodoro ────────────────────────────────────────────────────────────
-  const [showPomodoroModal, setShowPomodoroModal] = useState(false);
   const { state: pomodoroState, stopTimer } = usePomodoro();
   const isThisTaskTimer = pomodoroState.taskId === task?.id;
 
@@ -192,7 +191,6 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
     isThisTaskTimer,
     pomodoroState,
     stopTimer,
-    setShowPomodoroModal,
     setShowCompleteOverlay,
   });
 
@@ -345,8 +343,6 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
       isPageMode={isPageMode}
       isThisTaskTimer={isThisTaskTimer}
       pomodoroState={pomodoroState}
-      showPomodoroModal={showPomodoroModal}
-      setShowPomodoroModal={setShowPomodoroModal}
       showDevModeConfig={showDevModeConfig}
       setShowDevModeConfig={setShowDevModeConfig}
       showSaveTemplateDialog={showSaveTemplateDialog}
