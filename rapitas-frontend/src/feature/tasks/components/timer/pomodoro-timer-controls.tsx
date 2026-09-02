@@ -12,7 +12,7 @@
  * wide start button (a lone small icon read as sparse).
  */
 'use client';
-import { Play, Pause, Square, Check, AlarmClockPlus } from 'lucide-react';
+import { Play, Pause, Square, Check, AlarmClockPlus, SkipForward } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 interface PomodoroTimerControlsProps {
@@ -75,7 +75,10 @@ export default function PomodoroTimerControls({
           aria-label={t('resumeWork')}
           title={t('resumeWork')}
         >
-          <Play className="h-5 w-5" />
+          {/* SkipForward, not Play — a play glyph during a break reads as
+              "resume the BREAK" (operator feedback 2026-09-03). Generic
+              skip idiom shared with auto_run_task_skipped per ICON_POLICY. */}
+          <SkipForward className="h-5 w-5" />
         </button>
         <button
           type="button"
