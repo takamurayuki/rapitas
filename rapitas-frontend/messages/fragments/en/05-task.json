@@ -147,7 +147,8 @@
       "shortBreak": "Short break",
       "longBreak": "Long break",
       "minutes": "{count} min",
-      "floatWindowToggle": "Show in floating window"
+      "floatWindowToggle": "Show in floating window",
+      "focusMode": "Focus view"
     },
     "fileUploader": {
       "downloadFailed": "Failed to download",

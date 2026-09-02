@@ -147,7 +147,8 @@
       "shortBreak": "短い休憩",
       "longBreak": "長い休憩",
       "minutes": "{count}分",
-      "floatWindowToggle": "別ウィンドウで表示"
+      "floatWindowToggle": "別ウィンドウで表示",
+      "focusMode": "集中表示"
     },
     "fileUploader": {
       "downloadFailed": "ダウンロードに失敗しました",
