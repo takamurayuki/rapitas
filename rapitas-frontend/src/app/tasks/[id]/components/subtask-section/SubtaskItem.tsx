@@ -219,7 +219,9 @@ export function SubtaskItem({
                   title={t('subtaskActualHours')}
                 >
                   <Timer className="w-2.5 h-2.5" />
-                  {subtask.actualHours}h
+                  {/* Truncated (not rounded) to 1 decimal — pomodoro sessions
+                      accumulate values like 0.423h (operator request). */}
+                  {Math.floor(subtask.actualHours * 10) / 10}h
                 </span>
               )}
             </div>
