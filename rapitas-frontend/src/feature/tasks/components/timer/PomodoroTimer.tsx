@@ -47,6 +47,8 @@ interface PomodoroTimerProps {
   onUpdate: () => void;
   onStatusChange?: (status: PomodoroTimerStatus) => void;
   showTaskTitle?: boolean;
+  /** Focus mode hides secondary chrome — currently the subtask selector. */
+  focusMode?: boolean;
 }
 
 export default function PomodoroTimer({
@@ -58,6 +60,7 @@ export default function PomodoroTimer({
   subtasks,
   onUpdate,
   onStatusChange: _onStatusChange,
+  focusMode = false,
   showTaskTitle = false,
 }: PomodoroTimerProps) {
   const t = useTranslations('pomodoro');
@@ -410,6 +413,7 @@ export default function PomodoroTimer({
       {!showBreakDialog &&
         !showBreakEndDialog &&
         !isBreakTime &&
+        !focusMode &&
         subtasks &&
         subtasks.length > 0 && (
           <div className="w-full mb-4 px-2">

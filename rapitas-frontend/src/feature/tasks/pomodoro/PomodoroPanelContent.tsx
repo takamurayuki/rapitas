@@ -124,6 +124,7 @@ export default function PomodoroPanelContent({
           taskId={taskId}
           taskTitle={taskTitle}
           showTaskTitle={false}
+          focusMode={focusMode}
           estimatedHours={taskData?.estimatedHours}
           actualHours={taskData?.actualHours}
           subtasks={taskData?.subtasks}
