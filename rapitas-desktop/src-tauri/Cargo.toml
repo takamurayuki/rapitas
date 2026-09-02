@@ -9,7 +9,9 @@ edition = "2021"
 tauri-build = { version = "2.5", features = [] }
 
 [dependencies]
-tauri = { version = "2.10.1", features = ["tray-icon", "image-png"] }
+# macos-private-api: required for WebviewWindowBuilder::transparent() to compile
+# on macOS (tauri gates it behind this feature there; other OSes need no flag).
+tauri = { version = "2.10.1", features = ["tray-icon", "image-png", "macos-private-api"] }
 tauri-plugin-shell = "2.3"
 tauri-plugin-global-shortcut = "2.3"
 tauri-plugin-updater = "2.5"
