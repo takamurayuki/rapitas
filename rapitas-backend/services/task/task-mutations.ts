@@ -108,6 +108,15 @@ export async function createTask(prisma: PrismaInstance, input: CreateTaskInput)
     await recalcParentActualHours(prisma, parentId);
   }
 
+  // NOTE: Adding a subtask must recompute the parent's status the same way a
+  // subtask status CHANGE does (operator request 2026-09-03) — e.g. a new
+  // todo subtask under an all-done parent reopens it to in-progress. The
+  // sync's own guards (workflow-managed done deferral, no-op on same status)
+  // apply unchanged.
+  if (task && parentId) {
+    await syncParentStatusFromSubtasks(prisma, parentId);
+  }
+
   // NOTE: Broadcast task creation via SSE for real-time list updates.
   if (task) {
     // NOTE: Gap resolution — link SearchMiss to the new task so it can be resolved on completion.
