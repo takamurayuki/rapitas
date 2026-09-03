@@ -214,6 +214,7 @@ import { migrateLegacyWorkflowFiles } from './services/workflow/workflow-legacy-
 import { backfillWorkflowFilesToDatabase } from './services/workflow/workflow-db-backfill';
 import { migrateStudyGoals } from './services/learning/study-goal-migration';
 import { startBacklogScheduler } from './services/scheduling/backlog-scheduler';
+import { startEventLoopLagWatchdog } from './services/system/event-loop-lag-watchdog';
 import { startBackupScheduler } from './services/system/backup-scheduler';
 import { startWorktreeCleanupScheduler } from './services/scheduling/worktree-cleanup-scheduler';
 import { startDecisionTraceConsistencyScheduler } from './services/scheduling/decision-trace-consistency-scheduler';
@@ -301,6 +302,7 @@ const runStartupWarmup = async (): Promise<void> => {
   await yieldToLoop();
   // Schedulers only register intervals — cheap, grouped at the end.
   await timed('backlog-scheduler', () => startBacklogScheduler());
+  startEventLoopLagWatchdog();
   await timed('backup-scheduler', () => startBackupScheduler());
   await timed('worktree-cleanup-scheduler', () => startWorktreeCleanupScheduler());
   await timed('decision-trace-consistency-scheduler', () =>

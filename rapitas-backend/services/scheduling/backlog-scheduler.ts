@@ -211,8 +211,15 @@ export async function runBacklogJobNow(
     return 0;
   }
   running.add(kind);
+  const startedAtMs = Date.now();
   try {
     const count = kind === 'health_check' ? await runLogHealthCheck(since) : await HANDLERS[kind]();
+    // WARN (not info) so slow runs reach the file log — instrumentation for
+    // the daily ~06:00 event-loop stalls (concern #514).
+    const tookMs = Date.now() - startedAtMs;
+    if (tookMs > 3000) {
+      log.warn({ kind, tookMs }, `Backlog job ran ${Math.round(tookMs / 100) / 10}s`);
+    }
     if (source === 'manual') {
       await recordManualRunOutcome(kind, { kind: 'success', count });
     }
