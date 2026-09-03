@@ -88,6 +88,7 @@ export default function PomodoroTimer({
       store.startTimer(taskId, taskTitle || t('taskDefaultName'));
 
       await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+        signal: AbortSignal.timeout(20000),
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -99,6 +100,7 @@ export default function PomodoroTimer({
       // 2026-09-03: select -> start -> subtask 進行中 -> complete -> done).
       if (selectedSubtaskId != null) {
         await fetch(`${API_BASE_URL}/tasks/${selectedSubtaskId}`, {
+          signal: AbortSignal.timeout(20000),
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -145,6 +147,7 @@ export default function PomodoroTimer({
 
     try {
       await fetch(`${API_BASE_URL}/tasks/${targetId}/time-entries`, {
+        signal: AbortSignal.timeout(20000),
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -159,6 +162,7 @@ export default function PomodoroTimer({
       });
 
       await fetch(`${API_BASE_URL}/tasks/${targetId}`, {
+        signal: AbortSignal.timeout(20000),
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ actualHours: newActualHours, startedAt: null }),
@@ -167,6 +171,7 @@ export default function PomodoroTimer({
       // Clear startedAt on the parent task when time was saved to a subtask.
       if (selectedSubtaskId != null) {
         await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+          signal: AbortSignal.timeout(20000),
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ startedAt: null }),
@@ -199,6 +204,7 @@ export default function PomodoroTimer({
 
     try {
       await fetch(`${API_BASE_URL}/tasks/${targetId}/time-entries`, {
+        signal: AbortSignal.timeout(20000),
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -212,6 +218,7 @@ export default function PomodoroTimer({
       });
 
       await fetch(`${API_BASE_URL}/tasks/${targetId}`, {
+        signal: AbortSignal.timeout(20000),
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -223,6 +230,7 @@ export default function PomodoroTimer({
 
       if (selectedSubtaskId != null) {
         await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+          signal: AbortSignal.timeout(20000),
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ startedAt: null }),

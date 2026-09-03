@@ -64,7 +64,11 @@ export default function GlobalPomodoroWidget() {
     const checkTaskExists = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/tasks/${state.taskId}`, {
-          signal: controller.signal,
+          // Unmount abort AND a hard timeout — a request sent during a
+          // backend-restart init window is never answered, and without the
+          // timeout it leaks one of the 6 per-origin connection slots for
+          // the lifetime of this mount (2026-09-03 pool-starvation incident).
+          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]),
         });
         if (!res.ok) {
           // Stop timer if task not found

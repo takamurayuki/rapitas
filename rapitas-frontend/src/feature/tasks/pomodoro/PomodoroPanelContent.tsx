@@ -58,7 +58,7 @@ export default function PomodoroPanelContent({
   const [showSettings, setShowSettings] = useState(false);
 
   const fetchTaskContext = () => {
-    fetch(`${API_BASE_URL}/tasks/${taskId}/time-entries`)
+    fetch(`${API_BASE_URL}/tasks/${taskId}/time-entries`, { signal: AbortSignal.timeout(20000) })
       .then((res) => {
         if (!res.ok) return [];
         return res.json();
@@ -66,7 +66,7 @@ export default function PomodoroPanelContent({
       .then((data) => setTimeEntries(data))
       .catch((err) => logger.error('Failed to fetch time entries:', err));
 
-    fetch(`${API_BASE_URL}/tasks/${taskId}`)
+    fetch(`${API_BASE_URL}/tasks/${taskId}`, { signal: AbortSignal.timeout(20000) })
       .then((res) => {
         if (!res.ok) {
           logger.info('Task not found, stopping timer');
