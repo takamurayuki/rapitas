@@ -175,6 +175,7 @@ function killZombieSocketOwners(port) {
     for (const pid of pids) {
       if (!isProcessRunning(pid)) {
         console.log(`  PID ${pid} is already dead (orphaned socket).`);
+        killGhostHandleHolders(port);
         captureGhostSocketDiagnostics(port, pid);
         continue;
       }
@@ -420,6 +421,12 @@ async function ensurePortAvailable(port) {
       console.log(`  → Cannot shutdown active agent session. Exiting to prevent disruption.`);
       console.log(`  → Please wait for agent to complete, or run "npm run dev:force" to`);
       console.log(`    force-stop everything (including the in-progress agent) and restart.`);
+      // NOTE: process.exit() fires the 'exit' handler, whose cleanupSync() used to
+      // request a graceful shutdown of the very backend we just declined to touch
+      // (and killed the tracked agent CLI as a "zombie"). The guard therefore
+      // destroyed the agent it existed to protect (2026-09-05). Flag the exit so
+      // cleanup leaves the foreign servers alone.
+      preserveRunningServers = true;
       process.exit(1);
     }
     if (agentActive && forceStop) {
@@ -462,7 +469,10 @@ async function ensurePortAvailable(port) {
   if (pids.size === 0) {
     console.log(`  No active processes found on port ${port} (may be zombie sockets).`);
     const reportedPid = [...getProcessesOnPort(port)][0] ?? null;
-    if (reportedPid !== null) captureGhostSocketDiagnostics(port, reportedPid);
+    if (reportedPid !== null) {
+      killGhostHandleHolders(port);
+      captureGhostSocketDiagnostics(port, reportedPid);
+    }
   }
   for (const pid of pids) {
     // Same identity guard as forceKillAllOnPort — this fallback path must not
@@ -510,7 +520,10 @@ async function ensurePortAvailable(port) {
       );
       console.log(`  → Proceeding anyway (backend uses reusePort for TIME_WAIT handling).`);
       const reportedPid = [...getProcessesOnPort(port)][0] ?? null;
-      if (reportedPid !== null) captureGhostSocketDiagnostics(port, reportedPid);
+      if (reportedPid !== null) {
+      killGhostHandleHolders(port);
+      captureGhostSocketDiagnostics(port, reportedPid);
+    }
       return port;
     }
 
@@ -601,6 +614,57 @@ function queryWin32Processes(filter) {
 // THIS dev.js run — avoids writing a near-duplicate entry every time a retry
 // loop re-detects the same still-unresolved ghost.
 const ghostSocketCapturedPorts = new Set();
+
+/**
+ * Kill orphaned handle-holders that keep a DEAD backend's sockets alive.
+ *
+ * 実証済みの因果 (2026-08-29..09-05, 5+ 事例): dev-restart で旧バックエンドが
+ * 死んでも、その存命中に spawn された子（検証ゲートの tsc/vitest、runtime-smoke
+ * のブラウザ、bash 由来の tail/find など）が継承した listen ソケットのハンドルを
+ * 持ったまま孤児化すると、カーネルは LISTEN を死んだ PID 名義で生かし続け、
+ * 新バックエンドへの接続が奪われて全 UI が永久ロードになる。保持者を kill
+ * すれば即座に解消する（OS再起動は不要）— このヘルパーはその手動手順の自動化。
+ *
+ * 安全弁: 「親PIDが消滅」かつ「名前が既知の使い捨てヘルパー」だけを対象にし、
+ * 対話型 claude・バックエンド系 bun (dev:stable / index.ts / agent-worker) は
+ * コマンドラインで除外する。
+ *
+ * @param {number} port - The port whose ghost LISTEN triggered this sweep.
+ */
+function killGhostHandleHolders(port) {
+  const script = `
+$live = @{}
+Get-CimInstance Win32_Process | ForEach-Object { $live[$_.ProcessId] = $_ }
+$killed = @()
+foreach ($p in $live.Values) {
+  if ($p.SessionId -eq 0) { continue }
+  if ($live.ContainsKey($p.ParentProcessId)) { continue }
+  if ($p.Name -notmatch '^(find|tail|node|esbuild|vitest|msedge|msedgewebview2|curl|tsc|git|claude|bun)\.exe$') { continue }
+  $cl = "$($p.CommandLine)"
+  if ($p.Name -eq 'claude.exe' -and $cl -notmatch '--print') { continue }
+  if ($p.Name -eq 'bun.exe' -and ($cl -match 'dev:stable|index\.ts|agent-worker')) { continue }
+  if ($p.Name -match 'msedge' -and $cl -notmatch 'rapitas|--headless|smoke') { continue }
+  try { Stop-Process -Id $p.ProcessId -Force -ErrorAction Stop; $killed += "$($p.Name):$($p.ProcessId)" } catch {}
+}
+$killed -join ','
+`.trim();
+  try {
+    const encoded = Buffer.from(script, 'utf16le').toString('base64');
+    const out = execFileSync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'], timeout: 20000 },
+    );
+    const killed = (out || '').trim();
+    if (killed) {
+      console.log(`  🧹 Killed ghost handle holder(s) for port ${port}: ${killed}`);
+    } else {
+      console.log(`  🧹 Ghost sweep for port ${port}: no orphan holders matched.`);
+    }
+  } catch (err) {
+    console.warn(`  Ghost handle-holder sweep failed: ${err && err.message ? err.message : err}`);
+  }
+}
 
 /**
  * Best-effort, read-only diagnostic snapshot for a confirmed "ghost socket"
@@ -813,7 +877,10 @@ function forceKillAllOnPort(port, maxRetries = 5) {
       // netstatでは見えるがプロセスは存在しない = ゾンビソケット
       console.log(`  Port ${port} shows in netstat but no active process (zombie socket).`);
       const reportedPid = [...getProcessesOnPort(port)][0] ?? null;
-      if (reportedPid !== null) captureGhostSocketDiagnostics(port, reportedPid);
+      if (reportedPid !== null) {
+      killGhostHandleHolders(port);
+      captureGhostSocketDiagnostics(port, reportedPid);
+    }
       return true;
     }
 
@@ -2895,6 +2962,9 @@ function startFrontendWatchdog() {
 
 // プロセス終了時のクリーンアップ
 let isCleaningUp = false;
+// Set when dev.js backs off because another instance's backend has an active
+// agent: nothing was spawned by us, so cleanup must not touch any port owner.
+let preserveRunningServers = false;
 
 /**
  * 同期的クリーンアップ処理
@@ -2910,6 +2980,10 @@ let isCleaningUp = false;
 function cleanupSync() {
   if (isCleaningUp) return;
   isCleaningUp = true;
+  if (preserveRunningServers) {
+    console.log('  Leaving the running backend/frontend untouched (active agent on another instance).');
+    return;
+  }
 
   // フロントエンド監視タイマーを停止(クリーンアップ中のリサイクル発火を防止)
   if (frontendWatchdogTimer) {

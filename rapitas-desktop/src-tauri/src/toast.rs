@@ -53,10 +53,15 @@ fn park_toast(win: &tauri::WebviewWindow) {
 /// focus anyway. The page calls toast_ready when mounted; with no pending
 /// payload the window simply hides until the first notification.
 ///
-/// NOTE: build flags are deliberately minimal. focused(false) — with or
-/// without focusable(false)/visible(false) — leaves the WebView2 permanently
-/// stuck at about:blank (navigation never starts), so the window is created
-/// plain and focus avoidance comes from pre-warming + show()-without-set_focus.
+/// NOTE: the window is BUILT hidden and revealed only once it sits off-screen.
+/// A window that is visible from build() flashes on screen no matter how it is
+/// sized/positioned in the builder: Windows clamps a far-off-screen build
+/// position back into the work area and a tiny size up to the minimum
+/// tracking size — measured 2026-09-05 as a 136x39 px blank card at (130,130)
+/// for ~230 ms on every boot. visible(false) alone would leave the WebView2
+/// controller invisible (wry mirrors the flag into SetIsVisible, and the page
+/// then never renders), so the webview is shown explicitly right after the
+/// window. focused(false) stays out: it left WebView2 stuck at about:blank.
 pub fn create_toast_window(app: &tauri::AppHandle) -> Result<(), String> {
     if app.get_webview_window("notification-toast").is_some() {
         return Ok(());
@@ -67,30 +72,29 @@ pub fn create_toast_window(app: &tauri::AppHandle) -> Result<(), String> {
         tauri::WebviewUrl::App("notification-toast".into()),
     )
     .title("Rapitas Notification")
-    // 1x1 at build time: Windows can clamp the far-off-screen builder position
-    // back onto the screen, and the window is visible from build() until the
-    // park below — at full size that flashed the empty card at boot
-    // (2026-09-02). A clamped 1px window is imperceptible; the real size is
-    // restored right after parking (and re-asserted on every show).
-    .inner_size(1.0, 1.0)
+    .inner_size(TOAST_WIDTH, TOAST_HEIGHT)
     .decorations(false)
     .always_on_top(true)
     .skip_taskbar(true)
     .resizable(false)
     .position(0.0, -10000.0)
+    .visible(false)
     .build()
     .map_err(|e| format!("Failed to create toast window: {e}"))?;
-    // Park again right after creation. The BUILDER position is not reliably
-    // honoured for a point that far outside the virtual screen — Windows can
-    // clamp it — and the window is already visible by then (visible(false)
-    // leaves WebView2 stuck at about:blank, see the note above). The result at
-    // boot was the toast card sitting on screen for the whole page load.
-    // set_position after creation is applied as given.
     if let Some(win) = app.get_webview_window("notification-toast") {
+        // The BUILDER position is clamped by Windows for a point this far
+        // outside the virtual screen; set_position after creation is applied
+        // as given, and while hidden nothing can be seen moving.
         park_toast(&win);
-        // Restore the real size only once safely off-screen, so the page
-        // pre-warms with the layout it will actually show at.
         let _ = win.set_size(tauri::LogicalSize::new(TOAST_WIDTH, TOAST_HEIGHT));
+        // Reveal only now — the window is already parked, so this never paints
+        // on screen. Window and webview are shown separately: the window show
+        // maps the HWND, the webview show flips WebView2's IsVisible (see the
+        // doc comment above).
+        let _ = win.show();
+        // AsRef<Webview> is the non-`unstable` route to the inner webview.
+        let webview: &tauri::Webview = win.as_ref();
+        let _ = webview.show();
     }
     Ok(())
 }
