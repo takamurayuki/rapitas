@@ -487,6 +487,7 @@ describe('submitConcern — recurrencePolicy aggregation', () => {
         sourceId: 'open',
         tags: JSON.stringify(['severity:high']),
         content: '1回目の詳細',
+        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
       },
     ]);
     mockKnowledgeEntryCreate.mockResolvedValueOnce({ id: 11 });
@@ -518,7 +519,13 @@ describe('submitConcern — recurrencePolicy aggregation', () => {
   it('escalates severity and references the prior entry for a done-task recurrence within the window', async () => {
     const completedAt = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000);
     mockKnowledgeEntryFindMany.mockResolvedValue([
-      { id: 22, sourceId: 'task_50', tags: '[]', content: '過去の詳細' },
+      {
+        id: 22,
+        sourceId: 'task_50',
+        tags: '[]',
+        content: '過去の詳細',
+        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      },
     ]);
     mockTaskFindUnique.mockResolvedValue({ status: 'done', completedAt });
 
@@ -544,7 +551,13 @@ describe('submitConcern — recurrencePolicy aggregation', () => {
   it('files a plain new concern (no escalation) for a done-task recurrence outside the window', async () => {
     const completedAt = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000);
     mockKnowledgeEntryFindMany.mockResolvedValue([
-      { id: 23, sourceId: 'task_51', tags: '[]', content: '過去の詳細' },
+      {
+        id: 23,
+        sourceId: 'task_51',
+        tags: '[]',
+        content: '過去の詳細',
+        createdAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
+      },
     ]);
     mockTaskFindUnique.mockResolvedValue({ status: 'done', completedAt });
 

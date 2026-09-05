@@ -12,6 +12,11 @@
  */
 import { createLogger } from '../../config/logger';
 import type { ConcernSeverity } from './concern-backlog-service';
+import {
+  pickSuppressingCandidate,
+  pickLatestDoneCandidate,
+  type ResolvedCandidate,
+} from './concern-recurrence-candidates';
 
 const log = createLogger('memory:concern-recurrence-policy');
 
@@ -24,6 +29,18 @@ const TERMINAL_TASK_STATUSES = ['done', 'completed', 'failed', 'cancelled', 'arc
 
 /** How many days after a follow-up task went terminal a recurrence still counts as "the same fix broke again". */
 export const RECURRENCE_WINDOW_DAYS = 14;
+
+/**
+ * How long after a candidate row was created a fresh same-signature filing
+ * still merges into it instead of creating a sibling (task #857: self-incident
+ * watch passes re-detect the same repeat-loop every few minutes while its
+ * follow-up task is still churning, so each pass filed a new concern the
+ * instant the prior one went terminal). Matches the default self-incident
+ * repeat-loop detection window (REPEAT_LOOP_WINDOW_MS, 60m) so at most one new
+ * filing is produced per detection window.
+ */
+export const RECURRENCE_SUPPRESS_WINDOW_MS =
+  parseInt(process.env.RAPITAS_CONCERN_RECURRENCE_SUPPRESS_MS ?? '', 10) || 60 * 60 * 1000;
 
 /** Opt-in recurrence/occurrence policy passed by self-detection and log-health filings. */
 export interface RecurrencePolicy {
@@ -40,6 +57,7 @@ export interface RecurrenceCandidateEntry {
   sourceId: string | null;
   tags: string;
   content: string;
+  createdAt: Date;
 }
 
 /** Narrow Prisma client view `resolveRecurrence` needs — keeps tests independent of the full generated client shape. */
@@ -52,7 +70,7 @@ export interface RecurrencePrisma {
         forgettingStage: string;
         sourceId: { not: string };
       };
-      select: { id: true; sourceId: true; tags: true; content: true };
+      select: { id: true; sourceId: true; tags: true; content: true; createdAt: true };
     }): Promise<RecurrenceCandidateEntry[]>;
     update(args: {
       where: { id: number };
@@ -74,8 +92,9 @@ export type RecurrenceResolution =
 
 /**
  * Resolves how a same-signature filing should proceed: merge into a still-live
- * duplicate ('merged-open' — open, dismissed, or a task_created entry whose
- * task is not yet terminal), recurrence-of-done when the same signature's
+ * duplicate ('merged-open' — open, dismissed, a task_created entry whose task
+ * is not yet terminal, or a terminal row created within `suppressWindowMs`),
+ * recurrence-of-done when the same signature's most-recently-completed
  * follow-up task went terminal within `windowDays`, or 'new' otherwise.
  * Fails open to 'new' on any DB error — a duplicate filing is safer than a
  * silently dropped one.
@@ -84,6 +103,7 @@ export type RecurrenceResolution =
  * @param hash - contentHash of the concern being filed / 起票する懸念のハッシュ
  * @param windowDays - Recurrence window in days / 再発判定の日数窓
  * @param nowMs - Current time (ms); injectable for tests / 現在時刻
+ * @param suppressWindowMs - Suppression window in ms (task #857) / 抑制ウィンドウ(ms)
  * @returns The resolution / 判定結果
  */
 export async function resolveRecurrence(
@@ -91,6 +111,7 @@ export async function resolveRecurrence(
   hash: string,
   windowDays: number,
   nowMs: number = Date.now(),
+  suppressWindowMs: number = RECURRENCE_SUPPRESS_WINDOW_MS,
 ): Promise<RecurrenceResolution> {
   try {
     const rows = await prismaClient.knowledgeEntry.findMany({
@@ -100,10 +121,10 @@ export async function resolveRecurrence(
         forgettingStage: 'active',
         sourceId: { not: 'resolved' },
       },
-      select: { id: true, sourceId: true, tags: true, content: true },
+      select: { id: true, sourceId: true, tags: true, content: true, createdAt: true },
     });
     const windowMs = windowDays * 24 * 60 * 60 * 1000;
-    // Resolved up front, then judged in two passes (task 835): the findMany
+    // Resolved up front, then judged in passes (task 835): the findMany
     // above has no orderBy, so returning on the first matching row made the
     // verdict depend on row order — a done row arriving before a still-live
     // one filed a NEW concern instead of merging into the live one, splitting
@@ -132,11 +153,20 @@ export async function resolveRecurrence(
       if (task && !TERMINAL_TASK_STATUSES.includes(task.status))
         return { action: 'merged-open', targetEntry: row };
     }
-    for (const { row, task } of resolved) {
-      if (task?.completedAt && nowMs - task.completedAt.getTime() <= windowMs) {
-        return { action: 'recurrence-of-done', targetEntry: row };
-      }
-    }
+
+    // Every remaining candidate is terminal at this point (task 857): a
+    // signature that keeps re-triggering while its terminal follow-up row is
+    // still fresh merges into that row instead of spawning a new sibling on
+    // every detection pass.
+    const terminalCandidates: ResolvedCandidate<RecurrenceCandidateEntry>[] = resolved.map(
+      ({ row, task }) => ({ row, completedAt: task?.completedAt ?? null }),
+    );
+    const suppressing = pickSuppressingCandidate(terminalCandidates, nowMs, suppressWindowMs);
+    if (suppressing) return { action: 'merged-open', targetEntry: suppressing };
+
+    const latestDone = pickLatestDoneCandidate(terminalCandidates, nowMs, windowMs);
+    if (latestDone) return { action: 'recurrence-of-done', targetEntry: latestDone };
+
     return { action: 'new' };
   } catch (err) {
     log.warn({ err, hash }, '[concern-recurrence] resolution failed — falling open to new filing');
