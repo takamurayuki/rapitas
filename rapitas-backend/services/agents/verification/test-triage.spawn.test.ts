@@ -10,6 +10,8 @@
  */
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import { EventEmitter } from 'events';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
 import { join, relative } from 'path';
 
 interface SpawnRule {
@@ -156,5 +158,33 @@ describe('test-triage internal defaults (spawn mocked, fs real)', () => {
     expect(relative(workdir, projectRoot)).toBe(
       join('..', '..', 'services', 'agents', 'verification'),
     );
+  });
+
+  it('runs vitest, not bun test, via the default isTestFileFailing for a vitest project (#859 regression)', async () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'triage-vitest-'));
+    writeFileSync(
+      join(projectRoot, 'package.json'),
+      JSON.stringify({ scripts: { test: 'vitest run' } }),
+    );
+    writeFileSync(join(projectRoot, 'pnpm-lock.yaml'), '');
+    try {
+      rules = [{ match: (c) => c.includes('vitest run') && c.includes('foo.test.ts'), code: 1 }];
+      const createWorktreeFn = mock(() => Promise.resolve(false));
+      const result = await triageTestFailures(projectRoot, projectRoot, ['foo.test.ts'], {
+        resolveBaseCommitFn: () => Promise.resolve('basehash'),
+        getMainRepoRootFn: () => Promise.resolve('/fake/main-repo'),
+        createWorktreeFn,
+        retryDelayMs: 0,
+      });
+      // Baseline worktree creation is stubbed to fail (irrelevant to this
+      // regression) — the point is the spawn command chosen in step 1.
+      expect(result).toBeNull();
+      expect(
+        calls.some((c) => c.includes('pnpm exec vitest run') && c.includes('foo.test.ts')),
+      ).toBe(true);
+      expect(calls.some((c) => c.includes('bun test'))).toBe(false);
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
   });
 });
