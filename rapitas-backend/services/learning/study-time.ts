@@ -159,21 +159,29 @@ export async function resolveStudyGoalIdForTask(taskId: number): Promise<number 
     return goal?.id ?? null;
   };
 
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    select: { studyGoalId: true, themeId: true, parentId: true },
-  });
-  if (!task) return null;
+  // NOTE: resolver boundary contract (gen-resolver-boundary-tests) — a DB
+  // failure resolves to null rather than rejecting; every caller treats the
+  // goal lookup as best-effort, and the generated boundary test pins this.
+  try {
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { studyGoalId: true, themeId: true, parentId: true },
+    });
+    if (!task) return null;
 
-  const own = task.studyGoalId ?? (await themeGoal(task.themeId));
-  if (own || !task.parentId) return own;
+    const own = task.studyGoalId ?? (await themeGoal(task.themeId));
+    if (own || !task.parentId) return own;
 
-  const parent = await prisma.task.findUnique({
-    where: { id: task.parentId },
-    select: { studyGoalId: true, themeId: true },
-  });
-  if (!parent) return null;
-  return parent.studyGoalId ?? (await themeGoal(parent.themeId));
+    const parent = await prisma.task.findUnique({
+      where: { id: task.parentId },
+      select: { studyGoalId: true, themeId: true },
+    });
+    if (!parent) return null;
+    return parent.studyGoalId ?? (await themeGoal(parent.themeId));
+  } catch (error) {
+    logger.warn({ error, taskId }, 'Failed to resolve study goal for task');
+    return null;
+  }
 }
 
 /**
