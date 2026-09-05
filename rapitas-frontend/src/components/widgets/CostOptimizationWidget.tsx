@@ -133,6 +133,7 @@ export function CostOptimizationWidget() {
                   }}
                   formatter={
                     ((value: number) => [
+                      // NOTE: numeric thousands-separator display (currency), not a date — out of scope for #847
                       `¥${Math.round(value).toLocaleString('ja-JP')}`,
                       t('costOptimization.costLabel'),
                     ]) as never

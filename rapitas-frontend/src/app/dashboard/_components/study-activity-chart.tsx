@@ -6,8 +6,7 @@
 'use client';
 import { useTranslations } from 'next-intl';
 import { Clock } from 'lucide-react';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate as formatDateStandard } from '@/utils/date';
 import type { DailyStudy } from './use-dashboard-data';
 
 interface StudyActivityChartProps {
@@ -22,16 +21,8 @@ interface StudyActivityChartProps {
 export function StudyActivityChart({ dailyStudy }: StudyActivityChartProps) {
   const t = useTranslations('dashboard');
   const tc = useTranslations('common');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString(dateLocale, {
-      month: 'short',
-      day: 'numeric',
-    });
-  };
+  const formatDate = (dateStr: string) => formatDateStandard(dateStr);
 
   const maxHours = Math.max(...dailyStudy.map((d) => d.hours), 1);
 

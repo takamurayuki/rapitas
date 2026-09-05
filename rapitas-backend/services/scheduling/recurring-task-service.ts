@@ -154,6 +154,8 @@ async function inheritWorkflowContext(
   }
 
   // Build context summary
+  // NOTE: toLocaleDateString('ja-JP') below builds task-instruction text carried
+  // into the next recurrence, not a UI datetime display — out of scope for #847.
   let summary = `\n\n---\n## 🔄 前回の実行履歴（自動継承）\n\n`;
   summary += `**前回実行日**: ${lastCompletedTask.completedAt ? new Date(lastCompletedTask.completedAt).toLocaleDateString('ja-JP') : '不明'}\n\n`;
 

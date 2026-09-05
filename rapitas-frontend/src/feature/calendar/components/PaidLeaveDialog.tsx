@@ -4,9 +4,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import type { ScheduleEventInput } from '@/types';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
 import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
+import { formatDate } from '@/utils/date';
 import { PaidLeaveHeader } from './paid-leave/PaidLeaveHeader';
 import { PaidLeaveDurationPicker } from './paid-leave/PaidLeaveDurationPicker';
 import { PaidLeaveOptions } from './paid-leave/PaidLeaveOptions';
@@ -50,8 +49,6 @@ export default function PaidLeaveDialog({
 }: Props) {
   const t = useTranslations('calendar');
   const tp = useTranslations('calendar.paidLeaveDialog');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
   const defaults = getDefaultTimes();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -152,20 +149,9 @@ export default function PaidLeaveDialog({
     }
   };
 
-  const formattedStartDate = new Date(startDate).toLocaleDateString(dateLocale, {
-    month: 'long',
-    day: 'numeric',
-    weekday: 'short',
-  });
+  const formattedStartDate = formatDate(startDate);
 
-  const formattedEndDate =
-    isMultiDay && endDate > startDate
-      ? new Date(endDate).toLocaleDateString(dateLocale, {
-          month: 'long',
-          day: 'numeric',
-          weekday: 'short',
-        })
-      : null;
+  const formattedEndDate = isMultiDay && endDate > startDate ? formatDate(endDate) : null;
 
   const dayOfWeek = new Date(startDate).getDay();
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;

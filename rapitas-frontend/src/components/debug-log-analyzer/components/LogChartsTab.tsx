@@ -25,6 +25,7 @@ import {
 } from 'recharts';
 import { TabsContent } from '@/components/ui/tabs';
 import type { LogAnalysisResult, LogLevel } from '@/types/debug-log';
+import { formatDateTime, formatTime } from '@/utils/date';
 
 const LOG_LEVEL_COLORS: Record<LogLevel, string> = {
   trace: '#9CA3AF',
@@ -151,13 +152,13 @@ export const LogChartsTab: React.FC<LogChartsTabProps> = ({ analysis }) => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="time"
-                  tickFormatter={(time: string | number) => new Date(time).toLocaleTimeString()}
+                  tickFormatter={(time: string | number) => formatTime(new Date(time))}
                 />
                 <YAxis />
                 <Tooltip
                   labelFormatter={(label) => {
                     if (typeof label === 'string' || typeof label === 'number') {
-                      return new Date(label).toLocaleString();
+                      return formatDateTime(new Date(label));
                     }
                     return String(label);
                   }}

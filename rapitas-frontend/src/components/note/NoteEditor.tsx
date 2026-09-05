@@ -150,11 +150,7 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
         </div>
       )}
 
-      <NoteEditorFooter
-        createdAt={note.createdAt}
-        updatedAt={note.updatedAt}
-        dateLocale={editor.dateLocale}
-      />
+      <NoteEditorFooter createdAt={note.createdAt} updatedAt={note.updatedAt} />
 
       {/* Diagram edit overlay — covers the entire editor when a block is clicked */}
       {editingDiagram && (

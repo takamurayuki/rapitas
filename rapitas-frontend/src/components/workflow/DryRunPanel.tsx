@@ -15,6 +15,7 @@ import { useTranslations } from 'next-intl';
 import { GitCompare, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { Button } from '@/components/ui/button';
+import { formatDateTime } from '@/utils/date';
 
 // 180s: covers the jury's worst case (3 providers × up to 120s timeout each,
 // run in parallel via Promise.all — see adversarial-diff-review.ts's
@@ -220,7 +221,7 @@ export default function DryRunPanel({ taskId }: DryRunPanelProps) {
                       ) : (
                         <ChevronRight className="h-3.5 w-3.5" />
                       )}
-                      {new Date(entry.createdAt).toLocaleString()} ·{' '}
+                      {formatDateTime(entry.createdAt)} ·{' '}
                       {entry.payload.ok ? t('dryRun.pass') : t('dryRun.fail')}
                     </button>
                     {isExpanded && (

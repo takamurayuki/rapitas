@@ -16,8 +16,7 @@ import {
 } from 'lucide-react';
 import type { ScheduleEvent } from '@/types';
 import { getTaskDetailPath } from '@/utils/tauri';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 import type { HolidayLabelKey } from '@/utils/holidays';
 import type { CalendarEvent } from '../_utils/calendar-helpers';
 
@@ -65,8 +64,6 @@ export function DayEventsSidebar({
   const t = useTranslations('calendar');
   const tc = useTranslations('common');
   const tHoliday = useTranslations('calendar.holidays');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
 
   const selectedDateEvents = selectedDate
     ? events.filter((e) => {
@@ -82,14 +79,7 @@ export function DayEventsSidebar({
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="font-semibold text-zinc-800 dark:text-zinc-200">
-            {selectedDate
-              ? new Date(selectedDate).toLocaleDateString(dateLocale, {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                  weekday: 'short',
-                })
-              : t('selectDate')}
+            {selectedDate ? formatDate(selectedDate) : t('selectDate')}
           </h3>
           {selectedDate && holidayMap.get(selectedDate) && (
             <p className="text-xs font-medium text-red-500 dark:text-red-400 mt-0.5">
@@ -182,15 +172,9 @@ export function DayEventsSidebar({
                       {event.endDate && (
                         <span className="flex items-center gap-1 text-xs text-indigo-500 dark:text-indigo-400">
                           <CalendarIcon className="w-3 h-3" />
-                          {new Date(event.date).toLocaleDateString(dateLocale, {
-                            month: 'short',
-                            day: 'numeric',
-                          })}
+                          {formatDate(event.date)}
                           {' 〜 '}
-                          {new Date(event.endDate).toLocaleDateString(dateLocale, {
-                            month: 'short',
-                            day: 'numeric',
-                          })}
+                          {formatDate(event.endDate)}
                         </span>
                       )}
                       {event.time && (

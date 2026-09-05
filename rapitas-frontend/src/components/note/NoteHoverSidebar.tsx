@@ -13,8 +13,7 @@ import { useNoteStore, type Note } from '@/stores/note-store';
 import { useUIModeStore } from '@/stores/ui-mode-store';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 import DeleteNoteModal from './DeleteNoteModal';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate as formatDateStandard } from '@/utils/date';
 import { buildNoteTree } from './note-tree-utils';
 import { useNoteHoverSidebarHover } from './useNoteHoverSidebarHover';
 import { useNoteHoverSidebarExpansion } from './useNoteHoverSidebarExpansion';
@@ -36,8 +35,6 @@ export default function NoteHoverSidebar() {
     toggleTag,
     clearFilters,
   } = useNoteStore();
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
   const { currentMode } = useUIModeStore();
 
   const filterCategories = useFilterDataStore((s) => s.categories);
@@ -99,7 +96,7 @@ export default function NoteHoverSidebar() {
     if (diffDays === 0) return tc('today');
     if (diffDays === 1) return t('hoverSidebar.yesterday');
     if (diffDays < 7) return t('hoverSidebar.daysAgo', { days: diffDays });
-    return d.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
+    return formatDateStandard(d);
   };
 
   if (currentMode !== 'note') return null;

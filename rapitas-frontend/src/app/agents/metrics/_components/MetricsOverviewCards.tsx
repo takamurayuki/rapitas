@@ -26,6 +26,7 @@ export function MetricsOverviewCards({ overview }: MetricsOverviewCardsProps) {
         <Activity className="h-5 w-5 shrink-0 text-indigo-500" />
         <div className="min-w-0">
           <div className="text-xl font-bold leading-tight text-zinc-900 dark:text-zinc-50">
+            {/* NOTE: numeric thousands-separator display, not a date — out of scope for #847 */}
             {overview.totalExecutions.toLocaleString()}
           </div>
           <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">

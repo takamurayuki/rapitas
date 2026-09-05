@@ -13,6 +13,7 @@ import { Thermometer } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useResourceGate, type ResourceGateDeferral } from './use-resource-gate';
 import type { PanelMeta } from './panel-types';
+import { formatDateTime } from '@/utils/date';
 
 /** Registered with scripts/generate-agents-panels.mjs — see panel-types.ts. */
 export const panelMeta: PanelMeta = { id: 'resource-contention', order: 40 };
@@ -36,7 +37,7 @@ function DeferralRow({
   return (
     <tr className="border-t border-zinc-100 dark:border-zinc-700">
       <td className="px-4 py-2 text-xs text-zinc-700 dark:text-zinc-300">
-        {new Date(deferral.createdAt).toLocaleString()}
+        {formatDateTime(deferral.createdAt)}
       </td>
       <td className="px-4 py-2 text-xs text-zinc-700 dark:text-zinc-300">
         {deferral.themeId ?? '—'}

@@ -308,6 +308,8 @@ async function handleGetProgressSummary(args: Record<string, string>): Promise<M
     `In Progress: ${inProgress} | Todo: ${todo}`,
     '',
     completed.length > 0 ? '## Recently Completed' : '',
+    // NOTE: toLocaleDateString() below builds an MCP tool-response text line, not a
+    // UI datetime display — out of scope for #847.
     ...completed
       .slice(0, 10)
       .map((t) => `- #${t.id} ${t.title} (${t.updatedAt.toLocaleDateString()})`),

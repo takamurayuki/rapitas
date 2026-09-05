@@ -30,6 +30,7 @@ import {
 } from './components';
 import { useNewTaskForm } from './hooks';
 import DurationInput from '@/components/ui/hours-minutes-input/HoursMinutesInput';
+import { formatDate } from '@/utils/date';
 
 function NewTaskClient() {
   const form = useNewTaskForm();
@@ -151,11 +152,7 @@ function NewTaskClient() {
                   />
                   {form.dueDate && (
                     <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 shrink-0">
-                      (
-                      {new Date(form.dueDate).toLocaleDateString(form.dateLocale, {
-                        weekday: 'short',
-                      })}
-                      )
+                      ({formatDate(form.dueDate)})
                     </span>
                   )}
                 </div>

@@ -3,6 +3,7 @@
 
 import { Card } from '@/components/ui/card';
 import { type ErrorSummary } from '../../services/error-analysis-service';
+import { formatTime } from '@/utils/date';
 
 type ErrorTrendsChartProps = {
   /** Trend data from errorAnalysisService.getErrorSummary(). */
@@ -29,7 +30,7 @@ export function ErrorTrendsChart({ summary }: ErrorTrendsChartProps) {
             style={{
               height: `${Math.max(5, (trend.count / maxCount) * 100)}%`,
             }}
-            title={`${trend.timestamp.toLocaleTimeString()}: ${trend.count} errors`}
+            title={`${formatTime(trend.timestamp)}: ${trend.count} errors`}
           />
         ))}
       </div>

@@ -11,8 +11,7 @@ import { Search, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Task } from '@/types/task.types';
 import { useFocusTrap } from '@/hooks/common/useFocusTrap';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 import { Spinner } from '@/components/ui/spinner';
 
 interface TaskSelectorProps {
@@ -41,7 +40,6 @@ export function TaskSelector({
 }: TaskSelectorProps) {
   const t = useTranslations('task.taskSelector');
   const tc = useTranslations('common');
-  const locale = useLocaleStore((s) => s.locale);
   const focusTrapRef = useFocusTrap<HTMLDivElement>(isOpen);
   const [searchQuery, setSearchQuery] = useState('');
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -227,9 +225,7 @@ export function TaskSelector({
                           {task.dueDate && (
                             <span className="text-xs text-gray-500 dark:text-gray-400">
                               {t('dueDate', {
-                                date: new Date(task.dueDate).toLocaleDateString(
-                                  toDateLocale(locale),
-                                ),
+                                date: formatDate(task.dueDate),
                               })}
                             </span>
                           )}

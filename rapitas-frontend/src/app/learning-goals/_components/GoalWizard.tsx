@@ -7,8 +7,7 @@ import { Sparkles, ChevronRight, ChevronLeft, CheckCircle2, Target } from 'lucid
 import type { Category } from '@/types';
 import type { GoalFormData } from '../_hooks/useLearningGoals';
 import { INITIAL_FORM_DATA } from '../_hooks/useLearningGoals';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 
 type WizardStep = 'goal' | 'level' | 'schedule' | 'confirm';
 
@@ -29,8 +28,6 @@ type Props = {
 export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
   const t = useTranslations('learning');
   const tc = useTranslations('common');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
 
   const WIZARD_STEPS: { key: WizardStep; label: string }[] = [
     { key: 'goal', label: t('goal') },
@@ -315,9 +312,7 @@ export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
                     {t('deadline')}
                   </span>
                   <p className="text-sm text-zinc-700 dark:text-zinc-300">
-                    {formData.deadline
-                      ? new Date(formData.deadline).toLocaleDateString(dateLocale)
-                      : t('deadlineUnset')}
+                    {formData.deadline ? formatDate(formData.deadline) : t('deadlineUnset')}
                   </p>
                 </div>
                 <div>

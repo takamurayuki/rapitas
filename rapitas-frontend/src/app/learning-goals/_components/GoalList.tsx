@@ -4,8 +4,7 @@
 import { useTranslations } from 'next-intl';
 import { ChevronRight, CheckCircle2, Target } from 'lucide-react';
 import type { LearningGoal } from '@/types';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 import { EmptyState } from '@/components/ui/empty-state';
 
 type Props = {
@@ -26,8 +25,6 @@ type Props = {
  */
 export function GoalList({ goals, selectedGoalId, showWizard, onSelect }: Props) {
   const t = useTranslations('learning');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
 
   if (goals.length === 0) {
     return showWizard ? null : (
@@ -83,7 +80,7 @@ export function GoalList({ goals, selectedGoalId, showWizard, onSelect }: Props)
                 </span>
                 {goal.deadline && (
                   <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                    〜{new Date(goal.deadline).toLocaleDateString(dateLocale)}
+                    〜{formatDate(goal.deadline)}
                   </span>
                 )}
               </div>

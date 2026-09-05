@@ -20,6 +20,7 @@ export const DEFAULT_USD_JPY_RATE = 150;
  * @returns Formatted yen string (e.g. "¥12,038") / 円表記
  */
 export function formatJpy(usd: number, rate: number): string {
+  // NOTE: numeric thousands-separator display (currency), not a date — out of scope for #847
   return `¥${Math.round(usd * rate).toLocaleString('ja-JP')}`;
 }
 

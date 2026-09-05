@@ -2,8 +2,6 @@
 
 import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
 
 type ExamCountdownProps = {
   examDate: string;
@@ -13,8 +11,6 @@ type ExamCountdownProps = {
 
 export function ExamCountdown({ examDate, color, compact = false }: ExamCountdownProps) {
   const t = useTranslations('examCountdown');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
 
   const { daysRemaining, examDateObj, isUrgent, isNear, isPast, isToday } = useMemo(() => {
     const now = new Date();
@@ -34,9 +30,6 @@ export function ExamCountdown({ examDate, color, compact = false }: ExamCountdow
 
   const month = examDateObj.getMonth() + 1;
   const day = examDateObj.getDate();
-  const weekday = examDateObj.toLocaleDateString(dateLocale, {
-    weekday: 'short',
-  });
   const year = examDateObj.getFullYear();
 
   const statusColor = isToday
@@ -69,7 +62,6 @@ export function ExamCountdown({ examDate, color, compact = false }: ExamCountdow
             <span className="text-lg font-bold text-zinc-900 dark:text-zinc-50 leading-none">
               {day}
             </span>
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400 ml-0.5">({weekday})</span>
           </div>
         </div>
         {/* Days remaining */}
@@ -104,10 +96,6 @@ export function ExamCountdown({ examDate, color, compact = false }: ExamCountdow
         <div className="w-full text-center bg-white dark:bg-zinc-800 py-2 px-2">
           <div className="text-3xl font-extrabold text-zinc-900 dark:text-zinc-50 leading-none">
             {day}
-          </div>
-          <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            {weekday}
-            {t('weekdayLabel')}
           </div>
         </div>
         {/* Bottom: Tear-line style decoration */}

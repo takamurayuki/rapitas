@@ -13,14 +13,10 @@ import {
 import { useTranslations } from 'next-intl';
 import { useWeeklyReview } from './useWeeklyReview';
 import type { WeeklyReviewStats } from '@/types/weekly-review.types';
-import { useLocaleStore } from '@/stores/locale-store';
-import { formatDate as formatDateLocalized } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 
 export function WeeklyReviewCard() {
   const t = useTranslations('home');
-  const locale = useLocaleStore((s) => s.locale);
-  const formatDate = (iso: string): string =>
-    formatDateLocalized(iso, locale, { year: 'numeric', month: '2-digit', day: '2-digit' });
   const { review, isLoading, error, isRegenerating, regenerateError, regenerate } =
     useWeeklyReview();
 

@@ -6,8 +6,7 @@ import { PlanRevisionRequest } from './PlanRevisionRequest';
 import { useTranslations } from 'next-intl';
 import type { WorkflowFileType, WorkflowStatus } from '@/types';
 import type { WorkflowTab } from './workflow-viewer-utils';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDateTime } from '@/utils/date';
 
 interface WorkflowTabBarProps {
   /** Tabs to display (filtered by the current workflow mode) */
@@ -67,7 +66,6 @@ export function WorkflowTabBar({
 }: WorkflowTabBarProps) {
   const t = useTranslations('workflow');
   const tAutoRun = useTranslations('autoRun');
-  const locale = useLocaleStore((s) => s.locale);
   return (
     // Sticky below the task-detail toolbar (top-11) so the tabs stay reachable
     // while scrolling the file; the in-file TOC sticks just beneath this bar.
@@ -154,9 +152,7 @@ export function WorkflowTabBar({
           {lastModified !== undefined && (
             <span>
               {t('tabBar.updated')}{' '}
-              {lastModified
-                ? new Date(lastModified).toLocaleString(toDateLocale(locale))
-                : t('planApprovalModal.unknown')}
+              {lastModified ? formatDateTime(lastModified) : t('planApprovalModal.unknown')}
             </span>
           )}
           <button

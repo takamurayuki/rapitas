@@ -1,8 +1,7 @@
 'use client';
 // MetricsTable
 import { useTranslations } from 'next-intl';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 import type { AgentMetrics } from '../_hooks/useMetricsData';
 
 interface MetricsTableProps {
@@ -16,8 +15,6 @@ interface MetricsTableProps {
  */
 export function MetricsTable({ agentMetrics }: MetricsTableProps) {
   const t = useTranslations('agents');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
 
   return (
     <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
@@ -95,9 +92,7 @@ export function MetricsTable({ agentMetrics }: MetricsTableProps) {
                   {(agent.totalTokensUsed / 1000).toFixed(1)}K
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
-                  {agent.lastExecutionAt
-                    ? new Date(agent.lastExecutionAt).toLocaleDateString(dateLocale)
-                    : '-'}
+                  {agent.lastExecutionAt ? formatDate(agent.lastExecutionAt) : '-'}
                 </td>
               </tr>
             ))}
