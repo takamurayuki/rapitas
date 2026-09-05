@@ -421,6 +421,12 @@ async function ensurePortAvailable(port) {
       console.log(`  → Cannot shutdown active agent session. Exiting to prevent disruption.`);
       console.log(`  → Please wait for agent to complete, or run "npm run dev:force" to`);
       console.log(`    force-stop everything (including the in-progress agent) and restart.`);
+      // NOTE: process.exit() fires the 'exit' handler, whose cleanupSync() used to
+      // request a graceful shutdown of the very backend we just declined to touch
+      // (and killed the tracked agent CLI as a "zombie"). The guard therefore
+      // destroyed the agent it existed to protect (2026-09-05). Flag the exit so
+      // cleanup leaves the foreign servers alone.
+      preserveRunningServers = true;
       process.exit(1);
     }
     if (agentActive && forceStop) {
@@ -2956,6 +2962,9 @@ function startFrontendWatchdog() {
 
 // プロセス終了時のクリーンアップ
 let isCleaningUp = false;
+// Set when dev.js backs off because another instance's backend has an active
+// agent: nothing was spawned by us, so cleanup must not touch any port owner.
+let preserveRunningServers = false;
 
 /**
  * 同期的クリーンアップ処理
@@ -2971,6 +2980,10 @@ let isCleaningUp = false;
 function cleanupSync() {
   if (isCleaningUp) return;
   isCleaningUp = true;
+  if (preserveRunningServers) {
+    console.log('  Leaving the running backend/frontend untouched (active agent on another instance).');
+    return;
+  }
 
   // フロントエンド監視タイマーを停止(クリーンアップ中のリサイクル発火を防止)
   if (frontendWatchdogTimer) {
