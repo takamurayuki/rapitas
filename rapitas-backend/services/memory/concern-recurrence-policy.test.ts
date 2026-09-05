@@ -60,7 +60,13 @@ describe('resolveRecurrence', () => {
   });
 
   it('merges into an open row', async () => {
-    const row = { id: 5, sourceId: 'open', tags: '[]', content: 'detail', createdAt: OLD_CREATED_AT };
+    const row = {
+      id: 5,
+      sourceId: 'open',
+      tags: '[]',
+      content: 'detail',
+      createdAt: OLD_CREATED_AT,
+    };
     const prisma = fakePrisma({ rows: [row] });
     const result = await resolveRecurrence(prisma, 'hash1', RECURRENCE_WINDOW_DAYS);
     expect(result).toEqual({ action: 'merged-open', targetEntry: row });
@@ -80,14 +86,26 @@ describe('resolveRecurrence', () => {
   });
 
   it('merges into a task_created row whose task is still in flight', async () => {
-    const row = { id: 5, sourceId: 'task_9', tags: '[]', content: 'detail', createdAt: OLD_CREATED_AT };
+    const row = {
+      id: 5,
+      sourceId: 'task_9',
+      tags: '[]',
+      content: 'detail',
+      createdAt: OLD_CREATED_AT,
+    };
     const prisma = fakePrisma({ rows: [row], task: { status: 'in-progress', completedAt: null } });
     const result = await resolveRecurrence(prisma, 'hash1', RECURRENCE_WINDOW_DAYS);
     expect(result.action).toBe('merged-open');
   });
 
   it('is a recurrence-of-done when the follow-up task completed within the window (13 days)', async () => {
-    const row = { id: 5, sourceId: 'task_9', tags: '[]', content: 'detail', createdAt: OLD_CREATED_AT };
+    const row = {
+      id: 5,
+      sourceId: 'task_9',
+      tags: '[]',
+      content: 'detail',
+      createdAt: OLD_CREATED_AT,
+    };
     const nowMs = Date.now();
     const completedAt = new Date(nowMs - 13 * DAY_MS);
     const prisma = fakePrisma({ rows: [row], task: { status: 'done', completedAt } });
@@ -96,7 +114,13 @@ describe('resolveRecurrence', () => {
   });
 
   it('is "new" when the follow-up task completed outside the window (15 days)', async () => {
-    const row = { id: 5, sourceId: 'task_9', tags: '[]', content: 'detail', createdAt: OLD_CREATED_AT };
+    const row = {
+      id: 5,
+      sourceId: 'task_9',
+      tags: '[]',
+      content: 'detail',
+      createdAt: OLD_CREATED_AT,
+    };
     const nowMs = Date.now();
     const completedAt = new Date(nowMs - 15 * DAY_MS);
     const prisma = fakePrisma({ rows: [row], task: { status: 'done', completedAt } });
@@ -105,7 +129,13 @@ describe('resolveRecurrence', () => {
   });
 
   it('is "new" when the terminal task has no completedAt recorded', async () => {
-    const row = { id: 5, sourceId: 'task_9', tags: '[]', content: 'detail', createdAt: OLD_CREATED_AT };
+    const row = {
+      id: 5,
+      sourceId: 'task_9',
+      tags: '[]',
+      content: 'detail',
+      createdAt: OLD_CREATED_AT,
+    };
     const prisma = fakePrisma({ rows: [row], task: { status: 'done', completedAt: null } });
     const result = await resolveRecurrence(prisma, 'hash1', RECURRENCE_WINDOW_DAYS);
     expect(result.action).toBe('new');
@@ -176,7 +206,10 @@ describe('resolveRecurrence', () => {
         content: 'fresh done row',
         createdAt: new Date(nowMs - 10 * 60 * 1000),
       };
-      const prisma = fakePrisma({ rows: [row], task: { status: 'done', completedAt: new Date(nowMs) } });
+      const prisma = fakePrisma({
+        rows: [row],
+        task: { status: 'done', completedAt: new Date(nowMs) },
+      });
       const result = await resolveRecurrence(prisma, 'hash1', RECURRENCE_WINDOW_DAYS, nowMs);
       expect(result).toEqual({ action: 'merged-open', targetEntry: row });
     });
@@ -314,7 +347,13 @@ describe('resolveFiling', () => {
   });
 
   it('merges into an open duplicate and updates it in place when the policy is enabled', async () => {
-    const row = { id: 5, sourceId: 'open', tags: '[]', content: '既存の詳細', createdAt: OLD_CREATED_AT };
+    const row = {
+      id: 5,
+      sourceId: 'open',
+      tags: '[]',
+      content: '既存の詳細',
+      createdAt: OLD_CREATED_AT,
+    };
     const prisma = fakePrisma({ rows: [row] });
     const findBlockingDuplicate = mock(() => Promise.resolve(null));
     const decision = await resolveFiling(prisma, {

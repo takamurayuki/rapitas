@@ -59,7 +59,11 @@ export function pickLatestDoneCandidate<TRow extends { createdAt: Date }>(
   for (const candidate of candidates) {
     if (!candidate.completedAt) continue;
     if (nowMs - candidate.completedAt.getTime() > windowMs) continue;
-    if (!best || !best.completedAt || candidate.completedAt.getTime() > best.completedAt.getTime()) {
+    if (
+      !best ||
+      !best.completedAt ||
+      candidate.completedAt.getTime() > best.completedAt.getTime()
+    ) {
       best = candidate;
     }
   }
