@@ -70,9 +70,6 @@
     "rapitas-backend/services/agents/agent-knowledge-sharing.ts": {
       "lineCount": 517
     },
-    "rapitas-backend/services/workflow/incident-signature-detectors.ts": {
-      "lineCount": 517
-    },
     "rapitas-backend/services/workflow/workflow-runner.ts": {
       "lineCount": 517
     },
