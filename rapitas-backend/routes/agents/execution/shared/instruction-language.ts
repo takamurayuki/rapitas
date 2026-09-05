@@ -22,15 +22,15 @@ export function buildOutputLanguageSection(language: PromptLanguage): string {
   if (language === 'en') {
     return (
       '\n\n## Output Language\n' +
-      'Write ALL documents (research.md / plan.md / verify.md / question.md), progress reports, ' +
-      'questions and the final summary in English. Keep section headings exactly as the templates ' +
-      'give them. Commit messages and PR bodies stay in English regardless of this setting.'
+      'Write ALL documents (research.md / plan.md / verify.md / question.md), running commentary, ' +
+      'progress notes, questions and the final summary in English. Keep section headings exactly ' +
+      'as the templates give them. Commit messages and PR bodies stay in English regardless.'
     );
   }
   return (
     '\n\n## 出力言語\n' +
-    'すべての文書（research.md / plan.md / verify.md / question.md）、進捗報告、質問文、最終サマリは' +
-    '**日本語**で書いてください。見出しはテンプレートの形をそのまま使います。' +
+    'すべての文書（research.md / plan.md / verify.md / question.md）、作業中の説明・進捗コメント、質問文、' +
+    '最終サマリは**日本語**で書いてください（英語で考えても書き出す文章は日本語）。見出しはテンプレートの形をそのまま使います。' +
     'コミットメッセージと PR 本文はこの設定に関係なく英語のままにします。'
   );
 }

@@ -13,7 +13,6 @@
  */
 
 import type { LogTranslate } from '../log-pattern-rules';
-import { summarizeInstruction } from '../log-display-utils';
 import type { LogPatternRule } from './types';
 
 /**
@@ -215,23 +214,6 @@ export function getLifecyclePatterns(t: LogTranslate): LogPatternRule[] {
         message: t('timeoutSetting', { timeout: m[2] }),
         iconName: 'Timer',
       }),
-    },
-    {
-      // NOTE: classified 'info' (not 'agent-text') on purpose — the dispatched
-      // prompt is a mechanical event, and groupAgentText would drop `detail`
-      // (the full prompt) if this were treated as narrative.
-      pattern: /^\[(Codex|Gemini|Claude(?: Code)?)\]\s*Prompt:\s*(.+)/i,
-      transform: (_l, m) => {
-        const summary = summarizeInstruction(m[2]);
-        return {
-          category: 'info',
-          message: t('agentInstruction', { summary }),
-          detail: m[2] !== summary ? m[2] : undefined,
-          // NOTE: MessageSquare = a message SENT TO the agent (instruction);
-          // Bot marks text the agent itself speaks (narrative). Keep distinct.
-          iconName: 'MessageSquare',
-        };
-      },
     },
     {
       pattern: /^\[(Codex|Gemini|Claude(?: Code)?)\]\s*(?:Execution )?timed out/i,

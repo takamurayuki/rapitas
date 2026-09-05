@@ -12,6 +12,10 @@ export const HIDDEN_PATTERNS = [
   /^Active code page:/i,
   /^現在のコード ページ:/i,
   /^chcp\s/i,
+  // The dispatched-prompt banner ([Claude Code] Prompt: …) is a mechanical
+  // echo of the instruction, not something the user acts on; shown, its
+  // system-prompt text read as agent speech (operator decision 2026-09-06).
+  /^\[(?:Codex|Gemini|Claude(?: Code)?)\]\s*Prompt:/i,
   /^\[codex\] hidden \d+ noisy line\(s\)/i,
   /^\[gemini\] hidden \d+ noisy line\(s\)/i,
   /codex_core::session: failed to record rollout/i,

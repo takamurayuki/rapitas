@@ -160,26 +160,6 @@ export function isNarrativeProse(line: string): boolean {
 }
 
 /**
- * Extract a one-line human summary from a dispatched instruction/prompt:
- * the first meaningful line with markdown decorations stripped, cut at the
- * first sentence end, capped at 120 chars.
- *
- * @param text - Raw instruction text (may be multi-line markdown). / 指示の原文
- * @returns One-line summary. / 1行サマリ
- */
-export function summarizeInstruction(text: string): string {
-  const firstLine =
-    text
-      .split('\n')
-      .map((l) => stripMarkdownDecorations(l))
-      .find((l) => l.length > 0) ?? '';
-  // A '.' only ends a sentence before whitespace/EOL so `config.ts` survives.
-  const end = firstLine.search(/[。！？]|[.!?](?=\s|$)/);
-  const sentence = end >= 0 ? firstLine.slice(0, end + 1) : firstLine;
-  return sentence.length > 120 ? `${sentence.slice(0, 120)}...` : sentence;
-}
-
-/**
  * Merge entries with identical rendered content into one entry carrying a
  * `count` (rendered as a ×N badge). Targets repeated markers such as
  * `[System: thinking_tokens]` spam and same-event lines emitted by two log

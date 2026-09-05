@@ -10,7 +10,6 @@ import {
   isMarkdownMarkerLine,
   isNarrativeProse,
   stripMarkdownDecorations,
-  summarizeInstruction,
   type MarkdownBlockToken,
 } from '../log-display-utils';
 import type { UserFriendlyLogEntry } from '../log-pattern-rules';
@@ -97,26 +96,6 @@ describe('collapseMarkdownBlocks', () => {
   test('non-markdown lines are returned untouched', () => {
     const lines = ['普通のログ', '[Tool: Read] -> a.ts'];
     expect(collapseMarkdownBlocks(lines)).toEqual(lines);
-  });
-});
-
-describe('summarizeInstruction', () => {
-  test('strips markdown from the first meaningful line', () => {
-    expect(summarizeInstruction('## システム指示')).toBe('システム指示');
-  });
-
-  test('skips leading blank lines and cuts at the first sentence end', () => {
-    expect(summarizeInstruction('\nタスクを実装してください。詳細は以下。')).toBe(
-      'タスクを実装してください。',
-    );
-  });
-
-  test('a period inside an identifier does not end the sentence', () => {
-    expect(summarizeInstruction('Update config.ts as needed')).toBe('Update config.ts as needed');
-  });
-
-  test('caps very long summaries at 120 chars', () => {
-    expect(summarizeInstruction('y'.repeat(200))).toBe(`${'y'.repeat(120)}...`);
   });
 });
 

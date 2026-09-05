@@ -31,7 +31,6 @@ const JA_TEMPLATES: Record<string, string> = {
   workingDirectory: '作業ディレクトリ: {dir}',
   processStarted: 'プロセス起動 PID {pid}',
   timeoutSetting: 'タイムアウト設定: {timeout}',
-  agentInstruction: 'エージェントへの指示: {summary}',
   providerTimedOut: '{provider} の実行がタイムアウトしました',
   providerError: '{provider} エラー: {detail}',
   executionCompleted: '実行完了',

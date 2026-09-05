@@ -61,8 +61,8 @@ export function buildCliAgentPrompt(params: {
   // NOTE: Language instruction placed before context so agents see the language requirement early.
   const languageInstruction =
     language === 'ja'
-      ? 'すべての出力（Markdownファイル含む）を日本語で記述してください。'
-      : 'Write all output (including Markdown files) in English.';
+      ? 'すべての出力（Markdownファイル、作業中の説明・進捗コメント・最終サマリを含む）を日本語で記述してください。英語の文で考えても、書き出す文章は日本語にしてください。'
+      : 'Write ALL output in English — Markdown files, running commentary, progress notes and the final summary alike.';
   let fullPrompt = '';
   if (systemPrompt) fullPrompt += `${cliT.systemHeader}\n${systemPrompt}\n\n`;
   fullPrompt += `## ${language === 'ja' ? '出力言語' : 'Output Language'}\n${languageInstruction}\n\n`;

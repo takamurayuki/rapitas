@@ -83,23 +83,11 @@ describe('getLogPatterns', () => {
     const timeout = classify('[Codex] Timeout: 30 minutes');
     expect(timeout!.message).toContain('30 minutes');
 
-    // NOTE: prompts render as a labelled instruction entry with a one-line
-    // summary; the full prompt is available via detail (click-to-expand).
-    const shortPrompt = classify('[Claude] Prompt: do the thing');
-    expect(shortPrompt!.category).toBe('info');
-    expect(shortPrompt!.message).toContain('agentInstruction');
-    expect(shortPrompt!.message).toContain('do the thing');
-    expect(shortPrompt!.detail).toBeUndefined();
-
-    const mdPrompt = classify('[Claude] Prompt: ## システム指示');
-    expect(mdPrompt!.message).toContain('システム指示');
-    expect(mdPrompt!.message).not.toContain('##');
-    expect(mdPrompt!.detail).toBe('## システム指示');
-
-    const longText = 'x'.repeat(150);
-    const longPrompt = classify(`[Claude] Prompt: ${longText}`);
-    expect(longPrompt!.detail).toBe(longText);
-    expect(longPrompt!.message).toContain('...');
+    // NOTE: the dispatched-prompt banner is hidden from the friendly view —
+    // its system-prompt text used to read as agent speech. No rule claims it.
+    expect(classify('[Claude] Prompt: do the thing')).toBeNull();
+    expect(HIDDEN_PATTERNS.some((p) => p.test('[Claude Code] Prompt: ## システム指示'))).toBe(true);
+    expect(HIDDEN_PATTERNS.some((p) => p.test('[Codex] Prompt: do the thing'))).toBe(true);
 
     const timedOut = classify('[Gemini] Execution timed out (no output)');
     expect(timedOut).toMatchObject({ category: 'error', iconName: 'Timer' });

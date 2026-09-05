@@ -831,7 +831,6 @@
       "workingDirectory": "Working directory: {dir}",
       "processStarted": "Process started (PID {pid})",
       "timeoutSetting": "Timeout setting: {timeout}",
-      "agentInstruction": "Instruction to agent: {summary}",
       "providerTimedOut": "{provider} execution timed out",
       "providerError": "{provider} error: {detail}",
       "executionCompleted": "Execution complete",
