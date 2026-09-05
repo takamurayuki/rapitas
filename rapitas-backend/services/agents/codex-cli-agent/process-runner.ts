@@ -25,6 +25,7 @@ import {
   captureDescendants,
 } from '../agent-process-tracker';
 import { startResourceSampling, stopResourceSampling } from '../process-resource-sampler';
+import { formatPromptPreview } from '../../../utils/agent/prompt-preview';
 
 const logger = createLogger('codex-cli-agent/process-runner');
 
@@ -465,9 +466,8 @@ export async function spawnCodexProcess(
     callbacks.emitOutput(`${logPrefix} Model: ${config.model ?? 'default'}\n`);
     callbacks.emitOutput(`${logPrefix} Working directory: ${workDir}\n`);
     callbacks.emitOutput(`${logPrefix} Timeout: ${timeout / 1000}s\n`);
-    callbacks.emitOutput(
-      `${logPrefix} Prompt: ${prompt.substring(0, 200)}${prompt.length > 200 ? '...' : ''}\n\n`,
-    );
+    // One line only — untagged continuation lines render as agent narrative (formatPromptPreview).
+    callbacks.emitOutput(`${logPrefix} Prompt: ${formatPromptPreview(prompt)}\n\n`);
 
     try {
       const [finalCommand, finalArgs] = buildSpawnCommand(codexPath, args, isWindows);

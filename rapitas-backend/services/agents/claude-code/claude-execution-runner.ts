@@ -29,6 +29,7 @@ import { buildSanitizedSpawnEnv } from '../../../utils/agent';
 import { buildStructuredPrompt } from './prompt-builder';
 import { startIdleMonitor } from './idle-monitor';
 import type { ClaudeCodeAgent } from './agent-core';
+import { formatPromptPreview } from '../../../utils/agent/prompt-preview';
 
 const logger = createLogger('claude-code-agent');
 
@@ -286,9 +287,8 @@ export function runClaudeExecution(
   agent.emitOutputInternal(`${agent.logPrefix} Model: ${agent.config.model ?? 'default'}\n`);
   agent.emitOutputInternal(`${agent.logPrefix} Working directory: ${workDir}\n`);
   agent.emitOutputInternal(`${agent.logPrefix} Timeout: ${timeout / 1000}s\n`);
-  agent.emitOutputInternal(
-    `${agent.logPrefix} Prompt: ${prompt.substring(0, 200)}${prompt.length > 200 ? '...' : ''}\n\n`,
-  );
+  // One line only — untagged continuation lines render as agent narrative (formatPromptPreview).
+  agent.emitOutputInternal(`${agent.logPrefix} Prompt: ${formatPromptPreview(prompt)}\n\n`);
 
   const cleanupPromptFile = () => {
     try {
