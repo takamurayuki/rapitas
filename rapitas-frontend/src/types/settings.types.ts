@@ -37,6 +37,8 @@ export type UserSettings = {
   selfRefillWindowStart?: string;
   /** マージ済みだが未活性のコード検知時、アイドル時に安全に自動再起動する。 */
   autoRestartOnMergedCode?: boolean;
+  /** UI の言語。エージェントの文書・報告の出力言語がこれに追従する（ファイル保存、DB列なし）。 */
+  uiLocale?: 'ja' | 'en';
   autoCommitDefault?: boolean;
   autoCreatePRDefault?: boolean;
   autoMergePRDefault?: boolean;

@@ -12,6 +12,7 @@ import { prisma } from '../../../../config/database';
 import { createLogger } from '../../../../config/logger';
 import { recordTransition } from '../../../../services/workflow/transition-recorder';
 import { checkWorkflowInvariants } from '../../../../services/workflow/workflow-invariants';
+import { readPromptLanguage } from '../../../../services/system/prompt-language-store';
 
 const log = createLogger('routes:agent-execution:research-workflow-advance');
 
@@ -191,7 +192,7 @@ export async function advanceAfterResearchSave(
       try {
         const { WorkflowOrchestrator } =
           await import('../../../../services/workflow/workflow-orchestrator');
-        await WorkflowOrchestrator.getInstance().advanceWorkflow(taskIdNum, 'ja');
+        await WorkflowOrchestrator.getInstance().advanceWorkflow(taskIdNum, readPromptLanguage());
         log.info({ taskId: taskIdNum, nextPhase }, '[API] Auto-advanced workflow after research');
       } catch (advanceErr) {
         log.error(

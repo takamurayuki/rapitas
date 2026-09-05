@@ -4,7 +4,6 @@
  * Builds the full instruction string sent to the agent worker by combining
  * the task description, an optional optimized prompt, attachment metadata,
  * and a previously computed task analysis result.
- * Separated from execute-route.ts to keep it under 300 lines.
  */
 
 import { join } from 'path';
@@ -12,6 +11,7 @@ import { prisma } from '../../../../config/database';
 import { createLogger } from '../../../../config/logger';
 import { fromJsonString } from '../../../../utils/database/db-helpers';
 import { buildSubtaskSplitDirective } from '../../../../services/workflow/subtask-split-policy';
+import { buildOutputLanguageSection } from './instruction-language';
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
 const log = createLogger('routes:agent-execution:instruction-builder');
@@ -132,6 +132,8 @@ export function buildFullInstruction(params: {
    * from the auto-run orchestrator's per-phase dispatch.
    */
   hypothesisContext?: string;
+  /** Output language for documents/reports (prompt-language-store); default ja. */
+  language?: 'ja' | 'en';
 }): string {
   const {
     taskTitle,
@@ -148,6 +150,7 @@ export function buildFullInstruction(params: {
     workflowMode = 'standard',
     workflowDisabled = false,
     hypothesisContext = '',
+    language = 'ja',
   } = params;
   const hypothesisBlock = hypothesisContext ? `\n\n${hypothesisContext}` : '';
 
@@ -162,7 +165,7 @@ export function buildFullInstruction(params: {
       : taskDescription || taskTitle;
   }
 
-  // Inject the structured spec (goals/constraints/acceptance) with emphasis.
+  fullInstruction += buildOutputLanguageSection(language);
   fullInstruction += buildSpecSection(taskSpec);
 
   // NOTE: Explicitly tell the agent where to work so it doesn't default to rapitas project.

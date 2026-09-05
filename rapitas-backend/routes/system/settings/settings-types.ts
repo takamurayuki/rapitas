@@ -38,6 +38,8 @@ export interface UserSettingsUpdateBody {
   retroReviewEnabled?: boolean;
   /** Strict merge barrier: hold the next auto-run task until the theme's open auto-PR merges (file-backed, no DB column; default OFF). */
   mergeBarrierEnabled?: boolean;
+  /** UI locale pushed by the desktop app; agent prompts follow it (file-backed, no DB column). */
+  uiLocale?: 'ja' | 'en';
   defaultAiProvider?: string;
   defaultCategoryId?: number | null;
   activeMode?: string;

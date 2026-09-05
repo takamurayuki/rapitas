@@ -25,6 +25,7 @@ import {
   reconcileTaskStatusBeforeRun,
 } from './workflow-orchestrator-context';
 import { executeAgentWithFallback } from './workflow-orchestrator-execute';
+import { readPromptLanguage } from '../system/prompt-language-store';
 
 // Re-export sub-module helpers so existing imports from this path keep working.
 export { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
@@ -84,7 +85,8 @@ export class WorkflowOrchestrator {
    */
   async advanceWorkflow(
     taskId: number,
-    language: 'ja' | 'en' = 'ja',
+    // Follows the UI locale unless a caller pins it (route bodies may).
+    language: 'ja' | 'en' = readPromptLanguage(),
   ): Promise<WorkflowAdvanceResult> {
     // WORKFLOW_LOCK_TTL_MS intentionally exceeds the WorkflowRunner's per-phase
     // timeout (both derive from execution-timeouts) so a long phase cannot have

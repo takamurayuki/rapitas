@@ -38,6 +38,7 @@ import {
 import { isShutdownError } from '../../../../services/agents/agent-worker/shutdown-error';
 import { assertSafeGitRef } from '../../../../utils/common/branch-name-generator';
 import type { AttachmentDescriptor } from '../shared/instruction-builder';
+import { readPromptLanguage } from '../../../../services/system/prompt-language-store';
 
 const log = createLogger('routes:agent-execution:execute');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -561,14 +562,12 @@ export const executeRoute = new Elysia().post(
     // Rapitas backend (full permissions, outside sandbox) is the sole
     // writer for the persistent research.md.
     const researchTempOutputFile = null;
-
-    // Parse the JSON-array spec columns (goals/constraints/acceptanceCriteria) for injection.
+    const promptLanguage = readPromptLanguage();
     const taskSpec = {
       goals: parseSpecArray(task.goals),
       constraints: parseSpecArray(task.constraints),
       acceptanceCriteria: parseSpecArray(task.acceptanceCriteria),
     };
-
     // The hypothesis ledger (仮説台帳) — buildRoleContext already injects this
     // for the auto-run orchestrator's per-phase dispatch (workflow-orchestrator.ts),
     // but THIS manual "実行" button path builds its own separate prompt below and
@@ -579,7 +578,7 @@ export const executeRoute = new Elysia().post(
     // `## 仮説` section to).
     const hypothesisContext =
       enforceWorkflow && !effectiveWorkflowDisabled
-        ? await buildHypothesisContext(taskIdNum, 'ja').catch(() => '')
+        ? await buildHypothesisContext(taskIdNum, promptLanguage).catch(() => '')
         : '';
 
     const fullInstruction = effectiveResearchMode
@@ -596,6 +595,7 @@ export const executeRoute = new Elysia().post(
           taskSpec,
           hasResearch: !!existingResearch,
           hasPlan: !!existingPlan,
+          language: promptLanguage,
           // Lightweight tasks skip the plan phase: the workflow injection becomes
           // research → implement (no plan.md) instead of research → plan → stop.
           workflowMode: narrowWorkflowMode(task.workflowMode, 'standard'),

@@ -20,11 +20,13 @@ import {
   applyAutoRestartOnMergedCode,
   applyRetroReviewEnabled,
   applyMergeBarrierEnabled,
+  applyUiLocale,
 } from './settings-extra-fields';
 import { readAutoRestartEnabled } from '../../../services/scheduling/auto-restart-merged-code/settings-store';
 import { readRetroReviewEnabled } from '../../../services/workflow/process-retro/retro-settings-store';
 import { readMergeBarrierEnabled } from '../../../services/scheduling/merge-barrier/merge-barrier';
 import { fetchAvailableModels } from './model-fetcher';
+import { readPromptLanguage } from '../../../services/system/prompt-language-store';
 
 const log = createLogger('routes:settings');
 
@@ -45,6 +47,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
       ...settings,
       autoRestartOnMergedCode: readAutoRestartEnabled(),
       retroReviewEnabled: readRetroReviewEnabled(),
+      uiLocale: readPromptLanguage(),
       mergeBarrierEnabled: readMergeBarrierEnabled(),
       claudeApiKeyConfigured: apiKeyConfigured,
       chatgptApiKeyConfigured: chatgptConfigured,
@@ -191,6 +194,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         applyAutoRestartOnMergedCode(extraBody, settingsRef);
         applyRetroReviewEnabled(extraBody, settingsRef);
         applyMergeBarrierEnabled(extraBody, settingsRef);
+        applyUiLocale(extraBody, settingsRef);
 
         return settings;
       } catch (error: unknown) {

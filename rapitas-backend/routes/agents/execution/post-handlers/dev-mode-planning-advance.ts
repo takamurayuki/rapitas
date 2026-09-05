@@ -8,6 +8,7 @@
 
 import { prisma } from '../../../../config/database';
 import { createLogger } from '../../../../config/logger';
+import { readPromptLanguage } from '../../../../services/system/prompt-language-store';
 
 const log = createLogger('routes:agent-execution:dev-mode-planning-advance');
 
@@ -49,7 +50,7 @@ export async function advanceManagedPlanningPhase(taskId: number): Promise<boole
   setTimeout(() => {
     import('../../../../services/workflow/workflow-orchestrator')
       .then(({ WorkflowOrchestrator }) =>
-        WorkflowOrchestrator.getInstance().advanceWorkflow(taskId, 'ja'),
+        WorkflowOrchestrator.getInstance().advanceWorkflow(taskId, readPromptLanguage()),
       )
       .catch((advanceErr) =>
         log.error(

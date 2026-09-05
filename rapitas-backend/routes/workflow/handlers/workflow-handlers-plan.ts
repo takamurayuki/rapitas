@@ -14,6 +14,7 @@ import { recordTransition } from '../../../services/workflow/transition-recorder
 import { previewMissingFilesForStatus } from '../../../services/workflow/workflow-invariants';
 import { resolveTaskWorkflowState } from '../../../services/task/task-resolver';
 import { HTTP_STATUS } from '../../../utils/common/http-status';
+import { readPromptLanguage } from '../../../services/system/prompt-language-store';
 
 const log = createLogger('routes:workflow:handlers:plan');
 
@@ -44,7 +45,7 @@ export async function handleApprovePlan({
     if (typeof parsedBody?.approved !== 'boolean') {
       throw new ValidationError('approved (boolean) is required');
     }
-    const language = parsedBody?.language || 'ja';
+    const language = parsedBody?.language || readPromptLanguage();
 
     const task = await resolveTaskWorkflowState(taskId);
     if (!task) {
@@ -326,7 +327,7 @@ export async function handleAdvanceWorkflow({
   try {
     const taskId = parseId(params.taskId, 'task ID');
     const parsedBody = body as { language?: 'ja' | 'en' } | undefined;
-    const language = parsedBody?.language || 'ja';
+    const language = parsedBody?.language || readPromptLanguage();
 
     const { WorkflowOrchestrator } =
       await import('../../../services/workflow/workflow-orchestrator');

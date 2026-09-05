@@ -18,6 +18,7 @@ import { looksLogPolluted } from '../../../../services/workflow/phase-output-val
 import { recordTransition } from '../../../../services/workflow/transition-recorder';
 import type { WorkflowStatus } from '../../../../services/workflow/workflow-types';
 import { HTTP_STATUS } from '../../../../utils/common/http-status';
+import { readPromptLanguage } from '../../../../services/system/prompt-language-store';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -51,7 +52,7 @@ export async function prepareAndPersistContent(params: {
   // markdown to a UTF-8 temp file and `curl --data-binary @file`, bypassing shell
   // string encoding entirely. See prompt-builder.ts for the agent-facing steps.
   let content: string;
-  let fileLanguage: 'ja' | 'en' = 'ja';
+  let fileLanguage: 'ja' | 'en' = readPromptLanguage();
   if (typeof body === 'string') {
     content = body;
   } else {
@@ -60,7 +61,8 @@ export async function prepareAndPersistContent(params: {
       throw new ValidationError('content is required');
     }
     content = parsedBody.content;
-    fileLanguage = parsedBody.language === 'en' ? 'en' : 'ja';
+    if (parsedBody.language === 'en' || parsedBody.language === 'ja')
+      fileLanguage = parsedBody.language;
   }
 
   // Strip any conversational preamble the agent wrote before the report body

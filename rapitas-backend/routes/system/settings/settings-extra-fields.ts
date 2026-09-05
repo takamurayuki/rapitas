@@ -22,6 +22,11 @@ import {
   writeMergeBarrierEnabled,
 } from '../../../services/scheduling/merge-barrier/merge-barrier';
 import type { UserSettingsUpdateBody } from './settings-types';
+import {
+  asPromptLanguage,
+  readPromptLanguage,
+  writePromptLanguage,
+} from '../../../services/system/prompt-language-store';
 
 const log = createLogger('routes:settings');
 
@@ -183,4 +188,23 @@ export function applyMergeBarrierEnabled(
     writeMergeBarrierEnabled(body.mergeBarrierEnabled);
   }
   settingsRef.mergeBarrierEnabled = readMergeBarrierEnabled();
+}
+
+/**
+ * Persist the file-backed UI locale (no Prisma column — the value lives in
+ * RAPITAS_DATA_DIR) that every agent prompt reads its output language from,
+ * and mirror the effective value onto `settingsRef`.
+ *
+ * @param body - PATCH body (field written only when a supported locale) / PATCHボディ
+ * @param settingsRef - Response object to mirror the value onto / 反映先レスポンスオブジェクト
+ */
+export function applyUiLocale(
+  body: UserSettingsUpdateBody,
+  settingsRef: Record<string, unknown>,
+): void {
+  const language = asPromptLanguage(body.uiLocale);
+  if (language) {
+    writePromptLanguage(language);
+  }
+  settingsRef.uiLocale = readPromptLanguage();
 }
