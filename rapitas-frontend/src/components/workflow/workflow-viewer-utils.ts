@@ -63,8 +63,12 @@ export const getWorkflowTabs = (workflowMode: string, t: WorkflowT): WorkflowTab
   // that: research is always shown; remaining tabs scale with complexity.
   switch (workflowMode) {
     case 'lightweight':
-      // Lightweight: research + verify (skip plan / Q&A)
-      return allTabs.filter((tab) => ['research', 'verify'].includes(tab.id));
+      // Lightweight: research + Q&A + verify (skip plan). Q&A must stay
+      // available: the intake quality gate pauses a task on question.md
+      // regardless of mode, and dropping the tab here left a lightweight task
+      // in awaiting_question with no question visible (task 857, 2026-09-06).
+      // selectWorkflowTabs still hides Q&A until a question actually exists.
+      return allTabs.filter((tab) => ['research', 'question', 'verify'].includes(tab.id));
     case 'standard':
       // Standard: research + plan + Q&A + verify. Q&A stays available for
       // clarifying questions (which can occur in any mode); the difference vs
