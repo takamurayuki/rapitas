@@ -65,7 +65,7 @@ describe('useBackendHealth', () => {
   it('should set disconnected on failed health check', async () => {
     mockFetch.mockRejectedValue(new Error('Connection refused'));
 
-    const { result } = renderHook(() => useBackendHealth());
+    const { result } = renderHook(() => useBackendHealth({ disconnectThreshold: 1 }));
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
@@ -75,6 +75,24 @@ describe('useBackendHealth', () => {
     expect(result.current.isConnected).toBe(false);
   });
 
+  it('keeps checking after a single failure and flips only at the default threshold', async () => {
+    // NOTE: one failed probe is treated as a load spike (2026-09-02 modal-loop
+    // incident); the visible state flips only after disconnectThreshold (2) misses.
+    mockFetch.mockRejectedValue(new Error('Connection refused'));
+
+    const { result } = renderHook(() => useBackendHealth({ intervalMs: 1000 }));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.status).toBe('checking');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(result.current.status).toBe('disconnected');
+  });
+
   it('should set disconnected on non-ok response', async () => {
     mockFetch.mockResolvedValue({
       ok: false,
@@ -82,7 +100,7 @@ describe('useBackendHealth', () => {
       statusText: 'Internal Server Error',
     });
 
-    const { result } = renderHook(() => useBackendHealth());
+    const { result } = renderHook(() => useBackendHealth({ disconnectThreshold: 1 }));
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
@@ -95,7 +113,7 @@ describe('useBackendHealth', () => {
     const onDisconnectAction = vi.fn();
     mockFetch.mockRejectedValue(new Error('Connection refused'));
 
-    renderHook(() => useBackendHealth({ onDisconnectAction }));
+    renderHook(() => useBackendHealth({ disconnectThreshold: 1, onDisconnectAction }));
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
@@ -112,6 +130,7 @@ describe('useBackendHealth', () => {
 
     const { result } = renderHook(() =>
       useBackendHealth({
+        disconnectThreshold: 1,
         onReconnectAction,
         intervalMs: 5000,
         retryIntervalMs: 2000,
@@ -141,7 +160,9 @@ describe('useBackendHealth', () => {
     const onDisconnectAction = vi.fn();
     mockFetch.mockRejectedValue(new Error('Connection refused'));
 
-    renderHook(() => useBackendHealth({ onDisconnectAction, retryIntervalMs: 1000 }));
+    renderHook(() =>
+      useBackendHealth({ disconnectThreshold: 1, onDisconnectAction, retryIntervalMs: 1000 }),
+    );
 
     // Initial check
     await act(async () => {
@@ -162,7 +183,9 @@ describe('useBackendHealth', () => {
   it('should use retryIntervalMs when disconnected', async () => {
     mockFetch.mockRejectedValue(new Error('Connection refused'));
 
-    renderHook(() => useBackendHealth({ intervalMs: 5000, retryIntervalMs: 1000 }));
+    renderHook(() =>
+      useBackendHealth({ disconnectThreshold: 1, intervalMs: 5000, retryIntervalMs: 1000 }),
+    );
 
     // Initial check
     await act(async () => {
@@ -202,7 +225,9 @@ describe('useBackendHealth', () => {
   it('sets isIntentionalRestart after 3 consecutive health-check failures', async () => {
     mockFetch.mockRejectedValue(new Error('Connection refused'));
 
-    const { result } = renderHook(() => useBackendHealth({ retryIntervalMs: 1000 }));
+    const { result } = renderHook(() =>
+      useBackendHealth({ disconnectThreshold: 1, retryIntervalMs: 1000 }),
+    );
 
     // Initial check fails, but that alone is below the default threshold of 3.
     await act(async () => {
