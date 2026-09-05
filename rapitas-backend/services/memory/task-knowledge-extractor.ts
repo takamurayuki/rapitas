@@ -43,11 +43,9 @@ export async function extractKnowledgeFromTask(taskId: number): Promise<number[]
       return entryIds;
     }
 
-    // NOTE: Extraction is limited to DEVELOPMENT tasks — themes with a
-    // workingDirectory (operator decision 2026-09-05). Ordinary tasks (study,
-    // personal) yield noise knowledge, and the extraction's synchronous
-    // DB/similarity work was stalling the event loop 2-3s per completion on
-    // exactly the completions users perform by hand.
+    // NOTE: Only DEVELOPMENT tasks (themes with a workingDirectory) are mined —
+    // operator decision 2026-09-05: study/personal tasks yield noise knowledge, and
+    // the synchronous DB/similarity work stalled the event loop 2-3s per manual completion.
     if (!task.theme?.workingDirectory) {
       log.debug({ taskId }, 'Skipping knowledge extraction — theme has no workingDirectory');
       return entryIds;

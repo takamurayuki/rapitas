@@ -28,14 +28,12 @@ import { getAgentSystemSnapshot } from './routes/agents/system/agent-system-rout
 // Import shared database client
 import { prisma, ensureDatabaseConnection } from './config';
 
-// Import worker manager for agent process lifecycle
 import {
   orchestrator,
   workerManager,
   setServerStopCallback,
 } from './services/core/orchestrator-instance';
 
-// Import realtime service for SSE cleanup on shutdown
 import { realtimeService } from './services/communication/realtime-service';
 
 // Ensure database connection before starting server
