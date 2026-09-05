@@ -285,7 +285,20 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       if (fields.status === 'in-progress' && currentTask?.status !== 'in-progress') {
         await UserBehaviorService.recordTaskStarted(taskId, updatedTask);
       } else if (fields.status === 'done' && currentTask?.status !== 'done') {
-        await UserBehaviorService.recordTaskCompleted(taskId, updatedTask);
+        // Instrumentation for the complete-triggered event-loop stall bursts
+        // (2026-09-05 17:47, concern #514): WARN any completion hook >1s.
+        const timedWarn = async <T>(label: string, run: () => Promise<T>): Promise<T> => {
+          const t0 = Date.now();
+          try {
+            return await run();
+          } finally {
+            const tookMs = Date.now() - t0;
+            if (tookMs > 1000) logger.warn({ taskId, label, tookMs }, 'Slow completion hook');
+          }
+        };
+        await timedWarn('recordTaskCompleted', () =>
+          UserBehaviorService.recordTaskCompleted(taskId, updatedTask),
+        );
         notifyTaskCompleted(taskId, updatedTask.title).catch((err) => {
           logger.warn({ err, taskId }, 'Failed to send task completion notification');
         });
@@ -296,9 +309,11 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
         // NOTE: Auto-extract knowledge from completed tasks — connects Task → KnowledgeEntry.
         import('../memory/task-knowledge-extractor')
           .then(({ extractKnowledgeFromTask }) => {
-            extractKnowledgeFromTask(taskId).catch((err) => {
-              logger.warn({ err, taskId }, 'Failed to extract knowledge from completed task');
-            });
+            void timedWarn('extractKnowledge', () => extractKnowledgeFromTask(taskId)).catch(
+              (err) => {
+                logger.warn({ err, taskId }, 'Failed to extract knowledge from completed task');
+              },
+            );
           })
           .catch((err) => {
             // NOTE: Unlike the inner catch above (which logs an extraction
