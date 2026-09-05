@@ -140,6 +140,7 @@ async function main() {
 
   log.info('=== Analysis Complete ===');
   log.info(`Total files: ${codeMetrics.totalFiles}`);
+  // NOTE: numeric thousands-separator display (line count), not a date — out of scope for #847
   log.info(`Total lines: ${codeMetrics.totalLines.toLocaleString()}`);
   log.info(`Endpoints: ${architecture.backend.endpoints.length}`);
   log.info(`Prisma models: ${architecture.prisma.modelCount}`);

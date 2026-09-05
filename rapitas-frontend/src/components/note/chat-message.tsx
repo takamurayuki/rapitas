@@ -7,8 +7,7 @@ import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { Copy, Check } from 'lucide-react';
 import { LazySyntaxHighlighter } from '@/components/markdown/lazy-syntax-highlighter';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatTime } from '@/utils/date';
 import type { AIChatMessage } from '@/types';
 
 /**
@@ -18,7 +17,6 @@ import type { AIChatMessage } from '@/types';
  */
 export default function ChatMessage({ message }: { message: AIChatMessage }) {
   const t = useTranslations('notes');
-  const locale = useLocaleStore((s) => s.locale);
   const isUser = message.role === 'user';
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
@@ -202,10 +200,7 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
             isUser ? 'text-indigo-100' : 'text-zinc-500 dark:text-zinc-500'
           }`}
         >
-          {message.timestamp.toLocaleTimeString(toDateLocale(locale), {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
+          {formatTime(message.timestamp)}
         </span>
       </div>
     </div>

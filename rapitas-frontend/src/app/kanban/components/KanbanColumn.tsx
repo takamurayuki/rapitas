@@ -34,7 +34,6 @@ interface KanbanColumnProps {
   label: string;
   tasks: ColumnTask[];
   getExecutionClasses: (taskId: number) => ExecutionClasses | null;
-  dateLocale: string;
   onOpenTask: (taskId: number) => void;
   onOpenTaskInPage: (taskId: number) => void;
   /** i18n helper for kanban namespace */
@@ -48,7 +47,6 @@ interface KanbanColumnProps {
  * @param label - Human-readable column heading
  * @param tasks - Tasks to render in this column
  * @param getExecutionClasses - Returns execution-state styling for a task ID
- * @param dateLocale - Locale string for card date formatting
  * @param onOpenTask - Open task in slide panel
  * @param onOpenTaskInPage - Navigate to full task page
  * @param t - kanban translation function
@@ -58,7 +56,6 @@ export function KanbanColumn({
   label,
   tasks,
   getExecutionClasses,
-  dateLocale,
   onOpenTask,
   onOpenTaskInPage,
   t,
@@ -95,7 +92,6 @@ export function KanbanColumn({
                       provided={draggableProvided}
                       snapshot={draggableSnapshot}
                       executionClasses={getExecutionClasses(task.id)}
-                      dateLocale={dateLocale}
                       onOpen={onOpenTask}
                       onOpenInPage={onOpenTaskInPage}
                       t={t}

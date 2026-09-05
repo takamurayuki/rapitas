@@ -15,8 +15,7 @@ import { Trophy, Star, Crown, Award, Sparkles, X, CheckCircle } from 'lucide-rea
 import { useTranslations } from 'next-intl';
 import type { AchievementNotification } from '../../types/achievement';
 import { getRarityColor } from '../../data/achievements';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatTime } from '@/utils/date';
 
 interface AchievementToastProps {
   notifications: AchievementNotification[];
@@ -47,7 +46,6 @@ const SingleToast: React.FC<SingleToastProps> = ({
   index,
 }) => {
   const t = useTranslations('achievements');
-  const locale = useLocaleStore((s) => s.locale);
   const [isVisible, setIsVisible] = useState(true);
   const [progress, setProgress] = useState(100);
 
@@ -205,10 +203,7 @@ const SingleToast: React.FC<SingleToastProps> = ({
               </div>
 
               <div className="text-xs text-gray-400 dark:text-gray-500">
-                {new Date(notification.timestamp).toLocaleTimeString(toDateLocale(locale), {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                {formatTime(notification.timestamp)}
               </div>
             </motion.div>
           </div>

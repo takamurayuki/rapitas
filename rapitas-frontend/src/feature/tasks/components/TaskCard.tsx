@@ -13,8 +13,7 @@ import { getIconComponent } from '@/components/category/icon-data';
 import { ModernCheckbox } from '@/components/ui/ModernCheckbox';
 import { resolveBlockedCauseLabel } from '@/components/workflow/workflow-blocked-cause';
 import { useTranslations } from 'next-intl';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 import { useTaskCard } from './task-card/useTaskCard';
 import TaskCardContextMenu from './task-card/TaskCardContextMenu';
 import TaskCardSubtaskPanel from './task-card/TaskCardSubtaskPanel';
@@ -44,7 +43,6 @@ const TaskCard = memo(function TaskCard({
   const t = useTranslations('task');
   const tHome = useTranslations('home');
   const tWorkflow = useTranslations('workflow');
-  const locale = useLocaleStore((s) => s.locale);
   const { showToast } = useToast();
 
   const tc = useTaskCard(task, onStatusChange, onTaskUpdated, onTaskClick);
@@ -270,12 +268,7 @@ const TaskCard = memo(function TaskCard({
             {task.createdAt && (
               <>
                 <span className="text-zinc-300 dark:text-zinc-700">•</span>
-                <span className="shrink-0">
-                  {new Date(task.createdAt).toLocaleDateString(toDateLocale(locale), {
-                    month: 'numeric',
-                    day: 'numeric',
-                  })}
-                </span>
+                <span className="shrink-0">{formatDate(task.createdAt)}</span>
               </>
             )}
 

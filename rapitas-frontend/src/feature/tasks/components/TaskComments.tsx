@@ -5,8 +5,7 @@ import { type Comment } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDateTime } from '@/utils/date';
 
 interface TaskCommentsProps {
   comments: Comment[];
@@ -27,7 +26,6 @@ export default function TaskComments({
 }: TaskCommentsProps) {
   const t = useTranslations('task');
   const tc = useTranslations('common');
-  const locale = useLocaleStore((s) => s.locale);
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-6 mt-6">
       <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4 flex items-center gap-2">
@@ -67,9 +65,7 @@ export default function TaskComments({
           {comments.map((comment) => (
             <div key={comment.id} className="bg-zinc-50 dark:bg-indigo-dark-800 rounded-lg p-4">
               <div className="flex justify-between items-start mb-2">
-                <span className="text-xs text-zinc-500">
-                  {new Date(comment.createdAt).toLocaleString(toDateLocale(locale))}
-                </span>
+                <span className="text-xs text-zinc-500">{formatDateTime(comment.createdAt)}</span>
                 <button
                   onClick={() => onDeleteComment(comment.id)}
                   className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-xs"

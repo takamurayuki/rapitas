@@ -19,8 +19,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import type { LearningGoal, GeneratedLearningPlan } from '@/types';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 
 type Props = {
   goal: LearningGoal;
@@ -56,8 +55,6 @@ export function GoalDetailPanel({
 }: Props) {
   const t = useTranslations('learning');
   const tCommon = useTranslations('common');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
 
   return (
     <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
@@ -128,7 +125,7 @@ export function GoalDetailPanel({
         {goal.deadline && (
           <div className="flex items-center gap-1.5">
             <Calendar className="w-4 h-4" />
-            <span>〜{new Date(goal.deadline).toLocaleDateString(dateLocale)}</span>
+            <span>〜{formatDate(goal.deadline)}</span>
           </div>
         )}
         <div className="flex items-center gap-1.5">

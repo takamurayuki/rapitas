@@ -14,8 +14,7 @@ import { useTranslations } from 'next-intl';
 import type { GanttData } from '@/types/task.types';
 import TaskSlidePanel from '@/feature/tasks/components/detail/TaskSlidePanel';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 import { Spinner } from '@/components/ui/spinner';
 import { GanttChart } from './GanttChart';
 import type { GanttViewport } from './gantt-utils';
@@ -34,7 +33,6 @@ const ZOOM_DAYS: Record<ZoomLevel, number> = { day: 7, week: 30, month: 90 };
 
 export function GanttView({ themeId, categoryId, className = '' }: GanttViewProps) {
   const t = useTranslations('task.ganttView');
-  const locale = useLocaleStore((s) => s.locale);
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('week');
   const [viewDate, setViewDate] = useState(new Date());
   const [containerSize, setContainerSize] = useState({ width: 800, height: 400 });
@@ -161,10 +159,7 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
               <ChevronLeft className="h-5 w-5" />
             </button>
             <span className="text-sm text-gray-600 dark:text-gray-400 min-w-[120px] text-center">
-              {viewDate.toLocaleDateString(toDateLocale(locale), {
-                year: 'numeric',
-                month: 'long',
-              })}
+              {formatDate(viewDate)}
             </span>
             <button
               onClick={() => navigate('next')}

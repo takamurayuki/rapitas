@@ -189,6 +189,7 @@ export default function AgentUsageBreakdownWidget() {
                   }}
                   formatter={
                     ((value: number, name: string) => [
+                      // NOTE: numeric thousands-separator display (currency), not a date — out of scope for #847
                       `¥${Math.round(value).toLocaleString('ja-JP')}`,
                       labelOf(name),
                     ]) as never

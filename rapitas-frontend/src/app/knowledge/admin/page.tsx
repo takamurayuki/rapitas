@@ -8,6 +8,7 @@ import { MemoryQueueStatus } from '@/feature/knowledge/components/MemoryQueueSta
 import { KnowledgeTimeline } from '@/feature/knowledge/components/KnowledgeTimeline';
 import { API_BASE_URL } from '@/utils/api';
 import { isImeComposing } from '@/utils/ime';
+import { formatDateTime } from '@/utils/date';
 
 export default function MemoryAdminPage() {
   const t = useTranslations('knowledge.admin');
@@ -126,7 +127,7 @@ export default function MemoryAdminPage() {
                 {consolidationRuns.map((run) => (
                   <tr key={run.id} className="border-b border-gray-100 dark:border-gray-800">
                     <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
-                      {new Date(run.runDate).toLocaleString()}
+                      {formatDateTime(run.runDate)}
                     </td>
                     <td className="px-3 py-2">
                       <span

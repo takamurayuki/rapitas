@@ -11,7 +11,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
-import { formatDate } from '@/utils/date';
+import { formatDateTime } from '@/utils/date';
 import {
   Accordion,
   AccordionItem,
@@ -119,7 +119,7 @@ export default function CriticHistorySection({ taskId }: CriticHistorySectionPro
                 >
                   {t('taskWorkflowSection.criticHistory.entryLabel', {
                     phase: t(`taskWorkflowSection.criticHistory.phase.${entry.phase}`),
-                    date: entry.createdAt ? formatDate(entry.createdAt, 'long') : '',
+                    date: entry.createdAt ? formatDateTime(entry.createdAt) : '',
                   })}
                 </AccordionTrigger>
                 <AccordionContent id={entry.id}>

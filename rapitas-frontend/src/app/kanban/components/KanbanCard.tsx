@@ -4,6 +4,7 @@
 import { ExternalLink } from 'lucide-react';
 import type { DraggableProvided, DraggableStateSnapshot } from '@hello-pangea/dnd';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
+import { formatDate } from '@/utils/date';
 import type { Priority } from '@/types';
 
 const PRIORITY_BADGE: Record<Priority, { labelKey: string; className: string }> = {
@@ -47,7 +48,6 @@ interface KanbanCardProps {
   provided: DraggableProvided;
   snapshot: DraggableStateSnapshot;
   executionClasses: ExecutionClasses | null;
-  dateLocale: string;
   onOpen: (taskId: number) => void;
   onOpenInPage: (taskId: number) => void;
   /** i18n helper for kanban namespace */
@@ -61,7 +61,6 @@ interface KanbanCardProps {
  * @param provided - DraggableProvided from @hello-pangea/dnd
  * @param snapshot - DraggableStateSnapshot for drag styling
  * @param executionClasses - Optional execution-state styling/label
- * @param dateLocale - Locale string for date formatting
  * @param onOpen - Open task in slide panel
  * @param onOpenInPage - Navigate to full task page
  * @param t - kanban translation function
@@ -71,7 +70,6 @@ export function KanbanCard({
   provided,
   snapshot,
   executionClasses,
-  dateLocale,
   onOpen,
   onOpenInPage,
   t,
@@ -144,7 +142,7 @@ export function KanbanCard({
               d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
             />
           </svg>
-          {new Date(task.createdAt).toLocaleDateString(dateLocale)}
+          {formatDate(task.createdAt)}
         </span>
 
         {/* Subtasks */}

@@ -116,6 +116,9 @@ export async function analyzeTask(
     conservative: Math.min(config.maxSubtasks, 5),
   };
 
+  // NOTE: toLocaleDateString('ja-JP') below builds LLM-prompt text, not a UI datetime
+  // display — out of scope for #847 (rapitas-frontend/src/utils/date.ts is a
+  // separate package and cannot be imported here).
   const userPrompt = `以下のタスクを分析し、サブタスクに分解してください。
 
 タスク情報:

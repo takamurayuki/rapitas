@@ -13,6 +13,7 @@ import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { Spinner } from '@/components/ui/spinner';
 import { formatJpy, DEFAULT_USD_JPY_RATE } from './useUsdJpyRate';
+import { formatTime } from '@/utils/date';
 
 interface CliAgentUsageEntry {
   agent: string;
@@ -80,12 +81,7 @@ function SubscriptionGauge({ sub, rate }: { sub: SubscriptionUsage; rate: number
   const active = sub.currentWindow.startedAt != null;
   const ratio = sub.currentWindow.usedRatio;
   const barColor = ratio >= 0.9 ? 'bg-red-500' : ratio >= 0.75 ? 'bg-amber-500' : 'bg-indigo-500';
-  const resetTime = sub.currentWindow.endsAt
-    ? new Date(sub.currentWindow.endsAt).toLocaleTimeString('ja-JP', {
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : null;
+  const resetTime = sub.currentWindow.endsAt ? formatTime(sub.currentWindow.endsAt) : null;
 
   return (
     <div className="rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-800/50">

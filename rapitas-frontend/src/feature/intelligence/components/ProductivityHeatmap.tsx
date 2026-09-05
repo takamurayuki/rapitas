@@ -5,8 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Activity, Sun, Moon, Clock, X } from 'lucide-react';
 import { useProductivityHeatmap, type HeatmapCellTask } from '../hooks/useIntelligence';
 import Link from 'next/link';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatTime } from '@/utils/date';
 
 const HOUR_LABELS = Array.from({ length: 24 }, (_, i) => `${i}`);
 
@@ -22,7 +21,6 @@ function getHeatColor(value: number, max: number): string {
 
 export function ProductivityHeatmap() {
   const t = useTranslations('intelligence.productivityHeatmap');
-  const locale = useLocaleStore((s) => s.locale);
   const dayLabels = t.raw('dayLabels') as string[];
   const { data, loading, fetch, fetchCellTasks } = useProductivityHeatmap();
   const [selectedDays, setSelectedDays] = useState(30);
@@ -241,11 +239,7 @@ export function ProductivityHeatmap() {
                         {task.title}
                       </p>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {t('completedAtLabel')}{' '}
-                        {new Date(task.completedAt).toLocaleTimeString(toDateLocale(locale), {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                        {t('completedAtLabel')} {formatTime(task.completedAt)}
                       </p>
                     </div>
                   </Link>
