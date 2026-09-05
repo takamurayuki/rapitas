@@ -2,7 +2,13 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { findRelatedTestFiles, buildScopedTestCommands, TEST_FILE_RE } from './related-tests';
+import {
+  findRelatedTestFiles,
+  buildScopedTestCommands,
+  detectFileScopedRunner,
+  buildFileScopedCommand,
+  TEST_FILE_RE,
+} from './related-tests';
 
 describe('TEST_FILE_RE', () => {
   test('matches conventional test-file suffixes', () => {
@@ -196,5 +202,75 @@ describe('buildScopedTestCommands', () => {
     writeFileSync(join(root, 'pnpm-lock.yaml'), '');
     const result = buildScopedTestCommands(root, root, ['src/foo.ts']);
     expect(result).toEqual(['pnpm run test']);
+  });
+
+  test('prefers vitest over a coexisting bun.lock (rapitas-frontend regression, #859)', () => {
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { test: 'vitest run' } }));
+    writeFileSync(join(root, 'bun.lock'), '');
+    mkdirSync(join(root, 'src'), { recursive: true });
+    writeFileSync(join(root, 'src', 'foo.ts'), '');
+    writeFileSync(join(root, 'src', 'foo.test.ts'), '');
+
+    const result = buildScopedTestCommands(root, root, ['src/foo.ts']);
+    expect(result).not.toBeNull();
+    expect(result![0]).toContain('vitest run');
+    expect(result![0]).not.toContain('bun test');
+  });
+});
+
+describe('detectFileScopedRunner', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'detect-runner-'));
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  test('returns bun when the test script is bun test and bun.lock exists', () => {
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { test: 'bun test' } }));
+    writeFileSync(join(root, 'bun.lock'), '');
+    expect(detectFileScopedRunner(root)).toBe('bun');
+  });
+
+  test('returns vitest when the test script is vitest run and bun.lock does not exist', () => {
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { test: 'vitest run' } }));
+    expect(detectFileScopedRunner(root)).toBe('vitest');
+  });
+
+  test('returns vitest even when a bun.lock also exists (script wins over lockfile)', () => {
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { test: 'vitest run' } }));
+    writeFileSync(join(root, 'bun.lock'), '');
+    expect(detectFileScopedRunner(root)).toBe('vitest');
+  });
+
+  test('returns null when neither package.json nor bun.lock exists', () => {
+    expect(detectFileScopedRunner(root)).toBeNull();
+  });
+});
+
+describe('buildFileScopedCommand', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'build-cmd-'));
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  test('builds a pnpm exec vitest run command when vitest is detected', () => {
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { test: 'vitest run' } }));
+    writeFileSync(join(root, 'pnpm-lock.yaml'), '');
+    const cmd = buildFileScopedCommand(root, ['src/foo.test.ts']);
+    expect(cmd).toBe('pnpm exec vitest run "src/foo.test.ts"');
+  });
+
+  test('falls back to bun test --isolate when no runner is detected', () => {
+    const cmd = buildFileScopedCommand(root, ['src/foo.test.ts']);
+    expect(cmd).toBe('bun test --isolate "src/foo.test.ts"');
   });
 });

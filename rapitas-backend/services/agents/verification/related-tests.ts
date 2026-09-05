@@ -110,6 +110,57 @@ function execPrefix(projectRoot: string): string {
   return 'npx';
 }
 
+/** A test runner that can be scoped to individual files. */
+export type FileScopedRunner = 'bun' | 'vitest';
+
+/**
+ * Detects which file-scopeable runner a project uses. The `package.json`
+ * `test` script is checked FIRST because a project can have a `bun.lock`
+ * present (e.g. generated as a CI side-effect) while its actual test runner
+ * is vitest — trusting lockfile presence alone misclassified such projects
+ * as bun and ran the wrong command (task 859).
+ *
+ * @param projectRoot - Nearest package.json dir / プロジェクトルート
+ * @returns The detected runner, or null when undetectable / 検出結果
+ */
+export function detectFileScopedRunner(projectRoot: string): FileScopedRunner | null {
+  let testScript = '';
+  try {
+    const pkg = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8')) as {
+      scripts?: Record<string, string>;
+    };
+    testScript = pkg.scripts?.test ?? '';
+  } catch {
+    testScript = '';
+  }
+  if (/\bvitest\b/.test(testScript)) return 'vitest';
+  if (/^bun test/.test(testScript)) return 'bun';
+  const usesBun =
+    existsSync(join(projectRoot, 'bun.lockb')) || existsSync(join(projectRoot, 'bun.lock'));
+  return usesBun ? 'bun' : null;
+}
+
+/**
+ * Builds the shell command to run `files` under the runner detected for
+ * `projectRoot`. Falls back to `bun test --isolate` when no runner is
+ * detected, preserving the historical default for projects that can't be
+ * classified (e.g. a directory with no package.json of its own).
+ *
+ * @param projectRoot - Nearest package.json dir / プロジェクトルート
+ * @param files - Test files relative to projectRoot / 実行対象のテストファイル
+ * @returns Shell command string / 実行コマンド
+ */
+export function buildFileScopedCommand(projectRoot: string, files: string[]): string {
+  const runner = detectFileScopedRunner(projectRoot);
+  const quoted = files.map((f) => `"${f}"`).join(' ');
+  if (runner === 'vitest') {
+    return `${execPrefix(projectRoot)} vitest run ${quoted}`;
+  }
+  // NOTE: --isolate gives each file its own module registry so mock.module
+  // state cannot leak across files — eliminates false failures from contamination.
+  return `bun test --isolate ${quoted}`;
+}
+
 /**
  * Builds the test command(s) for the gate, SCOPED to the agent's changed test
  * files PLUS the tests related to its changed sources. Running the whole suite
@@ -163,24 +214,17 @@ export function buildScopedTestCommands(
   const related = findRelatedTestFiles(projectRoot, projectRel);
   const scoped = [...new Set([...changedTests, ...related])];
 
-  const usesBun =
-    existsSync(join(projectRoot, 'bun.lockb')) || existsSync(join(projectRoot, 'bun.lock'));
-  if (usesBun) {
+  // bun and vitest are both file-scopeable (default-on, never full-suite).
+  // NOTE: delegates to detectFileScopedRunner/buildFileScopedCommand so this
+  // decision lives in one place — a duplicate bun.lock-first check here once
+  // misclassified vitest projects that happen to also have a bun.lock (#859).
+  const runner = detectFileScopedRunner(projectRoot);
+  if (runner === 'bun' || runner === 'vitest') {
     if (scoped.length === 0) return null;
-    // NOTE: --isolate gives each file its own module registry so mock.module
-    // state cannot leak across files — eliminates false failures from contamination.
-    const files = scoped.map((f) => `"${f}"`).join(' ');
-    return [`bun test --isolate ${files}`];
+    return [buildFileScopedCommand(projectRoot, scoped)];
   }
 
-  // vitest is file-scopeable too; treat it like bun (default-on, never full-suite).
-  if (/\bvitest\b/.test(testScript)) {
-    if (scoped.length === 0) return null;
-    const files = scoped.map((f) => `"${f}"`).join(' ');
-    return [`${execPrefix(projectRoot)} vitest run ${files}`];
-  }
-
-  // Other non-bun runners can't be file-scoped reliably → full suite, opt-in only.
+  // Other non-bun/non-vitest runners can't be file-scoped reliably → full suite, opt-in only.
   if (raw !== '1' && raw !== 'true') return null;
   if (existsSync(join(projectRoot, 'pnpm-lock.yaml'))) return ['pnpm run test'];
   if (existsSync(join(projectRoot, 'yarn.lock'))) return ['yarn run test'];

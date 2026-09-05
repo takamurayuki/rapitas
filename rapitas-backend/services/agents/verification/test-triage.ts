@@ -14,6 +14,7 @@ import { join, relative } from 'path';
 import { randomBytes } from 'crypto';
 import { removeWorktree } from '../orchestrator/git-operations/worktree/worktree-ops';
 import { createLogger } from '../../../config/logger';
+import { buildFileScopedCommand } from './related-tests';
 
 const log = createLogger('agents:verification:test-triage');
 
@@ -111,8 +112,11 @@ async function getMainRepoRoot(workdir: string): Promise<string | null> {
  * slow baseline tests as "pre-existing" when they actually timed out.
  */
 async function isTestFileFailing(file: string, projectRoot: string): Promise<boolean> {
+  // NOTE: Delegates runner selection to related-tests.ts's buildFileScopedCommand
+  // — this used to hardcode `bun test`, so vitest-only projects (e.g.
+  // rapitas-frontend) always failed here and were misclassified pre-existing (#859).
   const res = await runTriageCmd(
-    `bun test --isolate "${file}"`,
+    buildFileScopedCommand(projectRoot, [file]),
     projectRoot,
     TRIAGE_TEST_TIMEOUT_MS,
   );
