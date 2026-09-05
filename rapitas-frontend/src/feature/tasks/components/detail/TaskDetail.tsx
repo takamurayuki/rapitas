@@ -6,8 +6,7 @@ import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/Statu
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { Tag } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
-import { useLocaleStore } from '@/stores/locale-store';
-import { formatDateTime } from '@/lib/utils';
+import { formatDateTime } from '@/utils/date';
 import DurationInput from '@/components/ui/hours-minutes-input/HoursMinutesInput';
 
 interface TaskDetailProps {
@@ -49,7 +48,6 @@ export default function TaskDetail({
   onDrop,
 }: TaskDetailProps) {
   const t = useTranslations('task');
-  const locale = useLocaleStore((s) => s.locale);
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-8 mb-6">
       {isEditing ? (
@@ -222,10 +220,10 @@ export default function TaskDetail({
 
           <div className="text-sm text-zinc-500 dark:text-zinc-400 border-t border-zinc-200 dark:border-zinc-700 pt-4">
             <p>
-              {t('createdAt')}: {formatDateTime(task.createdAt, locale)}
+              {t('createdAt')}: {formatDateTime(task.createdAt)}
             </p>
             <p>
-              {t('updatedAt')}: {formatDateTime(task.updatedAt, locale)}
+              {t('updatedAt')}: {formatDateTime(task.updatedAt)}
             </p>
           </div>
         </>

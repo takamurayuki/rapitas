@@ -13,8 +13,7 @@ import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { CheckSquare, Clock, Bot, Target, TrendingUp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDateTime } from '@/utils/date';
 import type { PlayerStats } from '../../types/achievement';
 
 interface TaskStatsBoardProps {
@@ -60,6 +59,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color
 
           <div className="mb-2">
             <span className="text-3xl font-bold text-gray-900 dark:text-white">
+              {/* NOTE: numeric thousands-separator display, not a date — out of scope for #847 */}
               {typeof value === 'number' ? value.toLocaleString() : value}
             </span>
             {subtitle && (
@@ -200,7 +200,6 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, cla
   const t = useTranslations('achievements');
   const tCommon = useTranslations('common');
   const tDashboard = useTranslations('dashboard');
-  const locale = useLocaleStore((s) => s.locale);
   const {
     totalTasksCompleted,
     tasksCompletedToday,
@@ -390,7 +389,7 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, cla
           <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
             <div className="text-sm text-gray-600 dark:text-gray-400 text-center">
               {t('statsBoard.lastUpdated', {
-                date: playerStats.lastUpdatedAt.toLocaleString(toDateLocale(locale)),
+                date: formatDateTime(playerStats.lastUpdatedAt),
               })}
             </div>
           </div>

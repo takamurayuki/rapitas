@@ -10,16 +10,13 @@ import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { getTaskDetailPath } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 import { EmptyState } from '@/components/ui/empty-state';
 
 const logger = createLogger('IssuesClient');
 
 export default function IssuesPage() {
   const t = useTranslations('github');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
   const searchParams = useSearchParams();
   const integrationId = searchParams.get('integrationId');
 
@@ -190,7 +187,7 @@ export default function IssuesPage() {
                     <div className="flex items-center gap-4 text-sm text-zinc-500 dark:text-zinc-400">
                       <span>#{issue.issueNumber}</span>
                       <span>by {issue.authorLogin}</span>
-                      <span>{new Date(issue.createdAt).toLocaleDateString(dateLocale)}</span>
+                      <span>{formatDate(issue.createdAt)}</span>
                     </div>
                     {hasLabels(issue.labels) && (
                       <div className="flex items-center gap-2 mt-2">

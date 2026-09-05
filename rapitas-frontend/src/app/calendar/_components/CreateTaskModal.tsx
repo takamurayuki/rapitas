@@ -4,9 +4,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
 import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
+import { formatDate } from '@/utils/date';
 
 type Props = {
   /** ISO date string (YYYY-MM-DD) for the task's due date. */
@@ -25,8 +24,6 @@ type Props = {
 export function CreateTaskModal({ selectedDate, onSubmit, onClose }: Props) {
   const t = useTranslations('calendar');
   const tc = useTranslations('common');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
   const [title, setTitle] = useState('');
   const [creating, setCreating] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -91,12 +88,7 @@ export function CreateTaskModal({ selectedDate, onSubmit, onClose }: Props) {
         </div>
 
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-          {t('deadline')}:{' '}
-          {new Date(selectedDate).toLocaleDateString(dateLocale, {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          })}
+          {t('deadline')}: {formatDate(selectedDate)}
         </p>
 
         <form onSubmit={handleSubmit}>

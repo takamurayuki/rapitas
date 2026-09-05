@@ -13,8 +13,7 @@ import { useState, useRef, useEffect } from 'react';
 import { X, Clock, ChevronDown, CalendarDays } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { ScheduleEventInput } from '@/types';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 import { DEFAULT_EVENT_COLOR, DEFAULT_REMINDER_MINUTES, QUICK_TIMES } from './schedule-constants';
 import { getDefaultTimes, toUTCISO, calcDayCount, resolveEndAt } from './schedule-utils';
@@ -37,8 +36,6 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
   const t = useTranslations('calendar');
   const tq = useTranslations('calendar.scheduleConstants');
   const td = useTranslations('calendar.scheduleEventDialog');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
   const defaults = getDefaultTimes();
 
   const [title, setTitle] = useState('');
@@ -96,19 +93,8 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
     }
   };
 
-  const formattedStartDate = new Date(startDate).toLocaleDateString(dateLocale, {
-    month: 'long',
-    day: 'numeric',
-    weekday: 'short',
-  });
-  const formattedEndDate =
-    isMultiDay && endDate > startDate
-      ? new Date(endDate).toLocaleDateString(dateLocale, {
-          month: 'long',
-          day: 'numeric',
-          weekday: 'short',
-        })
-      : null;
+  const formattedStartDate = formatDate(startDate);
+  const formattedEndDate = isMultiDay && endDate > startDate ? formatDate(endDate) : null;
   const isWeekend = [0, 6].includes(new Date(startDate).getDay());
   const dayCount = calcDayCount(startDate, endDate);
 
@@ -141,9 +127,7 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
                 style={{ backgroundColor: color }}
               >
                 <span className="text-[10px] leading-none opacity-80 uppercase">
-                  {new Date(startDate).toLocaleDateString(dateLocale, {
-                    month: 'short',
-                  })}
+                  {formatDate(startDate)}
                 </span>
                 <span className="text-lg leading-none font-bold">
                   {new Date(startDate).getDate()}

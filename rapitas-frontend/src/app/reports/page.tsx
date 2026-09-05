@@ -16,16 +16,13 @@ import { API_BASE_URL } from '@/utils/api';
 import BurnupChart from '@/components/widgets/BurnupChart';
 import { WeeklyReviewCard } from '@/components/widgets/WeeklyReviewCard';
 import { createLogger } from '@/lib/logger';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 
 const logger = createLogger('ReportsPage');
 
 export default function ReportsPage() {
   const t = useTranslations('reports');
   const tc = useTranslations('common');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
   const [report, setReport] = useState<WeeklyReport | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -105,8 +102,7 @@ export default function ReportsPage() {
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {new Date(report.period.start).toLocaleDateString(dateLocale)} 〜{' '}
-              {new Date(report.period.end).toLocaleDateString(dateLocale)}
+              {formatDate(report.period.start)} 〜 {formatDate(report.period.end)}
             </p>
           </div>
         </div>
@@ -174,11 +170,7 @@ export default function ReportsPage() {
                       minHeight: day.tasks > 0 ? '4px' : '0',
                     }}
                   />
-                  <span className="text-xs text-zinc-500 mt-1">
-                    {new Date(day.date).toLocaleDateString(dateLocale, {
-                      weekday: 'short',
-                    })}
-                  </span>
+                  <span className="text-xs text-zinc-500 mt-1">{formatDate(day.date)}</span>
                 </div>
               ))}
             </div>

@@ -14,6 +14,7 @@ import { useTranslations } from 'next-intl';
 import { StatusIcon } from './StatusIcon';
 import { JobSection } from './JobSection';
 import type { WorkflowRun, RunDetail } from '../_types/actions.types';
+import { formatDateTime } from '@/utils/date';
 
 interface WorkflowRunItemProps {
   run: WorkflowRun;
@@ -26,7 +27,6 @@ interface WorkflowRunItemProps {
   isLoadingDetail: boolean;
   /** Set of expanded job databaseIds (shared across runs; ids are unique). / 展開中ジョブ */
   expandedJobs: Set<number>;
-  dateLocale: string;
   onToggle: () => void;
   onToggleJob: (jobId: number) => void;
 }
@@ -43,7 +43,6 @@ export function WorkflowRunItem({
   isExpanded,
   isLoadingDetail,
   expandedJobs,
-  dateLocale,
   onToggle,
   onToggleJob,
 }: WorkflowRunItemProps) {
@@ -75,7 +74,7 @@ export function WorkflowRunItem({
               {run.headBranch}
             </span>
             <span>{run.event}</span>
-            <span>{new Date(run.createdAt).toLocaleString(dateLocale)}</span>
+            <span>{formatDateTime(run.createdAt)}</span>
           </div>
         </div>
         <a

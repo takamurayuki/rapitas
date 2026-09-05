@@ -15,7 +15,6 @@ export interface NoteEditorState {
   // Store
   updateNote: (id: string, data: Partial<Note>) => void;
   locale: string;
-  dateLocale: string;
 
   // Refs
   contentRef: React.RefObject<HTMLDivElement | null>;

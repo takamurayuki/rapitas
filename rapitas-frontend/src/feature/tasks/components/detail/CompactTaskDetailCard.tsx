@@ -15,9 +15,8 @@ import FileUploader from '@/feature/tasks/components/FileUploader';
 import NoteLinksSection from '@/app/tasks/[id]/components/NoteLinksSection';
 import { Clock, FileText, Paperclip, Repeat, NotebookPen, Tag } from 'lucide-react';
 import LabelSelector from '@/feature/tasks/components/LabelSelector';
-import { useLocaleStore } from '@/stores/locale-store';
 import { useFilterDataStore } from '@/stores/filter-data-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate, formatDateTime } from '@/utils/date';
 import InlineEditableText from '@/feature/tasks/components/text/InlineEditableText';
 import {
   RecurrenceSelectorWithAccordionClose,
@@ -55,8 +54,6 @@ export default function CompactTaskDetailCard({
   onResourcesChange,
 }: CompactTaskDetailCardProps) {
   const t = useTranslations('task');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
 
   // NOTE: Task list API returns theme without nested category. Look up category
   // from the filter store (which persists full category/theme data including icons).
@@ -198,7 +195,7 @@ export default function CompactTaskDetailCard({
                         hours: displayActualHours.toFixed(1),
                       })
                     : null,
-                  task.dueDate ? new Date(task.dueDate).toLocaleDateString(dateLocale) : null,
+                  task.dueDate ? formatDate(task.dueDate) : null,
                 ]
                   .filter(Boolean)
                   .join(' / ')}
@@ -296,13 +293,13 @@ export default function CompactTaskDetailCard({
           <span className="font-medium text-zinc-500 dark:text-zinc-500">
             {t('compactTaskDetailCard.createdChip')}
           </span>
-          {new Date(task.createdAt).toLocaleString(dateLocale)}
+          {formatDateTime(task.createdAt)}
         </span>
         <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400">
           <span className="font-medium text-zinc-500 dark:text-zinc-500">
             {t('compactTaskDetailCard.updatedChip')}
           </span>
-          {new Date(task.updatedAt).toLocaleString(dateLocale)}
+          {formatDateTime(task.updatedAt)}
         </span>
       </div>
     </div>

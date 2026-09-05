@@ -7,9 +7,8 @@ import { DragDropContext } from '@hello-pangea/dnd';
 import TaskSlidePanel from '@/feature/tasks/components/detail/TaskSlidePanel';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
-import { useLocaleStore } from '@/stores/locale-store';
 import { useFilterDataStore } from '@/stores/filter-data-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 import { useKanbanFilters } from './useKanbanFilters';
 import { useKanbanBoard } from './useKanbanBoard';
 import { KanbanWeekNav } from './components/KanbanWeekNav';
@@ -52,8 +51,6 @@ export default function KanbanPage() {
   const t = useTranslations('kanban');
   const tt = useTranslations('task');
   useTranslations('common');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
   const themes = useFilterDataStore((s) => s.themes);
   const initFilterData = useFilterDataStore((s) => s.initializeData);
 
@@ -126,7 +123,7 @@ export default function KanbanPage() {
   }, [setLabels, initFilterData]);
 
   const getWeekDisplayText = () => {
-    const fmt = (d: Date) => d.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' });
+    const fmt = (d: Date) => formatDate(d);
     const start = fmt(currentWeekRange.start);
     const end = fmt(currentWeekRange.end);
     if (currentWeek === 0) return t('thisWeek', { start, end });
@@ -194,7 +191,6 @@ export default function KanbanPage() {
                   label={column.label}
                   tasks={getTasksByStatus(column.id)}
                   getExecutionClasses={getKanbanExecutionClasses}
-                  dateLocale={dateLocale}
                   onOpenTask={openTaskPanel}
                   onOpenTaskInPage={openTaskInPage}
                   t={t as (key: string, values?: Record<string, unknown>) => string}

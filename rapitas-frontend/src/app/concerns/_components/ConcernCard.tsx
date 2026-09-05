@@ -21,8 +21,7 @@ import {
 } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 import {
   TYPE_META,
   TYPE_LABEL_KEY,
@@ -59,7 +58,6 @@ export function ConcernCard({
 }: ConcernCardProps) {
   const t = useTranslations('concerns');
   const tCommon = useTranslations('common');
-  const locale = useLocaleStore((s) => s.locale);
   const TyIcon = TYPE_META[c.type].icon;
   const ThemeIcon = getIconComponent(theme?.icon || '') || FolderOpen;
   // Unknown source values fall back to the raw string — next-intl's t() throws on
@@ -124,9 +122,7 @@ export function ConcernCard({
                 <ExternalLink className="h-2 w-2" />
               </a>
             )}
-            <span className="ml-auto text-[10px] text-zinc-500">
-              {new Date(c.createdAt).toLocaleDateString(toDateLocale(locale))}
-            </span>
+            <span className="ml-auto text-[10px] text-zinc-500">{formatDate(c.createdAt)}</span>
           </div>
           <p className="mt-1.5 text-sm font-medium text-zinc-900 dark:text-zinc-100">{c.title}</p>
           <p className="mt-0.5 whitespace-pre-wrap text-xs text-zinc-500 dark:text-zinc-400">

@@ -5,7 +5,6 @@ import { useTranslations } from 'next-intl';
 import DOMPurify from 'dompurify';
 import { type Note, useNoteStore } from '@/stores/note-store';
 import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
 
 import { highlightStyles } from './constants';
 import {
@@ -49,7 +48,6 @@ export type { NoteEditorState } from './editor-state.types';
 export function useNoteEditor(note: Note): NoteEditorState {
   const { updateNote } = useNoteStore();
   const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
   const t = useTranslations('notes');
 
   // Localized strings for the raw-DOM editor builders (code/diagram/table/link-card
@@ -378,7 +376,6 @@ export function useNoteEditor(note: Note): NoteEditorState {
   return {
     updateNote,
     locale,
-    dateLocale,
     contentRef,
     titleRef,
     draftTitle,

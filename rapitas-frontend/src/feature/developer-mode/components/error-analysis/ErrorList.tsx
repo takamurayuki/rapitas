@@ -22,6 +22,7 @@ import {
   ErrorCategory,
   ErrorSeverity,
 } from '../../services/error-analysis-service';
+import { formatTime } from '@/utils/date';
 
 const severityConfig = {
   [ErrorSeverity.CRITICAL]: {
@@ -138,9 +139,7 @@ export function ErrorList({
                       <Badge variant="default" className="text-xs">
                         {severityConfig[error.severity].label}
                       </Badge>
-                      <span className="text-xs text-gray-500">
-                        {error.timestamp.toLocaleTimeString()}
-                      </span>
+                      <span className="text-xs text-gray-500">{formatTime(error.timestamp)}</span>
                     </div>
                     <p className="text-sm font-medium">{error.message}</p>
                     {error.affectedTasks.length > 0 && (
@@ -209,7 +208,7 @@ export function ErrorList({
                               className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400"
                             >
                               <Clock className="h-3 w-3" />
-                              <span>{relatedError.timestamp.toLocaleTimeString()}</span>
+                              <span>{formatTime(relatedError.timestamp)}</span>
                               <span className="truncate">{relatedError.message}</span>
                             </div>
                           ))}

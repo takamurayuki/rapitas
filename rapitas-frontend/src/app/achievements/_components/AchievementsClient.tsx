@@ -20,8 +20,7 @@ import {
 } from '../../../components/achievement';
 import { useAchievements } from '../../../hooks/use-achievements';
 import { useTaskStats } from '../../../hooks/use-task-stats';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDateTime } from '@/utils/date';
 
 interface AchievementsClientProps {
   userId: number;
@@ -36,7 +35,6 @@ type TabType = 'achievements' | 'stats' | 'badges';
 export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }) => {
   const t = useTranslations('achievements');
   const tCommon = useTranslations('common');
-  const locale = useLocaleStore((s) => s.locale);
   const [activeTab, setActiveTab] = useState<TabType>('achievements');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
@@ -224,6 +222,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
 
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
             <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+              {/* NOTE: numeric thousands-separator display, not a date — out of scope for #847 */}
               {totalPoints.toLocaleString()}
             </div>
             <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -376,7 +375,8 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
               <div>Tracking: {isTracking ? 'Active' : 'Inactive'}</div>
               <div>Notifications: {notifications.length} pending</div>
               <div>
-                Last update: {playerStats?.lastUpdatedAt?.toLocaleString(toDateLocale(locale))}
+                Last update:{' '}
+                {playerStats?.lastUpdatedAt ? formatDateTime(playerStats.lastUpdatedAt) : ''}
               </div>
             </div>
           </div>

@@ -251,8 +251,8 @@ describe('TaskCard', () => {
 
     it('作成日が表示される', () => {
       render(<TaskCard {...mockProps} />);
-      // Date formatted as ja-JP month/day
-      expect(screen.getByText('1/1')).toBeInTheDocument();
+      // Date formatted via the app-standard formatDate() (yyyy/mm/dd)
+      expect(screen.getByText('2024/01/01')).toBeInTheDocument();
     });
 
     it('ラベルがある場合にラベル数が表示される', () => {

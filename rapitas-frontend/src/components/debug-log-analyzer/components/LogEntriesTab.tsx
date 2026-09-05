@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { TabsContent } from '@/components/ui/tabs';
 import { AlertCircle, AlertTriangle, Info, Bug, Search } from 'lucide-react';
 import type { LogAnalysisResult, LogLevel, ParsedLogEntry } from '@/types/debug-log';
+import { formatDateTime } from '@/utils/date';
 
 const LOG_LEVEL_COLORS: Record<LogLevel, string> = {
   trace: '#9CA3AF',
@@ -77,7 +78,7 @@ export const LogEntriesTab: React.FC<LogEntriesTabProps> = ({ entries }) => {
           <div className="flex items-center gap-2 mb-1">
             {entry.timestamp && (
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                {entry.timestamp.toLocaleString()}
+                {formatDateTime(entry.timestamp)}
               </span>
             )}
             {entry.source && (

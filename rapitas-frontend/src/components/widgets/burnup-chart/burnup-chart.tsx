@@ -8,8 +8,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { TrendingUp } from 'lucide-react';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 import { BurnupSummary } from './burnup-summary';
 import { useBurnupData } from './use-burnup-data';
 
@@ -32,8 +31,6 @@ export default function BurnupChart({
   className = '',
 }: BurnupChartProps) {
   const t = useTranslations('burnupChart');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
   const [selectedThemeId, setSelectedThemeId] = useState<number | undefined>(themeId);
   const [selectedDays, setSelectedDays] = useState(days);
   const { data, loading, themes, chartConfig } = useBurnupData(
@@ -164,10 +161,7 @@ export default function BurnupChart({
                   textAnchor="middle"
                   className="text-[9px] fill-zinc-400"
                 >
-                  {new Date(d.date).toLocaleDateString(dateLocale, {
-                    month: 'numeric',
-                    day: 'numeric',
-                  })}
+                  {formatDate(d.date)}
                 </text>
               );
             })}
@@ -212,7 +206,7 @@ export default function BurnupChart({
               >
                 <title>
                   {t('cumulativeTooltip', {
-                    date: new Date(d.date).toLocaleDateString(dateLocale),
+                    date: formatDate(d.date),
                     count: d.cumulativeCompleted,
                   })}
                 </title>

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import type { TimelineEvent } from '../types';
+import { formatDateTime } from '@/utils/date';
 
 interface KnowledgeTimelineProps {
   limit?: number;
@@ -55,7 +56,7 @@ export function KnowledgeTimeline({ limit = 20 }: KnowledgeTimelineProps) {
               <span className="text-xs text-gray-400 dark:text-gray-500">{event.actorType}</span>
             </div>
             <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-              {new Date(event.createdAt).toLocaleString()}
+              {formatDateTime(event.createdAt)}
             </p>
           </div>
         </div>

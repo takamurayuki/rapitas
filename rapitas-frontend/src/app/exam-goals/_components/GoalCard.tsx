@@ -6,8 +6,7 @@ import { useTranslations } from 'next-intl';
 import type { ExamGoal } from '@/types';
 import { getIconComponent } from '@/components/category/icon-data';
 import { ExamCountdown } from '@/components/exam-countdown/ExamCountdown';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 
 interface UpcomingGoalCardProps {
   goal: ExamGoal;
@@ -114,8 +113,6 @@ export function UpcomingGoalCard({ goal, onComplete, onEdit, onDelete }: Upcomin
  */
 export function CompletedGoalCard({ goal, onDelete }: CompletedGoalCardProps) {
   const t = useTranslations('examGoals');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
 
   return (
     <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 opacity-75">
@@ -147,7 +144,7 @@ export function CompletedGoalCard({ goal, onDelete }: CompletedGoalCardProps) {
       </div>
       <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
         <Calendar className="w-4 h-4" />
-        <span>{new Date(goal.examDate).toLocaleDateString(dateLocale)}</span>
+        <span>{formatDate(goal.examDate)}</span>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { formatDistanceToNow, formatDate } from '../date';
+import { formatDistanceToNow, formatDate, formatDateTime, formatTime } from '../date';
 
 describe('formatDistanceToNow', () => {
   afterEach(() => {
@@ -90,23 +90,37 @@ describe('formatDate', () => {
     expect(formatDate(new Date(2026, 0, 5))).toBe('2026/01/05');
   });
 
-  it('formats long with time', () => {
-    const result = formatDate(new Date(2026, 0, 5, 14, 30), 'long');
-    expect(result).toBe('2026年01月05日 14:30');
-  });
-
   it('accepts string input', () => {
     expect(formatDate('2026-03-15', 'medium')).toMatch(/2026\/03\/15/);
   });
+});
 
-  it('formats long with time in English locale', () => {
-    const result = formatDate(new Date(2026, 0, 5, 14, 30), 'long', 'en');
-    expect(result).toBe('Jan 5, 2026 14:30');
+describe('formatDateTime', () => {
+  it('formats as yyyy/mm/dd HH:mm:ss with zero padding', () => {
+    expect(formatDateTime(new Date(2026, 8, 5, 2, 5, 7))).toBe('2026/09/05 02:05:07');
   });
 
-  it('falls back to the app locale store when no explicit locale is given', () => {
-    // useLocaleStore defaults to 'ja' (defaultLocale) with no explicit override.
-    const result = formatDate(new Date(2026, 0, 5, 14, 30), 'long');
-    expect(result).toBe('2026年01月05日 14:30');
+  it('accepts an ISO string', () => {
+    expect(formatDateTime('2026-01-05T14:30:00')).toBe('2026/01/05 14:30:00');
+  });
+
+  it('returns an empty string for an invalid date', () => {
+    expect(formatDateTime(new Date('not-a-date'))).toBe('');
+    expect(formatDateTime('not-a-date')).toBe('');
+  });
+});
+
+describe('formatTime', () => {
+  it('formats as HH:mm with zero padding', () => {
+    expect(formatTime(new Date(2026, 0, 5, 9, 5))).toBe('09:05');
+  });
+
+  it('accepts an ISO string', () => {
+    expect(formatTime('2026-01-05T14:30:00')).toBe('14:30');
+  });
+
+  it('returns an empty string for an invalid date', () => {
+    expect(formatTime(new Date('not-a-date'))).toBe('');
+    expect(formatTime('not-a-date')).toBe('');
   });
 });

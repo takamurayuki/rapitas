@@ -11,8 +11,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import type { GanttData } from '@/types/task.types';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 import { GanttBar } from './GanttBar';
 import {
   taskToBar,
@@ -56,7 +55,6 @@ export function GanttChart({
   onResize,
 }: GanttChartProps) {
   const t = useTranslations('task');
-  const locale = useLocaleStore((s) => s.locale);
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredTaskId, setHoveredTaskId] = useState<number | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
@@ -373,7 +371,7 @@ export function GanttChart({
             {hoveredTask.dueDate && (
               <div>
                 {t('ganttChart.dueDateLabel', {
-                  date: new Date(hoveredTask.dueDate).toLocaleDateString(toDateLocale(locale)),
+                  date: formatDate(hoveredTask.dueDate),
                 })}
               </div>
             )}

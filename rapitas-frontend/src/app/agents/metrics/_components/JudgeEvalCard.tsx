@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react';
 import { Gavel, CheckCircle2, XCircle, AlertTriangle, HelpCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
+import { formatDateTime } from '@/utils/date';
 
 interface JudgeEvalCaseResult {
   name: string;
@@ -127,7 +128,7 @@ export function JudgeEvalCard() {
             {data.errored > 0 && <AlertTriangle className="h-5 w-5 shrink-0 text-amber-500" />}
             <div className="min-w-0">
               <div className="truncate text-sm font-medium leading-tight text-zinc-900 dark:text-zinc-50">
-                {new Date(data.timestamp).toLocaleString()}
+                {formatDateTime(data.timestamp)}
               </div>
               <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
                 {data.errored > 0

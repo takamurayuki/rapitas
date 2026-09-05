@@ -58,6 +58,8 @@ export function OverviewCards({ memoryOverview }: OverviewCardsProps) {
     memoryOverview.totalMemorySize.episodes;
 
   return (
+    // NOTE: the toLocaleString() calls below format counts (thousands separators),
+    // not dates — out of scope for #847.
     <div className="mb-8 grid grid-cols-2 divide-x divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white md:grid-cols-4 md:divide-y-0 dark:divide-zinc-700 dark:border-zinc-700 dark:bg-zinc-800">
       <div className="flex items-center gap-3 px-4 py-3">
         <Database className="h-5 w-5 shrink-0 text-indigo-500" />

@@ -9,8 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { AlertTriangle, RefreshCw, Trash2 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatTime } from '@/utils/date';
 import { Spinner } from '@/components/ui/spinner';
 
 interface CapturedError {
@@ -81,7 +80,6 @@ function getSourceLabel(
 
 export default function RecentErrorsCard() {
   const t = useTranslations('settings.recentErrorsCard');
-  const locale = useLocaleStore((s) => s.locale);
   const [data, setData] = useState<ErrorsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -173,7 +171,7 @@ export default function RecentErrorsCard() {
                   {e.message}
                 </span>
                 <span className="shrink-0 text-zinc-500 dark:text-zinc-500">
-                  {new Date(e.timestamp).toLocaleTimeString(toDateLocale(locale))}
+                  {formatTime(e.timestamp)}
                 </span>
               </button>
               {expanded === e.id && e.stack && (

@@ -9,8 +9,7 @@ import { useTranslations } from 'next-intl';
 import { FolderOpen, Globe, Lightbulb, ListPlus, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 import type { Theme } from '@/types';
 import type { Idea } from './idea-box.types';
 import { PRIORITY_HINT_KEY, SOURCE_ICONS } from './idea-box.utils';
@@ -41,7 +40,6 @@ export function IdeaCard({
 }: IdeaCardProps) {
   const t = useTranslations('ideaBox');
   const tCommon = useTranslations('common');
-  const locale = useLocaleStore((s) => s.locale);
   const SourceIcon = SOURCE_ICONS[idea.source] ?? SOURCE_ICONS.user;
   // Converted ideas stay fully visible (not dimmed) and show a clickable
   // "タスク化済 #ID" badge — matching how the concern backlog renders
@@ -113,7 +111,7 @@ export function IdeaCard({
             </p>
           )}
           <div className="mt-1.5 flex items-center gap-2 text-[10px] text-zinc-500">
-            <span>{new Date(idea.createdAt).toLocaleDateString(toDateLocale(locale))}</span>
+            <span>{formatDate(idea.createdAt)}</span>
           </div>
         </div>
       </div>
