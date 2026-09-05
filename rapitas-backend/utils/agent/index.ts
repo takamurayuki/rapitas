@@ -9,4 +9,5 @@ export * from './agent-config-schema';
 export * from './agent-display-name';
 export * from './agent-models';
 export * from './agent-response-cleaner';
+export * from './prompt-preview';
 export * from './sanitize-cli-env';
