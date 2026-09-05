@@ -14,11 +14,15 @@ import {
   bumpSeverity,
   annotateRecurrenceOfDone,
   RECURRENCE_WINDOW_DAYS,
+  RECURRENCE_SUPPRESS_WINDOW_MS,
   type RecurrencePrisma,
   type RecurrenceCandidateEntry,
 } from './concern-recurrence-policy';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+/** Older than RECURRENCE_SUPPRESS_WINDOW_MS so rows don't accidentally hit the suppression path. */
+const OLD_CREATED_AT = new Date(Date.now() - 2 * DAY_MS);
 
 function fakePrisma(opts: {
   rows?: RecurrenceCandidateEntry[];
@@ -56,28 +60,34 @@ describe('resolveRecurrence', () => {
   });
 
   it('merges into an open row', async () => {
-    const row = { id: 5, sourceId: 'open', tags: '[]', content: 'detail' };
+    const row = { id: 5, sourceId: 'open', tags: '[]', content: 'detail', createdAt: OLD_CREATED_AT };
     const prisma = fakePrisma({ rows: [row] });
     const result = await resolveRecurrence(prisma, 'hash1', RECURRENCE_WINDOW_DAYS);
     expect(result).toEqual({ action: 'merged-open', targetEntry: row });
   });
 
   it('merges into a dismissed row (respects the explicit dismiss)', async () => {
-    const row = { id: 5, sourceId: 'dismissed', tags: '[]', content: 'detail' };
+    const row = {
+      id: 5,
+      sourceId: 'dismissed',
+      tags: '[]',
+      content: 'detail',
+      createdAt: OLD_CREATED_AT,
+    };
     const prisma = fakePrisma({ rows: [row] });
     const result = await resolveRecurrence(prisma, 'hash1', RECURRENCE_WINDOW_DAYS);
     expect(result.action).toBe('merged-open');
   });
 
   it('merges into a task_created row whose task is still in flight', async () => {
-    const row = { id: 5, sourceId: 'task_9', tags: '[]', content: 'detail' };
+    const row = { id: 5, sourceId: 'task_9', tags: '[]', content: 'detail', createdAt: OLD_CREATED_AT };
     const prisma = fakePrisma({ rows: [row], task: { status: 'in-progress', completedAt: null } });
     const result = await resolveRecurrence(prisma, 'hash1', RECURRENCE_WINDOW_DAYS);
     expect(result.action).toBe('merged-open');
   });
 
   it('is a recurrence-of-done when the follow-up task completed within the window (13 days)', async () => {
-    const row = { id: 5, sourceId: 'task_9', tags: '[]', content: 'detail' };
+    const row = { id: 5, sourceId: 'task_9', tags: '[]', content: 'detail', createdAt: OLD_CREATED_AT };
     const nowMs = Date.now();
     const completedAt = new Date(nowMs - 13 * DAY_MS);
     const prisma = fakePrisma({ rows: [row], task: { status: 'done', completedAt } });
@@ -86,7 +96,7 @@ describe('resolveRecurrence', () => {
   });
 
   it('is "new" when the follow-up task completed outside the window (15 days)', async () => {
-    const row = { id: 5, sourceId: 'task_9', tags: '[]', content: 'detail' };
+    const row = { id: 5, sourceId: 'task_9', tags: '[]', content: 'detail', createdAt: OLD_CREATED_AT };
     const nowMs = Date.now();
     const completedAt = new Date(nowMs - 15 * DAY_MS);
     const prisma = fakePrisma({ rows: [row], task: { status: 'done', completedAt } });
@@ -95,7 +105,7 @@ describe('resolveRecurrence', () => {
   });
 
   it('is "new" when the terminal task has no completedAt recorded', async () => {
-    const row = { id: 5, sourceId: 'task_9', tags: '[]', content: 'detail' };
+    const row = { id: 5, sourceId: 'task_9', tags: '[]', content: 'detail', createdAt: OLD_CREATED_AT };
     const prisma = fakePrisma({ rows: [row], task: { status: 'done', completedAt: null } });
     const result = await resolveRecurrence(prisma, 'hash1', RECURRENCE_WINDOW_DAYS);
     expect(result.action).toBe('new');
@@ -112,9 +122,21 @@ describe('resolveRecurrence', () => {
   // instead of merging into the live row (#7412 done → #8613 live → #835).
   // A live duplicate must win in either row order.
   describe('live rows win over done rows regardless of findMany order', () => {
-    const doneRow = { id: 1, sourceId: 'task_10', tags: '[]', content: 'done row' };
-    const liveRow = { id: 2, sourceId: 'task_20', tags: '[]', content: 'live row' };
     const nowMs = Date.now();
+    const doneRow = {
+      id: 1,
+      sourceId: 'task_10',
+      tags: '[]',
+      content: 'done row',
+      createdAt: new Date(nowMs - 2 * DAY_MS),
+    };
+    const liveRow = {
+      id: 2,
+      sourceId: 'task_20',
+      tags: '[]',
+      content: 'live row',
+      createdAt: new Date(nowMs - 2 * DAY_MS),
+    };
     const tasksById = {
       10: { status: 'done', completedAt: new Date(nowMs - 1 * DAY_MS) },
       20: { status: 'in-progress', completedAt: null },
@@ -137,6 +159,77 @@ describe('resolveRecurrence', () => {
       const prisma = fakePrisma({ rows: [doneRow], tasksById });
       const result = await resolveRecurrence(prisma, 'hash1', RECURRENCE_WINDOW_DAYS, nowMs);
       expect(result).toEqual({ action: 'recurrence-of-done', targetEntry: doneRow });
+    });
+  });
+
+  // Task #857: a terminal row created moments ago (inside the suppress
+  // window) merges the fresh re-detection instead of spawning a sibling —
+  // regardless of how long ago its follow-up task completed.
+  describe('suppresses fresh re-filings against a just-created terminal row', () => {
+    const nowMs = Date.now();
+
+    it('merges into a terminal row created within the suppress window', async () => {
+      const row = {
+        id: 7,
+        sourceId: 'task_30',
+        tags: '[]',
+        content: 'fresh done row',
+        createdAt: new Date(nowMs - 10 * 60 * 1000),
+      };
+      const prisma = fakePrisma({ rows: [row], task: { status: 'done', completedAt: new Date(nowMs) } });
+      const result = await resolveRecurrence(prisma, 'hash1', RECURRENCE_WINDOW_DAYS, nowMs);
+      expect(result).toEqual({ action: 'merged-open', targetEntry: row });
+    });
+
+    it('does not suppress a terminal row created outside the suppress window', async () => {
+      const row = {
+        id: 8,
+        sourceId: 'task_31',
+        tags: '[]',
+        content: 'old done row',
+        createdAt: new Date(nowMs - RECURRENCE_SUPPRESS_WINDOW_MS - HOUR_MS),
+      };
+      const completedAt = new Date(nowMs - 1 * DAY_MS);
+      const prisma = fakePrisma({ rows: [row], task: { status: 'done', completedAt } });
+      const result = await resolveRecurrence(prisma, 'hash1', RECURRENCE_WINDOW_DAYS, nowMs);
+      expect(result).toEqual({ action: 'recurrence-of-done', targetEntry: row });
+    });
+  });
+
+  // Regression test for the #7412-固定参照 bug: findMany has no orderBy, so
+  // among several terminal candidates the most recently completed one must
+  // win regardless of array order.
+  describe('picks the most recently completed done row regardless of findMany order', () => {
+    const nowMs = Date.now();
+    const olderDone = {
+      id: 9,
+      sourceId: 'task_40',
+      tags: '[]',
+      content: 'older done row',
+      createdAt: new Date(nowMs - 13 * DAY_MS),
+    };
+    const newerDone = {
+      id: 10,
+      sourceId: 'task_41',
+      tags: '[]',
+      content: 'newer done row',
+      createdAt: new Date(nowMs - 2 * DAY_MS),
+    };
+    const tasksById = {
+      40: { status: 'done', completedAt: new Date(nowMs - 10 * DAY_MS) },
+      41: { status: 'done', completedAt: new Date(nowMs - 1 * DAY_MS) },
+    };
+
+    it('picks the newer done row when the older row comes first', async () => {
+      const prisma = fakePrisma({ rows: [olderDone, newerDone], tasksById });
+      const result = await resolveRecurrence(prisma, 'hash1', RECURRENCE_WINDOW_DAYS, nowMs);
+      expect(result).toEqual({ action: 'recurrence-of-done', targetEntry: newerDone });
+    });
+
+    it('picks the newer done row when the newer row comes first', async () => {
+      const prisma = fakePrisma({ rows: [newerDone, olderDone], tasksById });
+      const result = await resolveRecurrence(prisma, 'hash1', RECURRENCE_WINDOW_DAYS, nowMs);
+      expect(result).toEqual({ action: 'recurrence-of-done', targetEntry: newerDone });
     });
   });
 });
@@ -221,7 +314,7 @@ describe('resolveFiling', () => {
   });
 
   it('merges into an open duplicate and updates it in place when the policy is enabled', async () => {
-    const row = { id: 5, sourceId: 'open', tags: '[]', content: '既存の詳細' };
+    const row = { id: 5, sourceId: 'open', tags: '[]', content: '既存の詳細', createdAt: OLD_CREATED_AT };
     const prisma = fakePrisma({ rows: [row] });
     const findBlockingDuplicate = mock(() => Promise.resolve(null));
     const decision = await resolveFiling(prisma, {
@@ -236,8 +329,14 @@ describe('resolveFiling', () => {
   });
 
   it('escalates severity and annotates a fresh entry for a done-task recurrence', async () => {
-    const row = { id: 5, sourceId: 'task_9', tags: '[]', content: '既存の詳細' };
     const nowMs = Date.now();
+    const row = {
+      id: 5,
+      sourceId: 'task_9',
+      tags: '[]',
+      content: '既存の詳細',
+      createdAt: new Date(nowMs - 2 * DAY_MS),
+    };
     const completedAt = new Date(nowMs - 1 * DAY_MS);
     const prisma = fakePrisma({ rows: [row], task: { status: 'done', completedAt } });
     const findBlockingDuplicate = mock(() => Promise.resolve(null));
