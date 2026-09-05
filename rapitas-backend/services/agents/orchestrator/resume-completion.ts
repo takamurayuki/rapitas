@@ -63,10 +63,13 @@ export function handleResumeCompletion(
       }
     })
     .catch(async (error) => {
-      if (error instanceof ResumeLockConflictError) {
-        log.warn(
-          { taskId: task.id, executionId },
-          '[resume] Skipped: another execution already holds the task lock',
+      if (
+        error instanceof ResumeLockConflictError ||
+        (error as Error)?.name === 'ResumeLockConflictError'
+      ) {
+        log.info(
+          { taskId: task.id },
+          '[resume] Skipped: task-execution lock already held by another run',
         );
         return;
       }

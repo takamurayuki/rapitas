@@ -1,20 +1,26 @@
 /**
  * resume-completion ユニットテスト
  *
- * handleResumeCompletion() の成功系（タスクステータス更新）、既存の失敗系
- * （'todo' への差し戻し + agent_error 通知）、そして ResumeLockConflictError
- * による良性スキップ（DB を一切書き換えない）を検証する。
+ * handleResumeCompletion() の完了ハンドラを検証する。ResumeLockConflictError
+ * は良性スキップとして task.status/agentSession.status を変更せず、通常の
+ * Error は従来通り task.status を 'todo' に戻すことを確認する。成功系
+ * （タスクステータス更新 + 通知）と既存の失敗系（'todo' への差し戻し +
+ * agent_error 通知）も併せて検証する。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
-const taskFindUniqueMock = mock(async () => ({ workflowStatus: 'completed' }));
+// ── Module-level mocks（import 前に宣言） ──────────────────────────────────────
+// NOTE: mock.module はプロセスグローバル。他のテストファイルと同時実行すると
+// mock が衝突するため、このファイルは単体（bun test <this file>）で実行する。
+
 const taskUpdateMock = mock(async () => ({}));
 const agentSessionUpdateMock = mock(async () => ({}));
 const notificationCreateMock = mock(async () => ({}));
+const taskFindUniqueMock = mock(async () => ({ workflowStatus: 'in_progress' }));
 
 mock.module('../../../config', () => ({
   prisma: {
-    task: { findUnique: taskFindUniqueMock, update: taskUpdateMock },
+    task: { update: taskUpdateMock, findUnique: taskFindUniqueMock },
     agentSession: { update: agentSessionUpdateMock },
     notification: { create: notificationCreateMock },
   },
@@ -26,65 +32,67 @@ mock.module('../../../config', () => ({
   getProjectRoot: () => 'C:\\Projects\\rapitas',
 }));
 
-const sharedLogger = {
-  info: mock(() => {}),
-  warn: mock(() => {}),
-  error: mock(() => {}),
-};
-mock.module('../../../config/logger', () => ({ createLogger: () => sharedLogger }));
+mock.module('../../../config/logger', () => ({
+  createLogger: () => ({ info: mock(() => {}), warn: mock(() => {}), error: mock(() => {}) }),
+}));
 
-const resumeMock = mock(async () => ({ success: true, waitingForInput: false }));
+let resumeInterruptedExecutionMock = mock(async () => ({ success: true, waitingForInput: false }));
 const getFullGitDiffMock = mock(async () => 'No changes detected');
+
 mock.module('../../core/orchestrator-instance', () => ({
   orchestrator: {
-    resumeInterruptedExecution: resumeMock,
-    getFullGitDiff: getFullGitDiffMock,
+    resumeInterruptedExecution: (...args: unknown[]) => resumeInterruptedExecutionMock(...args),
+    getFullGitDiff: (...args: unknown[]) => getFullGitDiffMock(...args),
   },
 }));
 
-// NOTE: execution-resume.ts pulls in agent-factory/execution-file-logger/etc —
-// mock the whole module so importing ResumeLockConflictError here doesn't need
-// to satisfy that entire dependency chain. resume-completion.ts imports the
-// same specifier, so both sides see the identical class (instanceof holds).
-class MockResumeLockConflictError extends Error {
-  constructor(public readonly taskId: number) {
-    super(`Task ${taskId} already has an active execution — refusing duplicate resume`);
-    this.name = 'ResumeLockConflictError';
-  }
-}
-mock.module('./execution-resume', () => ({
-  ResumeLockConflictError: MockResumeLockConflictError,
-}));
+// ── 動的 import（全 mock.module 宣言後） ──────────────────────────────────────
 
 const { handleResumeCompletion } = await import('./resume-completion');
 const { ResumeLockConflictError } = await import('./execution-resume');
 
-const TASK = { id: 5, title: 'テストタスク', description: null, theme: null };
-const EXECUTION = { sessionId: 20, session: { config: { id: 1, taskId: 5 } } };
+// ── ヘルパー ──────────────────────────────────────────────────────────────────
 
-/** handleResumeCompletion は fire-and-forget なので、内部の非同期処理を待つ小さな遅延。 */
-async function flushMicrotasks() {
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  await new Promise((resolve) => setTimeout(resolve, 0));
+const TASK = {
+  id: 5,
+  title: 'テストタスク',
+  description: null,
+  theme: { name: 'テーマ', workingDirectory: 'C:\\Users\\test\\project' },
+};
+
+const EXECUTION = {
+  sessionId: 20,
+  session: { config: { id: 1, taskId: 5 } },
+};
+
+/** マイクロタスク/タイマーキューを flush して fire-and-forget チェーンの完了を待つ。 */
+async function flush(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 10));
 }
 
 beforeEach(() => {
-  taskFindUniqueMock.mockClear();
   taskUpdateMock.mockClear();
   agentSessionUpdateMock.mockClear();
   notificationCreateMock.mockClear();
-  sharedLogger.warn.mockClear();
-  sharedLogger.error.mockClear();
-  resumeMock.mockClear();
-  resumeMock.mockImplementation(async () => ({ success: true, waitingForInput: false }));
+  taskFindUniqueMock.mockClear();
+  taskFindUniqueMock.mockImplementation(async () => ({ workflowStatus: 'in_progress' }));
+  getFullGitDiffMock.mockClear();
+  getFullGitDiffMock.mockImplementation(async () => 'No changes detected');
 });
 
 describe('handleResumeCompletion() — 成功系', () => {
-  test('success かつ waitingForInput=false のとき、タスクステータスが更新される', async () => {
-    handleResumeCompletion(10, EXECUTION, TASK, 'C:\\work', 900000);
-    await flushMicrotasks();
+  test('success かつ waitingForInput=false のとき、タスクステータスが更新され完了通知を作成する', async () => {
+    resumeInterruptedExecutionMock = mock(async () => ({ success: true, waitingForInput: false }));
 
-    expect(taskUpdateMock).toHaveBeenCalled();
+    handleResumeCompletion(10, EXECUTION, TASK, TASK.theme.workingDirectory, 900_000);
+    await flush();
+
+    expect(agentSessionUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: EXECUTION.sessionId },
+        data: expect.objectContaining({ status: 'completed' }),
+      }),
+    );
     expect(notificationCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ type: 'agent_execution_complete' }),
@@ -94,16 +102,18 @@ describe('handleResumeCompletion() — 成功系', () => {
 });
 
 describe('handleResumeCompletion() — 既存の失敗系', () => {
-  test('resumeInterruptedExecution が reject した場合、taskをtodoへ差し戻し agent_error 通知を作成する', async () => {
-    resumeMock.mockImplementation(async () => {
-      throw new Error('boom');
-    });
+  test('resolve success=false の場合、taskをtodoへ差し戻し agent_error 通知を作成する', async () => {
+    resumeInterruptedExecutionMock = mock(async () => ({
+      success: false,
+      waitingForInput: false,
+      errorMessage: 'resume failed',
+    }));
 
-    handleResumeCompletion(10, EXECUTION, TASK, 'C:\\work', 900000);
-    await flushMicrotasks();
+    handleResumeCompletion(10, EXECUTION, TASK, TASK.theme.workingDirectory, 900_000);
+    await flush();
 
     expect(taskUpdateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 5 }, data: { status: 'todo' } }),
+      expect.objectContaining({ where: { id: TASK.id }, data: { status: 'todo' } }),
     );
     expect(notificationCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ type: 'agent_error' }) }),
@@ -111,20 +121,54 @@ describe('handleResumeCompletion() — 既存の失敗系', () => {
   });
 });
 
-describe('handleResumeCompletion() — ロック競合の良性スキップ', () => {
-  test('ResumeLockConflictError が reject された場合、task.update も notification.create も呼ばれない', async () => {
-    resumeMock.mockImplementation(async () => {
-      throw new ResumeLockConflictError(5);
+describe('handleResumeCompletion() — ResumeLockConflictError', () => {
+  test('ResumeLockConflictError の reject では task.status / agentSession.status を変更しない', async () => {
+    resumeInterruptedExecutionMock = mock(async () => {
+      throw new ResumeLockConflictError(TASK.id);
     });
 
-    handleResumeCompletion(10, EXECUTION, TASK, 'C:\\work', 900000);
-    await flushMicrotasks();
+    handleResumeCompletion(10, EXECUTION, TASK, TASK.theme.workingDirectory, 900_000);
+    await flush();
 
     expect(taskUpdateMock).not.toHaveBeenCalled();
-    expect(notificationCreateMock).not.toHaveBeenCalled();
-    expect(sharedLogger.warn).toHaveBeenCalledWith(
-      expect.objectContaining({ taskId: 5, executionId: 10 }),
-      expect.stringContaining('already holds the task lock'),
+    expect(agentSessionUpdateMock).not.toHaveBeenCalled();
+  });
+
+  test('name プロパティのみで ResumeLockConflictError と判定できる場合も同様にスキップする', async () => {
+    const nameOnlyError = new Error('lock conflict');
+    nameOnlyError.name = 'ResumeLockConflictError';
+    resumeInterruptedExecutionMock = mock(async () => {
+      throw nameOnlyError;
+    });
+
+    handleResumeCompletion(10, EXECUTION, TASK, TASK.theme.workingDirectory, 900_000);
+    await flush();
+
+    expect(taskUpdateMock).not.toHaveBeenCalled();
+    expect(agentSessionUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleResumeCompletion() — 通常エラーの既存挙動（回帰）', () => {
+  test('通常の Error では task.status を todo に戻す', async () => {
+    resumeInterruptedExecutionMock = mock(async () => {
+      throw new Error('unexpected failure');
+    });
+
+    handleResumeCompletion(10, EXECUTION, TASK, TASK.theme.workingDirectory, 900_000);
+    await flush();
+
+    expect(taskUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: TASK.id },
+        data: { status: 'todo' },
+      }),
+    );
+    expect(agentSessionUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: EXECUTION.sessionId },
+        data: expect.objectContaining({ status: 'failed' }),
+      }),
     );
   });
 });

@@ -63,6 +63,7 @@ export const syncPomodoroToBackend = {
   ): void => {
     if (!isSyncOwner()) return;
     fetch(`${API_BASE_URL}/pomodoro/start`, {
+      signal: AbortSignal.timeout(20000),
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ taskId, duration, type }),
@@ -76,11 +77,12 @@ export const syncPomodoroToBackend = {
    */
   complete: (completedPomodoros: number): void => {
     if (!isSyncOwner()) return;
-    fetch(`${API_BASE_URL}/pomodoro/active`)
+    fetch(`${API_BASE_URL}/pomodoro/active`, { signal: AbortSignal.timeout(20000) })
       .then((res) => res.json())
       .then((data: { session?: { id: number } }) => {
         if (data.session?.id) {
           return fetch(`${API_BASE_URL}/pomodoro/sessions/${data.session.id}/complete`, {
+            signal: AbortSignal.timeout(20000),
             method: 'POST',
           });
         }
@@ -98,11 +100,12 @@ export const syncPomodoroToBackend = {
       if (isFloatWindow()) void delegateToMain('pomodoro-float:cancel-request');
       return;
     }
-    fetch(`${API_BASE_URL}/pomodoro/active`)
+    fetch(`${API_BASE_URL}/pomodoro/active`, { signal: AbortSignal.timeout(20000) })
       .then((res) => res.json())
       .then((data: { session?: { id: number } }) => {
         if (data.session?.id) {
           return fetch(`${API_BASE_URL}/pomodoro/sessions/${data.session.id}/cancel`, {
+            signal: AbortSignal.timeout(20000),
             method: 'POST',
           });
         }
@@ -125,12 +128,15 @@ export const syncPomodoroToBackend = {
       return null;
     }
     try {
-      const activeRes = await fetch(`${API_BASE_URL}/pomodoro/active`);
+      const activeRes = await fetch(`${API_BASE_URL}/pomodoro/active`, {
+        signal: AbortSignal.timeout(20000),
+      });
       const activeData = (await activeRes.json()) as { session?: { id: number } };
       const sessionId = activeData.session?.id;
       if (!sessionId) return null;
 
       const res = await fetch(`${API_BASE_URL}/pomodoro/sessions/${sessionId}/checkpoint`, {
+        signal: AbortSignal.timeout(20000),
         method: 'POST',
       });
       if (!res.ok) return null;

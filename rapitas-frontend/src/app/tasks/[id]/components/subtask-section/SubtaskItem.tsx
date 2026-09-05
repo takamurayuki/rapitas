@@ -19,6 +19,7 @@ import { useTranslations } from 'next-intl';
 import { ModernCheckbox } from '@/components/ui/ModernCheckbox';
 import { SubtaskEditForm } from './SubtaskEditForm';
 import type { Task, Priority } from '@/types';
+import { formatHoursCompact } from '@/utils/duration';
 
 type Subtask = NonNullable<Task['subtasks']>[number];
 
@@ -210,7 +211,7 @@ export function SubtaskItem({
                   title={t('subtaskEstimatedHours')}
                 >
                   <Clock className="w-2.5 h-2.5" />
-                  {subtask.estimatedHours}h
+                  {formatHoursCompact(subtask.estimatedHours)}
                 </span>
               )}
               {subtask.actualHours != null && (
@@ -219,7 +220,7 @@ export function SubtaskItem({
                   title={t('subtaskActualHours')}
                 >
                   <Timer className="w-2.5 h-2.5" />
-                  {subtask.actualHours}h
+                  {formatHoursCompact(subtask.actualHours)}
                 </span>
               )}
             </div>

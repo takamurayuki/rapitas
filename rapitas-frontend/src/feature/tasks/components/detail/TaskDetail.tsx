@@ -8,6 +8,7 @@ import { Tag } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
 import { useLocaleStore } from '@/stores/locale-store';
 import { formatDateTime } from '@/lib/utils';
+import DurationInput from '@/components/ui/hours-minutes-input/HoursMinutesInput';
 
 interface TaskDetailProps {
   task: Task;
@@ -122,14 +123,9 @@ export default function TaskDetail({
               <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
                 {t('estimatedTime')}
               </label>
-              <input
-                type="number"
-                step="0.5"
-                min="0"
-                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 shadow-sm focus:outline-none focus:border-indigo-400"
-                placeholder={t('taskDetail.hoursPlaceholder')}
+              <DurationInput
                 value={editEstimatedHours}
-                onChange={(e) => onEditEstimatedHoursChange(e.target.value)}
+                onChange={onEditEstimatedHoursChange}
                 aria-label={t('estimatedTime')}
               />
             </div>

@@ -18,6 +18,7 @@ import {
   detectTriStateDesync,
   detectRepeatLoop,
   detectUnansweredQuestion,
+  isRepairBounceCause,
   STAGNATION_THRESHOLD_MS,
   DESYNC_RECOVERY_SETTLE_MS,
   PATTERN_A_SETTLE_MS,
@@ -25,10 +26,11 @@ import {
   REPEAT_LOOP_MIN_COUNT,
   INVARIANT_REPEAT_LOOP_MIN_COUNT,
 } from './incident-signature-detectors';
-import { resolveVerifyRepairLimit } from './blocked-task-policy';
 import { gatherTaskState, formatIncidentDetail } from './self-incident-evidence';
 import type { GatheredTaskState } from './self-incident-evidence';
 import { inspectSupervisorSignatures } from './supervisor-incident-inspect';
+import { resolveMaxRepairs } from './verify-self-repair-budget';
+import { DEFAULT_MAX_CI_REPAIRS } from './blocked-task-policy';
 
 const log = createLogger('self-incident-watcher');
 
@@ -164,12 +166,17 @@ async function fileFinding(args: {
   }
 }
 
-/** Runs all three detectors over one task and files a concern per finding. */
+/**
+ * Runs all three detectors over one task and files a concern per finding.
+ *
+ * @param repairBounceMinCount - Dynamic repeat-loop threshold for verify_repair/ci_repair
+ *   (task 837, resolved once per pass by the caller — see runSelfIncidentWatch). / 修復バウンス系の動的しきい値
+ */
 async function inspectTask(
   task: CandidateTask,
   nowMs: number,
   disabledAutoRunThemeIds: Set<number>,
-  verifyRepairMinCount: number,
+  repairBounceMinCount: number,
 ): Promise<number> {
   const state = await gatherTaskState(task, nowMs, REPEAT_LOOP_WINDOW_MS);
   let filed = 0;
@@ -255,9 +262,18 @@ async function inspectTask(
     transitions: state.windowedCauses,
     nowMs,
     taskStatus: task.status,
-    verifyRepairMinCount,
+    repairBounceMinCount,
   });
   if (loop) {
+    // Which threshold actually fired (task 837): invariant path keeps its own
+    // fixed threshold; general path uses the dynamic repair-bounce threshold
+    // only for verify_repair/ci_repair, else the static REPEAT_LOOP_MIN_COUNT.
+    const effectiveMinCount =
+      loop.via === 'invariant'
+        ? INVARIANT_REPEAT_LOOP_MIN_COUNT
+        : isRepairBounceCause(loop.cause)
+          ? repairBounceMinCount
+          : REPEAT_LOOP_MIN_COUNT;
     if (
       await fileFinding({
         signature: `repeat-loop:${loop.cause}`,
@@ -268,16 +284,8 @@ async function inspectTask(
           `直近${Math.round(REPEAT_LOOP_WINDOW_MS / 60_000)}分以内に同一cause(${loop.cause})の` +
           `遷移が${loop.count}回発生しています。同じ失敗と再試行を繰り返すループの疑いがあります。`,
         // Must state the threshold that actually fired (task 710) — which for
-        // `verify_repair` is now the budget-derived one, not the static min.
-        thresholdDescription:
-          `${Math.round(REPEAT_LOOP_WINDOW_MS / 60_000)}分以内に同一causeが` +
-          `${
-            loop.via === 'invariant'
-              ? INVARIANT_REPEAT_LOOP_MIN_COUNT
-              : loop.cause === 'verify_repair'
-                ? verifyRepairMinCount
-                : REPEAT_LOOP_MIN_COUNT
-          }回以上`,
+        // REPAIR_BOUNCE_CAUSES is now the budget-derived one, not the static min.
+        thresholdDescription: `${Math.round(REPEAT_LOOP_WINDOW_MS / 60_000)}分以内に同一causeが${effectiveMinCount}回以上`,
         severity: 'high',
         nowMs,
       })
@@ -404,19 +412,22 @@ export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<
   ];
   const disabledAutoRunThemeIds = await resolveDisabledAutoRunThemeIds(candidateThemeIds);
 
-  // Also resolved once per pass (task 835): the repeat-loop threshold for
-  // `verify_repair` is the repair budget + 1, so spending the budget in full
-  // is not itself reported as a loop while a genuine overrun still is.
-  // Falls back to the default budget when the settings row is missing/unreadable.
-  const settings = (await prisma.userSettings.findFirst().catch(() => null)) as {
-    verifyRepairLimit?: number | null;
-  } | null;
-  const verifyRepairMinCount = resolveVerifyRepairLimit(settings) + 1;
+  // Resolved once per pass, not per task (task 837, generalizes task 835's
+  // verify_repair-only budget guard to also cover ci_repair): a task that
+  // legitimately exhausts its verify_repair/ci_repair budget must not be
+  // misreported as a repeat loop — see detectRepeatLoop's task-837 JSDoc
+  // paragraph. Falls back to the default budget when the settings row is
+  // missing/unreadable (see resolveMaxRepairs).
+  const verifyRepairLimit = await resolveMaxRepairs();
+  const repairBounceMinCount = Math.max(
+    REPEAT_LOOP_MIN_COUNT,
+    Math.max(verifyRepairLimit, DEFAULT_MAX_CI_REPAIRS) + 1,
+  );
 
   let filed = 0;
   for (const task of candidates) {
     try {
-      filed += await inspectTask(task, nowMs, disabledAutoRunThemeIds, verifyRepairMinCount);
+      filed += await inspectTask(task, nowMs, disabledAutoRunThemeIds, repairBounceMinCount);
     } catch (err) {
       // One broken task must not starve the rest of the scan.
       log.warn({ err, taskId: task.id }, '[self-incident] task inspection failed — continuing');

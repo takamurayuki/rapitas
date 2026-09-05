@@ -64,6 +64,7 @@ export interface PomodoroState {
   takeBreak: () => void;
   skipBreak: () => void;
   endBreak: () => void;
+  cutBreakShort: () => void;
   tick: () => void;
   updateSettings: (settings: Partial<PomodoroSettings>) => void;
   _initializeTimer: () => void;

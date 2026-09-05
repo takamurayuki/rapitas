@@ -102,6 +102,19 @@ export const DEFAULT_VERIFY_REPAIR_LIMIT = Math.max(
 );
 
 /**
+ * Default CI-failure -> implement repair budget (task 837). Single source of
+ * truth shared by ci-self-repair's attemptCiRepair and
+ * self-incident-watcher's dynamic repeat-loop threshold — previously defined
+ * only inside ci-self-repair.ts, which self-incident-watcher.ts cannot safely
+ * import from (it re-exports prisma via workflow-queue.ts from a different
+ * module path than the one self-incident-watcher.test.ts mocks).
+ */
+export const DEFAULT_MAX_CI_REPAIRS = Math.max(
+  0,
+  parseInt(process.env.RAPITAS_MAX_CI_REPAIRS ?? '2', 10) || 2,
+);
+
+/**
  * `Task.workflowStatus` values that count as "a human already advanced this
  * task past its blocked point" for {@link healBlockedStatusDesync}-style
  * checks (task 802). `draft`/`research_done` are excluded — the plan has not

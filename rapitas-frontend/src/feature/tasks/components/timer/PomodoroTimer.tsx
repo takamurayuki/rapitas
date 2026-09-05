@@ -47,6 +47,8 @@ interface PomodoroTimerProps {
   onUpdate: () => void;
   onStatusChange?: (status: PomodoroTimerStatus) => void;
   showTaskTitle?: boolean;
+  /** Focus mode hides secondary chrome — currently the subtask selector. */
+  focusMode?: boolean;
 }
 
 export default function PomodoroTimer({
@@ -58,6 +60,7 @@ export default function PomodoroTimer({
   subtasks,
   onUpdate,
   onStatusChange: _onStatusChange,
+  focusMode = false,
   showTaskTitle = false,
 }: PomodoroTimerProps) {
   const t = useTranslations('pomodoro');
@@ -85,12 +88,27 @@ export default function PomodoroTimer({
       store.startTimer(taskId, taskTitle || t('taskDefaultName'));
 
       await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+        signal: AbortSignal.timeout(20000),
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           startedAt: new Date().toISOString(),
         }),
       });
+
+      // A pre-selected subtask goes in-progress on start (operator flow
+      // 2026-09-03: select -> start -> subtask 進行中 -> complete -> done).
+      if (selectedSubtaskId != null) {
+        await fetch(`${API_BASE_URL}/tasks/${selectedSubtaskId}`, {
+          signal: AbortSignal.timeout(20000),
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: 'in-progress',
+            startedAt: new Date().toISOString(),
+          }),
+        });
+      }
 
       onUpdate();
     } catch (err) {
@@ -120,11 +138,16 @@ export default function PomodoroTimer({
         : (actualHours ?? 0);
     const newActualHours = targetPriorActual + workHours;
 
-    try {
-      const endTime = new Date();
-      const startTime = new Date(store.timerStartTime);
+    // Capture before stopTimer resets it, and stop the UI FIRST — a slow or
+    // restarting backend must never hold the button hostage (the button read
+    // as dead during a backend init window, 2026-09-02).
+    const endTime = new Date();
+    const startTime = new Date(store.timerStartTime);
+    store.stopTimer();
 
+    try {
       await fetch(`${API_BASE_URL}/tasks/${targetId}/time-entries`, {
+        signal: AbortSignal.timeout(20000),
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -132,10 +155,14 @@ export default function PomodoroTimer({
           breakDuration: breakHours,
           startedAt: startTime.toISOString(),
           endedAt: endTime.toISOString(),
+          // Study time for pomodoro work is recorded by the session path —
+          // this flag stops the time-entry route from recording it again.
+          source: 'pomodoro',
         }),
       });
 
       await fetch(`${API_BASE_URL}/tasks/${targetId}`, {
+        signal: AbortSignal.timeout(20000),
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ actualHours: newActualHours, startedAt: null }),
@@ -144,16 +171,17 @@ export default function PomodoroTimer({
       // Clear startedAt on the parent task when time was saved to a subtask.
       if (selectedSubtaskId != null) {
         await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+          signal: AbortSignal.timeout(20000),
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ startedAt: null }),
         });
       }
 
-      store.stopTimer();
       onUpdate();
     } catch (err) {
       logger.error('Failed to stop timer:', err);
+      showToast(t('syncFailed'), 'error');
     }
   };
 
@@ -169,11 +197,14 @@ export default function PomodoroTimer({
         ? (subtasks?.find((s) => s.id === selectedSubtaskId)?.actualHours ?? 0)
         : (actualHours ?? 0);
 
-    try {
-      const endTime = new Date();
-      const startTime = new Date(store.timerStartTime);
+    // Stop the UI first — see handleStopTimer.
+    const endTime = new Date();
+    const startTime = new Date(store.timerStartTime);
+    store.stopTimer();
 
+    try {
       await fetch(`${API_BASE_URL}/tasks/${targetId}/time-entries`, {
+        signal: AbortSignal.timeout(20000),
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -182,10 +213,12 @@ export default function PomodoroTimer({
           note: t('complete'),
           startedAt: startTime.toISOString(),
           endedAt: endTime.toISOString(),
+          source: 'pomodoro',
         }),
       });
 
       await fetch(`${API_BASE_URL}/tasks/${targetId}`, {
+        signal: AbortSignal.timeout(20000),
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -197,16 +230,17 @@ export default function PomodoroTimer({
 
       if (selectedSubtaskId != null) {
         await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+          signal: AbortSignal.timeout(20000),
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ startedAt: null }),
         });
       }
 
-      store.stopTimer();
       onUpdate();
     } catch (err) {
       logger.error('Failed to complete task:', err);
+      showToast(t('syncFailed'), 'error');
     }
   };
 
@@ -335,26 +369,31 @@ export default function PomodoroTimer({
         </div>
       </div>
 
+      {/* Compact soft-tint prompt (operator request 2026-09-03): matches the
+          control row's visual grammar — pale face, no heavy border, the
+          duration as a small chip instead of a bare "(15min)" line. */}
+      {/* NOTE: neutral card face — the tinted buttons need contrast against
+          it (a green face swallowed the green button, 2026-09-03). */}
       {showBreakDialog && (
-        <div className="mb-6 p-6 bg-green-50 dark:bg-green-950 rounded-xl border-2 border-green-500">
-          <div className="text-center mb-4">
-            <div className="text-lg font-semibold text-green-700 dark:text-green-300 mb-2">
+        <div className="mb-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/50">
+          <div className="mb-3 flex items-center justify-center gap-2 text-center">
+            <span className="text-sm font-medium text-green-700 dark:text-green-300">
               {t('breakPrompt', { breakType })}
-            </div>
-            <div className="text-sm text-zinc-600 dark:text-zinc-400">
-              ({pomodoroCount % 4 === 0 ? '15' : '5'}min)
-            </div>
+            </span>
+            <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-500/20 dark:text-green-300">
+              {t('breakDurationChip', { minutes: pomodoroCount % 4 === 0 ? 15 : 5 })}
+            </span>
           </div>
-          <div className="flex gap-3 justify-center">
+          <div className="flex justify-center gap-2">
             <button
               onClick={handleTakeBreak}
-              className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors"
+              className="rounded-lg bg-green-50 px-4 py-2 text-sm font-medium text-green-600 transition-colors hover:bg-green-100 dark:bg-green-500/15 dark:text-green-400 dark:hover:bg-green-500/25"
             >
               {t('takeBreak')}
             </button>
             <button
               onClick={handleSkipBreak}
-              className="px-6 py-3 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-900 dark:text-zinc-50 rounded-lg font-medium transition-colors"
+              className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
             >
               {t('skip')}
             </button>
@@ -362,26 +401,31 @@ export default function PomodoroTimer({
         </div>
       )}
 
+      {/* Same compact grammar as the break prompt, indigo = back-to-work. */}
       {showBreakEndDialog && (
-        <div className="mb-6 p-6 bg-indigo-50 dark:bg-indigo-950 rounded-xl border-2 border-indigo-500">
-          <div className="text-center mb-4">
-            <div className="text-lg font-semibold text-indigo-700 dark:text-indigo-300">
-              {t('breakEndMessage')}
-            </div>
+        <div className="mb-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/50">
+          <div className="mb-3 text-center text-sm font-medium text-indigo-700 dark:text-indigo-300">
+            {t('breakEndMessage')}
           </div>
-          <button
-            onClick={handleBreakEnd}
-            className="w-full px-6 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-colors"
-          >
-            {t('resumeWork')}
-          </button>
+          <div className="flex justify-center">
+            <button
+              onClick={handleBreakEnd}
+              className="rounded-lg bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-100 dark:bg-indigo-500/15 dark:text-indigo-400 dark:hover:bg-indigo-500/25"
+            >
+              {t('resumeWork')}
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Subtask selector — pick where to attribute this session's work time */}
+      {/* Subtask selector — pick where to attribute this session's time and
+          status changes. Visible from IDLE too (operator flow 2026-09-03):
+          the pick must happen before Start so starting can flip the subtask
+          to in-progress. Unselected = the parent task receives both. */}
       {!showBreakDialog &&
         !showBreakEndDialog &&
-        (isTimerRunning || isPaused) &&
+        !isBreakTime &&
+        !focusMode &&
         subtasks &&
         subtasks.length > 0 && (
           <div className="w-full mb-4 px-2">
@@ -422,6 +466,7 @@ export default function PomodoroTimer({
           onComplete={handleCompleteTask}
           onStop={handleStopTimer}
           onCheckpoint={handleCheckpoint}
+          onCutBreak={() => store.cutBreakShort()}
         />
       )}
     </div>

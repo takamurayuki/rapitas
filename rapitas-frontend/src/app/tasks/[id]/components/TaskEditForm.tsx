@@ -16,6 +16,7 @@ import {
 import { useTranslations } from 'next-intl';
 import { useRef } from 'react';
 import InlineMicButton from '@/components/voice/InlineMicButton';
+import DurationInput from '@/components/ui/hours-minutes-input/HoursMinutesInput';
 
 interface TaskEditFormProps {
   editTitle: string;
@@ -188,14 +189,9 @@ export default function TaskEditForm({
           <span className="text-sm font-medium">{t('estimatedTime')}</span>
         </div>
         <div className="flex items-center gap-2">
-          <input
-            type="number"
-            step="0.5"
-            min="0"
-            className="w-32 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-2.5 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
-            placeholder="0"
+          <DurationInput
             value={editEstimatedHours}
-            onChange={(e) => setEditEstimatedHours(e.target.value)}
+            onChange={setEditEstimatedHours}
             aria-label={t('estimatedTime')}
           />
           <span className="text-sm text-zinc-500 dark:text-zinc-400">{tc('hours')}</span>

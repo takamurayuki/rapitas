@@ -44,8 +44,11 @@ interface WakeWordDetectorProps {
 // hooks/common/speech-recognition.types.ts — importing from there
 // avoids the TS2717 "subsequent property declarations" conflict.
 import type { SpeechRecognition } from '@/hooks/common/speech-recognition.types';
+import { VOICE_INPUT_DISABLED } from './VoiceInputProvider';
 
-export default function WakeWordDetector({ config, onWakeWordDetected }: WakeWordDetectorProps) {
+// NOTE: voice input disabled — the gate wrapper below keeps hooks
+// unconditional inside the inner component (rules-of-hooks).
+function WakeWordDetectorInner({ config, onWakeWordDetected }: WakeWordDetectorProps) {
   const { openVoiceInput, isVoiceOpen } = useVoiceInput();
   const t = useTranslations('devTools');
   const [isListening, setIsListening] = useState(false);
@@ -203,4 +206,9 @@ export default function WakeWordDetector({ config, onWakeWordDetected }: WakeWor
       </span>
     </div>
   );
+}
+
+export default function WakeWordDetector(props: WakeWordDetectorProps) {
+  if (VOICE_INPUT_DISABLED) return null;
+  return <WakeWordDetectorInner {...props} />;
 }

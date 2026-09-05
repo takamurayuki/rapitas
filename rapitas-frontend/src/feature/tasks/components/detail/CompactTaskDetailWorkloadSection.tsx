@@ -11,6 +11,7 @@ import { type useTranslations } from 'next-intl';
 import { type Task } from '@/types';
 import { sumSubtaskActualHours } from '@/utils/subtask-hours';
 import { Calendar, Clock, Timer } from 'lucide-react';
+import DurationInput from '@/components/ui/hours-minutes-input/HoursMinutesInput';
 
 export interface CompactTaskDetailWorkloadSectionProps {
   task: Task;
@@ -73,22 +74,16 @@ export default function CompactTaskDetailWorkloadSection({
             </span>
           </label>
           <div className="flex items-center gap-1">
-            <input
-              type="number"
-              step="0.5"
-              min="0"
+            <DurationInput
               value={estHoursInput}
-              onChange={(e) => setEstHoursInput(e.target.value)}
+              onChange={setEstHoursInput}
               onBlur={() =>
                 patchTask({
                   estimatedHours: estHoursInput ? parseFloat(estHoursInput) : null,
                 })
               }
-              placeholder="0"
               aria-label={t('compactTaskDetailCard.workloadLabel')}
-              className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1.5 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
             />
-            <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">h</span>
           </div>
         </div>
 
@@ -114,23 +109,17 @@ export default function CompactTaskDetailWorkloadSection({
                 {subtaskActualSum.toFixed(1)}
               </div>
             ) : (
-              <input
-                type="number"
-                step="0.1"
-                min="0"
+              <DurationInput
                 value={actHoursInput}
-                onChange={(e) => setActHoursInput(e.target.value)}
+                onChange={setActHoursInput}
                 onBlur={() =>
                   patchTask({
                     actualHours: actHoursInput ? parseFloat(actHoursInput) : null,
                   })
                 }
-                placeholder="0"
                 aria-label={t('compactTaskDetailCard.actualWorkTimeLabel')}
-                className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1.5 text-sm border-none outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
               />
             )}
-            <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">h</span>
           </div>
         </div>
 

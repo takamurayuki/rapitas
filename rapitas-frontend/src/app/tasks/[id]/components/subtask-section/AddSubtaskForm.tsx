@@ -14,6 +14,7 @@ import type { Priority } from '@/types';
 import { useAutosizeTextarea } from '@/hooks/ui/useAutosizeTextarea';
 import { isImeComposing } from '@/utils/ime';
 import { PrioritySelector } from '@/app/tasks/new/components/PrioritySelector';
+import DurationInput from '@/components/ui/hours-minutes-input/HoursMinutesInput';
 
 interface AddSubtaskFormProps {
   newSubtaskTitle: string;
@@ -104,14 +105,9 @@ export function AddSubtaskForm({
               <Clock className="w-3.5 h-3.5" />
               {t('subtaskEstimatedHours')}
             </label>
-            <input
-              type="number"
-              step="0.5"
-              min="0"
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:border-indigo-400"
-              placeholder="0"
+            <DurationInput
               value={newSubtaskEstimatedHours}
-              onChange={(e) => onSetNewSubtaskEstimatedHours(e.target.value)}
+              onChange={onSetNewSubtaskEstimatedHours}
               aria-label={t('subtaskEstimatedHours')}
             />
           </div>
@@ -121,14 +117,9 @@ export function AddSubtaskForm({
               <Timer className="w-3.5 h-3.5" />
               {t('subtaskActualHours')}
             </label>
-            <input
-              type="number"
-              step="0.1"
-              min="0"
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:border-indigo-400"
-              placeholder="0"
+            <DurationInput
               value={newSubtaskActualHours}
-              onChange={(e) => onSetNewSubtaskActualHours(e.target.value)}
+              onChange={onSetNewSubtaskActualHours}
               aria-label={t('subtaskActualHours')}
             />
           </div>

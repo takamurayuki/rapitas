@@ -22,6 +22,17 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('PomodoroPanelContent');
 
+// Ask the Rust side to front the main window and route it to the task page.
+async function openTaskInMainWindow(taskId: number): Promise<void> {
+  if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('open_task_in_main', { taskId });
+  } catch (err) {
+    logger.error('Failed to open task in main window:', err);
+  }
+}
+
 interface PomodoroPanelContentProps {
   taskId: number;
   taskTitle: string;
@@ -47,7 +58,7 @@ export default function PomodoroPanelContent({
   const [showSettings, setShowSettings] = useState(false);
 
   const fetchTaskContext = () => {
-    fetch(`${API_BASE_URL}/tasks/${taskId}/time-entries`)
+    fetch(`${API_BASE_URL}/tasks/${taskId}/time-entries`, { signal: AbortSignal.timeout(20000) })
       .then((res) => {
         if (!res.ok) return [];
         return res.json();
@@ -55,7 +66,7 @@ export default function PomodoroPanelContent({
       .then((data) => setTimeEntries(data))
       .catch((err) => logger.error('Failed to fetch time entries:', err));
 
-    fetch(`${API_BASE_URL}/tasks/${taskId}`)
+    fetch(`${API_BASE_URL}/tasks/${taskId}`, { signal: AbortSignal.timeout(20000) })
       .then((res) => {
         if (!res.ok) {
           logger.info('Task not found, stopping timer');
@@ -91,13 +102,38 @@ export default function PomodoroPanelContent({
   // Re-fetch when the target task changes; stopTimer is a stable store action.
   useEffect(fetchTaskContext, [taskId, stopTimer]);
 
+  // Re-fetch on every SHOW of the float window: subtasks added from the main
+  // window while the float was hidden must appear in the selector (operator
+  // report 2026-09-03). The window is long-lived, so mount-time fetches alone
+  // go stale.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
+    let unlisten: (() => void) | undefined;
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen<boolean>('pomodoro-float://visibility-changed', (event) => {
+        if (event.payload) fetchTaskContext();
+      }).then((fn) => {
+        unlisten = fn;
+      });
+    });
+    return () => unlisten?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchTaskContext is recreated per render; the listener only needs the latest via closure re-registration on taskId change
+  }, [taskId]);
+
   return (
     <div>
       {!focusMode && (
         <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800 rounded-t-xl">
-          <span className="text-sm text-zinc-700 dark:text-zinc-300 truncate block">
+          {/* Fronts the MAIN window on that task's page (open_task_in_main →
+              TaskNavigateListener) — the float itself must never navigate. */}
+          <button
+            type="button"
+            onClick={() => void openTaskInMainWindow(taskId)}
+            title={t('floatGoToTask')}
+            className="block max-w-full truncate text-left text-sm text-blue-600 hover:underline dark:text-blue-400"
+          >
             {taskTitle}
-          </span>
+          </button>
         </div>
       )}
 
@@ -106,6 +142,7 @@ export default function PomodoroPanelContent({
           taskId={taskId}
           taskTitle={taskTitle}
           showTaskTitle={false}
+          focusMode={focusMode}
           estimatedHours={taskData?.estimatedHours}
           actualHours={taskData?.actualHours}
           subtasks={taskData?.subtasks}

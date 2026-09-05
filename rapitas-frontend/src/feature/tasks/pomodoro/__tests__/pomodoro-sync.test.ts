@@ -45,6 +45,7 @@ describe('syncPomodoroToBackend', () => {
       await flushPromises();
 
       expect(fetchMock).toHaveBeenCalledWith('http://test:3001/pomodoro/start', {
+        signal: expect.anything(),
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taskId: 7, duration: 1500, type: 'work' }),
@@ -59,6 +60,7 @@ describe('syncPomodoroToBackend', () => {
       await flushPromises();
 
       expect(fetchMock).toHaveBeenCalledWith('http://test:3001/pomodoro/start', {
+        signal: expect.anything(),
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taskId: null, duration: 300, type: 'short_break' }),
@@ -84,11 +86,13 @@ describe('syncPomodoroToBackend', () => {
       await flushPromises();
       await flushPromises();
 
-      expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://test:3001/pomodoro/active');
+      expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://test:3001/pomodoro/active', {
+        signal: expect.anything(),
+      });
       expect(fetchMock).toHaveBeenNthCalledWith(
         2,
         'http://test:3001/pomodoro/sessions/42/complete',
-        { method: 'POST' },
+        { signal: expect.anything(), method: 'POST' },
       );
     });
 
@@ -122,8 +126,11 @@ describe('syncPomodoroToBackend', () => {
       await flushPromises();
       await flushPromises();
 
-      expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://test:3001/pomodoro/active');
+      expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://test:3001/pomodoro/active', {
+        signal: expect.anything(),
+      });
       expect(fetchMock).toHaveBeenNthCalledWith(2, 'http://test:3001/pomodoro/sessions/9/cancel', {
+        signal: expect.anything(),
         method: 'POST',
       });
     });

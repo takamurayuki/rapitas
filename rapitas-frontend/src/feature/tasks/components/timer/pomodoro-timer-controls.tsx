@@ -12,7 +12,7 @@
  * wide start button (a lone small icon read as sparse).
  */
 'use client';
-import { Play, Pause, Square, Check, AlarmClockPlus } from 'lucide-react';
+import { Play, Pause, Square, Check, AlarmClockPlus, SkipForward } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 interface PomodoroTimerControlsProps {
@@ -26,6 +26,7 @@ interface PomodoroTimerControlsProps {
   onComplete: () => void;
   onStop: () => void;
   onCheckpoint: () => void;
+  onCutBreak: () => void;
 }
 
 // Soft-tint squares: pale face + saturated stroked glyph, no border.
@@ -58,10 +59,39 @@ export default function PomodoroTimerControls({
   onComplete,
   onStop,
   onCheckpoint,
+  onCutBreak,
 }: PomodoroTimerControlsProps) {
   const t = useTranslations('pomodoro');
 
-  if (isBreakTime) return null;
+  // Break-time row (operator request 2026-09-03): a break used to hide every
+  // control — resume-early and end-session must stay reachable.
+  if (isBreakTime) {
+    return (
+      <div className="flex gap-3 justify-center">
+        <button
+          type="button"
+          onClick={onCutBreak}
+          className={`${TINT_BASE} ${TINT_INDIGO} p-2.5`}
+          aria-label={t('resumeWork')}
+          title={t('resumeWork')}
+        >
+          {/* SkipForward, not Play — a play glyph during a break reads as
+              "resume the BREAK" (operator feedback 2026-09-03). Generic
+              skip idiom shared with auto_run_task_skipped per ICON_POLICY. */}
+          <SkipForward className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          onClick={onStop}
+          className={`${TINT_BASE} ${TINT_ZINC} p-2.5`}
+          aria-label={t('cancel')}
+          title={t('cancelTooltip')}
+        >
+          <Square className="h-5 w-5" />
+        </button>
+      </div>
+    );
+  }
 
   if (!isTimerRunning) {
     return (

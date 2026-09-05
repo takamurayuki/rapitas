@@ -23,6 +23,8 @@ type UseBackendHealthOptions = {
   onDisconnectAction?: () => void;
   /** 連続ヘルスチェック失敗がこの回数に達したら、SSEのshutdownイベントを受信していなくても意図的な再起動とみなす。デフォルト: 3 */
   restartFallbackThreshold?: number;
+  /** 連続失敗がこの回数に達するまで disconnected 表示にしない（単発の遅延スパイクでモーダルが点滅するのを防ぐ）。デフォルト: 2 */
+  disconnectThreshold?: number;
 };
 
 /**
@@ -41,6 +43,7 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
     onReconnectAction,
     onDisconnectAction,
     restartFallbackThreshold = 3,
+    disconnectThreshold = 2,
   } = options;
 
   const [status, setStatus] = useState<BackendHealthStatus>('checking');
@@ -82,7 +85,10 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
     if ((typeof document !== 'undefined' && document.hidden) || getAppHidden()) return;
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      // 8s (was 3s): the backend's event loop can lag ~1s under heavy sync
+      // DB aggregation; a 3s cutoff turned ordinary load spikes into
+      // "disconnected" flaps (2026-09-02 modal-loop incident).
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
 
       const res = await fetch(`${API_BASE_URL}/events/status`, {
         signal: controller.signal,
@@ -101,19 +107,23 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
         }
         setStatus('connected');
       } else {
-        if (!wasDisconnectedRef.current) {
-          wasDisconnectedRef.current = true;
-          logger.warn(`Backend disconnected: ${res.status} ${res.statusText}`);
-          onDisconnectRef.current?.();
-        }
         consecutiveFailureCountRef.current += 1;
+        // Debounced: a single failed probe is a load spike, not an outage —
+        // only flip the visible state after disconnectThreshold misses.
+        if (consecutiveFailureCountRef.current >= disconnectThreshold) {
+          if (!wasDisconnectedRef.current) {
+            wasDisconnectedRef.current = true;
+            logger.warn(`Backend disconnected: ${res.status} ${res.statusText}`);
+            onDisconnectRef.current?.();
+          }
+          setStatus('disconnected');
+        }
         if (consecutiveFailureCountRef.current >= restartFallbackThreshold) {
           logger.warn(
             `Health check failed ${consecutiveFailureCountRef.current} times in a row — treating as restart in progress`,
           );
           setIsIntentionalRestart(true);
         }
-        setStatus('disconnected');
       }
     } catch (error) {
       // Determine if error is a timeout error
@@ -124,19 +134,22 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
           ? error.message
           : 'Unknown error';
 
-      if (!wasDisconnectedRef.current) {
-        wasDisconnectedRef.current = true;
-        logger.warn(`Backend health check failed: ${errorMessage}`, error);
-        onDisconnectRef.current?.();
-      }
       consecutiveFailureCountRef.current += 1;
+      // Same debounce as the non-ok branch — see above.
+      if (consecutiveFailureCountRef.current >= disconnectThreshold) {
+        if (!wasDisconnectedRef.current) {
+          wasDisconnectedRef.current = true;
+          logger.warn(`Backend health check failed: ${errorMessage}`, error);
+          onDisconnectRef.current?.();
+        }
+        setStatus('disconnected');
+      }
       if (consecutiveFailureCountRef.current >= restartFallbackThreshold) {
         logger.warn(
           `Health check failed ${consecutiveFailureCountRef.current} times in a row — treating as restart in progress`,
         );
         setIsIntentionalRestart(true);
       }
-      setStatus('disconnected');
     }
   }, [restartFallbackThreshold]);
 

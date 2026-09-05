@@ -25,22 +25,22 @@ describe('useTransparencyMode', () => {
     delete window.__TAURI_INTERNALS__;
   });
 
-  it('defaults to "glass" when localStorage is empty', () => {
+  it('defaults to "opaque" (glass is disabled — alpha-0 background whites out this WebView2)', () => {
     const { result } = renderHook(() => useTransparencyMode());
-    expect(result.current.mode).toBe('glass');
+    expect(result.current.mode).toBe('opaque');
   });
 
-  it('persists "opaque" to localStorage after toggling once', () => {
+  it('toggleMode is inert while glass is disabled', () => {
     const { result } = renderHook(() => useTransparencyMode());
     act(() => {
       result.current.toggleMode();
     });
     expect(result.current.mode).toBe('opaque');
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBe('opaque');
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
-  it('restores a previously-stored mode on mount', () => {
-    window.localStorage.setItem(STORAGE_KEY, 'opaque');
+  it('ignores a stored "glass" mode while glass is disabled (self-heals a bricked window)', () => {
+    window.localStorage.setItem(STORAGE_KEY, 'glass');
     const { result } = renderHook(() => useTransparencyMode());
     expect(result.current.mode).toBe('opaque');
   });
@@ -61,34 +61,19 @@ describe('useTransparencyMode', () => {
       window.__TAURI_INTERNALS__ = {};
     });
 
-    it('mode変更時にset_pomodoro_float_acrylicをenabled=trueで呼び、成功時にacrylicAppliedがtrueになること', async () => {
-      mockInvoke.mockResolvedValue(true);
-      const { result } = renderHook(() => useTransparencyMode());
-
-      await waitFor(() =>
-        expect(mockInvoke).toHaveBeenCalledWith('set_pomodoro_float_acrylic', { enabled: true }),
-      );
-      await waitFor(() => expect(result.current.acrylicApplied).toBe(true));
-    });
-
-    it('opaqueへ切替時はenabled=falseで呼び、acrylicAppliedがfalseになること', async () => {
-      // Mirrors the real command's contract: acrylicApplied always tracks
-      // enabled — this is what caught the disable-path Ok(true) return bug.
+    it('マウント時にset_pomodoro_float_acrylicをenabled=falseで呼び、白化した背景をリセットすること', async () => {
+      // Glass is disabled: the mount-time sync must actively CLEAR any alpha-0
+      // webview background left by an earlier glass session (self-heal path).
       mockInvoke.mockImplementation(
         async (_cmd: string, args: { enabled?: boolean } = {}) => args.enabled === true,
       );
       const { result } = renderHook(() => useTransparencyMode());
-      await waitFor(() => expect(result.current.acrylicApplied).toBe(true));
-
-      mockInvoke.mockClear();
-      act(() => {
-        result.current.toggleMode();
-      });
 
       await waitFor(() =>
         expect(mockInvoke).toHaveBeenCalledWith('set_pomodoro_float_acrylic', { enabled: false }),
       );
       await waitFor(() => expect(result.current.acrylicApplied).toBe(false));
+      expect(mockInvoke).not.toHaveBeenCalledWith('set_pomodoro_float_acrylic', { enabled: true });
     });
 
     it('invokeがfalseを返す場合acrylicAppliedがfalseになること', async () => {

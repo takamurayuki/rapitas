@@ -7,8 +7,13 @@
 
 import type { PomodoroState } from './pomodoro-types';
 
-// NOTE: Module-level singleton so all callers share the same channel instance.
-let broadcastChannel: BroadcastChannel | null = null;
+// NOTE: Singleton pinned to globalThis, NOT module scope — Next dev HMR
+// re-evaluates this module, and a module-scope variable resets while the old
+// channel (and its onmessage handler) lives on. Each hot update then added
+// one more channel per window; every broadcast fanned out to all of them and
+// the resulting setState/render storm pegged WebView2 (2026-09-03 root cause
+// of the recurring CPU spikes).
+const g = globalThis as unknown as { __rapitasPomodoroChannel?: BroadcastChannel | null };
 
 /**
  * Returns (and lazily creates) the shared BroadcastChannel for Pomodoro sync.
@@ -18,10 +23,10 @@ let broadcastChannel: BroadcastChannel | null = null;
  */
 export const getBroadcastChannel = (): BroadcastChannel | null => {
   if (typeof window === 'undefined') return null;
-  if (!broadcastChannel) {
-    broadcastChannel = new BroadcastChannel('pomodoro-sync');
+  if (!g.__rapitasPomodoroChannel) {
+    g.__rapitasPomodoroChannel = new BroadcastChannel('pomodoro-sync');
   }
-  return broadcastChannel;
+  return g.__rapitasPomodoroChannel;
 };
 
 /**
@@ -29,9 +34,9 @@ export const getBroadcastChannel = (): BroadcastChannel | null => {
  * Called on beforeunload to avoid lingering listeners.
  */
 export const closeBroadcastChannel = (): void => {
-  if (broadcastChannel) {
-    broadcastChannel.close();
-    broadcastChannel = null;
+  if (g.__rapitasPomodoroChannel) {
+    g.__rapitasPomodoroChannel.close();
+    g.__rapitasPomodoroChannel = null;
   }
 };
 

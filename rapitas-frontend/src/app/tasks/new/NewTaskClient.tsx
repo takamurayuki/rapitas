@@ -29,6 +29,7 @@ import {
   usePriorityOptions,
 } from './components';
 import { useNewTaskForm } from './hooks';
+import DurationInput from '@/components/ui/hours-minutes-input/HoursMinutesInput';
 
 function NewTaskClient() {
   const form = useNewTaskForm();
@@ -127,16 +128,12 @@ function NewTaskClient() {
                 className="flex-1 min-w-[100px]"
               >
                 <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0"
+                  {/* Unit label dropped - the h/m toggle shows it. */}
+                  <DurationInput
                     value={form.estimatedHours}
-                    onChange={(e) => form.setEstimatedHours(e.target.value)}
-                    placeholder="0"
-                    className="w-16 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                    onChange={form.setEstimatedHours}
+                    aria-label={tc('hours')}
                   />
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400">{tc('hours')}</span>
                 </div>
               </FieldItem>
 

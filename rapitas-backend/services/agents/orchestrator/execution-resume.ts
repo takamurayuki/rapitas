@@ -11,7 +11,6 @@ import type { AgentConfigInput } from '../agent-factory';
 import type { AgentTask, AgentExecutionResult } from '../base-agent';
 import { ExecutionFileLogger } from '../execution-file-logger';
 import { createLogger, getProjectRoot } from '../../../config';
-import { acquireTaskExecutionLock, releaseTaskExecutionLock } from '../task-execution-lock';
 import type {
   ExecutionState,
   ExecutionOptions,
@@ -29,16 +28,23 @@ import {
 import { buildResumePrompt, resolveAgentConfig } from './resume-helpers';
 import { buildShutdownErrorMessage } from './shutdown-error';
 import { withLlmCallScope, getLlmCallCount } from '../../../utils/llm-call-context';
+import {
+  acquireTaskExecutionLock,
+  releaseTaskExecutionLock,
+  WORKFLOW_LOCK_TTL_MS,
+} from '../task-execution-lock';
 
 const logger = createLogger('execution-resume');
 
 /**
- * Thrown when another execution already holds the per-task lock — callers must
- * treat this as a benign skip, not a failure.
+ * Thrown when resumeInterruptedExecution() cannot acquire the shared
+ * task-execution lock because another run (manual, workflow-orchestrator, or
+ * a concurrent resume) already holds it for the same task. Treated as a
+ * benign skip by resume-completion.ts, not a failed execution.
  */
 export class ResumeLockConflictError extends Error {
-  constructor(public readonly taskId: number) {
-    super(`Task ${taskId} already has an active execution — refusing duplicate resume`);
+  constructor(taskId: number) {
+    super(`Task ${taskId} already has an agent execution in progress — refusing duplicate resume`);
     this.name = 'ResumeLockConflictError';
   }
 }
@@ -46,7 +52,7 @@ export class ResumeLockConflictError extends Error {
 /**
  * Resumes an interrupted execution from its last known state.
  * @throws {Error} When execution is not found, not interrupted, or has no task / 実行が見つからない場合
- * @throws {ResumeLockConflictError} When another execution already holds the task's execution lock
+ * @throws {ResumeLockConflictError} When the task-execution lock is already held for this task / 排他ロック競合時
  */
 export async function resumeInterruptedExecution(
   ctx: OrchestratorContext,
@@ -86,33 +92,30 @@ export async function resumeInterruptedExecution(
     throw new Error(`Task not found for execution: ${executionId}`);
   }
 
-  // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
-  const workingDirectory = task.theme?.workingDirectory || options.workingDirectory;
-  if (!workingDirectory) {
-    throw new Error(
-      `Task ${task.id} rejected: workingDirectory not configured for theme "${task.theme?.name || 'unknown'}". Please set the working directory in theme settings.`,
-    );
-  }
-  // NOTE: Log warning when workingDirectory overlaps with rapitas project — allowed but flagged
-  const projectRoot = getProjectRoot();
-  if (
-    workingDirectory === projectRoot ||
-    workingDirectory.startsWith(join(projectRoot, 'rapitas-'))
-  ) {
-    logger.warn(
-      `[ExecutionResume] Task ${task.id}: workingDirectory overlaps with rapitas project (${workingDirectory}). Proceeding as user-intended.`,
-    );
-  }
-
   const taskId = task.id;
-  if (!acquireTaskExecutionLock(taskId)) {
-    logger.warn(
-      `[ExecutionResume] Task ${taskId} already has an active execution lock — refusing duplicate resume for execution ${executionId}`,
-    );
+  if (!acquireTaskExecutionLock(taskId, WORKFLOW_LOCK_TTL_MS)) {
     throw new ResumeLockConflictError(taskId);
   }
 
   try {
+    // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
+    const workingDirectory = task.theme?.workingDirectory || options.workingDirectory;
+    if (!workingDirectory) {
+      throw new Error(
+        `Task ${task.id} rejected: workingDirectory not configured for theme "${task.theme?.name || 'unknown'}". Please set the working directory in theme settings.`,
+      );
+    }
+    // NOTE: Log warning when workingDirectory overlaps with rapitas project — allowed but flagged
+    const projectRoot = getProjectRoot();
+    if (
+      workingDirectory === projectRoot ||
+      workingDirectory.startsWith(join(projectRoot, 'rapitas-'))
+    ) {
+      logger.warn(
+        `[ExecutionResume] Task ${task.id}: workingDirectory overlaps with rapitas project (${workingDirectory}). Proceeding as user-intended.`,
+      );
+    }
+
     const claudeSessionId = execution.claudeSessionId;
 
     logger.info(`[ExecutionResume] Resuming interrupted execution ${executionId}`);

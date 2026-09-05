@@ -140,23 +140,69 @@ export interface RecordPomodoroStudyTimeInput {
  *
  * @param input - Task id, the completed PomodoroSession id (dedup key), and its duration in seconds / タスクID・ポモドーロセッションID・秒数
  */
+/**
+ * Resolve the study goal a task's work time should credit: the task's own
+ * studyGoalId, else its theme's active goal, else the same two lookups on the
+ * PARENT task (subtasks usually carry neither field themselves).
+ *
+ * @param taskId - Task or subtask id / タスクまたはサブタスクのID
+ * @returns The goal id, or null when nothing is linked / 紐づく目標ID(なければnull)
+ */
+export async function resolveStudyGoalIdForTask(taskId: number): Promise<number | null> {
+  const themeGoal = async (themeId: number | null): Promise<number | null> => {
+    if (!themeId) return null;
+    const goal = await prisma.studyGoal.findFirst({
+      where: { themeId, status: 'active' },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    return goal?.id ?? null;
+  };
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { studyGoalId: true, themeId: true, parentId: true },
+  });
+  if (!task) return null;
+
+  const own = task.studyGoalId ?? (await themeGoal(task.themeId));
+  if (own || !task.parentId) return own;
+
+  const parent = await prisma.task.findUnique({
+    where: { id: task.parentId },
+    select: { studyGoalId: true, themeId: true },
+  });
+  if (!parent) return null;
+  return parent.studyGoalId ?? (await themeGoal(parent.themeId));
+}
+
+/**
+ * Auto-record study time for work time registered on a (possibly subtask)
+ * task of a goal-linked theme (operator request 2026-09-03). Pomodoro-driven
+ * time entries must NOT come through here — the pomodoro session path
+ * already records the same minutes keyed by pomodoroSessionId.
+ *
+ * @param input - Task id and worked hours / タスクIDと作業時間(時間)
+ */
+export async function recordTaskWorkStudyTime(input: {
+  taskId: number;
+  durationHours: number;
+}): Promise<void> {
+  try {
+    const goalId = await resolveStudyGoalIdForTask(input.taskId);
+    if (!goalId) return;
+    // Minutes are rounded UP — same convention as the pomodoro path.
+    const minutes = Math.ceil(input.durationHours * 60);
+    if (minutes < 1) return;
+    await recordStudySession({ minutes, goalId, source: 'manual' });
+  } catch (error) {
+    logger.warn({ error, taskId: input.taskId }, 'Failed to auto-record task work study time');
+  }
+}
+
 export async function recordPomodoroStudyTime(input: RecordPomodoroStudyTimeInput): Promise<void> {
   try {
-    const task = await prisma.task.findUnique({
-      where: { id: input.taskId },
-      select: { studyGoalId: true, themeId: true },
-    });
-    if (!task) return;
-
-    let goalId: number | null = task.studyGoalId ?? null;
-    if (!goalId && task.themeId) {
-      const goal = await prisma.studyGoal.findFirst({
-        where: { themeId: task.themeId, status: 'active' },
-        orderBy: { createdAt: 'asc' },
-        select: { id: true },
-      });
-      goalId = goal?.id ?? null;
-    }
+    const goalId = await resolveStudyGoalIdForTask(input.taskId);
     if (!goalId) return;
 
     const minutes = Math.ceil(input.durationSeconds / 60);

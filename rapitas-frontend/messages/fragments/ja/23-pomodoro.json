@@ -45,6 +45,9 @@
     "volumeHigh": "大",
     "workDuration": "作業時間",
     "minutes": "{count}分",
-    "floatOpenFromTaskDetail": "タスク詳細画面からポモドーロを開始できます"
+    "floatOpenFromTaskDetail": "タスク詳細画面からポモドーロを開始できます",
+    "floatGoToTask": "タスクを開く",
+    "syncFailed": "バックエンドへの記録に失敗しました。時間は保存されていない可能性があります",
+    "breakDurationChip": "{minutes}分"
   }
 }

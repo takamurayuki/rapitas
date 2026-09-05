@@ -6,6 +6,7 @@ import { ResumableExecutionsBanner } from '@/components/common/ResumableExecutio
 import ScheduleReminderProvider from '@/components/providers/ScheduleReminderProvider';
 import { NotificationToaster } from '@/components/notifications/notification-toaster';
 import { MainWindowOnly } from '@/components/common/main-window-only';
+import { TaskNavigateListener } from '@/components/common/TaskNavigateListener';
 import { Suspense } from 'react';
 import { ToastProvider } from '@/components/ui/toast/ToastContainer';
 import { ConfirmDialogProvider } from '@/components/ui/dialog/ConfirmDialogProvider';
@@ -174,6 +175,7 @@ export default function RootLayout({
                             <UpdateBanner />
                           </Suspense>
                           <GlobalErrorReporter />
+                          <TaskNavigateListener />
                           <Suspense fallback={null}>
                             <SetupGate />
                           </Suspense>

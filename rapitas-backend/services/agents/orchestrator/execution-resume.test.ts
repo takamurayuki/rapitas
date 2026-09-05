@@ -127,11 +127,12 @@ mock.module('../task-execution-lock', () => ({
   acquireTaskExecutionLock: acquireLockMock,
   releaseTaskExecutionLock: releaseLockMock,
   isTaskExecutionLocked: mock(() => false),
+  WORKFLOW_LOCK_TTL_MS: 60_000,
 }));
 
 // ── 動的 import（全 mock.module 宣言後） ──────────────────────────────────────
 
-const { resumeInterruptedExecution, ResumeLockConflictError } = await import('./execution-resume');
+const { resumeInterruptedExecution } = await import('./execution-resume');
 
 // ── 型 import（ランタイムに影響なし） ─────────────────────────────────────────
 
@@ -506,42 +507,7 @@ describe('resumeInterruptedExecution() — エラー処理', () => {
   });
 });
 
-describe('resumeInterruptedExecution() — task-execution-lock', () => {
-  test('ロック取得に成功した場合、成功後に解放される', async () => {
-    const { ctx } = makeCtx(makeExecutionRecord());
-
-    await resumeInterruptedExecution(ctx, 10);
-
-    expect(acquireLockMock).toHaveBeenCalledWith(5);
-    expect(releaseLockMock).toHaveBeenCalledTimes(1);
-    expect(releaseLockMock).toHaveBeenCalledWith(5);
-  });
-
-  test('ロック取得に失敗した場合、ResumeLockConflictError を投げ、エージェントを生成しない', async () => {
-    acquireLockMock.mockImplementation(() => false);
-    const { ctx } = makeCtx(makeExecutionRecord());
-
-    await expect(resumeInterruptedExecution(ctx, 10)).rejects.toThrow(ResumeLockConflictError);
-    expect(createAgentMock).not.toHaveBeenCalled();
-    // ロック未取得のため解放も呼ばれない
-    expect(releaseLockMock).not.toHaveBeenCalled();
-  });
-
-  test('agent.execute が例外を投げても、ロックは解放される', async () => {
-    const executeError = new Error('agent crashed');
-    createAgentMock.mockImplementationOnce((config: { type: string; name: string }) => ({
-      id: 'agent-lock-fail',
-      type: config.type,
-      name: config.name,
-      execute: mock(async () => {
-        throw executeError;
-      }),
-    }));
-    const { ctx } = makeCtx(makeExecutionRecord());
-
-    await expect(resumeInterruptedExecution(ctx, 10)).rejects.toBe(executeError);
-
-    expect(releaseLockMock).toHaveBeenCalledTimes(1);
-    expect(releaseLockMock).toHaveBeenCalledWith(5);
-  });
-});
+// NOTE: task-execution-lock の獲得/解放シナリオ（成功時解放・競合時reject・
+// agent.execute例外時のfinally解放・workingDirectory早期throw時の解放）は
+// execution-resume.lock.test.ts に集約されている（重複を避けるためここでは
+// 追加しない）。

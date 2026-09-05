@@ -12,10 +12,21 @@ import { useCallback, useEffect, useState } from 'react';
 export type TransparencyMode = 'glass' | 'opaque';
 
 const STORAGE_KEY = 'rapitas.pomodoroFloat.transparencyMode';
-const DEFAULT_MODE: TransparencyMode = 'glass';
+// FIXME: forced to 'opaque' — glass is disabled on this machine. Enabling
+// acrylic sets the webview background to alpha-0, which whites out the whole
+// window on this WebView2 build (3rd verified occurrence, 2026-09-02; same
+// failure as transparent(true)). apply_acrylic() reports success, so the
+// frontend cannot detect the white-out and a stored 'glass' bricks the window
+// on every launch. Re-enable only after a rework proves see-through works.
+const DEFAULT_MODE: TransparencyMode = 'opaque';
+const GLASS_DISABLED = true;
+
+/** Whether the glass toggle should be offered in the UI at all. */
+export const GLASS_AVAILABLE = !GLASS_DISABLED;
 
 function readStoredMode(): TransparencyMode {
   if (typeof window === 'undefined') return DEFAULT_MODE;
+  if (GLASS_DISABLED) return 'opaque';
   const stored = window.localStorage.getItem(STORAGE_KEY);
   return stored === 'opaque' || stored === 'glass' ? stored : DEFAULT_MODE;
 }
@@ -83,6 +94,7 @@ export function useTransparencyMode(): {
   }, [mode]);
 
   const toggleMode = useCallback(() => {
+    if (GLASS_DISABLED) return; // see FIXME at GLASS_DISABLED
     setMode((prev) => {
       const next: TransparencyMode = prev === 'glass' ? 'opaque' : 'glass';
       window.localStorage.setItem(STORAGE_KEY, next);

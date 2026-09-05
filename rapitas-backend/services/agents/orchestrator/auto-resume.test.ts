@@ -53,7 +53,7 @@ const OK_OPTS = {
   hasNewerExecution: false,
   taskStatus: 'todo',
   hasWorkingDirectory: true,
-  isTaskLocked: false,
+  hasActiveLock: false,
 };
 
 describe('countResumeAttempts', () => {
@@ -100,6 +100,12 @@ describe('decideAutoResume', () => {
     expect(d.reason).toContain('newer execution');
   });
 
+  it('skips when a task-execution lock is already held for this task', () => {
+    const d = decideAutoResume(exec(), { ...OK_OPTS, hasActiveLock: true });
+    expect(d.resume).toBe(false);
+    expect(d.reason).toContain('lock');
+  });
+
   it('skips executions older than the freshness window', () => {
     const old = exec({ createdAt: new Date(NOW.getTime() - 25 * 60 * 60 * 1000) });
     expect(decideAutoResume(old, OK_OPTS).resume).toBe(false);
@@ -117,12 +123,6 @@ describe('decideAutoResume', () => {
   it('still resumes with exactly one prior attempt (budget is 2)', () => {
     const once = exec({ output: '[再開] 中断された作業を再開します...\n…' });
     expect(decideAutoResume(once, OK_OPTS).resume).toBe(true);
-  });
-
-  it('isTaskLocked=true のとき resume しない', () => {
-    const d = decideAutoResume(exec(), { ...OK_OPTS, isTaskLocked: true });
-    expect(d.resume).toBe(false);
-    expect(d.reason).toContain('locked');
   });
 });
 

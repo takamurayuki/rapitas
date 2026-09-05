@@ -152,6 +152,9 @@ describe('createTask', () => {
     mockPrisma.task.findUnique.mockResolvedValue({ id: 10 });
     mockPrisma.task.findFirst.mockResolvedValue(null);
     mockPrisma.task.create.mockResolvedValue({ id: 2 });
+    // NOTE: creation now runs syncParentStatusFromSubtasks — give its sibling
+    // query an empty result so the sync no-ops in this test.
+    mockPrisma.task.findMany.mockResolvedValue([]);
 
     await createTask(mockPrisma as never, {
       title: 'Subtask',
