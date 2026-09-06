@@ -25,6 +25,9 @@ const prFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null))
 const activityLogFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
 const workflowFileFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
 const themeAutoRunFindManyMock = mock((_args: unknown) => Promise.resolve([] as unknown[]));
+// #860: theme.findMany feeds resolveNonDevelopmentThemeIds — default [] means
+// no candidate theme is treated as non-development (fail-open).
+const themeFindManyMock = mock((_args: unknown) => Promise.resolve([] as unknown[]));
 // Task 837: resolveMaxRepairs() reads UserSettings.verifyRepairLimit once per
 // pass; default null → DEFAULT_VERIFY_REPAIR_LIMIT fallback (existing tests
 // below never override this, so their repairBounceMinCount stays at the
@@ -54,6 +57,7 @@ mock.module('../../config/database', () => ({
     activityLog: { findFirst: activityLogFindFirstMock },
     workflowFile: { findFirst: workflowFileFindFirstMock },
     themeAutoRun: { findMany: themeAutoRunFindManyMock },
+    theme: { findMany: themeFindManyMock },
     userSettings: { findFirst: userSettingsFindFirstMock },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
@@ -82,6 +86,10 @@ function stagnantTask(now: number, over: Record<string, unknown> = {}) {
     status: 'in-progress',
     workflowStatus: 'in_progress',
     updatedAt: new Date(now - 40 * 60 * 1000),
+    // #860: a development theme by default — existing scenarios stay
+    // detected unless the test explicitly puts themeId in an exclusion set.
+    themeId: 1,
+    workflowDisabled: false,
     ...over,
   };
 }
@@ -114,6 +122,7 @@ describe('runSelfIncidentWatch', () => {
     activityLogFindFirstMock.mockReset().mockResolvedValue(null);
     workflowFileFindFirstMock.mockReset().mockResolvedValue(null);
     themeAutoRunFindManyMock.mockReset().mockResolvedValue([]);
+    themeFindManyMock.mockReset().mockResolvedValue([]);
     userSettingsFindFirstMock.mockReset().mockResolvedValue(null);
     submitConcernMock.mockReset().mockResolvedValue(1);
     notifyIntakeQuestionPendingMock.mockReset().mockResolvedValue({ id: 1 });
@@ -142,6 +151,52 @@ describe('runSelfIncidentWatch', () => {
     });
     expect(String(input.detail)).toContain('## 直近の遷移タイムライン(最大10件)');
     expect(String(input.detail)).toContain('## 検出条件');
+  });
+
+  // #860: task #811 (themeId=28, isDevelopment=false) stayed stagnant for
+  // 490m because nothing could ever dispatch it — these four scenarios cover
+  // each way isWorkflowManaged resolves to false, plus the fail-open path.
+  test('does NOT file a stagnation concern for a workflowDisabled task', async () => {
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([stagnantTask(now, { workflowDisabled: true })]);
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(0);
+    expect(submitConcernMock).not.toHaveBeenCalled();
+  });
+
+  test('does NOT file a stagnation concern when the workflow is disabled globally', async () => {
+    const now = nextPassTime();
+    userSettingsFindFirstMock.mockResolvedValue({ workflowDisabledGlobally: true });
+    taskFindManyMock.mockResolvedValue([stagnantTask(now)]);
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(0);
+    expect(submitConcernMock).not.toHaveBeenCalled();
+  });
+
+  test('does NOT file a stagnation concern for a task in a non-development theme', async () => {
+    const now = nextPassTime();
+    themeFindManyMock.mockResolvedValue([{ id: 1 }]);
+    taskFindManyMock.mockResolvedValue([stagnantTask(now, { themeId: 1 })]);
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(0);
+    expect(submitConcernMock).not.toHaveBeenCalled();
+  });
+
+  test('still files a stagnation concern when theme lookup fails (fail-open)', async () => {
+    const now = nextPassTime();
+    themeFindManyMock.mockImplementation(() => Promise.reject(new Error('db down')));
+    taskFindManyMock.mockResolvedValue([stagnantTask(now, { themeId: 1 })]);
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(1);
+    expect(submitConcernMock).toHaveBeenCalledTimes(1);
   });
 
   test('two tasks with the same signature share one dedupKey', async () => {
@@ -489,9 +544,11 @@ describe('runSelfIncidentWatch', () => {
     expect(input.dedupKey).toBe('self-incident:repeat-loop:verify_repair');
   });
 
-  // resolveMaxRepairs() must be resolved once per pass, not once per candidate
-  // task, to avoid an N DB round-trips per watch pass (task 837).
-  test('resolves the repair budget exactly once per pass regardless of candidate count', async () => {
+  // resolveMaxRepairs() and resolveWorkflowDisabledGlobally() (#860) must each
+  // be resolved once per pass, not once per candidate task, to avoid N DB
+  // round-trips per watch pass (task 837). Both read UserSettings, so the
+  // per-pass total is 2 regardless of candidate count.
+  test('resolves UserSettings exactly twice per pass regardless of candidate count', async () => {
     const now = nextPassTime();
     taskFindManyMock.mockResolvedValue([
       stagnantTask(now, { id: 1, updatedAt: new Date(now - 60_000) }),
@@ -501,7 +558,7 @@ describe('runSelfIncidentWatch', () => {
 
     await runSelfIncidentWatch(now);
 
-    expect(userSettingsFindFirstMock.mock.calls.length).toBe(1);
+    expect(userSettingsFindFirstMock.mock.calls.length).toBe(2);
   });
 
   // 受入(a): a never-started todo backlog item files nothing however stale it is.
