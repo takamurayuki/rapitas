@@ -152,10 +152,13 @@ async function gitCommonDir(workingDirectory: string): Promise<string | null> {
     });
     let common = normalize(commonDir.stdout);
     if (!/^([a-zA-Z]:)?\//.test(common)) {
-      const root = await execGitReadonly('git rev-parse --show-toplevel', {
-        cwd: workingDirectory,
-      });
-      common = normalize(`${normalize(root.stdout)}/${common}`);
+      // A relative answer is relative to the CWD git ran in, not the toplevel:
+      // from a subdirectory of the primary checkout git says `../.git`, and
+      // gluing that onto the toplevel produced `<root>/../.git`, which never
+      // equalled the primary's `<root>/.git` (isBackendPrimaryCheckout was
+      // false for the backend's own checkout, 2026-09-07). path.resolve
+      // collapses the `..` and yields the same absolute path from either side.
+      common = normalize(resolve(workingDirectory, common));
     }
     return common;
   } catch {

@@ -7,8 +7,14 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
 const mockBroadcast = mock(() => {});
 
+// The bridge now fans one event out through broadcastMulti; mirror it onto
+// mockBroadcast per channel so the per-channel assertions below stay valid.
+const mockBroadcastMulti = mock((channels: string[], type: string, data: unknown) => {
+  for (const ch of channels) mockBroadcast(ch, type, data);
+});
 mock.module('../../services/communication/realtime-service', () => ({
-  realtimeService: { broadcast: mockBroadcast },
+  // broadcastMulti was added to the bridge after this mock was written.
+  realtimeService: { broadcast: mockBroadcast, broadcastMulti: mockBroadcastMulti },
 }));
 mock.module('../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),

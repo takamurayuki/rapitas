@@ -34,6 +34,13 @@ const reconcileOrphanedBlockedSessionsMock = mock(async () => ({
 }));
 const pruneStaleWorktreePointersMock = mock(async () => 0);
 
+// stale-recovery-helpers records WorkflowTransition rows through the real
+// recorder, which opens the real Prisma client and hangs the suite (5s timeout).
+mock.module('../../workflow/transition-recorder', () => ({
+  recordTransition: mock(async () => {}),
+  RECOVERY_REQUEUE_CAUSES: new Set<string>(),
+}));
+
 mock.module('./stale-blocked-session-reconciliation', () => ({
   reconcileOrphanedBlockedSessions: reconcileOrphanedBlockedSessionsMock,
   pruneStaleWorktreePointers: pruneStaleWorktreePointersMock,

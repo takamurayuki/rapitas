@@ -5,10 +5,23 @@
  * smoke-verdict logic, free-port allocation, and that a project without
  * rapitas.runtime.json opts out (null check).
  */
-import { describe, test, expect } from 'bun:test';
+import { describe, test, it, expect, mock } from 'bun:test';
 import { tmpdir } from 'os';
-import { parseRuntimeConfig, substitutePort } from './runtime-config';
-import { evaluateSmokeFindings, looksLikeEnvironmentFailure } from './runtime-check';
+
+// resolveRuntimeConfig consults Prisma (task theme → theme by workdir) before
+// falling back to rapitas.runtime.json; the real client hung the "no config"
+// case for the full 5s timeout. Stub both lookups as "nothing configured".
+mock.module('../../../../config/database', () => ({
+  prisma: {
+    task: { findUnique: () => Promise.resolve(null) },
+    theme: { findFirst: () => Promise.resolve(null) },
+  },
+  ensureDatabaseConnection: () => Promise.resolve(),
+}));
+
+const { parseRuntimeConfig, substitutePort } = await import('./runtime-config');
+const { evaluateSmokeFindings, looksLikeEnvironmentFailure, runRuntimeSmokeCheck } =
+  await import('./runtime-check');
 
 describe('looksLikeEnvironmentFailure', () => {
   it('matches worktree/tooling environment signatures', () => {
@@ -29,7 +42,6 @@ describe('looksLikeEnvironmentFailure', () => {
   });
 });
 import { allocateFreePort } from './app-launcher';
-import { runRuntimeSmokeCheck } from './runtime-check';
 import type { PathFinding } from './browser-smoke';
 
 function finding(overrides: Partial<PathFinding> = {}): PathFinding {
