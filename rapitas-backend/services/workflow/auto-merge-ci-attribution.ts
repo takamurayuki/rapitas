@@ -13,7 +13,12 @@
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createLogger } from '../../config/logger';
-import { ghPath } from './auto-merge-checks';
+// Local copy of auto-merge-checks' ghPath: several watcher test suites mock
+// that module with a narrow export list, and importing it here made them
+// fail at load ("Export named 'ghPath' not found") — 2026-09-06.
+function ghPath(): string {
+  return process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
+}
 
 const execAsync = promisify(exec);
 const log = createLogger('workflow:auto-merge-ci-attribution');

@@ -15,6 +15,18 @@ mock.module('../../services/workflow/auto-merge-checks', () => ({
   readMergeState: mockReadMergeState,
   readHeadSha: mockReadHeadSha,
   updatePrBranch: mockUpdatePrBranch,
+  ghPath: () => 'gh',
+}));
+
+// Base-branch attribution (ba42bb57): default = nothing red on base, so every
+// failure is the PR's own and the legacy paths below are unchanged.
+let baseFailing = new Set<string>();
+mock.module('../../services/workflow/auto-merge-ci-attribution', () => ({
+  readBaseFailingJobs: () => Promise.resolve(baseFailing),
+  splitInheritedFailures: (failed: string[], base: Set<string>) => ({
+    inherited: failed.filter((n) => base.has(n)),
+    own: failed.filter((n) => !base.has(n)),
+  }),
 }));
 
 const mockAttemptCiRepair = mock(() =>
@@ -53,7 +65,7 @@ mock.module('../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {} }),
 }));
 
-const { handleCiFailure, UPDATE_BRANCH_ATTEMPTED_CAUSE } =
+const { handleCiFailure, UPDATE_BRANCH_ATTEMPTED_CAUSE, CI_INHERITED_HOLD_CAUSE } =
   await import('../../services/workflow/auto-merge-ci-failure');
 
 const candidate = {
@@ -80,6 +92,42 @@ beforeEach(() => {
   mockPrisma.workflowTransition.findMany.mockReset().mockResolvedValue([]);
   mockPrisma.workflowTransition.findFirst.mockReset().mockResolvedValue(null);
   tryHandleConflictFalse.mockClear();
+  baseFailing = new Set<string>();
+});
+
+describe('handleCiFailure — base-branch attribution', () => {
+  test('全失敗が本線でも赤なら ci_repair せず inherited hold を1回だけ記録すること', async () => {
+    baseFailing = new Set(['Test Backend']);
+
+    await handleCiFailure(candidate, ['Test Backend'], tryHandleConflictFalse);
+    // Same head again: the hold is already recorded for this SHA.
+    mockPrisma.workflowTransition.findMany.mockResolvedValue([
+      { metadata: JSON.stringify({ headSha: 'sha-current', inherited: ['Test Backend'] }) },
+    ]);
+    await handleCiFailure(candidate, ['Test Backend'], tryHandleConflictFalse);
+
+    expect(mockAttemptCiRepair).not.toHaveBeenCalled();
+    expect(mockMarkExhausted).not.toHaveBeenCalled();
+    expect(mockRecordTransition).toHaveBeenCalledTimes(1);
+    const rt = mockRecordTransition.mock.calls[0][0] as {
+      cause: string;
+      metadata: { headSha: string; inherited: string[] };
+    };
+    expect(rt.cause).toBe(CI_INHERITED_HOLD_CAUSE);
+    expect(rt.metadata.inherited).toEqual(['Test Backend']);
+    expect(mockNotify).toHaveBeenCalledTimes(1);
+    expect((mockNotify.mock.calls[0][0] as { type: string }).type).toBe('auto_merge_ci_inherited');
+  });
+
+  test('混在なら自前の失敗だけを ci_repair に渡すこと', async () => {
+    baseFailing = new Set(['Test Backend']);
+
+    await handleCiFailure(candidate, ['Test Backend', 'Lint Code'], tryHandleConflictFalse);
+
+    expect(mockAttemptCiRepair).toHaveBeenCalledTimes(1);
+    expect((mockAttemptCiRepair.mock.calls[0] as unknown[])[1]).toEqual(['Lint Code']);
+    expect(mockRecordTransition).not.toHaveBeenCalled();
+  });
 });
 
 describe('handleCiFailure — 前段 update-branch (BEHIND)', () => {
