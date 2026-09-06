@@ -24,10 +24,11 @@ const growth = (
   from: to,
   to,
   // `null` must survive (a window with no sample), so only absent keys default.
-  autonomy: { completed: 4, autonomous: 3, rate: 'autonomy' in rates ? rates.autonomy! : 0.75 },
+  // Samples ≥ MIN_RATE_SAMPLE so every rate counts unless a test shrinks it.
+  autonomy: { completed: 8, autonomous: 6, rate: 'autonomy' in rates ? rates.autonomy! : 0.75 },
   criticFirstPass: {
-    research: { total: 4, firstPass: 2, rate: 'research' in rates ? rates.research! : 0.5 },
-    plan: { total: 4, firstPass: 4, rate: 'plan' in rates ? rates.plan! : 1 },
+    research: { total: 8, firstPass: 4, rate: 'research' in rates ? rates.research! : 0.5 },
+    plan: { total: 8, firstPass: 8, rate: 'plan' in rates ? rates.plan! : 1 },
   },
   repairEfficiency: { completedTasks: 4, totalRepairs: 2, avgPerTask: 0.5 },
   defectRecurrence: {
@@ -41,7 +42,7 @@ const growth = (
 const retro = (to: string, repairRate: number | null, autoMerged = 3): RetroKpiWindow => ({
   from: to,
   to,
-  repairRate: { completedTasks: 4, repairedTasks: 1, rate: repairRate },
+  repairRate: { completedTasks: 8, repairedTasks: 2, rate: repairRate },
   autoMerged,
   autoMergeExhausted: 0,
   autoMergeConflictFiled: 0,
@@ -51,6 +52,16 @@ const retro = (to: string, repairRate: number | null, autoMerged = 3): RetroKpiW
 });
 
 describe('improvementIndex', () => {
+  it('drops rates whose sample is below MIN_RATE_SAMPLE', () => {
+    // plan 1/1 (=100%) and research 0/0 fall under the sample floor → excluded.
+    const wide = growth('2026-09-06T00:00:00.000Z');
+    wide.autonomy = { completed: 10, autonomous: 5, rate: 0.5 };
+    wide.criticFirstPass.plan = { total: 1, firstPass: 1, rate: 1 };
+    wide.criticFirstPass.research = { total: 0, firstPass: 0, rate: null };
+    // counted: autonomy 0.5, recurrence (10 ≥ 5) 0.8, kb (100) 0.25 → mean 0.5167 → 52
+    expect(improvementIndex(wide, undefined)).toBe(52);
+  });
+
   it('averages the available rates, inverting lower-is-better ones', () => {
     // 0.75, 0.5, 1, (1-0.2)=0.8, 0.25, (1-0.25)=0.75 → mean 0.675 → 68
     expect(

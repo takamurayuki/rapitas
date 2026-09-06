@@ -96,6 +96,9 @@ export function ImprovementDigest({ growthWindows, retroWindows }: ImprovementDi
               {delta}pt
             </p>
           )}
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            {t('sampleNote', { tasks: digest.latestSample, rates: digest.latestRateCount })}
+          </p>
           <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">{t('indexHint')}</p>
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-1">
             {digest.tiles.map((tile) => (

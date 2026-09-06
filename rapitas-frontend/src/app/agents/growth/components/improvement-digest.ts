@@ -43,6 +43,10 @@ export interface ImprovementDigest {
   indexSeries: Array<{ weekLabel: string; index: number | null }>;
   latestIndex: number | null;
   previousIndex: number | null;
+  /** Completed tasks behind the latest index — the reader's sample-size cue. */
+  latestSample: number;
+  /** How many of the six rates had enough sample to count this week. */
+  latestRateCount: number;
   verdict: DigestVerdict;
   rates: DigestRateMetric[];
   tiles: DigestTileMetric[];
@@ -50,6 +54,12 @@ export interface ImprovementDigest {
 
 /** Index movement (points) below which a week counts as flat. */
 export const FLAT_BAND_POINTS = 2;
+/**
+ * A rate whose denominator is below this is dropped from the index. A 1/1
+ * plan pass or 0/3 recurrence reads as "100%" and inflated the mean
+ * (measured 2026-09-06: two such rates lifted the week from 83 to 86).
+ */
+export const MIN_RATE_SAMPLE = 5;
 
 const rateOf = (v: number | null, direction: ImprovementDirection): number | null =>
   v === null ? null : direction === 'lower_is_better' ? 1 - v : v;
@@ -65,17 +75,39 @@ export function weekRates(
   g: GrowthLedgerWindow,
   r: RetroKpiWindow | undefined,
 ): Array<{ key: DigestRateMetric['key']; direction: ImprovementDirection; value: number | null }> {
+  const gated = (rate: number | null, sample: number): number | null =>
+    sample >= MIN_RATE_SAMPLE ? rate : null;
   return [
-    { key: 'autonomy', direction: 'higher_is_better', value: g.autonomy.rate },
+    {
+      key: 'autonomy',
+      direction: 'higher_is_better',
+      value: gated(g.autonomy.rate, g.autonomy.completed),
+    },
     {
       key: 'researchFirstPass',
       direction: 'higher_is_better',
-      value: g.criticFirstPass.research.rate,
+      value: gated(g.criticFirstPass.research.rate, g.criticFirstPass.research.total),
     },
-    { key: 'planFirstPass', direction: 'higher_is_better', value: g.criticFirstPass.plan.rate },
-    { key: 'defectRecurrence', direction: 'lower_is_better', value: g.defectRecurrence.rate },
-    { key: 'kbQuality', direction: 'higher_is_better', value: g.kbQuality.rate },
-    { key: 'repairRate', direction: 'lower_is_better', value: r?.repairRate.rate ?? null },
+    {
+      key: 'planFirstPass',
+      direction: 'higher_is_better',
+      value: gated(g.criticFirstPass.plan.rate, g.criticFirstPass.plan.total),
+    },
+    {
+      key: 'defectRecurrence',
+      direction: 'lower_is_better',
+      value: gated(g.defectRecurrence.rate, g.defectRecurrence.newConcerns),
+    },
+    {
+      key: 'kbQuality',
+      direction: 'higher_is_better',
+      value: gated(g.kbQuality.rate, g.kbQuality.total),
+    },
+    {
+      key: 'repairRate',
+      direction: 'lower_is_better',
+      value: gated(r?.repairRate.rate ?? null, r?.repairRate.completedTasks ?? 0),
+    },
   ];
 }
 
@@ -171,6 +203,8 @@ export function computeImprovementDigest(
     })),
     latestIndex,
     previousIndex,
+    latestSample: cur?.g.autonomy.completed ?? 0,
+    latestRateCount: cur ? weekRates(cur.g, cur.r).filter((m) => m.value !== null).length : 0,
     verdict: decideVerdict(latestIndex, previousIndex),
     rates,
     tiles,
