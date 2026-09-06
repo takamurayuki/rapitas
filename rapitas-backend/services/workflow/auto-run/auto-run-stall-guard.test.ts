@@ -43,6 +43,10 @@ mock.module('../../observability', () => ({
   logCycleEvent: logCycleEventMock,
   getCycleLogFilePath: () => '/tmp/cycle.ndjson',
 }));
+const stopTaskAgentsMock = mock(() => Promise.resolve({ stopped: 1 }));
+mock.module('../../agents/stop-task-agents', () => ({
+  stopTaskAgents: stopTaskAgentsMock,
+}));
 mock.module('./auto-run-notifications', () => ({
   notifyStallReleased: notifyStallReleasedMock,
 }));
@@ -91,6 +95,9 @@ describe('releaseStaleActiveItems', () => {
     const released = await releaseStaleActiveItems(fakePrisma, 1, 617, ITEMS);
 
     expect(released).toBe(2);
+    // Released residue must not leave an agent running on a done task (#856).
+    expect(stopTaskAgentsMock).toHaveBeenCalledTimes(1);
+    expect((stopTaskAgentsMock.mock.calls[0] as unknown[])[0]).toBe(617);
     expect(updateManyMock).toHaveBeenCalledTimes(1);
     const call = updateManyMock.mock.calls[0]?.[0] as {
       where: { id: { in: number[] }; status: { in: string[] } };

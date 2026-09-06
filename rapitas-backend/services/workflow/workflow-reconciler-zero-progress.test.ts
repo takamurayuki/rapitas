@@ -35,6 +35,10 @@ mock.module('../../config/database', () => ({
 mock.module('./auto-run/theme-auto-run-service', () => ({
   findByStatuses: findByStatusesMock,
 }));
+let queuedBehind = false;
+mock.module('./auto-run/queue-wait-exemption', () => ({
+  liveOrQueuedBehind: () => Promise.resolve(queuedBehind),
+}));
 mock.module('./auto-run/auto-run-notifications', () => ({
   notifyZeroProgressWhileRunning: notifyZeroProgressWhileRunningMock,
 }));
@@ -104,6 +108,19 @@ describe('detectZeroProgressWhileRunning', () => {
     // The execution probe must scope to the current task via the relational where.
     const where = (countMock.mock.calls[0]?.[0] as { where: unknown } | undefined)?.where;
     expect(where).toEqual({ session: { config: { taskId: 100 } } });
+  });
+
+  test('閾値超過・実行0件でも、他タスクが枠を占有していれば発火しない（#856 事例）', async () => {
+    queuedBehind = true;
+    try {
+      countMock.mockResolvedValue(0);
+      const t0 = 1_000_000;
+      await detectZeroProgressWhileRunning(t0);
+      const detected = await detectZeroProgressWhileRunning(t0 + ZERO_PROGRESS_THRESHOLD_MS + 1);
+      expect(detected).toBe(0);
+    } finally {
+      queuedBehind = false;
+    }
   });
 
   test('閾値超過でも AgentExecution が1件以上あれば発火しない（正常な長時間フェーズ）', async () => {

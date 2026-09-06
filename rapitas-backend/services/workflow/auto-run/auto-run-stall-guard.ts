@@ -74,5 +74,15 @@ export async function releaseStaleActiveItems(
     updated.count,
     'terminal_task_active_item_residue',
   );
+  // The residue's execution keeps running unless told otherwise: task 856
+  // (2026-09-05) was set done mid-implementation, its item was released here,
+  // and the implementer ran on for 30 more minutes against a done task.
+  // Lazy import — stop-task-agents pulls the orchestrator graph.
+  const { stopTaskAgents } = await import('../../agents/stop-task-agents');
+  await stopTaskAgents(currentTaskId, {
+    errorMessage: 'タスクは既に終端状態のため、残留実行を停止しました（停滞ガード）',
+  }).catch((err) => {
+    log.warn({ err, taskId: currentTaskId }, '[stall-guard] stopTaskAgents failed');
+  });
   return updated.count;
 }

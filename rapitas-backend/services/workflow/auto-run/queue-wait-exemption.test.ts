@@ -41,6 +41,17 @@ describe('liveOrQueuedBehind', () => {
     expect(await liveOrQueuedBehind(prisma, 784)).toBe(true);
   });
 
+  test('queue 項目は無くても他タスクの実行が生きていれば「待機中」= true（#856 事例）', async () => {
+    const prisma = {
+      workflowQueueItem: {
+        findFirst: (args: { where: { taskId: number | { not: number }; status: string } }) =>
+          Promise.resolve(args.where.status === 'queued' ? { id: 1 } : null),
+      },
+      agentExecution: { findFirst: () => Promise.resolve({ id: 99 }) },
+    };
+    expect(await liveOrQueuedBehind(prisma, 856)).toBe(true);
+  });
+
   test('誰も running でなければ待機免除は付かない（本物のハングは止める）', async () => {
     liveExecution = false;
     const prisma = prismaWith([{ taskId: 784, status: 'queued' }]);

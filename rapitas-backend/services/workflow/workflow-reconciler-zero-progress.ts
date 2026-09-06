@@ -70,6 +70,23 @@ export async function detectZeroProgressWhileRunning(nowMs: number): Promise<num
     // legitimately long phase, not a spin.
     if (executionCount == null || executionCount > 0) continue;
 
+    // Zero executions because the slot is occupied by another task's live
+    // execution is WAITING, not spinning — task 856 drew 25 minutes of
+    // zero-progress alarms while queued behind task 847's ci_repair
+    // (2026-09-05). Log it as a distinct, quiet cycle event.
+    const { liveOrQueuedBehind } = await import('./auto-run/queue-wait-exemption');
+    if (await liveOrQueuedBehind(prisma, taskId)) {
+      logCycleEvent('theme.waiting_for_slot', {
+        theme: theme.themeId,
+        task: taskId,
+        ok: true,
+        cause: 'slot_occupied_by_other_task',
+        waitedMinutes: Math.round((nowMs - tracked.since) / 60000),
+        msg: 'current task has no execution yet because another task holds the runner slot',
+      });
+      continue;
+    }
+
     detected++;
     const elapsedMinutes = Math.round((nowMs - tracked.since) / 60000);
     log.warn(

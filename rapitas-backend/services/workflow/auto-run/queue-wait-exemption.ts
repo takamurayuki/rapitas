@@ -17,7 +17,14 @@ interface PrismaLike {
   workflowQueueItem: {
     findFirst(args: unknown): Promise<{ id: number } | null>;
   };
+  agentExecution: {
+    findFirst(args: unknown): Promise<{ id: number } | null>;
+  };
 }
+
+// Mirrors HANG_BACKSTOP_HEARTBEAT_MS (auto-run-selection.ts); a local copy so
+// this module's only import of that file stays the lazily-loaded liveness check.
+const FRESH_HEARTBEAT_MS = 5 * 60_000;
 
 /**
  * Live execution heartbeat, or queued behind another task's active work.
@@ -44,7 +51,20 @@ export async function liveOrQueuedBehind(prisma: unknown, taskId: number): Promi
       where: { taskId: { not: taskId }, status: 'running' },
       select: { id: true },
     } as never);
-    return otherRunning != null;
+    if (otherRunning != null) return true;
+    // A post-completion execution (ci_repair, continuation) holds the runner's
+    // slot WITHOUT any queue item: task 856 waited 45 min behind task 847's
+    // ci_repair, produced nothing, and was force-stopped as "wedged"
+    // (2026-09-05). Any other task's live heartbeat means we are queued behind it.
+    const otherLive = await p.agentExecution.findFirst({
+      where: {
+        status: 'running',
+        heartbeatAt: { gte: new Date(Date.now() - FRESH_HEARTBEAT_MS) },
+        session: { config: { taskId: { not: taskId } } },
+      },
+      select: { id: true },
+    } as never);
+    return otherLive != null;
   } catch {
     return false;
   }
