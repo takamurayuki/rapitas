@@ -23,6 +23,7 @@ export async function getLearningStats(): Promise<LearningStats> {
     completedExperiments,
     topPatterns,
     promptImprovements,
+    confirmedPromptImprovements,
     nodeCount,
     edgeCount,
   ] = await Promise.all([
@@ -34,6 +35,9 @@ export async function getLearningStats(): Promise<LearningStats> {
       select: { id: true, description: true, occurrences: true },
     }),
     prisma.promptEvolution.count(),
+    // Only a completed before/after pair with a positive delta is evidence of
+    // an improvement; proposals and approvals are not (audit 2026-09-06).
+    prisma.promptEvolution.count({ where: { status: 'completed', performanceDelta: { gt: 0 } } }),
     prisma.knowledgeGraphNode.count(),
     prisma.knowledgeGraphEdge.count(),
   ]);
@@ -52,12 +56,19 @@ export async function getLearningStats(): Promise<LearningStats> {
     })
     .filter(Boolean) as string[];
 
+  // NOTE: "success" here has always meant "reached status=completed". The
+  // honest name is exposed alongside; successRate stays as an alias so the
+  // dashboard keeps rendering until it migrates.
+  const completionRate = totalExperiments > 0 ? completedExperiments / totalExperiments : 0;
   return {
     totalExperiments,
-    successRate: totalExperiments > 0 ? completedExperiments / totalExperiments : 0,
+    successRate: completionRate,
+    completionRate,
+    sampleCount: totalExperiments,
     topPatterns,
     recentLearnings,
     promptImprovements,
+    confirmedPromptImprovements,
     knowledgeGraphSize: { nodes: nodeCount, edges: edgeCount },
   };
 }

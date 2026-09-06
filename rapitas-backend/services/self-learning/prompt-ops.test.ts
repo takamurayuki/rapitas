@@ -75,6 +75,31 @@ describe('summarizePromptEvolution', () => {
     expect(group.recentEntries.map((e) => e.id)).toEqual([2, 3, 1]);
   });
 
+  it('counts approved and rejected rows separately from pending/proposed', () => {
+    const mk = (id: number, status: string) => ({
+      id,
+      basePromptKey: 'workflow_role_verifier',
+      category: 'verification',
+      status,
+      performanceDelta: 0,
+      reason: null,
+      improvement: null,
+      createdAt: new Date(Date.UTC(2026, 0, id)).toISOString(),
+    });
+    const summary = summarizePromptEvolution([
+      mk(1, 'pending'),
+      mk(2, 'proposed'),
+      mk(3, 'approved'),
+      mk(4, 'rejected'),
+      mk(5, 'completed'),
+    ]);
+    expect(summary[0].entryCount).toBe(5);
+    expect(summary[0].pendingCount).toBe(2);
+    expect(summary[0].approvedCount).toBe(1);
+    expect(summary[0].rejectedCount).toBe(1);
+    expect(summary[0].completedCount).toBe(1);
+  });
+
   it('falls back to category when basePromptKey is null (legacy rows)', () => {
     const rows = [
       {

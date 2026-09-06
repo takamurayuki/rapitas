@@ -73,10 +73,14 @@ export interface PromptEvolutionRecentEntry {
 export interface PromptEvolutionGroupSummary {
   /** basePromptKey when set, else the legacy `category` field / グルーピングキー */
   key: string;
-  /** Total rows in this group (pending + completed) / 総エントリ数 */
+  /** Total rows in this group, any status / 総エントリ数 */
   entryCount: number;
-  /** Rows still queued (status="pending") / 未処理数 */
+  /** Rows awaiting a decision (status pending or proposed) / 未判断数 */
   pendingCount: number;
+  /** Rows approved for injection but without a recorded outcome yet / 承認済み(結果未記録)数 */
+  approvedCount: number;
+  /** Rows rejected by a human / 却下数 */
+  rejectedCount: number;
   /** Rows with a recorded before/after pair (status="completed") / 完了数 */
   completedCount: number;
   /** performanceDelta of the most recently created completed row, or null / 直近の性能差分 */
@@ -116,7 +120,13 @@ export function summarizePromptEvolution(
     );
 
     const completed = sorted.filter((r) => r.status === 'completed');
-    const pendingCount = sorted.length - completed.length;
+    // NOTE: pending used to be "everything not completed", which counted
+    // approved and rejected rows as still waiting (audit 2026-09-06).
+    const pendingCount = sorted.filter(
+      (r) => r.status === 'pending' || r.status === 'proposed',
+    ).length;
+    const approvedCount = sorted.filter((r) => r.status === 'approved').length;
+    const rejectedCount = sorted.filter((r) => r.status === 'rejected').length;
 
     const averagePerformanceDelta =
       completed.length > 0
@@ -127,6 +137,8 @@ export function summarizePromptEvolution(
       key,
       entryCount: sorted.length,
       pendingCount,
+      approvedCount,
+      rejectedCount,
       completedCount: completed.length,
       latestPerformanceDelta: completed.length > 0 ? completed[0].performanceDelta : null,
       averagePerformanceDelta,

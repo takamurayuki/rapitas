@@ -179,9 +179,21 @@ export interface CreatePatternInput {
 
 export interface LearningStats {
   totalExperiments: number;
+  /**
+   * @deprecated Alias of completionRate kept for API compatibility. It is the
+   * share of experiments that reached status=completed — NOT an acceptance,
+   * merge or defect-free rate (autonomy audit 2026-09-06).
+   */
   successRate: number;
+  /** Experiments with status=completed / totalExperiments (0-1). */
+  completionRate: number;
+  /** Denominator behind completionRate — read the rate with this in mind. */
+  sampleCount: number;
+  /** PromptEvolution rows whose recorded before/after pair improved (completed, delta > 0). */
+  confirmedPromptImprovements: number;
   topPatterns: Array<{ id: number; description: string; occurrences: number }>;
   recentLearnings: string[];
+  /** Every PromptEvolution row, any status — proposals included, not confirmed improvements. */
   promptImprovements: number;
   knowledgeGraphSize: { nodes: number; edges: number };
 }
