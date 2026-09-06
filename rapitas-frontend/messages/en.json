@@ -2112,6 +2112,36 @@
       "emptyHint": "Weekly series will appear here once tasks complete and concerns are recorded",
       "emptyChart": "No data for this period yet",
       "noData": "No data",
+      "detailsToggle": "Show detailed metrics (5 weekly charts and KPIs)",
+      "digest": {
+        "title": "Improvement Digest",
+        "subtitle": "One index from the weekly rate metrics, with a verdict on this week versus last",
+        "indexLabel": "Improvement index",
+        "indexHint": "Mean of autonomous completion, research/plan first-pass, concern recurrence (inverted), knowledge validation and repair rate (inverted). Counts and durations are not folded in",
+        "chartTitle": "Improvement index trend",
+        "vsPrevWeek": "vs last week",
+        "emptyChart": "No data for this period yet",
+        "noData": "No data",
+        "verdict": {
+          "improving": "Improving",
+          "flat": "Flat",
+          "worsening": "Worsening",
+          "insufficient": "Needs two weeks of data"
+        },
+        "rates": {
+          "autonomy": "Autonomous completion rate",
+          "researchFirstPass": "Research first-pass rate",
+          "planFirstPass": "Plan first-pass rate",
+          "defectRecurrence": "Concern recurrence (lower is better)",
+          "kbQuality": "Knowledge validation rate",
+          "repairRate": "Repair rate (lower is better)"
+        },
+        "tiles": {
+          "autonomousCompleted": "Tasks completed unattended",
+          "autoMerged": "Auto-merges succeeded",
+          "repairRate": "Repair rate"
+        }
+      },
       "autonomy": {
         "title": "Autonomous Completion Rate",
         "seriesLabel": "Autonomous completion rate"
