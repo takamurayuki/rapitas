@@ -17,11 +17,14 @@ import { getInsensitiveMode } from '../../config/db-provider';
  * @param search - Raw query string from the request / 検索文字列
  * @returns Prisma where fragment, or an empty object when blank / where断片
  */
-export function buildIdeaSearchFilter(search: string | undefined): {
-  AND?: Array<{
-    OR: Array<Record<'title' | 'content', { contains: string; mode?: 'insensitive' }>>;
-  }>;
-} {
+type Contains = { contains: string; mode?: 'insensitive' };
+
+/** Prisma where fragment produced by buildIdeaSearchFilter. */
+export interface IdeaSearchFilter {
+  AND?: Array<{ OR: [{ title: Contains }, { content: Contains }] }>;
+}
+
+export function buildIdeaSearchFilter(search: string | undefined): IdeaSearchFilter {
   const term = search?.trim();
   if (!term) return {};
   const contains = { contains: term, ...getInsensitiveMode() };
