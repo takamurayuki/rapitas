@@ -30,6 +30,8 @@ export interface SupervisorTaskRef {
   workflowStatus: string | null;
   updatedAt: Date;
   themeId: number | null;
+  /** Mirrors CandidateTask.workflowDisabled (#860) — unused here, kept for structural match. */
+  workflowDisabled: boolean;
 }
 
 /** The watcher's fileFinding, injected to avoid a circular import. */

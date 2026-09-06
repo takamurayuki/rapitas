@@ -31,6 +31,11 @@ import type { GatheredTaskState } from './self-incident-evidence';
 import { inspectSupervisorSignatures } from './supervisor-incident-inspect';
 import { resolveMaxRepairs } from './verify-self-repair-budget';
 import { DEFAULT_MAX_CI_REPAIRS } from './blocked-task-policy';
+import {
+  resolveDisabledAutoRunThemeIds,
+  resolveNonDevelopmentThemeIds,
+  resolveWorkflowDisabledGlobally,
+} from './self-incident-watch-gates';
 
 const log = createLogger('self-incident-watcher');
 
@@ -82,28 +87,8 @@ interface CandidateTask {
   updatedAt: Date;
   /** Theme the task belongs to (null = unthemed) — feeds the Pattern B auto-run gate. */
   themeId: number | null;
-}
-
-/**
- * Resolves each candidate's theme auto-run enabled state in one batch query
- * (task #715) — avoids an N+1 `ThemeAutoRun` lookup per candidate. Only
- * themes with an explicit `enabled: false` row are recorded; every other
- * themeId (no row, enabled: true, or unthemed) is absent from the map, and
- * detectTriStateDesync treats a missing entry as "enabled" (fail open — see
- * TriStateDesyncInput.themeAutoRunEnabled).
- *
- * @param themeIds - Distinct, non-null theme ids among this pass's candidates. / 候補のテーマID一覧
- * @returns Set of theme ids whose auto-run is explicitly disabled. / 自動実行が無効なテーマID集合
- */
-async function resolveDisabledAutoRunThemeIds(themeIds: number[]): Promise<Set<number>> {
-  if (themeIds.length === 0) return new Set();
-  const disabled = await prisma.themeAutoRun
-    .findMany({
-      where: { themeId: { in: themeIds }, enabled: false },
-      select: { themeId: true },
-    })
-    .catch(() => [] as { themeId: number }[]);
-  return new Set(disabled.map((d) => d.themeId));
+  /** Task-level workflow-disabled flag — feeds the stagnation isWorkflowManaged gate (#860). */
+  workflowDisabled: boolean;
 }
 
 /** Formats + files one finding as a dedup-keyed concern. Never throws. */
@@ -169,6 +154,10 @@ async function fileFinding(args: {
 /**
  * Runs all three detectors over one task and files a concern per finding.
  *
+ * @param nonDevelopmentThemeIds - Themes with `isDevelopment === false`, resolved once per
+ *   pass by the caller (task #860). / 非開発テーマID集合
+ * @param workflowDisabledGlobally - `UserSettings.workflowDisabledGlobally`, resolved once per
+ *   pass by the caller (task #860). / ワークフロー全体無効化フラグ
  * @param repairBounceMinCount - Dynamic repeat-loop threshold for verify_repair/ci_repair
  *   (task 837, resolved once per pass by the caller — see runSelfIncidentWatch). / 修復バウンス系の動的しきい値
  */
@@ -176,10 +165,26 @@ async function inspectTask(
   task: CandidateTask,
   nowMs: number,
   disabledAutoRunThemeIds: Set<number>,
+  nonDevelopmentThemeIds: Set<number>,
+  workflowDisabledGlobally: boolean,
   repairBounceMinCount: number,
 ): Promise<number> {
   const state = await gatherTaskState(task, nowMs, REPEAT_LOOP_WINDOW_MS);
   let filed = 0;
+
+  // Structural dispatch gate (#860): a task that can never gain a live
+  // execution/queue item — workflow disabled, non-development theme, or
+  // theme auto-run disabled — is a legitimate indefinite wait, not
+  // stagnation. Unthemed tasks fall through to `true` (managed) on purpose —
+  // see incident-signature-detectors.ts's isWorkflowManaged JSDoc.
+  const isWorkflowManaged =
+    task.workflowDisabled || workflowDisabledGlobally
+      ? false
+      : task.themeId != null && nonDevelopmentThemeIds.has(task.themeId)
+        ? false
+        : task.themeId != null && disabledAutoRunThemeIds.has(task.themeId)
+          ? false
+          : true;
 
   const stagnation = detectStagnation({
     taskStatus: task.status,
@@ -190,6 +195,7 @@ async function inspectTask(
     hasLiveExecution: state.hasLiveExecution,
     hasAnyExecution: state.hasAnyExecution,
     hasActiveQueueItem: state.hasActiveQueueItem,
+    isWorkflowManaged,
     nowMs,
   });
   if (stagnation) {
@@ -322,6 +328,7 @@ async function inspectAwaitingQuestionTasks(nowMs: number): Promise<number> {
         workflowStatus: true,
         updatedAt: true,
         themeId: true,
+        workflowDisabled: true,
       },
       orderBy: { updatedAt: 'asc' },
       take: MAX_CANDIDATES,
@@ -400,17 +407,24 @@ export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<
         workflowStatus: true,
         updatedAt: true,
         themeId: true,
+        workflowDisabled: true,
       },
       orderBy: { updatedAt: 'asc' },
       take: MAX_CANDIDATES,
     })
     .catch(() => [] as CandidateTask[]);
 
-  // Resolved once per pass (not per task) — feeds Pattern B's auto-run gate.
+  // Resolved once per pass (not per task) — feeds Pattern B's auto-run gate
+  // and the stagnation isWorkflowManaged gate (#860).
   const candidateThemeIds = [
     ...new Set(candidates.map((t) => t.themeId).filter((id): id is number => id != null)),
   ];
-  const disabledAutoRunThemeIds = await resolveDisabledAutoRunThemeIds(candidateThemeIds);
+  const [disabledAutoRunThemeIds, nonDevelopmentThemeIds, workflowDisabledGlobally] =
+    await Promise.all([
+      resolveDisabledAutoRunThemeIds(candidateThemeIds),
+      resolveNonDevelopmentThemeIds(candidateThemeIds),
+      resolveWorkflowDisabledGlobally(),
+    ]);
 
   // Resolved once per pass, not per task (task 837, generalizes task 835's
   // verify_repair-only budget guard to also cover ci_repair): a task that
@@ -427,7 +441,14 @@ export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<
   let filed = 0;
   for (const task of candidates) {
     try {
-      filed += await inspectTask(task, nowMs, disabledAutoRunThemeIds, repairBounceMinCount);
+      filed += await inspectTask(
+        task,
+        nowMs,
+        disabledAutoRunThemeIds,
+        nonDevelopmentThemeIds,
+        workflowDisabledGlobally,
+        repairBounceMinCount,
+      );
     } catch (err) {
       // One broken task must not starve the rest of the scan.
       log.warn({ err, taskId: task.id }, '[self-incident] task inspection failed — continuing');

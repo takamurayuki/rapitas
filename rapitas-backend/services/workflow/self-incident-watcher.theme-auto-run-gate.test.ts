@@ -24,6 +24,9 @@ const prFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null))
 const activityLogFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
 const workflowFileFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
 const themeAutoRunFindManyMock = mock((_args: unknown) => Promise.resolve([] as unknown[]));
+// #860: theme.findMany feeds resolveNonDevelopmentThemeIds — default [] means
+// no candidate theme is treated as non-development (fail-open).
+const themeFindManyMock = mock((_args: unknown) => Promise.resolve([] as unknown[]));
 const userSettingsFindFirstMock = mock(() => Promise.resolve<unknown>(null));
 const submitConcernMock = mock((_input: unknown) => Promise.resolve(1));
 const notifyIntakeQuestionPendingMock = mock((_input: unknown) =>
@@ -47,6 +50,7 @@ mock.module('../../config/database', () => ({
     activityLog: { findFirst: activityLogFindFirstMock },
     workflowFile: { findFirst: workflowFileFindFirstMock },
     themeAutoRun: { findMany: themeAutoRunFindManyMock },
+    theme: { findMany: themeFindManyMock },
     userSettings: { findFirst: userSettingsFindFirstMock },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
@@ -96,6 +100,7 @@ describe('theme auto-run gate for pattern B (#715)', () => {
     activityLogFindFirstMock.mockReset().mockResolvedValue(null);
     workflowFileFindFirstMock.mockReset().mockResolvedValue(null);
     themeAutoRunFindManyMock.mockReset().mockResolvedValue([]);
+    themeFindManyMock.mockReset().mockResolvedValue([]);
     userSettingsFindFirstMock.mockReset().mockResolvedValue(null);
     submitConcernMock.mockReset().mockResolvedValue(1);
     notifyIntakeQuestionPendingMock.mockReset().mockResolvedValue({ id: 1 });
@@ -153,9 +158,12 @@ describe('theme auto-run gate for pattern B (#715)', () => {
     expect(query.where.enabled).toBe(false);
   });
 
-  test('a disabled theme does not suppress the stagnation signature for the same task', async () => {
-    // Pattern B suppression must not blanket-silence other detectors —
-    // stagnation still applies to an in-flight, un-dispatched task.
+  // #860 generalizes "theme auto-run disabled" into the same isWorkflowManaged
+  // signal used for workflowDisabled/non-development themes: a theme paused
+  // via ThemeAutoRun.enabled=false can never dispatch either, so stagnation is
+  // now also suppressed here — superseding #715's original per-detector
+  // isolation (this test previously asserted the opposite).
+  test('a disabled theme now also suppresses the stagnation signature for the same task', async () => {
     const now = nextPassTime();
     taskFindManyMock.mockResolvedValue([
       pausedThemeTask(now, { status: 'in-progress', updatedAt: new Date(now - 40 * 60 * 1000) }),
@@ -164,8 +172,7 @@ describe('theme auto-run gate for pattern B (#715)', () => {
 
     const filed = await runSelfIncidentWatch(now);
 
-    expect(filed).toBe(1);
-    const input = submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(input.dedupKey).toBe('self-incident:stagnation');
+    expect(filed).toBe(0);
+    expect(submitConcernMock).not.toHaveBeenCalled();
   });
 });

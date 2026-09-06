@@ -125,6 +125,19 @@ export interface StagnationInput {
   hasAnyExecution: boolean;
   /** True when a queued/running/waiting_approval WorkflowQueueItem exists. */
   hasActiveQueueItem: boolean;
+  /**
+   * Whether this task can structurally gain a live execution or queue item
+   * at all — `false` when `Task.workflowDisabled`/`UserSettings.
+   * workflowDisabledGlobally` is set, the task's theme is not a development
+   * theme (`Theme.isDevelopment === false`), or the theme's auto-run is
+   * disabled (`ThemeAutoRun.enabled === false`). Such a task can never
+   * dispatch, so the "no execution, no queue" shape is a legitimate
+   * indefinite wait, not stagnation (task #860, e.g. task #811 in a
+   * non-development theme). `null`/`undefined` (unresolved) is treated as
+   * managed — mirrors `themeAutoRunEnabled`: incomplete input must never
+   * silently widen suppression.
+   */
+  isWorkflowManaged?: boolean | null;
   nowMs: number;
   thresholdMs?: number;
 }
@@ -143,6 +156,10 @@ export function detectStagnation(input: StagnationInput): { staleMs: number } | 
   if (input.workflowStatus === 'completed' || input.workflowStatus === 'awaiting_question') {
     return null;
   }
+  // Task cannot structurally dispatch (workflow disabled / non-development
+  // theme / theme auto-run disabled) → the wait is legitimate and
+  // indefinite, not stagnation (#860).
+  if (input.isWorkflowManaged === false) return null;
   // NOTE: null must count as not-started — `null !== 'draft'` alone would
   // misclassify a workflowStatus-less task as advanced.
   const isInFlight =
