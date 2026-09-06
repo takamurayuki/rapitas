@@ -16,6 +16,16 @@ const REPORT_THRESHOLD_MS = 2000;
 
 let handle: ReturnType<typeof setInterval> | null = null;
 
+/**
+ * Formats the stall message with a fixed one-decimal-place digit shape (e.g.
+ * "2.0" not "2") so log-health-check's normalizeMessage() always folds these
+ * into the same "~#.#s" signature instead of splitting integer-second lags
+ * into a separate concern series (task #864).
+ */
+export function formatEventLoopLagMessage(lagMs: number): string {
+  return `Event loop stalled ~${(lagMs / 1000).toFixed(1)}s`;
+}
+
 /** Start the watchdog. Safe to call multiple times. */
 export function startEventLoopLagWatchdog(): void {
   if (handle) return;
@@ -25,7 +35,7 @@ export function startEventLoopLagWatchdog(): void {
     const lagMs = now - expected;
     expected = now + CHECK_INTERVAL_MS;
     if (lagMs > REPORT_THRESHOLD_MS) {
-      log.warn({ lagMs }, `Event loop stalled ~${Math.round(lagMs / 100) / 10}s`);
+      log.warn({ lagMs }, formatEventLoopLagMessage(lagMs));
     }
   }, CHECK_INTERVAL_MS);
 }
