@@ -43,6 +43,10 @@ function executingRow(executionId: number, taskId: number, sessionId: number, st
     id: executionId,
     status: 'running',
     startedAt: new Date(T0 + startMin * 60_000),
+    // NOTE: selectExecutingRows は heartbeatAt を実時刻(new Date())基準の
+    // 鮮度窓(EXECUTING_DISPLAY_STALE_MS=5分)で判定する(executing-tasks-filter.ts:39,45)。
+    // T0はテスト用の固定過去時刻のため、heartbeatAtだけは実時刻にする必要がある。
+    heartbeatAt: new Date(),
     session: {
       id: sessionId,
       createdAt: new Date(T0 + startMin * 60_000),

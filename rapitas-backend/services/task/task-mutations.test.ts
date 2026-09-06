@@ -91,6 +91,13 @@ mock.module('../workflow/subtask-completion-handler', () => ({
   onSubtaskCompleted: mock(() => Promise.resolve()),
 }));
 
+// NOTE: createTask がサブタスク作成時に無条件で呼ぶため未モックだと本物の
+// prisma.task.findMany に到達しクラッシュする(task-parent-status-sync.ts:49)。
+const mockSyncParentStatusFromSubtasks = mock(() => Promise.resolve()) as ReturnType<typeof mock>;
+mock.module('./task-parent-status-sync', () => ({
+  syncParentStatusFromSubtasks: mockSyncParentStatusFromSubtasks,
+}));
+
 mock.module('../memory/task-knowledge-extractor', () => ({
   extractKnowledgeFromTask: mock(() => Promise.resolve([])),
   reflectOnFailure: mock(() => Promise.resolve([])),

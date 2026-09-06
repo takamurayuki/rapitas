@@ -94,7 +94,7 @@ mock.module('../../../routes/agents/approvals', () => ({
 mock.module('../../../services/agents/orchestrator/git-operations/worktree/worktree-ops', () => ({
   rmDirWithRetry: mock(() => Promise.resolve(true)),
   createWorktree: mock(() => Promise.resolve('/wt')),
-  removeWorktree: mock(() => Promise.resolve()),
+  removeWorktree: mock(() => Promise.resolve(true)),
   cleanupStaleWorktrees: mock(() => Promise.resolve(0)),
   cleanupOrphanedWorktrees: mock(() => Promise.resolve(0)),
   ensureGitRepository: mock(() => Promise.resolve(true)),
@@ -138,7 +138,11 @@ function resetAllMocks() {
   );
   mockPrisma.notification.create.mockResolvedValue({ id: 1 });
   removeWorktree.mockReset();
-  removeWorktree.mockResolvedValue(undefined);
+  // NOTE: removeWorktree now returns Promise<boolean> (実際に削除できたか) —
+  // tasks.ts DELETE ハンドラは `if (!removed) continue;` で偽値ならDB更新を
+  // スキップするようになった。既定は成功(true)にしないと、後続の
+  // agentSession.update 呼び出しが一切発生しない。
+  removeWorktree.mockResolvedValue(true);
 }
 
 function createApp() {
