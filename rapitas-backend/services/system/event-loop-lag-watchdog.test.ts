@@ -26,11 +26,8 @@ mock.module('../../config/logger', () => ({
   getBackendLogFilePath: () => '/tmp/backend.log',
 }));
 
-const {
-  formatEventLoopLagMessage,
-  startEventLoopLagWatchdog,
-  stopEventLoopLagWatchdog,
-} = await import('./event-loop-lag-watchdog');
+const { formatEventLoopLagMessage, startEventLoopLagWatchdog, stopEventLoopLagWatchdog } =
+  await import('./event-loop-lag-watchdog');
 
 function normalize(msg: string): string {
   return msg.replace(/\d+/g, '#');
