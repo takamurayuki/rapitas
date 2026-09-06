@@ -8,6 +8,13 @@
  */
 import { getInsensitiveMode } from '../../config/db-provider';
 
+type Contains = { contains: string; mode?: 'insensitive' };
+
+/** Prisma where fragment produced by buildIdeaSearchFilter. */
+export interface IdeaSearchFilter {
+  AND?: Array<{ OR: [{ title: Contains }, { content: Contains }] }>;
+}
+
 /**
  * Where-clause fragment for a free-text idea search.
  *
@@ -17,13 +24,6 @@ import { getInsensitiveMode } from '../../config/db-provider';
  * @param search - Raw query string from the request / 検索文字列
  * @returns Prisma where fragment, or an empty object when blank / where断片
  */
-type Contains = { contains: string; mode?: 'insensitive' };
-
-/** Prisma where fragment produced by buildIdeaSearchFilter. */
-export interface IdeaSearchFilter {
-  AND?: Array<{ OR: [{ title: Contains }, { content: Contains }] }>;
-}
-
 export function buildIdeaSearchFilter(search: string | undefined): IdeaSearchFilter {
   const term = search?.trim();
   if (!term) return {};
