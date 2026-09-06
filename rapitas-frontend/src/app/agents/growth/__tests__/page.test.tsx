@@ -31,6 +31,11 @@ vi.mock('../components/WeeklyMetricChart', () => ({
 
 // The retro KPI section fetches its own data; stub it so this file stays
 // focused on the growth-ledger cards (see RetroKpiSection.test.tsx).
+// The digest needs the retro ledger too; an empty one keeps it to a single chart.
+vi.mock('../useRetroKpiData', () => ({
+  useRetroKpiData: () => ({ ledger: { windowDays: 7, windows: [] }, loading: false, error: null }),
+}));
+
 vi.mock('../components/RetroKpiSection', () => ({
   RetroKpiSection: () => <div data-testid="retro-kpi-section" />,
 }));
@@ -89,14 +94,15 @@ describe('AgentGrowthPage', () => {
     expect(screen.queryByTestId('metric-chart')).not.toBeInTheDocument();
   });
 
-  it('renders all five metric charts when windows exist', () => {
+  it('renders the digest chart plus all five metric charts when windows exist', () => {
     setHookState({
       ledger: { windowDays: 7, windows: [makeWindow({ to: '2026-03-20T00:00:00.000Z' })] },
       loading: false,
       error: null,
     });
     render(<AgentGrowthPage />);
-    expect(screen.getAllByTestId('metric-chart')).toHaveLength(5);
+    // 5 ledger charts + the improvement-index chart of the digest banner.
+    expect(screen.getAllByTestId('metric-chart')).toHaveLength(6);
     expect(screen.getByText('agents.growth.autonomy.title')).toBeInTheDocument();
     expect(screen.getByText('agents.growth.kbQuality.title')).toBeInTheDocument();
   });

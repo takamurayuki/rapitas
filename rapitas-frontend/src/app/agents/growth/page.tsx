@@ -6,6 +6,8 @@ import { useTranslations } from 'next-intl';
 import { useGrowthLedgerData } from './useGrowthLedgerData';
 import { WeeklyMetricChart, type WeeklyMetricPoint } from './components/WeeklyMetricChart';
 import { RetroKpiSection } from './components/RetroKpiSection';
+import { ImprovementDigest } from './components/ImprovementDigest';
+import { useRetroKpiData } from './useRetroKpiData';
 import type { GrowthLedgerWindow } from './types';
 
 /** Skeleton loader shown while the initial data fetch is in-flight. */
@@ -54,6 +56,9 @@ function toPoints(
 export default function AgentGrowthPage() {
   const t = useTranslations('agents.growth');
   const { ledger, loading, error } = useGrowthLedgerData();
+  // NOTE: RetroKpiSection fetches the same ledger for its own cards; the
+  // endpoint is cheap and the digest must not depend on that section's state.
+  const { ledger: retroLedger } = useRetroKpiData();
 
   if (loading) return <PageSkeleton />;
 
@@ -94,94 +99,107 @@ export default function AgentGrowthPage() {
         )}
 
         {windows.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <WeeklyMetricChart
-              title={t('autonomy.title')}
-              icon={ChartNoAxesCombined}
-              iconBgClass={iconBgClass}
-              iconColorClass={iconColorClass}
-              valueFormat="percent"
-              emptyMessage={t('emptyChart')}
-              noDataLabel={t('noData')}
-              series={[{ dataKey: 'autonomy', label: t('autonomy.seriesLabel'), color: '#6366f1' }]}
-              data={toPoints(windows, (w) => ({ autonomy: w.autonomy.rate }))}
-            />
-
-            <WeeklyMetricChart
-              title={t('criticFirstPass.title')}
-              icon={ChartNoAxesCombined}
-              iconBgClass={iconBgClass}
-              iconColorClass={iconColorClass}
-              valueFormat="percent"
-              emptyMessage={t('emptyChart')}
-              noDataLabel={t('noData')}
-              series={[
-                {
-                  dataKey: 'research',
-                  label: t('criticFirstPass.researchLabel'),
-                  color: '#10b981',
-                },
-                { dataKey: 'plan', label: t('criticFirstPass.planLabel'), color: '#8b5cf6' },
-              ]}
-              data={toPoints(windows, (w) => ({
-                research: w.criticFirstPass.research.rate,
-                plan: w.criticFirstPass.plan.rate,
-              }))}
-            />
-
-            <WeeklyMetricChart
-              title={t('repairEfficiency.title')}
-              icon={ChartNoAxesCombined}
-              iconBgClass={iconBgClass}
-              iconColorClass={iconColorClass}
-              valueFormat="count"
-              emptyMessage={t('emptyChart')}
-              noDataLabel={t('noData')}
-              series={[
-                {
-                  dataKey: 'avgPerTask',
-                  label: t('repairEfficiency.seriesLabel'),
-                  color: '#f59e0b',
-                },
-              ]}
-              data={toPoints(windows, (w) => ({ avgPerTask: w.repairEfficiency.avgPerTask }))}
-            />
-
-            <WeeklyMetricChart
-              title={t('defectRecurrence.title')}
-              icon={ChartNoAxesCombined}
-              iconBgClass={iconBgClass}
-              iconColorClass={iconColorClass}
-              valueFormat="percent"
-              emptyMessage={t('emptyChart')}
-              noDataLabel={t('noData')}
-              series={[
-                {
-                  dataKey: 'recurrence',
-                  label: t('defectRecurrence.seriesLabel'),
-                  color: '#ef4444',
-                },
-              ]}
-              data={toPoints(windows, (w) => ({ recurrence: w.defectRecurrence.rate }))}
-            />
-
-            <WeeklyMetricChart
-              title={t('kbQuality.title')}
-              icon={ChartNoAxesCombined}
-              iconBgClass={iconBgClass}
-              iconColorClass={iconColorClass}
-              valueFormat="percent"
-              emptyMessage={t('emptyChart')}
-              noDataLabel={t('noData')}
-              series={[
-                { dataKey: 'validated', label: t('kbQuality.seriesLabel'), color: '#0ea5e9' },
-              ]}
-              data={toPoints(windows, (w) => ({ validated: w.kbQuality.rate }))}
-            />
-          </div>
+          <ImprovementDigest growthWindows={windows} retroWindows={retroLedger?.windows ?? []} />
         )}
 
-        <RetroKpiSection />
+        {/* Detail charts stay available but closed by default — the digest is
+            the answer; these are the evidence for whoever wants to dig. */}
+        <details className="group">
+          <summary className="cursor-pointer select-none text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+            {t('detailsToggle')}
+          </summary>
+          {windows.length > 0 && (
+            <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <WeeklyMetricChart
+                title={t('autonomy.title')}
+                icon={ChartNoAxesCombined}
+                iconBgClass={iconBgClass}
+                iconColorClass={iconColorClass}
+                valueFormat="percent"
+                emptyMessage={t('emptyChart')}
+                noDataLabel={t('noData')}
+                series={[
+                  { dataKey: 'autonomy', label: t('autonomy.seriesLabel'), color: '#6366f1' },
+                ]}
+                data={toPoints(windows, (w) => ({ autonomy: w.autonomy.rate }))}
+              />
+
+              <WeeklyMetricChart
+                title={t('criticFirstPass.title')}
+                icon={ChartNoAxesCombined}
+                iconBgClass={iconBgClass}
+                iconColorClass={iconColorClass}
+                valueFormat="percent"
+                emptyMessage={t('emptyChart')}
+                noDataLabel={t('noData')}
+                series={[
+                  {
+                    dataKey: 'research',
+                    label: t('criticFirstPass.researchLabel'),
+                    color: '#10b981',
+                  },
+                  { dataKey: 'plan', label: t('criticFirstPass.planLabel'), color: '#8b5cf6' },
+                ]}
+                data={toPoints(windows, (w) => ({
+                  research: w.criticFirstPass.research.rate,
+                  plan: w.criticFirstPass.plan.rate,
+                }))}
+              />
+
+              <WeeklyMetricChart
+                title={t('repairEfficiency.title')}
+                icon={ChartNoAxesCombined}
+                iconBgClass={iconBgClass}
+                iconColorClass={iconColorClass}
+                valueFormat="count"
+                emptyMessage={t('emptyChart')}
+                noDataLabel={t('noData')}
+                series={[
+                  {
+                    dataKey: 'avgPerTask',
+                    label: t('repairEfficiency.seriesLabel'),
+                    color: '#f59e0b',
+                  },
+                ]}
+                data={toPoints(windows, (w) => ({ avgPerTask: w.repairEfficiency.avgPerTask }))}
+              />
+
+              <WeeklyMetricChart
+                title={t('defectRecurrence.title')}
+                icon={ChartNoAxesCombined}
+                iconBgClass={iconBgClass}
+                iconColorClass={iconColorClass}
+                valueFormat="percent"
+                emptyMessage={t('emptyChart')}
+                noDataLabel={t('noData')}
+                series={[
+                  {
+                    dataKey: 'recurrence',
+                    label: t('defectRecurrence.seriesLabel'),
+                    color: '#ef4444',
+                  },
+                ]}
+                data={toPoints(windows, (w) => ({ recurrence: w.defectRecurrence.rate }))}
+              />
+
+              <WeeklyMetricChart
+                title={t('kbQuality.title')}
+                icon={ChartNoAxesCombined}
+                iconBgClass={iconBgClass}
+                iconColorClass={iconColorClass}
+                valueFormat="percent"
+                emptyMessage={t('emptyChart')}
+                noDataLabel={t('noData')}
+                series={[
+                  { dataKey: 'validated', label: t('kbQuality.seriesLabel'), color: '#0ea5e9' },
+                ]}
+                data={toPoints(windows, (w) => ({ validated: w.kbQuality.rate }))}
+              />
+            </div>
+          )}
+
+          <RetroKpiSection />
+        </details>
       </div>
     </div>
   );
