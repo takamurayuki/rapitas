@@ -101,6 +101,18 @@ const resolveTaskWorkflowStateMock = mock((_taskId: number) =>
 );
 const taskRowConfirmedAbsentMock = mock((_taskId: number) => Promise.resolve(false));
 
+// NOTE (task 865): dequeue() calls hasUsableProvider(), which queries
+// prisma.aIAgentConfig directly (not through the '../../config' mock above,
+// so it still reaches a real, unreachable Postgres). The ~5s connection
+// failure alone blew past bun's 5000ms default test timeout on every dequeue
+// test, and the still-in-flight promise from a timed-out test then polluted
+// the NEXT test's prismaMock call counts (12 fail). Fail-open per the real
+// implementation (see queue-provider-gate.ts doc comment).
+mock.module('./queue-provider-gate', () => ({
+  hasUsableProvider: mock(() => Promise.resolve(true)),
+  isProviderOutageFailure: mock(() => Promise.resolve(false)),
+}));
+
 mock.module('../task/task-resolver', () => ({
   resolveTaskWorkflowState: resolveTaskWorkflowStateMock,
   resolveTaskWithTheme: mock(() => Promise.resolve(null)),

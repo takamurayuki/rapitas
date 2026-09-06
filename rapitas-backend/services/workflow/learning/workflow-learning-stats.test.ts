@@ -62,6 +62,22 @@ mock.module('./workflow-learning-helpers', () => ({
   detectSkippedPhases: mock(() => []),
 }));
 
+// NOTE (task 865): both modules import prisma directly from
+// '../../../config/database', bypassing the '../../../config' barrel mock
+// above — readModePrediction is awaited before workflowLearningRecord.create,
+// so its real ~5s unreachable-DB rejection blocked every test (6 fail). Full
+// export mirror required by mock.module.
+mock.module('./mode-prediction', () => ({
+  MODE_PREDICTION_ACTION: 'workflow_mode_predicted',
+  recordModePrediction: mock(() => Promise.resolve()),
+  readModePrediction: mock(() => Promise.resolve(null)),
+}));
+mock.module('./duration-prediction-service', () => ({
+  computeDurationPrediction: mock(() => Promise.resolve(null)),
+  predictAndPersistTaskDuration: mock(() => Promise.resolve()),
+  recordDurationPredictionError: mock(() => Promise.resolve()),
+}));
+
 const { recordWorkflowCompletion, getLearningStats } = await import('./workflow-learning-stats');
 
 function makeTask(overrides: Record<string, unknown> = {}) {
