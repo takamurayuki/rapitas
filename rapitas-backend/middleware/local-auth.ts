@@ -157,7 +157,18 @@ export function createCrossSiteGuard(): (ctx: { request: Request }) => Response 
 
     const site = request.headers.get('sec-fetch-site');
     if (site === 'cross-site') {
-      return block('sec-fetch-site: cross-site');
+      // NOTE: localhost:3000 → 127.0.0.1:3001 is "cross-site" by registrable
+      // domain although both are loopback. The frontend targets 127.0.0.1 on
+      // purpose: a `localhost` target paid a ~200-300ms IPv6 happy-eyeballs
+      // fallback on EVERY request because Windows silently drops [::1]:3001
+      // SYNs (measured 2026-09-06: 210ms vs 1ms connect). An allow-listed
+      // Origin is therefore accepted here — safe, because a browser never lets
+      // a page forge Origin, so a drive-by site still carries its own origin
+      // and is blocked. Cross-site WITHOUT Origin stays blocked: nothing
+      // browser-vouched identifies the sender.
+      const origin = request.headers.get('origin');
+      if (origin && allowedOrigins.has(origin)) return undefined;
+      return block(`sec-fetch-site: cross-site, origin: ${origin ?? '(none)'}`);
     }
     if (!site) {
       const origin = request.headers.get('origin');

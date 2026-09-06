@@ -30,6 +30,23 @@ describe('createCrossSiteGuard', () => {
     expect(guard({ request: req(method, 'cross-site') })).toBeInstanceOf(Response);
   });
 
+  it('allows a cross-site write from an allow-listed loopback Origin (127.0.0.1 API target)', () => {
+    // localhost:3000 page → 127.0.0.1:3001 API: cross-site by site algorithm,
+    // but the Origin is browser-vouched and ours.
+    expect(guard({ request: req('POST', 'cross-site', 'http://localhost:3000') })).toBeUndefined();
+    expect(guard({ request: req('PATCH', 'cross-site', 'tauri://localhost') })).toBeUndefined();
+  });
+
+  it('still blocks a cross-site write from a foreign Origin (drive-by site)', () => {
+    const res = guard({ request: req('POST', 'cross-site', 'https://evil.example') });
+    expect(res).toBeInstanceOf(Response);
+    expect(res!.status).toBe(403);
+  });
+
+  it('still blocks a cross-site write that carries no Origin at all', () => {
+    expect(guard({ request: req('POST', 'cross-site') })).toBeInstanceOf(Response);
+  });
+
   it('allows same-origin writes (the app itself)', () => {
     expect(guard({ request: req('POST', 'same-origin') })).toBeUndefined();
   });

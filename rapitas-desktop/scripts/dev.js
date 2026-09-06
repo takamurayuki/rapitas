@@ -2728,17 +2728,16 @@ function startFrontendProcess() {
     env: {
       ...process.env,
       PORT: String(actualFrontendPort),
-      // Must be "localhost", NOT "127.0.0.1" — the Tauri webview's devUrl is
-      // http://localhost:3000 (src-tauri/tauri.conf.json). If this pointed at
-      // an IP literal instead, the browser's same-site algorithm treats a
-      // hostname and an IP address as different "sites", so EVERY
-      // state-changing request (POST/PUT/PATCH/DELETE) would get
-      // Sec-Fetch-Site: cross-site and be unconditionally rejected by
-      // createCrossSiteGuard() in middleware/local-auth.ts — regardless of
-      // Origin allowlisting. (Tried switching this to 127.0.0.1 to dodge a
-      // hypothetical localhost→::1 IPv6 resolution issue; it isn't worth the
-      // tradeoff since it breaks every POST outright — reverted.)
-      NEXT_PUBLIC_API_BASE_URL: `http://localhost:${actualBackendPort}`,
+      // 127.0.0.1, NOT "localhost": a `localhost` target made the webview try
+      // [::1]:3001 first, and Windows silently drops that SYN (no RST), so
+      // every API call paid the ~200-300ms happy-eyeballs fallback — the
+      // "notifications load slowly" symptom (2026-09-06, measured 210ms vs
+      // 1ms connect). The IP literal makes writes from the localhost:3000
+      // page Sec-Fetch-Site: cross-site; createCrossSiteGuard() (middleware/
+      // local-auth.ts) now accepts those when the Origin is allow-listed, so
+      // POST/PUT/PATCH/DELETE keep working. Changing this value changes the
+      // deps-hash and clears the .next cache once (dev-with-cache-check.js).
+      NEXT_PUBLIC_API_BASE_URL: `http://127.0.0.1:${actualBackendPort}`,
     },
   });
   frontend.on('error', (err) => console.error('Frontend error:', err));
