@@ -23,6 +23,7 @@ import {
 import { notify } from '../../../../services/workflow/auto-merge-notify';
 import { runAutomatedVerification } from '../../../../services/agents/verification/automated-verifier';
 import { retryOrBlock } from '../../../../services/agents/verification/verification-retry';
+import { verificationCrashResult } from '../../../../services/agents/verification/verification-gate';
 import { linkAutoCreatedPr } from '../../../../services/github/pr-link';
 import {
   findOpenPrForTask,
@@ -230,7 +231,7 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
   // 1.5 Automated verification gate — run REAL lint + typecheck + scoped tests
   // (+ plan-scope when a plan exists) on the agent's changes (not the agent's
   // prose claims). Blocks commit/PR (task=blocked, session=failed with
-  // evidence) on new failures. A verifier crash is non-fatal (gate opens).
+  // evidence) on new failures. Verifier crashes block as unverifiable.
   // Shared with the verify.md auto-PR path. See verification-gate.ts.
   const planContentForScope = await (async () => {
     try {
@@ -254,10 +255,10 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
     preferredBaseBranch: preferredBaseBranchForVerify,
     taskId,
   }).catch((err) => {
-    log.warn({ err, taskId }, 'Automated verification crashed — skipping gate');
-    return null;
+    log.error({ err, taskId }, 'Automated verification crashed — blocking gate');
+    return verificationCrashResult();
   });
-  if (verification && !verification.ok) {
+  if (!verification.ok) {
     // Self-repair: feed the lint/type errors back to the implementer and re-run
     // on the same worktree; block only after retries are exhausted. After the
     // fix attempt we re-enter this pipeline (onReverify) to re-verify.

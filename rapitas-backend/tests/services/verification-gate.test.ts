@@ -161,13 +161,32 @@ describe('runVerificationGate', () => {
     });
   });
 
-  test('opens the gate if the verifier itself crashes', async () => {
+  test('blocks publishing and records an environment failure if the verifier crashes', async () => {
     verifierMode = 'throw';
 
     const outcome = await runVerificationGate(1, 'C:\\repo\\app\\.worktrees\\task-1', 10);
 
-    expect(outcome).toEqual({ ok: true, result: null });
-    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    expect(outcome.ok).toBe(false);
+    expect(outcome.result?.unverifiable).toBe(true);
+    expect(mockPrisma.task.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: expect.objectContaining({ status: 'blocked' }),
+    });
+    expect(mockPrisma.agentSession.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: expect.objectContaining({
+        status: 'failed',
+        errorMessage: expect.stringContaining('検証環境'),
+      }),
+    });
+  });
+
+  test('a verifier crash also closes the gate without a session', async () => {
+    verifierMode = 'throw';
+    const outcome = await runVerificationGate(1, 'C:\\repo');
+    expect(outcome.ok).toBe(false);
+    expect(outcome.result?.unverifiable).toBe(true);
+    expect(mockPrisma.task.update).toHaveBeenCalledTimes(1);
     expect(mockPrisma.agentSession.update).not.toHaveBeenCalled();
   });
 

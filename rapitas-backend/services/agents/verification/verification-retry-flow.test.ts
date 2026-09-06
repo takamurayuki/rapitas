@@ -29,10 +29,26 @@ const mockPrisma = {
   agentExecution: { findFirst: executionFindFirst },
 };
 
-mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
-mock.module('../../../config/logger', () => ({
-  createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
+// NOTE: bun mock.module must mirror every export the module graph touches;
+// verification-gate's import chain reads ensureDatabaseConnection too.
+mock.module('../../../config/database', () => ({
+  prisma: mockPrisma,
+  ensureDatabaseConnection: () => Promise.resolve(),
 }));
+mock.module('../../../config/logger', () => {
+  const noop = {
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
+    fatal: () => {},
+  };
+  return {
+    createLogger: () => noop,
+    logger: noop,
+    getBackendLogFilePath: () => '/tmp/backend.log',
+  };
+});
 
 const blockTaskForVerification = mock(() => Promise.resolve()) as any;
 mock.module('./verification-gate', () => ({ blockTaskForVerification }));
@@ -73,6 +89,24 @@ beforeEach(() => {
 });
 
 describe('retryOrBlock — fault injection', () => {
+  test('unverifiable results block without relaunching the implementer', async () => {
+    const result = { ...RESULT, unverifiable: true };
+    const onReverify = mock(async () => {});
+    const out = await retryOrBlock({
+      taskId: 1,
+      sessionId: 10,
+      taskTitle: 't',
+      executionDir: 'C:/wt',
+      result,
+      onReverify,
+    });
+    expect(out.retried).toBe(false);
+    expect(blockTaskForVerification).toHaveBeenCalledWith(1, result, 10);
+    expect(executeTask).not.toHaveBeenCalled();
+    expect(sessionUpdate).not.toHaveBeenCalled();
+    expect(onReverify).not.toHaveBeenCalled();
+  });
+
   test('blocks (fails closed) instead of assuming attempt 1 when the session read fails', async () => {
     sessionFindUnique.mockRejectedValue(new Error('DB hiccup'));
 

@@ -6,8 +6,8 @@
  * neither can publish a PR when the agent introduced new lint/type errors.
  *
  * On a new failure it marks the task `blocked` (and the session `failed` with
- * the evidence) and returns ok:false. A crash in the verifier itself is
- * non-fatal — the gate opens (ok:true) rather than blocking on tooling trouble.
+ * the evidence) and returns ok:false. A verifier crash is unverifiable, not a
+ * pass: publishing must wait until verification can run successfully.
  */
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
@@ -41,10 +41,22 @@ async function loadPlanContent(taskId: number): Promise<string | null> {
 }
 
 export interface GateOutcome {
-  /** True when the gate is open (no new failures, or verifier skipped/crashed). */
+  /** True when verification permits publishing. Crashes never open the gate. */
   ok: boolean;
   /** The verification result, or null when the verifier could not run. */
   result: VerificationResult | null;
+}
+
+/** Tooling failures cannot establish correctness or justify code-repair retries. */
+export function verificationCrashResult(): VerificationResult {
+  return {
+    ok: false,
+    unverifiable: true,
+    changedFiles: [],
+    checks: [],
+    summary:
+      'Automated verification could not complete; restore the verifier and rerun verification.',
+  };
 }
 
 /**
@@ -148,11 +160,10 @@ export async function runVerificationGate(
     requireTests,
     preferredBaseBranch,
     taskId,
-  }).catch((err) => {
-    log.warn({ err, taskId }, 'Automated verification crashed — skipping gate');
-    return null;
+  }).catch((err): VerificationResult => {
+    log.error({ err, taskId }, 'Automated verification crashed — blocking gate');
+    return verificationCrashResult();
   });
-  if (!result) return { ok: true, result: null };
 
   // Report pre-existing / indeterminate failures as concerns before the gate
   // verdict is applied. Runs regardless of ok/NG so concerns are filed even
@@ -224,7 +235,7 @@ async function markSessionFailedDurable(
   const data = {
     status: 'failed' as const,
     completedAt: new Date(),
-    errorMessage: `自動検証に失敗しました（${result.summary}）。エージェントの変更が新たな lint/型エラーを混入しています。worktree は保持しています。\n\n${renderVerificationMarkdown(result)}`,
+    errorMessage: `自動検証に失敗しました（${result.summary}）。${result.unverifiable ? '検証環境の問題により正しさを確認できません。検証環境を復旧して再検証してください。' : '検証で問題が検出されました。'}worktree は保持しています。\n\n${renderVerificationMarkdown(result)}`,
   };
   const attempt = () =>
     prisma.agentSession

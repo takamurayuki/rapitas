@@ -102,12 +102,13 @@ async function evaluateRole(
     where: {
       mode: `workflow-${role}`,
       createdAt: { gte: since },
+      status: { in: ['completed', 'failed'] },
     },
     select: { status: true, config: { select: { taskId: true } } },
   });
 
   // Gate-rejection lookup: tasks whose transitions indict this role's output.
-  // Best-effort — a query failure falls back to process-level success only.
+  // Missing outcome evidence must skip evaluation, not become successful training data.
   const troubleCauses = ROLE_TROUBLE_CAUSES[role] ?? [];
   const taskIds = [
     ...new Set(
@@ -116,17 +117,15 @@ async function evaluateRole(
   ];
   let troubledTasks = new Set<number>();
   if (troubleCauses.length > 0 && taskIds.length > 0) {
-    const troubleRows = await prisma.workflowTransition
-      .findMany({
-        where: {
-          taskId: { in: taskIds },
-          cause: { in: troubleCauses },
-          createdAt: { gte: since },
-        },
-        select: { taskId: true },
-        distinct: ['taskId'],
-      })
-      .catch(() => [] as Array<{ taskId: number }>);
+    const troubleRows = await prisma.workflowTransition.findMany({
+      where: {
+        taskId: { in: taskIds },
+        cause: { in: troubleCauses },
+        createdAt: { gte: since },
+      },
+      select: { taskId: true },
+      distinct: ['taskId'],
+    });
     troubledTasks = new Set(troubleRows.map((t) => t.taskId));
   }
 
