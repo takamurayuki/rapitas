@@ -17,6 +17,26 @@ mock.module('../../config/logger', () => ({
 const runConsistencyCheckBatch = mock(() => Promise.resolve({ checked: 3, updated: 2 }));
 mock.module('../observability/decision-trace', () => ({ runConsistencyCheckBatch }));
 
+// NOTE (task 865): settle.ts now Promise.all's THREE settlement systems
+// (execution/filings/recalls) — without mocking the other two, their real
+// implementations reach a real, unreachable DB and reject, which used to
+// throw settleDecisions() straight into its catch (returning {checked:0,
+// settled:0} for every case, 1 fail). Both stubbed to {checked:0, settled:0}
+// so the totals reduce to exactly runConsistencyCheckBatch's contribution,
+// matching this suite's existing expectations. Full export mirror required
+// by mock.module.
+const settleFilingDecisions = mock(() => Promise.resolve({ checked: 0, settled: 0 }));
+mock.module('./settle-filing', () => ({
+  judgeFiling: mock(() => null),
+  settleFilingDecisions,
+}));
+const settleKnowledgeDecisions = mock(() => Promise.resolve({ checked: 0, settled: 0 }));
+mock.module('./settle-knowledge', () => ({
+  judgeRecall: mock(() => null),
+  ENTRY_USAGE_ACTION: 'knowledge_entry_usage',
+  settleKnowledgeDecisions,
+}));
+
 const { settleDecisions } = await import('./settle');
 
 describe('settleDecisions', () => {

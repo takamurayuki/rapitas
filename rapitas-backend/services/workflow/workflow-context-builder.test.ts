@@ -62,6 +62,58 @@ mock.module('./workflow-context-metrics', () => ({
   estimateTokens: mock(() => 0),
 }));
 
+// NOTE: All four role builders (researcher/planner/implementer/verifier) call
+// buildMemoryContext, which reaches a real Postgres via searchKnowledgeHybrid
+// (lexical + vector channels). In this hermetic suite that DB is unreachable,
+// and the embedding warm-up + connection-retry path burns the full 5000ms
+// bun:test default timeout per test (task 865: 38 fail). Mock it to keep
+// every builder test DB-free. Full export mirror required by mock.module.
+mock.module('./workflow-memory-context', () => ({
+  buildMemoryContext: mock(() => Promise.resolve('')),
+  applyOutcomeWeighting: mock((entries: unknown[]) => entries),
+  renderMemorySection: mock(() => ''),
+  TEXT: { ja: {}, en: {} },
+}));
+
+// NOTE (task 865): beyond buildMemoryContext, the four builders transitively
+// touch prisma directly through ~10 other helpers (hypothesis ledger,
+// playbook, critic feedback, CBR case, rejected/revised-plan context,
+// pitfalls, goal anchor, verifier diff/acceptance lookups) — each an
+// independent import that would need its own full-export mock. Every one of
+// those helpers already fails soft (catch → '' / null / []) on a DB error;
+// the only problem is an unreachable localhost:5432 taking ~5s per call to
+// reject, which alone exceeds bun's 5000ms default test timeout. A Proxy that
+// resolves every prisma model.method call to a benign empty value keeps the
+// whole chain DB-free without tracking every call site (and without
+// suppressing a real behavioural assertion — none of these tests assert on
+// hypothesis/playbook/CBR content).
+function benignPrismaResult(method: string): unknown {
+  if (method === 'findMany' || method === 'groupBy') return [];
+  if (method === 'count') return 0;
+  if (method === 'updateMany' || method === 'deleteMany') return { count: 0 };
+  return null; // findFirst / findUnique / create / update / delete / upsert / aggregate
+}
+const mockPrisma = new Proxy(
+  {},
+  {
+    get: (_target, _model: string) =>
+      new Proxy(
+        {},
+        {
+          get: (_t2, method: string) => mock(() => Promise.resolve(benignPrismaResult(method))),
+        },
+      ),
+  },
+);
+// Full export mirror of config/database.ts (prisma + ensureDatabaseConnection):
+// some transitive dependency of the four builders re-exports both through the
+// config barrel (config/index.ts), so omitting ensureDatabaseConnection here
+// breaks that barrel's own re-export statement at module-load time.
+mock.module('../../config/database', () => ({
+  prisma: mockPrisma,
+  ensureDatabaseConnection: mock(() => Promise.resolve()),
+}));
+
 const { buildRoleContext, researchModeDirective, applyPlanModeDirective } =
   await import('./workflow-context-builder');
 
