@@ -65,8 +65,21 @@ describe('detectStagnation', () => {
     { name: 'the workflow already completed', over: { workflowStatus: 'completed' } },
     { name: 'the task status is done', over: { taskStatus: 'done' } },
     { name: 'the task status is cancelled', over: { taskStatus: 'cancelled' } },
+    {
+      name: 'the task cannot structurally dispatch (isWorkflowManaged=false)',
+      over: { isWorkflowManaged: false },
+    },
   ])('does NOT detect when $name', ({ over }) => {
     expect(detectStagnation({ ...base, ...over })).toBeNull();
+  });
+
+  // #860: omitting isWorkflowManaged (unresolved) must fail OPEN — detection
+  // sensitivity never silently drops just because the caller couldn't
+  // resolve the gate (mirrors themeAutoRunEnabled's contract). `base` above
+  // already omits the field; this test makes that contract explicit.
+  it('still detects when isWorkflowManaged is omitted (fail-open)', () => {
+    expect(base.isWorkflowManaged).toBeUndefined();
+    expect(detectStagnation(base)).not.toBeNull();
   });
 
   it('still detects a blocked task (blocked is not terminal)', () => {
