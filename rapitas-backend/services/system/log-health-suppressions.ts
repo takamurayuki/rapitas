@@ -249,6 +249,23 @@ const SUPPRESSIONS: Suppression[] = [
     because:
       'cleanupOrphanedWorktreesスケジューラが30分毎に同一パスを再試行して自己修復する — 恒久失敗は別シグネチャ(git-operations/worktree-ops)で可視化される',
   },
+  {
+    // ログ出力箇所: runtime-smoke/app-launcher.ts:154-164 の waitForHealthy()。
+    // 呼び出し元は runtime-check.ts:144（検証ゲート経路）と
+    // preview-session-manager.ts:191（ライブプレビュー経路）の2箇所。検証ゲート
+    // 経路のタイムアウトは、環境起因ならrunRuntimeSmokeCheckがfail-openで継続し
+    // （別シグネチャ「launch failed with an ENVIRONMENT signature — skipping
+    // (fail-open)」、logger: runtime-smoke、既に抑制済み）、実欠陥なら
+    // automated-verifier.tsのchecksに積まれてAutomated verification failed（既に
+    // 抑制済み）が追随発火するため、本ルールでいずれの経路の可視性も失われない。
+    // ライブプレビュー経路は logger が異なる preview-session が別文言
+    // 「dev server did not become healthy in time」を出すため対象外のまま残る
+    // （#862）。
+    test: /\[runtime-smoke\] health check timed out/i,
+    logger: /runtime-smoke:launcher/i,
+    because:
+      'waitForHealthyのタイムアウトは呼び出し元(検証ゲート/ライブプレビュー)が既存の別シグネチャで結果を追随記録する — ポーリング過程のtelemetryであり単体では壊れた状態を示さない',
+  },
 ];
 
 /** Result of classifying one log signature. */

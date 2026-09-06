@@ -81,6 +81,7 @@ const SUPPRESSED: [string, string][] = [
     '[auto-run-idle-timer] Idle-stop timer expired for theme # (enabled=false)',
   ],
   ['routes:workflow:auto-commit', '[Workflow] Worktree cleanup failed: <path>'],
+  ['runtime-smoke:launcher', '[runtime-smoke] health check timed out'],
 ];
 
 const KEPT: [string, string][] = [
@@ -282,6 +283,25 @@ describe('classifyLogSignature', () => {
         'git-operations/worktree-ops',
         '[cleanupOrphanedWorktrees] Failed to remove orphaned directory after retries: <path>',
       ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"[runtime-smoke] health check timed out" is scoped to the runtime-smoke:launcher logger only', () => {
+    // Task #862: an unrelated logger reusing this phrase must still be filed.
+    expect(
+      classifyLogSignature('some-other-logger', '[runtime-smoke] health check timed out')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('the live-preview health-check timeout stays visible under its own logger', () => {
+    // Task #862: preview-session-manager.ts uses a distinct logger and message
+    // ("preview-session" / "dev server did not become healthy in time") — that
+    // path is a manual, user-triggered preview and is intentionally out of
+    // scope for this rule, so it must not be caught by name-only matching.
+    expect(
+      classifyLogSignature('preview-session', '[preview] dev server did not become healthy in time')
+        .suppressed,
     ).toBe(false);
   });
 });
