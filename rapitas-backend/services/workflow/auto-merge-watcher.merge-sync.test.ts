@@ -79,7 +79,11 @@ const mockPrisma = {
 };
 mock.module('../../config/database', () => ({ prisma: mockPrisma }));
 
-mock.module('../agents/orchestrator/git-operations/branch-pr-ops', () => ({
+// NOTE (task 865): the real file moved to git-operations/pr/branch-pr-ops.ts;
+// the old path here silently created a SEPARATE (never-consulted) module
+// registry entry — auto-merge-watcher.ts's real import went unmocked and its
+// mergePullRequest call reached the real implementation (2 fail).
+mock.module('../agents/orchestrator/git-operations/pr/branch-pr-ops', () => ({
   mergePullRequest: mock(() =>
     Promise.resolve({ success: true, mergeStrategy: 'squash' as const }),
   ),
