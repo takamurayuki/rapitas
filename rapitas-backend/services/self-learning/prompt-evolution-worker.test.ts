@@ -30,6 +30,10 @@ interface EvoRow {
 let rows: EvoRow[] = [];
 const transitionFindMany = mock(async () => [] as Array<{ cause: string | null }>);
 
+type StatusWhere = string | { in: string[] } | undefined;
+const statusMatches = (status: string, where: StatusWhere): boolean =>
+  !where || (typeof where === 'string' ? status === where : where.in.includes(status));
+
 mock.module('../../config/database', () => ({
   prisma: {
     promptEvolution: {
@@ -37,13 +41,13 @@ mock.module('../../config/database', () => ({
         const filtered = rows.filter((r) => !args?.where?.status || r.status === args.where.status);
         return Promise.resolve(args?.take ? filtered.slice(0, args.take) : filtered);
       }),
-      findFirst: mock((args: { where: { basePromptKey?: string; status?: string } }) =>
+      findFirst: mock((args: { where: { basePromptKey?: string; status?: StatusWhere } }) =>
         Promise.resolve(
           rows
             .filter(
               (r) =>
                 (!args.where.basePromptKey || r.basePromptKey === args.where.basePromptKey) &&
-                (!args.where.status || r.status === args.where.status),
+                statusMatches(r.status, args.where.status),
             )
             .sort((a, b) => b.id - a.id)[0] ?? null,
         ),
@@ -57,12 +61,15 @@ mock.module('../../config/database', () => ({
         return Promise.resolve(row);
       }),
       updateMany: mock(
-        (args: { where: { basePromptKey?: string; status?: string }; data: Partial<EvoRow> }) => {
+        (args: {
+          where: { basePromptKey?: string; status?: StatusWhere };
+          data: Partial<EvoRow>;
+        }) => {
           let count = 0;
           for (const r of rows) {
             if (
               (!args.where.basePromptKey || r.basePromptKey === args.where.basePromptKey) &&
-              (!args.where.status || r.status === args.where.status)
+              statusMatches(r.status, args.where.status)
             ) {
               Object.assign(r, args.data);
               count++;
@@ -137,6 +144,8 @@ describe('reviewProposal', () => {
     expect(ok).toBe(true);
     expect(rows[0].status).toBe('superseded');
     expect(rows[1].status).toBe('approved');
+    // approvedAt anchors the settlement window (prompt-evolution-settle.ts).
+    expect(JSON.parse(rows[1].evidenceJson ?? '{}').approvedAt).toBeString();
   });
 
   test('却下でrejectedになる', async () => {

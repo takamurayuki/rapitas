@@ -30,7 +30,7 @@ const SUCCESS_RATE_THRESHOLD = 0.7;
 /** ロール毎に必要な最小サンプル数。これ未満だと統計的に判断不可能。 */
 const MIN_SAMPLE_SIZE = 5;
 
-interface RoleEvaluation {
+export interface RoleEvaluation {
   role: string;
   totalRuns: number;
   successRuns: number;
@@ -93,7 +93,7 @@ export async function runPromptEvolution(prisma: PrismaClient): Promise<RoleEval
  * そのタスクにロールの成果物を差し戻す WorkflowTransition（verify_repair 等）が
  * 記録されていないことを成功の条件とする — role-evidence と同じ定義。
  */
-async function evaluateRole(
+export async function evaluateRole(
   prisma: PrismaClient,
   role: string,
   since: Date,

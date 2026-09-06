@@ -127,8 +127,10 @@ ${trouble || '(記録なし)'}
  */
 export async function getApprovedRoleAddendum(role: string): Promise<string | null> {
   try {
+    // 'completed' = settled and kept (prompt-evolution-settle.ts); it stays
+    // injected. 'reverted' rows are excluded on purpose.
     const row = await prisma.promptEvolution.findFirst({
-      where: { basePromptKey: `workflow_role_${role}`, status: 'approved' },
+      where: { basePromptKey: `workflow_role_${role}`, status: { in: ['approved', 'completed'] } },
       orderBy: { id: 'desc' },
       select: { afterPrompt: true },
     });
@@ -137,6 +139,17 @@ export async function getApprovedRoleAddendum(role: string): Promise<string | nu
   } catch {
     return null;
   }
+}
+
+function withApprovedAt(raw: string | null): string {
+  let evidence: Record<string, unknown> = {};
+  try {
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+    if (parsed && typeof parsed === 'object') evidence = parsed as Record<string, unknown>;
+  } catch {
+    /* unreadable evidence — start a fresh object, keep the stamp */
+  }
+  return JSON.stringify({ ...evidence, approvedAt: new Date().toISOString() });
 }
 
 /**
@@ -151,19 +164,25 @@ export async function getApprovedRoleAddendum(role: string): Promise<string | nu
 export async function reviewProposal(id: number, approved: boolean): Promise<boolean> {
   const row = await prisma.promptEvolution.findUnique({
     where: { id },
-    select: { id: true, status: true, basePromptKey: true },
+    select: { id: true, status: true, basePromptKey: true, evidenceJson: true },
   });
   if (!row || row.status !== 'proposed') return false;
 
   if (approved && row.basePromptKey) {
     await prisma.promptEvolution.updateMany({
-      where: { basePromptKey: row.basePromptKey, status: 'approved' },
+      where: { basePromptKey: row.basePromptKey, status: { in: ['approved', 'completed'] } },
       data: { status: 'superseded' },
     });
   }
+  // approvedAt anchors the post-approval measurement window
+  // (prompt-evolution-settle.ts) — without it the loop never closes.
+  const evidence = approved ? withApprovedAt(row.evidenceJson) : undefined;
   await prisma.promptEvolution.update({
     where: { id },
-    data: { status: approved ? 'approved' : 'rejected' },
+    data: {
+      status: approved ? 'approved' : 'rejected',
+      ...(evidence ? { evidenceJson: evidence } : {}),
+    },
   });
   log.info({ id, approved }, '[prompt-evolution] Proposal reviewed');
   return true;

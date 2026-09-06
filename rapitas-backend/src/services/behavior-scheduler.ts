@@ -135,6 +135,16 @@ export class BehaviorScheduler {
           });
       }
 
+      // 7:05 daily: settle approved prompt addenda once enough post-approval
+      // sessions exist — records the measured delta and reverts regressions.
+      if (h === 7 && m === 5) {
+        await import('../../services/self-learning/prompt-evolution-settle')
+          .then(({ settleApprovedEvolutions }) => settleApprovedEvolutions(prisma as never))
+          .catch((err: Error) => {
+            log.error({ err }, '[BehaviorScheduler] Prompt evolution settlement failed');
+          });
+      }
+
       // 9 AM: knowledge reminders + Monday weekly review
       if (h === 9 && m === 0) {
         log.info('[BehaviorScheduler] Triggering knowledge reminder scan');

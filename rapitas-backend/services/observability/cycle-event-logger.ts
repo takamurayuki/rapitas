@@ -67,6 +67,7 @@ export type CycleEventName =
   // zero-progress spin (task 653): a theme reports running but its current task
   // has produced no AgentExecution for the whole threshold window
   | 'theme.zero_progress_detected'
+  | 'theme.waiting_for_slot'
   // git / PR outcomes
   | 'commit.created'
   | 'pr.created'
