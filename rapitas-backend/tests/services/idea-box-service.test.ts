@@ -96,6 +96,31 @@ describe('IdeaBox Service', () => {
   });
 
   describe('listIdeas', () => {
+    test('search uses the same filters for the page and total without replacing priority OR', async () => {
+      await listIdeas({
+        search: '  Recall  ',
+        priority: 'medium',
+        themeId: 7,
+        limit: 10,
+        offset: 10,
+      });
+      const call = mockKnowledgeEntry.findMany.mock.calls[0][0];
+      expect(call.where.AND[0].OR).toEqual([
+        { title: expect.objectContaining({ contains: 'Recall' }) },
+        { content: expect.objectContaining({ contains: 'Recall' }) },
+      ]);
+      expect(call.where.OR).toHaveLength(2);
+      expect(call.where.themeId).toBe(7);
+      expect(call.take).toBe(10);
+      expect(call.skip).toBe(10);
+      expect(mockKnowledgeEntry.count).toHaveBeenCalledWith({ where: call.where });
+    });
+
+    test('blank search preserves the unfiltered list', async () => {
+      await listIdeas({ search: '   ' });
+      expect(mockKnowledgeEntry.findMany.mock.calls[0][0].where.AND).toBeUndefined();
+    });
+
     test('ページネーション付きでアイデアを取得', async () => {
       mockKnowledgeEntry.findMany.mockReturnValue(
         Promise.resolve([

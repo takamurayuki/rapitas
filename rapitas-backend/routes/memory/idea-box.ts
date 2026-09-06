@@ -61,6 +61,7 @@ export const ideaBoxRoutes = new Elysia()
         priority,
         limit,
         offset,
+        search: query.search,
       });
       return result;
     },
@@ -74,6 +75,7 @@ export const ideaBoxRoutes = new Elysia()
         priority: t.Optional(t.String()),
         limit: t.Optional(t.String()),
         offset: t.Optional(t.String()),
+        search: t.Optional(t.String()),
       }),
     },
   )

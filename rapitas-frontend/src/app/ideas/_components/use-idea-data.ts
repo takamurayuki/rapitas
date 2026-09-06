@@ -57,6 +57,7 @@ export function useIdeaData() {
   // Mirrors `ideas.length > 0` for callbacks that must not re-create on data
   // changes (fetchIdeas reads it to decide whether a skeleton is needed).
   const hasDataRef = useRef(false);
+  const requestIdRef = useRef(0);
 
   // ページネーション状態
   const [currentPage, setCurrentPage] = useState(1);
@@ -86,9 +87,11 @@ export function useIdeaData() {
     priorityFilter,
     currentPage,
     itemsPerPage,
+    searchQuery,
   });
 
   const fetchIdeas = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     // Stale-while-revalidate: keep showing what we have while refreshing.
     // The skeleton only appears when there is genuinely nothing to show.
     if (!hasDataRef.current) setIsLoading(true);
@@ -104,16 +107,21 @@ export function useIdeaData() {
       if (statusFilter === 'uncategorized') params.set('scope', 'global');
       else if (statusFilter !== 'all') params.set('status', statusFilter);
       if (priorityFilter !== 'all') params.set('priority', priorityFilter);
+      if (searchQuery) params.set('search', searchQuery);
 
       const [ideasRes, statsRes] = await Promise.all([
         fetch(`${API_BASE_URL}/idea-box?${params}`),
         fetch(`${API_BASE_URL}/idea-box/stats`),
       ]);
+      const [data, nextStats] = await Promise.all([
+        ideasRes.ok ? (ideasRes.json() as Promise<{ ideas: Idea[]; total: number }>) : null,
+        statsRes.ok ? (statsRes.json() as Promise<IdeaStats>) : null,
+      ]);
+      if (requestId !== requestIdRef.current) return;
 
       let nextIdeas: Idea[] | null = null;
       let nextTotal = 0;
-      if (ideasRes.ok) {
-        const data = (await ideasRes.json()) as { ideas: Idea[]; total: number };
+      if (data) {
         nextIdeas = data.ideas;
         nextTotal = data.total;
         setIdeas(data.ideas);
@@ -121,9 +129,7 @@ export function useIdeaData() {
         setTotalPages(Math.ceil(data.total / itemsPerPage));
         hasDataRef.current = data.ideas.length > 0;
       }
-      let nextStats: IdeaStats | null = null;
-      if (statsRes.ok) {
-        nextStats = (await statsRes.json()) as IdeaStats;
+      if (nextStats) {
         setStats(nextStats);
       }
       if (nextIdeas) {
@@ -137,9 +143,17 @@ export function useIdeaData() {
     } catch {
       /* non-critical */
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
-  }, [filterThemeId, statusFilter, priorityFilter, currentPage, itemsPerPage, querySignature]);
+  }, [
+    filterThemeId,
+    statusFilter,
+    priorityFilter,
+    currentPage,
+    itemsPerPage,
+    querySignature,
+    searchQuery,
+  ]);
 
   // Replay the cached list before the first fetch resolves so a revisit paints
   // instantly. Runs once on mount; the in-flight fetch then reconciles.
@@ -158,6 +172,9 @@ export function useIdeaData() {
 
   useEffect(() => {
     fetchIdeas();
+    return () => {
+      requestIdRef.current += 1;
+    };
   }, [fetchIdeas]);
 
   // 検索語変更時のページリセット。フィルタ変更は下のラップ済みセッターが同一
@@ -219,25 +236,11 @@ export function useIdeaData() {
     [ideas.length, currentPage, fetchIdeas, showToast, t],
   );
 
-  // NOTE: filterThemeIdはサーバーサイドで処理されるため、クライアント側ではsearchQueryのみフィルタリング
-  const filtered = ideas.filter((idea) => {
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      return idea.title.toLowerCase().includes(q) || idea.content.toLowerCase().includes(q);
-    }
-    return true;
-  });
-
-  // 検索がある場合はクライアント側フィルタリング結果、ない場合はサーバーサイドの総数を使用
-  const displayTotalIdeas = searchQuery ? filtered.length : totalIdeas;
-
-  // 検索時のページング処理: クライアントサイドでページング
-  const paginatedFiltered = searchQuery
-    ? filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-    : filtered;
-
-  // 動的ページ数計算: 検索時とフィルタ時で異なるtotal値を使用
-  const dynamicTotalPages = searchQuery ? Math.ceil(filtered.length / itemsPerPage) : totalPages;
+  // Search and pagination are both applied by the server across the full list.
+  const filtered = ideas;
+  const displayTotalIdeas = totalIdeas;
+  const paginatedFiltered = ideas;
+  const dynamicTotalPages = totalPages;
 
   return {
     setIdeas,

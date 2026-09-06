@@ -6,6 +6,8 @@
  * sourceType='idea_box'. Used by the auto-task generator for balanced task creation.
  */
 import { prisma } from '../../config/database';
+import { buildIdeaSearchFilter } from './idea-box-search';
+import { NEARDUP_JACCARD, SALIENT_LEN, SATURATION_CAP } from './idea-box-tuning';
 import { createLogger } from '../../config/logger';
 import { createContentHash } from './utils';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
@@ -19,30 +21,6 @@ import { evaluateIdeaDomainFit, isDomainGateEnabled, getDomainGateMode } from '.
 // dynamic imports (idea-extractor.ts) and direct imports of this module keep
 // working unchanged.
 export { resolveTaskThemeId, resolveDefaultThemeId };
-
-// Theme-saturation gate (anti-monoculture). Embedding cosine (all-MiniLM-L6-v2)
-// proved USELESS for Japanese idea similarity (novel ideas scored HIGHER than
-// near-dups), so theme-saturation.ts uses a LEXICAL signal: a new idea is rejected
-// when its title shares a ≥SALIENT_LEN-char substring with ≥SATURATION_CAP existing
-// idea_box entries (the theme is over-represented). Tunable via the env below.
-const SALIENT_LEN = 4;
-const SATURATION_CAP = (() => {
-  const v = parseInt(process.env.RAPITAS_IDEA_SATURATION_CAP ?? '8', 10);
-  return Number.isFinite(v) && v > 0 ? v : 8;
-})();
-
-// Near-duplicate gate: reject a brand-new idea whose title is an almost-identical
-// re-file of an existing one (character-bigram Jaccard ≥ threshold). Complements
-// the saturation cap — saturation caps how MANY same-theme ideas coexist; this
-// stops the idea-extractor emitting the SAME idea 2-3× with trivial katakana /
-// delimiter variation (observed: "コマンド型ゲートの実体取り込み(SSOT/型ガード/…)" ×3,
-// manually pruned every loop tick). Calibrated to 0.45: the observed clones score
-// 0.49-0.64 while every distinct facet of a shared theme stays < 0.32 (validated
-// against the full 90-idea corpus → 0 false hits), so it does NOT over-reject.
-const NEARDUP_JACCARD = (() => {
-  const v = parseFloat(process.env.RAPITAS_IDEA_NEARDUP_JACCARD ?? '0.45');
-  return Number.isFinite(v) && v > 0 && v <= 1 ? v : 0.45;
-})();
 
 const log = createLogger('memory:idea-box');
 
@@ -315,6 +293,7 @@ export async function listIdeas(options: {
   priority?: string;
   limit?: number;
   offset?: number;
+  search?: string;
 }): Promise<{ ideas: IdeaBoxEntry[]; total: number }> {
   const {
     categoryId,
@@ -334,6 +313,7 @@ export async function listIdeas(options: {
     scope,
     status,
     priority,
+    search: options.search,
   });
 
   // PERF: project the FE-shown columns only. The default Prisma select
@@ -573,6 +553,7 @@ async function buildWhereClause(opts: {
   scope?: IdeaScope;
   status?: 'open' | 'used' | 'all';
   priority?: string;
+  search?: string;
 }) {
   const { categoryId, themeId, unusedOnly, scope, status, priority } = opts;
   // themeIdが直接指定されている場合はそれを優先、そうでなければcategoryIdからthemeIdsを取得
@@ -638,6 +619,7 @@ async function buildWhereClause(opts: {
     ...themeFilter,
     ...scopeFilter,
     ...priorityFilter,
+    ...buildIdeaSearchFilter(opts.search),
   };
 }
 
