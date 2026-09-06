@@ -31,6 +31,23 @@ import { attemptInvariantCutoff, INVARIANT_NON_CONVERGENCE_CAUSE } from './verif
 
 const log = createLogger('workflow:verify-self-repair');
 
+/** Transition cause recorded when a verdict is cut off as not repairable by the implementer. */
+export const VERIFY_NON_REPAIRABLE_CAUSE = 'verify_repair_non_repairable';
+
+/**
+ * A verdict whose ONLY failing gate is the anti-tampering tripwire. The
+ * implementer cannot make a protected path unprotected, so bouncing it back
+ * repeats the identical failure: task 867 (2026-09-06) looped 8 times over
+ * three hours on `tamper=NG(1)` with lint/type/test/format all green.
+ *
+ * @param reason - Verdict summary as recorded on the verify transition / 判定要約
+ * @returns True when tamper is the sole failing gate / tamper 単独失敗なら true
+ */
+export function isTamperOnlyVerdict(reason: string): boolean {
+  if (!/tamper=NG/.test(reason)) return false;
+  return !/\b(lint|typecheck|test|format|coverage|scope|runtime)=NG/.test(reason);
+}
+
 export interface VerifyRepairResult {
   /** True when the workflow was bounced back to implement (caller must NOT block). */
   bounced: boolean;
@@ -104,6 +121,43 @@ export async function attemptVerifyRepair(
       '[verify-repair] Repair attempts exhausted — caller should block',
     );
     return { bounced: false };
+  }
+
+  // Non-repairable cutoff: only the tamper tripwire failed. No implementer
+  // run can change that verdict — escalate on the first sighting instead of
+  // spending the whole repair budget on identical bounces.
+  if (isTamperOnlyVerdict(reason)) {
+    const detail =
+      '検証失敗が tamper ゲート（保護パスの計画外変更）のみで、実装者には解消できません。保護パス配下の変更は plan.md（またはタスク仕様）に明記して承認するか、人が差分を確認してコミットしてください。';
+    const taskRow = await prisma.task
+      .findUnique({ where: { id: taskId }, select: { title: true, themeId: true } })
+      .catch(() => null);
+    try {
+      const { escalateBlockedTask } = await import('./blocked-task-escalation');
+      await escalateBlockedTask(
+        prisma,
+        { id: taskId, title: taskRow?.title ?? `#${taskId}`, themeId: taskRow?.themeId ?? null },
+        'verify_no_convergence',
+        Date.now(),
+        detail,
+        currentStatus ?? null,
+      );
+    } catch (err) {
+      log.warn({ err, taskId }, '[verify-repair] Non-repairable escalation failed');
+    }
+    await recordTransition({
+      taskId,
+      fromStatus: currentStatus ?? null,
+      toStatus: currentStatus ?? 'blocked',
+      actor: 'system',
+      cause: VERIFY_NON_REPAIRABLE_CAUSE,
+      phase: 'verify',
+      metadata: { reason },
+    }).catch((err) =>
+      log.warn({ err, taskId }, '[verify-repair] Failed to record non-repairable transition'),
+    );
+    log.warn({ taskId }, '[verify-repair] Tamper-only verdict — not repairable, cutting off');
+    return { bounced: false, cutoffRecorded: true };
   }
 
   // Non-convergence cutoff (task 619): same criterion flagged 2+ times (not

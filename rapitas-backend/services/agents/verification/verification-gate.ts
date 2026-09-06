@@ -18,6 +18,8 @@ import {
   type VerificationResult,
 } from './automated-verifier';
 import { readWorkflowFile } from '../../workflow/workflow-file-utils';
+import { parsePlanFiles } from './scope-check';
+import { parseSpecArray } from '../../../utils/common/spec-array';
 import { submitConcern } from '../../memory/concern-backlog-service';
 import { writeBlockedStatusDurable } from '../../workflow/durable-blocked-write';
 import { resolvePreferredBaseBranch } from '../../task/task-resolver';
@@ -38,6 +40,20 @@ async function loadPlanContent(taskId: number): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Protected-path TEST files a plan-less (lightweight) task declares in its
+ * own spec. The tamper tripwire otherwise fails every lightweight task that
+ * touches a test under a protected directory — even when the operator wrote
+ * that file into the task (task 867, 2026-09-06: 8 identical bounces). Only
+ * `*.test.ts(x)` paths qualify; production gate code stays hard-blocked.
+ *
+ * @param specText - Title, description, goals, constraints, acceptance criteria joined / タスク仕様の文面
+ * @returns Test-file paths to allow for the tamper check / tamper 許可パス
+ */
+export function protectedTestPathsFromSpec(specText: string): string[] {
+  return parsePlanFiles(specText).filter((f) => /\.test\.tsx?$/.test(f));
 }
 
 export interface GateOutcome {
@@ -144,9 +160,26 @@ export async function runVerificationGate(
   // Bug-fix tasks must ship a reproducing/regression test: a fix that changes
   // no test is exactly the leaky gate SWT-Bench / UTBoost measured (R4).
   const task = await prisma.task
-    .findUnique({ where: { id: taskId }, select: { title: true, description: true } })
+    .findUnique({
+      where: { id: taskId },
+      select: {
+        title: true,
+        description: true,
+        goals: true,
+        constraints: true,
+        acceptanceCriteria: true,
+      },
+    })
     .catch(() => null);
   const requireTests = looksLikeBugFixTask(`${task?.title ?? ''}\n${task?.description ?? ''}`);
+  const specText = [
+    task?.title ?? '',
+    task?.description ?? '',
+    ...parseSpecArray(task?.goals),
+    ...parseSpecArray(task?.constraints),
+    ...parseSpecArray(task?.acceptanceCriteria),
+  ].join('\n');
+  const tamperAllowlist = planContent ? undefined : protectedTestPathsFromSpec(specText);
   // The worktree's ACTUAL fork point, not a guess — see automated-verifier.ts's
   // diffBaseRef doc comment (task 506: a guess-only base can land on a stale
   // branch and misread unrelated pre-existing commits as this task's own
@@ -157,6 +190,7 @@ export async function runVerificationGate(
   const preferredBaseBranch = await resolvePreferredBaseBranch(taskId);
   const result = await runAutomatedVerification(worktreePath, {
     planContent,
+    tamperAllowlist,
     requireTests,
     preferredBaseBranch,
     taskId,

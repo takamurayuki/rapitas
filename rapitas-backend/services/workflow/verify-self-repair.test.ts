@@ -50,7 +50,8 @@ mock.module('./blocked-task-escalation', () => ({
   countEscalatedBlocked: () => Promise.resolve(0),
 }));
 
-const { attemptVerifyRepair } = await import('./verify-self-repair');
+const { attemptVerifyRepair, isTamperOnlyVerdict, VERIFY_NON_REPAIRABLE_CAUSE } =
+  await import('./verify-self-repair');
 
 describe('attemptVerifyRepair — 修復予算のダブルチェック (task 749)', () => {
   beforeEach(() => {
@@ -95,5 +96,31 @@ describe('attemptVerifyRepair — 修復予算のダブルチェック (task 749
     // 再チェック失敗時は状態を一切変更しない(CASもフィードバック書込も行わない)。
     expect(mockPrisma.task.updateMany).not.toHaveBeenCalled();
     expect(writeWorkflowFile).not.toHaveBeenCalled();
+  });
+});
+
+describe('attemptVerifyRepair — tamper 単独失敗は修復不能として即遮断 (task 867)', () => {
+  const TAMPER_ONLY =
+    '自動検証に失敗しました（自動検証: lint=ok / typecheck=ok / test=ok / format=ok / tamper=NG(1) / coverage=ok）。';
+
+  test('isTamperOnlyVerdict は tamper だけが NG のときだけ true', () => {
+    expect(isTamperOnlyVerdict(TAMPER_ONLY)).toBe(true);
+    expect(isTamperOnlyVerdict(TAMPER_ONLY.replace('test=ok', 'test=NG(3)'))).toBe(false);
+    expect(isTamperOnlyVerdict('verify.md explicitly marks the verification as failed.')).toBe(
+      false,
+    );
+  });
+
+  test('tamper 単独失敗は bounce せず、非修復の遷移を記録して cutoffRecorded を返す', async () => {
+    mockPrisma.workflowTransition.count.mockResolvedValue(0);
+    const result = await attemptVerifyRepair(867, 'verify_done', TAMPER_ONLY, 'verify body');
+    expect(result.bounced).toBe(false);
+    expect(result.cutoffRecorded).toBe(true);
+    expect(recordTransition).toHaveBeenCalledTimes(1);
+    expect((recordTransition.mock.calls[0] as unknown[])[0]).toMatchObject({
+      cause: VERIFY_NON_REPAIRABLE_CAUSE,
+      taskId: 867,
+    });
+    expect(mockPrisma.task.updateMany).not.toHaveBeenCalled();
   });
 });

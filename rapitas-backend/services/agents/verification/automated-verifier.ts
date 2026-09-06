@@ -823,11 +823,10 @@ export function coverageCheck(changedCodeFiles: string[], force = false): Verifi
 
 /** Optional inputs for {@link runAutomatedVerification}. */
 export interface VerificationOptions {
-  /**
-   * plan.md content; when provided (and it lists parseable paths) the gate also
-   * fails on out-of-plan file changes. Omit in plan-less (lightweight) mode.
-   */
+  /** plan.md content; parseable paths in it also drive the (advisory) scope check. */
   planContent?: string | null;
+  /** Extra paths the tamper tripwire accepts — plan-less tasks' spec-declared tests. */
+  tamperAllowlist?: string[];
   /**
    * Force the coverage gate for this run (bug-fix tasks must ship a
    * reproducing test) regardless of the RAPITAS_REQUIRE_TESTS env opt-in.
@@ -886,18 +885,18 @@ export async function runAutomatedVerification(
 ): Promise<VerificationResult> {
   const changedFiles = await getChangedCodeFiles(workdir, options.preferredBaseBranch);
 
-  // Full-diff views (not just code files): scope violations and gate tampering
-  // can live in docs/config/CI files too.
+  // Full diff (not just code files): scope violations and tampering can live in docs/config/CI too.
   const allChanged = await getAllChangedFiles(workdir, options.preferredBaseBranch);
   const planFiles = options.planContent ? parsePlanFiles(options.planContent) : null;
 
-  // Plan-scope check (advisory) — only meaningful when a plan exists.
   const scopeCheck: VerificationCheck | null =
     options.planContent && planFiles ? evaluateScopeCheck(allChanged, planFiles) : null;
 
   // Anti-tampering tripwire (HARD gate) — always evaluated, even when no code
   // file changed (a CI/hook-only diff is exactly the case it must catch).
-  const tamper = tamperCheck(allChanged, planFiles);
+  const allow = options.tamperAllowlist ?? [];
+  const tamperPlan = allow.length ? [...(planFiles ?? []), ...allow] : planFiles;
+  const tamper = tamperCheck(allChanged, tamperPlan);
 
   if (changedFiles.length === 0 && (!scopeCheck || scopeCheck.ok) && (!tamper || tamper.ok)) {
     return {
