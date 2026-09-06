@@ -17,11 +17,14 @@ import { markExhausted } from './auto-merge-exhaustion';
 import { attemptCiRepair, CI_REPAIR_CAUSE } from './ci-self-repair';
 import { readMergeState, readHeadSha, updatePrBranch } from './auto-merge-checks';
 import type { Candidate } from './auto-merge-candidates';
+import { readBaseFailingJobs, splitInheritedFailures } from './auto-merge-ci-attribution';
 
 const log = createLogger('workflow:auto-merge-ci-failure');
 
 /** WorkflowTransition.cause recording one update-branch attempt per head SHA. */
 export const UPDATE_BRANCH_ATTEMPTED_CAUSE = 'auto_merge_update_branch_attempted';
+/** Transition cause recorded when every failing check is inherited from the base branch. */
+export const CI_INHERITED_HOLD_CAUSE = 'auto_merge_ci_inherited_hold';
 
 /** Read the headSha recorded in a transition's metadata JSON. */
 function parseHeadShaFromMetadata(metadata: string | null): string | null {
@@ -83,6 +86,47 @@ async function attemptUpdateBranchIfBehind(c: Candidate): Promise<boolean> {
 }
 
 /** The head SHA recorded by the most recent ci_repair bounce, if any. */
+async function hasInheritedHoldFor(taskId: number, headSha: string): Promise<boolean> {
+  const rows = await prisma.workflowTransition
+    .findMany({
+      where: { taskId, cause: CI_INHERITED_HOLD_CAUSE },
+      select: { metadata: true },
+    })
+    .catch(() => []);
+  return rows.some((r) => parseHeadShaFromMetadata(r.metadata) === headSha);
+}
+
+/**
+ * Park a PR whose failing checks ALL fail on the base branch too. Nothing
+ * inside the PR can turn them green, so a repair bounce would only burn an
+ * implementer run and a budget slot (task 847, 2026-09-05: three bounces
+ * against a grown line-limit baseline and red tests on develop). Recorded
+ * once per head SHA; the BEHIND path re-evaluates once the base moves on.
+ */
+async function holdForInheritedFailures(c: Candidate, inherited: string[]): Promise<void> {
+  const headSha = (await readHeadSha(c.cwd, c.prNumber)) ?? 'unknown';
+  if (await hasInheritedHoldFor(c.taskId, headSha)) return;
+  await recordTransition({
+    taskId: c.taskId,
+    fromStatus: 'completed',
+    toStatus: 'completed',
+    actor: 'system',
+    cause: CI_INHERITED_HOLD_CAUSE,
+    phase: 'verify',
+    metadata: { headSha, prNumber: c.prNumber, baseBranch: c.baseBranch, inherited },
+  });
+  await notify({
+    taskId: c.taskId,
+    type: 'auto_merge_ci_inherited',
+    title: '自動マージ保留（本線由来のCI失敗）',
+    message: `PR #${c.prNumber} の失敗チェック（${inherited.join(', ')}）は本線 ${c.baseBranch} でも失敗しており、このPRの変更では直せません。本線が緑になった後にブランチを更新して再評価します。`,
+  });
+  log.info(
+    { taskId: c.taskId, prNumber: c.prNumber, inherited, headSha },
+    '[auto-merge] CI failures inherited from base — holding instead of bouncing ci_repair',
+  );
+}
+
 async function lastCiRepairHeadSha(taskId: number): Promise<string | null> {
   const row = await prisma.workflowTransition
     .findFirst({
@@ -161,11 +205,23 @@ export async function handleCiFailure(
     return;
   }
 
+  // Attribution before spending a repair: checks that are red on the base
+  // branch's latest run are inherited, not this PR's. All inherited → hold;
+  // a mix → repair only the PR's own failures so the implementer is not sent
+  // after failures it cannot influence.
+  const baseFailing = await readBaseFailingJobs(c.cwd, c.baseBranch);
+  const { inherited, own } = splitInheritedFailures(failedChecks, baseFailing);
+  if (failedChecks.length > 0 && own.length === 0) {
+    await holdForInheritedFailures(c, inherited);
+    return;
+  }
+  const repairTargets = own.length > 0 ? own : failedChecks;
+
   // CI failed — try to self-repair: bounce the task back to the implementer
   // with the failing checks as feedback so it fixes them, pushes to the same
   // PR branch, and CI re-runs. The watcher merges once CI goes green. Only
   // park the PR for review once the bounded repair budget is exhausted.
-  const repair = await attemptCiRepair(c.taskId, failedChecks, '', {
+  const repair = await attemptCiRepair(c.taskId, repairTargets, '', {
     cwd: c.cwd,
     prNumber: c.prNumber,
   });
@@ -174,7 +230,7 @@ export async function handleCiFailure(
       taskId: c.taskId,
       type: 'auto_merge_ci_repair',
       title: 'CI失敗を自動修正中',
-      message: `PR #${c.prNumber} のCI失敗（${failedChecks.join(', ') || '不明'}）を検出。実装を修正して再検証します（${repair.attempt}回目）。`,
+      message: `PR #${c.prNumber} のCI失敗（${repairTargets.join(', ') || '不明'}）を検出。実装を修正して再検証します（${repair.attempt}回目）。`,
     });
     log.info(
       { taskId: c.taskId, prNumber: c.prNumber, attempt: repair.attempt },
