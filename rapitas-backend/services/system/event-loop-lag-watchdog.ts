@@ -25,7 +25,10 @@ export function startEventLoopLagWatchdog(): void {
     const lagMs = now - expected;
     expected = now + CHECK_INTERVAL_MS;
     if (lagMs > REPORT_THRESHOLD_MS) {
-      log.warn({ lagMs }, `Event loop stalled ~${Math.round(lagMs / 100) / 10}s`);
+      // NOTE: message text intentionally has no embedded lagMs — a rounded-seconds
+      // suffix (e.g. "~2s" vs "~2.2s") split identical stalls into separate concern
+      // signatures (task #863). lagMs still travels as a structured field.
+      log.warn({ lagMs }, 'Event loop stalled');
     }
   }, CHECK_INTERVAL_MS);
 }
