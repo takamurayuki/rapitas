@@ -67,6 +67,9 @@ mock.module('../../../services/communication/notification-service', () => ({
   AUTH_FAILURE_NOTIFICATION_TITLE: 'Claude 認証切れ',
   notifyAuthenticationFailure: mock(() => Promise.resolve()),
   notifyPomodoroCompleted: mock(() => Promise.resolve()),
+  // NOTE: task-knowledge-extractor が完了タスクのナレッジ抽出成功時に呼ぶ。
+  // bun の mock.module は全export完全ミラーが必須(欠けると load error)。
+  notifyKnowledgeExtracted: mock(() => Promise.resolve()),
 }));
 mock.module('../../../src/services/user-behavior-service', () => ({
   UserBehaviorService: {
@@ -145,6 +148,11 @@ function resetAllMocks() {
   // createTask chains `notification.create(...).catch(...)`; a reset
   // (undefined-returning) mock would throw on `.catch` of undefined → 500.
   mockPrisma.notification.create.mockResolvedValue({ id: 1 });
+  // NOTE: createTask now calls syncParentStatusFromSubtasks unconditionally
+  // for every subtask creation (task-mutations.ts) — it awaits
+  // prisma.task.findMany(...).length, so a reset (undefined-returning) mock
+  // throws → 500. Restore the pre-reset default (empty siblings).
+  mockPrisma.task.findMany.mockResolvedValue([]);
 }
 
 function createApp() {

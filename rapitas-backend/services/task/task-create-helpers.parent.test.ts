@@ -71,6 +71,26 @@ mock.module('../workflow/workflow-mode-config', () => ({
   recommendModeFromSettings: mockRecommendModeFromSettings,
 }));
 
+// NOTE: applyModeRules is dynamically imported by createParentTask and,
+// unmocked, reaches the real prisma client (config/index.ts) — causing
+// timeouts and out-of-order mockResolvedValueOnce consumption across tests.
+const mockApplyModeRules = mock((_task: unknown, _complexityScore: number, baseMode: string) =>
+  Promise.resolve({ mode: baseMode, ruleIds: [] as number[], reasons: [] as string[] }),
+);
+mock.module('../workflow/learning/workflow-learning-optimizer', () => ({
+  recordWorkflowCompletion: mock(() => Promise.resolve()),
+  getLearningStats: mock(() => Promise.resolve({})),
+  calculatePhaseTimings: mock(() => ({})),
+  extractKeywords: mock(() => []),
+  detectSkippedPhases: mock(() => []),
+  matchesCondition: mock(() => false),
+  estimateDurationFromHistory: mock(() => Promise.resolve(null)),
+  getDirectInsight: mock(() => Promise.resolve(null)),
+  generateOptimizationRules: mock(() => Promise.resolve({})),
+  applyModeRules: mockApplyModeRules,
+  getWorkflowRecommendation: mock(() => Promise.resolve({})),
+}));
+
 mock.module('./task-mutations', () => ({
   TASK_FULL_INCLUDE: {
     subtasks: { orderBy: { createdAt: 'asc' as const } },
@@ -126,6 +146,11 @@ beforeEach(() => {
   mockGetAllModeSettings.mockResolvedValue({});
   mockRecommendModeFromSettings.mockReset();
   mockRecommendModeFromSettings.mockReturnValue('standard');
+  mockApplyModeRules.mockReset();
+  mockApplyModeRules.mockImplementation(
+    (_task: unknown, _complexityScore: number, baseMode: string) =>
+      Promise.resolve({ mode: baseMode, ruleIds: [], reasons: [] }),
+  );
 });
 
 // ---------------------------------------------------------------------------
