@@ -55,6 +55,7 @@ const SUPPRESSED: [string, string][] = [
     'gh command failed: gh pr create --title [Task-#] no commits between develop and bugfix/t#-x',
   ],
   ['error-handler', 'Bad Request: Failed to parse JSON'],
+  ['error-handler', 'Failed to parse JSON request body'],
   ['ai:provider-cooldown', 'Provider placed in cooldown'],
   ['routes:workflow:handlers:files', '[Workflow] Phase critic gate timed out — failing open'],
   ['workflow:completion-gate', '[CompletionGate] diff check failed — failing open'],
@@ -146,6 +147,13 @@ describe('classifyLogSignature', () => {
     // Task #702: the phrase alone must not suppress an unrelated logger reusing it.
     expect(
       classifyLogSignature('some-other-logger', 'Bad Request: Failed to parse JSON').suppressed,
+    ).toBe(false);
+  });
+
+  test('"Failed to parse JSON request body" is scoped to the error-handler logger only', () => {
+    // Task #861: the phrase alone must not suppress an unrelated logger reusing it.
+    expect(
+      classifyLogSignature('some-other-logger', 'Failed to parse JSON request body').suppressed,
     ).toBe(false);
   });
 

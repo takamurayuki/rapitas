@@ -172,6 +172,16 @@ const SUPPRESSIONS: Suppression[] = [
       'middleware/error-handler.ts:165-170 のPARSE分岐(#683)がlog.warn+400で処理しており、ERRORとして起票される経路は存在しない',
   },
   {
+    // ログ出力箇所: middleware/error-handler.ts:165-170 の `code === 'PARSE'` 分岐
+    // （#683）が出す WARN メッセージそのもの（上のERROR版ルールは#683適用前の旧文言用）。
+    // 不正なJSONボディを400として正しく拒否した記録であり、サーバー側の欠陥ではない
+    // （タスク#861で確認、tests/middleware/error-handler.test.ts:326-341 で担保）。
+    test: /Failed to parse JSON request body/i,
+    logger: /error-handler/i,
+    because:
+      'middleware/error-handler.ts:165-170 のPARSE分岐(#683)がクライアントの不正JSONボディを400で正しく拒否した記録 — サーバー側の欠陥ではない',
+  },
+  {
     // ログ出力箇所: services/ai/provider-cooldown.ts:149 の markProviderCooldown()。
     // 呼び出し元(agent-fallback.ts, workflow-provider-fallback.ts,
     // gemini-cli-agent/stream-handler.ts)はquota/rate_limit/auth/transient
