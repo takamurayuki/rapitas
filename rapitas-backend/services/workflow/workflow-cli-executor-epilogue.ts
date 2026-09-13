@@ -24,6 +24,7 @@ import { checkWorkflowInvariants } from './workflow-invariants';
 import { maybeAutoApprovePlan } from './plan-auto-approve';
 import { validateOutput, WF_STATUS_RANK } from './workflow-cli-executor-helpers';
 import { resolveVerifyPhaseStatus } from './workflow-cli-executor-verify-gate';
+import { requirementReplannedSince } from './requirement-replan-guard';
 
 // NOTE: Same logger name as the executor body — keeps the observed log `name`
 // field identical after the file split.
@@ -46,6 +47,13 @@ export async function harvestInvestigationOutput(params: {
   phaseStartedAt: Date;
 }): Promise<void> {
   const { taskId, transition, result, isInvestigationPhase, phaseStartedAt } = params;
+  if (await requirementReplannedSince(prisma, taskId, phaseStartedAt)) {
+    log.info(
+      { taskId },
+      '[WorkflowCLIExecutor] Replan superseded this phase; skipping artifact harvest',
+    );
+    return;
+  }
 
   // Investigation-mode result harvesting: if codex wrote to the temp file,
   // upload its contents to the workflow API server-side (codex itself
@@ -134,18 +142,59 @@ export async function runPhaseEpilogue(params: {
   effectiveSuccess: boolean;
   phaseStatus: WorkflowAdvanceResult['status'];
   phaseError: string | undefined;
+  superseded?: boolean;
 }> {
   const { taskId, transition, session, result, resolvedWorktreePath, phaseStartedAt, language } =
     params;
 
   const updatedTask = await resolveTaskWorkflowState(taskId);
   const currentWfStatus = updatedTask?.workflowStatus || 'draft';
+  if (await requirementReplannedSince(prisma, taskId, phaseStartedAt)) {
+    log.info(
+      { taskId, currentWfStatus },
+      '[WorkflowCLIExecutor] Replan superseded this phase; skipping completion',
+    );
+    return {
+      effectiveSuccess: false,
+      phaseStatus: currentWfStatus as WorkflowAdvanceResult['status'],
+      phaseError: 'Phase superseded by requirement replan',
+      superseded: true,
+    };
+  }
   let effectiveSuccess = result.success;
   let phaseStatus = transition.nextStatus;
   let phaseError = effectiveSuccess ? undefined : result.errorMessage;
 
   if (transition.outputFile) {
     let fileContent = await readWorkflowFile(taskId, transition.outputFile);
+
+    // A FAILED run may only be rescued by an artifact IT wrote. Task 901
+    // (2026-09-13): the economy-tier verifier died on "Prompt is too long"
+    // with 182 chars of output, the previous verify.md (⚠️ against an older
+    // plan) was picked up here as this phase's output, "treated as success",
+    // re-validated, and bounced the task into another self-repair round —
+    // a loop with no new verification in it.
+    if (!result.success && fileContent) {
+      const artifact = await prisma.workflowFile
+        .findFirst({
+          where: { taskId, fileType: transition.outputFile },
+          select: { updatedAt: true },
+        })
+        .catch(() => null);
+      if (artifact && artifact.updatedAt.getTime() < phaseStartedAt.getTime()) {
+        log.warn(
+          {
+            taskId,
+            role: transition.role,
+            outputFile: transition.outputFile,
+            artifactUpdatedAt: artifact.updatedAt,
+            phaseStartedAt,
+          },
+          '[WorkflowCLIExecutor] Agent failed and the existing artifact predates this phase — not reusing it',
+        );
+        fileContent = null;
+      }
+    }
 
     // Fallback: extract Markdown from raw output when agent did not save via API
     if (!fileContent && result.output && result.output.trim().length > 100) {
@@ -231,6 +280,14 @@ export async function runPhaseEpilogue(params: {
           validation,
           resolvedWorktreePath,
         });
+        if (phaseStatus === 'research_done') {
+          return {
+            effectiveSuccess: false,
+            phaseStatus,
+            phaseError: 'Phase superseded by requirement replan',
+            superseded: true,
+          };
+        }
       } else if (
         currentWfStatus !== transition.nextStatus &&
         nextRank > curRank &&

@@ -6,7 +6,7 @@
  * Not responsible for route definitions or file persistence.
  */
 
-import { dirname, join } from 'path';
+import { join } from 'path';
 import { prisma, getProjectRoot } from '../../config';
 import { AgentOrchestrator } from '../../services/agents/agent-orchestrator';
 import { createLogger } from '../../config/logger';
@@ -23,6 +23,10 @@ import {
   releasePrCreationLock,
 } from '../../services/github/pr-duplicate-guard';
 import { syncBaseIntoBranch, type BaseSyncResult } from '../../services/workflow/pre-pr-base-sync';
+import {
+  syncHarnessIfDrifted,
+  type HarnessDriftSyncResult,
+} from '../../services/workflow/harness-drift-sync';
 import { countCommitsAhead, isNoChangeCompletion } from './workflow-auto-commit-classify';
 import {
   PUBLICATION_CANCELLED_ERROR,
@@ -52,6 +56,13 @@ export type AutoCommitPRResult = {
    * "no change" completion.
    */
   baseSyncResult?: BaseSyncResult;
+  /**
+   * Pre-gate harness sync outcome (2026-09-13): when the task branch predates
+   * the runtime-verification harness, origin/<base> is merged in BEFORE the
+   * gate so the runtime check can run instead of holding as UNVERIFIED. Kept
+   * independent of the error blob for the same reason as baseSyncResult.
+   */
+  harnessSyncResult?: HarnessDriftSyncResult;
   autoMergeResult?: {
     success: boolean;
     mergeStrategy?: string;
@@ -65,6 +76,8 @@ export type AutoCommitPRResult = {
    * the gate already set it `blocked`.
    */
   verificationBlocked?: boolean;
+  /** Infrastructure could not verify correctness; code repair is not justified. */
+  verificationUnverifiable?: boolean;
   error?: string;
 };
 
@@ -169,6 +182,24 @@ export async function performAutoCommitAndPR(
       );
     }
 
+    // Harness drift remediation (2026-09-13, tasks 901/905): a branch cut
+    // before the runtime-verification harness cannot run the runtime check,
+    // and the gate rightly holds it as UNVERIFIED. Bring origin/<base> into
+    // the branch first (same base sync as the pre-PR step, with its conflict
+    // resolution and lint/typecheck re-verification) so the gate below can
+    // verify for real. Never a pass by itself: a skipped/failed sync leaves
+    // the gate to hold.
+    const harnessSync = await syncHarnessIfDrifted({
+      taskId,
+      gitCwd,
+      baseBranch: targetBranch,
+      sessionId: latestSession?.id,
+    }).catch((err): null => {
+      log.warn({ err, taskId }, '[Workflow] harness sync threw — leaving the gate to decide');
+      return null;
+    });
+    if (harnessSync) result.harnessSyncResult = harnessSync;
+
     // Automated verification gate — do NOT auto-commit/PR if the agent
     // introduced new lint/type errors. Mirrors the post-execution-review gate so
     // BOTH auto-PR paths are protected (closes the verify.md-triggered gap).
@@ -181,6 +212,7 @@ export async function performAutoCommitAndPR(
       return {
         ...result,
         verificationBlocked: true,
+        verificationUnverifiable: gate.result?.unverifiable === true || gate.result === null,
         error: `自動検証に失敗しました（${gate.result?.summary ?? 'lint/型エラー'}）。auto-commit/PR を中止し、タスクをブロックしました。`,
       };
     }
@@ -437,41 +469,14 @@ export async function performAutoCommitAndPR(
       );
     }
 
-    // Clean up git worktree after commit/PR/merge is complete.
-    // NOTE: baseDir is the worktree's parent repo, derived from worktreePath
-    // (<root>/.worktrees/<name>). workingDirectory can BE the worktree since
-    // resolveCommitCwd (task 774) — passing it tripped the removal guard.
-    const worktreePath = latestSession?.worktreePath;
-    // Boundary 5/5 — worktree removal is irreversible and destroys the evidence
-    // a stopped run must keep for inspection, so it is withheld too.
-    if (worktreePath && (await publicationAborted(taskId, 'before_worktree_cleanup')))
+    // A verify save is still inside the running CLI and precedes reviewed
+    // completion / CI / merge. Preserve its worktree and session reference.
+    // The existing cleanup scheduler owns eventual cleanup eligibility.
+    if (
+      latestSession?.worktreePath &&
+      (await publicationAborted(taskId, 'before_worktree_cleanup'))
+    )
       return { ...result, error: PUBLICATION_CANCELLED_ERROR };
-    if (worktreePath) {
-      // NOTE: removeError stays undefined only on a confirmed removal — a refusal
-      // (safety guard) and a thrown error both fall through to the same failure
-      // branch, since either way the directory was NOT actually removed.
-      let removeError: string | undefined;
-      try {
-        const baseDir = dirname(dirname(worktreePath));
-        const removed = await orchestrator.removeWorktree(baseDir, worktreePath);
-        if (!removed) removeError = 'removeWorktree refused or failed';
-      } catch (cleanupError) {
-        removeError = cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
-      }
-
-      if (removeError) {
-        // NOTE: warn, not error (task 816) — cleanup failure must not fail the workflow; the cleanup scheduler retries and self-heals.
-        log.warn({ err: removeError }, `[Workflow] Worktree cleanup failed: ${worktreePath}`);
-        result.worktreeCleanupResult = { success: false, worktreePath, error: removeError };
-      } else {
-        await prisma.agentSession.update({
-          where: { id: latestSession.id },
-          data: { worktreePath: null },
-        });
-        result.worktreeCleanupResult = { success: true, worktreePath };
-        log.info(`[Workflow] Worktree cleaned up for task ${taskId}: ${worktreePath}`);
-      }
-    }
   } catch (error) {
     log.error({ err: error }, `[Workflow] Auto-commit/PR process failed for task ${taskId}`);
   }
