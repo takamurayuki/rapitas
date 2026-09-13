@@ -28,7 +28,17 @@ beforeEach(() => {
 afterEach(async () => {
   await client.$disconnect();
   sql.close();
-  rmSync(directory, { recursive: true, force: true });
+  // NOTE: Windows can keep the SQLite file handle for a moment after disconnect/close,
+  // so an immediate rm fails with EBUSY under suite load. Retry briefly; other errors throw.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      rmSync(directory, { recursive: true, force: true });
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EBUSY' || attempt >= 20) throw error;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
 });
 const db = () => client as unknown as PostgresClient;
 const row = () =>
