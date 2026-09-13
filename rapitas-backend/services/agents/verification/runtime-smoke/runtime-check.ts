@@ -146,11 +146,14 @@ export async function runRuntimeSmokeCheck(
   }
   const cfg = loaded.config;
 
-  // Harness drift (not an environment failure): the branch predates the
-  // runtime script the theme's main checkout ships. The implementer cannot
-  // add it and the pre-PR base sync will; holding completion here only
-  // deadlocks the task (tasks 901/905, 2026-09-13). Report "skip" — the
-  // static gates still stand and the synced branch is re-verified before PR.
+  // Harness drift: the branch predates the runtime script the theme's main
+  // checkout ships. This is NOT a pass — the theme opted into runtime
+  // verification, so the check stays UNVERIFIED and completion is withheld
+  // (PR #670 semantics). The remedy is to bring the harness into the branch
+  // (workflow-auto-commit syncs origin/<base> into the worktree before the
+  // gate when it sees this reason); it is never to skip the check.
+  // 2026-09-13: an earlier revision reported this as ok/skip and let tasks
+  // 901/905 head for a PR unverified — reverted on operator instruction.
   const drift = await detectRuntimeHarnessDrift(
     cfg.start,
     workdir,
@@ -159,9 +162,16 @@ export async function runRuntimeSmokeCheck(
   if (drift) {
     log.warn(
       { workdir, label, taskId },
-      '[runtime-smoke] harness drift — runtime check not applicable',
+      '[runtime-smoke] harness drift — unverifiable until the branch is synced with the base',
     );
-    return { name: 'runtime', ran: false, ok: true, errorCount: 0, details: drift };
+    return {
+      name: 'runtime',
+      ran: false,
+      ok: false,
+      unverifiable: true,
+      errorCount: 0,
+      details: drift,
+    };
   }
 
   // Short-circuit: this worktree recently failed to launch for ENVIRONMENT

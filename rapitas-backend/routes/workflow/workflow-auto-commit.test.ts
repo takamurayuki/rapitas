@@ -156,6 +156,17 @@ mock.module('../../services/workflow/pre-pr-base-sync', () => ({
     Promise.resolve({ status: 'skipped', changedFiles: 0, conflicts: [], detail: 'no worktree' }),
 }));
 
+// Pre-gate harness sync (2026-09-13): recorded so a test can prove it runs
+// BEFORE the verification gate and never decides the outcome by itself.
+const callOrder: string[] = [];
+const harnessSyncMock = mock(() => {
+  callOrder.push('harness-sync');
+  return Promise.resolve(null);
+});
+mock.module('../../services/workflow/harness-drift-sync', () => ({
+  syncHarnessIfDrifted: harnessSyncMock,
+}));
+
 const { performAutoCommitAndPR } = await import('./workflow-auto-commit');
 
 describe('performAutoCommitAndPR — Auto-PR失敗時のログ出力', () => {
@@ -364,5 +375,38 @@ test('unverifiable gate exposes the infrastructure outcome without committing', 
   expect(outcome.verificationBlocked).toBe(true);
   expect(outcome.verificationUnverifiable).toBe(true);
   expect(outcome.error).toContain('runtime quarantined');
+  expect(createCommitCalls).toBe(before);
+});
+
+test('harness drift sync runs before the verification gate and cannot pass it alone', async () => {
+  cancelAtStep = null;
+  callOrder.length = 0;
+  harnessSyncMock.mockImplementationOnce(() => {
+    callOrder.push('harness-sync');
+    return Promise.resolve({
+      reason: 'drift',
+      sync: { status: 'conflict_unresolved', changedFiles: 0, conflicts: ['a.ts'], detail: 'x' },
+      harnessPresent: false,
+    });
+  });
+  verificationGateMock.mockImplementationOnce(() => {
+    callOrder.push('gate');
+    return Promise.resolve({
+      ok: false,
+      result: {
+        ok: false,
+        unverifiable: true,
+        summary: 'runtime=UNVERIFIED',
+        checks: [],
+        changedFiles: [],
+      },
+    });
+  });
+  const before = createCommitCalls;
+  const outcome = await performAutoCommitAndPR(687, 'PASS');
+  expect(callOrder).toEqual(['harness-sync', 'gate']);
+  expect(outcome.harnessSyncResult?.sync.status).toBe('conflict_unresolved');
+  expect(outcome.verificationBlocked).toBe(true);
+  expect(outcome.verificationUnverifiable).toBe(true);
   expect(createCommitCalls).toBe(before);
 });

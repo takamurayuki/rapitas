@@ -23,6 +23,10 @@ import {
   releasePrCreationLock,
 } from '../../services/github/pr-duplicate-guard';
 import { syncBaseIntoBranch, type BaseSyncResult } from '../../services/workflow/pre-pr-base-sync';
+import {
+  syncHarnessIfDrifted,
+  type HarnessDriftSyncResult,
+} from '../../services/workflow/harness-drift-sync';
 import { countCommitsAhead, isNoChangeCompletion } from './workflow-auto-commit-classify';
 import {
   PUBLICATION_CANCELLED_ERROR,
@@ -52,6 +56,13 @@ export type AutoCommitPRResult = {
    * "no change" completion.
    */
   baseSyncResult?: BaseSyncResult;
+  /**
+   * Pre-gate harness sync outcome (2026-09-13): when the task branch predates
+   * the runtime-verification harness, origin/<base> is merged in BEFORE the
+   * gate so the runtime check can run instead of holding as UNVERIFIED. Kept
+   * independent of the error blob for the same reason as baseSyncResult.
+   */
+  harnessSyncResult?: HarnessDriftSyncResult;
   autoMergeResult?: {
     success: boolean;
     mergeStrategy?: string;
@@ -170,6 +181,24 @@ export async function performAutoCommitAndPR(
         '[Workflow] No worktree on session — git operations will run on the dev project root (NOT isolated)',
       );
     }
+
+    // Harness drift remediation (2026-09-13, tasks 901/905): a branch cut
+    // before the runtime-verification harness cannot run the runtime check,
+    // and the gate rightly holds it as UNVERIFIED. Bring origin/<base> into
+    // the branch first (same base sync as the pre-PR step, with its conflict
+    // resolution and lint/typecheck re-verification) so the gate below can
+    // verify for real. Never a pass by itself: a skipped/failed sync leaves
+    // the gate to hold.
+    const harnessSync = await syncHarnessIfDrifted({
+      taskId,
+      gitCwd,
+      baseBranch: targetBranch,
+      sessionId: latestSession?.id,
+    }).catch((err): null => {
+      log.warn({ err, taskId }, '[Workflow] harness sync threw — leaving the gate to decide');
+      return null;
+    });
+    if (harnessSync) result.harnessSyncResult = harnessSync;
 
     // Automated verification gate — do NOT auto-commit/PR if the agent
     // introduced new lint/type errors. Mirrors the post-execution-review gate so

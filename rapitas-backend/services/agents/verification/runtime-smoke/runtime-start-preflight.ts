@@ -76,9 +76,9 @@ export async function detectRuntimeHarnessDrift(
   const inBase = await hasRuntimeStartScript(command, baseDir);
   if (inBase !== true) return null;
   return (
-    `runtime検証は対象外（ハーネス差分）: この worktree の ${parsed.dir}/package.json に ` +
+    `runtime検証は未検証（ハーネス差分）: この worktree の ${parsed.dir}/package.json に ` +
     `script "${parsed.script}" がありませんが、テーマの主チェックアウト (${baseDir}) には存在します。` +
-    'ブランチがランタイム検証ハーネスより古いため、PR 作成前の base 同期後に再検証されます。'
+    'ブランチがランタイム検証ハーネスより古いため、base を取り込んで再検証するまで完了は保留されます。'
   );
 }
 
