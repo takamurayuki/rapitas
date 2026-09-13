@@ -16,15 +16,15 @@
  * agent never touched, not just add noise to an LLM judge prompt.
  */
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-
-// Real Git subprocesses can exceed Bun's 5s default under Windows suite load.
-// Keep assertions intact and let subprocess work finish before fixture cleanup.
-const GIT_TEST_TIMEOUT_MS = 30_000;
 import { execSync } from 'child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { diffBaseRef } from './automated-verifier';
+
+// Real Git subprocesses can exceed Bun's 5s default under Windows suite load.
+// Keep assertions intact and let subprocess work finish before fixture cleanup.
+const GIT_TEST_TIMEOUT_MS = 30_000;
 
 describe('diffBaseRef — preferredBaseBranch overrides the develop/main/master guess', () => {
   let repoDir: string;

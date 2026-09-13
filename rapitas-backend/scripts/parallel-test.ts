@@ -20,6 +20,7 @@
  *   RAPITAS_TEST_FLAKE_EXTRA_RETRIES  Extra retries for high-flake files (default: 2)
  *   RAPITAS_TEST_HIGH_FLAKE_PATTERNS  Comma-separated regexes for inherently-flaky test paths
  *   RAPITAS_TEST_FLAKE_HISTORY_PATH   Explicit path for the flake history JSON file
+ *   RAPITAS_TEST_SERIAL_PATTERNS     Comma-separated regexes added to the one-at-a-time serial lane
  *
  * Usage:
  *   bun scripts/parallel-test.ts
@@ -42,6 +43,12 @@ import {
   saveFlakeHistory,
 } from './retry-policy';
 import type { FlakeHistoryFile } from './retry-policy';
+import {
+  SUBPROCESS_HEAVY_TEST_PATTERNS,
+  parseSerialPatterns,
+  partitionSerialFiles,
+  resolveParallelWorkerCount,
+} from './serial-lane';
 
 /** Completed result for a single test file subprocess. */
 export interface TestResult {
@@ -194,8 +201,12 @@ async function main(): Promise<void> {
     : retryCount > 0
       ? `retry=${retryCount}`
       : '';
+  const { parallel: parallelFiles, serial: serialFiles } = partitionSerialFiles(files, [
+    ...SUBPROCESS_HEAVY_TEST_PATTERNS,
+    ...parseSerialPatterns(process.env.RAPITAS_TEST_SERIAL_PATTERNS),
+  ]);
   console.log(
-    `[parallel-test] files=${files.length} concurrency=${concurrency}${failFast ? ' fail-fast=ON' : ''}${retryDisplay ? ` ${retryDisplay}` : ''}`,
+    `[parallel-test] files=${files.length} concurrency=${concurrency} serial=${serialFiles.length}${failFast ? ' fail-fast=ON' : ''}${retryDisplay ? ` ${retryDisplay}` : ''}`,
   );
   const wallStart = performance.now();
 
@@ -203,7 +214,8 @@ async function main(): Promise<void> {
   const reportResults: TestResultEntry[] = [];
   let completed = 0;
   let firstFailCode = 0;
-  const queue = [...files];
+  const parallelQueue = [...parallelFiles];
+  const serialQueue = [...serialFiles];
 
   /**
    * Worker loop: each worker consumes files from the shared queue sequentially.
@@ -213,7 +225,7 @@ async function main(): Promise<void> {
    * NOTE: Retry happens within the current file before dispatching the next one,
    * so fail-fast only stops new dispatches after all retries for the current file finish.
    */
-  async function worker(): Promise<void> {
+  async function worker(queue: string[]): Promise<void> {
     while (queue.length > 0) {
       if (failFast && firstFailCode !== 0) break;
       const file = queue.shift();
@@ -259,8 +271,15 @@ async function main(): Promise<void> {
     }
   }
 
-  // Launch min(concurrency, files.length) workers; each drains the shared queue.
-  const workers = Array.from({ length: Math.min(concurrency, files.length) }, () => worker());
+  // NOTE: Subprocess-heavy files get one reserved slot and never run concurrently with each
+  // other — overlapping real git/bun spawns starved the whole pool on Windows (task 907).
+  const parallelWorkers = resolveParallelWorkerCount(
+    concurrency,
+    parallelFiles.length,
+    serialFiles.length,
+  );
+  const workers = Array.from({ length: parallelWorkers }, () => worker(parallelQueue));
+  if (serialFiles.length > 0) workers.push(worker(serialQueue));
   await Promise.all(workers);
 
   const wallMs = performance.now() - wallStart;

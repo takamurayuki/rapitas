@@ -11,7 +11,7 @@
  */
 import { describe, test, expect } from 'bun:test';
 import { spawnSync } from 'child_process';
-import { join, resolve, dirname } from 'path';
+import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url));

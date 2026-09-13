@@ -10,10 +10,6 @@ import { execSync } from 'child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-
-// Fixture setup here spawns several real `git` subprocesses synchronously;
-// under Windows suite-wide parallel load this can exceed Bun's 5s default.
-const GIT_TEST_TIMEOUT_MS = 30_000;
 import {
   isPrimaryWorkTree,
   ensureNotPrimaryWorkTree,
@@ -21,6 +17,10 @@ import {
   findConflictingWorktreeForBranch,
   recoverFromUnresolvedMerge,
 } from './worktree-guard';
+
+// Fixture setup here spawns several real `git` subprocesses synchronously;
+// under Windows suite-wide parallel load this can exceed Bun's 5s default.
+const GIT_TEST_TIMEOUT_MS = 30_000;
 
 const primary = async () => true;
 const worktree = async () => false;
