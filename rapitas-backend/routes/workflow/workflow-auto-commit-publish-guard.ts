@@ -11,7 +11,7 @@ import { createLogger } from '../../config/logger';
 import { runVerificationGate } from '../../services/agents/verification/verification-gate';
 import { notify } from '../../services/workflow/auto-merge-notify';
 import { syncBaseIntoBranch, type BaseSyncResult } from '../../services/workflow/pre-pr-base-sync';
-import { readHeadRevision } from './workflow-auto-commit-presave';
+import { listWorkingTreeChanges, readHeadRevision } from './workflow-auto-commit-presave';
 
 const log = createLogger('routes:workflow:auto-commit:publish-guard');
 
@@ -26,6 +26,8 @@ export interface PublishGuardResult {
   headRevision: string | null;
   /** True when the gate ran again on the synced code. */
   reverified: boolean;
+  /** Uncommitted/untracked paths found when they would have desynced verified vs published. */
+  dirtyPaths?: string[];
   verificationBlocked?: boolean;
   verificationUnverifiable?: boolean;
   /** Fixed sentence (no raw git output) safe for completion classification. */
@@ -48,6 +50,26 @@ export async function syncAndReverifyBeforePublish(p: {
   verifiedRevision: string | null;
 }): Promise<PublishGuardResult> {
   const { taskId, gitCwd, baseBranch } = p;
+  // The gate verified the WORKING TREE; a push publishes HEAD. Anything left
+  // uncommitted or untracked after the gate (the verifier CLI is still alive
+  // when verify.md is saved) means the two differ — hold, publish nothing.
+  const dirtyBefore = await listWorkingTreeChanges(gitCwd);
+  if (dirtyBefore === null || dirtyBefore.length > 0) {
+    log.warn(
+      { taskId, dirty: dirtyBefore?.slice(0, 20) ?? 'unknown' },
+      '[Workflow] working tree differs from HEAD after the gate — refusing to publish',
+    );
+    return {
+      ok: false,
+      baseSync: { status: 'skipped', changedFiles: 0, conflicts: [], detail: 'dirty tree' },
+      verifiedRevision: p.verifiedRevision,
+      headRevision: await readHeadRevision(gitCwd),
+      reverified: false,
+      dirtyPaths: dirtyBefore ?? [],
+      error:
+        '検証後に未コミット・未追跡の変更が残っているため、検証した内容と異なる状態を公開しないよう push/PR を中止しました。',
+    };
+  }
   const baseSync = await syncBaseIntoBranch({
     gitCwd,
     baseBranch,
@@ -118,6 +140,19 @@ export async function syncAndReverifyBeforePublish(p: {
     out.verifiedRevision = out.headRevision;
   }
 
+  // A merge (or its aux conflict resolution) must leave a clean tree too;
+  // the re-gate above verified the working tree, the push ships HEAD.
+  const dirtyAfter = await listWorkingTreeChanges(gitCwd);
+  if (dirtyAfter === null || dirtyAfter.length > 0) {
+    out.dirtyPaths = dirtyAfter ?? [];
+    out.error =
+      'base 取り込み後に未コミット・未追跡の変更が残っているため、検証した内容と異なる状態を公開しないよう push/PR を中止しました。';
+    log.warn(
+      { taskId, dirty: dirtyAfter?.slice(0, 20) ?? 'unknown' },
+      '[Workflow] working tree differs from HEAD after the sync — refusing to publish',
+    );
+    return out;
+  }
   if (out.headRevision === null || out.headRevision !== out.verifiedRevision) {
     out.error = `検証済みの版と HEAD が一致しないため、push/PR を中止しました。`;
     log.warn(

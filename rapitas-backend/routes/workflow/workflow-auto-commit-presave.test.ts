@@ -103,6 +103,16 @@ test('no session for this worktree → attribution unknown → hold (diff kept)'
   }
 });
 
+test('listWorkingTreeChanges parses porcelain lines and reports null on git failure', async () => {
+  const { listWorkingTreeChanges } = await import('./workflow-auto-commit-presave');
+  const saved = headFixture;
+  headFixture = ' M a.ts\n?? b.ts\n';
+  expect(await listWorkingTreeChanges(dir)).toEqual([' M a.ts', '?? b.ts']);
+  headFixture = '';
+  expect(await listWorkingTreeChanges(dir)).toEqual([]);
+  headFixture = saved;
+});
+
 test('readHeadRevision returns a full SHA or null', async () => {
   expect(await readHeadRevision(dir)).toBe('c'.repeat(40));
   headFixture = 'not-a-sha';

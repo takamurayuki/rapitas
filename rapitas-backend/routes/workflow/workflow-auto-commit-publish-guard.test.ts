@@ -12,8 +12,10 @@ mock.module('../../services/workflow/pre-pr-base-sync', () => ({
   syncBaseIntoBranch: () => Promise.resolve({ ...syncFixture }),
 }));
 let headFixture: string | null = A;
+let dirtyQueue: Array<string[] | null> = [];
 mock.module('./workflow-auto-commit-presave', () => ({
   readHeadRevision: () => Promise.resolve(headFixture),
+  listWorkingTreeChanges: () => Promise.resolve(dirtyQueue.length ? dirtyQueue.shift()! : []),
 }));
 const gateCalls: number[] = [];
 let gateFixture = {
@@ -58,6 +60,35 @@ beforeEach(() => {
   gateFixture = { ok: true, result: null };
   syncFixture = { status: 'clean', changedFiles: 0, conflicts: [], detail: '' };
   headFixture = A;
+  dirtyQueue = [];
+});
+
+test('a dirty tree after the gate withholds publication before any sync', async () => {
+  dirtyQueue = [[' M rapitas-backend/x.ts']];
+  const r = await run();
+  expect(r.ok).toBe(false);
+  expect(r.dirtyPaths).toEqual([' M rapitas-backend/x.ts']);
+  expect(r.error).toContain('未コミット・未追跡');
+  expect(gateCalls).toEqual([]);
+  expect(r.baseSync.status).toBe('skipped');
+});
+
+test('a dirty tree left by the sync withholds publication even after a passing re-gate', async () => {
+  syncFixture = { status: 'clean', changedFiles: 2, conflicts: [], detail: 'merged' };
+  headFixture = B;
+  dirtyQueue = [[], ['?? rapitas-backend/leftover.ts']];
+  const r = await run();
+  expect(gateCalls).toEqual([9]);
+  expect(r.ok).toBe(false);
+  expect(r.dirtyPaths).toEqual(['?? rapitas-backend/leftover.ts']);
+  expect(r.error).toContain('base 取り込み後');
+});
+
+test('unreadable git status is treated as unverifiable state: withhold', async () => {
+  dirtyQueue = [null];
+  const r = await run();
+  expect(r.ok).toBe(false);
+  expect(r.dirtyPaths).toEqual([]);
 });
 
 test('already up to date: no re-gate, HEAD equals the verified revision → ok', async () => {

@@ -185,7 +185,9 @@ let preSaveFixture = {
 let headQueue: Array<string | null> = [];
 const HEAD_A = 'a'.repeat(40);
 const HEAD_B = 'b'.repeat(40);
+let dirtyFixture: string[] | null = [];
 mock.module('./workflow-auto-commit-presave', () => ({
+  listWorkingTreeChanges: () => Promise.resolve(dirtyFixture),
   readHeadRevision: () =>
     Promise.resolve(headQueue.length > 1 ? headQueue.shift()! : (headQueue[0] ?? HEAD_A)),
   runPreSaveChecks: () => {
@@ -489,6 +491,20 @@ describe('publish guard: the pushed revision is the verified revision', () => {
     expect(createPullRequestCalls).toBe(0);
     baseSyncFixture = { status: 'skipped', changedFiles: 0, conflicts: [], detail: 'no worktree' };
     headQueue = [];
+  });
+
+  test('uncommitted or untracked changes left after the gate withhold the PR', async () => {
+    cancelAtStep = null;
+    filesChangedFixture = 1;
+    createPullRequestCalls = 0;
+    dirtyFixture = ['?? rapitas-backend/late-edit.ts'];
+    verificationGateMock.mockClear();
+    const out = await performAutoCommitAndPR(687, 'PASS');
+    dirtyFixture = [];
+    expect(verificationGateMock).toHaveBeenCalledTimes(1);
+    expect(out.error).toContain('未コミット・未追跡');
+    expect(out.autoCommitResult?.hash).toBe('abc123');
+    expect(createPullRequestCalls).toBe(0);
   });
 
   test('HEAD that drifted without a recorded sync is never pushed', async () => {

@@ -43,6 +43,28 @@ export async function readHeadRevision(gitCwd: string): Promise<string | null> {
   return /^[0-9a-f]{40}$/i.test(sha) ? sha : null;
 }
 
+/**
+ * Uncommitted or untracked paths in the worktree (git status --porcelain),
+ * or null when git cannot answer. A non-empty list means the tree differs
+ * from HEAD, i.e. from anything a push would publish.
+ *
+ * @param gitCwd - Worktree / 対象 worktree
+ * @returns Porcelain entries, or null on error / 未コミット・未追跡の一覧
+ */
+export async function listWorkingTreeChanges(gitCwd: string): Promise<string[] | null> {
+  try {
+    const out = await runGitCommand(['status', '--porcelain', '--untracked-files=all'], gitCwd, {
+      skipLog: true,
+    });
+    return out
+      .split('\n')
+      .map((l) => l.trimEnd())
+      .filter(Boolean);
+  } catch {
+    return null;
+  }
+}
+
 const normPath = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 
 /**
