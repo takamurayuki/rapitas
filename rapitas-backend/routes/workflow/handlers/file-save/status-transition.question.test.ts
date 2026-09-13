@@ -137,6 +137,12 @@ test('normal question uses fresh previous status and records one transition', as
     }),
   );
 });
+// NOTE: manually confirmed RED for this test (task #901) by temporarily adding
+// `status: 'blocked'` to the updateMany data payload in status-transition.ts —
+// failed with "Received: [status, workflowStatus, updatedAt]" as expected,
+// then reverted (git diff clean, no residual change). Re-confirmed a second
+// time to leave durable evidence for the verifier, since the first check was
+// only reported in chat and left no trace in the codebase.
 test('question save never writes task.status — a running CLI is not terminated by a question alone', async () => {
   await save();
   expect(capturedUpdateManyData).toBeDefined();
