@@ -3,16 +3,19 @@
  *
  * Lists a theme's OPEN auto-created PRs (GitHubPullRequest state='open' with a
  * linkedTaskId belonging to the theme) and fetches each PR's changed files via
- * `gh pr view <n> --json files,state`, memoized per repository and PR with a TTL so the
- * 12-second scheduler tick never stampedes the GitHub API. gh failures are
+ * `gh pr view <n> --json files,state,headRefOid`, memoized per repository and PR with a TTL so
+ * the 12-second scheduler tick never stampedes the GitHub API. gh failures are
  * fail-open (empty file list → no deferral) — a broken gh must not stop task
- * selection.
+ * selection. Also excludes PRs the watcher parked as auto_merge_exhausted
+ * whose head commit has not moved since — those no longer contribute to
+ * scope-overlap/merge-barrier decisions (see auto-merge-exhaustion.ts).
  * Not responsible for overlap decisions — see auto-run-selection.ts.
  */
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { PrismaClient } from '../../../generated/prisma-postgres';
 import { createLogger } from '../../../config/logger';
+import { EXHAUSTED_CAUSE, parseStoredHeadSha } from '../auto-merge-exhaustion';
 
 const execAsync = promisify(exec);
 const log = createLogger('workflow:open-pr-files-cache');
@@ -31,6 +34,8 @@ export interface OpenAutoPr {
 interface CacheEntry {
   files: string[];
   state: string | null;
+  /** Current head commit SHA (headRefOid), null when unreadable. */
+  headSha: string | null;
   expiresAt: number;
 }
 
@@ -92,6 +97,36 @@ export async function getOpenAutoPrsForTheme(
       select: { prNumber: true, linkedTaskId: true, createdAt: true },
     });
     if (rows.length === 0) return rows;
+
+    // Exhausted (auto_merge_exhausted) + head-unchanged PRs stop contributing
+    // to scope-overlap/merge-barrier decisions — the watcher parked them and
+    // will only resume watching if the head moves (see auto-merge-exhaustion.ts).
+    // Lookup failures leave the map empty, which excludes nothing (fail-safe:
+    // keep candidates in the result rather than risk hiding a real overlap).
+    const linkedTaskIds = [
+      ...new Set(rows.map((r) => r.linkedTaskId).filter((id): id is number => id != null)),
+    ];
+    const exhaustedHeadByTask = new Map<number, string | null>();
+    if (linkedTaskIds.length > 0) {
+      try {
+        const transitions = await prisma.workflowTransition.findMany({
+          where: { taskId: { in: linkedTaskIds }, cause: EXHAUSTED_CAUSE },
+          orderBy: { createdAt: 'desc' },
+          select: { taskId: true, metadata: true },
+        });
+        for (const t of transitions) {
+          if (!exhaustedHeadByTask.has(t.taskId)) {
+            exhaustedHeadByTask.set(t.taskId, parseStoredHeadSha(t.metadata));
+          }
+        }
+      } catch (err) {
+        log.warn(
+          { err, themeId },
+          '[pr-files] exhausted-transition lookup failed — excluding none',
+        );
+      }
+    }
+
     const theme = await prisma.theme.findUnique({
       where: { id: themeId },
       select: { workingDirectory: true },
@@ -102,7 +137,14 @@ export async function getOpenAutoPrsForTheme(
     // DB synchronization is bounded and can miss old closed/merged PRs.
     // Unknown remote state retains the DB candidate; only confirmed terminal
     // PRs stop contributing to both merge barriers and scope-overlap holds.
-    return rows.filter((_, index) => !['CLOSED', 'MERGED'].includes(snapshots[index].state ?? ''));
+    return rows.filter((row, index) => {
+      const snap = snapshots[index];
+      if (['CLOSED', 'MERGED'].includes(snap.state ?? '')) return false;
+      const storedHead =
+        row.linkedTaskId != null ? exhaustedHeadByTask.get(row.linkedTaskId) : undefined;
+      if (storedHead != null && storedHead === snap.headSha) return false;
+      return true;
+    });
   } catch (err) {
     log.warn({ err, themeId }, '[pr-files] open auto-PR lookup failed — treating as none');
     return [];
@@ -140,15 +182,24 @@ async function getPrSnapshot(
 
   let files: string[] = [];
   let state: string | null = null;
+  let headSha: string | null = null;
   try {
-    const stdout = await deps.execGh(`${ghPath()} pr view ${prNumber} --json files,state`, cwd);
-    const parsed = JSON.parse(stdout) as { files?: Array<{ path?: string }>; state?: string };
+    const stdout = await deps.execGh(
+      `${ghPath()} pr view ${prNumber} --json files,state,headRefOid`,
+      cwd,
+    );
+    const parsed = JSON.parse(stdout) as {
+      files?: Array<{ path?: string }>;
+      state?: string;
+      headRefOid?: string;
+    };
     state = typeof parsed.state === 'string' ? parsed.state.toUpperCase() : null;
     files = (parsed.files ?? []).map((f) => (f.path ?? '').trim()).filter((p) => p.length > 0);
+    headSha = typeof parsed.headRefOid === 'string' ? parsed.headRefOid : null;
   } catch (err) {
     log.warn({ err, prNumber }, '[pr-files] gh pr view --json files failed — treating as empty');
   }
-  const entry = { files, state, expiresAt: now + PR_FILES_CACHE_TTL_MS };
+  const entry = { files, state, headSha, expiresAt: now + PR_FILES_CACHE_TTL_MS };
   cache.set(key, entry);
   return entry;
 }
