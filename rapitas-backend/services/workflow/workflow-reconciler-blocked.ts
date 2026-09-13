@@ -31,6 +31,7 @@ import {
   HUMAN_ADVANCED_WORKFLOW_STATUSES,
   resolveVerifyRepairLimit,
   VERIFY_NON_CONVERGENCE_CAUSE,
+  VERIFICATION_UNVERIFIABLE_HOLD_CAUSE,
 } from './blocked-task-policy';
 import { resolveBlockedTaskEvidence } from './blocked-task-evidence';
 import { resolveAutomationPolicy } from './automation-policy';
@@ -316,6 +317,18 @@ export async function escalateAbandonedBlocked(nowMs: number): Promise<number> {
       })
       .catch(() => 0);
 
+    // Mirror requeueBlockedTasks' unverifiable-hold skip (same window) so the
+    // escalation copy tells the human to restore verification, not to split.
+    const unverifiableHeldCount = await prisma.workflowTransition
+      .count({
+        where: {
+          taskId: t.id,
+          cause: VERIFICATION_UNVERIFIABLE_HOLD_CAUSE,
+          ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+        },
+      })
+      .catch(() => 0);
+
     const classification = classifyBlockedExclusion({
       workflowStatus: t.workflowStatus,
       ageMs: nowMs - t.updatedAt.getTime(),
@@ -323,6 +336,7 @@ export async function escalateAbandonedBlocked(nowMs: number): Promise<number> {
       verifyRepairLimit,
       attempts,
       nonConverged: nonConvergedCount > 0,
+      unverifiableHeld: unverifiableHeldCount > 0,
       prNotCreatedCount,
     });
     if (classification === 'retryable') continue; // requeueBlockedTasks owns it
