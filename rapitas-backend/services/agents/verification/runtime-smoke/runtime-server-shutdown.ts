@@ -36,7 +36,12 @@ export async function stopAllRuntimeServersForShutdown(
   reason = 'backend shutdown',
   timeoutMs = RUNTIME_SERVER_SHUTDOWN_TIMEOUT_MS,
 ): Promise<RuntimeServerShutdownResult> {
-  const entries = [...registry.values()].filter((entry) => entry.state !== 'quarantined');
+  // A quarantined entry whose earlier stop was unconfirmed may still hold the
+  // inherited handle, so it gets one more attempt; one with no identities has
+  // nothing to signal and would only add a guaranteed failure to the sweep.
+  const entries = [...registry.values()].filter(
+    (entry) => entry.state !== 'quarantined' || (entry.identities?.length ?? 0) > 0,
+  );
   if (entries.length === 0) return { attempted: 0, stopped: 0, timedOut: false };
   log.info({ count: entries.length, reason }, '[shutdown] stopping owned runtime servers');
   for (const entry of entries) cancelIdleTimer(entry);
