@@ -44,13 +44,15 @@ test('no entries → nothing attempted', async () => {
   });
 });
 
-test('active and starting entries are stopped, quarantined ones skipped, idle timers cancelled', async () => {
+test('active, starting and identified-quarantined entries are stopped; unidentified quarantine skipped; idle timers cancelled', async () => {
   const a = entry('a', 'active');
   const b = entry('b', 'starting');
   entry('q', 'quarantined');
+  const held = entry('held', 'quarantined');
+  held.identities = [{ pid: 4242, birth: '1', command: 'next dev' } as never];
   const result = await stopAllRuntimeServersForShutdown('backend restart');
-  expect(result).toEqual({ attempted: 2, stopped: 2, timedOut: false });
-  expect(stopCalls.map((c) => c.key).sort()).toEqual(['a', 'b']);
+  expect(result).toEqual({ attempted: 3, stopped: 3, timedOut: false });
+  expect(stopCalls.map((c) => c.key).sort()).toEqual(['a', 'b', 'held']);
   expect(stopCalls.every((c) => c.reason === 'backend restart')).toBe(true);
   expect(a.idleTimer).toBeUndefined();
   expect(b.idleTimer).toBeUndefined();
