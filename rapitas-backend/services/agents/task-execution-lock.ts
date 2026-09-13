@@ -13,6 +13,7 @@
 
 import { createLogger } from '../../config/logger';
 import { getWorkflowLockTtlMs } from './execution-timeouts';
+import { prisma } from '../../config/database';
 
 const log = createLogger('task-execution-lock');
 
@@ -20,8 +21,64 @@ const log = createLogger('task-execution-lock');
 const taskExecutionLocks = new Map<number, { lockedAt: Date; expiresAt: number; owner: symbol }>();
 const cancellationVersions = new Map<number, number>();
 
+/**
+ * taskIds a background DB hydration has already been kicked off for (task
+ * 881) — at most one `Task.executionGenerationId` read per taskId per
+ * process lifetime, not per call.
+ */
+const hydratedFromDb = new Set<number>();
+
+/**
+ * Read-through cache population (task 881): fires (once per taskId per
+ * process) a non-blocking read of the DB's durable `Task.executionGenerationId`
+ * and merges it into `cancellationVersions` by taking the MAX of the two —
+ * the DB is the source of truth across process restarts / multiple workers,
+ * but a same-process increment that already advanced the in-memory value
+ * (via {@link incrementTaskGenerationId}/{@link releaseTaskExecutionLock})
+ * must never be regressed by a DB read that simply hasn't caught up yet.
+ * Deliberately fire-and-forget: {@link getTaskExecutionCancellationVersion}'s
+ * signature stays synchronous (10+ call sites — see
+ * {@link incrementTaskGenerationId}'s doc for why), so the FIRST call after a
+ * fresh process still returns the in-memory value (0 for a never-touched
+ * taskId) while this hydration is in flight; subsequent calls reflect the
+ * DB-durable generation once it resolves (typically single-digit ms).
+ *
+ * @param taskId - Task whose generation to hydrate from the DB. / DBから世代を取り込む対象タスクID
+ */
+function hydrateGenerationFromDb(taskId: number): void {
+  if (hydratedFromDb.has(taskId)) return;
+  hydratedFromDb.add(taskId);
+  // Task.executionGenerationId is pending Prisma client regen — see the
+  // pending-column cast note on incrementTaskGenerationId below.
+  const taskModel = prisma.task as unknown as {
+    findUnique: (args: {
+      where: { id: number };
+      select: { executionGenerationId: true };
+    }) => Promise<{ executionGenerationId: number } | null>;
+  };
+  taskModel
+    .findUnique({ where: { id: taskId }, select: { executionGenerationId: true } })
+    .then((row) => {
+      if (!row) return;
+      const current = cancellationVersions.get(taskId) ?? 0;
+      if (row.executionGenerationId > current) {
+        cancellationVersions.set(taskId, row.executionGenerationId);
+      }
+    })
+    .catch((err) => {
+      log.warn(
+        { err, taskId },
+        '[TaskExecutionLock] Failed to hydrate execution generation from DB',
+      );
+      // Allow a retry on a future call — a transient DB blip must not
+      // permanently strand this taskId on the in-memory-only value.
+      hydratedFromDb.delete(taskId);
+    });
+}
+
 /** Survives normal lease release so deferred next-phase callbacks can observe a stop. */
 export function getTaskExecutionCancellationVersion(taskId: number): number {
+  hydrateGenerationFromDb(taskId);
   return cancellationVersions.get(taskId) ?? 0;
 }
 
@@ -97,4 +154,49 @@ export function isTaskExecutionLocked(taskId: number): boolean {
     return false;
   }
   return true;
+}
+
+/**
+ * Atomically increment `Task.executionGenerationId` (task 881) — the durable,
+ * cross-process source of truth for "which run of this task is current".
+ * `cancellationVersions` above stays the in-process signal deferred
+ * same-process continuations already check (its sync getter cannot read the
+ * DB without becoming async, which would ripple through 10+ call sites — see
+ * plan.md §実行世代ID(generation id)の設計); this function only ADDS the
+ * durable DB counter alongside it, incrementing both so a caller reading
+ * either sees the new generation. Callers that need cross-process/restart
+ * safety (e.g. stale-recovery-helpers.ts) read Task.executionGenerationId
+ * directly instead of the in-process map.
+ *
+ * @param taskId - Task whose generation just ended (e.g. a user stop). / 対象タスクID
+ * @returns The new generation value, or null on a DB failure (fail-open — the caller must not block on this). / 新しい世代値
+ */
+export async function incrementTaskGenerationId(taskId: number): Promise<number | null> {
+  try {
+    // Task.executionGenerationId was just added to prisma/schema/core.prisma —
+    // the generated client is pending regen until the next server restart
+    // (CLAUDE.md forbids running `prisma generate` manually). Narrow cast on
+    // the model only, same pending-column pattern as stale-recovery-helpers.ts.
+    const taskModel = prisma.task as unknown as {
+      update: (args: {
+        where: { id: number };
+        data: { executionGenerationId: { increment: number } };
+        select: { executionGenerationId: true };
+      }) => Promise<{ executionGenerationId: number }>;
+    };
+    const updated = await taskModel.update({
+      where: { id: taskId },
+      data: { executionGenerationId: { increment: 1 } },
+      select: { executionGenerationId: true },
+    });
+    // Mirror the DB's atomic result exactly rather than blindly "local + 1" —
+    // the in-memory cache may be behind the DB (e.g. hydration hasn't landed
+    // yet), and re-deriving from a stale local value would desync the two.
+    const current = getTaskExecutionCancellationVersion(taskId);
+    cancellationVersions.set(taskId, Math.max(current, updated.executionGenerationId));
+    return updated.executionGenerationId;
+  } catch (err) {
+    log.warn({ err, taskId }, '[TaskExecutionLock] Failed to increment execution generation id');
+    return null;
+  }
 }

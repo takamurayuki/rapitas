@@ -73,6 +73,27 @@ export async function selectAndEnqueueNextTask(
   });
   skipIds.push(...blockedTasks.map((t) => t.id));
 
+  // Skip tasks halted by the iteration budget (task 881) — they carry a
+  // haltReason but are NOT necessarily 'blocked' (a halt is an automatic
+  // budget decision, distinct from the blocked-task lifecycle), so they need
+  // their own skip query. No resume-condition evaluation here (out of this
+  // task's scope — see plan.md §実行世代ID…呼び出し箇所): re-selection stays
+  // excluded until a future task clears haltReason on manual resume.
+  // Task.haltReason was just added to prisma/schema/core.prisma — the
+  // generated client is pending regen until the next server restart (CLAUDE.md
+  // forbids running `prisma generate` manually). Narrow cast on the model only.
+  const taskModelWithHalt = prisma.task as unknown as {
+    findMany: (args: {
+      where: { themeId: number; haltReason: { not: null } };
+      select: { id: true };
+    }) => Promise<Array<{ id: number }>>;
+  };
+  const haltedTasks = await taskModelWithHalt.findMany({
+    where: { themeId, haltReason: { not: null } },
+    select: { id: true },
+  });
+  skipIds.push(...haltedTasks.map((t) => t.id));
+
   // Self-deploy at the TASK BOUNDARY (event-driven). We reach here only between
   // tasks — the prior one finished and the next is not yet selected — so it is a
   // reliable 0-agent moment. The tick poll and the all_done branch both MISSED

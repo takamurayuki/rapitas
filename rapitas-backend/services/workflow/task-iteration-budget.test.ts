@@ -1,0 +1,120 @@
+/**
+ * task-iteration-budget テスト
+ *
+ * resolveIterationBudgetState（純粋関数）の単体テスト。各予算軸の単独超過・
+ * 優先順位・除外ガード・forgiveness budget超過だが進展ありケースを検証する。
+ */
+import { describe, test, expect } from 'bun:test';
+import { resolveIterationBudgetState, type IterationBudgetInput } from './task-iteration-budget';
+
+const BASE_NOW_MS = 1_700_000_000_000;
+
+function baseInput(overrides: Partial<IterationBudgetInput> = {}): IterationBudgetInput {
+  return {
+    nowMs: BASE_NOW_MS,
+    windowStartMs: BASE_NOW_MS - 60_000, // 1分前 — 各予算の既定閾値には全く届かない
+    spentUsd: 0,
+    attemptsInWindow: 0,
+    repeatLoop: null,
+    statusRepeatCount: 0,
+    ...overrides,
+  };
+}
+
+describe('resolveIterationBudgetState', () => {
+  test('全軸が予算内なら停止しない', () => {
+    const result = resolveIterationBudgetState(baseInput());
+    expect(result).toEqual({ shouldHalt: false });
+  });
+
+  test('時間予算超過(24時間既定)で budget_time_exceeded', () => {
+    const result = resolveIterationBudgetState(
+      baseInput({ windowStartMs: BASE_NOW_MS - 25 * 60 * 60 * 1000 }),
+    );
+    expect(result.shouldHalt).toBe(true);
+    expect(result.haltReason).toBe('budget_time_exceeded');
+  });
+
+  test('費用予算超過(既定$25)で budget_cost_exceeded', () => {
+    const result = resolveIterationBudgetState(baseInput({ spentUsd: 30 }));
+    expect(result.shouldHalt).toBe(true);
+    expect(result.haltReason).toBe('budget_cost_exceeded');
+  });
+
+  test('試行回数予算超過(既定8件)で budget_attempts_exceeded', () => {
+    const result = resolveIterationBudgetState(baseInput({ attemptsInWindow: 9 }));
+    expect(result.shouldHalt).toBe(true);
+    expect(result.haltReason).toBe('budget_attempts_exceeded');
+  });
+
+  test('同一原因反復検出 + 進展なし条件①③成立で repeat_cause_detected', () => {
+    const result = resolveIterationBudgetState(
+      baseInput({
+        repeatLoop: { cause: 'verify_repair', count: 4 },
+        statusRepeatCount: 2,
+        attemptsInWindow: 3,
+      }),
+    );
+    expect(result.shouldHalt).toBe(true);
+    expect(result.haltReason).toBe('repeat_cause_detected');
+    expect(result.resumeCondition?.requiresNewHypothesis).toBe(true);
+  });
+
+  test('forgiveness budget超過だが進展あり(条件③未成立)のケースは停止しない', () => {
+    const result = resolveIterationBudgetState(
+      baseInput({
+        repeatLoop: { cause: 'verify_repair', count: 4 },
+        statusRepeatCount: 2,
+        attemptsInWindow: 1, // no-progress条件③(既定3件)未満 = 正常な修復サイクル中
+      }),
+    );
+    expect(result.shouldHalt).toBe(false);
+  });
+
+  test('反復シグネチャなしで条件①③成立時は no_progress', () => {
+    const result = resolveIterationBudgetState(
+      baseInput({ repeatLoop: null, statusRepeatCount: 2, attemptsInWindow: 3 }),
+    );
+    expect(result.shouldHalt).toBe(true);
+    expect(result.haltReason).toBe('no_progress');
+  });
+
+  test('複数軸同時超過時は time > cost > attempts > repeat_cause > no_progress の優先順位', () => {
+    const result = resolveIterationBudgetState(
+      baseInput({
+        windowStartMs: BASE_NOW_MS - 25 * 60 * 60 * 1000,
+        spentUsd: 30,
+        attemptsInWindow: 9,
+        repeatLoop: { cause: 'verify_repair', count: 4 },
+        statusRepeatCount: 2,
+      }),
+    );
+    expect(result.haltReason).toBe('budget_time_exceeded');
+  });
+
+  test('isWorkflowManaged=false は他軸の超過に関わらず停止しない', () => {
+    const result = resolveIterationBudgetState(
+      baseInput({
+        isWorkflowManaged: false,
+        windowStartMs: BASE_NOW_MS - 25 * 60 * 60 * 1000,
+        spentUsd: 999,
+        attemptsInWindow: 999,
+      }),
+    );
+    expect(result.shouldHalt).toBe(false);
+  });
+
+  test('manuallyWithdrawn=true は他軸の超過に関わらず停止しない', () => {
+    const result = resolveIterationBudgetState(
+      baseInput({ manuallyWithdrawn: true, spentUsd: 999, attemptsInWindow: 999 }),
+    );
+    expect(result.shouldHalt).toBe(false);
+  });
+
+  test('themeAutoRunEnabled=false は他軸の超過に関わらず停止しない', () => {
+    const result = resolveIterationBudgetState(
+      baseInput({ themeAutoRunEnabled: false, spentUsd: 999, attemptsInWindow: 999 }),
+    );
+    expect(result.shouldHalt).toBe(false);
+  });
+});
