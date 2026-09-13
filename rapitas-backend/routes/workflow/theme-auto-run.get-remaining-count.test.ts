@@ -94,11 +94,15 @@ function countMatching(where: TaskCountWhere): number {
   }).length;
 }
 
+let workflowDisabledGlobally = false;
 const db = {
   theme: { findUnique: async () => ({ id: 1, isDevelopment: true, workingDirectory: '/test' }) },
   task: {
     findUnique: async () => null,
     count: mock(async (args: { where: TaskCountWhere }) => countMatching(args.where)),
+  },
+  userSettings: {
+    findFirst: mock(async () => ({ workflowDisabledGlobally })),
   },
 };
 mock.module('../../config', () => ({ prisma: db }));
@@ -125,6 +129,8 @@ const { themeAutoRunRoutes } = await import('./theme-auto-run');
 
 beforeEach(() => {
   db.task.count.mockClear();
+  db.userSettings.findFirst.mockClear();
+  workflowDisabledGlobally = false;
 });
 
 const request = () =>
@@ -158,4 +164,12 @@ test('remainingCount query scopes to the requested theme only', async () => {
   await request();
   const where = db.task.count.mock.calls[0]?.[0]?.where as TaskCountWhere;
   expect(where.themeId).toBe(1);
+});
+
+test('remainingCount is 0 when auto-run is disabled globally, without querying tasks', async () => {
+  workflowDisabledGlobally = true;
+  const response = await request();
+  const body = (await response.json()) as { remainingCount: number };
+  expect(body.remainingCount).toBe(0);
+  expect(db.task.count).not.toHaveBeenCalled();
 });

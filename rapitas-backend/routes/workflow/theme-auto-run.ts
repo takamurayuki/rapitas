@@ -46,19 +46,34 @@ export const themeAutoRunRoutes = new Elysia()
         });
       }
 
-      // Count remaining eligible tasks for this theme
-      const remainingCount = await prisma.task.count({
-        where: {
-          themeId,
-          status: { in: ['todo', 'in-progress'] },
-          OR: [
-            { workflowStatus: null },
-            { workflowStatus: { notIn: ['completed', 'verify_done', 'awaiting_question'] } },
-          ],
-          workflowDisabled: false,
-          parentId: null,
-        },
-      });
+      // The global off-switch (services/workflow/auto-run/auto-run-selection.ts)
+      // stops selectNextTask from ever dispatching another task, so a nonzero
+      // remainingCount here would misrepresent "actually runnable" work as
+      // present. Read-fail-open (same pattern as selectNextTask): a settings
+      // lookup error must not zero out an otherwise-correct count.
+      const globalSwitch = await prisma.userSettings
+        .findFirst({ select: { workflowDisabledGlobally: true } })
+        .catch(() => null);
+
+      // Count remaining eligible tasks for this theme. Mirrors selectNextTask's
+      // per-task eligibility (workflowStatus null/not-terminal, not
+      // awaiting_question, not workflowDisabled, top-level only) so the
+      // displayed count does not diverge from what the scheduler can actually
+      // pick up next.
+      const remainingCount = globalSwitch?.workflowDisabledGlobally
+        ? 0
+        : await prisma.task.count({
+            where: {
+              themeId,
+              status: { in: ['todo', 'in-progress'] },
+              OR: [
+                { workflowStatus: null },
+                { workflowStatus: { notIn: ['completed', 'verify_done', 'awaiting_question'] } },
+              ],
+              workflowDisabled: false,
+              parentId: null,
+            },
+          });
 
       return {
         success: true,
