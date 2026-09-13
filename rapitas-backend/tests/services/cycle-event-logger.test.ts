@@ -55,10 +55,17 @@ describe('cycle-event-logger', () => {
     logCycleEvent('task.enqueued', { theme: 1, task: 42, msg: 'next task' });
     logCycleEvent('task.completed', { theme: 1, task: 42, ok: true });
 
-    // WriteStream opens the fd and flushes asynchronously; let the event loop run.
-    await new Promise((r) => setTimeout(r, 50));
-
-    const lines = readFileSync(getCycleLogFilePath(todayStamp()), 'utf-8').trim().split('\n');
+    // NOTE: WriteStream flushes asynchronously; a fixed 50ms sleep raced the flush under
+    // suite-wide CPU load, so poll until both lines land (bounded) before asserting.
+    const logPath = getCycleLogFilePath(todayStamp());
+    const readLines = () =>
+      existsSync(logPath) ? readFileSync(logPath, 'utf-8').trim().split('\n').filter(Boolean) : [];
+    const deadline = Date.now() + 2_000;
+    let lines = readLines();
+    while (lines.length < 2 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 20));
+      lines = readLines();
+    }
     expect(lines.length).toBe(2);
 
     const first = JSON.parse(lines[0]);

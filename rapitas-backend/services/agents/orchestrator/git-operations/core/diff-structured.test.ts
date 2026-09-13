@@ -103,11 +103,11 @@ describe('getDiff — untracked files (real git repo)', () => {
     writeFileSync(join(repoDir, 'README.md'), 'initial\n');
     execSync('git add README.md', { cwd: repoDir });
     execSync('git commit -q -m "initial"', { cwd: repoDir });
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
   afterEach(() => {
     rmSync(repoDir, { recursive: true, force: true });
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
   // Regression (task 504): a genuinely new, substantial untracked file was
   // reported as additions=0/deletions=0 with an empty patch — indistinguishable
@@ -182,11 +182,11 @@ describe('getDiff — preferredBaseBranch overrides the develop/main/master gues
     writeFileSync(join(repoDir, 'task-change.txt'), 'the actual task change\n');
     run('git add task-change.txt');
     run('git commit -q -m "task change"');
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
   afterEach(() => {
     rmSync(repoDir, { recursive: true, force: true });
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
   test('without preferredBaseBranch, the develop guess pulls in unrelated pre-existing commits', async () => {
     const result = await getDiff(repoDir);
@@ -260,11 +260,11 @@ describe('getDiff — origin AHEAD of local (task 516: previously-merged commits
     writeFileSync(join(repoDir, 'task-change.txt'), 'the actual task change\n');
     run('git add task-change.txt');
     run('git commit -q -m "task change"');
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
   afterEach(() => {
     rmSync(repoDir, { recursive: true, force: true });
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
   test('resolves to the origin tip, excluding already-merged PRs from the diff', async () => {
     const result = await getDiff(repoDir, undefined, 'develop');
