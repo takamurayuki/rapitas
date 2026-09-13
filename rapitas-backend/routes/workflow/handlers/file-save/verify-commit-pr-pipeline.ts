@@ -1,3 +1,4 @@
+import { writeBlockedTask } from '../../../../services/workflow/blocked-task-write';
 import type { CompletionReviewReceipt } from '../../../../services/workflow/requirement-replan-commit';
 /**
  * FileSave Verify Commit/PR Pipeline
@@ -86,7 +87,7 @@ export async function runVerifyCommitPrPipeline(params: {
   // history, rebuild the worktree and retry ONCE. performAutoCommitAndPR
   // re-reads the latest session's worktreePath, which the recovery updates.
   let gateRecoveryBlocked: 'recovery_already_used' | 'patch_apply_conflict' | null = null;
-  if (autoCommitPRResult.verificationBlocked) {
+  if (autoCommitPRResult.verificationBlocked && !autoCommitPRResult.verificationUnverifiable) {
     const { tryRecoverFromHistoryContamination } =
       await import('../../../../services/workflow/worktree-rebuild-recovery');
     const gateWorktreeSession = await prisma.agentSession
@@ -128,6 +129,16 @@ export async function runVerifyCommitPrPipeline(params: {
   const merge = autoCommitPRResult.autoMergeResult;
 
   if (autoCommitPRResult.verificationBlocked) {
+    if (autoCommitPRResult.verificationUnverifiable) {
+      // The gate already persisted the blocked task and original evidence.
+      // No rebuild, repair budget, receipt refresh or completion is justified
+      // when the verification infrastructure could not establish correctness.
+      log.warn(
+        { taskId, reason: autoCommitPRResult.error },
+        '[Workflow] Verification unavailable; retaining blocked task and worktree',
+      );
+      return { newStatus, taskMarkedDone: false, autoCommitPRResult };
+    }
     // The automated gate (lint/typecheck/test/scope) found problems, so
     // commit/PR were withheld. Bounce to the implementer for self-repair
     // (bounded by RAPITAS_MAX_VERIFY_REPAIRS) rather than dead-ending at
@@ -183,9 +194,7 @@ export async function runVerifyCommitPrPipeline(params: {
       // actionable (blocked) and surface why, so "完了" always implies a PR.
       const reason =
         pr?.error || commit?.error || autoCommitPRResult.error || 'PRが作成されませんでした';
-      await prisma.task
-        .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
-        .catch(() => {});
+      await writeBlockedTask(prisma, taskId).catch(() => {});
       await markLatestExecutionFailed(
         taskId,
         `検証は通過しましたがPRが作成されませんでした: ${reason}。完了にはPR作成が必要です。まだ自動リカバリの再試行回数に余裕があれば、数分以内にPR再作成のみを行う軽量な自動リトライが1回行われます — 緊急でなければ、今すぐの手動リトライは控えて自動リトライの結果を待ってください。`,
