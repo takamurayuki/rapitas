@@ -151,9 +151,14 @@ let removeWorktreeCalls = 0;
 mock.module('../../services/github/git-exec', () => ({
   runGitCommand: () => Promise.resolve(revListFixture),
 }));
+let baseSyncFixture = {
+  status: 'skipped',
+  changedFiles: 0,
+  conflicts: [] as string[],
+  detail: 'no worktree',
+};
 mock.module('../../services/workflow/pre-pr-base-sync', () => ({
-  syncBaseIntoBranch: () =>
-    Promise.resolve({ status: 'skipped', changedFiles: 0, conflicts: [], detail: 'no worktree' }),
+  syncBaseIntoBranch: () => Promise.resolve({ ...baseSyncFixture }),
 }));
 
 // Pre-gate harness sync (2026-09-13): recorded so a test can prove it runs
@@ -175,7 +180,14 @@ let preSaveFixture = {
   summary: 'tamper=n/a / secret=ok / scope=n/a',
   secrets: [] as string[],
 };
+// HEAD as seen by readHeadRevision: a queue lets a test make the second read
+// (after the base sync) differ from the first (what the gate verified).
+let headQueue: Array<string | null> = [];
+const HEAD_A = 'a'.repeat(40);
+const HEAD_B = 'b'.repeat(40);
 mock.module('./workflow-auto-commit-presave', () => ({
+  readHeadRevision: () =>
+    Promise.resolve(headQueue.length > 1 ? headQueue.shift()! : (headQueue[0] ?? HEAD_A)),
   runPreSaveChecks: () => {
     callOrder.push('presave');
     return Promise.resolve({
@@ -183,7 +195,8 @@ mock.module('./workflow-auto-commit-presave', () => ({
       changedFiles: [],
       tamper: null,
       scope: null,
-      record: { ...preSaveFixture },
+      unattributed: [],
+      record: { ...preSaveFixture, unattributed: [] },
     });
   },
   saveTaskWorkLocally: async (p: {
@@ -434,6 +447,67 @@ test('a hard pre-save failure (tamper/secret) records nothing and publishes noth
   expect(outcome.preSaveResult?.secrets).toEqual(['.env']);
   expect(createCommitCalls).toBe(before);
   expect(createPullRequestCalls).toBe(0);
+});
+
+describe('publish guard: the pushed revision is the verified revision', () => {
+  test('a clean sync that moved HEAD re-runs the gate; PR follows only when it passes', async () => {
+    cancelAtStep = null;
+    filesChangedFixture = 1;
+    revListFixture = '1';
+    createPullRequestCalls = 0;
+    prResultFixture = { success: true, error: '', prNumber: 701 };
+    baseSyncFixture = { status: 'clean', changedFiles: 3, conflicts: [], detail: 'merged' };
+    headQueue = [HEAD_A, HEAD_B, HEAD_B];
+    verificationGateMock.mockClear();
+    const out = await performAutoCommitAndPR(687, 'PASS');
+    expect(verificationGateMock).toHaveBeenCalledTimes(2);
+    expect(out.verifiedRevision).toBe(HEAD_B);
+    expect(out.publishedRevision).toBe(HEAD_B);
+    expect(createPullRequestCalls).toBe(1);
+    expect(out.autoPRResult?.success).toBe(true);
+    baseSyncFixture = { status: 'skipped', changedFiles: 0, conflicts: [], detail: 'no worktree' };
+    headQueue = [];
+  });
+
+  test('re-verification failure after the sync keeps the commit and withholds the PR', async () => {
+    cancelAtStep = null;
+    filesChangedFixture = 1;
+    createPullRequestCalls = 0;
+    baseSyncFixture = { status: 'clean', changedFiles: 2, conflicts: [], detail: 'merged' };
+    headQueue = [HEAD_A, HEAD_B, HEAD_B];
+    verificationGateMock.mockClear();
+    verificationGateMock.mockResolvedValueOnce({ ok: true, result: null });
+    verificationGateMock.mockResolvedValueOnce({
+      ok: false,
+      result: { ok: false, summary: 'test=NG(1)', checks: [], changedFiles: [] },
+    });
+    const out = await performAutoCommitAndPR(687, 'PASS');
+    expect(verificationGateMock).toHaveBeenCalledTimes(2);
+    expect(out.verificationBlocked).toBe(true);
+    expect(out.error).toContain('再検証に失敗');
+    expect(out.autoCommitResult?.hash).toBe('abc123');
+    expect(createPullRequestCalls).toBe(0);
+    baseSyncFixture = { status: 'skipped', changedFiles: 0, conflicts: [], detail: 'no worktree' };
+    headQueue = [];
+  });
+
+  test('HEAD that drifted without a recorded sync is never pushed', async () => {
+    cancelAtStep = null;
+    filesChangedFixture = 1;
+    createPullRequestCalls = 0;
+    headQueue = [HEAD_A, HEAD_B, HEAD_B];
+    verificationGateMock.mockClear();
+    const out = await performAutoCommitAndPR(687, 'PASS');
+    // The guard treats a moved HEAD as new code: re-gate, then publish HEAD_B.
+    expect(verificationGateMock).toHaveBeenCalledTimes(2);
+    expect(out.publishedRevision).toBe(HEAD_B);
+    headQueue = [HEAD_A, null, null];
+    createPullRequestCalls = 0;
+    const held = await performAutoCommitAndPR(687, 'PASS');
+    expect(held.error).toContain('検証済みの版と HEAD が一致しない');
+    expect(createPullRequestCalls).toBe(0);
+    headQueue = [];
+  });
 });
 
 test('order: pre-save → local commit → harness sync → gate; a held gate never publishes', async () => {

@@ -21,19 +21,33 @@ mock.module('../../services/agents/verification/verification-gate', () => ({
   loadPlanContent: () => Promise.resolve(planFixture),
 }));
 let taskFixture: Record<string, unknown> | null = { title: 't', description: '', goals: null };
+// Session window for attribution: default = one session in this worktree that
+// started well before the fixture files were written.
+let sessionsFixture: Array<{ createdAt: Date; startedAt: Date | null; worktreePath: string }> = [];
 mock.module('../../config', () => ({
-  prisma: { task: { findUnique: () => Promise.resolve(taskFixture) } },
+  prisma: {
+    task: { findUnique: () => Promise.resolve(taskFixture) },
+    agentSession: { findMany: () => Promise.resolve(sessionsFixture) },
+  },
   getProjectRoot: () => 'C:\\x',
+}));
+let headFixture = 'c'.repeat(40);
+mock.module('../../services/github/git-exec', () => ({
+  runGitCommand: () => Promise.resolve(`${headFixture}\n`),
 }));
 mock.module('../../config/logger', () => ({
   createLogger: () => ({ info() {}, warn() {}, error() {}, debug() {} }),
 }));
 
-const { runPreSaveChecks, saveTaskWorkLocally } = await import('./workflow-auto-commit-presave');
+const { runPreSaveChecks, saveTaskWorkLocally, attributeWorkingTree, readHeadRevision } =
+  await import('./workflow-auto-commit-presave');
 
 let dir = '';
 beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), 'presave-'));
+  sessionsFixture = [
+    { createdAt: new Date(Date.now() - 3_600_000), startedAt: null, worktreePath: dir },
+  ];
   mkdirSync(join(dir, 'src'), { recursive: true });
   writeFileSync(join(dir, 'src', 'a.ts'), 'export const a = 1;\n');
   writeFileSync(
@@ -45,12 +59,55 @@ beforeAll(() => {
 });
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-test('clean tree with no plan: tamper n/a, secret ok, scope n/a → ok', async () => {
+test('clean tree with no plan: tamper n/a, secret ok, attribution ok, scope n/a → ok', async () => {
   changedFixture = ['src/a.ts'];
   planFixture = null;
   const r = await runPreSaveChecks({ taskId: 1, gitCwd: dir, preferredBaseBranch: 'develop' });
   expect(r.ok).toBe(true);
-  expect(r.summary).toBe('tamper=n/a / secret=ok / scope=n/a');
+  expect(r.summary).toBe('tamper=n/a / secret=ok / attribution=ok / scope=n/a');
+});
+
+test('a changed file older than the first session in this worktree is unattributable → hold', async () => {
+  const { utimesSync } = await import('node:fs');
+  const old = new Date(Date.now() - 2 * 24 * 3_600_000);
+  utimesSync(join(dir, 'src', 'a.ts'), old, old);
+  try {
+    changedFixture = ['src/a.ts'];
+    planFixture = null;
+    const r = await runPreSaveChecks({ taskId: 1, gitCwd: dir, preferredBaseBranch: 'develop' });
+    expect(r.ok).toBe(false);
+    expect(r.unattributed).toEqual(['src/a.ts']);
+    expect(r.summary).toContain('attribution=NG(1)');
+  } finally {
+    const now = new Date();
+    utimesSync(join(dir, 'src', 'a.ts'), now, now);
+  }
+});
+
+test('no session for this worktree → attribution unknown → hold (diff kept)', async () => {
+  const saved = sessionsFixture;
+  sessionsFixture = [{ createdAt: new Date(), startedAt: null, worktreePath: 'C:/elsewhere' }];
+  try {
+    changedFixture = ['src/a.ts'];
+    const verdict = await attributeWorkingTree({
+      taskId: 1,
+      gitCwd: dir,
+      changedFiles: ['src/a.ts'],
+    });
+    expect(verdict).toEqual({ ok: false, unattributed: ['src/a.ts'], windowStart: null });
+    const r = await runPreSaveChecks({ taskId: 1, gitCwd: dir, preferredBaseBranch: 'develop' });
+    expect(r.ok).toBe(false);
+    expect(r.summary).toContain('attribution=unknown');
+  } finally {
+    sessionsFixture = saved;
+  }
+});
+
+test('readHeadRevision returns a full SHA or null', async () => {
+  expect(await readHeadRevision(dir)).toBe('c'.repeat(40));
+  headFixture = 'not-a-sha';
+  expect(await readHeadRevision(dir)).toBeNull();
+  headFixture = 'c'.repeat(40);
 });
 
 test('protected path outside the plan is a hard failure (no save)', async () => {

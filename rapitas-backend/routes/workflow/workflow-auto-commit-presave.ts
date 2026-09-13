@@ -24,8 +24,68 @@ import {
   protectedTestPathsFromSpec,
 } from '../../services/agents/verification/verification-gate';
 import { parseSpecArray } from '../../utils/common/spec-array';
+import { runGitCommand } from '../../services/github/git-exec';
 
 const log = createLogger('routes:workflow:auto-commit:presave');
+
+/** Grace for clock skew between the DB session stamp and file mtimes. */
+const ATTRIBUTION_GRACE_MS = 60_000;
+
+/**
+ * Current HEAD of the worktree, or null when git cannot answer.
+ *
+ * @param gitCwd - Worktree / 対象 worktree
+ * @returns Full SHA or null / HEAD の SHA
+ */
+export async function readHeadRevision(gitCwd: string): Promise<string | null> {
+  const out = await runGitCommand(['rev-parse', 'HEAD'], gitCwd, { skipLog: true }).catch(() => '');
+  const sha = out.trim();
+  return /^[0-9a-f]{40}$/i.test(sha) ? sha : null;
+}
+
+const normPath = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+
+/**
+ * Attribute the working-tree changes to this task's own sessions in this
+ * worktree: a changed file whose mtime predates the first such session cannot
+ * have been produced by the task, and a worktree with no session window
+ * cannot be attributed at all. Both hold the save (diff kept, nothing staged).
+ *
+ * @param p - Task, worktree and the changed paths / 対象
+ * @returns Attribution verdict with the unattributable paths / 判定
+ */
+export async function attributeWorkingTree(p: {
+  taskId: number;
+  gitCwd: string;
+  changedFiles: string[];
+}): Promise<{ ok: boolean; unattributed: string[]; windowStart: Date | null }> {
+  const sessions = await prisma.agentSession
+    .findMany({
+      where: { config: { taskId: p.taskId }, worktreePath: { not: null } },
+      orderBy: { createdAt: 'asc' },
+      select: { createdAt: true, startedAt: true, worktreePath: true },
+    })
+    .catch(() => []);
+  const own = sessions.filter(
+    (s) => s.worktreePath && normPath(s.worktreePath) === normPath(p.gitCwd),
+  );
+  const first = own[0];
+  if (!first) return { ok: false, unattributed: [...p.changedFiles], windowStart: null };
+  const windowStart =
+    first.startedAt && first.startedAt < first.createdAt ? first.startedAt : first.createdAt;
+  const floor = windowStart.getTime() - ATTRIBUTION_GRACE_MS;
+  const unattributed: string[] = [];
+  for (const rel of p.changedFiles) {
+    try {
+      const info = await stat(join(p.gitCwd, rel));
+      if (info.mtimeMs < floor) unattributed.push(rel);
+    } catch {
+      // Deleted paths leave no mtime; the deletion itself is part of the diff
+      // the checks above already evaluated.
+    }
+  }
+  return { ok: unattributed.length === 0, unattributed, windowStart };
+}
 
 /** File names that must never be bulk-staged from an agent worktree. */
 const SECRET_PATH_RE =
@@ -49,8 +109,16 @@ export interface PreSaveCheckResult {
   scope: VerificationCheck | null;
   /** Paths that look like secret material (blocking). */
   secrets: string[];
+  /** Paths that cannot be attributed to this task's sessions (blocking). */
+  unattributed: string[];
   /** Compact shape persisted on the auto-commit result. */
-  record: { ok: boolean; summary: string; secrets: string[]; scopeDetails?: string };
+  record: {
+    ok: boolean;
+    summary: string;
+    secrets: string[];
+    unattributed: string[];
+    scopeDetails?: string;
+  };
 }
 
 async function scanForSecrets(gitCwd: string, files: string[]): Promise<string[]> {
@@ -114,16 +182,29 @@ export async function runPreSaveChecks(p: {
     allow.length ? [...(planFiles ?? []), ...allow] : planFiles,
   );
   const scope = planFiles ? evaluateScopeCheck(changedFiles, planFiles) : null;
+  // Name/token screen only — a floor against bulk-staging credentials, not a
+  // complete secret detector (no entropy analysis, no history scan).
   const secrets = await scanForSecrets(p.gitCwd, changedFiles);
-  const ok = (tamper === null || tamper.ok) && secrets.length === 0;
+  const attribution =
+    changedFiles.length === 0
+      ? { ok: true, unattributed: [] as string[], windowStart: null }
+      : await attributeWorkingTree({ taskId: p.taskId, gitCwd: p.gitCwd, changedFiles });
+  const ok = (tamper === null || tamper.ok) && secrets.length === 0 && attribution.ok;
+  const attributionLabel = attribution.ok
+    ? 'ok'
+    : attribution.windowStart
+      ? `NG(${attribution.unattributed.length})`
+      : 'unknown';
   const summary = [
     `tamper=${tamper === null ? 'n/a' : tamper.ok ? 'ok' : `NG(${tamper.errorCount})`}`,
     `secret=${secrets.length === 0 ? 'ok' : `NG(${secrets.length})`}`,
+    `attribution=${attributionLabel}`,
     `scope=${scope === null ? 'n/a' : scope.ok ? 'ok' : `NG(${scope.errorCount})`}`,
   ].join(' / ');
+  const unattributed = attribution.unattributed;
   if (!ok) {
     log.warn(
-      { taskId: p.taskId, summary, secrets, tamper: tamper?.details },
+      { taskId: p.taskId, summary, secrets, unattributed, tamper: tamper?.details },
       '[presave] refusing to record the working tree — hard pre-save check failed',
     );
   } else if (scope && !scope.ok) {
@@ -132,8 +213,8 @@ export async function runPreSaveChecks(p: {
       '[presave] advisory scope deviation recorded',
     );
   }
-  const record = { ok, summary, secrets, scopeDetails: scope?.details };
-  return { ok, summary, changedFiles, tamper, scope, secrets, record };
+  const record = { ok, summary, secrets, unattributed, scopeDetails: scope?.details };
+  return { ok, summary, changedFiles, tamper, scope, secrets, unattributed, record };
 }
 
 /** Result of the local save. Mirrors AutoCommitPRResult.autoCommitResult. */
