@@ -49,6 +49,9 @@ const mockPrisma = {
   agentExecution: {
     findMany: mock(() => Promise.resolve([])),
   },
+  requirementReviewRetryRequest: {
+    create: mock(() => Promise.resolve({ id: 1 })),
+  },
   $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };
 
@@ -641,6 +644,9 @@ describe('POST /tasks/:id/retry', () => {
     // chains .catch() on these, so they must resolve (undefined.catch throws).
     mockPrisma.activityLog.create.mockResolvedValue({ id: 1 });
     mockPrisma.notification.updateMany.mockResolvedValue({ count: 0 });
+    // NOTE: The route always derives a retry request id (Idempotency-Key or a UUID) and
+    // records it before mutating, so the retry-request model must be part of the mock.
+    mockPrisma.requirementReviewRetryRequest.create.mockResolvedValue({ id: 1 });
     app = createApp();
   });
 
@@ -674,6 +680,27 @@ describe('POST /tasks/:id/retry', () => {
     expect(notifArg.where.type).toBe('auto_run_task_skipped');
     expect(notifArg.where.metadata.contains).toContain('auto_run_task_skipped:5');
     expect(notifArg.data.isRead).toBe(true);
+  });
+
+  test('同じ Idempotency-Key の再送では状態を再更新しないこと', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({ id: 5, status: 'blocked' });
+    mockPrisma.requirementReviewRetryRequest.create.mockRejectedValue({ code: 'P2002' });
+
+    const res = await app.handle(
+      new Request('http://localhost/tasks/5/retry', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': 'retry-abc' },
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-retry-request-id')).toBe('retry-abc');
+    const createArg = mockPrisma.requirementReviewRetryRequest.create.mock.calls[0]![0] as {
+      data: { taskId: number; requestId: string };
+    };
+    expect(createArg.data).toEqual({ taskId: 5, requestId: 'retry-abc' });
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    expect(mockPrisma.notification.updateMany).not.toHaveBeenCalled();
   });
 
   test('blocked / failed 以外は 400 を返すこと', async () => {
