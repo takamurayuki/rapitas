@@ -167,6 +167,40 @@ mock.module('../../services/workflow/harness-drift-sync', () => ({
   syncHarnessIfDrifted: harnessSyncMock,
 }));
 
+// Pre-save stage (2026-09-13): hard tamper/secret screen + advisory scope on
+// the tree about to be recorded, then the LOCAL commit. The save delegates to
+// the orchestrator mock above so createCommitCalls keeps counting.
+let preSaveFixture = {
+  ok: true,
+  summary: 'tamper=n/a / secret=ok / scope=n/a',
+  secrets: [] as string[],
+};
+mock.module('./workflow-auto-commit-presave', () => ({
+  runPreSaveChecks: () => {
+    callOrder.push('presave');
+    return Promise.resolve({
+      ...preSaveFixture,
+      changedFiles: [],
+      tamper: null,
+      scope: null,
+      record: { ...preSaveFixture },
+    });
+  },
+  saveTaskWorkLocally: async (p: {
+    orchestrator: { createCommit: (cwd: string, msg: string, base: string) => Promise<unknown> };
+    gitCwd: string;
+    message: string;
+    targetBranch: string;
+  }) => {
+    callOrder.push('commit');
+    const c = (await p.orchestrator.createCommit(p.gitCwd, p.message, p.targetBranch)) as Record<
+      string,
+      unknown
+    >;
+    return { success: true, ...c };
+  },
+}));
+
 const { performAutoCommitAndPR } = await import('./workflow-auto-commit');
 
 describe('performAutoCommitAndPR — Auto-PR失敗時のログ出力', () => {
@@ -303,11 +337,11 @@ describe('performAutoCommitAndPR — 停止後は後続の公開処理を一切�
     expect(removeWorktreeCalls).toBe(0);
   });
 
-  test('検証ゲート通過後に停止されたら commit 以降を行わない', async () => {
+  test('検証ゲート通過後に停止されたら push/PR 以降を行わない (ローカル保存は済んでいる)', async () => {
     arm('after_verification_gate');
     const result = await performAutoCommitAndPR(895, '# 検証結果');
     expect(result.error).toBe(CANCELLED);
-    expect(createCommitCalls).toBe(0);
+    expect(createCommitCalls).toBe(1);
     expect(createPullRequestCalls).toBe(0);
     expect(removeWorktreeCalls).toBe(0);
   });
@@ -349,8 +383,8 @@ describe('performAutoCommitAndPR — 停止後は後続の公開処理を一切�
     expect(removeWorktreeCalls).toBe(0);
     expect(publicationAbortedCalls).toEqual([
       'entry',
-      'after_verification_gate',
       'before_commit',
+      'after_verification_gate',
       'before_pr',
       'before_worktree_cleanup',
     ]);
@@ -358,9 +392,10 @@ describe('performAutoCommitAndPR — 停止後は後続の公開処理を一切�
   });
 });
 
-test('unverifiable gate exposes the infrastructure outcome without committing', async () => {
+test('unverifiable gate keeps the local commit and exposes the infrastructure outcome without publishing', async () => {
   cancelAtStep = null;
   const before = createCommitCalls;
+  createPullRequestCalls = 0;
   verificationGateMock.mockResolvedValueOnce({
     ok: false,
     result: {
@@ -375,10 +410,33 @@ test('unverifiable gate exposes the infrastructure outcome without committing', 
   expect(outcome.verificationBlocked).toBe(true);
   expect(outcome.verificationUnverifiable).toBe(true);
   expect(outcome.error).toContain('runtime quarantined');
-  expect(createCommitCalls).toBe(before);
+  expect(createCommitCalls).toBe(before + 1);
+  expect(outcome.autoCommitResult?.hash).toBe('abc123');
+  expect(createPullRequestCalls).toBe(0);
 });
 
-test('harness drift sync runs before the verification gate and cannot pass it alone', async () => {
+test('a hard pre-save failure (tamper/secret) records nothing and publishes nothing', async () => {
+  cancelAtStep = null;
+  callOrder.length = 0;
+  const before = createCommitCalls;
+  createPullRequestCalls = 0;
+  preSaveFixture = {
+    ok: false,
+    summary: 'tamper=ok / secret=NG(1) / scope=n/a',
+    secrets: ['.env'],
+  };
+  const outcome = await performAutoCommitAndPR(687, 'PASS');
+  preSaveFixture = { ok: true, summary: 'tamper=n/a / secret=ok / scope=n/a', secrets: [] };
+  expect(callOrder).toEqual(['presave']);
+  expect(outcome.verificationBlocked).toBe(true);
+  expect(outcome.verificationUnverifiable).toBe(false);
+  expect(outcome.error).toContain('secret=NG(1)');
+  expect(outcome.preSaveResult?.secrets).toEqual(['.env']);
+  expect(createCommitCalls).toBe(before);
+  expect(createPullRequestCalls).toBe(0);
+});
+
+test('order: pre-save → local commit → harness sync → gate; a held gate never publishes', async () => {
   cancelAtStep = null;
   callOrder.length = 0;
   harnessSyncMock.mockImplementationOnce(() => {
@@ -403,10 +461,12 @@ test('harness drift sync runs before the verification gate and cannot pass it al
     });
   });
   const before = createCommitCalls;
+  createPullRequestCalls = 0;
   const outcome = await performAutoCommitAndPR(687, 'PASS');
-  expect(callOrder).toEqual(['harness-sync', 'gate']);
+  expect(callOrder).toEqual(['presave', 'commit', 'harness-sync', 'gate']);
   expect(outcome.harnessSyncResult?.sync.status).toBe('conflict_unresolved');
   expect(outcome.verificationBlocked).toBe(true);
   expect(outcome.verificationUnverifiable).toBe(true);
-  expect(createCommitCalls).toBe(before);
+  expect(createCommitCalls).toBe(before + 1);
+  expect(createPullRequestCalls).toBe(0);
 });

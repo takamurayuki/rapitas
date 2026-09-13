@@ -28,6 +28,7 @@ import {
   type HarnessDriftSyncResult,
 } from '../../services/workflow/harness-drift-sync';
 import { countCommitsAhead, isNoChangeCompletion } from './workflow-auto-commit-classify';
+import { runPreSaveChecks, saveTaskWorkLocally } from './workflow-auto-commit-presave';
 import {
   PUBLICATION_CANCELLED_ERROR,
   publicationAborted,
@@ -63,6 +64,11 @@ export type AutoCommitPRResult = {
    * independent of the error blob for the same reason as baseSyncResult.
    */
   harnessSyncResult?: HarnessDriftSyncResult;
+  /**
+   * Pre-save stage (2026-09-13): tamper/secret screen (hard) and plan-scope
+   * (advisory) evaluated on the tree BEFORE it is recorded as a local commit.
+   */
+  preSaveResult?: { ok: boolean; summary: string; secrets: string[]; scopeDetails?: string };
   autoMergeResult?: {
     success: boolean;
     mergeStrategy?: string;
@@ -182,13 +188,56 @@ export async function performAutoCommitAndPR(
       );
     }
 
-    // Harness drift remediation (2026-09-13, tasks 901/905): a branch cut
-    // before the runtime-verification harness cannot run the runtime check,
-    // and the gate rightly holds it as UNVERIFIED. Bring origin/<base> into
-    // the branch first (same base sync as the pre-PR step, with its conflict
-    // resolution and lint/typecheck re-verification) so the gate below can
-    // verify for real. Never a pass by itself: a skipped/failed sync leaves
-    // the gate to hold.
+    // Ordering (2026-09-13): pre-save checks → local save on the task branch →
+    // base sync → gate on the synced code → push/PR only after the gate passes.
+    // The merge needs a clean tree; a failed gate keeps commit + diagnosis.
+    const preSave = await runPreSaveChecks({ taskId, gitCwd, preferredBaseBranch: targetBranch });
+    result.preSaveResult = preSave.record;
+    if (!preSave.ok) {
+      log.error({ taskId, summary: preSave.summary }, '[Workflow] Pre-save check failed');
+      return {
+        ...result,
+        verificationBlocked: true,
+        verificationUnverifiable: false,
+        error: `自動検証に失敗しました（${preSave.summary}）。ローカル保存前チェックで停止し、コミット/PR を行っていません。`,
+      };
+    }
+
+    const orchestrator = AgentOrchestrator.getInstance(prisma);
+    if (autoCommit) {
+      // Boundary 2/5 — the last point before this run writes to git (locally).
+      if (await publicationAborted(taskId, 'before_commit'))
+        return { ...result, error: PUBLICATION_CANCELLED_ERROR };
+      const saved = await saveTaskWorkLocally({
+        orchestrator,
+        gitCwd,
+        branchName,
+        message: `feat(task-${taskId}): ${task.title}`,
+        targetBranch,
+      });
+      result.autoCommitResult = saved;
+      if (!saved.success) {
+        log.error(
+          { taskId, error: saved.error },
+          `[Workflow] Local save failed for task ${taskId}`,
+        );
+        return { ...result, error: `ローカル保存に失敗しました: ${saved.error}` };
+      }
+      log.info(`[Workflow] Local save recorded for task ${taskId}: ${saved.hash}`);
+      await logAutoCommit(
+        taskId,
+        saved.hash ?? '',
+        saved.branch ?? '',
+        saved.filesChanged ?? 0,
+        saved.additions ?? 0,
+        saved.deletions ?? 0,
+        saved.alreadyCommitted ?? false,
+      );
+    }
+
+    // Harness drift remediation (2026-09-13, tasks 901/905): a branch cut before
+    // the runtime harness holds as UNVERIFIED; merge origin/<base> in (the tree
+    // is committed now, so the merge can land). Never a pass by itself.
     const harnessSync = await syncHarnessIfDrifted({
       taskId,
       gitCwd,
@@ -205,63 +254,24 @@ export async function performAutoCommitAndPR(
     // BOTH auto-PR paths are protected (closes the verify.md-triggered gap).
     const gate = await runVerificationGate(taskId, gitCwd, latestSession?.id);
     if (!gate.ok) {
+      // The local commit above is kept on the task branch together with this
+      // diagnosis; nothing is pushed or published.
       log.error(
-        { taskId, summary: gate.result?.summary },
-        '[Workflow] Automated verification failed — aborting auto-commit/PR',
+        { taskId, summary: gate.result?.summary, savedCommit: result.autoCommitResult?.hash },
+        '[Workflow] Automated verification failed — holding the local commit, no push/PR',
       );
       return {
         ...result,
         verificationBlocked: true,
         verificationUnverifiable: gate.result?.unverifiable === true || gate.result === null,
-        error: `自動検証に失敗しました（${gate.result?.summary ?? 'lint/型エラー'}）。auto-commit/PR を中止し、タスクをブロックしました。`,
+        error: `自動検証に失敗しました（${gate.result?.summary ?? 'lint/型エラー'}）。ローカルコミットは保持し、push/PR を中止してタスクをブロックしました。`,
       };
     }
 
-    // Boundary 2/5 — the verification gate above runs lint/type/tests and can
-    // take minutes; a stop during it must not fall through into git.
+    // Boundary 3/5 — the verification gate above runs lint/type/tests and can
+    // take minutes; a stop during it must not fall through into push/PR.
     if (await publicationAborted(taskId, 'after_verification_gate'))
       return { ...result, error: PUBLICATION_CANCELLED_ERROR };
-
-    const orchestrator = AgentOrchestrator.getInstance(prisma);
-
-    // Process autoCommit
-    if (autoCommit) {
-      // Boundary 3/5 — the last point before this run writes to git.
-      if (await publicationAborted(taskId, 'before_commit'))
-        return { ...result, error: PUBLICATION_CANCELLED_ERROR };
-      try {
-        if (branchName) {
-          await orchestrator.createBranch(gitCwd, branchName);
-        }
-        const commitResult = await orchestrator.createCommit(
-          gitCwd,
-          `feat(task-${taskId}): ${task.title}`,
-          targetBranch,
-        );
-        result.autoCommitResult = {
-          success: true,
-          hash: commitResult.hash,
-          branch: commitResult.branch,
-          filesChanged: commitResult.filesChanged,
-        };
-        log.info(`[Workflow] Auto-commit successful for task ${taskId}: ${commitResult.hash}`);
-        await logAutoCommit(
-          taskId,
-          commitResult.hash,
-          commitResult.branch,
-          commitResult.filesChanged,
-          commitResult.additions,
-          commitResult.deletions,
-          commitResult.alreadyCommitted,
-        );
-      } catch (commitError) {
-        log.error({ err: commitError }, `[Workflow] Auto-commit failed for task ${taskId}`);
-        result.autoCommitResult = {
-          success: false,
-          error: commitError instanceof Error ? commitError.message : String(commitError),
-        };
-      }
-    }
 
     // Pre-PR base sync (task 573 A): pull origin/<base> into the task branch
     // BEFORE the PR exists, so drift conflicts are found and resolved while the

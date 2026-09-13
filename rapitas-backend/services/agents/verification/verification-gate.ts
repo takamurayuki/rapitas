@@ -34,7 +34,7 @@ const log = createLogger('agents:verification-gate');
  * @param taskId - Task whose plan to load / 対象タスク
  * @returns plan.md content or null / plan.md の内容
  */
-async function loadPlanContent(taskId: number): Promise<string | null> {
+export async function loadPlanContent(taskId: number): Promise<string | null> {
   try {
     return (await readWorkflowFile(taskId, 'plan')) || null;
   } catch {
