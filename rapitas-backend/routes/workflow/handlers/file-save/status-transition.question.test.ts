@@ -7,6 +7,7 @@ let readError = false;
 let userCause: string | null = null;
 let historyError = false;
 let race: (() => void) | undefined;
+let capturedUpdateManyData: Record<string, unknown> | undefined;
 const recordTransition = mock(async (_args: unknown) => {});
 const updateMany = mock(
   async ({
@@ -17,6 +18,7 @@ const updateMany = mock(
     data: { workflowStatus: string };
   }) => {
     race?.();
+    capturedUpdateManyData = data;
     if (
       where.status !== status ||
       where.workflowStatus !== workflowStatus ||
@@ -35,6 +37,7 @@ beforeEach(() => {
   userCause = null;
   historyError = false;
   race = undefined;
+  capturedUpdateManyData = undefined;
   updateMany.mockClear();
   recordTransition.mockClear();
 });
@@ -132,6 +135,14 @@ test('normal question uses fresh previous status and records one transition', as
       fromStatus: 'in_progress',
       metadata: expect.objectContaining({ previousStatus: 'in_progress' }),
     }),
+  );
+});
+test('question save never writes task.status — a running CLI is not terminated by a question alone', async () => {
+  await save();
+  expect(capturedUpdateManyData).toBeDefined();
+  expect(Object.keys(capturedUpdateManyData as Record<string, unknown>)).not.toContain('status');
+  expect(Object.keys(capturedUpdateManyData as Record<string, unknown>)).toEqual(
+    expect.arrayContaining(['workflowStatus', 'updatedAt']),
   );
 });
 for (const terminal of [
