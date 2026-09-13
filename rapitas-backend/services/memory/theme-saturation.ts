@@ -75,8 +75,13 @@ export async function findNearDuplicate(
   threshold: number,
 ): Promise<number | null> {
   if (title.trim().length < 6) return null;
-  const where: { sourceType: string; sourceId?: string } = { sourceType: opts.sourceType };
-  if (opts.openConcernOnly) where.sourceId = 'open';
+  const where: { sourceType: string; sourceId?: string; forgettingStage?: string } = {
+    sourceType: opts.sourceType,
+  };
+  if (opts.openConcernOnly) {
+    where.sourceId = 'open';
+    where.forgettingStage = 'active'; // Match the visible/actionable concern backlog.
+  }
   const rows = await prisma.knowledgeEntry
     .findMany({ where, select: { id: true, title: true }, take: 600 })
     .catch(() => [] as { id: number; title: string }[]);
@@ -96,6 +101,16 @@ export interface SaturationOptions {
   salient: number;
   /** When true, restrict the pool to OPEN concerns (sourceId='open'). */
   openConcernOnly?: boolean;
+  /**
+   * When set, a candidate must ALSO reach this bigram-Jaccard similarity
+   * against the whole title to count as same-theme, in addition to the LCS
+   * substring check. A single short shared token (e.g. a 5-char product name
+   * like "Codex") can satisfy `salient` while the titles are otherwise
+   * unrelated, absorbing a genuinely new concern into an unrelated anchor
+   * (#888, concern #7336). Unset/0 preserves the original LCS-only behaviour
+   * for existing callers (e.g. idea-box-service.ts).
+   */
+  minJaccard?: number;
 }
 
 /**
@@ -133,18 +148,24 @@ export async function findSaturatedTheme(
   title: string,
   opts: SaturationOptions,
 ): Promise<number | null> {
-  const { sourceType, cap, salient, openConcernOnly } = opts;
+  const { sourceType, cap, salient, openConcernOnly, minJaccard } = opts;
   const subject = stripTitleMarkers(title);
   if (subject.length < salient) return null;
-  const where: { sourceType: string; sourceId?: string } = { sourceType };
-  if (openConcernOnly) where.sourceId = 'open';
+  const where: { sourceType: string; sourceId?: string; forgettingStage?: string } = { sourceType };
+  if (openConcernOnly) {
+    where.sourceId = 'open';
+    where.forgettingStage = 'active'; // Archived rows must not swallow new reports.
+  }
   const rows = await prisma.knowledgeEntry
     .findMany({ where, select: { id: true, title: true }, take: 600 })
     .catch(() => [] as { id: number; title: string }[]);
   let matches = 0;
   let anchor: number | null = null;
   for (const e of rows) {
-    if (lcsLen(subject, stripTitleMarkers(e.title)) >= salient) {
+    const otherSubject = stripTitleMarkers(e.title);
+    const lcsOk = lcsLen(subject, otherSubject) >= salient;
+    const jaccardOk = !minJaccard || bigramJaccard(subject, otherSubject) >= minJaccard;
+    if (lcsOk && jaccardOk) {
       matches += 1;
       anchor = anchor ?? e.id;
       if (matches >= cap) return anchor;

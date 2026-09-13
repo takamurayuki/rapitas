@@ -108,7 +108,7 @@ describe('segmentPhases', () => {
     expect(result.phases.map((p) => p.phaseType)).toEqual(['research', 'implement', 'verify']);
   });
 
-  it('drops a stray plan execution when the task has no plan file (lightweight)', () => {
+  it('retains recorded planning logs after the plan file is archived', () => {
     const executions: RawPhaseExecution[] = [
       exec({ id: 1, phaseType: 'research' }),
       exec({ id: 2, phaseType: 'plan' }),
@@ -117,7 +117,33 @@ describe('segmentPhases', () => {
 
     const result = segmentPhases(executions, [], false);
 
-    expect(result.phases.find((p) => p.phaseType === 'plan')).toBeUndefined();
+    expect(result.workflowMode).toBe('standard');
+    expect(result.phases.find((p) => p.phaseType === 'plan')?.iterations[0].executionIds).toEqual([
+      2,
+    ]);
+  });
+
+  it('shows the running planner before it first saves plan.md', () => {
+    const result = segmentPhases(
+      [
+        exec({
+          id: 3820,
+          phaseType: 'plan',
+          status: 'running',
+          completedAt: null,
+          logLineCount: 12,
+        }),
+      ],
+      [],
+      false,
+    );
+    expect(result.phases).toHaveLength(1);
+    expect(result.phases[0].phaseType).toBe('plan');
+    expect(result.phases[0].iterations[0]).toMatchObject({
+      executionIds: [3820],
+      status: 'running',
+      logLineCount: 12,
+    });
   });
 
   it('increments the implement iteration once per verify_repair bounce', () => {
@@ -217,6 +243,76 @@ describe('segmentPhases', () => {
     ];
     const result = segmentPhases(executions, [], true);
     expect(result.phases[0].iterations[0].status).toBe('failed');
+  });
+
+  it.each(['failed', 'cancelled', 'error', 'running'])(
+    'reflects a successful retry after %s while retaining all execution logs',
+    (previousStatus) => {
+      const result = segmentPhases(
+        [
+          exec({ id: 1, phaseType: 'implement', status: previousStatus }),
+          exec({
+            id: 2,
+            phaseType: 'implement',
+            startedAt: '2026-08-30T00:02:00.000Z',
+            completedAt: '2026-08-30T00:03:00.000Z',
+          }),
+        ],
+        [],
+        true,
+      );
+      expect(result.phases[0].iterations[0]).toMatchObject({
+        status: 'completed',
+        executionIds: [1, 2],
+        logLineCount: 20,
+        completedAt: '2026-08-30T00:03:00.000Z',
+      });
+    },
+  );
+
+  it.each([
+    ['failed', 'failed'],
+    ['running', 'running'],
+    ['pending', 'running'],
+  ])('reflects the latest %s attempt after an earlier success', (status, expected) => {
+    const result = segmentPhases(
+      [
+        exec({ id: 1, phaseType: 'verify' }),
+        exec({
+          id: 2,
+          phaseType: 'verify',
+          status,
+          startedAt: '2026-08-30T00:02:00.000Z',
+          completedAt: null,
+        }),
+      ],
+      [],
+      true,
+    );
+    expect(result.phases[0].iterations[0].status).toBe(expected);
+  });
+
+  it('uses execution IDs to order retries with identical timestamps', () => {
+    const result = segmentPhases([exec({ id: 2 }), exec({ id: 1, status: 'failed' })], [], true);
+    expect(result.phases[0].iterations[0]).toMatchObject({
+      status: 'completed',
+      executionIds: [1, 2],
+    });
+  });
+
+  it('preserves a failed repair iteration when a later iteration succeeds', () => {
+    const result = segmentPhases(
+      [
+        exec({ id: 1, phaseType: 'verify', status: 'failed' }),
+        exec({ id: 2, phaseType: 'verify', startedAt: '2026-08-30T00:03:00.000Z' }),
+      ],
+      [transition({ cause: 'verify_repair', createdAt: '2026-08-30T00:02:00.000Z' })],
+      true,
+    );
+    expect(result.phases[0].iterations.map((iteration) => iteration.status)).toEqual([
+      'failed',
+      'completed',
+    ]);
   });
 
   it('omits phases with no executions yet', () => {

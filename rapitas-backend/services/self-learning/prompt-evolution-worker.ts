@@ -13,6 +13,10 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { sendAIMessage } from '../../utils/ai-client';
 import { readComparisonRecord } from './comparison/prompt-comparison-store';
+import {
+  validateAddendumQuality,
+  type AddendumQualityReason,
+} from './prompt-evolution-addendum-quality';
 
 const log = createLogger('self-learning:prompt-evolution-worker');
 
@@ -21,6 +25,62 @@ const PROPOSAL_BATCH = 3;
 
 /** Max addendum length injected into a role prompt (chars). */
 const MAX_ADDENDUM_CHARS = 1200;
+
+/**
+ * Quality-gate failures tolerated before a candidate is rejected outright.
+ * LLM sampling varies, so one malformed generation is retried on the next
+ * weekly run; an unbounded retry would pay LLM cost forever.
+ */
+const MAX_QUALITY_RETRIES = 2;
+
+/**
+ * Parse a row's evidenceJson into a mutable object. Unreadable evidence
+ * yields an empty object so the caller's stamps are never lost to a parse error.
+ *
+ * @param raw - Stored evidenceJson. / 保存済みの証跡JSON
+ * @returns Parsed object, or {} when unusable. / パース結果
+ */
+function parseEvidence(raw: string | null): Record<string, unknown> {
+  try {
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+    if (parsed && typeof parsed === 'object') return parsed as Record<string, unknown>;
+  } catch {
+    /* unreadable evidence — start fresh rather than dropping the stamp */
+  }
+  return {};
+}
+
+/**
+ * Record a quality-gate failure on a pending candidate: keep it `pending` for
+ * a retry, or reject it once the retry budget is spent.
+ *
+ * @param candidate - Row whose generated addendum failed the gate. / 不合格の候補行
+ * @param reason - Which degradation was detected. / 検出された劣化種別
+ */
+async function recordQualityFailure(
+  candidate: { id: number; evidenceJson: string | null },
+  reason: AddendumQualityReason,
+): Promise<void> {
+  const evidence = parseEvidence(candidate.evidenceJson);
+  const previous = typeof evidence.qualityRetries === 'number' ? evidence.qualityRetries : 0;
+  const attempts = previous + 1;
+  const exhausted = attempts > MAX_QUALITY_RETRIES;
+  await prisma.promptEvolution.update({
+    where: { id: candidate.id },
+    data: {
+      status: exhausted ? 'rejected' : 'pending',
+      evidenceJson: JSON.stringify({
+        ...evidence,
+        qualityRetries: attempts,
+        ...(exhausted ? { rejectionReason: reason } : {}),
+      }),
+    },
+  });
+  log.warn(
+    { id: candidate.id, reason, attempts, rejected: exhausted },
+    '[prompt-evolution] Addendum failed the quality gate',
+  );
+}
 
 /**
  * Summarize the role's recent gate rejections as evidence for the generator.
@@ -98,6 +158,15 @@ ${trouble || '(記録なし)'}
       const addendum = response.content.trim().slice(0, MAX_ADDENDUM_CHARS);
       if (!addendum) continue;
 
+      // A code fence, a list of questions, or a request for an instruction
+      // file cannot be followed by an agent — such a candidate must never
+      // reach 'proposed', where the auto-approval gate could pick it up.
+      const quality = validateAddendumQuality(addendum);
+      if (!quality.valid && quality.reason) {
+        await recordQualityFailure(candidate, quality.reason);
+        continue;
+      }
+
       await prisma.promptEvolution.update({
         where: { id: candidate.id },
         data: {
@@ -126,8 +195,9 @@ ${trouble || '(記録なし)'}
  * When the addendum's comparison record carries a non-null `stagedTaskIds`
  * (set via the `/stage` endpoint after a passing comparison), the addendum is
  * a LIMITED-APPLICATION candidate: it is only returned for tasks in that
- * list, so it can be measured on a handful of tasks before wider rollout. No
- * comparison record, or `stagedTaskIds: null`, falls back to the original
+ * list, so it can be measured on a handful of tasks before wider rollout. An
+ * omitted task id cannot establish membership, so staged addenda are withheld.
+ * No comparison record, or `stagedTaskIds: null`, falls back to the original
  * apply-to-every-task behavior.
  *
  * @param role - Workflow role name. / ロール名
@@ -149,10 +219,10 @@ export async function getApprovedRoleAddendum(
     const text = row?.afterPrompt?.trim();
     if (!text) return null;
 
-    if (row && taskId !== undefined) {
+    if (row) {
       const comparison = readComparisonRecord(row.id);
       const stagedTaskIds = comparison?.stagedTaskIds ?? null;
-      if (stagedTaskIds !== null && !stagedTaskIds.includes(taskId)) {
+      if (stagedTaskIds !== null && (taskId === undefined || !stagedTaskIds.includes(taskId))) {
         return null;
       }
     }
@@ -163,14 +233,7 @@ export async function getApprovedRoleAddendum(
 }
 
 function withApprovedAt(raw: string | null): string {
-  let evidence: Record<string, unknown> = {};
-  try {
-    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
-    if (parsed && typeof parsed === 'object') evidence = parsed as Record<string, unknown>;
-  } catch {
-    /* unreadable evidence — start a fresh object, keep the stamp */
-  }
-  return JSON.stringify({ ...evidence, approvedAt: new Date().toISOString() });
+  return JSON.stringify({ ...parseEvidence(raw), approvedAt: new Date().toISOString() });
 }
 
 /**

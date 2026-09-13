@@ -11,6 +11,7 @@
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import type { TaskWorkflowState } from '../task/task-resolver';
+import { getEventListeners } from 'node:events';
 
 process.env.RAPITAS_VERIFY_SETTLE_MS = '50';
 process.env.RAPITAS_VERIFY_SETTLE_CAP_MS = '50';
@@ -37,8 +38,10 @@ mock.module('./verify-self-repair', () => ({
 const recoverFromLandedArtifactMock = mock(
   (_taskId: number): Promise<boolean> => Promise.resolve(true),
 );
+const pendingMergeMock = mock(async () => false);
 mock.module('./verify-settle-artifact-recovery', () => ({
   recoverFromLandedArtifact: recoverFromLandedArtifactMock,
+  isAwaitingRequiredMerge: pendingMergeMock,
 }));
 
 const { waitForVerifyCompletion } = await import('./workflow-runner-verify-settle');
@@ -55,7 +58,30 @@ function state(overrides: Partial<TaskWorkflowState>): TaskWorkflowState {
 }
 
 describe('waitForVerifyCompletion — fresh-rejection guard on landed-artifact completion', () => {
+  test('releases abort listeners after ordinary merge polling completes', async () => {
+    resolveWorkflowStateSequence = [
+      state({}),
+      state({}),
+      state({ status: 'done', workflowStatus: 'completed' }),
+    ];
+    pendingMergeMock.mockResolvedValue(true);
+    const controller = new AbortController();
+    expect(await waitForVerifyCompletion(1, controller.signal)).toBe('completed');
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
+  }, 10000);
+  test('keeps a required merge pending beyond the verification grace period', async () => {
+    resolveWorkflowStateSequence = [
+      state({}),
+      state({}),
+      state({ status: 'done', workflowStatus: 'completed' }),
+    ];
+    pendingMergeMock.mockResolvedValue(true);
+    expect(await waitForVerifyCompletion(1, new AbortController().signal)).toBe('completed');
+    expect(pendingMergeMock).toHaveBeenCalled();
+    expect(recoverFromLandedArtifactMock).not.toHaveBeenCalled();
+  }, 10000);
   beforeEach(() => {
+    pendingMergeMock.mockReset().mockResolvedValue(false);
     resolveTaskWorkflowStateMock.mockClear();
     hasFreshVerifyRejectionMock.mockClear();
     recoverFromLandedArtifactMock.mockClear();

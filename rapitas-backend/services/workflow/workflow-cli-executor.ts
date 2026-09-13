@@ -9,12 +9,14 @@
  * workflow-cli-executor-* modules.
  */
 import { prisma } from '../../config';
+import { ExecutionCancelledError } from '../agents/execution-cancelled-error';
 import { AgentOrchestrator } from '../agents/agent-orchestrator';
 import { resolveTaskWithTheme } from '../task/task-resolver';
 import { getAgentTimeoutMs } from '../agents/execution-timeouts';
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 import { resolveExecutionWorkdir } from './workflow-cli-executor-worktree';
 import { buildCliAgentPrompt } from './workflow-cli-executor-prompt';
+import { readAgentsMdConstraints } from './workflow-agents-md-context';
 import { harvestInvestigationOutput, runPhaseEpilogue } from './workflow-cli-executor-epilogue';
 import { runPostProcessing } from './workflow-cli-executor-postprocess';
 import { resumeSessionIdFor } from './phase-session-resume';
@@ -24,6 +26,46 @@ import { resumeSessionIdFor } from './phase-session-resume';
 // of truth now lives in git-operations/worktree/worktree-usable so every execution entry
 // point (orchestrator, continue-execution route) shares the same check.
 export { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree/worktree-usable';
+
+/**
+ * Drive the AgentSession this phase created to a terminal status.
+ *
+ * NOTE: the session was created 'active' and nothing ever updated it, so every
+ * CLI-driven role left its session 'active' until the orphan sweep relabelled
+ * it 'interrupted'. That erased the population every outcome measurement reads
+ * (prompt-evolution, role evidence) — task 893. Best-effort by design: a
+ * bookkeeping write must never change the phase's own result.
+ *
+ * @param sessionId - Session opened for this phase. / このフェーズのセッションID
+ * @param success - Whether the phase succeeded. / フェーズが成功したか
+ */
+async function finalizeAgentSession(
+  sessionId: number,
+  success: boolean,
+  cancelled = false,
+): Promise<void> {
+  try {
+    await prisma.agentSession.updateMany({
+      where: {
+        id: sessionId,
+        status: { in: ['active', 'running'] },
+        ...(cancelled
+          ? {}
+          : {
+              agentExecutions: {
+                none: { status: { in: ['canceling', 'cancelling', 'cancelled', 'canceled'] } },
+              },
+            }),
+      },
+      data: {
+        status: cancelled ? 'cancelled' : success ? 'completed' : 'failed',
+        lastActivityAt: new Date(),
+      },
+    });
+  } catch {
+    /* session bookkeeping is never worth failing (or delaying) the phase for */
+  }
+}
 
 /**
  * Execute a CLI agent (claude-code, codex, gemini) via AgentOrchestrator.
@@ -54,6 +96,7 @@ export async function executeCLIAgent(
   language: 'ja' | 'en',
   advanceWorkflow: (taskId: number, language: 'ja' | 'en') => Promise<WorkflowAdvanceResult>,
   getOrCreateDevConfig: (taskId: number) => Promise<{ id: number }>,
+  assertOwnership?: () => void,
 ): Promise<WorkflowAdvanceResult> {
   const orchestrator = AgentOrchestrator.getInstance(prisma);
 
@@ -70,8 +113,13 @@ export async function executeCLIAgent(
   });
   if (workdir.abort) return workdir.abort;
   const { resolvedWorktreePath, resolvedBranchName, effectiveWorkDir } = workdir;
+  // Target repository's OWN AGENTS.md — never rapitas' own (task 892 premise
+  // #4: fixing rapitas-specific rules onto other themes previously caused a
+  // false-investigation incident, task580 in workflow-cli-executor-worktree.ts).
+  const agentsMd = readAgentsMdConstraints(effectiveWorkDir);
 
   const devConfig = await getOrCreateDevConfig(taskId);
+  assertOwnership?.();
   const session = await prisma.agentSession.create({
     data: {
       configId: devConfig.id,
@@ -91,94 +139,124 @@ export async function executeCLIAgent(
   // safe pattern: codex CANNOT save the md itself, the OS guarantees it.
   const isInvestigationPhase = transition.role === 'researcher' || transition.role === 'planner';
 
-  const fullPrompt = buildCliAgentPrompt({ taskId, language, systemPrompt, context, transition });
+  const fullPrompt = buildCliAgentPrompt({
+    taskId,
+    language,
+    systemPrompt,
+    context,
+    transition,
+    agentsMd,
+  });
 
   // For the harvest guard below: a critic rejection recorded AFTER this point
   // means the artifact this phase produced was already judged and bounced.
   const phaseStartedAt = new Date();
 
-  const result = await orchestrator.executeTask(
-    {
-      id: taskId,
-      title: `[${transition.role}] ${task.title}`,
-      description: fullPrompt,
-      workingDirectory: effectiveWorkDir,
-    },
-    {
+  // Everything past this point is wrapped so the session reaches a terminal
+  // status on the success path, the failure path, AND when the epilogue /
+  // post-processing throws. `finally` performs a side effect only — it never
+  // returns or throws, so the original result/exception propagates unchanged.
+  let sessionSucceeded = false;
+  let sessionCancelled = false;
+  try {
+    const resumeSessionId = await resumeSessionIdFor(
       taskId,
-      sessionId: session.id,
-      agentConfigId: agentConfig.id,
-      workingDirectory: effectiveWorkDir,
-      modelIdOverride: agentConfig.modelId || undefined,
-      // Repair bounce: continue the CLI session this role already built.
-      resumeSessionId: await resumeSessionIdFor(
+      transition.role,
+      effectiveWorkDir,
+      agentConfig.agentType,
+    );
+    assertOwnership?.();
+    const result = await orchestrator.executeTask(
+      {
+        id: taskId,
+        title: `[${transition.role}] ${task.title}`,
+        description: fullPrompt,
+        workingDirectory: effectiveWorkDir,
+      },
+      {
         taskId,
-        transition.role,
-        effectiveWorkDir,
-        agentConfig.agentType,
-      ),
-      // Role-aware wall-clock cap: implementer gets 2x the base (task 546).
-      timeout: getAgentTimeoutMs(transition.role),
-      autoCompleteTask: false,
-      investigationMode: isInvestigationPhase,
-      // Phase-specific output type. Drives codex's positional headline
-      // (`# 調査レポート` vs `# 実装計画` vs `# レビュー指摘`) so each
-      // role's CLI invocation produces an artifact in the correct shape.
-      // Without this, planner phases were force-shaped as research reports
-      // and the validator flagged plan.md for missing 設計判断の根拠 /
-      // 実装チェックリスト sections.
-      investigationOutputType:
-        transition.outputFile === 'plan'
-          ? 'plan'
-          : transition.outputFile === 'verify'
-            ? 'verify'
-            : 'research',
-      // For investigation phases, codex writes its final message to a TEMP
-      // file via -o. We read that temp file after the run and upload it to
-      // the workflow API ourselves — codex never gets to touch the
-      // workflow file path directly. (outputLastMessageFile is currently
-      // always unused — no CLI path sets a temp file — but the option is
-      // kept wired for when one does.)
-      outputLastMessageFile: undefined,
-    },
-  );
+        sessionId: session.id,
+        assertExecutionAllowed: assertOwnership,
+        agentConfigId: agentConfig.id,
+        workingDirectory: effectiveWorkDir,
+        modelIdOverride: agentConfig.modelId || undefined,
+        // Repair bounce: continue the CLI session this role already built.
+        resumeSessionId,
+        // Role-aware wall-clock cap: implementer gets 2x the base (task 546).
+        timeout: getAgentTimeoutMs(transition.role),
+        autoCompleteTask: false,
+        // Verifiers need shell access for checks and workflow artifact saves.
+        // Their no-code result policy is selected by the output type below.
+        investigationMode: isInvestigationPhase,
+        // Phase-specific output type. Drives codex's positional headline
+        // (`# 調査レポート` vs `# 実装計画` vs `# レビュー指摘`) so each
+        // role's CLI invocation produces an artifact in the correct shape.
+        // Without this, planner phases were force-shaped as research reports
+        // and the validator flagged plan.md for missing 設計判断の根拠 /
+        // 実装チェックリスト sections.
+        investigationOutputType:
+          transition.outputFile === 'plan'
+            ? 'plan'
+            : transition.outputFile === 'verify'
+              ? 'verify'
+              : 'research',
+        // For investigation phases, codex writes its final message to a TEMP
+        // file via -o. We read that temp file after the run and upload it to
+        // the workflow API ourselves — codex never gets to touch the
+        // workflow file path directly. (outputLastMessageFile is currently
+        // always unused — no CLI path sets a temp file — but the option is
+        // kept wired for when one does.)
+        outputLastMessageFile: undefined,
+      },
+    );
 
-  await harvestInvestigationOutput({
-    taskId,
-    transition,
-    result,
-    isInvestigationPhase,
-    phaseStartedAt,
-  });
+    assertOwnership?.();
+    await harvestInvestigationOutput({
+      taskId,
+      transition,
+      result,
+      isInvestigationPhase,
+      phaseStartedAt,
+    });
 
-  const { effectiveSuccess, phaseStatus, phaseError } = await runPhaseEpilogue({
-    taskId,
-    transition,
-    session,
-    result,
-    resolvedWorktreePath,
-    language,
-    phaseStartedAt,
-  });
+    assertOwnership?.();
+    const { effectiveSuccess, phaseStatus, phaseError, superseded } = await runPhaseEpilogue({
+      taskId,
+      transition,
+      session,
+      result,
+      resolvedWorktreePath,
+      language,
+      phaseStartedAt,
+    });
 
-  const finalResult: WorkflowAdvanceResult = {
-    success: effectiveSuccess,
-    role: transition.role,
-    status: phaseStatus,
-    output: result.output,
-    error: effectiveSuccess ? undefined : phaseError,
-  };
+    sessionSucceeded = effectiveSuccess;
+    const finalResult: WorkflowAdvanceResult = {
+      success: effectiveSuccess,
+      ...(superseded ? { superseded: true } : {}),
+      role: transition.role,
+      status: phaseStatus,
+      output: result.output,
+      error: effectiveSuccess ? undefined : phaseError,
+    };
 
-  await runPostProcessing({
-    taskId,
-    transition,
-    session,
-    language,
-    effectiveSuccess,
-    phaseStatus,
-    isInvestigationPhase,
-    advanceWorkflow,
-  });
+    assertOwnership?.();
+    await runPostProcessing({
+      taskId,
+      transition,
+      session,
+      language,
+      effectiveSuccess,
+      phaseStatus,
+      isInvestigationPhase,
+      advanceWorkflow,
+    });
 
-  return finalResult;
+    return finalResult;
+  } catch (error) {
+    sessionCancelled = error instanceof ExecutionCancelledError;
+    throw error;
+  } finally {
+    await finalizeAgentSession(session.id, sessionSucceeded, sessionCancelled);
+  }
 }

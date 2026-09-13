@@ -15,11 +15,12 @@ import { realtimeService } from '../../communication/realtime-service';
 import { hasPromotableBacklog, promoteBacklogForTheme } from './backlog-task-promoter';
 import { logCycleEvent } from '../../observability';
 import { getThemeActiveQueueItems, hasItemAwaitingApproval } from './auto-run-selection';
-import { recordTransition } from '../transition-recorder';
+import { eligibleTopLevelTodoWhere } from './auto-run-eligibility';
 import {
   resumeAutoRun,
   finalizeStop,
   startAutoRun,
+  isAutoResumablePauseStatus,
   type ThemeAutoRunState,
 } from './theme-auto-run-service';
 import {
@@ -47,7 +48,10 @@ export async function processStoppingThemesImpl(
 ): Promise<void> {
   for (const state of stopping) {
     try {
-      await stopThemeExecutionImpl(prisma, state.themeId, state.currentTaskId);
+      // Stopping execution is not authorization to discard shared workspace edits.
+      await stopThemeExecutionImpl(prisma, state.themeId, state.currentTaskId, {
+        preserveChanges: true,
+      });
       await finalizeStop(state.themeId);
       broadcastAutoRunUpdateImpl(state.themeId);
       log.info(`[ThemeAutoRunScheduler] Theme ${state.themeId} stopped`);
@@ -93,13 +97,15 @@ async function processArmedIdleTheme(
   idleStopMinutes: number,
   now: Date,
 ): Promise<boolean> {
-  // Mirror selectNextTask's eligibility (parentId:null — the scheduler only
-  // drives TOP-LEVEL tasks; subtasks are run by AIOrchestra). Counting
-  // subtasks here let a stuck todo SUBTASK resume the theme, which then went
-  // straight back to all_done because selection skips it — a 12s idle⇄running
-  // flap that never made progress.
+  // Mirror selectNextTask's eligibility via eligibleTopLevelTodoWhere
+  // (parentId:null — the scheduler only drives TOP-LEVEL tasks; subtasks are
+  // run by AIOrchestra — plus workflowDisabled/awaiting_question exclusion).
+  // Counting a task selectNextTask would refuse (subtask, workflowDisabled,
+  // or awaiting_question) resumes the theme, which then goes straight back to
+  // idle/all_done because selection skips it — a 12s idle⇄running flap that
+  // never made progress (task 635, task 884).
   const todo = await prisma.task
-    .count({ where: { themeId: state.themeId, status: 'todo', parentId: null } })
+    .count({ where: eligibleTopLevelTodoWhere(state.themeId) })
     .catch(() => 0);
 
   if (!state.idleSince) {
@@ -185,15 +191,11 @@ async function processStoppedIdleTheme(
 ): Promise<void> {
   if (!state.idleStoppedAt) return; // user stop → stay stopped
 
+  // Same reason as processArmedIdleTheme (task 884): count only tasks
+  // selectNextTask would also accept, or a re-arm here just bounces straight
+  // back to idle once the auto-run loop rejects the same task.
   const manualTodo = await prisma.task
-    .count({
-      where: {
-        themeId: state.themeId,
-        status: 'todo',
-        parentId: null,
-        autoCreatedFromBacklog: false,
-      },
-    })
+    .count({ where: eligibleTopLevelTodoWhere(state.themeId, { autoCreatedFromBacklog: false }) })
     .catch(() => 0);
   if (manualTodo > 0) {
     await resumeIdleTheme(state.themeId, 'manual_task_rearm', manualTodo);
@@ -262,9 +264,12 @@ export async function processIdleThemesImpl(
 
 /**
  * For paused themes, check whether approval was granted and auto-resume.
+ * Only themes paused for approval (status='paused_approval') are eligible —
+ * an explicit user pause or the reason-unknown legacy pause must never be
+ * silently overridden by this polling safety net (task 883).
  *
  * @param prisma - Prisma client / Prismaクライアント
- * @param paused - Themes currently in 'paused' status / 一時停止中テーマ一覧
+ * @param paused - Themes currently in a paused status / 一時停止中テーマ一覧
  */
 export async function processPausedThemesImpl(
   prisma: PrismaClient,
@@ -272,6 +277,7 @@ export async function processPausedThemesImpl(
 ): Promise<void> {
   for (const state of paused) {
     if (!state.currentTaskId) continue;
+    if (!isAutoResumablePauseStatus(state.status)) continue;
     try {
       // If the queue item is no longer 'waiting_approval' (e.g. user approved in UI)
       // AND the ThemeAutoRun was not already resumed by onPlanApproved(), resume now.
@@ -304,20 +310,15 @@ export async function processPausedThemesImpl(
  * @param prisma - Prisma client / Prismaクライアント
  * @param themeId - Theme to stop / 停止するテーマID
  * @param currentTaskId - Currently tracked task ID / 現在のタスクID
- * @param options.recordRevertTransition - Record an `auto_run_stop_revert`
- *   WorkflowTransition for the todo revert (default true). The hang-backstop
- *   caller (`auto-run-advance-active.ts`) passes false — it immediately
- *   follows this call with its own, more accurate `auto_run_hang_backstop`
- *   transition into 'blocked', so recording here would just be a
- *   near-instantly-superseded duplicate (task 830).
+ * @param options.preserveChanges - Keep filesystem changes on automatic timeout for diagnosis/retry.
  */
 export async function stopThemeExecutionImpl(
   prisma: PrismaClient,
   themeId: number,
   currentTaskId: number | null,
-  options: { recordRevertTransition?: boolean } = {},
+  options: { preserveChanges?: boolean } = {},
 ): Promise<void> {
-  const { recordRevertTransition = true } = options;
+  const { preserveChanges = false } = options;
   // Cancel all auto-run queue items for this theme
   await prisma.workflowQueueItem.updateMany({
     where: {
@@ -327,6 +328,12 @@ export async function stopThemeExecutionImpl(
     data: { status: 'cancelled', completedAt: new Date(), errorMessage: 'Auto-run stopped' },
   });
 
+  const { stopThemeAgents } = await import('../../agents/stop-task-agents');
+  const stopped = await stopThemeAgents(themeId, currentTaskId, {
+    errorMessage: 'Auto-run stopped',
+  });
+  const { settleStoppedTasks } = await import('../../agents/settle-stopped-tasks');
+  await settleStoppedTasks(prisma, stopped.executionIds);
   if (!currentTaskId) return;
 
   // Stop the agent execution(s) if any are running
@@ -338,15 +345,9 @@ export async function stopThemeExecutionImpl(
     // subtasks, and any other theme task with a live execution (not just the
     // first found) — and release their locks. A split parent's subtask runs
     // under a different taskId, so a current-task-only stop would orphan it.
-    const { stopThemeAgents } = await import('../../agents/stop-task-agents');
-    await stopThemeAgents(themeId, currentTaskId, { errorMessage: 'Auto-run stopped' }).catch(
-      (err) => {
-        log.warn({ err, themeId }, '[ThemeAutoRunScheduler] stopThemeAgents failed');
-      },
-    );
 
     // Revert any uncommitted changes
-    if (workDir) {
+    if (workDir && !preserveChanges) {
       // NOTE: getInstance() replaces the former scheduler field — same singleton (task 628).
       await AgentWorkerManager.getInstance()
         .revertChanges(workDir)
@@ -358,28 +359,8 @@ export async function stopThemeExecutionImpl(
         });
     }
 
-    // Reset task to 'todo'
-    const reverted = await prisma.task
-      .update({
-        where: { id: currentTaskId },
-        data: { status: 'todo' },
-        select: { workflowStatus: true },
-      })
-      .catch(() => null);
-    // Record the revert so isWithinRecoveryGrace (incident-signature-detectors.ts)
-    // recognizes this deliberate `status='todo'` × advanced `workflowStatus` shape
-    // as expected — mirrors the other 5 todo-revert paths (task 709). Without this,
-    // a theme-stop mid-workflow reproduces the #6825/#830 Pattern B false positive.
-    if (reverted && recordRevertTransition) {
-      await recordTransition({
-        taskId: currentTaskId,
-        fromStatus: reverted.workflowStatus,
-        toStatus: reverted.workflowStatus ?? 'draft',
-        actor: 'system',
-        cause: 'auto_run_stop_revert',
-        metadata: { reason: 'auto_run_stop' },
-      }).catch(() => {});
-    }
+    // Task state was settled atomically from cancelled execution IDs above.
+    // Never reset currentTaskId blindly: it may have completed or started a newer run.
   } catch (err) {
     log.error(
       { err },

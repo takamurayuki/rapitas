@@ -5,7 +5,9 @@
  * stopThemeExecution(), and broadcastAutoRunUpdate() — the per-bucket private
  * handlers invoked by tick().
  */
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach, mock } from 'bun:test';
+const settleStopped = mock(async (_db: unknown, _ids: number[]) => [] as number[]);
+mock.module('../../agents/settle-stopped-tasks', () => ({ settleStoppedTasks: settleStopped }));
 import {
   ThemeAutoRunScheduler,
   internal,
@@ -96,6 +98,15 @@ describe('processIdleThemes', () => {
     await internal(scheduler).processIdleThemes([makeState({ enabled: true, themeId: 7 })]);
 
     expect(mockStartAutoRun).not.toHaveBeenCalled();
+    expect(mockTaskCount).toHaveBeenCalledWith({
+      where: {
+        themeId: 7,
+        status: 'todo',
+        parentId: null,
+        workflowDisabled: false,
+        OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
+      },
+    });
   });
 
   it('resumes on a fresh todo task WITHOUT even checking the backlog (short-circuit)', async () => {
@@ -232,6 +243,16 @@ describe('processIdleThemes — re-arm after an idle-stop (task 784)', () => {
     ]);
 
     expect(mockStartAutoRun).toHaveBeenCalledWith(7);
+    expect(mockTaskCount).toHaveBeenCalledWith({
+      where: {
+        themeId: 7,
+        status: 'todo',
+        parentId: null,
+        workflowDisabled: false,
+        OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
+        autoCreatedFromBacklog: false,
+      },
+    });
   });
 
   it('self-refills IN PLACE while stopped without re-arming (learning loop kept separate)', async () => {
@@ -266,9 +287,9 @@ describe('processIdleThemes — re-arm after an idle-stop (task 784)', () => {
 });
 
 describe('processPausedThemes', () => {
-  it('skips a paused theme with no currentTaskId', async () => {
+  it('skips a paused_approval theme with no currentTaskId', async () => {
     await internal(scheduler).processPausedThemes([
-      makeState({ status: 'paused', currentTaskId: null }),
+      makeState({ status: 'paused_approval', currentTaskId: null }),
     ]);
     expect(mockGetThemeActiveQueueItems).not.toHaveBeenCalled();
   });
@@ -279,7 +300,7 @@ describe('processPausedThemes', () => {
     ]);
 
     await internal(scheduler).processPausedThemes([
-      makeState({ status: 'paused', currentTaskId: 5, themeId: 9 }),
+      makeState({ status: 'paused_approval', currentTaskId: 5, themeId: 9 }),
     ]);
 
     expect(mockQueueItemFindFirst).not.toHaveBeenCalled();
@@ -291,7 +312,7 @@ describe('processPausedThemes', () => {
     mockQueueItemFindFirst.mockResolvedValue(null);
 
     await internal(scheduler).processPausedThemes([
-      makeState({ status: 'paused', currentTaskId: 5, themeId: 9 }),
+      makeState({ status: 'paused_approval', currentTaskId: 5, themeId: 9 }),
     ]);
 
     expect(mockResumeAutoRun).not.toHaveBeenCalled();
@@ -302,18 +323,44 @@ describe('processPausedThemes', () => {
     mockQueueItemFindFirst.mockResolvedValue({ id: 1, status: 'queued', errorMessage: null });
 
     await internal(scheduler).processPausedThemes([
-      makeState({ status: 'paused', currentTaskId: 5, themeId: 9 }),
+      makeState({ status: 'paused_approval', currentTaskId: 5, themeId: 9 }),
     ]);
 
     expect(mockResumeAutoRun).toHaveBeenCalledWith(9);
     expect(mockBroadcast).toHaveBeenCalled();
   });
 
+  it('does not auto-resume an explicit user pause even when a queued re-entry exists (task 883)', async () => {
+    mockGetThemeActiveQueueItems.mockResolvedValue([]);
+    mockQueueItemFindFirst.mockResolvedValue({ id: 1, status: 'queued', errorMessage: null });
+
+    await internal(scheduler).processPausedThemes([
+      makeState({ status: 'paused_user', currentTaskId: 5, themeId: 9 }),
+    ]);
+
+    expect(mockGetThemeActiveQueueItems).not.toHaveBeenCalled();
+    expect(mockResumeAutoRun).not.toHaveBeenCalled();
+  });
+
+  it('does not auto-resume a reason-unknown legacy pause even when a queued re-entry exists (task 883)', async () => {
+    mockGetThemeActiveQueueItems.mockResolvedValue([]);
+    mockQueueItemFindFirst.mockResolvedValue({ id: 1, status: 'queued', errorMessage: null });
+
+    await internal(scheduler).processPausedThemes([
+      makeState({ status: 'paused', currentTaskId: 5, themeId: 9 }),
+    ]);
+
+    expect(mockGetThemeActiveQueueItems).not.toHaveBeenCalled();
+    expect(mockResumeAutoRun).not.toHaveBeenCalled();
+  });
+
   it('swallows an error from getThemeActiveQueueItems without throwing', async () => {
     mockGetThemeActiveQueueItems.mockImplementation(() => Promise.reject(new Error('db down')));
 
     await expect(
-      internal(scheduler).processPausedThemes([makeState({ status: 'paused', currentTaskId: 5 })]),
+      internal(scheduler).processPausedThemes([
+        makeState({ status: 'paused_approval', currentTaskId: 5 }),
+      ]),
     ).resolves.toBeUndefined();
   });
 });
@@ -331,13 +378,15 @@ describe('stopThemeExecution', () => {
     });
   });
 
-  it('does nothing further when there is no current task', async () => {
+  it('sweeps theme agents even when there is no current task', async () => {
     await internal(scheduler).stopThemeExecution(10, null);
     expect(mockResolveTaskWorkingDirectory).not.toHaveBeenCalled();
-    expect(mockStopThemeAgents).not.toHaveBeenCalled();
+    expect(mockStopThemeAgents).toHaveBeenCalledWith(10, null, {
+      errorMessage: 'Auto-run stopped',
+    });
   });
 
-  it('kills theme agents, reverts a resolved working directory, and resets the task to todo', async () => {
+  it('kills theme agents and reverts only when requested without blindly resetting the task', async () => {
     mockResolveTaskWorkingDirectory.mockResolvedValue({
       themeId: 10,
       workingDirectory: '/repo/work',
@@ -348,43 +397,32 @@ describe('stopThemeExecution', () => {
 
     expect(mockStopThemeAgents).toHaveBeenCalledWith(10, 100, { errorMessage: 'Auto-run stopped' });
     expect(mockRevertChanges).toHaveBeenCalledWith('/repo/work');
-    expect(mockTaskUpdate).toHaveBeenCalledWith({
-      where: { id: 100 },
-      data: { status: 'todo' },
-      select: { workflowStatus: true },
-    });
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
   });
 
-  it('records an auto_run_stop_revert transition so Pattern B grants it recovery grace (task 830)', async () => {
+  it('passes actual stopped execution IDs to the atomic state/audit settlement', async () => {
     mockResolveTaskWorkingDirectory.mockResolvedValue({
       themeId: 10,
       workingDirectory: '/repo/work',
       theme: null,
     });
-    mockTaskUpdate.mockResolvedValue({ workflowStatus: 'plan_approved' });
+    mockStopThemeAgents.mockResolvedValueOnce({ stoppedCount: 2, executionIds: [91, 92] });
 
     await internal(scheduler).stopThemeExecution(10, 100);
 
-    expect(mockRecordTransition).toHaveBeenCalledWith(
-      expect.objectContaining({
-        taskId: 100,
-        fromStatus: 'plan_approved',
-        toStatus: 'plan_approved',
-        actor: 'system',
-        cause: 'auto_run_stop_revert',
-      }),
-    );
+    expect(settleStopped).toHaveBeenCalledWith(expect.anything(), [91, 92]);
+    expect(mockRecordTransition).not.toHaveBeenCalled();
   });
 
-  it('does not record a transition when the task update itself fails', async () => {
+  it('propagates settlement failure so the scheduler cannot finalize an incomplete stop', async () => {
     mockResolveTaskWorkingDirectory.mockResolvedValue({
       themeId: 10,
       workingDirectory: '/repo/work',
       theme: null,
     });
-    mockTaskUpdate.mockImplementation(() => Promise.reject(new Error('db down')));
+    settleStopped.mockRejectedValueOnce(new Error('db down'));
 
-    await internal(scheduler).stopThemeExecution(10, 100);
+    await expect(internal(scheduler).stopThemeExecution(10, 100)).rejects.toThrow('db down');
 
     expect(mockRecordTransition).not.toHaveBeenCalled();
   });
@@ -411,12 +449,7 @@ describe('stopThemeExecution', () => {
     await internal(scheduler).stopThemeExecution(10, 100);
 
     expect(mockRevertChanges).not.toHaveBeenCalled();
-    // The task must still be reset even without a working directory to revert.
-    expect(mockTaskUpdate).toHaveBeenCalledWith({
-      where: { id: 100 },
-      data: { status: 'todo' },
-      select: { workflowStatus: true },
-    });
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
   });
 
   it('swallows an unexpected resolveTaskWorkingDirectory throw without propagating', async () => {

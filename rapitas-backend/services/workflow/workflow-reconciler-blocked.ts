@@ -27,11 +27,14 @@ import { ACTIVE_EXEC } from './workflow-reconciler-requeue';
 import {
   BLOCKED_RETRY_SETTLE_MS,
   classifyBlockedExclusion,
+  EXPLICIT_RESUME_CAUSES,
   HUMAN_ADVANCED_WORKFLOW_STATUSES,
   resolveVerifyRepairLimit,
   VERIFY_NON_CONVERGENCE_CAUSE,
+  VERIFICATION_UNVERIFIABLE_HOLD_CAUSE,
 } from './blocked-task-policy';
 import { resolveBlockedTaskEvidence } from './blocked-task-evidence';
+import { resolveAutomationPolicy } from './automation-policy';
 import { escalateBlockedTask, reescalateIfOverdue } from './blocked-task-escalation';
 
 const log = createLogger('workflow-reconciler');
@@ -63,7 +66,7 @@ async function findBlockedCandidates(nowMs: number): Promise<
 > {
   // Respect user stops: only heal blocked tasks in themes that are still armed.
   const armed = await prisma.themeAutoRun
-    .findMany({ where: { enabled: true }, select: { themeId: true } })
+    .findMany({ where: { enabled: true, status: 'running' }, select: { themeId: true } })
     .catch(() => [] as { themeId: number }[]);
   const armedThemeIds = armed.map((a) => a.themeId);
   if (armedThemeIds.length === 0) return [];
@@ -127,6 +130,11 @@ export async function correctBlockedByEvidence(nowMs: number): Promise<number> {
 
     const evidence = await resolveBlockedTaskEvidence(prisma, t.id);
     if (!evidence.isSuccess) continue;
+
+    // Local PR rows cannot prove a required remote merge. The authoritative
+    // merge watcher owns that completion; an unreadable policy also withholds it.
+    const policy = await resolveAutomationPolicy(prisma, t.id).catch(() => null);
+    if (!policy || policy.autoMergePR) continue;
 
     await prisma.task
       .update({
@@ -202,16 +210,26 @@ export async function healBlockedStatusDesync(nowMs: number): Promise<number> {
         where: {
           taskId: t.id,
           actor: 'user',
-          createdAt: { gt: lastBlocked.createdAt },
+          cause: { in: [...EXPLICIT_RESUME_CAUSES] },
+          toStatus: { not: 'blocked' },
+          // A later task mutation may be an unrecorded re-block. Never let an
+          // older resume record override it; equal timestamps are ambiguous.
+          createdAt: {
+            gt: new Date(Math.max(lastBlocked.createdAt.getTime(), t.updatedAt.getTime())),
+          },
         },
         select: { id: true },
       })
       .catch(() => null);
     if (!userAdvance) continue;
 
-    await prisma.task
-      .update({ where: { id: t.id }, data: { status: 'todo', updatedAt: new Date() } })
-      .catch(() => {});
+    const updated = await prisma.task
+      .updateMany({
+        where: { id: t.id, status: 'blocked', updatedAt: t.updatedAt },
+        data: { status: 'todo', updatedAt: new Date() },
+      })
+      .catch(() => ({ count: 0 }));
+    if (updated.count !== 1) continue;
     await recordTransition({
       taskId: t.id,
       fromStatus: t.workflowStatus,
@@ -299,6 +317,18 @@ export async function escalateAbandonedBlocked(nowMs: number): Promise<number> {
       })
       .catch(() => 0);
 
+    // Mirror requeueBlockedTasks' unverifiable-hold skip (same window) so the
+    // escalation copy tells the human to restore verification, not to split.
+    const unverifiableHeldCount = await prisma.workflowTransition
+      .count({
+        where: {
+          taskId: t.id,
+          cause: VERIFICATION_UNVERIFIABLE_HOLD_CAUSE,
+          ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+        },
+      })
+      .catch(() => 0);
+
     const classification = classifyBlockedExclusion({
       workflowStatus: t.workflowStatus,
       ageMs: nowMs - t.updatedAt.getTime(),
@@ -306,6 +336,7 @@ export async function escalateAbandonedBlocked(nowMs: number): Promise<number> {
       verifyRepairLimit,
       attempts,
       nonConverged: nonConvergedCount > 0,
+      unverifiableHeld: unverifiableHeldCount > 0,
       prNotCreatedCount,
     });
     if (classification === 'retryable') continue; // requeueBlockedTasks owns it

@@ -6,13 +6,14 @@
  * browser, and turn hard failures (won't start / uncaught page errors /
  * 5xx) into a failing VerificationCheck — which the existing verify-repair
  * loop bounces back to the implementer. Console errors are advisory only
- * (dev builds are noisy). Tooling absence (no browser) fails OPEN.
+ * (dev builds are noisy). Missing browser tooling leaves runtime verification incomplete.
  */
 import { createLogger } from '../../../../config/logger';
 import type { VerificationCheck } from '../automated-verifier';
-import { resolveRuntimeConfig, substitutePort } from './runtime-config';
-import { allocateFreePort, launchApp, waitForHealthy } from './app-launcher';
+import { resolveRuntimeConfig, resolveThemeWorkingDirectory } from './runtime-config';
+import { detectRuntimeHarnessDrift } from './runtime-start-preflight';
 import { runBrowserSmoke, type SmokeRunResult } from './browser-smoke';
+import { acquireRuntimeServer, releaseRuntimeServer } from './worktree-server-registry';
 
 const log = createLogger('runtime-smoke');
 
@@ -21,8 +22,8 @@ const log = createLogger('runtime-smoke');
  * the code under test. A backend-only change cannot fix "Turbopack rejects
  * the frontend node_modules symlink", so failing the gate on it sends the
  * implementer into an unfixable verify-repair loop (task 536: two wasted
- * repair cycles on an identical environmental failure). These fail OPEN,
- * matching the module's stated tooling-absence philosophy.
+ * repair cycles on an identical environmental failure). These remain
+ * unverifiable, withholding completion until the environment is repaired.
  */
 export const ENV_FAILURE_RE =
   /points out of the filesystem root|TurbopackInternalError|Cannot find module '.*node_modules|ENOENT.*node_modules|EPERM.*node_modules|command not found|は、内部コマンドまたは外部コマンド/i;
@@ -52,6 +53,30 @@ export function looksLikeEnvironmentFailure(logs: string[]): boolean {
 }
 
 /**
+ * Normalize a `localhost` health/browse URL to `127.0.0.1`. Windows can
+ * resolve `localhost` to the IPv6 loopback (`::1`) while the launched dev
+ * server binds only IPv4, producing a connection failure that looks
+ * identical to "app never started" in the logs. Pure — exported for tests.
+ *
+ * @param url - Candidate URL. / 対象URL
+ * @returns The same URL with a `localhost` host replaced by `127.0.0.1`;
+ *          any other host (including already-IP or external hosts) is
+ *          returned unchanged. / 変換後URL
+ */
+export function normalizeLocalHost(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === 'localhost') {
+      parsed.hostname = '127.0.0.1';
+      return parsed.toString();
+    }
+    return url;
+  } catch {
+    return url;
+  }
+}
+
+/**
  * Pure verdict over smoke findings — the testable core.
  *
  * @param smoke - Browser pass result / ブラウザ確認の結果
@@ -65,12 +90,16 @@ export function evaluateSmokeFindings(smoke: SmokeRunResult): {
   const lines: string[] = [];
   let errorCount = 0;
   for (const f of smoke.findings) {
+    for (const request of f.failedRequests ?? []) lines.push(`    failed API request: ${request}`);
+    for (const request of f.pendingRequests ?? [])
+      lines.push(`    pending API request: ${request}`);
+    if (f.screenshotPath) lines.push(`    screenshot: ${f.screenshotPath}`);
     if (f.navigationError) {
       errorCount++;
       lines.push(`✗ ${f.path}: ページを開けない — ${f.navigationError}`);
       continue;
     }
-    const hard = f.pageErrors.length + f.serverErrors.length;
+    const hard = f.pageErrors.length + f.serverErrors.length + (f.failedRequests?.length ?? 0);
     if (hard > 0) {
       errorCount += hard;
       lines.push(`✗ ${f.path}: HTTP ${f.httpStatus}`);
@@ -82,7 +111,6 @@ export function evaluateSmokeFindings(smoke: SmokeRunResult): {
     if (f.consoleErrors.length > 0) {
       lines.push(`    (console.error ×${f.consoleErrors.length} — 参考情報、ブロックしません)`);
     }
-    if (f.screenshotPath) lines.push(`    screenshot: ${f.screenshotPath}`);
   }
   return { ok: errorCount === 0, errorCount, lines };
 }
@@ -118,6 +146,34 @@ export async function runRuntimeSmokeCheck(
   }
   const cfg = loaded.config;
 
+  // Harness drift: the branch predates the runtime script the theme's main
+  // checkout ships. This is NOT a pass — the theme opted into runtime
+  // verification, so the check stays UNVERIFIED and completion is withheld
+  // (PR #670 semantics). The remedy is to bring the harness into the branch
+  // (workflow-auto-commit syncs origin/<base> into the worktree before the
+  // gate when it sees this reason); it is never to skip the check.
+  // 2026-09-13: an earlier revision reported this as ok/skip and let tasks
+  // 901/905 head for a PR unverified — reverted on operator instruction.
+  const drift = await detectRuntimeHarnessDrift(
+    cfg.start,
+    workdir,
+    await resolveThemeWorkingDirectory(taskId),
+  );
+  if (drift) {
+    log.warn(
+      { workdir, label, taskId },
+      '[runtime-smoke] harness drift — unverifiable until the branch is synced with the base',
+    );
+    return {
+      name: 'runtime',
+      ran: false,
+      ok: false,
+      unverifiable: true,
+      errorCount: 0,
+      details: drift,
+    };
+  }
+
   // Short-circuit: this worktree recently failed to launch for ENVIRONMENT
   // reasons — relaunching within the TTL just burns the full ready-timeout to
   // reach the identical skip verdict.
@@ -130,66 +186,100 @@ export async function runRuntimeSmokeCheck(
     return {
       name: 'runtime',
       ran: false,
-      ok: true,
+      ok: false,
+      unverifiable: true,
       errorCount: 0,
       details:
         'runtime検証はスキップしました（この worktree は直近で環境起因の起動失敗を記録済み — 再起動試行は同一結果になるため省略）。',
     };
   }
 
-  const port = await allocateFreePort();
-  const baseUrl = substitutePort(cfg.url, port);
-  const app = launchApp(substitutePort(cfg.start, port), workdir, port);
-  try {
-    const healthy = await waitForHealthy(`${baseUrl}${cfg.healthPath}`, cfg.readyTimeoutMs, {
-      label,
-    });
-    if (!healthy) {
-      const logs = app.logs();
-      const tail = logs.slice(-25).join('\n');
-      // Environment failures (broken worktree symlinks, missing tooling) are
-      // not fixable by the implementer — fail OPEN with the evidence instead
-      // of bouncing the phase into an unfixable repair loop.
-      if (looksLikeEnvironmentFailure(logs)) {
-        recentEnvFailures.set(workdir, Date.now());
-        log.warn(
-          { workdir, label },
-          '[runtime-smoke] launch failed with an ENVIRONMENT signature — skipping (fail-open)',
-        );
-        return {
-          name: 'runtime',
-          ran: false,
-          ok: true,
-          errorCount: 0,
-          details:
-            `runtime検証は環境起因の起動失敗のためスキップしました（worktreeセットアップ問題 — 実装の欠陥ではありません）。` +
-            `\n--- 起動ログ末尾 ---\n${tail}`,
-        };
-      }
+  // acquireRuntimeServer is the single chokepoint for this worktree: it
+  // reuses an already-running compatible server (or waits for one to
+  // drain/finish starting) instead of racing Next's own single-instance
+  // directory lock, which is exactly how task 906's job lost — a second
+  // launchApp() call against a worktree a prior verification pass hadn't
+  // finished tearing down yet.
+  const acquired = await acquireRuntimeServer(workdir, cfg, { label });
+  if (!acquired.ok) {
+    const tail = acquired.logs.slice(-25).join('\n');
+    const exitNote = acquired.hasExited
+      ? `（プロセスは exitCode=${acquired.exitCode} で終了済み）`
+      : '';
+    if (acquired.unverifiable) {
+      log.warn(
+        { workdir, label, reason: acquired.reason },
+        '[runtime-smoke] could not acquire the worktree server — unverifiable; completion withheld',
+      );
       return {
         name: 'runtime',
-        ran: true,
+        ran: false,
         ok: false,
-        errorCount: 1,
+        unverifiable: true,
+        errorCount: 0,
         details:
-          `アプリが ${cfg.readyTimeoutMs / 1000}s 以内に起動しませんでした ` +
-          `(${baseUrl}${cfg.healthPath} 無応答)。\n--- 起動ログ末尾 ---\n${tail}`,
+          `runtime検証はスキップしました: ${acquired.reason}${exitNote}` +
+          (tail ? `\n--- 起動ログ末尾 ---\n${tail}` : ''),
       };
     }
-
-    const smoke = await runBrowserSmoke(baseUrl, cfg.checkPaths, label);
-    if (!smoke.browserAvailable) {
-      // Fail-open on tooling: HTTP health already proved the app starts.
+    // Environment failures (broken worktree symlinks, missing tooling) are
+    // not fixable by the implementer — hold as unverifiable with evidence instead
+    // of bouncing the phase into an unfixable repair loop.
+    if (looksLikeEnvironmentFailure(acquired.logs)) {
+      recentEnvFailures.set(workdir, Date.now());
+      log.warn(
+        { workdir, label, exitCode: acquired.exitCode },
+        '[runtime-smoke] launch failed with an ENVIRONMENT signature — unverifiable; completion withheld',
+      );
       return {
         name: 'runtime',
-        ran: true,
-        ok: true,
+        ran: false,
+        ok: false,
+        unverifiable: true,
+        errorCount: 0,
+        details:
+          `runtime検証は環境起因の起動失敗のためスキップしました（worktreeセットアップ問題 — 実装の欠陥ではありません）${exitNote}。` +
+          `\n--- 起動ログ末尾 ---\n${tail}`,
+      };
+    }
+    return {
+      name: 'runtime',
+      ran: true,
+      ok: false,
+      errorCount: 1,
+      details: `${acquired.reason}${exitNote}。\n--- 起動ログ末尾 ---\n${tail}`,
+    };
+  }
+
+  const baseUrl = normalizeLocalHost(acquired.baseUrl);
+  try {
+    const smoke = await runBrowserSmoke(baseUrl, cfg.checkPaths, label, {
+      readySelector: cfg.readySelector,
+      readinessTimeoutMs: cfg.readinessTimeoutMs,
+    });
+    if (!smoke.browserAvailable) {
+      // HTTP readiness alone does not prove the configured browser checks.
+      return {
+        name: 'runtime',
+        ran: false,
+        ok: false,
+        unverifiable: true,
         errorCount: 0,
         details: `起動確認のみ成功 (HTTP応答あり)。ブラウザ確認はスキップ: ${smoke.unavailableReason}`,
       };
     }
 
     const verdict = evaluateSmokeFindings(smoke);
+    if (verdict.ok && !cfg.readySelector) {
+      return {
+        name: 'runtime',
+        ran: true,
+        ok: false,
+        unverifiable: true,
+        errorCount: 0,
+        details: `${verdict.lines.join('\n')}\nApplication readiness is unverified: configure readySelector for the application. HTTP responses alone do not prove that loading finished.`,
+      };
+    }
     return {
       name: 'runtime',
       ran: true,
@@ -198,16 +288,17 @@ export async function runRuntimeSmokeCheck(
       details: verdict.lines.join('\n'),
     };
   } catch (err) {
-    // Harness crash (not app failure) — fail open, never block on our own bug.
-    log.warn({ err, workdir }, '[runtime-smoke] harness error — skipping (fail-open)');
+    // Harness failure is not an app verdict; completion still requires verification.
+    log.warn({ err, workdir }, '[runtime-smoke] harness error — unverifiable; completion withheld');
     return {
       name: 'runtime',
       ran: false,
-      ok: true,
+      ok: false,
+      unverifiable: true,
       errorCount: 0,
       details: `runtime検証ハーネスの内部エラーによりスキップ: ${err instanceof Error ? err.message : err}`,
     };
   } finally {
-    app.stop();
+    releaseRuntimeServer(acquired.lease);
   }
 }

@@ -19,7 +19,12 @@ mock.module('../../../../config/logger', () => ({
 const mockTaskUpdate = mock(() => Promise.resolve({})) as any;
 const mockWorkflowTransitionFindFirst = mock(() => Promise.resolve(null)) as any;
 const mockPrisma = {
-  task: { update: mockTaskUpdate, findUnique: mock(() => Promise.resolve(null)) },
+  task: {
+    update: mockTaskUpdate,
+    findUnique: mock(() =>
+      Promise.resolve({ githubPrId: null as number | null, updatedAt: new Date(0) }),
+    ),
+  },
   workflowTransition: { findFirst: mockWorkflowTransitionFindFirst },
 };
 mock.module('../../../../config', () => ({ prisma: mockPrisma }));
@@ -51,16 +56,31 @@ mock.module('./shared', () => ({
   wasNonConvergenceCutoffJustRecorded: mockWasNonConvergenceCutoffJustRecorded,
 }));
 
+const mockValidateVerify = mock(() => ({
+  ok: false,
+  missingSections: [],
+  severity: 80,
+  summary: 'verify.md self-contradicts',
+}));
 mock.module('../../../../services/workflow/phase-output-validator', () => ({
-  validateVerify: () => ({
-    ok: false,
-    missingSections: [],
-    severity: 80,
-    summary: 'verify.md self-contradicts',
-  }),
+  validateVerify: mockValidateVerify,
 }));
 
 const mockAttemptVerifyRepair = mock(() => Promise.resolve({ bounced: false })) as any;
+const mockRequirementReplan = mock(
+  async (): Promise<{
+    committed: boolean;
+    reason: string;
+    completionReceipt?: { taskId: number };
+  }> => ({ committed: false, reason: 'no_mismatch' }),
+);
+const advanceVerify = mock(async (_db: unknown, receipt: unknown) => receipt);
+mock.module('../../../../services/workflow/requirement-replan-commit', () => ({
+  advanceReviewedVerify: advanceVerify,
+}));
+mock.module('../../../../services/workflow/requirement-replan-service', () => ({
+  attemptRequirementReplan: mockRequirementReplan,
+}));
 mock.module('../../../../services/workflow/verify-self-repair', () => ({
   attemptVerifyRepair: mockAttemptVerifyRepair,
 }));
@@ -77,14 +97,141 @@ function buildParams() {
 }
 
 describe('computeAndApplyStatusTransition — 非収束カットオフの二重記録防止', () => {
+  test('passing verify delegates its state write and returns the renewed receipt', async () => {
+    const receipt = { taskId: 715 };
+    mockRequirementReplan.mockResolvedValueOnce({
+      committed: false,
+      reason: 'no_mismatch',
+      completionReceipt: receipt,
+    });
+    mockValidateVerify.mockReturnValueOnce({
+      ok: true,
+      severity: 0,
+      summary: '',
+      missingSections: [],
+    });
+    const result = await computeAndApplyStatusTransition(buildParams());
+    expect(result.newStatus).toBe('verify_done');
+    expect(result.completionReceipt).toEqual(receipt);
+    expect(advanceVerify).toHaveBeenCalledWith(mockPrisma, receipt);
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+  });
+
+  test('a stop during verify save cannot fall back to an unchecked state update', async () => {
+    mockRequirementReplan.mockResolvedValueOnce({
+      committed: false,
+      reason: 'no_mismatch',
+      completionReceipt: { taskId: 715 },
+    });
+    mockValidateVerify.mockReturnValueOnce({
+      ok: true,
+      severity: 0,
+      summary: '',
+      missingSections: [],
+    });
+    advanceVerify.mockRejectedValueOnce(new Error('stop_not_resumed'));
+    await expect(computeAndApplyStatusTransition(buildParams())).rejects.toThrow(
+      'stop_not_resumed',
+    );
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
+    advanceVerify.mockReset().mockImplementation(async (_db, receipt) => receipt);
+    mockRequirementReplan
+      .mockReset()
+      .mockResolvedValue({ committed: false, reason: 'no_mismatch' });
+    mockValidateVerify.mockReset().mockReturnValue({
+      ok: false,
+      missingSections: [],
+      severity: 80,
+      summary: 'verify.md self-contradicts',
+    });
     transitionCalls.length = 0;
     mockRecordTransition.mockClear();
     mockTaskUpdate.mockClear();
+    mockPrisma.task.findUnique
+      .mockReset()
+      .mockResolvedValue({ githubPrId: null, updatedAt: new Date(0) });
     mockMarkLatestExecutionFailed.mockClear();
     mockWorkflowTransitionFindFirst.mockReset().mockResolvedValue(null);
     mockAttemptVerifyRepair.mockReset().mockResolvedValue({ bounced: false });
   });
+
+  test('committed replan returns before verification repair and completion advancement', async () => {
+    mockRequirementReplan.mockResolvedValueOnce({
+      committed: true,
+      reason: 'requirement_evidence_replan',
+    });
+    const result = await computeAndApplyStatusTransition(buildParams());
+    expect(result.newStatus).toBe('research_done');
+    expect(result.verifyRepairBounced).toBe(true);
+    expect(mockValidateVerify).not.toHaveBeenCalled();
+    expect(mockAttemptVerifyRepair).not.toHaveBeenCalled();
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+  });
+
+  test('unknown replan review cannot advance or consume implementation repair', async () => {
+    mockRequirementReplan.mockResolvedValueOnce({ committed: false, reason: 'unknown' });
+    await expect(computeAndApplyStatusTransition(buildParams())).rejects.toThrow('review held');
+    expect(mockAttemptVerifyRepair).not.toHaveBeenCalled();
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+  });
+
+  test('validator exception never advances a saved artifact to verify_done', async () => {
+    mockValidateVerify.mockImplementationOnce(() => {
+      throw new Error('validator unavailable');
+    });
+    await expect(computeAndApplyStatusTransition(buildParams())).rejects.toThrow(
+      'validator unavailable',
+    );
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+    expect(mockAttemptVerifyRepair).not.toHaveBeenCalled();
+  });
+
+  test('repair exception never advances the failed artifact to verify_done', async () => {
+    mockAttemptVerifyRepair.mockRejectedValueOnce(new Error('repair database unavailable'));
+    await expect(computeAndApplyStatusTransition(buildParams())).rejects.toThrow(
+      'repair database unavailable',
+    );
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+    expect(transitionCalls).toHaveLength(0);
+  });
+
+  test('a prior pass and existing PR cannot override the current partial verdict', async () => {
+    mockWorkflowTransitionFindFirst.mockResolvedValue({ id: 1 });
+    mockPrisma.task.findUnique.mockResolvedValue({ githubPrId: 100, updatedAt: new Date(0) });
+    mockAttemptVerifyRepair.mockResolvedValue({ bounced: true, newStatus: 'plan_approved' });
+    const result = await computeAndApplyStatusTransition({
+      ...buildParams(),
+      savedContent: '| 全体判定 | ⚠️ 一部失敗 |',
+    });
+    expect(result.newStatus).toBe('plan_approved');
+    expect(mockAttemptVerifyRepair).toHaveBeenCalledTimes(1);
+  });
+
+  for (const [severity, savedContent] of [
+    [80, '✅ 検証成功\n2 failed'],
+    [90, '実装済みのはずだが空diffで❌ 実装漏れと誤検知された本文'],
+    [100, '[Claude Code] Starting execution...'],
+    [100, ''],
+  ] as const) {
+    test(`current failure ${severity}: ${JSON.stringify(savedContent)} cannot be rescued by a prior pass and PR`, async () => {
+      mockWorkflowTransitionFindFirst.mockResolvedValue({ id: 1 });
+      mockPrisma.task.findUnique.mockResolvedValue({ githubPrId: 100, updatedAt: new Date(0) });
+      mockValidateVerify.mockReturnValue({
+        ok: false,
+        missingSections: [],
+        severity,
+        summary: 'current validation failed',
+      });
+      mockAttemptVerifyRepair.mockResolvedValue({ bounced: true, newStatus: 'plan_approved' });
+      const result = await computeAndApplyStatusTransition({ ...buildParams(), savedContent });
+      expect(result.newStatus).toBe('plan_approved');
+      expect(result.verifyRerunAlreadyDone).toBe(false);
+      expect(mockAttemptVerifyRepair).toHaveBeenCalledTimes(1);
+      expect(mockTaskUpdate).not.toHaveBeenCalled();
+    });
+  }
 
   test('cutoffRecorded:true なら DB 読み取りガードが false でも verify_validation_failed を記録しないこと', async () => {
     mockAttemptVerifyRepair.mockResolvedValueOnce({ bounced: false, cutoffRecorded: true });
@@ -95,7 +242,7 @@ describe('computeAndApplyStatusTransition — 非収束カットオフの二重�
     // ブロック処理・実行失敗マークは cutoffRecorded の値に関わらず従来どおり実行される。
     expect(mockTaskUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 715 },
+        where: { id: 715, updatedAt: new Date(0) },
         data: expect.objectContaining({ status: 'blocked' }),
       }),
     );
@@ -111,7 +258,7 @@ describe('computeAndApplyStatusTransition — 非収束カットオフの二重�
     expect(transitionCalls.filter((c) => c.cause === 'verify_validation_failed')).toHaveLength(1);
     expect(mockTaskUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 715 },
+        where: { id: 715, updatedAt: new Date(0) },
         data: expect.objectContaining({ status: 'blocked' }),
       }),
     );

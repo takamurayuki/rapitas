@@ -1,51 +1,46 @@
 /**
  * workflow-handlers-verification.test
  *
- * Unit tests for the implementer self-verification endpoint handler:
- * invalid id, missing worktree, happy path, gate error, and the per-task
- * in-flight guard. All collaborators are mocked.
+ * Unit tests for the implementer self-verification job-launch endpoint:
+ * invalid id, missing worktree, immediate-response happy path, the per-task
+ * idempotent re-request (no double gate launch), the synchronous-reservation
+ * regression (task 897), and failure to start a job.
  */
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
 const findFirstMock = mock(async (): Promise<unknown> => null);
-const taskFindUniqueMock = mock(async (): Promise<unknown> => null);
-
+const validRootMock = mock(async () => true);
+mock.module('../../../services/workflow/verification-worktree', () => ({
+  isVerificationWorktreeRoot: validRootMock,
+}));
 mock.module('../../../config', () => ({
-  prisma: {
-    agentSession: { findFirst: findFirstMock },
-    task: { findUnique: taskFindUniqueMock },
-  },
+  prisma: { agentSession: { findFirst: findFirstMock } },
 }));
 
 mock.module('../../../config/logger', () => ({
   createLogger: () => ({ info: mock(() => {}), warn: mock(() => {}), debug: mock(() => {}) }),
 }));
 
-const runAutomatedVerificationMock = mock(
-  async (): Promise<{ ok: boolean; summary: string; checks: unknown[] }> => ({
-    ok: true,
-    summary: 'ok',
-    checks: [],
-  }),
+let nextRunId = 0;
+const beginVerificationRunMock = mock(
+  async (): Promise<{
+    runId: string;
+    cacheInputsBefore: { worktreePath: string; requireTests: boolean };
+    keyBefore: string | null;
+  }> => {
+    nextRunId += 1;
+    return {
+      runId: `run-${nextRunId}`,
+      cacheInputsBefore: { worktreePath: 'C:/wt/task-1', requireTests: false },
+      keyBefore: 'key-1',
+    };
+  },
 );
-const renderVerificationMarkdownMock = mock(() => '# 自動検証\nok');
+const runVerificationGateAndRecordMock = mock(async (): Promise<void> => {});
 
-mock.module('../../../services/agents/verification/automated-verifier', () => ({
-  runAutomatedVerification: runAutomatedVerificationMock,
-  renderVerificationMarkdown: renderVerificationMarkdownMock,
-  // Mirrors the real detector closely enough for the requireTests tests.
-  looksLikeBugFixTask: (text: string | null | undefined) =>
-    !!text && /(バグ|不具合|クラッシュ|\bbug\b|\bcrash\b)/i.test(text),
-}));
-
-const readWorkflowFileMock = mock(async (): Promise<string | null> => null);
-mock.module('../../../services/workflow/workflow-file-utils', () => ({
-  readWorkflowFile: readWorkflowFileMock,
-}));
-
-const resolvePreferredBaseBranchMock = mock(async (): Promise<string | null> => 'develop');
-mock.module('../../../services/task/task-resolver', () => ({
-  resolvePreferredBaseBranch: resolvePreferredBaseBranchMock,
+mock.module('../../../services/workflow/verification-job-runner', () => ({
+  beginVerificationRun: beginVerificationRunMock,
+  runVerificationGateAndRecord: runVerificationGateAndRecordMock,
 }));
 
 const { handleRunVerification } = await import('./workflow-handlers-verification');
@@ -55,22 +50,24 @@ function ctx(taskId: string) {
 }
 
 beforeEach(() => {
+  nextRunId = 0;
+  validRootMock.mockImplementation(async () => true);
   findFirstMock.mockClear();
-  taskFindUniqueMock.mockClear();
-  runAutomatedVerificationMock.mockClear();
-  renderVerificationMarkdownMock.mockClear();
-  readWorkflowFileMock.mockClear();
-  resolvePreferredBaseBranchMock.mockClear();
+  beginVerificationRunMock.mockClear();
+  runVerificationGateAndRecordMock.mockClear();
   findFirstMock.mockImplementation(async () => ({ worktreePath: 'C:/wt/task-1' }));
-  taskFindUniqueMock.mockImplementation(async () => null);
-  runAutomatedVerificationMock.mockImplementation(async () => ({
-    ok: true,
-    summary: 'ok',
-    checks: [],
-  }));
+  runVerificationGateAndRecordMock.mockImplementation(async () => {});
 });
 
 describe('handleRunVerification', () => {
+  it('rejects a stale worktree before recording or launching a verification job', async () => {
+    validRootMock.mockImplementation(async () => false);
+    const c = ctx('906');
+    expect(await handleRunVerification(c)).toMatchObject({ success: false });
+    expect(c.set.status).toBe(409);
+    expect(beginVerificationRunMock).not.toHaveBeenCalled();
+    expect(runVerificationGateAndRecordMock).not.toHaveBeenCalled();
+  });
   it('rejects a non-numeric task id with 400', async () => {
     const c = ctx('abc');
     const res = await handleRunVerification(c);
@@ -78,120 +75,170 @@ describe('handleRunVerification', () => {
     expect(res).toMatchObject({ success: false });
   });
 
-  it('returns 404 when the task has no worktree session', async () => {
+  it('returns 404 when the task has no worktree session, and releases the reservation', async () => {
     findFirstMock.mockImplementation(async () => null);
     const c = ctx('7');
     const res = await handleRunVerification(c);
     expect(c.set.status).toBe(404);
     expect(res).toMatchObject({ success: false });
+
+    findFirstMock.mockImplementation(async () => ({ worktreePath: 'C:/wt/task-1' }));
+    const res2 = await handleRunVerification(ctx('7'));
+    expect(res2).toMatchObject({ success: true, status: 'running' });
   });
 
-  it('runs the gate on the worktree and returns the measured result', async () => {
-    readWorkflowFileMock.mockImplementation(async () => '# plan');
-    const c = ctx('7');
+  it('starts a job and responds immediately with runId/pollUrl, without waiting for the gate', async () => {
+    const c = ctx('11');
     const res = await handleRunVerification(c);
-    expect(res).toMatchObject({ success: true, ok: true, summary: 'ok' });
-    expect(runAutomatedVerificationMock).toHaveBeenCalledWith(
-      'C:/wt/task-1',
-      expect.objectContaining({ planContent: '# plan', preferredBaseBranch: 'develop', taskId: 7 }),
-    );
-    expect(renderVerificationMarkdownMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('forces requireTests and passes criteria/taskText for a bug-fix task', async () => {
-    taskFindUniqueMock.mockImplementation(async () => ({
-      title: '保存時にクラッシュするバグの修正',
-      description: '## 受入基準\n- `services/foo/bar.ts` の修正で再現テストが通る',
-      acceptanceCriteria: null,
-    }));
-    const res = await handleRunVerification(ctx('7'));
-    expect(res).toMatchObject({ success: true, ok: true });
-    expect(runAutomatedVerificationMock).toHaveBeenCalledWith(
-      'C:/wt/task-1',
-      expect.objectContaining({
-        requireTests: true,
-        acceptanceCriteria: ['`services/foo/bar.ts` の修正で再現テストが通る'],
-        taskText: expect.stringContaining('保存時にクラッシュするバグの修正'),
-      }),
-    );
-  });
-
-  it('does not force requireTests for a non-bug-fix task', async () => {
-    taskFindUniqueMock.mockImplementation(async () => ({
-      title: '新しいダッシュボード widget を追加する',
-      description: '説明のみ（受入基準の見出しなし）',
-      acceptanceCriteria: null,
-    }));
-    await handleRunVerification(ctx('7'));
-    expect(runAutomatedVerificationMock).toHaveBeenCalledWith(
-      'C:/wt/task-1',
-      expect.objectContaining({ requireTests: false }),
-    );
-    // No criteria resolvable → the option is omitted (acceptance stays fail-open).
-    const opts = (runAutomatedVerificationMock.mock.calls[0] as unknown[])[1] as Record<
-      string,
-      unknown
-    >;
-    expect(opts.acceptanceCriteria).toBeUndefined();
-  });
-
-  it('runs the gate with defaults when the task row cannot be loaded', async () => {
-    taskFindUniqueMock.mockImplementation(async () => {
-      throw new Error('db down');
+    expect(res).toMatchObject({
+      success: true,
+      runId: 'run-1',
+      status: 'running',
+      pollUrl: '/workflow/tasks/11/run-verification/run-1',
     });
-    const res = await handleRunVerification(ctx('7'));
-    expect(res).toMatchObject({ success: true, ok: true });
-    expect(runAutomatedVerificationMock).toHaveBeenCalledWith(
+    expect(beginVerificationRunMock).toHaveBeenCalledTimes(1);
+    expect(beginVerificationRunMock).toHaveBeenCalledWith(11, 'C:/wt/task-1');
+    // Fire-and-forget: at the moment the handler returns, the background
+    // gate call has been kicked off but this test never awaits it directly
+    // (matches production: the caller gets the response first).
+    await new Promise((r) => setTimeout(r, 10));
+    expect(runVerificationGateAndRecordMock).toHaveBeenCalledTimes(1);
+    expect(runVerificationGateAndRecordMock).toHaveBeenCalledWith(
+      11,
+      'run-1',
       'C:/wt/task-1',
-      expect.objectContaining({ requireTests: false }),
+      expect.objectContaining({ worktreePath: 'C:/wt/task-1' }),
+      'key-1',
     );
   });
 
-  it('passes a failing gate result through as ok:false (not an error)', async () => {
-    runAutomatedVerificationMock.mockImplementation(async () => ({
-      ok: false,
-      summary: 'lint failed',
-      checks: [{ name: 'lint', ok: false }],
-    }));
-    const res = await handleRunVerification(ctx('7'));
-    expect(res).toMatchObject({ success: true, ok: false, summary: 'lint failed' });
-  });
-
-  it('returns 500 when the gate itself throws, and releases the in-flight slot', async () => {
-    runAutomatedVerificationMock.mockImplementation(async () => {
-      throw new Error('boom');
+  it('returns 500 when beginVerificationRun fails, and releases the reservation', async () => {
+    beginVerificationRunMock.mockImplementationOnce(async () => {
+      throw new Error('fingerprint failed');
     });
-    const c = ctx('7');
+    const c = ctx('12');
     const res = await handleRunVerification(c);
     expect(c.set.status).toBe(500);
     expect(res).toMatchObject({ success: false });
-    // Slot released — a follow-up run must reach the gate again.
-    runAutomatedVerificationMock.mockImplementation(async () => ({
-      ok: true,
-      summary: 'ok',
-      checks: [],
-    }));
-    const res2 = await handleRunVerification(ctx('7'));
-    expect(res2).toMatchObject({ success: true, ok: true });
+
+    // Slot released — a follow-up run must reach beginVerificationRun again.
+    const res2 = await handleRunVerification(ctx('12'));
+    expect(res2).toMatchObject({ success: true, status: 'running' });
+    expect(beginVerificationRunMock).toHaveBeenCalledTimes(2);
   });
 
-  it('rejects a concurrent run for the same task with 429', async () => {
-    let release: (() => void) | undefined;
-    runAutomatedVerificationMock.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          release = () => resolve({ ok: true, summary: 'ok', checks: [] });
-        }),
-    );
-    const first = handleRunVerification(ctx('9'));
-    // Give the first call a tick to acquire the slot before the second tries.
-    await new Promise((r) => setTimeout(r, 10));
-    const c2 = ctx('9');
-    const res2 = await handleRunVerification(c2);
-    expect(c2.set.status).toBe(429);
-    expect(res2).toMatchObject({ success: false });
-    release?.();
-    const res1 = await first;
-    expect(res1).toMatchObject({ success: true, ok: true });
+  describe('実行中ジョブへの冪等応答', () => {
+    it('ジョブ完了後の2回目のPOSTで runAutomatedVerification 相当（beginVerificationRun）が呼ばれる', async () => {
+      let releaseGate: (() => void) | undefined;
+      runVerificationGateAndRecordMock.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseGate = resolve;
+          }),
+      );
+      const first = await handleRunVerification(ctx('9'));
+      expect(first).toMatchObject({ success: true, runId: 'run-1' });
+
+      // Second request while the job is still running: same runId, no new
+      // gate launch (idempotent — this is what breaks the task 897 429
+      // retry-storm: the caller gets a 200 with the existing runId instead).
+      const second = await handleRunVerification(ctx('9'));
+      expect(second).toMatchObject({
+        success: true,
+        runId: 'run-1',
+        status: 'running',
+        idempotent: true,
+      });
+      expect(beginVerificationRunMock).toHaveBeenCalledTimes(1);
+
+      releaseGate?.();
+      await new Promise((r) => setTimeout(r, 10));
+
+      // After the background job finishes, the slot is released — a new
+      // request starts a fresh job.
+      const third = await handleRunVerification(ctx('9'));
+      expect(third).toMatchObject({ success: true, runId: 'run-2' });
+      expect(beginVerificationRunMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('回帰(task897 監督差戻し): runningJobs の同期予約', () => {
+    it('session読み取り中の同時要求は準備結果を共有し実在するrunIdだけを返す', async () => {
+      let releaseSession!: () => void;
+      findFirstMock.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseSession = () => resolve({ worktreePath: 'C:/wt/task-1' });
+          }),
+      );
+      const first = handleRunVerification(ctx('55'));
+      const secondContext = ctx('55');
+      try {
+        let secondSettled = false;
+        const secondPromise = handleRunVerification(secondContext).then((result) => {
+          secondSettled = true;
+          return result;
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(secondSettled).toBe(false);
+        releaseSession();
+        const second = await secondPromise;
+        // No new session lookup for the second call — the reservation guard
+        // short-circuits before findFirst is reached a second time.
+        expect(findFirstMock).toHaveBeenCalledTimes(1);
+        expect(second).toMatchObject({ success: true, status: 'running', runId: 'run-1' });
+      } finally {
+        releaseSession();
+        await first;
+      }
+    });
+
+    it('同時要求へ準備失敗を共有し、次の起動は再試行できる', async () => {
+      let release!: () => void;
+      findFirstMock.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            release = () => resolve(null);
+          }),
+      );
+      const firstContext = ctx('57');
+      const secondContext = ctx('57');
+      const first = handleRunVerification(firstContext);
+      const second = handleRunVerification(secondContext);
+      release();
+      const results = await Promise.all([first, second]);
+      expect(results).toEqual([
+        {
+          success: false,
+          error: 'このタスクの worktree が見つかりません（エージェント実行前は検証できません）。',
+        },
+        {
+          success: false,
+          error: 'このタスクの worktree が見つかりません（エージェント実行前は検証できません）。',
+        },
+      ]);
+      expect(firstContext.set.status).toBe(404);
+      expect(secondContext.set.status).toBe(404);
+      expect(beginVerificationRunMock).not.toHaveBeenCalled();
+      expect(await handleRunVerification(ctx('57'))).toMatchObject({
+        success: true,
+        runId: 'run-1',
+      });
+    });
+
+    it('404(worktreeなし)応答の直後は同一taskへの再要求が固着しない', async () => {
+      findFirstMock.mockImplementation(async () => null);
+      const c1 = ctx('56');
+      const res1 = await handleRunVerification(c1);
+      expect(c1.set.status).toBe(404);
+      expect(res1).toMatchObject({ success: false });
+
+      findFirstMock.mockImplementation(async () => ({ worktreePath: 'C:/wt/task-1' }));
+      const c2 = ctx('56');
+      const res2 = await handleRunVerification(c2);
+      expect(c2.set.status).toBeUndefined();
+      expect(res2).toMatchObject({ success: true, status: 'running' });
+    });
   });
 });

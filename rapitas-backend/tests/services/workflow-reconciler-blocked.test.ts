@@ -12,6 +12,7 @@ const mockPrisma = {
   task: {
     findMany: mock(() => Promise.resolve([] as unknown[])),
     update: mock(() => Promise.resolve({})),
+    updateMany: mock(() => Promise.resolve({ count: 1 })),
   },
   agentExecution: { findFirst: mock(() => Promise.resolve(null as unknown)) },
   workflowTransition: {
@@ -23,12 +24,21 @@ const mockPrisma = {
   activityLog: { findFirst: mock(() => Promise.resolve(null as unknown)) },
 };
 const recordTransition = mock(() => Promise.resolve());
+const automationPolicy = mock(async () => ({ autoMergePR: false }));
+mock.module('../../services/workflow/automation-policy', () => ({
+  resolveAutomationPolicy: automationPolicy,
+}));
 const resolveBlockedTaskEvidence = mock(() =>
   Promise.resolve({ isSuccess: false, source: 'none' as const }),
 );
 const escalateBlockedTask = mock(() => Promise.resolve(true));
 const reescalateIfOverdue = mock(() => Promise.resolve(false));
-const attemptPrOnlyRecovery = mock(() => Promise.resolve(false));
+// Return type widened to BlockedPrRecoveryOutcome (task 895, 2nd repair round):
+// a plain boolean cannot distinguish "genuinely failed" (safe for the caller's
+// blind full reset) from "declined because stopped" / "lost a CAS race" (must
+// NOT fall through to that reset). Default 'failed' keeps the pre-existing
+// happy-path tests below exercising the unchanged full-reset fallback.
+const attemptPrOnlyRecovery = mock(() => Promise.resolve('failed' as const));
 
 const noopLogger = { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} };
 mock.module('../../config/database', () => ({
@@ -82,6 +92,8 @@ function blockedTask(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 beforeEach(() => {
+  mockPrisma.task.updateMany.mockReset().mockResolvedValue({ count: 1 });
+  automationPolicy.mockReset().mockResolvedValue({ autoMergePR: false });
   mockPrisma.task.findMany.mockReset().mockResolvedValue([]);
   mockPrisma.task.update.mockReset().mockResolvedValue({});
   mockPrisma.agentExecution.findFirst.mockReset().mockResolvedValue(null);
@@ -94,10 +106,42 @@ beforeEach(() => {
   resolveBlockedTaskEvidence.mockReset().mockResolvedValue({ isSuccess: false, source: 'none' });
   escalateBlockedTask.mockReset().mockResolvedValue(true);
   reescalateIfOverdue.mockReset().mockResolvedValue(false);
-  attemptPrOnlyRecovery.mockReset().mockResolvedValue(false);
+  attemptPrOnlyRecovery.mockReset().mockResolvedValue('failed');
 });
 
 describe('correctBlockedByEvidence（受入基準1・3）', () => {
+  test('an enabled but paused theme cannot trigger blocked-task recovery or retry', async () => {
+    mockPrisma.themeAutoRun.findMany.mockImplementation((args: unknown) => {
+      const { where } = args as { where: { status?: string } };
+      return Promise.resolve(!where.status || where.status === 'paused' ? [{ themeId: 1 }] : []);
+    });
+    expect(await correctBlockedByEvidence(NOW)).toBe(0);
+    expect(await healBlockedStatusDesync(NOW)).toBe(0);
+    expect(await requeueBlockedTasks(NOW)).toBe(0);
+    expect(mockPrisma.task.findMany).not.toHaveBeenCalled();
+  });
+  test.each(['open', 'merged'])(
+    'required merge cannot complete from a local %s PR row',
+    async (prState) => {
+      mockPrisma.task.findMany.mockResolvedValue([blockedTask()]);
+      automationPolicy.mockResolvedValue({ autoMergePR: true });
+      resolveBlockedTaskEvidence.mockResolvedValue({
+        isSuccess: true,
+        source: 'linked_pr',
+        prState,
+      });
+      expect(await correctBlockedByEvidence(NOW)).toBe(0);
+      expect(mockPrisma.task.update).not.toHaveBeenCalled();
+      expect(recordTransition).not.toHaveBeenCalled();
+    },
+  );
+  test('unreadable automation policy cannot authorize completion', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([blockedTask()]);
+    automationPolicy.mockRejectedValue(new Error('database unavailable'));
+    resolveBlockedTaskEvidence.mockResolvedValue({ isSuccess: true, source: 'linked_pr' });
+    expect(await correctBlockedByEvidence(NOW)).toBe(0);
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+  });
   test('成功証拠あり → done + workflowStatus completed へ是正し blocked_evidence_done を記録', async () => {
     mockPrisma.task.findMany.mockResolvedValue([blockedTask()]);
     resolveBlockedTaskEvidence.mockResolvedValue({
@@ -242,14 +286,49 @@ describe('requeueBlockedTasks 回帰（受入基準2・4）', () => {
     expect(recordTransition).not.toHaveBeenCalled();
   });
 
-  test('task 673/681: 軽量PR再試行が成功したら、workflowStatus:draft を伴うフルリセットをせずに retried が1になる', async () => {
+  test('2026-09-13 task 912: 検証不能で保留中（verification_unverifiable_hold 遷移あり）は盲目再試行されない', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([{ id: 912, workflowStatus: 'verify_done' }]);
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string } }).where;
+      return Promise.resolve(where.cause === 'verification_unverifiable_hold' ? 1 : 0);
+    });
+
+    const retried = await requeueBlockedTasks(NOW);
+
+    expect(retried).toBe(0);
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    expect(recordTransition).not.toHaveBeenCalled();
+    expect(attemptPrOnlyRecovery).not.toHaveBeenCalled();
+  });
+
+  test('検証不能の保留は手動再試行（task_retried）より前のものなら無視され、通常の再試行に戻る', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([{ id: 912, workflowStatus: 'verify_done' }]);
+    const retriedAt = new Date(NOW - 60_000);
+    mockPrisma.activityLog.findFirst.mockResolvedValue({ createdAt: retriedAt });
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string; createdAt?: { gt: Date } } }).where;
+      // The hold was recorded BEFORE the manual retry: a windowed query sees 0.
+      if (where.cause === 'verification_unverifiable_hold')
+        return Promise.resolve(where.createdAt?.gt ? 0 : 1);
+      return Promise.resolve(0);
+    });
+
+    const retried = await requeueBlockedTasks(NOW);
+
+    expect(retried).toBe(1);
+    expect(mockPrisma.task.update).toHaveBeenCalledTimes(1);
+    const rt = recordTransition.mock.calls[0][0] as { cause: string };
+    expect(rt.cause).toBe('blocked_auto_retry');
+  });
+
+  test("task 673/681: 軽量PR再試行が'held'を返したら、workflowStatus:draft を伴うフルリセットをせずに retried が1になる", async () => {
     mockPrisma.task.findMany.mockResolvedValue([{ id: 673, workflowStatus: 'verify_done' }]);
     mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
       const where = (args as { where: { cause: string } }).where;
       if (where.cause === 'verify_pr_not_created') return Promise.resolve(1);
       return Promise.resolve(0);
     });
-    attemptPrOnlyRecovery.mockResolvedValue(true);
+    attemptPrOnlyRecovery.mockResolvedValue('held');
 
     const retried = await requeueBlockedTasks(NOW);
 
@@ -260,14 +339,29 @@ describe('requeueBlockedTasks 回帰（受入基準2・4）', () => {
     expect(mockPrisma.task.update).not.toHaveBeenCalled();
   });
 
-  test('task 673/681: 軽量PR再試行が失敗したら、PR_RETRY_LIGHTWEIGHT_CAUSE記録後に既存の盲目フルリセットへフォールスルーする', async () => {
+  test("task 673/681: 軽量PR再試行が'completed'を返しても、workflowStatus:draft を伴うフルリセットをせずに retried が1になる", async () => {
     mockPrisma.task.findMany.mockResolvedValue([{ id: 673, workflowStatus: 'verify_done' }]);
     mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
       const where = (args as { where: { cause: string } }).where;
       if (where.cause === 'verify_pr_not_created') return Promise.resolve(1);
       return Promise.resolve(0);
     });
-    attemptPrOnlyRecovery.mockResolvedValue(false);
+    attemptPrOnlyRecovery.mockResolvedValue('completed');
+
+    const retried = await requeueBlockedTasks(NOW);
+
+    expect(retried).toBe(1);
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+  });
+
+  test("task 673/681: 軽量PR再試行が'failed'を返したら、PR_RETRY_LIGHTWEIGHT_CAUSE記録後に既存の盲目フルリセットへフォールスルーする", async () => {
+    mockPrisma.task.findMany.mockResolvedValue([{ id: 673, workflowStatus: 'verify_done' }]);
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string } }).where;
+      if (where.cause === 'verify_pr_not_created') return Promise.resolve(1);
+      return Promise.resolve(0);
+    });
+    attemptPrOnlyRecovery.mockResolvedValue('failed');
 
     const retried = await requeueBlockedTasks(NOW);
 
@@ -281,6 +375,42 @@ describe('requeueBlockedTasks 回帰（受入基準2・4）', () => {
     expect(tu.data.workflowStatus).toBe('draft');
     const rt = recordTransition.mock.calls[0][0] as { cause: string };
     expect(rt.cause).toBe('blocked_auto_retry');
+  });
+
+  test("task 895（2nd repair round）: 軽量PR再試行が'declined_stopped'を返したら、既存の盲目フルリセットへは絶対にフォールスルーしない（停止後の再ディスパッチ禁止）", async () => {
+    mockPrisma.task.findMany.mockResolvedValue([{ id: 673, workflowStatus: 'verify_done' }]);
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string } }).where;
+      if (where.cause === 'verify_pr_not_created') return Promise.resolve(1);
+      return Promise.resolve(0);
+    });
+    attemptPrOnlyRecovery.mockResolvedValue('declined_stopped');
+
+    const retried = await requeueBlockedTasks(NOW);
+
+    expect(attemptPrOnlyRecovery).toHaveBeenCalledTimes(1);
+    // 'declined_stopped' は「失敗」ではなく「停止中につき触るな」— retriedに数えず、
+    // task.update（フルリセットの todo/draft 書き込み）も一切呼ばれてはならない。
+    expect(retried).toBe(0);
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    expect(recordTransition).not.toHaveBeenCalled();
+  });
+
+  test("task 895（2nd repair round）: 軽量PR再試行が'cas_lost'を返したら、既存の盲目フルリセットへは絶対にフォールスルーしない（別経路が既に動かした行を上書きしない）", async () => {
+    mockPrisma.task.findMany.mockResolvedValue([{ id: 673, workflowStatus: 'verify_done' }]);
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string } }).where;
+      if (where.cause === 'verify_pr_not_created') return Promise.resolve(1);
+      return Promise.resolve(0);
+    });
+    attemptPrOnlyRecovery.mockResolvedValue('cas_lost');
+
+    const retried = await requeueBlockedTasks(NOW);
+
+    expect(attemptPrOnlyRecovery).toHaveBeenCalledTimes(1);
+    expect(retried).toBe(0);
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    expect(recordTransition).not.toHaveBeenCalled();
   });
 
   test('task 673/681: 既に軽量リトライ試行済み（verify_pr_retry_lightweight あり）のタスクは軽量リトライを再試行しない', async () => {
@@ -322,7 +452,7 @@ describe('requeueBlockedTasks 回帰（受入基準2・4）', () => {
       }
       return Promise.resolve(0);
     });
-    attemptPrOnlyRecovery.mockResolvedValue(true);
+    attemptPrOnlyRecovery.mockResolvedValue('held');
 
     const retried = await requeueBlockedTasks(NOW);
 
@@ -338,7 +468,7 @@ describe('requeueBlockedTasks 回帰（受入基準2・4）', () => {
       if (where.cause === 'verify_pr_not_created') return Promise.resolve(1);
       return Promise.resolve(0);
     });
-    attemptPrOnlyRecovery.mockResolvedValue(true);
+    attemptPrOnlyRecovery.mockResolvedValue('held');
 
     const retried = await requeueBlockedTasks(NOW);
 
@@ -370,6 +500,21 @@ describe('escalateAbandonedBlocked（受入基準5まわり・プレモーテム
     expect(call[2]).toBe('awaiting_question');
     // task 770: 呼び出し元が保持する t.workflowStatus が末尾引数として伝搬すること
     expect(call[5]).toBe('awaiting_question');
+  });
+
+  test('検証不能の保留（verification_unverifiable_hold 遷移あり）は verification_unverifiable でエスカレーションされる', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([blockedTask({ id: 912 })]);
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string } }).where;
+      return Promise.resolve(where.cause === 'verification_unverifiable_hold' ? 1 : 0);
+    });
+
+    const escalated = await escalateAbandonedBlocked(NOW);
+
+    expect(escalated).toBe(1);
+    const call = escalateBlockedTask.mock.calls[0] as unknown[];
+    expect((call[1] as { id: number }).id).toBe(912);
+    expect(call[2]).toBe('verification_unverifiable');
   });
 
   test('2日超の古い blocked は abandoned_old でエスカレーションされる（条件4の救済）', async () => {
@@ -624,7 +769,7 @@ describe('healBlockedStatusDesync（task 802: status/workflowStatus 不整合の
     const healed = await healBlockedStatusDesync(NOW);
 
     expect(healed).toBe(1);
-    const tu = mockPrisma.task.update.mock.calls[0][0] as {
+    const tu = mockPrisma.task.updateMany.mock.calls[0][0] as {
       data: { status: string; workflowStatus?: string };
     };
     expect(tu.data.status).toBe('todo');
@@ -634,6 +779,34 @@ describe('healBlockedStatusDesync（task 802: status/workflowStatus 不整合の
     expect(rt.toStatus).toBe('plan_approved');
   });
 
+  test('an unrecorded newer block moves the resume evidence cutoff', async () => {
+    const reblockedAt = new Date(NOW - 10 * 60 * 1000);
+    mockPrisma.task.findMany.mockResolvedValue([
+      blockedTask({ workflowStatus: 'plan_approved', updatedAt: reblockedAt }),
+    ]);
+    mockTransitions({ hasBlocked: true, hasUserAdvance: false });
+    expect(await healBlockedStatusDesync(NOW)).toBe(0);
+    const query = mockPrisma.workflowTransition.findFirst.mock.calls.find(
+      (call) => call[0].where.actor === 'user',
+    )[0];
+    expect(query.where.createdAt.gt).toEqual(reblockedAt);
+    expect(query.where.cause.in).not.toContain('intake_question_answered');
+    expect(mockPrisma.task.updateMany).not.toHaveBeenCalled();
+  });
+
+  test('a concurrent mutation cannot be counted as a successful heal', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([blockedTask({ workflowStatus: 'plan_approved' })]);
+    mockTransitions({ hasBlocked: true, hasUserAdvance: true });
+    mockPrisma.task.updateMany.mockResolvedValue({ count: 0 });
+    expect(await healBlockedStatusDesync(NOW)).toBe(0);
+    expect(recordTransition).not.toHaveBeenCalled();
+    expect(mockPrisma.task.updateMany.mock.calls[0][0].where).toEqual({
+      id: 595,
+      status: 'blocked',
+      updatedAt: OLD,
+    });
+  });
+
   test('workflowStatus=draft（人手先行の痕跡なし）では対象外', async () => {
     mockPrisma.task.findMany.mockResolvedValue([blockedTask({ id: 801, workflowStatus: 'draft' })]);
     mockTransitions({ hasBlocked: true, hasUserAdvance: true });
@@ -641,7 +814,7 @@ describe('healBlockedStatusDesync（task 802: status/workflowStatus 不整合の
     const healed = await healBlockedStatusDesync(NOW);
 
     expect(healed).toBe(0);
-    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    expect(mockPrisma.task.updateMany).not.toHaveBeenCalled();
   });
 
   test('actor:user 遷移が無い（システム由来の前進のみ）場合は対象外', async () => {
@@ -653,6 +826,6 @@ describe('healBlockedStatusDesync（task 802: status/workflowStatus 不整合の
     const healed = await healBlockedStatusDesync(NOW);
 
     expect(healed).toBe(0);
-    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    expect(mockPrisma.task.updateMany).not.toHaveBeenCalled();
   });
 });

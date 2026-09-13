@@ -19,6 +19,7 @@ mock.module('../../../../config/logger', () => ({
 // this shared state, so the FIRST completion flips it and the SECOND gets
 // count:0 — the same row-level outcome as two concurrent real requests.
 let dbWorkflowStatus = 'verify_done';
+let completionRefusal: string | null = null;
 const updateManyCalls: unknown[] = [];
 const mockUpdateMany = mock(
   (args: { where: { id: number; workflowStatus?: string }; data: Record<string, unknown> }) => {
@@ -34,7 +35,7 @@ const mockPrisma = {
   task: {
     updateMany: mockUpdateMany,
     update: mock(() => Promise.resolve({})),
-    findUnique: mock(() => Promise.resolve({ githubPrId: null })),
+    findUnique: mock(() => Promise.resolve({ githubPrId: null, updatedAt: new Date(0) })),
   },
   gitHubPullRequest: { findFirst: mock(() => Promise.resolve(null)) },
   agentSession: { findFirst: mock(() => Promise.resolve(null)) },
@@ -49,6 +50,18 @@ const mockRecordTransition = mock((args: { cause: string }) => {
 }) as any;
 mock.module('../../../../services/workflow/transition-recorder', () => ({
   recordTransition: mockRecordTransition,
+}));
+
+// Atomic DB behavior is covered with real SQLite in requirement-replan-commit.test.ts.
+mock.module('../../../../services/workflow/requirement-replan-commit', () => ({
+  assertReviewedTaskCurrent: async () => undefined,
+  completeReviewedTask: async (_db: unknown, _receipt: unknown, completion: { cause: string }) => {
+    if (completionRefusal) return { committed: false, reason: completionRefusal };
+    if (dbWorkflowStatus === 'completed') return { committed: false, reason: 'already_completed' };
+    dbWorkflowStatus = 'completed';
+    transitionCalls.push({ cause: completion.cause });
+    return { committed: true, reason: completion.cause };
+  },
 }));
 
 // ---- workflow-auto-commit mock ----
@@ -99,12 +112,36 @@ mock.module('../../../../services/workflow/verify-self-repair', () => ({
     return Promise.resolve(repairFixture);
   },
 }));
+// Required-merge gate (task 895). Default false so the CAS suites above keep
+// exercising the completion path unchanged.
+let awaitingRequiredMerge = false;
+mock.module('../../../../services/workflow/verify-settle-artifact-recovery', () => ({
+  isAwaitingRequiredMerge: () => Promise.resolve(awaitingRequiredMerge),
+}));
+const mockHoldForRequiredMerge = mock(() => Promise.resolve(true));
+mock.module('../../../../services/workflow/required-merge-hold', () => ({
+  holdForRequiredMerge: mockHoldForRequiredMerge,
+  AWAITING_REQUIRED_MERGE_CAUSE: 'verify_awaiting_required_merge',
+}));
+
 const { runVerifyCommitPrCompletion } = await import('./verify-commit-pr');
 
 /** Builds the params for one completion invocation. / 1回分の完了処理パラメータを組み立てる。 */
 function buildParams(overrides: Partial<Parameters<typeof runVerifyCommitPrCompletion>[0]> = {}) {
   return {
     taskId: 594,
+    completionReceipt: {
+      taskId: 594,
+      executionId: null,
+      evaluatedUpdatedAt: new Date(),
+      review: {
+        snapshotDigest: 'test',
+        durationMs: 1,
+        tokensUsed: 1,
+        modelName: null,
+        verdict: { kind: 'no_mismatch' as const, reason: 'test' },
+      },
+    },
     fileType: 'verify' as const,
     newStatus: 'verify_done',
     verifyGateBlocked: false,
@@ -118,6 +155,9 @@ function buildParams(overrides: Partial<Parameters<typeof runVerifyCommitPrCompl
 }
 
 beforeEach(() => {
+  completionRefusal = null;
+  awaitingRequiredMerge = false;
+  mockHoldForRequiredMerge.mockClear();
   dbWorkflowStatus = 'verify_done';
   updateManyCalls.length = 0;
   transitionCalls.length = 0;
@@ -136,6 +176,20 @@ beforeEach(() => {
 });
 
 describe('runVerifyCommitPrCompletion — 完了遷移のCAS（二重記録防止）', () => {
+  test('conflict completion refuses a stop without writing completion or side effects', async () => {
+    completionRefusal = 'stop_not_resumed';
+    await expect(
+      runVerifyCommitPrCompletion(
+        buildParams({
+          isConflictResolutionTask: true,
+          conflictTask: { title: 'resolve conflict', githubPrId: 7 },
+        }),
+      ),
+    ).rejects.toThrow('Reviewed conflict completion held');
+    expect(transitionCalls).toEqual([]);
+    expect(sideEffectsCalls).toEqual([]);
+    expect(dbWorkflowStatus).toBe('verify_done');
+  });
   test('no-change完了を並行2回起動しても verify_no_change_confirmed 遷移が1回のみ記録されること', async () => {
     const [r1, r2] = await Promise.all([
       runVerifyCommitPrCompletion(buildParams()),
@@ -243,7 +297,7 @@ describe('runVerifyCommitPrCompletion — 競合解消タスクは PR の mergea
     expect(transitionCalls.map((t) => t.cause)).toEqual(['conflict_resolution_completed']);
   });
 
-  test('PR 番号が無ければ照会せず完了（fail open）', async () => {
+  test('missing PR number holds conflict completion without a lookup', async () => {
     const res = await runVerifyCommitPrCompletion(
       buildParams({
         isConflictResolutionTask: true,
@@ -251,6 +305,58 @@ describe('runVerifyCommitPrCompletion — 競合解消タスクは PR の mergea
       }),
     );
     expect(prVerdictCalls.length).toBe(0);
-    expect(res.taskMarkedDone).toBe(true);
+    expect(res.taskMarkedDone).toBe(false);
+    expect(transitionCalls).toHaveLength(0);
   });
+});
+
+describe('runVerifyCommitPrCompletion — 競合解消タスクの必須マージゲート (task 895)', () => {
+  /** Non-DIRTY conflict-resolution completion input. / 非DIRTYの競合解消完了入力 */
+  const conflictParams = () =>
+    buildParams({
+      isConflictResolutionTask: true,
+      conflictTask: { title: '競合解消', githubPrId: 42 },
+    });
+
+  test('autoMergePR要求時はPRが非DIRTYでも完了させず verify_done で保留する', async () => {
+    awaitingRequiredMerge = true;
+
+    const res = await runVerifyCommitPrCompletion(conflictParams());
+
+    expect(res.taskMarkedDone).toBe(false);
+    expect(res.newStatus).toBe('verify_done');
+    expect(mockHoldForRequiredMerge).toHaveBeenCalledWith(
+      expect.objectContaining({ taskId: 594, source: 'verify-commit-pr:conflict-resolution' }),
+    );
+    expect(transitionCalls.filter((t) => t.cause === 'conflict_resolution_completed').length).toBe(
+      0,
+    );
+    expect(updateManyCalls.length).toBe(0);
+  });
+
+  test('autoMergePR未要求なら従来どおり非DIRTYで完了する', async () => {
+    awaitingRequiredMerge = false;
+
+    const res = await runVerifyCommitPrCompletion(conflictParams());
+
+    expect(res.taskMarkedDone).toBe(true);
+    expect(mockHoldForRequiredMerge).not.toHaveBeenCalled();
+    expect(transitionCalls.filter((t) => t.cause === 'conflict_resolution_completed').length).toBe(
+      1,
+    );
+  });
+});
+
+test('unknown conflict PR evidence cannot complete a task', async () => {
+  for (const state of [null, 'UNKNOWN']) {
+    prVerdictFixture = { dirty: false, state };
+    const result = await runVerifyCommitPrCompletion(
+      buildParams({
+        isConflictResolutionTask: true,
+        conflictTask: { title: 'Resolve conflict', githubPrId: 534 },
+      }),
+    );
+    expect(result.taskMarkedDone).toBe(false);
+    expect(transitionCalls).toHaveLength(0);
+  }
 });
