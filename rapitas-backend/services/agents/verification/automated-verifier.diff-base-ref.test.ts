@@ -58,11 +58,11 @@ describe('diffBaseRef — preferredBaseBranch overrides the develop/main/master 
     writeFileSync(join(repoDir, 'task-change.txt'), 'task change\n');
     run('git add task-change.txt');
     run('git commit -q -m "task change"');
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
   afterEach(() => {
     rmSync(repoDir, { recursive: true, force: true });
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
   test(
     'without a preference, the develop guess resolves to the stale root commit',
@@ -117,11 +117,11 @@ describe('diffBaseRef — local base branch AHEAD of origin (unpushed self-dev c
     writeFileSync(join(repoDir, 'unpushed.txt'), 'unpushed work\n');
     run('git add unpushed.txt');
     run('git commit -q -m "unpushed self-dev commit"');
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
   afterEach(() => {
     rmSync(repoDir, { recursive: true, force: true });
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
   test(
     'resolves to the LOCAL develop tip, not the stale origin merge-base',

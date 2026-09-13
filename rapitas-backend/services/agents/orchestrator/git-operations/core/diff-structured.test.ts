@@ -12,6 +12,10 @@ import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
+// A real `git clone` + multiple commits/fetches under Windows suite-wide
+// parallel load can exceed Bun's 5s default hook/test timeout.
+const GIT_TEST_TIMEOUT_MS = 30_000;
+
 // ---------------------------------------------------------------------------
 // Logger 呼び出しキャプチャ用コンテナ — mock.module の factory がクロージャで参照する
 // ---------------------------------------------------------------------------
@@ -337,25 +341,33 @@ describe('getDiff — resolveBaseRef fetches origin/<branch> itself (task 516: n
     // since the worktree was cloned. Only resolveBaseRef's own fetch (inside
     // getDiff, called below) may bring it forward again.
     runIn(repoDir, `git update-ref refs/remotes/origin/develop ${rootSha}`);
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
   afterEach(() => {
     rmSync(repoDir, { recursive: true, force: true });
     rmSync(remoteDir, { recursive: true, force: true });
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
-  test('refreshes the stale origin/develop ref itself and excludes already-merged PRs', async () => {
-    const result = await getDiff(repoDir, undefined, 'develop');
-    const filenames = result.map((f) => f.filename);
-    expect(filenames).toEqual(['task-change.txt']);
-    expect(filenames).not.toContain('pr-323-backend.txt');
-    expect(filenames).not.toContain('pr-333-button.txt');
-  });
+  test(
+    'refreshes the stale origin/develop ref itself and excludes already-merged PRs',
+    async () => {
+      const result = await getDiff(repoDir, undefined, 'develop');
+      const filenames = result.map((f) => f.filename);
+      expect(filenames).toEqual(['task-change.txt']);
+      expect(filenames).not.toContain('pr-323-backend.txt');
+      expect(filenames).not.toContain('pr-333-button.txt');
+    },
+    GIT_TEST_TIMEOUT_MS,
+  );
 
-  test('sanity: without a fresh fetch, local refs are still frozen at root', () => {
-    const originDevelop = runIn(repoDir, 'git rev-parse refs/remotes/origin/develop');
-    const localDevelop = runIn(repoDir, 'git rev-parse develop');
-    expect(originDevelop).toBe(rootSha);
-    expect(localDevelop).toBe(rootSha);
-  });
+  test(
+    'sanity: without a fresh fetch, local refs are still frozen at root',
+    () => {
+      const originDevelop = runIn(repoDir, 'git rev-parse refs/remotes/origin/develop');
+      const localDevelop = runIn(repoDir, 'git rev-parse develop');
+      expect(originDevelop).toBe(rootSha);
+      expect(localDevelop).toBe(rootSha);
+    },
+    GIT_TEST_TIMEOUT_MS,
+  );
 });
