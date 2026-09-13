@@ -35,3 +35,46 @@ export function eligibleTopLevelTodoWhere(
     ...extra,
   };
 }
+
+/**
+ * Where-fragment for a top-level (parentId:null) task in status 'todo' or
+ * 'in-progress' that selectNextTask's candidate query (auto-run-selection.ts)
+ * would also consider — the SAME clauses, not just the same intent. Used by
+ * both `selectNextTask` and the `GET /themes/:id/auto-run` `remainingCount`
+ * so the two can never drift apart again (task 889: `remainingCount` was
+ * missing the `status:'todo'` OR-branch, undercounting tasks reset to 'todo'
+ * for a re-run whose `workflowStatus` was left at a stale terminal value).
+ *
+ * Deliberately excludes `id: notIn skipTaskIds` — that list is a per-call
+ * runtime parameter (currently-running task ids across the whole process),
+ * not part of a task's static eligibility, so callers that need it merge it
+ * in via `extra`.
+ *
+ * @param themeId - Theme to scope the query to. / 対象テーマID
+ * @param extra - Additional where clauses to merge in (e.g. `id: { notIn }`). / 追加の絞り込み条件
+ * @returns Prisma where input for prisma.task.count/findMany. / count/findMany用のwhere条件
+ */
+export function autoRunCandidateWhere(
+  themeId: number,
+  extra?: Prisma.TaskWhereInput,
+): Prisma.TaskWhereInput {
+  return {
+    themeId,
+    status: { in: ['todo', 'in-progress'] },
+    AND: [
+      {
+        OR: [
+          { status: 'todo' },
+          { workflowStatus: null },
+          { workflowStatus: { notIn: ['completed', 'verify_done'] } },
+        ],
+      },
+      {
+        OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
+      },
+    ],
+    workflowDisabled: false,
+    parentId: null,
+    ...extra,
+  };
+}
