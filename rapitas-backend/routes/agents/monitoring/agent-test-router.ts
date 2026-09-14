@@ -13,28 +13,49 @@ import { resolveStoredSecret } from '../../../utils/common/secret-store';
 import { logAgentConfigChange } from '../../../utils/agent/agent-audit-log';
 
 /**
- * Spawns a CLI binary with --version and resolves with success/message.
+ * Spawns a CLI binary with --version and resolves with the raw outcome.
+ *
+ * Wraps `spawn()` in try/catch because on Windows, Node (unlike Bun) can
+ * synchronously throw (e.g. EINVAL) when shell:false spawns a .cmd shim such
+ * as codex.cmd — the async 'error' event never fires for that case, so
+ * relying on it alone would leave the returned promise unsettled.
  *
  * @param cliPath - Path or command name for the CLI binary / CLIバイナリのパスまたはコマンド名
- * @param label - Human-readable CLI name for error messages / エラーメッセージ用の表示名
- * @returns Success flag and descriptive message / 成功フラグと説明メッセージ
+ * @returns Success flag, captured stdout, and error detail if any / 成功フラグ・標準出力・エラー内容
  */
-async function testCliAvailability(
+async function spawnCliVersionCheck(
   cliPath: string,
-  label: string,
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; output: string; error?: string }> {
   const { spawn } = await import('child_process');
   return new Promise((resolve) => {
+    let settled = false;
+    const settle = (result: { success: boolean; output: string; error?: string }) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+
     // NOTE: shell:false — args are already an array; a shell isn't needed to
     // invoke a binary/cmd-shim by name (Node resolves it via PATHEXT on
     // Windows), and not using one closes off shell metacharacter injection.
-    const proc = spawn(cliPath, ['--version'], { shell: false });
+    let proc: ReturnType<typeof spawn>;
+    try {
+      proc = spawn(cliPath, ['--version'], { shell: false, windowsHide: true });
+    } catch (err) {
+      settle({
+        success: false,
+        output: '',
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
+
     let stdout = '';
     let stderr = '';
 
     const timeout = setTimeout(() => {
       proc.kill();
-      resolve({ success: false, message: `${label} timeout` });
+      settle({ success: false, output: '', error: 'Timeout (10s)' });
     }, 10000);
 
     proc.stdout?.on('data', (data) => {
@@ -46,18 +67,40 @@ async function testCliAvailability(
 
     proc.on('close', (code) => {
       clearTimeout(timeout);
-      if (code === 0) {
-        resolve({ success: true, message: `${label} available: ${stdout.trim()}` });
-      } else {
-        resolve({ success: false, message: stderr || `Exit code: ${code}` });
-      }
+      settle({
+        success: code === 0,
+        output: stdout.trim(),
+        error: code === 0 ? undefined : stderr.trim() || `Exit code: ${code}`,
+      });
     });
 
     proc.on('error', (err) => {
       clearTimeout(timeout);
-      resolve({ success: false, message: `${label} not found: ${err.message}` });
+      settle({ success: false, output: '', error: err.message });
     });
   });
+}
+
+/**
+ * Runs a CLI availability check and formats it into the legacy /test
+ * response shape (success/message only).
+ *
+ * @param cliPath - Path or command name for the CLI binary / CLIバイナリのパスまたはコマンド名
+ * @param label - Human-readable CLI name for error messages / エラーメッセージ用の表示名
+ * @returns Success flag and descriptive message / 成功フラグと説明メッセージ
+ */
+async function testCliAvailability(
+  cliPath: string,
+  label: string,
+): Promise<{ success: boolean; message: string }> {
+  const result = await spawnCliVersionCheck(cliPath);
+  if (result.success) {
+    return { success: true, message: `${label} available: ${result.output}` };
+  }
+  if (result.error === 'Timeout (10s)') {
+    return { success: false, message: `${label} timeout` };
+  }
+  return { success: false, message: result.error || `${label} not found` };
 }
 
 export const agentTestRouter = new Elysia()
@@ -227,44 +270,7 @@ export const agentTestRouter = new Elysia()
     try {
       if (agent.agentType === 'claude-code') {
         const claudePath = process.env.CLAUDE_CODE_PATH || 'claude';
-        const { spawn } = await import('child_process');
-
-        const testResult = await new Promise<{
-          success: boolean;
-          output?: string;
-          error?: string;
-        }>((resolve) => {
-          // NOTE: shell:false — see testCliAvailability() above for rationale.
-          const proc = spawn(claudePath, ['--version'], { shell: false });
-          let stdout = '';
-          let stderr = '';
-
-          const timeout = setTimeout(() => {
-            proc.kill();
-            resolve({ success: false, error: 'Timeout (10s)' });
-          }, 10000);
-
-          proc.stdout?.on('data', (data) => {
-            stdout += data.toString();
-          });
-          proc.stderr?.on('data', (data) => {
-            stderr += data.toString();
-          });
-
-          proc.on('close', (code) => {
-            clearTimeout(timeout);
-            resolve({
-              success: code === 0,
-              output: stdout.trim(),
-              error: stderr.trim() || (code !== 0 ? `Exit code: ${code}` : undefined),
-            });
-          });
-
-          proc.on('error', (err) => {
-            clearTimeout(timeout);
-            resolve({ success: false, error: err.message });
-          });
-        });
+        const testResult = await spawnCliVersionCheck(claudePath);
 
         return {
           success: testResult.success,
@@ -272,6 +278,42 @@ export const agentTestRouter = new Elysia()
           message: testResult.success
             ? `Claude Code CLI接続成功: ${testResult.output}`
             : `Claude Code CLI接続失敗: ${testResult.error}`,
+          details: testResult,
+        };
+      }
+
+      // Codex CLI authenticates via its own OAuth session, not an
+      // apiKeyEncrypted value — requiring one here misdiagnoses a correctly
+      // configured OAuth agent as "API key missing". Only a CLI presence
+      // check is performed; that is NOT evidence of a verified authenticated
+      // connection, so the message says so explicitly (criterion 2).
+      if (agent.agentType === 'codex') {
+        const codexPath = process.env.CODEX_CLI_PATH || 'codex';
+        const testResult = await spawnCliVersionCheck(codexPath);
+
+        return {
+          success: testResult.success,
+          agentType: agent.agentType,
+          message: testResult.success
+            ? `Codex CLI起動確認: ${testResult.output}（認証状態・実際のモデル疎通は未検証）`
+            : `Codex CLI接続失敗: ${testResult.error}`,
+          details: testResult,
+        };
+      }
+
+      // Gemini CLI can also run without an API key (OAuth/project config);
+      // only fall back to requiring one when the CLI path itself isn't the
+      // configured auth mode.
+      if (agent.agentType === 'gemini' && !agent.apiKeyEncrypted) {
+        const geminiPath = process.env.GEMINI_CLI_PATH || 'gemini';
+        const testResult = await spawnCliVersionCheck(geminiPath);
+
+        return {
+          success: testResult.success,
+          agentType: agent.agentType,
+          message: testResult.success
+            ? `Gemini CLI起動確認: ${testResult.output}（認証状態・実際のモデル疎通は未検証）`
+            : `Gemini CLI接続失敗: ${testResult.error}`,
           details: testResult,
         };
       }
