@@ -9,6 +9,7 @@ import { readWorkflowFile } from './workflow-file-utils';
 import { buildMemoryContext } from './workflow-memory-context';
 import { buildRejectedPlanContext } from './workflow-rejected-plan-context';
 import { buildPlanRevisionContext } from './workflow-plan-revision-context';
+import { buildRequirementMismatchContext } from './workflow-requirement-mismatch-context';
 import { buildCaseContext } from './workflow-case-context';
 import { buildPlaybookContext } from '../memory/playbook/playbook-inject';
 import { buildCriticFeedback, buildCriticLessonsSection } from './phase-critic';
@@ -56,6 +57,18 @@ export async function buildPlannerContext(
     ctx += `
 
 ${planRevision}`;
+  }
+  // A SYSTEM-detected requirement/plan mismatch (verify-requirement-plan-
+  // mismatch.ts) also carries the current plan and outranks the critic bounce
+  // below for the same reason — but is rendered as a machine detection, never
+  // as if a human asked for it (task 909).
+  const requirementMismatch = await buildRequirementMismatchContext(
+    taskId,
+    await readWorkflowFile(taskId, 'plan'),
+    language,
+  );
+  if (requirementMismatch) {
+    ctx += `\n\n${requirementMismatch}`;
   }
   // On a critic-gate bounce, lead with the issues the prior plan missed.
   const planCritic = await buildCriticFeedback(taskId, 'plan', language);

@@ -31,9 +31,19 @@ const SYSTEM_PROMPT = `あなたはソフトウェア開発タスクの仕様を
 出力は必ず次のJSONのみ。前後に説明文やコードブロックを付けないこと:
 {"goals":["..."],"constraints":["..."],"acceptanceCriteria":["..."]}
 
-各配列は0〜6項目。該当が無ければ空配列にする。説明文から妥当に導けるものに限定し、過度な推測はしない。`;
+各配列は0〜6項目。該当が無ければ空配列にする。説明文から妥当に導けるものに限定し、過度な推測はしない。
+監督/検証者自身の調査手順・再現記録・作業環境のファイルパス（例: .supervisor/ 配下のスクラッチファイル）への言及は、このタスクの実装義務ではない。抽出対象に含めないこと。`;
 
 const EMPTY: DerivedTaskSpec = { goals: [], constraints: [], acceptanceCriteria: [] };
+
+// NOTE(task 909): 上記 SYSTEM_PROMPT の指示はAIへの助言に過ぎず保証ではない。
+// タスク説明が明示的に .supervisor/ 配下を対象とする正当な要求を書いていた場合、
+// この一次防御では無条件に削除してはならない（AC#2: 明示的な受入条件を自動抽出で
+// 劣化させない）。過去に存在した filterInvestigationArtifacts() による無条件削除は
+// task 909 の再計画で撤回した — 決定的な安全確保は二次防御
+// (services/intake/spec-coherence-checker.ts の findSupervisorArtifactCriteria +
+// services/intake/intake-gate.ts の質問フロー) が「削除ではなく人間に確認する」
+// 形で担う。
 
 /** Extracts a clean string[] from an unknown JSON value. */
 function toStringArray(value: unknown): string[] {

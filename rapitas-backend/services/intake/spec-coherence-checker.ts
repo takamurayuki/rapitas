@@ -13,6 +13,16 @@
  * Measured 2026-08-27 — of the five tasks needing three or more repair rounds,
  * three had defective criteria rather than defective implementations, and each
  * was rescued only by a human rewriting the criteria.
+ *
+ * A third contamination path (task 906/909): a criterion carrying no OTHER
+ * task's vocabulary at all, but the supervisor/verifier's own investigation
+ * scratch path (`.supervisor/...`) — evidence of a past reproduction, not a
+ * future implementation requirement. `sourceTaskId` is `null` for this path
+ * since it is not attributed to another task. Detected by a direct substring
+ * match rather than acceptance-self-check.ts's path-token extraction: that
+ * extractor's PATHISH_RE cannot match a drive-letter-prefixed Windows path
+ * (`C:/...`) — exactly task 906's actual wording — because its first path
+ * segment excludes `:`.
  */
 
 /** A task whose text this spec cites — supplied by the caller. */
@@ -22,15 +32,19 @@ export interface ReferencedTask {
 }
 
 /** How a criterion was found to be about something else. */
-export type ContaminationKind = 'coined_phrase' | 'quoted_title';
+export type ContaminationKind = 'coined_phrase' | 'quoted_title' | 'investigation_artifact';
 
 /** One criterion that appears to belong to another task. */
 export interface ContaminatedCriterion {
   /** 1-based index, matching how repair reasons cite criteria. */
   index: number;
   criterion: string;
-  /** The task whose subject matter it carries. */
-  sourceTaskId: number;
+  /**
+   * The task whose subject matter it carries, or `null` when the criterion
+   * was not lifted from another task but from an investigation-artifact path
+   * (`kind: 'investigation_artifact'`).
+   */
+  sourceTaskId: number | null;
   /** The distinctive tokens it lifted from that task. */
   phrases: string[];
   /** Which evidence path flagged it. / どちらの根拠で検出したか */
@@ -174,7 +188,47 @@ export function findLiftedFromQuotedTitle(
 }
 
 /**
- * Find acceptance criteria that are really another task's subject matter.
+ * Path fragment identifying the supervisor/verifier's own investigation
+ * scratch area. Backend code never references this path (verified
+ * 2026-09-08 by a full-repo search) — so any occurrence in a criterion is
+ * structurally certain to be a past reproduction note, not a future
+ * requirement. Matched case-insensitively against the criterion with
+ * backslashes normalized to forward slashes, so both
+ * `.supervisor/measurements/x.patch` and a Windows-style
+ * `C:\Projects\rapitas\.supervisor\x.ts` are caught alike.
+ */
+const SUPERVISOR_ARTIFACT_RE = /\.supervisor\/[^\s、。，（）「」『』【】()<>[\]{}"'`,;！？!?…]*/i;
+
+/**
+ * Criteria referencing the supervisor's own investigation scratch path.
+ *
+ * Unlike {@link findContaminatedCriteria}'s other two paths, this one is NOT
+ * about another task's vocabulary — it fires even with zero `#id` references
+ * anywhere in the task's own text (task 906 had none), because the signal is
+ * the path itself, not a citation.
+ *
+ * @param criteria - This task's acceptance criteria. / 受入基準
+ * @returns One entry per criterion referencing the supervisor path. / 検出結果
+ */
+export function findSupervisorArtifactCriteria(criteria: string[]): ContaminatedCriterion[] {
+  const out: ContaminatedCriterion[] = [];
+  for (const [i, criterion] of criteria.entries()) {
+    const match = criterion.replace(/\\/g, '/').match(SUPERVISOR_ARTIFACT_RE);
+    if (!match) continue;
+    out.push({
+      index: i + 1,
+      criterion,
+      sourceTaskId: null,
+      phrases: [match[0]],
+      kind: 'investigation_artifact',
+    });
+  }
+  return out;
+}
+
+/**
+ * Find acceptance criteria that are really another task's subject matter, or
+ * the supervisor/verifier's own investigation scratch path.
  *
  * Detection is by coined phrase rather than similarity: lifted criteria get
  * rewritten into criterion form, so they stop resembling the source title as
@@ -184,7 +238,8 @@ export function findLiftedFromQuotedTitle(
  * @param referenced - Tasks this spec cites, excluding itself. / 参照タスク
  * @param ownText - This task's title and description, for the quoted-title
  *   path. Omit to run the coined-phrase check alone. / タイトルと説明
- * @returns One entry per criterion carrying another task's vocabulary. / 混入と判断した基準
+ * @returns One entry per criterion carrying another task's vocabulary or a
+ *   supervisor scratch path. / 混入と判断した基準
  */
 export function findContaminatedCriteria(
   criteria: string[],
@@ -203,7 +258,14 @@ export function findContaminatedCriteria(
   }
   const flagged = new Set(out.map((h) => h.index));
   for (const hit of findLiftedFromQuotedTitle(criteria, ownText)) {
-    if (!flagged.has(hit.index)) out.push(hit);
+    if (flagged.has(hit.index)) continue;
+    out.push(hit);
+    flagged.add(hit.index);
+  }
+  for (const hit of findSupervisorArtifactCriteria(criteria)) {
+    if (flagged.has(hit.index)) continue;
+    out.push(hit);
+    flagged.add(hit.index);
   }
   return out.sort((a, b) => a.index - b.index);
 }

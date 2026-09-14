@@ -12,6 +12,7 @@ import {
   extractQuotedTaskTitles,
   findContaminatedCriteria,
   findLiftedFromQuotedTitle,
+  findSupervisorArtifactCriteria,
 } from './spec-coherence-checker';
 
 const TITLE_662 =
@@ -150,5 +151,79 @@ describe('findContaminatedCriteria — 2経路の統合', () => {
 
   test('ownText 未指定なら造語経路のみ動く', () => {
     expect(findContaminatedCriteria(CRITERIA_669, [])).toEqual([]);
+  });
+});
+
+// task 906/909: 監督自身の再現調査ナラティブ（.supervisor/ 配下の監督専用スク
+// ラッチパス）が受入基準にそのまま混入したケース。他タスクの造語混入とは別の
+// 検出経路（#id 参照の有無と無関係に発火する）。
+describe('findSupervisorArtifactCriteria (task 906 実データ)', () => {
+  test('.supervisor/ 配下のパスを含む基準を検出する', () => {
+    const criteria = [
+      '正当な受入基準',
+      '再現patchは C:/Projects/rapitas/.supervisor/measurements/task906-red.patch のとおりに適用される',
+    ];
+    const hits = findSupervisorArtifactCriteria(criteria);
+    expect(hits.map((h) => h.index)).toEqual([2]);
+    expect(hits[0].sourceTaskId).toBeNull();
+    expect(hits[0].kind).toBe('investigation_artifact');
+  });
+
+  test('バックスラッシュ表記の .supervisor\\ パスも検出する', () => {
+    const criteria = ['C:\\Projects\\rapitas\\.supervisor\\task906-validator-probe.ts を通す'];
+    expect(findSupervisorArtifactCriteria(criteria).map((h) => h.index)).toEqual([1]);
+  });
+
+  test('#id 参照が皆無でも検出する（task 906 は #id 引用を持たない）', () => {
+    const criteria = ['`.supervisor/measurements/x.patch` の内容を実装する'];
+    expect(findSupervisorArtifactCriteria(criteria)).toHaveLength(1);
+  });
+
+  test('.supervisor/ を含まない通常の基準は検出しない（無関係な既存失敗との区別）', () => {
+    const criteria = ['services/intake/spec-coherence-checker.ts のテストが通る', 'ログが正しい'];
+    expect(findSupervisorArtifactCriteria(criteria)).toEqual([]);
+  });
+
+  test('別のスクラッチパス名（.supervisor/ を含まない）は誤検出しない', () => {
+    // 過去の調査証跡が別のパス名で書かれていても、このパターンは反応しない
+    // （.supervisor/ という単一シグナルに厳密に限定する設計、research.md リスク評価参照）。
+    const criteria = ['/tmp/probe-output/task906.log の内容を確認する'];
+    expect(findSupervisorArtifactCriteria(criteria)).toEqual([]);
+  });
+
+  test('明示的にそのパスを対象とした正当な要求は誤って別扱いされない（検出はするが、判断は上位に委ねる）', () => {
+    // 検出関数自体は「.supervisor/ を参照している」という事実だけを返す。
+    // それを実装義務から除外するか保持するかは呼び出し側（intake-gate / verify-requirement-plan-mismatch）
+    // の責務であり、この関数は past-evidence と future-requirement を区別しない — 区別は上位層が行う。
+    const criteria = ['.supervisor/ 配下のログ収集ツールを新規実装する'];
+    const hits = findSupervisorArtifactCriteria(criteria);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].criterion).toBe('.supervisor/ 配下のログ収集ツールを新規実装する');
+  });
+
+  test('検出は読み取り専用であり、入力配列を書き換えない（AC#2: 削除しない検出器）', () => {
+    const criteria = ['正当な受入基準', '.supervisor/ 配下のログ収集ツールを新規実装する'];
+    const snapshot = [...criteria];
+
+    findSupervisorArtifactCriteria(criteria);
+
+    expect(criteria).toEqual(snapshot);
+    expect(criteria).toHaveLength(2);
+  });
+});
+
+describe('findContaminatedCriteria — investigation_artifact 経路の統合', () => {
+  test('.supervisor/ 参照は #id 引用や参照タスクが無くても findContaminatedCriteria から検出される', () => {
+    const criteria = ['.supervisor/measurements/x.patch のとおりに実装する', '通常の基準'];
+    const hits = findContaminatedCriteria(criteria, []);
+    expect(hits.map((h) => h.index)).toEqual([1]);
+    expect(hits[0].kind).toBe('investigation_artifact');
+    expect(hits[0].sourceTaskId).toBeNull();
+  });
+
+  test('造語混入と investigation_artifact が同じ基準に両方現れても二重に挙げない', () => {
+    const criteria = ['risk-detection.ts と .supervisor/x.patch を両方含む基準'];
+    const hits = findContaminatedCriteria(criteria, [{ id: 662, title: TITLE_662 }], TITLE_669);
+    expect(hits.filter((h) => h.index === 1)).toHaveLength(1);
   });
 });

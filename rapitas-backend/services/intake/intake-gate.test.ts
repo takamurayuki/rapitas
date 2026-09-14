@@ -313,3 +313,124 @@ describe('ensureIntakeReady: 受入基準の混入検出 (task 671 実データ)
     expect(writeWorkflowFile).not.toHaveBeenCalled();
   });
 });
+
+// task 906/909: 監督自身の再現調査ナラティブ（.supervisor/ 配下の監督専用スク
+// ラッチパス）が deriveTaskSpec の自動抽出を経て acceptanceCriteria に混入した
+// ケース。#id 引用が皆無でも検出されなければならない（研究フェーズの前提監査#2）。
+describe('ensureIntakeReady: 受入基準への監督専用パス混入検出 (task 906 実データ)', () => {
+  const SUPERVISOR_ARTIFACT_TASK = {
+    id: 906,
+    title: '[監督実測] 受入基準の抽出が調査証跡を実装義務に変換しないようにする',
+    // task 906 の実際の description: #id 引用を一切含まない。
+    description: '受入基準生成・plan整合・verifier入力の境界を調査し修正する。',
+    workflowStatus: 'draft',
+    goals: JSON.stringify(['受入基準生成の欠陥を修正する']),
+    constraints: JSON.stringify(['既存の挙動を変えない']),
+    acceptanceCriteria: JSON.stringify([
+      '正当な受入基準',
+      '再現patchは C:/Projects/rapitas/.supervisor/measurements/task906-red.patch のとおりに適用される',
+    ]),
+  };
+
+  beforeEach(() => {
+    taskFindUnique.mockReset();
+    taskUpdate.mockReset().mockResolvedValue({});
+    taskFindMany.mockReset().mockResolvedValue([]);
+    transitionFindFirst.mockReset().mockResolvedValue(null);
+    resolveWorkflowDir.mockReset().mockResolvedValue({ dir: '/wf/906' });
+    writeWorkflowFile.mockReset().mockResolvedValue('/wf/906/question.md');
+    recordTransition.mockReset().mockResolvedValue(undefined);
+    notifyIntakeQuestionPending.mockReset().mockResolvedValue({ id: 1 });
+  });
+
+  it('#id 参照が皆無でも .supervisor/ 参照があれば止めて質問する', async () => {
+    taskFindUnique.mockResolvedValue(SUPERVISOR_ARTIFACT_TASK);
+
+    const r = await ensureIntakeReady(906);
+
+    expect(r.status).toBe('awaiting_question');
+    // 他タスク参照の検索（taskFindMany）は #id が無いので呼ばれない。
+    expect(taskFindMany).not.toHaveBeenCalled();
+    const body = String(writeWorkflowFile.mock.calls[0]?.[2] ?? '');
+    expect(body).toContain('受入基準2');
+    expect(body).toContain('.supervisor/');
+  });
+
+  it('.supervisor/ を含まない通常の未達受入基準では発火しない（無関係な既存失敗との区別）', async () => {
+    taskFindUnique.mockResolvedValue({
+      ...SUPERVISOR_ARTIFACT_TASK,
+      acceptanceCriteria: JSON.stringify(['正当な受入基準1', '正当な受入基準2']),
+    });
+
+    const r = await ensureIntakeReady(906);
+
+    expect(r.status).toBe('ready');
+    expect(writeWorkflowFile).not.toHaveBeenCalled();
+  });
+
+  it('質問に json:options ブロックが含まれ、questionId が ia<index> 形式であること', async () => {
+    taskFindUnique.mockResolvedValue(SUPERVISOR_ARTIFACT_TASK);
+
+    await ensureIntakeReady(906);
+
+    const body = String(writeWorkflowFile.mock.calls[0]?.[2] ?? '');
+    expect(body).toContain('```json:options');
+    const match = body.match(/```json:options\n([\s\S]*?)\n```/);
+    expect(match).not.toBeNull();
+    const parsed = JSON.parse(match![1]) as { questions: { id: string; options: unknown[] }[] };
+    expect(parsed.questions).toHaveLength(1);
+    expect(parsed.questions[0].id).toBe('ia2');
+    expect(parsed.questions[0].options).toHaveLength(2);
+  });
+
+  it('A回答（保持）ならacceptanceCriteriaは前後で完全一致すること', async () => {
+    transitionFindFirst.mockResolvedValue({
+      metadata: JSON.stringify({ selections: [{ questionId: 'ia2', selectedKey: 'A' }] }),
+    });
+    taskFindUnique.mockResolvedValue(SUPERVISOR_ARTIFACT_TASK);
+
+    const r = await ensureIntakeReady(906);
+
+    expect(r.status).toBe('ready');
+    expect(taskUpdate).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ acceptanceCriteria: expect.anything() }),
+      }),
+    );
+  });
+
+  it('B回答（除去）なら当該基準のみが除去され他は不変であること', async () => {
+    transitionFindFirst.mockResolvedValue({
+      metadata: JSON.stringify({ selections: [{ questionId: 'ia2', selectedKey: 'B' }] }),
+    });
+    taskFindUnique.mockResolvedValue(SUPERVISOR_ARTIFACT_TASK);
+
+    const r = await ensureIntakeReady(906);
+
+    expect(r.status).toBe('ready');
+    const call = taskUpdate.mock.calls.find((c) =>
+      Object.prototype.hasOwnProperty.call((c[0] as { data: object }).data, 'acceptanceCriteria'),
+    );
+    expect(call).toBeDefined();
+    const data = (call![0] as { data: { acceptanceCriteria: string } }).data;
+    expect(JSON.parse(data.acceptanceCriteria)).toEqual(['正当な受入基準']);
+    const rt = recordTransition.mock.calls.find(
+      (c) => (c[0] as { cause: string }).cause === 'intake_contamination_resolved',
+    );
+    expect(rt).toBeDefined();
+  });
+
+  it('構造化回答が無い（自由記述のみ）場合はacceptanceCriteriaを変更せず進むこと（AC#2: あいまいな信号での無断削除禁止）', async () => {
+    transitionFindFirst.mockResolvedValue({ id: 1 }); // 回答済みだが selections なし
+    taskFindUnique.mockResolvedValue(SUPERVISOR_ARTIFACT_TASK);
+
+    const r = await ensureIntakeReady(906);
+
+    expect(r.status).toBe('ready');
+    expect(taskUpdate).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ acceptanceCriteria: expect.anything() }),
+      }),
+    );
+  });
+});
