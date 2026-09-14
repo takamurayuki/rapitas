@@ -253,7 +253,12 @@ async function raiseIntakeQuestion(task: IntakeTaskRow, quality: SpecQualityResu
     actor: 'system',
     cause: 'intake_question',
     phase: 'question',
-    metadata: { previousStatus: fromStatus, missing: quality.missing, score: quality.score },
+    metadata: {
+      previousStatus: fromStatus,
+      kind: 'spec_change',
+      missing: quality.missing,
+      score: quality.score,
+    },
   });
   // Surface the pause — an unanswered question NEVER advances on its own, so
   // silence here is worse than the low-confidence proceed case below (#578/#579

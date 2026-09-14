@@ -18,6 +18,7 @@ import {
   MAX_PR_RECOVERY_ATTEMPTS,
   resolveVerifyRepairLimit,
   VERIFY_NON_CONVERGENCE_CAUSE,
+  VERIFICATION_UNVERIFIABLE_HOLD_CAUSE,
   PR_RETRY_LIGHTWEIGHT_CAUSE,
 } from './blocked-task-policy';
 import { isAwaitingRequiredMerge } from './verify-settle-artifact-recovery';
@@ -40,12 +41,10 @@ const UNDISPATCHABLE_SETTLE_MS = 24 * 60 * 60 * 1000;
 
 /** True when the task still has a live agent execution. */
 async function hasLiveExecution(taskId: number): Promise<boolean> {
-  const live = await prisma.agentExecution
-    .findFirst({
-      where: { session: { config: { taskId } }, status: { in: ACTIVE_EXEC } },
-      select: { id: true },
-    })
-    .catch(() => null);
+  const live = await prisma.agentExecution.findFirst({
+    where: { session: { config: { taskId } }, status: { in: ACTIVE_EXEC } },
+    select: { id: true },
+  });
   return !!live;
 }
 
@@ -59,7 +58,10 @@ async function hasLiveExecution(taskId: number): Promise<boolean> {
  * @param nowMs - Current time (ms). / 現在時刻
  * @returns Number of tasks re-queued. / 再キュー数
  */
-export async function requeueOrphanTasks(nowMs: number): Promise<number> {
+export async function requeueOrphanTasks(
+  nowMs: number,
+  excludedTaskIds: ReadonlySet<number> = new Set(),
+): Promise<number> {
   const staleBefore = new Date(nowMs - STALE_TASK_MS);
   const notOlderThan = new Date(nowMs - MAX_ORPHAN_REQUEUE_AGE_MS);
   const tasks = await prisma.task
@@ -75,6 +77,8 @@ export async function requeueOrphanTasks(nowMs: number): Promise<number> {
 
   let requeued = 0;
   for (const t of tasks) {
+    // Do not bypass a failed repair receipt check through generic recovery.
+    if (excludedTaskIds.has(t.id)) continue;
     if (t.workflowStatus === 'completed' || t.workflowStatus === 'awaiting_question') continue;
     // A task parked at verify_done/in-progress can be legitimately AWAITING the
     // AutoMergeWatcher's confirmation (task 895), not orphaned — its PENDING_TIMEOUT_MS
@@ -89,15 +93,27 @@ export async function requeueOrphanTasks(nowMs: number): Promise<number> {
       continue;
     }
     if (await hasLiveExecution(t.id)) continue;
+    // A committed repair may just have been delivered by the preceding heal pass.
+    if (
+      await prisma.workflowQueueItem.findFirst({
+        where: {
+          taskId: t.id,
+          status: { in: ['queued', 'running', 'waiting_approval'] },
+        },
+        select: { id: true },
+      })
+    )
+      continue;
 
-    const attempts = await prisma.workflowTransition
-      .count({ where: { taskId: t.id, cause: 'reconciler_requeue' } })
-      .catch(() => 0);
+    const attempts = await prisma.workflowTransition.count({
+      where: { taskId: t.id, cause: 'reconciler_requeue' },
+    });
     if (attempts >= MAX_ORPHAN_REQUEUE) continue;
 
-    await prisma.task
-      .update({ where: { id: t.id }, data: { status: 'todo', updatedAt: new Date() } })
-      .catch(() => {});
+    await prisma.task.update({
+      where: { id: t.id },
+      data: { status: 'todo', updatedAt: new Date() },
+    });
     await recordTransition({
       taskId: t.id,
       fromStatus: t.workflowStatus,
@@ -214,6 +230,27 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
       log.info(
         { taskId: t.id, nonConverged },
         '[reconciler] Blocked task was cut off for non-convergence — leaving blocked (needs split/spec revision), not auto-retrying',
+      );
+      continue;
+    }
+
+    // Skip tasks HELD because verification could not run (2026-09-13, task
+    // 912): the hold is an infrastructure state a full reset cannot change —
+    // it would only re-dispatch an implementer into the same UNVERIFIED gate.
+    // Same window as the repair budget: a manual retry re-admits the task.
+    const unverifiableHeld = await prisma.workflowTransition
+      .count({
+        where: {
+          taskId: t.id,
+          cause: VERIFICATION_UNVERIFIABLE_HOLD_CAUSE,
+          ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+        },
+      })
+      .catch(() => 0);
+    if (unverifiableHeld > 0) {
+      log.info(
+        { taskId: t.id, unverifiableHeld },
+        '[reconciler] Blocked task is held as unverifiable — leaving blocked (restore verification / manual retry), not auto-retrying',
       );
       continue;
     }
