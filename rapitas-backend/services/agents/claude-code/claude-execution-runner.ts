@@ -212,6 +212,7 @@ export async function runClaudeExecution(
     });
 
     agent.lineBuffer = '';
+    let hasLoggedFirstStdout = false;
 
     // Start idle and timeout monitors
     const monitor = startIdleMonitor(agent.logPrefix, timeout, startTime, {
@@ -264,9 +265,16 @@ export async function runClaudeExecution(
       monitor.markReceivedOutput();
 
       const elapsedMs = Date.now() - startTime;
-      logger.info(
-        `${agent.logPrefix} First stdout received after ${elapsedMs}ms (${chunk.length} chars)`,
-      );
+      if (!hasLoggedFirstStdout) {
+        hasLoggedFirstStdout = true;
+        logger.info(
+          `${agent.logPrefix} First stdout received after ${elapsedMs}ms (${chunk.length} chars)`,
+        );
+      } else {
+        logger.debug(
+          `${agent.logPrefix} stdout chunk received after ${elapsedMs}ms (${chunk.length} chars)`,
+        );
+      }
 
       // Delegate chunk to Worker (parsing runs on the Worker thread)
       try {
