@@ -91,8 +91,13 @@ export async function markExhausted(
   );
 }
 
-/** Read the headSha recorded in an exhausted transition's metadata. */
-function parseStoredHeadSha(metadata: string | null): string | null {
+/**
+ * Read the headSha recorded in an exhausted transition's metadata. Exported
+ * so other consumers reading the same EXHAUSTED_CAUSE metadata (e.g. the
+ * scope-overlap PR list and the stale-PR reaper) share this one parser
+ * instead of re-implementing the metadata shape.
+ */
+export function parseStoredHeadSha(metadata: string | null): string | null {
   if (!metadata) return null;
   try {
     const parsed = JSON.parse(metadata) as { headSha?: unknown };

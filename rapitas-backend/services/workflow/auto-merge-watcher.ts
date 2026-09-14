@@ -32,6 +32,7 @@ import { findCandidates, type Candidate } from './auto-merge-candidates';
 import { countWithFailClosed } from '../../utils/database/fail-closed-count';
 import { canContinueAutoMerge } from './auto-merge-task-guard';
 import { recoverMergedTasks } from './auto-merge-recovery';
+import { reapStaleAutoPrs } from './stale-pr-reaper';
 
 const log = createLogger('workflow:auto-merge-watcher');
 
@@ -138,6 +139,13 @@ export class AutoMergeWatcher {
           log.warn({ err, taskId: c.taskId }, '[auto-merge] Candidate failed');
         }
       }
+      // Independent of the candidate loop above (findCandidates never returns
+      // exhausted PRs — see open-pr-files-cache.ts's front-matter): closes
+      // stale exhausted+CONFLICTING/DIRTY auto-PRs so they stop parking
+      // scope-overlap/merge-barrier holds forever (task #931).
+      await reapStaleAutoPrs().catch((err) => {
+        log.warn({ err }, '[auto-merge] Stale PR reaper failed');
+      });
     } catch (err) {
       log.error({ err }, '[auto-merge] Tick error');
     } finally {
