@@ -27,6 +27,8 @@ export {
   readRecentHeartbeats,
   sumGapMsWithin,
 } from './observation-gap-detector';
+export { classifyTaskLanding, LANDING_CLASSES, type LandingClass } from './task-landing-classifier';
+export { gatherTaskLandingEvidence, isFailureCause } from './task-landing-evidence';
 export { calculateStreak, REQUIRED_STREAK_HOURS, REQUIRED_STREAK_TASKS } from './streak-calculator';
 export {
   assessKnowledgeReuseEvidence,

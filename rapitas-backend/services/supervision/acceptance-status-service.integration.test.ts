@@ -3,14 +3,25 @@
  *
  * Restart persistence: a verdict persisted before a restart is served again by a
  * freshly initialised module from the timeline alone, and degrades to
- * snapshot_stale (unmet) once it is too old to be current.
+ * snapshot_stale (unmet) once it is too old to be current. Landing is recomputed
+ * from the DB on every refresh, so a merge that lands later turns a pending task
+ * into a qualified one after a restart.
  */
 import { describe, expect, mock, test } from 'bun:test';
-import { createTimelineFake } from './testing/timeline-fake';
+import { mkdtempSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { createPrismaFake, createTimelineFake } from './testing/timeline-fake';
+
+process.env.RAPITAS_DATA_DIR = mkdtempSync(join(tmpdir(), 'supervision-integration-'));
 
 const fake = createTimelineFake();
+const db = createPrismaFake();
 mock.module('../memory/timeline', () => fake.module);
-mock.module('../../config/database', () => ({ prisma: {} }));
+mock.module('../../config/database', () => ({ prisma: db.prisma }));
+mock.module('../memory/concern-backlog-service', () => ({
+  listConcerns: async () => ({ concerns: [], total: 0 }),
+}));
 
 const SNAP_AT = new Date('2026-09-12T00:00:00Z');
 
@@ -56,5 +67,39 @@ describe('acceptance status across a restart', () => {
     const s = await svc.readAcceptanceStatus();
     expect(s.met).toBe(false);
     expect(s.reasonCodes).toEqual(['no_observation_evidence', 'snapshot_stale']);
+  });
+
+  test('a merge that lands after a pending snapshot is qualified after re-initialisation', async () => {
+    fake.rows.length = 0;
+    const now = new Date(Date.now() + 5 * 24 * 3_600_000);
+    const hoursAgo = (h: number) => new Date(now.getTime() - h * 3_600_000);
+    db.state.tasks.push({ id: 700, parentId: null, acceptanceCriteria: '["criterion"]' });
+    db.state.transitions.push(
+      { taskId: 700, toStatus: 'in_progress', cause: 'verify_passed', createdAt: hoursAgo(3) },
+      { taskId: 700, toStatus: 'completed', cause: 'file_saved:verify', createdAt: hoursAgo(2) },
+    );
+    db.state.pullRequests.push({ linkedTaskId: 700, state: 'open' });
+
+    const before = await import('./acceptance-status-service?landing=before');
+    const first = await before.refreshAcceptanceSnapshot({ heartbeatIntervalMs: 60_000, now });
+    expect(first?.denominators.landingPendingTaskIds).toBe('700');
+    expect(first?.denominators.landingQualifiedTaskIds).toBeNull();
+
+    db.state.transitions.push({
+      taskId: 700,
+      toStatus: 'completed',
+      cause: 'auto_merged',
+      createdAt: hoursAgo(1),
+    });
+    db.state.pullRequests[0].state = 'MERGED';
+
+    // Fresh module instance: nothing cached from the first computation.
+    const after = await import('./acceptance-status-service?landing=after');
+    const second = await after.refreshAcceptanceSnapshot({ heartbeatIntervalMs: 60_000, now });
+    expect(second?.denominators.landingQualifiedTaskIds).toBe('700');
+    expect(second?.denominators.landingPendingTaskIds).toBeNull();
+    expect(second?.reasonCodes).not.toContain('landing_evidence_pending');
+    const persisted = await after.readAcceptanceStatus(now);
+    expect(persisted.denominators.landingQualifiedTaskIds).toBe('700');
   });
 });

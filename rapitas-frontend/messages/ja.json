@@ -1832,6 +1832,20 @@
       "hostCpuNote": "ホスト全体のCPU使用率です。特定テーマへの帰属は行いません。",
       "currentCpu": "現在のCPU使用率",
       "threshold": "しきい値",
+      "landingTitle": "完了タスクの着地分類",
+      "landingCount": "件数",
+      "landingClasses": {
+        "qualified": "計上（検証・受入条件・自動 merge 証跡あり）",
+        "landing_pending": "merge 完了待ち",
+        "policy_unreadable": "merge 証跡を確認できない",
+        "merge_not_requested": "merge 未要求（commit/PR 止まり）",
+        "criteria_missing": "事前受入条件なし",
+        "unverified_completion": "独立検証なしの完了",
+        "publish_after_stop": "停止後の公開",
+        "manual_merge": "手動 merge（介入）",
+        "landing_failed": "merge 失敗",
+        "subtask": "サブタスク（件数除外）"
+      },
       "effectiveMaxConcurrency": "実効並列度",
       "unsampled": "未計測",
       "empty": "見送り履歴はありません",
@@ -2271,7 +2285,15 @@
         "monitor_heartbeat_stale": "監視ハートビートが途絶えています",
         "failure_or_interruption_in_streak": "失敗または中断したタスクがあり、連続記録がリセットされました",
         "gate_mutation_unobservable": "ゲート変更コミットを確認できません（git 読み取り失敗）",
-        "observation_history_truncated": "観測履歴が上限で打ち切られ、欠落を確認しきれていません"
+        "observation_history_truncated": "観測履歴が上限で打ち切られ、欠落を確認しきれていません",
+        "landing_evidence_pending": "merge 完了待ちのタスクがある",
+        "landing_evidence_unobservable": "merge 証跡を確認できないタスクがある",
+        "merge_not_requested": "merge まで到達していない完了がある",
+        "acceptance_criteria_missing": "事前受入条件が未登録の完了がある",
+        "unverified_completion_detected": "独立検証を経ていない完了がある",
+        "publish_after_stop_detected": "停止後に公開された変更がある",
+        "subtask_not_counted": "サブタスクは件数に含めない",
+        "unresolved_high_severity_concern": "重要な未解決品質欠陥がある"
       }
     }
   },

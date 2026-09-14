@@ -1832,6 +1832,20 @@
       "hostCpuNote": "Host-wide CPU usage. Not attributed to any specific theme.",
       "currentCpu": "Current CPU usage",
       "threshold": "Threshold",
+      "landingTitle": "Landing classification of completed tasks",
+      "landingCount": "Count",
+      "landingClasses": {
+        "qualified": "Counted (verified, criteria, system merge evidence)",
+        "landing_pending": "Waiting for merge",
+        "policy_unreadable": "Merge evidence unreadable",
+        "merge_not_requested": "Merge not requested (commit/PR only)",
+        "criteria_missing": "No acceptance criteria",
+        "unverified_completion": "Completed without verification",
+        "publish_after_stop": "Published after stop",
+        "manual_merge": "Manual merge (intervention)",
+        "landing_failed": "Merge failed",
+        "subtask": "Subtask (not counted)"
+      },
       "effectiveMaxConcurrency": "Effective concurrency",
       "unsampled": "Not sampled yet",
       "empty": "No deferrals recorded",
@@ -2271,7 +2285,15 @@
         "monitor_heartbeat_stale": "The monitor heartbeat has stopped",
         "failure_or_interruption_in_streak": "A task failed or was interrupted; the streak was reset",
         "gate_mutation_unobservable": "Gate-changing commits could not be read (git failed)",
-        "observation_history_truncated": "Observation history hit the read limit; gaps could not be fully checked"
+        "observation_history_truncated": "Observation history hit the read limit; gaps could not be fully checked",
+        "landing_evidence_pending": "Some tasks are still waiting for their merge",
+        "landing_evidence_unobservable": "Merge evidence could not be read for some tasks",
+        "merge_not_requested": "Some completions never reached a merge",
+        "acceptance_criteria_missing": "Some completions had no pre-registered acceptance criteria",
+        "unverified_completion_detected": "Some completions skipped independent verification",
+        "publish_after_stop_detected": "Changes were published after a stop",
+        "subtask_not_counted": "Subtasks are not counted",
+        "unresolved_high_severity_concern": "An important quality defect is unresolved"
       }
     }
   },

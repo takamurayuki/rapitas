@@ -133,3 +133,69 @@ describe('calculateStreak', () => {
     expect(r.reasonCodes).toContain('observation_history_truncated');
   });
 });
+
+describe('calculateStreak with landing classification', () => {
+  test('qualified 10 + 24h observed meets the bar', () => {
+    const r = calculateStreak(
+      healthyInput({ nonQualifying: [], pending: [], subtaskExcluded: [] }),
+    );
+    expect(r.conditionMet).toBe(true);
+  });
+
+  test('a non-qualifying completion mid-run resets; only later qualified tasks count', () => {
+    const input = healthyInput();
+    const r = calculateStreak({
+      ...input,
+      completions: [
+        ...input.completions.slice(0, 9).map((c, i) => ({ at: ago(26 - i), taskId: 300 + i })),
+        { at: ago(1), taskId: 400 },
+      ],
+      nonQualifying: [
+        {
+          at: ago(2),
+          taskId: 350,
+          kind: 'non_qualifying_completion',
+          reasonCode: 'merge_not_requested',
+        },
+      ],
+    });
+    expect(r.streakCount).toBe(1);
+    expect(r.resetKind).toBe('non_qualifying_completion');
+    expect(r.reasonCodes).toContain('merge_not_requested');
+    expect(r.conditionMet).toBe(false);
+  });
+
+  test('one pending landing blocks met even with 10 qualified tasks', () => {
+    const r = calculateStreak(
+      healthyInput({ pending: [{ taskId: 77, reasonCode: 'landing_evidence_pending' }] }),
+    );
+    expect(r.streakCount).toBe(10);
+    expect(r.conditionMet).toBe(false);
+    expect(r.reasonCodes).toContain('landing_evidence_pending');
+  });
+
+  test('subtasks are excluded from the count without resetting it', () => {
+    const r = calculateStreak(healthyInput({ subtaskExcluded: [501, 502, 503] }));
+    expect(r.streakCount).toBe(10);
+    expect(r.excludedTaskIds).toEqual([501, 502, 503]);
+    expect(r.conditionMet).toBe(true);
+  });
+
+  test('an integrity violation resets with its own reason', () => {
+    const r = calculateStreak(
+      healthyInput({
+        nonQualifying: [
+          {
+            at: ago(3),
+            taskId: 88,
+            kind: 'integrity_violation',
+            reasonCode: 'unverified_completion_detected',
+          },
+        ],
+      }),
+    );
+    expect(r.resetKind).toBe('integrity_violation');
+    expect(r.reasonCodes).toContain('unverified_completion_detected');
+    expect(r.conditionMet).toBe(false);
+  });
+});

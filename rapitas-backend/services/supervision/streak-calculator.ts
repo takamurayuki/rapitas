@@ -8,7 +8,7 @@
  * Not responsible for reading the DB/git — see acceptance-status-service.ts.
  */
 import { GAP_INTERVAL_MULTIPLIER, sumGapMsWithin } from './observation-gap-detector';
-import type { AcceptanceReasonCode } from './supervision-events';
+import type { AcceptanceReasonCode } from './supervision-reason-codes';
 
 /** Acceptance bar v1: consecutive tasks. */
 export const REQUIRED_STREAK_TASKS = 10;
@@ -18,6 +18,18 @@ export const REQUIRED_STREAK_HOURS = 24;
 export interface TimedTaskEvent {
   at: Date;
   taskId: number | null;
+}
+
+/** A completion that ran but did not meet bar v1 (no merge, no criteria, integrity breach). */
+export interface NonQualifyingEvent extends TimedTaskEvent {
+  kind: 'non_qualifying_completion' | 'integrity_violation';
+  reasonCode: AcceptanceReasonCode;
+}
+
+/** A completion whose landing is not yet decided (merge pending / unobservable). */
+export interface PendingLanding {
+  taskId: number;
+  reasonCode: AcceptanceReasonCode;
 }
 
 export interface GapInterval {
@@ -31,7 +43,14 @@ export interface StreakInput {
   horizonStart: Date;
   interventions: readonly TimedTaskEvent[];
   failures: readonly TimedTaskEvent[];
+  /** Only `qualified` landings (merge-evidence time), never raw completed transitions. */
   completions: readonly TimedTaskEvent[];
+  /** Completions that break the consecutive run without counting. */
+  nonQualifying?: readonly NonQualifyingEvent[];
+  /** Undecided landings: they block `met` but are neither a reset nor a failure. */
+  pending?: readonly PendingLanding[];
+  /** Subtasks: shown as excluded, never counted, never a reset. */
+  subtaskExcluded?: readonly number[];
   gateMutation: { at: Date | null; observable: boolean };
   /** Recorded and heartbeat-reconstructed gaps; overlaps are merged. */
   gaps: readonly GapInterval[];
@@ -41,7 +60,13 @@ export interface StreakInput {
   heartbeatHistoryTruncated: boolean;
 }
 
-export type StreakResetKind = 'intervention' | 'failure' | 'gate_mutation' | null;
+export type StreakResetKind =
+  | 'intervention'
+  | 'failure'
+  | 'gate_mutation'
+  | 'non_qualifying_completion'
+  | 'integrity_violation'
+  | null;
 
 export interface StreakResult {
   conditionMet: boolean;
@@ -70,6 +95,7 @@ function latest(events: readonly TimedTaskEvent[]): Date | null {
  */
 export function calculateStreak(input: StreakInput): StreakResult {
   const reasons = new Set<AcceptanceReasonCode>();
+  const nonQualifying = input.nonQualifying ?? [];
   const lastIntervention = latest(input.interventions);
   const lastFailure = latest(input.failures);
   const gateAt = input.gateMutation.at;
@@ -79,6 +105,7 @@ export function calculateStreak(input: StreakInput): StreakResult {
   if (lastIntervention) candidates.push({ at: lastIntervention, kind: 'intervention' });
   if (lastFailure) candidates.push({ at: lastFailure, kind: 'failure' });
   if (gateAt) candidates.push({ at: gateAt, kind: 'gate_mutation' });
+  for (const n of nonQualifying) candidates.push({ at: n.at, kind: n.kind });
   candidates.sort((a, b) => b.at.getTime() - a.at.getTime());
   const reset = candidates[0] ?? null;
 
@@ -100,7 +127,7 @@ export function calculateStreak(input: StreakInput): StreakResult {
   for (const e of [...input.interventions, ...input.failures])
     if (e.taskId != null) tainted.add(e.taskId);
   const counted = new Set<number>();
-  const excluded = new Set<number>();
+  const excluded = new Set<number>(input.subtaskExcluded ?? []);
   if (streakStartAt) {
     for (const c of input.completions) {
       if (c.taskId == null || c.at < streakStartAt) continue;
@@ -136,7 +163,12 @@ export function calculateStreak(input: StreakInput): StreakResult {
     if (reset.kind === 'intervention') reasons.add('recent_intervention');
     if (reset.kind === 'failure') reasons.add('failure_or_interruption_in_streak');
     if (reset.kind === 'gate_mutation') reasons.add('self_gate_mutation');
+    for (const n of nonQualifying) {
+      if (n.kind === reset.kind && n.at.getTime() === reset.at.getTime()) reasons.add(n.reasonCode);
+    }
   }
+  // An undecided landing keeps the verdict open without claiming it failed.
+  for (const p of input.pending ?? []) reasons.add(p.reasonCode);
 
   return {
     conditionMet: reasons.size === 0,

@@ -58,4 +58,34 @@ describe('AgentSupervisionPage', () => {
     expect(screen.getAllByTestId('supervision-verdict').at(-1)?.textContent).toBe('notMet');
     expect(screen.getByRole('alert').textContent).toBe('loadFailed');
   });
+
+  it('shows landing reasons and the per-class landing counts', () => {
+    hookValue = {
+      status: {
+        ...STATUS,
+        reasonCodes: ['landing_evidence_pending', 'unresolved_high_severity_concern'],
+        denominators: {
+          ...STATUS.denominators,
+          landingClassCounts: JSON.stringify({ qualified: 2, landing_pending: 7, subtask: 1 }),
+        },
+      },
+      loading: false,
+      error: false,
+    };
+    render(<AgentSupervisionPage />);
+    const reasons = screen.getByTestId('supervision-reasons').textContent ?? '';
+    expect(reasons).toContain('reasons.landing_evidence_pending');
+    expect(reasons).toContain('reasons.unresolved_high_severity_concern');
+    const landing = screen.getByTestId('supervision-landing');
+    const rows = Array.from(landing.querySelectorAll('div')).map((d) => d.textContent);
+    expect(rows).toContain('landingClasses.qualified2');
+    expect(rows).toContain('landingClasses.landing_pending7');
+    expect(rows).toContain('landingClasses.manual_merge0');
+  });
+
+  it('a snapshot without landing counts shows a placeholder instead of zero counts', () => {
+    hookValue = { status: STATUS, loading: false, error: false };
+    render(<AgentSupervisionPage />);
+    expect(screen.queryByTestId('supervision-landing')).toBeNull();
+  });
 });

@@ -7,6 +7,7 @@
  * detectors and the judge read the same vocabulary from one place.
  * Not responsible for writing events — see the individual detector modules.
  */
+import { ACCEPTANCE_REASON_CODES, type AcceptanceReasonCode } from './supervision-reason-codes';
 
 /**
  * Payload shape version. Timeline rows are append-only and can never be
@@ -65,27 +66,9 @@ export const OBSERVATION_GAP_REASON_KINDS = [
 ] as const;
 export type ObservationGapReasonKind = (typeof OBSERVATION_GAP_REASON_KINDS)[number];
 
-/**
- * Machine-readable reasons the acceptance bar is not met. Every one of these
- * forces `met=false`; there is no code path that reports `met=true` alongside a
- * non-empty reason list.
- */
-export const ACCEPTANCE_REASON_CODES = [
-  'streak_task_count_below_threshold',
-  'streak_duration_below_threshold',
-  'recent_intervention',
-  'self_gate_mutation',
-  'observation_gap_present',
-  'no_observation_evidence',
-  'snapshot_stale',
-  'intervention_write_failed',
-  'knowledge_reuse_evidence_insufficient',
-  'monitor_heartbeat_stale',
-  'failure_or_interruption_in_streak',
-  'gate_mutation_unobservable',
-  'observation_history_truncated',
-] as const;
-export type AcceptanceReasonCode = (typeof ACCEPTANCE_REASON_CODES)[number];
+// NOTE: Reason codes moved to supervision-reason-codes.ts (file-size limit);
+// re-exported so existing importers keep resolving.
+export { ACCEPTANCE_REASON_CODES, type AcceptanceReasonCode } from './supervision-reason-codes';
 
 /** A human/agent intervention that breaks the hands-off streak. */
 export interface InterventionPayload {

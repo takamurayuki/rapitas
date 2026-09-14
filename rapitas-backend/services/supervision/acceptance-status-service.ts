@@ -8,7 +8,6 @@
  * than presenting an old verdict as current.
  * Not responsible for the streak arithmetic — see streak-calculator.ts.
  */
-import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { appendEvent, queryEvents } from '../memory/timeline';
 import { readLastGateMutation, type GateMutationObservation } from './gate-mutation-paths';
@@ -28,7 +27,8 @@ import {
   listObservationGaps,
   readRecentHeartbeats,
 } from './observation-gap-detector';
-import { calculateStreak, type StreakInput, type TimedTaskEvent } from './streak-calculator';
+import { calculateStreak, type StreakInput } from './streak-calculator';
+import { gatherTaskLandingEvidence, type TaskLandingEvidence } from './task-landing-evidence';
 import {
   ACCEPTANCE_CORRELATION_ID,
   BACKEND_MONITOR_ID,
@@ -50,34 +50,9 @@ const HEARTBEAT_HORIZON_LIMIT = 6000;
 /** A snapshot older than this is not a current verdict (5-min cadence + slack). */
 export const SNAPSHOT_STALE_MS = 15 * 60_000;
 
-/**
- * Transition causes meaning a task failed or was interrupted. Internal repair
- * loops (verify_repair, *_critic_failed) are excluded: they still end in an
- * independent verification, so they are not a failed outcome by themselves.
- */
-const FAILURE_CAUSE_PATTERNS: readonly RegExp[] = [
-  /^phase_failed:/,
-  /exhausted$/,
-  /non_convergence$/,
-  /hang_backstop$/,
-  /budget_exceeded$/,
-  /_stop_revert$/,
-  /shutdown_revert$/,
-  /^stale_execution_recovery_revert$/,
-  /^task_vanished$/,
-  /^subtask_failed$/,
-  /^verify_no_changes$/,
-];
-
-/**
- * Whether a transition cause marks a failed or interrupted task outcome.
- *
- * @param cause - WorkflowTransition.cause / 遷移のcause
- * @returns true for failure/interruption / 失敗・中断なら true
- */
-export function isFailureCause(cause: string): boolean {
-  return FAILURE_CAUSE_PATTERNS.some((p) => p.test(cause));
-}
+// NOTE: Failure-cause classification moved to task-landing-evidence.ts with the
+// transition queries; re-exported for existing importers.
+export { isFailureCause } from './task-landing-evidence';
 
 export interface AcceptanceEvidence {
   streak: StreakInput;
@@ -86,6 +61,20 @@ export interface AcceptanceEvidence {
   gate: GateMutationObservation;
   heartbeatCount: number;
   blockingTaskIds: number[];
+  landing: Pick<TaskLandingEvidence, 'classCounts' | 'landings'>;
+  /** Open high-severity concerns; null when the backlog could not be read. */
+  highSeverityOpenConcerns: number | null;
+}
+
+/** Counts open high-severity concerns; null on read failure (treated as present). */
+async function countHighSeverityConcerns(): Promise<number | null> {
+  try {
+    const { listConcerns } = await import('../memory/concern-backlog-service');
+    return (await listConcerns({ status: 'open', severity: 'high', limit: 1 })).total;
+  } catch (err) {
+    log.error({ err }, '[Supervision] Concern backlog read failed');
+    return null;
+  }
 }
 
 /**
@@ -105,65 +94,16 @@ export async function gatherAcceptanceEvidence(
   await syncInterventionsFromTransitions(lookbackStart);
   await flushPendingInterventions();
 
-  const [
-    interventionRecords,
-    transitions,
-    blockedTasks,
-    gate,
-    heartbeats,
-    recordedGaps,
-    knowledge,
-  ] = await Promise.all([
-    listInterventions(lookbackStart, 1000),
-    prisma.workflowTransition.findMany({
-      where: {
-        createdAt: { gte: lookbackStart },
-        OR: [
-          { toStatus: 'completed' },
-          { cause: { startsWith: 'phase_failed:' } },
-          { cause: { endsWith: 'exhausted' } },
-          { cause: { endsWith: 'non_convergence' } },
-          { cause: { endsWith: 'hang_backstop' } },
-          { cause: { endsWith: 'budget_exceeded' } },
-          { cause: { endsWith: '_revert' } },
-          { cause: { in: ['task_vanished', 'subtask_failed', 'verify_no_changes'] } },
-        ],
-      },
-      select: { taskId: true, toStatus: true, cause: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
-      take: 20_000,
-    }),
-    // A task left blocked is an unresolved failure even without a matching cause.
-    prisma.task.findMany({
-      where: { status: 'blocked', updatedAt: { gte: lookbackStart } },
-      select: { id: true, updatedAt: true },
-      take: 1000,
-    }),
-    readLastGateMutation(),
-    readRecentHeartbeats(BACKEND_MONITOR_ID, HEARTBEAT_HORIZON_LIMIT, horizonStart),
-    listObservationGaps(horizonStart, 1000),
-    readLatestKnowledgeReuseEval(),
-  ]);
-
-  const completions: TimedTaskEvent[] = [];
-  const failures: TimedTaskEvent[] = [];
-  for (const t of transitions) {
-    if (isFailureCause(t.cause)) failures.push({ at: t.createdAt, taskId: t.taskId });
-    else if (t.toStatus === 'completed') completions.push({ at: t.createdAt, taskId: t.taskId });
-  }
-  for (const task of blockedTasks) failures.push({ at: task.updatedAt, taskId: task.id });
-
-  // Unresolved = failed and not completed afterwards.
-  const lastCompletion = new Map<number, number>();
-  for (const c of completions) {
-    if (c.taskId == null) continue;
-    lastCompletion.set(c.taskId, Math.max(lastCompletion.get(c.taskId) ?? 0, c.at.getTime()));
-  }
-  const blocking = new Set<number>();
-  for (const f of failures) {
-    if (f.taskId != null && (lastCompletion.get(f.taskId) ?? 0) < f.at.getTime())
-      blocking.add(f.taskId);
-  }
+  const [interventionRecords, landing, gate, heartbeats, recordedGaps, knowledge, concerns] =
+    await Promise.all([
+      listInterventions(lookbackStart, 1000),
+      gatherTaskLandingEvidence(lookbackStart),
+      readLastGateMutation(),
+      readRecentHeartbeats(BACKEND_MONITOR_ID, HEARTBEAT_HORIZON_LIMIT, horizonStart),
+      listObservationGaps(horizonStart, 1000),
+      readLatestKnowledgeReuseEval(),
+      countHighSeverityConcerns(),
+    ]);
 
   const samples = heartbeats.samples;
   const times = samples.map((s) => s.createdAt.getTime());
@@ -171,12 +111,16 @@ export async function gatherAcceptanceEvidence(
     streak: {
       now,
       horizonStart,
-      interventions: interventionRecords.map((r) => ({
-        at: new Date(r.detectedAt),
-        taskId: r.taskId,
-      })),
-      failures,
-      completions,
+      interventions: [
+        ...interventionRecords.map((r) => ({ at: new Date(r.detectedAt), taskId: r.taskId })),
+        ...landing.interventions,
+      ],
+      failures: landing.failures,
+      // Only merge-evidenced, verified, criteria-backed landings count (bar v1).
+      completions: landing.completions,
+      nonQualifying: landing.nonQualifying,
+      pending: landing.pending,
+      subtaskExcluded: landing.subtaskExcluded,
       gateMutation: { at: gate.at, observable: gate.observable },
       // Reconstructed from heartbeats too, so a gap whose record write failed still counts.
       gaps: [...recordedGaps, ...findSilences(samples)],
@@ -189,7 +133,9 @@ export async function gatherAcceptanceEvidence(
     knowledge,
     gate,
     heartbeatCount: samples.length,
-    blockingTaskIds: [...blocking].sort((a, b) => a - b),
+    blockingTaskIds: landing.blockingTaskIds,
+    landing: { classCounts: landing.classCounts, landings: landing.landings },
+    highSeverityOpenConcerns: concerns,
   };
 }
 
@@ -210,6 +156,12 @@ export function evaluateAcceptance(evidence: AcceptanceEvidence): AcceptanceSnap
   }
   if (!evidence.knowledge.sufficientEvidence) reasons.add('knowledge_reuse_evidence_insufficient');
   if (evidence.heartbeatCount === 0) reasons.add('no_observation_evidence');
+  if (evidence.highSeverityOpenConcerns !== 0) reasons.add('unresolved_high_severity_concern');
+  const idsOf = (classes: string[]) =>
+    evidence.landing.landings
+      .filter((l) => classes.includes(l.landingClass))
+      .map((l) => l.taskId)
+      .join(',') || null;
 
   const k = evidence.knowledge.latest;
   return {
@@ -231,6 +183,7 @@ export function evaluateAcceptance(evidence: AcceptanceEvidence): AcceptanceSnap
       interventionCount: evidence.streak.interventions.length,
       failureCount: evidence.streak.failures.length,
       completionEventCount: evidence.streak.completions.length,
+      completedTaskCount: evidence.landing.landings.length,
       heartbeatCount: evidence.heartbeatCount,
       firstHeartbeatAt: evidence.streak.firstHeartbeatAt?.toISOString() ?? null,
       lastHeartbeatAt: evidence.streak.lastHeartbeatAt?.toISOString() ?? null,
@@ -243,6 +196,13 @@ export function evaluateAcceptance(evidence: AcceptanceEvidence): AcceptanceSnap
       knowledgeSuccessRateWithoutKB: k?.successRateWithoutKB ?? null,
       knowledgeEffectSize: k?.effectSize ?? null,
       knowledgeIntervalOrPValue: k?.intervalOrPValue ?? null,
+      landingQualifiedTaskIds: idsOf(['qualified']),
+      landingPendingTaskIds: idsOf(['landing_pending', 'policy_unreadable']),
+      nonQualifyingTaskIds: idsOf(['criteria_missing', 'merge_not_requested']),
+      integrityViolationTaskIds: idsOf(['unverified_completion', 'publish_after_stop']),
+      subtaskExcludedTaskIds: idsOf(['subtask']),
+      landingClassCounts: JSON.stringify(evidence.landing.classCounts),
+      highSeverityOpenConcerns: evidence.highSeverityOpenConcerns,
     },
   };
 }

@@ -47,6 +47,69 @@ function VerdictBadge({ met }: { met: boolean }) {
   );
 }
 
+/** Landing classes in display order; mirrors the backend classifier. */
+const LANDING_CLASSES = [
+  'qualified',
+  'landing_pending',
+  'policy_unreadable',
+  'merge_not_requested',
+  'criteria_missing',
+  'unverified_completion',
+  'publish_after_stop',
+  'manual_merge',
+  'landing_failed',
+  'subtask',
+] as const;
+
+/**
+ * Parses the snapshot's landing-class counts. Older snapshots have none.
+ *
+ * @param raw - `denominators.landingClassCounts` JSON string / 着地分類件数のJSON文字列
+ * @returns Counts per class, or null when absent or malformed / 分類ごとの件数（無ければnull）
+ */
+function parseLandingClassCounts(raw: unknown): Record<string, number> | null {
+  if (typeof raw !== 'string') return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        (entry): entry is [string, number] => typeof entry[1] === 'number',
+      ),
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** Per-class counts of how completed tasks landed (only `qualified` counts). */
+function LandingSection({
+  status,
+  className,
+}: {
+  status: SupervisionAcceptanceStatus;
+  className: string;
+}) {
+  const t = useTranslations('agents.supervision');
+  const counts = parseLandingClassCounts(status.denominators.landingClassCounts);
+  return (
+    <section className={className}>
+      <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-3">
+        {t('landingTitle')}
+      </h2>
+      {counts === null ? (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('none')}</p>
+      ) : (
+        <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-8" data-testid="supervision-landing">
+          {LANDING_CLASSES.map((c) => (
+            <Row key={c} label={t(`landingClasses.${c}`)} value={String(counts[c] ?? 0)} />
+          ))}
+        </dl>
+      )}
+    </section>
+  );
+}
+
 /** Measured denominators and knowledge-reuse comparison for a loaded status. */
 function StatusDetails({ status }: { status: SupervisionAcceptanceStatus }) {
   const t = useTranslations('agents.supervision');
@@ -119,6 +182,8 @@ function StatusDetails({ status }: { status: SupervisionAcceptanceStatus }) {
           />
         </dl>
       </section>
+
+      <LandingSection status={status} className={`${card} lg:col-span-2`} />
 
       <section className={`${card} lg:col-span-2`}>
         <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-3">

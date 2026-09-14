@@ -129,3 +129,103 @@ export function createTimelineFake(start: Date = new Date('2026-09-10T00:00:00Z'
   };
   return fake;
 }
+
+type Where = Record<string, unknown>;
+type StringFilter = { in?: unknown[]; startsWith?: string; endsWith?: string; gte?: Date };
+
+export interface FakeTransitionRow {
+  taskId: number;
+  toStatus: string;
+  cause: string;
+  actor?: string;
+  createdAt: Date;
+}
+export interface FakeTaskRow {
+  id: number;
+  status?: string;
+  parentId: number | null;
+  acceptanceCriteria: string | null;
+  updatedAt?: Date;
+}
+export interface FakePrRow {
+  linkedTaskId: number | null;
+  state: string;
+}
+
+export interface PrismaFakeState {
+  transitions: FakeTransitionRow[];
+  tasks: FakeTaskRow[];
+  pullRequests: FakePrRow[];
+  /** UserSettings.autoMergePRDefault served to resolveAutomationPolicy. */
+  autoMergePRDefault: boolean | null;
+  failPullRequests: boolean;
+  failUserSettings: boolean;
+}
+
+/** Evaluates the subset of Prisma `where` operators the supervision queries use. */
+function matches(row: Record<string, unknown>, where: Where | undefined): boolean {
+  if (!where) return true;
+  return Object.entries(where).every(([key, cond]) => {
+    if (key === 'OR') return (cond as Where[]).some((c) => matches(row, c));
+    if (key === 'AND') return (cond as Where[]).every((c) => matches(row, c));
+    const value = row[key];
+    if (cond !== null && typeof cond === 'object' && !(cond instanceof Date)) {
+      const f = cond as StringFilter;
+      if (f.in && !f.in.includes(value)) return false;
+      if (f.startsWith !== undefined && !String(value).startsWith(f.startsWith)) return false;
+      if (f.endsWith !== undefined && !String(value).endsWith(f.endsWith)) return false;
+      if (f.gte && !(value instanceof Date && value >= f.gte)) return false;
+      return true;
+    }
+    return value === cond;
+  });
+}
+
+/**
+ * Creates an in-memory Prisma stand-in for the supervision evidence queries
+ * (transitions, tasks, PR mirror, user settings) with where-filter semantics.
+ *
+ * @returns Mutable state plus the `prisma` object to mock `config/database` with / 状態とprisma
+ */
+export function createPrismaFake(): { state: PrismaFakeState; prisma: Record<string, unknown> } {
+  const state: PrismaFakeState = {
+    transitions: [],
+    tasks: [],
+    pullRequests: [],
+    autoMergePRDefault: true,
+    failPullRequests: false,
+    failUserSettings: false,
+  };
+  const rows = <T extends object>(list: T[], args?: { where?: Where; take?: number }) =>
+    list
+      .filter((r) => matches(r as Record<string, unknown>, args?.where))
+      .slice(0, args?.take ?? Infinity);
+  const prisma = {
+    workflowTransition: {
+      findMany: async (args?: { where?: Where; take?: number }) =>
+        rows(state.transitions, args).map((t, i) => ({ id: i + 1, actor: 'system', ...t })),
+    },
+    task: {
+      findMany: async (args?: { where?: Where; take?: number }) =>
+        rows(
+          state.tasks.map((t) => ({ status: 'done', updatedAt: new Date(0), ...t })),
+          args,
+        ),
+      findUnique: async (args: { where: { id: number } }) =>
+        state.tasks.find((t) => t.id === args.where.id) ? { id: args.where.id } : null,
+    },
+    gitHubPullRequest: {
+      findMany: async (args?: { where?: Where; take?: number }) => {
+        if (state.failPullRequests) throw new Error('pr mirror down');
+        return rows(state.pullRequests, args);
+      },
+    },
+    userSettings: {
+      findFirst: async () => {
+        if (state.failUserSettings) throw new Error('settings down');
+        return { autoMergePRDefault: state.autoMergePRDefault };
+      },
+    },
+  };
+  return { state, prisma };
+}
