@@ -6,6 +6,7 @@
  * making the logic unit-testable without a live DB connection.
  */
 import type { PrismaClient } from '../../../generated/prisma-postgres';
+import { autoRunCandidateWhere } from './auto-run-eligibility';
 
 /** Minimum fields from Task used in selection logic. */
 export interface SelectableTask {
@@ -399,57 +400,16 @@ export async function selectNextTask(
   }
 
   const candidates = await prisma.task.findMany({
-    where: {
-      themeId,
-      status: { in: ['todo', 'in-progress'] },
-      // A 'todo' task is explicitly pending (incl. one reset to re-run a prior
-      // run) — it MUST stay eligible regardless of a stale terminal
-      // workflowStatus. The finished-state exclusion applies only to
-      // 'in-progress' rows, to avoid re-picking one that is mid-finalization.
-      // (A genuinely-done task has status 'done' and is already excluded above.)
-      // Without the `status:'todo'` clause, a todo+verify_done task (status reset
-      // for re-run, or a verify that didn't complete) was silently skipped and
-      // the theme went idle with pending tasks still present.
-      AND: [
-        {
-          OR: [
-            { status: 'todo' },
-            { workflowStatus: null },
-            { workflowStatus: { notIn: ['completed', 'verify_done'] } },
-          ],
-        },
-        {
-          // A task parked on a question cannot progress until a human answers,
-          // and the orchestrator refuses to dispatch it. Selection must agree
-          // with the dispatcher: measured 2026-08-24, task 635 sat at
-          // todo + awaiting_question, was selected, refused, cancelled and
-          // re-selected — 106 queue items in 21 minutes. The `status:'todo'`
-          // clause above deliberately ignores a stale workflowStatus, so
-          // awaiting_question has to be excluded explicitly.
-          //
-          // The null branch is REQUIRED. `NOT { workflowStatus: 'x' }` compiles
-          // to `NOT (workflowStatus = 'x')`, which is UNKNOWN — and therefore
-          // false — for a NULL column. A freshly filed task has no
-          // workflowStatus yet, so the bare NOT excluded every new task: with
-          // 10 todo rows in theme 1, selection matched 0 and the theme spun
-          // resumed→idle→resumed while its whole backlog sat there.
-          OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
-        },
-      ],
-      // A workflow-disabled task cannot be advanced by the runner, which
-      // refuses it with 「ワークフロー無効モードのため自動実行の対象外」. Selection
-      // must agree with the dispatcher — exactly the lesson of the
-      // awaiting_question clause above, and the same task taught it twice:
-      // measured 2026-08-26, task 635 (workflowDisabled, priority high) was
-      // selected, refused and released every ~20 seconds for ELEVEN HOURS.
-      // Nothing else ran, and because the theme never reached 'all_done' the
-      // backlog never refilled either — 121 open concerns sat untouched.
-      workflowDisabled: false,
+    // Shared with the `remainingCount` query in routes/workflow/theme-auto-run.ts
+    // (autoRunCandidateWhere, auto-run-eligibility.ts) — task 889: the two had
+    // drifted (remainingCount dropped a 'todo' task reset for re-run whose
+    // workflowStatus was still a stale terminal value). Rationale for each
+    // clause lives in that helper's doc comment; only the per-call
+    // `skipTaskIds` filter is merged in here since it is a runtime parameter,
+    // not a static eligibility rule.
+    where: autoRunCandidateWhere(themeId, {
       id: skipTaskIds.length > 0 ? { notIn: skipTaskIds } : undefined,
-      // Exclude subtasks — the theme scheduler drives top-level tasks only;
-      // subtasks are handled by AIOrchestra.enqueueSubtasksForExecution().
-      parentId: null,
-    },
+    }),
     // Stable createdAt order from the DB; priority is ranked in JS below.
     orderBy: [{ createdAt: 'asc' }],
     select: {

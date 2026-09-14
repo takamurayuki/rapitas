@@ -17,6 +17,7 @@ import {
   toPublicAutoRunState,
 } from '../../services/workflow/auto-run/theme-auto-run-service';
 import { ThemeAutoRunScheduler } from '../../services/workflow/auto-run/theme-auto-run-scheduler';
+import { autoRunCandidateWhere } from '../../services/workflow/auto-run/auto-run-eligibility';
 import { logCycleEvent } from '../../services/observability';
 import { HTTP_STATUS } from '../../utils/common/http-status';
 
@@ -46,18 +47,14 @@ export const themeAutoRunRoutes = new Elysia()
         });
       }
 
-      // Count remaining eligible tasks for this theme
+      // Count remaining eligible tasks for this theme. Uses the SAME
+      // where-fragment as selectNextTask's candidate query (task 889) so this
+      // number never diverges from what auto-run would actually pick up next.
+      // The currently in-progress task (if any) is intentionally counted here:
+      // no UI renders this field today, so there is no existing convention to
+      // exclude it, and "remaining" reads naturally as "not yet finished".
       const remainingCount = await prisma.task.count({
-        where: {
-          themeId,
-          status: { in: ['todo', 'in-progress'] },
-          OR: [
-            { workflowStatus: null },
-            { workflowStatus: { notIn: ['completed', 'verify_done', 'awaiting_question'] } },
-          ],
-          workflowDisabled: false,
-          parentId: null,
-        },
+        where: autoRunCandidateWhere(themeId),
       });
 
       return {
