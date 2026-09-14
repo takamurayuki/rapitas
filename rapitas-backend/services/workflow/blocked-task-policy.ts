@@ -150,9 +150,21 @@ export const EXPLICIT_RESUME_CAUSES: readonly string[] = [
   'question_resolved',
 ];
 
+/**
+ * WorkflowTransition.cause recorded by the verification gate when it blocks a
+ * task because a configured check could NOT run (runtime harness drift /
+ * quarantine — `VerificationResult.unverifiable` with a check-level
+ * unverifiable flag). The infrastructure, not the code, is what stops the
+ * task, so a blind full reset only replays the same hold (2026-09-13, task
+ * 912: reset → opus implementer → same UNVERIFIED hold). Windowed by the
+ * manual retry like the repair budget, so an explicit retry still resumes.
+ */
+export const VERIFICATION_UNVERIFIABLE_HOLD_CAUSE = 'verification_unverifiable_hold';
+
 /** Reason a blocked task is excluded from the blind auto-retry. */
 export type BlockedExclusionReason =
   | 'awaiting_question'
+  | 'verification_unverifiable'
   | 'verify_no_convergence'
   | 'abandoned_old'
   | 'verify_repair_exhausted'
@@ -179,6 +191,12 @@ export interface BlockedClassificationInput {
    * / 非収束打ち切り済みか
    */
   nonConverged?: boolean;
+  /**
+   * True when a VERIFICATION_UNVERIFIABLE_HOLD_CAUSE transition exists in the
+   * current repair window — the gate could not verify (infrastructure), so a
+   * blind retry cannot change the verdict. / 検証不能による保留中か
+   */
+  unverifiableHeld?: boolean;
   /**
    * Total `verify_pr_not_created` transitions ever recorded for the task
    * (unwindowed — a full reset discards the implementation but the PR-creation
@@ -217,6 +235,10 @@ export function classifyBlockedExclusion(input: BlockedClassificationInput): Blo
   // whatever its age/budget), then age (an ancient task is out of the retry
   // query entirely), then the budget/cap exclusions retry itself applies.
   if (input.workflowStatus === 'awaiting_question') return 'awaiting_question';
+  // An unverifiable hold is an infrastructure state: no reset changes it, so
+  // it is never blind-retried whatever the budget says (a manual retry or a
+  // verification re-run is the way back in).
+  if (input.unverifiableHeld) return 'verification_unverifiable';
   // Non-convergence beats age/budget: the cutoff already established that
   // re-running cannot help (same criterion never progressed), whatever the
   // remaining retry budget says.

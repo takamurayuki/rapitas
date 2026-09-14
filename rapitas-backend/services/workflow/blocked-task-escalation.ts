@@ -46,6 +46,11 @@ const REASON_COPY: Record<BlockedExclusionReason, { needs: string; notificationT
     needs: '検証修復の予算を使い切りました。タスクの分割が必要です。',
     notificationType: 'blocked_escalation',
   },
+  verification_unverifiable: {
+    needs:
+      '検証環境の問題で正しさを確認できないため保留中です（自動再試行はしません）。検証環境（runtime ハーネス／base 同期）を復旧し、検証の再実行またはタスクの手動再試行で再開してください。',
+    notificationType: 'blocked_escalation',
+  },
   verify_no_convergence: {
     needs:
       '差し戻しが収束していません（同一の受入基準が繰り返し未対応）。タスク分割または仕様の見直しが必要です。' +
