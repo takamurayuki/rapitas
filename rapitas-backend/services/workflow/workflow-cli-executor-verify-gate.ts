@@ -23,6 +23,7 @@ import {
   taskHasLinkedPr,
   wasVerifyValidationFailureJustRecorded,
 } from './workflow-cli-executor-helpers';
+import { closeGateForUnrecoverableSnapshot, type ReconcileResult } from './verify-phase-snapshot';
 
 // NOTE: Same logger name as the executor body — keeps the observed log `name`
 // field identical after the file split.
@@ -35,7 +36,7 @@ const log = createLogger('workflow-cli-executor');
  * A passing verify completes the task; a hard validation failure blocks it
  * for fix + re-verify.
  *
- * @param params - Verify-gate inputs (task, transition, session, current status, artifact, validation, worktree) / 検証ゲートの入力一式
+ * @param params - Verify-gate inputs (task, transition, session, current status, artifact, validation, worktree, snapshot reconcile) / 検証ゲートの入力一式
  * @returns The phase status the executor should report / エピローグが報告すべきフェーズステータス
  */
 export async function resolveVerifyPhaseStatus(params: {
@@ -46,11 +47,25 @@ export async function resolveVerifyPhaseStatus(params: {
   fileContent: Awaited<ReturnType<typeof readWorkflowFile>>;
   validation: ValidationResult;
   resolvedWorktreePath: string | null;
+  /** Outcome of reconciling the pre-verify snapshot (task 917). Absent = no snapshot was attempted (non-verifier role or snapshot setup failed — fail-open at setup, see verify-phase-snapshot.ts). */
+  verifySnapshotReconcile?: ReconcileResult;
 }): Promise<WorkflowAdvanceResult['status']> {
   const { taskId, transition, session, currentWfStatus, fileContent, validation } = params;
-  const { resolvedWorktreePath } = params;
+  const { resolvedWorktreePath, verifySnapshotReconcile } = params;
   let phaseStatus: WorkflowAdvanceResult['status'];
   if (currentWfStatus === 'completed') return 'completed';
+
+  // 受入基準2: 復元不能（比較不能）の場合は他の判定に優先して完了ゲートを閉じる。
+  // plan_approved へ差し戻し、実装フェーズから再開できる状態を保つ。
+  if (verifySnapshotReconcile?.status === 'unrecoverable') {
+    return closeGateForUnrecoverableSnapshot({
+      taskId,
+      transition,
+      session,
+      currentWfStatus,
+      reason: verifySnapshotReconcile.reason,
+    });
+  }
   const hardFail = !validation.ok && validation.severity >= 80;
   // The agent saved verify.md via the HTTP API during its run — if that
   // save was just REJECTED there (self-repair bounce or adversarial-review
