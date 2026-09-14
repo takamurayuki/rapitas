@@ -10,7 +10,8 @@
  */
 import { createLogger } from '../../../../config/logger';
 import type { VerificationCheck } from '../automated-verifier';
-import { resolveRuntimeConfig } from './runtime-config';
+import { resolveRuntimeConfig, resolveThemeWorkingDirectory } from './runtime-config';
+import { detectRuntimeHarnessDrift } from './runtime-start-preflight';
 import { runBrowserSmoke, type SmokeRunResult } from './browser-smoke';
 import { acquireRuntimeServer, releaseRuntimeServer } from './worktree-server-registry';
 
@@ -144,6 +145,34 @@ export async function runRuntimeSmokeCheck(
     };
   }
   const cfg = loaded.config;
+
+  // Harness drift: the branch predates the runtime script the theme's main
+  // checkout ships. This is NOT a pass — the theme opted into runtime
+  // verification, so the check stays UNVERIFIED and completion is withheld
+  // (PR #670 semantics). The remedy is to bring the harness into the branch
+  // (workflow-auto-commit syncs origin/<base> into the worktree before the
+  // gate when it sees this reason); it is never to skip the check.
+  // 2026-09-13: an earlier revision reported this as ok/skip and let tasks
+  // 901/905 head for a PR unverified — reverted on operator instruction.
+  const drift = await detectRuntimeHarnessDrift(
+    cfg.start,
+    workdir,
+    await resolveThemeWorkingDirectory(taskId),
+  );
+  if (drift) {
+    log.warn(
+      { workdir, label, taskId },
+      '[runtime-smoke] harness drift — unverifiable until the branch is synced with the base',
+    );
+    return {
+      name: 'runtime',
+      ran: false,
+      ok: false,
+      unverifiable: true,
+      errorCount: 0,
+      details: drift,
+    };
+  }
 
   // Short-circuit: this worktree recently failed to launch for ENVIRONMENT
   // reasons — relaunching within the TTL just burns the full ready-timeout to

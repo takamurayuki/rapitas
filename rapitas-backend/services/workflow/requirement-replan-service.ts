@@ -3,10 +3,16 @@ import { readReviewedPlanPolicy } from './reviewed-plan-policy';
 import type { PrismaClient } from '../../generated/prisma-postgres';
 import { commitRequirementReplan, parseStoredRequirementArray } from './requirement-replan-commit';
 import { reviewRequirementReplan } from './requirement-replan-review';
+import type { ReplanReviewResult } from './requirement-replan-review';
 import { replanSnapshotDigest } from './requirement-replan-evidence';
 import { shareInflightReplanReview } from './requirement-replan-inflight';
 import type { CompletionReviewReceipt } from './requirement-replan-commit';
 import { createLogger } from '../../config/logger';
+import {
+  claimRequirementReview,
+  saveRequirementReview,
+  startRequirementReviewHeartbeat,
+} from './requirement-review-claim';
 
 const log = createLogger('workflow:requirement-replan');
 
@@ -70,8 +76,43 @@ export async function attemptRequirementReplan(
     );
   const source = await readSource();
   if (!source) return { committed: false, reason: 'not_reviewable' };
+  const snapshotDigest = replanSnapshotDigest(source.snapshot);
+  // The durable claim is acquired before invoking AI. A DB error propagates,
+  // and an abandoned `evaluating` claim is marked result-unknown rather than
+  // stolen because the remote result may have been produced before process loss.
+  const admission = await claimRequirementReview(db, taskId, snapshotDigest);
+  if (admission.kind === 'in_progress') {
+    return { committed: false, reason: admission.reason };
+  }
   // No DB transaction or lifecycle lock is held during potentially slow AI evaluation.
-  const result = await shareInflightReplanReview(source.snapshot, review);
+  let stopHeartbeat: (() => void) | undefined;
+  let result: ReplanReviewResult;
+  if (admission.kind === 'held') {
+    // A claim whose evaluation was lost (stale heartbeat) — the review cannot
+    // be repeated for this snapshot, so it is inconclusive by construction.
+    result = {
+      verdict: { kind: 'unknown', reason: admission.reason },
+      snapshotDigest,
+      durationMs: 0,
+      tokensUsed: null,
+      modelName: null,
+    };
+  } else if (admission.kind === 'cached') {
+    result = admission.result;
+  } else {
+    stopHeartbeat = startRequirementReviewHeartbeat(db, admission.claimId, admission.claimToken);
+    try {
+      result = await shareInflightReplanReview(source.snapshot, review);
+    } finally {
+      stopHeartbeat();
+    }
+  }
+  if (
+    admission.kind === 'owner' &&
+    !(await saveRequirementReview(db, admission.claimId, admission.claimToken, result))
+  ) {
+    return { committed: false, reason: 'requires_human:review_result_unknown' };
+  }
   if (result.verdict.kind === 'unknown') {
     // Keep the admission decision fail-closed, but retain the review's actual
     // explanation. Otherwise callers only see "held: unknown" and repeat an
@@ -86,6 +127,19 @@ export async function attemptRequirementReplan(
       },
       'Requirement review held; inspect the reason before retrying unchanged evidence',
     );
+    // NOTE: An undecidable review is NOT a mismatch. Parking the task as
+    // blocked here (2026-09-13, task 901) made every later verify save
+    // `not_reviewable` (blocked tasks are excluded from readSource), so the
+    // verifier could never recover — a self-deadlock that repeated until the
+    // blocked-retry cap escalated. This reviewer exists to catch a plan that
+    // contradicts the requirements; when it cannot establish one, the ordinary
+    // verify validators, honesty gate, adversarial diff review and CI remain
+    // the arbiters. Carry the explanation in the receipt so the audit trail
+    // keeps it, and continue as "no mismatch established".
+    result = {
+      ...result,
+      verdict: { kind: 'no_mismatch', reason: `review_inconclusive: ${result.verdict.reason}` },
+    };
   }
   if (result.verdict.kind === 'no_mismatch') {
     const fresh = await readSource();
