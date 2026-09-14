@@ -155,6 +155,8 @@ export async function resolveVerifyPhaseStatus(params: {
     const gate = await evaluateCompletionGate(
       resolvedWorktreePath,
       typeof fileContent === 'string' ? fileContent : '',
+      undefined,
+      taskId,
     );
     if (!gate.allow) {
       await prisma.task.update({
