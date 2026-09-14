@@ -20,6 +20,12 @@ import { readAgentsMdConstraints } from './workflow-agents-md-context';
 import { harvestInvestigationOutput, runPhaseEpilogue } from './workflow-cli-executor-epilogue';
 import { runPostProcessing } from './workflow-cli-executor-postprocess';
 import { resumeSessionIdFor } from './phase-session-resume';
+import {
+  takeVerifySnapshot,
+  reconcileVerifySnapshot,
+  notifyVerifySnapshotRestoreFailed,
+  type ReconcileResult,
+} from './verify-phase-snapshot';
 
 // Disk-existence guard for reusing a recorded worktree. Re-exported here so the
 // existing worktree-reuse.test.ts import path keeps working; the single source
@@ -45,8 +51,18 @@ async function finalizeAgentSession(
   cancelled = false,
 ): Promise<void> {
   try {
-    await prisma.agentSession.update({
-      where: { id: sessionId },
+    await prisma.agentSession.updateMany({
+      where: {
+        id: sessionId,
+        status: { in: ['active', 'running'] },
+        ...(cancelled
+          ? {}
+          : {
+              agentExecutions: {
+                none: { status: { in: ['canceling', 'cancelling', 'cancelled', 'canceled'] } },
+              },
+            }),
+      },
       data: {
         status: cancelled ? 'cancelled' : success ? 'completed' : 'failed',
         lastActivityAt: new Date(),
@@ -148,6 +164,11 @@ export async function executeCLIAgent(
   // returns or throws, so the original result/exception propagates unchanged.
   let sessionSucceeded = false;
   let sessionCancelled = false;
+  // Verifier/auto_verifier roles get a pre-phase snapshot so a destructive git
+  // operation during the phase (task 913 incident) cannot silently discard the
+  // implementer's uncommitted work — protection is technical (git tag), not
+  // dependent on the agent obeying the prompt constraints (受入基準4).
+  const isVerifierRole = transition.role === 'verifier' || transition.role === 'auto_verifier';
   try {
     const resumeSessionId = await resumeSessionIdFor(
       taskId,
@@ -156,47 +177,81 @@ export async function executeCLIAgent(
       agentConfig.agentType,
     );
     assertOwnership?.();
-    const result = await orchestrator.executeTask(
-      {
-        id: taskId,
-        title: `[${transition.role}] ${task.title}`,
-        description: fullPrompt,
-        workingDirectory: effectiveWorkDir,
-      },
-      {
-        taskId,
-        sessionId: session.id,
-        assertExecutionAllowed: assertOwnership,
-        agentConfigId: agentConfig.id,
-        workingDirectory: effectiveWorkDir,
-        modelIdOverride: agentConfig.modelId || undefined,
-        // Repair bounce: continue the CLI session this role already built.
-        resumeSessionId,
-        // Role-aware wall-clock cap: implementer gets 2x the base (task 546).
-        timeout: getAgentTimeoutMs(transition.role),
-        autoCompleteTask: false,
-        investigationMode: isInvestigationPhase,
-        // Phase-specific output type. Drives codex's positional headline
-        // (`# 調査レポート` vs `# 実装計画` vs `# レビュー指摘`) so each
-        // role's CLI invocation produces an artifact in the correct shape.
-        // Without this, planner phases were force-shaped as research reports
-        // and the validator flagged plan.md for missing 設計判断の根拠 /
-        // 実装チェックリスト sections.
-        investigationOutputType:
-          transition.outputFile === 'plan'
-            ? 'plan'
-            : transition.outputFile === 'verify'
-              ? 'verify'
-              : 'research',
-        // For investigation phases, codex writes its final message to a TEMP
-        // file via -o. We read that temp file after the run and upload it to
-        // the workflow API ourselves — codex never gets to touch the
-        // workflow file path directly. (outputLastMessageFile is currently
-        // always unused — no CLI path sets a temp file — but the option is
-        // kept wired for when one does.)
-        outputLastMessageFile: undefined,
-      },
-    );
+    const verifySnapshot = isVerifierRole
+      ? await takeVerifySnapshot(effectiveWorkDir, taskId)
+      : null;
+
+    let result: Awaited<ReturnType<typeof orchestrator.executeTask>>;
+    let verifySnapshotReconcile: ReconcileResult | undefined;
+    const reconcileSnapshot = async (): Promise<ReconcileResult | undefined> => {
+      if (!verifySnapshot) return undefined;
+      return reconcileVerifySnapshot(effectiveWorkDir, verifySnapshot.tagName).catch((err) => ({
+        status: 'unrecoverable' as const,
+        reason: err instanceof Error ? err.message : String(err),
+      }));
+    };
+    try {
+      result = await orchestrator.executeTask(
+        {
+          id: taskId,
+          title: `[${transition.role}] ${task.title}`,
+          description: fullPrompt,
+          workingDirectory: effectiveWorkDir,
+        },
+        {
+          taskId,
+          sessionId: session.id,
+          assertExecutionAllowed: assertOwnership,
+          agentConfigId: agentConfig.id,
+          workingDirectory: effectiveWorkDir,
+          modelIdOverride: agentConfig.modelId || undefined,
+          // Repair bounce: continue the CLI session this role already built.
+          resumeSessionId,
+          // Role-aware wall-clock cap: implementer gets 2x the base (task 546).
+          timeout: getAgentTimeoutMs(transition.role),
+          autoCompleteTask: false,
+          // Verifiers need shell access for checks and workflow artifact saves.
+          // Their no-code result policy is selected by the output type below.
+          investigationMode: isInvestigationPhase,
+          // Phase-specific output type. Drives codex's positional headline
+          // (`# 調査レポート` vs `# 実装計画` vs `# レビュー指摘`) so each
+          // role's CLI invocation produces an artifact in the correct shape.
+          // Without this, planner phases were force-shaped as research reports
+          // and the validator flagged plan.md for missing 設計判断の根拠 /
+          // 実装チェックリスト sections.
+          investigationOutputType:
+            transition.outputFile === 'plan'
+              ? 'plan'
+              : transition.outputFile === 'verify'
+                ? 'verify'
+                : 'research',
+          // For investigation phases, codex writes its final message to a TEMP
+          // file via -o. We read that temp file after the run and upload it to
+          // the workflow API ourselves — codex never gets to touch the
+          // workflow file path directly. (outputLastMessageFile is currently
+          // always unused — no CLI path sets a temp file — but the option is
+          // kept wired for when one does.)
+          outputLastMessageFile: undefined,
+        },
+      );
+    } catch (err) {
+      // Reconciles on a thrown/timeout exit too (受入基準2) — computed right
+      // after the CLI process leaves the worktree, before the exception
+      // propagates. Notified here (not left to the verify-gate branch, which
+      // never runs on this path since the epilogue is skipped).
+      verifySnapshotReconcile = await reconcileSnapshot();
+      if (verifySnapshotReconcile?.status === 'unrecoverable') {
+        await notifyVerifySnapshotRestoreFailed(taskId, verifySnapshotReconcile.reason).catch(
+          () => {},
+        );
+      }
+      throw err;
+    }
+    // Reconciles on the normal (success or agent-reported-failure) exit —
+    // the "unrecoverable" case is handled by the verify-gate branch inside
+    // runPhaseEpilogue below, which owns both the notification and closing
+    // the completion gate.
+    verifySnapshotReconcile = await reconcileSnapshot();
 
     assertOwnership?.();
     await harvestInvestigationOutput({
@@ -216,6 +271,7 @@ export async function executeCLIAgent(
       resolvedWorktreePath,
       language,
       phaseStartedAt,
+      verifySnapshotReconcile,
     });
 
     sessionSucceeded = effectiveSuccess;

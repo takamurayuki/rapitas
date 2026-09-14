@@ -14,6 +14,56 @@ import { markLatestExecutionFailed } from './shared';
 
 const log = createLogger('routes:workflow:handlers:files');
 
+/** Recorded when a gate fails with the same signature that already bounced once. */
+export const VERIFY_GATE_REPEAT_HOLD_CAUSE = 'verification_gate_repeat_hold';
+
+/** The comparable part of a gate reason: the check summary, not the prose around it. */
+export function gateFailureSignature(reason: string): string {
+  return (reason.match(/自動検証に失敗しました（(.+?)）/)?.[1] ?? reason)
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Find the latest verify_repair bounce in the current repair window whose
+ * recorded reason has the same signature as this failure. Bouncing again on
+ * an identical verdict only spends budget (2026-09-13: 905/912 re-ran the
+ * implementer for runtime=UNVERIFIED it could not influence).
+ *
+ * @param taskId - Task being evaluated / 対象タスク
+ * @param gateReason - This run's gate failure reason / 今回の失敗理由
+ * @returns The matching prior bounce, or null / 一致した過去の差し戻し
+ */
+export async function findRepeatedGateFailure(
+  taskId: number,
+  gateReason: string,
+): Promise<{ attempt: number | null; at: Date } | null> {
+  const { resolveRepairWindowStart } =
+    await import('../../../../services/workflow/verify-self-repair-budget');
+  const windowStart = await resolveRepairWindowStart(taskId).catch(() => null);
+  const prior = await prisma.workflowTransition
+    .findFirst({
+      where: {
+        taskId,
+        cause: 'verify_repair',
+        ...(windowStart ? { createdAt: { gte: windowStart } } : {}),
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: { metadata: true, createdAt: true },
+    })
+    .catch(() => null);
+  if (!prior?.metadata) return null;
+  let meta: { reason?: unknown; attempt?: unknown } = {};
+  try {
+    meta = JSON.parse(String(prior.metadata)) as typeof meta;
+  } catch {
+    return null;
+  }
+  if (typeof meta.reason !== 'string') return null;
+  if (gateFailureSignature(meta.reason) !== gateFailureSignature(gateReason)) return null;
+  return { attempt: typeof meta.attempt === 'number' ? meta.attempt : null, at: prior.createdAt };
+}
+
 /**
  * Handles a verification-gate failure for a verify.md save: block directly when
  * contamination recovery is unavailable, otherwise bounce to self-repair.
@@ -73,6 +123,38 @@ export async function handleVerifyGateBlocked(params: {
     log.warn(
       { taskId, recoveryReason: gateRecoveryBlocked, reason: gateReason },
       '[Workflow] History-contamination recovery unavailable — task blocked, no commit/PR',
+    );
+    return {};
+  }
+
+  // Same failure as the last bounce → hold with the saved commit and this
+  // diagnosis instead of re-running the implementer on an identical verdict.
+  const repeated = await findRepeatedGateFailure(taskId, gateReason).catch(() => null);
+  if (repeated) {
+    const { writeBlockedStatusDurable } =
+      await import('../../../../services/workflow/durable-blocked-write');
+    await writeBlockedStatusDurable({
+      taskId,
+      log,
+      source: 'Workflow',
+      notification: {
+        title: '自動検証が同じ理由で再度失敗したため保留にしました',
+        message: `タスク #${taskId}: 前回の差し戻し（attempt ${repeated.attempt ?? '?'}）と同じ検証失敗です。ローカルコミットと診断を保持し、実装者の再実行は行いません。${gateReason}`,
+      },
+    });
+    await markLatestExecutionFailed(taskId, gateReason);
+    await recordTransition({
+      taskId,
+      fromStatus: 'verify_done',
+      toStatus: 'verify_done',
+      actor: 'system',
+      cause: VERIFY_GATE_REPEAT_HOLD_CAUSE,
+      phase: 'verify',
+      metadata: { reason: gateReason, priorAttempt: repeated.attempt, priorAt: repeated.at },
+    }).catch(() => {});
+    log.warn(
+      { taskId, priorAttempt: repeated.attempt, reason: gateReason },
+      '[Workflow] Verification gate failed with the same signature as the last bounce — holding, no implementer re-run',
     );
     return {};
   }
