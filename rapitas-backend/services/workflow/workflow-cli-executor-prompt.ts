@@ -9,6 +9,7 @@
  */
 import type { RoleTransition } from './workflow-types';
 import { buildAgentsMdSection, type AgentsMdReadResult } from './workflow-agents-md-context';
+import { buildVerifierRoleSection } from './workflow-cli-executor-prompt-verifier';
 
 /**
  * Build the full prompt for a CLI agent phase run.
@@ -30,6 +31,7 @@ export function buildCliAgentPrompt(params: {
   // prompt builder cannot drift from the caller's role interpretation.
   const isImplementationRole = transition.role === 'implementer';
   const isInvestigationPhase = transition.role === 'researcher' || transition.role === 'planner';
+  const isVerifierRole = transition.role === 'verifier' || transition.role === 'auto_verifier';
 
   const cliTexts = {
     ja: {
@@ -285,6 +287,13 @@ ${
 Your working directory is a task-dedicated worktree whose branch may back an OPEN pull request.
 - **Forbidden**: \`git push --force\` / \`git reset --hard\` / \`git stash\` / \`git clean\` / switching branches (\`git checkout <branch>\` / \`git switch\`) / changing \`.git\` config. A force-push closes the open PR and orphans its work.
 - **Allowed**: \`git status\` / \`git diff\` / \`git log\` / \`git add\` / \`git commit\` on the current branch. Rapitas normally creates commits, pushes, and PRs automatically.`;
+  }
+
+  // Verifier/auto_verifier constraints (task 917 — declarative half; the
+  // technical half is verify-phase-snapshot.ts, which does not depend on the
+  // agent obeying this text; 受入基準4).
+  if (isVerifierRole) {
+    fullPrompt += buildVerifierRoleSection(language);
   }
 
   // Concern Backlog: agents must FILE out-of-scope issues, never fix them inline.
