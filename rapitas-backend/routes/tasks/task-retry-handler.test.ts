@@ -65,7 +65,7 @@ describe('retryTask', () => {
 
     expect(mockTaskUpdate).toHaveBeenCalledWith({
       where: { id: 1 },
-      data: { status: 'todo', workflowStatus: 'plan_approved' },
+      data: { status: 'todo', completedAt: null, workflowStatus: 'plan_approved' },
     });
     expect(mockRecordTransition).toHaveBeenCalledTimes(1);
     expect(mockRecordTransition.mock.calls[0][0]).toMatchObject({
@@ -91,7 +91,7 @@ describe('retryTask', () => {
 
       expect(mockTaskUpdate).toHaveBeenCalledWith({
         where: { id: 1 },
-        data: { status: 'todo' },
+        data: { status: 'todo', completedAt: null },
       });
       expect(mockResolveImplementEntryStatus).not.toHaveBeenCalled();
       expect(mockRecordTransition).toHaveBeenCalledTimes(1);
@@ -125,6 +125,14 @@ describe('retryTask', () => {
     );
     expect(mockTaskUpdate).not.toHaveBeenCalled();
     expect(mockRecordTransition).not.toHaveBeenCalled();
+  });
+
+  test('clears completedAt on retry', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce({ status: 'blocked', workflowStatus: 'verify_done' });
+
+    await retryTask(1, () => {});
+
+    expect(mockTaskUpdate.mock.calls[0][0].data.completedAt).toBeNull();
   });
 
   test('returns null and sets 404 when the task is absent', async () => {
