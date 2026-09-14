@@ -86,6 +86,13 @@ mock.module('./required-merge-hold', () => ({
   AWAITING_REQUIRED_MERGE_CAUSE: 'verify_awaiting_required_merge',
 }));
 
+// verify-phase-snapshot.ts's notify helper dynamic-imports this to avoid a
+// routes/services cycle — mocked so the unrecoverable-reconcile test doesn't
+// touch the real notification/websocket stack.
+mock.module('../communication/notification-service', () => ({
+  createNotification: mock(() => Promise.resolve()),
+}));
+
 const { resolveVerifyPhaseStatus } = await import('./workflow-cli-executor-verify-gate');
 
 /** Minimal passing-verify input: PR already linked, completion gate allows. */
@@ -207,4 +214,41 @@ test('CLI preflight prevents committing after a stop request', async () => {
   await expect(resolveVerifyPhaseStatus(params())).rejects.toThrow('stop_not_resumed');
   expect(autoCommit).not.toHaveBeenCalled();
   expect(completeReview).not.toHaveBeenCalled();
+});
+
+describe('resolveVerifyPhaseStatus — verify-snapshot reconcile unrecoverable (task 917, 受入基準2)', () => {
+  test('closes the completion gate BEFORE any other verify-outcome branching', async () => {
+    const status = await resolveVerifyPhaseStatus({
+      ...params(),
+      verifySnapshotReconcile: { status: 'unrecoverable', reason: 'git diff failed: bad revision' },
+    });
+
+    expect(status).toBe('plan_approved');
+    expect(recordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: 895,
+        toStatus: 'plan_approved',
+        cause: 'VERIFY_SNAPSHOT_RESTORE_FAILED',
+        invariantViolation: true,
+      }),
+    );
+    // No completion-path side effects — the snapshot gate wins over everything else.
+    expect(completeReview).not.toHaveBeenCalled();
+    expect(autoCommit).not.toHaveBeenCalled();
+    expect(reviewReplan).not.toHaveBeenCalled();
+  });
+
+  test('a clean/restored reconcile does not affect the normal completion path', async () => {
+    for (const reconcile of [
+      { status: 'clean' as const },
+      { status: 'restored' as const, restoredFiles: ['tracked.txt'] },
+      undefined,
+    ]) {
+      const status = await resolveVerifyPhaseStatus({
+        ...params(),
+        verifySnapshotReconcile: reconcile,
+      });
+      expect(status).toBe('completed');
+    }
+  });
 });
