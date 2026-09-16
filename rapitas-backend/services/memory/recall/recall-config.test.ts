@@ -4,11 +4,18 @@
  * 既定値・不正値の個別フォールバック・部分指定の重み・キャッシュ再読込を検証する。
  */
 import { describe, test, expect, afterEach } from 'bun:test';
-import { parseRecallConfig, getRecallConfig, resetRecallConfigCache } from './recall-config';
+import {
+  parseRecallConfig,
+  getRecallConfig,
+  resetRecallConfigCache,
+  isEvalModeActive,
+  EVAL_MODE_ENV,
+} from './recall-config';
 
 afterEach(() => {
   resetRecallConfigCache();
   delete process.env.RAPITAS_KB_RECALL_STAGES;
+  delete process.env[EVAL_MODE_ENV];
 });
 
 describe('parseRecallConfig', () => {
@@ -67,5 +74,21 @@ describe('getRecallConfig', () => {
     expect(getRecallConfig().stages).toEqual(['active']);
     resetRecallConfigCache();
     expect(getRecallConfig().stages).toEqual(['dormant']);
+  });
+});
+
+describe('isEvalModeActive', () => {
+  test('未設定なら false', () => {
+    expect(isEvalModeActive()).toBe(false);
+  });
+
+  test('"1" のときのみ true', () => {
+    process.env[EVAL_MODE_ENV] = '1';
+    expect(isEvalModeActive()).toBe(true);
+  });
+
+  test('"1" 以外の値は false（真偽値の緩い解釈をしない）', () => {
+    process.env[EVAL_MODE_ENV] = 'true';
+    expect(isEvalModeActive()).toBe(false);
   });
 });

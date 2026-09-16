@@ -23,7 +23,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { searchKnowledgeHybrid } from '../memory/recall/hybrid-search';
-import { getRecallConfig } from '../memory/recall/recall-config';
+import { getRecallConfig, isEvalModeActive } from '../memory/recall/recall-config';
 import { recordRetrieval } from '../memory/outcome-reinforcement';
 import { applyOutcomeWeighting, renderMemorySection } from './workflow-memory-render';
 import type { EntryOutcome, MemoryEntry } from './workflow-memory-render';
@@ -50,6 +50,9 @@ async function buildFailureEpisodeSection(
   themeId: number | null,
   language: 'ja' | 'en',
 ): Promise<string> {
+  // Eval-corpus baseline runs must not replay memory of past failures on the
+  // corpus task itself (see RAPITAS_EVAL_MODE in recall-config.ts).
+  if (isEvalModeActive()) return '';
   try {
     const cutoff = new Date();
     cutoff.setUTCDate(cutoff.getUTCDate() - EPISODE_WINDOW_DAYS);
@@ -141,6 +144,12 @@ export async function buildMemoryContext(
   task: { title: string; description: string | null },
   language: 'ja' | 'en' = 'ja',
 ): Promise<string> {
+  // Eval-corpus baseline runs must not replay memory (KB entries or failure
+  // episodes) of the corpus task's own past solution. searchKnowledgeHybrid
+  // and buildFailureEpisodeSection also self-guard, but short-circuiting here
+  // additionally skips the outcome/usefulness lookups and retrieval recording
+  // that have no purpose against an empty result set.
+  if (isEvalModeActive()) return '';
   try {
     const query = `${task.title}\n${task.description ?? ''}`.trim();
     if (!query) return '';

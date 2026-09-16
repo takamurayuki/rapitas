@@ -4,7 +4,7 @@
  * ベクトル+語彙の RRF 統合順位、語彙のみヒットの hydrate、テーマフォールバック
  * （試行イベントは 1 回）、語彙/ベクトル例外時の縮退、telemetry の有無と payload を検証する。
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
 
 interface VectorRow {
   id: number;
@@ -51,7 +51,7 @@ mock.module('./lexical-index', () => ({ lexicalSearch: mockLexicalSearch }));
 mock.module('../timeline', () => ({ appendEvent: mockAppendEvent }));
 
 const { searchKnowledgeHybrid } = await import('./hybrid-search');
-const { resetRecallConfigCache } = await import('./recall-config');
+const { resetRecallConfigCache, EVAL_MODE_ENV } = await import('./recall-config');
 
 function vrow(id: number, similarity: number, over: Partial<VectorRow> = {}): VectorRow {
   return {
@@ -246,6 +246,31 @@ describe('searchKnowledgeHybrid — telemetry', () => {
     mockSearchKnowledge.mockReturnValue(Promise.resolve([vrow(1, 0.9)]));
     mockAppendEvent.mockReturnValue(Promise.reject(new Error('db down')));
     const hits = await searchKnowledgeHybrid({ query: 'q', telemetry: { source: 'workflow' } });
+    expect(hits).toHaveLength(1);
+  });
+});
+
+describe('searchKnowledgeHybrid — RAPITAS_EVAL_MODE', () => {
+  afterEach(() => {
+    delete process.env[EVAL_MODE_ENV];
+  });
+
+  test('RAPITAS_EVAL_MODE=1 のとき、両チャネルを呼ばずに空配列を返す', async () => {
+    process.env[EVAL_MODE_ENV] = '1';
+    mockSearchKnowledge.mockReturnValue(Promise.resolve([vrow(1, 0.9)]));
+    mockLexicalSearch.mockReturnValue(Promise.resolve([{ id: 1, score: 0.5, rankScore: 0.5 }]));
+
+    const hits = await searchKnowledgeHybrid({ query: 'q', telemetry: { source: 'workflow' } });
+
+    expect(hits).toEqual([]);
+    expect(mockSearchKnowledge).not.toHaveBeenCalled();
+    expect(mockLexicalSearch).not.toHaveBeenCalled();
+    expect(mockAppendEvent).not.toHaveBeenCalled();
+  });
+
+  test('RAPITAS_EVAL_MODE が未設定なら通常どおり検索する', async () => {
+    mockSearchKnowledge.mockReturnValue(Promise.resolve([vrow(1, 0.9)]));
+    const hits = await searchKnowledgeHybrid({ query: 'q' });
     expect(hits).toHaveLength(1);
   });
 });
