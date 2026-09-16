@@ -140,8 +140,11 @@ export async function recordIntervention(input: RecordInterventionInput): Promis
       spooledAt: new Date().toISOString(),
       data: payload,
     });
-    // FIXME: If both the DB and the spool file fail, only this latch remembers
-    // the loss, and a restart erases it. No third store exists to fall back on.
+    // NOTE: If both the DB and the spool file fail, only this in-memory latch
+    // remembers the loss, and a restart erases it — accepted limitation, no
+    // third store is planned (DB + disk spool already covers the realistic
+    // failure modes; a process crash losing an in-memory flag is the same
+    // trade-off every other in-memory health flag in this codebase makes).
     if (!spooled) unspooledFailure = true;
     log.error(
       { err, sourceKind: input.sourceKind, spooled },

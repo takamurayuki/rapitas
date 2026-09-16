@@ -80,17 +80,26 @@ export function readSpool<T>(): { records: SpooledRecord<T>[]; corruptLines: num
  * @param persistedIds - Ids that are now in the DB / DBに記録済みのID
  */
 export function removeFromSpool(persistedIds: ReadonlySet<string>): void {
+  if (persistedIds.size === 0) return;
   const path = spoolFilePath();
-  if (!existsSync(path) || persistedIds.size === 0) return;
-  const kept = readFileSync(path, 'utf-8')
-    .split('\n')
-    .filter((line) => {
-      if (!line.trim()) return false;
-      try {
-        return !persistedIds.has((JSON.parse(line) as { id?: string }).id ?? '');
-      } catch {
-        return true;
-      }
-    });
+  // Read directly instead of existsSync()-then-read: the file could be
+  // created/removed by a concurrent spoolRecord() call between the two
+  // (CodeQL js/file-system-race). ENOENT is the only expected failure and
+  // means "nothing to remove", same as the old existsSync(false) branch.
+  let content: string;
+  try {
+    content = readFileSync(path, 'utf-8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return;
+    throw err;
+  }
+  const kept = content.split('\n').filter((line) => {
+    if (!line.trim()) return false;
+    try {
+      return !persistedIds.has((JSON.parse(line) as { id?: string }).id ?? '');
+    } catch {
+      return true;
+    }
+  });
   writeFileSync(path, kept.length > 0 ? `${kept.join('\n')}\n` : '', 'utf-8');
 }
