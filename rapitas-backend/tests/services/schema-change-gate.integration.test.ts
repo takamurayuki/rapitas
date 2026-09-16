@@ -9,6 +9,12 @@
  * automated-verifier.diff-base-ref.test.ts — rather than mocking
  * getAllChangedFiles, since the bug lives in how the early return combines
  * multiple check results.
+ *
+ * Task 896: `forbiddenChangeGateContext:{isSelfRepo:true, overrideGranted:true}`
+ * is injected into the "planned" cases below so they keep testing what they
+ * were written to test (generated-sync gating), not the new override gate —
+ * see plan.md's 変更予定ファイル表#4. The final test in this file is the 883
+ * regression itself: planned + no override must now fail.
  */
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 
@@ -65,6 +71,7 @@ describe('runAutomatedVerification — schema-only change bypasses the zero-code
     async () => {
       const result = await runAutomatedVerification(repoDir, {
         planContent: '## 変更予定ファイル\n- `prisma/schema/x.prisma`',
+        forbiddenChangeGateContext: { isSelfRepo: true, overrideGranted: true },
       });
       expect(result.ok).toBe(false);
       const schemaCheck = result.checks.find((c) => c.name === 'schema-change');
@@ -90,10 +97,35 @@ describe('runAutomatedVerification — schema-only change bypasses the zero-code
       const result = await runAutomatedVerification(repoDir, {
         planContent:
           '## Files\n- `prisma/schema/x.prisma`\n- `prisma/schema.desktop/x.prisma`\n- `src/generated/sqlite-init-sql.ts`',
+        forbiddenChangeGateContext: { isSelfRepo: true, overrideGranted: true },
       });
       expect(result.checks.find((c) => c.name === 'schema-change')?.ok).toBe(true);
       expect(result.checks.find((c) => c.name === 'generated-sync')?.ok).toBe(true);
       expect(result.ok).toBe(true);
+    },
+    GIT_TEST_TIMEOUT_MS,
+  );
+
+  test(
+    '883回帰: 計画済みスキーマ変更でも明示上書きが無ければ ok:false になる',
+    async () => {
+      mkdirSync(join(repoDir, 'prisma', 'schema.desktop'), { recursive: true });
+      mkdirSync(join(repoDir, 'src', 'generated'), { recursive: true });
+      writeFileSync(
+        join(repoDir, 'prisma', 'schema.desktop', 'x.prisma'),
+        'model X { id Int @id }\n',
+      );
+      writeFileSync(
+        join(repoDir, 'src', 'generated', 'sqlite-init-sql.ts'),
+        'export const sql = "";\n',
+      );
+      const result = await runAutomatedVerification(repoDir, {
+        planContent:
+          '## Files\n- `prisma/schema/x.prisma`\n- `prisma/schema.desktop/x.prisma`\n- `src/generated/sqlite-init-sql.ts`',
+      });
+      const schemaCheck = result.checks.find((c) => c.name === 'schema-change');
+      expect(schemaCheck?.ok).toBe(false);
+      expect(result.ok).toBe(false);
     },
     GIT_TEST_TIMEOUT_MS,
   );
