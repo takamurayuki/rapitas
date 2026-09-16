@@ -667,7 +667,11 @@
       "executingCannotSelect": "Excluded from bulk status change while auto-executing",
       "autoRunExcludeTitle": "Exclude from auto-run",
       "autoRunIncludeTitle": "Include in auto-run",
-      "autoRunExcludedToggleFailed": "Failed to update the auto-run setting"
+      "autoRunExcludedToggleFailed": "Failed to update the auto-run setting",
+      "autoRunNextUp": "Auto-run: next up",
+      "autoRunNextUpTooltip": "Auto-run has picked this task, but no agent has started yet. The time shown is elapsed since the last update.",
+      "autoRunQueued": "Auto-run: queued",
+      "autoRunQueuedTooltip": "Eligible for auto-run, but waiting its turn behind another task"
     },
     "suggestionCard": {
       "category": {

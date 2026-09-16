@@ -13,6 +13,7 @@ import {
   cleanupDuplicateSubtasks,
   cleanupAllDuplicateSubtasks,
   attachBlockedCauses,
+  attachAutoRunCardStatus,
 } from '../../services/task/task-service';
 import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree/worktree-ops';
 import { warnIfSubtaskCreatedDuringDisabledSplit } from '../../services/workflow/subtask-split-guard';
@@ -225,6 +226,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     });
 
     await attachBlockedCauses(prisma, tasks);
+    await attachAutoRunCardStatus(prisma, tasks);
 
     if (page && pageSize) {
       const totalCount = await prisma.task.count({ where: baseWhere });

@@ -19,6 +19,7 @@ import TaskCardContextMenu from './task-card/TaskCardContextMenu';
 import TaskCardSubtaskPanel from './task-card/TaskCardSubtaskPanel';
 import TaskCardSubtaskProgress from './task-card/TaskCardSubtaskProgress';
 import TaskCardAutoRunToggle from './task-card/TaskCardAutoRunToggle';
+import TaskCardAutoRunQueueBadge from './task-card/TaskCardAutoRunQueueBadge';
 import styles from './TaskCard.module.css';
 
 interface TaskCardProps {
@@ -233,6 +234,7 @@ const TaskCard = memo(function TaskCard({
                 </span>
               </>
             )}
+            <TaskCardAutoRunQueueBadge task={task} isExecuting={Boolean(tc.executionElapsed)} />
             {tc.localSubtasks.length > 0 && (
               <TaskCardSubtaskProgress
                 subtasks={tc.localSubtasks}

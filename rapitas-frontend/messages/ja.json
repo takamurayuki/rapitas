@@ -667,7 +667,11 @@
       "executingCannotSelect": "自動実行中のため一括ステータス変更の対象から除外されています",
       "autoRunExcludeTitle": "自動実行の対象から外す",
       "autoRunIncludeTitle": "自動実行の対象に戻す",
-      "autoRunExcludedToggleFailed": "自動実行設定の更新に失敗しました"
+      "autoRunExcludedToggleFailed": "自動実行設定の更新に失敗しました",
+      "autoRunNextUp": "自動実行: 次に着手",
+      "autoRunNextUpTooltip": "自動実行がこのタスクを選択済みですが、まだエージェントは起動していません。表示中の時間は最終更新からの経過時間です",
+      "autoRunQueued": "自動実行: 順番待ち",
+      "autoRunQueuedTooltip": "自動実行の対象ですが、他のタスクの処理中のため順番を待っています"
     },
     "suggestionCard": {
       "category": {

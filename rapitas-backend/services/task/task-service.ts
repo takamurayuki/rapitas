@@ -23,3 +23,6 @@ export { cleanupDuplicateSubtasks, cleanupAllDuplicateSubtasks } from './task-cl
 
 // Blocked-cause: batched WorkflowTransition.cause attach for list responses
 export { attachBlockedCauses, type TaskLikeForBlockedCause } from './blocked-cause';
+
+// Auto-run card status: batched "current pick / waiting its turn" attach
+export { attachAutoRunCardStatus, type TaskLikeForAutoRunCardStatus } from './auto-run-card-status';
