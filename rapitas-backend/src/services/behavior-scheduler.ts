@@ -152,6 +152,19 @@ export class BehaviorScheduler {
           });
       }
 
+      // 7:10 on the 1st of the month: re-check completed prompt-evolution
+      // addenda for effect regression (task #937). Default OFF — see
+      // RAPITAS_PROMPT_TREE_REVALIDATION_ENABLED in prompt-evolution-revalidation-job.ts.
+      if (h === 7 && m === 10 && dom === 1) {
+        await import('../../services/self-learning/prompt-evolution-revalidation-job')
+          .then(({ revalidateCompletedEvolutions }) =>
+            revalidateCompletedEvolutions(prisma as never, true),
+          )
+          .catch((err: Error) => {
+            log.error({ err }, '[BehaviorScheduler] Prompt evolution revalidation failed');
+          });
+      }
+
       // 9 AM: knowledge reminders + Monday weekly review
       if (h === 9 && m === 0) {
         log.info('[BehaviorScheduler] Triggering knowledge reminder scan');

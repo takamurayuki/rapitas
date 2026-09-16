@@ -225,6 +225,37 @@ export async function evaluateRole(
 }
 
 /**
+ * Determine the parent lineage node for a new candidate: the most recent
+ * `approved`/`completed` row sharing the same basePromptKey (see plan.md
+ * "系統樹の親定義"). Fixed once here at emit time — never recomputed later.
+ * Feature-detected via an unknown-cast like `emitEvolutionCandidate` below,
+ * so a Prisma client not yet regenerated with `findFirst` degrades to `null`
+ * (root) instead of throwing.
+ *
+ * @param prisma - Prisma client. / Prismaクライアント
+ * @param basePromptKey - Grouping key shared across a prompt's lineage. / 系統グルーピングキー
+ * @returns The parent row id, or null when no eligible predecessor exists. / 親ID（無ければnull）
+ */
+async function findParentId(prisma: PrismaClient, basePromptKey: string): Promise<number | null> {
+  const promptEvolutionDelegate = (
+    prisma as unknown as {
+      promptEvolution?: {
+        findFirst?: (args: unknown) => Promise<{ id: number } | null>;
+      };
+    }
+  ).promptEvolution;
+  if (!promptEvolutionDelegate || typeof promptEvolutionDelegate.findFirst !== 'function') {
+    return null;
+  }
+  const parent = await promptEvolutionDelegate.findFirst({
+    where: { basePromptKey, status: { in: ['approved', 'completed'] } },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true },
+  });
+  return parent?.id ?? null;
+}
+
+/**
  * 進化候補を `PromptEvolution` レコードとして書き込む。
  * 候補プロンプト生成自体は LLM への呼び出しを伴うため、本ランナーでは
  * 「進化が必要である」マークだけを残し、実プロンプト生成は別 worker が拾う。
@@ -244,9 +275,13 @@ async function emitEvolutionCandidate(prisma: PrismaClient, ev: RoleEvaluation):
     log.warn('[runner] PromptEvolution model unavailable in current schema; skip emit');
     return;
   }
+  const basePromptKey = `workflow_role_${ev.role}`;
+  const parentId = await findParentId(prisma, basePromptKey);
   await promptEvolutionDelegate.create({
     data: {
-      basePromptKey: `workflow_role_${ev.role}`,
+      basePromptKey,
+      taskType: ev.role,
+      parentId,
       reason: ev.reason,
       status: 'pending',
       evidenceJson: JSON.stringify({
@@ -258,7 +293,9 @@ async function emitEvolutionCandidate(prisma: PrismaClient, ev: RoleEvaluation):
       }),
     },
   });
-  log.info(`[runner] queued PromptEvolution for role=${ev.role} (${ev.successRate.toFixed(3)})`);
+  log.info(
+    `[runner] queued PromptEvolution for role=${ev.role} (${ev.successRate.toFixed(3)}), parentId=${parentId ?? 'null'}`,
+  );
 }
 
 /**

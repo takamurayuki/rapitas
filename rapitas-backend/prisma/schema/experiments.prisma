@@ -247,7 +247,37 @@ model PromptEvolution {
   evidenceJson  String?   // JSON: aggregated metrics that triggered evolution
   createdAt     DateTime  @default(now())
 
+  // Prompt lineage tree (task #937). parentId is fixed once at runner-emit
+  // time (see prompt-evolution-runner.emitEvolutionCandidate) and never
+  // recomputed — see plan.md "系統樹の親定義".
+  parentId      Int?
+  parent        PromptEvolution?  @relation("PromptEvolutionTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children      PromptEvolution[] @relation("PromptEvolutionTree")
+  // Node attribute 1/5: role this candidate was queued for (e.g. "planner").
+  taskType      String?
+  // Node attribute 2/5 (part b): performanceDelta above carries the effect
+  // size; this carries the uncertainty side, copied verbatim from
+  // ComparisonSummary.uncertainty (see prompt-evolution-settle.ts). Not a
+  // formal statistical significance test — see plan.md "有意性・信頼度".
+  significanceLevel String? // 'low' | 'medium' | 'high', copied from ComparisonSummary.uncertainty
+  // Node attribute 3/5: applicable conditions (dayOfWeek/modelVersion/userSegment), JSON string.
+  applicableConditionsJson String?
+  // Node attribute 4/5: recorded failure cases, JSON array string.
+  failureCasesJson String?
+  // Node attribute 5 backing field: whether a current-vs-candidate shadow
+  // comparison was run for this candidate before approval.
+  abTested      Boolean   @default(false)
+  // Reference to the shadow-run comparison record (prompt-comparison-store,
+  // file-backed) — PromptEvolution.id doubles as ComparisonRecord.promptEvolutionId.
+  abComparisonRef String?
+  // Derived (not authoritative) cache of the tree-confidence calculation in
+  // prompt-evolution-tree.ts — recomputed on every settle/revalidation.
+  treeConfidence String  @default("low") // 'high' | 'medium' | 'low'
+  lastRevalidatedAt DateTime?
+  lastRevalidatedModelVersion String?
+
   @@index([category])
   @@index([performanceDelta])
   @@index([status])
+  @@index([parentId])
 }

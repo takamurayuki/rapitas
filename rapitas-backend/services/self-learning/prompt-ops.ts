@@ -57,6 +57,13 @@ export interface PromptEvolutionRow {
   reason: string | null;
   improvement: string | null;
   createdAt: Date | string;
+  // Lineage-tree node attributes (task #937) — additive, existing fields
+  // above are untouched so /learning/prompt-evolution/summary stays
+  // backward compatible for PromptEvolutionSummary/Proposals.
+  taskType?: string | null;
+  significanceLevel?: string | null;
+  abTested?: boolean;
+  treeConfidence?: string;
 }
 
 /** One entry within a group's `recentEntries` list. */
@@ -67,6 +74,14 @@ export interface PromptEvolutionRecentEntry {
   reason: string | null;
   improvement: string | null;
   createdAt: string;
+  /** Node attribute 1/5 (task #937): applied task type/role. */
+  taskType: string | null;
+  /** Node attribute 2/5 (part b): copied from ComparisonSummary.uncertainty — see prompt-evolution-settle.ts. */
+  significanceLevel: string | null;
+  /** Node attribute 3/5: whether a shadow-run A/B comparison backs this row. */
+  abTested: boolean;
+  /** Node attribute 5/5: derived trust label — see prompt-evolution-tree.ts. */
+  treeConfidence: string;
 }
 
 /** Aggregated view of every PromptEvolution row sharing one basePromptKey/category. */
@@ -149,6 +164,10 @@ export function summarizePromptEvolution(
         reason: r.reason,
         improvement: r.improvement,
         createdAt: new Date(r.createdAt).toISOString(),
+        taskType: r.taskType ?? null,
+        significanceLevel: r.significanceLevel ?? null,
+        abTested: r.abTested ?? false,
+        treeConfidence: r.treeConfidence ?? 'low',
       })),
     });
   }
@@ -171,7 +190,15 @@ export function summarizePromptEvolution(
  * @returns Per-group summaries, most recently active first / グループ毎の要約
  */
 export async function getPromptEvolutionSummary(): Promise<PromptEvolutionGroupSummary[]> {
-  const rows = await prisma.promptEvolution.findMany({
+  // NOTE: cast via `unknown` rather than `any` — same feature-detection
+  // reasoning as prompt-evolution-runner.ts's promptEvolutionDelegate: the
+  // task #937 columns (taskType/significanceLevel/abTested/treeConfidence)
+  // are added to schema/experiments.prisma but the generated Prisma client
+  // is not regenerated until the user restarts the server (CLAUDE.md §1).
+  const findMany = prisma.promptEvolution.findMany as unknown as (
+    args: unknown,
+  ) => Promise<PromptEvolutionRow[]>;
+  const rows = await findMany({
     select: {
       id: true,
       basePromptKey: true,
@@ -181,6 +208,10 @@ export async function getPromptEvolutionSummary(): Promise<PromptEvolutionGroupS
       reason: true,
       improvement: true,
       createdAt: true,
+      taskType: true,
+      significanceLevel: true,
+      abTested: true,
+      treeConfidence: true,
     },
     orderBy: { createdAt: 'desc' },
     take: 500,

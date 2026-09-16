@@ -18,6 +18,7 @@ import { PromptCard } from './components/PromptCard';
 import { AddPromptModal } from './components/AddPromptModal';
 import { PromptEvolutionSummary } from './components/PromptEvolutionSummary';
 import { PromptEvolutionProposals } from './components/PromptEvolutionProposals';
+import { PromptEvolutionTree } from './components/prompt-evolution-tree';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -35,6 +36,7 @@ export default function SystemPromptsPage() {
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [evolutionView, setEvolutionView] = useState<'grid' | 'tree'>('grid');
 
   const seedPrompts = useCallback(async () => {
     try {
@@ -179,7 +181,33 @@ export default function SystemPromptsPage() {
         </div>
 
         <PromptEvolutionProposals />
-        <PromptEvolutionSummary />
+
+        <div className="mb-3 flex gap-2">
+          <button
+            type="button"
+            onClick={() => setEvolutionView('grid')}
+            className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+              evolutionView === 'grid'
+                ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
+                : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
+            } border border-zinc-200 dark:border-zinc-700`}
+          >
+            {t('evolutionTabs.grid')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setEvolutionView('tree')}
+            className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+              evolutionView === 'tree'
+                ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
+                : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
+            } border border-zinc-200 dark:border-zinc-700`}
+          >
+            {t('evolutionTabs.tree')}
+          </button>
+        </div>
+
+        {evolutionView === 'grid' ? <PromptEvolutionSummary /> : <PromptEvolutionTree />}
 
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <div className="relative flex-1">

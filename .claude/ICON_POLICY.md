@@ -143,6 +143,8 @@ history is lost.
 | `Cable`                     | 学習目標のテーマ紐づけ（`StudyGoal`をテーマに関連付け、テーマ配下タスクのポモドーロ作業時間を自動集計する機能。学習ロードマップの目標カード「テーマを紐づけ」ボタン＋紐づけ済みバッジ＋`GoalThemeLinkModal`。注: `Link2`＝ノートエディタのハイパーリンク挿入・依存関係ツリー表示の汎用リンクとは別概念） |
 | `GlassWater`                | ポモドーロ フローティングウィンドウの透過⇄不透明トグル（`pomodoro-float` ページ内のガラスモード切替ボタン。注: `Sparkles`＝AI生成/おすすめ操作とは別概念のため流用しない） |
 | `Minus`                     | ウィンドウのタスクバー最小化（`pomodoro-float-view.tsx` の−ボタン。既存の差分バッジ減少値・複雑度インジケータ等の`Minus`とは画面・文脈が分離しており実利用上の混同リスクは低い） |
+| `TrendingDown`               | 通知の種別「プロンプト改善の効果再検証で劣化検知」（`NotificationBell` の prompt_tree_regression。`PromptEvolutionSummary`の`DeltaIcon`が既に使う「性能低下」概念の再利用。注: 汎用的な下降トレンド表示として他画面でも使用されるアイコンであり単一概念の占有アイコンではない） |
+| `GitGraph`                   | プロンプト進化の系統樹（`/system-prompts` の系統樹タブ見出し `PromptEvolutionTree`。注: `GitBranch`＝ワークフローセクション見出し/実際のGitブランチ名フィールドとは別グリフ — 系統樹という第三の概念による衝突を避けるため意図的に別グリフを選定） |
 
 > The table above is also being split into per-letter reference files
 > (`.claude/icon-policy/glyphs-a-f.md`, `glyphs-g-m.md`, `glyphs-n-s.md`,

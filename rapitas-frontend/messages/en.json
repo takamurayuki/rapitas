@@ -3115,6 +3115,14 @@
     "open": "Open",
     "close": "Close",
     "markMemoDone": "Mark done",
+    "questionToast": {
+      "hint": "Pick an option to answer and resume the workflow",
+      "recommended": "Recommended",
+      "answerInApp": "Answer in app",
+      "moreQuestions": "{count} questions are waiting. Answer them in the app.",
+      "answered": "Answer sent. Resuming the workflow.",
+      "failed": "Could not send the answer. Please answer from the app."
+    },
     "justNow": "Just now",
     "minutesAgo": "{count} minutes ago",
     "hoursAgo": "{count} hours ago",
@@ -3257,6 +3265,10 @@
       "daily_report": {
         "title": "Daily report {date}",
         "message": "{message}"
+      },
+      "prompt_tree_regression": {
+        "title": "A prompt improvement regressed on revalidation",
+        "message": "Revalidating the approved improvement for the {role} role found a {delta, number, percent} drop in success rate"
       },
       "memo_reminder": {
         "title": "Memo reminder",
@@ -3412,6 +3424,10 @@
     "requiredFields": "Key, name, and prompt content are required",
     "keyValidation": "Key can only contain lowercase letters, numbers, and underscores",
     "addFailed": "Failed to add prompt",
+    "evolutionTabs": {
+      "grid": "Grid",
+      "tree": "Lineage tree"
+    },
     "promptEvolution": {
       "proposals": {
         "title": "Prompt improvement proposals awaiting approval",
@@ -3430,7 +3446,37 @@
       "trendDown": "declining",
       "trendFlat": "stable",
       "empty": "No prompt evolution history yet.",
-      "loadFailed": "Failed to load prompt evolution history"
+      "loadFailed": "Failed to load prompt evolution history",
+      "tree": {
+        "title": "Prompt evolution lineage tree",
+        "subtitle": "Shows each role's improvement history as parent/child nodes. Click a node for details.",
+        "empty": "No lineage tree data yet.",
+        "loadFailed": "Failed to load the lineage tree",
+        "significanceNote": "Significance is a simple indicator based on comparison sample size, not a formal statistical significance level.",
+        "confidenceHigh": "Confidence: high",
+        "confidenceMedium": "Confidence: medium",
+        "confidenceLow": "Confidence: low",
+        "abTested": "A/B tested",
+        "abNotTested": "Not A/B tested",
+        "taskType": "Task type",
+        "effect": "Effect (performance delta)",
+        "significance": "Significance",
+        "cost": "Cost reference",
+        "applicableConditions": "Applicable conditions",
+        "dayOfWeek": "Day of week",
+        "modelVersion": "Model version",
+        "userSegment": "User segment",
+        "noConditionRecorded": "None recorded",
+        "failureCases": "Failure cases",
+        "noFailureCases": "None recorded",
+        "revalidate": "Revalidate",
+        "revalidating": "Revalidating...",
+        "revalidateSuccess": "Revalidation complete (confidence: {confidence})",
+        "revalidateFailed": "Revalidation failed",
+        "revalidateNotApplicable": "Only completed improvements can be revalidated",
+        "lastRevalidated": "Last revalidated: {date}",
+        "neverRevalidated": "Never revalidated"
+      }
     }
   },
   "claudeMd": {
