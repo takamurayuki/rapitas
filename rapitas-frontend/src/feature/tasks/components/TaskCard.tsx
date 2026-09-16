@@ -328,7 +328,12 @@ const TaskCard = memo(function TaskCard({
                 />
               </button>
             )}
-            <TaskCardAutoRunToggle task={task} onTaskUpdated={onTaskUpdated} />
+            {/* Auto-run only ever runs on a development theme with a working
+                directory set (see theme-auto-run.ts's own gate) — showing the
+                toggle on every other theme offered a control with no effect. */}
+            {task.theme?.isDevelopment && task.theme?.workingDirectory && (
+              <TaskCardAutoRunToggle task={task} onTaskUpdated={onTaskUpdated} />
+            )}
             {['todo', 'in-progress', 'done'].map((status) => {
               // NOTE: Amber override applied to in-progress button when task is waiting_for_input
               const baseConfig = getStatusDisplay(t, status);
