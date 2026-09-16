@@ -43,14 +43,20 @@ mock.module('./rag/vector-index', () => ({
   getEmbeddingCount: () => 0,
   closeVectorDb: () => {},
 }));
-mock.module('./rag/search', () => ({ vectorSearch: async () => [], searchKnowledge: async () => [] }));
+mock.module('./rag/search', () => ({
+  vectorSearch: async () => [],
+  searchKnowledge: async () => [],
+}));
 mock.module('./rag/context-builder', () => ({
   buildRAGContext: async () => ({}),
   buildTaskRAGContext: async () => ({}),
 }));
 mock.module('./recall/hybrid-search', () => ({ searchKnowledgeHybrid: async () => [] }));
 mock.module('./knowledge-stats', () => ({ getKnowledgeStats: async () => ({}) }));
-mock.module('./validation', () => ({ validateEntry: async () => {}, revalidatePendingBacklog: async () => {} }));
+mock.module('./validation', () => ({
+  validateEntry: async () => {},
+  revalidatePendingBacklog: async () => {},
+}));
 mock.module('./contradiction', () => ({
   detectContradictions: async () => 0,
   resolveContradiction: async () => {},
@@ -60,22 +66,34 @@ mock.module('./contradiction-sweep', () => ({
   drainStaleConflicts: async () => {},
   revalidateStaleConflicts: async () => {},
 }));
-mock.module('./consolidation', () => ({ runConsolidation: async () => {}, getConsolidationRuns: async () => [] }));
+mock.module('./consolidation', () => ({
+  runConsolidation: async () => {},
+  getConsolidationRuns: async () => [],
+}));
 mock.module('./reconsolidation', () => ({ triggerReconsolidation: async () => {} }));
-mock.module('./forgetting', () => ({ runForgettingSweep: async () => {}, boostDecayOnAccess: async () => {} }));
+mock.module('./forgetting', () => ({
+  runForgettingSweep: async () => {},
+  boostDecayOnAccess: async () => {},
+}));
 mock.module('./distillation', () => ({ distillFromExecution: async () => {} }));
 mock.module('./dedup', () => ({
   findSemanticDuplicate: async () => null,
   findLexicalDuplicate: async () => null,
 }));
-mock.module('./rag/reindex', () => ({ runReindexBatch: async () => {}, maybeEnqueueReindex: async () => {} }));
+mock.module('./rag/reindex', () => ({
+  runReindexBatch: async () => {},
+  maybeEnqueueReindex: async () => {},
+}));
 mock.module('./recall/lexical-index', () => ({ invalidateLexicalIndex: () => {} }));
 mock.module('./utils', () => ({
   createContentHash: (s: string) => `hash:${s}`,
   parseTagsAsStrings: () => [],
   cosineSimilarity: () => 0,
 }));
-mock.module('./timeline', () => ({ appendEvent: async () => {}, queryEvents: async () => ({ events: [], total: 0 }) }));
+mock.module('./timeline', () => ({
+  appendEvent: async () => {},
+  queryEvents: async () => ({ events: [], total: 0 }),
+}));
 mock.module('../../config/db-provider', () => ({ getInsensitiveMode: () => 'default' }));
 
 const { updateKnowledgeEntry } = await import('./index');

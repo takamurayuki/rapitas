@@ -171,9 +171,12 @@ describe('detectContradictions', () => {
   });
 
   test('heading-only description ("**主な矛盾点：**"のみ) does not extract a usable claim', async () => {
-    aiResponse = ['判定: CONTRADICTION', '種類: factual', '対立命題A: **主な矛盾点：**', '対立命題B: '].join(
-      '\n',
-    );
+    aiResponse = [
+      '判定: CONTRADICTION',
+      '種類: factual',
+      '対立命題A: **主な矛盾点：**',
+      '対立命題B: ',
+    ].join('\n');
 
     const count = await detectContradictions(1);
 

@@ -20,13 +20,20 @@ const taskFindUnique = mock(async () => ({
 }));
 const wfGroupBy = mock(async () => [{ cause: 'verify_repair', _count: { cause: 2 } }]);
 const keFindFirst = mock(async () => null as { id: number } | null);
-const keCreate = mock(async (args: { data: { sourceType: string } }) => ({ id: 501, ...args.data }));
+const keCreate = mock(async (args: { data: { sourceType: string } }) => ({
+  id: 501,
+  ...args.data,
+}));
 // Controls the lastAccessedAt returned for the duplicate entry under test.
 let dupLastAccessedAt: Date | null = null;
 const keFindUnique = mock(async () => ({ lastAccessedAt: dupLastAccessedAt }));
 const sendAIMessage = mock(async () => ({
   content: JSON.stringify([
-    { title: 'verifyの差し戻し回避', content: 'verify前に scoped tsc を通す', category: 'procedure' },
+    {
+      title: 'verifyの差し戻し回避',
+      content: 'verify前に scoped tsc を通す',
+      category: 'procedure',
+    },
   ]),
 }));
 const enqueue = mock(async () => {});
@@ -40,8 +47,13 @@ mock.module('../../config/database', () => ({
     knowledgeEntry: { findFirst: keFindFirst, create: keCreate, findUnique: keFindUnique },
   },
 }));
+// NOTE: mock.module is process-global and must mirror EVERY export of the real
+// module — a transitive `import { logger }` fails if the mock omits it.
+const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 mock.module('../../config/logger', () => ({
-  createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
+  createLogger: () => noopLogger,
+  logger: noopLogger,
+  getBackendLogFilePath: () => '',
 }));
 mock.module('../../utils/ai-client', () => ({ sendAIMessage }));
 // Always report a near-duplicate so the boost/cooldown branch is exercised.
@@ -52,7 +64,10 @@ mock.module('./dedup', () => ({
 mock.module('./forgetting', () => ({ boostDecayOnAccess }));
 mock.module('./index', () => ({ memoryTaskQueue: { enqueue } }));
 mock.module('./timeline', () => ({ appendEvent: async () => {} }));
-mock.module('../../config/db-provider', () => ({ getInsensitiveMode: () => 'default' }));
+mock.module('../../config/db-provider', () => ({
+  getInsensitiveMode: () => ({}),
+  getDbProvider: () => 'sqlite',
+}));
 
 const { reflectOnFailure } = await import('./task-knowledge-extractor');
 
