@@ -664,13 +664,15 @@
       "retryAriaLabel": "Retry task",
       "protectedDeleteError": "Protected tasks cannot be deleted",
       "elapsedTimeTooltip": "Elapsed time since the agent started executing",
+      "runningLabel": "Running",
+      "waitingForInputLabel": "Awaiting answer",
       "executingCannotSelect": "Excluded from bulk status change while auto-executing",
       "autoRunExcludeTitle": "Exclude from auto-run",
       "autoRunIncludeTitle": "Include in auto-run",
       "autoRunExcludedToggleFailed": "Failed to update the auto-run setting",
-      "autoRunNextUp": "Auto-run: next up",
+      "autoRunNextUp": "Next up",
       "autoRunNextUpTooltip": "Auto-run has picked this task, but no agent has started yet. The time shown is elapsed since the last update.",
-      "autoRunQueued": "Auto-run: queued",
+      "autoRunQueued": "Queued",
       "autoRunQueuedTooltip": "Eligible for auto-run, but waiting its turn behind another task"
     },
     "suggestionCard": {

@@ -219,20 +219,20 @@ const TaskCard = memo(function TaskCard({
                 spot: a spinner alone doesn't say whether an agent has been
                 stuck for 30s or 30min. */}
             {tc.executionElapsed && (
-              <>
-                <span className="text-zinc-300 dark:text-zinc-700">•</span>
-                <span
-                  className={`inline-flex items-center gap-0.5 shrink-0 font-medium ${
-                    tc.isWaitingForInput
-                      ? 'text-amber-600 dark:text-amber-400'
-                      : 'text-blue-600 dark:text-blue-400'
-                  }`}
-                  title={t('taskCard.elapsedTimeTooltip')}
-                >
-                  <Clock className="w-3 h-3" aria-hidden="true" />
-                  {tc.executionElapsed}
-                </span>
-              </>
+              <span
+                className={`inline-flex items-center gap-1 shrink-0 rounded-full border px-1.5 py-0.5 font-medium ${
+                  tc.isWaitingForInput
+                    ? 'border-amber-300 dark:border-amber-600 text-amber-600 dark:text-amber-400'
+                    : 'border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400'
+                }`}
+                title={t('taskCard.elapsedTimeTooltip')}
+              >
+                <Clock className="w-3 h-3" aria-hidden="true" />
+                {tc.isWaitingForInput
+                  ? t('taskCard.waitingForInputLabel')
+                  : t('taskCard.runningLabel')}
+                {tc.executionElapsed}
+              </span>
             )}
             <TaskCardAutoRunQueueBadge task={task} isExecuting={Boolean(tc.executionElapsed)} />
             {tc.localSubtasks.length > 0 && (

@@ -43,32 +43,26 @@ export default function TaskCardAutoRunQueueBadge({
 
   if (task.autoRunCurrent) {
     return (
-      <>
-        <span className="text-zinc-300 dark:text-zinc-700">•</span>
-        <span
-          className="inline-flex items-center gap-1 shrink-0 font-medium text-zinc-600 dark:text-zinc-300"
-          title={t('taskCard.autoRunNextUpTooltip')}
-        >
-          <CircleArrowRight className="w-3 h-3" aria-hidden="true" />
-          {t('taskCard.autoRunNextUp')}
-          {waitingElapsed && <span>{waitingElapsed}</span>}
-        </span>
-      </>
+      <span
+        className="inline-flex items-center gap-1 shrink-0 rounded-full border border-zinc-300 dark:border-zinc-600 px-1.5 py-0.5 font-medium text-zinc-600 dark:text-zinc-300"
+        title={t('taskCard.autoRunNextUpTooltip')}
+      >
+        <CircleArrowRight className="w-3 h-3" aria-hidden="true" />
+        {t('taskCard.autoRunNextUp')}
+        {waitingElapsed && <span>{waitingElapsed}</span>}
+      </span>
     );
   }
 
   if (task.autoRunQueued) {
     return (
-      <>
-        <span className="text-zinc-300 dark:text-zinc-700">•</span>
-        <span
-          className="inline-flex items-center gap-1 shrink-0 text-zinc-500 dark:text-zinc-400"
-          title={t('taskCard.autoRunQueuedTooltip')}
-        >
-          <Layers3 className="w-3 h-3" aria-hidden="true" />
-          {t('taskCard.autoRunQueued')}
-        </span>
-      </>
+      <span
+        className="inline-flex items-center gap-1 shrink-0 rounded-full border border-zinc-200 dark:border-zinc-700 px-1.5 py-0.5 text-zinc-500 dark:text-zinc-400"
+        title={t('taskCard.autoRunQueuedTooltip')}
+      >
+        <Layers3 className="w-3 h-3" aria-hidden="true" />
+        {t('taskCard.autoRunQueued')}
+      </span>
     );
   }
 
