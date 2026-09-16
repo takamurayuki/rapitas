@@ -434,6 +434,7 @@ CREATE TABLE "Task" (
     "forbiddenChangeOverride" BOOLEAN NOT NULL DEFAULT false,
     "forbiddenChangeOverrideReason" TEXT,
     "workflowDisabled" BOOLEAN NOT NULL DEFAULT false,
+    "autoRunExcluded" BOOLEAN NOT NULL DEFAULT false,
     "isRecurring" BOOLEAN NOT NULL DEFAULT false,
     "recurrenceRule" TEXT,
     "recurrenceEndAt" DATETIME,

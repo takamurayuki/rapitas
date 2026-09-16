@@ -18,6 +18,7 @@ import { useTaskCard } from './task-card/useTaskCard';
 import TaskCardContextMenu from './task-card/TaskCardContextMenu';
 import TaskCardSubtaskPanel from './task-card/TaskCardSubtaskPanel';
 import TaskCardSubtaskProgress from './task-card/TaskCardSubtaskProgress';
+import TaskCardAutoRunToggle from './task-card/TaskCardAutoRunToggle';
 import styles from './TaskCard.module.css';
 
 interface TaskCardProps {
@@ -327,6 +328,7 @@ const TaskCard = memo(function TaskCard({
                 />
               </button>
             )}
+            <TaskCardAutoRunToggle task={task} onTaskUpdated={onTaskUpdated} />
             {['todo', 'in-progress', 'done'].map((status) => {
               // NOTE: Amber override applied to in-progress button when task is waiting_for_input
               const baseConfig = getStatusDisplay(t, status);
