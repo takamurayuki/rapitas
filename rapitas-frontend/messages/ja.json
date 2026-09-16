@@ -664,10 +664,7 @@
       "retryAriaLabel": "タスクを再実行",
       "protectedDeleteError": "保護されたタスクは削除できません",
       "elapsedTimeTooltip": "エージェントの実行開始からの経過時間",
-      "executingCannotSelect": "自動実行中のため一括ステータス変更の対象から除外されています",
-      "autoRunExcludeTitle": "自動実行の対象から外す",
-      "autoRunIncludeTitle": "自動実行の対象に戻す",
-      "autoRunExcludedToggleFailed": "自動実行設定の更新に失敗しました"
+      "executingCannotSelect": "自動実行中のため一括ステータス変更の対象から除外されています"
     },
     "suggestionCard": {
       "category": {
@@ -5419,6 +5416,10 @@
         "miss_ledger": {
           "label": "検出漏れ学習",
           "desc": "品質ゲートを素通りして事後に判明した欠陥（CI差し戻し・完了後の懸念）を証拠つきで記録し、同型を次回検出するための兆候提案を生成します。提案は /agents/miss-signatures で承認/棄却します。"
+        },
+        "gate_precision": {
+          "label": "ゲート精度較正",
+          "desc": "検証差し戻しが繰り返された案件（同じ受入基準への2回以上の指摘）を、実装のやり直しだけで解決したか、人間/計画レベルの介入が必要だったかで判定・記録します。介入が必要だった割合が高い場合は、ゲートや受入基準の精度を疑う懸念を自動起票します。"
         }
       },
       "frequency": {

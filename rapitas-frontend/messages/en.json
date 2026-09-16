@@ -664,10 +664,7 @@
       "retryAriaLabel": "Retry task",
       "protectedDeleteError": "Protected tasks cannot be deleted",
       "elapsedTimeTooltip": "Elapsed time since the agent started executing",
-      "executingCannotSelect": "Excluded from bulk status change while auto-executing",
-      "autoRunExcludeTitle": "Exclude from auto-run",
-      "autoRunIncludeTitle": "Include in auto-run",
-      "autoRunExcludedToggleFailed": "Failed to update the auto-run setting"
+      "executingCannotSelect": "Excluded from bulk status change while auto-executing"
     },
     "suggestionCard": {
       "category": {
@@ -5419,6 +5416,10 @@
         "miss_ledger": {
           "label": "Miss learning",
           "desc": "Records defects that slipped past the quality gates (CI bounces, post-completion concerns) with evidence, and generates detection-cue suggestions reviewed at /agents/miss-signatures."
+        },
+        "gate_precision": {
+          "label": "Gate precision calibration",
+          "desc": "Classifies disputed verify bounces (the same acceptance criterion flagged 2+ times) by whether they resolved through implementation alone or needed a human/plan-level intervention. Files a concern when the intervention-needed rate is high, suggesting the gate or the acceptance criteria themselves need review."
         }
       },
       "frequency": {
