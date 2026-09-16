@@ -190,6 +190,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       ]);
 
       await attachBlockedCauses(prisma, updated);
+      await attachAutoRunCardStatus(prisma, updated);
 
       return {
         tasks: updated,

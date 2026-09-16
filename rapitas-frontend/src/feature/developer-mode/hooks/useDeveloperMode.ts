@@ -186,22 +186,33 @@ export function useDeveloperMode(taskId: number) {
       ) {
         setIsExecuting(true);
         setExecutionStatus('running');
-        // With the cumulative base (activeTimeMs, task #560) the anchor is the
-        // CURRENT execution row — the base already carries every finished
-        // execution, so a session anchor would double-count them. Older
-        // backends without the field fall back to the session anchor (spans
-        // phases within one session at least).
-        const hasCumulative = typeof statusData.activeTimeMs === 'number';
-        setExecutingTask({
-          taskId,
-          sessionId: statusData.sessionId,
-          status:
-            statusData.executionStatus === 'waiting_for_input' ? 'waiting_for_input' : 'running',
-          startedAt: hasCumulative
-            ? (statusData.startedAt ?? statusData.sessionStartedAt ?? null)
-            : (statusData.sessionStartedAt ?? statusData.startedAt ?? null),
-          cumulativeActiveMs: hasCumulative ? statusData.activeTimeMs : 0,
-        });
+        // NOTE: isStillAdvancing (a phase-boundary 'completed' row) is local-only —
+        // it must NOT reach the global execution store below. That store is shared
+        // with the task list's "next up" badge (TaskCardAutoRunQueueBadge), which
+        // reads it as "an agent is literally running right now." Between phases no
+        // agent process exists yet, so writing it there made every "next up" task
+        // flip to the running badge the instant its detail view was opened.
+        if (
+          statusData.executionStatus === 'running' ||
+          statusData.executionStatus === 'waiting_for_input'
+        ) {
+          // With the cumulative base (activeTimeMs, task #560) the anchor is the
+          // CURRENT execution row — the base already carries every finished
+          // execution, so a session anchor would double-count them. Older
+          // backends without the field fall back to the session anchor (spans
+          // phases within one session at least).
+          const hasCumulative = typeof statusData.activeTimeMs === 'number';
+          setExecutingTask({
+            taskId,
+            sessionId: statusData.sessionId,
+            status:
+              statusData.executionStatus === 'waiting_for_input' ? 'waiting_for_input' : 'running',
+            startedAt: hasCumulative
+              ? (statusData.startedAt ?? statusData.sessionStartedAt ?? null)
+              : (statusData.sessionStartedAt ?? statusData.startedAt ?? null),
+            cumulativeActiveMs: hasCumulative ? statusData.activeTimeMs : 0,
+          });
+        }
       } else if (statusData.executionStatus === 'interrupted') {
         // Display interrupted state as idle (treat as non-running after server restart)
         setIsExecuting(false);
