@@ -18,6 +18,7 @@ import {
   MAX_PR_RECOVERY_ATTEMPTS,
   resolveVerifyRepairLimit,
   VERIFY_NON_CONVERGENCE_CAUSE,
+  VERIFICATION_UNVERIFIABLE_HOLD_CAUSE,
   PR_RETRY_LIGHTWEIGHT_CAUSE,
 } from './blocked-task-policy';
 import { isAwaitingRequiredMerge } from './verify-settle-artifact-recovery';
@@ -229,6 +230,27 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
       log.info(
         { taskId: t.id, nonConverged },
         '[reconciler] Blocked task was cut off for non-convergence — leaving blocked (needs split/spec revision), not auto-retrying',
+      );
+      continue;
+    }
+
+    // Skip tasks HELD because verification could not run (2026-09-13, task
+    // 912): the hold is an infrastructure state a full reset cannot change —
+    // it would only re-dispatch an implementer into the same UNVERIFIED gate.
+    // Same window as the repair budget: a manual retry re-admits the task.
+    const unverifiableHeld = await prisma.workflowTransition
+      .count({
+        where: {
+          taskId: t.id,
+          cause: VERIFICATION_UNVERIFIABLE_HOLD_CAUSE,
+          ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+        },
+      })
+      .catch(() => 0);
+    if (unverifiableHeld > 0) {
+      log.info(
+        { taskId: t.id, unverifiableHeld },
+        '[reconciler] Blocked task is held as unverifiable — leaving blocked (restore verification / manual retry), not auto-retrying',
       );
       continue;
     }

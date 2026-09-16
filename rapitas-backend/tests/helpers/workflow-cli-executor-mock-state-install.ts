@@ -226,12 +226,12 @@ const prismaMock = {
   task: {
     update: spies.taskUpdate,
     updateMany: spies.taskUpdateMany,
-    findUnique: (args: { select?: Record<string, boolean> }) =>
+    findUnique: (args: any) =>
       args.select?.updatedAt && Object.keys(args.select).length === 1
         ? Promise.resolve({ updatedAt: new Date(0) })
         : spies.taskFindUnique(args),
   },
-  agentSession: { create: spies.agentSessionCreate, update: spies.agentSessionUpdate },
+  agentSession: { create: spies.agentSessionCreate, updateMany: spies.agentSessionUpdate },
   gitHubPullRequest: { findFirst: spies.gitHubPrFindFirst },
   // resolveAutomationPolicy reads the global "タスク設定" defaults; the verify
   // gate now consults it to decide whether a required merge is outstanding

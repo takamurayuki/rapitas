@@ -286,6 +286,41 @@ describe('requeueBlockedTasks 回帰（受入基準2・4）', () => {
     expect(recordTransition).not.toHaveBeenCalled();
   });
 
+  test('2026-09-13 task 912: 検証不能で保留中（verification_unverifiable_hold 遷移あり）は盲目再試行されない', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([{ id: 912, workflowStatus: 'verify_done' }]);
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string } }).where;
+      return Promise.resolve(where.cause === 'verification_unverifiable_hold' ? 1 : 0);
+    });
+
+    const retried = await requeueBlockedTasks(NOW);
+
+    expect(retried).toBe(0);
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    expect(recordTransition).not.toHaveBeenCalled();
+    expect(attemptPrOnlyRecovery).not.toHaveBeenCalled();
+  });
+
+  test('検証不能の保留は手動再試行（task_retried）より前のものなら無視され、通常の再試行に戻る', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([{ id: 912, workflowStatus: 'verify_done' }]);
+    const retriedAt = new Date(NOW - 60_000);
+    mockPrisma.activityLog.findFirst.mockResolvedValue({ createdAt: retriedAt });
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string; createdAt?: { gt: Date } } }).where;
+      // The hold was recorded BEFORE the manual retry: a windowed query sees 0.
+      if (where.cause === 'verification_unverifiable_hold')
+        return Promise.resolve(where.createdAt?.gt ? 0 : 1);
+      return Promise.resolve(0);
+    });
+
+    const retried = await requeueBlockedTasks(NOW);
+
+    expect(retried).toBe(1);
+    expect(mockPrisma.task.update).toHaveBeenCalledTimes(1);
+    const rt = recordTransition.mock.calls[0][0] as { cause: string };
+    expect(rt.cause).toBe('blocked_auto_retry');
+  });
+
   test("task 673/681: 軽量PR再試行が'held'を返したら、workflowStatus:draft を伴うフルリセットをせずに retried が1になる", async () => {
     mockPrisma.task.findMany.mockResolvedValue([{ id: 673, workflowStatus: 'verify_done' }]);
     mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
@@ -465,6 +500,21 @@ describe('escalateAbandonedBlocked（受入基準5まわり・プレモーテム
     expect(call[2]).toBe('awaiting_question');
     // task 770: 呼び出し元が保持する t.workflowStatus が末尾引数として伝搬すること
     expect(call[5]).toBe('awaiting_question');
+  });
+
+  test('検証不能の保留（verification_unverifiable_hold 遷移あり）は verification_unverifiable でエスカレーションされる', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([blockedTask({ id: 912 })]);
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string } }).where;
+      return Promise.resolve(where.cause === 'verification_unverifiable_hold' ? 1 : 0);
+    });
+
+    const escalated = await escalateAbandonedBlocked(NOW);
+
+    expect(escalated).toBe(1);
+    const call = escalateBlockedTask.mock.calls[0] as unknown[];
+    expect((call[1] as { id: number }).id).toBe(912);
+    expect(call[2]).toBe('verification_unverifiable');
   });
 
   test('2日超の古い blocked は abandoned_old でエスカレーションされる（条件4の救済）', async () => {

@@ -6,6 +6,7 @@
  * per-flag gating, and the reason it records for the transition/activity log.
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { ExecutionCancelledError } from '../agents/execution-cancelled-error';
 import { releaseTaskExecutionLock } from '../agents/task-execution-lock';
 
 const advanceWorkflow = mock(async () => ({ success: true }));
@@ -13,8 +14,10 @@ mock.module('./workflow-orchestrator', () => ({
   WorkflowOrchestrator: { getInstance: () => ({ advanceWorkflow }) },
 }));
 
+const logError = mock(() => {});
+const logInfo = mock(() => {});
 mock.module('../../config/logger', () => ({
-  createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
+  createLogger: () => ({ info: logInfo, warn: () => {}, error: logError, debug: () => {} }),
   logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
 }));
 
@@ -29,15 +32,24 @@ let userSettings: UserSettings = null;
 let taskRow: TaskRow = null;
 const taskUpdates: Array<Record<string, unknown>> = [];
 const activityLogCreates: Array<Record<string, unknown>> = [];
+let manualDecision: { cause: string } | null = null;
+let decisionUnavailable = false;
+let approvalCount = 1;
 
 mock.module('../../config/database', () => ({
   prisma: {
+    workflowTransition: {
+      findFirst: async () => {
+        if (decisionUnavailable) throw new Error('decision lookup failed');
+        return manualDecision;
+      },
+    },
     userSettings: { findFirst: () => Promise.resolve(userSettings) },
     task: {
       findUnique: () => Promise.resolve(taskRow),
-      update: (args: Record<string, unknown>) => {
+      updateMany: (args: Record<string, unknown>) => {
         taskUpdates.push(args);
-        return Promise.resolve({});
+        return Promise.resolve({ count: approvalCount });
       },
     },
     activityLog: {
@@ -61,7 +73,12 @@ const { resolveEffectiveAutoApprovePlan, maybeAutoApprovePlan } =
   await import('./plan-auto-approve');
 
 beforeEach(() => {
+  manualDecision = null;
+  decisionUnavailable = false;
+  approvalCount = 1;
   advanceWorkflow.mockClear();
+  logError.mockClear();
+  logInfo.mockClear();
   userSettings = null;
   taskRow = null;
   taskUpdates.length = 0;
@@ -121,6 +138,42 @@ describe('plan auto-approval continuation', () => {
 });
 
 describe('maybeAutoApprovePlan', () => {
+  test('manual rejection during the deferred advance prevents execution', async () => {
+    userSettings = { autoApprovePlan: true };
+    taskRow = { workflowStatus: 'plan_created' };
+    await maybeAutoApprovePlan(99125);
+    manualDecision = { cause: 'manual_plan_rejected' };
+    await Bun.sleep(1100);
+    expect(advanceWorkflow).not.toHaveBeenCalled();
+  });
+  test('stop or concurrent revision winning the DB update prevents approval side effects', async () => {
+    userSettings = { autoApprovePlan: true };
+    taskRow = { workflowStatus: 'plan_created' };
+    approvalCount = 0;
+    expect((await maybeAutoApprovePlan(915)).autoApproved).toBe(false);
+    expect(taskUpdates[0]).toMatchObject({
+      where: { status: 'in-progress', workflowStatus: 'plan_created' },
+    });
+    expect(recordedTransitions).toHaveLength(0);
+    expect(activityLogCreates).toHaveLength(0);
+    expect(advanceWorkflow).not.toHaveBeenCalled();
+  });
+  test('manual rejection overrides global auto-approve and prevents dispatch', async () => {
+    userSettings = { autoApprovePlan: true };
+    taskRow = { workflowStatus: 'plan_created' };
+    manualDecision = { cause: 'manual_plan_rejected' };
+    expect(await resolveEffectiveAutoApprovePlan(915)).toBe(false);
+    expect((await maybeAutoApprovePlan(915)).autoApproved).toBe(false);
+    expect(taskUpdates).toHaveLength(0);
+    expect(advanceWorkflow).not.toHaveBeenCalled();
+  });
+  test('unavailable manual decision holds instead of silently approving', async () => {
+    userSettings = { autoApprovePlan: true };
+    taskRow = { workflowStatus: 'plan_created' };
+    decisionUnavailable = true;
+    expect((await maybeAutoApprovePlan(915)).autoApproved).toBe(false);
+    expect(taskUpdates).toHaveLength(0);
+  });
   test('no-op (idempotent) when task is not at plan_created', async () => {
     taskRow = { autoApprovePlan: true, parentId: null, workflowStatus: 'plan_approved' };
     const r = await maybeAutoApprovePlan(1, 'ja', { autoAdvance: false });
@@ -174,5 +227,31 @@ describe('maybeAutoApprovePlan', () => {
     userSettings = { autoApprovePlan: true, autoApproveSubtaskPlan: true };
     const r = await maybeAutoApprovePlan(1, 'ja', { autoAdvance: false });
     expect(r.reason).toBe('task-level autoApprovePlan setting enabled');
+  });
+});
+
+describe('auto-advance error classification', () => {
+  test('intentional stop is informational', async () => {
+    taskRow = { autoApprovePlan: true, workflowStatus: 'plan_created' };
+    advanceWorkflow.mockRejectedValueOnce(new ExecutionCancelledError('ownership revoked'));
+    await maybeAutoApprovePlan(99123);
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    expect(logError).not.toHaveBeenCalled();
+    expect(logInfo).toHaveBeenCalledWith(
+      { taskId: 99123, reason: 'ownership revoked' },
+      '[plan-auto-approve] Auto-advance cancelled by stop',
+    );
+  });
+
+  test('unexpected failures remain errors', async () => {
+    taskRow = { autoApprovePlan: true, workflowStatus: 'plan_created' };
+    const failure = new Error('database unavailable');
+    advanceWorkflow.mockRejectedValueOnce(failure);
+    await maybeAutoApprovePlan(99124);
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    expect(logError).toHaveBeenCalledWith(
+      { err: failure, taskId: 99124 },
+      '[plan-auto-approve] Auto-advance failed (non-fatal)',
+    );
   });
 });

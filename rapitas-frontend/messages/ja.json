@@ -2756,7 +2756,10 @@
     "readyTimeoutMs": "起動待機タイムアウト (秒)",
     "checkPaths": "検証するパス",
     "addPath": "パスを追加",
-    "removePath": "このパスを削除"
+    "removePath": "このパスを削除",
+    "readySelector": "画面の準備完了を示す要素",
+    "readySelectorHelp": "すべての確認パスで、操作可能になってから表示される要素のセレクターを指定します。未設定の場合、画面の準備完了は未検証になります。",
+    "readinessTimeoutMs": "画面の準備を待つ時間（秒）"
   },
   "themes": {
     "title": "テーマ一覧",
@@ -3112,6 +3115,14 @@
     "open": "開く",
     "close": "閉じる",
     "markMemoDone": "完了にする",
+    "questionToast": {
+      "hint": "選択肢を押すと回答してワークフローを再開します",
+      "recommended": "推奨",
+      "answerInApp": "アプリで回答",
+      "moreQuestions": "質問が{count}件あります。アプリで回答してください。",
+      "answered": "回答を送信しました。ワークフローを再開します。",
+      "failed": "回答を送信できませんでした。アプリから回答してください。"
+    },
     "justNow": "たった今",
     "minutesAgo": "{count}分前",
     "hoursAgo": "{count}時間前",

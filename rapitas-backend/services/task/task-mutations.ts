@@ -8,6 +8,7 @@
  */
 import { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
+import { isApiRecoveryMode } from '../system/api-recovery-mode';
 import { UserBehaviorService } from '../../src/services/user-behavior-service';
 import { notifyTaskCompleted, createNotification } from '../communication/notification-service';
 import { buildNotificationI18n } from '../communication/notification-i18n';
@@ -210,6 +211,8 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
     throw new Error(`タスク(ID: ${taskId})が見つかりません`);
   }
 
+  const reopening = currentTask.status === 'done' && fields.status === 'todo';
+
   // Record streak
   if (fields.status === 'done') {
     const today = new Date();
@@ -222,7 +225,10 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
   }
 
   await prisma.task.update({
-    where: { id: taskId, ...(fields.status === 'blocked' && { updatedAt: currentTask.updatedAt }) },
+    where: {
+      id: taskId,
+      ...((fields.status === 'blocked' || reopening) && { updatedAt: currentTask.updatedAt }),
+    },
     data: {
       // Make a manual re-block a new revision even within the same millisecond.
       ...(fields.status === 'blocked' && {
@@ -233,6 +239,13 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       ...(fields.themeId !== undefined && { themeId: fields.themeId }),
       ...(fields.status && { status: fields.status }),
       ...(fields.status === 'done' && { completedAt: new Date() }),
+      // Reopening must not leave a terminal workflow badge/state behind.
+      // Retain artifacts; normal file-save guards validate their reuse.
+      ...(reopening && {
+        completedAt: null,
+        startedAt: null,
+        ...(currentTask.workflowStatus === 'completed' && { workflowStatus: 'draft' }),
+      }),
       // Keep workflowStatus in lock-step when a workflow task is marked done.
       // The card badge reads workflowStatus, so a task completed via the kanban
       // (or any path through updateTask) would otherwise still show "進行中"
@@ -284,7 +297,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
   });
 
   // Record user behavior (parent tasks only)
-  if (!currentTask?.parentId && updatedTask) {
+  if (!currentTask?.parentId && updatedTask && !isApiRecoveryMode()) {
     if (fields.status && currentTask?.status !== fields.status) {
       if (fields.status === 'in-progress' && currentTask?.status !== 'in-progress') {
         await UserBehaviorService.recordTaskStarted(taskId, updatedTask);
@@ -371,7 +384,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
   // block above — it was previously nested inside it with a contradictory
   // `currentTask?.parentId` guard, making it dead code that never ran, so a
   // split parent was never driven to completion after its subtasks finished.
-  if (fields.status === 'done' && currentTask?.parentId && updatedTask) {
+  if (fields.status === 'done' && currentTask?.parentId && updatedTask && !isApiRecoveryMode()) {
     const parentId = currentTask.parentId;
     import('../workflow/subtask-completion-handler')
       .then(({ onSubtaskCompleted }) => {
@@ -444,7 +457,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
     });
 
     // NOTE: Bidirectional sync — task dueDate changes propagate to calendar events.
-    if (fields.dueDate !== undefined) {
+    if (fields.dueDate !== undefined && !isApiRecoveryMode()) {
       syncTaskToCalendar(taskId, updatedTask.dueDate, updatedTask.title).catch((err) => {
         logger.warn({ err, taskId }, 'Task-to-calendar sync failed');
       });
