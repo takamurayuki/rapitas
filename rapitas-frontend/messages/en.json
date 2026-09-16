@@ -664,7 +664,10 @@
       "retryAriaLabel": "Retry task",
       "protectedDeleteError": "Protected tasks cannot be deleted",
       "elapsedTimeTooltip": "Elapsed time since the agent started executing",
-      "executingCannotSelect": "Excluded from bulk status change while auto-executing"
+      "executingCannotSelect": "Excluded from bulk status change while auto-executing",
+      "autoRunExcludeTitle": "Exclude from auto-run",
+      "autoRunIncludeTitle": "Include in auto-run",
+      "autoRunExcludedToggleFailed": "Failed to update the auto-run setting"
     },
     "suggestionCard": {
       "category": {
