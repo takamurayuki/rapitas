@@ -11,6 +11,7 @@ import { buildHypothesisContext } from './workflow-hypothesis-context';
 import { buildPlaybookContext } from '../memory/playbook/playbook-inject';
 import { buildCriticFeedback, buildCriticLessonsSection } from './phase-critic';
 import { recordContextMetrics } from './workflow-context-metrics';
+import { buildRepairRiskTacticSection } from './learning/repair-risk-tactic-section';
 import { researchModeDirective } from './workflow-mode-directives';
 import type { ResearcherTexts } from './workflow-role-prompts';
 
@@ -57,6 +58,10 @@ export async function buildResearcherContext(
     buildCriticLessonsSection('research', language),
   );
   const lessonsBlock = lessons ? `\n\n${lessons}` : '';
+  // Repair-risk tactics: only when this task's complexity × input length ×
+  // phase cell has historically bounced — task-specific, unlike the lessons.
+  const repairRisk = await buildRepairRiskTacticSection(taskId, task, 'research', language);
+  const repairRiskBlock = repairRisk ? `\n\n${repairRisk}` : '';
   // Mode-aware framing: in lightweight mode NO plan phase follows, so research
   // must be implementation-ready; in plan modes research can defer detailed
   // steps to the planner. Without this, research.md was always written
@@ -69,6 +74,6 @@ export async function buildResearcherContext(
   );
   const playbookBlock = playbook ? `\n\n${playbook}` : '';
   // prettier-ignore
-  void recordContextMetrics(taskId, 'researcher', mode, { taskInfo, critic: criticBlock, lessons: lessonsBlock, mode: modeBlock, memory: memoryBlock, playbook: playbookBlock, hypothesis: hypothesisBlock, styleRule });
-  return `${taskInfo}${criticBlock}${lessonsBlock}${modeBlock}${memoryBlock}${playbookBlock}${hypothesisBlock}\n\n${texts.instruction}\n\n${texts.premiseAudit}\n\n${texts.items}\n\n${texts.output}\n\n${questionFormat}\n\n${styleRule}`;
+  void recordContextMetrics(taskId, 'researcher', mode, { taskInfo, critic: criticBlock, lessons: lessonsBlock, repairRisk: repairRiskBlock, mode: modeBlock, memory: memoryBlock, playbook: playbookBlock, hypothesis: hypothesisBlock, styleRule });
+  return `${taskInfo}${criticBlock}${lessonsBlock}${repairRiskBlock}${modeBlock}${memoryBlock}${playbookBlock}${hypothesisBlock}\n\n${texts.instruction}\n\n${texts.premiseAudit}\n\n${texts.items}\n\n${texts.output}\n\n${questionFormat}\n\n${styleRule}`;
 }
