@@ -336,6 +336,28 @@ describe('updateTask — フィールドマッピング', () => {
     const call = mockPrisma.task.update.mock.calls[0]![0] as { data: { isProtected?: boolean } };
     expect(call.data.isProtected).toBe(false);
   });
+
+  test('autoRunExcluded=false（falsy値）でも update data に含めること', async () => {
+    setupFindUnique({ status: 'todo', parentId: null }, { id: 1, status: 'todo', parentId: null });
+
+    await updateTask(mockPrisma as never, 1, { autoRunExcluded: false });
+
+    const call = mockPrisma.task.update.mock.calls[0]![0] as {
+      data: { autoRunExcluded?: boolean };
+    };
+    expect(call.data.autoRunExcluded).toBe(false);
+  });
+
+  test('autoRunExcluded=true を update data に反映すること', async () => {
+    setupFindUnique({ status: 'todo', parentId: null }, { id: 1, status: 'todo', parentId: null });
+
+    await updateTask(mockPrisma as never, 1, { autoRunExcluded: true });
+
+    const call = mockPrisma.task.update.mock.calls[0]![0] as {
+      data: { autoRunExcluded?: boolean };
+    };
+    expect(call.data.autoRunExcluded).toBe(true);
+  });
 });
 
 describe('manual hold revision', () => {
