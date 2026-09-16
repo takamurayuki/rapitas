@@ -195,40 +195,6 @@ model DetectionMissCase {
   @@index([detectedAt])
 }
 
-// Gate-precision ledger — one row per verify_repair dispute (the SAME
-// acceptance criterion flagged by 2+ bounces, per verify-convergence.ts's
-// non-convergence detector) once it is RESOLVED one way or another. Answers a
-// question loop-metrics.ts cannot: when a bounce category repeats, did the
-// implementer eventually satisfy it on its own (the gate was doing its job),
-// or did it only resolve after a human/plan-level intervention (the gate or
-// the requirement's phrasing may itself be the problem)? Deliberately scoped
-// to verify_repair only — ci_repair reasons are CI failure text, not
-// criterion-matchable prose (see identifyIndictedCriteria).
-model GatePrecisionCase {
-  id             Int      @id @default(autoincrement())
-  taskId         Int
-  /** Repair gate this dispute came from. v1: always "verify_repair". */
-  gate           String
-  /** 1-based acceptance-criterion index repeatedly indicted, when identifiable. */
-  criterionIndex Int?
-  /** The most recent bounce reason text in the disputed run. */
-  reason         String   @default("")
-  /** resolved_by_implementation | resolved_by_human | unresolved_blocked */
-  verdict        String
-  /** JSON evidence: transitionIds, bounceCount, firstBounceAt, resolvedAt, resolvedByTransitionId. */
-  evidenceJson   String   @default("{}")
-  /** When the dispute resolved (or was last observed, for unresolved_blocked). */
-  detectedAt     DateTime @default(now())
-  /** gate-precision:<taskId>:<criterionIndex>:<lastBounceTransitionId> — absorbs re-scans. */
-  dedupKey       String   @unique
-  createdAt      DateTime @default(now())
-
-  @@index([gate])
-  @@index([taskId])
-  @@index([verdict])
-  @@index([detectedAt])
-}
-
 // Signature suggestions learned from detection-miss cases (task #578).
 // Lifecycle mirrors PromptEvolution's human-in-the-loop pattern:
 // pending_review → approved | rejected (human), or → auto_applied once the
