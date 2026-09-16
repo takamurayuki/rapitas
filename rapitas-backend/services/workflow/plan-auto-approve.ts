@@ -16,6 +16,11 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
 import { getTaskExecutionCancellationVersion } from '../agents/task-execution-lock';
+import {
+  isSelfRepoThemeWorkingDirectory,
+  evaluatePlanDeclaredForbiddenChange,
+} from '../agents/verification/schema-change-gate';
+import { readWorkflowFile } from './workflow-file-utils';
 
 const log = createLogger('plan-auto-approve');
 
@@ -104,6 +109,8 @@ export async function maybeAutoApprovePlan(
         workflowStatus: true,
         status: true,
         updatedAt: true,
+        forbiddenChangeOverride: true,
+        theme: { select: { workingDirectory: true } },
       },
     })
     .catch(() => null);
@@ -138,6 +145,37 @@ export async function maybeAutoApprovePlan(
   if (getTaskExecutionCancellationVersion(taskId) !== cancellationVersion) {
     return { newStatus: 'plan_created', autoApproved: false };
   }
+
+  // Forbidden-change gate (task 896): auto-approval must not wave through a
+  // plan that DECLARES a forbidden change (883's schema column) without an
+  // explicit human override. Only a manual approve-plan call ever sets
+  // forbiddenChangeOverride — this code path only reads it.
+  const planContent = await readWorkflowFile(taskId, 'plan').catch(() => null);
+  const forbiddenGate = evaluatePlanDeclaredForbiddenChange(planContent, {
+    isSelfRepo: isSelfRepoThemeWorkingDirectory(task.theme?.workingDirectory ?? null),
+    overrideGranted: !!task.forbiddenChangeOverride,
+  });
+  if (!forbiddenGate.ok) {
+    await recordTransition({
+      taskId,
+      fromStatus: 'plan_created',
+      toStatus: 'plan_created',
+      actor: 'system',
+      cause: 'auto_approve_blocked_forbidden_change',
+      phase: 'plan',
+      metadata: { matchedFiles: forbiddenGate.matchedFiles },
+    }).catch(() => {});
+    log.warn(
+      { taskId, matchedFiles: forbiddenGate.matchedFiles },
+      '[plan-auto-approve] Auto-approval blocked — plan declares a forbidden change without override',
+    );
+    return {
+      newStatus: 'plan_created',
+      autoApproved: false,
+      reason: 'forbidden_change_pending_override',
+    };
+  }
+
   const approved = await prisma.task.updateMany({
     where: {
       id: taskId,
