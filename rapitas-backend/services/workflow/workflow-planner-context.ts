@@ -18,6 +18,7 @@ import { recordContextMetrics } from './workflow-context-metrics';
 import type { PlannerTexts } from './workflow-role-prompts';
 import { prisma } from '../../config/database';
 import { buildRequirementReplanContext } from './requirement-replan-context';
+import { buildGatePrecisionContext } from './workflow-gate-precision-context';
 
 /**
  * Build the planner role's prompt context.
@@ -90,6 +91,13 @@ ${planRevision}`;
   if (rejected) {
     ctx += `\n\n${rejected}`;
   }
+  // Gate-precision calibration: disputes in this theme that implementation
+  // retries alone did not resolve — a caution against ambiguous acceptance
+  // criteria, not just a lesson about implementation quality.
+  const gatePrecision = await buildGatePrecisionContext(taskId, language);
+  if (gatePrecision) {
+    ctx += `\n\n${gatePrecision}`;
+  }
   // CBR (R9): the nearest SOLVED similar task's plan-that-worked — concrete
   // file layout / step ordering to adapt, stronger than abstract lessons.
   const plannerCase = await observeWorkflowStage(taskId, 'context.buildCaseContext', () =>
@@ -119,6 +127,6 @@ ${planRevision}`;
   }
   ctx += `\n\n${styleRule}`;
   // prettier-ignore
-  void recordContextMetrics(taskId, 'planner', mode, { taskInfo, critic: planCritic, lessons: planLessons, memory: plannerMemory, rejected, case: plannerCase, playbook: plannerPlaybook, research, styleRule });
+  void recordContextMetrics(taskId, 'planner', mode, { taskInfo, critic: planCritic, lessons: planLessons, memory: plannerMemory, rejected, gatePrecision, case: plannerCase, playbook: plannerPlaybook, research, styleRule });
   return ctx;
 }

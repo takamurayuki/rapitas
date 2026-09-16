@@ -11,6 +11,7 @@ import { readWorkflowFile } from './workflow-file-utils';
 import { buildMemoryContext } from './workflow-memory-context';
 import { buildHypothesisContext } from './workflow-hypothesis-context';
 import { buildCriticLessonsSection } from './phase-critic';
+import { buildGatePrecisionContext } from './workflow-gate-precision-context';
 import { resolvePreferredBaseBranch } from '../task/task-resolver';
 import { recordContextMetrics } from './workflow-context-metrics';
 import type { VerifierTexts } from './workflow-role-prompts';
@@ -78,6 +79,13 @@ Preserve command exit codes before formatting output: piping a command into tail
   const hypothesis = await buildHypothesisContext(taskId, language);
   if (hypothesis) {
     ctx += `\n\n${hypothesis}`;
+  }
+  // Gate-precision calibration: before bouncing again on a criterion this
+  // theme has repeatedly disputed, check whether the ambiguity is in the
+  // requirement rather than the implementation.
+  const gatePrecision = await buildGatePrecisionContext(taskId, language);
+  if (gatePrecision) {
+    ctx += `\n\n${gatePrecision}`;
   }
   if (plan) {
     ctx += `\n\n${texts.planHeader}\n\n${plan}`;
@@ -209,6 +217,6 @@ Preserve command exit codes before formatting output: piping a command into tail
   }
   ctx += `\n\n${verifierInstruction}\n\n${styleRule}`;
   // prettier-ignore
-  void recordContextMetrics(taskId, role, mode, { taskInfo, memory: verifierMemory, lessons: verifyLessons, hypothesis, plan, diff: diffBlock, groundTruth: groundTruthBlock, instruction: verifierInstruction, styleRule });
+  void recordContextMetrics(taskId, role, mode, { taskInfo, memory: verifierMemory, lessons: verifyLessons, hypothesis, gatePrecision, plan, diff: diffBlock, groundTruth: groundTruthBlock, instruction: verifierInstruction, styleRule });
   return ctx;
 }

@@ -57,6 +57,8 @@ export interface TaskCardHook {
   isWaitingForInput: boolean;
   waitingAmberConfig: WaitingAmberConfig;
   cardBorderColor: string;
+  /** Card surface classes: amber while waiting for the user, else the status colour. */
+  cardBgColor: string;
   sweepColors: ReturnType<typeof useProgressColors>;
   handleMouseEnter: () => Promise<void>;
   duplicateTask: () => Promise<void>;
@@ -204,6 +206,14 @@ export function useTaskCard(
     ? waitingAmberConfig.borderColor
     : currentStatus.borderColor;
 
+  // A question-paused card only tinted its left border, so it read like an
+  // ordinary in-progress card in a list (2026-09-14). The surface now follows
+  // the same amber as the badge; the dark fallback stays with the status path
+  // because its `dark:bg-*` would otherwise compete with the amber one.
+  const cardBgColor = isWaitingForInput
+    ? waitingAmberConfig.bgColor
+    : `${currentStatus.bgColor} dark:bg-indigo-dark-900`;
+
   const sweepColors = useProgressColors(1, 2);
 
   const handleMouseEnter = async () => {
@@ -282,6 +292,7 @@ export function useTaskCard(
     isWaitingForInput,
     waitingAmberConfig,
     cardBorderColor,
+    cardBgColor,
     sweepColors,
     handleMouseEnter,
     duplicateTask,

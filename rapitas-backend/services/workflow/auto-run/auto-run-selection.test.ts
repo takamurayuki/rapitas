@@ -274,6 +274,14 @@ describe('selectNextTask', () => {
     expect(arg.where.workflowDisabled).toBe(false);
   });
 
+  it('自動実行対象から除外(autoRunExcluded)されたタスクは選択対象から外す', async () => {
+    const mockFindMany = mock().mockResolvedValue([]);
+    const prisma = makePrisma({ task: { findMany: mockFindMany } });
+    await selectNextTask(prisma, 1, 'priority', [], 0);
+    const arg = mockFindMany.mock.calls[0][0] as { where: { autoRunExcluded?: boolean } };
+    expect(arg.where.autoRunExcluded).toBe(false);
+  });
+
   it('回帰: workflowStatus が未設定(NULL)の新規タスクを除外しない', async () => {
     // `NOT { workflowStatus: 'x' }` は NULL 列に対して UNKNOWN になり、
     // 起票直後（workflowStatus 未設定）のタスクを全て弾いていた。実測

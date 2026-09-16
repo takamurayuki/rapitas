@@ -91,12 +91,14 @@ export interface CompletionGateResult {
  * @param worktreePath - The task's git worktree, or null when none exists. / タスクのworktree（無ければnull）
  * @param verifyContent - The saved verify.md content. / 保存済みverify.mdの内容
  * @param preferredBaseBranch - The branch this task's worktree was cut from, when known (e.g. `task.theme.defaultBranch` via task-resolver.ts's `resolvePreferredBaseBranch`) — see automated-verifier.ts's diffBaseRef doc comment. / このタスクの分岐元ブランチ（既知の場合）
+ * @param supervisionTaskId - Task id to report a denial to the supervision gate (omit for dry runs). / 監督ゲートへ拒否を記録するタスクID（ドライランでは省略）
  * @returns Whether completion is allowed, with a reason. / 完了可否と理由
  */
 export async function evaluateCompletionGate(
   worktreePath: string | null | undefined,
   verifyContent: string | null | undefined,
   preferredBaseBranch?: string | null,
+  supervisionTaskId?: number,
 ): Promise<CompletionGateResult> {
   if (!worktreePath) {
     return { allow: true, reason: 'no_worktree_failopen' };
@@ -119,5 +121,16 @@ export async function evaluateCompletionGate(
     return { allow: true, reason: 'no_changes_but_justified' };
   }
 
+  // NOTE: task 904 — a blocked false-completion attempt breaks the hands-off
+  // streak. Fire-and-forget and lazily imported so the gate's verdict and its
+  // tests never depend on the supervision timeline being writable; the recorder
+  // itself spools failed writes and keeps the acceptance verdict unmet.
+  if (supervisionTaskId != null) {
+    void import('../supervision/intervention-detector')
+      .then((m) => m.recordCompletionGateViolation(supervisionTaskId, 'no_changes_unjustified'))
+      .catch((err) =>
+        log.warn({ err, taskId: supervisionTaskId }, '[CompletionGate] supervision report failed'),
+      );
+  }
   return { allow: false, reason: 'no_changes_unjustified' };
 }
