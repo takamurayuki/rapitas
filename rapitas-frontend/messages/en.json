@@ -3288,6 +3288,10 @@
         "title": "Auto-run: the queue is not draining",
         "message": "0 running tasks while the queue sat unconsumed for about {waitedMinutes} min{taskRef}. Restarted the workflow runner to resume consumption."
       },
+      "auto_run_queue_stalled": {
+        "title": "Auto-run: the queue is not draining (needs a look)",
+        "message": "0 running tasks while the queue sat unconsumed for about {waitedMinutes} min{taskRef}. The workflow runner is already alive, so it cannot be auto-restarted — this may need investigation (e.g. an overlap-guard hold outliving its own ceiling)."
+      },
       "auto_run_zero_progress": {
         "title": "Auto-run: no progress (possible spin loop)",
         "message": "The theme keeps reporting running, but task #{taskId} \"{taskLabel}\" has produced zero executions (AgentExecution) for {elapsedMinutes} min. This may be an enqueue/cancel spin loop."

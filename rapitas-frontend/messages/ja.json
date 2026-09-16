@@ -3288,6 +3288,10 @@
         "title": "自動実行: キューが消費されていません",
         "message": "実行中 0 件のままキュー待ちが約 {waitedMinutes} 分間消費されませんでした{taskRef}。ワークフローランナーを再起動して消費を再開させました。"
       },
+      "auto_run_queue_stalled": {
+        "title": "自動実行: キューが消費されていません（要調査）",
+        "message": "実行中 0 件のままキュー待ちが約 {waitedMinutes} 分間消費されていません{taskRef}。ワークフローランナーは稼働中のため自動での再起動はできません — overlap-guard の保留超過など、原因調査が必要な可能性があります。"
+      },
       "auto_run_zero_progress": {
         "title": "自動実行: 実行が進んでいません（空回りの疑い）",
         "message": "テーマは running を報告し続けていますが、タスク #{taskId}「{taskLabel}」の実行（AgentExecution）が {elapsedMinutes} 分間 1件も作成されていません。enqueue→cancel の反復など、実行が空回りしている可能性があります。"
