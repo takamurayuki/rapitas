@@ -54,6 +54,13 @@ export interface ComparisonSummary {
   baselineDurationMs: number;
   sampleSize: number;
   excludedForInfraFailure: number;
+  /** Raw success/failure counts feeding the Fisher exact test (not rounded/scaled). */
+  currentSuccessCount: number;
+  currentFailureCount: number;
+  candidateSuccessCount: number;
+  candidateFailureCount: number;
+  /** One-sided Fisher exact p-value (candidate success rate > current), null when insufficient_data. */
+  pValue: number | null;
   verdict: ComparisonVerdict;
   uncertainty: 'low' | 'medium' | 'high';
 }
