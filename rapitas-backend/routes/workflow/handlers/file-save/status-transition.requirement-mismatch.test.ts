@@ -51,6 +51,38 @@ mock.module('../../../../services/workflow/phase-output-validator', () => ({
   validateVerify: () => ({ ok: true, missingSections: [], severity: 0, summary: '' }),
 }));
 
+// The server-owned requirement-replan gate (develop merge, PR #638+) now runs
+// unconditionally ahead of task 909's own detection in status-transition.ts's
+// verify branch. This file tests task 909's downstream fallback logic only,
+// so the upstream gate is stubbed to always clear with a receipt — its own
+// behavior is covered by requirement-replan-service.test.ts and siblings.
+const STUB_COMPLETION_RECEIPT = {
+  taskId: 909,
+  executionId: null,
+  evaluatedUpdatedAt: new Date('2026-01-01T00:00:00Z'),
+  review: {
+    verdict: { kind: 'no_mismatch' },
+    snapshotDigest: 'stub',
+    durationMs: 0,
+    tokensUsed: null,
+    modelName: null,
+  },
+} as any;
+const mockAttemptRequirementReplan = mock(() =>
+  Promise.resolve({
+    committed: false,
+    reason: 'no_mismatch',
+    completionReceipt: STUB_COMPLETION_RECEIPT,
+  }),
+) as any;
+mock.module('../../../../services/workflow/requirement-replan-service', () => ({
+  attemptRequirementReplan: mockAttemptRequirementReplan,
+}));
+const mockAdvanceReviewedVerify = mock((receipt: unknown) => Promise.resolve(receipt)) as any;
+mock.module('../../../../services/workflow/requirement-replan-commit', () => ({
+  advanceReviewedVerify: mockAdvanceReviewedVerify,
+}));
+
 const mockDetectSupervisorArtifactMismatch = mock(
   () => ({ hit: false }) as { hit: boolean; criterion?: string },
 );
@@ -88,6 +120,14 @@ describe('computeAndApplyStatusTransition — 要件-計画不整合の自動再
     mockDetectSupervisorArtifactMismatch.mockReset().mockReturnValue({ hit: false });
     mockDetectGeneralRequirementMismatch.mockReset().mockResolvedValue({ hit: false });
     mockAttemptRequirementPlanReplan.mockReset().mockResolvedValue({ replanned: false });
+    mockAttemptRequirementReplan.mockReset().mockResolvedValue({
+      committed: false,
+      reason: 'no_mismatch',
+      completionReceipt: STUB_COMPLETION_RECEIPT,
+    });
+    mockAdvanceReviewedVerify
+      .mockReset()
+      .mockImplementation((receipt: unknown) => Promise.resolve(receipt));
   });
 
   test('.supervisor/ 参照が無ければ従来どおり verify_done で完了する（無関係な既存失敗には反応しない）', async () => {
