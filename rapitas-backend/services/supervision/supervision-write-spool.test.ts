@@ -16,7 +16,12 @@ interface TestPayload {
 }
 
 function makeRecord(id: string, taskId = 1) {
-  return { id, kind: 'intervention' as const, spooledAt: '2026-01-01T00:00:00.000Z', data: { taskId } };
+  return {
+    id,
+    kind: 'intervention' as const,
+    spooledAt: '2026-01-01T00:00:00.000Z',
+    data: { taskId },
+  };
 }
 
 describe('supervision-write-spool', () => {
