@@ -1,3 +1,4 @@
+import { writeBlockedTask } from './blocked-task-write';
 /**
  * Workflow CLI Executor Verify Gate
  *
@@ -159,10 +160,7 @@ export async function resolveVerifyPhaseStatus(params: {
       taskId,
     );
     if (!gate.allow) {
-      await prisma.task.update({
-        where: { id: taskId },
-        data: { status: 'blocked' },
-      });
+      await writeBlockedTask(prisma, taskId);
       await recordTransition({
         taskId,
         fromStatus: currentWfStatus,
@@ -233,12 +231,7 @@ export async function resolveVerifyPhaseStatus(params: {
       } else if (prRequested && !prSatisfied) {
         // Verify passed but no PR was produced — do NOT complete. Keep the
         // task actionable (blocked) so "完了" always implies a PR.
-        await prisma.task
-          .update({
-            where: { id: taskId },
-            data: { status: 'blocked', updatedAt: new Date() },
-          })
-          .catch(() => {});
+        await writeBlockedTask(prisma, taskId).catch(() => {});
         await recordTransition({
           taskId,
           fromStatus: currentWfStatus,

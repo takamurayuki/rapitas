@@ -84,6 +84,30 @@ describe('executionStateStore', () => {
       const stateAfter = useExecutionStateStore.getState().executingTasks;
       expect(stateBefore).toBe(stateAfter);
     });
+
+    it('実行が終わったタスクの質問（カウントダウン）も一緒に消えること', () => {
+      const store = useExecutionStateStore.getState();
+      store.setExecutingTask({ taskId: 1, status: 'waiting_for_input' });
+      store.setLiveQuestion(1, {
+        taskId: 1,
+        text: 'q',
+        options: ['A'],
+        timeoutDeadline: '2026-09-14T10:00:00.000Z',
+      });
+      store.setLiveQuestion(2, { taskId: 2, text: 'other', options: [] });
+      useExecutionStateStore.getState().removeExecutingTask(1);
+      const after = useExecutionStateStore.getState();
+      expect(after.executingTasks.has(1)).toBe(false);
+      expect(after.getLiveQuestion(1)).toBeNull();
+      expect(after.getLiveQuestion(2)?.text).toBe('other');
+    });
+
+    it('実行行が無くても残った質問は消えること', () => {
+      const store = useExecutionStateStore.getState();
+      store.setLiveQuestion(3, { taskId: 3, text: 'stale', options: [] });
+      useExecutionStateStore.getState().removeExecutingTask(3);
+      expect(useExecutionStateStore.getState().getLiveQuestion(3)).toBeNull();
+    });
   });
 
   describe('clearAll', () => {
@@ -93,6 +117,13 @@ describe('executionStateStore', () => {
       store.setExecutingTask({ taskId: 2, status: 'completed' });
       store.clearAll();
       expect(useExecutionStateStore.getState().executingTasks.size).toBe(0);
+    });
+
+    it('質問も全て消えること', () => {
+      const store = useExecutionStateStore.getState();
+      store.setLiveQuestion(1, { taskId: 1, text: 'q', options: [] });
+      store.clearAll();
+      expect(useExecutionStateStore.getState().liveQuestions.size).toBe(0);
     });
   });
 
