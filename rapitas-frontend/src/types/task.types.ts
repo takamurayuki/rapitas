@@ -130,6 +130,13 @@ export type Task = {
    * state is the OR of both). Server-locked once status leaves 'todo'.
    */
   workflowDisabled?: boolean | null;
+  /**
+   * User-set exclusion from auto-run task selection. Unrelated to
+   * workflowDisabled — the task still runs its normal workflow phases when
+   * executed manually, it is just never auto-picked. Freely toggleable at
+   * any status.
+   */
+  autoRunExcluded?: boolean | null;
   // Recurring task fields
   isRecurring?: boolean;
   recurrenceRule?: string | null;

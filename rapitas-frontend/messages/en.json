@@ -664,7 +664,10 @@
       "retryAriaLabel": "Retry task",
       "protectedDeleteError": "Protected tasks cannot be deleted",
       "elapsedTimeTooltip": "Elapsed time since the agent started executing",
-      "executingCannotSelect": "Excluded from bulk status change while auto-executing"
+      "executingCannotSelect": "Excluded from bulk status change while auto-executing",
+      "autoRunExcludeTitle": "Exclude from auto-run",
+      "autoRunIncludeTitle": "Include in auto-run",
+      "autoRunExcludedToggleFailed": "Failed to update the auto-run setting"
     },
     "suggestionCard": {
       "category": {
@@ -5772,15 +5775,7 @@
       "peakLabel": "Peak:",
       "lowLabel": "Low:",
       "hourSuffix": "{hour}:00",
-      "dayLabels": [
-        "Sun",
-        "Mon",
-        "Tue",
-        "Wed",
-        "Thu",
-        "Fri",
-        "Sat"
-      ],
+      "dayLabels": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
       "cellTitle": "{day} {hour}:00: {count} completed (click for details)",
       "legendLow": "Low",
       "legendHigh": "High",

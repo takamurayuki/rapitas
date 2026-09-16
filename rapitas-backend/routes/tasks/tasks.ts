@@ -366,6 +366,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
             t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 }),
           ),
           isProtected: t.Optional(t.Boolean()),
+          autoRunExcluded: t.Optional(t.Boolean()),
         },
         // NOTE: additionalProperties left permissive (not false) — updateTask()
         // already destructures only the whitelisted fields above and silently

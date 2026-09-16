@@ -153,6 +153,12 @@ model Task {
   // (server-enforced) once status leaves 'todo'; a reset back to 'todo'
   // re-unlocks it.
   workflowDisabled      Boolean   @default(false)
+  // User-set exclusion from auto-run task selection (unrelated to
+  // workflowDisabled — the workflow phases still run normally, this task is
+  // just never auto-picked). Freely toggleable at any status, unlike
+  // workflowDisabled's todo-only lock: excluding a task mid-run just stops it
+  // being re-selected once its current run ends.
+  autoRunExcluded       Boolean   @default(false)
   workflowLearningRecords WorkflowLearningRecord[]
   durationPrediction    TaskDurationPrediction?
 

@@ -664,7 +664,10 @@
       "retryAriaLabel": "タスクを再実行",
       "protectedDeleteError": "保護されたタスクは削除できません",
       "elapsedTimeTooltip": "エージェントの実行開始からの経過時間",
-      "executingCannotSelect": "自動実行中のため一括ステータス変更の対象から除外されています"
+      "executingCannotSelect": "自動実行中のため一括ステータス変更の対象から除外されています",
+      "autoRunExcludeTitle": "自動実行の対象から外す",
+      "autoRunIncludeTitle": "自動実行の対象に戻す",
+      "autoRunExcludedToggleFailed": "自動実行設定の更新に失敗しました"
     },
     "suggestionCard": {
       "category": {
@@ -5772,15 +5775,7 @@
       "peakLabel": "ピーク:",
       "lowLabel": "低調:",
       "hourSuffix": "{hour}時",
-      "dayLabels": [
-        "日",
-        "月",
-        "火",
-        "水",
-        "木",
-        "金",
-        "土"
-      ],
+      "dayLabels": ["日", "月", "火", "水", "木", "金", "土"],
       "cellTitle": "{day} {hour}時: {count}件完了 (クリックで詳細)",
       "legendLow": "少",
       "legendHigh": "多",
