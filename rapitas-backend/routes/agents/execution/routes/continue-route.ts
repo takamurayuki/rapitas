@@ -42,7 +42,10 @@ export const continueRoute = new Elysia().post(
       return { success: false, error: 'Too many requests. Please try again later.' };
     }
     const taskId = parseInt(context.params.id);
-    const { instruction, sessionId, agentConfigId } = context.body as {
+    // NOTE: body schema is t.Optional — Elysia lets bodyless requests through with
+    // context.body === undefined, so a direct destructure crashed with an unhandled
+    // TypeError (#945). Fall back to {} to reach the instruction-required 400 below.
+    const { instruction, sessionId, agentConfigId } = (context.body ?? {}) as {
       instruction?: string;
       sessionId?: number;
       agentConfigId?: number;
