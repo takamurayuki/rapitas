@@ -15,6 +15,7 @@ import { buildPlaybookContext } from '../memory/playbook/playbook-inject';
 import { buildCriticFeedback, buildCriticLessonsSection } from './phase-critic';
 import { buildSubtaskSplitDirective } from './subtask-split-policy';
 import { recordContextMetrics } from './workflow-context-metrics';
+import { buildRepairRiskTacticSection } from './learning/repair-risk-tactic-section';
 import type { PlannerTexts } from './workflow-role-prompts';
 import { prisma } from '../../config/database';
 import { buildRequirementReplanContext } from './requirement-replan-context';
@@ -75,6 +76,11 @@ ${planRevision}`;
   if (planLessons) {
     ctx += `\n\n${planLessons}`;
   }
+  // Repair-risk tactics — see the researcher context for rationale.
+  const planRepairRisk = await buildRepairRiskTacticSection(taskId, task, 'plan', language);
+  if (planRepairRisk) {
+    ctx += `\n\n${planRepairRisk}`;
+  }
   // Recall prior knowledge for the planner too — recorded design decisions
   // and blocked-task lessons should shape the plan, not be re-discovered
   // (or re-violated) at implementation time. Previously only researcher and
@@ -127,6 +133,6 @@ ${planRevision}`;
   }
   ctx += `\n\n${styleRule}`;
   // prettier-ignore
-  void recordContextMetrics(taskId, 'planner', mode, { taskInfo, critic: planCritic, lessons: planLessons, memory: plannerMemory, rejected, gatePrecision, case: plannerCase, playbook: plannerPlaybook, research, styleRule });
+  void recordContextMetrics(taskId, 'planner', mode, { taskInfo, critic: planCritic, lessons: planLessons, repairRisk: planRepairRisk, memory: plannerMemory, rejected, gatePrecision, case: plannerCase, playbook: plannerPlaybook, research, styleRule });
   return ctx;
 }
