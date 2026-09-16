@@ -26,6 +26,7 @@ import { createNotification } from '../communication/notification-service';
 import { runDailyReport } from '../reporting/daily-report-service';
 import { runMissLedgerJob } from '../self-improvement/miss-ledger-job';
 import { runGatePrecisionJob } from '../self-improvement/gate-precision-job';
+import { evaluateAndRecordKnowledgeReuse } from '../supervision/knowledge-reuse-evaluator';
 
 const log = createLogger('scheduling:backlog');
 
@@ -42,6 +43,7 @@ const HANDLERS: Record<BacklogJobKind, () => Promise<number>> = {
   daily_report: runDailyReport,
   miss_ledger: runMissLedgerJob,
   gate_precision: runGatePrecisionJob,
+  knowledge_reuse: evaluateAndRecordKnowledgeReuse,
 };
 
 // NOTE: Must stay in sync with rapitas-frontend/messages/ja.json
@@ -56,6 +58,7 @@ const JOB_LABELS: Record<BacklogJobKind, string> = {
   daily_report: 'デイリーレポート',
   miss_ledger: '検出漏れ学習',
   gate_precision: 'ゲート精度較正',
+  knowledge_reuse: '知識活用効果の測定',
 };
 
 // Caps notification body length — raw Error.message can carry stack-trace-like

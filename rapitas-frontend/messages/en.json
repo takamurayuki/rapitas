@@ -5423,6 +5423,10 @@
         "gate_precision": {
           "label": "Gate precision calibration",
           "desc": "Classifies disputed verify bounces (the same acceptance criterion flagged 2+ times) by whether they resolved through implementation alone or needed a human/plan-level intervention. Files a concern when the intervention-needed rate is high, suggesting the gate or the acceptance criteria themselves need review."
+        },
+        "knowledge_reuse": {
+          "label": "Knowledge-reuse effectiveness",
+          "desc": "Compares the completion success rate of tasks whose planning stage retrieved a similar solved task (a CBR case) against tasks that didn't, and records whether knowledge reuse is statistically helping. Never files a concern."
         }
       },
       "frequency": {
