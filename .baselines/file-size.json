@@ -1,38 +1,32 @@
 {
-  "generated": "2026-08-30T01:21:37.816Z",
+  "generated": "2026-09-16T08:43:34.564Z",
   "hard_limit": 500,
   "soft_limit": 300,
   "_comment": "Files at or above the hard limit at snapshot time. Their listed lineCount becomes a per-file ceiling — they may shrink but not grow. Remove an entry by splitting the file.",
   "files": {
     "rapitas-backend/services/agents/verification/automated-verifier.ts": {
-      "lineCount": 1002
+      "lineCount": 1004
     },
     "rapitas-backend/routes/agents/execution/routes/execute-route.ts": {
-      "lineCount": 763
-    },
-    "rapitas-backend/services/agents/codex-cli-agent/process-runner.ts": {
-      "lineCount": 692
-    },
-    "rapitas-backend/services/agents/orchestrator/task-executor.ts": {
-      "lineCount": 689
+      "lineCount": 759
     },
     "rapitas-backend/scripts/analyze-codebase/agent-report-generator.ts": {
       "lineCount": 684
     },
-    "rapitas-backend/services/memory/idea-box-service.ts": {
-      "lineCount": 679
-    },
     "rapitas-backend/routes/tasks/tasks.ts": {
-      "lineCount": 673
+      "lineCount": 674
+    },
+    "rapitas-backend/services/memory/idea-box-service.ts": {
+      "lineCount": 661
     },
     "rapitas-backend/services/memory/task-knowledge-extractor.ts": {
-      "lineCount": 652
+      "lineCount": 628
+    },
+    "rapitas-backend/services/agents/orchestrator/task-executor.ts": {
+      "lineCount": 611
     },
     "rapitas-backend/services/memory/concern-backlog-service.ts": {
-      "lineCount": 631
-    },
-    "rapitas-backend/services/agents/agent-orchestrator.ts": {
-      "lineCount": 587
+      "lineCount": 604
     },
     "rapitas-backend/services/memory/idea-extractor.ts": {
       "lineCount": 587
@@ -41,43 +35,34 @@
       "lineCount": 583
     },
     "rapitas-backend/index.ts": {
-      "lineCount": 572
+      "lineCount": 564
     },
     "rapitas-backend/services/memory/hypothesis-service.ts": {
       "lineCount": 561
     },
-    "rapitas-backend/services/agents/verification/adversarial-diff-review.ts": {
-      "lineCount": 559
-    },
     "rapitas-backend/routes/organization/themes.ts": {
       "lineCount": 558
+    },
+    "rapitas-backend/services/agents/verification/adversarial-diff-review.ts": {
+      "lineCount": 556
     },
     "rapitas-backend/scripts/gen-type-guards.ts": {
       "lineCount": 547
     },
-    "rapitas-backend/services/agents/claude-code/claude-execution-runner.ts": {
-      "lineCount": 540
-    },
     "rapitas-backend/services/workflow/auto-run/auto-run-selection.ts": {
-      "lineCount": 532
+      "lineCount": 536
+    },
+    "rapitas-backend/services/agents/agent-orchestrator.ts": {
+      "lineCount": 531
     },
     "rapitas-backend/services/ai/smart-model-router.ts": {
       "lineCount": 525
     },
-    "rapitas-backend/routes/agents/execution/post-handlers/post-execution-review.ts": {
-      "lineCount": 522
-    },
-    "rapitas-backend/services/agents/agent-knowledge-sharing.ts": {
-      "lineCount": 517
-    },
     "rapitas-backend/services/workflow/workflow-runner.ts": {
-      "lineCount": 517
+      "lineCount": 515
     },
     "rapitas-backend/routes/system/import.ts": {
       "lineCount": 508
-    },
-    "rapitas-backend/routes/workflow/workflow-auto-commit.ts": {
-      "lineCount": 503
     }
   }
 }

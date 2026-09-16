@@ -18,6 +18,7 @@ import { useTaskCard } from './task-card/useTaskCard';
 import TaskCardContextMenu from './task-card/TaskCardContextMenu';
 import TaskCardSubtaskPanel from './task-card/TaskCardSubtaskPanel';
 import TaskCardSubtaskProgress from './task-card/TaskCardSubtaskProgress';
+import TaskCardAutoRunToggle from './task-card/TaskCardAutoRunToggle';
 import styles from './TaskCard.module.css';
 
 interface TaskCardProps {
@@ -79,7 +80,7 @@ const TaskCard = memo(function TaskCard({
       className={`${styles.card} group relative z-0 w-full min-w-0 rounded-lg border-l-4 border-t border-r border-b ${
         isSelected
           ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-400 dark:border-indigo-600 ring-1 ring-indigo-500/40 dark:ring-indigo-400/40'
-          : `${tc.cardBorderColor} border-zinc-200 dark:border-zinc-800 ${tc.currentStatus.bgColor} dark:bg-indigo-dark-900 shadow-[0_2px_0_0_#e4e4e7] dark:shadow-[0_2px_0_0_#27272a]`
+          : `${tc.cardBorderColor} border-zinc-200 dark:border-zinc-800 ${tc.cardBgColor} shadow-[0_2px_0_0_#e4e4e7] dark:shadow-[0_2px_0_0_#27272a]`
       } ${!isSelected ? styles.interactive : ''} ${
         tc.executionClasses?.borderColor === 'blue'
           ? 'ai-glow-blue'
@@ -327,6 +328,7 @@ const TaskCard = memo(function TaskCard({
                 />
               </button>
             )}
+            <TaskCardAutoRunToggle task={task} onTaskUpdated={onTaskUpdated} />
             {['todo', 'in-progress', 'done'].map((status) => {
               // NOTE: Amber override applied to in-progress button when task is waiting_for_input
               const baseConfig = getStatusDisplay(t, status);
