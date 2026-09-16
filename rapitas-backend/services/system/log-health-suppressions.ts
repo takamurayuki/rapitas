@@ -120,6 +120,40 @@ const SUPPRESSIONS: Suppression[] = [
     because: '実行結果の記録 — 原因は当該実行のログ側に出ており、二重起票になる',
   },
   {
+    // ログ出力箇所: routes/agents/execution/post-handlers/continue-post-handler.ts:78-81
+    // の log.error（handleContinueResult の result.success===false 分岐）。message文字列
+    // は `[continue-execution] Failed for task ${taskId}` のみで errorMessage は第一引数
+    // の構造化フィールド（log.error({ errorMessage }, message)）として渡されるため、
+    // errorMessage の内容（スタックトレース等の揺れ）がテキスト側に混入することはなく
+    // 本ルールの test 正規表現は安定してマッチする。
+    //
+    // 同じ失敗事実は必ず先行して二重記録される（#944で呼び出し順を実装コードから追跡）:
+    //   1. agent-worker-manager.ts:87 (api.executeTask) → workers/agent-worker.ts:106,322
+    //      経由で services/agents/orchestrator/task-executor.ts:414 の executeTask が
+    //      ワーカー側で実行される
+    //   2. task-executor.ts:570 が saveExecutionResult(...) を await し、その戻り値を
+    //      待ってから同414行のexecuteTaskが結果をreturnする（587行目）— つまり
+    //      continue-post-handler側にresultが渡る前に必ず完了している
+    //   3. saveExecutionResult (execution-persistence.ts:114) は171行目で
+    //      determineExecutionStatus を呼び、失敗時（同ファイル99-108行）は
+    //      fileLogger.logExecutionEnd('failed', {...}) を呼ぶ
+    //   4. logExecutionEnd (execution-file-logger/index.ts:218-250) は
+    //      status==='failed' のとき level='ERROR' で this.log(...) を呼び、239行目の
+    //      メッセージ "Execution ended with status: failed" を生成する
+    //   5. enableConsolePassthrough（同ファイル20,27行目、logger名 'execution-file-logger'、
+    //      既定true）により141-155行目で log.error(...) が実際に発火する — これが上記の
+    //      既存抑制ルール「Execution ended with status: failed」の対象
+    //   6. どちらのログも config/logger.ts:51-79 の createDailyWarnSink 経由で同一の
+    //      backend-<date>.log（プロセス境界に関係なく共有される単一ファイル）に追記され、
+    //      log-health-check.ts が読むログソースは同一
+    // 本ログはロガー名（routes:agent-execution:continue-post）が上記の抑制ルールと異なる
+    // ため抑制網から漏れ、同一の実行失敗が二重に懸念化していた。
+    test: /\[continue-execution\] Failed for task/i,
+    logger: /routes:agent-execution:continue-post/i,
+    because:
+      'continue-execution の実行失敗記録 — 同じ事実を execution-file-logger 側が先に記録・抑制済みであり、二重起票になる',
+  },
+  {
     // ログ出力箇所: fallback-decision.ts:50-58 の logger.warn（checkNeedsFallback
     // 内）。成功扱いの出力からプロバイダ障害の兆候を classifyAgentError が検知し、
     // フォールバックへ切り替えると判定した時点の告知ログ — 検出ロジック自体は意図した
