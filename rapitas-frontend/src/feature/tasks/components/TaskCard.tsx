@@ -228,10 +228,12 @@ const TaskCard = memo(function TaskCard({
                 title={t('taskCard.elapsedTimeTooltip')}
               >
                 <Clock className="w-3 h-3" aria-hidden="true" />
-                {tc.isWaitingForInput
-                  ? t('taskCard.waitingForInputLabel')
-                  : t('taskCard.runningLabel')}
-                {tc.executionElapsed}
+                <span>
+                  {tc.isWaitingForInput
+                    ? t('taskCard.waitingForInputLabel')
+                    : t('taskCard.runningLabel')}
+                </span>
+                <span>{tc.executionElapsed}</span>
               </span>
             )}
             <TaskCardAutoRunQueueBadge task={task} isExecuting={Boolean(tc.executionElapsed)} />
