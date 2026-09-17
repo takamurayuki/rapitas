@@ -434,6 +434,7 @@ CREATE TABLE "Task" (
     "forbiddenChangeOverride" BOOLEAN NOT NULL DEFAULT false,
     "forbiddenChangeOverrideReason" TEXT,
     "workflowDisabled" BOOLEAN NOT NULL DEFAULT false,
+    "autoRunExcluded" BOOLEAN NOT NULL DEFAULT false,
     "isRecurring" BOOLEAN NOT NULL DEFAULT false,
     "recurrenceRule" TEXT,
     "recurrenceEndAt" DATETIME,
@@ -668,6 +669,20 @@ CREATE TABLE "DetectionMissCase" (
     "taskId" INTEGER NOT NULL,
     "gate" TEXT NOT NULL,
     "reason" TEXT NOT NULL DEFAULT '',
+    "evidenceJson" TEXT NOT NULL DEFAULT '{}',
+    "detectedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "dedupKey" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "GatePrecisionCase" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER NOT NULL,
+    "gate" TEXT NOT NULL,
+    "criterionIndex" INTEGER,
+    "reason" TEXT NOT NULL DEFAULT '',
+    "verdict" TEXT NOT NULL,
     "evidenceJson" TEXT NOT NULL DEFAULT '{}',
     "detectedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "dedupKey" TEXT NOT NULL,
@@ -1771,6 +1786,21 @@ CREATE INDEX "DetectionMissCase_taskId_idx" ON "DetectionMissCase"("taskId");
 
 -- CreateIndex
 CREATE INDEX "DetectionMissCase_detectedAt_idx" ON "DetectionMissCase"("detectedAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "GatePrecisionCase_dedupKey_key" ON "GatePrecisionCase"("dedupKey");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_gate_idx" ON "GatePrecisionCase"("gate");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_taskId_idx" ON "GatePrecisionCase"("taskId");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_verdict_idx" ON "GatePrecisionCase"("verdict");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_detectedAt_idx" ON "GatePrecisionCase"("detectedAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "MissSignatureSuggestion_dedupKey_key" ON "MissSignatureSuggestion"("dedupKey");

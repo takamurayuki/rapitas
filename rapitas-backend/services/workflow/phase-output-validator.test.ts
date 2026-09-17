@@ -763,3 +763,65 @@ ${row}
     expect(r.summary).toContain('self-contradicts');
   });
 });
+
+describe('validateVerify — 懸念IDを挟んだ起票の記録（task 943 実データ由来）', () => {
+  // documentsOutOfScopeEscalation は「懸念」の直後に起票/登録を要求していたため、
+  // 「懸念#10172として起票済み」のようにIDが挟まると起票の記録として認識されず、
+  // スコープ外帰属があっても自己矛盾として5回連続で差し戻された。
+  const doc = (row: string) => `# 検証レポート
+## 検証結果サマリ
+対象テストは all tests pass。
+## テスト結果
+${row}
+## チェックリスト
+- ok`;
+
+  test('「懸念#12345として起票済み」でも起票の記録として認識し通す', () => {
+    const row =
+      '| `tests/routes/tasks/task-routes.test.ts` のテスト2件が失敗（懸念#10172として起票済み） | 本タスクとは無関係な既存不具合 |';
+    expect(validateVerify(doc(row)).ok).toBe(true);
+  });
+
+  test('IDを挟まない従来の「懸念に起票」表記も引き続き通す', () => {
+    const row = '| テストが2件失敗 | 本タスクとは無関係な既存不具合。懸念バックログに起票済み。 |';
+    expect(validateVerify(doc(row)).ok).toBe(true);
+  });
+
+  test('起票の記録も帰属も無ければ従来どおり自己矛盾として落とす', () => {
+    const row = '| テストが2件失敗 | 要修正 |';
+    const r = validateVerify(doc(row));
+    expect(r.ok).toBe(false);
+    expect(r.summary).toContain('self-contradicts');
+  });
+});
+
+describe('validateVerify — 改善前の件数を引用した比較（task 943 実データ由来）', () => {
+  // 「タスク本文の『948 passed/1 failed』から改善」のように、着手前の失敗件数を
+  // 比較のために引用した行が、現在も失敗しているという主張と誤読され続けた。
+  const doc = (row: string) => `# 検証レポート
+## 検証結果サマリ
+対象テストは all tests pass。
+## テスト結果
+${row}
+## チェックリスト
+- ok`;
+
+  test('「Xから改善」で引用された過去の失敗件数は現在の失敗として数えない', () => {
+    const row =
+      '| 全体テストスイート | ✅ | 969 / 969 | タスク本文の「948 passed/1 failed」から改善 |';
+    expect(validateVerify(doc(row)).ok).toBe(true);
+  });
+
+  test('「→…に改善」の矢印表記でも同様に通す', () => {
+    const row =
+      '| test:parallel | ✅ 完了（969/0失敗。948/1失敗→949/0失敗に改善） | 全体テストスイート |';
+    expect(validateVerify(doc(row)).ok).toBe(true);
+  });
+
+  test('改善の言及が無い同じ数字は従来どおり失敗として捕まえる', () => {
+    const row = '| 全体テストスイート | ⚠️ | 968 / 969 | 948 passed/1 failed |';
+    const r = validateVerify(doc(row));
+    expect(r.ok).toBe(false);
+    expect(r.summary).toContain('self-contradicts');
+  });
+});

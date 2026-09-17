@@ -445,6 +445,10 @@ export async function selectNextTask(
       // Nothing else ran, and because the theme never reached 'all_done' the
       // backlog never refilled either — 121 open concerns sat untouched.
       workflowDisabled: false,
+      // User-set opt-out from auto-run selection (Task.autoRunExcluded) — a
+      // task card toggle for "keep this out of auto-run, but let it run
+      // normally on demand." Independent of workflowDisabled.
+      autoRunExcluded: false,
       id: skipTaskIds.length > 0 ? { notIn: skipTaskIds } : undefined,
       // Exclude subtasks — the theme scheduler drives top-level tasks only;
       // subtasks are handled by AIOrchestra.enqueueSubtasksForExecution().

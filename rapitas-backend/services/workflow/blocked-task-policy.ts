@@ -65,6 +65,35 @@ export const VERIFY_NON_CONVERGENCE_CAUSE = 'verify_repair_non_convergence';
 export const PR_RETRY_LIGHTWEIGHT_CAUSE = 'verify_pr_retry_lightweight';
 
 /**
+ * WorkflowTransition.cause recorded when the LIFETIME `verify_repair` count
+ * (task 946) crosses {@link MAX_VERIFY_REPAIR_LIFETIME}, independent of the
+ * windowed repair budget in verify-self-repair-budget.ts. Distinct from
+ * {@link VERIFY_NON_CONVERGENCE_CAUSE} so it stays possible to tell apart
+ * "same acceptance criterion flagged twice" cutoffs from "the windowed budget
+ * kept getting reset (question_resolved etc.) and repairs accumulated across
+ * windows without ever tripping a single window's limit" cutoffs after the
+ * fact.
+ */
+export const VERIFY_REPAIR_LIFETIME_CAUSE = 'verify_repair_lifetime_exceeded';
+
+/**
+ * Total `verify_repair` transitions allowed for a task across ALL repair
+ * budget windows (task 946). The windowed budget in
+ * verify-self-repair-budget.ts resets on `question_resolved` /
+ * `task_retried` / `acceptance_criteria_changed` / `plan_invalid_replan`, so
+ * a task that hits several of those resets can accumulate far more than any
+ * single window's limit without ever tripping it (observed: task 907, 18
+ * bounces across 3 windows of 7/3/8). Set well above the UI-configurable
+ * windowed max (10, see verifyRepairLimit) as a 1.5x safety margin so this
+ * only fires when the windowed budget's reset mechanism itself is the
+ * problem, not a single legitimate long-running window.
+ */
+export const MAX_VERIFY_REPAIR_LIFETIME = Math.max(
+  0,
+  parseInt(process.env.RAPITAS_MAX_VERIFY_REPAIR_LIFETIME ?? '15', 10) || 15,
+);
+
+/**
  * Escalate a task blocked by repeated PR-creation failures
  * (`verify_pr_not_created`) after this many total occurrences, independent of
  * `MAX_BLOCKED_RETRY` (task 713).
@@ -161,11 +190,23 @@ export const EXPLICIT_RESUME_CAUSES: readonly string[] = [
  */
 export const VERIFICATION_UNVERIFIABLE_HOLD_CAUSE = 'verification_unverifiable_hold';
 
+/**
+ * WorkflowTransition.cause recorded when a task's `blocked` status is set (or
+ * re-set) by a manual/system correction that determined its landed PR did NOT
+ * actually merge (task 873/948) — e.g. the PR was closed unmerged and
+ * superseded by a re-implementation task. A blind full reset would discard
+ * this determination and either re-run stale work or race a duplicate task.
+ * Windowed by the same explicit-retry convention as the other exclusion
+ * causes (an explicit human retry resumes normal blind-retry eligibility).
+ */
+export const MANUAL_CORRECTION_PENDING_CAUSE = 'manual_correction_pr_not_landed';
+
 /** Reason a blocked task is excluded from the blind auto-retry. */
 export type BlockedExclusionReason =
   | 'awaiting_question'
   | 'verification_unverifiable'
   | 'verify_no_convergence'
+  | 'manual_correction_pending'
   | 'abandoned_old'
   | 'verify_repair_exhausted'
   | 'retry_cap_exhausted'
@@ -197,6 +238,14 @@ export interface BlockedClassificationInput {
    * blind retry cannot change the verdict. / 検証不能による保留中か
    */
   unverifiableHeld?: boolean;
+  /**
+   * True when a MANUAL_CORRECTION_PENDING_CAUSE transition exists in the
+   * current window (since the last explicit human retry) — a human/system
+   * already determined the task's PR did not land, so a blind retry would
+   * either discard that determination or race the follow-up task it spawned
+   * (task 873/948). / 未着地PRの手動是正が保留中か
+   */
+  manualCorrectionPending?: boolean;
   /**
    * Total `verify_pr_not_created` transitions ever recorded for the task
    * (unwindowed — a full reset discards the implementation but the PR-creation
@@ -243,6 +292,10 @@ export function classifyBlockedExclusion(input: BlockedClassificationInput): Blo
   // re-running cannot help (same criterion never progressed), whatever the
   // remaining retry budget says.
   if (input.nonConverged) return 'verify_no_convergence';
+  // A manual correction already established the task's PR did not land —
+  // this is a decisive determination, not an age/budget concern, so it is
+  // checked before either (mirrors unverifiableHeld/nonConverged's priority).
+  if (input.manualCorrectionPending) return 'manual_correction_pending';
   if (input.ageMs > MAX_ORPHAN_REQUEUE_AGE_MS) return 'abandoned_old';
   if (input.repairs >= input.verifyRepairLimit) return 'verify_repair_exhausted';
   // Checked before the generic retry cap (task 713): a task blocked purely by
