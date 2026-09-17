@@ -10,6 +10,7 @@ import {
   ValidationError,
   ConflictError,
   AuthenticationError,
+  RequirementReplanHeldError,
   errorHandler,
   parseId,
 } from '../../middleware/error-handler';
@@ -100,6 +101,17 @@ describe('AuthenticationError', () => {
     const error = new AuthenticationError('要認証', 'AUTH_REQUIRED');
     expect(error.message).toBe('要認証');
     expect(error.code).toBe('AUTH_REQUIRED');
+  });
+});
+
+describe('RequirementReplanHeldError', () => {
+  test('reasonをメッセージに埋め込みステータス409を設定すること', () => {
+    const error = new RequirementReplanHeldError('budget_exhausted');
+    expect(error.statusCode).toBe(409);
+    expect(error.message).toBe('Requirement replan review held: budget_exhausted');
+    expect(error.code).toBe('REQUIREMENT_REPLAN_HELD');
+    expect(error.name).toBe('RequirementReplanHeldError');
+    expect(error instanceof AppError).toBe(true);
   });
 });
 
@@ -257,6 +269,24 @@ describe('errorHandler plugin propagation (as: global)', () => {
     });
     const res = await app.handle(new Request('http://localhost/test'));
     expect(res.status).toBe(404);
+  });
+
+  test('RequirementReplanHeldError が AppError 分岐(409)を通り Unhandled error ログを回避すること(#961)', async () => {
+    // 修正前は status-transition.ts が plain Error を throw しており、この分岐
+    // (line 137) を通らず「Generic server error」(line 182: log.error(...'Unhandled error'))
+    // に落ちてERRORログが発生していた。AppError化により log.error を呼ばずに
+    // レスポンスを返す分岐(line 137-143)を通ることを検証する。
+    const app = appUsingPlugin(() => {
+      throw new RequirementReplanHeldError('budget_exhausted');
+    });
+    const res = await app.handle(new Request('http://localhost/test'));
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as ErrorResponseBody;
+    expect(body.error).toBe('Requirement replan review held: budget_exhausted');
+    expect(body.code).toBe('REQUIREMENT_REPLAN_HELD');
+    // 「Server error occurred」はGeneric server errorブランチ(log.error呼び出し側)専用の
+    // 固定文言。これと異なることは AppError 分岐を通った証拠になる。
+    expect(body.error).not.toBe('Server error occurred');
   });
 
   test('ConflictError が 409 になること', async () => {

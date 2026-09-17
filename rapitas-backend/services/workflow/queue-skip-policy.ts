@@ -25,7 +25,7 @@
  * retries came from the awaiting_question variant alone.
  */
 const NON_RUNNABLE_SKIP_RE =
-  /(ブロック中のため自動実行をスキップ|では次のフェーズを実行できません|ワークフロー無効モードのため自動実行|Requirement replan review held: requires_human:)/;
+  /(ブロック中のため自動実行をスキップ|では次のフェーズを実行できません|ワークフロー無効モードのため自動実行|Requirement replan review held: requires_human:|Requirement replan review held: budget_exhausted)/;
 
 /**
  * Whether a phase result means "not runnable now", as opposed to "failed".
