@@ -98,3 +98,58 @@ describe('isPhaseAutoAdvancing — 死んだセッションは前進扱いしな
     ).toBe(false);
   });
 });
+
+describe('isPhaseAutoAdvancing — 質問待ちは前進扱いしない', () => {
+  // 自動実行を停止して全エージェントを止めた後でも、質問を出して正常終了した
+  // 実行行(completed)+ in-progress のタスクをタスク詳細で開くと「実行中」として
+  // ストアに再登録され、カードの経過タイマーとローダーが復活した実測不具合の回帰テスト。
+  // 質問待ちは人が答えるまで何も進まないので、フェーズ境界ではない。
+  it('workflowStatus=awaiting_question かつ実行が completed なら前進扱いしない (in-progress)', () => {
+    expect(
+      isPhaseAutoAdvancing({
+        taskStatus: 'in-progress',
+        workflowStatus: 'awaiting_question',
+        sessionMode: 'workflow-implementer',
+        sessionStatus: 'completed',
+        waitingForInput: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('workflowStatus=awaiting_question なら sessionMode が自動前進フェーズでも前進扱いしない (todo)', () => {
+    expect(
+      isPhaseAutoAdvancing({
+        taskStatus: 'todo',
+        workflowStatus: 'awaiting_question',
+        sessionMode: 'workflow-researcher',
+        sessionStatus: 'completed',
+      }),
+    ).toBe(false);
+  });
+
+  it('質問がまだ生きている(waitingForInput=true)場合はこの除外の対象外', () => {
+    // waiting_for_input 分岐が扱うケース。completed ハンドラには来ないが、
+    // 判定関数単体としては従来値を返すことを固定する。
+    expect(
+      isPhaseAutoAdvancing({
+        taskStatus: 'in-progress',
+        workflowStatus: 'awaiting_question',
+        sessionMode: 'workflow-implementer',
+        sessionStatus: 'running',
+        waitingForInput: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('shouldKeepPollingAfterCompleted も質問待ちでは停止する', () => {
+    expect(
+      shouldKeepPollingAfterCompleted({
+        executionStatus: 'completed',
+        taskStatus: 'in-progress',
+        workflowStatus: 'awaiting_question',
+        sessionMode: 'workflow-implementer',
+        sessionStatus: 'completed',
+      }),
+    ).toBe(false);
+  });
+});

@@ -13,6 +13,7 @@ import {
   cleanupDuplicateSubtasks,
   cleanupAllDuplicateSubtasks,
   attachBlockedCauses,
+  attachAutoRunCardStatus,
 } from '../../services/task/task-service';
 import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree/worktree-ops';
 import { warnIfSubtaskCreatedDuringDisabledSplit } from '../../services/workflow/subtask-split-guard';
@@ -189,6 +190,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       ]);
 
       await attachBlockedCauses(prisma, updated);
+      await attachAutoRunCardStatus(prisma, updated);
 
       return {
         tasks: updated,
@@ -225,6 +227,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     });
 
     await attachBlockedCauses(prisma, tasks);
+    await attachAutoRunCardStatus(prisma, tasks);
 
     if (page && pageSize) {
       const totalCount = await prisma.task.count({ where: baseWhere });
@@ -366,6 +369,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
             t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 }),
           ),
           isProtected: t.Optional(t.Boolean()),
+          autoRunExcluded: t.Optional(t.Boolean()),
         },
         // NOTE: additionalProperties left permissive (not false) — updateTask()
         // already destructures only the whitelisted fields above and silently

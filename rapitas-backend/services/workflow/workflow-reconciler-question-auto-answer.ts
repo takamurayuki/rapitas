@@ -76,6 +76,8 @@ interface CandidateTask {
   title: string;
   status: string;
   workflowStatus: string | null;
+  /** Theme whose auto-run state gates the auto-adoption (null = unthemed). */
+  themeId?: number | null;
 }
 
 /**
@@ -105,7 +107,7 @@ export async function healStaleQuestionAutoAnswer(
   const tasks = await prisma.task
     .findMany({
       where: { workflowStatus: 'awaiting_question' },
-      select: { id: true, title: true, status: true, workflowStatus: true },
+      select: { id: true, title: true, status: true, workflowStatus: true, themeId: true },
     })
     .catch(() => [] as CandidateTask[]);
 
@@ -139,6 +141,23 @@ async function tryAutoAnswerOne(
 ): Promise<boolean> {
   if (TERMINAL_TASK_STATUSES.has(task.status)) return false;
   if (task.workflowStatus && TERMINAL_WORKFLOW_STATUSES.has(task.workflowStatus)) return false;
+
+  // A stopped auto-run means "nothing continues on its own": adopting the
+  // recommended option here would silently resume a task the user halted
+  // (2026-09-14). A theme without an auto-run record was never automated —
+  // keep the pre-existing behaviour for it, and fail open on a lookup error.
+  if (task.themeId != null) {
+    const autoRun = await prisma.themeAutoRun
+      .findUnique({ where: { themeId: task.themeId }, select: { enabled: true } })
+      .catch(() => null);
+    if (autoRun && !autoRun.enabled) {
+      log.info(
+        { taskId: task.id, themeId: task.themeId },
+        '[reconciler] healStaleQuestionAutoAnswer: theme auto-run is stopped — leaving the question for the user',
+      );
+      return false;
+    }
+  }
 
   const questionFile = await prisma.workflowFile
     .findFirst({

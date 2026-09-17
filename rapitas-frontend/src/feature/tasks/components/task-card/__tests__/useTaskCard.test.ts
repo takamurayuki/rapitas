@@ -171,6 +171,27 @@ describe('useTaskCard', () => {
       expect(result.current.isWaitingForInput).toBe(true);
       expect(result.current.executionClasses?.borderColor).toBe('amber');
       expect(result.current.cardBorderColor).toBe(result.current.waitingAmberConfig.borderColor);
+      expect(result.current.cardBgColor).toBe(result.current.waitingAmberConfig.bgColor);
+    });
+
+    it('awaiting_question（実行行なし）の場合もカード背景がamberになること', () => {
+      mockStoreState.status = null;
+      const task = createMockTask({ status: 'in-progress', workflowStatus: 'awaiting_question' });
+      const { result } = renderHook(() => useTaskCard(task, onStatusChange, onTaskUpdated));
+
+      expect(result.current.isWaitingForInput).toBe(true);
+      expect(result.current.cardBgColor).toBe(result.current.waitingAmberConfig.bgColor);
+    });
+
+    it('通常ステータスではカード背景がステータス色 + ダーク既定色になること', () => {
+      mockStoreState.status = null;
+      const task = createMockTask({ status: 'todo' });
+      const { result } = renderHook(() => useTaskCard(task, onStatusChange, onTaskUpdated));
+
+      expect(result.current.isWaitingForInput).toBe(false);
+      expect(result.current.cardBgColor).toBe(
+        `${result.current.currentStatus.bgColor} dark:bg-indigo-dark-900`,
+      );
     });
 
     it('startedAtがある場合、実行中はexecutionElapsedが文字列になること', () => {

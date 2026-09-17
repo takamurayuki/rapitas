@@ -1,0 +1,8 @@
+{
+  "id": "case-08-defender-cpu-investigation",
+  "category": "investigation-only",
+  "taskDescription": "開発中の高CPU使用率の原因調査。真因は PowerShell 起動時の Defender AMSI スキャンであり、dev.js の watchdog 起動回数を減らすことで解消した",
+  "initialFiles": [],
+  "acceptanceCheck": "bun test scripts/coverage-floor.test.ts",
+  "expectedOutcome": "pass-to-pass"
+}

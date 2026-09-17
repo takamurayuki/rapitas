@@ -16,7 +16,10 @@ import type { ValidationResult } from './phase-output-validator';
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 import { recordTransition, type TransitionActor } from './transition-recorder';
 import { evaluateCompletionGate } from './completion-gate';
-import { isAwaitingRequiredMerge } from './verify-settle-artifact-recovery';
+import {
+  isAwaitingRequiredMerge,
+  isAwaitingStagedPrCompletion,
+} from './verify-settle-artifact-recovery';
 import { holdForRequiredMerge } from './required-merge-hold';
 import { writeBlockedStatusDurable } from './durable-blocked-write';
 import {
@@ -156,6 +159,8 @@ export async function resolveVerifyPhaseStatus(params: {
     const gate = await evaluateCompletionGate(
       resolvedWorktreePath,
       typeof fileContent === 'string' ? fileContent : '',
+      undefined,
+      taskId,
     );
     if (!gate.allow) {
       await writeBlockedTask(prisma, taskId);
@@ -263,6 +268,23 @@ export async function resolveVerifyPhaseStatus(params: {
           actor: transition.role as TransitionActor,
           sessionId: session.id,
           source: 'WorkflowCLIExecutor',
+        });
+        phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
+        // Fail CLOSED here too: an unreadable staged-completion check cannot
+        // prove CI has gone green, and holding self-heals on the next tick
+        // whereas a wrong completion (task 873) is irreversible.
+      } else if (await isAwaitingStagedPrCompletion(taskId).catch(() => true)) {
+        // `pr` mode + staged completion: PR creation is not the completion
+        // point either — mirror the HTTP pipeline's `pr` landing mode
+        // (verify-commit-pr-pipeline.ts). Without this, orchestrator/queue-
+        // driven runs (auto-run, subtasks) completed on PR creation alone
+        // with no CI/merge check at all (task 873/948).
+        await holdForRequiredMerge({
+          taskId,
+          fromStatus: currentWfStatus,
+          actor: transition.role as TransitionActor,
+          sessionId: session.id,
+          source: 'WorkflowCLIExecutor (staged pr)',
         });
         phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
       } else {
