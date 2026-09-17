@@ -274,6 +274,14 @@ describe('selectNextTask', () => {
     expect(arg.where.workflowDisabled).toBe(false);
   });
 
+  it('自動実行対象から除外(autoRunExcluded)されたタスクは選択対象から外す', async () => {
+    const mockFindMany = mock().mockResolvedValue([]);
+    const prisma = makePrisma({ task: { findMany: mockFindMany } });
+    await selectNextTask(prisma, 1, 'priority', [], 0);
+    const arg = mockFindMany.mock.calls[0][0] as { where: { autoRunExcluded?: boolean } };
+    expect(arg.where.autoRunExcluded).toBe(false);
+  });
+
   it('回帰: workflowStatus が未設定(NULL)の新規タスクを除外しない', async () => {
     // `NOT { workflowStatus: 'x' }` は NULL 列に対して UNKNOWN になり、
     // 起票直後（workflowStatus 未設定）のタスクを全て弾いていた。実測
@@ -560,6 +568,24 @@ describe('selectNextTask with scopeOverlap (task 573 B)', () => {
     });
     expect(result).toEqual({ found: true, taskId: 100 });
     expect((result as { deferred?: number[] }).deferred).toBeUndefined();
+  });
+
+  it('an in-progress candidate is never deferred (it already owns a worktree)', async () => {
+    // 2026-09-13: task 905 (in-progress, mid verify-repair) sat deferred every
+    // tick behind exhausted open PRs while a fresh todo task was started.
+    const prisma = makePrisma({
+      task: {
+        findMany: mock().mockResolvedValue([
+          { ...mkTask(100, 0), status: 'in-progress', workflowStatus: 'plan_approved' },
+          mkTask(101, 1000),
+        ]),
+      },
+    });
+    const result = await selectNextTask(prisma, 1, 'priority', [], 0, null, {
+      openPrFiles: ['services/x.ts'],
+      getPlanFiles: async () => ['services/x.ts'], // everything overlaps
+    });
+    expect(result).toEqual({ found: true, taskId: 100 });
   });
 
   it('a plan-less (lightweight) candidate is never deferred', async () => {

@@ -83,6 +83,7 @@ export default function WorkflowViewer({
     error,
     refetch,
     effectiveStatus,
+    applyResolvedQuestionStatus,
     isAdvancing,
     advanceError,
     setAdvanceError,
@@ -114,8 +115,13 @@ export default function WorkflowViewer({
   // ask rarely, so a permanently-empty Q&A tab is noise. Surface it ONLY when
   // there is a live question, a saved question.md, or the workflow is paused
   // awaiting an answer. (Per user request: タブは質問があった際に表示する。)
-  const hasPendingQuestion =
-    !!liveQuestion || !!tabStatus.question || effectiveStatus === 'awaiting_question';
+  // A question is ANSWERABLE only while the workflow is actually paused on it
+  // (or an agent is live-asking). Implementation-phase questions
+  // (execution_continuation / completion_confirmation) append the answer to
+  // question.md and resume WITHOUT archiving the file, so "file exists" alone
+  // kept re-rendering the answer form after 再開 (user report 2026-09-13).
+  const isAwaitingAnswer = !!liveQuestion || effectiveStatus === 'awaiting_question';
+  const hasPendingQuestion = isAwaitingAnswer || !!tabStatus.question;
   const workflowTabs = selectWorkflowTabs(allWorkflowTabs, {
     workflowDisabled,
     hasPendingQuestion,
@@ -125,18 +131,19 @@ export default function WorkflowViewer({
   // Number badged on the Q&A tab: structured `json:options` question count when
   // present, else parsed 質問N count for a legacy intake question.md, else 1 for
   // a live/legacy single question. Lets the user see at a glance how many
-  // questions await without opening the tab.
+  // questions await without opening the tab. Zero once answered — the tab then
+  // only holds the Q&A history.
   const parsedQuestionCount = files?.question?.content
     ? (parseOptionsBlock(files.question.content)?.questions.length ??
       parseIntakeQuestions(files.question.content).questions.length)
     : 0;
-  const qaBadgeCount = liveQuestion
-    ? 1
-    : parsedQuestionCount > 0
-      ? parsedQuestionCount
-      : tabStatus.question
-        ? 1
-        : 0;
+  const qaBadgeCount = !isAwaitingAnswer
+    ? 0
+    : liveQuestion
+      ? 1
+      : parsedQuestionCount > 0
+        ? parsedQuestionCount
+        : 1;
 
   // Fallback to first tab if activeTab doesn't exist in current mode
   const validActiveTab = workflowTabs.some((t) => t.id === activeTab)
@@ -157,12 +164,12 @@ export default function WorkflowViewer({
   // control afterwards.
   const announcedQuestionRef = useRef(false);
   useEffect(() => {
-    if (hasPendingQuestion && hasQAtab && !announcedQuestionRef.current) {
+    if (isAwaitingAnswer && hasQAtab && !announcedQuestionRef.current) {
       announcedQuestionRef.current = true;
       setActiveTab('question');
     }
-    if (!hasPendingQuestion) announcedQuestionRef.current = false;
-  }, [hasPendingQuestion, hasQAtab, setActiveTab]);
+    if (!isAwaitingAnswer) announcedQuestionRef.current = false;
+  }, [isAwaitingAnswer, hasQAtab, setActiveTab]);
 
   /** POST the answer to the agent, then optimistically clear the live question. */
   const handleAnswerQuestion = async (answer: string) => {
@@ -182,13 +189,18 @@ export default function WorkflowViewer({
   };
 
   /**
-   * POST an answer to a workflow QUESTION FILE (the intake gate's question.md),
-   * which has no live session to respond to. The backend folds the answer into
-   * the spec and re-runs from draft; refetch so the resolved question.md (now
-   * archived) disappears. `selections` is the optional audit payload from a
-   * structured `json:options` question (see StructuredQuestionFlow) —
-   * omitted for legacy intake/free-text answers, which existing callers pass
-   * as a single string.
+   * POST an answer to a workflow QUESTION FILE (the intake gate's question.md,
+   * or any other kind-based pause — see workflow-handlers-resume-dispatch.ts).
+   * The backend resolves the recorded kind (spec_change/execution_continuation/
+   * completion_confirmation) and returns the confirmed `toStatus` it applied;
+   * this is read and applied immediately (task 902 AC3) via
+   * `applyResolvedQuestionStatus` (pins `effectiveStatus`, sidestepping any
+   * stale `workflowStatus` prop) and `onStatusChange` (propagates the same
+   * value to the parent so the prop itself catches up), alongside the normal
+   * `refetch()` so the resolved question.md (archived only for spec_change)
+   * disappears. `selections` is the optional audit payload from a structured
+   * `json:options` question (see StructuredQuestionFlow) — omitted for legacy
+   * intake/free-text answers, which existing callers pass as a single string.
    */
   const handleAnswerIntakeQuestion = async (answer: string, selections?: StructuredSelection[]) => {
     setSubmittingAnswer(true);
@@ -201,7 +213,14 @@ export default function WorkflowViewer({
         headers: { 'Content-Type': 'application/json', 'X-Rapitas-Source': 'ui' },
         body: JSON.stringify(selections ? { answer, selections } : { answer }),
       });
-      if (res.ok) refetch();
+      if (res.ok) {
+        const data = (await res.json().catch(() => null)) as { toStatus?: WorkflowStatus } | null;
+        if (data?.toStatus) {
+          applyResolvedQuestionStatus(data.toStatus);
+          onStatusChange?.(data.toStatus);
+        }
+        refetch();
+      }
     } catch {
       /* leave the question visible so the user can retry */
     } finally {
@@ -286,11 +305,13 @@ export default function WorkflowViewer({
           // live-question-only). When EITHER kind of question panel renders, the
           // question text is already shown in the panel, so the raw question.md
           // file body is NOT re-rendered below (it duplicated the panel).
+          // Answer form only while paused on the question; afterwards the
+          // (answer-appended) question.md renders as a plain file below.
           const showingIntakeQuestion =
             validActiveTab === 'question' &&
             !liveQuestion &&
             tabStatus.question &&
-            effectiveStatus !== 'completed' &&
+            effectiveStatus === 'awaiting_question' &&
             !!activeFile?.content;
           const showingQuestionPanel =
             validActiveTab === 'question' && (!!liveQuestion || showingIntakeQuestion);

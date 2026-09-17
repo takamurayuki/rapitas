@@ -431,7 +431,10 @@ CREATE TABLE "Task" (
     "complexityScore" REAL,
     "workflowModeOverride" BOOLEAN NOT NULL DEFAULT false,
     "autoApprovePlan" BOOLEAN NOT NULL DEFAULT false,
+    "forbiddenChangeOverride" BOOLEAN NOT NULL DEFAULT false,
+    "forbiddenChangeOverrideReason" TEXT,
     "workflowDisabled" BOOLEAN NOT NULL DEFAULT false,
+    "autoRunExcluded" BOOLEAN NOT NULL DEFAULT false,
     "isRecurring" BOOLEAN NOT NULL DEFAULT false,
     "recurrenceRule" TEXT,
     "recurrenceEndAt" DATETIME,
@@ -666,6 +669,20 @@ CREATE TABLE "DetectionMissCase" (
     "taskId" INTEGER NOT NULL,
     "gate" TEXT NOT NULL,
     "reason" TEXT NOT NULL DEFAULT '',
+    "evidenceJson" TEXT NOT NULL DEFAULT '{}',
+    "detectedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "dedupKey" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "GatePrecisionCase" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER NOT NULL,
+    "gate" TEXT NOT NULL,
+    "criterionIndex" INTEGER,
+    "reason" TEXT NOT NULL DEFAULT '',
+    "verdict" TEXT NOT NULL,
     "evidenceJson" TEXT NOT NULL DEFAULT '{}',
     "detectedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "dedupKey" TEXT NOT NULL,
@@ -1011,6 +1028,11 @@ CREATE TABLE "KnowledgeEntry" (
     "validationMethod" TEXT,
     "themeId" INTEGER,
     "taskId" INTEGER,
+    "sourceRef" TEXT,
+    "applicabilityConditions" TEXT,
+    "entryVersion" INTEGER NOT NULL DEFAULT 1,
+    "expiresAt" DATETIME,
+    "counterEvidence" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );
@@ -1049,6 +1071,18 @@ CREATE TABLE "KnowledgeContradiction" (
     "description" TEXT,
     "resolution" TEXT,
     "resolvedAt" DATETIME,
+    "claimA" TEXT,
+    "claimB" TEXT,
+    "citationA" TEXT,
+    "citationB" TEXT,
+    "asOfA" TEXT,
+    "asOfB" TEXT,
+    "codeVersionA" TEXT,
+    "codeVersionB" TEXT,
+    "confidence" REAL,
+    "needsReview" BOOLEAN NOT NULL DEFAULT false,
+    "contentHashAAtDetection" TEXT,
+    "contentHashBAtDetection" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "KnowledgeContradiction_entryAId_fkey" FOREIGN KEY ("entryAId") REFERENCES "KnowledgeEntry" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
@@ -1522,6 +1556,33 @@ CREATE TABLE "WorkflowQueueItem" (
 );
 
 -- CreateTable
+CREATE TABLE "RequirementReviewClaim" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER NOT NULL,
+    "snapshotDigest" TEXT NOT NULL,
+    "requestKey" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "claimToken" TEXT NOT NULL,
+    "ownerInstanceId" TEXT NOT NULL,
+    "heartbeatAt" DATETIME NOT NULL,
+    "resultJson" TEXT,
+    "reason" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "RequirementReviewClaim_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "RequirementReviewRetryRequest" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "requestId" TEXT NOT NULL,
+    "taskId" INTEGER NOT NULL,
+    "consumedAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "RequirementReviewRetryRequest_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "ThemeAutoRun" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "themeId" INTEGER NOT NULL,
@@ -1725,6 +1786,21 @@ CREATE INDEX "DetectionMissCase_taskId_idx" ON "DetectionMissCase"("taskId");
 
 -- CreateIndex
 CREATE INDEX "DetectionMissCase_detectedAt_idx" ON "DetectionMissCase"("detectedAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "GatePrecisionCase_dedupKey_key" ON "GatePrecisionCase"("dedupKey");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_gate_idx" ON "GatePrecisionCase"("gate");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_taskId_idx" ON "GatePrecisionCase"("taskId");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_verdict_idx" ON "GatePrecisionCase"("verdict");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_detectedAt_idx" ON "GatePrecisionCase"("detectedAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "MissSignatureSuggestion_dedupKey_key" ON "MissSignatureSuggestion"("dedupKey");
@@ -2022,6 +2098,18 @@ CREATE INDEX "WorkflowQueueItem_themeId_status_idx" ON "WorkflowQueueItem"("them
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowQueueItem_taskId_orchestraSessionId_key" ON "WorkflowQueueItem"("taskId", "orchestraSessionId");
+
+-- CreateIndex
+CREATE INDEX "RequirementReviewClaim_taskId_status_idx" ON "RequirementReviewClaim"("taskId", "status");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RequirementReviewClaim_taskId_snapshotDigest_key" ON "RequirementReviewClaim"("taskId", "snapshotDigest");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RequirementReviewRetryRequest_requestId_key" ON "RequirementReviewRetryRequest"("requestId");
+
+-- CreateIndex
+CREATE INDEX "RequirementReviewRetryRequest_taskId_createdAt_idx" ON "RequirementReviewRetryRequest"("taskId", "createdAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ThemeAutoRun_themeId_key" ON "ThemeAutoRun"("themeId");

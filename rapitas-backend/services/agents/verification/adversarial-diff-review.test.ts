@@ -111,6 +111,18 @@ describe('buildDiffReviewPrompt', () => {
     expect(prompt).toContain('fail の根拠にしてはならない');
   });
 
+  // Task 946: ジャッジの reasons に受入基準番号を明記させ、非収束検知
+  // (identifyIndictedCriteria) が反復指摘を検出できる割合を上げる。
+  it('reasons に受入基準番号を明記するよう指示する', () => {
+    const prompt = buildDiffReviewPrompt({
+      taskTitle: 'T',
+      planContent: '',
+      acceptanceCriteria: ['何かを満たす'],
+      diffText: 'diff',
+    });
+    expect(prompt).toContain('受入基準N:');
+  });
+
   it('truncates an overlong plan to 6000 chars', () => {
     const longPlan = 'x'.repeat(7000);
     const prompt = buildDiffReviewPrompt({
