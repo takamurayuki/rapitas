@@ -65,6 +65,35 @@ export const VERIFY_NON_CONVERGENCE_CAUSE = 'verify_repair_non_convergence';
 export const PR_RETRY_LIGHTWEIGHT_CAUSE = 'verify_pr_retry_lightweight';
 
 /**
+ * WorkflowTransition.cause recorded when the LIFETIME `verify_repair` count
+ * (task 946) crosses {@link MAX_VERIFY_REPAIR_LIFETIME}, independent of the
+ * windowed repair budget in verify-self-repair-budget.ts. Distinct from
+ * {@link VERIFY_NON_CONVERGENCE_CAUSE} so it stays possible to tell apart
+ * "same acceptance criterion flagged twice" cutoffs from "the windowed budget
+ * kept getting reset (question_resolved etc.) and repairs accumulated across
+ * windows without ever tripping a single window's limit" cutoffs after the
+ * fact.
+ */
+export const VERIFY_REPAIR_LIFETIME_CAUSE = 'verify_repair_lifetime_exceeded';
+
+/**
+ * Total `verify_repair` transitions allowed for a task across ALL repair
+ * budget windows (task 946). The windowed budget in
+ * verify-self-repair-budget.ts resets on `question_resolved` /
+ * `task_retried` / `acceptance_criteria_changed` / `plan_invalid_replan`, so
+ * a task that hits several of those resets can accumulate far more than any
+ * single window's limit without ever tripping it (observed: task 907, 18
+ * bounces across 3 windows of 7/3/8). Set well above the UI-configurable
+ * windowed max (10, see verifyRepairLimit) as a 1.5x safety margin so this
+ * only fires when the windowed budget's reset mechanism itself is the
+ * problem, not a single legitimate long-running window.
+ */
+export const MAX_VERIFY_REPAIR_LIFETIME = Math.max(
+  0,
+  parseInt(process.env.RAPITAS_MAX_VERIFY_REPAIR_LIFETIME ?? '15', 10) || 15,
+);
+
+/**
  * Escalate a task blocked by repeated PR-creation failures
  * (`verify_pr_not_created`) after this many total occurrences, independent of
  * `MAX_BLOCKED_RETRY` (task 713).
