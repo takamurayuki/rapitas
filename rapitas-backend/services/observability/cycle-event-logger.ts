@@ -50,6 +50,9 @@ export type CycleEventName =
   // files its research/plan names are still changing in an open auto-PR
   | 'task.implement_overlap_hold'
   | 'task.implement_overlap_released'
+  // periodic "still holding" signal while the above hold continues (task 947):
+  // makes the otherwise-silent retry loop observable during a long hold
+  | 'task.implement_overlap_holding'
   // workflow phase progression
   | 'phase.transition'
   // task terminal / hold states

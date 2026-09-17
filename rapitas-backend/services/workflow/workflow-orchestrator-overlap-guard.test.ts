@@ -29,7 +29,7 @@ mock.module('../scheduling/merge-barrier/merge-barrier', () => ({
   getMergeBarrierMaxHoldMs: () => MAX_HOLD_MS,
 }));
 
-const { guardImplementOverlap, resetOverlapGuardState, isOverlapHeld } =
+const { guardImplementOverlap, resetOverlapGuardState, isOverlapHeld, HOLD_SIGNAL_INTERVAL_MS } =
   await import('./workflow-orchestrator-overlap-guard');
 
 const IMPLEMENTER = { role: 'implementer', outputFile: null, nextStatus: 'in_progress' } as const;
@@ -172,6 +172,53 @@ describe('guardImplementOverlap', () => {
   test('RAPITAS_IMPLEMENT_OVERLAP_HOLD=off で無効化', async () => {
     process.env.RAPITAS_IMPLEMENT_OVERLAP_HOLD = 'off';
     expect((await run()).done).toBe(false);
+  });
+
+  test('保留継続中、2分間隔で task.implement_overlap_holding が発火する（task 947）', async () => {
+    await run();
+    for (let i = 0; i < 11; i++) {
+      nowMs += 10_000;
+      const r = await run();
+      expect(r.done).toBe(true);
+    }
+    expect(events.filter((e) => e.evt === 'task.implement_overlap_holding').length).toBe(0);
+    nowMs += 10_000;
+    const r = await run();
+    expect(r.done).toBe(true);
+    const holding = events.filter((e) => e.evt === 'task.implement_overlap_holding');
+    expect(holding.length).toBe(1);
+    expect(holding[0]?.fields.prs).toEqual([533]);
+  });
+
+  test('24分間・144回の連続再評価でも保留（再試行）が途切れない（task 947、受入条件3）', async () => {
+    let heldCount = 0;
+    for (let i = 0; i < 144; i++) {
+      const r = await run();
+      expect(r.done).toBe(true);
+      if (r.done && r.result.skipped) heldCount++;
+      nowMs += 10_000;
+    }
+    expect(heldCount).toBe(144);
+    const holding = events.filter((e) => e.evt === 'task.implement_overlap_holding');
+    // Calls happen at t=0,10s,...,1430s (143 steps after the first); a signal
+    // fires whenever that elapsed time crosses another HOLD_SIGNAL_INTERVAL_MS.
+    const expectedSignals = Math.floor((143 * 10_000) / HOLD_SIGNAL_INTERVAL_MS);
+    expect(holding.length).toBe(expectedSignals);
+  });
+
+  test('保留解除後に再保留した場合、周期シグナルは新しい holdSince を起点に計算される', async () => {
+    await run();
+    nowMs += 60_000;
+    openPrs = [];
+    await run();
+    expect(isOverlapHeld(759)).toBe(false);
+    nowMs += MAX_HOLD_MS;
+    openPrs = [{ prNumber: 533, linkedTaskId: 758, createdAt: fresh() }];
+    await run();
+    nowMs += HOLD_SIGNAL_INTERVAL_MS - 10_000;
+    const r = await run();
+    expect(r.done).toBe(true);
+    expect(events.filter((e) => e.evt === 'task.implement_overlap_holding').length).toBe(0);
   });
 });
 
