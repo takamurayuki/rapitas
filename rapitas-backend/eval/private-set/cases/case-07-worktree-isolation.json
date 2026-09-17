@@ -1,0 +1,8 @@
+{
+  "id": "case-07-worktree-isolation",
+  "category": "multi-service",
+  "taskDescription": "エージェント実行を git worktree で隔離し、continue-route の無ガード fallback による共有チェックアウト事故を防ぐ多層修正",
+  "initialFiles": ["rapitas-backend/scripts/setup-worktree.cjs"],
+  "acceptanceCheck": "bun test scripts/setup-worktree.test.ts",
+  "expectedOutcome": "pass-to-pass"
+}
