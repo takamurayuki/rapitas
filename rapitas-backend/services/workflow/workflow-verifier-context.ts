@@ -14,6 +14,7 @@ import { buildCriticLessonsSection } from './phase-critic';
 import { buildGatePrecisionContext } from './workflow-gate-precision-context';
 import { resolvePreferredBaseBranch } from '../task/task-resolver';
 import { recordContextMetrics } from './workflow-context-metrics';
+import { buildRepairRiskTacticSection } from './learning/repair-risk-tactic-section';
 import type { VerifierTexts } from './workflow-role-prompts';
 
 // NOTE: auto_verifier shares the verifier context — both must emit the validator-required
@@ -69,6 +70,11 @@ Preserve command exit codes before formatting output: piping a command into tail
   );
   if (verifyLessons) {
     ctx += `\n\n${verifyLessons}`;
+  }
+  // Repair-risk tactics — see the researcher context for rationale.
+  const verifyRepairRisk = await buildRepairRiskTacticSection(taskId, task, 'verify', language);
+  if (verifyRepairRisk) {
+    ctx += `\n\n${verifyRepairRisk}`;
   }
   // Hypothesis ledger: the verifier is the ONLY phase that explicitly JUDGES
   // whether each open hypothesis's prediction held — its `## 仮説評価` verdicts
@@ -217,6 +223,6 @@ Preserve command exit codes before formatting output: piping a command into tail
   }
   ctx += `\n\n${verifierInstruction}\n\n${styleRule}`;
   // prettier-ignore
-  void recordContextMetrics(taskId, role, mode, { taskInfo, memory: verifierMemory, lessons: verifyLessons, hypothesis, gatePrecision, plan, diff: diffBlock, groundTruth: groundTruthBlock, instruction: verifierInstruction, styleRule });
+  void recordContextMetrics(taskId, role, mode, { taskInfo, memory: verifierMemory, lessons: verifyLessons, repairRisk: verifyRepairRisk, hypothesis, gatePrecision, plan, diff: diffBlock, groundTruth: groundTruthBlock, instruction: verifierInstruction, styleRule });
   return ctx;
 }
