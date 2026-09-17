@@ -60,6 +60,32 @@ export async function resolveNonDevelopmentThemeIds(themeIds: number[]): Promise
 }
 
 /**
+ * Resolves each candidate's theme auto-run RUN state in one batch query
+ * (task #969) — only rows with `status === 'running'` are fetched, so a
+ * present entry always means "actively dispatching". Feeds the stagnation /
+ * Pattern B gate that treats a task waiting behind another task on a busy
+ * theme as a normal backlog wait, not stagnation (AUTO_RUN_GLOBAL_MAX_
+ * CONCURRENCY defaults to 1, so this routinely exceeds STAGNATION_THRESHOLD_MS).
+ * A missing themeId (idle/paused/stopping, no row, or a query failure) is
+ * absent from the map — callers must treat that as "not busy" (fail-open).
+ *
+ * @param themeIds - Distinct, non-null theme ids among this pass's candidates. / 候補のテーマID一覧
+ * @returns Map of themeId to its running currentTaskId. / 稼働中テーマIDと現在処理中タスクIDの対応
+ */
+export async function resolveThemeAutoRunRunState(
+  themeIds: number[],
+): Promise<Map<number, { currentTaskId: number | null }>> {
+  if (themeIds.length === 0) return new Map();
+  const rows = await prisma.themeAutoRun
+    .findMany({
+      where: { themeId: { in: themeIds }, status: 'running' },
+      select: { themeId: true, currentTaskId: true },
+    })
+    .catch(() => [] as { themeId: number; currentTaskId: number | null }[]);
+  return new Map(rows.map((r) => [r.themeId, { currentTaskId: r.currentTaskId }]));
+}
+
+/**
  * Resolves whether the multi-phase workflow is disabled globally
  * (`UserSettings.workflowDisabledGlobally`), mirroring
  * workflow-disabled.ts's `resolveEffectiveWorkflowDisabled` fail-open

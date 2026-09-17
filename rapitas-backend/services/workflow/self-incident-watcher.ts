@@ -36,6 +36,7 @@ import {
   resolveDisabledAutoRunThemeIds,
   resolveNonDevelopmentThemeIds,
   resolveWorkflowDisabledGlobally,
+  resolveThemeAutoRunRunState,
 } from './self-incident-watch-gates';
 
 const log = createLogger('self-incident-watcher');
@@ -161,6 +162,8 @@ async function fileFinding(args: {
  *   pass by the caller (task #860). / ワークフロー全体無効化フラグ
  * @param repairBounceMinCount - Dynamic repeat-loop threshold for verify_repair/ci_repair
  *   (task 837, resolved once per pass by the caller — see runSelfIncidentWatch). / 修復バウンス系の動的しきい値
+ * @param themeAutoRunRunState - Themes actively running (`status='running'`) and their
+ *   `currentTaskId`, resolved once per pass by the caller (task #969). / 稼働中テーマとcurrentTaskIdの対応
  */
 async function inspectTask(
   task: CandidateTask,
@@ -169,6 +172,7 @@ async function inspectTask(
   nonDevelopmentThemeIds: Set<number>,
   workflowDisabledGlobally: boolean,
   repairBounceMinCount: number,
+  themeAutoRunRunState: Map<number, { currentTaskId: number | null }>,
 ): Promise<number> {
   const state = await gatherTaskState(task, nowMs, REPEAT_LOOP_WINDOW_MS);
   let filed = 0;
@@ -188,6 +192,12 @@ async function inspectTask(
           : true;
 
   const manuallyWithdrawn = state.latestTransitionCause === MANUAL_STOP_WITHDRAW_CAUSE;
+  // Theme is actively dispatching a DIFFERENT task → this task is a normal
+  // backlog wait, not stagnation (#969). Does NOT suppress when currentTaskId
+  // is this task itself — a live hang on the task's own turn must still fire.
+  const runState = task.themeId != null ? themeAutoRunRunState.get(task.themeId) : undefined;
+  const themeAutoRunBusyWithOtherTask =
+    runState != null && runState.currentTaskId != null && runState.currentTaskId !== task.id;
   const stagnation = detectStagnation({
     taskStatus: task.status,
     workflowStatus: task.workflowStatus,
@@ -199,6 +209,7 @@ async function inspectTask(
     hasActiveQueueItem: state.hasActiveQueueItem,
     isWorkflowManaged,
     manuallyWithdrawn,
+    themeAutoRunBusyWithOtherTask,
     nowMs,
   });
   if (stagnation) {
@@ -238,6 +249,7 @@ async function inspectTask(
     latestSessionUpdatedAtMs: state.latestSessionUpdatedAtMs,
     themeAutoRunEnabled: task.themeId != null ? !disabledAutoRunThemeIds.has(task.themeId) : null,
     manuallyWithdrawn,
+    themeAutoRunBusyWithOtherTask,
     nowMs,
   });
   if (desync) {
@@ -423,12 +435,17 @@ export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<
   const candidateThemeIds = [
     ...new Set(candidates.map((t) => t.themeId).filter((id): id is number => id != null)),
   ];
-  const [disabledAutoRunThemeIds, nonDevelopmentThemeIds, workflowDisabledGlobally] =
-    await Promise.all([
-      resolveDisabledAutoRunThemeIds(candidateThemeIds),
-      resolveNonDevelopmentThemeIds(candidateThemeIds),
-      resolveWorkflowDisabledGlobally(),
-    ]);
+  const [
+    disabledAutoRunThemeIds,
+    nonDevelopmentThemeIds,
+    workflowDisabledGlobally,
+    themeAutoRunRunState,
+  ] = await Promise.all([
+    resolveDisabledAutoRunThemeIds(candidateThemeIds),
+    resolveNonDevelopmentThemeIds(candidateThemeIds),
+    resolveWorkflowDisabledGlobally(),
+    resolveThemeAutoRunRunState(candidateThemeIds),
+  ]);
 
   // Resolved once per pass, not per task (task 837, generalizes task 835's
   // verify_repair-only budget guard to also cover ci_repair): a task that
@@ -452,6 +469,7 @@ export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<
         nonDevelopmentThemeIds,
         workflowDisabledGlobally,
         repairBounceMinCount,
+        themeAutoRunRunState,
       );
     } catch (err) {
       // One broken task must not starve the rest of the scan.
