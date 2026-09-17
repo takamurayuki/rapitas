@@ -54,11 +54,18 @@ mock.module('../../../../services/workflow/transition-recorder', () => ({
   recordTransition: mock(() => Promise.resolve()),
 }));
 mock.module('../../../../services/workflow/automation-policy', () => ({
-  resolveLandingMode: (policy: { autoMergePR?: boolean }) =>
-    policy.autoMergePR ? 'merge' : 'none',
-  isStagedCompletionEnabled: () =>
-    process.env.RAPITAS_STAGED_COMPLETION !== 'false' &&
-    process.env.RAPITAS_STAGED_COMPLETION !== '0',
+  resolveLandingMode: (policy: { autoCreatePR?: boolean; autoMergePR?: boolean }) =>
+    policy.autoMergePR ? 'merge' : policy.autoCreatePR ? 'pr' : 'none',
+}));
+// The real completion-gate.ts pulls in diff-structured.ts → ai-client/index.ts,
+// which imports createLogger from '../../config' — a module this file mocks
+// down to just { prisma }. Mock shouldDeferCompletionForCi directly (mirroring
+// its real logic under the default staged-completion-enabled state — the flag
+// itself is unit-tested directly in completion-gate.test.ts, not re-tested at
+// this pipeline-integration level) instead of loading that whole chain.
+mock.module('../../../../services/workflow/completion-gate', () => ({
+  shouldDeferCompletionForCi: (landingMode: string) =>
+    landingMode === 'merge' || landingMode === 'pr',
 }));
 const markLatestExecutionFailedMock = mock(() => Promise.resolve());
 mock.module('./shared', () => ({
@@ -105,38 +112,50 @@ mock.module('../../workflow-auto-commit', () => ({
 const { runVerifyCommitPrPipeline } = await import('./verify-commit-pr-pipeline');
 
 describe('requested merge is a completion requirement', () => {
-  test.each([undefined, 'false', 'true'])(
-    'keeps deferred merge pending with staged=%s',
-    async (flag) => {
-      const previous = process.env.RAPITAS_STAGED_COMPLETION;
-      if (flag === undefined) delete process.env.RAPITAS_STAGED_COMPLETION;
-      else process.env.RAPITAS_STAGED_COMPLETION = flag;
-      performAutoCommitAndPRMock.mockImplementationOnce(() =>
-        Promise.resolve({
-          requested: { autoCommit: true, autoCreatePR: true, autoMergePR: true },
-          autoCommitResult: { success: true, filesChanged: 0 },
-          autoPRResult: { success: true, prNumber: 623 },
-          autoMergeResult: { success: false, deferred: true },
-        }),
-      );
-      const before = sideEffectsCalls.length;
-      try {
-        const outcome = await runVerifyCommitPrPipeline({
-          taskId: 897,
-          completionReceipt: { ...receipt, taskId: 897 },
-          savedContent: '# 検証結果',
-          preferredBaseBranchForVerify: null,
-        });
-        expect(outcome.taskMarkedDone).toBe(false);
-        expect(outcome.newStatus).toBe('verify_done');
-        expect(sideEffectsCalls.length).toBe(before);
-      } finally {
-        sideEffectsCalls.splice(before);
-        if (previous === undefined) delete process.env.RAPITAS_STAGED_COMPLETION;
-        else process.env.RAPITAS_STAGED_COMPLETION = previous;
-      }
-    },
-  );
+  test('keeps deferred merge pending', async () => {
+    performAutoCommitAndPRMock.mockImplementationOnce(() =>
+      Promise.resolve({
+        requested: { autoCommit: true, autoCreatePR: true, autoMergePR: true },
+        autoCommitResult: { success: true, filesChanged: 0 },
+        autoPRResult: { success: true, prNumber: 623 },
+        autoMergeResult: { success: false, deferred: true },
+      }),
+    );
+    const before = sideEffectsCalls.length;
+    const outcome = await runVerifyCommitPrPipeline({
+      taskId: 897,
+      completionReceipt: { ...receipt, taskId: 897 },
+      savedContent: '# 検証結果',
+      preferredBaseBranchForVerify: null,
+    });
+    expect(outcome.taskMarkedDone).toBe(false);
+    expect(outcome.newStatus).toBe('verify_done');
+    expect(sideEffectsCalls.length).toBe(before);
+    sideEffectsCalls.splice(before);
+  });
+});
+
+describe('task 950 — pr mode always waits for CI (no staged-completion flag)', () => {
+  test('pr mode (autoCreatePR only) holds at verify_done by default', async () => {
+    performAutoCommitAndPRMock.mockImplementationOnce(() =>
+      Promise.resolve({
+        requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+        autoCommitResult: { success: true, filesChanged: 2 },
+        autoPRResult: { success: true, prNumber: 703 },
+      }),
+    );
+    const before = sideEffectsCalls.length;
+    const outcome = await runVerifyCommitPrPipeline({
+      taskId: 904,
+      completionReceipt: { ...receipt, taskId: 904 },
+      savedContent: '# 検証結果',
+      preferredBaseBranchForVerify: null,
+    });
+    expect(outcome.taskMarkedDone).toBe(false);
+    expect(outcome.newStatus).toBe('verify_done');
+    expect(sideEffectsCalls.length).toBe(before);
+    sideEffectsCalls.splice(before);
+  });
 });
 
 describe('runVerifyCommitPrPipeline — リカバリ後の再試行を待つこと', () => {
@@ -173,7 +192,9 @@ describe('runVerifyCommitPrPipeline — リカバリ後の再試行を待つこ�
     resolveRetry?.({
       autoCommitResult: { success: true, filesChanged: 3 },
       autoPRResult: { success: true, prNumber: 454 },
-      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+      // autoCreatePR:false → landingMode 'commit' (not 'pr'), so this test's
+      // completion timing is unaffected by task 950's pr-mode CI-wait change.
+      requested: { autoCommit: true, autoCreatePR: false, autoMergePR: false },
     });
 
     const outcome = await work;
@@ -190,7 +211,10 @@ test('a stale review after PR work cannot trigger completion side effects', asyn
   performAutoCommitAndPRMock.mockImplementationOnce(() =>
     Promise.resolve({
       autoPRResult: { success: true, prNumber: 1 },
-      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+      // autoCreatePR:false → landingMode 'none' (immediate finalize path),
+      // so this test still exercises finalize() rejecting on a stale review.
+      // (autoCreatePR:true would now defer to CI-wait and never call finalize.)
+      requested: { autoCommit: true, autoCreatePR: false, autoMergePR: false },
     }),
   );
   completeReview.mockResolvedValueOnce({ committed: false, reason: 'stop_not_resumed' });

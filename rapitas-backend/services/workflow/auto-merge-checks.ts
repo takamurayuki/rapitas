@@ -15,8 +15,8 @@ const log = createLogger('workflow:auto-merge-checks');
 
 /**
  * Checks that GATE the merge. A PR merges only when every present blocking check
- * passes; advisory checks (bundle size, performance, CodeQL, previews) are
- * ignored. Overridable via RAPITAS_AUTOMERGE_CHECKS (comma-separated names).
+ * passes; advisory checks (bundle size, performance, previews) are ignored.
+ * Overridable via RAPITAS_AUTOMERGE_CHECKS (comma-separated names).
  */
 const DEFAULT_BLOCKING_CHECKS = [
   'Test Backend',
@@ -36,6 +36,13 @@ const DEFAULT_BLOCKING_CHECKS = [
   // RAPITAS_AUTOMERGE_CHECKS if your matrix differs.)
   'Quick Build Check',
   'Build (ubuntu-latest)',
+  // task 950: CodeQL and the HACK/FIXME ceiling (ADR-0004) used to be
+  // advisory; PR #703 sat 3+ days with both red while the task was already
+  // marked completed. Both are now blocking. security-scan.yml's `codeql`
+  // job runs a language matrix, so the check name is per-language.
+  'CodeQL Analysis (javascript)',
+  'CodeQL Analysis (typescript)',
+  'Enforce HACK/FIXME ceilings (ADR-0004)',
 ];
 
 /** Resolve the set of check names that gate auto-merge. / マージをゲートするチェック名 */
