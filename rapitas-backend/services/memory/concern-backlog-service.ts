@@ -174,11 +174,8 @@ export async function submitConcern(input: SubmitConcernInput): Promise<ConcernF
 
   const decision = await resolveFiling(prisma, { input, hash, severity, findBlockingDuplicate });
   if (decision.reuseId != null) {
-    return {
-      id: decision.reuseId,
-      outcome: 'reused',
-      reason: decision.reuseReason ?? 'dedup-live-duplicate',
-    };
+    const reason = decision.reuseReason ?? 'dedup-live-duplicate';
+    return { id: decision.reuseId, outcome: 'reused', reason, stored: false };
   }
 
   // Anti-monoculture: concerns are the bigger flood source — the agent re-files
@@ -190,7 +187,7 @@ export async function submitConcern(input: SubmitConcernInput): Promise<ConcernF
   if (!input.dedupKey) {
     const dupId = await findNearDuplicate(
       input.title,
-      { sourceType: 'concern', openConcernOnly: true },
+      { sourceType: 'concern', openConcernOnly: true, newDetail: input.detail },
       CONCERN_NEARDUP_JACCARD,
     );
     if (dupId != null) {
@@ -198,7 +195,7 @@ export async function submitConcern(input: SubmitConcernInput): Promise<ConcernF
         { dupId, title: input.title, threshold: CONCERN_NEARDUP_JACCARD },
         '[concern-backlog] Rejected concern: near-duplicate of an existing concern (anti-monoculture)',
       );
-      return { id: dupId, outcome: 'suppressed', reason: 'near-duplicate' };
+      return { id: dupId, outcome: 'suppressed', reason: 'near-duplicate', stored: false };
     }
 
     const anchorId = await findSaturatedTheme(input.title, {
@@ -213,13 +210,14 @@ export async function submitConcern(input: SubmitConcernInput): Promise<ConcernF
       salient: Number(process.env.RAPITAS_CONCERN_SATURATION_SALIENT) || 5,
       openConcernOnly: true,
       minJaccard: CONCERN_SATURATION_MIN_JACCARD,
+      newDetail: input.detail,
     });
     if (anchorId != null) {
       log.info(
         { anchorId, title: input.title },
         '[concern-backlog] Rejected concern: theme over-represented / near-duplicate (anti-monoculture)',
       );
-      return { id: anchorId, outcome: 'suppressed', reason: 'theme-saturation' };
+      return { id: anchorId, outcome: 'suppressed', reason: 'theme-saturation', stored: false };
     }
   }
 
@@ -277,6 +275,7 @@ export async function submitConcern(input: SubmitConcernInput): Promise<ConcernF
     id: entry.id,
     outcome: 'created',
     reason: decision.detail != null ? 'recurrence-of-done' : 'new',
+    stored: true,
   };
 }
 
