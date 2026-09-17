@@ -74,4 +74,10 @@ export interface ComparisonRecord {
   knowledgeSnapshotHash: string | null;
   /** Task ids the approved candidate is limited to (set via the /stage endpoint). */
   stagedTaskIds: number[] | null;
+  /**
+   * Difficulty bands ('light'|'standard'|'comprehensive') the approved
+   * candidate is limited to. Independent of stagedTaskIds — both, when set,
+   * apply as an AND condition (getApprovedRoleAddendum, task #970).
+   */
+  stagedComplexityBands: string[] | null;
 }
