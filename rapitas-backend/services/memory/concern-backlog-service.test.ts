@@ -607,7 +607,12 @@ describe('submitConcern — 応答のoutcome区別', () => {
       detail: '詳細',
     });
 
-    expect(result).toEqual({ id: 42, outcome: 'suppressed', reason: 'near-duplicate' });
+    expect(result).toEqual({
+      id: 42,
+      outcome: 'suppressed',
+      reason: 'near-duplicate',
+      stored: false,
+    });
     expect(mockKnowledgeEntryCreate).not.toHaveBeenCalled();
   });
 
@@ -626,7 +631,12 @@ describe('submitConcern — 応答のoutcome区別', () => {
       detail: '詳細',
     });
 
-    expect(result).toEqual({ id: 51, outcome: 'suppressed', reason: 'theme-saturation' });
+    expect(result).toEqual({
+      id: 51,
+      outcome: 'suppressed',
+      reason: 'theme-saturation',
+      stored: false,
+    });
     expect(mockKnowledgeEntryCreate).not.toHaveBeenCalled();
   });
 
@@ -642,7 +652,46 @@ describe('submitConcern — 応答のoutcome区別', () => {
       detail: '詳細',
     });
 
-    expect(result).toEqual({ id: 7, outcome: 'created', reason: 'new' });
+    expect(result).toEqual({ id: 7, outcome: 'created', reason: 'new', stored: true });
+  });
+
+  it('無関係な既存懸念がタイトルの疎な類似度だけでヒットしても内容が無関係なら新規作成される (#967)', async () => {
+    // タイトルのみでは salient=5・minJaccard=0.2 を満たすが、detail の内容は無関係な
+    // 3件（実際のバグ再現条件）。theme-saturation の newDetail 二次チェックにより
+    // 誤ってこれらのIDへ抑制されず、実際に新規 KnowledgeEntry が作成されることを確認する。
+    mockKnowledgeEntryFindMany
+      .mockResolvedValueOnce([]) // findBlockingDuplicate: no blocking dup
+      .mockResolvedValueOnce([]) // findNearDuplicate: bigram-Jaccard too low to match
+      .mockResolvedValueOnce([
+        {
+          id: 301,
+          title: '[Bug] PDF出力処理が正しく動作しない',
+          content:
+            'PDF出力機能で帳票を生成すると日本語フォントが埋め込まれず文字化けする。フォント埋め込み設定の見直しが必要。',
+        },
+        {
+          id: 302,
+          title: '[Bug] メール送信処理が正しく動作しない',
+          content:
+            'メール送信バッチが添付ファイルサイズ上限を超えると無言で送信を諦めてしまう。エラーログにも記録が残らない。',
+        },
+        {
+          id: 303,
+          title: '[Bug] キャッシュ削除処理が正しく動作しない',
+          content:
+            'キャッシュ削除ジョブが並行実行されるとロック競合で片方が失敗し、古いキャッシュが残り続けることがある。',
+        },
+      ]); // findSaturatedTheme: title-only would hit cap=3, but content is unrelated
+    mockKnowledgeEntryCreate.mockResolvedValueOnce({ id: 999 });
+
+    const result = await submitConcern({
+      title: '[Bug] 決済リトライ処理が正しく動作しない',
+      detail:
+        '決済APIのリトライ処理でタイムアウト後に再送すると二重課金が発生する場合がある。冪等キーの検証を強化する必要がある。',
+    });
+
+    expect(mockKnowledgeEntryCreate).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ id: 999, outcome: 'created', reason: 'new', stored: true });
   });
 });
 

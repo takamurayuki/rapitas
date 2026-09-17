@@ -113,9 +113,16 @@ export const CONCERN_FILING_REASONS = [
 ] as const;
 export type ConcernFilingReason = (typeof CONCERN_FILING_REASONS)[number];
 
-/** Result of `submitConcern`: the anchoring/created row id plus how it got there. */
+/**
+ * Result of `submitConcern`: the anchoring/created row id plus how it got there.
+ * `stored` is a simple boolean shorthand for `outcome === 'created'` (#967) — a
+ * caller that only checks `success`/`id` on the HTTP response still sees at a
+ * glance whether a new row was actually written, without having to know the
+ * full `ConcernFilingOutcome` enum.
+ */
 export interface ConcernFilingResult {
   id: number;
   outcome: ConcernFilingOutcome;
   reason: ConcernFilingReason;
+  stored: boolean;
 }
