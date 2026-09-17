@@ -24,7 +24,10 @@ import { swagger } from '@elysiajs/swagger';
 
 // All modular routes are registered via registerAllRoutes() in register-routes.ts.
 import { registerAllRoutes } from './register-routes';
-import { handleTopLevelHealthCheck } from './routes/system/top-level-health-route';
+import {
+  handleTopLevelHealthCheck,
+  handleApiRecoveryHealthCheck,
+} from './routes/system/top-level-health-route';
 
 // Import shared database client
 import { prisma, ensureDatabaseConnection } from './config';
@@ -171,13 +174,7 @@ registerAllRoutes(app);
 // fast, read-only endpoint instead of needing to know the `/agents` prefix.
 app.get('/health', async () => {
   if (!isApiRecoveryMode()) return handleTopLevelHealthCheck();
-  await prisma.$queryRaw`SELECT 1`;
-  return {
-    status: 'healthy',
-    mode: 'api-recovery',
-    backgroundInitialization: false,
-    uptimeSeconds: process.uptime(),
-  };
+  return handleApiRecoveryHealthCheck();
 });
 
 // Warm-up tasks (schedulers, memory system, worker manager, recovery) are imported here but NOT
