@@ -49,6 +49,11 @@ const mockPrisma = {
   agentExecution: {
     findMany: mock(() => Promise.resolve([])),
   },
+  requirementReviewRetryRequest: {
+    create: mock(() => Promise.resolve({ id: 1 })),
+    findFirst: mock(() => Promise.resolve(null)),
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
+  },
   $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };
 
@@ -153,6 +158,11 @@ function resetAllMocks() {
   // prisma.task.findMany(...).length, so a reset (undefined-returning) mock
   // throws → 500. Restore the pre-reset default (empty siblings).
   mockPrisma.task.findMany.mockResolvedValue([]);
+  // retryTask awaits recordRequirementReviewRetryRequest(...).create(...)
+  // directly (no .catch chain) whenever a retryRequestId is present — and
+  // tasks.ts always generates one via idempotency-key/randomUUID(). A reset
+  // (undefined-returning) mock throws → 500. Restore the pre-reset default.
+  mockPrisma.requirementReviewRetryRequest.create.mockResolvedValue({ id: 1 });
 }
 
 function createApp() {
@@ -648,7 +658,12 @@ describe('POST /tasks/:id/retry', () => {
     mockPrisma.task.findUnique.mockResolvedValue({ status: 'blocked' });
     mockPrisma.task.update.mockResolvedValue({ id: 5, status: 'todo' });
 
-    const res = await app.handle(new Request('http://localhost/tasks/5/retry', { method: 'POST' }));
+    const res = await app.handle(
+      new Request('http://localhost/tasks/5/retry', {
+        method: 'POST',
+        headers: { 'idempotency-key': 'req-1' },
+      }),
+    );
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -659,6 +674,15 @@ describe('POST /tasks/:id/retry', () => {
     };
     expect(updateArg.where.id).toBe(5);
     expect(updateArg.data.status).toBe('todo');
+    // retryTask はレスポンス確定前に recordRequirementReviewRetryRequest 経由で
+    // requirementReviewRetryRequest.create を実際に呼ぶ — モック追加が単なる
+    // 「例外を止めるためのスタブ」ではなく、実装の該当コードパスを通して
+    // 検証できていることの根拠。
+    const createArg = mockPrisma.requirementReviewRetryRequest.create.mock.calls[0]![0] as {
+      data: { taskId: number; requestId: string };
+    };
+    expect(createArg.data.taskId).toBe(5);
+    expect(createArg.data.requestId).toBe('req-1');
   });
 
   test('スキップ通知を既読化して再発時の通知抑止を解除すること', async () => {
@@ -674,6 +698,33 @@ describe('POST /tasks/:id/retry', () => {
     expect(notifArg.where.type).toBe('auto_run_task_skipped');
     expect(notifArg.where.metadata.contains).toContain('auto_run_task_skipped:5');
     expect(notifArg.data.isRead).toBe(true);
+    // notification.updateMany へ到達するのは requirementReviewRetryRequest.create
+    // が例外を投げずに完了した後のみ — 到達している事実そのものが、その手前の
+    // create 呼び出しも実装通りに実行されたことの証跡になる。
+    expect(mockPrisma.requirementReviewRetryRequest.create).toHaveBeenCalledTimes(1);
+  });
+
+  test('retryRequestId が重複した場合は再実行をスキップし現在の状態を返すこと', async () => {
+    // recordRequirementReviewRetryRequest は P2002（一意制約違反）を
+    // 'duplicate' として捕捉する実装（requirement-review-claim.ts:64-71）。
+    // create が同エラーで reject した場合、task.update は呼ばれず
+    // 現在のタスクをそのまま返す分岐（task-retry-handler.ts:68-72）を検証する。
+    mockPrisma.task.findUnique
+      .mockResolvedValueOnce({ status: 'blocked' })
+      .mockResolvedValueOnce({ id: 5, status: 'blocked' });
+    mockPrisma.requirementReviewRetryRequest.create.mockRejectedValueOnce({ code: 'P2002' });
+
+    const res = await app.handle(
+      new Request('http://localhost/tasks/5/retry', {
+        method: 'POST',
+        headers: { 'idempotency-key': 'dup-key' },
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.status).toBe('blocked');
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
   });
 
   test('blocked / failed 以外は 400 を返すこと', async () => {
