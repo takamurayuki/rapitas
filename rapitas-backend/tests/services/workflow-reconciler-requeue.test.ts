@@ -31,7 +31,7 @@ mock.module('../../config/logger', () => ({
 }));
 mock.module('../../services/workflow/transition-recorder', () => ({ recordTransition }));
 
-const { healUndispatchableTodo } =
+const { healUndispatchableTodo, requeueBlockedTasks } =
   await import('../../services/workflow/workflow-reconciler-requeue');
 
 const NOW = 1_800_000_000_000;
@@ -94,5 +94,52 @@ describe('healUndispatchableTodo', () => {
     };
     expect(tu.data.status).toBe('done');
     expect(tu.data.completedAt).toBeInstanceOf(Date);
+  });
+});
+
+describe('requeueBlockedTasks — 未着地PRの手動是正保留 (task873/948)', () => {
+  beforeEach(() => {
+    mockPrisma.task.findMany.mockReset().mockResolvedValue([]);
+    mockPrisma.task.update.mockReset().mockResolvedValue({});
+    mockPrisma.agentExecution.findFirst.mockReset().mockResolvedValue(null);
+    mockPrisma.workflowTransition.count.mockReset().mockResolvedValue(0);
+    mockPrisma.themeAutoRun.findMany.mockReset().mockResolvedValue([{ themeId: 1 }]);
+    mockPrisma.userSettings.findFirst.mockReset().mockResolvedValue(null);
+    mockPrisma.activityLog.findFirst.mockReset().mockResolvedValue(null);
+    recordTransition.mockReset().mockResolvedValue(undefined);
+  });
+
+  test('manual_correction_pr_not_landed 遷移あり → blocked_auto_retry でリセットされない', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([{ id: 873, workflowStatus: 'blocked' }]);
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string } }).where;
+      return Promise.resolve(where.cause === 'manual_correction_pr_not_landed' ? 1 : 0);
+    });
+
+    const retried = await requeueBlockedTasks(NOW);
+
+    expect(retried).toBe(0);
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    expect(recordTransition).not.toHaveBeenCalled();
+  });
+
+  test('manual_correction_pr_not_landed が task_retried より前 → ウィンドウ解除され通常どおりリセットされる', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([{ id: 873, workflowStatus: 'blocked' }]);
+    const retriedAt = new Date(NOW - 60_000);
+    mockPrisma.activityLog.findFirst.mockResolvedValue({ createdAt: retriedAt });
+    mockPrisma.workflowTransition.count.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: string; createdAt?: { gt: Date } } }).where;
+      // The correction was recorded BEFORE the manual retry: a windowed query sees 0.
+      if (where.cause === 'manual_correction_pr_not_landed')
+        return Promise.resolve(where.createdAt?.gt ? 0 : 1);
+      return Promise.resolve(0);
+    });
+
+    const retried = await requeueBlockedTasks(NOW);
+
+    expect(retried).toBe(1);
+    expect(mockPrisma.task.update).toHaveBeenCalledTimes(1);
+    const rt = recordTransition.mock.calls[0][0] as { cause: string };
+    expect(rt.cause).toBe('blocked_auto_retry');
   });
 });

@@ -149,6 +149,33 @@ export async function readMergeState(cwd: string, prNumber: number): Promise<str
 }
 
 /**
+ * Read the PR's current lifecycle state (open/closed/merged) via `gh pr view`.
+ * Used by blocked-task-evidence's live re-verification: unlike
+ * {@link readMergeState} (mergeability) this answers whether the PR itself is
+ * still alive at all — the question a stale local `GitHubPullRequest.state`
+ * row cannot reliably answer once GitHub's state has moved on without a
+ * webhook reaching this process (task 873/948). Returns null on a transient
+ * gh error so callers can fail soft to the local row.
+ *
+ * @param cwd - Repo working directory / リポジトリ作業ディレクトリ
+ * @param prNumber - PR number / PR番号
+ * @returns The PR's state lower-cased ('open' | 'closed' | 'merged') or null. / PRの状態（小文字）
+ */
+export async function readPrState(cwd: string, prNumber: number): Promise<string | null> {
+  try {
+    const { stdout } = await execAsync(`${ghPath()} pr view ${prNumber} --json state`, {
+      cwd,
+      encoding: 'utf8',
+    });
+    const parsed = JSON.parse(stdout) as { state?: string };
+    return parsed.state?.toLowerCase() ?? null;
+  } catch (err) {
+    log.warn({ err, prNumber }, '[auto-merge] Failed to read PR state');
+    return null;
+  }
+}
+
+/**
  * Update the PR's head branch with the latest base via `gh pr update-branch`.
  * Used as the cheap first response to a CI failure on a BEHIND branch: pulling
  * in base often fixes drift-induced failures with zero implementation changes

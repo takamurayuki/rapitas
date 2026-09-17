@@ -16,7 +16,10 @@ import type { CompletionReviewReceipt } from '../../../../services/workflow/requ
 import { prisma } from '../../../../config';
 import { createLogger } from '../../../../config/logger';
 import { performAutoCommitAndPR, isNoChangeCompletion } from '../../workflow-auto-commit';
-import { resolveLandingMode } from '../../../../services/workflow/automation-policy';
+import {
+  resolveLandingMode,
+  isStagedCompletionEnabled,
+} from '../../../../services/workflow/automation-policy';
 import { recordTransition } from '../../../../services/workflow/transition-recorder';
 import { markLatestExecutionFailed } from './shared';
 import { handleVerifyGateBlocked } from './verify-commit-pr-gate-blocked';
@@ -229,9 +232,7 @@ export async function runVerifyCommitPrPipeline(params: {
       // mode completes when the PR is merged. A requested merge is always a
       // completion requirement; the legacy flag only controls CI-only PR mode.
       // The watcher verifies the external result before completing the task.
-      const staged =
-        process.env.RAPITAS_STAGED_COMPLETION === 'true' ||
-        process.env.RAPITAS_STAGED_COMPLETION === '1';
+      const staged = isStagedCompletionEnabled();
       const landingMode = autoCommitPRResult.requested
         ? resolveLandingMode(autoCommitPRResult.requested)
         : 'none';

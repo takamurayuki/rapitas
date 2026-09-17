@@ -56,6 +56,9 @@ mock.module('../../../../services/workflow/transition-recorder', () => ({
 mock.module('../../../../services/workflow/automation-policy', () => ({
   resolveLandingMode: (policy: { autoMergePR?: boolean }) =>
     policy.autoMergePR ? 'merge' : 'none',
+  isStagedCompletionEnabled: () =>
+    process.env.RAPITAS_STAGED_COMPLETION !== 'false' &&
+    process.env.RAPITAS_STAGED_COMPLETION !== '0',
 }));
 const markLatestExecutionFailedMock = mock(() => Promise.resolve());
 mock.module('./shared', () => ({
@@ -138,6 +141,12 @@ describe('requested merge is a completion requirement', () => {
 
 describe('runVerifyCommitPrPipeline — リカバリ後の再試行を待つこと', () => {
   test('再試行(2回目の performAutoCommitAndPR)が解決するまでパイプラインが完了しないこと', async () => {
+    // This test asserts on the retry-completion mechanism, not on staged
+    // completion — pin the flag OFF so the taskMarkedDone/newStatus
+    // assertions below stay about that mechanism regardless of the flag's
+    // default (task 873/948 flipped the default to ON).
+    const previous = process.env.RAPITAS_STAGED_COMPLETION;
+    process.env.RAPITAS_STAGED_COMPLETION = 'false';
     let settled = false;
     const work = runVerifyCommitPrPipeline({
       completionReceipt: receipt,
@@ -172,6 +181,8 @@ describe('runVerifyCommitPrPipeline — リカバリ後の再試行を待つこ�
     expect(outcome.taskMarkedDone).toBe(true);
     expect(outcome.newStatus).toBe('completed');
     expect(sideEffectsCalls).toEqual([653]);
+    if (previous === undefined) delete process.env.RAPITAS_STAGED_COMPLETION;
+    else process.env.RAPITAS_STAGED_COMPLETION = previous;
   });
 });
 
