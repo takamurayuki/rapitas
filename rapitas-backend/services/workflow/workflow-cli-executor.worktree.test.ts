@@ -93,6 +93,50 @@ describe('executeCLIAgent — worktree resolution', () => {
     expect(spies.createWorktree).not.toHaveBeenCalled();
   });
 
+  test('planner reuse logs the uncommitted diff summary (task 956, AC1)', async () => {
+    resetWfMockState();
+    wf.latestSessionWorktree = {
+      worktreePath: '/fake/worktree/existing',
+      branchName: 'feature/existing',
+    };
+    wf.canReuseWorktree = true;
+    wf.uncommittedDiffSummaryImpl = () => ({ hasUncommittedChanges: true, changedFileCount: 3 });
+
+    await run({ ...nonMutatingTransition(), role: 'planner' });
+
+    expect(spies.getUncommittedDiffSummary).toHaveBeenCalledTimes(1);
+    const diffSummaryCall = (spies.logInfo.mock.calls as [Record<string, unknown>, string][]).find(
+      ([, message]) => message.includes('uncommitted diff summary'),
+    );
+    expect(diffSummaryCall).toBeDefined();
+    const [context] = diffSummaryCall!;
+    expect(context).toMatchObject({
+      worktreePath: '/fake/worktree/existing',
+      changedFileCount: 3,
+      hasUncommittedChanges: true,
+    });
+    expect(spies.logWarn).not.toHaveBeenCalled();
+  });
+
+  test('planner reuse-not-possible warns that diff visibility was lost (task 956, AC1)', async () => {
+    resetWfMockState();
+    wf.latestSessionWorktree = {
+      worktreePath: '/fake/worktree/missing',
+      branchName: 'feature/existing',
+    };
+    wf.canReuseWorktree = false;
+
+    await run({ ...nonMutatingTransition(), role: 'planner' });
+
+    expect(spies.getUncommittedDiffSummary).not.toHaveBeenCalled();
+    const visibilityLostCall = (
+      spies.logWarn.mock.calls as [Record<string, unknown>, string][]
+    ).find(([, message]) => message.includes('uncommitted diff visibility lost'));
+    expect(visibilityLostCall).toBeDefined();
+    const [context] = visibilityLostCall!;
+    expect(context).toMatchObject({ recordedPath: '/fake/worktree/missing' });
+  });
+
   beforeEach(() => {
     resetWfMockState();
   });

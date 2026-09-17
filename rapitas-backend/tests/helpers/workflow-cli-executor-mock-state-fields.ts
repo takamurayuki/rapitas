@@ -133,4 +133,11 @@ export const wf = {
     requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
     autoPRResult: { success: true, prUrl: 'https://example.com/pr/1', prNumber: 1 },
   })) as (taskId: number, verifyContent: string) => Promise<AutoCommitPRResultLike>,
+
+  // task 956: controls the planner-reuse worktree-usable.getUncommittedDiffSummary
+  // stub so tests can assert on the resulting log content without spawning git.
+  uncommittedDiffSummaryImpl: (() => ({
+    hasUncommittedChanges: false,
+    changedFileCount: 0,
+  })) as () => { hasUncommittedChanges: boolean; changedFileCount: number },
 };

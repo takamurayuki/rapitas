@@ -7,7 +7,7 @@
  */
 import { describe, test, expect } from 'bun:test';
 import { join } from 'path';
-import { canReuseWorktree, decideWorktree } from './worktree-usable';
+import { canReuseWorktree, decideWorktree, getUncommittedDiffSummary } from './worktree-usable';
 
 const exists = () => true;
 const missing = () => false;
@@ -55,5 +55,37 @@ describe('decideWorktree', () => {
   test('fallback when the worktree is missing and no branch is known', () => {
     expect(decideWorktree('/gone/task-233', null, missing)).toBe('fallback');
     expect(decideWorktree(null, null, missing)).toBe('fallback');
+  });
+});
+
+describe('getUncommittedDiffSummary (task 956)', () => {
+  test('no uncommitted changes for empty git status output', () => {
+    expect(getUncommittedDiffSummary('/wt/task-1', () => '')).toEqual({
+      hasUncommittedChanges: false,
+      changedFileCount: 0,
+    });
+    // Trailing-newline-only output must not count as a changed file.
+    expect(getUncommittedDiffSummary('/wt/task-1', () => '\n')).toEqual({
+      hasUncommittedChanges: false,
+      changedFileCount: 0,
+    });
+  });
+
+  test('counts one line per changed path', () => {
+    const output = ' M services/workflow/foo.ts\n?? services/workflow/bar.ts\n';
+    expect(getUncommittedDiffSummary('/wt/task-1', () => output)).toEqual({
+      hasUncommittedChanges: true,
+      changedFileCount: 2,
+    });
+  });
+
+  test('a failing probe (worktree removed mid-check, git unavailable) never throws', () => {
+    const throwing = () => {
+      throw new Error('fatal: not a git repository');
+    };
+    expect(getUncommittedDiffSummary('/gone/task-233', throwing)).toEqual({
+      hasUncommittedChanges: false,
+      changedFileCount: 0,
+    });
   });
 });
