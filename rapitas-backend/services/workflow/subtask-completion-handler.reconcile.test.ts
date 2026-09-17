@@ -66,6 +66,12 @@ mock.module('./automation-policy', () => ({
     Promise.resolve({ autoCommit: true, autoCreatePR: true, autoMergePR: false }),
   ),
   resolveLandingMode: () => 'pr',
+  // task 948: mirror this named export — bun mock.module is process-global,
+  // and a full-module mock missing it breaks any later test in the same run
+  // that imports the real automation-policy export.
+  isStagedCompletionEnabled: () =>
+    process.env.RAPITAS_STAGED_COMPLETION !== 'false' &&
+    process.env.RAPITAS_STAGED_COMPLETION !== '0',
 }));
 mock.module('./verify-settle-artifact-recovery', () => ({
   isAwaitingRequiredMerge: mock(() => Promise.resolve(false)),

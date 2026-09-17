@@ -134,11 +134,17 @@ function HomeClientPage() {
     }
   }, [taskCacheInitialized, fetchTaskUpdates, fetchAllTasks]);
 
+  // NOTE: skipDuringExecution was previously true, but auto-run keeps some
+  // task executing almost continuously, which silently disabled every sync
+  // trigger (interval/focus/visibility/restore) for the whole session — a
+  // just-completed task's stale badges (e.g. "次に着手" surviving past
+  // completion) then never self-corrected without a full reload. The fetch
+  // is already silent + an incremental diff, so letting it run during an
+  // execution costs nothing visible.
   useTaskAutoSync({
     enabled: true,
     interval: 30000,
     silent: true,
-    skipDuringExecution: true,
   });
 
   useHomeInit({

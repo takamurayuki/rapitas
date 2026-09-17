@@ -6,9 +6,24 @@
  * may (no PR, a lost compare-and-swap, or any DB error all yield false so the
  * caller keeps its normal `stuck` verdict).
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
 const policy = mock(async () => ({ autoMergePR: false }));
-mock.module('./automation-policy', () => ({ resolveAutomationPolicy: policy }));
+mock.module('./automation-policy', () => ({
+  resolveAutomationPolicy: policy,
+  resolveLandingMode: (p: {
+    autoMergePR?: boolean;
+    autoCreatePR?: boolean;
+    autoCommit?: boolean;
+  }) => {
+    if (p.autoMergePR) return 'merge';
+    if (p.autoCreatePR) return 'pr';
+    if (p.autoCommit) return 'commit';
+    return 'none';
+  },
+  isStagedCompletionEnabled: () =>
+    process.env.RAPITAS_STAGED_COMPLETION !== 'false' &&
+    process.env.RAPITAS_STAGED_COMPLETION !== '0',
+}));
 
 mock.module('../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
@@ -35,7 +50,8 @@ const recordTransitionMock = mock((_input: { cause: string; metadata?: unknown }
 );
 mock.module('./transition-recorder', () => ({ recordTransition: recordTransitionMock }));
 
-const { recoverFromLandedArtifact } = await import('./verify-settle-artifact-recovery');
+const { recoverFromLandedArtifact, isAwaitingStagedPrCompletion } =
+  await import('./verify-settle-artifact-recovery');
 
 describe('recoverFromLandedArtifact', () => {
   test('PR existence does not complete a task requiring merge', async () => {
@@ -114,5 +130,48 @@ describe('recoverFromLandedArtifact', () => {
 
     expect(updateManyMock).not.toHaveBeenCalled();
     expect(recordTransitionMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('isAwaitingStagedPrCompletion（task 873/948）', () => {
+  let previousStaged: string | undefined;
+
+  beforeEach(() => {
+    previousStaged = process.env.RAPITAS_STAGED_COMPLETION;
+    delete process.env.RAPITAS_STAGED_COMPLETION;
+    policy
+      .mockReset()
+      .mockResolvedValue({ autoCommit: true, autoCreatePR: true, autoMergePR: false });
+    findFirstPrMock.mockReset().mockImplementation(() => Promise.resolve({ id: 458 }));
+    findUniqueTaskMock.mockReset().mockImplementation(() => Promise.resolve(null));
+  });
+
+  test('(a) pr モード + staged有効(既定) + PR実在 → true', async () => {
+    await expect(isAwaitingStagedPrCompletion(658)).resolves.toBe(true);
+  });
+
+  test('(b) merge モード（autoMergePR）→ false', async () => {
+    policy.mockResolvedValue({ autoCommit: true, autoCreatePR: true, autoMergePR: true });
+    await expect(isAwaitingStagedPrCompletion(658)).resolves.toBe(false);
+  });
+
+  test('(c) commit/none モード（autoCreatePR=false）→ false', async () => {
+    policy.mockResolvedValue({ autoCommit: true, autoCreatePR: false, autoMergePR: false });
+    await expect(isAwaitingStagedPrCompletion(658)).resolves.toBe(false);
+  });
+
+  test('(d) staged無効（明示 false）→ false', async () => {
+    process.env.RAPITAS_STAGED_COMPLETION = 'false';
+    await expect(isAwaitingStagedPrCompletion(658)).resolves.toBe(false);
+  });
+
+  test('(e) PR未実在 → false', async () => {
+    findFirstPrMock.mockImplementation(() => Promise.resolve(null));
+    await expect(isAwaitingStagedPrCompletion(658)).resolves.toBe(false);
+  });
+
+  afterEach(() => {
+    if (previousStaged === undefined) delete process.env.RAPITAS_STAGED_COMPLETION;
+    else process.env.RAPITAS_STAGED_COMPLETION = previousStaged;
   });
 });

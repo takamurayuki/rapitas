@@ -7,8 +7,13 @@
  *     recoverStaleItems only runs at startup). One such residue blocks EVERY
  *     dequeue via the cross-session running count (事例1の主因候補).
  *  2. detectQueueStarvation — `running=0 かつ queued>0` persisting past a
- *     threshold means the consumer (WorkflowRunner) is dead/wedged; kick it
- *     with the idempotent startProcessing() and make the stall visible.
+ *     threshold means dispatch is stuck, either because the consumer
+ *     (WorkflowRunner) is dead/wedged (kick it with the idempotent
+ *     startProcessing()) or because it is alive but something downstream
+ *     keeps declining to claim (e.g. an overlap-guard hold outliving its own
+ *     ceiling) — the kick is a no-op there, but the stall is just as real and
+ *     is now recorded/notified either way (2026-09-17: it previously went
+ *     fully silent after one log line — tasks 905/914/937).
  * Deliberately cancel-only (never requeue): a false-negative liveness read must
  * not double-start an agent — requeueBlockedTasks re-tries cancelled work.
  */
@@ -18,7 +23,11 @@ import { resolveTaskWorkflowState } from '../task/task-resolver';
 import { isTaskTerminalForQueue } from './workflow-queue';
 import { WorkflowRunner } from './workflow-runner';
 import { hasLiveExecution } from './auto-run/auto-run-selection';
-import { notifyStallReleased, notifyQueueStarvation } from './auto-run/auto-run-notifications';
+import {
+  notifyStallReleased,
+  notifyQueueStarvation,
+  notifyQueueStalledRunnerAlive,
+} from './auto-run/auto-run-notifications';
 import { logCycleEvent } from '../observability';
 import { RUNNING_ITEM_STALE_MS, QUEUE_STARVATION_THRESHOLD_MS } from './queue-stall-policy';
 
@@ -128,24 +137,6 @@ export async function detectQueueStarvation(nowMs: number): Promise<number> {
   if (nowMs - starvationSinceMs < QUEUE_STARVATION_THRESHOLD_MS) return 0;
 
   const waitedMinutes = Math.round((nowMs - starvationSinceMs) / 60000);
-  // Two situations look identical from the queue table, and only one of them
-  // this function can fix. A STOPPED runner is what the kick is for. A runner
-  // that is alive but not claiming items is a different fault: the kick returns
-  // "Already running" and nothing changes, so reporting it as "restarted" every
-  // cycle is both false and endless — 78 such pairs on 2026-08-28 alone.
-  const runner = WorkflowRunner.getInstance();
-  const wasRunning = runner.isProcessing();
-  runner.startProcessing();
-  if (wasRunning) {
-    if (!noOpKickReported) {
-      noOpKickReported = true;
-      log.warn(
-        { queuedCount, waitedMinutes },
-        '[reconciler] Queue has items while the runner is already processing — a kick cannot help; not restarting',
-      );
-    }
-    return 0;
-  }
   const oldest = await prisma.workflowQueueItem
     .findFirst({
       where: { status: 'queued' },
@@ -153,6 +144,43 @@ export async function detectQueueStarvation(nowMs: number): Promise<number> {
       select: { taskId: true },
     })
     .catch(() => null);
+  // Two situations look identical from the queue table, and only one of them
+  // this function can fix. A STOPPED runner is what the kick is for. A runner
+  // that is alive but not claiming items is a different fault: the kick returns
+  // "Already running" and nothing changes, so reporting it as "restarted" every
+  // cycle is both false and endless — 78 such pairs on 2026-08-28 alone. That
+  // fix (noOpKickReported) rightly silenced the repeat LOG spam, but it also
+  // silenced the underlying signal entirely after the first cycle: nothing
+  // durable, no notification — a genuinely stuck task (e.g. an overlap-guard
+  // hold outliving its own ceiling) then had no path to a human except manual
+  // log-grepping (tasks 905/914/937, 2026-09-16/17). Detection and the kick's
+  // own action are separate concerns; only the latter should stay suppressed.
+  const runner = WorkflowRunner.getInstance();
+  const wasRunning = runner.isProcessing();
+  runner.startProcessing();
+  if (wasRunning) {
+    // Side effects (log/cycle-event/notification) fire once per episode, same
+    // cadence as before — only their CONTENT changed (durable + user-visible
+    // instead of a log line nobody reads). The return value is honest every
+    // cycle regardless: the stall is real for as long as this branch runs.
+    if (!noOpKickReported) {
+      noOpKickReported = true;
+      log.warn(
+        { queuedCount, waitedMinutes, oldestTaskId: oldest?.taskId ?? null },
+        '[reconciler] Queue has items while the runner is already processing — a kick cannot help; recording the stall instead',
+      );
+      logCycleEvent('queue.starvation_detected', {
+        task: oldest?.taskId,
+        ok: false,
+        cause: 'runner_alive_not_dispatching',
+        queued: queuedCount,
+        waitedMinutes,
+        msg: 'running=0 with queued>0 persisted while the runner poll loop is alive — kick was a no-op',
+      });
+      await notifyQueueStalledRunnerAlive(oldest?.taskId ?? null, waitedMinutes);
+    }
+    return 1;
+  }
   log.warn(
     { queuedCount, waitedMinutes, oldestTaskId: oldest?.taskId ?? null },
     '[reconciler] Queue starvation detected — restarted WorkflowRunner processing',

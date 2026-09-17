@@ -38,6 +38,7 @@ const startProcessingMock = mock(() => {});
 const isProcessingMock = mock(() => false);
 const notifyStallReleasedMock = mock(() => Promise.resolve());
 const notifyQueueStarvationMock = mock(() => Promise.resolve());
+const notifyQueueStalledRunnerAliveMock = mock(() => Promise.resolve());
 const logCycleEventMock = mock(() => {});
 
 mock.module('../../config/logger', () => ({
@@ -74,6 +75,7 @@ mock.module('./auto-run/auto-run-selection', () => ({
 mock.module('./auto-run/auto-run-notifications', () => ({
   notifyStallReleased: notifyStallReleasedMock,
   notifyQueueStarvation: notifyQueueStarvationMock,
+  notifyQueueStalledRunnerAlive: notifyQueueStalledRunnerAliveMock,
 }));
 mock.module('../observability', () => ({
   logCycleEvent: logCycleEventMock,
@@ -95,6 +97,7 @@ beforeEach(() => {
   startProcessingMock.mockReset();
   notifyStallReleasedMock.mockReset().mockResolvedValue(undefined);
   notifyQueueStarvationMock.mockReset().mockResolvedValue(undefined);
+  notifyQueueStalledRunnerAliveMock.mockReset().mockResolvedValue(undefined);
   logCycleEventMock.mockReset();
   resetQueueStarvationTracker();
 });
@@ -281,17 +284,25 @@ describe('detectQueueStarvation — ランナー稼働中は「再起動した�
       Promise.resolve(args.where.status === 'running' ? 0 : queued)) as never);
   }
 
-  test('稼働中なら発火数0を返し、通知もしない', async () => {
+  test('稼働中でも発火数1を返し、kickせず専用の通知を出す（2026-09-17: silent gap fix）', async () => {
     isProcessingMock.mockReturnValue(true);
-    primeStarvedCounts();
+    primeStarvedCounts(3);
+    findFirstMock.mockResolvedValue({ taskId: 905 });
     await detectQueueStarvation(NOW); // 初回観測でトラッカーを起動
     const fired = await detectQueueStarvation(NOW + QUEUE_STARVATION_THRESHOLD_MS * 2);
 
-    expect(fired).toBe(0);
+    expect(fired).toBe(1);
+    // The kick itself is still a no-op — startProcessing() is called (it is
+    // idempotent) but nothing about the queue state is fixed by this pass.
     expect(notifyQueueStarvationMock).not.toHaveBeenCalled();
+    expect(notifyQueueStalledRunnerAliveMock).toHaveBeenCalledWith(905, expect.any(Number));
+    expect(logCycleEventMock).toHaveBeenCalledWith(
+      'queue.starvation_detected',
+      expect.objectContaining({ task: 905, ok: false, cause: 'runner_alive_not_dispatching' }),
+    );
   });
 
-  test('同一エピソード中に何度呼ばれても報告は1回だけ', async () => {
+  test('同一エピソード中に何度呼ばれても記録・通知は1回だけ（ログ連打の再発防止は維持）', async () => {
     isProcessingMock.mockReturnValue(true);
     primeStarvedCounts();
     await detectQueueStarvation(NOW);
@@ -299,6 +310,8 @@ describe('detectQueueStarvation — ランナー稼働中は「再起動した�
       await detectQueueStarvation(NOW + QUEUE_STARVATION_THRESHOLD_MS * (2 + i));
     }
     expect(notifyQueueStarvationMock).not.toHaveBeenCalled();
+    expect(notifyQueueStalledRunnerAliveMock).toHaveBeenCalledTimes(1);
+    expect(logCycleEventMock).toHaveBeenCalledTimes(1);
   });
 
   test('停止中なら従来どおり kick して通知する', async () => {

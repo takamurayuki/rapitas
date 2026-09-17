@@ -72,6 +72,12 @@ mock.module('../../services/workflow/publication-cancellation-guard', () => ({
 mock.module('../../services/workflow/automation-policy', () => ({
   resolveAutomationPolicy: () =>
     Promise.resolve({ autoCommit: true, autoCreatePR: true, autoMergePR: false }),
+  // task 948: mirror this named export — bun mock.module is process-global,
+  // and a full-module mock missing it breaks any later test in the same run
+  // that imports the real automation-policy export.
+  isStagedCompletionEnabled: () =>
+    process.env.RAPITAS_STAGED_COMPLETION !== 'false' &&
+    process.env.RAPITAS_STAGED_COMPLETION !== '0',
 }));
 
 const verificationGateMock = mock(

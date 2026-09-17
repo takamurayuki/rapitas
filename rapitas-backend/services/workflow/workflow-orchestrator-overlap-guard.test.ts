@@ -29,7 +29,7 @@ mock.module('../scheduling/merge-barrier/merge-barrier', () => ({
   getMergeBarrierMaxHoldMs: () => MAX_HOLD_MS,
 }));
 
-const { guardImplementOverlap, resetOverlapGuardState, isOverlapHeld } =
+const { guardImplementOverlap, resetOverlapGuardState, isOverlapHeld, HOLD_SIGNAL_INTERVAL_MS } =
   await import('./workflow-orchestrator-overlap-guard');
 
 const IMPLEMENTER = { role: 'implementer', outputFile: null, nextStatus: 'in_progress' } as const;
@@ -100,6 +100,70 @@ describe('guardImplementOverlap', () => {
     const r = await run();
     expect(r.done).toBe(true);
     expect(events.filter((e) => e.evt === 'task.implement_overlap_hold').length).toBe(1);
+  });
+
+  test('保留継続中は2分ごとに task.implement_overlap_holding を発火する', async () => {
+    await run();
+    nowMs += 130_000; // 130s: 2分(120s)経過
+    const r1 = await run();
+    expect(r1.done).toBe(true);
+    const holding1 = events.filter((e) => e.evt === 'task.implement_overlap_holding');
+    expect(holding1.length).toBe(1);
+    expect(holding1[0]?.fields.holdMs).toBe(130_000);
+    nowMs += 130_000; // さらに130s後: 2回目
+    const r2 = await run();
+    expect(r2.done).toBe(true);
+    const holding2 = events.filter((e) => e.evt === 'task.implement_overlap_holding');
+    expect(holding2.length).toBe(2);
+    expect(holding2[1]?.fields.holdMs).toBe(260_000);
+  });
+
+  test('2分未満の再評価では task.implement_overlap_holding を発火しない', async () => {
+    await run();
+    nowMs += 10_000;
+    await run();
+    nowMs += 60_000; // 累計70秒、まだ2分未満
+    await run();
+    expect(events.filter((e) => e.evt === 'task.implement_overlap_holding').length).toBe(0);
+  });
+
+  test('タイムアウト解放と同一tickで task.implement_overlap_holding は混入しない', async () => {
+    await run();
+    nowMs += MAX_HOLD_MS;
+    const r = await run();
+    expect(r.done).toBe(false);
+    expect(events.some((e) => e.evt === 'task.implement_overlap_holding')).toBe(false);
+    expect(events.at(-1)?.evt).toBe('task.implement_overlap_released');
+  });
+
+  test('950/951/953を模した複数タスク同時保留で周期シグナルが独立発火する', async () => {
+    const prsByTask: Record<number, number> = { 950: 950, 951: 951, 953: 953 };
+    for (const taskId of Object.keys(prsByTask).map(Number)) {
+      openPrs = [{ prNumber: taskId, linkedTaskId: taskId + 1000, createdAt: fresh() }];
+      prFiles = { [taskId]: [SUPPRESSIONS] };
+      await guardImplementOverlap(taskId, IMPLEMENTER, TASK, 'research_done', deps);
+    }
+    nowMs += HOLD_SIGNAL_INTERVAL_MS + 10_000;
+    // taskId 950だけ周期チェックを進める
+    openPrs = [{ prNumber: 950, linkedTaskId: 1950, createdAt: fresh() }];
+    prFiles = { 950: [SUPPRESSIONS] };
+    await guardImplementOverlap(950, IMPLEMENTER, TASK, 'research_done', deps);
+    const holdingEvents = events.filter((e) => e.evt === 'task.implement_overlap_holding');
+    expect(holdingEvents.length).toBe(1);
+    expect(holdingEvents[0]?.fields.task).toBe(950);
+  });
+
+  test('保留→解放→再保留で lastSignalAt が新エピソードの since から再計算される', async () => {
+    await run();
+    nowMs += 60_000;
+    openPrs = [];
+    await run(); // 解放 (no_overlap)
+    nowMs += MAX_HOLD_MS; // releasedAtからの再保留抑止期間を過ぎる
+    openPrs = [{ prNumber: 533, linkedTaskId: 758, createdAt: fresh() }];
+    await run(); // 再保留（新エピソード開始）
+    nowMs += 70_000; // 新エピソード起点からは2分未満
+    await run();
+    expect(events.filter((e) => e.evt === 'task.implement_overlap_holding').length).toBe(0);
   });
 
   test('重なりが消えれば解放イベントを出して進む', async () => {

@@ -137,6 +137,20 @@ export type Task = {
    * any status.
    */
   autoRunExcluded?: boolean | null;
+  /**
+   * True when this exact task is the theme's current auto-run pick right
+   * now (batched server-side — see attachAutoRunCardStatus). An agent may
+   * not actually be dispatched yet (e.g. an overlap-guard hold); pair with
+   * the live execution-state store to tell "next up, still waiting" apart
+   * from "actually running".
+   */
+  autoRunCurrent?: boolean;
+  /**
+   * True when the task is eligible for auto-run selection and its theme is
+   * running, but it isn't the current pick yet — waiting its turn behind
+   * other tasks.
+   */
+  autoRunQueued?: boolean;
   // Recurring task fields
   isRecurring?: boolean;
   recurrenceRule?: string | null;

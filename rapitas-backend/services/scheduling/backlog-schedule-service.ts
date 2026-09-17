@@ -17,7 +17,9 @@ export type BacklogJobKind =
   | 'loop_review'
   | 'ci_watch'
   | 'daily_report'
-  | 'miss_ledger';
+  | 'miss_ledger'
+  | 'gate_precision'
+  | 'knowledge_reuse';
 /** How often a job runs. */
 export type BacklogFrequency = 'daily' | 'weekly';
 
@@ -41,6 +43,8 @@ export const BACKLOG_JOB_KINDS: readonly BacklogJobKind[] = [
   'ci_watch',
   'daily_report',
   'miss_ledger',
+  'gate_precision',
+  'knowledge_reuse',
 ];
 
 /**
@@ -68,6 +72,16 @@ export const DEFAULTS: Record<
   // queue, so the user enables it deliberately. Daily 6:00 keeps the queue
   // fresh without competing with the 7:00 jobs.
   miss_ledger: { enabled: false, frequency: 'daily', hour: 6, weekday: 1 },
+  // Opt-in like miss_ledger: files concerns automatically, so the user
+  // enables it deliberately. Weekly (matches loop_review's cadence — the
+  // signal is a resolution-pattern rate, not a daily-noticeable event).
+  gate_precision: { enabled: false, frequency: 'weekly', hour: 6, weekday: 2 },
+  // Default ON unlike gate_precision/miss_ledger: no AI calls, no concerns
+  // filed — pure DB arithmetic. Its ABSENCE was actively harmful (the
+  // acceptance snapshot's `met` verdict can never be true without at least
+  // one recorded comparison — see evaluateAcceptance's unconditional
+  // knowledge_reuse_evidence_insufficient reason), so it stays on by default.
+  knowledge_reuse: { enabled: true, frequency: 'daily', hour: 5, weekday: 1 },
 };
 
 /** Coerces an arbitrary value to a valid job kind, or null if unknown. */
