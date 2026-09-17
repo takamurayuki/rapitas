@@ -60,6 +60,25 @@ function themeSupportsAutoRun(theme: TaskLikeForAutoRunCardStatus['theme']): boo
   return !!theme?.isDevelopment && !!theme.workingDirectory;
 }
 
+/**
+ * Whether a task's own status can never again match "selected but not yet
+ * started" or "waiting its turn" — a real, unavoidable race, not just a
+ * caching artifact: the scheduler writes `Task.status = 'done'` immediately
+ * on completion but only moves `ThemeAutoRun.currentTaskId` to the next task
+ * on its own poll tick (up to POLL_INTERVAL_MS + COOLDOWN_MS later), so a
+ * request landing in that window would otherwise see a truthful-but-stale
+ * `currentTaskId === task.id`. Once the task is terminal its `updatedAt`
+ * never changes again, so the frontend's `since`-filtered incremental fetch
+ * (task-cache-store.ts) would never re-deliver a correction — the stale
+ * "次に着手" badge sticks until a full page reload.
+ *
+ * @param status - Task.status. / タスクのステータス
+ * @returns true when the task can no longer be "next up" or "queued". / 次に着手/順番待ちになり得ない場合true
+ */
+function isTerminalTaskStatus(status: string): boolean {
+  return status === 'done' || status === 'cancelled';
+}
+
 /** Collects every distinct themeId in the list, including nested subtasks. */
 function collectThemeIds(tasks: TaskLikeForAutoRunCardStatus[]): number[] {
   const ids: number[] = [];
@@ -95,7 +114,11 @@ export async function attachAutoRunCardStatus<T extends TaskLikeForAutoRunCardSt
   const apply = (list: T[]) => {
     for (const task of list) {
       const isAutoRunningTheme = task.themeId != null && currentTaskIdByTheme.has(task.themeId);
-      if (isAutoRunningTheme && themeSupportsAutoRun(task.theme)) {
+      if (
+        isAutoRunningTheme &&
+        themeSupportsAutoRun(task.theme) &&
+        !isTerminalTaskStatus(task.status)
+      ) {
         const current = currentTaskIdByTheme.get(task.themeId as number) === task.id;
         task.autoRunCurrent = current;
         task.autoRunQueued = !current && looksAutoRunEligible(task);
