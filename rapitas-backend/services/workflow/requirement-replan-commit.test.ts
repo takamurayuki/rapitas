@@ -172,14 +172,22 @@ test('artifact change invalidates evidence even without task timestamp change', 
   expect(await db.workflowTransition.count()).toBe(0);
 });
 
-test('three persisted attempts prevent another replan', async () => {
+test('three persisted attempts prevent another replan and block the task once (task 956)', async () => {
   for (let i = 0; i < 3; i++) {
     await db.$executeRawUnsafe(
       "INSERT INTO WorkflowTransition (taskId,fromStatus,toStatus,actor,cause) VALUES (1,'plan_approved','research_done','system','requirement_evidence_replan')",
     );
   }
   expect(await commit()).toEqual({ committed: false, reason: 'budget_exhausted' });
-  expect(await db.workflowTransition.count()).toBe(3);
+  // A durable audit row + blocked status now accompany budget_exhausted, so a
+  // human sees the same task state whichever of the two budgets tripped it.
+  expect(await db.workflowTransition.count()).toBe(4);
+  expect(
+    await db.workflowTransition.count({ where: { cause: 'requirement_replan_budget_exhausted' } }),
+  ).toBe(1);
+  expect(await db.task.findUnique({ where: { id: 1 }, select: { status: true } })).toEqual({
+    status: 'blocked',
+  });
 });
 
 test('committed evidence reaches the replacement planner without truncating requirements', async () => {
@@ -333,6 +341,33 @@ test('no-mismatch review cannot pass a cancellation that leaves the task timesta
   });
   expect(result).toEqual({ committed: false, reason: 'execution_stopped' });
   expect(await db.workflowTransition.count()).toBe(0);
+});
+
+test('two replans within the 60-minute window block before a third replan attempt (task 956)', async () => {
+  for (let i = 0; i < 2; i++) {
+    await db.$executeRawUnsafe(
+      "INSERT INTO WorkflowTransition (taskId,fromStatus,toStatus,actor,cause) VALUES (1,'plan_approved','research_done','system','requirement_evidence_replan')",
+    );
+  }
+  // Absolute budget (priorReplans>=3) is NOT exhausted yet — only the
+  // window-local guard (2 replans within 60 minutes) is.
+  expect(await commit()).toEqual({ committed: false, reason: 'budget_exhausted' });
+  expect(
+    await db.workflowTransition.count({ where: { cause: 'requirement_replan_budget_exhausted' } }),
+  ).toBe(1);
+  expect(await db.task.findUnique({ where: { id: 1 }, select: { status: true } })).toEqual({
+    status: 'blocked',
+  });
+});
+
+test('a single replan within the window does not block (normal repair cycle)', async () => {
+  await db.$executeRawUnsafe(
+    "INSERT INTO WorkflowTransition (taskId,fromStatus,toStatus,actor,cause) VALUES (1,'plan_approved','research_done','system','requirement_evidence_replan')",
+  );
+  expect((await commit()).committed).toBe(true);
+  expect(await db.task.findUnique({ where: { id: 1 }, select: { status: true } })).toEqual({
+    status: 'in-progress',
+  });
 });
 
 test('a matching review after three replans does not require a fourth attempt', async () => {
