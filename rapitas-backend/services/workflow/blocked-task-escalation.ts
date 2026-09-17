@@ -70,6 +70,12 @@ const REASON_COPY: Record<BlockedExclusionReason, { needs: string; notificationT
     needs: '長期間放置されています（自動再試行の対象期間外）。手動での調査が必要です。',
     notificationType: 'blocked_escalation',
   },
+  manual_correction_pending: {
+    needs:
+      'PRが着地していないことが手動/システムにより判定済みです（自動再試行はしません）。' +
+      '再実装タスクとの重複作業がないか確認した上で、再挑戦するか本タスクをクローズしてください。',
+    notificationType: 'blocked_escalation',
+  },
 };
 
 /**

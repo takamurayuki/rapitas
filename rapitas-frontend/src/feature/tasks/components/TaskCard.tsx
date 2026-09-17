@@ -19,6 +19,7 @@ import TaskCardContextMenu from './task-card/TaskCardContextMenu';
 import TaskCardSubtaskPanel from './task-card/TaskCardSubtaskPanel';
 import TaskCardSubtaskProgress from './task-card/TaskCardSubtaskProgress';
 import TaskCardAutoRunToggle from './task-card/TaskCardAutoRunToggle';
+import TaskCardAutoRunQueueBadge from './task-card/TaskCardAutoRunQueueBadge';
 import styles from './TaskCard.module.css';
 
 interface TaskCardProps {
@@ -218,21 +219,24 @@ const TaskCard = memo(function TaskCard({
                 spot: a spinner alone doesn't say whether an agent has been
                 stuck for 30s or 30min. */}
             {tc.executionElapsed && (
-              <>
-                <span className="text-zinc-300 dark:text-zinc-700">•</span>
-                <span
-                  className={`inline-flex items-center gap-0.5 shrink-0 font-medium ${
-                    tc.isWaitingForInput
-                      ? 'text-amber-600 dark:text-amber-400'
-                      : 'text-blue-600 dark:text-blue-400'
-                  }`}
-                  title={t('taskCard.elapsedTimeTooltip')}
-                >
-                  <Clock className="w-3 h-3" aria-hidden="true" />
-                  {tc.executionElapsed}
+              <span
+                className={`inline-flex items-center gap-1 shrink-0 rounded-full border px-1.5 py-0.5 font-medium ${
+                  tc.isWaitingForInput
+                    ? 'border-amber-300 dark:border-amber-600 text-amber-600 dark:text-amber-400'
+                    : 'border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400'
+                }`}
+                title={t('taskCard.elapsedTimeTooltip')}
+              >
+                <Clock className="w-3 h-3" aria-hidden="true" />
+                <span>
+                  {tc.isWaitingForInput
+                    ? t('taskCard.waitingForInputLabel')
+                    : t('taskCard.runningLabel')}
                 </span>
-              </>
+                <span>{tc.executionElapsed}</span>
+              </span>
             )}
+            <TaskCardAutoRunQueueBadge task={task} isExecuting={Boolean(tc.executionElapsed)} />
             {tc.localSubtasks.length > 0 && (
               <TaskCardSubtaskProgress
                 subtasks={tc.localSubtasks}
@@ -328,7 +332,12 @@ const TaskCard = memo(function TaskCard({
                 />
               </button>
             )}
-            <TaskCardAutoRunToggle task={task} onTaskUpdated={onTaskUpdated} />
+            {/* Auto-run only ever runs on a development theme with a working
+                directory set (see theme-auto-run.ts's own gate) — showing the
+                toggle on every other theme offered a control with no effect. */}
+            {task.theme?.isDevelopment && task.theme?.workingDirectory && (
+              <TaskCardAutoRunToggle task={task} onTaskUpdated={onTaskUpdated} />
+            )}
             {['todo', 'in-progress', 'done'].map((status) => {
               // NOTE: Amber override applied to in-progress button when task is waiting_for_input
               const baseConfig = getStatusDisplay(t, status);

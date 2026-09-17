@@ -19,6 +19,7 @@ import {
   resolveVerifyRepairLimit,
   VERIFY_NON_CONVERGENCE_CAUSE,
   VERIFICATION_UNVERIFIABLE_HOLD_CAUSE,
+  MANUAL_CORRECTION_PENDING_CAUSE,
   PR_RETRY_LIGHTWEIGHT_CAUSE,
 } from './blocked-task-policy';
 import { isAwaitingRequiredMerge } from './verify-settle-artifact-recovery';
@@ -251,6 +252,28 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
       log.info(
         { taskId: t.id, unverifiableHeld },
         '[reconciler] Blocked task is held as unverifiable — leaving blocked (restore verification / manual retry), not auto-retrying',
+      );
+      continue;
+    }
+
+    // Skip tasks whose blocked status was set by a manual/system correction
+    // determining the landed PR did NOT merge (task 873/948): a blind reset
+    // would discard that determination and either re-run stale work or race
+    // the follow-up task it spawned. Same window as the repair budget (a
+    // manual retry re-admits the task).
+    const manualCorrectionPending = await prisma.workflowTransition
+      .count({
+        where: {
+          taskId: t.id,
+          cause: MANUAL_CORRECTION_PENDING_CAUSE,
+          ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+        },
+      })
+      .catch(() => 0);
+    if (manualCorrectionPending > 0) {
+      log.info(
+        { taskId: t.id, manualCorrectionPending },
+        '[reconciler] Blocked task has a pending manual correction (PR did not land) — leaving blocked, not auto-retrying',
       );
       continue;
     }

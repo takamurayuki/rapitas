@@ -76,8 +76,10 @@ mock.module('./workflow-cli-executor-helpers', () => ({
 }));
 
 let awaitingRequiredMerge = false;
+let awaitingStagedPrCompletion = false;
 mock.module('./verify-settle-artifact-recovery', () => ({
   isAwaitingRequiredMerge: () => Promise.resolve(awaitingRequiredMerge),
+  isAwaitingStagedPrCompletion: () => Promise.resolve(awaitingStagedPrCompletion),
 }));
 
 const holdForRequiredMerge = mock(() => Promise.resolve(true));
@@ -114,6 +116,7 @@ beforeEach(() => {
   recordTransition.mockClear();
   holdForRequiredMerge.mockClear();
   awaitingRequiredMerge = false;
+  awaitingStagedPrCompletion = false;
 });
 
 describe('resolveVerifyPhaseStatus — 完了と必須マージ待ちの分岐', () => {
@@ -198,6 +201,34 @@ describe('resolveVerifyPhaseStatus — 完了と必須マージ待ちの分岐',
 
     expect(status).toBe('completed');
     expect(holdForRequiredMerge).not.toHaveBeenCalled();
+  });
+
+  test('pr モード×staged有効(isAwaitingStagedPrCompletion=true): completed にせず verify_done で保留する（task 873/948）', async () => {
+    awaitingRequiredMerge = false;
+    awaitingStagedPrCompletion = true;
+
+    const status = await resolveVerifyPhaseStatus(params());
+
+    expect(status).toBe('verify_done');
+    expect(taskUpdate).not.toHaveBeenCalled();
+    expect(holdForRequiredMerge).toHaveBeenCalledWith(
+      expect.objectContaining({ taskId: 895, source: 'WorkflowCLIExecutor (staged pr)' }),
+    );
+    expect(recordTransition).not.toHaveBeenCalledWith(
+      expect.objectContaining({ cause: 'verify_passed' }),
+    );
+  });
+
+  test('isAwaitingRequiredMerge=true の場合、isAwaitingStagedPrCompletion 分岐より先に merge 保留になる（回帰確認）', async () => {
+    awaitingRequiredMerge = true;
+    awaitingStagedPrCompletion = true;
+
+    const status = await resolveVerifyPhaseStatus(params());
+
+    expect(status).toBe('verify_done');
+    expect(holdForRequiredMerge).toHaveBeenCalledWith(
+      expect.objectContaining({ taskId: 895, source: 'WorkflowCLIExecutor' }),
+    );
   });
 });
 

@@ -45,9 +45,16 @@ const mockPrisma = {
   },
   workflowTransition: {
     findMany: mock(() => Promise.resolve([])),
+    create: mock(() => Promise.resolve({ id: 1 })),
   },
   agentExecution: {
     findMany: mock(() => Promise.resolve([])),
+  },
+  // Retry route always records a requirement-review retry request (task
+  // /tasks/:id/retry generates an idempotency key even without a header) via
+  // recordRequirementReviewRetryRequest — must be mocked or retryTask throws.
+  requirementReviewRetryRequest: {
+    create: mock(() => Promise.resolve({ id: 1 })),
   },
   $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };

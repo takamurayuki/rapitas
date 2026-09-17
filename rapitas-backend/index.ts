@@ -200,6 +200,7 @@ import { AutoMergeWatcher } from './services/workflow/auto-merge-watcher';
 import { startWorkflowReconciler } from './services/workflow/workflow-reconciler';
 import { startResourceTelemetryIfEnabled } from './services/system/resource-telemetry';
 import { startSupervisionHeartbeatScheduler } from './services/supervision';
+import { startI18nIntegrityScheduler } from './services/scheduling/i18n-integrity-scheduler';
 
 // Start server
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -300,6 +301,7 @@ const runStartupWarmup = async (): Promise<void> => {
   await timed('workflow-reconciler', () => startWorkflowReconciler());
   await timed('resource-telemetry', () => startResourceTelemetryIfEnabled());
   await timed('supervision-heartbeat-scheduler', () => startSupervisionHeartbeatScheduler());
+  await timed('i18n-integrity-scheduler', () => startI18nIntegrityScheduler());
 
   log.info('Startup warm-up complete');
 };
