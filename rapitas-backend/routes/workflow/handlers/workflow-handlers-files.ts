@@ -10,7 +10,12 @@
  */
 
 import { prisma } from '../../../config';
-import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
+import {
+  NotFoundError,
+  RequirementReplanHeldError,
+  ValidationError,
+  parseId,
+} from '../../../middleware/error-handler';
 import { createLogger } from '../../../config/logger';
 import { VALID_FILE_TYPES, resolveWorkflowDir, getFileInfo } from '../core/workflow-helpers';
 import { withTaskLifecycleLock } from '../../../services/workflow/task-lifecycle-lock';
@@ -27,6 +32,33 @@ import {
 } from './file-save';
 
 const log = createLogger('routes:workflow:handlers:files');
+
+/**
+ * Whether an error thrown while saving a workflow file is an expected,
+ * already-classified condition that must NOT be logged at ERROR level here.
+ *
+ * NOTE (task #962): RequirementReplanHeldError(budget_exhausted) is an
+ * AppError raised deliberately by status-transition.ts once priorReplans
+ * reaches its cap — an expected terminal state, not a crash (see the class's
+ * own doc comment in middleware/error-handler.ts, task #961). #961 stopped
+ * the global error-handler.ts onError from logging it via the
+ * `error instanceof AppError` branch, but handleSaveFile's own catch runs
+ * FIRST and logged it anyway because it only special-cased
+ * ValidationError/NotFoundError, undermining #961's suppression at its
+ * actual emission site (K-9545/K-9411/K-9417/K-9544 and this ticket all
+ * observed logger `routes:workflow:handlers:files`, confirming this catch —
+ * not the global handler — is where the ERROR line comes from).
+ *
+ * @param err - Error caught by handleSaveFile / handleGetFiles. / 捕捉した例外
+ * @returns True when the caller must re-throw without calling log.error. / ログ抑止対象ならtrue
+ */
+export function isExpectedWorkflowFileError(err: unknown): boolean {
+  return (
+    err instanceof ValidationError ||
+    err instanceof NotFoundError ||
+    err instanceof RequirementReplanHeldError
+  );
+}
 
 /**
  * Handler for GET /tasks/:taskId/files
@@ -69,7 +101,7 @@ export async function handleGetFiles({
       path: { taskId, categoryId, themeId },
     };
   } catch (err) {
-    if (err instanceof ValidationError || err instanceof NotFoundError) throw err;
+    if (isExpectedWorkflowFileError(err)) throw err;
     log.error({ err: err }, 'Error fetching workflow files');
     throw err;
   }
@@ -250,7 +282,7 @@ export async function handleSaveFile({
 
     return response;
   } catch (err) {
-    if (err instanceof ValidationError || err instanceof NotFoundError) throw err;
+    if (isExpectedWorkflowFileError(err)) throw err;
     log.error({ err: err }, 'Error saving workflow file');
     throw err;
   }
