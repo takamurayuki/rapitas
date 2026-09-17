@@ -91,6 +91,13 @@ export const spies = {
   agentExecutionUpdateMany: mock(() => Promise.resolve({ count: 0 })),
   agentExecutionFindFirst: mock(() => Promise.resolve(null)),
   agentExecutionFindMany: mock((): Promise<{ id: number }[]> => Promise.resolve([])),
+
+  // task 956: noopLogger.info/warn delegate here so worktree reuse's
+  // uncommitted-diff logging (AC1) is assertable without a real logger.
+  logInfo: mock((..._args: unknown[]) => {}),
+  logWarn: mock((..._args: unknown[]) => {}),
+
+  getUncommittedDiffSummary: mock(() => wf.uncommittedDiffSummaryImpl()),
 };
 
 /**
@@ -127,6 +134,7 @@ export function resetWfMockState(): void {
     requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
     autoPRResult: { success: true, prUrl: 'https://example.com/pr/1', prNumber: 1 },
   });
+  wf.uncommittedDiffSummaryImpl = () => ({ hasUncommittedChanges: false, changedFileCount: 0 });
 
   for (const spy of Object.values(spies)) spy.mockClear();
 }

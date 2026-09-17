@@ -62,3 +62,42 @@ export function decideWorktree(
   if (branchName) return 'recreate';
   return 'fallback';
 }
+
+/** Uncommitted-diff visibility summary for a reused worktree (task 956). */
+export interface UncommittedDiffSummary {
+  hasUncommittedChanges: boolean;
+  changedFileCount: number;
+}
+
+/**
+ * Summarize whether a worktree has uncommitted changes, from `git status
+ * --porcelain`-shaped output (one changed path per line).
+ *
+ * A revised plan (task 956) must be able to confirm the implementer's
+ * uncommitted diff actually survived worktree reuse instead of assuming it
+ * did — this makes that check observable. `execGitStatus` is injected (same
+ * pattern as {@link canReuseWorktree}'s `pathExists`) so callers pass the real
+ * `git status --porcelain` invocation while tests supply canned output. Never
+ * throws: a failing probe (worktree removed mid-check, git unavailable) is
+ * reported as "no visible changes" rather than aborting the caller.
+ *
+ * @param worktreePath - Worktree directory to inspect. / 確認対象の worktree パス
+ * @param execGitStatus - Runs `git status --porcelain` and returns its stdout, given the cwd. / git status実行関数（テスト差し替え用）
+ * @returns Whether the worktree has uncommitted changes, and how many paths. / 未コミット差分の有無と件数
+ */
+export function getUncommittedDiffSummary(
+  worktreePath: string,
+  execGitStatus: (cwd: string) => string,
+): UncommittedDiffSummary {
+  let output: string;
+  try {
+    output = execGitStatus(worktreePath);
+  } catch {
+    return { hasUncommittedChanges: false, changedFileCount: 0 };
+  }
+  const changedFileCount = output
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0).length;
+  return { hasUncommittedChanges: changedFileCount > 0, changedFileCount };
+}
