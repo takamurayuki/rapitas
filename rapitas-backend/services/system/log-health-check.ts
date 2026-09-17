@@ -142,6 +142,26 @@ const GIT_POSITIONAL_ARGS_RE = /(git command failed: git \S+)[^\n]*/;
 const PROCESS_EXIT_ANCHOR_RE = /Process exited with code \d+/;
 
 /**
+ * Inside 【Session Resume Mode】, the CLI transcript's `[System: ...]` event
+ * count and `[Result: ...]` timing/cost vary per resume attempt even for the
+ * same cause, so unlike other labeled sections this one still needs folding
+ * (K-9321/9322/9323/9888, task #952). Adjacent repeats of the same bracketed
+ * marker collapse to one; the failure text itself ("Prompt is too long") is
+ * left alone so a different cause still diverges.
+ */
+const SYSTEM_EVENT_RUN_RE = /(?:\[System: [^\]]+\]\s*)+/g;
+const RESULT_LINE_RE = /\[Result:[^\]]*\]/g;
+const REPEATED_PROMPT_TOO_LONG_RE = /(?:Prompt is too long\s*){2,}/g;
+
+function foldSessionResumeTranscript(afterLabel: string): string {
+  if (!afterLabel.startsWith('【Session Resume Mode】')) return afterLabel;
+  return afterLabel
+    .replace(SYSTEM_EVENT_RUN_RE, '[System: …] ')
+    .replace(RESULT_LINE_RE, '[Result: …]')
+    .replace(REPEATED_PROMPT_TOO_LONG_RE, 'Prompt is too long ');
+}
+
+/**
  * Folds the unlabeled CLI-transcript tail that execution-resolver.ts (and the
  * sibling codex/gemini runners) append straight after "Process exited with
  * code N" — arbitrary conversation/tool-output text that differs on every
@@ -151,6 +171,8 @@ const PROCESS_EXIT_ANCHOR_RE = /Process exited with code \d+/;
  * append (【Standard Error Output】, 【Session Resume Mode】, …) are kept
  * verbatim — they can distinguish genuinely different causes — only the
  * unlabeled runs of text between/after them collapse to one placeholder.
+ * 【Session Resume Mode】 additionally gets its transcript noise folded
+ * (see foldSessionResumeTranscript above).
  */
 function foldProcessExitTail(msg: string): string {
   const anchor = PROCESS_EXIT_ANCHOR_RE.exec(msg);
@@ -159,7 +181,7 @@ function foldProcessExitTail(msg: string): string {
   const rest = msg.slice(anchor.index + anchor[0].length);
   const labelIdx = rest.indexOf('【');
   const tail = labelIdx === -1 ? rest : rest.slice(0, labelIdx);
-  const afterLabel = labelIdx === -1 ? '' : rest.slice(labelIdx);
+  const afterLabel = labelIdx === -1 ? '' : foldSessionResumeTranscript(rest.slice(labelIdx));
   const folded = tail.trim() ? ' …' : tail;
   return `${head}Process exited with code #${folded}${afterLabel}`;
 }
