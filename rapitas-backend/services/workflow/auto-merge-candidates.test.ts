@@ -253,7 +253,17 @@ describe('findCandidates — completion gate', () => {
     expect(await findCandidates()).toEqual([]);
   });
 
-  it('excludes a "done" task with autoCreatePR only when staged completion is OFF (already completed at verify)', async () => {
+  it('admits a "done" task with autoCreatePR by default (staged completion defaults ON, task 873/948)', async () => {
+    addTask({ id: 4, autoMergePR: false, autoCreatePR: true });
+    addOpenPr({ prNumber: 103, baseBranch: 'develop', linkedTaskId: 4 });
+
+    const result = await findCandidates();
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ taskId: 4, mode: 'pr' });
+  });
+
+  it('excludes a "done" task with autoCreatePR when staged completion is explicitly OFF', async () => {
+    process.env.RAPITAS_STAGED_COMPLETION = 'false';
     addTask({ id: 4, autoMergePR: false, autoCreatePR: true });
     addOpenPr({ prNumber: 103, baseBranch: 'develop', linkedTaskId: 4 });
 

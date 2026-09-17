@@ -11,7 +11,11 @@
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
-import { resolveAutomationPolicy } from './automation-policy';
+import {
+  resolveAutomationPolicy,
+  resolveLandingMode,
+  isStagedCompletionEnabled,
+} from './automation-policy';
 
 const log = createLogger('workflow:verify-settle-artifact-recovery');
 
@@ -19,6 +23,22 @@ const log = createLogger('workflow:verify-settle-artifact-recovery');
 export async function isAwaitingRequiredMerge(taskId: number): Promise<boolean> {
   const policy = await resolveAutomationPolicy(prisma, taskId);
   return policy.autoMergePR && !!(await findLandedPullRequest(taskId));
+}
+
+/**
+ * Whether a `pr`-mode task (autoCreatePR without autoMergePR) is waiting for
+ * its PR's CI to go green before completion, under staged completion. Mirrors
+ * {@link isAwaitingRequiredMerge}'s shape but for the CI-green (not merge)
+ * landing point — the gap that let task 873 complete on PR creation alone.
+ *
+ * @param taskId - Task to evaluate. / 対象タスクID
+ * @returns True when in `pr` mode, staged completion is enabled, and a PR is on record. / pr モード×staged有効×PR実在の場合true
+ */
+export async function isAwaitingStagedPrCompletion(taskId: number): Promise<boolean> {
+  const policy = await resolveAutomationPolicy(prisma, taskId);
+  if (resolveLandingMode(policy) !== 'pr') return false;
+  if (!isStagedCompletionEnabled()) return false;
+  return !!(await findLandedPullRequest(taskId));
 }
 
 /**

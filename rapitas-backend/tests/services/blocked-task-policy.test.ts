@@ -90,3 +90,27 @@ describe('classifyBlockedExclusion — 検証不能の保留 (2026-09-13 task 91
     );
   });
 });
+
+describe('classifyBlockedExclusion — 未着地PRの手動是正保留 (task873/948)', () => {
+  const base = { workflowStatus: 'verify_done', ageMs: 0, attempts: 0, verifyRepairLimit: 2 };
+
+  test('manualCorrectionPending は age/attempts が上限に達していても manual_correction_pending になる', () => {
+    const MAX_ORPHAN_REQUEUE_AGE_MS = 2 * 24 * 60 * 60 * 1000;
+    expect(
+      classifyBlockedExclusion({
+        ...base,
+        repairs: 0,
+        attempts: 99,
+        ageMs: MAX_ORPHAN_REQUEUE_AGE_MS + 1,
+        manualCorrectionPending: true,
+      }),
+    ).toBe('manual_correction_pending');
+  });
+
+  test('manualCorrectionPending を省略（またはfalse）しても既存の判定ロジックは変化しない', () => {
+    expect(classifyBlockedExclusion({ ...base, repairs: 0 })).toBe('retryable');
+    expect(classifyBlockedExclusion({ ...base, repairs: 0, manualCorrectionPending: false })).toBe(
+      'retryable',
+    );
+  });
+});

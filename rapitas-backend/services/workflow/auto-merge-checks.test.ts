@@ -60,6 +60,7 @@ const {
   readPrChecks,
   readMergeState,
   readHeadSha,
+  readPrState,
   updatePrBranch,
 } = await import('./auto-merge-checks');
 
@@ -252,6 +253,25 @@ describe('readMergeState', () => {
     execBehavior = () => Object.assign(new Error('gh failed'), { stderr: 'boom' });
 
     expect(await readMergeState('/repo', 42)).toBeNull();
+    expect(logWarn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('readPrState', () => {
+  it.each([
+    ['OPEN', 'open'],
+    ['CLOSED', 'closed'],
+    ['MERGED', 'merged'],
+  ])('lower-cases the reported state %s → %s', async (raw, expected) => {
+    execBehavior = () => ({ stdout: `{"state":"${raw}"}`, stderr: '' });
+
+    expect(await readPrState('/repo', 610)).toBe(expected);
+  });
+
+  it('returns null and warns on a gh failure', async () => {
+    execBehavior = () => Object.assign(new Error('gh failed'), { stderr: 'boom' });
+
+    expect(await readPrState('/repo', 610)).toBeNull();
     expect(logWarn).toHaveBeenCalledTimes(1);
   });
 });

@@ -75,6 +75,12 @@ mock.module('../../workflow-auto-commit', () => ({
 // ---- remaining collaborators (not exercised by these paths) ----
 mock.module('../../../../services/workflow/automation-policy', () => ({
   resolveLandingMode: () => 'none',
+  // task 948: mirror this named export — bun mock.module is process-global,
+  // and a full-module mock missing it breaks any later test in the same run
+  // that imports the real automation-policy export.
+  isStagedCompletionEnabled: () =>
+    process.env.RAPITAS_STAGED_COMPLETION !== 'false' &&
+    process.env.RAPITAS_STAGED_COMPLETION !== '0',
 }));
 mock.module('../../../../services/workflow/verify-completion-inflight', () => ({
   registerVerifyCompletion: () => {},
