@@ -11,6 +11,8 @@ import { hasUsableProvider, isProviderOutageFailure } from './queue-provider-gat
 import { isNonRunnableTaskSkip } from './queue-skip-policy';
 import { tryDequeueCandidate } from './queue-dequeue-candidate';
 import { mapToQueueItem } from './queue-item-mapper';
+import { isOverlapHeld } from './workflow-orchestrator-overlap-guard';
+import { logCycleEvent } from '../observability';
 import type { QueueItem, EnqueueOptions, QueueState } from './workflow-queue.types';
 
 export type { QueueItem, EnqueueOptions, QueueState } from './workflow-queue.types';
@@ -136,6 +138,17 @@ export class WorkflowQueueService {
         // serialization / lost the acquire race) — try the next candidate.
       } catch (error) {
         log.warn({ err: error }, `[WorkflowQueue] Failed to dequeue candidate ${candidate.id}`);
+        // Overlap-held candidates (task 954) rely on being re-evaluated every
+        // poll; an exception here drops them from this pass with no other
+        // trace, so cycle-log gets an explicit record when that happens.
+        if (isOverlapHeld(candidate.taskId)) {
+          logCycleEvent('task.dequeue_skipped', {
+            task: candidate.taskId,
+            reason: 'candidate_error',
+            error: String(error),
+            msg: 'overlap-held candidate dropped this dequeue pass by an exception',
+          });
+        }
         continue; // Try next candidate
       }
     }

@@ -14,8 +14,9 @@ import type { Prisma } from '../../../generated/prisma-postgres';
 
 /**
  * Where-fragment for a top-level (parentId:null) 'todo' task that
- * selectNextTask would also consider eligible: not workflow-disabled and not
- * parked on an unanswered question. `extra` is merged in for callers that
+ * selectNextTask would also consider eligible: not workflow-disabled, not
+ * user-excluded from auto-run, and not parked on an unanswered question.
+ * `extra` is merged in for callers that
  * need an additional narrowing clause (e.g. autoCreatedFromBacklog:false).
  *
  * @param themeId - Theme to scope the count to. / 対象テーマID
@@ -31,6 +32,7 @@ export function eligibleTopLevelTodoWhere(
     status: 'todo',
     parentId: null,
     workflowDisabled: false,
+    autoRunExcluded: false,
     OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
     ...extra,
   };

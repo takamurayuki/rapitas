@@ -50,6 +50,15 @@ export type CycleEventName =
   // files its research/plan names are still changing in an open auto-PR
   | 'task.implement_overlap_hold'
   | 'task.implement_overlap_released'
+  // periodic re-check signal while the implementer overlap hold continues
+  // (task 954): fires every HOLD_SIGNAL_INTERVAL_MS to prove the retry loop
+  // is still invoking guardImplementOverlap() during a long hold
+  | 'task.implement_overlap_holding'
+  // dequeue()/tryDequeueCandidate() silently skipped an overlap-held candidate
+  // (task 954): the scheduler-side re-check that guardImplementOverlap()
+  // depends on being invoked every poll can itself drop the candidate
+  // without a trace. `reason` distinguishes which silent-skip branch fired.
+  | 'task.dequeue_skipped'
   // workflow phase progression
   | 'phase.transition'
   // task terminal / hold states

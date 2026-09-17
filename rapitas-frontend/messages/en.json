@@ -664,7 +664,16 @@
       "retryAriaLabel": "Retry task",
       "protectedDeleteError": "Protected tasks cannot be deleted",
       "elapsedTimeTooltip": "Elapsed time since the agent started executing",
-      "executingCannotSelect": "Excluded from bulk status change while auto-executing"
+      "runningLabel": "Running",
+      "waitingForInputLabel": "Awaiting answer",
+      "executingCannotSelect": "Excluded from bulk status change while auto-executing",
+      "autoRunExcludeTitle": "Exclude from auto-run",
+      "autoRunIncludeTitle": "Include in auto-run",
+      "autoRunExcludedToggleFailed": "Failed to update the auto-run setting",
+      "autoRunNextUp": "Next up",
+      "autoRunNextUpTooltip": "Auto-run has picked this task, but no agent has started yet. The time shown is elapsed since the last update.",
+      "autoRunQueued": "Queued",
+      "autoRunQueuedTooltip": "Eligible for auto-run, but waiting its turn behind another task"
     },
     "suggestionCard": {
       "category": {
@@ -1832,6 +1841,20 @@
       "hostCpuNote": "Host-wide CPU usage. Not attributed to any specific theme.",
       "currentCpu": "Current CPU usage",
       "threshold": "Threshold",
+      "landingTitle": "Landing classification of completed tasks",
+      "landingCount": "Count",
+      "landingClasses": {
+        "qualified": "Counted (verified, criteria, system merge evidence)",
+        "landing_pending": "Waiting for merge",
+        "policy_unreadable": "Merge evidence unreadable",
+        "merge_not_requested": "Merge not requested (commit/PR only)",
+        "criteria_missing": "No acceptance criteria",
+        "unverified_completion": "Completed without verification",
+        "publish_after_stop": "Published after stop",
+        "manual_merge": "Manual merge (intervention)",
+        "landing_failed": "Merge failed",
+        "subtask": "Subtask (not counted)"
+      },
       "effectiveMaxConcurrency": "Effective concurrency",
       "unsampled": "Not sampled yet",
       "empty": "No deferrals recorded",
@@ -2228,6 +2251,59 @@
       "empty": "No suggestions are waiting for review. Periods without misses are normal — no detection is expected.",
       "loadFailed": "Failed to load data",
       "reviewFailed": "Failed to submit the review"
+    },
+    "supervision": {
+      "title": "Supervision acceptance",
+      "subtitle": "Judges hands-off continuous operation and knowledge-reuse effect from evidence. Unobserved time is never counted as success.",
+      "met": "Acceptance bar met",
+      "notMet": "Not met",
+      "loadFailed": "Could not load supervision acceptance status. An unreadable status is treated as not met.",
+      "reasonsTitle": "Unmet reasons",
+      "noReasons": "No unmet reasons",
+      "denominatorsTitle": "Measured denominators",
+      "streakCount": "Consecutive hands-off completed tasks",
+      "observedHours": "Observed hands-off time (hours)",
+      "observedGapMinutes": "Observation gaps (minutes, subtracted)",
+      "heartbeat": "Monitor heartbeat",
+      "heartbeatAge": "last {seconds}s ago",
+      "heartbeatNone": "none recorded",
+      "snapshotAge": "Verdict snapshot",
+      "snapshotAgeValue": "{minutes} min ago",
+      "snapshotNone": "not created",
+      "blockingTasks": "Unresolved failed/interrupted tasks",
+      "none": "none",
+      "knowledgeTitle": "Knowledge-reuse comparison",
+      "evalSetVersion": "Eval set version",
+      "methodVersion": "Method version",
+      "pairedN": "Paired cases",
+      "missingRetainedN": "Missing/failed cases retained",
+      "successWithKB": "Success rate (with knowledge)",
+      "successWithoutKB": "Success rate (without knowledge)",
+      "effect": "Effect size / uncertainty",
+      "threshold": "{value} / required {required}",
+      "reasons": {
+        "streak_task_count_below_threshold": "Fewer than 10 tasks completed without intervention",
+        "streak_duration_below_threshold": "Less than 24 observed hands-off hours",
+        "recent_intervention": "A recent human/supervisor intervention (fix, approval or retry on its behalf)",
+        "self_gate_mutation": "A commit changed the supervision gate itself; the streak was reset",
+        "observation_gap_present": "There are observation gaps",
+        "no_observation_evidence": "No observation evidence (heartbeats etc.)",
+        "snapshot_stale": "The verdict snapshot is stale or missing",
+        "intervention_write_failed": "An intervention write failed and is still unrecovered",
+        "knowledge_reuse_evidence_insufficient": "Insufficient knowledge-reuse comparison evidence (concurrent control, missing retained)",
+        "monitor_heartbeat_stale": "The monitor heartbeat has stopped",
+        "failure_or_interruption_in_streak": "A task failed or was interrupted; the streak was reset",
+        "gate_mutation_unobservable": "Gate-changing commits could not be read (git failed)",
+        "observation_history_truncated": "Observation history hit the read limit; gaps could not be fully checked",
+        "landing_evidence_pending": "Some tasks are still waiting for their merge",
+        "landing_evidence_unobservable": "Merge evidence could not be read for some tasks",
+        "merge_not_requested": "Some completions never reached a merge",
+        "acceptance_criteria_missing": "Some completions had no pre-registered acceptance criteria",
+        "unverified_completion_detected": "Some completions skipped independent verification",
+        "publish_after_stop_detected": "Changes were published after a stop",
+        "subtask_not_counted": "Subtasks are not counted",
+        "unresolved_high_severity_concern": "An important quality defect is unresolved"
+      }
     }
   },
   "github": {
@@ -3115,6 +3191,14 @@
     "open": "Open",
     "close": "Close",
     "markMemoDone": "Mark done",
+    "questionToast": {
+      "hint": "Pick an option to answer and resume the workflow",
+      "recommended": "Recommended",
+      "answerInApp": "Answer in app",
+      "moreQuestions": "{count} questions are waiting. Answer them in the app.",
+      "answered": "Answer sent. Resuming the workflow.",
+      "failed": "Could not send the answer. Please answer from the app."
+    },
     "justNow": "Just now",
     "minutesAgo": "{count} minutes ago",
     "hoursAgo": "{count} hours ago",
@@ -3209,6 +3293,10 @@
       "auto_run_queue_starved": {
         "title": "Auto-run: the queue is not draining",
         "message": "0 running tasks while the queue sat unconsumed for about {waitedMinutes} min{taskRef}. Restarted the workflow runner to resume consumption."
+      },
+      "auto_run_queue_stalled": {
+        "title": "Auto-run: the queue is not draining (needs a look)",
+        "message": "0 running tasks while the queue sat unconsumed for about {waitedMinutes} min{taskRef}. The workflow runner is already alive, so it cannot be auto-restarted — this may need investigation (e.g. an overlap-guard hold outliving its own ceiling)."
       },
       "auto_run_zero_progress": {
         "title": "Auto-run: no progress (possible spin loop)",
@@ -5341,6 +5429,14 @@
         "miss_ledger": {
           "label": "Miss learning",
           "desc": "Records defects that slipped past the quality gates (CI bounces, post-completion concerns) with evidence, and generates detection-cue suggestions reviewed at /agents/miss-signatures."
+        },
+        "gate_precision": {
+          "label": "Gate precision calibration",
+          "desc": "Classifies disputed verify bounces (the same acceptance criterion flagged 2+ times) by whether they resolved through implementation alone or needed a human/plan-level intervention. Files a concern when the intervention-needed rate is high, suggesting the gate or the acceptance criteria themselves need review."
+        },
+        "knowledge_reuse": {
+          "label": "Knowledge-reuse effectiveness",
+          "desc": "Compares the completion success rate of tasks whose planning stage retrieved a similar solved task (a CBR case) against tasks that didn't, and records whether knowledge reuse is statistically helping. Never files a concern."
         }
       },
       "frequency": {
@@ -5697,15 +5793,7 @@
       "peakLabel": "Peak:",
       "lowLabel": "Low:",
       "hourSuffix": "{hour}:00",
-      "dayLabels": [
-        "Sun",
-        "Mon",
-        "Tue",
-        "Wed",
-        "Thu",
-        "Fri",
-        "Sat"
-      ],
+      "dayLabels": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
       "cellTitle": "{day} {hour}:00: {count} completed (click for details)",
       "legendLow": "Low",
       "legendHigh": "High",

@@ -8,6 +8,17 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 const themeRunning = mock(async () => true);
 mock.module('./queue-theme-guard', () => ({ isQueueThemeRunning: themeRunning }));
 
+// task 954: overlap-held candidates get an explicit cycle-log trace when the
+// scheduler silently skips them, so control isOverlapHeld() per test.
+const overlapHeld = mock((_taskId: number) => false);
+mock.module('./workflow-orchestrator-overlap-guard', () => ({ isOverlapHeld: overlapHeld }));
+const cycleEvents: Array<{ evt: string; fields: Record<string, unknown> }> = [];
+mock.module('../observability', () => ({
+  logCycleEvent: (evt: string, fields: Record<string, unknown>) => {
+    cycleEvents.push({ evt, fields });
+  },
+}));
+
 // HACK(agent): bun:test の mock.module はプロセスグローバルなため、
 // 全エクスポートをミラーしないとバレルが "export not found" をスローする。
 
@@ -173,6 +184,8 @@ beforeEach(() => {
   taskRowConfirmedAbsentMock.mockReset().mockResolvedValue(false);
   noopLogger.info.mockClear();
   noopLogger.warn.mockClear();
+  overlapHeld.mockReset().mockReturnValue(false);
+  cycleEvents.length = 0;
 });
 
 describe('WorkflowQueueService.dequeue — concurrency gate', () => {
@@ -491,6 +504,35 @@ describe('WorkflowQueueService.dequeue — transactional race protection', () =>
 
     expect(result?.id).toBe(2);
     expect(noopLogger.warn).toHaveBeenCalledTimes(1);
+  });
+
+  test('候補処理中の例外で overlap 保留中タスクは task.dequeue_skipped(candidate_error) を発火すること', async () => {
+    const svc = new WorkflowQueueService();
+    const bad = row({ id: 1, taskId: 10, dependencies: 'not-json' });
+    prismaMock.workflowQueueItem.findMany.mockResolvedValueOnce([bad]);
+    prismaMock.workflowQueueItem.count.mockResolvedValueOnce(0); // running count gate
+    overlapHeld.mockReturnValue(true);
+
+    const result = await svc.dequeue();
+
+    expect(result).toBeNull();
+    const skipped = cycleEvents.filter((e) => e.evt === 'task.dequeue_skipped');
+    expect(skipped.length).toBe(1);
+    expect(skipped[0]?.fields.task).toBe(10);
+    expect(skipped[0]?.fields.reason).toBe('candidate_error');
+  });
+
+  test('候補処理中の例外で overlap 保留中でないタスクは task.dequeue_skipped を発火しないこと', async () => {
+    const svc = new WorkflowQueueService();
+    const bad = row({ id: 1, taskId: 10, dependencies: 'not-json' });
+    prismaMock.workflowQueueItem.findMany.mockResolvedValueOnce([bad]);
+    prismaMock.workflowQueueItem.count.mockResolvedValueOnce(0); // running count gate
+    overlapHeld.mockReturnValue(false);
+
+    const result = await svc.dequeue();
+
+    expect(result).toBeNull();
+    expect(cycleEvents.filter((e) => e.evt === 'task.dequeue_skipped').length).toBe(0);
   });
 
   test('正常系 → status を running に更新し startedAt を設定すること', async () => {
