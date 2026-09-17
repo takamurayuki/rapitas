@@ -22,6 +22,7 @@ import { smartRouterRoutes } from './system/smart-router-routes';
 import { executionForkRoutes } from './execution-management/execution-fork-routes';
 import { previewRoutes } from './preview/preview-routes';
 import monitoringExecutionLogEntriesRoute from './monitoring/execution-log-entries.routes';
+import supervisionSupervisionRoute from './supervision/supervision.routes';
 
 export * from './crud';
 export * from './config';
@@ -47,4 +48,5 @@ export const agentsDomainRoutes = new Elysia()
   .use(smartRouterRoutes)
   .use(executionForkRoutes)
   .use(previewRoutes)
-  .use(monitoringExecutionLogEntriesRoute);
+  .use(monitoringExecutionLogEntriesRoute)
+  .use(supervisionSupervisionRoute);

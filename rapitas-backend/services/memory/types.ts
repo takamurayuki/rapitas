@@ -66,7 +66,17 @@ export type TimelineEventType =
   // POST can return immediately and a GET can later recover the result
   // without a new table (see verification-job-store.ts).
   | 'verification_job_started'
-  | 'verification_job_finished';
+  | 'verification_job_finished'
+  // NOTE: task 904 — supervision acceptance evidence (intervention, monitor
+  // liveness, observation gaps, acceptance snapshots, knowledge-reuse eval).
+  // Recorded on TimelineEvent rather than dedicated tables so the same code
+  // runs on the live SQLite DB and on the Postgres web build (see
+  // services/supervision/supervision-events.ts for the payload contract).
+  | 'supervision_intervention'
+  | 'supervision_monitor_heartbeat'
+  | 'supervision_observation_gap'
+  | 'supervision_acceptance_snapshot'
+  | 'supervision_knowledge_reuse_eval';
 
 export type ActorType = 'user' | 'agent' | 'system';
 

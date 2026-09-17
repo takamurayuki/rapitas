@@ -46,6 +46,11 @@ const REASON_COPY: Record<BlockedExclusionReason, { needs: string; notificationT
     needs: '検証修復の予算を使い切りました。タスクの分割が必要です。',
     notificationType: 'blocked_escalation',
   },
+  verification_unverifiable: {
+    needs:
+      '検証環境の問題で正しさを確認できないため保留中です（自動再試行はしません）。検証環境（runtime ハーネス／base 同期）を復旧し、検証の再実行またはタスクの手動再試行で再開してください。',
+    notificationType: 'blocked_escalation',
+  },
   verify_no_convergence: {
     needs:
       '差し戻しが収束していません（同一の受入基準が繰り返し未対応）。タスク分割または仕様の見直しが必要です。' +
@@ -63,6 +68,12 @@ const REASON_COPY: Record<BlockedExclusionReason, { needs: string; notificationT
   },
   abandoned_old: {
     needs: '長期間放置されています（自動再試行の対象期間外）。手動での調査が必要です。',
+    notificationType: 'blocked_escalation',
+  },
+  manual_correction_pending: {
+    needs:
+      'PRが着地していないことが手動/システムにより判定済みです（自動再試行はしません）。' +
+      '再実装タスクとの重複作業がないか確認した上で、再挑戦するか本タスクをクローズしてください。',
     notificationType: 'blocked_escalation',
   },
 };

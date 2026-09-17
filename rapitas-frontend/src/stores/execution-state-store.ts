@@ -196,12 +196,21 @@ export const useExecutionStateStore = create<ExecutionStateStore>()((set, get) =
     }),
   removeExecutingTask: (taskId) =>
     set((state) => {
-      if (!state.executingTasks.has(taskId)) return state;
+      const hadTask = state.executingTasks.has(taskId);
+      const hadQuestion = state.liveQuestions.has(taskId);
+      if (!hadTask && !hadQuestion) return state;
       const newMap = new Map(state.executingTasks);
       newMap.delete(taskId);
-      return { executingTasks: newMap };
+      // A live question only exists while its execution is alive. Stopping
+      // auto-run cancels the execution, and the stale question kept ticking its
+      // auto-continue countdown (and re-surfaced on reopening the task detail)
+      // because nothing dropped it (2026-09-14).
+      if (!hadQuestion) return { executingTasks: newMap };
+      const questions = new Map(state.liveQuestions);
+      questions.delete(taskId);
+      return { executingTasks: newMap, liveQuestions: questions };
     }),
-  clearAll: () => set({ executingTasks: new Map() }),
+  clearAll: () => set({ executingTasks: new Map(), liveQuestions: new Map() }),
   isTaskExecuting: (taskId) => {
     const task = get().executingTasks.get(taskId);
     return task?.status === 'running' || task?.status === 'waiting_for_input';

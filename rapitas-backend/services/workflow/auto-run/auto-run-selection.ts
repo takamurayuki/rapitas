@@ -445,6 +445,10 @@ export async function selectNextTask(
       // Nothing else ran, and because the theme never reached 'all_done' the
       // backlog never refilled either — 121 open concerns sat untouched.
       workflowDisabled: false,
+      // User-set opt-out from auto-run selection (Task.autoRunExcluded) — a
+      // task card toggle for "keep this out of auto-run, but let it run
+      // normally on demand." Independent of workflowDisabled.
+      autoRunExcluded: false,
       id: skipTaskIds.length > 0 ? { notIn: skipTaskIds } : undefined,
       // Exclude subtasks — the theme scheduler drives top-level tasks only;
       // subtasks are handled by AIOrchestra.enqueueSubtasksForExecution().
@@ -482,10 +486,8 @@ export async function selectNextTask(
     return { found: false, reason: blockedCount > 0 ? 'all_blocked' : 'all_done' };
   }
 
-  // Highest priority first; priority TIES break by the learnable-band value
-  // score (R6 — closest to the theme's current learning band wins), then by
-  // creation order (oldest first). Done in JS because the stored priority is a
-  // string and can't be SQL-ordered.
+  // Priority desc, ties by learnable-band value score (R6), then oldest first.
+  // Done in JS: the stored priority is a string and can't be SQL-ordered.
   if (order === 'priority') {
     eligible.sort((a, b) => {
       const pr = priorityRank(a.priority) - priorityRank(b.priority);
@@ -499,28 +501,20 @@ export async function selectNextTask(
   }
   // order === 'created' keeps the DB createdAt-asc order as-is.
 
-  // Scope-overlap deferral (task 573 B): pick the FIRST candidate whose plan
-  // files do not overlap an open auto-PR's changed files. A candidate without a
-  // plan (lightweight) is never deferred. When EVERY candidate overlaps, fall
-  // back to the head (starvation guard) and report no deferral.
+  // Scope-overlap deferral (task 573 B): first candidate whose plan files avoid
+  // open auto-PR files; no plan = never deferred; all overlap = head, no deferral.
   if (scopeOverlap && scopeOverlap.openPrFiles.length > 0) {
     const deferred: number[] = [];
     for (const candidate of eligible) {
-      // A task already in progress owns a worktree with partial work; the
-      // overlap deferral exists to keep NEW work off files an open auto-PR is
-      // about to land, not to strand in-flight tasks. Observed 2026-09-13:
-      // task 905 (plan_approved, mid verify-repair) was deferred every tick
-      // behind 14 exhausted PRs while a fresh todo task was started instead.
-      if (candidate.status === 'in-progress') {
-        return deferred.length > 0
-          ? { found: true, taskId: candidate.id, deferred }
-          : { found: true, taskId: candidate.id };
-      }
-      const planFiles = await scopeOverlap.getPlanFiles(candidate.id).catch(() => []);
+      // In-progress tasks own a worktree with partial work (task 905, 2026-09-13):
+      // the deferral keeps NEW work off an open auto-PR's files, never strands them.
+      const planFiles =
+        candidate.status === 'in-progress'
+          ? []
+          : await scopeOverlap.getPlanFiles(candidate.id).catch(() => []);
       if (planFiles.length === 0 || !hasScopeOverlap(planFiles, scopeOverlap.openPrFiles)) {
-        return deferred.length > 0
-          ? { found: true, taskId: candidate.id, deferred }
-          : { found: true, taskId: candidate.id };
+        const hit = { found: true as const, taskId: candidate.id };
+        return deferred.length > 0 ? { ...hit, deferred } : hit;
       }
       deferred.push(candidate.id);
     }

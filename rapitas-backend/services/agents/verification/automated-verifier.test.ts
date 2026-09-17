@@ -365,6 +365,31 @@ describe('tamperCheck', () => {
     expect(result?.details).toContain('scripts/pre-commit-check.ts');
     expect(result?.details).not.toContain('.husky/pre-commit');
   });
+
+  it('flags the actual phase-critic gate files', () => {
+    expect(tamperCheck(['services/workflow/phase-critic/phase-critic.ts'], null)?.ok).toBe(false);
+    expect(tamperCheck(['services/workflow/phase-critic/phase-critic-gate.ts'], null)?.ok).toBe(
+      false,
+    );
+    expect(tamperCheck(['services/workflow/phase-critic/phase-critic.test.ts'], null)?.ok).toBe(
+      false,
+    );
+    expect(
+      tamperCheck(['services/workflow/phase-critic/phase-critic-gate.test.ts'], null)?.ok,
+    ).toBe(false);
+  });
+
+  it('does not flag unrelated siblings in the phase-critic/ directory (task 936)', () => {
+    // critic-lessons.ts distills repair feedback into checklist notes — it
+    // does not implement the phase-critic gate, but the old regex substring-
+    // matched the "services/workflow/phase-critic" DIRECTORY prefix and
+    // flagged every file inside it.
+    expect(tamperCheck(['services/workflow/phase-critic/critic-lessons.ts'], null)).toBeNull();
+    expect(tamperCheck(['services/workflow/phase-critic/critic-lessons.test.ts'], null)).toBeNull();
+    expect(tamperCheck(['services/workflow/phase-critic/critic-inflight.ts'], null)).toBeNull();
+    expect(tamperCheck(['services/workflow/phase-critic/critique-aggregator.ts'], null)).toBeNull();
+    expect(tamperCheck(['services/workflow/phase-critic/index.ts'], null)).toBeNull();
+  });
 });
 
 describe('coverageCheck', () => {

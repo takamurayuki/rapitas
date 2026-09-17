@@ -77,6 +77,18 @@ describe('buildRepairFeedbackBlock', () => {
     const block = buildRepairFeedbackBlock('reason', 1);
     expect(block).not.toContain('Failed test:');
   });
+
+  // Task 946: 失敗テストの file:line が抽出できた場合のみ根本原因記録を要求する。
+  test('failed test の file:line が抽出できた場合は根本原因記録の指示行を含めること', () => {
+    const verifyContent = 'services/foo.test.ts:99 — assertion failed';
+    const block = buildRepairFeedbackBlock('reason', 1, verifyContent);
+    expect(block).toContain('根本原因');
+  });
+
+  test('failed test の file:line が抽出できない場合は根本原因記録の指示行を含めないこと', () => {
+    const block = buildRepairFeedbackBlock('型エラーが発生', 1, '## テスト結果\n異常終了');
+    expect(block).not.toContain('根本原因');
+  });
 });
 
 describe('mergeRepairFeedback', () => {

@@ -188,6 +188,7 @@ export interface UpdateTaskInput {
   constraints?: string[];
   acceptanceCriteria?: string[];
   isProtected?: boolean;
+  autoRunExcluded?: boolean;
 }
 
 /**
@@ -272,6 +273,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       ...(fields.examGoalId !== undefined && { examGoalId: fields.examGoalId }),
       ...(fields.autoApprovePlan !== undefined && { autoApprovePlan: fields.autoApprovePlan }),
       ...(fields.isProtected !== undefined && { isProtected: fields.isProtected }),
+      ...(fields.autoRunExcluded !== undefined && { autoRunExcluded: fields.autoRunExcluded }),
       // NOTE: Structured spec stored as JSON-array strings, mirroring `labels`.
       ...(fields.goals !== undefined && { goals: JSON.stringify(fields.goals) }),
       ...(fields.constraints !== undefined && { constraints: JSON.stringify(fields.constraints) }),

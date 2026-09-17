@@ -67,10 +67,15 @@ const taskFindManyMock = mock(() => Promise.resolve<Record<string, unknown>[]>([
 const fileFindFirstMock = mock(() => Promise.resolve<Record<string, unknown> | null>(null));
 const transitionFindFirstMock = mock(() => Promise.resolve<Record<string, unknown> | null>(null));
 
+const themeAutoRunFindUniqueMock = mock(() =>
+  Promise.resolve<{ enabled: boolean } | null>({ enabled: true }),
+);
+
 const mockPrisma = {
   task: { findMany: taskFindManyMock },
   workflowFile: { findFirst: fileFindFirstMock },
   workflowTransition: { findFirst: transitionFindFirstMock },
+  themeAutoRun: { findUnique: themeAutoRunFindUniqueMock },
 };
 
 /** Shared discriminator for the 3 distinct `workflowTransition.findFirst` call shapes SUT makes. */
@@ -146,10 +151,43 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ taskId: 1, ok: true, toStatus: 'draft', kind: 'spec_change' });
   notifyQuestionAutoAnsweredMock.mockReset().mockResolvedValue(undefined);
+  themeAutoRunFindUniqueMock.mockReset().mockResolvedValue({ enabled: true });
   delete process.env.RAPITAS_QUESTION_AUTO_ANSWER_MS;
 });
 
 describe('healStaleQuestionAutoAnswer', () => {
+  test('skips when the theme auto-run is stopped (nothing continues on its own)', async () => {
+    taskFindManyMock.mockResolvedValue([baseTask({ themeId: 1 })]);
+    themeAutoRunFindUniqueMock.mockResolvedValue({ enabled: false });
+
+    const result = await healStaleQuestionAutoAnswer(new Date(NOW_MS));
+
+    expect(result).toEqual({ scanned: 1, autoAnswered: 0, skipped: 1 });
+    expect(applyQuestionAnswerByKindMock).not.toHaveBeenCalled();
+    expect(themeAutoRunFindUniqueMock).toHaveBeenCalledWith({
+      where: { themeId: 1 },
+      select: { enabled: true },
+    });
+  });
+
+  test('auto-adopts when the theme auto-run is enabled, and for an unthemed task', async () => {
+    taskFindManyMock.mockResolvedValue([baseTask({ themeId: 1 })]);
+    themeAutoRunFindUniqueMock.mockResolvedValue({ enabled: true });
+    expect(await healStaleQuestionAutoAnswer(new Date(NOW_MS))).toEqual({
+      scanned: 1,
+      autoAnswered: 1,
+      skipped: 0,
+    });
+
+    taskFindManyMock.mockResolvedValue([baseTask({ themeId: null })]);
+    themeAutoRunFindUniqueMock.mockClear();
+    expect(await healStaleQuestionAutoAnswer(new Date(NOW_MS))).toEqual({
+      scanned: 1,
+      autoAnswered: 1,
+      skipped: 0,
+    });
+    expect(themeAutoRunFindUniqueMock).not.toHaveBeenCalled();
+  });
   test('skips when 59 minutes 59 seconds have elapsed (below the default 60m timeout)', async () => {
     fileFindFirstMock.mockResolvedValue({
       content: ELIGIBLE_QUESTION_MD,
