@@ -82,6 +82,15 @@ mock.module('../../../../services/workflow/automation-policy', () => ({
     process.env.RAPITAS_STAGED_COMPLETION !== 'false' &&
     process.env.RAPITAS_STAGED_COMPLETION !== '0',
 }));
+// The real completion-gate.ts pulls in diff-structured.ts → ai-client/index.ts,
+// which imports createLogger from '../../config' — a module this file mocks
+// down to just { prisma }. Mock shouldDeferCompletionForCi directly (mirroring
+// its real logic under the default staged-completion-enabled state) instead
+// of loading that whole chain, same as verify-commit-pr-pipeline.test.ts.
+mock.module('../../../../services/workflow/completion-gate', () => ({
+  shouldDeferCompletionForCi: (landingMode: string) =>
+    landingMode === 'merge' || landingMode === 'pr',
+}));
 mock.module('../../../../services/workflow/verify-completion-inflight', () => ({
   registerVerifyCompletion: () => {},
 }));

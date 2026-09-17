@@ -5,11 +5,14 @@
  * a passing verify.md (sometimes fabricating an implementation report) but never
  * actually edits any code, so the task is marked done with no diff and no commit.
  * A passing verify may complete ONLY when it is backed by real code changes, OR
- * the verify explicitly justifies that no change was needed.
+ * the verify explicitly justifies that no change was needed. Also decides
+ * whether a PR-landing task must defer completion until its PR's CI reports
+ * green (task 950) — see shouldDeferCompletionForCi.
  * Not responsible for running verification (lint/type) — see verification-gate.
  */
 import { getDiff } from '../agents/orchestrator/git-operations/core/diff-structured';
 import { createLogger } from '../../config/logger';
+import { isStagedCompletionEnabled, type LandingMode } from './automation-policy';
 
 const log = createLogger('workflow:completion-gate');
 
@@ -133,4 +136,27 @@ export async function evaluateCompletionGate(
       );
   }
   return { allow: false, reason: 'no_changes_unjustified' };
+}
+
+/**
+ * Whether a task landing via a PR must defer completion until its PR's CI
+ * reports green, instead of completing synchronously at verify time (task
+ * 950: a `pr`-mode task used to complete immediately after PR creation,
+ * before CI ever ran). Pure and synchronous — the caller
+ * (verify-commit-pr-pipeline.ts) holds the task at `verify_done` when this
+ * returns true; `auto-merge-watcher.ts`'s CI polling later completes it.
+ *
+ * `merge` mode always defers (a merge outcome must always be confirmed).
+ * `pr` mode defers only while task 948's `RAPITAS_STAGED_COMPLETION` escape
+ * hatch is enabled (the default) — an operator who explicitly disables it
+ * opts back into the legacy immediate-completion behaviour for `pr` mode.
+ *
+ * @param landingMode - How the task's changes reach the default branch, as
+ *   resolved by `resolveLandingMode` (automation-policy.ts). / 完了点を決める landing mode
+ * @returns true when completion must wait on CI/merge. / CI待ちが必要か
+ */
+export function shouldDeferCompletionForCi(landingMode: LandingMode): boolean {
+  if (landingMode === 'merge') return true;
+  if (landingMode === 'pr') return isStagedCompletionEnabled();
+  return false;
 }

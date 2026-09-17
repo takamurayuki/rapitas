@@ -80,6 +80,13 @@ describe('blockingChecks', () => {
     expect(set.has('Quick Build Check')).toBe(true);
   });
 
+  it('includes CodeQL and the HACK/FIXME ceiling as blocking checks (task 950)', () => {
+    const set = blockingChecks();
+    expect(set.has('CodeQL Analysis (javascript)')).toBe(true);
+    expect(set.has('CodeQL Analysis (typescript)')).toBe(true);
+    expect(set.has('Enforce HACK/FIXME ceilings (ADR-0004)')).toBe(true);
+  });
+
   it('parses a comma-separated RAPITAS_AUTOMERGE_CHECKS override', () => {
     process.env.RAPITAS_AUTOMERGE_CHECKS = 'Foo, Bar,Baz';
     const set = blockingChecks();
@@ -167,6 +174,19 @@ describe('evaluateAutoMergeChecks', () => {
       blocking,
     );
     expect(result).toBe('pending');
+  });
+
+  it('returns "fail" when CodeQL Analysis or the HACK/FIXME ceiling fails (task 950)', () => {
+    const realBlocking = blockingChecks();
+    const result = evaluateAutoMergeChecks(
+      [
+        { name: 'Lint Code', bucket: 'pass' },
+        { name: 'CodeQL Analysis (javascript)', bucket: 'fail' },
+        { name: 'Enforce HACK/FIXME ceilings (ADR-0004)', bucket: 'pass' },
+      ],
+      realBlocking,
+    );
+    expect(result).toBe('fail');
   });
 });
 
