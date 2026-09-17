@@ -1,0 +1,8 @@
+{
+  "id": "case-06-i18n-full-migration",
+  "category": "multi-service",
+  "taskDescription": "frontend の全UI文字列（約3900キー）を next-intl 化する多層（frontend/backend連携）移行タスク",
+  "initialFiles": ["rapitas-frontend/messages", "rapitas-frontend/src/i18n"],
+  "acceptanceCheck": "bun test services/self-learning/prompt-evolution-runner.test.ts",
+  "expectedOutcome": "pass-to-pass"
+}

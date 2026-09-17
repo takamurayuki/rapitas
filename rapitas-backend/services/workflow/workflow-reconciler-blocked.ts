@@ -20,6 +20,7 @@
  *      can sit silently blocked past its first notification).
  * Not responsible for scheduling — called only from workflow-reconciler.
  */
+import { existsSync } from 'node:fs';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
@@ -31,6 +32,8 @@ import {
   HUMAN_ADVANCED_WORKFLOW_STATUSES,
   resolveVerifyRepairLimit,
   VERIFY_NON_CONVERGENCE_CAUSE,
+  VERIFICATION_UNVERIFIABLE_HOLD_CAUSE,
+  MANUAL_CORRECTION_PENDING_CAUSE,
 } from './blocked-task-policy';
 import { resolveBlockedTaskEvidence } from './blocked-task-evidence';
 import { resolveAutomationPolicy } from './automation-policy';
@@ -52,17 +55,38 @@ async function hasLiveExecution(taskId: number): Promise<boolean> {
   return !!live;
 }
 
+/** One blocked-task candidate row, shared by both correction and escalation passes. */
+interface BlockedCandidate {
+  id: number;
+  title: string;
+  themeId: number | null;
+  workflowStatus: string | null;
+  completedAt: Date | null;
+  updatedAt: Date;
+  workingDirectory: string | null;
+  theme: { workingDirectory: string | null } | null;
+}
+
+/**
+ * Resolve a repo working directory for a `gh` live re-verification call —
+ * mirrors auto-merge-candidates.ts's own cwd fallback order (task worktree,
+ * then theme's stable checkout, then this process's own cwd) so
+ * {@link resolveBlockedTaskEvidence}'s live check and the AutoMergeWatcher
+ * never disagree about which directory to run `gh` from.
+ *
+ * @param t - Candidate row with the two directory hints. / cwd 候補を持つ行
+ * @returns The first directory that exists on disk, or undefined if none does. / 実在する最初のディレクトリ
+ */
+function resolveCwdForTask(
+  t: Pick<BlockedCandidate, 'workingDirectory' | 'theme'>,
+): string | undefined {
+  return [t.workingDirectory, t.theme?.workingDirectory, process.cwd()].find(
+    (d): d is string => !!d && existsSync(d),
+  );
+}
+
 /** Blocked candidates for both passes: armed themes, settle elapsed, NO upper age bound. */
-async function findBlockedCandidates(nowMs: number): Promise<
-  {
-    id: number;
-    title: string;
-    themeId: number | null;
-    workflowStatus: string | null;
-    completedAt: Date | null;
-    updatedAt: Date;
-  }[]
-> {
+async function findBlockedCandidates(nowMs: number): Promise<BlockedCandidate[]> {
   // Respect user stops: only heal blocked tasks in themes that are still armed.
   const armed = await prisma.themeAutoRun
     .findMany({ where: { enabled: true, status: 'running' }, select: { themeId: true } })
@@ -89,19 +113,11 @@ async function findBlockedCandidates(nowMs: number): Promise<
         workflowStatus: true,
         completedAt: true,
         updatedAt: true,
+        workingDirectory: true,
+        theme: { select: { workingDirectory: true } },
       },
     })
-    .catch(
-      () =>
-        [] as {
-          id: number;
-          title: string;
-          themeId: number | null;
-          workflowStatus: string | null;
-          completedAt: Date | null;
-          updatedAt: Date;
-        }[],
-    );
+    .catch(() => [] as BlockedCandidate[]);
 }
 
 /**
@@ -127,7 +143,7 @@ export async function correctBlockedByEvidence(nowMs: number): Promise<number> {
     // A live agent means it's not really stuck — skip.
     if (await hasLiveExecution(t.id)) continue;
 
-    const evidence = await resolveBlockedTaskEvidence(prisma, t.id);
+    const evidence = await resolveBlockedTaskEvidence(prisma, t.id, resolveCwdForTask(t));
     if (!evidence.isSuccess) continue;
 
     // Local PR rows cannot prove a required remote merge. The authoritative
@@ -271,7 +287,9 @@ export async function escalateAbandonedBlocked(nowMs: number): Promise<number> {
 
     // Double safety: a success-evidence task belongs to the correction pass
     // (this cycle or the next) — never escalate a task that in fact succeeded.
-    const evidence = await resolveBlockedTaskEvidence(prisma, t.id);
+    // Same cwd resolution as correctBlockedByEvidence's call so both passes
+    // agree on a live re-verification within one cycle (see module header).
+    const evidence = await resolveBlockedTaskEvidence(prisma, t.id, resolveCwdForTask(t));
     if (evidence.isSuccess) continue;
 
     // Mirror requeueBlockedTasks' budget accounting (count since last manual
@@ -316,6 +334,30 @@ export async function escalateAbandonedBlocked(nowMs: number): Promise<number> {
       })
       .catch(() => 0);
 
+    // Mirror requeueBlockedTasks' unverifiable-hold skip (same window) so the
+    // escalation copy tells the human to restore verification, not to split.
+    const unverifiableHeldCount = await prisma.workflowTransition
+      .count({
+        where: {
+          taskId: t.id,
+          cause: VERIFICATION_UNVERIFIABLE_HOLD_CAUSE,
+          ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+        },
+      })
+      .catch(() => 0);
+
+    // Mirror requeueBlockedTasks' manual-correction-pending skip (same window,
+    // task 873/948) so requeue and escalation stay in sync (module header).
+    const manualCorrectionPendingCount = await prisma.workflowTransition
+      .count({
+        where: {
+          taskId: t.id,
+          cause: MANUAL_CORRECTION_PENDING_CAUSE,
+          ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+        },
+      })
+      .catch(() => 0);
+
     const classification = classifyBlockedExclusion({
       workflowStatus: t.workflowStatus,
       ageMs: nowMs - t.updatedAt.getTime(),
@@ -323,6 +365,8 @@ export async function escalateAbandonedBlocked(nowMs: number): Promise<number> {
       verifyRepairLimit,
       attempts,
       nonConverged: nonConvergedCount > 0,
+      unverifiableHeld: unverifiableHeldCount > 0,
+      manualCorrectionPending: manualCorrectionPendingCount > 0,
       prNotCreatedCount,
     });
     if (classification === 'retryable') continue; // requeueBlockedTasks owns it

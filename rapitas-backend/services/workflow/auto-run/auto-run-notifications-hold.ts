@@ -158,6 +158,38 @@ export async function notifyQueueStarvation(
 }
 
 /**
+ * The queue is stalled the SAME way (`running=0 かつ queued>0` past the
+ * threshold), but the runner's poll loop is already alive — startProcessing()
+ * is a no-op (it just answers "Already running"), so there is nothing to kick.
+ * Before this notification existed, that case logged one WARN line ONCE per
+ * episode (workflow-reconciler-queue-stall.ts's noOpKickReported guard) and
+ * then went completely silent — the exact shape behind three separate
+ * incidents an external supervisor had to find by hand-grepping logs
+ * (tasks 905/914/937, 2026-09-16/17, all outlived the overlap-guard's own
+ * hold ceiling with zero durable signal anywhere). This makes it visible
+ * without reintroducing the restart-spam the noOpKickReported guard exists
+ * to prevent — the guard still governs LOGGING cadence; notifyOnce's own
+ * dedup (unread-notification-exists) governs this notification's cadence.
+ *
+ * @param taskId - Oldest queued task, if any. / 最古の待機タスク（null可）
+ * @param waitedMinutes - How long the stall persisted. / 継続時間（分）
+ */
+export async function notifyQueueStalledRunnerAlive(
+  taskId: number | null,
+  waitedMinutes: number,
+): Promise<void> {
+  const taskRef = taskId != null ? `（先頭: タスク #${taskId}）` : '';
+  await notifyOnce({
+    type: 'auto_run_queue_stalled',
+    themeId: null,
+    taskId: taskId ?? undefined,
+    title: '自動実行: キューが消費されていません（要調査）',
+    message: `実行中 0 件のままキュー待ちが約 ${waitedMinutes} 分間消費されていません${taskRef}。ワークフローランナーは稼働中のため自動での再起動はできません — overlap-guard の保留超過など、原因調査が必要な可能性があります。`,
+    i18n: buildNotificationI18n('auto_run_queue_stalled', { waitedMinutes, taskRef }),
+  });
+}
+
+/**
  * The theme is SPINNING: it keeps reporting status='running' but its current
  * task has produced ZERO AgentExecution rows for the whole threshold window
  * (task 653: 21 min of enqueue→cancel looked healthy on every self-report).

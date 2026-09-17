@@ -17,6 +17,7 @@ import { prisma } from '../../../../config';
 import { createLogger } from '../../../../config/logger';
 import { performAutoCommitAndPR, isNoChangeCompletion } from '../../workflow-auto-commit';
 import { resolveLandingMode } from '../../../../services/workflow/automation-policy';
+import { shouldDeferCompletionForCi } from '../../../../services/workflow/completion-gate';
 import { recordTransition } from '../../../../services/workflow/transition-recorder';
 import { markLatestExecutionFailed } from './shared';
 import { handleVerifyGateBlocked } from './verify-commit-pr-gate-blocked';
@@ -87,7 +88,7 @@ export async function runVerifyCommitPrPipeline(params: {
   // history, rebuild the worktree and retry ONCE. performAutoCommitAndPR
   // re-reads the latest session's worktreePath, which the recovery updates.
   let gateRecoveryBlocked: 'recovery_already_used' | 'patch_apply_conflict' | null = null;
-  if (autoCommitPRResult.verificationBlocked) {
+  if (autoCommitPRResult.verificationBlocked && !autoCommitPRResult.verificationUnverifiable) {
     const { tryRecoverFromHistoryContamination } =
       await import('../../../../services/workflow/worktree-rebuild-recovery');
     const gateWorktreeSession = await prisma.agentSession
@@ -129,6 +130,16 @@ export async function runVerifyCommitPrPipeline(params: {
   const merge = autoCommitPRResult.autoMergeResult;
 
   if (autoCommitPRResult.verificationBlocked) {
+    if (autoCommitPRResult.verificationUnverifiable) {
+      // The gate already persisted the blocked task and original evidence.
+      // No rebuild, repair budget, receipt refresh or completion is justified
+      // when the verification infrastructure could not establish correctness.
+      log.warn(
+        { taskId, reason: autoCommitPRResult.error },
+        '[Workflow] Verification unavailable; retaining blocked task and worktree',
+      );
+      return { newStatus, taskMarkedDone: false, autoCommitPRResult };
+    }
     // The automated gate (lint/typecheck/test/scope) found problems, so
     // commit/PR were withheld. Bounce to the implementer for self-repair
     // (bounded by RAPITAS_MAX_VERIFY_REPAIRS) rather than dead-ending at
@@ -214,18 +225,17 @@ export async function runVerifyCommitPrPipeline(params: {
         '[Workflow] verify passed but no PR created — NOT completing (completion requires a PR).',
       );
     } else {
-      // Staged completion: when changes land via a PR, completion is NOT at
+      // CI-gated completion: when changes land via a PR, completion is NOT at
       // PR creation — `pr` mode completes when the PR's CI goes green, `merge`
-      // mode completes when the PR is merged. A requested merge is always a
-      // completion requirement; the legacy flag only controls CI-only PR mode.
-      // The watcher verifies the external result before completing the task.
-      const staged =
-        process.env.RAPITAS_STAGED_COMPLETION === 'true' ||
-        process.env.RAPITAS_STAGED_COMPLETION === '1';
+      // mode completes when the PR is merged (task 950: a `pr`-mode task used
+      // to complete immediately after PR creation, before CI ever ran). The
+      // defer-or-complete decision itself lives in completion-gate.ts's
+      // shouldDeferCompletionForCi — this pipeline only calls it. The watcher
+      // verifies the external result before completing the task.
       const landingMode = autoCommitPRResult.requested
         ? resolveLandingMode(autoCommitPRResult.requested)
         : 'none';
-      if (landingMode === 'merge' || (staged && landingMode === 'pr')) {
+      if (shouldDeferCompletionForCi(landingMode)) {
         // Hold at verify_done (status stays in-progress, NOT done). The watcher
         // completes on CI-green (pr) / merge (merge). Do not fire completion
         // side effects yet (taskMarkedDone stays false).

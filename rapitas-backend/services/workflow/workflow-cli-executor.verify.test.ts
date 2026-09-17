@@ -103,6 +103,9 @@ describe('executeCLIAgent — verify phase', () => {
     expect(result.status).toBe('completed');
     expect(spies.evaluateCompletionGate).not.toHaveBeenCalled();
     expect(spies.taskUpdate).not.toHaveBeenCalled();
+    expect(spies.executeTask.mock.calls[0][1]).toEqual(
+      expect.objectContaining({ investigationMode: false, investigationOutputType: 'verify' }),
+    );
   });
 
   test('hard validation failure blocks durably instead of completing', async () => {
@@ -224,19 +227,19 @@ describe('executeCLIAgent — verify phase', () => {
     expect(spies.performAutoCommitAndPR).not.toHaveBeenCalled();
   });
 
-  test('completes immediately when a PR is already linked (no auto-commit/PR call needed)', async () => {
+  test('holds (does not complete) when a PR is already linked, under staged completion', async () => {
+    // task 948: staged completion defaults to ON, so an already-linked PR no
+    // longer completes the task on the spot — it defers to the CI-green
+    // check (isAwaitingStagedPrCompletion), same as a freshly-created PR
+    // would. Pre-948 this test asserted immediate completion; that behaviour
+    // is exactly what task 873/948 removed.
     wf.linkedPrRow = { id: 7 };
 
     const result = await run();
 
-    expect(result.status).toBe('completed');
+    expect(result.status).toBe('in_progress');
     expect(spies.performAutoCommitAndPR).not.toHaveBeenCalled();
-    expect(spies.taskUpdate).not.toHaveBeenCalled();
-    expect(spies.completeReviewedTask).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.objectContaining({ cause: 'verify_passed' }),
-    );
+    expect(spies.completeReviewedTask).not.toHaveBeenCalled();
   });
 
   test('completes after a successful auto-commit + PR when none existed yet', async () => {

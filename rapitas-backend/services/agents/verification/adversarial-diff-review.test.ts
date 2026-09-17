@@ -1,4 +1,4 @@
-/**
+﻿/**
  * adversarial-diff-review.test
  *
  * Unit tests for the independent judge: the pure prompt builder + verdict
@@ -25,7 +25,8 @@ const agentExecutionConfigFindUnique = mock(() => Promise.resolve(null));
 const appendEventMock = mock(() => Promise.resolve({ id: 1 }));
 
 mock.module('../orchestrator/git-operations/core/diff-structured', () => ({ getDiff }));
-mock.module('../../../utils/ai-client', () => ({ sendAIMessage }));
+let auxMode: 'api' | 'cli' = 'api';
+mock.module('../../../utils/ai-client', () => ({ sendAIMessage, getAuxAiMode: () => auxMode }));
 mock.module('../../workflow/workflow-file-utils', () => ({ resolveWorkflowDir, readWorkflowFile }));
 mock.module('../../memory/timeline', () => ({ appendEvent: appendEventMock }));
 mock.module('../../../config/database', () => ({
@@ -108,6 +109,18 @@ describe('buildDiffReviewPrompt', () => {
     expect(prompt).toContain('research.md');
     expect(prompt).toContain('WorkflowFile');
     expect(prompt).toContain('fail の根拠にしてはならない');
+  });
+
+  // Task 946: ジャッジの reasons に受入基準番号を明記させ、非収束検知
+  // (identifyIndictedCriteria) が反復指摘を検出できる割合を上げる。
+  it('reasons に受入基準番号を明記するよう指示する', () => {
+    const prompt = buildDiffReviewPrompt({
+      taskTitle: 'T',
+      planContent: '',
+      acceptanceCriteria: ['何かを満たす'],
+      diffText: 'diff',
+    });
+    expect(prompt).toContain('受入基準N:');
   });
 
   it('truncates an overlong plan to 6000 chars', () => {
@@ -257,7 +270,59 @@ describe('isAdversarialReviewEnabled', () => {
 });
 
 describe('reviewDiffAdversarially', () => {
+  it('CLI mode holds high-risk work when the only real provider is unavailable', async () => {
+    auxMode = 'cli';
+    taskFindUnique.mockResolvedValue({
+      title: 'Change login password validation',
+      acceptanceCriteria: null,
+    });
+    sendAIMessage.mockRejectedValue(new Error('Claude unavailable'));
+    try {
+      const result = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
+      expect(result.verdict).toBe('fail');
+      expect(result.judged).toBe(false);
+      expect(sendAIMessage).toHaveBeenCalledTimes(1);
+    } finally {
+      auxMode = 'api';
+    }
+  });
+
+  it('CLI mode records unavailable families without making duplicate Claude calls', async () => {
+    auxMode = 'cli';
+    try {
+      const result = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
+      expect(result.verdict).toBe('pass');
+      expect(sendAIMessage).toHaveBeenCalledTimes(1);
+      expect(
+        (sendAIMessage.mock.calls as unknown as Array<[{ provider: string }]>)[0][0],
+      ).toMatchObject({ provider: 'claude' });
+      const event = (
+        appendEventMock.mock.calls as unknown as Array<
+          [{ payload: { jurors: Array<{ provider: string; verdict: string; reasons: string[] }> } }]
+        >
+      ).at(-1)![0];
+      expect(
+        event.payload.jurors
+          .filter((j) => j.provider !== 'claude')
+          .sort((a, b) => a.provider.localeCompare(b.provider)),
+      ).toEqual([
+        expect.objectContaining({
+          provider: 'chatgpt',
+          verdict: 'unknown',
+          reasons: [expect.stringContaining('unavailable')],
+        }),
+        expect.objectContaining({
+          provider: 'gemini',
+          verdict: 'unknown',
+          reasons: [expect.stringContaining('unavailable')],
+        }),
+      ]);
+    } finally {
+      auxMode = 'api';
+    }
+  });
   beforeEach(() => {
+    auxMode = 'api';
     getDiff.mockReset();
     sendAIMessage.mockReset();
     resolveWorkflowDir.mockReset();

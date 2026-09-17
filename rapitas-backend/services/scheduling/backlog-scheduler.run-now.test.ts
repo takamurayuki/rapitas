@@ -45,6 +45,11 @@ mock.module('../self-improvement/ci-green-keeper', () => ({
 }));
 mock.module('../communication/notification-service', () => ({
   createNotification: mockCreateNotification,
+  // notifyTaskCompleted is unused by this module but must be mirrored — it is
+  // imported transitively via gate-precision-job -> gate-precision-watcher ->
+  // concern-backlog-service -> task-mutations, and bun's mock.module replaces
+  // the whole module (see NOTE above).
+  notifyTaskCompleted: mock(() => Promise.resolve()),
 }));
 
 const { runBacklogJobNow } = await import('./backlog-scheduler');

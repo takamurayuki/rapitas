@@ -7,7 +7,8 @@
  * can trigger the exact same exit path.
  * Not responsible for deciding WHEN to shut down — callers own that.
  */
-import { orchestrator, stopServer } from '../core/orchestrator-instance';
+import { stopServer } from '../core/orchestrator-instance';
+import { shutdownExecutionOwners } from './shutdown-execution-owners';
 import { realtimeService } from '../communication/realtime-service';
 import { createLogger } from '../../config/logger';
 
@@ -38,12 +39,21 @@ export function scheduleShutdownSequence(prefix: string, exitCode: number): void
       log.info(`${prefix} Closing all SSE connections...`);
       realtimeService.shutdown();
 
+      // Preview servers spawned for runtime smoke inherit this process's
+      // listening socket handle; one left alive keeps port 3001 LISTENING
+      // after we exit and blocks the supervisor's respawn (2026-09-13, task 910).
+      log.info(`${prefix} Stopping owned runtime-smoke servers...`);
+      const { stopAllRuntimeServersForShutdown } =
+        await import('../agents/verification/runtime-smoke/runtime-server-shutdown');
+      const runtime = await stopAllRuntimeServersForShutdown(`${prefix} shutdown`);
+      log.info({ ...runtime }, `${prefix} Runtime-smoke servers handled.`);
+
       log.info(`${prefix} Closing listening socket first for quick port release...`);
       await stopServer();
       log.info(`${prefix} Listening socket closed, port released.`);
 
       log.info(`${prefix} Stopping agents and saving state...`);
-      await orchestrator.gracefulShutdown({ skipServerStop: true });
+      await shutdownExecutionOwners();
       log.info(`${prefix} Agent shutdown completed.`);
     } catch (error) {
       log.error({ err: error }, `${prefix} Graceful shutdown error`);

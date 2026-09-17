@@ -159,6 +159,37 @@ describe('useDeveloperMode - restoreExecutionState executionResult.success', () 
     expect(result.current.isExecuting).toBe(true);
   });
 
+  // Regression: a phase-boundary 'completed' row used to also call the
+  // GLOBAL execution store's setExecutingTask — shared with the task list's
+  // "next up" badge, which reads it as "an agent is running right now."
+  // Between phases no agent process exists, so opening the detail view of a
+  // "next up" (queued-but-not-dispatched) task flipped its list badge to the
+  // running badge even though nothing was actually executing.
+  it('does NOT write a phase-auto-advancing "completed" row into the shared execution store', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        mockStatusResponse({
+          executionStatus: 'completed',
+          sessionMode: 'workflow-researcher',
+          taskStatus: 'in-progress',
+          workflowStatus: 'research_done',
+        }),
+      ),
+    );
+
+    const { result } = renderHook(() => useDeveloperMode(203));
+
+    await waitFor(() => {
+      expect(result.current.isRestoringState).toBe(false);
+    });
+
+    // Local state still reflects "still advancing" so the panel itself
+    // doesn't flash completed — only the shared store must stay untouched.
+    expect(result.current.isExecuting).toBe(true);
+    expect(useExecutionStateStore.getState().getExecutingTaskStatus(203)).toBeNull();
+  });
+
   it('does NOT treat a "completed" verify row as terminal while the task is still actively self-repairing', async () => {
     vi.stubGlobal(
       'fetch',

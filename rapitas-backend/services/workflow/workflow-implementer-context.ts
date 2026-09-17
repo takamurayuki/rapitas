@@ -15,6 +15,7 @@ import { buildHypothesisContext } from './workflow-hypothesis-context';
 import { buildCaseContext } from './workflow-case-context';
 import { buildCriticLessonsSection } from './phase-critic';
 import { recordContextMetrics } from './workflow-context-metrics';
+import { buildRepairRiskTacticSection } from './learning/repair-risk-tactic-section';
 import { budgetSection, resolveBudgetMode } from './workflow-context-budget';
 import { buildGoalAnchor } from './workflow-goal-anchor';
 import type { ImplementerTexts } from './workflow-role-prompts';
@@ -82,6 +83,16 @@ export async function buildImplementerContext(
   );
   if (implementLessons) {
     ctx += `\n\n${implementLessons}`;
+  }
+  // Repair-risk tactics — see the researcher context for rationale.
+  const implementRepairRisk = await buildRepairRiskTacticSection(
+    taskId,
+    task,
+    'implement',
+    language,
+  );
+  if (implementRepairRisk) {
+    ctx += `\n\n${implementRepairRisk}`;
   }
   // Hypothesis ledger: the implementer's concrete changes + test results are
   // prime evidence — surface open/proven hypotheses and how to record it.
@@ -152,6 +163,6 @@ export async function buildImplementerContext(
   // (raw) and injected (budgeted) size so the slimming effect is measurable
   // and the oversized-section culprit stays identifiable even in `log` mode.
   // prettier-ignore
-  void recordContextMetrics(taskId, 'implementer', mode, { taskInfo, goalAnchor, memory, pitfalls, lessons: implementLessons, hypothesis, case: implementerCase, research: { raw: research, budgeted: researchBody }, fileSizeAwareness, plan, question, verifyFeedback: { raw: verifyFeedback, budgeted: feedbackBody }, styleRule });
+  void recordContextMetrics(taskId, 'implementer', mode, { taskInfo, goalAnchor, memory, pitfalls, lessons: implementLessons, repairRisk: implementRepairRisk, hypothesis, case: implementerCase, research: { raw: research, budgeted: researchBody }, fileSizeAwareness, plan, question, verifyFeedback: { raw: verifyFeedback, budgeted: feedbackBody }, styleRule });
   return ctx;
 }

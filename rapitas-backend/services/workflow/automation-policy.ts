@@ -58,6 +58,19 @@ export function resolveLandingMode(policy: {
 }
 
 /**
+ * Whether `pr`-mode tasks defer completion until the PR's CI goes green,
+ * instead of completing at PR creation. Defaults to enabled — only an
+ * explicit `'false'`/`'0'` opts back into the legacy immediate-completion
+ * behaviour (task 873/948: PR未マージのまま completed 扱いになる不具合の根本対処).
+ *
+ * @returns True unless `RAPITAS_STAGED_COMPLETION` is explicitly `'false'`/`'0'`. / 明示無効化時のみ false
+ */
+export function isStagedCompletionEnabled(): boolean {
+  const v = process.env.RAPITAS_STAGED_COMPLETION;
+  return v !== 'false' && v !== '0';
+}
+
+/**
  * 解決後の自動化設定。verify_done → completed の自動進行をどこまで進めるかを表す。
  */
 export interface ResolvedAutomationPolicy {

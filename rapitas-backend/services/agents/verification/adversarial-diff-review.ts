@@ -1,3 +1,4 @@
+import { parseAcceptanceCriteria } from './review-acceptance-criteria';
 /**
  * Adversarial Diff Review — jury edition
  *
@@ -22,7 +23,7 @@
  * realized task outcomes (Weaver, arXiv:2506.18203).
  */
 import { getDiff } from '../orchestrator/git-operations/core/diff-structured';
-import { sendAIMessage } from '../../../utils/ai-client';
+import { getAuxAiMode, sendAIMessage } from '../../../utils/ai-client';
 import type { AIProvider } from '../../../utils/ai-client/types';
 import { DEFAULT_MODELS } from '../../../utils/ai-client/types';
 import { inferProviderFromModelId } from '../../workflow/role-provider-resolver';
@@ -177,7 +178,7 @@ ${p.diffText}
 ## 出力（厳守）
 **JSONオブジェクトのみ**を出力してください（前置き・コードフェンス不要）:
 {"verdict":"pass"|"fail","severity":0-100,"reasons":["不合格や懸念の具体的根拠を簡潔に。passなら空配列可"]}
-判定基準: 受入基準を満たさない／実装が的外れ・未完／明確なバグ・セキュリティ問題がある場合は "fail"。軽微な好みの問題だけなら "pass"。**確信が持てない重大な疑義は、差分内に根拠がある場合のみ** "fail" 側に倒す（diff 外の推測だけなら「要確認:」の懸念として reasons に残し pass とする）。`;
+判定基準: 受入基準を満たさない／実装が的外れ・未完／明確なバグ・セキュリティ問題がある場合は "fail"。軽微な好みの問題だけなら "pass"。**確信が持てない重大な疑義は、差分内に根拠がある場合のみ** "fail" 側に倒す（diff 外の推測だけなら「要確認:」の懸念として reasons に残し pass とする）。各 reasons 要素は、対応する受入基準がある場合は文頭に「受入基準N:」を付けること（基準に紐づかない一般的な懸念は省略可）。`;
 }
 
 /**
@@ -367,6 +368,15 @@ export function recordJurorOutcome(provider: AIProvider, timedOut: boolean, nowM
  */
 async function askJuror(provider: AIProvider, prompt: string): Promise<JurorVerdict> {
   const unknown: JurorVerdict = { provider, verdict: 'unknown', severity: 0, reasons: [] };
+  // CLI auxiliary mode routes every family through Claude. Never count those
+  // duplicate calls as independent Gemini/OpenAI votes, or wait for them.
+  if (getAuxAiMode() === 'cli' && provider !== 'claude') {
+    return {
+      ...unknown,
+      reasons: ['Requested provider unavailable in Claude-only auxiliary CLI mode'],
+    };
+  }
+
   const timeoutMs = jurorTimeoutMs();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -497,6 +507,7 @@ export async function reviewDiffAdversarially(params: {
             provider: j.provider,
             verdict: j.verdict,
             severity: j.severity,
+            reasons: j.reasons,
           })),
         },
         correlationId: `task-${taskId}`,
@@ -542,18 +553,4 @@ export async function reviewDiffAdversarially(params: {
     log.warn({ err, taskId }, '[adversarial-review] Review errored — failing open');
     return { verdict: 'unknown', severity: 0, reasons: [], judged: false };
   }
-}
-
-/** Parse the task's acceptanceCriteria JSON-string column into a string[]. */
-function parseAcceptanceCriteria(raw: unknown): string[] {
-  if (Array.isArray(raw)) return raw.filter((x): x is string => typeof x === 'string');
-  if (typeof raw === 'string' && raw.trim()) {
-    try {
-      const p: unknown = JSON.parse(raw);
-      return Array.isArray(p) ? p.filter((x): x is string => typeof x === 'string') : [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
 }

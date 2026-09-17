@@ -310,6 +310,7 @@ describe('countHumanOriginTodo', () => {
         status: 'todo',
         parentId: null,
         workflowDisabled: false,
+        autoRunExcluded: false,
         OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
         autoCreatedFromBacklog: false,
       },
