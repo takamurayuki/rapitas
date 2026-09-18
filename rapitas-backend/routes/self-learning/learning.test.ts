@@ -19,6 +19,33 @@ mock.module('../../config/logger', () => ({
   createLogger: () => noopLogger,
 }));
 
+interface EvoRow {
+  id: number;
+  basePromptKey: string | null;
+  afterPrompt: string;
+  status: string;
+}
+let evoRows: EvoRow[] = [
+  {
+    id: 1,
+    basePromptKey: 'workflow_role_implementer',
+    afterPrompt: '改善指示',
+    status: 'proposed',
+  },
+  { id: 2, basePromptKey: 'workflow_role_planner', afterPrompt: '改善指示B', status: 'approved' },
+];
+
+mock.module('../../config/database', () => ({
+  ensureDatabaseConnection: mock(async () => {}),
+  prisma: {
+    promptEvolution: {
+      findUnique: mock((args: { where: { id: number } }) =>
+        Promise.resolve(evoRows.find((r) => r.id === args.where.id) ?? null),
+      ),
+    },
+  },
+}));
+
 const { learningRoutes } = await import('./learning');
 const { writeComparisonRecord } =
   await import('../../services/self-learning/comparison/prompt-comparison-store');
@@ -76,6 +103,76 @@ describe('GET /learning/prompt-evolution/:id/comparison', () => {
       new Request(`${BASE}/prompt-evolution/not-a-number/comparison`),
     );
     expect(res.status).toBe(400);
+  });
+});
+
+describe('POST /learning/prompt-evolution/:id/compare', () => {
+  it('400s on a non-integer id', async () => {
+    const res = await learningRoutes.handle(
+      new Request(`${BASE}/prompt-evolution/not-a-number/compare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sampleTaskIds: [810] }),
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('404s when the candidate does not exist', async () => {
+    const res = await learningRoutes.handle(
+      new Request(`${BASE}/prompt-evolution/999/compare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sampleTaskIds: [810] }),
+      }),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('400s when the candidate is not in the proposed state', async () => {
+    const res = await learningRoutes.handle(
+      new Request(`${BASE}/prompt-evolution/2/compare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sampleTaskIds: [810] }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'not_proposed' });
+  });
+
+  it('202s and seeds a running record for a proposed candidate', async () => {
+    const res = await learningRoutes.handle(
+      new Request(`${BASE}/prompt-evolution/1/compare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sampleTaskIds: [810] }),
+      }),
+    );
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { runId: number; status: string };
+    expect(body.status).toBe('running');
+    expect(typeof body.runId).toBe('number');
+
+    const { releaseComparisonLock } =
+      await import('../../services/self-learning/comparison/prompt-comparison-store');
+    releaseComparisonLock(1);
+  });
+
+  it('409s when a comparison for the same candidate is already in progress', async () => {
+    const { acquireComparisonLock, releaseComparisonLock } =
+      await import('../../services/self-learning/comparison/prompt-comparison-store');
+    expect(acquireComparisonLock(1)).toBe(true);
+    const res = await learningRoutes.handle(
+      new Request(`${BASE}/prompt-evolution/1/compare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sampleTaskIds: [810] }),
+      }),
+    );
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: 'comparison_locked' });
+    releaseComparisonLock(1);
   });
 });
 
