@@ -228,4 +228,21 @@ describe('buildMemoryContext', () => {
     expect(out).toBe('');
     expect(mockSearchKnowledge).not.toHaveBeenCalled();
   });
+
+  test('RAPITAS_EVAL_MODE=true のときは KB 検索・エピソード想起を呼ばず空文字を返す', async () => {
+    mockSearchKnowledge.mockReturnValue(
+      Promise.resolve([row({ title: '想起されてはいけない教訓' })]),
+    );
+    const prev = process.env.RAPITAS_EVAL_MODE;
+    process.env.RAPITAS_EVAL_MODE = 'true';
+    try {
+      const out = await buildMemoryContext(10, { title: 'T', description: 'D' }, 'ja');
+      expect(out).toBe('');
+      expect(mockSearchKnowledge).not.toHaveBeenCalled();
+      expect(mockFindUnique).not.toHaveBeenCalled();
+    } finally {
+      if (prev === undefined) delete process.env.RAPITAS_EVAL_MODE;
+      else process.env.RAPITAS_EVAL_MODE = prev;
+    }
+  });
 });

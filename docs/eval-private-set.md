@@ -71,3 +71,16 @@ bun run eval:private-set
 | `rapitas-backend/scripts/eval-runner.ts` | 評価セット実行ランナー |
 | `rapitas-backend/eval/private-set/cases/*.json` | 評価ケース本体 |
 | `rapitas-backend/services/self-learning/__tests__/eval-set-isolation.test.ts` | 学習ループからの隔離を保証する静的ガード |
+
+## 記憶想起の遮断（RAPITAS_EVAL_MODE）
+
+現行の `eval-runner.ts` は `acceptanceCheck` をシェルコマンドとして直接実行するのみで、CLIエージェント/ワークフローオーケストレーターを起動しない。そのため、KB検索・エピソード想起（`services/workflow/workflow-memory-context.ts` の `buildMemoryContext`）を経由する実行経路は現状のbaselineシナリオには存在しない。
+
+一方で、将来 `eval-runner.ts` に実エージェント呼び出しが追加された場合に備え、`buildMemoryContext` の先頭で `RAPITAS_EVAL_MODE === 'true'` をチェックし、KB検索・失敗エピソード想起の両方を実行せず即座に空文字を返すガードを実装済みである（`createPullRequest` の既存のPR作成モック化ゲートと同一の環境変数・同一の厳密文字列比較 `'true'` を使う）。
+
+| 項目 | 状態 |
+| --- | --- |
+| フラグ設定経路 | `scripts/eval-runner.ts` / `scripts/fault-injection-e2e.ts`（値は文字列 `'true'`。タスク記述にある `RAPITAS_EVAL_MODE=1` という表記は誤り） |
+| 想起遮断の実装範囲 | `buildMemoryContext()` 全体（KB検索 + 失敗エピソード想起）。researcher/planner/implementer/verifierの4コンテキストに自動的に波及する |
+| 遮断の粒度 | 実行全体（`RAPITAS_EVAL_MODE` が立っている間は全タスクの想起を遮断）。`EvalCorpusTask.sourceTaskId` 単位の選択的遮断ではない — 当該Prismaモデルは現行スキーマに存在せず、書き込み元となる実エージェント実行ハーネスも未実装のため導入していない |
+| 既知の限界 | baselineシナリオで実エージェントに評価コーパスタスクを解かせる経路自体が未実装のため、記憶想起遮断の前後比較によるfail-to-pass率の実測改善はできない。将来 `eval-runner.ts` に実エージェント呼び出しが追加された時点で、本ガードがそのまま有効になる |
