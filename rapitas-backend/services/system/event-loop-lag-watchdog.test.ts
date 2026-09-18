@@ -35,12 +35,23 @@ function normalize(msg: string): string {
 
 /** Advance the real watchdog callback with an exact, controlled clock. */
 function triggerLag(lagMs: number): void {
+  triggerLags([lagMs]);
+}
+
+/**
+ * Runs one watchdog session through a sequence of lags, each applied as one
+ * tick of the real interval callback, under a fully controlled clock —
+ * needed for the self-heal thresholds, which only fire after multiple ticks
+ * (or one very large one). Returns the reasons passed to `selfHeal`, if any.
+ */
+function triggerLags(lagMsList: number[], selfHeal: (reason: string) => void = () => {}): string[] {
   const realNow = Date.now;
   const realInterval = globalThis.setInterval;
   const realClear = globalThis.clearInterval;
   let clockMs = 10_000;
   let tick: (() => void) | undefined;
   let intervalMs = 0;
+  const reasons: string[] = [];
   Date.now = () => clockMs;
   globalThis.setInterval = ((callback: () => void, ms: number) => {
     tick = callback;
@@ -49,17 +60,23 @@ function triggerLag(lagMs: number): void {
   }) as unknown as typeof setInterval;
   globalThis.clearInterval = (() => {}) as typeof clearInterval;
   try {
-    startEventLoopLagWatchdog();
+    startEventLoopLagWatchdog((reason) => {
+      reasons.push(reason);
+      selfHeal(reason);
+    });
     expect(intervalMs).toBe(500);
     expect(tick).toBeDefined();
-    clockMs += intervalMs + lagMs;
-    tick!();
+    for (const lagMs of lagMsList) {
+      clockMs += intervalMs + lagMs;
+      tick!();
+    }
   } finally {
     stopEventLoopLagWatchdog();
     Date.now = realNow;
     globalThis.setInterval = realInterval;
     globalThis.clearInterval = realClear;
   }
+  return reasons;
 }
 describe('formatEventLoopLagMessage', () => {
   it('formats a fractional-second lag with one decimal place', () => {
@@ -119,5 +136,43 @@ describe('event-loop-lag-watchdog', () => {
     expect(secondMsg).toBeDefined();
     expect(normalize(firstMsg as string)).toBe(normalize(secondMsg as string));
     expect(normalize(firstMsg as string)).toBe('Event loop stalled ~#.#s');
+  });
+});
+
+describe('event-loop-lag-watchdog self-heal (2026-09-18 incident)', () => {
+  afterEach(() => {
+    stopEventLoopLagWatchdog();
+    warnCalls.length = 0;
+  });
+
+  test('a single catastrophic stall (>=15s) triggers self-heal immediately', () => {
+    const reasons = triggerLags([15_000]);
+    expect(reasons).toHaveLength(1);
+    expect(reasons[0]).toContain('single stall');
+  });
+
+  test('a moderate stall well under both thresholds never triggers self-heal', () => {
+    const reasons = triggerLags([3000, 3000, 3000]);
+    expect(reasons).toHaveLength(0);
+  });
+
+  test('repeated moderate stalls that sum to >=30s within the window trigger self-heal', () => {
+    // 10 x 3000ms = 30000ms, each tick ~3.5s apart -> well inside the 120s window.
+    const reasons = triggerLags(Array(10).fill(3000));
+    expect(reasons).toHaveLength(1);
+    expect(reasons[0]).toContain('cumulative stall');
+  });
+
+  test('self-heal fires at most once per watchdog run even if lag keeps recurring', () => {
+    const reasons = triggerLags([15_000, 15_000, 15_000]);
+    expect(reasons).toHaveLength(1);
+  });
+
+  test("a fresh watchdog run does not inherit the previous run's stall history", () => {
+    triggerLags([20_000]);
+    // A brand-new run (stopEventLoopLagWatchdog() ran in triggerLags' finally
+    // block) must start clean, not immediately re-trigger from stale state.
+    const reasons = triggerLags([3000]);
+    expect(reasons).toHaveLength(0);
   });
 });
