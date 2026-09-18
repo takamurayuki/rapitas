@@ -65,6 +65,20 @@ const PHASE_COMPLETED_CAUSE_PREFIX = 'phase_completed:';
 const FILE_SAVED_VERIFY_CAUSE = 'file_saved:verify';
 
 /**
+ * Cause recorded once per successful verify.md save by
+ * `requirement-replan-commit.ts`'s `advanceReviewedVerify` (audit trail for
+ * the AI-reviewed completion path) — emitted 1:1 alongside
+ * {@link FILE_SAVED_VERIFY_CAUSE} on every verify save, so it repeats exactly
+ * as many times as a healthy repair cycle re-saves verify. Forgiven through
+ * its own independent budget for the same reason `file_saved:verify` is
+ * (task 976, self-detected on task #970: 1 initial verify save + 2
+ * verify_repair bounces produced 3 `verify_review_admitted` firings, which
+ * were not forgiven because this cause was missing from the amnesty list —
+ * only `file_saved:verify` was).
+ */
+const VERIFY_REVIEW_ADMITTED_CAUSE = 'verify_review_admitted';
+
+/**
  * Causes that indicate a self-repair bounce (verify/CI sent a phase back for
  * another attempt). Their presence in the window is what tells
  * {@link detectRepeatLoop} that repeated `phase_completed:*` causes are a
@@ -96,13 +110,16 @@ export function isRepairBounceCause(cause: string): boolean {
  * causally explain — would otherwise be waved through by coincidental later bounces of a
  * *different* cause (verify_repair and ci_repair combined). A `phase_completed:*` repetition with
  * zero bounces anywhere in the window is never forgiven at all.
- * `file_saved:verify` (see {@link FILE_SAVED_VERIFY_CAUSE}) is forgiven the same way, through its
- * own independent budget running in parallel — a repair cycle emits both a `phase_completed:*` and
- * a `file_saved:verify` per round, and each cause needs its own full budget rather than splitting
- * one shared budget between them (task 708, concern on #674: 1 initial implement + 1 initial
- * verify save + 2 verify_repair bounces, each preceding a re-implement and a re-save, produced 3
- * `phase_completed:implementer` AND 3 `file_saved:verify` firings — see
- * incident-signature-detectors.repeat-loop-t708.test.ts for the replayed window).
+ * `file_saved:verify` (see {@link FILE_SAVED_VERIFY_CAUSE}) and `verify_review_admitted` (see
+ * {@link VERIFY_REVIEW_ADMITTED_CAUSE}) are each forgiven the same way, through their own
+ * independent budgets running in parallel — a repair cycle emits a `phase_completed:*`, a
+ * `file_saved:verify`, AND a `verify_review_admitted` per round, and each cause needs its own full
+ * budget rather than splitting one shared budget between them (task 708, concern on #674: 1 initial
+ * implement + 1 initial verify save + 2 verify_repair bounces, each preceding a re-implement and a
+ * re-save, produced 3 `phase_completed:implementer` AND 3 `file_saved:verify` firings — see
+ * incident-signature-detectors.repeat-loop-t708.test.ts for the replayed window; task 976,
+ * self-detected on #970, extended the same amnesty to `verify_review_admitted` — see
+ * incident-signature-detectors.repeat-loop-t970.test.ts).
  * REPAIR_BOUNCE_CAUSES themselves (`verify_repair`/`ci_repair`, see {@link isRepairBounceCause})
  * are matched against `repairBounceMinCount` instead of `minCount`. This generalizes task 835's
  * `verify_repair`-only budget guard to also cover `ci_repair`: a task that legitimately exhausts
@@ -155,11 +172,13 @@ export function detectRepeatLoop(input: {
 
   let forgivenessBudget = bounceTotal > 0 ? 1 : 0;
   let verifyForgivenessBudget = bounceTotal > 0 ? 1 : 0;
+  let reviewAdmittedForgivenessBudget = bounceTotal > 0 ? 1 : 0;
   const counts = new Map<string, number>();
   for (const t of windowed) {
     if (REPAIR_BOUNCE_CAUSES.has(t.cause)) {
       forgivenessBudget += 1;
       verifyForgivenessBudget += 1;
+      reviewAdmittedForgivenessBudget += 1;
       counts.set(t.cause, (counts.get(t.cause) ?? 0) + 1);
       continue;
     }
@@ -169,6 +188,10 @@ export function detectRepeatLoop(input: {
     }
     if (t.cause === FILE_SAVED_VERIFY_CAUSE && verifyForgivenessBudget > 0) {
       verifyForgivenessBudget -= 1;
+      continue;
+    }
+    if (t.cause === VERIFY_REVIEW_ADMITTED_CAUSE && reviewAdmittedForgivenessBudget > 0) {
+      reviewAdmittedForgivenessBudget -= 1;
       continue;
     }
     counts.set(t.cause, (counts.get(t.cause) ?? 0) + 1);
