@@ -50,6 +50,7 @@ import {
   mockStopThemeAgents,
   mockActivityLogCreate,
   mockUserSettingsFindFirst,
+  mockLogWarn,
 } from './theme-auto-run-scheduler.test-support.collaborator-mocks';
 import {
   mockGetGlobalAutoRunActiveCount,
@@ -209,6 +210,7 @@ const ALL_MOCKS = [
   mockShouldRefillBacklogNow,
   mockMarkSelfRefillSucceeded,
   mockIsOverlapHeld,
+  mockLogWarn,
 ];
 
 /** Clear call history AND restore each mock's default resolved value/behaviour. */
