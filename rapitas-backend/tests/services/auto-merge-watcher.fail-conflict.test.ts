@@ -59,6 +59,10 @@ mock.module('../../services/workflow/auto-merge-notify', () => ({
   notify: mockNotify,
 }));
 
+mock.module('../../services/workflow/stale-pr-reaper', () => ({
+  reapStaleAutoPrs: mock(() => Promise.resolve({ evaluated: 0, closed: 0 })),
+}));
+
 const mockRecordTransition = mock(() => Promise.resolve());
 mock.module('../../services/workflow/transition-recorder', () => ({
   recordTransition: mockRecordTransition,

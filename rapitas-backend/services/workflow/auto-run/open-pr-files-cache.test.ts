@@ -30,6 +30,25 @@ function ghDeps(stdout: string | Error, nowRef: { t: number }): PrFilesDeps & { 
   };
 }
 
+/** Deps whose execGh responds per-PR-number, keyed by the number in the command. */
+function ghDepsByPrNumber(
+  responses: Record<number, string>,
+  nowRef: { t: number },
+): PrFilesDeps & { calls: number[] } {
+  const calls: number[] = [];
+  return {
+    calls,
+    execGh: async (command) => {
+      calls.push(1);
+      const number = Number(command.match(/pr view (\d+)/)?.[1]);
+      const response = responses[number];
+      if (response === undefined) throw new Error(`no stub for PR #${number}`);
+      return response;
+    },
+    now: () => nowRef.t,
+  };
+}
+
 describe('getPrChangedFiles (TTL cache)', () => {
   beforeEach(() => clearPrFilesCache());
 
@@ -178,5 +197,83 @@ describe('getOpenAutoPrsForTheme', () => {
       gitHubPullRequest: { findMany: mock() },
     } as unknown as PrismaClient;
     expect(await getOpenAutoPrsForTheme(prisma, 7)).toEqual([]);
+  });
+
+  it('excludes an auto_merge_exhausted PR whose head SHA has not changed', async () => {
+    const nowRef = { t: 1 };
+    const prisma = {
+      task: { findMany: mock().mockResolvedValue([{ id: 559 }]) },
+      gitHubPullRequest: {
+        findMany: mock().mockResolvedValue([{ prNumber: 632, linkedTaskId: 559, createdAt: null }]),
+      },
+      theme: { findUnique: mock().mockResolvedValue({ workingDirectory: '/repo' }) },
+      workflowTransition: {
+        findMany: mock().mockResolvedValue([
+          { taskId: 559, metadata: JSON.stringify({ headSha: 'abc' }) },
+        ]),
+      },
+    } as unknown as PrismaClient;
+    const deps = ghDepsByPrNumber(
+      { 632: JSON.stringify({ state: 'OPEN', headRefOid: 'abc', files: [] }) },
+      nowRef,
+    );
+    expect(await getOpenAutoPrsForTheme(prisma, 7, deps)).toEqual([]);
+  });
+
+  it('keeps an exhausted PR whose head SHA changed (resumed)', async () => {
+    const nowRef = { t: 1 };
+    const prisma = {
+      task: { findMany: mock().mockResolvedValue([{ id: 559 }]) },
+      gitHubPullRequest: {
+        findMany: mock().mockResolvedValue([{ prNumber: 632, linkedTaskId: 559, createdAt: null }]),
+      },
+      theme: { findUnique: mock().mockResolvedValue({ workingDirectory: '/repo' }) },
+      workflowTransition: {
+        findMany: mock().mockResolvedValue([
+          { taskId: 559, metadata: JSON.stringify({ headSha: 'abc' }) },
+        ]),
+      },
+    } as unknown as PrismaClient;
+    const deps = ghDepsByPrNumber(
+      { 632: JSON.stringify({ state: 'OPEN', headRefOid: 'def', files: [] }) },
+      nowRef,
+    );
+    expect((await getOpenAutoPrsForTheme(prisma, 7, deps)).map((p) => p.prNumber)).toEqual([632]);
+  });
+
+  it('keeps an exhausted PR whose stored metadata has no headSha (fail-safe)', async () => {
+    const nowRef = { t: 1 };
+    const prisma = {
+      task: { findMany: mock().mockResolvedValue([{ id: 559 }]) },
+      gitHubPullRequest: {
+        findMany: mock().mockResolvedValue([{ prNumber: 632, linkedTaskId: 559, createdAt: null }]),
+      },
+      theme: { findUnique: mock().mockResolvedValue({ workingDirectory: '/repo' }) },
+      workflowTransition: {
+        findMany: mock().mockResolvedValue([{ taskId: 559, metadata: JSON.stringify({}) }]),
+      },
+    } as unknown as PrismaClient;
+    const deps = ghDepsByPrNumber(
+      { 632: JSON.stringify({ state: 'OPEN', headRefOid: 'abc', files: [] }) },
+      nowRef,
+    );
+    expect((await getOpenAutoPrsForTheme(prisma, 7, deps)).map((p) => p.prNumber)).toEqual([632]);
+  });
+
+  it('keeps a PR with no exhausted mark at all', async () => {
+    const nowRef = { t: 1 };
+    const prisma = {
+      task: { findMany: mock().mockResolvedValue([{ id: 559 }]) },
+      gitHubPullRequest: {
+        findMany: mock().mockResolvedValue([{ prNumber: 632, linkedTaskId: 559, createdAt: null }]),
+      },
+      theme: { findUnique: mock().mockResolvedValue({ workingDirectory: '/repo' }) },
+      workflowTransition: { findMany: mock().mockResolvedValue([]) },
+    } as unknown as PrismaClient;
+    const deps = ghDepsByPrNumber(
+      { 632: JSON.stringify({ state: 'OPEN', headRefOid: 'abc', files: [] }) },
+      nowRef,
+    );
+    expect((await getOpenAutoPrsForTheme(prisma, 7, deps)).map((p) => p.prNumber)).toEqual([632]);
   });
 });

@@ -50,6 +50,10 @@ mock.module('./auto-merge-notify', () => ({
   notify: mockNotify,
 }));
 
+mock.module('./stale-pr-reaper', () => ({
+  reapStaleAutoPrs: mock(() => Promise.resolve({ evaluated: 0, closed: 0 })),
+}));
+
 mock.module('./transition-recorder', () => ({
   recordTransition: mock(() => Promise.resolve()),
 }));
