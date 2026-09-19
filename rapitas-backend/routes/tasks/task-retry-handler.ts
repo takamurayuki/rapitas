@@ -75,7 +75,11 @@ export async function retryTask(
   const rolledBackTo = await resolveRollbackTarget(id, task.workflowStatus);
   const updated = await prisma.task.update({
     where: { id },
-    data: { status: 'todo', ...(rolledBackTo ? { workflowStatus: rolledBackTo } : {}) },
+    data: {
+      status: 'todo',
+      completedAt: null,
+      ...(rolledBackTo ? { workflowStatus: rolledBackTo } : {}),
+    },
   });
 
   // Always record the transition, even when workflowStatus is left unchanged

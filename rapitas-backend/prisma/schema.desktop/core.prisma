@@ -182,6 +182,22 @@ model Task {
   // prune) to guard against accidental loss. Enforced at the DELETE endpoint.
   isProtected           Boolean   @default(false)
 
+  // Execution generation counter (task 881). Incremented atomically on every
+  // user stop-execution call; the DB row is the durable source of truth used
+  // by stale-recovery guards to tell "this session belongs to a generation the
+  // user already stopped" apart from a live one — the prior mechanism
+  // (task-execution-lock.ts cancellationVersions) lives only in process
+  // memory and is lost on restart / not shared across workers.
+  executionGenerationId Int       @default(0)
+  // Iteration-budget halt bookkeeping (task 881, task-iteration-budget.ts).
+  // Populated ONLY when the automatic iteration budget halts a task (time /
+  // cost / attempts / same-cause repeat / no-progress) — a user-initiated
+  // stop-execution does not write these fields, see stop-route.ts.
+  haltReason            String?
+  haltedAt              DateTime?
+  // JSON: { requiresNewHypothesis: boolean, note: string }
+  resumeCondition       String?
+
   @@index([status])
   @@index([themeId])
   @@index([status, themeId])

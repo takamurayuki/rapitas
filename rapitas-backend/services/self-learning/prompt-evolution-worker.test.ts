@@ -11,8 +11,10 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import type { ComparisonRecord } from './comparison/prompt-comparison-types';
 
+const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 mock.module('../../config/logger', () => ({
-  createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
+  createLogger: () => noopLogger,
+  logger: noopLogger,
 }));
 
 let aiResponse = '- 提出前にlintを実行する\n- 型チェックを通す';
@@ -33,12 +35,19 @@ interface EvoRow {
 
 let rows: EvoRow[] = [];
 const transitionFindMany = mock(async () => [] as Array<{ cause: string | null }>);
+const taskComplexityScores = new Map<number, { complexityScore: number | null }>();
 
 type StatusWhere = string | { in: string[] } | undefined;
 const statusMatches = (status: string, where: StatusWhere): boolean =>
   !where || (typeof where === 'string' ? status === where : where.in.includes(status));
 
 mock.module('../../config/database', () => ({
+  // NOTE: also re-exported by config/index.ts (`export { ensureDatabaseConnection }
+  // from './database'`); bun's mock.module intercepts by resolved file identity,
+  // so any importer reaching config/index.ts (duration-prediction-service.ts's
+  // `from '../../../config'`, pulled in transitively via prompt-band-evidence.ts)
+  // needs this export present or the re-export throws at module-load time.
+  ensureDatabaseConnection: async () => {},
   prisma: {
     promptEvolution: {
       findMany: mock((args: { where?: { status?: string }; take?: number }) => {
@@ -84,6 +93,11 @@ mock.module('../../config/database', () => ({
       ),
     },
     workflowTransition: { findMany: transitionFindMany },
+    task: {
+      findUnique: mock((args: { where: { id: number } }) =>
+        Promise.resolve(taskComplexityScores.get(args.where.id) ?? null),
+      ),
+    },
   },
 }));
 
@@ -111,6 +125,7 @@ beforeEach(() => {
   sendAIMessage.mockClear();
   transitionFindMany.mockClear();
   transitionFindMany.mockResolvedValue([]);
+  taskComplexityScores.clear();
 });
 
 describe('generateProposalsForPending', () => {
@@ -234,6 +249,7 @@ function comparisonRecord(overrides: Partial<ComparisonRecord> = {}): Comparison
     summary: null,
     knowledgeSnapshotHash: null,
     stagedTaskIds: null,
+    stagedComplexityBands: null,
     ...overrides,
   };
 }
@@ -292,6 +308,39 @@ describe('getApprovedRoleAddendum', () => {
     writeComparisonRecord(comparisonRecord({ stagedTaskIds: [810] }));
     expect(await getApprovedRoleAddendum('implementer')).toBeNull();
     expect(await getApprovedRoleAddendum('implementer', 810)).toBe('追記テキスト');
+  });
+
+  test('stagedComplexityBands: タスクの難度帯が一致すれば追記を返す', async () => {
+    rows = [{ ...pendingRow(1, 'implementer'), status: 'approved', afterPrompt: '追記テキスト' }];
+    writeComparisonRecord(comparisonRecord({ stagedComplexityBands: ['light', 'standard'] }));
+    taskComplexityScores.set(810, { complexityScore: 20 }); // 20 -> light
+    expect(await getApprovedRoleAddendum('implementer', 810)).toBe('追記テキスト');
+  });
+
+  test('stagedComplexityBands: タスクの難度帯が不一致ならnullを返す', async () => {
+    rows = [{ ...pendingRow(1, 'implementer'), status: 'approved', afterPrompt: '追記テキスト' }];
+    writeComparisonRecord(comparisonRecord({ stagedComplexityBands: ['comprehensive'] }));
+    taskComplexityScores.set(810, { complexityScore: 20 }); // 20 -> light, not comprehensive
+    expect(await getApprovedRoleAddendum('implementer', 810)).toBeNull();
+  });
+
+  test('stagedComplexityBands: 不正な形式(配列でない)ならフォールバックして絞り込みなし', async () => {
+    rows = [{ ...pendingRow(1, 'implementer'), status: 'approved', afterPrompt: '追記テキスト' }];
+    writeComparisonRecord(
+      comparisonRecord({
+        stagedComplexityBands: 'not-an-array' as unknown as string[],
+      }),
+    );
+    taskComplexityScores.set(810, { complexityScore: 90 });
+    expect(await getApprovedRoleAddendum('implementer', 810)).toBe('追記テキスト');
+  });
+
+  test('stagedComplexityBands未設定なら従来通り全タスクに適用される', async () => {
+    rows = [{ ...pendingRow(1, 'implementer'), status: 'approved', afterPrompt: '追記テキスト' }];
+    writeComparisonRecord(comparisonRecord({}));
+    taskComplexityScores.set(810, { complexityScore: 90 });
+    expect(await getApprovedRoleAddendum('implementer', 810)).toBe('追記テキスト');
+    expect(await getApprovedRoleAddendum('implementer')).toBe('追記テキスト');
   });
 });
 

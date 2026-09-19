@@ -17,6 +17,7 @@ import { sendAIMessage, getDefaultProvider, isAnyApiKeyConfigured } from '../../
 import type { CriticPhase } from './phase-critic-types';
 import { createHash } from 'node:crypto';
 import { readCriticLessonCache, writeCriticLessonCache } from './critic-lesson-cache';
+import { truncateWithNotice } from './phase-critic';
 
 const log = createLogger('workflow:critic-lessons');
 
@@ -261,8 +262,10 @@ export async function buildCriticLessonsSection(
 
     if (!(await isAnyApiKeyConfigured())) return '';
     const provider = await getDefaultProvider();
-    let source = reasons.map((r) => `- ${r}`).join('\n');
-    if (source.length > MAX_SOURCE_CHARS) source = source.slice(0, MAX_SOURCE_CHARS);
+    const source = truncateWithNotice(
+      reasons.map((r) => `- ${r}`).join('\n'),
+      MAX_SOURCE_CHARS,
+    ).text;
     const res = await sendAIMessage({
       provider,
       messages: [{ role: 'user', content: source }],

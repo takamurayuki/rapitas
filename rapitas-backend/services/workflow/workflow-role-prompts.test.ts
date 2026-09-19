@@ -45,3 +45,17 @@ describe('plan-phase question-firing criteria + kind guidance (task 965)', () =>
     },
   );
 });
+
+describe('planner completion-criteria verifiability guidance (task 933)', () => {
+  test('is included in the ja planner instruction', () => {
+    const texts = buildRoleTexts(933, { title: 'Probe', description: null }, 'ja');
+    expect(texts.planner.instruction).toContain('許可されたツール操作');
+    expect(texts.planner.instruction).toContain('本番相当環境での実測');
+  });
+
+  test('is included in the en planner instruction', () => {
+    const texts = buildRoleTexts(933, { title: 'Probe', description: null }, 'en');
+    expect(texts.planner.instruction).toContain('permitted to run');
+    expect(texts.planner.instruction).toContain('production-equivalent environment');
+  });
+});

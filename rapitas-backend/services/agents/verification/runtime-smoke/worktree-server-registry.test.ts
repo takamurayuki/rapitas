@@ -247,7 +247,7 @@ test('restart preserves unknown ownership without spawning or stopping anything'
   expect(stopCount).toBe(0);
 });
 
-test('legacy unknown ownership stays blocked until a different OS boot is observed', async () => {
+test('a recent identity-less start stays blocked in the same OS boot until a different boot is observed', async () => {
   rows = [{ ...persistedServer(), identities: undefined, state: 'starting' }];
   rootPresent = false;
   listenerOccupied = false;
@@ -271,6 +271,89 @@ test('legacy unknown ownership stays blocked until a different OS boot is observ
   } finally {
     observedBoot = 'linux:00000000-0000-0000-0000-000000000001';
   }
+});
+
+/**
+ * The shape task 970's worktree was stuck in on 2026-09-19: a start intent
+ * persisted before the root identity was captured, then re-persisted as
+ * `quarantined` on every backend restart. No port, no pid, no identities.
+ */
+function staleIdentityLessRecord(overrides: Record<string, unknown> = {}) {
+  const { port: _port, baseUrl: _baseUrl, pid: _pid, ...base } = persistedServer();
+  return {
+    ...base,
+    state: 'quarantined',
+    identities: [],
+    startedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    ...overrides,
+  };
+}
+
+test('a stale identity-less record is released in the same OS boot once port and directory prove no survivor', async () => {
+  rows = [staleIdentityLessRecord()];
+  rootPresent = false;
+  listenerOccupied = false;
+  await recoverRuntimeServerRegistry();
+  expect(rows).toEqual([]);
+  expect(_debugSnapshotForTests()).toEqual([]);
+  expect(stopCount).toBe(0);
+  // The workdir is free, so a fresh spawn must be permitted; the launched
+  // server then owns its identity and port again.
+  allocate = async () => {
+    rootPresent = true;
+    listenerOccupied = true;
+    return 45678;
+  };
+  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(true);
+  expect(spawnCount).toBe(1);
+});
+
+test('a stale identity-less record stays quarantined while its directory lock names a live process', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-occupied-'));
+  temporaryWorkdirs.push(dir);
+  await mkdir(join(dir, 'rapitas-frontend', '.next', 'dev'), { recursive: true });
+  await writeFile(
+    join(dir, 'rapitas-frontend', '.next', 'dev', 'lock'),
+    JSON.stringify({ pid: 123 }),
+  );
+  rows = [staleIdentityLessRecord({ key: normalizeWorkdirKey(dir), workdir: dir })];
+  rootPresent = true;
+  listenerOccupied = false;
+  await recoverRuntimeServerRegistry();
+  expect(rows).toHaveLength(1);
+  expect((await acquireRuntimeServer(dir, cfg)).ok).toBe(false);
+  expect(_debugSnapshotForTests()[0].state).toBe('quarantined');
+  expect(spawnCount).toBe(0);
+  expect(stopCount).toBe(0);
+});
+
+test('a stale identity-less record stays quarantined while its recorded port is still listening', async () => {
+  rows = [staleIdentityLessRecord({ port: 45678 })];
+  rootPresent = false;
+  listenerOccupied = true;
+  await recoverRuntimeServerRegistry();
+  expect(rows).toHaveLength(1);
+  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(false);
+  expect(spawnCount).toBe(0);
+});
+
+test('a quarantined identity-less entry clears on a later acquire once its record has aged past the grace window', async () => {
+  rows = [{ ...persistedServer(), identities: undefined, state: 'starting' }];
+  rootPresent = false;
+  listenerOccupied = false;
+  await recoverRuntimeServerRegistry();
+  const key = normalizeWorkdirKey(process.cwd())!;
+  expect(registry.get(key)?.state).toBe('quarantined');
+  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(false);
+  registry.get(key)!.recordedAt = Date.now() - 2 * 60_000;
+  allocate = async () => {
+    rootPresent = true;
+    listenerOccupied = true;
+    return 45678;
+  };
+  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(true);
+  expect(spawnCount).toBe(1);
+  expect(stopCount).toBe(0);
 });
 
 test('a changed OS boot does not release an occupied runtime port', async () => {

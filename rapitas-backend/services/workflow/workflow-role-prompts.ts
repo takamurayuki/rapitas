@@ -126,6 +126,7 @@ export function buildRoleTexts(
         researchHeader: '# リサーチャーの調査結果 (research.md)',
         instruction:
           '上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。\n\n' +
+          '完了条件は implementer/verifier が許可されたツール操作（テスト実行・lint・型検査・自己検証API）だけで検証できるものに限定してください。稼働中バックエンドへの書き込み操作や本番相当環境での実測を完了条件として必須にしないでください。\n\n' +
           '## 質問発火基準（question.md を保存する前に必ず確認）\n' +
           'plan→question→intake の往復（1サイクルあたり平均約17分のコスト）を避けるため、質問を保存する前に以下を確認する:\n' +
           '1. 1件のplan.mdにつき、質問は原則1ラウンドにまとめる（論点を小出しにして複数回に分けない）。\n' +
@@ -244,6 +245,7 @@ export function buildRoleTexts(
         researchHeader: '# Research Results (research.md)',
         instruction:
           'Based on the research results above, please create an implementation plan as plan.md in Markdown format.\n\nDescribe implementation steps in checklist format, including a list of files to be changed, risk assessment, and completion criteria.\n\n' +
+          'Completion criteria must be verifiable using only tool operations the implementer/verifier are permitted to run (tests, lint, type-check, self-verification APIs). Do not require write operations against a live backend or measurements in a production-equivalent environment as a completion criterion.\n\n' +
           '## Question-firing criteria (check BEFORE saving question.md)\n' +
           'To avoid the plan→question→intake round trip (each cycle costs roughly 17 minutes on average), verify all of the following before saving a question:\n' +
           '1. For a given plan.md, bundle all open issues into ONE round of questions — do not raise them piecemeal across multiple saves.\n' +

@@ -201,6 +201,16 @@ export const VERIFICATION_UNVERIFIABLE_HOLD_CAUSE = 'verification_unverifiable_h
  */
 export const MANUAL_CORRECTION_PENDING_CAUSE = 'manual_correction_pr_not_landed';
 
+/**
+ * WorkflowTransition.cause recorded when `requeueOrphanTasks` (task 977)
+ * hits `MAX_ORPHAN_REQUEUE` retry attempts for an in-progress orphan task and
+ * moves it to `blocked` instead of leaving it stuck in `in-progress` forever.
+ * Lives here (dependency-free policy module) so workflow-reconciler-requeue
+ * (writer) shares one constant with the rest of the blocked-task evidence /
+ * escalation causes above.
+ */
+export const ORPHAN_REQUEUE_EXHAUSTED_CAUSE = 'orphan_requeue_exhausted';
+
 /** Reason a blocked task is excluded from the blind auto-retry. */
 export type BlockedExclusionReason =
   | 'awaiting_question'

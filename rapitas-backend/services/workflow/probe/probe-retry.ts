@@ -8,6 +8,7 @@
  */
 import { computeBackoffDelay } from '../../github/gh-retry';
 import { sleep } from '../../agents/abstraction/agent-retry';
+import { getCachedProbeResult } from './probe-cache';
 import type { ProbeContext, ProbeRetryResult, ProbeTarget } from './probe.types';
 
 /** Single strike-through timeout for one probe attempt. */
@@ -65,11 +66,17 @@ async function runWithTimeout(
 
 /**
  * Runs a probe target with timeout + classified exponential-backoff retry.
- * A `permanent` classification stops retrying immediately. `transient`
- * failures retry up to PROBE_MAX_RETRIES times; if the FINAL attempt is also
- * transient, the overall outcome is reported as `permanent_failure` (the
- * transient/permanent distinction only controls whether we retry — the
- * caller only cares whether the target is usable after this call returns).
+ * A `permanent` classification stops retrying immediately — EXCEPT for a
+ * single forced live recheck (task 975): when probe-cache holds no recent
+ * `success` result for this (taskId, target), a `permanent` verdict from
+ * `attempt === 0` may be a stale negative read off a shared cache layer
+ * (e.g. model-discovery) rather than a real endpoint failure, so one more
+ * live attempt (bypassing that target's own cache via `attempt > 0`) is
+ * forced before the final verdict is reported. `transient` failures retry up
+ * to PROBE_MAX_RETRIES times; if the FINAL attempt is also transient, the
+ * overall outcome is reported as `permanent_failure` (the transient/permanent
+ * distinction only controls whether we retry — the caller only cares whether
+ * the target is usable after this call returns).
  *
  * @param target - Probe target to execute. / 実行対象のprobe
  * @param ctx - Probe execution context. / 実行コンテキスト
@@ -83,6 +90,7 @@ export async function runProbeWithRetry(
 ): Promise<ProbeRetryResult> {
   let attempts = 0;
   let lastErrorMessage: string | null = null;
+  let forcedRecheckDone = false;
 
   for (let attempt = 0; attempt <= PROBE_MAX_RETRIES; attempt++) {
     attempts += 1;
@@ -93,6 +101,11 @@ export async function runProbeWithRetry(
       lastErrorMessage = err instanceof Error ? err.message : String(err);
       const classification = classifyProbeFailure(err);
       if (classification === 'permanent') {
+        const hasRecentSuccess = getCachedProbeResult(ctx.taskId, target.id, nowMs) === 'success';
+        if (!forcedRecheckDone && !hasRecentSuccess) {
+          forcedRecheckDone = true;
+          continue;
+        }
         return {
           outcome: 'permanent_failure',
           attempts,

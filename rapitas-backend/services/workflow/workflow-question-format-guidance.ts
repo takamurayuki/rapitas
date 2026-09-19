@@ -23,6 +23,7 @@ export const QUESTION_FORMAT_GUIDANCE_JA =
   '- `consequence` にはその選択肢を選んだ場合の影響・変更範囲を1行で書く。\n' +
   '- **`recommended` と `recommendedReason` は必須。** `recommended` には自分ならどの `options` を選ぶか、その `key` を1つ書く。`recommendedReason` には根拠を1〜2文で書き、「低リスクだから」のような一般論ではなく、plan.md の該当箇所・実測値・テスト結果のいずれかを具体的に引用する。判断できない場合は空欄にせず、`freeTextRequired: true` にしてその理由を `freeTextReason` に書く。\n' +
   '- ゲートの検証条件・しきい値を変える選択肢には `mutatesGate: true` を付与する。この指定がある選択肢は、推奨に指定されていても無応答タイムアウトによる自動採用の対象外になり、人間の回答を待つ。\n' +
+  '- 現在のplan.mdの完了条件・設計判断そのものを見直す必要がある（実装者の権限で達成不能な要求が含まれる等）選択肢には `planRevision: true` を付与する。この選択肢が選ばれると（人手回答・無応答タイムアウトの自動採用のどちらでも）実装者は再開されず、plan.mdの改訂依頼として扱われる。\n' +
   '- ブロックは1個のみ保存する（複数あるとUIは最初の1個のみ使用する）。\n' +
   '- `questions` と同じ階層（トップレベル）に任意で `kind` を指定できる。plan フェーズから質問する場合は `"kind": "execution_continuation"`（実装続行のための確認）または `"kind": "completion_confirmation"`（完了直前の最終確認）のいずれかを指定すること。`"kind": "spec_change"` はresearch開始前のintake専用であり、それ以外のフェーズで指定しても無視される。';
 
@@ -37,5 +38,6 @@ export const QUESTION_FORMAT_GUIDANCE_EN =
   '- `consequence` is a one-line description of the impact of choosing that option.\n' +
   '- **`recommended` and `recommendedReason` are REQUIRED.** Put the `key` of the option you yourself would pick in `recommended`. State the rationale in `recommendedReason` (1-2 sentences) — cite a specific plan.md section, a measurement, or a test result, not a generic claim like "it is lower risk". If you truly cannot judge, do not leave it blank — set `freeTextRequired: true` and explain why in `freeTextReason` instead.\n' +
   "- Set `mutatesGate: true` on any option that would change a gate's verification condition or threshold. Such an option is excluded from unattended auto-answer on timeout even when recommended, and always waits for a human.\n" +
+  '- Set `planRevision: true` on an option that requires revisiting the current plan.md itself (its completion criteria or design decisions) — for example a completion criterion the implementer has no permission to satisfy. Choosing this option (whether answered by a human or auto-adopted on timeout) never resumes the implementer; it is instead routed as a plan.md revision request.\n' +
   '- Include AT MOST ONE block (if multiple are present, the UI uses only the first).\n' +
   '- An optional `kind` may be set at the SAME level as `questions` (top level). When raising a question from the plan phase, set either `"kind": "execution_continuation"` (a check needed to continue implementation) or `"kind": "completion_confirmation"` (a final check right before completion). `"kind": "spec_change"` is reserved for intake (before research starts) and is ignored outside that phase.';

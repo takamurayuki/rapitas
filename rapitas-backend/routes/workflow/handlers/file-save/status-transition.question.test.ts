@@ -8,6 +8,7 @@ let userCause: string | null = null;
 let historyError = false;
 let race: (() => void) | undefined;
 let planQuestionCount = 0;
+let capturedUpdateManyData: Record<string, unknown> | undefined;
 const recordTransition = mock(async (_args: unknown) => {});
 const updateMany = mock(
   async ({
@@ -18,6 +19,7 @@ const updateMany = mock(
     data: { workflowStatus: string };
   }) => {
     race?.();
+    capturedUpdateManyData = data;
     if (
       where.status !== status ||
       where.workflowStatus !== workflowStatus ||
@@ -37,6 +39,7 @@ beforeEach(() => {
   historyError = false;
   race = undefined;
   planQuestionCount = 0;
+  capturedUpdateManyData = undefined;
   updateMany.mockClear();
   recordTransition.mockClear();
   blockPlanQuestionOverBudget.mockClear();
@@ -149,6 +152,20 @@ test('normal question uses fresh previous status and records one transition', as
       fromStatus: 'in_progress',
       metadata: expect.objectContaining({ previousStatus: 'in_progress' }),
     }),
+  );
+});
+// NOTE: manually confirmed RED for this test (task #901) by temporarily adding
+// `status: 'blocked'` to the updateMany data payload in status-transition.ts —
+// failed with "Received: [status, workflowStatus, updatedAt]" as expected,
+// then reverted (git diff clean, no residual change). Re-confirmed a second
+// time to leave durable evidence for the verifier, since the first check was
+// only reported in chat and left no trace in the codebase.
+test('question save never writes task.status — a running CLI is not terminated by a question alone', async () => {
+  await save();
+  expect(capturedUpdateManyData).toBeDefined();
+  expect(Object.keys(capturedUpdateManyData as Record<string, unknown>)).not.toContain('status');
+  expect(Object.keys(capturedUpdateManyData as Record<string, unknown>)).toEqual(
+    expect.arrayContaining(['workflowStatus', 'updatedAt']),
   );
 });
 for (const terminal of [

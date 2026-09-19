@@ -454,8 +454,24 @@ export async function handleExecutionError(
       select: { status: true },
     });
     if (current?.status === 'completed') return;
-    if (!current || !['canceling', 'cancelling', 'cancelled', 'canceled'].includes(current.status))
+    if (!current)
       throw new Error('Execution error was not saved; terminal state could not be confirmed');
+    const recognizedCancelStatus = ['canceling', 'cancelling', 'cancelled', 'canceled'].includes(
+      current.status,
+    );
+    if (!recognizedCancelStatus) {
+      if (!cancelled)
+        throw new Error('Execution error was not saved; terminal state could not be confirmed');
+      // NOTE: 呼び出し元が既に ExecutionCancelledError と分類済みの場合、DB確認レースだけを理由に
+      // 別種のErrorへ再分類すると下流のinstanceof判定が全滅する（task963）。
+      fileLogger.logWarn(
+        'Execution error was not saved for an already-cancelled state; treating as cancelled',
+        {
+          executionId,
+          currentStatus: current.status,
+        },
+      );
+    }
     cancelled = true;
     status = 'cancelled';
   }
