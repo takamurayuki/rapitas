@@ -115,4 +115,16 @@ describe('outcome-reinforcement — durable trace', () => {
     expect(await applyOutcomeReinforcement(4, true)).toBe(0);
     expect(boosted).toEqual([40]);
   });
+
+  test('a no-injection outcome persists a durable injected:0 control-group sample', async () => {
+    // No retrieval → the task belongs to the control group; the effectiveness
+    // sample must still be written so effectiveness.ts can compare injected vs
+    // non-injected success rates.
+    expect(await applyOutcomeReinforcement(5, true)).toBe(0);
+    const effEvents = events.filter((e) => e.eventType === 'knowledge_effectiveness');
+    expect(effEvents).toHaveLength(1);
+    expect(effEvents[0].correlationId).toBe('task_5');
+    expect(effEvents[0].payload.injected).toBe(0);
+    expect(boosted).toEqual([]);
+  });
 });

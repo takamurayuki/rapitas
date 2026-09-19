@@ -13,6 +13,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { sendAIMessage } from '../../utils/ai-client';
 import { readComparisonRecord } from './comparison/prompt-comparison-store';
+import { isExcludedByComplexityBand } from './prompt-evolution-band-scope';
 import {
   validateAddendumQuality,
   type AddendumQualityReason,
@@ -192,12 +193,11 @@ ${trouble || '(記録なし)'}
  * Latest APPROVED addendum for a workflow role, for prompt injection.
  * Returns null when none — callers skip the section entirely.
  *
- * When the addendum's comparison record carries a non-null `stagedTaskIds`
- * (set via the `/stage` endpoint after a passing comparison), the addendum is
- * a LIMITED-APPLICATION candidate: it is only returned for tasks in that
- * list, so it can be measured on a handful of tasks before wider rollout. An
- * omitted task id cannot establish membership, so staged addenda are withheld.
- * No comparison record, or `stagedTaskIds: null`, falls back to the original
+ * When the comparison record carries `stagedTaskIds` and/or
+ * `stagedComplexityBands`, both act as an AND scope filter (task #970). An
+ * omitted taskId withholds a stagedTaskIds-scoped addendum (unchanged); an
+ * unscored task instead passes the band condition (isExcludedByComplexityBand
+ * in prompt-evolution-band-scope.ts). Both fields null = original
  * apply-to-every-task behavior.
  *
  * @param role - Workflow role name. / ロール名
@@ -223,6 +223,13 @@ export async function getApprovedRoleAddendum(
       const comparison = readComparisonRecord(row.id);
       const stagedTaskIds = comparison?.stagedTaskIds ?? null;
       if (stagedTaskIds !== null && (taskId === undefined || !stagedTaskIds.includes(taskId))) {
+        return null;
+      }
+      // Guard against a hand-edited/corrupt record: degrade to unscoped.
+      const stagedComplexityBands = Array.isArray(comparison?.stagedComplexityBands)
+        ? comparison.stagedComplexityBands
+        : null;
+      if (await isExcludedByComplexityBand(stagedComplexityBands, taskId)) {
         return null;
       }
     }

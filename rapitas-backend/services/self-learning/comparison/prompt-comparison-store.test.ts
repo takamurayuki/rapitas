@@ -32,6 +32,7 @@ function baseRecord(id: number, status: ComparisonRecord['status'] = 'done'): Co
     summary: null,
     knowledgeSnapshotHash: null,
     stagedTaskIds: null,
+    stagedComplexityBands: null,
   };
 }
 

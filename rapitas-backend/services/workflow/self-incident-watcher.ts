@@ -17,6 +17,7 @@ import { DEFAULT_MAX_CI_REPAIRS } from './blocked-task-policy';
 import type { CandidateTask } from './self-incident-file-finding';
 import { inspectTask } from './self-incident-inspect-task';
 import {
+  resolveArmedThemeIds,
   resolveDisabledAutoRunThemeIds,
   resolveNonDevelopmentThemeIds,
   resolveWorkflowDisabledGlobally,
@@ -178,11 +179,13 @@ export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<
     nonDevelopmentThemeIds,
     workflowDisabledGlobally,
     themeAutoRunRunState,
+    armedThemeIds,
   ] = await Promise.all([
     resolveDisabledAutoRunThemeIds(candidateThemeIds),
     resolveNonDevelopmentThemeIds(candidateThemeIds),
     resolveWorkflowDisabledGlobally(),
     resolveThemeAutoRunRunState(candidateThemeIds),
+    resolveArmedThemeIds(candidateThemeIds),
   ]);
 
   // Resolved once per pass, not per task (task 837, generalizes task 835's
@@ -208,6 +211,7 @@ export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<
         workflowDisabledGlobally,
         repairBounceMinCount,
         themeAutoRunRunState,
+        armedThemeIds,
       );
     } catch (err) {
       // One broken task must not starve the rest of the scan.

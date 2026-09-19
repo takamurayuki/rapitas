@@ -41,6 +41,43 @@ describe('detectStagnation', () => {
     expect(result?.staleMs).toBe(STAGNATION_THRESHOLD_MS + 60_000);
   });
 
+  describe('escalated blocked hold (#979)', () => {
+    const HOUR = 60 * 60 * 1000;
+    const blocked = { ...base, taskStatus: 'blocked' };
+
+    it('suppresses a blocked task escalated within the re-escalation interval', () => {
+      expect(
+        detectStagnation({ ...blocked, blockedEscalatedAtMs: NOW - HOUR, blockedHoldMs: 4 * HOUR }),
+      ).toBeNull();
+    });
+
+    it('detects a blocked task never escalated (blockedEscalatedAtMs null)', () => {
+      expect(
+        detectStagnation({ ...blocked, blockedEscalatedAtMs: null, blockedHoldMs: 4 * HOUR }),
+      ).not.toBeNull();
+    });
+
+    it('detects a blocked task whose last escalation is older than the interval', () => {
+      expect(
+        detectStagnation({
+          ...blocked,
+          blockedEscalatedAtMs: NOW - 5 * HOUR,
+          blockedHoldMs: 4 * HOUR,
+        }),
+      ).not.toBeNull();
+    });
+
+    it('fails open when the escalation input is undefined', () => {
+      expect(detectStagnation(blocked)).not.toBeNull();
+    });
+
+    it('does not suppress a non-blocked task even with a recent escalation stamp', () => {
+      expect(
+        detectStagnation({ ...base, blockedEscalatedAtMs: NOW - HOUR, blockedHoldMs: 4 * HOUR }),
+      ).not.toBeNull();
+    });
+  });
+
   it('detects at exactly the threshold (>= boundary)', () => {
     const result = detectStagnation({
       ...base,
@@ -77,6 +114,23 @@ describe('detectStagnation', () => {
     expect(detectStagnation({ ...base, ...over })).toBeNull();
   });
 
+  // #978: an already-escalated blocked task is a legitimate wait — the
+  // dedicated blocked-task-escalation pipeline re-notifies every 4h.
+  it('does NOT detect a blocked task whose escalation is already in flight (blockedEscalated=true, #978)', () => {
+    expect(detectStagnation({ ...base, taskStatus: 'blocked', blockedEscalated: true })).toBeNull();
+  });
+
+  it('still detects when blockedEscalated is omitted or false (fail-open)', () => {
+    expect(detectStagnation({ ...base, taskStatus: 'blocked' })).not.toBeNull();
+    expect(
+      detectStagnation({ ...base, taskStatus: 'blocked', blockedEscalated: false }),
+    ).not.toBeNull();
+  });
+
+  it('ignores blockedEscalated for a non-blocked task', () => {
+    expect(detectStagnation({ ...base, blockedEscalated: true })).not.toBeNull();
+  });
+
   // #875: omitting manuallyWithdrawn (unresolved) must fail OPEN, mirroring
   // isWorkflowManaged's contract above.
   it('still detects when manuallyWithdrawn is omitted (fail-open)', () => {
@@ -99,6 +153,31 @@ describe('detectStagnation', () => {
 
   it('still detects a blocked task (blocked is not terminal)', () => {
     expect(detectStagnation({ ...base, taskStatus: 'blocked' })).not.toBeNull();
+  });
+
+  // task 977: a blocked task in an armed theme is already owned by the
+  // blocked-task retry/escalation pipeline — do not duplicate its detection.
+  it('does NOT detect a blocked task when blockedRetryPipelineArmed=true', () => {
+    expect(
+      detectStagnation({ ...base, taskStatus: 'blocked', blockedRetryPipelineArmed: true }),
+    ).toBeNull();
+  });
+
+  it('still detects a blocked task when blockedRetryPipelineArmed=false (unarmed theme)', () => {
+    expect(
+      detectStagnation({ ...base, taskStatus: 'blocked', blockedRetryPipelineArmed: false }),
+    ).not.toBeNull();
+  });
+
+  it('still detects a blocked task when blockedRetryPipelineArmed is omitted (fail-open)', () => {
+    expect(base.blockedRetryPipelineArmed).toBeUndefined();
+    expect(detectStagnation({ ...base, taskStatus: 'blocked' })).not.toBeNull();
+  });
+
+  it('blockedRetryPipelineArmed=true is ignored for a non-blocked task', () => {
+    expect(
+      detectStagnation({ ...base, taskStatus: 'in-progress', blockedRetryPipelineArmed: true }),
+    ).not.toBeNull();
   });
 
   // 受入(a): a never-started todo backlog item is out of scope no matter how stale.

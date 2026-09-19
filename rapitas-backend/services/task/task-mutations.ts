@@ -213,6 +213,8 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
   }
 
   const reopening = currentTask.status === 'done' && fields.status === 'todo';
+  const resumingFromDone = currentTask.status === 'done' && fields.status === 'in-progress';
+  const leavingDone = reopening || resumingFromDone;
 
   // Record streak
   if (fields.status === 'done') {
@@ -228,7 +230,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
   await prisma.task.update({
     where: {
       id: taskId,
-      ...((fields.status === 'blocked' || reopening) && { updatedAt: currentTask.updatedAt }),
+      ...((fields.status === 'blocked' || leavingDone) && { updatedAt: currentTask.updatedAt }),
     },
     data: {
       // Make a manual re-block a new revision even within the same millisecond.
@@ -242,8 +244,8 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       ...(fields.status === 'done' && { completedAt: new Date() }),
       // Reopening must not leave a terminal workflow badge/state behind.
       // Retain artifacts; normal file-save guards validate their reuse.
+      ...(leavingDone && { completedAt: null }),
       ...(reopening && {
-        completedAt: null,
         startedAt: null,
         ...(currentTask.workflowStatus === 'completed' && { workflowStatus: 'draft' }),
       }),

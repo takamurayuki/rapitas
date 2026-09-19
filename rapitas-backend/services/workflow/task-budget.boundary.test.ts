@@ -42,20 +42,27 @@ describe('resolveTaskBudgetCap 境界値', () => {
     });
   }
 
-  test('prisma が reject しても throw せず、上限なしとして返すこと', async () => {
+  test('prisma が reject しても throw せず、unknownとして返すこと(0扱いにしない)', async () => {
     findMany.mockRejectedValue(new Error('db down'));
 
     const state = await resolveTaskBudgetCap(1);
 
-    // Fail open by design: a DB blip must not throttle every task. The
-    // implementation logs a warning so the missing ceiling is not silent.
+    // Fail open on the CEILING (a DB blip must not throttle every task) but
+    // NOT on the fact that spend could not be checked: spendUnknown records
+    // the failure instead of reporting a measured $0.
     expect(state.capTier).toBeUndefined();
-    expect(state.spentUsd).toBe(0);
+    expect(state.spendUnknown).toBe(true);
+    expect(state.unknownReason).toBeTruthy();
   });
 
-  test('getTaskSpendUsd も境界IDで throw しないこと', async () => {
+  test('getTaskSpendUsd は境界IDでも throw しない(正常読み取り時)', async () => {
     for (const id of ID_EDGES) {
       expect(await getTaskSpendUsd(id)).toBe(0);
     }
+  });
+
+  test('getTaskSpendUsd は読み取り失敗時に reject する(0を返さない)', async () => {
+    findMany.mockRejectedValue(new Error('db down'));
+    expect(getTaskSpendUsd(1)).rejects.toThrow('db down');
   });
 });

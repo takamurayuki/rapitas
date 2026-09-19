@@ -155,8 +155,9 @@ describe('theme-run-state gate for stagnation/desync (#969)', () => {
     await runSelfIncidentWatch(now);
 
     const runStateCalls = themeAutoRunFindManyMock.mock.calls.filter((call) => {
-      const where = (call[0] as { where: { status?: string } }).where;
-      return where.status === 'running';
+      // Run-state query has no `enabled` filter; the blocked-pipeline armed query (#977) also filters status='running' but adds enabled:true.
+      const where = (call[0] as { where: { status?: string; enabled?: boolean } }).where;
+      return where.status === 'running' && where.enabled === undefined;
     });
     expect(runStateCalls).toHaveLength(1);
     const query = runStateCalls[0]?.[0] as { where: { themeId: { in: number[] } } };
