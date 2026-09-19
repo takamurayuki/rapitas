@@ -25,7 +25,12 @@ import { triageTestFailures } from './test-triage';
 import { buildTriagedTestCheck } from './test-triage-report';
 import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
 import { evaluateAcceptanceSelfCheck } from './acceptance-self-check';
-import { schemaChangeGateCheck, collectHardGateChecks } from './schema-change-gate';
+import {
+  schemaChangeGateCheck,
+  collectHardGateChecks,
+  resolveForbiddenChangeGateContext,
+  type ForbiddenChangeGateContext,
+} from './schema-change-gate';
 import { runProjectChecks, spawnQuiet } from './quiet-verification';
 import { assertSafeGitRef } from '../../../utils/common/branch-name-generator';
 
@@ -908,6 +913,12 @@ export interface VerificationOptions {
    * unrelated-diff (608-type) detection alongside the criteria tokens.
    */
   taskText?: string;
+  /**
+   * Repo/override context for the schema-change forbidden-change gate (task
+   * 896). Injected directly by tests/callers that already resolved it; when
+   * omitted and `taskId` is set, resolved via `resolveForbiddenChangeGateContext`.
+   */
+  forbiddenChangeGateContext?: ForbiddenChangeGateContext;
 }
 
 /**
@@ -949,7 +960,10 @@ export async function runAutomatedVerification(
   const allow = options.tamperAllowlist ?? [];
   const tamperPlan = allow.length ? [...(planFiles ?? []), ...allow] : planFiles;
   const tamper = tamperCheck(allChanged, tamperPlan);
-  const schemaGate = schemaChangeGateCheck(allChanged, planFiles);
+  const gateCtx =
+    options.forbiddenChangeGateContext ??
+    (options.taskId ? await resolveForbiddenChangeGateContext(options.taskId) : undefined);
+  const schemaGate = schemaChangeGateCheck(allChanged, planFiles, gateCtx);
   const hardGateChecks = collectHardGateChecks(scopeCheck, tamper, schemaGate);
   // An empty diff skips scoped static commands, but does not prove that a
   // configured runtime works (for example after restoring a merged task).

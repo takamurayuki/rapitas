@@ -15,6 +15,11 @@ import { previewMissingFilesForStatus } from '../../../services/workflow/workflo
 import { resolveTaskWorkflowState } from '../../../services/task/task-resolver';
 import { HTTP_STATUS } from '../../../utils/common/http-status';
 import { readPromptLanguage } from '../../../services/system/prompt-language-store';
+import { readWorkflowFile } from '../../../services/workflow/workflow-file-utils';
+import {
+  isSelfRepoThemeWorkingDirectory,
+  evaluatePlanDeclaredForbiddenChange,
+} from '../../../services/agents/verification/schema-change-gate';
 
 const log = createLogger('routes:workflow:handlers:plan');
 
@@ -41,7 +46,13 @@ export async function handleApprovePlan({
   try {
     const taskId = parseId(params.taskId, 'task ID');
 
-    const parsedBody = body as { approved: boolean; reason?: string; language?: 'ja' | 'en' };
+    const parsedBody = body as {
+      approved: boolean;
+      reason?: string;
+      language?: 'ja' | 'en';
+      overrideForbiddenChange?: boolean;
+      overrideReason?: string;
+    };
     if (typeof parsedBody?.approved !== 'boolean') {
       throw new ValidationError('approved (boolean) is required');
     }
@@ -53,6 +64,61 @@ export async function handleApprovePlan({
     }
 
     const newStatus = parsedBody.approved ? 'plan_approved' : 'plan_created';
+
+    // Forbidden-change gate (task 896): a plain approval click alone must not
+    // pass a plan.md-declared forbidden change (883's schema column). Both
+    // overrideForbiddenChange and overrideReason are required, or reject 422.
+    let overrideJustGranted = false;
+    if (parsedBody.approved) {
+      const [taskRepoInfo, planContent] = await Promise.all([
+        prisma.task
+          .findUnique({
+            where: { id: taskId },
+            select: {
+              forbiddenChangeOverride: true,
+              theme: { select: { workingDirectory: true } },
+            },
+          })
+          .catch(() => null),
+        readWorkflowFile(taskId, 'plan').catch(() => null),
+      ]);
+      const hasValidOverrideRequest =
+        parsedBody.overrideForbiddenChange === true && !!parsedBody.overrideReason?.trim();
+      const gate = evaluatePlanDeclaredForbiddenChange(planContent, {
+        isSelfRepo: isSelfRepoThemeWorkingDirectory(taskRepoInfo?.theme?.workingDirectory ?? null),
+        overrideGranted: !!taskRepoInfo?.forbiddenChangeOverride || hasValidOverrideRequest,
+      });
+      if (!gate.ok) {
+        _set.status = HTTP_STATUS.UNPROCESSABLE_ENTITY;
+        return {
+          error:
+            'plan.md が禁止された変更を宣言していますが、明示ユーザー上書きがありません。' +
+            'overrideForbiddenChange:true と overrideReason を指定して再承認してください。',
+          matchedFiles: gate.matchedFiles,
+          hint: 'この承認は計画記載だけでは成立しません（task 896）。',
+        };
+      }
+      overrideJustGranted = hasValidOverrideRequest && !taskRepoInfo?.forbiddenChangeOverride;
+    }
+
+    if (overrideJustGranted) {
+      await prisma.task.update({
+        where: { id: taskId },
+        data: {
+          forbiddenChangeOverride: true,
+          forbiddenChangeOverrideReason: parsedBody.overrideReason,
+        },
+      });
+      await recordTransition({
+        taskId,
+        fromStatus: task.workflowStatus ?? null,
+        toStatus: task.workflowStatus ?? 'plan_created',
+        actor: 'user',
+        cause: 'manual_forbidden_change_override',
+        phase: 'plan',
+        metadata: { overrideReason: parsedBody.overrideReason },
+      });
+    }
 
     const updatedTask = await prisma.task.update({
       where: { id: taskId },
