@@ -72,6 +72,16 @@ export const PATTERN_A_SETTLE_MS =
  */
 export const MANUAL_STOP_WITHDRAW_CAUSE = 'manual_execution_stop_withdraw';
 
+/**
+ * Transition causes written by blocked-task-escalation (first notice and the
+ * 4h re-notice). Duplicated as literals so this pure module stays free of the
+ * escalation module's DB imports — keep in sync with blocked-task-escalation.ts.
+ */
+export const BLOCKED_ESCALATION_CAUSES: ReadonlySet<string> = new Set([
+  'blocked_escalated',
+  'blocked_reescalated',
+]);
+
 const RECOVERY_REQUEUE_CAUSES = new Set([
   'reconciler_requeue',
   'artifact_reuse_fastforward',
@@ -153,6 +163,14 @@ export interface StagnationInput {
    * mirrors the other optional gates' fail-open convention.
    */
   manuallyWithdrawn?: boolean | null;
+  /**
+   * True when the task's newest transition cause is a blocked-task-escalation
+   * cause (BLOCKED_ESCALATION_CAUSES). The dedicated pipeline already notified
+   * a human and re-notifies every 4h, so a second `self-incident:stagnation`
+   * finding is a duplicate (#978). Only honoured for status=blocked;
+   * `null`/`undefined` leaves the task subject to detection (fail-open).
+   */
+  blockedEscalated?: boolean | null;
   nowMs: number;
   thresholdMs?: number;
 }
@@ -180,6 +198,8 @@ export function detectStagnation(input: StagnationInput): { staleMs: number } | 
   // operator has already decided not to resume this task; repeating the
   // same finding every watch pass forever is noise, not signal.
   if (input.manuallyWithdrawn) return null;
+  // Blocked and already escalated to a human by the dedicated pipeline (#978).
+  if (input.blockedEscalated && input.taskStatus === 'blocked') return null;
   // NOTE: null must count as not-started — `null !== 'draft'` alone would
   // misclassify a workflowStatus-less task as advanced.
   const isInFlight =

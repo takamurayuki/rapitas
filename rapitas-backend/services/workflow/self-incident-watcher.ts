@@ -26,6 +26,7 @@ import {
   REPEAT_LOOP_MIN_COUNT,
   INVARIANT_REPEAT_LOOP_MIN_COUNT,
   MANUAL_STOP_WITHDRAW_CAUSE,
+  BLOCKED_ESCALATION_CAUSES,
 } from './incident-signature-detectors';
 import { gatherTaskState, formatIncidentDetail } from './self-incident-evidence';
 import type { GatheredTaskState } from './self-incident-evidence';
@@ -188,6 +189,9 @@ async function inspectTask(
           : true;
 
   const manuallyWithdrawn = state.latestTransitionCause === MANUAL_STOP_WITHDRAW_CAUSE;
+  const blockedEscalated =
+    state.latestTransitionCause != null &&
+    BLOCKED_ESCALATION_CAUSES.has(state.latestTransitionCause);
   const stagnation = detectStagnation({
     taskStatus: task.status,
     workflowStatus: task.workflowStatus,
@@ -199,6 +203,7 @@ async function inspectTask(
     hasActiveQueueItem: state.hasActiveQueueItem,
     isWorkflowManaged,
     manuallyWithdrawn,
+    blockedEscalated,
     nowMs,
   });
   if (stagnation) {
