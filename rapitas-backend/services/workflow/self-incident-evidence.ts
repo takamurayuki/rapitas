@@ -48,7 +48,13 @@ export interface GatheredTaskState {
   hasAnyExecution: boolean;
   /** True when a queued/running/waiting_approval queue item exists. */
   hasActiveQueueItem: boolean;
+  /** createdAt of the newest blocked_escalated/blocked_reescalated transition (null = none/lookup failed). */
+  latestBlockedEscalationAtMs: number | null;
 }
+
+// NOTE: mirrors BLOCKED_ESCALATED_CAUSE / BLOCKED_REESCALATED_CAUSE in blocked-task-escalation.ts
+// (not imported: that module pulls in the concern/notification stack); a test pins equality.
+export const BLOCKED_ESCALATION_CAUSES = ['blocked_escalated', 'blocked_reescalated'];
 
 /** Queue item statuses that mean the task is already on the auto-run path. */
 const ACTIVE_QUEUE_STATUSES = ['queued', 'running', 'waiting_approval'];
@@ -143,6 +149,16 @@ export async function gatherTaskState(
     })
     .catch(() => null);
 
+  // Separate query: the windowed/timeline reads above never reach back 4h+.
+  const latestEscalation = await prisma.workflowTransition
+    .findMany({
+      where: { taskId: task.id, cause: { in: BLOCKED_ESCALATION_CAUSES } },
+      orderBy: { createdAt: 'desc' },
+      take: 1,
+      select: { createdAt: true },
+    })
+    .catch(() => [] as { createdAt: Date }[]); // fail-open: null keeps detection on
+
   return {
     taskId: task.id,
     title: task.title,
@@ -172,6 +188,7 @@ export async function gatherTaskState(
     hasLiveExecution: liveExec !== null,
     hasAnyExecution: anyExec !== null,
     hasActiveQueueItem: activeQueueItem !== null,
+    latestBlockedEscalationAtMs: latestEscalation[0]?.createdAt.getTime() ?? null,
   };
 }
 

@@ -15,6 +15,7 @@ import { notifyIntakeQuestionPending } from '../communication/notification-servi
 import { resolveSelfDevelopmentThemeId } from './self-development-theme';
 import {
   detectStagnation,
+  isBlockedEscalationRecent,
   detectTriStateDesync,
   detectRepeatLoop,
   detectUnansweredQuestion,
@@ -193,6 +194,10 @@ async function inspectTask(
           : true;
 
   const manuallyWithdrawn = state.latestTransitionCause === MANUAL_STOP_WITHDRAW_CAUSE;
+  const blockedEscalationRecent = isBlockedEscalationRecent(
+    state.latestBlockedEscalationAtMs,
+    nowMs,
+  );
   const blockedEscalated =
     state.latestTransitionCause != null &&
     BLOCKED_ESCALATION_CAUSES.has(state.latestTransitionCause);
@@ -212,6 +217,7 @@ async function inspectTask(
     hasActiveQueueItem: state.hasActiveQueueItem,
     isWorkflowManaged,
     manuallyWithdrawn,
+    blockedEscalationRecent,
     blockedEscalated,
     blockedRetryPipelineArmed,
     nowMs,
