@@ -7,12 +7,15 @@
  */
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
 
-// ---- warn capture ----
+// ---- warn/error capture ----
 const warnCalls: unknown[][] = [];
+const errorCalls: unknown[][] = [];
 mock.module('../../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},
-    error: () => {},
+    error: (...args: unknown[]) => {
+      errorCalls.push(args);
+    },
     warn: (...args: unknown[]) => {
       warnCalls.push(args);
     },
@@ -60,12 +63,15 @@ mock.module('../../../config/database', () => ({
 
 // Handler tests exercise downstream gates after a successful review. Atomic
 // receipt/version/stop checks are exercised against SQLite in replan-commit tests.
-mock.module('../../../services/workflow/requirement-replan-service', () => ({
-  attemptRequirementReplan: async (_db: unknown, taskId: number) => ({
+const mockAttemptRequirementReplan = mock((_db: unknown, taskId: number) =>
+  Promise.resolve({
     committed: false,
     reason: 'no_mismatch',
     completionReceipt: { taskId },
   }),
+) as any;
+mock.module('../../../services/workflow/requirement-replan-service', () => ({
+  attemptRequirementReplan: mockAttemptRequirementReplan,
 }));
 mock.module('../../../services/workflow/requirement-replan-commit', () => ({
   assertReviewedTaskCurrent: async () => {},
@@ -249,9 +255,20 @@ mock.module('../../../middleware/error-handler', () => ({
       this.name = 'NotFoundError';
     }
   },
+  RequirementReplanHeldError: class RequirementReplanHeldError extends Error {
+    constructor(reason: string) {
+      super(`Requirement replan review held: ${reason}`);
+      this.name = 'RequirementReplanHeldError';
+    }
+  },
 }));
 
-import { handleSaveFile } from './workflow-handlers-files';
+import { handleSaveFile, isExpectedWorkflowFileError } from './workflow-handlers-files';
+import {
+  NotFoundError as MockedNotFoundError,
+  RequirementReplanHeldError as MockedRequirementReplanHeldError,
+  ValidationError as MockedValidationError,
+} from '../../../middleware/error-handler';
 
 const makeSet = () => ({ status: 200 as number });
 
@@ -267,6 +284,11 @@ beforeEach(() => {
   mockReviewDiffAdversarially.mockReset();
   mockUpdateMany.mockReset();
   warnCalls.length = 0;
+  errorCalls.length = 0;
+  mockAttemptRequirementReplan.mockReset();
+  mockAttemptRequirementReplan.mockImplementation((_db: unknown, taskId: number) =>
+    Promise.resolve({ committed: false, reason: 'no_mismatch', completionReceipt: { taskId } }),
+  );
   mockUpdate.mockResolvedValue({});
   mockUpdateMany.mockResolvedValue({ count: 1 });
   mockCheckInvariants.mockResolvedValue([]);
@@ -1417,5 +1439,85 @@ describe('missingFiles extraction from missing_file violations', () => {
         return m ? m[1] : 'unknown';
       });
     expect(missingFiles).toEqual(['unknown']);
+  });
+});
+
+// -------------------------------------------------------------------------
+// Regression (task #962 / K-9545 / K-9411 / K-9417 / K-9544): task #961 made
+// the global error-handler.ts onError skip log.error for AppError (including
+// RequirementReplanHeldError), but handleSaveFile's OWN catch runs first and
+// still logged every requirement-replan hold at ERROR because it only
+// special-cased ValidationError/NotFoundError — undermining #961's fix at the
+// actual emission site (logger `routes:workflow:handlers:files`).
+//
+// isExpectedWorkflowFileError is exercised directly (rather than through the
+// full handleSaveFile pipeline) because this suite's config/logger mock does
+// not reliably intercept log.error for every transitive import in this file
+// (an unrelated, pre-existing bun mock.module limitation — see the other
+// tests in this file: none assert on warnCalls/errorCalls either). Testing
+// the predicate directly gives an unambiguous, deterministic signal for the
+// exact branch this bug lives in.
+describe('isExpectedWorkflowFileError — ERRORログを抑止すべき例外の判定 (task #962)', () => {
+  test('RequirementReplanHeldError（budget_exhausted等の保留）は抑止対象であること', () => {
+    expect(
+      isExpectedWorkflowFileError(new MockedRequirementReplanHeldError('budget_exhausted')),
+    ).toBe(true);
+  });
+
+  test('ValidationError / NotFoundError は従来どおり抑止対象であること', () => {
+    expect(isExpectedWorkflowFileError(new MockedValidationError('無効な入力'))).toBe(true);
+    expect(isExpectedWorkflowFileError(new MockedNotFoundError('見つかりません'))).toBe(true);
+  });
+
+  test('その他の例外（想定外のバグ）は抑止対象ではないこと', () => {
+    expect(isExpectedWorkflowFileError(new Error('unexpected'))).toBe(false);
+    expect(
+      isExpectedWorkflowFileError(new Error('Requirement replan review held: stale_task')),
+    ).toBe(false);
+  });
+});
+
+describe('handleSaveFile — requirement replan review held は RequirementReplanHeldError として伝播すること', () => {
+  const verifyAtInProgress = () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]);
+    mockCheckInvariants.mockResolvedValueOnce([]);
+  };
+
+  test('budget_exhausted は RequirementReplanHeldError（isExpectedWorkflowFileError=true）として再throwされること', async () => {
+    verifyAtInProgress();
+    mockAttemptRequirementReplan.mockResolvedValueOnce({
+      committed: false,
+      reason: 'budget_exhausted',
+    });
+
+    await expect(
+      handleSaveFile({
+        params: { taskId: '1', fileType: 'verify' },
+        body: 'verify content',
+        set: makeSet(),
+      }),
+    ).rejects.toMatchObject({ name: 'RequirementReplanHeldError' });
+  });
+
+  test('budget_exhausted 以外の保留理由（例: stale_task）は従来どおり plain Error として伝播すること', async () => {
+    verifyAtInProgress();
+    mockAttemptRequirementReplan.mockResolvedValueOnce({
+      committed: false,
+      reason: 'stale_task',
+    });
+
+    await expect(
+      handleSaveFile({
+        params: { taskId: '1', fileType: 'verify' },
+        body: 'verify content',
+        set: makeSet(),
+      }),
+    ).rejects.toThrow('Requirement replan review held: stale_task');
   });
 });
