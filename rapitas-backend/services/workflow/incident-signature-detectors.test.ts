@@ -41,6 +41,43 @@ describe('detectStagnation', () => {
     expect(result?.staleMs).toBe(STAGNATION_THRESHOLD_MS + 60_000);
   });
 
+  describe('escalated blocked hold (#979)', () => {
+    const HOUR = 60 * 60 * 1000;
+    const blocked = { ...base, taskStatus: 'blocked' };
+
+    it('suppresses a blocked task escalated within the re-escalation interval', () => {
+      expect(
+        detectStagnation({ ...blocked, blockedEscalatedAtMs: NOW - HOUR, blockedHoldMs: 4 * HOUR }),
+      ).toBeNull();
+    });
+
+    it('detects a blocked task never escalated (blockedEscalatedAtMs null)', () => {
+      expect(
+        detectStagnation({ ...blocked, blockedEscalatedAtMs: null, blockedHoldMs: 4 * HOUR }),
+      ).not.toBeNull();
+    });
+
+    it('detects a blocked task whose last escalation is older than the interval', () => {
+      expect(
+        detectStagnation({
+          ...blocked,
+          blockedEscalatedAtMs: NOW - 5 * HOUR,
+          blockedHoldMs: 4 * HOUR,
+        }),
+      ).not.toBeNull();
+    });
+
+    it('fails open when the escalation input is undefined', () => {
+      expect(detectStagnation(blocked)).not.toBeNull();
+    });
+
+    it('does not suppress a non-blocked task even with a recent escalation stamp', () => {
+      expect(
+        detectStagnation({ ...base, blockedEscalatedAtMs: NOW - HOUR, blockedHoldMs: 4 * HOUR }),
+      ).not.toBeNull();
+    });
+  });
+
   it('detects at exactly the threshold (>= boundary)', () => {
     const result = detectStagnation({
       ...base,

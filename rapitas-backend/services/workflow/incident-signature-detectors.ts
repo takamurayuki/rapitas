@@ -153,6 +153,16 @@ export interface StagnationInput {
    * mirrors the other optional gates' fail-open convention.
    */
   manuallyWithdrawn?: boolean | null;
+  /**
+   * Epoch ms of the newest `blocked_escalated`/`blocked_reescalated` transition
+   * (#979). A `status=blocked` task whose escalation is younger than
+   * `blockedHoldMs` is a human-wait hold already reported through the
+   * escalation notice — not stagnation. `null`/`undefined` (never escalated or
+   * unresolved) leaves the task subject to detection (fail-open).
+   */
+  blockedEscalatedAtMs?: number | null;
+  /** Suppression window for the blocked hold (ms); the re-escalation interval. */
+  blockedHoldMs?: number;
   nowMs: number;
   thresholdMs?: number;
 }
@@ -180,6 +190,17 @@ export function detectStagnation(input: StagnationInput): { staleMs: number } | 
   // operator has already decided not to resume this task; repeating the
   // same finding every watch pass forever is noise, not signal.
   if (input.manuallyWithdrawn) return null;
+  // Escalated blocked hold (#979): waiting on a human after a notice is legitimate
+  // until the re-escalation interval lapses; past it, escalation itself has
+  // stopped and the task is a genuine orphan again.
+  if (
+    input.taskStatus === 'blocked' &&
+    input.blockedEscalatedAtMs != null &&
+    input.blockedHoldMs != null &&
+    input.nowMs - input.blockedEscalatedAtMs < input.blockedHoldMs
+  ) {
+    return null;
+  }
   // NOTE: null must count as not-started — `null !== 'draft'` alone would
   // misclassify a workflowStatus-less task as advanced.
   const isInFlight =

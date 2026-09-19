@@ -31,7 +31,7 @@ import { gatherTaskState, formatIncidentDetail } from './self-incident-evidence'
 import type { GatheredTaskState } from './self-incident-evidence';
 import { inspectSupervisorSignatures } from './supervisor-incident-inspect';
 import { resolveMaxRepairs } from './verify-self-repair-budget';
-import { DEFAULT_MAX_CI_REPAIRS } from './blocked-task-policy';
+import { DEFAULT_MAX_CI_REPAIRS, BLOCKED_REESCALATION_INTERVAL_MS } from './blocked-task-policy';
 import {
   resolveDisabledAutoRunThemeIds,
   resolveNonDevelopmentThemeIds,
@@ -199,6 +199,8 @@ async function inspectTask(
     hasActiveQueueItem: state.hasActiveQueueItem,
     isWorkflowManaged,
     manuallyWithdrawn,
+    blockedEscalatedAtMs: state.latestBlockedEscalationAtMs,
+    blockedHoldMs: BLOCKED_REESCALATION_INTERVAL_MS,
     nowMs,
   });
   if (stagnation) {
