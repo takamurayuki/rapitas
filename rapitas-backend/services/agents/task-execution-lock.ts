@@ -56,8 +56,13 @@ function hydrateGenerationFromDb(taskId: number): void {
       select: { executionGenerationId: true };
     }) => Promise<{ executionGenerationId: number } | null>;
   };
-  taskModel
-    .findUnique({ where: { id: taskId }, select: { executionGenerationId: true } })
+  // Promise.resolve().then(...) so a synchronous throw (e.g. a partially mocked
+  // or not-yet-initialised prisma client) becomes a rejection handled below —
+  // this sync getter sits inside releaseTaskExecutionLock and must never throw.
+  Promise.resolve()
+    .then(() =>
+      taskModel.findUnique({ where: { id: taskId }, select: { executionGenerationId: true } }),
+    )
     .then((row) => {
       if (!row) return;
       const current = cancellationVersions.get(taskId) ?? 0;

@@ -81,4 +81,14 @@ describe('getTaskExecutionCancellationVersion — DB hydration', () => {
     expect(getTaskExecutionCancellationVersion(taskId)).toBe(9);
     expect(mockFindUnique).toHaveBeenCalledTimes(2);
   });
+
+  test('prisma.task.findUnique が同期例外を投げても getter は例外を投げない', () => {
+    const taskId = 50005;
+    mockFindUnique.mockImplementationOnce(() => {
+      throw new TypeError('prisma.task.findUnique is not a function');
+    });
+
+    expect(() => getTaskExecutionCancellationVersion(taskId)).not.toThrow();
+    expect(getTaskExecutionCancellationVersion(taskId)).toBe(0);
+  });
 });
