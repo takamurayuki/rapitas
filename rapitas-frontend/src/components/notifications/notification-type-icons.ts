@@ -33,6 +33,7 @@ import {
   Sunrise,
   Thermometer,
   TimerOff,
+  TrendingDown,
   TriangleAlert,
   Unlock,
   type LucideIcon,
@@ -93,6 +94,7 @@ const typeColors: Record<string, string> = {
   auto_pr_identity_mismatch:
     'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
   system: 'bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400',
+  prompt_tree_regression: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
 };
 
 /** Fallback color for types with no explicit mapping — neutral, matches the Bell fallback icon. */
@@ -146,6 +148,7 @@ const typeIconComponents: Record<string, LucideIcon> = {
   auto_pr_merged: GitMerge,
   auto_pr_merge_failed: CircleAlert,
   auto_pr_identity_mismatch: CircleAlert,
+  prompt_tree_regression: TrendingDown,
 };
 
 /** Icon + background color for a notification's circular badge. */

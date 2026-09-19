@@ -716,7 +716,18 @@ CREATE TABLE "PromptEvolution" (
     "status" TEXT NOT NULL DEFAULT 'completed',
     "evidenceJson" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "PromptEvolution_experimentId_fkey" FOREIGN KEY ("experimentId") REFERENCES "Experiment" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+    "parentId" INTEGER,
+    "taskType" TEXT,
+    "significanceLevel" TEXT,
+    "applicableConditionsJson" TEXT,
+    "failureCasesJson" TEXT,
+    "abTested" BOOLEAN NOT NULL DEFAULT false,
+    "abComparisonRef" TEXT,
+    "treeConfidence" TEXT NOT NULL DEFAULT 'low',
+    "lastRevalidatedAt" DATETIME,
+    "lastRevalidatedModelVersion" TEXT,
+    CONSTRAINT "PromptEvolution_experimentId_fkey" FOREIGN KEY ("experimentId") REFERENCES "Experiment" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
+    CONSTRAINT "PromptEvolution_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "PromptEvolution" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -1822,6 +1833,9 @@ CREATE INDEX "PromptEvolution_performanceDelta_idx" ON "PromptEvolution"("perfor
 
 -- CreateIndex
 CREATE INDEX "PromptEvolution_status_idx" ON "PromptEvolution"("status");
+
+-- CreateIndex
+CREATE INDEX "PromptEvolution_parentId_idx" ON "PromptEvolution"("parentId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "GitHubIntegration_repositoryUrl_key" ON "GitHubIntegration"("repositoryUrl");

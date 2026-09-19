@@ -154,6 +154,10 @@
         "title": "Daily report {date}",
         "message": "{message}"
       },
+      "prompt_tree_regression": {
+        "title": "A prompt improvement regressed on revalidation",
+        "message": "Revalidating the approved improvement for the {role} role found a {delta, number, percent} drop in success rate"
+      },
       "memo_reminder": {
         "title": "Memo reminder",
         "message": "{message}"

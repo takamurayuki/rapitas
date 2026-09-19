@@ -132,3 +132,45 @@ describe('evaluateRole scopeTaskIds', () => {
     expect(f.findMany.mock.calls[0][0].where.session.config).toBeUndefined();
   });
 });
+
+describe('emitEvolutionCandidate parentId lineage (task #937)', () => {
+  function fixtureWithParentLookup(statuses: string[], parentRow: { id: number } | null) {
+    const base = fixture(statuses);
+    const findFirst = mock(async () => parentRow);
+    (base.db as unknown as { promptEvolution: { findFirst: unknown } }).promptEvolution.findFirst =
+      findFirst;
+    return { ...base, findFirst };
+  }
+
+  test('sets parentId to the most recent approved/completed row for the same basePromptKey', async () => {
+    const f = fixtureWithParentLookup(['completed', 'completed', 'failed', 'failed', 'failed'], {
+      id: 7,
+    });
+    await runPromptEvolution(f.db);
+    expect(f.findFirst).toHaveBeenCalledTimes(1);
+    const whereArg = f.findFirst.mock.calls[0][0] as {
+      where: { basePromptKey: string; status: { in: string[] } };
+    };
+    expect(whereArg.where.basePromptKey).toBe('workflow_role_implementer');
+    expect(whereArg.where.status.in).toEqual(['approved', 'completed']);
+    const createArgs = f.create.mock.calls[0][0] as { data: { parentId: number | null } };
+    expect(createArgs.data.parentId).toBe(7);
+  });
+
+  test('sets parentId to null (root) when no eligible predecessor exists', async () => {
+    const f = fixtureWithParentLookup(
+      ['completed', 'completed', 'failed', 'failed', 'failed'],
+      null,
+    );
+    await runPromptEvolution(f.db);
+    const createArgs = f.create.mock.calls[0][0] as { data: { parentId: number | null } };
+    expect(createArgs.data.parentId).toBeNull();
+  });
+
+  test('degrades to parentId=null when the client has no findFirst (pre-restart Prisma client)', async () => {
+    const f = fixture(['completed', 'completed', 'failed', 'failed', 'failed']);
+    await runPromptEvolution(f.db);
+    const createArgs = f.create.mock.calls[0][0] as { data: { parentId: number | null } };
+    expect(createArgs.data.parentId).toBeNull();
+  });
+});

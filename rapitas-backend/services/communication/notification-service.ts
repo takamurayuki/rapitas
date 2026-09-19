@@ -31,6 +31,7 @@ export type NotificationType =
   | 'consolidation_completed'
   | 'daily_report'
   | 'knowledge_extracted'
+  | 'prompt_tree_regression'
   | 'system';
 
 interface CreateNotificationParams {

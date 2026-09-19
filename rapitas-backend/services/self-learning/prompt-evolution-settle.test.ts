@@ -25,8 +25,12 @@ mock.module('../../config/logger', () => {
   };
 });
 
-const { decideSettlement, settleApprovedEvolutions, isPureAddendum } =
-  await import('./prompt-evolution-settle');
+const {
+  decideSettlement,
+  settleApprovedEvolutions,
+  isPureAddendum,
+  aggregateApplicableConditions,
+} = await import('./prompt-evolution-settle');
 const { writeComparisonRecord, readComparisonRecord } =
   await import('./comparison/prompt-comparison-store');
 
@@ -149,6 +153,60 @@ describe('settleApprovedEvolutions', () => {
   });
 });
 
+describe('aggregateApplicableConditions', () => {
+  test('empty samples yield the all-null shape', () => {
+    expect(aggregateApplicableConditions([], 0.7)).toEqual({
+      dayOfWeek: null,
+      modelVersion: null,
+      userSegment: null,
+    });
+  });
+
+  test('does not record a bucket below CONDITION_MIN_SAMPLES even at 100% success', () => {
+    const samples = Array.from({ length: 4 }, () => ({
+      createdAt: new Date('2026-09-07T00:00:00.000Z'),
+      modelName: 'claude-sonnet-5',
+      success: true,
+    }));
+    const result = aggregateApplicableConditions(samples, 0.5);
+    expect(result.dayOfWeek).toBeNull();
+    expect(result.modelVersion).toBeNull();
+  });
+
+  test('does not record a bucket whose success rate does not beat the margin', () => {
+    const samples = Array.from({ length: 6 }, (_, i) => ({
+      createdAt: new Date('2026-09-07T00:00:00.000Z'),
+      modelName: 'claude-sonnet-5',
+      success: i < 4, // 0.667 success — overall is 0.6, margin needs >= 0.7
+    }));
+    const result = aggregateApplicableConditions(samples, 0.6);
+    expect(result.dayOfWeek).toBeNull();
+    expect(result.modelVersion).toBeNull();
+  });
+
+  test('records a day/model bucket that clears both the sample and margin thresholds', () => {
+    const samples = Array.from({ length: 6 }, () => ({
+      createdAt: new Date('2026-09-07T00:00:00.000Z'), // Monday
+      modelName: 'claude-sonnet-5',
+      success: true,
+    }));
+    const result = aggregateApplicableConditions(samples, 0.5);
+    expect(result.dayOfWeek).toEqual(['mon']);
+    expect(result.modelVersion).toEqual(['claude-sonnet-5']);
+    expect(result.userSegment).toBeNull();
+  });
+
+  test('ignores samples with no modelName for the model axis', () => {
+    const samples = Array.from({ length: 6 }, () => ({
+      createdAt: new Date('2026-09-07T00:00:00.000Z'),
+      modelName: null,
+      success: true,
+    }));
+    const result = aggregateApplicableConditions(samples, 0.5);
+    expect(result.modelVersion).toBeNull();
+  });
+});
+
 describe('isPureAddendum', () => {
   test('true for an addendum with no deletion-signal keywords', () => {
     expect(isPureAddendum('提出前にlintを実行する。型チェックも通す。')).toBe(true);
@@ -247,6 +305,72 @@ describe('settleApprovedEvolutions — staged scope + auto-promote', () => {
     });
     await settleApprovedEvolutions(prisma, evaluate, now);
     expect(evaluate).toHaveBeenCalledTimes(1);
+  });
+
+  test('records abTested/significanceLevel/abComparisonRef when a comparison record exists (task #937)', async () => {
+    writeComparisonRecord(comparisonRecord({ promptEvolutionId: 13 }));
+    const { prisma, updates } = makePrisma([
+      {
+        id: 13,
+        basePromptKey: 'workflow_role_implementer',
+        evidenceJson: '{"successRate":0.6,"approvedAt":"2026-09-01T00:00:00.000Z"}',
+        afterPrompt: '提出前にlintを実行する',
+      },
+    ]);
+    await settleApprovedEvolutions(
+      prisma,
+      () => Promise.resolve({ totalRuns: 6, successRate: 0.8 }),
+      now,
+    );
+    expect(updates[0].data.abTested).toBe(true);
+    expect(updates[0].data.significanceLevel).toBe('low');
+    expect(updates[0].data.abComparisonRef).toBe('13');
+  });
+
+  test('leaves abTested=false/abComparisonRef=null when no comparison record was run', async () => {
+    const { prisma, updates } = makePrisma([
+      {
+        id: 14,
+        basePromptKey: 'workflow_role_implementer',
+        evidenceJson: '{"successRate":0.6,"approvedAt":"2026-09-01T00:00:00.000Z"}',
+      },
+    ]);
+    await settleApprovedEvolutions(
+      prisma,
+      () => Promise.resolve({ totalRuns: 6, successRate: 0.8 }),
+      now,
+    );
+    expect(updates[0].data.abTested).toBe(false);
+    expect(updates[0].data.significanceLevel).toBeNull();
+    expect(updates[0].data.abComparisonRef).toBeNull();
+  });
+
+  test('aggregates applicableConditionsJson from agentExecution samples when available', async () => {
+    const { prisma, updates } = makePrisma([
+      {
+        id: 15,
+        basePromptKey: 'workflow_role_implementer',
+        evidenceJson: '{"successRate":0.5,"approvedAt":"2026-09-01T00:00:00.000Z"}',
+      },
+    ]);
+    const monday = new Date('2026-09-07T00:00:00.000Z'); // Monday
+    const samples = Array.from({ length: 6 }, (_, i) => ({
+      createdAt: monday,
+      modelName: 'claude-sonnet-5',
+      status: i < 6 ? 'completed' : 'failed',
+    }));
+    (prisma as unknown as { agentExecution: { findMany: unknown } }).agentExecution = {
+      findMany: () => Promise.resolve(samples),
+    };
+    await settleApprovedEvolutions(
+      prisma,
+      () => Promise.resolve({ totalRuns: 6, successRate: 0.5 }),
+      now,
+    );
+    const conditions = JSON.parse(updates[0].data.applicableConditionsJson as string);
+    expect(conditions.modelVersion).toEqual(['claude-sonnet-5']);
+    expect(conditions.dayOfWeek).toEqual(['mon']);
+    expect(conditions.userSegment).toBeNull();
   });
 
   test('RAPITAS_PROMPT_AUTO_PROMOTE unset (default): stagedTaskIds is never cleared', async () => {

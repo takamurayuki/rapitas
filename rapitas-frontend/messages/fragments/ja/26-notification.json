@@ -154,6 +154,10 @@
         "title": "デイリーレポート {date}",
         "message": "{message}"
       },
+      "prompt_tree_regression": {
+        "title": "プロンプト改善の効果が再検証で劣化しました",
+        "message": "ロール「{role}」の承認済み改善を再検証したところ、成功率が{delta, number, percent}悪化していました"
+      },
       "memo_reminder": {
         "title": "メモのリマインダー",
         "message": "{message}"

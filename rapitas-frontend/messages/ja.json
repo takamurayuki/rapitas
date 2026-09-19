@@ -3346,6 +3346,10 @@
         "title": "デイリーレポート {date}",
         "message": "{message}"
       },
+      "prompt_tree_regression": {
+        "title": "プロンプト改善の効果が再検証で劣化しました",
+        "message": "ロール「{role}」の承認済み改善を再検証したところ、成功率が{delta, number, percent}悪化していました"
+      },
       "memo_reminder": {
         "title": "メモのリマインダー",
         "message": "{message}"
@@ -3500,6 +3504,10 @@
     "requiredFields": "キー、名前、プロンプト内容は必須です",
     "keyValidation": "キーは英小文字、数字、アンダースコアのみ使用できます",
     "addFailed": "プロンプトの追加に失敗しました",
+    "evolutionTabs": {
+      "grid": "一覧",
+      "tree": "系統樹"
+    },
     "promptEvolution": {
       "proposals": {
         "title": "承認待ちのプロンプト改善提案",
@@ -3518,7 +3526,37 @@
       "trendDown": "悪化傾向",
       "trendFlat": "横ばい",
       "empty": "プロンプト進化の履歴はまだありません。",
-      "loadFailed": "プロンプト進化履歴の取得に失敗しました"
+      "loadFailed": "プロンプト進化履歴の取得に失敗しました",
+      "tree": {
+        "title": "プロンプト進化の系統樹",
+        "subtitle": "ロールごとの改善履歴を親子関係で表示します。ノードをクリックすると詳細が確認できます。",
+        "empty": "系統樹データはまだありません。",
+        "loadFailed": "系統樹の取得に失敗しました",
+        "significanceNote": "有意性は比較実行回数に基づく簡易指標であり、厳密な統計的有意水準ではありません。",
+        "confidenceHigh": "信頼度: 高",
+        "confidenceMedium": "信頼度: 中",
+        "confidenceLow": "信頼度: 低",
+        "abTested": "A/Bテスト実施済み",
+        "abNotTested": "A/Bテスト未実施",
+        "taskType": "タスク種別",
+        "effect": "効果（性能差分）",
+        "significance": "有意性",
+        "cost": "実行コスト参照",
+        "applicableConditions": "適用条件",
+        "dayOfWeek": "曜日",
+        "modelVersion": "モデルバージョン",
+        "userSegment": "ユーザー層",
+        "noConditionRecorded": "記録なし",
+        "failureCases": "失敗ケース",
+        "noFailureCases": "記録なし",
+        "revalidate": "再検証",
+        "revalidating": "再検証中...",
+        "revalidateSuccess": "再検証が完了しました（信頼度: {confidence}）",
+        "revalidateFailed": "再検証に失敗しました",
+        "revalidateNotApplicable": "完了済みの改善のみ再検証できます",
+        "lastRevalidated": "最終再検証: {date}",
+        "neverRevalidated": "未再検証"
+      }
     }
   },
   "claudeMd": {

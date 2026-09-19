@@ -14,6 +14,7 @@ import type { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
 import { evaluateRole, type RoleEvaluation } from './prompt-evolution-runner';
 import { readComparisonRecord, writeComparisonRecord } from './comparison/prompt-comparison-store';
+import { computeTreeConfidence, type SignificanceLevel } from './prompt-evolution-tree';
 
 const log = createLogger('self-learning:prompt-evolution-settle');
 
@@ -47,6 +48,79 @@ export const SETTLE_MIN_RUNS = 5;
 export const SETTLE_REGRESSION_THRESHOLD = -0.05;
 
 export type SettleVerdict = 'insufficient' | 'completed' | 'reverted';
+
+/** Minimum samples in a day/model bucket before its success rate is trusted (matches COMPARISON_MIN_SAMPLE). */
+export const CONDITION_MIN_SAMPLES = 5;
+/** A bucket's success rate must exceed the overall rate by this margin to be recorded as a condition. */
+export const CONDITION_SUCCESS_MARGIN = 0.1;
+
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+
+/** One post-approval execution sample used for day-of-week / model-version condition aggregation. */
+export interface ConditionSample {
+  createdAt: Date | string;
+  modelName: string | null;
+  success: boolean;
+}
+
+interface ConditionsResult {
+  dayOfWeek: string[] | null;
+  modelVersion: string[] | null;
+  userSegment: null;
+}
+
+/**
+ * Aggregate post-approval samples by day-of-week and model name, recording an
+ * axis value only when its bucket has enough samples (CONDITION_MIN_SAMPLES)
+ * AND its success rate beats the overall rate by CONDITION_SUCCESS_MARGIN —
+ * see plan.md "適用条件の集計方針". `userSegment` is always null: the product
+ * runs single-user (userId=1 fixed calls throughout), so there is no
+ * meaningful per-segment signal to aggregate (see plan.md's "ユーザー層" note).
+ *
+ * @param samples - Post-approval execution outcomes. / 承認後の実行結果
+ * @param overallSuccessRate - The role's overall post-approval success rate. / 全体の成功率
+ * @returns Conditions under which the addendum performed significantly better. / 条件別の効果
+ */
+export function aggregateApplicableConditions(
+  samples: ConditionSample[],
+  overallSuccessRate: number,
+): ConditionsResult {
+  if (samples.length === 0) return { dayOfWeek: null, modelVersion: null, userSegment: null };
+
+  const byDay = new Map<string, { success: number; total: number }>();
+  const byModel = new Map<string, { success: number; total: number }>();
+  for (const s of samples) {
+    const day = DAY_KEYS[new Date(s.createdAt).getDay()];
+    const dayAgg = byDay.get(day) ?? { success: 0, total: 0 };
+    dayAgg.total += 1;
+    if (s.success) dayAgg.success += 1;
+    byDay.set(day, dayAgg);
+
+    const model = s.modelName?.trim();
+    if (model) {
+      const modelAgg = byModel.get(model) ?? { success: 0, total: 0 };
+      modelAgg.total += 1;
+      if (s.success) modelAgg.success += 1;
+      byModel.set(model, modelAgg);
+    }
+  }
+
+  const pickSignificant = (
+    buckets: Map<string, { success: number; total: number }>,
+  ): string[] | null => {
+    const winners = [...buckets.entries()]
+      .filter(([, agg]) => agg.total >= CONDITION_MIN_SAMPLES)
+      .filter(([, agg]) => agg.success / agg.total >= overallSuccessRate + CONDITION_SUCCESS_MARGIN)
+      .map(([key]) => key);
+    return winners.length > 0 ? winners : null;
+  };
+
+  return {
+    dayOfWeek: pickSignificant(byDay),
+    modelVersion: pickSignificant(byModel),
+    userSegment: null,
+  };
+}
 
 /**
  * Pure decision: given the pre-approval rate and the post-approval evaluation.
@@ -96,6 +170,10 @@ export interface SettlePrisma {
   promptEvolution: {
     findMany(args: unknown): Promise<ApprovedRow[]>;
     update(args: unknown): Promise<unknown>;
+  };
+  /** Optional: absent in older fakes/pre-restart clients — condition aggregation is skipped without it. */
+  agentExecution?: {
+    findMany(args: unknown): Promise<ConditionSample[]>;
   };
 }
 
@@ -160,11 +238,64 @@ export async function settleApprovedEvolutions(
     }
     const { verdict, delta } = decideSettlement(beforeRate, after);
     if (verdict === 'insufficient') continue;
+
+    // Node attributes 3/5 (A/B) and 4/5 (conditions) — see plan.md "有意性・
+    // 信頼度" and "適用条件の集計方針". abComparisonRef reuses the row's own id
+    // (ComparisonRecord.promptEvolutionId), the join key confirmed in
+    // prompt-comparison-types.ts.
+    const abTested = comparison !== null;
+    const significanceLevel = comparison?.summary?.uncertainty ?? null;
+    const abComparisonRef = abTested ? String(row.id) : null;
+    // treeConfidence is a derived cache (plan.md "有意性・信頼度の算出方針") —
+    // recomputed on every settle, since abTested/significanceLevel/status
+    // (the confidence rule's inputs) all change here.
+    const treeConfidence = computeTreeConfidence({
+      abTested,
+      significanceLevel: significanceLevel as SignificanceLevel | null,
+      status: verdict,
+    });
+    let applicableConditionsJson: string | null = null;
+    if (prisma.agentExecution) {
+      try {
+        const samples = await prisma.agentExecution.findMany({
+          where: {
+            createdAt: { gte: new Date(evidence.approvedAt) },
+            session: {
+              mode: `workflow-${role}`,
+              ...(stagedTaskIds ? { config: { taskId: { in: stagedTaskIds } } } : {}),
+            },
+          },
+          select: { createdAt: true, modelName: true, status: true },
+        });
+        const withSuccess = (
+          samples as unknown as Array<{
+            createdAt: Date | string;
+            modelName: string | null;
+            status: string;
+          }>
+        ).map((s) => ({
+          createdAt: s.createdAt,
+          modelName: s.modelName,
+          success: s.status === 'completed',
+        }));
+        applicableConditionsJson = JSON.stringify(
+          aggregateApplicableConditions(withSuccess, after.successRate),
+        );
+      } catch (err) {
+        log.warn({ err, id: row.id, role }, '[settle] condition aggregation failed — skipped');
+      }
+    }
+
     await prisma.promptEvolution.update({
       where: { id: row.id },
       data: {
         status: verdict,
         performanceDelta: delta,
+        abTested,
+        significanceLevel,
+        abComparisonRef,
+        treeConfidence,
+        ...(applicableConditionsJson ? { applicableConditionsJson } : {}),
         evidenceJson: JSON.stringify({
           ...evidence,
           settledAt: now().toISOString(),
