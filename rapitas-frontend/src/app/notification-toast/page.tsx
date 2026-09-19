@@ -94,9 +94,13 @@ export default function NotificationToastPage() {
   }, []);
 
   // Grow/shrink the window to the rendered content (question options need
-  // more than the default 116px). Measured after paint; no-op outside Tauri.
+  // more than the default 116px) AND move it into view — toast_resize is the
+  // only thing that positions the window on-screen (see toast.rs). Skipped
+  // with no payload yet: calling it on the initial null render would reveal
+  // the window before there is anything to show, reintroducing the blank
+  // white card this two-step reveal exists to prevent. No-op outside Tauri.
   const syncHeight = useCallback(() => {
-    if (!inTauri()) return;
+    if (!inTauri() || !payloadRef.current) return;
     requestAnimationFrame(() => {
       const height = Math.ceil(document.documentElement.scrollHeight);
       void import('@tauri-apps/api/core').then(({ invoke }) =>

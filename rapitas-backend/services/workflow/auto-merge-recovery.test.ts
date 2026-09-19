@@ -54,6 +54,14 @@ let autoMergePR = true;
 mock.module('./automation-policy', () => ({
   resolveAutomationPolicy: () =>
     Promise.resolve({ autoCommit: true, autoCreatePR: true, autoMergePR }),
+  // task 948: automation-policy gained this named export; a full-module
+  // mock.module replacement here shadows it process-wide (bun mock.module
+  // is global), breaking any test running later in the same process that
+  // imports the real export. Mirror it even though this file doesn't
+  // exercise it directly.
+  isStagedCompletionEnabled: () =>
+    process.env.RAPITAS_STAGED_COMPLETION !== 'false' &&
+    process.env.RAPITAS_STAGED_COMPLETION !== '0',
 }));
 
 let canContinue = true;

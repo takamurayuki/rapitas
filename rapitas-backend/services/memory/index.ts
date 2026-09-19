@@ -222,6 +222,10 @@ export async function createKnowledgeEntry(input: CreateKnowledgeEntryInput) {
       confidence: input.confidence ?? 1.0,
       themeId: input.themeId,
       taskId: input.taskId,
+      sourceRef: input.sourceRef,
+      applicabilityConditions: input.applicabilityConditions,
+      expiresAt: input.expiresAt,
+      counterEvidence: input.counterEvidence,
     },
   });
 
@@ -254,12 +258,20 @@ export async function updateKnowledgeEntry(id: number, input: UpdateKnowledgeEnt
   if (input.content !== undefined) {
     data.content = input.content;
     data.contentHash = createContentHash(input.content);
+    // Bump the version each time the content actually changes — the hash detects
+    // WHETHER it changed, entryVersion counts HOW MANY times (audit + re-eval).
+    data.entryVersion = { increment: 1 };
   }
   if (input.category !== undefined) data.category = input.category;
   if (input.tags !== undefined) data.tags = JSON.stringify(input.tags);
   if (input.confidence !== undefined) data.confidence = input.confidence;
   if (input.themeId !== undefined) data.themeId = input.themeId;
   if (input.taskId !== undefined) data.taskId = input.taskId;
+  if (input.sourceRef !== undefined) data.sourceRef = input.sourceRef;
+  if (input.applicabilityConditions !== undefined)
+    data.applicabilityConditions = input.applicabilityConditions;
+  if (input.expiresAt !== undefined) data.expiresAt = input.expiresAt;
+  if (input.counterEvidence !== undefined) data.counterEvidence = input.counterEvidence;
 
   const entry = await prisma.knowledgeEntry.update({
     where: { id },

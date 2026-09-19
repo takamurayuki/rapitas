@@ -15,6 +15,7 @@ describe('isNonRunnableTaskSkip', () => {
       'このタスクはワークフロー無効モードのため自動実行(フェーズ進行)の対象外です。手動実行してください。',
       'Requirement replan review held: requires_human:invalid_json',
       'Requirement replan review held: review_in_progress',
+      'Requirement replan review held: budget_exhausted',
     ];
     for (const s of skips) expect(isNonRunnableTaskSkip(s)).toBe(true);
   });
@@ -23,6 +24,13 @@ describe('isNonRunnableTaskSkip', () => {
     // 実測 2026-08-23: task 602/647 がこのメッセージで retryCount を3消費し、
     // 本当の停止理由(verify_validation_failed)が上書きされて診断不能になった。
     expect(isNonRunnableTaskSkip('タスクはブロック中のため自動実行をスキップしました')).toBe(true);
+  });
+
+  test('回帰: budget_exhausted は priorReplans>=3 の追記専用カウンタで再試行しても解消しないため実行不能スキップ扱いにする', () => {
+    // task #961: budget_exhausted は requirement-replan-policy.ts の priorReplans>=3 でのみ返り、
+    // WorkflowTransition への追記のみで減少しない。従来は本物の失敗として retryCount を消費し、
+    // 同じ verify 保存のたびに status-transition.ts:164 の throw で ERROR ログが再発していた。
+    expect(isNonRunnableTaskSkip('Requirement replan review held: budget_exhausted')).toBe(true);
   });
 
   test('本物の失敗は従来どおり再試行対象のまま', () => {

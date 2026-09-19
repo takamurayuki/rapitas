@@ -189,6 +189,18 @@ export interface LearningStats {
   completionRate: number;
   /** Denominator behind completionRate — read the rate with this in mind. */
   sampleCount: number;
+  /**
+   * Tasks whose most recent classified WorkflowTransition.cause indicates an
+   * externally-verifiable outcome (PR merged/CI green/verify passed) versus
+   * one indicating no such evidence (e.g. no PR created, merge blocked).
+   * `null` when there is no classified task in the sample (autonomy audit
+   * 2026-09-06, first step toward a proper `accepted` concept).
+   */
+  acceptedTaskRate: number | null;
+  /** Aggregation window label for acceptedTaskRate — fixed to 'all' for now. */
+  window: 'all';
+  /** Tasks whose latest relevant cause did not match any known classification. */
+  unknownCount: number;
   /** PromptEvolution rows whose recorded before/after pair improved (completed, delta > 0). */
   confirmedPromptImprovements: number;
   topPatterns: Array<{ id: number; description: string; occurrences: number }>;

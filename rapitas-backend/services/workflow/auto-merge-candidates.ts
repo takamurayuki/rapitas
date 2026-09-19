@@ -8,7 +8,7 @@
 import { existsSync } from 'node:fs';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { resolveAutomationPolicy } from './automation-policy';
+import { resolveAutomationPolicy, isStagedCompletionEnabled } from './automation-policy';
 import { resolveTaskForAutoMerge } from '../task/task-resolver';
 import { decideTerminalState } from './auto-merge-exhaustion';
 import { notify } from './auto-merge-notify';
@@ -31,21 +31,6 @@ const log = createLogger('workflow:auto-merge-candidates');
 const MAX_BLOCK_RETRIES = 3;
 /** Only `auto_merge_blocked` marks newer than this count toward the budget. */
 const BLOCK_RETRY_WINDOW_MS = 30 * 60_000;
-
-/**
- * Staged completion (RAPITAS_STAGED_COMPLETION): when ON, a task that landed via
- * a PR is NOT completed at PR creation — `pr` mode completes when the PR's CI is
- * green (no merge), `merge` mode completes when the PR is merged. The watcher
- * therefore also picks up not-yet-completed tasks (verify_done) and marks them
- * done at the right point. When OFF, only already-`done` autoMergePR tasks merge
- * (legacy behaviour), so nothing regresses.
- */
-function stagedCompletionEnabled(): boolean {
-  return (
-    process.env.RAPITAS_STAGED_COMPLETION === 'true' ||
-    process.env.RAPITAS_STAGED_COMPLETION === '1'
-  );
-}
 
 /** A task whose PR is waiting on CI before auto-merge / CI-green completion. */
 export interface Candidate {
@@ -165,23 +150,35 @@ export async function findCandidates(): Promise<Candidate[]> {
     const task = await resolveTaskForAutoMerge(taskId);
     if (!task) continue;
 
-    const staged = stagedCompletionEnabled();
+    const staged = isStagedCompletionEnabled();
     const isCompleted = task.status === 'done' || task.status === 'completed';
-    // Under staged completion the task is still in-progress at verify_done while
-    // its PR's CI runs; pick those up so the watcher can complete them.
+    // The task is still in-progress at verify_done while its PR's CI runs:
+    // always for `merge` mode (a merge outcome must always be confirmed), and
+    // for `pr` mode only while task 948's RAPITAS_STAGED_COMPLETION escape
+    // hatch is enabled (the default) — completion-gate.ts's
+    // shouldDeferCompletionForCi honors the same flag for the forward
+    // (verify_done → completed) decision, so an operator who disables it must
+    // see this watcher agree rather than keep waiting on CI that will never
+    // gate completion.
     const policy = await resolveAutomationPolicy(prisma, taskId).catch(() => null);
     const isAwaitingCi =
-      (staged || policy?.autoMergePR === true) &&
+      (policy?.autoMergePR === true || (staged && policy?.autoCreatePR === true)) &&
       task.workflowStatus === 'verify_done' &&
       ['in-progress', 'in_progress'].includes(task.status);
     if (!isCompleted && !isAwaitingCi) continue;
 
-    // merge mode in any era; pr mode (complete on CI green, no merge) only when
-    // staged completion is enabled — otherwise pr-mode tasks already completed at
-    // verify and the watcher must not touch them.
+    // merge mode when auto-merge is requested (as before, this also re-admits
+    // already-`done` tasks so a missed merge self-heals). pr mode (complete on
+    // CI green, no merge) only for a task the watcher is actively awaiting —
+    // an already-`done` pr-only task never re-enters here regardless of the
+    // staged flag: it either completed synchronously before task 950/948 (no
+    // CI-completion transition to recognise) or CI already confirmed green
+    // under the current logic, so admitting it would sweep every pre-existing
+    // completed PR task into the CI-failure/conflict machinery it never
+    // opted into.
     const mode: 'merge' | 'pr' | null = policy?.autoMergePR
       ? 'merge'
-      : staged && policy?.autoCreatePR
+      : isAwaitingCi && policy?.autoCreatePR
         ? 'pr'
         : null;
     if (!mode) continue;

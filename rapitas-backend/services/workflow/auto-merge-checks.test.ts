@@ -60,6 +60,7 @@ const {
   readPrChecks,
   readMergeState,
   readHeadSha,
+  readPrState,
   updatePrBranch,
 } = await import('./auto-merge-checks');
 
@@ -77,6 +78,13 @@ describe('blockingChecks', () => {
     expect(set.has('Test Backend')).toBe(true);
     expect(set.has('Lint Code')).toBe(true);
     expect(set.has('Quick Build Check')).toBe(true);
+  });
+
+  it('includes CodeQL and the HACK/FIXME ceiling as blocking checks (task 950)', () => {
+    const set = blockingChecks();
+    expect(set.has('CodeQL Analysis (javascript)')).toBe(true);
+    expect(set.has('CodeQL Analysis (typescript)')).toBe(true);
+    expect(set.has('Enforce HACK/FIXME ceilings (ADR-0004)')).toBe(true);
   });
 
   it('parses a comma-separated RAPITAS_AUTOMERGE_CHECKS override', () => {
@@ -167,6 +175,19 @@ describe('evaluateAutoMergeChecks', () => {
     );
     expect(result).toBe('pending');
   });
+
+  it('returns "fail" when CodeQL Analysis or the HACK/FIXME ceiling fails (task 950)', () => {
+    const realBlocking = blockingChecks();
+    const result = evaluateAutoMergeChecks(
+      [
+        { name: 'Lint Code', bucket: 'pass' },
+        { name: 'CodeQL Analysis (javascript)', bucket: 'fail' },
+        { name: 'Enforce HACK/FIXME ceilings (ADR-0004)', bucket: 'pass' },
+      ],
+      realBlocking,
+    );
+    expect(result).toBe('fail');
+  });
 });
 
 describe('readPrChecks', () => {
@@ -252,6 +273,25 @@ describe('readMergeState', () => {
     execBehavior = () => Object.assign(new Error('gh failed'), { stderr: 'boom' });
 
     expect(await readMergeState('/repo', 42)).toBeNull();
+    expect(logWarn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('readPrState', () => {
+  it.each([
+    ['OPEN', 'open'],
+    ['CLOSED', 'closed'],
+    ['MERGED', 'merged'],
+  ])('lower-cases the reported state %s → %s', async (raw, expected) => {
+    execBehavior = () => ({ stdout: `{"state":"${raw}"}`, stderr: '' });
+
+    expect(await readPrState('/repo', 610)).toBe(expected);
+  });
+
+  it('returns null and warns on a gh failure', async () => {
+    execBehavior = () => Object.assign(new Error('gh failed'), { stderr: 'boom' });
+
+    expect(await readPrState('/repo', 610)).toBeNull();
     expect(logWarn).toHaveBeenCalledTimes(1);
   });
 });

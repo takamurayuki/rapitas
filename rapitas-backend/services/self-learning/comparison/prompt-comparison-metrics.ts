@@ -24,6 +24,9 @@ export const COMPARISON_IMPROVE_THRESHOLD = 0.05;
 /** Cost worsening fraction beyond which a candidate is not called "improved". */
 export const COMPARISON_COST_TOLERANCE = 0.2;
 
+/** Default one-sided significance level for a single (non-repeated) verdict call. */
+export const COMPARISON_SIGNIFICANCE_ALPHA = 0.05;
+
 /** Duration worsening fraction beyond which a candidate is not called "improved". */
 export const COMPARISON_DURATION_TOLERANCE = 0.2;
 
@@ -55,6 +58,7 @@ interface ArmAggregate {
   avgDurationMs: number;
   /** Runs counted toward successRate/avgCostUsd/avgDurationMs (infra_failure excluded). */
   sampleSize: number;
+  successCount: number;
   excludedForInfraFailure: number;
 }
 
@@ -74,6 +78,7 @@ export function aggregateArm(runs: ComparisonRun[]): ArmAggregate {
       avgCostUsd: 0,
       avgDurationMs: 0,
       sampleSize: 0,
+      successCount: 0,
       excludedForInfraFailure,
     };
   }
@@ -85,27 +90,102 @@ export function aggregateArm(runs: ComparisonRun[]): ArmAggregate {
     avgCostUsd: costTotal / counted.length,
     avgDurationMs: durationTotal / counted.length,
     sampleSize: counted.length,
+    successCount,
     excludedForInfraFailure,
   };
+}
+
+/**
+ * Natural log of n! computed via a running sum (avoids overflow for n > 170,
+ * where a direct factorial becomes Infinity).
+ *
+ * @param n - Non-negative integer. / 非負整数
+ * @returns ln(n!). / ln(n!)
+ */
+function logFactorial(n: number): number {
+  let sum = 0;
+  for (let i = 2; i <= n; i++) sum += Math.log(i);
+  return sum;
+}
+
+/**
+ * Log of the binomial coefficient C(n, r), computed in log-space to avoid
+ * overflow for large n.
+ *
+ * @param n - Total count. / 総数
+ * @param r - Chosen count. / 選択数
+ * @returns ln(C(n, r)). / ln(C(n, r))
+ */
+function logChoose(n: number, r: number): number {
+  if (r < 0 || r > n) return -Infinity;
+  return logFactorial(n) - logFactorial(r) - logFactorial(n - r);
+}
+
+/**
+ * One-sided Fisher exact test p-value for "candidate success rate is greater
+ * than current success rate", computed from the 2x2 contingency table
+ * directly in log-space (no reliance on the binomial-proportion standard
+ * error, which degenerates to 0 when either arm is at 0%/100%).
+ *
+ * @param candidateSuccess - Candidate arm success count. / 候補群の成功数
+ * @param candidateFailure - Candidate arm failure count. / 候補群の失敗数
+ * @param currentSuccess - Current arm success count. / 現行群の成功数
+ * @param currentFailure - Current arm failure count. / 現行群の失敗数
+ * @returns One-sided p-value in [0, 1]. / 片側p値
+ */
+export function fisherExactOneSidedGreater(
+  candidateSuccess: number,
+  candidateFailure: number,
+  currentSuccess: number,
+  currentFailure: number,
+): number {
+  const n1 = candidateSuccess + candidateFailure;
+  const n2 = currentSuccess + currentFailure;
+  const bigK = candidateSuccess + currentSuccess;
+  const bigN = n1 + n2;
+  if (n1 === 0 || n2 === 0 || bigN === 0) return 1;
+
+  const logDenom = logChoose(bigN, n1);
+  const maxX = Math.min(n1, bigK);
+  let pValue = 0;
+  for (let x = candidateSuccess; x <= maxX; x++) {
+    pValue += Math.exp(logChoose(bigK, x) + logChoose(bigN - bigK, n1 - x) - logDenom);
+  }
+  return Math.min(1, Math.max(0, pValue));
 }
 
 /**
  * Decide the comparison verdict from a current-vs-candidate summary
  * (regression checked before improvement, matching judgeExperiment's ordering
  * so a success-rate gain bought with a significant cost/duration regression
- * still does not count as "improved").
+ * still does not count as "improved"). Regression stays magnitude-only
+ * (no significance gate) by design — blocking a regressing candidate should
+ * stay conservative, while approving an "improved" one is gated by a
+ * one-sided Fisher exact test so the verdict does not depend on the
+ * binomial-proportion standard error, which degenerates to 0 when either arm
+ * sits at 0%/100%.
  *
- * @param s - Aggregated summary (verdict/uncertainty fields are not read). / 集計済みサマリ
+ * @param s - Aggregated summary (verdict/uncertainty/pValue fields are not read). / 集計済みサマリ
+ * @param alpha - One-sided significance level for the improvement gate. / 有意水準
  * @returns The comparison verdict. / 比較判定
  */
 export function decideComparisonVerdict(
-  s: Omit<ComparisonSummary, 'verdict' | 'uncertainty'>,
+  s: Omit<ComparisonSummary, 'verdict' | 'uncertainty' | 'pValue'>,
+  alpha: number = COMPARISON_SIGNIFICANCE_ALPHA,
 ): ComparisonVerdict {
   if (s.sampleSize < COMPARISON_MIN_SAMPLE) return 'insufficient_data';
   if (s.successRateDelta <= -COMPARISON_IMPROVE_THRESHOLD) return 'regressed';
   const costOk = s.costDelta <= COMPARISON_COST_TOLERANCE;
   const durationOk = s.durationDeltaMs <= s.baselineDurationMs * COMPARISON_DURATION_TOLERANCE;
-  if (s.successRateDelta >= COMPARISON_IMPROVE_THRESHOLD && costOk && durationOk) return 'improved';
+  if (s.successRateDelta >= COMPARISON_IMPROVE_THRESHOLD && costOk && durationOk) {
+    const pValue = fisherExactOneSidedGreater(
+      s.candidateSuccessCount,
+      s.candidateFailureCount,
+      s.currentSuccessCount,
+      s.currentFailureCount,
+    );
+    if (pValue < alpha) return 'improved';
+  }
   return 'inconclusive';
 }
 
@@ -126,15 +206,28 @@ export function buildComparisonSummary(cells: ComparisonCell[]): ComparisonSumma
   const current = aggregateArm(currentWith.runs);
   const candidate = aggregateArm(candidateWith.runs);
 
-  const base: Omit<ComparisonSummary, 'verdict' | 'uncertainty'> = {
+  const base: Omit<ComparisonSummary, 'verdict' | 'uncertainty' | 'pValue'> = {
     successRateDelta: candidate.successRate - current.successRate,
     costDelta: candidate.avgCostUsd - current.avgCostUsd,
     durationDeltaMs: candidate.avgDurationMs - current.avgDurationMs,
     baselineDurationMs: current.avgDurationMs,
     sampleSize: Math.min(current.sampleSize, candidate.sampleSize),
     excludedForInfraFailure: current.excludedForInfraFailure + candidate.excludedForInfraFailure,
+    currentSuccessCount: current.successCount,
+    currentFailureCount: current.sampleSize - current.successCount,
+    candidateSuccessCount: candidate.successCount,
+    candidateFailureCount: candidate.sampleSize - candidate.successCount,
   };
   const verdict = decideComparisonVerdict(base);
+  const pValue =
+    base.sampleSize < COMPARISON_MIN_SAMPLE
+      ? null
+      : fisherExactOneSidedGreater(
+          base.candidateSuccessCount,
+          base.candidateFailureCount,
+          base.currentSuccessCount,
+          base.currentFailureCount,
+        );
   const uncertainty: ComparisonSummary['uncertainty'] =
     verdict === 'insufficient_data'
       ? 'high'
@@ -142,7 +235,7 @@ export function buildComparisonSummary(cells: ComparisonCell[]): ComparisonSumma
         ? 'medium'
         : 'low';
 
-  return { ...base, verdict, uncertainty };
+  return { ...base, verdict, uncertainty, pValue };
 }
 
 function findCell(

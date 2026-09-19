@@ -11,6 +11,8 @@ import {
   parseTscErrorFiles,
   renderVerificationMarkdown,
   looksLikeBugFixTask,
+  looksLikeTrivialTask,
+  requiresTestsForTask,
   tamperCheck,
   coverageCheck,
   generatedSyncCheck,
@@ -312,6 +314,50 @@ describe('looksLikeBugFixTask', () => {
   });
 });
 
+describe('looksLikeTrivialTask', () => {
+  it('returns false for null/undefined/empty text', () => {
+    expect(looksLikeTrivialTask(null)).toBe(false);
+    expect(looksLikeTrivialTask(undefined)).toBe(false);
+    expect(looksLikeTrivialTask('')).toBe(false);
+  });
+
+  it('returns false for substantive task text (feature/bug/refactor)', () => {
+    expect(looksLikeTrivialTask('新しいダッシュボード widget を追加する')).toBe(false);
+    expect(looksLikeTrivialTask('ログイン画面でバグが発生')).toBe(false);
+    expect(looksLikeTrivialTask('認証ロジックをリファクタリングする')).toBe(false);
+  });
+
+  it.each([
+    'READMEのみ更新する',
+    'ドキュメントのみ修正',
+    'typoの修正',
+    '誤字脱字を直す',
+    'コメントのみ追加',
+    '設定値のみ変更する',
+    '依存関係のバージョンを更新のみ',
+    'update the README',
+    'fix a typo in the docstring',
+    'comment-only change',
+    'dependency bump',
+  ])('returns true for %j', (text) => {
+    expect(looksLikeTrivialTask(text)).toBe(true);
+  });
+});
+
+describe('requiresTestsForTask', () => {
+  it('is the inverse of looksLikeTrivialTask', () => {
+    expect(requiresTestsForTask('新しいAPIエンドポイントを追加する')).toBe(true);
+    expect(requiresTestsForTask('READMEのみ更新する')).toBe(false);
+  });
+
+  it('defaults to true (tests required) for a non-bug-fix feature task — the core TDD-adoption behavior change', () => {
+    // Before TDD adoption, only looksLikeBugFixTask-shaped tasks required
+    // tests; this task text matches neither bug-fix nor trivial keywords, so
+    // it exercises the new default-on path.
+    expect(requiresTestsForTask('エクスポート機能にCSV形式を追加する')).toBe(true);
+  });
+});
+
 describe('tamperCheck', () => {
   it('returns null when no protected path is changed', () => {
     expect(tamperCheck(['src/foo.ts', 'src/bar.test.ts'], null)).toBeNull();
@@ -364,6 +410,31 @@ describe('tamperCheck', () => {
     expect(result?.errorCount).toBe(1);
     expect(result?.details).toContain('scripts/pre-commit-check.ts');
     expect(result?.details).not.toContain('.husky/pre-commit');
+  });
+
+  it('flags the actual phase-critic gate files', () => {
+    expect(tamperCheck(['services/workflow/phase-critic/phase-critic.ts'], null)?.ok).toBe(false);
+    expect(tamperCheck(['services/workflow/phase-critic/phase-critic-gate.ts'], null)?.ok).toBe(
+      false,
+    );
+    expect(tamperCheck(['services/workflow/phase-critic/phase-critic.test.ts'], null)?.ok).toBe(
+      false,
+    );
+    expect(
+      tamperCheck(['services/workflow/phase-critic/phase-critic-gate.test.ts'], null)?.ok,
+    ).toBe(false);
+  });
+
+  it('does not flag unrelated siblings in the phase-critic/ directory (task 936)', () => {
+    // critic-lessons.ts distills repair feedback into checklist notes — it
+    // does not implement the phase-critic gate, but the old regex substring-
+    // matched the "services/workflow/phase-critic" DIRECTORY prefix and
+    // flagged every file inside it.
+    expect(tamperCheck(['services/workflow/phase-critic/critic-lessons.ts'], null)).toBeNull();
+    expect(tamperCheck(['services/workflow/phase-critic/critic-lessons.test.ts'], null)).toBeNull();
+    expect(tamperCheck(['services/workflow/phase-critic/critic-inflight.ts'], null)).toBeNull();
+    expect(tamperCheck(['services/workflow/phase-critic/critique-aggregator.ts'], null)).toBeNull();
+    expect(tamperCheck(['services/workflow/phase-critic/index.ts'], null)).toBeNull();
   });
 });
 

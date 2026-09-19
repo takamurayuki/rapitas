@@ -7,11 +7,25 @@ import {
   validateReplanEvidence,
   type ReplanSnapshot,
 } from './requirement-replan-evidence';
-import { rejectReplanLifecycle } from './requirement-replan-policy';
+import {
+  rejectReplanLifecycle,
+  isRequirementReplanWindowExhausted,
+} from './requirement-replan-policy';
 import type { ReplanReviewResult } from './requirement-replan-review';
 import { THEME_STOP_INTENT } from '../agents/theme-stop-intent';
+import { createLogger } from '../../config/logger';
+
+const log = createLogger('workflow:requirement-replan-commit');
 
 export const REQUIREMENT_REPLAN_CAUSE = 'requirement_evidence_replan';
+/**
+ * Cause for the audit row written when a requirement-replan budget is
+ * exhausted (absolute `priorReplans >= 3`, or the task-956 60-minute window
+ * guard) and the task is blocked as a result. Deliberately distinct from
+ * {@link REQUIREMENT_REPLAN_CAUSE} so it is never itself counted toward
+ * `priorReplans` on a later attempt.
+ */
+export const REQUIREMENT_REPLAN_EXHAUSTED_CAUSE = 'requirement_replan_budget_exhausted';
 const STOP_CAUSES = new Set([
   THEME_STOP_INTENT,
   'manual_execution_stop_revert',
@@ -133,7 +147,7 @@ async function commitReviewedDecision(
   if (verdict.kind === 'mismatch' && review.snapshotDigest !== verdict.evidence.snapshotDigest) {
     return { committed: false, reason: 'review_digest_mismatch' };
   }
-  return withTaskLifecycleLock(taskId, () =>
+  const outcome = await withTaskLifecycleLock(taskId, () =>
     db.$transaction(
       async (tx) => {
         const task = await tx.task.findUnique({
@@ -160,7 +174,7 @@ async function commitReviewedDecision(
           task.workflowStatus === 'completed'
         )
           return { committed: false, reason: 'already_completed' };
-        const [plan, verify, execution, history, priorReplans, theme] = await Promise.all([
+        const [plan, verify, execution, history, priorReplanRows, theme] = await Promise.all([
           tx.workflowFile.findUnique({
             where: { taskId_fileType: { taskId, fileType: 'plan' } },
             select: { content: true },
@@ -180,7 +194,10 @@ async function commitReviewedDecision(
             orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
             select: { cause: true, createdAt: true },
           }),
-          tx.workflowTransition.count({ where: { taskId, cause: REQUIREMENT_REPLAN_CAUSE } }),
+          tx.workflowTransition.findMany({
+            where: { taskId, cause: REQUIREMENT_REPLAN_CAUSE },
+            select: { createdAt: true },
+          }),
           task.themeId === null
             ? null
             : tx.themeAutoRun.findUnique({
@@ -188,6 +205,13 @@ async function commitReviewedDecision(
                 select: { status: true },
               }),
         ]);
+        const priorReplans = priorReplanRows.length;
+        // task 956: a same-cause repeat-loop can fire before the absolute
+        // budget above is exhausted — see isRequirementReplanWindowExhausted.
+        const windowExhausted = isRequirementReplanWindowExhausted(
+          priorReplanRows.map((r) => ({ createdAtMs: r.createdAt.getTime() })),
+          Date.now(),
+        );
         const unresumedStop =
           history &&
           STOP_CAUSES.has(history.cause) &&
@@ -206,10 +230,54 @@ async function commitReviewedDecision(
           },
           evaluatedUpdatedAt,
         );
+        // task 956: fold the window-local early-stop into the same
+        // 'budget_exhausted' outcome as the absolute priorReplans>=3 cap —
+        // one unified exit, not a second parallel budget with its own shape.
+        const effectiveRejected = rejected ?? (windowExhausted ? 'budget_exhausted' : null);
         // A successful review does not consume another replan attempt, but still
         // requires all stop and lifecycle guards, even when Task.updatedAt is unchanged.
-        if (rejected && !(verdict.kind === 'no_mismatch' && rejected === 'budget_exhausted'))
-          return { committed: false, reason: rejected };
+        if (
+          effectiveRejected &&
+          !(verdict.kind === 'no_mismatch' && effectiveRejected === 'budget_exhausted')
+        ) {
+          let blockedNow = false;
+          if (effectiveRejected === 'budget_exhausted' && task.status !== 'blocked') {
+            // Prior to task 956 this reason was returned with no state change —
+            // the caller (verify-gate) just threw, and the same verify→replan
+            // cycle could be re-entered on the next attempt. Blocking here once
+            // gives budget_exhausted a single, durable exit regardless of which
+            // of the two budgets (absolute or windowed) tripped it.
+            const blockedUpdatedAt = new Date(Math.max(Date.now(), task.updatedAt.getTime() + 1));
+            const blockedChange = await tx.task.updateMany({
+              where: {
+                id: taskId,
+                status: task.status,
+                workflowStatus: task.workflowStatus,
+                updatedAt: task.updatedAt,
+              },
+              data: { status: 'blocked', updatedAt: blockedUpdatedAt },
+            });
+            if (blockedChange.count === 1) {
+              blockedNow = true;
+              await tx.workflowTransition.create({
+                data: {
+                  taskId,
+                  fromStatus: task.workflowStatus,
+                  toStatus: task.workflowStatus ?? 'blocked',
+                  actor: 'system',
+                  cause: REQUIREMENT_REPLAN_EXHAUSTED_CAUSE,
+                  phase: 'plan',
+                  metadata: JSON.stringify({
+                    priorReplans,
+                    windowExhausted,
+                    reason: verdict.kind === 'mismatch' ? verdict.reason : null,
+                  }),
+                },
+              });
+            }
+          }
+          return { committed: false, reason: effectiveRejected, blockedNow };
+        }
         if (completion && (execution?.id ?? null) !== completion.executionId)
           return { committed: false, reason: 'execution_superseded' };
         const planPolicy = await readReviewedPlanPolicy(tx, task.workflowMode ?? 'comprehensive');
@@ -313,4 +381,23 @@ async function commitReviewedDecision(
       { isolationLevel: 'Serializable' },
     ),
   );
+  if (outcome.blockedNow) {
+    // Best-effort notification: the state change (blocked + audit row) is
+    // already durable at this point regardless of whether this write lands.
+    try {
+      await db.notification.create({
+        data: {
+          type: 'blocked_escalation',
+          title: 'ブロックされたタスクが対応待ちです',
+          message: `#${taskId} は要件差し戻し（requirement replan）が収束せず自動再試行の対象外になりました。差し戻しが繰り返されている受入基準・plan/verify の内容を確認してください。`,
+          link: `/tasks?taskId=${taskId}`,
+          metadata: JSON.stringify({ taskId, source: 'requirement_replan_budget_exhausted' }),
+        },
+      });
+    } catch (err) {
+      log.warn({ err, taskId }, '[requirement-replan] budget-exhausted notification failed');
+    }
+  }
+  const { blockedNow: _blockedNow, ...rest } = outcome;
+  return rest;
 }

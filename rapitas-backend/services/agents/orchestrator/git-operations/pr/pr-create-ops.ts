@@ -132,6 +132,18 @@ export async function createPullRequest(
   baseBranch?: string,
   headBranch?: string,
 ): Promise<CreatePullRequestResult> {
+  // NOTE: RAPITAS_EVAL_MODE is set ONLY by scripts/eval-runner.ts and
+  // scripts/fault-injection-e2e.ts (see docs/eval-private-set.md) — never by
+  // normal dev.js/index.ts startup. Fault-injection scenarios exercising PR
+  // creation must never touch the real GitHub API or an actual git remote.
+  if (process.env.RAPITAS_EVAL_MODE === 'true') {
+    logger.info('[createPullRequest] RAPITAS_EVAL_MODE active — returning a mocked PR result');
+    return {
+      success: true,
+      prUrl: 'https://example.invalid/eval-mode/pull/1',
+      prNumber: 1,
+    };
+  }
   try {
     // Check the REMOTE-tracking ref (origin/<b>) as well as a local branch:
     // `gh pr create --base` targets the remote, and in many checkouts `develop`

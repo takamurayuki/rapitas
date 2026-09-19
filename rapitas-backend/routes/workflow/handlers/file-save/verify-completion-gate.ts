@@ -92,6 +92,7 @@ export async function runVerifyCompletionGate(params: {
       gateSession?.worktreePath ?? null,
       savedContent,
       preferredBaseBranchForVerify,
+      taskId,
     );
     if (!completionGate.allow) {
       verifyGateBlocked = true;

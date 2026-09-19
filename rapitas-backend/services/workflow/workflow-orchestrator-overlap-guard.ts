@@ -36,6 +36,15 @@ export const OVERLAP_PR_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const holdSince = new Map<number, number>();
 /** Per-task timeout-release time; no fresh hold starts within one ceiling of it. */
 const releasedAt = new Map<number, number>();
+/** Per-task last periodic re-check signal (epoch ms); deleted on release/reset (task 954). */
+const lastSignalAt = new Map<number, number>();
+
+/**
+ * Interval between `task.implement_overlap_holding` re-check signals while a
+ * hold continues (task 954). Proves the retry loop keeps invoking
+ * guardImplementOverlap() during a long hold instead of going silent.
+ */
+export const HOLD_SIGNAL_INTERVAL_MS = 2 * 60 * 1000;
 
 /** Kill switch: `RAPITAS_IMPLEMENT_OVERLAP_HOLD=off|0|false` disables the hold (default ON). */
 export function isImplementOverlapHoldEnabled(): boolean {
@@ -166,6 +175,7 @@ export async function guardImplementOverlap(
       // pin the theme forever. Remember the release so the next tick does
       // not immediately start a fresh hold on the same PR set.
       holdSince.delete(taskId);
+      lastSignalAt.delete(taskId);
       releasedAt.set(taskId, now);
       logCycleEvent('task.implement_overlap_released', {
         task: taskId,
@@ -194,6 +204,21 @@ export async function guardImplementOverlap(
         msg: 'implementer held — its files are still changing in an open auto-PR',
       });
       log.info({ taskId, prs, files: files.slice(0, 5) }, '[overlap-guard] holding implementer');
+    } else {
+      const last = lastSignalAt.get(taskId) ?? since;
+      if (now - last >= HOLD_SIGNAL_INTERVAL_MS) {
+        lastSignalAt.set(taskId, now);
+        const files = hits.flatMap((h) => h.files);
+        logCycleEvent('task.implement_overlap_holding', {
+          task: taskId,
+          theme: themeId,
+          prs,
+          files: files.slice(0, 20),
+          holdMs: now - since,
+          msg: 'implementer still held — periodic re-check confirms the hold is live',
+        });
+        log.info({ taskId, prs, holdMs: now - since }, '[overlap-guard] hold continuing');
+      }
     }
     const summary = hits.map((h) => `#${h.prNumber}: ${h.files.slice(0, 3).join(', ')}`).join('; ');
     return {
@@ -216,6 +241,7 @@ function release(taskId: number, reason: string, now: number): OverlapGuardOutco
   const since = holdSince.get(taskId);
   if (since !== undefined) {
     holdSince.delete(taskId);
+    lastSignalAt.delete(taskId);
     logCycleEvent('task.implement_overlap_released', {
       task: taskId,
       reason,
@@ -231,4 +257,5 @@ function release(taskId: number, reason: string, now: number): OverlapGuardOutco
 export function resetOverlapGuardState(): void {
   holdSince.clear();
   releasedAt.clear();
+  lastSignalAt.clear();
 }
