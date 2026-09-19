@@ -14,6 +14,7 @@ import { updateSessionStatusWithRetry } from '../shared/session-helpers';
 import { releaseTaskExecutionLock } from '../shared/execution-lock';
 import { isShutdownError } from '../../../../services/agents/agent-worker/shutdown-error';
 import { applyTaskStatusFromWorkflow } from '../../../../services/workflow/apply-task-status-from-workflow';
+import { detectAndLinkContinuationPr } from '../../../../services/github/continuation-pr-detect';
 
 const log = createLogger('routes:agent-execution:continue-post');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -45,12 +46,34 @@ export interface HandleContinueResultParams {
  * @param params - Continuation context and result / 継続実行コンテキストと結果
  */
 export async function handleContinueResult(params: HandleContinueResultParams): Promise<void> {
-  const { result, taskId, targetSessionId, workingDirectory, executionDir } = params;
+  const { result, taskId, taskTitle, targetSessionId, branchName, workingDirectory, executionDir } =
+    params;
 
   if (result.success) {
     await applyTaskStatusFromWorkflow(prisma, taskId, '[continue-execution]');
 
     await updateSessionStatusWithRetry(targetSessionId, 'completed', '[continue-execution]', 3);
+
+    // NOTE: An agent may have run `gh pr create` directly via the bash tool
+    // instead of the workflow's normal auto-commit pipeline — the only
+    // completion path that never called linkAutoCreatedPr (task 882/905/914).
+    // Must run before worktree cleanup below: gh pr list needs executionDir's
+    // git checkout, which removeWorktree deletes.
+    const linkedPrId = await detectAndLinkContinuationPr(prisma, {
+      taskId,
+      taskTitle,
+      branchName: branchName ?? null,
+      workingDirectory: executionDir,
+    }).catch((err: unknown) => {
+      log.warn({ err, taskId }, '[continue-execution] PR auto-link failed');
+      return null;
+    });
+    if (linkedPrId != null) {
+      log.info(
+        { taskId, linkedPrId },
+        '[continue-execution] Auto-linked PR created during continuation',
+      );
+    }
 
     // NOTE: Clean up worktree after successful continued execution
     if (executionDir !== workingDirectory) {

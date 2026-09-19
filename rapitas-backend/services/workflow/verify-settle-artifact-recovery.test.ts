@@ -131,6 +131,19 @@ describe('recoverFromLandedArtifact', () => {
     expect(updateManyMock).not.toHaveBeenCalled();
     expect(recordTransitionMock).not.toHaveBeenCalled();
   });
+
+  test('⑥ continue-execution経由でlinkAutoCreatedPrがlinkedTaskIdを設定した状態 → stuck判定せずtrue（task 951: 検出ロジック自体はリンクの発生源を区別しない）', async () => {
+    // detectAndLinkContinuationPr → linkAutoCreatedPr が設定するのと同じ形の
+    // GitHubPullRequest行（linkedTaskId経由）を模擬する。
+    findFirstPrMock.mockImplementation(() => Promise.resolve({ id: 707 }));
+
+    await expect(recoverFromLandedArtifact(951)).resolves.toBe(true);
+
+    expect(updateManyMock).toHaveBeenCalledTimes(1);
+    expect(recordTransitionMock.mock.calls[0][0]).toMatchObject({
+      metadata: { prSource: 'linked_pr', prRef: 707 },
+    });
+  });
 });
 
 describe('isAwaitingStagedPrCompletion（task 873/948）', () => {

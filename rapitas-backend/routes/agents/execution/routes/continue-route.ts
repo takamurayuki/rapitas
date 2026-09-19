@@ -258,7 +258,7 @@ export const continueRoute = new Elysia().post(
           log.error({ err: e }, `[continue-execution] Failed to create notification`),
         );
 
-      let fullInstruction = `## Additional Instructions\n\n${instruction}`;
+      let fullInstruction = `## PR作成時の注意\n\n新規PRを作成する場合は、タイトルまたは本文に \`[#${taskId}]\` を含めてください（タスクとの自動紐付けに使用されます）。\n\n## Additional Instructions\n\n${instruction}`;
       if (previousExecution?.output) {
         const prevOutput = previousExecution.output.substring(0, 3000);
         fullInstruction = `## Previous Execution Content\n\n${prevOutput}${previousExecution.output.length > 3000 ? '\n...(abbreviated)' : ''}\n\n${fullInstruction}`;

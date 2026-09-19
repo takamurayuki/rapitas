@@ -400,6 +400,18 @@ describe('findCandidates — blocked-retry budget', () => {
   });
 });
 
+describe('findCandidates — continue-execution linked PR (task 951)', () => {
+  it('surfaces a candidate whose linkedTaskId was set by continue-execution auto-link (detection is source-agnostic)', async () => {
+    addTask({ id: 951, autoMergePR: true });
+    addOpenPr({ prNumber: 707, baseBranch: 'develop', linkedTaskId: 951 });
+
+    const result = await findCandidates();
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ taskId: 951, prNumber: 707, mode: 'merge' });
+  });
+});
+
 describe('findCandidates — threshold and baseBranch defaults', () => {
   it('defaults mergeCommitThreshold to 5 when no AgentExecutionConfig row exists', async () => {
     addTask({ id: 15 });
