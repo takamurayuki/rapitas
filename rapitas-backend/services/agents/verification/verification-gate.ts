@@ -14,7 +14,7 @@ import { createLogger } from '../../../config/logger';
 import {
   runAutomatedVerification,
   renderVerificationMarkdown,
-  looksLikeBugFixTask,
+  requiresTestsForTask,
   type VerificationResult,
 } from './automated-verifier';
 import { readWorkflowFile } from '../../workflow/workflow-file-utils';
@@ -173,7 +173,7 @@ export async function runVerificationGate(
       },
     })
     .catch(() => null);
-  const requireTests = looksLikeBugFixTask(`${task?.title ?? ''}\n${task?.description ?? ''}`);
+  const requireTests = requiresTestsForTask(`${task?.title ?? ''}\n${task?.description ?? ''}`);
   const specText = [
     task?.title ?? '',
     task?.description ?? '',

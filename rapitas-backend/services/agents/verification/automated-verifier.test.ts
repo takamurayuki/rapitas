@@ -11,6 +11,8 @@ import {
   parseTscErrorFiles,
   renderVerificationMarkdown,
   looksLikeBugFixTask,
+  looksLikeTrivialTask,
+  requiresTestsForTask,
   tamperCheck,
   coverageCheck,
   generatedSyncCheck,
@@ -309,6 +311,50 @@ describe('looksLikeBugFixTask', () => {
 
   it('is case-insensitive for English keywords', () => {
     expect(looksLikeBugFixTask('BUG in the retry logic')).toBe(true);
+  });
+});
+
+describe('looksLikeTrivialTask', () => {
+  it('returns false for null/undefined/empty text', () => {
+    expect(looksLikeTrivialTask(null)).toBe(false);
+    expect(looksLikeTrivialTask(undefined)).toBe(false);
+    expect(looksLikeTrivialTask('')).toBe(false);
+  });
+
+  it('returns false for substantive task text (feature/bug/refactor)', () => {
+    expect(looksLikeTrivialTask('新しいダッシュボード widget を追加する')).toBe(false);
+    expect(looksLikeTrivialTask('ログイン画面でバグが発生')).toBe(false);
+    expect(looksLikeTrivialTask('認証ロジックをリファクタリングする')).toBe(false);
+  });
+
+  it.each([
+    'READMEのみ更新する',
+    'ドキュメントのみ修正',
+    'typoの修正',
+    '誤字脱字を直す',
+    'コメントのみ追加',
+    '設定値のみ変更する',
+    '依存関係のバージョンを更新のみ',
+    'update the README',
+    'fix a typo in the docstring',
+    'comment-only change',
+    'dependency bump',
+  ])('returns true for %j', (text) => {
+    expect(looksLikeTrivialTask(text)).toBe(true);
+  });
+});
+
+describe('requiresTestsForTask', () => {
+  it('is the inverse of looksLikeTrivialTask', () => {
+    expect(requiresTestsForTask('新しいAPIエンドポイントを追加する')).toBe(true);
+    expect(requiresTestsForTask('READMEのみ更新する')).toBe(false);
+  });
+
+  it('defaults to true (tests required) for a non-bug-fix feature task — the core TDD-adoption behavior change', () => {
+    // Before TDD adoption, only looksLikeBugFixTask-shaped tasks required
+    // tests; this task text matches neither bug-fix nor trivial keywords, so
+    // it exercises the new default-on path.
+    expect(requiresTestsForTask('エクスポート機能にCSV形式を追加する')).toBe(true);
   });
 });
 

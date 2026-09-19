@@ -20,7 +20,7 @@ import { createLogger } from '../../config/logger';
 import {
   runAutomatedVerification,
   renderVerificationMarkdown,
-  looksLikeBugFixTask,
+  requiresTestsForTask,
 } from '../agents/verification/automated-verifier';
 import { resolveAcceptanceCriteria } from '../agents/verification/acceptance-self-check';
 import { readWorkflowFile } from './workflow-file-utils';
@@ -175,7 +175,7 @@ export async function buildCacheInputs(
     worktreePath,
     planContent: planContent ?? undefined,
     acceptanceCriteria: acceptanceCriteria.length > 0 ? acceptanceCriteria : undefined,
-    requireTests: looksLikeBugFixTask(taskText),
+    requireTests: requiresTestsForTask(taskText),
     preferredBaseBranch,
     taskText: taskText || undefined,
   };

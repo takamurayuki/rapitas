@@ -55,6 +55,61 @@ const META_CHARS_WITH_QUOTE_REGEXP = /([()%!^"<>&|;,])/g;
  *   エスケープ済み引数
  */
 export function escapeWindowsShellArg(arg: string, doubleEscapeMetaChars: boolean): string {
+  return escapeWindowsShellArgLayers(arg, doubleEscapeMetaChars ? 2 : 0);
+}
+
+/** How many `cmd.exe` parses an argument must survive before reaching the target program. */
+export type WindowsShellEscapeLayers = 0 | 1 | 2;
+
+/**
+ * Number of caret-escape layers an argument needs for a given spawn target.
+ *
+ * A `.cmd`/`.bat` shim (npm global bins) re-expands `%*` into a second
+ * command line that `cmd.exe` parses again, so its arguments must survive two
+ * parses. A native executable (e.g. the standalone `claude.exe` installer,
+ * task 970 regression) is parsed by `cmd.exe` exactly once — feeding it the
+ * two-layer form leaves one caret layer intact, and the program receives
+ * `^--print^` instead of `--print`. A target without an extension (an
+ * unresolved bare name such as `codex`) keeps the shim depth: cmd.exe still
+ * resolves it through PATHEXT at exec time, where an npm-installed `.cmd`
+ * shim is the common outcome, and the two-layer form is the one that stays
+ * injection-safe across that shim's `%*` re-parse.
+ *
+ * @param targetPath - Resolved spawn target (path or bare name). / 起動対象
+ * @returns 1 for a target with a non-batch extension (native executable),
+ *   otherwise 2. / バッチ以外の拡張子付き(ネイティブ実行体)なら1、それ以外は2
+ */
+export function windowsShellEscapeLayersFor(targetPath: string): WindowsShellEscapeLayers {
+  const ext = /\.([^\\/.\s]+)\s*$/.exec(targetPath)?.[1]?.toLowerCase();
+  if (!ext) return 2;
+  return ext === 'cmd' || ext === 'bat' ? 2 : 1;
+}
+
+/**
+ * Escape an argument destined for `targetPath`, choosing the caret-escape
+ * depth from the target's kind (see windowsShellEscapeLayersFor). Prefer this
+ * over `escapeWindowsShellArg(arg, true)` whenever the target may be a native
+ * executable rather than a `.cmd` shim.
+ *
+ * @param targetPath - Resolved spawn target the argument is passed to. / 引数の渡し先
+ * @param arg - Raw argument value. / 生の引数値
+ * @returns Escaped, quoted argument. / エスケープ済み引数
+ */
+export function escapeWindowsShellArgForTarget(targetPath: string, arg: string): string {
+  return escapeWindowsShellArgLayers(arg, windowsShellEscapeLayersFor(targetPath));
+}
+
+/**
+ * Core escaper: MSVCRT backslash rules + unconditional quoting, then
+ * `layers` passes of cmd.exe meta-character caret-escaping.
+ *
+ * @param arg - Raw argument value. / 生の引数値
+ * @param layers - 0 for the command name itself (real quotes), 1 for a native
+ *   executable's argument, 2 for a `.cmd`/`.bat` shim's argument. / 通過する
+ *   cmd.exe パース回数
+ * @returns Escaped, quoted argument. / エスケープ済み引数
+ */
+export function escapeWindowsShellArgLayers(arg: string, layers: WindowsShellEscapeLayers): string {
   // Step 1 (MSVCRT rule): a run of backslashes immediately preceding a `"`
   // doubles in length before the escaped quote; a run of backslashes at the
   // end of the string (i.e. immediately before the closing quote added in
@@ -64,22 +119,17 @@ export function escapeWindowsShellArg(arg: string, doubleEscapeMetaChars: boolea
   // Step 2: unconditionally quote.
   escaped = `"${escaped}"`;
 
-  if (!doubleEscapeMetaChars) {
-    // Command-name case: keep the quotes real (see the doc comment above).
-    return escaped;
-  }
-
+  // Command-name case: keep the quotes real (see the doc comment above).
   // Step 3 (args case only): neutralize cmd.exe meta characters that
   // remain live even inside quotes (`%` env-var expansion, `^` escape char
   // itself, `!` delayed expansion, `&`/`|`/`;`/`,` command separators,
   // `<`/`>` redirection, `(`/`)` grouping) — including the quote character
   // added in Step 2, which turns this from a "really quoted" token (whose
-  // caret would be inert) into caret-escaped literal text that both the
-  // outer `cmd.exe` parse and the shim's internal `%*` re-parse can
-  // correctly unwind, one layer per parse.
-  escaped = escaped
-    .replace(META_CHARS_WITH_QUOTE_REGEXP, '^$1')
-    .replace(META_CHARS_WITH_QUOTE_REGEXP, '^$1');
+  // caret would be inert) into caret-escaped literal text that each
+  // `cmd.exe` parse on the way to the program unwinds, one layer per parse.
+  for (let i = 0; i < layers; i += 1) {
+    escaped = escaped.replace(META_CHARS_WITH_QUOTE_REGEXP, '^$1');
+  }
 
   return escaped;
 }

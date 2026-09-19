@@ -38,6 +38,36 @@ interface CacheEntry {
 // broken gh is retried at most once per TTL window instead of every tick.
 const cache = new Map<string, CacheEntry>();
 
+// Concurrency cap: a theme with many open auto-PRs (observed 2026-09-18/19: 57
+// distinct PR numbers queried within one 5-minute window) previously fired one
+// parallel `gh pr view` process PER open PR on every cache-refresh — a burst
+// of dozens of simultaneous CLI spawns stampeding local CPU, mirroring the
+// exact class of problem claude-cli-provider.ts's MAX_CONCURRENT already
+// solves for aux-AI calls. Serialize to a small pool instead.
+const MAX_CONCURRENT_GH_CALLS = Number(process.env.RAPITAS_PR_FILES_CACHE_CONCURRENCY) || 4;
+
+/**
+ * Runs `fn` over `items`, at most `limit` calls in flight at once, preserving
+ * result order. A hand-rolled pool (no dependency) mirroring the acquire/
+ * release slot pattern already used for aux-CLI concurrency.
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      results[index] = await fn(items[index]!);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 /** Clear the memo (test isolation helper). */
 export function clearPrFilesCache(): void {
   cache.clear();
@@ -98,7 +128,9 @@ export async function getOpenAutoPrsForTheme(
     });
     const cwd = theme?.workingDirectory;
     if (!cwd) return rows;
-    const snapshots = await Promise.all(rows.map((row) => getPrSnapshot(cwd, row.prNumber, deps)));
+    const snapshots = await mapWithConcurrency(rows, MAX_CONCURRENT_GH_CALLS, (row) =>
+      getPrSnapshot(cwd, row.prNumber, deps),
+    );
     // DB synchronization is bounded and can miss old closed/merged PRs.
     // Unknown remote state retains the DB candidate; only confirmed terminal
     // PRs stop contributing to both merge barriers and scope-overlap holds.

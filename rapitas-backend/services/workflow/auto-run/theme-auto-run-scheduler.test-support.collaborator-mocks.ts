@@ -214,6 +214,12 @@ mock.module('./dev-restart-on-dry', () => ({
 export const mockRecordTransition = mock(() => Promise.resolve());
 mock.module('../transition-recorder', () => ({ recordTransition: mockRecordTransition }));
 
+/** Iteration-budget halt decision (task 881) — default within-budget so existing suites are unaffected. */
+export const mockResolveIterationBudgetForTask = mock(() => Promise.resolve({ shouldHalt: false }));
+mock.module('../task-iteration-budget', () => ({
+  resolveIterationBudgetForTask: mockResolveIterationBudgetForTask,
+}));
+
 export const mockLogCycleEvent = mock(() => {});
 
 mock.module('../../observability', () => ({

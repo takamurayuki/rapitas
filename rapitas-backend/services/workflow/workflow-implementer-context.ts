@@ -21,6 +21,60 @@ import { buildGoalAnchor } from './workflow-goal-anchor';
 import type { ImplementerTexts } from './workflow-role-prompts';
 
 /**
+ * Builds the TDD protocol instruction block appended to the implementer
+ * prompt, or `''` for tasks with no testable behavior. Required for all
+ * substantive tasks (R? — full-project TDD adoption), not just bug fixes —
+ * see `requiresTestsForTask`'s doc comment (automated-verifier.ts) for the
+ * scope decision this mirrors. The verification gate enforces "a test file
+ * changed" (coverage) AND, when one did, that it genuinely fails without this
+ * diff's source changes (red-state check) — so tell the implementer the exact
+ * protocol up front instead of bouncing it later. Bug fixes get a
+ * defect-framed variant (looksLikeBugFixTask); everything else gets the
+ * feature/acceptance-framed variant, since "reproduce the defect" makes no
+ * sense for new behavior. Pure given its inputs (the dynamic import is
+ * side-effect-free), so it's unit-testable without the rest of
+ * buildImplementerContext's DB-backed dependencies.
+ *
+ * @param taskText - Task title + description. / タスクのタイトルと説明
+ * @param language - Output language. / 出力言語
+ * @returns The instruction block (leading blank line included), or ''. / 指示ブロック（先頭に空行を含む）または空文字
+ */
+export async function buildTddProtocolSection(
+  taskText: string,
+  language: 'ja' | 'en',
+): Promise<string> {
+  // Dynamic import avoids a workflow↔agents/verification import cycle (same
+  // reason the pre-TDD-adoption bug-fix-only check used one here).
+  const { looksLikeBugFixTask, looksLikeTrivialTask } =
+    await import('../agents/verification/automated-verifier');
+  if (looksLikeTrivialTask(taskText)) return '';
+  if (looksLikeBugFixTask(taskText)) {
+    return language === 'ja'
+      ? '\n\n## バグ修正の必須手順（検証ゲートで強制されます）\n' +
+          '1. 修正の**前に**、不具合を再現する失敗テストを書き、現状コードで失敗することを確認する（RED）。\n' +
+          '2. 修正を実装し、そのテストが通ることを確認する（GREEN — fail→pass が完了の根拠）。\n' +
+          '3. 検証ゲートは (a) 再現テストの追加・更新があること、(b) そのテストが本差分のソース変更なしでは実際に失敗すること、の両方を確認します。後付けで書いた「差分が無くても通る」テストは差し戻されます。\n' +
+          '4. UI操作のみで再現するなどテスト化が本当に不可能な場合のみ、その理由を最終サマリに明記してください。'
+      : '\n\n## Bug-fix protocol (enforced by the verification gate)\n' +
+          '1. BEFORE fixing, write a failing test that reproduces the defect and confirm it fails on the current code (RED).\n' +
+          '2. Implement the fix and confirm that test now passes (GREEN — the fail→pass transition is the completion evidence).\n' +
+          "3. The gate checks BOTH that a reproducing/regression test was added or changed, AND that it genuinely fails without this diff's source changes. A test written after the fact that would pass regardless is bounced.\n" +
+          '4. Only when a test is genuinely impossible (e.g. UI-interaction-only repro) state the reason in your final summary.';
+  }
+  return language === 'ja'
+    ? '\n\n## TDDの必須手順（検証ゲートで強制されます）\n' +
+        '1. 実装の**前に**、受入基準を満たすことを確認するテストを書き、現状コードで失敗することを確認する（RED）。\n' +
+        '2. そのテストが通る最小限の実装を行う（GREEN — fail→pass が完了の根拠）。\n' +
+        '3. 検証ゲートは (a) テストの追加・更新があること、(b) そのテストが本差分のソース変更なしでは実際に失敗すること、の両方を確認します。実装後にまとめて書いた「差分が無くても通る」テストは差し戻されます。\n' +
+        '4. ドキュメントのみ・設定値のみ・依存バージョンのみの変更など、テスト化できる振る舞いが無い場合のみ、その理由を最終サマリに明記してください。'
+    : '\n\n## TDD protocol (enforced by the verification gate)\n' +
+        '1. BEFORE implementing, write a test that encodes the acceptance criteria and confirm it fails on the current code (RED).\n' +
+        '2. Implement the minimal change that makes it pass (GREEN — the fail→pass transition is the completion evidence).\n' +
+        "3. The gate checks BOTH that a test was added or changed, AND that it genuinely fails without this diff's source changes. A test written after the fact that would pass regardless is bounced.\n" +
+        '4. Only when there is no testable behavior (docs-only, config-only, dependency-only) state the reason in your final summary.';
+}
+
+/**
  * Build the implementer role's prompt context.
  *
  * @param taskId - Task id used to read prior artifacts and record metrics. / タスクID
@@ -143,21 +197,12 @@ export async function buildImplementerContext(
   }
   const implementerLead = plan ? texts.leadWithPlan : texts.leadNoPlan;
   ctx += `\n\n${implementerLead}\n\n${texts.constraints}\n\n${questionFormat}\n\n${styleRule}`;
-  // Bug-fix tasks: require a reproducing test BEFORE the fix (R4). The
-  // verification gate enforces "a test file changed" for these tasks, so
-  // tell the implementer up front instead of bouncing it later.
-  const { looksLikeBugFixTask } = await import('../agents/verification/automated-verifier');
-  if (looksLikeBugFixTask(`${task.title}\n${task.description ?? ''}`)) {
-    ctx +=
-      language === 'ja'
-        ? '\n\n## バグ修正の必須手順（検証ゲートで強制されます）\n' +
-          '1. 修正の**前に**、不具合を再現する失敗テストを書き、現状コードで失敗することを確認する。\n' +
-          '2. 修正を実装し、そのテストが通ることを確認する（fail→pass が完了の根拠）。\n' +
-          '3. 再現テスト（または回帰テスト）の追加・更新なしのバグ修正は検証ゲート (coverage) で差し戻されます。UI操作のみで再現するなどテスト化が本当に不可能な場合のみ、その理由を最終サマリに明記してください。'
-        : '\n\n## Bug-fix protocol (enforced by the verification gate)\n' +
-          '1. BEFORE fixing, write a failing test that reproduces the defect and confirm it fails on the current code.\n' +
-          '2. Implement the fix and confirm that test now passes (the fail→pass transition is the completion evidence).\n' +
-          '3. A bug fix without an added/updated reproducing (or regression) test is bounced by the coverage gate. Only when a test is genuinely impossible (e.g. UI-interaction-only repro) state the reason in your final summary.';
+  const tddSection = await buildTddProtocolSection(
+    `${task.title}\n${task.description ?? ''}`,
+    language,
+  );
+  if (tddSection) {
+    ctx += tddSection;
   }
   // research / verifyFeedback are budget-eligible: record BOTH the pre-budget
   // (raw) and injected (budgeted) size so the slimming effect is measurable

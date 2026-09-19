@@ -31,6 +31,7 @@ import {
   getAutoRunState,
   isPausedAutoRunStatus,
   PAUSED_AUTO_RUN_STATUSES,
+  setCurrentTask,
   type ThemeAutoRunState,
 } from './theme-auto-run-service';
 import {
@@ -42,6 +43,8 @@ import {
 } from './auto-run-lifecycle';
 import { advanceActiveTask } from './auto-run-advance-active';
 import { selectAndEnqueueNextTask } from './auto-run-advance-select';
+import { resolveIterationBudgetForTask } from '../task-iteration-budget';
+import { recordTransition } from '../transition-recorder';
 
 const log = createLogger('theme-auto-run-scheduler');
 
@@ -250,6 +253,7 @@ export class ThemeAutoRunScheduler {
     const t0 = Date.now();
     try {
       if (currentTaskId) {
+        if (await this.haltIfIterationBudgetExceeded(themeId, currentTaskId)) return;
         await advanceActiveTask(
           prisma,
           themeId,
@@ -269,6 +273,71 @@ export class ThemeAutoRunScheduler {
       // "steady-state" cluster) — helps pin down which theme's dispatch was slow.
       if (tookMs > 1000) log.warn({ themeId, tookMs }, 'Slow theme advance');
     }
+  }
+
+  /**
+   * Evaluate the combined iteration budget (task 881) for the theme's current
+   * task before letting it advance further, and halt it when exceeded:
+   * records haltReason/haltedAt/resumeCondition on the task, stops the
+   * in-flight agent the same way a user stop does, and lets the theme's next
+   * tick pick a different task (auto-run-advance-select.ts skips haltReason
+   * tasks — see its skipIds construction).
+   *
+   * @param themeId - Theme currently running currentTaskId. / 実行中テーマID
+   * @param currentTaskId - The task being advanced this tick. / 現在のタスクID
+   * @returns true when the task was halted (caller must not advance it further this tick). / 停止した場合true
+   */
+  private async haltIfIterationBudgetExceeded(
+    themeId: number,
+    currentTaskId: number,
+  ): Promise<boolean> {
+    const state = await resolveIterationBudgetForTask(currentTaskId, { themeAutoRunEnabled: true });
+    if (!state.shouldHalt || !state.haltReason) return false;
+
+    const task = await prisma.task
+      .findUnique({ where: { id: currentTaskId }, select: { workflowStatus: true } })
+      .catch(() => null);
+    // Task.haltReason/haltedAt/resumeCondition were just added to
+    // prisma/schema/core.prisma — the generated client is pending regen until
+    // the next server restart (CLAUDE.md forbids running `prisma generate`
+    // manually). Narrow cast on the model only, same pending-column pattern as
+    // stale-recovery-helpers.ts / task-execution-lock.ts.
+    const taskModelWithHalt = prisma.task as unknown as {
+      update: (args: {
+        where: { id: number };
+        data: { haltReason: string; haltedAt: Date; resumeCondition: string | null };
+      }) => Promise<unknown>;
+    };
+    await taskModelWithHalt
+      .update({
+        where: { id: currentTaskId },
+        data: {
+          haltReason: state.haltReason,
+          haltedAt: new Date(),
+          resumeCondition: state.resumeCondition ? JSON.stringify(state.resumeCondition) : null,
+        },
+      })
+      .catch((err) => {
+        log.error({ err, taskId: currentTaskId }, '[ThemeAutoRunScheduler] Failed to record halt');
+      });
+    await recordTransition({
+      taskId: currentTaskId,
+      fromStatus: task?.workflowStatus ?? null,
+      toStatus: task?.workflowStatus ?? 'draft',
+      actor: 'system',
+      cause: 'iteration_budget_halted',
+      metadata: { reason: state.haltReason },
+    }).catch(() => {});
+    log.warn(
+      `[ThemeAutoRunScheduler] Task ${currentTaskId} halted by iteration budget (${state.haltReason})`,
+    );
+    await stopThemeExecutionImpl(prisma, themeId, currentTaskId);
+    // Release the theme's current task: advanceTheme() re-runs this check on
+    // currentTaskId every tick, so leaving it set re-halted the same task every
+    // 12s and never reached selection (task 984/985, 2026-09-20).
+    await setCurrentTask(themeId, null);
+    this.broadcastAutoRunUpdate(themeId);
+    return true;
   }
 
   /**

@@ -51,6 +51,7 @@ import {
   mockActivityLogCreate,
   mockUserSettingsFindFirst,
   mockLogWarn,
+  mockResolveIterationBudgetForTask,
 } from './theme-auto-run-scheduler.test-support.collaborator-mocks';
 import {
   mockGetGlobalAutoRunActiveCount,
@@ -211,6 +212,7 @@ const ALL_MOCKS = [
   mockMarkSelfRefillSucceeded,
   mockIsOverlapHeld,
   mockLogWarn,
+  mockResolveIterationBudgetForTask,
 ];
 
 /** Clear call history AND restore each mock's default resolved value/behaviour. */
@@ -250,6 +252,7 @@ export function resetAllMocks(): void {
   mockActivityLogCreate.mockResolvedValue({});
   mockNotifyResourceContentionHold.mockResolvedValue(undefined);
   mockUserSettingsFindFirst.mockResolvedValue(null);
+  mockResolveIterationBudgetForTask.mockResolvedValue({ shouldHalt: false });
   mockNotifyIdleStopped.mockResolvedValue(undefined);
   mockGetIdleStopMinutes.mockResolvedValue(60);
   mockGetSelfRefillWindowStart.mockResolvedValue('03:00');

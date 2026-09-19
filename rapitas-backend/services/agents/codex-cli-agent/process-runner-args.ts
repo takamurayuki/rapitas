@@ -10,7 +10,7 @@
 import type { CodexCliAgentConfig } from './types';
 import { createLogger } from '../../../config/logger';
 import { buildSanitizedSpawnEnv } from '../../../utils/agent';
-import { escapeWindowsShellArg } from '../../../utils/common';
+import { escapeWindowsShellArg, escapeWindowsShellArgForTarget } from '../../../utils/common';
 
 const logger = createLogger('codex-cli-agent/process-runner-args');
 
@@ -29,7 +29,7 @@ export function buildSpawnCommand(
 ): [string, string[]] {
   if (!isWindows) return [codexPath, args];
 
-  const argsString = args.map((arg) => escapeWindowsShellArg(arg, true)).join(' ');
+  const argsString = args.map((arg) => escapeWindowsShellArgForTarget(codexPath, arg)).join(' ');
   const quotedPath = escapeWindowsShellArg(codexPath, false);
   return [`chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`, []];
 }

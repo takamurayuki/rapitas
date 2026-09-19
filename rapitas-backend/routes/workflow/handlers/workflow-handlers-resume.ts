@@ -19,8 +19,10 @@ import {
   writeWorkflowFile,
 } from '../../../services/workflow/workflow-file-utils';
 import { triggerReExecutionAfterAnswer } from './workflow-handlers-resume-redispatch';
-import { applyQuestionAnswerByKind } from './workflow-handlers-resume-dispatch';
-import type { QuestionKind } from '../../../services/workflow/question-kind-resolver';
+import {
+  applyQuestionAnswerByKind,
+  type QuestionAnswerKind,
+} from './workflow-handlers-resume-dispatch';
 
 const log = createLogger('routes:workflow:resume');
 
@@ -226,7 +228,7 @@ export async function handleAnswerWorkflowQuestion({
   ok: true;
   toStatus: WorkflowStatus;
   /** Kind resolved for this answer — surfaced for observability; the UI does not parse it. / 解決されたkind */
-  resolvedKind: QuestionKind;
+  resolvedKind: QuestionAnswerKind;
 }> {
   const taskId = parseInt(params.taskId, 10);
   if (Number.isNaN(taskId)) {

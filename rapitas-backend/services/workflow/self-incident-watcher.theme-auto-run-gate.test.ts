@@ -139,7 +139,10 @@ describe('theme auto-run gate for pattern B (#715)', () => {
     expect(themeAutoRunFindManyMock).not.toHaveBeenCalled();
   });
 
-  test('queries ThemeAutoRun once per pass, scoped to the candidates’ distinct theme ids', async () => {
+  // task 977: resolveArmedThemeIds now also queries ThemeAutoRun once per
+  // pass (enabled:true, status:'running') alongside the pre-existing
+  // enabled:false query — both scoped to the same candidate theme ids.
+  test('queries ThemeAutoRun twice per pass (disabled + armed), each scoped to the candidates’ distinct theme ids', async () => {
     const now = nextPassTime();
     taskFindManyMock.mockResolvedValue([
       pausedThemeTask(now, { id: 602, themeId: 25 }),
@@ -150,12 +153,17 @@ describe('theme auto-run gate for pattern B (#715)', () => {
 
     await runSelfIncidentWatch(now);
 
-    expect(themeAutoRunFindManyMock).toHaveBeenCalledTimes(1);
-    const query = themeAutoRunFindManyMock.mock.calls[0]?.[0] as {
-      where: { themeId: { in: number[] }; enabled: boolean };
-    };
-    expect(new Set(query.where.themeId.in)).toEqual(new Set([25, 9]));
-    expect(query.where.enabled).toBe(false);
+    expect(themeAutoRunFindManyMock).toHaveBeenCalledTimes(2);
+    const calls = themeAutoRunFindManyMock.mock.calls as unknown as Array<
+      [{ where: { themeId: { in: number[] }; enabled: boolean; status?: string } }]
+    >;
+    for (const [call] of calls) {
+      expect(new Set(call.where.themeId.in)).toEqual(new Set([25, 9]));
+    }
+    const disabledQuery = calls.find(([c]) => c.where.enabled === false);
+    const armedQuery = calls.find(([c]) => c.where.enabled === true);
+    expect(disabledQuery).toBeDefined();
+    expect(armedQuery?.[0].where.status).toBe('running');
   });
 
   // #860 generalizes "theme auto-run disabled" into the same isWorkflowManaged

@@ -10,7 +10,7 @@
  * 902) to stay under the file-size ratchet. Not responsible for validating
  * the HTTP request — callers do that before invoking this.
  */
-import { prisma } from '../../../config';
+import { prisma, createLogger } from '../../../config';
 import { ConflictError, NotFoundError, ValidationError } from '../../../middleware/error-handler';
 import type { TransitionActor } from '../../../services/workflow/transition-recorder';
 import { withTaskLifecycleLock } from '../../../services/workflow/task-lifecycle-lock';
@@ -24,6 +24,27 @@ import {
 import type { WorkflowStatus } from '../../../services/workflow/workflow-types';
 import { applyIntakeQuestionAnswerLocked, type AnswerSelection } from './workflow-handlers-resume';
 import { applyResumeFromQuestionAnswerLocked } from './workflow-handlers-resume-continuation';
+import { readWorkflowFile } from '../../../services/workflow/workflow-file-utils';
+import {
+  parseQuestionOptionsBlock,
+  resolvePlanRevisionSelection,
+  type ParsedQuestion,
+  type ParsedQuestionOption,
+} from '../../../services/workflow/question-options-parser';
+import {
+  persistPlanRevisionCore,
+  mapAnswerSourceLabelToRevisionSource,
+} from '../../../services/workflow/plan-revision-persistence';
+
+const log = createLogger('routes:workflow:resume-dispatch');
+
+/**
+ * The `kind` a routed answer resolves to. Extends {@link QuestionKind} (why
+ * the question was raised) with `plan_revision` — an OUTCOME of routing, not
+ * a raise-time reason, so it deliberately does not join `QuestionKind` itself
+ * (task 933).
+ */
+export type QuestionAnswerKind = QuestionKind | 'plan_revision';
 
 /** Input to {@link applyQuestionAnswerByKind}. */
 export interface ApplyQuestionAnswerByKindParams {
@@ -106,6 +127,122 @@ export async function claimQuestionAnswerSlot(taskId: number): Promise<void> {
   }
 }
 
+/** A selection that resolved to a `planRevision:true` option. */
+interface PlanRevisionMatch {
+  question: ParsedQuestion;
+  option: ParsedQuestionOption;
+}
+
+/**
+ * Whether any of the caller's `selections` picked an option flagged
+ * `planRevision:true` in the currently-saved question.md. Read/parse
+ * failures — and the legacy `resume-from-question` shape, which never passes
+ * `selections` — resolve to `undefined` (no plan-revision routing) rather
+ * than throwing, so this can never block the normal resume path.
+ *
+ * @param taskId - Task whose question.md to read. / 対象タスク
+ * @param selections - The answer's per-question selection audit, if any. / 選択監査
+ * @returns The matched question+option, or undefined. / 一致した質問と選択肢
+ */
+async function findPlanRevisionSelection(
+  taskId: number,
+  selections: AnswerSelection[] | undefined,
+): Promise<PlanRevisionMatch | undefined> {
+  if (!selections || selections.length === 0) return undefined;
+  try {
+    const content = await readWorkflowFile(taskId, 'question');
+    if (!content) return undefined;
+    const block = parseQuestionOptionsBlock(content);
+    if (!block) return undefined;
+    for (const sel of selections) {
+      const question = block.questions.find((q) => q.id === sel.questionId);
+      if (!question) continue;
+      const option = resolvePlanRevisionSelection(question.options, sel.selectedKey);
+      if (option) return { question, option };
+    }
+    return undefined;
+  } catch (err) {
+    log.warn(
+      { err, taskId },
+      '[resume-dispatch] failed to evaluate planRevision selection; falling back to resume',
+    );
+    return undefined;
+  }
+}
+
+/**
+ * Compose the plan-revision instruction from the selected option's label +
+ * consequence, plus the raw answer body.
+ *
+ * @param match - The matched question/option. / 一致した質問と選択肢
+ * @param answer - The raw answer body, if any. / 回答本文
+ * @returns The instruction text persisted onto the transition. / 合成した指示文
+ */
+function composePlanRevisionInstruction(
+  match: PlanRevisionMatch,
+  answer: string | undefined,
+): string {
+  const consequencePart = match.option.consequence ? `（${match.option.consequence}）` : '';
+  const answerBody = answer && answer.trim() ? answer.trim() : 'なし';
+  return (
+    `質問「${match.question.summary}」への回答により計画改訂が要求されました。` +
+    `選択: ${match.option.label}${consequencePart}。回答本文: ${answerBody}`
+  );
+}
+
+/**
+ * Attempt the plan-revision early-exit routing (task 933): when the answer
+ * picked a `planRevision:true` option, persist a `plan_revision_requested`
+ * transition and route to `research_done` instead of resuming the
+ * implementer. Never throws — a CAS failure or missing task falls back to
+ * `undefined` so the caller proceeds with its normal resume/reset strategy
+ * (a plan-revision failure must never block the underlying answer).
+ *
+ * @param taskId - Task being answered. / 対象タスク
+ * @param selections - The answer's per-question selection audit, if any. / 選択監査
+ * @param answer - The raw answer body, if any. / 回答本文
+ * @param sourceLabel - Label describing who/what answered. / 回答元ラベル
+ * @returns The routed result, or undefined when no routing applies. / 適用結果
+ */
+async function tryRoutePlanRevision(
+  taskId: number,
+  selections: AnswerSelection[] | undefined,
+  answer: string | undefined,
+  sourceLabel: string | undefined,
+): Promise<
+  { taskId: number; ok: true; toStatus: WorkflowStatus; kind: QuestionAnswerKind } | undefined
+> {
+  const match = await findPlanRevisionSelection(taskId, selections);
+  if (!match) return undefined;
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { updatedAt: true, workflowStatus: true },
+  });
+  if (!task) return undefined;
+
+  const instruction = composePlanRevisionInstruction(match, answer);
+  const source = mapAnswerSourceLabelToRevisionSource(sourceLabel ?? 'ユーザー選択');
+
+  try {
+    await persistPlanRevisionCore(prisma, {
+      taskId,
+      expectedUpdatedAt: task.updatedAt,
+      expectedWorkflowStatus: task.workflowStatus,
+      instruction,
+      source,
+    });
+  } catch (err) {
+    log.warn(
+      { err, taskId },
+      '[resume-dispatch] planRevision persistence failed (stale CAS?); falling back to resume',
+    );
+    return undefined;
+  }
+
+  return { taskId, ok: true, toStatus: 'research_done', kind: 'plan_revision' };
+}
+
 /**
  * Resolve the currently-pending question's kind and answer it via the
  * strategy that kind maps to.
@@ -121,6 +258,12 @@ export async function claimQuestionAnswerSlot(taskId: number): Promise<void> {
  *     reads were in flight) — 409 `task_stopping`.
  *  6. {@link claimQuestionAnswerSlot} — 409 `question_already_answered`.
  *
+ * After the guards pass, {@link tryRoutePlanRevision} (task 933) checks
+ * whether the answer picked a `planRevision:true` option; if so this returns
+ * `kind:'plan_revision'` WITHOUT calling either resume/reset applier below
+ * (the implementer is never re-dispatched). Any non-match falls through to
+ * the normal kind-based strategy unchanged.
+ *
  * @param params - Answer to apply. / 適用する回答
  * @returns The task id, resulting status, and the kind that was resolved. / 適用結果
  * @throws {NotFoundError} No pending question is on record for the task.
@@ -131,7 +274,7 @@ export function applyQuestionAnswerByKind(params: ApplyQuestionAnswerByKindParam
   taskId: number;
   ok: true;
   toStatus: WorkflowStatus;
-  kind: QuestionKind;
+  kind: QuestionAnswerKind;
 }> {
   return withTaskLifecycleLock(params.taskId, () => applyQuestionAnswerByKindLocked(params));
 }
@@ -140,7 +283,7 @@ async function applyQuestionAnswerByKindLocked(params: ApplyQuestionAnswerByKind
   taskId: number;
   ok: true;
   toStatus: WorkflowStatus;
-  kind: QuestionKind;
+  kind: QuestionAnswerKind;
 }> {
   const { taskId, answer, actor, sourceLabel, selections, extraMetadata } = params;
 
@@ -179,6 +322,9 @@ async function applyQuestionAnswerByKindLocked(params: ApplyQuestionAnswerByKind
   await assertQuestionNotOutdated(taskId, target.id);
   await assertTaskNotStopping(taskId);
   await claimQuestionAnswerSlot(taskId);
+
+  const planRevisionResult = await tryRoutePlanRevision(taskId, selections, answer, sourceLabel);
+  if (planRevisionResult) return planRevisionResult;
 
   const strategy = resolveQuestionAnswerStrategy(kind);
   if (strategy === 'reset_draft') {

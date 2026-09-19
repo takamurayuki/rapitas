@@ -15,7 +15,7 @@
  */
 import { runAutomatedVerification } from '../agents/verification/automated-verifier';
 import type { VerificationResult } from '../agents/verification/automated-verifier';
-import { looksLikeBugFixTask } from '../agents/verification/automated-verifier';
+import { requiresTestsForTask } from '../agents/verification/automated-verifier';
 import { evaluateCompletionGate } from './completion-gate';
 import type { CompletionGateResult } from './completion-gate';
 import {
@@ -117,7 +117,7 @@ export async function runDryRunVerification(
       planContent: planContent ?? undefined,
       preferredBaseBranch,
       taskId,
-      requireTests: looksLikeBugFixTask(taskText),
+      requireTests: requiresTestsForTask(taskText),
       acceptanceCriteria: acceptanceCriteria.length > 0 ? acceptanceCriteria : undefined,
       taskText: taskText || undefined,
     }),
