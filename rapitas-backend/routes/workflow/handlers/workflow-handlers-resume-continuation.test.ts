@@ -339,6 +339,18 @@ describe('applyResumeFromQuestionAnswer — delegates to applyQuestionAnswerByKi
       '回答本文なしでは処理できません',
     );
   });
+
+  // task 933: this endpoint's historical shape never forwards `selections`, so
+  // even a question.md option flagged `planRevision:true` cannot be routed to
+  // a plan revision through this path — applyQuestionAnswerByKind's own
+  // planRevision routing (workflow-handlers-resume-dispatch.test.ts) requires
+  // `selections` to find a match, and this call never supplies any.
+  test('never forwards selections — a planRevision option can never route through this legacy entry point', async () => {
+    await applyResumeFromQuestionAnswer({ taskId: 42, actor: 'user' });
+
+    const call = mockApplyQuestionAnswerByKind.mock.calls[0][0] as { selections?: unknown };
+    expect(call.selections).toBeUndefined();
+  });
 });
 
 describe('handleResumeFromQuestion — HTTP entry point (task 902 revised plan)', () => {

@@ -8,6 +8,7 @@ import {
   createOwnershipRegistry,
   type OwnershipRecord,
 } from './aux-cli-ownership';
+import { ClaudeCliUnavailableError } from './cli-errors';
 
 const record: OwnershipRecord = {
   executionToken: 'owned',
@@ -86,6 +87,8 @@ test('concurrent recovery shares observation and retries unresolved evidence on 
     const first = recovery.assertReady();
     expect(recovery.assertReady()).toBe(first);
     await expect(first).rejects.toThrow('recovery pending');
+    await expect(first).rejects.toBeInstanceOf(ClaudeCliUnavailableError);
+    await expect(first).rejects.toHaveProperty('name', 'ClaudeCliUnavailableError');
     expect(observations).toBe(1);
     expect(await registry.snapshot()).toHaveLength(1);
     scopeEmpty = true;
