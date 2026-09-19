@@ -208,6 +208,46 @@ describe('groupEntries', () => {
     expect(groups[0]?.normalizedMsg).toContain('【Standard Error Output】');
   });
 
+  it('coalesces repeated resume failures despite differing CLI transcript noise (#952, K-9321/9322/9323/9888)', () => {
+    // 実測: 同一原因(resume + prompt too long)の失敗が、[System: ...]の反復回数や
+    // [Result: ...]の時間/コストが実行毎に異なるため、正規化後も別signatureとなり
+    // 別々の懸念(K-9321/9322/9323/9888)として重複起票されていた。
+    const groups = groupEntries([
+      entry({
+        level: 50,
+        name: 'claude-code',
+        msg:
+          'Process exited with code 1\n\n【Session Resume Mode】Session ID: 29d645c6-c8bd-4a3e-a461-d5124ccae843\n' +
+          '[System: init]\n[System: status]\n[System: status]\n[System: compact_boundary]\n' +
+          'Prompt is too long\n[Result: success (28.2s) $0.0217]\nPrompt is too long',
+      }),
+      entry({
+        level: 50,
+        name: 'claude-code',
+        msg:
+          'Process exited with code 1\n\n【Session Resume Mode】Session ID: 6022a378-588d-41a4-a1fb-f55b1cc61bb8\n' +
+          '[System: init]\n[System: status]\n' +
+          'Prompt is too long\n[Result: success (11.4s) $0.0093]\nPrompt is too long',
+      }),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.count).toBe(2);
+    expect(groups[0]?.normalizedMsg).toBe(
+      'Process exited with code # 【Session Resume Mode】Session ID: # [System: …] Prompt is too long [Result: …] Prompt is too long',
+    );
+  });
+
+  it('does not fold [System: ...]/[Result: ...] noise outside 【Session Resume Mode】', () => {
+    const groups = groupEntries([
+      entry({
+        level: 50,
+        name: 'claude-code',
+        msg: 'Process exited with code 1\n\n【Standard Error Output】\n[System: status] [Result: success (1s) $0]',
+      }),
+    ]);
+    expect(groups[0]?.normalizedMsg).toContain('[System: status] [Result: success (#s) $#]');
+  });
+
   it('skips sub-warn entries', () => {
     const groups = groupEntries([
       entry({ level: 30, name: 'x', msg: 'info noise' }),
