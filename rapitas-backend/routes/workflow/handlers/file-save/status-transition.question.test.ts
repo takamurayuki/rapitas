@@ -7,6 +7,7 @@ let readError = false;
 let userCause: string | null = null;
 let historyError = false;
 let race: (() => void) | undefined;
+let planQuestionCount = 0;
 const recordTransition = mock(async (_args: unknown) => {});
 const updateMany = mock(
   async ({
@@ -35,8 +36,10 @@ beforeEach(() => {
   userCause = null;
   historyError = false;
   race = undefined;
+  planQuestionCount = 0;
   updateMany.mockClear();
   recordTransition.mockClear();
+  blockPlanQuestionOverBudget.mockClear();
 });
 mock.module('../../../../config', () => ({
   prisma: {
@@ -80,6 +83,20 @@ mock.module('../../../../services/workflow/verify-invariant-repair', () => ({
 mock.module('./shared', () => ({
   markLatestExecutionFailed: async () => {},
   wasNonConvergenceCutoffJustRecorded: async () => false,
+}));
+mock.module('../../../../services/communication/notification-service', () => ({
+  createNotification: async () => ({}),
+}));
+const blockPlanQuestionOverBudget = mock(
+  async (_taskId: number, _count: number, _limit: number) => {},
+);
+mock.module('../../../../services/workflow/workflow-plan-question-guard', () => ({
+  checkPlanQuestionBudget: async (_taskId: number) => ({
+    allowed: planQuestionCount < 3,
+    count: planQuestionCount,
+    limit: 3,
+  }),
+  blockPlanQuestionOverBudget,
 }));
 
 const { computeAndApplyStatusTransition } = await import('./status-transition');
@@ -228,6 +245,56 @@ test('records kind=completion_confirmation for a question pause raised from veri
       }),
     }),
   );
+});
+
+// task 965: lifetime plan-question budget guard. checkPlanQuestionBudget /
+// blockPlanQuestionOverBudget themselves are exhaustively unit-tested in
+// workflow-plan-question-guard.test.ts — this suite only verifies
+// status-transition.ts wires the guard in at the right branch/condition.
+test('a plan-phase question under the lifetime budget still saves normally', async () => {
+  workflowStatus = 'plan_approved';
+  status = 'in-progress';
+  planQuestionCount = 2;
+  const result = await computeAndApplyStatusTransition({
+    taskId: 901,
+    fileType: 'question',
+    currentStatus: 'plan_approved',
+    savedContent: 'Q',
+  });
+  expect(result.newStatus).toBe('awaiting_question');
+  expect(blockPlanQuestionOverBudget).not.toHaveBeenCalled();
+});
+
+test('a plan-phase question at the lifetime budget cap is blocked instead of saved', async () => {
+  workflowStatus = 'plan_approved';
+  status = 'in-progress';
+  planQuestionCount = 3;
+  await expect(
+    computeAndApplyStatusTransition({
+      taskId: 901,
+      fileType: 'question',
+      currentStatus: 'plan_approved',
+      savedContent: 'Q',
+    }),
+  ).rejects.toThrow(/lifetime cap/);
+  expect(updateMany).not.toHaveBeenCalled();
+  expect(blockPlanQuestionOverBudget).toHaveBeenCalledWith(901, 3, 3);
+  // workflowStatus must remain plan_approved — the exhausted question.md save never advances it.
+  expect(workflowStatus).toBe('plan_approved');
+});
+
+test('a non-plan_approved question pause is unaffected by the plan-question budget', async () => {
+  workflowStatus = 'in_progress';
+  status = 'in-progress';
+  planQuestionCount = 99;
+  const result = await computeAndApplyStatusTransition({
+    taskId: 901,
+    fileType: 'question',
+    currentStatus: 'in_progress',
+    savedContent: 'Q',
+  });
+  expect(result.newStatus).toBe('awaiting_question');
+  expect(blockPlanQuestionOverBudget).not.toHaveBeenCalled();
 });
 
 test('an explicit kind embedded in question.md json:options is honored over the status-derived default', async () => {

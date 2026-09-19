@@ -30,3 +30,18 @@ describe('shell exit-code safety rule (task 916)', () => {
     },
   );
 });
+
+describe('plan-phase question-firing criteria + kind guidance (task 965)', () => {
+  test.each(['ja', 'en'] as const)(
+    'planner instruction includes the firing criteria and kind guidance for %s',
+    (language) => {
+      const texts = buildRoleTexts(965, { title: 'Probe', description: null }, language);
+      const roundKeyword = language === 'ja' ? '1ラウンド' : 'ONE round';
+      const incompatibleKeyword = language === 'ja' ? '互換不能' : 'incompatible';
+      expect(texts.planner.instruction).toContain(roundKeyword);
+      expect(texts.planner.instruction).toContain(incompatibleKeyword);
+      expect(texts.planner.instruction).toContain('execution_continuation');
+      expect(texts.planner.instruction).toContain('completion_confirmation');
+    },
+  );
+});
