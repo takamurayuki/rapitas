@@ -18,6 +18,7 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'child_process';
 import type { AIMessage } from './types';
+import { escapeWindowsShellArg } from '../common/windows-shell-escape';
 
 // ── child_process mock ──────────────────────────────────────────────────────
 
@@ -105,6 +106,17 @@ function fullCommand(i: number): string {
   return [call.command, ...(call.args ?? [])].join(' ');
 }
 
+/**
+ * An arg exactly as it will appear inside {@link fullCommand}'s joined
+ * string: unescaped on non-Windows (buildSpawnCommand passes args through
+ * unchanged there), caret-escaped via escapeWindowsShellArg on Windows
+ * (task 977). Cross-platform assertions build expected substrings from
+ * this instead of a hand-written plain string.
+ */
+function argInCommand(arg: string): string {
+  return process.platform === 'win32' ? escapeWindowsShellArg(arg, true) : arg;
+}
+
 /** Emits a well-formed non-streaming success payload and closes the child. */
 function respondSuccess(
   child: MockChild,
@@ -173,7 +185,7 @@ describe('callClaudeCli — success', () => {
     respondSuccess(spawnedChildren[0]);
     await promise;
     expect(fullCommand(0)).toContain(
-      '--disallowedTools Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit,TodoWrite,MultiEdit',
+      `${argInCommand('--disallowedTools')} ${argInCommand('Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit,TodoWrite,MultiEdit')}`,
     );
   });
 
@@ -210,7 +222,7 @@ describe('callClaudeCli — model alias mapping', () => {
     await flush();
     respondSuccess(spawnedChildren[0]);
     await promise;
-    expect(fullCommand(0)).toContain(`--model ${expected}`);
+    expect(fullCommand(0)).toContain(`${argInCommand('--model')} ${argInCommand(expected)}`);
   });
 });
 
