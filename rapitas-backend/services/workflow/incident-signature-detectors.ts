@@ -10,6 +10,7 @@
  * and is re-exported here (barrel) for backward compatibility — see task 855.
  */
 import { ACTIVE_EXEC } from './workflow-reconciler-requeue';
+import { BLOCKED_REESCALATION_INTERVAL_MS } from './blocked-task-policy';
 export {
   detectRepeatLoop,
   isRepairBounceCause,
@@ -162,6 +163,24 @@ export interface StagnationInput {
   blockedEscalationRecent?: boolean | null;
   nowMs: number;
   thresholdMs?: number;
+}
+
+/**
+ * Whether the newest blocked escalation notice is still fresh: window = re-notify interval
+ * + 30min slack; past it the notifier is presumed dead, so detection resumes (#980).
+ *
+ * @param latestEscalationAtMs - Newest blocked_(re)escalated time, null when none/unknown. / 最新通知時刻
+ * @param nowMs - Current time (ms). / 現在時刻
+ * @returns True when a notice landed inside the window. / 窓内なら true
+ */
+export function isBlockedEscalationRecent(
+  latestEscalationAtMs: number | null,
+  nowMs: number,
+): boolean {
+  return (
+    latestEscalationAtMs != null &&
+    nowMs - latestEscalationAtMs < BLOCKED_REESCALATION_INTERVAL_MS + 30 * 60_000
+  );
 }
 
 /**

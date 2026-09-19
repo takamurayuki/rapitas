@@ -15,6 +15,7 @@ import { notifyIntakeQuestionPending } from '../communication/notification-servi
 import { resolveSelfDevelopmentThemeId } from './self-development-theme';
 import {
   detectStagnation,
+  isBlockedEscalationRecent,
   detectTriStateDesync,
   detectRepeatLoop,
   detectUnansweredQuestion,
@@ -31,7 +32,7 @@ import { gatherTaskState, formatIncidentDetail } from './self-incident-evidence'
 import type { GatheredTaskState } from './self-incident-evidence';
 import { inspectSupervisorSignatures } from './supervisor-incident-inspect';
 import { resolveMaxRepairs } from './verify-self-repair-budget';
-import { DEFAULT_MAX_CI_REPAIRS, BLOCKED_REESCALATION_INTERVAL_MS } from './blocked-task-policy';
+import { DEFAULT_MAX_CI_REPAIRS } from './blocked-task-policy';
 import {
   resolveDisabledAutoRunThemeIds,
   resolveNonDevelopmentThemeIds,
@@ -188,10 +189,10 @@ async function inspectTask(
           : true;
 
   const manuallyWithdrawn = state.latestTransitionCause === MANUAL_STOP_WITHDRAW_CAUSE;
-  // Window = re-notify interval + 30min slack; past it the notifier is presumed dead → detect again.
-  const blockedEscalationRecent =
-    state.latestBlockedEscalationAtMs != null &&
-    nowMs - state.latestBlockedEscalationAtMs < BLOCKED_REESCALATION_INTERVAL_MS + 30 * 60_000;
+  const blockedEscalationRecent = isBlockedEscalationRecent(
+    state.latestBlockedEscalationAtMs,
+    nowMs,
+  );
   const stagnation = detectStagnation({
     taskStatus: task.status,
     workflowStatus: task.workflowStatus,

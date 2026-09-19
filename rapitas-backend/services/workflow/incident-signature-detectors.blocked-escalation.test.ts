@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'bun:test';
 import {
   detectStagnation,
+  isBlockedEscalationRecent,
   STAGNATION_THRESHOLD_MS,
   type StagnationInput,
 } from './incident-signature-detectors';
@@ -42,5 +43,22 @@ describe('detectStagnation blockedEscalationRecent (#980)', () => {
   });
   it('evidence cause list matches the escalation module constants', () => {
     expect(BLOCKED_ESCALATION_CAUSES).toEqual([BLOCKED_ESCALATED_CAUSE, BLOCKED_REESCALATED_CAUSE]);
+  });
+});
+
+describe('isBlockedEscalationRecent (#980)', () => {
+  const H = 60 * 60 * 1000;
+  it('is true for a notice 3h ago', () => {
+    expect(isBlockedEscalationRecent(NOW - 3 * H, NOW)).toBe(true);
+  });
+  it('is false for a notice 5h ago (notifier presumed dead)', () => {
+    expect(isBlockedEscalationRecent(NOW - 5 * H, NOW)).toBe(false);
+  });
+  it('is false at the 4.5h boundary and true just inside it', () => {
+    expect(isBlockedEscalationRecent(NOW - 4.5 * H, NOW)).toBe(false);
+    expect(isBlockedEscalationRecent(NOW - 4.5 * H + 1, NOW)).toBe(true);
+  });
+  it('is false when there is no notice / lookup failed', () => {
+    expect(isBlockedEscalationRecent(null, NOW)).toBe(false);
   });
 });
