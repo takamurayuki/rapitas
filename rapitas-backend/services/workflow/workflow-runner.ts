@@ -15,6 +15,7 @@ import {
   broadcastItemUpdate,
 } from './workflow-runner-events';
 import { isShutdownError } from '../agents/orchestrator/shutdown-error';
+import { ExecutionCancelledError } from '../agents/execution-cancelled-error';
 import { waitForVerifyCompletion } from './workflow-runner-verify-settle';
 import {
   resolveMaxIterations,
@@ -451,6 +452,29 @@ export class WorkflowRunner {
           log.warn(
             { err: requeueError },
             `[WorkflowRunner] Failed to requeue item ${item.id} after shutdown`,
+          );
+        }
+        this.broadcastItemUpdate(item.id, item.taskId, 'execution_error', execution.currentPhase);
+        return;
+      }
+
+      // NOTE: ExecutionCancelledError signals an intentional lock-ownership revocation
+      // (e.g. a manual stop/reset), not a failure. Every other catch site for this error
+      // (plan-auto-approve.ts, resume-completion.ts, execution-persistence.ts,
+      // execution-resume.ts, manual-execution-settlement.ts) treats it as a graceful
+      // interruption; this runner previously fell through to the generic ERROR + retry
+      // path, which could consume retry budget on repeated stops and eventually mark the
+      // task 'failed'. Mirror the shutdown-error handling above.
+      if (error instanceof ExecutionCancelledError) {
+        log.warn(`[WorkflowRunner] Task ${item.taskId} cancelled — requeued: ${errorMsg}`);
+        try {
+          await this.queue.updateStatus(item.id, 'queued', {
+            errorMessage: 'Shutdown - returned to queue',
+          });
+        } catch (requeueError) {
+          log.warn(
+            { err: requeueError },
+            `[WorkflowRunner] Failed to requeue item ${item.id} after cancellation`,
           );
         }
         this.broadcastItemUpdate(item.id, item.taskId, 'execution_error', execution.currentPhase);

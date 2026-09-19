@@ -68,6 +68,25 @@ export class AuthenticationError extends AppError {
 }
 
 /**
+ * Requirement-replan review held with an expected, non-crash reason
+ * (e.g. `budget_exhausted`: priorReplans reached its cap — a terminal state
+ * that retries cannot resolve, not an unexpected failure).
+ *
+ * NOTE (task #961): status-transition.ts previously threw a plain `Error`
+ * here, which fell through to the "Generic server error" branch below and
+ * logged at ERROR level on every occurrence — including this expected one.
+ * Extending AppError routes it through the `error instanceof AppError`
+ * branch instead, which returns the response without calling `log.error`,
+ * suppressing the false-alarm ERROR log at its actual emission site.
+ */
+export class RequirementReplanHeldError extends AppError {
+  constructor(reason: string) {
+    super(409, `Requirement replan review held: ${reason}`, 'REQUIREMENT_REPLAN_HELD');
+    this.name = 'RequirementReplanHeldError';
+  }
+}
+
+/**
  * Parse and validate a numeric ID from route params.
  * Throws ValidationError if invalid.
  */

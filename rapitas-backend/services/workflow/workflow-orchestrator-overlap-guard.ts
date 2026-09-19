@@ -36,15 +36,13 @@ export const OVERLAP_PR_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const holdSince = new Map<number, number>();
 /** Per-task timeout-release time; no fresh hold starts within one ceiling of it. */
 const releasedAt = new Map<number, number>();
-/** Per-task last "still holding" signal time; deleted on release (task 947). */
+/** Per-task last periodic re-check signal (epoch ms); deleted on release/reset (task 954). */
 const lastSignalAt = new Map<number, number>();
 
 /**
- * Interval between "still holding" cycle events during a continued hold
- * (task 947): task 943 saw `task.implement_overlap_hold` fire only at the
- * hold's start and its timeout release, then 24 min of apparent silence
- * because the retry loop only logs at state transitions — the loop itself
- * was retrying every 10 s the whole time, that just was not visible.
+ * Interval between `task.implement_overlap_holding` re-check signals while a
+ * hold continues (task 954). Proves the retry loop keeps invoking
+ * guardImplementOverlap() during a long hold instead of going silent.
  */
 export const HOLD_SIGNAL_INTERVAL_MS = 2 * 60 * 1000;
 
@@ -208,23 +206,19 @@ export async function guardImplementOverlap(
       });
       log.info({ taskId, prs, files: files.slice(0, 5) }, '[overlap-guard] holding implementer');
     } else {
-      // Continued hold: emit a low-frequency "still alive" signal so the
-      // retry loop's ongoing 10 s re-evaluations stay observable without
-      // logging every single tick (task 947).
-      const lastSignal = lastSignalAt.get(taskId) ?? since;
-      if (now - lastSignal >= HOLD_SIGNAL_INTERVAL_MS) {
+      const last = lastSignalAt.get(taskId) ?? since;
+      if (now - last >= HOLD_SIGNAL_INTERVAL_MS) {
         lastSignalAt.set(taskId, now);
+        const files = hits.flatMap((h) => h.files);
         logCycleEvent('task.implement_overlap_holding', {
           task: taskId,
           theme: themeId,
           prs,
+          files: files.slice(0, 20),
           holdMs: now - since,
-          msg: 'implementer still held — retry loop is alive, not stopped',
+          msg: 'implementer still held — periodic re-check confirms the hold is live',
         });
-        log.info(
-          { taskId, prs, holdMs: now - since },
-          '[overlap-guard] still holding implementer (retry loop alive)',
-        );
+        log.info({ taskId, prs, holdMs: now - since }, '[overlap-guard] hold continuing');
       }
     }
     const summary = hits.map((h) => `#${h.prNumber}: ${h.files.slice(0, 3).join(', ')}`).join('; ');

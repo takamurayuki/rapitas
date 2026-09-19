@@ -52,7 +52,8 @@ export interface VerificationCheck {
     | 'runtime'
     | 'tamper'
     | 'acceptance'
-    | 'schema-change';
+    | 'schema-change'
+    | 'red-state';
   /** Whether the check was applicable and actually executed. */
   ran: boolean;
   /** True when the check passed (no new failures in the changed files). */
@@ -308,8 +309,14 @@ function projectRootFor(workdir: string, file: string): string {
   return root;
 }
 
-/** Groups changed files by their owning project root (for monorepos). */
-function groupByProjectRoot(workdir: string, files: string[]): Map<string, string[]> {
+/**
+ * Groups changed files by their owning project root (for monorepos).
+ * Exported so red-state-check.ts can group a task's changed TEST files the
+ * same way runAutomatedVerification groups its lint/type/test/format checks
+ * — a red-state check must run in the same project root the real test run
+ * used, or its scoped test command resolves the wrong runner/config.
+ */
+export function groupByProjectRoot(workdir: string, files: string[]): Map<string, string[]> {
   const groups = new Map<string, string[]>();
   for (const f of files) {
     const rootDir = projectRootFor(workdir, f);
@@ -765,6 +772,38 @@ export function looksLikeBugFixTask(text: string | null | undefined): boolean {
 }
 
 /**
+ * Trivial-task detector (conservative, same style as {@link looksLikeBugFixTask}):
+ * tasks with no testable behavior to cover — pure documentation, comment-only,
+ * config-value-only, or dependency-version-only changes. The TDD requirement
+ * (R? — full-project TDD adoption) defaults ON for everything else; this is
+ * the narrow opt-out, not an opt-in list.
+ *
+ * @param text - Task title + description. / タスク本文
+ * @returns Whether the task looks exempt from the TDD/coverage requirement. / TDD対象外か
+ */
+export function looksLikeTrivialTask(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return /(ドキュメントのみ|README(の)?(更新|修正|のみ)|typo\s*(の)?修正|誤字脱字|コメント(のみ|だけ)|設定[値]?(の)?み?変更|依存(関係)?(の)?(バージョン(を)?)?(更新|アップデート)(のみ)?|\bdocs?[\s-]only\b|\breadme\b|\btypo\b|\bcomment[\s-]only\b|\bconfig[\s-]only\b|\bdependency\s+(bump|update)\b)/i.test(
+    text,
+  );
+}
+
+/**
+ * Whether a task's diff should be required to ship a test — the TDD gate's
+ * scope decision. Default ON for all substantive work (feature/bug/refactor);
+ * only tasks {@link looksLikeTrivialTask} identifies as having no testable
+ * behavior are exempt. Inverse polarity from the pre-TDD-adoption behavior,
+ * which only forced tests for bug fixes ({@link looksLikeBugFixTask}) and left
+ * every other task type — most of auto-run's actual volume — untested.
+ *
+ * @param text - Task title + description. / タスク本文
+ * @returns Whether the task requires a test in its diff. / テスト必須か
+ */
+export function requiresTestsForTask(text: string | null | undefined): boolean {
+  return !looksLikeTrivialTask(text);
+}
+
+/**
  * Deterministic anti-tampering tripwire: fails when the diff touches protected
  * gate/CI/hook paths that the approved plan did not list. Pure and testable.
  *
@@ -935,6 +974,13 @@ export async function runAutomatedVerification(
   }
 
   const coverage = coverageCheck(changedFiles, options.requireTests === true);
+  const { maybeRunRedStateCheck } = await import('./red-state-check');
+  const redState = await maybeRunRedStateCheck(
+    workdir,
+    changedFiles,
+    coverage,
+    options.preferredBaseBranch,
+  );
   // CI-parity checks: prettier formatting and Prisma generated-artifact sync
   // both hard-fail CI's Lint Code job, so catching them here turns a full
   // ci_repair round into an in-phase fix.
@@ -957,6 +1003,7 @@ export async function runAutomatedVerification(
     ...(generatedSync ? [generatedSync] : []),
     ...hardGateChecks,
     ...(coverage ? [coverage] : []),
+    ...(redState ? [redState] : []),
     ...(acceptance ? [acceptance] : []),
   ];
   // Scope and acceptance are ADVISORY, not hard gates. A plan-scope deviation

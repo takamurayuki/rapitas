@@ -2541,7 +2541,13 @@ async function main() {
   // 大声で知らせる — サイレントな半死が一番高くつく。
   if (backendReady) {
     try {
-      const listenPids = getListeningPids(actualBackendPort);
+      // getListeningPids returns a Set (dedupe); Set has no .filter — convert
+      // to an array first. Without this the whole check silently no-ops via
+      // the catch below on every single startup (confirmed 2026-09-19: this
+      // ghost-socket detector, added after the 2026-08-06/07 incident, has
+      // never actually run since getListeningPids was later changed from an
+      // array to a Set).
+      const listenPids = [...getListeningPids(actualBackendPort)];
       const alive = listenPids.filter((pid) => isProcessRunning(pid));
       const dead = listenPids.filter((pid) => !isProcessRunning(pid));
       if (dead.length > 0 || alive.length > 1) {

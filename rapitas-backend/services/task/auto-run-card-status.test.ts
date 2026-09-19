@@ -229,6 +229,30 @@ describe('attachAutoRunCardStatus', () => {
     expect(callArgs.where.status).toBe('running');
   });
 
+  test('currentTaskId と一致していても status=done なら autoRunCurrent=false（完了直後の実在レース対策）', async () => {
+    findMany.mockResolvedValueOnce([{ themeId: 1, currentTaskId: 5 }]);
+    const tasks: TaskLikeForAutoRunCardStatus[] = [
+      { id: 5, themeId: 1, parentId: null, status: 'done', theme: devTheme },
+    ];
+
+    const result = await attachAutoRunCardStatus(buildPrisma(), tasks);
+
+    expect(result[0].autoRunCurrent).toBe(false);
+    expect(result[0].autoRunQueued).toBe(false);
+  });
+
+  test('currentTaskId と一致していても status=cancelled なら autoRunCurrent=false', async () => {
+    findMany.mockResolvedValueOnce([{ themeId: 1, currentTaskId: 5 }]);
+    const tasks: TaskLikeForAutoRunCardStatus[] = [
+      { id: 5, themeId: 1, parentId: null, status: 'cancelled', theme: devTheme },
+    ];
+
+    const result = await attachAutoRunCardStatus(buildPrisma(), tasks);
+
+    expect(result[0].autoRunCurrent).toBe(false);
+    expect(result[0].autoRunQueued).toBe(false);
+  });
+
   test('戻り値は入力と同一の配列参照であること（インプレース変更）', async () => {
     findMany.mockResolvedValueOnce([{ themeId: 1, currentTaskId: 1 }]);
     const tasks: TaskLikeForAutoRunCardStatus[] = [

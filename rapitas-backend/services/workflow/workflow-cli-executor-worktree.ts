@@ -6,12 +6,16 @@
  * to run them in a primary checkout, and falls back to the theme directory
  * for investigation roles. Not responsible for prompt building or execution.
  */
+import { execSync } from 'child_process';
 import { resolveTaskTitle, resolveTaskWithTheme } from '../task/task-resolver';
 import { resolveLatestSessionWorktree } from '../agents/agent-session-resolver';
 import { createLogger } from '../../config/logger';
 import type { AgentOrchestrator } from '../agents/agent-orchestrator';
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
-import { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree/worktree-usable';
+import {
+  canReuseWorktree,
+  getUncommittedDiffSummary,
+} from '../agents/orchestrator/git-operations/worktree/worktree-usable';
 import { isPrimaryWorkTree } from '../agents/orchestrator/git-operations/worktree/worktree-guard';
 import { resolveGitRoot } from './workflow-cli-executor-helpers';
 
@@ -65,6 +69,26 @@ export async function resolveExecutionWorkdir(params: {
     if (prior?.worktreePath && canReuseWorktree(prior.worktreePath)) {
       resolvedWorktreePath = prior.worktreePath;
       resolvedBranchName = prior.branchName;
+      // AC1 (task 956): make the implementer's uncommitted diff observable
+      // across a replan, instead of assuming worktree reuse alone preserved
+      // it. Best-effort — a failed probe must not block the planner.
+      const diffSummary = getUncommittedDiffSummary(resolvedWorktreePath, (cwd) =>
+        execSync('git status --porcelain', { cwd, encoding: 'utf8' }),
+      );
+      log.info(
+        {
+          taskId,
+          worktreePath: resolvedWorktreePath,
+          changedFileCount: diffSummary.changedFileCount,
+          hasUncommittedChanges: diffSummary.hasUncommittedChanges,
+        },
+        '[WorkflowCLIExecutor] worktree reuse (planner): uncommitted diff summary',
+      );
+    } else if (prior?.worktreePath) {
+      log.warn(
+        { taskId, recordedPath: prior.worktreePath },
+        '[WorkflowCLIExecutor] Recorded worktree no longer reusable for planner — uncommitted diff visibility lost',
+      );
     }
   }
   if (isImplementationRole || isVerifierRole) {

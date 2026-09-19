@@ -18,6 +18,7 @@ import { markLatestExecutionFailed, wasNonConvergenceCutoffJustRecorded } from '
 import type { CompletionReviewReceipt } from '../../../../services/workflow/requirement-replan-commit';
 import { parseQuestionOptionsBlock } from '../../../../services/workflow/question-options-parser';
 import { resolveExplicitOrDefaultKind } from '../../../../services/workflow/question-kind-resolver';
+import { RequirementReplanHeldError } from '../../../../middleware/error-handler';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -161,6 +162,16 @@ export async function computeAndApplyStatusTransition(params: {
       // (An undecidable reviewer verdict no longer lands here — the service
       // converts it into an inconclusive no-mismatch receipt, see
       // requirement-replan-service.ts.)
+      if (replan.reason === 'budget_exhausted') {
+        // NOTE (task #961): budget_exhausted means priorReplans reached its
+        // cap (requirement-replan-policy.ts) — an append-only counter that
+        // never decreases, so this is an expected terminal state, not a
+        // crash. Throwing RequirementReplanHeldError (AppError) instead of a
+        // plain Error keeps queue-skip-policy.ts's retry-suppression from
+        // being undermined by a false-alarm ERROR log on the very save that
+        // reached the cap (see error-handler.ts for the suppression detail).
+        throw new RequirementReplanHeldError(replan.reason);
+      }
       throw new Error(`Requirement replan review held: ${replan.reason}`);
     }
     completionReceipt = replan.completionReceipt;

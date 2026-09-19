@@ -179,4 +179,36 @@ describe('getOpenAutoPrsForTheme', () => {
     } as unknown as PrismaClient;
     expect(await getOpenAutoPrsForTheme(prisma, 7)).toEqual([]);
   });
+
+  it('caps parallel gh calls instead of firing one per open PR (2026-09-18/19 incident: 57 open PRs fired 57 simultaneous `gh` processes on one cache refresh)', async () => {
+    const rows = Array.from({ length: 20 }, (_, i) => ({
+      prNumber: i + 1,
+      linkedTaskId: 559,
+      createdAt: null,
+    }));
+    const prisma = {
+      task: { findMany: mock().mockResolvedValue([{ id: 559 }]) },
+      gitHubPullRequest: { findMany: mock().mockResolvedValue(rows) },
+      theme: { findUnique: mock().mockResolvedValue({ workingDirectory: '/repo' }) },
+    } as unknown as PrismaClient;
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const deps: PrFilesDeps = {
+      now: () => 1,
+      execGh: async () => {
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        inFlight--;
+        return JSON.stringify({ state: 'OPEN', files: [] });
+      },
+    };
+
+    await getOpenAutoPrsForTheme(prisma, 7, deps);
+    // Default cap (RAPITAS_PR_FILES_CACHE_CONCURRENCY unset → 4): far below
+    // the 20 PRs queried, proving they were NOT all fired at once.
+    expect(maxInFlight).toBeLessThanOrEqual(4);
+    expect(maxInFlight).toBeGreaterThan(1); // still runs some in parallel, not fully serial
+  });
 });

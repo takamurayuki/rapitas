@@ -116,13 +116,13 @@ function resolveMinSamples(env: NodeJS.ProcessEnv = process.env): number {
  * Median of a sorted ascending array: middle value for odd n, rounded mean of
  * the two middle values for even n.
  */
-function computeMedian(sorted: number[]): number {
+export function computeMedian(sorted: number[]): number {
   const n = sorted.length;
   return n % 2 === 1 ? sorted[(n - 1) / 2] : Math.round((sorted[n / 2 - 1] + sorted[n / 2]) / 2);
 }
 
 /** Nearest-rank percentile (1-based rank): sorted[ceil(p * n) - 1]. */
-function nearestRank(sorted: number[], p: number): number {
+export function nearestRank(sorted: number[], p: number): number {
   return sorted[Math.ceil(p * sorted.length) - 1];
 }
 
@@ -130,8 +130,11 @@ function nearestRank(sorted: number[], p: number): number {
  * Confidence = sampleFactor * spreadFactor, rounded to 2 decimals.
  * sampleFactor = min(1, n / TARGET_SAMPLES); spreadFactor = clamp(1 - IQR /
  * median, 0.2, 1) with the 0.2 floor also applied when median <= 0.
+ *
+ * NOTE: exported so prompt-band-evidence.ts reuses this exact formula instead
+ * of duplicating it (task #970 — difficulty-band prompt-version confidence).
  */
-function computeConfidence(n: number, median: number, p25: number, p75: number): number {
+export function computeConfidence(n: number, median: number, p25: number, p75: number): number {
   const sampleFactor = Math.min(1, n / TARGET_SAMPLES);
   const spreadFactor =
     median <= 0

@@ -86,6 +86,7 @@ mock.module('../../../../services/workflow/verify-self-repair', () => ({
 }));
 
 const { computeAndApplyStatusTransition } = await import('./status-transition');
+const { RequirementReplanHeldError } = await import('../../../../middleware/error-handler');
 
 function buildParams() {
   return {
@@ -173,6 +174,27 @@ describe('computeAndApplyStatusTransition — 非収束カットオフの二重�
   test('unknown replan review cannot advance or consume implementation repair', async () => {
     mockRequirementReplan.mockResolvedValueOnce({ committed: false, reason: 'unknown' });
     await expect(computeAndApplyStatusTransition(buildParams())).rejects.toThrow('review held');
+    expect(mockAttemptVerifyRepair).not.toHaveBeenCalled();
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+  });
+
+  test('budget_exhausted は RequirementReplanHeldError(AppError) として投げられ、ERRORログを誘発しない(#961)', async () => {
+    // priorReplans>=3 に達した状態は再計画不能を示す想定内の打ち止めであり、
+    // 未知のクラッシュではない。plain Error のままだと error-handler.ts の
+    // Generic server error 分岐(log.error 'Unhandled error')に落ちるため、
+    // AppError 化して同分岐を回避することを検証する。
+    mockRequirementReplan.mockResolvedValueOnce({ committed: false, reason: 'budget_exhausted' });
+    let caught: unknown;
+    try {
+      await computeAndApplyStatusTransition(buildParams());
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(RequirementReplanHeldError);
+    expect((caught as InstanceType<typeof RequirementReplanHeldError>).message).toBe(
+      'Requirement replan review held: budget_exhausted',
+    );
+    expect((caught as InstanceType<typeof RequirementReplanHeldError>).statusCode).toBe(409);
     expect(mockAttemptVerifyRepair).not.toHaveBeenCalled();
     expect(mockTaskUpdate).not.toHaveBeenCalled();
   });

@@ -16,9 +16,11 @@ import {
   MAX_ORPHAN_REQUEUE_AGE_MS,
   MAX_BLOCKED_RETRY,
   MAX_PR_RECOVERY_ATTEMPTS,
+  ORPHAN_REQUEUE_EXHAUSTED_CAUSE,
   resolveVerifyRepairLimit,
   VERIFY_NON_CONVERGENCE_CAUSE,
   VERIFICATION_UNVERIFIABLE_HOLD_CAUSE,
+  MANUAL_CORRECTION_PENDING_CAUSE,
   PR_RETRY_LIGHTWEIGHT_CAUSE,
 } from './blocked-task-policy';
 import { isAwaitingRequiredMerge } from './verify-settle-artifact-recovery';
@@ -108,7 +110,33 @@ export async function requeueOrphanTasks(
     const attempts = await prisma.workflowTransition.count({
       where: { taskId: t.id, cause: 'reconciler_requeue' },
     });
-    if (attempts >= MAX_ORPHAN_REQUEUE) continue;
+    if (attempts >= MAX_ORPHAN_REQUEUE) {
+      // Requeue budget exhausted (task 977): leaving this as `continue` strands
+      // the task in 'in-progress' forever — no other heal path picks it up
+      // (not blocked, so requeueBlockedTasks never sees it), and
+      // detectStagnation re-flags it every watch cycle indefinitely. Move it
+      // to 'blocked' so it joins the existing blocked-task retry/escalation
+      // pipeline instead. workflowStatus is intentionally left unchanged —
+      // requeueBlockedTasks' own reset (blocked_auto_retry) is what resets it
+      // to 'draft', preserving that existing artifact-reuse behavior.
+      await prisma.task.update({
+        where: { id: t.id },
+        data: { status: 'blocked', updatedAt: new Date() },
+      });
+      await recordTransition({
+        taskId: t.id,
+        fromStatus: t.workflowStatus,
+        toStatus: t.workflowStatus ?? 'draft',
+        actor: 'system',
+        cause: ORPHAN_REQUEUE_EXHAUSTED_CAUSE,
+        metadata: { reason: 'orphan_requeue_attempts_exhausted', attempts },
+      }).catch(() => {});
+      log.info(
+        { taskId: t.id, attempts, wf: t.workflowStatus },
+        '[reconciler] Orphan requeue budget exhausted -> blocked (joins blocked-task retry/escalation pipeline)',
+      );
+      continue;
+    }
 
     await prisma.task.update({
       where: { id: t.id },
@@ -251,6 +279,28 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
       log.info(
         { taskId: t.id, unverifiableHeld },
         '[reconciler] Blocked task is held as unverifiable — leaving blocked (restore verification / manual retry), not auto-retrying',
+      );
+      continue;
+    }
+
+    // Skip tasks whose blocked status was set by a manual/system correction
+    // determining the landed PR did NOT merge (task 873/948): a blind reset
+    // would discard that determination and either re-run stale work or race
+    // the follow-up task it spawned. Same window as the repair budget (a
+    // manual retry re-admits the task).
+    const manualCorrectionPending = await prisma.workflowTransition
+      .count({
+        where: {
+          taskId: t.id,
+          cause: MANUAL_CORRECTION_PENDING_CAUSE,
+          ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+        },
+      })
+      .catch(() => 0);
+    if (manualCorrectionPending > 0) {
+      log.info(
+        { taskId: t.id, manualCorrectionPending },
+        '[reconciler] Blocked task has a pending manual correction (PR did not land) — leaving blocked, not auto-retrying',
       );
       continue;
     }

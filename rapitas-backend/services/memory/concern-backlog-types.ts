@@ -110,12 +110,18 @@ export const CONCERN_FILING_REASONS = [
   'recurrence-merged-open',
   'near-duplicate',
   'theme-saturation',
+  'jev-not-relevant',
 ] as const;
 export type ConcernFilingReason = (typeof CONCERN_FILING_REASONS)[number];
 
-/** Result of `submitConcern`: the anchoring/created row id plus how it got there. */
+/**
+ * Result of `submitConcern`: the anchoring/created row id plus how it got
+ * there. `id` is null only for the `jev-not-relevant` outcome — every other
+ * suppression/reuse reason anchors to an existing row, but a Jev relevance
+ * rejection has no existing concern to point at; nothing was written.
+ */
 export interface ConcernFilingResult {
-  id: number;
+  id: number | null;
   outcome: ConcernFilingOutcome;
   reason: ConcernFilingReason;
 }

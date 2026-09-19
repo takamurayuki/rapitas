@@ -77,6 +77,7 @@ export function classifyRepairReason(reason: string | undefined | null): RepairC
 export interface TransitionRowLite {
   cause: string | null;
   toStatus: string | null;
+  fromStatus: string | null;
   metadata: string | null;
   createdAt: Date;
 }
@@ -132,8 +133,11 @@ export function bucketTransitions(
     // NOTE: This counts WorkflowTransition rows, not distinct tasks — a
     // reopened/resumed task's re-completion is counted again. Callers using
     // this as a denominator for an "accepted success rate" must account for
-    // that (it is an execution-volume proxy, not a task count).
-    if (row.toStatus === 'completed') counts.completed++;
+    // that (it is an execution-volume proxy, not a task count). Rows where
+    // fromStatus === toStatus === 'completed' (auto-merge/transition_rejected
+    // self-transitions) are state-invariant events, not new completions, and
+    // are excluded here.
+    if (row.toStatus === 'completed' && row.fromStatus !== 'completed') counts.completed++;
     switch (row.cause) {
       case 'research_critic_failed':
         counts.research_critic_failed++;
@@ -189,7 +193,7 @@ export async function computeLoopMetrics(
       createdAt: { gte: since },
       OR: [{ cause: { in: [...BOUNCE_CAUSES] } }, { toStatus: 'completed' }],
     },
-    select: { cause: true, toStatus: true, metadata: true, createdAt: true },
+    select: { cause: true, toStatus: true, fromStatus: true, metadata: true, createdAt: true },
   });
 
   return { windows: bucketTransitions(rows, now, windowDays, windowCount), windowDays };

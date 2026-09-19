@@ -69,6 +69,13 @@ export async function getKnowledgeStats() {
     key: string,
   ) => Object.fromEntries(items.map((i) => [i[key], i._count.id]));
 
+  // Unwrap the discriminated effectiveness result into the flat response shape.
+  // `unknown` (samples unreadable) becomes effectiveness:null + an error string
+  // rather than a zero aggregate, so consumers don't mistake "measurement
+  // unavailable" for "injected knowledge never helped".
+  const effectivenessData = effectiveness.status === 'ok' ? effectiveness.data : null;
+  const effectivenessError = effectiveness.status === 'unknown' ? effectiveness.reason : null;
+
   return {
     totalEntries,
     byCategory: toRecord(byCategory, 'category'),
@@ -79,7 +86,8 @@ export async function getKnowledgeStats() {
     averageDecayScore: avgDecay._avg.decayScore ?? 0,
     recentlyAccessed,
     unresolvedContradictions,
-    effectiveness,
+    effectiveness: effectivenessData,
+    effectivenessError,
     recall: recall as RecallMetrics,
     embeddingIndex,
   };
