@@ -136,10 +136,23 @@ export async function handleSaveFile({
     // and are excluded — verify in particular can run
     // runVerifyPostSaveAutomation for minutes, which must not block the
     // scheduler's same-task lock.
+    // NOTE (task #964): for fileType === 'question', currentStatus above was
+    // read BEFORE withTaskLifecycleLock is acquired and can go stale while
+    // waiting for the lock (e.g. another writer advances the task to
+    // 'completed' during the wait). computeAndApplyStatusTransition() already
+    // re-reads the live status under the lock for 'question' and discards
+    // whatever pre-lock value it receives — pass `null` explicitly here so no
+    // caller can silently start relying on the stale value instead of the
+    // in-lock re-read.
     const transition =
       fileType === 'question'
         ? await withTaskLifecycleLock(taskId, () =>
-            computeAndApplyStatusTransition({ taskId, fileType, currentStatus, savedContent }),
+            computeAndApplyStatusTransition({
+              taskId,
+              fileType,
+              currentStatus: null,
+              savedContent,
+            }),
           )
         : await computeAndApplyStatusTransition({ taskId, fileType, currentStatus, savedContent });
     let newStatus = transition.newStatus;
