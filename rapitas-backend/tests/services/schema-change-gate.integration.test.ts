@@ -14,6 +14,17 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 
 // Real Git subprocesses can exceed Bun's 5s default under Windows suite load.
 // Keep assertions intact and let subprocess work finish before fixture cleanup.
+// Task 934 measurement (Windows, 4 logical CPUs, ~34 concurrent `bun test
+// --isolate` processes as contention — 2x the contention used for the other
+// 4 files in this task): the test()s below already carried this 30s timeout,
+// but the beforeEach hook that builds the fixture repo did not — under that
+// heavier contention, the beforeEach failed with "Command failed: git commit"
+// at 7031ms (2026-09-13). At the lighter ~17-process contention used for the
+// other 4 files it did not reproduce, confirming the same root cause
+// (unprotected fixture-setup hook) at a higher load threshold. Applying the
+// existing timeout to the hooks resolves it; unloaded single-run completes
+// in 12.5-14.4s with 0 failures, and all 3 tests pass at 30s under the same
+// heavier contention.
 const GIT_TEST_TIMEOUT_MS = 30_000;
 import { execSync } from 'child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'fs';
@@ -40,11 +51,11 @@ describe('runAutomatedVerification — schema-only change bypasses the zero-code
     mkdirSync(join(repoDir, 'prisma', 'schema'), { recursive: true });
     // Untracked — mirrors an agent adding a new schema file without staging it.
     writeFileSync(join(repoDir, 'prisma', 'schema', 'x.prisma'), 'model X { id Int @id }\n');
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
   afterEach(() => {
     rmSync(repoDir, { recursive: true, force: true });
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
   test(
     'result.ok is false and a failing schema-change check is present when the schema file is unplanned',

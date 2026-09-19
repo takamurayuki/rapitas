@@ -18,6 +18,15 @@ import {
   recoverFromUnresolvedMerge,
 } from './worktree-guard';
 
+// Real Git subprocesses (init/commit/checkout/merge/cherry-pick chains) can
+// exceed Bun's 5s default under Windows suite load.
+// Task 934 measurement (Windows, 4 logical CPUs, ~17 concurrent `bun test
+// --isolate` processes as contention): the CHERRY_PICK_HEAD recovery test
+// failed with "this test timed out after 5000ms" at 5797ms (2026-09-13).
+// Unloaded single-run: whole file completes in 7.1-8.2s with 0 failures. All
+// 19 tests pass at 30s under the same contention.
+const GIT_TEST_TIMEOUT_MS = 30_000;
+
 const primary = async () => true;
 const worktree = async () => false;
 
@@ -279,47 +288,59 @@ function initRepoWithUnresolvedMerge(): string {
 }
 
 describe('recoverFromUnresolvedMerge', () => {
-  test('バグ再現: 未解決マージが残る worktree では checkout が "resolve your current index first" で失敗すること', () => {
-    const dir = initRepoWithUnresolvedMerge();
-    try {
-      expect(() => execSync('git checkout -q main', { cwd: dir, stdio: 'pipe' })).toThrow(
-        /resolve your current index first/,
-      );
-    } finally {
-      cleanupDir(dir);
-    }
-  });
+  test(
+    'バグ再現: 未解決マージが残る worktree では checkout が "resolve your current index first" で失敗すること',
+    () => {
+      const dir = initRepoWithUnresolvedMerge();
+      try {
+        expect(() => execSync('git checkout -q main', { cwd: dir, stdio: 'pipe' })).toThrow(
+          /resolve your current index first/,
+        );
+      } finally {
+        cleanupDir(dir);
+      }
+    },
+    GIT_TEST_TIMEOUT_MS,
+  );
 
-  test('未解決マージを検知しabortして後続のcheckoutを回復させること', async () => {
-    const dir = initRepoWithUnresolvedMerge();
-    try {
-      await expect(recoverFromUnresolvedMerge(dir)).resolves.toBe(true);
-      // MERGE_HEAD is gone.
-      expect(() =>
-        execSync('git rev-parse --verify -q MERGE_HEAD', { cwd: dir, stdio: 'pipe' }),
-      ).toThrow();
-      // The operation that failed before recovery now succeeds.
-      expect(() => execSync('git checkout -q main', { cwd: dir, stdio: 'pipe' })).not.toThrow();
-    } finally {
-      cleanupDir(dir);
-    }
-  });
+  test(
+    '未解決マージを検知しabortして後続のcheckoutを回復させること',
+    async () => {
+      const dir = initRepoWithUnresolvedMerge();
+      try {
+        await expect(recoverFromUnresolvedMerge(dir)).resolves.toBe(true);
+        // MERGE_HEAD is gone.
+        expect(() =>
+          execSync('git rev-parse --verify -q MERGE_HEAD', { cwd: dir, stdio: 'pipe' }),
+        ).toThrow();
+        // The operation that failed before recovery now succeeds.
+        expect(() => execSync('git checkout -q main', { cwd: dir, stdio: 'pipe' })).not.toThrow();
+      } finally {
+        cleanupDir(dir);
+      }
+    },
+    GIT_TEST_TIMEOUT_MS,
+  );
 
-  test('未解決マージが無ければ何もせずfalseを返すこと', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'wt-guard-clean-'));
-    const run = (cmd: string) => execSync(cmd, { cwd: dir, stdio: 'pipe' });
-    try {
-      run('git init -q -b main');
-      run('git config user.email test@example.com');
-      run('git config user.name Test');
-      writeFileSync(join(dir, 'f.txt'), 'base\n');
-      run('git add -A');
-      run('git commit -q -m base');
-      await expect(recoverFromUnresolvedMerge(dir)).resolves.toBe(false);
-    } finally {
-      cleanupDir(dir);
-    }
-  });
+  test(
+    '未解決マージが無ければ何もせずfalseを返すこと',
+    async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'wt-guard-clean-'));
+      const run = (cmd: string) => execSync(cmd, { cwd: dir, stdio: 'pipe' });
+      try {
+        run('git init -q -b main');
+        run('git config user.email test@example.com');
+        run('git config user.name Test');
+        writeFileSync(join(dir, 'f.txt'), 'base\n');
+        run('git add -A');
+        run('git commit -q -m base');
+        await expect(recoverFromUnresolvedMerge(dir)).resolves.toBe(false);
+      } finally {
+        cleanupDir(dir);
+      }
+    },
+    GIT_TEST_TIMEOUT_MS,
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -357,29 +378,37 @@ function initRepoWithUnresolvedCherryPick(): string {
 }
 
 describe('recoverFromUnresolvedMerge — CHERRY_PICK_HEAD', () => {
-  test('バグ再現: 未解決cherry-pickが残る worktree では checkout が "resolve your current index first" で失敗すること', () => {
-    const dir = initRepoWithUnresolvedCherryPick();
-    try {
-      expect(() => execSync('git checkout -q main', { cwd: dir, stdio: 'pipe' })).toThrow(
-        /resolve your current index first/,
-      );
-    } finally {
-      cleanupDir(dir);
-    }
-  });
+  test(
+    'バグ再現: 未解決cherry-pickが残る worktree では checkout が "resolve your current index first" で失敗すること',
+    () => {
+      const dir = initRepoWithUnresolvedCherryPick();
+      try {
+        expect(() => execSync('git checkout -q main', { cwd: dir, stdio: 'pipe' })).toThrow(
+          /resolve your current index first/,
+        );
+      } finally {
+        cleanupDir(dir);
+      }
+    },
+    GIT_TEST_TIMEOUT_MS,
+  );
 
-  test('未解決cherry-pickを検知しabortして後続のcheckoutを回復させること', async () => {
-    const dir = initRepoWithUnresolvedCherryPick();
-    try {
-      await expect(recoverFromUnresolvedMerge(dir)).resolves.toBe(true);
-      // CHERRY_PICK_HEAD is gone.
-      expect(() =>
-        execSync('git rev-parse --verify -q CHERRY_PICK_HEAD', { cwd: dir, stdio: 'pipe' }),
-      ).toThrow();
-      // The operation that failed before recovery now succeeds.
-      expect(() => execSync('git checkout -q main', { cwd: dir, stdio: 'pipe' })).not.toThrow();
-    } finally {
-      cleanupDir(dir);
-    }
-  });
+  test(
+    '未解決cherry-pickを検知しabortして後続のcheckoutを回復させること',
+    async () => {
+      const dir = initRepoWithUnresolvedCherryPick();
+      try {
+        await expect(recoverFromUnresolvedMerge(dir)).resolves.toBe(true);
+        // CHERRY_PICK_HEAD is gone.
+        expect(() =>
+          execSync('git rev-parse --verify -q CHERRY_PICK_HEAD', { cwd: dir, stdio: 'pipe' }),
+        ).toThrow();
+        // The operation that failed before recovery now succeeds.
+        expect(() => execSync('git checkout -q main', { cwd: dir, stdio: 'pipe' })).not.toThrow();
+      } finally {
+        cleanupDir(dir);
+      }
+    },
+    GIT_TEST_TIMEOUT_MS,
+  );
 });

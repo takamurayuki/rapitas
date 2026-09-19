@@ -12,6 +12,16 @@ import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
+// Real Git subprocesses can exceed Bun's 5s default under Windows suite load.
+// Task 934 measurement (Windows, 4 logical CPUs, ~17 concurrent `bun test
+// --isolate` processes as contention): the "preferredBaseBranch overrides"
+// block's beforeEach failed at 13031ms (`git add` inside the hook errored
+// EBUSY-adjacent under load), and its 2nd test failed via
+// "beforeEach/afterEach hook timed out" at 5078ms (2026-09-13). Unloaded
+// single-run: whole file completes in 18.9-23.7s with 0 failures. All 12
+// tests pass at 30s under the same contention.
+const GIT_TEST_TIMEOUT_MS = 30_000;
+
 // ---------------------------------------------------------------------------
 // Logger 呼び出しキャプチャ用コンテナ — mock.module の factory がクロージャで参照する
 // ---------------------------------------------------------------------------
@@ -99,43 +109,55 @@ describe('getDiff — untracked files (real git repo)', () => {
     writeFileSync(join(repoDir, 'README.md'), 'initial\n');
     execSync('git add README.md', { cwd: repoDir });
     execSync('git commit -q -m "initial"', { cwd: repoDir });
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
   afterEach(() => {
     rmSync(repoDir, { recursive: true, force: true });
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
   // Regression (task 504): a genuinely new, substantial untracked file was
   // reported as additions=0/deletions=0 with an empty patch — indistinguishable
   // from a truly empty file — because `git diff <ref> -- <file>` yields nothing
   // for a file git has never tracked. The adversarial diff-review judge read
   // this as "the implementation is empty" and blocked a fully working PR.
-  test('reports real line counts and a synthetic patch for an untracked file, not 0/0/empty', async () => {
-    writeFileSync(join(repoDir, 'newfile.go'), 'package main\n\nfunc main() {}\n');
-    const result = await getDiff(repoDir);
-    const entry = result.find((f) => f.filename === 'newfile.go');
-    expect(entry).toBeDefined();
-    expect(entry?.status).toBe('added');
-    expect(entry?.additions).toBe(3);
-    expect(entry?.deletions).toBe(0);
-    expect(entry?.patch).toContain('+package main');
-    expect(entry?.patch).toContain('+func main() {}');
-    expect(entry?.patch).toContain('new file mode');
-  });
+  test(
+    'reports real line counts and a synthetic patch for an untracked file, not 0/0/empty',
+    async () => {
+      writeFileSync(join(repoDir, 'newfile.go'), 'package main\n\nfunc main() {}\n');
+      const result = await getDiff(repoDir);
+      const entry = result.find((f) => f.filename === 'newfile.go');
+      expect(entry).toBeDefined();
+      expect(entry?.status).toBe('added');
+      expect(entry?.additions).toBe(3);
+      expect(entry?.deletions).toBe(0);
+      expect(entry?.patch).toContain('+package main');
+      expect(entry?.patch).toContain('+func main() {}');
+      expect(entry?.patch).toContain('new file mode');
+    },
+    GIT_TEST_TIMEOUT_MS,
+  );
 
-  test('does not count a phantom extra line for a file with a trailing newline', async () => {
-    writeFileSync(join(repoDir, 'a.txt'), 'line1\nline2\n');
-    const result = await getDiff(repoDir);
-    const entry = result.find((f) => f.filename === 'a.txt');
-    expect(entry?.additions).toBe(2);
-  });
+  test(
+    'does not count a phantom extra line for a file with a trailing newline',
+    async () => {
+      writeFileSync(join(repoDir, 'a.txt'), 'line1\nline2\n');
+      const result = await getDiff(repoDir);
+      const entry = result.find((f) => f.filename === 'a.txt');
+      expect(entry?.additions).toBe(2);
+    },
+    GIT_TEST_TIMEOUT_MS,
+  );
 
-  test('counts the final line correctly when the file has no trailing newline', async () => {
-    writeFileSync(join(repoDir, 'b.txt'), 'line1\nline2');
-    const result = await getDiff(repoDir);
-    const entry = result.find((f) => f.filename === 'b.txt');
-    expect(entry?.additions).toBe(2);
-  });
+  test(
+    'counts the final line correctly when the file has no trailing newline',
+    async () => {
+      writeFileSync(join(repoDir, 'b.txt'), 'line1\nline2');
+      const result = await getDiff(repoDir);
+      const entry = result.find((f) => f.filename === 'b.txt');
+      expect(entry?.additions).toBe(2);
+    },
+    GIT_TEST_TIMEOUT_MS,
+  );
 });
 
 // Regression (task 506): a stale/divergent 'develop' branch made the
@@ -178,37 +200,49 @@ describe('getDiff — preferredBaseBranch overrides the develop/main/master gues
     writeFileSync(join(repoDir, 'task-change.txt'), 'the actual task change\n');
     run('git add task-change.txt');
     run('git commit -q -m "task change"');
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
   afterEach(() => {
     rmSync(repoDir, { recursive: true, force: true });
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
-  test('without preferredBaseBranch, the develop guess pulls in unrelated pre-existing commits', async () => {
-    const result = await getDiff(repoDir);
-    const filenames = result.map((f) => f.filename);
-    // The bug: merge-base against stale 'develop' lands at the root, so both
-    // "unrelated" commits (never touched by this task) leak into the diff.
-    expect(filenames).toContain('unrelated-feature-b.txt');
-    expect(filenames).toContain('unrelated-feature-c.txt');
-    expect(filenames).toContain('task-change.txt');
-  });
+  test(
+    'without preferredBaseBranch, the develop guess pulls in unrelated pre-existing commits',
+    async () => {
+      const result = await getDiff(repoDir);
+      const filenames = result.map((f) => f.filename);
+      // The bug: merge-base against stale 'develop' lands at the root, so both
+      // "unrelated" commits (never touched by this task) leak into the diff.
+      expect(filenames).toContain('unrelated-feature-b.txt');
+      expect(filenames).toContain('unrelated-feature-c.txt');
+      expect(filenames).toContain('task-change.txt');
+    },
+    GIT_TEST_TIMEOUT_MS,
+  );
 
-  test('with preferredBaseBranch="main-track", only the task\'s own change is in the diff', async () => {
-    const result = await getDiff(repoDir, undefined, 'main-track');
-    const filenames = result.map((f) => f.filename);
-    expect(filenames).toEqual(['task-change.txt']);
-    expect(filenames).not.toContain('unrelated-feature-b.txt');
-    expect(filenames).not.toContain('unrelated-feature-c.txt');
-  });
+  test(
+    'with preferredBaseBranch="main-track", only the task\'s own change is in the diff',
+    async () => {
+      const result = await getDiff(repoDir, undefined, 'main-track');
+      const filenames = result.map((f) => f.filename);
+      expect(filenames).toEqual(['task-change.txt']);
+      expect(filenames).not.toContain('unrelated-feature-b.txt');
+      expect(filenames).not.toContain('unrelated-feature-c.txt');
+    },
+    GIT_TEST_TIMEOUT_MS,
+  );
 
-  test('an unsafe/malformed preferredBaseBranch is ignored, falling back to the guess', async () => {
-    const result = await getDiff(repoDir, undefined, '; rm -rf /');
-    const filenames = result.map((f) => f.filename);
-    // Falls through to the develop guess (same as the no-preference case) —
-    // proves the malformed value never reached the shell-interpolated git call.
-    expect(filenames).toContain('unrelated-feature-b.txt');
-  });
+  test(
+    'an unsafe/malformed preferredBaseBranch is ignored, falling back to the guess',
+    async () => {
+      const result = await getDiff(repoDir, undefined, '; rm -rf /');
+      const filenames = result.map((f) => f.filename);
+      // Falls through to the develop guess (same as the no-preference case) —
+      // proves the malformed value never reached the shell-interpolated git call.
+      expect(filenames).toContain('unrelated-feature-b.txt');
+    },
+    GIT_TEST_TIMEOUT_MS,
+  );
 });
 
 // Regression (task 516): origin/<preferredBaseBranch> AHEAD of the bare local
@@ -256,24 +290,32 @@ describe('getDiff — origin AHEAD of local (task 516: previously-merged commits
     writeFileSync(join(repoDir, 'task-change.txt'), 'the actual task change\n');
     run('git add task-change.txt');
     run('git commit -q -m "task change"');
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
   afterEach(() => {
     rmSync(repoDir, { recursive: true, force: true });
-  });
+  }, GIT_TEST_TIMEOUT_MS);
 
-  test('resolves to the origin tip, excluding already-merged PRs from the diff', async () => {
-    const result = await getDiff(repoDir, undefined, 'develop');
-    const filenames = result.map((f) => f.filename);
-    expect(filenames).toEqual(['task-change.txt']);
-    expect(filenames).not.toContain('pr-323-backend.txt');
-    expect(filenames).not.toContain('pr-333-button.txt');
-  });
+  test(
+    'resolves to the origin tip, excluding already-merged PRs from the diff',
+    async () => {
+      const result = await getDiff(repoDir, undefined, 'develop');
+      const filenames = result.map((f) => f.filename);
+      expect(filenames).toEqual(['task-change.txt']);
+      expect(filenames).not.toContain('pr-323-backend.txt');
+      expect(filenames).not.toContain('pr-333-button.txt');
+    },
+    GIT_TEST_TIMEOUT_MS,
+  );
 
-  test('sanity: merge-base against origin/develop is indeed the origin tip', () => {
-    const base = run('git merge-base feature/task516 origin/develop');
-    expect(base).toBe(originTipSha);
-  });
+  test(
+    'sanity: merge-base against origin/develop is indeed the origin tip',
+    () => {
+      const base = run('git merge-base feature/task516 origin/develop');
+      expect(base).toBe(originTipSha);
+    },
+    GIT_TEST_TIMEOUT_MS,
+  );
 });
 
 // Regression (task 516, real staleness — not simulated via `update-ref`):
