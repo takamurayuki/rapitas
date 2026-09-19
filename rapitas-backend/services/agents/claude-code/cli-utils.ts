@@ -7,6 +7,7 @@
 
 import { spawn } from 'child_process';
 import { getClaudePathAsync } from '../../../utils/common/cli-path-resolver';
+import { escapeWindowsShellArg } from '../../../utils/common/windows-shell-escape';
 
 export {
   resolveCliPathAsync as resolveCliPath,
@@ -54,15 +55,8 @@ export function buildSpawnCommand(claudePath: string, args: string[]): [string, 
   if (isWindows) {
     // NOTE: On Windows, set UTF-8 code page with chcp 65001 before running claude.cmd.
     // All args are embedded in the command string so the shell interprets them correctly.
-    const argsString = args
-      .map((arg) => {
-        if (arg.includes(' ') || arg.includes('&') || arg.includes('|')) {
-          return `"${arg}"`;
-        }
-        return arg;
-      })
-      .join(' ');
-    const quotedPath = claudePath.includes(' ') ? `"${claudePath}"` : claudePath;
+    const argsString = args.map((arg) => escapeWindowsShellArg(arg, true)).join(' ');
+    const quotedPath = escapeWindowsShellArg(claudePath, false);
     return [`chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`, []];
   }
 

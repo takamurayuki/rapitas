@@ -171,6 +171,20 @@ export interface StagnationInput {
    * `null`/`undefined` leaves the task subject to detection (fail-open).
    */
   blockedEscalated?: boolean | null;
+  /**
+   * True when `taskStatus === 'blocked'` AND the task's theme is armed
+   * (`ThemeAutoRun.enabled === true && status === 'running'`) — the existing
+   * blocked-task pipeline (`workflow-reconciler-blocked.ts`'s
+   * `findBlockedCandidates`) already owns retry/escalation for exactly this
+   * condition (task 977), so re-flagging it here as stagnation would just
+   * duplicate a pipeline that is actively working the task. Must stay
+   * condition-for-condition identical to `findBlockedCandidates`' armed
+   * query — a drift silences detection for tasks the blocked pipeline does
+   * NOT actually manage (e.g. `themeId: null`, paused themes).
+   * `null`/`undefined` (unresolved) leaves the task subject to detection —
+   * mirrors the other optional gates' fail-open convention.
+   */
+  blockedRetryPipelineArmed?: boolean | null;
   nowMs: number;
   thresholdMs?: number;
 }
@@ -200,6 +214,9 @@ export function detectStagnation(input: StagnationInput): { staleMs: number } | 
   if (input.manuallyWithdrawn) return null;
   // Blocked and already escalated to a human by the dedicated pipeline (#978).
   if (input.blockedEscalated && input.taskStatus === 'blocked') return null;
+  // A blocked task in an armed theme is already owned by the blocked-task
+  // retry/escalation pipeline (task 977) — do not duplicate its detection.
+  if (input.taskStatus === 'blocked' && input.blockedRetryPipelineArmed) return null;
   // NOTE: null must count as not-started — `null !== 'draft'` alone would
   // misclassify a workflowStatus-less task as advanced.
   const isInFlight =

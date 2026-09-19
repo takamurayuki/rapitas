@@ -19,6 +19,7 @@
 import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'child_process';
+import { escapeWindowsShellArg } from '../common/windows-shell-escape';
 
 // ── child_process mock (see claude-cli-provider.test.ts for rationale) ─────
 
@@ -151,13 +152,30 @@ afterEach(() => {
 // correctly plumbs the resolved path into the spawn command on Windows.
 
 describe('buildSpawnCommand — Windows', () => {
+  // task 977: buildSpawnCommand now delegates to escapeWindowsShellArg
+  // (unconditional quoting + double caret-escaping for args) instead of the
+  // prior naive "quote if it contains a space/&/|" check — expected values
+  // are derived from the shared escaper itself so this test tracks the SUT's
+  // real contract rather than a hand-computed string.
   test('preserves an empty tool list and replaces the coding prompt for text calls', async () => {
     await withPlatform('win32', async () => {
       const pending = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
       await flush();
-      expect(fullCommand(0)).toContain('--tools ""');
-      expect(fullCommand(0)).toContain('--effort low');
-      expect(fullCommand(0)).toContain('--system-prompt "You are a text processing assistant.');
+      // Every arg (including flag names) passes through escapeWindowsShellArg
+      // now — unconditional quoting applies to `--tools` itself too, not just
+      // its value.
+      expect(fullCommand(0)).toContain(
+        `${escapeWindowsShellArg('--tools', true)} ${escapeWindowsShellArg('', true)}`,
+      );
+      expect(fullCommand(0)).toContain(
+        `${escapeWindowsShellArg('--effort', true)} ${escapeWindowsShellArg('low', true)}`,
+      );
+      expect(fullCommand(0)).toContain(
+        `${escapeWindowsShellArg('--system-prompt', true)} ${escapeWindowsShellArg(
+          'You are a text processing assistant. Follow the supplied instructions and return only the requested text. Do not use tools.',
+          true,
+        )}`,
+      );
       respondSuccess(spawnedChildren[0]);
       await pending;
     });
@@ -172,9 +190,10 @@ describe('buildSpawnCommand — Windows', () => {
       await p;
     });
 
-    expect(spawnCalls[0].command).toContain(
-      process.execPath.includes(' ') ? `"${process.execPath}"` : process.execPath,
-    );
+    // Command names are unconditionally quoted now (doubleEscapeMetaChars:
+    // false still quotes, it just skips the extra caret-escape pass) — no
+    // longer conditional on whether the path contains a space.
+    expect(spawnCalls[0].command).toContain(escapeWindowsShellArg(process.execPath, false));
     expect(mockGetClaudePathAsync).toHaveBeenCalled();
   });
 
@@ -386,19 +405,39 @@ describe('callClaudeCliStream — line buffering', () => {
 
 describe('callClaudeCliStream — request shape', () => {
   test('requests stream-json output, verbose mode, and the same tool restrictions', async () => {
-    const stream = await callClaudeCliStream(
-      'claude-3-5-sonnet-20241022',
-      [{ role: 'user', content: 'hi' }],
-      undefined,
-      100,
-    );
-    const child = spawnedChildren[0];
-    child.emit('close', 0);
-    await drainSSE(stream);
+    // task 977: buildSpawnCommand's escapeWindowsShellArg encoding only
+    // applies on the win32 branch — without forcing the platform here, this
+    // assertion is Windows-only in effect and fails on Linux CI
+    // (Test SQLite Compatible Suite runs on ubuntu-latest) because the
+    // non-Windows branch returns the plain, unescaped argv.
+    await withPlatform('win32', async () => {
+      const stream = await callClaudeCliStream(
+        'claude-3-5-sonnet-20241022',
+        [{ role: 'user', content: 'hi' }],
+        undefined,
+        100,
+      );
+      const child = spawnedChildren[0];
+      child.emit('close', 0);
+      await drainSSE(stream);
 
-    expect(fullCommand(0)).toContain('--verbose');
-    expect(fullCommand(0)).toContain('--output-format stream-json');
-    expect(fullCommand(0)).toContain('--model sonnet');
-    expect(fullCommand(0)).toContain('--disallowedTools Bash,Edit,Write');
+      // task 977: every arg (including commas inside comma-joined lists) now
+      // passes through escapeWindowsShellArg — build the expected substrings
+      // from the same escaper rather than the pre-escaping plain-string form.
+      expect(fullCommand(0)).toContain(escapeWindowsShellArg('--verbose', true));
+      expect(fullCommand(0)).toContain(
+        `${escapeWindowsShellArg('--output-format', true)} ${escapeWindowsShellArg('stream-json', true)}`,
+      );
+      expect(fullCommand(0)).toContain(
+        `${escapeWindowsShellArg('--model', true)} ${escapeWindowsShellArg('sonnet', true)}`,
+      );
+      expect(fullCommand(0)).toContain(escapeWindowsShellArg('--disallowedTools', true));
+      expect(fullCommand(0)).toContain(
+        escapeWindowsShellArg(
+          'Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit,TodoWrite,MultiEdit',
+          true,
+        ),
+      );
+    });
   });
 });

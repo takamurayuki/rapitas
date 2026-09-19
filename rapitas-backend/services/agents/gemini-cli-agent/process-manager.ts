@@ -13,6 +13,7 @@ import { buildSanitizedSpawnEnv } from '../../../utils/agent';
 import { registerProcess } from '../agent-process-tracker';
 import { startResourceSampling } from '../process-resource-sampler';
 import { resolveCliPathAsync } from '../../../utils/common/cli-path-resolver';
+import { escapeWindowsShellArg } from '../../../utils/common/windows-shell-escape';
 
 const logger = createLogger('gemini-cli-agent:process-manager');
 
@@ -142,6 +143,27 @@ export function buildProcessEnv(config: GeminiCliAgentConfig): NodeJS.ProcessEnv
 }
 
 /**
+ * Build the platform-specific spawn command/args for the Gemini CLI
+ * (UTF-8 code page + escaped args on Windows). Extracted as a pure function
+ * (task 977) so the Windows quoting/escaping contract — shared with the
+ * Claude CLI providers via {@link escapeWindowsShellArg} — is independently
+ * testable without spawning a real process.
+ *
+ * @param geminiPath - Resolved path to the Gemini CLI executable / 解決されたCLIパス
+ * @param args - CLI argument array (must NOT contain the prompt) / CLIに渡す引数
+ * @returns Tuple of [finalCommand, finalArgs] ready for spawn() / spawn()に渡す[最終コマンド, 最終引数]のタプル
+ */
+export function buildGeminiSpawnCommand(geminiPath: string, args: string[]): [string, string[]] {
+  if (process.platform !== 'win32') return [geminiPath, args];
+  // escapeWindowsShellArg('' , true) already produces a safely-quoted empty
+  // token (^^^"^^^"), so the old "quote empty strings explicitly" special
+  // case is no longer needed — unconditional quoting subsumes it.
+  const argsString = args.map((arg) => escapeWindowsShellArg(arg, true)).join(' ');
+  const quotedPath = escapeWindowsShellArg(geminiPath, false);
+  return [`chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`, []];
+}
+
+/**
  * Spawn the Gemini CLI process and pipe the prompt via stdin.
  *
  * The prompt is delivered through stdin rather than the `-p` flag because
@@ -164,32 +186,7 @@ export function spawnGeminiProcess(
   env: NodeJS.ProcessEnv,
   prompt: string,
 ): ChildProcess {
-  const isWindows = process.platform === 'win32';
-
-  let finalCommand: string;
-  let finalArgs: string[];
-
-  if (isWindows) {
-    const argsString = args
-      .map((arg) => {
-        // Quote empty strings explicitly — without "" the empty value
-        // collapses in cmd.exe and the next flag is consumed as the
-        // missing value (`-p` followed by `--output-format` would
-        // produce `Not enough arguments following: p`).
-        if (arg === '') return '""';
-        if (arg.includes(' ') || arg.includes('&') || arg.includes('|')) {
-          return `"${arg}"`;
-        }
-        return arg;
-      })
-      .join(' ');
-    const quotedPath = geminiPath.includes(' ') ? `"${geminiPath}"` : geminiPath;
-    finalCommand = `chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`;
-    finalArgs = [];
-  } else {
-    finalCommand = geminiPath;
-    finalArgs = args;
-  }
+  const [finalCommand, finalArgs] = buildGeminiSpawnCommand(geminiPath, args);
 
   logger.info(
     { promptChars: prompt.length },

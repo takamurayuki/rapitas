@@ -15,6 +15,7 @@ import { createLogger } from '../../config/logger';
 // can require "0 live aux CLI children" and post-crash cleanup can reap them.
 import { registerProcess, unregisterProcess } from '../../services/agents/agent-process-tracker';
 import { getClaudePathAsync } from '../common/cli-path-resolver';
+import { escapeWindowsShellArg } from '../common/windows-shell-escape';
 import { type AIMessage, type AIResponse } from './types';
 import { describeCliFailure, extractLastJsonObject } from './cli-failure-reason';
 import { auxCliCleanup } from './aux-cli-cleanup';
@@ -26,15 +27,16 @@ export { ClaudeCliUnavailableError } from './cli-errors';
 
 const log = createLogger('ai-client:claude-cli');
 
-/** Build the platform-specific spawn command/args (UTF-8 code page on Windows). */
-function buildSpawnCommand(claudePath: string, args: string[]): [string, string[]] {
+/**
+ * Build the platform-specific spawn command/args (UTF-8 code page on
+ * Windows). Exported (task 977) so claude-cli-provider.cmd-roundtrip.test.ts
+ * can drive it with a real cmd.exe round-trip, independent of the
+ * spawn-mocking used by this module's other tests.
+ */
+export function buildSpawnCommand(claudePath: string, args: string[]): [string, string[]] {
   if (process.platform !== 'win32') return [claudePath, args];
-  const argsString = args
-    .map((arg) =>
-      !arg || arg.includes(' ') || arg.includes('&') || arg.includes('|') ? `"${arg}"` : arg,
-    )
-    .join(' ');
-  const quotedPath = claudePath.includes(' ') ? `"${claudePath}"` : claudePath;
+  const argsString = args.map((arg) => escapeWindowsShellArg(arg, true)).join(' ');
+  const quotedPath = escapeWindowsShellArg(claudePath, false);
   return [`chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`, []];
 }
 

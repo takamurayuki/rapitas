@@ -34,6 +34,7 @@ import { inspectSupervisorSignatures } from './supervisor-incident-inspect';
 import { resolveMaxRepairs } from './verify-self-repair-budget';
 import { DEFAULT_MAX_CI_REPAIRS } from './blocked-task-policy';
 import {
+  resolveArmedThemeIds,
   resolveDisabledAutoRunThemeIds,
   resolveNonDevelopmentThemeIds,
   resolveWorkflowDisabledGlobally,
@@ -162,6 +163,8 @@ async function fileFinding(args: {
  *   pass by the caller (task #860). / ワークフロー全体無効化フラグ
  * @param repairBounceMinCount - Dynamic repeat-loop threshold for verify_repair/ci_repair
  *   (task 837, resolved once per pass by the caller — see runSelfIncidentWatch). / 修復バウンス系の動的しきい値
+ * @param armedThemeIds - Themes whose blocked-task retry/escalation pipeline is armed
+ *   (task 977, resolved once per pass by the caller). / blockedタスク自動再試行パイプラインが有効なテーマID集合
  */
 async function inspectTask(
   task: CandidateTask,
@@ -170,6 +173,7 @@ async function inspectTask(
   nonDevelopmentThemeIds: Set<number>,
   workflowDisabledGlobally: boolean,
   repairBounceMinCount: number,
+  armedThemeIds: Set<number>,
 ): Promise<number> {
   const state = await gatherTaskState(task, nowMs, REPEAT_LOOP_WINDOW_MS);
   let filed = 0;
@@ -192,6 +196,11 @@ async function inspectTask(
   const blockedEscalated =
     state.latestTransitionCause != null &&
     BLOCKED_ESCALATION_CAUSES.has(state.latestTransitionCause);
+  // Blocked + armed-theme tasks are already owned by the blocked-task
+  // retry/escalation pipeline (task 977) — undefined for non-blocked tasks
+  // per StagnationInput.blockedRetryPipelineArmed's fail-open convention.
+  const blockedRetryPipelineArmed =
+    task.status === 'blocked' ? task.themeId != null && armedThemeIds.has(task.themeId) : undefined;
   const stagnation = detectStagnation({
     taskStatus: task.status,
     workflowStatus: task.workflowStatus,
@@ -204,6 +213,7 @@ async function inspectTask(
     isWorkflowManaged,
     manuallyWithdrawn,
     blockedEscalated,
+    blockedRetryPipelineArmed,
     nowMs,
   });
   if (stagnation) {
@@ -428,11 +438,12 @@ export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<
   const candidateThemeIds = [
     ...new Set(candidates.map((t) => t.themeId).filter((id): id is number => id != null)),
   ];
-  const [disabledAutoRunThemeIds, nonDevelopmentThemeIds, workflowDisabledGlobally] =
+  const [disabledAutoRunThemeIds, nonDevelopmentThemeIds, workflowDisabledGlobally, armedThemeIds] =
     await Promise.all([
       resolveDisabledAutoRunThemeIds(candidateThemeIds),
       resolveNonDevelopmentThemeIds(candidateThemeIds),
       resolveWorkflowDisabledGlobally(),
+      resolveArmedThemeIds(candidateThemeIds),
     ]);
 
   // Resolved once per pass, not per task (task 837, generalizes task 835's
@@ -457,6 +468,7 @@ export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<
         nonDevelopmentThemeIds,
         workflowDisabledGlobally,
         repairBounceMinCount,
+        armedThemeIds,
       );
     } catch (err) {
       // One broken task must not starve the rest of the scan.
