@@ -50,6 +50,7 @@ const SUPPRESSED: [string, string][] = [
     '[Workflow] Automated verification failed — aborting auto-commit/PR',
   ],
   ['exec-log', '[ExecLog:#] Execution ended with status: failed'],
+  ['routes:agent-execution:continue-post', '[continue-execution] Failed for task #'],
   [
     'github-service:client',
     'gh command failed: gh pr create --title [Task-#] no commits between develop and bugfix/t#-x',
@@ -91,6 +92,7 @@ const KEPT: [string, string][] = [
   ['git-service', 'git command failed: git merge --abort'],
   ['claude-code', '[claude-code] Model rejected by CLI — likely a provider/agent mismatch'],
   ['workflow-runner', '[WorkflowRunner] Execution error for task #: Task # not found'],
+  ['routes:agent-execution:continue-post', '[continue-execution] Execution error for task #'],
   [
     'github-service:client',
     "gh command failed: gh pr create --title [Task-#] no commits between develop and bugfix/t#-x: base sha can't be blank",
@@ -129,6 +131,38 @@ describe('classifyLogSignature', () => {
     // be a real double-start, so the rule must not fire globally.
     expect(classifyLogSignature('workflow-runner', 'Already running').suppressed).toBe(true);
     expect(classifyLogSignature('payment-worker', 'Already running').suppressed).toBe(false);
+  });
+
+  test('"[continue-execution] Failed for task" is scoped to routes:agent-execution:continue-post only', () => {
+    // Task #944: the sibling handleContinueError message ("Execution error for
+    // task #") must not be caught by the same rule, and an unrelated logger
+    // reusing the phrase must still be filed.
+    expect(
+      classifyLogSignature(
+        'routes:agent-execution:continue-post',
+        '[continue-execution] Failed for task 905',
+      ).suppressed,
+    ).toBe(true);
+    expect(
+      classifyLogSignature('some-other-logger', '[continue-execution] Failed for task 905')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('errorMessage content never reaches the normalized "Failed for task" text', () => {
+    // continue-post-handler.ts:78-81 passes errorMessage as a structured field
+    // (log.error({ errorMessage }, message)), never interpolated into the
+    // message string, so varied error content (stack traces, punctuation)
+    // cannot break the suppression match.
+    const withVariedErrorContent = [
+      '[continue-execution] Failed for task 905',
+      '[continue-execution] Failed for task 12',
+    ];
+    for (const msg of withVariedErrorContent) {
+      expect(classifyLogSignature('routes:agent-execution:continue-post', msg).suppressed).toBe(
+        true,
+      );
+    }
   });
 
   test('"no commits between" is scoped to github-service:client only', () => {
