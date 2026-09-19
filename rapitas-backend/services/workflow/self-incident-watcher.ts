@@ -32,7 +32,7 @@ import { gatherTaskState, formatIncidentDetail } from './self-incident-evidence'
 import type { GatheredTaskState } from './self-incident-evidence';
 import { inspectSupervisorSignatures } from './supervisor-incident-inspect';
 import { resolveMaxRepairs } from './verify-self-repair-budget';
-import { DEFAULT_MAX_CI_REPAIRS } from './blocked-task-policy';
+import { DEFAULT_MAX_CI_REPAIRS, BLOCKED_REESCALATION_INTERVAL_MS } from './blocked-task-policy';
 import {
   resolveArmedThemeIds,
   resolveDisabledAutoRunThemeIds,
@@ -212,6 +212,8 @@ async function inspectTask(
     hasActiveQueueItem: state.hasActiveQueueItem,
     isWorkflowManaged,
     manuallyWithdrawn,
+    blockedEscalatedAtMs: state.latestBlockedEscalationAtMs,
+    blockedHoldMs: BLOCKED_REESCALATION_INTERVAL_MS,
     blockedEscalated,
     blockedRetryPipelineArmed,
     nowMs,
@@ -230,7 +232,9 @@ async function inspectTask(
         thresholdDescription:
           `停滞閾値 ${Math.round(STAGNATION_THRESHOLD_MS / 60_000)}分` +
           `（実行なし・キューなし・正当な待機状態でない非終端タスクが対象）`,
-        severity: 'medium',
+        // A task orphaned with no runner and no queue never advances on its own; the
+        // concern's contract (#979) is bug/high from the first detection, not only on recurrence.
+        severity: 'high',
         nowMs,
       })
     ) {
