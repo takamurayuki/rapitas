@@ -153,6 +153,13 @@ export interface StagnationInput {
    * mirrors the other optional gates' fail-open convention.
    */
   manuallyWithdrawn?: boolean | null;
+  /**
+   * True when a blocked task's most recent blocked_escalated/blocked_reescalated
+   * transition is still inside the re-notification window — a human was
+   * already told, so the blocked hold is deliberate, not abandoned (#980).
+   * `null`/`undefined` leaves the task subject to detection (fail-open).
+   */
+  blockedEscalationRecent?: boolean | null;
   nowMs: number;
   thresholdMs?: number;
 }
@@ -180,6 +187,9 @@ export function detectStagnation(input: StagnationInput): { staleMs: number } | 
   // operator has already decided not to resume this task; repeating the
   // same finding every watch pass forever is noise, not signal.
   if (input.manuallyWithdrawn) return null;
+  // NOTE: blocked tasks are re-notified every 4h but the stagnation threshold is 30min, so
+  // a notified blocked hold re-tripped detection 30min after every notice (#980).
+  if (input.taskStatus === 'blocked' && input.blockedEscalationRecent) return null;
   // NOTE: null must count as not-started — `null !== 'draft'` alone would
   // misclassify a workflowStatus-less task as advanced.
   const isInFlight =
