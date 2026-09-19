@@ -47,6 +47,11 @@ mock.module('../../../../services/workflow/verify-completion-inflight', () => ({
   hasVerifyCompletionInFlight: mockHasVerifyCompletionInFlight,
 }));
 
+const mockIsManualPlanApprovalHeld = mock(() => Promise.resolve(false)) as any;
+mock.module('../../../../services/workflow/plan-auto-approve', () => ({
+  isManualPlanApprovalHeld: mockIsManualPlanApprovalHeld,
+}));
+
 const { guardStatusTransition } = await import('./guards');
 
 function buildResolved(workflowStatus: string) {
@@ -58,6 +63,7 @@ describe('guardStatusTransition — verify_done 中の in-flight 再送分岐', 
     mockRecordTransition.mockClear();
     mockFindRecentCriticBounce.mockReset().mockResolvedValue(null);
     mockHasVerifyCompletionInFlight.mockReset().mockReturnValue(false);
+    mockIsManualPlanApprovalHeld.mockReset().mockResolvedValue(false);
   });
 
   test('verify_done かつ in-flight中の verify再送は202応答を返し invariantViolation を記録しないこと', async () => {
@@ -147,5 +153,70 @@ describe('guardStatusTransition — verify_done 中の in-flight 再送分岐', 
     await expect(
       guardStatusTransition(828, 'verify', buildResolved('verify_done')),
     ).rejects.toThrow();
+  });
+});
+
+describe('guardStatusTransition — plan_approved 中の plan.md 再送分岐 (task 958)', () => {
+  beforeEach(() => {
+    mockRecordTransition.mockClear();
+    mockFindRecentCriticBounce.mockReset().mockResolvedValue(null);
+    mockHasVerifyCompletionInFlight.mockReset().mockReturnValue(false);
+    mockIsManualPlanApprovalHeld.mockReset().mockResolvedValue(false);
+  });
+
+  test('plan_approved かつ却下保留中でない場合の plan.md 再送は202応答を返し invariantViolation を記録しないこと', async () => {
+    mockIsManualPlanApprovalHeld.mockResolvedValue(false);
+
+    const result = await guardStatusTransition(828, 'plan', buildResolved('plan_approved'));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.httpStatus).toBe(202);
+      expect(result.body.alreadyApproved).toBe(true);
+      expect(result.body.success).toBe(true);
+      expect(result.status).toBe('plan_approved');
+    }
+    expect(mockRecordTransition).toHaveBeenCalledTimes(1);
+    expect(mockRecordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: 'plan_resave_after_approval_ignored',
+        fromStatus: 'plan_approved',
+        toStatus: 'plan_approved',
+      }),
+    );
+    const recordedArgs = mockRecordTransition.mock.calls[0][0];
+    expect(recordedArgs.invariantViolation).toBeUndefined();
+  });
+
+  test('plan_approved だが手動却下保留中(isManualPlanApprovalHeld=true)の場合は従来通り ValidationError を投げ invariantViolation を記録すること', async () => {
+    mockIsManualPlanApprovalHeld.mockResolvedValue(true);
+
+    await expect(
+      guardStatusTransition(828, 'plan', buildResolved('plan_approved')),
+    ).rejects.toThrow();
+
+    expect(mockRecordTransition).toHaveBeenCalledTimes(1);
+    expect(mockRecordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: 'transition_rejected',
+        invariantViolation: true,
+      }),
+    );
+  });
+
+  test('fileType!=="plan" の場合は却下保留中でなくても従来通り ValidationError を投げること', async () => {
+    mockIsManualPlanApprovalHeld.mockResolvedValue(false);
+
+    await expect(
+      guardStatusTransition(828, 'research', buildResolved('plan_approved')),
+    ).rejects.toThrow();
+
+    expect(mockRecordTransition).toHaveBeenCalledTimes(1);
+    expect(mockRecordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: 'transition_rejected',
+        invariantViolation: true,
+      }),
+    );
   });
 });
