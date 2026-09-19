@@ -31,6 +31,7 @@ import {
   getAutoRunState,
   isPausedAutoRunStatus,
   PAUSED_AUTO_RUN_STATUSES,
+  setCurrentTask,
   type ThemeAutoRunState,
 } from './theme-auto-run-service';
 import {
@@ -323,6 +324,10 @@ export class ThemeAutoRunScheduler {
       `[ThemeAutoRunScheduler] Task ${currentTaskId} halted by iteration budget (${state.haltReason})`,
     );
     await stopThemeExecutionImpl(prisma, themeId, currentTaskId);
+    // Release the theme's current task: advanceTheme() re-runs this check on
+    // currentTaskId every tick, so leaving it set re-halted the same task every
+    // 12s and never reached selection (task 984/985, 2026-09-20).
+    await setCurrentTask(themeId, null);
     this.broadcastAutoRunUpdate(themeId);
     return true;
   }

@@ -36,6 +36,26 @@ const log = createLogger('task-iteration-budget');
 /** WorkflowTransition causes that reset the iteration window (fresh slate). */
 const WINDOW_RESET_CAUSES = ['task_retried', 'question_resolved', 'plan_invalid_replan'];
 
+/**
+ * Transition causes written by the STOP side (this budget's own halt, the
+ * hang backstop) rather than by the task's work. They are excluded from the
+ * repeat-loop and status-repeat inputs: a halt records a same-status
+ * transition every tick it fires, so counting it made the first halt prove
+ * its own "repeat cause" forever (task 984/985, 2026-09-20: 51 self-repeats).
+ */
+const HALT_SIDE_CAUSES = new Set(['iteration_budget_halted', 'auto_run_hang_backstop']);
+
+/**
+ * Whether a transition cause comes from the halting machinery itself and must
+ * not feed the iteration-budget signals.
+ *
+ * @param cause - WorkflowTransition.cause value. / 遷移の原因
+ * @returns True for halt/backstop causes. / 停止側の原因なら true
+ */
+export function isHaltSideTransitionCause(cause: string | null | undefined): boolean {
+  return cause != null && HALT_SIDE_CAUSES.has(cause);
+}
+
 /** Time budget after which a task halts with 'budget_time_exceeded' (default 24h). */
 export function iterationTimeBudgetMs(): number {
   const v = parseInt(process.env.RAPITAS_ITERATION_TIME_BUDGET_MS ?? '', 10);
@@ -233,8 +253,12 @@ export async function resolveIterationBudgetForTask(
       }),
     ]);
 
+    // Drop the stop side's own transitions before either signal below —
+    // otherwise each halt re-arms the next one (see HALT_SIDE_CAUSES).
+    const workTransitions = transitionsInWindow.filter((t) => !isHaltSideTransitionCause(t.cause));
+
     const repeatLoop = detectRepeatLoop({
-      transitions: transitionsInWindow.map((t) => ({
+      transitions: workTransitions.map((t) => ({
         cause: t.cause,
         createdAtMs: t.createdAt.getTime(),
         actor: t.actor,
@@ -248,7 +272,7 @@ export async function resolveIterationBudgetForTask(
     // Approximated as repeated occurrences of the CURRENT workflowStatus among
     // this window's transitions — a task genuinely progressing moves through
     // distinct toStatus values, not the same one over and over.
-    const statusRepeatCount = transitionsInWindow.filter(
+    const statusRepeatCount = workTransitions.filter(
       (t) => t.toStatus === task.workflowStatus,
     ).length;
 

@@ -5,7 +5,33 @@
  * 優先順位・除外ガード・forgiveness budget超過だが進展ありケースを検証する。
  */
 import { describe, test, expect } from 'bun:test';
-import { resolveIterationBudgetState, type IterationBudgetInput } from './task-iteration-budget';
+import {
+  isHaltSideTransitionCause,
+  resolveIterationBudgetState,
+  type IterationBudgetInput,
+} from './task-iteration-budget';
+
+describe('isHaltSideTransitionCause', () => {
+  test('この予算自身の halt と hang backstop の遷移は停止側として除外対象', () => {
+    // 2026-09-20 task 984/985: the halt wrote a same-status transition every
+    // tick, which then counted as the "repeated cause" for the next halt.
+    expect(isHaltSideTransitionCause('iteration_budget_halted')).toBe(true);
+    expect(isHaltSideTransitionCause('auto_run_hang_backstop')).toBe(true);
+  });
+
+  test('作業側の遷移(修復バウンス・保存・retry)は除外しない', () => {
+    for (const cause of [
+      'verify_repair',
+      'ci_repair',
+      'file_saved:verify',
+      'task_retried',
+      null,
+      undefined,
+    ]) {
+      expect(isHaltSideTransitionCause(cause)).toBe(false);
+    }
+  });
+});
 
 const BASE_NOW_MS = 1_700_000_000_000;
 
