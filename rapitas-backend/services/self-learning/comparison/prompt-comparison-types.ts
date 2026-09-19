@@ -58,6 +58,9 @@ export interface ComparisonSummary {
   uncertainty: 'low' | 'medium' | 'high';
 }
 
+/** Difficulty bands a staged addendum can be scoped to (see prompt-band-evidence.ts). */
+export const COMPLEXITY_BANDS = ['light', 'standard', 'comprehensive'] as const;
+
 /** Full persisted comparison record for one PromptEvolution candidate. */
 export interface ComparisonRecord {
   promptEvolutionId: number;

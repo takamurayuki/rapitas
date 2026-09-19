@@ -4,10 +4,11 @@
  * Validates task #970's受入基準: compares the SUCCESS RATE of the current
  * "apply the latest approved version to every task, regardless of difficulty
  * band" behavior against the band-aware recommendation
- * (recommendPromptVersion) on the SAME synthetic past-outcome fixture. Per
- * plan.md's 受入基準の比較対象, a passing backtest means either an improvement
- * over the naive baseline, or an honest insufficient_data — never a silent
- * "no data" masquerading as an improvement.
+ * (recommendPromptVersion) on the SAME past-outcome fixture. The REAL
+ * computeBandEvidence aggregation runs against an in-memory Prisma fake — only
+ * the DB layer is faked, so the windowing / banding / dedupe logic is under
+ * test. Per plan.md's 受入基準の比較対象, a passing backtest means either an
+ * improvement over the naive baseline, or an honest insufficient_data.
  * Own file — mock.module is process-global (separate from the regular unit tests).
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
@@ -24,138 +25,155 @@ interface EvoRow {
   evidenceJson: string | null;
   createdAt: Date;
 }
-
-let evoRows: EvoRow[] = [];
-const promptEvolutionFindMany = mock(() => Promise.resolve(evoRows));
-mock.module('../../../config/database', () => ({
-  ensureDatabaseConnection: async () => {},
-  prisma: { promptEvolution: { findMany: promptEvolutionFindMany } },
-}));
-
-interface BandEvidenceStub {
-  sampleSize: number;
-  verifyFailureRate: number;
-  avgIterationCount: number;
-  avgExecutionTimeMs: number;
-  avgInputTokens: number;
-  avgVerifyComplexity: number;
-  confidenceScore: number;
-  insufficientData: boolean;
+interface PastTask {
+  id: number;
+  complexityScore: number;
+  executedAt: Date;
+  /** Whether a verify/ci repair transition was recorded for this task. */
+  repaired: boolean;
 }
 
-/** versionId -> band evidence, for the ONLY band this backtest exercises ('standard'). */
-let evidenceByVersion = new Map<number, BandEvidenceStub>();
-const versionKeyToValidFrom = new Map<number, Date>();
+let evoRows: EvoRow[] = [];
+let pastTasks: PastTask[] = [];
 
-const computeBandEvidence = mock(
-  (_role: string, _model: string, _band: string, range: { validFrom: Date }) => {
-    for (const [versionId, evidence] of evidenceByVersion) {
-      if (versionKeyToValidFrom.get(versionId)?.getTime() === range.validFrom.getTime()) {
-        return Promise.resolve(evidence);
-      }
-    }
-    return Promise.resolve({
-      sampleSize: 0,
-      verifyFailureRate: 0,
-      avgIterationCount: 0,
-      avgExecutionTimeMs: 0,
-      avgInputTokens: 0,
-      avgVerifyComplexity: 0,
-      confidenceScore: 0,
-      insufficientData: true,
-    });
+type Window = { gte?: Date; lt?: Date } | undefined;
+const inWindow = (d: Date, w: Window) => (!w?.gte || d >= w.gte) && (!w?.lt || d < w.lt);
+
+mock.module('../../../config/database', () => ({
+  ensureDatabaseConnection: async () => {},
+  prisma: {
+    promptEvolution: { findMany: () => Promise.resolve(evoRows) },
+    agentExecution: {
+      findMany: (args: { where: { createdAt?: Window } }) =>
+        Promise.resolve(
+          pastTasks
+            .filter((t) => inWindow(t.executedAt, args.where.createdAt))
+            .map((t) => ({
+              executionTimeMs: 1000,
+              inputTokens: 100,
+              session: { config: { taskId: t.id } },
+            })),
+        ),
+    },
+    task: {
+      findMany: (args: { where: { id: { in: number[] } } }) =>
+        Promise.resolve(
+          pastTasks
+            .filter((t) => args.where.id.in.includes(t.id))
+            .map((t) => ({ id: t.id, complexityScore: t.complexityScore })),
+        ),
+    },
+    workflowTransition: {
+      findMany: (args: { where: { taskId: { in: number[] }; createdAt?: Window } }) =>
+        Promise.resolve(
+          pastTasks
+            .filter(
+              (t) =>
+                t.repaired &&
+                args.where.taskId.in.includes(t.id) &&
+                inWindow(t.executedAt, args.where.createdAt),
+            )
+            .map((t) => ({ taskId: t.id })),
+        ),
+    },
+    workflowFile: { findMany: () => Promise.resolve([]) },
   },
-);
-
-mock.module('./prompt-band-evidence', () => ({
-  computeBandEvidence,
-  resolveComplexityBand: (score: number) =>
-    score <= 35 ? 'light' : score <= 70 ? 'standard' : 'comprehensive',
-  BAND_EVIDENCE_MIN_SAMPLES: 8,
 }));
 
-const { resolvePromptVersionHistory, recommendPromptVersion } =
+const { recommendPromptVersion, resolvePromptVersionHistory } =
   await import('./prompt-version-history');
+const { _resetBandEvidenceCache } = await import('./prompt-band-evidence');
 
-function row(id: number, approvedAt: string, createdAt: string): EvoRow {
+const V1_START = '2026-01-01T00:00:00Z';
+const V2_START = '2026-02-01T00:00:00Z';
+const MODEL = 'claude-sonnet-5';
+
+function row(id: number, approvedAt: string): EvoRow {
   return {
     id,
     afterPrompt: `addendum-${id}`,
     evidenceJson: JSON.stringify({ approvedAt }),
-    createdAt: new Date(createdAt),
+    createdAt: new Date(approvedAt),
   };
 }
 
+let nextTaskId = 1;
+/** Adds `total` tasks in one (band, version) cell, the first `repaired` of which needed a repair. */
+function addCell(score: number, executedAt: string, total: number, repaired: number): PastTask[] {
+  const added = Array.from({ length: total }, (_, i) => ({
+    id: nextTaskId++,
+    complexityScore: score,
+    executedAt: new Date(executedAt),
+    repaired: i < repaired,
+  }));
+  pastTasks.push(...added);
+  return added;
+}
+
+const successRateOf = (tasks: PastTask[]): number =>
+  tasks.filter((t) => !t.repaired).length / tasks.length;
+
 beforeEach(() => {
   evoRows = [];
-  evidenceByVersion = new Map();
-  versionKeyToValidFrom.clear();
-  promptEvolutionFindMany.mockClear();
-  computeBandEvidence.mockClear();
+  pastTasks = [];
+  nextTaskId = 1;
+  _resetBandEvidenceCache();
 });
 
 describe('band-aware recommendation vs naive latest-version-for-everyone baseline', () => {
-  test('sufficient sample: recommended version success rate is >= the naive latest-version baseline', async () => {
-    // v1 (older) happens to work BETTER for the 'standard' band than v2 (latest) —
-    // the naive baseline ("always apply the latest approved version") always
-    // picks v2, while a band-aware recommendation should surface v1 instead.
-    evoRows = [
-      row(1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
-      row(2, '2026-02-01T00:00:00Z', '2026-02-01T00:00:00Z'),
-    ];
-    versionKeyToValidFrom.set(1, new Date('2026-01-01T00:00:00Z'));
-    versionKeyToValidFrom.set(2, new Date('2026-02-01T00:00:00Z'));
-    evidenceByVersion.set(1, {
-      sampleSize: 20,
-      verifyFailureRate: 0.1, // 90% success
-      avgIterationCount: 0.15,
-      avgExecutionTimeMs: 800,
-      avgInputTokens: 90,
-      avgVerifyComplexity: 2,
-      confidenceScore: 0.9,
-      insufficientData: false,
-    });
-    evidenceByVersion.set(2, {
-      sampleSize: 15,
-      verifyFailureRate: 0.4, // 60% success — the naive "latest" baseline
-      avgIterationCount: 0.9,
-      avgExecutionTimeMs: 1500,
-      avgInputTokens: 200,
-      avgVerifyComplexity: 5,
-      confidenceScore: 0.7,
-      insufficientData: false,
-    });
+  test('sufficient sample: recommended success rate beats the latest-version baseline in the band it matters', async () => {
+    evoRows = [row(1, V1_START), row(2, V2_START)];
+    // standard band: the older v1 works better (90%) than the latest v2 (60%).
+    addCell(50, '2026-01-10T00:00:00Z', 20, 2);
+    const v2Standard = addCell(50, '2026-02-10T00:00:00Z', 15, 6);
+    // light band: the latest v2 is better (100%) than v1 (50%).
+    addCell(10, '2026-01-10T00:00:00Z', 10, 5);
+    addCell(10, '2026-02-10T00:00:00Z', 10, 0);
 
     const history = await resolvePromptVersionHistory('implementer');
     const naiveLatest = history[history.length - 1];
-    const naiveLatestSuccessRate =
-      1 - (evidenceByVersion.get(naiveLatest.versionId)?.verifyFailureRate ?? 1);
+    expect(naiveLatest.versionId).toBe(2);
+    const naiveStandardRate = successRateOf(v2Standard);
 
-    const recommendation = await recommendPromptVersion('implementer', 'claude-sonnet-5', 50);
+    const standard = await recommendPromptVersion('implementer', MODEL, 50);
+    expect(standard.explorationMode).toBe(false);
+    expect(standard.recommendedVersionId).toBe(1);
+    expect(standard.successRate).toBeCloseTo(0.9, 5);
+    expect(standard.successRate as number).toBeGreaterThan(naiveStandardRate);
+    expect(standard.sampleSize).toBe(20);
 
-    expect(recommendation.explorationMode).toBe(false);
-    expect(recommendation.successRate).not.toBeNull();
-    expect(recommendation.successRate as number).toBeGreaterThanOrEqual(naiveLatestSuccessRate);
-    // Confirms the recommendation actually diverged from the naive baseline
-    // in this fixture — otherwise the >= assertion above would be vacuous.
-    expect(recommendation.recommendedVersionId).not.toBe(naiveLatest.versionId);
+    // The recommendation is genuinely band-aware: light picks the other version.
+    const light = await recommendPromptVersion('implementer', MODEL, 10);
+    expect(light.explorationMode).toBe(false);
+    expect(light.recommendedVersionId).toBe(2);
+    expect(light.successRate).toBeCloseTo(1, 5);
   });
 
-  test('insufficient sample: reports insufficient_data honestly instead of a fabricated improvement', async () => {
-    evoRows = [row(1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')];
-    versionKeyToValidFrom.set(1, new Date('2026-01-01T00:00:00Z'));
-    evidenceByVersion.set(1, {
-      sampleSize: 2,
-      verifyFailureRate: 0,
-      avgIterationCount: 0,
-      avgExecutionTimeMs: 500,
-      avgInputTokens: 50,
-      avgVerifyComplexity: 1,
-      confidenceScore: 0.1,
-      insufficientData: true,
-    });
+  test('every version cell only counts executions and repairs inside its own window', async () => {
+    evoRows = [row(1, V1_START), row(2, V2_START)];
+    addCell(50, '2026-01-10T00:00:00Z', 10, 10); // v1: every task repaired in January
+    addCell(50, '2026-02-10T00:00:00Z', 10, 0); // v2: none repaired
 
-    const recommendation = await recommendPromptVersion('implementer', 'claude-sonnet-5', 50);
+    const rec = await recommendPromptVersion('implementer', MODEL, 50);
+    expect(rec.recommendedVersionId).toBe(2);
+    expect(rec.successRate).toBeCloseTo(1, 5);
+  });
+
+  test('insufficient sample: reports exploration honestly instead of a fabricated improvement', async () => {
+    evoRows = [row(1, V1_START)];
+    addCell(50, '2026-01-10T00:00:00Z', 2, 0);
+
+    const recommendation = await recommendPromptVersion('implementer', MODEL, 50);
     expect(recommendation.explorationMode).toBe(true);
+    expect(recommendation.sampleSize).toBe(2);
+  });
+
+  test('tasks from another difficulty band never leak into the queried band', async () => {
+    evoRows = [row(1, V1_START)];
+    addCell(90, '2026-01-10T00:00:00Z', 20, 0); // comprehensive only
+
+    const rec = await recommendPromptVersion('implementer', MODEL, 50);
+    expect(rec.explorationMode).toBe(true);
+    expect(rec.sampleSize).toBe(0);
   });
 });

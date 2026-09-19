@@ -28,6 +28,8 @@ interface TaskRow {
 let executionRows: ExecutionRow[] = [];
 let taskRows: TaskRow[] = [];
 let transitionTaskIds: number[] = [];
+/** Transitions with an explicit timestamp, for window-boundary cases. */
+let datedTransitions: { taskId: number; createdAt: Date }[] = [];
 let planContentByTask = new Map<number, string>();
 let agentExecutionShouldThrow = false;
 
@@ -44,12 +46,24 @@ const agentExecutionFindMany = mock(() => {
 const taskFindMany = mock((args: { where: { id: { in: number[] } } }) =>
   Promise.resolve(taskRows.filter((t) => args.where.id.in.includes(t.id))),
 );
-const workflowTransitionFindMany = mock((args: { where: { taskId: { in: number[] } } }) =>
-  Promise.resolve(
-    transitionTaskIds
-      .filter((id) => args.where.taskId.in.includes(id))
-      .map((taskId) => ({ taskId })),
-  ),
+const workflowTransitionFindMany = mock(
+  (args: { where: { taskId: { in: number[] }; createdAt?: { gte?: Date; lt?: Date } } }) => {
+    const inWindow = (d: Date) =>
+      (!args.where.createdAt?.gte || d >= args.where.createdAt.gte) &&
+      (!args.where.createdAt?.lt || d < args.where.createdAt.lt);
+    const all = [
+      ...transitionTaskIds.map((taskId) => ({
+        taskId,
+        createdAt: new Date('2026-03-01T00:00:00Z'),
+      })),
+      ...datedTransitions,
+    ];
+    return Promise.resolve(
+      all
+        .filter((r) => args.where.taskId.in.includes(r.taskId) && inWindow(r.createdAt))
+        .map(({ taskId }) => ({ taskId })),
+    );
+  },
 );
 const workflowFileFindMany = mock((args: { where: { taskId: { in: number[] } } }) =>
   Promise.resolve(
@@ -83,6 +97,7 @@ beforeEach(() => {
   executionRows = [];
   taskRows = [];
   transitionTaskIds = [];
+  datedTransitions = [];
   planContentByTask = new Map();
   agentExecutionShouldThrow = false;
   agentExecutionFindMany.mockClear();
@@ -212,6 +227,50 @@ describe('computeBandEvidence', () => {
     const evidence = await computeBandEvidence('implementer', 'claude-sonnet-5', 'light', RANGE);
     expect(evidence.insufficientData).toBe(true);
     expect(evidence.sampleSize).toBe(0);
+  });
+
+  test('差し戻し遷移は版の有効期間内のものだけを数える(他の版の差し戻しを混ぜない)', async () => {
+    executionRows = Array.from({ length: BAND_EVIDENCE_MIN_SAMPLES }, (_, i) => ({
+      executionTimeMs: 1000,
+      inputTokens: 100,
+      taskId: i + 1,
+    }));
+    taskRows = executionRows.map((r) => ({ id: r.taskId as number, complexityScore: 10 }));
+    // task 1 の差し戻しが窓の前(旧版時代)と窓内に1件ずつ。窓内の1件だけが対象。
+    datedTransitions = [
+      { taskId: 1, createdAt: new Date('2025-12-01T00:00:00Z') },
+      { taskId: 1, createdAt: new Date('2026-02-01T00:00:00Z') },
+    ];
+
+    const evidence = await computeBandEvidence('implementer', 'claude-sonnet-5', 'light', RANGE);
+    expect(evidence.avgIterationCount).toBeCloseTo(1 / BAND_EVIDENCE_MIN_SAMPLES, 5);
+  });
+
+  test('TTLキャッシュ: 満了後の呼び出しは再集計する', async () => {
+    executionRows = Array.from({ length: BAND_EVIDENCE_MIN_SAMPLES }, (_, i) => ({
+      executionTimeMs: 1000,
+      inputTokens: 100,
+      taskId: i + 1,
+    }));
+    taskRows = executionRows.map((r) => ({ id: r.taskId as number, complexityScore: 10 }));
+
+    const realNow = Date.now;
+    try {
+      let now = realNow.call(Date);
+      Date.now = () => now;
+      await computeBandEvidence('implementer', 'claude-sonnet-5', 'light', RANGE);
+      const callsAfterFirst = agentExecutionFindMany.mock.calls.length;
+
+      now += 9 * 60 * 1000; // TTL(10分)内 → キャッシュヒット
+      await computeBandEvidence('implementer', 'claude-sonnet-5', 'light', RANGE);
+      expect(agentExecutionFindMany.mock.calls.length).toBe(callsAfterFirst);
+
+      now += 2 * 60 * 1000; // 合計11分 → 満了して再集計
+      await computeBandEvidence('implementer', 'claude-sonnet-5', 'light', RANGE);
+      expect(agentExecutionFindMany.mock.calls.length).toBe(callsAfterFirst + 1);
+    } finally {
+      Date.now = realNow;
+    }
   });
 
   test('TTLキャッシュ: 同一キーの2回目呼び出しはDBクエリを発行しない', async () => {

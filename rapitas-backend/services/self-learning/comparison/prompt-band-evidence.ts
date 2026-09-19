@@ -16,11 +16,12 @@ import {
   computeMedian,
   nearestRank,
 } from '../../workflow/learning/duration-prediction-service';
+import type { COMPLEXITY_BANDS } from './prompt-comparison-types';
 
 const log = createLogger('self-learning:prompt-band-evidence');
 
 /** Difficulty band derived from Task.complexityScore (0-100). */
-export type ComplexityBand = 'light' | 'standard' | 'comprehensive';
+export type ComplexityBand = (typeof COMPLEXITY_BANDS)[number];
 
 /**
  * Band boundaries (inclusive upper bounds). Deliberately identical to
@@ -185,7 +186,14 @@ async function computeBandEvidenceUncached(
 
   const troubleCauses = ROLE_TROUBLE_CAUSES[role] ?? ['verify_repair', 'ci_repair'];
   const troubleRows = await prisma.workflowTransition.findMany({
-    where: { taskId: { in: [...bandTaskIds] }, cause: { in: troubleCauses } },
+    // NOTE: windowed to the version's validity range like the executions above —
+    // a task spanning two versions must not charge the older version's repairs
+    // to this one.
+    where: {
+      taskId: { in: [...bandTaskIds] },
+      cause: { in: troubleCauses },
+      createdAt: { gte: range.validFrom, ...(range.validUntil ? { lt: range.validUntil } : {}) },
+    },
     select: { taskId: true },
   });
   const iterationCounts = new Map<number, number>();
