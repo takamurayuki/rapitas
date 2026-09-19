@@ -1,0 +1,25 @@
+import { expect, test } from 'bun:test';
+import { prepareAuxCli } from './aux-cli-launch';
+import { ClaudeCliUnavailableError } from './cli-errors';
+
+test('unsupported ownership observation cannot silently select uncontained spawning', async () => {
+  const original = Object.getOwnPropertyDescriptor(process, 'platform')!;
+  Object.defineProperty(process, 'platform', { ...original, value: 'darwin' });
+  try {
+    await expect(prepareAuxCli('fixture', '/tmp', {})).rejects.toThrow('unavailable on darwin');
+  } finally {
+    Object.defineProperty(process, 'platform', original);
+  }
+});
+
+test('unsupported platform rejection classifies as ClaudeCliUnavailableError (task #914)', async () => {
+  const original = Object.getOwnPropertyDescriptor(process, 'platform')!;
+  Object.defineProperty(process, 'platform', { ...original, value: 'darwin' });
+  try {
+    await expect(prepareAuxCli('fixture', '/tmp', {})).rejects.toBeInstanceOf(
+      ClaudeCliUnavailableError,
+    );
+  } finally {
+    Object.defineProperty(process, 'platform', original);
+  }
+});

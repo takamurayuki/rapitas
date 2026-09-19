@@ -11,6 +11,28 @@
  * 直接検証する。
  */
 import { describe, expect, test, mock } from 'bun:test';
+import type { CompletionReviewReceipt } from '../../../../services/workflow/requirement-replan-commit';
+const receipt: CompletionReviewReceipt = {
+  taskId: 653,
+  executionId: 1,
+  evaluatedUpdatedAt: new Date(),
+  review: {
+    snapshotDigest: 'test',
+    durationMs: 1,
+    tokensUsed: 1,
+    modelName: null,
+    verdict: { kind: 'no_mismatch', reason: 'test' },
+  },
+};
+const completeReview = mock(async (_db: unknown, _receipt: unknown, _completion: unknown) => ({
+  committed: true,
+  reason: 'verify_passed',
+}));
+const preflight = mock(async () => undefined);
+mock.module('../../../../services/workflow/requirement-replan-commit', () => ({
+  assertReviewedTaskCurrent: preflight,
+  completeReviewedTask: completeReview,
+}));
 
 mock.module('../../../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
@@ -32,8 +54,18 @@ mock.module('../../../../services/workflow/transition-recorder', () => ({
   recordTransition: mock(() => Promise.resolve()),
 }));
 mock.module('../../../../services/workflow/automation-policy', () => ({
-  resolveLandingMode: (policy: { autoMergePR?: boolean }) =>
-    policy.autoMergePR ? 'merge' : 'none',
+  resolveLandingMode: (policy: { autoCreatePR?: boolean; autoMergePR?: boolean }) =>
+    policy.autoMergePR ? 'merge' : policy.autoCreatePR ? 'pr' : 'none',
+}));
+// The real completion-gate.ts pulls in diff-structured.ts → ai-client/index.ts,
+// which imports createLogger from '../../config' — a module this file mocks
+// down to just { prisma }. Mock shouldDeferCompletionForCi directly (mirroring
+// its real logic under the default staged-completion-enabled state — the flag
+// itself is unit-tested directly in completion-gate.test.ts, not re-tested at
+// this pipeline-integration level) instead of loading that whole chain.
+mock.module('../../../../services/workflow/completion-gate', () => ({
+  shouldDeferCompletionForCi: (landingMode: string) =>
+    landingMode === 'merge' || landingMode === 'pr',
 }));
 const markLatestExecutionFailedMock = mock(() => Promise.resolve());
 mock.module('./shared', () => ({
@@ -80,43 +112,63 @@ mock.module('../../workflow-auto-commit', () => ({
 const { runVerifyCommitPrPipeline } = await import('./verify-commit-pr-pipeline');
 
 describe('requested merge is a completion requirement', () => {
-  test.each([undefined, 'false', 'true'])(
-    'keeps deferred merge pending with staged=%s',
-    async (flag) => {
-      const previous = process.env.RAPITAS_STAGED_COMPLETION;
-      if (flag === undefined) delete process.env.RAPITAS_STAGED_COMPLETION;
-      else process.env.RAPITAS_STAGED_COMPLETION = flag;
-      performAutoCommitAndPRMock.mockImplementationOnce(() =>
-        Promise.resolve({
-          requested: { autoCommit: true, autoCreatePR: true, autoMergePR: true },
-          autoCommitResult: { success: true, filesChanged: 0 },
-          autoPRResult: { success: true, prNumber: 623 },
-          autoMergeResult: { success: false, deferred: true },
-        }),
-      );
-      const before = sideEffectsCalls.length;
-      try {
-        const outcome = await runVerifyCommitPrPipeline({
-          taskId: 897,
-          savedContent: '# 検証結果',
-          preferredBaseBranchForVerify: null,
-        });
-        expect(outcome.taskMarkedDone).toBe(false);
-        expect(outcome.newStatus).toBe('verify_done');
-        expect(sideEffectsCalls.length).toBe(before);
-      } finally {
-        sideEffectsCalls.splice(before);
-        if (previous === undefined) delete process.env.RAPITAS_STAGED_COMPLETION;
-        else process.env.RAPITAS_STAGED_COMPLETION = previous;
-      }
-    },
-  );
+  test('keeps deferred merge pending', async () => {
+    performAutoCommitAndPRMock.mockImplementationOnce(() =>
+      Promise.resolve({
+        requested: { autoCommit: true, autoCreatePR: true, autoMergePR: true },
+        autoCommitResult: { success: true, filesChanged: 0 },
+        autoPRResult: { success: true, prNumber: 623 },
+        autoMergeResult: { success: false, deferred: true },
+      }),
+    );
+    const before = sideEffectsCalls.length;
+    const outcome = await runVerifyCommitPrPipeline({
+      taskId: 897,
+      completionReceipt: { ...receipt, taskId: 897 },
+      savedContent: '# 検証結果',
+      preferredBaseBranchForVerify: null,
+    });
+    expect(outcome.taskMarkedDone).toBe(false);
+    expect(outcome.newStatus).toBe('verify_done');
+    expect(sideEffectsCalls.length).toBe(before);
+    sideEffectsCalls.splice(before);
+  });
+});
+
+describe('task 950 — pr mode always waits for CI (no staged-completion flag)', () => {
+  test('pr mode (autoCreatePR only) holds at verify_done by default', async () => {
+    performAutoCommitAndPRMock.mockImplementationOnce(() =>
+      Promise.resolve({
+        requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+        autoCommitResult: { success: true, filesChanged: 2 },
+        autoPRResult: { success: true, prNumber: 703 },
+      }),
+    );
+    const before = sideEffectsCalls.length;
+    const outcome = await runVerifyCommitPrPipeline({
+      taskId: 904,
+      completionReceipt: { ...receipt, taskId: 904 },
+      savedContent: '# 検証結果',
+      preferredBaseBranchForVerify: null,
+    });
+    expect(outcome.taskMarkedDone).toBe(false);
+    expect(outcome.newStatus).toBe('verify_done');
+    expect(sideEffectsCalls.length).toBe(before);
+    sideEffectsCalls.splice(before);
+  });
 });
 
 describe('runVerifyCommitPrPipeline — リカバリ後の再試行を待つこと', () => {
   test('再試行(2回目の performAutoCommitAndPR)が解決するまでパイプラインが完了しないこと', async () => {
+    // This test asserts on the retry-completion mechanism, not on staged
+    // completion — pin the flag OFF so the taskMarkedDone/newStatus
+    // assertions below stay about that mechanism regardless of the flag's
+    // default (task 873/948 flipped the default to ON).
+    const previous = process.env.RAPITAS_STAGED_COMPLETION;
+    process.env.RAPITAS_STAGED_COMPLETION = 'false';
     let settled = false;
     const work = runVerifyCommitPrPipeline({
+      completionReceipt: receipt,
       taskId: 653,
       savedContent: '# 検証結果',
       preferredBaseBranchForVerify: null,
@@ -140,15 +192,42 @@ describe('runVerifyCommitPrPipeline — リカバリ後の再試行を待つこ�
     resolveRetry?.({
       autoCommitResult: { success: true, filesChanged: 3 },
       autoPRResult: { success: true, prNumber: 454 },
-      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+      // autoCreatePR:false → landingMode 'commit' (not 'pr'), so this test's
+      // completion timing is unaffected by task 950's pr-mode CI-wait change.
+      requested: { autoCommit: true, autoCreatePR: false, autoMergePR: false },
     });
 
     const outcome = await work;
     expect(settled).toBe(true);
     expect(outcome.taskMarkedDone).toBe(true);
-    expect(outcome.newStatus).toBe('verify_done');
+    expect(outcome.newStatus).toBe('completed');
     expect(sideEffectsCalls).toEqual([653]);
+    if (previous === undefined) delete process.env.RAPITAS_STAGED_COMPLETION;
+    else process.env.RAPITAS_STAGED_COMPLETION = previous;
   });
+});
+
+test('a stale review after PR work cannot trigger completion side effects', async () => {
+  performAutoCommitAndPRMock.mockImplementationOnce(() =>
+    Promise.resolve({
+      autoPRResult: { success: true, prNumber: 1 },
+      // autoCreatePR:false → landingMode 'none' (immediate finalize path),
+      // so this test still exercises finalize() rejecting on a stale review.
+      // (autoCreatePR:true would now defer to CI-wait and never call finalize.)
+      requested: { autoCommit: true, autoCreatePR: false, autoMergePR: false },
+    }),
+  );
+  completeReview.mockResolvedValueOnce({ committed: false, reason: 'stop_not_resumed' });
+  const before = sideEffectsCalls.length;
+  await expect(
+    runVerifyCommitPrPipeline({
+      taskId: 653,
+      savedContent: '# verify',
+      preferredBaseBranchForVerify: null,
+      completionReceipt: receipt,
+    }),
+  ).rejects.toThrow('Reviewed completion held');
+  expect(sideEffectsCalls.length).toBe(before);
 });
 
 describe('runVerifyCommitPrPipeline — PR未作成時の失敗メッセージ（task 793）', () => {
@@ -165,6 +244,7 @@ describe('runVerifyCommitPrPipeline — PR未作成時の失敗メッセージ�
 
     await runVerifyCommitPrPipeline({
       taskId: 793,
+      completionReceipt: { ...receipt, taskId: 793 },
       savedContent: '# 検証結果',
       preferredBaseBranchForVerify: null,
     });
@@ -174,4 +254,45 @@ describe('runVerifyCommitPrPipeline — PR未作成時の失敗メッセージ�
       expect.stringContaining('数分以内にPR再作成のみを行う軽量な自動リトライが1回行われます'),
     );
   });
+});
+
+test('a stopped preflight prevents any commit or PR attempt', async () => {
+  const before = performAutoCommitAndPRMock.mock.calls.length;
+  preflight.mockRejectedValueOnce(new Error('stop_not_resumed'));
+  await expect(
+    runVerifyCommitPrPipeline({
+      taskId: 653,
+      savedContent: 'PASS',
+      preferredBaseBranchForVerify: null,
+      completionReceipt: receipt,
+    }),
+  ).rejects.toThrow('stop_not_resumed');
+  expect(performAutoCommitAndPRMock.mock.calls.length).toBe(before);
+});
+
+test('unverifiable gate retains its original evidence without recovery or a stale second receipt check', async () => {
+  const checksBefore = preflight.mock.calls.length;
+  const completeBefore = completeReview.mock.calls.length;
+  const effectsBefore = sideEffectsCalls.length;
+  const callsBefore = performAutoCommitAndPRMock.mock.calls.length;
+  performAutoCommitAndPRMock.mockImplementationOnce(() =>
+    Promise.resolve({
+      verificationBlocked: true,
+      verificationUnverifiable: true,
+      error: 'runtime quarantined: exit-not-confirmed',
+    }),
+  );
+  const outcome = await runVerifyCommitPrPipeline({
+    taskId: 653,
+    completionReceipt: receipt,
+    savedContent: 'PASS',
+    preferredBaseBranchForVerify: null,
+  });
+  expect(outcome.taskMarkedDone).toBe(false);
+  expect(outcome.newStatus).toBe('verify_done');
+  expect(outcome.autoCommitPRResult.error).toBe('runtime quarantined: exit-not-confirmed');
+  expect(preflight.mock.calls.length).toBe(checksBefore + 1);
+  expect(performAutoCommitAndPRMock.mock.calls.length).toBe(callsBefore + 1);
+  expect(completeReview.mock.calls.length).toBe(completeBefore);
+  expect(sideEffectsCalls.length).toBe(effectsBefore);
 });

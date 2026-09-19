@@ -664,7 +664,16 @@
       "retryAriaLabel": "タスクを再実行",
       "protectedDeleteError": "保護されたタスクは削除できません",
       "elapsedTimeTooltip": "エージェントの実行開始からの経過時間",
-      "executingCannotSelect": "自動実行中のため一括ステータス変更の対象から除外されています"
+      "runningLabel": "実行中",
+      "waitingForInputLabel": "回答待ち",
+      "executingCannotSelect": "自動実行中のため一括ステータス変更の対象から除外されています",
+      "autoRunExcludeTitle": "自動実行の対象から外す",
+      "autoRunIncludeTitle": "自動実行の対象に戻す",
+      "autoRunExcludedToggleFailed": "自動実行設定の更新に失敗しました",
+      "autoRunNextUp": "次に着手",
+      "autoRunNextUpTooltip": "自動実行がこのタスクを選択済みですが、まだエージェントは起動していません。表示中の時間は最終更新からの経過時間です",
+      "autoRunQueued": "順番待ち",
+      "autoRunQueuedTooltip": "自動実行の対象ですが、他のタスクの処理中のため順番を待っています"
     },
     "suggestionCard": {
       "category": {
@@ -1815,7 +1824,8 @@
         "busy": "実行中",
         "shutting_down": "シャットダウン中",
         "interrupted": "中断あり",
-        "unhealthy": "異常"
+        "unhealthy": "異常",
+        "unknown": "確認不可"
       },
       "running": "実行中のexecution数",
       "active": "アクティブなexecution数",
@@ -1831,6 +1841,20 @@
       "hostCpuNote": "ホスト全体のCPU使用率です。特定テーマへの帰属は行いません。",
       "currentCpu": "現在のCPU使用率",
       "threshold": "しきい値",
+      "landingTitle": "完了タスクの着地分類",
+      "landingCount": "件数",
+      "landingClasses": {
+        "qualified": "計上（検証・受入条件・自動 merge 証跡あり）",
+        "landing_pending": "merge 完了待ち",
+        "policy_unreadable": "merge 証跡を確認できない",
+        "merge_not_requested": "merge 未要求（commit/PR 止まり）",
+        "criteria_missing": "事前受入条件なし",
+        "unverified_completion": "独立検証なしの完了",
+        "publish_after_stop": "停止後の公開",
+        "manual_merge": "手動 merge（介入）",
+        "landing_failed": "merge 失敗",
+        "subtask": "サブタスク（件数除外）"
+      },
       "effectiveMaxConcurrency": "実効並列度",
       "unsampled": "未計測",
       "empty": "見送り履歴はありません",
@@ -2227,6 +2251,59 @@
       "empty": "承認待ちの提案はありません。検出漏れが発生していない期間は、提案が無いのが正常です。",
       "loadFailed": "データの読み込みに失敗しました",
       "reviewFailed": "レビューの送信に失敗しました"
+    },
+    "supervision": {
+      "title": "監督受入状態",
+      "subtitle": "無介入の連続運用と知識再利用効果を証跡から判定します。観測できない期間は成功として扱いません。",
+      "met": "受入基準を達成",
+      "notMet": "未達",
+      "loadFailed": "監督受入状態を取得できませんでした。取得できない状態は未達として扱います。",
+      "reasonsTitle": "未達理由",
+      "noReasons": "未達理由はありません",
+      "denominatorsTitle": "実測分母",
+      "streakCount": "連続完了タスク数（無介入）",
+      "observedHours": "観測済みの無介入時間（時間）",
+      "observedGapMinutes": "観測欠落の合計（分・控除済み）",
+      "heartbeat": "監視ハートビート",
+      "heartbeatAge": "最終 {seconds} 秒前",
+      "heartbeatNone": "記録なし",
+      "snapshotAge": "判定スナップショット",
+      "snapshotAgeValue": "{minutes} 分前",
+      "snapshotNone": "未作成",
+      "blockingTasks": "未解決の失敗・中断タスク",
+      "none": "なし",
+      "knowledgeTitle": "知識再利用の比較評価",
+      "evalSetVersion": "評価セットバージョン",
+      "methodVersion": "比較方式バージョン",
+      "pairedN": "対照ペア数",
+      "missingRetainedN": "欠測・失敗を保持した件数",
+      "successWithKB": "成功率（知識あり）",
+      "successWithoutKB": "成功率（知識なし）",
+      "effect": "効果量 / 不確実性",
+      "threshold": "{value} / 必要 {required}",
+      "reasons": {
+        "streak_task_count_below_threshold": "無介入で完了したタスクが10件に届いていません",
+        "streak_duration_below_threshold": "観測済みの無介入時間が24時間に届いていません",
+        "recent_intervention": "直近に人/監督による介入（修正・承認代行・再試行代行）がありました",
+        "self_gate_mutation": "監督ゲート自体を変更するコミットがあり、連続記録がリセットされました",
+        "observation_gap_present": "観測欠落の期間があります",
+        "no_observation_evidence": "観測証跡（ハートビート等）がありません",
+        "snapshot_stale": "判定スナップショットが古いか存在しません",
+        "intervention_write_failed": "介入記録の書き込みに失敗し、未回収の記録があります",
+        "knowledge_reuse_evidence_insufficient": "知識再利用の比較証拠（同時対照・欠測保持）が不足しています",
+        "monitor_heartbeat_stale": "監視ハートビートが途絶えています",
+        "failure_or_interruption_in_streak": "失敗または中断したタスクがあり、連続記録がリセットされました",
+        "gate_mutation_unobservable": "ゲート変更コミットを確認できません（git 読み取り失敗）",
+        "observation_history_truncated": "観測履歴が上限で打ち切られ、欠落を確認しきれていません",
+        "landing_evidence_pending": "merge 完了待ちのタスクがある",
+        "landing_evidence_unobservable": "merge 証跡を確認できないタスクがある",
+        "merge_not_requested": "merge まで到達していない完了がある",
+        "acceptance_criteria_missing": "事前受入条件が未登録の完了がある",
+        "unverified_completion_detected": "独立検証を経ていない完了がある",
+        "publish_after_stop_detected": "停止後に公開された変更がある",
+        "subtask_not_counted": "サブタスクは件数に含めない",
+        "unresolved_high_severity_concern": "重要な未解決品質欠陥がある"
+      }
     }
   },
   "github": {
@@ -2755,7 +2832,10 @@
     "readyTimeoutMs": "起動待機タイムアウト (秒)",
     "checkPaths": "検証するパス",
     "addPath": "パスを追加",
-    "removePath": "このパスを削除"
+    "removePath": "このパスを削除",
+    "readySelector": "画面の準備完了を示す要素",
+    "readySelectorHelp": "すべての確認パスで、操作可能になってから表示される要素のセレクターを指定します。未設定の場合、画面の準備完了は未検証になります。",
+    "readinessTimeoutMs": "画面の準備を待つ時間（秒）"
   },
   "themes": {
     "title": "テーマ一覧",
@@ -3111,6 +3191,14 @@
     "open": "開く",
     "close": "閉じる",
     "markMemoDone": "完了にする",
+    "questionToast": {
+      "hint": "選択肢を押すと回答してワークフローを再開します",
+      "recommended": "推奨",
+      "answerInApp": "アプリで回答",
+      "moreQuestions": "質問が{count}件あります。アプリで回答してください。",
+      "answered": "回答を送信しました。ワークフローを再開します。",
+      "failed": "回答を送信できませんでした。アプリから回答してください。"
+    },
     "justNow": "たった今",
     "minutesAgo": "{count}分前",
     "hoursAgo": "{count}時間前",
@@ -3205,6 +3293,10 @@
       "auto_run_queue_starved": {
         "title": "自動実行: キューが消費されていません",
         "message": "実行中 0 件のままキュー待ちが約 {waitedMinutes} 分間消費されませんでした{taskRef}。ワークフローランナーを再起動して消費を再開させました。"
+      },
+      "auto_run_queue_stalled": {
+        "title": "自動実行: キューが消費されていません（要調査）",
+        "message": "実行中 0 件のままキュー待ちが約 {waitedMinutes} 分間消費されていません{taskRef}。ワークフローランナーは稼働中のため自動での再起動はできません — overlap-guard の保留超過など、原因調査が必要な可能性があります。"
       },
       "auto_run_zero_progress": {
         "title": "自動実行: 実行が進んでいません（空回りの疑い）",
@@ -5337,6 +5429,14 @@
         "miss_ledger": {
           "label": "検出漏れ学習",
           "desc": "品質ゲートを素通りして事後に判明した欠陥（CI差し戻し・完了後の懸念）を証拠つきで記録し、同型を次回検出するための兆候提案を生成します。提案は /agents/miss-signatures で承認/棄却します。"
+        },
+        "gate_precision": {
+          "label": "ゲート精度較正",
+          "desc": "検証差し戻しが繰り返された案件（同じ受入基準への2回以上の指摘）を、実装のやり直しだけで解決したか、人間/計画レベルの介入が必要だったかで判定・記録します。介入が必要だった割合が高い場合は、ゲートや受入基準の精度を疑う懸念を自動起票します。"
+        },
+        "knowledge_reuse": {
+          "label": "知識活用効果の測定",
+          "desc": "計画時に類似の解決済みタスク（ケース）が参照されたタスクと参照されなかったタスクの完了成功率を比較し、知識活用が実際に役立っているかを統計的に記録します。懸念の自動起票はしません。"
         }
       },
       "frequency": {
@@ -5693,15 +5793,7 @@
       "peakLabel": "ピーク:",
       "lowLabel": "低調:",
       "hourSuffix": "{hour}時",
-      "dayLabels": [
-        "日",
-        "月",
-        "火",
-        "水",
-        "木",
-        "金",
-        "土"
-      ],
+      "dayLabels": ["日", "月", "火", "水", "木", "金", "土"],
       "cellTitle": "{day} {hour}時: {count}件完了 (クリックで詳細)",
       "legendLow": "少",
       "legendHigh": "多",

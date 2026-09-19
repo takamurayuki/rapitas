@@ -9,6 +9,7 @@ import {
   parseQuestionOptionsBlock,
   isQuestionBlockEligibleForAutoAnswer,
   composeAutoAnswerText,
+  resolvePlanRevisionSelection,
 } from './question-options-parser';
 
 function block(json: unknown): string {
@@ -45,12 +46,14 @@ describe('parseQuestionOptionsBlock', () => {
           label: '速度を優先する',
           consequence: '実装は最小限にする',
           mutatesGate: false,
+          planRevision: false,
         },
         {
           key: 'B',
           label: '品質を優先する',
           consequence: 'テストを手厚くする',
           mutatesGate: false,
+          planRevision: false,
         },
       ],
       freeTextRequired: false,
@@ -76,6 +79,40 @@ describe('parseQuestionOptionsBlock', () => {
       }),
     );
     expect(parsed?.questions[0].options[0].mutatesGate).toBe(true);
+  });
+
+  it('parses planRevision on an option when present', () => {
+    const parsed = parseQuestionOptionsBlock(
+      block({
+        questions: [
+          {
+            id: 'Q1',
+            summary: '完了条件が達成不能',
+            options: [{ key: 'A', label: '計画を改訂する', planRevision: true }],
+            freeTextRequired: false,
+            recommended: 'A',
+            recommendedReason: '実装者の権限で達成不能な完了条件のため',
+          },
+        ],
+      }),
+    );
+    expect(parsed?.questions[0].options[0].planRevision).toBe(true);
+  });
+
+  it('defaults planRevision to false when absent (backward compat)', () => {
+    const parsed = parseQuestionOptionsBlock(
+      block({
+        questions: [
+          {
+            id: 'Q1',
+            summary: 'x',
+            options: [{ key: 'A', label: 'a' }],
+            freeTextRequired: false,
+          },
+        ],
+      }),
+    );
+    expect(parsed?.questions[0].options[0].planRevision).toBe(false);
   });
 
   it('returns null when freeTextRequired with no options', () => {
@@ -121,6 +158,23 @@ describe('parseQuestionOptionsBlock', () => {
     );
     expect(parsed?.questions[0].recommended).toBe('');
     expect(parsed?.questions[0].recommendedReason).toBe('');
+  });
+
+  it('parses a top-level explicit kind field when present', () => {
+    const parsed = parseQuestionOptionsBlock(
+      block({ kind: 'execution_continuation', ...ELIGIBLE_QUESTIONS }),
+    );
+    expect(parsed?.kind).toBe('execution_continuation');
+  });
+
+  it('leaves kind undefined when absent', () => {
+    const parsed = parseQuestionOptionsBlock(block(ELIGIBLE_QUESTIONS));
+    expect(parsed?.kind).toBeUndefined();
+  });
+
+  it('leaves kind undefined when the top-level kind is not a string', () => {
+    const parsed = parseQuestionOptionsBlock(block({ kind: 123, ...ELIGIBLE_QUESTIONS }));
+    expect(parsed?.kind).toBeUndefined();
   });
 });
 
@@ -226,6 +280,36 @@ describe('isQuestionBlockEligibleForAutoAnswer', () => {
       }),
     );
     expect(isQuestionBlockEligibleForAutoAnswer(parsed!).eligible).toBe(false);
+  });
+});
+
+describe('resolvePlanRevisionSelection', () => {
+  const options = [
+    { key: 'A', label: '実測を継続する', consequence: '', mutatesGate: false, planRevision: false },
+    {
+      key: 'B',
+      label: '計画を改訂する',
+      consequence: '完了条件を静的検証に変更',
+      mutatesGate: false,
+      planRevision: true,
+    },
+  ];
+
+  it('returns the option when selectedKey matches a planRevision:true option', () => {
+    expect(resolvePlanRevisionSelection(options, 'B')).toEqual(options[1]);
+  });
+
+  it('returns undefined when selectedKey matches an option without planRevision', () => {
+    expect(resolvePlanRevisionSelection(options, 'A')).toBeUndefined();
+  });
+
+  it('returns undefined when selectedKey matches no option', () => {
+    expect(resolvePlanRevisionSelection(options, 'Z')).toBeUndefined();
+  });
+
+  it('returns undefined when selectedKey is null/undefined', () => {
+    expect(resolvePlanRevisionSelection(options, null)).toBeUndefined();
+    expect(resolvePlanRevisionSelection(options, undefined)).toBeUndefined();
   });
 });
 

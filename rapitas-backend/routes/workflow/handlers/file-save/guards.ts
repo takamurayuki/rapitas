@@ -21,6 +21,7 @@ import { recordTransition } from '../../../../services/workflow/transition-recor
 import { normalizeWorkflowStatus } from '../../../../services/workflow/workflow-invariants';
 import { findRecentCriticBounce } from '../../../../services/workflow/phase-critic';
 import { hasVerifyCompletionInFlight } from '../../../../services/workflow/verify-completion-inflight';
+import { isManualPlanApprovalHeld } from '../../../../services/workflow/plan-auto-approve';
 import type { WorkflowStatus } from '../../../../services/workflow/workflow-types';
 import { HTTP_STATUS } from '../../../../utils/common/http-status';
 import { ALLOWED_FILE_TYPES_BY_STATUS } from './shared';
@@ -142,6 +143,47 @@ export async function guardStatusTransition(
     // recorded as invariantViolation — once per retry — even though nothing
     // is actually wrong. Only the agent's own in-flight automation can match
     // all three conditions below, so this cannot mask a real bad transition.
+    // plan.md re-sent after the plan was already approved (task 958):
+    // guardStatusTransition previously hard-rejected this unconditionally
+    // and recorded invariantViolation:true, which fed the repeat-loop
+    // detector's 60-minute/2-occurrence threshold even though the resend
+    // itself is harmless (the approved plan content is never overwritten
+    // here — see the note above the early return). Only ignore the resend
+    // while the approval is NOT held by a pending manual rejection; a
+    // rejection-bypass resend must remain detectable, so it falls through
+    // to the hard-reject path below unchanged.
+    if (
+      fileType === 'plan' &&
+      currentStatusForGuard === 'plan_approved' &&
+      !(await isManualPlanApprovalHeld(taskId))
+    ) {
+      log.info({ taskId }, '[Workflow] plan.md resave ignored — plan already approved');
+      await recordTransition({
+        taskId,
+        fromStatus: currentStatusForGuard,
+        toStatus: currentStatusForGuard,
+        actor: 'system',
+        cause: 'plan_resave_after_approval_ignored',
+        phase: 'plan',
+        metadata: {
+          attemptedFileType: fileType,
+          reason: 'plan already approved; resend ignored without content overwrite',
+        },
+      });
+      return {
+        ok: false,
+        status: currentStatusForGuard,
+        httpStatus: HTTP_STATUS.ACCEPTED,
+        body: {
+          success: true,
+          alreadyApproved: true,
+          workflowStatus: currentStatusForGuard,
+          message:
+            'plan.md は既に承認済みです。新しい内容は保存されていません。' +
+            '承認済みの内容を変更する場合は、人による再計画依頼（revise-plan）を利用してください。',
+        },
+      };
+    }
     if (
       fileType === 'verify' &&
       currentStatusForGuard === 'verify_done' &&

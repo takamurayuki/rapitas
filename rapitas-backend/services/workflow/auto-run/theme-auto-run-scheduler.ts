@@ -42,6 +42,8 @@ import {
 } from './auto-run-lifecycle';
 import { advanceActiveTask } from './auto-run-advance-active';
 import { selectAndEnqueueNextTask } from './auto-run-advance-select';
+import { resolveIterationBudgetForTask } from '../task-iteration-budget';
+import { recordTransition } from '../transition-recorder';
 
 const log = createLogger('theme-auto-run-scheduler');
 
@@ -63,14 +65,15 @@ export class ThemeAutoRunScheduler {
   }
 
   /** Start the scheduler (idempotent). */
-  start(): void {
+  start(processQueue = true): void {
     // CRITICAL: the WorkflowRunner is what actually DEQUEUES and executes queued
     // items (via advanceWorkflow → role agent). It is only auto-started by
     // AIOrchestra.enqueueTask — which this scheduler bypasses by enqueuing
     // through WorkflowQueueService directly. Without this, auto-run items sit at
     // 'queued' forever and never run (observed: tasks enqueued but no agent ran).
     // startProcessing() is idempotent, so calling it on every start() is safe.
-    WorkflowRunner.getInstance().startProcessing();
+    // Stop recovery needs the polling loop, never permission to dequeue work.
+    if (processQueue) WorkflowRunner.getInstance().startProcessing();
 
     // Capture the commit this backend booted on so the optional dry-restart only
     // fires once new commits actually land (avoids restarting on every dry tick).
@@ -98,8 +101,7 @@ export class ThemeAutoRunScheduler {
    * Recover on server restart:
    *  - Any ThemeAutoRun still in 'running'/'paused' OR idle-but-ARMED
    *    (enabled:true) should resume — start the scheduler so its tick drives them.
-   *  - 'stopping' records are cleaned up (the previous execution was killed by
-   *    the restart; treat as idle).
+   *  - 'stopping' records retry normal stop settlement before becoming idle.
    *
    * CRITICAL for the perpetual loop: an `all_done` theme parks at status:'idle'
    * with enabled:true (armed) waiting for processIdleThemes to auto-resume it when
@@ -110,21 +112,18 @@ export class ThemeAutoRunScheduler {
    * loop permanently dead. Resuming on enabled:true closes that self-defeating gap.
    */
   async recoverOnStartup(): Promise<void> {
-    // Clean up 'stopping' records left from a crash during stop
-    await prisma.themeAutoRun.updateMany({
-      where: { status: 'stopping' },
-      data: { status: 'idle', enabled: false, currentTaskId: null },
-    });
-
-    const running = await findByStatuses(['running', ...PAUSED_AUTO_RUN_STATUSES]);
+    // A restart does not prove task/session settlement succeeded. Retry the
+    // durable stop targets through the normal stopping handler before finalizing.
+    const pending = await findByStatuses(['stopping', 'running', ...PAUSED_AUTO_RUN_STATUSES]);
+    const running = pending.filter((state) => state.status !== 'stopping');
     const armed = await prisma.themeAutoRun
       .count({ where: { enabled: true, status: 'idle' } })
       .catch(() => 0);
-    if (running.length > 0 || armed > 0) {
+    if (pending.length > 0 || armed > 0) {
       log.info(
         `[ThemeAutoRunScheduler] Resuming after restart (running/paused=${running.length}, armed-idle=${armed})`,
       );
-      this.start();
+      this.start(running.length > 0 || armed > 0);
     }
   }
 
@@ -251,6 +250,7 @@ export class ThemeAutoRunScheduler {
     lastRunAt: string | null,
   ): Promise<void> {
     if (currentTaskId) {
+      if (await this.haltIfIterationBudgetExceeded(themeId, currentTaskId)) return;
       await advanceActiveTask(
         prisma,
         themeId,
@@ -264,6 +264,67 @@ export class ThemeAutoRunScheduler {
     }
 
     await selectAndEnqueueNextTask(prisma, themeId, order, globalActive, this.barrierHoldSince);
+  }
+
+  /**
+   * Evaluate the combined iteration budget (task 881) for the theme's current
+   * task before letting it advance further, and halt it when exceeded:
+   * records haltReason/haltedAt/resumeCondition on the task, stops the
+   * in-flight agent the same way a user stop does, and lets the theme's next
+   * tick pick a different task (auto-run-advance-select.ts skips haltReason
+   * tasks — see its skipIds construction).
+   *
+   * @param themeId - Theme currently running currentTaskId. / 実行中テーマID
+   * @param currentTaskId - The task being advanced this tick. / 現在のタスクID
+   * @returns true when the task was halted (caller must not advance it further this tick). / 停止した場合true
+   */
+  private async haltIfIterationBudgetExceeded(
+    themeId: number,
+    currentTaskId: number,
+  ): Promise<boolean> {
+    const state = await resolveIterationBudgetForTask(currentTaskId, { themeAutoRunEnabled: true });
+    if (!state.shouldHalt || !state.haltReason) return false;
+
+    const task = await prisma.task
+      .findUnique({ where: { id: currentTaskId }, select: { workflowStatus: true } })
+      .catch(() => null);
+    // Task.haltReason/haltedAt/resumeCondition were just added to
+    // prisma/schema/core.prisma — the generated client is pending regen until
+    // the next server restart (CLAUDE.md forbids running `prisma generate`
+    // manually). Narrow cast on the model only, same pending-column pattern as
+    // stale-recovery-helpers.ts / task-execution-lock.ts.
+    const taskModelWithHalt = prisma.task as unknown as {
+      update: (args: {
+        where: { id: number };
+        data: { haltReason: string; haltedAt: Date; resumeCondition: string | null };
+      }) => Promise<unknown>;
+    };
+    await taskModelWithHalt
+      .update({
+        where: { id: currentTaskId },
+        data: {
+          haltReason: state.haltReason,
+          haltedAt: new Date(),
+          resumeCondition: state.resumeCondition ? JSON.stringify(state.resumeCondition) : null,
+        },
+      })
+      .catch((err) => {
+        log.error({ err, taskId: currentTaskId }, '[ThemeAutoRunScheduler] Failed to record halt');
+      });
+    await recordTransition({
+      taskId: currentTaskId,
+      fromStatus: task?.workflowStatus ?? null,
+      toStatus: task?.workflowStatus ?? 'draft',
+      actor: 'system',
+      cause: 'iteration_budget_halted',
+      metadata: { reason: state.haltReason },
+    }).catch(() => {});
+    log.warn(
+      `[ThemeAutoRunScheduler] Task ${currentTaskId} halted by iteration budget (${state.haltReason})`,
+    );
+    await stopThemeExecutionImpl(prisma, themeId, currentTaskId);
+    this.broadcastAutoRunUpdate(themeId);
+    return true;
   }
 
   /**

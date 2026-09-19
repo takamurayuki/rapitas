@@ -23,14 +23,17 @@ mock.module('../../../config/logger', () => ({
 // ---- prisma mock ----
 const mockFindUnique = mock(() => Promise.resolve(null));
 const mockFindMany = mock(() => Promise.resolve([]));
-const mockUpdate = mock(() => Promise.resolve({}));
+const mockUpdate = mock((_args?: unknown) => Promise.resolve({}));
 const mockUpdateMany = mock(() => Promise.resolve({ count: 1 }));
 const mockFindFirst = mock(() => Promise.resolve(null));
 const mockCreate = mock(() => Promise.resolve({}));
 const mockWorkflowTransitionFindFirst = mock(() => Promise.resolve(null));
 const mockPrisma = {
   task: {
-    findUnique: mockFindUnique,
+    findUnique: (args: any) =>
+      args.select?.updatedAt && Object.keys(args.select).length === 1
+        ? Promise.resolve({ updatedAt: new Date(0) })
+        : mockFindUnique(args),
     findMany: mockFindMany,
     update: mockUpdate,
     updateMany: mockUpdateMany,
@@ -53,6 +56,35 @@ mock.module('../../../config', () => ({ prisma: mockPrisma }));
 mock.module('../../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
   prisma: mockPrisma,
+}));
+
+// Handler tests exercise downstream gates after a successful review. Atomic
+// receipt/version/stop checks are exercised against SQLite in replan-commit tests.
+mock.module('../../../services/workflow/requirement-replan-service', () => ({
+  attemptRequirementReplan: async (_db: unknown, taskId: number) => ({
+    committed: false,
+    reason: 'no_mismatch',
+    completionReceipt: { taskId },
+  }),
+}));
+mock.module('../../../services/workflow/requirement-replan-commit', () => ({
+  assertReviewedTaskCurrent: async () => {},
+  advanceReviewedVerify: async (_db: unknown, receipt: { taskId: number }) => {
+    await mockUpdate({ where: { id: receipt.taskId }, data: { workflowStatus: 'verify_done' } });
+    return receipt;
+  },
+  completeReviewedTask: async (_db: unknown, receipt: { taskId: number }) => {
+    await mockUpdate({
+      where: { id: receipt.taskId },
+      data: {
+        workflowStatus: 'completed',
+        status: 'done',
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+    return { committed: true, reason: 'completed' };
+  },
 }));
 
 // ---- resolveWorkflowDir / workflow-helpers mock ----
@@ -323,8 +355,10 @@ describe('handleSaveFile — dev-mode single-session verify from plan_approved',
     });
 
     // Accepted (not hard-rejected at the guard); verify passes and a PR was
-    // created → the task is marked completed.
-    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+    // created. task 948: staged completion defaults to ON, so a `pr`-mode
+    // task no longer completes at PR creation — it holds at verify_done
+    // until the PR's CI goes green.
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('verify_done');
   });
 
   test('still rejects verify.md save at plan_created (only plan/question allowed there)', async () => {
@@ -371,8 +405,10 @@ describe('handleSaveFile — 再実行の fast-forward（既存 research.md の�
     });
 
     // Rejected before the fix (draft only accepts research/question); now the
-    // existing research.md fast-forwards draft → research_done and the save runs.
-    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+    // existing research.md fast-forwards draft → research_done and the save
+    // runs. task 948: staged completion defaults to ON, so it holds at
+    // verify_done (CI-green pending) rather than completing at PR creation.
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('verify_done');
     // The fast-forward persisted research_done before the verify transition.
     const statuses = mockUpdate.mock.calls.map(
       (c) => (c[0] as { data?: { workflowStatus?: string } })?.data?.workflowStatus,
@@ -439,8 +475,8 @@ describe('handleSaveFile — 再実行の fast-forward（既存 research.md の�
 });
 
 // -------------------------------------------------------------------------
-describe('handleSaveFile — research が修正不要結論ならタスクを完了すること', () => {
-  test('「結論: 修正不要」付き research.md 保存で completed + done になること', async () => {
+describe('handleSaveFile — 修正不要の調査でも完了ゲートを省略しない', () => {
+  test('「結論: 修正不要」でも運用確認が残る場合は research_done に留まる', async () => {
     mockResolveWorkflowDir.mockResolvedValueOnce({
       task: { workflowStatus: 'draft', id: 1 },
       dir: '/fake/dir/1',
@@ -451,12 +487,11 @@ describe('handleSaveFile — research が修正不要結論ならタスクを完
 
     const result = await handleSaveFile({
       params: { taskId: '1', fileType: 'research' },
-      body: '# 調査結果\n\n## 結論: 修正不要\n既存実装で充足',
+      body: '# 調査結果\n\n## 結論: 修正不要\n既存実装で充足。バックエンド再起動と運用経路の確認は未実施。',
       set: makeSet(),
     });
 
-    // newStatus='completed' は research-no-change 完了経路でのみ設定される。
-    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('research_done');
   });
 
   test('修正不要結論が無い通常 research.md は research_done に進むこと', async () => {
@@ -614,7 +649,7 @@ describe('handleSaveFile — 完了は PR 作成成功を要件とすること',
     expect((result as { taskCompleted?: boolean }).taskCompleted).toBe(false);
   });
 
-  test('PR が作成成功なら completed', async () => {
+  test('PR が作成成功なら staged completion で verify_done 維持（CI green 待ち）', async () => {
     verifyAtInProgress();
     mockPerformAutoCommitAndPR.mockResolvedValueOnce({
       requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
@@ -628,7 +663,9 @@ describe('handleSaveFile — 完了は PR 作成成功を要件とすること',
       set: makeSet(),
     });
 
-    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+    // task 948: staged completion defaults to ON — `pr` mode holds at
+    // verify_done until CI goes green, instead of completing on PR creation.
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('verify_done');
   });
 
   test('PR が要求されていなければ（autoCreatePR=false）PR無しでも completed', async () => {
@@ -646,7 +683,7 @@ describe('handleSaveFile — 完了は PR 作成成功を要件とすること',
     expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
   });
 
-  test('未作成でも既存リンクPRがあれば completed', async () => {
+  test('未作成でも既存リンクPRがあれば staged completion で verify_done 維持', async () => {
     verifyAtInProgress();
     mockPerformAutoCommitAndPR.mockResolvedValueOnce({
       requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
@@ -661,7 +698,9 @@ describe('handleSaveFile — 完了は PR 作成成功を要件とすること',
       set: makeSet(),
     });
 
-    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+    // task 948: an existing linked PR satisfies the "PR required" gate, but
+    // staged completion still holds at verify_done pending CI green.
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('verify_done');
   });
 });
 
@@ -845,7 +884,7 @@ describe('handleSaveFile — validateVerify 失敗によるバウンスは冗長
     // Blocking side effects still happen...
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 1 },
+        where: { id: 1, updatedAt: new Date(0) },
         data: expect.objectContaining({ status: 'blocked' }),
       }),
     );
@@ -1034,7 +1073,7 @@ describe('handleSaveFile — adversarial review FAIL with repairs exhausted', ()
 
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 1 },
+        where: { id: 1, updatedAt: new Date(0) },
         data: expect.objectContaining({ status: 'blocked' }),
       }),
     );
@@ -1082,7 +1121,7 @@ describe('handleSaveFile — adversarial review FAIL with repairs exhausted', ()
 
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 1 },
+        where: { id: 1, updatedAt: new Date(0) },
         data: expect.objectContaining({ status: 'blocked' }),
       }),
     );
@@ -1154,8 +1193,11 @@ describe('handleSaveFile — 履歴汚染リカバリ（worktree再構築）', (
       worktreePath: '/fake/new-worktree',
     });
     // No implementer bounce, no rollback — the normal completion flow resumed.
+    // task 948: staged completion defaults to ON, so "normal completion flow"
+    // now means holding at verify_done pending CI green, not completing at
+    // PR creation.
     expect(mockAttemptVerifyRepair).not.toHaveBeenCalled();
-    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('verify_done');
   });
 
   test('レビュー不合格でリカバリ上限到達なら差し戻さず直接 blocked + 通知すること', async () => {
@@ -1226,7 +1268,10 @@ describe('handleSaveFile — 履歴汚染リカバリ（worktree再構築）', (
 
     expect(mockPerformAutoCommitAndPR).toHaveBeenCalledTimes(2);
     expect(mockAttemptVerifyRepair).not.toHaveBeenCalled();
-    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+    // task 948: staged completion defaults to ON — the recovered commit/PR
+    // retry succeeding holds at verify_done pending CI green, rather than
+    // completing immediately.
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('verify_done');
   });
 
   test('検証ゲート失敗でリカバリ上限到達なら差し戻さず blocked + 通知すること', async () => {

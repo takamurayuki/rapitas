@@ -11,6 +11,7 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { buildShutdownErrorMessage } from '../agents/orchestrator/shutdown-error';
 import { WORKER_SHUTDOWN_ERROR_MESSAGE } from '../../utils/common/shutdown-error';
+import { ExecutionCancelledError } from '../agents/execution-cancelled-error';
 
 // --- Mocks (must be declared before module imports) ---
 
@@ -345,6 +346,50 @@ describe('WorkflowRunner catch block — shutdown handling', () => {
         ((args[1] as Record<string, unknown>)['errorMessage'] as string).startsWith('Phase failed'),
     );
     expect(killCall).toBeDefined();
+  });
+
+  test('ExecutionCancelledError (lock ownership revoked) → WARN logged (not ERROR), updateStatus("queued") called, retryIfPossible NOT called', async () => {
+    // advanceWorkflow throws an ExecutionCancelledError (mirrors assertOwnership() in
+    // workflow-orchestrator.ts when a stop/reset revokes lock ownership mid-execution).
+    advanceWorkflowImpl = () =>
+      Promise.reject(
+        new ExecutionCancelledError(
+          'Workflow preparation cancelled: execution lock ownership was revoked',
+        ),
+      );
+
+    dequeueSequence = [QUEUE_ITEM, null]; // one item, then stop
+
+    const runner = WorkflowRunner.getInstance();
+    const done = waitForExecutionError();
+    runner.startProcessing(60_000); // long interval so only the immediate processQueue fires
+
+    await done;
+    await runner.stopProcessing();
+
+    // WARN must have been called (not ERROR)
+    const warnCalls = warnMock.mock.calls.map((c) => String(c[0]));
+    expect(warnCalls.some((m) => m.includes('cancelled — requeued'))).toBe(true);
+
+    const errorCalls = errorMock.mock.calls.map((c) =>
+      typeof c[0] === 'string' ? c[0] : JSON.stringify(c[0]),
+    );
+    // ERROR must NOT contain a runner execution-error line for the cancellation
+    expect(errorCalls.some((m) => m.includes('Execution error for task'))).toBe(false);
+
+    // updateStatus('queued') must have been called
+    const queuedCall = updateStatusMock.mock.calls.find(
+      (args) =>
+        args[1] === 'queued' &&
+        typeof args[2] === 'object' &&
+        args[2] !== null &&
+        'errorMessage' in (args[2] as Record<string, unknown>) &&
+        (args[2] as Record<string, unknown>)['errorMessage'] === 'Shutdown - returned to queue',
+    );
+    expect(queuedCall).toBeDefined();
+
+    // retryIfPossible must NOT have been called (retry budget not consumed on cancellation)
+    expect(retryIfPossibleMock.mock.calls.length).toBe(0);
   });
 
   test('Worker-layer shutdown error (WORKER_SHUTDOWN_ERROR_MESSAGE) → WARN logged, updateStatus("queued"), retryIfPossible NOT called', async () => {

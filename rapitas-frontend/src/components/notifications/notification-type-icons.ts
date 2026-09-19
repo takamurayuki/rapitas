@@ -64,6 +64,7 @@ const typeColors: Record<string, string> = {
   auto_run_all_blocked: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
   auto_run_stall_released: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400',
   auto_run_queue_starved: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
+  auto_run_queue_stalled: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
   auto_run_zero_progress: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
   auto_run_resource_hold:
     'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
@@ -121,6 +122,7 @@ const typeIconComponents: Record<string, LucideIcon> = {
   auto_run_all_blocked: OctagonAlert,
   auto_run_stall_released: Unlock,
   auto_run_queue_starved: Layers3,
+  auto_run_queue_stalled: Layers3,
   auto_run_zero_progress: CircleOff,
   auto_run_resource_hold: Thermometer,
   auto_run_all_done: CheckCircle2,

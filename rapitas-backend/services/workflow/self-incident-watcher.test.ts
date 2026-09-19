@@ -141,7 +141,7 @@ describe('runSelfIncidentWatch', () => {
     expect(input.source).toBe('self_incident_watch');
     expect(input.originTaskId).toBe(546);
     expect(input.type).toBe('bug');
-    expect(input.severity).toBe('medium');
+    expect(input.severity).toBe('high');
     // #801: recurrence aggregation opts in with the task-varying instance
     // value, keeping the signature itself (dedupKey, asserted above) stable.
     expect(input.recurrencePolicy).toEqual({
@@ -151,6 +151,48 @@ describe('runSelfIncidentWatch', () => {
     });
     expect(String(input.detail)).toContain('## 直近の遷移タイムライン(最大10件)');
     expect(String(input.detail)).toContain('## 検出条件');
+  });
+
+  // #979: task #970 (status=blocked, escalated to a human) was re-filed as a
+  // stagnation every pass while the escalation notice already covered it.
+  test('does NOT file stagnation for a blocked task escalated within the re-escalation interval', async () => {
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([stagnantTask(now, { id: 970, status: 'blocked' })]);
+    transitionFindManyMock.mockResolvedValue([
+      {
+        fromStatus: 'in_progress',
+        toStatus: 'in_progress',
+        actor: 'system',
+        cause: 'blocked_reescalated',
+        phase: null,
+        createdAt: new Date(now - 60 * 60 * 1000),
+      },
+    ]);
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(0);
+    expect(submitConcernMock).not.toHaveBeenCalled();
+  });
+
+  test('still files stagnation for a blocked task with no escalation, with session/execution ids in the body', async () => {
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([stagnantTask(now, { id: 970, status: 'blocked' })]);
+    sessionFindFirstMock.mockResolvedValue({
+      id: 4705,
+      status: 'failed',
+      updatedAt: new Date(now - 3 * 60 * 60 * 1000),
+      agentExecutions: [{ id: 4649, status: 'completed' }],
+    });
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(1);
+    const input = submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(input.originTaskId).toBe(970);
+    expect(input.severity).toBe('high');
+    expect(String(input.detail)).toContain('最新セッション: #4705 status=failed');
+    expect(String(input.detail)).toContain('最新実行: #4649 status=completed');
   });
 
   // #860: task #811 (themeId=28, isDevelopment=false) stayed stagnant for

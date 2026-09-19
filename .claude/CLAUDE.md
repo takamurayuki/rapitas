@@ -284,6 +284,31 @@ Only then begin implementation.
 
 #### Step 4 — Implementation (with safeguards)
 
+**TDD is required for every task**, except docs-only / config-only /
+dependency-bump-only changes (see `looksLikeTrivialTask` in
+`automated-verifier.ts`). Write the test FIRST, confirm it fails for the
+right reason (RED), then implement until it passes (GREEN) — a test added
+after the fact that would pass with or without your change does not satisfy
+this. Bug-fix tasks specifically must have their test reproduce the reported
+defect, not just cover the touched code path.
+
+This is enforced automatically by the verification gate, not just asked for
+in prose — do not treat it as optional:
+
+- **coverage** (hard gate): at least one changed file matches a test-file
+  pattern, whenever the task requires tests (`requiresTestsForTask`).
+- **red-state** (hard gate, `red-state-check.ts`): your changed test file(s),
+  run with their CURRENT content against the diff's BASE commit (before your
+  source changes) in a disposable worktree. If they still pass without your
+  fix, the gate fails — the test isn't proving new behavior, and self-repair
+  will bounce it back to you. (This check fails OPEN on any infrastructure
+  error — a transient git/worktree problem never blocks a legitimately good
+  change; only a confirmed "passed without the fix" is a real failure.)
+
+The implementer prompt already carries this protocol
+(`workflow-implementer-context.ts`'s `buildTddProtocolSection`) — follow the
+instructions it gives you rather than re-deriving this from scratch.
+
 **Stop and report immediately if any of the following occur:**
 
 - A **protected** file not listed in plan.md needs to be changed — `services/agents/verification/`, `services/workflow/{completion-gate,phase-output-validator,verify-self-repair,phase-critic}*`, `.github/workflows/`, `.husky/`, `scripts/{pre-commit-check,auto-fix-commit}*`. Touching these outside the plan is a HARD gate failure (anti-tampering tripwire).

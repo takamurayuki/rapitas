@@ -14,7 +14,9 @@
  * misses (no "設計判断の根拠" in plan.md) without rejecting cosmetic variation.
  */
 import { PLAN_FILES_SECTION_HEADINGS } from './plan-declared-files';
+import { findTestCountContradiction } from './verify-test-counts';
 import { hasNonpassingVerifyVerdict } from './nonpassing-verify-verdict';
+import { isPendingPublicationRow } from './pending-publication-row';
 
 export interface ValidationResult {
   ok: boolean;
@@ -197,6 +199,10 @@ export function validateVerify(content: string): ValidationResult {
   // Contradiction scanning runs on the stripped text so repair-feedback quotes
   // and ```text (deliberate-RED evidence) fences cannot fake a failure signal.
   const scanText = stripNonEvidenceRegions(content);
+  const countContradiction = findTestCountContradiction(scanText);
+  if (countContradiction) {
+    return { ok: false, missingSections: [], severity: 80, summary: countContradiction };
+  }
   const claimsAllPass =
     /全[テt]?\d*\s*テスト[^❌]{0,30}通過|all\s+tests?\s+pass|all\s+\d+\s+tests?\s+passed|✅\s*検証成功|✅\s*pass/i.test(
       scanText,
@@ -226,9 +232,6 @@ export function validateVerify(content: string): ValidationResult {
     // wrongly read as "2 failures" → false self-contradiction → blocked (task #304).
     /(?:❌|失敗|不合格|不適合|fail(?:ed|ure)?)\s*[:：]?\s*[×x]\s*[1-9]\d*/i,
   ];
-  const failureHits = failureSignals
-    .map((re) => scanText.match(re))
-    .filter((m): m is RegExpMatchArray => !!m);
   // A bare ❌ is too noisy to treat as a failure signal directly: a PASSING
   // verify.md routinely contains the PR-gate legend "全体判定が ❌ の場合のみ PR
   // を作成しないこと。本タスクは ✅ 合格。" (a CONDITIONAL), and the appended
@@ -257,17 +260,45 @@ export function validateVerify(content: string): ValidationResult {
   // records the escalation the instruction requires. Attribution alone is one
   // word an agent could reach for to dodge the gate; the paired escalation is
   // not, and the adversarial diff review still scores the diff independently.
+  // NOTE: allow a short gap (e.g. a quoted concern id: "懸念#10172として起票済み")
+  // between 懸念 and 起票/登録 — task 943 wrote it this way across 5 verify_repair
+  // rounds and the tight adjacency below never matched, so the escalation half
+  // of the exemption never armed.
   const documentsOutOfScopeEscalation =
-    /懸念(?:バックログ)?(?:に|へ)?\s*(?:起票|登録)|POST\s+\/concerns|concern[^\n]{0,20}\bfiled\b/i.test(
-      scanText,
-    );
+    /懸念[^\n]{0,20}(?:起票|登録)|POST\s+\/concerns|concern[^\n]{0,20}\bfiled\b/i.test(scanText);
   const attributesFailureOutOfScope = (line: string): boolean =>
     /(?:本タスク|当タスク|この(?:タスク|変更|差分))[^\n]{0,12}(?:とは)?\s*(?:無関係|関係(?:は)?な)|既存(?:の)?(?:失敗|不具合|バグ|エラー)|以前から(?:存在|あ)|スコープ外|範囲外|別タスク|pre[\s-]?existing|out[\s-]?of[\s-]?scope|unrelated/i.test(
       line,
     );
+  // A line quoting a PAST failure count purely to show it has since been fixed
+  // ("タスク本文の「948 passed/1 failed」から改善", "948/1失敗→949/0失敗に改善") is not a
+  // claim that the failure still exists — the opposite. Without this, the same
+  // "N failed" patterns below fire on the historical baseline an honest verifier
+  // quotes for context (task 943, verify_repair attempts 4 and 5).
+  const isHistoricalBaselineComparison = (line: string): boolean =>
+    /改善|→.*0\s*(?:failed|fail|件)/i.test(line);
+  // A numeric failure-count signal is exempt under the SAME two rules that
+  // already gate a bare ❌ mark below: honestly attributed-and-escalated
+  // out-of-scope failures, and a before/after count comparison. Without this,
+  // only the ❌-anchored scan got the exemption — a verifier that reports the
+  // identical honest disclosure as "テスト2件が失敗（懸念#…として起票済み）" prose
+  // instead of a ❌ row still tripped the gate (task 943, attempts 1 and 2).
+  const isExemptFailureLine = (line: string): boolean =>
+    (documentsOutOfScopeEscalation && attributesFailureOutOfScope(line)) ||
+    isHistoricalBaselineComparison(line);
+
+  const failureHits: string[] = [];
+  for (const line of scanText.split(/\r?\n/)) {
+    if (isExemptFailureLine(line)) continue;
+    for (const re of failureSignals) {
+      const m = line.match(re);
+      if (m) failureHits.push(m[0]);
+    }
+  }
 
   const crossMarkFailure = scanText.split(/\r?\n/).some((line) => {
     if (!line.includes('❌')) return false;
+    if (isPendingPublicationRow(line)) return false;
     if (/❌\s*(?:の)?\s*(?:場合|とき|時|なら|ならば|であれば|if\b)/i.test(line)) return false;
     if (/[(（]\s*❌\s*[)）]/.test(line)) return false;
     if (/✅|合格|通過|成功|pass/i.test(line)) return false;
@@ -314,7 +345,7 @@ export function validateVerify(content: string): ValidationResult {
     }
     return true;
   });
-  if (crossMarkFailure) failureHits.push(['❌'] as unknown as RegExpMatchArray);
+  if (crossMarkFailure) failureHits.push('❌');
 
   // "exit 1" / "exit code 1" counts as a failure ONLY when it reads like a
   // RUNNER's exit report — not when it is PROSE documenting a command's expected
@@ -339,13 +370,10 @@ export function validateVerify(content: string): ValidationResult {
     if (/^[ぁ-んァ-ヶ一-龥々]/.test(after)) return false; // "exit 1 を返す" prose
     return true;
   });
-  if (exitFailure) failureHits.push(['exit 1'] as unknown as RegExpMatchArray);
+  if (exitFailure) failureHits.push('exit 1');
 
   if (claimsAllPass && failureHits.length > 0) {
-    const evidence = failureHits
-      .map((m) => m[0])
-      .slice(0, 3)
-      .join(' | ');
+    const evidence = failureHits.slice(0, 3).join(' | ');
     return {
       ok: false,
       missingSections: [],

@@ -36,6 +36,11 @@ mock.module('../../services/workflow/transition-recorder', () => ({
   recordTransition: mockRecordTransition,
 }));
 
+const mockRecordReviewRetry = mock(() => Promise.resolve<'created' | 'duplicate'>('created'));
+mock.module('../../services/workflow/requirement-review-claim', () => ({
+  recordRequirementReviewRetryRequest: mockRecordReviewRetry,
+}));
+
 const { retryTask } = await import('./task-retry-handler');
 
 function resetMocks() {
@@ -45,6 +50,8 @@ function resetMocks() {
   mockNotificationUpdateMany.mockClear();
   mockResolveImplementEntryStatus.mockClear();
   mockRecordTransition.mockClear();
+  mockRecordReviewRetry.mockClear();
+  mockRecordReviewRetry.mockResolvedValue('created');
 }
 
 describe('retryTask', () => {
@@ -58,7 +65,7 @@ describe('retryTask', () => {
 
     expect(mockTaskUpdate).toHaveBeenCalledWith({
       where: { id: 1 },
-      data: { status: 'todo', workflowStatus: 'plan_approved' },
+      data: { status: 'todo', completedAt: null, workflowStatus: 'plan_approved' },
     });
     expect(mockRecordTransition).toHaveBeenCalledTimes(1);
     expect(mockRecordTransition.mock.calls[0][0]).toMatchObject({
@@ -84,7 +91,7 @@ describe('retryTask', () => {
 
       expect(mockTaskUpdate).toHaveBeenCalledWith({
         where: { id: 1 },
-        data: { status: 'todo' },
+        data: { status: 'todo', completedAt: null },
       });
       expect(mockResolveImplementEntryStatus).not.toHaveBeenCalled();
       expect(mockRecordTransition).toHaveBeenCalledTimes(1);
@@ -120,6 +127,14 @@ describe('retryTask', () => {
     expect(mockRecordTransition).not.toHaveBeenCalled();
   });
 
+  test('clears completedAt on retry', async () => {
+    mockTaskFindUnique.mockResolvedValueOnce({ status: 'blocked', workflowStatus: 'verify_done' });
+
+    await retryTask(1, () => {});
+
+    expect(mockTaskUpdate.mock.calls[0][0].data.completedAt).toBeNull();
+  });
+
   test('returns null and sets 404 when the task is absent', async () => {
     mockTaskFindUnique.mockResolvedValueOnce(null);
     const setStatus = mock((_code: number) => {});
@@ -128,6 +143,19 @@ describe('retryTask', () => {
 
     expect(result).toBeNull();
     expect(setStatus).toHaveBeenCalledWith(404);
+    expect(mockRecordTransition).not.toHaveBeenCalled();
+  });
+
+  test('records an explicit retry request before mutating the task', async () => {
+    await retryTask(1, () => {}, 'request-123');
+    expect(mockRecordReviewRetry).toHaveBeenCalledWith(expect.anything(), 1, 'request-123');
+    expect(mockTaskUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  test('a duplicate explicit retry request does not repeat lifecycle mutations', async () => {
+    mockRecordReviewRetry.mockResolvedValueOnce('duplicate');
+    await retryTask(1, () => {}, 'request-123');
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
     expect(mockRecordTransition).not.toHaveBeenCalled();
   });
 });

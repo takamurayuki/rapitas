@@ -19,6 +19,7 @@ import {
   EpisodePhase,
 } from '../../services/self-learning';
 import { createLogger } from '../../config/logger';
+import { COMPLEXITY_BANDS } from '../../services/self-learning/comparison/prompt-comparison-types';
 
 const log = createLogger('routes:learning');
 import { findSimilarEpisodes, getEpisodeStats } from '../../services/self-learning';
@@ -126,7 +127,7 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
 
   /**
    * Limit an approved candidate's application to a small set of task ids
-   * (段階採用). Requires a comparison record to already exist — staging is
+   * and/or difficulty bands (段階採用; both apply as AND). Requires a comparison record to already exist — staging is
    * part of the same human-approval flow that reviews the comparison result.
    */
   .post(
@@ -144,11 +145,35 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
         set.status = 404;
         return { error: 'comparison_not_run' };
       }
-      const taskIds = body.taskIds;
-      writeComparisonRecord({ ...record, stagedTaskIds: taskIds });
-      return { status: 'staged', taskIds };
+      const { taskIds, complexityBands } = body;
+      if (taskIds === undefined && complexityBands === undefined) {
+        set.status = 400;
+        return { error: 'taskIds or complexityBands is required' };
+      }
+      // NOTE: bands are validated here (not in the body schema) so a typo
+      // surfaces as a 400 instead of silently staging an addendum that no
+      // task can ever match.
+      if (complexityBands?.some((b) => !(COMPLEXITY_BANDS as readonly string[]).includes(b))) {
+        set.status = 400;
+        return { error: `complexityBands must be within: ${COMPLEXITY_BANDS.join(', ')}` };
+      }
+      writeComparisonRecord({
+        ...record,
+        stagedTaskIds: taskIds ?? record.stagedTaskIds,
+        stagedComplexityBands: complexityBands ?? record.stagedComplexityBands ?? null,
+      });
+      return {
+        status: 'staged',
+        taskIds: taskIds ?? record.stagedTaskIds,
+        ...(complexityBands !== undefined ? { complexityBands } : {}),
+      };
     },
-    { body: t.Object({ taskIds: t.Array(t.Number()) }) },
+    {
+      body: t.Object({
+        taskIds: t.Optional(t.Array(t.Number())),
+        complexityBands: t.Optional(t.Array(t.String())),
+      }),
+    },
   )
 
   /**

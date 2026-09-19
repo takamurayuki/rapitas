@@ -1,4 +1,5 @@
 // Setup global error handlers
+import { isApiRecoveryMode, apiRecoveryRequestGuard } from './services/system/api-recovery-mode';
 import { setupGlobalErrorHandlers, errorHandler } from './middleware';
 setupGlobalErrorHandlers();
 
@@ -11,7 +12,7 @@ import { createLogger } from './config/logger';
 const log = createLogger('server');
 
 import { ensureDesktopSqliteDatabase } from './config/desktop-sqlite';
-await ensureDesktopSqliteDatabase();
+if (!isApiRecoveryMode()) await ensureDesktopSqliteDatabase();
 
 // Validate environment variables at startup
 import { validateEnvironment } from './config/env-validation';
@@ -23,7 +24,7 @@ import { swagger } from '@elysiajs/swagger';
 
 // All modular routes are registered via registerAllRoutes() in register-routes.ts.
 import { registerAllRoutes } from './register-routes';
-import { getAgentSystemSnapshot } from './routes/agents/system/agent-system-router';
+import { handleTopLevelHealthCheck } from './routes/system/top-level-health-route';
 
 // Import shared database client
 import { prisma, ensureDatabaseConnection } from './config';
@@ -51,6 +52,7 @@ import {
 } from './services/scheduling/auto-restart-merged-code/ui-activity-tracker';
 
 const app = new Elysia();
+app.onRequest(apiRecoveryRequestGuard);
 
 // CSRF backstop: reject cross-site state-changing requests even in the default
 // tokenless loopback deployment (a browser tab on any site can POST to
@@ -168,43 +170,19 @@ registerAllRoutes(app);
 // getAgentSystemSnapshot()) plus process uptime, so operators/CI have one
 // fast, read-only endpoint instead of needing to know the `/agents` prefix.
 app.get('/health', async () => {
-  const startedAt = Date.now();
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    const snapshot = await getAgentSystemSnapshot();
-    return {
-      status:
-        snapshot.status === 'healthy' || snapshot.status === 'busy' ? 'healthy' : snapshot.status,
-      database: 'connected',
-      uptimeSeconds: Math.round(process.uptime()),
-      activeExecutions: snapshot.activeExecutions,
-      runningExecutions: snapshot.runningExecutions,
-      interruptedExecutions: snapshot.interruptedExecutions,
-      queueDepth: snapshot.queueDepth,
-      activePreviewCount: snapshot.activePreviewCount,
-      checkMs: Date.now() - startedAt,
-      timestamp: new Date().toISOString(),
-    };
-  } catch (error) {
-    return Response.json(
-      {
-        status: 'unhealthy',
-        database: 'disconnected',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString(),
-      },
-      { status: 503 },
-    );
-  }
+  if (!isApiRecoveryMode()) return handleTopLevelHealthCheck();
+  await prisma.$queryRaw`SELECT 1`;
+  return {
+    status: 'healthy',
+    mode: 'api-recovery',
+    backgroundInitialization: false,
+    uptimeSeconds: process.uptime(),
+  };
 });
 
-// Warm-up tasks (schedulers, memory system, agent worker manager, recovery)
-// are imported here but deliberately NOT invoked until AFTER app.listen() —
-// see runStartupWarmup() below. Previously they were all kicked off before
-// listen, which forced the single JS thread to run CPU-heavy init (model
-// loads, recovery scans, child-process spawns) before it could serve any
-// request. An already-open task-detail page then stalled long enough to hit
-// the frontend's 30s request timeout on every (re)start.
+// Warm-up tasks (schedulers, memory system, worker manager, recovery) are imported here but NOT
+// invoked until AFTER app.listen() — see runStartupWarmup(). Running CPU-heavy init (model loads,
+// recovery scans, child spawns) before listen stalled open pages past the 30s request timeout.
 import { BehaviorScheduler } from './src/services/behavior-scheduler';
 import { initializeMemorySystem, shutdownMemorySystem } from './services/memory';
 import { AIOrchestra } from './services/workflow/ai-orchestra';
@@ -213,6 +191,7 @@ import { backfillWorkflowFilesToDatabase } from './services/workflow/workflow-db
 import { migrateStudyGoals } from './services/learning/study-goal-migration';
 import { startBacklogScheduler } from './services/scheduling/backlog-scheduler';
 import { startEventLoopLagWatchdog } from './services/system/event-loop-lag-watchdog';
+import { startCpuUsageMonitorIfEnabled } from './services/system/cpu-usage-monitor';
 import { startBackupScheduler } from './services/system/backup-scheduler';
 import { startWorktreeCleanupScheduler } from './services/scheduling/worktree-cleanup-scheduler';
 import { startDecisionTraceConsistencyScheduler } from './services/scheduling/decision-trace-consistency-scheduler';
@@ -221,6 +200,8 @@ import { startMemoReminderScheduler } from './services/scheduling/memo-reminder-
 import { AutoMergeWatcher } from './services/workflow/auto-merge-watcher';
 import { startWorkflowReconciler } from './services/workflow/workflow-reconciler';
 import { startResourceTelemetryIfEnabled } from './services/system/resource-telemetry';
+import { startSupervisionHeartbeatScheduler } from './services/supervision';
+import { startI18nIntegrityScheduler } from './services/scheduling/i18n-integrity-scheduler';
 
 // Start server
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -242,6 +223,8 @@ app.listen({
   // zombie socket and tell the user to reboot instead of masking it as a hang.
 });
 log.info(`Rapitas backend running on http://${BIND_HOST}:${PORT}`);
+if (isApiRecoveryMode())
+  log.info({ port: app.server?.port, pid: process.pid }, 'api-recovery-listening');
 
 // Set server stop callback for proper port release during graceful shutdown.
 // NOTE: stop(true) force-closes ALL active connections, not just the listener.
@@ -284,6 +267,13 @@ const runStartupWarmup = async (): Promise<void> => {
   // before we start CPU-heavy init on the single JS thread.
   await new Promise((resolve) => setTimeout(resolve, 250));
 
+  await timed('runtime-server-registry-reconcile', async () => {
+    const { recoverRuntimeServerRegistry } =
+      await import('./services/agents/verification/runtime-smoke/worktree-server-registry');
+    await recoverRuntimeServerRegistry();
+  });
+  await yieldToLoop();
+
   await timed('behavior-scheduler', () => BehaviorScheduler.start());
   await yieldToLoop();
   await timed('memory-system', () => initializeMemorySystem());
@@ -311,12 +301,15 @@ const runStartupWarmup = async (): Promise<void> => {
   await timed('auto-merge-watcher', () => AutoMergeWatcher.getInstance().start());
   await timed('workflow-reconciler', () => startWorkflowReconciler());
   await timed('resource-telemetry', () => startResourceTelemetryIfEnabled());
+  startCpuUsageMonitorIfEnabled();
+  await timed('supervision-heartbeat-scheduler', () => startSupervisionHeartbeatScheduler());
+  await timed('i18n-integrity-scheduler', () => startI18nIntegrityScheduler());
 
   log.info('Startup warm-up complete');
 };
 
 // Fire-and-forget: never blocks the listener; each task self-reports timing.
-void runStartupWarmup();
+if (!isApiRecoveryMode()) void runStartupWarmup();
 
 // Signal handling from bun --watch (for dev:simple mode)
 // Close SSE connections immediately on SIGTERM/SIGINT to prevent CLOSE_WAIT accumulation
@@ -567,6 +560,7 @@ const startupRecovery = async () => {
   }
 };
 
-startupRecovery().catch((error) => {
-  log.error({ err: error }, 'Startup recovery failed');
-});
+if (!isApiRecoveryMode())
+  startupRecovery().catch((error) => {
+    log.error({ err: error }, 'Startup recovery failed');
+  });

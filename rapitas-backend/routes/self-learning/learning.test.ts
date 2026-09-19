@@ -38,6 +38,7 @@ function comparisonRecord(overrides: Partial<ComparisonRecord> = {}): Comparison
     summary: null,
     knowledgeSnapshotHash: null,
     stagedTaskIds: null,
+    stagedComplexityBands: null,
     ...overrides,
   };
 }
@@ -109,5 +110,48 @@ describe('POST /learning/prompt-evolution/:id/stage', () => {
     );
     const body = (await check.json()) as { comparison: ComparisonRecord | null };
     expect(body.comparison?.stagedTaskIds).toEqual([810, 812]);
+  });
+
+  it('persists stagedComplexityBands (task #970) without touching stagedTaskIds', async () => {
+    writeComparisonRecord(comparisonRecord({ promptEvolutionId: 43, stagedTaskIds: [5] }));
+    const res = await learningRoutes.handle(
+      new Request(`${BASE}/prompt-evolution/43/stage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ complexityBands: ['light', 'standard'] }),
+      }),
+    );
+    expect(res.status).toBe(200);
+
+    const check = await learningRoutes.handle(
+      new Request(`${BASE}/prompt-evolution/43/comparison`),
+    );
+    const body = (await check.json()) as { comparison: ComparisonRecord | null };
+    expect(body.comparison?.stagedComplexityBands).toEqual(['light', 'standard']);
+    expect(body.comparison?.stagedTaskIds).toEqual([5]);
+  });
+
+  it('400s on an unknown complexity band', async () => {
+    writeComparisonRecord(comparisonRecord({ promptEvolutionId: 44 }));
+    const res = await learningRoutes.handle(
+      new Request(`${BASE}/prompt-evolution/44/stage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ complexityBands: ['trivial'] }),
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('400s when neither taskIds nor complexityBands is given', async () => {
+    writeComparisonRecord(comparisonRecord({ promptEvolutionId: 45 }));
+    const res = await learningRoutes.handle(
+      new Request(`${BASE}/prompt-evolution/45/stage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(res.status).toBe(400);
   });
 });

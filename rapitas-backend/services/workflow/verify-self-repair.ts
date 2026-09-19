@@ -15,17 +15,22 @@
  * import.
  */
 import { prisma } from '../../config/database';
+import { commitVerifyRepair } from './verify-repair-commit';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
-import { VERIFY_NON_CONVERGENCE_CAUSE } from './blocked-task-policy';
+import {
+  VERIFY_NON_CONVERGENCE_CAUSE,
+  VERIFY_REPAIR_LIFETIME_CAUSE,
+  MAX_VERIFY_REPAIR_LIFETIME,
+} from './blocked-task-policy';
 import {
   REPAIR_CAUSE,
   resolveMaxRepairs,
   countPriorRepairs,
+  countLifetimeRepairs,
   detectRepairNonConvergence,
   resolveRepairWindowStart,
 } from './verify-self-repair-budget';
-import { writeRepairFeedback } from './verify-self-repair-feedback';
 import { ensureRunnerResumes, resolveRepairCaller } from './verify-self-repair-resume';
 import { attemptInvariantCutoff, INVARIANT_NON_CONVERGENCE_CAUSE } from './verify-invariant-repair';
 
@@ -77,9 +82,10 @@ export interface VerifyRepairResult {
 export async function resolveImplementEntryStatus(
   taskId: number,
 ): Promise<'plan_approved' | 'research_done'> {
-  const plan = await prisma.workflowFile
-    .findFirst({ where: { taskId, fileType: 'plan' }, select: { id: true } })
-    .catch(() => null);
+  const plan = await prisma.workflowFile.findFirst({
+    where: { taskId, fileType: 'plan' },
+    select: { id: true },
+  });
   return plan ? 'plan_approved' : 'research_done';
 }
 
@@ -113,6 +119,23 @@ export async function attemptVerifyRepair(
     return { bounced: false, stale: true };
   }
 
+  const evaluatedTask = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { status: true, workflowStatus: true, updatedAt: true },
+  });
+  if (
+    !evaluatedTask ||
+    evaluatedTask.status !== 'in-progress' ||
+    evaluatedTask.workflowStatus === 'completed' ||
+    (currentStatus === null && evaluatedTask.workflowStatus === 'verify_done') ||
+    (currentStatus !== null && evaluatedTask.workflowStatus !== currentStatus)
+  )
+    return { bounced: false, stale: true };
+  const evaluatedExecution = await prisma.agentExecution.findFirst({
+    where: { session: { config: { taskId } } },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { id: true },
+  });
   const caller = resolveRepairCaller();
   const prior = await countPriorRepairs(taskId);
   if (prior >= max) {
@@ -205,80 +228,82 @@ export async function attemptVerifyRepair(
     );
     return { bounced: false, cutoffRecorded: true };
   }
+
+  // Lifetime cap (task 946): the windowed budget above resets on
+  // question_resolved/task_retried/acceptance_criteria_changed/
+  // plan_invalid_replan, so several resets can let repairs accumulate past
+  // any single window's limit without ever tripping it (task 907: 18 bounces
+  // across 3 windows of 7/3/8). This is a safety net independent of the
+  // window boundary.
+  const lifetimeCount = await countLifetimeRepairs(taskId);
+  if (lifetimeCount >= MAX_VERIFY_REPAIR_LIFETIME) {
+    const detail = `累計${lifetimeCount}回の修復差し戻しが上限（${MAX_VERIFY_REPAIR_LIFETIME}）を超えました。窓リセットにより個々の予算は消費されていませんが、タスク全体としては収束していません。`;
+    const taskRow = await prisma.task
+      .findUnique({ where: { id: taskId }, select: { title: true, themeId: true } })
+      .catch(() => null);
+    try {
+      const { escalateBlockedTask } = await import('./blocked-task-escalation');
+      await escalateBlockedTask(
+        prisma,
+        { id: taskId, title: taskRow?.title ?? `#${taskId}`, themeId: taskRow?.themeId ?? null },
+        'verify_no_convergence',
+        Date.now(),
+        detail,
+        currentStatus ?? null,
+      );
+    } catch (err) {
+      log.warn({ err, taskId }, '[verify-repair] Lifetime-cap escalation failed');
+    }
+    await recordTransition({
+      taskId,
+      fromStatus: currentStatus ?? null,
+      toStatus: currentStatus ?? 'blocked',
+      actor: 'system',
+      cause: VERIFY_REPAIR_LIFETIME_CAUSE,
+      phase: 'verify',
+      metadata: { lifetimeCount, max: MAX_VERIFY_REPAIR_LIFETIME, reason },
+    }).catch((err) =>
+      log.warn({ err, taskId }, '[verify-repair] Failed to record lifetime-cap transition'),
+    );
+    log.warn(
+      { taskId, lifetimeCount, max: MAX_VERIFY_REPAIR_LIFETIME },
+      '[verify-repair] Lifetime repair cap exceeded — cutting off (caller should block)',
+    );
+    return { bounced: false, cutoffRecorded: true };
+  }
+
   // Task 755: recurring checkWorkflowInvariants violations (task #572) — see verify-invariant-repair.ts.
   const invariantWindow = await resolveRepairWindowStart(taskId);
   if (await attemptInvariantCutoff(taskId, currentStatus, reason, invariantWindow))
     return { bounced: false, cutoffRecorded: true };
 
-  // Double-check (task 749): re-query right before the commit sequence — closes
-  // the TOCTOU window where a concurrent attemptVerifyRepair() call recorded its
-  // own verify_repair transition in between (task#603/#710 saw 3-4 bounces despite max=2).
-  const recheckPrior = await countPriorRepairs(taskId);
-  log.info(
-    { taskId, caller, prior, recheckPrior, max },
-    '[verify-repair] Repair-budget telemetry before commit',
-  );
-  if (recheckPrior >= max) {
-    log.warn(
-      { taskId, caller, prior, recheckPrior, max },
-      '[verify-repair] Recheck found the budget exhausted since the initial read — blocking (TOCTOU guard)',
-    );
-    return { bounced: false };
-  }
-
-  const attempt = recheckPrior + 1;
-  const newStatus = await resolveImplementEntryStatus(taskId);
-
-  // Compare-and-swap: only roll back if STILL at the status this repair
-  // evaluated — a stale verdict landing after a legitimate completion would
-  // otherwise un-complete it (task 551, same guard family as task-494's CAS).
-  // With no snapshot (currentStatus null), refuse to stomp terminal states.
-  const rolled = await prisma.task
-    .updateMany({
-      where: {
-        id: taskId,
-        workflowStatus: currentStatus ?? { notIn: ['completed', 'verify_done'] },
-      },
-      data: { status: 'in-progress', workflowStatus: newStatus, updatedAt: new Date() },
-    })
-    .catch((err) => {
-      log.warn({ err, taskId }, '[verify-repair] Failed to reset task to in-progress');
-      return null;
-    });
-  if (!rolled || rolled.count === 0) {
-    log.warn(
-      { taskId, evaluatedStatus: currentStatus },
-      '[verify-repair] Verdict arrived after the workflow moved on — skipping stale bounce',
-    );
-    return { bounced: false, stale: true };
-  }
-
-  // Feedback is written only AFTER the CAS succeeds — a stale bounce must not
-  // append its rejection block to a verify.md that already passed.
-  await writeRepairFeedback(taskId, reason, verifyContent, attempt);
-
-  // Diagnostic only (task 770): records whether the budget window was reset by
-  // a manual retry / criteria change since the last repair, so a later incident
-  // investigation can tell a legitimate reset from a TOCTOU without live DB access.
-  const windowStart = await resolveRepairWindowStart(taskId).catch(() => null);
-
-  await recordTransition({
+  const committed = await commitVerifyRepair(prisma, {
     taskId,
-    fromStatus: currentStatus ?? null,
-    toStatus: newStatus,
-    actor: 'system',
-    cause: REPAIR_CAUSE,
-    phase: 'verify',
-    metadata: { attempt, max, reason, caller, windowStart: windowStart?.toISOString() ?? null },
+    updatedAt: evaluatedTask.updatedAt,
+    workflowStatus: evaluatedTask.workflowStatus,
+    executionId: evaluatedExecution?.id ?? null,
+    max,
+    reason,
+    verifyContent,
+    caller,
   });
+  if (!committed.committed) {
+    log.info({ taskId, reason: committed.reason }, '[verify-repair] Repair admission held');
+    return committed.reason === 'budget_exhausted' || committed.reason === 'repair_disabled'
+      ? { bounced: false }
+      : { bounced: false, stale: true };
+  }
+  const { attempt, newStatus } = committed;
 
   // Self-drive the re-run: a single/manual execution has no poller, so a
   // bounce would otherwise park the task at in-progress forever. Re-queue +
   // idempotently start the runner so implement→verify re-runs regardless of
   // launch mode.
-  await ensureRunnerResumes(taskId).catch((err) =>
-    log.warn({ err, taskId }, '[verify-repair] Failed to re-queue for self-repair'),
-  );
+  await ensureRunnerResumes(taskId, {
+    updatedAt: committed.updatedAt,
+    workflowStatus: newStatus,
+    executionId: evaluatedExecution?.id ?? null,
+  });
 
   log.info(
     { taskId, attempt, max, newStatus },

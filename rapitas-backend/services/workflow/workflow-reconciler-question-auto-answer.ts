@@ -18,10 +18,7 @@ import {
   isQuestionBlockEligibleForAutoAnswer,
   composeAutoAnswerText,
 } from './question-options-parser';
-import {
-  applyIntakeQuestionAnswer,
-  applyResumeFromQuestionAnswer,
-} from '../../routes/workflow/handlers/workflow-handlers-resume';
+import { applyQuestionAnswerByKind } from '../../routes/workflow/handlers/workflow-handlers-resume-dispatch';
 import { writeWorkflowFile } from './workflow-file-utils';
 import { notifyQuestionAutoAnswered } from '../communication/notification-service';
 
@@ -79,6 +76,8 @@ interface CandidateTask {
   title: string;
   status: string;
   workflowStatus: string | null;
+  /** Theme whose auto-run state gates the auto-adoption (null = unthemed). */
+  themeId?: number | null;
 }
 
 /**
@@ -108,7 +107,7 @@ export async function healStaleQuestionAutoAnswer(
   const tasks = await prisma.task
     .findMany({
       where: { workflowStatus: 'awaiting_question' },
-      select: { id: true, title: true, status: true, workflowStatus: true },
+      select: { id: true, title: true, status: true, workflowStatus: true, themeId: true },
     })
     .catch(() => [] as CandidateTask[]);
 
@@ -142,6 +141,23 @@ async function tryAutoAnswerOne(
 ): Promise<boolean> {
   if (TERMINAL_TASK_STATUSES.has(task.status)) return false;
   if (task.workflowStatus && TERMINAL_WORKFLOW_STATUSES.has(task.workflowStatus)) return false;
+
+  // A stopped auto-run means "nothing continues on its own": adopting the
+  // recommended option here would silently resume a task the user halted
+  // (2026-09-14). A theme without an auto-run record was never automated —
+  // keep the pre-existing behaviour for it, and fail open on a lookup error.
+  if (task.themeId != null) {
+    const autoRun = await prisma.themeAutoRun
+      .findUnique({ where: { themeId: task.themeId }, select: { enabled: true } })
+      .catch(() => null);
+    if (autoRun && !autoRun.enabled) {
+      log.info(
+        { taskId: task.id, themeId: task.themeId },
+        '[reconciler] healStaleQuestionAutoAnswer: theme auto-run is stopped — leaving the question for the user',
+      );
+      return false;
+    }
+  }
 
   const questionFile = await prisma.workflowFile
     .findFirst({
@@ -218,18 +234,18 @@ async function tryAutoAnswerOne(
 
   const { answerText, selections } = composeAutoAnswerText(block);
 
-  if (cause === 'intake_question') {
-    await applyIntakeQuestionAnswer({
-      taskId: task.id,
-      answer: answerText,
-      actor: 'system',
-      sourceLabel: '推奨案の自動採用（無応答タイムアウト）',
-      selections,
-      extraMetadata,
-    });
-  } else {
-    await applyResumeFromQuestionAnswer({ taskId: task.id, actor: 'system', extraMetadata });
-  }
+  // kindベースの単一ディスパッチに統一（task 902）— cause文字列による2値分岐
+  // (intake_question/file_saved:question)をここで再実装せず、answer-question
+  // ハンドラと同じ resolveExplicitOrDefaultKind/resolveQuestionAnswerStrategy を
+  // 共有する。
+  await applyQuestionAnswerByKind({
+    taskId: task.id,
+    answer: answerText,
+    actor: 'system',
+    sourceLabel: '推奨案の自動採用（無応答タイムアウト）',
+    selections,
+    extraMetadata,
+  });
 
   await notifyQuestionAutoAnswered(task.id, task.title, recommendedLabel, elapsedMinutes).catch(
     (err) => {

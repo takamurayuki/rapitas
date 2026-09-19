@@ -105,6 +105,31 @@ export async function countPriorRepairs(taskId: number): Promise<number> {
 }
 
 /**
+ * Count how many verify→implement repair bounces this task has EVER had,
+ * ignoring window resets (task 946). Unlike {@link countPriorRepairs}, this
+ * does not filter by `resolveRepairWindowStart` — it is the safety net that
+ * detects the windowed budget being reset repeatedly (via `question_resolved`
+ * etc.) and repairs accumulating across windows without ever tripping a
+ * single window's limit (task 907: 18 bounces across 3 windows of 7/3/8).
+ *
+ * @param taskId - Task id / タスクID
+ * @returns Total repair count across all windows / 全窓を通じた修復回数の合計
+ */
+export async function countLifetimeRepairs(taskId: number): Promise<number> {
+  return prisma.workflowTransition
+    .count({ where: { taskId, cause: REPAIR_CAUSE } })
+    .catch((err) => {
+      // FAIL CLOSED — same rationale as countPriorRepairs: a count error must
+      // not silently disable the lifetime safety net.
+      log.warn(
+        { err, taskId },
+        '[verify-repair] Failed to count lifetime repairs — treating budget as exhausted',
+      );
+      return Number.MAX_SAFE_INTEGER;
+    });
+}
+
+/**
  * Detect a non-converging repair loop (task 619): 2+ flags on one criterion
  * across current + prior reasons (same window as countPriorRepairs) = cutoff.
  * FAIL OPEN — unlike countPriorRepairs' fail-closed budget, an unidentifiable

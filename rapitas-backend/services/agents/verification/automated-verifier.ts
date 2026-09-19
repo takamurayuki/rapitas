@@ -1,3 +1,6 @@
+import { generatedSyncCheck } from './generated-sync-check';
+export { generatedSyncCheck } from './generated-sync-check';
+import { buildFileCommands } from './command-batches';
 /**
  * automated-verifier
  *
@@ -49,7 +52,8 @@ export interface VerificationCheck {
     | 'runtime'
     | 'tamper'
     | 'acceptance'
-    | 'schema-change';
+    | 'schema-change'
+    | 'red-state';
   /** Whether the check was applicable and actually executed. */
   ran: boolean;
   /** True when the check passed (no new failures in the changed files). */
@@ -305,8 +309,14 @@ function projectRootFor(workdir: string, file: string): string {
   return root;
 }
 
-/** Groups changed files by their owning project root (for monorepos). */
-function groupByProjectRoot(workdir: string, files: string[]): Map<string, string[]> {
+/**
+ * Groups changed files by their owning project root (for monorepos).
+ * Exported so red-state-check.ts can group a task's changed TEST files the
+ * same way runAutomatedVerification groups its lint/type/test/format checks
+ * — a red-state check must run in the same project root the real test run
+ * used, or its scoped test command resolves the wrong runner/config.
+ */
+export function groupByProjectRoot(workdir: string, files: string[]): Map<string, string[]> {
   const groups = new Map<string, string[]>();
   for (const f of files) {
     const rootDir = projectRootFor(workdir, f);
@@ -389,7 +399,7 @@ function unverifiableCheck(
 }
 
 /** Lints a project's changed files; gates on error (not warning) count. */
-async function lintProject(
+export async function lintProject(
   projectRoot: string,
   workdir: string,
   relFiles: string[],
@@ -408,11 +418,22 @@ async function lintProject(
       : null;
   }
   // Pass files relative to the project root.
-  const args = relFiles
-    .map((f) => `"${relative(projectRoot, join(workdir, f)).replace(/\\/g, '/')}"`)
-    .join(' ');
-  const res = await runCmd(`"${bin}" --format json ${args}`, projectRoot);
-  const parsed = parseEslintErrorCount(res.stdout);
+  const files = relFiles.map(
+    (f) => `"${relative(projectRoot, join(workdir, f)).replace(/\\/g, '/')}"`,
+  );
+  const results = [];
+  for (const command of buildFileCommands(`"${bin}" --format json`, files)) {
+    results.push(await runCmd(command, projectRoot));
+  }
+  const counts = results.map((result) => parseEslintErrorCount(result.stdout));
+  const parsed = {
+    ok: counts.every((count) => count.ok),
+    errorCount: counts.reduce((total, count) => total + count.errorCount, 0),
+  };
+  const res = {
+    stdout: results.map((result) => result.stdout).join('\n'),
+    stderr: results.map((result) => result.stderr).join('\n'),
+  };
   if (!parsed.ok) {
     // eslint is present but produced no parseable JSON (config error / crash).
     // It tried and failed — that is unverifiable, not "not applicable".
@@ -424,12 +445,12 @@ async function lintProject(
   return {
     name: 'lint',
     ran: true,
-    ok: parsed.errorCount === 0,
+    ok: parsed.errorCount === 0 && results.every((result) => result.code === 0),
     errorCount: parsed.errorCount,
     details:
       parsed.errorCount === 0
         ? 'eslint: 0 errors'
-        : (res.stderr || res.stdout).slice(0, MAX_DETAIL_CHARS),
+        : (res.stderr.trim() || res.stdout).slice(0, MAX_DETAIL_CHARS),
   };
 }
 
@@ -443,7 +464,7 @@ const FORMAT_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.css', '.md'])
  * Skips silently when the project has no prettier binary (not every repo
  * formats with prettier); prettier itself respects .prettierignore.
  */
-async function formatProject(
+export async function formatProject(
   projectRoot: string,
   workdir: string,
   relFiles: string[],
@@ -452,11 +473,16 @@ async function formatProject(
   if (files.length === 0) return null;
   const bin = resolveBin(projectRoot, workdir, 'prettier');
   if (!bin) return null;
-  const args = files
-    .map((f) => `"${relative(projectRoot, join(workdir, f)).replace(/\\/g, '/')}"`)
-    .join(' ');
-  const res = await runCmd(`"${bin}" --check --ignore-unknown ${args}`, projectRoot);
-  const ok = res.code === 0;
+  const args = files.map((f) => `"${relative(projectRoot, join(workdir, f)).replace(/\\/g, '/')}"`);
+  const results = [];
+  for (const command of buildFileCommands(`"${bin}" --check --ignore-unknown`, args)) {
+    results.push(await runCmd(command, projectRoot));
+  }
+  const ok = results.every((result) => result.code === 0);
+  const res = {
+    stdout: results.map((result) => result.stdout).join('\n'),
+    stderr: results.map((result) => result.stderr).join('\n'),
+  };
   return {
     name: 'format',
     ran: true,
@@ -465,38 +491,6 @@ async function formatProject(
     details: ok
       ? 'prettier: all changed files formatted'
       : `prettier --check に失敗（CI の formatting チェックで落ちます）。\`prettier --write\` で整形してください:\n${(res.stderr || res.stdout).slice(0, MAX_DETAIL_CHARS)}`,
-  };
-}
-
-/**
- * Prisma generated-artifact parity check (rapitas repo only). CI hard-fails
- * when `prisma/schema/*.prisma` changes without the regenerated
- * `prisma/schema.desktop/` + `src/generated/sqlite-init-sql.ts` committed —
- * the single biggest "local verify green → CI Lint Code red" cause. Pure
- * file-list logic: it checks that the generated artifacts changed ALONGSIDE
- * the schema, not that their content matches (CI still does that), so it
- * needs no prisma invocation in the worktree.
- *
- * @param allChanged - Every changed path in the worktree diff. / 全変更パス
- * @returns A 'generated-sync' check, or null when no schema changed. / チェック結果
- */
-export function generatedSyncCheck(allChanged: string[]): VerificationCheck | null {
-  const norm = allChanged.map((f) => f.replace(/\\/g, '/'));
-  const schemaChanged = norm.filter((f) => /(^|\/)prisma\/schema\/[^/]+\.prisma$/.test(f));
-  if (schemaChanged.length === 0) return null;
-  const desktopChanged = norm.some((f) => f.includes('prisma/schema.desktop/'));
-  const initSqlChanged = norm.some((f) => f.endsWith('src/generated/sqlite-init-sql.ts'));
-  const ok = desktopChanged && initSqlChanged;
-  return {
-    name: 'generated-sync',
-    ran: true,
-    ok,
-    errorCount: ok ? 0 : 1,
-    details: ok
-      ? 'generated-sync: schema change ships with regenerated sqlite artifacts'
-      : `Prisma スキーマ変更 (${schemaChanged.join(', ')}) に SQLite 生成物の再生成が伴っていません。` +
-        ` rapitas-backend で \`bun run db:prepare:sqlite\` を実行し、` +
-        `prisma/schema.desktop/ と src/generated/sqlite-init-sql.ts を同じコミットに含めてください（CI がこの同期を hard-fail します）。`,
   };
 }
 
@@ -515,7 +509,7 @@ function scopedTscEnabled(): boolean {
  * "cannot find module" bug is re-reported by the full run too, so the worst case
  * is slower, never a wrong verdict.
  */
-const ENV_FAILURE_TS_CODES = new Set(['TS2307', 'TS2688', 'TS2591', 'TS2580']);
+const ENV_FAILURE_TS_CODES = new Set(['TS2307', 'TS2688', 'TS2591', 'TS2580', 'TS18003']);
 
 /** True when scoped tsc output carries an env-resolution failure (→ use full). */
 function looksLikeBrokenTypeEnv(output: string): boolean {
@@ -523,6 +517,15 @@ function looksLikeBrokenTypeEnv(output: string): boolean {
     if (ENV_FAILURE_TS_CODES.has(m[1]!)) return true;
   }
   return false;
+}
+
+/** A compiler/configuration failure is not an attributable source diagnostic. */
+function incompleteTypecheck(code: number, output: string): boolean {
+  const files = parseTscErrorFiles(output);
+  return (
+    code !== 0 &&
+    (code !== 2 || files.length === 0 || files.some((file) => !CODE_EXTENSIONS.has(extname(file))))
+  );
 }
 
 /**
@@ -560,8 +563,8 @@ async function runScopedTypecheck(
     writeFileSync(cfgPath, JSON.stringify(cfg));
     const res = await runCmd(`"${bin}" -p "${cfgPath}" --noEmit --pretty false`, projectRoot);
     const out = `${res.stdout}\n${res.stderr}`;
-    // Broken scope (dropped globals) → signal a full re-run.
-    return looksLikeBrokenTypeEnv(out) ? null : out;
+    // Invalid scope or abnormal compiler exit requires a full re-run.
+    return looksLikeBrokenTypeEnv(out) || incompleteTypecheck(res.code, out) ? null : out;
   } catch {
     return null; // any failure → fall back to full
   } finally {
@@ -574,7 +577,7 @@ async function runScopedTypecheck(
 }
 
 /** Typechecks a project; gates on tsc errors located in the changed files. */
-async function typecheckProject(
+export async function typecheckProject(
   projectRoot: string,
   workdir: string,
   relFiles: string[],
@@ -591,7 +594,11 @@ async function typecheckProject(
   // Fast path: typecheck only the changed files. Falls through to a FULL run when
   // scoping doesn't apply or looks unreliable — same verdict, just slower.
   const scopedOut = scopedTscEnabled()
-    ? await runScopedTypecheck(bin, projectRoot, relFiles)
+    ? await runScopedTypecheck(
+        bin,
+        projectRoot,
+        relFiles.map((file) => relative(projectRoot, join(workdir, file)).replace(/\\/g, '/')),
+      )
     : null;
   let combined: string;
   if (scopedOut !== null) {
@@ -599,6 +606,12 @@ async function typecheckProject(
   } else {
     const res = await runCmd(`"${bin}" --noEmit --pretty false`, projectRoot);
     combined = `${res.stdout}\n${res.stderr}`;
+    if (incompleteTypecheck(res.code, combined)) {
+      return unverifiableCheck(
+        'typecheck',
+        `tsc exited ${res.code}:\n${combined.slice(0, MAX_DETAIL_CHARS)}`,
+      );
+    }
   }
   const errorFiles = parseTscErrorFiles(combined);
   // Only count errors located in the files the agent changed (avoids gating on
@@ -732,8 +745,17 @@ const COVERAGE_EXEMPT_RE = /(\.d\.ts$|\.config\.[cm]?[jt]s$|\.stories\.[jt]sx?$)
  * arXiv:2511.21654). Legitimate self-development changes to these files are
  * allowed only when the (human-approved) plan explicitly lists them.
  */
+// `phase-critic` is deliberately NOT in the shared prefix group above: unlike
+// the other three (each a lone file or a same-named file family, e.g.
+// verify-self-repair-budget.ts), phase-critic.ts/phase-critic-gate.ts live in
+// a services/workflow/phase-critic/ DIRECTORY alongside unrelated siblings
+// (critic-lessons.ts, critic-inflight.ts, critique-aggregator.ts, index.ts).
+// A bare `phase-critic` alternative substring-matches the directory prefix
+// itself, flagging every file in it as tampering (task 936: critic-lessons.ts
+// — lesson distillation, not gate logic — falsely blocked with no plan-less
+// override available). Anchor to the actual gate file names instead.
 const PROTECTED_PATH_RE =
-  /(services[\\/]agents[\\/]verification[\\/]|services[\\/]workflow[\\/](completion-gate|phase-output-validator|verify-self-repair|phase-critic)|\.github[\\/]workflows[\\/]|\.husky[\\/]|scripts[\\/](pre-commit-check|auto-fix-commit))/i;
+  /(services[\\/]agents[\\/]verification[\\/]|services[\\/]workflow[\\/](completion-gate|phase-output-validator|verify-self-repair)|services[\\/]workflow[\\/]phase-critic[\\/]phase-critic(-gate)?\.|\.github[\\/]workflows[\\/]|\.husky[\\/]|scripts[\\/](pre-commit-check|auto-fix-commit))/i;
 
 /**
  * Bug-fix task detector (conservative — plain 「修正」 alone is too broad).
@@ -747,6 +769,38 @@ export function looksLikeBugFixTask(text: string | null | undefined): boolean {
   return /(バグ|不具合|クラッシュ|例外が|エラーになる|落ちる|表示されない|動かない|\bbug\b|\bcrash\b|\bregression\b|\bbroken\b)/i.test(
     text,
   );
+}
+
+/**
+ * Trivial-task detector (conservative, same style as {@link looksLikeBugFixTask}):
+ * tasks with no testable behavior to cover — pure documentation, comment-only,
+ * config-value-only, or dependency-version-only changes. The TDD requirement
+ * (R? — full-project TDD adoption) defaults ON for everything else; this is
+ * the narrow opt-out, not an opt-in list.
+ *
+ * @param text - Task title + description. / タスク本文
+ * @returns Whether the task looks exempt from the TDD/coverage requirement. / TDD対象外か
+ */
+export function looksLikeTrivialTask(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return /(ドキュメントのみ|README(の)?(更新|修正|のみ)|typo\s*(の)?修正|誤字脱字|コメント(のみ|だけ)|設定[値]?(の)?み?変更|依存(関係)?(の)?(バージョン(を)?)?(更新|アップデート)(のみ)?|\bdocs?[\s-]only\b|\breadme\b|\btypo\b|\bcomment[\s-]only\b|\bconfig[\s-]only\b|\bdependency\s+(bump|update)\b)/i.test(
+    text,
+  );
+}
+
+/**
+ * Whether a task's diff should be required to ship a test — the TDD gate's
+ * scope decision. Default ON for all substantive work (feature/bug/refactor);
+ * only tasks {@link looksLikeTrivialTask} identifies as having no testable
+ * behavior are exempt. Inverse polarity from the pre-TDD-adoption behavior,
+ * which only forced tests for bug fixes ({@link looksLikeBugFixTask}) and left
+ * every other task type — most of auto-run's actual volume — untested.
+ *
+ * @param text - Task title + description. / タスク本文
+ * @returns Whether the task requires a test in its diff. / テスト必須か
+ */
+export function requiresTestsForTask(text: string | null | undefined): boolean {
+  return !looksLikeTrivialTask(text);
 }
 
 /**
@@ -897,15 +951,9 @@ export async function runAutomatedVerification(
   const tamper = tamperCheck(allChanged, tamperPlan);
   const schemaGate = schemaChangeGateCheck(allChanged, planFiles);
   const hardGateChecks = collectHardGateChecks(scopeCheck, tamper, schemaGate);
-  if (changedFiles.length === 0 && hardGateChecks.every((c) => c.ok)) {
-    return {
-      ok: true,
-      changedFiles: [],
-      checks: hardGateChecks,
-      summary: '自動検証: 対象のコード変更なし',
-      unverifiable: false,
-    };
-  }
+  // An empty diff skips scoped static commands, but does not prove that a
+  // configured runtime works (for example after restoring a merged task).
+  // Continue to the runtime stage and preserve unavailable/failed evidence.
 
   const groups = groupByProjectRoot(workdir, changedFiles);
   const lintParts: VerificationCheck[] = [];
@@ -926,6 +974,13 @@ export async function runAutomatedVerification(
   }
 
   const coverage = coverageCheck(changedFiles, options.requireTests === true);
+  const { maybeRunRedStateCheck } = await import('./red-state-check');
+  const redState = await maybeRunRedStateCheck(
+    workdir,
+    changedFiles,
+    coverage,
+    options.preferredBaseBranch,
+  );
   // CI-parity checks: prettier formatting and Prisma generated-artifact sync
   // both hard-fail CI's Lint Code job, so catching them here turns a full
   // ci_repair round into an in-phase fix.
@@ -948,6 +1003,7 @@ export async function runAutomatedVerification(
     ...(generatedSync ? [generatedSync] : []),
     ...hardGateChecks,
     ...(coverage ? [coverage] : []),
+    ...(redState ? [redState] : []),
     ...(acceptance ? [acceptance] : []),
   ];
   // Scope and acceptance are ADVISORY, not hard gates. A plan-scope deviation

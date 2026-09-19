@@ -9,12 +9,10 @@
  * Promise. All status mutations go through `ctx.status = ...`.
  */
 import { tolegacyQuestionType } from '../question-detection';
-import type { QuestionWaitingState } from '../question-detection';
 import type { AgentArtifact, AgentExecutionResult, GitCommitInfo } from '../base-agent';
 import { checkGitDiff } from './git-diff-checker';
 import { createLogger } from '../../../config/logger';
 import { notifyAuthenticationFailure } from '../../communication/notification-service';
-import type { WorkerResultUsageSnapshot } from './worker-message-handler';
 import {
   detectApiOverload,
   detectAuthFailure,
@@ -22,33 +20,10 @@ import {
   detectPromptTooLong,
 } from './execution-resolver-early-failures';
 import { PROMPT_TOO_LONG_MARKER } from './failure-reason-markers';
+import type { ResolverContext } from './execution-resolver-context';
+export type { ResolverContext } from './execution-resolver-context';
 
 const logger = createLogger('claude-code-agent');
-
-/** Read/write state the resolver needs from the host agent. */
-export interface ResolverContext {
-  readonly logPrefix: string;
-  readonly resumeSessionId: string | undefined;
-  readonly continueConversation: boolean | undefined;
-
-  outputBuffer: string;
-  /** Clean FINAL assistant message from the stream-json `result` event. */
-  finalResultText: string;
-  errorBuffer: string;
-  lineBuffer: string;
-  detectedQuestion: QuestionWaitingState;
-  claudeSessionId: string | null;
-  hasFileModifyingToolCalls: boolean;
-  idleTimeoutForceKilled: boolean;
-  wallClockTimeoutForceKilled: boolean;
-  workerResultUsage: WorkerResultUsageSnapshot | null;
-
-  // Mutated by the resolver
-  status: string;
-
-  // BaseAgent emit proxy
-  emitOutputInternal(output: string, isError?: boolean): void;
-}
 
 /**
  * Build the resolution callback used after the Worker finishes parsing.
@@ -61,11 +36,14 @@ export interface ResolverContext {
  * @param resolve - Promise resolver from execute() / execute()のPromiseリゾルバー
  * @param getArtifacts - Lazy getter for the parsed artifacts / アーティファクト取得
  * @param getCommits - Lazy getter for the parsed commits / コミット取得
- * @param checkPlanCreated - Whether a plan was saved awaiting approval (so "no
- *   code changes" is a pause, not a failure). / 承認待ちのプラン作成有無
- * @param investigationMode - Skip the git-diff check and succeed on meaningful
- *   output (mirrors the codex contract). Empty output falls through to the
- *   no-change failure path. / 有意な出力があれば成功、空ならフォールスルー
+ * @param checkPlanCreated - Async check for whether the agent created a plan
+ *   awaiting approval (so "no code changes" is a pause, not a failure) /
+ *   承認待ちのプランを作成したか（コード変更なしを失敗ではなく一時停止として扱うため）
+ * @param allowNoCodeChanges - When true, skip the git-diff check and return success if
+ *   meaningful output is present. Mirrors the codex contract (success === exit 0 with output).
+ *   Empty output still falls through to the existing no-change failure path. /
+ *   trueの場合、git-diffチェックをスキップし、有意な出力があれば成功を返す。
+ *   出力が空の場合は従来の失敗パスにフォールスルーする
  * @returns Callback to invoke after Worker finishes / Worker終了後に呼び出すコールバック
  */
 export function buildResolveAfterParse(
@@ -77,7 +55,7 @@ export function buildResolveAfterParse(
   getArtifacts: () => AgentArtifact[],
   getCommits: () => GitCommitInfo[],
   checkPlanCreated?: () => Promise<boolean>,
-  investigationMode?: boolean,
+  allowNoCodeChanges?: boolean,
   resourceStats?: { cpuTimeMs: number | null; peakRssKb: number | null },
 ): () => void {
   return () => {
@@ -124,6 +102,25 @@ export function buildResolveAfterParse(
     const forceKillFields: Partial<AgentExecutionResult> = ctx.wallClockTimeoutForceKilled
       ? { failureType: 'wall_clock_timeout' }
       : {};
+
+    // A wall-clock kill interrupts unfinished work. Partial files, output, or
+    // an earlier question cannot prove completion or authorize publication.
+    if (ctx.wallClockTimeoutForceKilled) {
+      ctx.status = 'failed';
+      resolve({
+        success: false,
+        output: ctx.outputBuffer,
+        artifacts,
+        commits,
+        executionTimeMs,
+        waitingForInput: false,
+        claudeSessionId: ctx.claudeSessionId || undefined,
+        errorMessage: 'Execution exceeded its wall-clock timeout; partial work was preserved.',
+        ...usageFields,
+        ...forceKillFields,
+      });
+      return;
+    }
 
     logger.info(`${ctx.logPrefix} Running question detection...`);
     logger.info(
@@ -344,17 +341,15 @@ export function buildResolveAfterParse(
       );
     }
 
-    // investigation mode (research/plan/review): file mutation is blocked by
-    // --disallowedTools, so git diff is ALWAYS empty by design. Skipping the
-    // diff check here prevents a successful read-only phase from being reported
-    // as a "no code changes" failure (which fired a spurious ERROR log + daily
-    // false concern). Mirrors the codex contract (success === exit 0).
-    if (investigationMode) {
+    // Investigation phases and verifiers produce evidence without requiring
+    // implementation changes. This result policy must not enable investigation
+    // tool restrictions: verifiers still need shell access to run checks.
+    if (allowNoCodeChanges) {
       const hasMeaningfulOutput =
         (finalMessage?.length ?? 0) > 0 || ctx.outputBuffer.trim().length >= 200;
       if (hasMeaningfulOutput) {
         logger.info(
-          `${ctx.logPrefix} Investigation mode: meaningful output present, resolving as success (skipping git diff check)`,
+          `${ctx.logPrefix} Evidence phase: meaningful output present, resolving as success (skipping git diff check)`,
         );
         ctx.status = 'completed'; // determineExecutionStatus remaps to post_processing for investigation
         resolve({

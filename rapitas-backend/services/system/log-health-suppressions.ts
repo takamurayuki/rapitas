@@ -120,6 +120,16 @@ const SUPPRESSIONS: Suppression[] = [
     because: '実行結果の記録 — 原因は当該実行のログ側に出ており、二重起票になる',
   },
   {
+    // ログ出力箇所: execution-file-logger/index.ts:234-249 の logExecutionEnd。
+    // NOTE: #694 以降 err.message が msg に優先採用される（log-format-parser.ts:82）ため、
+    // 正規化後は "Process exited with code # …" となり、上の Execution ended with status:
+    // failed ルールに届かない。本文は execution-resolver.ts:238-267 が組み立てる。
+    test: /^Process exited with code #/i,
+    logger: /execution-file-logger/i,
+    because:
+      '実行が failed で終わった結末の記録 — 原因は当該実行のログ側に出ており、二重起票になる（失敗自体はDBの実行ステータス・fallback・stall監視で検知される）',
+  },
+  {
     // ログ出力箇所: fallback-decision.ts:50-58 の logger.warn（checkNeedsFallback
     // 内）。成功扱いの出力からプロバイダ障害の兆候を classifyAgentError が検知し、
     // フォールバックへ切り替えると判定した時点の告知ログ — 検出ロジック自体は意図した

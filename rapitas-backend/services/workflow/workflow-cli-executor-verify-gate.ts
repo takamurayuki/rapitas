@@ -1,3 +1,4 @@
+import { writeBlockedTask } from './blocked-task-write';
 /**
  * Workflow CLI Executor Verify Gate
  *
@@ -15,7 +16,10 @@ import type { ValidationResult } from './phase-output-validator';
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 import { recordTransition, type TransitionActor } from './transition-recorder';
 import { evaluateCompletionGate } from './completion-gate';
-import { isAwaitingRequiredMerge } from './verify-settle-artifact-recovery';
+import {
+  isAwaitingRequiredMerge,
+  isAwaitingStagedPrCompletion,
+} from './verify-settle-artifact-recovery';
 import { holdForRequiredMerge } from './required-merge-hold';
 import { writeBlockedStatusDurable } from './durable-blocked-write';
 import {
@@ -49,7 +53,7 @@ export async function resolveVerifyPhaseStatus(params: {
   const { taskId, transition, session, currentWfStatus, fileContent, validation } = params;
   const { resolvedWorktreePath } = params;
   let phaseStatus: WorkflowAdvanceResult['status'];
-
+  if (currentWfStatus === 'completed') return 'completed';
   const hardFail = !validation.ok && validation.severity >= 80;
   // The agent saved verify.md via the HTTP API during its run — if that
   // save was just REJECTED there (self-repair bounce or adversarial-review
@@ -62,18 +66,34 @@ export async function resolveVerifyPhaseStatus(params: {
   // without this the epilogue below re-runs attemptVerifyRepair() a second
   // time and double-records the same failure as two transitions (task 720).
   const verifyRejected =
-    (await hasFreshVerifyRejection(taskId).catch(() => false)) ||
-    (await wasVerifyValidationFailureJustRecorded(taskId).catch(() => false));
-  if (currentWfStatus === 'completed') {
-    // The HTTP handler already completed it — don't touch / regress.
-    phaseStatus = 'completed';
-  } else if (verifyRejected) {
+    (await hasFreshVerifyRejection(taskId)) ||
+    (await wasVerifyValidationFailureJustRecorded(taskId));
+  if (verifyRejected) {
     phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
     log.warn(
       { taskId, currentWfStatus },
       '[WorkflowCLIExecutor] Verify was rejected by a fresh gate rejection — honoring it and skipping the completion epilogue',
     );
-  } else if (hardFail) {
+    return phaseStatus;
+  }
+  // The HTTP rejection owns the next action. Only review a still-admissible
+  // artifact, and never treat an unreadable rejection history as approval.
+  const { attemptRequirementReplan } = await import('./requirement-replan-service');
+  const replan = await attemptRequirementReplan(prisma, taskId);
+  if (replan.committed) return 'research_done';
+  if (replan.reason !== 'no_mismatch') {
+    throw new Error(`Requirement replan review held: ${replan.reason}`);
+  }
+  const finalize = async (cause: 'verify_passed' | 'verify_no_change_confirmed') => {
+    if (!replan.completionReceipt) throw new Error('Missing server completion review receipt');
+    const { completeReviewedTask } = await import('./requirement-replan-commit');
+    const settled = await completeReviewedTask(prisma, replan.completionReceipt, {
+      cause,
+      sessionId: session.id,
+    });
+    if (!settled.committed) throw new Error(`Reviewed completion held: ${settled.reason}`);
+  };
+  if (hardFail) {
     // Give the CLI/orchestrator-driven epilogue the same self-repair chance
     // as the HTTP save path (status-transition.ts) — previously this branch
     // blocked directly, so every hard-fail evaluated here consumed a blind
@@ -139,12 +159,11 @@ export async function resolveVerifyPhaseStatus(params: {
     const gate = await evaluateCompletionGate(
       resolvedWorktreePath,
       typeof fileContent === 'string' ? fileContent : '',
+      undefined,
+      taskId,
     );
     if (!gate.allow) {
-      await prisma.task.update({
-        where: { id: taskId },
-        data: { status: 'blocked' },
-      });
+      await writeBlockedTask(prisma, taskId);
       await recordTransition({
         taskId,
         fromStatus: currentWfStatus,
@@ -185,6 +204,9 @@ export async function resolveVerifyPhaseStatus(params: {
         // taskHasLinkedPr. Dynamic import avoids a routes↔services import cycle.
         const { performAutoCommitAndPR, isNoChangeCompletion } =
           await import('../../routes/workflow/workflow-auto-commit');
+        if (!replan.completionReceipt) throw new Error('Missing server completion review receipt');
+        const { assertReviewedTaskCurrent } = await import('./requirement-replan-commit');
+        await assertReviewedTaskCurrent(prisma, replan.completionReceipt);
         const acpr = await performAutoCommitAndPR(
           taskId,
           typeof fileContent === 'string' ? fileContent : '',
@@ -203,20 +225,7 @@ export async function resolveVerifyPhaseStatus(params: {
       }
 
       if (noChangeCompletion) {
-        await prisma.task.update({
-          where: { id: taskId },
-          data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
-        });
-        await recordTransition({
-          taskId,
-          fromStatus: currentWfStatus,
-          toStatus: 'completed',
-          actor: transition.role as TransitionActor,
-          cause: 'verify_no_change_confirmed',
-          phase: 'verify',
-          sessionId: session.id,
-          metadata: { reason: 'no diff — already implemented; PR not required', prError },
-        });
+        await finalize('verify_no_change_confirmed');
         phaseStatus = 'completed';
         log.info(
           { taskId, prError },
@@ -225,12 +234,7 @@ export async function resolveVerifyPhaseStatus(params: {
       } else if (prRequested && !prSatisfied) {
         // Verify passed but no PR was produced — do NOT complete. Keep the
         // task actionable (blocked) so "完了" always implies a PR.
-        await prisma.task
-          .update({
-            where: { id: taskId },
-            data: { status: 'blocked', updatedAt: new Date() },
-          })
-          .catch(() => {});
+        await writeBlockedTask(prisma, taskId).catch(() => {});
         await recordTransition({
           taskId,
           fromStatus: currentWfStatus,
@@ -266,24 +270,25 @@ export async function resolveVerifyPhaseStatus(params: {
           source: 'WorkflowCLIExecutor',
         });
         phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
-      } else {
-        await prisma.task.update({
-          where: { id: taskId },
-          data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
-        });
-        await recordTransition({
+        // Fail CLOSED here too: an unreadable staged-completion check cannot
+        // prove CI has gone green, and holding self-heals on the next tick
+        // whereas a wrong completion (task 873) is irreversible.
+      } else if (await isAwaitingStagedPrCompletion(taskId).catch(() => true)) {
+        // `pr` mode + staged completion: PR creation is not the completion
+        // point either — mirror the HTTP pipeline's `pr` landing mode
+        // (verify-commit-pr-pipeline.ts). Without this, orchestrator/queue-
+        // driven runs (auto-run, subtasks) completed on PR creation alone
+        // with no CI/merge check at all (task 873/948).
+        await holdForRequiredMerge({
           taskId,
           fromStatus: currentWfStatus,
-          toStatus: 'completed',
           actor: transition.role as TransitionActor,
-          cause: 'verify_passed',
-          phase: 'verify',
           sessionId: session.id,
-          metadata: {
-            chars: typeof fileContent === 'string' ? fileContent.length : 0,
-            gate: gate.reason,
-          },
+          source: 'WorkflowCLIExecutor (staged pr)',
         });
+        phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
+      } else {
+        await finalize('verify_passed');
         phaseStatus = 'completed';
       }
     }

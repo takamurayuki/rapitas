@@ -1,3 +1,4 @@
+import { canAcquireRepairQueue, clearAcquiredRepairReceipt } from './repair-queue-acquire';
 /**
  * queue-dequeue-candidate
  *
@@ -10,12 +11,37 @@
  */
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
+import { logCycleEvent } from '../observability';
 import { resolveTaskWorkflowState, taskRowConfirmedAbsent } from '../task/task-resolver';
 import { isTaskTerminalForQueue } from './queue-terminal-task-guard';
 import { mapToQueueItem } from './queue-item-mapper';
 import { taskVanishedMessage } from './queue-vanished-task-policy';
 import type { QueueItem, WorkflowQueueItemRow } from './workflow-queue.types';
 import { isQueueThemeRunning } from './queue-theme-guard';
+import { isOverlapHeld } from './workflow-orchestrator-overlap-guard';
+
+/**
+ * Emits `task.dequeue_skipped` only for a candidate currently held by the
+ * implementer overlap guard (task 954). Ungated candidates skip silently as
+ * before — logging every dependency/sibling wait would flood cycle-log with
+ * ordinary scheduling noise unrelated to the overlap-hold investigation.
+ */
+function noteDequeueSkipIfOverlapHeld(
+  taskId: number,
+  reason:
+    | 'dependency_incomplete'
+    | 'theme_not_running'
+    | 'sibling_active'
+    | 'sibling_earlier_pending'
+    | 'repair_admission_denied',
+): void {
+  if (!isOverlapHeld(taskId)) return;
+  logCycleEvent('task.dequeue_skipped', {
+    task: taskId,
+    reason,
+    msg: 'overlap-held candidate skipped this dequeue pass',
+  });
+}
 
 const log = createLogger('workflow-queue');
 
@@ -45,7 +71,10 @@ export async function tryDequeueCandidate(
         status: { notIn: ['completed', 'cancelled'] },
       },
     });
-    if (incompleteDeps > 0) return null;
+    if (incompleteDeps > 0) {
+      noteDequeueSkipIfOverlapHeld(candidate.taskId, 'dependency_incomplete');
+      return null;
+    }
   }
 
   const candidateTask = await resolveTaskWorkflowState(candidate.taskId);
@@ -116,7 +145,10 @@ export async function tryDequeueCandidate(
           status: { in: ['running', 'waiting_approval'] },
         },
       });
-      if (activeSibling > 0) return null; // a sibling is already running
+      if (activeSibling > 0) {
+        noteDequeueSkipIfOverlapHeld(candidate.taskId, 'sibling_active');
+        return null; // a sibling is already running
+      }
 
       const earlierIds = siblingIds.filter((id) => id < candidate.taskId);
       if (earlierIds.length > 0) {
@@ -127,36 +159,73 @@ export async function tryDequeueCandidate(
             status: { in: ['queued', 'running', 'waiting_approval'] },
           },
         });
-        if (earlierPending > 0) return null; // earlier-created sibling goes first
+        if (earlierPending > 0) {
+          noteDequeueSkipIfOverlapHeld(candidate.taskId, 'sibling_earlier_pending');
+          return null; // earlier-created sibling goes first
+        }
       }
     }
   }
 
   // Start execution (transaction prevents race conditions)
-  if (!(await isQueueThemeRunning(candidate.taskId))) return null;
-  const updated = await prisma.$transaction(async (tx) => {
-    // Re-check status (another worker may have acquired it)
-    const current = await tx.workflowQueueItem.findUnique({
-      where: { id: candidate.id },
-    });
-    if (!current || current.status !== 'queued') {
-      return null; // Already acquired by another worker
-    }
-    if (!(await isQueueThemeRunning(candidate.taskId, tx))) return null;
+  const updated = await prisma.$transaction(
+    async (tx) => {
+      // Re-check status (another worker may have acquired it)
+      const current = await tx.workflowQueueItem.findUnique({
+        where: { id: candidate.id },
+      });
+      if (!current || current.status !== 'queued') {
+        return null; // Already acquired by another worker
+      }
+      if (!(await canAcquireRepairQueue(tx, current))) {
+        // Overlap-held tasks never write a repair receipt (task 954: this
+        // admission check is orthogonal to guardImplementOverlap), so
+        // cancelling here would permanently stop a candidate the overlap
+        // guard still expects to re-evaluate. Leave it 'queued' instead.
+        if (isOverlapHeld(candidate.taskId)) {
+          noteDequeueSkipIfOverlapHeld(candidate.taskId, 'repair_admission_denied');
+          return null;
+        }
+        await tx.workflowQueueItem.update({
+          where: { id: current.id },
+          data: {
+            status: 'cancelled',
+            completedAt: new Date(),
+            errorMessage: 'Repair admission expired or was stopped before dispatch',
+          },
+        });
+        return null;
+      }
+      // Only a receipt just validated against the current task/execution/stop
+      // can continue a single task while the theme scheduler is disabled.
+      const validatedRepair =
+        !!current.result && clearAcquiredRepairReceipt(current.result) === null;
+      if (!(await isQueueThemeRunning(candidate.taskId, tx, validatedRepair))) {
+        noteDequeueSkipIfOverlapHeld(candidate.taskId, 'theme_not_running');
+        return null;
+      }
 
-    // Re-check concurrency limit
-    const currentRunning = await tx.workflowQueueItem.count({
-      where: { status: 'running' },
-    });
-    if (currentRunning >= maxConcurrency) {
-      return null; // Concurrency limit reached
-    }
+      // Re-check concurrency limit
+      const currentRunning = await tx.workflowQueueItem.count({
+        where: { status: 'running' },
+      });
+      if (currentRunning >= maxConcurrency) {
+        return null; // Concurrency limit reached
+      }
 
-    return tx.workflowQueueItem.update({
-      where: { id: candidate.id },
-      data: { status: 'running', startedAt: new Date() },
-    });
-  });
+      return tx.workflowQueueItem.update({
+        where: { id: candidate.id },
+        data: {
+          status: 'running',
+          startedAt: new Date(),
+          ...(current.result && clearAcquiredRepairReceipt(current.result) === null
+            ? { result: null }
+            : {}),
+        },
+      });
+    },
+    { isolationLevel: 'Serializable' },
+  );
 
   if (updated) {
     log.info(`[WorkflowQueue] Dequeued task ${candidate.taskId} (item ${candidate.id})`);

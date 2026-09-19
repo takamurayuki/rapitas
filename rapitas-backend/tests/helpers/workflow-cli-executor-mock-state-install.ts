@@ -29,6 +29,18 @@ const p = (rel: string): string => join(BACKEND_ROOT, rel);
  * file's registration bun keeps "active" (see file header).
  */
 export function installWorkflowCliExecutorMocks(): void {
+  mock.module(p('services/workflow/requirement-replan-service'), () => ({
+    attemptRequirementReplan: async () => ({
+      committed: false,
+      reason: 'no_mismatch',
+      completionReceipt: { taskId: 1 },
+    }),
+  }));
+  mock.module(p('services/workflow/requirement-replan-commit'), () => ({
+    completeReviewedTask: spies.completeReviewedTask,
+    assertReviewedTaskCurrent: spies.assertReviewedTaskCurrent,
+    REQUIREMENT_REPLAN_CAUSE: 'requirement_evidence_replan',
+  }));
   mock.module(p('config/database'), () => ({
     prisma: prismaMock,
     ensureDatabaseConnection: () => Promise.resolve(),
@@ -151,6 +163,7 @@ export function installWorkflowCliExecutorMocks(): void {
   mock.module(p('services/agents/orchestrator/git-operations/worktree/worktree-usable'), () => ({
     canReuseWorktree: spies.canReuseWorktree,
     decideWorktree: mock(() => 'recreate'),
+    getUncommittedDiffSummary: spies.getUncommittedDiffSummary,
   }));
 
   mock.module(p('services/agents/orchestrator/git-operations/worktree/worktree-guard'), () => ({
@@ -198,8 +211,10 @@ export function installWorkflowCliExecutorMocks(): void {
 }
 
 const noopLogger = {
-  info: () => {},
-  warn: () => {},
+  // task 956: info/warn delegate to spies so worktree-reuse diff-summary
+  // logging (AC1) is assertable; other levels stay true no-ops.
+  info: (...args: unknown[]) => spies.logInfo(...args),
+  warn: (...args: unknown[]) => spies.logWarn(...args),
   error: () => {},
   debug: () => {},
   fatal: () => {},
@@ -207,12 +222,19 @@ const noopLogger = {
 };
 
 const prismaMock = {
+  // These fixtures execute phases directly, without a WorkflowRunner owner.
+  workflowQueueItem: { findFirst: () => Promise.resolve(null) },
+  // Ordinary phase fixtures have no committed requirement replan.
+  workflowTransition: { findFirst: () => Promise.resolve(null) },
   task: {
     update: spies.taskUpdate,
     updateMany: spies.taskUpdateMany,
-    findUnique: spies.taskFindUnique,
+    findUnique: (args: any) =>
+      args.select?.updatedAt && Object.keys(args.select).length === 1
+        ? Promise.resolve({ updatedAt: new Date(0) })
+        : spies.taskFindUnique(args),
   },
-  agentSession: { create: spies.agentSessionCreate, update: spies.agentSessionUpdate },
+  agentSession: { create: spies.agentSessionCreate, updateMany: spies.agentSessionUpdate },
   gitHubPullRequest: { findFirst: spies.gitHubPrFindFirst },
   // resolveAutomationPolicy reads the global "タスク設定" defaults; the verify
   // gate now consults it to decide whether a required merge is outstanding

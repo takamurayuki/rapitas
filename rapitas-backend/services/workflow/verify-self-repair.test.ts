@@ -13,6 +13,16 @@
 
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
 
+const evaluatedAt = new Date('2026-09-08T00:00:00Z');
+let taskWorkflowStatus = 'research_done';
+const taskRow = () => ({
+  status: 'in-progress',
+  workflowStatus: taskWorkflowStatus,
+  updatedAt: evaluatedAt,
+  themeId: null,
+  acceptanceCriteria: null,
+});
+
 const noopLogger = { info: () => {}, warn: mock(() => {}), error: () => {}, debug: () => {} };
 
 const mockPrisma = {
@@ -33,6 +43,31 @@ const mockPrisma = {
 const readWorkflowFile = mock(() => Promise.resolve(''));
 const writeWorkflowFile = mock(() => Promise.resolve());
 const recordTransition = mock(() => Promise.resolve());
+Object.assign(mockPrisma, {
+  $transaction: async (operation: (tx: typeof mockPrisma) => unknown) => operation(mockPrisma),
+  agentExecution: { findFirst: async () => null },
+  themeAutoRun: { findUnique: async () => null },
+});
+Object.assign(mockPrisma, { workflowFileVersion: { create: async () => undefined } });
+Object.assign(mockPrisma.workflowFile, {
+  findUnique: (args: { where: { taskId_fileType: { fileType: string } } }) =>
+    args.where.taskId_fileType.fileType === 'plan'
+      ? mockPrisma.workflowFile.findFirst()
+      : Promise.resolve(null),
+  upsert: (args: { create: { taskId: number; content: string } }) =>
+    (writeWorkflowFile as (...args: unknown[]) => Promise<void>)(
+      args.create.taskId,
+      'verify',
+      args.create.content,
+    ),
+});
+Object.assign(mockPrisma.workflowTransition, {
+  create: async (args: { data: { metadata: string } }) =>
+    (recordTransition as (...args: unknown[]) => Promise<void>)({
+      ...args.data,
+      metadata: JSON.parse(args.data.metadata),
+    }),
+});
 
 mock.module('../../config/logger', () => ({ createLogger: () => noopLogger }));
 mock.module('../../config/database', () => ({
@@ -50,17 +85,25 @@ mock.module('./blocked-task-escalation', () => ({
   countEscalatedBlocked: () => Promise.resolve(0),
 }));
 
+const resumeAdmission = mock(async () => 'scheduler_owned');
+mock.module('./verify-repair-queue', () => ({ enqueueCommittedRepair: resumeAdmission }));
+
 const { attemptVerifyRepair, isTamperOnlyVerdict, VERIFY_NON_REPAIRABLE_CAUSE } =
   await import('./verify-self-repair');
 
 describe('attemptVerifyRepair — 修復予算のダブルチェック (task 749)', () => {
   beforeEach(() => {
+    resumeAdmission.mockReset().mockResolvedValue('scheduler_owned');
+    taskWorkflowStatus = 'research_done';
+    mockPrisma.task.findUnique
+      .mockReset()
+      .mockImplementation(async () => taskRow() as unknown as null);
     mockPrisma.userSettings.findFirst.mockReset().mockResolvedValue(null);
     mockPrisma.activityLog.findFirst.mockReset().mockResolvedValue(null);
     mockPrisma.workflowTransition.count.mockReset().mockResolvedValue(0);
     mockPrisma.workflowTransition.findMany.mockReset().mockResolvedValue([]);
     mockPrisma.task.updateMany.mockReset().mockResolvedValue({ count: 1 });
-    mockPrisma.task.findUnique.mockReset().mockResolvedValue(null);
+
     mockPrisma.workflowFile.findFirst.mockReset().mockResolvedValue(null);
     readWorkflowFile.mockReset().mockResolvedValue('');
     writeWorkflowFile.mockReset().mockResolvedValue(undefined);
@@ -89,7 +132,11 @@ describe('attemptVerifyRepair — 修復予算のダブルチェック (task 749
   // task#603/#710 の再現: 初回読み取り(prior=1)は予算内だが、コミット直前の再クエリでは
   // 別の呼び出し経路が同時に verify_repair を記録済みで prior=2（max=2）に達している。
   test('二重呼び出し: 初回読み取り後に別経路が予算を使い切っていれば再チェックで遮断する', async () => {
-    mockPrisma.workflowTransition.count.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    // 呼び出し順: countPriorRepairs(windowed)=1 → countLifetimeRepairs=5(<15) → commitVerifyRepair再チェック=2(=max)。
+    mockPrisma.workflowTransition.count
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(5)
+      .mockResolvedValueOnce(2);
     const result = await attemptVerifyRepair(700, 'research_done', 'reason', 'verify body');
     expect(result.bounced).toBe(false);
     expect(recordTransition).not.toHaveBeenCalled();
@@ -121,6 +168,7 @@ describe('attemptVerifyRepair — tamper 単独失敗は修復不能として即
 
   test('tamper 単独失敗は bounce せず、非修復の遷移を記録して cutoffRecorded を返す', async () => {
     mockPrisma.workflowTransition.count.mockResolvedValue(0);
+    taskWorkflowStatus = 'verify_done';
     const result = await attemptVerifyRepair(867, 'verify_done', TAMPER_ONLY, 'verify body');
     expect(result.bounced).toBe(false);
     expect(result.cutoffRecorded).toBe(true);
@@ -130,5 +178,50 @@ describe('attemptVerifyRepair — tamper 単独失敗は修復不能として即
       taskId: 867,
     });
     expect(mockPrisma.task.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+// Task 946: 窓リセット(question_resolved 等)を複数回経ても合計 verify_repair が
+// 上限(既定15)を超えたら、非収束検知(受入基準単位)とは独立に打ち切る。
+describe('attemptVerifyRepair — lifetime cap (task 946)', () => {
+  beforeEach(() => {
+    resumeAdmission.mockReset().mockResolvedValue('scheduler_owned');
+    taskWorkflowStatus = 'research_done';
+    mockPrisma.task.findUnique
+      .mockReset()
+      .mockImplementation(async () => taskRow() as unknown as null);
+    mockPrisma.userSettings.findFirst.mockReset().mockResolvedValue(null);
+    mockPrisma.activityLog.findFirst.mockReset().mockResolvedValue(null);
+    mockPrisma.workflowTransition.count.mockReset().mockResolvedValue(0);
+    mockPrisma.workflowTransition.findMany.mockReset().mockResolvedValue([]);
+    mockPrisma.task.updateMany.mockReset().mockResolvedValue({ count: 1 });
+    mockPrisma.workflowFile.findFirst.mockReset().mockResolvedValue(null);
+    readWorkflowFile.mockReset().mockResolvedValue('');
+    writeWorkflowFile.mockReset().mockResolvedValue(undefined);
+    recordTransition.mockReset().mockResolvedValue(undefined);
+  });
+
+  test('窓内 prior が予算未満でも lifetime count が15以上なら bounce せず遮断する', async () => {
+    // 1回目の count 呼び出し = countPriorRepairs (windowed), 2回目 = countLifetimeRepairs.
+    mockPrisma.workflowTransition.count.mockResolvedValueOnce(1).mockResolvedValueOnce(15);
+    const result = await attemptVerifyRepair(907, 'research_done', 'reason', 'verify body');
+    expect(result.bounced).toBe(false);
+    expect(result.cutoffRecorded).toBe(true);
+    expect(recordTransition).toHaveBeenCalledTimes(1);
+    expect((recordTransition.mock.calls[0] as unknown[])[0]).toMatchObject({
+      cause: 'verify_repair_lifetime_exceeded',
+      taskId: 907,
+    });
+    expect(mockPrisma.task.updateMany).not.toHaveBeenCalled();
+  });
+
+  test('lifetime count が15未満なら従来通り bounce する', async () => {
+    mockPrisma.workflowTransition.count.mockResolvedValueOnce(1).mockResolvedValueOnce(14);
+    const result = await attemptVerifyRepair(907, 'research_done', 'reason', 'verify body');
+    expect(result.bounced).toBe(true);
+    expect(recordTransition).toHaveBeenCalledTimes(1);
+    expect((recordTransition.mock.calls[0] as unknown[])[0]).not.toMatchObject({
+      cause: 'verify_repair_lifetime_exceeded',
+    });
   });
 });

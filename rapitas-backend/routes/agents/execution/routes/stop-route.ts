@@ -17,6 +17,7 @@ import {
   isAutoRunHandlingTask,
 } from '../../../../services/workflow/auto-run/theme-auto-run-service';
 import { releaseTaskExecutionLock } from '../shared/execution-lock';
+import { incrementTaskGenerationId } from '../../../../services/agents/task-execution-lock';
 import { removeWorktree } from '../../../../services/agents/orchestrator/git-operations/worktree/worktree-ops';
 import { resolveTaskWorkingDirectory } from '../../../../services/task/task-resolver';
 import { recordTransition } from '../../../../services/workflow/transition-recorder';
@@ -33,6 +34,14 @@ export const stopRoute = new Elysia().post(
     const withdraw = body?.withdraw === true;
 
     try {
+      // Bump the durable execution generation FIRST (task 881) — this is the
+      // signal stale-recovery-helpers.ts checks before reviving a session, so
+      // it must be visible to any recovery pass that races this stop as early
+      // as possible. haltReason/resumeCondition are NOT written here: those
+      // fields describe an AUTOMATIC iteration-budget halt, not a user stop
+      // (see task-iteration-budget.ts and plan.md §実装者への申し送り事項 #1).
+      await incrementTaskGenerationId(taskId);
+
       const task = await resolveTaskWorkingDirectory(taskId);
       const workingDirectory = task?.workingDirectory || task?.theme?.workingDirectory || null;
 

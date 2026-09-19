@@ -33,21 +33,51 @@ function normalize(msg: string): string {
   return msg.replace(/\d+/g, '#');
 }
 
-/** Force the next N Date.now() reads to jump forward, simulating an event-loop stall without a real-time wait. */
-function withForcedLag<T>(jumpMs: number, fn: () => Promise<T>): Promise<T> {
-  const realNow = Date.now;
-  let calls = 0;
-  Date.now = (() => {
-    calls += 1;
-    // 1st call: startEventLoopLagWatchdog's initial `expected` baseline (no jump).
-    // subsequent calls: interval tick reads `now` — jump forward to force lag.
-    return calls === 1 ? realNow() : realNow() + jumpMs;
-  }) as typeof Date.now;
-  return fn().finally(() => {
-    Date.now = realNow;
-  });
+/** Advance the real watchdog callback with an exact, controlled clock. */
+function triggerLag(lagMs: number): void {
+  triggerLags([lagMs]);
 }
 
+/**
+ * Runs one watchdog session through a sequence of lags, each applied as one
+ * tick of the real interval callback, under a fully controlled clock —
+ * needed for the self-heal thresholds, which only fire after multiple ticks
+ * (or one very large one). Returns the reasons passed to `selfHeal`, if any.
+ */
+function triggerLags(lagMsList: number[], selfHeal: (reason: string) => void = () => {}): string[] {
+  const realNow = Date.now;
+  const realInterval = globalThis.setInterval;
+  const realClear = globalThis.clearInterval;
+  let clockMs = 10_000;
+  let tick: (() => void) | undefined;
+  let intervalMs = 0;
+  const reasons: string[] = [];
+  Date.now = () => clockMs;
+  globalThis.setInterval = ((callback: () => void, ms: number) => {
+    tick = callback;
+    intervalMs = ms;
+    return 1;
+  }) as unknown as typeof setInterval;
+  globalThis.clearInterval = (() => {}) as typeof clearInterval;
+  try {
+    startEventLoopLagWatchdog((reason) => {
+      reasons.push(reason);
+      selfHeal(reason);
+    });
+    expect(intervalMs).toBe(500);
+    expect(tick).toBeDefined();
+    for (const lagMs of lagMsList) {
+      clockMs += intervalMs + lagMs;
+      tick!();
+    }
+  } finally {
+    stopEventLoopLagWatchdog();
+    Date.now = realNow;
+    globalThis.setInterval = realInterval;
+    globalThis.clearInterval = realClear;
+  }
+  return reasons;
+}
 describe('formatEventLoopLagMessage', () => {
   it('formats a fractional-second lag with one decimal place', () => {
     expect(formatEventLoopLagMessage(2161)).toBe('Event loop stalled ~2.2s');
@@ -75,11 +105,16 @@ describe('event-loop-lag-watchdog', () => {
     warnCalls.length = 0;
   });
 
+  test('does not warn at the threshold and warns immediately above it', () => {
+    triggerLag(2000);
+    expect(warnCalls).toHaveLength(0);
+    triggerLag(2001);
+    expect(warnCalls).toHaveLength(1);
+    expect(warnCalls[0][0].lagMs).toBe(2001);
+  });
+
   test('閾値超過時にWARNが発火し、lagMsは構造化フィールドとして保持される', async () => {
-    await withForcedLag(5000, async () => {
-      startEventLoopLagWatchdog();
-      await new Promise((resolve) => setTimeout(resolve, 600));
-    });
+    triggerLag(5000);
 
     expect(warnCalls.length).toBeGreaterThan(0);
     const [fields, msg] = warnCalls[0];
@@ -89,23 +124,55 @@ describe('event-loop-lag-watchdog', () => {
   });
 
   test('lagMsの値(整数秒/小数秒)によらずメッセージのシグネチャは同一になる', async () => {
-    await withForcedLag(2001, async () => {
-      startEventLoopLagWatchdog();
-      await new Promise((resolve) => setTimeout(resolve, 600));
-    });
+    triggerLag(2001);
     stopEventLoopLagWatchdog();
     const firstMsg = warnCalls[0]?.[1];
     warnCalls.length = 0;
 
-    await withForcedLag(2700, async () => {
-      startEventLoopLagWatchdog();
-      await new Promise((resolve) => setTimeout(resolve, 600));
-    });
+    triggerLag(2700);
     const secondMsg = warnCalls[0]?.[1];
 
     expect(firstMsg).toBeDefined();
     expect(secondMsg).toBeDefined();
     expect(normalize(firstMsg as string)).toBe(normalize(secondMsg as string));
     expect(normalize(firstMsg as string)).toBe('Event loop stalled ~#.#s');
+  });
+});
+
+describe('event-loop-lag-watchdog self-heal (2026-09-18 incident)', () => {
+  afterEach(() => {
+    stopEventLoopLagWatchdog();
+    warnCalls.length = 0;
+  });
+
+  test('a single catastrophic stall (>=15s) triggers self-heal immediately', () => {
+    const reasons = triggerLags([15_000]);
+    expect(reasons).toHaveLength(1);
+    expect(reasons[0]).toContain('single stall');
+  });
+
+  test('a moderate stall well under both thresholds never triggers self-heal', () => {
+    const reasons = triggerLags([3000, 3000, 3000]);
+    expect(reasons).toHaveLength(0);
+  });
+
+  test('repeated moderate stalls that sum to >=30s within the window trigger self-heal', () => {
+    // 10 x 3000ms = 30000ms, each tick ~3.5s apart -> well inside the 120s window.
+    const reasons = triggerLags(Array(10).fill(3000));
+    expect(reasons).toHaveLength(1);
+    expect(reasons[0]).toContain('cumulative stall');
+  });
+
+  test('self-heal fires at most once per watchdog run even if lag keeps recurring', () => {
+    const reasons = triggerLags([15_000, 15_000, 15_000]);
+    expect(reasons).toHaveLength(1);
+  });
+
+  test("a fresh watchdog run does not inherit the previous run's stall history", () => {
+    triggerLags([20_000]);
+    // A brand-new run (stopEventLoopLagWatchdog() ran in triggerLags' finally
+    // block) must start clean, not immediately re-trigger from stale state.
+    const reasons = triggerLags([3000]);
+    expect(reasons).toHaveLength(0);
   });
 });

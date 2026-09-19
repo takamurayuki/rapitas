@@ -8,6 +8,7 @@ describe('eligibleTopLevelTodoWhere', () => {
       status: 'todo',
       parentId: null,
       workflowDisabled: false,
+      autoRunExcluded: false,
       OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
     });
   });
@@ -18,6 +19,7 @@ describe('eligibleTopLevelTodoWhere', () => {
       status: 'todo',
       parentId: null,
       workflowDisabled: false,
+      autoRunExcluded: false,
       OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
       autoCreatedFromBacklog: false,
     });

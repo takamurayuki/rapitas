@@ -7,8 +7,8 @@
  * the worktree-or-hard-fail invariant: a mutating role NEVER runs in any
  * repo's PRIMARY checkout — worktree creation failure is fatal, and the
  * repo-agnostic isPrimaryWorkTree pre-spawn guard refuses the leftovers.
- * Non-mutating roles (researcher / planner) must never touch any
- * of this machinery.
+ * Researchers use the theme checkout; planners may reuse existing work but
+ * never create a replacement worktree.
  *
  * Uses `role: 'verifier'` with `outputFile: null` as a synthetic "mutating
  * role" fixture so worktree assertions stay isolated from the (separately
@@ -70,6 +70,73 @@ function lastExecuteTaskCall(): [AgentTaskLike, ExecutionOptionsLike] {
 }
 
 describe('executeCLIAgent — worktree resolution', () => {
+  test('planner does not recreate a missing worktree', async () => {
+    wf.latestSessionWorktree = {
+      worktreePath: '/fake/worktree/missing',
+      branchName: 'feature/existing',
+    };
+    wf.canReuseWorktree = false;
+    await run({ ...nonMutatingTransition(), role: 'planner' });
+    expect(lastExecuteTaskCall()[1].workingDirectory).toBe('/fake/project');
+    expect(spies.createWorktree).not.toHaveBeenCalled();
+  });
+
+  test('planner inherits existing implementation work without creating a replacement', async () => {
+    resetWfMockState();
+    wf.latestSessionWorktree = {
+      worktreePath: '/fake/worktree/existing',
+      branchName: 'feature/existing',
+    };
+    wf.canReuseWorktree = true;
+    await run({ ...nonMutatingTransition(), role: 'planner' });
+    expect(lastExecuteTaskCall()[1].workingDirectory).toBe('/fake/worktree/existing');
+    expect(spies.createWorktree).not.toHaveBeenCalled();
+  });
+
+  test('planner reuse logs the uncommitted diff summary (task 956, AC1)', async () => {
+    resetWfMockState();
+    wf.latestSessionWorktree = {
+      worktreePath: '/fake/worktree/existing',
+      branchName: 'feature/existing',
+    };
+    wf.canReuseWorktree = true;
+    wf.uncommittedDiffSummaryImpl = () => ({ hasUncommittedChanges: true, changedFileCount: 3 });
+
+    await run({ ...nonMutatingTransition(), role: 'planner' });
+
+    expect(spies.getUncommittedDiffSummary).toHaveBeenCalledTimes(1);
+    const diffSummaryCall = (spies.logInfo.mock.calls as [Record<string, unknown>, string][]).find(
+      ([, message]) => message.includes('uncommitted diff summary'),
+    );
+    expect(diffSummaryCall).toBeDefined();
+    const [context] = diffSummaryCall!;
+    expect(context).toMatchObject({
+      worktreePath: '/fake/worktree/existing',
+      changedFileCount: 3,
+      hasUncommittedChanges: true,
+    });
+    expect(spies.logWarn).not.toHaveBeenCalled();
+  });
+
+  test('planner reuse-not-possible warns that diff visibility was lost (task 956, AC1)', async () => {
+    resetWfMockState();
+    wf.latestSessionWorktree = {
+      worktreePath: '/fake/worktree/missing',
+      branchName: 'feature/existing',
+    };
+    wf.canReuseWorktree = false;
+
+    await run({ ...nonMutatingTransition(), role: 'planner' });
+
+    expect(spies.getUncommittedDiffSummary).not.toHaveBeenCalled();
+    const visibilityLostCall = (
+      spies.logWarn.mock.calls as [Record<string, unknown>, string][]
+    ).find(([, message]) => message.includes('uncommitted diff visibility lost'));
+    expect(visibilityLostCall).toBeDefined();
+    const [context] = visibilityLostCall!;
+    expect(context).toMatchObject({ recordedPath: '/fake/worktree/missing' });
+  });
+
   beforeEach(() => {
     resetWfMockState();
   });

@@ -34,6 +34,7 @@ function row(daysAgo: number, over: Partial<TransitionRowLite>): TransitionRowLi
   return {
     cause: null,
     toStatus: null,
+    fromStatus: null,
     metadata: null,
     createdAt: new Date(NOW.getTime() - daysAgo * 24 * 60 * 60 * 1000),
     ...over,
@@ -89,6 +90,15 @@ describe('bucketTransitions', () => {
     const rows = [row(1, { cause: 'ci_repair', toStatus: 'completed' })];
     const w = bucketTransitions(rows, NOW, 7, 1);
     expect(w[0]!.counts.ci_repair).toBe(1);
+    expect(w[0]!.counts.completed).toBe(1);
+  });
+
+  it('excludes state-invariant completed→completed rows from counts.completed', () => {
+    const rows = [
+      row(1, { toStatus: 'completed', fromStatus: 'completed' }),
+      row(1, { toStatus: 'completed', fromStatus: 'in_progress' }),
+    ];
+    const w = bucketTransitions(rows, NOW, 7, 1);
     expect(w[0]!.counts.completed).toBe(1);
   });
 });

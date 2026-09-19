@@ -18,6 +18,7 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'child_process';
 import type { AIMessage } from './types';
+import { escapeWindowsShellArg } from '../common/windows-shell-escape';
 
 // ── child_process mock ──────────────────────────────────────────────────────
 
@@ -47,12 +48,17 @@ const mockSpawn = mock((command: string, args: string[], options: Record<string,
   return child as unknown as ChildProcess;
 });
 
+// OS containment is exercised with real processes in windows-aux-job.live.test.ts.
+mock.module('./aux-cli-launch', () => ({ prepareAuxCli: async () => null }));
 mock.module('child_process', () => ({
   spawn: mockSpawn,
   // NOTE: agent-process-tracker (imported transitively for process registration)
   // statically imports execSync — must remain a valid named export even though
   // these tests never exercise that path.
   execSync: mock(() => ''),
+  execFile: mock(() => {
+    throw new Error('Unexpected process snapshot in provider unit test');
+  }),
   execFileSync: mock(() => Buffer.from('')),
   spawnSync: mock(() => ({ status: 0, stdout: '', stderr: '' })),
   fork: mock(() => {}),
@@ -98,6 +104,17 @@ const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 function fullCommand(i: number): string {
   const call = spawnCalls[i];
   return [call.command, ...(call.args ?? [])].join(' ');
+}
+
+/**
+ * An arg exactly as it will appear inside {@link fullCommand}'s joined
+ * string: unescaped on non-Windows (buildSpawnCommand passes args through
+ * unchanged there), caret-escaped via escapeWindowsShellArg on Windows
+ * (task 977). Cross-platform assertions build expected substrings from
+ * this instead of a hand-written plain string.
+ */
+function argInCommand(arg: string): string {
+  return process.platform === 'win32' ? escapeWindowsShellArg(arg, true) : arg;
 }
 
 /** Emits a well-formed non-streaming success payload and closes the child. */
@@ -168,7 +185,7 @@ describe('callClaudeCli — success', () => {
     respondSuccess(spawnedChildren[0]);
     await promise;
     expect(fullCommand(0)).toContain(
-      '--disallowedTools Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit,TodoWrite,MultiEdit',
+      `${argInCommand('--disallowedTools')} ${argInCommand('Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit,TodoWrite,MultiEdit')}`,
     );
   });
 
@@ -205,7 +222,7 @@ describe('callClaudeCli — model alias mapping', () => {
     await flush();
     respondSuccess(spawnedChildren[0]);
     await promise;
-    expect(fullCommand(0)).toContain(`--model ${expected}`);
+    expect(fullCommand(0)).toContain(`${argInCommand('--model')} ${argInCommand(expected)}`);
   });
 });
 
@@ -376,15 +393,18 @@ describe('callClaudeCliStream — success', () => {
 describe('isClaudeCliAvailable', () => {
   test('probes with --version and memoizes the result across calls', async () => {
     const p = isClaudeCliAvailable();
+    const concurrent = isClaudeCliAvailable();
     // checkClaudeAvailable() awaits getClaudePathAsync() before spawning, so
     // the spawn call lands after a microtask tick — flush before asserting.
     await flush();
     expect(spawnCalls.length).toBe(1);
-    expect(spawnCalls[0].args).toEqual(['--version']);
+    if (process.platform === 'win32') expect(spawnCalls[0].command).toContain('--version');
+    else expect(spawnCalls[0].args).toEqual(['--version']);
     expect(spawnCalls[0].options).toMatchObject({ shell: true, windowsHide: true });
 
     spawnedChildren[0].emit('close', 0);
     expect(await p).toBe(true);
+    expect(await concurrent).toBe(true);
 
     const callsBefore = mockSpawn.mock.calls.length;
     expect(await isClaudeCliAvailable()).toBe(true);

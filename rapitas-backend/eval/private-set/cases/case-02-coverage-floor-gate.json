@@ -1,0 +1,8 @@
+{
+  "id": "case-02-coverage-floor-gate",
+  "category": "bug-fix",
+  "taskDescription": "bunfig の coverage=false が CLI --coverage 指定を黙殺する不具合を受けたカバレッジフロアゲートの実装",
+  "initialFiles": ["rapitas-backend/scripts/coverage-floor.ts"],
+  "acceptanceCheck": "bun test scripts/coverage-floor.test.ts",
+  "expectedOutcome": "pass-to-pass"
+}
