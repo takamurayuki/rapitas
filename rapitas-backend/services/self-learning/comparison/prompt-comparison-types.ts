@@ -65,6 +65,9 @@ export interface ComparisonSummary {
   uncertainty: 'low' | 'medium' | 'high';
 }
 
+/** Difficulty bands a staged addendum can be scoped to (see prompt-band-evidence.ts). */
+export const COMPLEXITY_BANDS = ['light', 'standard', 'comprehensive'] as const;
+
 /** Full persisted comparison record for one PromptEvolution candidate. */
 export interface ComparisonRecord {
   promptEvolutionId: number;
@@ -81,4 +84,10 @@ export interface ComparisonRecord {
   knowledgeSnapshotHash: string | null;
   /** Task ids the approved candidate is limited to (set via the /stage endpoint). */
   stagedTaskIds: number[] | null;
+  /**
+   * Difficulty bands ('light'|'standard'|'comprehensive') the approved
+   * candidate is limited to. Independent of stagedTaskIds — both, when set,
+   * apply as an AND condition (getApprovedRoleAddendum, task #970).
+   */
+  stagedComplexityBands: string[] | null;
 }
