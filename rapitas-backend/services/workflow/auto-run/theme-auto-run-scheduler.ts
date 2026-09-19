@@ -250,21 +250,29 @@ export class ThemeAutoRunScheduler {
     globalActive: number,
     lastRunAt: string | null,
   ): Promise<void> {
-    if (currentTaskId) {
-      if (await this.haltIfIterationBudgetExceeded(themeId, currentTaskId)) return;
-      await advanceActiveTask(
-        prisma,
-        themeId,
-        currentTaskId,
-        order,
-        globalActive,
-        lastRunAt,
-        this.barrierHoldSince,
-      );
-      return;
-    }
+    const t0 = Date.now();
+    try {
+      if (currentTaskId) {
+        if (await this.haltIfIterationBudgetExceeded(themeId, currentTaskId)) return;
+        await advanceActiveTask(
+          prisma,
+          themeId,
+          currentTaskId,
+          order,
+          globalActive,
+          lastRunAt,
+          this.barrierHoldSince,
+        );
+        return;
+      }
 
-    await selectAndEnqueueNextTask(prisma, themeId, order, globalActive, this.barrierHoldSince);
+      await selectAndEnqueueNextTask(prisma, themeId, order, globalActive, this.barrierHoldSince);
+    } finally {
+      const tookMs = Date.now() - t0;
+      // NOTE: diagnostic instrumentation for concern #966 (event-loop-lag WARN,
+      // "steady-state" cluster) — helps pin down which theme's dispatch was slow.
+      if (tookMs > 1000) log.warn({ themeId, tookMs }, 'Slow theme advance');
+    }
   }
 
   /**

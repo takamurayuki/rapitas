@@ -50,6 +50,7 @@ import {
   mockStopThemeAgents,
   mockActivityLogCreate,
   mockUserSettingsFindFirst,
+  mockLogWarn,
   mockResolveIterationBudgetForTask,
 } from './theme-auto-run-scheduler.test-support.collaborator-mocks';
 import {
@@ -210,6 +211,7 @@ const ALL_MOCKS = [
   mockShouldRefillBacklogNow,
   mockMarkSelfRefillSucceeded,
   mockIsOverlapHeld,
+  mockLogWarn,
   mockResolveIterationBudgetForTask,
 ];
 

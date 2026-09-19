@@ -18,9 +18,10 @@ import { mock } from 'bun:test';
 // ---------------------------------------------------------------------------
 // Silent logger (mirrors the shape used elsewhere: info/warn/error/debug)
 // ---------------------------------------------------------------------------
+export const mockLogWarn = mock(() => {});
 const silentLogger = {
   info: () => {},
-  warn: () => {},
+  warn: mockLogWarn,
   error: () => {},
   debug: () => {},
 };
