@@ -205,6 +205,23 @@ describe('Agent Execution Router', () => {
 
       expect(response.status).toBeOneOf([200, 400, 404]);
     });
+
+    it('should return 400 instead of crashing when the request body is omitted (#945)', async () => {
+      const mockTaskId = '999';
+
+      const response = await app.handle(
+        new Request(`http://localhost/tasks/${mockTaskId}/continue-execution`, {
+          method: 'POST',
+        }),
+      );
+
+      // Regression: context.body is undefined when the body is omitted (schema
+      // is t.Optional). A direct destructure previously threw an unhandled
+      // TypeError instead of reaching the instruction-required 400 response.
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toBe('Instruction is required');
+    });
   });
 
   describe('POST /tasks/:id/reset-execution-state', () => {
