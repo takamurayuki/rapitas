@@ -2,10 +2,11 @@
  * probe-retry.test
  *
  * Tests for classifyProbeFailure and runProbeWithRetry: transient-pattern
- * classification, immediate permanent stop, recovery after a transient
+ * classification, the single forced live recheck on a permanent verdict
+ * (skipped when a recent success is cached), recovery after a transient
  * failure, and consecutive-transient exhaustion becoming permanent.
  */
-import { describe, it, expect, mock } from 'bun:test';
+import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
 // NOTE: sleep is mocked to a no-op so tests do not incur real timer delays.
 // All exports from agent-retry must be mirrored — bun mock.module is process-global.
@@ -19,6 +20,7 @@ mock.module('../../agents/abstraction/agent-retry', () => ({
 
 const { classifyProbeFailure, runProbeWithRetry, PROBE_MAX_RETRIES } =
   await import('./probe-retry');
+const { invalidateProbeCache, setCachedProbeResult } = await import('./probe-cache');
 import type { ProbeContext, ProbeTarget } from './probe.types';
 
 const CTX: ProbeContext = {
@@ -26,6 +28,12 @@ const CTX: ProbeContext = {
   role: 'researcher',
   agentConfig: { agentType: 'claude-code' },
 };
+
+// probe-cache is a module-singleton in-memory Map — reset between tests so
+// the forced-live-recheck cache lookup does not leak state across cases.
+beforeEach(() => {
+  invalidateProbeCache();
+});
 
 describe('classifyProbeFailure', () => {
   it.each([
@@ -78,7 +86,55 @@ describe('runProbeWithRetry', () => {
     expect(result.attempts).toBe(2);
   });
 
-  it('stops immediately on a permanent classification', async () => {
+  it('stops immediately on a permanent classification when a recent success is cached', async () => {
+    const target: ProbeTarget = {
+      id: 'agent-endpoint',
+      run: mock(async () => {
+        throw new Error('not authenticated');
+      }),
+    };
+    setCachedProbeResult(CTX.taskId, target.id, 'success', 1000);
+
+    const result = await runProbeWithRetry(target, CTX, 1000);
+
+    expect(result).toMatchObject({ outcome: 'permanent_failure', attempts: 1 });
+    expect(result.errorMessage).toContain('not authenticated');
+    expect(target.run).toHaveBeenCalledTimes(1);
+  });
+
+  it('forces one live recheck on a permanent classification with no recent success cached, and recovers', async () => {
+    let calls = 0;
+    const target: ProbeTarget = {
+      id: 'agent-endpoint',
+      run: mock(async () => {
+        calls += 1;
+        if (calls === 1) throw new Error('not authenticated');
+      }),
+    };
+
+    const result = await runProbeWithRetry(target, CTX, 1000);
+
+    expect(result).toMatchObject({ outcome: 'success', attempts: 2, errorMessage: null });
+    expect(target.run).toHaveBeenCalledTimes(2);
+  });
+
+  it('forces the recheck with a cache-bypassing attempt index (> 0)', async () => {
+    const seenAttempts: number[] = [];
+    const target: ProbeTarget = {
+      id: 'agent-endpoint',
+      run: mock(async (_ctx: ProbeContext, attempt: number) => {
+        seenAttempts.push(attempt);
+        if (attempt === 0) throw new Error('agent endpoint unavailable for provider "claude"');
+      }),
+    };
+
+    const result = await runProbeWithRetry(target, CTX, 1000);
+
+    expect(result.outcome).toBe('success');
+    expect(seenAttempts).toEqual([0, 1]);
+  });
+
+  it('confirms permanent failure when the forced live recheck also fails', async () => {
     const target: ProbeTarget = {
       id: 'agent-endpoint',
       run: mock(async () => {
@@ -88,8 +144,9 @@ describe('runProbeWithRetry', () => {
 
     const result = await runProbeWithRetry(target, CTX, 1000);
 
-    expect(result).toMatchObject({ outcome: 'permanent_failure', attempts: 1 });
+    expect(result).toMatchObject({ outcome: 'permanent_failure', attempts: 2 });
     expect(result.errorMessage).toContain('not authenticated');
+    expect(target.run).toHaveBeenCalledTimes(2);
   });
 
   it('becomes permanent after consecutive transient failures exhaust retries', async () => {

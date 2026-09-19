@@ -195,6 +195,7 @@ export async function guardImplementOverlap(
       const rel = releasedAt.get(taskId);
       if (rel !== undefined && now - rel < maxHoldMs) return { done: false };
       holdSince.set(taskId, now);
+      lastSignalAt.set(taskId, now);
       const files = hits.flatMap((h) => h.files);
       logCycleEvent('task.implement_overlap_hold', {
         task: taskId,

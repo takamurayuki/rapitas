@@ -227,6 +227,7 @@ describe('settleApprovedEvolutions — staged scope + auto-promote', () => {
       },
       knowledgeSnapshotHash: null,
       stagedTaskIds: [810, 812],
+      stagedComplexityBands: null,
       ...overrides,
     };
   }

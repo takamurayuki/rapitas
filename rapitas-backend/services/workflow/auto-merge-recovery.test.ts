@@ -148,6 +148,26 @@ describe('recoverMergedTasks — 正常回収', () => {
       githubPrId: { not: null },
     });
   });
+
+  test('競合解消タスク(PR行の linkedTaskId は元タスク)も、その PR が MERGED なら完了させる', async () => {
+    // 2026-09-20: 984/985/986 「PR #632/#722/#742 の競合を解消」 sat at verify_done
+    // holding the theme's only slot while their PRs were already merged.
+    taskFindMany.mockResolvedValueOnce([{ ...heldTask, id: 984, title: 'PR #621 の競合を解消' }]);
+    prFindFirst.mockResolvedValueOnce({ ...scopedPr, linkedTaskId: 900 });
+
+    expect(await recoverMergedTasks()).toEqual([984]);
+    expect(taskUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: 984, githubPrId: 621 }) }),
+    );
+  });
+
+  test('別番号の競合解消タスクは他タスクの PR では完了しない', async () => {
+    taskFindMany.mockResolvedValueOnce([{ ...heldTask, id: 984, title: 'PR #999 の競合を解消' }]);
+    prFindFirst.mockResolvedValueOnce({ ...scopedPr, linkedTaskId: 900 });
+
+    expect(await recoverMergedTasks()).toEqual([]);
+    expect(taskUpdateMany).not.toHaveBeenCalled();
+  });
 });
 
 describe('recoverMergedTasks — 回収してはいけないケース', () => {

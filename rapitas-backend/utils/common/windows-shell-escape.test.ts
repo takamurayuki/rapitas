@@ -13,7 +13,12 @@
  * transform.
  */
 import { describe, test, expect } from 'bun:test';
-import { escapeWindowsShellArg } from './windows-shell-escape';
+import {
+  escapeWindowsShellArg,
+  escapeWindowsShellArgForTarget,
+  escapeWindowsShellArgLayers,
+  windowsShellEscapeLayersFor,
+} from './windows-shell-escape';
 
 describe('escapeWindowsShellArg — doubleEscapeMetaChars=false (command-name mode)', () => {
   test('always quotes the result, even for an empty string', () => {
@@ -83,5 +88,42 @@ describe('escapeWindowsShellArg — doubleEscapeMetaChars=true (argument mode)',
 
   test('preserves a literal newline inside the escaped argument', () => {
     expect(escapeWindowsShellArg('a\nb', true)).toBe('^^^"a\nb^^^"');
+  });
+});
+
+describe('escapeWindowsShellArgForTarget — escape depth follows the target kind', () => {
+  test.each([
+    ['npm .cmd shim', 'C:\\nvm4w\\nodejs\\codex.cmd', 2],
+    ['.CMD shim (case-insensitive)', 'C:\\tools\\gemini.CMD', 2],
+    ['.bat shim', 'C:\\tools\\run.bat', 2],
+    ['native installer exe', 'C:\\Users\\me\\.local\\bin\\claude.exe', 1],
+    ['native exe under a dotted directory', 'C:\\Users\\me\\.local\\bin\\claude.EXE', 1],
+    ['bare name (unresolved — cmd.exe PATHEXT may pick a .cmd shim)', 'codex', 2],
+    ['path without extension', 'C:\\Users\\me\\.local\\bin\\claude', 2],
+    ['path with trailing whitespace', 'C:\\tools\\codex.cmd  ', 2],
+  ])('%s → %d layer(s)', (_label, targetPath, layers) => {
+    expect(windowsShellEscapeLayersFor(targetPath)).toBe(layers);
+  });
+
+  test('a native exe target gets exactly one caret layer (task 970 regression)', () => {
+    // Two layers would leave `^--print^` in the program's argv after the
+    // single cmd.exe parse a native executable is subject to.
+    expect(escapeWindowsShellArgForTarget('C:\\bin\\claude.exe', '--print')).toBe('^"--print^"');
+    expect(escapeWindowsShellArgForTarget('C:\\bin\\claude.exe', '100%')).toBe('^"100^%^"');
+    expect(escapeWindowsShellArgForTarget('C:\\bin\\claude.exe', 'x"y')).toBe('^"x\\^"y^"');
+  });
+
+  test('a .cmd shim target keeps the two-layer form of escapeWindowsShellArg(arg, true)', () => {
+    for (const arg of ['--print', '%OPENAI_API_KEY%', 'a&b', 'say "hi\\', '']) {
+      expect(escapeWindowsShellArgForTarget('C:\\nvm4w\\nodejs\\codex.cmd', arg)).toBe(
+        escapeWindowsShellArg(arg, true),
+      );
+    }
+  });
+
+  test('escapeWindowsShellArgLayers(…, 0) equals command-name mode', () => {
+    expect(escapeWindowsShellArgLayers('C:\\Program Files\\x.exe', 0)).toBe(
+      escapeWindowsShellArg('C:\\Program Files\\x.exe', false),
+    );
   });
 });

@@ -63,6 +63,17 @@ mock.module('../task/task-mutations', () => ({
   createTask: mock(() => Promise.resolve({ id: 100 })),
 }));
 
+// Jev is not configured in this test environment (no RAPITAS_JEV_API_KEY),
+// so checkConcernStillRelevant already no-ops to null in every existing
+// test above — this mock only needs to be swapped for the dedicated
+// jev-not-relevant tests below.
+const mockCheckConcernStillRelevant = mock(() =>
+  Promise.resolve(null as { relevant: boolean; confidence: number } | null),
+);
+mock.module('./concern-relevance-check', () => ({
+  checkConcernStillRelevant: mockCheckConcernStillRelevant,
+}));
+
 const {
   CONCERN_TYPES,
   CONCERN_SEVERITIES,
@@ -95,6 +106,7 @@ function resetMocks() {
   mockThemeFindFirst.mockReset().mockResolvedValue(null);
   mockThemeFindMany.mockReset().mockResolvedValue([]);
   mockTaskFindUnique.mockReset().mockResolvedValue(null);
+  mockCheckConcernStillRelevant.mockReset().mockResolvedValue(null);
 }
 
 // ─── Pure helper tests ────────────────────────────────────────────────────────
@@ -607,7 +619,12 @@ describe('submitConcern — 応答のoutcome区別', () => {
       detail: '詳細',
     });
 
-    expect(result).toEqual({ id: 42, outcome: 'suppressed', reason: 'near-duplicate' });
+    expect(result).toEqual({
+      id: 42,
+      outcome: 'suppressed',
+      reason: 'near-duplicate',
+      stored: false,
+    });
     expect(mockKnowledgeEntryCreate).not.toHaveBeenCalled();
   });
 
@@ -626,7 +643,12 @@ describe('submitConcern — 応答のoutcome区別', () => {
       detail: '詳細',
     });
 
-    expect(result).toEqual({ id: 51, outcome: 'suppressed', reason: 'theme-saturation' });
+    expect(result).toEqual({
+      id: 51,
+      outcome: 'suppressed',
+      reason: 'theme-saturation',
+      stored: false,
+    });
     expect(mockKnowledgeEntryCreate).not.toHaveBeenCalled();
   });
 
@@ -642,7 +664,97 @@ describe('submitConcern — 応答のoutcome区別', () => {
       detail: '詳細',
     });
 
-    expect(result).toEqual({ id: 7, outcome: 'created', reason: 'new' });
+    expect(result).toEqual({ id: 7, outcome: 'created', reason: 'new', stored: true });
+  });
+
+  it('無関係な既存懸念がタイトルの疎な類似度だけでヒットしても内容が無関係なら新規作成される (#967)', async () => {
+    // タイトルのみでは salient=5・minJaccard=0.2 を満たすが、detail の内容は無関係な
+    // 3件（実際のバグ再現条件）。theme-saturation の newDetail 二次チェックにより
+    // 誤ってこれらのIDへ抑制されず、実際に新規 KnowledgeEntry が作成されることを確認する。
+    mockKnowledgeEntryFindMany
+      .mockResolvedValueOnce([]) // findBlockingDuplicate: no blocking dup
+      .mockResolvedValueOnce([]) // findNearDuplicate: bigram-Jaccard too low to match
+      .mockResolvedValueOnce([
+        {
+          id: 301,
+          title: '[Bug] PDF出力処理が正しく動作しない',
+          content:
+            'PDF出力機能で帳票を生成すると日本語フォントが埋め込まれず文字化けする。フォント埋め込み設定の見直しが必要。',
+        },
+        {
+          id: 302,
+          title: '[Bug] メール送信処理が正しく動作しない',
+          content:
+            'メール送信バッチが添付ファイルサイズ上限を超えると無言で送信を諦めてしまう。エラーログにも記録が残らない。',
+        },
+        {
+          id: 303,
+          title: '[Bug] キャッシュ削除処理が正しく動作しない',
+          content:
+            'キャッシュ削除ジョブが並行実行されるとロック競合で片方が失敗し、古いキャッシュが残り続けることがある。',
+        },
+      ]); // findSaturatedTheme: title-only would hit cap=3, but content is unrelated
+    mockKnowledgeEntryCreate.mockResolvedValueOnce({ id: 999 });
+
+    const result = await submitConcern({
+      title: '[Bug] 決済リトライ処理が正しく動作しない',
+      detail:
+        '決済APIのリトライ処理でタイムアウト後に再送すると二重課金が発生する場合がある。冪等キーの検証を強化する必要がある。',
+    });
+
+    expect(mockKnowledgeEntryCreate).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ id: 999, outcome: 'created', reason: 'new', stored: true });
+  });
+
+  it('Jevが確信を持って「関連性なし」と判定した場合は outcome:suppressed, reason:jev-not-relevant で id:null を返す', async () => {
+    mockKnowledgeEntryFindMany
+      .mockResolvedValueOnce([]) // findBlockingDuplicate
+      .mockResolvedValueOnce([]) // findNearDuplicate
+      .mockResolvedValueOnce([]); // findSaturatedTheme
+    mockCheckConcernStillRelevant.mockResolvedValueOnce({ relevant: false, confidence: 0.92 });
+
+    const result = await submitConcern({
+      title: '既に修正済みの一時的なエラーに見えるタイトル',
+      detail: '詳細',
+    });
+
+    expect(result).toEqual({
+      id: null,
+      outcome: 'suppressed',
+      reason: 'jev-not-relevant',
+      stored: false,
+    });
+    expect(mockKnowledgeEntryCreate).not.toHaveBeenCalled();
+  });
+
+  it('Jevが「関連性あり」と判定した場合は通常どおり outcome:created を返す', async () => {
+    mockKnowledgeEntryFindMany
+      .mockResolvedValueOnce([]) // findBlockingDuplicate
+      .mockResolvedValueOnce([]) // findNearDuplicate
+      .mockResolvedValueOnce([]); // findSaturatedTheme
+    mockCheckConcernStillRelevant.mockResolvedValueOnce({ relevant: true, confidence: 0.9 });
+    mockKnowledgeEntryCreate.mockResolvedValueOnce({ id: 8 });
+
+    const result = await submitConcern({
+      title: '現在も再現する具体的な不具合のタイトル',
+      detail: '詳細',
+    });
+
+    expect(result).toEqual({ id: 8, outcome: 'created', reason: 'new', stored: true });
+  });
+
+  it('dedupKey付きの懸念はJev判定をスキップする(既存のrecurrencePolicyと二重判定しない)', async () => {
+    mockKnowledgeEntryFindMany.mockResolvedValueOnce([]); // findBlockingDuplicate only
+    mockKnowledgeEntryCreate.mockResolvedValueOnce({ id: 9 });
+
+    const result = await submitConcern({
+      title: 'dedupKey付きの懸念',
+      detail: '詳細',
+      dedupKey: 'stable-key-1',
+    });
+
+    expect(result.outcome).toBe('created');
+    expect(mockCheckConcernStillRelevant).not.toHaveBeenCalled();
   });
 });
 

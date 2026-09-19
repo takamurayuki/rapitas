@@ -21,11 +21,11 @@ import {
   writeWorkflowFile,
 } from '../../../services/workflow/workflow-file-utils';
 import { triggerRedispatchAfterResume } from './workflow-handlers-resume-redispatch';
+import { readQuestionMetadata } from '../../../services/workflow/question-kind-resolver';
 import {
-  readQuestionMetadata,
-  type QuestionKind,
-} from '../../../services/workflow/question-kind-resolver';
-import { applyQuestionAnswerByKind } from './workflow-handlers-resume-dispatch';
+  applyQuestionAnswerByKind,
+  type QuestionAnswerKind,
+} from './workflow-handlers-resume-dispatch';
 
 const log = createLogger('routes:workflow:resume');
 
@@ -203,7 +203,7 @@ export async function handleResumeFromQuestion({ params, set }: ResumeContext): 
   taskId: number;
   ok: true;
   toStatus: WorkflowStatus;
-  resolvedKind: QuestionKind;
+  resolvedKind: QuestionAnswerKind;
 }> {
   const taskId = parseInt(params.taskId, 10);
   if (Number.isNaN(taskId)) {

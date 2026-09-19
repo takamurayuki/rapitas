@@ -165,29 +165,29 @@ export class WorkflowRunner {
     };
   }
 
-  /**
-   * Dequeue items and process them.
-   */
+  /** Dequeue items and process them. */
   private async processQueue(): Promise<void> {
     if (!this.running) return;
-
+    const t0 = Date.now();
+    let dequeuedCount = 0;
     try {
       // Dequeue while there are free slots
       while (this.activeExecutions.size < this.queue.getMaxConcurrency()) {
         const item = await this.queue.dequeue();
         if (!item) break;
-
-        // Start execution async (fire-and-forget)
-        this.executeWorkflowItem(item);
+        dequeuedCount++;
+        this.executeWorkflowItem(item); // fire-and-forget
       }
     } catch (error) {
       log.error({ err: error }, '[WorkflowRunner] Error in processQueue');
+    } finally {
+      // NOTE(task 966): diagnostic instrumentation for concern #966 (event-loop-lag WARN).
+      const tookMs = Date.now() - t0;
+      if (tookMs > 1000) log.warn({ dequeuedCount, tookMs }, 'Slow queue processing');
     }
   }
 
-  /**
-   * Execute the entire workflow for a single task asynchronously.
-   */
+  /** Execute the entire workflow for a single task asynchronously. */
   private async executeWorkflowItem(item: QueueItem): Promise<void> {
     const abortController = new AbortController();
     const execution: ActiveExecution = {

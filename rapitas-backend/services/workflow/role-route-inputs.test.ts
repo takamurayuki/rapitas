@@ -47,4 +47,63 @@ describe('routeModelForRole', () => {
     expect(r.modelId).toBe('sonnet');
     expect(r.details.fallback).toBe(true);
   });
+
+  test('task-budget が spendUnknown を返しても hardCapTier は変化させず伝播するだけ', async () => {
+    // A generic Prisma-shaped stub so every dependency reached along the
+    // way (role-provider-resolver, workflow-queue, outcome-telemetry,
+    // role-evidence) resolves to a benign default instead of hitting a real
+    // DB connection. Each of their call sites already tolerates this via
+    // .catch(...) or a null-safe read — this test only needs task-budget's
+    // own resolution to be a controlled spendUnknown state.
+    const stubModel = () => ({
+      findMany: () => Promise.resolve([]),
+      findFirst: () => Promise.resolve(null),
+      findUnique: () => Promise.resolve(null),
+      count: () => Promise.resolve(0),
+      groupBy: () => Promise.resolve([]),
+    });
+    mock.module('../../config/database', () => ({
+      prisma: new Proxy({}, { get: () => stubModel() }),
+      ensureDatabaseConnection: () => Promise.resolve(),
+    }));
+    // The earlier test in this file replaces this module with a throwing
+    // stub; mock.module is file-global, so it must be re-set here or this
+    // test would inherit that failure and never reach the budget logic.
+    mock.module('./role-provider-resolver', () => ({
+      resolveRoleProviderPreferences: () => Promise.resolve({}),
+      inferProviderFromModelId: mock(() => null),
+    }));
+    mock.module('./task-budget', () => ({
+      resolveTaskBudgetCap: () =>
+        Promise.resolve({
+          spentUsd: 0,
+          budgetUsd: 25,
+          spendUnknown: true,
+          unknownReason: '支出取得に失敗（db down）— tier判定を保留',
+        }),
+    }));
+    const getStableSmartRoute = mock(() =>
+      Promise.resolve({ recommendedModel: 'claude-sonnet-5', recommendedTier: 'standard' }),
+    );
+    mock.module('../ai/model-route-stability', () => ({ getStableSmartRoute }));
+
+    const r = await routeModelForRole({
+      taskId: 42,
+      role: 'implementer',
+      task: { title: 't', description: null, labels: '[]', themeId: null },
+    });
+
+    expect(r.details.fallback).toBeUndefined();
+    expect(getStableSmartRoute).toHaveBeenCalledTimes(1);
+    const [, , options] = getStableSmartRoute.mock.calls[0] as [
+      unknown,
+      unknown,
+      Record<string, unknown>,
+    ];
+    // capTier stays undefined — an unknown spend lookup must not be read as
+    // "no ceiling" nor invent a new one; it just defers to the existing floor.
+    expect(options.hardCapTier).toBeUndefined();
+    expect(r.details.budgetSpendUnknown).toBe(true);
+    expect(r.details.budgetUnknownReason).toContain('db down');
+  });
 });

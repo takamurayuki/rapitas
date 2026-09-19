@@ -36,6 +36,7 @@ import {
   DEFAULT_WAIT_TIMEOUT_MS,
   failure,
   fingerprintConfig,
+  isStaleUnknownStart,
   nextGeneration,
   normalizeWorkdirKey,
   POLL_INTERVAL_MS,
@@ -186,16 +187,33 @@ async function acquireRuntimeServerInternal(
       // releases it; never signal a process during this read-only recovery.
       if (!entry.validationPromise) {
         entry.validationPromise = (async () => {
-          if (entry.leases.size > 0 || !entry.identities?.length) return;
+          if (entry.leases.size > 0) return;
+          const keep = (reason: string) =>
+            log.info({ key, reason }, '[registry] quarantine kept — exit still unproven');
+          // No owned tree (root identity never captured): the port + directory
+          // proof below is the strongest evidence there is, but only once the
+          // record is old enough that a launch which slipped in before the
+          // owning backend died would already hold its port/lock. Before this
+          // branch such an entry returned here unconditionally — an
+          // un-clearable quarantine until the OS rebooted (task 970).
+          if (!entry.identities?.length && !isStaleUnknownStart(entry.recordedAt)) {
+            return keep('identity-less record within grace window');
+          }
           const snapshot = await readRuntimeProcessSnapshot();
-          const inspected = inspectOwnedRuntimeTree(
-            entry.identities,
-            snapshot.processes,
-            snapshot.protectedPids,
-          );
-          if (!inspected.safe || inspected.alive.length || !snapshot.listeners) return;
-          if (snapshot.listeners.some((listener) => listener.port === entry.port)) return;
-          if (!(await inspectRuntimeDirectory(entry.workdir, snapshot.processes)).free) return;
+          if (entry.identities?.length) {
+            const inspected = inspectOwnedRuntimeTree(
+              entry.identities,
+              snapshot.processes,
+              snapshot.protectedPids,
+            );
+            if (!inspected.safe) return keep(inspected.reason ?? 'owned tree unsafe');
+            if (inspected.alive.length) return keep('owned process still alive');
+          }
+          if (!snapshot.listeners) return keep('listener snapshot unavailable');
+          if (snapshot.listeners.some((listener) => listener.port === entry.port))
+            return keep('recorded port still listening');
+          const directory = await inspectRuntimeDirectory(entry.workdir, snapshot.processes);
+          if (!directory.free) return keep(directory.reason ?? 'directory occupied');
           if (registry.get(key) !== entry || entry.state !== 'quarantined' || entry.leases.size)
             return;
           await persistRemoval(key);
@@ -342,20 +360,30 @@ async function recoverRegistryInternal(): Promise<void> {
   const bootId = await readRuntimeBootId();
   for (const persisted of entries) {
     const priorBoot = isPriorRuntimeBoot(persisted.bootId, bootId);
-    if (priorBoot) {
-      // No process from that boot can survive. Still refuse a currently occupied
-      // port/directory, and never signal a PID that may have been reused.
+    const identities = extendOwnedRuntimeTree(persisted.identities ?? [], snapshot.processes);
+    // No process from a prior boot can survive. An identity-less record (the
+    // backend died between persistStartingIntent and the first persistActive)
+    // has no tree to stop either, and once it is older than the grace window
+    // any launch that slipped through already holds its port/lock — so the
+    // same port + directory proof applies. Still refuse a currently occupied
+    // port/directory, and never signal a PID that may have been reused.
+    const staleUnknownStart = identities.length === 0 && isStaleUnknownStart(persisted.startedAt);
+    if (priorBoot || staleUnknownStart) {
       if (
         snapshot.listeners &&
         !snapshot.listeners.some((listener) => listener.port === persisted.port) &&
         (await inspectRuntimeDirectory(persisted.workdir, snapshot.processes)).free
       ) {
         await persistRemoval(persisted.key);
-        log.info({ key: persisted.key }, '[registry] prior OS boot ownership released');
+        log.info(
+          { key: persisted.key, priorBoot },
+          priorBoot
+            ? '[registry] prior OS boot ownership released'
+            : '[registry] stale identity-less start released — no surviving server in workdir',
+        );
         continue;
       }
     }
-    const identities = extendOwnedRuntimeTree(persisted.identities ?? [], snapshot.processes);
     const inspected = inspectOwnedRuntimeTree(
       identities,
       snapshot.processes,
@@ -397,6 +425,7 @@ async function recoverRegistryInternal(): Promise<void> {
       leases: new Set(),
       generation: nextGeneration(),
       quarantineReason: healthy ? undefined : '再起動後の所有・稼働状態を確認できません',
+      recordedAt: Date.parse(persisted.startedAt),
     };
     registry.set(entry.key, entry);
     // Save newly discovered descendants and the reconciled state before

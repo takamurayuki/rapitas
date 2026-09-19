@@ -438,6 +438,13 @@ describe('stop-route worktree cleanup', () => {
       where: { id: taskId },
       data: { status: 'todo' },
     });
+    // task 881: every stop-execution call bumps the durable execution
+    // generation counter FIRST, before any other DB write.
+    expect(mockDb.task.update).toHaveBeenCalledWith({
+      where: { id: taskId },
+      data: { executionGenerationId: { increment: 1 } },
+      select: { executionGenerationId: true },
+    });
   });
 
   it('records manual_execution_stop_withdraw cause when withdraw:true is sent (#875)', async () => {
@@ -466,6 +473,11 @@ describe('stop-route worktree cleanup', () => {
     expect(mockDb.task.update).toHaveBeenCalledWith({
       where: { id: taskId },
       data: { status: 'todo' },
+    });
+    expect(mockDb.task.update).toHaveBeenCalledWith({
+      where: { id: taskId },
+      data: { executionGenerationId: { increment: 1 } },
+      select: { executionGenerationId: true },
     });
   });
 });

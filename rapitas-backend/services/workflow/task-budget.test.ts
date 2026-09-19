@@ -37,9 +37,9 @@ describe('getTaskSpendUsd', () => {
     expect(await getTaskSpendUsd(1)).toBe(2);
   });
 
-  test('returns 0 when the read fails', async () => {
+  test('rejects instead of returning 0 when the read fails', async () => {
     findManyMock.mockImplementation(() => Promise.reject(new Error('db down')));
-    expect(await getTaskSpendUsd(1)).toBe(0);
+    expect(getTaskSpendUsd(1)).rejects.toThrow('db down');
   });
 });
 
@@ -82,5 +82,28 @@ describe('resolveTaskBudgetCap', () => {
     const r = await resolveTaskBudgetCap(1);
     expect(r.capTier).toBeUndefined();
     expect(r.spentUsd).toBe(999);
+  });
+
+  test('DB失敗時はunknownを返し、0扱い(no-cap相当)にはしない', async () => {
+    findManyMock.mockImplementation(() => Promise.reject(new Error('db down')));
+    const r = await resolveTaskBudgetCap(1);
+    expect(r.spendUnknown).toBe(true);
+    expect(r.unknownReason).toBeTruthy();
+    expect(r.unknownReason).toContain('db down');
+    // Tier judgement is deferred, not resolved to "no ceiling" — capTier
+    // stays unset either way, but the reason field distinguishes it from a
+    // genuinely empty spend history.
+    expect(r.capTier).toBeUndefined();
+  });
+
+  test('DB回復後は次回呼び出しで正常なtier判定に自動復帰する', async () => {
+    findManyMock.mockImplementationOnce(() => Promise.reject(new Error('db down')));
+    const failed = await resolveTaskBudgetCap(1);
+    expect(failed.spendUnknown).toBe(true);
+
+    findManyMock.mockResolvedValue(spent(20, 6));
+    const recovered = await resolveTaskBudgetCap(1);
+    expect(recovered.spendUnknown).toBeUndefined();
+    expect(recovered.capTier).toBe('standard');
   });
 });
