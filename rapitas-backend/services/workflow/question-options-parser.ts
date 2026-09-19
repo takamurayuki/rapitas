@@ -22,6 +22,12 @@ export interface ParsedQuestionOption {
   consequence?: string;
   /** True when choosing this option would change a gate's verification threshold/condition — never auto-answered. / ゲート条件を変更するか */
   mutatesGate?: boolean;
+  /**
+   * True when choosing this option should route the answer to a plan.md
+   * revision request instead of resuming the implementer (task 933). / 選択時に
+   * plan.md 改訂依頼へルーティングするか
+   */
+  planRevision?: boolean;
 }
 
 /** One machine-readable question parsed from a `json:options` block. */
@@ -97,6 +103,7 @@ export function parseQuestionOptionsBlock(content: string): ParsedQuestionBlock 
             label: o.label,
             consequence: typeof o.consequence === 'string' ? o.consequence : '',
             mutatesGate: o.mutatesGate === true,
+            planRevision: o.planRevision === true,
           });
         }
       }
@@ -197,4 +204,25 @@ export function composeAutoAnswerText(block: ParsedQuestionBlock): ComposedAutoA
     selections.push({ questionId: q.id, selectedKey: q.recommended });
   }
   return { answerText: parts.join('\n\n'), selections };
+}
+
+/**
+ * Find the option `selectedKey` names, IF it is flagged `planRevision:true`.
+ * Used by the answer-dispatch routing (task 933) to decide whether a picked
+ * option should send the answer to a plan.md revision request instead of
+ * resuming the implementer. Any non-match (no key, unknown key, or a matching
+ * option without the flag) returns `undefined` so the caller falls through to
+ * its normal resume routing.
+ *
+ * @param options - The question's parsed options. / 質問の選択肢
+ * @param selectedKey - The key the answer picked, if any. / 選択されたkey
+ * @returns The matching `planRevision:true` option, or undefined. / 一致した選択肢
+ */
+export function resolvePlanRevisionSelection(
+  options: ParsedQuestionOption[],
+  selectedKey: string | null | undefined,
+): ParsedQuestionOption | undefined {
+  if (!selectedKey) return undefined;
+  const option = options.find((o) => o.key === selectedKey);
+  return option?.planRevision === true ? option : undefined;
 }

@@ -11,6 +11,20 @@ import type { LearningStats, MemoryOverview } from './types';
 
 const log = createLogger('self-learning:learning');
 
+// Classification of WorkflowTransition.cause values as proxies for whether a
+// task's completion is backed by external evidence (PR merged, CI green,
+// verification passed) — see plan.md §acceptedTaskRateの算出定義
+// (autonomy audit 2026-09-06, first step toward a proper `accepted` concept).
+// Values confirmed present in services/workflow/*.ts before classification
+// (per implementer notes — unmatched causes fail closed into "unknown").
+const ACCEPTED_CAUSES = new Set([
+  'verify_passed',
+  'verify_no_change_confirmed',
+  'pr_ci_completed',
+  'auto_merged',
+]);
+const NOT_ACCEPTED_CAUSES = new Set(['verify_pr_not_created', 'auto_merge_blocked']);
+
 /**
  * Returns aggregate learning statistics including experiment counts,
  * top patterns, recent learnings, and knowledge graph size.
@@ -26,6 +40,7 @@ export async function getLearningStats(): Promise<LearningStats> {
     confirmedPromptImprovements,
     nodeCount,
     edgeCount,
+    acceptedStats,
   ] = await Promise.all([
     prisma.experiment.count(),
     prisma.experiment.count({ where: { status: 'completed' } }),
@@ -40,6 +55,7 @@ export async function getLearningStats(): Promise<LearningStats> {
     prisma.promptEvolution.count({ where: { status: 'completed', performanceDelta: { gt: 0 } } }),
     prisma.knowledgeGraphNode.count(),
     prisma.knowledgeGraphEdge.count(),
+    computeAcceptedTaskStats(),
   ]);
 
   const recentExperiments = await prisma.experiment.findMany({
@@ -65,11 +81,52 @@ export async function getLearningStats(): Promise<LearningStats> {
     successRate: completionRate,
     completionRate,
     sampleCount: totalExperiments,
+    acceptedTaskRate: acceptedStats.acceptedTaskRate,
+    window: 'all',
+    unknownCount: acceptedStats.unknownCount,
     topPatterns,
     recentLearnings,
     promptImprovements,
     confirmedPromptImprovements,
     knowledgeGraphSize: { nodes: nodeCount, edges: edgeCount },
+  };
+}
+
+/**
+ * Classifies every task with a WorkflowTransition into accepted/not-accepted/
+ * unknown by its most recently observed classified cause, and derives the
+ * acceptance rate. Reads WorkflowTransition read-only — no new persistence.
+ *
+ * @returns acceptedTaskRate (null when no classified task exists) and unknownCount
+ */
+async function computeAcceptedTaskStats(): Promise<{
+  acceptedTaskRate: number | null;
+  unknownCount: number;
+}> {
+  const relevantCauses = [...ACCEPTED_CAUSES, ...NOT_ACCEPTED_CAUSES];
+  const transitions = await prisma.workflowTransition.findMany({
+    select: { taskId: true, cause: true },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const decidedTaskIds = new Set<number>();
+  let acceptedCount = 0;
+  let notAcceptedCount = 0;
+  for (const t of transitions) {
+    if (decidedTaskIds.has(t.taskId)) continue;
+    if (!relevantCauses.includes(t.cause)) continue;
+    decidedTaskIds.add(t.taskId);
+    if (ACCEPTED_CAUSES.has(t.cause)) acceptedCount++;
+    else notAcceptedCount++;
+  }
+
+  const allTaskIds = new Set(transitions.map((t) => t.taskId));
+  const unknownCount = allTaskIds.size - decidedTaskIds.size;
+
+  const denominator = acceptedCount + notAcceptedCount;
+  return {
+    acceptedTaskRate: denominator > 0 ? acceptedCount / denominator : null,
+    unknownCount,
   };
 }
 

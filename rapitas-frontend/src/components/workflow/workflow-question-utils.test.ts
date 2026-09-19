@@ -121,12 +121,14 @@ describe('parseOptionsBlock', () => {
           label: '速度を優先する',
           consequence: '実装は最小限にする',
           mutatesGate: false,
+          planRevision: false,
         },
         {
           key: 'B',
           label: '品質を優先する',
           consequence: 'テストを手厚くする',
           mutatesGate: false,
+          planRevision: false,
         },
       ],
       freeTextRequired: false,
@@ -227,6 +229,18 @@ describe('parseOptionsBlock', () => {
     const md =
       '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"a"}],"freeTextRequired":false}]}\n```';
     expect(parseOptionsBlock(md)?.questions[0].options[0].mutatesGate).toBe(false);
+  });
+
+  it('parses planRevision:true on an option', () => {
+    const md =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"a","planRevision":true}],"freeTextRequired":false}]}\n```';
+    expect(parseOptionsBlock(md)?.questions[0].options[0].planRevision).toBe(true);
+  });
+
+  it('defaults planRevision to false when unspecified (backward compat)', () => {
+    const md =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"a"}],"freeTextRequired":false}]}\n```';
+    expect(parseOptionsBlock(md)?.questions[0].options[0].planRevision).toBe(false);
   });
 });
 

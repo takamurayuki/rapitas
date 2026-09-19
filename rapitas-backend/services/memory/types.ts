@@ -1,6 +1,9 @@
 /**
  * メモリ/知識管理システム - 型定義
  */
+// NOTE: type-only import — `effectiveness.ts` imports `EffectivenessResult`
+// back from here, so the cycle is erased at compile time and never a runtime one.
+import type { KnowledgeEffectiveness } from './effectiveness';
 
 // --- KnowledgeEntry ---
 export type KnowledgeSourceType =
@@ -103,6 +106,17 @@ export type ConsolidationStatus = 'running' | 'completed' | 'failed';
 export type ContradictionType = 'factual' | 'procedural' | 'preference';
 export type ContradictionResolution = 'keep_a' | 'keep_b' | 'merge' | 'dismiss';
 
+// --- Knowledge effectiveness ---
+/**
+ * Discriminated result of an effectiveness aggregation. `unknown` distinguishes
+ * "the samples could not be read" (a DB/query failure) from a genuine zero
+ * aggregate (`ok` with `data.sampledTasks === 0`), which a bare `successRate:
+ * number` could not — the caller is forced to branch at compile time.
+ */
+export type EffectivenessResult =
+  | { status: 'ok'; data: KnowledgeEffectiveness }
+  | { status: 'unknown'; reason: string };
+
 // --- RAG ---
 export interface EmbeddingResult {
   embedding: number[];
@@ -140,6 +154,14 @@ export interface CreateKnowledgeEntryInput {
   confidence?: number;
   themeId?: number;
   taskId?: number;
+  /** Citation location (file path/URL/etc.), stronger than sourceId. / 出典 */
+  sourceRef?: string;
+  /** Free-text conditions under which this knowledge applies. / 適用条件 */
+  applicabilityConditions?: string;
+  /** Optional expiry for time-bound knowledge. / 有効期限 */
+  expiresAt?: Date;
+  /** Known counter-evidence / exception cases. / 反証・例外 */
+  counterEvidence?: string;
 }
 
 export interface UpdateKnowledgeEntryInput {
@@ -150,6 +172,14 @@ export interface UpdateKnowledgeEntryInput {
   confidence?: number;
   themeId?: number;
   taskId?: number;
+  /** Citation location (file path/URL/etc.), stronger than sourceId. / 出典 */
+  sourceRef?: string;
+  /** Free-text conditions under which this knowledge applies. / 適用条件 */
+  applicabilityConditions?: string;
+  /** Optional expiry for time-bound knowledge. / 有効期限 */
+  expiresAt?: Date;
+  /** Known counter-evidence / exception cases. / 反証・例外 */
+  counterEvidence?: string;
 }
 
 export interface KnowledgeSearchOptions {

@@ -26,13 +26,15 @@ import {
   REPEAT_LOOP_MIN_COUNT,
   INVARIANT_REPEAT_LOOP_MIN_COUNT,
   MANUAL_STOP_WITHDRAW_CAUSE,
+  BLOCKED_ESCALATION_CAUSES,
 } from './incident-signature-detectors';
 import { gatherTaskState, formatIncidentDetail } from './self-incident-evidence';
 import type { GatheredTaskState } from './self-incident-evidence';
 import { inspectSupervisorSignatures } from './supervisor-incident-inspect';
 import { resolveMaxRepairs } from './verify-self-repair-budget';
-import { DEFAULT_MAX_CI_REPAIRS } from './blocked-task-policy';
+import { DEFAULT_MAX_CI_REPAIRS, BLOCKED_REESCALATION_INTERVAL_MS } from './blocked-task-policy';
 import {
+  resolveArmedThemeIds,
   resolveDisabledAutoRunThemeIds,
   resolveNonDevelopmentThemeIds,
   resolveWorkflowDisabledGlobally,
@@ -164,6 +166,8 @@ async function fileFinding(args: {
  *   (task 837, resolved once per pass by the caller — see runSelfIncidentWatch). / 修復バウンス系の動的しきい値
  * @param themeAutoRunRunState - Themes actively running (`status='running'`) and their
  *   `currentTaskId`, resolved once per pass by the caller (task #969). / 稼働中テーマとcurrentTaskIdの対応
+ * @param armedThemeIds - Themes whose blocked-task retry/escalation pipeline is armed
+ *   (task 977, resolved once per pass by the caller). / blockedタスク自動再試行パイプラインが有効なテーマID集合
  */
 async function inspectTask(
   task: CandidateTask,
@@ -173,6 +177,7 @@ async function inspectTask(
   workflowDisabledGlobally: boolean,
   repairBounceMinCount: number,
   themeAutoRunRunState: Map<number, { currentTaskId: number | null }>,
+  armedThemeIds: Set<number>,
 ): Promise<number> {
   const state = await gatherTaskState(task, nowMs, REPEAT_LOOP_WINDOW_MS);
   let filed = 0;
@@ -198,6 +203,14 @@ async function inspectTask(
   const runState = task.themeId != null ? themeAutoRunRunState.get(task.themeId) : undefined;
   const themeAutoRunBusyWithOtherTask =
     runState != null && runState.currentTaskId != null && runState.currentTaskId !== task.id;
+  const blockedEscalated =
+    state.latestTransitionCause != null &&
+    BLOCKED_ESCALATION_CAUSES.has(state.latestTransitionCause);
+  // Blocked + armed-theme tasks are already owned by the blocked-task
+  // retry/escalation pipeline (task 977) — undefined for non-blocked tasks
+  // per StagnationInput.blockedRetryPipelineArmed's fail-open convention.
+  const blockedRetryPipelineArmed =
+    task.status === 'blocked' ? task.themeId != null && armedThemeIds.has(task.themeId) : undefined;
   const stagnation = detectStagnation({
     taskStatus: task.status,
     workflowStatus: task.workflowStatus,
@@ -210,6 +223,10 @@ async function inspectTask(
     isWorkflowManaged,
     manuallyWithdrawn,
     themeAutoRunBusyWithOtherTask,
+    blockedEscalatedAtMs: state.latestBlockedEscalationAtMs,
+    blockedHoldMs: BLOCKED_REESCALATION_INTERVAL_MS,
+    blockedEscalated,
+    blockedRetryPipelineArmed,
     nowMs,
   });
   if (stagnation) {
@@ -226,7 +243,9 @@ async function inspectTask(
         thresholdDescription:
           `停滞閾値 ${Math.round(STAGNATION_THRESHOLD_MS / 60_000)}分` +
           `（実行なし・キューなし・正当な待機状態でない非終端タスクが対象）`,
-        severity: 'medium',
+        // A task orphaned with no runner and no queue never advances on its own; the
+        // concern's contract (#979) is bug/high from the first detection, not only on recurrence.
+        severity: 'high',
         nowMs,
       })
     ) {
@@ -440,11 +459,13 @@ export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<
     nonDevelopmentThemeIds,
     workflowDisabledGlobally,
     themeAutoRunRunState,
+    armedThemeIds,
   ] = await Promise.all([
     resolveDisabledAutoRunThemeIds(candidateThemeIds),
     resolveNonDevelopmentThemeIds(candidateThemeIds),
     resolveWorkflowDisabledGlobally(),
     resolveThemeAutoRunRunState(candidateThemeIds),
+    resolveArmedThemeIds(candidateThemeIds),
   ]);
 
   // Resolved once per pass, not per task (task 837, generalizes task 835's
@@ -470,6 +491,7 @@ export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<
         workflowDisabledGlobally,
         repairBounceMinCount,
         themeAutoRunRunState,
+        armedThemeIds,
       );
     } catch (err) {
       // One broken task must not starve the rest of the scan.

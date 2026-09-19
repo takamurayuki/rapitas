@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { createOwnershipRegistry } from './aux-cli-ownership';
 import { createWindowsAuxExecutionManager } from './windows-aux-execution';
 import { createLinuxAuxExecutionManager } from './linux-aux-execution';
+import { ClaudeCliUnavailableError } from './cli-errors';
 
 let windowsManager: ReturnType<typeof createWindowsAuxExecutionManager> | undefined;
 let linuxManager: ReturnType<typeof createLinuxAuxExecutionManager> | undefined;
@@ -25,7 +26,11 @@ export async function prepareAuxCli(
     return linuxManager.reserve(command, args, directory, env);
   }
   if (process.platform !== 'win32')
-    throw new Error(`Owned auxiliary CLI launch is unavailable on ${process.platform}`);
+    // NOTE(task #914): classify as ClaudeCliUnavailableError so callers (e.g.
+    // pre-pr-base-sync.ts) that match on err.name still fail open correctly.
+    throw new ClaudeCliUnavailableError(
+      `Owned auxiliary CLI launch is unavailable on ${process.platform}`,
+    );
   windowsManager ??= createWindowsAuxExecutionManager(
     createOwnershipRegistry(
       join(

@@ -7,6 +7,7 @@
  * buildSpawnCommand(), and that the re-exports delegate correctly.
  */
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { escapeWindowsShellArg } from '../../utils/common/windows-shell-escape';
 
 const mockResolveCliPathAsync = mock((cliName: string) => Promise.resolve(`resolved:${cliName}`));
 const mockGetClaudePathAsync = mock(() => Promise.resolve('resolved:claude.cmd'));
@@ -67,7 +68,11 @@ describe('buildSpawnCommand', () => {
     if (process.platform !== 'win32') return;
     const [command, args] = buildSpawnCommand('claude.cmd', ['--print']);
     expect(command).toContain('chcp 65001');
-    expect(command).toContain('claude.cmd --print');
+    // task 977: escapeWindowsShellArg unconditionally quotes the command name
+    // and double-caret-escapes each argument (no longer a plain "cmd arg" join).
+    expect(command).toContain(
+      `${escapeWindowsShellArg('claude.cmd', false)} ${escapeWindowsShellArg('--print', true)}`,
+    );
     expect(args).toEqual([]);
   });
 });

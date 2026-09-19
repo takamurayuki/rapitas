@@ -299,3 +299,46 @@ describe('WorkflowRunner — resumeAfterApproval', () => {
     });
   });
 });
+
+// task 966 (concern #966): diagnostic timing instrumentation around processQueue.
+describe('WorkflowRunner — processQueue timing instrumentation', () => {
+  beforeEach(() => {
+    resetMocks();
+    resetRunner();
+  });
+
+  /** Force Date.now() to report `startMs` on the first call, `startMs + elapsedMs` after. */
+  function withFakeElapsed<T>(elapsedMs: number, run: () => Promise<T>): Promise<T> {
+    const realNow = Date.now;
+    let call = 0;
+    Date.now = () => (call++ === 0 ? 1_000_000 : 1_000_000 + elapsedMs);
+    return run().finally(() => {
+      Date.now = realNow;
+    });
+  }
+
+  test('logs a WARN when processQueue takes over 1000ms', async () => {
+    dequeueSequence = [QUEUE_ITEM, null];
+    const runner = WorkflowRunner.getInstance();
+    const internal = runner as unknown as { running: boolean; processQueue(): Promise<void> };
+    internal.running = true;
+
+    await withFakeElapsed(1500, () => internal.processQueue());
+
+    expect(warnMock).toHaveBeenCalledWith(
+      { dequeuedCount: 1, tookMs: 1500 },
+      'Slow queue processing',
+    );
+  });
+
+  test('does not log a WARN when processQueue takes under 1000ms', async () => {
+    dequeueSequence = [null];
+    const runner = WorkflowRunner.getInstance();
+    const internal = runner as unknown as { running: boolean; processQueue(): Promise<void> };
+    internal.running = true;
+
+    await withFakeElapsed(200, () => internal.processQueue());
+
+    expect(warnMock).not.toHaveBeenCalled();
+  });
+});

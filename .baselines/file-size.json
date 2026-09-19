@@ -26,7 +26,7 @@
       "lineCount": 611
     },
     "rapitas-backend/services/memory/concern-backlog-service.ts": {
-      "lineCount": 604
+      "lineCount": 628
     },
     "rapitas-backend/services/memory/idea-extractor.ts": {
       "lineCount": 587
@@ -35,7 +35,7 @@
       "lineCount": 583
     },
     "rapitas-backend/index.ts": {
-      "lineCount": 564
+      "lineCount": 566
     },
     "rapitas-backend/services/memory/hypothesis-service.ts": {
       "lineCount": 561

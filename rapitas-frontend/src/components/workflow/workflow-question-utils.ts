@@ -153,6 +153,13 @@ export interface StructuredQuestionOption {
    * NOTE: keep in sync with rapitas-backend/services/workflow/question-options-parser.ts
    */
   mutatesGate?: boolean;
+  /**
+   * True when choosing this option should route the answer to a plan.md
+   * revision request instead of resuming the implementer (task 933). Purely
+   * informational on the frontend; the backend performs the routing.
+   * NOTE: keep in sync with rapitas-backend/services/workflow/question-options-parser.ts
+   */
+  planRevision?: boolean;
 }
 
 /** One machine-readable question parsed from a `json:options` block. */
@@ -222,6 +229,7 @@ export function parseOptionsBlock(md: string): StructuredQuestionsBlock | null {
             label: o.label,
             consequence: typeof o.consequence === 'string' ? o.consequence : '',
             mutatesGate: o.mutatesGate === true,
+            planRevision: o.planRevision === true,
           });
         }
       }

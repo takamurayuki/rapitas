@@ -72,6 +72,16 @@ export const PATTERN_A_SETTLE_MS =
  */
 export const MANUAL_STOP_WITHDRAW_CAUSE = 'manual_execution_stop_withdraw';
 
+/**
+ * Transition causes written by blocked-task-escalation (first notice and the
+ * 4h re-notice). Duplicated as literals so this pure module stays free of the
+ * escalation module's DB imports — keep in sync with blocked-task-escalation.ts.
+ */
+export const BLOCKED_ESCALATION_CAUSES: ReadonlySet<string> = new Set([
+  'blocked_escalated',
+  'blocked_reescalated',
+]);
+
 const RECOVERY_REQUEUE_CAUSES = new Set([
   'reconciler_requeue',
   'artifact_reuse_fastforward',
@@ -165,6 +175,38 @@ export interface StagnationInput {
    * optional gates' fail-open convention.
    */
   themeAutoRunBusyWithOtherTask?: boolean | null;
+  /**
+   * Epoch ms of the newest `blocked_escalated`/`blocked_reescalated` transition
+   * (#979). A `status=blocked` task whose escalation is younger than
+   * `blockedHoldMs` is a human-wait hold already reported through the
+   * escalation notice — not stagnation. `null`/`undefined` (never escalated or
+   * unresolved) leaves the task subject to detection (fail-open).
+   */
+  blockedEscalatedAtMs?: number | null;
+  /** Suppression window for the blocked hold (ms); the re-escalation interval. */
+  blockedHoldMs?: number;
+  /**
+   * True when the task's newest transition cause is a blocked-task-escalation
+   * cause (BLOCKED_ESCALATION_CAUSES). The dedicated pipeline already notified
+   * a human and re-notifies every 4h, so a second `self-incident:stagnation`
+   * finding is a duplicate (#978). Only honoured for status=blocked;
+   * `null`/`undefined` leaves the task subject to detection (fail-open).
+   */
+  blockedEscalated?: boolean | null;
+  /**
+   * True when `taskStatus === 'blocked'` AND the task's theme is armed
+   * (`ThemeAutoRun.enabled === true && status === 'running'`) — the existing
+   * blocked-task pipeline (`workflow-reconciler-blocked.ts`'s
+   * `findBlockedCandidates`) already owns retry/escalation for exactly this
+   * condition (task 977), so re-flagging it here as stagnation would just
+   * duplicate a pipeline that is actively working the task. Must stay
+   * condition-for-condition identical to `findBlockedCandidates`' armed
+   * query — a drift silences detection for tasks the blocked pipeline does
+   * NOT actually manage (e.g. `themeId: null`, paused themes).
+   * `null`/`undefined` (unresolved) leaves the task subject to detection —
+   * mirrors the other optional gates' fail-open convention.
+   */
+  blockedRetryPipelineArmed?: boolean | null;
   nowMs: number;
   thresholdMs?: number;
 }
@@ -195,6 +237,22 @@ export function detectStagnation(input: StagnationInput): { staleMs: number } | 
   // Theme is actively dispatching a different task — this one is a normal
   // backlog wait under AUTO_RUN_GLOBAL_MAX_CONCURRENCY=1, not stagnation (#969).
   if (input.themeAutoRunBusyWithOtherTask) return null;
+  // Escalated blocked hold (#979): waiting on a human after a notice is legitimate
+  // until the re-escalation interval lapses; past it, escalation itself has
+  // stopped and the task is a genuine orphan again.
+  if (
+    input.taskStatus === 'blocked' &&
+    input.blockedEscalatedAtMs != null &&
+    input.blockedHoldMs != null &&
+    input.nowMs - input.blockedEscalatedAtMs < input.blockedHoldMs
+  ) {
+    return null;
+  }
+  // Blocked and already escalated to a human by the dedicated pipeline (#978).
+  if (input.blockedEscalated && input.taskStatus === 'blocked') return null;
+  // A blocked task in an armed theme is already owned by the blocked-task
+  // retry/escalation pipeline (task 977) — do not duplicate its detection.
+  if (input.taskStatus === 'blocked' && input.blockedRetryPipelineArmed) return null;
   // NOTE: null must count as not-started — `null !== 'draft'` alone would
   // misclassify a workflowStatus-less task as advanced.
   const isInFlight =
