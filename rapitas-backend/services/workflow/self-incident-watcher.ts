@@ -26,6 +26,7 @@ import {
   REPEAT_LOOP_MIN_COUNT,
   INVARIANT_REPEAT_LOOP_MIN_COUNT,
   MANUAL_STOP_WITHDRAW_CAUSE,
+  BLOCKED_ESCALATION_CAUSES,
 } from './incident-signature-detectors';
 import { gatherTaskState, formatIncidentDetail } from './self-incident-evidence';
 import type { GatheredTaskState } from './self-incident-evidence';
@@ -192,6 +193,9 @@ async function inspectTask(
           : true;
 
   const manuallyWithdrawn = state.latestTransitionCause === MANUAL_STOP_WITHDRAW_CAUSE;
+  const blockedEscalated =
+    state.latestTransitionCause != null &&
+    BLOCKED_ESCALATION_CAUSES.has(state.latestTransitionCause);
   // Blocked + armed-theme tasks are already owned by the blocked-task
   // retry/escalation pipeline (task 977) — undefined for non-blocked tasks
   // per StagnationInput.blockedRetryPipelineArmed's fail-open convention.
@@ -208,6 +212,7 @@ async function inspectTask(
     hasActiveQueueItem: state.hasActiveQueueItem,
     isWorkflowManaged,
     manuallyWithdrawn,
+    blockedEscalated,
     blockedRetryPipelineArmed,
     nowMs,
   });

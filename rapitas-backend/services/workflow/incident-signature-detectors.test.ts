@@ -77,6 +77,23 @@ describe('detectStagnation', () => {
     expect(detectStagnation({ ...base, ...over })).toBeNull();
   });
 
+  // #978: an already-escalated blocked task is a legitimate wait — the
+  // dedicated blocked-task-escalation pipeline re-notifies every 4h.
+  it('does NOT detect a blocked task whose escalation is already in flight (blockedEscalated=true, #978)', () => {
+    expect(detectStagnation({ ...base, taskStatus: 'blocked', blockedEscalated: true })).toBeNull();
+  });
+
+  it('still detects when blockedEscalated is omitted or false (fail-open)', () => {
+    expect(detectStagnation({ ...base, taskStatus: 'blocked' })).not.toBeNull();
+    expect(
+      detectStagnation({ ...base, taskStatus: 'blocked', blockedEscalated: false }),
+    ).not.toBeNull();
+  });
+
+  it('ignores blockedEscalated for a non-blocked task', () => {
+    expect(detectStagnation({ ...base, blockedEscalated: true })).not.toBeNull();
+  });
+
   // #875: omitting manuallyWithdrawn (unresolved) must fail OPEN, mirroring
   // isWorkflowManaged's contract above.
   it('still detects when manuallyWithdrawn is omitted (fail-open)', () => {
