@@ -110,18 +110,22 @@ export const CONCERN_FILING_REASONS = [
   'recurrence-merged-open',
   'near-duplicate',
   'theme-saturation',
+  'jev-not-relevant',
 ] as const;
 export type ConcernFilingReason = (typeof CONCERN_FILING_REASONS)[number];
 
 /**
- * Result of `submitConcern`: the anchoring/created row id plus how it got there.
+ * Result of `submitConcern`: the anchoring/created row id plus how it got
+ * there. `id` is null only for the `jev-not-relevant` outcome — every other
+ * suppression/reuse reason anchors to an existing row, but a Jev relevance
+ * rejection has no existing concern to point at; nothing was written.
  * `stored` is a simple boolean shorthand for `outcome === 'created'` (#967) — a
  * caller that only checks `success`/`id` on the HTTP response still sees at a
  * glance whether a new row was actually written, without having to know the
  * full `ConcernFilingOutcome` enum.
  */
 export interface ConcernFilingResult {
-  id: number;
+  id: number | null;
   outcome: ConcernFilingOutcome;
   reason: ConcernFilingReason;
   stored: boolean;

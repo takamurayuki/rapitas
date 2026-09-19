@@ -24,6 +24,15 @@ export const STOP_VERIFY_TIMEOUT_MS = 20_000;
 export const DEFAULT_WAIT_TIMEOUT_MS = 120_000;
 /** Poll granularity while waiting for a state we don't hold a promise for. */
 export const POLL_INTERVAL_MS = 250;
+/**
+ * How old an identity-less registry record must be before the port +
+ * directory-lock proof is accepted as evidence that no server survives in
+ * the same OS boot. A launch that slipped in right before the owning backend
+ * died binds its port / writes its `.next/dev/lock` within seconds; past this
+ * window such a survivor is caught by that proof, so withholding release any
+ * longer only deadlocks the worktree until the OS reboots (task 970).
+ */
+export const UNKNOWN_START_GRACE_MS = 60_000;
 
 export type RegistryState = 'starting' | 'active' | 'stopping' | 'quarantined';
 
@@ -46,6 +55,8 @@ export interface RegistryEntry {
   idleTimer?: ReturnType<typeof setTimeout>;
   quarantineReason?: string;
   identities?: RuntimeProcessIdentity[];
+  /** Last durable write behind this entry (epoch ms); gates isStaleUnknownStart for identity-less entries. */
+  recordedAt?: number;
 }
 
 export interface AcquireSuccess {
@@ -115,6 +126,19 @@ export function normalizeWorkdirKey(workdir: string): string | null {
 
 export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+}
+
+/**
+ * Whether an identity-less record is old enough for the port + directory
+ * proof to stand in for an owned-tree inspection.
+ *
+ * @param recordedAt - Last durable write time (ISO string or epoch ms). / 記録時刻
+ * @returns True once UNKNOWN_START_GRACE_MS has elapsed; false for a missing
+ *   or unparsable time (fail closed). / 猶予経過済みか
+ */
+export function isStaleUnknownStart(recordedAt: string | number | undefined): boolean {
+  const at = typeof recordedAt === 'string' ? Date.parse(recordedAt) : recordedAt;
+  return typeof at === 'number' && Number.isFinite(at) && Date.now() - at >= UNKNOWN_START_GRACE_MS;
 }
 
 export function failure(

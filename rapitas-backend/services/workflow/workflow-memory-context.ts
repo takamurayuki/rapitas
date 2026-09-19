@@ -141,6 +141,14 @@ export async function buildMemoryContext(
   task: { title: string; description: string | null },
   language: 'ja' | 'en' = 'ja',
 ): Promise<string> {
+  // NOTE: RAPITAS_EVAL_MODE is set ONLY by scripts/eval-runner.ts and
+  // scripts/fault-injection-e2e.ts (see docs/eval-private-set.md, and the
+  // matching gate in pr-create-ops.ts) — never by normal dev.js/index.ts
+  // startup. Evaluation baseline runs must not recall KB entries / episodes
+  // learned from the very tasks the corpus was built from, or fail-to-pass
+  // measures memory recall instead of net coding capability.
+  if (process.env.RAPITAS_EVAL_MODE === 'true') return '';
+
   try {
     const query = `${task.title}\n${task.description ?? ''}`.trim();
     if (!query) return '';

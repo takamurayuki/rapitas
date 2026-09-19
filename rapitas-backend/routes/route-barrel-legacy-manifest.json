@@ -23,18 +23,62 @@
   "agents": [
     { "importPath": "./integrations/approvals", "exportName": "approvalsRoutes", "export": false },
     { "importPath": "./integrations/ai-agent", "exportName": "aiAgentRoutes", "export": false },
-    { "importPath": "./integrations/cli-tools-management", "exportName": "cliToolsManagementRoutes", "export": false },
-    { "importPath": "./config/agent-execution-config", "exportName": "agentExecutionConfigRoutes", "export": false },
-    { "importPath": "./config/agent-availability", "exportName": "agentAvailabilityRoutes", "export": false },
-    { "importPath": "./config/provider-cooldowns", "exportName": "providerCooldownsRoutes", "export": false },
-    { "importPath": "./config/recovery-metrics", "exportName": "recoveryMetricsRoutes", "export": false },
-    { "importPath": "./config/error-diagnosis", "exportName": "errorDiagnosisRoutes", "export": false },
+    {
+      "importPath": "./integrations/cli-tools-management",
+      "exportName": "cliToolsManagementRoutes",
+      "export": false
+    },
+    {
+      "importPath": "./config/agent-execution-config",
+      "exportName": "agentExecutionConfigRoutes",
+      "export": false
+    },
+    {
+      "importPath": "./config/agent-availability",
+      "exportName": "agentAvailabilityRoutes",
+      "export": false
+    },
+    {
+      "importPath": "./config/provider-cooldowns",
+      "exportName": "providerCooldownsRoutes",
+      "export": false
+    },
+    {
+      "importPath": "./config/recovery-metrics",
+      "exportName": "recoveryMetricsRoutes",
+      "export": false
+    },
+    {
+      "importPath": "./config/error-diagnosis",
+      "exportName": "errorDiagnosisRoutes",
+      "export": false
+    },
     { "importPath": "./config/probe-metrics", "exportName": "probeMetricsRoutes", "export": false },
-    { "importPath": "./monitoring/execution-logs", "exportName": "executionLogsRoutes", "export": false },
-    { "importPath": "./monitoring/agent-metrics", "exportName": "agentMetricsRouter", "export": false },
-    { "importPath": "./system/agent-version-management", "exportName": "agentVersionManagementRoutes", "export": false },
-    { "importPath": "./system/smart-router-routes", "exportName": "smartRouterRoutes", "export": false },
-    { "importPath": "./execution-management/execution-fork-routes", "exportName": "executionForkRoutes", "export": false },
+    {
+      "importPath": "./monitoring/execution-logs",
+      "exportName": "executionLogsRoutes",
+      "export": false
+    },
+    {
+      "importPath": "./monitoring/agent-metrics",
+      "exportName": "agentMetricsRouter",
+      "export": false
+    },
+    {
+      "importPath": "./system/agent-version-management",
+      "exportName": "agentVersionManagementRoutes",
+      "export": false
+    },
+    {
+      "importPath": "./system/smart-router-routes",
+      "exportName": "smartRouterRoutes",
+      "export": false
+    },
+    {
+      "importPath": "./execution-management/execution-fork-routes",
+      "exportName": "executionForkRoutes",
+      "export": false
+    },
     { "importPath": "./preview/preview-routes", "exportName": "previewRoutes", "export": false },
     { "importPath": "./crud", "reExportStar": true },
     { "importPath": "./config", "reExportStar": true },
@@ -134,6 +178,7 @@
     { "importPath": "./experiments", "exportName": "experimentsRoutes" },
     { "importPath": "./hypothesis-experiments", "exportName": "hypothesisExperimentsRoutes" },
     { "importPath": "./knowledge-graph", "exportName": "knowledgeGraphRoutes" },
-    { "importPath": "./learning", "exportName": "learningRoutes" }
+    { "importPath": "./learning", "exportName": "learningRoutes" },
+    { "importPath": "./prompt-recommendation-router", "exportName": "promptRecommendationRoutes" }
   ]
 }

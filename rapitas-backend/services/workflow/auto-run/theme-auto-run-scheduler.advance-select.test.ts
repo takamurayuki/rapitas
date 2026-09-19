@@ -263,7 +263,10 @@ describe('advanceTheme — selection: task found', () => {
   });
 
   it('excludes currently-blocked tasks from selection via skipIds', async () => {
-    mockTaskFindMany.mockResolvedValue([{ id: 50 }, { id: 51 }]);
+    // First call = blocked tasks, second call = halted tasks (task 881) — the
+    // two skip queries share mockTaskFindMany, so they must be stubbed
+    // per-call rather than with a single blanket resolved value.
+    mockTaskFindMany.mockResolvedValueOnce([{ id: 50 }, { id: 51 }]).mockResolvedValueOnce([]);
     mockSelectNextTask.mockResolvedValue({ found: false, reason: 'all_done' });
 
     await internal(scheduler).advanceTheme(1, null, 'priority', 0, null);

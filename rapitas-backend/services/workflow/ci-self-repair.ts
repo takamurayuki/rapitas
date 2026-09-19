@@ -229,7 +229,7 @@ export async function attemptCiRepair(
   // task 280). A CI failure on such a PR is a separate concern — leave the task
   // completed and let the caller flag the PR for review instead.
   const ctask = await prisma.task
-    .findUnique({ where: { id: taskId }, select: { title: true, githubPrId: true } })
+    .findUnique({ where: { id: taskId }, select: { title: true, githubPrId: true, themeId: true } })
     .catch(() => null);
   if (ctask && ctask.githubPrId != null && /^PR #\d+ の競合を解消/.test(ctask.title ?? '')) {
     log.info(
@@ -281,8 +281,16 @@ export async function attemptCiRepair(
   });
 
   // Re-enqueue so the status-driven WorkflowRunner re-runs implement → verify.
+  // NOTE: carry the task's themeId — the theme scheduler only sees queue items
+  // tagged with its themeId (getThemeActiveQueueItems), so an untagged repair
+  // item left the theme reading the task's OLD terminal item as "completed"
+  // and re-selecting the same task every 12s (tasks 909/907/881, 2026-09-20).
   try {
-    await WorkflowQueueService.getInstance().enqueue({ taskId, priority: 60 });
+    await WorkflowQueueService.getInstance().enqueue({
+      taskId,
+      ...(ctask?.themeId != null ? { themeId: ctask.themeId } : {}),
+      priority: 60,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes('already in the queue')) {

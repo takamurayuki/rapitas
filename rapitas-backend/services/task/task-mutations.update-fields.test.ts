@@ -311,6 +311,22 @@ describe('updateTask — フィールドマッピング', () => {
     expect(call.data.startedAt).toBeUndefined();
   });
 
+  test('done→in-progress の場合、completedAt をクリアし workflowStatus は draft に戻さないこと', async () => {
+    setupFindUnique(
+      { status: 'done', parentId: null, workflowStatus: 'completed' },
+      { id: 1, status: 'in-progress', parentId: null },
+    );
+
+    await updateTask(mockPrisma as never, 1, { status: 'in-progress' });
+
+    const call = mockPrisma.task.update.mock.calls[0]![0] as {
+      data: { completedAt?: Date | null; startedAt?: Date; workflowStatus?: string };
+    };
+    expect(call.data.completedAt).toBeNull();
+    expect(call.data.workflowStatus).toBeUndefined();
+    expect(call.data.startedAt).toBeInstanceOf(Date);
+  });
+
   test('goals/constraints/acceptanceCriteria を JSON 文字列化すること', async () => {
     setupFindUnique({ status: 'todo', parentId: null }, { id: 1, status: 'todo', parentId: null });
 
@@ -366,6 +382,17 @@ describe('manual hold revision', () => {
     setupFindUnique({ status: 'done', workflowStatus: 'completed', updatedAt: revision }, null);
     mockPrisma.task.update.mockRejectedValueOnce(new Error('revision conflict'));
     await expect(updateTask(mockPrisma as never, 1, { status: 'todo' })).rejects.toThrow(
+      'revision conflict',
+    );
+    expect(mockPrisma.task.update.mock.calls[0][0].where).toEqual({ id: 1, updatedAt: revision });
+    expect(mockPrisma.activityLog.create).not.toHaveBeenCalled();
+  });
+
+  test('done→in-progress も同様に、terminal更新競合を検知すること', async () => {
+    const revision = new Date();
+    setupFindUnique({ status: 'done', workflowStatus: 'completed', updatedAt: revision }, null);
+    mockPrisma.task.update.mockRejectedValueOnce(new Error('revision conflict'));
+    await expect(updateTask(mockPrisma as never, 1, { status: 'in-progress' })).rejects.toThrow(
       'revision conflict',
     );
     expect(mockPrisma.task.update.mock.calls[0][0].where).toEqual({ id: 1, updatedAt: revision });

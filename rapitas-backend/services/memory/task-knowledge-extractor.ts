@@ -14,7 +14,7 @@ import { appendEvent } from './timeline';
 import { memoryTaskQueue } from './index';
 import { getInsensitiveMode } from '../../config/db-provider';
 import { findSemanticDuplicate, findLexicalDuplicate } from './dedup';
-import { boostDecayOnAccess } from './forgetting';
+import { boostDuplicateWithCooldown } from './task-knowledge-duplicate-boost';
 import { readWorkflowFile } from '../workflow/workflow-file-utils';
 import { notifyKnowledgeExtracted } from '../communication/notification-service';
 
@@ -90,7 +90,7 @@ export async function extractKnowledgeFromTask(taskId: number): Promise<number[]
         (await findSemanticDuplicate(item.content)) ??
         (await findLexicalDuplicate(item.title, item.content));
       if (dupId != null) {
-        await boostDecayOnAccess(dupId, 0.1).catch(() => {});
+        await boostDuplicateWithCooldown(dupId, 0.1);
         log.debug(
           { taskId, title: item.title, dupId },
           'Near-duplicate knowledge — reinforced existing instead of inserting',
@@ -222,7 +222,7 @@ export async function reflectOnFailure(taskId: number, finalStatus: string): Pro
         (await findSemanticDuplicate(item.content)) ??
         (await findLexicalDuplicate(item.title, item.content));
       if (dupId != null) {
-        await boostDecayOnAccess(dupId, 0.15).catch(() => {});
+        await boostDuplicateWithCooldown(dupId, 0.15);
         continue;
       }
       const entry = await prisma.knowledgeEntry.create({

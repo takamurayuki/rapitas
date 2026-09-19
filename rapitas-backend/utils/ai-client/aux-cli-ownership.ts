@@ -108,7 +108,25 @@ export type OwnershipRecord = {
   descendants: ProcessIdentity[];
   /** False includes crash windows and any incomplete OS enumeration. */
   fullyEnumerated: boolean;
+  /**
+   * ISO timestamp set by recordLaunchIntent. Missing on records written
+   * before this field existed — parsed as epoch (immediately stale) so
+   * pre-existing unrecoverable root:null records also self-heal.
+   */
+  recordedAt?: string;
 };
+
+/**
+ * A root:null record older than this never got its owning process confirmed —
+ * the reserve()→attach() gap is normally milliseconds — so the process that
+ * would have called confirmOwnership almost certainly crashed or was killed
+ * first. Without this, such a record can never self-heal (there is no real
+ * process to observe absence of), permanently blocking every future
+ * auxiliary CLI launch. Incident: 2026-09-18, a backend restart interrupted
+ * an in-flight launch mid-confirm, silently blocking the adversarial-review
+ * judge (and every other aux CLI caller) for hours until manually cleared.
+ */
+export const STALE_INTENT_MS = 5 * 60 * 1000;
 
 export type OwnershipEvidence = {
   /** A successful complete ownership-scope scan, not merely a missing root. */
@@ -188,7 +206,9 @@ function parseRegistry(content: string): OwnershipRecord[] {
       !Array.isArray(row.descendants) ||
       !row.descendants.every(validIdentity) ||
       typeof row.fullyEnumerated !== 'boolean' ||
-      (row.status === 'active' && row.root === null)
+      (row.status === 'active' && row.root === null) ||
+      (row.recordedAt !== undefined &&
+        (typeof row.recordedAt !== 'string' || Number.isNaN(Date.parse(row.recordedAt))))
     )
       throw new Error('Invalid ownership record');
     tokens.add(row.executionToken);
@@ -289,6 +309,7 @@ export function createOwnershipRegistry(filename: string) {
           root: null,
           descendants: [],
           fullyEnumerated: false,
+          recordedAt: new Date().toISOString(),
         });
         await write(records);
       }),
@@ -336,18 +357,28 @@ export function createOwnershipRegistry(filename: string) {
     reconcile: (
       executionToken: string,
       inspect: (record: OwnershipRecord) => Promise<OwnershipEvidence>,
+      nowMs: number = Date.now(),
     ) =>
       run(async () => {
         const records = await read();
         const row = records.find((record) => record.executionToken === executionToken);
         if (!row) return false;
         let resolved = false;
-        try {
-          // Evidence providers cannot mutate the stored ownership proof.
-          resolved = canReconcileOwnership(row, await inspect(structuredClone(row)));
-        } catch {
-          // Observation failure preserves this execution; it is not an I/O reset.
-          resolved = false;
+        if (row.root === null) {
+          // No process was ever confirmed under this token — there is nothing
+          // an OS observation could prove absent. Age it out instead of
+          // calling inspect(), which would otherwise report scopeEmpty:false
+          // forever (see STALE_INTENT_MS doc comment).
+          const recordedAtMs = row.recordedAt ? Date.parse(row.recordedAt) : 0;
+          resolved = nowMs - recordedAtMs >= STALE_INTENT_MS;
+        } else {
+          try {
+            // Evidence providers cannot mutate the stored ownership proof.
+            resolved = canReconcileOwnership(row, await inspect(structuredClone(row)));
+          } catch {
+            // Observation failure preserves this execution; it is not an I/O reset.
+            resolved = false;
+          }
         }
         if (resolved) records.splice(records.indexOf(row), 1);
         else row.status = 'unresolved';

@@ -16,6 +16,7 @@ import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 import { findSaturatedTheme, findNearDuplicate } from './theme-saturation';
 import { resolveTaskThemeId, resolveDefaultThemeId } from './theme-resolution';
 import { resolveFiling } from './concern-recurrence-policy';
+import { checkConcernStillRelevant } from './concern-relevance-check';
 import {
   CONCERN_TYPES,
   CONCERN_SEVERITIES,
@@ -218,6 +219,29 @@ export async function submitConcern(input: SubmitConcernInput): Promise<ConcernF
         '[concern-backlog] Rejected concern: theme over-represented / near-duplicate (anti-monoculture)',
       );
       return { id: anchorId, outcome: 'suppressed', reason: 'theme-saturation', stored: false };
+    }
+
+    // Filing-time relevance pre-check (Jev — see concern-relevance-check.ts).
+    // The existing staleness checks (log-concern-recurrence.ts,
+    // self-detect-relevance.ts) only run later, at promotion time, and only
+    // for log-derived / 2 of the known self-detect signature shapes. This
+    // runs here for every text-deduped concern instead, judged by Jev's
+    // natural-language reasoning rather than per-signature code. No-ops
+    // entirely (checkConcernStillRelevant returns null immediately) until
+    // RAPITAS_JEV_API_KEY is configured — filing proceeds unchanged.
+    const relevance = await checkConcernStillRelevant({
+      title: input.title,
+      detail: input.detail,
+    }).catch((err) => {
+      log.warn({ err }, '[concern-backlog] Jev relevance check threw — filing as usual');
+      return null;
+    });
+    if (relevance?.relevant === false) {
+      log.info(
+        { title: input.title, confidence: relevance.confidence },
+        '[concern-backlog] Rejected concern: Jev judged it no longer relevant',
+      );
+      return { id: null, outcome: 'suppressed', reason: 'jev-not-relevant', stored: false };
     }
   }
 

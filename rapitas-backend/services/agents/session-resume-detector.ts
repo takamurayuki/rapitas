@@ -13,9 +13,12 @@ import type { AgentExecutionResult } from './base-agent';
  * and "not found" alone are excluded — they caused false positives on unrelated
  * failures when execution-resolver injected "session expired or not found" into
  * every resume-mode errorMessage regardless of actual cause.
+ * NOTE: "prompt is too long" is included because a resumed session whose history overflows the
+ * context window fails identically on every re-resume ($ spent, no progress); a cold start with a
+ * fresh session is the only recovery. The specific phrase keeps this from matching generic failures.
  */
 export const SESSION_FAILURE_RE =
-  /no conversation found|conversation .*not found|session (id )?(not found|expired|invalid|does not exist)|no such session|could not (resume|find) session|resume failed/i;
+  /prompt is too long|no conversation found|conversation .*not found|session (id )?(not found|expired|invalid|does not exist)|no such session|could not (resume|find) session|resume failed/i;
 
 /**
  * Determines whether a result indicates that the --resume session ID is no longer valid.

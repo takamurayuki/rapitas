@@ -63,6 +63,17 @@ mock.module('../task/task-mutations', () => ({
   createTask: mock(() => Promise.resolve({ id: 100 })),
 }));
 
+// Jev is not configured in this test environment (no RAPITAS_JEV_API_KEY),
+// so checkConcernStillRelevant already no-ops to null in every existing
+// test above — this mock only needs to be swapped for the dedicated
+// jev-not-relevant tests below.
+const mockCheckConcernStillRelevant = mock(() =>
+  Promise.resolve(null as { relevant: boolean; confidence: number } | null),
+);
+mock.module('./concern-relevance-check', () => ({
+  checkConcernStillRelevant: mockCheckConcernStillRelevant,
+}));
+
 const {
   CONCERN_TYPES,
   CONCERN_SEVERITIES,
@@ -95,6 +106,7 @@ function resetMocks() {
   mockThemeFindFirst.mockReset().mockResolvedValue(null);
   mockThemeFindMany.mockReset().mockResolvedValue([]);
   mockTaskFindUnique.mockReset().mockResolvedValue(null);
+  mockCheckConcernStillRelevant.mockReset().mockResolvedValue(null);
 }
 
 // ─── Pure helper tests ────────────────────────────────────────────────────────
@@ -692,6 +704,57 @@ describe('submitConcern — 応答のoutcome区別', () => {
 
     expect(mockKnowledgeEntryCreate).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ id: 999, outcome: 'created', reason: 'new', stored: true });
+  });
+
+  it('Jevが確信を持って「関連性なし」と判定した場合は outcome:suppressed, reason:jev-not-relevant で id:null を返す', async () => {
+    mockKnowledgeEntryFindMany
+      .mockResolvedValueOnce([]) // findBlockingDuplicate
+      .mockResolvedValueOnce([]) // findNearDuplicate
+      .mockResolvedValueOnce([]); // findSaturatedTheme
+    mockCheckConcernStillRelevant.mockResolvedValueOnce({ relevant: false, confidence: 0.92 });
+
+    const result = await submitConcern({
+      title: '既に修正済みの一時的なエラーに見えるタイトル',
+      detail: '詳細',
+    });
+
+    expect(result).toEqual({
+      id: null,
+      outcome: 'suppressed',
+      reason: 'jev-not-relevant',
+      stored: false,
+    });
+    expect(mockKnowledgeEntryCreate).not.toHaveBeenCalled();
+  });
+
+  it('Jevが「関連性あり」と判定した場合は通常どおり outcome:created を返す', async () => {
+    mockKnowledgeEntryFindMany
+      .mockResolvedValueOnce([]) // findBlockingDuplicate
+      .mockResolvedValueOnce([]) // findNearDuplicate
+      .mockResolvedValueOnce([]); // findSaturatedTheme
+    mockCheckConcernStillRelevant.mockResolvedValueOnce({ relevant: true, confidence: 0.9 });
+    mockKnowledgeEntryCreate.mockResolvedValueOnce({ id: 8 });
+
+    const result = await submitConcern({
+      title: '現在も再現する具体的な不具合のタイトル',
+      detail: '詳細',
+    });
+
+    expect(result).toEqual({ id: 8, outcome: 'created', reason: 'new', stored: true });
+  });
+
+  it('dedupKey付きの懸念はJev判定をスキップする(既存のrecurrencePolicyと二重判定しない)', async () => {
+    mockKnowledgeEntryFindMany.mockResolvedValueOnce([]); // findBlockingDuplicate only
+    mockKnowledgeEntryCreate.mockResolvedValueOnce({ id: 9 });
+
+    const result = await submitConcern({
+      title: 'dedupKey付きの懸念',
+      detail: '詳細',
+      dedupKey: 'stable-key-1',
+    });
+
+    expect(result.outcome).toBe('created');
+    expect(mockCheckConcernStillRelevant).not.toHaveBeenCalled();
   });
 });
 
