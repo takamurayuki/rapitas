@@ -405,32 +405,39 @@ describe('callClaudeCliStream — line buffering', () => {
 
 describe('callClaudeCliStream — request shape', () => {
   test('requests stream-json output, verbose mode, and the same tool restrictions', async () => {
-    const stream = await callClaudeCliStream(
-      'claude-3-5-sonnet-20241022',
-      [{ role: 'user', content: 'hi' }],
-      undefined,
-      100,
-    );
-    const child = spawnedChildren[0];
-    child.emit('close', 0);
-    await drainSSE(stream);
+    // task 977: buildSpawnCommand's escapeWindowsShellArg encoding only
+    // applies on the win32 branch — without forcing the platform here, this
+    // assertion is Windows-only in effect and fails on Linux CI
+    // (Test SQLite Compatible Suite runs on ubuntu-latest) because the
+    // non-Windows branch returns the plain, unescaped argv.
+    await withPlatform('win32', async () => {
+      const stream = await callClaudeCliStream(
+        'claude-3-5-sonnet-20241022',
+        [{ role: 'user', content: 'hi' }],
+        undefined,
+        100,
+      );
+      const child = spawnedChildren[0];
+      child.emit('close', 0);
+      await drainSSE(stream);
 
-    // task 977: every arg (including commas inside comma-joined lists) now
-    // passes through escapeWindowsShellArg — build the expected substrings
-    // from the same escaper rather than the pre-escaping plain-string form.
-    expect(fullCommand(0)).toContain(escapeWindowsShellArg('--verbose', true));
-    expect(fullCommand(0)).toContain(
-      `${escapeWindowsShellArg('--output-format', true)} ${escapeWindowsShellArg('stream-json', true)}`,
-    );
-    expect(fullCommand(0)).toContain(
-      `${escapeWindowsShellArg('--model', true)} ${escapeWindowsShellArg('sonnet', true)}`,
-    );
-    expect(fullCommand(0)).toContain(escapeWindowsShellArg('--disallowedTools', true));
-    expect(fullCommand(0)).toContain(
-      escapeWindowsShellArg(
-        'Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit,TodoWrite,MultiEdit',
-        true,
-      ),
-    );
+      // task 977: every arg (including commas inside comma-joined lists) now
+      // passes through escapeWindowsShellArg — build the expected substrings
+      // from the same escaper rather than the pre-escaping plain-string form.
+      expect(fullCommand(0)).toContain(escapeWindowsShellArg('--verbose', true));
+      expect(fullCommand(0)).toContain(
+        `${escapeWindowsShellArg('--output-format', true)} ${escapeWindowsShellArg('stream-json', true)}`,
+      );
+      expect(fullCommand(0)).toContain(
+        `${escapeWindowsShellArg('--model', true)} ${escapeWindowsShellArg('sonnet', true)}`,
+      );
+      expect(fullCommand(0)).toContain(escapeWindowsShellArg('--disallowedTools', true));
+      expect(fullCommand(0)).toContain(
+        escapeWindowsShellArg(
+          'Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit,TodoWrite,MultiEdit',
+          true,
+        ),
+      );
+    });
   });
 });
