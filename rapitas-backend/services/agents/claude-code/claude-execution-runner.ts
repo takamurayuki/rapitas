@@ -31,6 +31,7 @@ import { startIdleMonitor } from './idle-monitor';
 import type { ClaudeCodeAgent } from './agent-core';
 import { formatPromptPreview } from '../../../utils/agent/prompt-preview';
 
+import { writePromptChunks } from './stdin-prompt-writer';
 import { buildClaudeArgs } from './claude-args';
 export { buildClaudeArgs } from './claude-args';
 
@@ -79,28 +80,20 @@ async function writePromptToStdin(agent: ClaudeCodeAgent, prompt: string): Promi
     logger.info(`${agent.logPrefix} stdin is not available`);
     return;
   }
-  const stdin = agent.process.stdin;
-  const CHUNK_SIZE = 16384; // 16KB chunks
-
-  stdin.on('error', (err) => {
-    logger.error({ err }, `${agent.logPrefix} stdin error`);
-  });
-
-  // Convert prompt to UTF-8 Buffer to prevent encoding issues
-  const promptBuffer = Buffer.from(prompt, 'utf8');
-  logger.info(`${agent.logPrefix} Prompt buffer size: ${promptBuffer.length} bytes`);
-
-  for (let i = 0; i < promptBuffer.length; i += CHUNK_SIZE) {
-    const chunk = promptBuffer.subarray(i, Math.min(i + CHUNK_SIZE, promptBuffer.length));
-    const canContinue = stdin.write(chunk);
-    if (!canContinue) {
-      await new Promise<void>((r) => stdin.once('drain', r));
-    }
-  }
-
-  stdin.end();
+  const { bytes, completed } = await writePromptChunks(
+    agent.process.stdin,
+    prompt,
+    (err, closed) => {
+      // NOTE: EPIPE means the CLI exited before reading the prompt; the close handler reports the real cause.
+      if (closed)
+        logger.warn(
+          `${agent.logPrefix} stdin closed by CLI before prompt was fully written (${err.message})`,
+        );
+      else logger.error({ err }, `${agent.logPrefix} stdin error`);
+    },
+  );
   logger.info(
-    `${agent.logPrefix} Prompt written to stdin (${promptBuffer.length} bytes) in chunks`,
+    `${agent.logPrefix} Prompt ${completed ? 'written to stdin' : 'write aborted'} (${bytes} bytes)`,
   );
 }
 
