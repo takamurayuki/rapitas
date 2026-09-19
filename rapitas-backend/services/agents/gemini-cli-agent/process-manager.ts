@@ -13,7 +13,10 @@ import { buildSanitizedSpawnEnv } from '../../../utils/agent';
 import { registerProcess } from '../agent-process-tracker';
 import { startResourceSampling } from '../process-resource-sampler';
 import { resolveCliPathAsync } from '../../../utils/common/cli-path-resolver';
-import { escapeWindowsShellArg } from '../../../utils/common/windows-shell-escape';
+import {
+  escapeWindowsShellArg,
+  escapeWindowsShellArgForTarget,
+} from '../../../utils/common/windows-shell-escape';
 
 const logger = createLogger('gemini-cli-agent:process-manager');
 
@@ -158,7 +161,7 @@ export function buildGeminiSpawnCommand(geminiPath: string, args: string[]): [st
   // escapeWindowsShellArg('' , true) already produces a safely-quoted empty
   // token (^^^"^^^"), so the old "quote empty strings explicitly" special
   // case is no longer needed — unconditional quoting subsumes it.
-  const argsString = args.map((arg) => escapeWindowsShellArg(arg, true)).join(' ');
+  const argsString = args.map((arg) => escapeWindowsShellArgForTarget(geminiPath, arg)).join(' ');
   const quotedPath = escapeWindowsShellArg(geminiPath, false);
   return [`chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`, []];
 }

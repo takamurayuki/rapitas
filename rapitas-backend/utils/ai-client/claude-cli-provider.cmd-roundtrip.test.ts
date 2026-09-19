@@ -15,7 +15,7 @@
  * Windows, not by CI.
  */
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import { spawn } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -86,6 +86,45 @@ describeWindowsOnly('buildSpawnCommand — real cmd.exe round-trip (Windows only
     ['empty string argument', ['--tools', '', '--flag']],
   ])('round-trips %s through a real cmd.exe + %%*-expanding shim', async (_label, argv) => {
     const received = await runRoundtrip(argv);
+    expect(received).toEqual(argv);
+  });
+
+  // The standalone installer ships a native `claude.exe` with no `.cmd` shim
+  // (task 970 regression): cmd.exe parses its command line exactly once, so the
+  // shim-depth escaping left `^--print^` in argv and the CLI silently fell back
+  // to plain-text output. node.exe stands in for that native target here.
+  test.each([
+    ['plain flags and values', ['--print', '--output-format', 'json']],
+    ['embedded quote and backslash', ['say "hi\\', 'plain']],
+    ['percent (env-var-like) token', ['-m', '%ANTHROPIC_API_KEY%']],
+    ['ampersand and pipe', ['a&b', 'c|d']],
+    ['empty string argument', ['--tools', '', '--flag']],
+  ])('round-trips %s through a real cmd.exe to a NATIVE .exe target', async (_label, argv) => {
+    const nodeExe = execSync('where node.exe', { encoding: 'utf8' }).split(/\r?\n/)[0]!.trim();
+    const echoScriptPath = join(tmpDir, 'echo-argv.js');
+    // Native target: the echo script path is a fixed, escape-free argument in
+    // front of the argv under test — exactly how a real exe sees its args.
+    const [command, finalArgs] = buildSpawnCommand(nodeExe, [echoScriptPath, ...argv]);
+    const received = await new Promise<string[]>((resolve, reject) => {
+      const child = spawn(command, finalArgs, { shell: true, windowsHide: true });
+      let stdout = '';
+      child.stdout.setEncoding('utf8');
+      child.stdout.on('data', (chunk: string) => {
+        stdout += chunk;
+      });
+      child.on('close', (code) => {
+        if (code !== 0) {
+          reject(new Error(`node.exe exited with code ${code}`));
+          return;
+        }
+        try {
+          resolve(JSON.parse(stdout));
+        } catch (err) {
+          reject(new Error(`failed to parse child stdout as JSON: ${stdout} (${String(err)})`));
+        }
+      });
+      child.on('error', reject);
+    });
     expect(received).toEqual(argv);
   });
 

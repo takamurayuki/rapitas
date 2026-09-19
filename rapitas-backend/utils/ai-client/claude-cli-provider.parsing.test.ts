@@ -19,7 +19,10 @@
 import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'child_process';
-import { escapeWindowsShellArg } from '../common/windows-shell-escape';
+import {
+  escapeWindowsShellArg,
+  escapeWindowsShellArgForTarget,
+} from '../common/windows-shell-escape';
 
 // ── child_process mock (see claude-cli-provider.test.ts for rationale) ─────
 
@@ -152,33 +155,49 @@ afterEach(() => {
 // correctly plumbs the resolved path into the spawn command on Windows.
 
 describe('buildSpawnCommand — Windows', () => {
-  // task 977: buildSpawnCommand now delegates to escapeWindowsShellArg
-  // (unconditional quoting + double caret-escaping for args) instead of the
-  // prior naive "quote if it contains a space/&/|" check — expected values
-  // are derived from the shared escaper itself so this test tracks the SUT's
-  // real contract rather than a hand-computed string.
+  // task 977: buildSpawnCommand now delegates to the shared escaper
+  // (unconditional quoting + caret-escaping for args) instead of the prior
+  // naive "quote if it contains a space/&/|" check. Escape depth follows the
+  // resolved target (task 970 regression: a native `claude.exe` is parsed by
+  // cmd.exe once, a `.cmd` shim twice) — expected values are derived from the
+  // shared escaper itself so this test tracks the SUT's real contract rather
+  // than a hand-computed string.
   test('preserves an empty tool list and replaces the coding prompt for text calls', async () => {
     await withPlatform('win32', async () => {
       const pending = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
       await flush();
-      // Every arg (including flag names) passes through escapeWindowsShellArg
-      // now — unconditional quoting applies to `--tools` itself too, not just
-      // its value.
+      // Every arg (including flag names) passes through the escaper now —
+      // unconditional quoting applies to `--tools` itself too, not just its
+      // value. The mocked path is the bare name `claude` (unresolved → shim depth).
+      const arg = (value: string) => escapeWindowsShellArgForTarget('claude', value);
+      expect(fullCommand(0)).toContain(`${arg('--tools')} ${arg('')}`);
+      expect(fullCommand(0)).toContain(`${arg('--effort')} ${arg('low')}`);
       expect(fullCommand(0)).toContain(
-        `${escapeWindowsShellArg('--tools', true)} ${escapeWindowsShellArg('', true)}`,
-      );
-      expect(fullCommand(0)).toContain(
-        `${escapeWindowsShellArg('--effort', true)} ${escapeWindowsShellArg('low', true)}`,
-      );
-      expect(fullCommand(0)).toContain(
-        `${escapeWindowsShellArg('--system-prompt', true)} ${escapeWindowsShellArg(
+        `${arg('--system-prompt')} ${arg(
           'You are a text processing assistant. Follow the supplied instructions and return only the requested text. Do not use tools.',
-          true,
         )}`,
       );
       respondSuccess(spawnedChildren[0]);
       await pending;
     });
+  });
+
+  test('a native claude.exe target gets single-layer args, a .cmd shim double-layer', async () => {
+    for (const [path, expected] of [
+      ['C:\\Users\\me\\.local\\bin\\claude.exe', '^"--print^" ^"--output-format^" ^"json^"'],
+      ['C:\\nvm4w\\nodejs\\claude.cmd', '^^^"--print^^^" ^^^"--output-format^^^" ^^^"json^^^"'],
+    ] as const) {
+      claudePathImpl = () => path;
+      spawnCalls = [];
+      spawnedChildren = [];
+      await withPlatform('win32', async () => {
+        const p = callClaudeCli(undefined, [{ role: 'user', content: 'hi' }], undefined, 100);
+        await flush();
+        respondSuccess(spawnedChildren[0]);
+        await p;
+      });
+      expect(spawnCalls[0].command).toContain(expected);
+    }
   });
   test('embeds the resolved CLI path in the spawn command', async () => {
     claudePathImpl = () => process.execPath;
@@ -422,20 +441,17 @@ describe('callClaudeCliStream — request shape', () => {
       await drainSSE(stream);
 
       // task 977: every arg (including commas inside comma-joined lists) now
-      // passes through escapeWindowsShellArg — build the expected substrings
-      // from the same escaper rather than the pre-escaping plain-string form.
-      expect(fullCommand(0)).toContain(escapeWindowsShellArg('--verbose', true));
+      // passes through the shared escaper — build the expected substrings
+      // from the same escaper (at the depth it picks for the mocked bare-name
+      // target, task 970) rather than the pre-escaping plain-string form.
+      const arg = (value: string) => escapeWindowsShellArgForTarget('claude', value);
+      expect(fullCommand(0)).toContain(arg('--verbose'));
+      expect(fullCommand(0)).toContain(`${arg('--output-format')} ${arg('stream-json')}`);
+      expect(fullCommand(0)).toContain(`${arg('--model')} ${arg('sonnet')}`);
+      expect(fullCommand(0)).toContain(arg('--disallowedTools'));
       expect(fullCommand(0)).toContain(
-        `${escapeWindowsShellArg('--output-format', true)} ${escapeWindowsShellArg('stream-json', true)}`,
-      );
-      expect(fullCommand(0)).toContain(
-        `${escapeWindowsShellArg('--model', true)} ${escapeWindowsShellArg('sonnet', true)}`,
-      );
-      expect(fullCommand(0)).toContain(escapeWindowsShellArg('--disallowedTools', true));
-      expect(fullCommand(0)).toContain(
-        escapeWindowsShellArg(
+        arg(
           'Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit,TodoWrite,MultiEdit',
-          true,
         ),
       );
     });

@@ -15,7 +15,10 @@ import { createLogger } from '../../config/logger';
 // can require "0 live aux CLI children" and post-crash cleanup can reap them.
 import { registerProcess, unregisterProcess } from '../../services/agents/agent-process-tracker';
 import { getClaudePathAsync } from '../common/cli-path-resolver';
-import { escapeWindowsShellArg } from '../common/windows-shell-escape';
+import {
+  escapeWindowsShellArg,
+  escapeWindowsShellArgForTarget,
+} from '../common/windows-shell-escape';
 import { type AIMessage, type AIResponse } from './types';
 import { describeCliFailure, extractLastJsonObject } from './cli-failure-reason';
 import { auxCliCleanup } from './aux-cli-cleanup';
@@ -35,7 +38,9 @@ const log = createLogger('ai-client:claude-cli');
  */
 export function buildSpawnCommand(claudePath: string, args: string[]): [string, string[]] {
   if (process.platform !== 'win32') return [claudePath, args];
-  const argsString = args.map((arg) => escapeWindowsShellArg(arg, true)).join(' ');
+  // NOTE: escape depth follows the target kind — `claude.exe` (native installer)
+  // is parsed by cmd.exe once, a `.cmd` shim twice (task 970 regression).
+  const argsString = args.map((arg) => escapeWindowsShellArgForTarget(claudePath, arg)).join(' ');
   const quotedPath = escapeWindowsShellArg(claudePath, false);
   return [`chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`, []];
 }
