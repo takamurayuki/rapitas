@@ -5,7 +5,7 @@
  * buildMemoryContext のテーマ優先→グローバルフォールバック、
  * 検索失敗時のサイレント縮退(''返し)を検証する。
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
 
 interface SearchOpts {
   query: string;
@@ -51,6 +51,7 @@ mock.module('../../services/memory/recall/hybrid-search', () => ({
 
 const { buildMemoryContext, renderMemorySection } =
   await import('../../services/workflow/workflow-memory-context');
+const { EVAL_MODE_ENV } = await import('../../services/memory/recall/recall-config');
 
 function row(over: Partial<KnowledgeRow>): KnowledgeRow {
   return {
@@ -227,5 +228,28 @@ describe('buildMemoryContext', () => {
     const out = await buildMemoryContext(10, { title: '', description: null }, 'ja');
     expect(out).toBe('');
     expect(mockSearchKnowledge).not.toHaveBeenCalled();
+  });
+
+  describe('RAPITAS_EVAL_MODE', () => {
+    afterEach(() => {
+      delete process.env[EVAL_MODE_ENV];
+    });
+
+    test('RAPITAS_EVAL_MODE=1 のとき、KB検索もテーマ解決も行わず空文字を返す', async () => {
+      process.env[EVAL_MODE_ENV] = '1';
+      mockSearchKnowledge.mockReturnValue(Promise.resolve([row({ title: '教訓A' })]));
+
+      const out = await buildMemoryContext(10, { title: 'T', description: 'D' }, 'ja');
+
+      expect(out).toBe('');
+      expect(mockSearchKnowledge).not.toHaveBeenCalled();
+      expect(mockFindUnique).not.toHaveBeenCalled();
+    });
+
+    test('RAPITAS_EVAL_MODE が未設定なら通常どおり検索する', async () => {
+      mockSearchKnowledge.mockReturnValue(Promise.resolve([row({ title: '教訓A' })]));
+      const out = await buildMemoryContext(10, { title: 'T', description: 'D' }, 'ja');
+      expect(out).toContain('教訓A');
+    });
   });
 });

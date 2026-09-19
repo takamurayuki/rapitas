@@ -120,6 +120,26 @@ export function parseRecallConfig(env: Record<string, string | undefined>): Reca
   };
 }
 
+/**
+ * Env var that eval-runner.ts sets on the process running an evaluation-corpus
+ * baseline scenario. Read (not written) here — the write side lives in the
+ * eval harness (task 873).
+ */
+export const EVAL_MODE_ENV = 'RAPITAS_EVAL_MODE';
+
+/**
+ * Whether this process is currently executing an evaluation-corpus scenario.
+ *
+ * When true, recall call sites (KB search, episode recall) must skip
+ * retrieval: the corpus is built from already-solved tasks, so unblocked
+ * recall would let the agent replay its own past answer instead of solving
+ * the problem, inflating fail-to-pass. Read live (not cached) so a flag set
+ * mid-process by the eval harness takes effect immediately.
+ */
+export function isEvalModeActive(): boolean {
+  return process.env[EVAL_MODE_ENV] === '1';
+}
+
 let cached: RecallConfig | null = null;
 
 /**

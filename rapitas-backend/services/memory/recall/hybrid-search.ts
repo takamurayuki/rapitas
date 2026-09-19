@@ -18,7 +18,7 @@ import { appendEvent } from '../timeline';
 import { parseTagsAsStrings } from '../utils';
 import { lexicalSearch, type LexicalHit } from './lexical-index';
 import { fuseRankings } from './rank-fusion';
-import { getRecallConfig } from './recall-config';
+import { getRecallConfig, isEvalModeActive } from './recall-config';
 import type { ForgettingStage, KnowledgeCategory } from '../types';
 
 const log = createLogger('memory:recall:hybrid');
@@ -121,6 +121,10 @@ async function hydrate(
  * @returns Fused hits, best first, at most `limit`. / 統合結果
  */
 export async function searchKnowledgeHybrid(options: HybridSearchOptions): Promise<HybridHit[]> {
+  // Eval-corpus baseline runs must not replay memory of the corpus task's own
+  // past solution (see RAPITAS_EVAL_MODE in recall-config.ts).
+  if (isEvalModeActive()) return [];
+
   const cfg = getRecallConfig();
   const {
     query,
