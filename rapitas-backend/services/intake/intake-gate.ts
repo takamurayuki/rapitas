@@ -15,9 +15,9 @@
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import {
-  resolveWorkflowDir,
   readWorkflowFile,
   writeWorkflowFile,
+  resolveWorkflowDir,
 } from '../workflow/workflow-file-utils';
 import { recordTransition } from '../workflow/transition-recorder';
 import { deriveTaskSpec, generateIntakeQuestions } from '../task/task-spec-deriver';
@@ -26,10 +26,10 @@ import {
   notifyIntakeQuestionPending,
 } from '../communication/notification-service';
 import {
-  extractReferencedTaskIds,
-  findContaminatedCriteria,
-  type ContaminatedCriterion,
-} from './spec-coherence-checker';
+  findLiftedCriteria,
+  raiseContaminationQuestion,
+  applyContaminationDecisions,
+} from './intake-contamination-gate';
 import {
   checkSpecQuality,
   mergeSpecField,
@@ -39,6 +39,7 @@ import {
 } from './spec-quality-checker';
 import { resolveIntakePolicy, decideIntake } from './intake-policy';
 import { buildIntakeQuestion } from './intake-question-template';
+import type { IntakeTaskRow } from './intake-task-row';
 
 const log = createLogger('intake-gate');
 
@@ -52,15 +53,6 @@ export interface IntakeOutcome {
   status: 'ready' | 'awaiting_question' | 'proceed_low_confidence';
   /** Optional human-readable note for the caller's result/output. */
   message?: string;
-}
-
-/** The task fields the gate reads — typed loosely so a pre-migration Prisma
- * client (no goals/constraints/acceptanceCriteria columns) degrades gracefully
- * to "fields absent → treated as missing" instead of crashing. */
-interface IntakeTaskRow extends SpecQualityInput {
-  id: number;
-  title: string;
-  workflowStatus: string | null;
 }
 
 /**
@@ -82,7 +74,7 @@ export async function ensureIntakeReady(taskId: number): Promise<IntakeOutcome> 
   // the adequate check and into ten repair rounds. Asked first because a thick
   // wrong spec is worse than a thin right one: the thin one gets questions, the
   // thick one gets built.
-  const contaminated = await findLiftedCriteria(task).catch((err) => {
+  let contaminated = await findLiftedCriteria(task).catch((err) => {
     log.warn({ err, taskId }, '[intake-gate] coherence check failed (non-fatal)');
     return [];
   });
@@ -91,16 +83,30 @@ export async function ensureIntakeReady(taskId: number): Promise<IntakeOutcome> 
     // another task's vocabulary, asking again would loop (task 363's shape), so
     // record it and let the run proceed — the diff review still catches it.
     if (!(await hasAnsweredIntakeQuestion(taskId))) {
-      await raiseContaminationQuestion(task, contaminated);
+      await raiseContaminationQuestion(task, contaminated, notifyIntakeQuestionPending);
       return {
         status: 'awaiting_question',
         message: '受入基準が別タスクの内容を含んでいるため確認の質問を作成しました',
       };
     }
-    log.warn(
-      { taskId, criteria: contaminated.map((c) => c.index) },
-      '[intake-gate] criteria still look lifted after an answered question — proceeding',
-    );
+    // Answered once already — never re-ask (task 363's loop). For the
+    // investigation-artifact path specifically, a structured A/B answer (if
+    // one was recorded) tells us whether to leave the criterion untouched
+    // ("A: 正当な要求") or remove it ("B: 調査記録の混入"). No structured
+    // answer (freeform text instead of a json:options pick) means we cannot
+    // tell A from B — the safe default is to change nothing (AC#2: never
+    // silently drop an explicit acceptance criterion on an ambiguous signal).
+    const resolved = await applyContaminationDecisions(task, contaminated);
+    if (resolved.removed.length > 0) {
+      task.acceptanceCriteria = resolved.acceptanceCriteriaJson;
+      contaminated = resolved.remainingContaminated;
+    }
+    if (contaminated.length > 0) {
+      log.warn(
+        { taskId, criteria: contaminated.map((c) => c.index) },
+        '[intake-gate] criteria still look lifted after an answered question — proceeding',
+      );
+    }
   }
 
   let quality = checkSpecQuality(task);
@@ -144,98 +150,6 @@ export async function ensureIntakeReady(taskId: number): Promise<IntakeOutcome> 
     status: 'proceed_low_confidence',
     message: '仕様が不十分ですが、ポリシーにより best-guess で実行を継続します',
   };
-}
-
-/**
- * Criteria on this task that carry another task's subject matter.
- *
- * Only tasks this spec actually cites are considered, and never the task
- * itself — a task may legitimately quote its own title.
- *
- * The task's own text is passed through as well, because the second detection
- * path needs no lookup: a title of the form `#666「…」` carries the other
- * task's subject inside this one, and criteria drawn from that quoted span are
- * about the cited task by construction.
- */
-async function findLiftedCriteria(task: IntakeTaskRow): Promise<ContaminatedCriterion[]> {
-  const criteria = parseSpecArray(task.acceptanceCriteria);
-  if (criteria.length === 0) return [];
-
-  const ownText = `${task.title} ${task.description ?? ''}`;
-  const ids = extractReferencedTaskIds(ownText).filter((id) => id !== task.id);
-  if (ids.length === 0) return [];
-
-  const referenced = await prisma.task.findMany({
-    where: { id: { in: ids } },
-    select: { id: true, title: true },
-  });
-  return findContaminatedCriteria(criteria, referenced, ownText);
-}
-
-/**
- * Pause the task and say which criteria belong to which other task.
- *
- * Deliberately concrete: it names the criterion, the phrase, and the task the
- * phrase came from, because that is what a reader needs to decide whether to
- * rewrite the criteria or keep them. The generic 「仕様が不十分」 question would
- * not have helped here — the spec was not insufficient, it was misdirected.
- */
-async function raiseContaminationQuestion(
-  task: IntakeTaskRow,
-  contaminated: ContaminatedCriterion[],
-): Promise<void> {
-  const resolved = await resolveWorkflowDir(task.id);
-  if (!resolved) {
-    log.warn({ taskId: task.id }, '[intake-gate] cannot resolve workflow dir — skipping question');
-    return;
-  }
-  const lines = [
-    '# 仕様確認: 受入基準が別タスクの内容を含んでいます',
-    '',
-    `タスク「${task.title}」の受入基準に、参照している別タスクが導入した用語がそのまま現れています。`,
-    'ゴールアンカー生成が観測元タスクの内容を取り込んだ可能性があります。',
-    '',
-    '## 該当する受入基準',
-    '',
-  ];
-  for (const c of contaminated) {
-    lines.push(`- 受入基準${c.index}: ${c.criterion}`);
-    lines.push(
-      `  - タスク #${c.sourceTaskId} の用語: ${c.phrases.map((p) => `「${p}」`).join(' ')}`,
-    );
-  }
-  lines.push(
-    '',
-    '## 判断してください',
-    '',
-    `- **A: 受入基準はこのタスクのものではない** — 基準を書き直してください。このタスク（${task.title}）が実際に達成すべきことを基準にします`,
-    '- **B: 受入基準は正しい** — 参照タスクと同じ用語を使うのが妥当な場合はこちらを選んでください。このまま実行します',
-    '',
-    'A の場合、受入基準を訂正してから回答してください（訂正すると修復予算もリセットされます）。',
-  );
-  await writeWorkflowFile(task.id, 'question', lines.join('\n'));
-
-  const fromStatus = task.workflowStatus ?? 'draft';
-  await prisma.task.update({
-    where: { id: task.id },
-    data: { workflowStatus: 'awaiting_question', updatedAt: new Date() },
-  });
-  await recordTransition({
-    taskId: task.id,
-    fromStatus,
-    toStatus: 'awaiting_question',
-    actor: 'system',
-    cause: 'intake_question',
-    phase: 'question',
-    metadata: {
-      previousStatus: fromStatus,
-      kind: 'spec_change',
-      reason: 'criteria_contamination',
-      criteria: contaminated.map((c) => c.index),
-      sourceTaskIds: [...new Set(contaminated.map((c) => c.sourceTaskId))],
-    },
-  });
-  await notifyIntakeQuestionPending({ taskId: task.id, taskTitle: task.title }).catch(() => {});
 }
 
 /**

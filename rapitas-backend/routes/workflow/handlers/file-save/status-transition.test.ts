@@ -12,8 +12,14 @@
  */
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
 
+const mockCreateLogger = () => ({
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  debug: () => {},
+});
 mock.module('../../../../config/logger', () => ({
-  createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
+  createLogger: mockCreateLogger,
 }));
 
 const mockTaskUpdate = mock(() => Promise.resolve({})) as any;
@@ -26,8 +32,16 @@ const mockPrisma = {
     ),
   },
   workflowTransition: { findFirst: mockWorkflowTransitionFindFirst },
+  // Read by task 909's path-name-independent fallback (status-transition.ts's
+  // else-arm) when validateVerify passes — see the verify-requirement-plan-
+  // mismatch mock below, which stubs that fallback out for this file's tests.
+  workflowFile: { findFirst: mock(() => Promise.resolve(null)) },
 };
-mock.module('../../../../config', () => ({ prisma: mockPrisma }));
+// createLogger is re-exported here too (mirroring config/index.ts's real barrel
+// export) — some transitive dependency pulled in by the real (unmocked)
+// requirement-replan-review chain resolves createLogger via this barrel path
+// rather than '../../../../config/logger' directly.
+mock.module('../../../../config', () => ({ prisma: mockPrisma, createLogger: mockCreateLogger }));
 
 mock.module('../../../../services/workflow/completion-gate', () => ({
   researchConcludesNoChange: () => false,
@@ -83,6 +97,14 @@ mock.module('../../../../services/workflow/requirement-replan-service', () => ({
 }));
 mock.module('../../../../services/workflow/verify-self-repair', () => ({
   attemptVerifyRepair: mockAttemptVerifyRepair,
+}));
+// Reached only when validateVerify passes (severity<80) — two tests below
+// exercise that path but are not testing task 909's own detection, so it is
+// stubbed to never fire.
+mock.module('../../../../services/workflow/verify-requirement-plan-mismatch', () => ({
+  detectSupervisorArtifactMismatch: () => ({ hit: false }),
+  detectGeneralRequirementMismatch: async () => ({ hit: false }),
+  attemptRequirementPlanReplan: async () => ({ replanned: false }),
 }));
 
 const { computeAndApplyStatusTransition } = await import('./status-transition');

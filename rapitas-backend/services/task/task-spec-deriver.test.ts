@@ -124,6 +124,65 @@ describe('deriveTaskSpec', () => {
     });
   });
 
+  test('.supervisor/ 配下の監督専用パスを含む抽出結果も一次防御では削除されないこと（task 909 再計画: AC#2回帰 — 削除は二次防御が人間確認の上で行う）', async () => {
+    mockSendAIMessage.mockResolvedValueOnce({
+      content: JSON.stringify({
+        goals: ['正当なゴール'],
+        constraints: ['C:/Projects/rapitas/.supervisor/measurements/task906-red.patch を参照する'],
+        acceptanceCriteria: [
+          '正当な受入基準',
+          '.supervisor/measurements/task906-red.patch の再現手順どおりに動作する',
+        ],
+      }),
+    });
+
+    const result = await deriveTaskSpec('タスクの説明');
+
+    expect(result.source).toBe('ai');
+    expect(result.spec.goals).toEqual(['正当なゴール']);
+    expect(result.spec.constraints).toEqual([
+      'C:/Projects/rapitas/.supervisor/measurements/task906-red.patch を参照する',
+    ]);
+    expect(result.spec.acceptanceCriteria).toEqual([
+      '正当な受入基準',
+      '.supervisor/measurements/task906-red.patch の再現手順どおりに動作する',
+    ]);
+  });
+
+  test('バックスラッシュ表記の .supervisor\\ パスを含む項目も削除されず保持されること', async () => {
+    mockSendAIMessage.mockResolvedValueOnce({
+      content: JSON.stringify({
+        goals: [],
+        constraints: [],
+        acceptanceCriteria: [
+          'C:\\Projects\\rapitas\\.supervisor\\task906-validator-probe.ts を通す',
+        ],
+      }),
+    });
+
+    const result = await deriveTaskSpec('タスクの説明');
+
+    expect(result.spec.acceptanceCriteria).toEqual([
+      'C:\\Projects\\rapitas\\.supervisor\\task906-validator-probe.ts を通す',
+    ]);
+  });
+
+  test('.supervisor/ 配下を明示的に対象とする正当な新規要求は削除されず保持されること（AC#2の反例）', async () => {
+    mockSendAIMessage.mockResolvedValueOnce({
+      content: JSON.stringify({
+        goals: [],
+        constraints: [],
+        acceptanceCriteria: ['.supervisor/ 配下にログ収集ツールを新規実装する'],
+      }),
+    });
+
+    const result = await deriveTaskSpec('.supervisor/ 配下にログ収集ツールを新規実装してほしい');
+
+    expect(result.spec.acceptanceCriteria).toEqual([
+      '.supervisor/ 配下にログ収集ツールを新規実装する',
+    ]);
+  });
+
   test('AI 呼び出しに provider/systemPrompt/description が渡されること', async () => {
     mockGetDefaultProvider.mockResolvedValueOnce('gemini');
 

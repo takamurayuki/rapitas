@@ -265,8 +265,75 @@ export async function computeAndApplyStatusTransition(params: {
           // transition + auto-commit/PR pipeline below.
         }
       } else {
-        log.info(`[Workflow] Verification saved: setting newStatus to verify_done`);
-        newStatus = 'verify_done';
+        // Reached only when the structural (severity>=80) check did NOT fire.
+        // Separately check whether an acceptance criterion still references
+        // the supervisor/verifier's own investigation scratch path
+        // (`.supervisor/...`) — a structurally-certain requirement/plan
+        // mismatch, never a normal unmet criterion (task 909). Ordinary
+        // unrelated failures (no such reference) never enter this branch's
+        // if-arm and fall straight through to the unchanged verify_done path.
+        const {
+          detectSupervisorArtifactMismatch,
+          detectGeneralRequirementMismatch,
+          attemptRequirementPlanReplan,
+        } = await import('../../../../services/workflow/verify-requirement-plan-mismatch');
+        const { parseAcceptanceCriteria } =
+          await import('../../../../services/agents/verification/acceptance-self-check');
+        const taskRow = await prisma.task
+          .findUnique({
+            where: { id: taskId },
+            select: { acceptanceCriteria: true, description: true },
+          })
+          .catch(() => null);
+        const acceptanceCriteria = parseAcceptanceCriteria(taskRow?.acceptanceCriteria ?? null);
+        let mismatch = detectSupervisorArtifactMismatch(acceptanceCriteria);
+        if (!mismatch.hit) {
+          // Path-name-independent fallback (task 909 AC#5): `.supervisor/`
+          // is a free, decisive structural signal, but not every legitimate
+          // requirement/plan mismatch names that specific scratch path. Only
+          // reached when the structural check found nothing, so the extra AI
+          // review cost is paid solely on the cases that actually need it.
+          const planContent = await prisma.workflowFile
+            .findFirst({ where: { taskId, fileType: 'plan' }, select: { content: true } })
+            .catch(() => null);
+          mismatch = await detectGeneralRequirementMismatch({
+            acceptanceCriteria,
+            description: taskRow?.description ?? '',
+            currentPlan: planContent?.content ?? '',
+          });
+        }
+        if (mismatch.hit && mismatch.criterion) {
+          const { readPromptLanguage } =
+            await import('../../../../services/system/prompt-language-store');
+          const outcome = await attemptRequirementPlanReplan({
+            taskId,
+            currentStatus: currentStatus ?? null,
+            criterion: mismatch.criterion,
+            language: readPromptLanguage(),
+          });
+          if (outcome.replanned) {
+            log.warn(
+              { taskId, criterion: mismatch.criterion },
+              '[Workflow] acceptance criterion mismatches the current plan — rolling back to re-plan',
+            );
+            newStatus = 'draft';
+            verifyRepairBounced = true;
+          } else if (outcome.blocked) {
+            log.warn(
+              { taskId, criterion: mismatch.criterion },
+              '[Workflow] requirement-plan mismatch re-plans exhausted — blocking task',
+            );
+            verifyRepairBounced = true;
+          } else {
+            // Stopped task or a transient rollback-write failure: fall through
+            // unchanged, exactly like the pre-existing verify_done path.
+            log.info(`[Workflow] Verification saved: setting newStatus to verify_done`);
+            newStatus = 'verify_done';
+          }
+        } else {
+          log.info(`[Workflow] Verification saved: setting newStatus to verify_done`);
+          newStatus = 'verify_done';
+        }
       }
     } catch (err) {
       // The artifact is already saved. An unavailable validator/repair is not
