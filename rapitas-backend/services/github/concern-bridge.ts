@@ -234,6 +234,13 @@ export async function importIssueAsConcern(
     // Stable per-issue key so re-importing the same issue never duplicates.
     dedupKey: `gh-issue:${issue.id}`,
   });
+  // A null id only happens for the Jev-relevance 'suppressed' outcome, which
+  // is skipped for dedupKey'd filings (see submitConcern) — this call always
+  // passes one, so filing.id is never actually null here. Guarded anyway
+  // rather than asserted, since that invariant lives in a different file.
+  if (filing.id == null) {
+    return { success: false, status: 500, error: '懸念の起票に失敗しました' };
+  }
   const concernId = filing.id;
 
   await prisma.gitHubIssue.update({ where: { id: issueId }, data: { linkedConcernId: concernId } });

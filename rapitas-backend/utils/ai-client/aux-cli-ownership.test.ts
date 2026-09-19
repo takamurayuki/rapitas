@@ -9,6 +9,7 @@ import {
   createOwnershipRegistry,
   canReconcileOwnership,
   type OwnershipRecord,
+  STALE_INTENT_MS,
 } from './aux-cli-ownership';
 
 const rootIdentity = { pid: 42, birth: 'native:root', pgid: 42 };
@@ -105,6 +106,55 @@ test('reconciliation preserves other runs and reparented descendants durably', a
     rows = await createOwnershipRegistry(path).snapshot();
     expect(rows.map((row) => row.executionToken)).toEqual(['other']);
     expect(rows[0].status).toBe('intent');
+  });
+});
+
+test('a root:null record ages out on its own without ever calling inspect', async () => {
+  await withRegistry(async (path) => {
+    const registry = createOwnershipRegistry(path);
+    await registry.recordLaunchIntent('orphaned');
+    // The confirming process crashed before attach()/confirmOwnership ever ran
+    // (e.g. a backend restart mid-launch) — root stays null forever.
+    const inspectMustNotRun = async () => {
+      throw new Error('inspect() must not be called for a root:null record');
+    };
+
+    const recorded = (await registry.snapshot())[0]!.recordedAt!;
+    const justBefore = Date.parse(recorded) + STALE_INTENT_MS - 1;
+    expect(await registry.reconcile('orphaned', inspectMustNotRun, justBefore)).toBe(false);
+    expect((await registry.snapshot())[0]!.status).toBe('unresolved');
+
+    const justAfter = Date.parse(recorded) + STALE_INTENT_MS;
+    expect(await registry.reconcile('orphaned', inspectMustNotRun, justAfter)).toBe(true);
+    expect(await registry.snapshot()).toEqual([]);
+  });
+});
+
+test('a record missing recordedAt (pre-fix on-disk data) is treated as already stale', async () => {
+  await withRegistry(async (path) => {
+    await writeFile(
+      path,
+      JSON.stringify({
+        version: 1,
+        records: [
+          {
+            executionToken: 'legacy',
+            ownershipScope: 'windows-job',
+            status: 'unresolved',
+            root: null,
+            descendants: [],
+            fullyEnumerated: false,
+          },
+        ],
+      }),
+    );
+    const registry = createOwnershipRegistry(path);
+    expect(
+      await registry.reconcile('legacy', async () => {
+        throw new Error('inspect() must not be called for a root:null record');
+      }),
+    ).toBe(true);
+    expect(await registry.snapshot()).toEqual([]);
   });
 });
 

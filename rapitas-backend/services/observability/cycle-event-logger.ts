@@ -83,7 +83,10 @@ export type CycleEventName =
   | 'pr.merged'
   | 'pr.merge_failed'
   // self-deploy
-  | 'restart.triggered';
+  | 'restart.triggered'
+  // self-CPU heartbeat (services/system/cpu-usage-monitor.ts), opt-in
+  // diagnostic for sustained-high-CPU investigations
+  | 'system.cpu_sample';
 
 /**
  * Optional structured fields attached to a cycle event. Keep keys short and
