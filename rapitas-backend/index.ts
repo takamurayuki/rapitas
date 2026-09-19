@@ -191,6 +191,7 @@ import { backfillWorkflowFilesToDatabase } from './services/workflow/workflow-db
 import { migrateStudyGoals } from './services/learning/study-goal-migration';
 import { startBacklogScheduler } from './services/scheduling/backlog-scheduler';
 import { startEventLoopLagWatchdog } from './services/system/event-loop-lag-watchdog';
+import { startCpuUsageMonitorIfEnabled } from './services/system/cpu-usage-monitor';
 import { startBackupScheduler } from './services/system/backup-scheduler';
 import { startWorktreeCleanupScheduler } from './services/scheduling/worktree-cleanup-scheduler';
 import { startDecisionTraceConsistencyScheduler } from './services/scheduling/decision-trace-consistency-scheduler';
@@ -300,6 +301,7 @@ const runStartupWarmup = async (): Promise<void> => {
   await timed('auto-merge-watcher', () => AutoMergeWatcher.getInstance().start());
   await timed('workflow-reconciler', () => startWorkflowReconciler());
   await timed('resource-telemetry', () => startResourceTelemetryIfEnabled());
+  startCpuUsageMonitorIfEnabled();
   await timed('supervision-heartbeat-scheduler', () => startSupervisionHeartbeatScheduler());
   await timed('i18n-integrity-scheduler', () => startI18nIntegrityScheduler());
 
