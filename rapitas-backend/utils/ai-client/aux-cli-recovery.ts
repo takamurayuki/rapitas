@@ -12,6 +12,7 @@ import {
   type LinuxAuxScope,
   type LinuxScopeObservation,
 } from './linux-aux-cgroup';
+import { ClaudeCliUnavailableError } from './cli-errors';
 
 type RecoveryObservations = {
   process(pid: number): Promise<ProcessObservation>;
@@ -71,7 +72,13 @@ export function createAuxCliRecovery(
             unresolved.push(record.executionToken);
         }
         if (unresolved.length)
-          throw new Error(`Auxiliary CLI recovery pending: ${unresolved.join(', ')}`);
+          // NOTE(task #914): this readiness barrier must classify as
+          // ClaudeCliUnavailableError, not a bare Error — pre-pr-base-sync.ts
+          // matches on err.name to fail open on "CLI unavailable", and a
+          // pending-cleanup rejection is exactly that case.
+          throw new ClaudeCliUnavailableError(
+            `Auxiliary CLI recovery pending: ${unresolved.join(', ')}`,
+          );
       };
       recovering = run().finally(() => {
         recovering = null;

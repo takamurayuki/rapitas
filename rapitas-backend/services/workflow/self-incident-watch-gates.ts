@@ -60,6 +60,30 @@ export async function resolveNonDevelopmentThemeIds(themeIds: number[]): Promise
 }
 
 /**
+ * Resolves which candidate themes are "armed" for the blocked-task
+ * retry/escalation pipeline — `ThemeAutoRun.enabled === true && status ===
+ * 'running'` (task 977). Condition-for-condition identical to
+ * `workflow-reconciler-blocked.ts`'s `findBlockedCandidates` armed query — a
+ * drift here would silence stagnation detection for `blocked` tasks that
+ * pipeline does NOT actually retry/escalate (e.g. a paused theme), causing a
+ * new silent-permanent-stall regression instead of fixing one. Query failure
+ * resolves to an empty set (fail-open — detectStagnation keeps detecting).
+ *
+ * @param themeIds - Distinct, non-null theme ids among this pass's candidates. / 候補のテーマID一覧
+ * @returns Set of theme ids whose blocked-task pipeline is armed. / blockedタスク自動再試行パイプラインが有効なテーマID集合
+ */
+export async function resolveArmedThemeIds(themeIds: number[]): Promise<Set<number>> {
+  if (themeIds.length === 0) return new Set();
+  const armed = await prisma.themeAutoRun
+    .findMany({
+      where: { themeId: { in: themeIds }, enabled: true, status: 'running' },
+      select: { themeId: true },
+    })
+    .catch(() => [] as { themeId: number }[]);
+  return new Set(armed.map((a) => a.themeId));
+}
+
+/**
  * Resolves whether the multi-phase workflow is disabled globally
  * (`UserSettings.workflowDisabledGlobally`), mirroring
  * workflow-disabled.ts's `resolveEffectiveWorkflowDisabled` fail-open

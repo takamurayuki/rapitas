@@ -141,6 +141,36 @@ function isSessionDead(data: Record<string, unknown>): boolean {
 }
 
 /**
+ * Workflow states in which the task is parked on a HUMAN, not on an agent: no
+ * phase runs and none will start until someone answers. The execution row is
+ * 'completed' (the agent that asked the question exited normally), the task
+ * is often still 'in-progress', and the session is alive — so every other
+ * "still advancing" signal reads as true here. Without this exclusion,
+ * opening the task detail of a question-parked task re-registered it as
+ * executing: the card's elapsed timer resumed and the loader reappeared even
+ * after auto-run had been stopped and every agent halted.
+ */
+const HUMAN_WAIT_WORKFLOW_STATUSES = new Set(['awaiting_question']);
+
+/**
+ * True when the task is waiting on a human answer with no live agent.
+ *
+ * @param data - Raw status payload. / 生のステータスレスポンス
+ * @returns True when nothing advances until a person responds. / 人の回答まで何も進まない場合true
+ */
+function isParkedOnHuman(data: Record<string, unknown>): boolean {
+  const wf = data.workflowStatus;
+  return (
+    typeof wf === 'string' &&
+    HUMAN_WAIT_WORKFLOW_STATUSES.has(wf) &&
+    // A live question (execution still waiting_for_input) is handled by the
+    // waiting_for_input branch, never by the 'completed' handlers; this guard
+    // only matters once the asking execution has exited.
+    data.waitingForInput !== true
+  );
+}
+
+/**
  * True when a 'completed' execution row does NOT mean the whole task is
  * done — either this phase auto-advances to the next one, or the task is
  * still actively progressing (e.g. a verify self-repair bounce). Shared by
@@ -163,6 +193,10 @@ export function isPhaseAutoAdvancing(data: Record<string, unknown>): boolean {
     // timer started ticking again for an agent that no longer exists (task 585,
     // session failed on an IPC timeout).
     !isSessionDead(data) &&
+    // A question wait is a hard stop until a person answers (or the reconciler
+    // auto-answers, which starts a NEW execution the executing-tasks poll picks
+    // up) — never a phase seam, even though taskStatus stays 'in-progress'.
+    !isParkedOnHuman(data) &&
     (isAutoAdvancingPhase(data.sessionMode as string | null) || isTaskActivelyProgressing(data))
   );
 }

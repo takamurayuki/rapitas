@@ -337,6 +337,31 @@ describe('WorkflowQueueService.retryIfPossible', () => {
     ];
     expect(callArgs.data.errorMessage).toBeNull();
   });
+
+  test('停止競合: task-budget が spendUnknown を返しても、ユーザー停止(cancelled)されたitemは蘇生しないこと', async () => {
+    // Two independent stop signals must not interfere: an unrelated DB read
+    // failure (task-budget's spend lookup) resolving to spendUnknown must not
+    // change how the ALREADY-cancelled queue item is treated. The item's own
+    // 'cancelled' status is the only guard retryIfPossible consults.
+    mock.module('../../config/database', () => ({
+      prisma: { agentExecution: { findMany: () => Promise.reject(new Error('db down')) } },
+      ensureDatabaseConnection: () => Promise.resolve(),
+    }));
+    const { resolveTaskBudgetCap } = await import('./task-budget');
+
+    const budget = await resolveTaskBudgetCap(10);
+    expect(budget.spendUnknown).toBe(true);
+
+    const svc = new WorkflowQueueService();
+    prismaMock.workflowQueueItem.findUnique.mockResolvedValueOnce(
+      row({ status: 'cancelled', retryCount: 0, maxRetries: 3 }),
+    );
+
+    const result = await svc.retryIfPossible(1);
+
+    expect(result).toBe(false);
+    expect(prismaMock.workflowQueueItem.update).not.toHaveBeenCalled();
+  });
 });
 
 describe('WorkflowQueueService.cancel', () => {

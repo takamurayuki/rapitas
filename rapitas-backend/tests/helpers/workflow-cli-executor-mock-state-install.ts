@@ -163,6 +163,7 @@ export function installWorkflowCliExecutorMocks(): void {
   mock.module(p('services/agents/orchestrator/git-operations/worktree/worktree-usable'), () => ({
     canReuseWorktree: spies.canReuseWorktree,
     decideWorktree: mock(() => 'recreate'),
+    getUncommittedDiffSummary: spies.getUncommittedDiffSummary,
   }));
 
   mock.module(p('services/agents/orchestrator/git-operations/worktree/worktree-guard'), () => ({
@@ -210,8 +211,10 @@ export function installWorkflowCliExecutorMocks(): void {
 }
 
 const noopLogger = {
-  info: () => {},
-  warn: () => {},
+  // task 956: info/warn delegate to spies so worktree-reuse diff-summary
+  // logging (AC1) is assertable; other levels stay true no-ops.
+  info: (...args: unknown[]) => spies.logInfo(...args),
+  warn: (...args: unknown[]) => spies.logWarn(...args),
   error: () => {},
   debug: () => {},
   fatal: () => {},

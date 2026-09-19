@@ -314,6 +314,65 @@ describe('handleExecutionError()', () => {
     expect(updateArg.data.executionTimeMs).toBeUndefined();
     expect(updateArg.data.status).toBe('failed');
   });
+
+  test('cancellation済みエラーがDB確認レースで未認識ステータスと観測されても throw せず cancelled として終端する', async () => {
+    const prisma = makePrisma({
+      agentExecution: {
+        updateMany: mock(async () => ({ count: 0 })),
+        findUnique: mock(async () => ({ status: 'running' })),
+      },
+    });
+    const state = makeState();
+    const fileLogger = makeFileLogger();
+    const emitEvent = mock((_e: OrchestratorEvent) => {});
+
+    await expect(
+      handleExecutionError(
+        prisma as never,
+        1,
+        2,
+        3,
+        state,
+        new ExecutionCancelledError('ownership revoked'),
+        fileLogger,
+        emitEvent,
+        'Task',
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(state.status).toBe('cancelled');
+    expect(fileLogger.logWarn).toHaveBeenCalledTimes(1);
+    expect(fileLogger.logError).not.toHaveBeenCalled();
+    expect(emitEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'execution_cancelled' }),
+    );
+  });
+
+  test('未分類の失敗がDB確認レースで未認識ステータスと観測された場合は従来通り throw する', async () => {
+    const prisma = makePrisma({
+      agentExecution: {
+        updateMany: mock(async () => ({ count: 0 })),
+        findUnique: mock(async () => ({ status: 'running' })),
+      },
+    });
+    const state = makeState();
+    const fileLogger = makeFileLogger();
+    const emitEvent = mock((_e: OrchestratorEvent) => {});
+
+    await expect(
+      handleExecutionError(
+        prisma as never,
+        1,
+        2,
+        3,
+        state,
+        new Error('agent process crashed'),
+        fileLogger,
+        emitEvent,
+        'Task',
+      ),
+    ).rejects.toThrow('Execution error was not saved; terminal state could not be confirmed');
+  });
 });
 
 test('a persistence timeout after stop stays cancelled', async () => {

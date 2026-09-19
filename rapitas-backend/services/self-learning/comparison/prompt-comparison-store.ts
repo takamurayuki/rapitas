@@ -15,7 +15,7 @@ import { homedir } from 'os';
 import { dirname, join } from 'path';
 import type { ComparisonRecord } from './prompt-comparison-types';
 
-function dataDir(): string {
+export function dataDir(): string {
   const base = process.env.RAPITAS_DATA_DIR?.trim() || join(homedir(), '.rapitas');
   return join(base, '.prompt-comparisons');
 }

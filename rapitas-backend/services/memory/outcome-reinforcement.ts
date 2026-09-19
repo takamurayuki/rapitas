@@ -29,6 +29,17 @@ const FAILURE_PENALTY = Math.max(
   0,
   parseFloat(process.env.RAPITAS_KB_FAILURE_PENALTY ?? '0.15') || 0.15,
 );
+/**
+ * Scale applied to the UNDECLARED (legacy uniform) attribution branch. Without a
+ * per-entry usage declaration, credit is spread across the whole injection set
+ * with no evidence any single entry helped — so its magnitude is halved by
+ * default rather than fully attributed. Tunable while `## 使用知識` declaration
+ * adoption is still low (a non-finite override falls back to 0.5).
+ */
+const UNDECLARED_ATTRIBUTION_SCALE = Math.max(
+  0,
+  parseFloat(process.env.RAPITAS_KB_UNDECLARED_ATTRIBUTION_SCALE ?? '0.5') || 0.5,
+);
 /** Drop traces older than this (the task never reached a terminal outcome). */
 const TRACE_TTL_MS = 3 * 60 * 60 * 1000; // 3h
 /** Hard cap on concurrently-tracked tasks (backstop against a leak). */
@@ -230,7 +241,6 @@ export async function applyOutcomeReinforcement(
   // union double-counts nothing because it is a Set.
   const merged = new Set<number>(trace?.entryIds ?? []);
   for (const id of await consumeDurableTrace(taskId)) merged.add(id);
-  if (merged.size === 0) return 0;
 
   const fineGrained = usage?.declared === true;
   const usedSet = new Set(usage?.used ?? []);
@@ -261,30 +271,37 @@ export async function applyOutcomeReinforcement(
         }
         // injected-but-undeclared: neutral — neither reward nor punish.
       } else {
+        // No per-entry declaration: credit the whole set uniformly, but at a
+        // reduced magnitude since there is no evidence any single entry helped.
         applied += 1;
-        if (success) await boostDecayOnAccess(id, SUCCESS_BOOST);
-        else await penalizeOnFailure(id, FAILURE_PENALTY);
+        if (success) await boostDecayOnAccess(id, SUCCESS_BOOST * UNDECLARED_ATTRIBUTION_SCALE);
+        else await penalizeOnFailure(id, FAILURE_PENALTY * UNDECLARED_ATTRIBUTION_SCALE);
       }
     } catch (err) {
       log.warn({ err, taskId, entryId: id }, '[kb-reinforce] Failed to apply outcome to entry');
     }
   }
-  log.info(
-    {
-      taskId,
-      success,
-      injected: merged.size,
-      applied,
-      fineGrained,
-      used: fineGrained ? usedSet.size : undefined,
-      wrong: fineGrained ? wrongSet.size : undefined,
-    },
-    `[kb-reinforce] ${success ? 'Reinforced' : 'Penalized'} ${applied}/${merged.size} knowledge entries from task outcome${fineGrained ? ' (per-entry declaration)' : ''}`,
-  );
+  if (merged.size > 0) {
+    log.info(
+      {
+        taskId,
+        success,
+        injected: merged.size,
+        applied,
+        fineGrained,
+        used: fineGrained ? usedSet.size : undefined,
+        wrong: fineGrained ? wrongSet.size : undefined,
+      },
+      `[kb-reinforce] ${success ? 'Reinforced' : 'Penalized'} ${applied}/${merged.size} knowledge entries from task outcome${fineGrained ? ' (per-entry declaration)' : ''}`,
+    );
+  }
 
   // Durable effectiveness sample: the log line above scrolls away, so without
   // this the "did injected knowledge actually help?" question stays
   // unanswerable. Aggregated by effectiveness.ts into /knowledge/stats.
+  // NOTE: recorded even when merged.size === 0 (injected: 0) — those are the
+  // CONTROL-GROUP samples (tasks that finished with no knowledge injected), which
+  // effectiveness.ts needs to compare injected vs non-injected success rates.
   // Fire-and-forget — measurement must never block the outcome path.
   appendEvent({
     eventType: 'knowledge_effectiveness',

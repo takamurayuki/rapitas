@@ -11,6 +11,9 @@ import { prisma } from '../../config/database';
 import { ACTIVE_EXEC } from './workflow-reconciler-requeue';
 import type { RepeatLoopTransition } from './incident-signature-detectors';
 
+// Literals mirror blocked-task-escalation's cause constants; importing that module would drag its DB/notification deps into this I/O boundary.
+const BLOCKED_ESCALATION_CAUSES = new Set(['blocked_escalated', 'blocked_reescalated']);
+
 /** One workflow transition rendered into the evidence timeline. */
 export interface TransitionEvidenceRow {
   /** ISO timestamp of the transition. */
@@ -34,6 +37,8 @@ export interface GatheredTaskState {
   latestTransitionAtMs: number | null;
   /** cause of the newest transition, or null when the task has none. */
   latestTransitionCause: string | null;
+  /** createdAt of the newest blocked_escalated/blocked_reescalated transition among the timeline rows, or null. */
+  latestBlockedEscalationAtMs?: number | null;
   /** Transitions inside the repeat-loop window, for detectRepeatLoop. */
   windowedCauses: RepeatLoopTransition[];
   latestSessionId: number | null;
@@ -158,6 +163,9 @@ export async function gatherTaskState(
     })),
     latestTransitionAtMs: recentTransitions[0]?.createdAt.getTime() ?? null,
     latestTransitionCause: recentTransitions[0]?.cause ?? null,
+    latestBlockedEscalationAtMs:
+      recentTransitions.find((t) => BLOCKED_ESCALATION_CAUSES.has(t.cause))?.createdAt.getTime() ??
+      null,
     windowedCauses: windowed.map((t) => ({
       cause: t.cause,
       createdAtMs: t.createdAt.getTime(),

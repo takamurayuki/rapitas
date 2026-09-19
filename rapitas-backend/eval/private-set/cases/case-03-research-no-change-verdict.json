@@ -1,0 +1,8 @@
+{
+  "id": "case-03-research-no-change-verdict",
+  "category": "investigation-only",
+  "taskDescription": "調査の結果コード変更が不要と判断された場合に research フェーズを完了扱いにする「## 結論: 修正不要」判定ロジックの実装",
+  "initialFiles": ["rapitas-backend/services/workflow/completion-gate.ts"],
+  "acceptanceCheck": "bun test services/workflow/phase-output-validator.test.ts",
+  "expectedOutcome": "pass-to-pass"
+}

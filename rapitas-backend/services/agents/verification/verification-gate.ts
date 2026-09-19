@@ -14,7 +14,7 @@ import { createLogger } from '../../../config/logger';
 import {
   runAutomatedVerification,
   renderVerificationMarkdown,
-  looksLikeBugFixTask,
+  requiresTestsForTask,
   type VerificationResult,
 } from './automated-verifier';
 import { readWorkflowFile } from '../../workflow/workflow-file-utils';
@@ -22,6 +22,8 @@ import { parsePlanFiles } from './scope-check';
 import { parseSpecArray } from '../../../utils/common/spec-array';
 import { submitConcern } from '../../memory/concern-backlog-service';
 import { writeBlockedStatusDurable } from '../../workflow/durable-blocked-write';
+import { recordTransition } from '../../workflow/transition-recorder';
+import { VERIFICATION_UNVERIFIABLE_HOLD_CAUSE } from '../../workflow/blocked-task-policy';
 import { resolvePreferredBaseBranch } from '../../task/task-resolver';
 
 const log = createLogger('agents:verification-gate');
@@ -34,7 +36,7 @@ const log = createLogger('agents:verification-gate');
  * @param taskId - Task whose plan to load / 対象タスク
  * @returns plan.md content or null / plan.md の内容
  */
-async function loadPlanContent(taskId: number): Promise<string | null> {
+export async function loadPlanContent(taskId: number): Promise<string | null> {
   try {
     return (await readWorkflowFile(taskId, 'plan')) || null;
   } catch {
@@ -171,7 +173,7 @@ export async function runVerificationGate(
       },
     })
     .catch(() => null);
-  const requireTests = looksLikeBugFixTask(`${task?.title ?? ''}\n${task?.description ?? ''}`);
+  const requireTests = requiresTestsForTask(`${task?.title ?? ''}\n${task?.description ?? ''}`);
   const specText = [
     task?.title ?? '',
     task?.description ?? '',
@@ -248,6 +250,24 @@ export async function blockTaskForVerification(
   });
   if (sessionId !== undefined) {
     await markSessionFailedDurable(sessionId, taskId, result);
+  }
+  // Structured hold reason for the blocked-task passes: a check that could
+  // not run (runtime harness drift / quarantine) is an infrastructure hold,
+  // excluded from blind auto-retry until a manual retry opens a new window.
+  // A verifier crash (no check evidence at all) is left retryable.
+  const unverifiableChecks = result.checks.filter((c) => c.unverifiable).map((c) => c.name);
+  if (result.unverifiable && unverifiableChecks.length > 0) {
+    await recordTransition({
+      taskId,
+      fromStatus: null,
+      toStatus: 'blocked',
+      actor: 'system',
+      cause: VERIFICATION_UNVERIFIABLE_HOLD_CAUSE,
+      phase: 'verify',
+      metadata: { summary: result.summary, unverifiableChecks },
+    }).catch((err) =>
+      log.warn({ err, taskId }, 'Failed to record the unverifiable hold transition'),
+    );
   }
 }
 

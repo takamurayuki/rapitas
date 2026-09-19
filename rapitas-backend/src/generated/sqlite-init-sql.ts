@@ -431,7 +431,10 @@ CREATE TABLE "Task" (
     "complexityScore" REAL,
     "workflowModeOverride" BOOLEAN NOT NULL DEFAULT false,
     "autoApprovePlan" BOOLEAN NOT NULL DEFAULT false,
+    "forbiddenChangeOverride" BOOLEAN NOT NULL DEFAULT false,
+    "forbiddenChangeOverrideReason" TEXT,
     "workflowDisabled" BOOLEAN NOT NULL DEFAULT false,
+    "autoRunExcluded" BOOLEAN NOT NULL DEFAULT false,
     "isRecurring" BOOLEAN NOT NULL DEFAULT false,
     "recurrenceRule" TEXT,
     "recurrenceEndAt" DATETIME,
@@ -670,6 +673,20 @@ CREATE TABLE "DetectionMissCase" (
     "taskId" INTEGER NOT NULL,
     "gate" TEXT NOT NULL,
     "reason" TEXT NOT NULL DEFAULT '',
+    "evidenceJson" TEXT NOT NULL DEFAULT '{}',
+    "detectedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "dedupKey" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "GatePrecisionCase" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER NOT NULL,
+    "gate" TEXT NOT NULL,
+    "criterionIndex" INTEGER,
+    "reason" TEXT NOT NULL DEFAULT '',
+    "verdict" TEXT NOT NULL,
     "evidenceJson" TEXT NOT NULL DEFAULT '{}',
     "detectedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "dedupKey" TEXT NOT NULL,
@@ -1015,6 +1032,11 @@ CREATE TABLE "KnowledgeEntry" (
     "validationMethod" TEXT,
     "themeId" INTEGER,
     "taskId" INTEGER,
+    "sourceRef" TEXT,
+    "applicabilityConditions" TEXT,
+    "entryVersion" INTEGER NOT NULL DEFAULT 1,
+    "expiresAt" DATETIME,
+    "counterEvidence" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );
@@ -1053,6 +1075,18 @@ CREATE TABLE "KnowledgeContradiction" (
     "description" TEXT,
     "resolution" TEXT,
     "resolvedAt" DATETIME,
+    "claimA" TEXT,
+    "claimB" TEXT,
+    "citationA" TEXT,
+    "citationB" TEXT,
+    "asOfA" TEXT,
+    "asOfB" TEXT,
+    "codeVersionA" TEXT,
+    "codeVersionB" TEXT,
+    "confidence" REAL,
+    "needsReview" BOOLEAN NOT NULL DEFAULT false,
+    "contentHashAAtDetection" TEXT,
+    "contentHashBAtDetection" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "KnowledgeContradiction_entryAId_fkey" FOREIGN KEY ("entryAId") REFERENCES "KnowledgeEntry" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
@@ -1756,6 +1790,21 @@ CREATE INDEX "DetectionMissCase_taskId_idx" ON "DetectionMissCase"("taskId");
 
 -- CreateIndex
 CREATE INDEX "DetectionMissCase_detectedAt_idx" ON "DetectionMissCase"("detectedAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "GatePrecisionCase_dedupKey_key" ON "GatePrecisionCase"("dedupKey");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_gate_idx" ON "GatePrecisionCase"("gate");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_taskId_idx" ON "GatePrecisionCase"("taskId");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_verdict_idx" ON "GatePrecisionCase"("verdict");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_detectedAt_idx" ON "GatePrecisionCase"("detectedAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "MissSignatureSuggestion_dedupKey_key" ON "MissSignatureSuggestion"("dedupKey");

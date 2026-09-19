@@ -25,12 +25,6 @@ pub struct PendingToast {
 /// Tallest the toast may grow when a question's options are shown inline.
 const TOAST_MAX_HEIGHT: f64 = 420.0;
 
-/// Position the toast at the bottom-right of the primary monitor at the
-/// default height.
-fn position_toast(win: &tauri::WebviewWindow) {
-    position_toast_with_height(win, TOAST_HEIGHT);
-}
-
 /// Position the toast at the bottom-right of the primary monitor, sized to
 /// `height` (clamped to [TOAST_HEIGHT, TOAST_MAX_HEIGHT]) — the question toast
 /// grows to fit its option buttons.
@@ -179,12 +173,15 @@ pub async fn show_toast_window(
             return Ok(());
         }
         if ready {
-            // Moving into place never activates the window — no focus steal.
-            position_toast(&win);
+            // Do NOT move into place here: React has not rendered this payload
+            // yet, and the window would show its bordered card blank/white for
+            // the IPC + re-render gap (measured 2026-09-17 — the corner-case
+            // successor to 742c160b's boot flash). The page calls toast_resize
+            // once it has actually painted the content, which reveals it.
             let _ = win.emit("rapitas:toast", payload);
         }
         // Not ready: the page is still loading and will pull the pending
-        // payload (and move into place) via toast_ready.
+        // payload (and move into place once painted) via toast_ready.
         return Ok(());
     }
     // Pre-warm missing (e.g. it failed at boot) — recreate; the page will pull
@@ -192,28 +189,31 @@ pub async fn show_toast_window(
     create_toast_window(&app)
 }
 
-/// Tauri command: the toast page finished mounting. With a pending payload,
-/// move the window into place and show it; without one (boot pre-warm) just
-/// park it hidden until the first notification.
+/// Tauri command: the toast page finished mounting. Returns any pending
+/// payload for the page to render; positioning happens later, once the page
+/// confirms the payload actually painted (see toast_resize) — moving the
+/// window into view here, before React has rendered it, showed a blank white
+/// card for the IPC + re-render gap.
 #[tauri::command]
 pub fn toast_ready(app: tauri::AppHandle) -> Option<serde_json::Value> {
     let payload = app.try_state::<PendingToast>().and_then(|s| {
         s.ready.store(true, std::sync::atomic::Ordering::SeqCst);
         s.pending.lock().unwrap().take()
     });
-    if let Some(win) = app.get_webview_window("notification-toast") {
-        if payload.is_some() {
-            position_toast(&win);
-        } else {
+    if payload.is_none() {
+        if let Some(win) = app.get_webview_window("notification-toast") {
             park_toast(&win);
         }
     }
     payload
 }
 
-/// Tauri command: the toast page measured its content and wants the window
-/// to grow/shrink to fit (question toasts list their options inline). The
-/// window stays anchored to the bottom-right corner.
+/// Tauri command: the toast page measured its PAINTED content and wants the
+/// window to grow/shrink to fit (question toasts list their options inline).
+/// Doubles as the reveal: this is the only place that moves the window into
+/// the visible bottom-right corner, and it only runs after the page has
+/// actually rendered a payload (see page.tsx's syncHeight) — never before,
+/// which is what let an unpainted blank card show.
 #[tauri::command]
 pub fn toast_resize(app: tauri::AppHandle, height: f64) {
     if let Some(win) = app.get_webview_window("notification-toast") {
