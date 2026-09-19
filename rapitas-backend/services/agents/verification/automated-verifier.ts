@@ -3,19 +3,16 @@ export { generatedSyncCheck } from './generated-sync-check';
 import { buildFileCommands } from './command-batches';
 /**
  * automated-verifier
- *
  * Runs REAL lint + typecheck against an agent's worktree changes and reports
  * whether the agent INTRODUCED any failures. Replaces prose-only verify.md
  * claims with actual command output. Scoped to the agent's changed files (and,
  * for tsc, errors are filtered to those files) so pre-existing problems in the
  * project don't cause false gating. Monorepo-aware: groups changed files by the
  * nearest package.json and runs the tooling per project root.
- *
  * All subprocesses run ASYNChronously (spawn) — never execSync — so a slow
- * tsc/eslint can't block the single-threaded backend event loop.
- *
- * Optionally also runs the project's test suite (opt-in via RAPITAS_VERIFY_TESTS)
- * so the gate covers runtime breakage, not just lint/types. Not responsible for
+ * tsc/eslint can't block the single-threaded backend event loop. Optionally
+ * also runs the project's test suite (opt-in via RAPITAS_VERIFY_TESTS) so the
+ * gate covers runtime breakage, not just lint/types. Not responsible for
  * committing or the retry loop.
  */
 import { existsSync, writeFileSync, unlinkSync } from 'fs';
@@ -25,7 +22,12 @@ import { triageTestFailures } from './test-triage';
 import { buildTriagedTestCheck } from './test-triage-report';
 import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
 import { evaluateAcceptanceSelfCheck } from './acceptance-self-check';
-import { schemaChangeGateCheck, collectHardGateChecks } from './schema-change-gate';
+import {
+  schemaChangeGateCheck,
+  collectHardGateChecks,
+  resolveForbiddenChangeGateContext,
+  type ForbiddenChangeGateContext,
+} from './schema-change-gate';
 import { runProjectChecks, spawnQuiet } from './quiet-verification';
 import { assertSafeGitRef } from '../../../utils/common/branch-name-generator';
 
@@ -908,6 +910,8 @@ export interface VerificationOptions {
    * unrelated-diff (608-type) detection alongside the criteria tokens.
    */
   taskText?: string;
+  /** Forbidden-change gate context (task 896); resolved from taskId when omitted. */
+  forbiddenChangeGateContext?: ForbiddenChangeGateContext;
 }
 
 /**
@@ -949,7 +953,10 @@ export async function runAutomatedVerification(
   const allow = options.tamperAllowlist ?? [];
   const tamperPlan = allow.length ? [...(planFiles ?? []), ...allow] : planFiles;
   const tamper = tamperCheck(allChanged, tamperPlan);
-  const schemaGate = schemaChangeGateCheck(allChanged, planFiles);
+  const gateCtx =
+    options.forbiddenChangeGateContext ??
+    (options.taskId ? await resolveForbiddenChangeGateContext(options.taskId) : undefined);
+  const schemaGate = schemaChangeGateCheck(allChanged, planFiles, gateCtx);
   const hardGateChecks = collectHardGateChecks(scopeCheck, tamper, schemaGate);
   // An empty diff skips scoped static commands, but does not prove that a
   // configured runtime works (for example after restoring a merged task).

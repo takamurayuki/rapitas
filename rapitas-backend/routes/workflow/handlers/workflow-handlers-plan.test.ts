@@ -2,7 +2,8 @@
  * workflow-handlers-plan.test
  *
  * Tests for handleUpdateStatus: file-existence pre-check, force flag, 422 responses,
- * and X-Rapitas-Source guard.
+ * and X-Rapitas-Source guard. Also covers handleApprovePlan's task-896
+ * forbidden-change gate (plan-declared禁止変更の422拒否／明示上書きでの承認継続).
  */
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
 
@@ -10,10 +11,12 @@ import { describe, expect, test, mock, beforeEach } from 'bun:test';
 const mockFindUnique = mock(() => Promise.resolve(null));
 const mockUpdate = mock(() => Promise.resolve({ id: 1, workflowStatus: 'draft' }));
 const mockCreate = mock(() => Promise.resolve({}));
+const mockCount = mock(() => Promise.resolve(0));
 const mockPrisma = {
   task: {
     findUnique: mockFindUnique,
     update: mockUpdate,
+    count: mockCount,
   },
   activityLog: { create: mockCreate },
 };
@@ -69,7 +72,46 @@ mock.module('../core/workflow-helpers', () => ({
   ] as const,
 }));
 
-import { handleUpdateStatus } from './workflow-handlers-plan';
+// ---- resolveTaskWorkflowState / readWorkflowFile mocks (handleApprovePlan) ----
+const mockResolveTaskWorkflowState = mock(() =>
+  Promise.resolve({
+    id: 1,
+    status: 'in-progress',
+    workflowStatus: 'plan_created',
+    workflowMode: 'standard',
+    parentId: null,
+  }),
+);
+mock.module('../../../services/task/task-resolver', () => ({
+  resolveTaskWorkflowState: mockResolveTaskWorkflowState,
+}));
+const mockReadWorkflowFile = mock(() => Promise.resolve(null as string | null));
+mock.module('../../../services/workflow/workflow-file-utils', () => ({
+  readWorkflowFile: mockReadWorkflowFile,
+}));
+
+// ---- dynamic-import side effects triggered on approved:true — no-op stubs ----
+mock.module('../../../services/memory/decision-journal', () => ({
+  recordPlanDecision: () => Promise.resolve(null),
+}));
+mock.module('../../../services/workflow/auto-run/theme-auto-run-scheduler', () => ({
+  ThemeAutoRunScheduler: { getInstance: () => ({ onPlanApproved: () => Promise.resolve() }) },
+}));
+mock.module('../../../services/workflow/ai-orchestra', () => ({
+  AIOrchestra: {
+    getInstance: () => ({
+      handlePlanApproved: () => Promise.resolve(),
+      enqueueSubtasksForExecution: () => Promise.resolve(0),
+    }),
+  },
+}));
+mock.module('../../../services/workflow/workflow-orchestrator', () => ({
+  WorkflowOrchestrator: {
+    getInstance: () => ({ advanceWorkflow: () => Promise.resolve({ success: true }) }),
+  },
+}));
+
+import { handleUpdateStatus, handleApprovePlan } from './workflow-handlers-plan';
 
 const UI_HEADERS = { 'x-rapitas-source': 'ui' };
 const makeSet = () => ({ status: 200 as number });
@@ -78,11 +120,23 @@ beforeEach(() => {
   mockFindUnique.mockReset();
   mockUpdate.mockReset();
   mockCreate.mockReset();
+  mockCount.mockReset();
   mockRecordTransition.mockReset();
   mockPreviewMissing.mockReset();
+  mockResolveTaskWorkflowState.mockReset();
+  mockReadWorkflowFile.mockReset();
   mockUpdate.mockResolvedValue({ id: 1, workflowStatus: 'draft' });
   mockCreate.mockResolvedValue({});
+  mockCount.mockResolvedValue(0);
   mockRecordTransition.mockResolvedValue(undefined);
+  mockResolveTaskWorkflowState.mockResolvedValue({
+    id: 1,
+    status: 'in-progress',
+    workflowStatus: 'plan_created',
+    workflowMode: 'standard',
+    parentId: null,
+  });
+  mockReadWorkflowFile.mockResolvedValue(null);
 });
 
 // -------------------------------------------------------------------------
@@ -191,5 +245,87 @@ describe('handleUpdateStatus — file existence pre-check', () => {
     expect(mockRecordTransition).toHaveBeenCalledTimes(1);
     const call = mockRecordTransition.mock.calls[0][0] as Record<string, unknown>;
     expect(call.invariantViolation).toBeUndefined();
+  });
+});
+
+// -------------------------------------------------------------------------
+describe('handleApprovePlan — task896 禁止変更ゲート', () => {
+  test('禁止パターンなしの通常plan.mdは従来通り承認される', async () => {
+    mockFindUnique.mockResolvedValueOnce({
+      forbiddenChangeOverride: false,
+      theme: { workingDirectory: null },
+    });
+    mockReadWorkflowFile.mockResolvedValueOnce('## 変更予定ファイル\n- `src/foo.ts`');
+    mockUpdate.mockResolvedValueOnce({
+      id: 1,
+      workflowStatus: 'plan_approved',
+      title: 't',
+      themeId: null,
+    });
+    const set = makeSet();
+    const result = await handleApprovePlan({
+      params: { taskId: '1' },
+      body: { approved: true },
+      set,
+    });
+    expect(set.status).toBe(200);
+    expect((result as { success: boolean }).success).toBe(true);
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  test('禁止パターンあり・上書き指定なしは422で拒否され状態遷移させない', async () => {
+    mockFindUnique.mockResolvedValueOnce({
+      forbiddenChangeOverride: false,
+      theme: { workingDirectory: null },
+    });
+    mockReadWorkflowFile.mockResolvedValueOnce(
+      '## 変更予定ファイル\n- `rapitas-backend/prisma/schema/pause.prisma`',
+    );
+    const set = makeSet();
+    const result = await handleApprovePlan({
+      params: { taskId: '1' },
+      body: { approved: true },
+      set,
+    });
+    expect(set.status).toBe(422);
+    expect((result as { matchedFiles: string[] }).matchedFiles).toContain(
+      'rapitas-backend/prisma/schema/pause.prisma',
+    );
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  test('禁止パターンあり・overrideForbiddenChange+overrideReason指定は承認成功し上書きを記録する', async () => {
+    mockFindUnique.mockResolvedValueOnce({
+      forbiddenChangeOverride: false,
+      theme: { workingDirectory: null },
+    });
+    mockReadWorkflowFile.mockResolvedValueOnce(
+      '## 変更予定ファイル\n- `rapitas-backend/prisma/schema/pause.prisma`',
+    );
+    mockUpdate.mockResolvedValueOnce({
+      id: 1,
+      workflowStatus: 'plan_approved',
+      title: 't',
+      themeId: null,
+    });
+    const set = makeSet();
+    const result = await handleApprovePlan({
+      params: { taskId: '1' },
+      body: {
+        approved: true,
+        overrideForbiddenChange: true,
+        overrideReason: '緊急対応のため承認',
+      },
+      set,
+    });
+    expect(set.status).toBe(200);
+    expect((result as { success: boolean }).success).toBe(true);
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    expect(mockUpdate.mock.calls[0][0]).toMatchObject({
+      data: expect.objectContaining({ forbiddenChangeOverride: true }),
+    });
+    expect(mockRecordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({ cause: 'manual_forbidden_change_override' }),
+    );
   });
 });

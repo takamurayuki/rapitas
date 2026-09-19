@@ -15,6 +15,11 @@ import { previewMissingFilesForStatus } from '../../../services/workflow/workflo
 import { resolveTaskWorkflowState } from '../../../services/task/task-resolver';
 import { HTTP_STATUS } from '../../../utils/common/http-status';
 import { readPromptLanguage } from '../../../services/system/prompt-language-store';
+import { readWorkflowFile } from '../../../services/workflow/workflow-file-utils';
+import {
+  isSelfRepoThemeWorkingDirectory,
+  evaluatePlanDeclaredForbiddenChange,
+} from '../../../services/agents/verification/schema-change-gate';
 
 const log = createLogger('routes:workflow:handlers:plan');
 
@@ -32,7 +37,7 @@ const log = createLogger('routes:workflow:handlers:plan');
 export async function handleApprovePlan({
   params,
   body,
-  set: _set,
+  set,
 }: {
   params: { taskId: string };
   body: unknown;
@@ -41,7 +46,13 @@ export async function handleApprovePlan({
   try {
     const taskId = parseId(params.taskId, 'task ID');
 
-    const parsedBody = body as { approved: boolean; reason?: string; language?: 'ja' | 'en' };
+    const parsedBody = body as {
+      approved: boolean;
+      reason?: string;
+      language?: 'ja' | 'en';
+      overrideForbiddenChange?: boolean;
+      overrideReason?: string;
+    };
     if (typeof parsedBody?.approved !== 'boolean') {
       throw new ValidationError('approved (boolean) is required');
     }
@@ -54,10 +65,64 @@ export async function handleApprovePlan({
 
     const newStatus = parsedBody.approved ? 'plan_approved' : 'plan_created';
 
+    // Task 896:承認（approved:true）の場合のみ、plan.md自体が禁止変更（未上書きの
+    // Prismaスキーマ編集等）を宣言していないか確認する。自動承認と異なり、単純な
+    // approved:true送信だけでは上書きにならない — overrideForbiddenChange と
+    // overrideReason の両方が明示されて初めて上書きが成立する。
+    let overrideApplied = false;
+    if (parsedBody.approved) {
+      const gateTask = await prisma.task
+        .findUnique({
+          where: { id: taskId },
+          select: { forbiddenChangeOverride: true, theme: { select: { workingDirectory: true } } },
+        })
+        .catch(() => null);
+      const planContent = await readWorkflowFile(taskId, 'plan').catch(() => null);
+      const gate = evaluatePlanDeclaredForbiddenChange(planContent, {
+        isSelfRepo: isSelfRepoThemeWorkingDirectory(gateTask?.theme?.workingDirectory ?? null),
+        overrideGranted: !!gateTask?.forbiddenChangeOverride,
+      });
+      if (!gate.ok) {
+        const overrideReason = parsedBody.overrideReason?.trim();
+        if (parsedBody.overrideForbiddenChange === true && overrideReason) {
+          overrideApplied = true;
+        } else {
+          set.status = HTTP_STATUS.UNPROCESSABLE_ENTITY;
+          return {
+            error:
+              'plan.md が禁止された変更（未承認の Prisma スキーマ変更など）を宣言しています。承認するには overrideForbiddenChange:true と overrideReason を指定してください。',
+            matchedFiles: gate.matchedFiles,
+            hint: 'POST body に { approved: true, overrideForbiddenChange: true, overrideReason: "..." } を指定して再送信してください。',
+          };
+        }
+      }
+    }
+
     const updatedTask = await prisma.task.update({
       where: { id: taskId },
-      data: { workflowStatus: newStatus, updatedAt: new Date() },
+      data: {
+        workflowStatus: newStatus,
+        updatedAt: new Date(),
+        ...(overrideApplied
+          ? {
+              forbiddenChangeOverride: true,
+              forbiddenChangeOverrideReason: parsedBody.overrideReason?.trim(),
+            }
+          : {}),
+      },
     });
+
+    if (overrideApplied) {
+      await recordTransition({
+        taskId,
+        fromStatus: task.workflowStatus ?? null,
+        toStatus: newStatus,
+        actor: 'user',
+        cause: 'manual_forbidden_change_override',
+        phase: 'plan',
+        metadata: { overrideReason: parsedBody.overrideReason?.trim() ?? null },
+      });
+    }
 
     await recordTransition({
       taskId,

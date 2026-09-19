@@ -26,10 +26,17 @@ type TaskRow = {
   autoApprovePlan?: boolean;
   parentId?: number | null;
   workflowStatus?: string;
+  forbiddenChangeOverride?: boolean;
+  theme?: { workingDirectory: string | null } | null;
 } | null;
 
 let userSettings: UserSettings = null;
 let taskRow: TaskRow = null;
+let planContent: string | null = null;
+
+mock.module('./workflow-file-utils', () => ({
+  readWorkflowFile: async () => planContent,
+}));
 const taskUpdates: Array<Record<string, unknown>> = [];
 const activityLogCreates: Array<Record<string, unknown>> = [];
 let manualDecision: { cause: string } | null = null;
@@ -81,6 +88,7 @@ beforeEach(() => {
   logInfo.mockClear();
   userSettings = null;
   taskRow = null;
+  planContent = null;
   taskUpdates.length = 0;
   activityLogCreates.length = 0;
   recordedTransitions.length = 0;
@@ -227,6 +235,45 @@ describe('maybeAutoApprovePlan', () => {
     userSettings = { autoApprovePlan: true, autoApproveSubtaskPlan: true };
     const r = await maybeAutoApprovePlan(1, 'ja', { autoAdvance: false });
     expect(r.reason).toBe('task-level autoApprovePlan setting enabled');
+  });
+
+  test('883回帰: plan.mdが禁止スキーマ変更を宣言していて上書きが無ければ自動承認しない', async () => {
+    taskRow = { autoApprovePlan: true, parentId: null, workflowStatus: 'plan_created' };
+    planContent = '## 変更予定ファイル\n- `rapitas-backend/prisma/schema/pause.prisma`';
+    const r = await maybeAutoApprovePlan(1, 'ja', { autoAdvance: false });
+    expect(r).toEqual({
+      newStatus: 'plan_created',
+      autoApproved: false,
+      reason: 'forbidden_change_pending_override',
+    });
+    expect(taskUpdates).toHaveLength(0);
+    expect(recordedTransitions).toHaveLength(1);
+    expect(recordedTransitions[0].cause).toBe('auto_approve_blocked_forbidden_change');
+  });
+
+  test('禁止スキーマ変更でも forbiddenChangeOverride が成立していれば自動承認する', async () => {
+    taskRow = {
+      autoApprovePlan: true,
+      parentId: null,
+      workflowStatus: 'plan_created',
+      forbiddenChangeOverride: true,
+    };
+    planContent = '## 変更予定ファイル\n- `rapitas-backend/prisma/schema/pause.prisma`';
+    const r = await maybeAutoApprovePlan(1, 'ja', { autoAdvance: false });
+    expect(r.autoApproved).toBe(true);
+    expect(r.newStatus).toBe('plan_approved');
+  });
+
+  test('他リポジトリ（theme.workingDirectory設定あり）は禁止パターン該当でも自動承認する', async () => {
+    taskRow = {
+      autoApprovePlan: true,
+      parentId: null,
+      workflowStatus: 'plan_created',
+      theme: { workingDirectory: '/other/repo' },
+    };
+    planContent = '## 変更予定ファイル\n- `rapitas-backend/prisma/schema/pause.prisma`';
+    const r = await maybeAutoApprovePlan(1, 'ja', { autoAdvance: false });
+    expect(r.autoApproved).toBe(true);
   });
 });
 

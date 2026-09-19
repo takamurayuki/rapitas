@@ -10,12 +10,25 @@
  * filesystem write (no HTTP round-trip), the auto-approve check was
  * silently skipped — leaving the task stuck at `plan_created` even when
  * the user had `userSettings.autoApprovePlan = true` configured.
+ *
+ * Task 896: this is the single implementation behind all THREE auto-approve
+ * entry points (HTTP save, orchestrator save, and the reconciler's stall
+ * recovery — see workflow-reconciler-autoapprove.ts), so the forbidden-change
+ * pre-approval gate is added HERE rather than duplicated per caller. A plan
+ * that declares a forbidden change (e.g. an unauthorized Prisma schema edit)
+ * without an explicit human override is left at `plan_created` instead of
+ * being auto-approved.
  */
 import { ExecutionCancelledError } from '../agents/execution-cancelled-error';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
 import { getTaskExecutionCancellationVersion } from '../agents/task-execution-lock';
+import { readWorkflowFile } from './workflow-file-utils';
+import {
+  isSelfRepoThemeWorkingDirectory,
+  evaluatePlanDeclaredForbiddenChange,
+} from '../agents/verification/schema-change-gate';
 
 const log = createLogger('plan-auto-approve');
 
@@ -104,6 +117,8 @@ export async function maybeAutoApprovePlan(
         workflowStatus: true,
         status: true,
         updatedAt: true,
+        forbiddenChangeOverride: true,
+        theme: { select: { workingDirectory: true } },
       },
     })
     .catch(() => null);
@@ -138,6 +153,29 @@ export async function maybeAutoApprovePlan(
   if (getTaskExecutionCancellationVersion(taskId) !== cancellationVersion) {
     return { newStatus: 'plan_created', autoApproved: false };
   }
+
+  const planContent = await readWorkflowFile(taskId, 'plan').catch(() => null);
+  const forbiddenGate = evaluatePlanDeclaredForbiddenChange(planContent, {
+    isSelfRepo: isSelfRepoThemeWorkingDirectory(task.theme?.workingDirectory ?? null),
+    overrideGranted: !!task.forbiddenChangeOverride,
+  });
+  if (!forbiddenGate.ok) {
+    await recordTransition({
+      taskId,
+      fromStatus: 'plan_created',
+      toStatus: 'plan_created',
+      actor: 'system',
+      cause: 'auto_approve_blocked_forbidden_change',
+      phase: 'plan',
+      metadata: { matchedFiles: forbiddenGate.matchedFiles },
+    });
+    return {
+      newStatus: 'plan_created',
+      autoApproved: false,
+      reason: 'forbidden_change_pending_override',
+    };
+  }
+
   const approved = await prisma.task.updateMany({
     where: {
       id: taskId,

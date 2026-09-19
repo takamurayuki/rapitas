@@ -9,7 +9,20 @@
  * NOT excluded from computeOverallOk, so an unplanned schema change blocks
  * automated completion regardless of scope's advisory verdict. Not
  * responsible for reading AGENTS.md itself — see workflow-agents-md-context.ts.
+ *
+ * Task 896: 892 only closed the "unplanned" case. Merely DECLARING the change
+ * in plan.md (`isPlanned()===true`) used to make `ok:true` unconditionally —
+ * task 883's plan.md declared the `pauseReason` column and still slipped
+ * through. `evaluatePlanDeclaredForbiddenChange` now requires an explicit
+ * human override (`Task.forbiddenChangeOverride`, set only by the manual
+ * approve-plan path — never by auto-approval or the AI's own plan save) for a
+ * PLANNED schema change to pass; an unplanned one still fails regardless of
+ * override. The gate is scoped to the target repository itself via
+ * `isSelfRepoThemeWorkingDirectory` so a Rapitas-specific prohibition is never
+ * imposed on an unrelated repository a theme points at.
  */
+import { prisma } from '../../../config/database';
+import { extractPlanDeclaredFiles } from '../../workflow/plan-declared-files';
 import type { VerificationCheck } from './automated-verifier';
 
 /**
@@ -38,34 +51,136 @@ function isPlanned(file: string, planFiles: string[]): boolean {
   });
 }
 
+/** Resolved forbidden-change gate context for one task's evaluation. */
+export interface ForbiddenChangeGateContext {
+  /** False when the theme targets another repository — the gate is skipped. */
+  isSelfRepo: boolean;
+  /** True only when a human explicitly overrode the forbidden change via approve-plan. */
+  overrideGranted: boolean;
+}
+
+/** Fail-closed default: self-repo, no override — matches an unresolved/unknown task. */
+const DEFAULT_FORBIDDEN_CHANGE_CTX: ForbiddenChangeGateContext = {
+  isSelfRepo: true,
+  overrideGranted: false,
+};
+
+/**
+ * Whether a theme's `workingDirectory` points at Rapitas itself (self-repo) —
+ * mirrors the existing `themeWorkDir || null` self-repo fallback convention in
+ * `workflow-cli-executor-worktree.ts`.
+ *
+ * @param workingDirectory - Theme's configured working directory, if any. / テーマの作業ディレクトリ
+ * @returns True when unset (self-repo), false for an explicit other-repo path. / 自己リポジトリか
+ */
+export function isSelfRepoThemeWorkingDirectory(
+  workingDirectory: string | null | undefined,
+): boolean {
+  return !workingDirectory || workingDirectory.trim() === '';
+}
+
+/**
+ * Resolves the forbidden-change gate context for a task from the DB.
+ *
+ * @param taskId - Task whose plan/theme is being evaluated. / 対象タスクID
+ * @returns Self-repo + override state; fail-closed defaults when unresolvable. / ゲート文脈
+ */
+export async function resolveForbiddenChangeGateContext(
+  taskId: number,
+): Promise<ForbiddenChangeGateContext> {
+  const task = await prisma.task
+    .findUnique({
+      where: { id: taskId },
+      select: { forbiddenChangeOverride: true, theme: { select: { workingDirectory: true } } },
+    })
+    .catch(() => null);
+  if (!task) return DEFAULT_FORBIDDEN_CHANGE_CTX;
+  return {
+    isSelfRepo: isSelfRepoThemeWorkingDirectory(task.theme?.workingDirectory ?? null),
+    overrideGranted: !!task.forbiddenChangeOverride,
+  };
+}
+
+/** Result of evaluating a plan's declared files against the forbidden-change pattern. */
+export interface ForbiddenChangeEvaluation {
+  ok: boolean;
+  matchedFiles: string[];
+}
+
+/**
+ * Pre-approval check: does plan.md itself DECLARE a forbidden (Prisma schema)
+ * change, before any diff exists? Used by the auto-approve and manual-approve
+ * gates, which run before implementation starts and so have no changed-files
+ * diff to compare — only the plan's own declared-files section.
+ *
+ * @param planContent - plan.md text, or null/undefined. / plan.md 本文
+ * @param ctx - Resolved self-repo + override state. / ゲート文脈
+ * @returns ok:false with the matched paths when a plan-declared change is forbidden. / 判定
+ */
+export function evaluatePlanDeclaredForbiddenChange(
+  planContent: string | null | undefined,
+  ctx: ForbiddenChangeGateContext,
+): ForbiddenChangeEvaluation {
+  if (!ctx.isSelfRepo) return { ok: true, matchedFiles: [] };
+  const matchedFiles = extractPlanDeclaredFiles(planContent).filter((f) =>
+    PRISMA_SCHEMA_RE.test(f.replace(/\\/g, '/')),
+  );
+  if (matchedFiles.length === 0) return { ok: true, matchedFiles: [] };
+  return { ok: ctx.overrideGranted, matchedFiles };
+}
+
 /**
  * Evaluates the schema-change hard gate.
  *
  * @param allChangedFiles - Every changed path in the worktree diff. / 全変更ファイル
  * @param planFiles - Paths parsed from plan.md, or null in plan-less mode. / 計画対象パス（軽量モードはnull）
+ * @param ctx - Self-repo + override state; defaults fail-closed. / ゲート文脈（既定はfail-closed）
  * @returns A 'schema-change' check, or null when no schema file changed. / 判定 or null
  */
 export function schemaChangeGateCheck(
   allChangedFiles: string[],
   planFiles: string[] | null,
+  ctx: ForbiddenChangeGateContext = DEFAULT_FORBIDDEN_CHANGE_CTX,
 ): VerificationCheck | null {
   const norm = allChangedFiles.map((f) => f.replace(/\\/g, '/'));
   const schemaChanged = allChangedFiles.filter((f, i) => PRISMA_SCHEMA_RE.test(norm[i]!));
   if (schemaChanged.length === 0) return null;
 
+  if (!ctx.isSelfRepo) {
+    return {
+      name: 'schema-change',
+      ran: true,
+      ok: true,
+      errorCount: 0,
+      details: `schema-change: 対象リポジトリはRapitas自身ではないため本ゲートをスキップしました（${schemaChanged.length} 件のスキーマ変更）`,
+    };
+  }
+
   const plan = planFiles ?? [];
   const unplanned = schemaChanged.filter((f) => !isPlanned(f, plan));
-  const ok = unplanned.length === 0;
+  if (unplanned.length > 0) {
+    return {
+      name: 'schema-change',
+      ran: true,
+      ok: false,
+      errorCount: unplanned.length,
+      details:
+        `plan.md に明記のない Prisma スキーマ変更を検出しました。worktree 内でのスキーマ変更は ` +
+        `AGENTS.md で禁止されている場合があります。正当な変更であれば plan.md の変更予定ファイルに` +
+        `このファイルを明記し、承認を得てから再実行してください:\n${unplanned.slice(0, 20).join('\n')}`,
+    };
+  }
+
+  const ok = ctx.overrideGranted;
   return {
     name: 'schema-change',
     ran: true,
     ok,
-    errorCount: unplanned.length,
+    errorCount: ok ? 0 : schemaChanged.length,
     details: ok
-      ? `schema-change: ${schemaChanged.length} 件の Prisma スキーマ変更はすべて plan.md に明記済み`
-      : `plan.md に明記のない Prisma スキーマ変更を検出しました。worktree 内でのスキーマ変更は ` +
-        `AGENTS.md で禁止されている場合があります。正当な変更であれば plan.md の変更予定ファイルに` +
-        `このファイルを明記し、承認を得てから再実行してください:\n${unplanned.slice(0, 20).join('\n')}`,
+      ? `schema-change: ${schemaChanged.length} 件の Prisma スキーマ変更は plan.md に明記済みで、明示ユーザー上書きにより許可されました`
+      : `schema-change: ${schemaChanged.length} 件の Prisma スキーマ変更は plan.md に明記されていますが、` +
+        `明示ユーザー上書きがないため許可されません。承認時に禁止変更の上書きを明示してから再実行してください:\n${schemaChanged.slice(0, 20).join('\n')}`,
   };
 }
 
