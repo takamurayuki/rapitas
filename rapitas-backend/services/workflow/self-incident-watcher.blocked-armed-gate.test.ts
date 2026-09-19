@@ -1,12 +1,12 @@
 /**
- * self-incident-watcher.theme-auto-run-gate.test
+ * self-incident-watcher.blocked-armed-gate.test
  *
- * Watcher-level integration coverage for the Pattern B theme-auto-run gate
- * (task #715), added as a new file rather than growing
- * self-incident-watcher.test.ts past the component size limit. Verifies the
- * watcher resolves each candidate's theme via `ThemeAutoRun.enabled` and
- * passes it through to detectTriStateDesync, using the same mocked-prisma
- * harness as self-incident-watcher.test.ts.
+ * Watcher-level integration coverage for the blocked-task-pipeline-armed gate
+ * (task 977), added as a new file rather than growing self-incident-watcher.
+ * test.ts past the component size limit. Verifies the watcher resolves each
+ * `blocked` candidate's armed-theme membership via
+ * resolveArmedThemeIds/ThemeAutoRun and suppresses stagnation ONLY for
+ * blocked tasks in armed themes — non-blocked and non-armed cases still file.
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
@@ -23,15 +23,25 @@ const notificationFindFirstMock = mock((_args: unknown) => Promise.resolve<unkno
 const prFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
 const activityLogFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
 const workflowFileFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
-const themeAutoRunFindManyMock = mock((_args: unknown) => Promise.resolve([] as unknown[]));
-// #860: theme.findMany feeds resolveNonDevelopmentThemeIds — default [] means
-// no candidate theme is treated as non-development (fail-open).
 const themeFindManyMock = mock((_args: unknown) => Promise.resolve([] as unknown[]));
 const userSettingsFindFirstMock = mock(() => Promise.resolve<unknown>(null));
 const submitConcernMock = mock((_input: unknown) => Promise.resolve(1));
 const notifyIntakeQuestionPendingMock = mock((_input: unknown) =>
   Promise.resolve<unknown>({ id: 1 }),
 );
+
+/**
+ * The watcher calls prisma.themeAutoRun.findMany twice per pass with
+ * different `where.enabled` values: resolveDisabledAutoRunThemeIds queries
+ * `enabled:false`, resolveArmedThemeIds queries `enabled:true,
+ * status:'running'`. A single discriminating mock keeps this test isolated
+ * to the armed-set outcome instead of both queries' interaction.
+ */
+let armedThemeIdRows: { themeId: number }[] = [];
+const themeAutoRunFindManyMock = mock((args: { where?: { enabled?: boolean } }) => {
+  if (args?.where?.enabled === true) return Promise.resolve(armedThemeIdRows);
+  return Promise.resolve([] as { themeId: number }[]);
+});
 
 mock.module('../../config/logger', () => ({
   getBackendLogFilePath: () => '/tmp/backend.log',
@@ -64,29 +74,28 @@ mock.module('../communication/notification-service', () => ({
 
 const { runSelfIncidentWatch, WATCH_INTERVAL_MS } = await import('./self-incident-watcher');
 
-let clockMs = Date.parse('2026-08-30T00:00:00.000Z');
+let clockMs = Date.parse('2026-09-19T00:00:00.000Z');
 function nextPassTime(): number {
   clockMs += WATCH_INTERVAL_MS * 2;
   return clockMs;
 }
 
-// Mirrors task #602/#646/#647: retried against a paused theme (themeId=25),
-// status reset to 'todo' while workflowStatus stayed mid-phase. updatedAt is
-// kept fresh so detectStagnation never fires here — these tests isolate
-// Pattern B (todo × advanced workflowStatus) in the watcher's own findings.
-function pausedThemeTask(now: number, over: Record<string, unknown> = {}) {
+// A blocked, stale, execution/queue-free task — the shape requeueOrphanTasks
+// (task 977) now hands off to the blocked-task pipeline instead of leaving it
+// as a permanently-detected orphan.
+function blockedTask(now: number, over: Record<string, unknown> = {}) {
   return {
-    id: 602,
-    title: '状態不整合タスク',
-    status: 'todo',
-    workflowStatus: 'in_progress',
-    updatedAt: new Date(now - 60_000),
-    themeId: 25,
+    id: 968,
+    title: '停滞タスク',
+    status: 'blocked',
+    workflowStatus: 'research_done',
+    updatedAt: new Date(now - 60 * 60 * 1000),
+    themeId: 40,
     ...over,
   };
 }
 
-describe('theme auto-run gate for pattern B (#715)', () => {
+describe('blocked-task-pipeline-armed gate for stagnation (task 977)', () => {
   beforeEach(() => {
     taskFindManyMock.mockReset().mockResolvedValue([]);
     taskFindUniqueMock.mockReset().mockResolvedValue(null);
@@ -99,17 +108,18 @@ describe('theme auto-run gate for pattern B (#715)', () => {
     prFindFirstMock.mockReset().mockResolvedValue(null);
     activityLogFindFirstMock.mockReset().mockResolvedValue(null);
     workflowFileFindFirstMock.mockReset().mockResolvedValue(null);
-    themeAutoRunFindManyMock.mockReset().mockResolvedValue([]);
+    themeAutoRunFindManyMock.mockClear();
+    armedThemeIdRows = [];
     themeFindManyMock.mockReset().mockResolvedValue([]);
     userSettingsFindFirstMock.mockReset().mockResolvedValue(null);
     submitConcernMock.mockReset().mockResolvedValue(1);
     notifyIntakeQuestionPendingMock.mockReset().mockResolvedValue({ id: 1 });
   });
 
-  test('does NOT file a desync concern for a task whose theme has auto-run disabled', async () => {
+  test('does NOT file stagnation for a blocked task in an armed theme (enabled+running)', async () => {
     const now = nextPassTime();
-    taskFindManyMock.mockResolvedValue([pausedThemeTask(now)]);
-    themeAutoRunFindManyMock.mockResolvedValue([{ themeId: 25 }]);
+    taskFindManyMock.mockResolvedValue([blockedTask(now)]);
+    armedThemeIdRows = [{ themeId: 40 }];
 
     const filed = await runSelfIncidentWatch(now);
 
@@ -117,70 +127,34 @@ describe('theme auto-run gate for pattern B (#715)', () => {
     expect(submitConcernMock).not.toHaveBeenCalled();
   });
 
-  test('still files a desync concern for a task whose theme has auto-run enabled', async () => {
+  test('still files stagnation for a blocked task in an UNARMED theme (paused, not running)', async () => {
     const now = nextPassTime();
-    taskFindManyMock.mockResolvedValue([pausedThemeTask(now, { id: 646 })]);
-    themeAutoRunFindManyMock.mockResolvedValue([]); // no disabled row for themeId 25
+    taskFindManyMock.mockResolvedValue([blockedTask(now, { id: 969 })]);
+    armedThemeIdRows = []; // theme 40 not armed (e.g. paused)
 
     const filed = await runSelfIncidentWatch(now);
 
     expect(filed).toBe(1);
     const input = submitConcernMock.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(input.dedupKey).toBe('self-incident:tristate-desync:todo-workflow-advanced');
+    expect(input.dedupKey).toBe('self-incident:stagnation');
   });
 
-  test('still files a desync concern for an unthemed task (fail open)', async () => {
+  test('still files stagnation for a blocked, unthemed task (fail open — pipeline never sees it)', async () => {
     const now = nextPassTime();
-    taskFindManyMock.mockResolvedValue([pausedThemeTask(now, { id: 647, themeId: null })]);
+    taskFindManyMock.mockResolvedValue([blockedTask(now, { id: 970, themeId: null })]);
 
     const filed = await runSelfIncidentWatch(now);
 
     expect(filed).toBe(1);
-    expect(themeAutoRunFindManyMock).not.toHaveBeenCalled();
   });
 
-  // task 977: resolveArmedThemeIds now also queries ThemeAutoRun once per
-  // pass (enabled:true, status:'running') alongside the pre-existing
-  // enabled:false query — both scoped to the same candidate theme ids.
-  test('queries ThemeAutoRun twice per pass (disabled + armed), each scoped to the candidates’ distinct theme ids', async () => {
+  test('a non-blocked stale in-progress task in the SAME armed theme still files (gate is blocked-only)', async () => {
     const now = nextPassTime();
-    taskFindManyMock.mockResolvedValue([
-      pausedThemeTask(now, { id: 602, themeId: 25 }),
-      pausedThemeTask(now, { id: 646, themeId: 25 }),
-      pausedThemeTask(now, { id: 700, themeId: 9 }),
-    ]);
-    themeAutoRunFindManyMock.mockResolvedValue([{ themeId: 25 }]);
-
-    await runSelfIncidentWatch(now);
-
-    expect(themeAutoRunFindManyMock).toHaveBeenCalledTimes(2);
-    const calls = themeAutoRunFindManyMock.mock.calls as unknown as Array<
-      [{ where: { themeId: { in: number[] }; enabled: boolean; status?: string } }]
-    >;
-    for (const [call] of calls) {
-      expect(new Set(call.where.themeId.in)).toEqual(new Set([25, 9]));
-    }
-    const disabledQuery = calls.find(([c]) => c.where.enabled === false);
-    const armedQuery = calls.find(([c]) => c.where.enabled === true);
-    expect(disabledQuery).toBeDefined();
-    expect(armedQuery?.[0].where.status).toBe('running');
-  });
-
-  // #860 generalizes "theme auto-run disabled" into the same isWorkflowManaged
-  // signal used for workflowDisabled/non-development themes: a theme paused
-  // via ThemeAutoRun.enabled=false can never dispatch either, so stagnation is
-  // now also suppressed here — superseding #715's original per-detector
-  // isolation (this test previously asserted the opposite).
-  test('a disabled theme now also suppresses the stagnation signature for the same task', async () => {
-    const now = nextPassTime();
-    taskFindManyMock.mockResolvedValue([
-      pausedThemeTask(now, { status: 'in-progress', updatedAt: new Date(now - 40 * 60 * 1000) }),
-    ]);
-    themeAutoRunFindManyMock.mockResolvedValue([{ themeId: 25 }]);
+    taskFindManyMock.mockResolvedValue([blockedTask(now, { id: 971, status: 'in-progress' })]);
+    armedThemeIdRows = [{ themeId: 40 }];
 
     const filed = await runSelfIncidentWatch(now);
 
-    expect(filed).toBe(0);
-    expect(submitConcernMock).not.toHaveBeenCalled();
+    expect(filed).toBe(1);
   });
 });

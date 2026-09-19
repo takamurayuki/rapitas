@@ -101,6 +101,31 @@ describe('detectStagnation', () => {
     expect(detectStagnation({ ...base, taskStatus: 'blocked' })).not.toBeNull();
   });
 
+  // task 977: a blocked task in an armed theme is already owned by the
+  // blocked-task retry/escalation pipeline — do not duplicate its detection.
+  it('does NOT detect a blocked task when blockedRetryPipelineArmed=true', () => {
+    expect(
+      detectStagnation({ ...base, taskStatus: 'blocked', blockedRetryPipelineArmed: true }),
+    ).toBeNull();
+  });
+
+  it('still detects a blocked task when blockedRetryPipelineArmed=false (unarmed theme)', () => {
+    expect(
+      detectStagnation({ ...base, taskStatus: 'blocked', blockedRetryPipelineArmed: false }),
+    ).not.toBeNull();
+  });
+
+  it('still detects a blocked task when blockedRetryPipelineArmed is omitted (fail-open)', () => {
+    expect(base.blockedRetryPipelineArmed).toBeUndefined();
+    expect(detectStagnation({ ...base, taskStatus: 'blocked' })).not.toBeNull();
+  });
+
+  it('blockedRetryPipelineArmed=true is ignored for a non-blocked task', () => {
+    expect(
+      detectStagnation({ ...base, taskStatus: 'in-progress', blockedRetryPipelineArmed: true }),
+    ).not.toBeNull();
+  });
+
   // 受入(a): a never-started todo backlog item is out of scope no matter how stale.
   it('does NOT detect a pure todo backlog item (draft workflow, no execution ever)', () => {
     expect(

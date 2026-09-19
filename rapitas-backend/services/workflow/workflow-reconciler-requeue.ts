@@ -16,6 +16,7 @@ import {
   MAX_ORPHAN_REQUEUE_AGE_MS,
   MAX_BLOCKED_RETRY,
   MAX_PR_RECOVERY_ATTEMPTS,
+  ORPHAN_REQUEUE_EXHAUSTED_CAUSE,
   resolveVerifyRepairLimit,
   VERIFY_NON_CONVERGENCE_CAUSE,
   VERIFICATION_UNVERIFIABLE_HOLD_CAUSE,
@@ -109,7 +110,33 @@ export async function requeueOrphanTasks(
     const attempts = await prisma.workflowTransition.count({
       where: { taskId: t.id, cause: 'reconciler_requeue' },
     });
-    if (attempts >= MAX_ORPHAN_REQUEUE) continue;
+    if (attempts >= MAX_ORPHAN_REQUEUE) {
+      // Requeue budget exhausted (task 977): leaving this as `continue` strands
+      // the task in 'in-progress' forever — no other heal path picks it up
+      // (not blocked, so requeueBlockedTasks never sees it), and
+      // detectStagnation re-flags it every watch cycle indefinitely. Move it
+      // to 'blocked' so it joins the existing blocked-task retry/escalation
+      // pipeline instead. workflowStatus is intentionally left unchanged —
+      // requeueBlockedTasks' own reset (blocked_auto_retry) is what resets it
+      // to 'draft', preserving that existing artifact-reuse behavior.
+      await prisma.task.update({
+        where: { id: t.id },
+        data: { status: 'blocked', updatedAt: new Date() },
+      });
+      await recordTransition({
+        taskId: t.id,
+        fromStatus: t.workflowStatus,
+        toStatus: t.workflowStatus ?? 'draft',
+        actor: 'system',
+        cause: ORPHAN_REQUEUE_EXHAUSTED_CAUSE,
+        metadata: { reason: 'orphan_requeue_attempts_exhausted', attempts },
+      }).catch(() => {});
+      log.info(
+        { taskId: t.id, attempts, wf: t.workflowStatus },
+        '[reconciler] Orphan requeue budget exhausted -> blocked (joins blocked-task retry/escalation pipeline)',
+      );
+      continue;
+    }
 
     await prisma.task.update({
       where: { id: t.id },
