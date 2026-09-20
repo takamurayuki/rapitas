@@ -187,7 +187,9 @@ export async function attemptVerifyRepair(
   // (not necessarily consecutive) with a non-shrinking indicted set means treading water — escalate.
   const verdict = await detectRepairNonConvergence(taskId, reason);
   if (verdict.cutoff) {
-    const detail = `受入基準${verdict.criterionIndex}が${verdict.count}回の差し戻しで指摘され、指摘集合が減っていません。タスク分割または仕様の見直しが必要です。`;
+    const detail = verdict.repeatedEvidence
+      ? `同じ検証指摘「${verdict.repeatedEvidence.split('\n')[0]}」が${verdict.count}回の差し戻しで繰り返され、実装側で解消されていません。実装者では直せない指摘（存在しない前提・環境で実行不能な項目・計画の誤り）の可能性が高く、計画または仕様の見直しが必要です。`
+      : `受入基準${verdict.criterionIndex}が${verdict.count}回の差し戻しで指摘され、指摘集合が減っていません。タスク分割または仕様の見直しが必要です。`;
     const taskRow = await prisma.task
       .findUnique({ where: { id: taskId }, select: { title: true, themeId: true } })
       .catch(() => null);
@@ -219,6 +221,7 @@ export async function attemptVerifyRepair(
         count: verdict.count,
         previousCriteria: verdict.previousCriteria,
         currentCriteria: verdict.currentCriteria,
+        repeatedEvidence: verdict.repeatedEvidence,
         reason,
       },
     }).catch((err) =>
@@ -231,6 +234,7 @@ export async function attemptVerifyRepair(
         count: verdict.count,
         previousCriteria: verdict.previousCriteria,
         currentCriteria: verdict.currentCriteria,
+        repeatedEvidence: verdict.repeatedEvidence,
       },
       '[verify-repair] Repair loop not converging — cutting off (caller should block)',
     );

@@ -570,6 +570,52 @@ describe('attemptVerifyRepair', () => {
     expect(r.cutoffRecorded).toBe(true);
   });
 
+  // task 914 実データ（2026-09-16）: 受入基準に載らない plan 項目「POSIX 統合テスト」の
+  // ❌ 行を検証者が毎回そのまま書き、基準トークン照合は何も拾えず 16 回差し戻された。
+  test('同一の引用付き指摘が閾値回続けば、基準照合に依らず打ち切ること（task 914）', async () => {
+    withCriteria();
+    process.env.RAPITAS_VERIFY_NONCONVERGENCE_THRESHOLD = '3';
+    const reason914 =
+      'verify.md self-contradicts: claims all tests pass while body contains failure signals (❌ «§8 POSIX統合テスト・CI実測 | ❌ 未確認 | 該当ファイル不存在»). Verifier likely hallucinated success — re-run with stricter test-honesty prompt.';
+    mockPrisma.workflowTransition.findMany.mockResolvedValue(priorRows(reason914, reason914));
+    mockPrisma.userSettings.findFirst.mockResolvedValue({ verifyRepairLimit: 10 });
+    mockPrisma.workflowTransition.count.mockResolvedValue(2);
+
+    const r = await attemptVerifyRepair(914, 'in_progress', reason914, 'v');
+
+    expect(r.bounced).toBe(false);
+    expect(r.cutoffRecorded).toBe(true);
+    expect(mockPrisma.task.updateMany).not.toHaveBeenCalled();
+    expect(escalateBlockedTask).toHaveBeenCalledTimes(1);
+    const eArgs = escalateBlockedTask.mock.calls[0] as unknown as unknown[];
+    expect(eArgs[2]).toBe('verify_no_convergence');
+    expect(eArgs[4]).toContain('POSIX統合テスト');
+    expect(eArgs[4]).toContain('3回');
+    const rt = recordTransition.mock.calls[0][0] as {
+      cause: string;
+      metadata: { repeatedEvidence?: string; count: number; criterionIndex?: number };
+    };
+    expect(rt.cause).toBe('verify_repair_non_convergence');
+    expect(rt.metadata.repeatedEvidence).toContain('POSIX統合テスト');
+    expect(rt.metadata.count).toBe(3);
+    expect(rt.metadata.criterionIndex).toBeUndefined();
+  });
+
+  test('引用の無い旧形式の同一理由は何回続いても打ち切らない（fail-open 維持）', async () => {
+    withCriteria();
+    process.env.RAPITAS_VERIFY_NONCONVERGENCE_THRESHOLD = '3';
+    const legacy =
+      'verify.md self-contradicts: claims all tests pass while body contains failure signals (❌). Verifier likely hallucinated success — re-run with stricter test-honesty prompt.';
+    mockPrisma.workflowTransition.findMany.mockResolvedValue(priorRows(legacy, legacy, legacy));
+    mockPrisma.userSettings.findFirst.mockResolvedValue({ verifyRepairLimit: 10 });
+    mockPrisma.workflowTransition.count.mockResolvedValue(3);
+
+    const r = await attemptVerifyRepair(914, 'in_progress', legacy, 'v');
+
+    expect(r.bounced).toBe(true);
+    expect(escalateBlockedTask).not.toHaveBeenCalled();
+  });
+
   test('収束中: 毎回異なる指摘（A→B→C）は回数に関わらず bounce を継続すること（受入基準3）', async () => {
     withCriteria();
     mockPrisma.workflowTransition.findMany.mockResolvedValue(priorRows(R1, R2));

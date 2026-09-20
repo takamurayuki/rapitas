@@ -51,6 +51,12 @@ export interface ConvergenceVerdict {
   previousCriteria?: number[];
   /** Indicted criteria of the current reason, undeterminable items excluded (when cutoff). */
   currentCriteria?: number[];
+  /**
+   * The verifier finding (quoted «…» evidence) handed back unchanged `count`
+   * times, when the cutoff came from verify-repeat-evidence.ts instead of a
+   * criterion. Mutually exclusive with `criterionIndex`.
+   */
+  repeatedEvidence?: string;
 }
 
 /**

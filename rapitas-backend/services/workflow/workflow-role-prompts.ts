@@ -204,7 +204,7 @@ export function buildRoleTexts(
           '```markdown\n' +
           '# 検証レポート\n' +
           '## 検証結果サマリ (✅ 検証成功 / ❌ 検証失敗 / ⚠️ 一部失敗 のいずれか)\n' +
-          '## チェックリスト消化状況 (plan.md の各項目に ✅/❌)\n' +
+          '## チェックリスト消化状況 (plan.md の各項目に ✅/❌/➖)\n' +
           '## テスト結果 (実コマンド + 終了コード + 集計)\n' +
           '## 品質メトリクス (lint / type-check / build の結果)\n' +
           '## 残課題 / フォローアップ\n' +
@@ -222,6 +222,7 @@ export function buildRoleTexts(
           '\n### 出力規律（機械ゲート互換 — 厳守）\n' +
           '- タスク種別（軽量・マージ・競合解消・サブタスク）を問わず、冒頭は必ず `# 検証レポート` で開始し、`## 検証結果サマリ` `## テスト結果` `## チェックリスト消化状況` の3見出しを必ず含める。`# 検証結果` や `# Verify: PR#...` などの見出しで始めてはならない。\n' +
           '- 全体判定は冒頭サマリと表の「全体判定」セルの両方で `✅ 検証成功` / `❌ 検証失敗` / `⚠️ 一部失敗` をこの表記のまま使用する。「合格」「条件付き合格」「不合格」等への言い換えは禁止（機械判定はこの語彙のみを認識する）。\n' +
+          '- チェックリスト・受入基準の各行は `✅ 完了` / `❌ 未完了` / `➖ 対象外（理由）` の3値。`❌` は「本タスクの差分に欠陥または未実装があり、実装者が次の実装ラウンドで直せる項目」にだけ使う。前提となるモデル・フラグ・ファイルがこのコードベースに存在しない、この環境（OS・CI）では実行できない、計画側で撤回された、後工程（push/CI/merge）である — こうした項目は `➖ 対象外（理由）` と書く（`❌` は機械ゲートが実失敗として読み、同じ指摘での差し戻しループになる）。実行はできたが確認しきれなかった項目は `⚠️ 未検証（理由）` とし、全体判定にも反映する。\n' +
           '- 変更ファイル一覧は「ファイル | 種別（新規/変更） | 変更内容の要約」の表で書く。`| +追加 | -削除 |` 列・`(+120/-45)` などの行数差分数値・✏️/⏭️/🆕 の絵文字は書かない。\n' +
           '- 偽陽性検証（修正を一時的に外して意図的にREDを確認する検証）を記録する場合、`Tests N failed` / `N failed` のような数値集計行を本文に書かない（機械ゲートが実失敗と誤認し差し戻しループになる）。「修正を除去するとRED、復元するとGREENを確認」と1行で要約する。生ログを貼る場合は ```text フェンス内に限り、集計行は含めない。',
       },
@@ -322,7 +323,7 @@ export function buildRoleTexts(
           '```markdown\n' +
           '# Verification Report\n' +
           '## Result summary (✅ Pass / ❌ Fail / ⚠️ Partial)\n' +
-          '## Checklist status (each plan item ✅/❌)\n' +
+          '## Checklist status (each plan item ✅/❌/➖)\n' +
           '## Test results (actual command + exit code + summary)\n' +
           '## Quality metrics (lint / type-check / build)\n' +
           '## Outstanding work / follow-ups\n' +
@@ -340,6 +341,7 @@ export function buildRoleTexts(
           '\n### Output discipline (machine-gate compatibility — strict)\n' +
           '- Regardless of task kind (lightweight / merge / conflict-resolution / subtask), start with `# Verification Report` and always include the required section headings listed above. Never start with `# Verify: PR#...` or other ad-hoc titles.\n' +
           '- Use the verdict vocabulary `✅ Pass` / `❌ Fail` / `⚠️ Partial` verbatim in BOTH the opening summary and the overall-verdict table cell; paraphrases such as "passed with conditions" are forbidden (the machine gates only recognize this vocabulary).\n' +
+          "- Each checklist / acceptance-criterion row is one of three values: `✅ done` / `❌ not done` / `➖ N/A (reason)`. Use `❌` ONLY for an item where this task's diff is defective or unimplemented and the implementer can fix it in the next round. An item whose premise (a model, flag or file) does not exist in this codebase, cannot run in this environment (OS / CI), was withdrawn by the plan owner, or is a downstream step (push / CI / merge) is written as `➖ N/A (reason)` — a `❌` there is read by the machine gate as a real failure and loops the task on the same finding. An item you ran but could not fully confirm is `⚠️ unverified (reason)` and must be reflected in the overall verdict.\n" +
           '- Report changed files as a "File | Kind (new/modified) | What changed & why" table. Never emit `| +added | -removed |` columns, `(+120/-45)` line deltas, or ✏️/⏭️/🆕 emoji.\n' +
           '- When recording deliberate-RED (false-positive) verification — temporarily removing the fix to confirm failure — do NOT write numeric summary lines like `Tests N failed` in the body (the machine gate reads them as real failures and loops the task). Summarize in one line: "fix removed → RED, restored → GREEN". Raw logs, if pasted at all, go ONLY inside a ```text fence with the summary count lines removed.',
       },
