@@ -36,7 +36,11 @@ describe('requeueUnstartedTask', () => {
     expect(update).toHaveBeenCalledWith({ where: { id: 984 }, data: { status: 'todo' } });
     expect(mockEnqueue).toHaveBeenCalledWith({ taskId: 984, themeId: 1, priority: 50 });
     expect(mockRecordTransition).toHaveBeenCalledWith(
-      expect.objectContaining({ taskId: 984, actor: 'system', cause: 'backstop_unstarted_requeue' }),
+      expect.objectContaining({
+        taskId: 984,
+        actor: 'system',
+        cause: 'backstop_unstarted_requeue',
+      }),
     );
   });
 

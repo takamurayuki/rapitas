@@ -87,7 +87,9 @@ describe('liveOrQueuedBehind', () => {
     liveExecution = false;
     const behind = { ...prismaWith([queued1, { taskId: 2, status: 'running' }]), ...idle };
     expect((await explainQueueWait(behind, 1)).reason).toBe('queued_behind_running');
-    expect((await explainQueueWait({ ...prismaWith([]), ...idle }, 1)).reason).toBe('no_own_queued');
+    expect((await explainQueueWait({ ...prismaWith([]), ...idle }, 1)).reason).toBe(
+      'no_own_queued',
+    );
     const alone = { ...prismaWith([queued1]), ...idle };
     expect((await explainQueueWait(alone, 1)).reason).toBe('no_other_running');
     const live = { agentExecution: { findFirst: () => Promise.resolve({ id: 5 }) } };

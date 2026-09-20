@@ -1,7 +1,5 @@
 import { mock } from 'bun:test';
-import {
-  mockStopTaskTreeAgents,
-} from './theme-auto-run-scheduler.test-support.collaborator-mocks';
+import { mockStopTaskTreeAgents } from './theme-auto-run-scheduler.test-support.collaborator-mocks';
 /**
  * theme-auto-run-scheduler.unstarted-backstop.test
  *
