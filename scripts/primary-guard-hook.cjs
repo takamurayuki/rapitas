@@ -32,6 +32,33 @@ const MUTATION =
   /\bgit\s+(?:-c\s+\S+\s+)?(?:pull|push|fetch|checkout|switch|reset|merge|rebase|commit|add|stash|clean|restore|cherry-pick|apply|am|branch|tag|worktree)\b|\b(?:bun|bunx|npm|npx|pnpm|yarn)\b|\bprisma\b|\b(?:rm|mv|cp|mkdir|rmdir|del|touch|sed|remove-item|move-item|copy-item|new-item|set-content|add-content|out-file|clear-content)\b|(?:^|[^-\w])>{1,2}(?!&)/i;
 const PRISMA = /\bprisma\s+(?:generate|db\s+push|migrate)\b|\bdb:(?:prepare|generate|push)\b/i;
 const PROC_KILL = /\b(?:stop-process|taskkill|pkill|killall)\b/i;
+// Anything that can turn quoted text into executed code: nested shells, eval, command
+// substitution, backticks, or interpreters fed by a pipe.
+const EXEC_INDIRECTION =
+  /\b(?:sh|bash|zsh|dash|cmd|pwsh|powershell|eval|iex|invoke-expression|xargs|source|exec|env|node|python\d?|start-process|invoke-command)\b/i;
+const SUBSTITUTION = /\$\(|`/;
+const QUOTED_SPAN = /"(?:\\.|[^"\\])*"|'[^']*'/g;
+
+/**
+ * True when the command really names a process-killing tool. Words that appear only inside
+ * quoted arguments (`grep -n "taskkill" f`, printf data) are data, not commands.
+ * Fails closed: indirection, a quoted command word, or an unterminated quote keeps the denial.
+ *
+ * @param code - Command text with prose stripped / prose 除去済みコマンド
+ * @returns Whether a kill tool is (potentially) executed / kill が実行されうるか
+ */
+function hasProcessKill(code) {
+  if (!PROC_KILL.test(code)) return false;
+  if (SUBSTITUTION.test(code)) return true;
+  let quotedCommandWord = false;
+  const rest = code.replace(QUOTED_SPAN, (span, offset) => {
+    // A quoted word at command position ('taskkill' /F, & "pkill") is still executed.
+    if (/(?:^|[;&|(\n])\s*$/.test(code.slice(0, offset))) quotedCommandWord = true;
+    return '""';
+  });
+  // Interpreter names only count outside quotes: "Bash" inside a JSON string is data.
+  return quotedCommandWord || EXEC_INDIRECTION.test(rest) || PROC_KILL.test(rest);
+}
 
 /**
  * Classify a command. Returns the incident kind or null when allowed.
@@ -45,7 +72,7 @@ function classify(command, ctx) {
   // words like "prisma generate" inside it must not trigger a denial.
   const code = stripProse(command);
   if (PRISMA.test(code)) return 'prisma';
-  if (PROC_KILL.test(code)) return 'process_kill';
+  if (hasProcessKill(code)) return 'process_kill';
   if (!ctx.primaryRoot) return null; // cannot resolve primary → fail open for the path rule
   const primary = normalizePaths(ctx.primaryRoot).replace(/\/+$/, '');
   const norm = normalizePaths(code).split(`${primary}/.worktrees/`).join('WT/');

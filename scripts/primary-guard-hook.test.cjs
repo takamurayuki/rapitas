@@ -88,6 +88,32 @@ test('classify reports the incident kind', () => {
   assert.equal(classify('git status', ctx), null);
 });
 
+test('process-kill words inside quoted data arguments are allowed', () => {
+  const incident =
+    'printf \'%s\' \'{"tool_name":"Bash","tool_input":{"command":"grep -n \\"process_kill\\\\|taskkill\\\\|Stop-Process\\\\|pkill\\" a.test.ts';
+  assert.equal(classify('grep -n "process_kill\\|taskkill\\|Stop-Process\\|pkill" a.test.ts', ctx), null);
+  assert.equal(classify("rg 'pkill' src", ctx), null);
+  assert.equal(classify(`printf '%s' '{"c":"taskkill"}'`, ctx), null);
+  assert.equal(classify(incident + "'", ctx), null);
+});
+
+test('real process kills stay denied despite quoting tricks', () => {
+  for (const cmd of [
+    'taskkill /F /IM bun.exe',
+    'grep x f && pkill bun',
+    'echo "x"; taskkill /F /PID 1',
+    'bash -c "taskkill /F /IM bun.exe"',
+    'powershell -Command "Stop-Process -Name bun"',
+    '"taskkill" /F /IM bun.exe',
+    "echo hi | 'pkill' bun",
+    'grep "a" f; Stop-Process -Id 3',
+    'echo "$(taskkill /F /IM bun.exe)"',
+    'echo "unterminated taskkill',
+  ]) {
+    assert.equal(classify(cmd, ctx), 'process_kill', cmd);
+  }
+});
+
 test('recordIncident appends a redacted, truncated NDJSON line with the task id', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-'));
   recordIncident(
