@@ -12,7 +12,7 @@ mock.module('./auto-run-selection', () => ({
   hasLiveExecution: () => Promise.resolve(liveExecution),
 }));
 
-const { liveOrQueuedBehind } = await import('./queue-wait-exemption');
+const { liveOrQueuedBehind, explainQueueWait } = await import('./queue-wait-exemption');
 
 /** Queue rows keyed by (taskId match, status). */
 function prismaWith(rows: Array<{ taskId: number; status: string }>) {
@@ -77,5 +77,28 @@ describe('liveOrQueuedBehind', () => {
       },
     };
     expect(await liveOrQueuedBehind(broken, 784)).toBe(false);
+  });
+
+  test('理由コード: 各分岐が判定理由を返す（#984 の false 原因をログで特定できる）', async () => {
+    const idle = { agentExecution: { findFirst: () => Promise.resolve(null) } };
+    const queued1 = { taskId: 1, status: 'queued' };
+    liveExecution = true;
+    expect((await explainQueueWait(prismaWith([]), 1)).reason).toBe('live_execution');
+    liveExecution = false;
+    const behind = { ...prismaWith([queued1, { taskId: 2, status: 'running' }]), ...idle };
+    expect((await explainQueueWait(behind, 1)).reason).toBe('queued_behind_running');
+    expect((await explainQueueWait({ ...prismaWith([]), ...idle }, 1)).reason).toBe('no_own_queued');
+    const alone = { ...prismaWith([queued1]), ...idle };
+    expect((await explainQueueWait(alone, 1)).reason).toBe('no_other_running');
+    const live = { agentExecution: { findFirst: () => Promise.resolve({ id: 5 }) } };
+    const behindLive = { ...prismaWith([queued1]), ...live };
+    expect((await explainQueueWait(behindLive, 1)).reason).toBe('queued_behind_live_exec');
+  });
+
+  test('照会失敗は lookup_error としてエラー文を保持する', async () => {
+    liveExecution = false;
+    const broken = { workflowQueueItem: { findFirst: () => Promise.reject(new Error('db down')) } };
+    const verdict = await explainQueueWait(broken, 1);
+    expect(verdict).toEqual({ waiting: false, reason: 'lookup_error', error: 'db down' });
   });
 });

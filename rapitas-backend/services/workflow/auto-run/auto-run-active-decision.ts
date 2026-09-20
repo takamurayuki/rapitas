@@ -22,6 +22,8 @@ import {
   resolveLastProgressAt,
 } from './auto-run-selection';
 import { liveOrQueuedBehind } from './queue-wait-exemption';
+import { taskNeverExecuted } from './auto-run-execution-presence';
+import { requeueUnstartedTask } from './requeue-unstarted-task';
 import {
   setCurrentTask,
   onTaskCompleted,
@@ -111,6 +113,9 @@ export async function advanceActiveTaskLocked(
     // was killed there, 8 seconds after its implementer committed a complete
     // implementation. Transitions and heartbeats are the actual evidence of
     // movement; only their absence means wedged.
+    // Task 1007: a task with ZERO executions is waiting in the queue, not hung
+    // (984 was blocked at 72 min behind 881's ci_repair without ever running).
+    const neverExecuted = await taskNeverExecuted(prisma, currentTaskId);
     const lastProgressAt = await resolveLastProgressAt(prisma, currentTaskId, tenureStart);
     const sinceProgressMs = Date.now() - lastProgressAt;
     // Liveness exemption: a running execution with a fresh heartbeat is
@@ -130,14 +135,33 @@ export async function advanceActiveTaskLocked(
     // deferred, and returned before the code that resolves a finished task
     // and picks the next one — auto-run sat "running" with a completed
     // current task and 9 runnable tasks untouched.
-    if (progressedRecently || executionIsLive) {
+    const waitingUnstarted = neverExecuted && withinHardCeiling;
+    if (progressedRecently || executionIsLive || waitingUnstarted) {
       log.info(
         `[ThemeAutoRunScheduler] Task ${currentTaskId} over tenure wall but ${
           progressedRecently
             ? `progressed ${Math.round(sinceProgressMs / 1000)}s ago`
-            : 'execution heartbeat is fresh'
+            : waitingUnstarted
+              ? 'has never executed (queue wait)'
+              : 'execution heartbeat is fresh'
         } — deferring hang backstop (theme ${themeId})`,
       );
+    } else if (neverExecuted && (await requeueUnstartedTask(prisma, currentTaskId, themeId))) {
+      // Past the 3x ceiling without ever running: a stuck queue, not a hung
+      // agent. Requeue (bounded) instead of blocking; setCurrentTask resets
+      // the tenure clock.
+      log.warn(
+        `[ThemeAutoRunScheduler] Task ${currentTaskId} never executed within the hard ceiling — requeued instead of blocked (theme ${themeId})`,
+      );
+      logCycleEvent('task.skipped', {
+        theme: themeId,
+        task: currentTaskId,
+        cause: 'backstop_unstarted_requeue',
+        msg: 'never-executed task requeued by hang backstop',
+      });
+      await setCurrentTask(themeId, currentTaskId);
+      broadcastAutoRunUpdateImpl(themeId);
+      return;
     } else {
       log.warn(
         `[ThemeAutoRunScheduler] Task ${currentTaskId} exceeded wall budget (${Math.round(
