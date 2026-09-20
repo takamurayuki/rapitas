@@ -99,7 +99,13 @@ export const concernBacklogRoutes = new Elysia()
           themeId: body.themeId ?? undefined,
           source: body.source ?? 'user',
         });
-        return { success: true, id: filing.id, outcome: filing.outcome, reason: filing.reason };
+        return {
+          success: true,
+          id: filing.id,
+          outcome: filing.outcome,
+          reason: filing.reason,
+          stored: filing.stored,
+        };
       } catch (err) {
         log.error({ err }, 'Failed to file concern');
         set.status = 500;

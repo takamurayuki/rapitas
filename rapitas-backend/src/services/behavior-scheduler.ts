@@ -135,6 +135,21 @@ export class BehaviorScheduler {
           });
       }
 
+      // Monday 7:02: shadow-run comparison for every `proposed` candidate that
+      // has no comparison yet — runs current-vs-candidate BEFORE human review so
+      // the approval UI on /system-prompts shows measured evidence, not just the
+      // generated addendum text (task 971 — split out of task 872's Step5).
+      if (h === 7 && m === 2 && dow === 1) {
+        log.info('[BehaviorScheduler] Triggering shadow-run comparisons for pending proposals');
+        await import('../../services/self-learning/comparison/prompt-comparison-runner')
+          .then(({ triggerComparisonsForPendingProposals }) =>
+            triggerComparisonsForPendingProposals(),
+          )
+          .catch((err: Error) => {
+            log.error({ err }, '[BehaviorScheduler] Prompt comparison trigger failed');
+          });
+      }
+
       // 7:05 daily: close the prompt-evolution loop unattended. Auto-approval
       // runs FIRST so an addendum approved today starts accruing its
       // post-approval window immediately. Daily (not weekly) because
