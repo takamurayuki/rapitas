@@ -52,6 +52,19 @@ mock.module('./auto-merge-checks', () => ({
   readHeadSha: mock(() => Promise.resolve('sha')),
   updatePrBranch: mock(() => Promise.resolve(true)),
 }));
+// task 1021: the watcher now consults the pre-merge gate + drift check; both would
+// otherwise shell out to gh/git. Tests drive the gate result through mockGate.
+const mockGate = mock(() =>
+  Promise.resolve<{ ok: boolean; reason?: string; detail?: string }>({ ok: true }),
+);
+mock.module('./auto-merge-premerge-gate', () => ({
+  evaluatePreMergeGate: mockGate,
+  RATCHET_CHECK_NAME: 'ratchet-check',
+}));
+mock.module('./auto-merge-baseline-drift', () => ({
+  checkBaselineDrift: mock(() => Promise.resolve(false)),
+}));
+
 mock.module('./auto-merge-ci-failure', () => ({ handleCiFailure: mock(() => Promise.resolve()) }));
 mock.module('./ci-self-repair', () => ({
   attemptCiRepair: mock(() => Promise.resolve({ bounced: false })),
