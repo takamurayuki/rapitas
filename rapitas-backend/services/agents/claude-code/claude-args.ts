@@ -151,7 +151,14 @@ export function buildClaudeArgs(agent: ClaudeCodeAgent): { args: string[]; logEx
   // NOTE(security): explicitly inject the primary-checkout guard hook so it applies under
   // bypassPermissions regardless of which project settings the worktree happens to carry.
   const guardSettings = ensureGuardSettingsFile();
-  if (guardSettings) args.push('--settings', guardSettings);
+  if (guardSettings) {
+    args.push('--settings', guardSettings);
+  } else {
+    // NOTE: fail-open by design; make the missing hook injection visible instead of silent.
+    logExtras.push(
+      `${agent.logPrefix} WARNING: guard settings unavailable — falling back to project settings (primary-checkout hook not injected)`,
+    );
+  }
 
   return { args, logExtras };
 }
