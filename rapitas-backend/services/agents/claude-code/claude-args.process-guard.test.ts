@@ -6,7 +6,9 @@
  * commands but allows the same work inside a .worktrees/ checkout (task #996).
  */
 import { describe, test, expect } from 'bun:test';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { buildClaudeArgs } from './claude-args';
 import type { ClaudeCodeAgent } from './agent-core';
@@ -126,5 +128,28 @@ describe('buildClaudeArgs injected PreToolUse hook (--settings)', () => {
     const list = disallowedFor(true);
     expect(list).toContain('Bash');
     expect(list).toContain('PowerShell');
+  });
+});
+
+describe('guard settings unavailable (task 1000)', () => {
+  test('omits --settings and warns about the project-settings fallback', () => {
+    const prev = process.env.RAPITAS_DATA_DIR;
+    const scratch = mkdtempSync(join(tmpdir(), 'claude-args-'));
+    const blocker = join(scratch, 'not-a-dir');
+    writeFileSync(blocker, 'x'); // a file where the data dir should be makes guard creation fail
+    process.env.RAPITAS_DATA_DIR = blocker;
+    try {
+      const agent = {
+        logPrefix: '[t]',
+        config: { dangerouslySkipPermissions: true, investigationMode: false },
+      } as unknown as ClaudeCodeAgent;
+      const { args, logExtras } = buildClaudeArgs(agent);
+      expect(args).not.toContain('--settings');
+      expect(logExtras.some((l) => l.includes('falling back to project settings'))).toBe(true);
+    } finally {
+      if (prev === undefined) delete process.env.RAPITAS_DATA_DIR;
+      else process.env.RAPITAS_DATA_DIR = prev;
+      rmSync(scratch, { recursive: true, force: true });
+    }
   });
 });

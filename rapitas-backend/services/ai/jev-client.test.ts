@@ -131,3 +131,28 @@ describe('askJevBoolean — with a configured key', () => {
     expect(await askJevBoolean('ctx', [{ id: 'q1', prompt: 'p' }])).toBeNull();
   });
 });
+
+describe('askJevBoolean — outbound contract (task 1000)', () => {
+  beforeEach(() => {
+    process.env.RAPITAS_JEV_API_KEY = 'test-key';
+  });
+
+  // NOTE: CodeQL js/file-access-to-http flagged this call, but the only caller
+  // (concern-relevance-check.ts) passes concern title/detail text and no file content;
+  // pin the fixed destination and the unmodified context so a future file-derived
+  // caller cannot silently redirect or rewrite the payload.
+  it('always posts to the fixed Jev endpoint with the caller context unchanged', async () => {
+    let url: string | undefined;
+    let sent: string | undefined;
+    // @ts-expect-error test stub
+    globalThis.fetch = mock(async (u: string, init: { body: string }) => {
+      url = u;
+      sent = init.body;
+      return { ok: true, status: 200, json: async () => ({ answers: [] }) };
+    });
+    const ctx = 'concern report: title abc';
+    await askJevBoolean(ctx, [{ id: 'q1', prompt: 'p' }]);
+    expect(url).toBe('https://api.typesafe.ai/v1/systemone');
+    expect(JSON.parse(sent!).context).toBe(ctx);
+  });
+});

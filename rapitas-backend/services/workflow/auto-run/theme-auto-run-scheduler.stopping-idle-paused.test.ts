@@ -105,6 +105,7 @@ describe('processIdleThemes', () => {
         parentId: null,
         workflowDisabled: false,
         autoRunExcluded: false,
+        haltReason: null,
         OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
       },
     });
@@ -251,6 +252,7 @@ describe('processIdleThemes — re-arm after an idle-stop (task 784)', () => {
         parentId: null,
         workflowDisabled: false,
         autoRunExcluded: false,
+        haltReason: null,
         OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
         autoCreatedFromBacklog: false,
       },
