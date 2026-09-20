@@ -48,3 +48,6 @@ rapitas-desktop/.data/
 
 # Codex CLI local config / supervisor prompt
 .codex/
+
+# Scoped tsconfig the verification gate writes next to the checked project (automated-verifier.ts); pid-named scratch, never source
+.rapitas-verify-scoped-*.tsconfig.json
