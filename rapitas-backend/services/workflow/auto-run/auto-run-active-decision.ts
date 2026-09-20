@@ -67,8 +67,18 @@ async function requeueIfNeverExecuted(
   themeId: number,
   knownNeverExecuted: boolean,
 ): Promise<boolean> {
-  const neverExecuted = knownNeverExecuted || (await taskNeverExecuted(prisma, taskId));
-  return neverExecuted && (await requeueUnstartedTask(prisma, taskId, themeId));
+  try {
+    const neverExecuted = knownNeverExecuted || (await taskNeverExecuted(prisma, taskId));
+    return neverExecuted && (await requeueUnstartedTask(prisma, taskId, themeId));
+  } catch (err) {
+    // Fail-closed: a broken guard must fall back to the original blocked path, never crash the backstop.
+    log.warn(
+      `[ThemeAutoRunScheduler] Task ${taskId} last-chance requeue guard failed (${
+        err instanceof Error ? err.message : String(err)
+      }) — blocking as before`,
+    );
+    return false;
+  }
 }
 
 /**
