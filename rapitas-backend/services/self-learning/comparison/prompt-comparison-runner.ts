@@ -90,6 +90,7 @@ export function beginComparisonRun(params: {
     summary: null,
     knowledgeSnapshotHash: null,
     stagedTaskIds: null,
+    stagedComplexityBands: null,
   };
   writeComparisonRecord(record);
   return record;
@@ -221,6 +222,7 @@ export async function finishComparisonRun(params: {
       summary: buildComparisonSummary(cells),
       knowledgeSnapshotHash: null,
       stagedTaskIds: null,
+      stagedComplexityBands: null,
     };
     writeComparisonRecord(record);
     return record;
