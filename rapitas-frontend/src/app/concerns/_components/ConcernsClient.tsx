@@ -14,6 +14,7 @@ import { ConcernCreateForm } from './concern-create-form';
 import { ConcernFilterBar } from './concern-filter-bar';
 import { ConcernList } from './concern-list';
 import { useConcerns } from './use-concerns';
+import ConcernSearchPanel from './search/concern-search-panel';
 
 export default function ConcernsClient() {
   const vm = useConcerns();
@@ -21,6 +22,9 @@ export default function ConcernsClient() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-6">
       <ConcernsHeader onAddClick={vm.toggleAdd} />
+
+      {/* PERF concern search — voice / keyboard / offline text fallback */}
+      <ConcernSearchPanel />
 
       {/* Add form — modal so filing keeps you on the page (continuous adding) */}
       <ConcernCreateForm
