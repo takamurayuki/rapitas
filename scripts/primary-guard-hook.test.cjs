@@ -114,6 +114,30 @@ test('real process kills stay denied despite quoting tricks', () => {
   }
 });
 
+test('search verbs may name kill words in quoted terms; real kills still deny', () => {
+  const allow = [
+    'grep -n "process_kill\\|taskkill\\|Stop-Process\\|pkill" rapitas-backend/a.test.ts | head -12',
+    "rg 'Stop-Process' .",
+    'Select-String -Pattern "taskkill" -Path a.ts',
+  ];
+  for (const c of allow) assert.equal(classify(c, ctx), null, c);
+  const deny = [
+    'grep x f; pkill bun',
+    'grep x f && Stop-Process -Name bun',
+    'grep x f | xargs taskkill /F',
+    'grep "$(pkill bun)" f',
+    'grep "`pkill bun`" f',
+    'sh -c "pkill bun"',
+    'grep "unterminated pkill',
+    "rg --pre 'pkill bun' x .",
+    'rg --pre "taskkill /F /IM bun.exe" x .',
+    'rg x --hostname-bin="pkill bun" .',
+    'grep "x" $(pkill bun)',
+    'grep -e x -f <(pkill bun)',
+  ];
+  for (const c of deny) assert.equal(classify(c, ctx), 'process_kill', c);
+});
+
 test('recordIncident appends a redacted, truncated NDJSON line with the task id', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-'));
   recordIncident(
