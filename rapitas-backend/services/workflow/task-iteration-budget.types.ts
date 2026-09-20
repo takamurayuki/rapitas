@@ -36,4 +36,10 @@ export interface IterationBudgetState {
   shouldHalt: boolean;
   haltReason?: HaltReason;
   resumeCondition?: ResumeCondition;
+  /** Judgement inputs behind a halt, for logs/transition metadata. */
+  diagnostics?: {
+    statusRepeatCount: number;
+    attempts: number;
+    repeatLoop: { cause: string; count: number } | null;
+  };
 }

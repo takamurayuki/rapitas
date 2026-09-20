@@ -3507,7 +3507,18 @@
         "roleLabel": "{role} ロールへの追記",
         "reasonLabel": "検出理由",
         "approve": "承認して適用",
-        "reject": "却下"
+        "reject": "却下",
+        "runComparison": "シャドー比較を実行",
+        "comparisonRunning": "比較実行中…",
+        "comparisonNotRun": "比較未実行",
+        "comparisonVerdict": "判定",
+        "comparisonSampleSize": "サンプル数",
+        "comparisonSuccessRateDelta": "成功率の差分",
+        "comparisonCostDelta": "コスト差分",
+        "verdictImproved": "改善",
+        "verdictRegressed": "悪化",
+        "verdictInconclusive": "判定不能",
+        "verdictInsufficientData": "データ不足"
       },
       "title": "プロンプト進化の履歴",
       "entries": "{count}件",
@@ -4444,6 +4455,22 @@
     }
   },
   "concerns": {
+    "search": {
+      "title": "懸念検索（PERF）",
+      "inputLabel": "懸念を検索",
+      "placeholder": "例: Show me PERF-related blocking concerns",
+      "submit": "検索",
+      "voiceStart": "音声入力を開始",
+      "voiceStop": "音声入力を停止",
+      "voiceOffline": "オフラインでは音声入力を利用できません。テキスト検索を使用してください。",
+      "voiceUnsupported": "このブラウザは音声入力に対応していません。テキスト検索を使用してください。",
+      "offlineNotice": "オフライン: 取得済みの結果を検索しています。",
+      "resultCount": "{count}件の懸念が見つかりました",
+      "noResults": "該当する懸念はありません。",
+      "error": "検索に失敗しました。取得済みの結果を表示します。",
+      "listLabel": "検索結果",
+      "spoken": "影響度 {score}、関連タスク {count}件、優先度 {priority}"
+    },
     "emptyState": "該当する懸念はありません。",
     "typeBug": "バグ",
     "typeRefactor": "リファクタ",

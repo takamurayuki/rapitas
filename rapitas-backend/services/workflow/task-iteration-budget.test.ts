@@ -4,7 +4,7 @@
  * resolveIterationBudgetState（純粋関数）の単体テスト。各予算軸の単独超過・
  * 優先順位・除外ガード・forgiveness budget超過だが進展ありケースを検証する。
  */
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import {
   isHaltSideTransitionCause,
   resolveIterationBudgetState,
@@ -31,6 +31,28 @@ describe('isHaltSideTransitionCause', () => {
       expect(isHaltSideTransitionCause(cause)).toBe(false);
     }
   });
+});
+
+// 運用者の .env(暫定 6/8、ATTEMPTS_BUDGET=20 等)に依存せず既定閾値で検証する
+const ENV_KEYS = [
+  'RAPITAS_ITERATION_NO_PROGRESS_STATUS_REPEAT_MIN',
+  'RAPITAS_ITERATION_NO_PROGRESS_ATTEMPTS_MIN',
+  'RAPITAS_ITERATION_ATTEMPTS_BUDGET',
+  'RAPITAS_ITERATION_TIME_BUDGET_MS',
+  'RAPITAS_TASK_BUDGET_USD',
+] as const;
+const savedEnv: Record<string, string | undefined> = {};
+beforeAll(() => {
+  for (const k of ENV_KEYS) {
+    savedEnv[k] = process.env[k];
+    delete process.env[k];
+  }
+});
+afterAll(() => {
+  for (const k of ENV_KEYS) {
+    if (savedEnv[k] === undefined) delete process.env[k];
+    else process.env[k] = savedEnv[k];
+  }
 });
 
 const BASE_NOW_MS = 1_700_000_000_000;

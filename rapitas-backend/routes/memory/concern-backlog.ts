@@ -19,6 +19,7 @@ import {
   type ConcernStatus,
   type ConcernType,
 } from '../../services/memory/concern-backlog-service';
+import { searchConcerns } from '../../services/memory/concern-search-service';
 import { closeIssueForConcern } from '../../services/github/concern-bridge';
 
 const log = createLogger('routes:concern-backlog');
@@ -50,6 +51,32 @@ export const concernBacklogRoutes = new Elysia()
     },
   )
 
+  /** Voice/text search returning scored hits (impactScore/relatedTasks/priority/pattern). */
+  .get(
+    '/concerns/search',
+    async ({ query }) => {
+      const limit = parseInt(query.limit ?? '');
+      const offset = parseInt(query.offset ?? '');
+      return searchConcerns({
+        q: query.q,
+        type: query.type ? normalizeConcernType(query.type) : undefined,
+        status: (query.status as ConcernStatus | 'all' | undefined) ?? 'open',
+        // NOTE: invalid numbers fall back to defaults (no 400), matching GET /concerns leniency.
+        limit: Number.isFinite(limit) && limit > 0 ? limit : 20,
+        offset: Number.isFinite(offset) && offset > 0 ? offset : 0,
+      });
+    },
+    {
+      query: t.Object({
+        q: t.Optional(t.String()),
+        type: t.Optional(t.String()),
+        status: t.Optional(t.String()),
+        limit: t.Optional(t.String()),
+        offset: t.Optional(t.String()),
+      }),
+    },
+  )
+
   /** Concern statistics (counts by status / type). */
   .get('/concerns/stats', async () => getConcernStats())
 
@@ -72,7 +99,13 @@ export const concernBacklogRoutes = new Elysia()
           themeId: body.themeId ?? undefined,
           source: body.source ?? 'user',
         });
-        return { success: true, id: filing.id, outcome: filing.outcome, reason: filing.reason };
+        return {
+          success: true,
+          id: filing.id,
+          outcome: filing.outcome,
+          reason: filing.reason,
+          stored: filing.stored,
+        };
       } catch (err) {
         log.error({ err }, 'Failed to file concern');
         set.status = 500;

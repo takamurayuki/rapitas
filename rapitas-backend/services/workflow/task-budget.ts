@@ -93,6 +93,33 @@ export async function getTaskSpendUsd(taskId: number): Promise<number> {
 }
 
 /**
+ * USD recorded against a task's executions that started at or after `since`
+ * (executions with no startedAt are counted — they are pending, not old).
+ *
+ * Exists for the iteration budget's HARD stop (task-iteration-budget.ts):
+ * unlike {@link resolveTaskBudgetCap}'s graduated cap, that stop must honour
+ * the iteration window, otherwise a task whose lifetime spend once crossed
+ * the budget is re-halted on every selection after a retry / answered
+ * question (task 996, 2026-09-20: $34.76 lifetime, $0 since the reset, halted
+ * again 7 minutes after resume).
+ *
+ * @param taskId - Task to total. / 対象タスクID
+ * @param since - Window start; null means the whole lifetime. / 集計開始時刻
+ * @returns Sum of costUsd within the window. / 窓内の合計コスト
+ * @throws Propagates the underlying Prisma error on a failed read. / DB読み取り失敗時に例外を伝播
+ */
+export async function getTaskSpendUsdSince(taskId: number, since: Date | null): Promise<number> {
+  const rows = await prisma.agentExecution.findMany({
+    where: {
+      session: { config: { taskId } },
+      ...(since ? { OR: [{ startedAt: null }, { startedAt: { gte: since } }] } : {}),
+    },
+    select: { costUsd: true },
+  });
+  return rows.reduce((a, r) => a + coerceCost(r.costUsd), 0);
+}
+
+/**
  * Resolve the spend ceiling for a task's NEXT phase.
  *
  * Deliberately graduated rather than a hard stop: over budget the task keeps
