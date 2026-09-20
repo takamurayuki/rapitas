@@ -27,6 +27,7 @@ import { createLogger } from '../../config/logger';
 import { getTaskSpendUsdSince } from './task-budget';
 import { detectRepeatLoop, REPEAT_LOOP_WINDOW_MS } from './incident-signature-repeat-loop';
 import { countNonAdvancingTransitions } from './task-iteration-budget-status';
+import { isAwaitingMergeWithPr, sliceAfterLastSuccess } from './task-iteration-budget-success';
 import { submitConcern } from '../memory/concern-backlog-service';
 import type {
   HaltReason,
@@ -236,7 +237,7 @@ export async function resolveIterationBudgetForTask(
   try {
     const task = await prisma.task.findUnique({
       where: { id: taskId },
-      select: { workflowStatus: true, createdAt: true },
+      select: { workflowStatus: true, createdAt: true, githubPrId: true },
     });
     if (!task) return { shouldHalt: false };
 
@@ -269,7 +270,16 @@ export async function resolveIterationBudgetForTask(
 
     // Drop the stop side's own transitions before either signal below —
     // otherwise each halt re-arms the next one (see HALT_SIDE_CAUSES).
-    const workTransitions = transitionsInWindow.filter((t) => !isHaltSideTransitionCause(t.cause));
+    const allWork = transitionsInWindow.filter((t) => !isHaltSideTransitionCause(t.cause));
+    // NOTE: bounces before a PR-created/awaiting-merge transition are not "no
+    // progress" — count only what follows the last success (task 1018, #1009).
+    const workTransitions = isAwaitingMergeWithPr({
+      workflowStatus: task.workflowStatus,
+      githubPrId: task.githubPrId,
+      lastToStatus: allWork[allWork.length - 1]?.toStatus,
+    })
+      ? []
+      : sliceAfterLastSuccess(allWork);
 
     const repeatLoop = detectRepeatLoop({
       transitions: workTransitions.map((t) => ({
