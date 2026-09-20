@@ -89,3 +89,27 @@ describe('detectTriStateDesync: themeAutoRunBusyWithOtherTask gate on Pattern B 
     expect(result?.kind).toBe('session_failed_execution_active');
   });
 });
+
+describe('detectTriStateDesync: taskHalted gate on Pattern B (#1003)', () => {
+  const patternB: TriStateDesyncInput = {
+    taskStatus: 'todo',
+    workflowStatus: 'in_progress',
+    latestSessionStatus: null,
+    latestExecutionStatus: null,
+    nowMs: NOW,
+  };
+
+  it('does NOT report todo × advanced when the task is halted by the iteration budget', () => {
+    expect(detectTriStateDesync({ ...patternB, taskHalted: true })).toBeNull();
+  });
+
+  it('does NOT report todo × advanced when the operator opted the task out of auto-run (#907)', () => {
+    expect(detectTriStateDesync({ ...patternB, autoRunExcluded: true })).toBeNull();
+  });
+
+  it('still reports todo × advanced when the task is not halted', () => {
+    expect(detectTriStateDesync({ ...patternB, taskHalted: false })?.kind).toBe(
+      'todo_status_workflow_advanced',
+    );
+  });
+});

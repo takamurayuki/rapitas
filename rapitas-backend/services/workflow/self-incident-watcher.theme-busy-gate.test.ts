@@ -164,3 +164,56 @@ describe('theme-run-state gate for stagnation/desync (#969)', () => {
     expect(new Set(query.where.themeId.in)).toEqual(new Set([25]));
   });
 });
+
+describe('Pattern B halt / auto-run opt-out gates wiring (#1003)', () => {
+  // Fresh updatedAt keeps stagnation quiet so only the todo × advanced desync can fire.
+  function desyncTask(now: number, over: Record<string, unknown> = {}) {
+    return backlogTask(now, {
+      id: 907,
+      status: 'todo',
+      updatedAt: new Date(now - 60_000),
+      ...over,
+    });
+  }
+
+  beforeEach(() => {
+    taskFindManyMock.mockReset().mockResolvedValue([]);
+    transitionFindManyMock.mockReset().mockResolvedValue([]);
+    themeAutoRunFindManyMock.mockReset().mockResolvedValue([]);
+    themeFindManyMock.mockReset().mockResolvedValue([]);
+    submitConcernMock.mockReset().mockResolvedValue(1);
+  });
+
+  test('files the desync when the task is neither halted nor opted out (baseline)', async () => {
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([desyncTask(now)]);
+
+    expect(await runSelfIncidentWatch(now)).toBe(1);
+  });
+
+  test('does NOT file the desync for an autoRunExcluded task (#907 shape)', async () => {
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([desyncTask(now, { autoRunExcluded: true })]);
+
+    expect(await runSelfIncidentWatch(now)).toBe(0);
+    expect(submitConcernMock).not.toHaveBeenCalled();
+  });
+
+  test('does NOT file the desync for a halted task', async () => {
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([desyncTask(now, { haltReason: 'repeat_cause_detected' })]);
+
+    expect(await runSelfIncidentWatch(now)).toBe(0);
+    expect(submitConcernMock).not.toHaveBeenCalled();
+  });
+
+  test('requests haltReason and autoRunExcluded in the candidate select', async () => {
+    const now = nextPassTime();
+    await runSelfIncidentWatch(now);
+
+    const select = (taskFindManyMock.mock.calls[0]?.[0] as { select: Record<string, boolean> })
+      .select;
+    expect(select.haltReason).toBe(true);
+    expect(select.autoRunExcluded).toBe(true);
+  });
+});
