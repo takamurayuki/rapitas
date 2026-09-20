@@ -64,7 +64,7 @@ describe('buildSpawnCommand', () => {
     expect(args).toEqual(['--print']);
   });
 
-  it('Windows では chcp 65001 を前置した単一コマンド文字列を返す', async () => {
+  it('Windows では chcp 65001 を前置し escapeWindowsShellArg でエスケープした引数を渡す', async () => {
     if (process.platform !== 'win32') return;
     const [command, args] = buildSpawnCommand('claude.cmd', ['--print']);
     expect(command).toContain('chcp 65001');
@@ -74,5 +74,13 @@ describe('buildSpawnCommand', () => {
       `${escapeWindowsShellArg('claude.cmd', false)} ${escapeWindowsShellArg('--print', true)}`,
     );
     expect(args).toEqual([]);
+  });
+
+  it('Windows: 引数のダブルクォートによるコマンド境界破りを再現しない', async () => {
+    if (process.platform !== 'win32') return;
+    const [command] = buildSpawnCommand('claude.cmd', ['say "hi" & calc.exe']);
+    // 修正前は `"${arg}"` で素通りし、コマンド境界が破れて calc.exe が独立コマンドとして実行され得た。
+    expect(command).not.toContain('" & calc.exe"');
+    expect(command).toContain('^^^&');
   });
 });
