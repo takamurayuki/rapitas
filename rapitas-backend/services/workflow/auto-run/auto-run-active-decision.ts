@@ -51,6 +51,27 @@ import { hasRunawayCancelLoop, userActedAfter } from './auto-run-recovery-histor
 const log = createLogger('theme-auto-run-scheduler');
 
 /**
+ * Last-chance guard before the backstop blocks a task: requeue it when it has
+ * never executed. The first lookup can have failed (fail-closed) or raced, so
+ * a "has run" verdict is re-checked once; a confirmed verdict is not repeated.
+ *
+ * @param prisma - Prisma client / Prismaクライアント
+ * @param taskId - Task about to be blocked / ブロック直前のタスク
+ * @param themeId - Owning theme / テーマID
+ * @param knownNeverExecuted - Verdict from the earlier lookup / 先行照会の判定
+ * @returns true when requeued (do not block) / 復帰したら true
+ */
+async function requeueIfNeverExecuted(
+  prisma: PrismaClient,
+  taskId: number,
+  themeId: number,
+  knownNeverExecuted: boolean,
+): Promise<boolean> {
+  const neverExecuted = knownNeverExecuted || (await taskNeverExecuted(prisma, taskId));
+  return neverExecuted && (await requeueUnstartedTask(prisma, taskId, themeId));
+}
+
+/**
  * Advance a running theme that has a current task: resolve the current task's
  * outcome (hang backstop / in-flight wait / terminal resolution) and, once it
  * is resolved, continue into next-task selection.
@@ -146,7 +167,7 @@ export async function advanceActiveTaskLocked(
               : 'execution heartbeat is fresh'
         } — deferring hang backstop (theme ${themeId})`,
       );
-    } else if (neverExecuted && (await requeueUnstartedTask(prisma, currentTaskId, themeId))) {
+    } else if (await requeueIfNeverExecuted(prisma, currentTaskId, themeId, neverExecuted)) {
       // Past the 3x ceiling without ever running: a stuck queue, not a hung
       // agent. Requeue (bounded) instead of blocking; setCurrentTask resets
       // the tenure clock.

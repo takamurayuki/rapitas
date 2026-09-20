@@ -9,11 +9,14 @@ import { mockStopTaskTreeAgents } from './theme-auto-run-scheduler.test-support.
  * Run alone: bun's mock.module is process-global.
  */
 let neverExecuted = true;
+// Optional per-call verdicts (consumed first) to model a lookup that changes between calls.
+let verdictQueue: boolean[] = [];
 let requeueResult = true;
 const mockRequeue = mock((_p: unknown, _t: number, _th: number) => Promise.resolve(requeueResult));
 mock.module('./auto-run-execution-presence', () => ({
   hasAnyExecution: () => Promise.resolve(!neverExecuted),
-  taskNeverExecuted: () => Promise.resolve(neverExecuted),
+  taskNeverExecuted: () =>
+    Promise.resolve(verdictQueue.length > 0 ? (verdictQueue.shift() as boolean) : neverExecuted),
 }));
 mock.module('./requeue-unstarted-task', () => ({
   requeueUnstartedTask: mockRequeue,
@@ -43,6 +46,7 @@ const overWall = (mult: number) =>
 
 beforeEach(() => {
   neverExecuted = true;
+  verdictQueue = [];
   requeueResult = true;
   resetAllMocks();
   mockRequeue.mockClear();
@@ -82,6 +86,36 @@ describe('advanceTheme — hang backstop on never-executed tasks (task 1007)', (
     expect(mockNotifyHangBackstop).toHaveBeenCalled();
     expect(mockTaskUpdate).toHaveBeenCalled();
     expect(mockOnTaskFailed).toHaveBeenCalled();
+    expect(mockRequeue).toHaveBeenCalledTimes(1);
+  });
+
+  it('requeues at the last-chance guard when the first lookup said executed but a re-check says never (not blocked)', async () => {
+    verdictQueue = [false, true];
+    await internal(scheduler).advanceTheme(1, 984, 'priority', 1, overWall(1.6));
+
+    expect(mockRequeue).toHaveBeenCalledTimes(1);
+    expect(mockNotifyHangBackstop).not.toHaveBeenCalled();
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+    expect(mockOnTaskFailed).not.toHaveBeenCalled();
+  });
+
+  it('blocks when the guard re-check still reports executed', async () => {
+    verdictQueue = [false, false];
+    await internal(scheduler).advanceTheme(1, 984, 'priority', 1, overWall(1.6));
+
+    expect(mockRequeue).not.toHaveBeenCalled();
+    expect(mockNotifyHangBackstop).toHaveBeenCalled();
+    expect(mockOnTaskFailed).toHaveBeenCalled();
+  });
+
+  it('defers a follow-up task (985) under the same queue-wait conditions', async () => {
+    mockGetThemeActiveQueueItems.mockResolvedValue([{ id: 3962, taskId: 985, status: 'queued' }]);
+    await internal(scheduler).advanceTheme(1, 985, 'priority', 1, overWall(1.6));
+
+    expect(mockNotifyHangBackstop).not.toHaveBeenCalled();
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+    expect(mockOnTaskFailed).not.toHaveBeenCalled();
+    expect(mockRequeue).not.toHaveBeenCalled();
   });
 
   it('still force-stops a task that HAS executed (regression)', async () => {
