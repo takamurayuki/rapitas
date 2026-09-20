@@ -88,6 +88,12 @@ mock.module('./required-merge-hold', () => ({
   AWAITING_REQUIRED_MERGE_CAUSE: 'verify_awaiting_required_merge',
 }));
 
+const inFlightWait = mock(async () => true);
+mock.module('./pr-in-flight-wait', () => ({
+  waitForInFlightPr: inFlightWait,
+  PR_CREATION_IN_FLIGHT_ERROR: 'PR作成が別プロセスで進行中のためスキップしました',
+}));
+
 const { resolveVerifyPhaseStatus } = await import('./workflow-cli-executor-verify-gate');
 
 /** Minimal passing-verify input: PR already linked, completion gate allows. */
@@ -216,6 +222,42 @@ describe('resolveVerifyPhaseStatus — 完了と必須マージ待ちの分岐',
     );
     expect(recordTransition).not.toHaveBeenCalledWith(
       expect.objectContaining({ cause: 'verify_passed' }),
+    );
+  });
+
+  // task 1027 (2026-09-21): HTTP 保存側が PR 作成ロックを持ったまま base 同期中に、
+  // CLI 側のエピローグが「PR なし」でタスクをブロックし、9 秒後にできた PR #786 は
+  // in-progress しか見ない auto-merge watcher から不可視になった。
+  test('PR 作成が別プロセスで進行中なら、ブロックせず PR の紐付けを待って完了する（task 1027）', async () => {
+    linkedPr.mockReset().mockResolvedValue(false);
+    autoCommit.mockResolvedValueOnce({
+      requested: { autoCreatePR: true },
+      autoPRResult: { success: false, error: 'PR作成が別プロセスで進行中のためスキップしました' },
+    });
+    inFlightWait.mockReset().mockResolvedValue(true);
+
+    const status = await resolveVerifyPhaseStatus(params());
+
+    expect(status).toBe('completed');
+    expect(inFlightWait).toHaveBeenCalledWith(895);
+    expect(recordTransition).not.toHaveBeenCalledWith(
+      expect.objectContaining({ cause: 'verify_pr_not_created' }),
+    );
+  });
+
+  test('待っても PR が紐付かなければ従来どおり verify_pr_not_created でブロックする', async () => {
+    linkedPr.mockReset().mockResolvedValue(false);
+    autoCommit.mockResolvedValueOnce({
+      requested: { autoCreatePR: true },
+      autoPRResult: { success: false, error: 'PR作成が別プロセスで進行中のためスキップしました' },
+    });
+    inFlightWait.mockReset().mockResolvedValue(false);
+
+    const status = await resolveVerifyPhaseStatus(params());
+
+    expect(status).toBe('verify_done');
+    expect(recordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({ cause: 'verify_pr_not_created' }),
     );
   });
 

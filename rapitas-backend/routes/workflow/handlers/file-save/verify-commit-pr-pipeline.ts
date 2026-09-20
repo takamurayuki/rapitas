@@ -22,6 +22,10 @@ import { recordTransition } from '../../../../services/workflow/transition-recor
 import { markLatestExecutionFailed } from './shared';
 import { handleVerifyGateBlocked } from './verify-commit-pr-gate-blocked';
 import { runVerifyCompletionSideEffects } from './verify-commit-pr-side-effects';
+import {
+  waitForInFlightPr,
+  PR_CREATION_IN_FLIGHT_ERROR,
+} from '../../../../services/workflow/pr-in-flight-wait';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -162,6 +166,12 @@ export async function runVerifyCommitPrPipeline(params: {
       ? autoCommitPRResult.requested.autoCreatePR
       : true; // requested unset (e.g. threw) → default flow expects a PR
     let prSatisfied = pr?.success === true;
+    // Lost the PR-creation lock to the CLI executor's epilogue: the PR is being
+    // made right now — wait for it rather than blocking the task (task 1027).
+    if (prRequested && !prSatisfied && pr?.error === PR_CREATION_IN_FLIGHT_ERROR) {
+      log.info({ taskId }, '[Workflow] PR creation in flight elsewhere — waiting');
+      prSatisfied = await waitForInFlightPr(taskId);
+    }
     if (prRequested && !prSatisfied) {
       const linked = await prisma.gitHubPullRequest
         .findFirst({ where: { linkedTaskId: taskId }, select: { id: true } })

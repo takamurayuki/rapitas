@@ -1,4 +1,4 @@
-import { generatedSyncCheck } from './generated-sync-check';
+import { generatedSyncCheck, fileSizeRatchetCheck } from './generated-sync-check';
 export { generatedSyncCheck } from './generated-sync-check';
 import { buildFileCommands } from './command-batches';
 /**
@@ -53,7 +53,8 @@ export interface VerificationCheck {
     | 'tamper'
     | 'acceptance'
     | 'schema-change'
-    | 'red-state';
+    | 'red-state'
+    | 'file-size';
   /** Whether the check was applicable and actually executed. */
   ran: boolean;
   /** True when the check passed (no new failures in the changed files). */
@@ -937,7 +938,6 @@ export async function runAutomatedVerification(
   options: VerificationOptions = {},
 ): Promise<VerificationResult> {
   const changedFiles = await getChangedCodeFiles(workdir, options.preferredBaseBranch);
-
   // Full diff (not just code files): scope violations and tampering can live in docs/config/CI too.
   const allChanged = await getAllChangedFiles(workdir, options.preferredBaseBranch);
   const planFiles = options.planContent ? parsePlanFiles(options.planContent) : null;
@@ -954,7 +954,6 @@ export async function runAutomatedVerification(
   // An empty diff skips scoped static commands, but does not prove that a
   // configured runtime works (for example after restoring a merged task).
   // Continue to the runtime stage and preserve unavailable/failed evidence.
-
   const groups = groupByProjectRoot(workdir, changedFiles);
   const lintParts: VerificationCheck[] = [];
   const typeParts: VerificationCheck[] = [];
@@ -981,10 +980,10 @@ export async function runAutomatedVerification(
     coverage,
     options.preferredBaseBranch,
   );
-  // CI-parity checks: prettier formatting and Prisma generated-artifact sync
-  // both hard-fail CI's Lint Code job, so catching them here turns a full
-  // ci_repair round into an in-phase fix.
+  // CI-parity checks (prettier, Prisma generated-artifact sync, line-limit
+  // ratchet): each hard-fails CI, so catching it here saves a ci_repair round.
   const generatedSync = generatedSyncCheck(allChanged);
+  const fileSize = await fileSizeRatchetCheck(workdir, allChanged);
   // Acceptance self-check (ADVISORY, task 617): criterion↔diff token matching
   // over the FULL diff (criteria may reference docs/config, not just code).
   const acceptance =
@@ -1001,6 +1000,7 @@ export async function runAutomatedVerification(
     mergeChecks('test', testParts),
     ...(formatParts.length > 0 ? [mergeChecks('format', formatParts)] : []),
     ...(generatedSync ? [generatedSync] : []),
+    ...(fileSize ? [fileSize] : []),
     ...hardGateChecks,
     ...(coverage ? [coverage] : []),
     ...(redState ? [redState] : []),
