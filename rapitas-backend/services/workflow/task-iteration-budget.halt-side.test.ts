@@ -18,10 +18,15 @@ let transitions: Array<{
   createdAt: Date;
   actor: string;
   invariantViolation: null;
+  fromStatus: string;
   toStatus: string;
 }> = [];
 
+// The budget module's import chain (task-iteration-budget-status → executor
+// helpers → config index) needs every export the real modules carry: a partial
+// mock throws "export not found" at load time when this file runs on its own.
 mock.module('../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
   prisma: {
     task: {
       findUnique: mock(() =>
@@ -35,10 +40,16 @@ mock.module('../../config/database', () => ({
     },
   },
 }));
+const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 mock.module('../../config/logger', () => ({
-  createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
+  createLogger: () => noopLogger,
+  logger: noopLogger,
+  getBackendLogFilePath: () => '/tmp/backend.log',
 }));
-mock.module('./task-budget', () => ({ getTaskSpendUsd: () => Promise.resolve(0) }));
+mock.module('./task-budget', () => ({
+  getTaskSpendUsd: () => Promise.resolve(0),
+  getTaskSpendUsdSince: () => Promise.resolve(0),
+}));
 mock.module('../memory/concern-backlog-service', () => ({
   submitConcern: () => Promise.resolve({ id: 1, outcome: 'created' as const }),
 }));
@@ -51,6 +62,9 @@ function makeTransitions(cause: string, n: number) {
     createdAt: new Date(NOW_MS - 60_000 - i * 1000),
     actor: 'system',
     invariantViolation: null,
+    // Same-status re-record: countNonAdvancingTransitions (task 994) only counts
+    // rows that carry a fromStatus, so the fixture must state it explicitly.
+    fromStatus: 'verify_done',
     toStatus: 'verify_done',
   }));
 }

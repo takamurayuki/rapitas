@@ -19,7 +19,10 @@ let transitions: Array<{
 }> = [];
 let attempts = 4;
 
+// Partial mocks throw "export not found" at load time when this file runs on
+// its own (the budget module's import chain reaches the config index).
 mock.module('../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
   prisma: {
     task: { findUnique: mock(() => Promise.resolve(taskRow)) },
     agentExecution: { count: mock(() => Promise.resolve(attempts)) },
@@ -29,10 +32,16 @@ mock.module('../../config/database', () => ({
     },
   },
 }));
+const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 mock.module('../../config/logger', () => ({
-  createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
+  createLogger: () => noopLogger,
+  logger: noopLogger,
+  getBackendLogFilePath: () => '/tmp/backend.log',
 }));
-mock.module('./task-budget', () => ({ getTaskSpendUsd: () => Promise.resolve(0) }));
+mock.module('./task-budget', () => ({
+  getTaskSpendUsd: () => Promise.resolve(0),
+  getTaskSpendUsdSince: () => Promise.resolve(0),
+}));
 mock.module('../memory/concern-backlog-service', () => ({
   submitConcern: () => Promise.resolve({ id: 1, outcome: 'created' as const }),
 }));
