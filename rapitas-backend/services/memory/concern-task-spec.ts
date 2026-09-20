@@ -45,10 +45,16 @@ function logHealthSpec(): ConcernTaskSpec {
       '抑制する場合は、なぜ何も壊れていないのかを抑制ルールに明記すること。',
       '判定に必要な情報が揃わない場合は、推測で修正せず調査結果を報告して止まること。',
     ],
+    // NOTE: Criteria 1-2 name the artifact they live in (research.md /
+    // verify.md) on purpose: the diff-review judge only sees the git diff, and
+    // with the earlier wording ("…が特定されている") it failed tasks 944/961/983
+    // for "the file:line is not shown in the diff". Naming the artifact puts
+    // them under the judge's existing "workflow artifacts never appear in the
+    // diff → out of jurisdiction" rule; criterion 3 is the one it scores.
     acceptanceCriteria: [
-      'ログを出力している箇所が ファイル:行 で特定されている',
-      '欠陥か正常動作かの判定と、その根拠が示されている',
-      '欠陥なら修正が入っている、正常動作なら理由付きの抑制ルールが登録されている',
+      'research.md に、ログを出力している箇所が ファイル:行 で記録されている',
+      'research.md または verify.md に、欠陥か正常動作かの判定とその根拠が記録されている',
+      '欠陥なら修正が差分に入っている、正常動作なら理由付きの抑制ルールが差分に登録されている',
     ],
   };
 }

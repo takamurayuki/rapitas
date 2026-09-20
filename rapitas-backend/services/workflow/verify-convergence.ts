@@ -211,7 +211,14 @@ export function stripUndeterminableIndictments(reason: string, criteria: string[
   if (all.length === 0) return all;
   const marked = new Set<number>();
   const decisive = new Set<number>();
-  for (const line of reason.split(/\r?\n/)) {
+  // The diff-review verdict arrives as ONE line — automated-verifier joins the
+  // judge's reasons with " / " — so a newline split saw a single segment, and
+  // one "要確認:" side remark anywhere in it marked EVERY indicted criterion
+  // undeterminable. Measured 2026-09-20: task 1007's four judge bounces all
+  // indicted criterion 3 decisively, all carried a "要確認" aside, and the
+  // cutoff never fired (nor for 1009's five, 1014's three). Split on the join
+  // separator as well so each finding is judged on its own.
+  for (const line of reason.split(/\r?\n| \/ /)) {
     const target = UNDETERMINABLE_MARKERS.some((m) => line.includes(m)) ? marked : decisive;
     for (const n of identifyIndictedCriteria(line, criteria)) target.add(n);
   }

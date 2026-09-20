@@ -319,6 +319,16 @@ describe('指摘集合の推移判定 (task 998: 996 / 995 実測再現)', () =>
   test('判定行にも現れる基準は除外しない', () => {
     expect(stripUndeterminableIndictments('基準1 が未対応\n基準1 は未検証', C)).toEqual([1]);
   });
+
+  // task 1007 実データ（2026-09-20）: ジャッジの reasons は " / " 結合の1行で届く。
+  // 別項目の「要確認:」が同じ行にあるだけで基準3の指摘まで判定不能扱いになり、
+  // 4 回同じ基準3を指摘されても cutoff が一度も発火しなかった。
+  test('" / " 結合された1行の理由は項目ごとに判定不能を切り分ける（task 1007）', () => {
+    const r =
+      '差分レビュー不合格: 基準3 の全経路ガードが不完全（force-stop 分岐にしか無い） / 要確認: 既存コードに withinHardCeiling があるか';
+    expect(stripUndeterminableIndictments(r, C)).toEqual([3]);
+    expect(detectNonConvergence(r, [r, r], C).cutoff).toBe(true);
+  });
 });
 
 describe('resolveNonConvergenceThreshold', () => {
