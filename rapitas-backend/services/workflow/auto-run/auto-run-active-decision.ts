@@ -37,6 +37,8 @@ import {
 } from './auto-run-notifications';
 import { isTaskVanishedMessage } from '../queue-vanished-task-policy';
 import { releaseStaleActiveItems } from './auto-run-stall-guard';
+import { isTaskTerminalForQueue } from '../queue-terminal-task-guard';
+import { isCancelledCurrent, releaseCancelledCurrent } from './auto-run-terminal-current';
 import { broadcastAutoRunUpdateImpl } from './auto-run-lifecycle';
 import { stopTaskTreeAgents } from '../../agents/stop-task-agents';
 import { selectAndEnqueueNextTask } from './auto-run-advance-select';
@@ -302,6 +304,21 @@ export async function advanceActiveTaskLocked(
     return;
   }
 
+  // Cancelled current task (task 1009): release the slot and select the next
+  // task instead of falling into the re-enqueue branch below.
+  if (isCancelledCurrent(task) && terminalItem?.status !== 'completed') {
+    await releaseCancelledCurrent(prisma, themeId, currentTaskId);
+    broadcastAutoRunUpdateImpl(themeId);
+    await selectAndEnqueueNextTask(
+      prisma,
+      themeId,
+      order,
+      Math.max(0, globalActive - 1),
+      barrierHoldSince,
+    );
+    return;
+  }
+
   const isCompleted =
     terminalItem?.status === 'completed' ||
     task?.status === 'done' ||
@@ -430,6 +447,33 @@ export async function advanceActiveTaskLocked(
     });
     await setCurrentTask(themeId, null);
     broadcastAutoRunUpdateImpl(themeId);
+    return;
+  }
+
+  // Re-check right before re-enqueueing: the task may have turned terminal since the
+  // snapshot above. Never log "re-enqueued" for a terminal task (task 1009).
+  const latest = await resolveTaskWorkflowState(currentTaskId);
+  if (isTaskTerminalForQueue(latest)) {
+    if (isCancelledCurrent(latest)) {
+      await releaseCancelledCurrent(prisma, themeId, currentTaskId);
+    } else {
+      await onTaskCompleted(themeId); // done/completed: same bookkeeping as isCompleted above
+      logCycleEvent('task.completed', {
+        theme: themeId,
+        task: currentTaskId,
+        ok: true,
+        via: 'task_status_recheck',
+        msg: 'task completed before re-enqueue — advancing to next',
+      });
+    }
+    broadcastAutoRunUpdateImpl(themeId);
+    await selectAndEnqueueNextTask(
+      prisma,
+      themeId,
+      order,
+      Math.max(0, globalActive - 1),
+      barrierHoldSince,
+    );
     return;
   }
 
