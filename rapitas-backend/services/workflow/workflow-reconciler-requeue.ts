@@ -71,6 +71,8 @@ export async function requeueOrphanTasks(
       where: {
         status: 'in-progress',
         parentId: null,
+        // halt (iteration budget) leaves status untouched; never re-queue a halted task.
+        haltReason: null,
         updatedAt: { lt: staleBefore, gt: notOlderThan },
       },
       select: { id: true, title: true, workflowStatus: true },
@@ -194,6 +196,8 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
         status: 'blocked',
         parentId: null,
         themeId: { in: armedThemeIds },
+        // halted tasks stay excluded until explicitly resumed (mirrors auto-run-advance-select).
+        haltReason: null,
         updatedAt: { lt: settleBefore, gt: notOlderThan },
       },
       select: { id: true, workflowStatus: true },
