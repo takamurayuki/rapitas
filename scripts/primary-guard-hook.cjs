@@ -67,19 +67,63 @@ function classify(command, ctx) {
   return cwdInPrimary && MUTATION.test(norm) ? 'primary_mutation' : null;
 }
 
+// `<<<` (here-string) and `1<<2` (shift) are excluded by the lookarounds; anything that still
+// mis-parses as a heredoc is caught by the unterminated-body fallback in stripProse.
+const HEREDOC_RE = /(?<!<)<<(?!<)-?\s*(?:'([^']+)'|"([^"$`]+)"|\\(\w+)|(\w+))/g;
+
+/**
+ * Keep only the parts of an expanding (unquoted-delimiter) heredoc body that the shell executes.
+ *
+ * @param body - Heredoc body text / heredoc 本文
+ * @returns `$(...)` (nested, multi-line) and backtick spans joined by newlines / 実行されるスパン
+ */
+function extractExpansions(body) {
+  const out = [];
+  for (let i = 0; i < body.length; i++) {
+    if (body[i] === '\\') {
+      i++; // an escaped `$` or backtick is literal text
+    } else if (body[i] === '$' && body[i + 1] === '(') {
+      let depth = 0;
+      let j = i + 1;
+      for (; j < body.length; j++) {
+        if (body[j] === '(') depth++;
+        else if (body[j] === ')' && --depth === 0) break;
+      }
+      out.push(body.slice(i, j + 1));
+      i = j;
+    } else if (body[i] === '`') {
+      const j = body.indexOf('`', i + 1);
+      const last = j < 0 ? body.length - 1 : j;
+      out.push(body.slice(i, last + 1));
+      i = last;
+    }
+  }
+  return out.join('\n');
+}
+
 /** Drop literal heredoc bodies and `git commit -m "..."` messages before pattern matching. */
 function stripProse(command) {
   const lines = command.split(/\r?\n/);
   const kept = [];
-  let end = null;
-  for (const line of lines) {
-    if (end !== null) {
-      if (line.trim() === end) end = null;
-      continue;
-    }
-    const m = /<<-?\s*(?:'([^']+)'|"([^"$`]+)")/.exec(line);
-    if (m) end = m[1] ?? m[2];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i++];
     kept.push(line);
+    // Quoted (`'EOF'`, `"EOF"`) and backslash-escaped (`\EOF`) delimiters disable expansion;
+    // a bare delimiter does not. One line may open several heredocs (`cat <<A <<B`).
+    for (const m of line.matchAll(HEREDOC_RE)) {
+      const end = m[1] ?? m[2] ?? m[3] ?? m[4];
+      let j = i;
+      // trim() ends the body no later than the shell would, so code is never skipped.
+      while (j < lines.length && lines[j].trim() !== end) j++;
+      // Unterminated: not really a heredoc — keep the rest as code (fail closed).
+      if (j >= lines.length) break;
+      if (m[4] !== undefined) {
+        const spans = extractExpansions(lines.slice(i, j).join('\n'));
+        if (spans) kept.push(spans);
+      }
+      i = j + 1;
+    }
   }
   return kept
     .join('\n')
