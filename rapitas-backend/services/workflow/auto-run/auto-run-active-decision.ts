@@ -199,7 +199,7 @@ export async function advanceActiveTaskLocked(
       log.warn(
         `[ThemeAutoRunScheduler] Task ${currentTaskId} exceeded wall budget (${Math.round(
           MAX_TASK_WALL_MS / 60000,
-        )}min) — force-stopping (theme ${themeId}; neverExecuted=${neverExecuted}, sinceProgress=${Math.round(sinceProgressMs / 1000)}s)`,
+        )}min) — force-stopping (theme ${themeId}; neverExecuted=${neverExecuted}, queueWaitOrLive=${executionIsLive}, withinHardCeiling=${withinHardCeiling}, sinceProgress=${Math.round(sinceProgressMs / 1000)}s)`,
       );
       logCycleEvent('task.hang_backstop', {
         theme: themeId,
