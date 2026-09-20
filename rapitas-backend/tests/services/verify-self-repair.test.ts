@@ -162,6 +162,7 @@ describe('attemptVerifyRepair', () => {
     repairState = { status: 'in-progress', workflowStatus: 'in_progress', updatedAt: evaluatedAt };
     queuedItem.mockReset().mockResolvedValue(null);
     delete process.env.RAPITAS_MAX_VERIFY_REPAIRS;
+    delete process.env.RAPITAS_VERIFY_NONCONVERGENCE_THRESHOLD;
     mockPrisma.workflowTransition.count.mockReset();
     mockPrisma.workflowFile.findFirst.mockReset();
     mockPrisma.task.updateMany.mockReset();
@@ -530,6 +531,7 @@ describe('attemptVerifyRepair', () => {
 
   test('非収束: A→B→A（同一受入基準2回指摘）で bounce せずエスカレーションすること（受入基準1・2）', async () => {
     withCriteria();
+    process.env.RAPITAS_VERIFY_NONCONVERGENCE_THRESHOLD = '2'; // 既定3だと2回指摘では打ち切らない
     mockPrisma.workflowTransition.findMany.mockResolvedValue(priorRows(R1, R2));
 
     const r = await attemptVerifyRepair(614, 'in_progress', R3, 'v');
@@ -550,11 +552,18 @@ describe('attemptVerifyRepair', () => {
     expect(recordTransition).toHaveBeenCalledTimes(1);
     const rt = recordTransition.mock.calls[0][0] as {
       cause: string;
-      metadata: { criterionIndex: number; count: number; reason: string };
+      metadata: {
+        criterionIndex: number;
+        count: number;
+        reason: string;
+        previousCriteria: number[];
+        currentCriteria: number[];
+      };
     };
     expect(rt.cause).toBe('verify_repair_non_convergence');
     expect(rt.metadata.criterionIndex).toBe(1);
     expect(rt.metadata.count).toBe(2);
+    expect([rt.metadata.previousCriteria, rt.metadata.currentCriteria]).toEqual([[2], [1]]);
     expect(rt.metadata.reason).toBe(R3);
     // task 705: cutoffRecorded=true tells callers this call already recorded
     // its own terminal transition — they must NOT record verify_validation_failed too.

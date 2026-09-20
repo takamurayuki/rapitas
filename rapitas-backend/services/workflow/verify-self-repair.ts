@@ -183,11 +183,11 @@ export async function attemptVerifyRepair(
     return { bounced: false, cutoffRecorded: true };
   }
 
-  // Non-convergence cutoff (task 619): same criterion flagged 2+ times (not
-  // necessarily consecutive, e.g. A→B→A) means treading water — escalate.
+  // Non-convergence cutoff (task 619): same criterion flagged threshold+ times
+  // (not necessarily consecutive) with a non-shrinking indicted set means treading water — escalate.
   const verdict = await detectRepairNonConvergence(taskId, reason);
   if (verdict.cutoff) {
-    const detail = `受入基準${verdict.criterionIndex}が${verdict.count}回の差し戻しで一度も対応されていません。タスク分割または仕様の見直しが必要です。`;
+    const detail = `受入基準${verdict.criterionIndex}が${verdict.count}回の差し戻しで指摘され、指摘集合が減っていません。タスク分割または仕様の見直しが必要です。`;
     const taskRow = await prisma.task
       .findUnique({ where: { id: taskId }, select: { title: true, themeId: true } })
       .catch(() => null);
@@ -217,13 +217,21 @@ export async function attemptVerifyRepair(
       metadata: {
         criterionIndex: verdict.criterionIndex,
         count: verdict.count,
+        previousCriteria: verdict.previousCriteria,
+        currentCriteria: verdict.currentCriteria,
         reason,
       },
     }).catch((err) =>
       log.warn({ err, taskId }, '[verify-repair] Failed to record non-convergence transition'),
     );
     log.warn(
-      { taskId, criterionIndex: verdict.criterionIndex, count: verdict.count },
+      {
+        taskId,
+        criterionIndex: verdict.criterionIndex,
+        count: verdict.count,
+        previousCriteria: verdict.previousCriteria,
+        currentCriteria: verdict.currentCriteria,
+      },
       '[verify-repair] Repair loop not converging — cutting off (caller should block)',
     );
     return { bounced: false, cutoffRecorded: true };
