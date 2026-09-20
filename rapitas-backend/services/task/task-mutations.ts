@@ -15,6 +15,7 @@ import { buildNotificationI18n } from '../communication/notification-i18n';
 import { onGeneratedTaskCompleted } from '../scheduling/recurring-task-service';
 import { createSubtask, createParentTask } from './task-create-helpers';
 import { syncParentStatusFromSubtasks } from './task-parent-status-sync';
+import { releaseCurrentArgs, releaseThemeCurrentOnTerminal } from './task-terminal-current-release';
 import { realtimeService } from '../communication/realtime-service';
 import { syncTaskToCalendar } from '../scheduling/task-calendar-sync';
 import {
@@ -227,7 +228,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
     });
   }
 
-  await prisma.task.update({
+  const updateArgs = {
     where: {
       id: taskId,
       ...((fields.status === 'blocked' || leavingDone) && { updatedAt: currentTask.updatedAt }),
@@ -283,7 +284,22 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
         acceptanceCriteria: JSON.stringify(fields.acceptanceCriteria),
       }),
     },
-  });
+  };
+  // NOTE: atomic by design (acceptance 1) — a failed release also fails the status update.
+  // Terminal status: release the theme's currentTaskId in the SAME transaction (task 1009).
+  if (
+    (fields.status === 'done' || fields.status === 'cancelled') &&
+    typeof prisma.$transaction === 'function'
+  ) {
+    // Batch form: PrismaPromises are lazy, so nothing runs until $transaction executes them.
+    await prisma.$transaction([
+      prisma.task.update(updateArgs),
+      prisma.themeAutoRun.updateMany(releaseCurrentArgs(taskId)),
+    ]);
+  } else {
+    await prisma.task.update(updateArgs);
+    await releaseThemeCurrentOnTerminal(prisma, taskId, fields.status);
+  }
 
   // Update labels
   if (labelIds !== undefined) {
