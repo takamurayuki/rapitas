@@ -5,7 +5,7 @@
  */
 import { describe, expect, mock, test } from 'bun:test';
 
-let pool: Array<{ id: number; title: string; forgettingStage?: string }> = [];
+let pool: Array<{ id: number; title: string; content?: string; forgettingStage?: string }> = [];
 let lastWhere: Record<string, unknown> | null = null;
 mock.module('../../config/database', () => ({
   prisma: {
@@ -30,6 +30,7 @@ const {
   bigramJaccard,
   findNearDuplicate,
   stripTitleMarkers,
+  isContentRelated,
 } = await import('./theme-saturation');
 
 describe('lcsLen', () => {
@@ -197,6 +198,110 @@ describe('findSaturatedTheme — minJaccardで無関係トピックの誤爆を�
       minJaccard: 0.2,
     });
 
+    expect(anchor).toBe(11);
+  });
+});
+
+describe('isContentRelated — detail の二次関連性チェック (#967)', () => {
+  test('共有バイグラムが閾値未満の無関係な detail は false', () => {
+    const a =
+      '決済APIのリトライ処理でタイムアウト後に再送すると二重課金が発生する場合がある。冪等キーの検証を強化する必要がある。';
+    const b =
+      'PDF出力機能で帳票を生成すると日本語フォントが埋め込まれず文字化けする。フォント埋め込み設定の見直しが必要。';
+    expect(isContentRelated(a, b)).toBe(false);
+  });
+  test('共有バイグラムが閾値以上の関連する detail は true', () => {
+    const a =
+      '境界値テスト自動生成ツールがnullケース周りで例外を出しCIが失敗する不具合を再修正する。';
+    const b =
+      '境界値テスト自動生成ツールがnullケースで例外を投げてCIが落ちる。生成ロジックのnull分岐を確認する必要がある。';
+    expect(isContentRelated(a, b)).toBe(true);
+  });
+  test('detail が未指定/短すぎる場合は判定不能としてフォールバック true', () => {
+    expect(isContentRelated(undefined, '何らかの詳細本文')).toBe(true);
+    expect(isContentRelated('短い', '別の短い文')).toBe(true);
+  });
+});
+
+describe('findSaturatedTheme — newDetail による無関係アンカー誤ヒットの防止 (#967)', () => {
+  const candidates = [
+    {
+      id: 301,
+      title: '[Bug] PDF出力処理が正しく動作しない',
+      content:
+        'PDF出力機能で帳票を生成すると日本語フォントが埋め込まれず文字化けする。フォント埋め込み設定の見直しが必要。',
+    },
+    {
+      id: 302,
+      title: '[Bug] メール送信処理が正しく動作しない',
+      content:
+        'メール送信バッチが添付ファイルサイズ上限を超えると無言で送信を諦めてしまう。エラーログにも記録が残らない。',
+    },
+    {
+      id: 303,
+      title: '[Bug] キャッシュ削除処理が正しく動作しない',
+      content:
+        'キャッシュ削除ジョブが並行実行されるとロック競合で片方が失敗し、古いキャッシュが残り続けることがある。',
+    },
+  ];
+  const newTitle = '[Bug] 決済リトライ処理が正しく動作しない';
+  const newDetail =
+    '決済APIのリトライ処理でタイムアウト後に再送すると二重課金が発生する場合がある。冪等キーの検証を強化する必要がある。';
+
+  test('タイトルのみでは salient+minJaccard を満たし飽和扱いになる（newDetail 未指定の従来挙動）', async () => {
+    pool = candidates;
+    const anchor = await findSaturatedTheme(newTitle, {
+      sourceType: 'concern',
+      cap: 3,
+      salient: 5,
+      openConcernOnly: true,
+      minJaccard: 0.2,
+    });
+    expect(anchor).toBe(301);
+  });
+
+  test('newDetail を渡すと内容が無関係なため飽和と判定しない（誤ヒット解消）', async () => {
+    pool = candidates;
+    const anchor = await findSaturatedTheme(newTitle, {
+      sourceType: 'concern',
+      cap: 3,
+      salient: 5,
+      openConcernOnly: true,
+      minJaccard: 0.2,
+      newDetail,
+    });
+    expect(anchor).toBeNull();
+  });
+
+  test('本文も強く関連する真の重複クラスタは newDetail 指定時も引き続き飽和と判定する（回帰）', async () => {
+    pool = [
+      {
+        id: 11,
+        title: '[Bug] 境界値テスト自動生成が壊れる',
+        content:
+          '境界値テスト自動生成ツールがnullケースで例外を投げてCIが落ちる。生成ロジックのnull分岐を確認する必要がある。',
+      },
+      {
+        id: 12,
+        title: '[Idea] 境界値テスト自動生成の改善',
+        content:
+          '境界値テスト自動生成ツールの出力にnullケースが含まれずCIで例外検知が漏れる問題を改善したい。',
+      },
+      {
+        id: 13,
+        title: '[改善] 境界値テスト自動生成の整理',
+        content: '境界値テスト自動生成ツールのnullケース処理を整理し、CIでの例外の見逃しを防ぐ。',
+      },
+    ];
+    const anchor = await findSaturatedTheme('[Bug] 境界値テスト自動生成をやり直す', {
+      sourceType: 'concern',
+      cap: 3,
+      salient: 5,
+      openConcernOnly: true,
+      minJaccard: 0.2,
+      newDetail:
+        '境界値テスト自動生成ツールがnullケース周りで例外を出しCIが失敗する不具合を再修正する。',
+    });
     expect(anchor).toBe(11);
   });
 });

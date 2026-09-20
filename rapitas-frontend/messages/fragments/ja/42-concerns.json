@@ -70,6 +70,22 @@
       "publishSuccess": "GitHub Issue を作成しました",
       "publishFailed": "GitHub への公開に失敗しました",
       "createFailed": "懸念の登録に失敗しました"
+    },
+    "search": {
+      "title": "懸念検索（PERF）",
+      "inputLabel": "懸念を検索",
+      "placeholder": "例: Show me PERF-related blocking concerns",
+      "submit": "検索",
+      "voiceStart": "音声入力を開始",
+      "voiceStop": "音声入力を停止",
+      "voiceOffline": "オフラインでは音声入力を利用できません。テキスト検索を使用してください。",
+      "voiceUnsupported": "このブラウザは音声入力に対応していません。テキスト検索を使用してください。",
+      "offlineNotice": "オフライン: 取得済みの結果を検索しています。",
+      "resultCount": "{count}件の懸念が見つかりました",
+      "noResults": "該当する懸念はありません。",
+      "error": "検索に失敗しました。取得済みの結果を表示します。",
+      "listLabel": "検索結果",
+      "spoken": "影響度 {score}、関連タスク {count}件、優先度 {priority}"
     }
   }
 }

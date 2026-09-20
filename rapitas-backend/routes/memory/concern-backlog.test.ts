@@ -11,7 +11,7 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
 const mockSubmitConcern = mock(() =>
-  Promise.resolve({ id: 1, outcome: 'created' as const, reason: 'new' as const }),
+  Promise.resolve({ id: 1, outcome: 'created' as const, reason: 'new' as const, stored: true }),
 ) as ReturnType<typeof mock>;
 const mockListConcerns = mock(() => Promise.resolve({ concerns: [], total: 0 })) as ReturnType<
   typeof mock
@@ -42,7 +42,9 @@ const { concernBacklogRoutes } = await import('./concern-backlog');
 const BASE = 'http://localhost/concerns';
 
 function resetMocks() {
-  mockSubmitConcern.mockReset().mockResolvedValue({ id: 1, outcome: 'created', reason: 'new' });
+  mockSubmitConcern
+    .mockReset()
+    .mockResolvedValue({ id: 1, outcome: 'created', reason: 'new', stored: true });
   mockListConcerns.mockReset().mockResolvedValue({ concerns: [], total: 0 });
   mockSetConcernStatus.mockReset().mockResolvedValue(true);
   mockDeleteConcern.mockReset().mockResolvedValue(true);
@@ -64,13 +66,19 @@ function postConcern(body: Record<string, unknown>) {
 describe('POST /concerns', () => {
   beforeEach(resetMocks);
 
-  it('新規作成時は success:true と outcome:created, reason:new を返す', async () => {
-    mockSubmitConcern.mockResolvedValue({ id: 1, outcome: 'created', reason: 'new' });
+  it('新規作成時は success:true と outcome:created, reason:new, stored:true を返す', async () => {
+    mockSubmitConcern.mockResolvedValue({ id: 1, outcome: 'created', reason: 'new', stored: true });
 
     const res = await postConcern({ title: 'タイトル', detail: '詳細' });
     const body = await res.json();
 
-    expect(body).toEqual({ success: true, id: 1, outcome: 'created', reason: 'new' });
+    expect(body).toEqual({
+      success: true,
+      id: 1,
+      outcome: 'created',
+      reason: 'new',
+      stored: true,
+    });
   });
 
   it('theme-saturation で抑制された場合、outcome:suppressed を返し新規行は作られない', async () => {
@@ -83,6 +91,7 @@ describe('POST /concerns', () => {
       id: 5,
       outcome: 'suppressed',
       reason: 'theme-saturation',
+      stored: false,
     });
 
     const res = await postConcern({ title: 'タイトル', detail: '詳細' });
@@ -93,17 +102,24 @@ describe('POST /concerns', () => {
       id: 5,
       outcome: 'suppressed',
       reason: 'theme-saturation',
+      stored: false,
     });
   });
 
-  it('near-duplicate で抑制された場合、outcome:suppressed, reason:near-duplicate を返す', async () => {
-    mockSubmitConcern.mockResolvedValue({ id: 7, outcome: 'suppressed', reason: 'near-duplicate' });
+  it('near-duplicate で抑制された場合、outcome:suppressed, reason:near-duplicate, stored:false を返す', async () => {
+    mockSubmitConcern.mockResolvedValue({
+      id: 7,
+      outcome: 'suppressed',
+      reason: 'near-duplicate',
+      stored: false,
+    });
 
     const res = await postConcern({ title: 'タイトル', detail: '詳細' });
     const body = await res.json();
 
     expect(body.outcome).toBe('suppressed');
     expect(body.reason).toBe('near-duplicate');
+    expect(body.stored).toBe(false);
   });
 
   it('title/detail が空白のみなら 400 を返し submitConcern を呼ばない', async () => {
@@ -123,5 +139,53 @@ describe('POST /concerns', () => {
 
     expect(res.status).toBe(500);
     expect(body.error).toBe('懸念の登録に失敗しました');
+  });
+});
+
+describe('GET /concerns/search', () => {
+  beforeEach(resetMocks);
+
+  const searchConcern = {
+    id: 9,
+    title: 'Slow query',
+    detail: 'd',
+    location: null,
+    type: 'perf',
+    severity: 'urgent',
+    originTaskId: 3,
+    createdTaskId: null,
+  };
+
+  it('returns scored JSON with impactScore/relatedTasks/priority/pattern', async () => {
+    mockListConcerns.mockResolvedValue({ concerns: [searchConcern], total: 1 });
+
+    const q = encodeURIComponent('Show me PERF-related blocking concerns');
+    const res = await concernBacklogRoutes.handle(new Request(`${BASE}/search?q=${q}`));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.total).toBe(1);
+    expect(body.items[0]).toEqual({
+      id: 9,
+      title: 'Slow query',
+      impactScore: 8.8,
+      relatedTasks: 1,
+      priority: 'Critical',
+      pattern: '⬛⬛⬛',
+    });
+    expect(body.parsed).toEqual({ type: 'perf', severities: ['urgent', 'high'], keywords: [] });
+    expect(mockListConcerns.mock.calls[0][0]).toMatchObject({ type: 'perf' });
+  });
+
+  it('falls back to defaults for a non-numeric limit instead of returning 400', async () => {
+    const res = await concernBacklogRoutes.handle(new Request(`${BASE}/search?limit=abc`));
+    expect(res.status).toBe(200);
+  });
+
+  it('leaves GET /concerns untouched (no scoring fields)', async () => {
+    mockListConcerns.mockResolvedValue({ concerns: [searchConcern], total: 1 });
+    const res = await concernBacklogRoutes.handle(new Request(BASE));
+    const body = await res.json();
+    expect(body.concerns[0].impactScore).toBeUndefined();
   });
 });
