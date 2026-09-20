@@ -6,7 +6,9 @@
  * no-progress fallback, per task 881. Existing modules keep their current
  * responsibilities unchanged — this module only ADDS a stop decision on top
  * of their outputs (see plan.md §重複・置換範囲マッピング):
- *   - cost figures come from task-budget.ts's getTaskSpendUsd (reused as-is)
+ *   - cost figures come from task-budget.ts's getTaskSpendUsdSince, summed
+ *     over the current iteration window only (a lifetime total re-halted
+ *     every over-budget task on each selection after a window reset)
  *   - same-cause repeat comes from incident-signature-repeat-loop.ts's
  *     detectRepeatLoop (reused as-is, forgiveness budget included)
  *   - the window-reset boundary follows the same event-driven pattern as
@@ -22,8 +24,9 @@
 
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { getTaskSpendUsd } from './task-budget';
+import { getTaskSpendUsdSince } from './task-budget';
 import { detectRepeatLoop, REPEAT_LOOP_WINDOW_MS } from './incident-signature-repeat-loop';
+import { countNonAdvancingTransitions } from './task-iteration-budget-status';
 import { submitConcern } from '../memory/concern-backlog-service';
 import type {
   HaltReason,
@@ -163,15 +166,20 @@ export function resolveIterationBudgetState(input: IterationBudgetInput): Iterat
   if (input.manuallyWithdrawn) return { shouldHalt: false };
   if (input.themeAutoRunEnabled === false) return { shouldHalt: false };
 
+  const diagnostics = {
+    statusRepeatCount: input.statusRepeatCount,
+    attempts: input.attemptsInWindow,
+    repeatLoop: input.repeatLoop,
+  };
   const elapsedMs = input.nowMs - input.windowStartMs;
   if (elapsedMs >= iterationTimeBudgetMs()) {
-    return { shouldHalt: true, haltReason: 'budget_time_exceeded' as HaltReason };
+    return { shouldHalt: true, haltReason: 'budget_time_exceeded' as HaltReason, diagnostics };
   }
   if (input.spentUsd >= iterationCostBudgetUsd()) {
-    return { shouldHalt: true, haltReason: 'budget_cost_exceeded' as HaltReason };
+    return { shouldHalt: true, haltReason: 'budget_cost_exceeded' as HaltReason, diagnostics };
   }
   if (input.attemptsInWindow >= iterationAttemptsBudget()) {
-    return { shouldHalt: true, haltReason: 'budget_attempts_exceeded' as HaltReason };
+    return { shouldHalt: true, haltReason: 'budget_attempts_exceeded' as HaltReason, diagnostics };
   }
 
   const statusRepeatOk = input.statusRepeatCount >= noProgressStatusRepeatMin();
@@ -181,6 +189,7 @@ export function resolveIterationBudgetState(input: IterationBudgetInput): Iterat
     return {
       shouldHalt: true,
       haltReason: 'repeat_cause_detected' as HaltReason,
+      diagnostics,
       resumeCondition: newHypothesisResumeCondition(
         `同一原因(${input.repeatLoop.cause})の反復が${input.repeatLoop.count}回検出され、進展がありません。`,
       ),
@@ -191,6 +200,7 @@ export function resolveIterationBudgetState(input: IterationBudgetInput): Iterat
     return {
       shouldHalt: true,
       haltReason: 'no_progress' as HaltReason,
+      diagnostics,
       resumeCondition: newHypothesisResumeCondition(
         '一定回数の試行を重ねても状態が進展していません。',
       ),
@@ -233,8 +243,10 @@ export async function resolveIterationBudgetForTask(
     const windowStart = (await resolveIterationWindowStart(taskId)) ?? task.createdAt;
     const windowStartMs = windowStart.getTime();
 
+    // Cost is windowed like attempts: a reset (retry / answered question /
+    // replan) grants a fresh slate on every axis, not just on the counters.
     const [spentUsd, attemptsInWindow, transitionsInWindow] = await Promise.all([
-      getTaskSpendUsd(taskId),
+      getTaskSpendUsdSince(taskId, windowStart),
       prisma.agentExecution.count({
         where: {
           session: { config: { taskId } },
@@ -249,7 +261,9 @@ export async function resolveIterationBudgetForTask(
           actor: true,
           invariantViolation: true,
           toStatus: true,
+          fromStatus: true,
         },
+        orderBy: { createdAt: 'asc' },
       }),
     ]);
 
@@ -268,13 +282,14 @@ export async function resolveIterationBudgetForTask(
       taskStatus: undefined,
     });
 
-    // Condition ①: same/regressed workflowStatus repeated within the window.
-    // Approximated as repeated occurrences of the CURRENT workflowStatus among
-    // this window's transitions — a task genuinely progressing moves through
-    // distinct toStatus values, not the same one over and over.
-    const statusRepeatCount = workTransitions.filter(
-      (t) => t.toStatus === task.workflowStatus,
-    ).length;
+    // Condition ①: transitions that did not advance the workflow (same status
+    // re-recorded or a step back), excluding reset-family causes. NOTE: the old
+    // "toStatus === current workflowStatus" count fired on progressing tasks
+    // whose re-runs passed the same statuses twice (task 994, 984/986).
+    const statusRepeatCount = countNonAdvancingTransitions(
+      workTransitions,
+      isHaltSideTransitionCause,
+    );
 
     consecutiveReadFailures.delete(taskId);
     return resolveIterationBudgetState({

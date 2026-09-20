@@ -12,6 +12,7 @@ import {
   parseAcceptanceCriteria,
   detectNonConvergence,
   identifyIndictedCriteria,
+  resolveNonConvergenceThreshold,
   type ConvergenceVerdict,
 } from './verify-convergence';
 import { DEFAULT_VERIFY_REPAIR_LIMIT } from './blocked-task-policy';
@@ -130,8 +131,8 @@ export async function countLifetimeRepairs(taskId: number): Promise<number> {
 }
 
 /**
- * Detect a non-converging repair loop (task 619): 2+ flags on one criterion
- * across current + prior reasons (same window as countPriorRepairs) = cutoff.
+ * Detect a non-converging repair loop (task 619): threshold+ (default 3) flags on one criterion
+ * without a shrinking indicted set, across current + prior reasons (same window as countPriorRepairs) = cutoff.
  * FAIL OPEN — unlike countPriorRepairs' fail-closed budget, an unidentifiable
  * reason / missing criteria / DB error must never stop a progressing task.
  *
@@ -164,6 +165,7 @@ export async function detectRepairNonConvergence(
         ...(windowStart ? { createdAt: { gt: windowStart } } : {}),
       },
       select: { metadata: true },
+      orderBy: { createdAt: 'asc' },
     });
 
     const priorReasons: string[] = [];
@@ -174,7 +176,12 @@ export async function detectRepairNonConvergence(
         if (typeof meta.reason === 'string' && meta.reason) priorReasons.push(meta.reason);
       } catch {}
     }
-    const verdict = detectNonConvergence(currentReason, priorReasons, criteria);
+    const verdict = detectNonConvergence(
+      currentReason,
+      priorReasons,
+      criteria,
+      resolveNonConvergenceThreshold(),
+    );
 
     // Make the fail-open audible: a no-cutoff verdict looks the same whether
     // a task is genuinely converging or the detector simply can't read the

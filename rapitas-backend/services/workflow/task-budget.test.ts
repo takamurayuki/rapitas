@@ -20,9 +20,32 @@ mock.module('../../config/logger', () => ({
   getBackendLogFilePath: () => '/tmp/backend.log',
 }));
 
-const { resolveTaskBudgetCap, getTaskSpendUsd } = await import('./task-budget');
+const { resolveTaskBudgetCap, getTaskSpendUsd, getTaskSpendUsdSince } =
+  await import('./task-budget');
 
 const spent = (...amounts: unknown[]) => amounts.map((costUsd) => ({ costUsd }));
+
+describe('getTaskSpendUsdSince', () => {
+  beforeEach(() => findManyMock.mockReset().mockResolvedValue([]));
+
+  test('restricts the query to executions started at/after `since` (or not yet started)', async () => {
+    const since = new Date(1_000);
+    findManyMock.mockResolvedValue(spent(1, 2));
+    expect(await getTaskSpendUsdSince(7, since)).toBe(3);
+    expect(findManyMock.mock.calls[0]?.[0]).toMatchObject({
+      where: {
+        session: { config: { taskId: 7 } },
+        OR: [{ startedAt: null }, { startedAt: { gte: since } }],
+      },
+    });
+  });
+
+  test('null `since` means lifetime (no startedAt filter)', async () => {
+    await getTaskSpendUsdSince(7, null);
+    const where = (findManyMock.mock.calls[0]?.[0] as { where: Record<string, unknown> }).where;
+    expect(where).toEqual({ session: { config: { taskId: 7 } } });
+  });
+});
 
 describe('getTaskSpendUsd', () => {
   beforeEach(() => findManyMock.mockReset().mockResolvedValue([]));

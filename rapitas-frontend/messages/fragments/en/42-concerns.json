@@ -70,6 +70,22 @@
       "publishSuccess": "GitHub issue created",
       "publishFailed": "Failed to publish to GitHub",
       "createFailed": "Failed to add the concern"
+    },
+    "search": {
+      "title": "Concern search (PERF)",
+      "inputLabel": "Search concerns",
+      "placeholder": "e.g. Show me PERF-related blocking concerns",
+      "submit": "Search",
+      "voiceStart": "Start voice input",
+      "voiceStop": "Stop voice input",
+      "voiceOffline": "Voice input is unavailable offline. Use text search.",
+      "voiceUnsupported": "Voice input is not supported in this browser. Use text search.",
+      "offlineNotice": "Offline: searching cached results.",
+      "resultCount": "{count} concerns found",
+      "noResults": "No matching concerns.",
+      "error": "Search failed. Showing cached results.",
+      "listLabel": "Search results",
+      "spoken": "Impact {score}, related tasks {count}, priority {priority}"
     }
   }
 }

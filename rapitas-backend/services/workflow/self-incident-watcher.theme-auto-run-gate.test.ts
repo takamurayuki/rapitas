@@ -140,9 +140,9 @@ describe('theme auto-run gate for pattern B (#715)', () => {
   });
 
   // task 977: resolveArmedThemeIds now also queries ThemeAutoRun once per
-  // pass (enabled:true, status:'running') alongside the pre-existing
-  // enabled:false query — both scoped to the same candidate theme ids.
-  test('queries ThemeAutoRun twice per pass (disabled + armed), each scoped to the candidates’ distinct theme ids', async () => {
+  // pass (enabled:true, status:'running'), and task #969's resolveThemeAutoRunRunState
+  // adds a status:'running' query, alongside the pre-existing enabled:false query — both scoped to the same candidate theme ids.
+  test('queries ThemeAutoRun three times per pass (disabled + run-state + armed), each scoped to the candidates’ distinct theme ids', async () => {
     const now = nextPassTime();
     taskFindManyMock.mockResolvedValue([
       pausedThemeTask(now, { id: 602, themeId: 25 }),
@@ -153,7 +153,7 @@ describe('theme auto-run gate for pattern B (#715)', () => {
 
     await runSelfIncidentWatch(now);
 
-    expect(themeAutoRunFindManyMock).toHaveBeenCalledTimes(2);
+    expect(themeAutoRunFindManyMock).toHaveBeenCalledTimes(3);
     const calls = themeAutoRunFindManyMock.mock.calls as unknown as Array<
       [{ where: { themeId: { in: number[] }; enabled: boolean; status?: string } }]
     >;
