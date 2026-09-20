@@ -23,6 +23,31 @@ const log = createLogger('workflow:required-merge-hold');
 export const AWAITING_REQUIRED_MERGE_CAUSE = 'verify_awaiting_required_merge';
 
 /**
+ * True when the task is already parked in the held shape AND its latest transition is this same
+ * hold. Re-recording it would append another `verify_done -> verify_done` row per caller retry,
+ * which detectRepeatLoop then reports as a loop (task 1001). A hold after any other transition
+ * (e.g. ci_repair) is a NEW wait and is still recorded. Fails open on any read error so a
+ * lookup problem can never swallow a legitimate hold.
+ */
+async function isAlreadyHeld(taskId: number): Promise<boolean> {
+  try {
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { status: true, workflowStatus: true },
+    });
+    if (task?.status !== 'in-progress' || task.workflowStatus !== 'verify_done') return false;
+    const last = await prisma.workflowTransition.findFirst({
+      where: { taskId },
+      orderBy: { createdAt: 'desc' },
+      select: { cause: true, toStatus: true },
+    });
+    return last?.cause === AWAITING_REQUIRED_MERGE_CAUSE && last.toStatus === 'verify_done';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Hold a verified task at `verify_done` until its required merge is confirmed.
  *
  * The written shape (`status: 'in-progress'`, `workflowStatus: 'verify_done'`)
@@ -45,7 +70,9 @@ export const AWAITING_REQUIRED_MERGE_CAUSE = 'verify_awaiting_required_merge';
  *   `canReviveBlockedPrRetry`, which must be checked before passing a widened
  *   set. Never pass a status here that this function has not been explicitly
  *   asked to trust. / このCASが許容する Task.status の集合（既定は変更しない）
- * @returns True when this call actually parked the task. / 実際に保留した場合 true
+ * @returns True when the task is parked at the end of this call — including when it was already
+ *   parked by an earlier identical hold (no new transition is written). False when the CAS lost.
+ *   / 保留状態になった場合 true（保留済みの再呼び出しを含む）。CAS敗北は false
  */
 export async function holdForRequiredMerge(p: {
   taskId: number;
@@ -56,6 +83,14 @@ export async function holdForRequiredMerge(p: {
   metadata?: Record<string, unknown>;
   fromStatusIn?: string[];
 }): Promise<boolean> {
+  if (await isAlreadyHeld(p.taskId)) {
+    log.info(
+      { taskId: p.taskId, source: p.source },
+      '[required-merge-hold] Task already held for the required merge — duplicate hold skipped',
+    );
+    return true;
+  }
+
   const held = await prisma.task
     .updateMany({
       where: {
