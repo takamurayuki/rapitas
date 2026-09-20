@@ -326,11 +326,13 @@ export class ThemeAutoRunScheduler {
       toStatus: task?.workflowStatus ?? 'draft',
       actor: 'system',
       cause: 'iteration_budget_halted',
-      metadata: { reason: state.haltReason },
+      metadata: { reason: state.haltReason, ...state.diagnostics },
     }).catch(() => {});
     log.warn(
+      { taskId: currentTaskId, themeId, haltReason: state.haltReason, ...state.diagnostics },
       `[ThemeAutoRunScheduler] Task ${currentTaskId} halted by iteration budget (${state.haltReason})`,
     );
+    // NOTE: exec-after-halt (task 994, 984's exec 4855/4856) is not stopped here — workflow-reconciler-requeue.ts does not exclude haltReason tasks (concern #10784).
     await stopThemeExecutionImpl(prisma, themeId, currentTaskId);
     // Release the theme's current task: advanceTheme() re-runs this check on
     // currentTaskId every tick, so leaving it set re-halted the same task every
