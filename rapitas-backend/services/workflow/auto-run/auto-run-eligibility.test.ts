@@ -9,6 +9,7 @@ describe('eligibleTopLevelTodoWhere', () => {
       parentId: null,
       workflowDisabled: false,
       autoRunExcluded: false,
+      haltReason: null,
       OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
     });
   });
@@ -20,6 +21,7 @@ describe('eligibleTopLevelTodoWhere', () => {
       parentId: null,
       workflowDisabled: false,
       autoRunExcluded: false,
+      haltReason: null,
       OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
       autoCreatedFromBacklog: false,
     });
