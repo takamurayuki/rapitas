@@ -25,6 +25,7 @@ import { auxCliCleanup } from './aux-cli-cleanup';
 import { prepareAuxCli } from './aux-cli-launch';
 import { createClaudeCliStream } from './claude-cli-stream';
 import { ClaudeCliUnavailableError } from './cli-errors';
+import { guardPromptSize } from './prompt-size-guard';
 
 export { ClaudeCliUnavailableError } from './cli-errors';
 
@@ -345,7 +346,7 @@ export async function callClaudeCli(
       DISALLOWED_TOOLS,
       ...TEXT_ONLY_ARGS,
     ];
-    const stdout = await spawnCli(args, combinePrompt(messages, systemPrompt));
+    const stdout = await spawnCli(args, guardPromptSize(combinePrompt(messages, systemPrompt)));
     const jsonText = extractLastJsonObject(stdout.trim()) ?? stdout.trim();
     let parsed: {
       result?: string;
@@ -389,7 +390,7 @@ export async function callClaudeCliStream(
   systemPrompt: string | undefined,
   _maxTokens: number,
 ): Promise<ReadableStream> {
-  const prompt = combinePrompt(messages, systemPrompt);
+  const prompt = guardPromptSize(combinePrompt(messages, systemPrompt));
   const args = [
     '--print',
     '--verbose',
