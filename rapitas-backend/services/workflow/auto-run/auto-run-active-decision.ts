@@ -22,6 +22,8 @@ import {
   resolveLastProgressAt,
 } from './auto-run-selection';
 import { liveOrQueuedBehind } from './queue-wait-exemption';
+import { taskNeverExecuted } from './auto-run-execution-presence';
+import { requeueIfNeverExecuted } from './requeue-if-never-executed';
 import {
   setCurrentTask,
   onTaskCompleted,
@@ -111,6 +113,9 @@ export async function advanceActiveTaskLocked(
     // was killed there, 8 seconds after its implementer committed a complete
     // implementation. Transitions and heartbeats are the actual evidence of
     // movement; only their absence means wedged.
+    // Task 1007: a task with ZERO executions is waiting in the queue, not hung
+    // (984 was blocked at 72 min behind 881's ci_repair without ever running).
+    const neverExecuted = await taskNeverExecuted(prisma, currentTaskId);
     const lastProgressAt = await resolveLastProgressAt(prisma, currentTaskId, tenureStart);
     const sinceProgressMs = Date.now() - lastProgressAt;
     // Liveness exemption: a running execution with a fresh heartbeat is
@@ -130,19 +135,38 @@ export async function advanceActiveTaskLocked(
     // deferred, and returned before the code that resolves a finished task
     // and picks the next one — auto-run sat "running" with a completed
     // current task and 9 runnable tasks untouched.
-    if (progressedRecently || executionIsLive) {
+    const waitingUnstarted = neverExecuted && withinHardCeiling;
+    if (progressedRecently || executionIsLive || waitingUnstarted) {
       log.info(
         `[ThemeAutoRunScheduler] Task ${currentTaskId} over tenure wall but ${
           progressedRecently
             ? `progressed ${Math.round(sinceProgressMs / 1000)}s ago`
-            : 'execution heartbeat is fresh'
+            : waitingUnstarted
+              ? 'has never executed (queue wait)'
+              : 'execution heartbeat is fresh'
         } — deferring hang backstop (theme ${themeId})`,
       );
+    } else if (await requeueIfNeverExecuted(prisma, currentTaskId, themeId)) {
+      // Past the 3x ceiling without ever running: a stuck queue, not a hung
+      // agent. Requeue (bounded) instead of blocking; setCurrentTask resets
+      // the tenure clock.
+      log.warn(
+        `[ThemeAutoRunScheduler] Task ${currentTaskId} never executed within the hard ceiling — requeued instead of blocked (theme ${themeId})`,
+      );
+      logCycleEvent('task.skipped', {
+        theme: themeId,
+        task: currentTaskId,
+        cause: 'backstop_unstarted_requeue',
+        msg: 'never-executed task requeued by hang backstop',
+      });
+      await setCurrentTask(themeId, currentTaskId);
+      broadcastAutoRunUpdateImpl(themeId);
+      return;
     } else {
       log.warn(
         `[ThemeAutoRunScheduler] Task ${currentTaskId} exceeded wall budget (${Math.round(
           MAX_TASK_WALL_MS / 60000,
-        )}min) — force-stopping (theme ${themeId})`,
+        )}min) — force-stopping (theme ${themeId}; neverExecuted=${neverExecuted}, queueWaitOrLive=${executionIsLive}, withinHardCeiling=${withinHardCeiling}, sinceProgress=${Math.round(sinceProgressMs / 1000)}s)`,
       );
       logCycleEvent('task.hang_backstop', {
         theme: themeId,
@@ -384,6 +408,23 @@ export async function advanceActiveTaskLocked(
     const errMsg = terminalItem?.errorMessage ?? `Task ${currentTaskId} failed or was blocked`;
     // Mark the task blocked so selection skips it next time.
     if (task?.status !== 'blocked') {
+      // Task 1007: same last-chance guard as the wall-budget branch — a task that
+      // never executed failed in the queue, not in the agent. Requeue it (bounded)
+      // and skip the failure notices; an already-blocked task is never reopened.
+      if (await requeueIfNeverExecuted(prisma, currentTaskId, themeId)) {
+        log.warn(
+          `[ThemeAutoRunScheduler] Task ${currentTaskId} failed in the queue without ever executing — requeued instead of blocked (theme ${themeId})`,
+        );
+        logCycleEvent('task.skipped', {
+          theme: themeId,
+          task: currentTaskId,
+          cause: 'terminal_failure_never_executed',
+          msg: 'never-executed task requeued instead of blocked after a terminal queue failure',
+        });
+        await setCurrentTask(themeId, currentTaskId);
+        broadcastAutoRunUpdateImpl(themeId);
+        return;
+      }
       await writeBlockedTask(prisma, currentTaskId).catch(() => {});
     }
     await onTaskFailed(themeId, errMsg);
