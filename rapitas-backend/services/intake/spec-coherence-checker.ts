@@ -22,7 +22,78 @@ export interface ReferencedTask {
 }
 
 /** How a criterion was found to be about something else. */
-export type ContaminationKind = 'coined_phrase' | 'quoted_title';
+export type ContaminationKind = 'coined_phrase' | 'quoted_title' | 'title_overlap';
+
+/**
+ * Shortest run of characters a criterion may share verbatim with another
+ * task's title before it is treated as lifted from that title.
+ *
+ * Self-detected incidents cite the observed task as `#907「<title>」`; the
+ * generated criteria then paraphrase THAT title ("Advisory全体テストの既知4失敗が
+ * 全て解消されている" for a detector bug about task 907). Titles rarely quote
+ * their own coined terms, so the coined-phrase path missed every such case on
+ * 2026-09-20 (tasks 997, 1003, 1010, 1025). Eight characters is long enough to
+ * skip shared generic vocabulary (タスク, テスト, 修正する) and short enough to
+ * catch a lifted noun phrase.
+ */
+export const MIN_OVERLAP_LENGTH = 8;
+
+/** Drop bracketed tags and separators so only the wording compares. */
+function normalizeForOverlap(text: string): string {
+  return text
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/[\s「」『』（）()【】、。,.:：;；!?！？・/／\-_—–|]+/g, '')
+    .toLowerCase();
+}
+
+/** Longest common substring of two short strings (O(n·m), inputs are titles). */
+function longestCommonSubstring(a: string, b: string): string {
+  let best = '';
+  let prev = new Array<number>(b.length + 1).fill(0);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = new Array<number>(b.length + 1).fill(0);
+    for (let j = 1; j <= b.length; j++) {
+      if (a[i - 1] !== b[j - 1]) continue;
+      cur[j] = prev[j - 1] + 1;
+      if (cur[j] > best.length) best = a.slice(i - cur[j], i);
+    }
+    prev = cur;
+  }
+  return best;
+}
+
+/**
+ * Criteria that repeat a long run of another task's title.
+ *
+ * @param criteria - This task's acceptance criteria. / 受入基準
+ * @param referenced - Tasks this spec cites, excluding itself. / 参照タスク
+ * @returns One entry per criterion overlapping a cited title. / タイトル重複と判断した基準
+ */
+export function findLiftedByTitleOverlap(
+  criteria: string[],
+  referenced: ReferencedTask[],
+): ContaminatedCriterion[] {
+  const titles = referenced
+    .map((t) => ({ id: t.id, norm: normalizeForOverlap(t.title) }))
+    .filter((t) => t.norm.length >= MIN_OVERLAP_LENGTH);
+  const out: ContaminatedCriterion[] = [];
+  for (const [i, criterion] of criteria.entries()) {
+    const norm = normalizeForOverlap(criterion);
+    for (const t of titles) {
+      const run = longestCommonSubstring(norm, t.norm);
+      if (run.length < MIN_OVERLAP_LENGTH) continue;
+      out.push({
+        index: i + 1,
+        criterion,
+        sourceTaskId: t.id,
+        phrases: [run],
+        kind: 'title_overlap',
+      });
+      break;
+    }
+  }
+  return out;
+}
 
 /** One criterion that appears to belong to another task. */
 export interface ContaminatedCriterion {
@@ -203,6 +274,13 @@ export function findContaminatedCriteria(
   }
   const flagged = new Set(out.map((h) => h.index));
   for (const hit of findLiftedFromQuotedTitle(criteria, ownText)) {
+    if (!flagged.has(hit.index)) {
+      out.push(hit);
+      flagged.add(hit.index);
+    }
+  }
+  // Paraphrased lifts carry no coined term and no file token — only wording.
+  for (const hit of findLiftedByTitleOverlap(criteria, referenced)) {
     if (!flagged.has(hit.index)) out.push(hit);
   }
   return out.sort((a, b) => a.index - b.index);

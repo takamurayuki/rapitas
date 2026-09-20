@@ -173,6 +173,7 @@ export function buildRoleTexts(
           verificationEvidencePrompt(language) +
           shellExitCodeSafetyRule(language) +
           '- **受入基準の自己照合（完了宣言の条件）**: 自己検証の応答に `acceptance=NG` が含まれる場合、差分が受入基準に対応していない（または受入基準・タスク本文と無関係な差分である）可能性が高い。各受入基準に「この差分のどのファイル/変更が満たすか」を対応付けて確認し、対応付けられない基準が1つでも残る間は完了を宣言せず、差分を修正して自己検証を再実行してください。機械照合の誤検出（対応済みなのに NG）と判断した場合のみ、どの変更がどの基準を満たすかを最終サマリで明示した上で終了してよい。同様に `coverage=NG`（ソース変更にテスト非同伴）も、テストを追加してから完了してください。\n' +
+          '- **plan.md チェックリストの全件照合（完了宣言の条件、差し戻し最多要因）**: plan.md がある場合、終了前にチェックリストの各項目（特に「テスト」「統合テスト」「〜のテストを追加」の項目）を1つずつ「実装済み / 未実施」で照合し、**未実施が1件でも残る間は終了しない**でください。検証者は未実施の計画項目が1件でも残れば `⚠️ 一部失敗` で差し戻します（2026-09-14〜20 の差し戻し 96 件の大半がこれです）。計画項目が不可能・不適切だと判断した場合は黙って省略せず、question.md で計画の改訂を求めてください。最終サマリに「plan チェックリスト照合: N/N 実装済み」の1行を必ず含めてください。\n' +
           '- 実装が完了したら、変更内容のサマリ (どのファイルを何のために変えたか) を最後のメッセージに残して終了してください。Rapitas が後段で verify.md を自動生成します。\n' +
           '- **テスト検証はファイル単位** (`bun test <1ファイル>`) で行ってください。bun の `mock.module` は**プロセスグローバル**なので、同じモジュールを mock する複数のテストファイルを**同時実行すると mock が衝突して偽の失敗**になります。これは bun の制約でありコードのバグではありません。**各ファイルが単体で通れば十分**です。複数テストファイルを「同時に通す」ためにモックの順序変更や beforeAll 化を延々と試みないでください（解決不能であり、時間を浪費します）。',
       },
@@ -210,6 +211,11 @@ export function buildRoleTexts(
           '## 仮説評価 (上記「仮説台帳」に検証待ち仮説がある場合のみ必須)\n' +
           '```\n' +
           '冒頭は必ず `# 検証レポート` で開始し、テストが1件でも落ちていれば `❌ 検証失敗` または `⚠️ 一部失敗` を選択してください。\n' +
+          '\n### 公開工程は判定対象外 ★重要\n' +
+          '- コミット・push・PR 作成・CI・マージは、verify.md の保存後に Rapitas が自動で行う**後工程**です。あなたの検証対象ではありません。\n' +
+          '- 全体判定は「技術検証（テスト・型・lint・format）と受入基準の充足」だけで決めてください。**公開工程が未実施であることを理由に `⚠️ 一部失敗` を選んではいけません**（技術検証が通り受入基準を満たしていれば `✅ 検証成功`）。\n' +
+          '- 公開工程は「残課題」ではなく、表の1行 `| 後工程（push / CI / merge） | 自動実行・判定対象外 |` として記載してください。plan.md のチェックリストに push/PR/マージ/運用確認の項目があっても、消化率の分母から除外して構いません。\n' +
+          '- 一方、既に PR が存在して CI が失敗している場合は後工程ではなく実失敗です。失敗チェック名を残課題に書き、`⚠️ 一部失敗` にしてください。\n' +
           '上記「仮説台帳」に検証待ち仮説が列挙されている場合、`## 仮説評価` セクションで各仮説を1行 `- [#id] 成立|不成立: 根拠(file:line/テスト/計測)` で判定してください（成立は予測が実際に的中した場合のみ。確証が無ければ記載せず検証待ちのまま残す）。\n' +
           '\n### プレモーテム照合 (plan.md に `## プレモーテム` がある場合のみ必須)\n' +
           'plan.md のプレモーテム各項目について、記載の検知シグナル（テスト/コマンド）を実際に確認し、verify.md に `## プレモーテム照合` セクションを設けて1行ずつ `- <失敗原因の要約>: 発生せず|発生（根拠）` で判定してください。「発生」の項目は残課題として扱い、全体判定に反映すること。\n' +
@@ -289,6 +295,7 @@ export function buildRoleTexts(
           ) +
           verificationEvidencePrompt(language) +
           shellExitCodeSafetyRule(language) +
+          '- **Reconcile every plan.md checklist item before finishing (the most common cause of repair bounces)**: when plan.md exists, go through each checklist item — especially test / integration-test / "add tests for …" items — and mark it done or not done. **Do not finish while any item is not done**: the verifier returns `⚠️ Partial` for a single unfinished plan item (most of the 96 bounces in the week to 2026-09-20). If an item is impossible or wrong, do not skip it silently — request a plan revision via question.md. End your final summary with one line: "plan checklist: N/N done".\n' +
           '- Once implementation is done, leave a short summary (which files changed and why) as your final message and exit. Rapitas auto-generates verify.md downstream.\n' +
           "- **Verify tests PER FILE** (`bun test <one-file>`). Bun's `mock.module` is PROCESS-GLOBAL, so two test files that mock the same module conflict and produce FALSE failures when run together. That is a bun limitation, not a code bug. **Each file passing in isolation is sufficient.** Do NOT keep reordering mocks or moving imports into beforeAll trying to make multiple test files pass together — it is unsolvable and wastes time.",
       },
@@ -322,6 +329,11 @@ export function buildRoleTexts(
           '## 仮説評価 (required ONLY when the 仮説台帳 above lists open hypotheses)\n' +
           '```\n' +
           'Start with `# Verification Report`. If even one test fails, choose `❌ Fail` or `⚠️ Partial`.\n' +
+          '\n### Publication steps are out of scope ★important\n' +
+          '- Commit, push, PR creation, CI and merge are **downstream steps** Rapitas performs automatically after verify.md is saved. They are not yours to verify.\n' +
+          '- Decide the overall verdict from technical verification (tests, types, lint, format) and the acceptance criteria only. **Never choose `⚠️ Partial` because publication has not happened yet** — if the technical checks pass and the criteria are met, the verdict is `✅ Pass`.\n' +
+          '- Record publication as a single table row `| Downstream (push / CI / merge) | automated, out of scope |`, not as a remaining item. Plan checklist entries about push/PR/merge/rollout may be excluded from the completion denominator.\n' +
+          '- If a PR already exists and its CI is failing, that IS a real failure: name the failing check under remaining items and choose `⚠️ Partial`.\n' +
           'When the 仮説台帳 above lists open hypotheses, add a `## 仮説評価` section judging each as `- [#id] 成立|不成立: evidence(file:line/test/metric)` (成立 only when the prediction actually held; omit any you cannot confirm, leaving it open).\n' +
           '\n### Premortem cross-check (required ONLY when plan.md has a `## プレモーテム` section)\n' +
           'For each premortem item in plan.md, actually run/check its stated detection signal and add a `## プレモーテム照合` section to verify.md judging each as `- <failure-cause summary>: 発生せず|発生 (evidence)`. Any 発生 item counts as outstanding work and must be reflected in the overall verdict.\n' +

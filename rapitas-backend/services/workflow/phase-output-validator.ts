@@ -17,6 +17,7 @@ import { PLAN_FILES_SECTION_HEADINGS } from './plan-declared-files';
 import { findTestCountContradiction } from './verify-test-counts';
 import { hasNonpassingVerifyVerdict } from './nonpassing-verify-verdict';
 import { isPendingPublicationRow } from './pending-publication-row';
+import { isPublicationOnlyPartial } from './publication-only-partial';
 
 export interface ValidationResult {
   ok: boolean;
@@ -183,7 +184,10 @@ function stripNonEvidenceRegions(content: string): string {
  */
 export function validateVerify(content: string): ValidationResult {
   if (looksLogPolluted(content)) return pollutedResult('verify.md');
-  if (hasNonpassingVerifyVerdict(content)) {
+  // A `⚠️ 一部失敗` explained only by push/PR/CI/merge still pending is not a
+  // failed implementation: those steps run AFTER this report. 94 of 96 such
+  // bounces in the week to 2026-09-20 stated the technical checks passed.
+  if (hasNonpassingVerifyVerdict(content) && !isPublicationOnlyPartial(content)) {
     return {
       ok: false,
       missingSections: [],
