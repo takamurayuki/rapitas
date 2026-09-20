@@ -20,9 +20,11 @@ mock.module('../../config/logger', () => ({
   getBackendLogFilePath: () => '/tmp/backend.log',
 }));
 
+const findUnique = mock(() => Promise.reject(new Error('no lookup')) as ReturnType<typeof mock>);
+const findFirst = mock(() => Promise.resolve(null) as ReturnType<typeof mock>);
 const updateMany = mock(() => Promise.resolve({ count: 1 }) as ReturnType<typeof mock>);
 mock.module('../../config/database', () => ({
-  prisma: { task: { updateMany } },
+  prisma: { task: { updateMany, findUnique }, workflowTransition: { findFirst } },
 }));
 
 const recordTransition = mock(() => Promise.resolve());
@@ -35,6 +37,10 @@ beforeEach(() => {
   updateMany.mockClear();
   recordTransition.mockClear();
   updateMany.mockResolvedValue({ count: 1 });
+  findUnique.mockReset();
+  findFirst.mockReset();
+  findUnique.mockRejectedValue(new Error('no lookup'));
+  findFirst.mockResolvedValue(null);
 });
 
 describe('holdForRequiredMerge', () => {
@@ -101,5 +107,64 @@ describe('holdForRequiredMerge', () => {
 
     expect(held).toBe(false);
     expect(recordTransition).not.toHaveBeenCalled();
+  });
+
+  describe('idempotency (task 1001)', () => {
+    const heldTask = { status: 'in-progress', workflowStatus: 'verify_done' };
+
+    test('保留済みで直近遷移が同一 cause なら遷移を追記せず true を返す', async () => {
+      findUnique.mockResolvedValue(heldTask);
+      findFirst.mockResolvedValue({
+        cause: AWAITING_REQUIRED_MERGE_CAUSE,
+        toStatus: 'verify_done',
+      });
+
+      const held = await holdForRequiredMerge({
+        taskId: 995,
+        fromStatus: 'verify_done',
+        source: 'test',
+      });
+
+      expect(held).toBe(true);
+      expect(recordTransition).not.toHaveBeenCalled();
+      expect(updateMany).not.toHaveBeenCalled();
+    });
+
+    test('保留済みでも直近遷移が別 cause なら新しい待機として記録する', async () => {
+      findUnique.mockResolvedValue(heldTask);
+      findFirst.mockResolvedValue({ cause: 'ci_repair', toStatus: 'verify_done' });
+
+      const held = await holdForRequiredMerge({
+        taskId: 995,
+        fromStatus: 'verify_done',
+        source: 'test',
+      });
+
+      expect(held).toBe(true);
+      expect(recordTransition).toHaveBeenCalledTimes(1);
+    });
+
+    test('未保留（初回 hold）なら記録する', async () => {
+      findUnique.mockResolvedValue({ status: 'in-progress', workflowStatus: 'research_done' });
+
+      await holdForRequiredMerge({ taskId: 995, fromStatus: 'research_done', source: 'test' });
+
+      expect(recordTransition).toHaveBeenCalledTimes(1);
+      expect(findFirst).not.toHaveBeenCalled();
+    });
+
+    test('直近遷移の取得に失敗しても hold は記録される（fail open）', async () => {
+      findUnique.mockResolvedValue(heldTask);
+      findFirst.mockRejectedValue(new Error('db unavailable'));
+
+      const held = await holdForRequiredMerge({
+        taskId: 995,
+        fromStatus: 'verify_done',
+        source: 'test',
+      });
+
+      expect(held).toBe(true);
+      expect(recordTransition).toHaveBeenCalledTimes(1);
+    });
   });
 });
