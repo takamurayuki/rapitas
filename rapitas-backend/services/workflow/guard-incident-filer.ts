@@ -8,6 +8,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { submitConcern } from '../memory/concern-backlog-service';
 import type { SubmitConcernInput } from '../memory/concern-backlog-types';
@@ -16,8 +17,23 @@ const log = createLogger('workflow:guard-incident-filer');
 
 const POLL_INTERVAL_MS = 5 * 60_000;
 
+/** Title prefix every concern filed here carries — used to recognise our own promoted tasks. */
+const GUARD_TASK_TITLE_MARK = 'エージェントが禁止コマンドを実行しようとした';
+
 /** Concern submission function (injectable for tests). */
 export type GuardIncidentSubmit = (input: SubmitConcernInput) => Promise<unknown>;
+
+/** Resolves whether a task is itself a guard-incident task (injectable for tests). */
+export type GuardTaskLookup = (taskId: number) => Promise<boolean>;
+
+async function isGuardIncidentTask(taskId: number): Promise<boolean> {
+  try {
+    const t = await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } });
+    return t?.title?.includes(GUARD_TASK_TITLE_MARK) ?? false;
+  } catch {
+    return false; // unknown → file as usual (fail toward reporting)
+  }
+}
 
 interface GuardIncident {
   taskId: number | null;
@@ -77,10 +93,16 @@ function readIncidents(dir: string): GuardIncident[] {
  * @returns Number of concerns newly filed this pass / 今回起票した件数
  */
 export async function fileGuardIncidents(
-  opts: { dir?: string; submit?: GuardIncidentSubmit; seen?: Set<string> } = {},
+  opts: {
+    dir?: string;
+    submit?: GuardIncidentSubmit;
+    seen?: Set<string>;
+    isGuardTask?: GuardTaskLookup;
+  } = {},
 ): Promise<number> {
   const submit = opts.submit ?? submitConcern;
   const seen = opts.seen ?? processedKeys;
+  const isGuardTask = opts.isGuardTask ?? isGuardIncidentTask;
   const dir = opts.dir ?? defaultDir();
   // The in-memory set alone reset on every backend restart, and the concern
   // backlog only dedups against LIVE concerns — so once a filed concern had
@@ -93,6 +115,20 @@ export async function fileGuardIncidents(
     // Fixed key (no timestamp/command): volatile parts would defeat dedup and the saturation gate.
     const dedupKey = `guard-incident:${rec.taskId ?? 'unknown'}:${rec.kind}`;
     if (seen.has(dedupKey)) continue;
+    // A guard-incident task's own agent exercises the hook with kill/prisma
+    // strings while fixing or testing it, trips the hook, and would file the
+    // NEXT guard-incident task — 1004→1006→1008→1011→1012→1013→1016→1017 on
+    // 2026-09-20. Denials raised from such a task are the hook working, not a
+    // new incident: record the key and move on.
+    if (rec.taskId != null && (await isGuardTask(rec.taskId))) {
+      seen.add(dedupKey);
+      saveFiledKeys(dir, seen);
+      log.info(
+        { taskId: rec.taskId, kind: rec.kind },
+        'Guard denial from a guard-incident task — not re-filed',
+      );
+      continue;
+    }
     try {
       await submit({
         title: `[Security] エージェントが禁止コマンドを実行しようとした (${rec.kind}, task ${rec.taskId ?? '?'})`,
