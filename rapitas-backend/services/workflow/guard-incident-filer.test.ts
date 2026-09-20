@@ -53,6 +53,16 @@ describe('fileGuardIncidents', () => {
     expect(n).toBe(1);
   });
 
+  test('a restart (fresh in-memory set) does not re-file keys recorded in the sidecar', async () => {
+    const dir = setup([{ ts: 'a', taskId: 1006, kind: 'process_kill', command: 'grep "x" f' }]);
+    let n = 0;
+    const submit: GuardIncidentSubmit = async () => ({ id: ++n });
+    expect(await fileGuardIncidents({ dir, submit, seen: new Set() })).toBe(1);
+    // New Set = the process restarted and lost processedKeys; the sidecar must carry it.
+    expect(await fileGuardIncidents({ dir, submit, seen: new Set() })).toBe(0);
+    expect(n).toBe(1);
+  });
+
   test('a missing directory is a no-op', async () => {
     expect(
       await fileGuardIncidents({

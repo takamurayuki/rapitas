@@ -5,7 +5,7 @@
  * when an agent command is denied) into security concerns. Not responsible for
  * detecting or denying commands — the hook does that in a separate process.
  */
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createLogger } from '../../config/logger';
@@ -29,6 +29,28 @@ interface GuardIncident {
 function defaultDir(): string {
   const base = process.env.RAPITAS_DATA_DIR || join(homedir(), '.rapitas');
   return process.env.RAPITAS_GUARD_LOG_DIR || join(base, 'logs');
+}
+
+/** Sidecar recording which (task, kind) keys were already filed — survives restarts. */
+const FILED_STATE_FILE = 'guard-incidents-filed.json';
+
+function loadFiledKeys(dir: string): string[] {
+  try {
+    const raw = readFileSync(join(dir, FILED_STATE_FILE), 'utf8');
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((k): k is string => typeof k === 'string') : [];
+  } catch {
+    return []; // missing or unreadable sidecar = nothing filed yet
+  }
+}
+
+function saveFiledKeys(dir: string, keys: Set<string>): void {
+  try {
+    writeFileSync(join(dir, FILED_STATE_FILE), JSON.stringify([...keys].sort()));
+  } catch (err) {
+    // A failed save only risks one duplicate concern after a restart — never block filing.
+    log.warn({ err, dir }, 'Could not persist filed guard-incident keys');
+  }
 }
 
 function readIncidents(dir: string): GuardIncident[] {
@@ -59,8 +81,15 @@ export async function fileGuardIncidents(
 ): Promise<number> {
   const submit = opts.submit ?? submitConcern;
   const seen = opts.seen ?? processedKeys;
+  const dir = opts.dir ?? defaultDir();
+  // The in-memory set alone reset on every backend restart, and the concern
+  // backlog only dedups against LIVE concerns — so once a filed concern had
+  // been promoted and its task finished, every restart re-filed the whole
+  // day's log (2026-09-20: 13 denial records → 9 tasks, 1004–1015). The
+  // sidecar makes "already filed" survive restarts and task completion.
+  for (const key of loadFiledKeys(dir)) seen.add(key);
   let filed = 0;
-  for (const rec of readIncidents(opts.dir ?? defaultDir())) {
+  for (const rec of readIncidents(dir)) {
     // Fixed key (no timestamp/command): volatile parts would defeat dedup and the saturation gate.
     const dedupKey = `guard-incident:${rec.taskId ?? 'unknown'}:${rec.kind}`;
     if (seen.has(dedupKey)) continue;
@@ -76,6 +105,7 @@ export async function fileGuardIncidents(
         dedupKey,
       });
       seen.add(dedupKey);
+      saveFiledKeys(dir, seen);
       filed++;
       log.warn({ taskId: rec.taskId, kind: rec.kind }, 'Guard incident filed as concern');
     } catch (err) {
