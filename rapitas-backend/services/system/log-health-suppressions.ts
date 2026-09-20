@@ -286,6 +286,19 @@ const SUPPRESSIONS: Suppression[] = [
     because:
       'waitForHealthyのタイムアウトは呼び出し元(検証ゲート/ライブプレビュー)が既存の別シグネチャで結果を追随記録する — ポーリング過程のtelemetryであり単体では壊れた状態を示さない',
   },
+  {
+    // ログ出力箇所: git-operations/pr/pr-merge-ops.ts:154-157 の logger.warn
+    // （mergePullRequest内）。gh pr merge --delete-branch はGitHub側マージを先に
+    // 行い最後にローカルブランチ削除をするため、タスクworktreeが同ブランチを
+    // チェックアウト中だと削除だけ失敗して非0終了する。このWARNは
+    // readAuthoritativeMergeState が MERGED を確認した後にのみ出力され（152-153行）、
+    // 続けて pr view で再検証する（160-178行）。実マージ失敗は throw 経路で
+    // success:false となり別文言で可視化されるため、本ルールで失敗は隠れない（#1028）。
+    test: /Command failed: .*gh\.exe pr merge .*failed to delete local branch/is,
+    logger: /git-operations\/pr-merge-ops/i,
+    because:
+      'ローカルブランチ削除の失敗はGitHub上でMERGED確認済みの後にのみ出る回復記録 — 実マージ失敗はsuccess:falseの別経路で可視化される',
+  },
 ];
 
 /** Result of classifying one log signature. */
