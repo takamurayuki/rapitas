@@ -8,6 +8,7 @@
  */
 import { createLogger } from '../../config/logger';
 import { queryEvents } from './timeline';
+import type { EffectivenessResult } from './types';
 
 const log = createLogger('memory:effectiveness');
 
@@ -23,9 +24,9 @@ interface EffectivenessSample {
 
 /** Aggregate view of how injected knowledge relates to task outcomes. */
 export interface KnowledgeEffectiveness {
-  /** Number of finished tasks that had knowledge injected (sample size). */
+  /** Number of finished tasks sampled (injected + control combined). */
   sampledTasks: number;
-  /** Success rate of those tasks (0-1). */
+  /** Success rate across ALL sampled tasks (0-1) — kept for compatibility. */
   successRate: number;
   /** Share of tasks where the agent filed a per-entry usage declaration (0-1). */
   declarationRate: number;
@@ -35,6 +36,14 @@ export interface KnowledgeEffectiveness {
   wrongFlagged: number;
   /** Average entries injected per sampled task. */
   avgInjected: number;
+  /** Success rate of tasks that HAD knowledge injected (injected > 0). */
+  injectedSuccessRate: number;
+  /** Success rate of the CONTROL group — tasks that finished with no injection. */
+  controlSuccessRate: number;
+  /** Sample size of the injected group. */
+  injectedSampleCount: number;
+  /** Sample size of the control group. */
+  controlSampleCount: number;
 }
 
 /** Coerce an unknown payload field to a finite number, else the fallback. */
@@ -56,6 +65,10 @@ export function aggregateEffectiveness(samples: EffectivenessSample[]): Knowledg
     usageRate: 0,
     wrongFlagged: 0,
     avgInjected: 0,
+    injectedSuccessRate: 0,
+    controlSuccessRate: 0,
+    injectedSampleCount: 0,
+    controlSampleCount: 0,
   };
   if (samples.length === 0) return empty;
 
@@ -63,6 +76,15 @@ export function aggregateEffectiveness(samples: EffectivenessSample[]): Knowledg
   const usageRates = declared
     .filter((s) => s.injected > 0 && s.used !== null)
     .map((s) => Math.min(1, (s.used as number) / s.injected));
+
+  // Injected vs control split: `injected > 0` are tasks that had knowledge in
+  // context, `injected === 0` are the control group (finished with none). The
+  // gap between their success rates is the causal signal — a bare overall
+  // successRate cannot tell "injection helped" from "these tasks were easy".
+  const injectedGroup = samples.filter((s) => s.injected > 0);
+  const controlGroup = samples.filter((s) => s.injected === 0);
+  const successRateOf = (group: EffectivenessSample[]): number =>
+    group.length > 0 ? group.filter((s) => s.success).length / group.length : 0;
 
   return {
     sampledTasks: samples.length,
@@ -72,18 +94,24 @@ export function aggregateEffectiveness(samples: EffectivenessSample[]): Knowledg
       usageRates.length > 0 ? usageRates.reduce((a, b) => a + b, 0) / usageRates.length : 0,
     wrongFlagged: samples.reduce((a, s) => a + (s.wrong ?? 0), 0),
     avgInjected: samples.reduce((a, s) => a + s.injected, 0) / samples.length,
+    injectedSuccessRate: successRateOf(injectedGroup),
+    controlSuccessRate: successRateOf(controlGroup),
+    injectedSampleCount: injectedGroup.length,
+    controlSampleCount: controlGroup.length,
   };
 }
 
 /**
  * Load recent effectiveness samples from the timeline and aggregate them.
- * Best-effort: any failure returns the zero aggregate rather than breaking the
- * stats endpoint.
+ * Returns a discriminated result: `ok` with the aggregate (a genuine zero
+ * aggregate stays `ok` with `sampledTasks: 0`), or `unknown` when the samples
+ * could not be read at all — the caller can then distinguish "no data" from
+ * "measurement unavailable" instead of both looking like a zero success rate.
  *
  * @param days - Look-back window in days. / 集計対象期間(日)
- * @returns Aggregate effectiveness over the window. / 期間内の集計値
+ * @returns `ok` aggregate or `unknown` on read failure. / 集計値 or 取得失敗
  */
-export async function getKnowledgeEffectiveness(days = 30): Promise<KnowledgeEffectiveness> {
+export async function getKnowledgeEffectiveness(days = 30): Promise<EffectivenessResult> {
   try {
     const { events } = await queryEvents({
       eventType: 'knowledge_effectiveness',
@@ -101,9 +129,9 @@ export async function getKnowledgeEffectiveness(days = 30): Promise<KnowledgeEff
         wrong: typeof p.wrong === 'number' ? p.wrong : null,
       };
     });
-    return aggregateEffectiveness(samples);
+    return { status: 'ok', data: aggregateEffectiveness(samples) };
   } catch (err) {
     log.warn({ err }, 'Failed to aggregate knowledge effectiveness');
-    return aggregateEffectiveness([]);
+    return { status: 'unknown', reason: err instanceof Error ? err.message : String(err) };
   }
 }

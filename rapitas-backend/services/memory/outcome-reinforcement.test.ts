@@ -24,12 +24,24 @@ mock.module('../../config/database', () => ({
   },
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
+const boostCalls: Array<{ id: number; delta: number }> = [];
+const penalizeCalls: Array<{ id: number; delta: number }> = [];
+const appendedEvents: Array<{ eventType?: string; payload?: Record<string, unknown> }> = [];
 mock.module('./forgetting', () => ({
-  boostDecayOnAccess: () => Promise.resolve(),
-  penalizeOnFailure: () => Promise.resolve(),
+  boostDecayOnAccess: (id: number, delta: number) => {
+    boostCalls.push({ id, delta });
+    return Promise.resolve();
+  },
+  penalizeOnFailure: (id: number, delta: number) => {
+    penalizeCalls.push({ id, delta });
+    return Promise.resolve();
+  },
 }));
 mock.module('./timeline', () => ({
-  appendEvent: () => Promise.resolve({ id: 0 }),
+  appendEvent: (e: { eventType?: string; payload?: Record<string, unknown> }) => {
+    appendedEvents.push(e);
+    return Promise.resolve({ id: 0 });
+  },
   queryEvents: () => Promise.resolve({ events: [], total: 0 }),
 }));
 
@@ -146,6 +158,45 @@ describe('applyOutcomeReinforcement — 細粒度クレジット割当 (R8)', ()
       wrong: [],
     });
     expect(applied).toBe(2);
+  });
+});
+
+describe('applyOutcomeReinforcement — 対照群サンプル記録と半減帰属', () => {
+  beforeEach(() => {
+    _resetTraces();
+    boostCalls.length = 0;
+    penalizeCalls.length = 0;
+    appendedEvents.length = 0;
+  });
+
+  test('注入なしで終了したタスクは injected:0 の対照群サンプルを記録する', async () => {
+    // No recordRetrieval → merged.size === 0 (a control-group task).
+    const applied = await applyOutcomeReinforcement(800, true);
+    expect(applied).toBe(0);
+    const effEvents = appendedEvents.filter((e) => e.eventType === 'knowledge_effectiveness');
+    expect(effEvents).toHaveLength(1);
+    expect(effEvents[0]!.payload).toMatchObject({
+      taskId: 800,
+      success: true,
+      injected: 0,
+      applied: 0,
+    });
+  });
+
+  test('申告なし成功は SUCCESS_BOOST の半分でブーストする', async () => {
+    recordRetrieval(70, [10]);
+    await applyOutcomeReinforcement(70, true, { declared: false, used: [], wrong: [] });
+    expect(boostCalls).toHaveLength(1);
+    expect(boostCalls[0]!.id).toBe(10);
+    expect(boostCalls[0]!.delta).toBeCloseTo(0.15, 10); // 0.3 * 0.5
+  });
+
+  test('申告なし失敗は FAILURE_PENALTY の半分でペナルティする', async () => {
+    recordRetrieval(71, [20]);
+    await applyOutcomeReinforcement(71, false, { declared: false, used: [], wrong: [] });
+    expect(penalizeCalls).toHaveLength(1);
+    expect(penalizeCalls[0]!.id).toBe(20);
+    expect(penalizeCalls[0]!.delta).toBeCloseTo(0.075, 10); // 0.15 * 0.5
   });
 });
 

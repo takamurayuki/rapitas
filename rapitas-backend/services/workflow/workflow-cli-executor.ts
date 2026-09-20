@@ -9,6 +9,7 @@
  * workflow-cli-executor-* modules.
  */
 import { prisma } from '../../config';
+import { createLogger } from '../../config/logger';
 import { ExecutionCancelledError } from '../agents/execution-cancelled-error';
 import { AgentOrchestrator } from '../agents/agent-orchestrator';
 import { resolveTaskWithTheme } from '../task/task-resolver';
@@ -16,10 +17,13 @@ import { getAgentTimeoutMs } from '../agents/execution-timeouts';
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 import { resolveExecutionWorkdir } from './workflow-cli-executor-worktree';
 import { buildCliAgentPrompt } from './workflow-cli-executor-prompt';
+import { buildColdStartHandoffPrompt } from './workflow-cli-executor-coldstart-prompt';
 import { readAgentsMdConstraints } from './workflow-agents-md-context';
 import { harvestInvestigationOutput, runPhaseEpilogue } from './workflow-cli-executor-epilogue';
 import { runPostProcessing } from './workflow-cli-executor-postprocess';
-import { resumeSessionIdFor } from './phase-session-resume';
+import { resolvePhaseResumeDecision } from './phase-session-resume';
+
+const log = createLogger('workflow:cli-executor');
 
 // Disk-existence guard for reusing a recorded worktree. Re-exported here so the
 // existing worktree-reuse.test.ts import path keeps working; the single source
@@ -139,14 +143,35 @@ export async function executeCLIAgent(
   // safe pattern: codex CANNOT save the md itself, the OS guarantees it.
   const isInvestigationPhase = transition.role === 'researcher' || transition.role === 'planner';
 
-  const fullPrompt = buildCliAgentPrompt({
+  // Repair bounce: continue the CLI session this role already built — unless
+  // its only resumable session was exhausted by a prompt-too-long failure, in
+  // which case cold-start with a SHORT structured handoff prompt instead of
+  // replaying the same oversized context that caused the failure (task 900).
+  const resumeDecision = await resolvePhaseResumeDecision({
     taskId,
-    language,
-    systemPrompt,
-    context,
-    transition,
-    agentsMd,
+    role: transition.role,
+    workingDirectory: effectiveWorkDir,
+    agentType: agentConfig.agentType,
   });
+  const fullPrompt =
+    resumeDecision.coldStartReason === 'prompt_too_long_exhausted'
+      ? buildColdStartHandoffPrompt({
+          taskId,
+          task,
+          systemPrompt,
+          transition,
+          workflowStatus: taskWithTheme?.workflowStatus,
+          agentsMd,
+          language,
+        })
+      : buildCliAgentPrompt({
+          taskId,
+          language,
+          systemPrompt,
+          context,
+          transition,
+          agentsMd,
+        });
 
   // For the harvest guard below: a critic rejection recorded AFTER this point
   // means the artifact this phase produced was already judged and bounced.
@@ -159,12 +184,6 @@ export async function executeCLIAgent(
   let sessionSucceeded = false;
   let sessionCancelled = false;
   try {
-    const resumeSessionId = await resumeSessionIdFor(
-      taskId,
-      transition.role,
-      effectiveWorkDir,
-      agentConfig.agentType,
-    );
     assertOwnership?.();
     const result = await orchestrator.executeTask(
       {
@@ -180,8 +199,7 @@ export async function executeCLIAgent(
         agentConfigId: agentConfig.id,
         workingDirectory: effectiveWorkDir,
         modelIdOverride: agentConfig.modelId || undefined,
-        // Repair bounce: continue the CLI session this role already built.
-        resumeSessionId,
+        resumeSessionId: resumeDecision.sessionId ?? undefined,
         // Role-aware wall-clock cap: implementer gets 2x the base (task 546).
         timeout: getAgentTimeoutMs(transition.role),
         autoCompleteTask: false,
@@ -211,6 +229,26 @@ export async function executeCLIAgent(
     );
 
     assertOwnership?.();
+    // Attempt summary (task 900): character/byte length + session-reuse +
+    // model + end-reason as ONE structured log record, never the prompt body
+    // or errorMessage full text — used to diagnose resume/cold-start behavior
+    // without leaking task input into logs.
+    log.info(
+      {
+        taskId,
+        role: transition.role,
+        attemptId: session.id,
+        promptChars: fullPrompt.length,
+        promptBytes: Buffer.byteLength(fullPrompt, 'utf8'),
+        sessionReused: resumeDecision.sessionId !== null,
+        coldStartReason: resumeDecision.coldStartReason,
+        requestedModel: agentConfig.modelId ?? 'auto',
+        actualModel: result.modelName ?? null,
+        endReason: result.failureType ?? (result.success ? 'success' : 'failed'),
+      },
+      '[WorkflowCLIExecutor] Attempt summary',
+    );
+
     await harvestInvestigationOutput({
       taskId,
       transition,

@@ -19,8 +19,15 @@ import { getTaskExecutionCancellationVersion } from '../agents/task-execution-lo
 
 const log = createLogger('plan-auto-approve');
 
-/** A manual rejection remains a human gate until a later manual approval. */
-async function isManualPlanApprovalHeld(taskId: number): Promise<boolean> {
+/**
+ * Read-only check: does a manual rejection currently hold auto-approve for
+ * this task? A manual rejection remains a human gate until a later manual
+ * approval. Does not mutate state.
+ *
+ * @param taskId - Task to check. / 対象タスク
+ * @returns True while a manual rejection is in effect. / 却下保留中かどうか
+ */
+export async function isManualPlanApprovalHeld(taskId: number): Promise<boolean> {
   try {
     const decision = await prisma.workflowTransition.findFirst({
       where: { taskId, cause: { in: ['manual_plan_rejected', 'manual_plan_approved'] } },

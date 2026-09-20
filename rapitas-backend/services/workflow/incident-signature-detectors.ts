@@ -172,6 +172,28 @@ export interface StagnationInput {
    */
   blockedEscalationRecent?: boolean | null;
   /**
+   * True when the task's theme has auto-run `status === 'running'` and
+   * `currentTaskId` is a DIFFERENT task — the theme is actively dispatching
+   * another task and this one is simply next in the backlog, not stuck
+   * (task #969). `AUTO_RUN_GLOBAL_MAX_CONCURRENCY` defaults to 1, so a busy
+   * theme's backlog routinely waits past STAGNATION_THRESHOLD_MS. Does NOT
+   * suppress detection when `currentTaskId` is this task itself — a live
+   * hang on the task's own turn must still be caught. `null`/`undefined`
+   * (unresolved) leaves the task subject to detection — mirrors the other
+   * optional gates' fail-open convention.
+   */
+  themeAutoRunBusyWithOtherTask?: boolean | null;
+  /**
+   * Epoch ms of the newest `blocked_escalated`/`blocked_reescalated` transition
+   * (#979). A `status=blocked` task whose escalation is younger than
+   * `blockedHoldMs` is a human-wait hold already reported through the
+   * escalation notice — not stagnation. `null`/`undefined` (never escalated or
+   * unresolved) leaves the task subject to detection (fail-open).
+   */
+  blockedEscalatedAtMs?: number | null;
+  /** Suppression window for the blocked hold (ms); the re-escalation interval. */
+  blockedHoldMs?: number;
+  /**
    * True when the task's newest transition cause is a blocked-task-escalation
    * cause (BLOCKED_ESCALATION_CAUSES). The dedicated pipeline already notified
    * a human and re-notifies every 4h, so a second `self-incident:stagnation`
@@ -241,6 +263,20 @@ export function detectStagnation(input: StagnationInput): { staleMs: number } | 
   // NOTE: blocked tasks are re-notified every 4h but the stagnation threshold is 30min, so
   // a notified blocked hold re-tripped detection 30min after every notice (#980).
   if (input.taskStatus === 'blocked' && input.blockedEscalationRecent) return null;
+  // Theme is actively dispatching a different task — this one is a normal
+  // backlog wait under AUTO_RUN_GLOBAL_MAX_CONCURRENCY=1, not stagnation (#969).
+  if (input.themeAutoRunBusyWithOtherTask) return null;
+  // Escalated blocked hold (#979): waiting on a human after a notice is legitimate
+  // until the re-escalation interval lapses; past it, escalation itself has
+  // stopped and the task is a genuine orphan again.
+  if (
+    input.taskStatus === 'blocked' &&
+    input.blockedEscalatedAtMs != null &&
+    input.blockedHoldMs != null &&
+    input.nowMs - input.blockedEscalatedAtMs < input.blockedHoldMs
+  ) {
+    return null;
+  }
   // Blocked and already escalated to a human by the dedicated pipeline (#978).
   if (input.blockedEscalated && input.taskStatus === 'blocked') return null;
   // A blocked task in an armed theme is already owned by the blocked-task
@@ -295,6 +331,14 @@ export interface TriStateDesyncInput {
    * mirrors themeAutoRunEnabled's fail-open convention.
    */
   manuallyWithdrawn?: boolean | null;
+  /**
+   * True when the task's theme has auto-run `status === 'running'` and
+   * `currentTaskId` is a DIFFERENT task — see StagnationInput.
+   * themeAutoRunBusyWithOtherTask for the full rationale (#969). Applies only
+   * to Pattern B (todo × advanced workflowStatus); Pattern A is unrelated to
+   * theme dispatch state and never reads this field.
+   */
+  themeAutoRunBusyWithOtherTask?: boolean | null;
   /** Current time (ms) — the recovery grace guard needs it to age the transition. */
   nowMs?: number;
   /** Pattern B recovery grace override (default DESYNC_RECOVERY_SETTLE_MS). */
@@ -354,7 +398,9 @@ function isWithinPatternASettle(input: TriStateDesyncInput): boolean {
  * (`themeAutoRunEnabled === false`), where the shape is an indefinite,
  * legitimate wait rather than a transient one (task #715, see
  * TriStateDesyncInput.themeAutoRunEnabled) — EXCEPT ALSO when the task was
- * deliberately withdrawn (#875, see TriStateDesyncInput.manuallyWithdrawn).
+ * deliberately withdrawn (#875, see TriStateDesyncInput.manuallyWithdrawn) —
+ * EXCEPT ALSO when the theme is busy dispatching a different task (#969, see
+ * TriStateDesyncInput.themeAutoRunBusyWithOtherTask).
  *
  * @param input - Cross-entity state snapshot. / 三面の状態スナップショット
  * @returns Detected pattern + human-readable summary, or null. / 検出結果またはnull
@@ -388,6 +434,9 @@ export function detectTriStateDesync(
     // Deliberately withdrawn via stop-execution({withdraw:true}) (#875) —
     // same rationale as detectStagnation's identically-named gate.
     if (input.manuallyWithdrawn) return null;
+    // Theme is actively dispatching a different task — normal backlog wait,
+    // not a desync (#969, mirrors detectStagnation's identically-named gate).
+    if (input.themeAutoRunBusyWithOtherTask) return null;
     return {
       kind: 'todo_status_workflow_advanced',
       detail: `task.status=todo のまま workflowStatus が前進済み(${input.workflowStatus})`,

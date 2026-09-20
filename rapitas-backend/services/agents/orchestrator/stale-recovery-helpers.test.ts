@@ -20,11 +20,11 @@ import type { OrchestratorContext } from './types';
 
 function makeCtx(
   taskFindUnique: ReturnType<typeof mock>,
-  taskUpdate: ReturnType<typeof mock> = mock(async () => ({})),
+  taskUpdateMany: ReturnType<typeof mock> = mock(async () => ({ count: 1 })),
 ): OrchestratorContext {
   return {
     prisma: {
-      task: { findUnique: taskFindUnique, update: taskUpdate },
+      task: { findUnique: taskFindUnique, updateMany: taskUpdateMany },
     },
   } as unknown as OrchestratorContext;
 }
@@ -32,18 +32,22 @@ function makeCtx(
 describe('updateAffectedTasks', () => {
   test('reverts an in-progress task to todo and records the revert transition', async () => {
     mockRecordTransition.mockClear();
-    const taskUpdate = mock(async () => ({}));
+    const taskUpdateMany = mock(async () => ({ count: 1 }));
     const taskFindUnique = mock(async () => ({
       id: 100,
       status: 'in-progress',
       workflowStatus: 'in_progress',
+      executionGenerationId: 0,
     }));
-    const ctx = makeCtx(taskFindUnique, taskUpdate);
+    const ctx = makeCtx(taskFindUnique, taskUpdateMany);
 
     const updated = await updateAffectedTasks(ctx, new Set([100]));
 
     expect(updated).toBe(1);
-    expect(taskUpdate).toHaveBeenCalledWith({ where: { id: 100 }, data: { status: 'todo' } });
+    expect(taskUpdateMany).toHaveBeenCalledWith({
+      where: { id: 100, executionGenerationId: 0 },
+      data: { status: 'todo' },
+    });
     expect(mockRecordTransition).toHaveBeenCalledTimes(1);
     expect(mockRecordTransition.mock.calls[0][0]).toMatchObject({
       taskId: 100,
@@ -55,18 +59,19 @@ describe('updateAffectedTasks', () => {
 
   test('does not touch or record a transition for a task that is not in-progress', async () => {
     mockRecordTransition.mockClear();
-    const taskUpdate = mock(async () => ({}));
+    const taskUpdateMany = mock(async () => ({ count: 1 }));
     const taskFindUnique = mock(async () => ({
       id: 100,
       status: 'done',
       workflowStatus: 'completed',
+      executionGenerationId: 0,
     }));
-    const ctx = makeCtx(taskFindUnique, taskUpdate);
+    const ctx = makeCtx(taskFindUnique, taskUpdateMany);
 
     const updated = await updateAffectedTasks(ctx, new Set([100]));
 
     expect(updated).toBe(0);
-    expect(taskUpdate).not.toHaveBeenCalled();
+    expect(taskUpdateMany).not.toHaveBeenCalled();
     expect(mockRecordTransition).not.toHaveBeenCalled();
   });
 
@@ -74,7 +79,12 @@ describe('updateAffectedTasks', () => {
     mockRecordTransition.mockClear();
     const taskFindUnique = mock(async (args: { where: { id: number } }) => {
       if (args.where.id === 1) throw new Error('lookup failed');
-      return { id: 2, status: 'in-progress', workflowStatus: 'plan_approved' };
+      return {
+        id: 2,
+        status: 'in-progress',
+        workflowStatus: 'plan_approved',
+        executionGenerationId: 0,
+      };
     });
     const ctx = makeCtx(taskFindUnique as unknown as ReturnType<typeof mock>);
 
@@ -82,5 +92,28 @@ describe('updateAffectedTasks', () => {
 
     expect(updated).toBe(1);
     expect(mockRecordTransition).toHaveBeenCalledTimes(1);
+  });
+
+  test('a generation change since the scan skips the revert without recording a transition', async () => {
+    mockRecordTransition.mockClear();
+    // count:0 simulates the WHERE clause's executionGenerationId no longer matching —
+    // i.e. a user stop-execution incremented it after this taskId was gathered.
+    const taskUpdateMany = mock(async () => ({ count: 0 }));
+    const taskFindUnique = mock(async () => ({
+      id: 100,
+      status: 'in-progress',
+      workflowStatus: 'in_progress',
+      executionGenerationId: 3,
+    }));
+    const ctx = makeCtx(taskFindUnique, taskUpdateMany);
+
+    const updated = await updateAffectedTasks(ctx, new Set([100]));
+
+    expect(updated).toBe(0);
+    expect(taskUpdateMany).toHaveBeenCalledWith({
+      where: { id: 100, executionGenerationId: 3 },
+      data: { status: 'todo' },
+    });
+    expect(mockRecordTransition).not.toHaveBeenCalled();
   });
 });

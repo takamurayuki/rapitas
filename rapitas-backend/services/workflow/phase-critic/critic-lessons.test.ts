@@ -28,6 +28,7 @@ const isAnyApiKeyConfiguredMock = mock(async () => true);
 mock.module('../../../utils/ai-client', () => ({
   sendAIMessage: sendAIMessageMock,
   getDefaultProvider: mock(async () => 'anthropic'),
+  getDefaultModel: mock(async () => 'claude-sonnet-5'),
   isAnyApiKeyConfigured: isAnyApiKeyConfiguredMock,
 }));
 
@@ -199,6 +200,22 @@ describe('buildCriticLessonsSection', () => {
     isAnyApiKeyConfiguredMock.mockImplementation(async () => false);
     expect(await buildCriticLessonsSection('plan')).toBe('');
     expect(sendAIMessageMock).not.toHaveBeenCalled();
+  });
+
+  it('head+tail truncates an oversized source with an explicit marker instead of silently cutting the tail', async () => {
+    const firstReason = 'FIRST-REASON-MARKER ' + 'a'.repeat(4000);
+    const lastReason = 'z'.repeat(2000) + ' LAST-REASON-MARKER';
+    findManyMock.mockImplementation(async () => [
+      row(601, 60, [firstReason, 'middle filler ' + 'm'.repeat(2000), 'filler2']),
+      row(600, 61, [lastReason]),
+    ]);
+    sendAIMessageMock.mockImplementation(async () => ({ content: '["観点D"]' }));
+    await buildCriticLessonsSection('plan');
+    const sent = String(sendAIMessageMock.mock.calls[0]?.[0]?.messages?.[0]?.content ?? '');
+    expect(sent.length).toBeLessThanOrEqual(7000);
+    expect(sent).toContain('FIRST-REASON-MARKER');
+    expect(sent).toContain('LAST-REASON-MARKER');
+    expect(sent).toContain('[中略:');
   });
 });
 
