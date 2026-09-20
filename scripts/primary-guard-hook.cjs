@@ -101,6 +101,51 @@ function extractExpansions(body) {
   return out.join('\n');
 }
 
+const EXEC_OPTION_RE = /\s--(?:pre|hostname-bin)(?![\w-])/i;
+const SEARCH_VERB_RE = /^(?:grep|egrep|fgrep|rg|select-string|findstr)(?=\s)/i;
+
+/**
+ * Blank the literal quoted arguments of read-only search commands (`grep "taskkill" f`).
+ *
+ * The search term is data, not something executed. Scope is limited to one pipeline
+ * segment: a separator ends it, so `grep x; pkill bun` still exposes the kill. Double
+ * quotes containing `$(`/backtick (or unterminated) are kept because the shell executes them.
+ *
+ * @param line - One command line / コマンド1行
+ * @returns Line with safe quoted search arguments replaced by empty quotes / 安全な引用を空にした行
+ */
+function blankSearchArgs(line) {
+  let out = '';
+  let inSearch = false;
+  let atCommandStart = true;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (atCommandStart && !/\s/.test(ch)) {
+      atCommandStart = false;
+      // rg --pre/--hostname-bin run their argument as a command, so it is code, not a search term.
+      if (SEARCH_VERB_RE.test(line.slice(i)) && !EXEC_OPTION_RE.test(line.slice(i))) inSearch = true;
+    }
+    if (/[;&|(`]/.test(ch)) {
+      inSearch = false;
+      atCommandStart = true;
+    }
+    if (inSearch && (ch === '"' || ch === "'")) {
+      let j = i + 1;
+      while (j < line.length && line[j] !== ch) j += ch === '"' && line[j] === '\\' ? 2 : 1;
+      const body = line.slice(i + 1, j);
+      const closed = j < line.length;
+      const executes = ch === '"' && (body.includes('$(') || body.includes('`'));
+      if (closed && !executes) {
+        out += ch + ch;
+        i = j;
+        continue;
+      }
+    }
+    out += ch;
+  }
+  return out;
+}
+
 /** Drop literal heredoc bodies and `git commit -m "..."` messages before pattern matching. */
 function stripProse(command) {
   const lines = command.split(/\r?\n/);
@@ -126,6 +171,7 @@ function stripProse(command) {
     }
   }
   return kept
+    .map(blankSearchArgs)
     .join('\n')
     .replace(
       /(\bgit\s+commit\b[^\n]*?\s(?:-m|--message)\s+)(?:"(?:\\.|[^"\\])*"|'[^']*')/gi,
