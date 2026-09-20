@@ -143,6 +143,56 @@ test('prose in heredoc bodies and commit messages does not trigger prisma/kill r
   );
 });
 
+test('backslash-escaped and unquoted heredocs: prose allowed, expansions still checked', () => {
+  const run = (command) => decision({ tool_name: 'Bash', tool_input: { command } }, ctx);
+  const isDeny = (r) => r?.hookSpecificOutput?.permissionDecision === 'deny';
+  // The reported incident shape: worktree cd + verify report written via heredoc.
+  assert.equal(
+    run(
+      "cd /c/Projects/rapitas/.worktrees/task-996-99e592e1 && cat > .wf-x.md <<'EOF'\n# 検証レポート\nprisma generate は禁止\nEOF",
+    ),
+    undefined,
+  );
+  // <<\EOF is quoted for the shell: no expansion, so the body is inert.
+  assert.equal(run('cat > n.md <<\\EOF\nrun prisma generate or taskkill\nEOF'), undefined);
+  // Unquoted <<EOF: plain prose is inert...
+  assert.equal(run('cat > n.md <<EOF\nrun prisma generate or taskkill\nEOF'), undefined);
+  // ...but $(...) and backticks in the body are executed by the shell.
+  assert.equal(isDeny(run('cat > n.md <<EOF\nx $(bunx prisma generate) y\nEOF')), true);
+  assert.equal(isDeny(run('cat > n.md <<EOF\nx `taskkill /F /IM bun.exe` y\nEOF')), true);
+  // Code after an unquoted heredoc is still checked.
+  assert.equal(isDeny(run('cat <<EOF\nnotes\nEOF\nbunx prisma generate')), true);
+});
+
+test('heredoc edge cases cannot be used to hide executed code', () => {
+  const run = (command) => decision({ tool_name: 'Bash', tool_input: { command } }, ctx);
+  const isDeny = (r) => r?.hookSpecificOutput?.permissionDecision === 'deny';
+  // Multi-line and nested command substitutions in an expanding heredoc body.
+  assert.equal(isDeny(run('cat <<EOF\nx $(\n  bunx prisma generate\n)\nEOF')), true);
+  assert.equal(isDeny(run('cat <<EOF\nx $(echo $(bunx prisma generate))\nEOF')), true);
+  assert.equal(isDeny(run('cat <<EOF\nx `\ntaskkill /F /IM bun.exe\n`\nEOF')), true);
+  // An escaped `\$(` is literal text for the shell, so it stays prose.
+  assert.equal(run('cat <<EOF\nnever run \\$(bunx prisma generate)\nEOF'), undefined);
+  // Here-strings and arithmetic shifts are not heredocs: the following code is still checked.
+  assert.equal(isDeny(run('cat <<< foo\nbunx prisma generate')), true);
+  assert.equal(isDeny(run('echo $((1<<EOF))\nbunx prisma generate')), true);
+  // An unterminated heredoc never swallows the remaining commands.
+  assert.equal(isDeny(run("cat <<'EOF'\nnotes\nbunx prisma generate")), true);
+  // Several heredocs on one line: each body is consumed in order.
+  assert.equal(run("cat <<'A' <<'B'\nprisma generate\nA\ntaskkill\nB"), undefined);
+  assert.equal(isDeny(run("cat <<'A' <<'B'\nx\nA\ny\nB\nbunx prisma generate")), true);
+});
+
+test('a denial carries a deny payload with the incident kind and reason', () => {
+  const r = decision(
+    { tool_name: 'Bash', tool_input: { command: 'cat <<EOF\n$(bunx prisma generate)\nEOF' } },
+    ctx,
+  );
+  assert.equal(r.hookSpecificOutput.permissionDecision, 'deny');
+  assert.equal(r._kind, 'prisma');
+  assert.match(r.hookSpecificOutput.permissionDecisionReason, /prisma/);
+});
+
 test('decision() itself is pure: a denial writes nothing', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-'));
   process.env.RAPITAS_GUARD_LOG_DIR = dir;
