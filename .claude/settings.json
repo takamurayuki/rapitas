@@ -8,6 +8,11 @@
             "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/verification-command-hook.cjs\"",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/primary-guard-hook.cjs\"",
+            "timeout": 5
           }
         ]
       }

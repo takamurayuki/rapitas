@@ -17,6 +17,7 @@ import {
   type BacklogJobKind,
   type BacklogScheduleConfig,
 } from './backlog-schedule-service';
+import { startGuardIncidentFiler, stopGuardIncidentFiler } from '../workflow/guard-incident-filer';
 import { runInnovationSession } from '../memory/innovation-session';
 import { runVulnerabilityScan } from '../memory/vulnerability-scan';
 import { runLogHealthCheck } from '../system/log-health-check';
@@ -280,6 +281,7 @@ export function startBacklogScheduler(): void {
   pollHandle = setInterval(() => {
     tick().catch((err) => log.warn({ err }, 'Backlog scheduler tick failed'));
   }, POLL_INTERVAL_MS);
+  startGuardIncidentFiler();
   log.info('Backlog scheduler started');
 }
 
@@ -292,4 +294,5 @@ export function stopBacklogScheduler(): void {
     pollHandle = null;
     log.info('Backlog scheduler stopped');
   }
+  stopGuardIncidentFiler();
 }
