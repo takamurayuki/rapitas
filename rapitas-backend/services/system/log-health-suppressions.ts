@@ -270,6 +270,21 @@ const SUPPRESSIONS: Suppression[] = [
       'cleanupOrphanedWorktreesスケジューラが30分毎に同一パスを再試行して自己修復する — 恒久失敗は別シグネチャ(git-operations/worktree-ops)で可視化される',
   },
   {
+    // ログ出力箇所: services/agents/orchestrator/git-operations/worktree/
+    // worktree-cleanup.ts:216-218 の logger.warn（cleanupOrphanedWorktrees内、
+    // removeWorktreeがfalseを返した分岐）。falseは worktree-remove.ts:58-85 の
+    // 保護ガード（未コミット作業の保全・.gitメタデータ欠落・保全を証明できない）が
+    // 削除を拒否した結果で、防いだ側であり何も壊れていない。拒否時はDBの
+    // worktreePathを残すため周期ごとに同一パスで再発する（task-997で13回、
+    // task-1015で7回 = #1029）。拒否の根本原因は worktree-remove.ts:68/73/79 が
+    // 別シグネチャ（「Preserving uncommitted work」等）で必ず記録するため、
+    // 本ルールで恒久的な滞留の可視性は失われない。
+    test: /\[cleanupOrphanedWorktrees\] removeWorktree refused for # session\(s\)/i,
+    logger: /git-operations\/worktree-ops/i,
+    because:
+      'removeWorktreeの保護ガードが未コミット作業等を守って削除を拒否した記録 — 拒否理由は worktree-remove.ts が別シグネチャで記録し、周期再試行で同一パスが再出力されるだけ',
+  },
+  {
     // ログ出力箇所: runtime-smoke/app-launcher.ts:154-164 の waitForHealthy()。
     // 呼び出し元は runtime-check.ts:144（検証ゲート経路）と
     // preview-session-manager.ts:191（ライブプレビュー経路）の2箇所。検証ゲート

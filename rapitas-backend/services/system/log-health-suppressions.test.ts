@@ -325,6 +325,27 @@ describe('classifyLogSignature', () => {
     ).toBe(false);
   });
 
+  test('"[cleanupOrphanedWorktrees] removeWorktree refused" is suppressed only for the worktree-ops logger', () => {
+    // Task #1029: a refusal is the dirty-work guard working; the root cause is
+    // logged by worktree-remove.ts under its own signature.
+    for (const msg of [
+      '[cleanupOrphanedWorktrees] removeWorktree refused for # session(s) (ids: #): <path>',
+      '[cleanupOrphanedWorktrees] removeWorktree refused for # session(s) (ids: #,#,#,#,#,#): <path>',
+    ]) {
+      expect(classifyLogSignature('git-operations/worktree-ops', msg).suppressed).toBe(true);
+      expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    }
+  });
+
+  test('the root-cause "Preserving uncommitted work" warn stays visible', () => {
+    expect(
+      classifyLogSignature(
+        'git-operations/worktree-ops',
+        '[removeWorktree] Preserving uncommitted work',
+      ).suppressed,
+    ).toBe(false);
+  });
+
   test('"[runtime-smoke] health check timed out" is scoped to the runtime-smoke:launcher logger only', () => {
     // Task #862: an unrelated logger reusing this phrase must still be filed.
     expect(
