@@ -250,3 +250,30 @@ test('decision() itself is pure: a denial writes nothing', () => {
   delete process.env.RAPITAS_GUARD_LOG_DIR;
   assert.equal(fs.readdirSync(dir).length, 0);
 });
+
+test('search-tool exec options (--pre / --hostname-bin) deny quoted kill words, plain searches stay allowed', () => {
+  for (const c of [
+    "rg --pre 'pkill bun' x .",
+    'rg x . --pre "killall bun"',
+    "rg --pre='taskkill /F /IM bun.exe' x .",
+    "rg x --hostname-bin 'Stop-Process -Name bun' .",
+  ]) {
+    assert.equal(classify(c, ctx), 'process_kill', c);
+  }
+  assert.equal(classify("rg 'pkill' --glob '*.ts' .", ctx), null);
+});
+
+test('exec-option denial is scoped to the option argument; other exec paths and plain pkill still deny', () => {
+  assert.equal(classify("rg --pre cat 'pkill' .", ctx), null);
+  assert.equal(classify("rg --pre cat 'taskkill' --glob '*.ts' .", ctx), null);
+  for (const c of [
+    'pkill bun',
+    'pkill -f bun',
+    'find . -name x -exec pkill bun \;',
+    'ls | xargs pkill',
+    'rg --pre pkill x .',
+    'rg --pre "sh -c \'pkill bun\'" x .',
+  ]) {
+    assert.equal(classify(c, ctx), 'process_kill', c);
+  }
+});

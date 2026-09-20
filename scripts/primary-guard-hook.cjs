@@ -50,6 +50,9 @@ const QUOTED_SPAN = /"(?:\\.|[^"\\])*"|'[^']*'/g;
 function hasProcessKill(code) {
   if (!PROC_KILL.test(code)) return false;
   if (SUBSTITUTION.test(code)) return true;
+  // rg --pre/--hostname-bin execute their (usually quoted) argument, so a kill word inside it is code.
+  // Only the option's own argument is executed; `rg --pre cat 'pkill' .` searches for the word.
+  for (const m of code.matchAll(EXEC_OPTION_ARG_RE)) if (PROC_KILL.test(m[1])) return true;
   let quotedCommandWord = false;
   const rest = code.replace(QUOTED_SPAN, (span, offset) => {
     // A quoted word at command position ('taskkill' /F, & "pkill") is still executed.
@@ -129,6 +132,8 @@ function extractExpansions(body) {
 }
 
 const EXEC_OPTION_RE = /\s--(?:pre|hostname-bin)(?![\w-])/i;
+// Captures the argument of --pre/--hostname-bin: quoted (may hold a whole command line) or a bare word.
+const EXEC_OPTION_ARG_RE = /\s--(?:pre|hostname-bin)(?![\w-])(?:=|\s+)?("(?:\\.|[^"\\])*"|'[^']*'|\S+)/gi;
 const SEARCH_VERB_RE = /^(?:grep|egrep|fgrep|rg|select-string|findstr)(?=\s)/i;
 
 /**
