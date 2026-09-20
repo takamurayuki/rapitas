@@ -32,8 +32,11 @@ mock.module('../../config/database', () => ({
   },
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
+const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 mock.module('../../config/logger', () => ({
-  createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
+  createLogger: () => noopLogger,
+  logger: noopLogger,
+  getBackendLogFilePath: () => '/tmp/backend.log',
 }));
 mock.module('../memory/concern-backlog-service', () => ({
   submitConcern: mock(() => Promise.resolve({ id: 1, outcome: 'created' })),
