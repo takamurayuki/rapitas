@@ -26,6 +26,20 @@ import {
 
 const log = createLogger('routes:workflow:handlers:files');
 
+/** Replan hold reasons that are expected state guards, not crashes (#961, #1023). */
+const EXPECTED_REPLAN_HOLD_REASONS = new Set([
+  'budget_exhausted',
+  'not_reviewable',
+  'stale_task',
+  'stale_snapshot',
+  'execution_superseded',
+  'review_in_progress',
+]);
+
+function isExpectedReplanHold(reason: string): boolean {
+  return EXPECTED_REPLAN_HOLD_REASONS.has(reason);
+}
+
 /**
  * Result of the status-transition stage. `newStatus` stays undefined when no
  * auto-transition applies (the caller then skips the downstream verify gates).
@@ -180,14 +194,17 @@ export async function computeAndApplyStatusTransition(params: {
       // (An undecidable reviewer verdict no longer lands here — the service
       // converts it into an inconclusive no-mismatch receipt, see
       // requirement-replan-service.ts.)
-      if (replan.reason === 'budget_exhausted') {
-        // NOTE (task #961): budget_exhausted means priorReplans reached its
+      if (isExpectedReplanHold(replan.reason)) {
+        // NOTE (task #961, #1023): budget_exhausted means priorReplans reached its
         // cap (requirement-replan-policy.ts) — an append-only counter that
         // never decreases, so this is an expected terminal state, not a
         // crash. Throwing RequirementReplanHeldError (AppError) instead of a
         // plain Error keeps queue-skip-policy.ts's retry-suppression from
         // being undermined by a false-alarm ERROR log on the very save that
         // reached the cap (see error-handler.ts for the suppression detail).
+        // #1023: not_reviewable / stale_* / execution_superseded / review_in_progress are
+        // likewise state guards (task not in-progress, evidence moved on), not crashes.
+        // Unknown reasons deliberately stay a plain Error so real anomalies still log ERROR.
         throw new RequirementReplanHeldError(replan.reason);
       }
       throw new Error(`Requirement replan review held: ${replan.reason}`);
