@@ -7,10 +7,8 @@ import {
  *
  * Regression for task 995: an iteration-budget halt must release the theme's
  * currentTaskId so the next tick reaches selection instead of re-halting the
- * same task every 12s.
- *
- * Also verifies that an iteration-budget halt exposes its judgement inputs
- * (statusRepeatCount / attempts / repeatLoop) in both the warn log and the
+ * same task every 12s. Also verifies that a halt exposes its judgement inputs
+ * (statusRepeatCount / attempts / repeatLoop) in the warn log and the
  * iteration_budget_halted transition metadata (task 994).
  */
 import { describe, it, expect, beforeEach } from 'bun:test';
@@ -34,7 +32,6 @@ beforeEach(() => {
   resetAllMocks();
   mockResumeTransition.mockReset().mockResolvedValue(null);
   mockStopTaskTreeAgents.mockClear();
-  mockLogWarn.mockClear();
   resetSchedulerSingleton();
   scheduler = ThemeAutoRunScheduler.getInstance();
   mockGetThemeActiveQueueItems.mockResolvedValue([]);

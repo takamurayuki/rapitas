@@ -97,6 +97,7 @@ describe('attemptVerifyRepair — stale-verdict CAS guard', () => {
   beforeEach(() => {
     resumeAdmission.mockReset().mockResolvedValue('scheduler_owned');
     taskWorkflowStatus = 'verify_done';
+    delete process.env.RAPITAS_VERIFY_NONCONVERGENCE_THRESHOLD;
     mockPrisma.task.findUnique
       .mockReset()
       .mockImplementation(async () => taskRow() as unknown as null);
@@ -237,6 +238,7 @@ describe('attemptVerifyRepair — stale-verdict CAS guard', () => {
       'detectRepeatLoop の phase_completed:* 除外が bounce 回数との対応関係を検証していない';
     const R3 =
       '受入基準1 に対して diff は test-triage.test.ts を一切変更しておらず、元原因にも触れていない';
+    process.env.RAPITAS_VERIFY_NONCONVERGENCE_THRESHOLD = '2'; // 既定3だと2回指摘では打ち切らない
     taskWorkflowStatus = 'in_progress';
     mockPrisma.task.findUnique.mockResolvedValue({
       ...taskRow(),

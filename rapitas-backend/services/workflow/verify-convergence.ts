@@ -2,9 +2,9 @@
  * verify-convergence
  *
  * Pure functions deciding whether a verify→implement repair loop has stopped
- * converging: the SAME acceptance criterion flagged as unaddressed by 2+ repair
- * bounces (not necessarily consecutive — task 614's real pattern was A→B→A)
- * means the task is treading water and must be cut off + escalated instead of
+ * converging: the SAME acceptance criterion flagged as unaddressed by N+ repair
+ * bounces (default 3, not necessarily consecutive — task 614's real pattern was
+ * A→B→A) WITHOUT the indicted set shrinking means the task is treading water and must be cut off + escalated instead of
  * bounced again. Not responsible for DB access, escalation, or transitions —
  * verify-self-repair wires those around these functions.
  */
@@ -41,12 +41,16 @@ const WORKFLOW_ARTIFACT_TOKENS = new Set(['research.md', 'question.md', 'plan.md
 
 /** Verdict of the non-convergence check. */
 export interface ConvergenceVerdict {
-  /** True when the repair loop must be cut off (same criterion flagged 2+ times). */
+  /** True when the repair loop must be cut off (same criterion flagged threshold+ times without the indicted set shrinking). */
   cutoff: boolean;
   /** 1-based index of the repeatedly-flagged criterion (when cutoff). */
   criterionIndex?: number;
   /** How many repair reasons flagged that criterion (when cutoff). */
   count?: number;
+  /** Indicted criteria of the latest prior reason (when cutoff). */
+  previousCriteria?: number[];
+  /** Indicted criteria of the current reason, undeterminable items excluded (when cutoff). */
+  currentCriteria?: number[];
 }
 
 /**
@@ -160,37 +164,95 @@ export function identifyIndictedCriteria(reason: string, criteria: string[]): nu
   return [...found].sort((a, b) => a - b);
 }
 
+/** Default number of repair reasons indicting one criterion before the trend check applies. */
+export const DEFAULT_NONCONVERGENCE_THRESHOLD = 3;
+
 /**
- * Decide whether the repair loop stopped converging: counting the CURRENT
- * reason together with all prior reasons in the window, any criterion indicted
- * by 2+ distinct repair reasons (repetition, not necessarily consecutive —
- * A→B→A cuts off) yields a cutoff verdict. Every unidentifiable input fails
- * open (`cutoff:false`): stopping a progressing task by mistake is worse than
- * one extra bounce.
+ * Phrases by which a judge self-reports that a finding cannot be decided from
+ * the diff (real-environment premises etc.). Judge output is free text, so
+ * matching is per line and deliberately keyword-based; extend here.
+ */
+const UNDETERMINABLE_MARKERS = ['差分では判定不能', '判定できない', '判定不能', '要確認', '未検証'];
+
+/**
+ * Resolve the non-convergence threshold from an env-like map
+ * (`RAPITAS_VERIFY_NONCONVERGENCE_THRESHOLD`). Anything but a positive integer
+ * falls back to the default so a typo can never disable the detector.
+ *
+ * @param env - Environment map. / 環境変数マップ
+ * @returns Threshold (>= 1). / 閾値
+ */
+export function resolveNonConvergenceThreshold(
+  env: Record<string, string | undefined> = process.env,
+): number {
+  const raw = env.RAPITAS_VERIFY_NONCONVERGENCE_THRESHOLD?.trim();
+  if (!raw || !/^\d+$/.test(raw)) return DEFAULT_NONCONVERGENCE_THRESHOLD;
+  const n = parseInt(raw, 10);
+  return n >= 1 ? n : DEFAULT_NONCONVERGENCE_THRESHOLD;
+}
+
+/**
+ * Criteria indicted by a reason, minus those flagged ONLY on lines where the
+ * judge admits it cannot decide from the diff. A criterion that is also
+ * indicted on a decisive line is kept.
+ *
+ * @param reason - Repair-bounce reason. / 差し戻し理由
+ * @param criteria - Acceptance criterion bodies. / 受入基準本文
+ * @returns Sorted 1-based indices. / 判定可能な指摘基準番号
+ */
+export function stripUndeterminableIndictments(reason: string, criteria: string[]): number[] {
+  const all = identifyIndictedCriteria(reason, criteria);
+  if (all.length === 0) return all;
+  const marked = new Set<number>();
+  const decisive = new Set<number>();
+  for (const line of reason.split(/\r?\n/)) {
+    const target = UNDETERMINABLE_MARKERS.some((m) => line.includes(m)) ? marked : decisive;
+    for (const n of identifyIndictedCriteria(line, criteria)) target.add(n);
+  }
+  return all.filter((n) => !marked.has(n) || decisive.has(n));
+}
+
+/**
+ * Decide whether the repair loop stopped converging. Stage 1: some criterion
+ * must be indicted by `threshold`+ reasons (current included, not necessarily
+ * consecutive). Stage 2: the current indicted set (self-reported undeterminable
+ * items excluded) must not have SHRUNK versus the latest prior non-empty set —
+ * a shrinking set is progress (task 996), an equal/larger one is treading water
+ * (task 995). Every unidentifiable input fails open (`cutoff:false`): stopping
+ * a progressing task by mistake is worse than one extra bounce.
  *
  * @param currentReason - The reason about to trigger a bounce (not yet recorded). / 今回の理由
- * @param priorReasons - Reasons of prior verify_repair transitions in the window. / 過去の理由
+ * @param priorReasons - Reasons of prior verify_repair transitions, oldest first. / 過去の理由（古い順）
  * @param criteria - Acceptance criterion bodies. / 受入基準本文
- * @returns Cutoff verdict with the repeated criterion + count. / 判定
+ * @param threshold - Indictments of one criterion required before the trend check. / 閾値
+ * @returns Cutoff verdict with the repeated criterion, count and both sets. / 判定
  */
 export function detectNonConvergence(
   currentReason: string,
   priorReasons: string[],
   criteria: string[],
+  threshold: number = DEFAULT_NONCONVERGENCE_THRESHOLD,
 ): ConvergenceVerdict {
   if (criteria.length === 0) return { cutoff: false };
 
+  const priorSets = priorReasons.map((r) => stripUndeterminableIndictments(r, criteria));
+  const currentSet = stripUndeterminableIndictments(currentReason, criteria);
+  if (currentSet.length === 0) return { cutoff: false };
+
   const counts = new Map<number, number>();
-  for (const reason of [...priorReasons, currentReason]) {
-    // Set-per-reason: a reason mentioning the same criterion twice is ONE bounce.
-    for (const idx of identifyIndictedCriteria(reason, criteria)) {
-      counts.set(idx, (counts.get(idx) ?? 0) + 1);
-    }
+  // Set-per-reason: a reason mentioning the same criterion twice is ONE bounce.
+  for (const set of [...priorSets, currentSet]) {
+    for (const idx of set) counts.set(idx, (counts.get(idx) ?? 0) + 1);
   }
 
   let hit: { criterionIndex: number; count: number } | null = null;
   for (const [idx, count] of counts) {
-    if (count >= 2 && (!hit || idx < hit.criterionIndex)) hit = { criterionIndex: idx, count };
+    if (count >= threshold && (!hit || idx < hit.criterionIndex))
+      hit = { criterionIndex: idx, count };
   }
-  return hit ? { cutoff: true, ...hit } : { cutoff: false };
+  if (!hit) return { cutoff: false };
+
+  const previousSet = [...priorSets].reverse().find((s) => s.length > 0);
+  if (!previousSet || currentSet.length < previousSet.length) return { cutoff: false };
+  return { cutoff: true, ...hit, previousCriteria: previousSet, currentCriteria: currentSet };
 }
