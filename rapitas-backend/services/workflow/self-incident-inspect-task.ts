@@ -8,6 +8,7 @@
  */
 import {
   detectStagnation,
+  isBlockedEscalationRecent,
   detectTriStateDesync,
   detectRepeatLoop,
   isRepairBounceCause,
@@ -95,6 +96,7 @@ export async function inspectTask(
     themeAutoRunBusyWithOtherTask,
     blockedEscalatedAtMs: state.latestBlockedEscalationAtMs,
     blockedHoldMs: BLOCKED_REESCALATION_INTERVAL_MS,
+    blockedEscalationRecent: isBlockedEscalationRecent(state.latestBlockedEscalationAtMs, nowMs),
     blockedEscalated,
     blockedRetryPipelineArmed,
     nowMs,

@@ -10,6 +10,7 @@
  * and is re-exported here (barrel) for backward compatibility — see task 855.
  */
 import { ACTIVE_EXEC } from './workflow-reconciler-requeue';
+import { BLOCKED_REESCALATION_INTERVAL_MS } from './blocked-task-policy';
 export {
   detectRepeatLoop,
   isRepairBounceCause,
@@ -164,6 +165,13 @@ export interface StagnationInput {
    */
   manuallyWithdrawn?: boolean | null;
   /**
+   * True when a blocked task's most recent blocked_escalated/blocked_reescalated
+   * transition is still inside the re-notification window — a human was
+   * already told, so the blocked hold is deliberate, not abandoned (#980).
+   * `null`/`undefined` leaves the task subject to detection (fail-open).
+   */
+  blockedEscalationRecent?: boolean | null;
+  /**
    * True when the task's theme has auto-run `status === 'running'` and
    * `currentTaskId` is a DIFFERENT task — the theme is actively dispatching
    * another task and this one is simply next in the backlog, not stuck
@@ -212,6 +220,24 @@ export interface StagnationInput {
 }
 
 /**
+ * Whether the newest blocked escalation notice is still fresh: window = re-notify interval
+ * + 30min slack; past it the notifier is presumed dead, so detection resumes (#980).
+ *
+ * @param latestEscalationAtMs - Newest blocked_(re)escalated time, null when none/unknown. / 最新通知時刻
+ * @param nowMs - Current time (ms). / 現在時刻
+ * @returns True when a notice landed inside the window. / 窓内なら true
+ */
+export function isBlockedEscalationRecent(
+  latestEscalationAtMs: number | null,
+  nowMs: number,
+): boolean {
+  return (
+    latestEscalationAtMs != null &&
+    nowMs - latestEscalationAtMs < BLOCKED_REESCALATION_INTERVAL_MS + 30 * 60_000
+  );
+}
+
+/**
  * Detects a stagnant non-terminal task: no activity for the threshold while no
  * agent is running, nothing is queued, and no legitimate wait state applies.
  * Only in-flight tasks qualify — a pure todo backlog item that never started
@@ -234,6 +260,9 @@ export function detectStagnation(input: StagnationInput): { staleMs: number } | 
   // operator has already decided not to resume this task; repeating the
   // same finding every watch pass forever is noise, not signal.
   if (input.manuallyWithdrawn) return null;
+  // NOTE: blocked tasks are re-notified every 4h but the stagnation threshold is 30min, so
+  // a notified blocked hold re-tripped detection 30min after every notice (#980).
+  if (input.taskStatus === 'blocked' && input.blockedEscalationRecent) return null;
   // Theme is actively dispatching a different task — this one is a normal
   // backlog wait under AUTO_RUN_GLOBAL_MAX_CONCURRENCY=1, not stagnation (#969).
   if (input.themeAutoRunBusyWithOtherTask) return null;
