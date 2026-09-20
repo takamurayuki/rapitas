@@ -19,6 +19,7 @@ import {
   type ConcernStatus,
   type ConcernType,
 } from '../../services/memory/concern-backlog-service';
+import { searchConcerns } from '../../services/memory/concern-search-service';
 import { closeIssueForConcern } from '../../services/github/concern-bridge';
 
 const log = createLogger('routes:concern-backlog');
@@ -44,6 +45,32 @@ export const concernBacklogRoutes = new Elysia()
         severity: t.Optional(t.String()),
         source: t.Optional(t.String()),
         themeId: t.Optional(t.String()),
+        limit: t.Optional(t.String()),
+        offset: t.Optional(t.String()),
+      }),
+    },
+  )
+
+  /** Voice/text search returning scored hits (impactScore/relatedTasks/priority/pattern). */
+  .get(
+    '/concerns/search',
+    async ({ query }) => {
+      const limit = parseInt(query.limit ?? '');
+      const offset = parseInt(query.offset ?? '');
+      return searchConcerns({
+        q: query.q,
+        type: query.type ? normalizeConcernType(query.type) : undefined,
+        status: (query.status as ConcernStatus | 'all' | undefined) ?? 'open',
+        // NOTE: invalid numbers fall back to defaults (no 400), matching GET /concerns leniency.
+        limit: Number.isFinite(limit) && limit > 0 ? limit : 20,
+        offset: Number.isFinite(offset) && offset > 0 ? offset : 0,
+      });
+    },
+    {
+      query: t.Object({
+        q: t.Optional(t.String()),
+        type: t.Optional(t.String()),
+        status: t.Optional(t.String()),
         limit: t.Optional(t.String()),
         offset: t.Optional(t.String()),
       }),

@@ -125,3 +125,51 @@ describe('POST /concerns', () => {
     expect(body.error).toBe('懸念の登録に失敗しました');
   });
 });
+
+describe('GET /concerns/search', () => {
+  beforeEach(resetMocks);
+
+  const searchConcern = {
+    id: 9,
+    title: 'Slow query',
+    detail: 'd',
+    location: null,
+    type: 'perf',
+    severity: 'urgent',
+    originTaskId: 3,
+    createdTaskId: null,
+  };
+
+  it('returns scored JSON with impactScore/relatedTasks/priority/pattern', async () => {
+    mockListConcerns.mockResolvedValue({ concerns: [searchConcern], total: 1 });
+
+    const q = encodeURIComponent('Show me PERF-related blocking concerns');
+    const res = await concernBacklogRoutes.handle(new Request(`${BASE}/search?q=${q}`));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.total).toBe(1);
+    expect(body.items[0]).toEqual({
+      id: 9,
+      title: 'Slow query',
+      impactScore: 8.8,
+      relatedTasks: 1,
+      priority: 'Critical',
+      pattern: '⬛⬛⬛',
+    });
+    expect(body.parsed).toEqual({ type: 'perf', severities: ['urgent', 'high'], keywords: [] });
+    expect(mockListConcerns.mock.calls[0][0]).toMatchObject({ type: 'perf' });
+  });
+
+  it('falls back to defaults for a non-numeric limit instead of returning 400', async () => {
+    const res = await concernBacklogRoutes.handle(new Request(`${BASE}/search?limit=abc`));
+    expect(res.status).toBe(200);
+  });
+
+  it('leaves GET /concerns untouched (no scoring fields)', async () => {
+    mockListConcerns.mockResolvedValue({ concerns: [searchConcern], total: 1 });
+    const res = await concernBacklogRoutes.handle(new Request(BASE));
+    const body = await res.json();
+    expect(body.concerns[0].impactScore).toBeUndefined();
+  });
+});
