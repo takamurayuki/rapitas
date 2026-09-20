@@ -6,7 +6,9 @@
  * no-progress fallback, per task 881. Existing modules keep their current
  * responsibilities unchanged — this module only ADDS a stop decision on top
  * of their outputs (see plan.md §重複・置換範囲マッピング):
- *   - cost figures come from task-budget.ts's getTaskSpendUsd (reused as-is)
+ *   - cost figures come from task-budget.ts's getTaskSpendUsdSince, summed
+ *     over the current iteration window only (a lifetime total re-halted
+ *     every over-budget task on each selection after a window reset)
  *   - same-cause repeat comes from incident-signature-repeat-loop.ts's
  *     detectRepeatLoop (reused as-is, forgiveness budget included)
  *   - the window-reset boundary follows the same event-driven pattern as
@@ -22,7 +24,7 @@
 
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { getTaskSpendUsd } from './task-budget';
+import { getTaskSpendUsdSince } from './task-budget';
 import { detectRepeatLoop, REPEAT_LOOP_WINDOW_MS } from './incident-signature-repeat-loop';
 import { countNonAdvancingTransitions } from './task-iteration-budget-status';
 import { submitConcern } from '../memory/concern-backlog-service';
@@ -241,8 +243,10 @@ export async function resolveIterationBudgetForTask(
     const windowStart = (await resolveIterationWindowStart(taskId)) ?? task.createdAt;
     const windowStartMs = windowStart.getTime();
 
+    // Cost is windowed like attempts: a reset (retry / answered question /
+    // replan) grants a fresh slate on every axis, not just on the counters.
     const [spentUsd, attemptsInWindow, transitionsInWindow] = await Promise.all([
-      getTaskSpendUsd(taskId),
+      getTaskSpendUsdSince(taskId, windowStart),
       prisma.agentExecution.count({
         where: {
           session: { config: { taskId } },
