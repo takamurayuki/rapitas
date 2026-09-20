@@ -86,6 +86,13 @@ export function evaluateAutoMergeChecks(checks: PrCheck[], blocking: Set<string>
   if (relevant.length === 0) return 'unknown';
   if (relevant.some((c) => c.bucket === 'fail' || c.bucket === 'cancel')) return 'fail';
   if (relevant.some((c) => c.bucket === 'pending')) return 'pending';
+  // NOTE: CodeQL starts later than the fast checks, so a PR can look all-green before it is
+  // even queued (PR #769 merged this way with a new high alert). Some checks reported but a
+  // blocking CodeQL one has not → wait. The all-unreported case stays 'unknown' (no-CI PRs).
+  const reported = new Set(relevant.map((c) => c.name));
+  for (const name of blocking) {
+    if (name.startsWith('CodeQL') && !reported.has(name)) return 'pending';
+  }
   // Everything present is pass/skipping.
   return 'pass';
 }
