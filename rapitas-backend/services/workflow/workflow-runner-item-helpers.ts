@@ -9,6 +9,7 @@
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { resolveTaskWorkflowState, resolveTaskForPlanApproval } from '../task/task-resolver';
+import { isNonRunnableTaskSkip } from './queue-skip-policy';
 import type { WorkflowRole, WorkflowAdvanceResult } from './workflow-types';
 import type { TaskWorkflowState } from '../task/task-resolver';
 
@@ -176,4 +177,31 @@ export async function stopFailedPhaseAgents(taskId: number, errorMessage: string
   } catch (err) {
     log.warn({ err, taskId }, '[WorkflowRunner] Failed to stop agents after phase error');
   }
+}
+
+/**
+ * Log a failed phase result, at INFO when it is a "not runnable now" refusal.
+ *
+ * NOTE: A refusal such as a task parked on awaiting_question is a skip, not a
+ * failure — retryIfPossible cancels it via the same isNonRunnableTaskSkip
+ * predicate without spending a retry. WARN made the log-concern filer report
+ * expected skips as defects.
+ *
+ * @param logger - Runner logger. / ランナーのロガー
+ * @param taskId - Task the phase ran for. / 対象タスクID
+ * @param phase - Workflow status the phase started from. / フェーズ開始時のステータス
+ * @param result - The failed (success:false) advance result. / 失敗した実行結果
+ */
+export function logPhaseFailure(
+  logger: Pick<typeof log, 'info' | 'warn'>,
+  taskId: number,
+  phase: string,
+  result: WorkflowAdvanceResult,
+): void {
+  const emit = isNonRunnableTaskSkip(result.error) ? logger.info : logger.warn;
+  emit.call(
+    logger,
+    { taskId, phase, role: result.role, error: result.error },
+    `[WorkflowRunner] Phase failed for task ${taskId}: ${result.error ?? 'unknown error'}`,
+  );
 }

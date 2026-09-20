@@ -25,9 +25,9 @@ import {
   raceWorkflowAdvance,
   waitBeforeNextPhase,
   stopFailedPhaseAgents,
+  logPhaseFailure,
 } from './workflow-runner-item-helpers';
 import { taskVanishedMessage } from './queue-vanished-task-policy';
-import { isNonRunnableTaskSkip } from './queue-skip-policy';
 import type { RunnerStatus, ActiveExecution } from './workflow-runner.types';
 
 export type { RunnerStatus } from './workflow-runner.types';
@@ -396,16 +396,7 @@ export class WorkflowRunner {
           // Surface WHY the phase failed. This used to be swallowed — only the
           // generic "Max retries (3) exceeded" surfaced — which hid root causes
           // like "role has no agent assigned" behind a silent retry loop.
-          // NOTE: A "not runnable now" refusal (e.g. task parked on awaiting_question) is
-          // a skip, not a failure — retryIfPossible below cancels it via the same
-          // isNonRunnableTaskSkip predicate without spending a retry. Logging it at
-          // WARN made the log-concern filer report expected skips as defects.
-          const phaseLog = isNonRunnableTaskSkip(result.error) ? log.info : log.warn;
-          phaseLog.call(
-            log,
-            { taskId: item.taskId, phase: currentStatus, role: result.role, error: result.error },
-            `[WorkflowRunner] Phase failed for task ${item.taskId}: ${result.error ?? 'unknown error'}`,
-          );
+          logPhaseFailure(log, item.taskId, currentStatus, result);
           // Persist the reason on the queue item so it is visible after retries.
           const retried = await this.queue.retryIfPossible(item.id, result.error ?? undefined);
           if (!retried) {
