@@ -14,6 +14,7 @@ import { resolveTaskWorkflowState } from '../../task/task-resolver';
 import { isTaskTerminalForQueue } from '../workflow-queue';
 import { logCycleEvent } from '../../observability';
 import { notifyStallReleased } from './auto-run-notifications';
+import { releaseCurrentTaskIfMatches } from '../../task/task-terminal-current-release';
 
 const log = createLogger('auto-run-stall-guard');
 
@@ -109,8 +110,6 @@ export async function releaseStaleActiveItems(
   // Counted only when a stall_released was recorded above; the same terminal task
   // pinned again on the next tick means the theme slot itself must be freed.
   if (noteResidue(themeId, currentTaskId) >= RESIDUE_RELEASE_STREAK) {
-    const { releaseCurrentTaskIfMatches } =
-      await import('../../task/task-terminal-current-release');
     await releaseCurrentTaskIfMatches(prisma, currentTaskId).catch(() => 0);
     residueStreak.delete(themeId);
   }
