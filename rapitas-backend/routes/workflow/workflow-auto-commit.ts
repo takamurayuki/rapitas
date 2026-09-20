@@ -23,6 +23,7 @@ import {
   releasePrCreationLock,
 } from '../../services/github/pr-duplicate-guard';
 import type { BaseSyncResult } from '../../services/workflow/pre-pr-base-sync';
+import { PR_CREATION_IN_FLIGHT_ERROR } from '../../services/workflow/pr-in-flight-wait';
 import {
   syncHarnessIfDrifted,
   type HarnessDriftSyncResult,
@@ -335,10 +336,7 @@ export async function performAutoCommitAndPR(
         log.info(
           `[Workflow] Task ${taskId}: another PR-creation attempt is already in flight — skipping`,
         );
-        result.autoPRResult = {
-          success: false,
-          error: 'PR作成が別プロセスで進行中のためスキップしました',
-        };
+        result.autoPRResult = { success: false, error: PR_CREATION_IN_FLIGHT_ERROR };
       } else {
         try {
           const existingOpenPr = await findOpenPrForTask(prisma, taskId);

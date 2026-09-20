@@ -26,6 +26,7 @@ import {
   taskHasLinkedPr,
   wasVerifyValidationFailureJustRecorded,
 } from './workflow-cli-executor-helpers';
+import { waitForInFlightPr, PR_CREATION_IN_FLIGHT_ERROR } from './pr-in-flight-wait';
 
 // NOTE: Same logger name as the executor body — keeps the observed log `name`
 // field identical after the file split.
@@ -215,6 +216,12 @@ export async function resolveVerifyPhaseStatus(params: {
         prSatisfied =
           !prRequested || acpr.autoPRResult?.success === true || (await taskHasLinkedPr(taskId));
         prError = acpr.autoPRResult?.error ?? acpr.error;
+        // Lost the PR-creation lock to the HTTP save's epilogue: the PR is
+        // being made right now, so wait for it instead of blocking (task 1027).
+        if (prRequested && !prSatisfied && prError === PR_CREATION_IN_FLIGHT_ERROR) {
+          log.info({ taskId }, '[WorkflowCLIExecutor] PR creation in flight elsewhere — waiting');
+          prSatisfied = await waitForInFlightPr(taskId);
+        }
         noChangeCompletion =
           prRequested &&
           !prSatisfied &&
