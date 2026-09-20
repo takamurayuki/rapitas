@@ -379,6 +379,26 @@ function isWithinRecoveryGrace(input: TriStateDesyncInput): boolean {
   return list.some((t) => RECOVERY_REQUEUE_CAUSES.has(t.cause) && nowMs - t.createdAtMs < settleMs);
 }
 
+/** Cause written by `recordThemeStopIntent` (literal: keeps this module free of DB imports). */
+const THEME_STOP_CAUSE = 'theme_stop_execution_requested';
+
+/**
+ * True when the newest transition is a theme-stop request. A stop leaves the task in 'todo' with
+ * its advanced workflowStatus and no dispatch until the operator resumes it, so the shape is
+ * permanent by design (#1010: task 907 re-filed for hours after the recovery grace expired).
+ * Any later transition (resume/dispatch) supersedes it, so real desyncs still fire.
+ */
+function isParkedByThemeStop(input: TriStateDesyncInput): boolean {
+  const list = input.recentTransitions?.length
+    ? input.recentTransitions
+    : input.latestTransitionCause != null
+      ? [{ cause: input.latestTransitionCause, createdAtMs: input.latestTransitionAtMs ?? 0 }]
+      : [];
+  if (!list.length) return false;
+  const newest = list.reduce((a, b) => (b.createdAtMs >= a.createdAtMs ? b : a));
+  return newest.cause === THEME_STOP_CAUSE;
+}
+
 /**
  * True when the session's own last update is within the Pattern A settle
  * window (#718). Requires BOTH timestamps — with either missing the guard
@@ -453,6 +473,8 @@ export function detectTriStateDesync(
     if (input.taskHalted) return null;
     // Operator opted out of auto-run (#1003) — nothing will dispatch it by design.
     if (input.autoRunExcluded) return null;
+    // Newest transition is an operator theme-stop (#1010): the task was parked in todo on purpose.
+    if (isParkedByThemeStop(input)) return null;
     return {
       kind: 'todo_status_workflow_advanced',
       detail: `task.status=todo のまま workflowStatus が前進済み(${input.workflowStatus})`,
