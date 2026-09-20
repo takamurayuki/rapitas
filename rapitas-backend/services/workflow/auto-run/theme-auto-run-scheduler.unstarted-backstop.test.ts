@@ -99,6 +99,15 @@ describe('advanceTheme — hang backstop on never-executed tasks (task 1007)', (
     expect(mockOnTaskFailed).not.toHaveBeenCalled();
   });
 
+  it('does not requeue when an execution started between the first lookup and the guard re-check', async () => {
+    verdictQueue = [true, false];
+    await internal(scheduler).advanceTheme(1, 984, 'priority', 1, overWall(3));
+
+    expect(mockRequeue).not.toHaveBeenCalled();
+    expect(mockNotifyHangBackstop).toHaveBeenCalled();
+    expect(mockOnTaskFailed).toHaveBeenCalled();
+  });
+
   it('blocks when the guard re-check still reports executed', async () => {
     verdictQueue = [false, false];
     await internal(scheduler).advanceTheme(1, 984, 'priority', 1, overWall(1.6));
