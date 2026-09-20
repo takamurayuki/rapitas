@@ -17,10 +17,16 @@ mock.module('../../config/database', () => ({
     agentExecution: { count: mockCount, findMany: mockFindMany },
     workflowTransition: { findFirst: mockTransitionFindFirst, findMany: mockFindMany },
   },
+  ensureDatabaseConnection: () => Promise.resolve(),
 }));
 
+const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 mock.module('../../config/logger', () => ({
-  createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
+  createLogger: () => noopLogger,
+  // task-iteration-budget-status.ts (task 994) pulls in modules that import the
+  // bare `logger` export — the mock must mirror every export of the real module.
+  logger: noopLogger,
+  getBackendLogFilePath: () => '/tmp/backend.log',
 }));
 
 const mockSubmitConcern = mock(() => Promise.resolve({ id: 1, outcome: 'created' as const }));
