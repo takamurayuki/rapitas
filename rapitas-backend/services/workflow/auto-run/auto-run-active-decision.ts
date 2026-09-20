@@ -23,7 +23,7 @@ import {
 } from './auto-run-selection';
 import { liveOrQueuedBehind } from './queue-wait-exemption';
 import { taskNeverExecuted } from './auto-run-execution-presence';
-import { requeueUnstartedTask } from './requeue-unstarted-task';
+import { requeueIfNeverExecuted } from './requeue-if-never-executed';
 import {
   setCurrentTask,
   onTaskCompleted,
@@ -49,39 +49,6 @@ import { resolveResumedTenureStart } from './resume-tenure';
 import { hasRunawayCancelLoop, userActedAfter } from './auto-run-recovery-history';
 
 const log = createLogger('theme-auto-run-scheduler');
-
-/**
- * Last-chance guard before the backstop blocks a task: requeue it when it has
- * never executed. The lookup is ALWAYS repeated here, right before the block:
- * the earlier verdict can be stale (an execution may have started meanwhile —
- * requeueing that would reset a task that is actually running) or may have
- * failed closed.
- *
- * @param prisma - Prisma client / Prismaクライアント
- * @param taskId - Task about to be blocked / ブロック直前のタスク
- * @param themeId - Owning theme / テーマID
- * @returns true when requeued (do not block) / 復帰したら true
- */
-async function requeueIfNeverExecuted(
-  prisma: PrismaClient,
-  taskId: number,
-  themeId: number,
-): Promise<boolean> {
-  try {
-    return (
-      (await taskNeverExecuted(prisma, taskId)) &&
-      (await requeueUnstartedTask(prisma, taskId, themeId))
-    );
-  } catch (err) {
-    // Fail-closed: a broken guard must fall back to the original blocked path, never crash the backstop.
-    log.warn(
-      `[ThemeAutoRunScheduler] Task ${taskId} last-chance requeue guard failed (${
-        err instanceof Error ? err.message : String(err)
-      }) — blocking as before`,
-    );
-    return false;
-  }
-}
 
 /**
  * Advance a running theme that has a current task: resolve the current task's
@@ -441,6 +408,23 @@ export async function advanceActiveTaskLocked(
     const errMsg = terminalItem?.errorMessage ?? `Task ${currentTaskId} failed or was blocked`;
     // Mark the task blocked so selection skips it next time.
     if (task?.status !== 'blocked') {
+      // Task 1007: same last-chance guard as the wall-budget branch — a task that
+      // never executed failed in the queue, not in the agent. Requeue it (bounded)
+      // and skip the failure notices; an already-blocked task is never reopened.
+      if (await requeueIfNeverExecuted(prisma, currentTaskId, themeId)) {
+        log.warn(
+          `[ThemeAutoRunScheduler] Task ${currentTaskId} failed in the queue without ever executing — requeued instead of blocked (theme ${themeId})`,
+        );
+        logCycleEvent('task.skipped', {
+          theme: themeId,
+          task: currentTaskId,
+          cause: 'terminal_failure_never_executed',
+          msg: 'never-executed task requeued instead of blocked after a terminal queue failure',
+        });
+        await setCurrentTask(themeId, currentTaskId);
+        broadcastAutoRunUpdateImpl(themeId);
+        return;
+      }
       await writeBlockedTask(prisma, currentTaskId).catch(() => {});
     }
     await onTaskFailed(themeId, errMsg);
