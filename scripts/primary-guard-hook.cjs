@@ -36,6 +36,8 @@ const PROC_KILL = /\b(?:stop-process|taskkill|pkill|killall)\b/i;
 // substitution, backticks, or interpreters fed by a pipe.
 const EXEC_INDIRECTION =
   /\b(?:sh|bash|zsh|dash|cmd|pwsh|powershell|eval|iex|invoke-expression|xargs|source|exec|env|node|python\d?|start-process|invoke-command)\b/i;
+// rg --pre/--hostname-bin execute their (quoted) argument as a command.
+const EXEC_OPTION_FLAG = /(?:^|\s)--(?:pre|hostname-bin)(?![\w-])/i;
 const SUBSTITUTION = /\$\(|`/;
 const QUOTED_SPAN = /"(?:\\.|[^"\\])*"|'[^']*'/g;
 
@@ -57,7 +59,7 @@ function hasProcessKill(code) {
     return '""';
   });
   // Interpreter names only count outside quotes: "Bash" inside a JSON string is data.
-  return quotedCommandWord || EXEC_INDIRECTION.test(rest) || PROC_KILL.test(rest);
+  return quotedCommandWord || EXEC_INDIRECTION.test(rest) || EXEC_OPTION_FLAG.test(rest) || PROC_KILL.test(rest);
 }
 
 /**
