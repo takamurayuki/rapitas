@@ -163,6 +163,8 @@ export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<
         updatedAt: true,
         themeId: true,
         workflowDisabled: true,
+        haltReason: true,
+        autoRunExcluded: true,
       },
       orderBy: { updatedAt: 'asc' },
       take: MAX_CANDIDATES,

@@ -27,6 +27,10 @@ export interface CandidateTask {
   themeId: number | null;
   /** Task-level workflow-disabled flag — feeds the stagnation isWorkflowManaged gate (#860). */
   workflowDisabled: boolean;
+  /** Iteration-budget halt reason (null = not halted) — feeds the Pattern B halt gate (#1003). */
+  haltReason?: string | null;
+  /** Operator auto-run opt-out (Task.autoRunExcluded) — feeds the Pattern B gate (#1003). */
+  autoRunExcluded?: boolean | null;
 }
 
 /** Formats + files one finding as a dedup-keyed concern. Never throws. */

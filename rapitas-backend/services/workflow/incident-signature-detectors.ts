@@ -339,6 +339,20 @@ export interface TriStateDesyncInput {
    * theme dispatch state and never reads this field.
    */
   themeAutoRunBusyWithOtherTask?: boolean | null;
+  /**
+   * True when the task carries a `Task.haltReason` (iteration-budget halt). A
+   * halt deliberately leaves task.status/workflowStatus untouched, so todo ×
+   * advanced is the expected resting shape until an operator resumes it, not
+   * a desync (#1003). Applies only to Pattern B.
+   */
+  taskHalted?: boolean | null;
+  /**
+   * True when the operator opted the task out of auto-run (`Task.autoRunExcluded`,
+   * e.g. via theme stop-execution). Selection never dispatches it, so todo ×
+   * advanced is an indefinite, legitimate wait — the actual shape of #907
+   * (#1003). Applies only to Pattern B.
+   */
+  autoRunExcluded?: boolean | null;
   /** Current time (ms) — the recovery grace guard needs it to age the transition. */
   nowMs?: number;
   /** Pattern B recovery grace override (default DESYNC_RECOVERY_SETTLE_MS). */
@@ -400,7 +414,9 @@ function isWithinPatternASettle(input: TriStateDesyncInput): boolean {
  * TriStateDesyncInput.themeAutoRunEnabled) — EXCEPT ALSO when the task was
  * deliberately withdrawn (#875, see TriStateDesyncInput.manuallyWithdrawn) —
  * EXCEPT ALSO when the theme is busy dispatching a different task (#969, see
- * TriStateDesyncInput.themeAutoRunBusyWithOtherTask).
+ * TriStateDesyncInput.themeAutoRunBusyWithOtherTask) — EXCEPT ALSO when the task is
+ * halted by the iteration budget (#1003, see TriStateDesyncInput.taskHalted) or opted out of
+ * auto-run (`autoRunExcluded`).
  *
  * @param input - Cross-entity state snapshot. / 三面の状態スナップショット
  * @returns Detected pattern + human-readable summary, or null. / 検出結果またはnull
@@ -437,6 +453,10 @@ export function detectTriStateDesync(
     // Theme is actively dispatching a different task — normal backlog wait,
     // not a desync (#969, mirrors detectStagnation's identically-named gate).
     if (input.themeAutoRunBusyWithOtherTask) return null;
+    // Deliberately halted by the iteration budget (#1003) — legitimate wait for an operator.
+    if (input.taskHalted) return null;
+    // Operator opted out of auto-run (#1003) — nothing will dispatch it by design.
+    if (input.autoRunExcluded) return null;
     return {
       kind: 'todo_status_workflow_advanced',
       detail: `task.status=todo のまま workflowStatus が前進済み(${input.workflowStatus})`,

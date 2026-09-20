@@ -141,6 +141,8 @@ export async function inspectTask(
     themeAutoRunEnabled: task.themeId != null ? !disabledAutoRunThemeIds.has(task.themeId) : null,
     manuallyWithdrawn,
     themeAutoRunBusyWithOtherTask,
+    taskHalted: task.haltReason != null,
+    autoRunExcluded: task.autoRunExcluded === true,
     nowMs,
   });
   if (desync) {
