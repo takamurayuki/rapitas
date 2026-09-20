@@ -71,6 +71,7 @@ type MockPrisma = {
   task: {
     findUnique: ReturnType<typeof mock>;
     update: ReturnType<typeof mock>;
+    updateMany: ReturnType<typeof mock>;
   };
   notification: {
     create: ReturnType<typeof mock>;
@@ -110,6 +111,7 @@ function makeMockPrisma(overrides: Partial<MockPrisma> = {}): MockPrisma {
     task: {
       findUnique: mock(async () => null),
       update: mock(async () => ({})),
+      updateMany: mock(async () => ({ count: 1 })),
     },
     notification: {
       create: mock(async () => ({})),
@@ -264,9 +266,11 @@ describe('recoverStaleExecutions() — stale 実行あり', () => {
     );
 
     expect(prisma.agentSession.update).toHaveBeenCalledTimes(2);
-    expect(prisma.task.update).toHaveBeenCalledTimes(2);
-    expect(prisma.task.update).toHaveBeenCalledWith({
-      where: { id: 1000 },
+    expect(prisma.task.updateMany).toHaveBeenCalledTimes(2);
+    // task 881: the revert is a compare-and-swap on executionGenerationId
+    // (undefined here — the stub findUnique rows carry no generation column).
+    expect(prisma.task.updateMany).toHaveBeenCalledWith({
+      where: { id: 1000, executionGenerationId: undefined },
       data: { status: 'todo' },
     });
 
@@ -327,7 +331,7 @@ describe('recoverStaleExecutions() — stale 実行あり', () => {
     const result = await recoverStaleExecutions(ctx);
 
     expect(result.updatedTasks).toBe(0);
-    expect(prisma.task.update).not.toHaveBeenCalled();
+    expect(prisma.task.updateMany).not.toHaveBeenCalled();
   });
 
   test('session に他の生存中の実行が残っていれば session は interrupted 化しない', async () => {
@@ -713,7 +717,7 @@ describe('recoverStaleExecutions() — 個別失敗時のフォールトトレ�
     const result = await recoverStaleExecutions(ctx);
 
     expect(result.updatedTasks).toBe(0);
-    expect(prisma.task.update).not.toHaveBeenCalled();
+    expect(prisma.task.updateMany).not.toHaveBeenCalled();
   });
 
   test('通知作成の失敗は recoverStaleExecutions 全体を失敗させない', async () => {

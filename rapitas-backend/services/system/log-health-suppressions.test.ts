@@ -9,6 +9,10 @@ import { describe, test, expect } from 'bun:test';
 import { classifyLogSignature } from './log-health-suppressions';
 
 const SUPPRESSED: [string, string][] = [
+  [
+    'execution-file-logger',
+    'Process exited with code # 【Session Resume Mode】Session ID: # 【Warning】Execution time of #ms is very short.',
+  ],
   ['git-service', 'Refusing to switch to branch feature/t#-x in the PRIMARY git working tree'],
   ['git-service', 'Refusing to create a commit: could not determine the worktree type'],
   [
@@ -86,6 +90,7 @@ const SUPPRESSED: [string, string][] = [
 ];
 
 const KEPT: [string, string][] = [
+  ['claude-code', 'Process exited with code # 【Session Resume Mode】Session ID: #'],
   ['prisma', 'Invalid `prisma.timelineEvent.create()` invocation'],
   ['workflow', 'Agent produced code changes WITHOUT saving plan.md — workflow violated'],
   ['git-service', 'git command failed: git merge --abort'],

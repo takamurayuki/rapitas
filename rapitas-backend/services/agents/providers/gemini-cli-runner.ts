@@ -11,6 +11,7 @@ import type { AgentExecutionContext, AgentExecutionResult } from '../abstraction
 import type { GeminiCliConfig, GeminiStreamEvent } from './gemini-cli-types';
 import { processStreamEvent } from './gemini-cli-types';
 import { resolveCliPath } from './gemini-cli-agent';
+import { buildSpawnCommand } from './gemini-runner-args';
 
 /** Callback used by the runner to emit output lines back to the agent. */
 export type EmitOutputFn = (output: string, isError: boolean, streaming: boolean) => Promise<void>;
@@ -113,24 +114,7 @@ export async function runGeminiCli(
     const args = buildArgs(prompt, config, context);
     const env = buildEnv(config);
 
-    let finalCommand: string;
-    let finalArgs: string[];
-
-    if (isWindows) {
-      const argsString = args
-        .map((arg) =>
-          arg.includes(' ') || arg.includes('&') || arg.includes('|')
-            ? `"${arg.replace(/"/g, '\\"')}"`
-            : arg,
-        )
-        .join(' ');
-      const quotedPath = geminiPath.includes(' ') ? `"${geminiPath}"` : geminiPath;
-      finalCommand = `chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`;
-      finalArgs = [];
-    } else {
-      finalCommand = geminiPath;
-      finalArgs = args;
-    }
+    const [finalCommand, finalArgs] = buildSpawnCommand(geminiPath, args, isWindows);
 
     log('info', 'Starting Gemini CLI execution', {
       workDir,

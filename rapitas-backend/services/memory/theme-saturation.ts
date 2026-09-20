@@ -71,7 +71,7 @@ export function bigramJaccard(a: string, b: string): number {
  */
 export async function findNearDuplicate(
   title: string,
-  opts: Pick<SaturationOptions, 'sourceType' | 'openConcernOnly'>,
+  opts: Pick<SaturationOptions, 'sourceType' | 'openConcernOnly' | 'newDetail'>,
   threshold: number,
 ): Promise<number | null> {
   if (title.trim().length < 6) return null;
@@ -83,10 +83,11 @@ export async function findNearDuplicate(
     where.forgettingStage = 'active'; // Match the visible/actionable concern backlog.
   }
   const rows = await prisma.knowledgeEntry
-    .findMany({ where, select: { id: true, title: true }, take: 600 })
-    .catch(() => [] as { id: number; title: string }[]);
+    .findMany({ where, select: { id: true, title: true, content: true }, take: 600 })
+    .catch(() => [] as { id: number; title: string; content?: string }[]);
   for (const e of rows) {
-    if (bigramJaccard(title, e.title) >= threshold) return e.id;
+    if (bigramJaccard(title, e.title) >= threshold && isContentRelated(opts.newDetail, e.content))
+      return e.id;
   }
   return null;
 }
@@ -111,6 +112,45 @@ export interface SaturationOptions {
    * for existing callers (e.g. idea-box-service.ts).
    */
   minJaccard?: number;
+  /**
+   * New submission's detail text, used by the secondary content-relevance
+   * check (#967) so a title-only match cannot anchor a candidate whose actual
+   * content is unrelated. Omitted callers (e.g. idea-box-service.ts) keep the
+   * original title-only behaviour unchanged.
+   */
+  newDetail?: string;
+}
+
+/** Min chars a detail needs before the content check applies; shorter details fall back to title-only judgment (undecidable, not "unrelated"). */
+const CONTENT_CHECK_MIN_LEN = 10;
+
+/** Min shared character-bigrams between two details to count as content-related. */
+const CONTENT_MIN_SHARED_BIGRAMS = 4;
+
+/**
+ * Whether two details are related enough to trust a title-only theme/near-dup
+ * match. Falls back to `true` (title-only judgment stands) when either detail
+ * is missing or too short to carry signal, so callers that don't pass a
+ * detail (or file a near-empty one) see no behaviour change (#967).
+ *
+ * @param newDetail - New submission's detail. / 新規投稿の詳細
+ * @param candidateDetail - Existing entry's detail. / 候補の詳細
+ * @returns True when related or undecidable. / 関連あり、または判定不能なら true
+ */
+export function isContentRelated(
+  newDetail: string | undefined,
+  candidateDetail: string | undefined,
+): boolean {
+  if (!newDetail || !candidateDetail) return true;
+  const a = newDetail.trim();
+  const b = candidateDetail.trim();
+  if (a.length < CONTENT_CHECK_MIN_LEN || b.length < CONTENT_CHECK_MIN_LEN) return true;
+  const A = charBigrams(a);
+  const B = charBigrams(b);
+  if (A.size === 0 || B.size === 0) return true;
+  let shared = 0;
+  for (const g of A) if (B.has(g)) shared += 1;
+  return shared >= CONTENT_MIN_SHARED_BIGRAMS;
 }
 
 /**
@@ -148,7 +188,7 @@ export async function findSaturatedTheme(
   title: string,
   opts: SaturationOptions,
 ): Promise<number | null> {
-  const { sourceType, cap, salient, openConcernOnly, minJaccard } = opts;
+  const { sourceType, cap, salient, openConcernOnly, minJaccard, newDetail } = opts;
   const subject = stripTitleMarkers(title);
   if (subject.length < salient) return null;
   const where: { sourceType: string; sourceId?: string; forgettingStage?: string } = { sourceType };
@@ -157,15 +197,16 @@ export async function findSaturatedTheme(
     where.forgettingStage = 'active'; // Archived rows must not swallow new reports.
   }
   const rows = await prisma.knowledgeEntry
-    .findMany({ where, select: { id: true, title: true }, take: 600 })
-    .catch(() => [] as { id: number; title: string }[]);
+    .findMany({ where, select: { id: true, title: true, content: true }, take: 600 })
+    .catch(() => [] as { id: number; title: string; content?: string }[]);
   let matches = 0;
   let anchor: number | null = null;
   for (const e of rows) {
     const otherSubject = stripTitleMarkers(e.title);
     const lcsOk = lcsLen(subject, otherSubject) >= salient;
     const jaccardOk = !minJaccard || bigramJaccard(subject, otherSubject) >= minJaccard;
-    if (lcsOk && jaccardOk) {
+    const contentOk = isContentRelated(newDetail, e.content);
+    if (lcsOk && jaccardOk && contentOk) {
       matches += 1;
       anchor = anchor ?? e.id;
       if (matches >= cap) return anchor;

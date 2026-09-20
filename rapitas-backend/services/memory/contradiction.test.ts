@@ -30,6 +30,7 @@ interface EntryLike {
   title: string;
   content: string;
   decayScore: number;
+  contentHash: string;
 }
 
 // Distinct wording per id so isNearDuplicatePair's bigram-Jaccard check does
@@ -46,14 +47,18 @@ function entry(id: number, overrides: Partial<EntryLike> = {}): EntryLike {
     title: w.title,
     content: w.content,
     decayScore: 0.5,
+    contentHash: `hash-${id}`,
     ...overrides,
   };
 }
 
 let entries: Map<number, EntryLike>;
 const contradictionCreateCalls: Array<Record<string, unknown>> = [];
-let existingContradiction: unknown = null;
+const contradictionDeleteCalls: Array<{ where: { id: number } }> = [];
+let existingContradiction: Record<string, unknown> | null = null;
 let openCount = 0;
+
+const entryUpdateMany = mock(() => Promise.resolve({ count: 2 }));
 
 mock.module('../../config/database', () => ({
   prisma: {
@@ -62,7 +67,7 @@ mock.module('../../config/database', () => ({
         Promise.resolve(entries.get(args.where.id) ?? null),
       ),
       update: mock(() => Promise.resolve({})),
-      updateMany: mock(() => Promise.resolve({ count: 2 })),
+      updateMany: entryUpdateMany,
     },
     knowledgeContradiction: {
       count: mock(() => Promise.resolve(openCount)),
@@ -71,9 +76,31 @@ mock.module('../../config/database', () => ({
         contradictionCreateCalls.push(args.data);
         return Promise.resolve({ id: 1, ...args.data });
       }),
+      delete: mock((args: { where: { id: number } }) => {
+        contradictionDeleteCalls.push(args);
+        return Promise.resolve({ id: args.where.id });
+      }),
     },
   },
 }));
+
+/** Structured CONTRADICTION response with both claims well over the length gate. */
+function structuredContradiction(confidence: number, description = '数値が食い違う'): string {
+  return [
+    '判定: CONTRADICTION',
+    '種類: factual',
+    '対立命題A: エントリAはコネクションプールの上限を引き上げるべきだと明確に主張している',
+    '対立命題B: エントリBはコネクションプールの上限を下げるべきだと明確に主張している',
+    '引用箇所A: services/db/pool.ts:12',
+    '引用箇所B: docs/db.md',
+    '適用時点A: 2026-09',
+    '適用時点B: 2026-08',
+    'コード版A: abc123',
+    'コード版B: def456',
+    `確信度: ${confidence}`,
+    `説明: ${description}`,
+  ].join('\n');
+}
 
 const { detectContradictions } = await import('./contradiction');
 
@@ -84,10 +111,12 @@ beforeEach(() => {
   ]);
   searchResults = [{ knowledgeEntryId: 2 }];
   contradictionCreateCalls.length = 0;
+  contradictionDeleteCalls.length = 0;
   existingContradiction = null;
   openCount = 0;
   aiResponse = '判定: NO_CONTRADICTION';
   sendAIMessage.mockClear();
+  entryUpdateMany.mockClear();
 });
 
 describe('detectContradictions', () => {
@@ -111,8 +140,8 @@ describe('detectContradictions', () => {
     expect(contradictionCreateCalls).toHaveLength(0);
   });
 
-  test('LLM verdict CONTRADICTION creates a record with type and description', async () => {
-    aiResponse = '判定: CONTRADICTION\n種類: factual\n説明: 数値が食い違う';
+  test('high-confidence structured CONTRADICTION creates a record and conflicts both entries', async () => {
+    aiResponse = structuredContradiction(0.9);
 
     const count = await detectContradictions(1);
 
@@ -123,16 +152,98 @@ describe('detectContradictions', () => {
       entryBId: 2,
       contradictionType: 'factual',
       description: '数値が食い違う',
+      citationA: 'services/db/pool.ts:12',
+      citationB: 'docs/db.md',
+      asOfA: '2026-09',
+      asOfB: '2026-08',
+      codeVersionA: 'abc123',
+      codeVersionB: 'def456',
+      confidence: 0.9,
+      needsReview: false,
+      contentHashAAtDetection: 'hash-1',
+      contentHashBAtDetection: 'hash-2',
     });
+    // claimA/claimB captured, both well over the 20-char gate.
+    expect((contradictionCreateCalls[0]!.claimA as string).length).toBeGreaterThanOrEqual(20);
+    expect((contradictionCreateCalls[0]!.claimB as string).length).toBeGreaterThanOrEqual(20);
+    // High confidence → both entries marked conflicting.
+    expect(entryUpdateMany).toHaveBeenCalled();
   });
 
-  test('an existing contradiction record short-circuits without calling the LLM', async () => {
-    existingContradiction = { id: 99 };
+  test('heading-only description ("**主な矛盾点：**"のみ) does not extract a usable claim', async () => {
+    aiResponse = [
+      '判定: CONTRADICTION',
+      '種類: factual',
+      '対立命題A: **主な矛盾点：**',
+      '対立命題B: ',
+    ].join('\n');
+
+    const count = await detectContradictions(1);
+
+    expect(count).toBe(0);
+    expect(contradictionCreateCalls).toHaveLength(0);
+    expect(entryUpdateMany).not.toHaveBeenCalled();
+  });
+
+  test('low-confidence structured contradiction records a row but does NOT conflict the entries', async () => {
+    aiResponse = structuredContradiction(0.5);
+
+    const count = await detectContradictions(1);
+
+    expect(count).toBe(1);
+    expect(contradictionCreateCalls).toHaveLength(1);
+    expect(contradictionCreateCalls[0]).toMatchObject({ needsReview: true, confidence: 0.5 });
+    // Low confidence → neither entry is pulled out of recall.
+    expect(entryUpdateMany).not.toHaveBeenCalled();
+  });
+
+  test('a RESOLVED contradiction record short-circuits without calling the LLM', async () => {
+    existingContradiction = { id: 99, resolution: 'dismiss' };
 
     const count = await detectContradictions(1);
 
     expect(count).toBe(0);
     expect(sendAIMessage).not.toHaveBeenCalled();
+    expect(contradictionDeleteCalls).toHaveLength(0);
+  });
+
+  test('an unresolved pair whose content is unchanged still short-circuits', async () => {
+    existingContradiction = {
+      id: 88,
+      resolution: null,
+      entryAId: 1,
+      entryBId: 2,
+      contentHashAAtDetection: 'hash-1',
+      contentHashBAtDetection: 'hash-2',
+    };
+
+    const count = await detectContradictions(1);
+
+    expect(count).toBe(0);
+    expect(sendAIMessage).not.toHaveBeenCalled();
+    expect(contradictionDeleteCalls).toHaveLength(0);
+  });
+
+  test('content change on an unresolved pair triggers re-detection instead of short-circuiting', async () => {
+    // entry 1's content was corrected since detection → its stored hash is stale.
+    entries.set(1, entry(1, { contentHash: 'hash-1-corrected' }));
+    existingContradiction = {
+      id: 77,
+      resolution: null,
+      entryAId: 1,
+      entryBId: 2,
+      contentHashAAtDetection: 'hash-1', // old hash, no longer matches
+      contentHashBAtDetection: 'hash-2',
+    };
+    aiResponse = structuredContradiction(0.9);
+
+    const count = await detectContradictions(1);
+
+    // Stale row dropped, LLM consulted again, fresh row created.
+    expect(contradictionDeleteCalls).toEqual([{ where: { id: 77 } }]);
+    expect(sendAIMessage).toHaveBeenCalled();
+    expect(count).toBe(1);
+    expect(contradictionCreateCalls).toHaveLength(1);
   });
 
   test('the open-contradiction cap stops before calling the LLM', async () => {

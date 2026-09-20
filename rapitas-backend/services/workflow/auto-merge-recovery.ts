@@ -32,10 +32,30 @@ const MAX_RECOVERY_SCAN = 50;
 /** A task parked at verify_done whose recorded PR may already be merged. */
 type HeldTask = {
   id: number;
+  title?: string | null;
   githubPrId: number | null;
   workingDirectory: string | null;
   theme: { repositoryUrl: string | null; workingDirectory: string | null } | null;
 };
+
+/**
+ * Whether a held task is the auto-filed conflict-resolution task for `prNumber`.
+ * Such a task records the ORIGINAL task's PR in `githubPrId`, so the PR row's
+ * `linkedTaskId` names that original task, not this one — without this
+ * exception the merged PR could never complete the conflict task, which then
+ * held the theme's single execution slot at verify_done (984/985/986,
+ * 2026-09-20, PRs #632/#722/#742 already merged).
+ *
+ * @param prNumber - PR the held task recorded. / タスクが記録した PR 番号
+ * @param title - Task title. / タスクタイトル
+ * @returns True for `PR #<prNumber> の競合を解消` titles. / 競合解消タスクなら true
+ */
+export function isConflictResolutionTaskFor(
+  prNumber: number,
+  title: string | null | undefined,
+): boolean {
+  return new RegExp(`^PR #${prNumber} の競合を解消`).test(title ?? '');
+}
 
 /**
  * Pick a directory that still exists on disk to run the read-only `gh` call in.
@@ -98,8 +118,9 @@ async function recoverOne(t: HeldTask): Promise<boolean> {
     })
     .catch(() => null);
   if (!scopedPr) return false;
+  const ownsPr = scopedPr.linkedTaskId === t.id || isConflictResolutionTaskFor(prNumber, t.title);
   if (
-    scopedPr.linkedTaskId !== t.id ||
+    !ownsPr ||
     !scopedPr.baseBranch ||
     !scopedPr.integration?.ownerName ||
     !scopedPr.integration.repositoryName
@@ -191,6 +212,7 @@ export async function recoverMergedTasks(): Promise<number[]> {
       },
       select: {
         id: true,
+        title: true,
         githubPrId: true,
         workingDirectory: true,
         theme: { select: { repositoryUrl: true, workingDirectory: true } },

@@ -125,7 +125,15 @@ export function buildRoleTexts(
       planner: {
         researchHeader: '# リサーチャーの調査結果 (research.md)',
         instruction:
-          '上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。',
+          '上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。\n\n' +
+          '完了条件は implementer/verifier が許可されたツール操作（テスト実行・lint・型検査・自己検証API）だけで検証できるものに限定してください。稼働中バックエンドへの書き込み操作や本番相当環境での実測を完了条件として必須にしないでください。\n\n' +
+          '## 質問発火基準（question.md を保存する前に必ず確認）\n' +
+          'plan→question→intake の往復（1サイクルあたり平均約17分のコスト）を避けるため、質問を保存する前に以下を確認する:\n' +
+          '1. 1件のplan.mdにつき、質問は原則1ラウンドにまとめる（論点を小出しにして複数回に分けない）。\n' +
+          '2. 同一論点を前回の質問・回答と重複させない（回答済みの内容を再確認しない）。\n' +
+          '3. 質問すべきなのは、実装方針が互換不能な複数の選択肢に分かれ、どちらか選ばないと着手できない分岐点のみ。\n' +
+          '4. 実装ディテールの確認・コードレベルの選好は質問せず、plan.md の申し送り事項として記載し実装者の判断に委ねる。\n' +
+          '5. plan フェーズから質問を保存する場合、`json:options` ブロックのトップレベルに `"kind": "execution_continuation"`（実装続行の確認）または `"kind": "completion_confirmation"`（完了直前の最終確認）のいずれかを明示する。`"kind": "spec_change"` はintake専用であり指定しても無視される。',
         // NOTE: Premortem (R7) — judge-style pre-execution critique of plans
         // catches defects with ~90% recall (arXiv:2509.02761); imagining the
         // failure FIRST surfaces risks a forward-looking plan review misses.
@@ -236,7 +244,15 @@ export function buildRoleTexts(
       planner: {
         researchHeader: '# Research Results (research.md)',
         instruction:
-          'Based on the research results above, please create an implementation plan as plan.md in Markdown format.\n\nDescribe implementation steps in checklist format, including a list of files to be changed, risk assessment, and completion criteria.',
+          'Based on the research results above, please create an implementation plan as plan.md in Markdown format.\n\nDescribe implementation steps in checklist format, including a list of files to be changed, risk assessment, and completion criteria.\n\n' +
+          'Completion criteria must be verifiable using only tool operations the implementer/verifier are permitted to run (tests, lint, type-check, self-verification APIs). Do not require write operations against a live backend or measurements in a production-equivalent environment as a completion criterion.\n\n' +
+          '## Question-firing criteria (check BEFORE saving question.md)\n' +
+          'To avoid the plan→question→intake round trip (each cycle costs roughly 17 minutes on average), verify all of the following before saving a question:\n' +
+          '1. For a given plan.md, bundle all open issues into ONE round of questions — do not raise them piecemeal across multiple saves.\n' +
+          '2. Never repeat an issue already covered by a prior question and its answer.\n' +
+          '3. Only raise a question when the implementation approach splits into mutually incompatible choices and you cannot start without picking one.\n' +
+          "4. Do not ask about implementation details or code-level preferences — record those in plan.md's handoff notes instead and let the implementer decide.\n" +
+          '5. When saving a question from the plan phase, set the top-level `"kind"` in the `json:options` block to either `"execution_continuation"` (a check needed to continue) or `"completion_confirmation"` (a final check right before completion). `"kind": "spec_change"` is intake-only and is ignored if set here.',
         // NOTE: Premortem (R7) — see ja variant for rationale.
         premortem:
           '## Premortem (REQUIRED)\n' +

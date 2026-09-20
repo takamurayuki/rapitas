@@ -146,6 +146,16 @@ export async function routeModelForRole(opts: {
     // every floor.
     const { resolveTaskBudgetCap } = await import('./task-budget');
     const budget = await resolveTaskBudgetCap(taskId).catch(() => null);
+    // spendUnknown means the lookup itself failed, not that spend is $0 —
+    // capTier stays whatever resolveTaskBudgetCap left it as (unset), so
+    // this phase runs on the existing floor. Record why, so a run that
+    // looks under-capped during a DB blip is explainable from the logs.
+    if (budget?.spendUnknown) {
+      log.warn(
+        { taskId, role, unknownReason: budget.unknownReason },
+        '[role-route-inputs] task budget unknown — tier judgement deferred, existing floor applies',
+      );
+    }
 
     const { tier: minTier, reason: minTierReason } = computeMinTierWithReason({
       role,
@@ -191,6 +201,8 @@ export async function routeModelForRole(opts: {
         premiumJustified: premiumAdvantage?.justified ?? null,
         taskSpentUsd: budget?.spentUsd ?? null,
         budgetCapTier: budget?.capTier ?? null,
+        budgetSpendUnknown: budget?.spendUnknown ?? false,
+        budgetUnknownReason: budget?.unknownReason ?? null,
         preferredProvider: prefs.preferredProvider ?? null,
         excludeProviders: prefs.excludeProviders ?? [],
       },

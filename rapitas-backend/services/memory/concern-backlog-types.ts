@@ -119,9 +119,14 @@ export type ConcernFilingReason = (typeof CONCERN_FILING_REASONS)[number];
  * there. `id` is null only for the `jev-not-relevant` outcome — every other
  * suppression/reuse reason anchors to an existing row, but a Jev relevance
  * rejection has no existing concern to point at; nothing was written.
+ * `stored` is a simple boolean shorthand for `outcome === 'created'` (#967) — a
+ * caller that only checks `success`/`id` on the HTTP response still sees at a
+ * glance whether a new row was actually written, without having to know the
+ * full `ConcernFilingOutcome` enum.
  */
 export interface ConcernFilingResult {
   id: number | null;
   outcome: ConcernFilingOutcome;
   reason: ConcernFilingReason;
+  stored: boolean;
 }
