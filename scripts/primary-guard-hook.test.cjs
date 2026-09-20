@@ -138,6 +138,20 @@ test('search verbs may name kill words in quoted terms; real kills still deny', 
   for (const c of deny) assert.equal(classify(c, ctx), 'process_kill', c);
 });
 
+test('rg --pre / --hostname-bin execute their argument, so quoted kill words there stay denied', () => {
+  for (const c of [
+    "rg --pre 'pkill bun' x .",
+    'rg --pre "taskkill /F /IM bun.exe" x .',
+    'rg x --hostname-bin="pkill bun" .',
+    "rg --pre='Stop-Process -Name bun' x .",
+  ]) {
+    assert.equal(classify(c, ctx), 'process_kill', c);
+  }
+  // Plain searches naming the same words (and a lookalike flag) remain allowed.
+  assert.equal(classify("rg 'pkill' src", ctx), null);
+  assert.equal(classify("rg --pretty 'pkill' src", ctx), null);
+});
+
 test('recordIncident appends a redacted, truncated NDJSON line with the task id', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-'));
   recordIncident(
