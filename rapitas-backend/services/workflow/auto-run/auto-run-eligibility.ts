@@ -33,6 +33,9 @@ export function eligibleTopLevelTodoWhere(
     parentId: null,
     workflowDisabled: false,
     autoRunExcluded: false,
+    // NOTE: iteration-budget halted tasks (task 881/995) are skipped by auto-run-advance-select's
+    // skipIds; counting them here made the idle side resume a theme the selector then refuses.
+    haltReason: null,
     OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
     ...extra,
   };
