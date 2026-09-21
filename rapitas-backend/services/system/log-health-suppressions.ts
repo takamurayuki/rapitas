@@ -130,6 +130,17 @@ const SUPPRESSIONS: Suppression[] = [
       '実行が failed で終わった結末の記録 — 原因は当該実行のログ側に出ており、二重起票になる（失敗自体はDBの実行ステータス・fallback・stall監視で検知される）',
   },
   {
+    // ログ出力箇所: claude-code/execution-resolver.ts:204-208 の logger.error。
+    // CLI が exit 非 0 かつ prompt-too-long を報告した時のみ発火し（議論文言による
+    // 誤検知は ac8ae459 の exit code ゲートで解消済み）、直後に failureType
+    // 'prompt_too_long' + PROMPT_TOO_LONG_MARKER で fail-fast 解決される。当該セッションは
+    // 再開対象から除外される（failure-reason-markers.ts）ため、ガードが働いた記録である（#1036）。
+    test: /Prompt\/context too long — failing fast/i,
+    logger: /claude-code-agent/i,
+    because:
+      'prompt-too-long を検知して fail-fast し、セッションを再開対象から除外したガードの記録 — 失敗自体は実行結果側(failureType: prompt_too_long)に残り、二重起票になる',
+  },
+  {
     // ログ出力箇所: execution-file-logger/index.ts:234-249 の logExecutionEnd。本文は
     // execution-resolver.ts:217 が入力長超過検出時（failureType: 'prompt_too_long'）に
     // 組み立てる。NOTE: err.message が msg に優先採用されるため正規化後は
