@@ -99,7 +99,10 @@ const SUPPRESSED: [string, string][] = [
 ];
 
 const KEPT: [string, string][] = [
-  ['claude-code', '【Prompt Too Long】Claude Code CLI reported the prompt/context was too long (exit code #).'],
+  [
+    'claude-code',
+    '【Prompt Too Long】Claude Code CLI reported the prompt/context was too long (exit code #).',
+  ],
   ['claude-code', 'Process exited with code # 【Session Resume Mode】Session ID: #'],
   ['prisma', 'Invalid `prisma.timelineEvent.create()` invocation'],
   ['workflow', 'Agent produced code changes WITHOUT saving plan.md — workflow violated'],
