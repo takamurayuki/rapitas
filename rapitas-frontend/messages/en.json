@@ -5464,6 +5464,10 @@
         "knowledge_reuse": {
           "label": "Knowledge-reuse effectiveness",
           "desc": "Compares the completion success rate of tasks whose planning stage retrieved a similar solved task (a CBR case) against tasks that didn't, and records whether knowledge reuse is statistically helping. Never files a concern."
+        },
+        "pr_risk_review": {
+          "label": "PR risk prediction review",
+          "desc": "Counts only PRs rolled back within 72h of merge or registered as a critical production incident as failures, records the PR risk score's monthly precision/recall/false-positive rate and reviews the threshold (the score is advisory; humans make the final call)."
         }
       },
       "frequency": {

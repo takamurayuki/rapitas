@@ -31,6 +31,10 @@
         "miss_ledger": {
           "label": "Miss learning",
           "desc": "Records defects that slipped past the quality gates (CI bounces, post-completion concerns) with evidence, and generates detection-cue suggestions reviewed at /agents/miss-signatures."
+        },
+        "pr_risk_review": {
+          "label": "PR risk prediction review",
+          "desc": "Counts only PRs rolled back within 72h of merge or registered as a critical production incident as failures, records the PR risk score's monthly precision/recall/false-positive rate and reviews the threshold (the score is advisory; humans make the final call)."
         }
       },
       "frequency": {
