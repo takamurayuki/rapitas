@@ -89,6 +89,27 @@ describe('resolveIterationBudgetState', () => {
     expect(result.haltReason).toBe('budget_cost_exceeded');
   });
 
+  // task 1031 (2026-09-22): the second implementer run ended at $46 and the
+  // cost halt fired BEFORE its verification, parking the whole spend unverified.
+  test('実装完了・検証待ち(pendingVerification)なら費用超過でも停止せず検証を通す', () => {
+    const result = resolveIterationBudgetState(
+      baseInput({ spentUsd: 46, pendingVerification: true }),
+    );
+    expect(result).toEqual({ shouldHalt: false });
+  });
+
+  test('検証待ちの猶予は費用軸だけ — 時間・試行回数の超過は従来どおり停止', () => {
+    expect(
+      resolveIterationBudgetState(
+        baseInput({ windowStartMs: BASE_NOW_MS - 25 * 60 * 60 * 1000, pendingVerification: true }),
+      ).haltReason,
+    ).toBe('budget_time_exceeded');
+    expect(
+      resolveIterationBudgetState(baseInput({ attemptsInWindow: 9, pendingVerification: true }))
+        .haltReason,
+    ).toBe('budget_attempts_exceeded');
+  });
+
   test('試行回数予算超過(既定8件)で budget_attempts_exceeded', () => {
     const result = resolveIterationBudgetState(baseInput({ attemptsInWindow: 9 }));
     expect(result.shouldHalt).toBe(true);
