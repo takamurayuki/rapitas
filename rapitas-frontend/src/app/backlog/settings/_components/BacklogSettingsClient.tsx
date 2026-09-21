@@ -19,6 +19,7 @@ import {
   MonitorCheck,
   Sunrise,
   ScanSearch,
+  ShieldHalf,
   Play,
   Loader2,
   CalendarClock,
@@ -35,7 +36,8 @@ type JobKind =
   | 'loop_review'
   | 'ci_watch'
   | 'daily_report'
-  | 'miss_ledger';
+  | 'miss_ledger'
+  | 'pr_risk_review';
 type Frequency = 'daily' | 'weekly';
 
 interface Schedule {
@@ -59,6 +61,8 @@ const JOB_META: Record<JobKind, { icon: typeof Sparkles; color: string }> = {
   daily_report: { icon: Sunrise, color: 'text-amber-500' },
   // NOTE: ScanSearch = 検出漏れ兆候の学習・レビュー (ICON_POLICY §3).
   miss_ledger: { icon: ScanSearch, color: 'text-indigo-500' },
+  // NOTE: ShieldHalf = PR リスク予測 (ICON_POLICY §3, glyphs-n-s.md).
+  pr_risk_review: { icon: ShieldHalf, color: 'text-orange-500' },
 };
 
 const FREQUENCIES: Frequency[] = ['daily', 'weekly'];

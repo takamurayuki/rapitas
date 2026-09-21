@@ -26,3 +26,4 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `Radar`                   | プリフライトprobeメトリクス（フェーズ遷移前probeのターゲット別成功率・レイテンシ集計。`ProbeMetricsPanel` ヘッダー） |
 | `Stethoscope`              | LLMエラー診断（信頼度スコア付き診断結果パネル、`ErrorDiagnosisPanel` ヘッダー。注: `src/components/category/icons` 等のカテゴリアイコンピッカー登録は中立的な再掲で対象外） |
 | `PowerOff`                | 通知の種別「自動実行: 新規起票がないため停止」（`NotificationBell` の auto_run_idle_stopped — 枯渇アイドルタイマー満了による auto-run 停止。注: `TimerOff`＝時間上限による単一タスク停止、`CheckCircle2`＝全タスク完了とは別概念） |
+| `ShieldHalf`              | PR リスク予測（バックログ定期ジョブ `pr_risk_review` — マージ後72h以内のロールバック/本番重大障害を失敗とするPRリスクスコアの月次精度レビュー。注: `ShieldAlert`＝懸念の種別「セキュリティ」とは別概念） |
