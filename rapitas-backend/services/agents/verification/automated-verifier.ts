@@ -1,4 +1,4 @@
-import { generatedSyncCheck, fileSizeRatchetCheck } from './generated-sync-check';
+import { generatedSyncCheck, ciParityChecks } from './generated-sync-check';
 export { generatedSyncCheck } from './generated-sync-check';
 import { buildFileCommands } from './command-batches';
 /**
@@ -983,7 +983,7 @@ export async function runAutomatedVerification(
   // CI-parity checks (prettier, Prisma generated-artifact sync, line-limit
   // ratchet): each hard-fails CI, so catching it here saves a ci_repair round.
   const generatedSync = generatedSyncCheck(allChanged);
-  const fileSize = await fileSizeRatchetCheck(workdir, allChanged);
+  const parity = await ciParityChecks(workdir, allChanged);
   // Acceptance self-check (ADVISORY, task 617): criterion↔diff token matching
   // over the FULL diff (criteria may reference docs/config, not just code).
   const acceptance =
@@ -1000,7 +1000,7 @@ export async function runAutomatedVerification(
     mergeChecks('test', testParts),
     ...(formatParts.length > 0 ? [mergeChecks('format', formatParts)] : []),
     ...(generatedSync ? [generatedSync] : []),
-    ...(fileSize ? [fileSize] : []),
+    ...parity,
     ...hardGateChecks,
     ...(coverage ? [coverage] : []),
     ...(redState ? [redState] : []),
