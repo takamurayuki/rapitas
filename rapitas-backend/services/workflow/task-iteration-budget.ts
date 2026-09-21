@@ -136,6 +136,15 @@ export interface IterationBudgetInput {
   manuallyWithdrawn?: boolean | null;
   /** False when the task's theme has auto-run disabled — mirrors detectStagnation's themeAutoRunEnabled gate. */
   themeAutoRunEnabled?: boolean | null;
+  /**
+   * True when an implementation is finished and only its verification is
+   * pending (workflowStatus 'in_progress'). The cost axis is deferred in that
+   * state: verification is the cheap step that turns the implement spend into
+   * a PR or a concrete finding, and halting before it discards the whole
+   * spend (task 1031, 2026-09-22: $46 of implementation parked unverified).
+   * The halt still fires at the next implementer dispatch.
+   */
+  pendingVerification?: boolean | null;
 }
 
 /** ResumeCondition attached to a repeat_cause_detected/no_progress halt. */
@@ -176,7 +185,7 @@ export function resolveIterationBudgetState(input: IterationBudgetInput): Iterat
   if (elapsedMs >= iterationTimeBudgetMs()) {
     return { shouldHalt: true, haltReason: 'budget_time_exceeded' as HaltReason, diagnostics };
   }
-  if (input.spentUsd >= iterationCostBudgetUsd()) {
+  if (input.spentUsd >= iterationCostBudgetUsd() && !input.pendingVerification) {
     return { shouldHalt: true, haltReason: 'budget_cost_exceeded' as HaltReason, diagnostics };
   }
   if (input.attemptsInWindow >= iterationAttemptsBudget()) {
@@ -309,6 +318,7 @@ export async function resolveIterationBudgetForTask(
       attemptsInWindow,
       repeatLoop,
       statusRepeatCount,
+      pendingVerification: task.workflowStatus === 'in_progress',
       ...guards,
     });
   } catch (err) {

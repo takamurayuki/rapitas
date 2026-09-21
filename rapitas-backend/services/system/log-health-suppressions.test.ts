@@ -7,6 +7,7 @@
  */
 import { describe, test, expect } from 'bun:test';
 import { classifyLogSignature } from './log-health-suppressions';
+import { normalizeMessage } from './log-health-check';
 
 const SUPPRESSED: [string, string][] = [
   [
@@ -87,6 +88,10 @@ const SUPPRESSED: [string, string][] = [
   ],
   ['routes:workflow:auto-commit', '[Workflow] Worktree cleanup failed: <path>'],
   ['runtime-smoke:launcher', '[runtime-smoke] health check timed out'],
+  [
+    'git-operations/pr-merge-ops',
+    'Command failed: <path> Files\\GitHub CLI\\gh.exe pr merge # … failed to delete local branch feature/t#',
+  ],
 ];
 
 const KEPT: [string, string][] = [
@@ -109,6 +114,16 @@ const KEPT: [string, string][] = [
     "Command failed: git worktree remove <path> … error: failed to delete '<path>': Permission denied",
   ],
   ['git-operations/worktree-ops', 'Could not remove <path> after retries (held handles)'],
+  // A real merge failure (no local-branch cleanup wording) must stay visible.
+  [
+    'git-operations/pr-merge-ops',
+    'Command failed: <path> Files\\GitHub CLI\\gh.exe pr merge # … Pull request is not mergeable',
+  ],
+  // Same wording from another logger is not this rule's business.
+  [
+    'some-other-logger',
+    'Command failed: gh.exe pr merge # … failed to delete local branch feature/t#',
+  ],
   ['git-operations/worktree-ops', 'REFUSED fs cleanup: <path> contains .git directory'],
   ['auto-run:idle-timer', '[auto-run-idle-timer] stopThemeForIdleTimeout write failed'],
   [
@@ -118,6 +133,17 @@ const KEPT: [string, string][] = [
 ];
 
 describe('classifyLogSignature', () => {
+  test('the real task-1011 gh pr merge line is suppressed after normalization', () => {
+    const raw = [
+      'Command failed: C:\\Program Files\\GitHub CLI\\gh.exe pr merge 778 --merge --delete-branch',
+      "failed to delete local branch feature/t1011-update-execution-agent: failed to run git: error: cannot delete branch 'feature/t1011-update-execution-agent' used by worktree at 'C:/Projects/rapitas/.worktrees/task-1011-b7839f22'",
+      '',
+    ].join('\n');
+    expect(
+      classifyLogSignature('git-operations/pr-merge-ops', normalizeMessage(raw)).suppressed,
+    ).toBe(true);
+  });
+
   test.each(SUPPRESSED)('suppresses %s: %s', (name, msg) => {
     const v = classifyLogSignature(name, msg);
     expect(v.suppressed).toBe(true);
@@ -295,6 +321,27 @@ describe('classifyLogSignature', () => {
       classifyLogSignature(
         'git-operations/worktree-ops',
         '[cleanupOrphanedWorktrees] Failed to remove orphaned directory after retries: <path>',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"[cleanupOrphanedWorktrees] removeWorktree refused" is suppressed only for the worktree-ops logger', () => {
+    // Task #1029: a refusal is the dirty-work guard working; the root cause is
+    // logged by worktree-remove.ts under its own signature.
+    for (const msg of [
+      '[cleanupOrphanedWorktrees] removeWorktree refused for # session(s) (ids: #): <path>',
+      '[cleanupOrphanedWorktrees] removeWorktree refused for # session(s) (ids: #,#,#,#,#,#): <path>',
+    ]) {
+      expect(classifyLogSignature('git-operations/worktree-ops', msg).suppressed).toBe(true);
+      expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    }
+  });
+
+  test('the root-cause "Preserving uncommitted work" warn stays visible', () => {
+    expect(
+      classifyLogSignature(
+        'git-operations/worktree-ops',
+        '[removeWorktree] Preserving uncommitted work',
       ).suppressed,
     ).toBe(false);
   });
