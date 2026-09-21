@@ -3,9 +3,16 @@
  *
  * Pins the local merge-ref ratchet: violations and execution errors must refuse
  * the merge, and the temp worktree must be removed on every path (task 1021).
+ * Also pins the PR-risk step order (workflows → ratchet → risk) and that a
+ * risk hold maps to reason 'risk_hold' only in merge mode (task 1031).
  */
 import { describe, it, expect } from 'bun:test';
-import { runRatchetAtRef, type RatchetDeps } from './auto-merge-premerge-gate';
+import {
+  evaluatePreMergeGate,
+  runRatchetAtRef,
+  type PreMergeGateDeps,
+  type RatchetDeps,
+} from './auto-merge-premerge-gate';
 
 function makeDeps(opts: {
   stdout?: string;
@@ -79,5 +86,80 @@ describe('runRatchetAtRef', () => {
     const deps = makeDeps({ scriptExists: false });
     expect((await runRatchetAtRef('/other', 'pull/1/merge', 'pr1', deps)).verdict).toBe('skipped');
     expect(deps.commands).toEqual([]);
+  });
+});
+
+describe('evaluatePreMergeGate — PR-risk step', () => {
+  function gateDeps(over: Partial<PreMergeGateDeps> = {}) {
+    const order: string[] = [];
+    const riskCalls: unknown[][] = [];
+    const deps: PreMergeGateDeps = {
+      checkWorkflows: async () => {
+        order.push('workflows');
+        return { complete: true, waiting: [] };
+      },
+      runRatchet: async () => {
+        order.push('ratchet');
+        return { verdict: 'pass' };
+      },
+      evaluateRisk: async (...args) => {
+        order.push('risk');
+        riskCalls.push(args);
+        return { hold: false };
+      },
+      ...over,
+    };
+    return { deps, order, riskCalls };
+  }
+
+  it('runs workflows → ratchet → risk and passes when nothing holds', async () => {
+    const g = gateDeps();
+    expect(await evaluatePreMergeGate('/repo', 3, { localRatchet: true }, g.deps)).toEqual({
+      ok: true,
+    });
+    expect(g.order).toEqual(['workflows', 'ratchet', 'risk']);
+    expect(g.riskCalls[0]).toEqual(['/repo', 3, 'merge', { taskId: null, agentAuthored: true }]);
+  });
+
+  it('returns risk_hold with the risk detail when the risk step holds', async () => {
+    const g = gateDeps({ evaluateRisk: async () => ({ hold: true, detail: 'risk 90.0%' }) });
+    expect(await evaluatePreMergeGate('/repo', 3, { localRatchet: true }, g.deps)).toEqual({
+      ok: false,
+      reason: 'risk_hold',
+      detail: 'risk 90.0%',
+    });
+  });
+
+  it('does not evaluate risk while workflows are pending or the ratchet fails', async () => {
+    const pending = gateDeps({ checkWorkflows: async () => ({ complete: false, waiting: ['x'] }) });
+    expect((await evaluatePreMergeGate('/repo', 3, { localRatchet: true }, pending.deps)).ok).toBe(
+      false,
+    );
+    expect(pending.riskCalls).toHaveLength(0);
+
+    const bad = gateDeps({ runRatchet: async () => ({ verdict: 'violation', detail: 'a.ts' }) });
+    const r = await evaluatePreMergeGate('/repo', 3, { localRatchet: true }, bad.deps);
+    expect(r).toMatchObject({ ok: false, reason: 'ratchet_violation' });
+    expect(bad.riskCalls).toHaveLength(0);
+  });
+
+  it('pr mode skips the ratchet and asks the risk step in pr mode', async () => {
+    const g = gateDeps();
+    expect(await evaluatePreMergeGate('/repo', 3, { localRatchet: false }, g.deps)).toEqual({
+      ok: true,
+    });
+    expect(g.order).toEqual(['workflows', 'risk']);
+    expect(g.riskCalls[0][2]).toBe('pr');
+  });
+
+  it('fails open when the risk step itself throws', async () => {
+    const g = gateDeps({
+      evaluateRisk: async () => {
+        throw new Error('db gone');
+      },
+    });
+    expect(await evaluatePreMergeGate('/repo', 3, { localRatchet: true }, g.deps)).toEqual({
+      ok: true,
+    });
   });
 });

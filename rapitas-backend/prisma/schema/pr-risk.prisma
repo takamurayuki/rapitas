@@ -1,0 +1,91 @@
+// ============================================================================
+// pr-risk.prisma — PR merge-failure risk prediction (task #1031).
+// Scores, strictly-defined outcome labels (72h rollback / critical incident),
+// monthly precision/recall/FPR metrics and threshold reviews. JSON payloads are
+// stored as String so the sqlite desktop and postgres web builds stay identical.
+// NOTE: model/field names are pinned by services/self-improvement/pr-risk/
+// pr-risk-schema-drift.test.ts — rename both together.
+// ============================================================================
+
+// Single-row (id=1) rollout config. Missing row = defaults (stage 'off').
+model PrRiskConfig {
+  id             Int       @id
+  stage          String    @default("off") // off | display | hold | auto
+  threshold      Float     @default(0.5)
+  modelJson      String? // JSON: { baseLogit, weights, means }; null = prior weights
+  modelVersion   Int       @default(0) // 0 = untrained (prior weights)
+  stageChangedAt DateTime?
+  updatedAt      DateTime  @updatedAt
+}
+
+// One risk score per (repo, PR, head SHA) — reused on every watcher tick.
+model PrRiskScore {
+  id                Int       @id @default(autoincrement())
+  repo              String
+  prNumber          Int
+  headSha           String
+  taskId            Int?
+  score             Float
+  baseLogit         Float
+  featuresJson      String // JSON: Record<FeatureKey, number>
+  contributionsJson String // JSON: [{ feature, phi }] sorted by |phi| desc (SHAP)
+  thresholdUsed     Float
+  stage             String
+  modelVersion      Int
+  held              Boolean   @default(false)
+  commentPostedAt   DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@unique([repo, prNumber, headSha])
+  @@index([repo, prNumber])
+}
+
+// Post-merge outcome label. failure = rollback within 72h or critical incident.
+model PrOutcome {
+  id           Int       @id @default(autoincrement())
+  repo         String
+  prNumber     Int
+  mergeSha     String?
+  mergedAt     DateTime?
+  label        String    @default("pending") // pending | success | failure
+  failureKind  String? // rollback_72h | critical_incident
+  revertSha    String?
+  revertAt     DateTime?
+  incidentNote String?
+  labeledAt    DateTime?
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([repo, prNumber])
+  @@index([label])
+}
+
+// Monthly (UTC YYYY-MM) confusion matrix and derived metrics.
+model PrRiskMonthlyMetric {
+  id           Int      @id @default(autoincrement())
+  month        String   @unique
+  sample       Int
+  tp           Int
+  fp           Int
+  fn           Int
+  tn           Int
+  precision    Float?
+  recall       Float?
+  fpr          Float?
+  threshold    Float
+  modelVersion Int
+  createdAt    DateTime @default(now())
+}
+
+// Audit row for every periodic threshold review (adopted or not).
+model PrRiskThresholdReview {
+  id                Int      @id @default(autoincrement())
+  month             String
+  previousThreshold Float
+  proposedThreshold Float?
+  adopted           Boolean
+  reason            String
+  sample            Int
+  createdAt         DateTime @default(now())
+
+  @@index([month])
+}
