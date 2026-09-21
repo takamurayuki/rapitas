@@ -56,6 +56,10 @@ const SUPPRESSED: [string, string][] = [
   ],
   ['exec-log', '[ExecLog:#] Execution ended with status: failed'],
   [
+    'claude-code-agent',
+    '[claude-code] Prompt/context too long — failing fast so the session is excluded from future resumes.',
+  ],
+  [
     'github-service:client',
     'gh command failed: gh pr create --title [Task-#] no commits between develop and bugfix/t#-x',
   ],
@@ -231,6 +235,16 @@ describe('classifyLogSignature', () => {
     expect(
       classifyLogSignature('memory:task-queue', 'Stuck processing task moved to dead_letter')
         .suppressed,
+    ).toBe(false);
+  });
+
+  test('"Prompt/context too long — failing fast" is scoped to the claude-code-agent logger only', () => {
+    // Task #1036: the fail-fast line is the guard working; the same phrase elsewhere stays visible.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        '[claude-code] Prompt/context too long — failing fast so the session is excluded from future resumes.',
+      ).suppressed,
     ).toBe(false);
   });
 
