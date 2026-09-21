@@ -88,6 +88,92 @@ export async function fileSizeRatchetCheck(
   };
 }
 
+/** Generated-artifact drift checks CI's Lint Code job runs, in its order. */
+const DRIFT_SCRIPTS: ReadonlyArray<{ script: string; regen: string; what: string }> = [
+  { script: 'check:boundary-guide', regen: 'bun run gen:boundary-guide', what: 'boundary guide' },
+  { script: 'check:type-guards', regen: 'bun run gen:type-guards', what: 'type guards' },
+  {
+    script: 'generate:route-barrels:check',
+    regen: 'bun run generate:route-barrels',
+    what: 'route barrels',
+  },
+];
+
+/**
+ * Run one `bun run <check script>` in the backend package and report drift.
+ *
+ * @param backendDir - rapitas-backend directory inside the worktree / backend ディレクトリ
+ * @param entry - Which drift check / 対象チェック
+ * @returns Failure details, or null when in sync or the script is absent / 不一致の詳細
+ */
+async function runDriftScript(
+  backendDir: string,
+  entry: (typeof DRIFT_SCRIPTS)[number],
+): Promise<string | null> {
+  try {
+    await execFileAsync('bun', ['run', entry.script], {
+      cwd: backendDir,
+      timeout: 180_000,
+      maxBuffer: 4 * 1024 * 1024,
+      windowsHide: true,
+      shell: process.platform === 'win32',
+    });
+    return null;
+  } catch (err) {
+    const e = err as { code?: unknown; stdout?: string; stderr?: string; killed?: boolean };
+    const out = `${e.stdout ?? ''}\n${e.stderr ?? ''}`;
+    // A missing script or a crashed runner is not drift — skip, never fail.
+    if (typeof e.code !== 'number' || e.killed || /Script not found/.test(out)) return null;
+    const lines = out
+      .split(/\r?\n/)
+      .filter((l) => /DRIFT|drift|out of sync|missing|stale/i.test(l) && !/no drift/.test(l))
+      .slice(0, 6)
+      .join(' / ');
+    return `${entry.what}: ${lines || 'generated files differ from source'} → rapitas-backend で \`${entry.regen}\` を実行して生成物をコミット`;
+  }
+}
+
+/**
+ * CI-parity checks that only matter for the rapitas repo: the file-size
+ * ratchet plus the three generated-artifact drift checks of CI's Lint Code
+ * job (boundary guide, type guards, route barrels). Task 1031 (2026-09-22)
+ * added a module with new exported types, passed every local check, and
+ * spent a ci_repair round on "Check type-guard drift". The drift checks run
+ * only when the diff touched rapitas-backend source, and report under the
+ * existing 'generated-sync' check name.
+ *
+ * @param workdir - Worktree root / worktree ルート
+ * @param allChanged - Every changed path in the worktree diff / 全変更パス
+ * @returns Zero or more checks to append to the gate / 追加チェック
+ */
+export async function ciParityChecks(
+  workdir: string,
+  allChanged: string[],
+): Promise<VerificationCheck[]> {
+  const checks: VerificationCheck[] = [];
+  const ratchet = await fileSizeRatchetCheck(workdir, allChanged);
+  if (ratchet) checks.push(ratchet);
+  const backendDir = join(workdir, 'rapitas-backend');
+  const touchesBackend = allChanged.some((f) =>
+    /^rapitas-backend[\\/].*\.(ts|tsx)$/.test(f.replace(/\\/g, '/')),
+  );
+  if (!touchesBackend || !existsSync(join(backendDir, 'package.json'))) return checks;
+  const failures = (
+    await Promise.all(DRIFT_SCRIPTS.map((entry) => runDriftScript(backendDir, entry)))
+  ).filter((f): f is string => f !== null);
+  checks.push({
+    name: 'generated-sync',
+    ran: true,
+    ok: failures.length === 0,
+    errorCount: failures.length,
+    details:
+      failures.length === 0
+        ? 'generated-sync: boundary guide / type guards / route barrels in sync'
+        : `生成物の同期漏れ（CI の「Check … drift」が hard-fail します）: ${failures.join('; ')}`,
+  });
+  return checks;
+}
+
 /**
  * Prisma generated-artifact parity check (rapitas repo only). CI hard-fails
  * when `prisma/schema/*.prisma` changes without the regenerated
