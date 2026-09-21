@@ -124,6 +124,26 @@ describe('deriveTaskSpec', () => {
     });
   });
 
+  // task 1037 (2026-09-22): the model echoed the prompt's output template
+  // verbatim and the task was filed with acceptanceCriteria ["..."].
+  test('プロンプト雛形の "..." を鸚鵡返しされた項目は捨て、空として扱うこと', async () => {
+    mockSendAIMessage.mockResolvedValueOnce({
+      content: JSON.stringify({
+        goals: ['...'],
+        constraints: ['…', '   '],
+        acceptanceCriteria: ['...', '拒否ログが1件も出ないこと'],
+      }),
+    });
+
+    const result = await deriveTaskSpec('タスクの説明');
+
+    expect(result.spec).toEqual({
+      goals: [],
+      constraints: [],
+      acceptanceCriteria: ['拒否ログが1件も出ないこと'],
+    });
+  });
+
   test('AI 呼び出しに provider/systemPrompt/description が渡されること', async () => {
     mockGetDefaultProvider.mockResolvedValueOnce('gemini');
 

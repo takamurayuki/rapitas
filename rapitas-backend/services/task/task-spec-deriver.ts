@@ -35,12 +35,22 @@ const SYSTEM_PROMPT = `あなたはソフトウェア開発タスクの仕様を
 
 const EMPTY: DerivedTaskSpec = { goals: [], constraints: [], acceptanceCriteria: [] };
 
+/**
+ * The prompts above show their output shape with `"..."` placeholders, and a
+ * model occasionally echoes that shape back verbatim. Task 1037 (2026-09-22)
+ * was filed with acceptanceCriteria `["..."]` and goals `["..."]`, which the
+ * judge and intake gates then treated as real requirements. A value made only
+ * of dots / ellipsis / whitespace is a placeholder, never a spec item.
+ */
+const PLACEHOLDER_RE = /^[.…\s]*$/;
+
 /** Extracts a clean string[] from an unknown JSON value. */
-function toStringArray(value: unknown): string[] {
+export function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value
     .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
     .map((v) => v.trim())
+    .filter((v) => !PLACEHOLDER_RE.test(v))
     .slice(0, 6);
 }
 
