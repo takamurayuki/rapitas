@@ -360,4 +360,3 @@ export function classifyLogSignature(name: string, normalizedMsg: string): Suppr
   }
   return { suppressed: false };
 }
-
