@@ -21,6 +21,7 @@ import { startGuardIncidentFiler, stopGuardIncidentFiler } from '../workflow/gua
 import { runInnovationSession } from '../memory/innovation-session';
 import { runVulnerabilityScan } from '../memory/vulnerability-scan';
 import { runLogHealthCheck } from '../system/log-health-check';
+import { markEventLoopSection } from '../system/event-loop-lag-watchdog';
 import { runLoopReview } from '../self-improvement/loop-watcher';
 import { runCiWatch } from '../self-improvement/ci-green-keeper';
 import { createNotification } from '../communication/notification-service';
@@ -219,6 +220,7 @@ export async function runBacklogJobNow(
   }
   running.add(kind);
   const startedAtMs = Date.now();
+  const releaseSection = markEventLoopSection(`backlog-job:${kind}`);
   try {
     const count = kind === 'health_check' ? await runLogHealthCheck(since) : await HANDLERS[kind]();
     // WARN (not info) so slow runs reach the file log — instrumentation for
@@ -237,6 +239,7 @@ export async function runBacklogJobNow(
     }
     throw err;
   } finally {
+    releaseSection();
     running.delete(kind);
   }
 }
