@@ -26,8 +26,12 @@ mock.module('../../config/logger', () => ({
   getBackendLogFilePath: () => '/tmp/backend.log',
 }));
 
-const { formatEventLoopLagMessage, startEventLoopLagWatchdog, stopEventLoopLagWatchdog } =
-  await import('./event-loop-lag-watchdog');
+const {
+  formatEventLoopLagMessage,
+  startEventLoopLagWatchdog,
+  stopEventLoopLagWatchdog,
+  markEventLoopSection,
+} = await import('./event-loop-lag-watchdog');
 
 function normalize(msg: string): string {
   return msg.replace(/\d+/g, '#');
@@ -174,5 +178,47 @@ describe('event-loop-lag-watchdog self-heal (2026-09-18 incident)', () => {
     // block) must start clean, not immediately re-trigger from stale state.
     const reasons = triggerLags([3000]);
     expect(reasons).toHaveLength(0);
+  });
+});
+
+describe('markEventLoopSection — 停止元の名指し', () => {
+  afterEach(() => {
+    stopEventLoopLagWatchdog();
+    warnCalls.length = 0;
+  });
+
+  test('登録中のセクションがあればactiveSectionsを付与し、本文は不変', () => {
+    const done = markEventLoopSection('log-health-check');
+    triggerLag(4900);
+    done();
+    const [fields, msg] = warnCalls[0];
+    expect(msg).toBe('Event loop stalled ~4.9s');
+    expect(normalize(msg)).toBe('Event loop stalled ~#.#s');
+    const sections = fields.activeSections as Array<{ name: string; runningMs: number }>;
+    expect(sections.map((s) => s.name)).toEqual(['log-health-check']);
+    expect(typeof sections[0].runningMs).toBe('number');
+  });
+
+  test('未登録ならactiveSectionsを付けない', () => {
+    triggerLag(4900);
+    expect('activeSections' in warnCalls[0][0]).toBe(false);
+  });
+
+  test('解除後は付与されず、二重解除は冪等', () => {
+    const done = markEventLoopSection('backlog-job:health_check');
+    done();
+    done();
+    triggerLag(4900);
+    expect('activeSections' in warnCalls[0][0]).toBe(false);
+  });
+
+  test('同名の並行実行は片方の解除で他方を消さない', () => {
+    const a = markEventLoopSection('job');
+    const b = markEventLoopSection('job');
+    a();
+    triggerLag(4900);
+    const sections = warnCalls[0][0].activeSections as Array<{ name: string }>;
+    expect(sections).toHaveLength(1);
+    b();
   });
 });
