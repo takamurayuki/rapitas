@@ -16,6 +16,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { createLogger } from '../../config/logger';
 import { checkRequiredWorkflows } from './auto-merge-required-workflows';
+import type { evaluatePrRisk } from '../self-improvement/pr-risk/pr-risk-gate';
 
 const execAsync = promisify(exec);
 const log = createLogger('workflow:auto-merge-premerge-gate');
@@ -113,7 +114,28 @@ export async function runRatchetAtRef(
 
 export type PreMergeGateResult =
   | { ok: true }
-  | { ok: false; reason: 'workflows_pending' | 'ratchet_violation' | 'gate_error'; detail: string };
+  | {
+      ok: false;
+      reason: 'workflows_pending' | 'ratchet_violation' | 'gate_error' | 'risk_hold';
+      detail: string;
+    };
+
+type PrRiskEvaluator = typeof evaluatePrRisk;
+
+/** Injectable gate steps (tests). */
+export interface PreMergeGateDeps {
+  checkWorkflows: typeof checkRequiredWorkflows;
+  runRatchet: (cwd: string, refspec: string, tag: string) => Promise<RatchetVerdict>;
+  evaluateRisk: (...args: Parameters<PrRiskEvaluator>) => ReturnType<PrRiskEvaluator>;
+}
+
+const defaultGateDeps: PreMergeGateDeps = {
+  checkWorkflows: checkRequiredWorkflows,
+  runRatchet: (cwd, refspec, tag) => runRatchetAtRef(cwd, refspec, tag),
+  // Lazy import keeps Prisma out of this module's load path (watcher tests).
+  evaluateRisk: async (...args) =>
+    (await import('../self-improvement/pr-risk/pr-risk-gate')).evaluatePrRisk(...args),
+};
 
 /**
  * Decide whether a CI-green PR may proceed to completion/merge.
@@ -121,22 +143,35 @@ export type PreMergeGateResult =
  * @param cwd - Repo working directory / リポジトリ作業ディレクトリ
  * @param prNumber - PR number / PR番号
  * @param opts - localRatchet: also run the ratchet on the merge ref (merge mode). / オプション
+ * @param deps - Injectable gate steps (tests). / 依存注入
  * @returns ok, or the reason it must wait / be repaired. / 判定
  */
 export async function evaluatePreMergeGate(
   cwd: string,
   prNumber: number,
   opts: { localRatchet: boolean },
+  deps: PreMergeGateDeps = defaultGateDeps,
 ): Promise<PreMergeGateResult> {
-  const wf = await checkRequiredWorkflows(cwd, prNumber);
+  const wf = await deps.checkWorkflows(cwd, prNumber);
   if (!wf.complete) {
     return { ok: false, reason: 'workflows_pending', detail: wf.waiting.join(', ') };
   }
-  if (!opts.localRatchet) return { ok: true };
+  if (opts.localRatchet) {
+    const r = await deps.runRatchet(cwd, `pull/${prNumber}/merge`, `pr${prNumber}`);
+    if (r.verdict === 'violation')
+      return { ok: false, reason: 'ratchet_violation', detail: r.detail };
+    if (r.verdict === 'error') return { ok: false, reason: 'gate_error', detail: r.detail };
+  }
 
-  const r = await runRatchetAtRef(cwd, `pull/${prNumber}/merge`, `pr${prNumber}`);
-  if (r.verdict === 'violation')
-    return { ok: false, reason: 'ratchet_violation', detail: r.detail };
-  if (r.verdict === 'error') return { ok: false, reason: 'gate_error', detail: r.detail };
+  // PR-risk (task 1031) runs last so it only scores PRs that would otherwise
+  // merge. The watcher only calls this for rapitas task PRs, hence
+  // agentAuthored; localRatchet is set exactly in merge mode. A 'risk_hold'
+  // falls into the watcher's existing pending → 90-min timeout path.
+  // Fail-open: the score is advisory, unlike the fail-closed ratchet.
+  const mode = opts.localRatchet ? 'merge' : 'pr';
+  const risk = await deps
+    .evaluateRisk(cwd, prNumber, mode, { taskId: null, agentAuthored: true })
+    .catch(() => ({ hold: false as const, detail: undefined }));
+  if (risk.hold) return { ok: false, reason: 'risk_hold', detail: risk.detail ?? '' };
   return { ok: true };
 }

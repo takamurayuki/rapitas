@@ -7,8 +7,10 @@
  */
 import { Elysia } from 'elysia';
 import missSignaturesRoute from './miss-signatures.routes';
+import prRiskRoute from './pr-risk.routes';
 import repairRiskRoute from './repair-risk.routes';
 
 export const selfImprovementDomainRoutes = new Elysia()
   .use(missSignaturesRoute)
+  .use(prRiskRoute)
   .use(repairRiskRoute);

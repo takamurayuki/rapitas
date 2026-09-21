@@ -21,6 +21,7 @@ import { startGuardIncidentFiler, stopGuardIncidentFiler } from '../workflow/gua
 import { runInnovationSession } from '../memory/innovation-session';
 import { runVulnerabilityScan } from '../memory/vulnerability-scan';
 import { runLogHealthCheck } from '../system/log-health-check';
+import { markEventLoopSection } from '../system/event-loop-lag-watchdog';
 import { runLoopReview } from '../self-improvement/loop-watcher';
 import { runCiWatch } from '../self-improvement/ci-green-keeper';
 import { createNotification } from '../communication/notification-service';
@@ -28,6 +29,7 @@ import { runDailyReport } from '../reporting/daily-report-service';
 import { runMissLedgerJob } from '../self-improvement/miss-ledger-job';
 import { runGatePrecisionJob } from '../self-improvement/gate-precision-job';
 import { evaluateAndRecordKnowledgeReuse } from '../supervision/knowledge-reuse-evaluator';
+import { runPrRiskReviewJob } from '../self-improvement/pr-risk';
 
 const log = createLogger('scheduling:backlog');
 
@@ -45,6 +47,7 @@ const HANDLERS: Record<BacklogJobKind, () => Promise<number>> = {
   miss_ledger: runMissLedgerJob,
   gate_precision: runGatePrecisionJob,
   knowledge_reuse: evaluateAndRecordKnowledgeReuse,
+  pr_risk_review: runPrRiskReviewJob,
 };
 
 // NOTE: Must stay in sync with rapitas-frontend/messages/ja.json
@@ -60,6 +63,7 @@ const JOB_LABELS: Record<BacklogJobKind, string> = {
   miss_ledger: '検出漏れ学習',
   gate_precision: 'ゲート精度較正',
   knowledge_reuse: '知識活用効果の測定',
+  pr_risk_review: 'PR リスク予測の精度レビュー',
 };
 
 // Caps notification body length — raw Error.message can carry stack-trace-like
@@ -219,6 +223,7 @@ export async function runBacklogJobNow(
   }
   running.add(kind);
   const startedAtMs = Date.now();
+  const releaseSection = markEventLoopSection(`backlog-job:${kind}`);
   try {
     const count = kind === 'health_check' ? await runLogHealthCheck(since) : await HANDLERS[kind]();
     // WARN (not info) so slow runs reach the file log — instrumentation for
@@ -237,6 +242,7 @@ export async function runBacklogJobNow(
     }
     throw err;
   } finally {
+    releaseSection();
     running.delete(kind);
   }
 }

@@ -1208,6 +1208,81 @@ CREATE TABLE "EpisodeMemory" (
 );
 
 -- CreateTable
+CREATE TABLE "PrRiskConfig" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "stage" TEXT NOT NULL DEFAULT 'off',
+    "threshold" REAL NOT NULL DEFAULT 0.5,
+    "modelJson" TEXT,
+    "modelVersion" INTEGER NOT NULL DEFAULT 0,
+    "stageChangedAt" DATETIME,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "PrRiskScore" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "repo" TEXT NOT NULL,
+    "prNumber" INTEGER NOT NULL,
+    "headSha" TEXT NOT NULL,
+    "taskId" INTEGER,
+    "score" REAL NOT NULL,
+    "baseLogit" REAL NOT NULL,
+    "featuresJson" TEXT NOT NULL,
+    "contributionsJson" TEXT NOT NULL,
+    "thresholdUsed" REAL NOT NULL,
+    "stage" TEXT NOT NULL,
+    "modelVersion" INTEGER NOT NULL,
+    "held" BOOLEAN NOT NULL DEFAULT false,
+    "commentPostedAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "PrOutcome" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "repo" TEXT NOT NULL,
+    "prNumber" INTEGER NOT NULL,
+    "mergeSha" TEXT,
+    "mergedAt" DATETIME,
+    "label" TEXT NOT NULL DEFAULT 'pending',
+    "failureKind" TEXT,
+    "revertSha" TEXT,
+    "revertAt" DATETIME,
+    "incidentNote" TEXT,
+    "labeledAt" DATETIME,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "PrRiskMonthlyMetric" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "month" TEXT NOT NULL,
+    "sample" INTEGER NOT NULL,
+    "tp" INTEGER NOT NULL,
+    "fp" INTEGER NOT NULL,
+    "fn" INTEGER NOT NULL,
+    "tn" INTEGER NOT NULL,
+    "precision" REAL,
+    "recall" REAL,
+    "fpr" REAL,
+    "threshold" REAL NOT NULL,
+    "modelVersion" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "PrRiskThresholdReview" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "month" TEXT NOT NULL,
+    "previousThreshold" REAL NOT NULL,
+    "proposedThreshold" REAL,
+    "adopted" BOOLEAN NOT NULL,
+    "reason" TEXT NOT NULL,
+    "sample" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
 CREATE TABLE "ScheduleEvent" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "title" TEXT NOT NULL,
@@ -1976,6 +2051,24 @@ CREATE INDEX "EpisodeMemory_phase_idx" ON "EpisodeMemory"("phase");
 
 -- CreateIndex
 CREATE INDEX "EpisodeMemory_importance_idx" ON "EpisodeMemory"("importance");
+
+-- CreateIndex
+CREATE INDEX "PrRiskScore_repo_prNumber_idx" ON "PrRiskScore"("repo", "prNumber");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PrRiskScore_repo_prNumber_headSha_key" ON "PrRiskScore"("repo", "prNumber", "headSha");
+
+-- CreateIndex
+CREATE INDEX "PrOutcome_label_idx" ON "PrOutcome"("label");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PrOutcome_repo_prNumber_key" ON "PrOutcome"("repo", "prNumber");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PrRiskMonthlyMetric_month_key" ON "PrRiskMonthlyMetric"("month");
+
+-- CreateIndex
+CREATE INDEX "PrRiskThresholdReview_month_idx" ON "PrRiskThresholdReview"("month");
 
 -- CreateIndex
 CREATE INDEX "ScheduleEvent_type_idx" ON "ScheduleEvent"("type");

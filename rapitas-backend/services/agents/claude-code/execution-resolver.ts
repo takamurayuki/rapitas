@@ -198,7 +198,13 @@ export function buildResolveAfterParse(
     // 894: "Prompt is too long"). --resume of the SAME session reloads the
     // already-too-large transcript, so it would repeat this failure —
     // tagged so phase-session-resume.ts / execution-resume.ts stop resuming it.
-    const promptTooLongHit = detectPromptTooLong(ctx.outputBuffer + '\n' + ctx.errorBuffer);
+    // Gated on a non-zero exit: the real CLI failure exits 1 (task 981),
+    // while a run that finished cleanly and merely DISCUSSED the error —
+    // task 1035 (2026-09-22) was a log-triage task titled 【Prompt Too Long】,
+    // so the phrase sat in its own prompt echo and output — must not be
+    // recorded as failed and lose its session to the resume exclusion.
+    const promptTooLongHit =
+      code !== 0 && detectPromptTooLong(ctx.outputBuffer + '\n' + ctx.errorBuffer);
     if (promptTooLongHit) {
       logger.error(
         { logPrefix: ctx.logPrefix, executionTimeMs },
