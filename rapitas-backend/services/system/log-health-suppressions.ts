@@ -141,6 +141,16 @@ const SUPPRESSIONS: Suppression[] = [
       'prompt-too-long を検知して fail-fast し、セッションを再開対象から除外したガードの記録 — 失敗自体は実行結果側(failureType: prompt_too_long)に残り、二重起票になる',
   },
   {
+    // ログ出力箇所: execution-file-logger/index.ts:234-249 の logExecutionEnd。本文は
+    // execution-resolver.ts:217 が入力長超過検出時（failureType: 'prompt_too_long'）に
+    // 組み立てる。NOTE: err.message が msg に優先採用されるため正規化後は
+    // "【Prompt Too Long】…" となり、上の Process exited ルールに届かない。
+    test: /^【Prompt Too Long】/,
+    logger: /execution-file-logger/i,
+    because:
+      '入力長超過で failed になった結末の記録 — 対処は実装済み（execution-resume.ts:175 / phase-session-resume.ts:203 が --resume せずコールドスタート、fallback-decision.ts:52 が無駄なフォールバックを回避）で、失敗自体はDBの実行ステータス・stall監視で検知される',
+  },
+  {
     // ログ出力箇所: fallback-decision.ts:50-58 の logger.warn（checkNeedsFallback
     // 内）。成功扱いの出力からプロバイダ障害の兆候を classifyAgentError が検知し、
     // フォールバックへ切り替えると判定した時点の告知ログ — 検出ロジック自体は意図した
@@ -350,3 +360,4 @@ export function classifyLogSignature(name: string, normalizedMsg: string): Suppr
   }
   return { suppressed: false };
 }
+
