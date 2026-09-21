@@ -20,7 +20,7 @@ import {
   readConfig,
   type PrRiskDb,
 } from './pr-risk-store';
-import type { Contribution, PrRiskStage } from './pr-risk-types';
+import { toStage, type Contribution, type PrRiskStage } from './pr-risk-types';
 
 export interface PrRiskGateDeps {
   db: PrRiskDb;
@@ -104,12 +104,21 @@ export async function evaluatePrRisk(
         commentPostedAt: null,
       });
       await ensureOutcomeTracked(deps.db, snap.repo, prNumber);
+    }
+
+    // Also covers a cached score whose first upsert failed (e.g. a transient
+    // gh error): commentPostedAt stays null until a post succeeds.
+    if (!row.commentPostedAt) {
       try {
         const body = buildRiskComment({
-          prediction,
-          threshold: config.threshold,
-          stage: config.stage,
-          held,
+          prediction: {
+            score: row.score,
+            baseLogit: row.baseLogit,
+            contributions: JSON.parse(row.contributionsJson) as Contribution[],
+          },
+          threshold: row.thresholdUsed,
+          stage: toStage(row.stage) ?? config.stage,
+          held: row.held,
         });
         await upsertRiskComment(cwd, prNumber, body, deps.runGh);
         await markCommentPosted(deps.db, row.id, deps.now());

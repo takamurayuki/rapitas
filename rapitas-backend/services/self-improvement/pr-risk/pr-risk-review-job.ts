@@ -11,6 +11,7 @@
 import { createLogger } from '../../../config/logger';
 import { runGhCommand } from '../../github/gh-client';
 import { collectOutcomes, type OutcomeDeps } from './pr-risk-outcome';
+import { ROLLBACK_WINDOW_MS } from './pr-risk-types';
 import {
   computeMonthlyMetric,
   isMonthlyReviewDue,
@@ -60,10 +61,64 @@ interface GhCommit {
   commit: { message: string; committer: { date: string } };
 }
 
+const PAGE_SIZE = 100;
+// Safety bound only: 72h of base-branch history is far below 50 pages.
+const MAX_PAGES = 50;
+
+/**
+ * Read the base-branch commits inside the rollback window [mergedAt,
+ * mergedAt + 72h] via the GitHub API, following every page, re-serialised
+ * into the `%H%x1f%cI%x1f%B%x1e` git-log shape parseRevertLog consumes.
+ *
+ * @param repo - owner/repo / リポジトリ
+ * @param baseBranch - Base branch the PR merged into / マージ先ブランチ
+ * @param sinceIso - PR merge time (ISO) / マージ時刻
+ * @param runGh - gh runner (DI) / gh 実行関数
+ * @returns Serialised commit records / コミット列
+ * @throws {Error} When gh fails or returns non-JSON (the job stage fails open) / gh 失敗時
+ */
+export async function fetchBaseHistory(
+  repo: string,
+  baseBranch: string,
+  sinceIso: string,
+  runGh: (args: string[]) => Promise<string>,
+): Promise<string> {
+  // NOTE: `until` is required, not an optimisation — the API returns newest
+  // first, so an open-ended `since` query put the commits right after the merge
+  // (where a 72h revert lives) on the LAST page; one 100-item page silently
+  // dropped them on busy branches (213 commits/week on develop) and mislabelled
+  // reverted PRs as success.
+  const untilIso = new Date(Date.parse(sinceIso) + ROLLBACK_WINDOW_MS).toISOString();
+  const records: string[] = [];
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const out = await runGh([
+      'api',
+      '-X',
+      'GET',
+      `repos/${repo}/commits`,
+      '-f',
+      `sha=${baseBranch}`,
+      '-f',
+      `since=${sinceIso}`,
+      '-f',
+      `until=${untilIso}`,
+      '-f',
+      `per_page=${PAGE_SIZE}`,
+      '-f',
+      `page=${page}`,
+    ]);
+    const commits = JSON.parse(out) as GhCommit[];
+    for (const c of commits) {
+      records.push(`${c.sha}\x1f${c.commit.committer.date}\x1f${c.commit.message}\x1e`);
+    }
+    if (commits.length < PAGE_SIZE) break;
+  }
+  return records.join('\n');
+}
+
 function defaultDeps(): ReviewJobDeps {
   // NOTE: The job has no repo checkout (PRs span projects), so the base-branch
-  // history comes from the GitHub API and is re-serialised into the
-  // `%H%x1f%cI%x1f%B%x1e` git-log format parseRevertLog consumes.
+  // history comes from the GitHub API (fetchBaseHistory) instead of git log.
   return {
     db: defaultDb,
     now: () => new Date(),
@@ -91,27 +146,10 @@ function defaultDeps(): ReviewJobDeps {
         commitShas: (v.commits ?? []).map((c) => c.oid),
       };
     },
-    gitLog: async (repo, baseBranch, sinceIso) => {
-      const out = await runGhCommand(
-        [
-          'api',
-          '-X',
-          'GET',
-          `repos/${repo}/commits`,
-          '-f',
-          `sha=${baseBranch}`,
-          '-f',
-          `since=${sinceIso}`,
-          '-f',
-          'per_page=100',
-        ],
-        undefined,
-        { skipLog: true },
-      );
-      return (JSON.parse(out) as GhCommit[])
-        .map((c) => `${c.sha}\x1f${c.commit.committer.date}\x1f${c.commit.message}\x1e`)
-        .join('\n');
-    },
+    gitLog: (repo, baseBranch, sinceIso) =>
+      fetchBaseHistory(repo, baseBranch, sinceIso, (args) =>
+        runGhCommand(args, undefined, { skipLog: true }),
+      ),
   };
 }
 

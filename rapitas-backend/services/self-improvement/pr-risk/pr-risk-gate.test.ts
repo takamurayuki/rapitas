@@ -126,6 +126,24 @@ describe('evaluatePrRisk — caching and fail-open', () => {
     expect(await evaluatePrRisk('/repo', 5, 'merge', AGENT, deps)).toEqual({ hold: false });
   });
 
+  it('retries the comment on a cached score whose first upsert failed', async () => {
+    const s = await setup('display');
+    const orig = s.deps.runGh;
+    let failComment = true;
+    s.deps.runGh = async (args, cwd) => {
+      if (args[0] === 'api' && failComment) throw new Error('comment 502');
+      return orig(args, cwd);
+    };
+    await evaluatePrRisk('/repo', 5, 'merge', AGENT, s.deps);
+    expect(s.tables.prRiskScore.rows[0].commentPostedAt).toBeNull();
+    failComment = false;
+    await evaluatePrRisk('/repo', 5, 'merge', AGENT, s.deps);
+    expect(s.tables.prRiskScore.rows).toHaveLength(1);
+    expect(s.tables.prRiskScore.rows[0].commentPostedAt).toBeInstanceOf(Date);
+    const post = s.calls.find((c) => c.includes('POST'));
+    expect(post?.find((a) => a.startsWith('body='))).toContain('SHAP');
+  });
+
   it('still holds when only the comment upsert fails', async () => {
     const s = await setup('hold');
     const orig = s.deps.runGh;

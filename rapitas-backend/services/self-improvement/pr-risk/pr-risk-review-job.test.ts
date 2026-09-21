@@ -7,7 +7,8 @@
  * adoption and precision-based demotion.
  */
 import { describe, it, expect } from 'bun:test';
-import { runPrRiskReviewJob, type ReviewJobDeps } from './pr-risk-review-job';
+import { fetchBaseHistory, runPrRiskReviewJob, type ReviewJobDeps } from './pr-risk-review-job';
+import { parseRevertLog } from './pr-risk-outcome';
 import { createFakeDb } from './pr-risk-fake-db.test-helpers';
 import { createScore, readConfig, upsertOutcome, writeConfig } from './pr-risk-store';
 import type { PrRiskStage } from './pr-risk-types';
@@ -238,5 +239,62 @@ describe('scheduling', () => {
       hour: 6,
       weekday: 3,
     });
+  });
+});
+
+describe('fetchBaseHistory (default gitLog)', () => {
+  const H = 3600_000;
+  const mergedIso = '2026-09-01T00:00:00.000Z';
+  const commit = (sha: string, ms: number, message: string) => ({
+    sha,
+    commit: {
+      message,
+      committer: { date: new Date(Date.parse(mergedIso) + ms).toISOString() },
+    },
+  });
+
+  it('bounds the query to [mergedAt, mergedAt + 72h] instead of "everything since merge"', async () => {
+    const calls: string[][] = [];
+    await fetchBaseHistory('o/r', 'develop', mergedIso, async (args) => {
+      calls.push(args);
+      return '[]';
+    });
+    expect(calls[0]).toContain('repos/o/r/commits');
+    expect(calls[0]).toContain('sha=develop');
+    expect(calls[0]).toContain(`since=${mergedIso}`);
+    expect(calls[0]).toContain('until=2026-09-04T00:00:00.000Z');
+  });
+
+  it('pages past 100 commits so a revert on page 2 (oldest, right after merge) is kept', async () => {
+    // GitHub returns newest first: page 1 = 100 later commits, page 2 = the revert.
+    const page1 = Array.from({ length: 100 }, (_, i) =>
+      commit(`n${i}`, 70 * H - i * 1000, 'chore'),
+    );
+    const page2 = [commit('rv', 2 * H, 'Revert "feat: z"\n\nThis reverts commit mm.')];
+    const pages: string[] = [];
+    const out = await fetchBaseHistory('o/r', 'develop', mergedIso, async (args) => {
+      const page = args.find((a) => a.startsWith('page='));
+      pages.push(page ?? '');
+      return JSON.stringify(page === 'page=1' ? page1 : page === 'page=2' ? page2 : []);
+    });
+    expect(pages).toEqual(['page=1', 'page=2']);
+    const parsed = parseRevertLog(out);
+    expect(parsed).toHaveLength(101);
+    expect(parsed.find((c) => c.sha === 'rv')?.body).toContain('This reverts commit mm.');
+  });
+
+  it('stops after a short page without an extra request', async () => {
+    let n = 0;
+    await fetchBaseHistory('o/r', 'develop', mergedIso, async () => {
+      n++;
+      return JSON.stringify([commit('a', H, 'x')]);
+    });
+    expect(n).toBe(1);
+  });
+
+  it('throws (job stage fails open) when a page is not JSON', async () => {
+    await expect(
+      fetchBaseHistory('o/r', 'develop', mergedIso, async () => 'rate limited'),
+    ).rejects.toThrow();
   });
 });
