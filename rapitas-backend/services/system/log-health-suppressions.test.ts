@@ -12,6 +12,10 @@ import { normalizeMessage } from './log-health-check';
 const SUPPRESSED: [string, string][] = [
   [
     'execution-file-logger',
+    "【Prompt Too Long】Claude Code CLI reported the prompt/context was too long (exit code #). The session's accumulated transcript has likely exceeded the model's context window — resuming this same session via --resume will very likely repeat this failure. Cold-start with a short structured handoff instead.",
+  ],
+  [
+    'execution-file-logger',
     'Process exited with code # 【Session Resume Mode】Session ID: # 【Warning】Execution time of #ms is very short.',
   ],
   ['git-service', 'Refusing to switch to branch feature/t#-x in the PRIMARY git working tree'],
@@ -95,6 +99,10 @@ const SUPPRESSED: [string, string][] = [
 ];
 
 const KEPT: [string, string][] = [
+  [
+    'claude-code',
+    '【Prompt Too Long】Claude Code CLI reported the prompt/context was too long (exit code #).',
+  ],
   ['claude-code', 'Process exited with code # 【Session Resume Mode】Session ID: #'],
   ['prisma', 'Invalid `prisma.timelineEvent.create()` invocation'],
   ['workflow', 'Agent produced code changes WITHOUT saving plan.md — workflow violated'],
