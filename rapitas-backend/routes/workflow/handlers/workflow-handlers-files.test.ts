@@ -7,12 +7,15 @@
  */
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
 
-// ---- warn capture ----
+// ---- warn/error capture ----
 const warnCalls: unknown[][] = [];
+const errorCalls: unknown[][] = [];
 mock.module('../../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},
-    error: () => {},
+    error: (...args: unknown[]) => {
+      errorCalls.push(args);
+    },
     warn: (...args: unknown[]) => {
       warnCalls.push(args);
     },
@@ -67,8 +70,15 @@ mock.module('../../../services/workflow/requirement-replan-service', () => ({
     completionReceipt: { taskId },
   }),
 }));
+// Set to a reason string by a test to make assertReviewedTaskCurrent throw a
+// RequirementReplanHeldError, mirroring a concurrent-update hold (task #1041).
+let assertReviewedTaskCurrentHeldReason: string | null = null;
 mock.module('../../../services/workflow/requirement-replan-commit', () => ({
-  assertReviewedTaskCurrent: async () => {},
+  assertReviewedTaskCurrent: async () => {
+    if (assertReviewedTaskCurrentHeldReason) {
+      throw new RequirementReplanHeldError(assertReviewedTaskCurrentHeldReason);
+    }
+  },
   advanceReviewedVerify: async (_db: unknown, receipt: { taskId: number }) => {
     await mockUpdate({ where: { id: receipt.taskId }, data: { workflowStatus: 'verify_done' } });
     return receipt;
@@ -249,8 +259,15 @@ mock.module('../../../middleware/error-handler', () => ({
       this.name = 'NotFoundError';
     }
   },
+  RequirementReplanHeldError: class RequirementReplanHeldError extends Error {
+    constructor(reason: string) {
+      super(`Requirement replan review held: ${reason}`);
+      this.name = 'RequirementReplanHeldError';
+    }
+  },
 }));
 
+import { RequirementReplanHeldError } from '../../../middleware/error-handler';
 import { handleSaveFile } from './workflow-handlers-files';
 
 const makeSet = () => ({ status: 200 as number });
@@ -267,6 +284,8 @@ beforeEach(() => {
   mockReviewDiffAdversarially.mockReset();
   mockUpdateMany.mockReset();
   warnCalls.length = 0;
+  errorCalls.length = 0;
+  assertReviewedTaskCurrentHeldReason = null;
   mockUpdate.mockResolvedValue({});
   mockUpdateMany.mockResolvedValue({ count: 1 });
   mockCheckInvariants.mockResolvedValue([]);
@@ -701,6 +720,31 @@ describe('handleSaveFile — 完了は PR 作成成功を要件とすること',
     // task 948: an existing linked PR satisfies the "PR required" gate, but
     // staged completion still holds at verify_done pending CI green.
     expect((result as { workflowStatus?: string }).workflowStatus).toBe('verify_done');
+  });
+});
+
+// -------------------------------------------------------------------------
+describe('handleSaveFile — requirement-replan の held 状態を二重ERRORログしないこと（#1041）', () => {
+  test('assertReviewedTaskCurrent が RequirementReplanHeldError を投げても log.error は呼ばれず、そのまま re-throw されること', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]); // no subtasks
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    assertReviewedTaskCurrentHeldReason = 'stale_task';
+
+    await expect(
+      handleSaveFile({
+        params: { taskId: '1', fileType: 'verify' },
+        body: 'verify content',
+        set: makeSet(),
+      }),
+    ).rejects.toBeInstanceOf(RequirementReplanHeldError);
+
+    expect(errorCalls.length).toBe(0);
   });
 });
 
