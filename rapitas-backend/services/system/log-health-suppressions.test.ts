@@ -58,6 +58,10 @@ const SUPPRESSED: [string, string][] = [
     'routes:workflow:auto-commit',
     '[Workflow] Automated verification failed — aborting auto-commit/PR',
   ],
+  [
+    'routes:workflow:auto-commit',
+    '[Workflow] Automated verification failed — holding the local commit, no push/PR',
+  ],
   ['exec-log', '[ExecLog:#] Execution ended with status: failed'],
   [
     'claude-code-agent',

@@ -91,8 +91,11 @@ export const SUPPRESSIONS: Suppression[] = [
     // バグが無いため、エージェントは「ERRORログを減らす」を出力抑制で達成しようとした。
     // 存在しない欠陥を指示すると、症状を消す方向に流れる。実測 2026-08-29: 後者側の
     // 文言が抑制対象外だったため、同じ検証ゲート失敗イベントがタスク730として再度
-    // 起票された（K-6442/K-7506）。両方の文言をここで吸収する。
-    test: /Automated verification failed — (blocking|aborting auto-commit\/PR)/i,
+    // 起票された（K-6442/K-7506）。実測 2026-09-21: performAutoCommitAndPR の実際の
+    // 文言は "holding the local commit, no push/PR"（workflow-auto-commit.ts:272）
+    // であり aborting auto-commit/PR ではなかったため、K-9885/K-10638/K-11229 として
+    // 三度目の再起票が発生した（タスク1043）。三つの文言をここで吸収する。
+    test: /Automated verification failed — (blocking|aborting auto-commit\/PR|holding the local commit, no push\/PR)/i,
     because: '検証ゲートが基準未達を捕捉してタスク/auto-commitを止めた — ゲートが働いた側',
   },
   {

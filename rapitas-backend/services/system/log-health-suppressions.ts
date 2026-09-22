@@ -15,6 +15,12 @@
  *
  * The rule table itself lives in log-health-suppression-rules.ts (task 1040 —
  * split out to stay under the COMPONENT_SPLITTING_POLICY line-count ratchet).
+ *
+ * NOTE (task 1043): the verification-gate suppression rule in
+ * log-health-suppression-rules.ts must match all three wordings emitted for
+ * the same underlying event — "blocking", "aborting auto-commit/PR", and
+ * "holding the local commit, no push/PR" (workflow-auto-commit.ts:272) — so
+ * that none of them slip through and get re-filed as new concerns.
  */
 import { SUPPRESSIONS } from './log-health-suppression-rules';
 
