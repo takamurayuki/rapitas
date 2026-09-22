@@ -24,6 +24,9 @@ import {
   mockMaybeRestartForUpdate,
   mockStopThemeForIdleTimeout,
   mockLogWarn,
+  mockSelectNextTask,
+  mockMarkEventLoopSectionCalls,
+  mockReleaseEventLoopSection,
 } from './theme-auto-run-scheduler.test-support';
 
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
@@ -316,5 +319,32 @@ describe('advanceTheme timing instrumentation', () => {
     );
 
     expect(mockLogWarn).not.toHaveBeenCalled();
+  });
+});
+
+// task 1040 (concern #1040): advanceTheme was invisible to the event-loop-lag
+// watchdog's activeSections diagnostic — a stall mid-advance produced a WARN
+// with no culprit name. Register the section like log-health-check/backlog-scheduler do.
+describe('advanceTheme event-loop-lag section registration', () => {
+  it('registers and releases an event-loop-lag section around the advance', async () => {
+    const scheduler = ThemeAutoRunScheduler.getInstance();
+    await internal(scheduler).advanceTheme(42, null, 'priority', 0, null);
+
+    expect(mockMarkEventLoopSectionCalls).toContain('theme-auto-run-scheduler:advanceTheme');
+    expect(mockReleaseEventLoopSection).toHaveBeenCalled();
+  });
+
+  it('releases the section even when the advance path throws', async () => {
+    const scheduler = ThemeAutoRunScheduler.getInstance();
+    mockSelectNextTask.mockImplementationOnce(() => {
+      throw new Error('select failed');
+    });
+
+    await expect(internal(scheduler).advanceTheme(42, null, 'priority', 0, null)).rejects.toThrow(
+      'select failed',
+    );
+
+    expect(mockMarkEventLoopSectionCalls).toContain('theme-auto-run-scheduler:advanceTheme');
+    expect(mockReleaseEventLoopSection).toHaveBeenCalled();
   });
 });
