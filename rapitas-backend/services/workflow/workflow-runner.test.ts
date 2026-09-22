@@ -142,6 +142,17 @@ mock.module('./subtask-completion-handler', () => ({
   isParentFinalizable: () => true,
 }));
 
+const markEventLoopSectionCalls: string[] = [];
+const releaseSectionMock = mock(() => {});
+const markEventLoopSectionMock = mock((name: string) => {
+  markEventLoopSectionCalls.push(name);
+  return releaseSectionMock;
+});
+
+mock.module('../system/event-loop-lag-watchdog', () => ({
+  markEventLoopSection: markEventLoopSectionMock,
+}));
+
 const { WorkflowRunner } = await import('./workflow-runner');
 
 function resetRunner(): void {
@@ -164,6 +175,9 @@ function resetMocks(): void {
   findByTaskIdImpl = () => Promise.resolve(null);
   advanceWorkflowImpl = () =>
     Promise.resolve({ success: true, role: 'researcher', status: 'in_progress', skipped: false });
+  markEventLoopSectionMock.mockClear();
+  releaseSectionMock.mockClear();
+  markEventLoopSectionCalls.length = 0;
 }
 
 /** Polls until predicate is true or timeoutMs elapses. */
@@ -340,5 +354,41 @@ describe('WorkflowRunner — processQueue timing instrumentation', () => {
     await withFakeElapsed(200, () => internal.processQueue());
 
     expect(warnMock).not.toHaveBeenCalled();
+  });
+});
+
+// task 1040 (concern #1040): processQueue was invisible to the event-loop-lag
+// watchdog's activeSections diagnostic — a stall mid-dequeue produced a WARN
+// with no culprit name. Register the section like log-health-check/backlog-scheduler do.
+describe('WorkflowRunner — processQueue event-loop-lag section registration', () => {
+  beforeEach(() => {
+    resetMocks();
+    resetRunner();
+  });
+
+  test('registers and releases an event-loop-lag section around the dequeue loop', async () => {
+    dequeueSequence = [QUEUE_ITEM, null];
+    const runner = WorkflowRunner.getInstance();
+    const internal = runner as unknown as { running: boolean; processQueue(): Promise<void> };
+    internal.running = true;
+
+    await internal.processQueue();
+
+    expect(markEventLoopSectionCalls).toContain('workflow-runner:processQueue');
+    expect(releaseSectionMock).toHaveBeenCalled();
+  });
+
+  test('releases the section even when dequeue throws', async () => {
+    dequeueMock.mockImplementationOnce(() => {
+      throw new Error('dequeue failed');
+    });
+    const runner = WorkflowRunner.getInstance();
+    const internal = runner as unknown as { running: boolean; processQueue(): Promise<void> };
+    internal.running = true;
+
+    await internal.processQueue();
+
+    expect(markEventLoopSectionCalls).toContain('workflow-runner:processQueue');
+    expect(releaseSectionMock).toHaveBeenCalled();
   });
 });
