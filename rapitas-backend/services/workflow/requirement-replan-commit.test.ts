@@ -12,6 +12,7 @@ import {
   advanceReviewedVerify,
   assertReviewedTaskCurrent,
 } from './requirement-replan-commit';
+import { RequirementReplanHeldError } from '../../middleware/error-handler';
 import { replanSnapshotDigest } from './requirement-replan-evidence';
 import type { ReplanReviewResult } from './requirement-replan-review';
 import { buildRequirementReplanContext } from './requirement-replan-context';
@@ -601,6 +602,20 @@ test('preflight admission reads current evidence without advancing or auditing c
   expect(
     await db.task.findUnique({ where: { id: 1 }, select: { status: true, updatedAt: true } }),
   ).toEqual({ status: 'in-progress', updatedAt: receipt.evaluatedUpdatedAt });
+});
+
+test('preflight admission classifies a stale task snapshot as a held state guard, not a crash (#1041)', async () => {
+  const receipt = await emptyDiffReceipt();
+  await db.$executeRawUnsafe(
+    'UPDATE Task SET updatedAt = ? WHERE id = 1',
+    new Date(receipt.evaluatedUpdatedAt.getTime() + 1000),
+  );
+  const err: unknown = await assertReviewedTaskCurrent(
+    db as unknown as PostgresClient,
+    receipt,
+  ).catch((e: unknown) => e);
+  expect(err).toBeInstanceOf(RequirementReplanHeldError);
+  expect((err as Error).message).toContain('stale_task');
 });
 
 test('preflight admission refuses durable stop before external work', async () => {

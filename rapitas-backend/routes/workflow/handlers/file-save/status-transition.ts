@@ -19,26 +19,13 @@ import type { CompletionReviewReceipt } from '../../../../services/workflow/requ
 import { parseQuestionOptionsBlock } from '../../../../services/workflow/question-options-parser';
 import { resolveExplicitOrDefaultKind } from '../../../../services/workflow/question-kind-resolver';
 import { RequirementReplanHeldError, ConflictError } from '../../../../middleware/error-handler';
+import { isExpectedReplanHold } from '../../../../services/workflow/requirement-replan-policy';
 import {
   checkPlanQuestionBudget,
   blockPlanQuestionOverBudget,
 } from '../../../../services/workflow/workflow-plan-question-guard';
 
 const log = createLogger('routes:workflow:handlers:files');
-
-/** Replan hold reasons that are expected state guards, not crashes (#961, #1023). */
-const EXPECTED_REPLAN_HOLD_REASONS = new Set([
-  'budget_exhausted',
-  'not_reviewable',
-  'stale_task',
-  'stale_snapshot',
-  'execution_superseded',
-  'review_in_progress',
-]);
-
-function isExpectedReplanHold(reason: string): boolean {
-  return EXPECTED_REPLAN_HOLD_REASONS.has(reason);
-}
 
 /**
  * Result of the status-transition stage. `newStatus` stays undefined when no
