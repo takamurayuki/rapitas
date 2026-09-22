@@ -104,6 +104,8 @@ const SUPPRESSED: [string, string][] = [
     'git-operations/pr-merge-ops',
     'Command failed: <path> Files\\GitHub CLI\\gh.exe pr merge # … failed to delete local branch feature/t#',
   ],
+  // Task 1040: the recurring event-loop-lag WARN (K-8776/K-9142/K-11160/K-11233).
+  ['event-loop-lag', 'Event loop stalled ~#.#s'],
 ];
 
 const KEPT: [string, string][] = [
@@ -387,6 +389,29 @@ describe('classifyLogSignature', () => {
     // scope for this rule, so it must not be caught by name-only matching.
     expect(
       classifyLogSignature('preview-session', '[preview] dev server did not become healthy in time')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('the real event-loop-lag WARN is suppressed after normalization (task 1040)', () => {
+    expect(
+      classifyLogSignature('event-loop-lag', normalizeMessage('Event loop stalled ~3.8s'))
+        .suppressed,
+    ).toBe(true);
+  });
+
+  test('"Event loop stalled" is scoped to the event-loop-lag logger only', () => {
+    // Task 1040: an unrelated logger reusing this phrase must still be filed.
+    expect(classifyLogSignature('some-other-logger', 'Event loop stalled ~#.#s').suppressed).toBe(
+      false,
+    );
+  });
+
+  test('the event-loop-lag self-heal restart ERROR stays visible', () => {
+    // Task 1040: only the sub-threshold WARN is suppressed. A catastrophic
+    // stall triggers a distinct ERROR-level message that must not be hidden.
+    expect(
+      classifyLogSignature('event-loop-lag', '[event-loop-lag] Self-healing restart triggered')
         .suppressed,
     ).toBe(false);
   });

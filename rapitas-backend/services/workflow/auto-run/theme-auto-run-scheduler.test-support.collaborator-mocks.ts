@@ -27,6 +27,20 @@ const silentLogger = {
 };
 
 // ---------------------------------------------------------------------------
+// event-loop-lag-watchdog mock (task 1040 — advanceTheme section registration)
+// ---------------------------------------------------------------------------
+export const mockMarkEventLoopSectionCalls: string[] = [];
+export const mockReleaseEventLoopSection = mock(() => {});
+export const mockMarkEventLoopSection = mock((name: string) => {
+  mockMarkEventLoopSectionCalls.push(name);
+  return mockReleaseEventLoopSection;
+});
+
+mock.module('../../system/event-loop-lag-watchdog', () => ({
+  markEventLoopSection: mockMarkEventLoopSection,
+}));
+
+// ---------------------------------------------------------------------------
 // prisma (config) mocks
 // ---------------------------------------------------------------------------
 export const mockTaskCount = mock(() => Promise.resolve(0));

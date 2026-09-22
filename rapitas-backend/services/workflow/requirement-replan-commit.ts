@@ -10,10 +10,12 @@ import {
 import {
   rejectReplanLifecycle,
   isRequirementReplanWindowExhausted,
+  isExpectedReplanHold,
 } from './requirement-replan-policy';
 import type { ReplanReviewResult } from './requirement-replan-review';
 import { THEME_STOP_INTENT } from '../agents/theme-stop-intent';
 import { createLogger } from '../../config/logger';
+import { RequirementReplanHeldError } from '../../middleware/error-handler';
 
 const log = createLogger('workflow:requirement-replan-commit');
 
@@ -118,8 +120,19 @@ export async function assertReviewedTaskCurrent(
       executionId: receipt.executionId,
     },
   );
-  if (result.reason !== 'review_current')
+  if (result.reason !== 'review_current') {
+    // NOTE (task #1041): stale_task / execution_superseded / review_in_progress
+    // etc. are the same expected state guards status-transition.ts already
+    // classifies via isExpectedReplanHold (#961, #1023) — a concurrent update
+    // between review-admission and this side-effect check, not a crash.
+    // Throwing RequirementReplanHeldError (AppError) here too keeps this
+    // second call site from double-logging the same held state as ERROR
+    // (see middleware/error-handler.ts and workflow-handlers-files.ts).
+    if (isExpectedReplanHold(result.reason)) {
+      throw new RequirementReplanHeldError(result.reason);
+    }
     throw new Error(`Reviewed external work held: ${result.reason}`);
+  }
 }
 
 async function commitReviewedDecision(

@@ -52,6 +52,9 @@ import {
   mockUserSettingsFindFirst,
   mockLogWarn,
   mockResolveIterationBudgetForTask,
+  mockMarkEventLoopSection,
+  mockReleaseEventLoopSection,
+  mockMarkEventLoopSectionCalls,
 } from './theme-auto-run-scheduler.test-support.collaborator-mocks';
 import {
   mockGetGlobalAutoRunActiveCount,
@@ -213,6 +216,8 @@ const ALL_MOCKS = [
   mockIsOverlapHeld,
   mockLogWarn,
   mockResolveIterationBudgetForTask,
+  mockMarkEventLoopSection,
+  mockReleaseEventLoopSection,
 ];
 
 /** Clear call history AND restore each mock's default resolved value/behaviour. */
@@ -270,4 +275,5 @@ export function resetAllMocks(): void {
   });
   mockConsumeResourceGateOverride.mockReturnValue(false);
   mockIsOverlapHeld.mockReturnValue(false);
+  mockMarkEventLoopSectionCalls.length = 0;
 }
