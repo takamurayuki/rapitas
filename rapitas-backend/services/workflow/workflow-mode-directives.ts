@@ -22,9 +22,15 @@ export function researchModeDirective(
   if (mode === 'lightweight') {
     return language === 'ja'
       ? `## 実行モード: 軽量（plan フェーズなし）
-このタスクは軽量モードで実行され、**後続に計画(plan)フェーズはありません**。調査結果はそのまま実装に使えるよう、**変更対象ファイル・具体的な修正方針・テスト方針**まで具体化してください。判断を後続の計画へ先送りしないでください。`
+このタスクは軽量モードで実行され、**後続に計画(plan)フェーズはありません**。調査結果はそのまま実装に使えるよう、**変更対象ファイル・具体的な修正方針・テスト方針**まで具体化してください。判断を後続の計画へ先送りしないでください。
+- ロール説明にある「## 未確定事項（プランナーが解決すべき項目）」は、このモードでは**解決する人がいません**。選択肢（A/B/C 等）を並べて終わらせず、**あなたが最終判定を下し、採用案と根拠を research.md に明記**してください（見出しは残してよいが、各項目に「採用: X — 根拠」を付ける）。
+- 受入基準が「欠陥か正常動作かの判定」など**判定そのもの**を求めている場合、その判定は research.md の必須成果物です。判定を保留したまま実装者に渡すと、検証で未充足として差し戻されます。
+- 真にユーザー判断が必要な論点（仕様の方向性そのもの）だけは question.md に記録して停止してください。`
       : `## Execution mode: lightweight (NO plan phase)
-This task runs in lightweight mode — **no planning phase follows**. Make the research implementation-ready: name the target files, the concrete fix approach, and the test plan. Do NOT defer decisions to a later plan.`;
+This task runs in lightweight mode — **no planning phase follows**. Make the research implementation-ready: name the target files, the concrete fix approach, and the test plan. Do NOT defer decisions to a later plan.
+- The role prompt's "## Open items (for the planner)" section has **nobody to resolve it** in this mode. Do not stop at listing options (A/B/C): **make the final call and record the chosen option with its rationale in research.md** (keep the heading if you like, but mark each item "Decision: X — rationale").
+- When an acceptance criterion asks for a verdict itself (e.g. defect vs. expected behaviour), that verdict is a required deliverable of research.md. Handing an undecided item to the implementer gets the task bounced at verification.
+- Only questions that genuinely need the user (the direction of the spec itself) go to question.md.`;
   }
   return language === 'ja'
     ? `## 実行モード: ${mode === 'comprehensive' ? '詳細' : '標準'}（plan フェーズあり）
@@ -49,6 +55,7 @@ const IMPLEMENTER_NO_PLAN_DIRECTIVE = `## 実行モード: 調査→実装→検
 - 実装の根拠は **research.md とタスク要件** です。「計画に従う」ではなく、調査結果とタスク内容に基づいて実装してください。
 - plan.md のチェックリストは存在しません。**タスク要件を満たすこと**を完了基準にしてください。
 - **プランナーは存在しません**。既存コード・型・慣例から合理的に導ける判断は自分で行い、根拠を記録してください。**複数の妥当な選択肢があり、選択がタスクの目的自体を左右する場合のみ**、question.md に記録して停止してください（回答するのはユーザーです）。
+- research.md の「未確定事項」に**決定の無い項目が残っていても、実装を止めたり一部だけ実装したりしないでください**。受入基準を満たす案を選んで実装し、選んだ案と根拠をコード内の NOTE コメントかコミットメッセージに残してください（受入基準が判定の記録を求める場合、その判定が差分から読めるようにする）。
 - スコープ厳守・スコープ外変更の禁止・品質基準・セーフガード（テスト/型/ESLint）は通常どおり適用します。`;
 
 const IMPLEMENTER_WITH_PLAN_DIRECTIVE = `## 実行モード: 計画あり（plan.md） — 他のどの指示よりも優先

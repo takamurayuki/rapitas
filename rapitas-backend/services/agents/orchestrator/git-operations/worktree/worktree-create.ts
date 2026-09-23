@@ -186,6 +186,22 @@ export async function createWorktree(
       // can't be resolved (keeps branch-from === PR-into for the common case).
       let resolvedBase: string | null = null;
       if (baseBranch) {
+        // Refresh origin/<base> FIRST. Nothing else in this path fetches, so
+        // the branch was cut from the last fetch (hours stale) and the pre-PR
+        // base sync then merged every commit landed since — a guaranteed
+        // conflict whenever the previous task touched the same file (task
+        // 1043, 2026-09-23: suppression file split by 1040 → conflict → aux
+        // resolution broke a test → 2 blocked retries). Best effort: offline
+        // still cuts from the cached ref as before.
+        await execFileAsync('git', ['fetch', 'origin', baseBranch], {
+          cwd: baseDir,
+          encoding: 'utf8',
+          timeout: GIT_OP_TIMEOUT_MS,
+        }).catch((err) =>
+          logger.warn(
+            `[createWorktree] git fetch origin ${baseBranch} failed — cutting from the cached ref: ${err}`,
+          ),
+        );
         const originRef = `origin/${baseBranch}`;
         const originExists = await execFileAsync('git', ['branch', '-r', '--list', originRef], {
           cwd: baseDir,
