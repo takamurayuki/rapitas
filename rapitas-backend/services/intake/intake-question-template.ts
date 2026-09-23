@@ -21,12 +21,53 @@ export interface IntakeQuestionInput {
    * a single fallback goal question with task-type heuristic options is rendered.
    */
   questions?: IntakeQuestion[];
+  /**
+   * Emit a `json:options` block recommending each question's narrowest-scope
+   * option, so the stale-question auto-answer pass can adopt it unattended.
+   * Set only for backlog-promoted tasks; human-filed ones wait for the human.
+   */
+  autoAdopt?: boolean;
 }
 
 /** Marks the start of the selectable-choices block the UI parses. */
 export const INTAKE_OPTIONS_HEADING = '### 選択肢';
 /** Prefix of each per-question heading the UI parses (1問1答). */
 export const INTAKE_QUESTION_PREFIX = '## 質問';
+
+/**
+ * Why the narrowest option is recommended — surfaced in the block so the
+ * auto-answer audit (and the human reading question.md) sees the policy.
+ */
+export const INTAKE_AUTO_ADOPT_REASON =
+  '自動起票タスクは最小スコープを既定とする（2026-09-23 運用方針）。無応答のまま一定時間が過ぎるとこの選択肢を自動採用する。より広いスコープが必要なら回答で選び直すか、タスクを分割して起票する。';
+
+/**
+ * Machine-readable `json:options` block for intake questions, shaped the way
+ * question-options-parser.ts expects (id / summary / options[key,label] /
+ * recommended / recommendedReason). Questions without options are skipped —
+ * they cannot be auto-adopted anyway.
+ *
+ * @param questions - Rendered intake questions. / 出力した質問
+ * @returns Fenced block text, or '' when no question has options. / ブロック文字列
+ */
+function autoAdoptOptionsBlock(questions: IntakeQuestion[]): string {
+  const keys = 'ABCD';
+  const items = questions
+    .map((q, i) => ({ q, i }))
+    .filter(({ q }) => q.options.length > 0)
+    .map(({ q, i }) => {
+      const idx = Math.min(Math.max(q.recommendedIndex ?? 0, 0), q.options.length - 1);
+      return {
+        id: `Q${i + 1}`,
+        summary: q.question,
+        options: q.options.map((label, j) => ({ key: keys[j] ?? String(j + 1), label })),
+        recommended: keys[idx] ?? String(idx + 1),
+        recommendedReason: INTAKE_AUTO_ADOPT_REASON,
+      };
+    });
+  if (items.length === 0) return '';
+  return ['```json:options', JSON.stringify({ questions: items }, null, 2), '```', ''].join('\n');
+}
 
 /**
  * Plausible GOAL directions for a task, offered as selectable choices so the user
@@ -139,6 +180,13 @@ export function buildIntakeQuestion(input: IntakeQuestionInput): string {
     '各質問について、選択肢から選ぶか、当てはまらない場合は自由記述で回答してください。すべて回答するとワークフローを再開し、内容を仕様へ反映して調査フェーズに進みます。',
   );
   lines.push('');
+
+  // Last, after the human-readable blocks: the intake UI parses `## 質問N` /
+  // `### 選択肢` headings by prefix and must keep seeing them unchanged.
+  if (input.autoAdopt) {
+    const block = autoAdoptOptionsBlock(questions);
+    if (block) lines.push(block);
+  }
 
   return lines.join('\n');
 }

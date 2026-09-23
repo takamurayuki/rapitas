@@ -61,6 +61,8 @@ interface IntakeTaskRow extends SpecQualityInput {
   id: number;
   title: string;
   workflowStatus: string | null;
+  /** Backlog-promoted (auto-filed) task — its intake question may be auto-adopted. */
+  autoCreatedFromBacklog?: boolean | null;
 }
 
 /**
@@ -316,11 +318,17 @@ async function raiseIntakeQuestion(task: IntakeTaskRow, quality: SpecQualityResu
     task.description ?? '',
     quality.missing,
   ).catch(() => []);
+  // Auto-filed (backlog-promoted) tasks get a machine-readable recommendation
+  // so the stale-question heal pass can adopt the narrowest scope unattended.
+  // Ideas 1038/1039 (2026-09-23) sat 13h in awaiting_question without one;
+  // answered at minimal scope they merged in ~20 min each with zero bounces.
+  // Human-filed tasks keep waiting for the human — no recommendation emitted.
   const body = buildIntakeQuestion({
     title: task.title,
     missing: quality.missing,
     reasons: quality.reasons,
     questions: aiQuestions,
+    autoAdopt: task.autoCreatedFromBacklog === true,
   });
   await writeWorkflowFile(task.id, 'question', body);
 

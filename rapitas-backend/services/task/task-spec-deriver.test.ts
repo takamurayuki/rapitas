@@ -267,9 +267,36 @@ describe('generateIntakeQuestions', () => {
     const result = await generateIntakeQuestions('title', 'desc', ['goals', 'constraints']);
 
     expect(result).toEqual([
-      { field: 'goals', question: '何を達成したいですか？', options: ['A', 'B'] },
-      { field: 'constraints', question: '制約は？', options: ['C', 'D', 'E'] },
+      {
+        field: 'goals',
+        question: '何を達成したいですか？',
+        options: ['A', 'B'],
+        recommendedIndex: 0,
+      },
+      {
+        field: 'constraints',
+        question: '制約は？',
+        options: ['C', 'D', 'E'],
+        recommendedIndex: 0,
+      },
     ]);
+  });
+
+  test('recommended は範囲内の整数のみ採用し、それ以外は先頭(最小スコープ)に倒すこと', async () => {
+    mockSendAIMessage.mockResolvedValueOnce({
+      content: JSON.stringify({
+        questions: [
+          { field: 'goals', question: 'q1', options: ['A', 'B', 'C'], recommended: 2 },
+          { field: 'goals', question: 'q2', options: ['A', 'B'], recommended: 5 },
+          { field: 'goals', question: 'q3', options: ['A', 'B'], recommended: '1' },
+          { field: 'goals', question: 'q4', options: ['A', 'B'], recommended: -1 },
+        ],
+      }),
+    });
+
+    const result = await generateIntakeQuestions('title', 'desc', ['goals']);
+
+    expect(result.map((q) => q.recommendedIndex)).toEqual([2, 0, 0, 0]);
   });
 
   test('question が空文字の項目は除外されること', async () => {
@@ -284,7 +311,9 @@ describe('generateIntakeQuestions', () => {
 
     const result = await generateIntakeQuestions('title', 'desc', ['goals']);
 
-    expect(result).toEqual([{ field: 'goals', question: '有効な質問', options: ['A'] }]);
+    expect(result).toEqual([
+      { field: 'goals', question: '有効な質問', options: ['A'], recommendedIndex: 0 },
+    ]);
   });
 
   test('field が文字列でない場合 → goals にフォールバックすること', async () => {

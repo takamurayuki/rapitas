@@ -4,7 +4,84 @@
  * Unit tests for the question.md body builder.
  */
 import { describe, it, expect } from 'bun:test';
-import { buildIntakeQuestion, intakeGoalOptions } from './intake-question-template';
+import {
+  buildIntakeQuestion,
+  intakeGoalOptions,
+  INTAKE_AUTO_ADOPT_REASON,
+} from './intake-question-template';
+import {
+  parseQuestionOptionsBlock,
+  isQuestionBlockEligibleForAutoAnswer,
+} from '../workflow/question-options-parser';
+
+describe('buildIntakeQuestion autoAdopt (2026-09-23: auto-filed Ideas run at minimal scope)', () => {
+  const questions = [
+    {
+      field: 'goals',
+      question: 'ゴールは？',
+      options: ['可視化のみ', '自動リカバリまで', '再実行順序の最適化'],
+      recommendedIndex: 0,
+    },
+    {
+      field: 'constraints',
+      question: '規模は？',
+      options: ['<500 件', '5000+ 件'],
+      recommendedIndex: 1,
+    },
+  ];
+
+  it('emits a json:options block the auto-answer heal pass accepts', () => {
+    const md = buildIntakeQuestion({
+      title: 'T',
+      missing: ['goals'],
+      reasons: [],
+      questions,
+      autoAdopt: true,
+    });
+    const block = parseQuestionOptionsBlock(md);
+    expect(block).not.toBeNull();
+    expect(block!.questions.map((q) => q.id)).toEqual(['Q1', 'Q2']);
+    expect(block!.questions[0].recommended).toBe('A');
+    expect(block!.questions[1].recommended).toBe('B');
+    expect(block!.questions[0].options.map((o) => o.label)).toEqual(questions[0].options);
+    expect(block!.questions[0].recommendedReason).toBe(INTAKE_AUTO_ADOPT_REASON);
+    expect(isQuestionBlockEligibleForAutoAnswer(block!)).toEqual({ eligible: true });
+  });
+
+  it('keeps the human-readable headings the intake UI parses, before the block', () => {
+    const md = buildIntakeQuestion({
+      title: 'T',
+      missing: ['goals'],
+      reasons: [],
+      questions,
+      autoAdopt: true,
+    });
+    expect(md.indexOf('## 質問1')).toBeGreaterThan(-1);
+    expect(md.indexOf('## 回答方法')).toBeLessThan(md.indexOf('```json:options'));
+  });
+
+  it('emits no block for human-filed tasks (autoAdopt unset)', () => {
+    const md = buildIntakeQuestion({ title: 'T', missing: ['goals'], reasons: [], questions });
+    expect(md).not.toContain('json:options');
+    expect(parseQuestionOptionsBlock(md)).toBeNull();
+  });
+
+  it('clamps an out-of-range recommendedIndex and defaults to the first option', () => {
+    const md = buildIntakeQuestion({
+      title: 'T',
+      missing: ['goals'],
+      reasons: [],
+      questions: [
+        { field: 'goals', question: 'a', options: ['x', 'y'], recommendedIndex: 9 },
+        { field: 'goals', question: 'b', options: ['p', 'q'] },
+      ],
+      autoAdopt: true,
+    });
+    const block = parseQuestionOptionsBlock(md)!;
+    expect(block.questions[0].recommended).toBe('B');
+    expect(block.questions[1].recommended).toBe('A');
+  });
+});
 
 describe('buildIntakeQuestion', () => {
   it('renders one 質問 block per missing field (1問1答), each with choices', () => {
