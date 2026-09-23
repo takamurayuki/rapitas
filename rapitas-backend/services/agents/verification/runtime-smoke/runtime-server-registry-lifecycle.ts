@@ -282,7 +282,17 @@ export async function spawnNewEntry(
     entry.leases.clear();
     entry.quarantineReason = `起動または所有情報保存に失敗: ${String(error)}`;
     log.error({ err: error, key }, '[registry] start failed — workdir quarantined');
-    if (entry.identities?.length) await stopOwnedAndVerify(entry, 'start-error');
+    if (entry.identities?.length) {
+      await stopOwnedAndVerify(entry, 'start-error');
+    } else if (entry.app) {
+      // OS-snapshot identity confirmation never succeeded (e.g. the "Spawned
+      // process identity cannot be confirmed" throw before line 184), so
+      // stopOwnedAndVerify() cannot run — it requires entry.identities. The
+      // launched child process itself is still known via entry.app (its real
+      // PID from child_process.spawn()), so fall back to killing it directly
+      // instead of leaving it as an unreferenced leak.
+      entry.app.stop();
+    }
     return failure(entry.quarantineReason, {
       unverifiable: true,
       logs: entry.app?.logs(),

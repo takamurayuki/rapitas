@@ -1,0 +1,182 @@
+# タスク調査レポート
+
+> **タスクID**: `#1044` / **対象ブランチ**: `develop`
+
+## 前提監査
+
+タスク記述が暗黙に置いている仮定を切り離し、コードベース実物で検証した。
+
+| # | 仮定（中立的な疑問文） | 判定 | 根拠 |
+| --- | --- | --- | --- |
+| 1 | このERRORログは1箇所のログ出力コードから直接その文言で出ている | 部分的に成立 | 実際の throw は `runtime-server-registry-lifecycle.ts:182`。表示文言はそこで投げた `Error` を捕捉した `log.error(...)`（同ファイル284行目）が出力し、`log-format-parser.ts:82` の `err.message` 優先ルールにより正規化タイトルが throw 時のメッセージそのものになる（2箇所の連携で成立） |
+| 2 | identity 確認失敗は常にコードのバグを意味する | ❌ 不成立（単体では） | JSDoc（同ファイル50-60行目）に「stop 確認が取れない場合は quarantine して二重起動を防ぐ」と明記され、spawn 側の同種チェック（181-183行目）も task 906（重複起動バグ）対策として意図的に追加されたfail-closedガード |
+| 3 | この quarantine はタスクを永久にブロックする | ❌ 不成立 | `UNKNOWN_START_GRACE_MS = 60_000`（`runtime-server-registry-types.ts:35`）経過後、`worktree-server-registry.ts:199-221` のポート＋ディレクトリ実測で自己解除する（task 970 で恒久隔離バグを修正済み、コミット `f30a4cec`） |
+| 4 | 重大度「high」はコード調査済みの実害を反映している | ❌ 不成立 | `log-health-check.ts:79` は `level >= 50 (ERROR) → 'high'` という機械的マッピングのみで、実害評価は行っていない |
+| 5 | 発生1回なので優先度は低い | 要注意 | 単発でも根本原因を調べると実際のプロセスリーク（下記）が見つかった。頻度の低さは根本原因の軽微さを保証しない |
+
+中核的な仮定（#2「常にバグ」）は不成立だが、調査を続けた結果、**別の実在する欠陥**（quarantine 後の後片付け漏れによるプロセスリーク）を発見した。以下はその欠陥の調査として続行する。
+
+---
+
+## タスク概要
+
+| 項目 | 内容 |
+| --- | --- |
+| 要求内容 | ログ `runtime-smoke:registry` ERROR「Spawned process identity cannot be confirmed」の原因調査（発生1回、severity: high） |
+| 期待される成果 | ログ出力箇所の特定、欠陥/正常動作の判定、判定に応じた修正または抑制ルールの登録 |
+| 関連 Issue/PR | なし（自動ログ検知起票） |
+
+---
+
+## ログ出力箇所
+
+`throw` と実際に ERROR として出力される `log.error` は別行にある。
+
+| 種別 | ファイル:行 | 内容 |
+| --- | --- | --- |
+| throw元 | `rapitas-backend/services/agents/verification/runtime-smoke/runtime-server-registry-lifecycle.ts:182` | `throw new Error('Spawned process identity cannot be confirmed');` |
+| ログ出力元 | `rapitas-backend/services/agents/verification/runtime-smoke/runtime-server-registry-lifecycle.ts:284` | `log.error({ err: error, key }, '[registry] start failed — workdir quarantined');`（`err.message` が優先表示され、タイトルは throw 時の文言になる） |
+| 文言優先ロジック | `rapitas-backend/services/system/log-format-parser.ts:82` | `const msg = (err?.message as string) \|\| (obj.msg as string) \|\| '(メッセージなし)';` |
+
+```mermaid
+sequenceDiagram
+ participant spawn as spawnNewEntry()
+ participant snap as readRuntimeProcessSnapshot()
+ participant catch as guardedRun.catch()
+ participant log as log.error (line284)
+ spawn->>snap: 起動直後にOSスナップショット取得
+ snap-->>spawn: processes[]
+ spawn->>spawn: root未検出 or hasExited or birth/command欠落 (line181-183)
+ spawn->>catch: throw 'Spawned process identity cannot be confirmed'
+ catch->>catch: entry.identities は未設定のまま (line184未到達)
+ catch->>catch: entry.identities?.length が偽 → stopOwnedAndVerify呼ばれず
+ catch->>log: log.error(err, key) → ERRORログ出力
+```
+
+---
+
+## 欠陥か正常動作かの判定
+
+### 判定: 欠陥（ただし報告された「identity確認失敗」自体はfail-closedガードとして正常動作）
+
+| 観点 | 判定 | 根拠 |
+| --- | --- | --- |
+| identity確認に失敗してquarantineする挙動そのもの | ✅ 正常動作 | JSDoc（lifecycle.ts:50-60）が明記する設計どおりのfail-closedガード。task 906/970 で強化された既存の安全機構と整合 |
+| quarantine後、実際にspawnされたプロセスの後片付け | ❌ 欠陥 | 下記参照 |
+
+**欠陥の内容**: `spawnNewEntry()` の `guardedRun.catch()`（`runtime-server-registry-lifecycle.ts:266-292`）は、`entry.identities?.length` が真の場合のみ `stopOwnedAndVerify()` を呼んで対象プロセスを停止する（285行目）。しかし今回のエラーパス（182行目の throw）は `entry.identities` が**一度も設定されないまま**（184行目に到達しない）例外に入るため、この条件は常に偽になり、停止処理が一切呼ばれない。
+
+一方、`launchApp()`（`app-launcher.ts:87-155`）が返す `entry.app` は Node の `child_process.spawn()` が返した実プロセスの正しい PID を保持しており、`entry.app.stop()` を呼べば `killProcessTreeSafely(proc.pid, { workdir })` により OS スナップショットでの再識別なしに安全に停止できる（`agent-process-tracker.ts:280-319` は対象PIDの生存確認とポート3001保護を内蔵しているため、誤ったプロセスを殺すリスクはない）。しかし `runtime-server-registry-lifecycle.ts` 全体を通じて `entry.app?.stop()` の呼び出しは**存在しない**（`.stop()` の呼び出し箇所をファイル全体で検索して0件）。
+
+つまり、identity確認に失敗した瞬間に実際に起動していた子プロセス（cmd.exe とその配下）は、確認は失敗してもプロセス自体は生き残っている可能性があり、その場合にkillする経路が無く**放置（リーク）される**。60秒の猶予期間後の自己回復ロジック（`worktree-server-registry.ts:212-216`）はポート占有・ディレクトリ占有を検出した場合は quarantine を維持するのみで、能動的にkillはしない設計であるため、リークしたプロセスは外部から気づかれるまで残り続ける。
+
+> ⚠️ このファイルは CLAUDE.md の保護対象ディレクトリ `services/agents/verification/` 配下にある。plan.md には本ファイルを明示的に変更対象として列挙する必要がある（未列挙のまま変更するとタンパーゲート違反になる）。
+
+---
+
+## 影響範囲分析
+
+### 変更予定箇所
+
+| # | ファイル | 変更概要 | 理由 |
+| -- | --- | --- | --- |
+| 1 | `rapitas-backend/services/agents/verification/runtime-smoke/runtime-server-registry-lifecycle.ts` | `guardedRun.catch()`（266-292行目）に、`entry.identities` が空でも `entry.app?.stop()` を呼ぶフォールバックを追加 | identity未確定でもNodeが把握する実PIDでの安全な停止経路を確保し、プロセスリークを防ぐ |
+| 2 | `rapitas-backend/services/agents/verification/runtime-smoke/worktree-server-registry.test.ts`（または新規 `runtime-server-registry-lifecycle.test.ts`） | 初回spawn時に `rootPresent=false` となるケースで停止処理が呼ばれることを検証するテストを追加 | TDD要件（RED→GREEN）を満たし、既存テスト群に欠けている「spawn直後のidentity確認失敗」シナリオを埋める |
+| 3 | `rapitas-backend/services/agents/verification/runtime-smoke/worktree-server-registry.test.ts` の `app-launcher` モック（68-78行目） | `launchApp` の戻り値に `stop` スパイ関数を追加 | 追加するテストがkill呼び出しを検証できるようにするため |
+
+### 依存関係マップ
+
+| 種別 | 対象 | 影響内容 |
+| --- | --- | --- |
+| 呼び出し元 | `worktree-server-registry.ts:181` (`acquireRuntimeServerInternal`) | `spawnNewEntry` が返す失敗結果を `AcquireResult`（`unverifiable: true`）としてそのまま呼び出し元に返す。挙動（戻り値の型・失敗理由）は変更しない |
+| 下流利用者1 | `runtime-check.ts:209-218`（検証ゲート経路） | `acquired.unverifiable` を検知し「completion withheld（完了保留）」として扱う。今回の修正で失敗の意味は変えない — プロセスのkill有無のみが変わる |
+| 下流利用者2 | `preview-session-manager.ts:191` 付近（ライブプレビュー経路） | 同様に unverifiable として扱われる想定。今回の修正対象外だが、同じ `acquireRuntimeServer` を経由するため間接的に恩恵を受ける |
+| プロセス停止API | `agent-process-tracker.ts:280` (`killProcessTreeSafely`) | 新たに `entry.app.stop()` 経由で呼ばれる回数が増える。ポート3001保護・生存確認は既存ロジックのまま使う（変更不要） |
+| DB / 永続化 | `runtime-server-registry-persistence.ts` (`persistQuarantine`) | 変更なし。quarantine の記録先はそのまま |
+
+---
+
+## 既存機能チェック
+
+「AI検知プロセスの identity 確認とkill」という機能自体は既存実装であり、新規機能ではない。今回のタスクは**既存の後片付けロジックの欠落を埋める修正**であり、新規ファイル・新規APIは不要。
+
+---
+
+## 既存機能の調査
+
+### 類似機能
+
+| 類似機能 | 場所 | 再利用可能性 | 備考 |
+| --- | --- | --- | --- |
+| `entry.app.stop()`（LaunchedAppインターフェース） | `app-launcher.ts:143-153` | 高 | 今回のフォールバックがそのまま呼び出せば良い既存API。killProcessTreeSafely のポート3001保護・生存確認を内蔵済み |
+| identityベースの停止 (`stopOwnedAndVerify`) | `runtime-server-registry-lifecycle.ts:61-130` | 中 | OSスナップショットでの再識別を要求する設計であり、identity未確定時にはそもそも使えない（今回のギャップの原因） |
+| 健全性タイムアウト後の停止処理 | `runtime-server-registry-lifecycle.ts:239-246` | 高（パターンとして） | `waitForHealthy` タイムアウト時は既に `entry.identities` が確定済み（184行目通過後）なので `stopOwnedAndVerify` が機能する。今回のケースはそれより手前で失敗する点が異なる |
+
+### 再利用可能なパターン
+
+- `app.stop()` 呼び出し: `app-launcher.ts` の `LaunchedApp.stop()` は同期・冪等・安全（`killProcessTreeSafely` が生存確認とポート3001保護を内蔵）なので、`identities` の有無を問わず呼べる汎用クリーンアップとして流用できる。
+
+---
+
+## リスク評価
+
+### 破壊的変更のリスク一覧
+
+| 重要度 | リスク内容 | 影響範囲 | 対策 |
+| --- | --- | --- | --- |
+| 中 | 本ファイルは CLAUDE.md の保護対象ディレクトリ `services/agents/verification/` 配下 | plan.md 未列挙のまま変更するとタンパーゲート違反（ハードゲート失敗） | plan.md の変更予定ファイル一覧に本ファイルを明示的に記載する |
+| 低 | テストモック（`app-launcher` モックの戻り値）に `stop` が無い既存テストが影響を受ける可能性 | `worktree-server-registry.test.ts` の既存テスト全体 | モックに `stop: () => {}` を追加するだけで後方互換（既存テストは `stop` を呼ばれても無視するだけ） |
+| 低 | `entry.app?.stop()` を呼んだ結果、既に正常終了している場合の二重停止 | 本モジュール内 | `LaunchedApp.stop()` は内部で `stopped` フラグにより冪等。`killProcessTreeSafely` も `isProcessAlive` チェックで無害化される |
+
+> ⚠️ 高リスク項目なし。スキーマ・認証・決済には触れない。
+
+---
+
+## テスト戦略
+
+| レイヤー | 対象 | カバーすべきケース |
+| --- | --- | --- |
+| ユニット | `spawnNewEntry()` の identity 未確定パス（182行目 throw） | 初回spawn時に `readRuntimeProcessSnapshot()` の結果に対象PIDが含まれない場合、`entry.app.stop()`（またはモックのkillスパイ）が1回呼ばれることを確認 |
+| ユニット | `spawnNewEntry()` の `app.hasExited()===true` パス | プロセスが既に終了している場合でも `stop()` 呼び出しが安全（冪等）であることを確認 |
+| 回帰 | 既存の `test.each(['alive','port','reused','persistence','snapshot'])` quarantine 系テスト | 停止経路追加後も spawnCount / stopCount の既存アサーションが崩れないこと |
+
+TDD要件により、まず「identity未確定時にプロセスが停止されない」ことを示す RED テストを追加してから修正すること。
+
+---
+
+## 実装方針の選択肢（プランナーへの引継ぎ）
+
+| 選択肢 | アプローチ概要 | メリット | デメリット |
+| --- | --- | --- | --- |
+| A | `guardedRun.catch()` に `entry.app?.stop()` を無条件フォールバックとして追加（`identities` の有無を問わず常に呼ぶ） | 実装が最小限、すべての失敗パスで確実にプロセスを回収 | `identities` 確定済みの通常失敗パスでは `stopOwnedAndVerify` と二重に停止処理が走る（冪等なので実害は小さいが冗長） |
+| B | `entry.identities?.length` が偽の場合のみ `entry.app?.stop()` を呼ぶ分岐を追加（今回の欠陥ケースに限定） | 既存の `stopOwnedAndVerify` 経路と重複しない、影響範囲が最小 | 分岐条件が増え、可読性がわずかに下がる |
+| C | spawn直後のスナップショット取得前に短い待機・リトライを挟み、identity確認失敗自体の発生率を下げる | false positive の quarantine 自体を減らせる | 根本のプロセスリーク欠陥は未解決のまま残る。起動全体のレイテンシが増える。今回発見した欠陥への対処にはならない |
+
+---
+
+## 未確定事項（プランナーが解決すべき項目）
+
+- [ ] 選択肢A（無条件フォールバック）とB（条件分岐）のどちらを採用するか
+- [ ] 新規テストを既存 `worktree-server-registry.test.ts` に追加するか、`runtime-server-registry-lifecycle.test.ts` を新規作成するか（既存ファイルは301行程度で追加後も300-500行の目安内に収まる見込みだが、行数を確認すること）
+- [ ] `app-launcher` モックへの `stop` スパイ追加が他の既存テストのアサーションに影響しないか（既存テストは `spawnCount`/`stopCount` のみ検証しており、影響は無いと推測されるが実装時に確認要）
+- [ ] 選択肢C（リトライで発生率自体を下げる）を本タスクのスコープに含めるか、別タスク（アイデア/懸念）として切り出すか
+
+---
+
+## 複雑度評価
+スコア: 28
+理由: 変更対象は1ファイル（保護ディレクトリ内だがplan列挙で対応可）＋テスト1ファイル。新規API・スキーマ変更なし。修正自体は数行〜十数行の条件分岐追加で完結する小〜中規模の欠陥修正。
+
+## リスク判定
+リスク: 低
+対象領域: なし
+根拠: 変更対象は `rapitas-backend/services/agents/verification/runtime-smoke/runtime-server-registry-lifecycle.ts` のプロセス停止フォールバック追加のみで、DBスキーマ・認証認可・決済課金・セキュリティ境界のいずれも変更しない。保護ディレクトリ配下ではあるが、これはタンパーゲート対象（plan.md列挙で解消可能）であり、リスク分類の「高」基準（スキーマ/認証/決済/セキュリティ）には該当しない。
+
+## 仮説
+
+- [codebase] `entry.app?.stop()` 未呼び出しのままでは `spawnNewEntry` の identity 未確定失敗パスで `killProcessTreeSafely` が一度も呼ばれない
+- [performance] Windows の `Get-CimInstance Win32_Process` によるプロセススナップショットは `spawn()` 直後の即時呼び出しでは対象PIDをまだ検出できないことがある
+- [architecture] `entry.app.stop()` を identity 未確定時のフォールバックとして追加しても `killProcessTreeSafely` のポート3001保護チェックにより既存の安全性保証は損なわれない
+
+## 使用知識
+- K-11228: 本タスクの元ログ通知そのもの（過去の別発生ではなく同一イベントの記憶エントリ）。ログ出力箇所の特定に使用したが、追加の原因情報は含まれていなかった
