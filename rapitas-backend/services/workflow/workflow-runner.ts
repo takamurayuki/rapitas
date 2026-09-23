@@ -28,6 +28,7 @@ import {
   logPhaseFailure,
 } from './workflow-runner-item-helpers';
 import { taskVanishedMessage } from './queue-vanished-task-policy';
+import { markEventLoopSection } from '../system/event-loop-lag-watchdog';
 import type { RunnerStatus, ActiveExecution } from './workflow-runner.types';
 
 export type { RunnerStatus } from './workflow-runner.types';
@@ -171,6 +172,7 @@ export class WorkflowRunner {
     if (!this.running) return;
     const t0 = Date.now();
     let dequeuedCount = 0;
+    const releaseSection = markEventLoopSection('workflow-runner:processQueue'); // task 1040: names this section on a concurrent event-loop-lag WARN
     try {
       // Dequeue while there are free slots
       while (this.activeExecutions.size < this.queue.getMaxConcurrency()) {
@@ -182,8 +184,8 @@ export class WorkflowRunner {
     } catch (error) {
       log.error({ err: error }, '[WorkflowRunner] Error in processQueue');
     } finally {
-      // NOTE(task 966): diagnostic instrumentation for concern #966 (event-loop-lag WARN).
-      const tookMs = Date.now() - t0;
+      releaseSection();
+      const tookMs = Date.now() - t0; // task 966: diagnostic instrumentation for concern #966 (event-loop-lag WARN)
       if (tookMs > 1000) log.warn({ dequeuedCount, tookMs }, 'Slow queue processing');
     }
   }

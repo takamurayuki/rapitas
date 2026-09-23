@@ -7,7 +7,38 @@
  * unavailable while still allowing a REASONED suppression.
  */
 import { describe, test, expect } from 'bun:test';
-import { specForConcernSource } from './concern-task-spec';
+import { needsPlanForProtectedPath, specForConcernSource } from './concern-task-spec';
+
+describe('needsPlanForProtectedPath', () => {
+  test('task 1044: 検証ゲート配下のスタックを持つ懸念は plan が必要', () => {
+    const detail = [
+      'ロガー: runtime-smoke:registry',
+      'Error: Spawned process identity cannot be confirmed',
+      '    at spawnNewEntry (C:\\Projects\\rapitas\\rapitas-backend\\services\\agents\\verification\\runtime-smoke\\runtime-server-registry-lifecycle.ts:182:15)',
+    ].join('\n');
+    expect(needsPlanForProtectedPath(detail)).toBe(true);
+    expect(needsPlanForProtectedPath('at x (/repo/.github/workflows/ci.yml:1:1)')).toBe(true);
+    expect(
+      needsPlanForProtectedPath(
+        'at y (rapitas-backend/services/workflow/verify-self-repair.ts:9:9)',
+      ),
+    ).toBe(true);
+  });
+
+  test('通常のサービス配下や本文無しは対象外', () => {
+    expect(
+      needsPlanForProtectedPath(
+        'at z (C:\\Projects\\rapitas\\rapitas-backend\\services\\system\\event-loop-lag-watchdog.ts:121:5)',
+      ),
+    ).toBe(false);
+    expect(needsPlanForProtectedPath('services/workflow/phase-critic/critic-lessons.ts')).toBe(
+      false,
+    );
+    expect(needsPlanForProtectedPath('')).toBe(false);
+    expect(needsPlanForProtectedPath(null)).toBe(false);
+    expect(needsPlanForProtectedPath(undefined)).toBe(false);
+  });
+});
 
 describe('specForConcernSource', () => {
   test('ログ由来の懸念には仕様を与える', () => {

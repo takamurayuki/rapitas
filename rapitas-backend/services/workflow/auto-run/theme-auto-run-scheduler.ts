@@ -45,6 +45,7 @@ import { advanceActiveTask } from './auto-run-advance-active';
 import { selectAndEnqueueNextTask } from './auto-run-advance-select';
 import { resolveIterationBudgetForTask } from '../task-iteration-budget';
 import { recordTransition } from '../transition-recorder';
+import { markEventLoopSection } from '../../system/event-loop-lag-watchdog';
 
 const log = createLogger('theme-auto-run-scheduler');
 
@@ -251,6 +252,10 @@ export class ThemeAutoRunScheduler {
     lastRunAt: string | null,
   ): Promise<void> {
     const t0 = Date.now();
+    // NOTE(task 1040): registers this section so a concurrent event-loop-lag
+    // WARN names advanceTheme as the likely culprit (concern #1040 — this
+    // path was previously invisible to the watchdog's activeSections diagnostic).
+    const releaseSection = markEventLoopSection('theme-auto-run-scheduler:advanceTheme');
     try {
       if (currentTaskId) {
         if (await this.haltIfIterationBudgetExceeded(themeId, currentTaskId)) return;
@@ -268,6 +273,7 @@ export class ThemeAutoRunScheduler {
 
       await selectAndEnqueueNextTask(prisma, themeId, order, globalActive, this.barrierHoldSince);
     } finally {
+      releaseSection();
       const tookMs = Date.now() - t0;
       // NOTE: diagnostic instrumentation for concern #966 (event-loop-lag WARN,
       // "steady-state" cluster) — helps pin down which theme's dispatch was slow.

@@ -68,3 +68,30 @@ function logHealthSpec(): ConcernTaskSpec {
 export function specForConcernSource(source: string | null | undefined): ConcernTaskSpec | null {
   return source === 'log_health' ? logHealthSpec() : null;
 }
+
+/**
+ * Gate / CI / hook paths guarded by the verifier's anti-tamper tripwire
+ * (mirrors PROTECTED_PATH_RE in automated-verifier.ts). A change under these
+ * paths passes only when an approved plan.md lists the file — which a
+ * lightweight task, having no plan phase, can never produce.
+ */
+const PROTECTED_STACK_PATH_RE =
+  /(services[\\/]agents[\\/]verification[\\/]|services[\\/]workflow[\\/](completion-gate|phase-output-validator|verify-self-repair)|services[\\/]workflow[\\/]phase-critic[\\/]phase-critic(-gate)?\.|\.github[\\/]workflows[\\/]|\.husky[\\/]|scripts[\\/](pre-commit-check|auto-fix-commit))/i;
+
+/**
+ * Whether a concern's fix will land in a protected gate path, so the task must
+ * run with a plan phase (standard mode) instead of lightweight.
+ *
+ * Task 1044 (2026-09-23): a log-derived ERROR whose stack sat in
+ * `services/agents/verification/runtime-smoke/` was auto-filed lightweight;
+ * the one-line fix was correct, lint/type/test all passed, and the tamper gate
+ * still hard-failed it because there was no plan.md to list the file in. The
+ * verifier could only ask a question, the auto-adopted answer was "switch to
+ * standard mode", and nothing switched it. Decide that at filing time instead.
+ *
+ * @param detail - Concern detail (log line + stack sample). / 懸念の詳細本文
+ * @returns true when the stack/log points into a protected path. / 保護パスなら true
+ */
+export function needsPlanForProtectedPath(detail: string | null | undefined): boolean {
+  return !!detail && PROTECTED_STACK_PATH_RE.test(detail);
+}
