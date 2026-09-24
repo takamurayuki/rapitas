@@ -63,6 +63,10 @@ const SUPPRESSED: [string, string][] = [
     '[Workflow] Automated verification failed — holding the local commit, no push/PR',
   ],
   ['routes:workflow:auto-commit:publish-guard', '[Workflow] pre-PR base sync blocked PR creation'],
+  [
+    'workflow-cli-executor',
+    '[WorkflowCLIExecutor] verify.md explicitly reports a failed or partial overall verdict; repair is required. 未達: «技術検証（テスト・型・lint・format）自体はすべて合格している。判定を❌とする理由は下記「未解決の懸念事項」に記載する受入基準の未充足による。» / «受入基準2: 欠陥か正常動作かの最終判定とその根拠を記録 | ❌ 未完了 | research.mdは選択肢A/B/Cを列挙するのみで最終決定なし。verify.mdにも判定なし»',
+  ],
   ['exec-log', '[ExecLog:#] Execution ended with status: failed'],
   [
     'claude-code-agent',
@@ -111,6 +115,9 @@ const SUPPRESSED: [string, string][] = [
   // reaches this generic-Error path; stale process pre-dates #1041
   // (K-11230/K-11231/K-11287).
   ['error-handler', 'Reviewed external work held: stale_task'],
+  // Task 1050: generateForTheme() catches the CLI timeout and continues
+  // with the next theme (innovation-session.ts:242-253).
+  ['memory:innovation-session', 'Claude CLI timed out after #ms'],
 ];
 
 const KEPT: [string, string][] = [
@@ -156,6 +163,9 @@ const KEPT: [string, string][] = [
   // A genuinely unexpected hold reason (not in EXPECTED_REPLAN_HOLD_REASONS)
   // still takes the generic-Error path and must remain visible.
   ['error-handler', 'Reviewed external work held: some_unexpected_reason'],
+  // Same CLI timeout wording from a different caller (e.g. task-spec-deriver,
+  // K-8927/K-5946) is not covered by this logger-scoped rule.
+  ['task-spec-deriver', 'Claude CLI timed out after #ms'],
 ];
 
 describe('classifyLogSignature', () => {
@@ -447,5 +457,24 @@ describe('classifyLogSignature', () => {
       classifyLogSignature('error-handler', 'Reviewed external work held: budget_exhausted')
         .suppressed,
     ).toBe(false);
+  });
+
+  test('"verify.md explicitly reports a failed or partial overall verdict" is scoped to the workflow-cli-executor logger only', () => {
+    // Task 1049: this WARN is the epilogue's fail-soft observability log for
+    // validateVerify's hasNonpassingVerifyVerdict branch — repair/block itself
+    // is handled elsewhere (status-transition.ts / verify-gate.ts). Scoping to
+    // the logger keeps an unrelated source reusing this phrase filed.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        'verify.md explicitly reports a failed or partial overall verdict; repair is required.',
+      ).suppressed,
+    ).toBe(false);
+    expect(
+      classifyLogSignature(
+        'workflow-cli-executor',
+        '[WorkflowCLIExecutor] verify.md explicitly reports a failed or partial overall verdict; repair is required. 未達: «...»',
+      ).suppressed,
+    ).toBe(true);
   });
 });
