@@ -48,6 +48,8 @@ const fresh = () => new Date(nowMs - 60_000); // 1 min old — well inside the f
 let openPrs: Array<{ prNumber: number; linkedTaskId: number | null; createdAt: Date | null }> = [];
 let prFiles: Record<number, string[]> = { 533: [SUPPRESSIONS] };
 const parked = new Set<number>();
+/** Task.githubPrId of the task under test (a conflict-resolution task carries its target PR here). */
+let ownPr: number | null = null;
 
 /** Deterministic collaborators: file tokens are whatever sits inside backticks. */
 const deps = {
@@ -57,6 +59,7 @@ const deps = {
   parseFiles: (c: string) => [...c.matchAll(/`([^`]+)`/g)].map((m) => m[1]!),
   overlap: async (a: string[], b: string[]) => b.filter((f) => a.includes(f)),
   isParked: async (linkedTaskId: number) => parked.has(linkedTaskId),
+  ownPr: async () => ownPr,
   now: () => nowMs,
 };
 
@@ -303,4 +306,19 @@ describe('isOverlapHeld', () => {
   test('一度も保留されていない taskId は false を返す', () => {
     expect(isOverlapHeld(999999)).toBe(false);
   });
+});
+
+// 2026-09-25: resolver #1078 (githubPrId = 813) was held for the full ceiling
+// against PR #813 — the DIRTY PR it was filed to fix — because that PR stays
+// linked to the original task (#1053), not to the resolver.
+test('the PR the task is attached to (its own githubPrId) never holds it', async () => {
+  openPrs = [{ prNumber: 533, linkedTaskId: 758, createdAt: fresh() }];
+  ownPr = 533;
+  try {
+    const r = await run(IMPLEMENTER, 1078);
+    expect(r.done).toBe(false);
+    expect(isOverlapHeld(1078)).toBe(false);
+  } finally {
+    ownPr = null;
+  }
 });

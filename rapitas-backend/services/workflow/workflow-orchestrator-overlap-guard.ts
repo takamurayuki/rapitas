@@ -68,6 +68,8 @@ export interface OverlapGuardDeps {
   overlap: (planFiles: string[], prFiles: string[]) => Promise<string[]>;
   /** Whether the PR's auto-merge is parked (exhausted) — such a PR merges only after outside help. */
   isParked: (linkedTaskId: number) => Promise<boolean>;
+  /** The PR number the task itself is attached to (Task.githubPrId), if any. */
+  ownPr: (taskId: number) => Promise<number | null>;
   now: () => number;
 }
 
@@ -98,6 +100,14 @@ const defaultDeps: OverlapGuardDeps = {
       select: { cause: true },
     });
     return latest?.cause === 'auto_merge_exhausted';
+  },
+  ownPr: async (taskId) => {
+    const { prisma } = await import('../../config');
+    const row = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { githubPrId: true },
+    });
+    return row?.githubPrId ?? null;
   },
   now: () => Date.now(),
 };
@@ -142,10 +152,18 @@ export async function guardImplementOverlap(
   try {
     // The task's own PR (re-runs, ci_repair) is never a reason to wait, and
     // neither is a stale one — only a PR fresh enough to merge soon holds us.
+    // "Own" also means the PR the task is ATTACHED to: a conflict-resolution
+    // task carries the DIRTY PR as its githubPrId while that PR stays linked
+    // to the original task, so the guard held resolver #1078 for the full
+    // ceiling against PR #813 — the one PR it existed to fix (2026-09-25).
     const freshSince = d.now() - OVERLAP_PR_MAX_AGE_MS;
+    const own = await d.ownPr(taskId).catch(() => null);
     const candidates = (await d.openPrs(themeId)).filter(
       (pr) =>
-        pr.linkedTaskId !== taskId && pr.createdAt != null && pr.createdAt.getTime() >= freshSince,
+        pr.linkedTaskId !== taskId &&
+        pr.prNumber !== own &&
+        pr.createdAt != null &&
+        pr.createdAt.getTime() >= freshSince,
     );
     // An exhausted-parked PR only merges after outside help — often exactly
     // the held task's own job (#764 split verify-self-repair.ts to unblock
