@@ -76,6 +76,30 @@ describe('validateVerify — 前提が存在しない項目の ❌（task 974 / 
   });
 });
 
+describe('validateVerify — 機械判定の ❌ を説明する注記（task 1058 実データ, 2026-09-24）', () => {
+  const NOTE =
+    '> 自動検証ゲートの「acceptance」チェックはトークン抽出の都合で受入基準文の一部を機械的にマッチできず❌2件を報告しているが、上表の実測（テスト・既存コード確認）により受入基準2・3は満たされていることを確認済み。機械判定の抽出精度の限界であり、実装上の欠落ではない。';
+
+  test('引用行(>)の ❌ は検証者自身の判定ではない', () => {
+    const r = validateVerify(doc(`| 受入基準2 | ✅ 完了 | テストで確認 |\n\n${NOTE}`));
+    expect(r.ok).toBe(true);
+  });
+
+  test('引用でなくても advisory 名が 60 文字以内に先行するか、限界/欠落ではないと明記していれば失敗ではない', () => {
+    const plain = NOTE.replace(/^> /, '');
+    expect(validateVerify(doc(plain)).ok).toBe(true);
+    expect(
+      validateVerify(
+        doc('自動検証の scope チェックはこの受入基準の否定形を機械的に扱えず❌1件を出力した。'),
+      ).ok,
+    ).toBe(true);
+  });
+
+  test('引用行でない素の ❌ 判定は従来どおり落とす', () => {
+    expect(validateVerify(doc('| 受入基準2 | ❌ 未実装 | 差分なし |')).ok).toBe(false);
+  });
+});
+
 describe('validateVerify — 一部失敗の理由に未達行を引用する', () => {
   test('⚠️ 行が 2 件まで引用され、全体判定の行自体は引用されない', () => {
     const body = [

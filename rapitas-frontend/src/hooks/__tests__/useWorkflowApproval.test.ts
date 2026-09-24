@@ -45,10 +45,16 @@ describe('useWorkflowApproval', () => {
       'http://test:3001/workflow/tasks/1/approve-plan',
       expect.objectContaining({
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ approved: true, reason: undefined }),
       }),
     );
+    const [, requestInit] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    const sentHeaders = requestInit.headers as Headers;
+    expect(sentHeaders.get('x-rapitas-source')).toBe('ui');
+    expect(sentHeaders.get('Content-Type')).toBe('application/json');
     expect(onComplete).toHaveBeenCalledWith('plan_approved');
     expect(result.current.isApproving).toBe(false);
   });
@@ -150,6 +156,26 @@ describe('useWorkflowApproval', () => {
     });
 
     expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it('should include overrideForbiddenChange and overrideReason when provided', async () => {
+    const { result } = renderHook(() => useWorkflowApproval(1));
+
+    await act(async () => {
+      await result.current.approvePlan(true, undefined, true, '人間が明示的に許可した');
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          approved: true,
+          reason: undefined,
+          overrideForbiddenChange: true,
+          overrideReason: '人間が明示的に許可した',
+        }),
+      }),
+    );
   });
 
   it('should clear error', async () => {

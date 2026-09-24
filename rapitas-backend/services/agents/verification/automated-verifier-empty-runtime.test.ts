@@ -5,6 +5,13 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import type { VerificationCheck } from './automated-verifier';
 
+// Task 1059's schema-change gate reads Task.forbiddenChangeOverride whenever a
+// taskId is passed — mock it out so this test never makes a real DB round trip.
+mock.module('../../../config/database', () => ({
+  prisma: { task: { findUnique: () => Promise.resolve(null) } },
+  ensureDatabaseConnection: () => Promise.resolve(),
+}));
+
 let result: VerificationCheck | null = null;
 const runtime = mock(async () => result);
 mock.module('./runtime-verification-stage', () => ({ runRuntimeVerificationStage: runtime }));
