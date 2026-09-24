@@ -162,6 +162,55 @@ describe('deriveTaskSpec', () => {
     expect(callArgs.maxTokens).toBe(1024);
   });
 
+  // task 1065: 起票時のAC自動抽出が過去の調査証跡を実装義務化しないための回帰テスト群。
+  test('SYSTEM_PROMPT に過去/将来を区別する指示が含まれること', async () => {
+    await deriveTaskSpec('任意の説明');
+
+    const callArgs = mockSendAIMessage.mock.calls[0][0] as { systemPrompt: string };
+    expect(callArgs.systemPrompt).toContain('パス名');
+    expect(callArgs.systemPrompt).toContain('要求か、記録か');
+  });
+
+  test('過去形の調査ナラティブのみの説明 → AI応答が空ACを返すケースを正しく通過させること', async () => {
+    mockSendAIMessage.mockResolvedValueOnce({
+      content: JSON.stringify({ goals: [], constraints: [], acceptanceCriteria: [] }),
+    });
+
+    const result = await deriveTaskSpec(
+      '監督が過去にこの不具合を実測し、一時的な再現用テストを作成して撤去した経緯がある。',
+    );
+
+    expect(result.spec.acceptanceCriteria).toEqual([]);
+  });
+
+  test('パス名を含む明示的な将来要求 → AC応答をそのまま保持すること', async () => {
+    mockSendAIMessage.mockResolvedValueOnce({
+      content: JSON.stringify({
+        goals: [],
+        constraints: [],
+        acceptanceCriteria: ['.supervisor/ 配下にファイルを作成してはならない'],
+      }),
+    });
+
+    const result = await deriveTaskSpec('タスクの説明');
+
+    expect(result.spec.acceptanceCriteria).toEqual([
+      '.supervisor/ 配下にファイルを作成してはならない',
+    ]);
+  });
+
+  test('パス名を含まない過去の調査記録 → AC応答が空でも構造的にフィルタされず通過すること', async () => {
+    mockSendAIMessage.mockResolvedValueOnce({
+      content: JSON.stringify({ goals: [], constraints: [], acceptanceCriteria: [] }),
+    });
+
+    const result = await deriveTaskSpec(
+      '先週この不具合を再現し、原因はキャッシュの陳腐化だったことを確認済み。',
+    );
+
+    expect(result.spec.acceptanceCriteria).toEqual([]);
+  });
+
   test('AI の応答にJSONが含まれない場合 → source=ai だが空specを返すこと', async () => {
     mockSendAIMessage.mockResolvedValueOnce({ content: 'すみません、わかりません' });
 
