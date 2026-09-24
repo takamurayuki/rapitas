@@ -8,9 +8,11 @@
  * against a throwaway repo — same style as
  * automated-verifier.diff-base-ref.test.ts — rather than mocking
  * getAllChangedFiles, since the bug lives in how the early return combines
- * multiple check results.
+ * multiple check results. Task 1059 added a second requirement on top: a
+ * planned schema change also needs Task.forbiddenChangeOverride, so these
+ * "planned" cases now pass a taskId with a mocked override in place.
  */
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
 
 // Real Git subprocesses can exceed Bun's 5s default under Windows suite load.
 // Keep assertions intact and let subprocess work finish before fixture cleanup.
@@ -19,7 +21,18 @@ import { execSync } from 'child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { runAutomatedVerification } from '../../services/agents/verification/automated-verifier';
+
+let forbiddenChangeOverride = false;
+mock.module('../../config/database', () => ({
+  prisma: {
+    task: { findUnique: () => Promise.resolve({ forbiddenChangeOverride, theme: null }) },
+    theme: { findFirst: () => Promise.resolve(null) },
+  },
+  ensureDatabaseConnection: () => Promise.resolve(),
+}));
+
+const { runAutomatedVerification } =
+  await import('../../services/agents/verification/automated-verifier');
 
 describe('runAutomatedVerification — schema-only change bypasses the zero-code-files fast path', () => {
   let repoDir: string;
@@ -29,6 +42,7 @@ describe('runAutomatedVerification — schema-only change bypasses the zero-code
   }
 
   beforeEach(() => {
+    forbiddenChangeOverride = false;
     repoDir = mkdtempSync(join(tmpdir(), 'schema-gate-integration-'));
     run('git init -q');
     run('git config user.email "test@example.com"');
@@ -61,10 +75,27 @@ describe('runAutomatedVerification — schema-only change bypasses the zero-code
   );
 
   test(
-    'planned schema still fails when required generated artifacts are missing',
+    '883回帰: plan.mdに明記済みでも forbiddenChangeOverride が無ければ schema-change は ok:false のまま',
     async () => {
+      forbiddenChangeOverride = false;
       const result = await runAutomatedVerification(repoDir, {
         planContent: '## 変更予定ファイル\n- `prisma/schema/x.prisma`',
+        taskId: 1059,
+      });
+      expect(result.ok).toBe(false);
+      const schemaCheck = result.checks.find((c) => c.name === 'schema-change');
+      expect(schemaCheck?.ok).toBe(false);
+    },
+    GIT_TEST_TIMEOUT_MS,
+  );
+
+  test(
+    'planned schema with override still fails when required generated artifacts are missing',
+    async () => {
+      forbiddenChangeOverride = true;
+      const result = await runAutomatedVerification(repoDir, {
+        planContent: '## 変更予定ファイル\n- `prisma/schema/x.prisma`',
+        taskId: 1059,
       });
       expect(result.ok).toBe(false);
       const schemaCheck = result.checks.find((c) => c.name === 'schema-change');
@@ -75,8 +106,9 @@ describe('runAutomatedVerification — schema-only change bypasses the zero-code
   );
 
   test(
-    'planned schema with both generated artifacts passes the file-list gates',
+    'planned schema with override and both generated artifacts passes the file-list gates',
     async () => {
+      forbiddenChangeOverride = true;
       mkdirSync(join(repoDir, 'prisma', 'schema.desktop'), { recursive: true });
       mkdirSync(join(repoDir, 'src', 'generated'), { recursive: true });
       writeFileSync(
@@ -90,6 +122,7 @@ describe('runAutomatedVerification — schema-only change bypasses the zero-code
       const result = await runAutomatedVerification(repoDir, {
         planContent:
           '## Files\n- `prisma/schema/x.prisma`\n- `prisma/schema.desktop/x.prisma`\n- `src/generated/sqlite-init-sql.ts`',
+        taskId: 1059,
       });
       expect(result.checks.find((c) => c.name === 'schema-change')?.ok).toBe(true);
       expect(result.checks.find((c) => c.name === 'generated-sync')?.ok).toBe(true);
