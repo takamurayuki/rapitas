@@ -291,3 +291,36 @@ test('exec-option denial is scoped to the option argument; other exec paths and 
     assert.equal(classify(c, ctx), 'process_kill', c);
   }
 });
+
+// 2026-09-24, task 1055: a `pnpm install` run inside a worktree re-pointed 60
+// primary rapitas-frontend/node_modules symlinks at the worktree path.
+for (const command of [
+  'pnpm install --no-frozen-lockfile',
+  'cd rapitas-frontend && pnpm install',
+  'npm i cross-env',
+  'bun add -d vitest',
+  'yarn add lodash',
+  'pnpm -C rapitas-frontend install --frozen-lockfile',
+  'npm ci',
+  'pnpm up',
+]) {
+  test(`denies package install in a worktree: ${command}`, () => {
+    const d = decision({ tool_name: 'Bash', tool_input: { command }, cwd: WT }, { ...ctx, cwd: WT });
+    assert.equal(d?.hookSpecificOutput?.permissionDecision, 'deny');
+    assert.equal(d?._kind, 'package_install');
+  });
+}
+
+for (const command of [
+  'pnpm test',
+  'bun test services/x.test.ts',
+  'npm run dev:runtime -- -p 3005',
+  'bunx tsc --noEmit',
+  'grep -rn "pnpm install" docs/',
+  'git commit -m "docs: explain why npm install is forbidden"',
+  'bun run db:import',
+]) {
+  test(`still allows non-install package commands: ${command}`, () => {
+    assert.equal(denied(command), false);
+  });
+}
