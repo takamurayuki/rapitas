@@ -7,12 +7,16 @@
  */
 
 import { createLogger } from '../../../../config/logger';
+import { prisma } from '../../../../config/database';
 import type { WorkflowFileType } from '../../core/workflow-helpers';
 import { readWorkflowFile } from '../../../../services/workflow/workflow-file-utils';
 import { maybeAutoApprovePlan } from '../../../../services/workflow/plan-auto-approve';
 // NOTE: Moved to the shared policy module so the planner instruction builders
 // and this auto-split trigger read the SAME flag logic (task 545).
 import { isSubtaskSplitEnabled } from '../../../../services/workflow/subtask-split-policy';
+import { parsePlanFiles } from '../../../../services/agents/verification/scope-check';
+import { isSchemaFilePath } from '../../../../services/agents/verification/schema-change-gate';
+import { recordTransition } from '../../../../services/workflow/transition-recorder';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -73,26 +77,59 @@ export async function runPlanPostProcessing(params: {
   // Auto-approve when saving plan.md if autoApprovePlan is enabled.
   // Delegates to the shared helper so the orchestrator-driven save
   // path (workflow-cli-executor) and this HTTP path stay in sync.
+  // EXCEPTION (task 1059): a plan declaring a Prisma schema change is never
+  // eligible for auto-approval — only a human `approve-plan` call with
+  // overrideForbiddenChange:true can advance it (see workflow-handlers-plan.ts).
+  // A stale override from a prior plan revision is reset here so it never
+  // silently carries over to a differently-scoped schema change.
   let autoApproved = false;
   if (fileType === 'plan' && newStatus === 'plan_created') {
-    // When the plan was split into subtasks the parent must NOT advance to its
-    // own implementer phase — the subtasks do the work. Approve without
-    // auto-advancing the parent, then enqueue the subtasks for sequential run.
-    const approval = await maybeAutoApprovePlan(taskId, fileLanguage, {
-      autoAdvance: !splitResult,
-    });
-    if (approval.autoApproved) {
-      newStatus = 'plan_approved';
-      autoApproved = true;
-      if (splitResult && splitResult.subtaskIds.length > 0) {
-        try {
-          const { AIOrchestra } = await import('../../../../services/workflow/ai-orchestra');
-          await AIOrchestra.getInstance().enqueueSubtasksForExecution(taskId);
-        } catch (enqErr) {
-          log.error(
-            { err: enqErr, taskId },
-            '[Workflow] Failed to enqueue subtasks for execution after auto-approval',
-          );
+    const declaredSchemaFiles = parsePlanFiles(content).filter(isSchemaFilePath);
+    if (declaredSchemaFiles.length > 0) {
+      await prisma.task.update({
+        where: { id: taskId },
+        data: { forbiddenChangeOverride: false },
+      });
+      await recordTransition({
+        taskId,
+        fromStatus: 'plan_created',
+        toStatus: 'plan_created',
+        actor: 'system',
+        cause: 'auto_approve_blocked_forbidden_change',
+        phase: 'plan',
+        metadata: { declaredSchemaFiles },
+      });
+    } else {
+      const task = await prisma.task.findUnique({
+        where: { id: taskId },
+        select: { forbiddenChangeOverride: true },
+      });
+      if (task?.forbiddenChangeOverride === true) {
+        await prisma.task.update({
+          where: { id: taskId },
+          data: { forbiddenChangeOverride: false },
+        });
+      }
+
+      // When the plan was split into subtasks the parent must NOT advance to
+      // its own implementer phase — the subtasks do the work. Approve without
+      // auto-advancing the parent, then enqueue the subtasks for sequential run.
+      const approval = await maybeAutoApprovePlan(taskId, fileLanguage, {
+        autoAdvance: !splitResult,
+      });
+      if (approval.autoApproved) {
+        newStatus = 'plan_approved';
+        autoApproved = true;
+        if (splitResult && splitResult.subtaskIds.length > 0) {
+          try {
+            const { AIOrchestra } = await import('../../../../services/workflow/ai-orchestra');
+            await AIOrchestra.getInstance().enqueueSubtasksForExecution(taskId);
+          } catch (enqErr) {
+            log.error(
+              { err: enqErr, taskId },
+              '[Workflow] Failed to enqueue subtasks for execution after auto-approval',
+            );
+          }
         }
       }
     }

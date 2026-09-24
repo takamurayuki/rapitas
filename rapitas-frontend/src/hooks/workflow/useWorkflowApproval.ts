@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
+import { mergeUiSourceHeaders } from '@/lib/api-headers';
 
 export function useWorkflowApproval(taskId: number, onComplete?: (newStatus: string) => void) {
   const t = useTranslations('common');
@@ -10,15 +11,25 @@ export function useWorkflowApproval(taskId: number, onComplete?: (newStatus: str
   const [error, setError] = useState<string | null>(null);
 
   const approvePlan = useCallback(
-    async (approved: boolean, reason?: string) => {
+    async (
+      approved: boolean,
+      reason?: string,
+      overrideForbiddenChange?: boolean,
+      overrideReason?: string,
+    ) => {
       setIsApproving(true);
       setError(null);
 
       try {
         const res = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/approve-plan`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ approved, reason }),
+          headers: mergeUiSourceHeaders({ headers: { 'Content-Type': 'application/json' } }),
+          body: JSON.stringify({
+            approved,
+            reason,
+            ...(overrideForbiddenChange !== undefined ? { overrideForbiddenChange } : {}),
+            ...(overrideReason !== undefined ? { overrideReason } : {}),
+          }),
         });
 
         if (!res.ok) {
