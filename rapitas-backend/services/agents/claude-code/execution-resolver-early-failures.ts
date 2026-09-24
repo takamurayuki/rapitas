@@ -13,14 +13,20 @@
  */
 
 /**
- * Detects Claude Code's "selected model is invalid" message — printed when
- * SmartRouter picks an OpenAI/codex model id for a claude-code agent.
+ * Detects Claude Code reporting the selected model as unusable — either
+ * SmartRouter picking an OpenAI/codex model id for a claude-code agent
+ * ("There's an issue with the selected model...") or an outdated CLI
+ * rejecting a model it doesn't yet recognize (task 1051: "Claude Code
+ * 2.1.277 does not support this model; version 2.1.280 or newer is
+ * required.").
  *
  * @param blob - Combined stdout + stderr buffer. / 標準出力とエラー出力の結合バッファ
- * @returns true when the model-mismatch message is present. / モデル不一致メッセージがあれば true
+ * @returns true when a model-mismatch message is present. / モデル不一致メッセージがあれば true
  */
 export function detectModelMismatch(blob: string): boolean {
-  return /There'?s an issue with the selected model.*Run --model to pick a different/i.test(blob);
+  return /There'?s an issue with the selected model.*Run --model to pick a different|does not support this model.*version .* or newer is required/i.test(
+    blob,
+  );
 }
 
 /**
