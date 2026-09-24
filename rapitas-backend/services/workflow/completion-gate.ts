@@ -11,6 +11,7 @@
  * Not responsible for running verification (lint/type) — see verification-gate.
  */
 import { getDiff } from '../agents/orchestrator/git-operations/core/diff-structured';
+import { hasUnresolvedScopedEdit } from '../agents/verification/verification-scoped-edit';
 import { createLogger } from '../../config/logger';
 import { isStagedCompletionEnabled, type LandingMode } from './automation-policy';
 
@@ -105,6 +106,17 @@ export async function evaluateCompletionGate(
 ): Promise<CompletionGateResult> {
   if (!worktreePath) {
     return { allow: true, reason: 'no_worktree_failopen' };
+  }
+
+  // task 1060: a verifier's temporary edit to a live file (e.g. `git checkout
+  // --` to remove a reproduction test) may have failed to restore — either a
+  // concurrent-edit abort or the process being killed mid-restore. Either way
+  // an unresolved manifest means the pre-edit state (possibly an
+  // implementer's uncommitted work) has not been confirmed safe, so the gate
+  // stays closed until a human resolves it. Skipped (fail-open) when the
+  // caller has no task id to check (dry runs).
+  if (supervisionTaskId != null && hasUnresolvedScopedEdit(supervisionTaskId)) {
+    return { allow: false, reason: 'unresolved_scoped_edit' };
   }
 
   let diffCount: number;
