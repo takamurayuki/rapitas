@@ -62,6 +62,7 @@ const SUPPRESSED: [string, string][] = [
     'routes:workflow:auto-commit',
     '[Workflow] Automated verification failed — holding the local commit, no push/PR',
   ],
+  ['routes:workflow:auto-commit:publish-guard', '[Workflow] pre-PR base sync blocked PR creation'],
   ['exec-log', '[ExecLog:#] Execution ended with status: failed'],
   [
     'claude-code-agent',
@@ -337,6 +338,17 @@ describe('classifyLogSignature', () => {
         'auto-run:idle-timer',
         '[auto-run-idle-timer] stopThemeForIdleTimeout write failed',
       ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"[Workflow] pre-PR base sync blocked PR creation" is scoped to the publish-guard logger only', () => {
+    // Task #1048/K-11293: the guard withholds PR creation on an unresolved
+    // base-sync conflict or a failed post-sync reverification — the guard
+    // working as designed, not a defect. An unrelated logger reusing the
+    // phrase must still be filed.
+    expect(
+      classifyLogSignature('some-other-logger', '[Workflow] pre-PR base sync blocked PR creation')
+        .suppressed,
     ).toBe(false);
   });
 
