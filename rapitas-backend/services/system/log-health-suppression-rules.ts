@@ -338,4 +338,19 @@ export const SUPPRESSIONS: Suppression[] = [
     because:
       '過去6回すべてself-heal閾値(単発15秒/累積120秒間に30秒)未到達 — ウォッチドッグは正常動作しており、閾値超の病的スタールは別シグネチャ(Self-healing restart triggered, ERROR)で引き続き検知される',
   },
+  {
+    // ログ出力箇所: requirement-replan-commit.ts:134 の assertReviewedTaskCurrent
+    // （汎用Error）。stale_taskはEXPECTED_REPLAN_HOLD_REASONS
+    // (requirement-replan-policy.ts:48-55)に含まれ、isExpectedReplanHold(#1041)が
+    // trueを返す限りRequirementReplanHeldError（AppError派生、別文言
+    // "Requirement replan review held: ..."）経由で処理され、error-handler.ts:156-162の
+    // AppError分岐はlog.errorを呼ばずに応答するため本行の汎用Errorは発生しない。
+    // タスク#1046で報告されたスタックトレースの行番号（requirement-replan-commit.ts:122）
+    // は現行の投げ元行（134）と一致せず、#1041でNOTEコメントが追加される前の
+    // 旧ビルドが出力した陳腐化したログと判定した（K-11230/K-11231/K-11287と同一シグネチャ）。
+    test: /^Reviewed external work held: stale_task$/i,
+    logger: /error-handler/i,
+    because:
+      'stale_taskはisExpectedReplanHold(#1041)でRequirementReplanHeldError経由に分類され、本行の汎用Errorには到達しない — スタックトレースの行番号不一致(122≠134)から#1041適用前の旧ビルドが出力した陳腐化ログと判定',
+  },
 ];
