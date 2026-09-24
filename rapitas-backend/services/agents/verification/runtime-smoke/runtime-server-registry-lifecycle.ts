@@ -292,6 +292,25 @@ export async function spawnNewEntry(
       // PID from child_process.spawn()), so fall back to killing it directly
       // instead of leaving it as an unreferenced leak.
       entry.app.stop();
+      if (entry.app.hasExited()) {
+        // The only process this reservation ever launched is gone — it died
+        // before its identity could be read (task 1055: `next dev` exited 1 on
+        // a missing module). Nothing is left to own, so a lasting quarantine
+        // would only turn every later verification of this worktree into
+        // "unverifiable" (1055 was blocked twice on it). Release instead.
+        try {
+          await persistRemoval(key);
+          if (registry.get(key) === entry) registry.delete(key);
+          return failure(`起動に失敗しました: ${String(error)}`, {
+            unverifiable: true,
+            logs: entry.app.logs(),
+            exitCode: entry.app.exitCode(),
+            hasExited: true,
+          });
+        } catch (cleanupError) {
+          log.error({ err: cleanupError, key }, '[registry] dead-launch release failed');
+        }
+      }
     }
     return failure(entry.quarantineReason, {
       unverifiable: true,

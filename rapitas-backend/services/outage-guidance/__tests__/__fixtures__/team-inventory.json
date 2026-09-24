@@ -1,0 +1,648 @@
+{
+  "version": 1,
+  "team": "payments-platform",
+  "services": [
+    {
+      "id": "gateway",
+      "name": "API Gateway",
+      "layer": "api",
+      "slaMinutes": 15,
+      "declaredRecoveryMinutes": 10
+    },
+    {
+      "id": "checkout-api",
+      "name": "Checkout API",
+      "layer": "api",
+      "slaMinutes": 20,
+      "declaredRecoveryMinutes": 8
+    },
+    {
+      "id": "payment-api",
+      "name": "Payment API",
+      "layer": "api",
+      "slaMinutes": 20,
+      "declaredRecoveryMinutes": 10
+    },
+    {
+      "id": "order-api",
+      "name": "Order API",
+      "layer": "api",
+      "slaMinutes": 30,
+      "declaredRecoveryMinutes": 10
+    },
+    {
+      "id": "user-api",
+      "name": "User API",
+      "layer": "api",
+      "slaMinutes": 30,
+      "declaredRecoveryMinutes": 10
+    },
+    {
+      "id": "catalog-api",
+      "name": "Catalog API",
+      "layer": "api",
+      "slaMinutes": 60,
+      "declaredRecoveryMinutes": 15
+    },
+    {
+      "id": "search-api",
+      "name": "Search API",
+      "layer": "api",
+      "slaMinutes": 120,
+      "declaredRecoveryMinutes": 30
+    },
+    {
+      "id": "session-cache",
+      "name": "Session Cache",
+      "layer": "cache",
+      "slaMinutes": 30,
+      "declaredRecoveryMinutes": 10
+    },
+    {
+      "id": "catalog-cache",
+      "name": "Catalog Cache",
+      "layer": "cache",
+      "slaMinutes": 240,
+      "declaredRecoveryMinutes": 15
+    },
+    {
+      "id": "orders-db",
+      "name": "Orders DB",
+      "layer": "db",
+      "slaMinutes": 30,
+      "declaredRecoveryMinutes": 12
+    },
+    {
+      "id": "users-db",
+      "name": "Users DB",
+      "layer": "db",
+      "slaMinutes": 30,
+      "declaredRecoveryMinutes": 8
+    },
+    {
+      "id": "catalog-db",
+      "name": "Catalog DB",
+      "layer": "db",
+      "slaMinutes": 240,
+      "declaredRecoveryMinutes": 20
+    },
+    {
+      "id": "notification-worker",
+      "name": "Notification Worker",
+      "layer": "worker",
+      "slaMinutes": 360,
+      "declaredRecoveryMinutes": 20
+    },
+    {
+      "id": "report-worker",
+      "name": "Report Worker",
+      "layer": "worker",
+      "slaMinutes": 1440,
+      "declaredRecoveryMinutes": 60
+    },
+    {
+      "id": "payment-provider",
+      "name": "Payment Provider",
+      "layer": "external",
+      "slaMinutes": 60,
+      "declaredRecoveryMinutes": 20
+    }
+  ],
+  "dependencies": [
+    {
+      "from": "gateway",
+      "to": "checkout-api",
+      "kind": "api_call"
+    },
+    {
+      "from": "gateway",
+      "to": "user-api",
+      "kind": "api_call"
+    },
+    {
+      "from": "gateway",
+      "to": "catalog-api",
+      "kind": "api_call"
+    },
+    {
+      "from": "gateway",
+      "to": "search-api",
+      "kind": "api_call"
+    },
+    {
+      "from": "checkout-api",
+      "to": "payment-api",
+      "kind": "api_call"
+    },
+    {
+      "from": "checkout-api",
+      "to": "order-api",
+      "kind": "api_call"
+    },
+    {
+      "from": "checkout-api",
+      "to": "session-cache",
+      "kind": "cache_read"
+    },
+    {
+      "from": "payment-api",
+      "to": "payment-provider",
+      "kind": "api_call"
+    },
+    {
+      "from": "payment-api",
+      "to": "session-cache",
+      "kind": "cache_read"
+    },
+    {
+      "from": "order-api",
+      "to": "orders-db",
+      "kind": "db_query"
+    },
+    {
+      "from": "order-api",
+      "to": "session-cache",
+      "kind": "cache_read"
+    },
+    {
+      "from": "user-api",
+      "to": "users-db",
+      "kind": "db_query"
+    },
+    {
+      "from": "user-api",
+      "to": "session-cache",
+      "kind": "cache_read"
+    },
+    {
+      "from": "catalog-api",
+      "to": "catalog-cache",
+      "kind": "cache_read"
+    },
+    {
+      "from": "catalog-api",
+      "to": "catalog-db",
+      "kind": "db_query"
+    },
+    {
+      "from": "catalog-api",
+      "to": "session-cache",
+      "kind": "cache_read"
+    },
+    {
+      "from": "search-api",
+      "to": "catalog-db",
+      "kind": "db_query"
+    },
+    {
+      "from": "notification-worker",
+      "to": "order-api",
+      "kind": "api_call"
+    },
+    {
+      "from": "report-worker",
+      "to": "orders-db",
+      "kind": "db_query"
+    },
+    {
+      "from": "report-worker",
+      "to": "users-db",
+      "kind": "db_query"
+    }
+  ],
+  "incidents": [
+    {
+      "id": "inc-001",
+      "targetServiceId": "session-cache",
+      "occurredAt": "2025-10-06T09:00:00.000Z",
+      "actualRecoveryMinutes": 8,
+      "actualImpactedServiceIds": [
+        "checkout-api",
+        "payment-api",
+        "order-api",
+        "user-api",
+        "catalog-api",
+        "gateway",
+        "notification-worker"
+      ]
+    },
+    {
+      "id": "inc-002",
+      "targetServiceId": "payment-provider",
+      "occurredAt": "2025-10-11T16:00:00.000Z",
+      "actualRecoveryMinutes": 25,
+      "actualImpactedServiceIds": ["payment-api", "checkout-api", "gateway"]
+    },
+    {
+      "id": "inc-003",
+      "targetServiceId": "orders-db",
+      "occurredAt": "2025-10-16T23:00:00.000Z",
+      "actualRecoveryMinutes": 10,
+      "actualImpactedServiceIds": [
+        "order-api",
+        "report-worker",
+        "checkout-api",
+        "notification-worker",
+        "gateway"
+      ]
+    },
+    {
+      "id": "inc-004",
+      "targetServiceId": "users-db",
+      "occurredAt": "2025-10-22T06:00:00.000Z",
+      "actualRecoveryMinutes": 10,
+      "actualImpactedServiceIds": ["user-api", "report-worker", "gateway"]
+    },
+    {
+      "id": "inc-005",
+      "targetServiceId": "catalog-db",
+      "occurredAt": "2025-10-27T13:00:00.000Z",
+      "actualRecoveryMinutes": 30,
+      "actualImpactedServiceIds": ["catalog-api", "search-api", "gateway"]
+    },
+    {
+      "id": "inc-006",
+      "targetServiceId": "catalog-cache",
+      "occurredAt": "2025-11-01T20:00:00.000Z",
+      "actualRecoveryMinutes": 12,
+      "actualImpactedServiceIds": ["catalog-api", "gateway"]
+    },
+    {
+      "id": "inc-007",
+      "targetServiceId": "gateway",
+      "occurredAt": "2025-11-07T03:00:00.000Z",
+      "actualRecoveryMinutes": 12,
+      "actualImpactedServiceIds": []
+    },
+    {
+      "id": "inc-008",
+      "targetServiceId": "checkout-api",
+      "occurredAt": "2025-11-12T10:00:00.000Z",
+      "actualRecoveryMinutes": 10,
+      "actualImpactedServiceIds": ["gateway"]
+    },
+    {
+      "id": "inc-009",
+      "targetServiceId": "payment-api",
+      "occurredAt": "2025-11-17T17:00:00.000Z",
+      "actualRecoveryMinutes": 12,
+      "actualImpactedServiceIds": ["checkout-api", "gateway"]
+    },
+    {
+      "id": "inc-010",
+      "targetServiceId": "search-api",
+      "occurredAt": "2025-11-23T00:00:00.000Z",
+      "actualRecoveryMinutes": 25,
+      "actualImpactedServiceIds": ["gateway"]
+    },
+    {
+      "id": "inc-011",
+      "targetServiceId": "report-worker",
+      "occurredAt": "2025-11-28T07:00:00.000Z",
+      "actualRecoveryMinutes": 45,
+      "actualImpactedServiceIds": []
+    },
+    {
+      "id": "inc-012",
+      "targetServiceId": "session-cache",
+      "occurredAt": "2025-12-03T14:00:00.000Z",
+      "actualRecoveryMinutes": 12,
+      "actualImpactedServiceIds": [
+        "checkout-api",
+        "payment-api",
+        "order-api",
+        "user-api",
+        "catalog-api",
+        "gateway",
+        "notification-worker"
+      ]
+    },
+    {
+      "id": "inc-013",
+      "targetServiceId": "payment-provider",
+      "occurredAt": "2025-12-08T21:00:00.000Z",
+      "actualRecoveryMinutes": 18,
+      "actualImpactedServiceIds": ["payment-api", "checkout-api", "gateway"]
+    },
+    {
+      "id": "inc-014",
+      "targetServiceId": "orders-db",
+      "occurredAt": "2025-12-14T04:00:00.000Z",
+      "actualRecoveryMinutes": 14,
+      "actualImpactedServiceIds": [
+        "order-api",
+        "report-worker",
+        "checkout-api",
+        "notification-worker",
+        "gateway"
+      ]
+    },
+    {
+      "id": "inc-015",
+      "targetServiceId": "users-db",
+      "occurredAt": "2025-12-19T11:00:00.000Z",
+      "actualRecoveryMinutes": 13,
+      "actualImpactedServiceIds": ["user-api", "report-worker", "gateway"]
+    },
+    {
+      "id": "inc-016",
+      "targetServiceId": "catalog-db",
+      "occurredAt": "2025-12-24T18:00:00.000Z",
+      "actualRecoveryMinutes": 25,
+      "actualImpactedServiceIds": ["catalog-api", "search-api", "gateway"]
+    },
+    {
+      "id": "inc-017",
+      "targetServiceId": "catalog-cache",
+      "occurredAt": "2025-12-30T01:00:00.000Z",
+      "actualRecoveryMinutes": 10,
+      "actualImpactedServiceIds": ["catalog-api", "gateway"]
+    },
+    {
+      "id": "inc-018",
+      "targetServiceId": "gateway",
+      "occurredAt": "2026-01-04T08:00:00.000Z",
+      "actualRecoveryMinutes": 9,
+      "actualImpactedServiceIds": []
+    },
+    {
+      "id": "inc-019",
+      "targetServiceId": "checkout-api",
+      "occurredAt": "2026-01-09T15:00:00.000Z",
+      "actualRecoveryMinutes": 12,
+      "actualImpactedServiceIds": ["gateway"]
+    },
+    {
+      "id": "inc-020",
+      "targetServiceId": "payment-api",
+      "occurredAt": "2026-01-14T22:00:00.000Z",
+      "actualRecoveryMinutes": 11,
+      "actualImpactedServiceIds": ["checkout-api", "gateway"]
+    },
+    {
+      "id": "inc-021",
+      "targetServiceId": "search-api",
+      "occurredAt": "2026-01-20T05:00:00.000Z",
+      "actualRecoveryMinutes": 40,
+      "actualImpactedServiceIds": ["gateway"]
+    },
+    {
+      "id": "inc-022",
+      "targetServiceId": "report-worker",
+      "occurredAt": "2026-01-25T12:00:00.000Z",
+      "actualRecoveryMinutes": 90,
+      "actualImpactedServiceIds": []
+    },
+    {
+      "id": "inc-023",
+      "targetServiceId": "session-cache",
+      "occurredAt": "2026-01-30T19:00:00.000Z",
+      "actualRecoveryMinutes": 9,
+      "actualImpactedServiceIds": [
+        "checkout-api",
+        "payment-api",
+        "order-api",
+        "user-api",
+        "catalog-api",
+        "gateway",
+        "notification-worker"
+      ]
+    },
+    {
+      "id": "inc-024",
+      "targetServiceId": "payment-provider",
+      "occurredAt": "2026-02-05T02:00:00.000Z",
+      "actualRecoveryMinutes": 40,
+      "actualImpactedServiceIds": ["payment-api", "checkout-api", "gateway"]
+    },
+    {
+      "id": "inc-025",
+      "targetServiceId": "orders-db",
+      "occurredAt": "2026-02-10T09:00:00.000Z",
+      "actualRecoveryMinutes": 9,
+      "actualImpactedServiceIds": [
+        "order-api",
+        "report-worker",
+        "checkout-api",
+        "notification-worker",
+        "gateway"
+      ]
+    },
+    {
+      "id": "inc-026",
+      "targetServiceId": "users-db",
+      "occurredAt": "2026-02-15T16:00:00.000Z",
+      "actualRecoveryMinutes": 9,
+      "actualImpactedServiceIds": ["user-api", "report-worker", "gateway"]
+    },
+    {
+      "id": "inc-027",
+      "targetServiceId": "catalog-db",
+      "occurredAt": "2026-02-20T23:00:00.000Z",
+      "actualRecoveryMinutes": 45,
+      "actualImpactedServiceIds": ["catalog-api", "search-api", "gateway"]
+    },
+    {
+      "id": "inc-028",
+      "targetServiceId": "catalog-cache",
+      "occurredAt": "2026-02-26T06:00:00.000Z",
+      "actualRecoveryMinutes": 20,
+      "actualImpactedServiceIds": ["catalog-api"]
+    },
+    {
+      "id": "inc-029",
+      "targetServiceId": "gateway",
+      "occurredAt": "2026-03-03T13:00:00.000Z",
+      "actualRecoveryMinutes": 10,
+      "actualImpactedServiceIds": []
+    },
+    {
+      "id": "inc-030",
+      "targetServiceId": "checkout-api",
+      "occurredAt": "2026-03-08T20:00:00.000Z",
+      "actualRecoveryMinutes": 9,
+      "actualImpactedServiceIds": ["gateway"]
+    },
+    {
+      "id": "inc-031",
+      "targetServiceId": "payment-api",
+      "occurredAt": "2026-03-14T03:00:00.000Z",
+      "actualRecoveryMinutes": 13,
+      "actualImpactedServiceIds": ["checkout-api", "gateway"]
+    },
+    {
+      "id": "inc-032",
+      "targetServiceId": "search-api",
+      "occurredAt": "2026-03-19T10:00:00.000Z",
+      "actualRecoveryMinutes": 35,
+      "actualImpactedServiceIds": ["gateway"]
+    },
+    {
+      "id": "inc-033",
+      "targetServiceId": "report-worker",
+      "occurredAt": "2026-03-24T17:00:00.000Z",
+      "actualRecoveryMinutes": 30,
+      "actualImpactedServiceIds": []
+    },
+    {
+      "id": "inc-034",
+      "targetServiceId": "session-cache",
+      "occurredAt": "2026-03-30T00:00:00.000Z",
+      "actualRecoveryMinutes": 10,
+      "actualImpactedServiceIds": [
+        "checkout-api",
+        "payment-api",
+        "order-api",
+        "user-api",
+        "catalog-api",
+        "gateway",
+        "notification-worker"
+      ]
+    },
+    {
+      "id": "inc-035",
+      "targetServiceId": "payment-provider",
+      "occurredAt": "2026-04-04T07:00:00.000Z",
+      "actualRecoveryMinutes": 22,
+      "actualImpactedServiceIds": ["payment-api", "checkout-api", "gateway"]
+    },
+    {
+      "id": "inc-036",
+      "targetServiceId": "orders-db",
+      "occurredAt": "2026-04-09T14:00:00.000Z",
+      "actualRecoveryMinutes": 13,
+      "actualImpactedServiceIds": [
+        "order-api",
+        "report-worker",
+        "checkout-api",
+        "notification-worker",
+        "gateway"
+      ]
+    },
+    {
+      "id": "inc-037",
+      "targetServiceId": "users-db",
+      "occurredAt": "2026-04-14T21:00:00.000Z",
+      "actualRecoveryMinutes": 11,
+      "actualImpactedServiceIds": ["user-api", "report-worker", "gateway"]
+    },
+    {
+      "id": "inc-038",
+      "targetServiceId": "catalog-db",
+      "occurredAt": "2026-04-20T04:00:00.000Z",
+      "actualRecoveryMinutes": 18,
+      "actualImpactedServiceIds": ["catalog-api", "search-api", "gateway"]
+    },
+    {
+      "id": "inc-039",
+      "targetServiceId": "gateway",
+      "occurredAt": "2026-04-25T11:00:00.000Z",
+      "actualRecoveryMinutes": 14,
+      "actualImpactedServiceIds": []
+    },
+    {
+      "id": "inc-040",
+      "targetServiceId": "checkout-api",
+      "occurredAt": "2026-04-30T18:00:00.000Z",
+      "actualRecoveryMinutes": 11,
+      "actualImpactedServiceIds": ["gateway"]
+    },
+    {
+      "id": "inc-041",
+      "targetServiceId": "report-worker",
+      "occurredAt": "2026-05-06T01:00:00.000Z",
+      "actualRecoveryMinutes": 60,
+      "actualImpactedServiceIds": []
+    },
+    {
+      "id": "inc-042",
+      "targetServiceId": "session-cache",
+      "occurredAt": "2026-05-11T08:00:00.000Z",
+      "actualRecoveryMinutes": 11,
+      "actualImpactedServiceIds": [
+        "checkout-api",
+        "payment-api",
+        "order-api",
+        "user-api",
+        "catalog-api",
+        "gateway",
+        "notification-worker"
+      ]
+    },
+    {
+      "id": "inc-043",
+      "targetServiceId": "orders-db",
+      "occurredAt": "2026-05-16T15:00:00.000Z",
+      "actualRecoveryMinutes": 11,
+      "actualImpactedServiceIds": [
+        "order-api",
+        "report-worker",
+        "checkout-api",
+        "notification-worker",
+        "gateway"
+      ]
+    },
+    {
+      "id": "inc-044",
+      "targetServiceId": "gateway",
+      "occurredAt": "2026-05-21T22:00:00.000Z",
+      "actualRecoveryMinutes": 11,
+      "actualImpactedServiceIds": []
+    },
+    {
+      "id": "inc-045",
+      "targetServiceId": "report-worker",
+      "occurredAt": "2026-05-27T05:00:00.000Z",
+      "actualRecoveryMinutes": 120,
+      "actualImpactedServiceIds": []
+    },
+    {
+      "id": "inc-046",
+      "targetServiceId": "orders-db",
+      "occurredAt": "2026-06-01T12:00:00.000Z",
+      "actualRecoveryMinutes": 12,
+      "actualImpactedServiceIds": [
+        "order-api",
+        "report-worker",
+        "checkout-api",
+        "notification-worker",
+        "gateway"
+      ]
+    },
+    {
+      "id": "inc-047",
+      "targetServiceId": "report-worker",
+      "occurredAt": "2026-06-06T19:00:00.000Z",
+      "actualRecoveryMinutes": 50,
+      "actualImpactedServiceIds": []
+    },
+    {
+      "id": "inc-048",
+      "targetServiceId": "report-worker",
+      "occurredAt": "2026-06-12T02:00:00.000Z",
+      "actualRecoveryMinutes": 75,
+      "actualImpactedServiceIds": []
+    },
+    {
+      "id": "inc-049",
+      "targetServiceId": "report-worker",
+      "occurredAt": "2026-06-17T09:00:00.000Z",
+      "actualRecoveryMinutes": 40,
+      "actualImpactedServiceIds": []
+    },
+    {
+      "id": "inc-050",
+      "targetServiceId": "report-worker",
+      "occurredAt": "2026-06-22T16:00:00.000Z",
+      "actualRecoveryMinutes": 95,
+      "actualImpactedServiceIds": []
+    },
+    {
+      "id": "inc-051",
+      "targetServiceId": "report-worker",
+      "occurredAt": "2026-06-27T23:00:00.000Z",
+      "actualRecoveryMinutes": 55,
+      "actualImpactedServiceIds": []
+    }
+  ]
+}

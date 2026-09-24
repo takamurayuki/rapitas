@@ -99,6 +99,21 @@ export const SUPPRESSIONS: Suppression[] = [
     because: '検証ゲートが基準未達を捕捉してタスク/auto-commitを止めた — ゲートが働いた側',
   },
   {
+    // ログ出力箇所: workflow-auto-commit-publish-guard.ts:114 の
+    // syncAndReverifyBeforePublish。baseSync.status が conflict_unresolved
+    // （aux AIがbase取り込みのマージ競合を自動解消できなかった）または
+    // reverify_failed（base取り込み後の再検証＝lint/型/テストに失敗した）の
+    // いずれかでのみ発火する。PRを安全側で止めるガード判定であり、worktreeは
+    // 削除せず保持し、notify()でbase_sync_conflict_unresolved/
+    // base_sync_reverify_failed通知を送出して手動確認・再実行の導線を残す
+    // （同ファイル90-115行）。分岐は
+    // workflow-auto-commit-publish-guard.test.ts:129-141 でテスト済み（タスク1048）。
+    test: /pre-PR base sync blocked PR creation/i,
+    logger: /routes:workflow:auto-commit:publish-guard/i,
+    because:
+      'base取り込みの競合/再検証失敗をガードが検知してPR作成を止めた — worktree保持+通知済みで後続の手動対応導線あり、ゲートが働いた側',
+  },
+  {
     // 実行の結末を記録する行。原因は当の実行自身のログに出ているので、
     // ここから起票すると同じ事象が二重に上がる。
     test: /Execution ended with status: failed/i,
@@ -337,5 +352,20 @@ export const SUPPRESSIONS: Suppression[] = [
     logger: /event-loop-lag/i,
     because:
       '過去6回すべてself-heal閾値(単発15秒/累積120秒間に30秒)未到達 — ウォッチドッグは正常動作しており、閾値超の病的スタールは別シグネチャ(Self-healing restart triggered, ERROR)で引き続き検知される',
+  },
+  {
+    // ログ出力箇所: requirement-replan-commit.ts:134 の assertReviewedTaskCurrent
+    // （汎用Error）。stale_taskはEXPECTED_REPLAN_HOLD_REASONS
+    // (requirement-replan-policy.ts:48-55)に含まれ、isExpectedReplanHold(#1041)が
+    // trueを返す限りRequirementReplanHeldError（AppError派生、別文言
+    // "Requirement replan review held: ..."）経由で処理され、error-handler.ts:156-162の
+    // AppError分岐はlog.errorを呼ばずに応答するため本行の汎用Errorは発生しない。
+    // タスク#1046で報告されたスタックトレースの行番号（requirement-replan-commit.ts:122）
+    // は現行の投げ元行（134）と一致せず、#1041でNOTEコメントが追加される前の
+    // 旧ビルドが出力した陳腐化したログと判定した（K-11230/K-11231/K-11287と同一シグネチャ）。
+    test: /^Reviewed external work held: stale_task$/i,
+    logger: /error-handler/i,
+    because:
+      'stale_taskはisExpectedReplanHold(#1041)でRequirementReplanHeldError経由に分類され、本行の汎用Errorには到達しない — スタックトレースの行番号不一致(122≠134)から#1041適用前の旧ビルドが出力した陳腐化ログと判定',
   },
 ];

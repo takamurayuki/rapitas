@@ -137,12 +137,15 @@ export interface IterationBudgetInput {
   /** False when the task's theme has auto-run disabled — mirrors detectStagnation's themeAutoRunEnabled gate. */
   themeAutoRunEnabled?: boolean | null;
   /**
-   * True when an implementation is finished and only its verification is
-   * pending (workflowStatus 'in_progress'). The cost axis is deferred in that
-   * state: verification is the cheap step that turns the implement spend into
-   * a PR or a concrete finding, and halting before it discards the whole
-   * spend (task 1031, 2026-09-22: $46 of implementation parked unverified).
-   * The halt still fires at the next implementer dispatch.
+   * True when an implementation is finished and only its verification
+   * (workflowStatus 'in_progress') or its publication / merge wait
+   * (verify_done) is pending. The cost axis is deferred in these states: they
+   * are the agent-free steps that turn the implement spend into a merged PR
+   * or a concrete finding, and halting there strands the whole spend (task
+   * 1031, 2026-09-22: $46 parked unverified; task 1060, 2026-09-24: halted
+   * one minute before its PR was created, then again the minute after the PR
+   * opened). The halt still fires at the next implementer dispatch — a
+   * ci_repair leaves verify_done, so it is not exempt.
    */
   pendingVerification?: boolean | null;
 }
@@ -318,7 +321,11 @@ export async function resolveIterationBudgetForTask(
       attemptsInWindow,
       repeatLoop,
       statusRepeatCount,
-      pendingVerification: task.workflowStatus === 'in_progress',
+      // verify_done covers both publication (no PR yet) and the merge wait
+      // (PR open): neither dispatches an agent. A ci_repair moves the task
+      // back to an implementer status, where the halt fires as intended.
+      pendingVerification:
+        task.workflowStatus === 'in_progress' || task.workflowStatus === 'verify_done',
       ...guards,
     });
   } catch (err) {

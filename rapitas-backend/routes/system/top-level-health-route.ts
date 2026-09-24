@@ -47,3 +47,35 @@ export async function handleTopLevelHealthCheck(): Promise<Record<string, unknow
     );
   }
 }
+
+/**
+ * Handle the `/health` liveness check while API Recovery mode is active.
+ *
+ * Unlike {@link handleTopLevelHealthCheck}, this skips the agent-system
+ * snapshot (unavailable/unreliable during recovery) and only confirms DB
+ * connectivity, mirroring the same fail-closed shape on query failure.
+ *
+ * @returns Recovery-mode health payload on success, or a 503 `Response` on DB failure
+ */
+export async function handleApiRecoveryHealthCheck(): Promise<Record<string, unknown> | Response> {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return {
+      status: 'healthy',
+      mode: 'api-recovery',
+      backgroundInitialization: false,
+      uptimeSeconds: process.uptime(),
+    };
+  } catch (error) {
+    return Response.json(
+      {
+        status: 'unhealthy',
+        reason: 'database',
+        mode: 'api-recovery',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+      },
+      { status: 503 },
+    );
+  }
+}

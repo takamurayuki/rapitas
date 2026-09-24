@@ -45,13 +45,14 @@ mock.module('./runtime-config', () => ({
 }));
 
 let stopSpy = 0;
+let exited = false;
 mock.module('./app-launcher', () => ({
   allocateFreePort: async () => 45999,
   launchApp: () => ({
     pid: 999,
-    logs: () => [],
-    hasExited: () => false,
-    exitCode: () => null,
+    logs: () => (exited ? ['Error: Cannot find module cross-env'] : []),
+    hasExited: () => exited,
+    exitCode: () => (exited ? 1 : null),
     markStopRequested: () => {},
     stop: () => {
       stopSpy++;
@@ -77,7 +78,35 @@ beforeEach(() => {
   rows = [];
   rootPresent = false;
   stopSpy = 0;
+  exited = false;
   registry.clear();
+});
+
+// task 1055 (2026-09-24/25): `next dev` exited 1 on a missing module before
+// the identity snapshot; the reservation stayed quarantined ("前回の停止確認が
+// 取れず隔離中") and every later verification of the worktree was unverifiable.
+test('a launch that already exited is released, not quarantined', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-identity-'));
+  temporaryWorkdirs.push(dir);
+  exited = true;
+
+  const result = await spawnNewEntry(dir, dir, cfg, 'fp');
+
+  expect(result.ok).toBe(false);
+  expect(JSON.stringify(result)).toContain('起動に失敗');
+  expect(JSON.stringify(result)).toContain('cross-env');
+  expect(registry.has(dir)).toBe(false);
+  expect(rows).toHaveLength(0);
+});
+
+test('a launch whose process may still be alive stays quarantined', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-identity-'));
+  temporaryWorkdirs.push(dir);
+
+  await spawnNewEntry(dir, dir, cfg, 'fp');
+
+  expect(registry.get(dir)?.state).toBe('quarantined');
+  expect(stopSpy).toBe(1);
 });
 
 afterEach(async () => {
