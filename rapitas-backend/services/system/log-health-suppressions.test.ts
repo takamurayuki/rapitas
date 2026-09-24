@@ -111,6 +111,16 @@ const SUPPRESSED: [string, string][] = [
   // reaches this generic-Error path; stale process pre-dates #1041
   // (K-11230/K-11231/K-11287).
   ['error-handler', 'Reviewed external work held: stale_task'],
+  // Task 1053: no_own_queued / no_other_running are regular branches of
+  // explainQueueWait — not a defect (K-11288/K-11234).
+  [
+    'theme-auto-run-scheduler',
+    '[ThemeAutoRunScheduler] liveOrQueuedBehind(task #) = false (reason: no_own_queued)',
+  ],
+  [
+    'theme-auto-run-scheduler',
+    '[ThemeAutoRunScheduler] liveOrQueuedBehind(task #) = false (reason: no_other_running)',
+  ],
 ];
 
 const KEPT: [string, string][] = [
@@ -156,6 +166,12 @@ const KEPT: [string, string][] = [
   // A genuinely unexpected hold reason (not in EXPECTED_REPLAN_HOLD_REASONS)
   // still takes the generic-Error path and must remain visible.
   ['error-handler', 'Reviewed external work held: some_unexpected_reason'],
+  // Task 1053: reason=lookup_error is a real lookup failure and must stay
+  // visible, unlike the two regular-branch reasons above.
+  [
+    'theme-auto-run-scheduler',
+    '[ThemeAutoRunScheduler] liveOrQueuedBehind(task #) = false (reason: lookup_error, error: …)',
+  ],
 ];
 
 describe('classifyLogSignature', () => {
