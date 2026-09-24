@@ -88,12 +88,25 @@ describe('resolveIterationBudgetForTask — cost is windowed', () => {
     expect(state.shouldHalt).toBe(false);
   });
 
-  test('verify_done でも PR 作成済みなら費用軸は従来どおり停止する', async () => {
+  // 1060 again, 23:32: PR #806 opened and the cost halt fired the same minute,
+  // stranding a green PR that only the agent-free merge watcher still had to handle.
+  test('verify_done で PR 作成済み(merge 待ち)でも費用軸は停止しない', async () => {
     mockExecFindMany.mockResolvedValue([{ costUsd: 26 }]);
     mockTaskFindUnique.mockResolvedValueOnce({
       workflowStatus: 'verify_done',
       createdAt: new Date(0),
-      githubPrId: 804,
+      githubPrId: 806,
+    });
+    const state = await resolveIterationBudgetForTask(1060, {}, NOW_MS);
+    expect(state.shouldHalt).toBe(false);
+  });
+
+  test('ci_repair で実装者ステータスに戻れば費用軸は従来どおり停止する', async () => {
+    mockExecFindMany.mockResolvedValue([{ costUsd: 26 }]);
+    mockTaskFindUnique.mockResolvedValueOnce({
+      workflowStatus: 'plan_approved',
+      createdAt: new Date(0),
+      githubPrId: 806,
     });
     const state = await resolveIterationBudgetForTask(1060, {}, NOW_MS);
     expect(state).toMatchObject({ shouldHalt: true, haltReason: 'budget_cost_exceeded' });
