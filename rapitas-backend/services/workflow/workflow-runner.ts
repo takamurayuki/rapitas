@@ -16,7 +16,7 @@ import {
 } from './workflow-runner-events';
 import { isShutdownError } from '../agents/orchestrator/shutdown-error';
 import { ExecutionCancelledError } from '../agents/execution-cancelled-error';
-import { waitForVerifyCompletion } from './workflow-runner-verify-settle';
+import { waitForVerifyCompletion, deferVerifyItem } from './workflow-runner-verify-settle';
 import {
   resolveMaxIterations,
   resolvePhaseTimeoutMs,
@@ -278,13 +278,8 @@ export class WorkflowRunner {
         }
 
         if (currentStatus === 'verify_done') {
-          // verify.md was just saved; the commit/PR/merge completion automation
-          // runs ASYNCHRONOUSLY and then flips task.status→done (or moves the task
-          // to self-repair / leaves it verify_done on a real, persistent failure).
-          // Polling can land in the brief window AFTER verify_done is set but
-          // BEFORE that automation finishes — declaring 'failed' there made the UI
-          // flash a misleading "blocked"/"failed" for ~20-30s before the task
-          // actually completed. Wait (bounded) for it to settle before judging.
+          // The async commit/PR/merge automation flips status→done (or bounces) after
+          // verify.md lands; judging 'failed' first flashed a false "blocked" — wait.
           const settled = await waitForVerifyCompletion(item.taskId, abortController.signal);
           if (settled === 'completed') {
             await this.queue.updateStatus(item.id, 'completed', {
@@ -305,9 +300,14 @@ export class WorkflowRunner {
             break;
           }
           if (settled === 'moved') {
-            // The task left verify_done (e.g. self-repair bounced it back to
-            // in_progress). Re-loop to handle the new phase instead of failing.
+            // Left verify_done (e.g. self-repair bounce) — re-loop for the new phase.
             continue;
+          }
+          if (settled === 'deferred') {
+            await deferVerifyItem(this.queue, item.id);
+            this.broadcastItemUpdate(item.id, item.taskId, 'workflow_completed', 'verify_done');
+            continueLoop = false;
+            break;
           }
           if (abortController.signal.aborted) {
             // The grace window ended because auto-run was STOPPED, not because the
