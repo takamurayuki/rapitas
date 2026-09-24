@@ -99,6 +99,21 @@ export const SUPPRESSIONS: Suppression[] = [
     because: '検証ゲートが基準未達を捕捉してタスク/auto-commitを止めた — ゲートが働いた側',
   },
   {
+    // ログ出力箇所: workflow-auto-commit-publish-guard.ts:114 の
+    // syncAndReverifyBeforePublish。baseSync.status が conflict_unresolved
+    // （aux AIがbase取り込みのマージ競合を自動解消できなかった）または
+    // reverify_failed（base取り込み後の再検証＝lint/型/テストに失敗した）の
+    // いずれかでのみ発火する。PRを安全側で止めるガード判定であり、worktreeは
+    // 削除せず保持し、notify()でbase_sync_conflict_unresolved/
+    // base_sync_reverify_failed通知を送出して手動確認・再実行の導線を残す
+    // （同ファイル90-115行）。分岐は
+    // workflow-auto-commit-publish-guard.test.ts:129-141 でテスト済み（タスク1048）。
+    test: /pre-PR base sync blocked PR creation/i,
+    logger: /routes:workflow:auto-commit:publish-guard/i,
+    because:
+      'base取り込みの競合/再検証失敗をガードが検知してPR作成を止めた — worktree保持+通知済みで後続の手動対応導線あり、ゲートが働いた側',
+  },
+  {
     // 実行の結末を記録する行。原因は当の実行自身のログに出ているので、
     // ここから起票すると同じ事象が二重に上がる。
     test: /Execution ended with status: failed/i,
