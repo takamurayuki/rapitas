@@ -253,6 +253,28 @@ export async function createWorktree(
         } catch {
           parentBranch = 'main';
         }
+        // The fallback (no base requested) must ALSO cut from the remote tip:
+        // task 1053 (2026-09-25) came through this path, started from a LOCAL
+        // develop 15 commits behind origin, and conflicted at merge on the very
+        // file the previous four tasks had just changed. Same best-effort
+        // fetch as above; offline keeps the local branch.
+        await execFileAsync('git', ['fetch', 'origin', parentBranch], {
+          cwd: baseDir,
+          encoding: 'utf8',
+          timeout: GIT_OP_TIMEOUT_MS,
+        }).catch((err) =>
+          logger.warn(
+            `[createWorktree] git fetch origin ${parentBranch} failed — cutting from the local branch: ${err}`,
+          ),
+        );
+        const remoteExists = await execFileAsync(
+          'git',
+          ['branch', '-r', '--list', `origin/${parentBranch}`],
+          { cwd: baseDir, encoding: 'utf8', timeout: GIT_OP_TIMEOUT_MS },
+        )
+          .then((r) => !!r.stdout.trim())
+          .catch(() => false);
+        if (remoteExists) parentBranch = `origin/${parentBranch}`;
       }
 
       logger.info(
