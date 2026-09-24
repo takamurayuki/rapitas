@@ -150,6 +150,29 @@ describe('classifyLogSignature', () => {
     ).toBe(false);
   });
 
+  test('"OUTPUT IDLE HANG DETECTED" is suppressed for the claude-code-agent logger', () => {
+    // Task #1084: idle-monitor.ts:112-114's idle-hang force-kill is the guard
+    // working as designed (see log-health-suppression-rules.ts for the
+    // reasoning) — this must be classified as suppressed, not filed.
+    expect(
+      classifyLogSignature(
+        'claude-code-agent',
+        '[Claude Code] OUTPUT IDLE HANG DETECTED: No output for #s after producing # chars. Force-killing hung process.',
+      ).suppressed,
+    ).toBe(true);
+  });
+
+  test('"OUTPUT IDLE HANG DETECTED" is scoped to the claude-code-agent logger only', () => {
+    // Task #1084: the idle-hang force-kill is the guard working; an unrelated
+    // logger reusing this phrase must still be filed.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        '[Claude Code] OUTPUT IDLE HANG DETECTED: No output for #s after producing # chars. Force-killing hung process.',
+      ).suppressed,
+    ).toBe(false);
+  });
+
   test('a failed process.kill() fallback after taskkill stays visible', () => {
     // Task #810: only the first taskkill attempt is suppressed. If the
     // process.kill() fallback also fails, that is a distinct, unsuppressed

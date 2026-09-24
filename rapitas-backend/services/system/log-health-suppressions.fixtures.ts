@@ -101,6 +101,10 @@ export const SUPPRESSED: [string, string][] = [
   ['memory:task-queue', 'Stuck processing task requeued as pending'],
   ['claude-code-agent', '[resolveCliPath] Failed to resolve claude, using relative path'],
   ['claude-code-agent', 'Command failed: taskkill /PID # /T /F'],
+  [
+    'claude-code-agent',
+    '[Claude Code] OUTPUT IDLE HANG DETECTED: No output for #s after producing # chars. Force-killing hung process.',
+  ],
   ['codex-cli-agent', 'Command failed: taskkill /PID # /T /F'],
   ['gemini-cli-agent:process-manager', 'Command failed: taskkill /PID # /T /F'],
   [

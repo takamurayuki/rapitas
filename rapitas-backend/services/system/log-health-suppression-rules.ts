@@ -431,4 +431,20 @@ export const SUPPRESSIONS: Suppression[] = [
     because:
       '検証ゲートがverify.md自身の受入基準未達（❌）報告を捕捉した — ゲートが働いた側であり、判定ロジックの誤りではない',
   },
+  {
+    // ログ出力箇所: services/agents/claude-code/idle-monitor.ts:112-114 の
+    // logger.warn。104-111行の条件（出力受信済み・最終出力から5分超過・
+    // 未フラッシュの部分行なし・status===running・プロセス生存）が全て揃った
+    // 場合のみ発火する、意図的なハング検知・強制終了ロジック（#1084研究フェーズ
+    // 前提監査#1で確認済み）。force-kill後の結果は即座に失敗扱いにならず、
+    // execution-resolver.ts:292の`!ctx.idleTimeoutForceKilled`分岐によりgit
+    // diffベースの完了判定に委ねられる（同340-344行）。529過負荷等の回復不能な
+    // 障害はdetectApiOverload（execution-resolver-early-failures.ts:53-55）が
+    // 別途分類するため本ルールで致命的失敗の可視性は失われない。taskkill自体の
+    // 失敗も既に別シグネチャで抑制済み（本ファイル246行目）。
+    test: /OUTPUT IDLE HANG DETECTED: No output for #s after producing # chars\. Force-killing hung process\./i,
+    logger: /claude-code-agent/i,
+    because:
+      '出力受信後5分間無音という保守的な閾値でのみ発火する意図的なハング検知・自動復旧機構 — force-kill後はgit diffベースの完了判定に委ねられ、致命的失敗は別シグネチャ(529過負荷/taskkill失敗)で可視化される',
+  },
 ];
