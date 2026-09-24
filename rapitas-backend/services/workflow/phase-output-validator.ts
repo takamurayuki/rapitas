@@ -291,11 +291,22 @@ export function validateVerify(content: string): ValidationResult {
 
   const crossMarkFailureLine = scanText.split(/\r?\n/).find((line) => {
     if (!line.includes('❌')) return false;
+    // A markdown blockquote is a note or a quotation, never the verifier's own
+    // verdict row (collectNonpassingRows already skips them). Task 1058 was
+    // bounced for "> 自動検証ゲートの「acceptance」チェックは…❌2件を報告しているが…
+    // 機械判定の抽出精度の限界であり、実装上の欠落ではない。" — a dismissal note.
+    if (/^\s*>/.test(line)) return false;
     if (isPendingPublicationRow(line)) return false;
     if (/❌\s*(?:の)?\s*(?:場合|とき|時|なら|ならば|であれば|if\b)/i.test(line)) return false;
     if (/[(（]\s*❌\s*[)）]/.test(line)) return false;
     if (/✅|合格|通過|成功|pass/i.test(line)) return false;
-    if (/偽陽性|false[\s-]?positive|誤検知|誤検出|実装欠陥ではない/i.test(line)) return false;
+    if (
+      /偽陽性|false[\s-]?positive|誤検知|誤検出|実装(?:上の)?(?:欠陥|欠落)ではない|抽出精度の限界|限界であり/i.test(
+        line,
+      )
+    ) {
+      return false;
+    }
     // A line that merely POINTS to the 残課題/フォローアップ section for detail
     // (e.g. "scope ❌ 4件は §残課題 で扱う") is a forward-reference, not itself a
     // failure verdict — the referenced section is scanned/exempted separately.
@@ -307,7 +318,9 @@ export function validateVerify(content: string): ValidationResult {
     // ❌ 1件）" to explain why the advisory hit was wrong — the criterion said
     // "do NOT change X", and token matching finds no changed file for a
     // negative — and the honesty gate counted the heading as a failure.
-    if (/(?:機械判定|自動検証|機械受入|advisory|acceptance|scope)[^\n❌]{0,24}❌/i.test(line)) {
+    // Window widened 24→60: task 1058's note named the check a full clause
+    // before the mark ("「acceptance」チェックはトークン抽出の都合で…できず❌2件").
+    if (/(?:機械判定|自動検証|機械受入|advisory|acceptance|scope)[^\n❌]{0,60}❌/i.test(line)) {
       return false;
     }
     // A plan item the operator WITHDREW is not a failure to implement it. The
