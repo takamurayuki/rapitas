@@ -30,7 +30,8 @@ import {
   shouldRefillBacklogNow,
   markSelfRefillSucceeded,
 } from './auto-run-idle-timer';
-import { notifyAllDone, notifyAllBlocked } from './auto-run-notifications';
+import { notifyAllDone, notifyAllBlocked, notifyHeldTasks } from './auto-run-notifications';
+import { countHeldTasks, formatHeldTasks } from './auto-run-held-tasks';
 import { countEscalatedBlocked } from '../blocked-task-escalation';
 import { broadcastAutoRunUpdateImpl } from './auto-run-lifecycle';
 import { WorkflowQueueService } from '../workflow-queue';
@@ -317,14 +318,25 @@ async function handleNoWorkFound(
     });
     await notifyAllBlocked(themeId, blockedCount, escalatedCount);
   } else {
-    log.info(`[ThemeAutoRunScheduler] Theme ${themeId} — all tasks done, idle (armed)`);
+    // "All done" can hide open tasks the selector never picks (workflowDisabled
+    // / autoRunExcluded / awaiting_question): #911 sat on a forgotten
+    // workflowDisabled hold from 2026-09-10 while every dry point reported a
+    // clean all_done. Surface them on the same event and as their own notice.
+    const held = await countHeldTasks(prisma, themeId);
+    const heldNote = held.total > 0 ? `; ${held.total} held: ${formatHeldTasks(held)}` : '';
+    log.info(`[ThemeAutoRunScheduler] Theme ${themeId} — all tasks done, idle (armed)${heldNote}`);
     logCycleEvent('theme.idle', {
       theme: themeId,
       cause: 'all_done_backlog_empty',
       refillSkippedReason,
+      held: held.total,
+      heldWorkflowDisabled: held.workflowDisabled,
+      heldAutoRunExcluded: held.autoRunExcluded,
+      heldAwaitingQuestion: held.awaitingQuestion,
       msg: 'all tasks done, idle but armed (awaiting new work)',
     });
     await notifyAllDone(themeId);
+    if (held.total > 0) await notifyHeldTasks(themeId, held);
   }
   broadcastAutoRunUpdateImpl(themeId);
 }

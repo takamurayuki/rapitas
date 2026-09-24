@@ -118,6 +118,10 @@
         "title": "Auto-run: all tasks complete",
         "message": "All target tasks for theme \"{themeName}\" are processed. Auto-run is finishing."
       },
+      "auto_run_held_tasks": {
+        "title": "Auto-run: tasks remain outside selection",
+        "message": "Theme \"{themeName}\" has processed every selectable task, but {heldCount} task(s) remain held outside selection: {heldList}. If this hold is not intended, clear the workflow-disabled / auto-run-excluded flag or answer the pending question."
+      },
       "auto_run_idle_stopped": {
         "title": "Auto-run: stopped — no new tasks were filed",
         "message": "Theme \"{themeName}\" ran out of tasks and nothing new was filed, so auto-run was stopped. It can resume once you file a task manually or the nightly self-refill window opens."

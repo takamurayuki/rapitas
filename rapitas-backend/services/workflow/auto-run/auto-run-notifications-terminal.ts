@@ -8,7 +8,38 @@
  */
 import { prisma } from '../../../config';
 import { buildNotificationI18n } from '../../communication/notification-i18n';
+import { formatHeldTasks, type HeldTaskBreakdown } from './auto-run-held-tasks';
 import { notifyOnce } from './auto-run-notifications-shared';
+
+/**
+ * The theme ran dry while open tasks sit outside the selector's reach
+ * (workflowDisabled / autoRunExcluded / awaiting_question). Fired next to
+ * notifyAllDone so a forgotten hold is visible: #911 was parked on
+ * workflowDisabled as a "temporary" hold on 2026-09-10 and every dry point
+ * since reported a clean all_done. Distinct type so its dedup never collides
+ * with the all_done notice.
+ *
+ * @param themeId - Theme that went idle. / 対象テーマ
+ * @param held - Held-task breakdown (total > 0). / 保留タスクの内訳
+ */
+export async function notifyHeldTasks(themeId: number, held: HeldTaskBreakdown): Promise<void> {
+  const theme = await prisma.theme
+    .findUnique({ where: { id: themeId }, select: { name: true } })
+    .catch(() => null);
+  const themeName = theme?.name ?? String(themeId);
+  const heldList = formatHeldTasks(held);
+  await notifyOnce({
+    type: 'auto_run_held_tasks',
+    themeId,
+    title: '自動実行: 選定対象外のまま残っているタスクがあります',
+    message: `テーマ「${themeName}」は選定可能なタスクを処理し終えましたが、${held.total} 件が選定対象外のまま残っています: ${heldList}。意図した保留でなければ、ワークフロー無効化・自動実行除外を解除するか質問に回答してください。`,
+    i18n: buildNotificationI18n('auto_run_held_tasks', {
+      themeName,
+      heldCount: held.total,
+      heldList,
+    }),
+  });
+}
 
 /**
  * The theme is WEDGED: work exists but every remaining task is blocked
