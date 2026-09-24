@@ -48,6 +48,29 @@ const EXEC_INDIRECTION =
   /\b(?:sh|bash|zsh|dash|cmd|pwsh|powershell|eval|iex|invoke-expression|xargs|source|exec|env|node|python\d?|start-process|invoke-command)\b/i;
 const SUBSTITUTION = /\$\(|`/;
 const QUOTED_SPAN = /"(?:\\.|[^"\\])*"|'[^']*'/g;
+const REDIRECT = /(?:^|[^-\w])>{1,2}(?!&)/;
+// One pipeline segment that only inspects: navigation, read-only git verbs
+// (`git branch` only in its listing forms — `git branch foo` creates), and
+// listing/reading tools. `find` is excluded once it can act (-exec/-delete/-ok/-fprint*).
+const READ_ONLY_SEGMENT =
+  /^(?:(?:cd|chdir|pushd|set-location|sl)\s+\S+|git\s+(?:(?:status|log|diff|show|rev-parse|ls-files|describe|blame|remote|worktree\s+list)\b(?![^\n]*--output)|branch(?:\s+(?:--list|--show-current|-[avr]+|--contains\s+\S+))*\s*$)|(?:ls|dir|cat|head|tail|wc|grep|rg|type|test|gci|gc|sls|get-childitem|get-content|select-string)(?:\s|$)|find(?![^\n]*\s-(?:exec|execdir|ok|okdir|delete|fprint\w*)\b)(?:\s|$))/;
+
+/**
+ * True when every pipeline segment only inspects (no writes, redirects,
+ * substitution, or interpreters). Deliberately conservative: anything not on
+ * the allow-list is treated as a potential mutation.
+ *
+ * @param code - Normalized command text / 正規化済みコマンド
+ * @returns Whether the command is read-only inspection / 読み取り専用か
+ */
+function isReadOnlyInspection(code) {
+  if (SUBSTITUTION.test(code) || EXEC_INDIRECTION.test(code) || REDIRECT.test(code)) return false;
+  const segments = code
+    .split(/&&|\|\||[;|\n]/)
+    .map((s) => s.trim().replace(/^(?:\w+=\S*\s+)+/, ''))
+    .filter(Boolean);
+  return segments.length > 0 && segments.every((s) => READ_ONLY_SEGMENT.test(s));
+}
 
 /**
  * True when the command really names a process-killing tool. Words that appear only inside
@@ -81,7 +104,7 @@ function hasProcessKill(code) {
  *
  * @param command - Shell command text / シェルコマンド
  * @param ctx - `{ primaryRoot }` resolved primary checkout / 解決済み primary ルート
- * @returns 'primary_mutation' | 'prisma' | 'process_kill' | null
+ * @returns 'primary_mutation' | 'primary_readonly' | 'prisma' | 'process_kill' | 'package_install' | null
  */
 function classify(command, ctx) {
   // Prose (quoted-delimiter heredoc bodies, commit messages) is not executed, so
@@ -100,7 +123,11 @@ function classify(command, ctx) {
   const entersPrimary = new RegExp(
     `\\b(?:cd|chdir|pushd|set-location|sl)\\s+["']?${escaped}(?![\\w.-])`,
   ).test(norm);
-  if (entersPrimary) return 'primary_mutation';
+  // Still denied (nothing after the cd can be enumerated), but a read-only
+  // inspection is not an attempted mutation: filed as one it produced
+  // high-severity security tasks for `cd <primary> && git status` (1079/1080,
+  // 2026-09-25). The distinct kind lets the incident filer skip it.
+  if (entersPrimary) return isReadOnlyInspection(norm) ? 'primary_readonly' : 'primary_mutation';
   const mentionsPrimary = new RegExp(`${escaped}(?![\\w.-])`).test(norm);
   if (mentionsPrimary && MUTATION.test(norm)) return 'primary_mutation';
   // Shell already sitting in the primary checkout: any mutating command is denied.
@@ -273,6 +300,8 @@ function decision(input, ctx) {
   const reasons = {
     primary_mutation:
       'Command rejected: it modifies the primary checkout. Work only inside your task worktree; run tests/git there and never cd to the primary repository.',
+    primary_readonly:
+      'Command rejected: never cd into the primary checkout, even to inspect it. Read-only git inspection is allowed without entering it (e.g. `git -C <primary-checkout-path> status`); everything else belongs in your task worktree.',
     prisma:
       'Command rejected: prisma generate/db push/db:prepare must not be run by agents (dev.js does it on startup; running it rewrites shared generated files and can kill the backend).',
     process_kill:

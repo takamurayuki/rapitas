@@ -324,3 +324,46 @@ for (const command of [
     assert.equal(denied(command), false);
   });
 }
+
+// Read-only inspection after entering primary: still denied, but classified
+// apart so the incident filer does not raise a security task for it.
+for (const command of [
+  'cd /c/Projects/rapitas && git worktree list | head -5',
+  'cd "C:\\Projects\\rapitas" && git status --porcelain --untracked-files=no',
+  'cd C:/Projects/rapitas; git log --oneline -5 -- rapitas-backend',
+  'Set-Location C:\\Projects\\rapitas; Get-Content package.json',
+  'cd /c/Projects/rapitas && cd rapitas-backend && git branch --show-current',
+  'cd /c/Projects/rapitas && find . -name "*.md" -maxdepth 1',
+]) {
+  test(`denies read-only inspection after cd into primary as primary_readonly: ${command}`, () => {
+    assert.equal(classify(command, { primaryRoot: PRIMARY }), 'primary_readonly');
+    assert.equal(denied(command), true);
+    assert.equal(denied(command, 'PowerShell'), true);
+  });
+}
+
+for (const command of [
+  'cd /c/Projects/rapitas && git status && git pull',
+  'cd /c/Projects/rapitas && cat a.txt > b.txt',
+  'cd /c/Projects/rapitas && find . -name "*.log" -delete',
+  'cd /c/Projects/rapitas && git branch feature/x',
+  'cd /c/Projects/rapitas && git diff --output=patch.diff',
+  'cd /c/Projects/rapitas && ls | xargs rm',
+  'cd /c/Projects/rapitas && python fix.py',
+  'cd /c/Projects/rapitas && cat $(ls)',
+  'cd /c/Projects/rapitas && tee out.txt',
+]) {
+  test(`anything that can write after cd into primary stays primary_mutation: ${command}`, () => {
+    assert.equal(classify(command, { primaryRoot: PRIMARY }), 'primary_mutation');
+    assert.equal(denied(command), true);
+  });
+}
+
+test('primary_readonly denial carries its own guidance', () => {
+  const r = decision(
+    { tool_name: 'Bash', tool_input: { command: 'cd /c/Projects/rapitas && git status' } },
+    ctx,
+  );
+  assert.equal(r._kind, 'primary_readonly');
+  assert.match(r.hookSpecificOutput.permissionDecisionReason, /git -C/);
+});

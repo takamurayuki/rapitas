@@ -105,6 +105,34 @@ describe('fileGuardIncidents', () => {
     ).toBe(0);
   });
 
+  test('read-only denials (primary_readonly) are recorded but never filed', async () => {
+    const dir = setup([
+      { ts: 'a', taskId: 1078, kind: 'primary_readonly', command: 'cd /c/x && git worktree list' },
+      { ts: 'b', taskId: 1078, kind: 'primary_mutation', command: 'cd /c/x && git pull' },
+    ]);
+    const calls: Parameters<GuardIncidentSubmit>[0][] = [];
+    const filed = await fileGuardIncidents({
+      dir,
+      submit: async (input) => {
+        calls.push(input);
+        return { id: calls.length };
+      },
+      seen: new Set(),
+      isGuardTask: async () => false,
+    });
+    expect(filed).toBe(1);
+    expect(calls.map((c) => c.dedupKey)).toEqual(['guard-incident:1078:primary_mutation']);
+    // Persisted like a filed key, so a restart does not reconsider it.
+    expect(
+      await fileGuardIncidents({
+        dir,
+        submit: async () => ({ id: 9 }),
+        seen: new Set(),
+        isGuardTask: async () => false,
+      }),
+    ).toBe(0);
+  });
+
   test('a missing directory is a no-op', async () => {
     expect(
       await fileGuardIncidents({

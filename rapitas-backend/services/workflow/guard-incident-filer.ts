@@ -20,6 +20,12 @@ const POLL_INTERVAL_MS = 5 * 60_000;
 /** Title prefix every concern filed here carries — used to recognise our own promoted tasks. */
 const GUARD_TASK_TITLE_MARK = 'エージェントが禁止コマンドを実行しようとした';
 
+// Denials that are the hook working as designed rather than an attempted
+// mutation. `cd <primary> && git status` was filed as a high-severity
+// security concern twice on 2026-09-25 (tasks 1079/1080) and each spent a
+// research + plan cycle concluding "no defect". Recorded as seen, never filed.
+const UNFILED_KINDS = new Set(['primary_readonly']);
+
 /** Concern submission function (injectable for tests). */
 export type GuardIncidentSubmit = (input: SubmitConcernInput) => Promise<unknown>;
 
@@ -115,6 +121,12 @@ export async function fileGuardIncidents(
     // Fixed key (no timestamp/command): volatile parts would defeat dedup and the saturation gate.
     const dedupKey = `guard-incident:${rec.taskId ?? 'unknown'}:${rec.kind}`;
     if (seen.has(dedupKey)) continue;
+    if (UNFILED_KINDS.has(rec.kind)) {
+      seen.add(dedupKey);
+      saveFiledKeys(dir, seen);
+      log.info({ taskId: rec.taskId, kind: rec.kind }, 'Read-only guard denial — not filed');
+      continue;
+    }
     // A guard-incident task's own agent exercises the hook with kill/prisma
     // strings while fixing or testing it, trips the hook, and would file the
     // NEXT guard-incident task — 1004→1006→1008→1011→1012→1013→1016→1017 on
