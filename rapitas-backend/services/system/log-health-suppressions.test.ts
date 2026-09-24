@@ -106,6 +106,10 @@ const SUPPRESSED: [string, string][] = [
   ],
   // Task 1040: the recurring event-loop-lag WARN (K-8776/K-9142/K-11160/K-11233).
   ['event-loop-lag', 'Event loop stalled ~#.#s'],
+  // Task 1046: stale_task is expected-hold classified (#1041) and never
+  // reaches this generic-Error path; stale process pre-dates #1041
+  // (K-11230/K-11231/K-11287).
+  ['error-handler', 'Reviewed external work held: stale_task'],
 ];
 
 const KEPT: [string, string][] = [
@@ -148,6 +152,9 @@ const KEPT: [string, string][] = [
     'git-operations/worktree-ops',
     '[cleanupOrphanedWorktrees] Failed to remove orphaned directory after retries: <path>',
   ],
+  // A genuinely unexpected hold reason (not in EXPECTED_REPLAN_HOLD_REASONS)
+  // still takes the generic-Error path and must remain visible.
+  ['error-handler', 'Reviewed external work held: some_unexpected_reason'],
 ];
 
 describe('classifyLogSignature', () => {
@@ -412,6 +419,20 @@ describe('classifyLogSignature', () => {
     // stall triggers a distinct ERROR-level message that must not be hidden.
     expect(
       classifyLogSignature('event-loop-lag', '[event-loop-lag] Self-healing restart triggered')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('"Reviewed external work held: stale_task" is scoped to the error-handler logger only', () => {
+    // Task 1046: the phrase alone must not suppress an unrelated logger, and
+    // a hold reason outside EXPECTED_REPLAN_HOLD_REASONS must stay visible
+    // even under error-handler since it still takes the generic-Error path.
+    expect(
+      classifyLogSignature('some-other-logger', 'Reviewed external work held: stale_task')
+        .suppressed,
+    ).toBe(false);
+    expect(
+      classifyLogSignature('error-handler', 'Reviewed external work held: budget_exhausted')
         .suppressed,
     ).toBe(false);
   });
