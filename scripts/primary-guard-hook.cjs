@@ -32,12 +32,20 @@ const MUTATION =
   /\bgit\s+(?:-c\s+\S+\s+)?(?:pull|push|fetch|checkout|switch|reset|merge|rebase|commit|add|stash|clean|restore|cherry-pick|apply|am|branch|tag|worktree)\b|\b(?:bun|bunx|npm|npx|pnpm|yarn)\b|\bprisma\b|\b(?:rm|mv|cp|mkdir|rmdir|del|touch|sed|remove-item|move-item|copy-item|new-item|set-content|add-content|out-file|clear-content)\b|(?:^|[^-\w])>{1,2}(?!&)/i;
 const PRISMA = /\bprisma\s+(?:generate|db\s+push|migrate)\b|\bdb:(?:prepare|generate|push)\b/i;
 const PROC_KILL = /\b(?:stop-process|taskkill|pkill|killall)\b/i;
+// Package installers rewrite the node_modules tree that every worktree shares
+// with the primary checkout through junctions (2026-09-24, task 1055: a pnpm
+// install inside a worktree re-pointed 60 primary symlinks at the worktree
+// path; 2026-09-02: a worktree pnpm exec purged the primary tree). Agents
+// never install — dependency changes are the operator's job in primary.
+// `run`/`exec`/`test`/`x`/`dlx`/`create` subcommands are script runners, never
+// installers, so they are excluded before scanning the (up to three) leading
+// options/args (`pnpm -C rapitas-frontend install`, `npm --prefix x ci`).
+const PACKAGE_INSTALL =
+  /\b(?:npm|pnpm|yarn|bun)\s+(?!(?:run|exec|test|x|dlx|create)\b)(?:\S+\s+){0,3}?(?:install|i|ci|add|remove|rm|uninstall|un|update|up|upgrade|dedupe|prune|link|unlink|rebuild|import)\b(?!\s*:)/i;
 // Anything that can turn quoted text into executed code: nested shells, eval, command
 // substitution, backticks, or interpreters fed by a pipe.
 const EXEC_INDIRECTION =
   /\b(?:sh|bash|zsh|dash|cmd|pwsh|powershell|eval|iex|invoke-expression|xargs|source|exec|env|node|python\d?|start-process|invoke-command)\b/i;
-// rg --pre/--hostname-bin execute their (quoted) argument as a command.
-const EXEC_OPTION_FLAG = /(?:^|\s)--(?:pre|hostname-bin)(?![\w-])/i;
 const SUBSTITUTION = /\$\(|`/;
 const QUOTED_SPAN = /"(?:\\.|[^"\\])*"|'[^']*'/g;
 
@@ -62,7 +70,10 @@ function hasProcessKill(code) {
     return '""';
   });
   // Interpreter names only count outside quotes: "Bash" inside a JSON string is data.
-  return quotedCommandWord || EXEC_INDIRECTION.test(rest) || EXEC_OPTION_FLAG.test(rest) || PROC_KILL.test(rest);
+  // The exec option's own argument was already checked above; the flag's mere
+  // presence must not turn a quoted search word (`rg --pre cat 'pkill' .`) into
+  // a denial — that is exactly the scoping the test at :280 pins down.
+  return quotedCommandWord || EXEC_INDIRECTION.test(rest) || PROC_KILL.test(rest);
 }
 
 /**
@@ -78,6 +89,8 @@ function classify(command, ctx) {
   const code = stripProse(command);
   if (PRISMA.test(code)) return 'prisma';
   if (hasProcessKill(code)) return 'process_kill';
+  // Quoted occurrences (`grep "pnpm install"`, commit text) are data, not commands.
+  if (PACKAGE_INSTALL.test(code.replace(QUOTED_SPAN, '""'))) return 'package_install';
   if (!ctx.primaryRoot) return null; // cannot resolve primary → fail open for the path rule
   const primary = normalizePaths(ctx.primaryRoot).replace(/\/+$/, '');
   const norm = normalizePaths(code).split(`${primary}/.worktrees/`).join('WT/');
@@ -264,6 +277,8 @@ function decision(input, ctx) {
       'Command rejected: prisma generate/db push/db:prepare must not be run by agents (dev.js does it on startup; running it rewrites shared generated files and can kill the backend).',
     process_kill:
       "Command rejected: never stop/kill processes (Stop-Process/taskkill/pkill). The backend on port 3001 is the agent's own connection.",
+    package_install:
+      'Command rejected: never run npm/pnpm/yarn/bun install/add/update in a worktree. node_modules is shared with the primary checkout through junctions and an install rewrites it for every worktree. If a dependency change is required, record it in verify.md as an unresolved concern for the operator.',
   };
   return {
     hookSpecificOutput: {
