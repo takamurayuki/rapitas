@@ -74,4 +74,28 @@ describe('resolveIterationBudgetForTask — cost is windowed', () => {
     const state = await resolveIterationBudgetForTask(996, {}, NOW_MS);
     expect(state).toMatchObject({ shouldHalt: true, haltReason: 'budget_cost_exceeded' });
   });
+
+  // task 1060 (2026-09-24): verified diff, PR not yet created, halted one
+  // minute after verify_done — stop-execution then cut the publication epilogue.
+  test('verify_done で PR 未作成なら費用超過でも停止せず公開工程を通す', async () => {
+    mockExecFindMany.mockResolvedValue([{ costUsd: 26 }]);
+    mockTaskFindUnique.mockResolvedValueOnce({
+      workflowStatus: 'verify_done',
+      createdAt: new Date(0),
+      githubPrId: null,
+    });
+    const state = await resolveIterationBudgetForTask(1060, {}, NOW_MS);
+    expect(state.shouldHalt).toBe(false);
+  });
+
+  test('verify_done でも PR 作成済みなら費用軸は従来どおり停止する', async () => {
+    mockExecFindMany.mockResolvedValue([{ costUsd: 26 }]);
+    mockTaskFindUnique.mockResolvedValueOnce({
+      workflowStatus: 'verify_done',
+      createdAt: new Date(0),
+      githubPrId: 804,
+    });
+    const state = await resolveIterationBudgetForTask(1060, {}, NOW_MS);
+    expect(state).toMatchObject({ shouldHalt: true, haltReason: 'budget_cost_exceeded' });
+  });
 });
