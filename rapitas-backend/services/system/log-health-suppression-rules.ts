@@ -368,4 +368,20 @@ export const SUPPRESSIONS: Suppression[] = [
     because:
       'stale_taskはisExpectedReplanHold(#1041)でRequirementReplanHeldError経由に分類され、本行の汎用Errorには到達しない — スタックトレースの行番号不一致(122≠134)から#1041適用前の旧ビルドが出力した陳腐化ログと判定',
   },
+  {
+    // ログ出力箇所: workflow-cli-executor-epilogue.ts:249 の log.warn。
+    // validateVerify（phase-output-validator.ts:170-184）の
+    // hasNonpassingVerifyVerdict 分岐が組み立てた summary をそのまま出す
+    // fail-soft な観測用ログであり、実際の repair/block 判定は同じ
+    // validateVerify() を再度呼ぶ別経路（status-transition.ts:207-260 /
+    // workflow-cli-executor-verify-gate.ts:97-154）が担う（同ファイル
+    // 236-238行のコメント参照）。verify.md が自ら受入基準未達（❌）を
+    // 報告した記録であり、判定ロジック側の誤検知ではない（#1049。
+    // K-11292/K-9668/K-8051は同一メッセージの未抑制な再発）。
+    // 後続の «...» 部分は verify.md ごとに可変のため固定句のみにマッチさせる。
+    test: /verify\.md explicitly reports a failed or partial overall verdict; repair is required\./i,
+    logger: /workflow-cli-executor/i,
+    because:
+      '検証ゲートがverify.md自身の受入基準未達（❌）報告を捕捉した — ゲートが働いた側であり、判定ロジックの誤りではない',
+  },
 ];
