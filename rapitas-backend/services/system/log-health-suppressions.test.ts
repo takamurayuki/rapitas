@@ -111,6 +111,9 @@ const SUPPRESSED: [string, string][] = [
   // reaches this generic-Error path; stale process pre-dates #1041
   // (K-11230/K-11231/K-11287).
   ['error-handler', 'Reviewed external work held: stale_task'],
+  // Task 1050: generateForTheme() catches the CLI timeout and continues
+  // with the next theme (innovation-session.ts:242-253).
+  ['memory:innovation-session', 'Claude CLI timed out after #ms'],
 ];
 
 const KEPT: [string, string][] = [
@@ -156,6 +159,9 @@ const KEPT: [string, string][] = [
   // A genuinely unexpected hold reason (not in EXPECTED_REPLAN_HOLD_REASONS)
   // still takes the generic-Error path and must remain visible.
   ['error-handler', 'Reviewed external work held: some_unexpected_reason'],
+  // Same CLI timeout wording from a different caller (e.g. task-spec-deriver,
+  // K-8927/K-5946) is not covered by this logger-scoped rule.
+  ['task-spec-deriver', 'Claude CLI timed out after #ms'],
 ];
 
 describe('classifyLogSignature', () => {
