@@ -84,6 +84,20 @@ export const SUPPRESSIONS: Suppression[] = [
       'gh pr create 対象ブランチに差分がない — isNoChangeCompletion が安全な無差分完了として扱う想定内の失敗',
   },
   {
+    // ログ出力箇所: workflow-auto-commit.ts:376-380 が aheadOfBase===0 のとき
+    // gh pr create を呼ばずに "No commits between <base> and <branch> —
+    // nothing to publish (skipped before gh pr create)" を prResult.error に
+    // 詰める。同ファイル425行の logPrOutcome は isNoChangeCompletion()
+    // （workflow-auto-commit-classify.ts:49-64）が true の場合のみ log.warn を
+    // 選ぶため、この文言がWARNとして出た時点で既に無害な無差分完了と判定済み。
+    // 上の github-service:client 向けルールは gh コマンド自体の失敗ログ用で、
+    // ロガーが異なるため本ロガーの行はカバーしない（タスク1083、K-11366/K-8930）。
+    test: /nothing to publish \(skipped before gh pr create\)/i,
+    logger: /routes:workflow:auto-commit/i,
+    because:
+      'gh pr create を呼ぶ前に対象ブランチへの差分ゼロを検出しスキップした — isNoChangeCompletion が安全な無差分完了として扱う想定内の分岐',
+  },
+  {
     // blockTaskForVerification（agents:verification-gate）と performAutoCommitAndPR
     // （routes:workflow:auto-commit, workflow-auto-commit.ts:200-203）は同一の検証
     // ゲート失敗イベントに対してそれぞれ独自のERRORログを出す。止めた側であって、
