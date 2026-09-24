@@ -34,6 +34,7 @@ import { canContinueAutoMerge } from './auto-merge-task-guard';
 import { recoverMergedTasks } from './auto-merge-recovery';
 import { evaluatePreMergeGate, RATCHET_CHECK_NAME } from './auto-merge-premerge-gate';
 import { checkBaselineDrift } from './auto-merge-baseline-drift';
+import { reapStalePrs } from './stale-pr-reaper';
 
 const log = createLogger('workflow:auto-merge-watcher');
 
@@ -141,6 +142,11 @@ export class AutoMergeWatcher {
           log.warn({ err, taskId: c.taskId }, '[auto-merge] Candidate failed');
         }
       }
+      // Stale-PR reaper (task 1061): close abandoned exhausted+conflicted
+      // auto-PRs bounded at 3/tick. Never blocks the merge loop above.
+      await reapStalePrs(prisma).catch((err) =>
+        log.warn({ err }, '[auto-merge] Stale PR reap failed'),
+      );
     } catch (err) {
       log.error({ err }, '[auto-merge] Tick error');
     } finally {

@@ -158,7 +158,7 @@ export function buildResolveAfterParse(
         waitingForInput: false,
         claudeSessionId: ctx.claudeSessionId || undefined,
         errorMessage:
-          'Claude Code rejected the selected model. The orchestrator picked a model from a different provider (likely codex-/gpt- family) and routed it to a claude-code agent. Re-run after the role-resolver agent-switch lands; if the issue persists check WorkflowRoleConfig.preferredProviderOverride for this role.',
+          'Claude Code rejected the selected model. Either the orchestrator picked a model from a different provider (likely codex-/gpt- family) and routed it to a claude-code agent — re-run after the role-resolver agent-switch lands, and if the issue persists check WorkflowRoleConfig.preferredProviderOverride for this role — or the installed Claude Code CLI is older than the version the model requires; check if a CLI update is available (`claude update`).',
         ...usageFields,
         ...forceKillFields,
       });

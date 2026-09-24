@@ -131,6 +131,23 @@ describe('diagnoseErrorWithLlm', () => {
     expect(recorded.suggestedAction).toBe('no_action');
   });
 
+  test('正常系: Markdownコードフェンス付き応答でも記録される', async () => {
+    callClaudeCliMock.mockImplementation(() =>
+      Promise.resolve({ content: '```json\n' + VALID_LLM_JSON + '\n```' }),
+    );
+
+    await diagnoseErrorWithLlm({ ...BASE_INPUT, errorBlob: 'some error' });
+
+    expect(recordDiagnosisMock).toHaveBeenCalledTimes(1);
+    const recorded = recordDiagnosisMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(recorded).toMatchObject({
+      rootCause: 'connection reset by peer',
+      confidence: 70,
+      suggestedAction: 'retry',
+      reasoning: 'transient network blip',
+    });
+  });
+
   test('正常系: 有効な応答はそのまま記録される', async () => {
     await diagnoseErrorWithLlm({ ...BASE_INPUT, errorBlob: 'some error' });
 

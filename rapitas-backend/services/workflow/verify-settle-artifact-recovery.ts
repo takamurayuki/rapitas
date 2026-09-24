@@ -26,6 +26,33 @@ export async function isAwaitingRequiredMerge(taskId: number): Promise<boolean> 
 }
 
 /**
+ * Whether the merge watcher has filed a conflict-resolution task for this
+ * task's PR since its latest verify.md save. That resolver needs the theme's
+ * single execution slot — the slot the runner is holding while it waits for
+ * this very merge (task 1053, 2026-09-25: PR #813 DIRTY, resolver #1078 filed
+ * at 02:17, theme spun "zero progress" for an hour behind the 90-minute hold).
+ *
+ * @param taskId - Task sitting at verify_done. / verify_done のタスクID
+ * @returns True when a resolver task is pending for the current PR. / 解消タスク待ちなら true
+ */
+export async function hasConflictResolutionPending(taskId: number): Promise<boolean> {
+  const lastVerify = await prisma.workflowTransition.findFirst({
+    where: { taskId, cause: 'file_saved:verify' },
+    orderBy: { createdAt: 'desc' },
+    select: { createdAt: true },
+  });
+  const filed = await prisma.workflowTransition.findFirst({
+    where: {
+      taskId,
+      cause: 'auto_merge_conflict_filed',
+      ...(lastVerify ? { createdAt: { gte: lastVerify.createdAt } } : {}),
+    },
+    select: { id: true },
+  });
+  return filed !== null;
+}
+
+/**
  * Whether a `pr`-mode task (autoCreatePR without autoMergePR) is waiting for
  * its PR's CI to go green before completion, under staged completion. Mirrors
  * {@link isAwaitingRequiredMerge}'s shape but for the CI-green (not merge)
