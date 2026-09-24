@@ -23,6 +23,7 @@ import { guardImplementOverlap } from './workflow-orchestrator-overlap-guard';
 import { prepareAgentAndPrompt } from './workflow-orchestrator-agent-prep';
 import { runPreflightProbe } from './workflow-orchestrator-preflight-probe';
 import { guardPlanValidity } from './workflow-orchestrator-plan-guard';
+import { guardProtectedPathMode } from './workflow-orchestrator-protected-path-guard';
 import {
   buildExecutionContext,
   resolveEffectiveModel,
@@ -173,6 +174,13 @@ export class WorkflowOrchestrator {
       guardPlanValidity(taskId, transition, workflowMode, language),
     );
     if (guard.done) return guard.result;
+
+    // Lightweight task whose research plans a protected-path change: escalate
+    // to standard now (planner lists the file) rather than let tamper bounce it.
+    const modeGuard = await observeWorkflowStage(taskId, 'protected-path-guard', () =>
+      guardProtectedPathMode(taskId, transition, workflowMode, language),
+    );
+    if (modeGuard.done) return modeGuard.result;
 
     // Before any agent/prompt work: hold the implementer while its files are
     // still changing in another open auto-PR (skipped → the runner re-queues).
