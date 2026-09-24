@@ -30,6 +30,8 @@ import { runMissLedgerJob } from '../self-improvement/miss-ledger-job';
 import { runGatePrecisionJob } from '../self-improvement/gate-precision-job';
 import { evaluateAndRecordKnowledgeReuse } from '../supervision/knowledge-reuse-evaluator';
 import { runPrRiskReviewJob } from '../self-improvement/pr-risk';
+import { runOutageSimulationJob } from '../outage-guidance/outage-simulation-job';
+import { BACKLOG_JOB_LABELS } from './backlog-job-labels';
 
 const log = createLogger('scheduling:backlog');
 
@@ -48,22 +50,7 @@ const HANDLERS: Record<BacklogJobKind, () => Promise<number>> = {
   gate_precision: runGatePrecisionJob,
   knowledge_reuse: evaluateAndRecordKnowledgeReuse,
   pr_risk_review: runPrRiskReviewJob,
-};
-
-// NOTE: Must stay in sync with rapitas-frontend/messages/ja.json
-// backlog.settings.jobs.<kind>.label — the backend has no access to the
-// frontend i18n bundle, so the labels are duplicated here for notifications.
-const JOB_LABELS: Record<BacklogJobKind, string> = {
-  innovation: 'イノベーションセッション',
-  vuln_scan: '脆弱性・バグ調査',
-  health_check: 'ログヘルスチェック',
-  loop_review: '品質ループレビュー',
-  ci_watch: 'CI 監視（本線）',
-  daily_report: 'デイリーレポート',
-  miss_ledger: '検出漏れ学習',
-  gate_precision: 'ゲート精度較正',
-  knowledge_reuse: '知識活用効果の測定',
-  pr_risk_review: 'PR リスク予測の精度レビュー',
+  outage_simulation: runOutageSimulationJob,
 };
 
 // Caps notification body length — raw Error.message can carry stack-trace-like
@@ -162,7 +149,7 @@ async function recordManualRunOutcome(
   kind: BacklogJobKind,
   outcome: ManualRunOutcome,
 ): Promise<void> {
-  const label = JOB_LABELS[kind];
+  const label = BACKLOG_JOB_LABELS[kind];
   if (outcome.kind !== 'skipped') {
     // Also guards against a same-day duplicate scheduled fire: isJobDue checks
     // lastRunAt against the current local day.
