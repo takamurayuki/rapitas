@@ -16,6 +16,7 @@ mock.module('./auto-merge-checks', () => ({
   readMergeState: mock(() => Promise.resolve('CLEAN')),
   readHeadSha: mock(() => Promise.resolve('sha-current')),
   updatePrBranch: mock(() => Promise.resolve(true)),
+  ghPath: () => 'gh',
 }));
 
 // task 1021: the watcher now consults the pre-merge gate + drift check; both would
@@ -53,6 +54,9 @@ mock.module('./auto-merge-exhaustion', () => ({
   resetExhaustedRecheckCooldowns: () => {},
   markExhausted: mock(() => Promise.resolve()),
   decideTerminalState: () => Promise.resolve({ terminal: false }),
+  readExhaustionRecord: mock(() =>
+    Promise.resolve({ exhausted: false, headSha: null, exhaustedAt: null }),
+  ),
 }));
 
 const mockNotify = mock(() => Promise.resolve());
