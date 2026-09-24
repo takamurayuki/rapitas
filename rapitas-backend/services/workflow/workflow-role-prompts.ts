@@ -186,6 +186,8 @@ export function buildRoleTexts(
           '上記の計画と実装結果を検証し、verify.mdとしてMarkdown形式でレポートを作成してください。\n\n' +
           '計画チェックリストの消化状況、テスト結果、品質メトリクスを含めてください。\n\n' +
           '## 検証フェーズの厳守事項\n' +
+          '### 既存ファイルの一時変更は直接の git 操作で行わない ★重要\n' +
+          '既存ファイル（例: 再現テスト）を一時的に書き換えて元に戻す必要がある場合、`git checkout --`/`git restore` を直接使わないでください。実装担当の未コミット変更まで消去する事故（task913）の再発防止のためです。可能なら使い捨てworktree（`red-state-check.ts` 方式、タスクworktreeに一切触れない）を使い、既存ファイルを実際に書き換える必要がある場合は `services/agents/verification/verification-scoped-edit.ts` の `beginScopedEdit` → `assertSafeToMutate`（一時変更の直前に必ず呼び、`safe: false` の場合は一時変更を実行せず中止する） → `restoreScopedEdit` の順で使ってください。\n' +
           '### テスト結果は必ず実測値を記載してください (虚偽報告厳禁)\n' +
           '- `npm test` / `pnpm test` / `vitest` を実際に実行し、**最終行の集計** (`Tests N passed | M failed`、`Test Files X passed | Y failed`、終了コード) を verify.md に **コピペ** してください。\n' +
           '- テストコマンドが exit code 非0 で終わった場合、**「全テスト通過」と書くことを禁止** します。落ちたテスト名と失敗理由を箇条書きで列挙してください。\n' +
@@ -309,6 +311,8 @@ export function buildRoleTexts(
           'Please verify the implementation plan and results above, and create a report as verify.md in Markdown format.\n\n' +
           'Include the completion status of the plan checklist, test results, and quality metrics.\n\n' +
           '## Verification phase strict rules\n' +
+          '### Never mutate an existing file with a direct git operation ★IMPORTANT\n' +
+          "When you must temporarily rewrite an existing file (e.g. a reproduction test) and restore it afterwards, do NOT use `git checkout --`/`git restore` directly — this is how the task-913 incident destroyed an implementer's uncommitted work. Prefer a disposable worktree (the `red-state-check.ts` pattern, which never touches the task worktree); if you must edit an existing file in place, use `services/agents/verification/verification-scoped-edit.ts`'s `beginScopedEdit` → `assertSafeToMutate` (call this immediately before your mutation; if it returns `safe: false`, do NOT proceed with the mutation) → `restoreScopedEdit`.\n" +
           '### Report ACTUAL test results (no false claims)\n' +
           '- Run `npm test` / `pnpm test` / `vitest` for real and **paste the summary line** (`Tests N passed | M failed`, `Test Files X passed | Y failed`, exit code) into verify.md.\n' +
           '- If the test command exits non-zero, you are **forbidden from writing "all tests pass"**. List failing tests by name with their reason.\n' +
