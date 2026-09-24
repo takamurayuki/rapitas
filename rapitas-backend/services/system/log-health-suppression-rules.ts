@@ -369,6 +369,23 @@ export const SUPPRESSIONS: Suppression[] = [
       'stale_taskはisExpectedReplanHold(#1041)でRequirementReplanHeldError経由に分類され、本行の汎用Errorには到達しない — スタックトレースの行番号不一致(122≠134)から#1041適用前の旧ビルドが出力した陳腐化ログと判定',
   },
   {
+    // ログ出力箇所: queue-wait-exemption.ts:110-118 の liveOrQueuedBehind が
+    // 出す log.warn（verdict.waiting=false の分岐）。reason=no_own_queued /
+    // no_other_running はハング防止ガードの適用除外を与えないという正規の
+    // 既定分岐（同ファイル33-39行 QueueWaitReason 型、queue-wait-exemption.test.ts
+    // で個別ユニットテスト済み）であり、いずれの分岐も欠陥ではない。force-stop
+    // が実際に発生した場合は auto-run-active-decision.ts:160-163 の専用WARN
+    // 「Task # exceeded wall budget … — force-stopping …」と
+    // logCycleEvent('task.hang_backstop', …) が別途発行されるため、本行を
+    // 抑制してもハング防止の可視性は損なわれない（#1053）。reason=lookup_error
+    // （explainQueueWait の catch 分岐、同ファイル84-90行）は本物の照会失敗の
+    // ため対象外のまま残す。
+    test: /^\[ThemeAutoRunScheduler\] liveOrQueuedBehind\(task #\) = false \(reason: (no_own_queued|no_other_running)\)$/,
+    logger: /theme-auto-run-scheduler/i,
+    because:
+      'ハング防止ガードの適用除外を与えない正規の既定分岐 — force-stop実発生時は別WARN(Task # exceeded wall budget … — force-stopping)で引き続き可視化される',
+  },
+  {
     // ログ出力箇所: claude-cli-provider.ts:272-274 の setTimeout が
     // `Claude CLI timed out after ${timeoutMs}ms` で fail() → 261行目の
     // reject(new ClaudeCliUnavailableError(message))。呼び出し元
