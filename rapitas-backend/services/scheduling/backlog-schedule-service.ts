@@ -20,7 +20,8 @@ export type BacklogJobKind =
   | 'miss_ledger'
   | 'gate_precision'
   | 'knowledge_reuse'
-  | 'pr_risk_review';
+  | 'pr_risk_review'
+  | 'outage_simulation';
 /** How often a job runs. */
 export type BacklogFrequency = 'daily' | 'weekly';
 
@@ -47,6 +48,7 @@ export const BACKLOG_JOB_KINDS: readonly BacklogJobKind[] = [
   'gate_precision',
   'knowledge_reuse',
   'pr_risk_review',
+  'outage_simulation',
 ];
 
 /**
@@ -90,6 +92,10 @@ export const DEFAULTS: Record<
   // near no-op until the user opts in. Weekly + idempotent = monthly (the
   // scheduler has no monthly frequency).
   pr_risk_review: { enabled: true, frequency: 'weekly', hour: 6, weekday: 3 },
+  // Default ON like knowledge_reuse: pure computation, no AI calls, no
+  // concerns filed, and a no-op without an inventory file. Thursday keeps it
+  // off the weekday 1-3 6:00 jobs.
+  outage_simulation: { enabled: true, frequency: 'weekly', hour: 6, weekday: 4 },
 };
 
 /** Coerces an arbitrary value to a valid job kind, or null if unknown. */

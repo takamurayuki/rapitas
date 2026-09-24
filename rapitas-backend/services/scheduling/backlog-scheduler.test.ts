@@ -12,6 +12,7 @@ import {
   normalizeJobKind,
   type BacklogScheduleConfig,
 } from './backlog-schedule-service';
+import { BACKLOG_JOB_LABELS } from './backlog-job-labels';
 
 /** Builds a schedule config with sensible defaults, overridable per-test. */
 function makeSchedule(over: Partial<BacklogScheduleConfig> = {}): BacklogScheduleConfig {
@@ -84,6 +85,18 @@ describe('normalizeJobKind', () => {
     expect(normalizeJobKind('innovation')).toBe('innovation');
     expect(normalizeJobKind('vuln_scan')).toBe('vuln_scan');
     expect(normalizeJobKind('daily_report')).toBe('daily_report');
+    expect(normalizeJobKind('outage_simulation')).toBe('outage_simulation');
+  });
+
+  it('seeds outage_simulation weekly without colliding with the weekday 1-3 6am jobs', () => {
+    expect(BACKLOG_JOB_KINDS).toContain('outage_simulation');
+    expect(DEFAULTS.outage_simulation).toEqual({
+      enabled: true,
+      frequency: 'weekly',
+      hour: 6,
+      weekday: 4,
+    });
+    expect(BACKLOG_JOB_LABELS.outage_simulation).toBe('障害影響判定シミュレーション');
   });
 
   it('rejects unknown values as null', () => {
