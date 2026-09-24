@@ -107,6 +107,22 @@ describe('recoverFromLandedArtifact', () => {
     });
   });
 
+  // task #1058: continue-execution's linkContinueExecutionPr only sets
+  // Task.githubPrId (via the existing linkAutoCreatedPr call) — the same
+  // shape case ② covers — so the stuck-recovery safety net already applies
+  // without any change to this file.
+  test('②-b continue-execution経由でTask.githubPrIdのみ設定された場合もstuck救済でtrue（task #1058）', async () => {
+    findUniqueTaskMock.mockImplementation(() => Promise.resolve({ githubPrId: 1058 }));
+
+    await expect(recoverFromLandedArtifact(1058)).resolves.toBe(true);
+
+    expect(findFirstPrMock).toHaveBeenCalledTimes(1);
+    expect(updateManyMock).toHaveBeenCalledTimes(1);
+    expect(recordTransitionMock.mock.calls[0][0]).toMatchObject({
+      metadata: { prSource: 'task_github_pr_id', prRef: 1058 },
+    });
+  });
+
   test('③ どちらにもPRがない → false、Task行には触れない', async () => {
     await expect(recoverFromLandedArtifact(1)).resolves.toBe(false);
 
