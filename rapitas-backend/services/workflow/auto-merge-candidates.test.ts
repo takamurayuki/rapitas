@@ -510,6 +510,24 @@ describe('findCandidates — Task.githubPrId fallback + duplicate-open-PR notify
     expect(result[0].prNumber).toBe(500);
     expect(notificationCreate).not.toHaveBeenCalled();
   });
+
+  // task #1058: continue-execution's linkContinueExecutionPr only sets
+  // Task.githubPrId (via the existing linkAutoCreatedPr call), the same shape
+  // as this fallback fixture — no separate wiring needed downstream.
+  it('discovers a PR linked only via Task.githubPrId, as continue-execution auto-linking produces (task #1058)', async () => {
+    addTask({ id: 1058 });
+    prTaskRows = [{ id: 1058, githubPrId: 900 }];
+    addOpenPrLookup(900, 'feature/1058-continue-exec');
+
+    const result = await findCandidates();
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      taskId: 1058,
+      prNumber: 900,
+      baseBranch: 'feature/1058-continue-exec',
+    });
+  });
 });
 
 // Cross-repository prNumber collision (task #596): GitHubPullRequest holds every

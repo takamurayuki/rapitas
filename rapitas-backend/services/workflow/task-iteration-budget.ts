@@ -137,12 +137,14 @@ export interface IterationBudgetInput {
   /** False when the task's theme has auto-run disabled — mirrors detectStagnation's themeAutoRunEnabled gate. */
   themeAutoRunEnabled?: boolean | null;
   /**
-   * True when an implementation is finished and only its verification is
-   * pending (workflowStatus 'in_progress'). The cost axis is deferred in that
-   * state: verification is the cheap step that turns the implement spend into
-   * a PR or a concrete finding, and halting before it discards the whole
-   * spend (task 1031, 2026-09-22: $46 of implementation parked unverified).
-   * The halt still fires at the next implementer dispatch.
+   * True when an implementation is finished and only its verification
+   * (workflowStatus 'in_progress') or its publication (verify_done without a
+   * PR yet) is pending. The cost axis is deferred in both states: they are the
+   * cheap, agent-free steps that turn the implement spend into a PR or a
+   * concrete finding, and halting there discards the whole spend (task 1031,
+   * 2026-09-22: $46 parked unverified; task 1060, 2026-09-24: verified diff
+   * halted one minute before its PR was created, stop-execution then cut the
+   * epilogue). The halt still fires at the next implementer dispatch.
    */
   pendingVerification?: boolean | null;
 }
@@ -318,7 +320,9 @@ export async function resolveIterationBudgetForTask(
       attemptsInWindow,
       repeatLoop,
       statusRepeatCount,
-      pendingVerification: task.workflowStatus === 'in_progress',
+      pendingVerification:
+        task.workflowStatus === 'in_progress' ||
+        (task.workflowStatus === 'verify_done' && task.githubPrId == null),
       ...guards,
     });
   } catch (err) {
