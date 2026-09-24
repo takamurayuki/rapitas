@@ -13,22 +13,24 @@ import { resolveStoredSecret } from '../../../utils/common/secret-store';
 import { logAgentConfigChange } from '../../../utils/agent/agent-audit-log';
 
 /**
- * Spawns a CLI binary with --version and resolves with success/message.
+ * Spawns a CLI binary with the given args and resolves with success/message.
  *
  * @param cliPath - Path or command name for the CLI binary / CLIバイナリのパスまたはコマンド名
  * @param label - Human-readable CLI name for error messages / エラーメッセージ用の表示名
+ * @param args - Arguments to pass to the CLI (defaults to `--version`) / CLIに渡す引数（既定は`--version`）
  * @returns Success flag and descriptive message / 成功フラグと説明メッセージ
  */
 async function testCliAvailability(
   cliPath: string,
   label: string,
+  args: string[] = ['--version'],
 ): Promise<{ success: boolean; message: string }> {
   const { spawn } = await import('child_process');
   return new Promise((resolve) => {
     // NOTE: shell:false — args are already an array; a shell isn't needed to
     // invoke a binary/cmd-shim by name (Node resolves it via PATHEXT on
     // Windows), and not using one closes off shell metacharacter injection.
-    const proc = spawn(cliPath, ['--version'], { shell: false });
+    const proc = spawn(cliPath, args, { shell: false });
     let stdout = '';
     let stderr = '';
 
@@ -269,10 +271,64 @@ export const agentTestRouter = new Elysia()
         return {
           success: testResult.success,
           agentType: agent.agentType,
+          // A --version response only proves the binary is installed, not that
+          // it is authenticated — no non-interactive auth-status command is
+          // registered for claude-cli, so this stays a CLI-presence-only claim.
           message: testResult.success
-            ? `Claude Code CLI接続成功: ${testResult.output}`
+            ? `Claude Code CLIの実行を確認しました（認証状態は未検証）: ${testResult.output}`
             : `Claude Code CLI接続失敗: ${testResult.error}`,
-          details: testResult,
+          details: { ...testResult, checkLevel: 'cli_only' },
+        };
+      }
+
+      if (agent.agentType === 'codex') {
+        // NOTE: Codex CLI is normally used with OAuth login, not an API key —
+        // apiKeyEncrypted being absent is expected, not an error condition.
+        const isWindows = process.platform === 'win32';
+        const codexPath = process.env.CODEX_CLI_PATH || (isWindows ? 'codex.cmd' : 'codex');
+        const cliCheck = await testCliAvailability(codexPath, 'Codex CLI');
+        if (!cliCheck.success) {
+          return {
+            success: false,
+            agentType: agent.agentType,
+            message: cliCheck.message,
+            details: { checkLevel: 'cli_only', cliCheck },
+          };
+        }
+        // A CLI --version response only proves the binary is installed, not
+        // that it is authenticated — `login status` is the separate signal
+        // for an actually-usable (logged in) connection.
+        const authCheck = await testCliAvailability(codexPath, 'Codex login status', [
+          'login',
+          'status',
+        ]);
+        return {
+          success: authCheck.success,
+          agentType: agent.agentType,
+          message: authCheck.success
+            ? `Codex CLI認証済み接続を確認しました: ${authCheck.message}`
+            : `Codex CLIは検出されましたが、ログイン状態を確認できませんでした: ${authCheck.message}`,
+          details: {
+            checkLevel: authCheck.success ? 'cli_and_auth' : 'cli_only',
+            cliCheck,
+            authCheck,
+          },
+        };
+      }
+
+      if (agent.agentType === 'gemini' && !agent.apiKeyEncrypted) {
+        // Gemini CLI can be verified without an API key, same as the legacy /test endpoint.
+        // No authenticated login-status equivalent has been verified for Gemini CLI, so this
+        // stays a CLI-presence-only check — the message must not claim a connection succeeded.
+        const geminiPath = process.env.GEMINI_CLI_PATH || 'gemini';
+        const cliResult = await testCliAvailability(geminiPath, 'Gemini CLI');
+        return {
+          success: cliResult.success,
+          agentType: agent.agentType,
+          message: cliResult.success
+            ? `Gemini CLIの実行を確認しました（認証状態は未検証）: ${cliResult.message}`
+            : cliResult.message,
+          details: { checkLevel: 'cli_only', cliCheck: cliResult },
         };
       }
 
