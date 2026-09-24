@@ -52,13 +52,13 @@ jobs:
       - name: Update Frontend pnpm lockfile
         working-directory: rapitas-frontend
         run: |
-          pnpm install
+          pnpm install --no-frozen-lockfile
           echo "FRONTEND_UPDATED=$(git diff --quiet pnpm-lock.yaml || echo 'true')" >> $GITHUB_ENV
 
       - name: Update Desktop pnpm lockfile
         working-directory: rapitas-desktop
         run: |
-          pnpm install
+          pnpm install --no-frozen-lockfile
           echo "DESKTOP_UPDATED=$(git diff --quiet pnpm-lock.yaml || echo 'true')" >> $GITHUB_ENV
 
       - name: Check for changes
