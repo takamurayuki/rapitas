@@ -35,6 +35,7 @@ import {
   saveTaskWorkLocally,
 } from './workflow-auto-commit-presave';
 import { syncAndReverifyBeforePublish } from './workflow-auto-commit-publish-guard';
+import { readyPullRequest } from '../../services/agents/orchestrator/git-operations/pr/pr-draft-ops';
 import { pushExistingPrBranch } from './workflow-auto-commit-reuse-push';
 import {
   PUBLICATION_CANCELLED_ERROR,
@@ -80,6 +81,8 @@ export type AutoCommitPRResult = {
   verifiedRevision?: string | null;
   /** HEAD at publication time; equals verifiedRevision whenever a PR was made. */
   publishedRevision?: string | null;
+  /** Three-way verdict (task 1099): 'unknown' → draft PR only; 'fail' never reaches PR creation. */
+  verdict?: 'pass' | 'fail' | 'unknown';
   autoMergeResult?: {
     success: boolean;
     mergeStrategy?: string;
@@ -264,6 +267,7 @@ export async function performAutoCommitAndPR(
     // introduced new lint/type errors. Mirrors the post-execution-review gate so
     // BOTH auto-PR paths are protected (closes the verify.md-triggered gap).
     const gate = await runVerificationGate(taskId, gitCwd, latestSession?.id);
+    result.verdict = gate.verdict;
     if (!gate.ok) {
       // The local commit above is kept on the task branch together with this
       // diagnosis; nothing is pushed or published.
@@ -298,10 +302,12 @@ export async function performAutoCommitAndPR(
         baseBranch: targetBranch,
         sessionId: latestSession?.id,
         verifiedRevision: result.verifiedRevision,
+        verdict: result.verdict ?? 'fail',
       });
       result.baseSyncResult = guard.baseSync;
       result.verifiedRevision = guard.verifiedRevision;
       result.publishedRevision = guard.headRevision;
+      result.verdict = guard.verdict;
       if (!guard.ok) {
         // NOTE: guard.error is a FIXED sentence (no raw git/merge output) so
         // completion classification never misreads it. Worktree preserved.
@@ -359,6 +365,10 @@ export async function performAutoCommitAndPR(
                   prNumber: existingOpenPr.prNumber,
                   error: `既存 PR #${existingOpenPr.prNumber} への push に失敗しました: ${pushed.error}`,
                 };
+            // Draft→ready promotion (task 1099): the automated half of the draft/ready OR condition.
+            if (pushed.success && result.verdict === 'pass') {
+              await readyPullRequest(gitCwd, existingOpenPr.prNumber);
+            }
           } else {
             const prTitle = `[Task-${taskId}] ${task.title}`;
             const prBody = `## Summary\n\nAuto-generated PR for Task #${taskId}: ${task.title}\n\n## Verification Report\n\n${verifyContent}\n\n---\n🤖 Generated automatically by Rapitas AI Agent`;
@@ -386,6 +396,7 @@ export async function performAutoCommitAndPR(
                     prBody,
                     targetBranch,
                     branchName ?? undefined,
+                    result.verdict === 'unknown',
                   );
             result.autoPRResult = prResult;
 

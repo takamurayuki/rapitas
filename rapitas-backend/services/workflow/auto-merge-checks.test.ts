@@ -62,6 +62,7 @@ const {
   readHeadSha,
   readPrState,
   updatePrBranch,
+  readIsDraft,
 } = await import('./auto-merge-checks');
 
 beforeEach(() => {
@@ -292,6 +293,28 @@ describe('readPrState', () => {
     execBehavior = () => Object.assign(new Error('gh failed'), { stderr: 'boom' });
 
     expect(await readPrState('/repo', 610)).toBeNull();
+    expect(logWarn).toHaveBeenCalledTimes(1);
+  });
+});
+
+// task 1099: draft/ready must never be mistaken for pass/fail readiness.
+describe('readIsDraft', () => {
+  it('returns true when the PR is a draft', async () => {
+    execBehavior = () => ({ stdout: '{"isDraft":true}', stderr: '' });
+
+    expect(await readIsDraft('/repo', 42)).toBe(true);
+  });
+
+  it('returns false when the PR is ready for review', async () => {
+    execBehavior = () => ({ stdout: '{"isDraft":false}', stderr: '' });
+
+    expect(await readIsDraft('/repo', 42)).toBe(false);
+  });
+
+  it('returns null and warns on a gh failure (fail-closed for the caller)', async () => {
+    execBehavior = () => Object.assign(new Error('gh failed'), { stderr: 'boom' });
+
+    expect(await readIsDraft('/repo', 42)).toBeNull();
     expect(logWarn).toHaveBeenCalledTimes(1);
   });
 });

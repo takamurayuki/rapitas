@@ -245,7 +245,11 @@ export async function runVerifyCommitPrPipeline(params: {
       const landingMode = autoCommitPRResult.requested
         ? resolveLandingMode(autoCommitPRResult.requested)
         : 'none';
-      if (shouldDeferCompletionForCi(landingMode)) {
+      if (
+        shouldDeferCompletionForCi(landingMode, {
+          indeterminate: autoCommitPRResult.verdict === 'unknown',
+        })
+      ) {
         // Hold at verify_done (status stays in-progress, NOT done). The watcher
         // completes on CI-green (pr) / merge (merge). Do not fire completion
         // side effects yet (taskMarkedDone stays false).

@@ -44,4 +44,20 @@ describe('shouldDeferCompletionForCi', () => {
     process.env.RAPITAS_STAGED_COMPLETION = 'false';
     expect(shouldDeferCompletionForCi('merge')).toBe(true);
   });
+
+  // task 1099: an 'unknown' verdict (indeterminate) must not complete
+  // synchronously even when the operator disabled staged completion.
+  test('pr mode defers when indeterminate:true, even with RAPITAS_STAGED_COMPLETION=false', () => {
+    process.env.RAPITAS_STAGED_COMPLETION = 'false';
+    expect(shouldDeferCompletionForCi('pr', { indeterminate: true })).toBe(true);
+  });
+
+  test('pr mode still completes immediately when indeterminate:false and staged completion is off', () => {
+    process.env.RAPITAS_STAGED_COMPLETION = 'false';
+    expect(shouldDeferCompletionForCi('pr', { indeterminate: false })).toBe(false);
+  });
+
+  test('the second argument is optional — existing single-argument callers keep working', () => {
+    expect(shouldDeferCompletionForCi('pr')).toBe(true);
+  });
 });

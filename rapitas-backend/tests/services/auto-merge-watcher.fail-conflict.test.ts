@@ -28,6 +28,7 @@ mock.module('../../services/workflow/auto-merge-checks', () => ({
   readMergeState: mockReadMergeState,
   readHeadSha: mockReadHeadSha,
   updatePrBranch: mockUpdatePrBranch,
+  readIsDraft: mock(() => Promise.resolve(false)),
   ghPath: () => 'gh',
 }));
 

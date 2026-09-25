@@ -21,19 +21,35 @@ test('an empty diff still runs configured runtime verification and preserves its
   const root = await mkdtemp(join(tmpdir(), 'empty-runtime-'));
   try {
     execFileSync('git', ['init', '--quiet', root], { windowsHide: true });
-    for (const verdict of [
-      null,
-      { name: 'runtime', ran: true, ok: true, errorCount: 0, details: 'browser passed' },
-      {
-        name: 'runtime',
-        ran: false,
-        ok: false,
-        unverifiable: true,
-        errorCount: 0,
-        details: 'browser unavailable',
-      },
-      { name: 'runtime', ran: true, ok: false, errorCount: 1, details: 'HTTP 500' },
-    ] as Array<VerificationCheck | null>) {
+    for (const [verdict, expectedThreeWay] of [
+      [null, 'pass'],
+      [{ name: 'runtime', ran: true, ok: true, errorCount: 0, details: 'browser passed' }, 'pass'],
+      [
+        {
+          name: 'runtime',
+          ran: false,
+          ok: false,
+          unverifiable: true,
+          errorCount: 0,
+          details: 'browser unavailable',
+        },
+        'fail',
+      ],
+      [{ name: 'runtime', ran: true, ok: false, errorCount: 1, details: 'HTTP 500' }, 'fail'],
+      // task 1099: a check can be ok but attribution-indeterminate — the
+      // three-way verdict must surface 'unknown', distinct from a hard 'fail'.
+      [
+        {
+          name: 'runtime',
+          ran: true,
+          ok: true,
+          errorCount: 0,
+          details: 'baseline comparison inconclusive',
+          indeterminate: true,
+        },
+        'unknown',
+      ],
+    ] as Array<[VerificationCheck | null, 'pass' | 'fail' | 'unknown']>) {
       result = verdict;
       runtime.mockClear();
       const actual = await runAutomatedVerification(root, { taskId: 906 });
@@ -42,6 +58,7 @@ test('an empty diff still runs configured runtime verification and preserves its
       expect(actual.ok).toBe(verdict?.ok ?? true);
       expect(actual.unverifiable).toBe(verdict?.unverifiable ?? false);
       expect(actual.checks.filter((c) => c.name === 'runtime')).toEqual(verdict ? [verdict] : []);
+      expect(actual.verdict).toBe(expectedThreeWay);
     }
   } finally {
     await rm(root, { recursive: true, force: true });

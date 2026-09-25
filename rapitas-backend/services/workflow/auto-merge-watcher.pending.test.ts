@@ -9,15 +9,19 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 // NOTE: readHeadSha/updatePrBranch are required by auto-merge-ci-failure — this
 // mock replaces auto-merge-checks wholesale (bun mock.module is process-global),
 // so omitting any export would crash importers.
+let draftFixture: boolean | null = false;
 mock.module('./auto-merge-checks', () => ({
   blockingChecks: () => new Set(['Lint Code']),
-  evaluateAutoMergeChecks: () => 'pending',
+  evaluateAutoMergeChecks: () => evaluateFixture,
   readPrChecks: mock(() => Promise.resolve([{ name: 'Lint Code', bucket: 'pass' }])),
   readMergeState: mock(() => Promise.resolve('CLEAN')),
   readHeadSha: mock(() => Promise.resolve('sha-current')),
   updatePrBranch: mock(() => Promise.resolve(true)),
+  // task 1099: mutable per-test so the draft-hold suite below can drive it.
+  readIsDraft: mock(() => Promise.resolve(draftFixture)),
   ghPath: () => 'gh',
 }));
+let evaluateFixture: 'pass' | 'fail' | 'pending' | 'unknown' = 'pending';
 
 // task 1021: the watcher now consults the pre-merge gate + drift check; both would
 // otherwise shell out to gh/git. Tests drive the gate result through mockGate.
@@ -144,6 +148,7 @@ const candidate = {
 
 describe('AutoMergeWatcher — pending checks', () => {
   test('does not merge, complete, or notify success while checks are pending', async () => {
+    evaluateFixture = 'pending';
     mockMerge.mockClear();
     mockTaskComplete.mockClear();
     mockNotify.mockClear();
@@ -151,5 +156,53 @@ describe('AutoMergeWatcher — pending checks', () => {
     expect(mockMerge).not.toHaveBeenCalled();
     expect(mockTaskComplete).not.toHaveBeenCalled();
     expect(mockNotify).not.toHaveBeenCalled();
+  });
+});
+
+// task 1099: a draft PR (unknown verdict) must never merge or complete, even
+// once CI checks are green.
+describe('AutoMergeWatcher — draft PR hold', () => {
+  test('does not merge or complete a draft PR even though CI checks pass', async () => {
+    evaluateFixture = 'pass';
+    draftFixture = true;
+    mockMerge.mockClear();
+    mockTaskComplete.mockClear();
+    mockNotify.mockClear();
+    await getProcess()(candidate, new Set(['Lint Code']));
+    expect(mockMerge).not.toHaveBeenCalled();
+    expect(mockTaskComplete).not.toHaveBeenCalled();
+    expect(mockNotify).not.toHaveBeenCalled();
+  });
+
+  test('fail-closed: an unreadable draft state (null) also holds', async () => {
+    evaluateFixture = 'pass';
+    draftFixture = null;
+    mockMerge.mockClear();
+    mockTaskComplete.mockClear();
+    mockNotify.mockClear();
+    await getProcess()(candidate, new Set(['Lint Code']));
+    expect(mockMerge).not.toHaveBeenCalled();
+    expect(mockTaskComplete).not.toHaveBeenCalled();
+  });
+
+  test('a non-draft PR with no blocking CI configured but mergeState CLEAN still holds while draft', async () => {
+    // No blocking CI reported → falls to the mergeState-CLEAN fallback path,
+    // which also converges on the same 'pass' checkpoint the draft hold guards.
+    evaluateFixture = 'unknown';
+    draftFixture = true;
+    mockMerge.mockClear();
+    mockTaskComplete.mockClear();
+    await getProcess()(candidate, new Set(['Lint Code']));
+    expect(mockMerge).not.toHaveBeenCalled();
+    expect(mockTaskComplete).not.toHaveBeenCalled();
+  });
+
+  test('merges once the PR is confirmed not draft', async () => {
+    evaluateFixture = 'pass';
+    draftFixture = false;
+    mockMerge.mockClear();
+    mockTaskComplete.mockClear();
+    await getProcess()(candidate, new Set(['Lint Code']));
+    expect(mockMerge).toHaveBeenCalledTimes(1);
   });
 });

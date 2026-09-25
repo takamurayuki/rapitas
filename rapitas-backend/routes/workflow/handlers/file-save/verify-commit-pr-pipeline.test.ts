@@ -63,9 +63,12 @@ mock.module('../../../../services/workflow/automation-policy', () => ({
 // its real logic under the default staged-completion-enabled state — the flag
 // itself is unit-tested directly in completion-gate.test.ts, not re-tested at
 // this pipeline-integration level) instead of loading that whole chain.
+const shouldDeferCalls: Array<{ landingMode: string; indeterminate?: boolean }> = [];
 mock.module('../../../../services/workflow/completion-gate', () => ({
-  shouldDeferCompletionForCi: (landingMode: string) =>
-    landingMode === 'merge' || landingMode === 'pr',
+  shouldDeferCompletionForCi: (landingMode: string, opts?: { indeterminate?: boolean }) => {
+    shouldDeferCalls.push({ landingMode, indeterminate: opts?.indeterminate });
+    return landingMode === 'merge' || landingMode === 'pr';
+  },
 }));
 const markLatestExecutionFailedMock = mock(() => Promise.resolve());
 mock.module('./shared', () => ({
@@ -155,6 +158,48 @@ describe('task 950 — pr mode always waits for CI (no staged-completion flag)',
     expect(outcome.newStatus).toBe('verify_done');
     expect(sideEffectsCalls.length).toBe(before);
     sideEffectsCalls.splice(before);
+  });
+});
+
+// task 1099: an 'unknown' verdict (draft PR) is passed through as `indeterminate`
+// so shouldDeferCompletionForCi holds even when staged completion is disabled.
+describe('task 1099 — verdict=unknown is passed to shouldDeferCompletionForCi as indeterminate', () => {
+  test('verdict=unknown → shouldDeferCompletionForCi(landingMode, { indeterminate: true })', async () => {
+    shouldDeferCalls.length = 0;
+    performAutoCommitAndPRMock.mockImplementationOnce(() =>
+      Promise.resolve({
+        requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+        autoCommitResult: { success: true, filesChanged: 2 },
+        autoPRResult: { success: true, prNumber: 900 },
+        verdict: 'unknown',
+      }),
+    );
+    await runVerifyCommitPrPipeline({
+      taskId: 1099,
+      completionReceipt: { ...receipt, taskId: 1099 },
+      savedContent: '# 検証結果',
+      preferredBaseBranchForVerify: null,
+    });
+    expect(shouldDeferCalls).toEqual([{ landingMode: 'pr', indeterminate: true }]);
+  });
+
+  test('verdict=pass → shouldDeferCompletionForCi(landingMode, { indeterminate: false })', async () => {
+    shouldDeferCalls.length = 0;
+    performAutoCommitAndPRMock.mockImplementationOnce(() =>
+      Promise.resolve({
+        requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+        autoCommitResult: { success: true, filesChanged: 2 },
+        autoPRResult: { success: true, prNumber: 901 },
+        verdict: 'pass',
+      }),
+    );
+    await runVerifyCommitPrPipeline({
+      taskId: 1100,
+      completionReceipt: { ...receipt, taskId: 1100 },
+      savedContent: '# 検証結果',
+      preferredBaseBranchForVerify: null,
+    });
+    expect(shouldDeferCalls).toEqual([{ landingMode: 'pr', indeterminate: false }]);
   });
 });
 

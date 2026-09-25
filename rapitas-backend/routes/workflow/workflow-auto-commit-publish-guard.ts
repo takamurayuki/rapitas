@@ -32,6 +32,13 @@ export interface PublishGuardResult {
   verificationUnverifiable?: boolean;
   /** Fixed sentence (no raw git output) safe for completion classification. */
   error?: string;
+  /**
+   * Three-way verdict (task 1099): the caller's pre-guard verdict, or the
+   * regate's verdict when the base sync moved HEAD and a regate ran. Every
+   * early-return branch below sets `'fail'` explicitly — a withheld publish
+   * must never look like `'unknown'` (draft-permitted).
+   */
+  verdict: 'pass' | 'fail' | 'unknown';
 }
 
 /**
@@ -48,6 +55,7 @@ export async function syncAndReverifyBeforePublish(p: {
   baseBranch: string;
   sessionId?: number;
   verifiedRevision: string | null;
+  verdict: 'pass' | 'fail' | 'unknown';
 }): Promise<PublishGuardResult> {
   const { taskId, gitCwd, baseBranch } = p;
   // The gate verified the WORKING TREE; a push publishes HEAD. Anything left
@@ -68,6 +76,7 @@ export async function syncAndReverifyBeforePublish(p: {
       dirtyPaths: dirtyBefore ?? [],
       error:
         '検証後に未コミット・未追跡の変更が残っているため、検証した内容と異なる状態を公開しないよう push/PR を中止しました。',
+      verdict: 'fail',
     };
   }
   const baseSync = await syncBaseIntoBranch({
@@ -85,9 +94,11 @@ export async function syncAndReverifyBeforePublish(p: {
     verifiedRevision: p.verifiedRevision,
     headRevision: null,
     reverified: false,
+    verdict: p.verdict,
   };
 
   if (baseSync.status === 'conflict_unresolved' || baseSync.status === 'reverify_failed') {
+    out.verdict = 'fail';
     // Withhold the PR; keep the worktree (NO cleanup) as the backstop for the
     // conflict-task / AutoMergeWatcher defense line and for a re-run.
     if (baseSync.status === 'reverify_failed') {
@@ -131,6 +142,7 @@ export async function syncAndReverifyBeforePublish(p: {
     );
     const regate = await runVerificationGate(taskId, gitCwd, p.sessionId);
     out.reverified = true;
+    out.verdict = regate.verdict;
     if (!regate.ok) {
       out.verificationBlocked = true;
       out.verificationUnverifiable = regate.result?.unverifiable === true || regate.result === null;
@@ -147,6 +159,7 @@ export async function syncAndReverifyBeforePublish(p: {
     out.dirtyPaths = dirtyAfter ?? [];
     out.error =
       'base 取り込み後に未コミット・未追跡の変更が残っているため、検証した内容と異なる状態を公開しないよう push/PR を中止しました。';
+    out.verdict = 'fail';
     log.warn(
       { taskId, dirty: dirtyAfter?.slice(0, 20) ?? 'unknown' },
       '[Workflow] working tree differs from HEAD after the sync — refusing to publish',
@@ -155,6 +168,7 @@ export async function syncAndReverifyBeforePublish(p: {
   }
   if (out.headRevision === null || out.headRevision !== out.verifiedRevision) {
     out.error = `検証済みの版と HEAD が一致しないため、push/PR を中止しました。`;
+    out.verdict = 'fail';
     log.warn(
       { taskId, verified: out.verifiedRevision, head: out.headRevision },
       '[Workflow] refusing to publish an unverified revision',

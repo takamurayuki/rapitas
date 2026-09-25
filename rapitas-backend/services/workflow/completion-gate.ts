@@ -159,16 +159,25 @@ export async function evaluateCompletionGate(
  * returns true; `auto-merge-watcher.ts`'s CI polling later completes it.
  *
  * `merge` mode always defers (a merge outcome must always be confirmed).
- * `pr` mode defers only while task 948's `RAPITAS_STAGED_COMPLETION` escape
- * hatch is enabled (the default) — an operator who explicitly disables it
- * opts back into the legacy immediate-completion behaviour for `pr` mode.
+ * `pr` mode defers when task 948's `RAPITAS_STAGED_COMPLETION` escape hatch
+ * is enabled (the default), OR when `opts.indeterminate` is true (task 1099:
+ * an `unknown` verdict must not complete synchronously even with staged
+ * completion disabled — draft PRs still need CI/human resolution). An
+ * operator who explicitly disables staged completion opts back into the
+ * legacy immediate-completion behaviour for `pr` mode ONLY for a `pass`
+ * verdict.
  *
  * @param landingMode - How the task's changes reach the default branch, as
  *   resolved by `resolveLandingMode` (automation-policy.ts). / 完了点を決める landing mode
+ * @param opts.indeterminate - True when the verification verdict was
+ *   `'unknown'` (task 1099). / 判定不能だったか
  * @returns true when completion must wait on CI/merge. / CI待ちが必要か
  */
-export function shouldDeferCompletionForCi(landingMode: LandingMode): boolean {
+export function shouldDeferCompletionForCi(
+  landingMode: LandingMode,
+  opts?: { indeterminate?: boolean },
+): boolean {
   if (landingMode === 'merge') return true;
-  if (landingMode === 'pr') return isStagedCompletionEnabled();
+  if (landingMode === 'pr') return isStagedCompletionEnabled() || opts?.indeterminate === true;
   return false;
 }

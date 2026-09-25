@@ -21,6 +21,8 @@ mock.module('./auto-merge-checks', () => ({
   readMergeState: mock(() => Promise.resolve('CLEAN')),
   readHeadSha: mock(() => Promise.resolve('sha-current')),
   updatePrBranch: mock(() => Promise.resolve(true)),
+  // task 1099: not a draft, so this file's existing merge-flow tests are unaffected.
+  readIsDraft: mock(() => Promise.resolve(false)),
   ghPath: () => 'gh',
 }));
 

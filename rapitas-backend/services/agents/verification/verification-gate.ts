@@ -63,6 +63,12 @@ export interface GateOutcome {
   ok: boolean;
   /** The verification result, or null when the verifier could not run. */
   result: VerificationResult | null;
+  /**
+   * Three-way verdict (task 1099), propagated from `result.verdict`. A
+   * verifier crash yields `'fail'`, never `'unknown'` — see
+   * `verificationCrashResult`.
+   */
+  verdict: 'pass' | 'fail' | 'unknown';
 }
 
 /** Tooling failures cannot establish correctness or justify code-repair retries. */
@@ -74,6 +80,7 @@ export function verificationCrashResult(): VerificationResult {
     checks: [],
     summary:
       'Automated verification could not complete; restore the verifier and rerun verification.',
+    verdict: 'fail',
   };
 }
 
@@ -209,11 +216,11 @@ export async function runVerificationGate(
 
   if (result.ok) {
     log.info({ taskId, summary: result.summary }, 'Automated verification passed');
-    return { ok: true, result };
+    return { ok: true, result, verdict: result.verdict };
   }
 
   await blockTaskForVerification(taskId, result, sessionId);
-  return { ok: false, result };
+  return { ok: false, result, verdict: result.verdict };
 }
 
 /**
