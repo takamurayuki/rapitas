@@ -55,11 +55,7 @@ export type { ExecutionOptions, ExecutionState, OrchestratorEvent, EventListener
 
 const logger = createLogger('agent-orchestrator');
 
-/**
- * AgentOrchestrator
- *
- * Singleton that coordinates agent execution, lifecycle, and recovery.
- */
+/** AgentOrchestrator — singleton that coordinates agent execution, lifecycle, and recovery. */
 export class AgentOrchestrator {
   private static instance: AgentOrchestrator;
   private prisma: PrismaClientInstance;
@@ -378,13 +374,14 @@ export class AgentOrchestrator {
   }
 
   async createPullRequest(
-    workingDirectory: string,
+    cwd: string,
     title: string,
     body: string,
     baseBranch?: string,
     headBranch?: string,
+    draft?: boolean,
   ): Promise<{ success: boolean; prUrl?: string; prNumber?: number; error?: string }> {
-    return this.gitOps.createPullRequest(workingDirectory, title, body, baseBranch, headBranch);
+    return this.gitOps.createPullRequest(cwd, title, body, baseBranch, headBranch, draft);
   }
 
   async mergePullRequest(

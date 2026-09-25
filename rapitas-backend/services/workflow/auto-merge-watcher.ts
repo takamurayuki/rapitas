@@ -25,6 +25,7 @@ import {
   evaluateAutoMergeChecks,
   readPrChecks,
   readMergeState,
+  readIsDraft,
 } from './auto-merge-checks';
 import { markExhausted } from './auto-merge-exhaustion';
 import { notify } from './auto-merge-notify';
@@ -304,6 +305,22 @@ export class AutoMergeWatcher {
         if (await this.handleMergeConflict(c, 'merge state DIRTY (no CI checks)')) return;
         await mark(c.taskId, 'auto_merge_blocked', 'conflict unresolved (DIRTY, no CI)');
         return;
+      }
+    }
+
+    // Draft PRs (task 1099: `unknown` verdict) must never merge or complete —
+    // this is the final backstop before EITHER the CI-green path above or the
+    // no-CI+mergeState-CLEAN fallback path reaches 'pass'; both converge here.
+    // Fail-closed: a read failure (null) holds exactly like draft===true, so
+    // "could not tell" never gets treated as "not draft".
+    if (state === 'pass') {
+      const draft = await readIsDraft(c.cwd, c.prNumber);
+      if (draft !== false) {
+        state = 'pending';
+        log.info(
+          { taskId: c.taskId, prNumber: c.prNumber, draft },
+          '[auto-merge] PR is draft (or draft state unknown) — holding, not merging/completing',
+        );
       }
     }
 

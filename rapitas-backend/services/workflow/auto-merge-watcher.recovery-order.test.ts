@@ -51,6 +51,7 @@ mock.module('./auto-merge-checks', () => ({
   readMergeState: mock(() => Promise.resolve('CLEAN')),
   readHeadSha: mock(() => Promise.resolve('sha')),
   updatePrBranch: mock(() => Promise.resolve(true)),
+  readIsDraft: mock(() => Promise.resolve(false)),
   ghPath: () => 'gh',
 }));
 // task 1021: the watcher now consults the pre-merge gate + drift check; both would

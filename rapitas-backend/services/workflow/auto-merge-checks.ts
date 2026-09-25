@@ -232,3 +232,28 @@ export async function readHeadSha(cwd: string, prNumber: number): Promise<string
     return null;
   }
 }
+
+/**
+ * Read whether the PR is still a GitHub draft (task 1099: an `unknown`
+ * verdict opens a draft PR — draft must never auto-merge or complete).
+ * Returns null on a transient gh error so callers can fail-closed (treat
+ * `null` the same as `true` — the whole point of not treating "judgment
+ * unavailable" as "success").
+ *
+ * @param cwd - Repo working directory / リポジトリ作業ディレクトリ
+ * @param prNumber - PR number / PR番号
+ * @returns true/false, or null on a read failure. / draft か、読み取り失敗時は null
+ */
+export async function readIsDraft(cwd: string, prNumber: number): Promise<boolean | null> {
+  try {
+    const { stdout } = await execAsync(`${ghPath()} pr view ${prNumber} --json isDraft`, {
+      cwd,
+      encoding: 'utf8',
+    });
+    const parsed = JSON.parse(stdout) as { isDraft?: boolean };
+    return parsed.isDraft ?? null;
+  } catch (err) {
+    log.warn({ err, prNumber }, '[auto-merge] Failed to read PR draft state');
+    return null;
+  }
+}

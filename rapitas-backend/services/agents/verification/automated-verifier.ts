@@ -93,11 +93,10 @@ export interface VerificationResult {
   checks: VerificationCheck[];
   /** One-line human summary. */
   summary: string;
-  /**
-   * True when at least one check was unverifiable (configured tooling could not
-   * run). Distinct from a normal failure: self-repair retries cannot fix it.
-   */
+  /** True when a check was unverifiable (tooling couldn't run) — distinct from a normal failure: self-repair can't fix it. */
   unverifiable?: boolean;
+  /** Three-way verdict (task 1099): 'fail' beats 'unknown'. */
+  verdict: 'pass' | 'fail' | 'unknown';
 }
 
 interface CmdResult {
@@ -1031,6 +1030,7 @@ export async function runAutomatedVerification(
 
   const unverifiable = checks.some((c) => c.unverifiable);
   const ok = computeOverallOk(checks);
+  const verdict = !ok ? 'fail' : checks.some((c) => c.indeterminate) ? 'unknown' : 'pass';
   const summary = checks
     .map((c) =>
       c.unverifiable
@@ -1043,7 +1043,7 @@ export async function runAutomatedVerification(
     )
     .join(' / ');
 
-  return { ok, changedFiles, checks, summary: `自動検証: ${summary}`, unverifiable };
+  return { ok, changedFiles, checks, summary: `自動検証: ${summary}`, unverifiable, verdict };
 }
 
 // NOTE: Rendering moved to verification-report.ts (file-size split); re-exported

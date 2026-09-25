@@ -123,6 +123,7 @@ export interface CreatePullRequestResult {
  * @param body - PR description / PRの説明
  * @param baseBranch - Override base branch; auto-detected if omitted / ベースブランチ（省略時は自動検出）
  * @param headBranch - Head branch for the PR; falls back to the checked-out branch if omitted / PRのheadブランチ（省略時はチェックアウト中のブランチ）
+ * @param draft - Open the PR as a GitHub draft (task 1099: unknown verdict) / draft PR として作成するか
  * @returns Result with success flag, PR URL, and PR number / 成功フラグ・PR URL・PR番号を含む結果
  */
 export async function createPullRequest(
@@ -131,6 +132,7 @@ export async function createPullRequest(
   body: string,
   baseBranch?: string,
   headBranch?: string,
+  draft?: boolean,
 ): Promise<CreatePullRequestResult> {
   // NOTE: RAPITAS_EVAL_MODE is set ONLY by scripts/eval-runner.ts and
   // scripts/fault-injection-e2e.ts (see docs/eval-private-set.md) — never by
@@ -308,7 +310,17 @@ export async function createPullRequest(
     // checkout state (the reuse check above already passes --head; this makes
     // creation consistent with it).
     const prUrl = await runGhCommandWithBody(
-      ['pr', 'create', '--title', title, '--base', targetBranch, '--head', currentBranch],
+      [
+        'pr',
+        'create',
+        '--title',
+        title,
+        '--base',
+        targetBranch,
+        '--head',
+        currentBranch,
+        ...(draft ? ['--draft'] : []),
+      ],
       body,
       workingDirectory,
     );

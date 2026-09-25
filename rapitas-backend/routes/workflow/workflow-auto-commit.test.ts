@@ -83,7 +83,7 @@ mock.module('../../services/workflow/automation-policy', () => ({
 const verificationGateMock = mock(
   async (): Promise<
     import('../../services/agents/verification/verification-gate').GateOutcome
-  > => ({ ok: true, result: null }),
+  > => ({ ok: true, result: null, verdict: 'pass' }),
 );
 mock.module('../../services/agents/verification/verification-gate', () => ({
   runVerificationGate: verificationGateMock,
@@ -112,8 +112,16 @@ mock.module('../../services/agents/agent-orchestrator', () => ({
           alreadyCommitted: false,
         });
       },
-      createPullRequest: () => {
+      createPullRequest: (
+        _cwd: string,
+        _title: string,
+        _body: string,
+        _base?: string,
+        _head?: string,
+        draft?: boolean,
+      ) => {
         createPullRequestCalls++;
+        createPullRequestDraftArgs.push(draft);
         return Promise.resolve(prResultFixture);
       },
       removeWorktree: () => {
@@ -160,11 +168,21 @@ mock.module('./workflow-auto-commit-reuse-push', () => ({
   },
 }));
 
+// task 1099: draft→ready promotion on the reuse path.
+const readyPullRequestCalls: Array<{ cwd: string; prNumber: number }> = [];
+mock.module('../../services/agents/orchestrator/git-operations/pr/pr-draft-ops', () => ({
+  readyPullRequest: (cwd: string, prNumber: number) => {
+    readyPullRequestCalls.push({ cwd, prNumber });
+    return Promise.resolve(true);
+  },
+}));
+
 // `git rev-list --count origin/<base>..HEAD` seen by countCommitsAhead. The
 // default says the branch IS ahead so the existing tests keep exercising the
 // gh path; the no-change test sets it to '0'.
 let revListFixture = '1';
 let createPullRequestCalls = 0;
+const createPullRequestDraftArgs: Array<boolean | undefined> = [];
 let createCommitCalls = 0;
 let removeWorktreeCalls = 0;
 mock.module('../../services/github/git-exec', () => ({
@@ -432,6 +450,7 @@ test('unverifiable gate keeps the local commit and exposes the infrastructure ou
   createPullRequestCalls = 0;
   verificationGateMock.mockResolvedValueOnce({
     ok: false,
+    verdict: 'fail',
     result: {
       ok: false,
       unverifiable: true,
@@ -497,9 +516,10 @@ describe('publish guard: the pushed revision is the verified revision', () => {
     baseSyncFixture = { status: 'clean', changedFiles: 2, conflicts: [], detail: 'merged' };
     headQueue = [HEAD_A, HEAD_B, HEAD_B];
     verificationGateMock.mockClear();
-    verificationGateMock.mockResolvedValueOnce({ ok: true, result: null });
+    verificationGateMock.mockResolvedValueOnce({ ok: true, result: null, verdict: 'pass' });
     verificationGateMock.mockResolvedValueOnce({
       ok: false,
+      verdict: 'fail',
       result: { ok: false, summary: 'test=NG(1)', checks: [], changedFiles: [] },
     });
     const out = await performAutoCommitAndPR(687, 'PASS');
@@ -560,6 +580,7 @@ test('order: pre-save → local commit → harness sync → gate; a held gate ne
     callOrder.push('gate');
     return Promise.resolve({
       ok: false,
+      verdict: 'fail',
       result: {
         ok: false,
         unverifiable: true,
@@ -589,6 +610,7 @@ describe('performAutoCommitAndPR — 既存 PR 再利用時も push する (#106
     filesChangedFixture = 1;
     createPullRequestCalls = 0;
 
+    readyPullRequestCalls.length = 0;
     const out = await performAutoCommitAndPR(687, 'PASS');
 
     expect(createPullRequestCalls).toBe(0);
@@ -598,6 +620,24 @@ describe('performAutoCommitAndPR — 既存 PR 再利用時も push する (#106
       prUrl: 'https://github.com/x/y/pull/772',
       prNumber: 772,
     });
+    // task 1099: a reused PR pushed with a 'pass' verdict is promoted from draft to ready.
+    expect(readyPullRequestCalls).toEqual([{ cwd: 'C:\\work\\project', prNumber: 772 }]);
+    openPrFixture = null;
+  });
+
+  test('reused PR: an unknown verdict does not promote the draft PR to ready', async () => {
+    cancelAtStep = null;
+    openPrFixture = { prNumber: 773, url: 'https://github.com/x/y/pull/773' };
+    reusePushFixture = { success: true };
+    reusePushCalls.length = 0;
+    readyPullRequestCalls.length = 0;
+    filesChangedFixture = 1;
+    verificationGateMock.mockResolvedValueOnce({ ok: true, result: null, verdict: 'unknown' });
+
+    await performAutoCommitAndPR(687, 'PASS');
+
+    expect(reusePushCalls.length).toBe(1);
+    expect(readyPullRequestCalls).toEqual([]);
     openPrFixture = null;
   });
 
@@ -616,5 +656,41 @@ describe('performAutoCommitAndPR — 既存 PR 再利用時も push する (#106
     expect(out.autoPRResult?.error).toContain('non-fast-forward');
     openPrFixture = null;
     reusePushFixture = { success: true };
+  });
+});
+
+describe('performAutoCommitAndPR — 三値判定 verdict に基づく draft PR 作成 (task 1099)', () => {
+  test('verdict=unknown のとき createPullRequest は draft:true 付きで呼ばれる', async () => {
+    cancelAtStep = null;
+    openPrFixture = null;
+    filesChangedFixture = 1;
+    revListFixture = '1';
+    createPullRequestCalls = 0;
+    createPullRequestDraftArgs.length = 0;
+    prResultFixture = { success: true, error: '', prNumber: 900 };
+    verificationGateMock.mockResolvedValueOnce({ ok: true, result: null, verdict: 'unknown' });
+
+    const out = await performAutoCommitAndPR(687, 'PASS');
+
+    expect(createPullRequestCalls).toBe(1);
+    expect(createPullRequestDraftArgs).toEqual([true]);
+    expect(out.verdict).toBe('unknown');
+  });
+
+  test('verdict=pass のとき createPullRequest は draft 未指定で呼ばれる', async () => {
+    cancelAtStep = null;
+    openPrFixture = null;
+    filesChangedFixture = 1;
+    revListFixture = '1';
+    createPullRequestCalls = 0;
+    createPullRequestDraftArgs.length = 0;
+    prResultFixture = { success: true, error: '', prNumber: 901 };
+    verificationGateMock.mockResolvedValueOnce({ ok: true, result: null, verdict: 'pass' });
+
+    const out = await performAutoCommitAndPR(687, 'PASS');
+
+    expect(createPullRequestCalls).toBe(1);
+    expect(createPullRequestDraftArgs).toEqual([false]);
+    expect(out.verdict).toBe('pass');
   });
 });

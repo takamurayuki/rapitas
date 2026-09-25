@@ -76,7 +76,11 @@ test('a normal gate failure records no hold (stays eligible for repair/retry)', 
 });
 
 test('a verifier crash (no check evidence) stays retryable: no hold recorded', async () => {
-  await blockTaskForVerification(912, verificationCrashResult());
+  const crash = verificationCrashResult();
+  // task 1099: a crash is always 'fail', never 'unknown' — it must not be
+  // mistaken for a merely-indeterminate result that permits a draft PR.
+  expect(crash.verdict).toBe('fail');
+  await blockTaskForVerification(912, crash);
   expect(blockedWrites).toEqual([912]);
   expect(recorded).toHaveLength(0);
 });

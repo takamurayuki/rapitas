@@ -205,3 +205,47 @@ describe('createPullRequest — headBranch 明示解決', () => {
     expect(ghWithBodyCalls.length).toBe(0);
   });
 });
+
+// task 1099: unknown-verdict tasks publish a draft PR instead of a normal one.
+describe('createPullRequest — draft オプション (task 1099)', () => {
+  test('draft=true のとき gh pr create に --draft が渡ること', async () => {
+    ghWithBodyResult = 'https://github.com/x/y/pull/30';
+    script = [
+      { match: /git branch --list develop/, result: 'develop\n' },
+      { match: /git push -u origin feature\/draft-on$/, result: '' },
+      { match: /pr list --head/, result: '' },
+    ];
+
+    const res = await createPullRequest(
+      '/repo',
+      '[Task-1099] t',
+      'b',
+      'develop',
+      'feature/draft-on',
+      true,
+    );
+
+    expect(res.success).toBe(true);
+    expect(ghWithBodyCalls[0]!.baseArgs).toContain('--draft');
+  });
+
+  test('draft 未指定/false のとき gh pr create に --draft が渡らないこと', async () => {
+    ghWithBodyResult = 'https://github.com/x/y/pull/31';
+    script = [
+      { match: /git branch --list develop/, result: 'develop\n' },
+      { match: /git push -u origin feature\/draft-off$/, result: '' },
+      { match: /pr list --head/, result: '' },
+    ];
+
+    const res = await createPullRequest(
+      '/repo',
+      '[Task-1099] t',
+      'b',
+      'develop',
+      'feature/draft-off',
+    );
+
+    expect(res.success).toBe(true);
+    expect(ghWithBodyCalls[0]!.baseArgs).not.toContain('--draft');
+  });
+});

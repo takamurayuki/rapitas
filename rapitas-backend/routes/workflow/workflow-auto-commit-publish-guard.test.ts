@@ -18,16 +18,17 @@ mock.module('./workflow-auto-commit-presave', () => ({
   listWorkingTreeChanges: () => Promise.resolve(dirtyQueue.length ? dirtyQueue.shift()! : []),
 }));
 const gateCalls: number[] = [];
-let gateFixture = {
-  ok: true,
-  result: null as null | {
+let gateFixture: {
+  ok: boolean;
+  verdict: 'pass' | 'fail' | 'unknown';
+  result: null | {
     ok: boolean;
     unverifiable?: boolean;
     summary: string;
     checks: never[];
     changedFiles: never[];
-  },
-};
+  };
+} = { ok: true, verdict: 'pass', result: null };
 mock.module('../../services/agents/verification/verification-gate', () => ({
   runVerificationGate: (taskId: number) => {
     gateCalls.push(taskId);
@@ -46,18 +47,19 @@ mock.module('../../config/logger', () => ({
 }));
 
 const { syncAndReverifyBeforePublish } = await import('./workflow-auto-commit-publish-guard');
-const run = () =>
+const run = (verdict: 'pass' | 'fail' | 'unknown' = 'pass') =>
   syncAndReverifyBeforePublish({
     taskId: 9,
     gitCwd: 'C:/wt',
     baseBranch: 'develop',
     verifiedRevision: A,
+    verdict,
   });
 
 beforeEach(() => {
   gateCalls.length = 0;
   notified.length = 0;
-  gateFixture = { ok: true, result: null };
+  gateFixture = { ok: true, verdict: 'pass', result: null };
   syncFixture = { status: 'clean', changedFiles: 0, conflicts: [], detail: '' };
   headFixture = A;
   dirtyQueue = [];
@@ -65,12 +67,14 @@ beforeEach(() => {
 
 test('a dirty tree after the gate withholds publication before any sync', async () => {
   dirtyQueue = [[' M rapitas-backend/x.ts']];
-  const r = await run();
+  const r = await run('unknown');
   expect(r.ok).toBe(false);
   expect(r.dirtyPaths).toEqual([' M rapitas-backend/x.ts']);
   expect(r.error).toContain('未コミット・未追跡');
   expect(gateCalls).toEqual([]);
   expect(r.baseSync.status).toBe('skipped');
+  // task 1099: a withheld publish must never read as 'unknown' (draft-permitted).
+  expect(r.verdict).toBe('fail');
 });
 
 test('a dirty tree left by the sync withholds publication even after a passing re-gate', async () => {
@@ -92,17 +96,22 @@ test('unreadable git status is treated as unverifiable state: withhold', async (
 });
 
 test('already up to date: no re-gate, HEAD equals the verified revision → ok', async () => {
-  const r = await run();
+  // task 1099: no regate runs, so the caller's own pre-guard verdict passes through unchanged.
+  const r = await run('unknown');
   expect(r).toMatchObject({ ok: true, reverified: false, verifiedRevision: A, headRevision: A });
   expect(gateCalls).toEqual([]);
+  expect(r.verdict).toBe('unknown');
 });
 
 test('merge moved HEAD: re-gate on the final code, then publish the new HEAD', async () => {
   syncFixture = { status: 'clean', changedFiles: 4, conflicts: [], detail: 'merged' };
   headFixture = B;
-  const r = await run();
+  gateFixture = { ok: true, verdict: 'unknown', result: null };
+  const r = await run('pass');
   expect(gateCalls).toEqual([9]);
   expect(r).toMatchObject({ ok: true, reverified: true, verifiedRevision: B, headRevision: B });
+  // task 1099: the regate's verdict overrides the pre-guard verdict.
+  expect(r.verdict).toBe('unknown');
 });
 
 test('re-gate failure withholds publication and reports blocked/unverifiable', async () => {
@@ -110,6 +119,7 @@ test('re-gate failure withholds publication and reports blocked/unverifiable', a
   headFixture = B;
   gateFixture = {
     ok: false,
+    verdict: 'fail',
     result: {
       ok: false,
       unverifiable: true,
@@ -124,6 +134,7 @@ test('re-gate failure withholds publication and reports blocked/unverifiable', a
   expect(r.verificationUnverifiable).toBe(true);
   expect(r.error).toContain('再検証に失敗');
   expect(r.verifiedRevision).toBe(A);
+  expect(r.verdict).toBe('fail');
 });
 
 test('unresolved conflict: withheld + notified, no gate call', async () => {
@@ -133,16 +144,18 @@ test('unresolved conflict: withheld + notified, no gate call', async () => {
     conflicts: ['x.ts'],
     detail: 'c',
   };
-  const r = await run();
+  const r = await run('unknown');
   expect(r.ok).toBe(false);
   expect(r.error).toContain('マージ競合');
   expect(notified).toEqual(['base_sync_conflict_unresolved']);
   expect(gateCalls).toEqual([]);
+  expect(r.verdict).toBe('fail');
 });
 
 test('HEAD unreadable after the sync → refuse to publish', async () => {
   headFixture = null;
-  const r = await run();
+  const r = await run('unknown');
   expect(r.ok).toBe(false);
   expect(r.error).toContain('検証済みの版と HEAD が一致しない');
+  expect(r.verdict).toBe('fail');
 });
