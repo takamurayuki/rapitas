@@ -28,11 +28,24 @@ type UserSettingsRow = NonNullable<Awaited<ReturnType<typeof prisma.userSettings
  *
  * @returns The settings row, or null on any read failure / 設定行、読めなければ null
  */
+/**
+ * Warn once per process: the live critic evaluation resolves the provider per
+ * lens call, and an unreachable DB logged 100 identical warnings in an hour
+ * (log-health filed it as concern #1094, 2026-09-26).
+ */
+let settingsUnreachableWarned = false;
+
 async function readUserSettings(): Promise<UserSettingsRow | null> {
   try {
     return await prisma.userSettings.findFirst();
   } catch (err) {
-    log.warn({ err }, 'UserSettings unreachable — using built-in AI provider defaults');
+    if (!settingsUnreachableWarned) {
+      settingsUnreachableWarned = true;
+      log.warn(
+        { err },
+        'UserSettings unreachable — using built-in AI provider defaults (further occurrences in this process are not logged)',
+      );
+    }
     return null;
   }
 }
