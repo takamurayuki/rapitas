@@ -144,6 +144,16 @@ describe('truncateWithNotice', () => {
     expect(r.text).toContain('原文はここで終わっていません');
     expect(r.text.length).toBeLessThanOrEqual(16000);
   });
+
+  it('preserves task909real plan tail content (実装者への申し送り事項) at the 60/40 head/tail ratio (premortem item 2)', async () => {
+    const { FIXTURES } = await import('../../../scripts/eval-phase-critic');
+    const realPlan = FIXTURES.find((f) => f.name === 'real-plan-narrow-mismatch')!.content;
+    expect(realPlan.length).toBeGreaterThan(16000);
+    const r = truncateWithNotice(realPlan, 16000);
+    expect(r.truncated).toBe(true);
+    expect(r.text).toContain('実装者への申し送り事項');
+    expect(r.text).toContain('Windowsパス区切り（バックスラッシュ）とUnix区切り');
+  });
 });
 
 describe('lensSystemPrompt', () => {
