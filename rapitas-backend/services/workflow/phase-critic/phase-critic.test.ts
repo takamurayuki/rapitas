@@ -22,6 +22,8 @@ mock.module('../../../utils/ai-client', () => ({
   getDefaultProvider: getDefaultProviderMock,
   getDefaultModel: async () => 'configured-critic-model',
   isAnyApiKeyConfigured: isAnyApiKeyConfiguredMock,
+}));
+mock.module('../../../utils/ai-client/aux-ai-mode', () => ({
   getAuxAiMode: () => auxAiMode,
 }));
 

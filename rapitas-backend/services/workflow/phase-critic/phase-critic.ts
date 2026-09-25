@@ -16,10 +16,12 @@ import {
   sendAIMessage,
   getDefaultProvider,
   getDefaultModel,
-  getAuxAiMode,
   isAnyApiKeyConfigured,
   type AIMessage,
 } from '../../../utils/ai-client';
+// Imported apart from the barrel: tests that replace the barrel with a fixed
+// export list must not be broken by this gate's extra dependency.
+import { getAuxAiMode } from '../../../utils/ai-client/aux-ai-mode';
 import { aggregateCritiques } from './critique-aggregator';
 import type { CriticPhase, CriticVerdict, PhaseCritiqueResult } from './phase-critic-types';
 
