@@ -40,8 +40,11 @@ const PROC_KILL = /\b(?:stop-process|taskkill|pkill|killall)\b/i;
 // `run`/`exec`/`test`/`x`/`dlx`/`create` subcommands are script runners, never
 // installers, so they are excluded before scanning the (up to three) leading
 // options/args (`pnpm -C rapitas-frontend install`, `npm --prefix x ci`).
+// `bun pm cache` only touches bun's global download cache, never the shared
+// node_modules tree, so it is excluded too (task 1086: `bun pm cache rm` was
+// misclassified as package_install because bare `rm` matches the verb list).
 const PACKAGE_INSTALL =
-  /\b(?:npm|pnpm|yarn|bun)\s+(?!(?:run|exec|test|x|dlx|create)\b)(?:\S+\s+){0,3}?(?:install|i|ci|add|remove|rm|uninstall|un|update|up|upgrade|dedupe|prune|link|unlink|rebuild|import)\b(?!\s*:)/i;
+  /\b(?:npm|pnpm|yarn|bun)\s+(?!(?:run|exec|test|x|dlx|create)\b)(?!pm\s+cache\b)(?:\S+\s+){0,3}?(?:install|i|ci|add|remove|rm|uninstall|un|update|up|upgrade|dedupe|prune|link|unlink|rebuild|import)\b(?!\s*:)/i;
 // Anything that can turn quoted text into executed code: nested shells, eval, command
 // substitution, backticks, or interpreters fed by a pipe.
 const EXEC_INDIRECTION =
