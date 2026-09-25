@@ -319,11 +319,22 @@ for (const command of [
   'grep -rn "pnpm install" docs/',
   'git commit -m "docs: explain why npm install is forbidden"',
   'bun run db:import',
+  // 2026-09-25, task 1086: `bun pm cache` only clears bun's global download
+  // cache, not the shared node_modules tree, so it must not be classified
+  // as package_install even though bare `rm` is in the verb list.
+  'bun pm cache rm',
+  'bun pm cache',
 ]) {
   test(`still allows non-install package commands: ${command}`, () => {
     assert.equal(denied(command), false);
   });
 }
+
+test('allows the reported task-911 incident command verbatim inside a worktree', () => {
+  const command =
+    'cd "C:/Projects/rapitas/.worktrees/task-911-5569f5fa/rapitas-backend" && bun pm cache rm';
+  assert.equal(classify(command, { ...ctx, cwd: WT }), null);
+});
 
 // Read-only inspection after entering primary: still denied, but classified
 // apart so the incident filer does not raise a security task for it.
