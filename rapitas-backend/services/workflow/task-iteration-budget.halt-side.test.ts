@@ -33,7 +33,12 @@ mock.module('../../config/database', () => ({
         Promise.resolve({ workflowStatus: 'verify_done', createdAt: new Date(NOW_MS - 3_600_000) }),
       ),
     },
-    agentExecution: { count: mock(() => Promise.resolve(5)) },
+    agentExecution: {
+      count: mock(() => Promise.resolve(5)),
+      // Time-axis clock reads execution starts; keep them recent so only the
+      // axes under test can halt.
+      findMany: mock(() => Promise.resolve([{ startedAt: new Date(NOW_MS - 60_000) }])),
+    },
     workflowTransition: {
       findFirst: mock(() => Promise.resolve(null)),
       findMany: mock(() => Promise.resolve(transitions)),

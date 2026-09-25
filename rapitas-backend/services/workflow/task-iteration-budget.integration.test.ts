@@ -25,7 +25,17 @@ mock.module('../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
   prisma: {
     task: { findUnique: mock(() => Promise.resolve(taskRow)) },
-    agentExecution: { count: mock(() => Promise.resolve(attempts)) },
+    agentExecution: {
+      count: mock(() => Promise.resolve(attempts)),
+      // Time-axis clock reads execution starts: a dense run within the last hour.
+      findMany: mock(() =>
+        Promise.resolve(
+          Array.from({ length: attempts }, (_, i) => ({
+            startedAt: new Date(NOW - (i + 1) * 60_000),
+          })),
+        ),
+      ),
+    },
     workflowTransition: {
       findFirst: mock(() => Promise.resolve(null)),
       findMany: mock(() => Promise.resolve(transitions)),

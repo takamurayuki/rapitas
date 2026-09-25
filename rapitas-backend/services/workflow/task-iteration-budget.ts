@@ -26,6 +26,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { getTaskSpendUsdSince } from './task-budget';
 import { detectRepeatLoop, REPEAT_LOOP_WINDOW_MS } from './incident-signature-repeat-loop';
+import { activeClockStartMs } from './task-iteration-budget-active-clock';
 import { countNonAdvancingTransitions } from './task-iteration-budget-status';
 import { isAwaitingMergeWithPr, sliceAfterLastSuccess } from './task-iteration-budget-success';
 import { submitConcern } from '../memory/concern-backlog-service';
@@ -137,6 +138,13 @@ export interface IterationBudgetInput {
   /** False when the task's theme has auto-run disabled — mirrors detectStagnation's themeAutoRunEnabled gate. */
   themeAutoRunEnabled?: boolean | null;
   /**
+   * Start of the task's latest active stretch (see
+   * task-iteration-budget-active-clock.ts). The time axis measures from here,
+   * so wall-clock time spent unselected never counts as iterating; falls back
+   * to windowStartMs when absent.
+   */
+  activeClockStartMs?: number;
+  /**
    * True when an implementation is finished and only its verification
    * (workflowStatus 'in_progress') or its publication / merge wait
    * (verify_done) is pending. The cost axis is deferred in these states: they
@@ -184,7 +192,7 @@ export function resolveIterationBudgetState(input: IterationBudgetInput): Iterat
     attempts: input.attemptsInWindow,
     repeatLoop: input.repeatLoop,
   };
-  const elapsedMs = input.nowMs - input.windowStartMs;
+  const elapsedMs = input.nowMs - (input.activeClockStartMs ?? input.windowStartMs);
   if (elapsedMs >= iterationTimeBudgetMs()) {
     return { shouldHalt: true, haltReason: 'budget_time_exceeded' as HaltReason, diagnostics };
   }
@@ -258,13 +266,22 @@ export async function resolveIterationBudgetForTask(
 
     // Cost is windowed like attempts: a reset (retry / answered question /
     // replan) grants a fresh slate on every axis, not just on the counters.
-    const [spentUsd, attemptsInWindow, transitionsInWindow] = await Promise.all([
+    const [spentUsd, attemptsInWindow, executionStarts, transitionsInWindow] = await Promise.all([
       getTaskSpendUsdSince(taskId, windowStart),
       prisma.agentExecution.count({
         where: {
           session: { config: { taskId } },
           OR: [{ startedAt: null }, { startedAt: { gte: windowStart } }],
         },
+      }),
+      // Time axis clock: the latest stretch of executions, so a task held or
+      // idle for days is not "over time" the second it is re-selected (#911).
+      prisma.agentExecution.findMany({
+        where: {
+          session: { config: { taskId } },
+          OR: [{ startedAt: null }, { startedAt: { gte: windowStart } }],
+        },
+        select: { startedAt: true },
       }),
       prisma.workflowTransition.findMany({
         where: { taskId, createdAt: { gte: new Date(nowMs - REPEAT_LOOP_WINDOW_MS) } },
@@ -317,6 +334,12 @@ export async function resolveIterationBudgetForTask(
     return resolveIterationBudgetState({
       nowMs,
       windowStartMs,
+      activeClockStartMs: activeClockStartMs(
+        executionStarts.map((e) => e.startedAt?.getTime()),
+        windowStartMs,
+        nowMs,
+        iterationTimeBudgetMs(),
+      ),
       spentUsd,
       attemptsInWindow,
       repeatLoop,

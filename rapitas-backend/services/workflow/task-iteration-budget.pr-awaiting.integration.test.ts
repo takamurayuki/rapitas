@@ -29,7 +29,12 @@ mock.module('../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
   prisma: {
     task: { findUnique: mock(() => Promise.resolve(taskRow)) },
-    agentExecution: { count: mock(() => Promise.resolve(4)) },
+    agentExecution: {
+      count: mock(() => Promise.resolve(4)),
+      // Time-axis clock reads execution starts; keep them recent so only the
+      // axes under test can halt.
+      findMany: mock(() => Promise.resolve([{ startedAt: new Date(NOW - 60_000) }])),
+    },
     workflowTransition: {
       findFirst: mock(() => Promise.resolve(null)),
       findMany: mock(() => Promise.resolve(transitions)),
