@@ -105,9 +105,64 @@ describe('detectZeroProgressWhileRunning', () => {
       'theme.zero_progress_detected',
       expect.objectContaining({ theme: 1, task: 100, ok: false }),
     );
-    // The execution probe must scope to the current task via the relational where.
-    const where = (countMock.mock.calls[0]?.[0] as { where: unknown } | undefined)?.where;
-    expect(where).toEqual({ session: { config: { taskId: 100 } } });
+    // The execution probe must scope to the current task AND to executions
+    // created since the episode's anchor — not a lifetime count (2026-09-17
+    // fix: a lifetime count is >0 forever after the task's first phase).
+    const where = (
+      countMock.mock.calls[0]?.[0] as
+        | {
+            where: {
+              session: unknown;
+              OR: Array<Record<string, { gte: Date }>>;
+            };
+          }
+        | undefined
+    )?.where;
+    expect(where?.session).toEqual({ config: { taskId: 100 } });
+    // Task 1031 (2026-09-22): a 19-minute implementer run created BEFORE the
+    // slid anchor was still heartbeating and got counted as zero. Any row
+    // created, heartbeating, or completed after the anchor is progress.
+    expect(where?.OR.map((c) => Object.keys(c)[0])).toEqual([
+      'createdAt',
+      'heartbeatAt',
+      'completedAt',
+    ]);
+    for (const clause of where?.OR ?? []) {
+      expect(Object.values(clause)[0]?.gte).toBeInstanceOf(Date);
+    }
+  });
+
+  test('進捗後は次フェーズで再度ゼロ件が続けば検出する — アンカーが前進する（2026-09-17 修正: lifetime countの見落とし回帰）', async () => {
+    primeRunningTheme(100);
+    // Episode 1: no execution yet, first observation arms the tracker.
+    countMock.mockResolvedValue(0);
+    await detectZeroProgressWhileRunning(NOW);
+
+    // A real execution lands inside the window — must NOT fire, and must
+    // slide the anchor forward to this observation instead of staying at NOW.
+    countMock.mockResolvedValue(1);
+    const midCycle = NOW + ZERO_PROGRESS_THRESHOLD_MS + 60_000;
+    expect(await detectZeroProgressWhileRunning(midCycle)).toBe(0);
+    expect(notifyZeroProgressWhileRunningMock).not.toHaveBeenCalled();
+
+    // The SAME task (still current — e.g. now in a later phase) then stalls
+    // again with zero NEW executions. A lifetime-count detector could never
+    // catch this (count is already >0 forever); the anchor-scoped count must.
+    countMock.mockResolvedValue(0);
+    const detected = await detectZeroProgressWhileRunning(
+      midCycle + ZERO_PROGRESS_THRESHOLD_MS + 60_000,
+    );
+    expect(detected).toBe(1);
+    expect(notifyZeroProgressWhileRunningMock).toHaveBeenCalledWith(1, 100, expect.any(Number));
+    // The scoped count's lower bound must be the SLID anchor (midCycle), not
+    // the original first-observation time (NOW).
+    const lastWhere = (
+      countMock.mock.calls.at(-1)?.[0] as
+        | { where: { OR: Array<{ createdAt?: { gte: Date }; heartbeatAt?: { gte: Date } }> } }
+        | undefined
+    )?.where;
+    expect(lastWhere?.OR[0]?.createdAt?.gte.getTime()).toBe(midCycle);
+    expect(lastWhere?.OR[1]?.heartbeatAt?.gte.getTime()).toBe(midCycle);
   });
 
   test('閾値超過・実行0件でも、他タスクが枠を占有していれば発火しない（#856 事例）', async () => {

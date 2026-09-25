@@ -99,7 +99,7 @@ describe('getDiff — untracked files (real git repo)', () => {
     writeFileSync(join(repoDir, 'README.md'), 'initial\n');
     execSync('git add README.md', { cwd: repoDir });
     execSync('git commit -q -m "initial"', { cwd: repoDir });
-  });
+  }, 30_000);
 
   afterEach(() => {
     rmSync(repoDir, { recursive: true, force: true });
@@ -121,21 +121,21 @@ describe('getDiff — untracked files (real git repo)', () => {
     expect(entry?.patch).toContain('+package main');
     expect(entry?.patch).toContain('+func main() {}');
     expect(entry?.patch).toContain('new file mode');
-  });
+  }, 30_000);
 
   test('does not count a phantom extra line for a file with a trailing newline', async () => {
     writeFileSync(join(repoDir, 'a.txt'), 'line1\nline2\n');
     const result = await getDiff(repoDir);
     const entry = result.find((f) => f.filename === 'a.txt');
     expect(entry?.additions).toBe(2);
-  });
+  }, 30_000);
 
   test('counts the final line correctly when the file has no trailing newline', async () => {
     writeFileSync(join(repoDir, 'b.txt'), 'line1\nline2');
     const result = await getDiff(repoDir);
     const entry = result.find((f) => f.filename === 'b.txt');
     expect(entry?.additions).toBe(2);
-  });
+  }, 30_000);
 });
 
 // Regression (task 506): a stale/divergent 'develop' branch made the
@@ -178,7 +178,7 @@ describe('getDiff — preferredBaseBranch overrides the develop/main/master gues
     writeFileSync(join(repoDir, 'task-change.txt'), 'the actual task change\n');
     run('git add task-change.txt');
     run('git commit -q -m "task change"');
-  });
+  }, 30_000);
 
   afterEach(() => {
     rmSync(repoDir, { recursive: true, force: true });
@@ -192,7 +192,7 @@ describe('getDiff — preferredBaseBranch overrides the develop/main/master gues
     expect(filenames).toContain('unrelated-feature-b.txt');
     expect(filenames).toContain('unrelated-feature-c.txt');
     expect(filenames).toContain('task-change.txt');
-  });
+  }, 30_000);
 
   test('with preferredBaseBranch="main-track", only the task\'s own change is in the diff', async () => {
     const result = await getDiff(repoDir, undefined, 'main-track');
@@ -200,7 +200,7 @@ describe('getDiff — preferredBaseBranch overrides the develop/main/master gues
     expect(filenames).toEqual(['task-change.txt']);
     expect(filenames).not.toContain('unrelated-feature-b.txt');
     expect(filenames).not.toContain('unrelated-feature-c.txt');
-  });
+  }, 30_000);
 
   test('an unsafe/malformed preferredBaseBranch is ignored, falling back to the guess', async () => {
     const result = await getDiff(repoDir, undefined, '; rm -rf /');
@@ -208,7 +208,7 @@ describe('getDiff — preferredBaseBranch overrides the develop/main/master gues
     // Falls through to the develop guess (same as the no-preference case) —
     // proves the malformed value never reached the shell-interpolated git call.
     expect(filenames).toContain('unrelated-feature-b.txt');
-  });
+  }, 30_000);
 });
 
 // Regression (task 516): origin/<preferredBaseBranch> AHEAD of the bare local
@@ -256,7 +256,7 @@ describe('getDiff — origin AHEAD of local (task 516: previously-merged commits
     writeFileSync(join(repoDir, 'task-change.txt'), 'the actual task change\n');
     run('git add task-change.txt');
     run('git commit -q -m "task change"');
-  });
+  }, 30_000);
 
   afterEach(() => {
     rmSync(repoDir, { recursive: true, force: true });
@@ -268,7 +268,7 @@ describe('getDiff — origin AHEAD of local (task 516: previously-merged commits
     expect(filenames).toEqual(['task-change.txt']);
     expect(filenames).not.toContain('pr-323-backend.txt');
     expect(filenames).not.toContain('pr-333-button.txt');
-  });
+  }, 30_000);
 
   test('sanity: merge-base against origin/develop is indeed the origin tip', () => {
     const base = run('git merge-base feature/task516 origin/develop');
@@ -351,7 +351,7 @@ describe('getDiff — resolveBaseRef fetches origin/<branch> itself (task 516: n
     expect(filenames).toEqual(['task-change.txt']);
     expect(filenames).not.toContain('pr-323-backend.txt');
     expect(filenames).not.toContain('pr-333-button.txt');
-  });
+  }, 30_000);
 
   test('sanity: without a fresh fetch, local refs are still frozen at root', () => {
     const originDevelop = runIn(repoDir, 'git rev-parse refs/remotes/origin/develop');

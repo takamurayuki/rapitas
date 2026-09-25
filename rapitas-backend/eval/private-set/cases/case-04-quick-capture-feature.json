@@ -1,0 +1,8 @@
+{
+  "id": "case-04-quick-capture-feature",
+  "category": "feature",
+  "taskDescription": "グローバルショートカットからアイデア/タスク/メモ/単語帳を即座に投入する Quick Capture 機能の新規実装",
+  "initialFiles": ["rapitas-frontend/src/components/quick-capture"],
+  "acceptanceCheck": "bun test services/self-learning/knowledge-graph.test.ts",
+  "expectedOutcome": "fail-to-pass"
+}

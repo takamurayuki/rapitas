@@ -16,37 +16,25 @@ import {
   MAX_ORPHAN_REQUEUE_AGE_MS,
   MAX_BLOCKED_RETRY,
   MAX_PR_RECOVERY_ATTEMPTS,
+  ORPHAN_REQUEUE_EXHAUSTED_CAUSE,
   resolveVerifyRepairLimit,
   VERIFY_NON_CONVERGENCE_CAUSE,
+  VERIFICATION_UNVERIFIABLE_HOLD_CAUSE,
+  MANUAL_CORRECTION_PENDING_CAUSE,
   PR_RETRY_LIGHTWEIGHT_CAUSE,
 } from './blocked-task-policy';
 import { isAwaitingRequiredMerge } from './verify-settle-artifact-recovery';
+import { hasLiveExecution } from './workflow-reconciler-undispatchable';
+
+export { ACTIVE_EXEC, healUndispatchableTodo } from './workflow-reconciler-undispatchable';
 
 const log = createLogger('workflow-reconciler');
-
-/** Execution statuses that represent a still-alive agent. */
-export const ACTIVE_EXEC = ['running', 'pending', 'waiting_for_input'];
 
 /** An in-progress task idle this long with no live execution is surfaced. */
 export const STALE_TASK_MS = 45 * 60 * 1000;
 
 /** Re-queue an orphan at most this many times before leaving it for notification. */
 const MAX_ORPHAN_REQUEUE = 2;
-/**
- * A todo task must sit in an undispatchable workflowStatus this long before a
- * reset — no legitimate in-flight completion could still be settling by then.
- */
-const UNDISPATCHABLE_SETTLE_MS = 24 * 60 * 60 * 1000;
-
-/** True when the task still has a live agent execution. */
-async function hasLiveExecution(taskId: number): Promise<boolean> {
-  const live = await prisma.agentExecution.findFirst({
-    where: { session: { config: { taskId } }, status: { in: ACTIVE_EXEC } },
-    select: { id: true },
-  });
-  return !!live;
-}
-
 /**
  * Orphan recovery: re-queue a genuinely-stuck in-progress task (no live agent,
  * stale, non-terminal workflowStatus) back to 'todo' so auto-run reruns it.
@@ -68,6 +56,8 @@ export async function requeueOrphanTasks(
       where: {
         status: 'in-progress',
         parentId: null,
+        // halt (iteration budget) leaves status untouched; never re-queue a halted task.
+        haltReason: null,
         updatedAt: { lt: staleBefore, gt: notOlderThan },
       },
       select: { id: true, title: true, workflowStatus: true },
@@ -107,7 +97,33 @@ export async function requeueOrphanTasks(
     const attempts = await prisma.workflowTransition.count({
       where: { taskId: t.id, cause: 'reconciler_requeue' },
     });
-    if (attempts >= MAX_ORPHAN_REQUEUE) continue;
+    if (attempts >= MAX_ORPHAN_REQUEUE) {
+      // Requeue budget exhausted (task 977): leaving this as `continue` strands
+      // the task in 'in-progress' forever — no other heal path picks it up
+      // (not blocked, so requeueBlockedTasks never sees it), and
+      // detectStagnation re-flags it every watch cycle indefinitely. Move it
+      // to 'blocked' so it joins the existing blocked-task retry/escalation
+      // pipeline instead. workflowStatus is intentionally left unchanged —
+      // requeueBlockedTasks' own reset (blocked_auto_retry) is what resets it
+      // to 'draft', preserving that existing artifact-reuse behavior.
+      await prisma.task.update({
+        where: { id: t.id },
+        data: { status: 'blocked', updatedAt: new Date() },
+      });
+      await recordTransition({
+        taskId: t.id,
+        fromStatus: t.workflowStatus,
+        toStatus: t.workflowStatus ?? 'draft',
+        actor: 'system',
+        cause: ORPHAN_REQUEUE_EXHAUSTED_CAUSE,
+        metadata: { reason: 'orphan_requeue_attempts_exhausted', attempts },
+      }).catch(() => {});
+      log.info(
+        { taskId: t.id, attempts, wf: t.workflowStatus },
+        '[reconciler] Orphan requeue budget exhausted -> blocked (joins blocked-task retry/escalation pipeline)',
+      );
+      continue;
+    }
 
     await prisma.task.update({
       where: { id: t.id },
@@ -165,6 +181,8 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
         status: 'blocked',
         parentId: null,
         themeId: { in: armedThemeIds },
+        // halted tasks stay excluded until explicitly resumed (mirrors auto-run-advance-select).
+        haltReason: null,
         updatedAt: { lt: settleBefore, gt: notOlderThan },
       },
       select: { id: true, workflowStatus: true },
@@ -229,6 +247,49 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
       log.info(
         { taskId: t.id, nonConverged },
         '[reconciler] Blocked task was cut off for non-convergence — leaving blocked (needs split/spec revision), not auto-retrying',
+      );
+      continue;
+    }
+
+    // Skip tasks HELD because verification could not run (2026-09-13, task
+    // 912): the hold is an infrastructure state a full reset cannot change —
+    // it would only re-dispatch an implementer into the same UNVERIFIED gate.
+    // Same window as the repair budget: a manual retry re-admits the task.
+    const unverifiableHeld = await prisma.workflowTransition
+      .count({
+        where: {
+          taskId: t.id,
+          cause: VERIFICATION_UNVERIFIABLE_HOLD_CAUSE,
+          ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+        },
+      })
+      .catch(() => 0);
+    if (unverifiableHeld > 0) {
+      log.info(
+        { taskId: t.id, unverifiableHeld },
+        '[reconciler] Blocked task is held as unverifiable — leaving blocked (restore verification / manual retry), not auto-retrying',
+      );
+      continue;
+    }
+
+    // Skip tasks whose blocked status was set by a manual/system correction
+    // determining the landed PR did NOT merge (task 873/948): a blind reset
+    // would discard that determination and either re-run stale work or race
+    // the follow-up task it spawned. Same window as the repair budget (a
+    // manual retry re-admits the task).
+    const manualCorrectionPending = await prisma.workflowTransition
+      .count({
+        where: {
+          taskId: t.id,
+          cause: MANUAL_CORRECTION_PENDING_CAUSE,
+          ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+        },
+      })
+      .catch(() => 0);
+    if (manualCorrectionPending > 0) {
+      log.info(
+        { taskId: t.id, manualCorrectionPending },
+        '[reconciler] Blocked task has a pending manual correction (PR did not land) — leaving blocked, not auto-retrying',
       );
       continue;
     }
@@ -334,93 +395,4 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
     );
   }
   return retried;
-}
-
-/**
- * Heal undispatchable status/workflowStatus desyncs on todo tasks.
- *
- * Class 1 — todo × verify_done: `verify_done` has NO entry in the transition
- * table, so such a task can never be dispatched — every auto-run selection
- * fails and repeats forever (observed: tasks 5/8/11 parked since May). Reset
- * workflowStatus to 'draft' (artifacts are reused via isReusableArtifact, so
- * the re-run is cheap and completes properly this time).
- *
- * Class 2 — todo × completed: the workflow finished but the task row's status
- * was never finalized — finalize to done so it stops being re-selected.
- *
- * Both classes require 24h staleness and no live execution. Class 1 is
- * additionally bounded to one reset per task.
- *
- * @param nowMs - Current time (ms). / 現在時刻
- * @returns Number of tasks healed. / 修復数
- */
-export async function healUndispatchableTodo(nowMs: number): Promise<number> {
-  const cutoff = new Date(nowMs - UNDISPATCHABLE_SETTLE_MS);
-  let healed = 0;
-
-  const stranded = await prisma.task
-    .findMany({
-      where: {
-        status: 'todo',
-        workflowStatus: 'verify_done',
-        parentId: null,
-        updatedAt: { lt: cutoff },
-      },
-      select: { id: true },
-    })
-    .catch(() => [] as { id: number }[]);
-  for (const t of stranded) {
-    if (await hasLiveExecution(t.id)) continue;
-    const attempts = await prisma.workflowTransition
-      .count({ where: { taskId: t.id, cause: 'reconciler_reset_undispatchable' } })
-      .catch(() => 0);
-    if (attempts >= 1) continue; // one reset per task — a re-strand needs a human look
-    await prisma.task
-      .update({
-        where: { id: t.id },
-        data: { workflowStatus: 'draft', updatedAt: new Date() },
-      })
-      .catch(() => {});
-    await recordTransition({
-      taskId: t.id,
-      fromStatus: 'verify_done',
-      toStatus: 'draft',
-      actor: 'system',
-      cause: 'reconciler_reset_undispatchable',
-      metadata: { reason: 'todo_verify_done_has_no_transition' },
-    }).catch(() => {});
-    healed++;
-    log.info(
-      { taskId: t.id },
-      '[reconciler] Reset undispatchable todo×verify_done task -> draft (artifacts reused on re-run)',
-    );
-  }
-
-  const finished = await prisma.task
-    .findMany({
-      where: {
-        status: 'todo',
-        workflowStatus: 'completed',
-        parentId: null,
-        updatedAt: { lt: cutoff },
-      },
-      select: { id: true, completedAt: true },
-    })
-    .catch(() => [] as { id: number; completedAt: Date | null }[]);
-  for (const t of finished) {
-    if (await hasLiveExecution(t.id)) continue;
-    await prisma.task
-      .update({
-        where: { id: t.id },
-        data: { status: 'done', completedAt: t.completedAt ?? new Date() },
-      })
-      .catch(() => {});
-    healed++;
-    log.info(
-      { taskId: t.id },
-      '[reconciler] Healed completion desync (todo + wf=completed) -> done',
-    );
-  }
-
-  return healed;
 }

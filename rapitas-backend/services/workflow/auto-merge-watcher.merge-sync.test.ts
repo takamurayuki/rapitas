@@ -21,7 +21,23 @@ mock.module('./auto-merge-checks', () => ({
   readMergeState: mock(() => Promise.resolve('CLEAN')),
   readHeadSha: mock(() => Promise.resolve('sha-current')),
   updatePrBranch: mock(() => Promise.resolve(true)),
+  ghPath: () => 'gh',
 }));
+
+// task 1021: the watcher now consults the pre-merge gate + drift check; both would
+// otherwise shell out to gh/git. Tests drive the gate result through mockGate.
+const mockGate = mock(() =>
+  Promise.resolve<{ ok: boolean; reason?: string; detail?: string }>({ ok: true }),
+);
+const mockHandleCiFailure = mock(() => Promise.resolve());
+mock.module('./auto-merge-premerge-gate', () => ({
+  evaluatePreMergeGate: mockGate,
+  RATCHET_CHECK_NAME: 'ratchet-check',
+}));
+mock.module('./auto-merge-baseline-drift', () => ({
+  checkBaselineDrift: mock(() => Promise.resolve(false)),
+}));
+mock.module('./auto-merge-ci-failure', () => ({ handleCiFailure: mockHandleCiFailure }));
 
 mock.module('./ci-self-repair', () => ({
   attemptCiRepair: mock(() => Promise.resolve({ bounced: false })),
@@ -43,6 +59,9 @@ mock.module('./auto-merge-exhaustion', () => ({
   resetExhaustedRecheckCooldowns: () => {},
   markExhausted: mock(() => Promise.resolve()),
   decideTerminalState: () => Promise.resolve({ terminal: false }),
+  readExhaustionRecord: mock(() =>
+    Promise.resolve({ exhausted: false, headSha: null, exhaustedAt: null }),
+  ),
 }));
 
 const mockNotify = mock(() => Promise.resolve());
@@ -87,10 +106,9 @@ mock.module('../../config/database', () => ({ prisma: mockPrisma }));
 // the old path here silently created a SEPARATE (never-consulted) module
 // registry entry — auto-merge-watcher.ts's real import went unmocked and its
 // mergePullRequest call reached the real implementation (2 fail).
+const mockMerge = mock(() => Promise.resolve({ success: true, mergeStrategy: 'squash' as const }));
 mock.module('../agents/orchestrator/git-operations/pr/branch-pr-ops', () => ({
-  mergePullRequest: mock(() =>
-    Promise.resolve({ success: true, mergeStrategy: 'squash' as const }),
-  ),
+  mergePullRequest: mockMerge,
 }));
 
 mock.module('../../config/logger', () => ({
@@ -130,6 +148,9 @@ const candidate = {
 };
 
 beforeEach(() => {
+  mockMerge.mockClear();
+  mockHandleCiFailure.mockClear();
+  mockGate.mockReset().mockResolvedValue({ ok: true });
   mockResolveIntegrationId.mockClear();
   mockResolveIntegrationId.mockImplementation(() => Promise.resolve<number | null>(1));
   mockUpdateMany.mockClear();
@@ -176,5 +197,38 @@ describe('AutoMergeWatcher — post-merge local mirror sync', () => {
     expect(mockUpdateMany).not.toHaveBeenCalled();
     expect(mockTaskComplete).toHaveBeenCalledTimes(1); // completeTaskRow still ran
     expect(mockNotify).toHaveBeenCalledTimes(1); // auto_merge_success still sent
+  });
+
+  // task 1021: PR #707 merged with file-size never run — the gate is the last line of defence.
+  test('does not merge when required workflows have not finished on the head SHA', async () => {
+    mockGate.mockResolvedValue({ ok: false, reason: 'workflows_pending', detail: 'file-size.yml' });
+    await getProcess()(candidate, new Set(['Lint Code']));
+    expect(mockMerge).not.toHaveBeenCalled();
+    expect(mockTaskComplete).not.toHaveBeenCalled();
+    expect(mockNotify).not.toHaveBeenCalled();
+  });
+
+  test('does not merge on a gate error (fail closed)', async () => {
+    mockGate.mockResolvedValue({ ok: false, reason: 'gate_error', detail: 'worktree failed' });
+    await getProcess()(candidate, new Set(['Lint Code']));
+    expect(mockMerge).not.toHaveBeenCalled();
+  });
+
+  test('routes a ratchet violation to CI repair instead of merging', async () => {
+    mockGate.mockResolvedValue({
+      ok: false,
+      reason: 'ratchet_violation',
+      detail: 'x.ts: 654 > 628',
+    });
+    await getProcess()(candidate, new Set(['Lint Code']));
+    expect(mockMerge).not.toHaveBeenCalled();
+    expect(mockHandleCiFailure).toHaveBeenCalledTimes(1);
+    expect((mockHandleCiFailure.mock.calls[0] as unknown[])[1]).toEqual(['ratchet-check']);
+  });
+
+  test('merges when the gate passes, asking for the local ratchet only in merge mode', async () => {
+    await getProcess()(candidate, new Set(['Lint Code']));
+    expect(mockMerge).toHaveBeenCalledTimes(1);
+    expect(mockGate.mock.calls[0]).toEqual(['/repo/tripla', 6, { localRatchet: true }]);
   });
 });

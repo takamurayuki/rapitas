@@ -14,6 +14,8 @@ mock.module('../../../../../config/logger', () => ({
 type ExecArgs = { file: string; args: string[] };
 const execCalls: ExecArgs[] = [];
 let execFixture: { stdout: string } | Error = { stdout: '' };
+// Per-call script for the mergePullRequest cases below (null = use execFixture).
+let execScript: ((file: string, args: string[]) => { stdout: string } | Error) | null = null;
 mock.module('child_process', () => ({
   execFile: (
     file: string,
@@ -22,8 +24,9 @@ mock.module('child_process', () => ({
     cb: (err: Error | null, out?: { stdout: string; stderr: string }) => void,
   ) => {
     execCalls.push({ file, args });
-    if (execFixture instanceof Error) cb(execFixture);
-    else cb(null, { stdout: execFixture.stdout, stderr: '' });
+    const fx = execScript ? execScript(file, args) : execFixture;
+    if (fx instanceof Error) cb(fx);
+    else cb(null, { stdout: fx.stdout, stderr: '' });
   },
 }));
 
@@ -38,10 +41,61 @@ mock.module('../../../../github/gh-retry', () => ({
 }));
 mock.module('./gh-cli-path', () => ({ ghPath: () => 'gh' }));
 
-const { readAuthoritativeMergeState } = await import('./pr-merge-ops');
+const { readAuthoritativeMergeState, mergePullRequest } = await import('./pr-merge-ops');
 
 beforeEach(() => {
   execCalls.length = 0;
+  execScript = null;
+});
+
+describe('mergePullRequest — gh exits non-zero AFTER the merge landed', () => {
+  const merged = JSON.stringify({
+    number: 776,
+    state: 'MERGED',
+    mergedAt: '2026-09-20T09:51:53Z',
+    baseRefName: 'develop',
+  });
+  const localDeleteFailure = new Error(
+    "Command failed: gh pr merge 776 --merge --delete-branch\nfailed to delete local branch bugfix/t1009-update-task: failed to run git: error: cannot delete branch 'bugfix/t1009-update-task' used by worktree at 'C:/Projects/rapitas/.worktrees/task-1009'",
+  );
+
+  test('local branch cleanup failure with the PR MERGED on GitHub is a successful merge', async () => {
+    execScript = (file, args) => {
+      if (file === 'gh' && args[1] === 'merge') return localDeleteFailure;
+      if (file === 'gh' && args[1] === 'view' && args.includes('commits')) return { stdout: '2' };
+      if (file === 'gh' && args[1] === 'view') return { stdout: merged };
+      return { stdout: '' }; // git checkout / git pull follow-up
+    };
+
+    const result = await mergePullRequest('C:\\wt\\task-1009', 776, 5, 'develop');
+
+    expect(result.success).toBe(true);
+    expect(result.mergeStrategy).toBe('merge');
+    // The authoritative read happened before the decision, not just the final confirmation.
+    const views = execCalls.filter((c) => c.args[1] === 'view' && !c.args.includes('commits'));
+    expect(views.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test('a merge error while the PR is still OPEN stays a failure', async () => {
+    const open = JSON.stringify({
+      number: 776,
+      state: 'OPEN',
+      mergedAt: null,
+      baseRefName: 'develop',
+    });
+    execScript = (file, args) => {
+      if (file === 'gh' && args[1] === 'merge')
+        return new Error('gh: Pull request is not mergeable');
+      if (file === 'gh' && args[1] === 'view' && args.includes('commits')) return { stdout: '2' };
+      if (file === 'gh' && args[1] === 'view') return { stdout: open };
+      return { stdout: '' };
+    };
+
+    const result = await mergePullRequest('C:\\wt\\task-1009', 776, 5, 'develop');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('not mergeable');
+  });
 });
 
 describe('readAuthoritativeMergeState', () => {

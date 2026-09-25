@@ -63,14 +63,38 @@ const MUTATES_GATE_QUESTION_MD =
   }) +
   '\n```';
 
+// task 933: a planRevision:true recommended option — with no mutatesGate — must
+// still be auto-answerable (routing to plan revision is the point of the
+// flag, not a reason to withhold the timeout auto-adopt).
+const PLAN_REVISION_QUESTION_MD =
+  '```json:options\n' +
+  JSON.stringify({
+    questions: [
+      {
+        id: 'Q1',
+        summary: '完了条件が実装者の権限で達成不能',
+        options: [{ key: 'A', label: '計画を改訂する', planRevision: true }],
+        freeTextRequired: false,
+        recommended: 'A',
+        recommendedReason: '実装者に禁止された操作を要求しているため',
+      },
+    ],
+  }) +
+  '\n```';
+
 const taskFindManyMock = mock(() => Promise.resolve<Record<string, unknown>[]>([]));
 const fileFindFirstMock = mock(() => Promise.resolve<Record<string, unknown> | null>(null));
 const transitionFindFirstMock = mock(() => Promise.resolve<Record<string, unknown> | null>(null));
+
+const themeAutoRunFindUniqueMock = mock(() =>
+  Promise.resolve<{ enabled: boolean } | null>({ enabled: true }),
+);
 
 const mockPrisma = {
   task: { findMany: taskFindManyMock },
   workflowFile: { findFirst: fileFindFirstMock },
   workflowTransition: { findFirst: transitionFindFirstMock },
+  themeAutoRun: { findUnique: themeAutoRunFindUniqueMock },
 };
 
 /** Shared discriminator for the 3 distinct `workflowTransition.findFirst` call shapes SUT makes. */
@@ -101,20 +125,20 @@ mock.module('../../config/database', () => ({
 const writeWorkflowFileMock = mock(() => Promise.resolve(''));
 mock.module('./workflow-file-utils', () => ({ writeWorkflowFile: writeWorkflowFileMock }));
 
-const applyIntakeQuestionAnswerMock = mock(() =>
-  Promise.resolve({ taskId: 1, ok: true as const, toStatus: 'draft' as const }),
-);
-const applyResumeFromQuestionAnswerMock = mock(() =>
+// task 902: the reconciler no longer branches between the intake/resume
+// appliers itself — it delegates to the single kind-based dispatcher, which
+// has its own dedicated unit tests (workflow-handlers-resume-dispatch.test.ts)
+// covering the intake-vs-resume branching. Mocked as one boundary here.
+const applyQuestionAnswerByKindMock = mock(() =>
   Promise.resolve({
     taskId: 1,
-    fromStatus: 'awaiting_question' as const,
-    toStatus: 'in_progress' as const,
-    source: 'transition_metadata' as const,
+    ok: true as const,
+    toStatus: 'draft' as const,
+    kind: 'spec_change' as const,
   }),
 );
-mock.module('../../routes/workflow/handlers/workflow-handlers-resume', () => ({
-  applyIntakeQuestionAnswer: applyIntakeQuestionAnswerMock,
-  applyResumeFromQuestionAnswer: applyResumeFromQuestionAnswerMock,
+mock.module('../../routes/workflow/handlers/workflow-handlers-resume-dispatch', () => ({
+  applyQuestionAnswerByKind: applyQuestionAnswerByKindMock,
 }));
 
 const notifyQuestionAutoAnsweredMock = mock(() => Promise.resolve());
@@ -142,20 +166,47 @@ beforeEach(() => {
   });
   transitionFindFirstMock.mockReset().mockImplementation(defaultTransitionFindFirstImpl);
   writeWorkflowFileMock.mockReset().mockResolvedValue('');
-  applyIntakeQuestionAnswerMock
+  applyQuestionAnswerByKindMock
     .mockReset()
-    .mockResolvedValue({ taskId: 1, ok: true, toStatus: 'draft' });
-  applyResumeFromQuestionAnswerMock.mockReset().mockResolvedValue({
-    taskId: 1,
-    fromStatus: 'awaiting_question',
-    toStatus: 'in_progress',
-    source: 'transition_metadata',
-  });
+    .mockResolvedValue({ taskId: 1, ok: true, toStatus: 'draft', kind: 'spec_change' });
   notifyQuestionAutoAnsweredMock.mockReset().mockResolvedValue(undefined);
+  themeAutoRunFindUniqueMock.mockReset().mockResolvedValue({ enabled: true });
   delete process.env.RAPITAS_QUESTION_AUTO_ANSWER_MS;
 });
 
 describe('healStaleQuestionAutoAnswer', () => {
+  test('skips when the theme auto-run is stopped (nothing continues on its own)', async () => {
+    taskFindManyMock.mockResolvedValue([baseTask({ themeId: 1 })]);
+    themeAutoRunFindUniqueMock.mockResolvedValue({ enabled: false });
+
+    const result = await healStaleQuestionAutoAnswer(new Date(NOW_MS));
+
+    expect(result).toEqual({ scanned: 1, autoAnswered: 0, skipped: 1 });
+    expect(applyQuestionAnswerByKindMock).not.toHaveBeenCalled();
+    expect(themeAutoRunFindUniqueMock).toHaveBeenCalledWith({
+      where: { themeId: 1 },
+      select: { enabled: true },
+    });
+  });
+
+  test('auto-adopts when the theme auto-run is enabled, and for an unthemed task', async () => {
+    taskFindManyMock.mockResolvedValue([baseTask({ themeId: 1 })]);
+    themeAutoRunFindUniqueMock.mockResolvedValue({ enabled: true });
+    expect(await healStaleQuestionAutoAnswer(new Date(NOW_MS))).toEqual({
+      scanned: 1,
+      autoAnswered: 1,
+      skipped: 0,
+    });
+
+    taskFindManyMock.mockResolvedValue([baseTask({ themeId: null })]);
+    themeAutoRunFindUniqueMock.mockClear();
+    expect(await healStaleQuestionAutoAnswer(new Date(NOW_MS))).toEqual({
+      scanned: 1,
+      autoAnswered: 1,
+      skipped: 0,
+    });
+    expect(themeAutoRunFindUniqueMock).not.toHaveBeenCalled();
+  });
   test('skips when 59 minutes 59 seconds have elapsed (below the default 60m timeout)', async () => {
     fileFindFirstMock.mockResolvedValue({
       content: ELIGIBLE_QUESTION_MD,
@@ -165,7 +216,7 @@ describe('healStaleQuestionAutoAnswer', () => {
     const result = await healStaleQuestionAutoAnswer(new Date(NOW_MS));
 
     expect(result).toEqual({ scanned: 1, autoAnswered: 0, skipped: 1 });
-    expect(applyIntakeQuestionAnswerMock).not.toHaveBeenCalled();
+    expect(applyQuestionAnswerByKindMock).not.toHaveBeenCalled();
   });
 
   test('auto-adopts when 60 minutes 1 second have elapsed', async () => {
@@ -177,7 +228,7 @@ describe('healStaleQuestionAutoAnswer', () => {
     const result = await healStaleQuestionAutoAnswer(new Date(NOW_MS));
 
     expect(result).toEqual({ scanned: 1, autoAnswered: 1, skipped: 0 });
-    expect(applyIntakeQuestionAnswerMock).toHaveBeenCalledTimes(1);
+    expect(applyQuestionAnswerByKindMock).toHaveBeenCalledTimes(1);
   });
 
   test('skips inside the settle window (a transition landed in the last 2 minutes)', async () => {
@@ -194,7 +245,7 @@ describe('healStaleQuestionAutoAnswer', () => {
     const result = await healStaleQuestionAutoAnswer(new Date(NOW_MS));
 
     expect(result.autoAnswered).toBe(0);
-    expect(applyIntakeQuestionAnswerMock).not.toHaveBeenCalled();
+    expect(applyQuestionAnswerByKindMock).not.toHaveBeenCalled();
   });
 
   test('skips a freeTextRequired question', async () => {
@@ -206,7 +257,7 @@ describe('healStaleQuestionAutoAnswer', () => {
     const result = await healStaleQuestionAutoAnswer(new Date(NOW_MS));
 
     expect(result.autoAnswered).toBe(0);
-    expect(applyIntakeQuestionAnswerMock).not.toHaveBeenCalled();
+    expect(applyQuestionAnswerByKindMock).not.toHaveBeenCalled();
   });
 
   test('skips a mutatesGate recommended option', async () => {
@@ -218,7 +269,7 @@ describe('healStaleQuestionAutoAnswer', () => {
     const result = await healStaleQuestionAutoAnswer(new Date(NOW_MS));
 
     expect(result.autoAnswered).toBe(0);
-    expect(applyIntakeQuestionAnswerMock).not.toHaveBeenCalled();
+    expect(applyQuestionAnswerByKindMock).not.toHaveBeenCalled();
   });
 
   test('skips when this task was already auto-answered once (1-per-task, lifetime cap)', async () => {
@@ -235,7 +286,7 @@ describe('healStaleQuestionAutoAnswer', () => {
     const result = await healStaleQuestionAutoAnswer(new Date(NOW_MS));
 
     expect(result.autoAnswered).toBe(0);
-    expect(applyIntakeQuestionAnswerMock).not.toHaveBeenCalled();
+    expect(applyQuestionAnswerByKindMock).not.toHaveBeenCalled();
   });
 
   test('the once-per-task lookup is unbounded (no take/window) — queries by metadata contains, not recency', async () => {
@@ -262,12 +313,11 @@ describe('healStaleQuestionAutoAnswer', () => {
     expect(fileFindFirstMock).not.toHaveBeenCalled();
   });
 
-  test('calls applyIntakeQuestionAnswer when cause is intake_question', async () => {
+  test('calls applyQuestionAnswerByKind (as system) when cause is intake_question', async () => {
     await healStaleQuestionAutoAnswer(new Date(NOW_MS));
 
-    expect(applyIntakeQuestionAnswerMock).toHaveBeenCalledTimes(1);
-    expect(applyResumeFromQuestionAnswerMock).not.toHaveBeenCalled();
-    const call = applyIntakeQuestionAnswerMock.mock.calls[0][0] as {
+    expect(applyQuestionAnswerByKindMock).toHaveBeenCalledTimes(1);
+    const call = applyQuestionAnswerByKindMock.mock.calls[0][0] as {
       actor: string;
       taskId: number;
     };
@@ -275,7 +325,9 @@ describe('healStaleQuestionAutoAnswer', () => {
     expect(call.taskId).toBe(1);
   });
 
-  test('calls applyResumeFromQuestionAnswer (not applyIntakeQuestionAnswer / no plan discard) when cause is file_saved:question', async () => {
+  // task 902: the intake-vs-resume branching moved into applyQuestionAnswerByKind
+  // itself — the reconciler now delegates identically for both eligible causes.
+  test('calls applyQuestionAnswerByKind identically when cause is file_saved:question', async () => {
     transitionFindFirstMock.mockImplementation((args: unknown) => {
       const where = (args as { where?: { toStatus?: string; metadata?: { contains?: string } } })
         ?.where;
@@ -288,9 +340,8 @@ describe('healStaleQuestionAutoAnswer', () => {
 
     await healStaleQuestionAutoAnswer(new Date(NOW_MS));
 
-    expect(applyResumeFromQuestionAnswerMock).toHaveBeenCalledTimes(1);
-    expect(applyIntakeQuestionAnswerMock).not.toHaveBeenCalled();
-    const call = applyResumeFromQuestionAnswerMock.mock.calls[0][0] as { actor: string };
+    expect(applyQuestionAnswerByKindMock).toHaveBeenCalledTimes(1);
+    const call = applyQuestionAnswerByKindMock.mock.calls[0][0] as { actor: string };
     expect(call.actor).toBe('system');
   });
 
@@ -308,8 +359,32 @@ describe('healStaleQuestionAutoAnswer', () => {
     const result = await healStaleQuestionAutoAnswer(new Date(NOW_MS));
 
     expect(result.autoAnswered).toBe(0);
-    expect(applyIntakeQuestionAnswerMock).not.toHaveBeenCalled();
-    expect(applyResumeFromQuestionAnswerMock).not.toHaveBeenCalled();
+    expect(applyQuestionAnswerByKindMock).not.toHaveBeenCalled();
+  });
+
+  // task 933: the recommended option's planRevision flag is not eligibility
+  // logic (isQuestionBlockEligibleForAutoAnswer never inspects it) — it is
+  // routing logic inside applyQuestionAnswerByKind, which this suite mocks as
+  // a boundary (see the task-902 note above). This only confirms the
+  // reconciler still forwards `selections` unchanged so that routing can see
+  // which option was auto-adopted (workflow-handlers-resume-dispatch.test.ts
+  // covers the routing itself).
+  test('auto-adopts a planRevision:true recommended option and forwards its key via selections', async () => {
+    fileFindFirstMock.mockResolvedValue({
+      content: PLAN_REVISION_QUESTION_MD,
+      updatedAt: new Date(NOW_MS - ONE_HOUR_MS - 60_000),
+    });
+
+    const result = await healStaleQuestionAutoAnswer(new Date(NOW_MS));
+
+    expect(result).toEqual({ scanned: 1, autoAnswered: 1, skipped: 0 });
+    expect(applyQuestionAnswerByKindMock).toHaveBeenCalledTimes(1);
+    const call = applyQuestionAnswerByKindMock.mock.calls[0][0] as {
+      selections?: { questionId: string; selectedKey: string }[];
+      sourceLabel?: string;
+    };
+    expect(call.selections).toEqual([{ questionId: 'Q1', selectedKey: 'A' }]);
+    expect(call.sourceLabel).toContain('自動採用');
   });
 
   test('one task throwing does not stop the others from being processed', async () => {

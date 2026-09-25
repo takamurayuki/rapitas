@@ -13,7 +13,9 @@ import type { WorkflowAdvanceResult } from './workflow-types';
 import type { TaskWorkflowState } from '../task/task-resolver';
 
 const errorMock = mock((..._a: unknown[]) => {});
-const loggerMock = { info: () => {}, warn: () => {}, error: errorMock, debug: () => {} };
+const warnMock = mock((..._a: unknown[]) => {});
+const infoMock = mock((..._a: unknown[]) => {});
+const loggerMock = { info: infoMock, warn: warnMock, error: errorMock, debug: () => {} };
 
 mock.module('../../config/logger', () => ({
   createLogger: () => loggerMock,
@@ -169,6 +171,8 @@ function resetRunner(): void {
 
 function resetMocks(): void {
   errorMock.mockClear();
+  warnMock.mockClear();
+  infoMock.mockClear();
   taskUpdateMock.mockClear();
   updateStatusMock.mockClear();
   retryIfPossibleMock.mockClear();
@@ -307,6 +311,39 @@ describe('WorkflowRunner — vanished-task guard (task 651)', () => {
     expect(updateStatusMock).toHaveBeenCalledWith(item.id, 'failed', {
       errorMessage: 'Task 9 not found',
     });
+  });
+});
+
+describe('WorkflowRunner — non-runnable phase result is a skip, not a failure', () => {
+  beforeEach(() => {
+    resetMocks();
+    resetRunner();
+  });
+
+  async function runOnePhase(error: string, itemId: number): Promise<void> {
+    advanceWorkflowImpl = () =>
+      Promise.resolve({ success: false, error } as unknown as WorkflowAdvanceResult);
+    retryIfPossibleMock.mockResolvedValueOnce(false);
+    const runner = WorkflowRunner.getInstance();
+    dequeueSequence = [queueItem(itemId, 9)];
+    runner.startProcessing(60_000);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await waitUntil(() => runner.getStatus().activeItems === 0);
+    await runner.stopProcessing();
+  }
+
+  const phaseFailedWarns = () =>
+    warnMock.mock.calls.filter((c) => String(c[1] ?? c[0]).includes('Phase failed'));
+
+  test('awaiting_question refusal is logged below WARN', async () => {
+    await runOnePhase('ステータス "awaiting_question" では次のフェーズを実行できません', 80);
+    expect(phaseFailedWarns()).toHaveLength(0);
+    expect(retryIfPossibleMock).toHaveBeenCalled();
+  });
+
+  test('a genuine phase failure still logs at WARN', async () => {
+    await runOnePhase('role has no agent assigned', 81);
+    expect(phaseFailedWarns()).toHaveLength(1);
   });
 });
 

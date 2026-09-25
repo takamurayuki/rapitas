@@ -8,12 +8,14 @@
  */
 import { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
+import { isApiRecoveryMode } from '../system/api-recovery-mode';
 import { UserBehaviorService } from '../../src/services/user-behavior-service';
 import { notifyTaskCompleted, createNotification } from '../communication/notification-service';
 import { buildNotificationI18n } from '../communication/notification-i18n';
 import { onGeneratedTaskCompleted } from '../scheduling/recurring-task-service';
 import { createSubtask, createParentTask } from './task-create-helpers';
 import { syncParentStatusFromSubtasks } from './task-parent-status-sync';
+import { releaseCurrentArgs, releaseThemeCurrentOnTerminal } from './task-terminal-current-release';
 import { realtimeService } from '../communication/realtime-service';
 import { syncTaskToCalendar } from '../scheduling/task-calendar-sync';
 import {
@@ -187,6 +189,7 @@ export interface UpdateTaskInput {
   constraints?: string[];
   acceptanceCriteria?: string[];
   isProtected?: boolean;
+  autoRunExcluded?: boolean;
 }
 
 /**
@@ -211,6 +214,8 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
   }
 
   const reopening = currentTask.status === 'done' && fields.status === 'todo';
+  const resumingFromDone = currentTask.status === 'done' && fields.status === 'in-progress';
+  const leavingDone = reopening || resumingFromDone;
 
   // Record streak
   if (fields.status === 'done') {
@@ -223,10 +228,10 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
     });
   }
 
-  await prisma.task.update({
+  const updateArgs = {
     where: {
       id: taskId,
-      ...((fields.status === 'blocked' || reopening) && { updatedAt: currentTask.updatedAt }),
+      ...((fields.status === 'blocked' || leavingDone) && { updatedAt: currentTask.updatedAt }),
     },
     data: {
       // Make a manual re-block a new revision even within the same millisecond.
@@ -240,8 +245,8 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       ...(fields.status === 'done' && { completedAt: new Date() }),
       // Reopening must not leave a terminal workflow badge/state behind.
       // Retain artifacts; normal file-save guards validate their reuse.
+      ...(leavingDone && { completedAt: null }),
       ...(reopening && {
-        completedAt: null,
         startedAt: null,
         ...(currentTask.workflowStatus === 'completed' && { workflowStatus: 'draft' }),
       }),
@@ -271,6 +276,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       ...(fields.examGoalId !== undefined && { examGoalId: fields.examGoalId }),
       ...(fields.autoApprovePlan !== undefined && { autoApprovePlan: fields.autoApprovePlan }),
       ...(fields.isProtected !== undefined && { isProtected: fields.isProtected }),
+      ...(fields.autoRunExcluded !== undefined && { autoRunExcluded: fields.autoRunExcluded }),
       // NOTE: Structured spec stored as JSON-array strings, mirroring `labels`.
       ...(fields.goals !== undefined && { goals: JSON.stringify(fields.goals) }),
       ...(fields.constraints !== undefined && { constraints: JSON.stringify(fields.constraints) }),
@@ -278,7 +284,22 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
         acceptanceCriteria: JSON.stringify(fields.acceptanceCriteria),
       }),
     },
-  });
+  };
+  // NOTE: atomic by design (acceptance 1) — a failed release also fails the status update.
+  // Terminal status: release the theme's currentTaskId in the SAME transaction (task 1009).
+  if (
+    (fields.status === 'done' || fields.status === 'cancelled') &&
+    typeof prisma.$transaction === 'function'
+  ) {
+    // Batch form: PrismaPromises are lazy, so nothing runs until $transaction executes them.
+    await prisma.$transaction([
+      prisma.task.update(updateArgs),
+      prisma.themeAutoRun.updateMany(releaseCurrentArgs(taskId)),
+    ]);
+  } else {
+    await prisma.task.update(updateArgs);
+    await releaseThemeCurrentOnTerminal(prisma, taskId, fields.status);
+  }
 
   // Update labels
   if (labelIds !== undefined) {
@@ -296,7 +317,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
   });
 
   // Record user behavior (parent tasks only)
-  if (!currentTask?.parentId && updatedTask) {
+  if (!currentTask?.parentId && updatedTask && !isApiRecoveryMode()) {
     if (fields.status && currentTask?.status !== fields.status) {
       if (fields.status === 'in-progress' && currentTask?.status !== 'in-progress') {
         await UserBehaviorService.recordTaskStarted(taskId, updatedTask);
@@ -383,7 +404,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
   // block above — it was previously nested inside it with a contradictory
   // `currentTask?.parentId` guard, making it dead code that never ran, so a
   // split parent was never driven to completion after its subtasks finished.
-  if (fields.status === 'done' && currentTask?.parentId && updatedTask) {
+  if (fields.status === 'done' && currentTask?.parentId && updatedTask && !isApiRecoveryMode()) {
     const parentId = currentTask.parentId;
     import('../workflow/subtask-completion-handler')
       .then(({ onSubtaskCompleted }) => {
@@ -456,7 +477,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
     });
 
     // NOTE: Bidirectional sync — task dueDate changes propagate to calendar events.
-    if (fields.dueDate !== undefined) {
+    if (fields.dueDate !== undefined && !isApiRecoveryMode()) {
       syncTaskToCalendar(taskId, updatedTask.dueDate, updatedTask.title).catch((err) => {
         logger.warn({ err, taskId }, 'Task-to-calendar sync failed');
       });

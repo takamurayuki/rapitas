@@ -14,8 +14,22 @@ import { resolveTaskWorkflowState } from '../../task/task-resolver';
 import { isTaskTerminalForQueue } from '../workflow-queue';
 import { logCycleEvent } from '../../observability';
 import { notifyStallReleased } from './auto-run-notifications';
+import { releaseCurrentTaskIfMatches } from '../../task/task-terminal-current-release';
 
 const log = createLogger('auto-run-stall-guard');
+
+// Consecutive residue detections per theme. In-memory on purpose: a restart
+// merely delays the release, and the scheduler's cancelled-current handling is
+// the primary defence. Deliberately not a time window (windows reset the guard).
+const residueStreak = new Map<number, { taskId: number; count: number }>();
+const RESIDUE_RELEASE_STREAK = 2;
+
+function noteResidue(themeId: number, taskId: number): number {
+  const prev = residueStreak.get(themeId);
+  const count = prev && prev.taskId === taskId ? prev.count + 1 : 1;
+  residueStreak.set(themeId, { taskId, count });
+  return count;
+}
 
 /**
  * Cancel the active queue items of a theme's current task IF that task is
@@ -38,10 +52,16 @@ export async function releaseStaleActiveItems(
   const task = await resolveTaskWorkflowState(currentTaskId);
   // Positive terminal evidence only — a null lookup can be a transient DB
   // error and must never cancel a live task's items.
-  if (!isTaskTerminalForQueue(task)) return 0;
+  if (!isTaskTerminalForQueue(task)) {
+    residueStreak.delete(themeId);
+    return 0;
+  }
 
   const ids = currentItems.map((i) => i.id);
-  if (ids.length === 0) return 0;
+  if (ids.length === 0) {
+    residueStreak.delete(themeId); // no residue this tick: the streak is broken
+    return 0;
+  }
 
   const updated = await prisma.workflowQueueItem
     .updateMany({
@@ -54,7 +74,10 @@ export async function releaseStaleActiveItems(
       },
     })
     .catch(() => ({ count: 0 }));
-  if (updated.count === 0) return 0;
+  if (updated.count === 0) {
+    residueStreak.delete(themeId); // nothing was released (lost CAS): not a recorded residue
+    return 0;
+  }
 
   log.warn(
     { themeId, taskId: currentTaskId, released: updated.count },
@@ -84,5 +107,11 @@ export async function releaseStaleActiveItems(
   }).catch((err) => {
     log.warn({ err, taskId: currentTaskId }, '[stall-guard] stopTaskAgents failed');
   });
+  // Counted only when a stall_released was recorded above; the same terminal task
+  // pinned again on the next tick means the theme slot itself must be freed.
+  if (noteResidue(themeId, currentTaskId) >= RESIDUE_RELEASE_STREAK) {
+    await releaseCurrentTaskIfMatches(prisma, currentTaskId).catch(() => 0);
+    residueStreak.delete(themeId);
+  }
   return updated.count;
 }

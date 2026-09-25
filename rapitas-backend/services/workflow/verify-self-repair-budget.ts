@@ -12,9 +12,11 @@ import {
   parseAcceptanceCriteria,
   detectNonConvergence,
   identifyIndictedCriteria,
+  resolveNonConvergenceThreshold,
   type ConvergenceVerdict,
 } from './verify-convergence';
 import { DEFAULT_VERIFY_REPAIR_LIMIT } from './blocked-task-policy';
+import { detectRepeatedEvidence, extractRepeatKey } from './verify-repeat-evidence';
 
 const log = createLogger('workflow:verify-self-repair');
 
@@ -105,8 +107,38 @@ export async function countPriorRepairs(taskId: number): Promise<number> {
 }
 
 /**
- * Detect a non-converging repair loop (task 619): 2+ flags on one criterion
- * across current + prior reasons (same window as countPriorRepairs) = cutoff.
+ * Count how many verify→implement repair bounces this task has EVER had,
+ * ignoring window resets (task 946). Unlike {@link countPriorRepairs}, this
+ * does not filter by `resolveRepairWindowStart` — it is the safety net that
+ * detects the windowed budget being reset repeatedly (via `question_resolved`
+ * etc.) and repairs accumulating across windows without ever tripping a
+ * single window's limit (task 907: 18 bounces across 3 windows of 7/3/8).
+ *
+ * @param taskId - Task id / タスクID
+ * @returns Total repair count across all windows / 全窓を通じた修復回数の合計
+ */
+export async function countLifetimeRepairs(taskId: number): Promise<number> {
+  return prisma.workflowTransition
+    .count({ where: { taskId, cause: REPAIR_CAUSE } })
+    .catch((err) => {
+      // FAIL CLOSED — same rationale as countPriorRepairs: a count error must
+      // not silently disable the lifetime safety net.
+      log.warn(
+        { err, taskId },
+        '[verify-repair] Failed to count lifetime repairs — treating budget as exhausted',
+      );
+      return Number.MAX_SAFE_INTEGER;
+    });
+}
+
+/**
+ * Detect a non-converging repair loop (task 619): threshold+ (default 3) flags on one criterion
+ * without a shrinking indicted set, across current + prior reasons (same window as countPriorRepairs) = cutoff.
+ * A second, criterion-free signal (verify-repeat-evidence.ts) fires when the
+ * validator's quoted evidence («…») is identical threshold+ times — the
+ * verifier keeps writing the same ❌ / ⚠️ row and the implementer keeps
+ * being bounced for it (task 914: 16 rounds on one plan item whose test file
+ * cannot exist on Windows).
  * FAIL OPEN — unlike countPriorRepairs' fail-closed budget, an unidentifiable
  * reason / missing criteria / DB error must never stop a progressing task.
  *
@@ -124,8 +156,10 @@ export async function detectRepairNonConvergence(
       select: { acceptanceCriteria: true },
     });
     const criteria = parseAcceptanceCriteria(task?.acceptanceCriteria ?? null);
-    // Short-circuit BEFORE any transition query: no criteria → nothing to match.
-    if (criteria.length === 0) return { cutoff: false };
+    const threshold = resolveNonConvergenceThreshold();
+    // Short-circuit BEFORE any transition query when neither signal can fire:
+    // no criteria to match AND no quoted evidence to compare.
+    if (criteria.length === 0 && extractRepeatKey(currentReason) === null) return { cutoff: false };
 
     // Share the same window boundary as countPriorRepairs (task 832) — a manual
     // retry, a criteria replacement, a question resolution, or a plan
@@ -139,6 +173,7 @@ export async function detectRepairNonConvergence(
         ...(windowStart ? { createdAt: { gt: windowStart } } : {}),
       },
       select: { metadata: true },
+      orderBy: { createdAt: 'asc' },
     });
 
     const priorReasons: string[] = [];
@@ -149,7 +184,12 @@ export async function detectRepairNonConvergence(
         if (typeof meta.reason === 'string' && meta.reason) priorReasons.push(meta.reason);
       } catch {}
     }
-    const verdict = detectNonConvergence(currentReason, priorReasons, criteria);
+    const repeated = detectRepeatedEvidence(currentReason, priorReasons, threshold);
+    if (repeated.cutoff) {
+      return { cutoff: true, repeatedEvidence: repeated.repeatedEvidence, count: repeated.count };
+    }
+    if (criteria.length === 0) return { cutoff: false };
+    const verdict = detectNonConvergence(currentReason, priorReasons, criteria, threshold);
 
     // Make the fail-open audible: a no-cutoff verdict looks the same whether
     // a task is genuinely converging or the detector simply can't read the

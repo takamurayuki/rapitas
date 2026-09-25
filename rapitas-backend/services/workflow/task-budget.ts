@@ -48,6 +48,14 @@ export interface TaskBudgetState {
   /** Ceiling for the next phase, or undefined while the task is within budget. */
   capTier?: ModelTier;
   reason?: string;
+  /**
+   * True when the spend lookup itself failed (DB unreachable) — `spentUsd`
+   * is a placeholder, not a measured zero. `capTier` is left unset in this
+   * case: tier judgement is deferred, not resolved to "no ceiling".
+   */
+  spendUnknown?: boolean;
+  /** Failure reason plus the resume condition. Set only when spendUnknown is true. */
+  unknownReason?: string;
 }
 
 /**
@@ -66,23 +74,48 @@ function coerceCost(v: unknown): number {
 /**
  * Total USD already recorded against a task's executions.
  *
+ * Rejects on a DB read failure instead of silently returning 0 — a failed
+ * lookup is NOT zero spend, and resolving it to zero here used to erase the
+ * ceiling this backstop exists to impose (the caller could not tell "no
+ * spend" from "could not check"). {@link resolveTaskBudgetCap} is the sole
+ * caller and is the layer that decides how to treat this failure.
+ *
  * @param taskId - Task to total. / 対象タスクID
- * @returns Sum of costUsd, 0 on any read failure. / 合計コスト
+ * @returns Sum of costUsd. / 合計コスト
+ * @throws Propagates the underlying Prisma error on a failed read. / DB読み取り失敗時に例外を伝播
  */
 export async function getTaskSpendUsd(taskId: number): Promise<number> {
-  // A failed lookup is NOT zero spend. Both read as 0 to the caller, which
-  // silently removes the ceiling this backstop exists to impose — the same
-  // shape of failure as a convergence detector that cannot read its criteria.
-  // Fail open, because a DB blip must not throttle every task, but say so.
-  const rows = await prisma.agentExecution
-    .findMany({ where: { session: { config: { taskId } } }, select: { costUsd: true } })
-    .catch((err: unknown) => {
-      log.warn(
-        { err, taskId },
-        '[task-budget] spend lookup failed — treating as 0, so no ceiling applies this phase',
-      );
-      return [] as Array<{ costUsd: unknown }>;
-    });
+  const rows = await prisma.agentExecution.findMany({
+    where: { session: { config: { taskId } } },
+    select: { costUsd: true },
+  });
+  return rows.reduce((a, r) => a + coerceCost(r.costUsd), 0);
+}
+
+/**
+ * USD recorded against a task's executions that started at or after `since`
+ * (executions with no startedAt are counted — they are pending, not old).
+ *
+ * Exists for the iteration budget's HARD stop (task-iteration-budget.ts):
+ * unlike {@link resolveTaskBudgetCap}'s graduated cap, that stop must honour
+ * the iteration window, otherwise a task whose lifetime spend once crossed
+ * the budget is re-halted on every selection after a retry / answered
+ * question (task 996, 2026-09-20: $34.76 lifetime, $0 since the reset, halted
+ * again 7 minutes after resume).
+ *
+ * @param taskId - Task to total. / 対象タスクID
+ * @param since - Window start; null means the whole lifetime. / 集計開始時刻
+ * @returns Sum of costUsd within the window. / 窓内の合計コスト
+ * @throws Propagates the underlying Prisma error on a failed read. / DB読み取り失敗時に例外を伝播
+ */
+export async function getTaskSpendUsdSince(taskId: number, since: Date | null): Promise<number> {
+  const rows = await prisma.agentExecution.findMany({
+    where: {
+      session: { config: { taskId } },
+      ...(since ? { OR: [{ startedAt: null }, { startedAt: { gte: since } }] } : {}),
+    },
+    select: { costUsd: true },
+  });
   return rows.reduce((a, r) => a + coerceCost(r.costUsd), 0);
 }
 
@@ -99,7 +132,28 @@ export async function getTaskSpendUsd(taskId: number): Promise<number> {
  */
 export async function resolveTaskBudgetCap(taskId: number): Promise<TaskBudgetState> {
   const budget = budgetUsd();
-  const spentUsd = await getTaskSpendUsd(taskId);
+
+  let spentUsd: number;
+  try {
+    spentUsd = await getTaskSpendUsd(taskId);
+  } catch (err) {
+    // Fail open on the CEILING (a DB blip must not throttle every task), but
+    // never on the FACT that the ceiling could not be checked: capTier stays
+    // unset (this phase runs at whatever tier the floors already picked) and
+    // the failure plus its resume condition are recorded instead of being
+    // reported as a measured $0 spend. resolveTaskBudgetCap has no cache, so
+    // the very next call (the next phase dispatch) re-reads the DB — once it
+    // recovers, tier judgement resumes automatically without any extra retry
+    // mechanism.
+    const detail = err instanceof Error ? err.message : String(err);
+    const unknownReason = `支出取得に失敗（${detail}）— tier判定を保留し既存tierを維持。次回のフェーズディスパッチ時にDBが回復していれば自動的に正常判定へ復帰する`;
+    log.warn(
+      { err, taskId },
+      '[task-budget] spend lookup failed — deferring tier judgement, not treating as $0 spend',
+    );
+    return { spentUsd: 0, budgetUsd: budget, spendUnknown: true, unknownReason };
+  }
+
   if (budget <= 0) return { spentUsd, budgetUsd: budget };
 
   if (spentUsd >= budget * hardMultiple()) {

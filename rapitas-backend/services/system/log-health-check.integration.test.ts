@@ -76,6 +76,12 @@ mock.module('fs/promises', () => ({
   readFile: mockReadFile,
 }));
 
+// NOTE: The backend-log read goes through readLogTail (stat/open on the real file);
+//       route it to the same readFile mock so these tests keep controlling log content.
+mock.module('./log-tail-reader', () => ({
+  readLogTail: (p: unknown) => mockReadFile(p, 'utf-8'),
+}));
+
 mock.module('fs', () => ({
   readdirSync: mockReaddirSync,
   statSync: mockStatSync,

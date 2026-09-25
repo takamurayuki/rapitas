@@ -72,6 +72,12 @@ mock.module('../../services/workflow/publication-cancellation-guard', () => ({
 mock.module('../../services/workflow/automation-policy', () => ({
   resolveAutomationPolicy: () =>
     Promise.resolve({ autoCommit: true, autoCreatePR: true, autoMergePR: false }),
+  // task 948: mirror this named export — bun mock.module is process-global,
+  // and a full-module mock missing it breaks any later test in the same run
+  // that imports the real automation-policy export.
+  isStagedCompletionEnabled: () =>
+    process.env.RAPITAS_STAGED_COMPLETION !== 'false' &&
+    process.env.RAPITAS_STAGED_COMPLETION !== '0',
 }));
 
 const verificationGateMock = mock(
@@ -135,10 +141,23 @@ mock.module('../../services/workflow/auto-merge-notify', () => ({
   notify: () => Promise.resolve(),
 }));
 
+// Existing open PR for the task (task-scoped reuse guard). null = create path.
+let openPrFixture: { prNumber: number; url: string } | null = null;
 mock.module('../../services/github/pr-duplicate-guard', () => ({
-  findOpenPrForTask: () => Promise.resolve(null),
+  findOpenPrForTask: () => Promise.resolve(openPrFixture),
   claimPrCreationLock: () => Promise.resolve(true),
   releasePrCreationLock: () => Promise.resolve(),
+}));
+
+// Reuse-path push (#10694): recorded so a test can prove the reused PR gets
+// the freshly saved commit, and that a failed push is not reported as success.
+const reusePushCalls: Array<{ cwd: string; branch: string }> = [];
+let reusePushFixture: { success: boolean; error?: string } = { success: true };
+mock.module('./workflow-auto-commit-reuse-push', () => ({
+  pushExistingPrBranch: (cwd: string, branch: string) => {
+    reusePushCalls.push({ cwd, branch });
+    return Promise.resolve({ ...reusePushFixture });
+  },
 }));
 
 // `git rev-list --count origin/<base>..HEAD` seen by countCommitsAhead. The
@@ -151,9 +170,69 @@ let removeWorktreeCalls = 0;
 mock.module('../../services/github/git-exec', () => ({
   runGitCommand: () => Promise.resolve(revListFixture),
 }));
+let baseSyncFixture = {
+  status: 'skipped',
+  changedFiles: 0,
+  conflicts: [] as string[],
+  detail: 'no worktree',
+};
 mock.module('../../services/workflow/pre-pr-base-sync', () => ({
-  syncBaseIntoBranch: () =>
-    Promise.resolve({ status: 'skipped', changedFiles: 0, conflicts: [], detail: 'no worktree' }),
+  syncBaseIntoBranch: () => Promise.resolve({ ...baseSyncFixture }),
+}));
+
+// Pre-gate harness sync (2026-09-13): recorded so a test can prove it runs
+// BEFORE the verification gate and never decides the outcome by itself.
+const callOrder: string[] = [];
+const harnessSyncMock = mock(() => {
+  callOrder.push('harness-sync');
+  return Promise.resolve(null);
+});
+mock.module('../../services/workflow/harness-drift-sync', () => ({
+  syncHarnessIfDrifted: harnessSyncMock,
+}));
+
+// Pre-save stage (2026-09-13): hard tamper/secret screen + advisory scope on
+// the tree about to be recorded, then the LOCAL commit. The save delegates to
+// the orchestrator mock above so createCommitCalls keeps counting.
+let preSaveFixture = {
+  ok: true,
+  summary: 'tamper=n/a / secret=ok / scope=n/a',
+  secrets: [] as string[],
+};
+// HEAD as seen by readHeadRevision: a queue lets a test make the second read
+// (after the base sync) differ from the first (what the gate verified).
+let headQueue: Array<string | null> = [];
+const HEAD_A = 'a'.repeat(40);
+const HEAD_B = 'b'.repeat(40);
+let dirtyFixture: string[] | null = [];
+mock.module('./workflow-auto-commit-presave', () => ({
+  listWorkingTreeChanges: () => Promise.resolve(dirtyFixture),
+  readHeadRevision: () =>
+    Promise.resolve(headQueue.length > 1 ? headQueue.shift()! : (headQueue[0] ?? HEAD_A)),
+  runPreSaveChecks: () => {
+    callOrder.push('presave');
+    return Promise.resolve({
+      ...preSaveFixture,
+      changedFiles: [],
+      tamper: null,
+      scope: null,
+      unattributed: [],
+      record: { ...preSaveFixture, unattributed: [] },
+    });
+  },
+  saveTaskWorkLocally: async (p: {
+    orchestrator: { createCommit: (cwd: string, msg: string, base: string) => Promise<unknown> };
+    gitCwd: string;
+    message: string;
+    targetBranch: string;
+  }) => {
+    callOrder.push('commit');
+    const c = (await p.orchestrator.createCommit(p.gitCwd, p.message, p.targetBranch)) as Record<
+      string,
+      unknown
+    >;
+    return { success: true, ...c };
+  },
 }));
 
 const { performAutoCommitAndPR } = await import('./workflow-auto-commit');
@@ -292,11 +371,11 @@ describe('performAutoCommitAndPR — 停止後は後続の公開処理を一切�
     expect(removeWorktreeCalls).toBe(0);
   });
 
-  test('検証ゲート通過後に停止されたら commit 以降を行わない', async () => {
+  test('検証ゲート通過後に停止されたら push/PR 以降を行わない (ローカル保存は済んでいる)', async () => {
     arm('after_verification_gate');
     const result = await performAutoCommitAndPR(895, '# 検証結果');
     expect(result.error).toBe(CANCELLED);
-    expect(createCommitCalls).toBe(0);
+    expect(createCommitCalls).toBe(1);
     expect(createPullRequestCalls).toBe(0);
     expect(removeWorktreeCalls).toBe(0);
   });
@@ -338,8 +417,8 @@ describe('performAutoCommitAndPR — 停止後は後続の公開処理を一切�
     expect(removeWorktreeCalls).toBe(0);
     expect(publicationAbortedCalls).toEqual([
       'entry',
-      'after_verification_gate',
       'before_commit',
+      'after_verification_gate',
       'before_pr',
       'before_worktree_cleanup',
     ]);
@@ -347,9 +426,10 @@ describe('performAutoCommitAndPR — 停止後は後続の公開処理を一切�
   });
 });
 
-test('unverifiable gate exposes the infrastructure outcome without committing', async () => {
+test('unverifiable gate keeps the local commit and exposes the infrastructure outcome without publishing', async () => {
   cancelAtStep = null;
   const before = createCommitCalls;
+  createPullRequestCalls = 0;
   verificationGateMock.mockResolvedValueOnce({
     ok: false,
     result: {
@@ -364,5 +444,177 @@ test('unverifiable gate exposes the infrastructure outcome without committing', 
   expect(outcome.verificationBlocked).toBe(true);
   expect(outcome.verificationUnverifiable).toBe(true);
   expect(outcome.error).toContain('runtime quarantined');
+  expect(createCommitCalls).toBe(before + 1);
+  expect(outcome.autoCommitResult?.hash).toBe('abc123');
+  expect(createPullRequestCalls).toBe(0);
+});
+
+test('a hard pre-save failure (tamper/secret) records nothing and publishes nothing', async () => {
+  cancelAtStep = null;
+  callOrder.length = 0;
+  const before = createCommitCalls;
+  createPullRequestCalls = 0;
+  preSaveFixture = {
+    ok: false,
+    summary: 'tamper=ok / secret=NG(1) / scope=n/a',
+    secrets: ['.env'],
+  };
+  const outcome = await performAutoCommitAndPR(687, 'PASS');
+  preSaveFixture = { ok: true, summary: 'tamper=n/a / secret=ok / scope=n/a', secrets: [] };
+  expect(callOrder).toEqual(['presave']);
+  expect(outcome.verificationBlocked).toBe(true);
+  expect(outcome.verificationUnverifiable).toBe(false);
+  expect(outcome.error).toContain('secret=NG(1)');
+  expect(outcome.preSaveResult?.secrets).toEqual(['.env']);
   expect(createCommitCalls).toBe(before);
+  expect(createPullRequestCalls).toBe(0);
+});
+
+describe('publish guard: the pushed revision is the verified revision', () => {
+  test('a clean sync that moved HEAD re-runs the gate; PR follows only when it passes', async () => {
+    cancelAtStep = null;
+    filesChangedFixture = 1;
+    revListFixture = '1';
+    createPullRequestCalls = 0;
+    prResultFixture = { success: true, error: '', prNumber: 701 };
+    baseSyncFixture = { status: 'clean', changedFiles: 3, conflicts: [], detail: 'merged' };
+    headQueue = [HEAD_A, HEAD_B, HEAD_B];
+    verificationGateMock.mockClear();
+    const out = await performAutoCommitAndPR(687, 'PASS');
+    expect(verificationGateMock).toHaveBeenCalledTimes(2);
+    expect(out.verifiedRevision).toBe(HEAD_B);
+    expect(out.publishedRevision).toBe(HEAD_B);
+    expect(createPullRequestCalls).toBe(1);
+    expect(out.autoPRResult?.success).toBe(true);
+    baseSyncFixture = { status: 'skipped', changedFiles: 0, conflicts: [], detail: 'no worktree' };
+    headQueue = [];
+  });
+
+  test('re-verification failure after the sync keeps the commit and withholds the PR', async () => {
+    cancelAtStep = null;
+    filesChangedFixture = 1;
+    createPullRequestCalls = 0;
+    baseSyncFixture = { status: 'clean', changedFiles: 2, conflicts: [], detail: 'merged' };
+    headQueue = [HEAD_A, HEAD_B, HEAD_B];
+    verificationGateMock.mockClear();
+    verificationGateMock.mockResolvedValueOnce({ ok: true, result: null });
+    verificationGateMock.mockResolvedValueOnce({
+      ok: false,
+      result: { ok: false, summary: 'test=NG(1)', checks: [], changedFiles: [] },
+    });
+    const out = await performAutoCommitAndPR(687, 'PASS');
+    expect(verificationGateMock).toHaveBeenCalledTimes(2);
+    expect(out.verificationBlocked).toBe(true);
+    expect(out.error).toContain('再検証に失敗');
+    expect(out.autoCommitResult?.hash).toBe('abc123');
+    expect(createPullRequestCalls).toBe(0);
+    baseSyncFixture = { status: 'skipped', changedFiles: 0, conflicts: [], detail: 'no worktree' };
+    headQueue = [];
+  });
+
+  test('uncommitted or untracked changes left after the gate withhold the PR', async () => {
+    cancelAtStep = null;
+    filesChangedFixture = 1;
+    createPullRequestCalls = 0;
+    dirtyFixture = ['?? rapitas-backend/late-edit.ts'];
+    verificationGateMock.mockClear();
+    const out = await performAutoCommitAndPR(687, 'PASS');
+    dirtyFixture = [];
+    expect(verificationGateMock).toHaveBeenCalledTimes(1);
+    expect(out.error).toContain('未コミット・未追跡');
+    expect(out.autoCommitResult?.hash).toBe('abc123');
+    expect(createPullRequestCalls).toBe(0);
+  });
+
+  test('HEAD that drifted without a recorded sync is never pushed', async () => {
+    cancelAtStep = null;
+    filesChangedFixture = 1;
+    createPullRequestCalls = 0;
+    headQueue = [HEAD_A, HEAD_B, HEAD_B];
+    verificationGateMock.mockClear();
+    const out = await performAutoCommitAndPR(687, 'PASS');
+    // The guard treats a moved HEAD as new code: re-gate, then publish HEAD_B.
+    expect(verificationGateMock).toHaveBeenCalledTimes(2);
+    expect(out.publishedRevision).toBe(HEAD_B);
+    headQueue = [HEAD_A, null, null];
+    createPullRequestCalls = 0;
+    const held = await performAutoCommitAndPR(687, 'PASS');
+    expect(held.error).toContain('検証済みの版と HEAD が一致しない');
+    expect(createPullRequestCalls).toBe(0);
+    headQueue = [];
+  });
+});
+
+test('order: pre-save → local commit → harness sync → gate; a held gate never publishes', async () => {
+  cancelAtStep = null;
+  callOrder.length = 0;
+  harnessSyncMock.mockImplementationOnce(() => {
+    callOrder.push('harness-sync');
+    return Promise.resolve({
+      reason: 'drift',
+      sync: { status: 'conflict_unresolved', changedFiles: 0, conflicts: ['a.ts'], detail: 'x' },
+      harnessPresent: false,
+    });
+  });
+  verificationGateMock.mockImplementationOnce(() => {
+    callOrder.push('gate');
+    return Promise.resolve({
+      ok: false,
+      result: {
+        ok: false,
+        unverifiable: true,
+        summary: 'runtime=UNVERIFIED',
+        checks: [],
+        changedFiles: [],
+      },
+    });
+  });
+  const before = createCommitCalls;
+  createPullRequestCalls = 0;
+  const outcome = await performAutoCommitAndPR(687, 'PASS');
+  expect(callOrder).toEqual(['presave', 'commit', 'harness-sync', 'gate']);
+  expect(outcome.harnessSyncResult?.sync.status).toBe('conflict_unresolved');
+  expect(outcome.verificationBlocked).toBe(true);
+  expect(outcome.verificationUnverifiable).toBe(true);
+  expect(createCommitCalls).toBe(before + 1);
+  expect(createPullRequestCalls).toBe(0);
+});
+
+describe('performAutoCommitAndPR — 既存 PR 再利用時も push する (#10694)', () => {
+  test('reused PR: the saved commit is pushed to the session branch, no new PR is created', async () => {
+    cancelAtStep = null;
+    openPrFixture = { prNumber: 772, url: 'https://github.com/x/y/pull/772' };
+    reusePushFixture = { success: true };
+    reusePushCalls.length = 0;
+    filesChangedFixture = 1;
+    createPullRequestCalls = 0;
+
+    const out = await performAutoCommitAndPR(687, 'PASS');
+
+    expect(createPullRequestCalls).toBe(0);
+    expect(reusePushCalls).toEqual([{ cwd: 'C:\\work\\project', branch: 'feature/t687' }]);
+    expect(out.autoPRResult).toEqual({
+      success: true,
+      prUrl: 'https://github.com/x/y/pull/772',
+      prNumber: 772,
+    });
+    openPrFixture = null;
+  });
+
+  test('reused PR: a failed push is surfaced as autoPRResult failure, not success', async () => {
+    cancelAtStep = null;
+    openPrFixture = { prNumber: 772, url: 'https://github.com/x/y/pull/772' };
+    reusePushFixture = { success: false, error: '! [rejected] non-fast-forward' };
+    reusePushCalls.length = 0;
+    filesChangedFixture = 1;
+
+    const out = await performAutoCommitAndPR(687, 'PASS');
+
+    expect(reusePushCalls.length).toBe(1);
+    expect(out.autoPRResult?.success).toBe(false);
+    expect(out.autoPRResult?.prNumber).toBe(772);
+    expect(out.autoPRResult?.error).toContain('non-fast-forward');
+    openPrFixture = null;
+    reusePushFixture = { success: true };
+  });
 });

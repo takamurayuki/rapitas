@@ -15,26 +15,34 @@ import { createLogger } from '../../config/logger';
 // can require "0 live aux CLI children" and post-crash cleanup can reap them.
 import { registerProcess, unregisterProcess } from '../../services/agents/agent-process-tracker';
 import { getClaudePathAsync } from '../common/cli-path-resolver';
+import {
+  escapeWindowsShellArg,
+  escapeWindowsShellArgForTarget,
+} from '../common/windows-shell-escape';
 import { type AIMessage, type AIResponse } from './types';
 import { describeCliFailure, extractLastJsonObject } from './cli-failure-reason';
 import { auxCliCleanup } from './aux-cli-cleanup';
 import { prepareAuxCli } from './aux-cli-launch';
 import { createClaudeCliStream } from './claude-cli-stream';
 import { ClaudeCliUnavailableError } from './cli-errors';
+import { guardPromptSize } from './prompt-size-guard';
 
 export { ClaudeCliUnavailableError } from './cli-errors';
 
 const log = createLogger('ai-client:claude-cli');
 
-/** Build the platform-specific spawn command/args (UTF-8 code page on Windows). */
-function buildSpawnCommand(claudePath: string, args: string[]): [string, string[]] {
+/**
+ * Build the platform-specific spawn command/args (UTF-8 code page on
+ * Windows). Exported (task 977) so claude-cli-provider.cmd-roundtrip.test.ts
+ * can drive it with a real cmd.exe round-trip, independent of the
+ * spawn-mocking used by this module's other tests.
+ */
+export function buildSpawnCommand(claudePath: string, args: string[]): [string, string[]] {
   if (process.platform !== 'win32') return [claudePath, args];
-  const argsString = args
-    .map((arg) =>
-      !arg || arg.includes(' ') || arg.includes('&') || arg.includes('|') ? `"${arg}"` : arg,
-    )
-    .join(' ');
-  const quotedPath = claudePath.includes(' ') ? `"${claudePath}"` : claudePath;
+  // NOTE: escape depth follows the target kind — `claude.exe` (native installer)
+  // is parsed by cmd.exe once, a `.cmd` shim twice (task 970 regression).
+  const argsString = args.map((arg) => escapeWindowsShellArgForTarget(claudePath, arg)).join(' ');
+  const quotedPath = escapeWindowsShellArg(claudePath, false);
   return [`chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`, []];
 }
 
@@ -338,7 +346,7 @@ export async function callClaudeCli(
       DISALLOWED_TOOLS,
       ...TEXT_ONLY_ARGS,
     ];
-    const stdout = await spawnCli(args, combinePrompt(messages, systemPrompt));
+    const stdout = await spawnCli(args, guardPromptSize(combinePrompt(messages, systemPrompt)));
     const jsonText = extractLastJsonObject(stdout.trim()) ?? stdout.trim();
     let parsed: {
       result?: string;
@@ -382,7 +390,7 @@ export async function callClaudeCliStream(
   systemPrompt: string | undefined,
   _maxTokens: number,
 ): Promise<ReadableStream> {
-  const prompt = combinePrompt(messages, systemPrompt);
+  const prompt = guardPromptSize(combinePrompt(messages, systemPrompt));
   const args = [
     '--print',
     '--verbose',

@@ -51,7 +51,21 @@ mock.module('./auto-merge-checks', () => ({
   readMergeState: mock(() => Promise.resolve('CLEAN')),
   readHeadSha: mock(() => Promise.resolve('sha')),
   updatePrBranch: mock(() => Promise.resolve(true)),
+  ghPath: () => 'gh',
 }));
+// task 1021: the watcher now consults the pre-merge gate + drift check; both would
+// otherwise shell out to gh/git. Tests drive the gate result through mockGate.
+const mockGate = mock(() =>
+  Promise.resolve<{ ok: boolean; reason?: string; detail?: string }>({ ok: true }),
+);
+mock.module('./auto-merge-premerge-gate', () => ({
+  evaluatePreMergeGate: mockGate,
+  RATCHET_CHECK_NAME: 'ratchet-check',
+}));
+mock.module('./auto-merge-baseline-drift', () => ({
+  checkBaselineDrift: mock(() => Promise.resolve(false)),
+}));
+
 mock.module('./auto-merge-ci-failure', () => ({ handleCiFailure: mock(() => Promise.resolve()) }));
 mock.module('./ci-self-repair', () => ({
   attemptCiRepair: mock(() => Promise.resolve({ bounced: false })),
@@ -69,6 +83,9 @@ mock.module('./auto-merge-exhaustion', () => ({
   resetExhaustedRecheckCooldowns: () => {},
   markExhausted: mock(() => Promise.resolve()),
   decideTerminalState: () => Promise.resolve({ skip: false }),
+  readExhaustionRecord: mock(() =>
+    Promise.resolve({ exhausted: false, headSha: null, exhaustedAt: null }),
+  ),
 }));
 mock.module('./auto-merge-notify', () => ({ notify: mock(() => Promise.resolve()) }));
 mock.module('./transition-recorder', () => ({ recordTransition: mock(() => Promise.resolve()) }));
@@ -83,6 +100,7 @@ mock.module('../../config/database', () => ({
     workflowTransition: { count: mock(() => Promise.resolve(0)) },
     gitHubPullRequest: {
       findFirst: mock(() => Promise.resolve(null)),
+      findMany: mock(() => Promise.resolve([])),
       updateMany: mock(() => Promise.resolve({ count: 0 })),
     },
     task: {

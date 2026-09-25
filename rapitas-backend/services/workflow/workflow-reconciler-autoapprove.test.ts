@@ -13,8 +13,15 @@ mock.module('../../config/logger', () => ({
 
 let staleTasks: Array<{ id: number }> = [];
 const taskFindMany = mock(async () => staleTasks);
+let recentRejectionByTask: Record<number, boolean> = {};
+const workflowTransitionFindFirst = mock(async (args: { where: { taskId: number } }) =>
+  recentRejectionByTask[args.where.taskId] ? { id: 1 } : null,
+);
 mock.module('../../config/database', () => ({
-  prisma: { task: { findMany: taskFindMany } },
+  prisma: {
+    task: { findMany: taskFindMany },
+    workflowTransition: { findFirst: workflowTransitionFindFirst },
+  },
 }));
 
 let policyByTask: Record<number, boolean> = {};
@@ -35,7 +42,9 @@ const { healAutoApproveStalls } = await import('./workflow-reconciler-autoapprov
 beforeEach(() => {
   staleTasks = [];
   policyByTask = {};
+  recentRejectionByTask = {};
   taskFindMany.mockClear();
+  workflowTransitionFindFirst.mockClear();
   resolveEffectiveAutoApprovePlan.mockClear();
   maybeAutoApprovePlan.mockClear();
   maybeAutoApprovePlan.mockResolvedValue({ newStatus: 'plan_approved', autoApproved: true });
@@ -95,5 +104,26 @@ describe('healAutoApproveStalls', () => {
 
   test('no stale tasks → no-op', async () => {
     expect(await healAutoApproveStalls(Date.now())).toBe(0);
+  });
+
+  test('a task with a recent plan transition_rejected is skipped this cycle (task 958 cooldown)', async () => {
+    staleTasks = [{ id: 915 }];
+    policyByTask = { 915: true };
+    recentRejectionByTask = { 915: true };
+
+    const healed = await healAutoApproveStalls(Date.now());
+    expect(healed).toBe(0);
+    expect(resolveEffectiveAutoApprovePlan).not.toHaveBeenCalled();
+    expect(maybeAutoApprovePlan).not.toHaveBeenCalled();
+  });
+
+  test('a task without a recent plan transition_rejected is healed normally (task 492 regression)', async () => {
+    staleTasks = [{ id: 492 }];
+    policyByTask = { 492: true };
+    recentRejectionByTask = { 492: false };
+
+    const healed = await healAutoApproveStalls(Date.now());
+    expect(healed).toBe(1);
+    expect(maybeAutoApprovePlan).toHaveBeenCalledTimes(1);
   });
 });

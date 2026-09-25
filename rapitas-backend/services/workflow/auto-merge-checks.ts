@@ -15,8 +15,8 @@ const log = createLogger('workflow:auto-merge-checks');
 
 /**
  * Checks that GATE the merge. A PR merges only when every present blocking check
- * passes; advisory checks (bundle size, performance, CodeQL, previews) are
- * ignored. Overridable via RAPITAS_AUTOMERGE_CHECKS (comma-separated names).
+ * passes; advisory checks (bundle size, performance, previews) are ignored.
+ * Overridable via RAPITAS_AUTOMERGE_CHECKS (comma-separated names).
  */
 const DEFAULT_BLOCKING_CHECKS = [
   'Test Backend',
@@ -36,6 +36,13 @@ const DEFAULT_BLOCKING_CHECKS = [
   // RAPITAS_AUTOMERGE_CHECKS if your matrix differs.)
   'Quick Build Check',
   'Build (ubuntu-latest)',
+  // task 950: CodeQL and the HACK/FIXME ceiling (ADR-0004) used to be
+  // advisory; PR #703 sat 3+ days with both red while the task was already
+  // marked completed. Both are now blocking. security-scan.yml's `codeql`
+  // job runs a language matrix, so the check name is per-language.
+  'CodeQL Analysis (javascript)',
+  'CodeQL Analysis (typescript)',
+  'Enforce HACK/FIXME ceilings (ADR-0004)',
 ];
 
 /** Resolve the set of check names that gate auto-merge. / マージをゲートするチェック名 */
@@ -79,6 +86,13 @@ export function evaluateAutoMergeChecks(checks: PrCheck[], blocking: Set<string>
   if (relevant.length === 0) return 'unknown';
   if (relevant.some((c) => c.bucket === 'fail' || c.bucket === 'cancel')) return 'fail';
   if (relevant.some((c) => c.bucket === 'pending')) return 'pending';
+  // NOTE: CodeQL starts later than the fast checks, so a PR can look all-green before it is
+  // even queued (PR #769 merged this way with a new high alert). Some checks reported but a
+  // blocking CodeQL one has not → wait. The all-unreported case stays 'unknown' (no-CI PRs).
+  const reported = new Set(relevant.map((c) => c.name));
+  for (const name of blocking) {
+    if (name.startsWith('CodeQL') && !reported.has(name)) return 'pending';
+  }
   // Everything present is pass/skipping.
   return 'pass';
 }
@@ -144,6 +158,33 @@ export async function readMergeState(cwd: string, prNumber: number): Promise<str
     return parsed.mergeStateStatus ?? null;
   } catch (err) {
     log.warn({ err, prNumber }, '[auto-merge] Failed to read PR merge state');
+    return null;
+  }
+}
+
+/**
+ * Read the PR's current lifecycle state (open/closed/merged) via `gh pr view`.
+ * Used by blocked-task-evidence's live re-verification: unlike
+ * {@link readMergeState} (mergeability) this answers whether the PR itself is
+ * still alive at all — the question a stale local `GitHubPullRequest.state`
+ * row cannot reliably answer once GitHub's state has moved on without a
+ * webhook reaching this process (task 873/948). Returns null on a transient
+ * gh error so callers can fail soft to the local row.
+ *
+ * @param cwd - Repo working directory / リポジトリ作業ディレクトリ
+ * @param prNumber - PR number / PR番号
+ * @returns The PR's state lower-cased ('open' | 'closed' | 'merged') or null. / PRの状態（小文字）
+ */
+export async function readPrState(cwd: string, prNumber: number): Promise<string | null> {
+  try {
+    const { stdout } = await execAsync(`${ghPath()} pr view ${prNumber} --json state`, {
+      cwd,
+      encoding: 'utf8',
+    });
+    const parsed = JSON.parse(stdout) as { state?: string };
+    return parsed.state?.toLowerCase() ?? null;
+  } catch (err) {
+    log.warn({ err, prNumber }, '[auto-merge] Failed to read PR state');
     return null;
   }
 }

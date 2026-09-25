@@ -49,6 +49,7 @@ const { spawn, execSync, execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { killDeadPidEstablishedPeers } = require('./dev-established-cleanup.cjs');
 
 const BACKEND_PORT = 3001;
 const FRONTEND_PORT = 3000;
@@ -154,6 +155,7 @@ function isProcessRunning(pid) {
  * @param {number} port
  */
 function killZombieSocketOwners(port) {
+  killDeadPidEstablishedPeers(port, { isRapitasOwned: isRapitasOwnedProcess });
   try {
     // PowerShell で CLOSE_WAIT/FIN_WAIT_2/TIME_WAIT のソケット所有PIDを取得
     const psCommand = `Get-NetTCPConnection -LocalPort ${port} -ErrorAction SilentlyContinue | Where-Object { $_.State -in @('CloseWait','FinWait2','TimeWait') } | Select-Object -ExpandProperty OwningProcess -Unique`;
@@ -521,9 +523,9 @@ async function ensurePortAvailable(port) {
       console.log(`  → Proceeding anyway (backend uses reusePort for TIME_WAIT handling).`);
       const reportedPid = [...getProcessesOnPort(port)][0] ?? null;
       if (reportedPid !== null) {
-      killGhostHandleHolders(port);
-      captureGhostSocketDiagnostics(port, reportedPid);
-    }
+        killGhostHandleHolders(port);
+        captureGhostSocketDiagnostics(port, reportedPid);
+      }
       return port;
     }
 
@@ -878,9 +880,9 @@ function forceKillAllOnPort(port, maxRetries = 5) {
       console.log(`  Port ${port} shows in netstat but no active process (zombie socket).`);
       const reportedPid = [...getProcessesOnPort(port)][0] ?? null;
       if (reportedPid !== null) {
-      killGhostHandleHolders(port);
-      captureGhostSocketDiagnostics(port, reportedPid);
-    }
+        killGhostHandleHolders(port);
+        captureGhostSocketDiagnostics(port, reportedPid);
+      }
       return true;
     }
 
@@ -2541,7 +2543,13 @@ async function main() {
   // 大声で知らせる — サイレントな半死が一番高くつく。
   if (backendReady) {
     try {
-      const listenPids = getListeningPids(actualBackendPort);
+      // getListeningPids returns a Set (dedupe); Set has no .filter — convert
+      // to an array first. Without this the whole check silently no-ops via
+      // the catch below on every single startup (confirmed 2026-09-19: this
+      // ghost-socket detector, added after the 2026-08-06/07 incident, has
+      // never actually run since getListeningPids was later changed from an
+      // array to a Set).
+      const listenPids = [...getListeningPids(actualBackendPort)];
       const alive = listenPids.filter((pid) => isProcessRunning(pid));
       const dead = listenPids.filter((pid) => !isProcessRunning(pid));
       if (dead.length > 0 || alive.length > 1) {
@@ -2980,7 +2988,9 @@ function cleanupSync() {
   if (isCleaningUp) return;
   isCleaningUp = true;
   if (preserveRunningServers) {
-    console.log('  Leaving the running backend/frontend untouched (active agent on another instance).');
+    console.log(
+      '  Leaving the running backend/frontend untouched (active agent on another instance).',
+    );
     return;
   }
 

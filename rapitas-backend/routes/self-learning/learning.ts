@@ -19,6 +19,8 @@ import {
   EpisodePhase,
 } from '../../services/self-learning';
 import { createLogger } from '../../config/logger';
+import { prisma } from '../../config/database';
+import { COMPLEXITY_BANDS } from '../../services/self-learning/comparison/prompt-comparison-types';
 
 const log = createLogger('routes:learning');
 import { findSimilarEpisodes, getEpisodeStats } from '../../services/self-learning';
@@ -126,7 +128,7 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
 
   /**
    * Limit an approved candidate's application to a small set of task ids
-   * (段階採用). Requires a comparison record to already exist — staging is
+   * and/or difficulty bands (段階採用; both apply as AND). Requires a comparison record to already exist — staging is
    * part of the same human-approval flow that reviews the comparison result.
    */
   .post(
@@ -144,11 +146,121 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
         set.status = 404;
         return { error: 'comparison_not_run' };
       }
-      const taskIds = body.taskIds;
-      writeComparisonRecord({ ...record, stagedTaskIds: taskIds });
-      return { status: 'staged', taskIds };
+      const { taskIds, complexityBands } = body;
+      if (taskIds === undefined && complexityBands === undefined) {
+        set.status = 400;
+        return { error: 'taskIds or complexityBands is required' };
+      }
+      // NOTE: bands are validated here (not in the body schema) so a typo
+      // surfaces as a 400 instead of silently staging an addendum that no
+      // task can ever match.
+      if (complexityBands?.some((b) => !(COMPLEXITY_BANDS as readonly string[]).includes(b))) {
+        set.status = 400;
+        return { error: `complexityBands must be within: ${COMPLEXITY_BANDS.join(', ')}` };
+      }
+      writeComparisonRecord({
+        ...record,
+        stagedTaskIds: taskIds ?? record.stagedTaskIds,
+        stagedComplexityBands: complexityBands ?? record.stagedComplexityBands ?? null,
+      });
+      return {
+        status: 'staged',
+        taskIds: taskIds ?? record.stagedTaskIds,
+        ...(complexityBands !== undefined ? { complexityBands } : {}),
+      };
     },
-    { body: t.Object({ taskIds: t.Array(t.Number()) }) },
+    {
+      body: t.Object({
+        taskIds: t.Optional(t.Array(t.Number())),
+        complexityBands: t.Optional(t.Array(t.String())),
+      }),
+    },
+  )
+
+  /**
+   * Trigger a current-vs-candidate shadow-run comparison for a `proposed`
+   * candidate. Responds immediately (lock acquired + an `in_progress` record
+   * seeded synchronously via `beginComparisonRun`) while the shadow runs
+   * execute in the background via `finishComparisonRun` — a single comparison
+   * run can take minutes, well beyond an HTTP request's usual budget
+   * (plan.md 設計判断の根拠 — 実行方式).
+   */
+  .post(
+    '/prompt-evolution/:id/compare',
+    async ({ params, body, set }) => {
+      const id = parseInt((params as { id: string }).id, 10);
+      if (!Number.isInteger(id)) {
+        set.status = 400;
+        return { error: 'id must be an integer' };
+      }
+      const evolution = await prisma.promptEvolution.findUnique({
+        where: { id },
+        select: { id: true, status: true, basePromptKey: true, afterPrompt: true },
+      });
+      if (!evolution) {
+        set.status = 404;
+        return { error: 'not_found' };
+      }
+      if (evolution.status !== 'proposed') {
+        set.status = 400;
+        return { error: 'not_proposed' };
+      }
+      const role = evolution.basePromptKey?.replace(/^workflow_role_/, '') ?? 'unknown';
+      const {
+        DEFAULT_COMPARISON_MODEL,
+        DEFAULT_COMPARISON_BUDGET_USD,
+        beginComparisonRun,
+        finishComparisonRun,
+        selectComparisonSampleTasks,
+        ComparisonLockedError,
+      } = await import('../../services/self-learning/comparison/prompt-comparison-runner');
+      const budgetUsd = body.budgetUsd ?? DEFAULT_COMPARISON_BUDGET_USD;
+      // Empty/omitted sampleTaskIds = let the server pick (mirrors the
+      // scheduler hook's automatic sampling) so the manual trigger button
+      // doesn't require a task-id picker UI (plan.md 実装者への申し送り事項 #2).
+      const sampleTaskIds =
+        body.sampleTaskIds.length > 0
+          ? body.sampleTaskIds
+          : await selectComparisonSampleTasks(role, 5);
+      try {
+        beginComparisonRun({
+          evolutionId: id,
+          role,
+          modelName: DEFAULT_COMPARISON_MODEL,
+          sampleTaskIds,
+          budgetUsd,
+        });
+      } catch (err) {
+        if (err instanceof ComparisonLockedError) {
+          set.status = 409;
+          return { error: 'comparison_locked' };
+        }
+        throw err;
+      }
+      void finishComparisonRun({
+        evolutionId: id,
+        role,
+        modelName: DEFAULT_COMPARISON_MODEL,
+        afterPrompt: evolution.afterPrompt,
+        sampleTaskIds,
+        budgetUsd,
+      }).catch((err) => {
+        log.error({ err, evolutionId: id }, '[learning] Background prompt comparison failed');
+      });
+      set.status = 202;
+      // Ties the ad-hoc trigger id back to the evolutionId it started (no persisted
+      // execution row exists to derive a real id from — ComparisonRecord itself is
+      // keyed by evolutionId in the store) so the response value is at least
+      // traceable rather than a bare timestamp.
+      const runId = id * 1_000_000_000_000 + (Date.now() % 1_000_000_000_000);
+      return { runId, status: 'running' };
+    },
+    {
+      body: t.Object({
+        sampleTaskIds: t.Array(t.Number()),
+        budgetUsd: t.Optional(t.Number()),
+      }),
+    },
   )
 
   /**

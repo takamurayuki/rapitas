@@ -54,6 +54,14 @@ let autoMergePR = true;
 mock.module('./automation-policy', () => ({
   resolveAutomationPolicy: () =>
     Promise.resolve({ autoCommit: true, autoCreatePR: true, autoMergePR }),
+  // task 948: automation-policy gained this named export; a full-module
+  // mock.module replacement here shadows it process-wide (bun mock.module
+  // is global), breaking any test running later in the same process that
+  // imports the real export. Mirror it even though this file doesn't
+  // exercise it directly.
+  isStagedCompletionEnabled: () =>
+    process.env.RAPITAS_STAGED_COMPLETION !== 'false' &&
+    process.env.RAPITAS_STAGED_COMPLETION !== '0',
 }));
 
 let canContinue = true;
@@ -139,6 +147,26 @@ describe('recoverMergedTasks — 正常回収', () => {
       status: { in: ['in-progress', 'in_progress'] },
       githubPrId: { not: null },
     });
+  });
+
+  test('競合解消タスク(PR行の linkedTaskId は元タスク)も、その PR が MERGED なら完了させる', async () => {
+    // 2026-09-20: 984/985/986 「PR #632/#722/#742 の競合を解消」 sat at verify_done
+    // holding the theme's only slot while their PRs were already merged.
+    taskFindMany.mockResolvedValueOnce([{ ...heldTask, id: 984, title: 'PR #621 の競合を解消' }]);
+    prFindFirst.mockResolvedValueOnce({ ...scopedPr, linkedTaskId: 900 });
+
+    expect(await recoverMergedTasks()).toEqual([984]);
+    expect(taskUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: 984, githubPrId: 621 }) }),
+    );
+  });
+
+  test('別番号の競合解消タスクは他タスクの PR では完了しない', async () => {
+    taskFindMany.mockResolvedValueOnce([{ ...heldTask, id: 984, title: 'PR #999 の競合を解消' }]);
+    prFindFirst.mockResolvedValueOnce({ ...scopedPr, linkedTaskId: 900 });
+
+    expect(await recoverMergedTasks()).toEqual([]);
+    expect(taskUpdateMany).not.toHaveBeenCalled();
   });
 });
 

@@ -34,6 +34,13 @@ import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { resolvePreferredBaseBranch } from '../../task/task-resolver';
 import { mapJurors } from './juror-scheduling';
+import { buildDiffReviewPrompt } from './adversarial-diff-review-prompt';
+import {
+  parseReviewVerdict,
+  aggregateJuryVerdicts,
+  type DiffReviewResult,
+  type JurorVerdict,
+} from './adversarial-diff-review-verdict';
 const log = createLogger('verification:adversarial-diff-review');
 
 /** Max diff characters sent to the judge (keeps token cost bounded). */
@@ -47,28 +54,19 @@ const MIN_FILE_PATCH_CHARS = 1500;
 /** Providers we will use as a judge, in default preference order. */
 const JUDGE_PROVIDERS: AIProvider[] = ['claude', 'gemini', 'chatgpt'];
 
-export type ReviewVerdict = 'pass' | 'fail' | 'unknown';
-
-/** One juror's independent verdict (provider = model family). */
-export interface JurorVerdict {
-  provider: AIProvider;
-  verdict: ReviewVerdict;
-  severity: number;
-  reasons: string[];
-}
-
-export interface DiffReviewResult {
-  /** 'fail' = the diff does NOT satisfy the task; 'unknown' = jury unavailable. */
-  verdict: ReviewVerdict;
-  /** 0-100; higher = more serious. Only meaningful for 'fail'. */
-  severity: number;
-  /** Short human-readable reasons (used as self-repair feedback). */
-  reasons: string[];
-  /** True when at least one juror actually evaluated the diff. */
-  judged: boolean;
-  /** Individual juror verdicts — recorded for future reliability weighting. */
-  jurors?: JurorVerdict[];
-}
+// NOTE: Prompt text and verdict parsing/aggregation moved to sibling modules
+// (file-size split); re-exported so existing importers keep working.
+export { buildDiffReviewPrompt } from './adversarial-diff-review-prompt';
+export {
+  parseReviewVerdict,
+  aggregateJuryVerdicts,
+  isNonVerdictOnlyFail,
+} from './adversarial-diff-review-verdict';
+export type {
+  ReviewVerdict,
+  JurorVerdict,
+  DiffReviewResult,
+} from './adversarial-diff-review-verdict';
 
 /** One changed file as returned by getDiff (subset used for jury text). */
 export interface JuryDiffFile {
@@ -128,142 +126,6 @@ export function buildJuryDiffText(files: JuryDiffFile[], maxChars = MAX_DIFF_CHA
 export function isAdversarialReviewEnabled(): boolean {
   const v = (process.env.RAPITAS_ADVERSARIAL_REVIEW || '').trim().toLowerCase();
   return v !== '0' && v !== 'false' && v !== 'off';
-}
-
-/**
- * Build the judge prompt. Pure and unit-testable.
- *
- * @param p - Task title, plan, acceptance criteria, and the diff text. / 採点入力
- * @returns The prompt body for the judge. / ジャッジ用プロンプト
- */
-export function buildDiffReviewPrompt(p: {
-  taskTitle: string;
-  planContent: string;
-  acceptanceCriteria: string[];
-  diffText: string;
-}): string {
-  const ac =
-    p.acceptanceCriteria.length > 0
-      ? p.acceptanceCriteria.map((c, i) => `${i + 1}. ${c}`).join('\n')
-      : '(明示的な受入基準なし — 計画の意図を基準にする)';
-  return `あなたはシニアコードレビュアーです。下記タスクの「最終差分」が要件を満たすか、**粗探しをする姿勢で**厳しく評価してください。実装者の自己申告は信用せず、差分そのものだけを根拠に判断します。
-
-## タスク
-${p.taskTitle}
-
-## 計画 (plan.md)
-${p.planContent.slice(0, 6000) || '(計画なし)'}
-
-## 受入基準
-${ac}
-
-## 最終差分 (git diff)
-\`\`\`diff
-${p.diffText}
-\`\`\`
-
-## 評価観点（ルーブリック）
-- 要件充足: 各受入基準/計画の意図を実際に満たしているか（未実装・部分実装・的外れを検出）
-- 正しさ: 明確なバグ・ロジック誤り・エッジケース未処理・型/契約違反
-- 安全性: 機密情報の混入、危険な操作、インジェクション等
-- 範囲: 計画外の不要・破壊的変更が混ざっていないか
-- 省略の扱い: 差分に「変更ファイル一覧」がある場合、その一覧が変更の全量。[省略]マーカーで本文が切れているファイルを「未実装」と断定しない（表示上の制約であり、実装の欠落ではない）
-- **未変更の扱い**: 変更ファイル一覧に現れないファイルは「このタスクが変更しなかった」ことだけを意味し、「目的の状態にない」ことは意味しない。**既に目的の状態にあったため変更が不要だった**可能性が常にある。同様に、ファイルがディレクトリ配下へ移り barrel で再エクスポートされた場合、それを参照する import 文字列は変わらないのが正常であり、import が不変であることは移動していない根拠にならない。差分外のファイルが未完了だと述べる場合は「要確認:」に留め、verdict には反映しないこと
-
-## 管轄（あなたが判定してよい欠陥の範囲 — 厳守）
-- **機械検出可能な欠陥の「推測」は管轄外**: コンパイルエラー・型エラー・テスト失敗の«可能性»を fail の根拠にしない。それらは決定的ゲート (lint / tsc / テスト実行) が別途実測しており、実在すればそちらが確実に検出する。あなたの役割は機械ゲートが検出**できない**欠陥（要件の取り違え・設計上の誤り・意味的なバグ・セキュリティ）に集中すること。
-- **差分に写っていないコードの内部仕様を一般常識で推測して fail にしない**: 共有コンポーネントの props 契約や既存 API の挙動など、このリポジトリ固有の実装は世間一般のライブラリ (shadcn / MUI 等) と同じとは限らない。計画や差分内に「実装確認済み」と根拠付きで記載があるならそれを尊重する。diff 外への疑義は reasons に「要確認:」プレフィックス付きで記録してよいが、**diff 内に矛盾の証拠がない限り、それだけを理由に verdict を fail にしない**。
-- **ワークフロー成果物 (research.md / plan.md / verify.md) は git 差分に絶対に現れない**: これらはリポジトリ内のファイルではなく WorkflowFile テーブルの行として保存される。したがって受入基準が「〜が research.md に記録される」「〜を verify.md に記載する」と述べている場合、**それが差分に見当たらないことを fail の根拠にしてはならない**。その種の基準は本レビューの管轄外であり、別のバリデータが成果物本体に対して検証する。あなたが判定するのは差分に現れるコード変更だけ。該当基準は「管轄外」として reasons に残し、verdict には反映しないこと。
-
-## 出力（厳守）
-**JSONオブジェクトのみ**を出力してください（前置き・コードフェンス不要）:
-{"verdict":"pass"|"fail","severity":0-100,"reasons":["不合格や懸念の具体的根拠を簡潔に。passなら空配列可"]}
-判定基準: 受入基準を満たさない／実装が的外れ・未完／明確なバグ・セキュリティ問題がある場合は "fail"。軽微な好みの問題だけなら "pass"。**確信が持てない重大な疑義は、差分内に根拠がある場合のみ** "fail" 側に倒す（diff 外の推測だけなら「要確認:」の懸念として reasons に残し pass とする）。`;
-}
-
-/**
- * Parse the judge's reply into a verdict. Tolerant of code fences / prose around
- * the JSON. Pure and unit-testable. Unknown shape → 'unknown' (fail-open).
- *
- * @param text - The judge's raw reply. / ジャッジの応答
- * @returns Parsed verdict. / 解析結果
- */
-export function parseReviewVerdict(text: string | null | undefined): DiffReviewResult {
-  const fail = (verdict: ReviewVerdict, severity: number, reasons: string[]): DiffReviewResult => ({
-    verdict,
-    severity,
-    reasons,
-    judged: verdict !== 'unknown',
-  });
-  if (!text || !text.trim()) return fail('unknown', 0, []);
-
-  // Extract the first balanced { ... } object.
-  const start = text.indexOf('{');
-  if (start === -1) return fail('unknown', 0, []);
-  let depth = 0;
-  let end = -1;
-  for (let i = start; i < text.length; i++) {
-    if (text[i] === '{') depth++;
-    else if (text[i] === '}') {
-      depth--;
-      if (depth === 0) {
-        end = i;
-        break;
-      }
-    }
-  }
-  if (end === -1) return fail('unknown', 0, []);
-
-  try {
-    const obj = JSON.parse(text.slice(start, end + 1)) as {
-      verdict?: string;
-      severity?: number;
-      reasons?: unknown;
-    };
-    const v = (obj.verdict || '').toLowerCase();
-    const verdict: ReviewVerdict = v === 'fail' ? 'fail' : v === 'pass' ? 'pass' : 'unknown';
-    const severity =
-      typeof obj.severity === 'number'
-        ? Math.max(0, Math.min(100, obj.severity))
-        : verdict === 'fail'
-          ? 80
-          : 0;
-    const reasons = Array.isArray(obj.reasons)
-      ? obj.reasons.filter((r): r is string => typeof r === 'string').slice(0, 10)
-      : [];
-    return fail(verdict, severity, reasons);
-  } catch {
-    return fail('unknown', 0, []);
-  }
-}
-
-/**
- * Aggregate independent juror verdicts into one result by majority vote.
- * Pure and unit-testable.
- *
- * Rules: only judged (non-unknown) verdicts count; more fails than passes →
- * fail, more passes → pass, TIE → fail (skeptical default — a bounced repair
- * is cheap and bounded by the repair cap, a waved-through defect is not);
- * zero judged verdicts → unknown (availability handled by the caller's risk
- * gate). Severity = max among failing jurors; reasons = deduped union.
- *
- * @param jurors - Individual verdicts. / 各ジャッジの判定
- * @returns Aggregated verdict. / 集計結果
- */
-export function aggregateJuryVerdicts(jurors: JurorVerdict[]): DiffReviewResult {
-  const judged = jurors.filter((j) => j.verdict !== 'unknown');
-  if (judged.length === 0) {
-    return { verdict: 'unknown', severity: 0, reasons: [], judged: false, jurors };
-  }
-  const fails = judged.filter((j) => j.verdict === 'fail');
-  const passes = judged.filter((j) => j.verdict === 'pass');
-  const verdict: ReviewVerdict = fails.length >= passes.length ? 'fail' : 'pass';
-  if (verdict === 'pass') {
-    return { verdict, severity: 0, reasons: [], judged: true, jurors };
-  }
-  const severity = Math.max(0, ...fails.map((j) => j.severity));
-  const reasons = [...new Set(fails.flatMap((j) => j.reasons))].slice(0, 8);
-  return { verdict, severity, reasons, judged: true, jurors };
 }
 
 /** Map a role-resolver Provider (e.g. 'openai') to an AI-client provider. */

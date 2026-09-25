@@ -46,16 +46,33 @@ export const themeAutoRunRoutes = new Elysia()
         });
       }
 
-      // Count remaining eligible tasks for this theme
+      // Count remaining eligible tasks for this theme. NOTE: this where clause
+      // must stay in lockstep with selectNextTask's candidate query
+      // (auto-run-selection.ts) — a prior version omitted `autoRunExcluded`
+      // and applied the terminal-workflowStatus exclusion even to
+      // status:'todo' rows, so this count over-reported tasks the selector
+      // would never actually pick (task #1063). `workflowDisabledGlobally`
+      // is intentionally NOT applied here: it pauses selection, not the
+      // backlog itself, so remainingCount keeps reporting "tasks waiting",
+      // not "tasks runnable right now".
       const remainingCount = await prisma.task.count({
         where: {
           themeId,
           status: { in: ['todo', 'in-progress'] },
-          OR: [
-            { workflowStatus: null },
-            { workflowStatus: { notIn: ['completed', 'verify_done', 'awaiting_question'] } },
+          AND: [
+            {
+              OR: [
+                { status: 'todo' },
+                { workflowStatus: null },
+                { workflowStatus: { notIn: ['completed', 'verify_done'] } },
+              ],
+            },
+            {
+              OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
+            },
           ],
           workflowDisabled: false,
+          autoRunExcluded: false,
           parentId: null,
         },
       });

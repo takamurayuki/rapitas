@@ -20,6 +20,7 @@ import {
 import { isLogConcernStillRecurring, fragmentFromLogConcernTitle } from './log-concern-recurrence';
 import { isSelfDetectConcernStillRelevant } from './self-detect-relevance';
 import { listIdeas, markIdeaAsUsed } from '../../memory/idea-box-service';
+import { needsPlanForProtectedPath } from '../../memory/concern-task-spec';
 import { createTask } from '../../task/task-mutations';
 import { logCycleEvent } from '../../observability';
 import {
@@ -37,6 +38,28 @@ async function markAutoCreated(taskId: number): Promise<void> {
   await prisma.task
     .update({ where: { id: taskId }, data: { autoCreatedFromBacklog: true } })
     .catch((err) => log.warn({ err, taskId }, '[backlog-promoter] Failed to mark autoCreated'));
+}
+
+/**
+ * Pin a concern-derived task to standard mode when its fix will land in a
+ * protected gate path: lightweight mode has no plan.md, and the anti-tamper
+ * tripwire hard-fails any protected-file change a plan does not list (task
+ * 1044 bounced, asked, and stalled on exactly this). Best-effort.
+ */
+async function forceStandardModeForProtectedPath(taskId: number, detail?: string | null) {
+  if (!needsPlanForProtectedPath(detail)) return;
+  await prisma.task
+    .update({
+      where: { id: taskId },
+      data: { workflowMode: 'standard', workflowModeOverride: true },
+    })
+    .then(() =>
+      log.info(
+        { taskId },
+        '[backlog-promoter] Protected gate path in stack — pinned standard mode',
+      ),
+    )
+    .catch((err) => log.warn({ err, taskId }, '[backlog-promoter] Failed to pin standard mode'));
 }
 
 /**
@@ -123,6 +146,7 @@ export async function promoteConcern(
     const taskId = await convertConcernToTask(concern.id);
     if (!taskId) return false;
     await markAutoCreated(taskId);
+    await forceStandardModeForProtectedPath(taskId, full?.detail);
     log.info(
       { themeId, concernId: concern.id, taskId, severity: concern.severity },
       '[backlog-promoter] Promoted concern to task',

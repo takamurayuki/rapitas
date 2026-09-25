@@ -141,11 +141,24 @@ model Task {
   complexityScore       Float?    // Auto-determined complexity score (0-100)
   workflowModeOverride  Boolean   @default(false) // Whether mode was manually changed
   autoApprovePlan       Boolean   @default(false) // Whether to auto-approve plan.md at task level
+  // Explicit human override for a plan.md that declares a forbidden change (e.g. an
+  // unauthorized Prisma schema edit — see schema-change-gate.ts). Defaults to false so
+  // auto-approval and unattended manual approval remain blocked by default (task 896);
+  // only a manual approve-plan call that sends overrideForbiddenChange+overrideReason
+  // sets this to true — the AI's own auto-approval/plan-save code never writes it.
+  forbiddenChangeOverride       Boolean   @default(false)
+  forbiddenChangeOverrideReason String?
   // Per-task off-switch for the multi-phase workflow (see UserSettings.workflowDisabledGlobally
   // for the global equivalent — effective state is the OR of both). Locked
   // (server-enforced) once status leaves 'todo'; a reset back to 'todo'
   // re-unlocks it.
   workflowDisabled      Boolean   @default(false)
+  // User-set exclusion from auto-run task selection (unrelated to
+  // workflowDisabled — the workflow phases still run normally, this task is
+  // just never auto-picked). Freely toggleable at any status, unlike
+  // workflowDisabled's todo-only lock: excluding a task mid-run just stops it
+  // being re-selected once its current run ends.
+  autoRunExcluded       Boolean   @default(false)
   workflowLearningRecords WorkflowLearningRecord[]
   durationPrediction    TaskDurationPrediction?
 
@@ -169,6 +182,22 @@ model Task {
   // prune) to guard against accidental loss. Enforced at the DELETE endpoint.
   isProtected           Boolean   @default(false)
 
+  // Execution generation counter (task 881). Incremented atomically on every
+  // user stop-execution call; the DB row is the durable source of truth used
+  // by stale-recovery guards to tell "this session belongs to a generation the
+  // user already stopped" apart from a live one — the prior mechanism
+  // (task-execution-lock.ts cancellationVersions) lives only in process
+  // memory and is lost on restart / not shared across workers.
+  executionGenerationId Int       @default(0)
+  // Iteration-budget halt bookkeeping (task 881, task-iteration-budget.ts).
+  // Populated ONLY when the automatic iteration budget halts a task (time /
+  // cost / attempts / same-cause repeat / no-progress) — a user-initiated
+  // stop-execution does not write these fields, see stop-route.ts.
+  haltReason            String?
+  haltedAt              DateTime?
+  // JSON: { requiresNewHypothesis: boolean, note: string }
+  resumeCondition       String?
+
   @@index([status])
   @@index([themeId])
   @@index([status, themeId])
@@ -182,6 +211,8 @@ model Task {
   workflowFileVersions WorkflowFileVersion[]
   // Append-only audit trail of workflow status transitions.
   workflowTransitions  WorkflowTransition[]
+  requirementReviewClaims RequirementReviewClaim[]
+  requirementReviewRetryRequests RequirementReviewRetryRequest[]
 }
 
 model Comment {

@@ -28,6 +28,9 @@ const SYSTEM_PROMPT = `あなたはソフトウェア開発タスクの仕様を
 - constraints: 守るべき制約・前提（スコープ外、技術制約、後方互換性など）
 - acceptanceCriteria: 完了を判定できる、検証可能な受入基準
 
+acceptanceCriteria の抽出は「要求か、記録か」という目的で判定すること。過去に実施した調査・再現手順・一時的に作成して撤去したファイル・観測ログ・監督や検証担当が実測した経緯などの記述は、それ自体が完了済みの過去の出来事であり、今後の実装義務ではない。これらは acceptanceCriteria に含めない。一方で、過去形で書かれていても「今後も同じ状態を維持する」「再発させない」「二度と同じ問題を起こさない」ことを求めている文は、将来への要求として acceptanceCriteria に残すこと。
+この判定は文の時制だけで行わない。ファイルパスやディレクトリ名（例: .supervisor/ のような特定のパス）が含まれるかどうかだけを判断基準にしてはならない。パス名を含む文でも、それが明示的に今後の制約・禁止・要求として書かれていれば正当な受入基準として保持し、単なる過去の作業記録であれば除外する。
+
 出力は必ず次のJSONのみ。前後に説明文やコードブロックを付けないこと:
 {"goals":["..."],"constraints":["..."],"acceptanceCriteria":["..."]}
 
@@ -35,12 +38,22 @@ const SYSTEM_PROMPT = `あなたはソフトウェア開発タスクの仕様を
 
 const EMPTY: DerivedTaskSpec = { goals: [], constraints: [], acceptanceCriteria: [] };
 
+/**
+ * The prompts above show their output shape with `"..."` placeholders, and a
+ * model occasionally echoes that shape back verbatim. Task 1037 (2026-09-22)
+ * was filed with acceptanceCriteria `["..."]` and goals `["..."]`, which the
+ * judge and intake gates then treated as real requirements. A value made only
+ * of dots / ellipsis / whitespace is a placeholder, never a spec item.
+ */
+const PLACEHOLDER_RE = /^[.…\s]*$/;
+
 /** Extracts a clean string[] from an unknown JSON value. */
-function toStringArray(value: unknown): string[] {
+export function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value
     .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
     .map((v) => v.trim())
+    .filter((v) => !PLACEHOLDER_RE.test(v))
     .slice(0, 6);
 }
 
@@ -76,6 +89,13 @@ export interface IntakeQuestion {
   question: string;
   /** 2-4 selectable answers. / 選択肢 */
   options: string[];
+  /**
+   * Index into `options` of the narrowest-scope answer — the one an unattended
+   * intake adopts when nobody answers (2026-09-23 policy: auto-filed Ideas run
+   * at minimal scope by default). Defaults to 0 because the prompt orders
+   * options narrowest-first. / 最小スコープ選択肢の添字
+   */
+  recommendedIndex?: number;
 }
 
 const QUESTIONS_SYSTEM_PROMPT = `あなたはソフトウェア開発タスクの仕様を、ユーザーへの「1問1答」で固めるアシスタントです。
@@ -84,9 +104,10 @@ const QUESTIONS_SYSTEM_PROMPT = `あなたはソフトウェア開発タスク�
 - 不足項目1つにつき質問1つ。長い複合質問にしない（粒度を細かく、1問1答）。
 - 各質問に2〜4個の具体的で互いに異なる選択肢を付ける。選択肢は1行・15〜40文字。
 - 抽象的すぎる選択肢は避け、このタスク固有にする。
+- 選択肢は**スコープが最も限定的なもの（最小の変更・最小の対象範囲・差分だけで判定できる基準）を先頭**に、広いものほど後ろに並べる。recommended にはその最小スコープの選択肢の添字（0始まり）を入れる。
 - field は "goals" | "constraints" | "acceptanceCriteria" のいずれか。
 出力は必ず次のJSONのみ。前後に説明文やコードブロックを付けないこと:
-{"questions":[{"field":"goals","question":"...","options":["...","..."]}]}`;
+{"questions":[{"field":"goals","question":"...","options":["...","..."],"recommended":0}]}`;
 
 /**
  * Generate ONE focused clarifying question per missing spec field (1問1答), each
@@ -120,11 +141,26 @@ export async function generateIntakeQuestions(
     if (!Array.isArray(parsed.questions)) return [];
     return parsed.questions
       .map((q): IntakeQuestion | null => {
-        const obj = q as { field?: unknown; question?: unknown; options?: unknown };
+        const obj = q as {
+          field?: unknown;
+          question?: unknown;
+          options?: unknown;
+          recommended?: unknown;
+        };
         const question = typeof obj.question === 'string' ? obj.question.trim() : '';
         const options = toStringArray(obj.options).slice(0, 4);
         if (!question) return null;
-        return { field: typeof obj.field === 'string' ? obj.field : 'goals', question, options };
+        const rec = obj.recommended;
+        const recommendedIndex =
+          typeof rec === 'number' && Number.isInteger(rec) && rec >= 0 && rec < options.length
+            ? rec
+            : 0;
+        return {
+          field: typeof obj.field === 'string' ? obj.field : 'goals',
+          question,
+          options,
+          recommendedIndex,
+        };
       })
       .filter((q): q is IntakeQuestion => q !== null)
       .slice(0, 4);

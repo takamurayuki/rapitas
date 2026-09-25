@@ -9,6 +9,15 @@
  * while an active queue item exists — because none of them look at the primary
  * evidence: whether executions actually happen. This pass does, and only
  * notifies (self-healing stays with hasRunawayCancelLoop). Never mutates state.
+ *
+ * The execution count is scoped to the tracked episode's anchor time, not the
+ * task's lifetime — a lifetime count is >0 forever after the task's FIRST
+ * phase, which made this detector permanently blind to a stall in phase 2+
+ * (e.g. an overlap-guard hold outliving its own ceiling before the implementer
+ * phase — tasks 905/914/937 never tripped it despite running every 60s the
+ * whole time, 2026-09-16/17). The anchor slides forward on real progress, so
+ * it always measures "how long since the LAST execution", not "how long since
+ * this task first became current".
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
@@ -19,11 +28,14 @@ import { ZERO_PROGRESS_THRESHOLD_MS } from './queue-stall-policy';
 
 const log = createLogger('workflow-reconciler-zero-progress');
 
-// Epoch ms when each running theme's current task was FIRST observed with this
-// taskId; keyed by themeId. In-memory on purpose (Prisma schema changes are
-// prohibited, and ThemeAutoRun.lastRunAt is overwritten on every re-enqueue so
-// it cannot anchor an elapsed-time measure during a spin). A restart resets the
-// episode — same accepted trade-off as the starvation tracker.
+// Epoch ms anchoring each running theme's zero-progress window: FIRST
+// observed with this taskId, then slid forward to `nowMs` on every cycle that
+// sees a new execution — so it always means "since the last real progress",
+// not "since this task became current" (see module doc comment). In-memory on
+// purpose (Prisma schema changes are prohibited, and ThemeAutoRun.lastRunAt is
+// overwritten on every re-enqueue so it cannot anchor an elapsed-time measure
+// during a spin). A restart resets the episode — same accepted trade-off as
+// the starvation tracker.
 const zeroProgressSinceMs = new Map<number, { taskId: number; since: number }>();
 
 /** Reset the zero-progress tracker. Test-only — never call from production code. */
@@ -63,12 +75,42 @@ export async function detectZeroProgressWhileRunning(nowMs: number): Promise<num
     }
     if (nowMs - tracked.since < ZERO_PROGRESS_THRESHOLD_MS) continue;
 
+    // Scoped to executions created SINCE this episode's anchor — not the
+    // task's lifetime total. A lifetime count can only ever be 0 during a
+    // task's very FIRST phase: by the second phase onward it is already >0
+    // forever, so the whole detector goes permanently blind to a later stall
+    // (e.g. an overlap-guard hold outliving its own ceiling before the
+    // implementer phase — tasks 905/914/937, 2026-09-16/17, none of which
+    // this detector ever caught despite running every 60s the whole time).
+    // "Since the anchor" must include an execution that STARTED before the
+    // anchor and is still alive: the anchor slides forward on the cycle that
+    // first sees a new row, so a long single phase (task 1031's 19-minute
+    // implementer run, 2026-09-22) was created before the slid anchor, counted
+    // as zero, and raised a spin alarm while it was heartbeating. Count any
+    // row created, heartbeating, or completed after the anchor.
+    const since = new Date(tracked.since);
     const executionCount = await prisma.agentExecution
-      .count({ where: { session: { config: { taskId } } } })
+      .count({
+        where: {
+          session: { config: { taskId } },
+          OR: [
+            { createdAt: { gte: since } },
+            { heartbeatAt: { gte: since } },
+            { completedAt: { gte: since } },
+          ],
+        },
+      })
       .catch(() => null);
     // Fail-open on an unreadable count; any real execution means this is a
     // legitimately long phase, not a spin.
-    if (executionCount == null || executionCount > 0) continue;
+    if (executionCount == null || executionCount > 0) {
+      // Progress happened inside the window — slide the anchor forward so the
+      // NEXT window measures from here, not from whenever this task first
+      // became current (otherwise a task with occasional real progress but a
+      // stuck phase 3 or 4 stays permanently exempt too, same shape of bug).
+      zeroProgressSinceMs.set(theme.themeId, { taskId, since: nowMs });
+      continue;
+    }
 
     // Zero executions because the slot is occupied by another task's live
     // execution is WAITING, not spinning — task 856 drew 25 minutes of

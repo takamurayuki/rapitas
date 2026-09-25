@@ -51,6 +51,27 @@ export async function healAutoApproveStalls(nowMs: number): Promise<number> {
   let healed = 0;
   for (const { id } of candidates) {
     try {
+      // Cooldown (task 958): a task that just had a plan-related
+      // transition_rejected recorded is in an unstable state — most likely
+      // a mid-transit resend racing this heal pass. Skip it for this cycle
+      // and let the next 5-minute pass re-evaluate once things settle,
+      // rather than re-approving into the same instability.
+      const recentRejection = await prisma.workflowTransition.findFirst({
+        where: {
+          taskId: id,
+          cause: 'transition_rejected',
+          phase: 'plan',
+          createdAt: { gte: staleBefore },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (recentRejection) {
+        log.info(
+          { taskId: id },
+          '[reconciler] skipping auto-approve heal — recent plan transition_rejected in cooldown window',
+        );
+        continue;
+      }
       if (!(await resolveEffectiveAutoApprovePlan(id))) continue; // human gate — leave it
       log.info(
         { taskId: id },

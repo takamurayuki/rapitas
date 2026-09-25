@@ -57,6 +57,8 @@ export interface TaskCardHook {
   isWaitingForInput: boolean;
   waitingAmberConfig: WaitingAmberConfig;
   cardBorderColor: string;
+  /** Card surface classes: amber while waiting for the user, else the status colour. */
+  cardBgColor: string;
   sweepColors: ReturnType<typeof useProgressColors>;
   handleMouseEnter: () => Promise<void>;
   duplicateTask: () => Promise<void>;
@@ -176,8 +178,22 @@ export function useTaskCard(
     }
   };
 
-  const executionClasses = getExecutionClasses();
-  const isWaitingForInput = executionStatus === 'waiting_for_input';
+  // A workflow paused on question.md (`awaiting_question`) has NO live
+  // execution row — the agent exited after writing the question — so the
+  // execution-store status alone never turned the card amber for the current
+  // file-based question flow (only the legacy in-CLI AskUserQuestion did).
+  // Treat both as "waiting for the user" so the card reads amber either way.
+  const isAwaitingQuestion =
+    task.workflowStatus === 'awaiting_question' && task.status !== 'done' && !executionStatus;
+  const executionClasses: ExecutionClasses | null = isAwaitingQuestion
+    ? {
+        borderColor: 'amber',
+        badgeClass: 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300',
+        dotClass: 'bg-amber-500',
+        label: t('waitingForInput'),
+      }
+    : getExecutionClasses();
+  const isWaitingForInput = executionStatus === 'waiting_for_input' || isAwaitingQuestion;
 
   const waitingAmberConfig: WaitingAmberConfig = {
     color: 'text-amber-700 dark:text-amber-300',
@@ -189,6 +205,14 @@ export function useTaskCard(
   const cardBorderColor = isWaitingForInput
     ? waitingAmberConfig.borderColor
     : currentStatus.borderColor;
+
+  // A question-paused card only tinted its left border, so it read like an
+  // ordinary in-progress card in a list (2026-09-14). The surface now follows
+  // the same amber as the badge; the dark fallback stays with the status path
+  // because its `dark:bg-*` would otherwise compete with the amber one.
+  const cardBgColor = isWaitingForInput
+    ? waitingAmberConfig.bgColor
+    : `${currentStatus.bgColor} dark:bg-indigo-dark-900`;
 
   const sweepColors = useProgressColors(1, 2);
 
@@ -268,6 +292,7 @@ export function useTaskCard(
     isWaitingForInput,
     waitingAmberConfig,
     cardBorderColor,
+    cardBgColor,
     sweepColors,
     handleMouseEnter,
     duplicateTask,

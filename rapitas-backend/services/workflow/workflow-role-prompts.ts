@@ -125,7 +125,15 @@ export function buildRoleTexts(
       planner: {
         researchHeader: '# リサーチャーの調査結果 (research.md)',
         instruction:
-          '上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。',
+          '上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。\n\n' +
+          '完了条件は implementer/verifier が許可されたツール操作（テスト実行・lint・型検査・自己検証API）だけで検証できるものに限定してください。稼働中バックエンドへの書き込み操作や本番相当環境での実測を完了条件として必須にしないでください。\n\n' +
+          '## 質問発火基準（question.md を保存する前に必ず確認）\n' +
+          'plan→question→intake の往復（1サイクルあたり平均約17分のコスト）を避けるため、質問を保存する前に以下を確認する:\n' +
+          '1. 1件のplan.mdにつき、質問は原則1ラウンドにまとめる（論点を小出しにして複数回に分けない）。\n' +
+          '2. 同一論点を前回の質問・回答と重複させない（回答済みの内容を再確認しない）。\n' +
+          '3. 質問すべきなのは、実装方針が互換不能な複数の選択肢に分かれ、どちらか選ばないと着手できない分岐点のみ。\n' +
+          '4. 実装ディテールの確認・コードレベルの選好は質問せず、plan.md の申し送り事項として記載し実装者の判断に委ねる。\n' +
+          '5. plan フェーズから質問を保存する場合、`json:options` ブロックのトップレベルに `"kind": "execution_continuation"`（実装続行の確認）または `"kind": "completion_confirmation"`（完了直前の最終確認）のいずれかを明示する。`"kind": "spec_change"` はintake専用であり指定しても無視される。',
         // NOTE: Premortem (R7) — judge-style pre-execution critique of plans
         // catches defects with ~90% recall (arXiv:2509.02761); imagining the
         // failure FIRST surfaces risks a forward-looking plan review misses.
@@ -165,6 +173,7 @@ export function buildRoleTexts(
           verificationEvidencePrompt(language) +
           shellExitCodeSafetyRule(language) +
           '- **受入基準の自己照合（完了宣言の条件）**: 自己検証の応答に `acceptance=NG` が含まれる場合、差分が受入基準に対応していない（または受入基準・タスク本文と無関係な差分である）可能性が高い。各受入基準に「この差分のどのファイル/変更が満たすか」を対応付けて確認し、対応付けられない基準が1つでも残る間は完了を宣言せず、差分を修正して自己検証を再実行してください。機械照合の誤検出（対応済みなのに NG）と判断した場合のみ、どの変更がどの基準を満たすかを最終サマリで明示した上で終了してよい。同様に `coverage=NG`（ソース変更にテスト非同伴）も、テストを追加してから完了してください。\n' +
+          '- **plan.md チェックリストの全件照合（完了宣言の条件、差し戻し最多要因）**: plan.md がある場合、終了前にチェックリストの各項目（特に「テスト」「統合テスト」「〜のテストを追加」の項目）を1つずつ「実装済み / 未実施」で照合し、**未実施が1件でも残る間は終了しない**でください。検証者は未実施の計画項目が1件でも残れば `⚠️ 一部失敗` で差し戻します（2026-09-14〜20 の差し戻し 96 件の大半がこれです）。計画項目が不可能・不適切だと判断した場合は黙って省略せず、question.md で計画の改訂を求めてください。最終サマリに「plan チェックリスト照合: N/N 実装済み」の1行を必ず含めてください。\n' +
           '- 実装が完了したら、変更内容のサマリ (どのファイルを何のために変えたか) を最後のメッセージに残して終了してください。Rapitas が後段で verify.md を自動生成します。\n' +
           '- **テスト検証はファイル単位** (`bun test <1ファイル>`) で行ってください。bun の `mock.module` は**プロセスグローバル**なので、同じモジュールを mock する複数のテストファイルを**同時実行すると mock が衝突して偽の失敗**になります。これは bun の制約でありコードのバグではありません。**各ファイルが単体で通れば十分**です。複数テストファイルを「同時に通す」ためにモックの順序変更や beforeAll 化を延々と試みないでください（解決不能であり、時間を浪費します）。',
       },
@@ -177,6 +186,8 @@ export function buildRoleTexts(
           '上記の計画と実装結果を検証し、verify.mdとしてMarkdown形式でレポートを作成してください。\n\n' +
           '計画チェックリストの消化状況、テスト結果、品質メトリクスを含めてください。\n\n' +
           '## 検証フェーズの厳守事項\n' +
+          '### 既存ファイルの一時変更は直接の git 操作で行わない ★重要\n' +
+          '既存ファイル（例: 再現テスト）を一時的に書き換えて元に戻す必要がある場合、`git checkout --`/`git restore` を直接使わないでください。実装担当の未コミット変更まで消去する事故（task913）の再発防止のためです。可能なら使い捨てworktree（`red-state-check.ts` 方式、タスクworktreeに一切触れない）を使い、既存ファイルを実際に書き換える必要がある場合は `services/agents/verification/verification-scoped-edit.ts` の `beginScopedEdit` → `assertSafeToMutate`（一時変更の直前に必ず呼び、`safe: false` の場合は一時変更を実行せず中止する） → `restoreScopedEdit` の順で使ってください。\n' +
           '### テスト結果は必ず実測値を記載してください (虚偽報告厳禁)\n' +
           '- `npm test` / `pnpm test` / `vitest` を実際に実行し、**最終行の集計** (`Tests N passed | M failed`、`Test Files X passed | Y failed`、終了コード) を verify.md に **コピペ** してください。\n' +
           '- テストコマンドが exit code 非0 で終わった場合、**「全テスト通過」と書くことを禁止** します。落ちたテスト名と失敗理由を箇条書きで列挙してください。\n' +
@@ -195,19 +206,25 @@ export function buildRoleTexts(
           '```markdown\n' +
           '# 検証レポート\n' +
           '## 検証結果サマリ (✅ 検証成功 / ❌ 検証失敗 / ⚠️ 一部失敗 のいずれか)\n' +
-          '## チェックリスト消化状況 (plan.md の各項目に ✅/❌)\n' +
+          '## チェックリスト消化状況 (plan.md の各項目に ✅/❌/➖)\n' +
           '## テスト結果 (実コマンド + 終了コード + 集計)\n' +
           '## 品質メトリクス (lint / type-check / build の結果)\n' +
           '## 残課題 / フォローアップ\n' +
           '## 仮説評価 (上記「仮説台帳」に検証待ち仮説がある場合のみ必須)\n' +
           '```\n' +
           '冒頭は必ず `# 検証レポート` で開始し、テストが1件でも落ちていれば `❌ 検証失敗` または `⚠️ 一部失敗` を選択してください。\n' +
+          '\n### 公開工程は判定対象外 ★重要\n' +
+          '- コミット・push・PR 作成・CI・マージは、verify.md の保存後に Rapitas が自動で行う**後工程**です。あなたの検証対象ではありません。\n' +
+          '- 全体判定は「技術検証（テスト・型・lint・format）と受入基準の充足」だけで決めてください。**公開工程が未実施であることを理由に `⚠️ 一部失敗` を選んではいけません**（技術検証が通り受入基準を満たしていれば `✅ 検証成功`）。\n' +
+          '- 公開工程は「残課題」ではなく、表の1行 `| 後工程（push / CI / merge） | 自動実行・判定対象外 |` として記載してください。plan.md のチェックリストに push/PR/マージ/運用確認の項目があっても、消化率の分母から除外して構いません。\n' +
+          '- 一方、既に PR が存在して CI が失敗している場合は後工程ではなく実失敗です。失敗チェック名を残課題に書き、`⚠️ 一部失敗` にしてください。\n' +
           '上記「仮説台帳」に検証待ち仮説が列挙されている場合、`## 仮説評価` セクションで各仮説を1行 `- [#id] 成立|不成立: 根拠(file:line/テスト/計測)` で判定してください（成立は予測が実際に的中した場合のみ。確証が無ければ記載せず検証待ちのまま残す）。\n' +
           '\n### プレモーテム照合 (plan.md に `## プレモーテム` がある場合のみ必須)\n' +
           'plan.md のプレモーテム各項目について、記載の検知シグナル（テスト/コマンド）を実際に確認し、verify.md に `## プレモーテム照合` セクションを設けて1行ずつ `- <失敗原因の要約>: 発生せず|発生（根拠）` で判定してください。「発生」の項目は残課題として扱い、全体判定に反映すること。\n' +
           '\n### 出力規律（機械ゲート互換 — 厳守）\n' +
           '- タスク種別（軽量・マージ・競合解消・サブタスク）を問わず、冒頭は必ず `# 検証レポート` で開始し、`## 検証結果サマリ` `## テスト結果` `## チェックリスト消化状況` の3見出しを必ず含める。`# 検証結果` や `# Verify: PR#...` などの見出しで始めてはならない。\n' +
           '- 全体判定は冒頭サマリと表の「全体判定」セルの両方で `✅ 検証成功` / `❌ 検証失敗` / `⚠️ 一部失敗` をこの表記のまま使用する。「合格」「条件付き合格」「不合格」等への言い換えは禁止（機械判定はこの語彙のみを認識する）。\n' +
+          '- チェックリスト・受入基準の各行は `✅ 完了` / `❌ 未完了` / `➖ 対象外（理由）` の3値。`❌` は「本タスクの差分に欠陥または未実装があり、実装者が次の実装ラウンドで直せる項目」にだけ使う。前提となるモデル・フラグ・ファイルがこのコードベースに存在しない、この環境（OS・CI）では実行できない、計画側で撤回された、後工程（push/CI/merge）である — こうした項目は `➖ 対象外（理由）` と書く（`❌` は機械ゲートが実失敗として読み、同じ指摘での差し戻しループになる）。実行はできたが確認しきれなかった項目は `⚠️ 未検証（理由）` とし、全体判定にも反映する。\n' +
           '- 変更ファイル一覧は「ファイル | 種別（新規/変更） | 変更内容の要約」の表で書く。`| +追加 | -削除 |` 列・`(+120/-45)` などの行数差分数値・✏️/⏭️/🆕 の絵文字は書かない。\n' +
           '- 偽陽性検証（修正を一時的に外して意図的にREDを確認する検証）を記録する場合、`Tests N failed` / `N failed` のような数値集計行を本文に書かない（機械ゲートが実失敗と誤認し差し戻しループになる）。「修正を除去するとRED、復元するとGREENを確認」と1行で要約する。生ログを貼る場合は ```text フェンス内に限り、集計行は含めない。',
       },
@@ -236,7 +253,15 @@ export function buildRoleTexts(
       planner: {
         researchHeader: '# Research Results (research.md)',
         instruction:
-          'Based on the research results above, please create an implementation plan as plan.md in Markdown format.\n\nDescribe implementation steps in checklist format, including a list of files to be changed, risk assessment, and completion criteria.',
+          'Based on the research results above, please create an implementation plan as plan.md in Markdown format.\n\nDescribe implementation steps in checklist format, including a list of files to be changed, risk assessment, and completion criteria.\n\n' +
+          'Completion criteria must be verifiable using only tool operations the implementer/verifier are permitted to run (tests, lint, type-check, self-verification APIs). Do not require write operations against a live backend or measurements in a production-equivalent environment as a completion criterion.\n\n' +
+          '## Question-firing criteria (check BEFORE saving question.md)\n' +
+          'To avoid the plan→question→intake round trip (each cycle costs roughly 17 minutes on average), verify all of the following before saving a question:\n' +
+          '1. For a given plan.md, bundle all open issues into ONE round of questions — do not raise them piecemeal across multiple saves.\n' +
+          '2. Never repeat an issue already covered by a prior question and its answer.\n' +
+          '3. Only raise a question when the implementation approach splits into mutually incompatible choices and you cannot start without picking one.\n' +
+          "4. Do not ask about implementation details or code-level preferences — record those in plan.md's handoff notes instead and let the implementer decide.\n" +
+          '5. When saving a question from the plan phase, set the top-level `"kind"` in the `json:options` block to either `"execution_continuation"` (a check needed to continue) or `"completion_confirmation"` (a final check right before completion). `"kind": "spec_change"` is intake-only and is ignored if set here.',
         // NOTE: Premortem (R7) — see ja variant for rationale.
         premortem:
           '## Premortem (REQUIRED)\n' +
@@ -273,6 +298,7 @@ export function buildRoleTexts(
           ) +
           verificationEvidencePrompt(language) +
           shellExitCodeSafetyRule(language) +
+          '- **Reconcile every plan.md checklist item before finishing (the most common cause of repair bounces)**: when plan.md exists, go through each checklist item — especially test / integration-test / "add tests for …" items — and mark it done or not done. **Do not finish while any item is not done**: the verifier returns `⚠️ Partial` for a single unfinished plan item (most of the 96 bounces in the week to 2026-09-20). If an item is impossible or wrong, do not skip it silently — request a plan revision via question.md. End your final summary with one line: "plan checklist: N/N done".\n' +
           '- Once implementation is done, leave a short summary (which files changed and why) as your final message and exit. Rapitas auto-generates verify.md downstream.\n' +
           "- **Verify tests PER FILE** (`bun test <one-file>`). Bun's `mock.module` is PROCESS-GLOBAL, so two test files that mock the same module conflict and produce FALSE failures when run together. That is a bun limitation, not a code bug. **Each file passing in isolation is sufficient.** Do NOT keep reordering mocks or moving imports into beforeAll trying to make multiple test files pass together — it is unsolvable and wastes time.",
       },
@@ -285,6 +311,8 @@ export function buildRoleTexts(
           'Please verify the implementation plan and results above, and create a report as verify.md in Markdown format.\n\n' +
           'Include the completion status of the plan checklist, test results, and quality metrics.\n\n' +
           '## Verification phase strict rules\n' +
+          '### Never mutate an existing file with a direct git operation ★IMPORTANT\n' +
+          "When you must temporarily rewrite an existing file (e.g. a reproduction test) and restore it afterwards, do NOT use `git checkout --`/`git restore` directly — this is how the task-913 incident destroyed an implementer's uncommitted work. Prefer a disposable worktree (the `red-state-check.ts` pattern, which never touches the task worktree); if you must edit an existing file in place, use `services/agents/verification/verification-scoped-edit.ts`'s `beginScopedEdit` → `assertSafeToMutate` (call this immediately before your mutation; if it returns `safe: false`, do NOT proceed with the mutation) → `restoreScopedEdit`.\n" +
           '### Report ACTUAL test results (no false claims)\n' +
           '- Run `npm test` / `pnpm test` / `vitest` for real and **paste the summary line** (`Tests N passed | M failed`, `Test Files X passed | Y failed`, exit code) into verify.md.\n' +
           '- If the test command exits non-zero, you are **forbidden from writing "all tests pass"**. List failing tests by name with their reason.\n' +
@@ -299,19 +327,25 @@ export function buildRoleTexts(
           '```markdown\n' +
           '# Verification Report\n' +
           '## Result summary (✅ Pass / ❌ Fail / ⚠️ Partial)\n' +
-          '## Checklist status (each plan item ✅/❌)\n' +
+          '## Checklist status (each plan item ✅/❌/➖)\n' +
           '## Test results (actual command + exit code + summary)\n' +
           '## Quality metrics (lint / type-check / build)\n' +
           '## Outstanding work / follow-ups\n' +
           '## 仮説評価 (required ONLY when the 仮説台帳 above lists open hypotheses)\n' +
           '```\n' +
           'Start with `# Verification Report`. If even one test fails, choose `❌ Fail` or `⚠️ Partial`.\n' +
+          '\n### Publication steps are out of scope ★important\n' +
+          '- Commit, push, PR creation, CI and merge are **downstream steps** Rapitas performs automatically after verify.md is saved. They are not yours to verify.\n' +
+          '- Decide the overall verdict from technical verification (tests, types, lint, format) and the acceptance criteria only. **Never choose `⚠️ Partial` because publication has not happened yet** — if the technical checks pass and the criteria are met, the verdict is `✅ Pass`.\n' +
+          '- Record publication as a single table row `| Downstream (push / CI / merge) | automated, out of scope |`, not as a remaining item. Plan checklist entries about push/PR/merge/rollout may be excluded from the completion denominator.\n' +
+          '- If a PR already exists and its CI is failing, that IS a real failure: name the failing check under remaining items and choose `⚠️ Partial`.\n' +
           'When the 仮説台帳 above lists open hypotheses, add a `## 仮説評価` section judging each as `- [#id] 成立|不成立: evidence(file:line/test/metric)` (成立 only when the prediction actually held; omit any you cannot confirm, leaving it open).\n' +
           '\n### Premortem cross-check (required ONLY when plan.md has a `## プレモーテム` section)\n' +
           'For each premortem item in plan.md, actually run/check its stated detection signal and add a `## プレモーテム照合` section to verify.md judging each as `- <failure-cause summary>: 発生せず|発生 (evidence)`. Any 発生 item counts as outstanding work and must be reflected in the overall verdict.\n' +
           '\n### Output discipline (machine-gate compatibility — strict)\n' +
           '- Regardless of task kind (lightweight / merge / conflict-resolution / subtask), start with `# Verification Report` and always include the required section headings listed above. Never start with `# Verify: PR#...` or other ad-hoc titles.\n' +
           '- Use the verdict vocabulary `✅ Pass` / `❌ Fail` / `⚠️ Partial` verbatim in BOTH the opening summary and the overall-verdict table cell; paraphrases such as "passed with conditions" are forbidden (the machine gates only recognize this vocabulary).\n' +
+          "- Each checklist / acceptance-criterion row is one of three values: `✅ done` / `❌ not done` / `➖ N/A (reason)`. Use `❌` ONLY for an item where this task's diff is defective or unimplemented and the implementer can fix it in the next round. An item whose premise (a model, flag or file) does not exist in this codebase, cannot run in this environment (OS / CI), was withdrawn by the plan owner, or is a downstream step (push / CI / merge) is written as `➖ N/A (reason)` — a `❌` there is read by the machine gate as a real failure and loops the task on the same finding. An item you ran but could not fully confirm is `⚠️ unverified (reason)` and must be reflected in the overall verdict.\n" +
           '- Report changed files as a "File | Kind (new/modified) | What changed & why" table. Never emit `| +added | -removed |` columns, `(+120/-45)` line deltas, or ✏️/⏭️/🆕 emoji.\n' +
           '- When recording deliberate-RED (false-positive) verification — temporarily removing the fix to confirm failure — do NOT write numeric summary lines like `Tests N failed` in the body (the machine gate reads them as real failures and loops the task). Summarize in one line: "fix removed → RED, restored → GREEN". Raw logs, if pasted at all, go ONLY inside a ```text fence with the summary count lines removed.',
       },

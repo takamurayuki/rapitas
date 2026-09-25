@@ -15,6 +15,28 @@ const DEFAULT_OLLAMA_URL = 'http://localhost:11434';
 
 const log = createLogger('ai-client:credentials');
 
+/** Row shape read from UserSettings; kept loose because the columns are provider-keyed. */
+type UserSettingsRow = NonNullable<Awaited<ReturnType<typeof prisma.userSettings.findFirst>>>;
+
+/**
+ * Read the singleton UserSettings row, or null when the database cannot be
+ * reached. Provider/model/URL lookups only need the row for user overrides,
+ * so an unreachable DB must degrade to the built-in defaults instead of
+ * throwing: opt-in evaluation scripts run from task worktrees (2026-09-25,
+ * #911 `scripts/eval-phase-critic.ts`) have no reachable database, and the
+ * throw made a plan's live-evaluation DoD unverifiable by any agent.
+ *
+ * @returns The settings row, or null on any read failure / 設定行、読めなければ null
+ */
+async function readUserSettings(): Promise<UserSettingsRow | null> {
+  try {
+    return await prisma.userSettings.findFirst();
+  } catch (err) {
+    log.warn({ err }, 'UserSettings unreachable — using built-in AI provider defaults');
+    return null;
+  }
+}
+
 /**
  * Validate basic format of an API key.
  */
@@ -45,7 +67,7 @@ export async function getApiKeyForProvider(provider: AIProvider): Promise<string
   }
 
   // Try DB first (prefer user-configured keys from settings UI)
-  const settings = await prisma.userSettings.findFirst();
+  const settings = await readUserSettings();
   if (settings) {
     const column = PROVIDER_KEY_COLUMNS[provider];
     const encrypted = settings[column];
@@ -85,7 +107,7 @@ export async function getApiKeyForProvider(provider: AIProvider): Promise<string
  * Retrieve the Ollama URL from the DB.
  */
 export async function getOllamaUrl(): Promise<string> {
-  const settings = await prisma.userSettings.findFirst();
+  const settings = await readUserSettings();
   return ((settings as Record<string, unknown>)?.ollamaUrl as string) || DEFAULT_OLLAMA_URL;
 }
 
@@ -93,7 +115,7 @@ export async function getOllamaUrl(): Promise<string> {
  * Retrieve the default model for the specified provider from the DB.
  */
 export async function getDefaultModel(provider: AIProvider): Promise<string> {
-  const settings = await prisma.userSettings.findFirst();
+  const settings = await readUserSettings();
   if (settings) {
     const column = PROVIDER_MODEL_COLUMNS[provider];
     const model = settings[column];
@@ -106,7 +128,7 @@ export async function getDefaultModel(provider: AIProvider): Promise<string> {
  * Retrieve the user's default AI provider.
  */
 export async function getDefaultProvider(): Promise<AIProvider> {
-  const settings = await prisma.userSettings.findFirst();
+  const settings = await readUserSettings();
   if (settings?.defaultAiProvider) {
     return settings.defaultAiProvider as AIProvider;
   }

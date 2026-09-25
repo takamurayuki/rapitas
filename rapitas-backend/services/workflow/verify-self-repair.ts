@@ -18,11 +18,16 @@ import { prisma } from '../../config/database';
 import { commitVerifyRepair } from './verify-repair-commit';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
-import { VERIFY_NON_CONVERGENCE_CAUSE } from './blocked-task-policy';
+import {
+  VERIFY_NON_CONVERGENCE_CAUSE,
+  VERIFY_REPAIR_LIFETIME_CAUSE,
+  MAX_VERIFY_REPAIR_LIFETIME,
+} from './blocked-task-policy';
 import {
   REPAIR_CAUSE,
   resolveMaxRepairs,
   countPriorRepairs,
+  countLifetimeRepairs,
   detectRepairNonConvergence,
   resolveRepairWindowStart,
 } from './verify-self-repair-budget';
@@ -178,11 +183,13 @@ export async function attemptVerifyRepair(
     return { bounced: false, cutoffRecorded: true };
   }
 
-  // Non-convergence cutoff (task 619): same criterion flagged 2+ times (not
-  // necessarily consecutive, e.g. A→B→A) means treading water — escalate.
+  // Non-convergence cutoff (task 619): same criterion flagged threshold+ times
+  // (not necessarily consecutive) with a non-shrinking indicted set means treading water — escalate.
   const verdict = await detectRepairNonConvergence(taskId, reason);
   if (verdict.cutoff) {
-    const detail = `受入基準${verdict.criterionIndex}が${verdict.count}回の差し戻しで一度も対応されていません。タスク分割または仕様の見直しが必要です。`;
+    const detail = verdict.repeatedEvidence
+      ? `同じ検証指摘「${verdict.repeatedEvidence.split('\n')[0]}」が${verdict.count}回の差し戻しで繰り返され、実装側で解消されていません。実装者では直せない指摘（存在しない前提・環境で実行不能な項目・計画の誤り）の可能性が高く、計画または仕様の見直しが必要です。`
+      : `受入基準${verdict.criterionIndex}が${verdict.count}回の差し戻しで指摘され、指摘集合が減っていません。タスク分割または仕様の見直しが必要です。`;
     const taskRow = await prisma.task
       .findUnique({ where: { id: taskId }, select: { title: true, themeId: true } })
       .catch(() => null);
@@ -212,17 +219,71 @@ export async function attemptVerifyRepair(
       metadata: {
         criterionIndex: verdict.criterionIndex,
         count: verdict.count,
+        previousCriteria: verdict.previousCriteria,
+        currentCriteria: verdict.currentCriteria,
+        repeatedEvidence: verdict.repeatedEvidence,
         reason,
       },
     }).catch((err) =>
       log.warn({ err, taskId }, '[verify-repair] Failed to record non-convergence transition'),
     );
     log.warn(
-      { taskId, criterionIndex: verdict.criterionIndex, count: verdict.count },
+      {
+        taskId,
+        criterionIndex: verdict.criterionIndex,
+        count: verdict.count,
+        previousCriteria: verdict.previousCriteria,
+        currentCriteria: verdict.currentCriteria,
+        repeatedEvidence: verdict.repeatedEvidence,
+      },
       '[verify-repair] Repair loop not converging — cutting off (caller should block)',
     );
     return { bounced: false, cutoffRecorded: true };
   }
+
+  // Lifetime cap (task 946): the windowed budget above resets on
+  // question_resolved/task_retried/acceptance_criteria_changed/
+  // plan_invalid_replan, so several resets can let repairs accumulate past
+  // any single window's limit without ever tripping it (task 907: 18 bounces
+  // across 3 windows of 7/3/8). This is a safety net independent of the
+  // window boundary.
+  const lifetimeCount = await countLifetimeRepairs(taskId);
+  if (lifetimeCount >= MAX_VERIFY_REPAIR_LIFETIME) {
+    const detail = `累計${lifetimeCount}回の修復差し戻しが上限（${MAX_VERIFY_REPAIR_LIFETIME}）を超えました。窓リセットにより個々の予算は消費されていませんが、タスク全体としては収束していません。`;
+    const taskRow = await prisma.task
+      .findUnique({ where: { id: taskId }, select: { title: true, themeId: true } })
+      .catch(() => null);
+    try {
+      const { escalateBlockedTask } = await import('./blocked-task-escalation');
+      await escalateBlockedTask(
+        prisma,
+        { id: taskId, title: taskRow?.title ?? `#${taskId}`, themeId: taskRow?.themeId ?? null },
+        'verify_no_convergence',
+        Date.now(),
+        detail,
+        currentStatus ?? null,
+      );
+    } catch (err) {
+      log.warn({ err, taskId }, '[verify-repair] Lifetime-cap escalation failed');
+    }
+    await recordTransition({
+      taskId,
+      fromStatus: currentStatus ?? null,
+      toStatus: currentStatus ?? 'blocked',
+      actor: 'system',
+      cause: VERIFY_REPAIR_LIFETIME_CAUSE,
+      phase: 'verify',
+      metadata: { lifetimeCount, max: MAX_VERIFY_REPAIR_LIFETIME, reason },
+    }).catch((err) =>
+      log.warn({ err, taskId }, '[verify-repair] Failed to record lifetime-cap transition'),
+    );
+    log.warn(
+      { taskId, lifetimeCount, max: MAX_VERIFY_REPAIR_LIFETIME },
+      '[verify-repair] Lifetime repair cap exceeded — cutting off (caller should block)',
+    );
+    return { bounced: false, cutoffRecorded: true };
+  }
+
   // Task 755: recurring checkWorkflowInvariants violations (task #572) — see verify-invariant-repair.ts.
   const invariantWindow = await resolveRepairWindowStart(taskId);
   if (await attemptInvariantCutoff(taskId, currentStatus, reason, invariantWindow))

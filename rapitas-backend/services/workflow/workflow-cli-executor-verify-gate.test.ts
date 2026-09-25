@@ -76,14 +76,22 @@ mock.module('./workflow-cli-executor-helpers', () => ({
 }));
 
 let awaitingRequiredMerge = false;
+let awaitingStagedPrCompletion = false;
 mock.module('./verify-settle-artifact-recovery', () => ({
   isAwaitingRequiredMerge: () => Promise.resolve(awaitingRequiredMerge),
+  isAwaitingStagedPrCompletion: () => Promise.resolve(awaitingStagedPrCompletion),
 }));
 
 const holdForRequiredMerge = mock(() => Promise.resolve(true));
 mock.module('./required-merge-hold', () => ({
   holdForRequiredMerge,
   AWAITING_REQUIRED_MERGE_CAUSE: 'verify_awaiting_required_merge',
+}));
+
+const inFlightWait = mock(async () => true);
+mock.module('./pr-in-flight-wait', () => ({
+  waitForInFlightPr: inFlightWait,
+  PR_CREATION_IN_FLIGHT_ERROR: 'PR作成が別プロセスで進行中のためスキップしました',
 }));
 
 const { resolveVerifyPhaseStatus } = await import('./workflow-cli-executor-verify-gate');
@@ -114,6 +122,7 @@ beforeEach(() => {
   recordTransition.mockClear();
   holdForRequiredMerge.mockClear();
   awaitingRequiredMerge = false;
+  awaitingStagedPrCompletion = false;
 });
 
 describe('resolveVerifyPhaseStatus — 完了と必須マージ待ちの分岐', () => {
@@ -198,6 +207,70 @@ describe('resolveVerifyPhaseStatus — 完了と必須マージ待ちの分岐',
 
     expect(status).toBe('completed');
     expect(holdForRequiredMerge).not.toHaveBeenCalled();
+  });
+
+  test('pr モード×staged有効(isAwaitingStagedPrCompletion=true): completed にせず verify_done で保留する（task 873/948）', async () => {
+    awaitingRequiredMerge = false;
+    awaitingStagedPrCompletion = true;
+
+    const status = await resolveVerifyPhaseStatus(params());
+
+    expect(status).toBe('verify_done');
+    expect(taskUpdate).not.toHaveBeenCalled();
+    expect(holdForRequiredMerge).toHaveBeenCalledWith(
+      expect.objectContaining({ taskId: 895, source: 'WorkflowCLIExecutor (staged pr)' }),
+    );
+    expect(recordTransition).not.toHaveBeenCalledWith(
+      expect.objectContaining({ cause: 'verify_passed' }),
+    );
+  });
+
+  // task 1027 (2026-09-21): HTTP 保存側が PR 作成ロックを持ったまま base 同期中に、
+  // CLI 側のエピローグが「PR なし」でタスクをブロックし、9 秒後にできた PR #786 は
+  // in-progress しか見ない auto-merge watcher から不可視になった。
+  test('PR 作成が別プロセスで進行中なら、ブロックせず PR の紐付けを待って完了する（task 1027）', async () => {
+    linkedPr.mockReset().mockResolvedValue(false);
+    autoCommit.mockResolvedValueOnce({
+      requested: { autoCreatePR: true },
+      autoPRResult: { success: false, error: 'PR作成が別プロセスで進行中のためスキップしました' },
+    });
+    inFlightWait.mockReset().mockResolvedValue(true);
+
+    const status = await resolveVerifyPhaseStatus(params());
+
+    expect(status).toBe('completed');
+    expect(inFlightWait).toHaveBeenCalledWith(895);
+    expect(recordTransition).not.toHaveBeenCalledWith(
+      expect.objectContaining({ cause: 'verify_pr_not_created' }),
+    );
+  });
+
+  test('待っても PR が紐付かなければ従来どおり verify_pr_not_created でブロックする', async () => {
+    linkedPr.mockReset().mockResolvedValue(false);
+    autoCommit.mockResolvedValueOnce({
+      requested: { autoCreatePR: true },
+      autoPRResult: { success: false, error: 'PR作成が別プロセスで進行中のためスキップしました' },
+    });
+    inFlightWait.mockReset().mockResolvedValue(false);
+
+    const status = await resolveVerifyPhaseStatus(params());
+
+    expect(status).toBe('verify_done');
+    expect(recordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({ cause: 'verify_pr_not_created' }),
+    );
+  });
+
+  test('isAwaitingRequiredMerge=true の場合、isAwaitingStagedPrCompletion 分岐より先に merge 保留になる（回帰確認）', async () => {
+    awaitingRequiredMerge = true;
+    awaitingStagedPrCompletion = true;
+
+    const status = await resolveVerifyPhaseStatus(params());
+
+    expect(status).toBe('verify_done');
+    expect(holdForRequiredMerge).toHaveBeenCalledWith(
+      expect.objectContaining({ taskId: 895, source: 'WorkflowCLIExecutor' }),
+    );
   });
 });
 

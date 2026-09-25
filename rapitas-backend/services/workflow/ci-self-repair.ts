@@ -20,7 +20,7 @@ import { WorkflowQueueService } from './workflow-queue';
 import { countWithFailClosed } from '../../utils/database/fail-closed-count';
 import { ghPath, readPrChecks, readHeadSha } from './auto-merge-checks';
 import { DEFAULT_MAX_CI_REPAIRS } from './blocked-task-policy';
-
+import { CI_REPAIR_WORKTREE_GUIDANCE } from './ci-repair-guidance';
 const execAsync = promisify(exec);
 const log = createLogger('workflow:ci-self-repair');
 
@@ -177,7 +177,7 @@ async function writeCiFeedback(
       '',
       '以下を厳守して **実装を修正** してください:',
       '- 失敗したチェックに対応するゲートをローカルで再現して直す（例: "Check Frontend"→フロントのテスト、"Lint Code"→lint/型、"Test Backend"/"Test SQLite"→バックエンドのテスト）。',
-      '- `bun test --isolate` / `bunx tsc --noEmit` / lint / prettier をローカルで実行し、緑になるまで直す。',
+      `- \`bun test --isolate\` / \`bunx tsc --noEmit\` / lint / prettier をローカルで実行し、緑になるまで直す。${CI_REPAIR_WORKTREE_GUIDANCE}`,
       '- スコープ厳守（plan.md 記載外のファイルは変更しない）。テスト結果の改ざんは禁止。',
       '- plan.md 記載外のファイルに原因があっても、元の要件・受け入れ基準・停止/完了の不変条件・必須完了ゲートに関わる失敗は未達のまま扱う。懸念起票だけで免除したり、判定を成功へ書き換えたりしてはならない。計画の修正が必要なら理由と再現証拠を報告し、正規の再計画または保留へ進める。',
       '- 元の要件と無関係な既存失敗は POST /concerns に起票し、無関係と判断した根拠を verify.md に残す。ただし、必須チェックや完了ゲートの成功を代替するものではない。',
@@ -229,7 +229,7 @@ export async function attemptCiRepair(
   // task 280). A CI failure on such a PR is a separate concern — leave the task
   // completed and let the caller flag the PR for review instead.
   const ctask = await prisma.task
-    .findUnique({ where: { id: taskId }, select: { title: true, githubPrId: true } })
+    .findUnique({ where: { id: taskId }, select: { title: true, githubPrId: true, themeId: true } })
     .catch(() => null);
   if (ctask && ctask.githubPrId != null && /^PR #\d+ の競合を解消/.test(ctask.title ?? '')) {
     log.info(
@@ -281,8 +281,16 @@ export async function attemptCiRepair(
   });
 
   // Re-enqueue so the status-driven WorkflowRunner re-runs implement → verify.
+  // NOTE: carry the task's themeId — the theme scheduler only sees queue items
+  // tagged with its themeId (getThemeActiveQueueItems), so an untagged repair
+  // item left the theme reading the task's OLD terminal item as "completed"
+  // and re-selecting the same task every 12s (tasks 909/907/881, 2026-09-20).
   try {
-    await WorkflowQueueService.getInstance().enqueue({ taskId, priority: 60 });
+    await WorkflowQueueService.getInstance().enqueue({
+      taskId,
+      ...(ctask?.themeId != null ? { themeId: ctask.themeId } : {}),
+      priority: 60,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes('already in the queue')) {

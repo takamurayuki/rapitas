@@ -7,6 +7,7 @@
  * buildSpawnCommand(), and that the re-exports delegate correctly.
  */
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { escapeWindowsShellArg } from '../../utils/common/windows-shell-escape';
 
 const mockResolveCliPathAsync = mock((cliName: string) => Promise.resolve(`resolved:${cliName}`));
 const mockGetClaudePathAsync = mock(() => Promise.resolve('resolved:claude.cmd'));
@@ -63,11 +64,23 @@ describe('buildSpawnCommand', () => {
     expect(args).toEqual(['--print']);
   });
 
-  it('Windows では chcp 65001 を前置した単一コマンド文字列を返す', async () => {
+  it('Windows では chcp 65001 を前置し escapeWindowsShellArg でエスケープした引数を渡す', async () => {
     if (process.platform !== 'win32') return;
     const [command, args] = buildSpawnCommand('claude.cmd', ['--print']);
     expect(command).toContain('chcp 65001');
-    expect(command).toContain('claude.cmd --print');
+    // task 977: escapeWindowsShellArg unconditionally quotes the command name
+    // and double-caret-escapes each argument (no longer a plain "cmd arg" join).
+    expect(command).toContain(
+      `${escapeWindowsShellArg('claude.cmd', false)} ${escapeWindowsShellArg('--print', true)}`,
+    );
     expect(args).toEqual([]);
+  });
+
+  it('Windows: 引数のダブルクォートによるコマンド境界破りを再現しない', async () => {
+    if (process.platform !== 'win32') return;
+    const [command] = buildSpawnCommand('claude.cmd', ['say "hi" & calc.exe']);
+    // 修正前は `"${arg}"` で素通りし、コマンド境界が破れて calc.exe が独立コマンドとして実行され得た。
+    expect(command).not.toContain('" & calc.exe"');
+    expect(command).toContain('^^^&');
   });
 });

@@ -20,9 +20,32 @@ mock.module('../../config/logger', () => ({
   getBackendLogFilePath: () => '/tmp/backend.log',
 }));
 
-const { resolveTaskBudgetCap, getTaskSpendUsd } = await import('./task-budget');
+const { resolveTaskBudgetCap, getTaskSpendUsd, getTaskSpendUsdSince } =
+  await import('./task-budget');
 
 const spent = (...amounts: unknown[]) => amounts.map((costUsd) => ({ costUsd }));
+
+describe('getTaskSpendUsdSince', () => {
+  beforeEach(() => findManyMock.mockReset().mockResolvedValue([]));
+
+  test('restricts the query to executions started at/after `since` (or not yet started)', async () => {
+    const since = new Date(1_000);
+    findManyMock.mockResolvedValue(spent(1, 2));
+    expect(await getTaskSpendUsdSince(7, since)).toBe(3);
+    expect(findManyMock.mock.calls[0]?.[0]).toMatchObject({
+      where: {
+        session: { config: { taskId: 7 } },
+        OR: [{ startedAt: null }, { startedAt: { gte: since } }],
+      },
+    });
+  });
+
+  test('null `since` means lifetime (no startedAt filter)', async () => {
+    await getTaskSpendUsdSince(7, null);
+    const where = (findManyMock.mock.calls[0]?.[0] as { where: Record<string, unknown> }).where;
+    expect(where).toEqual({ session: { config: { taskId: 7 } } });
+  });
+});
 
 describe('getTaskSpendUsd', () => {
   beforeEach(() => findManyMock.mockReset().mockResolvedValue([]));
@@ -37,9 +60,9 @@ describe('getTaskSpendUsd', () => {
     expect(await getTaskSpendUsd(1)).toBe(2);
   });
 
-  test('returns 0 when the read fails', async () => {
+  test('rejects instead of returning 0 when the read fails', async () => {
     findManyMock.mockImplementation(() => Promise.reject(new Error('db down')));
-    expect(await getTaskSpendUsd(1)).toBe(0);
+    expect(getTaskSpendUsd(1)).rejects.toThrow('db down');
   });
 });
 
@@ -82,5 +105,28 @@ describe('resolveTaskBudgetCap', () => {
     const r = await resolveTaskBudgetCap(1);
     expect(r.capTier).toBeUndefined();
     expect(r.spentUsd).toBe(999);
+  });
+
+  test('DB失敗時はunknownを返し、0扱い(no-cap相当)にはしない', async () => {
+    findManyMock.mockImplementation(() => Promise.reject(new Error('db down')));
+    const r = await resolveTaskBudgetCap(1);
+    expect(r.spendUnknown).toBe(true);
+    expect(r.unknownReason).toBeTruthy();
+    expect(r.unknownReason).toContain('db down');
+    // Tier judgement is deferred, not resolved to "no ceiling" — capTier
+    // stays unset either way, but the reason field distinguishes it from a
+    // genuinely empty spend history.
+    expect(r.capTier).toBeUndefined();
+  });
+
+  test('DB回復後は次回呼び出しで正常なtier判定に自動復帰する', async () => {
+    findManyMock.mockImplementationOnce(() => Promise.reject(new Error('db down')));
+    const failed = await resolveTaskBudgetCap(1);
+    expect(failed.spendUnknown).toBe(true);
+
+    findManyMock.mockResolvedValue(spent(20, 6));
+    const recovered = await resolveTaskBudgetCap(1);
+    expect(recovered.spendUnknown).toBeUndefined();
+    expect(recovered.capTier).toBe('standard');
   });
 });

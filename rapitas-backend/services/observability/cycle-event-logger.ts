@@ -50,6 +50,15 @@ export type CycleEventName =
   // files its research/plan names are still changing in an open auto-PR
   | 'task.implement_overlap_hold'
   | 'task.implement_overlap_released'
+  // periodic re-check signal while the implementer overlap hold continues
+  // (task 954): fires every HOLD_SIGNAL_INTERVAL_MS to prove the retry loop
+  // is still invoking guardImplementOverlap() during a long hold
+  | 'task.implement_overlap_holding'
+  // dequeue()/tryDequeueCandidate() silently skipped an overlap-held candidate
+  // (task 954): the scheduler-side re-check that guardImplementOverlap()
+  // depends on being invoked every poll can itself drop the candidate
+  // without a trace. `reason` distinguishes which silent-skip branch fired.
+  | 'task.dequeue_skipped'
   // workflow phase progression
   | 'phase.transition'
   // task terminal / hold states
@@ -74,7 +83,10 @@ export type CycleEventName =
   | 'pr.merged'
   | 'pr.merge_failed'
   // self-deploy
-  | 'restart.triggered';
+  | 'restart.triggered'
+  // self-CPU heartbeat (services/system/cpu-usage-monitor.ts), opt-in
+  // diagnostic for sustained-high-CPU investigations
+  | 'system.cpu_sample';
 
 /**
  * Optional structured fields attached to a cycle event. Keep keys short and
@@ -133,14 +145,24 @@ let stream: WriteStream | null = null;
 
 function ensureStream(): WriteStream | null {
   const stamp = dateStamp();
-  if (stamp === currentStamp && stream) return stream;
+  // stream.destroyed guards against a real incident observed 2026-09-18: an
+  // async write failure after the date rollover (disk hiccup, AV lock, ENOENT)
+  // emits 'error', which Node auto-destroys the stream for — but the handler
+  // below only swallowed the error, never re-derived the stream. Every event
+  // for the rest of the day silently vanished into a dead stream reference
+  // (the `stamp === currentStamp && stream` reuse check alone can't tell a
+  // destroyed stream from a live one). Falling through to recreate it here is
+  // the same recovery path a genuine date change already takes.
+  if (stamp === currentStamp && stream && !stream.destroyed) return stream;
   try {
     mkdirSync(getLogsDir(), { recursive: true });
     stream?.end();
     stream = createWriteStream(getCycleLogFilePath(stamp), { flags: 'a' });
     // A WriteStream is an EventEmitter: an async write failure (disk full, file
     // removed) emits 'error', which crashes the process if unhandled. Swallow it
-    // — observability must never take down the cycle it observes.
+    // — observability must never take down the cycle it observes. Node
+    // auto-destroys the stream on 'error', so the destroyed-check above is what
+    // actually recovers; this handler only prevents the crash.
     stream.on('error', () => {});
     currentStamp = stamp;
   } catch {
@@ -170,4 +192,17 @@ export function logCycleEvent(evt: CycleEventName, fields: CycleEventFields = {}
   } catch {
     // Never let an observability failure propagate into the cycle.
   }
+}
+
+/**
+ * Test-only: close and forget the cached stream so the next `logCycleEvent`
+ * call re-derives it from the current `RAPITAS_DATA_DIR`/date. Without this,
+ * tests that swap `RAPITAS_DATA_DIR` between cases (each via a fresh tmpdir)
+ * still share the module-level `stream` cached by an earlier case in the same
+ * file, silently writing into a directory a later `afterEach` already deleted.
+ */
+export function _resetForTests(): void {
+  stream?.end();
+  stream = null;
+  currentStamp = '';
 }

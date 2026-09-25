@@ -12,6 +12,7 @@ import {
   advanceReviewedVerify,
   assertReviewedTaskCurrent,
 } from './requirement-replan-commit';
+import { RequirementReplanHeldError } from '../../middleware/error-handler';
 import { replanSnapshotDigest } from './requirement-replan-evidence';
 import type { ReplanReviewResult } from './requirement-replan-review';
 import { buildRequirementReplanContext } from './requirement-replan-context';
@@ -63,6 +64,8 @@ beforeEach(async () => {
     'CREATE TABLE AgentExecution (id INTEGER PRIMARY KEY, sessionId INTEGER, status TEXT, startedAt DATETIME)',
     'CREATE TABLE ThemeAutoRun (id INTEGER PRIMARY KEY, themeId INTEGER UNIQUE, status TEXT)',
     'CREATE TABLE WorkflowTransition (id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, fromStatus TEXT, toStatus TEXT, actor TEXT, cause TEXT, phase TEXT, executionId INTEGER, sessionId INTEGER, metadata TEXT DEFAULT "{}", invariantViolation BOOLEAN DEFAULT 0, invariantMessage TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
+    'CREATE TABLE RequirementReviewClaim (id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, snapshotDigest TEXT, requestKey TEXT, status TEXT, claimToken TEXT, ownerInstanceId TEXT, heartbeatAt DATETIME, resultJson TEXT, reason TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME, UNIQUE(taskId,snapshotDigest))',
+    'CREATE TABLE RequirementReviewRetryRequest (id INTEGER PRIMARY KEY AUTOINCREMENT, requestId TEXT UNIQUE, taskId INTEGER, consumedAt DATETIME, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
   ])
     await db.$executeRawUnsafe(sql);
   await db.$executeRawUnsafe(
@@ -170,14 +173,22 @@ test('artifact change invalidates evidence even without task timestamp change', 
   expect(await db.workflowTransition.count()).toBe(0);
 });
 
-test('three persisted attempts prevent another replan', async () => {
+test('three persisted attempts prevent another replan and block the task once (task 956)', async () => {
   for (let i = 0; i < 3; i++) {
     await db.$executeRawUnsafe(
       "INSERT INTO WorkflowTransition (taskId,fromStatus,toStatus,actor,cause) VALUES (1,'plan_approved','research_done','system','requirement_evidence_replan')",
     );
   }
   expect(await commit()).toEqual({ committed: false, reason: 'budget_exhausted' });
-  expect(await db.workflowTransition.count()).toBe(3);
+  // A durable audit row + blocked status now accompany budget_exhausted, so a
+  // human sees the same task state whichever of the two budgets tripped it.
+  expect(await db.workflowTransition.count()).toBe(4);
+  expect(
+    await db.workflowTransition.count({ where: { cause: 'requirement_replan_budget_exhausted' } }),
+  ).toBe(1);
+  expect(await db.task.findUnique({ where: { id: 1 }, select: { status: true } })).toEqual({
+    status: 'blocked',
+  });
 });
 
 test('committed evidence reaches the replacement planner without truncating requirements', async () => {
@@ -208,6 +219,17 @@ test('replan invalidates older phase output but not a later replacement phase', 
   expect(await requirementReplannedSince(client, 1, new Date(Date.now() + 60000))).toBe(false);
 });
 
+test('a human plan-revision request supersedes phases that began before it (task 901)', async () => {
+  const client = db as unknown as PostgresClient;
+  expect(await requirementReplannedSince(client, 1, now)).toBe(false);
+  await db.$executeRawUnsafe(
+    "INSERT INTO WorkflowTransition (taskId, fromStatus, toStatus, actor, cause, createdAt) VALUES (1, 'in_progress', 'research_done', 'user', 'plan_revision_requested', ?)",
+    new Date(now.getTime() + 1000),
+  );
+  expect(await requirementReplannedSince(client, 1, now)).toBe(true);
+  expect(await requirementReplannedSince(client, 1, new Date(now.getTime() + 2000))).toBe(false);
+});
+
 test('server entry point reviews the stored source and commits the verdict', async () => {
   const result = await attemptRequirementReplan(
     db as unknown as PostgresClient,
@@ -221,6 +243,54 @@ test('server entry point reviews the stored source and commits the verdict', asy
     },
   );
   expect(result.committed).toBe(true);
+});
+
+test('unknown review keeps task and artifacts unchanged and is carried as an inconclusive receipt', async () => {
+  // NOTE (2026-09-13, task 901): an undecidable verdict used to park the task
+  // as blocked and withhold the receipt, which deadlocked every later verify
+  // save (`not_reviewable`). It now flows on as "no mismatch established" —
+  // the ordinary verify gates remain the arbiters — with the reviewer's
+  // explanation preserved on the receipt and the claim.
+  const artifacts = await db.$queryRawUnsafe('SELECT * FROM WorkflowFile ORDER BY id');
+  const result = await attemptRequirementReplan(db as unknown as PostgresClient, 1, async () => ({
+    ...review,
+    verdict: { kind: 'unknown', reason: 'UI and cost comparison evidence is missing' },
+  }));
+  expect(result.committed).toBe(false);
+  expect(result.reason).toBe('no_mismatch');
+  expect(result.completionReceipt?.review.verdict).toEqual({
+    kind: 'no_mismatch',
+    reason: 'review_inconclusive: UI and cost comparison evidence is missing',
+  });
+  expect(await db.task.findUnique({ where: { id: 1 }, select: { status: true } })).toEqual({
+    status: 'in-progress',
+  });
+  expect(await db.$queryRawUnsafe('SELECT * FROM WorkflowFile ORDER BY id')).toEqual(artifacts);
+  expect(await db.$queryRawUnsafe('SELECT * FROM WorkflowTransition')).toEqual([]);
+});
+
+test('a concurrent healthy evaluation is not mistaken for a crash and does not stop the task', async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let entered!: () => void;
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const first = attemptRequirementReplan(db as unknown as PostgresClient, 1, async () => {
+    entered();
+    await gate;
+    return { ...review, verdict: { kind: 'no_mismatch' as const, reason: 'matches' } };
+  });
+  await started;
+  const duplicate = await attemptRequirementReplan(db as unknown as PostgresClient, 1);
+  expect(duplicate).toEqual({ committed: false, reason: 'review_in_progress' });
+  expect(await db.task.findUnique({ where: { id: 1 }, select: { status: true } })).toEqual({
+    status: 'in-progress',
+  });
+  release();
+  await first;
 });
 
 test('requirement edited during independent review is never replaced by an old verdict', async () => {
@@ -272,6 +342,33 @@ test('no-mismatch review cannot pass a cancellation that leaves the task timesta
   });
   expect(result).toEqual({ committed: false, reason: 'execution_stopped' });
   expect(await db.workflowTransition.count()).toBe(0);
+});
+
+test('two replans within the 60-minute window block before a third replan attempt (task 956)', async () => {
+  for (let i = 0; i < 2; i++) {
+    await db.$executeRawUnsafe(
+      "INSERT INTO WorkflowTransition (taskId,fromStatus,toStatus,actor,cause) VALUES (1,'plan_approved','research_done','system','requirement_evidence_replan')",
+    );
+  }
+  // Absolute budget (priorReplans>=3) is NOT exhausted yet — only the
+  // window-local guard (2 replans within 60 minutes) is.
+  expect(await commit()).toEqual({ committed: false, reason: 'budget_exhausted' });
+  expect(
+    await db.workflowTransition.count({ where: { cause: 'requirement_replan_budget_exhausted' } }),
+  ).toBe(1);
+  expect(await db.task.findUnique({ where: { id: 1 }, select: { status: true } })).toEqual({
+    status: 'blocked',
+  });
+});
+
+test('a single replan within the window does not block (normal repair cycle)', async () => {
+  await db.$executeRawUnsafe(
+    "INSERT INTO WorkflowTransition (taskId,fromStatus,toStatus,actor,cause) VALUES (1,'plan_approved','research_done','system','requirement_evidence_replan')",
+  );
+  expect((await commit()).committed).toBe(true);
+  expect(await db.task.findUnique({ where: { id: 1 }, select: { status: true } })).toEqual({
+    status: 'in-progress',
+  });
 });
 
 test('a matching review after three replans does not require a fourth attempt', async () => {
@@ -505,6 +602,20 @@ test('preflight admission reads current evidence without advancing or auditing c
   expect(
     await db.task.findUnique({ where: { id: 1 }, select: { status: true, updatedAt: true } }),
   ).toEqual({ status: 'in-progress', updatedAt: receipt.evaluatedUpdatedAt });
+});
+
+test('preflight admission classifies a stale task snapshot as a held state guard, not a crash (#1041)', async () => {
+  const receipt = await emptyDiffReceipt();
+  await db.$executeRawUnsafe(
+    'UPDATE Task SET updatedAt = ? WHERE id = 1',
+    new Date(receipt.evaluatedUpdatedAt.getTime() + 1000),
+  );
+  const err: unknown = await assertReviewedTaskCurrent(
+    db as unknown as PostgresClient,
+    receipt,
+  ).catch((e: unknown) => e);
+  expect(err).toBeInstanceOf(RequirementReplanHeldError);
+  expect((err as Error).message).toContain('stale_task');
 });
 
 test('preflight admission refuses durable stop before external work', async () => {

@@ -1,4 +1,4 @@
-import { generatedSyncCheck } from './generated-sync-check';
+import { generatedSyncCheck, ciParityChecks } from './generated-sync-check';
 export { generatedSyncCheck } from './generated-sync-check';
 import { buildFileCommands } from './command-batches';
 /**
@@ -9,14 +9,12 @@ import { buildFileCommands } from './command-batches';
  * claims with actual command output. Scoped to the agent's changed files (and,
  * for tsc, errors are filtered to those files) so pre-existing problems in the
  * project don't cause false gating. Monorepo-aware: groups changed files by the
- * nearest package.json and runs the tooling per project root.
- *
- * All subprocesses run ASYNChronously (spawn) — never execSync — so a slow
- * tsc/eslint can't block the single-threaded backend event loop.
- *
- * Optionally also runs the project's test suite (opt-in via RAPITAS_VERIFY_TESTS)
- * so the gate covers runtime breakage, not just lint/types. Not responsible for
- * committing or the retry loop.
+ * nearest package.json and runs the tooling per project root. All subprocesses
+ * run ASYNChronously (spawn) — never execSync — so a slow tsc/eslint can't
+ * block the single-threaded backend event loop. Optionally also runs the
+ * project's test suite (opt-in via RAPITAS_VERIFY_TESTS) so the gate covers
+ * runtime breakage, not just lint/types. Not responsible for committing or
+ * the retry loop.
  */
 import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { dirname, extname, join, relative, resolve } from 'path';
@@ -26,6 +24,7 @@ import { buildTriagedTestCheck } from './test-triage-report';
 import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
 import { evaluateAcceptanceSelfCheck } from './acceptance-self-check';
 import { schemaChangeGateCheck, collectHardGateChecks } from './schema-change-gate';
+import { resolveForbiddenChangeOverride } from './schema-change-gate';
 import { runProjectChecks, spawnQuiet } from './quiet-verification';
 import { assertSafeGitRef } from '../../../utils/common/branch-name-generator';
 
@@ -52,7 +51,9 @@ export interface VerificationCheck {
     | 'runtime'
     | 'tamper'
     | 'acceptance'
-    | 'schema-change';
+    | 'schema-change'
+    | 'red-state'
+    | 'file-size';
   /** Whether the check was applicable and actually executed. */
   ran: boolean;
   /** True when the check passed (no new failures in the changed files). */
@@ -308,8 +309,14 @@ function projectRootFor(workdir: string, file: string): string {
   return root;
 }
 
-/** Groups changed files by their owning project root (for monorepos). */
-function groupByProjectRoot(workdir: string, files: string[]): Map<string, string[]> {
+/**
+ * Groups changed files by their owning project root (for monorepos).
+ * Exported so red-state-check.ts can group a task's changed TEST files the
+ * same way runAutomatedVerification groups its lint/type/test/format checks
+ * — a red-state check must run in the same project root the real test run
+ * used, or its scoped test command resolves the wrong runner/config.
+ */
+export function groupByProjectRoot(workdir: string, files: string[]): Map<string, string[]> {
   const groups = new Map<string, string[]>();
   for (const f of files) {
     const rootDir = projectRootFor(workdir, f);
@@ -502,7 +509,7 @@ function scopedTscEnabled(): boolean {
  * "cannot find module" bug is re-reported by the full run too, so the worst case
  * is slower, never a wrong verdict.
  */
-const ENV_FAILURE_TS_CODES = new Set(['TS2307', 'TS2688', 'TS2591', 'TS2580']);
+const ENV_FAILURE_TS_CODES = new Set(['TS2307', 'TS2688', 'TS2591', 'TS2580', 'TS18003']);
 
 /** True when scoped tsc output carries an env-resolution failure (→ use full). */
 function looksLikeBrokenTypeEnv(output: string): boolean {
@@ -510,6 +517,15 @@ function looksLikeBrokenTypeEnv(output: string): boolean {
     if (ENV_FAILURE_TS_CODES.has(m[1]!)) return true;
   }
   return false;
+}
+
+/** A compiler/configuration failure is not an attributable source diagnostic. */
+function incompleteTypecheck(code: number, output: string): boolean {
+  const files = parseTscErrorFiles(output);
+  return (
+    code !== 0 &&
+    (code !== 2 || files.length === 0 || files.some((file) => !CODE_EXTENSIONS.has(extname(file))))
+  );
 }
 
 /**
@@ -547,8 +563,8 @@ async function runScopedTypecheck(
     writeFileSync(cfgPath, JSON.stringify(cfg));
     const res = await runCmd(`"${bin}" -p "${cfgPath}" --noEmit --pretty false`, projectRoot);
     const out = `${res.stdout}\n${res.stderr}`;
-    // Broken scope (dropped globals) → signal a full re-run.
-    return looksLikeBrokenTypeEnv(out) ? null : out;
+    // Invalid scope or abnormal compiler exit requires a full re-run.
+    return looksLikeBrokenTypeEnv(out) || incompleteTypecheck(res.code, out) ? null : out;
   } catch {
     return null; // any failure → fall back to full
   } finally {
@@ -561,7 +577,7 @@ async function runScopedTypecheck(
 }
 
 /** Typechecks a project; gates on tsc errors located in the changed files. */
-async function typecheckProject(
+export async function typecheckProject(
   projectRoot: string,
   workdir: string,
   relFiles: string[],
@@ -578,7 +594,11 @@ async function typecheckProject(
   // Fast path: typecheck only the changed files. Falls through to a FULL run when
   // scoping doesn't apply or looks unreliable — same verdict, just slower.
   const scopedOut = scopedTscEnabled()
-    ? await runScopedTypecheck(bin, projectRoot, relFiles)
+    ? await runScopedTypecheck(
+        bin,
+        projectRoot,
+        relFiles.map((file) => relative(projectRoot, join(workdir, file)).replace(/\\/g, '/')),
+      )
     : null;
   let combined: string;
   if (scopedOut !== null) {
@@ -586,6 +606,12 @@ async function typecheckProject(
   } else {
     const res = await runCmd(`"${bin}" --noEmit --pretty false`, projectRoot);
     combined = `${res.stdout}\n${res.stderr}`;
+    if (incompleteTypecheck(res.code, combined)) {
+      return unverifiableCheck(
+        'typecheck',
+        `tsc exited ${res.code}:\n${combined.slice(0, MAX_DETAIL_CHARS)}`,
+      );
+    }
   }
   const errorFiles = parseTscErrorFiles(combined);
   // Only count errors located in the files the agent changed (avoids gating on
@@ -719,8 +745,17 @@ const COVERAGE_EXEMPT_RE = /(\.d\.ts$|\.config\.[cm]?[jt]s$|\.stories\.[jt]sx?$)
  * arXiv:2511.21654). Legitimate self-development changes to these files are
  * allowed only when the (human-approved) plan explicitly lists them.
  */
+// `phase-critic` is deliberately NOT in the shared prefix group above: unlike
+// the other three (each a lone file or a same-named file family, e.g.
+// verify-self-repair-budget.ts), phase-critic.ts/phase-critic-gate.ts live in
+// a services/workflow/phase-critic/ DIRECTORY alongside unrelated siblings
+// (critic-lessons.ts, critic-inflight.ts, critique-aggregator.ts, index.ts).
+// A bare `phase-critic` alternative substring-matches the directory prefix
+// itself, flagging every file in it as tampering (task 936: critic-lessons.ts
+// — lesson distillation, not gate logic — falsely blocked with no plan-less
+// override available). Anchor to the actual gate file names instead.
 const PROTECTED_PATH_RE =
-  /(services[\\/]agents[\\/]verification[\\/]|services[\\/]workflow[\\/](completion-gate|phase-output-validator|verify-self-repair|phase-critic)|\.github[\\/]workflows[\\/]|\.husky[\\/]|scripts[\\/](pre-commit-check|auto-fix-commit))/i;
+  /(services[\\/]agents[\\/]verification[\\/]|services[\\/]workflow[\\/](completion-gate|phase-output-validator|verify-self-repair)|services[\\/]workflow[\\/]phase-critic[\\/]phase-critic(-gate)?\.|\.github[\\/]workflows[\\/]|\.husky[\\/]|scripts[\\/](pre-commit-check|auto-fix-commit))/i;
 
 /**
  * Bug-fix task detector (conservative — plain 「修正」 alone is too broad).
@@ -734,6 +769,38 @@ export function looksLikeBugFixTask(text: string | null | undefined): boolean {
   return /(バグ|不具合|クラッシュ|例外が|エラーになる|落ちる|表示されない|動かない|\bbug\b|\bcrash\b|\bregression\b|\bbroken\b)/i.test(
     text,
   );
+}
+
+/**
+ * Trivial-task detector (conservative, same style as {@link looksLikeBugFixTask}):
+ * tasks with no testable behavior to cover — pure documentation, comment-only,
+ * config-value-only, or dependency-version-only changes. The TDD requirement
+ * (R? — full-project TDD adoption) defaults ON for everything else; this is
+ * the narrow opt-out, not an opt-in list.
+ *
+ * @param text - Task title + description. / タスク本文
+ * @returns Whether the task looks exempt from the TDD/coverage requirement. / TDD対象外か
+ */
+export function looksLikeTrivialTask(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return /(ドキュメントのみ|README(の)?(更新|修正|のみ)|typo\s*(の)?修正|誤字脱字|コメント(のみ|だけ)|設定[値]?(の)?み?変更|依存(関係)?(の)?(バージョン(を)?)?(更新|アップデート)(のみ)?|\bdocs?[\s-]only\b|\breadme\b|\btypo\b|\bcomment[\s-]only\b|\bconfig[\s-]only\b|\bdependency\s+(bump|update)\b)/i.test(
+    text,
+  );
+}
+
+/**
+ * Whether a task's diff should be required to ship a test — the TDD gate's
+ * scope decision. Default ON for all substantive work (feature/bug/refactor);
+ * only tasks {@link looksLikeTrivialTask} identifies as having no testable
+ * behavior are exempt. Inverse polarity from the pre-TDD-adoption behavior,
+ * which only forced tests for bug fixes ({@link looksLikeBugFixTask}) and left
+ * every other task type — most of auto-run's actual volume — untested.
+ *
+ * @param text - Task title + description. / タスク本文
+ * @returns Whether the task requires a test in its diff. / テスト必須か
+ */
+export function requiresTestsForTask(text: string | null | undefined): boolean {
+  return !looksLikeTrivialTask(text);
 }
 
 /**
@@ -870,7 +937,6 @@ export async function runAutomatedVerification(
   options: VerificationOptions = {},
 ): Promise<VerificationResult> {
   const changedFiles = await getChangedCodeFiles(workdir, options.preferredBaseBranch);
-
   // Full diff (not just code files): scope violations and tampering can live in docs/config/CI too.
   const allChanged = await getAllChangedFiles(workdir, options.preferredBaseBranch);
   const planFiles = options.planContent ? parsePlanFiles(options.planContent) : null;
@@ -882,12 +948,12 @@ export async function runAutomatedVerification(
   const allow = options.tamperAllowlist ?? [];
   const tamperPlan = allow.length ? [...(planFiles ?? []), ...allow] : planFiles;
   const tamper = tamperCheck(allChanged, tamperPlan);
-  const schemaGate = schemaChangeGateCheck(allChanged, planFiles);
+  const forbiddenChangeOverride = await resolveForbiddenChangeOverride(options.taskId);
+  const schemaGate = schemaChangeGateCheck(allChanged, planFiles, forbiddenChangeOverride);
   const hardGateChecks = collectHardGateChecks(scopeCheck, tamper, schemaGate);
   // An empty diff skips scoped static commands, but does not prove that a
   // configured runtime works (for example after restoring a merged task).
   // Continue to the runtime stage and preserve unavailable/failed evidence.
-
   const groups = groupByProjectRoot(workdir, changedFiles);
   const lintParts: VerificationCheck[] = [];
   const typeParts: VerificationCheck[] = [];
@@ -907,10 +973,17 @@ export async function runAutomatedVerification(
   }
 
   const coverage = coverageCheck(changedFiles, options.requireTests === true);
-  // CI-parity checks: prettier formatting and Prisma generated-artifact sync
-  // both hard-fail CI's Lint Code job, so catching them here turns a full
-  // ci_repair round into an in-phase fix.
+  const { maybeRunRedStateCheck } = await import('./red-state-check');
+  const redState = await maybeRunRedStateCheck(
+    workdir,
+    changedFiles,
+    coverage,
+    options.preferredBaseBranch,
+  );
+  // CI-parity checks (prettier, Prisma generated-artifact sync, line-limit
+  // ratchet): each hard-fails CI, so catching it here saves a ci_repair round.
   const generatedSync = generatedSyncCheck(allChanged);
+  const parity = await ciParityChecks(workdir, allChanged);
   // Acceptance self-check (ADVISORY, task 617): criterion↔diff token matching
   // over the FULL diff (criteria may reference docs/config, not just code).
   const acceptance =
@@ -927,8 +1000,10 @@ export async function runAutomatedVerification(
     mergeChecks('test', testParts),
     ...(formatParts.length > 0 ? [mergeChecks('format', formatParts)] : []),
     ...(generatedSync ? [generatedSync] : []),
+    ...parity,
     ...hardGateChecks,
     ...(coverage ? [coverage] : []),
+    ...(redState ? [redState] : []),
     ...(acceptance ? [acceptance] : []),
   ];
   // Scope and acceptance are ADVISORY, not hard gates. A plan-scope deviation

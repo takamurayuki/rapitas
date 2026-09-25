@@ -50,6 +50,11 @@ import {
   mockStopThemeAgents,
   mockActivityLogCreate,
   mockUserSettingsFindFirst,
+  mockLogWarn,
+  mockResolveIterationBudgetForTask,
+  mockMarkEventLoopSection,
+  mockReleaseEventLoopSection,
+  mockMarkEventLoopSectionCalls,
 } from './theme-auto-run-scheduler.test-support.collaborator-mocks';
 import {
   mockGetGlobalAutoRunActiveCount,
@@ -209,6 +214,10 @@ const ALL_MOCKS = [
   mockShouldRefillBacklogNow,
   mockMarkSelfRefillSucceeded,
   mockIsOverlapHeld,
+  mockLogWarn,
+  mockResolveIterationBudgetForTask,
+  mockMarkEventLoopSection,
+  mockReleaseEventLoopSection,
 ];
 
 /** Clear call history AND restore each mock's default resolved value/behaviour. */
@@ -248,6 +257,7 @@ export function resetAllMocks(): void {
   mockActivityLogCreate.mockResolvedValue({});
   mockNotifyResourceContentionHold.mockResolvedValue(undefined);
   mockUserSettingsFindFirst.mockResolvedValue(null);
+  mockResolveIterationBudgetForTask.mockResolvedValue({ shouldHalt: false });
   mockNotifyIdleStopped.mockResolvedValue(undefined);
   mockGetIdleStopMinutes.mockResolvedValue(60);
   mockGetSelfRefillWindowStart.mockResolvedValue('03:00');
@@ -265,4 +275,5 @@ export function resetAllMocks(): void {
   });
   mockConsumeResourceGateOverride.mockReturnValue(false);
   mockIsOverlapHeld.mockReturnValue(false);
+  mockMarkEventLoopSectionCalls.length = 0;
 }

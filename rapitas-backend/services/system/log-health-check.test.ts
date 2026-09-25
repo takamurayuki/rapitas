@@ -279,6 +279,42 @@ describe('readGlobalEntries', () => {
   });
 });
 
+describe('readGlobalEntries — 末尾バイトのみ読む', () => {
+  const tmpFiles: string[] = [];
+  afterEach(() => {
+    for (const p of tmpFiles.splice(0)) {
+      if (existsSync(p)) unlinkSync(p);
+    }
+  });
+
+  function line(i: number): string {
+    return JSON.stringify({ level: 50, msg: `err-${i}`, time: 1_000 + i, name: 'x' });
+  }
+
+  it('大きなファイルは末尾のみ読み、先頭の欠けた断片行は捨てる', async () => {
+    const lines = Array.from({ length: 200 }, (_, i) => line(i));
+    const p = join(tmpdir(), 'hc-tail.log');
+    writeFileSync(p, lines.join('\n') + '\n', 'utf-8');
+    tmpFiles.push(p);
+    // 約20行ぶんだけ読ませる: 先頭は行の途中から始まる。
+    const entries = await readGlobalEntries(0, p, line(0).length * 20);
+    const msgs = entries.map((e) => e.msg);
+    expect(msgs).not.toContain('err-0');
+    expect(msgs).toContain('err-199');
+    expect(msgs.length).toBeLessThan(25);
+    expect(msgs.length).toBeGreaterThan(10);
+    expect(msgs.every((m) => /^err-\d+$/.test(m ?? ''))).toBe(true);
+  });
+
+  it('小さなファイルは従来どおり全行を返す', async () => {
+    const p = join(tmpdir(), 'hc-small.log');
+    writeFileSync(p, [line(1), line(2)].join('\n') + '\n', 'utf-8');
+    tmpFiles.push(p);
+    const entries = await readGlobalEntries(0, p);
+    expect(entries.map((e) => e.msg)).toEqual(['err-1', 'err-2']);
+  });
+});
+
 describe('groupEntries — 調査に必要な具体値を保持する (tasks 695/699/700/701)', () => {
   // 正規化シグネチャがそのままタイトルになるため、タイトルからは識別子が消える。
   // 「Task # not found」はどのタスクの話か示さず、実際にこの4件は

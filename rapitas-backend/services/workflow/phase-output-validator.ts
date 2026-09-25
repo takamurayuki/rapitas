@@ -17,6 +17,10 @@ import { PLAN_FILES_SECTION_HEADINGS } from './plan-declared-files';
 import { findTestCountContradiction } from './verify-test-counts';
 import { hasNonpassingVerifyVerdict } from './nonpassing-verify-verdict';
 import { isPendingPublicationRow } from './pending-publication-row';
+import { isPublicationOnlyPartial } from './publication-only-partial';
+import { stripNonEvidenceRegions, collectNonpassingRows } from './verify-scan-text';
+import { quoteEvidenceLine } from './verify-repeat-evidence';
+import { isRunnerExitFailureLine } from './verify-exit-signal';
 
 export interface ValidationResult {
   ok: boolean;
@@ -135,35 +139,17 @@ export function validatePlan(content: string): ValidationResult {
 }
 
 /**
- * Remove regions that must NOT feed the self-contradiction scan:
- * (a) marker-delimited repair-feedback blocks appended by verify-self-repair —
- *     they quote the PREVIOUS rejection (with failure wording), and re-scanning
- *     them made a past contradiction permanent (task 494's repair loop);
- * (b) ```text fenced blocks — the verifier is instructed to put deliberate-RED
- *     (false-positive verification) log excerpts there, which legitimately
- *     contain failure lines for a CORRECT implementation;
- * (c) the "残課題 / フォローアップ" (unresolved concerns) section — by design
- *     (see workflow-context-builder.ts's prompt) this section documents ALREADY
- *     -explained caveats and pre-existing/false-positive findings from OTHER
- *     tools (e.g. an automated scope-checker's own ❌ markers), not the
- *     verifier's own pass/fail verdict on THIS task. Task 504: an honest,
- *     fully-passing verify.md was blocked because this section discussed a
- *     scope-check's ❌ result across two lines, one of which forward-referenced
- *     the other ("scope ❌ 4件は §残課題 で扱う") without itself containing a
- *     dismissal word on the same line.
- * Other fence types are intentionally kept scannable: genuine test output
- * evidence is usually pasted in bare ``` fences and must stay detectable.
- * Section requirements and verdict-phrase checks still see the full
- * (un-stripped) `content` — only the contradiction scan uses this output.
+ * Quote the verifier's first two non-passing rows into a rejection summary so
+ * the repair loop (verify-repeat-evidence.ts) can recognise the SAME finding
+ * coming back round after round, and so the implementer's feedback names the
+ * row instead of a generic verdict.
  *
  * @param content - verify.md body / verify.md 本文
- * @returns Content with non-evidence regions removed / 走査対象本文
+ * @returns ' 未達: «row» / «row»' or '' when no rows were found / 引用付き末尾
  */
-function stripNonEvidenceRegions(content: string): string {
-  return content
-    .replace(/<!--\s*repair-feedback:start\s*-->[\s\S]*?<!--\s*repair-feedback:end\s*-->/gi, '')
-    .replace(/```text[^\S\n]*\n[\s\S]*?\n[ \t]*```/gi, '')
-    .replace(/(^|\n)#{1,4}\s*残課題[^\n]*\n[\s\S]*?(?=\n#{1,4}\s|$)/i, '$1');
+function quoteNonpassingRows(content: string): string {
+  const quoted = collectNonpassingRows(content).slice(0, 2).map(quoteEvidenceLine).filter(Boolean);
+  return quoted.length > 0 ? ` 未達: ${quoted.join(' / ')}` : '';
 }
 
 /**
@@ -183,13 +169,17 @@ function stripNonEvidenceRegions(content: string): string {
  */
 export function validateVerify(content: string): ValidationResult {
   if (looksLogPolluted(content)) return pollutedResult('verify.md');
-  if (hasNonpassingVerifyVerdict(content)) {
+  // A `⚠️ 一部失敗` explained only by push/PR/CI/merge still pending is not a
+  // failed implementation: those steps run AFTER this report. 94 of 96 such
+  // bounces in the week to 2026-09-20 stated the technical checks passed.
+  if (hasNonpassingVerifyVerdict(content) && !isPublicationOnlyPartial(content)) {
     return {
       ok: false,
       missingSections: [],
       severity: 90,
       summary:
-        'verify.md explicitly reports a failed or partial overall verdict; repair is required.',
+        'verify.md explicitly reports a failed or partial overall verdict; repair is required.' +
+        quoteNonpassingRows(content),
     };
   }
   const sectionResult = validateSections(content, VERIFY_REQUIRED_SECTIONS, 'verify.md');
@@ -232,9 +222,6 @@ export function validateVerify(content: string): ValidationResult {
     // wrongly read as "2 failures" → false self-contradiction → blocked (task #304).
     /(?:❌|失敗|不合格|不適合|fail(?:ed|ure)?)\s*[:：]?\s*[×x]\s*[1-9]\d*/i,
   ];
-  const failureHits = failureSignals
-    .map((re) => scanText.match(re))
-    .filter((m): m is RegExpMatchArray => !!m);
   // A bare ❌ is too noisy to treat as a failure signal directly: a PASSING
   // verify.md routinely contains the PR-gate legend "全体判定が ❌ の場合のみ PR
   // を作成しないこと。本タスクは ✅ 合格。" (a CONDITIONAL), and the appended
@@ -263,22 +250,63 @@ export function validateVerify(content: string): ValidationResult {
   // records the escalation the instruction requires. Attribution alone is one
   // word an agent could reach for to dodge the gate; the paired escalation is
   // not, and the adversarial diff review still scores the diff independently.
+  // NOTE: allow a short gap (e.g. a quoted concern id: "懸念#10172として起票済み")
+  // between 懸念 and 起票/登録 — task 943 wrote it this way across 5 verify_repair
+  // rounds and the tight adjacency below never matched, so the escalation half
+  // of the exemption never armed.
   const documentsOutOfScopeEscalation =
-    /懸念(?:バックログ)?(?:に|へ)?\s*(?:起票|登録)|POST\s+\/concerns|concern[^\n]{0,20}\bfiled\b/i.test(
-      scanText,
-    );
+    /懸念[^\n]{0,20}(?:起票|登録)|POST\s+\/concerns|concern[^\n]{0,20}\bfiled\b/i.test(scanText);
   const attributesFailureOutOfScope = (line: string): boolean =>
     /(?:本タスク|当タスク|この(?:タスク|変更|差分))[^\n]{0,12}(?:とは)?\s*(?:無関係|関係(?:は)?な)|既存(?:の)?(?:失敗|不具合|バグ|エラー)|以前から(?:存在|あ)|スコープ外|範囲外|別タスク|pre[\s-]?existing|out[\s-]?of[\s-]?scope|unrelated/i.test(
       line,
     );
+  // A line quoting a PAST failure count purely to show it has since been fixed
+  // ("タスク本文の「948 passed/1 failed」から改善", "948/1失敗→949/0失敗に改善") is not a
+  // claim that the failure still exists — the opposite. Without this, the same
+  // "N failed" patterns below fire on the historical baseline an honest verifier
+  // quotes for context (task 943, verify_repair attempts 4 and 5).
+  const isHistoricalBaselineComparison = (line: string): boolean =>
+    /改善|→.*0\s*(?:failed|fail|件)/i.test(line);
+  // A numeric failure-count signal is exempt under the SAME two rules that
+  // already gate a bare ❌ mark below: honestly attributed-and-escalated
+  // out-of-scope failures, and a before/after count comparison. Without this,
+  // only the ❌-anchored scan got the exemption — a verifier that reports the
+  // identical honest disclosure as "テスト2件が失敗（懸念#…として起票済み）" prose
+  // instead of a ❌ row still tripped the gate (task 943, attempts 1 and 2).
+  const isExemptFailureLine = (line: string): boolean =>
+    (documentsOutOfScopeEscalation && attributesFailureOutOfScope(line)) ||
+    isHistoricalBaselineComparison(line);
 
-  const crossMarkFailure = scanText.split(/\r?\n/).some((line) => {
+  // Each hit quotes its line («…», see verify-repeat-evidence.ts): the repair
+  // loop compares the quotes across rounds to spot the identical finding being
+  // handed back again, and the implementer's feedback names the row.
+  const failureHits: string[] = [];
+  for (const line of scanText.split(/\r?\n/)) {
+    if (isExemptFailureLine(line)) continue;
+    for (const re of failureSignals) {
+      const m = line.match(re);
+      if (m) failureHits.push(`${m[0]} ${quoteEvidenceLine(line)}`);
+    }
+  }
+
+  const crossMarkFailureLine = scanText.split(/\r?\n/).find((line) => {
     if (!line.includes('❌')) return false;
+    // A markdown blockquote is a note or a quotation, never the verifier's own
+    // verdict row (collectNonpassingRows already skips them). Task 1058 was
+    // bounced for "> 自動検証ゲートの「acceptance」チェックは…❌2件を報告しているが…
+    // 機械判定の抽出精度の限界であり、実装上の欠落ではない。" — a dismissal note.
+    if (/^\s*>/.test(line)) return false;
     if (isPendingPublicationRow(line)) return false;
     if (/❌\s*(?:の)?\s*(?:場合|とき|時|なら|ならば|であれば|if\b)/i.test(line)) return false;
     if (/[(（]\s*❌\s*[)）]/.test(line)) return false;
     if (/✅|合格|通過|成功|pass/i.test(line)) return false;
-    if (/偽陽性|false[\s-]?positive|誤検知|誤検出|実装欠陥ではない/i.test(line)) return false;
+    if (
+      /偽陽性|false[\s-]?positive|誤検知|誤検出|実装(?:上の)?(?:欠陥|欠落)ではない|抽出精度の限界|限界であり/i.test(
+        line,
+      )
+    ) {
+      return false;
+    }
     // A line that merely POINTS to the 残課題/フォローアップ section for detail
     // (e.g. "scope ❌ 4件は §残課題 で扱う") is a forward-reference, not itself a
     // failure verdict — the referenced section is scanned/exempted separately.
@@ -290,7 +318,9 @@ export function validateVerify(content: string): ValidationResult {
     // ❌ 1件）" to explain why the advisory hit was wrong — the criterion said
     // "do NOT change X", and token matching finds no changed file for a
     // negative — and the honesty gate counted the heading as a failure.
-    if (/(?:機械判定|自動検証|機械受入|advisory|acceptance|scope)[^\n❌]{0,24}❌/i.test(line)) {
+    // Window widened 24→60: task 1058's note named the check a full clause
+    // before the mark ("「acceptance」チェックはトークン抽出の都合で…できず❌2件").
+    if (/(?:機械判定|自動検証|機械受入|advisory|acceptance|scope)[^\n❌]{0,60}❌/i.test(line)) {
       return false;
     }
     // A plan item the operator WITHDREW is not a failure to implement it. The
@@ -312,8 +342,13 @@ export function validateVerify(content: string): ValidationResult {
     // in-scope item is still caught. The window is widened from 8 to 15
     // characters so "未着手" (2 chars) plus the full-width parenthesis can sit
     // between ❌ and スコープ外 without pushing it out of range.
+    // "不成立 / 前提不在 / 実装対象なし" (task 940/972/974: the Prisma model or
+    // env flag the plan item assumed does not exist in this codebase) are the
+    // same verdict in different words — the item does not apply, and no
+    // implementer round can conjure the missing premise. "未検証 / 検証不能" are
+    // deliberately NOT here: an unverifiable item is not a pass.
     if (
-      /❌[^\n]{0,15}(?:適用不能|該当なし|非該当|対象外|スコープ外|N\/A|not\s+applicable)/i.test(
+      /❌[^\n]{0,15}(?:適用不能|該当なし|非該当|対象外|スコープ外|不成立|前提不在|実装対象なし|N\/A|not\s+applicable)/i.test(
         line,
       )
     ) {
@@ -321,38 +356,17 @@ export function validateVerify(content: string): ValidationResult {
     }
     return true;
   });
-  if (crossMarkFailure) failureHits.push(['❌'] as unknown as RegExpMatchArray);
+  if (crossMarkFailureLine !== undefined) {
+    failureHits.push(`❌ ${quoteEvidenceLine(crossMarkFailureLine)}`);
+  }
 
-  // "exit 1" / "exit code 1" counts as a failure ONLY when it reads like a
-  // RUNNER's exit report — not when it is PROSE documenting a command's expected
-  // exit code. CI-gate / error-handling / guard tasks legitimately describe exit
-  // codes as EVIDENCE the guard works ("空マニフェスト(exit 1)", "不正な入力で exit 1
-  // を返す"); reading those as the task's own failure looped them in verify_repair
-  // (task 272/304/373/376). Skip a match that is parenthesised, immediately
-  // followed by a Japanese character, or on a line that also asserts pass.
-  const exitFailure = scanText.split(/\r?\n/).some((line) => {
-    const m = line.match(/\bexit(?:\s+code)?\s+1\b/i);
-    if (!m) return false;
-    if (/✅|合格|通過|成功|pass/i.test(line)) return false; // pass-asserting line
-    // A line enumerating BOTH exit codes is a spec of expected outcomes, not one
-    // run's result: task 647's DoD read "build 後 verify 一致→exit 0、改ざん→
-    // exit 1＋資産名". The trailing-prose guard below missed it because the next
-    // character is a fullwidth ＋ rather than a kana, so it blocked a passing
-    // report on the very behaviour the task implemented.
-    if (/\bexit(?:\s+code)?\s+0\b/i.test(line)) return false;
-    const idx = m.index ?? 0;
-    if (/[(（]$/.test(line.slice(Math.max(0, idx - 2), idx))) return false; // "(exit 1)"
-    const after = line.slice(idx + m[0].length).replace(/^[)）\s]+/, '');
-    if (/^[ぁ-んァ-ヶ一-龥々]/.test(after)) return false; // "exit 1 を返す" prose
-    return true;
-  });
-  if (exitFailure) failureHits.push(['exit 1'] as unknown as RegExpMatchArray);
+  const exitFailureLine = scanText.split(/\r?\n/).find(isRunnerExitFailureLine);
+  if (exitFailureLine !== undefined) {
+    failureHits.push(`exit 1 ${quoteEvidenceLine(exitFailureLine)}`);
+  }
 
   if (claimsAllPass && failureHits.length > 0) {
-    const evidence = failureHits
-      .map((m) => m[0])
-      .slice(0, 3)
-      .join(' | ');
+    const evidence = failureHits.slice(0, 3).join(' | ');
     return {
       ok: false,
       missingSections: [],

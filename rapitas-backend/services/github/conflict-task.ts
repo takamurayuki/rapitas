@@ -112,6 +112,24 @@ export async function fileConflictResolutionTask(
     'verify.md に必ず「変更不要: 競合解消は PR ブランチへ push 済み」と明記してください',
     '（空diffで誤ブロックされるのを防ぐため）。新規 PR は作成不要です。',
   ].join('\n');
+  // Seed the structured spec the intake gate scores. Without it the task
+  // arrived spec-less, the gate raised an intake question, and — being
+  // system-filed, not backlog-promoted — nothing auto-adopted it: resolver
+  // #1078 (2026-09-25) sat in awaiting_question while the PR it was filed
+  // for kept its theme's slot. Stored as JSON-array strings like createTask.
+  const spec = {
+    goals: JSON.stringify([`PR #${pr.prNumber} の競合を解消し、マージ可能な状態に戻す`]),
+    constraints: JSON.stringify([
+      `${pr.baseBranch} への逆マージや push は行わず、PR ブランチ ${pr.headBranch} の更新だけで完結する`,
+      '新規 PR は作成しない（既存 PR を更新する）',
+      '競合は両者の意図を保って解消し、片側の変更を機械的に捨てない',
+    ]),
+    acceptanceCriteria: JSON.stringify([
+      '競合マーカー（<<<<<<< / ======= / >>>>>>>）が PR ブランチに残っていない',
+      `PR #${pr.prNumber} が GitHub 上で競合状態（DIRTY）から解放されている`,
+      'verify.md に「変更不要: 競合解消は PR ブランチへ push 済み」が記載されている',
+    ]),
+  };
 
   // At most ONE conflict task per PR. Find the most recent one REGARDLESS of
   // status — a completed-but-ineffective attempt (the PR re-conflicted because
@@ -159,6 +177,7 @@ export async function fileConflictResolutionTask(
           workflowStatus: null,
           completedAt: null,
           description: instruction,
+          ...spec,
           priority: 'high',
           workflowMode: 'lightweight',
           workflowModeOverride: true,
@@ -190,6 +209,7 @@ export async function fileConflictResolutionTask(
       data: {
         title: `PR #${pr.prNumber} の競合を解消`,
         description: instruction,
+        ...spec,
         status: 'todo',
         priority: 'high',
         isDeveloperMode: true,

@@ -158,6 +158,11 @@ export async function resolveConflictsWithAuxCli(p: {
       }
       await writeFile(join(p.gitCwd, file), content, 'utf8');
     }
+    // The model's whole-file rewrite slips on formatting; the re-verify then
+    // fails on format=NG for correct code (task 1036). Formatting is
+    // mechanical — apply it before staging instead of failing on it.
+    const { formatResolvedFiles } = await import('./pre-pr-base-sync-format');
+    await formatResolvedFiles(p.gitCwd, p.conflicts);
 
     const { runGitCommand } = await import('../github/git-exec');
     await runGitCommand(['add', '-A'], p.gitCwd);

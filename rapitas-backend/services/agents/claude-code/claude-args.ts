@@ -1,4 +1,5 @@
 import type { ClaudeCodeAgent } from './agent-core';
+import { ensureGuardSettingsFile } from './agent-guard-settings';
 
 /**
  * Build the Claude Code CLI argument list from agent config. Pure function.
@@ -102,6 +103,27 @@ export function buildClaudeArgs(agent: ClaudeCodeAgent): { args: string[]; logEx
     'PowerShell(git clean:*)',
     'PowerShell(git stash:*)',
     'PowerShell(git switch:*)',
+    // NOTE(security): killing bun/node severs the backend (port 3001) the agent
+    // talks to — task #907's ci_repair did exactly that. Leading-verb prefix
+    // rules only; scripts/primary-guard-hook.cjs (PreToolUse) covers compound
+    // commands like `cd <primary> && ...`.
+    // Prisma generation / db scripts are likewise forbidden (dev.js runs them on
+    // startup; a manual run rewrites shared generated files) — denied here too so
+    // this holds even if the PreToolUse hook does not fire under bypassPermissions.
+    ...['Bash', 'PowerShell'].flatMap((tool) =>
+      [
+        'taskkill',
+        'Stop-Process',
+        'pkill',
+        'killall',
+        'bunx prisma',
+        'npx prisma',
+        'prisma',
+        'bun run db:prepare',
+        'bun run db:generate',
+        'bun run db:push',
+      ].map((verb) => `${tool}(${verb}:*)`),
+    ),
   ];
   if (cfg.investigationMode) {
     // Investigation mode (research / planner): additionally block
@@ -126,6 +148,17 @@ export function buildClaudeArgs(agent: ClaudeCodeAgent): { args: string[]; logEx
     );
   }
   args.push('--disallowedTools', disallowed.join(','));
+  // NOTE(security): explicitly inject the primary-checkout guard hook so it applies under
+  // bypassPermissions regardless of which project settings the worktree happens to carry.
+  const guardSettings = ensureGuardSettingsFile();
+  if (guardSettings) {
+    args.push('--settings', guardSettings);
+  } else {
+    // NOTE: fail-open by design; make the missing hook injection visible instead of silent.
+    logExtras.push(
+      `${agent.logPrefix} WARNING: guard settings unavailable — falling back to project settings (primary-checkout hook not injected)`,
+    );
+  }
 
   return { args, logExtras };
 }

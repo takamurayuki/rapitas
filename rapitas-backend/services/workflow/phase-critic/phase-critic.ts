@@ -16,6 +16,7 @@ import {
   sendAIMessage,
   getDefaultProvider,
   getDefaultModel,
+  getAuxAiMode,
   isAnyApiKeyConfigured,
   type AIMessage,
 } from '../../../utils/ai-client';
@@ -262,7 +263,11 @@ export async function critiquePhase(
   }
   if (!content.trim())
     return { verdict: 'unknown', severity: 0, reasons: [], inputTruncated: false };
-  if (!(await isAnyApiKeyConfigured()))
+  // The subscription CLI path needs no API key; gating on one returned
+  // `unknown` for every lens whenever the key lived only in the DB (task
+  // worktrees, 2026-09-25 #911: the live evaluation scored 0/3 without ever
+  // calling the model).
+  if (getAuxAiMode() !== 'cli' && !(await isAnyApiKeyConfigured()))
     return { verdict: 'unknown', severity: 0, reasons: [], inputTruncated: false };
 
   let provider: Awaited<ReturnType<typeof getDefaultProvider>>;

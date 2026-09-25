@@ -6,12 +6,22 @@
  * `{ t, evt, ... }` object per line) when the guard is lifted.
  */
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdtempSync, readFileSync, rmSync, existsSync } from 'fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  existsSync,
+  closeSync,
+  openSync,
+  chmodSync,
+} from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import {
   logCycleEvent,
   getCycleLogFilePath,
+  _resetForTests,
 } from '../../services/observability/cycle-event-logger';
 
 /** Local YYYY-MM-DD stamp, mirroring the module's internal stamp. */
@@ -28,6 +38,11 @@ describe('cycle-event-logger', () => {
   const origNodeEnv = process.env.NODE_ENV;
 
   beforeEach(() => {
+    // Each case sets a fresh RAPITAS_DATA_DIR, but the module caches its
+    // WriteStream by date alone — without this, a case here reuses the prior
+    // case's stream (pointed at a tmpdir this beforeEach/afterEach already
+    // rotated away) instead of opening one against its own dir.
+    _resetForTests();
     dir = mkdtempSync(join(tmpdir(), 'cycle-log-'));
     process.env.RAPITAS_DATA_DIR = dir;
   });
@@ -84,5 +99,28 @@ describe('cycle-event-logger', () => {
     const circular: Record<string, unknown> = {};
     circular.self = circular;
     expect(() => logCycleEvent('pr.created', { task: 1, circular })).not.toThrow();
+  });
+
+  test('recovers on the next call after the stream dies mid-day (2026-09-18 incident)', async () => {
+    process.env.NODE_ENV = 'development';
+    const target = getCycleLogFilePath(todayStamp());
+    // Pre-create the file read-only so the stream's own open/write fails async
+    // (EPERM) instead of at ensureStream()'s synchronous mkdirSync/createWriteStream
+    // try/catch — this is what actually happened in production and is what the
+    // reuse check's `stream.destroyed` guard exists to detect.
+    mkdirSync(join(dir, 'logs'), { recursive: true });
+    closeSync(openSync(target, 'w'));
+    chmodSync(target, 0o444);
+
+    expect(() => logCycleEvent('task.enqueued', { theme: 1, task: 1 })).not.toThrow();
+    await new Promise((r) => setTimeout(r, 100));
+
+    chmodSync(target, 0o666);
+    expect(() => logCycleEvent('task.completed', { theme: 1, task: 1, ok: true })).not.toThrow();
+    await new Promise((r) => setTimeout(r, 100));
+
+    const lines = readFileSync(target, 'utf-8').trim().split('\n').filter(Boolean);
+    expect(lines.length).toBe(1);
+    expect(JSON.parse(lines[0]).evt).toBe('task.completed');
   });
 });

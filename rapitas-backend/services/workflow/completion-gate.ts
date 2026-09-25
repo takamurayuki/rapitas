@@ -5,11 +5,15 @@
  * a passing verify.md (sometimes fabricating an implementation report) but never
  * actually edits any code, so the task is marked done with no diff and no commit.
  * A passing verify may complete ONLY when it is backed by real code changes, OR
- * the verify explicitly justifies that no change was needed.
+ * the verify explicitly justifies that no change was needed. Also decides
+ * whether a PR-landing task must defer completion until its PR's CI reports
+ * green (task 950) — see shouldDeferCompletionForCi.
  * Not responsible for running verification (lint/type) — see verification-gate.
  */
 import { getDiff } from '../agents/orchestrator/git-operations/core/diff-structured';
+import { hasUnresolvedScopedEdit } from '../agents/verification/verification-scoped-edit';
 import { createLogger } from '../../config/logger';
+import { isStagedCompletionEnabled, type LandingMode } from './automation-policy';
 
 const log = createLogger('workflow:completion-gate');
 
@@ -91,15 +95,28 @@ export interface CompletionGateResult {
  * @param worktreePath - The task's git worktree, or null when none exists. / タスクのworktree（無ければnull）
  * @param verifyContent - The saved verify.md content. / 保存済みverify.mdの内容
  * @param preferredBaseBranch - The branch this task's worktree was cut from, when known (e.g. `task.theme.defaultBranch` via task-resolver.ts's `resolvePreferredBaseBranch`) — see automated-verifier.ts's diffBaseRef doc comment. / このタスクの分岐元ブランチ（既知の場合）
+ * @param supervisionTaskId - Task id to report a denial to the supervision gate (omit for dry runs). / 監督ゲートへ拒否を記録するタスクID（ドライランでは省略）
  * @returns Whether completion is allowed, with a reason. / 完了可否と理由
  */
 export async function evaluateCompletionGate(
   worktreePath: string | null | undefined,
   verifyContent: string | null | undefined,
   preferredBaseBranch?: string | null,
+  supervisionTaskId?: number,
 ): Promise<CompletionGateResult> {
   if (!worktreePath) {
     return { allow: true, reason: 'no_worktree_failopen' };
+  }
+
+  // task 1060: a verifier's temporary edit to a live file (e.g. `git checkout
+  // --` to remove a reproduction test) may have failed to restore — either a
+  // concurrent-edit abort or the process being killed mid-restore. Either way
+  // an unresolved manifest means the pre-edit state (possibly an
+  // implementer's uncommitted work) has not been confirmed safe, so the gate
+  // stays closed until a human resolves it. Skipped (fail-open) when the
+  // caller has no task id to check (dry runs).
+  if (supervisionTaskId != null && hasUnresolvedScopedEdit(supervisionTaskId)) {
+    return { allow: false, reason: 'unresolved_scoped_edit' };
   }
 
   let diffCount: number;
@@ -119,5 +136,39 @@ export async function evaluateCompletionGate(
     return { allow: true, reason: 'no_changes_but_justified' };
   }
 
+  // NOTE: task 904 — a blocked false-completion attempt breaks the hands-off
+  // streak. Fire-and-forget and lazily imported so the gate's verdict and its
+  // tests never depend on the supervision timeline being writable; the recorder
+  // itself spools failed writes and keeps the acceptance verdict unmet.
+  if (supervisionTaskId != null) {
+    void import('../supervision/intervention-detector')
+      .then((m) => m.recordCompletionGateViolation(supervisionTaskId, 'no_changes_unjustified'))
+      .catch((err) =>
+        log.warn({ err, taskId: supervisionTaskId }, '[CompletionGate] supervision report failed'),
+      );
+  }
   return { allow: false, reason: 'no_changes_unjustified' };
+}
+
+/**
+ * Whether a task landing via a PR must defer completion until its PR's CI
+ * reports green, instead of completing synchronously at verify time (task
+ * 950: a `pr`-mode task used to complete immediately after PR creation,
+ * before CI ever ran). Pure and synchronous — the caller
+ * (verify-commit-pr-pipeline.ts) holds the task at `verify_done` when this
+ * returns true; `auto-merge-watcher.ts`'s CI polling later completes it.
+ *
+ * `merge` mode always defers (a merge outcome must always be confirmed).
+ * `pr` mode defers only while task 948's `RAPITAS_STAGED_COMPLETION` escape
+ * hatch is enabled (the default) — an operator who explicitly disables it
+ * opts back into the legacy immediate-completion behaviour for `pr` mode.
+ *
+ * @param landingMode - How the task's changes reach the default branch, as
+ *   resolved by `resolveLandingMode` (automation-policy.ts). / 完了点を決める landing mode
+ * @returns true when completion must wait on CI/merge. / CI待ちが必要か
+ */
+export function shouldDeferCompletionForCi(landingMode: LandingMode): boolean {
+  if (landingMode === 'merge') return true;
+  if (landingMode === 'pr') return isStagedCompletionEnabled();
+  return false;
 }

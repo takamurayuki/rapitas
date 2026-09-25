@@ -3,14 +3,17 @@
  *
  * Coverage for findCandidates(): the two PR-link sources (linkedTaskId +
  * Task.githubPrId fallback, incl. the duplicate-open-PR notify path), the
- * staged-completion admission rule (done vs verify_done-awaiting-CI), mode
- * resolution (merge/pr/null), cwd fallback order, terminal-state gating, and
+ * done-vs-verify_done-awaiting-CI admission rule (task 950: an already-`done`
+ * pr-only task is never re-swept regardless of the staged flag; a still
+ * verify_done pr-only task awaits CI only while task 948's
+ * RAPITAS_STAGED_COMPLETION escape hatch is enabled), mode resolution
+ * (merge/pr/null), cwd fallback order, terminal-state gating, and
  * the recent-blocks retry budget. resolveAutomationPolicy and
  * resolveTaskForAutoMerge run for REAL against the mocked prisma below (both
  * import prisma from the same '../../config/database' module), so this is an
  * integration-style test of the whole candidate-selection pipeline.
  */
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
 
 interface TaskFixture {
   id: number;
@@ -197,6 +200,11 @@ beforeEach(() => {
   notificationCreate.mockImplementation(() => Promise.resolve({}));
   decideTerminalState.mockClear();
   decideTerminalState.mockImplementation(() => Promise.resolve({ skip: false }));
+});
+
+// Restore the default (unset → staged-completion-enabled) state so a test
+// that sets RAPITAS_STAGED_COMPLETION=false never leaks into a later one.
+afterEach(() => {
   delete process.env.RAPITAS_STAGED_COMPLETION;
 });
 
@@ -218,7 +226,6 @@ describe('findCandidates — completion gate', () => {
   it.each(['canceling', 'canceled', 'cancelled', 'blocked'])(
     'does not collect %s tasks awaiting merge',
     async (status) => {
-      process.env.RAPITAS_STAGED_COMPLETION = 'true';
       addTask({ id: 897, status, workflowStatus: 'verify_done', autoMergePR: true });
       addOpenPr({ prNumber: 623, baseBranch: 'develop', linkedTaskId: 897 });
       expect(await findCandidates()).toEqual([]);
@@ -253,15 +260,14 @@ describe('findCandidates — completion gate', () => {
     expect(await findCandidates()).toEqual([]);
   });
 
-  it('excludes a "done" task with autoCreatePR only when staged completion is OFF (already completed at verify)', async () => {
+  it('excludes an already-"done" task with autoCreatePR only, even with staged completion ON (task 950: completed before the CI-wait fix, never picked back up)', async () => {
     addTask({ id: 4, autoMergePR: false, autoCreatePR: true });
     addOpenPr({ prNumber: 103, baseBranch: 'develop', linkedTaskId: 4 });
 
     expect(await findCandidates()).toEqual([]);
   });
 
-  it('admits a verify_done task awaiting CI in "pr" mode when staged completion is ON', async () => {
-    process.env.RAPITAS_STAGED_COMPLETION = 'true';
+  it('admits a verify_done task awaiting CI in "pr" mode by default (staged completion ON, task 873/948)', async () => {
     addTask({
       id: 5,
       status: 'in-progress',
@@ -277,8 +283,21 @@ describe('findCandidates — completion gate', () => {
     expect(result[0]).toMatchObject({ taskId: 5, mode: 'pr' });
   });
 
-  it('does not admit a non-verify_done, non-completed task even when staged completion is ON', async () => {
-    process.env.RAPITAS_STAGED_COMPLETION = '1';
+  it('excludes a verify_done task in "pr" mode when staged completion is explicitly OFF', async () => {
+    process.env.RAPITAS_STAGED_COMPLETION = 'false';
+    addTask({
+      id: 25,
+      status: 'in-progress',
+      workflowStatus: 'verify_done',
+      autoMergePR: false,
+      autoCreatePR: true,
+    });
+    addOpenPr({ prNumber: 111, baseBranch: 'develop', linkedTaskId: 25 });
+
+    expect(await findCandidates()).toEqual([]);
+  });
+
+  it('does not admit a non-verify_done, non-completed task', async () => {
     addTask({ id: 6, status: 'in-progress', workflowStatus: 'plan_approved', autoCreatePR: true });
     addOpenPr({ prNumber: 105, baseBranch: 'develop', linkedTaskId: 6 });
 
@@ -490,6 +509,24 @@ describe('findCandidates — Task.githubPrId fallback + duplicate-open-PR notify
     expect(result).toHaveLength(1);
     expect(result[0].prNumber).toBe(500);
     expect(notificationCreate).not.toHaveBeenCalled();
+  });
+
+  // task #1058: continue-execution's linkContinueExecutionPr only sets
+  // Task.githubPrId (via the existing linkAutoCreatedPr call), the same shape
+  // as this fallback fixture — no separate wiring needed downstream.
+  it('discovers a PR linked only via Task.githubPrId, as continue-execution auto-linking produces (task #1058)', async () => {
+    addTask({ id: 1058 });
+    prTaskRows = [{ id: 1058, githubPrId: 900 }];
+    addOpenPrLookup(900, 'feature/1058-continue-exec');
+
+    const result = await findCandidates();
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      taskId: 1058,
+      prNumber: 900,
+      baseBranch: 'feature/1058-continue-exec',
+    });
   });
 });
 

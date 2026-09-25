@@ -13,6 +13,7 @@ import {
   cleanupDuplicateSubtasks,
   cleanupAllDuplicateSubtasks,
   attachBlockedCauses,
+  attachAutoRunCardStatus,
 } from '../../services/task/task-service';
 import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree/worktree-ops';
 import { warnIfSubtaskCreatedDuringDisabledSplit } from '../../services/workflow/subtask-split-guard';
@@ -189,6 +190,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       ]);
 
       await attachBlockedCauses(prisma, updated);
+      await attachAutoRunCardStatus(prisma, updated);
 
       return {
         tasks: updated,
@@ -225,6 +227,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     });
 
     await attachBlockedCauses(prisma, tasks);
+    await attachAutoRunCardStatus(prisma, tasks);
 
     if (page && pageSize) {
       const totalCount = await prisma.task.count({ where: baseWhere });
@@ -366,6 +369,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
             t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 }),
           ),
           isProtected: t.Optional(t.Boolean()),
+          autoRunExcluded: t.Optional(t.Boolean()),
         },
         // NOTE: additionalProperties left permissive (not false) — updateTask()
         // already destructures only the whitelisted fields above and silently
@@ -381,14 +385,14 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   // 'todo' so the next selection picks it up. Without this the only recovery
   // path was manually editing the status — blocked tasks just accumulated.
   .post('/:id/retry', async (context) => {
-    const { params, set } = context;
+    const { params, set, headers } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError(INVALID_ID);
     }
-    const updated = await retryTask(id, (code) => {
-      set.status = code;
-    });
+    const retryRequestId = headers['idempotency-key']?.trim() || crypto.randomUUID();
+    set.headers['x-retry-request-id'] = retryRequestId;
+    const updated = await retryTask(id, (code) => void (set.status = code), retryRequestId);
     return updated ?? { error: TASK_NOT_FOUND };
   })
 

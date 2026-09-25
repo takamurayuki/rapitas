@@ -116,6 +116,33 @@ describe('gatherTaskState', () => {
     expect(state.hasActiveQueueItem).toBe(false);
   });
 
+  test('latestBlockedEscalationAtMs comes from a dedicated newest-first cause query (#980)', async () => {
+    const escalatedAt = new Date(NOW - 3 * 60 * 60 * 1000);
+    transitionFindManyMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ createdAt: escalatedAt }]);
+
+    const state = await gatherTaskState(task, NOW, WINDOW_MS);
+
+    expect(state.latestBlockedEscalationAtMs).toBe(escalatedAt.getTime());
+    const args = transitionFindManyMock.mock.calls[2][0] as {
+      where: { taskId: number; cause: { in: string[] } };
+      orderBy: { createdAt: string };
+      take: number;
+    };
+    expect(args.where.cause.in).toEqual(['blocked_escalated', 'blocked_reescalated']);
+    expect(args.orderBy).toEqual({ createdAt: 'desc' });
+    expect(args.take).toBe(1);
+  });
+
+  test('latestBlockedEscalationAtMs is null when no notice exists or the query fails (fail-open)', async () => {
+    expect((await gatherTaskState(task, NOW, WINDOW_MS)).latestBlockedEscalationAtMs).toBeNull();
+
+    transitionFindManyMock.mockReset().mockRejectedValue(new Error('db down'));
+    expect((await gatherTaskState(task, NOW, WINDOW_MS)).latestBlockedEscalationAtMs).toBeNull();
+  });
+
   test('a session with no executions leaves execution fields null', async () => {
     sessionFindFirstMock.mockResolvedValue({ id: 91, status: 'active', agentExecutions: [] });
 

@@ -431,7 +431,10 @@ CREATE TABLE "Task" (
     "complexityScore" REAL,
     "workflowModeOverride" BOOLEAN NOT NULL DEFAULT false,
     "autoApprovePlan" BOOLEAN NOT NULL DEFAULT false,
+    "forbiddenChangeOverride" BOOLEAN NOT NULL DEFAULT false,
+    "forbiddenChangeOverrideReason" TEXT,
     "workflowDisabled" BOOLEAN NOT NULL DEFAULT false,
+    "autoRunExcluded" BOOLEAN NOT NULL DEFAULT false,
     "isRecurring" BOOLEAN NOT NULL DEFAULT false,
     "recurrenceRule" TEXT,
     "recurrenceEndAt" DATETIME,
@@ -443,6 +446,10 @@ CREATE TABLE "Task" (
     "nextOccurrence" DATETIME,
     "autoCreatedFromBacklog" BOOLEAN NOT NULL DEFAULT false,
     "isProtected" BOOLEAN NOT NULL DEFAULT false,
+    "executionGenerationId" INTEGER NOT NULL DEFAULT 0,
+    "haltReason" TEXT,
+    "haltedAt" DATETIME,
+    "resumeCondition" TEXT,
     CONSTRAINT "Task_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "Task_themeId_fkey" FOREIGN KEY ("themeId") REFERENCES "Theme" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Task_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
@@ -666,6 +673,20 @@ CREATE TABLE "DetectionMissCase" (
     "taskId" INTEGER NOT NULL,
     "gate" TEXT NOT NULL,
     "reason" TEXT NOT NULL DEFAULT '',
+    "evidenceJson" TEXT NOT NULL DEFAULT '{}',
+    "detectedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "dedupKey" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "GatePrecisionCase" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER NOT NULL,
+    "gate" TEXT NOT NULL,
+    "criterionIndex" INTEGER,
+    "reason" TEXT NOT NULL DEFAULT '',
+    "verdict" TEXT NOT NULL,
     "evidenceJson" TEXT NOT NULL DEFAULT '{}',
     "detectedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "dedupKey" TEXT NOT NULL,
@@ -1011,6 +1032,11 @@ CREATE TABLE "KnowledgeEntry" (
     "validationMethod" TEXT,
     "themeId" INTEGER,
     "taskId" INTEGER,
+    "sourceRef" TEXT,
+    "applicabilityConditions" TEXT,
+    "entryVersion" INTEGER NOT NULL DEFAULT 1,
+    "expiresAt" DATETIME,
+    "counterEvidence" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );
@@ -1049,6 +1075,18 @@ CREATE TABLE "KnowledgeContradiction" (
     "description" TEXT,
     "resolution" TEXT,
     "resolvedAt" DATETIME,
+    "claimA" TEXT,
+    "claimB" TEXT,
+    "citationA" TEXT,
+    "citationB" TEXT,
+    "asOfA" TEXT,
+    "asOfB" TEXT,
+    "codeVersionA" TEXT,
+    "codeVersionB" TEXT,
+    "confidence" REAL,
+    "needsReview" BOOLEAN NOT NULL DEFAULT false,
+    "contentHashAAtDetection" TEXT,
+    "contentHashBAtDetection" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "KnowledgeContradiction_entryAId_fkey" FOREIGN KEY ("entryAId") REFERENCES "KnowledgeEntry" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
@@ -1167,6 +1205,81 @@ CREATE TABLE "EpisodeMemory" (
     "importance" REAL NOT NULL DEFAULT 0.5,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "EpisodeMemory_experimentId_fkey" FOREIGN KEY ("experimentId") REFERENCES "Experiment" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "PrRiskConfig" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "stage" TEXT NOT NULL DEFAULT 'off',
+    "threshold" REAL NOT NULL DEFAULT 0.5,
+    "modelJson" TEXT,
+    "modelVersion" INTEGER NOT NULL DEFAULT 0,
+    "stageChangedAt" DATETIME,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "PrRiskScore" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "repo" TEXT NOT NULL,
+    "prNumber" INTEGER NOT NULL,
+    "headSha" TEXT NOT NULL,
+    "taskId" INTEGER,
+    "score" REAL NOT NULL,
+    "baseLogit" REAL NOT NULL,
+    "featuresJson" TEXT NOT NULL,
+    "contributionsJson" TEXT NOT NULL,
+    "thresholdUsed" REAL NOT NULL,
+    "stage" TEXT NOT NULL,
+    "modelVersion" INTEGER NOT NULL,
+    "held" BOOLEAN NOT NULL DEFAULT false,
+    "commentPostedAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "PrOutcome" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "repo" TEXT NOT NULL,
+    "prNumber" INTEGER NOT NULL,
+    "mergeSha" TEXT,
+    "mergedAt" DATETIME,
+    "label" TEXT NOT NULL DEFAULT 'pending',
+    "failureKind" TEXT,
+    "revertSha" TEXT,
+    "revertAt" DATETIME,
+    "incidentNote" TEXT,
+    "labeledAt" DATETIME,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "PrRiskMonthlyMetric" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "month" TEXT NOT NULL,
+    "sample" INTEGER NOT NULL,
+    "tp" INTEGER NOT NULL,
+    "fp" INTEGER NOT NULL,
+    "fn" INTEGER NOT NULL,
+    "tn" INTEGER NOT NULL,
+    "precision" REAL,
+    "recall" REAL,
+    "fpr" REAL,
+    "threshold" REAL NOT NULL,
+    "modelVersion" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "PrRiskThresholdReview" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "month" TEXT NOT NULL,
+    "previousThreshold" REAL NOT NULL,
+    "proposedThreshold" REAL,
+    "adopted" BOOLEAN NOT NULL,
+    "reason" TEXT NOT NULL,
+    "sample" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateTable
@@ -1522,6 +1635,33 @@ CREATE TABLE "WorkflowQueueItem" (
 );
 
 -- CreateTable
+CREATE TABLE "RequirementReviewClaim" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER NOT NULL,
+    "snapshotDigest" TEXT NOT NULL,
+    "requestKey" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "claimToken" TEXT NOT NULL,
+    "ownerInstanceId" TEXT NOT NULL,
+    "heartbeatAt" DATETIME NOT NULL,
+    "resultJson" TEXT,
+    "reason" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "RequirementReviewClaim_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "RequirementReviewRetryRequest" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "requestId" TEXT NOT NULL,
+    "taskId" INTEGER NOT NULL,
+    "consumedAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "RequirementReviewRetryRequest_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "ThemeAutoRun" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "themeId" INTEGER NOT NULL,
@@ -1727,6 +1867,21 @@ CREATE INDEX "DetectionMissCase_taskId_idx" ON "DetectionMissCase"("taskId");
 CREATE INDEX "DetectionMissCase_detectedAt_idx" ON "DetectionMissCase"("detectedAt");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "GatePrecisionCase_dedupKey_key" ON "GatePrecisionCase"("dedupKey");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_gate_idx" ON "GatePrecisionCase"("gate");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_taskId_idx" ON "GatePrecisionCase"("taskId");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_verdict_idx" ON "GatePrecisionCase"("verdict");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_detectedAt_idx" ON "GatePrecisionCase"("detectedAt");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "MissSignatureSuggestion_dedupKey_key" ON "MissSignatureSuggestion"("dedupKey");
 
 -- CreateIndex
@@ -1898,6 +2053,24 @@ CREATE INDEX "EpisodeMemory_phase_idx" ON "EpisodeMemory"("phase");
 CREATE INDEX "EpisodeMemory_importance_idx" ON "EpisodeMemory"("importance");
 
 -- CreateIndex
+CREATE INDEX "PrRiskScore_repo_prNumber_idx" ON "PrRiskScore"("repo", "prNumber");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PrRiskScore_repo_prNumber_headSha_key" ON "PrRiskScore"("repo", "prNumber", "headSha");
+
+-- CreateIndex
+CREATE INDEX "PrOutcome_label_idx" ON "PrOutcome"("label");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PrOutcome_repo_prNumber_key" ON "PrOutcome"("repo", "prNumber");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PrRiskMonthlyMetric_month_key" ON "PrRiskMonthlyMetric"("month");
+
+-- CreateIndex
+CREATE INDEX "PrRiskThresholdReview_month_idx" ON "PrRiskThresholdReview"("month");
+
+-- CreateIndex
 CREATE INDEX "ScheduleEvent_type_idx" ON "ScheduleEvent"("type");
 
 -- CreateIndex
@@ -2022,6 +2195,18 @@ CREATE INDEX "WorkflowQueueItem_themeId_status_idx" ON "WorkflowQueueItem"("them
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowQueueItem_taskId_orchestraSessionId_key" ON "WorkflowQueueItem"("taskId", "orchestraSessionId");
+
+-- CreateIndex
+CREATE INDEX "RequirementReviewClaim_taskId_status_idx" ON "RequirementReviewClaim"("taskId", "status");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RequirementReviewClaim_taskId_snapshotDigest_key" ON "RequirementReviewClaim"("taskId", "snapshotDigest");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RequirementReviewRetryRequest_requestId_key" ON "RequirementReviewRetryRequest"("requestId");
+
+-- CreateIndex
+CREATE INDEX "RequirementReviewRetryRequest_taskId_createdAt_idx" ON "RequirementReviewRetryRequest"("taskId", "createdAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ThemeAutoRun_themeId_key" ON "ThemeAutoRun"("themeId");

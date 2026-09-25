@@ -11,7 +11,7 @@ import { writeBlockedTask } from '../blocked-task-write';
 import type { PrismaClient } from '../../../generated/prisma-postgres';
 import { createLogger } from '../../../config/logger';
 import { resolveTaskWorkflowState } from '../../task/task-resolver';
-import { WorkflowQueueService } from '../workflow-queue';
+
 import { logCycleEvent } from '../../observability';
 import {
   COOLDOWN_MS,
@@ -22,21 +22,17 @@ import {
   resolveLastProgressAt,
 } from './auto-run-selection';
 import { liveOrQueuedBehind } from './queue-wait-exemption';
-import {
-  setCurrentTask,
-  onTaskCompleted,
-  onTaskFailed,
-  onAwaitingPlanApproval,
-} from './theme-auto-run-service';
+import { taskNeverExecuted } from './auto-run-execution-presence';
+import { requeueIfNeverExecuted } from './requeue-if-never-executed';
+import { setCurrentTask, onTaskFailed, onAwaitingPlanApproval } from './theme-auto-run-service';
 import {
   notifyAwaitingPlanApproval,
   notifyAwaitingUserAnswer,
-  notifyTaskSkipped,
   notifyHangBackstop,
-  notifyTaskVanished,
 } from './auto-run-notifications';
-import { isTaskVanishedMessage } from '../queue-vanished-task-policy';
+
 import { releaseStaleActiveItems } from './auto-run-stall-guard';
+
 import { broadcastAutoRunUpdateImpl } from './auto-run-lifecycle';
 import { stopTaskTreeAgents } from '../../agents/stop-task-agents';
 import { selectAndEnqueueNextTask } from './auto-run-advance-select';
@@ -44,7 +40,7 @@ import { isOverlapHeld } from '../workflow-orchestrator-overlap-guard';
 import { recordTransition } from '../transition-recorder';
 
 import { resolveResumedTenureStart } from './resume-tenure';
-import { hasRunawayCancelLoop, userActedAfter } from './auto-run-recovery-history';
+import { resolveCurrentTaskOutcome } from './auto-run-resolve-outcome';
 
 const log = createLogger('theme-auto-run-scheduler');
 
@@ -111,6 +107,9 @@ export async function advanceActiveTaskLocked(
     // was killed there, 8 seconds after its implementer committed a complete
     // implementation. Transitions and heartbeats are the actual evidence of
     // movement; only their absence means wedged.
+    // Task 1007: a task with ZERO executions is waiting in the queue, not hung
+    // (984 was blocked at 72 min behind 881's ci_repair without ever running).
+    const neverExecuted = await taskNeverExecuted(prisma, currentTaskId);
     const lastProgressAt = await resolveLastProgressAt(prisma, currentTaskId, tenureStart);
     const sinceProgressMs = Date.now() - lastProgressAt;
     // Liveness exemption: a running execution with a fresh heartbeat is
@@ -130,19 +129,38 @@ export async function advanceActiveTaskLocked(
     // deferred, and returned before the code that resolves a finished task
     // and picks the next one — auto-run sat "running" with a completed
     // current task and 9 runnable tasks untouched.
-    if (progressedRecently || executionIsLive) {
+    const waitingUnstarted = neverExecuted && withinHardCeiling;
+    if (progressedRecently || executionIsLive || waitingUnstarted) {
       log.info(
         `[ThemeAutoRunScheduler] Task ${currentTaskId} over tenure wall but ${
           progressedRecently
             ? `progressed ${Math.round(sinceProgressMs / 1000)}s ago`
-            : 'execution heartbeat is fresh'
+            : waitingUnstarted
+              ? 'has never executed (queue wait)'
+              : 'execution heartbeat is fresh'
         } — deferring hang backstop (theme ${themeId})`,
       );
+    } else if (await requeueIfNeverExecuted(prisma, currentTaskId, themeId)) {
+      // Past the 3x ceiling without ever running: a stuck queue, not a hung
+      // agent. Requeue (bounded) instead of blocking; setCurrentTask resets
+      // the tenure clock.
+      log.warn(
+        `[ThemeAutoRunScheduler] Task ${currentTaskId} never executed within the hard ceiling — requeued instead of blocked (theme ${themeId})`,
+      );
+      logCycleEvent('task.skipped', {
+        theme: themeId,
+        task: currentTaskId,
+        cause: 'backstop_unstarted_requeue',
+        msg: 'never-executed task requeued by hang backstop',
+      });
+      await setCurrentTask(themeId, currentTaskId);
+      broadcastAutoRunUpdateImpl(themeId);
+      return;
     } else {
       log.warn(
         `[ThemeAutoRunScheduler] Task ${currentTaskId} exceeded wall budget (${Math.round(
           MAX_TASK_WALL_MS / 60000,
-        )}min) — force-stopping (theme ${themeId})`,
+        )}min) — force-stopping (theme ${themeId}; neverExecuted=${neverExecuted}, queueWaitOrLive=${executionIsLive}, withinHardCeiling=${withinHardCeiling}, sinceProgress=${Math.round(sinceProgressMs / 1000)}s)`,
       );
       logCycleEvent('task.hang_backstop', {
         theme: themeId,
@@ -240,217 +258,12 @@ export async function advanceActiveTaskLocked(
     // Fall through to the terminal resolution below in the same tick.
   }
 
-  // No active item. Decide the outcome from the most recent TERMINAL queue
-  // item FIRST, then fall back to task.status. Checking the terminal item
-  // unconditionally (not only when an active item exists) fixes the stall
-  // where a queue item failed after max retries but task.status was left
-  // 'in-progress' (WorkflowRunner only sets task.status for subtasks) — the
-  // theme used to hang here until the 45-min wall backstop.
-  const terminalItem = await prisma.workflowQueueItem.findFirst({
-    where: {
-      themeId,
-      taskId: currentTaskId,
-      status: { in: ['completed', 'failed', 'cancelled'] },
-    },
-    orderBy: { completedAt: 'desc' },
-    select: { id: true, status: true, errorMessage: true, completedAt: true },
-  });
-
-  const task = await resolveTaskWorkflowState(currentTaskId);
-
-  // A question can be saved while the task is still in-progress, after its
-  // queue item disappears. Waiting is a workflow state, not only task.blocked.
-  if (
-    task?.workflowStatus === 'awaiting_question' &&
-    ['todo', 'in-progress', 'blocked'].includes(task.status)
-  ) {
-    await notifyAwaitingUserAnswer(themeId, currentTaskId);
-    // Preserve the unanswered task, but release the theme slot so unrelated
-    // eligible tasks can run on the next tick. Never stop/revert the task here.
-    if (!(await liveOrQueuedBehind(prisma, currentTaskId))) {
-      await setCurrentTask(themeId, null);
-      broadcastAutoRunUpdateImpl(themeId);
-    }
-    return;
-  }
-
-  // Confirmed-vanished-task guard (task 651): the task row is confirmed
-  // absent (dequeue/runner/reconciler all detected this and marked their
-  // queue item with the same vanished-task marker). Writing task.blocked
-  // for a task that doesn't exist is meaningless — record task.skipped with
-  // a distinct cause and move straight to the next task, never through the
-  // isFailed branch below (which would try `prisma.task.update` against a
-  // non-existent row and silently no-op, and whose 'blocked' framing is
-  // inaccurate for "this task no longer exists").
-  if (terminalItem && isTaskVanishedMessage(terminalItem.errorMessage) && !task) {
-    await notifyTaskVanished(themeId, currentTaskId);
-    broadcastAutoRunUpdateImpl(themeId);
-    logCycleEvent('task.skipped', {
-      theme: themeId,
-      task: currentTaskId,
-      cause: 'task_vanished',
-      msg: 'task row confirmed absent — skipped without blocking',
-    });
-    await new Promise((r) => setTimeout(r, COOLDOWN_MS));
-    await selectAndEnqueueNextTask(
-      prisma,
-      themeId,
-      order,
-      Math.max(0, globalActive - 1),
-      barrierHoldSince,
-    );
-    return;
-  }
-
-  const isCompleted =
-    terminalItem?.status === 'completed' ||
-    task?.status === 'done' ||
-    task?.workflowStatus === 'completed';
-  // NOTE: 'cancelled' is deliberately NOT a failure. An item is cancelled when
-  // the dispatch was ABANDONED — auto-run stopped, the task reached a terminal
-  // state, a phantom item was swept, or the task was not runnable at dispatch
-  // time (queue-skip-policy). None of those mean the TASK failed, and treating
-  // them as failure is what blocked task 646 ten seconds after its user
-  // answered the question.
-  const isFailed =
-    terminalItem?.status === 'failed' || task?.status === 'failed' || task?.status === 'blocked';
-
-  if (isCompleted) {
-    await onTaskCompleted(themeId);
-    broadcastAutoRunUpdateImpl(themeId);
-    logCycleEvent('task.completed', {
-      theme: themeId,
-      task: currentTaskId,
-      ok: true,
-      via: terminalItem?.status === 'completed' ? 'queue_item' : 'task_status',
-      msg: 'task completed — advancing to next',
-    });
-    await new Promise((r) => setTimeout(r, COOLDOWN_MS));
-    await selectAndEnqueueNextTask(
-      prisma,
-      themeId,
-      order,
-      Math.max(0, globalActive - 1),
-      barrierHoldSince,
-    );
-    return;
-  }
-
-  if (isFailed) {
-    // A task parked as 'blocked' may actually be WAITING FOR A USER ANSWER
-    // (AskUserQuestion), not failed. Hold the theme here: advancing would
-    // start the next task's agent, which then runs concurrently with this
-    // task's answer-resume — the "multiple agents launched" symptom.
-    if (task?.status === 'blocked' && (await isAwaitingUserAnswer(prisma, currentTaskId))) {
-      log.info(
-        `[ThemeAutoRunScheduler] Task ${currentTaskId} is awaiting a user answer — holding, not advancing (theme ${themeId})`,
-      );
-      await notifyAwaitingUserAnswer(themeId, currentTaskId);
-      broadcastAutoRunUpdateImpl(themeId);
-      logCycleEvent('task.awaiting_answer', {
-        theme: themeId,
-        task: currentTaskId,
-        cause: 'ask_user_question',
-        msg: 'theme holding — task awaiting user answer',
-      });
-      return;
-    }
-    // A HUMAN may have acted on this task after the queue item reached its
-    // terminal state — answering a question revives it (workflowStatus → draft,
-    // status → todo). `task` above is a snapshot taken before the
-    // awaiting-answer lookup and the notifications, so writing 'blocked' from
-    // it silently undoes that answer: measured 2026-08-24 on task 646, where the
-    // answer landed 10 seconds before this write.
-    // Only a `user` actor counts — system transitions are the very failure being
-    // resolved here and must not veto their own bookkeeping.
-    if (await userActedAfter(prisma, currentTaskId, terminalItem?.completedAt ?? null)) {
-      log.info(
-        `[ThemeAutoRunScheduler] Task ${currentTaskId} was revived by the user — re-queuing instead of blocking (theme ${themeId})`,
-      );
-      logCycleEvent('task.revived', {
-        theme: themeId,
-        task: currentTaskId,
-        cause: 'user_action_after_failure',
-        msg: 'user acted after the failure decision — re-queued instead of blocked',
-      });
-      await WorkflowQueueService.getInstance()
-        .enqueue({ taskId: currentTaskId, themeId, priority: 50 })
-        .catch(() => {});
-      await setCurrentTask(themeId, currentTaskId);
-      broadcastAutoRunUpdateImpl(themeId);
-      return;
-    }
-
-    const errMsg = terminalItem?.errorMessage ?? `Task ${currentTaskId} failed or was blocked`;
-    // Mark the task blocked so selection skips it next time.
-    if (task?.status !== 'blocked') {
-      await writeBlockedTask(prisma, currentTaskId).catch(() => {});
-    }
-    await onTaskFailed(themeId, errMsg);
-    await notifyTaskSkipped(themeId, currentTaskId, errMsg);
-    broadcastAutoRunUpdateImpl(themeId);
-    logCycleEvent('task.blocked', {
-      theme: themeId,
-      task: currentTaskId,
-      ok: false,
-      cause: terminalItem?.status ?? 'blocked',
-      msg: errMsg.slice(0, 200),
-    });
-    await new Promise((r) => setTimeout(r, COOLDOWN_MS));
-    await selectAndEnqueueNextTask(
-      prisma,
-      themeId,
-      order,
-      Math.max(0, globalActive - 1),
-      barrierHoldSince,
-    );
-    return;
-  }
-
-  // No active AND no terminal queue item, and the task is not terminal:
-  // the item vanished (e.g. cleared) while the task is still mid-workflow.
-  // Re-enqueue the SAME task so it resumes — never silently stall. The
-  // WorkflowRunner picks up from the task's current workflowStatus.
-  //
-  // Bounded, though: if the same task keeps coming straight back as a cancelled
-  // item, re-enqueueing spins. Measured 2026-08-24 on task 635 (todo +
-  // awaiting_question, which the orchestrator refuses to dispatch): 106 queue
-  // items in 21 minutes while auto-run reported itself as running. The selector
-  // no longer picks that state, but any future "enqueued then immediately
-  // abandoned" cause would loop the same way, so release the task instead.
-  if (await hasRunawayCancelLoop(prisma, currentTaskId)) {
-    log.warn(
-      `[ThemeAutoRunScheduler] Task ${currentTaskId} keeps being cancelled without running — releasing it (theme ${themeId})`,
-    );
-    logCycleEvent('task.skipped', {
-      theme: themeId,
-      task: currentTaskId,
-      cause: 'runaway_cancel_loop',
-      msg: 'enqueue-cancel loop detected — task released so the theme can move on',
-    });
-    await setCurrentTask(themeId, null);
-    broadcastAutoRunUpdateImpl(themeId);
-    return;
-  }
-
-  try {
-    // NOTE: getInstance() replaces the former scheduler `queue` field — same singleton (task 628).
-    await WorkflowQueueService.getInstance().enqueue({
-      taskId: currentTaskId,
-      themeId,
-      priority: 50,
-    });
-    await setCurrentTask(themeId, currentTaskId);
-    broadcastAutoRunUpdateImpl(themeId);
-    log.warn(
-      `[ThemeAutoRunScheduler] Task ${currentTaskId} had no queue item; re-enqueued to resume (theme ${themeId})`,
-    );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    // 'already in the queue' means a race re-created it — fine, just wait.
-    if (!msg.includes('already in the queue')) {
-      log.error({ err }, `[ThemeAutoRunScheduler] Failed to re-enqueue task ${currentTaskId}`);
-    }
-  }
-  return;
+  await resolveCurrentTaskOutcome(
+    prisma,
+    themeId,
+    currentTaskId,
+    order,
+    globalActive,
+    barrierHoldSince,
+  );
 }

@@ -10,7 +10,12 @@
  */
 
 import { prisma } from '../../../config';
-import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
+import {
+  NotFoundError,
+  ValidationError,
+  RequirementReplanHeldError,
+  parseId,
+} from '../../../middleware/error-handler';
 import { createLogger } from '../../../config/logger';
 import { VALID_FILE_TYPES, resolveWorkflowDir, getFileInfo } from '../core/workflow-helpers';
 import { withTaskLifecycleLock } from '../../../services/workflow/task-lifecycle-lock';
@@ -251,6 +256,13 @@ export async function handleSaveFile({
     return response;
   } catch (err) {
     if (err instanceof ValidationError || err instanceof NotFoundError) throw err;
+    // NOTE (task #1041): RequirementReplanHeldError already routes through
+    // middleware/error-handler.ts's `error instanceof AppError` branch, which
+    // skips its own log.error — but this catch used to unconditionally
+    // re-log the same held state as a SECOND ERROR (logger
+    // routes:workflow:handlers:files) before rethrowing, duplicating the
+    // error-handler ERROR for one expected state guard (stale_task etc.).
+    if (err instanceof RequirementReplanHeldError) throw err;
     log.error({ err: err }, 'Error saving workflow file');
     throw err;
   }
