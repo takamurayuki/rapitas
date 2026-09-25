@@ -45,7 +45,8 @@ const defaultRunner: PrettierRunner = async (cwd, files) => {
  * @returns Absolute package directory / パッケージディレクトリ
  */
 export function packageRootFor(gitCwd: string, file: string): string {
-  let dir = dirname(join(gitCwd, file));
+  const normalized = file.replace(/\\/g, '/');
+  let dir = dirname(join(gitCwd, normalized));
   const stop = join(gitCwd);
   while (dir.startsWith(stop) && dir !== stop) {
     if (existsSync(join(dir, 'package.json'))) return dir;
@@ -70,8 +71,9 @@ export async function formatResolvedFiles(
   const groups: Record<string, string[]> = {};
   for (const file of files) {
     if (!FORMATTABLE_RE.test(file)) continue;
-    const root = packageRootFor(gitCwd, file);
-    (groups[root] ??= []).push(relative(root, join(gitCwd, file)).replace(/\\/g, '/'));
+    const normalized = file.replace(/\\/g, '/');
+    const root = packageRootFor(gitCwd, normalized);
+    (groups[root] ??= []).push(relative(root, join(gitCwd, normalized)).replace(/\\/g, '/'));
   }
   for (const [root, rel] of Object.entries(groups)) {
     try {

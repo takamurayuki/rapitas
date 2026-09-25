@@ -47,6 +47,7 @@ mock.module('../agents/verification/automated-verifier', () => ({
   runAutomatedVerification: runAutomatedVerificationMock,
   renderVerificationMarkdown: renderVerificationMarkdownMock,
   looksLikeBugFixTask: () => false,
+  requiresTestsForTask: () => false,
 }));
 
 const readWorkflowFileMock = mock(async (): Promise<string | null> => null);

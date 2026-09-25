@@ -52,7 +52,7 @@ export async function backfillWorkflowFilesToDatabase(): Promise<number> {
 
   let categoryDirs: string[];
   try {
-    categoryDirs = await readdir(baseDir);
+    categoryDirs = (await readdir(baseDir)).sort();
   } catch {
     return 0;
   }
@@ -62,7 +62,7 @@ export async function backfillWorkflowFilesToDatabase(): Promise<number> {
     let themeDirs: string[];
     try {
       if (!(await stat(categoryPath)).isDirectory()) continue;
-      themeDirs = await readdir(categoryPath);
+      themeDirs = (await readdir(categoryPath)).sort();
     } catch {
       continue;
     }
@@ -71,7 +71,7 @@ export async function backfillWorkflowFilesToDatabase(): Promise<number> {
       let taskDirs: string[];
       try {
         if (!(await stat(themePath)).isDirectory()) continue;
-        taskDirs = await readdir(themePath);
+        taskDirs = (await readdir(themePath)).sort();
       } catch {
         continue;
       }

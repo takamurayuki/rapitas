@@ -236,6 +236,15 @@ describe('mergePullRequest — branch-protection "head behind base" is retriable
         match: /pr merge 42/,
         result: new Error('GraphQL: Pull Request is not mergeable: the base branch was modified.'),
       },
+      {
+        match: /--json number,state,mergedAt,baseRefName/,
+        result: JSON.stringify({
+          number: 42,
+          state: 'OPEN',
+          mergedAt: null,
+          baseRefName: 'develop',
+        }),
+      },
       { match: /pr update-branch 42/, result: '' },
     ];
 
@@ -254,6 +263,15 @@ describe('mergePullRequest — branch-protection "head behind base" is retriable
       {
         match: /pr merge 42/,
         result: new Error('Pull Request is not mergeable: not up to date with the base branch.'),
+      },
+      {
+        match: /--json number,state,mergedAt,baseRefName/,
+        result: JSON.stringify({
+          number: 42,
+          state: 'OPEN',
+          mergedAt: null,
+          baseRefName: 'develop',
+        }),
       },
       {
         match: /pr update-branch 42/,
@@ -275,6 +293,15 @@ describe('mergePullRequest — branch-protection "head behind base" is retriable
         match: /pr merge 42/,
         result: new Error('Pull Request is not mergeable: not up to date with the base branch.'),
       },
+      {
+        match: /--json number,state,mergedAt,baseRefName/,
+        result: JSON.stringify({
+          number: 42,
+          state: 'OPEN',
+          mergedAt: null,
+          baseRefName: 'develop',
+        }),
+      },
       { match: /pr update-branch 42/, result: new Error('network error: connection reset') },
     ];
 
@@ -289,6 +316,15 @@ describe('mergePullRequest — branch-protection "head behind base" is retriable
     script = [
       { match: /pr view 42 --json commits/, result: '1' },
       { match: /pr merge 42/, result: new Error('Required status check is pending') },
+      {
+        match: /--json number,state,mergedAt,baseRefName/,
+        result: JSON.stringify({
+          number: 42,
+          state: 'OPEN',
+          mergedAt: null,
+          baseRefName: 'develop',
+        }),
+      },
     ];
 
     const result = await mergePullRequest('/repo', 42, 5, 'develop');

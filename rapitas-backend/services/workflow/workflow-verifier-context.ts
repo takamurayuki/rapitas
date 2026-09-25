@@ -209,7 +209,7 @@ Preserve command exit codes before formatting output: piping a command into tail
     verifierInstruction = verifierInstruction
       .replace('上記の計画と実装結果を検証し', '上記の実装結果を検証し')
       .replace(
-        '## チェックリスト消化状況 (plan.md の各項目に ✅/❌)',
+        '## チェックリスト消化状況 (plan.md の各項目に ✅/❌/➖)',
         '## チェックリスト消化状況 (計画なしタスク: タスク要件・調査内容に対する充足状況を ✅/❌ で記載)',
       )
       .replace(
