@@ -19,6 +19,7 @@ mock.module('../agents/verification/automated-verifier', () => ({
   runAutomatedVerification: runAutomatedVerificationMock,
   looksLikeBugFixTask: (text: string | null | undefined) =>
     !!text && /(バグ|不具合|クラッシュ|\bbug\b|\bcrash\b)/i.test(text),
+  requiresTestsForTask: () => false,
 }));
 
 const evaluateCompletionGateMock = mock(

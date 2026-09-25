@@ -94,6 +94,7 @@ mock.module('../../services/agents/verification/automated-verifier', () => ({
   // The gate also imports this (bug-fix tasks require a test change); the
   // mock previously omitted it, which broke module linking for this whole file.
   looksLikeBugFixTask: () => false,
+  requiresTestsForTask: () => false,
 }));
 
 // Spy on concern filing. Full mirror of the real module (bun mock.module is
