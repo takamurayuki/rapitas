@@ -16,7 +16,7 @@ import { execSync } from 'child_process';
 import { mkdtempSync, rmSync, writeFileSync, existsSync, readdirSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { redStateCheck, maybeRunRedStateCheck } from './red-state-check';
+import { redStateCheck, maybeRunRedStateCheck, selectRedStateTargets } from './red-state-check';
 import type { VerificationCheck } from './automated-verifier';
 
 /** True if no `redcheck-*` scratch worktree dir remains under `repoDir/.worktrees`. */
@@ -57,6 +57,51 @@ describe('maybeRunRedStateCheck — gating (no git touched)', () => {
   ] as const)('returns null when %s', async (_label, coverage, changedFiles) => {
     const result = await maybeRunRedStateCheck('/does/not/matter', [...changedFiles], coverage);
     expect(result).toBeNull();
+  });
+
+  // #1088 (2026-09-25): a mock repaired in branch-pr-ops-merge-revert.test.ts
+  // with no change to pr-merge-ops.ts passed at the base commit by
+  // construction and the gate reported it as written-after-the-fact forever.
+  test('returns null for a test-only repair (no related source change), even with coverage ok', async () => {
+    const result = await maybeRunRedStateCheck(
+      '/does/not/matter',
+      ['services/agents/orchestrator/git-operations/pr/branch-pr-ops-merge-revert.test.ts'],
+      passedCoverage,
+    );
+    expect(result).toBeNull();
+  });
+});
+
+describe('selectRedStateTargets — which changed tests the check can judge', () => {
+  test('a test next to a changed source file is judged', () => {
+    const r = selectRedStateTargets(['services/workflow/x.ts', 'services/workflow/y.test.ts']);
+    expect(r.targets).toEqual(['services/workflow/y.test.ts']);
+    expect(r.skipped).toEqual([]);
+  });
+
+  test('a mirror-layout test sharing the module stem is judged', () => {
+    const r = selectRedStateTargets([
+      'routes/workflow/workflow-routes.ts',
+      'tests/routes/workflow/workflow-routes.test.ts',
+    ]);
+    expect(r.targets).toEqual(['tests/routes/workflow/workflow-routes.test.ts']);
+  });
+
+  test('a test with no related source change is skipped, the rest still judged', () => {
+    const r = selectRedStateTargets([
+      'services/workflow/workflow-db-backfill.ts',
+      'services/workflow/workflow-db-backfill.test.ts',
+      'services/agents/orchestrator/git-operations/pr/branch-pr-ops-merge-revert.test.ts',
+    ]);
+    expect(r.targets).toEqual(['services/workflow/workflow-db-backfill.test.ts']);
+    expect(r.skipped).toEqual([
+      'services/agents/orchestrator/git-operations/pr/branch-pr-ops-merge-revert.test.ts',
+    ]);
+  });
+
+  test('backslash paths are normalised before matching', () => {
+    const r = selectRedStateTargets(['services\\workflow\\x.ts', 'services\\workflow\\x.test.ts']);
+    expect(r.targets).toEqual(['services/workflow/x.test.ts']);
   });
 });
 

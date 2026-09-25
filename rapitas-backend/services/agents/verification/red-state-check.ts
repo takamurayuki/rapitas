@@ -243,6 +243,48 @@ export async function redStateCheck(
   }
 }
 
+/** Strip the test suffix and extension: `foo.test.ts` / `foo.spec.tsx` → `foo`. */
+function moduleStem(file: string): string {
+  return file
+    .replace(/\\/g, '/')
+    .split('/')
+    .pop()!
+    .replace(/\.(test|spec)\.[cm]?[jt]sx?$/i, '')
+    .replace(/\.[cm]?[jt]sx?$/i, '');
+}
+
+/**
+ * Split the changed test files into those the red-state check can judge and
+ * those it cannot. The check proves a test is RED without "this diff's source
+ * changes", so it is only meaningful for a test whose source moved in the same
+ * diff: a changed non-test file in the test's directory, or one sharing its
+ * module stem anywhere (tests/ mirror layouts). A test repaired on its own —
+ * a mock that lost an export, a flaky assertion — has no such source and
+ * passes at the base commit by construction, so the old rule reported it as
+ * "written after the fact" every time (#1088, 2026-09-25: the implementer had
+ * to stop and ask, because no honest change could satisfy the gate).
+ *
+ * @param changedFiles - Changed code files from getChangedCodeFiles / 変更されたコードファイル
+ * @returns Test files to check, and the ones skipped as test-only repairs / 判定対象とテスト単独修正で除外した対象
+ */
+export function selectRedStateTargets(changedFiles: string[]): {
+  targets: string[];
+  skipped: string[];
+} {
+  const norm = changedFiles.map((f) => f.replace(/\\/g, '/'));
+  const testFiles = norm.filter((f) => TEST_FILE_RE.test(f));
+  const sourceFiles = norm.filter((f) => !TEST_FILE_RE.test(f));
+  const sourceDirs = new Set(sourceFiles.map((f) => dirname(f)));
+  const sourceStems = new Set(sourceFiles.map(moduleStem));
+  const targets: string[] = [];
+  const skipped: string[] = [];
+  for (const t of testFiles) {
+    if (sourceDirs.has(dirname(t)) || sourceStems.has(moduleStem(t))) targets.push(t);
+    else skipped.push(t);
+  }
+  return { targets, skipped };
+}
+
 /**
  * Entry point for runAutomatedVerification: decides whether a red-state check
  * is worth running at all, and if so resolves the diff base and the changed
@@ -265,8 +307,14 @@ export async function maybeRunRedStateCheck(
   preferredBaseBranch?: string | null,
 ): Promise<VerificationCheck | null> {
   if (!coverage?.ok) return null;
-  const testFiles = changedFiles.filter((f) => TEST_FILE_RE.test(f));
-  if (testFiles.length === 0) return null;
+  const { targets, skipped } = selectRedStateTargets(changedFiles);
+  if (skipped.length > 0) {
+    log.info(
+      { skipped },
+      '[red-state-check] test file(s) without a related source change — test-only repair, not judged',
+    );
+  }
+  if (targets.length === 0) return null;
   const baseRef = await diffBaseRef(workdir, preferredBaseBranch);
-  return redStateCheck(workdir, baseRef, testFiles);
+  return redStateCheck(workdir, baseRef, targets);
 }
