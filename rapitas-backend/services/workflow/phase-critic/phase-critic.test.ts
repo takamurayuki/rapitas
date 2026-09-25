@@ -93,6 +93,14 @@ describe('live evaluation control fixtures', () => {
     const { FIXTURES } = await import('../../../scripts/eval-phase-critic');
     const short = FIXTURES.find((f) => f.name === 'adequate-plan-short')!;
     const full = FIXTURES.find((f) => f.name === 'adequate-plan-full-truncated')!;
+    // Mirrors ARTIFACT_MAX_CHARS (phase-critic.ts) — asserted by value, not
+    // imported, since it is a private module constant. AC1: the truncated
+    // flag alone does not prove the fixtures actually straddle the 16000
+    // threshold; this pins the underlying .length so a future padding
+    // regression (task 911 supervisor measurement 2026-09-09) fails loudly.
+    const TRUNCATION_THRESHOLD = 16000;
+    expect(short.content.length).toBeLessThan(TRUNCATION_THRESHOLD);
+    expect(full.content.length).toBeGreaterThan(TRUNCATION_THRESHOLD);
     expect(buildCriticUserMessage(short.content, short.context).truncated).toBe(false);
     expect(buildCriticUserMessage(full.content, full.context).truncated).toBe(true);
     expect(short.expectedVerdict).toBe('pass');
