@@ -14,7 +14,7 @@ mock.module('../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
 }));
 
-type TaskRow = { workflowStatus: string | null } | null;
+type TaskRow = { workflowStatus: string | null; status?: string | null } | null;
 
 let taskRow: TaskRow = null;
 let shouldFailDb = false;
@@ -41,6 +41,18 @@ beforeEach(() => {
 });
 
 describe('applyTaskStatusFromWorkflow', () => {
+  // 2026-09-25 #1079/#1087: an operator cancel landed while a phase was still
+  // running; the finishing phase wrote 'in-progress' back and the runner
+  // dispatched the next phase of a cancelled task.
+  test.each(['cancelled', 'archived'])(
+    'leaves a task withdrawn mid-run alone (status %s)',
+    async (status) => {
+      taskRow = { workflowStatus: 'research_done', status };
+      await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]');
+      expect(taskUpdates).toHaveLength(0);
+    },
+  );
+
   test.each(['plan_created', 'research_done', 'verify_done'])(
     'sets status to in-progress when workflowStatus is %s',
     async (workflowStatus) => {

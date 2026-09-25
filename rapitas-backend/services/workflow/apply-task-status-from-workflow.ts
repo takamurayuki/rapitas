@@ -26,8 +26,8 @@ export interface TaskStatusPrismaClient {
   task: {
     findUnique: (args: {
       where: { id: number };
-      select: { workflowStatus: true };
-    }) => Promise<{ workflowStatus: string | null } | null>;
+      select: { workflowStatus: true; status: true };
+    }) => Promise<{ workflowStatus: string | null; status?: string | null } | null>;
     update: (args: { where: { id: number }; data: Record<string, unknown> }) => Promise<unknown>;
   };
 }
@@ -59,11 +59,11 @@ export async function applyTaskStatusFromWorkflow(
     // and a task whose adversarial review had REJECTED it was silently recorded
     // as complete (done / verify_done, no transition logged). A read we could
     // not perform tells us nothing — leave the status alone.
-    let currentTask: { workflowStatus: string | null } | null;
+    let currentTask: { workflowStatus: string | null; status?: string | null } | null;
     try {
       currentTask = await prisma.task.findUnique({
         where: { id: taskId },
-        select: { workflowStatus: true },
+        select: { workflowStatus: true, status: true },
       });
     } catch (err) {
       log.warn(
@@ -76,6 +76,16 @@ export async function applyTaskStatusFromWorkflow(
     // throw). Distinct from an existing row whose workflowStatus is null, which
     // legitimately means "single-shot run, no workflow phases" → done.
     if (!currentTask) return;
+    // An operator cancel that landed while this phase was still running must
+    // survive the phase finishing: writing 'in-progress' here revived #1079 and
+    // #1087 (2026-09-25) and the runner then dispatched their next phase.
+    if (currentTask.status === 'cancelled' || currentTask.status === 'archived') {
+      log.info(
+        { taskId, status: currentTask.status },
+        `${logContext} Task was withdrawn mid-run — leaving status unchanged`,
+      );
+      return;
+    }
     const wfStatus = currentTask.workflowStatus;
 
     if (wfStatus && IN_PROGRESS_WORKFLOW_STATUSES.includes(wfStatus)) {
