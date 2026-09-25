@@ -76,7 +76,7 @@ export function specForConcernSource(source: string | null | undefined): Concern
  * lightweight task, having no plan phase, can never produce.
  */
 const PROTECTED_STACK_PATH_RE =
-  /(services[\\/]agents[\\/]verification[\\/]|services[\\/]workflow[\\/](completion-gate|phase-output-validator|verify-self-repair)|services[\\/]workflow[\\/]phase-critic[\\/]phase-critic(-gate)?\.|\.github[\\/]workflows[\\/]|\.husky[\\/]|scripts[\\/](pre-commit-check|auto-fix-commit))/i;
+  /(services[\\/]agents[\\/]verification[\\/]|services[\\/]workflow[\\/](completion-gate|phase-output-validator|verify-self-repair)|services[\\/]workflow[\\/]phase-critic[\\/]phase-critic(-gate)?\.|\.github[\\/]workflows[\\/]|\.husky[\\/]|scripts[\\/](pre-commit-check|auto-fix-commit|primary-guard-hook))/i;
 
 /**
  * Whether a concern's fix will land in a protected gate path, so the task must

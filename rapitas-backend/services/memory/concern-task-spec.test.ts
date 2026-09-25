@@ -23,6 +23,11 @@ describe('needsPlanForProtectedPath', () => {
         'at y (rapitas-backend/services/workflow/verify-self-repair.ts:9:9)',
       ),
     ).toBe(true);
+    // 2026-09-25, task 1086: a lightweight guard-incident task relaxed the
+    // guard hook's regex without a plan.
+    expect(
+      needsPlanForProtectedPath('実行前フックが拒否した。検知器: scripts/primary-guard-hook.cjs'),
+    ).toBe(true);
   });
 
   test('通常のサービス配下や本文無しは対象外', () => {

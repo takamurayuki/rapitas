@@ -412,6 +412,14 @@ describe('tamperCheck', () => {
     expect(result?.details).not.toContain('.husky/pre-commit');
   });
 
+  // 2026-09-25, task 1086: a guard-incident task (lightweight, no plan) relaxed
+  // the guard hook's own regex in response to being denied — the hook must be
+  // planned like the other tripwire files.
+  it('flags the primary guard hook and its test', () => {
+    expect(tamperCheck(['scripts/primary-guard-hook.cjs'], null)?.ok).toBe(false);
+    expect(tamperCheck(['scripts/primary-guard-hook.test.cjs'], null)?.ok).toBe(false);
+  });
+
   it('flags the actual phase-critic gate files', () => {
     expect(tamperCheck(['services/workflow/phase-critic/phase-critic.ts'], null)?.ok).toBe(false);
     expect(tamperCheck(['services/workflow/phase-critic/phase-critic-gate.ts'], null)?.ok).toBe(

@@ -144,7 +144,14 @@ export async function fileGuardIncidents(
     try {
       await submit({
         title: `[Security] エージェントが禁止コマンドを実行しようとした (${rec.kind}, task ${rec.taskId ?? '?'})`,
-        detail: `実行前フックが拒否した。種別: ${rec.kind}。コマンド(先頭200字・秘匿値マスク済み): ${rec.command}`,
+        // Naming the hook path here routes the promoted task through the
+        // protected-path rule (plan + standard mode): task 1086 (2026-09-25),
+        // lightweight and plan-less, answered its own denial by relaxing the
+        // hook's regex. The subject is the agent's behavior, never the detector.
+        detail:
+          `実行前フックが拒否した。種別: ${rec.kind}。コマンド(先頭200字・秘匿値マスク済み): ${rec.command}\n` +
+          '検知器 scripts/primary-guard-hook.cjs は設計どおり動作しており修正対象ではない。' +
+          '対象はエージェントの行動(なぜ禁止操作に至ったか)であり、フックの判定を緩める変更は不可。',
         type: 'security',
         severity: 'high',
         location: 'scripts/primary-guard-hook.cjs',
