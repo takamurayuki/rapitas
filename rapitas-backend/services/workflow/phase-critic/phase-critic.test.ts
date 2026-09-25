@@ -14,12 +14,15 @@ const sendAIMessageMock = mock(async () => ({
 }));
 const isAnyApiKeyConfiguredMock = mock(async () => true);
 const getDefaultProviderMock = mock(async () => 'anthropic');
+/** Aux AI mode the critic sees; 'api' keeps the API-key gate active for the existing cases. */
+let auxAiMode: 'cli' | 'api' | 'off' = 'api';
 
 mock.module('../../../utils/ai-client', () => ({
   sendAIMessage: sendAIMessageMock,
   getDefaultProvider: getDefaultProviderMock,
   getDefaultModel: async () => 'configured-critic-model',
   isAnyApiKeyConfigured: isAnyApiKeyConfiguredMock,
+  getAuxAiMode: () => auxAiMode,
 }));
 
 mock.module('../../../config/logger', () => ({
@@ -223,6 +226,7 @@ describe('critiquePhase — sendAIMessage integration (task 911)', () => {
     }));
     isAnyApiKeyConfiguredMock.mockClear().mockImplementation(async () => true);
     getDefaultProviderMock.mockClear().mockImplementation(async () => 'anthropic');
+    auxAiMode = 'api';
   });
 
   it('includes the acceptance criteria text in the message actually sent to the lens (AC1)', async () => {
@@ -257,6 +261,25 @@ describe('critiquePhase — sendAIMessage integration (task 911)', () => {
     expect(result.verdict).toBe('unknown');
     expect(result.evaluationComplete).toBe(false);
     expect(sendAIMessageMock).not.toHaveBeenCalled();
+  });
+
+  // 2026-09-25 #911: the live evaluation ran from a task worktree whose key
+  // lives only in the DB; the key gate returned unknown for every lens without
+  // ever calling the model, even though the CLI path needs no key.
+  it('still calls the lens in cli mode when no API key is configured', async () => {
+    auxAiMode = 'cli';
+    isAnyApiKeyConfiguredMock.mockImplementation(async () => false);
+    const result = await critiquePhase('research', 'short body');
+    expect(sendAIMessageMock).toHaveBeenCalled();
+    expect(result.verdict).toBe('pass');
+  });
+
+  it('keeps the API-key gate in api mode', async () => {
+    auxAiMode = 'api';
+    isAnyApiKeyConfiguredMock.mockImplementation(async () => false);
+    const result = await critiquePhase('research', 'short body');
+    expect(sendAIMessageMock).not.toHaveBeenCalled();
+    expect(result.verdict).toBe('unknown');
   });
 
   for (const position of ['head', 'middle', 'tail']) {

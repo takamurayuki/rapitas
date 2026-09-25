@@ -30,6 +30,28 @@ const logger = createLogger('git-operations/worktree-ops');
 const GIT_OP_TIMEOUT_MS = 60_000;
 
 /**
+ * Resolve `origin/<branch>` for a task branch whose local ref is gone, so a
+ * re-created worktree resumes the pushed work instead of starting over.
+ * Best effort: fetch failures fall back to the cached remote ref, and any
+ * probe failure resolves to null (cut from the base as before).
+ *
+ * @param baseDir - Main repository root / メインリポジトリのルート
+ * @param branchName - Task branch name / タスクブランチ名
+ * @returns `origin/<branch>` when it exists on the remote, else null / 存在すれば origin 参照、無ければ null
+ */
+async function resolveRemoteTaskBranch(
+  baseDir: string,
+  branchName: string,
+): Promise<string | null> {
+  const opts = { cwd: baseDir, encoding: 'utf8' as const, timeout: GIT_OP_TIMEOUT_MS };
+  await execFileAsync('git', ['fetch', 'origin', branchName], opts).catch(() => undefined);
+  const ref = `origin/${branchName}`;
+  return execFileAsync('git', ['branch', '-r', '--list', ref], opts)
+    .then((r) => (r.stdout.trim() ? ref : null))
+    .catch(() => null);
+}
+
+/**
  * Create a git worktree with a new branch for isolated task execution.
  *
  * @param baseDir - The main repository root / メインリポジトリのルート
@@ -168,6 +190,16 @@ export async function createWorktree(
       },
     );
 
+    // A worktree removal deletes the local branch once its commits are on
+    // origin (worktree-remove.ts), so a re-created worktree for the same task
+    // must resume from origin/<branch> — cutting a fresh branch from the base
+    // instead silently dropped the task's pushed work (2026-09-25 #911: the
+    // new worktree started at origin/develop, the verifier reported the
+    // task's own files "missing", and the branch tracked origin/develop).
+    const restoreFrom = existingBranch.trim()
+      ? null
+      : await resolveRemoteTaskBranch(baseDir, effectiveBranchName);
+
     if (existingBranch.trim()) {
       logger.info(
         `[createWorktree] Branch ${effectiveBranchName} exists, creating worktree at ${worktreePath}`,
@@ -177,6 +209,15 @@ export async function createWorktree(
         encoding: 'utf8',
         timeout: GIT_OP_TIMEOUT_MS,
       });
+    } else if (restoreFrom) {
+      logger.info(
+        `[createWorktree] Restoring ${effectiveBranchName} from ${restoreFrom} at ${worktreePath}`,
+      );
+      await execFileAsync(
+        'git',
+        ['worktree', 'add', '--track', '-b', effectiveBranchName, worktreePath, restoreFrom],
+        { cwd: baseDir, encoding: 'utf8', timeout: GIT_OP_TIMEOUT_MS },
+      );
     } else {
       let parentBranch = 'develop';
       // Prefer the explicitly chosen base branch (from the execute form /
@@ -280,9 +321,12 @@ export async function createWorktree(
       logger.info(
         `[createWorktree] Creating worktree at ${worktreePath} with new branch ${effectiveBranchName} from ${parentBranch}`,
       );
+      // --no-track: a start point of origin/<base> would otherwise make the
+      // new feature branch track origin/<base> (branch.autoSetupMerge), and a
+      // later `git push` with push.default=upstream would target the base.
       await execFileAsync(
         'git',
-        ['worktree', 'add', '-b', effectiveBranchName, worktreePath, parentBranch],
+        ['worktree', 'add', '--no-track', '-b', effectiveBranchName, worktreePath, parentBranch],
         {
           cwd: baseDir,
           encoding: 'utf8',
