@@ -12,6 +12,8 @@
  * Not responsible for capturing logs (the logger / each project does) or fixing.
  */
 import { readFile } from 'fs/promises';
+import { readLogTail } from './log-tail-reader';
+import { markEventLoopSection } from './event-loop-lag-watchdog';
 import { classifyLogSignature } from './log-health-suppressions';
 import { readdirSync, statSync, unlinkSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -34,6 +36,13 @@ const log = createLogger('system:log-health-check');
 const MAX_CONCERNS = 20;
 /** Only the last N lines of a file are scanned, to bound work on a noisy day. */
 const MAX_LINES = 5_000;
+/**
+ * Only this many trailing bytes of the backend log are read. The log grows all
+ * day, and reading + splitting the whole file before slicing to MAX_LINES was a
+ * multi-second synchronous stall (concern #1033); 4 MiB comfortably holds
+ * MAX_LINES pino lines (~200-800 B each).
+ */
+const TAIL_READ_BYTES = 4 * 1024 * 1024;
 /** Max files scanned per project log directory. */
 const MAX_FILES_PER_THEME = 20;
 /** Max parsed entries kept per project, to bound memory/work. */
@@ -314,18 +323,22 @@ async function fileGroupedConcerns(
  *
  * @param sinceMs - Epoch ms lower bound; entries with time < sinceMs are dropped
  * @param filePath - Override log file path (test injection only)
+ * @param maxBytes - Trailing bytes to read (test injection only) / 末尾から読むバイト数
  * @returns Filtered parsed entries / フィルタ済みエントリ
  */
 export async function readGlobalEntries(
   sinceMs: number,
   filePath?: string,
+  maxBytes: number = TAIL_READ_BYTES,
 ): Promise<ParsedLogEntry[]> {
   const path = filePath ?? getBackendLogFilePath();
   if (!existsSync(path)) return [];
   try {
-    const raw = await readFile(path, 'utf-8');
+    const raw = await readLogTail(path, maxBytes);
     const lines = raw.split('\n');
     const content = (lines.length > MAX_LINES ? lines.slice(-MAX_LINES) : lines).join('\n');
+    // Yield once so the parse below does not extend the read's synchronous span.
+    await new Promise<void>((resolve) => setImmediate(resolve));
     return parseLogEntries(content, 'pino').filter(
       (e) => e.time === undefined || e.time >= sinceMs,
     );
@@ -420,6 +433,15 @@ function pruneOldLogs(): void {
  * @returns Number of concerns filed / 起票された懸念の数
  */
 export async function runLogHealthCheck(since?: Date): Promise<number> {
+  const release = markEventLoopSection('log-health-check');
+  try {
+    return await runLogHealthCheckInner(since);
+  } finally {
+    release();
+  }
+}
+
+async function runLogHealthCheckInner(since?: Date): Promise<number> {
   log.info('Starting log health check');
 
   // NOTE: Clamp the window to today's start — prevents reading old data when

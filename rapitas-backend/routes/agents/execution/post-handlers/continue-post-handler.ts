@@ -14,6 +14,7 @@ import { updateSessionStatusWithRetry } from '../shared/session-helpers';
 import { releaseTaskExecutionLock } from '../shared/execution-lock';
 import { isShutdownError } from '../../../../services/agents/agent-worker/shutdown-error';
 import { applyTaskStatusFromWorkflow } from '../../../../services/workflow/apply-task-status-from-workflow';
+import { linkContinueExecutionPr } from '../../../../services/github/continue-execution-pr-link';
 
 const log = createLogger('routes:agent-execution:continue-post');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -45,7 +46,21 @@ export interface HandleContinueResultParams {
  * @param params - Continuation context and result / 継続実行コンテキストと結果
  */
 export async function handleContinueResult(params: HandleContinueResultParams): Promise<void> {
-  const { result, taskId, targetSessionId, workingDirectory, executionDir } = params;
+  const { result, taskId, targetSessionId, workingDirectory, executionDir, branchName } = params;
+
+  // NOTE: continue-execution lets the agent run arbitrary bash (incl. `gh pr
+  // create`) instead of going through the regular auto-commit pipeline, so a
+  // PR it creates never gets linked otherwise (task #1058). Best-effort and
+  // run before worktree cleanup so `gh` still has a checkout to work from;
+  // also runs on the failure path since the agent may have pushed/created
+  // the PR before reporting failure. Wrapped defensively even though
+  // linkContinueExecutionPr already swallows its own errors, so this
+  // completion handler can never be blocked by it.
+  try {
+    await linkContinueExecutionPr(prisma, { taskId, branchName, cwd: executionDir });
+  } catch (err) {
+    log.warn({ err }, `[continue-execution] PR auto-link failed for task ${taskId}`);
+  }
 
   if (result.success) {
     await applyTaskStatusFromWorkflow(prisma, taskId, '[continue-execution]');

@@ -32,6 +32,9 @@ import { findCandidates, type Candidate } from './auto-merge-candidates';
 import { countWithFailClosed } from '../../utils/database/fail-closed-count';
 import { canContinueAutoMerge } from './auto-merge-task-guard';
 import { recoverMergedTasks } from './auto-merge-recovery';
+import { evaluatePreMergeGate, RATCHET_CHECK_NAME } from './auto-merge-premerge-gate';
+import { checkBaselineDrift } from './auto-merge-baseline-drift';
+import { reapStalePrs } from './stale-pr-reaper';
 
 const log = createLogger('workflow:auto-merge-watcher');
 
@@ -128,6 +131,7 @@ export class AutoMergeWatcher {
         log.warn({ err }, '[auto-merge] Merged-task recovery failed');
         return [] as number[];
       });
+      void checkBaselineDrift().catch(() => {}); // throttled + throwaway worktree; never blocks the tick
       const candidates = (await findCandidates()).filter((c) => !recovered.includes(c.taskId));
       const blocking = blockingChecks();
       for (const c of candidates) {
@@ -138,6 +142,11 @@ export class AutoMergeWatcher {
           log.warn({ err, taskId: c.taskId }, '[auto-merge] Candidate failed');
         }
       }
+      // Stale-PR reaper (task 1061): close abandoned exhausted+conflicted
+      // auto-PRs bounded at 3/tick. Never blocks the merge loop above.
+      await reapStalePrs(prisma).catch((err) =>
+        log.warn({ err }, '[auto-merge] Stale PR reap failed'),
+      );
     } catch (err) {
       log.error({ err }, '[auto-merge] Tick error');
     } finally {
@@ -295,6 +304,28 @@ export class AutoMergeWatcher {
         if (await this.handleMergeConflict(c, 'merge state DIRTY (no CI checks)')) return;
         await mark(c.taskId, 'auto_merge_blocked', 'conflict unresolved (DIRTY, no CI)');
         return;
+      }
+    }
+
+    // Never trust 'pass' until the required workflows finished on the head SHA and
+    // (merge mode) the ratchet holds on the merge ref — PR #707 slipped through the
+    // no-checks path above with file-size never run (task 1021).
+    if (state === 'pass') {
+      const gate = await evaluatePreMergeGate(c.cwd, c.prNumber, {
+        localRatchet: c.mode === 'merge',
+      });
+      if (!gate.ok) {
+        log.info(
+          { taskId: c.taskId, prNumber: c.prNumber, ...gate },
+          '[auto-merge] Pre-merge gate held the PR',
+        );
+        if (gate.reason === 'ratchet_violation') {
+          await handleCiFailure(c, [RATCHET_CHECK_NAME], (cand, r) =>
+            this.handleMergeConflict(cand, r),
+          );
+          return;
+        }
+        state = 'pending'; // waits, and still reaches the CI-timeout path below
       }
     }
 

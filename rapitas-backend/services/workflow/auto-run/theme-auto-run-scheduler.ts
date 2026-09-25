@@ -31,6 +31,7 @@ import {
   getAutoRunState,
   isPausedAutoRunStatus,
   PAUSED_AUTO_RUN_STATUSES,
+  setCurrentTask,
   type ThemeAutoRunState,
 } from './theme-auto-run-service';
 import {
@@ -44,6 +45,7 @@ import { advanceActiveTask } from './auto-run-advance-active';
 import { selectAndEnqueueNextTask } from './auto-run-advance-select';
 import { resolveIterationBudgetForTask } from '../task-iteration-budget';
 import { recordTransition } from '../transition-recorder';
+import { markEventLoopSection } from '../../system/event-loop-lag-watchdog';
 
 const log = createLogger('theme-auto-run-scheduler');
 
@@ -249,21 +251,34 @@ export class ThemeAutoRunScheduler {
     globalActive: number,
     lastRunAt: string | null,
   ): Promise<void> {
-    if (currentTaskId) {
-      if (await this.haltIfIterationBudgetExceeded(themeId, currentTaskId)) return;
-      await advanceActiveTask(
-        prisma,
-        themeId,
-        currentTaskId,
-        order,
-        globalActive,
-        lastRunAt,
-        this.barrierHoldSince,
-      );
-      return;
-    }
+    const t0 = Date.now();
+    // NOTE(task 1040): registers this section so a concurrent event-loop-lag
+    // WARN names advanceTheme as the likely culprit (concern #1040 — this
+    // path was previously invisible to the watchdog's activeSections diagnostic).
+    const releaseSection = markEventLoopSection('theme-auto-run-scheduler:advanceTheme');
+    try {
+      if (currentTaskId) {
+        if (await this.haltIfIterationBudgetExceeded(themeId, currentTaskId)) return;
+        await advanceActiveTask(
+          prisma,
+          themeId,
+          currentTaskId,
+          order,
+          globalActive,
+          lastRunAt,
+          this.barrierHoldSince,
+        );
+        return;
+      }
 
-    await selectAndEnqueueNextTask(prisma, themeId, order, globalActive, this.barrierHoldSince);
+      await selectAndEnqueueNextTask(prisma, themeId, order, globalActive, this.barrierHoldSince);
+    } finally {
+      releaseSection();
+      const tookMs = Date.now() - t0;
+      // NOTE: diagnostic instrumentation for concern #966 (event-loop-lag WARN,
+      // "steady-state" cluster) — helps pin down which theme's dispatch was slow.
+      if (tookMs > 1000) log.warn({ themeId, tookMs }, 'Slow theme advance');
+    }
   }
 
   /**
@@ -317,12 +332,18 @@ export class ThemeAutoRunScheduler {
       toStatus: task?.workflowStatus ?? 'draft',
       actor: 'system',
       cause: 'iteration_budget_halted',
-      metadata: { reason: state.haltReason },
+      metadata: { reason: state.haltReason, ...state.diagnostics },
     }).catch(() => {});
     log.warn(
+      { taskId: currentTaskId, themeId, haltReason: state.haltReason, ...state.diagnostics },
       `[ThemeAutoRunScheduler] Task ${currentTaskId} halted by iteration budget (${state.haltReason})`,
     );
+    // NOTE: workflow-reconciler-requeue.ts excludes haltReason tasks (task 1002), so a halted task is not re-queued and re-executed after this stop.
     await stopThemeExecutionImpl(prisma, themeId, currentTaskId);
+    // Release the theme's current task: advanceTheme() re-runs this check on
+    // currentTaskId every tick, so leaving it set re-halted the same task every
+    // 12s and never reached selection (task 984/985, 2026-09-20).
+    await setCurrentTask(themeId, null);
     this.broadcastAutoRunUpdate(themeId);
     return true;
   }

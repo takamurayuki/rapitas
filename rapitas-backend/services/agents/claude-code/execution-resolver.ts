@@ -3,18 +3,23 @@
  *
  * Builds the post-parse resolution callback that decides whether a Claude
  * Code execution succeeded, failed, was interrupted, or is waiting for
- * input. Extracted from agent-core.ts to keep that file under the
- * 500-line per-file limit.
- *
- * The resolver is data-driven: it receives the agent's mutable state
- * via a `ResolverContext` and the bound `resolve()` callback from the
- * outer Promise. All status mutations go through `ctx.status = ...`.
+ * input. Extracted from agent-core.ts to keep that file under the 500-line
+ * per-file limit. Data-driven: receives the agent's mutable state via a
+ * `ResolverContext` and the bound `resolve()` callback from the outer
+ * Promise. All status mutations go through `ctx.status = ...`.
  */
 import { tolegacyQuestionType } from '../question-detection';
 import type { AgentArtifact, AgentExecutionResult, GitCommitInfo } from '../base-agent';
 import { checkGitDiff } from './git-diff-checker';
 import { createLogger } from '../../../config/logger';
 import { notifyAuthenticationFailure } from '../../communication/notification-service';
+import {
+  detectApiOverload,
+  detectAuthFailure,
+  detectModelMismatch,
+  detectPromptTooLong,
+} from './execution-resolver-early-failures';
+import { PROMPT_TOO_LONG_MARKER } from './failure-reason-markers';
 import type { ResolverContext } from './execution-resolver-context';
 export type { ResolverContext } from './execution-resolver-context';
 
@@ -135,17 +140,9 @@ export function buildResolveAfterParse(
 
     // Detect Claude Code's "selected model is invalid" message early so the
     // execution is reported as failed instead of slipping through as a 1.3s
-    // success. This happens when SmartRouter picks an OpenAI / codex model
-    // ID for a claude-code agent — claude-code prints
-    //   "There's an issue with the selected model (X). It may not exist or
-    //    you may not have access to it. Run --model to pick a different
-    //    model."
-    // and exits. The combined output is short and would otherwise pass the
-    // existing exit-code check.
-    const modelMismatchHit =
-      /There'?s an issue with the selected model.*Run --model to pick a different/i.test(
-        ctx.outputBuffer + '\n' + ctx.errorBuffer,
-      );
+    // success (SmartRouter picked an OpenAI/codex model id for a claude-code
+    // agent). The combined output is short and would otherwise pass the exit-code check.
+    const modelMismatchHit = detectModelMismatch(ctx.outputBuffer + '\n' + ctx.errorBuffer);
     if (modelMismatchHit) {
       logger.error(
         { logPrefix: ctx.logPrefix, executionTimeMs },
@@ -161,26 +158,19 @@ export function buildResolveAfterParse(
         waitingForInput: false,
         claudeSessionId: ctx.claudeSessionId || undefined,
         errorMessage:
-          'Claude Code rejected the selected model. The orchestrator picked a model from a different provider (likely codex-/gpt- family) and routed it to a claude-code agent. Re-run after the role-resolver agent-switch lands; if the issue persists check WorkflowRoleConfig.preferredProviderOverride for this role.',
+          'Claude Code rejected the selected model. Either the orchestrator picked a model from a different provider (likely codex-/gpt- family) and routed it to a claude-code agent — re-run after the role-resolver agent-switch lands, and if the issue persists check WorkflowRoleConfig.preferredProviderOverride for this role — or the installed Claude Code CLI is older than the version the model requires; check if a CLI update is available (`claude update`).',
         ...usageFields,
         ...forceKillFields,
       });
       return;
     }
 
-    // Detect a Claude CLI authentication failure (expired / invalid credentials)
-    // BEFORE the generic exit-code path. The CLI prints "Failed to authenticate.
-    // API Error: 401 Invalid authentication credentials" and exits almost
-    // immediately, which would otherwise be recorded as a generic phase failure
-    // and silently burn retries across every queued task (observed: task 322
-    // failed ~12× with one $6.17 in-flight expiry). Fail fast with a clear cause
-    // AND fire a deduplicated notification so the user knows to re-authenticate in
-    // the integrated terminal (`claude login`). Notification is fire-and-forget so
-    // a notify error never blocks resolve().
-    const authFailureHit =
-      /Invalid authentication credentials|Failed to authenticate|API\s*Error:?\s*401|OAuth token (?:has )?expired|Please run\s+\/login/i.test(
-        ctx.outputBuffer + '\n' + ctx.errorBuffer,
-      );
+    // Detect a Claude CLI authentication failure BEFORE the generic exit-code
+    // path — otherwise it silently burns retries across every queued task
+    // (observed: task 322 failed ~12x, $6.17 in-flight). Fire a deduplicated
+    // notification so the user knows to re-authenticate; fire-and-forget so a
+    // notify error never blocks resolve().
+    const authFailureHit = detectAuthFailure(ctx.outputBuffer + '\n' + ctx.errorBuffer);
     if (authFailureHit) {
       logger.error(
         { logPrefix: ctx.logPrefix, executionTimeMs },
@@ -198,6 +188,35 @@ export function buildResolveAfterParse(
         claudeSessionId: ctx.claudeSessionId || undefined,
         errorMessage:
           'Claude CLI の認証に失敗しました（認証情報の期限切れ/無効）。統合ターミナルで `claude login`（またはこのセッションで /login）を実行して再認証してください。再認証後、ブロックされたタスクは自動で再試行されます。',
+        ...usageFields,
+        ...forceKillFields,
+      });
+      return;
+    }
+
+    // Detect the CLI reporting the prompt/session context was too long (task
+    // 894: "Prompt is too long"). --resume of the SAME session reloads the
+    // already-too-large transcript, so it would repeat this failure —
+    // tagged so phase-session-resume.ts / execution-resume.ts stop resuming it.
+    // Non-zero exit only: the real failure exits 1 (task 981); task 1035 merely DISCUSSED the phrase.
+    const promptTooLongHit =
+      code !== 0 && detectPromptTooLong(ctx.outputBuffer + '\n' + ctx.errorBuffer);
+    if (promptTooLongHit) {
+      logger.error(
+        { logPrefix: ctx.logPrefix, executionTimeMs },
+        '[claude-code] Prompt/context too long — failing fast so the session is excluded from future resumes.',
+      );
+      ctx.status = 'failed';
+      resolve({
+        success: false,
+        output: ctx.outputBuffer,
+        artifacts,
+        commits,
+        executionTimeMs,
+        waitingForInput: false,
+        claudeSessionId: ctx.claudeSessionId || undefined,
+        failureType: 'prompt_too_long',
+        errorMessage: `${PROMPT_TOO_LONG_MARKER}Claude Code CLI reported the prompt/context was too long (exit code ${code}). The session's accumulated transcript has likely exceeded the model's context window — resuming this same session via --resume will very likely repeat this failure. Cold-start with a short structured handoff instead.`,
         ...usageFields,
         ...forceKillFields,
       });
@@ -240,8 +259,7 @@ export function buildResolveAfterParse(
       errorParts.push(`Process exited with code ${code}`);
 
       if (ctx.resumeSessionId) {
-        // NOTE: Neutral label only — asserting "session expired" here caused false-positive
-        // SESSION_FAILURE_RE matches on every resume-mode failure regardless of actual cause.
+        // NOTE: Neutral label only — asserting "session expired" caused false-positive SESSION_FAILURE_RE matches.
         errorParts.push(`\n\n【Session Resume Mode】Session ID: ${ctx.resumeSessionId}`);
       } else if (ctx.continueConversation) {
         errorParts.push(`\n\n【Conversation Continue Mode】\nUsing --continue flag`);
@@ -291,19 +309,14 @@ export function buildResolveAfterParse(
       return;
     }
 
-    // A force-kill after an UNRECOVERED API overload (the CLI exhausted its 529
-    // retries and stalled) is a real failure, NOT a benign "finished work then
-    // hung" exit — any partial git diff / output is unreliable. Without this, a
-    // 529-stalled run slips through the idle-hang git-diff path below and is
-    // recorded as a false completion (observed: "[Result: success]" + exit code 1
-    // with "API Error: 529 Overloaded"). Gated on the force-kill path only, so a
-    // 529 that was retried and RECOVERED (clean exit) is unaffected. Resolve as a
-    // failure so the workflow retries the phase once the provider recovers.
-    const apiOverloadHit =
-      ctx.idleTimeoutForceKilled &&
-      /API\s*Error:?\s*529|529\s+Overloaded|overloaded_error/i.test(
-        ctx.outputBuffer + '\n' + ctx.errorBuffer,
-      );
+    // A force-kill after an UNRECOVERED API overload is a real failure, not a
+    // benign "finished work then hung" exit (observed: "[Result: success]" +
+    // exit 1 + "API Error: 529 Overloaded"). A 529 that was retried and
+    // RECOVERED (clean exit) is unaffected — gated on the force-kill path only.
+    const apiOverloadHit = detectApiOverload(
+      ctx.outputBuffer + '\n' + ctx.errorBuffer,
+      ctx.idleTimeoutForceKilled,
+    );
     if (apiOverloadHit) {
       logger.error(
         `${ctx.logPrefix} Force-killed after an unrecovered API overload (529). Failing so the phase retries instead of being marked complete on partial output.`,

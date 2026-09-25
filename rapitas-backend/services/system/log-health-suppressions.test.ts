@@ -7,117 +7,21 @@
  */
 import { describe, test, expect } from 'bun:test';
 import { classifyLogSignature } from './log-health-suppressions';
-
-const SUPPRESSED: [string, string][] = [
-  [
-    'execution-file-logger',
-    'Process exited with code # 【Session Resume Mode】Session ID: # 【Warning】Execution time of #ms is very short.',
-  ],
-  ['git-service', 'Refusing to switch to branch feature/t#-x in the PRIMARY git working tree'],
-  ['git-service', 'Refusing to create a commit: could not determine the worktree type'],
-  [
-    'workflow',
-    '[mergeBranch] primary working tree — skipping local checkout+pull sync to protect develop',
-  ],
-  [
-    'workflow-reconciler-queue-stall',
-    '[reconciler] Queue starvation detected — restarted WorkflowRunner processing',
-  ],
-  [
-    'workflow-reconciler-queue-stall',
-    '[reconciler] Queue has items while the runner is already processing — a kick cannot help; not restarting',
-  ],
-  ['theme-auto-run-scheduler', '[ThemeAutoRunScheduler] Task # was already queued; tracking it'],
-  [
-    'auto-restart-merged-code-scheduler',
-    '[AutoRestartMergedCode] Working tree dirty — skipping pull/restart this tick',
-  ],
-  [
-    'dev-restart',
-    '[dev-restart] auto-run dry + new commits + no agents — restarting to apply updates',
-  ],
-  ['workflow-runner', '[WorkflowRunner] Already running'],
-  ['model-discovery:ollama', 'Ollama probe failed'],
-  [
-    'runtime-smoke',
-    '[runtime-smoke] launch failed with an ENVIRONMENT signature — skipping (fail-open)',
-  ],
-  ['agent-worker-manager:lifecycle', '[AgentWorkerManager] Worker process exited'],
-  ['workflow-orchestrator', 'Server is shutting down, cannot start new execution'],
-  [
-    'workflow-cli-executor',
-    '[WorkflowCLIExecutor] verify.md self-contradicts: claims all tests pass',
-  ],
-  ['agents:verification-gate', 'Automated verification failed — blocking'],
-  [
-    'routes:workflow:auto-commit',
-    '[Workflow] Automated verification failed — aborting auto-commit/PR',
-  ],
-  ['exec-log', '[ExecLog:#] Execution ended with status: failed'],
-  [
-    'github-service:client',
-    'gh command failed: gh pr create --title [Task-#] no commits between develop and bugfix/t#-x',
-  ],
-  ['error-handler', 'Bad Request: Failed to parse JSON'],
-  ['error-handler', 'Failed to parse JSON request body'],
-  ['ai:provider-cooldown', 'Provider placed in cooldown'],
-  ['routes:workflow:handlers:files', '[Workflow] Phase critic gate timed out — failing open'],
-  ['workflow:completion-gate', '[CompletionGate] diff check failed — failing open'],
-  [
-    'workflow:verify-self-repair',
-    '[verify-repair] Non-convergence check failed — failing open (no cutoff)',
-  ],
-  [
-    'task-executor',
-    '[TaskExecutor] Detected provider error in successful output — forcing fallback',
-  ],
-  ['task-executor', '[TaskExecutor] Provider failed — retrying with alternative agent config'],
-  ['memory:task-queue', 'Stuck processing task requeued as pending'],
-  ['claude-code-agent', '[resolveCliPath] Failed to resolve claude, using relative path'],
-  ['claude-code-agent', 'Command failed: taskkill /PID # /T /F'],
-  ['codex-cli-agent', 'Command failed: taskkill /PID # /T /F'],
-  ['gemini-cli-agent:process-manager', 'Command failed: taskkill /PID # /T /F'],
-  [
-    'git-operations/worktree-ops',
-    "Command failed: git worktree remove <path> … fatal: '<path>' is not a working tree",
-  ],
-  [
-    'auto-run:idle-timer',
-    '[auto-run-idle-timer] Idle-stop timer expired for theme # (enabled=false)',
-  ],
-  ['routes:workflow:auto-commit', '[Workflow] Worktree cleanup failed: <path>'],
-  ['runtime-smoke:launcher', '[runtime-smoke] health check timed out'],
-];
-
-const KEPT: [string, string][] = [
-  ['claude-code', 'Process exited with code # 【Session Resume Mode】Session ID: #'],
-  ['prisma', 'Invalid `prisma.timelineEvent.create()` invocation'],
-  ['workflow', 'Agent produced code changes WITHOUT saving plan.md — workflow violated'],
-  ['git-service', 'git command failed: git merge --abort'],
-  ['claude-code', '[claude-code] Model rejected by CLI — likely a provider/agent mismatch'],
-  ['workflow-runner', '[WorkflowRunner] Execution error for task #: Task # not found'],
-  [
-    'github-service:client',
-    "gh command failed: gh pr create --title [Task-#] no commits between develop and bugfix/t#-x: base sha can't be blank",
-  ],
-  ['error-handler', 'Prisma Error'],
-  ['routes:workflow:auto-commit', 'Automated verification failed — aborting PR review'],
-  ['memory:task-queue', 'Stuck processing task moved to dead_letter'],
-  ['claude-code-agent', 'process.kill() also failed'],
-  [
-    'git-operations/worktree-ops',
-    "Command failed: git worktree remove <path> … error: failed to delete '<path>': Permission denied",
-  ],
-  ['git-operations/worktree-ops', 'Could not remove <path> after retries (held handles)'],
-  ['git-operations/worktree-ops', 'REFUSED fs cleanup: <path> contains .git directory'],
-  ['auto-run:idle-timer', '[auto-run-idle-timer] stopThemeForIdleTimeout write failed'],
-  [
-    'git-operations/worktree-ops',
-    '[cleanupOrphanedWorktrees] Failed to remove orphaned directory after retries: <path>',
-  ],
-];
+import { normalizeMessage } from './log-health-check';
+import { SUPPRESSED, KEPT } from './log-health-suppressions.fixtures';
 
 describe('classifyLogSignature', () => {
+  test('the real task-1011 gh pr merge line is suppressed after normalization', () => {
+    const raw = [
+      'Command failed: C:\\Program Files\\GitHub CLI\\gh.exe pr merge 778 --merge --delete-branch',
+      "failed to delete local branch feature/t1011-update-execution-agent: failed to run git: error: cannot delete branch 'feature/t1011-update-execution-agent' used by worktree at 'C:/Projects/rapitas/.worktrees/task-1011-b7839f22'",
+      '',
+    ].join('\n');
+    expect(
+      classifyLogSignature('git-operations/pr-merge-ops', normalizeMessage(raw)).suppressed,
+    ).toBe(true);
+  });
+
   test.each(SUPPRESSED)('suppresses %s: %s', (name, msg) => {
     const v = classifyLogSignature(name, msg);
     expect(v.suppressed).toBe(true);
@@ -142,6 +46,16 @@ describe('classifyLogSignature', () => {
     expect(classifyLogSignature('some-other-logger', 'no commits between a and b').suppressed).toBe(
       false,
     );
+  });
+
+  test('"nothing to publish (skipped before gh pr create)" is scoped to routes:workflow:auto-commit only', () => {
+    // Task 1083: the phrase alone must not suppress an unrelated logger reusing it.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        'No commits between develop and bugfix/t1054-update-task — nothing to publish (skipped before gh pr create)',
+      ).suppressed,
+    ).toBe(false);
   });
 
   test('an unknown line is filed rather than dropped', () => {
@@ -208,6 +122,16 @@ describe('classifyLogSignature', () => {
     ).toBe(false);
   });
 
+  test('"Prompt/context too long — failing fast" is scoped to the claude-code-agent logger only', () => {
+    // Task #1036: the fail-fast line is the guard working; the same phrase elsewhere stays visible.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        '[claude-code] Prompt/context too long — failing fast so the session is excluded from future resumes.',
+      ).suppressed,
+    ).toBe(false);
+  });
+
   test('"[resolveCliPath] Failed to resolve" is scoped to the claude-code-agent logger only', () => {
     // Task #779: an unrelated logger reusing this phrase must still be filed.
     expect(
@@ -223,6 +147,29 @@ describe('classifyLogSignature', () => {
     // (e.g. a git-operations timeout) must still be filed.
     expect(
       classifyLogSignature('some-other-logger', 'Command failed: taskkill /PID # /T /F').suppressed,
+    ).toBe(false);
+  });
+
+  test('"OUTPUT IDLE HANG DETECTED" is suppressed for the claude-code-agent logger', () => {
+    // Task #1084: idle-monitor.ts:112-114's idle-hang force-kill is the guard
+    // working as designed (see log-health-suppression-rules.ts for the
+    // reasoning) — this must be classified as suppressed, not filed.
+    expect(
+      classifyLogSignature(
+        'claude-code-agent',
+        '[Claude Code] OUTPUT IDLE HANG DETECTED: No output for #s after producing # chars. Force-killing hung process.',
+      ).suppressed,
+    ).toBe(true);
+  });
+
+  test('"OUTPUT IDLE HANG DETECTED" is scoped to the claude-code-agent logger only', () => {
+    // Task #1084: the idle-hang force-kill is the guard working; an unrelated
+    // logger reusing this phrase must still be filed.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        '[Claude Code] OUTPUT IDLE HANG DETECTED: No output for #s after producing # chars. Force-killing hung process.',
+      ).suppressed,
     ).toBe(false);
   });
 
@@ -279,6 +226,17 @@ describe('classifyLogSignature', () => {
     ).toBe(false);
   });
 
+  test('"[Workflow] pre-PR base sync blocked PR creation" is scoped to the publish-guard logger only', () => {
+    // Task #1048/K-11293: the guard withholds PR creation on an unresolved
+    // base-sync conflict or a failed post-sync reverification — the guard
+    // working as designed, not a defect. An unrelated logger reusing the
+    // phrase must still be filed.
+    expect(
+      classifyLogSignature('some-other-logger', '[Workflow] pre-PR base sync blocked PR creation')
+        .suppressed,
+    ).toBe(false);
+  });
+
   test('"[Workflow] Worktree cleanup failed" is scoped to routes:workflow:auto-commit only', () => {
     // Task #821/K-8422: an unrelated logger reusing this phrasing must still be filed.
     expect(
@@ -295,6 +253,27 @@ describe('classifyLogSignature', () => {
       classifyLogSignature(
         'git-operations/worktree-ops',
         '[cleanupOrphanedWorktrees] Failed to remove orphaned directory after retries: <path>',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"[cleanupOrphanedWorktrees] removeWorktree refused" is suppressed only for the worktree-ops logger', () => {
+    // Task #1029: a refusal is the dirty-work guard working; the root cause is
+    // logged by worktree-remove.ts under its own signature.
+    for (const msg of [
+      '[cleanupOrphanedWorktrees] removeWorktree refused for # session(s) (ids: #): <path>',
+      '[cleanupOrphanedWorktrees] removeWorktree refused for # session(s) (ids: #,#,#,#,#,#): <path>',
+    ]) {
+      expect(classifyLogSignature('git-operations/worktree-ops', msg).suppressed).toBe(true);
+      expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    }
+  });
+
+  test('the root-cause "Preserving uncommitted work" warn stays visible', () => {
+    expect(
+      classifyLogSignature(
+        'git-operations/worktree-ops',
+        '[removeWorktree] Preserving uncommitted work',
       ).suppressed,
     ).toBe(false);
   });
@@ -316,5 +295,61 @@ describe('classifyLogSignature', () => {
       classifyLogSignature('preview-session', '[preview] dev server did not become healthy in time')
         .suppressed,
     ).toBe(false);
+  });
+
+  test('the real event-loop-lag WARN is suppressed after normalization (task 1040)', () => {
+    expect(
+      classifyLogSignature('event-loop-lag', normalizeMessage('Event loop stalled ~3.8s'))
+        .suppressed,
+    ).toBe(true);
+  });
+
+  test('"Event loop stalled" is scoped to the event-loop-lag logger only', () => {
+    // Task 1040: an unrelated logger reusing this phrase must still be filed.
+    expect(classifyLogSignature('some-other-logger', 'Event loop stalled ~#.#s').suppressed).toBe(
+      false,
+    );
+  });
+
+  test('the event-loop-lag self-heal restart ERROR stays visible', () => {
+    // Task 1040: only the sub-threshold WARN is suppressed. A catastrophic
+    // stall triggers a distinct ERROR-level message that must not be hidden.
+    expect(
+      classifyLogSignature('event-loop-lag', '[event-loop-lag] Self-healing restart triggered')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('"Reviewed external work held: stale_task" is scoped to the error-handler logger only', () => {
+    // Task 1046: the phrase alone must not suppress an unrelated logger, and
+    // a hold reason outside EXPECTED_REPLAN_HOLD_REASONS must stay visible
+    // even under error-handler since it still takes the generic-Error path.
+    expect(
+      classifyLogSignature('some-other-logger', 'Reviewed external work held: stale_task')
+        .suppressed,
+    ).toBe(false);
+    expect(
+      classifyLogSignature('error-handler', 'Reviewed external work held: budget_exhausted')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('"verify.md explicitly reports a failed or partial overall verdict" is scoped to the workflow-cli-executor logger only', () => {
+    // Task 1049: this WARN is the epilogue's fail-soft observability log for
+    // validateVerify's hasNonpassingVerifyVerdict branch — repair/block itself
+    // is handled elsewhere (status-transition.ts / verify-gate.ts). Scoping to
+    // the logger keeps an unrelated source reusing this phrase filed.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        'verify.md explicitly reports a failed or partial overall verdict; repair is required.',
+      ).suppressed,
+    ).toBe(false);
+    expect(
+      classifyLogSignature(
+        'workflow-cli-executor',
+        '[WorkflowCLIExecutor] verify.md explicitly reports a failed or partial overall verdict; repair is required. 未達: «...»',
+      ).suppressed,
+    ).toBe(true);
   });
 });

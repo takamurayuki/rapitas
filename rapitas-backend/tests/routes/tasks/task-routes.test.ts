@@ -5,6 +5,13 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { Elysia } from 'elysia';
 
+// Supports both the interactive (callback) and the batch (array) form of $transaction.
+function transactionImpl(arg: unknown): Promise<unknown> {
+  return Array.isArray(arg)
+    ? Promise.all(arg)
+    : (arg as (tx: unknown) => Promise<unknown>)(mockPrisma);
+}
+
 const mockPrisma = {
   task: {
     findMany: mock(() => Promise.resolve([])),
@@ -56,7 +63,11 @@ const mockPrisma = {
   requirementReviewRetryRequest: {
     create: mock(() => Promise.resolve({ id: 1 })),
   },
-  $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
+  // updateTask releases the theme's currentTaskId in the same transaction (task 1009).
+  themeAutoRun: {
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
+  },
+  $transaction: mock(transactionImpl),
 };
 
 mock.module('../../../config/database', () => ({
@@ -149,9 +160,7 @@ function resetAllMocks() {
     }
   }
   // Restore default for $transaction
-  mockPrisma.$transaction.mockImplementation((fn: (tx: unknown) => Promise<unknown>) =>
-    fn(mockPrisma),
-  );
+  mockPrisma.$transaction.mockImplementation(transactionImpl);
   // createTask chains `notification.create(...).catch(...)`; a reset
   // (undefined-returning) mock would throw on `.catch` of undefined → 500.
   mockPrisma.notification.create.mockResolvedValue({ id: 1 });

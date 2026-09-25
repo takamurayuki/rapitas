@@ -116,24 +116,10 @@ async function sendStreamWithPaidProvider(options: AIRequestOptions): Promise<Re
   }
 }
 
-export type AuxAiMode = 'cli' | 'api' | 'off';
-
-/**
- * Routing mode for auxiliary AI helper calls (naming, spec derivation, memory
- * upkeep, reviews, chat, …). Controls whether these run through the Claude Code
- * CLI (subscription, no per-token billing), the paid Anthropic API, or are
- * disabled entirely.
- *
- * - `cli` (default): delegate to the subscription-backed CLI. No paid API is hit.
- * - `api`: use the paid provider (legacy behavior / emergency escape hatch).
- * - `off`: disable auxiliary AI — callers degrade gracefully.
- *
- * @returns The resolved mode / 解決されたモード
- */
-export function getAuxAiMode(): AuxAiMode {
-  const v = (process.env.RAPITAS_AUX_AI || 'cli').toLowerCase();
-  return v === 'api' || v === 'off' ? v : 'cli';
-}
+// Lives in its own module so barrel-free consumers (phase-critic) can read the
+// mode without loading — or being blocked by a test's fixed mock of — this file.
+import { getAuxAiMode } from './aux-ai-mode';
+export { getAuxAiMode, type AuxAiMode } from './aux-ai-mode';
 
 /**
  * Non-local generation target: subscription CLI in `cli` mode, else the paid API.

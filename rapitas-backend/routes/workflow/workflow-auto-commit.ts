@@ -23,6 +23,7 @@ import {
   releasePrCreationLock,
 } from '../../services/github/pr-duplicate-guard';
 import type { BaseSyncResult } from '../../services/workflow/pre-pr-base-sync';
+import { PR_CREATION_IN_FLIGHT_ERROR } from '../../services/workflow/pr-in-flight-wait';
 import {
   syncHarnessIfDrifted,
   type HarnessDriftSyncResult,
@@ -34,6 +35,7 @@ import {
   saveTaskWorkLocally,
 } from './workflow-auto-commit-presave';
 import { syncAndReverifyBeforePublish } from './workflow-auto-commit-publish-guard';
+import { pushExistingPrBranch } from './workflow-auto-commit-reuse-push';
 import {
   PUBLICATION_CANCELLED_ERROR,
   publicationAborted,
@@ -334,10 +336,7 @@ export async function performAutoCommitAndPR(
         log.info(
           `[Workflow] Task ${taskId}: another PR-creation attempt is already in flight — skipping`,
         );
-        result.autoPRResult = {
-          success: false,
-          error: 'PR作成が別プロセスで進行中のためスキップしました',
-        };
+        result.autoPRResult = { success: false, error: PR_CREATION_IN_FLIGHT_ERROR };
       } else {
         try {
           const existingOpenPr = await findOpenPrForTask(prisma, taskId);
@@ -345,11 +344,21 @@ export async function performAutoCommitAndPR(
             log.info(
               `[Workflow] Task ${taskId} already has open PR #${existingOpenPr.prNumber} — reusing instead of creating a new one`,
             );
-            result.autoPRResult = {
-              success: true,
-              prUrl: existingOpenPr.url,
-              prNumber: existingOpenPr.prNumber,
-            };
+            // The create path pushes inside createPullRequest; this short-circuit
+            // skipped that call, so ci_repair fixes were saved locally and never
+            // reached the PR (tasks 995/1002, 2026-09-20). Push explicitly.
+            const pushBranch = result.autoCommitResult?.branch ?? branchName;
+            const pushed = pushBranch
+              ? await pushExistingPrBranch(gitCwd, pushBranch)
+              : { success: false, error: 'branch name unknown — cannot push to the existing PR' };
+            result.autoPRResult = pushed.success
+              ? { success: true, prUrl: existingOpenPr.url, prNumber: existingOpenPr.prNumber }
+              : {
+                  success: false,
+                  prUrl: existingOpenPr.url,
+                  prNumber: existingOpenPr.prNumber,
+                  error: `既存 PR #${existingOpenPr.prNumber} への push に失敗しました: ${pushed.error}`,
+                };
           } else {
             const prTitle = `[Task-${taskId}] ${task.title}`;
             const prBody = `## Summary\n\nAuto-generated PR for Task #${taskId}: ${task.title}\n\n## Verification Report\n\n${verifyContent}\n\n---\n🤖 Generated automatically by Rapitas AI Agent`;

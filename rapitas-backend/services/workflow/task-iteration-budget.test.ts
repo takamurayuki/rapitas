@@ -4,8 +4,56 @@
  * resolveIterationBudgetState（純粋関数）の単体テスト。各予算軸の単独超過・
  * 優先順位・除外ガード・forgiveness budget超過だが進展ありケースを検証する。
  */
-import { describe, test, expect } from 'bun:test';
-import { resolveIterationBudgetState, type IterationBudgetInput } from './task-iteration-budget';
+import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
+import {
+  isHaltSideTransitionCause,
+  resolveIterationBudgetState,
+  type IterationBudgetInput,
+} from './task-iteration-budget';
+
+describe('isHaltSideTransitionCause', () => {
+  test('この予算自身の halt と hang backstop の遷移は停止側として除外対象', () => {
+    // 2026-09-20 task 984/985: the halt wrote a same-status transition every
+    // tick, which then counted as the "repeated cause" for the next halt.
+    expect(isHaltSideTransitionCause('iteration_budget_halted')).toBe(true);
+    expect(isHaltSideTransitionCause('auto_run_hang_backstop')).toBe(true);
+  });
+
+  test('作業側の遷移(修復バウンス・保存・retry)は除外しない', () => {
+    for (const cause of [
+      'verify_repair',
+      'ci_repair',
+      'file_saved:verify',
+      'task_retried',
+      null,
+      undefined,
+    ]) {
+      expect(isHaltSideTransitionCause(cause)).toBe(false);
+    }
+  });
+});
+
+// 運用者の .env(暫定 6/8、ATTEMPTS_BUDGET=20 等)に依存せず既定閾値で検証する
+const ENV_KEYS = [
+  'RAPITAS_ITERATION_NO_PROGRESS_STATUS_REPEAT_MIN',
+  'RAPITAS_ITERATION_NO_PROGRESS_ATTEMPTS_MIN',
+  'RAPITAS_ITERATION_ATTEMPTS_BUDGET',
+  'RAPITAS_ITERATION_TIME_BUDGET_MS',
+  'RAPITAS_TASK_BUDGET_USD',
+] as const;
+const savedEnv: Record<string, string | undefined> = {};
+beforeAll(() => {
+  for (const k of ENV_KEYS) {
+    savedEnv[k] = process.env[k];
+    delete process.env[k];
+  }
+});
+afterAll(() => {
+  for (const k of ENV_KEYS) {
+    if (savedEnv[k] === undefined) delete process.env[k];
+    else process.env[k] = savedEnv[k];
+  }
+});
 
 const BASE_NOW_MS = 1_700_000_000_000;
 
@@ -39,6 +87,27 @@ describe('resolveIterationBudgetState', () => {
     const result = resolveIterationBudgetState(baseInput({ spentUsd: 30 }));
     expect(result.shouldHalt).toBe(true);
     expect(result.haltReason).toBe('budget_cost_exceeded');
+  });
+
+  // task 1031 (2026-09-22): the second implementer run ended at $46 and the
+  // cost halt fired BEFORE its verification, parking the whole spend unverified.
+  test('実装完了・検証待ち(pendingVerification)なら費用超過でも停止せず検証を通す', () => {
+    const result = resolveIterationBudgetState(
+      baseInput({ spentUsd: 46, pendingVerification: true }),
+    );
+    expect(result).toEqual({ shouldHalt: false });
+  });
+
+  test('検証待ちの猶予は費用軸だけ — 時間・試行回数の超過は従来どおり停止', () => {
+    expect(
+      resolveIterationBudgetState(
+        baseInput({ windowStartMs: BASE_NOW_MS - 25 * 60 * 60 * 1000, pendingVerification: true }),
+      ).haltReason,
+    ).toBe('budget_time_exceeded');
+    expect(
+      resolveIterationBudgetState(baseInput({ attemptsInWindow: 9, pendingVerification: true }))
+        .haltReason,
+    ).toBe('budget_attempts_exceeded');
   });
 
   test('試行回数予算超過(既定8件)で budget_attempts_exceeded', () => {

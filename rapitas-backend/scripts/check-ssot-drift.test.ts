@@ -17,6 +17,12 @@ import { fileURLToPath } from 'url';
 const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url));
 const SCRIPT = join(SCRIPTS_DIR, 'check-ssot-drift.ts');
 
+// Each test spawns a real `bun` subprocess to run the drift script end-to-end;
+// under Windows suite load, bun's own startup cost can exceed the 5s default.
+// Measured single-file run (bun test --isolate, no concurrent load): 11.55s
+// total for all 6 tests in this file (2026-09-25, this worktree).
+const SPAWN_TEST_TIMEOUT_MS = 30_000;
+
 function run(args: string[]): { status: number; stdout: string; stderr: string } {
   const result = spawnSync('bun', [SCRIPT, ...args], {
     encoding: 'utf8',
@@ -30,50 +36,74 @@ function run(args: string[]): { status: number; stdout: string; stderr: string }
 }
 
 describe('check-ssot-drift', () => {
-  test('exits 0 in warn-only mode (default) even when violations exist', () => {
-    const { status, stdout } = run([]);
-    expect(status).toBe(0);
-    expect(stdout).toContain('Domain A');
-    expect(stdout).toContain('Domain B');
-    expect(stdout).toContain('Domain C');
-    expect(stdout).toContain('Domain D');
-  });
+  test(
+    'exits 0 in warn-only mode (default) even when violations exist',
+    () => {
+      const { status, stdout } = run([]);
+      expect(status).toBe(0);
+      expect(stdout).toContain('Domain A');
+      expect(stdout).toContain('Domain B');
+      expect(stdout).toContain('Domain C');
+      expect(stdout).toContain('Domain D');
+    },
+    SPAWN_TEST_TIMEOUT_MS,
+  );
 
-  test('exits 0 with --warn-only flag', () => {
-    const { status } = run(['--warn-only']);
-    expect(status).toBe(0);
-  });
+  test(
+    'exits 0 with --warn-only flag',
+    () => {
+      const { status } = run(['--warn-only']);
+      expect(status).toBe(0);
+    },
+    SPAWN_TEST_TIMEOUT_MS,
+  );
 
-  test('exits 1 with --check flag when violations exist', () => {
-    // Domain B + C violations exist in the broader codebase (files not yet migrated).
-    // The script in --check mode must exit 1 when any violation is found.
-    const { status, stdout } = run(['--check']);
-    // Either exit 0 (all clean) or exit 1 (violations found) — both are valid
-    // depending on project migration state. What matters is the output structure.
-    expect([0, 1]).toContain(status);
-    expect(stdout).toContain('Domain A');
-    expect(stdout).toContain('Domain B');
-    expect(stdout).toContain('Domain C');
-    expect(stdout).toContain('Domain D');
-  });
+  test(
+    'exits 1 with --check flag when violations exist',
+    () => {
+      // Domain B + C violations exist in the broader codebase (files not yet migrated).
+      // The script in --check mode must exit 1 when any violation is found.
+      const { status, stdout } = run(['--check']);
+      // Either exit 0 (all clean) or exit 1 (violations found) — both are valid
+      // depending on project migration state. What matters is the output structure.
+      expect([0, 1]).toContain(status);
+      expect(stdout).toContain('Domain A');
+      expect(stdout).toContain('Domain B');
+      expect(stdout).toContain('Domain C');
+      expect(stdout).toContain('Domain D');
+    },
+    SPAWN_TEST_TIMEOUT_MS,
+  );
 
-  test('output labels include domain names', () => {
-    const { stdout } = run(['--warn-only']);
-    expect(stdout).toContain('Domain A (WorkflowRole/Status/Mode type drift)');
-    expect(stdout).toContain('Domain B (HTTP status numeric literals)');
-    expect(stdout).toContain('Domain C (error message string literals)');
-    expect(stdout).toContain('Domain D (WorkflowFileType/VALID_STATUSES/inline-modes drift)');
-  });
+  test(
+    'output labels include domain names',
+    () => {
+      const { stdout } = run(['--warn-only']);
+      expect(stdout).toContain('Domain A (WorkflowRole/Status/Mode type drift)');
+      expect(stdout).toContain('Domain B (HTTP status numeric literals)');
+      expect(stdout).toContain('Domain C (error message string literals)');
+      expect(stdout).toContain('Domain D (WorkflowFileType/VALID_STATUSES/inline-modes drift)');
+    },
+    SPAWN_TEST_TIMEOUT_MS,
+  );
 
-  test('Domain A has 0 violations (all types migrated to SSOT)', () => {
-    const { stdout } = run(['--warn-only']);
-    expect(stdout).toContain('Domain A (WorkflowRole/Status/Mode type drift): 0 violation(s)');
-  });
+  test(
+    'Domain A has 0 violations (all types migrated to SSOT)',
+    () => {
+      const { stdout } = run(['--warn-only']);
+      expect(stdout).toContain('Domain A (WorkflowRole/Status/Mode type drift): 0 violation(s)');
+    },
+    SPAWN_TEST_TIMEOUT_MS,
+  );
 
-  test('Domain D has 0 violations (all workflow constants migrated to SSOT)', () => {
-    const { stdout } = run(['--warn-only']);
-    expect(stdout).toContain(
-      'Domain D (WorkflowFileType/VALID_STATUSES/inline-modes drift): 0 violation(s)',
-    );
-  });
+  test(
+    'Domain D has 0 violations (all workflow constants migrated to SSOT)',
+    () => {
+      const { stdout } = run(['--warn-only']);
+      expect(stdout).toContain(
+        'Domain D (WorkflowFileType/VALID_STATUSES/inline-modes drift): 0 violation(s)',
+      );
+    },
+    SPAWN_TEST_TIMEOUT_MS,
+  );
 });

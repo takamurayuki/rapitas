@@ -10,6 +10,7 @@
 import { assessRisk } from '../../observability/pii-risk/risk-assessor';
 import { mitigateText } from '../../observability/pii-risk/mitigate';
 import { getAuxAiMode, callClaudeCli } from '../../../utils/ai-client';
+import { extractLastJsonObject } from '../../../utils/ai-client/cli-failure-reason';
 import { recordDiagnosis } from './error-diagnosis-recorder';
 import type { DiagnosisSuggestedAction } from './error-diagnosis.types';
 import { createLogger } from '../../../config/logger';
@@ -89,7 +90,11 @@ export async function diagnoseErrorWithLlm(input: DiagnoseErrorInput): Promise<v
 
   let parsed: LlmDiagnosisResponse;
   try {
-    parsed = JSON.parse(res.content) as LlmDiagnosisResponse;
+    // NOTE: Haiku sometimes wraps the response in a ```json fence despite the
+    // system prompt forbidding it — extract the trailing {...} block first so
+    // that fenced responses parse instead of throwing on the leading '`'.
+    const jsonText = extractLastJsonObject(res.content) ?? res.content;
+    parsed = JSON.parse(jsonText) as LlmDiagnosisResponse;
   } catch (err) {
     log.warn({ err }, 'LLM error diagnosis response was not valid JSON — skipping record');
     return;

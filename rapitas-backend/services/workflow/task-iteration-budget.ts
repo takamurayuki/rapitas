@@ -6,7 +6,9 @@
  * no-progress fallback, per task 881. Existing modules keep their current
  * responsibilities unchanged — this module only ADDS a stop decision on top
  * of their outputs (see plan.md §重複・置換範囲マッピング):
- *   - cost figures come from task-budget.ts's getTaskSpendUsd (reused as-is)
+ *   - cost figures come from task-budget.ts's getTaskSpendUsdSince, summed
+ *     over the current iteration window only (a lifetime total re-halted
+ *     every over-budget task on each selection after a window reset)
  *   - same-cause repeat comes from incident-signature-repeat-loop.ts's
  *     detectRepeatLoop (reused as-is, forgiveness budget included)
  *   - the window-reset boundary follows the same event-driven pattern as
@@ -22,8 +24,11 @@
 
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { getTaskSpendUsd } from './task-budget';
+import { getTaskSpendUsdSince } from './task-budget';
 import { detectRepeatLoop, REPEAT_LOOP_WINDOW_MS } from './incident-signature-repeat-loop';
+import { activeClockStartMs } from './task-iteration-budget-active-clock';
+import { countNonAdvancingTransitions } from './task-iteration-budget-status';
+import { isAwaitingMergeWithPr, sliceAfterLastSuccess } from './task-iteration-budget-success';
 import { submitConcern } from '../memory/concern-backlog-service';
 import type {
   HaltReason,
@@ -35,6 +40,26 @@ const log = createLogger('task-iteration-budget');
 
 /** WorkflowTransition causes that reset the iteration window (fresh slate). */
 const WINDOW_RESET_CAUSES = ['task_retried', 'question_resolved', 'plan_invalid_replan'];
+
+/**
+ * Transition causes written by the STOP side (this budget's own halt, the
+ * hang backstop) rather than by the task's work. They are excluded from the
+ * repeat-loop and status-repeat inputs: a halt records a same-status
+ * transition every tick it fires, so counting it made the first halt prove
+ * its own "repeat cause" forever (task 984/985, 2026-09-20: 51 self-repeats).
+ */
+const HALT_SIDE_CAUSES = new Set(['iteration_budget_halted', 'auto_run_hang_backstop']);
+
+/**
+ * Whether a transition cause comes from the halting machinery itself and must
+ * not feed the iteration-budget signals.
+ *
+ * @param cause - WorkflowTransition.cause value. / 遷移の原因
+ * @returns True for halt/backstop causes. / 停止側の原因なら true
+ */
+export function isHaltSideTransitionCause(cause: string | null | undefined): boolean {
+  return cause != null && HALT_SIDE_CAUSES.has(cause);
+}
 
 /** Time budget after which a task halts with 'budget_time_exceeded' (default 24h). */
 export function iterationTimeBudgetMs(): number {
@@ -112,6 +137,25 @@ export interface IterationBudgetInput {
   manuallyWithdrawn?: boolean | null;
   /** False when the task's theme has auto-run disabled — mirrors detectStagnation's themeAutoRunEnabled gate. */
   themeAutoRunEnabled?: boolean | null;
+  /**
+   * Start of the task's latest active stretch (see
+   * task-iteration-budget-active-clock.ts). The time axis measures from here,
+   * so wall-clock time spent unselected never counts as iterating; falls back
+   * to windowStartMs when absent.
+   */
+  activeClockStartMs?: number;
+  /**
+   * True when an implementation is finished and only its verification
+   * (workflowStatus 'in_progress') or its publication / merge wait
+   * (verify_done) is pending. The cost axis is deferred in these states: they
+   * are the agent-free steps that turn the implement spend into a merged PR
+   * or a concrete finding, and halting there strands the whole spend (task
+   * 1031, 2026-09-22: $46 parked unverified; task 1060, 2026-09-24: halted
+   * one minute before its PR was created, then again the minute after the PR
+   * opened). The halt still fires at the next implementer dispatch — a
+   * ci_repair leaves verify_done, so it is not exempt.
+   */
+  pendingVerification?: boolean | null;
 }
 
 /** ResumeCondition attached to a repeat_cause_detected/no_progress halt. */
@@ -143,15 +187,20 @@ export function resolveIterationBudgetState(input: IterationBudgetInput): Iterat
   if (input.manuallyWithdrawn) return { shouldHalt: false };
   if (input.themeAutoRunEnabled === false) return { shouldHalt: false };
 
-  const elapsedMs = input.nowMs - input.windowStartMs;
+  const diagnostics = {
+    statusRepeatCount: input.statusRepeatCount,
+    attempts: input.attemptsInWindow,
+    repeatLoop: input.repeatLoop,
+  };
+  const elapsedMs = input.nowMs - (input.activeClockStartMs ?? input.windowStartMs);
   if (elapsedMs >= iterationTimeBudgetMs()) {
-    return { shouldHalt: true, haltReason: 'budget_time_exceeded' as HaltReason };
+    return { shouldHalt: true, haltReason: 'budget_time_exceeded' as HaltReason, diagnostics };
   }
-  if (input.spentUsd >= iterationCostBudgetUsd()) {
-    return { shouldHalt: true, haltReason: 'budget_cost_exceeded' as HaltReason };
+  if (input.spentUsd >= iterationCostBudgetUsd() && !input.pendingVerification) {
+    return { shouldHalt: true, haltReason: 'budget_cost_exceeded' as HaltReason, diagnostics };
   }
   if (input.attemptsInWindow >= iterationAttemptsBudget()) {
-    return { shouldHalt: true, haltReason: 'budget_attempts_exceeded' as HaltReason };
+    return { shouldHalt: true, haltReason: 'budget_attempts_exceeded' as HaltReason, diagnostics };
   }
 
   const statusRepeatOk = input.statusRepeatCount >= noProgressStatusRepeatMin();
@@ -161,6 +210,7 @@ export function resolveIterationBudgetState(input: IterationBudgetInput): Iterat
     return {
       shouldHalt: true,
       haltReason: 'repeat_cause_detected' as HaltReason,
+      diagnostics,
       resumeCondition: newHypothesisResumeCondition(
         `同一原因(${input.repeatLoop.cause})の反復が${input.repeatLoop.count}回検出され、進展がありません。`,
       ),
@@ -171,6 +221,7 @@ export function resolveIterationBudgetState(input: IterationBudgetInput): Iterat
     return {
       shouldHalt: true,
       haltReason: 'no_progress' as HaltReason,
+      diagnostics,
       resumeCondition: newHypothesisResumeCondition(
         '一定回数の試行を重ねても状態が進展していません。',
       ),
@@ -206,20 +257,31 @@ export async function resolveIterationBudgetForTask(
   try {
     const task = await prisma.task.findUnique({
       where: { id: taskId },
-      select: { workflowStatus: true, createdAt: true },
+      select: { workflowStatus: true, createdAt: true, githubPrId: true },
     });
     if (!task) return { shouldHalt: false };
 
     const windowStart = (await resolveIterationWindowStart(taskId)) ?? task.createdAt;
     const windowStartMs = windowStart.getTime();
 
-    const [spentUsd, attemptsInWindow, transitionsInWindow] = await Promise.all([
-      getTaskSpendUsd(taskId),
+    // Cost is windowed like attempts: a reset (retry / answered question /
+    // replan) grants a fresh slate on every axis, not just on the counters.
+    const [spentUsd, attemptsInWindow, executionStarts, transitionsInWindow] = await Promise.all([
+      getTaskSpendUsdSince(taskId, windowStart),
       prisma.agentExecution.count({
         where: {
           session: { config: { taskId } },
           OR: [{ startedAt: null }, { startedAt: { gte: windowStart } }],
         },
+      }),
+      // Time axis clock: the latest stretch of executions, so a task held or
+      // idle for days is not "over time" the second it is re-selected (#911).
+      prisma.agentExecution.findMany({
+        where: {
+          session: { config: { taskId } },
+          OR: [{ startedAt: null }, { startedAt: { gte: windowStart } }],
+        },
+        select: { startedAt: true },
       }),
       prisma.workflowTransition.findMany({
         where: { taskId, createdAt: { gte: new Date(nowMs - REPEAT_LOOP_WINDOW_MS) } },
@@ -229,12 +291,27 @@ export async function resolveIterationBudgetForTask(
           actor: true,
           invariantViolation: true,
           toStatus: true,
+          fromStatus: true,
         },
+        orderBy: { createdAt: 'asc' },
       }),
     ]);
 
+    // Drop the stop side's own transitions before either signal below —
+    // otherwise each halt re-arms the next one (see HALT_SIDE_CAUSES).
+    const allWork = transitionsInWindow.filter((t) => !isHaltSideTransitionCause(t.cause));
+    // NOTE: bounces before a PR-created/awaiting-merge transition are not "no
+    // progress" — count only what follows the last success (task 1018, #1009).
+    const workTransitions = isAwaitingMergeWithPr({
+      workflowStatus: task.workflowStatus,
+      githubPrId: task.githubPrId,
+      lastToStatus: allWork[allWork.length - 1]?.toStatus,
+    })
+      ? []
+      : sliceAfterLastSuccess(allWork);
+
     const repeatLoop = detectRepeatLoop({
-      transitions: transitionsInWindow.map((t) => ({
+      transitions: workTransitions.map((t) => ({
         cause: t.cause,
         createdAtMs: t.createdAt.getTime(),
         actor: t.actor,
@@ -244,22 +321,34 @@ export async function resolveIterationBudgetForTask(
       taskStatus: undefined,
     });
 
-    // Condition ①: same/regressed workflowStatus repeated within the window.
-    // Approximated as repeated occurrences of the CURRENT workflowStatus among
-    // this window's transitions — a task genuinely progressing moves through
-    // distinct toStatus values, not the same one over and over.
-    const statusRepeatCount = transitionsInWindow.filter(
-      (t) => t.toStatus === task.workflowStatus,
-    ).length;
+    // Condition ①: transitions that did not advance the workflow (same status
+    // re-recorded or a step back), excluding reset-family causes. NOTE: the old
+    // "toStatus === current workflowStatus" count fired on progressing tasks
+    // whose re-runs passed the same statuses twice (task 994, 984/986).
+    const statusRepeatCount = countNonAdvancingTransitions(
+      workTransitions,
+      isHaltSideTransitionCause,
+    );
 
     consecutiveReadFailures.delete(taskId);
     return resolveIterationBudgetState({
       nowMs,
       windowStartMs,
+      activeClockStartMs: activeClockStartMs(
+        executionStarts.map((e) => e.startedAt?.getTime()),
+        windowStartMs,
+        nowMs,
+        iterationTimeBudgetMs(),
+      ),
       spentUsd,
       attemptsInWindow,
       repeatLoop,
       statusRepeatCount,
+      // verify_done covers both publication (no PR yet) and the merge wait
+      // (PR open): neither dispatches an agent. A ci_repair moves the task
+      // back to an implementer status, where the halt fires as intended.
+      pendingVerification:
+        task.workflowStatus === 'in_progress' || task.workflowStatus === 'verify_done',
       ...guards,
     });
   } catch (err) {

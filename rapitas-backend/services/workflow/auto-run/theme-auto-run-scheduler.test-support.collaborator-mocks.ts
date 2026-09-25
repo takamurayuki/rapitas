@@ -18,12 +18,27 @@ import { mock } from 'bun:test';
 // ---------------------------------------------------------------------------
 // Silent logger (mirrors the shape used elsewhere: info/warn/error/debug)
 // ---------------------------------------------------------------------------
+export const mockLogWarn = mock(() => {});
 const silentLogger = {
   info: () => {},
-  warn: () => {},
+  warn: mockLogWarn,
   error: () => {},
   debug: () => {},
 };
+
+// ---------------------------------------------------------------------------
+// event-loop-lag-watchdog mock (task 1040 — advanceTheme section registration)
+// ---------------------------------------------------------------------------
+export const mockMarkEventLoopSectionCalls: string[] = [];
+export const mockReleaseEventLoopSection = mock(() => {});
+export const mockMarkEventLoopSection = mock((name: string) => {
+  mockMarkEventLoopSectionCalls.push(name);
+  return mockReleaseEventLoopSection;
+});
+
+mock.module('../../system/event-loop-lag-watchdog', () => ({
+  markEventLoopSection: mockMarkEventLoopSection,
+}));
 
 // ---------------------------------------------------------------------------
 // prisma (config) mocks

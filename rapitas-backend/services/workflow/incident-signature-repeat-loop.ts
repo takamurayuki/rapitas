@@ -9,6 +9,10 @@
  * filing.
  */
 
+// Mirrors required-merge-hold.ts's AWAITING_REQUIRED_MERGE_CAUSE; duplicated because importing it
+// would pull prisma into this DB-independent module.
+const AWAITING_MERGE_CAUSE = 'verify_awaiting_required_merge';
+
 /** Task statuses that are terminal — a finished task can never be looping. */
 const TERMINAL_TASK_STATUSES = new Set(['done', 'cancelled', 'archived', 'completed']);
 
@@ -208,6 +212,11 @@ export function detectRepeatLoop(input: {
       invariantCounts.set(t.cause, (invariantCounts.get(t.cause) ?? 0) + 1);
     }
   }
+
+  // task 1001: a held merge wait is legitimate; only the first hold counts so re-holds alone are
+  // not a loop (a truly stuck merge is owned by AutoMergeWatcher's deadline, not this detector).
+  const heldCount = counts.get(AWAITING_MERGE_CAUSE);
+  if (heldCount !== undefined && heldCount > 1) counts.set(AWAITING_MERGE_CAUSE, 1);
 
   let best: { cause: string; count: number; via: 'general' | 'invariant' } | null = null;
   for (const [cause, count] of counts) {

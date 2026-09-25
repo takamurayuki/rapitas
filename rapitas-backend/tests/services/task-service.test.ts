@@ -5,6 +5,13 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
 // Prisma mock
+// Supports both the interactive (callback) and the batch (array) form of $transaction.
+function transactionImpl(arg: unknown): Promise<unknown> {
+  return Array.isArray(arg)
+    ? Promise.all(arg)
+    : (arg as (tx: unknown) => Promise<unknown>)(mockPrisma);
+}
+
 const mockPrisma = {
   task: {
     findMany: mock(() => Promise.resolve([])),
@@ -29,7 +36,11 @@ const mockPrisma = {
   studyStreak: {
     upsert: mock(() => Promise.resolve({})),
   },
-  $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
+  // updateTask releases the theme's currentTaskId in the same transaction (task 1009).
+  themeAutoRun: {
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
+  },
+  $transaction: mock(transactionImpl),
 };
 
 mock.module('../../config/database', () => ({
@@ -84,9 +95,7 @@ function resetAllMocks() {
       }
     }
   }
-  mockPrisma.$transaction.mockImplementation((fn: (tx: unknown) => Promise<unknown>) =>
-    fn(mockPrisma),
-  );
+  mockPrisma.$transaction.mockImplementation(transactionImpl);
   // Restore a resolving default after reset — createTask chains
   // `notification.create(...).catch(...)`, so a reset (undefined-returning) mock
   // would throw on `.catch` of undefined.
@@ -218,6 +227,36 @@ describe('updateTask', () => {
     await updateTask(mockPrisma as never, 1, { status: 'done' });
 
     expect(mockPrisma.studyStreak.upsert).toHaveBeenCalled();
+  });
+
+  test.each(['done', 'cancelled'])(
+    '%s への変更時、同一 $transaction 内で currentTaskId を CAS 解放すること',
+    async (status) => {
+      const currentTask = { status: 'in-progress', parentId: null };
+      const updatedTask = { id: 1, title: 'Task', status, themeId: 1, parentId: null };
+      mockPrisma.task.findUnique
+        .mockResolvedValueOnce(currentTask)
+        .mockResolvedValueOnce(updatedTask);
+
+      await updateTask(mockPrisma as never, 1, { status });
+
+      expect(mockPrisma.themeAutoRun.updateMany).toHaveBeenCalledWith({
+        where: { currentTaskId: 1 },
+        data: { currentTaskId: null },
+      });
+      const batch = mockPrisma.$transaction.mock.calls.at(-1)![0];
+      expect(Array.isArray(batch) && batch.length).toBe(2);
+    },
+  );
+
+  test('進行中への変更では currentTaskId を解放しないこと', async () => {
+    mockPrisma.task.findUnique
+      .mockResolvedValueOnce({ status: 'todo', parentId: null })
+      .mockResolvedValueOnce({ id: 1, title: 'Task', status: 'in-progress', parentId: null });
+
+    await updateTask(mockPrisma as never, 1, { status: 'in-progress' });
+
+    expect(mockPrisma.themeAutoRun.updateMany).not.toHaveBeenCalled();
   });
 
   test('進行中への変更時にstartedAtを設定すること', async () => {

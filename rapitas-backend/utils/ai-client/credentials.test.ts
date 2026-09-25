@@ -9,6 +9,7 @@
  * or unrelated test files importing the same module later will break).
  */
 import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
+import { DEFAULT_MODELS } from './types';
 
 type SettingsShape = {
   claudeApiKeyEncrypted: string | null;
@@ -268,5 +269,39 @@ describe('getConfiguredProviders', () => {
   it('returns only ollama when nothing is configured', async () => {
     const result = await getConfiguredProviders();
     expect(result).toEqual(['ollama']);
+  });
+});
+
+describe('database unreachable (opt-in scripts run from task worktrees, #911)', () => {
+  beforeEach(() => {
+    mockFindFirst.mockImplementation(() =>
+      Promise.reject(new Error("Can't reach database server at localhost:5432")),
+    );
+  });
+  afterEach(() => {
+    mockFindFirst.mockImplementation(() => Promise.resolve(mockSettings));
+  });
+
+  it('getDefaultProvider falls back to claude instead of throwing', async () => {
+    expect(await getDefaultProvider()).toBe('claude');
+  });
+
+  it('getDefaultModel falls back to the built-in default for the provider', async () => {
+    expect(await getDefaultModel('claude')).toBe(DEFAULT_MODELS.claude);
+  });
+
+  it('getOllamaUrl falls back to the default URL', async () => {
+    expect(await getOllamaUrl()).toBe('http://localhost:11434');
+  });
+
+  it('getApiKeyForProvider still honours the env var when the DB is down', async () => {
+    const saved = process.env.CLAUDE_API_KEY;
+    process.env.CLAUDE_API_KEY = 'sk-ant-api03-envfallback';
+    try {
+      expect(await getApiKeyForProvider('claude')).toBe('sk-ant-api03-envfallback');
+    } finally {
+      if (saved === undefined) delete process.env.CLAUDE_API_KEY;
+      else process.env.CLAUDE_API_KEY = saved;
+    }
   });
 });

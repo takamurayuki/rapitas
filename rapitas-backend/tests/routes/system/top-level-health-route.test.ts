@@ -31,7 +31,8 @@ mock.module('../../../routes/agents/system/agent-system-router', () => ({
   getAgentSystemSnapshot: mockGetAgentSystemSnapshot,
 }));
 
-const { handleTopLevelHealthCheck } = await import('../../../routes/system/top-level-health-route');
+const { handleTopLevelHealthCheck, handleApiRecoveryHealthCheck } =
+  await import('../../../routes/system/top-level-health-route');
 
 describe('handleTopLevelHealthCheck', () => {
   it('returns the full field set when DB and snapshot succeed', async () => {
@@ -88,5 +89,29 @@ describe('handleTopLevelHealthCheck', () => {
     expect(body.status).toBe('unhealthy');
     expect(body.database).toBe('disconnected');
     expect(body.error).toBe('connection refused');
+  });
+});
+
+describe('handleApiRecoveryHealthCheck', () => {
+  it('returns the api-recovery healthy payload when the DB query succeeds', async () => {
+    const result = (await handleApiRecoveryHealthCheck()) as Record<string, unknown>;
+
+    expect(result.status).toBe('healthy');
+    expect(result.mode).toBe('api-recovery');
+    expect(result.backgroundInitialization).toBe(false);
+    expect(typeof result.uptimeSeconds).toBe('number');
+  });
+
+  it('returns a 503 unhealthy response instead of throwing when the DB query fails', async () => {
+    mockQueryRaw.mockImplementationOnce(() => Promise.reject(new Error('connection refused')));
+
+    const result = await handleApiRecoveryHealthCheck();
+
+    expect(result).toBeInstanceOf(Response);
+    const response = result as Response;
+    expect(response.status).toBe(503);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body.status).toBe('unhealthy');
+    expect(body.reason).toBe('database');
   });
 });

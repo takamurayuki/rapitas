@@ -180,6 +180,98 @@ describe('getOpenAutoPrsForTheme', () => {
     expect(await getOpenAutoPrsForTheme(prisma, 7)).toEqual([]);
   });
 
+  it('excludes an exhausted PR whose head SHA matches the recorded park-time SHA', async () => {
+    const rows = [{ prNumber: 1, linkedTaskId: 559, createdAt: null }];
+    const prisma = {
+      task: { findMany: mock().mockResolvedValue([{ id: 559 }]) },
+      gitHubPullRequest: { findMany: mock().mockResolvedValue(rows) },
+      theme: { findUnique: mock().mockResolvedValue({ workingDirectory: '/repo' }) },
+      workflowTransition: {
+        findFirst: mock().mockResolvedValue({
+          cause: 'auto_merge_exhausted',
+          metadata: JSON.stringify({ headSha: 'sha-parked' }),
+          createdAt: new Date('2026-09-01T00:00:00Z'),
+        }),
+      },
+    } as unknown as PrismaClient;
+    const deps: PrFilesDeps = {
+      now: () => 1,
+      execGh: async () => JSON.stringify({ state: 'OPEN', files: [], headRefOid: 'sha-parked' }),
+    };
+    expect(await getOpenAutoPrsForTheme(prisma, 7, deps)).toEqual([]);
+  });
+
+  it('keeps an exhausted PR whose current head SHA differs from the park-time SHA (live retry)', async () => {
+    const rows = [{ prNumber: 1, linkedTaskId: 559, createdAt: null }];
+    const prisma = {
+      task: { findMany: mock().mockResolvedValue([{ id: 559 }]) },
+      gitHubPullRequest: { findMany: mock().mockResolvedValue(rows) },
+      theme: { findUnique: mock().mockResolvedValue({ workingDirectory: '/repo' }) },
+      workflowTransition: {
+        findFirst: mock().mockResolvedValue({
+          cause: 'auto_merge_exhausted',
+          metadata: JSON.stringify({ headSha: 'sha-parked' }),
+          createdAt: new Date('2026-09-01T00:00:00Z'),
+        }),
+      },
+    } as unknown as PrismaClient;
+    const deps: PrFilesDeps = {
+      now: () => 1,
+      execGh: async () => JSON.stringify({ state: 'OPEN', files: [], headRefOid: 'sha-new-push' }),
+    };
+    expect((await getOpenAutoPrsForTheme(prisma, 7, deps)).map((p) => p.prNumber)).toEqual([1]);
+  });
+
+  it('keeps a PR with no exhaustion mark', async () => {
+    const rows = [{ prNumber: 1, linkedTaskId: 559, createdAt: null }];
+    const prisma = {
+      task: { findMany: mock().mockResolvedValue([{ id: 559 }]) },
+      gitHubPullRequest: { findMany: mock().mockResolvedValue(rows) },
+      theme: { findUnique: mock().mockResolvedValue({ workingDirectory: '/repo' }) },
+      workflowTransition: { findFirst: mock().mockResolvedValue(null) },
+    } as unknown as PrismaClient;
+    const deps: PrFilesDeps = {
+      now: () => 1,
+      execGh: async () => JSON.stringify({ state: 'OPEN', files: [], headRefOid: 'sha-x' }),
+    };
+    expect((await getOpenAutoPrsForTheme(prisma, 7, deps)).map((p) => p.prNumber)).toEqual([1]);
+  });
+
+  it('drops an exhausted+head-matched PR alongside a separately CLOSED PR, keeping the rest', async () => {
+    const rows = [
+      { prNumber: 1, linkedTaskId: 559, createdAt: null }, // exhausted + head match → excluded
+      { prNumber: 2, linkedTaskId: 560, createdAt: null }, // CLOSED → excluded (existing filter)
+      { prNumber: 3, linkedTaskId: 561, createdAt: null }, // normal open → kept
+    ];
+    const prisma = {
+      task: { findMany: mock().mockResolvedValue([{ id: 559 }, { id: 560 }, { id: 561 }]) },
+      gitHubPullRequest: { findMany: mock().mockResolvedValue(rows) },
+      theme: { findUnique: mock().mockResolvedValue({ workingDirectory: '/repo' }) },
+      workflowTransition: {
+        findFirst: mock(async ({ where }: { where: { taskId: number } }) => {
+          if (where.taskId === 559) {
+            return {
+              cause: 'auto_merge_exhausted',
+              metadata: JSON.stringify({ headSha: 'sha-parked' }),
+              createdAt: new Date('2026-09-01T00:00:00Z'),
+            };
+          }
+          return null;
+        }),
+      },
+    } as unknown as PrismaClient;
+    const deps: PrFilesDeps = {
+      now: () => 1,
+      execGh: async (command) => {
+        const number = Number(command.match(/pr view (\d+)/)?.[1]);
+        if (number === 1) return JSON.stringify({ state: 'OPEN', headRefOid: 'sha-parked' });
+        if (number === 2) return JSON.stringify({ state: 'CLOSED', headRefOid: 'sha-closed' });
+        return JSON.stringify({ state: 'OPEN', headRefOid: 'sha-open' });
+      },
+    };
+    expect((await getOpenAutoPrsForTheme(prisma, 7, deps)).map((p) => p.prNumber)).toEqual([3]);
+  });
+
   it('caps parallel gh calls instead of firing one per open PR (2026-09-18/19 incident: 57 open PRs fired 57 simultaneous `gh` processes on one cache refresh)', async () => {
     const rows = Array.from({ length: 20 }, (_, i) => ({
       prNumber: i + 1,

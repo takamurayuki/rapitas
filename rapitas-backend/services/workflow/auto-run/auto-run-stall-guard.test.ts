@@ -158,3 +158,44 @@ describe('releaseStaleActiveItems', () => {
     expect(updateManyMock).not.toHaveBeenCalled();
   });
 });
+
+describe('releaseStaleActiveItems consecutive residue (task 1009)', () => {
+  const themeUpdateMany = mock(() => Promise.resolve({ count: 1 }));
+  const prismaWithTheme = {
+    workflowQueueItem: { updateMany: updateManyMock },
+    themeAutoRun: { updateMany: themeUpdateMany },
+  } as unknown as PrismaClient;
+
+  beforeEach(() => {
+    updateManyMock.mockReset().mockResolvedValue({ count: 1 });
+    themeUpdateMany.mockClear();
+    resolveTaskWorkflowStateMock.mockReset().mockResolvedValue({ status: 'cancelled' });
+    stopTaskAgentsMock.mockClear();
+  });
+
+  test('first detection keeps currentTaskId; second consecutive one releases it', async () => {
+    await releaseStaleActiveItems(prismaWithTheme, 7, 1008, ITEMS);
+    expect(themeUpdateMany).not.toHaveBeenCalled();
+    await releaseStaleActiveItems(prismaWithTheme, 7, 1008, ITEMS);
+    expect(themeUpdateMany).toHaveBeenCalledWith({
+      where: { currentTaskId: 1008 },
+      data: { currentTaskId: null },
+    });
+  });
+
+  test('a lost item CAS (count 0) records no residue and breaks the streak', async () => {
+    updateManyMock.mockResolvedValueOnce({ count: 1 });
+    await releaseStaleActiveItems(prismaWithTheme, 9, 1008, ITEMS);
+    updateManyMock.mockResolvedValueOnce({ count: 0 });
+    await releaseStaleActiveItems(prismaWithTheme, 9, 1008, ITEMS);
+    updateManyMock.mockResolvedValueOnce({ count: 1 });
+    await releaseStaleActiveItems(prismaWithTheme, 9, 1008, ITEMS);
+    expect(themeUpdateMany).not.toHaveBeenCalled();
+  });
+
+  test('a different task in between resets the streak', async () => {
+    await releaseStaleActiveItems(prismaWithTheme, 8, 1, ITEMS);
+    await releaseStaleActiveItems(prismaWithTheme, 8, 2, ITEMS);
+    expect(themeUpdateMany).not.toHaveBeenCalled();
+  });
+});

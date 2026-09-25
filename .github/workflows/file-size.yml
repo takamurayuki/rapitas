@@ -12,6 +12,20 @@ on:
       - 'rapitas-desktop/src-tauri/src/**/*.rs'
       - 'scripts/check-large-files.cjs'
       - '.github/workflows/file-size.yml'
+  # Runs on integration-branch pushes too so a ratchet regression that slipped
+  # past the PR gate (e.g. merged with no check reported) turns develop red
+  # immediately instead of silently breaking every later PR (task 1021).
+  push:
+    branches:
+      - master
+      - main
+      - develop
+    paths:
+      - 'rapitas-backend/**/*.ts'
+      - 'rapitas-frontend/src/**/*.{ts,tsx}'
+      - 'rapitas-desktop/src-tauri/src/**/*.rs'
+      - 'scripts/check-large-files.cjs'
+      - '.github/workflows/file-size.yml'
   workflow_dispatch:
 
 jobs:

@@ -7,9 +7,13 @@
  * every input is a plain snapshot assembled by the caller, so each detector is
  * unit-testable. NOT responsible for evidence gathering or concern filing.
  * The same-cause repeat-loop detector lives in incident-signature-repeat-loop
- * and is re-exported here (barrel) for backward compatibility — see task 855.
+ * and is re-exported here (barrel) for backward compatibility — see task 855;
+ * the unanswered-question detector moved to incident-signature-unanswered-question
+ * (line-limit split, task 1003) and is re-exported the same way.
  */
 import { ACTIVE_EXEC } from './workflow-reconciler-requeue';
+import { BLOCKED_REESCALATION_INTERVAL_MS } from './blocked-task-policy';
+import { TERMINAL_TASK_STATUSES } from './incident-signature-unanswered-question';
 export {
   detectRepeatLoop,
   isRepairBounceCause,
@@ -18,6 +22,11 @@ export {
   INVARIANT_REPEAT_LOOP_MIN_COUNT,
 } from './incident-signature-repeat-loop';
 export type { RepeatLoopTransition } from './incident-signature-repeat-loop';
+export {
+  detectUnansweredQuestion,
+  UNANSWERED_QUESTION_THRESHOLD_MS,
+} from './incident-signature-unanswered-question';
+export type { UnansweredQuestionInput } from './incident-signature-unanswered-question';
 
 /** Idle time after which a non-terminal task counts as stagnant (default 30m). */
 export const STAGNATION_THRESHOLD_MS =
@@ -95,18 +104,6 @@ const RECOVERY_REQUEUE_CAUSES = new Set([
 ]);
 
 /**
- * Wait time after which an unanswered intake question counts as stale (default
- * 24h). Rationale: tasks #578/#579 sat in awaiting_question for 4 days
- * (raised 2026-08-13T13:48:35Z, found 2026-08-17) with zero notifications —
- * 24h turns that into a daily reminder while staying quiet for same-day answers.
- */
-export const UNANSWERED_QUESTION_THRESHOLD_MS =
-  parseInt(process.env.RAPITAS_INCIDENT_UNANSWERED_MS ?? '', 10) || 24 * 60 * 60 * 1000;
-
-/** Task statuses that are terminal — a finished task can never be stagnant. */
-const TERMINAL_TASK_STATUSES = new Set(['done', 'cancelled', 'archived', 'completed']);
-
-/**
  * Workflow statuses proving the workflow advanced at least one step. A task
  * whose status is still 'todo' while its workflowStatus is one of these is
  * desynced ('draft' = consistent not-started; 'awaiting_question' = a
@@ -164,6 +161,25 @@ export interface StagnationInput {
    */
   manuallyWithdrawn?: boolean | null;
   /**
+   * True when a blocked task's most recent blocked_escalated/blocked_reescalated
+   * transition is still inside the re-notification window — a human was
+   * already told, so the blocked hold is deliberate, not abandoned (#980).
+   * `null`/`undefined` leaves the task subject to detection (fail-open).
+   */
+  blockedEscalationRecent?: boolean | null;
+  /**
+   * True when the task's theme has auto-run `status === 'running'` and
+   * `currentTaskId` is a DIFFERENT task — the theme is actively dispatching
+   * another task and this one is simply next in the backlog, not stuck
+   * (task #969). `AUTO_RUN_GLOBAL_MAX_CONCURRENCY` defaults to 1, so a busy
+   * theme's backlog routinely waits past STAGNATION_THRESHOLD_MS. Does NOT
+   * suppress detection when `currentTaskId` is this task itself — a live
+   * hang on the task's own turn must still be caught. `null`/`undefined`
+   * (unresolved) leaves the task subject to detection — mirrors the other
+   * optional gates' fail-open convention.
+   */
+  themeAutoRunBusyWithOtherTask?: boolean | null;
+  /**
    * Epoch ms of the newest `blocked_escalated`/`blocked_reescalated` transition
    * (#979). A `status=blocked` task whose escalation is younger than
    * `blockedHoldMs` is a human-wait hold already reported through the
@@ -200,6 +216,24 @@ export interface StagnationInput {
 }
 
 /**
+ * Whether the newest blocked escalation notice is still fresh: window = re-notify interval
+ * + 30min slack; past it the notifier is presumed dead, so detection resumes (#980).
+ *
+ * @param latestEscalationAtMs - Newest blocked_(re)escalated time, null when none/unknown. / 最新通知時刻
+ * @param nowMs - Current time (ms). / 現在時刻
+ * @returns True when a notice landed inside the window. / 窓内なら true
+ */
+export function isBlockedEscalationRecent(
+  latestEscalationAtMs: number | null,
+  nowMs: number,
+): boolean {
+  return (
+    latestEscalationAtMs != null &&
+    nowMs - latestEscalationAtMs < BLOCKED_REESCALATION_INTERVAL_MS + 30 * 60_000
+  );
+}
+
+/**
  * Detects a stagnant non-terminal task: no activity for the threshold while no
  * agent is running, nothing is queued, and no legitimate wait state applies.
  * Only in-flight tasks qualify — a pure todo backlog item that never started
@@ -222,6 +256,12 @@ export function detectStagnation(input: StagnationInput): { staleMs: number } | 
   // operator has already decided not to resume this task; repeating the
   // same finding every watch pass forever is noise, not signal.
   if (input.manuallyWithdrawn) return null;
+  // NOTE: blocked tasks are re-notified every 4h but the stagnation threshold is 30min, so
+  // a notified blocked hold re-tripped detection 30min after every notice (#980).
+  if (input.taskStatus === 'blocked' && input.blockedEscalationRecent) return null;
+  // Theme is actively dispatching a different task — this one is a normal
+  // backlog wait under AUTO_RUN_GLOBAL_MAX_CONCURRENCY=1, not stagnation (#969).
+  if (input.themeAutoRunBusyWithOtherTask) return null;
   // Escalated blocked hold (#979): waiting on a human after a notice is legitimate
   // until the re-escalation interval lapses; past it, escalation itself has
   // stopped and the task is a genuine orphan again.
@@ -287,6 +327,28 @@ export interface TriStateDesyncInput {
    * mirrors themeAutoRunEnabled's fail-open convention.
    */
   manuallyWithdrawn?: boolean | null;
+  /**
+   * True when the task's theme has auto-run `status === 'running'` and
+   * `currentTaskId` is a DIFFERENT task — see StagnationInput.
+   * themeAutoRunBusyWithOtherTask for the full rationale (#969). Applies only
+   * to Pattern B (todo × advanced workflowStatus); Pattern A is unrelated to
+   * theme dispatch state and never reads this field.
+   */
+  themeAutoRunBusyWithOtherTask?: boolean | null;
+  /**
+   * True when the task carries a `Task.haltReason` (iteration-budget halt). A
+   * halt deliberately leaves task.status/workflowStatus untouched, so todo ×
+   * advanced is the expected resting shape until an operator resumes it, not
+   * a desync (#1003). Applies only to Pattern B.
+   */
+  taskHalted?: boolean | null;
+  /**
+   * True when the operator opted the task out of auto-run (`Task.autoRunExcluded`,
+   * e.g. via theme stop-execution). Selection never dispatches it, so todo ×
+   * advanced is an indefinite, legitimate wait — the actual shape of #907
+   * (#1003). Applies only to Pattern B.
+   */
+  autoRunExcluded?: boolean | null;
   /** Current time (ms) — the recovery grace guard needs it to age the transition. */
   nowMs?: number;
   /** Pattern B recovery grace override (default DESYNC_RECOVERY_SETTLE_MS). */
@@ -346,7 +408,11 @@ function isWithinPatternASettle(input: TriStateDesyncInput): boolean {
  * (`themeAutoRunEnabled === false`), where the shape is an indefinite,
  * legitimate wait rather than a transient one (task #715, see
  * TriStateDesyncInput.themeAutoRunEnabled) — EXCEPT ALSO when the task was
- * deliberately withdrawn (#875, see TriStateDesyncInput.manuallyWithdrawn).
+ * deliberately withdrawn (#875, see TriStateDesyncInput.manuallyWithdrawn) —
+ * EXCEPT ALSO when the theme is busy dispatching a different task (#969, see
+ * TriStateDesyncInput.themeAutoRunBusyWithOtherTask) — EXCEPT ALSO when the task is
+ * halted by the iteration budget (#1003, see TriStateDesyncInput.taskHalted) or opted out of
+ * auto-run (`autoRunExcluded`).
  *
  * @param input - Cross-entity state snapshot. / 三面の状態スナップショット
  * @returns Detected pattern + human-readable summary, or null. / 検出結果またはnull
@@ -380,56 +446,17 @@ export function detectTriStateDesync(
     // Deliberately withdrawn via stop-execution({withdraw:true}) (#875) —
     // same rationale as detectStagnation's identically-named gate.
     if (input.manuallyWithdrawn) return null;
+    // Theme is actively dispatching a different task — normal backlog wait,
+    // not a desync (#969, mirrors detectStagnation's identically-named gate).
+    if (input.themeAutoRunBusyWithOtherTask) return null;
+    // Deliberately halted by the iteration budget (#1003) — legitimate wait for an operator.
+    if (input.taskHalted) return null;
+    // Operator opted out of auto-run (#1003) — nothing will dispatch it by design.
+    if (input.autoRunExcluded) return null;
     return {
       kind: 'todo_status_workflow_advanced',
       detail: `task.status=todo のまま workflowStatus が前進済み(${input.workflowStatus})`,
     };
   }
   return null;
-}
-
-/** Snapshot of one task used by the unanswered-question detector. */
-export interface UnansweredQuestionInput {
-  workflowStatus: string | null;
-  /**
-   * The task's own status. A finished task's pending question is moot, but the
-   * workflowStatus can lag behind it: task #587 has been `done` since 2026-08-23
-   * while its workflowStatus stayed `awaiting_question`, so it re-notified once
-   * per window forever. The watcher already selects this field — it just never
-   * looked at it.
-   */
-  taskStatus: string;
-  /** createdAt of the latest toStatus='awaiting_question' transition, epoch ms
-   * (null = no such transition on record). NOT task.updatedAt — enrichment and
-   * other side channels touch updatedAt without answering the question. */
-  questionRaisedAtMs: number | null;
-  /** True when an `intake_question_answered` transition exists for the task. */
-  hasAnsweredQuestion: boolean;
-  nowMs: number;
-  thresholdMs?: number;
-}
-
-/**
- * Detects a task stuck waiting on an unanswered intake question beyond the
- * threshold. An unanswered question NEVER advances on its own (unlike normal
- * stagnation, which detectStagnation deliberately excludes as a legitimate
- * pause), so a long wait means the human was never reached — re-surface it.
- * Answered tasks are excluded even if their status lags (double guard on top
- * of the caller's workflowStatus filter).
- *
- * @param input - Task snapshot (see UnansweredQuestionInput). / タスクの質問待ちスナップショット
- * @returns Wait time in ms when stale, otherwise null. / 放置時はstaleMs、非該当はnull
- */
-export function detectUnansweredQuestion(
-  input: UnansweredQuestionInput,
-): { staleMs: number } | null {
-  if (input.workflowStatus !== 'awaiting_question') return null;
-  if (TERMINAL_TASK_STATUSES.has(input.taskStatus)) return null;
-  if (input.hasAnsweredQuestion) return null;
-  // No awaiting_question transition on record → the wait start is unknowable;
-  // skip rather than guess (avoids false positives on anomalous histories).
-  if (input.questionRaisedAtMs === null) return null;
-  const staleMs = input.nowMs - input.questionRaisedAtMs;
-  if (staleMs < (input.thresholdMs ?? UNANSWERED_QUESTION_THRESHOLD_MS)) return null;
-  return { staleMs };
 }

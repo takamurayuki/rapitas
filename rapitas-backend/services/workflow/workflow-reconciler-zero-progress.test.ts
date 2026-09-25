@@ -110,11 +110,26 @@ describe('detectZeroProgressWhileRunning', () => {
     // fix: a lifetime count is >0 forever after the task's first phase).
     const where = (
       countMock.mock.calls[0]?.[0] as
-        | { where: { session: unknown; createdAt: { gte: Date } } }
+        | {
+            where: {
+              session: unknown;
+              OR: Array<Record<string, { gte: Date }>>;
+            };
+          }
         | undefined
     )?.where;
     expect(where?.session).toEqual({ config: { taskId: 100 } });
-    expect(where?.createdAt.gte).toBeInstanceOf(Date);
+    // Task 1031 (2026-09-22): a 19-minute implementer run created BEFORE the
+    // slid anchor was still heartbeating and got counted as zero. Any row
+    // created, heartbeating, or completed after the anchor is progress.
+    expect(where?.OR.map((c) => Object.keys(c)[0])).toEqual([
+      'createdAt',
+      'heartbeatAt',
+      'completedAt',
+    ]);
+    for (const clause of where?.OR ?? []) {
+      expect(Object.values(clause)[0]?.gte).toBeInstanceOf(Date);
+    }
   });
 
   test('進捗後は次フェーズで再度ゼロ件が続けば検出する — アンカーが前進する（2026-09-17 修正: lifetime countの見落とし回帰）', async () => {
@@ -142,9 +157,12 @@ describe('detectZeroProgressWhileRunning', () => {
     // The scoped count's lower bound must be the SLID anchor (midCycle), not
     // the original first-observation time (NOW).
     const lastWhere = (
-      countMock.mock.calls.at(-1)?.[0] as { where: { createdAt: { gte: Date } } } | undefined
+      countMock.mock.calls.at(-1)?.[0] as
+        | { where: { OR: Array<{ createdAt?: { gte: Date }; heartbeatAt?: { gte: Date } }> } }
+        | undefined
     )?.where;
-    expect(lastWhere?.createdAt.gte.getTime()).toBe(midCycle);
+    expect(lastWhere?.OR[0]?.createdAt?.gte.getTime()).toBe(midCycle);
+    expect(lastWhere?.OR[1]?.heartbeatAt?.gte.getTime()).toBe(midCycle);
   });
 
   test('閾値超過・実行0件でも、他タスクが枠を占有していれば発火しない（#856 事例）', async () => {

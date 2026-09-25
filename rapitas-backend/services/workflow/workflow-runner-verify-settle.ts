@@ -50,6 +50,35 @@ export const VERIFY_SETTLE_HARD_CAP_MS =
   Number(process.env.RAPITAS_VERIFY_SETTLE_CAP_MS) || 600_000;
 export const VERIFY_SETTLE_POLL_MS = 2_000;
 
+/** The slice of the workflow queue the deferred-release path touches. */
+export interface DeferrableQueue {
+  updateStatus: (
+    itemId: number,
+    status: 'completed',
+    extra: { currentPhase: string; result: string },
+  ) => Promise<unknown>;
+}
+
+/**
+ * Release a verify_done queue item whose PR conflicts and whose resolver task
+ * now needs the theme's single slot. The item is marked completed-for-now
+ * (phase `awaiting_merge`); the TASK stays verify_done and is completed from
+ * the landed PR by the merge watcher once the resolver merges. Task 1053
+ * (2026-09-25): the 90-minute merge hold starved resolver #1078 for an hour.
+ *
+ * @param queue - Workflow queue (updateStatus only). / ワークフローキュー
+ * @param itemId - Queue item held for the merge. / merge 待ちのキュー項目
+ */
+export async function deferVerifyItem(queue: DeferrableQueue, itemId: number): Promise<void> {
+  await queue.updateStatus(itemId, 'completed', {
+    currentPhase: 'awaiting_merge',
+    result: JSON.stringify({
+      deferredAt: new Date().toISOString(),
+      reason: 'conflict_resolution_pending',
+    }),
+  });
+}
+
 /**
  * Wait (bounded) for the post-verify completion automation (commit/PR/merge) to
  * settle a `verify_done` task, so a transient `verify_done` is not misreported as
@@ -61,12 +90,14 @@ export const VERIFY_SETTLE_POLL_MS = 2_000;
  * @returns `completed` when it reached completed/done (or was completed here
  *   from a PR already on record), `moved` when it left verify_done for another
  *   phase (e.g. self-repair), `stuck` when it stayed verify_done past the grace
- *   window with no landed evidence (a real, persistent block). / 判定結果
+ *   window with no landed evidence (a real, persistent block), `deferred` when
+ *   its PR conflicts and a resolver task now needs the slot this wait holds
+ *   (the task stays verify_done for the merge watcher). / 判定結果
  */
 export async function waitForVerifyCompletion(
   taskId: number,
   signal: AbortSignal,
-): Promise<'completed' | 'moved' | 'stuck'> {
+): Promise<'completed' | 'moved' | 'stuck' | 'deferred'> {
   const deadline = Date.now() + VERIFY_SETTLE_TIMEOUT_MS;
   const hardDeadline = Date.now() + VERIFY_SETTLE_HARD_CAP_MS;
   const mergeDeadline = Date.now() + 90 * 60_000;
@@ -88,12 +119,23 @@ export async function waitForVerifyCompletion(
     // pipeline still fails eventually.
     const stillWorking = hasVerifyCompletionInFlight(taskId) && Date.now() < hardDeadline;
     if (!stillWorking && Date.now() >= deadline) {
-      const pendingMerge = await import('./verify-settle-artifact-recovery')
-        .then(
-          (m) =>
-            typeof m.isAwaitingRequiredMerge === 'function' && m.isAwaitingRequiredMerge(taskId),
-        )
-        .catch(() => false);
+      const recovery = await import('./verify-settle-artifact-recovery').catch(() => null);
+      const pendingMerge = await Promise.resolve(
+        recovery &&
+          typeof recovery.isAwaitingRequiredMerge === 'function' &&
+          recovery.isAwaitingRequiredMerge(taskId),
+      ).catch(() => false);
+      // A DIRTY PR now has a resolver task queued behind THIS hold: keep
+      // waiting and the theme deadlocks until the 90-minute cap (task 1053,
+      // 2026-09-25). Hand the slot back; the merge watcher re-merges the PR
+      // once the resolver lands and completes the task from the landed PR.
+      const conflictPending = await Promise.resolve(
+        pendingMerge &&
+          recovery &&
+          typeof recovery.hasConflictResolutionPending === 'function' &&
+          recovery.hasConflictResolutionPending(taskId),
+      ).catch(() => false);
+      if (conflictPending) return 'deferred';
       if (!(pendingMerge && Date.now() < mergeDeadline)) {
         // Last check before blocking: the registry is an in-memory inference,
         // but a PR row is a fact. Task 658 (task 660) sat unregistered while

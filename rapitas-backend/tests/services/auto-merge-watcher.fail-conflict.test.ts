@@ -28,6 +28,7 @@ mock.module('../../services/workflow/auto-merge-checks', () => ({
   readMergeState: mockReadMergeState,
   readHeadSha: mockReadHeadSha,
   updatePrBranch: mockUpdatePrBranch,
+  ghPath: () => 'gh',
 }));
 
 const mockAttemptCiRepair = mock(() => Promise.resolve({ bounced: false }));
@@ -52,6 +53,9 @@ mock.module('../../services/workflow/auto-merge-exhaustion', () => ({
   resetExhaustedRecheckCooldowns: () => {},
   markExhausted: mockMarkExhausted,
   decideTerminalState: () => Promise.resolve({ terminal: false }),
+  readExhaustionRecord: mock(() =>
+    Promise.resolve({ exhausted: false, headSha: null, exhaustedAt: null }),
+  ),
 }));
 
 const mockNotify = mock(() => Promise.resolve());

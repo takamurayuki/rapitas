@@ -80,7 +80,10 @@ export class I18nIntegrityScheduler {
       const results = await checkAndHealAllMessagesFiles(baseDir);
       const healed = Object.entries(results).filter(([, v]) => v === 'healed');
       if (healed.length > 0) {
-        logger.warn(
+        // NOTE: Summary only — i18n-integrity-check already emits a per-file WARN
+        // ("restored from HEAD") that keeps the reversion frequency observable
+        // (concern #10168). A second WARN here was auto-filed as a duplicate concern.
+        logger.info(
           { files: healed.map(([f]) => f) },
           '[I18nIntegrityScheduler] Healed reverted message file(s)',
         );

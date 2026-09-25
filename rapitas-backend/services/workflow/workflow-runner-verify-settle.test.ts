@@ -39,9 +39,11 @@ const recoverFromLandedArtifactMock = mock(
   (_taskId: number): Promise<boolean> => Promise.resolve(true),
 );
 const pendingMergeMock = mock(async () => false);
+const conflictPendingMock = mock(async () => false);
 mock.module('./verify-settle-artifact-recovery', () => ({
   recoverFromLandedArtifact: recoverFromLandedArtifactMock,
   isAwaitingRequiredMerge: pendingMergeMock,
+  hasConflictResolutionPending: conflictPendingMock,
 }));
 
 const { waitForVerifyCompletion } = await import('./workflow-runner-verify-settle');
@@ -80,8 +82,19 @@ describe('waitForVerifyCompletion — fresh-rejection guard on landed-artifact c
     expect(pendingMergeMock).toHaveBeenCalled();
     expect(recoverFromLandedArtifactMock).not.toHaveBeenCalled();
   }, 10000);
+  // task 1053 (2026-09-25): PR #813 DIRTY, resolver #1078 filed, the runner
+  // kept holding the theme's slot for the merge the resolver could not reach.
+  test('競合解消タスクが起票済みなら merge 待ちを続けず deferred でスロットを返す', async () => {
+    resolveWorkflowStateSequence = [state({}), state({}), state({})];
+    pendingMergeMock.mockResolvedValue(true);
+    conflictPendingMock.mockResolvedValue(true);
+    expect(await waitForVerifyCompletion(1, new AbortController().signal)).toBe('deferred');
+    expect(recoverFromLandedArtifactMock).not.toHaveBeenCalled();
+  }, 10000);
+
   beforeEach(() => {
     pendingMergeMock.mockReset().mockResolvedValue(false);
+    conflictPendingMock.mockReset().mockResolvedValue(false);
     resolveTaskWorkflowStateMock.mockClear();
     hasFreshVerifyRejectionMock.mockClear();
     recoverFromLandedArtifactMock.mockClear();

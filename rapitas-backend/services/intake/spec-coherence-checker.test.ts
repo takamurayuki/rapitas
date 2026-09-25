@@ -152,3 +152,38 @@ describe('findContaminatedCriteria — 2経路の統合', () => {
     expect(findContaminatedCriteria(CRITERIA_669, [])).toEqual([]);
   });
 });
+
+// Task 1003 (2026-09-20) real data: a self-detected state-mismatch task whose
+// generated criteria paraphrased the OBSERVED task's title. The title quotes no
+// coined term and names no file, so both earlier paths returned nothing and the
+// judge bounced the task three times before a human rewrote the criteria.
+const TITLE_907 = '[監督実測] Advisory全体テストの既知4失敗を解消し検証の信頼性を回復する';
+const CRITERIA_1003 = [
+  'Advisory全体テストの既知4失敗が全て解消されている',
+  '検証が安定して正常に完了する状態が確認されている',
+  'task.statusとworkflowStatusの状態が一致している',
+];
+
+describe('findContaminatedCriteria — タイトル重複経路 (task 1003 実データ)', () => {
+  test('参照タスクのタイトル文言を長く繰り返す基準を指摘する', () => {
+    const hits = findContaminatedCriteria(CRITERIA_1003, [{ id: 907, title: TITLE_907 }]);
+    expect(hits.map((h) => [h.index, h.kind, h.sourceTaskId])).toEqual([[1, 'title_overlap', 907]]);
+    expect(hits[0]?.phrases[0]).toContain('advisory全体テストの既知4失敗');
+  });
+
+  test('検出器自身の要件（自タスクの主題）は指摘しない', () => {
+    const hits = findContaminatedCriteria(
+      ['autoRunExcluded=true のタスクを状態不整合の検知対象から除外する'],
+      [{ id: 907, title: TITLE_907 }],
+    );
+    expect(hits).toEqual([]);
+  });
+
+  test('8文字未満の共通語彙（テスト・修正する等）では指摘しない', () => {
+    const hits = findContaminatedCriteria(
+      ['既存テストを修正して通す'],
+      [{ id: 1, title: '[Bug] 既存テストの修正と信頼性の回復' }],
+    );
+    expect(hits).toEqual([]);
+  });
+});

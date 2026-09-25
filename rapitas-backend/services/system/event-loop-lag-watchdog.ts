@@ -59,6 +59,28 @@ const defaultSelfHeal: SelfHealAction = (reason) => {
     .catch((err) => log.error({ err }, '[event-loop-lag] Failed to trigger self-heal restart'));
 };
 
+/**
+ * Named synchronous-heavy sections currently in flight, keyed by a unique token
+ * so concurrent runs of the same name never clear each other. Read only when a
+ * stall is reported, so a WARN can name the likely culprit (recurrence of
+ * concern #9142/#1033: the stall size alone never identified the source).
+ */
+const activeSections = new Map<symbol, { name: string; startedAtMs: number }>();
+
+/**
+ * Registers a named section as running so a stall WARN emitted meanwhile lists it.
+ *
+ * @param name - Section label (e.g. "log-health-check") / セクション名
+ * @returns Idempotent release function; call it in a finally block / 解除関数(冪等)
+ */
+export function markEventLoopSection(name: string): () => void {
+  const token = Symbol(name);
+  activeSections.set(token, { name, startedAtMs: Date.now() });
+  return () => {
+    activeSections.delete(token);
+  };
+}
+
 let handle: ReturnType<typeof setInterval> | null = null;
 let recentStalls: Array<{ atMs: number; lagMs: number }> = [];
 let healingTriggered = false;
@@ -90,7 +112,16 @@ export function startEventLoopLagWatchdog(selfHeal: SelfHealAction = defaultSelf
     const lagMs = now - expected;
     expected = now + CHECK_INTERVAL_MS;
     if (lagMs > REPORT_THRESHOLD_MS) {
-      log.warn({ lagMs }, formatEventLoopLagMessage(lagMs));
+      // NOTE: message body stays unchanged so normalizeMessage() keeps folding
+      // every stall into one "~#.#s" signature; the culprit goes in a structured field.
+      const sections = [...activeSections.values()].map((section) => ({
+        name: section.name,
+        runningMs: now - section.startedAtMs,
+      }));
+      log.warn(
+        sections.length > 0 ? { lagMs, activeSections: sections } : { lagMs },
+        formatEventLoopLagMessage(lagMs),
+      );
       recentStalls.push({ atMs: now, lagMs });
       recentStalls = recentStalls.filter((stall) => now - stall.atMs <= CUMULATIVE_WINDOW_MS);
       if (!healingTriggered) {
@@ -119,4 +150,5 @@ export function stopEventLoopLagWatchdog(): void {
   }
   recentStalls = [];
   healingTriggered = false;
+  activeSections.clear();
 }

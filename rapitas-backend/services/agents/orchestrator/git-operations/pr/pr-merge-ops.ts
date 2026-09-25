@@ -131,11 +131,31 @@ export async function mergePullRequest(
     if (canProceed && !(await canProceed()))
       return { success: false, error: 'Merge canceled before publication' };
 
-    await execFileAsync(ghPath(), ['pr', 'merge', String(prNumber), mergeFlag, '--delete-branch'], {
-      cwd: workingDirectory,
-      encoding: 'utf8',
-      timeout: GIT_SLOW_OP_TIMEOUT_MS,
-    });
+    try {
+      await execFileAsync(
+        ghPath(),
+        ['pr', 'merge', String(prNumber), mergeFlag, '--delete-branch'],
+        {
+          cwd: workingDirectory,
+          encoding: 'utf8',
+          timeout: GIT_SLOW_OP_TIMEOUT_MS,
+        },
+      );
+    } catch (mergeErr) {
+      // gh merges on GitHub FIRST and deletes the LOCAL branch LAST, so a
+      // "cannot delete branch ... used by worktree" exit arrives AFTER the merge
+      // has landed. Treating that exit as a failed merge recorded 277 of 312
+      // auto_merge_blocked rows on 2026-09-20 for PRs GitHub had merged, and
+      // left task completion to the later recovery sweep. Ask GitHub before
+      // calling it a failure; anything not MERGED keeps the original error path
+      // (head-behind update, retriable, etc.).
+      const landed = await readAuthoritativeMergeState(workingDirectory, prNumber);
+      if (landed?.state !== 'MERGED') throw mergeErr;
+      logger.warn(
+        { prNumber, workingDirectory, err: mergeErr },
+        '[mergePullRequest] gh exited non-zero after the merge landed (local branch cleanup) — continuing on GitHub state',
+      );
+    }
 
     const confirmation = await execFileAsync(
       ghPath(),

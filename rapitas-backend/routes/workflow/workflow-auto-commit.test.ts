@@ -141,10 +141,23 @@ mock.module('../../services/workflow/auto-merge-notify', () => ({
   notify: () => Promise.resolve(),
 }));
 
+// Existing open PR for the task (task-scoped reuse guard). null = create path.
+let openPrFixture: { prNumber: number; url: string } | null = null;
 mock.module('../../services/github/pr-duplicate-guard', () => ({
-  findOpenPrForTask: () => Promise.resolve(null),
+  findOpenPrForTask: () => Promise.resolve(openPrFixture),
   claimPrCreationLock: () => Promise.resolve(true),
   releasePrCreationLock: () => Promise.resolve(),
+}));
+
+// Reuse-path push (#10694): recorded so a test can prove the reused PR gets
+// the freshly saved commit, and that a failed push is not reported as success.
+const reusePushCalls: Array<{ cwd: string; branch: string }> = [];
+let reusePushFixture: { success: boolean; error?: string } = { success: true };
+mock.module('./workflow-auto-commit-reuse-push', () => ({
+  pushExistingPrBranch: (cwd: string, branch: string) => {
+    reusePushCalls.push({ cwd, branch });
+    return Promise.resolve({ ...reusePushFixture });
+  },
 }));
 
 // `git rev-list --count origin/<base>..HEAD` seen by countCommitsAhead. The
@@ -565,4 +578,43 @@ test('order: pre-save → local commit → harness sync → gate; a held gate ne
   expect(outcome.verificationUnverifiable).toBe(true);
   expect(createCommitCalls).toBe(before + 1);
   expect(createPullRequestCalls).toBe(0);
+});
+
+describe('performAutoCommitAndPR — 既存 PR 再利用時も push する (#10694)', () => {
+  test('reused PR: the saved commit is pushed to the session branch, no new PR is created', async () => {
+    cancelAtStep = null;
+    openPrFixture = { prNumber: 772, url: 'https://github.com/x/y/pull/772' };
+    reusePushFixture = { success: true };
+    reusePushCalls.length = 0;
+    filesChangedFixture = 1;
+    createPullRequestCalls = 0;
+
+    const out = await performAutoCommitAndPR(687, 'PASS');
+
+    expect(createPullRequestCalls).toBe(0);
+    expect(reusePushCalls).toEqual([{ cwd: 'C:\\work\\project', branch: 'feature/t687' }]);
+    expect(out.autoPRResult).toEqual({
+      success: true,
+      prUrl: 'https://github.com/x/y/pull/772',
+      prNumber: 772,
+    });
+    openPrFixture = null;
+  });
+
+  test('reused PR: a failed push is surfaced as autoPRResult failure, not success', async () => {
+    cancelAtStep = null;
+    openPrFixture = { prNumber: 772, url: 'https://github.com/x/y/pull/772' };
+    reusePushFixture = { success: false, error: '! [rejected] non-fast-forward' };
+    reusePushCalls.length = 0;
+    filesChangedFixture = 1;
+
+    const out = await performAutoCommitAndPR(687, 'PASS');
+
+    expect(reusePushCalls.length).toBe(1);
+    expect(out.autoPRResult?.success).toBe(false);
+    expect(out.autoPRResult?.prNumber).toBe(772);
+    expect(out.autoPRResult?.error).toContain('non-fast-forward');
+    openPrFixture = null;
+    reusePushFixture = { success: true };
+  });
 });

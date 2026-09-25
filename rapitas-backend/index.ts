@@ -24,7 +24,10 @@ import { swagger } from '@elysiajs/swagger';
 
 // All modular routes are registered via registerAllRoutes() in register-routes.ts.
 import { registerAllRoutes } from './register-routes';
-import { handleTopLevelHealthCheck } from './routes/system/top-level-health-route';
+import {
+  handleTopLevelHealthCheck,
+  handleApiRecoveryHealthCheck,
+} from './routes/system/top-level-health-route';
 
 // Import shared database client
 import { prisma, ensureDatabaseConnection } from './config';
@@ -171,13 +174,7 @@ registerAllRoutes(app);
 // fast, read-only endpoint instead of needing to know the `/agents` prefix.
 app.get('/health', async () => {
   if (!isApiRecoveryMode()) return handleTopLevelHealthCheck();
-  await prisma.$queryRaw`SELECT 1`;
-  return {
-    status: 'healthy',
-    mode: 'api-recovery',
-    backgroundInitialization: false,
-    uptimeSeconds: process.uptime(),
-  };
+  return handleApiRecoveryHealthCheck();
 });
 
 // Warm-up tasks (schedulers, memory system, worker manager, recovery) are imported here but NOT
@@ -267,44 +264,43 @@ const runStartupWarmup = async (): Promise<void> => {
   // before we start CPU-heavy init on the single JS thread.
   await new Promise((resolve) => setTimeout(resolve, 250));
 
-  await timed('runtime-server-registry-reconcile', async () => {
+  const runWarmupTasks = async (tasks: Array<[string, () => unknown | Promise<unknown>]>) => {
+    for (const [label, fn] of tasks) {
+      await timed(label, fn);
+      await yieldToLoop();
+    }
+  };
+  const recoverRuntimeServerRegistryTask = async () => {
     const { recoverRuntimeServerRegistry } =
       await import('./services/agents/verification/runtime-smoke/worktree-server-registry');
     await recoverRuntimeServerRegistry();
-  });
-  await yieldToLoop();
-
-  await timed('behavior-scheduler', () => BehaviorScheduler.start());
-  await yieldToLoop();
-  await timed('memory-system', () => initializeMemorySystem());
-  await yieldToLoop();
-  await timed('ai-orchestra-recovery', () => AIOrchestra.getInstance().recoverOnStartup());
-  await yieldToLoop();
-  await timed('legacy-workflow-migration', () => migrateLegacyWorkflowFiles());
-  await yieldToLoop();
-  await timed('workflow-db-backfill', () => backfillWorkflowFilesToDatabase());
-  await yieldToLoop();
-  await timed('study-goal-migration', () => migrateStudyGoals());
-  await yieldToLoop();
-  await timed('agent-worker-manager', () => workerManager.initialize());
-  await yieldToLoop();
-  // Schedulers only register intervals — cheap, grouped at the end.
+  };
+  await runWarmupTasks([
+    ['runtime-server-registry-reconcile', recoverRuntimeServerRegistryTask],
+    ['behavior-scheduler', () => BehaviorScheduler.start()],
+    ['memory-system', () => initializeMemorySystem()],
+    ['ai-orchestra-recovery', () => AIOrchestra.getInstance().recoverOnStartup()],
+    ['legacy-workflow-migration', () => migrateLegacyWorkflowFiles()],
+    ['workflow-db-backfill', () => backfillWorkflowFilesToDatabase()],
+    ['study-goal-migration', () => migrateStudyGoals()],
+    ['agent-worker-manager', () => workerManager.initialize()],
+  ]);
   await timed('backlog-scheduler', () => startBacklogScheduler());
   startEventLoopLagWatchdog();
-  await timed('backup-scheduler', () => startBackupScheduler());
-  await timed('worktree-cleanup-scheduler', () => startWorktreeCleanupScheduler());
-  await timed('decision-trace-consistency-scheduler', () =>
-    startDecisionTraceConsistencyScheduler(),
-  );
-  await timed('auto-restart-merged-code-scheduler', () => startAutoRestartMergedCodeScheduler());
-  await timed('memo-reminder-scheduler', () => startMemoReminderScheduler());
-  await timed('auto-merge-watcher', () => AutoMergeWatcher.getInstance().start());
-  await timed('workflow-reconciler', () => startWorkflowReconciler());
-  await timed('resource-telemetry', () => startResourceTelemetryIfEnabled());
-  startCpuUsageMonitorIfEnabled();
-  await timed('supervision-heartbeat-scheduler', () => startSupervisionHeartbeatScheduler());
-  await timed('i18n-integrity-scheduler', () => startI18nIntegrityScheduler());
-
+  // NOTE(task 966): these previously had no yieldToLoop(), causing restart-adjacent stalls.
+  await runWarmupTasks([
+    ['backup-scheduler', () => startBackupScheduler()],
+    ['worktree-cleanup-scheduler', () => startWorktreeCleanupScheduler()],
+    ['decision-trace-consistency-scheduler', () => startDecisionTraceConsistencyScheduler()],
+    ['auto-restart-merged-code-scheduler', () => startAutoRestartMergedCodeScheduler()],
+    ['memo-reminder-scheduler', () => startMemoReminderScheduler()],
+    ['auto-merge-watcher', () => AutoMergeWatcher.getInstance().start()],
+    ['workflow-reconciler', () => startWorkflowReconciler()],
+    ['resource-telemetry', () => startResourceTelemetryIfEnabled()],
+    ['cpu-usage-monitor', () => startCpuUsageMonitorIfEnabled()],
+    ['supervision-heartbeat-scheduler', () => startSupervisionHeartbeatScheduler()],
+    ['i18n-integrity-scheduler', () => startI18nIntegrityScheduler()],
+  ]);
   log.info('Startup warm-up complete');
 };
 

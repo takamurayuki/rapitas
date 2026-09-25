@@ -3310,6 +3310,10 @@
         "title": "Auto-run: all tasks complete",
         "message": "All target tasks for theme \"{themeName}\" are processed. Auto-run is finishing."
       },
+      "auto_run_held_tasks": {
+        "title": "Auto-run: tasks remain outside selection",
+        "message": "Theme \"{themeName}\" has processed every selectable task, but {heldCount} task(s) remain held outside selection: {heldList}. If this hold is not intended, clear the workflow-disabled / auto-run-excluded flag or answer the pending question."
+      },
       "auto_run_idle_stopped": {
         "title": "Auto-run: stopped — no new tasks were filed",
         "message": "Theme \"{themeName}\" ran out of tasks and nothing new was filed, so auto-run was stopped. It can resume once you file a task manually or the nightly self-refill window opens."
@@ -3507,7 +3511,18 @@
         "roleLabel": "Addendum for the {role} role",
         "reasonLabel": "Detected because",
         "approve": "Approve & apply",
-        "reject": "Reject"
+        "reject": "Reject",
+        "runComparison": "Run shadow comparison",
+        "comparisonRunning": "Comparison running…",
+        "comparisonNotRun": "Comparison not run",
+        "comparisonVerdict": "Verdict",
+        "comparisonSampleSize": "Sample size",
+        "comparisonSuccessRateDelta": "Success rate delta",
+        "comparisonCostDelta": "Cost delta",
+        "verdictImproved": "Improved",
+        "verdictRegressed": "Regressed",
+        "verdictInconclusive": "Inconclusive",
+        "verdictInsufficientData": "Insufficient data"
       },
       "title": "Prompt evolution history",
       "entries": "{count} entries",
@@ -4444,6 +4459,22 @@
     }
   },
   "concerns": {
+    "search": {
+      "title": "Concern search (PERF)",
+      "inputLabel": "Search concerns",
+      "placeholder": "e.g. Show me PERF-related blocking concerns",
+      "submit": "Search",
+      "voiceStart": "Start voice input",
+      "voiceStop": "Stop voice input",
+      "voiceOffline": "Voice input is unavailable offline. Use text search.",
+      "voiceUnsupported": "Voice input is not supported in this browser. Use text search.",
+      "offlineNotice": "Offline: searching cached results.",
+      "resultCount": "{count} concerns found",
+      "noResults": "No matching concerns.",
+      "error": "Search failed. Showing cached results.",
+      "listLabel": "Search results",
+      "spoken": "Impact {score}, related tasks {count}, priority {priority}"
+    },
     "emptyState": "No matching concerns.",
     "typeBug": "Bug",
     "typeRefactor": "Refactor",
@@ -5437,6 +5468,10 @@
         "knowledge_reuse": {
           "label": "Knowledge-reuse effectiveness",
           "desc": "Compares the completion success rate of tasks whose planning stage retrieved a similar solved task (a CBR case) against tasks that didn't, and records whether knowledge reuse is statistically helping. Never files a concern."
+        },
+        "pr_risk_review": {
+          "label": "PR risk prediction review",
+          "desc": "Counts only PRs rolled back within 72h of merge or registered as a critical production incident as failures, records the PR risk score's monthly precision/recall/false-positive rate and reviews the threshold (the score is advisory; humans make the final call)."
         }
       },
       "frequency": {

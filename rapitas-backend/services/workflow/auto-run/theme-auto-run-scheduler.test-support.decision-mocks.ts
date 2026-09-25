@@ -250,9 +250,11 @@ export const mockNotifyHangBackstop = mock(() => Promise.resolve());
 export const mockNotifyTaskVanished = mock(() => Promise.resolve());
 export const mockNotifyResourceContentionHold = mock(() => Promise.resolve());
 export const mockNotifyIdleStopped = mock(() => Promise.resolve());
+export const mockNotifyHeldTasks = mock(() => Promise.resolve());
 
 mock.module('./auto-run-notifications', () => ({
   notifyIdleStopped: mockNotifyIdleStopped,
+  notifyHeldTasks: mockNotifyHeldTasks,
   notifyAwaitingPlanApproval: mockNotifyAwaitingPlanApproval,
   notifyAwaitingUserAnswer: mockNotifyAwaitingUserAnswer,
   notifyTaskSkipped: mockNotifyTaskSkipped,

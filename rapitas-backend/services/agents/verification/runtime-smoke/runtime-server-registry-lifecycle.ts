@@ -282,7 +282,36 @@ export async function spawnNewEntry(
     entry.leases.clear();
     entry.quarantineReason = `起動または所有情報保存に失敗: ${String(error)}`;
     log.error({ err: error, key }, '[registry] start failed — workdir quarantined');
-    if (entry.identities?.length) await stopOwnedAndVerify(entry, 'start-error');
+    if (entry.identities?.length) {
+      await stopOwnedAndVerify(entry, 'start-error');
+    } else if (entry.app) {
+      // OS-snapshot identity confirmation never succeeded (e.g. the "Spawned
+      // process identity cannot be confirmed" throw before line 184), so
+      // stopOwnedAndVerify() cannot run — it requires entry.identities. The
+      // launched child process itself is still known via entry.app (its real
+      // PID from child_process.spawn()), so fall back to killing it directly
+      // instead of leaving it as an unreferenced leak.
+      entry.app.stop();
+      if (entry.app.hasExited()) {
+        // The only process this reservation ever launched is gone — it died
+        // before its identity could be read (task 1055: `next dev` exited 1 on
+        // a missing module). Nothing is left to own, so a lasting quarantine
+        // would only turn every later verification of this worktree into
+        // "unverifiable" (1055 was blocked twice on it). Release instead.
+        try {
+          await persistRemoval(key);
+          if (registry.get(key) === entry) registry.delete(key);
+          return failure(`起動に失敗しました: ${String(error)}`, {
+            unverifiable: true,
+            logs: entry.app.logs(),
+            exitCode: entry.app.exitCode(),
+            hasExited: true,
+          });
+        } catch (cleanupError) {
+          log.error({ err: cleanupError, key }, '[registry] dead-launch release failed');
+        }
+      }
+    }
     return failure(entry.quarantineReason, {
       unverifiable: true,
       logs: entry.app?.logs(),

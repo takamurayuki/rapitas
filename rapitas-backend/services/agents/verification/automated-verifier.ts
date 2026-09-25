@@ -1,4 +1,4 @@
-import { generatedSyncCheck } from './generated-sync-check';
+import { generatedSyncCheck, ciParityChecks } from './generated-sync-check';
 export { generatedSyncCheck } from './generated-sync-check';
 import { buildFileCommands } from './command-batches';
 /**
@@ -9,14 +9,12 @@ import { buildFileCommands } from './command-batches';
  * claims with actual command output. Scoped to the agent's changed files (and,
  * for tsc, errors are filtered to those files) so pre-existing problems in the
  * project don't cause false gating. Monorepo-aware: groups changed files by the
- * nearest package.json and runs the tooling per project root.
- *
- * All subprocesses run ASYNChronously (spawn) — never execSync — so a slow
- * tsc/eslint can't block the single-threaded backend event loop.
- *
- * Optionally also runs the project's test suite (opt-in via RAPITAS_VERIFY_TESTS)
- * so the gate covers runtime breakage, not just lint/types. Not responsible for
- * committing or the retry loop.
+ * nearest package.json and runs the tooling per project root. All subprocesses
+ * run ASYNChronously (spawn) — never execSync — so a slow tsc/eslint can't
+ * block the single-threaded backend event loop. Optionally also runs the
+ * project's test suite (opt-in via RAPITAS_VERIFY_TESTS) so the gate covers
+ * runtime breakage, not just lint/types. Not responsible for committing or
+ * the retry loop.
  */
 import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { dirname, extname, join, relative, resolve } from 'path';
@@ -26,6 +24,7 @@ import { buildTriagedTestCheck } from './test-triage-report';
 import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
 import { evaluateAcceptanceSelfCheck } from './acceptance-self-check';
 import { schemaChangeGateCheck, collectHardGateChecks } from './schema-change-gate';
+import { resolveForbiddenChangeOverride } from './schema-change-gate';
 import { runProjectChecks, spawnQuiet } from './quiet-verification';
 import { assertSafeGitRef } from '../../../utils/common/branch-name-generator';
 
@@ -53,7 +52,8 @@ export interface VerificationCheck {
     | 'tamper'
     | 'acceptance'
     | 'schema-change'
-    | 'red-state';
+    | 'red-state'
+    | 'file-size';
   /** Whether the check was applicable and actually executed. */
   ran: boolean;
   /** True when the check passed (no new failures in the changed files). */
@@ -937,7 +937,6 @@ export async function runAutomatedVerification(
   options: VerificationOptions = {},
 ): Promise<VerificationResult> {
   const changedFiles = await getChangedCodeFiles(workdir, options.preferredBaseBranch);
-
   // Full diff (not just code files): scope violations and tampering can live in docs/config/CI too.
   const allChanged = await getAllChangedFiles(workdir, options.preferredBaseBranch);
   const planFiles = options.planContent ? parsePlanFiles(options.planContent) : null;
@@ -949,12 +948,12 @@ export async function runAutomatedVerification(
   const allow = options.tamperAllowlist ?? [];
   const tamperPlan = allow.length ? [...(planFiles ?? []), ...allow] : planFiles;
   const tamper = tamperCheck(allChanged, tamperPlan);
-  const schemaGate = schemaChangeGateCheck(allChanged, planFiles);
+  const forbiddenChangeOverride = await resolveForbiddenChangeOverride(options.taskId);
+  const schemaGate = schemaChangeGateCheck(allChanged, planFiles, forbiddenChangeOverride);
   const hardGateChecks = collectHardGateChecks(scopeCheck, tamper, schemaGate);
   // An empty diff skips scoped static commands, but does not prove that a
   // configured runtime works (for example after restoring a merged task).
   // Continue to the runtime stage and preserve unavailable/failed evidence.
-
   const groups = groupByProjectRoot(workdir, changedFiles);
   const lintParts: VerificationCheck[] = [];
   const typeParts: VerificationCheck[] = [];
@@ -981,10 +980,10 @@ export async function runAutomatedVerification(
     coverage,
     options.preferredBaseBranch,
   );
-  // CI-parity checks: prettier formatting and Prisma generated-artifact sync
-  // both hard-fail CI's Lint Code job, so catching them here turns a full
-  // ci_repair round into an in-phase fix.
+  // CI-parity checks (prettier, Prisma generated-artifact sync, line-limit
+  // ratchet): each hard-fails CI, so catching it here saves a ci_repair round.
   const generatedSync = generatedSyncCheck(allChanged);
+  const parity = await ciParityChecks(workdir, allChanged);
   // Acceptance self-check (ADVISORY, task 617): criterion↔diff token matching
   // over the FULL diff (criteria may reference docs/config, not just code).
   const acceptance =
@@ -1001,6 +1000,7 @@ export async function runAutomatedVerification(
     mergeChecks('test', testParts),
     ...(formatParts.length > 0 ? [mergeChecks('format', formatParts)] : []),
     ...(generatedSync ? [generatedSync] : []),
+    ...parity,
     ...hardGateChecks,
     ...(coverage ? [coverage] : []),
     ...(redState ? [redState] : []),

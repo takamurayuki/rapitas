@@ -178,6 +178,39 @@ describe('computeAndApplyStatusTransition — 非収束カットオフの二重�
     expect(mockTaskUpdate).not.toHaveBeenCalled();
   });
 
+  test.each([
+    'not_reviewable',
+    'stale_task',
+    'stale_snapshot',
+    'execution_superseded',
+    'review_in_progress',
+  ])(
+    '想定内の保留理由 %s は RequirementReplanHeldError(409) で投げられ、ERRORログを誘発しない(#1023)',
+    async (reason) => {
+      mockRequirementReplan.mockResolvedValueOnce({ committed: false, reason });
+      let caught: unknown;
+      try {
+        await computeAndApplyStatusTransition(buildParams());
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught).toBeInstanceOf(RequirementReplanHeldError);
+      expect((caught as Error).message).toBe(`Requirement replan review held: ${reason}`);
+      expect(mockTaskUpdate).not.toHaveBeenCalled();
+    },
+  );
+
+  test('未知の保留理由は従来どおり汎用 Error のまま(ERRORログで可視化)', async () => {
+    mockRequirementReplan.mockResolvedValueOnce({ committed: false, reason: 'unknown' });
+    let caught: unknown;
+    try {
+      await computeAndApplyStatusTransition(buildParams());
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).not.toBeInstanceOf(RequirementReplanHeldError);
+  });
+
   test('budget_exhausted は RequirementReplanHeldError(AppError) として投げられ、ERRORログを誘発しない(#961)', async () => {
     // priorReplans>=3 に達した状態は再計画不能を示す想定内の打ち止めであり、
     // 未知のクラッシュではない。plain Error のままだと error-handler.ts の

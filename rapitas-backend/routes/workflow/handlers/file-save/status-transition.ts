@@ -18,7 +18,12 @@ import { markLatestExecutionFailed, wasNonConvergenceCutoffJustRecorded } from '
 import type { CompletionReviewReceipt } from '../../../../services/workflow/requirement-replan-commit';
 import { parseQuestionOptionsBlock } from '../../../../services/workflow/question-options-parser';
 import { resolveExplicitOrDefaultKind } from '../../../../services/workflow/question-kind-resolver';
-import { RequirementReplanHeldError } from '../../../../middleware/error-handler';
+import { RequirementReplanHeldError, ConflictError } from '../../../../middleware/error-handler';
+import { isExpectedReplanHold } from '../../../../services/workflow/requirement-replan-policy';
+import {
+  checkPlanQuestionBudget,
+  blockPlanQuestionOverBudget,
+} from '../../../../services/workflow/workflow-plan-question-guard';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -134,6 +139,20 @@ export async function computeAndApplyStatusTransition(params: {
     currentStatus !== 'awaiting_question' &&
     currentStatus !== 'completed'
   ) {
+    // plan フェーズ発の質問（往復ループの主対象、task #897/#965）にのみライフタイム
+    // 予算ガードを適用する。intake（research開始前）の質問は別 cause で raise
+    // されるため対象外 — intake-policy.ts の ask/best-guess ポリシーの実効閾値を
+    // 変えないため合算しない（研究フェーズの決定事項）。
+    if (currentStatus === 'plan_approved') {
+      const budget = await checkPlanQuestionBudget(taskId);
+      if (!budget.allowed) {
+        await blockPlanQuestionOverBudget(taskId, budget.count, budget.limit);
+        throw new ConflictError(
+          `plan-phase question rounds reached the lifetime cap (${budget.count}/${budget.limit}); task blocked instead of raising another question`,
+          'PLAN_QUESTION_BUDGET_EXHAUSTED',
+        );
+      }
+    }
     // 質問.md が保存されたらユーザー回答待ち状態に遷移する。
     // 復帰先 status は transition log の metadata.previousStatus に保存しておき、
     // 回答後に呼ばれる resume API（routes/workflow/handlers/workflow-handlers-resume.ts）が
@@ -162,14 +181,17 @@ export async function computeAndApplyStatusTransition(params: {
       // (An undecidable reviewer verdict no longer lands here — the service
       // converts it into an inconclusive no-mismatch receipt, see
       // requirement-replan-service.ts.)
-      if (replan.reason === 'budget_exhausted') {
-        // NOTE (task #961): budget_exhausted means priorReplans reached its
+      if (isExpectedReplanHold(replan.reason)) {
+        // NOTE (task #961, #1023): budget_exhausted means priorReplans reached its
         // cap (requirement-replan-policy.ts) — an append-only counter that
         // never decreases, so this is an expected terminal state, not a
         // crash. Throwing RequirementReplanHeldError (AppError) instead of a
         // plain Error keeps queue-skip-policy.ts's retry-suppression from
         // being undermined by a false-alarm ERROR log on the very save that
         // reached the cap (see error-handler.ts for the suppression detail).
+        // #1023: not_reviewable / stale_* / execution_superseded / review_in_progress are
+        // likewise state guards (task not in-progress, evidence moved on), not crashes.
+        // Unknown reasons deliberately stay a plain Error so real anomalies still log ERROR.
         throw new RequirementReplanHeldError(replan.reason);
       }
       throw new Error(`Requirement replan review held: ${replan.reason}`);

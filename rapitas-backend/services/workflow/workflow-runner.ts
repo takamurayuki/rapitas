@@ -16,7 +16,7 @@ import {
 } from './workflow-runner-events';
 import { isShutdownError } from '../agents/orchestrator/shutdown-error';
 import { ExecutionCancelledError } from '../agents/execution-cancelled-error';
-import { waitForVerifyCompletion } from './workflow-runner-verify-settle';
+import { waitForVerifyCompletion, deferVerifyItem } from './workflow-runner-verify-settle';
 import {
   resolveMaxIterations,
   resolvePhaseTimeoutMs,
@@ -25,8 +25,10 @@ import {
   raceWorkflowAdvance,
   waitBeforeNextPhase,
   stopFailedPhaseAgents,
+  logPhaseFailure,
 } from './workflow-runner-item-helpers';
 import { taskVanishedMessage } from './queue-vanished-task-policy';
+import { markEventLoopSection } from '../system/event-loop-lag-watchdog';
 import type { RunnerStatus, ActiveExecution } from './workflow-runner.types';
 
 export type { RunnerStatus } from './workflow-runner.types';
@@ -165,29 +167,30 @@ export class WorkflowRunner {
     };
   }
 
-  /**
-   * Dequeue items and process them.
-   */
+  /** Dequeue items and process them. */
   private async processQueue(): Promise<void> {
     if (!this.running) return;
-
+    const t0 = Date.now();
+    let dequeuedCount = 0;
+    const releaseSection = markEventLoopSection('workflow-runner:processQueue'); // task 1040: names this section on a concurrent event-loop-lag WARN
     try {
       // Dequeue while there are free slots
       while (this.activeExecutions.size < this.queue.getMaxConcurrency()) {
         const item = await this.queue.dequeue();
         if (!item) break;
-
-        // Start execution async (fire-and-forget)
-        this.executeWorkflowItem(item);
+        dequeuedCount++;
+        this.executeWorkflowItem(item); // fire-and-forget
       }
     } catch (error) {
       log.error({ err: error }, '[WorkflowRunner] Error in processQueue');
+    } finally {
+      releaseSection();
+      const tookMs = Date.now() - t0; // task 966: diagnostic instrumentation for concern #966 (event-loop-lag WARN)
+      if (tookMs > 1000) log.warn({ dequeuedCount, tookMs }, 'Slow queue processing');
     }
   }
 
-  /**
-   * Execute the entire workflow for a single task asynchronously.
-   */
+  /** Execute the entire workflow for a single task asynchronously. */
   private async executeWorkflowItem(item: QueueItem): Promise<void> {
     const abortController = new AbortController();
     const execution: ActiveExecution = {
@@ -275,13 +278,8 @@ export class WorkflowRunner {
         }
 
         if (currentStatus === 'verify_done') {
-          // verify.md was just saved; the commit/PR/merge completion automation
-          // runs ASYNCHRONOUSLY and then flips task.status→done (or moves the task
-          // to self-repair / leaves it verify_done on a real, persistent failure).
-          // Polling can land in the brief window AFTER verify_done is set but
-          // BEFORE that automation finishes — declaring 'failed' there made the UI
-          // flash a misleading "blocked"/"failed" for ~20-30s before the task
-          // actually completed. Wait (bounded) for it to settle before judging.
+          // The async commit/PR/merge automation flips status→done (or bounces) after
+          // verify.md lands; judging 'failed' first flashed a false "blocked" — wait.
           const settled = await waitForVerifyCompletion(item.taskId, abortController.signal);
           if (settled === 'completed') {
             await this.queue.updateStatus(item.id, 'completed', {
@@ -302,9 +300,14 @@ export class WorkflowRunner {
             break;
           }
           if (settled === 'moved') {
-            // The task left verify_done (e.g. self-repair bounced it back to
-            // in_progress). Re-loop to handle the new phase instead of failing.
+            // Left verify_done (e.g. self-repair bounce) — re-loop for the new phase.
             continue;
+          }
+          if (settled === 'deferred') {
+            await deferVerifyItem(this.queue, item.id);
+            this.broadcastItemUpdate(item.id, item.taskId, 'workflow_completed', 'verify_done');
+            continueLoop = false;
+            break;
           }
           if (abortController.signal.aborted) {
             // The grace window ended because auto-run was STOPPED, not because the
@@ -395,10 +398,7 @@ export class WorkflowRunner {
           // Surface WHY the phase failed. This used to be swallowed — only the
           // generic "Max retries (3) exceeded" surfaced — which hid root causes
           // like "role has no agent assigned" behind a silent retry loop.
-          log.warn(
-            { taskId: item.taskId, phase: currentStatus, role: result.role, error: result.error },
-            `[WorkflowRunner] Phase failed for task ${item.taskId}: ${result.error ?? 'unknown error'}`,
-          );
+          logPhaseFailure(log, item.taskId, currentStatus, result);
           // Persist the reason on the queue item so it is visible after retries.
           const retried = await this.queue.retryIfPossible(item.id, result.error ?? undefined);
           if (!retried) {

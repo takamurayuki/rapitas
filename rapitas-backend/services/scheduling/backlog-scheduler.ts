@@ -17,9 +17,11 @@ import {
   type BacklogJobKind,
   type BacklogScheduleConfig,
 } from './backlog-schedule-service';
+import { startGuardIncidentFiler, stopGuardIncidentFiler } from '../workflow/guard-incident-filer';
 import { runInnovationSession } from '../memory/innovation-session';
 import { runVulnerabilityScan } from '../memory/vulnerability-scan';
 import { runLogHealthCheck } from '../system/log-health-check';
+import { markEventLoopSection } from '../system/event-loop-lag-watchdog';
 import { runLoopReview } from '../self-improvement/loop-watcher';
 import { runCiWatch } from '../self-improvement/ci-green-keeper';
 import { createNotification } from '../communication/notification-service';
@@ -27,6 +29,9 @@ import { runDailyReport } from '../reporting/daily-report-service';
 import { runMissLedgerJob } from '../self-improvement/miss-ledger-job';
 import { runGatePrecisionJob } from '../self-improvement/gate-precision-job';
 import { evaluateAndRecordKnowledgeReuse } from '../supervision/knowledge-reuse-evaluator';
+import { runPrRiskReviewJob } from '../self-improvement/pr-risk';
+import { runOutageSimulationJob } from '../outage-guidance/outage-simulation-job';
+import { BACKLOG_JOB_LABELS } from './backlog-job-labels';
 
 const log = createLogger('scheduling:backlog');
 
@@ -44,21 +49,8 @@ const HANDLERS: Record<BacklogJobKind, () => Promise<number>> = {
   miss_ledger: runMissLedgerJob,
   gate_precision: runGatePrecisionJob,
   knowledge_reuse: evaluateAndRecordKnowledgeReuse,
-};
-
-// NOTE: Must stay in sync with rapitas-frontend/messages/ja.json
-// backlog.settings.jobs.<kind>.label — the backend has no access to the
-// frontend i18n bundle, so the labels are duplicated here for notifications.
-const JOB_LABELS: Record<BacklogJobKind, string> = {
-  innovation: 'イノベーションセッション',
-  vuln_scan: '脆弱性・バグ調査',
-  health_check: 'ログヘルスチェック',
-  loop_review: '品質ループレビュー',
-  ci_watch: 'CI 監視（本線）',
-  daily_report: 'デイリーレポート',
-  miss_ledger: '検出漏れ学習',
-  gate_precision: 'ゲート精度較正',
-  knowledge_reuse: '知識活用効果の測定',
+  pr_risk_review: runPrRiskReviewJob,
+  outage_simulation: runOutageSimulationJob,
 };
 
 // Caps notification body length — raw Error.message can carry stack-trace-like
@@ -157,7 +149,7 @@ async function recordManualRunOutcome(
   kind: BacklogJobKind,
   outcome: ManualRunOutcome,
 ): Promise<void> {
-  const label = JOB_LABELS[kind];
+  const label = BACKLOG_JOB_LABELS[kind];
   if (outcome.kind !== 'skipped') {
     // Also guards against a same-day duplicate scheduled fire: isJobDue checks
     // lastRunAt against the current local day.
@@ -218,6 +210,7 @@ export async function runBacklogJobNow(
   }
   running.add(kind);
   const startedAtMs = Date.now();
+  const releaseSection = markEventLoopSection(`backlog-job:${kind}`);
   try {
     const count = kind === 'health_check' ? await runLogHealthCheck(since) : await HANDLERS[kind]();
     // WARN (not info) so slow runs reach the file log — instrumentation for
@@ -236,6 +229,7 @@ export async function runBacklogJobNow(
     }
     throw err;
   } finally {
+    releaseSection();
     running.delete(kind);
   }
 }
@@ -280,6 +274,7 @@ export function startBacklogScheduler(): void {
   pollHandle = setInterval(() => {
     tick().catch((err) => log.warn({ err }, 'Backlog scheduler tick failed'));
   }, POLL_INTERVAL_MS);
+  startGuardIncidentFiler();
   log.info('Backlog scheduler started');
 }
 
@@ -292,4 +287,5 @@ export function stopBacklogScheduler(): void {
     pollHandle = null;
     log.info('Backlog scheduler stopped');
   }
+  stopGuardIncidentFiler();
 }

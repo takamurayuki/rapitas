@@ -215,6 +215,101 @@ describe('buildResolveAfterParse — 認証失敗 (401) 検知', () => {
   });
 });
 
+describe('buildResolveAfterParse — 入力長超過 (Prompt too long) 検知', () => {
+  test('task894の実文言 "Prompt is too long": failed かつ failureType=prompt_too_long', async () => {
+    const ctx = createCtx({
+      outputBuffer: 'API Error: Prompt is too long',
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    expect(result.failureType).toBe('prompt_too_long');
+    expect(result.errorMessage).toContain('Prompt Too Long');
+  });
+
+  // task 1035 (2026-09-22): a log-triage task ABOUT the 【Prompt Too Long】
+  // error carried the phrase in its own prompt echo and output, exited 0 with
+  // research.md saved, and was still recorded as failed (session excluded).
+  test('終了コード 0 なら本文に "Prompt is too long" があっても失敗扱いにしない', async () => {
+    const ctx = createCtx({
+      outputBuffer:
+        '[Claude Code] Prompt: 【Prompt Too Long】Claude Code CLI reported the prompt was too long — ログ出力箇所を特定する\n調査完了: 検出文言は "Prompt is too long"。',
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      0,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.failureType).toBeUndefined();
+    expect(result.errorMessage ?? '').not.toContain('Prompt Too Long');
+  });
+
+  test('authFailureHit が prompt_too_long より優先して評価される', async () => {
+    const ctx = createCtx({
+      outputBuffer: 'Failed to authenticate. API Error: 401 Invalid authentication credentials',
+      errorBuffer: 'Prompt is too long',
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    expect(result.failureType).toBeUndefined();
+    expect(result.errorMessage).toContain('認証');
+  });
+
+  test('入力長超過を含まない通常の失敗では failureType は付与されない', async () => {
+    const ctx = createCtx({ errorBuffer: 'some unrelated build error' });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    expect(result.failureType).toBeUndefined();
+  });
+});
+
 describe('buildResolveAfterParse — llmCallCount via workerResultUsage.numTurns', () => {
   test('numTurns が存在する場合、llmCallCount として result に載る', async () => {
     mockGitDiffResult = true;

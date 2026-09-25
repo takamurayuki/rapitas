@@ -82,9 +82,23 @@ export async function detectZeroProgressWhileRunning(nowMs: number): Promise<num
     // (e.g. an overlap-guard hold outliving its own ceiling before the
     // implementer phase — tasks 905/914/937, 2026-09-16/17, none of which
     // this detector ever caught despite running every 60s the whole time).
+    // "Since the anchor" must include an execution that STARTED before the
+    // anchor and is still alive: the anchor slides forward on the cycle that
+    // first sees a new row, so a long single phase (task 1031's 19-minute
+    // implementer run, 2026-09-22) was created before the slid anchor, counted
+    // as zero, and raised a spin alarm while it was heartbeating. Count any
+    // row created, heartbeating, or completed after the anchor.
+    const since = new Date(tracked.since);
     const executionCount = await prisma.agentExecution
       .count({
-        where: { session: { config: { taskId } }, createdAt: { gte: new Date(tracked.since) } },
+        where: {
+          session: { config: { taskId } },
+          OR: [
+            { createdAt: { gte: since } },
+            { heartbeatAt: { gte: since } },
+            { completedAt: { gte: since } },
+          ],
+        },
       })
       .catch(() => null);
     // Fail-open on an unreadable count; any real execution means this is a

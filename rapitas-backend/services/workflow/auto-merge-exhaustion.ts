@@ -10,6 +10,7 @@
  * 322/363. An exhausted mark parks the candidate; it automatically resumes
  * watching ONLY when the PR's head commit changes (someone pushed a fix).
  */
+import type { PrismaClient } from '../../generated/prisma-postgres';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
@@ -100,6 +101,46 @@ function parseStoredHeadSha(metadata: string | null): string | null {
   } catch {
     return null;
   }
+}
+
+/** Whether a task is currently parked exhausted, and since when / at what head. */
+export interface ExhaustionRecord {
+  exhausted: boolean;
+  headSha: string | null;
+  exhaustedAt: Date | null;
+}
+
+const NOT_EXHAUSTED: ExhaustionRecord = { exhausted: false, headSha: null, exhaustedAt: null };
+
+/**
+ * Read-only, side-effect-free check of a task's latest merge/exhaustion
+ * transition. Unlike {@link decideTerminalState} this performs NO gh calls, no
+ * recheck cooldown bookkeeping, and never mutates state — it exists so callers
+ * on a tight poll cadence (scope-overlap selection, the stale-PR reaper) can
+ * ask "is this parked, and with which head SHA / since when" without
+ * triggering decideTerminalState's 15-minute recheck side effects.
+ *
+ * @param prisma - Prisma client / Prismaクライアント
+ * @param taskId - Candidate task / 候補タスク
+ * @returns The latest exhaustion state, or all-false on any DB error (fail-open) / 枯渇状態
+ */
+export async function readExhaustionRecord(
+  prisma: PrismaClient,
+  taskId: number,
+): Promise<ExhaustionRecord> {
+  const latest = await prisma.workflowTransition
+    .findFirst({
+      where: { taskId, cause: { in: [...MERGED_CAUSES, EXHAUSTED_CAUSE] } },
+      orderBy: { createdAt: 'desc' },
+      select: { cause: true, metadata: true, createdAt: true },
+    })
+    .catch(() => null);
+  if (!latest || latest.cause !== EXHAUSTED_CAUSE) return NOT_EXHAUSTED;
+  return {
+    exhausted: true,
+    headSha: parseStoredHeadSha(latest.metadata),
+    exhaustedAt: latest.createdAt,
+  };
 }
 
 /**
