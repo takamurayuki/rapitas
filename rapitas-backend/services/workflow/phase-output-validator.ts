@@ -256,8 +256,12 @@ export function validateVerify(content: string): ValidationResult {
   // of the exemption never armed.
   const documentsOutOfScopeEscalation =
     /懸念[^\n]{0,20}(?:起票|登録)|POST\s+\/concerns|concern[^\n]{0,20}\bfiled\b/i.test(scanText);
+  // "対象外" / "既存テスト" / "環境依存" join the list (task 1088, 2026-09-25):
+  // the verifier wrote "1106 passed / 2 failed（対象外の既存テスト、単独実行では
+  // 0 failed）" beside the filed concern and was bounced twice — the ❌ scan
+  // below already honours 対象外, the count scan did not.
   const attributesFailureOutOfScope = (line: string): boolean =>
-    /(?:本タスク|当タスク|この(?:タスク|変更|差分))[^\n]{0,12}(?:とは)?\s*(?:無関係|関係(?:は)?な)|既存(?:の)?(?:失敗|不具合|バグ|エラー)|以前から(?:存在|あ)|スコープ外|範囲外|別タスク|pre[\s-]?existing|out[\s-]?of[\s-]?scope|unrelated/i.test(
+    /(?:本タスク|当タスク|この(?:タスク|変更|差分))[^\n]{0,12}(?:とは)?\s*(?:無関係|関係(?:は)?な)|既存(?:の)?(?:失敗|不具合|バグ|エラー|テスト)|以前から(?:存在|あ)|スコープ外|範囲外|対象外|環境依存|別タスク|pre[\s-]?existing|out[\s-]?of[\s-]?scope|unrelated/i.test(
       line,
     );
   // A line quoting a PAST failure count purely to show it has since been fixed

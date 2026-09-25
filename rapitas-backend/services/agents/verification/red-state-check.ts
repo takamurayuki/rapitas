@@ -243,26 +243,27 @@ export async function redStateCheck(
   }
 }
 
-/** Strip the test suffix and extension: `foo.test.ts` / `foo.spec.tsx` → `foo`. */
+/**
+ * The module a file belongs to: its basename up to the first dot, so
+ * `foo.test.ts`, `foo.cost-window.test.ts` and `foo.ts` all map to `foo`.
+ */
 function moduleStem(file: string): string {
-  return file
-    .replace(/\\/g, '/')
-    .split('/')
-    .pop()!
-    .replace(/\.(test|spec)\.[cm]?[jt]sx?$/i, '')
-    .replace(/\.[cm]?[jt]sx?$/i, '');
+  return file.replace(/\\/g, '/').split('/').pop()!.split('.')[0]!;
 }
 
 /**
  * Split the changed test files into those the red-state check can judge and
  * those it cannot. The check proves a test is RED without "this diff's source
- * changes", so it is only meaningful for a test whose source moved in the same
- * diff: a changed non-test file in the test's directory, or one sharing its
- * module stem anywhere (tests/ mirror layouts). A test repaired on its own —
- * a mock that lost an export, a flaky assertion — has no such source and
- * passes at the base commit by construction, so the old rule reported it as
- * "written after the fact" every time (#1088, 2026-09-25: the implementer had
- * to stop and ask, because no honest change could satisfy the gate).
+ * changes", so it is only meaningful for a test whose own module moved in the
+ * same diff — a changed non-test file sharing its module stem (colocated or
+ * in a tests/ mirror layout). A test repaired on its own — a mock that lost
+ * an export, a flaky assertion — has no such source and passes at the base
+ * commit by construction, so the old rule reported it as "written after the
+ * fact" every time (#1088, 2026-09-25: the implementer had to stop and ask,
+ * because no honest change could satisfy the gate). Same-directory proximity
+ * is deliberately NOT a relation: services/workflow holds 100+ modules, and
+ * the first version of this rule judged three unrelated mock repairs there
+ * against two unrelated source changes (#1088 again, verify round 3).
  *
  * @param changedFiles - Changed code files from getChangedCodeFiles / 変更されたコードファイル
  * @returns Test files to check, and the ones skipped as test-only repairs / 判定対象とテスト単独修正で除外した対象
@@ -273,13 +274,11 @@ export function selectRedStateTargets(changedFiles: string[]): {
 } {
   const norm = changedFiles.map((f) => f.replace(/\\/g, '/'));
   const testFiles = norm.filter((f) => TEST_FILE_RE.test(f));
-  const sourceFiles = norm.filter((f) => !TEST_FILE_RE.test(f));
-  const sourceDirs = new Set(sourceFiles.map((f) => dirname(f)));
-  const sourceStems = new Set(sourceFiles.map(moduleStem));
+  const sourceStems = new Set(norm.filter((f) => !TEST_FILE_RE.test(f)).map(moduleStem));
   const targets: string[] = [];
   const skipped: string[] = [];
   for (const t of testFiles) {
-    if (sourceDirs.has(dirname(t)) || sourceStems.has(moduleStem(t))) targets.push(t);
+    if (sourceStems.has(moduleStem(t))) targets.push(t);
     else skipped.push(t);
   }
   return { targets, skipped };

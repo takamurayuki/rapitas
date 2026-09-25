@@ -304,17 +304,18 @@ describe('countHumanOriginTodo', () => {
   test('counts top-level, non-backlog-promoted todo tasks; a DB error yields 0', async () => {
     mockTaskCount.mockResolvedValue(2);
     expect(await countHumanOriginTodo(7)).toBe(2);
+    // The where-fragment itself is pinned by auto-run-eligibility.test.ts; this
+    // call only adds the human-origin narrowing on top of it.
     expect(mockTaskCount).toHaveBeenCalledWith({
-      where: {
+      where: expect.objectContaining({
         themeId: 7,
-        status: 'todo',
+        status: { in: ['todo', 'in-progress'] },
         parentId: null,
         workflowDisabled: false,
         autoRunExcluded: false,
         haltReason: null,
-        OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
         autoCreatedFromBacklog: false,
-      },
+      }),
     });
 
     mockTaskCount.mockRejectedValue(new Error('db down'));

@@ -793,6 +793,18 @@ ${row}
     expect(r.ok).toBe(false);
     expect(r.summary).toContain('self-contradicts');
   });
+
+  // task 1088 (2026-09-25): 「対象外の既存テスト」「環境依存」で帰属した並列実行時
+  // だけ落ちる runtime-smoke 系 2 件が、❌ 側の免除語(対象外)と件数側の免除語の
+  // 不一致で 2 回連続差し戻された。
+  test('「対象外の既存テスト」「環境依存」での帰属も件数側の免除として通す', () => {
+    const row =
+      '| ローカル test:parallel 全体 | 1106 passed / 2 failed（対象外の既存テスト、単独実行では0 failed。懸念#11550として起票済み） |';
+    expect(validateVerify(doc(row)).ok).toBe(true);
+    const row2 =
+      '| 全体 | 1106 passed / 2 failed（環境依存: 並列時の高負荷で落ちる runtime-smoke。懸念に起票済み） |';
+    expect(validateVerify(doc(row2)).ok).toBe(true);
+  });
 });
 
 describe('validateVerify — 改善前の件数を引用した比較（task 943 実データ由来）', () => {

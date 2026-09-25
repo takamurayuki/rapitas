@@ -73,10 +73,29 @@ describe('maybeRunRedStateCheck — gating (no git touched)', () => {
 });
 
 describe('selectRedStateTargets — which changed tests the check can judge', () => {
-  test('a test next to a changed source file is judged', () => {
-    const r = selectRedStateTargets(['services/workflow/x.ts', 'services/workflow/y.test.ts']);
-    expect(r.targets).toEqual(['services/workflow/y.test.ts']);
+  test('a colocated test of a changed module is judged, including suffixed variants', () => {
+    const r = selectRedStateTargets([
+      'services/workflow/x.ts',
+      'services/workflow/x.test.ts',
+      'services/workflow/x.cost-window.test.ts',
+    ]);
+    expect(r.targets).toEqual([
+      'services/workflow/x.test.ts',
+      'services/workflow/x.cost-window.test.ts',
+    ]);
     expect(r.skipped).toEqual([]);
+  });
+
+  // #1088 verify round 3: services/workflow holds 100+ modules, and a
+  // same-directory rule judged three unrelated mock repairs there against two
+  // unrelated source changes — all "passed at base", all false positives.
+  test('same directory alone is not a relation', () => {
+    const r = selectRedStateTargets([
+      'services/workflow/workflow-db-backfill.ts',
+      'services/workflow/dry-run-orchestrator.test.ts',
+    ]);
+    expect(r.targets).toEqual([]);
+    expect(r.skipped).toEqual(['services/workflow/dry-run-orchestrator.test.ts']);
   });
 
   test('a mirror-layout test sharing the module stem is judged', () => {

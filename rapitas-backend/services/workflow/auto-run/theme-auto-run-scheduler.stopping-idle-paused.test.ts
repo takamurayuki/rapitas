@@ -98,16 +98,17 @@ describe('processIdleThemes', () => {
     await internal(scheduler).processIdleThemes([makeState({ enabled: true, themeId: 7 })]);
 
     expect(mockStartAutoRun).not.toHaveBeenCalled();
+    // The eligibility fragment itself is pinned by auto-run-eligibility.test.ts
+    // (it mirrors selectNextTask: todo + unfinished in-progress, #1088).
     expect(mockTaskCount).toHaveBeenCalledWith({
-      where: {
+      where: expect.objectContaining({
         themeId: 7,
-        status: 'todo',
+        status: { in: ['todo', 'in-progress'] },
         parentId: null,
         workflowDisabled: false,
         autoRunExcluded: false,
         haltReason: null,
-        OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
-      },
+      }),
     });
   });
 
@@ -246,16 +247,15 @@ describe('processIdleThemes — re-arm after an idle-stop (task 784)', () => {
 
     expect(mockStartAutoRun).toHaveBeenCalledWith(7);
     expect(mockTaskCount).toHaveBeenCalledWith({
-      where: {
+      where: expect.objectContaining({
         themeId: 7,
-        status: 'todo',
+        status: { in: ['todo', 'in-progress'] },
         parentId: null,
         workflowDisabled: false,
         autoRunExcluded: false,
         haltReason: null,
-        OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
         autoCreatedFromBacklog: false,
-      },
+      }),
     });
   });
 

@@ -29,14 +29,28 @@ export function eligibleTopLevelTodoWhere(
 ): Prisma.TaskWhereInput {
   return {
     themeId,
-    status: 'todo',
+    // selectNextTask also picks 'in-progress' rows whose workflow is not
+    // finished (mid-run answer, retry, reset). Counting only 'todo' here left
+    // #1088 (2026-09-25) invisible: its execution-phase question was answered
+    // while status was 'in-progress', so the armed-idle theme never resumed
+    // although the state endpoint reported it as remaining.
+    status: { in: ['todo', 'in-progress'] },
     parentId: null,
     workflowDisabled: false,
     autoRunExcluded: false,
     // NOTE: iteration-budget halted tasks (task 881/995) are skipped by auto-run-advance-select's
     // skipIds; counting them here made the idle side resume a theme the selector then refuses.
     haltReason: null,
-    OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }],
+    AND: [
+      {
+        OR: [
+          { status: 'todo' },
+          { workflowStatus: null },
+          { workflowStatus: { notIn: ['completed', 'verify_done'] } },
+        ],
+      },
+      { OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }] },
+    ],
     ...extra,
   };
 }
