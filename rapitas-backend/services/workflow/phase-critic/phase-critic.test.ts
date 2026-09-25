@@ -29,6 +29,47 @@ mock.module('../../../config/logger', () => ({
   createLogger: () => ({ info: mock(() => {}), warn: mock(() => {}), debug: mock(() => {}) }),
 }));
 
+/**
+ * Prisma double for the AC1 end-to-end test below. Only `./phase-critic`'s own
+ * deps (`ai-client`, `logger`) are mocked elsewhere in this file — `prisma` is
+ * mocked here so `applyPhaseCriticGate` runs its REAL `gatherCriticContext`
+ * (unexported, so it can only be exercised through this entry point) and the
+ * REAL `critiquePhase`, proving the DB-declared acceptance criteria survive
+ * the whole DB → gate → lens-input chain rather than a hand-built context
+ * object (which the sibling test above starts from).
+ */
+const gateMockPrisma = {
+  task: {
+    findUnique: mock(() =>
+      Promise.resolve<{
+        title: string;
+        description: string | null;
+        acceptanceCriteria: string | null;
+      } | null>(null),
+    ),
+    updateMany: mock(() => Promise.resolve({ count: 1 })),
+  },
+  workflowTransition: {
+    count: mock(() => Promise.resolve(0)),
+    findFirst: mock(() => Promise.resolve<{ metadata: string } | null>(null)),
+  },
+  workflowFile: {
+    findFirst: mock(() => Promise.resolve<{ content: string } | null>(null)),
+  },
+};
+mock.module('../../../config/database', () => ({
+  prisma: gateMockPrisma,
+  ensureDatabaseConnection: () => Promise.resolve(),
+}));
+mock.module('../transition-recorder', () => ({ recordTransition: mock(() => Promise.resolve()) }));
+mock.module('../workflow-file-utils', () => ({
+  archiveWorkflowFile: mock(() => Promise.resolve(true)),
+}));
+mock.module('../workflow-redispatch', () => ({
+  REDISPATCH_DELAY_MS: 1000,
+  scheduleWorkflowRedispatch: mock(() => {}),
+}));
+
 const {
   parseCriticResponse,
   isPhaseCriticEnabled,
@@ -37,6 +78,7 @@ const {
   lensSystemPrompt,
   critiquePhase,
 } = await import('./phase-critic');
+const { applyPhaseCriticGate } = await import('./phase-critic-gate');
 
 const v = (over: Partial<CriticVerdict>): CriticVerdict => ({
   lens: 'l',
@@ -265,6 +307,26 @@ describe('critiquePhase — sendAIMessage integration (task 911)', () => {
     expect(sendAIMessageMock.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({ model: 'configured-critic-model' }),
     );
+  });
+
+  it('AC1 end-to-end: DB-declared acceptance criteria reach the actual message sent to the critic', async () => {
+    gateMockPrisma.task.findUnique.mockResolvedValue({
+      title: 'タイトル',
+      description: '説明文',
+      acceptanceCriteria: JSON.stringify(['一意な受入基準ABC999']),
+    });
+
+    await applyPhaseCriticGate({
+      taskId: 911,
+      phase: 'research',
+      content: 'research body',
+      currentStatus: 'research_done',
+    });
+
+    expect(sendAIMessageMock).toHaveBeenCalled();
+    const call = sendAIMessageMock.mock.calls[0]?.[0] as { messages: { content: string }[] };
+    expect(call.messages[0]?.content).toContain('一意な受入基準ABC999');
+    expect(call.messages[0]?.content).toContain('# 受入基準');
   });
 
   it('reports inputTruncated:true when the artifact exceeds the limit', async () => {
