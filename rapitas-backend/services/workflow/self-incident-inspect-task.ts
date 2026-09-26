@@ -143,6 +143,7 @@ export async function inspectTask(
     themeAutoRunBusyWithOtherTask,
     taskHalted: task.haltReason != null,
     autoRunExcluded: task.autoRunExcluded === true,
+    hasActiveQueueItem: state.hasActiveQueueItem,
     nowMs,
   });
   if (desync) {
