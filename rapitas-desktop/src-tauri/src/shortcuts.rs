@@ -79,37 +79,63 @@ mod tests {
 
     #[test]
     fn all_three_distinct_registers_all_three() {
-        let result = shortcuts_to_register(Some(sc("Ctrl+Alt+R")), Some(sc("Ctrl+Alt+I")), Some(sc("Ctrl+Alt+T")));
-        assert_eq!(result, vec![sc("Ctrl+Alt+R"), sc("Ctrl+Alt+I"), sc("Ctrl+Alt+T")]);
+        let result = shortcuts_to_register(
+            Some(sc("Ctrl+Alt+R")),
+            Some(sc("Ctrl+Alt+I")),
+            Some(sc("Ctrl+Alt+T")),
+        );
+        assert_eq!(
+            result,
+            vec![sc("Ctrl+Alt+R"), sc("Ctrl+Alt+I"), sc("Ctrl+Alt+T")]
+        );
     }
 
     #[test]
     fn capture_matching_main_is_deduped() {
-        let result = shortcuts_to_register(Some(sc("Ctrl+Alt+R")), Some(sc("Ctrl+Alt+R")), Some(sc("Ctrl+Alt+T")));
+        let result = shortcuts_to_register(
+            Some(sc("Ctrl+Alt+R")),
+            Some(sc("Ctrl+Alt+R")),
+            Some(sc("Ctrl+Alt+T")),
+        );
         assert_eq!(result, vec![sc("Ctrl+Alt+R"), sc("Ctrl+Alt+T")]);
     }
 
     #[test]
     fn todo_matching_main_is_deduped() {
-        let result = shortcuts_to_register(Some(sc("Ctrl+Alt+R")), Some(sc("Ctrl+Alt+I")), Some(sc("Ctrl+Alt+R")));
+        let result = shortcuts_to_register(
+            Some(sc("Ctrl+Alt+R")),
+            Some(sc("Ctrl+Alt+I")),
+            Some(sc("Ctrl+Alt+R")),
+        );
         assert_eq!(result, vec![sc("Ctrl+Alt+R"), sc("Ctrl+Alt+I")]);
     }
 
     #[test]
     fn todo_matching_capture_is_deduped() {
-        let result = shortcuts_to_register(Some(sc("Ctrl+Alt+R")), Some(sc("Ctrl+Alt+I")), Some(sc("Ctrl+Alt+I")));
+        let result = shortcuts_to_register(
+            Some(sc("Ctrl+Alt+R")),
+            Some(sc("Ctrl+Alt+I")),
+            Some(sc("Ctrl+Alt+I")),
+        );
         assert_eq!(result, vec![sc("Ctrl+Alt+R"), sc("Ctrl+Alt+I")]);
     }
 
     #[test]
     fn all_three_identical_registers_only_main() {
-        let result = shortcuts_to_register(Some(sc("Ctrl+Alt+R")), Some(sc("Ctrl+Alt+R")), Some(sc("Ctrl+Alt+R")));
+        let result = shortcuts_to_register(
+            Some(sc("Ctrl+Alt+R")),
+            Some(sc("Ctrl+Alt+R")),
+            Some(sc("Ctrl+Alt+R")),
+        );
         assert_eq!(result, vec![sc("Ctrl+Alt+R")]);
     }
 
     #[test]
     fn none_configured_registers_nothing() {
-        assert_eq!(shortcuts_to_register(None, None, None), Vec::<Shortcut>::new());
+        assert_eq!(
+            shortcuts_to_register(None, None, None),
+            Vec::<Shortcut>::new()
+        );
     }
 }
 
