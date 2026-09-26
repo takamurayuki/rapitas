@@ -20,6 +20,9 @@ const findManyMock = mock(() =>
 const updateManyMock = mock(() => Promise.resolve({ count: 1 }));
 const countMock = mock(() => Promise.resolve(0));
 const findFirstMock = mock(() => Promise.resolve(null as { taskId: number } | null));
+// task 1105: the sweep also asks which tasks cannot run at all (halted /
+// blocked). Default empty keeps every pre-existing case on the age-only path.
+const taskFindManyMock = mock(() => Promise.resolve([] as { id: number }[]));
 const mockPrisma = {
   workflowQueueItem: {
     findMany: findManyMock,
@@ -27,6 +30,7 @@ const mockPrisma = {
     count: countMock,
     findFirst: findFirstMock,
   },
+  task: { findMany: taskFindManyMock },
 };
 
 const resolveTaskWorkflowStateMock = mock(() =>
@@ -89,6 +93,7 @@ const NOW = 1_800_000_000_000;
 
 beforeEach(() => {
   findManyMock.mockReset().mockResolvedValue([]);
+  taskFindManyMock.mockReset().mockResolvedValue([]);
   updateManyMock.mockReset().mockResolvedValue({ count: 1 });
   countMock.mockReset().mockResolvedValue(0);
   findFirstMock.mockReset().mockResolvedValue(null);
@@ -100,6 +105,66 @@ beforeEach(() => {
   notifyQueueStalledRunnerAliveMock.mockReset().mockResolvedValue(undefined);
   logCycleEventMock.mockReset();
   resetQueueStarvationTracker();
+});
+
+describe('sweepStaleRunningItems — 実行しえないタスクの残骸 (task 1105)', () => {
+  /** Route the two queue-item queries by their where clause. */
+  function routeFindMany(
+    stale: { id: number; taskId: number; themeId: number | null }[],
+    residue: { id: number; taskId: number; themeId: number | null }[],
+  ): void {
+    findManyMock.mockImplementation((args: unknown) => {
+      const where = (args as { where?: { taskId?: { in?: number[] } } })?.where;
+      return Promise.resolve(where?.taskId?.in ? residue : stale);
+    });
+  }
+
+  test('halt 済みタスクの running 残骸は 40 分待たずに解放される', async () => {
+    routeFindMany([], [{ id: 4101, taskId: 1105, themeId: 1 }]);
+    taskFindManyMock.mockResolvedValue([{ id: 1105 }]);
+    resolveTaskWorkflowStateMock.mockResolvedValue({
+      status: 'blocked',
+      workflowStatus: 'in_progress',
+    });
+
+    expect(await sweepStaleRunningItems(NOW)).toBe(1);
+    const call = updateManyMock.mock.calls[0]?.[0] as { where: { id: number; status: string } };
+    expect(call.where).toEqual({ id: 4101, status: 'running' });
+    expect(logCycleEventMock).toHaveBeenCalledWith(
+      'task.stall_released',
+      expect.objectContaining({ task: 1105, cause: 'unrunnable_task_running_residue' }),
+    );
+  });
+
+  test('生存中のエージェントがいる限り解放しない（二重起動の防止は維持）', async () => {
+    routeFindMany([], [{ id: 4101, taskId: 1105, themeId: 1 }]);
+    taskFindManyMock.mockResolvedValue([{ id: 1105 }]);
+    resolveTaskWorkflowStateMock.mockResolvedValue({
+      status: 'blocked',
+      workflowStatus: 'in_progress',
+    });
+    hasLiveExecutionMock.mockResolvedValue(true);
+
+    expect(await sweepStaleRunningItems(NOW)).toBe(0);
+    expect(updateManyMock).not.toHaveBeenCalled();
+  });
+
+  test('halt / blocked のタスクが無ければ残骸の照会自体を行わない', async () => {
+    taskFindManyMock.mockResolvedValue([]);
+    await sweepStaleRunningItems(NOW);
+    const residueQuery = findManyMock.mock.calls.find(
+      (c) => (c[0] as { where?: { taskId?: unknown } })?.where?.taskId !== undefined,
+    );
+    expect(residueQuery).toBeUndefined();
+  });
+
+  test('照会条件は haltReason 付き または blocked', async () => {
+    await sweepStaleRunningItems(NOW);
+    expect(taskFindManyMock.mock.calls[0][0]).toEqual({
+      where: { OR: [{ haltReason: { not: null } }, { status: 'blocked' }] },
+      select: { id: true },
+    });
+  });
 });
 
 describe('sweepStaleRunningItems', () => {

@@ -100,6 +100,9 @@ export async function notifyTaskVanished(themeId: number, taskId: number): Promi
 export type StallReleaseCause =
   | 'terminal_task_active_item_residue'
   | 'terminal_task_running_residue'
+  // A halted or blocked task cannot legitimately be running, so its residue is
+  // released without waiting out the staleness window (task 1105).
+  | 'unrunnable_task_running_residue'
   | 'stale_running_no_live_execution';
 
 /**
