@@ -279,6 +279,30 @@ describe('detectQueueStarvation', () => {
     expect(startProcessingMock).not.toHaveBeenCalled();
   });
 
+  // task 1106(2026-09-27): フェーズ継ぎ目で item が queued に戻る間もエージェントは
+  // 走っている。item の status だけを見ると running=0 / queued>0 に見えて、健全な
+  // ワークフローに飢餓アラートが出ていた。
+  test('queued 項目のタスクにエージェントが生存していれば発火しない', async () => {
+    primeStarvedCounts(2);
+    findManyMock.mockResolvedValue([{ id: 0, taskId: 1106, themeId: 1 }]);
+    hasLiveExecutionMock.mockResolvedValue(true);
+
+    await detectQueueStarvation(NOW);
+    expect(await detectQueueStarvation(NOW + QUEUE_STARVATION_THRESHOLD_MS * 2)).toBe(0);
+    expect(startProcessingMock).not.toHaveBeenCalled();
+    expect(notifyQueueStarvationMock).not.toHaveBeenCalled();
+  });
+
+  test('生存エージェントが居なければ従来どおり発火する', async () => {
+    primeStarvedCounts(2);
+    findManyMock.mockResolvedValue([{ id: 0, taskId: 1106, themeId: 1 }]);
+    hasLiveExecutionMock.mockResolvedValue(false);
+    findFirstMock.mockResolvedValue({ taskId: 1106 });
+
+    await detectQueueStarvation(NOW);
+    expect(await detectQueueStarvation(NOW + QUEUE_STARVATION_THRESHOLD_MS + 1_000)).toBe(1);
+  });
+
   test('初回観測では発火しない — フェーズ継ぎ目の一瞬の空隙を誤検出しない (task 585 回帰)', async () => {
     primeStarvedCounts();
 
