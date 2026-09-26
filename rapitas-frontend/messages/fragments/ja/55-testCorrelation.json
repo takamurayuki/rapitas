@@ -1,0 +1,34 @@
+{
+  "testCorrelation": {
+    "pageTitle": "テスト失敗相関ヒートマップ",
+    "pageDescription": "変更ファイルとテスト失敗の相関を可視化します。テストケースはテストファイル単位で集計しています。",
+    "heatmap": {
+      "title": "相関マトリックス",
+      "loading": "相関マトリックスを取得中...",
+      "empty": "相関データがありません",
+      "changedFileAxis": "変更ファイル",
+      "testFileAxis": "テストファイル",
+      "confidenceHigh": "信頼度: 高",
+      "confidenceMedium": "信頼度: 中",
+      "confidenceLow": "信頼度: 低（サンプル不足の可能性）",
+      "sampleSizeLabel": "サンプル数: {count}",
+      "correlationLabel": "相関係数: {value}",
+      "noCorrelation": "相関なし",
+      "nonDeterministicFlag": "環境依存/非決定的の可能性",
+      "cellTitle": "{changedFile} × {testFile}"
+    },
+    "drilldown": {
+      "title": "{testFile} の失敗事例",
+      "loading": "失敗事例を取得中...",
+      "empty": "該当する失敗事例なし",
+      "runIdLabel": "実行ID: {runId}",
+      "commitLabel": "コミット: {commitSha}",
+      "sourceLabel": "実行元: {source}",
+      "sourceCi": "CI",
+      "sourceLocal": "ローカル",
+      "sourceManual": "手動",
+      "environmentLabel": "環境: {platform} / {runtimeVersion}",
+      "close": "閉じる"
+    }
+  }
+}
