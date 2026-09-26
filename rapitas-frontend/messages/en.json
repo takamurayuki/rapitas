@@ -6243,5 +6243,13 @@
       "regex": "Use regular expression"
     },
     "runDivider": "─────── run {n}/{total} ───────"
+  },
+  "todayTodo": {
+    "title": "Today's Todo",
+    "empty": "No tasks to start right now",
+    "allSnoozed": "All tasks are snoozed",
+    "closeAria": "Close (Esc)",
+    "snoozeAria": "Snooze for 24 hours",
+    "clearSnoozeButton": "Clear snooze ({count})"
   }
 }
