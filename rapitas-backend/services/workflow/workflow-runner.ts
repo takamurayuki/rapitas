@@ -26,8 +26,10 @@ import {
   waitBeforeNextPhase,
   stopFailedPhaseAgents,
   logPhaseFailure,
+  propagateSubtaskCompletion,
 } from './workflow-runner-item-helpers';
 import { taskVanishedMessage } from './queue-vanished-task-policy';
+import { parkItemIfHalted } from './workflow-runner-halt-guard';
 import { markEventLoopSection } from '../system/event-loop-lag-watchdog';
 import type { RunnerStatus, ActiveExecution } from './workflow-runner.types';
 
@@ -258,21 +260,7 @@ export class WorkflowRunner {
             result: JSON.stringify({ completedAt: new Date().toISOString() }),
           });
           this.broadcastItemUpdate(item.id, item.taskId, 'workflow_completed', currentStatus);
-
-          // Propagate completion to the parent when this was a subtask. The
-          // subtask reaches its terminal state here (queue-driven), not via the
-          // task API, so this is the path that must notify the parent. The
-          // handler no-ops for non-subtasks (parentId === null).
-          if (task.parentId) {
-            const { onSubtaskCompleted } = await import('./subtask-completion-handler');
-            onSubtaskCompleted(item.taskId).catch((err) => {
-              log.warn(
-                { err, taskId: item.taskId, parentId: task.parentId },
-                '[WorkflowRunner] Failed to propagate subtask completion to parent',
-              );
-            });
-          }
-
+          propagateSubtaskCompletion(item.taskId, task.parentId);
           continueLoop = false;
           break;
         }
@@ -287,15 +275,7 @@ export class WorkflowRunner {
               result: JSON.stringify({ completedAt: new Date().toISOString() }),
             });
             this.broadcastItemUpdate(item.id, item.taskId, 'workflow_completed', 'completed');
-            if (task.parentId) {
-              const { onSubtaskCompleted } = await import('./subtask-completion-handler');
-              onSubtaskCompleted(item.taskId).catch((err) => {
-                log.warn(
-                  { err, taskId: item.taskId, parentId: task.parentId },
-                  '[WorkflowRunner] Failed to propagate subtask completion to parent',
-                );
-              });
-            }
+            propagateSubtaskCompletion(item.taskId, task.parentId);
             continueLoop = false;
             break;
           }
@@ -351,6 +331,12 @@ export class WorkflowRunner {
           continueLoop = false;
           break;
         }
+
+        // An iteration-budget halt must stop new spend, not just selection (task 1107).
+        const parked = await parkItemIfHalted(this.queue, item, currentStatus, (e, p) =>
+          this.broadcastItemUpdate(item.id, item.taskId, e, p),
+        );
+        if (parked) break;
 
         // Log phase transition
         await this.logPhaseTransition(item.taskId, currentStatus, 'advancing');
