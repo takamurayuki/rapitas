@@ -262,6 +262,7 @@
     "development": "開発",
     "agent": "エージェント",
     "agentManagement": "エージェント管理",
+    "executionDashboard": "実行可視化ダッシュボード",
     "metrics": "エージェント使用量",
     "approvals": "承認待ち",
     "promptManagement": "プロンプト管理",
@@ -1380,6 +1381,13 @@
       "selfRefillWindowDisabled": "無効（自己補充しない）",
       "savingSuffix": "（保存中…）"
     },
+    "executionDashboardSettingsCard": {
+      "title": "実行可視化ダッシュボード",
+      "description": "ワークフロー実行可視化ダッシュボード（/agents/execution-dashboard）の停滞検出に関する設定です。",
+      "thresholdLabel": "停滞とみなす経過時間",
+      "thresholdDescription": "タスクが実行開始（またはキュー投入）からこの分数のあいだ進捗せずにいると、ダッシュボード上で「停滞」として警告表示します。",
+      "thresholdUnit": "分"
+    },
     "ciTimingDashboard": {
       "fetchFailed": "データ取得に失敗しました",
       "title": "CI テスト実行時間ダッシュボード",
@@ -2304,6 +2312,36 @@
         "subtask_not_counted": "サブタスクは件数に含めない",
         "unresolved_high_severity_concern": "重要な未解決品質欠陥がある"
       }
+    },
+    "executionDashboard": {
+      "title": "実行可視化ダッシュボード",
+      "subtitle": "実行中の全タスクが今どこにいるかを1画面で把握できます",
+      "flowChartTitle": "パイプライン全体像",
+      "stage": {
+        "queued": "キュー待ち",
+        "running": "実行中",
+        "repairing": "修復中",
+        "awaitingJudgement": "判定待ち",
+        "completed": "完了",
+        "failed": "失敗",
+        "cancelled": "中断"
+      },
+      "frequentFailureWarning": "頻繁に失敗中",
+      "frequentFailureBadge": "頻繁に失敗中（{count}回）",
+      "stalledBadge": "停滞",
+      "emptyState": "実行中のタスクはありません",
+      "elapsedMinutes": "経過 {minutes}分",
+      "exportCsvButton": "実行ログをエクスポート（CSV）",
+      "exportJsonButton": "実行ログをエクスポート（JSON）",
+      "loading": "読み込み中…",
+      "loadFailed": "データの取得に失敗しました",
+      "truncatedNotice": "表示中 {shown}件（実際は{total}件） — 他のタスクは表示を省略しています",
+      "drilldownTitle": "タスク実行詳細",
+      "drilldownLoading": "読み込み中…",
+      "drilldownLoadFailed": "データの取得に失敗しました",
+      "drilldownState": "状態",
+      "drilldownRepairCount": "修復回数",
+      "drilldownElapsed": "経過時間"
     }
   },
   "github": {

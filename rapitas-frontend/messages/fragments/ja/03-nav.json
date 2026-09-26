@@ -19,6 +19,7 @@
     "development": "開発",
     "agent": "エージェント",
     "agentManagement": "エージェント管理",
+    "executionDashboard": "実行可視化ダッシュボード",
     "metrics": "エージェント使用量",
     "approvals": "承認待ち",
     "promptManagement": "プロンプト管理",
