@@ -112,6 +112,15 @@ export class ThemeAutoRunScheduler {
    * theme was idle (including the self-deploy restart, which fires precisely at
    * the 0-agent all_done quiet point) would leave the scheduler stopped and the
    * loop permanently dead. Resuming on enabled:true closes that self-defeating gap.
+   *
+   * A TIMER-stopped theme (enabled:false WITH idleStoppedAt) needs the ticker
+   * too, for the two things design points 5 and 6 promise it: the nightly
+   * self-refill still runs in place, and a human-filed task re-arms it. Both
+   * live in processIdleThemes, so a restart while timer-stopped silently ended
+   * them — observed 2026-09-27: the 06:00 self-healing restart left theme 1
+   * inert for 22 hours and the 03:00 refill never fired. A USER stop
+   * (idleStoppedAt null) stays stopped: processStoppedIdleTheme returns
+   * immediately for it, so ticking changes nothing.
    */
   async recoverOnStartup(): Promise<void> {
     // A restart does not prove task/session settlement succeeded. Retry the
@@ -121,9 +130,12 @@ export class ThemeAutoRunScheduler {
     const armed = await prisma.themeAutoRun
       .count({ where: { enabled: true, status: 'idle' } })
       .catch(() => 0);
-    if (pending.length > 0 || armed > 0) {
+    const timerStopped = await prisma.themeAutoRun
+      .count({ where: { enabled: false, status: 'idle', idleStoppedAt: { not: null } } })
+      .catch(() => 0);
+    if (pending.length > 0 || armed > 0 || timerStopped > 0) {
       log.info(
-        `[ThemeAutoRunScheduler] Resuming after restart (running/paused=${running.length}, armed-idle=${armed})`,
+        `[ThemeAutoRunScheduler] Resuming after restart (running/paused=${running.length}, armed-idle=${armed}, timer-stopped=${timerStopped})`,
       );
       this.start(running.length > 0 || armed > 0);
     }

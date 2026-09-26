@@ -138,6 +138,25 @@ describe('recoverOnStartup', () => {
     scheduler.stop();
   });
 
+  // 2026-09-27: the 06:00 self-healing restart left a TIMER-stopped theme
+  // (enabled:false with idleStoppedAt) without a ticker, so neither the nightly
+  // self-refill nor the human-filing re-arm ran for 22 hours.
+  it('resumes when a timer-stopped idle theme exists (refill + re-arm need the ticker)', async () => {
+    const scheduler = ThemeAutoRunScheduler.getInstance();
+    mockFindByStatuses.mockResolvedValue([]);
+    // armed count 0, timer-stopped count 1 — in call order.
+    mockThemeAutoRunCount.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+
+    await scheduler.recoverOnStartup();
+
+    // start() records the boot commit unconditionally, so this proves the
+    // ticker started. The queue is deliberately NOT started: a timer-stopped
+    // theme has no in-flight work to process.
+    expect(mockRecordStartupCommit).toHaveBeenCalled();
+    expect(mockStartProcessing).not.toHaveBeenCalled();
+    scheduler.stop();
+  });
+
   it('treats a rejected armed-count query as 0 (defensive .catch) instead of throwing', async () => {
     const scheduler = ThemeAutoRunScheduler.getInstance();
     mockFindByStatuses.mockResolvedValue([]);
