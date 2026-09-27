@@ -337,6 +337,30 @@ export const SUPPRESSIONS: Suppression[] = [
       'waitForHealthyのタイムアウトは呼び出し元(検証ゲート/ライブプレビュー)が既存の別シグネチャで結果を追随記録する — ポーリング過程のtelemetryであり単体では壊れた状態を示さない',
   },
   {
+    // ログ出力箇所: runtime-server-registry-lifecycle.ts:122/311 の stopOwnedAndVerify/
+    // spawnNewEntry の catch。readRuntimeProcessSnapshot()（runtime-process-snapshot.ts:118）
+    // がOS プロセス列挙用PowerShellスクリプト実行で失敗（execFileのタイムアウト等）した
+    // 際に発火する。タスク1110で確認: a47037f4（2026-09-27T00:17:36Z）が
+    // SNAPSHOT_TIMEOUT_MS を10秒から30秒へ延長し、spawnNewEntry の起動追跡ループには
+    // 3回連続失敗までリトライする自己修復も追加済みだが、開始前/停止後の単発呼び出し
+    // （beforeStart/afterStop、リトライ対象外）は依然として一度の失敗で本ERRORに到達
+    // し得る。ただしこの失敗はentryをquarantined状態にするのみで、次回の
+    // acquireRuntimeServer（worktree-server-registry.ts:184-221）が改めてスナップショット
+    // を取得し、プロセス終了・ポート解放・ディレクトリ解放を確認できた時点で自動的に
+    // quarantineを解除する。確認が取れない間は unverifiable:true でfail-closedに倒れる
+    // ため、誤って成功扱いになることはなく、この行を抑制しても恒久障害の可視性は失われない。
+    // NOTE: normalizeMessage（log-health-check.ts:203）は正規化後のメッセージを200文字で
+    // 切り詰める。windowsScript本体（runtime-process-snapshot.ts:32-44）に含まれる
+    // Get-CimInstance/Get-NetTCPConnectionはこの200文字を超えた位置にあり届かないため、
+    // 200文字以内で必ず生き残るスクリプト冒頭のコメント文言（同ファイル34-35行、
+    // execFileがUTF-8をデコードする際にCP932のバイト列がJSONエスケープを壊す事情の説明）
+    // を照合対象にする。
+    test: /Command failed: powershell\.exe -NoProfile -NonInteractive -Command \$ErrorActionPreference = 'Stop' # execFile decodes UTF-#\. CP# bytes for characters such as ソ contain #/i,
+    logger: /runtime-smoke:registry/i,
+    because:
+      'OSプロセス列挙スクリプトの単発失敗はworkdirをquarantinedにするだけで、次回acquireRuntimeServerがプロセス終了/ポート解放を再確認すると自動解除される（タイムアウトはa47037f4で30秒へ延長済み） — 未確認の間はunverifiable:trueでfail-closedのため誤って成功扱いになることはない',
+  },
+  {
     // ログ出力箇所: git-operations/pr/pr-merge-ops.ts:154-157 の logger.warn
     // （mergePullRequest内）。gh pr merge --delete-branch はGitHub側マージを先に
     // 行い最後にローカルブランチ削除をするため、タスクworktreeが同ブランチを
