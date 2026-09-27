@@ -49,8 +49,37 @@ mock.module('../observability', () => ({
 
 const { detectZeroProgressWhileRunning, resetZeroProgressTracker } =
   await import('./workflow-reconciler-zero-progress');
+// The real guard, not a mock: mock.module is process-global and replacing the
+// guard here would break its own test file in the same run.
+const { guardImplementOverlap, resetOverlapGuardState } =
+  await import('./workflow-orchestrator-overlap-guard');
 
 const NOW = 1_800_000_000_000;
+const HOLD_CEILING_MS = 30 * 60 * 1000;
+
+/** Put a real overlap hold on the task, started at `startedAt`. */
+async function holdOverlap(taskId: number, startedAt: number): Promise<void> {
+  const outcome = await guardImplementOverlap(
+    taskId,
+    { role: 'implementer', outputFile: null, nextStatus: 'in_progress' },
+    { themeId: 1, theme: { workingDirectory: 'C:/repo' } },
+    'plan_approved',
+    {
+      openPrs: async () => [
+        { prNumber: 829, linkedTaskId: 999, createdAt: new Date(startedAt - 60_000) },
+      ],
+      prFiles: async () => ['a.ts'],
+      artifact: async () => '対象: `a.ts`',
+      parseFiles: () => ['a.ts'],
+      overlap: async () => ['a.ts'],
+      isParked: async () => false,
+      isHalted: async () => false,
+      ownPr: async () => null,
+      now: () => startedAt,
+    },
+  );
+  expect(outcome.done).toBe(true);
+}
 
 /** running テーマ1件（themeId=1）を返すよう findByStatuses をセットする。 */
 function primeRunningTheme(currentTaskId: number | null, themeId = 1): void {
@@ -63,6 +92,7 @@ beforeEach(() => {
   notifyZeroProgressWhileRunningMock.mockReset().mockResolvedValue(undefined);
   logCycleEventMock.mockReset();
   resetZeroProgressTracker();
+  resetOverlapGuardState();
 });
 
 describe('detectZeroProgressWhileRunning', () => {
@@ -76,6 +106,31 @@ describe('detectZeroProgressWhileRunning', () => {
     expect(await detectZeroProgressWhileRunning(NOW)).toBe(0);
     expect(countMock).not.toHaveBeenCalled();
     expect(notifyZeroProgressWhileRunningMock).not.toHaveBeenCalled();
+  });
+
+  // 2026-09-27 15:00-15:15Z, task 1111: 重複ガードが実装フェーズを 30 分保留する間、
+  // この検知器は 17 回警報を出した。保留は設計どおりの待機であって空回りではない。
+  test('重複保留が上限内なら警報せず静かなイベントに落とす（1111 の 17 連打事例）', async () => {
+    primeRunningTheme(1111);
+    await holdOverlap(1111, NOW);
+
+    await detectZeroProgressWhileRunning(NOW);
+    expect(await detectZeroProgressWhileRunning(NOW + ZERO_PROGRESS_THRESHOLD_MS)).toBe(0);
+    expect(notifyZeroProgressWhileRunningMock).not.toHaveBeenCalled();
+    expect(logCycleEventMock).toHaveBeenCalledWith(
+      'theme.waiting_for_overlap_hold',
+      expect.objectContaining({ task: 1111, holdMs: ZERO_PROGRESS_THRESHOLD_MS }),
+    );
+  });
+
+  // 上限を超えた保留は本検知器が存在する理由そのもの（905/914/937）なので警報は残す。
+  test('重複保留が上限を超えていれば従来どおり警報する', async () => {
+    primeRunningTheme(1111);
+    await holdOverlap(1111, NOW - HOLD_CEILING_MS - 60_000);
+
+    await detectZeroProgressWhileRunning(NOW);
+    expect(await detectZeroProgressWhileRunning(NOW + ZERO_PROGRESS_THRESHOLD_MS)).toBe(1);
+    expect(notifyZeroProgressWhileRunningMock).toHaveBeenCalledTimes(1);
   });
 
   test('初回観測は発火しない（アームのみ）', async () => {

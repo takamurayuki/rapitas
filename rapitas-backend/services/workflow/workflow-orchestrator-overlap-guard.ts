@@ -57,6 +57,19 @@ export function isOverlapHeld(taskId: number): boolean {
   return holdSince.has(taskId);
 }
 
+/**
+ * How long the task has been held, for detectors that must tell a hold inside
+ * its ceiling (normal) from one that outlived it (the 905/914/937 regression).
+ *
+ * @param taskId - Task to measure. / 対象タスク
+ * @param nowMs - Current time, injected for tests. / 現在時刻
+ * @returns Elapsed hold ms, or null when not held. / 保留経過ms、非保留なら null
+ */
+export function overlapHoldAgeMs(taskId: number, nowMs: number = Date.now()): number | null {
+  const since = holdSince.get(taskId);
+  return since === undefined ? null : nowMs - since;
+}
+
 /** Collaborators, injectable for tests. Defaults resolve lazily to stay out of the scheduler's static import graph. */
 export interface OverlapGuardDeps {
   openPrs: (
