@@ -5,6 +5,13 @@ import { readFile, readdir } from 'fs/promises';
 import type { RuntimeProcessIdentity } from './runtime-process-identity';
 
 const exec = promisify(execFile);
+
+/**
+ * Ceiling for one OS process enumeration. Generous on purpose — see the call
+ * site's note; a slow enumeration under load must not be mistaken for a hang.
+ */
+export const SNAPSHOT_TIMEOUT_MS = 30_000;
+
 export interface RuntimeProcessSnapshot {
   processes: RuntimeProcessIdentity[];
   protectedPids: Set<number>;
@@ -115,7 +122,14 @@ export async function readRuntimeProcessSnapshot(): Promise<RuntimeProcessSnapsh
       ['-NoProfile', '-NonInteractive', '-Command', windowsScript],
       {
         windowsHide: true,
-        timeout: 10_000,
+        // Measured 2026-09-27: enumerating 525 processes plus the listener table
+        // takes ~1.6 s on an idle machine, but the ownership tracker runs this
+        // every 2.5 s while a dev server compiles in a worktree, and one call
+        // was killed at the old 10 s ceiling (SIGTERM, empty stderr, truncated
+        // stdout). That single timeout aborted the whole launch, which is why
+        // runtime smoke had not verified once since 09-22. Kept bounded — a
+        // genuinely hung PowerShell must still be cut, just not a slow one.
+        timeout: SNAPSHOT_TIMEOUT_MS,
         maxBuffer: 16 * 1024 * 1024,
       },
     );

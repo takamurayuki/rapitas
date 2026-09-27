@@ -285,6 +285,9 @@ describe('detectQueueStarvation', () => {
   test('queued 項目のタスクにエージェントが生存していれば発火しない', async () => {
     primeStarvedCounts(2);
     findManyMock.mockResolvedValue([{ id: 0, taskId: 1106, themeId: 1 }]);
+    taskFindManyMock.mockResolvedValue([
+      { id: 1106, status: 'in-progress', workflowStatus: 'in_progress', haltReason: null },
+    ] as never);
     hasLiveExecutionMock.mockResolvedValue(true);
 
     await detectQueueStarvation(NOW);
@@ -296,8 +299,47 @@ describe('detectQueueStarvation', () => {
   test('生存エージェントが居なければ従来どおり発火する', async () => {
     primeStarvedCounts(2);
     findManyMock.mockResolvedValue([{ id: 0, taskId: 1106, themeId: 1 }]);
+    taskFindManyMock.mockResolvedValue([
+      { id: 1106, status: 'todo', workflowStatus: 'draft', haltReason: null },
+    ] as never);
     hasLiveExecutionMock.mockResolvedValue(false);
     findFirstMock.mockResolvedValue({ taskId: 1106 });
+
+    await detectQueueStarvation(NOW);
+    expect(await detectQueueStarvation(NOW + QUEUE_STARVATION_THRESHOLD_MS + 1_000)).toBe(1);
+  });
+
+  // 2026-09-27: 本日 7 回出た飢餓アラートは、待機中の項目がすべて halt / blocked /
+  // 質問待ち / マージ待ちで「ランナーが発行を拒否する相手」だった。飢餓とは
+  // 「発行できる仕事が待っているのに何も走っていない」ことを指す。
+  test.each([
+    [
+      'halt 済み',
+      { status: 'todo', workflowStatus: 'in_progress', haltReason: 'budget_cost_exceeded' },
+    ],
+    ['blocked', { status: 'blocked', workflowStatus: 'in_progress', haltReason: null }],
+    ['質問待ち', { status: 'todo', workflowStatus: 'awaiting_question', haltReason: null }],
+    [
+      'マージ待ち(verify_done)',
+      { status: 'in-progress', workflowStatus: 'verify_done', haltReason: null },
+    ],
+  ])('待機中の項目が %s だけなら発火しない', async (_label, taskState) => {
+    primeStarvedCounts(1);
+    findManyMock.mockResolvedValue([{ id: 0, taskId: 1105, themeId: 1 }]);
+    taskFindManyMock.mockResolvedValue([{ id: 1105, ...taskState }] as never);
+    hasLiveExecutionMock.mockResolvedValue(false);
+
+    await detectQueueStarvation(NOW);
+    expect(await detectQueueStarvation(NOW + QUEUE_STARVATION_THRESHOLD_MS * 2)).toBe(0);
+    expect(startProcessingMock).not.toHaveBeenCalled();
+  });
+
+  test('タスク状態が読めないときは従来どおり発火する(情報不足で黙らせない)', async () => {
+    primeStarvedCounts(1);
+    findManyMock.mockResolvedValue([{ id: 0, taskId: 1105, themeId: 1 }]);
+    taskFindManyMock.mockRejectedValue(new Error('db down') as never);
+    hasLiveExecutionMock.mockResolvedValue(false);
+    findFirstMock.mockResolvedValue({ taskId: 1105 });
 
     await detectQueueStarvation(NOW);
     expect(await detectQueueStarvation(NOW + QUEUE_STARVATION_THRESHOLD_MS + 1_000)).toBe(1);

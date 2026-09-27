@@ -175,6 +175,7 @@ const HEALTH_LOG_EVERY_N_ATTEMPTS = 5;
  * @param shouldAbort - Checked every poll iteration; returning true short-circuits
  *   the wait immediately instead of spinning until timeoutMs (e.g. the launched
  *   process already crashed). / 早期終了判定
+ * @param abortReason - Short label for WHY the abort fired, logged as-is. / 早期終了の理由
  * @returns true when responsive within the deadline / 応答すれば true
  */
 export async function waitForHealthy(
@@ -182,6 +183,7 @@ export async function waitForHealthy(
   timeoutMs: number,
   logContext: Record<string, unknown> = {},
   shouldAbort?: () => boolean,
+  abortReason?: () => string,
 ): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   const startedAt = Date.now();
@@ -191,9 +193,14 @@ export async function waitForHealthy(
   log.info({ url, timeoutMs, ...logContext }, '[runtime-smoke] polling health endpoint');
   while (Date.now() < deadline) {
     if (shouldAbort?.()) {
+      // The message used to assert the process had exited, which was the only
+      // reason it originally checked for. It now also fires on a cancelled start
+      // and on an ownership-tracking failure, and naming the wrong cause cost
+      // days of misdiagnosis (2026-09-27: a snapshot timeout was read as an app
+      // crash). Report whatever the caller can actually tell us.
       log.warn(
-        { url, attempt, elapsedMs: Date.now() - startedAt, ...logContext },
-        '[runtime-smoke] health poll aborted — launched process already exited',
+        { url, attempt, elapsedMs: Date.now() - startedAt, reason: abortReason?.(), ...logContext },
+        '[runtime-smoke] health poll aborted before the app answered',
       );
       return false;
     }

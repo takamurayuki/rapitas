@@ -188,6 +188,15 @@ export function installWorkflowCliExecutorMocks(): void {
     applyResearchAssessedComplexity: spies.applyResearchAssessedComplexity,
   }));
 
+  // The verify gate's no-PR path looks for a PR the agent created itself, which
+  // shells out to `gh`. Unmocked, that real subprocess blew the 5 s per-test
+  // budget and turned three verify-phase tests red on every PR (2026-09-27).
+  // Default: no PR found, i.e. the pre-existing "PR not created" behaviour.
+  mock.module(p('services/github/agent-created-pr-adoption'), () => ({
+    adoptAgentCreatedPr: spies.adoptAgentCreatedPr,
+    discoverAgentCreatedPr: mock(() => Promise.resolve(null)),
+  }));
+
   mock.module(p('routes/workflow/workflow-auto-commit'), () => ({
     performAutoCommitAndPR: spies.performAutoCommitAndPR,
     // Mirror the real pure classifier (task 485): base-branch errors and real
