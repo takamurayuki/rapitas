@@ -33,6 +33,28 @@ export async function sweepStaleQueueItems(): Promise<number> {
     .catch(() => []);
   if (candidates.length === 0) return 0;
 
+  // Tasks that can never be dispatched: the orchestrator refuses a `blocked`
+  // task outright and selection refuses a halted one. Read once for the whole
+  // sweep. These leftovers do not merely sit there — an auto-run queue item
+  // counts toward the concurrency cap while merely 'queued', so with the cap at
+  // 1 one of them stops the theme advancing at all: no next task, no dry point,
+  // and therefore no nightly refill. Measured 2026-09-27: task 1105's queued
+  // item held the only slot from 06:48 and the theme emitted no cycle event for
+  // four hours, until the item was withdrawn by hand.
+  const unrunnableIds = new Set(
+    (
+      await prisma.task
+        .findMany({
+          where: {
+            id: { in: candidates.map((item) => item.taskId) },
+            OR: [{ haltReason: { not: null } }, { status: 'blocked' }],
+          },
+          select: { id: true },
+        })
+        .catch(() => [] as { id: number }[])
+    ).map((task) => task.id),
+  );
+
   let cancelled = 0;
   for (const item of candidates) {
     const task = await resolveTaskWorkflowState(item.taskId);
@@ -41,7 +63,8 @@ export async function sweepStaleQueueItems(): Promise<number> {
     // fires while a WorkflowRunner is polling — this sweep is what catches a
     // deleted task's leftover 'queued' item while auto-run is idle/paused.
     const vanished = !task && !terminal && (await taskRowConfirmedAbsent(item.taskId));
-    if (!terminal && !vanished) continue;
+    const unrunnable = unrunnableIds.has(item.taskId);
+    if (!terminal && !vanished && !unrunnable) continue;
 
     const updated = await prisma.workflowQueueItem
       .updateMany({
@@ -51,15 +74,17 @@ export async function sweepStaleQueueItems(): Promise<number> {
           completedAt: new Date(),
           errorMessage: vanished
             ? taskVanishedMessage(item.taskId)
-            : 'タスクは既に終端状態のため、残留キュー項目を自動キャンセルしました（定期スイープ）',
+            : unrunnable && !terminal
+              ? 'タスクが halt / blocked で実行しえないため、キュー枠を占有していた残留項目を自動キャンセルしました（定期スイープ）'
+              : 'タスクは既に終端状態のため、残留キュー項目を自動キャンセルしました（定期スイープ）',
         },
       })
       .catch(() => ({ count: 0 }));
     if (updated.count >= 1) {
       cancelled++;
       log.info(
-        { queueItemId: item.id, taskId: item.taskId, vanished },
-        '[reconciler] Cancelled stale queue item for terminal or vanished task',
+        { queueItemId: item.id, taskId: item.taskId, vanished, unrunnable },
+        '[reconciler] Cancelled stale queue item for a terminal, vanished, or unrunnable task',
       );
     }
   }
