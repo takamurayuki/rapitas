@@ -23,6 +23,7 @@ import { resolveTaskWorkflowState } from '../task/task-resolver';
 import { isTaskTerminalForQueue } from './workflow-queue';
 import { WorkflowRunner } from './workflow-runner';
 import { hasLiveExecution } from './auto-run/auto-run-selection';
+import { resolveQueuedWaiters } from './queue-starvation-waiters';
 import {
   notifyStallReleased,
   notifyQueueStarvation,
@@ -33,17 +34,6 @@ import { RUNNING_ITEM_STALE_MS, QUEUE_STARVATION_THRESHOLD_MS } from './queue-st
 
 const log = createLogger('workflow-reconciler-queue-stall');
 
-/**
- * Cancel 'running' queue items that are either stale beyond
- * RUNNING_ITEM_STALE_MS or residue of a task that cannot run at all (see
- * {@link collectSweepCandidates}), and that either belong to a terminal task or
- * have NO live (fresh-heartbeat) execution.
- * A non-terminal task with a live execution is a legitimately long phase and is
- * left untouched. CAS on status='running' so a concurrent stop/complete wins.
- *
- * @param nowMs - Current time (ms), injected for testability. / 現在時刻
- * @returns Items cancelled this cycle. / キャンセル件数
- */
 /** One 'running' queue item considered by the sweep. */
 type SweepCandidate = {
   id: number;
@@ -100,6 +90,17 @@ async function collectSweepCandidates(nowMs: number): Promise<SweepCandidate[]> 
   return [...byId.values()];
 }
 
+/**
+ * Cancel 'running' queue items that are either stale beyond
+ * RUNNING_ITEM_STALE_MS or residue of a task that cannot run at all (see
+ * {@link collectSweepCandidates}), and that either belong to a terminal task or
+ * have NO live (fresh-heartbeat) execution. A non-terminal task with a live
+ * execution is a legitimately long phase and is left untouched. CAS on
+ * status='running' so a concurrent stop/complete wins.
+ *
+ * @param nowMs - Current time (ms), injected for testability. / 現在時刻
+ * @returns Items cancelled this cycle. / キャンセル件数
+ */
 export async function sweepStaleRunningItems(nowMs: number): Promise<number> {
   const candidates = await collectSweepCandidates(nowMs);
   if (candidates.length === 0) return 0;
@@ -165,43 +166,14 @@ export function resetQueueStarvationTracker(): void {
   noOpKickReported = false;
 }
 
-/** How many queued items to check for a live agent before giving up on the scan. */
-const WORKING_SCAN_LIMIT = 20;
-
-/**
- * Whether a queued item's task has a live agent right now.
- *
- * The item statuses alone cannot tell "dispatch is stuck" from "a phase is
- * running": between phases the runner writes its item back to `queued` while
- * the agent works, which reads as `running=0 かつ queued>0` and fired the
- * starvation alert on a perfectly healthy workflow (measured 2026-09-27 on task
- * 1106). A live agent on a QUEUED item's task proves the runner did claim that
- * item, so the reading is an artifact rather than a dispatch failure.
- *
- * @returns true when at least one queued item's task is actively working. / 作業中なら true
- */
-async function someQueuedTaskIsWorking(): Promise<boolean> {
-  const queued = await prisma.workflowQueueItem
-    .findMany({
-      where: { status: 'queued' },
-      orderBy: { queuedAt: 'asc' },
-      take: WORKING_SCAN_LIMIT,
-      select: { taskId: true },
-    })
-    .catch(() => [] as { taskId: number }[]);
-  for (const item of queued) {
-    if (await hasLiveExecution(prisma, item.taskId)) return true;
-  }
-  return false;
-}
-
 /**
  * Detect `running=0 かつ queued>0` persisting past QUEUE_STARVATION_THRESHOLD_MS
  * and kick the (idempotent) WorkflowRunner back into processing. The threshold
  * requires ~3 consecutive reconciler observations, so the normal one-tick gap
- * between phases (task 585) and post-restart transients never trip it. A queued
- * item whose task has a live agent is excluded outright (see
- * {@link someQueuedTaskIsWorking}) — a running phase is not a starved queue.
+ * between phases (task 585) and post-restart transients never trip it. Queued
+ * items are also weighed rather than merely counted (see
+ * {@link resolveQueuedWaiters}): a running phase is not a starved queue, and
+ * neither is a queue whose every waiter is one the runner would refuse.
  *
  * @param nowMs - Current time (ms), injected for testability. / 現在時刻
  * @returns 1 when a starvation was detected and acted on, else 0. / 検出件数
@@ -214,11 +186,14 @@ export async function detectQueueStarvation(nowMs: number): Promise<number> {
     .count({ where: { status: 'queued' } })
     .catch(() => 0);
 
-  if (runningCount > 0 || queuedCount === 0 || (await someQueuedTaskIsWorking())) {
+  const notStarving = (): number => {
     starvationSinceMs = null;
     noOpKickReported = false;
     return 0;
-  }
+  };
+  if (runningCount > 0 || queuedCount === 0) return notStarving();
+  const waiters = await resolveQueuedWaiters(queuedCount);
+  if (waiters.working || waiters.dispatchable === 0) return notStarving();
   if (starvationSinceMs === null) {
     // First observation of this episode — arm the timer, act only on persistence.
     starvationSinceMs = nowMs;
