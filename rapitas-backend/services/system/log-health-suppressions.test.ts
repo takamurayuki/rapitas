@@ -48,6 +48,18 @@ describe('classifyLogSignature', () => {
     );
   });
 
+  test('task 1113: protected-path mode escalation WARN from workflow-orchestrator-protected-path-guard.ts:72-75 is suppressed', () => {
+    // guardProtectedPathMode() escalates a lightweight task to standard mode
+    // when research.md plans a protected-path change — a designed self-defense
+    // action, not a defect (tasks 1044/1055, K-11655).
+    const v = classifyLogSignature(
+      'workflow-orchestrator',
+      '[WorkflowOrchestrator] research.md plans a protected-path change in lightweight mode — escalating to standard so plan.md can list it',
+    );
+    expect(v.suppressed).toBe(true);
+    expect(v.because).toBeTruthy();
+  });
+
   test('"nothing to publish (skipped before gh pr create)" is scoped to routes:workflow:auto-commit only', () => {
     // Task 1083: the phrase alone must not suppress an unrelated logger reusing it.
     expect(
