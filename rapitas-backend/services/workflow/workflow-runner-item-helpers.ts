@@ -84,6 +84,10 @@ export async function resolvePhaseTimeoutMs(
  */
 export async function shouldAutoApprovePlan(taskId: number): Promise<boolean> {
   const taskForApproval = await resolveTaskForPlanApproval(taskId);
+  // A plan committing to a human-override-only change must wait for the human,
+  // not burn an implementation first (see forbidden-change-plan-hold).
+  const { resolveForbiddenChangePlanHold } = await import('./forbidden-change-plan-hold');
+  if (await resolveForbiddenChangePlanHold(taskId)) return false;
   const userSettings = await prisma.userSettings.findFirst();
   const isSubtask = taskForApproval?.parentId != null;
   return !!(
