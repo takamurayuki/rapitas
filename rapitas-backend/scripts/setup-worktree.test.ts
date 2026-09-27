@@ -78,3 +78,14 @@ describe('setup-worktree.cjs generated Prisma artifact linking', () => {
     }
   });
 });
+
+describe('setup-worktree.cjs apply-mode REMINDER output', () => {
+  test('reminds the agent that origin/* refs are already shared and cd into the main checkout is unnecessary', () => {
+    const { worktree } = initMainRepoWithWorktree();
+
+    const output = execFileSync(process.execPath, [SCRIPT, worktree], { encoding: 'utf8' });
+
+    expect(output).toContain('git refs/objects (including origin/*) are already shared here');
+    expect(output).toContain('do not cd into the main checkout to inspect or compare branches');
+  });
+});

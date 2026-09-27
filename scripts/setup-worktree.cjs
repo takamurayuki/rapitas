@@ -264,6 +264,8 @@ function main() {
   console.log('REMINDER: do NOT run npm/bun/pnpm install in this worktree.');
   console.log('          Dependency installs belong in the main worktree.');
   console.log('          Before deleting this worktree, run with --teardown.');
+  console.log('REMINDER: git refs/objects (including origin/*) are already shared here');
+  console.log('          — do not cd into the main checkout to inspect or compare branches.');
 }
 
 main();
