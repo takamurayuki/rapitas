@@ -72,6 +72,16 @@ describe('specForConcernSource', () => {
     expect(criteria).toContain('根拠');
   });
 
+  // 2026-09-27 タスク1110: 抑制ルールは正規化後のメッセージと照合される(数字列は
+  // `#` に畳まれる)が、その正規化は別ファイルにあり差分には現れない。差分しか見ない
+  // ジャッジは規約どおりの `#` パターンを生ログの数字と比べて不合格にし、費用上限の
+  // 1 分前に修復ラウンドを 1 回潰した。規約を基準文に載せてジャッジの入力に含める。
+  test('受入基準は抑制ルールの照合規約(数字は # に畳まれる)をジャッジに伝える', () => {
+    const criteria = (specForConcernSource('log_health')?.acceptanceCriteria ?? []).join('\n');
+    expect(criteria).toContain('正規化後');
+    expect(criteria).toContain('#');
+  });
+
   test('他の出所には仕様を与えない', () => {
     expect(specForConcernSource('agent')).toBeNull();
     expect(specForConcernSource('vuln_scan')).toBeNull();

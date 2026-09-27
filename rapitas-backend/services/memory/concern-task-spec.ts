@@ -51,10 +51,19 @@ function logHealthSpec(): ConcernTaskSpec {
     // for "the file:line is not shown in the diff". Naming the artifact puts
     // them under the judge's existing "workflow artifacts never appear in the
     // diff → out of jurisdiction" rule; criterion 3 is the one it scores.
+    // Criterion 3 carries the matching convention for the same reason criteria
+    // 1-2 name their artifact: the judge scores it from the diff alone. Rules
+    // are tested against the NORMALIZED message (log-health-check.ts's
+    // normalizeMessage folds digit runs to `#`, as every existing rule shows),
+    // but that normalization lives in another file and never appears in the
+    // diff. Without the convention stated here, the judge compares a correct
+    // `#` pattern against the raw log text and fails it — measured 2026-09-27
+    // on task 1110, whose repair round was spent on that false verdict one
+    // minute before its cost ceiling halted the task.
     acceptanceCriteria: [
       'research.md に、ログを出力している箇所が ファイル:行 で記録されている',
       'research.md または verify.md に、欠陥か正常動作かの判定とその根拠が記録されている',
-      '欠陥なら修正が差分に入っている、正常動作なら理由付きの抑制ルールが差分に登録されている',
+      '欠陥なら修正が差分に入っている、正常動作なら理由付きの抑制ルールが差分に登録されている（抑制ルールの test は正規化後のメッセージと照合される。数字列は `#` に畳まれるため、生ログの数字をそのまま書くのではなく `#` で書くのが正しい）',
     ],
   };
 }
