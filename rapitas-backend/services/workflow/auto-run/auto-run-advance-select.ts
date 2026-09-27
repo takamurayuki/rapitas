@@ -305,8 +305,15 @@ async function handleNoWorkFound(
       .count({ where: { themeId, status: 'blocked', parentId: null } })
       .catch(() => 0);
     const escalatedCount = await countEscalatedBlocked(prisma).catch(() => 0);
+    // Held tasks are reported here too, not only on the all_done branch. One
+    // blocked task is enough to route every dry point through this branch, and
+    // then a hold on some OTHER task became invisible again — exactly the shape
+    // that hid #911 for 15 days. Measured 2026-09-27: this branch reported
+    // "1 blocked" while four further tasks sat held.
+    const held = await countHeldTasks(prisma, themeId);
+    const heldNote = held.total > 0 ? `; ${held.total} held: ${formatHeldTasks(held)}` : '';
     log.info(
-      `[ThemeAutoRunScheduler] Theme ${themeId} — ALL remaining tasks blocked (${blockedCount}), idle (armed)`,
+      `[ThemeAutoRunScheduler] Theme ${themeId} — ALL remaining tasks blocked (${blockedCount}), idle (armed)${heldNote}`,
     );
     logCycleEvent('theme.idle', {
       theme: themeId,
@@ -314,9 +321,14 @@ async function handleNoWorkFound(
       blocked: blockedCount,
       escalated: escalatedCount,
       refillSkippedReason,
+      held: held.total,
+      heldWorkflowDisabled: held.workflowDisabled,
+      heldAutoRunExcluded: held.autoRunExcluded,
+      heldAwaitingQuestion: held.awaitingQuestion,
       msg: 'all runnable tasks are blocked — wedged, idle but armed',
     });
     await notifyAllBlocked(themeId, blockedCount, escalatedCount);
+    if (held.total > 0) await notifyHeldTasks(themeId, held);
   } else {
     // "All done" can hide open tasks the selector never picks (workflowDisabled
     // / autoRunExcluded / awaiting_question): #911 sat on a forgotten
