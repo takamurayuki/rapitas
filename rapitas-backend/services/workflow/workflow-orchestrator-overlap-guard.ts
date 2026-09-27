@@ -68,6 +68,8 @@ export interface OverlapGuardDeps {
   overlap: (planFiles: string[], prFiles: string[]) => Promise<string[]>;
   /** Whether the PR's auto-merge is parked (exhausted) — such a PR merges only after outside help. */
   isParked: (linkedTaskId: number) => Promise<boolean>;
+  /** Whether the PR's task is halted (budget/iteration ceiling) — nothing drives its merge either. */
+  isHalted: (linkedTaskId: number) => Promise<boolean>;
   /** The PR number the task itself is attached to (Task.githubPrId), if any. */
   ownPr: (taskId: number) => Promise<number | null>;
   now: () => number;
@@ -100,6 +102,14 @@ const defaultDeps: OverlapGuardDeps = {
       select: { cause: true },
     });
     return latest?.cause === 'auto_merge_exhausted';
+  },
+  isHalted: async (linkedTaskId) => {
+    const { prisma } = await import('../../config');
+    const row = await prisma.task.findUnique({
+      where: { id: linkedTaskId },
+      select: { haltReason: true },
+    });
+    return row?.haltReason != null;
   },
   ownPr: async (taskId) => {
     const { prisma } = await import('../../config');
@@ -168,9 +178,15 @@ export async function guardImplementOverlap(
     // An exhausted-parked PR only merges after outside help — often exactly
     // the held task's own job (#764 split verify-self-repair.ts to unblock
     // PR #537, and the guard held #764 waiting for #537: a circular wait).
+    // A HALTED task's PR is the same case reached by a different road: PR #829
+    // sat CLEAN and MERGEABLE with every check green while task 1110 was
+    // halted at its cost ceiling, so no stage was left to merge it — and the
+    // guard still spent the full 30-minute ceiling of task 1111 waiting
+    // (2026-09-27). Freshness cannot catch this: the PR was 28 minutes old.
     const openPrs: typeof candidates = [];
     for (const pr of candidates) {
-      if (pr.linkedTaskId != null && (await d.isParked(pr.linkedTaskId))) continue;
+      const linked = pr.linkedTaskId;
+      if (linked != null && ((await d.isParked(linked)) || (await d.isHalted(linked)))) continue;
       openPrs.push(pr);
     }
     if (openPrs.length === 0) return release(taskId, 'no_open_pr', d.now());

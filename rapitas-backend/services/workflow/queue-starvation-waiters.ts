@@ -17,6 +17,7 @@
 import { prisma } from '../../config/database';
 import { isTaskTerminalForQueue } from './workflow-queue';
 import { hasLiveExecution } from './auto-run/auto-run-selection';
+import { isOverlapHeld } from './workflow-orchestrator-overlap-guard';
 
 /** How many queued items to weigh before giving up on the scan. */
 const WAITER_SCAN_LIMIT = 20;
@@ -95,6 +96,13 @@ export async function resolveQueuedWaiters(queuedCount: number): Promise<QueuedW
   let dispatchable = 0;
   for (const item of queued) {
     const task = byId.get(item.taskId);
+    // The overlap guard is deliberately not dispatching this item while a file
+    // it will touch is still open in another auto-PR. That is the runner doing
+    // its job, not failing to — and the hold carries its own 30-minute ceiling,
+    // so suppressing here can never go permanently blind. Task 1111 was held
+    // this way for its files in PR #829 and the alert still blamed the
+    // dispatcher (`runner_alive_not_dispatching`, 2026-09-27 23:52 JST).
+    if (isOverlapHeld(item.taskId)) continue;
     // A vanished task is the vanished-task policy's business, not ours.
     if (!task || isDispatchableWaiter(task)) dispatchable++;
   }
