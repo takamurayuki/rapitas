@@ -64,6 +64,8 @@ export const wf = {
   isPrimaryWorkTree: false,
   taskHasLinkedPrRow: null as { githubPrId: number | null } | null,
   linkedPrRow: null as { id: number } | null,
+  /** Whether the verify gate's agent-created-PR lookup finds one. / 自作PR探索の結果 */
+  adoptAgentCreatedPrResult: false,
 
   createWorktreeImpl: (async () => '/fake/worktree/new') as (
     base: string,
