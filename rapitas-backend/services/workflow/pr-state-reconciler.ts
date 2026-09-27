@@ -22,7 +22,6 @@
  *    window keeps these particular rows harmless — luck, not design.
  *  - `duplicate_open_prs` can fire for a task whose "other" PR is closed.
  */
-import { existsSync } from 'node:fs';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { PrismaClient } from '../../generated/prisma-postgres';
@@ -44,22 +43,29 @@ export const MAX_CHECKS_PER_TICK = 5;
 
 /** Injectable side effects for unit tests. */
 export interface PrStateReconcilerDeps {
-  /** Run `gh <args>` in cwd and return stdout. */
-  execGh: (command: string, cwd: string) => Promise<string>;
-  /** Whether a directory exists (so tests need no real filesystem). */
-  dirExists: (dir: string) => boolean;
+  /** Run `gh <args>` and return stdout. */
+  execGh: (command: string) => Promise<string>;
   /** Clock (epoch ms). */
   now: () => number;
 }
 
 const defaultDeps: PrStateReconcilerDeps = {
-  execGh: async (command, cwd) => {
-    const { stdout } = await execAsync(command, { cwd, encoding: 'utf8', timeout: 15_000 });
+  execGh: async (command) => {
+    // No cwd requirement: every query names its repo with --repo, so this runs
+    // from the backend's own directory regardless of which repo the row is for.
+    const { stdout } = await execAsync(command, { encoding: 'utf8', timeout: 15_000 });
     return stdout;
   },
-  dirExists: existsSync,
   now: () => Date.now(),
 };
+
+/** The slice of a locally-open row this pass needs. */
+interface PrRow {
+  id: number;
+  prNumber: number;
+  integrationId: number;
+  linkedTaskId: number | null;
+}
 
 /** Outcome of one reconciliation pass. */
 export interface ReconcileResult {
@@ -96,7 +102,7 @@ export async function reconcilePrStates(
   prisma: PrismaClient,
   deps: Partial<PrStateReconcilerDeps> = {},
 ): Promise<ReconcileResult> {
-  const { execGh, dirExists, now } = { ...defaultDeps, ...deps };
+  const { execGh, now } = { ...defaultDeps, ...deps };
   const syncedPrNumbers: number[] = [];
   let checked = 0;
 
@@ -105,20 +111,29 @@ export async function reconcilePrStates(
       where: { state: 'open', lastSyncedAt: { lt: new Date(now() - RECHECK_INTERVAL_MS) } },
       orderBy: { lastSyncedAt: 'asc' },
       take: MAX_CHECKS_PER_TICK,
-      select: { id: true, prNumber: true, linkedTaskId: true },
+      select: { id: true, prNumber: true, integrationId: true, linkedTaskId: true },
     })
     .catch((err) => {
       log.warn({ err }, '[pr-state-reconciler] row lookup failed — skipping this pass');
-      return [] as { id: number; prNumber: number; linkedTaskId: number | null }[];
+      return [] as PrRow[];
     });
 
+  const repoMemo = new Map<number, string | null>();
   for (const row of rows) {
-    const cwd = await resolveCwd(prisma, row.linkedTaskId, dirExists);
-    if (!cwd) continue;
+    const repo = await resolveRepo(prisma, row.integrationId, repoMemo);
+    if (!repo) {
+      // Unresolvable, and the queue is ordered by lastSyncedAt: skipping without
+      // stamping would park this row at the head forever and starve every row
+      // behind it. Stamp it so the pass moves on and retries in one window.
+      await stamp(prisma, row.id, now, null);
+      continue;
+    }
 
     let parsed: { state?: string; mergedAt?: string | null };
     try {
-      const stdout = await execGh(`${ghPath()} pr view ${row.prNumber} --json state,mergedAt`, cwd);
+      const stdout = await execGh(
+        `${ghPath()} pr view ${row.prNumber} --repo ${repo} --json state,mergedAt`,
+      );
       parsed = JSON.parse(stdout) as { state?: string; mergedAt?: string | null };
     } catch (err) {
       // A transient gh/network failure must not be recorded as "still open":
@@ -132,16 +147,7 @@ export async function reconcilePrStates(
     checked++;
 
     const nextState = localStateFor(parsed.state, parsed.mergedAt);
-    const data = nextState
-      ? { state: nextState, lastSyncedAt: new Date(now()) }
-      : { lastSyncedAt: new Date(now()) };
-    const written = await prisma.gitHubPullRequest
-      .update({ where: { id: row.id }, data })
-      .then(() => true)
-      .catch((err) => {
-        log.warn({ err, prNumber: row.prNumber }, '[pr-state-reconciler] state write failed');
-        return false;
-      });
+    const written = await stamp(prisma, row.id, now, nextState);
     if (written && nextState) {
       syncedPrNumbers.push(row.prNumber);
       log.info(
@@ -155,29 +161,60 @@ export async function reconcilePrStates(
 }
 
 /**
- * A directory `gh` can run in for this PR's repo.
+ * `owner/repo` for the row's integration, memoized per pass.
  *
- * `gh pr view` is a GitHub API call and needs only a clone that names the right
- * remote, so the task's own worktree (often already cleaned up for a done task)
- * is merely the first preference — same resolution order the auto-merge
- * candidates use.
+ * Naming the repo explicitly is what lets this module work at all: 42 of the 70
+ * locally-open rows measured on 2026-09-28 carry `linkedTaskId: null` (they
+ * predate PR linking or arrived by webhook sync), so there is no task to borrow
+ * a working directory from — and the four oldest rows by `lastSyncedAt`, which
+ * are exactly the ones this pass looks at first, are all of that kind.
+ *
+ * @param prisma - Prisma client. / Prismaクライアント
+ * @param integrationId - Integration owning the PR. / PRを持つ連携ID
+ * @param memo - Per-pass cache. / パス内キャッシュ
+ * @returns `owner/repo`, or null when unresolvable. / 解決できなければ null
  */
-async function resolveCwd(
+async function resolveRepo(
   prisma: PrismaClient,
-  taskId: number | null,
-  dirExists: (dir: string) => boolean,
+  integrationId: number,
+  memo: Map<number, string | null>,
 ): Promise<string | null> {
-  if (taskId == null) return null;
-  const task = await prisma.task
-    .findUnique({
-      where: { id: taskId },
-      select: { workingDirectory: true, theme: { select: { workingDirectory: true } } },
-    })
+  const cached = memo.get(integrationId);
+  if (cached !== undefined) return cached;
+  const integration = await prisma.gitHubIntegration
+    .findUnique({ where: { id: integrationId }, select: { ownerName: true, repositoryName: true } })
     .catch(() => null);
-  if (!task) return null;
-  return (
-    [task.workingDirectory, task.theme?.workingDirectory].find(
-      (d): d is string => !!d && dirExists(d),
-    ) ?? null
-  );
+  const repo =
+    integration?.ownerName && integration.repositoryName
+      ? `${integration.ownerName}/${integration.repositoryName}`
+      : null;
+  memo.set(integrationId, repo);
+  return repo;
+}
+
+/**
+ * Write `lastSyncedAt`, and `state` when a new one was determined.
+ *
+ * @param prisma - Prisma client. / Prismaクライアント
+ * @param id - Row id. / 行ID
+ * @param now - Clock. / 時刻取得
+ * @param nextState - New state, or null to only stamp. / 新状態、打刻のみなら null
+ * @returns Whether the write succeeded. / 書き込み成否
+ */
+async function stamp(
+  prisma: PrismaClient,
+  id: number,
+  now: () => number,
+  nextState: string | null,
+): Promise<boolean> {
+  const data = nextState
+    ? { state: nextState, lastSyncedAt: new Date(now()) }
+    : { lastSyncedAt: new Date(now()) };
+  return prisma.gitHubPullRequest
+    .update({ where: { id }, data })
+    .then(() => true)
+    .catch((err) => {
+      log.warn({ err, id }, '[pr-state-reconciler] state write failed');
+      return false;
+    });
 }

@@ -29,6 +29,7 @@ const NOW = 1_800_000_000_000;
 interface PrRow {
   id: number;
   prNumber: number;
+  integrationId: number;
   linkedTaskId: number | null;
   state: string;
   lastSyncedAt: Date;
@@ -38,6 +39,8 @@ let rows: PrRow[] = [];
 let updates: Array<{ id: number; data: Record<string, unknown> }> = [];
 let ghAnswers: Record<number, { state?: string; mergedAt?: string | null } | Error> = {};
 let updateFails = false;
+let integration: { ownerName: string; repositoryName: string } | null = null;
+let ghCommands: string[] = [];
 
 /** Minimal Prisma stand-in honouring the where/orderBy/take the module uses. */
 function makePrisma() {
@@ -59,23 +62,18 @@ function makePrisma() {
         return {};
       },
     },
-    task: {
-      findUnique: async () => ({
-        workingDirectory: 'C:/worktree',
-        theme: { workingDirectory: 'C:/repo' },
-      }),
-    },
+    gitHubIntegration: { findUnique: async () => integration },
   } as unknown as Parameters<typeof reconcilePrStates>[0];
 }
 
 const deps = {
   execGh: async (command: string) => {
+    ghCommands.push(command);
     const prNumber = Number(/pr view (\d+)/.exec(command)?.[1]);
     const answer = ghAnswers[prNumber];
     if (answer instanceof Error) throw answer;
     return JSON.stringify(answer ?? { state: 'OPEN', mergedAt: null });
   },
-  dirExists: () => true,
   now: () => NOW,
 };
 
@@ -89,6 +87,7 @@ function row(
   return {
     id,
     prNumber,
+    integrationId: 1,
     linkedTaskId,
     state: 'open',
     lastSyncedAt: new Date(NOW - hoursAgo * 60 * 60 * 1000),
@@ -100,6 +99,8 @@ beforeEach(() => {
   updates = [];
   ghAnswers = {};
   updateFails = false;
+  integration = { ownerName: 'takamurayuki', repositoryName: 'rapitas' };
+  ghCommands = [];
 });
 
 describe('reconcilePrStates', () => {
@@ -171,20 +172,30 @@ describe('reconcilePrStates', () => {
     expect(updates).toEqual([]);
   });
 
-  test('作業ディレクトリが無い行は飛ばす', async () => {
-    rows = [row(1, 690, 48)];
-    ghAnswers[690] = { state: 'CLOSED', mergedAt: null };
+  // 2026-09-28: 70件のローカル open 行のうち 42 件が linkedTaskId=null で、
+  // lastSyncedAt 最古の4件(=このパスが最初に見る行)がまさにそれだった。タスク経由で
+  // 作業ディレクトリを借りる実装では 1 件も処理できず、打刻もしないため先頭で
+  // 永久に詰まる。リポジトリを --repo で明示して参照する。
+  test('linkedTaskId が null でも --repo で照会して同期する（42/70件の事例）', async () => {
+    rows = [row(1, 145, 48, null)];
+    ghAnswers[145] = { state: 'CLOSED', mergedAt: null };
 
-    const result = await reconcilePrStates(makePrisma(), { ...deps, dirExists: () => false });
+    const result = await reconcilePrStates(makePrisma(), deps);
 
-    expect(result.checked).toBe(0);
-    expect(updates).toEqual([]);
+    expect(result.syncedPrNumbers).toEqual([145]);
+    expect(ghCommands[0]).toContain('--repo takamurayuki/rapitas');
   });
 
-  test('taskId が無い行は飛ばす', async () => {
-    rows = [row(1, 690, 48, null)];
+  // 先頭詰まりの防止: 解決できない行は打刻して後ろの行に順番を譲る。
+  test('リポジトリが解決できない行は打刻して先頭を譲る', async () => {
+    rows = [row(1, 690, 48)];
+    integration = null;
 
-    expect((await reconcilePrStates(makePrisma(), deps)).checked).toBe(0);
+    const result = await reconcilePrStates(makePrisma(), deps);
+
+    expect(result.checked).toBe(0);
+    expect(ghCommands).toEqual([]);
+    expect(updates).toEqual([{ id: 1, data: { lastSyncedAt: new Date(NOW) } }]);
   });
 
   test('書き込みが失敗しても同期済みとは報告しない', async () => {
