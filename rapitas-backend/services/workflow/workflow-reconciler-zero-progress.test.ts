@@ -66,7 +66,11 @@ beforeEach(() => {
 });
 
 describe('detectZeroProgressWhileRunning', () => {
-  test('currentTaskId=null のテーマは対象外 — 実行主体が無ければ計測もしない', async () => {
+  // 2026-09-27: currentTaskId=null を「計測対象外」として捨てていたため、
+  // status=running / 選定なしのまま 4 時間 15 分前進しない状態を誰も報告できなかった。
+  // このパスでは実行数を数えず(実行主体が無いので意味がない)、その状態専用の
+  // ウォッチへ委譲する。
+  test('currentTaskId=null は実行数を数えず no-selection ウォッチへ委譲する', async () => {
     primeRunningTheme(null);
 
     expect(await detectZeroProgressWhileRunning(NOW)).toBe(0);

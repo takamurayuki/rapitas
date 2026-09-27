@@ -25,6 +25,7 @@ import { findByStatuses } from './auto-run/theme-auto-run-service';
 import { notifyZeroProgressWhileRunning } from './auto-run/auto-run-notifications';
 import { logCycleEvent } from '../observability';
 import { ZERO_PROGRESS_THRESHOLD_MS } from './queue-stall-policy';
+import { checkNoSelectionProgress, resetNoSelectionEpisode } from './auto-run-no-selection-watch';
 
 const log = createLogger('workflow-reconciler-zero-progress');
 
@@ -62,10 +63,16 @@ export async function detectZeroProgressWhileRunning(nowMs: number): Promise<num
     seenThemeIds.add(theme.themeId);
     const taskId = theme.currentTaskId;
     if (taskId == null) {
-      // No execution subject — nothing to measure against.
+      // No execution subject for THIS pass — but "running with nothing selected"
+      // is itself a stall shape, and giving up here is what let a four-hour
+      // outage go unreported (2026-09-27). Hand it to the watch that measures
+      // exactly that state.
       zeroProgressSinceMs.delete(theme.themeId);
+      if ((await checkNoSelectionProgress(theme.themeId, nowMs)) === 'reported') detected++;
       continue;
     }
+    // Selection is happening again — drop any no-selection episode for the theme.
+    resetNoSelectionEpisode(theme.themeId);
 
     const tracked = zeroProgressSinceMs.get(theme.themeId);
     if (!tracked || tracked.taskId !== taskId) {
