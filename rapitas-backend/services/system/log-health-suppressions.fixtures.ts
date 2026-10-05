@@ -52,6 +52,10 @@ export const SUPPRESSED: [string, string][] = [
   ['agent-worker-manager:lifecycle', '[AgentWorkerManager] Worker process exited'],
   ['workflow-orchestrator', 'Server is shutting down, cannot start new execution'],
   [
+    'workflow-orchestrator',
+    '[WorkflowOrchestrator] research.md plans a protected-path change in lightweight mode — escalating to standard so plan.md can list it',
+  ],
+  [
     'workflow-cli-executor',
     '[WorkflowCLIExecutor] verify.md self-contradicts: claims all tests pass',
   ],

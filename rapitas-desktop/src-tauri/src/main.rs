@@ -30,6 +30,7 @@ mod pomodoro_float;
 mod quick_capture;
 mod shortcuts;
 mod toast;
+mod today_todo;
 mod voice_commands;
 mod window_commands;
 

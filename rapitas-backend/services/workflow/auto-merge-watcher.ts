@@ -36,6 +36,7 @@ import { recoverMergedTasks } from './auto-merge-recovery';
 import { evaluatePreMergeGate, RATCHET_CHECK_NAME } from './auto-merge-premerge-gate';
 import { checkBaselineDrift } from './auto-merge-baseline-drift';
 import { reapStalePrs } from './stale-pr-reaper';
+import { reconcilePrStates } from './pr-state-reconciler';
 
 const log = createLogger('workflow:auto-merge-watcher');
 
@@ -147,6 +148,13 @@ export class AutoMergeWatcher {
       // auto-PRs bounded at 3/tick. Never blocks the merge loop above.
       await reapStalePrs(prisma).catch((err) =>
         log.warn({ err }, '[auto-merge] Stale PR reap failed'),
+      );
+      // Read back the state of PRs closed OUTSIDE this app (stale bot, a human,
+      // a deleted base branch) — nothing else syncs those, so 19 tasks kept
+      // re-entering the loop above every tick for weeks (2026-09-28). Runs last
+      // and bounded: it only ever makes the NEXT tick cheaper.
+      await reconcilePrStates(prisma).catch((err) =>
+        log.warn({ err }, '[auto-merge] PR state reconcile failed'),
       );
     } catch (err) {
       log.error({ err }, '[auto-merge] Tick error');

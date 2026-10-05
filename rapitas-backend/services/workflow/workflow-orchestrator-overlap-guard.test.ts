@@ -48,6 +48,7 @@ const fresh = () => new Date(nowMs - 60_000); // 1 min old — well inside the f
 let openPrs: Array<{ prNumber: number; linkedTaskId: number | null; createdAt: Date | null }> = [];
 let prFiles: Record<number, string[]> = { 533: [SUPPRESSIONS] };
 const parked = new Set<number>();
+const halted = new Set<number>();
 /** Task.githubPrId of the task under test (a conflict-resolution task carries its target PR here). */
 let ownPr: number | null = null;
 
@@ -59,6 +60,7 @@ const deps = {
   parseFiles: (c: string) => [...c.matchAll(/`([^`]+)`/g)].map((m) => m[1]!),
   overlap: async (a: string[], b: string[]) => b.filter((f) => a.includes(f)),
   isParked: async (linkedTaskId: number) => parked.has(linkedTaskId),
+  isHalted: async (linkedTaskId: number) => halted.has(linkedTaskId),
   ownPr: async () => ownPr,
   now: () => nowMs,
 };
@@ -75,6 +77,7 @@ beforeEach(() => {
   openPrs = [{ prNumber: 533, linkedTaskId: 758, createdAt: fresh() }];
   prFiles = { 533: [SUPPRESSIONS] };
   parked.clear();
+  halted.clear();
   delete process.env.RAPITAS_IMPLEMENT_OVERLAP_HOLD;
 });
 
@@ -214,6 +217,18 @@ describe('guardImplementOverlap', () => {
     prFiles = { 537: [SUPPRESSIONS] };
     parked.add(755);
     expect((await run()).done).toBe(false);
+    expect(events.length).toBe(0);
+  });
+
+  // 2026-09-27, 1110⇄1111: PR #829 was CLEAN, MERGEABLE and green, and task
+  // 1110 was halted at its cost ceiling — so no stage remained to merge it and
+  // the guard burned 1111's full 30-minute ceiling on a PR that could not move.
+  // The PR was 28 min old, so the freshness window could not catch it.
+  test('halt したタスクの PR は待たない（#829 が CLEAN でも 1110 が費用上限 halt）', async () => {
+    openPrs = [{ prNumber: 829, linkedTaskId: 1110, createdAt: fresh() }];
+    prFiles = { 829: [SUPPRESSIONS] };
+    halted.add(1110);
+    expect((await run(IMPLEMENTER, 1111)).done).toBe(false);
     expect(events.length).toBe(0);
   });
 

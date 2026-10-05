@@ -29,8 +29,16 @@ interface ProductivityPattern {
 
 /**
  * Suggest optimal tasks for the current time slot/day as a ranked list.
+ *
+ * @param limit - Max number of suggestions to return / 返却する最大件数
+ * @param scope - `"today"` additionally excludes tasks with a non-null
+ *   `completedAt` (belt-and-braces alongside the status filter below);
+ *   `"all"`/未指定 keeps the existing behaviour unchanged. / スコープ指定
  */
-export async function getSuggestedTasks(limit: number = 5): Promise<{
+export async function getSuggestedTasks(
+  limit: number = 5,
+  scope?: 'today' | 'all',
+): Promise<{
   suggestions: TaskSuggestion[];
   currentPattern: ProductivityPattern;
   focusLevel: 'high' | 'medium' | 'low';
@@ -44,7 +52,7 @@ export async function getSuggestedTasks(limit: number = 5): Promise<{
   const pattern = await analyzeCurrentPattern(hourOfDay, dayOfWeek);
 
   // 2. Get open tasks
-  const openTasks = await prisma.task.findMany({
+  const allOpenTasks = await prisma.task.findMany({
     where: {
       status: { in: ['todo', 'in-progress'] },
       parentId: null,
@@ -60,6 +68,9 @@ export async function getSuggestedTasks(limit: number = 5): Promise<{
     orderBy: { updatedAt: 'desc' },
     take: 100,
   });
+
+  const openTasks =
+    scope === 'today' ? allOpenTasks.filter((t) => t.completedAt === null) : allOpenTasks;
 
   if (openTasks.length === 0) {
     return {

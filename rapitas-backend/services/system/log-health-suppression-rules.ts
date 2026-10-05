@@ -447,4 +447,20 @@ export const SUPPRESSIONS: Suppression[] = [
     because:
       '出力受信後5分間無音という保守的な閾値でのみ発火する意図的なハング検知・自動復旧機構 — force-kill後はgit diffベースの完了判定に委ねられ、致命的失敗は別シグネチャ(529過負荷/taskkill失敗)で可視化される',
   },
+  {
+    // ログ出力箇所: workflow-orchestrator-protected-path-guard.ts:72-75 の
+    // guardProtectedPathMode。lightweightタスクのimplementer遷移直前に
+    // research.mdの「変更予定箇所」節（plannedChangeSection）を走査し、保護パス
+    // （services/agents/verification/、services/workflow/{completion-gate,
+    // phase-output-validator,verify-self-repair,phase-critic}* 等）への変更が
+    // 計画されている場合に発火する。lightweightモードにはplan.mdが無く
+    // タンパーゲートを通せないため、standardモードへ自動昇格しplanner再実行を
+    // スケジュールする（タスク1044/1055で実際に検証ラウンドを失った実績あり、
+    // 同ファイル10-13行）。ガードが意図通り作動した記録であり欠陥ではない
+    // （タスク#1113、K-11655、発生回数1回・単発）。
+    test: /research\.md plans a protected-path change in lightweight mode — escalating to standard so plan\.md can list it/i,
+    logger: /workflow-orchestrator/i,
+    because:
+      'lightweightタスクが保護パスへの変更を計画していたためstandardモードへ自動昇格しplan.mdで対象ファイルを明記できるようにした — タンパーゲート失敗を未然に防ぐ設計通りの自己防御動作',
+  },
 ];

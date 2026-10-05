@@ -31,13 +31,27 @@ mock.module('./runtime-registry-store', () => ({
 }));
 
 let rootPresent = false;
+/** Snapshot calls after this many succeed reject instead, to drive the retry path. */
+let snapshotFailAfterCall: number | null = null;
+/** Snapshot calls that reject before succeeding again (null = keep failing). */
+let snapshotFailCount: number | null = null;
+let snapshotCalls = 0;
 mock.module('./runtime-process-snapshot', () => ({
   ownsRuntimePort: () => false,
-  readRuntimeProcessSnapshot: async () => ({
-    processes: rootPresent ? [{ pid: 999, parentPid: 1, birth: '100', command: 'owned' }] : [],
-    protectedPids: new Set(),
-    listeners: [],
-  }),
+  readRuntimeProcessSnapshot: async () => {
+    snapshotCalls++;
+    if (snapshotFailAfterCall !== null && snapshotCalls > snapshotFailAfterCall) {
+      const failuresSoFar = snapshotCalls - snapshotFailAfterCall;
+      if (snapshotFailCount === null || failuresSoFar <= snapshotFailCount) {
+        throw new Error('INJECTED_SNAPSHOT_TIMEOUT');
+      }
+    }
+    return {
+      processes: rootPresent ? [{ pid: 999, parentPid: 1, birth: '100', command: 'owned' }] : [],
+      protectedPids: new Set(),
+      listeners: [],
+    };
+  },
 }));
 
 mock.module('./runtime-config', () => ({
@@ -58,8 +72,25 @@ mock.module('./app-launcher', () => ({
       stopSpy++;
     },
   }),
-  waitForHealthy: async () => true,
+  waitForHealthy: async (
+    _url: string,
+    _timeoutMs: number,
+    _ctx?: Record<string, unknown>,
+    shouldAbort?: () => boolean,
+  ) => {
+    // The real poll loop checks shouldAbort every iteration; mirror that so the
+    // ownership tracker gets wall-clock ticks to run in.
+    const deadline = Date.now() + healthyDelayMs;
+    while (Date.now() < deadline) {
+      if (shouldAbort?.()) return false;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    return !shouldAbort?.();
+  },
 }));
+
+/** How long the mocked health poll stays in its loop (lets the 2.5s tracker tick). */
+let healthyDelayMs = 0;
 
 const { spawnNewEntry } = await import('./runtime-server-registry-lifecycle');
 const { registry, nextGeneration: _unused } = await import('./runtime-server-registry-types');
@@ -79,6 +110,10 @@ beforeEach(() => {
   rootPresent = false;
   stopSpy = 0;
   exited = false;
+  snapshotCalls = 0;
+  snapshotFailAfterCall = null;
+  snapshotFailCount = null;
+  healthyDelayMs = 0;
   registry.clear();
 });
 
@@ -108,6 +143,41 @@ test('a launch whose process may still be alive stays quarantined', async () => 
   expect(registry.get(dir)?.state).toBe('quarantined');
   expect(stopSpy).toBe(1);
 });
+
+// 2026-09-27: the ownership tracker's OS snapshot was killed at its 10 s ceiling
+// while a dev server compiled, and that single failure aborted the launch — the
+// reason runtime smoke had not verified once since 09-22. A snapshot that cannot
+// be TAKEN is infrastructure, not evidence that ownership is unsafe.
+test('one failed ownership snapshot does not abort the launch', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-identity-'));
+  temporaryWorkdirs.push(dir);
+  rootPresent = true;
+  healthyDelayMs = 6_000;
+  // Calls 1-2 are the pre-start and post-spawn snapshots; fail the next one only.
+  snapshotFailAfterCall = 2;
+  snapshotFailCount = 1;
+
+  const result = await spawnNewEntry(dir, dir, { ...cfg, readyTimeoutMs: 8_000 }, 'fp');
+
+  // This harness cannot carry a launch all the way to success (port ownership is
+  // stubbed false), so assert the thing this change governs: the transient
+  // snapshot failure is NOT what ended the launch.
+  expect(JSON.stringify(result)).not.toContain('INJECTED_SNAPSHOT_TIMEOUT');
+}, 20_000);
+
+test('an ownership snapshot that keeps failing still aborts the launch', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-identity-'));
+  temporaryWorkdirs.push(dir);
+  rootPresent = true;
+  healthyDelayMs = 10_000;
+  snapshotFailAfterCall = 2;
+  snapshotFailCount = null; // never recovers
+
+  const result = await spawnNewEntry(dir, dir, { ...cfg, readyTimeoutMs: 12_000 }, 'fp');
+
+  expect(result.ok).toBe(false);
+  expect(JSON.stringify(result)).toContain('INJECTED_SNAPSHOT_TIMEOUT');
+}, 25_000);
 
 afterEach(async () => {
   registry.clear();

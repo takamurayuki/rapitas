@@ -25,6 +25,7 @@ import { findByStatuses } from './auto-run/theme-auto-run-service';
 import { notifyZeroProgressWhileRunning } from './auto-run/auto-run-notifications';
 import { logCycleEvent } from '../observability';
 import { ZERO_PROGRESS_THRESHOLD_MS } from './queue-stall-policy';
+import { checkNoSelectionProgress, resetNoSelectionEpisode } from './auto-run-no-selection-watch';
 
 const log = createLogger('workflow-reconciler-zero-progress');
 
@@ -41,6 +42,28 @@ const zeroProgressSinceMs = new Map<number, { taskId: number; since: number }>()
 /** Reset the zero-progress tracker. Test-only — never call from production code. */
 export function resetZeroProgressTracker(): void {
   zeroProgressSinceMs.clear();
+}
+
+/**
+ * The task's overlap-hold age while it is still inside the hold ceiling.
+ *
+ * Fails toward ALERTING: if either lookup throws, the caller treats the task as
+ * not held and the zero-progress alarm proceeds.
+ *
+ * @param taskId - Task under evaluation. / 評価対象タスク
+ * @param nowMs - Current time (ms). / 現在時刻
+ * @returns Hold age in ms, or null when not held or past the ceiling. / 保留経過ms、非保留/上限超なら null
+ */
+async function overlapHoldWithinCeiling(taskId: number, nowMs: number): Promise<number | null> {
+  try {
+    const { overlapHoldAgeMs } = await import('./workflow-orchestrator-overlap-guard');
+    const held = overlapHoldAgeMs(taskId, nowMs);
+    if (held == null) return null;
+    const { getMergeBarrierMaxHoldMs } = await import('../scheduling/merge-barrier/merge-barrier');
+    return held < getMergeBarrierMaxHoldMs() ? held : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -62,10 +85,16 @@ export async function detectZeroProgressWhileRunning(nowMs: number): Promise<num
     seenThemeIds.add(theme.themeId);
     const taskId = theme.currentTaskId;
     if (taskId == null) {
-      // No execution subject — nothing to measure against.
+      // No execution subject for THIS pass — but "running with nothing selected"
+      // is itself a stall shape, and giving up here is what let a four-hour
+      // outage go unreported (2026-09-27). Hand it to the watch that measures
+      // exactly that state.
       zeroProgressSinceMs.delete(theme.themeId);
+      if ((await checkNoSelectionProgress(theme.themeId, nowMs)) === 'reported') detected++;
       continue;
     }
+    // Selection is happening again — drop any no-selection episode for the theme.
+    resetNoSelectionEpisode(theme.themeId);
 
     const tracked = zeroProgressSinceMs.get(theme.themeId);
     if (!tracked || tracked.taskId !== taskId) {
@@ -125,6 +154,26 @@ export async function detectZeroProgressWhileRunning(nowMs: number): Promise<num
         cause: 'slot_occupied_by_other_task',
         waitedMinutes: Math.round((nowMs - tracked.since) / 60000),
         msg: 'current task has no execution yet because another task holds the runner slot',
+      });
+      continue;
+    }
+
+    // Same shape again, one layer up: the overlap guard deliberately runs no
+    // execution while a file this task will touch is still open in another
+    // auto-PR. Task 1111 drew 17 zero-progress alarms across one 30-minute hold
+    // (2026-09-27 15:00-15:15Z) before the ceiling released it and the task
+    // finished in 10 minutes. But a hold that OUTLIVES its ceiling is exactly
+    // the 905/914/937 bug this detector exists to catch, so only a hold still
+    // inside its ceiling is quiet — past it, the alarm below still fires.
+    const holdMs = await overlapHoldWithinCeiling(taskId, nowMs);
+    if (holdMs != null) {
+      logCycleEvent('theme.waiting_for_overlap_hold', {
+        theme: theme.themeId,
+        task: taskId,
+        ok: true,
+        cause: 'implement_overlap_hold_active',
+        holdMs,
+        msg: 'current task has no execution because the overlap guard is holding its implementer',
       });
       continue;
     }

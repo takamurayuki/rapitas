@@ -77,6 +77,11 @@ export type CycleEventName =
   // has produced no AgentExecution for the whole threshold window
   | 'theme.zero_progress_detected'
   | 'theme.waiting_for_slot'
+  | 'theme.waiting_for_overlap_hold'
+  // A theme reporting running while it has selected NOTHING and has nothing
+  // dispatchable — the state that produced a four-hour silent outage on
+  // 2026-09-27, watched by auto-run-no-selection-watch.
+  | 'theme.no_selection_progress'
   // git / PR outcomes
   | 'commit.created'
   | 'pr.created'

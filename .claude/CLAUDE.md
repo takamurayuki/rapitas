@@ -31,6 +31,9 @@ When rules conflict, follow this order:
 - **git worktree に入ったら、コードを触る前に必ず `node scripts/setup-worktree.cjs` を実行する。**
   これでメインの `node_modules`・Prisma 生成物・`.env` が worktree から使えるようになる。スクリプトは冪等で `--check` モードあり。詳細ルールは `AGENTS.md` の「git worktree 運用ルール」を参照。
 
+- **`origin/*` を含む git の ref/オブジェクトは worktree からメインチェックアウトと共有済みであり、他ブランチの調査・比較・マージ可否確認のためにメインチェックアウトへ `cd` する必要は一切ない。**
+  primary へ `cd` する行為自体が `scripts/primary-guard-hook.cjs` の禁止操作（primary_mutation）に該当しうる。比較コマンドは worktree 内から `origin/<branch>` を直接指定して実行する。
+
 ---
 
 ## 2. ARCHITECTURE

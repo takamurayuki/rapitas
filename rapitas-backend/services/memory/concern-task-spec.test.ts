@@ -7,7 +7,11 @@
  * unavailable while still allowing a REASONED suppression.
  */
 import { describe, test, expect } from 'bun:test';
-import { needsPlanForProtectedPath, specForConcernSource } from './concern-task-spec';
+import {
+  concernNeedsPlanForProtectedPath,
+  needsPlanForProtectedPath,
+  specForConcernSource,
+} from './concern-task-spec';
 
 describe('needsPlanForProtectedPath', () => {
   test('task 1044: 検証ゲート配下のスタックを持つ懸念は plan が必要', () => {
@@ -45,6 +49,43 @@ describe('needsPlanForProtectedPath', () => {
   });
 });
 
+describe('concernNeedsPlanForProtectedPath', () => {
+  // 2026-09-28, concern 11668 / task 1112: detail carried only the bare filename
+  // while `location` held the full path. convertConcernToTask builds the task
+  // body from BOTH, but the mode decision only saw detail — so the task was
+  // filed lightweight even though its fix lands under the tamper tripwire.
+  test('detail はファイル名だけ、location にフルパスがある場合も検知する', () => {
+    const concern = {
+      detail: 'phase-output-validator.ts:389の正規表現が過去状態の言及に誤反応する',
+      location: 'rapitas-backend/services/workflow/phase-output-validator.ts:389',
+    };
+    expect(needsPlanForProtectedPath(concern.detail)).toBe(false); // 旧判定は見落とす
+    expect(concernNeedsPlanForProtectedPath(concern)).toBe(true);
+  });
+
+  test('detail 側だけにフルパスがある従来のケースも引き続き検知する', () => {
+    expect(
+      concernNeedsPlanForProtectedPath({
+        detail:
+          'at spawnNewEntry (rapitas-backend/services/agents/verification/runtime-smoke/x.ts:1:1)',
+        location: null,
+      }),
+    ).toBe(true);
+  });
+
+  test('どちらにも保護パスが無ければ false、欠損入力でも落ちない', () => {
+    expect(
+      concernNeedsPlanForProtectedPath({
+        detail: 'services/system/log-health-check.ts:1',
+        location: 'services/system/log-health-check.ts:1',
+      }),
+    ).toBe(false);
+    expect(concernNeedsPlanForProtectedPath({})).toBe(false);
+    expect(concernNeedsPlanForProtectedPath(null)).toBe(false);
+    expect(concernNeedsPlanForProtectedPath(undefined)).toBe(false);
+  });
+});
+
 describe('specForConcernSource', () => {
   test('ログ由来の懸念には仕様を与える', () => {
     const spec = specForConcernSource('log_health');
@@ -70,6 +111,16 @@ describe('specForConcernSource', () => {
   test('受入基準は判定の根拠を要求する', () => {
     const criteria = (specForConcernSource('log_health')?.acceptanceCriteria ?? []).join('\n');
     expect(criteria).toContain('根拠');
+  });
+
+  // 2026-09-27 タスク1110: 抑制ルールは正規化後のメッセージと照合される(数字列は
+  // `#` に畳まれる)が、その正規化は別ファイルにあり差分には現れない。差分しか見ない
+  // ジャッジは規約どおりの `#` パターンを生ログの数字と比べて不合格にし、費用上限の
+  // 1 分前に修復ラウンドを 1 回潰した。規約を基準文に載せてジャッジの入力に含める。
+  test('受入基準は抑制ルールの照合規約(数字は # に畳まれる)をジャッジに伝える', () => {
+    const criteria = (specForConcernSource('log_health')?.acceptanceCriteria ?? []).join('\n');
+    expect(criteria).toContain('正規化後');
+    expect(criteria).toContain('#');
   });
 
   test('他の出所には仕様を与えない', () => {

@@ -51,10 +51,19 @@ function logHealthSpec(): ConcernTaskSpec {
     // for "the file:line is not shown in the diff". Naming the artifact puts
     // them under the judge's existing "workflow artifacts never appear in the
     // diff → out of jurisdiction" rule; criterion 3 is the one it scores.
+    // Criterion 3 carries the matching convention for the same reason criteria
+    // 1-2 name their artifact: the judge scores it from the diff alone. Rules
+    // are tested against the NORMALIZED message (log-health-check.ts's
+    // normalizeMessage folds digit runs to `#`, as every existing rule shows),
+    // but that normalization lives in another file and never appears in the
+    // diff. Without the convention stated here, the judge compares a correct
+    // `#` pattern against the raw log text and fails it — measured 2026-09-27
+    // on task 1110, whose repair round was spent on that false verdict one
+    // minute before its cost ceiling halted the task.
     acceptanceCriteria: [
       'research.md に、ログを出力している箇所が ファイル:行 で記録されている',
       'research.md または verify.md に、欠陥か正常動作かの判定とその根拠が記録されている',
-      '欠陥なら修正が差分に入っている、正常動作なら理由付きの抑制ルールが差分に登録されている',
+      '欠陥なら修正が差分に入っている、正常動作なら理由付きの抑制ルールが差分に登録されている（抑制ルールの test は正規化後のメッセージと照合される。数字列は `#` に畳まれるため、生ログの数字をそのまま書くのではなく `#` で書くのが正しい）',
     ],
   };
 }
@@ -94,4 +103,26 @@ const PROTECTED_STACK_PATH_RE =
  */
 export function needsPlanForProtectedPath(detail: string | null | undefined): boolean {
   return !!detail && PROTECTED_STACK_PATH_RE.test(detail);
+}
+
+/**
+ * The same decision over EVERY concern field that can carry a path.
+ *
+ * `detail` alone is not enough. convertConcernToTask builds the task body from
+ * `detail` plus `対象箇所: {location}`, and the authoritative path lives in
+ * `location`: concern 11668 (task 1112, 2026-09-28) carried only the bare
+ * filename "phase-output-validator.ts:389" in detail while location held
+ * "rapitas-backend/services/workflow/phase-output-validator.ts:389". A bare
+ * filename cannot match — the pattern needs the directory to distinguish a
+ * guard file from any other — so the task was filed lightweight even though its
+ * fix lands under the tamper tripwire, which no lightweight task can satisfy.
+ *
+ * @param concern - Concern fields that may name a path. / パスを含みうる懸念フィールド
+ * @returns true when the fix lands in a protected path. / 保護パスなら true
+ */
+export function concernNeedsPlanForProtectedPath(
+  concern: { detail?: string | null; location?: string | null } | null | undefined,
+): boolean {
+  if (!concern) return false;
+  return needsPlanForProtectedPath([concern.detail, concern.location].filter(Boolean).join('\n'));
 }

@@ -27,16 +27,15 @@
 import { existsSync } from 'fs';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { createNotification } from '../communication/notification-service';
 // NOTE: recordTransition is no longer imported here — every heal that records a
 // transition now lives in workflow-reconciler-requeue.
 import {
   ACTIVE_EXEC,
-  STALE_TASK_MS,
   requeueOrphanTasks,
   requeueBlockedTasks,
   healUndispatchableTodo,
 } from './workflow-reconciler-requeue';
+import { flagOrphanTasks } from './workflow-reconciler-orphan-flag';
 
 export { STALE_TASK_MS } from './workflow-reconciler-requeue';
 
@@ -169,52 +168,6 @@ async function clearPhantomWorktrees(nowMs: number): Promise<number> {
     }
   }
   return cleared;
-}
-
-/** Surface (notify once) in-progress tasks that have no live execution. */
-async function flagOrphanTasks(nowMs: number): Promise<number> {
-  const cutoff = new Date(nowMs - STALE_TASK_MS);
-  const tasks = await prisma.task
-    .findMany({
-      where: { status: 'in-progress', parentId: null, updatedAt: { lt: cutoff } },
-      select: { id: true, title: true, workflowStatus: true },
-    })
-    .catch(() => []);
-
-  let flagged = 0;
-  for (const t of tasks) {
-    if (t.workflowStatus === 'completed' || t.workflowStatus === 'awaiting_question') continue;
-    const liveExec = await prisma.agentExecution
-      .findFirst({
-        where: { session: { config: { taskId: t.id } }, status: { in: ACTIVE_EXEC } },
-        select: { id: true },
-      })
-      .catch(() => null);
-    if (liveExec) continue;
-
-    // Dedup: skip if we already surfaced this task recently.
-    const recent = await prisma.notification
-      .findFirst({
-        where: {
-          link: `/tasks?taskId=${t.id}`,
-          title: 'タスクが停滞しています',
-          createdAt: { gt: new Date(nowMs - 6 * 60 * 60 * 1000) },
-        },
-        select: { id: true },
-      })
-      .catch(() => null);
-    if (recent) continue;
-
-    await createNotification({
-      type: 'system',
-      title: 'タスクが停滞しています',
-      message: `#${t.id}「${t.title}」が長時間「進行中」のまま実行が見当たりません。再実行をご検討ください。`,
-      link: `/tasks?taskId=${t.id}`,
-      metadata: { taskId: t.id, reason: 'reconciler_orphan' },
-    }).catch(() => {});
-    flagged++;
-  }
-  return flagged;
 }
 
 /**

@@ -84,6 +84,10 @@ export async function resolvePhaseTimeoutMs(
  */
 export async function shouldAutoApprovePlan(taskId: number): Promise<boolean> {
   const taskForApproval = await resolveTaskForPlanApproval(taskId);
+  // A plan committing to a human-override-only change must wait for the human,
+  // not burn an implementation first (see forbidden-change-plan-hold).
+  const { resolveForbiddenChangePlanHold } = await import('./forbidden-change-plan-hold');
+  if (await resolveForbiddenChangePlanHold(taskId)) return false;
   const userSettings = await prisma.userSettings.findFirst();
   const isSubtask = taskForApproval?.parentId != null;
   return !!(
@@ -167,6 +171,29 @@ export async function notifyParentOnSubtaskFailure(taskId: number): Promise<void
   } catch (err) {
     log.warn({ err, taskId }, '[WorkflowRunner] notifyParentOnSubtaskFailure failed');
   }
+}
+
+/**
+ * Notify the parent that a SUCCESSFUL subtask reached its terminal state. The
+ * subtask completes on the queue-driven path, not through the task API, so this
+ * is where the parent finalize is triggered; a non-subtask is a no-op.
+ *
+ * Fire-and-forget: parent finalization must never delay or fail the queue item
+ * that just completed.
+ *
+ * @param taskId - The completed subtask. / 完了したサブタスク
+ * @param parentId - Its parent, or null/undefined for a top-level task. / 親タスク、無ければ null
+ */
+export function propagateSubtaskCompletion(taskId: number, parentId: number | null): void {
+  if (!parentId) return;
+  import('./subtask-completion-handler')
+    .then(({ onSubtaskCompleted }) => onSubtaskCompleted(taskId))
+    .catch((err: unknown) => {
+      log.warn(
+        { err, taskId, parentId },
+        '[WorkflowRunner] Failed to propagate subtask completion to parent',
+      );
+    });
 }
 
 /** Stop a failed phase before retrying, including a CLI abandoned by its timeout. */

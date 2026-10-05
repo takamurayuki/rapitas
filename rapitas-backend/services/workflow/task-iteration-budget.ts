@@ -38,8 +38,20 @@ import type {
 
 const log = createLogger('task-iteration-budget');
 
-/** WorkflowTransition causes that reset the iteration window (fresh slate). */
-const WINDOW_RESET_CAUSES = ['task_retried', 'question_resolved', 'plan_invalid_replan'];
+/**
+ * WorkflowTransition causes that reset the iteration window (fresh slate).
+ *
+ * `halt_released` is here for the reason the whole window mechanism exists: an
+ * operator releasing a halt has supplied a new hypothesis, and without the reset
+ * the next scheduler tick re-reads the same spend and re-halts on the spot —
+ * task 881/996's failure (2026-09-20) reproduced by hand.
+ */
+const WINDOW_RESET_CAUSES = [
+  'task_retried',
+  'question_resolved',
+  'plan_invalid_replan',
+  'halt_released',
+];
 
 /**
  * Transition causes written by the STOP side (this budget's own halt, the

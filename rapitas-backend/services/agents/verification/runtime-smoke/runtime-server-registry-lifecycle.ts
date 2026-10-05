@@ -187,10 +187,31 @@ export async function spawnNewEntry(
     log.info({ key, workdir, port, label }, '[registry] spawning new server for workdir');
     let trackingError: unknown;
     let tracking: Promise<void> | undefined;
+    // A snapshot that cannot be TAKEN is an infrastructure hiccup, not evidence
+    // that ownership is unsafe. Aborting the launch on the first one is what
+    // kept runtime smoke unverified from 09-22: the enumeration occasionally
+    // exceeded its ceiling while the dev server compiled, and the launch died
+    // even though the app was fine. Stay strict about the answer (an unsafe
+    // tree still aborts at once) and tolerant about failing to get one — but
+    // only briefly, since prolonged blindness means ownership is unverifiable.
+    const MAX_CONSECUTIVE_SNAPSHOT_FAILURES = 3;
+    let consecutiveSnapshotFailures = 0;
     const tracker = setInterval(() => {
       if (tracking) return;
       tracking = (async () => {
-        const current = await readRuntimeProcessSnapshot();
+        let current: Awaited<ReturnType<typeof readRuntimeProcessSnapshot>>;
+        try {
+          current = await readRuntimeProcessSnapshot();
+          consecutiveSnapshotFailures = 0;
+        } catch (error) {
+          consecutiveSnapshotFailures++;
+          log.warn(
+            { key, workdir, label, consecutiveSnapshotFailures, err: error },
+            '[registry] startup process snapshot failed — retrying',
+          );
+          if (consecutiveSnapshotFailures >= MAX_CONSECUTIVE_SNAPSHOT_FAILURES) throw error;
+          return;
+        }
         const identities = extendOwnedRuntimeTree(entry.identities ?? [], current.processes);
         const inspected = inspectOwnedRuntimeTree(
           identities,
@@ -219,6 +240,12 @@ export async function spawnNewEntry(
         cfg.readyTimeoutMs,
         { workdir, label },
         () => app.hasExited() || entry.startCancelled === true || trackingError !== undefined,
+        () =>
+          app.hasExited()
+            ? `app_exited(code=${app.exitCode()})`
+            : entry.startCancelled === true
+              ? 'start_cancelled'
+              : 'ownership_tracking_failed',
       );
     } finally {
       clearInterval(tracker);

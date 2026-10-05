@@ -23,6 +23,7 @@ import { resolveTaskWorkflowState } from '../task/task-resolver';
 import { isTaskTerminalForQueue } from './workflow-queue';
 import { WorkflowRunner } from './workflow-runner';
 import { hasLiveExecution } from './auto-run/auto-run-selection';
+import { resolveQueuedWaiters } from './queue-starvation-waiters';
 import {
   notifyStallReleased,
   notifyQueueStarvation,
@@ -33,22 +34,75 @@ import { RUNNING_ITEM_STALE_MS, QUEUE_STARVATION_THRESHOLD_MS } from './queue-st
 
 const log = createLogger('workflow-reconciler-queue-stall');
 
+/** One 'running' queue item considered by the sweep. */
+type SweepCandidate = {
+  id: number;
+  taskId: number;
+  themeId: number | null;
+  /** True when the task cannot legitimately be running (halted or blocked). / 実行しえないタスクの残骸 */
+  unrunnable: boolean;
+};
+
 /**
- * Cancel 'running' queue items that are stale beyond RUNNING_ITEM_STALE_MS and
- * either belong to a terminal task or have NO live (fresh-heartbeat) execution.
- * A non-terminal task with a live execution is a legitimately long phase and is
- * left untouched. CAS on status='running' so a concurrent stop/complete wins.
+ * Collect the 'running' items this sweep may cancel: the long-stale ones, plus
+ * residue of a task that CANNOT legitimately be running at all.
+ *
+ * The second set exists because the age filter alone wedges the queue. A halted
+ * or blocked task has no legitimate long phase, yet its residue held the only
+ * runner slot for the full 40-minute window — measured 2026-09-27, when task
+ * 1105's item kept the slot while task 1106 waited 20+ minutes, and each stop
+ * attempt pushed `startedAt` forward and so postponed the release further.
+ * Liveness is still consulted per item below, so a live agent is never cut.
+ *
+ * @param nowMs - Current time (ms). / 現在時刻
+ * @returns Candidate items, de-duplicated. / 重複排除した候補
+ */
+async function collectSweepCandidates(nowMs: number): Promise<SweepCandidate[]> {
+  const select = { id: true, taskId: true, themeId: true } as const;
+  type Row = { id: number; taskId: number; themeId: number | null };
+  const stale = await prisma.workflowQueueItem
+    .findMany({
+      where: { status: 'running', startedAt: { lt: new Date(nowMs - RUNNING_ITEM_STALE_MS) } },
+      select,
+    })
+    .catch(() => [] as Row[]);
+
+  const unrunnable = await prisma.task
+    .findMany({
+      where: { OR: [{ haltReason: { not: null } }, { status: 'blocked' }] },
+      select: { id: true },
+    })
+    .catch(() => [] as { id: number }[]);
+  const residue =
+    unrunnable.length === 0
+      ? []
+      : await prisma.workflowQueueItem
+          .findMany({
+            where: { status: 'running', taskId: { in: unrunnable.map((t) => t.id) } },
+            select,
+          })
+          .catch(() => [] as Row[]);
+
+  const byId = new Map<number, SweepCandidate>();
+  for (const item of stale) byId.set(item.id, { ...item, unrunnable: false });
+  // Residue wins the merge: its cause is the more specific explanation.
+  for (const item of residue) byId.set(item.id, { ...item, unrunnable: true });
+  return [...byId.values()];
+}
+
+/**
+ * Cancel 'running' queue items that are either stale beyond
+ * RUNNING_ITEM_STALE_MS or residue of a task that cannot run at all (see
+ * {@link collectSweepCandidates}), and that either belong to a terminal task or
+ * have NO live (fresh-heartbeat) execution. A non-terminal task with a live
+ * execution is a legitimately long phase and is left untouched. CAS on
+ * status='running' so a concurrent stop/complete wins.
  *
  * @param nowMs - Current time (ms), injected for testability. / 現在時刻
  * @returns Items cancelled this cycle. / キャンセル件数
  */
 export async function sweepStaleRunningItems(nowMs: number): Promise<number> {
-  const candidates = await prisma.workflowQueueItem
-    .findMany({
-      where: { status: 'running', startedAt: { lt: new Date(nowMs - RUNNING_ITEM_STALE_MS) } },
-      select: { id: true, taskId: true, themeId: true },
-    })
-    .catch(() => []);
+  const candidates = await collectSweepCandidates(nowMs);
   if (candidates.length === 0) return 0;
 
   let released = 0;
@@ -59,15 +113,20 @@ export async function sweepStaleRunningItems(nowMs: number): Promise<number> {
     // is stale by definition, live agent or not (its work is already resolved).
     if (!terminal && (await hasLiveExecution(prisma, item.taskId))) continue;
 
-    const cause = terminal ? 'terminal_task_running_residue' : 'stale_running_no_live_execution';
+    const cause = terminal
+      ? 'terminal_task_running_residue'
+      : item.unrunnable
+        ? 'unrunnable_task_running_residue'
+        : 'stale_running_no_live_execution';
     const updated = await prisma.workflowQueueItem
       .updateMany({
         where: { id: item.id, status: 'running' },
         data: {
           status: 'cancelled',
           completedAt: new Date(),
-          errorMessage:
-            '長時間 running のまま生存実行が確認できないため自動キャンセルしました（定期スイープ）',
+          errorMessage: item.unrunnable
+            ? 'タスクが halt / blocked で実行しえない状態のまま running が残っていたため自動キャンセルしました（定期スイープ）'
+            : '長時間 running のまま生存実行が確認できないため自動キャンセルしました（定期スイープ）',
         },
       })
       .catch(() => ({ count: 0 }));
@@ -111,7 +170,10 @@ export function resetQueueStarvationTracker(): void {
  * Detect `running=0 かつ queued>0` persisting past QUEUE_STARVATION_THRESHOLD_MS
  * and kick the (idempotent) WorkflowRunner back into processing. The threshold
  * requires ~3 consecutive reconciler observations, so the normal one-tick gap
- * between phases (task 585) and post-restart transients never trip it.
+ * between phases (task 585) and post-restart transients never trip it. Queued
+ * items are also weighed rather than merely counted (see
+ * {@link resolveQueuedWaiters}): a running phase is not a starved queue, and
+ * neither is a queue whose every waiter is one the runner would refuse.
  *
  * @param nowMs - Current time (ms), injected for testability. / 現在時刻
  * @returns 1 when a starvation was detected and acted on, else 0. / 検出件数
@@ -124,11 +186,14 @@ export async function detectQueueStarvation(nowMs: number): Promise<number> {
     .count({ where: { status: 'queued' } })
     .catch(() => 0);
 
-  if (runningCount > 0 || queuedCount === 0) {
+  const notStarving = (): number => {
     starvationSinceMs = null;
     noOpKickReported = false;
     return 0;
-  }
+  };
+  if (runningCount > 0 || queuedCount === 0) return notStarving();
+  const waiters = await resolveQueuedWaiters(queuedCount);
+  if (waiters.working || waiters.dispatchable === 0) return notStarving();
   if (starvationSinceMs === null) {
     // First observation of this episode — arm the timer, act only on persistence.
     starvationSinceMs = nowMs;
