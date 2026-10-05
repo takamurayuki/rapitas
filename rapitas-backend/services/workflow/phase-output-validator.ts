@@ -21,6 +21,7 @@ import { isPublicationOnlyPartial } from './publication-only-partial';
 import { stripNonEvidenceRegions, collectNonpassingRows } from './verify-scan-text';
 import { quoteEvidenceLine } from './verify-repeat-evidence';
 import { isRunnerExitFailureLine } from './verify-exit-signal';
+import { contradictionRewordHint } from './verify-contradiction-hint';
 
 export interface ValidationResult {
   ok: boolean;
@@ -375,14 +376,16 @@ export function validateVerify(content: string): ValidationResult {
   }
 
   if (claimsAllPass && failureHits.length > 0) {
-    const evidence = failureHits.slice(0, 3).join(' | ');
+    const quoted = failureHits.slice(0, 3);
+    const evidence = quoted.join(' | ');
     return {
       ok: false,
       missingSections: [],
       severity: 80,
       summary:
         `verify.md self-contradicts: claims all tests pass while body contains failure signals (${evidence}). ` +
-        `Verifier likely hallucinated success — re-run with stricter test-honesty prompt.`,
+        `Verifier likely hallucinated success — re-run with stricter test-honesty prompt.` +
+        contradictionRewordHint(quoted),
     };
   }
 

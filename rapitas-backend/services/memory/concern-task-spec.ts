@@ -104,3 +104,25 @@ const PROTECTED_STACK_PATH_RE =
 export function needsPlanForProtectedPath(detail: string | null | undefined): boolean {
   return !!detail && PROTECTED_STACK_PATH_RE.test(detail);
 }
+
+/**
+ * The same decision over EVERY concern field that can carry a path.
+ *
+ * `detail` alone is not enough. convertConcernToTask builds the task body from
+ * `detail` plus `対象箇所: {location}`, and the authoritative path lives in
+ * `location`: concern 11668 (task 1112, 2026-09-28) carried only the bare
+ * filename "phase-output-validator.ts:389" in detail while location held
+ * "rapitas-backend/services/workflow/phase-output-validator.ts:389". A bare
+ * filename cannot match — the pattern needs the directory to distinguish a
+ * guard file from any other — so the task was filed lightweight even though its
+ * fix lands under the tamper tripwire, which no lightweight task can satisfy.
+ *
+ * @param concern - Concern fields that may name a path. / パスを含みうる懸念フィールド
+ * @returns true when the fix lands in a protected path. / 保護パスなら true
+ */
+export function concernNeedsPlanForProtectedPath(
+  concern: { detail?: string | null; location?: string | null } | null | undefined,
+): boolean {
+  if (!concern) return false;
+  return needsPlanForProtectedPath([concern.detail, concern.location].filter(Boolean).join('\n'));
+}

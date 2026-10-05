@@ -20,7 +20,7 @@ import {
 import { isLogConcernStillRecurring, fragmentFromLogConcernTitle } from './log-concern-recurrence';
 import { isSelfDetectConcernStillRelevant } from './self-detect-relevance';
 import { listIdeas, markIdeaAsUsed } from '../../memory/idea-box-service';
-import { needsPlanForProtectedPath } from '../../memory/concern-task-spec';
+import { concernNeedsPlanForProtectedPath } from '../../memory/concern-task-spec';
 import { createTask } from '../../task/task-mutations';
 import { logCycleEvent } from '../../observability';
 import {
@@ -46,8 +46,11 @@ async function markAutoCreated(taskId: number): Promise<void> {
  * tripwire hard-fails any protected-file change a plan does not list (task
  * 1044 bounced, asked, and stalled on exactly this). Best-effort.
  */
-async function forceStandardModeForProtectedPath(taskId: number, detail?: string | null) {
-  if (!needsPlanForProtectedPath(detail)) return;
+async function forceStandardModeForProtectedPath(
+  taskId: number,
+  concern?: { detail?: string | null; location?: string | null } | null,
+) {
+  if (!concernNeedsPlanForProtectedPath(concern)) return;
   await prisma.task
     .update({
       where: { id: taskId },
@@ -146,7 +149,7 @@ export async function promoteConcern(
     const taskId = await convertConcernToTask(concern.id);
     if (!taskId) return false;
     await markAutoCreated(taskId);
-    await forceStandardModeForProtectedPath(taskId, full?.detail);
+    await forceStandardModeForProtectedPath(taskId, full);
     log.info(
       { themeId, concernId: concern.id, taskId, severity: concern.severity },
       '[backlog-promoter] Promoted concern to task',

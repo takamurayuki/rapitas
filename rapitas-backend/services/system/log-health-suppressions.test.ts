@@ -364,4 +364,34 @@ describe('classifyLogSignature', () => {
       ).suppressed,
     ).toBe(true);
   });
+
+  test('the real task-1110 runtime-smoke OS snapshot PowerShell failure is suppressed after normalization', () => {
+    // Task 1110: readRuntimeProcessSnapshot()'s windowsScript (runtime-process-snapshot.ts:32-44)
+    // is long enough that normalizeMessage's 200-char slice never reaches the
+    // Get-CimInstance/Get-NetTCPConnection calls — the rule must match on the
+    // script's leading comment instead, which does survive the slice.
+    const raw = [
+      'Command failed: powershell.exe -NoProfile -NonInteractive -Command ',
+      "$ErrorActionPreference = 'Stop'",
+      '# execFile decodes UTF-8. CP932 bytes for characters such as ソ contain 0x5c,',
+      '# which otherwise becomes an invalid JSON escape and blocks verified cleanup.',
+      '[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)',
+      '$OutputEncoding = [Console]::OutputEncoding',
+      '$rows = @(Get-CimInstance Win32_Process | ForEach-Object {',
+      '  [pscustomobject]@{pid=[int]$_.ProcessId; parentPid=[int]$_.ParentProcessId}',
+      '})',
+    ].join('\n');
+    expect(classifyLogSignature('runtime-smoke:registry', normalizeMessage(raw)).suppressed).toBe(
+      true,
+    );
+  });
+
+  test('the runtime-smoke OS snapshot failure signature is scoped to the runtime-smoke:registry logger only', () => {
+    // Task 1110: an unrelated logger reusing the same PowerShell invocation
+    // text must still be filed.
+    const raw =
+      "Command failed: powershell.exe -NoProfile -NonInteractive -Command $ErrorActionPreference = 'Stop' " +
+      '# execFile decodes UTF-8. CP932 bytes for characters such as ソ contain 0x5c,';
+    expect(classifyLogSignature('some-other-logger', normalizeMessage(raw)).suppressed).toBe(false);
+  });
 });
