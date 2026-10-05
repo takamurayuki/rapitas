@@ -27,6 +27,7 @@ import {
   stopFailedPhaseAgents,
   logPhaseFailure,
   propagateSubtaskCompletion,
+  slowQueueFields,
 } from './workflow-runner-item-helpers';
 import { taskVanishedMessage } from './queue-vanished-task-policy';
 import { parkItemIfHalted } from './workflow-runner-halt-guard';
@@ -173,14 +174,13 @@ export class WorkflowRunner {
   private async processQueue(): Promise<void> {
     if (!this.running) return;
     const t0 = Date.now();
-    let dequeuedCount = 0;
+    const ids: number[] = []; // task 1114: correlates a slow-queue WARN with items
     const releaseSection = markEventLoopSection('workflow-runner:processQueue'); // task 1040: names this section on a concurrent event-loop-lag WARN
     try {
-      // Dequeue while there are free slots
       while (this.activeExecutions.size < this.queue.getMaxConcurrency()) {
         const item = await this.queue.dequeue();
         if (!item) break;
-        dequeuedCount++;
+        ids.push(item.taskId);
         this.executeWorkflowItem(item); // fire-and-forget
       }
     } catch (error) {
@@ -188,7 +188,7 @@ export class WorkflowRunner {
     } finally {
       releaseSection();
       const tookMs = Date.now() - t0; // task 966: diagnostic instrumentation for concern #966 (event-loop-lag WARN)
-      if (tookMs > 1000) log.warn({ dequeuedCount, tookMs }, 'Slow queue processing');
+      if (tookMs > 1000) log.warn(slowQueueFields(ids, tookMs), 'Slow queue processing');
     }
   }
 
