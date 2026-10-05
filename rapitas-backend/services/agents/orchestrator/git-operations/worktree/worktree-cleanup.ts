@@ -15,6 +15,12 @@ import { createLogger } from '../../../../../config/logger';
 import { WORKTREE_DIR, normalizePath, isPathSafeForWorktreeOperation } from '../core/safety';
 import { prisma } from '../../../../../config/database';
 import { removeWorktree } from './worktree-remove';
+import {
+  shouldSkipRemovalAttempt,
+  recordRemovalRefused,
+  clearRemovalRefusal,
+  parkedRemovalCount,
+} from './worktree-removal-backoff';
 
 // NOTE: execFile (array-args, no shell) instead of exec (shell string) — branch
 // names, paths, and other caller-controlled values are passed as literal argv
@@ -59,6 +65,7 @@ export async function cleanupStaleWorktrees(
     // worktrees of non-terminal tasks; those must never be deleted here.
     const keepSet = new Set(keepPaths.map((p) => normalizePath(p)));
     let keptCount = 0;
+    let skippedCount = 0;
 
     for (const entry of entries) {
       const pathMatch = entry.match(/^worktree\s+(.+)$/m);
@@ -77,15 +84,27 @@ export async function cleanupStaleWorktrees(
         continue;
       }
 
+      // This sweep runs on every worker (re)init, and the reasons a removal is
+      // refused (uncommitted work, lost git metadata, a held handle) persist — so
+      // re-attempting within the cooldown only burns git subprocesses and
+      // directory walks. See worktree-removal-backoff.ts for the measurement.
+      if (shouldSkipRemovalAttempt(normalizedWtPath)) {
+        skippedCount++;
+        continue;
+      }
+
       logger.info(`[cleanupStaleWorktrees] Removing stale worktree: ${wtPath}`);
       try {
         const removed = await removeWorktree(baseDir, wtPath);
         if (removed) {
           cleanedCount++;
+          clearRemovalRefusal(normalizedWtPath);
         } else {
+          recordRemovalRefused(normalizedWtPath);
           logger.warn(`[cleanupStaleWorktrees] removeWorktree refused or failed: ${wtPath}`);
         }
       } catch (error) {
+        recordRemovalRefused(normalizedWtPath);
         logger.warn({ err: error }, `[cleanupStaleWorktrees] Failed to remove ${wtPath}`);
       }
     }
@@ -95,6 +114,13 @@ export async function cleanupStaleWorktrees(
     }
     if (keptCount > 0) {
       logger.info(`[cleanupStaleWorktrees] Kept ${keptCount} live worktree(s)`);
+    }
+    if (skippedCount > 0) {
+      // One line instead of four per worktree: the detail is the same every
+      // sweep, and the count is what tells an operator the backlog is growing.
+      logger.info(
+        `[cleanupStaleWorktrees] Skipped ${skippedCount} worktree(s) still inside the retry cooldown (${parkedRemovalCount()} parked)`,
+      );
     }
   } catch (error) {
     logger.error({ err: error }, '[cleanupStaleWorktrees] Failed to clean up stale worktrees');

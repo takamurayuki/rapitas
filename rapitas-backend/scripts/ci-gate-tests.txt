@@ -104,3 +104,4 @@ config/database.test.ts
 routes/agents/execution/routes/respond-route.test.ts
 services/workflow/halt-release.test.ts
 services/workflow/task-iteration-budget.window-reset-causes.test.ts
+services/agents/orchestrator/git-operations/worktree/worktree-removal-backoff.test.ts
