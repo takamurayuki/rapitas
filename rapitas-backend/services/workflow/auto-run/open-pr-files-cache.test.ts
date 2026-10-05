@@ -100,17 +100,68 @@ describe('getPrChangedFiles (TTL cache)', () => {
     ]);
   });
 
-  it('rechecks state at TTL expiry after an open PR merges', async () => {
+  // Stale-while-revalidate contract. This read sits on the auto-run scheduler's
+  // 12-second advance path, so an expired entry is served from cache and the
+  // refresh happens in the background: a merged PR is therefore reported as open
+  // for ONE more read, and correct from the next one. The cost is one extra tick
+  // of a conservative overlap hold (itself capped at 30 minutes); the benefit is
+  // that the tick never waits on GitHub — measured 2026-10-06, blocking refreshes
+  // produced 116 slow advances totalling 429.8 s, median 3.5 s.
+  it('TTL 失効時は古い値を即返し、裏で更新してから次の読み取りで新しい state になる', async () => {
     const nowRef = { t: 1000 };
     expect(await getPrChangedFiles('/repo', 1, ghDeps(PAYLOAD, nowRef))).toHaveLength(2);
+
     nowRef.t += PR_FILES_CACHE_TTL_MS;
-    expect(
-      await getPrChangedFiles(
-        '/repo',
-        1,
-        ghDeps(JSON.stringify({ state: 'MERGED', files: [{ path: 'services/a.ts' }] }), nowRef),
-      ),
-    ).toEqual([]);
+    const mergedDeps = ghDeps(
+      JSON.stringify({ state: 'MERGED', files: [{ path: 'services/a.ts' }] }),
+      nowRef,
+    );
+
+    // 1回目: 古い値(open 扱い)が即座に返る。
+    expect(await getPrChangedFiles('/repo', 1, mergedDeps)).toHaveLength(2);
+    // 背景更新はこの時点で発行済み。
+    expect(mergedDeps.calls.length).toBe(1);
+
+    // 背景更新の完了を待つ。
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // 2回目: MERGED が反映され、重複判定の対象から外れる。
+    expect(await getPrChangedFiles('/repo', 1, mergedDeps)).toEqual([]);
+  });
+
+  // The point of the change: a stale read must not block on gh.
+  it('古い値の読み取りは gh の完了を待たない', async () => {
+    const nowRef = { t: 1000 };
+    await getPrChangedFiles('/repo', 2, ghDeps(PAYLOAD, nowRef));
+    nowRef.t += PR_FILES_CACHE_TTL_MS;
+
+    let released: (() => void) | undefined;
+    const calls: number[] = [];
+    const blockingDeps: PrFilesDeps = {
+      execGh: async () => {
+        calls.push(1);
+        await new Promise<void>((resolve) => {
+          released = resolve;
+        });
+        return PAYLOAD;
+      },
+      now: () => nowRef.t,
+    };
+
+    // NOTE: released() must run even when an assertion throws — a pending
+    // execGh promise left dangling makes the whole test file hang instead of
+    // failing (observed while verifying this test's RED state).
+    try {
+      // gh はまだ応答していないが、呼び出しは解決する。
+      expect(await getPrChangedFiles('/repo', 2, blockingDeps)).toHaveLength(2);
+      expect(calls.length).toBe(1);
+
+      // 同一 tick 内の 2 回目も gh を増やさない(背景更新は1本に集約)。
+      expect(await getPrChangedFiles('/repo', 2, blockingDeps)).toHaveLength(2);
+      expect(calls.length).toBe(1);
+    } finally {
+      released?.();
+    }
   });
 });
 
