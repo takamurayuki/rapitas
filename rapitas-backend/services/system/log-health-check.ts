@@ -15,7 +15,7 @@ import { readFile } from 'fs/promises';
 import { readLogTail } from './log-tail-reader';
 import { markEventLoopSection } from './event-loop-lag-watchdog';
 import { classifyLogSignature } from './log-health-suppressions';
-import { readdirSync, statSync, unlinkSync, existsSync } from 'fs';
+import { readdirSync, statSync, existsSync } from 'fs';
 import { join } from 'path';
 import { createLogger, getBackendLogFilePath } from '../../config/logger';
 import { prisma } from '../../config/database';
@@ -29,6 +29,8 @@ import {
   type LogFormat,
 } from '../scheduling/theme-backlog-override-service';
 import { parseLogEntries, type ParsedLogEntry } from './log-format-parser';
+import { pruneOldLogs } from './log-health-prune';
+import { fileCausalSuggestions } from '../workflow/causal-analysis/causal-suggestion-filer';
 
 const log = createLogger('system:log-health-check');
 
@@ -47,8 +49,6 @@ const TAIL_READ_BYTES = 4 * 1024 * 1024;
 const MAX_FILES_PER_THEME = 20;
 /** Max parsed entries kept per project, to bound memory/work. */
 const MAX_ENTRIES_PER_THEME = 4_000;
-/** Delete daily backend log files older than this many days. */
-const RETENTION_DAYS = 14;
 
 interface Grouped {
   signature: string;
@@ -400,30 +400,6 @@ async function readThemeEntries(dir: string, format: LogFormat): Promise<ParsedL
   return entries.slice(0, MAX_ENTRIES_PER_THEME);
 }
 
-/** Deletes daily backend log files older than the retention window. */
-function pruneOldLogs(): void {
-  const dir = join(getBackendLogFilePath(), '..');
-  let files: string[];
-  try {
-    files = readdirSync(dir);
-  } catch {
-    return;
-  }
-  const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
-  for (const file of files) {
-    const m = file.match(/^backend-(\d{4})-(\d{2})-(\d{2})\.log$/);
-    if (!m) continue;
-    const fileTime = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime();
-    if (fileTime < cutoff) {
-      try {
-        unlinkSync(join(dir, file));
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-}
-
 /**
  * Run the daily log health check across rapitas's backend log and every opted-in
  * project's logs, filing distinct problems as concerns; then prune old logs.
@@ -470,9 +446,11 @@ async function runLogHealthCheckInner(since?: Date): Promise<number> {
   // resulting concerns (and any task created from them) are theme-scoped.
   const globalTask = (async () => {
     const entries = await readGlobalEntries(sinceMs);
-    return fileGroupedConcerns(groupEntries(entries), {
+    const causal = await fileCausalSuggestions(defaultThemeId ?? undefined, entries);
+    const grouped = await fileGroupedConcerns(groupEntries(entries), {
       themeId: defaultThemeId ?? undefined,
     });
+    return causal + grouped;
   })();
 
   // 2. Per-project: each opted-in theme runs concurrently with the global task.
