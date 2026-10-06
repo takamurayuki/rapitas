@@ -11,6 +11,20 @@ build
 # Generated files
 *.d.ts
 !*.config.d.ts
+# messages/{ja,en}.json are emitted by scripts/generate-messages.mjs (predev,
+# pretest, prebuild) as JSON.stringify(merged, null, 2). Prettier collapses a
+# short array onto one line where JSON.stringify always expands it, so the two
+# disagree on `dayLabels` and `prettier --check` can never pass on the committed
+# output. That made an unfixable verification step: task 1105 (2026-09-26) ran
+# `prettier --check` on these files, honestly recorded "未検証", had the row read
+# as a failure, and burned its cost budget repeating the round. Any agent that
+# "fixed" it with `prettier --write` instead put unrelated reformatted keys in
+# its diff and was failed for scope drift (task 1107).
+# CI never checked these: its steps are `**/*.ts` (backend) and
+# `src/**/*.{ts,tsx,js,jsx,css,md}` (frontend), neither of which matches. Ignoring
+# them aligns local checks with CI and leaves formatting to the generator.
+messages/ja.json
+messages/en.json
 
 # Logs
 *.log
