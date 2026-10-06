@@ -21,7 +21,6 @@ import { isPublicationOnlyPartial } from './publication-only-partial';
 import { stripNonEvidenceRegions, collectNonpassingRows } from './verify-scan-text';
 import { quoteEvidenceLine } from './verify-repeat-evidence';
 import { isRunnerExitFailureLine } from './verify-exit-signal';
-import { contradictionRewordHint } from './verify-contradiction-hint';
 
 export interface ValidationResult {
   ok: boolean;
@@ -283,7 +282,11 @@ export function validateVerify(content: string): ValidationResult {
   // instead of a ❌ row still tripped the gate (task 943, attempts 1 and 2).
   const isExemptFailureLine = (line: string): boolean =>
     (documentsOutOfScopeEscalation && attributesFailureOutOfScope(line)) ||
-    isHistoricalBaselineComparison(line);
+    isHistoricalBaselineComparison(line) ||
+    // Same rule the ❌ scan applies (task 1112): "fixed 3 failed tests" in a
+    // changed-file row says what was repaired, not that 3 tests fail. Skipping it
+    // there but not here reproduced the false positive 1112 had just closed.
+    CHANGED_FILE_ROW.test(line);
 
   // Each hit quotes its line («…», see verify-repeat-evidence.ts): the repair
   // loop compares the quotes across rounds to spot the identical finding being
@@ -375,16 +378,14 @@ export function validateVerify(content: string): ValidationResult {
   }
 
   if (claimsAllPass && failureHits.length > 0) {
-    const quoted = failureHits.slice(0, 3);
-    const evidence = quoted.join(' | ');
+    const evidence = failureHits.slice(0, 3).join(' | ');
     return {
       ok: false,
       missingSections: [],
       severity: 80,
       summary:
         `verify.md self-contradicts: claims all tests pass while body contains failure signals (${evidence}). ` +
-        `Verifier likely hallucinated success — re-run with stricter test-honesty prompt.` +
-        contradictionRewordHint(quoted),
+        `Verifier likely hallucinated success — re-run with stricter test-honesty prompt.`,
     };
   }
 

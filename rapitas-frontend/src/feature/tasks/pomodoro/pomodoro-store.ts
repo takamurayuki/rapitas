@@ -9,7 +9,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { getAudioContext, closeAudioContext } from './pomodoro-audio';
-import { syncPomodoroToBackend } from './pomodoro-sync';
+import { syncPomodoroToBackend, isSyncOwner } from './pomodoro-sync';
 import { handleTick } from './pomodoro-tick';
 import { broadcastState, getBroadcastChannel, closeBroadcastChannel } from './pomodoro-broadcast';
 import { DEFAULT_SHORT_BREAK, DEFAULT_LONG_BREAK, DEFAULT_SETTINGS } from './pomodoro-types';
@@ -324,7 +324,23 @@ if (typeof window !== 'undefined' && !g.__rapitasPomodoroWired) {
   // /pomodoro-float is excluded from isSyncOwner. Registered at module level
   // (not inside a component) so it keeps working for the lifetime of the main
   // window regardless of what is currently rendered.
-  if ('__TAURI_INTERNALS__' in window) {
+  // Gated on isSyncOwner(): ONLY the owner may handle a delegated action. This
+  // module runs in every Tauri window, so without the gate the float window
+  // registered the handler for the very event it emits — and handling it there
+  // re-enters the delegation, because a non-owner's checkpoint()/cancel() emits
+  // the request instead of calling the backend:
+  //
+  //   float receives → checkpoint() → not owner → delegateToMain() → emits →
+  //   float receives → …
+  //
+  // One press of 「作業時間を登録」 started an unbounded loop. Measured
+  // 2026-10-06 over CDP while it ran: 3,680 `plugin:event|emit_to` calls in 15 s
+  // from /pomodoro-float (245/s) and 4,460 GET /pomodoro/active in 15 s from
+  // main (297/s). The UI held ~300% of one core with the GPU process at 0% and
+  // JS reported "idle" (the time is in the fetch/IPC plumbing, not in JS
+  // frames), and the backend's health probe went from 8 ms to 172 ms, which is
+  // what made the app look disconnected.
+  if ('__TAURI_INTERNALS__' in window && isSyncOwner()) {
     import('@tauri-apps/api/event').then(({ listen }) => {
       listen('pomodoro-float:checkpoint-request', () => {
         void syncPomodoroToBackend.checkpoint();
