@@ -71,7 +71,41 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => {
   // which a still-mismatched server answers identically, so the pair looped
   // forever instead of ever reaching a real `/tasks` fetch that could resolve
   // the mismatch. Surfaced as a task list stuck on its loading skeleton.
-  const performFullFetch = async () => {
+  const performFullFetch = async (): Promise<void> => {
+    // De-duplicate concurrent full fetches. GET /tasks returns the entire task
+    // list — measured 2026-10-06: 650 tasks, 3.18 MB, 1.76 s on an idle
+    // backend — and nothing stopped several callers (mount, focus, an SSE
+    // event, a route change) each starting their own. `loading` was set but
+    // never read as a guard.
+    //
+    // Overlapping copies turned a slow endpoint into an outage: 16 concurrent
+    // connections to :3001, the WebView2 network service holding ~700 MB and
+    // 36% of a core, its browser process 96.5%, while each response cost the
+    // backend another 1.76 s of event loop. That pushed Prisma transactions
+    // past their 5 s budget (30 s observed), so queue dequeues failed and
+    // retried every tick and heartbeat/output writes failed with them — the
+    // frontend then could not reach the backend at all. fetchWithRetry's
+    // 10 s timeout closes the loop: once the backend is slow enough, every
+    // attempt aborts and retries, adding load that makes it slower.
+    //
+    // Pinned to globalThis, not module scope: Next dev HMR re-evaluates this
+    // module, which would reset a module-scope holder and let a second fetch
+    // start alongside the first — the same hot-reload hazard that made
+    // pomodoro-store.ts and pomodoro-broadcast.ts pin their singletons after
+    // the 2026-09-03 WebView2 CPU incident.
+    const g = globalThis as unknown as { __rapitasTaskFullFetch?: Promise<void> | null };
+    if (g.__rapitasTaskFullFetch) {
+      logger.debug('[taskCacheStore] fetchAll: full fetch already in flight — joining it');
+      return g.__rapitasTaskFullFetch;
+    }
+    const run = runFullFetch().finally(() => {
+      g.__rapitasTaskFullFetch = null;
+    });
+    g.__rapitasTaskFullFetch = run;
+    return run;
+  };
+
+  const runFullFetch = async () => {
     logger.info('[taskCacheStore] fetchAll: Starting full fetch');
     set({ loading: true });
     try {
