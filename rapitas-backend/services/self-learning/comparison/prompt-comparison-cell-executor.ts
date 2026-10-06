@@ -170,9 +170,12 @@ export async function runComparisonCell(options: RunComparisonCellOptions): Prom
     }
   } finally {
     if (worktreePath) {
-      await removeWorktree(options.worktreeBaseDir, worktreePath).catch((err) => {
-        log.warn({ err, worktreePath }, '[comparison-cell] worktree removal failed');
-      });
+      // forceRemove: the agent always dirties the tree, and the guard would otherwise leak one worktree per cell
+      await removeWorktree(options.worktreeBaseDir, worktreePath, true, undefined, true).catch(
+        (err) => {
+          log.warn({ err, worktreePath }, '[comparison-cell] worktree removal failed');
+        },
+      );
     }
   }
 }
