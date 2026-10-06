@@ -369,6 +369,30 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
       }
     }
 
+    // NOTE (task 1125): a blocked task whose workflow already COMPLETED (after the PR-only recovery above, which keeps priority) was blocked by a
+    // misapplied hang backstop (#1114: completed → blocked while the backend was down), not by
+    // a failed run. A draft reset would re-run merged work and strand the task as an
+    // un-queued non-terminal row. Restore the settled status; workflowStatus and history stay.
+    if (t.workflowStatus === 'completed') {
+      await prisma.task
+        .update({ where: { id: t.id }, data: { status: 'done', updatedAt: new Date() } })
+        .catch(() => {});
+      await recordTransition({
+        taskId: t.id,
+        fromStatus: 'completed',
+        toStatus: 'completed',
+        actor: 'system',
+        cause: 'blocked_settled_restore',
+        metadata: { reason: 'blocked_task_workflow_already_completed' },
+      }).catch(() => {});
+      retried++;
+      log.info(
+        { taskId: t.id },
+        '[reconciler] Blocked task had a completed workflow — restored status=done, no draft reset',
+      );
+      continue;
+    }
+
     const attempts = await prisma.workflowTransition
       .count({ where: { taskId: t.id, cause: 'blocked_auto_retry' } })
       .catch(() => 0);
