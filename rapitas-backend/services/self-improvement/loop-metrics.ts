@@ -10,6 +10,7 @@
  * loop-watcher.ts.
  */
 import { prisma } from '../../config/database';
+import { classifyDiffReviewReason } from './diff-review-reason-classifier';
 
 /** Buckets a verify_repair reason falls into (mirrors the manual triage). */
 export type RepairCategory =
@@ -33,6 +34,12 @@ export interface LoopMetricsWindow {
     verify_repair_total: number;
     verify_repair_self_contradiction: number;
     verify_repair_diff_review: number;
+    /** Subset of diff_review: unplanned changes in the diff. */
+    verify_repair_diff_review_scope_drift: number;
+    /** Subset of diff_review: planned/required work missing from the diff. */
+    verify_repair_diff_review_plan_gap: number;
+    /** Subset of diff_review matching neither family. */
+    verify_repair_diff_review_unclassified: number;
     verify_repair_honest_failure: number;
     verify_repair_auto_gate: number;
     verify_repair_other: number;
@@ -91,6 +98,9 @@ function emptyCounts(): LoopMetricsWindow['counts'] {
     verify_repair_total: 0,
     verify_repair_self_contradiction: 0,
     verify_repair_diff_review: 0,
+    verify_repair_diff_review_scope_drift: 0,
+    verify_repair_diff_review_plan_gap: 0,
+    verify_repair_diff_review_unclassified: 0,
     verify_repair_honest_failure: 0,
     verify_repair_auto_gate: 0,
     verify_repair_other: 0,
@@ -162,7 +172,11 @@ export function bucketTransitions(
         } catch {
           // Malformed metadata → 'other'.
         }
-        counts[`verify_repair_${classifyRepairReason(reason)}`]++;
+        const category = classifyRepairReason(reason);
+        counts[`verify_repair_${category}`]++;
+        if (category === 'diff_review') {
+          counts[`verify_repair_diff_review_${classifyDiffReviewReason(reason)}`]++;
+        }
         break;
       }
       default:

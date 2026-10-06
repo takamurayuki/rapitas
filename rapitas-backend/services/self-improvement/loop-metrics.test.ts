@@ -102,3 +102,38 @@ describe('bucketTransitions', () => {
     expect(w[0]!.counts.completed).toBe(1);
   });
 });
+
+describe('bucketTransitions diff-review sub-classification', () => {
+  const row = (reason: string): TransitionRowLite => ({
+    cause: 'verify_repair',
+    toStatus: 'in_progress',
+    fromStatus: 'verify_done',
+    metadata: JSON.stringify({ reason }),
+    createdAt: new Date(NOW.getTime() - 60_000),
+  });
+
+  it('splits diff_review into scope_drift / plan_gap / unclassified that sum to the total', () => {
+    const w = bucketTransitions(
+      [
+        row('差分レビュー不合格: 計画外のファイルが混入'),
+        row('差分レビュー不合格: 受入基準のテストが未実装'),
+        row('差分レビュー不合格: 受入基準のテストが未実装'),
+        row('差分レビュー不合格: 命名が不統一'),
+        row('自動検証に失敗しました（lint=NG）'),
+      ],
+      NOW,
+      7,
+      1,
+    );
+    const c = w[0]!.counts;
+    expect(c.verify_repair_diff_review).toBe(4);
+    expect(c.verify_repair_diff_review_scope_drift).toBe(1);
+    expect(c.verify_repair_diff_review_plan_gap).toBe(2);
+    expect(c.verify_repair_diff_review_unclassified).toBe(1);
+    expect(
+      c.verify_repair_diff_review_scope_drift +
+        c.verify_repair_diff_review_plan_gap +
+        c.verify_repair_diff_review_unclassified,
+    ).toBe(c.verify_repair_diff_review);
+  });
+});
