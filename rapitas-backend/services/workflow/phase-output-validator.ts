@@ -65,8 +65,7 @@ const VERIFY_REQUIRED_SECTIONS: (string | string[])[] = [
   ['検証結果サマリ', '検証結果', '検証サマリ', '総合評価', '実装結果検証', '検証レポート'],
 ];
 
-// `| file | 変更種別 | 説明 |` row: the 2nd cell is the change kind, so a ❌ in the
-// description cell narrates the change rather than reporting a result.
+// `| file | 変更種別 | 説明 |` row: a ❌ in the description narrates the change, not a result.
 const CHANGED_FILE_ROW =
   /^\s*\|[^|]*\|\s*(?:新規|変更|修正|削除|追加|new|modified?|changed?|deleted?|added)\s*\|/i;
 
@@ -394,8 +393,7 @@ export function validateVerify(content: string): ValidationResult {
   // broken implementation.
   // Accept the common verdicts the verifier actually writes, JP + EN. The ❌
   // anchor on the Japanese verdicts avoids false positives like "不合格項目: なし".
-  // Per line, skipping blockquotes (a PAST verdict quoted as a note, task #1110) and
-  // changed-files table rows (a description of the change, not a verdict).
+  // Per line; skip blockquotes (a past verdict quoted as a note, #1110) and changed-file rows.
   const explicitFailureVerdictRegex =
     /❌\s*(検証失敗|不合格|不適合)|❌\s*verification\s*fail|verify[: ]\s*fail/i;
   const hasNonpassingLine = scanText
