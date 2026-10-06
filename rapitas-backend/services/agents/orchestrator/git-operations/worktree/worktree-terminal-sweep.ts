@@ -76,7 +76,9 @@ export async function sweepTerminalTaskWorktrees(
       }
     }
     if (removedCount > 0) {
-      logger.info(`[sweepTerminalTaskWorktrees] Reclaimed ${removedCount} terminal-task worktree(s)`);
+      logger.info(
+        `[sweepTerminalTaskWorktrees] Reclaimed ${removedCount} terminal-task worktree(s)`,
+      );
     }
   } catch (error) {
     logger.warn({ err: error }, '[sweepTerminalTaskWorktrees] Sweep failed');
