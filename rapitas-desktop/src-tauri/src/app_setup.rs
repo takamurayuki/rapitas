@@ -278,6 +278,11 @@ pub fn run() {
             if let Err(e) = crate::pomodoro_float::prewarm_pomodoro_float_window(app.handle()) {
                 eprintln!("[Pomodoro] float window pre-warm failed: {e}");
             }
+            // The main window is declared in tauri.conf.json, so it has already
+            // navigated to devUrl by the time setup runs — possibly before the
+            // dev server existed. No-op when it was up (see dev_server_wait).
+            #[cfg(debug_assertions)]
+            crate::dev_server_wait::reload_main_window_when_dev_server_ready(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| {
