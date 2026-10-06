@@ -75,3 +75,12 @@ describe('ad-hoc verification script prohibition (task 1111)', () => {
     },
   );
 });
+
+describe('primary checkout guidance wiring (task 1116)', () => {
+  test.each(['ja', 'en'] as const)('is appended to implementer and verifier for %s', (language) => {
+    const texts = buildRoleTexts(1116, { title: 'Probe', description: null }, language);
+    expect(texts.implementer.constraints).toContain('git -C <primary>');
+    expect(texts.implementer.constraints).toContain('git branch --show-current');
+    expect(texts.verifier.instruction).toContain('git -C <primary>');
+  });
+});
