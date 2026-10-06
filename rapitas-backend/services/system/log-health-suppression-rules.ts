@@ -17,7 +17,8 @@ import type { Suppression } from './log-health-suppressions-types';
  */
 export const SUPPRESSIONS: Suppression[] = [
   {
-    test: /Refusing to (switch|create|commit|delete|reset)/i,
+    // hard-revert: same guard shape, a verb the alternation missed (task 1130).
+    test: /Refusing to (switch|create|commit|delete|reset|hard-revert)/i,
     because: 'ガードが危険な操作を拒否した — 防いだ側であり、壊れていない',
   },
   {

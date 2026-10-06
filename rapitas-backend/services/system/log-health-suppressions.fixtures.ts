@@ -23,6 +23,10 @@ export const SUPPRESSED: [string, string][] = [
   ['git-service', 'Refusing to switch to branch feature/t#-x in the PRIMARY git working tree'],
   ['git-service', 'Refusing to create a commit: could not determine the worktree type'],
   [
+    'git-operations/revert-ops',
+    '[revertChanges] Refusing to hard-revert the PRIMARY working tree — this would destroy uncommitted developer work. Agent changes (if any) are left in place; isolate agent runs in a worktree instead.',
+  ],
+  [
     'workflow',
     '[mergeBranch] primary working tree — skipping local checkout+pull sync to protect develop',
   ],
