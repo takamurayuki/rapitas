@@ -232,3 +232,22 @@ export function logPhaseFailure(
     `[WorkflowRunner] Phase failed for task ${taskId}: ${result.error ?? 'unknown error'}`,
   );
 }
+
+/** Max task ids attached to the slow-queue WARN (hot path; keeps the log line small). */
+const SLOW_QUEUE_MAX_TASK_IDS = 20;
+
+/**
+ * Builds the structured fields for the `Slow queue processing` WARN, adding the dequeued
+ * taskIds so the line can be correlated with queue items (task 1114).
+ *
+ * @param taskIds - TaskIds dequeued in this pass. / この回にdequeueしたタスクID
+ * @param tookMs - Elapsed ms. / 所要時間(ms)
+ * @returns Log fields; dequeuedCount/tookMs are kept for backward compatibility. / ログ項目
+ */
+export function slowQueueFields(taskIds: number[], tookMs: number) {
+  return {
+    dequeuedCount: taskIds.length,
+    tookMs,
+    taskIds: taskIds.slice(0, SLOW_QUEUE_MAX_TASK_IDS),
+  };
+}
