@@ -13,6 +13,7 @@ import {
   QUESTION_FORMAT_GUIDANCE_JA,
   QUESTION_FORMAT_GUIDANCE_EN,
 } from './workflow-question-format-guidance';
+import { PRIMARY_CHECKOUT_GUIDANCE } from './primary-checkout-guidance';
 import { resolveAcceptanceCriteria } from '../agents/verification/acceptance-self-check';
 
 /** Researcher-role prompt texts. */
@@ -176,7 +177,8 @@ export function buildRoleTexts(
           '- **plan.md チェックリストの全件照合（完了宣言の条件、差し戻し最多要因）**: plan.md がある場合、終了前にチェックリストの各項目（特に「テスト」「統合テスト」「〜のテストを追加」の項目）を1つずつ「実装済み / 未実施」で照合し、**未実施が1件でも残る間は終了しない**でください。検証者は未実施の計画項目が1件でも残れば `⚠️ 一部失敗` で差し戻します（2026-09-14〜20 の差し戻し 96 件の大半がこれです）。計画項目が不可能・不適切だと判断した場合は黙って省略せず、question.md で計画の改訂を求めてください。最終サマリに「plan チェックリスト照合: N/N 実装済み」の1行を必ず含めてください。\n' +
           '- 実装が完了したら、変更内容のサマリ (どのファイルを何のために変えたか) を最後のメッセージに残して終了してください。Rapitas が後段で verify.md を自動生成します。\n' +
           '- **テスト検証はファイル単位** (`bun test <1ファイル>`) で行ってください。bun の `mock.module` は**プロセスグローバル**なので、同じモジュールを mock する複数のテストファイルを**同時実行すると mock が衝突して偽の失敗**になります。これは bun の制約でありコードのバグではありません。**各ファイルが単体で通れば十分**です。複数テストファイルを「同時に通す」ためにモックの順序変更や beforeAll 化を延々と試みないでください（解決不能であり、時間を浪費します）。\n' +
-          '- **純粋関数・ユーティリティを単体で試したい場合、アドホックな検証スクリプトではなく既存/新規の `*.test.ts` を使ってください**: worktree内で `mkdir`/`cat > ...<<EOF` 等によるアドホックな検証スクリプトの作成や、それに伴うパッケージインストールの試行は禁止します。既存の `*.test.ts` に対象関数を直接importするテストが無いか確認し、無ければ最小限の `*.test.ts` を新規作成して `bun test --isolate <1ファイル>` で検証してください。',
+          '- **純粋関数・ユーティリティを単体で試したい場合、アドホックな検証スクリプトではなく既存/新規の `*.test.ts` を使ってください**: worktree内で `mkdir`/`cat > ...<<EOF` 等によるアドホックな検証スクリプトの作成や、それに伴うパッケージインストールの試行は禁止します。既存の `*.test.ts` に対象関数を直接importするテストが無いか確認し、無ければ最小限の `*.test.ts` を新規作成して `bun test --isolate <1ファイル>` で検証してください。\n' +
+          PRIMARY_CHECKOUT_GUIDANCE.ja.trimEnd(),
       },
       verifier: {
         planHeader: '# 実装計画 (plan.md)',
@@ -184,6 +186,7 @@ export function buildRoleTexts(
         instruction:
           verificationEvidencePrompt(language) +
           shellExitCodeSafetyRule(language) +
+          PRIMARY_CHECKOUT_GUIDANCE.ja +
           '上記の計画と実装結果を検証し、verify.mdとしてMarkdown形式でレポートを作成してください。\n\n' +
           '計画チェックリストの消化状況、テスト結果、品質メトリクスを含めてください。\n\n' +
           '## 検証フェーズの厳守事項\n' +
@@ -302,7 +305,8 @@ export function buildRoleTexts(
           '- **Reconcile every plan.md checklist item before finishing (the most common cause of repair bounces)**: when plan.md exists, go through each checklist item — especially test / integration-test / "add tests for …" items — and mark it done or not done. **Do not finish while any item is not done**: the verifier returns `⚠️ Partial` for a single unfinished plan item (most of the 96 bounces in the week to 2026-09-20). If an item is impossible or wrong, do not skip it silently — request a plan revision via question.md. End your final summary with one line: "plan checklist: N/N done".\n' +
           '- Once implementation is done, leave a short summary (which files changed and why) as your final message and exit. Rapitas auto-generates verify.md downstream.\n' +
           "- **Verify tests PER FILE** (`bun test <one-file>`). Bun's `mock.module` is PROCESS-GLOBAL, so two test files that mock the same module conflict and produce FALSE failures when run together. That is a bun limitation, not a code bug. **Each file passing in isolation is sufficient.** Do NOT keep reordering mocks or moving imports into beforeAll trying to make multiple test files pass together — it is unsolvable and wastes time.\n" +
-          '- **To try out a pure function or utility in isolation, use an existing or new `*.test.ts` file — never an ad-hoc script**: do not create ad-hoc verification scripts (`mkdir`/heredoc) or attempt package installs inside the worktree for this. Check whether an existing `*.test.ts` already imports the target function directly; if not, add a minimal `*.test.ts` and verify with `bun test --isolate <file>`.',
+          '- **To try out a pure function or utility in isolation, use an existing or new `*.test.ts` file — never an ad-hoc script**: do not create ad-hoc verification scripts (`mkdir`/heredoc) or attempt package installs inside the worktree for this. Check whether an existing `*.test.ts` already imports the target function directly; if not, add a minimal `*.test.ts` and verify with `bun test --isolate <file>`.\n' +
+          PRIMARY_CHECKOUT_GUIDANCE.en.trimEnd(),
       },
       verifier: {
         planHeader: '# Implementation Plan (plan.md)',
@@ -310,6 +314,7 @@ export function buildRoleTexts(
         instruction:
           verificationEvidencePrompt(language) +
           shellExitCodeSafetyRule(language) +
+          PRIMARY_CHECKOUT_GUIDANCE.en +
           'Please verify the implementation plan and results above, and create a report as verify.md in Markdown format.\n\n' +
           'Include the completion status of the plan checklist, test results, and quality metrics.\n\n' +
           '## Verification phase strict rules\n' +

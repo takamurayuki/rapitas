@@ -11,4 +11,4 @@
  * primary checkout, killing the backend (task #996).
  */
 export const CI_REPAIR_WORKTREE_GUIDANCE =
-  '**CIの再現・修正は必ずこのタスクの worktree 内で行う。** primary checkout（メインのリポジトリ）へ `cd` したり、そこで `git pull` / `prisma` / `db:prepare` / `db:generate` を実行してはならない。backend プロセス（ポート3001）の停止・kill（Stop-Process / taskkill 等）も禁止。実行前フックが拒否し、インシデントとして記録される。';
+  '**CIの再現・修正は必ずこのタスクの worktree 内で行う。** primary checkout（メインのリポジトリ）へ `cd` したり `git -C <primary>` で参照したり（現在ブランチは cwd で `git branch --show-current`）、そこで `git pull` / `prisma` / `db:prepare` / `db:generate` を実行してはならない。backend プロセス（ポート3001）の停止・kill（Stop-Process / taskkill 等）も禁止。実行前フックが拒否し、インシデントとして記録される。';
