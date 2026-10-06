@@ -19,6 +19,7 @@ import { createLogger } from '../../config/logger';
 import { logCycleEvent } from '../observability';
 import { getMergeBarrierMaxHoldMs } from '../scheduling/merge-barrier/merge-barrier';
 import { parsePlanFiles } from '../agents/verification/scope-check';
+import { isTaskHaltActive } from './queue-terminal-task-guard';
 import type { WorkflowAdvanceResult } from './workflow-agent-executor';
 import type { RoleTransition, WorkflowStatus } from './workflow-types';
 
@@ -120,9 +121,11 @@ const defaultDeps: OverlapGuardDeps = {
     const { prisma } = await import('../../config');
     const row = await prisma.task.findUnique({
       where: { id: linkedTaskId },
-      select: { haltReason: true },
+      select: { haltReason: true, status: true, workflowStatus: true },
     });
-    return row?.haltReason != null;
+    // NOTE: Status-aware on purpose — a finished task keeps its haltReason, and
+    // reading that as halted skips its open PR. See isTaskHaltActive.
+    return isTaskHaltActive(row);
   },
   ownPr: async (taskId) => {
     const { prisma } = await import('../../config');
