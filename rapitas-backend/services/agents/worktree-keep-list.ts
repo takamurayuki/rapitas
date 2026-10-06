@@ -21,7 +21,9 @@ const log = createLogger('worktree-keep-list');
 const WORKTREE_DIR = '.worktrees';
 
 /** Task statuses whose worktrees are safe to delete. */
-const TERMINAL_STATUSES = ['completed', 'cancelled'];
+// NOTE: Task.status's real terminal value is 'done'; it was missing here, so every done
+// task's worktree was protected forever. 'completed' is kept for legacy rows.
+export const TERMINAL_STATUSES = ['done', 'completed', 'cancelled'];
 
 /**
  * Extract the owning task id from a worktree directory name

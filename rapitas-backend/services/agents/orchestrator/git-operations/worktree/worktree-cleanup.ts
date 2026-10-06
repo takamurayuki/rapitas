@@ -21,6 +21,7 @@ import {
   clearRemovalRefusal,
   parkedRemovalCount,
 } from './worktree-removal-backoff';
+import { sweepTerminalTaskWorktrees } from './worktree-terminal-sweep';
 
 // NOTE: execFile (array-args, no shell) instead of exec (shell string) — branch
 // names, paths, and other caller-controlled values are passed as literal argv
@@ -255,6 +256,10 @@ export async function cleanupOrphanedWorktrees(
         `[cleanupOrphanedWorktrees] Kept ${keptSessionCount} session worktree(s) (owning tasks still live)`,
       );
     }
+
+    // Terminal-task worktrees with no (or detached) AgentSession row are invisible to the
+    // session query above; reclaim them straight from the task table.
+    cleanedCount += await sweepTerminalTaskWorktrees(baseDir, keepSet);
 
     // Also check for filesystem orphans (directories that git no longer tracks)
     const worktreeDir = join(baseDir, WORKTREE_DIR);
