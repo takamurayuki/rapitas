@@ -15,6 +15,7 @@ import { useTranslations } from 'next-intl';
 import type { ScheduleEventInput } from '@/types';
 import { formatDate } from '@/utils/date';
 import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
+import DateField from '@/components/ui/date-field/DateField';
 import { DEFAULT_EVENT_COLOR, DEFAULT_REMINDER_MINUTES, QUICK_TIMES } from './schedule-constants';
 import { getDefaultTimes, toUTCISO, calcDayCount, resolveEndAt } from './schedule-utils';
 import { ScheduleOptionsPanel } from './ScheduleOptionsPanel';
@@ -215,14 +216,14 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
                   <label className="block text-xs text-zinc-400 dark:text-zinc-500 mb-1">
                     {t('startDate')}
                   </label>
-                  <input
-                    type="date"
+                  <DateField
                     value={startDate}
-                    onChange={(e) => {
-                      setStartDate(e.target.value);
-                      if (e.target.value > endDate) setEndDate(e.target.value);
+                    onChange={(value) => {
+                      setStartDate(value);
+                      if (value > endDate) setEndDate(value);
                     }}
-                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
+                    aria-label={t('startDate')}
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400 text-sm transition-all"
                   />
                 </div>
                 <div className="w-5 h-px bg-zinc-300 dark:bg-zinc-600 shrink-0 mt-5" />
@@ -230,12 +231,12 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
                   <label className="block text-xs text-zinc-400 dark:text-zinc-500 mb-1">
                     {t('endDate')}
                   </label>
-                  <input
-                    type="date"
+                  <DateField
                     value={endDate}
                     min={startDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
+                    onChange={setEndDate}
+                    aria-label={t('endDate')}
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400 text-sm transition-all"
                   />
                 </div>
               </div>

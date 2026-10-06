@@ -12,6 +12,7 @@ import { type Task } from '@/types';
 import { sumSubtaskActualHours } from '@/utils/subtask-hours';
 import { Calendar, Clock, Timer } from 'lucide-react';
 import DurationInput from '@/components/ui/hours-minutes-input/HoursMinutesInput';
+import DateField from '@/components/ui/date-field/DateField';
 
 export interface CompactTaskDetailWorkloadSectionProps {
   task: Task;
@@ -130,10 +131,10 @@ export default function CompactTaskDetailWorkloadSection({
               {t('dueDate')}
             </span>
           </label>
-          <input
-            type="datetime-local"
+          <DateField
+            withTime
             value={dueDateInput}
-            onChange={(e) => setDueDateInput(e.target.value)}
+            onChange={setDueDateInput}
             onBlur={() =>
               patchTask({
                 dueDate: dueDateInput ? new Date(dueDateInput).toISOString() : null,

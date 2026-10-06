@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ICON_DATA, searchIcons } from '@/components/category/icon-data';
+import DateField from '@/components/ui/date-field/DateField';
 import { PRESET_COLORS } from './constants';
 import { renderGoalIcon } from './GoalCard';
 import type { ExamGoalFormData } from './constants';
@@ -84,10 +85,10 @@ export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: 
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                 {t('examDate')}
               </label>
-              <input
-                type="date"
+              <DateField
                 value={formData.examDate}
-                onChange={(e) => set({ examDate: e.target.value })}
+                onChange={(value) => set({ examDate: value })}
+                aria-label={t('examDate')}
                 className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400"
                 required
               />
