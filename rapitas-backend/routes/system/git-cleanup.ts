@@ -28,8 +28,24 @@ export const gitCleanupRoutes = new Elysia({ prefix: '/git-cleanup' })
 
         log.info(`[cleanup-worktrees] Starting cleanup for ${baseDir}`);
 
+        // NOTE: keepPaths is the only liveness filter protecting non-terminal tasks' worktrees
+        // (a clean, committed worktree between phases is otherwise deletable — task 501 incident).
+        // Fail-safe: if the keep-list can't be computed, delete nothing.
+        let keepPaths: string[];
+        try {
+          const { computeWorktreeKeepPaths } =
+            await import('../../services/agents/worktree-keep-list');
+          keepPaths = await computeWorktreeKeepPaths(baseDir);
+        } catch (err) {
+          log.warn({ err }, '[cleanup-worktrees] Keep-list computation failed — skipping cleanup');
+          return {
+            success: false,
+            error: 'Keep-list computation failed; no worktrees were removed',
+          };
+        }
+
         const gitOps = new GitOperations();
-        const count = await gitOps.cleanupStaleWorktrees(baseDir);
+        const count = await gitOps.cleanupStaleWorktrees(baseDir, keepPaths);
 
         return {
           success: true,
