@@ -40,7 +40,7 @@ import { isOverlapHeld } from '../workflow-orchestrator-overlap-guard';
 import { isTaskTerminalForQueue } from '../queue-terminal-task-guard';
 import { recordTransition } from '../transition-recorder';
 
-import { resolveResumedTenureStart } from './resume-tenure';
+import { resolveResumedTenureStart, resolveAutoRunRestartTenureStart } from './resume-tenure';
 import { resolveCurrentTaskOutcome } from './auto-run-resolve-outcome';
 
 const log = createLogger('theme-auto-run-scheduler');
@@ -77,6 +77,10 @@ export async function advanceActiveTaskLocked(
   let tenureStart = lastRunAt ? new Date(lastRunAt).getTime() : Date.now();
   if (lastRunAt && Date.now() - tenureStart >= MAX_TASK_WALL_MS) {
     tenureStart = await resolveResumedTenureStart(prisma, currentTaskId, tenureStart);
+    // A paused theme freezes lastRunAt while accruing no work, so any pause
+    // longer than the wall fires the backstop 13 s after resuming (task 1116,
+    // 2026-10-06). Clamp to when auto-run actually restarted.
+    tenureStart = await resolveAutoRunRestartTenureStart(prisma, themeId, tenureStart);
   }
   const tenureMs = Date.now() - tenureStart;
   if (lastRunAt && tenureMs >= MAX_TASK_WALL_MS) {
