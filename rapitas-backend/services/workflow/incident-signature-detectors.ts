@@ -91,7 +91,8 @@ export const BLOCKED_ESCALATION_CAUSES: ReadonlySet<string> = new Set([
   'blocked_reescalated',
 ]);
 
-const RECOVERY_REQUEUE_CAUSES = new Set([
+/** Transition causes that re-queue a task on purpose (shared with queue-failure-mark-policy). */
+export const RECOVERY_REQUEUE_CAUSES: ReadonlySet<string> = new Set([
   'reconciler_requeue',
   'artifact_reuse_fastforward',
   'task_retried',

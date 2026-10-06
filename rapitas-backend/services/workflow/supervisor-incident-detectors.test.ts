@@ -82,6 +82,20 @@ describe('detectFalseFailure', () => {
     expect(detectFalseFailure(incident)).toEqual({ gapMs: 57_000 });
   });
 
+  it('does NOT detect when a recovery transition sits between the mark and the success', () => {
+    expect(detectFalseFailure({ ...incident, recoveryAtMs: NOW + 20_000 })).toBeNull();
+  });
+
+  it('still detects when the recovery predates the failure mark (re-failed after recovery)', () => {
+    expect(detectFalseFailure({ ...incident, recoveryAtMs: NOW - 1_000 })).toEqual({
+      gapMs: 57_000,
+    });
+  });
+
+  it('still detects when there is no recovery at all', () => {
+    expect(detectFalseFailure({ ...incident, recoveryAtMs: null })).toEqual({ gapMs: 57_000 });
+  });
+
   it('detects at exactly the window boundary (<= inclusive)', () => {
     expect(
       detectFalseFailure({

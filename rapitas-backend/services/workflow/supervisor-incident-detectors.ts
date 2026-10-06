@@ -83,6 +83,8 @@ export interface FalseFailureInput {
   failureMarkedAtMs: number | null;
   /** Earliest success artifact (PR / auto_pr_created), epoch ms (null = none). */
   successArtifactAtMs: number | null;
+  /** Latest recovery transition (requeue/retry) at or after the failure mark, epoch ms. */
+  recoveryAtMs?: number | null;
   windowMs?: number;
 }
 
@@ -99,6 +101,15 @@ export function detectFalseFailure(input: FalseFailureInput): { gapMs: number } 
   if (input.failureMarkedAtMs === null || input.successArtifactAtMs === null) return null;
   const gapMs = input.successArtifactAtMs - input.failureMarkedAtMs;
   if (gapMs <= 0) return null;
+  // A recovery between the mark and the success = a legitimate retry. A recovery
+  // BEFORE a newer mark is excluded upstream (evidence only reads recoveries >= the mark).
+  if (
+    input.recoveryAtMs != null &&
+    input.recoveryAtMs >= input.failureMarkedAtMs &&
+    input.recoveryAtMs <= input.successArtifactAtMs
+  ) {
+    return null;
+  }
   if (gapMs > (input.windowMs ?? FALSE_FAILURE_WINDOW_MS)) return null;
   return { gapMs };
 }
