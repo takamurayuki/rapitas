@@ -346,6 +346,25 @@ describe('gatherSupervisorEvidence', () => {
     expect(recoveryCall?.where.createdAt?.lte.getTime()).toBe(NOW + 60_000);
   });
 
+  test('a phase_completed:* transition after the mark counts as a recovery (#1116)', async () => {
+    queueItemFindFirstMock.mockResolvedValue({ completedAt: new Date(NOW), status: 'failed' });
+    prFindFirstMock.mockResolvedValue({
+      createdAt: new Date(NOW + 522_000),
+      prNumber: 836,
+      url: 'https://example.test/pull/836',
+    });
+    transitionFindFirstMock.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: { in?: string[]; startsWith?: string } } }).where;
+      return Promise.resolve(
+        where.cause.startsWith === 'phase_completed:'
+          ? { createdAt: new Date(NOW + 248_000) }
+          : null,
+      );
+    });
+    const ev = await gatherSupervisorEvidence(task);
+    expect(ev.recoveryAtMs).toBe(NOW + 248_000);
+  });
+
   test('no recovery lookup runs when there is no success artifact yet', async () => {
     queueItemFindFirstMock.mockResolvedValue({ completedAt: new Date(NOW), status: 'failed' });
     const ev = await gatherSupervisorEvidence(task);

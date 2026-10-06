@@ -250,7 +250,27 @@ export async function gatherSupervisorEvidence(task: { id: number }): Promise<Su
         }),
       null,
     );
-    recoveryAtMs = recovery?.createdAt.getTime() ?? null;
+    // NOTE: A phase_completed:* transition between the mark and the success proves a
+    // fresh run executed (#1116: the mark was a cancelled residue row written 14ms
+    // AFTER artifact_reuse_fastforward, so the requeue cause sat just outside the
+    // window, yet the implementer re-ran and produced the PR).
+    const progress = await safeQuery(
+      () =>
+        prisma.workflowTransition.findFirst({
+          where: {
+            taskId: task.id,
+            cause: { startsWith: 'phase_completed:' },
+            createdAt: { gte: new Date(failureMarkedAtMs), lte: new Date(successArtifactAtMs) },
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        }),
+      null,
+    );
+    recoveryAtMs = maxMs(
+      recovery?.createdAt.getTime() ?? null,
+      progress?.createdAt.getTime() ?? null,
+    );
   }
 
   // --- C (progress side): only meaningful when a backstop exists ----------
