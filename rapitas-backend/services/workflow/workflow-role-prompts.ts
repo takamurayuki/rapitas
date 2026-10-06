@@ -117,7 +117,8 @@ export function buildRoleTexts(
           '4. **中核的な仮定が不成立**の場合（例: 報告された不具合が再現しない、依頼が前提とする機能・状態が存在しない、既に別の形で解決済み）、plan/実装に進まず `## 結論: 修正不要` で終了し、根拠に「前提誤り: どの仮定がなぜ不成立か」を明記する。\n' +
           '5. 前提は崩れたが調査中に**実在する別の問題**を発見した場合は、その事実を前提監査に記録した上で、実在する問題の調査として続行する。',
         items:
-          '調査項目:\n- 既存コードの構造と依存関係\n- 変更が必要なファイルの特定\n- 類似機能の有無\n- リスクと影響範囲の評価',
+          '調査項目:\n- 既存コードの構造と依存関係\n- 変更が必要なファイルの特定\n- 類似機能の有無\n- リスクと影響範囲の評価\n' +
+          PRIMARY_CHECKOUT_GUIDANCE.ja.trimEnd(),
         output:
           '調査結果をresearch.mdとしてMarkdown形式でまとめてください。\n\n' +
           '出力整形: 見出しはテンプレートの形（例: `## 影響範囲分析`）のまま書き、`[...]` のプレースホルダ説明を見出しや本文に残さない（`## 影響範囲: [変更が及ぶファイル一覧]` のような見出しは不可）。類似コードのセクション見出しは「類似機能」を使う（「類似実装」ではなく）。\n\n' +
@@ -128,6 +129,8 @@ export function buildRoleTexts(
         instruction:
           '上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。\n\n' +
           '完了条件は implementer/verifier が許可されたツール操作（テスト実行・lint・型検査・自己検証API）だけで検証できるものに限定してください。稼働中バックエンドへの書き込み操作や本番相当環境での実測を完了条件として必須にしないでください。\n\n' +
+          PRIMARY_CHECKOUT_GUIDANCE.ja +
+          '\n' +
           '## 質問発火基準（question.md を保存する前に必ず確認）\n' +
           'plan→question→intake の往復（1サイクルあたり平均約17分のコスト）を避けるため、質問を保存する前に以下を確認する:\n' +
           '1. 1件のplan.mdにつき、質問は原則1ラウンドにまとめる（論点を小出しにして複数回に分けない）。\n' +
@@ -248,7 +251,8 @@ export function buildRoleTexts(
           '4. If a CORE assumption does not hold (the reported bug does not reproduce; the feature/state the request presumes does not exist; it is already solved another way), do NOT proceed to plan/implementation — finish with `## Conclusion: No change needed` and state "false premise: which assumption failed and why".\n' +
           '5. If the premise fails but you discover a REAL different problem, record that in the audit and continue investigating the real problem.',
         items:
-          'Investigation items:\n- Existing code structure and dependencies\n- Identification of files that need changes\n- Presence of similar existing features\n- Risk assessment and impact analysis',
+          'Investigation items:\n- Existing code structure and dependencies\n- Identification of files that need changes\n- Presence of similar existing features\n- Risk assessment and impact analysis\n' +
+          PRIMARY_CHECKOUT_GUIDANCE.en.trimEnd(),
         output:
           'Please summarize the research results as research.md in Markdown format.\n\n' +
           'Formatting: keep headings in their template form (e.g. `## 影響範囲分析`) — never leave `[...]` placeholder notes in headings or body (a heading like `## 影響範囲: [list of affected files]` is invalid). Use 「類似機能」 as the similar-code section heading (not 「類似実装」).\n\n' +
@@ -259,6 +263,8 @@ export function buildRoleTexts(
         instruction:
           'Based on the research results above, please create an implementation plan as plan.md in Markdown format.\n\nDescribe implementation steps in checklist format, including a list of files to be changed, risk assessment, and completion criteria.\n\n' +
           'Completion criteria must be verifiable using only tool operations the implementer/verifier are permitted to run (tests, lint, type-check, self-verification APIs). Do not require write operations against a live backend or measurements in a production-equivalent environment as a completion criterion.\n\n' +
+          PRIMARY_CHECKOUT_GUIDANCE.en +
+          '\n' +
           '## Question-firing criteria (check BEFORE saving question.md)\n' +
           'To avoid the plan→question→intake round trip (each cycle costs roughly 17 minutes on average), verify all of the following before saving a question:\n' +
           '1. For a given plan.md, bundle all open issues into ONE round of questions — do not raise them piecemeal across multiple saves.\n' +

@@ -286,6 +286,26 @@ function recordIncident(incident, dir) {
 }
 
 /**
+ * Builds the self-correction hint for primary_mutation denials.
+ * Returns '' when the cwd is unknown or sits inside the primary checkout, so the
+ * hook never advertises the primary tree as the "correct" place to work.
+ *
+ * @param cwd - Hook-reported working directory / フックが報告した作業ディレクトリ
+ * @param primaryRoot - Primary checkout root, if known / primary checkout のルート
+ */
+function worktreeHint(cwd, primaryRoot) {
+  if (typeof cwd !== 'string' || !cwd.trim()) return '';
+  const norm = (p) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  const here = norm(cwd);
+  if (primaryRoot) {
+    const root = norm(primaryRoot);
+    const inPrimary = here === root || here.startsWith(root + '/');
+    if (inPrimary && !here.startsWith(root + '/.worktrees/')) return '';
+  }
+  return ` Your working directory is already the task worktree: "${cwd}". Do not cd to an absolute path; run commands from there using relative paths (e.g. grep -rn pattern . or git status) instead.`;
+}
+
+/**
  * Pure decision: a deny payload for forbidden commands, otherwise undefined.
  *
  * @param input - Hook stdin payload / フック入力
@@ -302,7 +322,8 @@ function decision(input, ctx) {
   if (!kind) return undefined;
   const reasons = {
     primary_mutation:
-      'Command rejected: it modifies the primary checkout. Work only inside your task worktree; run tests/git there and never cd to the primary repository.',
+      'Command rejected: it modifies the primary checkout. Work only inside your task worktree; run tests/git there and never cd to the primary repository.' +
+      worktreeHint(ctx?.cwd ?? input.cwd, primaryRoot),
     primary_readonly:
       'Command rejected: never cd into the primary checkout, even to inspect it. Read-only git inspection is allowed without entering it (e.g. `git -C <primary-checkout-path> status`); everything else belongs in your task worktree.',
     prisma:

@@ -378,3 +378,23 @@ test('primary_readonly denial carries its own guidance', () => {
   assert.equal(r._kind, 'primary_readonly');
   assert.match(r.hookSpecificOutput.permissionDecisionReason, /git -C/);
 });
+
+const INCIDENT_1131 =
+  'cd /c/Projects/rapitas/rapitas-backend 2>/dev/null || cd ../..; pwd; grep -rn "x" --include=*.ts . -l | grep -v test | head -30';
+const reasonFor = (cwd) =>
+  decision({ tool_name: 'Bash', cwd, tool_input: { command: INCIDENT_1131 } }, ctx);
+
+test('primary_mutation denial names the worktree cwd so the agent can self-correct', () => {
+  const r = reasonFor(WT);
+  assert.equal(r._kind, 'primary_mutation');
+  assert.ok(r.hookSpecificOutput.permissionDecisionReason.includes(`"${WT}"`));
+  assert.match(r.hookSpecificOutput.permissionDecisionReason, /relative path/);
+});
+
+test('primary_mutation denial omits the path when cwd is missing or inside the primary checkout', () => {
+  for (const cwd of [undefined, '', PRIMARY, `${PRIMARY}\\rapitas-backend`]) {
+    const r = reasonFor(cwd);
+    assert.equal(r._kind, 'primary_mutation');
+    assert.ok(!r.hookSpecificOutput.permissionDecisionReason.includes(PRIMARY));
+  }
+});
