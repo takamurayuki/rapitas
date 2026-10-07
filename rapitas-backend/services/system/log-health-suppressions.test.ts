@@ -362,6 +362,21 @@ describe('classifyLogSignature', () => {
     ).toBe(false);
   });
 
+  test('"Verify was rejected by a fresh gate rejection" is scoped to the workflow-cli-executor logger only', () => {
+    // Task 1145: expected gate behaviour (verify-gate.ts:74-77). Another logger
+    // reusing the phrase must still be filed.
+    const msg =
+      '[WorkflowCLIExecutor] Verify was rejected by a fresh gate rejection — honoring it and skipping the completion epilogue';
+    expect(classifyLogSignature('workflow-cli-executor', msg).suppressed).toBe(true);
+    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    expect(
+      classifyLogSignature(
+        'workflow-cli-executor',
+        '[WorkflowCLIExecutor] Verify passed but no PR — blocking (completion requires a PR).',
+      ).suppressed,
+    ).toBe(false);
+  });
+
   test('"verify.md explicitly reports a failed or partial overall verdict" is scoped to the workflow-cli-executor logger only', () => {
     // Task 1049: this WARN is the epilogue's fail-soft observability log for
     // validateVerify's hasNonpassingVerifyVerdict branch — repair/block itself

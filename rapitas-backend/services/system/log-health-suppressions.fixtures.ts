@@ -153,9 +153,19 @@ export const SUPPRESSED: [string, string][] = [
   // Task 1050: generateForTheme() catches the CLI timeout and continues
   // with the next theme (innovation-session.ts:242-253).
   ['memory:innovation-session', 'Claude CLI timed out after #ms'],
+  // Task 1145: verify gate honoring a fresh rejection (verify-gate.ts:74-77).
+  [
+    'workflow-cli-executor',
+    '[WorkflowCLIExecutor] Verify was rejected by a fresh gate rejection — honoring it and skipping the completion epilogue',
+  ],
 ];
 
 export const KEPT: [string, string][] = [
+  // Task 1145: sibling WARN from the same logger must stay visible.
+  [
+    'workflow-cli-executor',
+    '[WorkflowCLIExecutor] Verify passed but no PR — blocking (completion requires a PR).',
+  ],
   [
     'claude-code',
     '【Prompt Too Long】Claude Code CLI reported the prompt/context was too long (exit code #).',
