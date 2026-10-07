@@ -26,6 +26,10 @@ export const SUPPRESSED: [string, string][] = [
     'git-operations/revert-ops',
     '[revertChanges] Refusing to hard-revert the PRIMARY working tree — this would destroy uncommitted developer work. Agent changes (if any) are left in place; isolate agent runs in a worktree instead.',
   ],
+  // The filer announcing its own success. The guard incident is already a
+  // concern of its own (that one became task 1132); filing the announcement too
+  // raised task 1144 for the same 2026-10-06 19:26:41 event.
+  ['workflow:guard-incident-filer', 'Guard incident filed as concern'],
   [
     'workflow',
     '[mergeBranch] primary working tree — skipping local checkout+pull sync to protect develop',

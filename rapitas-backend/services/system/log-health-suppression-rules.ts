@@ -66,8 +66,11 @@ export const SUPPRESSIONS: Suppression[] = [
     because: 'シャットダウン時の通常終了 — クラッシュは別シグネチャで記録される',
   },
   {
-    test: /self-repair|re-running implement→verify/i,
-    because: '差し戻しループは専用の収束検出が担当する — ログ経由の二重起票',
+    // 'Guard incident filed as concern': the filer announcing a concern it
+    // already created (→ task 1132), re-filed as task 1144 for the same event.
+    test: /self-repair|re-running implement→verify|Guard incident filed as concern/i,
+    because:
+      '専用の仕組みが既に担当している事象の告知 — ログ経由の起票は二重になる(差し戻しループは収束検出、ガード違反は懸念起票器が担当)',
   },
   {
     test: /shutting down, cannot start|interrupted by shutdown/i,
