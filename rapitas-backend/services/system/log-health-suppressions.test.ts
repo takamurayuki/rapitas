@@ -377,6 +377,21 @@ describe('classifyLogSignature', () => {
     ).toBe(false);
   });
 
+  test('"Adversarial review FAIL arrived after the workflow moved on" is scoped to routes:workflow:handlers:files only', () => {
+    // Task 1146: expected CAS guard (verify-adversarial-review.ts:239) that
+    // stops a stale FAIL from rolling back a task that already advanced.
+    const msg =
+      '[Workflow] Adversarial review FAIL arrived after the workflow moved on — skipping rollback entirely';
+    expect(classifyLogSignature('routes:workflow:handlers:files', msg).suppressed).toBe(true);
+    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    expect(
+      classifyLogSignature(
+        'routes:workflow:handlers:files',
+        '[Workflow] Adversarial review FAIL lost the compare-and-swap race',
+      ).suppressed,
+    ).toBe(false);
+  });
+
   test('"verify.md explicitly reports a failed or partial overall verdict" is scoped to the workflow-cli-executor logger only', () => {
     // Task 1049: this WARN is the epilogue's fail-soft observability log for
     // validateVerify's hasNonpassingVerifyVerdict branch — repair/block itself
