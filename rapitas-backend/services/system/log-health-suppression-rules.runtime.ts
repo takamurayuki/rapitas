@@ -180,4 +180,17 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
     because:
       '検証ゲートの直近差し戻しをエピローグが尊重して止めた設計通りの動作 — 差し戻しはtransitionに記録され別経路で可視化される',
   },
+  {
+    // ログ出力箇所: routes/workflow/handlers/file-save/verify-adversarial-review.ts:239
+    // の log.warn。敵対的レビューがFAILを返した後、再読込したworkflowStatusが
+    // verify_done でなくなっている（self-repair等で先へ進んだ）場合だけ発火する
+    // (同222-231行)。完了/マージ済みタスクを plan_approved へ巻き戻さない
+    // compare-and-swap 防御（task 503）で、ロールバックもtransition記録もスキップする。
+    // 同 logger の 'lost the compare-and-swap race' や 'repairs exhausted' は
+    // 別文言のため抑制しない（#1146）。
+    test: /Adversarial review FAIL arrived after the workflow moved on — skipping rollback entirely/i,
+    logger: /routes:workflow:handlers:files/i,
+    because:
+      '古いFAIL判定が先へ進んだタスクを巻き戻さないためのCAS防御が設計通り作動した記録 — 実害のある競合敗北・修復枯渇は別文言で可視のまま',
+  },
 ];
