@@ -394,4 +394,21 @@ describe('classifyLogSignature', () => {
       '# execFile decodes UTF-8. CP932 bytes for characters such as ソ contain 0x5c,';
     expect(classifyLogSignature('some-other-logger', normalizeMessage(raw)).suppressed).toBe(false);
   });
+
+  test('task 1142: removeWorktree KEEPING unmerged branch WARN (worktree-remove.ts:266-268) is suppressed, sibling branch-delete failures are not', () => {
+    // The guard keeps a branch whose commits exist on no remote; it is a
+    // designed data-loss protection (task 536), not a defect.
+    const raw =
+      '[removeWorktree] KEEPING unmerged branch bugfix/t1131-update-task — 2 commit(s) exist on no remote (tip 573e6ec1). Push or recover (git checkout -b <name> 573e6ec1) before deleting.';
+    const v = classifyLogSignature('git-operations/worktree-ops', normalizeMessage(raw));
+    expect(v.suppressed).toBe(true);
+    expect(v.because).toBeTruthy();
+    expect(
+      classifyLogSignature(
+        'git-operations/worktree-ops',
+        '[removeWorktree] Failed to delete branch bugfix/t#-update-task',
+      ).suppressed,
+    ).toBe(false);
+    expect(classifyLogSignature('some-other-logger', normalizeMessage(raw)).suppressed).toBe(false);
+  });
 });
