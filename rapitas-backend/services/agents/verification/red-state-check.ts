@@ -17,19 +17,20 @@
  * automated-verifier.ts's coverageCheck / requiresTestsForTask) or for
  * choosing which files count as "test files" (related-tests.ts's TEST_FILE_RE).
  */
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { createLogger } from '../../../config/logger';
+import { execFileLowPriority } from '../process-priority';
 import { WORKTREE_DIR } from '../orchestrator/git-operations/core/safety';
 import { removeWorktree } from '../orchestrator/git-operations/worktree/worktree-remove';
 import { buildFileScopedCommand, TEST_FILE_RE } from './related-tests';
 import { spawnQuiet } from './quiet-verification';
 import { diffBaseRef, type VerificationCheck } from './automated-verifier';
 
-const execFileAsync = promisify(execFile);
+// BELOW_NORMAL like the rest of the gate: setup-worktree.cjs below links a full
+// node_modules tree and is one of the heaviest steps the gate runs.
+const execFileAsync = execFileLowPriority;
 const log = createLogger('agents:verification:red-state-check');
 
 const GIT_OP_TIMEOUT_MS = 60_000;
