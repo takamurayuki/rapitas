@@ -69,13 +69,56 @@ function logHealthSpec(): ConcernTaskSpec {
 }
 
 /**
+ * Spec for a guard-denial concern (source 'guard-incident').
+ *
+ * Without a template these tasks got LLM-generated criteria, and task 1116's was
+ * 「エージェントが同様の primary_mutation タイプの操作を試行しなくなること」.
+ * Nothing in a diff can show that: verify correctly marked it 未検証（行動効果）,
+ * a requirement_evidence_replan round was spent arguing about it, and the fix it
+ * shipped — a paragraph of prompt guidance — then measurably failed. Measured
+ * 2026-10-07: 5 primary_mutation incidents before that fix, 1 after it was live.
+ *
+ * So every criterion here is decidable from the diff or from a named workflow
+ * artifact, and none of them asks whether future behaviour changed. Two further
+ * lessons are carried over from logHealthSpec: criteria that live in research.md
+ * / verify.md say so (the judge only sees the diff, and 944/961/983 failed on
+ * that), and the detector is explicitly out of scope — task 1086 answered its
+ * own denial by relaxing the hook's regex.
+ */
+function guardIncidentSpec(): ConcernTaskSpec {
+  return {
+    goals: [
+      '拒否されたコマンドが何をしようとしていたのかを、実行ログとプロンプトから特定する',
+      'エージェントがその経路を選んだ理由(現在位置の誤認、絶対パスの既定化など)を特定する',
+      '同じ状況で正しい手順に到達できるよう、エージェントが参照する情報を変更する',
+    ],
+    constraints: [
+      '検知器 scripts/primary-guard-hook.cjs の判定ロジック(対象コマンドの判定・拒否条件)を緩めないこと。' +
+        'これは防いだ側であり欠陥ではない。拒否メッセージの文面を足すことは許容される。',
+      'プロンプトに注意文を1段落足すだけで完了としないこと。実測で効果が確認されていない対処である' +
+        '(#1116 は対策稼働中に再発した)。なぜ今回は効くのかを根拠とともに示すこと。',
+      '受入基準に「今後〜しなくなること」のような将来の行動を置かないこと。差分から判定できない。',
+    ],
+    acceptanceCriteria: [
+      'research.md に、拒否されたコマンドの全文と、エージェントがその経路を選んだ理由が記録されている',
+      'research.md または plan.md に、同じクラスの過去の対処とその実測結果(効いたか否か)が記録されている',
+      'エージェントが参照する情報(プロンプト・拒否メッセージ・ガイダンス)の変更が差分に入っており、' +
+        '変更後の文面が差分上で読める',
+      'verify.md に、その変更がなぜ今回の経路を塞ぐのかの説明と、効果を今後どの実測値で確認するかが記録されている',
+    ],
+  };
+}
+
+/**
  * The spec a concern-derived task should be seeded with, if any.
  *
  * @param source - The concern's origin label. / 懸念の出所ラベル
  * @returns The spec, or null when the origin has no template. / 仕様、無ければ null
  */
 export function specForConcernSource(source: string | null | undefined): ConcernTaskSpec | null {
-  return source === 'log_health' ? logHealthSpec() : null;
+  if (source === 'log_health') return logHealthSpec();
+  if (source === 'guard-incident') return guardIncidentSpec();
+  return null;
 }
 
 /**

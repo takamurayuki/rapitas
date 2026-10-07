@@ -130,3 +130,41 @@ describe('specForConcernSource', () => {
     expect(specForConcernSource(undefined)).toBeNull();
   });
 });
+
+describe('specForConcernSource — guard-incident', () => {
+  test('ガード違反由来の懸念にも仕様を与える', () => {
+    const spec = specForConcernSource('guard-incident');
+    expect(spec).not.toBeNull();
+    expect(spec?.acceptanceCriteria.length).toBeGreaterThan(0);
+  });
+
+  // The defect this template exists for: task 1116's auto-generated criterion
+  // was 「エージェントが同様の primary_mutation タイプの操作を試行しなくなること」.
+  // Nothing in a diff can show that, so verify marked it 未検証（行動効果）and a
+  // requirement_evidence_replan round was spent on it — and the fix it shipped
+  // (a prompt paragraph) then measurably failed: 5 incidents before, 1 after
+  // with the fix live. Every criterion must be decidable from the diff.
+  test('将来の行動を問う検証不能な基準を含まない', () => {
+    const criteria = (specForConcernSource('guard-incident')?.acceptanceCriteria ?? []).join('\n');
+    expect(criteria).not.toMatch(/しなくなる|再発しない|発生しなくなる|減ること/);
+  });
+
+  test('基準は差分または workflow 成果物で判定できる形になっている', () => {
+    const criteria = specForConcernSource('guard-incident')?.acceptanceCriteria ?? [];
+    for (const c of criteria) {
+      expect(c).toMatch(/差分|research\.md|verify\.md|plan\.md/);
+    }
+  });
+
+  // The hook is the detector, not the defect — relaxing it is how task 1086
+  // "resolved" its own denial.
+  test('検知器を緩める変更を禁じる', () => {
+    const constraints = (specForConcernSource('guard-incident')?.constraints ?? []).join('\n');
+    expect(constraints).toContain('primary-guard-hook');
+    expect(constraints).toMatch(/緩め|緩和/);
+  });
+
+  test('無関係なソースには仕様を与えない', () => {
+    expect(specForConcernSource('other')).toBeNull();
+  });
+});
