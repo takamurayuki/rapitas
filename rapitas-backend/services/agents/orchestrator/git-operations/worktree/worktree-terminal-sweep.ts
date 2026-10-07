@@ -30,13 +30,16 @@ const MAX_REMOVALS_PER_SWEEP = 25;
  * AgentSession row references them.
  *
  * @param baseDir - Main repository root. / リポジトリルート
- * @param keepSet - Normalized paths that must never be removed. / 保護対象の正規化パス
+ * @param keepSet - Paths that must never be removed, in any spelling —
+ *   normalized here rather than trusted, because a protection list that misses
+ *   on a '/./' segment or a separator costs an irreversible deletion. / 保護対象パス
  * @returns Number of worktrees removed. / 削除した件数
  */
 export async function sweepTerminalTaskWorktrees(
   baseDir: string,
   keepSet: Set<string>,
 ): Promise<number> {
+  const keep = new Set([...keepSet].map(normalizePath));
   const worktreeRoot = join(baseDir, WORKTREE_DIR);
   let removedCount = 0;
   try {
@@ -45,7 +48,7 @@ export async function sweepTerminalTaskWorktrees(
     for (const dir of dirs) {
       const taskId = parseTaskIdFromWorktreeName(dir);
       const fullPath = join(worktreeRoot, dir);
-      if (taskId === null || keepSet.has(normalizePath(fullPath))) continue;
+      if (taskId === null || keep.has(normalizePath(fullPath))) continue;
       candidates.set(taskId, [...(candidates.get(taskId) ?? []), fullPath]);
     }
     if (candidates.size === 0) return 0;
