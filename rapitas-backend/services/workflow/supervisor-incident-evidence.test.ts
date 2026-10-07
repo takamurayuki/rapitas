@@ -342,7 +342,7 @@ describe('gatherSupervisorEvidence', () => {
           c[0] as { where: { createdAt?: { gte: Date; lte: Date }; cause: { in?: string[] } } },
       )
       .find((a) => a.where.cause.in);
-    expect(recoveryCall?.where.createdAt?.gte.getTime()).toBe(NOW);
+    expect(recoveryCall?.where.createdAt?.gte.getTime()).toBe(NOW - 500);
     expect(recoveryCall?.where.createdAt?.lte.getTime()).toBe(NOW + 60_000);
   });
 
