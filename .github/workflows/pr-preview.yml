@@ -79,6 +79,12 @@ jobs:
     name: Quick Build Check
     runs-on: ubuntu-latest
 
+    # Blocking auto-merge check that runs the apt installer — the step that hung
+    # indefinitely on 2 of the last 40 tauri-build runs. 3.8m median / 18.6m max
+    # over the last 20 runs, so 40m is a backstop in place of GitHub's 6-hour
+    # default.
+    timeout-minutes: 40
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

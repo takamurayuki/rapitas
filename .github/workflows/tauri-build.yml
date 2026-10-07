@@ -49,6 +49,12 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
 
+    # Build (ubuntu-latest) is a BLOCKING auto-merge check, and without this it
+    # inherits GitHub's 6-hour default: two of the last 40 runs hung in the apt
+    # step and sat for 113 and 35 minutes, stalling every PR behind them.
+    # Measured job durations are 8m median / 15m max across all three platforms,
+    # so 30m is a backstop with 2x headroom, not a new constraint.
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository

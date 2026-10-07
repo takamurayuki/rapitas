@@ -451,6 +451,12 @@ jobs:
     name: Check Rust Code
     runs-on: ubuntu-latest
 
+    # Blocking auto-merge check that runs the apt installer — the step that hung
+    # indefinitely on 2 of the last 40 tauri-build runs. 1.2m median / 15.0m max
+    # over the last 25 runs (cold rust cache), so 30m is a backstop in place of
+    # GitHub's 6-hour default.
+    timeout-minutes: 30
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -464,6 +470,13 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './rapitas-desktop/src-tauri -> target'
+
+      # Guards the retry/timeout wrapper every ubuntu job depends on: an apt
+      # hang here used to hold a blocking auto-merge check for hours, and a
+      # wrapper that swallows apt's exit code would turn that into a green
+      # build. ~4s, and it runs before the installer it is testing.
+      - name: Test the system-dependency installer
+        run: node --test scripts/install-ci-system-deps.test.cjs
 
       - name: Install system dependencies
         run: |
