@@ -12,6 +12,8 @@ import {
   aggregateExitCode,
   formatProgressLine,
   parseRetryCount,
+  ranNoTests,
+  formatSummaryLine,
 } from './parallel-test';
 import type { TestResult } from './parallel-test';
 
@@ -19,6 +21,75 @@ import type { TestResult } from './parallel-test';
 function makeResult(exitCode: number, file = 'some.test.ts'): TestResult {
   return { file, exitCode, stdout: '', stderr: '', elapsedMs: 100 };
 }
+
+// 2026-10-07: five test files were erroring out at import — an incomplete
+// mock.module mirror makes a named import fail to resolve, and bun reports that
+// as "0 pass / 1 fail / 1 error", which inside a 1141-file log is
+// indistinguishable from one bad assertion. 29 tests were silently not running.
+// A file that executes ZERO tests is a coverage hole, not a failing assertion,
+// and the summary has to say so.
+describe('ranNoTests', () => {
+  const loadError = `bun test v1.3.13
+services/x.test.ts:
+# Unhandled error between tests
+SyntaxError: Export named 'execFile' not found in module 'node:child_process'.
+ 0 pass
+ 1 fail
+ 1 error
+Ran 1 test across 1 file.`;
+
+  const assertionFailure = `bun test v1.3.13
+(fail) thing > does the thing
+ 13 pass
+ 1 fail
+ 28 expect() calls
+Ran 14 tests across 1 file.`;
+
+  test('is true for a file that errored before any test ran', () => {
+    expect(ranNoTests(loadError, '')).toBe(true);
+  });
+
+  test('is false for a genuine assertion failure that still ran tests', () => {
+    expect(ranNoTests(assertionFailure, '')).toBe(false);
+  });
+
+  test('is false for a passing file', () => {
+    expect(ranNoTests(' 14 pass\n 0 fail\nRan 14 tests across 1 file.', '')).toBe(false);
+  });
+
+  test('reads stderr too — a crash can report there instead', () => {
+    expect(ranNoTests('', 'error: Cannot find module "./missing"\n 0 pass\n')).toBe(true);
+  });
+
+  test('is false when nothing identifiable was printed, so a spawn failure is not mislabelled', () => {
+    // An empty or truncated output is "unknown", not "zero tests ran" — calling
+    // it a load error would put a spawn/timeout failure in the wrong bucket.
+    expect(ranNoTests('', '')).toBe(false);
+    expect(ranNoTests('[parallel-test] Spawn failed: Error', '')).toBe(false);
+  });
+
+  test('counts a 0-pass file even when bun prints no explicit error line', () => {
+    expect(ranNoTests(' 0 pass\n 0 fail\nRan 0 tests across 1 file.', '')).toBe(true);
+  });
+});
+
+describe('formatSummaryLine', () => {
+  test('keeps the familiar shape when nothing failed to load', () => {
+    expect(formatSummaryLine(1141, 0, 0, 82_500)).toBe(
+      '[parallel-test] 1141 passed, 0 failed in 82.5s',
+    );
+  });
+
+  test('names the zero-test files in the line everyone reads', () => {
+    expect(formatSummaryLine(1136, 4, 2, 84_900)).toBe(
+      '[parallel-test] 1136 passed, 4 failed (2 ran NO tests — import/mock error, not an assertion) in 84.9s',
+    );
+  });
+
+  test('says nothing extra when every failure actually ran its tests', () => {
+    expect(formatSummaryLine(1138, 2, 0, 80_000)).not.toContain('NO tests');
+  });
+});
 
 describe('parseRetryCount', () => {
   test.each([
