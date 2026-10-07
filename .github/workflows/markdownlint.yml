@@ -17,6 +17,12 @@ jobs:
   markdownlint:
     name: Lint Markdown files
     runs-on: ubuntu-latest
+    # Hang backstop, not a constraint: 0.3m median / 0.3m max over the last ~20 runs.
+    # Two blocking checks hung in unrelated install steps on 2026-10-07 (apt,
+    # then a browser install) and held merges for 66 and 113 minutes against
+    # GitHub's 6-hour default, with no way out — cancelling a run makes it
+    # `cancelled`, which the pre-merge gate reads as failed.
+    timeout-minutes: 10
     # Advisory until the existing Markdown is brought up to spec.
     continue-on-error: true
     steps:

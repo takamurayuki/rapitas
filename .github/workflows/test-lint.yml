@@ -20,6 +20,12 @@ jobs:
   test-backend:
     name: Test Backend
     runs-on: ubuntu-latest
+    # Hang backstop, not a constraint: 0.8m median / 1.1m max over the last ~20 runs.
+    # Two blocking checks hung in unrelated install steps on 2026-10-07 (apt,
+    # then a browser install) and held merges for 66 and 113 minutes against
+    # GitHub's 6-hour default, with no way out — cancelling a run makes it
+    # `cancelled`, which the pre-merge gate reads as failed.
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16
@@ -207,6 +213,12 @@ jobs:
   test-sqlite:
     name: Test SQLite Compatible Suite
     runs-on: ubuntu-latest
+    # Hang backstop, not a constraint: 0.5m median / 0.9m max over the last ~20 runs.
+    # Two blocking checks hung in unrelated install steps on 2026-10-07 (apt,
+    # then a browser install) and held merges for 66 and 113 minutes against
+    # GitHub's 6-hour default, with no way out — cancelling a run makes it
+    # `cancelled`, which the pre-merge gate reads as failed.
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -238,6 +250,12 @@ jobs:
   check-frontend:
     name: Check Frontend
     runs-on: ubuntu-latest
+    # Hang backstop, not a constraint: 1.9m median / 2.1m max over the last ~20 runs.
+    # Two blocking checks hung in unrelated install steps on 2026-10-07 (apt,
+    # then a browser install) and held merges for 66 and 113 minutes against
+    # GitHub's 6-hour default, with no way out — cancelling a run makes it
+    # `cancelled`, which the pre-merge gate reads as failed.
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -346,6 +364,12 @@ jobs:
   lint:
     name: Lint Code
     runs-on: ubuntu-latest
+    # Hang backstop, not a constraint: 3.1m median / 3.2m max over the last ~20 runs.
+    # Two blocking checks hung in unrelated install steps on 2026-10-07 (apt,
+    # then a browser install) and held merges for 66 and 113 minutes against
+    # GitHub's 6-hour default, with no way out — cancelling a run makes it
+    # `cancelled`, which the pre-merge gate reads as failed.
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -512,6 +536,12 @@ jobs:
   rust-check-windows:
     name: Check Rust Code (Windows)
     runs-on: windows-latest
+    # Hang backstop, not a constraint: 1.8m median / 2.7m max over the last ~20 runs.
+    # Two blocking checks hung in unrelated install steps on 2026-10-07 (apt,
+    # then a browser install) and held merges for 66 and 113 minutes against
+    # GitHub's 6-hour default, with no way out — cancelling a run makes it
+    # `cancelled`, which the pre-merge gate reads as failed.
+    timeout-minutes: 20
     env:
       RUST_BACKTRACE: 1
 
