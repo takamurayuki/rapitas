@@ -166,4 +166,18 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
     because:
       'lightweightタスクが保護パスへの変更を計画していたためstandardモードへ自動昇格しplan.mdで対象ファイルを明記できるようにした — タンパーゲート失敗を未然に防ぐ設計通りの自己防御動作',
   },
+  {
+    // ログ出力箇所: workflow-cli-executor-verify-gate.ts:74-77 の log.warn。
+    // hasFreshVerifyRejection（verify-self-repair.ts:340-366）または
+    // wasVerifyValidationFailureJustRecorded が真、つまり HTTP の verify 保存
+    // ゲートが直前に差し戻した場合だけ発火する。エピローグが差し戻しの上に
+    // commit/PR/complete を重ねないための早期 return で、phaseStatus は
+    // currentWfStatus を維持する。差し戻し自体は recordTransition で記録される
+    // （verify-self-repair.ts:210-212）。同 logger の
+    // 'Verify passed but no PR' は別文言のため抑制しない（#1145）。
+    test: /Verify was rejected by a fresh gate rejection — honoring it and skipping the completion epilogue/i,
+    logger: /workflow-cli-executor/i,
+    because:
+      '検証ゲートの直近差し戻しをエピローグが尊重して止めた設計通りの動作 — 差し戻しはtransitionに記録され別経路で可視化される',
+  },
 ];
