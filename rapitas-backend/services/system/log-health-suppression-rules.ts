@@ -264,6 +264,15 @@ export const SUPPRESSIONS: Suppression[] = [
       'taskkillの第一試行失敗は対象PIDが既に終了済みのレースが大半で、process.kill()フォールバックが回復する — フォールバックも失敗した場合は別シグネチャで可視化される',
   },
   {
+    // ログ出力箇所: routes/agents/cli-tools/routes.ts:180 の log.error。UI 起点の更新で
+    // winget が非ゼロ終了しても、ルートが success:false+details を返して処理済み（#1141）。
+    // 他ロガーの同文言は隠さないよう logger を限定する。
+    test: /Command failed: winget (upgrade|install) /i,
+    logger: /routes:cli-tools:routes/i,
+    because:
+      'ユーザー操作による外部パッケージマネージャ(winget)の非ゼロ終了で、ルートが success:false と details をUIへ返済み — 二重通知になるため起票しない',
+  },
+  {
     // ログ出力箇所: worktree-remove.ts:154-158 の logger.warn（removeWorktree内、
     // git worktree remove の catch ブロック）。「is not a working tree」は当該
     // パスの登録エントリが既に prune 済み/削除済みであることを示すだけで、直後の

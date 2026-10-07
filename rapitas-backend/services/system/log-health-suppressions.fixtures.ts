@@ -114,6 +114,7 @@ export const SUPPRESSED: [string, string][] = [
     '[Claude Code] OUTPUT IDLE HANG DETECTED: No output for #s after producing # chars. Force-killing hung process.',
   ],
   ['codex-cli-agent', 'Command failed: taskkill /PID # /T /F'],
+  ['routes:cli-tools:routes', 'Command failed: winget upgrade OpenJS.NodeJS.LTS'],
   ['gemini-cli-agent:process-manager', 'Command failed: taskkill /PID # /T /F'],
   [
     'git-operations/worktree-ops',

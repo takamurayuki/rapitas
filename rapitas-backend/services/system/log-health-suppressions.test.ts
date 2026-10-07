@@ -162,6 +162,22 @@ describe('classifyLogSignature', () => {
     ).toBe(false);
   });
 
+  test('winget failures from the cli-tools update route are suppressed for that logger only', () => {
+    // Task #1141: routes.ts:180 logs a user-triggered winget exit != 0 that the
+    // route already returned to the UI as success:false + details.
+    const msg = 'Command failed: winget upgrade OpenJS.NodeJS.LTS';
+    expect(classifyLogSignature('routes:cli-tools:routes', msg).suppressed).toBe(true);
+    expect(
+      classifyLogSignature('routes:cli-tools:routes', 'Command failed: winget install Git.Git')
+        .suppressed,
+    ).toBe(true);
+    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    expect(
+      classifyLogSignature('routes:cli-tools:routes', 'Failed to fetch CLI tools status')
+        .suppressed,
+    ).toBe(false);
+  });
+
   test('"OUTPUT IDLE HANG DETECTED" is suppressed for the claude-code-agent logger', () => {
     // Task #1084: idle-monitor.ts:112-114's idle-hang force-kill is the guard
     // working as designed (see log-health-suppression-rules.ts for the
