@@ -45,6 +45,29 @@ export function resetZeroProgressTracker(): void {
 }
 
 /**
+ * The task's most recent execution, for alarm diagnosis only.
+ *
+ * NOTE: Added after the 2026-10-06 20:18Z alarm, whose log could not tell "never ran"
+ * from "ran, then stopped". Any lookup failure yields null — it must never block the alarm.
+ *
+ * @param taskId - Task under evaluation. / 評価対象タスク
+ * @returns Latest execution's createdAt and status, or null. / 直近の実行、無い/取得失敗なら null
+ */
+async function lastExecutionOf(
+  taskId: number,
+): Promise<{ createdAt: Date; status: string } | null> {
+  try {
+    return await prisma.agentExecution.findFirst({
+      where: { session: { config: { taskId } } },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true, status: true },
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The task's overlap-hold age while it is still inside the hold ceiling.
  *
  * Fails toward ALERTING: if either lookup throws, the caller treats the task as
@@ -180,8 +203,15 @@ export async function detectZeroProgressWhileRunning(nowMs: number): Promise<num
 
     detected++;
     const elapsedMinutes = Math.round((nowMs - tracked.since) / 60000);
+    const last = await lastExecutionOf(taskId);
     log.warn(
-      { themeId: theme.themeId, taskId, elapsedMinutes },
+      {
+        themeId: theme.themeId,
+        taskId,
+        elapsedMinutes,
+        lastExecutionAt: last?.createdAt.toISOString() ?? null,
+        lastExecutionStatus: last?.status ?? null,
+      },
       '[reconciler] Zero-progress spin detected — theme running with no executions',
     );
     logCycleEvent('theme.zero_progress_detected', {
