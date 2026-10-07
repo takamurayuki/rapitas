@@ -36,6 +36,7 @@ import {
   healUndispatchableTodo,
 } from './workflow-reconciler-requeue';
 import { flagOrphanTasks } from './workflow-reconciler-orphan-flag';
+import { clearStaleHalts } from './workflow-reconciler-stale-halt';
 
 export { STALE_TASK_MS } from './workflow-reconciler-requeue';
 
@@ -276,6 +277,9 @@ export async function reconcileOnce(): Promise<{
     const completedDesyncs = await runHealPass('healCompletedDesync', () =>
       healCompletedDesync(nowMs),
     );
+    // Invariant: a finished task is not halted. Count is logged by the pass
+    // itself rather than returned, to keep this result shape unchanged.
+    await runHealPass('clearStaleHalts', () => clearStaleHalts());
     // Try to recover orphans (re-queue) BEFORE flagging — a successful re-queue
     // means we don't also notify the user about the same task.
     const failedRepairTasks = new Set<number>();
