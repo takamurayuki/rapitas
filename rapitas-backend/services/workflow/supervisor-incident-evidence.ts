@@ -9,7 +9,11 @@
  */
 import { prisma } from '../../config/database';
 import { FAILURE_RECOVERY_CAUSES, isFailureMarkQueueItem } from './queue-failure-mark-policy';
-import { analyzeVerifyChecklist, type VerifyChecklistStats } from './supervisor-incident-detectors';
+import {
+  analyzeVerifyChecklist,
+  RECOVERY_CLOCK_SKEW_MS,
+  type VerifyChecklistStats,
+} from './supervisor-incident-detectors';
 
 /** How much of an execution output head is scanned for the cwd line. */
 const OUTPUT_HEAD_CHARS = 4000;
@@ -237,13 +241,14 @@ export async function gatherSupervisorEvidence(task: { id: number }): Promise<Su
   // cannot shadow the genuine one (findFirst reads only the newest row).
   let recoveryAtMs: number | null = null;
   if (failureMarkedAtMs !== null && successArtifactAtMs !== null) {
+    const recoveryFromDate = new Date(failureMarkedAtMs - RECOVERY_CLOCK_SKEW_MS);
     const recovery = await safeQuery(
       () =>
         prisma.workflowTransition.findFirst({
           where: {
             taskId: task.id,
             cause: { in: [...FAILURE_RECOVERY_CAUSES] },
-            createdAt: { gte: new Date(failureMarkedAtMs), lte: new Date(successArtifactAtMs) },
+            createdAt: { gte: recoveryFromDate, lte: new Date(successArtifactAtMs) },
           },
           orderBy: { createdAt: 'desc' },
           select: { createdAt: true },
@@ -260,7 +265,7 @@ export async function gatherSupervisorEvidence(task: { id: number }): Promise<Su
           where: {
             taskId: task.id,
             cause: { startsWith: 'phase_completed:' },
-            createdAt: { gte: new Date(failureMarkedAtMs), lte: new Date(successArtifactAtMs) },
+            createdAt: { gte: recoveryFromDate, lte: new Date(successArtifactAtMs) },
           },
           orderBy: { createdAt: 'desc' },
           select: { createdAt: true },

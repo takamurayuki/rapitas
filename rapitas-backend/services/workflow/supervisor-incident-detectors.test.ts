@@ -92,6 +92,10 @@ describe('detectFalseFailure', () => {
     });
   });
 
+  it('does NOT detect when the recovery was written 14ms before the mark (#1116)', () => {
+    expect(detectFalseFailure({ ...incident, recoveryAtMs: NOW - 14 })).toBeNull();
+  });
+
   it('still detects when there is no recovery at all', () => {
     expect(detectFalseFailure({ ...incident, recoveryAtMs: null })).toEqual({ gapMs: 57_000 });
   });
