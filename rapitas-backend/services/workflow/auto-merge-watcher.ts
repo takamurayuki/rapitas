@@ -339,6 +339,8 @@ export class AutoMergeWatcher {
     if (state === 'pass') {
       const gate = await evaluatePreMergeGate(c.cwd, c.prNumber, {
         localRatchet: c.mode === 'merge',
+        // Lets the required-workflow check ignore advisory jobs (task 1145).
+        blocking,
       });
       if (!gate.ok) {
         log.info(

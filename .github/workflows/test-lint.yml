@@ -82,6 +82,12 @@ jobs:
     name: Full Suite (Advisory)
     runs-on: ubuntu-latest
     continue-on-error: true
+    # continue-on-error keeps a FAILURE advisory, but an unfinished job still
+    # holds the whole run at in_progress. On 2026-10-07 this job hung 54 minutes
+    # in its browser-install step and blocked PR #848's merge that way. 4.0m
+    # median / 6.4m max over the last 25 runs, so 20m bounds a hang without
+    # constraining a normal run.
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -159,6 +165,11 @@ jobs:
   test-order-check:
     name: Test Order Dependency Check
     runs-on: ubuntu-latest
+    # Same reason as test-full-advisory: continue-on-error stops a FAILURE from
+    # blocking, but an unfinished job holds the run at in_progress and the
+    # pre-merge gate waits on the run. 0.3m median / 0.4m max over the last 25
+    # runs, so 15m is purely a hang backstop.
+    timeout-minutes: 15
     # NOTE: continue-on-error keeps this job advisory (visibility only; does not block merges).
     # Escalation criterion: when `bun run test:shuffle` passes for 10 consecutive develop runs
     # with no seed-dependent failures, remove continue-on-error to enforce strict mode.

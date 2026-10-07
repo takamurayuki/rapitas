@@ -242,6 +242,12 @@ describe('AutoMergeWatcher — post-merge local mirror sync', () => {
   test('merges when the gate passes, asking for the local ratchet only in merge mode', async () => {
     await getProcess()(candidate, new Set(['Lint Code']));
     expect(mockMerge).toHaveBeenCalledTimes(1);
-    expect(mockGate.mock.calls[0]).toEqual(['/repo/tripla', 6, { localRatchet: true }]);
+    // task 1145: the blocking set rides along so the gate's required-workflow
+    // check can ignore a run held open only by an advisory job.
+    expect(mockGate.mock.calls[0]).toEqual([
+      '/repo/tripla',
+      6,
+      { localRatchet: true, blocking: new Set(['Lint Code']) },
+    ]);
   });
 });
