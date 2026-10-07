@@ -52,9 +52,12 @@ jobs:
     # Build (ubuntu-latest) is a BLOCKING auto-merge check, and without this it
     # inherits GitHub's 6-hour default: two of the last 40 runs hung in the apt
     # step and sat for 113 and 35 minutes, stalling every PR behind them.
-    # Measured job durations are 8m median / 15m max across all three platforms,
-    # so 30m is a backstop with 2x headroom, not a new constraint.
-    timeout-minutes: 30
+    # Measured job durations are 8m median / 15m max across all three platforms.
+    # 45m rather than 30m so install-ci-system-deps.sh's retry budget (2 x 600s)
+    # plus this job's own ~14m of work completes INSIDE the bound: at 30m the job
+    # was killed mid-retry, turning an apt outage into a red blocking check and a
+    # false ci_repair bounce.
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository

@@ -55,7 +55,7 @@ exit 0
  * @param simFailCode - Exit code those attempts fail with (124 = timeout kill). / 失敗時の終了コード
  * @returns The script's exit status and how many apt invocations it made. / 終了コードと試行回数
  */
-function runInstaller(simFailUntil, simFailCode) {
+function runInstaller(simFailUntil, simFailCode, { useDefaultAttempts = false } = {}) {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'ci-apt-'));
   try {
     const bin = path.join(sandbox, 'bin');
@@ -89,7 +89,9 @@ function runInstaller(simFailUntil, simFailCode) {
         ATTEMPT_FILE: posix(attemptFile),
         SIM_FAIL_UNTIL: String(simFailUntil),
         SIM_FAIL_CODE: String(simFailCode),
-        CI_APT_ATTEMPTS: '3',
+        // Most cases pin 3 so the retry mechanics are exercised independently of
+        // whatever the shipped default is; the default itself has its own test.
+        ...(useDefaultAttempts ? {} : { CI_APT_ATTEMPTS: '3' }),
         // The real 10s+15s backoff is not what these tests are checking.
         CI_APT_RETRY_BACKOFF_SECONDS: '0',
       },
@@ -127,6 +129,16 @@ test("a real apt failure's exit code propagates instead of being masked", () => 
   const { status, attempts } = runInstaller(9, 100);
   assert.equal(status, 100);
   assert.equal(attempts, 3);
+});
+
+// The default is load-bearing, not a preference: the whole retry budget has to
+// finish inside the timeout-minutes of every job that calls this script, or the
+// job is killed mid-retry and its blocking check goes red — a false ci_repair
+// bounce for an apt outage. 2 x 600s = 20 min against Build (ubuntu-latest)'s
+// 45-min bound and its own ~14 min of work. Raising this means raising those.
+test('defaults to 2 attempts, so the budget fits inside the callers job bounds', () => {
+  const { attempts } = runInstaller(9, 124, { useDefaultAttempts: true });
+  assert.equal(attempts, 2, 'CI_APT_ATTEMPTS default must stay at 2');
 });
 
 test('the failing stage is named in the warning so logs identify it', () => {

@@ -22,7 +22,15 @@ apt_options=(-o "Dir::Etc::sourcelist=$source_list" -o 'Dir::Etc::sourceparts=-'
 # Bound each attempt above the 482s worst case and retry, so the normal flake
 # resolves itself instead of turning into a red gate that triggers CI repair.
 ATTEMPT_TIMEOUT_SECONDS="${CI_APT_TIMEOUT_SECONDS:-600}"
-ATTEMPTS="${CI_APT_ATTEMPTS:-3}"
+# Two attempts, not three: the whole retry budget has to finish inside the
+# timeout-minutes of every job that calls this, or the job is killed mid-retry
+# and its blocking check goes red — a false ci_repair bounce for an apt outage.
+# 2 x 600s = 20 min leaves room for the slowest caller's own work
+# (Build (ubuntu-latest), ~14 min) under a 45-min job bound. A third attempt was
+# unreachable there anyway, and a mirror that fails twice in a row is not fixed
+# by asking again. 2026-10-07 measured the real case: attempt 1 hit the 600s cap
+# in Quick Build Check and attempt 2 succeeded.
+ATTEMPTS="${CI_APT_ATTEMPTS:-2}"
 # Backoff multiplier between attempts; overridable so the test suite does not
 # have to spend the real 10s+15s wait to exercise the retry path.
 RETRY_BACKOFF_SECONDS="${CI_APT_RETRY_BACKOFF_SECONDS:-5}"

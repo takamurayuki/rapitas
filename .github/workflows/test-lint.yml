@@ -488,9 +488,10 @@ jobs:
 
     # Blocking auto-merge check that runs the apt installer — the step that hung
     # indefinitely on 2 of the last 40 tauri-build runs. 1.2m median / 15.0m max
-    # over the last 25 runs (cold rust cache), so 30m is a backstop in place of
-    # GitHub's 6-hour default.
-    timeout-minutes: 30
+    # over the last 25 runs (cold rust cache). 45m so the installer's retry
+    # budget (2 x 600s) plus a cold-cache clippy run finishes inside the bound;
+    # being killed mid-retry would red a blocking check over an apt outage.
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
