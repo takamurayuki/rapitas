@@ -8,6 +8,7 @@
  */
 import type { Suppression } from './log-health-suppressions-types';
 import { WORKTREE_SUPPRESSIONS } from './log-health-suppression-rules-worktree';
+import { RUNTIME_SUPPRESSIONS } from './log-health-suppression-rules.runtime';
 
 /**
  * Lines that report a guard, a recovery, or an expected condition.
@@ -492,5 +493,8 @@ export const SUPPRESSIONS: Suppression[] = [
     because:
       'lightweightタスクが保護パスへの変更を計画していたためstandardモードへ自動昇格しplan.mdで対象ファイルを明記できるようにした — タンパーゲート失敗を未然に防ぐ設計通りの自己防御動作',
   },
+  // Runtime / execution-path rules live in their own module so this file stays
+  // under the line limit; order is preserved (first match wins).
+  ...RUNTIME_SUPPRESSIONS,
   ...WORKTREE_SUPPRESSIONS,
 ];
