@@ -10,10 +10,25 @@ mock.module('../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
 }));
 const spawnCalls: Array<{ command: string; args: string[] }> = [];
+// Mirror EVERY export process-priority imports. 4b91cad9 added
+// execFileLowPriority, so the module now imports execFile too — leaving it out
+// here made the named import fail to resolve and this whole file error out
+// ("Export named 'execFile' not found"), which only showed up on CI because the
+// sibling exec-file suite mocks it and bun's mock.module registry is
+// process-global, so running the two together locally hid it.
 mock.module('child_process', () => ({
   spawn: (command: string, args: string[]) => {
     spawnCalls.push({ command, args });
     return { pid: 777, once: () => {} };
+  },
+  execFile: (
+    _file: string,
+    _args: string[],
+    _opts: unknown,
+    cb?: (err: Error | null, stdout: string, stderr: string) => void,
+  ) => {
+    cb?.(null, '', '');
+    return { pid: 778, once: () => {} };
   },
 }));
 
