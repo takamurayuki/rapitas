@@ -18,6 +18,7 @@ import { createLogger } from '../../config/logger';
 import { mergePullRequest } from '../agents/orchestrator/git-operations/pr/branch-pr-ops';
 import { recordTransition } from './transition-recorder';
 import { handleCiFailure } from './auto-merge-ci-failure';
+import { splitRedChecks, handleCancelledChecks } from './auto-merge-cancelled-checks';
 import { fileConflictResolutionTask } from '../github/conflict-task';
 import { resolveIntegrationId } from '../github/pr-link';
 import {
@@ -448,9 +449,12 @@ export class AutoMergeWatcher {
       // Delegated: base update for BEHIND branches, DIRTY-conflict delegation
       // (via the injected handleMergeConflict), no-diff parking, and the
       // bounded CI self-repair bounce all live in auto-merge-ci-failure.
-      const failedChecks = checks
-        .filter((ch) => blocking.has(ch.name) && (ch.bucket === 'fail' || ch.bucket === 'cancel'))
-        .map((ch) => ch.name);
+      // A CANCELLED check is infrastructure (superseded push, manual stop,
+      // timeout-minutes kill), not a defect: rerun it rather than send an
+      // implementer after an unbroken diff (task 1145, 2026-10-07).
+      const { failed, cancelled } = splitRedChecks(checks, blocking);
+      if (failed.length === 0 && (await handleCancelledChecks(c, cancelled))) return;
+      const failedChecks = (failed.length > 0 ? failed : cancelled).map((ch) => ch.name);
       await handleCiFailure(c, failedChecks, (cand, reason) =>
         this.handleMergeConflict(cand, reason),
       );
