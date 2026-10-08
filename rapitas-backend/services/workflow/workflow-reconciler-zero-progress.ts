@@ -25,6 +25,7 @@ import { findByStatuses } from './auto-run/theme-auto-run-service';
 import { notifyZeroProgressWhileRunning } from './auto-run/auto-run-notifications';
 import { logCycleEvent } from '../observability';
 import { ZERO_PROGRESS_THRESHOLD_MS } from './queue-stall-policy';
+import { isTaskTerminalForQueue } from './queue-terminal-task-guard';
 import { checkNoSelectionProgress, resetNoSelectionEpisode } from './auto-run-no-selection-watch';
 
 const log = createLogger('workflow-reconciler-zero-progress');
@@ -86,6 +87,27 @@ async function overlapHoldWithinCeiling(taskId: number, nowMs: number): Promise<
     return held < getMergeBarrierMaxHoldMs() ? held : null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Whether the task has finished its workflow (terminal, or verify_done awaiting merge).
+ * Mirrors `workflowSettled` in auto-run-active-decision.ts.
+ *
+ * Fails toward ALERTING: a lookup failure or missing row is "not settled".
+ *
+ * @param taskId - Task under evaluation. / 評価対象タスク
+ * @returns true only on positive evidence of a settled workflow. / 完了待ちと確認できた場合のみ true
+ */
+async function isWorkflowSettled(taskId: number): Promise<boolean> {
+  try {
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { status: true, workflowStatus: true },
+    });
+    return isTaskTerminalForQueue(task) || task?.workflowStatus === 'verify_done';
+  } catch {
+    return false;
   }
 }
 
@@ -197,6 +219,23 @@ export async function detectZeroProgressWhileRunning(nowMs: number): Promise<num
         cause: 'implement_overlap_hold_active',
         holdMs,
         msg: 'current task has no execution because the overlap guard is holding its implementer',
+      });
+      continue;
+    }
+
+    // Past verify the task runs no agent by design: the PR is open and CI /
+    // auto-merge decide the rest. 143 alarms on 2026-10-08 were all this shape
+    // (tasks 1142/1145/1107 after verify_done). A task that sits there for good
+    // is the stale-queue-item sweep's job (terminal_task_active_item_residue),
+    // not this spin detector's.
+    if (await isWorkflowSettled(taskId)) {
+      logCycleEvent('theme.waiting_for_merge', {
+        theme: theme.themeId,
+        task: taskId,
+        ok: true,
+        cause: 'workflow_settled_awaiting_merge',
+        waitedMinutes: Math.round((nowMs - tracked.since) / 60000),
+        msg: 'current task finished verification and awaits CI / auto-merge, so no execution is expected',
       });
       continue;
     }
