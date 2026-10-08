@@ -10,3 +10,4 @@ export * from './run-history-store';
 export * from './correlation-engine';
 export * from './pr-test-risk';
 export * from './test-correlation-notifier';
+export * from './failure-tail';

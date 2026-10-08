@@ -21,6 +21,8 @@ export interface TestResultEntry {
   attempts: number;
   /** True when the file failed at least once but ultimately passed via retry. */
   flaky: boolean;
+  /** Bounded output tail of the final attempt; set only when the file failed. */
+  failureTail?: string[];
 }
 
 /** Raw JSON structure written by writeTestReport. */

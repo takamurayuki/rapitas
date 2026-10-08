@@ -4,6 +4,7 @@
  * Query/body validation for the test-correlation API. Returns a discriminated
  * result rather than throwing, so handlers can set the HTTP status themselves.
  */
+import { normalizeFailureTail } from '../../../services/analytics/test-correlation/failure-tail';
 
 export type ValidationResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -15,6 +16,7 @@ const VALID_TEST_RUN_STATUSES = new Set(['pass', 'fail', 'skip']);
 interface ValidatedManualRunTestResult {
   file: string;
   status: 'pass' | 'fail' | 'skip';
+  failureTail?: string[];
 }
 
 interface ValidatedManualRunBody {
@@ -138,6 +140,7 @@ export function validateManualRunBody(
     validatedResults.push({
       file: (entry as Record<string, unknown>).file as string,
       status: (entry as Record<string, unknown>).status as 'pass' | 'fail' | 'skip',
+      failureTail: normalizeFailureTail((entry as Record<string, unknown>).failureTail),
     });
   }
 

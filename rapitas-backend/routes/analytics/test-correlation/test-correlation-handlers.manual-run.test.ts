@@ -52,6 +52,21 @@ describe('handlePostManualRun', () => {
     }
   });
 
+  test('stores failureTail only for failing files', () => {
+    const body = validBody() as Record<string, unknown>;
+    body.testResults = [
+      { file: 'a.test.ts', status: 'fail', failureTail: ['boom'] },
+      { file: 'b.test.ts', status: 'pass', failureTail: ['ignored'] },
+    ];
+    handlePostManualRun(body);
+    const run = readRunHistory('/unused-backend-root').runs[0];
+    expect(run.failureTail).toEqual({ 'a.test.ts': ['boom'] });
+    expect(run.testResults).toEqual([
+      { file: 'a.test.ts', status: 'fail' },
+      { file: 'b.test.ts', status: 'pass' },
+    ]);
+  });
+
   test('defaults environment to platform=manual/runtimeVersion=n/a when unspecified', () => {
     handlePostManualRun(validBody());
     const history = readRunHistory('/unused-backend-root');

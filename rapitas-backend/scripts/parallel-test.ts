@@ -42,6 +42,7 @@ import {
   saveFlakeHistory,
 } from './retry-policy';
 import type { FlakeHistoryFile } from './retry-policy';
+import { extractFailureTail } from '../services/analytics/test-correlation/failure-tail';
 import { recordTestCorrelationHistory } from './test-correlation-hook';
 
 /** Completed result for a single test file subprocess. */
@@ -296,6 +297,12 @@ async function main(): Promise<void> {
         exitCode: result.exitCode,
         attempts,
         flaky,
+        ...(passed
+          ? {}
+          : {
+              failureTail: extractFailureTail(`${result.stdout}
+${result.stderr}`),
+            }),
       });
 
       if (!passed && firstFailCode === 0) {

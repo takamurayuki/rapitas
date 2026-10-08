@@ -106,6 +106,29 @@ describe('GET /analytics/test-correlation/drilldown', () => {
     expect(body.entries[0]).toMatchObject({ runId: 'run-1', commitSha: 'sha1', source: 'ci' });
   });
 
+  test('passes the stored failureTail through for the requested test file', async () => {
+    const history = seededHistory();
+    history.runs[0].failureTail = {
+      'a.test.ts': ['FAIL a.test.ts', 'expected 1 got 2'],
+      'other.test.ts': ['nope'],
+    };
+    seedHistory(history);
+    const res = await testCorrelationRoutes.handle(
+      new Request(`${BASE}/drilldown?changedFile=a.ts&testFile=a.test.ts`),
+    );
+    const body = (await res.json()) as { entries: Array<Record<string, unknown>> };
+    expect(body.entries[0].failureTail).toEqual(['FAIL a.test.ts', 'expected 1 got 2']);
+  });
+
+  test('omits failureTail for runs recorded without one', async () => {
+    seedHistory(seededHistory());
+    const res = await testCorrelationRoutes.handle(
+      new Request(`${BASE}/drilldown?changedFile=a.ts&testFile=a.test.ts`),
+    );
+    const body = (await res.json()) as { entries: Array<Record<string, unknown>> };
+    expect('failureTail' in body.entries[0]).toBe(false);
+  });
+
   test('returns an empty list for a cell with no matching failures', async () => {
     seedHistory(seededHistory());
     const res = await testCorrelationRoutes.handle(

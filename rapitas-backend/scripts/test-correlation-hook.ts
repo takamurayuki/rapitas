@@ -59,6 +59,12 @@ export function buildTestCorrelationRunRecord(
     isCi: boolean;
   },
 ): RunRecord {
+  const failureTail: Record<string, string[]> = {};
+  for (const r of reportResults) {
+    if (r.exitCode !== 0 && r.failureTail && r.failureTail.length > 0) {
+      failureTail[r.file] = r.failureTail;
+    }
+  }
   return {
     runId: opts.runId,
     timestamp: opts.timestamp,
@@ -67,6 +73,7 @@ export function buildTestCorrelationRunRecord(
     changedFiles: opts.changedFiles,
     testResults: toCorrelationTestResults(reportResults),
     environment: { platform: process.platform, runtimeVersion: Bun.version },
+    ...(Object.keys(failureTail).length > 0 ? { failureTail } : {}),
   };
 }
 

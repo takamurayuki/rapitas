@@ -67,6 +67,17 @@ describe('buildTestCorrelationRunRecord', () => {
     });
   });
 
+  test('records failureTail only for failing files that carry one', () => {
+    const record = buildTestCorrelationRunRecord(
+      [
+        { ...REPORT_RESULTS[0], failureTail: ['ignored'] },
+        { ...REPORT_RESULTS[1], failureTail: ['FAIL b', 'boom'] },
+      ],
+      { runId: 'r', timestamp: 't', commitSha: null, changedFiles: [], isCi: false },
+    );
+    expect(record.failureTail).toEqual({ 'b.test.ts': ['FAIL b', 'boom'] });
+  });
+
   test('builds a RunRecord with source=local when isCi is false', () => {
     const record = buildTestCorrelationRunRecord(REPORT_RESULTS, {
       runId: 'run-2',
