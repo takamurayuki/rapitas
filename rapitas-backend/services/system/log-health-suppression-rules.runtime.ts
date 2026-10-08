@@ -71,6 +71,18 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
       '過去6回すべてself-heal閾値(単発15秒/累積120秒間に30秒)未到達 — ウォッチドッグは正常動作しており、閾値超の病的スタールは別シグネチャ(Self-healing restart triggered, ERROR)で引き続き検知される',
   },
   {
+    // ログ出力箇所: workflow-runner.ts:191 の log.warn（processQueue の finally 内、
+    // queue.dequeue() 所要が1000ms超の時）。task 966/1114 で追加した
+    // event-loop-lag 発生元特定用の計装で、例外時は別に log.error(同:187) が出る。
+    // 過去の発生（K-11581, K-11653, K-11986）はいずれも散発。同じ負荷ピークは
+    // event-loop-lag 側でも抑制済みで、病的スタールは self-heal(ERROR) が検知する。
+    // tookMs/taskIds は構造化フィールドに残り、log-correlation.ts:18 の相関も維持される。
+    test: /^Slow queue processing$/,
+    logger: /^workflow-runner$/i,
+    because:
+      'dequeueが1秒超になっただけの負荷依存の診断記録 — 例外はlog.errorで別途可視、病的スタールはSelf-healing restart(ERROR)が検知し、tookMs等は構造化フィールドに残る',
+  },
+  {
     // ログ出力箇所: requirement-replan-commit.ts:134 の assertReviewedTaskCurrent
     // （汎用Error）。stale_taskはEXPECTED_REPLAN_HOLD_REASONS
     // (requirement-replan-policy.ts:48-55)に含まれ、isExpectedReplanHold(#1041)が
