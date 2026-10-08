@@ -40,6 +40,20 @@ describe('classifyLogSignature', () => {
     expect(classifyLogSignature('payment-worker', 'Already running').suppressed).toBe(false);
   });
 
+  test('task 1148: lock-revocation requeue WARN from workflow-runner.ts:455 is suppressed only for that logger and wording', () => {
+    // ExecutionCancelledError after a stop/reset is a designed requeue, not a failure.
+    const msg =
+      '[WorkflowRunner] Task # cancelled — requeued: Workflow preparation cancelled: execution lock ownership was revoked';
+    const v = classifyLogSignature('workflow-runner', msg);
+    expect(v.suppressed).toBe(true);
+    expect(v.because).toBeTruthy();
+    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    expect(
+      classifyLogSignature('workflow-runner', '[WorkflowRunner] Phase failed for task #: boom')
+        .suppressed,
+    ).toBe(false);
+  });
+
   test('"no commits between" is scoped to github-service:client only', () => {
     // Same phrase from an unrelated logger must still be filed — the rule is
     // about gh pr create no-op completions, not the phrase alone.

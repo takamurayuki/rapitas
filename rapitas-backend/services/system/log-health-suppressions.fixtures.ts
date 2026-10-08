@@ -158,6 +158,10 @@ export const SUPPRESSED: [string, string][] = [
     'workflow-cli-executor',
     '[WorkflowCLIExecutor] Verify was rejected by a fresh gate rejection — honoring it and skipping the completion epilogue',
   ],
+  [
+    'workflow-runner',
+    '[WorkflowRunner] Task # cancelled — requeued: Workflow preparation cancelled: execution lock ownership was revoked',
+  ],
 ];
 
 export const KEPT: [string, string][] = [
@@ -217,4 +221,11 @@ export const KEPT: [string, string][] = [
   // Same CLI timeout wording from a different caller (e.g. task-spec-deriver,
   // K-8927/K-5946) is not covered by this logger-scoped rule.
   ['task-spec-deriver', 'Claude CLI timed out after #ms'],
+  // Same wording from another logger is not this rule's business (task 1148).
+  [
+    'some-other-logger',
+    '[WorkflowRunner] Task # cancelled — requeued: Workflow preparation cancelled: execution lock ownership was revoked',
+  ],
+  // Other WARNs from the same logger stay visible (task 1148).
+  ['workflow-runner', '[WorkflowRunner] Phase failed for task #: Execution cancelled'],
 ];

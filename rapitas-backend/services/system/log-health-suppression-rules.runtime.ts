@@ -193,4 +193,18 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
     because:
       '古いFAIL判定が先へ進んだタスクを巻き戻さないためのCAS防御が設計通り作動した記録 — 実害のある競合敗北・修復枯渇は別文言で可視のまま',
   },
+  {
+    // ログ出力箇所: workflow-runner.ts:455 の log.warn（ExecutionCancelledError 捕捉時）。
+    // 例外の発生元は workflow-orchestrator.ts:123-128 の assertOwnership で、
+    // owner 省略の releaseTaskExecutionLock(taskId)（task-execution-lock.ts:133-141、
+    // stop/reset/continue 系ルートと stop-task-agents.ts から呼ばれる）による
+    // 停止・リセット操作でロック所有権が取り消された場合だけ発火する。ランナーは
+    // リトライ予算を消費せずキュー項目を queued へ戻す（同447-453行のNOTE、
+    // workflow-runner-shutdown.test.ts で固定）。ERROR 経路（Execution error for
+    // task #）や 'Phase failed for task #' は別文言のため抑制しない（#1148）。
+    test: /Task # cancelled — requeued: Workflow preparation cancelled: execution lock ownership was revoked/i,
+    logger: /workflow-runner/i,
+    because:
+      '停止・リセットによるロック所有権の取り消しをランナーが検知し、リトライ予算を消費せず再キューする設計通りの動作 — 実行失敗は別文言(ERROR/Phase failed)で可視のまま',
+  },
 ];
