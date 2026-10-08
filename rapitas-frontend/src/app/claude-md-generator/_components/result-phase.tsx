@@ -9,6 +9,7 @@ import { GLOBAL_CSS } from '../_utils/styles';
 import { AGENT_TARGETS } from '../_utils/constants';
 import { ScoreRing } from './score-ring';
 import { SetupTargetFields } from './setup-target-fields';
+import { DegradedNotice } from './degraded-notice';
 
 interface ResultPhaseProps {
   topRef: React.RefObject<HTMLDivElement | null>;
@@ -42,9 +43,9 @@ interface DocTab {
 }
 
 /**
- * Result screen presenting the generated 3-document package (requirements,
- * design, CLAUDE.md) in tabs with per-tab copy, plus the theme-creation action
- * that scaffolds and git-inits the repository.
+ * Result screen presenting the generated 4-document package (requirements,
+ * design, ADRs, CLAUDE.md) in tabs with per-tab copy, plus the theme-creation
+ * action that scaffolds and git-inits the repository.
  *
  * @param props - ResultPhaseProps / ResultPhaseProps参照
  */
@@ -85,6 +86,12 @@ export function ResultPhase({
         label: t('tabDesign'),
         filename: 'docs/design.md',
         content: result?.design || '',
+      },
+      {
+        kind: 'adr',
+        label: t('tabAdr'),
+        filename: 'docs/adr/0001-architecture-decisions.md',
+        content: result?.adr || '',
       },
       {
         kind: 'claude_md',
@@ -160,6 +167,8 @@ export function ResultPhase({
             </button>
           </div>
         </div>
+
+        {result?.degraded && <DegradedNotice reason={result.degradedReason} />}
 
         <ScoreRing score={result?.score || 95} label={t('scoreLabel')} />
 

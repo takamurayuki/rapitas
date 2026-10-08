@@ -263,6 +263,7 @@ export function useWizard() {
           claudeMd: result.claude_md,
           requirements: result.requirements,
           design: result.design,
+          adr: result.adr,
           description: pickedProp.tagline,
           agentFilePath: target.path,
           // Omitted (not null/empty) when unset so the backend's own fallbacks

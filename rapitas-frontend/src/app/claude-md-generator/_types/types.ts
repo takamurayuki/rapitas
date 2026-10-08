@@ -40,9 +40,15 @@ export interface GenerateResult {
   requirements?: string;
   /** 設計書（アーキテクチャ・データモデル・API設計）のマークダウン全文 / Design doc markdown */
   design?: string;
+  /** 技術選定記録（決定・代替案・却下理由）のマークダウン全文 / ADR markdown */
+  adr?: string;
   /** エージェント行動規範（CLAUDE.md）のマークダウン全文 / Agent guide markdown */
   claude_md: string;
+  /** AI生成に失敗し、テンプレート雛形が返っている / True when this is the fallback scaffold */
+  degraded?: boolean;
+  /** フォールバックした理由（UIに表示する） / Why generation fell back */
+  degradedReason?: string;
 }
 
 /** Identifies one generated document tab. / 生成ドキュメントのタブ識別子 */
-export type DocKind = 'requirements' | 'design' | 'claude_md';
+export type DocKind = 'requirements' | 'design' | 'adr' | 'claude_md';

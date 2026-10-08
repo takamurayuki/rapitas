@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync, execFileSync } from 'child_process';
 import { resolveThemeCategory } from './theme-category-resolver';
+import { writeScaffoldDocs } from './scaffold-docs-writer';
 
 /**
  * Validate a runtimeConfigJson value before it's persisted — a broken value
@@ -307,6 +308,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         claudeMd,
         requirements,
         design,
+        adr,
         agentFilePath,
         basePath,
         description,
@@ -316,6 +318,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         claudeMd: string;
         requirements?: string;
         design?: string;
+        adr?: string;
         agentFilePath?: string;
         basePath?: string;
         description?: string;
@@ -383,16 +386,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
 
         // NOTE: Write human-readable requirements/design docs to docs/ so an AI
         // agent (and humans) have the full implementation package in the repo.
-        if (requirements?.trim() || design?.trim()) {
-          const docsDir = path.join(projectPath, 'docs');
-          fs.mkdirSync(docsDir, { recursive: true });
-          if (requirements?.trim()) {
-            fs.writeFileSync(path.join(docsDir, 'requirements.md'), requirements, 'utf8');
-          }
-          if (design?.trim()) {
-            fs.writeFileSync(path.join(docsDir, 'design.md'), design, 'utf8');
-          }
-        }
+        writeScaffoldDocs(projectPath, { requirements, design, adr });
 
         // Make initial commit and create develop branch
         try {

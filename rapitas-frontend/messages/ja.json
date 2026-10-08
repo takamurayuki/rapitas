@@ -3605,6 +3605,7 @@
     "proposeWithAi": "AIにアプリを提案してもらう",
     "tabRequirements": "要件定義書",
     "tabDesign": "設計書",
+    "tabAdr": "技術選定記録",
     "tabClaudeMd": "CLAUDE.md",
     "targetAgentLabel": "対象AIエージェント（指示ファイルの名称・配置が変わります）",
     "proposingTitle": "アプリを提案中…",
@@ -6282,14 +6283,6 @@
     },
     "runDivider": "─────── 実行 {n}/{total} ───────"
   },
-  "todayTodo": {
-    "title": "今日のTodo",
-    "empty": "着手できるタスクがありません",
-    "allSnoozed": "すべてのタスクがスヌーズされています",
-    "closeAria": "閉じる (Esc)",
-    "snoozeAria": "24時間スヌーズ",
-    "clearSnoozeButton": "スヌーズ解除 ({count}件)"
-  },
   "testCorrelation": {
     "pageTitle": "テスト失敗相関ヒートマップ",
     "pageDescription": "変更ファイルとテスト失敗の相関を可視化します。テストケースはテストファイル単位で集計しています。",
@@ -6323,5 +6316,13 @@
       "failureTailEmpty": "失敗ログは記録されていません",
       "close": "閉じる"
     }
+  },
+  "todayTodo": {
+    "title": "今日のTodo",
+    "empty": "着手できるタスクがありません",
+    "allSnoozed": "すべてのタスクがスヌーズされています",
+    "closeAria": "閉じる (Esc)",
+    "snoozeAria": "24時間スヌーズ",
+    "clearSnoozeButton": "スヌーズ解除 ({count}件)"
   }
 }

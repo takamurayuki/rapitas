@@ -104,12 +104,18 @@ export function SetupTargetFields({
       )}
 
       <div style={{ marginBottom: 16 }}>
-        <div style={labelStyle}>出力先フォルダ</div>
+        <label htmlFor="scaffold-base-path" style={{ ...labelStyle, display: 'block' }}>
+          出力先フォルダ
+        </label>
         <input
+          id="scaffold-base-path"
           type="text"
           value={basePath}
           onChange={(e) => onSetBasePath(e.target.value)}
           placeholder="空欄なら ~/Projects"
+          // NOTE: duplicates the visible <label> text — jsx-a11y's
+          // control-has-associated-label does not accept htmlFor alone here.
+          aria-label="出力先フォルダ"
           spellCheck={false}
           style={{
             width: '100%',

@@ -255,6 +255,11 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
       options.messages,
       options.systemPrompt,
       options.maxTokens || 2048,
+      // NOTE: This is the branch every non-ollama caller takes, so dropping
+      // timeoutMs here silently pinned them all to the 120s default — which is
+      // how the document-package generator kept falling back despite asking
+      // for 300s (the request reached here and the option was discarded).
+      options.timeoutMs,
     );
     incrementLlmCall();
     return result;

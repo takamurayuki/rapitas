@@ -3605,6 +3605,7 @@
     "proposeWithAi": "Get AI app proposals",
     "tabRequirements": "Requirements",
     "tabDesign": "Design",
+    "tabAdr": "Decisions (ADR)",
     "tabClaudeMd": "CLAUDE.md",
     "targetAgentLabel": "Primary AI agent (changes the guide file name/location)",
     "proposingTitle": "Proposing apps…",
@@ -6282,14 +6283,6 @@
     },
     "runDivider": "─────── run {n}/{total} ───────"
   },
-  "todayTodo": {
-    "title": "Today's Todo",
-    "empty": "No tasks to start right now",
-    "allSnoozed": "All tasks are snoozed",
-    "closeAria": "Close (Esc)",
-    "snoozeAria": "Snooze for 24 hours",
-    "clearSnoozeButton": "Clear snooze ({count})"
-  },
   "testCorrelation": {
     "pageTitle": "Test Failure Correlation Heatmap",
     "pageDescription": "Visualizes the correlation between changed files and test failures. Test cases are aggregated per test file.",
@@ -6323,5 +6316,13 @@
       "failureTailEmpty": "No failure log recorded",
       "close": "Close"
     }
+  },
+  "todayTodo": {
+    "title": "Today's Todo",
+    "empty": "No tasks to start right now",
+    "allSnoozed": "All tasks are snoozed",
+    "closeAria": "Close (Esc)",
+    "snoozeAria": "Snooze for 24 hours",
+    "clearSnoozeButton": "Clear snooze ({count})"
   }
 }

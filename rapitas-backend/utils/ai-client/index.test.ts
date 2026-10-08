@@ -140,6 +140,28 @@ describe('sendAIMessage', () => {
     expect(mockCallClaudeCli).toHaveBeenCalledTimes(1);
   });
 
+  test('threads timeoutMs through to the CLI in the default (cli) mode', async () => {
+    // The cli branch inside sendAIMessage is what every non-ollama caller
+    // takes; it used to drop timeoutMs, pinning them all to the provider's
+    // 120s default no matter what they asked for.
+    delete process.env.RAPITAS_AUX_AI;
+    mockCallClaudeCli.mockClear();
+    await sendAIMessage({ messages: [{ role: 'user', content: 'hi' }], timeoutMs: 300_000 });
+    expect(mockCallClaudeCli.mock.calls[0]?.[4]).toBe(300_000);
+  });
+
+  test('threads timeoutMs through the ollama fallback path too', async () => {
+    process.env.RAPITAS_AUX_AI = 'cli';
+    mockIsLocalLLMEnabled.mockReturnValue(false);
+    mockCallClaudeCli.mockClear();
+    await sendAIMessage({
+      provider: 'ollama',
+      messages: [{ role: 'user', content: 'hi' }],
+      timeoutMs: 240_000,
+    });
+    expect(mockCallClaudeCli.mock.calls[0]?.[4]).toBe(240_000);
+  });
+
   test('uses the paid claude provider in api mode', async () => {
     process.env.RAPITAS_AUX_AI = 'api';
     mockCallClaude.mockClear();

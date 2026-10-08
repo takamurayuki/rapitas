@@ -30,6 +30,7 @@
     "proposeWithAi": "Get AI app proposals",
     "tabRequirements": "Requirements",
     "tabDesign": "Design",
+    "tabAdr": "Decisions (ADR)",
     "tabClaudeMd": "CLAUDE.md",
     "targetAgentLabel": "Primary AI agent (changes the guide file name/location)",
     "proposingTitle": "Proposing apps…",

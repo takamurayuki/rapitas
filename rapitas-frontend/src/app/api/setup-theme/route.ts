@@ -15,6 +15,8 @@ interface SetupThemeRequest {
   requirements?: string;
   /** 設計書のマークダウン全文（docs/design.md として書き込む） / Design doc */
   design?: string;
+  /** 技術選定記録（docs/adr/0001-architecture-decisions.md として書き込む） / ADR doc */
+  adr?: string;
   /** エージェント指示ファイルの相対パス（例 .claude/CLAUDE.md / AGENTS.md） / Agent guide repo-relative path */
   agentFilePath?: string;
   /** 出力先の親ディレクトリ。未指定ならバックエンドが ~/Projects を使う。 / Parent dir for the project folder */
@@ -32,6 +34,7 @@ export async function POST(request: NextRequest) {
       claudeMd,
       requirements,
       design,
+      adr,
       agentFilePath,
       basePath,
       description,
@@ -58,6 +61,7 @@ export async function POST(request: NextRequest) {
         claudeMd,
         requirements,
         design,
+        adr,
         agentFilePath,
         basePath,
         description,
