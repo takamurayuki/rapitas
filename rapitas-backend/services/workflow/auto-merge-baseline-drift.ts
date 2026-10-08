@@ -22,12 +22,16 @@ const NOTIFY_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 let lastCheckAt = 0;
 let lastNotifyAt = 0;
+/** Drift detail last logged at WARN; null when the branch was last seen clean. */
+let lastWarnedDetail: string | null = null;
 
 /** Injectable side effects for tests. */
 export interface DriftDeps {
   now: () => number;
   runRatchet: (cwd: string, branch: string) => Promise<RatchetVerdict>;
   notifyDrift: (message: string) => Promise<void>;
+  /** Overrides the WARN log sink (tests). */
+  warn?: (ctx: { branch: string; detail?: string }, msg: string) => void;
 }
 
 const defaultDeps: DriftDeps = {
@@ -76,10 +80,24 @@ export async function checkBaselineDrift(
 
   const branch = opts.branch ?? process.env.RAPITAS_PRIMARY_BRANCH ?? 'develop';
   const r = await deps.runRatchet(repoRoot, branch);
-  if (r.verdict !== 'violation') return false;
+  if (r.verdict !== 'violation') {
+    // Only a confirmed clean/skipped run re-arms the WARN; an errored run says nothing about drift.
+    if (r.verdict !== 'error') lastWarnedDetail = null;
+    return false;
+  }
 
-  log.warn({ branch, detail: r.detail }, '[auto-merge] Baseline drift on integration branch');
-  if (lastNotifyAt === 0 || now - lastNotifyAt >= NOTIFY_INTERVAL_MS) {
+  // NOTE: The same drift re-checked every 30 min used to WARN every time (3 identical log rows
+  // in 40 min, task 1158). Log when the drift is new/changed or when the daily notification fires.
+  const detail = r.detail ?? '';
+  const notifyDue = lastNotifyAt === 0 || now - lastNotifyAt >= NOTIFY_INTERVAL_MS;
+  if (detail !== lastWarnedDetail || notifyDue) {
+    lastWarnedDetail = detail;
+    (deps.warn ?? ((ctx, msg) => log.warn(ctx, msg)))(
+      { branch, detail: r.detail },
+      '[auto-merge] Baseline drift on integration branch',
+    );
+  }
+  if (notifyDue) {
     lastNotifyAt = now;
     await deps.notifyDrift(
       `${branch} が file-size ratchet の baseline を逸脱しています: ${r.detail}`,
@@ -92,4 +110,5 @@ export async function checkBaselineDrift(
 export function resetBaselineDriftState(): void {
   lastCheckAt = 0;
   lastNotifyAt = 0;
+  lastWarnedDetail = null;
 }
