@@ -63,6 +63,40 @@ async function checkClaudeAvailable(): Promise<boolean> {
 // not hang a background job forever.
 const CLI_TIMEOUT_MS = Number(process.env.RAPITAS_AUX_AI_CLI_TIMEOUT_MS) || 120_000;
 
+/** The default cap, exported so callers and tests can reason about it. */
+export const DEFAULT_CLI_TIMEOUT_MS = CLI_TIMEOUT_MS;
+
+/**
+ * Hard ceiling for a per-call timeout. MAX_CONCURRENT is 2, so an unbounded
+ * request from an HTTP-reachable caller would starve every other aux call.
+ */
+export const MAX_CLI_TIMEOUT_MS = Number(process.env.RAPITAS_AUX_AI_CLI_MAX_TIMEOUT_MS) || 600_000;
+
+/**
+ * Resolve the wall-clock cap for one CLI call.
+ *
+ * A few callers legitimately need longer than the default: the document-package
+ * generator asks for three full markdown documents and measured 109s against a
+ * 120s default on 2026-10-08, so it timed out on nearly every attempt and its
+ * caller silently fell back to a hardcoded template. Raising the default for
+ * everyone would defeat the cap's purpose (a stuck one-shot helper hanging a
+ * background job), hence per-call.
+ *
+ * Only LONGER requests are honoured, and only up to {@link MAX_CLI_TIMEOUT_MS}:
+ * a shorter request would make a normally-fine call fail, and the cap is a
+ * safety bound rather than a scheduling knob.
+ *
+ * @param requestedMs - Caller's requested cap, if any. / 呼び出し側の希望上限
+ * @returns The cap to apply. / 適用する上限
+ */
+export function resolveCliTimeoutMs(requestedMs?: number): number {
+  if (typeof requestedMs !== 'number' || !Number.isFinite(requestedMs) || requestedMs <= 0) {
+    return DEFAULT_CLI_TIMEOUT_MS;
+  }
+  if (requestedMs <= DEFAULT_CLI_TIMEOUT_MS) return DEFAULT_CLI_TIMEOUT_MS;
+  return Math.min(requestedMs, MAX_CLI_TIMEOUT_MS);
+}
+
 // Concurrency cap: the auto-run loop + 30s memory queue can fire many aux calls
 // at once. Spawning an unbounded number of CLI processes stampedes both the
 // subscription rate limit and local CPU, so serialize to a small pool.
@@ -325,6 +359,8 @@ async function spawnCli(
  * @param messages - Conversation messages / 会話メッセージ
  * @param systemPrompt - Optional system instructions / システム指示（任意）
  * @param _maxTokens - Accepted for signature parity; the CLI manages output length / 署名互換のため受理
+ * @param timeoutMs - Optional longer wall-clock cap for this call; see
+ *   {@link resolveCliTimeoutMs}. / この呼び出しのみ上限を延長する場合
  * @returns The generated text and token usage / 生成テキストとトークン使用量
  * @throws {ClaudeCliUnavailableError} When the CLI cannot serve the request / CLIが応答できない場合
  */
@@ -333,6 +369,7 @@ export async function callClaudeCli(
   messages: AIMessage[],
   systemPrompt: string | undefined,
   _maxTokens: number,
+  timeoutMs?: number,
 ): Promise<AIResponse> {
   await acquireSlot();
   try {
@@ -346,7 +383,11 @@ export async function callClaudeCli(
       DISALLOWED_TOOLS,
       ...TEXT_ONLY_ARGS,
     ];
-    const stdout = await spawnCli(args, guardPromptSize(combinePrompt(messages, systemPrompt)));
+    const stdout = await spawnCli(
+      args,
+      guardPromptSize(combinePrompt(messages, systemPrompt)),
+      resolveCliTimeoutMs(timeoutMs),
+    );
     const jsonText = extractLastJsonObject(stdout.trim()) ?? stdout.trim();
     let parsed: {
       result?: string;

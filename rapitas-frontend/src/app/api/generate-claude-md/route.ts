@@ -32,6 +32,10 @@ interface GenerateResult {
   requirements: string;
   design: string;
   claude_md: string;
+  /** True when AI generation failed and this is the template scaffold. */
+  degraded?: boolean;
+  /** Why generation fell back, surfaced so the wizard can show it. */
+  degradedReason?: string;
 }
 
 // NOTE: The wizard now produces a 3-document implementation package — a
@@ -148,10 +152,25 @@ function buildFallbackResponse(
     ? proposal.tech_hint
     : ['Next.js 14', 'Supabase', 'TypeScript'];
 
+  // NOTE: This package is a scaffold, not a specification — every slot is
+  // filled from the one-paragraph proposal, so it carries no more information
+  // than the original idea. On 2026-10-08 a ContextFlow run shipped this as a
+  // "96点" result after the AI call timed out, and the 34-line requirements.md
+  // it produced blocked implementation for a long time because nothing said it
+  // was a fallback. The banner and the honest score exist so that cannot
+  // happen silently again: the file that lands in the repo states what it is.
+  const banner = `> ⚠️ **自動生成に失敗したため、テンプレートの雛形を出力しています。**
+> この内容はアイデア1段落を各項目に差し込んだだけで、実装に着手できる情報量はありません。
+> 「実装時に具体化する」「実装時に確定する」と書かれた箇所は未定義です。
+> 生成をやり直してください（失敗理由はサーバーログの \`AI generation failed\` を参照）。
+
+`;
+
   return {
-    tech_rationale: `${stack[0]}と${stack[1] || 'Supabase'}を中心とした技術スタックを選定しました。${proposal.concept}というコンセプトに最適なフレームワークと、開発効率を重視した構成です。${stack[2] || 'TypeScript'}による型安全性と保守性を確保します。`,
-    score: 96,
-    requirements: `# 概要
+    tech_rationale: `【テンプレート出力・AI生成は失敗しました】${stack[0]}と${stack[1] || 'Supabase'}を中心とした技術スタックを選定しました。${proposal.concept}というコンセプトに最適なフレームワークと、開発効率を重視した構成です。${stack[2] || 'TypeScript'}による型安全性と保守性を確保します。`,
+    // Not a judgement of the idea — a statement that this output is a scaffold.
+    score: 20,
+    requirements: `${banner}# 概要
 
 **アプリ名**: ${proposal.name}
 **解決する課題**: ${proposal.concept}
@@ -186,7 +205,7 @@ function buildFallbackResponse(
 # スコープ外
 
 - 実装フェーズで合意するまで未確定の機能は対象外。`,
-    design: `# アーキテクチャ概要
+    design: `${banner}# アーキテクチャ概要
 
 クライアント（${plat}） → アプリケーション層 → データストア の3層構成。
 
@@ -280,6 +299,8 @@ export async function POST(request: NextRequest) {
 `.trim();
 
     // Try AI generation via backend
+    // Captured so the fallback can say WHY it is a fallback.
+    let degradedReason: string | null = null;
     try {
       const response = await fetch(`${BACKEND_URL}/ai/chat`, {
         method: 'POST',
@@ -288,9 +309,15 @@ export async function POST(request: NextRequest) {
           message: userMessage,
           systemPrompt,
           conversationHistory: [],
+          // Ask the backend for a longer CLI cap than its 120s default: three
+          // documents measured 109s end to end on 2026-10-08, so the default
+          // was tripped on nearly every attempt and this route silently
+          // returned the hardcoded fallback instead. The backend clamps this.
+          timeoutMs: 300000,
         }),
-        // NOTE: Larger timeout than single-doc generation — three documents take longer.
-        signal: AbortSignal.timeout(150000),
+        // The fetch cap must OUTLAST the CLI cap, otherwise this aborts first
+        // and the real backend error ("Claude CLI timed out") never surfaces.
+        signal: AbortSignal.timeout(320000),
       });
 
       if (response.ok) {
@@ -300,18 +327,30 @@ export async function POST(request: NextRequest) {
           if (parsed) {
             return NextResponse.json(parsed);
           }
+          degradedReason = 'AIの応答を3文書JSONとして解釈できませんでした';
           logger.warn('AI response could not be parsed as valid document-package JSON');
+        } else {
+          degradedReason = `バックエンドがエラーを返しました: ${String(data?.error ?? 'unknown')}`;
+          logger.warn('Backend AI chat returned success=false:', data);
         }
       } else {
-        const errData = await response.json().catch(() => ({}));
+        const errData = await response.json().catch(() => ({}) as Record<string, unknown>);
+        degradedReason = `バックエンドがエラーを返しました: ${String(errData?.error ?? response.status)}`;
         logger.warn('Backend AI chat returned error:', errData);
       }
     } catch (aiError) {
+      degradedReason = `AI呼び出しが失敗しました: ${aiError instanceof Error ? aiError.message : String(aiError)}`;
       logger.warn('AI generation failed, falling back to mock data:', aiError);
     }
 
-    // Fallback
-    return NextResponse.json(buildFallbackResponse(proposal, plat, scale));
+    // Fallback. `degraded` + `degradedReason` ride along so the wizard can say
+    // the package is a scaffold instead of presenting it as a finished spec —
+    // the silence here is what blocked the ContextFlow run (2026-10-08).
+    return NextResponse.json({
+      ...buildFallbackResponse(proposal, plat, scale),
+      degraded: true,
+      degradedReason: degradedReason ?? 'AI生成に失敗しました（理由不明）',
+    });
   } catch (error) {
     logger.error('Error generating document package:', error);
     return NextResponse.json({ error: 'ドキュメントの生成に失敗しました' }, { status: 500 });

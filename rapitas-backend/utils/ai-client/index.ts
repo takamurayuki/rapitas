@@ -132,6 +132,7 @@ async function runAuxNonLocal(options: AIRequestOptions): Promise<AIResponse> {
       options.messages,
       options.systemPrompt,
       options.maxTokens || 2048,
+      options.timeoutMs,
     );
   }
   return sendWithPaidProvider(options);

@@ -35,6 +35,12 @@ const chatBodySchema = t.Object(
     systemPrompt: t.Optional(t.String({ maxLength: 100_000 })),
     provider: t.Optional(t.String({ maxLength: 100 })),
     model: t.Optional(t.String({ maxLength: 200 })),
+    // A caller that genuinely needs longer than the 120s CLI default — the
+    // document-package generator measured 109s for three documents and timed
+    // out on nearly every attempt. Bounded here AND clamped again by
+    // resolveCliTimeoutMs, so this can only ever ask for more time, never
+    // unbounded time (MAX_CONCURRENT is 2; a pinned slot starves other calls).
+    timeoutMs: t.Optional(t.Number({ minimum: 1_000, maximum: 600_000 })),
   },
   { additionalProperties: false },
 );
@@ -56,12 +62,14 @@ export const aiChatRoutes = new Elysia()
         systemPrompt,
         provider,
         model,
+        timeoutMs,
       } = body as {
         message: string;
         conversationHistory?: Array<{ role: string; content: string }>;
         systemPrompt?: string;
         provider?: string;
         model?: string;
+        timeoutMs?: number;
       };
 
       if (!message || message.trim() === '') {
@@ -95,6 +103,7 @@ export const aiChatRoutes = new Elysia()
           model: model || undefined,
           messages,
           systemPrompt: systemPrompt || defaultSystemPrompt,
+          timeoutMs,
         });
 
         return { success: true, message: response.content };

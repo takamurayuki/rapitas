@@ -88,8 +88,14 @@ mock.module('../../config/logger', () => ({
   getBackendLogFilePath: mock((_stamp?: string) => 'mock-log-path'),
 }));
 
-const { callClaudeCli, callClaudeCliStream, isClaudeCliAvailable } =
-  await import('./claude-cli-provider');
+const {
+  callClaudeCli,
+  callClaudeCliStream,
+  isClaudeCliAvailable,
+  resolveCliTimeoutMs,
+  DEFAULT_CLI_TIMEOUT_MS,
+  MAX_CLI_TIMEOUT_MS,
+} = await import('./claude-cli-provider');
 
 // ── test helpers ─────────────────────────────────────────────────────────────
 
@@ -209,6 +215,42 @@ describe('callClaudeCli — success', () => {
 });
 
 // ── callClaudeCli: model alias mapping ───────────────────────────────────────
+
+// 2026-10-08: the document-package generator (generate-claude-md) asks for
+// three full markdown documents in one call. Measured end to end it takes 109s
+// against the 120s module default, so it timed out on nearly every attempt and
+// the caller silently fell back to a hardcoded template. Raising the global
+// default would make every stuck one-shot helper hang longer — the cap exists
+// for that reason — so the long cap has to be requestable per call.
+describe('resolveCliTimeoutMs', () => {
+  test('falls back to the module default when nothing is requested', () => {
+    expect(resolveCliTimeoutMs(undefined)).toBe(DEFAULT_CLI_TIMEOUT_MS);
+  });
+
+  test('honours a longer request, which is what the doc-package generator needs', () => {
+    // 109s measured for three documents against a 120s default: the caller has
+    // to be able to ask for more without changing the default for everyone.
+    expect(resolveCliTimeoutMs(600_000)).toBe(600_000);
+  });
+
+  test('clamps above the hard ceiling so one caller cannot pin a CLI slot', () => {
+    // MAX_CONCURRENT is 2, so an unbounded timeout from an HTTP-reachable
+    // caller would starve every other aux call.
+    expect(resolveCliTimeoutMs(99_999_999)).toBe(MAX_CLI_TIMEOUT_MS);
+  });
+
+  test('ignores a shorter-than-default request rather than tightening the cap', () => {
+    // A caller asking for less would make a normally-fine call fail; the cap is
+    // a safety bound, not a scheduling knob.
+    expect(resolveCliTimeoutMs(1_000)).toBe(DEFAULT_CLI_TIMEOUT_MS);
+  });
+
+  test('ignores non-finite and non-positive values', () => {
+    for (const bad of [0, -1, NaN, Infinity]) {
+      expect(resolveCliTimeoutMs(bad)).toBe(DEFAULT_CLI_TIMEOUT_MS);
+    }
+  });
+});
 
 describe('callClaudeCli — model alias mapping', () => {
   test.each([
