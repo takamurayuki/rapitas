@@ -25,3 +25,29 @@ export function isTaskTerminalForQueue(
     task.status === 'done' || task.status === 'cancelled' || task.workflowStatus === 'completed'
   );
 }
+
+/**
+ * Whether a task's halt is still in force, as opposed to left over from before
+ * it finished. Nothing clears haltReason on completion — haltIfIterationBudget
+ * Exceeded writes it and only halt-release.ts clears it — so a finished task
+ * keeps carrying its last halt forever. Measured 2026-10-06: 4 of the 6 tasks
+ * holding a haltReason were status=done (#1031/#1060/#1110/#1112).
+ *
+ * Reading that stale value as "halted" is wrong in the permissive direction for
+ * the overlap guard: it drops the finished task's still-open PR from the
+ * candidate set, so the hold never applies and two implementers edit the same
+ * files. A finished task's PR is precisely the one worth waiting for.
+ *
+ * @param task - Halt column plus the status pair (or null when lookup failed). / タスク状態
+ * @returns true only when a non-terminal task is halted. / 終端でなく halt 中なら true
+ */
+export function isTaskHaltActive(
+  task: {
+    haltReason?: string | null;
+    status?: string | null;
+    workflowStatus?: string | null;
+  } | null,
+): boolean {
+  if (task?.haltReason == null) return false;
+  return !isTaskTerminalForQueue(task);
+}

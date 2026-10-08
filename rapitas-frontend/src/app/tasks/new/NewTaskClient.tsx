@@ -30,6 +30,7 @@ import {
 } from './components';
 import { useNewTaskForm } from './hooks';
 import DurationInput from '@/components/ui/hours-minutes-input/HoursMinutesInput';
+import DateField from '@/components/ui/date-field/DateField';
 import { formatDate } from '@/utils/date';
 
 function NewTaskClient() {
@@ -144,11 +145,13 @@ function NewTaskClient() {
                 className="flex-1 min-w-[200px]"
               >
                 <div className="flex items-center gap-2">
-                  <input
-                    type="datetime-local"
+                  <DateField
+                    withTime
                     value={form.dueDate}
-                    onChange={(e) => form.setDueDate(e.target.value)}
-                    className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:scheme:dark"
+                    onChange={form.setDueDate}
+                    aria-label={t('deadlineDate')}
+                    wrapperClassName="flex-1"
+                    className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
                   />
                   {form.dueDate && (
                     <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 shrink-0">

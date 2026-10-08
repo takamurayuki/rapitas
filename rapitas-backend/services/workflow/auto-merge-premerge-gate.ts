@@ -142,17 +142,19 @@ const defaultGateDeps: PreMergeGateDeps = {
  *
  * @param cwd - Repo working directory / リポジトリ作業ディレクトリ
  * @param prNumber - PR number / PR番号
- * @param opts - localRatchet: also run the ratchet on the merge ref (merge mode). / オプション
+ * @param opts - localRatchet: also run the ratchet on the merge ref (merge
+ *   mode). blocking: the check names that gate the merge, so a required
+ *   workflow held open only by an advisory job does not block (task 1145). / オプション
  * @param deps - Injectable gate steps (tests). / 依存注入
  * @returns ok, or the reason it must wait / be repaired. / 判定
  */
 export async function evaluatePreMergeGate(
   cwd: string,
   prNumber: number,
-  opts: { localRatchet: boolean },
+  opts: { localRatchet: boolean; blocking?: Set<string> },
   deps: PreMergeGateDeps = defaultGateDeps,
 ): Promise<PreMergeGateResult> {
-  const wf = await deps.checkWorkflows(cwd, prNumber);
+  const wf = await deps.checkWorkflows(cwd, prNumber, undefined, opts.blocking);
   if (!wf.complete) {
     return { ok: false, reason: 'workflows_pending', detail: wf.waiting.join(', ') };
   }

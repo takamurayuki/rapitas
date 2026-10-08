@@ -181,7 +181,22 @@ pub fn run() {
     // - disable-backgrounding-occluded-windows: keeps the compositor alive even
     //   when the window is fully occluded, eliminating the black-frame artifact
     //   that appears when the window is brought back to the foreground.
-    #[cfg(target_os = "windows")]
+    // DEBUG ONLY: a CDP endpoint so a CPU profile can be taken of a specific
+    // webview without a human opening DevTools. Needed because every window
+    // here is long-lived and two of them are permanently hidden, so "which
+    // window is spinning" cannot be answered from outside the process.
+    // Localhost-only, debug builds only — never present in a release build.
+    #[cfg(all(target_os = "windows", debug_assertions))]
+    std::env::set_var(
+        "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+        "--disable-features=CalculateNativeWinOcclusion \
+         --disable-renderer-backgrounding \
+         --disable-background-timer-throttling \
+         --disable-backgrounding-occluded-windows \
+         --autoplay-policy=no-user-gesture-required \
+         --remote-debugging-port=9222",
+    );
+    #[cfg(all(target_os = "windows", not(debug_assertions)))]
     std::env::set_var(
         "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
         "--disable-features=CalculateNativeWinOcclusion \
@@ -263,6 +278,11 @@ pub fn run() {
             if let Err(e) = crate::pomodoro_float::prewarm_pomodoro_float_window(app.handle()) {
                 eprintln!("[Pomodoro] float window pre-warm failed: {e}");
             }
+            // The main window is declared in tauri.conf.json, so it has already
+            // navigated to devUrl by the time setup runs — possibly before the
+            // dev server existed. No-op when it was up (see dev_server_wait).
+            #[cfg(debug_assertions)]
+            crate::dev_server_wait::reload_main_window_when_dev_server_ready(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| {

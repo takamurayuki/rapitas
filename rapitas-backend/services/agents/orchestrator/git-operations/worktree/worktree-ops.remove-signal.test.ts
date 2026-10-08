@@ -95,8 +95,17 @@ mock.module('../../../../github/git-exec', () => ({
   clearGitRemoteCache: mockClearGitRemoteCache,
 }));
 mock.module('./dir-remove-retry', () => ({ rmDirWithRetry: mockRmDirWithRetry }));
+// Mirror EVERY export: mock.module replaces the whole module record, so an
+// omitted one makes the importer's named import fail to resolve and the file
+// errors out before any test runs. worktree-terminal-sweep imports
+// TERMINAL_STATUSES and parseTaskIdFromWorktreeName from here.
 mock.module('../../../worktree-keep-list', () => ({
   computeWorktreeKeepPaths: mock(() => Promise.resolve([])),
+  TERMINAL_STATUSES: ['done', 'completed', 'cancelled'],
+  parseTaskIdFromWorktreeName: (dirName: string) => {
+    const m = /^task-(\d+)-/.exec(dirName);
+    return m ? Number(m[1]) : null;
+  },
 }));
 mock.module('../../../../../utils/common/branch-name-generator', () => ({
   hasTaskIdMarker: (branchName: string, taskId: number) =>
@@ -105,6 +114,10 @@ mock.module('../../../../../utils/common/branch-name-generator', () => ({
 
 const { removeWorktree, cleanupOrphanedWorktrees, cleanupStaleWorktrees } =
   await import('./worktree-ops');
+// Module-level state, so it survives every mockReset(): a test that makes a
+// removal fail records a refusal, and the next test's removal is then skipped by
+// the cooldown rather than attempted (cleanedCount 0 instead of 1).
+const { resetRemovalBackoff } = await import('./worktree-removal-backoff');
 
 const mockBaseDir = '/test/repo';
 const mockWorktreePath = '/test/repo/.worktrees/task-123-abc123';
@@ -129,6 +142,7 @@ function gitRemoveFails() {
 }
 
 beforeEach(() => {
+  resetRemovalBackoff();
   mockExistsSync.mockReset();
   mockExistsSync.mockImplementation(() => false);
   mockAwaitWorktreeDependencies.mockReset();

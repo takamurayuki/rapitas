@@ -130,3 +130,82 @@ describe('specForConcernSource', () => {
     expect(specForConcernSource(undefined)).toBeNull();
   });
 });
+
+describe('specForConcernSource — guard-incident', () => {
+  test('ガード違反由来の懸念にも仕様を与える', () => {
+    const spec = specForConcernSource('guard-incident');
+    expect(spec).not.toBeNull();
+    expect(spec?.acceptanceCriteria.length).toBeGreaterThan(0);
+  });
+
+  // The defect this template exists for: task 1116's auto-generated criterion
+  // was 「エージェントが同様の primary_mutation タイプの操作を試行しなくなること」.
+  // Nothing in a diff can show that, so verify marked it 未検証（行動効果）and a
+  // requirement_evidence_replan round was spent on it — and the fix it shipped
+  // (a prompt paragraph) then measurably failed: 5 incidents before, 1 after
+  // with the fix live. Every criterion must be decidable from the diff.
+  test('将来の行動を問う検証不能な基準を含まない', () => {
+    const criteria = (specForConcernSource('guard-incident')?.acceptanceCriteria ?? []).join('\n');
+    expect(criteria).not.toMatch(/しなくなる|再発しない|発生しなくなる|減ること/);
+  });
+
+  test('基準は差分または workflow 成果物で判定できる形になっている', () => {
+    const criteria = specForConcernSource('guard-incident')?.acceptanceCriteria ?? [];
+    for (const c of criteria) {
+      expect(c).toMatch(/差分|research\.md|verify\.md|plan\.md/);
+    }
+  });
+
+  // The hook is the detector, not the defect — relaxing it is how task 1086
+  // "resolved" its own denial.
+  test('検知器を緩める変更を禁じる', () => {
+    const constraints = (specForConcernSource('guard-incident')?.constraints ?? []).join('\n');
+    expect(constraints).toContain('primary-guard-hook');
+    expect(constraints).toMatch(/緩め|緩和/);
+  });
+
+  test('無関係なソースには仕様を与えない', () => {
+    expect(specForConcernSource('other')).toBeNull();
+  });
+});
+
+describe('specForConcernSource — 自己検出と品質ループ', () => {
+  // 5 of the 9 intake questions in the 14 days to 2026-10-07 fired with
+  // missing=[goals,constraints,acceptanceCriteria]; #1125 (self_incident_watch)
+  // and #1123 (loop_review) were two of them. Each question is a human
+  // intervention AND parks the task for a median 12.6 minutes, so seeding the
+  // spec removes both costs.
+  for (const source of ['self_incident_watch', 'loop_review']) {
+    test(`${source} に仕様を与える`, () => {
+      const spec = specForConcernSource(source);
+      expect(spec).not.toBeNull();
+      expect(spec?.goals.length).toBeGreaterThan(0);
+      expect(spec?.constraints.length).toBeGreaterThan(0);
+      expect(spec?.acceptanceCriteria.length).toBeGreaterThan(0);
+    });
+
+    test(`${source} の基準は差分か成果物で判定できる`, () => {
+      for (const c of specForConcernSource(source)?.acceptanceCriteria ?? []) {
+        expect(c).toMatch(/差分|research\.md|verify\.md|plan\.md/);
+      }
+    });
+
+    test(`${source} の基準に将来の行動を置かない`, () => {
+      const criteria = (specForConcernSource(source)?.acceptanceCriteria ?? []).join('\n');
+      expect(criteria).not.toMatch(/しなくなる|再発しない|発生しなくなる|減ること|減っている/);
+    });
+
+    test(`${source} は信号を消すことを禁じる`, () => {
+      const constraints = (specForConcernSource(source)?.constraints ?? []).join('\n');
+      expect(constraints).toMatch(/閾値|抑制|検知器|消/);
+    });
+  }
+
+  // The load-bearing distinction for a metric-driven task: requiring a measured
+  // IMPROVEMENT is unverifiable at completion time; requiring the measurement
+  // PLAN plus the current value is not.
+  test('品質ループは改善の実測ではなく測定計画と現在値を求める', () => {
+    const criteria = (specForConcernSource('loop_review')?.acceptanceCriteria ?? []).join('\n');
+    expect(criteria).toMatch(/現在値|基準値|測定/);
+  });
+});

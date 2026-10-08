@@ -6,13 +6,15 @@
  * and the per-file line-limit ratchet. Each is cheap, and catching it here
  * turns a full ci_repair round into an in-phase fix.
  */
-import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
+import { execFileLowPriority } from '../process-priority';
 import type { VerificationCheck } from './automated-verifier';
 
-const execFileAsync = promisify(execFile);
+// BELOW_NORMAL, like every other gate command: these are the last steps that ran
+// at full priority, and runDriftScript's three are fired together by Promise.all
+// below — three normal-priority processes at once on a 4-core host.
+const execFileAsync = execFileLowPriority;
 
 /** Lines the ratchet script prints for a violation THIS diff is responsible for. */
 const RATCHET_FLAG_RE = /^\s*(\d+)\s+(\S+)\s+←\s+(GREW \(was (\d+)\)|NEW)/;

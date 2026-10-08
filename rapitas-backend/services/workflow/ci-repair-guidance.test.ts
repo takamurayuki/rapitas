@@ -20,3 +20,9 @@ describe('CI_REPAIR_WORKTREE_GUIDANCE', () => {
     expect(source).toContain('${CI_REPAIR_WORKTREE_GUIDANCE}');
   });
 });
+
+describe('CI_REPAIR_WORKTREE_GUIDANCE git -C', () => {
+  test('forbids the git -C <primary> form too', () => {
+    expect(CI_REPAIR_WORKTREE_GUIDANCE).toContain('git -C');
+  });
+});

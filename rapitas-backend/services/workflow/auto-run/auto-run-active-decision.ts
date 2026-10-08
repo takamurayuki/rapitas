@@ -37,9 +37,10 @@ import { broadcastAutoRunUpdateImpl } from './auto-run-lifecycle';
 import { stopTaskTreeAgents } from '../../agents/stop-task-agents';
 import { selectAndEnqueueNextTask } from './auto-run-advance-select';
 import { isOverlapHeld } from '../workflow-orchestrator-overlap-guard';
+import { isTaskTerminalForQueue } from '../queue-terminal-task-guard';
 import { recordTransition } from '../transition-recorder';
 
-import { resolveResumedTenureStart } from './resume-tenure';
+import { resolveResumedTenureStart, resolveAutoRunRestartTenureStart } from './resume-tenure';
 import { resolveCurrentTaskOutcome } from './auto-run-resolve-outcome';
 
 const log = createLogger('theme-auto-run-scheduler');
@@ -76,6 +77,10 @@ export async function advanceActiveTaskLocked(
   let tenureStart = lastRunAt ? new Date(lastRunAt).getTime() : Date.now();
   if (lastRunAt && Date.now() - tenureStart >= MAX_TASK_WALL_MS) {
     tenureStart = await resolveResumedTenureStart(prisma, currentTaskId, tenureStart);
+    // A paused theme freezes lastRunAt while accruing no work, so any pause
+    // longer than the wall fires the backstop 13 s after resuming (task 1116,
+    // 2026-10-06). Clamp to when auto-run actually restarted.
+    tenureStart = await resolveAutoRunRestartTenureStart(prisma, themeId, tenureStart);
   }
   const tenureMs = Date.now() - tenureStart;
   if (lastRunAt && tenureMs >= MAX_TASK_WALL_MS) {
@@ -130,14 +135,41 @@ export async function advanceActiveTaskLocked(
     // and picks the next one — auto-run sat "running" with a completed
     // current task and 9 runnable tasks untouched.
     const waitingUnstarted = neverExecuted && withinHardCeiling;
-    if (progressedRecently || executionIsLive || waitingUnstarted) {
+    // A task whose workflow already finished cannot be hung, and force-stopping
+    // it runs revertChanges and then demotes it — the backstop turns finished
+    // work into work to redo.
+    //
+    // Measured 2026-10-06: the backend was down for hours while ThemeAutoRun
+    // still pointed at task 1114, which had passed verify at 17:41 with its PR
+    // #833 merged at 17:51. On the first tick after the restart the tenure wall
+    // was long past (it counts real time, and downtime is real time), so the
+    // backstop fired on a COMPLETED task: 06:53 completed → blocked
+    // (auto_run_hang_backstop), 06:57 completed → draft (blocked_auto_retry),
+    // leaving it at status=todo with its work already merged and queued to be
+    // done a second time.
+    //
+    // Counting downtime is NOT the defect — a live task's agent process dies
+    // with the backend, so re-running that IS right. The defect is applying a
+    // hang verdict to a task with nothing left to run. The shared terminal
+    // predicate is reused so "terminal" cannot drift from the queue guards';
+    // verify_done joins it because that state is settled by the runner's own
+    // wait and the auto-merge watcher, never by dispatching an agent.
+    const settledTask = await prisma.task
+      .findUnique({ where: { id: currentTaskId }, select: { status: true, workflowStatus: true } })
+      .catch(() => null);
+    const workflowSettled =
+      !!settledTask &&
+      (isTaskTerminalForQueue(settledTask) || settledTask.workflowStatus === 'verify_done');
+    if (progressedRecently || executionIsLive || waitingUnstarted || workflowSettled) {
       log.info(
         `[ThemeAutoRunScheduler] Task ${currentTaskId} over tenure wall but ${
-          progressedRecently
-            ? `progressed ${Math.round(sinceProgressMs / 1000)}s ago`
-            : waitingUnstarted
-              ? 'has never executed (queue wait)'
-              : 'execution heartbeat is fresh'
+          workflowSettled
+            ? `its workflow already settled (status=${settledTask?.status}, workflow=${settledTask?.workflowStatus})`
+            : progressedRecently
+              ? `progressed ${Math.round(sinceProgressMs / 1000)}s ago`
+              : waitingUnstarted
+                ? 'has never executed (queue wait)'
+                : 'execution heartbeat is fresh'
         } — deferring hang backstop (theme ${themeId})`,
       );
     } else if (await requeueIfNeverExecuted(prisma, currentTaskId, themeId)) {

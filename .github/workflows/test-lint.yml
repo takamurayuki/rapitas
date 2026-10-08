@@ -20,6 +20,12 @@ jobs:
   test-backend:
     name: Test Backend
     runs-on: ubuntu-latest
+    # Hang backstop, not a constraint: 0.8m median / 1.1m max over the last ~20 runs.
+    # Two blocking checks hung in unrelated install steps on 2026-10-07 (apt,
+    # then a browser install) and held merges for 66 and 113 minutes against
+    # GitHub's 6-hour default, with no way out — cancelling a run makes it
+    # `cancelled`, which the pre-merge gate reads as failed.
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16
@@ -82,6 +88,12 @@ jobs:
     name: Full Suite (Advisory)
     runs-on: ubuntu-latest
     continue-on-error: true
+    # continue-on-error keeps a FAILURE advisory, but an unfinished job still
+    # holds the whole run at in_progress. On 2026-10-07 this job hung 54 minutes
+    # in its browser-install step and blocked PR #848's merge that way. 4.0m
+    # median / 6.4m max over the last 25 runs, so 20m bounds a hang without
+    # constraining a normal run.
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -159,6 +171,11 @@ jobs:
   test-order-check:
     name: Test Order Dependency Check
     runs-on: ubuntu-latest
+    # Same reason as test-full-advisory: continue-on-error stops a FAILURE from
+    # blocking, but an unfinished job holds the run at in_progress and the
+    # pre-merge gate waits on the run. 0.3m median / 0.4m max over the last 25
+    # runs, so 15m is purely a hang backstop.
+    timeout-minutes: 15
     # NOTE: continue-on-error keeps this job advisory (visibility only; does not block merges).
     # Escalation criterion: when `bun run test:shuffle` passes for 10 consecutive develop runs
     # with no seed-dependent failures, remove continue-on-error to enforce strict mode.
@@ -196,6 +213,12 @@ jobs:
   test-sqlite:
     name: Test SQLite Compatible Suite
     runs-on: ubuntu-latest
+    # Hang backstop, not a constraint: 0.5m median / 0.9m max over the last ~20 runs.
+    # Two blocking checks hung in unrelated install steps on 2026-10-07 (apt,
+    # then a browser install) and held merges for 66 and 113 minutes against
+    # GitHub's 6-hour default, with no way out — cancelling a run makes it
+    # `cancelled`, which the pre-merge gate reads as failed.
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -227,6 +250,12 @@ jobs:
   check-frontend:
     name: Check Frontend
     runs-on: ubuntu-latest
+    # Hang backstop, not a constraint: 1.9m median / 2.1m max over the last ~20 runs.
+    # Two blocking checks hung in unrelated install steps on 2026-10-07 (apt,
+    # then a browser install) and held merges for 66 and 113 minutes against
+    # GitHub's 6-hour default, with no way out — cancelling a run makes it
+    # `cancelled`, which the pre-merge gate reads as failed.
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -335,6 +364,12 @@ jobs:
   lint:
     name: Lint Code
     runs-on: ubuntu-latest
+    # Hang backstop, not a constraint: 3.1m median / 3.2m max over the last ~20 runs.
+    # Two blocking checks hung in unrelated install steps on 2026-10-07 (apt,
+    # then a browser install) and held merges for 66 and 113 minutes against
+    # GitHub's 6-hour default, with no way out — cancelling a run makes it
+    # `cancelled`, which the pre-merge gate reads as failed.
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -451,6 +486,13 @@ jobs:
     name: Check Rust Code
     runs-on: ubuntu-latest
 
+    # Blocking auto-merge check that runs the apt installer — the step that hung
+    # indefinitely on 2 of the last 40 tauri-build runs. 1.2m median / 15.0m max
+    # over the last 25 runs (cold rust cache). 45m so the installer's retry
+    # budget (2 x 600s) plus a cold-cache clippy run finishes inside the bound;
+    # being killed mid-retry would red a blocking check over an apt outage.
+    timeout-minutes: 45
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -464,6 +506,13 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './rapitas-desktop/src-tauri -> target'
+
+      # Guards the retry/timeout wrapper every ubuntu job depends on: an apt
+      # hang here used to hold a blocking auto-merge check for hours, and a
+      # wrapper that swallows apt's exit code would turn that into a green
+      # build. ~4s, and it runs before the installer it is testing.
+      - name: Test the system-dependency installer
+        run: node --test scripts/install-ci-system-deps.test.cjs
 
       - name: Install system dependencies
         run: |
@@ -488,6 +537,12 @@ jobs:
   rust-check-windows:
     name: Check Rust Code (Windows)
     runs-on: windows-latest
+    # Hang backstop, not a constraint: 1.8m median / 2.7m max over the last ~20 runs.
+    # Two blocking checks hung in unrelated install steps on 2026-10-07 (apt,
+    # then a browser install) and held merges for 66 and 113 minutes against
+    # GitHub's 6-hour default, with no way out — cancelling a run makes it
+    # `cancelled`, which the pre-merge gate reads as failed.
+    timeout-minutes: 20
     env:
       RUST_BACKTRACE: 1
 

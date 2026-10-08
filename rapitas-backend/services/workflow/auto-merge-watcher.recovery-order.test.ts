@@ -8,8 +8,11 @@
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
+// `logger` is mirrored for the same reason as ensureDatabaseConnection below.
+const noopLogger = { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} };
 mock.module('../../config/logger', () => ({
-  createLogger: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {} }),
+  createLogger: () => noopLogger,
+  logger: noopLogger,
 }));
 
 /** Ordered log of the tick's collaborators. / tick の呼び出し順ログ */
@@ -110,6 +113,11 @@ mock.module('../../config/database', () => ({
       updateMany: mock(() => Promise.resolve({ count: 1 })),
     },
   },
+  // config/index.ts re-exports this from './database'; omitting it makes that
+  // re-export fail to resolve and the file errors out before any test runs. It
+  // passed only because another test file in the same process mocked it more
+  // completely — bun's mock.module registry is process-global.
+  ensureDatabaseConnection: mock(async () => {}),
 }));
 
 const processed: number[] = [];

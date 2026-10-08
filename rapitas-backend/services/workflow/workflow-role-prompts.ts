@@ -13,6 +13,7 @@ import {
   QUESTION_FORMAT_GUIDANCE_JA,
   QUESTION_FORMAT_GUIDANCE_EN,
 } from './workflow-question-format-guidance';
+import { PRIMARY_CHECKOUT_GUIDANCE } from './primary-checkout-guidance';
 import { resolveAcceptanceCriteria } from '../agents/verification/acceptance-self-check';
 
 /** Researcher-role prompt texts. */
@@ -116,7 +117,8 @@ export function buildRoleTexts(
           '4. **中核的な仮定が不成立**の場合（例: 報告された不具合が再現しない、依頼が前提とする機能・状態が存在しない、既に別の形で解決済み）、plan/実装に進まず `## 結論: 修正不要` で終了し、根拠に「前提誤り: どの仮定がなぜ不成立か」を明記する。\n' +
           '5. 前提は崩れたが調査中に**実在する別の問題**を発見した場合は、その事実を前提監査に記録した上で、実在する問題の調査として続行する。',
         items:
-          '調査項目:\n- 既存コードの構造と依存関係\n- 変更が必要なファイルの特定\n- 類似機能の有無\n- リスクと影響範囲の評価',
+          '調査項目:\n- 既存コードの構造と依存関係\n- 変更が必要なファイルの特定\n- 類似機能の有無\n- リスクと影響範囲の評価\n' +
+          PRIMARY_CHECKOUT_GUIDANCE.ja.trimEnd(),
         output:
           '調査結果をresearch.mdとしてMarkdown形式でまとめてください。\n\n' +
           '出力整形: 見出しはテンプレートの形（例: `## 影響範囲分析`）のまま書き、`[...]` のプレースホルダ説明を見出しや本文に残さない（`## 影響範囲: [変更が及ぶファイル一覧]` のような見出しは不可）。類似コードのセクション見出しは「類似機能」を使う（「類似実装」ではなく）。\n\n' +
@@ -127,6 +129,8 @@ export function buildRoleTexts(
         instruction:
           '上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。\n\n' +
           '完了条件は implementer/verifier が許可されたツール操作（テスト実行・lint・型検査・自己検証API）だけで検証できるものに限定してください。稼働中バックエンドへの書き込み操作や本番相当環境での実測を完了条件として必須にしないでください。\n\n' +
+          PRIMARY_CHECKOUT_GUIDANCE.ja +
+          '\n' +
           '## 質問発火基準（question.md を保存する前に必ず確認）\n' +
           'plan→question→intake の往復（1サイクルあたり平均約17分のコスト）を避けるため、質問を保存する前に以下を確認する:\n' +
           '1. 1件のplan.mdにつき、質問は原則1ラウンドにまとめる（論点を小出しにして複数回に分けない）。\n' +
@@ -176,7 +180,8 @@ export function buildRoleTexts(
           '- **plan.md チェックリストの全件照合（完了宣言の条件、差し戻し最多要因）**: plan.md がある場合、終了前にチェックリストの各項目（特に「テスト」「統合テスト」「〜のテストを追加」の項目）を1つずつ「実装済み / 未実施」で照合し、**未実施が1件でも残る間は終了しない**でください。検証者は未実施の計画項目が1件でも残れば `⚠️ 一部失敗` で差し戻します（2026-09-14〜20 の差し戻し 96 件の大半がこれです）。計画項目が不可能・不適切だと判断した場合は黙って省略せず、question.md で計画の改訂を求めてください。最終サマリに「plan チェックリスト照合: N/N 実装済み」の1行を必ず含めてください。\n' +
           '- 実装が完了したら、変更内容のサマリ (どのファイルを何のために変えたか) を最後のメッセージに残して終了してください。Rapitas が後段で verify.md を自動生成します。\n' +
           '- **テスト検証はファイル単位** (`bun test <1ファイル>`) で行ってください。bun の `mock.module` は**プロセスグローバル**なので、同じモジュールを mock する複数のテストファイルを**同時実行すると mock が衝突して偽の失敗**になります。これは bun の制約でありコードのバグではありません。**各ファイルが単体で通れば十分**です。複数テストファイルを「同時に通す」ためにモックの順序変更や beforeAll 化を延々と試みないでください（解決不能であり、時間を浪費します）。\n' +
-          '- **純粋関数・ユーティリティを単体で試したい場合、アドホックな検証スクリプトではなく既存/新規の `*.test.ts` を使ってください**: worktree内で `mkdir`/`cat > ...<<EOF` 等によるアドホックな検証スクリプトの作成や、それに伴うパッケージインストールの試行は禁止します。既存の `*.test.ts` に対象関数を直接importするテストが無いか確認し、無ければ最小限の `*.test.ts` を新規作成して `bun test --isolate <1ファイル>` で検証してください。',
+          '- **純粋関数・ユーティリティを単体で試したい場合、アドホックな検証スクリプトではなく既存/新規の `*.test.ts` を使ってください**: worktree内で `mkdir`/`cat > ...<<EOF` 等によるアドホックな検証スクリプトの作成や、それに伴うパッケージインストールの試行は禁止します。既存の `*.test.ts` に対象関数を直接importするテストが無いか確認し、無ければ最小限の `*.test.ts` を新規作成して `bun test --isolate <1ファイル>` で検証してください。\n' +
+          PRIMARY_CHECKOUT_GUIDANCE.ja.trimEnd(),
       },
       verifier: {
         planHeader: '# 実装計画 (plan.md)',
@@ -184,6 +189,7 @@ export function buildRoleTexts(
         instruction:
           verificationEvidencePrompt(language) +
           shellExitCodeSafetyRule(language) +
+          PRIMARY_CHECKOUT_GUIDANCE.ja +
           '上記の計画と実装結果を検証し、verify.mdとしてMarkdown形式でレポートを作成してください。\n\n' +
           '計画チェックリストの消化状況、テスト結果、品質メトリクスを含めてください。\n\n' +
           '## 検証フェーズの厳守事項\n' +
@@ -245,7 +251,8 @@ export function buildRoleTexts(
           '4. If a CORE assumption does not hold (the reported bug does not reproduce; the feature/state the request presumes does not exist; it is already solved another way), do NOT proceed to plan/implementation — finish with `## Conclusion: No change needed` and state "false premise: which assumption failed and why".\n' +
           '5. If the premise fails but you discover a REAL different problem, record that in the audit and continue investigating the real problem.',
         items:
-          'Investigation items:\n- Existing code structure and dependencies\n- Identification of files that need changes\n- Presence of similar existing features\n- Risk assessment and impact analysis',
+          'Investigation items:\n- Existing code structure and dependencies\n- Identification of files that need changes\n- Presence of similar existing features\n- Risk assessment and impact analysis\n' +
+          PRIMARY_CHECKOUT_GUIDANCE.en.trimEnd(),
         output:
           'Please summarize the research results as research.md in Markdown format.\n\n' +
           'Formatting: keep headings in their template form (e.g. `## 影響範囲分析`) — never leave `[...]` placeholder notes in headings or body (a heading like `## 影響範囲: [list of affected files]` is invalid). Use 「類似機能」 as the similar-code section heading (not 「類似実装」).\n\n' +
@@ -256,6 +263,8 @@ export function buildRoleTexts(
         instruction:
           'Based on the research results above, please create an implementation plan as plan.md in Markdown format.\n\nDescribe implementation steps in checklist format, including a list of files to be changed, risk assessment, and completion criteria.\n\n' +
           'Completion criteria must be verifiable using only tool operations the implementer/verifier are permitted to run (tests, lint, type-check, self-verification APIs). Do not require write operations against a live backend or measurements in a production-equivalent environment as a completion criterion.\n\n' +
+          PRIMARY_CHECKOUT_GUIDANCE.en +
+          '\n' +
           '## Question-firing criteria (check BEFORE saving question.md)\n' +
           'To avoid the plan→question→intake round trip (each cycle costs roughly 17 minutes on average), verify all of the following before saving a question:\n' +
           '1. For a given plan.md, bundle all open issues into ONE round of questions — do not raise them piecemeal across multiple saves.\n' +
@@ -302,7 +311,8 @@ export function buildRoleTexts(
           '- **Reconcile every plan.md checklist item before finishing (the most common cause of repair bounces)**: when plan.md exists, go through each checklist item — especially test / integration-test / "add tests for …" items — and mark it done or not done. **Do not finish while any item is not done**: the verifier returns `⚠️ Partial` for a single unfinished plan item (most of the 96 bounces in the week to 2026-09-20). If an item is impossible or wrong, do not skip it silently — request a plan revision via question.md. End your final summary with one line: "plan checklist: N/N done".\n' +
           '- Once implementation is done, leave a short summary (which files changed and why) as your final message and exit. Rapitas auto-generates verify.md downstream.\n' +
           "- **Verify tests PER FILE** (`bun test <one-file>`). Bun's `mock.module` is PROCESS-GLOBAL, so two test files that mock the same module conflict and produce FALSE failures when run together. That is a bun limitation, not a code bug. **Each file passing in isolation is sufficient.** Do NOT keep reordering mocks or moving imports into beforeAll trying to make multiple test files pass together — it is unsolvable and wastes time.\n" +
-          '- **To try out a pure function or utility in isolation, use an existing or new `*.test.ts` file — never an ad-hoc script**: do not create ad-hoc verification scripts (`mkdir`/heredoc) or attempt package installs inside the worktree for this. Check whether an existing `*.test.ts` already imports the target function directly; if not, add a minimal `*.test.ts` and verify with `bun test --isolate <file>`.',
+          '- **To try out a pure function or utility in isolation, use an existing or new `*.test.ts` file — never an ad-hoc script**: do not create ad-hoc verification scripts (`mkdir`/heredoc) or attempt package installs inside the worktree for this. Check whether an existing `*.test.ts` already imports the target function directly; if not, add a minimal `*.test.ts` and verify with `bun test --isolate <file>`.\n' +
+          PRIMARY_CHECKOUT_GUIDANCE.en.trimEnd(),
       },
       verifier: {
         planHeader: '# Implementation Plan (plan.md)',
@@ -310,6 +320,7 @@ export function buildRoleTexts(
         instruction:
           verificationEvidencePrompt(language) +
           shellExitCodeSafetyRule(language) +
+          PRIMARY_CHECKOUT_GUIDANCE.en +
           'Please verify the implementation plan and results above, and create a report as verify.md in Markdown format.\n\n' +
           'Include the completion status of the plan checklist, test results, and quality metrics.\n\n' +
           '## Verification phase strict rules\n' +

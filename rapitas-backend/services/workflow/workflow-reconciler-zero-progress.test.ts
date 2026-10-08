@@ -10,7 +10,8 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { ZERO_PROGRESS_THRESHOLD_MS } from './queue-stall-policy';
 
-const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
+const warnMock = mock((..._args: unknown[]) => {});
+const noopLogger = { info: () => {}, warn: warnMock, error: () => {}, debug: () => {} };
 
 interface ThemeRow {
   themeId: number;
@@ -20,6 +21,9 @@ interface ThemeRow {
 
 const findByStatusesMock = mock(() => Promise.resolve([] as ThemeRow[]));
 const countMock = mock(() => Promise.resolve(0));
+const findFirstMock = mock(() =>
+  Promise.resolve(null as { createdAt: Date; status: string } | null),
+);
 const notifyZeroProgressWhileRunningMock = mock(() => Promise.resolve());
 const logCycleEventMock = mock(() => {});
 
@@ -29,7 +33,7 @@ mock.module('../../config/logger', () => ({
   createLogger: () => noopLogger,
 }));
 mock.module('../../config/database', () => ({
-  prisma: { agentExecution: { count: countMock } },
+  prisma: { agentExecution: { count: countMock, findFirst: findFirstMock } },
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
 mock.module('./auto-run/theme-auto-run-service', () => ({
@@ -89,6 +93,8 @@ function primeRunningTheme(currentTaskId: number | null, themeId = 1): void {
 beforeEach(() => {
   findByStatusesMock.mockReset().mockResolvedValue([]);
   countMock.mockReset().mockResolvedValue(0);
+  findFirstMock.mockReset().mockResolvedValue(null);
+  warnMock.mockReset();
   notifyZeroProgressWhileRunningMock.mockReset().mockResolvedValue(undefined);
   logCycleEventMock.mockReset();
   resetZeroProgressTracker();
@@ -96,6 +102,36 @@ beforeEach(() => {
 });
 
 describe('detectZeroProgressWhileRunning', () => {
+  // 2026-10-06 20:18Z: the alarm fired with only {themeId, taskId, elapsedMinutes}, so
+  // "never ran" could not be told apart from "ran, then stopped" (e.g. a worktree reclaim).
+  test('警報ログに直近の実行の有無・時刻・状態を含める', async () => {
+    primeRunningTheme(1147);
+    const lastAt = new Date(NOW - 3_600_000);
+    findFirstMock.mockResolvedValue({ createdAt: lastAt, status: 'cancelled' });
+
+    await detectZeroProgressWhileRunning(NOW);
+    expect(await detectZeroProgressWhileRunning(NOW + ZERO_PROGRESS_THRESHOLD_MS)).toBe(1);
+    expect(warnMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: 1147,
+        lastExecutionAt: lastAt.toISOString(),
+        lastExecutionStatus: 'cancelled',
+      }),
+      '[reconciler] Zero-progress spin detected — theme running with no executions',
+    );
+  });
+
+  test('実行履歴が一度も無ければ lastExecutionAt は null', async () => {
+    primeRunningTheme(1147);
+
+    await detectZeroProgressWhileRunning(NOW);
+    await detectZeroProgressWhileRunning(NOW + ZERO_PROGRESS_THRESHOLD_MS);
+    expect(warnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ lastExecutionAt: null, lastExecutionStatus: null }),
+      expect.any(String),
+    );
+  });
+
   // 2026-09-27: currentTaskId=null を「計測対象外」として捨てていたため、
   // status=running / 選定なしのまま 4 時間 15 分前進しない状態を誰も報告できなかった。
   // このパスでは実行数を数えず(実行主体が無いので意味がない)、その状態専用の

@@ -21,7 +21,6 @@ import { isPublicationOnlyPartial } from './publication-only-partial';
 import { stripNonEvidenceRegions, collectNonpassingRows } from './verify-scan-text';
 import { quoteEvidenceLine } from './verify-repeat-evidence';
 import { isRunnerExitFailureLine } from './verify-exit-signal';
-import { contradictionRewordHint } from './verify-contradiction-hint';
 
 export interface ValidationResult {
   ok: boolean;
@@ -64,6 +63,10 @@ const VERIFY_REQUIRED_SECTIONS: (string | string[])[] = [
   'チェックリスト',
   ['検証結果サマリ', '検証結果', '検証サマリ', '総合評価', '実装結果検証', '検証レポート'],
 ];
+
+// `| file | 変更種別 | 説明 |` row: a ❌ in the description narrates the change, not a result.
+const CHANGED_FILE_ROW =
+  /^\s*\|[^|]*\|\s*(?:新規|変更|修正|削除|追加|new|modified?|changed?|deleted?|added)\s*\|/i;
 
 /**
  * Patterns that NEVER appear in a legitimate workflow artifact — their presence
@@ -186,7 +189,6 @@ export function validateVerify(content: string): ValidationResult {
   const sectionResult = validateSections(content, VERIFY_REQUIRED_SECTIONS, 'verify.md');
   if (!sectionResult.ok) return sectionResult;
 
-  const lower = content.toLowerCase();
   // Contradiction scanning runs on the stripped text so repair-feedback quotes
   // and ```text (deliberate-RED evidence) fences cannot fake a failure signal.
   const scanText = stripNonEvidenceRegions(content);
@@ -280,7 +282,11 @@ export function validateVerify(content: string): ValidationResult {
   // instead of a ❌ row still tripped the gate (task 943, attempts 1 and 2).
   const isExemptFailureLine = (line: string): boolean =>
     (documentsOutOfScopeEscalation && attributesFailureOutOfScope(line)) ||
-    isHistoricalBaselineComparison(line);
+    isHistoricalBaselineComparison(line) ||
+    // Same rule the ❌ scan applies (task 1112): "fixed 3 failed tests" in a
+    // changed-file row says what was repaired, not that 3 tests fail. Skipping it
+    // there but not here reproduced the false positive 1112 had just closed.
+    CHANGED_FILE_ROW.test(line);
 
   // Each hit quotes its line («…», see verify-repeat-evidence.ts): the repair
   // loop compares the quotes across rounds to spot the identical finding being
@@ -301,6 +307,7 @@ export function validateVerify(content: string): ValidationResult {
     // bounced for "> 自動検証ゲートの「acceptance」チェックは…❌2件を報告しているが…
     // 機械判定の抽出精度の限界であり、実装上の欠落ではない。" — a dismissal note.
     if (/^\s*>/.test(line)) return false;
+    if (CHANGED_FILE_ROW.test(line)) return false;
     if (isPendingPublicationRow(line)) return false;
     if (/❌\s*(?:の)?\s*(?:場合|とき|時|なら|ならば|であれば|if\b)/i.test(line)) return false;
     if (/[(（]\s*❌\s*[)）]/.test(line)) return false;
@@ -371,16 +378,14 @@ export function validateVerify(content: string): ValidationResult {
   }
 
   if (claimsAllPass && failureHits.length > 0) {
-    const quoted = failureHits.slice(0, 3);
-    const evidence = quoted.join(' | ');
+    const evidence = failureHits.slice(0, 3).join(' | ');
     return {
       ok: false,
       missingSections: [],
       severity: 80,
       summary:
         `verify.md self-contradicts: claims all tests pass while body contains failure signals (${evidence}). ` +
-        `Verifier likely hallucinated success — re-run with stricter test-honesty prompt.` +
-        contradictionRewordHint(quoted),
+        `Verifier likely hallucinated success — re-run with stricter test-honesty prompt.`,
     };
   }
 
@@ -389,7 +394,18 @@ export function validateVerify(content: string): ValidationResult {
   // broken implementation.
   // Accept the common verdicts the verifier actually writes, JP + EN. The ❌
   // anchor on the Japanese verdicts avoids false positives like "不合格項目: なし".
-  if (/❌\s*(検証失敗|不合格|不適合)|❌\s*verification\s*fail|verify[: ]\s*fail/i.test(lower)) {
+  // Per line; skip blockquotes (a past verdict quoted as a note, #1110) and changed-file rows.
+  const explicitFailureVerdictRegex =
+    /❌\s*(検証失敗|不合格|不適合)|❌\s*verification\s*fail|verify[: ]\s*fail/i;
+  const hasNonpassingLine = scanText
+    .split(/\r?\n/)
+    .some(
+      (line) =>
+        !/^\s*>/.test(line) &&
+        !CHANGED_FILE_ROW.test(line) &&
+        explicitFailureVerdictRegex.test(line),
+    );
+  if (hasNonpassingLine) {
     return {
       ok: false,
       missingSections: [],

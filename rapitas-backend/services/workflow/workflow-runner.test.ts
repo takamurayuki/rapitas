@@ -340,7 +340,7 @@ describe('WorkflowRunner — processQueue timing instrumentation', () => {
     await withFakeElapsed(1500, () => internal.processQueue());
 
     expect(warnMock).toHaveBeenCalledWith(
-      { dequeuedCount: 1, tookMs: 1500 },
+      { dequeuedCount: 1, tookMs: 1500, taskIds: [QUEUE_ITEM.taskId] },
       'Slow queue processing',
     );
   });

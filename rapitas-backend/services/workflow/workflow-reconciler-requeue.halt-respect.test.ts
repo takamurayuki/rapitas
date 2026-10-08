@@ -56,3 +56,21 @@ describe('reconciler requeue は haltReason 付きタスクを対象にしない
     expect(arg.where.haltReason).toBeNull();
   });
 });
+
+describe('requeueBlockedTasks は完了済みワークフローを draft に戻さない (task 1125)', () => {
+  test('workflowStatus=completed の blocked タスクは status=done へ復元し draft にしない', async () => {
+    mockPrisma.task.findMany.mockResolvedValueOnce([{ id: 1114, workflowStatus: 'completed' }]);
+    (mockPrisma as Record<string, unknown>).activityLog = {
+      findFirst: mock(() => Promise.resolve(null)),
+    };
+    mockPrisma.task.update.mockClear();
+
+    await requeueBlockedTasks(NOW);
+
+    const updates = (mockPrisma.task.update.mock.calls as unknown[][]).map(
+      (c) => (c[0] as { data: Record<string, unknown> }).data,
+    );
+    expect(updates.some((d) => d.workflowStatus === 'draft')).toBe(false);
+    expect(updates.some((d) => d.status === 'done')).toBe(true);
+  });
+});

@@ -121,6 +121,22 @@ describe('evaluatePreMergeGate — PR-risk step', () => {
     expect(g.riskCalls[0]).toEqual(['/repo', 3, 'merge', { taskId: null, agentAuthored: true }]);
   });
 
+  // task 1145: the gate must hand the blocking-check set down, or the
+  // required-workflow check keeps its stricter run-level judgement and an
+  // advisory job that hangs still blocks the merge.
+  it('forwards the blocking-check set to the required-workflow check', async () => {
+    const seen: (Set<string> | undefined)[] = [];
+    const g = gateDeps({
+      checkWorkflows: async (_cwd, _pr, _deps, blocking) => {
+        seen.push(blocking);
+        return { complete: true, waiting: [] };
+      },
+    });
+    const blocking = new Set(['Lint Code']);
+    await evaluatePreMergeGate('/repo', 3, { localRatchet: true, blocking }, g.deps);
+    expect(seen[0]).toBe(blocking);
+  });
+
   it('returns risk_hold with the risk detail when the risk step holds', async () => {
     const g = gateDeps({ evaluateRisk: async () => ({ hold: true, detail: 'risk 90.0%' }) });
     expect(await evaluatePreMergeGate('/repo', 3, { localRatchet: true }, g.deps)).toEqual({

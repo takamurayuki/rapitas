@@ -102,7 +102,15 @@ const mockPrisma = {
     updateMany: mockTaskComplete,
   },
 };
-mock.module('../../config/database', () => ({ prisma: mockPrisma }));
+// NOTE: config/index.ts re-exports ensureDatabaseConnection from './database',
+// so a mock carrying only `prisma` makes that re-export fail to resolve and the
+// file errors out before any test runs. It passed only because another test
+// file in the same process mocked it more completely — bun's mock.module
+// registry is process-global — so running this file alone reported "0 pass".
+mock.module('../../config/database', () => ({
+  prisma: mockPrisma,
+  ensureDatabaseConnection: mock(async () => {}),
+}));
 
 // NOTE (task 865): the real file moved to git-operations/pr/branch-pr-ops.ts;
 // the old path here silently created a SEPARATE (never-consulted) module
@@ -113,8 +121,11 @@ mock.module('../agents/orchestrator/git-operations/pr/branch-pr-ops', () => ({
   mergePullRequest: mockMerge,
 }));
 
+// `logger` is mirrored for the same reason as ensureDatabaseConnection above.
+const noopLogger = { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} };
 mock.module('../../config/logger', () => ({
-  createLogger: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {} }),
+  createLogger: () => noopLogger,
+  logger: noopLogger,
 }));
 
 const { AutoMergeWatcher } = await import('./auto-merge-watcher');
@@ -231,6 +242,12 @@ describe('AutoMergeWatcher — post-merge local mirror sync', () => {
   test('merges when the gate passes, asking for the local ratchet only in merge mode', async () => {
     await getProcess()(candidate, new Set(['Lint Code']));
     expect(mockMerge).toHaveBeenCalledTimes(1);
-    expect(mockGate.mock.calls[0]).toEqual(['/repo/tripla', 6, { localRatchet: true }]);
+    // task 1145: the blocking set rides along so the gate's required-workflow
+    // check can ignore a run held open only by an advisory job.
+    expect(mockGate.mock.calls[0]).toEqual([
+      '/repo/tripla',
+      6,
+      { localRatchet: true, blocking: new Set(['Lint Code']) },
+    ]);
   });
 });

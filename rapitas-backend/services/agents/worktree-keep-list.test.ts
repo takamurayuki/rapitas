@@ -55,6 +55,15 @@ describe('parseTaskIdFromWorktreeName', () => {
 });
 
 describe('computeWorktreeKeepPaths', () => {
+  test('done/cancelledタスクは終端として扱い、生存クエリのnotInに含める', async () => {
+    dirNames = ['task-100-bbbb'];
+
+    await computeWorktreeKeepPaths('C:/repo');
+    const where = taskFindMany.mock.calls[0][0].where as { status: { notIn: string[] } };
+    expect(where.status.notIn).toContain('done');
+    expect(where.status.notIn).toContain('cancelled');
+  });
+
   test('非終端タスク(blocked含む)のworktreeは保護、終端/不存在は保護しない', async () => {
     dirNames = ['task-494-aaaa', 'task-100-bbbb', 'task-999-cccc'];
     liveTaskIds = [494]; // 100=completed想定(クエリが返さない), 999=不存在

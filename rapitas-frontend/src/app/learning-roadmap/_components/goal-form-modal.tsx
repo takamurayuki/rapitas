@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Milestone } from 'lucide-react';
 import { Modal } from '@/components/ui/modal/Modal';
+import DateField from '@/components/ui/date-field/DateField';
 import type { StudyGoal, StudyGoalDraft, StudyGoalType } from './roadmap.types';
 
 interface GoalFormModalProps {
@@ -141,10 +142,10 @@ export function GoalFormModal({ goal, onSave, onClose }: GoalFormModalProps) {
             <span className={labelCls}>
               {draft.type === 'exam' ? t('examDate') : t('deadline')}
             </span>
-            <input
-              type="date"
+            <DateField
               value={draft.deadline}
-              onChange={(e) => patch({ deadline: e.target.value })}
+              onChange={(value) => patch({ deadline: value })}
+              aria-label={draft.type === 'exam' ? t('examDate') : t('deadline')}
               className={inputCls}
             />
           </label>

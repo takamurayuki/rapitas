@@ -12,6 +12,8 @@
  */
 
 export const SUPPRESSED: [string, string][] = [
+  // Task 1149: a stop won the race against result persistence (execution-persistence.ts).
+  ['execution-file-logger', '[ExecLog:#] Execution result ignored after cancellation'],
   [
     'execution-file-logger',
     "【Prompt Too Long】Claude Code CLI reported the prompt/context was too long (exit code #). The session's accumulated transcript has likely exceeded the model's context window — resuming this same session via --resume will very likely repeat this failure. Cold-start with a short structured handoff instead.",
@@ -22,6 +24,14 @@ export const SUPPRESSED: [string, string][] = [
   ],
   ['git-service', 'Refusing to switch to branch feature/t#-x in the PRIMARY git working tree'],
   ['git-service', 'Refusing to create a commit: could not determine the worktree type'],
+  [
+    'git-operations/revert-ops',
+    '[revertChanges] Refusing to hard-revert the PRIMARY working tree — this would destroy uncommitted developer work. Agent changes (if any) are left in place; isolate agent runs in a worktree instead.',
+  ],
+  // The filer announcing its own success. The guard incident is already a
+  // concern of its own (that one became task 1132); filing the announcement too
+  // raised task 1144 for the same 2026-10-06 19:26:41 event.
+  ['workflow:guard-incident-filer', 'Guard incident filed as concern'],
   [
     'workflow',
     '[mergeBranch] primary working tree — skipping local checkout+pull sync to protect develop',
@@ -110,6 +120,7 @@ export const SUPPRESSED: [string, string][] = [
     '[Claude Code] OUTPUT IDLE HANG DETECTED: No output for #s after producing # chars. Force-killing hung process.',
   ],
   ['codex-cli-agent', 'Command failed: taskkill /PID # /T /F'],
+  ['routes:cli-tools:routes', 'Command failed: winget upgrade OpenJS.NodeJS.LTS'],
   ['gemini-cli-agent:process-manager', 'Command failed: taskkill /PID # /T /F'],
   [
     'git-operations/worktree-ops',
@@ -144,9 +155,29 @@ export const SUPPRESSED: [string, string][] = [
   // Task 1050: generateForTheme() catches the CLI timeout and continues
   // with the next theme (innovation-session.ts:242-253).
   ['memory:innovation-session', 'Claude CLI timed out after #ms'],
+  // Task 1145: verify gate honoring a fresh rejection (verify-gate.ts:74-77).
+  [
+    'workflow-cli-executor',
+    '[WorkflowCLIExecutor] Verify was rejected by a fresh gate rejection — honoring it and skipping the completion epilogue',
+  ],
+  [
+    'workflow-runner',
+    '[WorkflowRunner] Task # cancelled — requeued: Workflow preparation cancelled: execution lock ownership was revoked',
+  ],
 ];
 
 export const KEPT: [string, string][] = [
+  // Task 1149: the unconfirmed-cancellation failure and other loggers must stay visible.
+  [
+    'execution-file-logger',
+    '[ExecLog:#] Execution result was not saved; cancellation could not be confirmed',
+  ],
+  ['workflow', '[ExecLog:#] Execution result ignored after cancellation'],
+  // Task 1145: sibling WARN from the same logger must stay visible.
+  [
+    'workflow-cli-executor',
+    '[WorkflowCLIExecutor] Verify passed but no PR — blocking (completion requires a PR).',
+  ],
   [
     'claude-code',
     '【Prompt Too Long】Claude Code CLI reported the prompt/context was too long (exit code #).',
@@ -198,4 +229,11 @@ export const KEPT: [string, string][] = [
   // Same CLI timeout wording from a different caller (e.g. task-spec-deriver,
   // K-8927/K-5946) is not covered by this logger-scoped rule.
   ['task-spec-deriver', 'Claude CLI timed out after #ms'],
+  // Same wording from another logger is not this rule's business (task 1148).
+  [
+    'some-other-logger',
+    '[WorkflowRunner] Task # cancelled — requeued: Workflow preparation cancelled: execution lock ownership was revoked',
+  ],
+  // Other WARNs from the same logger stay visible (task 1148).
+  ['workflow-runner', '[WorkflowRunner] Phase failed for task #: Execution cancelled'],
 ];

@@ -30,7 +30,11 @@ mock.module('../../config/database', () => ({
   prisma: {
     task: { findUnique: taskFindUniqueMock },
     agentExecution: { findFirst: executionFindFirstMock },
-    workflowQueueItem: { findFirst: queueItemFindFirstMock },
+    workflowQueueItem: {
+      // findMany shim: single-row fixtures (legacy tests) or an explicit array.
+      findMany: (args: unknown) =>
+        queueItemFindFirstMock(args).then((r) => (Array.isArray(r) ? r : r ? [r] : [])),
+    },
     notification: { findFirst: notificationFindFirstMock },
     gitHubPullRequest: { findFirst: prFindFirstMock },
     activityLog: { findFirst: activityLogFindFirstMock },
@@ -170,6 +174,7 @@ describe('gatherSupervisorEvidence', () => {
       executionCwdLine: null,
       failureMarkedAtMs: null,
       failureMarkSource: null,
+      recoveryAtMs: null,
       successArtifactAtMs: null,
       successArtifactRef: null,
       backstopAtMs: null,
@@ -207,7 +212,12 @@ describe('gatherSupervisorEvidence', () => {
   test('gate C: no backstop notification → the progress transition is never queried', async () => {
     queueItemFindFirstMock.mockResolvedValue({ completedAt: new Date(NOW), status: 'failed' });
     const ev = await gatherSupervisorEvidence(task);
-    expect(transitionFindFirstMock).not.toHaveBeenCalled();
+    // NOTE: the recovery lookup (cause in [...]) also reads transitions now; only the
+    // phase_completed progress lookup must stay gated on a backstop.
+    const progressCalls = transitionFindFirstMock.mock.calls.filter((c) =>
+      JSON.stringify(c[0]).includes('phase_completed:'),
+    );
+    expect(progressCalls).toHaveLength(0);
     expect(ev.lastProgressAtMs).toBeNull();
   });
 
@@ -263,5 +273,106 @@ describe('gatherSupervisorEvidence', () => {
     expect(ev.themeWorkingDirectory).toBeNull();
     // The queue-item query still contributed its failure mark.
     expect(ev.failureMarkedAtMs).toBe(NOW);
+  });
+
+  test('a benign cancelled item (halt park / sweep) is not a failure mark (#1126)', async () => {
+    queueItemFindFirstMock.mockResolvedValue([
+      {
+        completedAt: new Date(NOW),
+        status: 'cancelled',
+        errorMessage:
+          "Task 580 is halted (iteration_budget) — parked before dispatching phase 'plan'. Release the halt to resume.",
+      },
+    ]);
+    const ev = await gatherSupervisorEvidence(task);
+    expect(ev.failureMarkedAtMs).toBeNull();
+    expect(ev.failureMarkSource).toBeNull();
+  });
+
+  test('skips a newer benign cancel and keeps the older real failed item', async () => {
+    queueItemFindFirstMock.mockResolvedValue([
+      {
+        completedAt: new Date(NOW + 5_000),
+        status: 'cancelled',
+        errorMessage:
+          'タスクは既に終端状態のため、残留キュー項目を自動キャンセルしました（定期スイープ）',
+      },
+      { completedAt: new Date(NOW), status: 'failed', errorMessage: 'boom' },
+    ]);
+    const ev = await gatherSupervisorEvidence(task);
+    expect(ev.failureMarkedAtMs).toBe(NOW);
+    expect(ev.failureMarkSource).toBe('WorkflowQueueItem(failed).completedAt');
+  });
+
+  test('an unknown cancelled message still counts as a failure mark', async () => {
+    queueItemFindFirstMock.mockResolvedValue([
+      { completedAt: new Date(NOW), status: 'cancelled', errorMessage: null },
+    ]);
+    const ev = await gatherSupervisorEvidence(task);
+    expect(ev.failureMarkedAtMs).toBe(NOW);
+  });
+
+  test('reports the recovery transition read after the failure mark', async () => {
+    queueItemFindFirstMock.mockResolvedValue({ completedAt: new Date(NOW), status: 'failed' });
+    prFindFirstMock.mockResolvedValue({
+      createdAt: new Date(NOW + 60_000),
+      prNumber: 7,
+      url: 'https://example.test/pull/7',
+    });
+    transitionFindFirstMock.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: { in?: string[] } } }).where;
+      return Promise.resolve(where.cause.in ? { createdAt: new Date(NOW + 20_000) } : null);
+    });
+    const ev = await gatherSupervisorEvidence(task);
+    expect(ev.recoveryAtMs).toBe(NOW + 20_000);
+  });
+
+  test('the recovery lookup is bounded by the success time so a later retry cannot shadow it', async () => {
+    queueItemFindFirstMock.mockResolvedValue({ completedAt: new Date(NOW), status: 'failed' });
+    prFindFirstMock.mockResolvedValue({
+      createdAt: new Date(NOW + 60_000),
+      prNumber: 7,
+      url: 'https://example.test/pull/7',
+    });
+    transitionFindFirstMock.mockResolvedValue(null);
+    await gatherSupervisorEvidence(task);
+    const recoveryCall = transitionFindFirstMock.mock.calls
+      .map(
+        (c) =>
+          c[0] as { where: { createdAt?: { gte: Date; lte: Date }; cause: { in?: string[] } } },
+      )
+      .find((a) => a.where.cause.in);
+    expect(recoveryCall?.where.createdAt?.gte.getTime()).toBe(NOW - 500);
+    expect(recoveryCall?.where.createdAt?.lte.getTime()).toBe(NOW + 60_000);
+  });
+
+  test('a phase_completed:* transition after the mark counts as a recovery (#1116)', async () => {
+    queueItemFindFirstMock.mockResolvedValue({ completedAt: new Date(NOW), status: 'failed' });
+    prFindFirstMock.mockResolvedValue({
+      createdAt: new Date(NOW + 522_000),
+      prNumber: 836,
+      url: 'https://example.test/pull/836',
+    });
+    transitionFindFirstMock.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: { in?: string[]; startsWith?: string } } }).where;
+      return Promise.resolve(
+        where.cause.startsWith === 'phase_completed:'
+          ? { createdAt: new Date(NOW + 248_000) }
+          : null,
+      );
+    });
+    const ev = await gatherSupervisorEvidence(task);
+    expect(ev.recoveryAtMs).toBe(NOW + 248_000);
+  });
+
+  test('no recovery lookup runs when there is no success artifact yet', async () => {
+    queueItemFindFirstMock.mockResolvedValue({ completedAt: new Date(NOW), status: 'failed' });
+    const ev = await gatherSupervisorEvidence(task);
+    expect(ev.recoveryAtMs).toBeNull();
+    expect(
+      transitionFindFirstMock.mock.calls.filter((c) =>
+        JSON.stringify(c[0]).includes('reconciler_requeue'),
+      ),
+    ).toHaveLength(0);
   });
 });

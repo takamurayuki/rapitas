@@ -123,6 +123,50 @@ export function formatProgressLine(
 }
 
 /**
+ * Whether a file executed ZERO tests — a coverage hole, not a failed assertion.
+ *
+ * The usual cause is an import that cannot resolve: `mock.module` replaces the
+ * whole module record, so one omitted export makes the whole file error out
+ * before any test runs. bun reports that as "0 pass / 1 fail / 1 error", which
+ * is indistinguishable from a single bad assertion once it is folded into a
+ * 1141-file failure count — five files were in that state on 2026-10-07, hiding
+ * 29 tests. Reported separately so the summary line names it.
+ *
+ * Returns false when the output carries no recognisable tally at all: that is
+ * "unknown" (a spawn failure or a timeout), and mislabelling it as a load error
+ * would send the reader to the wrong cause.
+ *
+ * @param stdout - The subprocess stdout. / 子プロセスの標準出力
+ * @param stderr - The subprocess stderr. / 子プロセスの標準エラー
+ * @returns true when bun reported zero passing tests. / 1件も走っていない場合 true
+ */
+export function ranNoTests(stdout: string, stderr: string): boolean {
+  // bun prints the tally as " 0 pass" on its own line. Anchoring to a line start
+  // keeps " 10 pass" / " 20 pass" from matching.
+  return /(?:^|\n)[ \t]*0 pass\b/.test(`${stdout}\n${stderr}`);
+}
+
+/**
+ * Build the one-line run summary.
+ *
+ * @param passedCount - Files whose subprocess exited 0. / 成功ファイル数
+ * @param failedCount - Files whose subprocess exited non-zero. / 失敗ファイル数
+ * @param notRunCount - Of those, how many ran no tests at all. / うち未実行ファイル数
+ * @param wallMs - Wall-clock duration. / 実時間（ミリ秒）
+ * @returns The summary line. / 集計行
+ */
+export function formatSummaryLine(
+  passedCount: number,
+  failedCount: number,
+  notRunCount: number,
+  wallMs: number,
+): string {
+  const notRun =
+    notRunCount > 0 ? ` (${notRunCount} ran NO tests — import/mock error, not an assertion)` : '';
+  return `[parallel-test] ${passedCount} passed, ${failedCount} failed${notRun} in ${(wallMs / 1000).toFixed(1)}s`;
+}
+
+/**
  * Runs one test file in a subprocess and returns the buffered result.
  * Spawn failure is reported as exit code 1 rather than throwing.
  *
@@ -266,11 +310,20 @@ async function main(): Promise<void> {
   const wallMs = performance.now() - wallStart;
   const failedResults = results.filter((r) => r.exitCode !== 0);
   const passedCount = results.length - failedResults.length;
+  // Files that ran NO tests are called out separately: they are a silent
+  // coverage hole, and the one line everyone reads has to distinguish them from
+  // an ordinary red assertion.
+  const notRunResults = failedResults.filter((r) => ranNoTests(r.stdout, r.stderr));
 
   console.log('\n' + '='.repeat(60));
-  console.log(
-    `[parallel-test] ${passedCount} passed, ${failedResults.length} failed in ${(wallMs / 1000).toFixed(1)}s`,
-  );
+  console.log(formatSummaryLine(passedCount, failedResults.length, notRunResults.length, wallMs));
+
+  if (notRunResults.length > 0) {
+    console.log('\n[parallel-test] FILES THAT RAN NO TESTS (zero coverage from these):');
+    for (const r of notRunResults) {
+      console.log(`  ⚠ ${relative(root, r.file)}`);
+    }
+  }
 
   if (failedResults.length > 0) {
     console.log('\n[parallel-test] FAILED FILES:');

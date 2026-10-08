@@ -215,6 +215,25 @@ bun test: 53 passed, 0 failed
 - [x] done`,
     },
     {
+      // 2026-10-06, after task 1112 narrowed the ❌ scan to skip changed-file rows:
+      // the OTHER evidence path (the failureSignals test-count loop) still read
+      // those rows, so a row DESCRIBING a fix — "fixed 3 failed tests" — tripped
+      // the self-contradiction verdict. One file treating the same row two ways is
+      // the asymmetry this closes; a real failure is reported in the test-results
+      // section, not only inside a changed-files description.
+      desc: '変更ファイル表の説明文にある失敗件数は結果報告ではないので自己矛盾にしない',
+      content: `# 実装結果検証レポート
+## 検証結果サマリ
+| 全体判定 | ✅ 合格 — 全テスト通過 |
+## 変更ファイル
+| ファイル | 変更種別 | 内容 |
+| \`services/foo.ts\` | 変更 | fixed 3 failed tests in the retry path |
+## テスト結果
+bun test: 41 passed, 0 failed
+## チェックリスト消化状況
+- [x] done`,
+    },
+    {
       // The self-repair feedback appends "...failure signals (❌)..." into verify.md;
       // that parenthetical reference must not re-trigger the contradiction gate.
       desc: 'does NOT flag a passing verify quoting the validator summary "(❌)"',

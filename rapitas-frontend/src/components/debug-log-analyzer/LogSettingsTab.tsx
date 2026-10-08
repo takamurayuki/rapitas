@@ -13,6 +13,15 @@ import { Select } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import DateField from '@/components/ui/date-field/DateField';
+
+// Mirrors <Input>'s own classes so the replaced datetime fields keep the look of
+// the text fields beside them (DateField renders a plain input, not <Input>).
+const LOG_INPUT_CLASS =
+  'flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm ' +
+  'placeholder:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 ' +
+  'focus-visible:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 ' +
+  'dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-400';
 import type { LogFilter, LogLevel } from '@/types/debug-log';
 
 interface LogSettingsTabProps {
@@ -79,29 +88,33 @@ export const LogSettingsTab: React.FC<LogSettingsTabProps> = ({ filter, onFilter
 
             <div className="space-y-2">
               <Label>{t('debugLogAnalyzer.settings.startTime')}</Label>
-              <Input
-                type="datetime-local"
+              <DateField
+                withTime
                 value={filter.startTime ? filter.startTime.toISOString().slice(0, 16) : ''}
-                onChange={(e) =>
+                onChange={(value) =>
                   onFilterChange({
                     ...filter,
-                    startTime: e.target.value ? new Date(e.target.value) : undefined,
+                    startTime: value ? new Date(value) : undefined,
                   })
                 }
+                aria-label={t('debugLogAnalyzer.settings.startTime')}
+                className={LOG_INPUT_CLASS}
               />
             </div>
 
             <div className="space-y-2">
               <Label>{t('debugLogAnalyzer.settings.endTime')}</Label>
-              <Input
-                type="datetime-local"
+              <DateField
+                withTime
                 value={filter.endTime ? filter.endTime.toISOString().slice(0, 16) : ''}
-                onChange={(e) =>
+                onChange={(value) =>
                   onFilterChange({
                     ...filter,
-                    endTime: e.target.value ? new Date(e.target.value) : undefined,
+                    endTime: value ? new Date(value) : undefined,
                   })
                 }
+                aria-label={t('debugLogAnalyzer.settings.endTime')}
+                className={LOG_INPUT_CLASS}
               />
             </div>
 

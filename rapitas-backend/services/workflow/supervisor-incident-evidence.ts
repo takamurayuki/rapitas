@@ -8,7 +8,12 @@
  * supervisor-incident-detectors; this module is the I/O boundary.
  */
 import { prisma } from '../../config/database';
-import { analyzeVerifyChecklist, type VerifyChecklistStats } from './supervisor-incident-detectors';
+import { FAILURE_RECOVERY_CAUSES, isFailureMarkQueueItem } from './queue-failure-mark-policy';
+import {
+  analyzeVerifyChecklist,
+  RECOVERY_CLOCK_SKEW_MS,
+  type VerifyChecklistStats,
+} from './supervisor-incident-detectors';
 
 /** How much of an execution output head is scanned for the cwd line. */
 const OUTPUT_HEAD_CHARS = 4000;
@@ -35,6 +40,8 @@ export interface SupervisorEvidence {
   failureMarkedAtMs: number | null;
   /** Which source produced failureMarkedAtMs, for the concern's evidence. */
   failureMarkSource: string | null;
+  /** Latest recovery transition (requeue / retry) at or after the failure mark, epoch ms. */
+  recoveryAtMs: number | null;
   /** Earliest success artifact (linked PR / auto_pr_created log), epoch ms. */
   successArtifactAtMs: number | null;
   /** Human-readable reference to the success artifact (PR number/URL). */
@@ -131,19 +138,25 @@ export async function gatherSupervisorEvidence(task: { id: number }): Promise<Su
   }
 
   // --- B (failure side) + C (backstop): terminal failure marks ------------
-  const failedQueueItem = await safeQuery(
+  // NOTE: `cancelled` is mostly a benign park/sweep/stop, not a failure — rows
+  // are fetched newest-first and filtered by isFailureMarkQueueItem so a benign
+  // cancel never anchors the false-failure window (#1126).
+  const recentTerminalItems = await safeQuery(
     () =>
-      prisma.workflowQueueItem.findFirst({
+      prisma.workflowQueueItem.findMany({
         where: {
           taskId: task.id,
           status: { in: ['failed', 'cancelled'] },
           completedAt: { not: null },
         },
         orderBy: { completedAt: 'desc' },
-        select: { completedAt: true, status: true },
+        take: 20,
+        select: { completedAt: true, status: true, errorMessage: true },
       }),
-    null,
+    [],
   );
+  const failedQueueItem =
+    recentTerminalItems.find((i) => isFailureMarkQueueItem(i.status, i.errorMessage)) ?? null;
   // NOTE: The dedup keys embed as `"dedupKey":"<type>:<taskId>"` — matching
   // WITH the closing quote is what keeps task 585 from matching task 5850.
   const skippedNotification = await safeQuery(
@@ -223,6 +236,48 @@ export async function gatherSupervisorEvidence(task: { id: number }): Promise<Su
     }
   }
 
+  // A recovery between the mark and the success means the success was a deliberate
+  // retry, not a wrong verdict. Bounded by the success so a LATER unrelated retry
+  // cannot shadow the genuine one (findFirst reads only the newest row).
+  let recoveryAtMs: number | null = null;
+  if (failureMarkedAtMs !== null && successArtifactAtMs !== null) {
+    const recoveryFromDate = new Date(failureMarkedAtMs - RECOVERY_CLOCK_SKEW_MS);
+    const recovery = await safeQuery(
+      () =>
+        prisma.workflowTransition.findFirst({
+          where: {
+            taskId: task.id,
+            cause: { in: [...FAILURE_RECOVERY_CAUSES] },
+            createdAt: { gte: recoveryFromDate, lte: new Date(successArtifactAtMs) },
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        }),
+      null,
+    );
+    // NOTE: A phase_completed:* transition between the mark and the success proves a
+    // fresh run executed (#1116: the mark was a cancelled residue row written 14ms
+    // AFTER artifact_reuse_fastforward, so the requeue cause sat just outside the
+    // window, yet the implementer re-ran and produced the PR).
+    const progress = await safeQuery(
+      () =>
+        prisma.workflowTransition.findFirst({
+          where: {
+            taskId: task.id,
+            cause: { startsWith: 'phase_completed:' },
+            createdAt: { gte: recoveryFromDate, lte: new Date(successArtifactAtMs) },
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        }),
+      null,
+    );
+    recoveryAtMs = maxMs(
+      recovery?.createdAt.getTime() ?? null,
+      progress?.createdAt.getTime() ?? null,
+    );
+  }
+
   // --- C (progress side): only meaningful when a backstop exists ----------
   let lastProgressAtMs: number | null = null;
   let lastProgressCause: string | null = null;
@@ -260,6 +315,7 @@ export async function gatherSupervisorEvidence(task: { id: number }): Promise<Su
     executionCwdLine,
     failureMarkedAtMs,
     failureMarkSource,
+    recoveryAtMs,
     successArtifactAtMs,
     successArtifactRef,
     backstopAtMs,

@@ -155,6 +155,15 @@ describe('runComparisonCell — worktree lifecycle', () => {
     expect(removeWorktreeMock).toHaveBeenCalledTimes(1);
   });
 
+  // The agent always dirties the worktree; without forceRemove the preservation guard refuses.
+  it('requests forced removal so a dirty worktree is not leaked', async () => {
+    await runComparisonCell(baseOptions());
+    const args = removeWorktreeMock.mock.calls[0] as unknown[];
+    expect(args[2]).toBe(true);
+    expect(args[3]).toBeUndefined();
+    expect(args[4]).toBe(true);
+  });
+
   it('removes the worktree after a failed agent execution', async () => {
     executeMock = mock(async () => ({ success: false, errorMessage: 'boom' }));
     const run = await runComparisonCell(baseOptions());
