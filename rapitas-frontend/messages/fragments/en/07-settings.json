@@ -252,6 +252,13 @@
       "selfRefillWindowDisabled": "Disabled (no self-refill)",
       "savingSuffix": " (saving…)"
     },
+    "executionDashboardSettingsCard": {
+      "title": "Execution Dashboard",
+      "description": "Stall-detection settings for the workflow execution visualization dashboard (/agents/execution-dashboard).",
+      "thresholdLabel": "Stall threshold",
+      "thresholdDescription": "When a task shows no progress for this many minutes since it started (or was queued), the dashboard flags it as stalled.",
+      "thresholdUnit": "min"
+    },
     "ciTimingDashboard": {
       "fetchFailed": "Failed to fetch data",
       "title": "CI Test Timing Dashboard",

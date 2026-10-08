@@ -19,6 +19,7 @@
     "development": "Development",
     "agent": "Agent",
     "agentManagement": "Agent Management",
+    "executionDashboard": "Execution Dashboard",
     "metrics": "Agent Usage",
     "approvals": "Approvals",
     "promptManagement": "Prompt Management",

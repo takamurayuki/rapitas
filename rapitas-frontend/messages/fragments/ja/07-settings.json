@@ -252,6 +252,13 @@
       "selfRefillWindowDisabled": "無効（自己補充しない）",
       "savingSuffix": "（保存中…）"
     },
+    "executionDashboardSettingsCard": {
+      "title": "実行可視化ダッシュボード",
+      "description": "ワークフロー実行可視化ダッシュボード（/agents/execution-dashboard）の停滞検出に関する設定です。",
+      "thresholdLabel": "停滞とみなす経過時間",
+      "thresholdDescription": "タスクが実行開始（またはキュー投入）からこの分数のあいだ進捗せずにいると、ダッシュボード上で「停滞」として警告表示します。",
+      "thresholdUnit": "分"
+    },
     "ciTimingDashboard": {
       "fetchFailed": "データ取得に失敗しました",
       "title": "CI テスト実行時間ダッシュボード",

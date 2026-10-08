@@ -581,6 +581,36 @@
         "subtask_not_counted": "Subtasks are not counted",
         "unresolved_high_severity_concern": "An important quality defect is unresolved"
       }
+    },
+    "executionDashboard": {
+      "title": "Execution Dashboard",
+      "subtitle": "See where every active task stands at a glance",
+      "flowChartTitle": "Pipeline overview",
+      "stage": {
+        "queued": "Queued",
+        "running": "Running",
+        "repairing": "Repairing",
+        "awaitingJudgement": "Awaiting judgement",
+        "completed": "Completed",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      },
+      "frequentFailureWarning": "Failing frequently",
+      "frequentFailureBadge": "Failing frequently ({count}x)",
+      "stalledBadge": "Stalled",
+      "emptyState": "No active tasks",
+      "elapsedMinutes": "{minutes}m elapsed",
+      "exportCsvButton": "Export execution log (CSV)",
+      "exportJsonButton": "Export execution log (JSON)",
+      "loading": "Loading…",
+      "loadFailed": "Failed to load data",
+      "truncatedNotice": "Showing {shown} of {total} tasks — the rest are hidden",
+      "drilldownTitle": "Task execution detail",
+      "drilldownLoading": "Loading…",
+      "drilldownLoadFailed": "Failed to load data",
+      "drilldownState": "State",
+      "drilldownRepairCount": "Repair count",
+      "drilldownElapsed": "Elapsed"
     }
   }
 }
