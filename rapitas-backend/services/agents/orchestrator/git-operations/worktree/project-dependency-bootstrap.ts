@@ -8,16 +8,21 @@
  * leaving the agent with zero dependencies — every gate then reported
  * "unverified" and verify bounced forever (tasks 1152/1153, 2026-10-08).
  *
- * One shared tree per project, worktrees only ever get links:
- *   - The tree lives in a gitignored sidecar (`<root>/.rapitas-deps`), NOT in
- *     the root checkout. Installing needs the manifests next to node_modules,
- *     and writing those into the root working tree would leave it permanently
- *     dirty and block `git checkout` once the PR adds the same files.
- *   - The install runs ONLY when the manifest fingerprint changes: first setup,
- *     an edited package.json, a new lockfile, a new workspace package. Adding a
- *     dependency mid-task is therefore picked up automatically on the next
- *     agent launch — nothing is pinned to "once per project".
- *   - Worktrees are linked, never installed into.
+ * The layout is the ordinary one: `node_modules` at the PROJECT ROOT, installed
+ * from the root's own manifests, with worktrees linked into it — the same shape
+ * rapitas itself uses. The install runs only when the root's manifest
+ * fingerprint changes, so adding a dependency triggers a reinstall and an
+ * unchanged project does no work.
+ *
+ * An earlier revision installed into a gitignored `.rapitas-deps` sidecar built
+ * from COPIED manifests, because a project scaffolded as docs-only has no root
+ * manifest until its first PR merges. That was dropped: copying only the
+ * manifests silently breaks every pnpm feature that references other files
+ * (`patchedDependencies` and its patches/, `file:`/`link:` deps, per-package
+ * `.npmrc`, overrides pointing at local files). The gap is closed at the source
+ * instead — the generator now scaffolds the skeleton into the project root — and
+ * {@link bootstrapProjectDependencies} keeps a legacy path for projects created
+ * before that.
  *
  * NOT responsible for deciding whether a task needs dependencies
  * (`taskNeedsDependencies`) or for rapitas worktrees.
@@ -25,25 +30,16 @@
 
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
-import { createHash } from 'node:crypto';
-import {
-  appendFileSync,
-  copyFileSync,
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  readlinkSync,
-  rmdirSync,
-  rmSync,
-  statSync,
-  symlinkSync,
-  unlinkSync,
-  writeFileSync,
-} from 'node:fs';
-import { dirname, join, sep } from 'node:path';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join, sep } from 'node:path';
 import { createLogger } from '../../../../../config/logger';
+import { linkNodeModules, worktreeHasUsableModules, holdsRealInstall } from './node-modules-link';
+import {
+  collectManifests,
+  fingerprintManifests,
+  installInvocation,
+  resolveInstallCommand,
+} from './project-manifests';
 
 const execAsync = promisify(exec);
 const logger = createLogger('git-operations/project-dependency-bootstrap');
@@ -52,35 +48,18 @@ const logger = createLogger('git-operations/project-dependency-bootstrap');
 const INSTALL_TIMEOUT_MS = 20 * 60 * 1000;
 const INSTALL_BUFFER_BYTES = 64 * 1024 * 1024;
 
-/** How deep below the project root to look for workspace manifests. */
-const SCAN_DEPTH = 3;
+/**
+ * Where the installed fingerprint is recorded. Inside node_modules on purpose:
+ * it is gitignored by every project by construction, and deleting node_modules
+ * correctly invalidates it.
+ */
+const FINGERPRINT_FILE = join('node_modules', '.rapitas-deps-fingerprint');
 
-/** Sidecar holding the shared dependency tree; gitignored, never committed. */
-export const SIDECAR_DIR = '.rapitas-deps';
-
-const FINGERPRINT_FILE = '.rapitas-fingerprint';
-
-/** Root-level files that change what an install produces. */
-const ROOT_MANIFESTS = [
-  'package.json',
-  'pnpm-workspace.yaml',
-  'pnpm-lock.yaml',
-  'package-lock.json',
-  'yarn.lock',
-  'bun.lockb',
-  'bun.lock',
-  '.npmrc',
-  '.nvmrc',
-];
-
-/** Lockfile → install command, most specific first. */
-const LOCKFILES: ReadonlyArray<readonly [string, string]> = [
-  ['pnpm-lock.yaml', 'pnpm install'],
-  ['bun.lockb', 'bun install'],
-  ['bun.lock', 'bun install'],
-  ['yarn.lock', 'yarn install'],
-  ['package-lock.json', 'npm install'],
-];
+/** What a bootstrap run did, for logging and tests. */
+export interface BootstrapResult {
+  action: 'installed' | 'linked' | 'skipped';
+  detail: string;
+}
 
 /**
  * The project root that owns `worktreePath`, i.e. the parent of `.worktrees/`.
@@ -96,368 +75,108 @@ export function projectRootOf(worktreePath: string): string {
   return worktreePath;
 }
 
-/**
- * Pick the install command for a manifest directory.
- *
- * Falls back to the `packageManager` field and then to pnpm when a
- * `pnpm-workspace.yaml` is present, because a first setup has no lockfile yet —
- * which is exactly when this runs.
- *
- * @param dir - Directory holding package.json / package.json のあるディレクトリ
- * @returns Shell command to install / 実行するインストールコマンド
- */
-export function resolveInstallCommand(dir: string): string {
-  for (const [lockfile, command] of LOCKFILES) {
-    if (existsSync(join(dir, lockfile))) return command;
-  }
+/** Fingerprint recorded by the last successful install in `dir`. */
+function recordedFingerprint(dir: string): string {
   try {
-    const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as {
-      packageManager?: unknown;
-    };
-    if (typeof pkg.packageManager === 'string') {
-      const name = pkg.packageManager.split('@')[0];
-      if (['pnpm', 'yarn', 'npm', 'bun'].includes(name)) return `${name} install`;
-    }
+    return readFileSync(join(dir, FINGERPRINT_FILE), 'utf8').trim();
   } catch {
-    /* unreadable manifest — fall through to the workspace/npm default */
-  }
-  return existsSync(join(dir, 'pnpm-workspace.yaml')) ? 'pnpm install' : 'npm install';
-}
-
-/**
- * Relative paths of every manifest file in `source`, root files first.
- *
- * @param source - Checkout to scan / 走査するチェックアウト
- * @returns Relative manifest paths, sorted / 相対パス（ソート済み）
- */
-export function collectManifests(source: string): string[] {
-  const found = ROOT_MANIFESTS.filter((f) => existsSync(join(source, f)));
-  const walk = (rel: string, depth: number): void => {
-    if (depth > SCAN_DEPTH) return;
-    let dirs: string[];
-    try {
-      dirs = readdirSync(join(source, rel), { withFileTypes: true })
-        .filter((e) => e.isDirectory() && e.name !== 'node_modules' && !e.name.startsWith('.'))
-        .map((e) => e.name);
-    } catch {
-      return;
-    }
-    for (const name of dirs) {
-      const childRel = rel ? `${rel}/${name}` : name;
-      if (existsSync(join(source, childRel, 'package.json'))) {
-        found.push(`${childRel}/package.json`);
-      }
-      walk(childRel, depth + 1);
-    }
-  };
-  walk('', 1);
-  return found.sort();
-}
-
-/**
- * Fingerprint of the manifest set: changes exactly when an install would
- * produce something different.
- *
- * @param source - Checkout to fingerprint / 対象チェックアウト
- * @param manifests - Relative paths from {@link collectManifests} / 相対パス
- * @returns Hex digest, or '' when there is no manifest at all / ダイジェスト
- */
-export function fingerprintManifests(source: string, manifests: string[]): string {
-  if (manifests.length === 0) return '';
-  const hash = createHash('sha256');
-  for (const rel of manifests) {
-    hash.update(rel);
-    hash.update('\0');
-    try {
-      hash.update(readFileSync(join(source, rel)));
-    } catch {
-      hash.update('<unreadable>');
-    }
-    hash.update('\0');
-  }
-  return hash.digest('hex');
-}
-
-/**
- * Add invocation flags the chosen package manager needs to exit 0 on a
- * successful install.
- *
- * pnpm 11+ defaults `strictDepBuilds` to true, so skipping a dependency's build
- * script is an ERROR (`ERR_PNPM_IGNORED_BUILDS`) even though node_modules and
- * the lockfile were written correctly. Measured on 2026-10-08: TempoRaid's
- * sidecar install completed and then exited non-zero over ten ignored builds
- * (prisma, argon2, esbuild, …), so the fingerprint was never written and the
- * install was retried on every single agent launch.
- *
- * The flag downgrades that to a warning; it does NOT approve the scripts.
- * Which dependencies may run build scripts is the project's own decision, via
- * `onlyBuiltDependencies` in its manifest — not something a shared bootstrap
- * should decide on its behalf.
- *
- * @param command - Base command from {@link resolveInstallCommand} / 基本コマンド
- * @returns Command to execute / 実行するコマンド
- */
-export function installInvocation(command: string): string {
-  return command.startsWith('pnpm') ? `${command} --config.strict-dep-builds=false` : command;
-}
-
-/** True when `dir/node_modules` exists and is a real directory (not a link). */
-function hasRealNodeModules(dir: string): boolean {
-  try {
-    return !lstatSync(join(dir, 'node_modules')).isSymbolicLink();
-  } catch {
-    return false;
-  }
-}
-
-/** Keep the sidecar out of `git status` for the project root. */
-function excludeSidecar(root: string): void {
-  try {
-    const gitDir = join(root, '.git');
-    if (!existsSync(gitDir) || !statSync(gitDir).isDirectory()) return;
-    const exclude = join(gitDir, 'info', 'exclude');
-    const current = existsSync(exclude) ? readFileSync(exclude, 'utf8') : '';
-    if (current.includes(SIDECAR_DIR)) return;
-    mkdirSync(dirname(exclude), { recursive: true });
-    appendFileSync(exclude, `\n# rapitas shared dependency tree\n/${SIDECAR_DIR}/\n`, 'utf8');
-  } catch (err) {
-    logger.warn({ err, root }, '[projectBootstrap] Could not exclude the sidecar (non-fatal)');
+    return '';
   }
 }
 
 /**
- * Rebuild the sidecar's manifest set from `source` and install into it.
+ * Run the install in `dir`.
  *
- * @throws {Error} When the install fails / インストールが失敗した場合
+ * @throws {Error} When the package manager exits non-zero / 非ゼロ終了時
  */
-async function installSidecar(sidecar: string, source: string, manifests: string[]): Promise<void> {
-  for (const rel of manifests) {
-    const dest = join(sidecar, rel);
-    mkdirSync(dirname(dest), { recursive: true });
-    copyFileSync(join(source, rel), dest);
-  }
-  const command = installInvocation(resolveInstallCommand(sidecar));
+async function runInstall(dir: string): Promise<string> {
+  const command = installInvocation(resolveInstallCommand(dir));
   const startedAt = Date.now();
+  let output = '';
   try {
     const { stdout, stderr } = await execAsync(command, {
-      cwd: sidecar,
+      cwd: dir,
       encoding: 'utf8',
       timeout: INSTALL_TIMEOUT_MS,
       maxBuffer: INSTALL_BUFFER_BYTES,
     });
-    // Surfaced rather than swallowed: those packages are installed but NOT
-    // built, so a runtime that needs their native parts (prisma engines,
-    // argon2) still fails until the project declares onlyBuiltDependencies.
-    const ignored = /Ignored build scripts:([^\n]*)/.exec(`${stdout}\n${stderr}`);
-    if (ignored) {
-      logger.warn(
-        { sidecar, packages: ignored[1].trim() },
-        '[projectBootstrap] Dependencies installed but their build scripts were skipped; declare onlyBuiltDependencies in the project manifest if a native build is required',
-      );
-    }
+    output = `${stdout}\n${stderr}`;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    logger.error({ err: error }, `[projectBootstrap] \`${command}\` failed in ${sidecar}`);
-    throw new Error(`${command} failed for ${sidecar}: ${message}`);
+    logger.error({ err: error }, `[projectBootstrap] \`${command}\` failed in ${dir}`);
+    throw new Error(`${command} failed for ${dir}: ${message}`);
   }
-  const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
-  logger.info(`[projectBootstrap] \`${command}\` succeeded in ${elapsedSec}s: ${sidecar}`);
-}
-
-/**
- * Entries that mean a real node_modules holds an actual install. Everything
- * else at the top level of a dot-only directory is a regenerable tool cache.
- */
-const INSTALL_MARKERS = ['.bin', '.pnpm', '.package-lock.json', '.modules.yaml', '.yarn-state.yml'];
-
-/**
- * True when a real `node_modules` holds packages rather than only tool caches.
- *
- * A worktree can carry a `node_modules` containing nothing but `.vite` /
- * `.vite-temp` (Vite writes its cache there on first run). Treating that as an
- * install made the link step skip the directory forever, so the agent never got
- * `node_modules/.bin` and every gate kept failing — observed on task 1153 after
- * the sidecar install had already succeeded.
- *
- * @param dir - Directory holding node_modules / node_modules を持つディレクトリ
- * @returns Whether it is a genuine install / 本物のインストールか
- */
-export function holdsRealInstall(dir: string): boolean {
-  let entries: string[];
-  try {
-    entries = readdirSync(join(dir, 'node_modules'));
-  } catch {
-    return false;
-  }
-  return entries.some((name) => !name.startsWith('.') || INSTALL_MARKERS.includes(name));
-}
-
-/**
- * Delete a node_modules that {@link holdsRealInstall} rejected, so the sidecar
- * link can take its place.
- *
- * Safe to recurse here, unlike {@link removeLink}: this path is a real
- * directory (never a junction), and its only contents are regenerable tool
- * caches — that is exactly what being rejected by holdsRealInstall means.
- *
- * @param link - node_modules path to clear / 削除する node_modules
- * @returns Whether the path is now free / パスが空いたか
- */
-function removeCacheOnlyNodeModules(link: string): boolean {
-  try {
-    rmSync(link, { recursive: true, force: true });
-    logger.info(
-      `[projectBootstrap] Removed a cache-only node_modules to link the shared tree: ${link}`,
+  logger.info(
+    `[projectBootstrap] \`${command}\` succeeded in ${((Date.now() - startedAt) / 1000).toFixed(1)}s: ${dir}`,
+  );
+  // Surfaced rather than swallowed: those packages are installed but NOT built,
+  // so a runtime needing their native parts (prisma engines, argon2) still
+  // fails until the project declares onlyBuiltDependencies.
+  const ignored = /Ignored build scripts:([^\n]*)/.exec(output);
+  if (ignored) {
+    logger.warn(
+      { dir, packages: ignored[1].trim() },
+      '[projectBootstrap] Dependencies installed but their build scripts were skipped; declare onlyBuiltDependencies in the project manifest if a native build is required',
     );
-    return true;
-  } catch (err) {
-    logger.warn({ err, link }, '[projectBootstrap] Could not remove a cache-only node_modules');
-    return false;
   }
+  return command;
 }
 
-/** What sits at a prospective link path. */
-function inspectLinkPath(link: string): 'link' | 'real' | 'absent' {
+/**
+ * Install at the project root if its manifests changed or nothing is installed.
+ *
+ * @returns The command run, or null when the install was not needed / 実行したコマンド
+ */
+async function ensureRootInstall(root: string, manifests: string[]): Promise<string | null> {
+  const wanted = fingerprintManifests(root, manifests);
+  if (wanted === recordedFingerprint(root) && holdsRealInstall(root)) return null;
+  const command = await runInstall(root);
   try {
-    return lstatSync(link).isSymbolicLink() ? 'link' : 'real';
-  } catch {
-    return 'absent';
+    writeFileSync(join(root, FINGERPRINT_FILE), wanted, 'utf8');
+  } catch (err) {
+    // Non-fatal, but worth knowing: the next launch would reinstall.
+    logger.warn({ err, root }, '[projectBootstrap] Could not record the install fingerprint');
   }
-}
-
-/**
- * Remove a link (not its target).
- *
- * NOTE: `rmSync(..., { recursive: true })` must never be used here — on Windows
- * it descends THROUGH a junction and deletes the shared tree it points at.
- * unlink is the correct call for both POSIX symlinks and Windows junctions;
- * rmdir is the documented fallback for a junction that unlink refuses.
- *
- * @param link - Link path to clear / 解除するリンクのパス
- * @returns Whether the path is now free / パスが空いたか
- */
-function removeLink(link: string): boolean {
-  for (const remove of [unlinkSync, rmdirSync]) {
-    try {
-      remove(link);
-      return true;
-    } catch {
-      /* try the next form */
-    }
-  }
-  logger.warn({ link }, '[projectBootstrap] Could not remove a stale node_modules link');
-  return false;
-}
-
-/**
- * Link every node_modules the sidecar owns into the worktree.
- *
- * A pre-existing LINK is replaced (it may point at a stale tree); a real
- * directory is left alone — overwriting one would destroy an install.
- *
- * @returns Relative dirs that were linked / リンクした相対パス
- */
-function linkSidecar(sidecar: string, worktree: string): string[] {
-  const dirs: string[] = [];
-  const walk = (rel: string, depth: number): void => {
-    if (hasRealNodeModules(join(sidecar, rel))) dirs.push(rel);
-    if (depth > SCAN_DEPTH) return;
-    let children: string[];
-    try {
-      children = readdirSync(join(sidecar, rel), { withFileTypes: true })
-        .filter((e) => e.isDirectory() && e.name !== 'node_modules' && !e.name.startsWith('.'))
-        .map((e) => e.name);
-    } catch {
-      return;
-    }
-    for (const name of children) walk(rel ? `${rel}/${name}` : name, depth + 1);
-  };
-  walk('', 1);
-
-  const linked: string[] = [];
-  for (const rel of dirs) {
-    const target = join(sidecar, rel, 'node_modules');
-    const link = join(worktree, rel, 'node_modules');
-    let existing = inspectLinkPath(link);
-    if (existing === 'real') {
-      // A real install is never clobbered. One holding only tool caches is not
-      // an install: leaving it in place made the link step skip this directory
-      // forever, so the agent never got node_modules/.bin (task 1153).
-      if (holdsRealInstall(join(worktree, rel))) continue;
-      if (!removeCacheOnlyNodeModules(link)) continue;
-      existing = 'absent';
-    }
-    if (existing === 'link') {
-      let sameTarget = false;
-      try {
-        sameTarget = readlinkSync(link) === target;
-      } catch {
-        /* unreadable link — treat as stale and replace */
-      }
-      if (sameTarget) {
-        linked.push(rel);
-        continue;
-      }
-      if (!removeLink(link)) continue; // could not clear it; leave as-is
-    }
-    try {
-      mkdirSync(dirname(link), { recursive: true });
-      // 'junction' is honored on Windows (no admin needed), ignored on POSIX.
-      symlinkSync(target, link, 'junction');
-      linked.push(rel);
-    } catch (err) {
-      logger.warn({ err, link, target }, '[projectBootstrap] Failed to link node_modules');
-    }
-  }
-  return linked;
+  return command;
 }
 
 /**
  * Prepare dependencies for a worktree of a non-rapitas project.
  *
  * @param worktreePath - Absolute worktree path / worktree の絶対パス
- * @returns What was done, for logging and tests / 実施内容
+ * @returns What was done / 実施内容
  * @throws {Error} When an install was required and failed / インストール失敗時
  */
-export async function bootstrapProjectDependencies(
-  worktreePath: string,
-): Promise<{ action: 'linked' | 'installed' | 'skipped'; detail: string }> {
+export async function bootstrapProjectDependencies(worktreePath: string): Promise<BootstrapResult> {
   const root = projectRootOf(worktreePath);
-  const manifests = collectManifests(worktreePath);
-  if (manifests.length === 0) {
-    logger.info(`[projectBootstrap] No manifest in ${worktreePath}; nothing to prepare`);
+
+  // The normal path: the project root carries its own manifests.
+  if (existsSync(join(root, 'package.json'))) {
+    const installed = await ensureRootInstall(root, collectManifests(root));
+    const linked = root === worktreePath ? [] : linkNodeModules(root, worktreePath);
+    logger.info(
+      `[projectBootstrap] ${installed ? 'installed + ' : ''}linked ${linked.length} node_modules into ${worktreePath}`,
+    );
+    return {
+      action: installed ? 'installed' : 'linked',
+      detail: `${linked.length} link(s): ${linked.map((r) => r || '.').join(', ') || 'none'}`,
+    };
+  }
+
+  // Legacy path: a project scaffolded as docs-only has no root manifest until
+  // its first PR merges, so the skeleton exists only on the task branch. Such a
+  // worktree installs for itself once; later worktrees take the normal path.
+  if (worktreeHasUsableModules(worktreePath)) {
+    return { action: 'skipped', detail: 'worktree already has usable node_modules' };
+  }
+  if (!existsSync(join(worktreePath, 'package.json'))) {
+    logger.info(`[projectBootstrap] No manifest in ${root} or ${worktreePath}; nothing to prepare`);
     return { action: 'skipped', detail: 'no manifest' };
   }
-
-  const sidecar = join(root, SIDECAR_DIR);
-  const fingerprintPath = join(sidecar, FINGERPRINT_FILE);
-  const wanted = fingerprintManifests(worktreePath, manifests);
-  let current = '';
-  try {
-    current = readFileSync(fingerprintPath, 'utf8').trim();
-  } catch {
-    /* no sidecar yet */
-  }
-
-  // Excluded on every run, not just on install: the sidecar may already exist
-  // from an earlier run while this checkout's exclude file does not mention it.
-  if (existsSync(sidecar)) excludeSidecar(root);
-
-  let installed = false;
-  if (current !== wanted || !hasRealNodeModules(sidecar)) {
-    mkdirSync(sidecar, { recursive: true });
-    excludeSidecar(root);
-    await installSidecar(sidecar, worktreePath, manifests);
-    writeFileSync(fingerprintPath, wanted, 'utf8');
-    installed = true;
-  }
-
-  const linked = linkSidecar(sidecar, worktreePath);
-  logger.info(
-    `[projectBootstrap] ${installed ? 'installed + ' : ''}linked ${linked.length} node_modules into ${worktreePath}`,
+  logger.warn(
+    { root, worktreePath },
+    '[projectBootstrap] Project root has no manifest yet; installing inside the worktree this once',
   );
-  return {
-    action: installed ? 'installed' : 'linked',
-    detail: `${linked.length} link(s): ${linked.map((r) => r || '.').join(', ')}`,
-  };
+  const command = await runInstall(worktreePath);
+  return { action: 'installed', detail: `${command} (in worktree; root not scaffolded yet)` };
 }
