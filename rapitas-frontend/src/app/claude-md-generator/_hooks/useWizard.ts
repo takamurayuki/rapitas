@@ -56,6 +56,11 @@ export function useWizard() {
   // Primary AI agent the scaffolded repo targets — decides the guide file's
   // name/location (.claude/CLAUDE.md, AGENTS.md, GEMINI.md, …).
   const [agentTargetId, setAgentTargetId] = useState<string>(AGENT_TARGETS[0].id);
+  // Empty means "let the backend decide": category falls back to 開発, and
+  // basePath falls back to ~/Projects. Both were previously unreachable from
+  // the UI even though the backend already accepted basePath.
+  const [categoryId, setCategoryId] = useState<number | null>(null);
+  const [basePath, setBasePath] = useState<string>('');
   const [createdThemePath, setCreatedThemePath] = useState<string | null>(null);
   const [setupError, setSetupError] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
@@ -260,6 +265,10 @@ export function useWizard() {
           design: result.design,
           description: pickedProp.tagline,
           agentFilePath: target.path,
+          // Omitted (not null/empty) when unset so the backend's own fallbacks
+          // apply rather than being overridden with a blank value.
+          ...(categoryId !== null ? { categoryId } : {}),
+          ...(basePath.trim() ? { basePath: basePath.trim() } : {}),
         }),
       });
       const data = await response.json();
@@ -291,6 +300,8 @@ export function useWizard() {
     // Reset setup state as well
     setSetupPhase('idle');
     setAgentTargetId(AGENT_TARGETS[0].id);
+    setCategoryId(null);
+    setBasePath('');
     setCreatedThemePath(null);
     setSetupError(null);
   };
@@ -333,6 +344,10 @@ export function useWizard() {
     setSetupPhase,
     agentTargetId,
     setAgentTargetId,
+    categoryId,
+    setCategoryId,
+    basePath,
+    setBasePath,
     createdThemePath,
     setCreatedThemePath,
     setupError,

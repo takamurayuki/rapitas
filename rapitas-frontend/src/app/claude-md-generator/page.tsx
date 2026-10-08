@@ -95,6 +95,10 @@ export default function ClaudeMdGeneratorPage() {
         setupPhase={w.setupPhase}
         agentTargetId={w.agentTargetId}
         onSetAgentTarget={w.setAgentTargetId}
+        categoryId={w.categoryId}
+        onSetCategoryId={w.setCategoryId}
+        basePath={w.basePath}
+        onSetBasePath={w.setBasePath}
         createdThemePath={w.createdThemePath}
         setupError={w.setupError}
         onRestart={w.handleRestart}

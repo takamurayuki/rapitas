@@ -10,6 +10,7 @@ import { parseRuntimeConfig } from '../../services/agents/verification/runtime-s
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync, execFileSync } from 'child_process';
+import { resolveThemeCategory } from './theme-category-resolver';
 
 /**
  * Validate a runtimeConfigJson value before it's persisted — a broken value
@@ -299,17 +300,27 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
   .post(
     '/setup-from-claude-md',
     async (context) => {
-      const { body } = context;
-      const { appName, claudeMd, requirements, design, agentFilePath, basePath, description } =
-        body as {
-          appName: string;
-          claudeMd: string;
-          requirements?: string;
-          design?: string;
-          agentFilePath?: string;
-          basePath?: string;
-          description?: string;
-        };
+      const { body, set } = context;
+      // categoryId: target category; omitted falls back to 開発.
+      const {
+        appName,
+        claudeMd,
+        requirements,
+        design,
+        agentFilePath,
+        basePath,
+        description,
+        categoryId,
+      } = body as {
+        appName: string;
+        claudeMd: string;
+        requirements?: string;
+        design?: string;
+        agentFilePath?: string;
+        basePath?: string;
+        description?: string;
+        categoryId?: number;
+      };
 
       try {
         // NOTE: Sanitize app name to create folder name — supports ASCII, Japanese, and mixed names.
@@ -406,20 +417,12 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
           // NOTE: Non-fatal — develop branch creation can fail if default branch is already 'develop'
         }
 
-        // Find or create Development category
-        let devCategory = await prisma.category.findFirst({
-          where: { name: '開発', isDefault: true },
-        });
-
-        if (!devCategory) {
-          // Create Development category if it doesn't exist
-          devCategory = await prisma.category.create({
-            data: {
-              name: '開発',
-              mode: 'development',
-              isDefault: true,
-            },
-          });
+        // See theme-category-resolver: caller's choice wins, 開発 is the
+        // fallback, an unknown id is rejected, and isDevelopment follows mode.
+        const resolved = await resolveThemeCategory(prisma.category, categoryId);
+        if (!resolved.ok) {
+          set.status = 400;
+          return { success: false, error: resolved.error };
         }
 
         // Create theme record
@@ -427,8 +430,8 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
           data: {
             name: appName,
             description: description || `${appName}プロジェクトのテーマ`,
-            categoryId: devCategory.id,
-            isDevelopment: true,
+            categoryId: resolved.category.id,
+            isDevelopment: resolved.isDevelopment,
             workingDirectory: projectPath,
             defaultBranch: 'develop',
           },

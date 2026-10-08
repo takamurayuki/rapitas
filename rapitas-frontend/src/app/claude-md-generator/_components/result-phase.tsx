@@ -8,6 +8,7 @@ import type { SetupPhase } from '../_hooks/useWizard';
 import { GLOBAL_CSS } from '../_utils/styles';
 import { AGENT_TARGETS } from '../_utils/constants';
 import { ScoreRing } from './score-ring';
+import { SetupTargetFields } from './setup-target-fields';
 
 interface ResultPhaseProps {
   topRef: React.RefObject<HTMLDivElement | null>;
@@ -20,6 +21,12 @@ interface ResultPhaseProps {
   agentTargetId: string;
   /** Selects the primary agent (decides the guide file name/path) / 対象エージェントを選択 */
   onSetAgentTarget: (id: string) => void;
+  /** Chosen category id; null lets the backend fall back to 開発 / 選択カテゴリ（nullで開発にフォールバック） */
+  categoryId: number | null;
+  onSetCategoryId: (id: number | null) => void;
+  /** Parent directory for the scaffolded project; empty uses ~/Projects / 出力先の親ディレクトリ（空で ~/Projects） */
+  basePath: string;
+  onSetBasePath: (v: string) => void;
   createdThemePath: string | null;
   setupError: string | null;
   onRestart: () => void;
@@ -49,6 +56,10 @@ export function ResultPhase({
   setupPhase,
   agentTargetId,
   onSetAgentTarget,
+  categoryId,
+  onSetCategoryId,
+  basePath,
+  onSetBasePath,
   createdThemePath,
   setupError,
   onRestart,
@@ -301,6 +312,13 @@ export function ResultPhase({
                   {agentTarget.path}
                 </div>
               </div>
+
+              <SetupTargetFields
+                categoryId={categoryId}
+                onSetCategoryId={onSetCategoryId}
+                basePath={basePath}
+                onSetBasePath={onSetBasePath}
+              />
 
               <button
                 className="btn btn-p"

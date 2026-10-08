@@ -17,14 +17,26 @@ interface SetupThemeRequest {
   design?: string;
   /** エージェント指示ファイルの相対パス（例 .claude/CLAUDE.md / AGENTS.md） / Agent guide repo-relative path */
   agentFilePath?: string;
+  /** 出力先の親ディレクトリ。未指定ならバックエンドが ~/Projects を使う。 / Parent dir for the project folder */
   basePath?: string;
   description?: string;
+  /** 作成するテーマのカテゴリ。未指定なら「開発」にフォールバックする。 / Target category */
+  categoryId?: number;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: SetupThemeRequest = await request.json();
-    const { appName, claudeMd, requirements, design, agentFilePath, basePath, description } = body;
+    const {
+      appName,
+      claudeMd,
+      requirements,
+      design,
+      agentFilePath,
+      basePath,
+      description,
+      categoryId,
+    } = body;
 
     if (!appName || !claudeMd) {
       return NextResponse.json(
@@ -49,6 +61,7 @@ export async function POST(request: NextRequest) {
         agentFilePath,
         basePath,
         description,
+        categoryId,
       }),
       signal: AbortSignal.timeout(30000), // 30 second timeout
     });
