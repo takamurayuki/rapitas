@@ -17,6 +17,8 @@ import {
   bootstrapProjectDependencies,
   collectManifests,
   fingerprintManifests,
+  holdsRealInstall,
+  installInvocation,
   projectRootOf,
   resolveInstallCommand,
 } from './project-dependency-bootstrap';
@@ -242,5 +244,93 @@ describe('bootstrapProjectDependencies', () => {
     await bootstrapProjectDependencies(worktree);
     const exclude = path.join(root, '.git', 'info', 'exclude');
     expect(fs.readFileSync(exclude, 'utf8')).toContain(`/${SIDECAR_DIR}/`);
+  });
+});
+
+describe('holdsRealInstall', () => {
+  const nm = (names: string[]) => {
+    const dir = path.join(worktree, 'node_modules');
+    fs.mkdirSync(dir, { recursive: true });
+    for (const n of names) fs.mkdirSync(path.join(dir, n), { recursive: true });
+  };
+
+  it('rejects a node_modules holding only tool caches', () => {
+    // Exactly what task 1153's worktree had after Vite ran once.
+    nm(['.vite', '.vite-temp']);
+    expect(holdsRealInstall(worktree)).toBe(false);
+  });
+
+  it('accepts one holding packages', () => {
+    nm(['.vite', 'zod']);
+    expect(holdsRealInstall(worktree)).toBe(true);
+  });
+
+  it('accepts a pnpm store or a .bin even though both are dot-entries', () => {
+    for (const marker of ['.pnpm', '.bin']) {
+      fs.rmSync(path.join(worktree, 'node_modules'), { recursive: true, force: true });
+      nm([marker]);
+      expect(holdsRealInstall(worktree)).toBe(true);
+    }
+  });
+
+  it('rejects an absent or empty node_modules', () => {
+    expect(holdsRealInstall(worktree)).toBe(false);
+    nm([]);
+    expect(holdsRealInstall(worktree)).toBe(false);
+  });
+});
+
+describe('bootstrapProjectDependencies — cache-only node_modules', () => {
+  const primeSidecar = () => {
+    const sidecar = path.join(root, SIDECAR_DIR);
+    fs.mkdirSync(path.join(sidecar, 'node_modules', '.bin'), { recursive: true });
+    fs.writeFileSync(
+      path.join(sidecar, '.rapitas-fingerprint'),
+      fingerprintManifests(worktree, collectManifests(worktree)),
+      'utf8',
+    );
+    return sidecar;
+  };
+
+  it('replaces a cache-only node_modules with the link instead of skipping it', async () => {
+    put(worktree, 'package.json', '{}');
+    const sidecar = primeSidecar();
+    fs.mkdirSync(path.join(worktree, 'node_modules', '.vite'), { recursive: true });
+
+    await bootstrapProjectDependencies(worktree);
+
+    const link = path.join(worktree, 'node_modules');
+    expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(fs.readlinkSync(link)).toBe(path.join(sidecar, 'node_modules'));
+    // The binaries every lint/test/build command resolves through.
+    expect(fs.existsSync(path.join(link, '.bin'))).toBe(true);
+  });
+
+  it('still refuses to destroy a real install', async () => {
+    put(worktree, 'package.json', '{}');
+    primeSidecar();
+    fs.mkdirSync(path.join(worktree, 'node_modules', 'zod'), { recursive: true });
+
+    await bootstrapProjectDependencies(worktree);
+
+    const link = path.join(worktree, 'node_modules');
+    expect(fs.lstatSync(link).isSymbolicLink()).toBe(false);
+    expect(fs.existsSync(path.join(link, 'zod'))).toBe(true);
+  });
+});
+
+describe('installInvocation', () => {
+  it('downgrades the pnpm ignored-builds error to a warning', () => {
+    // pnpm 11+ exits non-zero on ignored build scripts even when node_modules
+    // and the lockfile were written. Measured 2026-10-08: TempoRaid's install
+    // completed, exited 1 over ten ignored builds, so the fingerprint was never
+    // written and every agent launch re-installed.
+    expect(installInvocation('pnpm install')).toBe('pnpm install --config.strict-dep-builds=false');
+  });
+
+  it('leaves the other package managers untouched', () => {
+    for (const c of ['npm install', 'yarn install', 'bun install']) {
+      expect(installInvocation(c)).toBe(c);
+    }
   });
 });

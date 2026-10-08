@@ -36,6 +36,7 @@ import {
   readFileSync,
   readlinkSync,
   rmdirSync,
+  rmSync,
   statSync,
   symlinkSync,
   unlinkSync,
@@ -177,6 +178,29 @@ export function fingerprintManifests(source: string, manifests: string[]): strin
   return hash.digest('hex');
 }
 
+/**
+ * Add invocation flags the chosen package manager needs to exit 0 on a
+ * successful install.
+ *
+ * pnpm 11+ defaults `strictDepBuilds` to true, so skipping a dependency's build
+ * script is an ERROR (`ERR_PNPM_IGNORED_BUILDS`) even though node_modules and
+ * the lockfile were written correctly. Measured on 2026-10-08: TempoRaid's
+ * sidecar install completed and then exited non-zero over ten ignored builds
+ * (prisma, argon2, esbuild, …), so the fingerprint was never written and the
+ * install was retried on every single agent launch.
+ *
+ * The flag downgrades that to a warning; it does NOT approve the scripts.
+ * Which dependencies may run build scripts is the project's own decision, via
+ * `onlyBuiltDependencies` in its manifest — not something a shared bootstrap
+ * should decide on its behalf.
+ *
+ * @param command - Base command from {@link resolveInstallCommand} / 基本コマンド
+ * @returns Command to execute / 実行するコマンド
+ */
+export function installInvocation(command: string): string {
+  return command.startsWith('pnpm') ? `${command} --config.strict-dep-builds=false` : command;
+}
+
 /** True when `dir/node_modules` exists and is a real directory (not a link). */
 function hasRealNodeModules(dir: string): boolean {
   try {
@@ -212,15 +236,25 @@ async function installSidecar(sidecar: string, source: string, manifests: string
     mkdirSync(dirname(dest), { recursive: true });
     copyFileSync(join(source, rel), dest);
   }
-  const command = resolveInstallCommand(sidecar);
+  const command = installInvocation(resolveInstallCommand(sidecar));
   const startedAt = Date.now();
   try {
-    await execAsync(command, {
+    const { stdout, stderr } = await execAsync(command, {
       cwd: sidecar,
       encoding: 'utf8',
       timeout: INSTALL_TIMEOUT_MS,
       maxBuffer: INSTALL_BUFFER_BYTES,
     });
+    // Surfaced rather than swallowed: those packages are installed but NOT
+    // built, so a runtime that needs their native parts (prisma engines,
+    // argon2) still fails until the project declares onlyBuiltDependencies.
+    const ignored = /Ignored build scripts:([^\n]*)/.exec(`${stdout}\n${stderr}`);
+    if (ignored) {
+      logger.warn(
+        { sidecar, packages: ignored[1].trim() },
+        '[projectBootstrap] Dependencies installed but their build scripts were skipped; declare onlyBuiltDependencies in the project manifest if a native build is required',
+      );
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error({ err: error }, `[projectBootstrap] \`${command}\` failed in ${sidecar}`);
@@ -228,6 +262,58 @@ async function installSidecar(sidecar: string, source: string, manifests: string
   }
   const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
   logger.info(`[projectBootstrap] \`${command}\` succeeded in ${elapsedSec}s: ${sidecar}`);
+}
+
+/**
+ * Entries that mean a real node_modules holds an actual install. Everything
+ * else at the top level of a dot-only directory is a regenerable tool cache.
+ */
+const INSTALL_MARKERS = ['.bin', '.pnpm', '.package-lock.json', '.modules.yaml', '.yarn-state.yml'];
+
+/**
+ * True when a real `node_modules` holds packages rather than only tool caches.
+ *
+ * A worktree can carry a `node_modules` containing nothing but `.vite` /
+ * `.vite-temp` (Vite writes its cache there on first run). Treating that as an
+ * install made the link step skip the directory forever, so the agent never got
+ * `node_modules/.bin` and every gate kept failing — observed on task 1153 after
+ * the sidecar install had already succeeded.
+ *
+ * @param dir - Directory holding node_modules / node_modules を持つディレクトリ
+ * @returns Whether it is a genuine install / 本物のインストールか
+ */
+export function holdsRealInstall(dir: string): boolean {
+  let entries: string[];
+  try {
+    entries = readdirSync(join(dir, 'node_modules'));
+  } catch {
+    return false;
+  }
+  return entries.some((name) => !name.startsWith('.') || INSTALL_MARKERS.includes(name));
+}
+
+/**
+ * Delete a node_modules that {@link holdsRealInstall} rejected, so the sidecar
+ * link can take its place.
+ *
+ * Safe to recurse here, unlike {@link removeLink}: this path is a real
+ * directory (never a junction), and its only contents are regenerable tool
+ * caches — that is exactly what being rejected by holdsRealInstall means.
+ *
+ * @param link - node_modules path to clear / 削除する node_modules
+ * @returns Whether the path is now free / パスが空いたか
+ */
+function removeCacheOnlyNodeModules(link: string): boolean {
+  try {
+    rmSync(link, { recursive: true, force: true });
+    logger.info(
+      `[projectBootstrap] Removed a cache-only node_modules to link the shared tree: ${link}`,
+    );
+    return true;
+  } catch (err) {
+    logger.warn({ err, link }, '[projectBootstrap] Could not remove a cache-only node_modules');
+    return false;
+  }
 }
 
 /** What sits at a prospective link path. */
@@ -292,8 +378,15 @@ function linkSidecar(sidecar: string, worktree: string): string[] {
   for (const rel of dirs) {
     const target = join(sidecar, rel, 'node_modules');
     const link = join(worktree, rel, 'node_modules');
-    const existing = inspectLinkPath(link);
-    if (existing === 'real') continue; // a real install here — never clobber it
+    let existing = inspectLinkPath(link);
+    if (existing === 'real') {
+      // A real install is never clobbered. One holding only tool caches is not
+      // an install: leaving it in place made the link step skip this directory
+      // forever, so the agent never got node_modules/.bin (task 1153).
+      if (holdsRealInstall(join(worktree, rel))) continue;
+      if (!removeCacheOnlyNodeModules(link)) continue;
+      existing = 'absent';
+    }
     if (existing === 'link') {
       let sameTarget = false;
       try {
