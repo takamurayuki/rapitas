@@ -6289,5 +6289,39 @@
     "closeAria": "Close (Esc)",
     "snoozeAria": "Snooze for 24 hours",
     "clearSnoozeButton": "Clear snooze ({count})"
+  },
+  "testCorrelation": {
+    "pageTitle": "Test Failure Correlation Heatmap",
+    "pageDescription": "Visualizes the correlation between changed files and test failures. Test cases are aggregated per test file.",
+    "heatmap": {
+      "title": "Correlation Matrix",
+      "loading": "Loading correlation matrix...",
+      "empty": "No correlation data",
+      "changedFileAxis": "Changed file",
+      "testFileAxis": "Test file",
+      "confidenceHigh": "Confidence: High",
+      "confidenceMedium": "Confidence: Medium",
+      "confidenceLow": "Confidence: Low (possibly insufficient samples)",
+      "sampleSizeLabel": "Sample size: {count}",
+      "correlationLabel": "Correlation: {value}",
+      "noCorrelation": "No correlation",
+      "nonDeterministicFlag": "Possibly environment-dependent / non-deterministic",
+      "cellTitle": "{changedFile} × {testFile}"
+    },
+    "drilldown": {
+      "title": "Failures for {testFile}",
+      "loading": "Loading failure events...",
+      "empty": "No matching failure events",
+      "runIdLabel": "Run ID: {runId}",
+      "commitLabel": "Commit: {commitSha}",
+      "sourceLabel": "Source: {source}",
+      "sourceCi": "CI",
+      "sourceLocal": "Local",
+      "sourceManual": "Manual",
+      "environmentLabel": "Environment: {platform} / {runtimeVersion}",
+      "failureTailLabel": "Failure log (tail)",
+      "failureTailEmpty": "No failure log recorded",
+      "close": "Close"
+    }
   }
 }
