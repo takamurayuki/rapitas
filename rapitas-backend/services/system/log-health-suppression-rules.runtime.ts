@@ -221,4 +221,17 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
     because:
       '停止・リセットによるロック所有権の取り消しをランナーが検知し、リトライ予算を消費せず再キューする設計通りの動作 — 実行失敗は別文言(ERROR/Phase failed)で可視のまま',
   },
+  {
+    // ログ出力箇所: workflow-orchestrator-execute.ts:153 の log.error（role=auto_verifier）。
+    // 投げ元は workflow-cli-executor-verify-gate.ts:86 で、requirement-replan-service.ts:78
+    // の readSource() が null（タスクが in-progress でない／workflowStatus 対象外／verify 不在）
+    // のとき reason=not_reviewable を返す。EXPECTED_REPLAN_HOLD_REASONS
+    // （requirement-replan-policy.ts:48-55）の状態ガードで、queue-skip-policy.ts:28 が
+    // 再試行不要のスキップとして扱い済み（#1156）。unknown / requires_human:* /
+    // 他ロールの失敗は別文言のため抑制しない。
+    test: /^\[WorkflowOrchestrator\] Error in auto_verifier: Requirement replan review held: not_reviewable$/,
+    logger: /workflow-orchestrator/i,
+    because:
+      'not_reviewableはレビュー対象外の状態ガードによる期待保留(EXPECTED_REPLAN_HOLD_REASONS)で、キュー側でスキップ扱い済み — unknown/requires_human等の他reasonは可視のまま',
+  },
 ];

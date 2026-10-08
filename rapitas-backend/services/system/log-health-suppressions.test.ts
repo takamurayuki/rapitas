@@ -493,4 +493,20 @@ describe('classifyLogSignature', () => {
     ).toBe(false);
     expect(classifyLogSignature('some-other-logger', normalizeMessage(raw)).suppressed).toBe(false);
   });
+
+  test('task 1156: auto_verifier "replan review held: not_reviewable" is suppressed for workflow-orchestrator only', () => {
+    const msg =
+      '[WorkflowOrchestrator] Error in auto_verifier: Requirement replan review held: not_reviewable';
+    expect(classifyLogSignature('workflow-orchestrator', normalizeMessage(msg)).suppressed).toBe(
+      true,
+    );
+    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    for (const other of [
+      '[WorkflowOrchestrator] Error in auto_verifier: Requirement replan review held: unknown',
+      '[WorkflowOrchestrator] Error in auto_verifier: Requirement replan review held: requires_human:x',
+      '[WorkflowOrchestrator] Error in planner: Requirement replan review held: not_reviewable',
+    ]) {
+      expect(classifyLogSignature('workflow-orchestrator', other).suppressed).toBe(false);
+    }
+  });
 });
