@@ -43,8 +43,11 @@ const PROC_KILL = /\b(?:stop-process|taskkill|pkill|killall)\b/i;
 // `bun pm cache` only touches bun's global download cache, never the shared
 // node_modules tree, so it is excluded too (task 1086: `bun pm cache rm` was
 // misclassified as package_install because bare `rm` matches the verb list).
+// The skipped leading tokens must stay inside ONE command segment: `\S+` also
+// matched across `;`/`&&`/`|`, so `bun ./probe.ts; rm -f ./probe.ts` was read as
+// "bun … rm" and denied (2026-10-08, same class as task 1086's `bun pm cache rm`).
 const PACKAGE_INSTALL =
-  /\b(?:npm|pnpm|yarn|bun)\s+(?!(?:run|exec|test|x|dlx|create)\b)(?!pm\s+cache\b)(?:\S+\s+){0,3}?(?:install|i|ci|add|remove|rm|uninstall|un|update|up|upgrade|dedupe|prune|link|unlink|rebuild|import)\b(?!\s*:)/i;
+  /\b(?:npm|pnpm|yarn|bun)\s+(?!(?:run|exec|test|x|dlx|create)\b)(?!pm\s+cache\b)(?:[^\s;&|]+\s+){0,3}?(?:install|i|ci|add|remove|rm|uninstall|un|update|up|upgrade|dedupe|prune|link|unlink|rebuild|import)\b(?!\s*:)/i;
 // Anything that can turn quoted text into executed code: nested shells, eval, command
 // substitution, backticks, or interpreters fed by a pipe.
 const EXEC_INDIRECTION =
@@ -103,20 +106,101 @@ function hasProcessKill(code) {
 }
 
 /**
+ * Root of the rapitas checkout that owns this hook, with any `.worktrees/<name>`
+ * suffix stripped so a worktree's own copy still resolves to the shared tree.
+ *
+ * Derived from the script's location rather than from `projectDir`: an agent
+ * working on a DIFFERENT repository gets this hook injected by
+ * agent-guard-settings, and there `projectDir` names that other project.
+ *
+ * @returns Normalized rapitas root / 正規化済み rapitas ルート
+ */
+function guardRepoRoot() {
+  const self = normalizePaths(path.resolve(__dirname, '..'));
+  const idx = self.indexOf('/.worktrees/');
+  return idx > 0 ? self.slice(0, idx) : self;
+}
+
+/** True when `dir` is `root` or sits below it. Both must be normalized. */
+function isWithin(dir, root) {
+  return !!dir && !!root && (dir === root || dir.startsWith(`${root}/`));
+}
+
+/**
+ * True when a `node_modules` between `cwd` and its checkout root is a link.
+ *
+ * `scripts/setup-worktree.cjs` links the main checkout's tree in with
+ * `symlinkSync(..., 'junction')`, which lstat reports as a symbolic link on
+ * Windows as well as POSIX (measured 2026-10-08). A link there is the actual
+ * hazard the installer rule guards: writing through it rewrites the tree the
+ * project root and every sibling worktree share.
+ *
+ * @param cwd - Shell working directory / シェルの作業ディレクトリ
+ * @returns Whether an installer here would write through a link / リンク経由で書き換えるか
+ */
+function hasLinkedNodeModules(cwd) {
+  let dir = cwd;
+  for (let depth = 0; depth < 8; depth += 1) {
+    try {
+      if (fs.lstatSync(path.join(dir, 'node_modules')).isSymbolicLink()) return true;
+    } catch {
+      /* no node_modules at this level — keep walking up */
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return false;
+}
+
+/**
+ * Whether a dependency-mutating command would act on a link-shared tree.
+ *
+ * The prisma and package_install rules exist for checkouts whose node_modules /
+ * generated dirs are shared by link (task 1055: a worktree `pnpm install`
+ * re-pointed 60 primary symlinks; 2026-09-02: a worktree `pnpm exec` purged the
+ * primary tree). Applied unconditionally they also blocked the FIRST setup of an
+ * unrelated generated project, which cannot be worked around from anywhere:
+ * tasks 1152/1153 (2026-10-08) left `C:\Projects\temporaid` with zero
+ * dependencies and no lockfile, so every gate reported "unverified" and verify
+ * bounced forever. Measured there: the worktree's node_modules was a real
+ * directory, shared with nothing.
+ *
+ * Fails CLOSED — an unknown cwd, anything inside or naming the rapitas
+ * checkout, and any ancestor node_modules link all count as shared.
+ *
+ * @param code - Prose-stripped command / prose 除去済みコマンド
+ * @param ctx - `{ cwd, guardRepoRoot }` / 作業ディレクトリと rapitas ルート
+ * @returns Whether the shared-tree hazard is present / 共有ツリーの危険があるか
+ */
+function sharesDependencyTree(code, ctx) {
+  const rapitas = ctx.guardRepoRoot || guardRepoRoot();
+  const cwd = ctx.cwd ? normalizePaths(ctx.cwd) : '';
+  if (!cwd) return true;
+  if (isWithin(cwd, rapitas)) return true;
+  const escaped = rapitas.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (new RegExp(`${escaped}(?![\\w.-])`).test(normalizePaths(code))) return true;
+  return hasLinkedNodeModules(ctx.cwd);
+}
+
+/**
  * Classify a command. Returns the incident kind or null when allowed.
  *
  * @param command - Shell command text / シェルコマンド
- * @param ctx - `{ primaryRoot }` resolved primary checkout / 解決済み primary ルート
+ * @param ctx - `{ primaryRoot, cwd }` resolved primary checkout / 解決済み primary ルート
  * @returns 'primary_mutation' | 'primary_readonly' | 'prisma' | 'process_kill' | 'package_install' | null
  */
 function classify(command, ctx) {
   // Prose (quoted-delimiter heredoc bodies, commit messages) is not executed, so
   // words like "prisma generate" inside it must not trigger a denial.
   const code = stripProse(command);
-  if (PRISMA.test(code)) return 'prisma';
+  // Evaluated once: both dependency-tree rules share the same hazard test.
+  const sharedTree = sharesDependencyTree(code, ctx);
+  if (PRISMA.test(code) && sharedTree) return 'prisma';
   if (hasProcessKill(code)) return 'process_kill';
   // Quoted occurrences (`grep "pnpm install"`, commit text) are data, not commands.
-  if (PACKAGE_INSTALL.test(code.replace(QUOTED_SPAN, '""'))) return 'package_install';
+  if (PACKAGE_INSTALL.test(code.replace(QUOTED_SPAN, '""')) && sharedTree)
+    return 'package_install';
   if (!ctx.primaryRoot) return null; // cannot resolve primary → fail open for the path rule
   const primary = normalizePaths(ctx.primaryRoot).replace(/\/+$/, '');
   const norm = normalizePaths(code).split(`${primary}/.worktrees/`).join('WT/');
@@ -330,8 +414,12 @@ function decision(input, ctx) {
       'Command rejected: prisma generate/db push/db:prepare must not be run by agents (dev.js does it on startup; running it rewrites shared generated files and can kill the backend).',
     process_kill:
       "Command rejected: never stop/kill processes (Stop-Process/taskkill/pkill). The backend on port 3001 is the agent's own connection.",
+    // NOTE: must not read as "give up and file a concern" — that is what task
+    // 1153 did, bouncing verify forever. node_modules being link-shared means
+    // the dependencies are ALREADY resolvable here, so the install is
+    // unnecessary rather than merely forbidden; say so and name the check.
     package_install:
-      'Command rejected: never run npm/pnpm/yarn/bun install/add/update in a worktree. node_modules is shared with the primary checkout through junctions and an install rewrites it for every worktree. If a dependency change is required, record it in verify.md as an unresolved concern for the operator.',
+      'Command rejected: this checkout shares node_modules with its project root through a link, so an install here would rewrite the tree for the root and every sibling worktree. You do not need to install: the shared tree is already populated — run `ls node_modules/.bin` (PowerShell: `Get-ChildItem node_modules/.bin`) and use the binaries directly (`pnpm exec <tool>` / `npx <tool>` work and are allowed). If a binary really is missing, the environment was not prepared; report that specific missing binary in verify.md rather than attempting an install. A genuine dependency CHANGE (adding a package) is the operator\'s job in the project root.',
   };
   return {
     hookSpecificOutput: {

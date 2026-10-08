@@ -27,6 +27,7 @@ import { promisify } from 'node:util';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createLogger } from '../../../../../config/logger';
+import { bootstrapProjectDependencies } from './project-dependency-bootstrap';
 
 const execAsync = promisify(exec);
 const logger = createLogger('git-operations/dependency-installer');
@@ -148,8 +149,15 @@ export function clearWorktreeDependenciesTracking(worktreePath: string): void {
 export async function installWorktreeDependencies(worktreePath: string): Promise<void> {
   const scriptPath = join(worktreePath, 'scripts', 'setup-worktree.cjs');
   if (!existsSync(scriptPath)) {
-    logger.warn(
-      `[installWorktreeDependencies] setup-worktree.cjs not found at ${scriptPath}; skipping (node_modules link unavailable)`,
+    // NOTE: A generated project under its own theme has no setup-worktree.cjs.
+    // Returning here left those worktrees with zero dependencies, so every gate
+    // reported "unverified" and verify bounced forever (tasks 1152/1153,
+    // 2026-10-08). project-dependency-bootstrap keeps one shared tree per
+    // project in a gitignored sidecar and links it in — installing only when
+    // the manifest fingerprint changes.
+    const result = await bootstrapProjectDependencies(worktreePath);
+    logger.info(
+      `[installWorktreeDependencies] No setup-worktree.cjs; project bootstrap ${result.action} (${result.detail}) for ${worktreePath}`,
     );
     return;
   }

@@ -413,3 +413,108 @@ test('write-bearing cd into <primary>/.worktrees stays primary_mutation and the 
   assert.match(reason, /git show origin\/<branch>:<path>/);
   assert.match(reason, /git grep <pattern> origin\/<branch>/);
 });
+
+// ---------------------------------------------------------------------------
+// Dependency-tree rules (prisma / package_install) are scoped to checkouts that
+// actually SHARE node_modules by link. Applied unconditionally they blocked the
+// first setup of an unrelated generated project with no workaround from
+// anywhere: tasks 1152/1153 (2026-10-08) left C:\Projects\temporaid with zero
+// dependencies and no lockfile, so every gate reported "unverified" forever.
+// ---------------------------------------------------------------------------
+
+/** A standalone project tree, optionally sharing node_modules by junction. */
+function makeStandaloneProject(withLinkedNodeModules) {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-proj-'));
+  const root = path.join(base, 'myapp');
+  const wt = path.join(root, '.worktrees', 'task-1153-c3a5cb1f');
+  fs.mkdirSync(wt, { recursive: true });
+  if (withLinkedNodeModules) {
+    const target = path.join(root, 'node_modules');
+    fs.mkdirSync(target, { recursive: true });
+    // Same call scripts/setup-worktree.cjs makes.
+    fs.symlinkSync(target, path.join(wt, 'node_modules'), 'junction');
+  } else {
+    fs.mkdirSync(path.join(wt, 'node_modules'), { recursive: true });
+  }
+  return { base, wt };
+}
+
+const RAPITAS_ROOT = 'c:/projects/rapitas';
+const kindAt = (command, cwd) =>
+  classify(command, { primaryRoot: PRIMARY, guardRepoRoot: RAPITAS_ROOT, cwd });
+
+test('installs and prisma migrate are allowed in an unrelated project whose node_modules is real', () => {
+  const { base, wt } = makeStandaloneProject(false);
+  try {
+    for (const command of [
+      'pnpm install',
+      'pnpm install > .install.log 2>&1',
+      'npm ci',
+      'pnpm --filter server prisma migrate dev',
+      'pnpm exec playwright install chromium',
+    ]) {
+      assert.equal(kindAt(command, wt), null, command);
+    }
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test('the same installs stay denied once that project links node_modules from its root', () => {
+  const { base, wt } = makeStandaloneProject(true);
+  try {
+    assert.equal(kindAt('pnpm install', wt), 'package_install');
+    // Deeper package dir in the workspace: the link is found by walking up.
+    const deep = path.join(wt, 'apps', 'web');
+    fs.mkdirSync(deep, { recursive: true });
+    assert.equal(kindAt('pnpm install', deep), 'package_install');
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test('rapitas stays denied regardless of whether its node_modules link exists yet', () => {
+  for (const cwd of [PRIMARY, path.join(PRIMARY, 'rapitas-backend'), WT, path.join(WT, 'rapitas-frontend')]) {
+    assert.equal(kindAt('pnpm install', cwd), 'package_install', cwd);
+    assert.equal(kindAt('bunx prisma generate', cwd), 'prisma', cwd);
+  }
+});
+
+test('an unrelated project may not install INTO the rapitas checkout', () => {
+  const { base, wt } = makeStandaloneProject(false);
+  try {
+    for (const command of [
+      'pnpm --prefix C:/Projects/rapitas install',
+      'cd /c/Projects/rapitas && pnpm install',
+      'npm --prefix "C:\\Projects\\rapitas\\rapitas-backend" ci',
+    ]) {
+      assert.notEqual(kindAt(command, wt), null, command);
+    }
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test('an unknown cwd keeps the dependency rules denied (fail closed)', () => {
+  for (const cwd of [undefined, '']) {
+    assert.equal(kindAt('pnpm install', cwd), 'package_install');
+    assert.equal(kindAt('bunx prisma db push', cwd), 'prisma');
+  }
+});
+
+test('a script run followed by rm in a separate segment is not a package install', () => {
+  // `\S+` used to match across `;`, reading `bun ./probe.ts; rm -f ...` as
+  // "bun ... rm" (denied 2026-10-08; same class as task 1086's `bun pm cache rm`).
+  // Asserted from a worktree: inside the primary checkout a bare `rm` is
+  // (correctly) primary_mutation, which would mask the regex under test.
+  const inWorktree = path.join(WT, 'rapitas-backend');
+  assert.equal(kindAt('bun ./.probe-elysia-strip.ts; rm -f ./.probe-elysia-strip.ts', inWorktree), null);
+  assert.equal(kindAt('bun run build && rm -rf dist', inWorktree), null);
+  // Real installs in the same segment are still caught, worktree or not.
+  for (const cwd of [inWorktree, path.join(PRIMARY, 'rapitas-backend')]) {
+    assert.equal(kindAt('pnpm add -g npm', cwd), 'package_install', cwd);
+    assert.equal(kindAt('pnpm -C rapitas-frontend install', cwd), 'package_install', cwd);
+    assert.equal(kindAt('npm --prefix x ci', cwd), 'package_install', cwd);
+    assert.equal(kindAt('bun remove zod', cwd), 'package_install', cwd);
+  }
+});
