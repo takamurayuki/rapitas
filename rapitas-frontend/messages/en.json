@@ -6319,6 +6319,8 @@
       "sourceLocal": "Local",
       "sourceManual": "Manual",
       "environmentLabel": "Environment: {platform} / {runtimeVersion}",
+      "failureTailLabel": "Failure log (tail)",
+      "failureTailEmpty": "No failure log recorded",
       "close": "Close"
     }
   }

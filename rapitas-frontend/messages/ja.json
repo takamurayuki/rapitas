@@ -6319,6 +6319,8 @@
       "sourceLocal": "ローカル",
       "sourceManual": "手動",
       "environmentLabel": "環境: {platform} / {runtimeVersion}",
+      "failureTailLabel": "失敗時ログ（末尾）",
+      "failureTailEmpty": "失敗ログは記録されていません",
       "close": "閉じる"
     }
   }

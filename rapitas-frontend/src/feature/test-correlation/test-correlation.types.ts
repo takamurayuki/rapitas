@@ -31,6 +31,8 @@ export interface FailureDrilldownEntry {
   source: RunSource;
   environment: { platform: string; runtimeVersion: string };
   flaky: boolean;
+  /** Tail of the failing test run log; absent for runs recorded before log capture. */
+  failureTail?: string[];
 }
 
 export interface DrilldownResponse {
