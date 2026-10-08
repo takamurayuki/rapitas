@@ -119,6 +119,20 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
       'generateForTheme()のtry/catchが確実に捕捉しreturn 0で後続テーマ処理を継続する（innovation-session.ts:242-253）— タスク失敗に波及せず、次回実行時に再試行される想定内の失敗モード',
   },
   {
+    // ログ出力箇所: claude-cli-provider.ts:306-308 の setTimeout が
+    // `Claude CLI timed out after ${timeoutMs}ms` で fail(..., stop=true) し、
+    // :295 で ClaudeCliUnavailableError を reject（CLI は停止されリークなし）。
+    // /ai/chat は ai-chat.ts:110-115（ストリームは :194）の catch で logger
+    // routes:ai-chat の ERROR として記録し HTTP 500 + メッセージを呼び出し元へ返す。
+    // 呼び出し元は idea-box.ts:295-317 がフォールバックのタスクデータで継続、
+    // UI 側もエラー表示で劣化継続する。CLI の応答遅延という外部要因でありコード欠陥ではない（#1155）。
+    // 同ロガーの別文言（spawn 失敗等）と他ロガーの同文言は対象外のまま残す。
+    test: /^Claude CLI timed out after #ms$/i,
+    logger: /routes:ai-chat/i,
+    because:
+      '/ai/chat のCLIタイムアウトはHTTP 500で呼び出し元に返り、idea-box等は劣化動作で継続する（ai-chat.ts:110-115）— CLI応答遅延という想定内の外部要因',
+  },
+  {
     // ログ出力箇所: workflow-cli-executor-epilogue.ts:249 の log.warn。
     // validateVerify（phase-output-validator.ts:170-184）の
     // hasNonpassingVerifyVerdict 分岐が組み立てた summary をそのまま出す
