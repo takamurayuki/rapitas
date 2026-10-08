@@ -15,6 +15,17 @@ describe('PRIMARY_CHECKOUT_GUIDANCE', () => {
     expect(text).toContain('origin/');
     expect(text).not.toContain('C:/Projects');
   });
+
+  test.each(['ja', 'en'] as const)(
+    '%s points sibling-worktree reads to git show/grep on origin',
+    (lang) => {
+      const text = PRIMARY_CHECKOUT_GUIDANCE[lang];
+      expect(text).toContain('.worktrees');
+      expect(text).toContain('git show origin/<branch>:<path>');
+      expect(text).toContain('git grep <pattern> origin/<branch>');
+      expect(text).toContain('git fetch origin <branch>');
+    },
+  );
 });
 
 describe('PRIMARY_CHECKOUT_GUIDANCE wiring (task 1132)', () => {

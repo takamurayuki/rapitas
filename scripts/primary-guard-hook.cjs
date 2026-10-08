@@ -322,7 +322,7 @@ function decision(input, ctx) {
   if (!kind) return undefined;
   const reasons = {
     primary_mutation:
-      'Command rejected: it modifies the primary checkout. Work only inside your task worktree; run tests/git there and never cd to the primary repository.' +
+      'Command rejected: it modifies the primary checkout. Work only inside your task worktree; run tests/git there and never cd to the primary repository. To read another task or branch (including a sibling worktree under .worktrees), do not cd there: use `git show origin/<branch>:<path>` or `git grep <pattern> origin/<branch>` from your worktree (run `git fetch origin <branch>` first if the ref is missing).' +
       worktreeHint(ctx?.cwd ?? input.cwd, primaryRoot),
     primary_readonly:
       'Command rejected: never cd into the primary checkout, even to inspect it. Read-only git inspection is allowed without entering it (e.g. `git -C <primary-checkout-path> status`); everything else belongs in your task worktree.',
