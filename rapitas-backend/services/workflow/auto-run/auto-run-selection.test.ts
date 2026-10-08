@@ -8,7 +8,6 @@ import { describe, it, expect, mock } from 'bun:test';
 import {
   AUTO_RUN_GLOBAL_MAX_CONCURRENCY,
   HANG_BACKSTOP_HEARTBEAT_MS,
-  getGlobalAutoRunActiveCount,
   getThemeActiveQueueItems,
   hasItemAwaitingApproval,
   hasLiveExecution,
@@ -159,23 +158,6 @@ describe('hasItemAwaitingApproval', () => {
     { name: 'for empty array', items: [], expected: false },
   ])('returns $expected $name', ({ items, expected }) => {
     expect(hasItemAwaitingApproval(items)).toBe(expected);
-  });
-});
-
-describe('getGlobalAutoRunActiveCount', () => {
-  it('calls count with themeId not null and active statuses', async () => {
-    const mockCount = mock().mockResolvedValue(2);
-    const prisma = makePrisma({
-      workflowQueueItem: { count: mockCount, findMany: mock() },
-    });
-    const result = await getGlobalAutoRunActiveCount(prisma);
-    expect(result).toBe(2);
-    expect(mockCount).toHaveBeenCalledWith({
-      where: {
-        themeId: { not: null },
-        status: { in: ['queued', 'running', 'waiting_approval'] },
-      },
-    });
   });
 });
 
