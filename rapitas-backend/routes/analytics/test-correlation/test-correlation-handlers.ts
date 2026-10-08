@@ -134,6 +134,7 @@ export function handleGetDrilldown(query: Record<string, unknown>): {
             source: run.source,
             environment: run.environment,
             flaky: isNonDeterministic,
+            failureTail: run.failureTail?.[testFile],
           },
         ];
       });

@@ -21,8 +21,16 @@ mock.module('../services/analytics/test-correlation/run-history-store', () => ({
   appendRunRecord,
 }));
 
-const { buildTestCorrelationRunRecord, recordTestCorrelationHistory, toCorrelationTestResults } =
-  await import('./test-correlation-hook');
+const {
+  buildFailureTail,
+  buildTestCorrelationRunRecord,
+  FAILURE_TAIL_MAX_FILES,
+  FAILURE_TAIL_MAX_LINE_CHARS,
+  FAILURE_TAIL_MAX_LINES,
+  recordTestCorrelationHistory,
+  toCorrelationTestResults,
+  truncateFailureOutput,
+} = await import('./test-correlation-hook');
 
 const REPORT_RESULTS: TestResultEntry[] = [
   { file: 'a.test.ts', elapsedMs: 10, exitCode: 0, attempts: 1, flaky: false },
@@ -115,5 +123,75 @@ describe('recordTestCorrelationHistory', () => {
     await expect(
       recordTestCorrelationHistory(REPORT_RESULTS, '/fake/root'),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe('truncateFailureOutput', () => {
+  test('keeps only the last FAILURE_TAIL_MAX_LINES non-empty lines', () => {
+    const output = Array.from({ length: FAILURE_TAIL_MAX_LINES + 1 }, (_, i) => `line ${i}`).join(
+      '\n',
+    );
+    const lines = truncateFailureOutput(output);
+    expect(lines).toHaveLength(FAILURE_TAIL_MAX_LINES);
+    expect(lines[0]).toBe('line 1');
+    expect(lines[lines.length - 1]).toBe(`line ${FAILURE_TAIL_MAX_LINES}`);
+  });
+
+  test('clips each line to FAILURE_TAIL_MAX_LINE_CHARS characters', () => {
+    const lines = truncateFailureOutput('x'.repeat(FAILURE_TAIL_MAX_LINE_CHARS + 1));
+    expect(lines[0]).toHaveLength(FAILURE_TAIL_MAX_LINE_CHARS);
+  });
+
+  test('drops blank lines and handles CRLF', () => {
+    expect(truncateFailureOutput('a\r\n\r\n  \r\nb')).toEqual(['a', 'b']);
+  });
+});
+
+describe('buildFailureTail', () => {
+  test('includes only failing files that have output', () => {
+    const tail = buildFailureTail(REPORT_RESULTS, {
+      'a.test.ts': 'passed output',
+      'b.test.ts': 'boom',
+    });
+    expect(tail).toEqual({ 'b.test.ts': ['boom'] });
+  });
+
+  test('returns undefined when no failing file has output', () => {
+    expect(buildFailureTail(REPORT_RESULTS, { 'a.test.ts': 'ok' })).toBeUndefined();
+  });
+
+  test('keeps at most FAILURE_TAIL_MAX_FILES failing files', () => {
+    const results: TestResultEntry[] = Array.from(
+      { length: FAILURE_TAIL_MAX_FILES + 1 },
+      (_, i) => ({
+        file: `f${i}.test.ts`,
+        elapsedMs: 1,
+        exitCode: 1,
+        attempts: 1,
+        flaky: false,
+      }),
+    );
+    const outputs = Object.fromEntries(results.map((r) => [r.file, 'err']));
+    const tail = buildFailureTail(results, outputs);
+    expect(Object.keys(tail ?? {})).toHaveLength(FAILURE_TAIL_MAX_FILES);
+  });
+});
+
+describe('recordTestCorrelationHistory failureTail', () => {
+  beforeEach(() => {
+    appendRunRecord.mockImplementation(() => {});
+  });
+
+  test('persists failureTail for failing files and calls appendRunRecord once', async () => {
+    await recordTestCorrelationHistory(REPORT_RESULTS, '/fake/root', { 'b.test.ts': 'stack line' });
+    expect(appendRunRecord).toHaveBeenCalledTimes(1);
+    const [record] = appendRunRecord.mock.calls[0] as unknown as [{ failureTail?: unknown }];
+    expect(record.failureTail).toEqual({ 'b.test.ts': ['stack line'] });
+  });
+
+  test('omits failureTail entirely when no failing output is available', async () => {
+    await recordTestCorrelationHistory(REPORT_RESULTS, '/fake/root');
+    const [record] = appendRunRecord.mock.calls[0] as unknown as [Record<string, unknown>];
+    expect('failureTail' in record).toBe(false);
   });
 });

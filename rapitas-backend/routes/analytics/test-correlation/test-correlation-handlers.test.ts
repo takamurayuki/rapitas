@@ -116,6 +116,26 @@ describe('GET /analytics/test-correlation/drilldown', () => {
     expect(body.entries).toEqual([]);
   });
 
+  test('returns failureTail for a failing run that recorded output', async () => {
+    const history = seededHistory();
+    history.runs[0].failureTail = { 'a.test.ts': ['expected 1 received 2'] };
+    seedHistory(history);
+    const res = await testCorrelationRoutes.handle(
+      new Request(`${BASE}/drilldown?changedFile=a.ts&testFile=a.test.ts`),
+    );
+    const body = (await res.json()) as { entries: Array<Record<string, unknown>> };
+    expect(body.entries[0].failureTail).toEqual(['expected 1 received 2']);
+  });
+
+  test('omits failureTail for runs recorded before failure logs were stored', async () => {
+    seedHistory(seededHistory());
+    const res = await testCorrelationRoutes.handle(
+      new Request(`${BASE}/drilldown?changedFile=a.ts&testFile=a.test.ts`),
+    );
+    const body = (await res.json()) as { entries: Array<Record<string, unknown>> };
+    expect('failureTail' in body.entries[0]).toBe(false);
+  });
+
   test('rejects a missing changedFile with 422', async () => {
     const res = await testCorrelationRoutes.handle(
       new Request(`${BASE}/drilldown?testFile=a.test.ts`),

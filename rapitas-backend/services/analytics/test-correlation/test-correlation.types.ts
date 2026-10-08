@@ -22,8 +22,8 @@ export interface TestResultEntry {
 
 /**
  * One completed test run's summary — the unit persisted by run-history-store.
- * Deliberately stores summary fields only (no full log text) per the storage
- * policy decided in plan.md (§失敗詳細ログの保存粒度).
+ * Stores summary fields plus a bounded tail of failing-file output (failureTail)
+ * so drilldown can show why a test failed without retaining full logs.
  */
 export interface RunRecord {
   /** Unique identifier for this run (e.g. crypto.randomUUID()). */
@@ -40,6 +40,8 @@ export interface RunRecord {
     platform: string;
     runtimeVersion: string;
   };
+  /** Truncated output tail keyed by failing test file. Absent for runs recorded before failure logs were stored. */
+  failureTail?: Record<string, string[]>;
 }
 
 /** Top-level JSON structure persisted by run-history-store. */
@@ -74,4 +76,6 @@ export interface FailureDrilldownEntry {
   source: RunSource;
   environment: RunRecord['environment'];
   flaky: boolean;
+  /** Truncated failing-file output for this run, when it was recorded. */
+  failureTail?: string[];
 }

@@ -296,7 +296,10 @@ async function main(): Promise<void> {
   }
 
   // Record this run into the test-correlation history store (never affects exit code — see test-correlation-hook.ts).
-  await recordTestCorrelationHistory(reportResults, root);
+  const failureOutputs = Object.fromEntries(
+    failedResults.map((r) => [relative(root, r.file), `${r.stdout}\n${r.stderr}`]),
+  );
+  await recordTestCorrelationHistory(reportResults, root, failureOutputs);
 
   // Write test report if enabled via env (RAPITAS_TEST_REPORT=1 or RAPITAS_TEST_REPORT_PATH).
   const reportPath = writeTestReport(reportResults, wallMs, new Date().toISOString(), root);

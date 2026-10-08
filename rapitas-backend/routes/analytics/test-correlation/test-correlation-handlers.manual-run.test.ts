@@ -12,6 +12,7 @@ import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { handlePostManualRun } from './test-correlation-handlers';
+import { testCorrelationRoutes } from './test-correlation-router';
 import { readRunHistory } from '../../../services/analytics/test-correlation';
 
 let dataDir: string;
@@ -93,6 +94,37 @@ describe('handlePostManualRun', () => {
       validBody({ testResults: [{ file: 'a.test.ts', status: 'unknown' }] }),
     );
     expect(result.status).toBe(422);
+    expect(readRunHistory('/unused-backend-root').runs).toHaveLength(0);
+  });
+});
+
+describe('POST /analytics/test-correlation/manual-run (router)', () => {
+  const URL = 'http://localhost/analytics/test-correlation/manual-run';
+
+  function post(body: unknown): Promise<Response> {
+    return testCorrelationRoutes.handle(
+      new Request(URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    );
+  }
+
+  test('routes a valid body to the handler and returns 200 with runId', async () => {
+    const res = await post(validBody());
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { success: boolean; runId: string };
+    expect(json.success).toBe(true);
+    const history = readRunHistory('/unused-backend-root');
+    expect(history.runs).toHaveLength(1);
+    expect(history.runs[0].runId).toBe(json.runId);
+    expect(history.runs[0].source).toBe('manual');
+  });
+
+  test('returns 422 through the router for an invalid body and records nothing', async () => {
+    const res = await post(validBody({ changedFiles: [] }));
+    expect(res.status).toBe(422);
     expect(readRunHistory('/unused-backend-root').runs).toHaveLength(0);
   });
 });
