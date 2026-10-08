@@ -78,6 +78,7 @@ export type CycleEventName =
   | 'theme.zero_progress_detected'
   | 'theme.waiting_for_slot'
   | 'theme.waiting_for_overlap_hold'
+  | 'theme.waiting_for_merge'
   // A theme reporting running while it has selected NOTHING and has nothing
   // dispatchable — the state that produced a four-hour silent outage on
   // 2026-09-27, watched by auto-run-no-selection-watch.
