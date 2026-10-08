@@ -13,7 +13,6 @@ import { runGhCommandWithBody } from '../../../../github/gh-client';
 import { titleMarkersAgree } from '../../../../github/pr-ownership';
 import { ghPath } from './gh-cli-path';
 import { ensurePrBase } from './pr-base-guard';
-import { scanPrTestRiskAfterCreate } from '../../../../analytics/test-correlation/test-correlation-pr-scan-hook';
 
 // NOTE: execFile (array-args, no shell) instead of exec (shell string) — branch
 // names, base branches, and other caller-controlled values are passed as
@@ -337,7 +336,12 @@ export async function createPullRequest(
     // reused and its previous PR had merged to main. Read the actual base back and
     // force-retarget if it drifted, so PRs always land on the intended branch.
     await ensurePrBase(workingDirectory, prNumber, targetBranch);
-    void scanPrTestRiskAfterCreate(prNumber, prUrl, workingDirectory);
+    // NOTE: Lazy import keeps the analytics graph (run-history-store imports child_process spawn) out of this module's static imports; a process-global bun mock.module elsewhere would otherwise break branch-pr-ops tests.
+    void import('../../../../analytics/test-correlation/test-correlation-pr-scan-hook')
+      .then(({ scanPrTestRiskAfterCreate }) =>
+        scanPrTestRiskAfterCreate(prNumber, prUrl, workingDirectory),
+      )
+      .catch((error) => logger.warn(`[createPullRequest] test-risk scan skipped: ${error}`));
     logger.info(`[createPullRequest] Created PR #${prNumber} to ${targetBranch}: ${prUrl}`);
     return { success: true, prUrl, prNumber };
   } catch (error) {

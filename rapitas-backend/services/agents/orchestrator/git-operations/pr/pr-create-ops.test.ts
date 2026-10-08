@@ -128,6 +128,7 @@ describe('createPullRequest — テスト失敗リスクスキャンのフック
     ];
 
     const res = await createPullRequest('/repo', 't', 'b', 'develop', 'feature/scan-hook');
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(res.success).toBe(true);
     expect(scanPrTestRiskAfterCreate).toHaveBeenCalledTimes(1);
