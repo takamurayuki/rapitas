@@ -145,21 +145,7 @@ export async function recentThemeSuccessRate(
   }
 }
 
-/**
- * Return the number of auto-run queue items currently active (queued/running/waiting_approval).
- * A non-null themeId marks an item as belonging to the auto-run scheduler.
- *
- * @param prisma - Prisma client instance
- * @returns count of active auto-run items / アクティブな自動実行キューアイテム数
- */
-export async function getGlobalAutoRunActiveCount(prisma: PrismaClient): Promise<number> {
-  return prisma.workflowQueueItem.count({
-    where: {
-      themeId: { not: null },
-      status: { in: ['queued', 'running', 'waiting_approval'] },
-    },
-  });
-}
+export { getGlobalAutoRunActiveCount } from './auto-run-global-active-count';
 
 /**
  * Return all active auto-run queue items (queued/running/waiting_approval) for a specific theme.
