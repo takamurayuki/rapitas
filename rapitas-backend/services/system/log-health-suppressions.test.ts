@@ -33,6 +33,15 @@ describe('classifyLogSignature', () => {
     expect(classifyLogSignature(name, msg).suppressed).toBe(false);
   });
 
+  test('task 1149: real ExecLog cancellation line is suppressed after normalization, sibling is not', () => {
+    const ignored = normalizeMessage('[ExecLog:5434] Execution result ignored after cancellation');
+    expect(classifyLogSignature('execution-file-logger', ignored).suppressed).toBe(true);
+    const unconfirmed = normalizeMessage(
+      '[ExecLog:5434] Execution result was not saved; cancellation could not be confirmed',
+    );
+    expect(classifyLogSignature('execution-file-logger', unconfirmed).suppressed).toBe(false);
+  });
+
   test('a logger-scoped rule does not leak to other loggers', () => {
     // 'Already running' is routine for the workflow runner; elsewhere it may
     // be a real double-start, so the rule must not fire globally.

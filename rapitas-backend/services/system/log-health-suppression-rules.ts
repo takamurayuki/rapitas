@@ -150,6 +150,17 @@ export const SUPPRESSIONS: Suppression[] = [
       '実行が failed で終わった結末の記録 — 原因は当該実行のログ側に出ており、二重起票になる（失敗自体はDBの実行ステータス・fallback・stall監視で検知される）',
   },
   {
+    // ログ出力箇所: agents/orchestrator/execution-persistence.ts:249 の fileLogger.logWarn。
+    // 停止要求が先に DB を canceling/cancelled へ遷移させた競合で、updateMany の where
+    // (notIn canceling/cancelled) が 0 件になり結果の保存を意図的に捨てた時のみ発火する。
+    // 確認できない場合は 241 行で throw され別経路で可視化されるため、本ルールは
+    // "was not saved; cancellation could not be confirmed" を抑制しない。
+    test: /^\[ExecLog:#\] Execution result ignored after cancellation$/i,
+    logger: /execution-file-logger/i,
+    because:
+      '停止と結果保存の競合で停止側の状態を保全した記録 — 実行失敗ではなく、停止の事実は Execution cancelled と実行ステータスに残る',
+  },
+  {
     // ログ出力箇所: claude-code/execution-resolver.ts:204-208 の logger.error。
     // CLI が exit 非 0 かつ prompt-too-long を報告した時のみ発火し（議論文言による
     // 誤検知は ac8ae459 の exit code ゲートで解消済み）、直後に failureType

@@ -12,6 +12,8 @@
  */
 
 export const SUPPRESSED: [string, string][] = [
+  // Task 1149: a stop won the race against result persistence (execution-persistence.ts).
+  ['execution-file-logger', '[ExecLog:#] Execution result ignored after cancellation'],
   [
     'execution-file-logger',
     "【Prompt Too Long】Claude Code CLI reported the prompt/context was too long (exit code #). The session's accumulated transcript has likely exceeded the model's context window — resuming this same session via --resume will very likely repeat this failure. Cold-start with a short structured handoff instead.",
@@ -165,6 +167,12 @@ export const SUPPRESSED: [string, string][] = [
 ];
 
 export const KEPT: [string, string][] = [
+  // Task 1149: the unconfirmed-cancellation failure and other loggers must stay visible.
+  [
+    'execution-file-logger',
+    '[ExecLog:#] Execution result was not saved; cancellation could not be confirmed',
+  ],
+  ['workflow', '[ExecLog:#] Execution result ignored after cancellation'],
   // Task 1145: sibling WARN from the same logger must stay visible.
   [
     'workflow-cli-executor',
