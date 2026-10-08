@@ -398,3 +398,18 @@ test('primary_mutation denial omits the path when cwd is missing or inside the p
     assert.ok(!r.hookSpecificOutput.permissionDecisionReason.includes(PRIMARY));
   }
 });
+
+test('write-bearing cd into <primary>/.worktrees stays primary_mutation and the denial points to git show origin/<branch>', () => {
+  const r = decision(
+    {
+      tool_name: 'Bash',
+      cwd: WT,
+      tool_input: { command: 'cd /c/Projects/rapitas/.worktrees; ls | grep 1107; rm -f x.tmp' },
+    },
+    ctx,
+  );
+  assert.equal(r._kind, 'primary_mutation');
+  const reason = r.hookSpecificOutput.permissionDecisionReason;
+  assert.match(reason, /git show origin\/<branch>:<path>/);
+  assert.match(reason, /git grep <pattern> origin\/<branch>/);
+});
