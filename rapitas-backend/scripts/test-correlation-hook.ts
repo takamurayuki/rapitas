@@ -23,6 +23,49 @@ import type { TestResultEntry } from './test-report';
  */
 export const TEST_CORRELATION_BASE_REF = process.env.RAPITAS_TEST_CORRELATION_BASE_REF ?? 'HEAD~1';
 
+export const FAILURE_TAIL_MAX_FILES = 20;
+export const FAILURE_TAIL_MAX_LINES = 40;
+export const FAILURE_TAIL_MAX_LINE_CHARS = 300;
+
+/**
+ * Keeps only the last lines of a failing file's output, each clipped in length,
+ * so the stored record stays bounded regardless of how verbose the test was.
+ *
+ * @param output - Combined stdout/stderr of one failing test file / 失敗ファイルの出力
+ * @returns Truncated lines, oldest first / 切り詰めた行一覧
+ */
+export function truncateFailureOutput(output: string): string[] {
+  return output
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0)
+    .slice(-FAILURE_TAIL_MAX_LINES)
+    .map((line) => line.slice(0, FAILURE_TAIL_MAX_LINE_CHARS));
+}
+
+/**
+ * Builds the bounded failureTail map for failing files only. Passing files are
+ * excluded, and at most FAILURE_TAIL_MAX_FILES entries are kept in report order.
+ *
+ * @param reportResults - This run's per-file results / このランのファイル別結果
+ * @param outputs - Combined output keyed by relative file path / ファイル別の出力
+ * @returns failureTail map, or undefined when no failing file has output / 失敗ファイルの出力マップ
+ */
+export function buildFailureTail(
+  reportResults: TestResultEntry[],
+  outputs: Record<string, string>,
+): Record<string, string[]> | undefined {
+  const tail: Record<string, string[]> = {};
+  for (const r of reportResults) {
+    if (Object.keys(tail).length >= FAILURE_TAIL_MAX_FILES) break;
+    if (r.exitCode === 0) continue;
+    const output = outputs[r.file];
+    if (!output) continue;
+    const lines = truncateFailureOutput(output);
+    if (lines.length > 0) tail[r.file] = lines;
+  }
+  return Object.keys(tail).length > 0 ? tail : undefined;
+}
+
 /**
  * Converts parallel-test.ts's own TestResultEntry[] into the test-correlation
  * service's TestResultEntry[] shape (skip is not modeled by parallel-test.ts,
@@ -57,14 +100,16 @@ export function buildTestCorrelationRunRecord(
     commitSha: string | null;
     changedFiles: string[];
     isCi: boolean;
+    failureTail?: Record<string, string[]>;
   },
 ): RunRecord {
-  const failureTail: Record<string, string[]> = {};
+  const entryTail: Record<string, string[]> = {};
   for (const r of reportResults) {
     if (r.exitCode !== 0 && r.failureTail && r.failureTail.length > 0) {
-      failureTail[r.file] = r.failureTail;
+      entryTail[r.file] = r.failureTail;
     }
   }
+  const failureTail = { ...entryTail, ...(opts.failureTail ?? {}) };
   return {
     runId: opts.runId,
     timestamp: opts.timestamp,
@@ -85,10 +130,12 @@ export function buildTestCorrelationRunRecord(
  *
  * @param reportResults - This run's per-file results / このランのファイル別結果
  * @param root - Backend root, used as git cwd and history storage root / バックエンドルート
+ * @param outputs - Combined output of each test file keyed by relative path / ファイル別の出力
  */
 export async function recordTestCorrelationHistory(
   reportResults: TestResultEntry[],
   root: string,
+  outputs: Record<string, string> = {},
 ): Promise<void> {
   try {
     const diffResult = await resolveChangedFiles(TEST_CORRELATION_BASE_REF, root);
@@ -117,6 +164,7 @@ export async function recordTestCorrelationHistory(
       commitSha,
       changedFiles: diffResult.files,
       isCi: !!process.env.CI,
+      failureTail: buildFailureTail(reportResults, outputs),
     });
     appendRunRecord(record, root);
   } catch (err) {

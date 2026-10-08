@@ -79,14 +79,29 @@ const execMockImpl = (cmd: string, _opts: unknown, cb?: (e: Error | null, r?: un
     callback(err as Error);
   }
 };
+// NOTE: `spawn` joined the mirror when pr-create-ops started calling the
+// test-correlation PR-scan hook: that chain reaches process-priority, which
+// imports spawn. Omitting it made this whole file error out at import with
+// "Export named 'spawn' not found" — 0 tests run, reported as 1 fail / 1 error,
+// which is why Test SQLite Compatible Suite went red on an otherwise green diff.
+// Nothing here exercises it; it only has to resolve.
+const spawnMockImpl = () => ({
+  pid: 4242,
+  once: () => {},
+  on: () => {},
+  kill: () => true,
+  unref: () => {},
+});
 mock.module('child_process', () => ({
   // promisify(execFile) calls execFile(file, args, options, callback); resolve {stdout,stderr}.
   execFile: execFileMockImpl,
   exec: execMockImpl,
+  spawn: spawnMockImpl,
 }));
 mock.module('node:child_process', () => ({
   execFile: execFileMockImpl,
   exec: execMockImpl,
+  spawn: spawnMockImpl,
 }));
 mock.module('../../../../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {} }),

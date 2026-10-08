@@ -68,13 +68,18 @@ const execMockImpl = (cmd: string, _opts: unknown, cb?: (e: Error | null, r?: un
     callback(err as Error);
   }
 };
+const spawnUnexpected = (): never => {
+  throw new Error('spawn is not expected in pr-create-ops tests');
+};
 mock.module('child_process', () => ({
   execFile: execFileMockImpl,
   exec: execMockImpl,
+  spawn: spawnUnexpected,
 }));
 mock.module('node:child_process', () => ({
   execFile: execFileMockImpl,
   exec: execMockImpl,
+  spawn: spawnUnexpected,
 }));
 mock.module('../../../../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {} }),
@@ -82,6 +87,9 @@ mock.module('../../../../../config/logger', () => ({
 // NOTE: gh-client is mocked so that runGhCommandWithBody does not invoke the
 // real gh binary. Its result is configurable per-test via ghWithBodyResult.
 mock.module('../../../../github/gh-client', () => ({
+  runGhCommand: async (): Promise<string> => {
+    throw new Error('runGhCommand is not expected in pr-create-ops tests');
+  },
   runGhCommandWithBody: async (
     baseArgs: string[],
     body: string | undefined,
@@ -93,6 +101,11 @@ mock.module('../../../../github/gh-client', () => ({
   },
 }));
 
+const scanPrTestRiskAfterCreate = mock(async (): Promise<void> => {});
+mock.module('../../../../analytics/test-correlation/test-correlation-pr-scan-hook', () => ({
+  scanPrTestRiskAfterCreate,
+}));
+
 const { createPullRequest } = await import('./pr-create-ops');
 
 beforeEach(() => {
@@ -101,6 +114,40 @@ beforeEach(() => {
   script = [];
   ghWithBodyCalls = [];
   ghWithBodyResult = '';
+  scanPrTestRiskAfterCreate.mockClear();
+});
+
+describe('createPullRequest — テスト失敗リスクスキャンのフック (受入条件2)', () => {
+  test('PR作成成功時にPR番号とURLを付けてスキャンフックを1回呼ぶこと', async () => {
+    const prUrl = 'https://github.com/x/y/pull/40';
+    ghWithBodyResult = prUrl;
+    script = [
+      { match: /git branch --list develop/, result: 'develop\n' },
+      { match: /git push -u origin feature\/scan-hook$/, result: '' },
+      { match: /pr list --head/, result: '' },
+    ];
+
+    const res = await createPullRequest('/repo', 't', 'b', 'develop', 'feature/scan-hook');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(res.success).toBe(true);
+    expect(scanPrTestRiskAfterCreate).toHaveBeenCalledTimes(1);
+    expect(scanPrTestRiskAfterCreate.mock.calls[0]).toEqual([40, prUrl, '/repo']);
+  });
+
+  test('PR作成に失敗した場合はスキャンフックを呼ばないこと', async () => {
+    ghWithBodyResult = new Error('gh: pr create failed');
+    script = [
+      { match: /git branch --list develop/, result: 'develop\n' },
+      { match: /git push -u origin feature\/scan-hook-fail$/, result: '' },
+      { match: /pr list --head/, result: '' },
+    ];
+
+    const res = await createPullRequest('/repo', 't', 'b', 'develop', 'feature/scan-hook-fail');
+
+    expect(res.success).toBe(false);
+    expect(scanPrTestRiskAfterCreate).not.toHaveBeenCalled();
+  });
 });
 
 describe('createPullRequest — headBranch 明示解決', () => {

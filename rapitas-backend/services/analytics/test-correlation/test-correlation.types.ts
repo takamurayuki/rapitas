@@ -22,8 +22,8 @@ export interface TestResultEntry {
 
 /**
  * One completed test run's summary — the unit persisted by run-history-store.
- * Deliberately stores summary fields only (no full log text) per the storage
- * policy decided in plan.md (§失敗詳細ログの保存粒度).
+ * Stores summary fields plus a bounded tail of failing-file output (failureTail)
+ * so drilldown can show why a test failed without retaining full logs.
  */
 export interface RunRecord {
   /** Unique identifier for this run (e.g. crypto.randomUUID()). */
