@@ -52,6 +52,10 @@ export function buildFallbackResponse(
     tech_rationale: `【テンプレート出力・AI生成は失敗しました】${stack[0]}と${stack[1] || 'Supabase'}を中心とした技術スタックを選定しました。${proposal.concept}というコンセプトに最適なフレームワークと、開発効率を重視した構成です。${stack[2] || 'TypeScript'}による型安全性と保守性を確保します。`,
     // Not a judgement of the idea — a statement that this output is a scaffold.
     score: 20,
+    // NOTE: Deliberately empty, for the same reason the ADR records nothing: a
+    // package.json for a stack nobody chose would produce a project that LOOKS
+    // set up, and the next agent would build on invented dependencies.
+    scaffold: [],
     requirements: `${BANNER}# 概要
 
 **アプリ名**: ${proposal.name}

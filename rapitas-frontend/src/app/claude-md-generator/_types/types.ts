@@ -33,6 +33,12 @@ export interface DynamicItem {
   label: string;
 }
 
+/** One generated skeleton file; paths are validated server-side. / 雛形の1ファイル */
+export interface ScaffoldFile {
+  path: string;
+  content: string;
+}
+
 export interface GenerateResult {
   tech_rationale: string;
   score: number;
@@ -42,6 +48,8 @@ export interface GenerateResult {
   design?: string;
   /** 技術選定記録（決定・代替案・却下理由）のマークダウン全文 / ADR markdown */
   adr?: string;
+  /** プロジェクト雛形（ルートに書き込まれる） / Project skeleton written at the root */
+  scaffold?: ScaffoldFile[];
   /** エージェント行動規範（CLAUDE.md）のマークダウン全文 / Agent guide markdown */
   claude_md: string;
   /** AI生成に失敗し、テンプレート雛形が返っている / True when this is the fallback scaffold */
@@ -51,4 +59,4 @@ export interface GenerateResult {
 }
 
 /** Identifies one generated document tab. / 生成ドキュメントのタブ識別子 */
-export type DocKind = 'requirements' | 'design' | 'adr' | 'claude_md';
+export type DocKind = 'requirements' | 'design' | 'adr' | 'scaffold' | 'claude_md';

@@ -264,6 +264,7 @@ export function useWizard() {
           requirements: result.requirements,
           design: result.design,
           adr: result.adr,
+          scaffold: result.scaffold,
           description: pickedProp.tagline,
           agentFilePath: target.path,
           // Omitted (not null/empty) when unset so the backend's own fallbacks

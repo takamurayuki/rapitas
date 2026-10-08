@@ -1,6 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
-import { type ClaudeMdRequest, type GenerateResult, systemPrompt } from './document-package-prompt';
+import {
+  type ClaudeMdRequest,
+  type GenerateResult,
+  type ScaffoldFile,
+  systemPrompt,
+} from './document-package-prompt';
 import { buildFallbackResponse } from './fallback-package';
 
 const logger = createLogger('GenerateClaudeMdRoute');
@@ -9,6 +14,25 @@ const BACKEND_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:3
   'localhost',
   '127.0.0.1',
 );
+
+/**
+ * Keep only well-shaped skeleton entries. Paths are NOT validated here — the
+ * backend writer owns that and is the single place it can be trusted — but a
+ * malformed array must not reach it as `undefined.path`.
+ *
+ * @param raw - The `scaffold` value as parsed / パース結果の scaffold
+ * @returns Entries with a string path and string content / 整形済みエントリ
+ */
+function acceptScaffold(raw: unknown): ScaffoldFile[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (f): f is ScaffoldFile =>
+      !!f &&
+      typeof (f as ScaffoldFile).path === 'string' &&
+      (f as ScaffoldFile).path.trim().length > 0 &&
+      typeof (f as ScaffoldFile).content === 'string',
+  );
+}
 
 /**
  * Parse the AI JSON envelope into the document package, tolerating code fences
@@ -30,6 +54,7 @@ function parseAIResponse(content: string): GenerateResult | null {
       // three good documents and dropped the fourth is still worth shipping,
       // and the empty tab is visible in the wizard.
       adr: typeof parsed.adr === 'string' ? parsed.adr : '',
+      scaffold: acceptScaffold(parsed.scaffold),
       claude_md: parsed.claude_md,
     };
   };

@@ -17,6 +17,8 @@ interface SetupThemeRequest {
   design?: string;
   /** 技術選定記録（docs/adr/0001-architecture-decisions.md として書き込む） / ADR doc */
   adr?: string;
+  /** プロジェクト雛形。パス検証はバックエンド側で行う。 / Project skeleton */
+  scaffold?: Array<{ path: string; content: string }>;
   /** エージェント指示ファイルの相対パス（例 .claude/CLAUDE.md / AGENTS.md） / Agent guide repo-relative path */
   agentFilePath?: string;
   /** 出力先の親ディレクトリ。未指定ならバックエンドが ~/Projects を使う。 / Parent dir for the project folder */
@@ -35,6 +37,7 @@ export async function POST(request: NextRequest) {
       requirements,
       design,
       adr,
+      scaffold,
       agentFilePath,
       basePath,
       description,
@@ -62,6 +65,7 @@ export async function POST(request: NextRequest) {
         requirements,
         design,
         adr,
+        scaffold,
         agentFilePath,
         basePath,
         description,

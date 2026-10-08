@@ -59,6 +59,13 @@ describe('buildFallbackResponse', () => {
     }
   });
 
+  it('ships no project skeleton rather than one for an invented stack', () => {
+    // Same reason the ADR records nothing: a package.json for a stack nobody
+    // chose would produce a project that LOOKS set up, and the next agent would
+    // build on invented dependencies.
+    expect(build().scaffold).toEqual([]);
+  });
+
   it('points the agent guide at all three spec documents', () => {
     const { claude_md } = build();
     expect(claude_md).toContain('docs/requirements.md');

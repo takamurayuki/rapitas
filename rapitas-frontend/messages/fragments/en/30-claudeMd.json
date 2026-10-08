@@ -31,6 +31,7 @@
     "tabRequirements": "Requirements",
     "tabDesign": "Design",
     "tabAdr": "Decisions (ADR)",
+    "tabScaffold": "Skeleton",
     "tabClaudeMd": "CLAUDE.md",
     "targetAgentLabel": "Primary AI agent (changes the guide file name/location)",
     "proposingTitle": "Proposing apps…",

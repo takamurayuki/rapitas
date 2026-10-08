@@ -31,6 +31,7 @@
     "tabRequirements": "要件定義書",
     "tabDesign": "設計書",
     "tabAdr": "技術選定記録",
+    "tabScaffold": "プロジェクト雛形",
     "tabClaudeMd": "CLAUDE.md",
     "targetAgentLabel": "対象AIエージェント（指示ファイルの名称・配置が変わります）",
     "proposingTitle": "アプリを提案中…",

@@ -94,6 +94,16 @@ export function ResultPhase({
         content: result?.adr || '',
       },
       {
+        kind: 'scaffold',
+        label: t('tabScaffold'),
+        filename: `${result?.scaffold?.length ?? 0} files at the project root`,
+        // Concatenated with path headers so the whole skeleton can be copied in
+        // one go; the backend writes each entry to its own validated path.
+        content: (result?.scaffold ?? [])
+          .map((f) => `// ===== ${f.path} =====\n${f.content}`)
+          .join('\n\n'),
+      },
+      {
         kind: 'claude_md',
         label: agentFileName,
         filename: agentTarget.path,

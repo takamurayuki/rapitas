@@ -29,12 +29,26 @@ export interface ClaudeMdRequest {
   };
 }
 
+/** One generated skeleton file, written at the project root. */
+export interface ScaffoldFile {
+  /** Project-relative path; validated server-side. / プロジェクト相対パス */
+  path: string;
+  content: string;
+}
+
 /** The generated package as the wizard consumes it. */
 export interface GenerateResult {
   tech_rationale: string;
   score: number;
   requirements: string;
   design: string;
+  /**
+   * Runnable project skeleton. Without it the project root holds only docs, so
+   * the first environment-setup task has nothing to install from and an agent
+   * handed documents alone cannot tell what to implement (task 1152 blocked on
+   * exactly that). / 実行可能なプロジェクト雛形
+   */
+  scaffold: ScaffoldFile[];
   /**
    * Architecture Decision Records: the reasoning behind the stack, including
    * the alternatives that were rejected. / 技術選定の意思決定記録
@@ -62,7 +76,8 @@ export const systemPrompt = `あなたはシニアプロダクトマネージャ
   "requirements": "要件定義書の全文（マークダウン）",
   "design": "設計書の全文（マークダウン）",
   "adr": "技術選定記録(ADR)の全文（マークダウン）",
-  "claude_md": "CLAUDE.mdの全文（マークダウン）"
+  "claude_md": "CLAUDE.mdの全文（マークダウン）",
+  "scaffold": [{ "path": "プロジェクト相対パス", "content": "ファイル全文" }]
 }
 
 ## 共通ルール（厳守）
@@ -143,7 +158,32 @@ export const systemPrompt = `あなたはシニアプロダクトマネージャ
    - 禁止行動（本番DB操作・APIキーハードコード・承認なしのスキーマ変更）
    - 「実装前・実装中・実装後」のチェックリスト
 
+## scaffold（プロジェクト雛形）
+ドキュメントだけではエージェントは着手できない。**\`pnpm install\`（または該当のパッケージマネージャ）が
+そのまま通り、lint / typecheck / test / build のコマンドが「0件でも成功する」状態**のファイル一式を出力する。
+これは設計書の「ディレクトリ構成」「技術スタック」と**完全に一致**させること。
+
+必ず含めるもの:
+- ルートの \`package.json\`（scripts に dev / lint / typecheck / test / build を定義。モノレポなら
+  ワークスペース定義ファイルも）
+- TypeScript 設定（\`tsconfig.json\` / 必要なら \`tsconfig.base.json\`）
+- lint / format 設定、テストランナー設定
+- \`.gitignore\`（\`node_modules\`、ビルド出力、\`.env\` を必ず含める）
+- \`.env.example\`（設計書の「環境変数」と一致させる）
+- パッケージごとの \`package.json\` と、**各パッケージに1つだけ**エントリのスタブ
+  （例: \`src/index.ts\` に \`export {};\` 程度。機能は実装しない）
+- テストが0件で失敗する設定の場合は、各パッケージに**通ることが自明なテスト1本**だけ置く
+
+守るルール:
+- パスは**プロジェクト相対のみ**。先頭の \`/\`、\`C:\` のようなドライブ、\`..\` は禁止。
+- \`docs/\`、\`.claude/\`、\`.git/\`、\`node_modules/\` 配下は出力しない（別途生成される）。
+- **lockfile は出力しない**（インストール時に生成される）。
+- 依存のバージョンは設計書の技術スタック表と一致させる。存在しないバージョンを書かない。
+- ファイル数は**40個以内**、1ファイル 64KB 以内。機能実装・画面実装は含めない（土台のみ）。
+- ネイティブビルドが必要な依存（prisma / argon2 等）を使う場合、pnpm なら
+  \`onlyBuiltDependencies\` に明示する。
+
 ### スコア基準
-4点セット全体が「AIエージェントが即実装着手できる」完成度を100点満点で自己採点（95点以上を目標）。
+4点セット＋雛形全体が「AIエージェントが即実装着手できる」完成度を100点満点で自己採点（95点以上を目標）。
 
 JSONのみ出力。`;
