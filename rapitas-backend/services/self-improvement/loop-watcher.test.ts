@@ -41,6 +41,9 @@ function windowWith(over: Partial<LoopMetricsWindow['counts']>): LoopMetricsWind
       verify_repair_total: 0,
       verify_repair_self_contradiction: 0,
       verify_repair_diff_review: 0,
+      verify_repair_diff_review_scope_drift: 0,
+      verify_repair_diff_review_plan_gap: 0,
+      verify_repair_diff_review_unclassified: 0,
       verify_repair_honest_failure: 0,
       verify_repair_auto_gate: 0,
       verify_repair_other: 0,
@@ -83,6 +86,19 @@ describe('evaluateRules', () => {
       windowWith({ verify_repair_diff_review: 7 }),
     );
     expect(findings).toHaveLength(0);
+  });
+
+  it('appends the scope-drift / plan-gap breakdown to the diff-review concern', () => {
+    const findings = evaluateRules(
+      windowWith({
+        verify_repair_diff_review: 4,
+        verify_repair_diff_review_scope_drift: 1,
+        verify_repair_diff_review_plan_gap: 2,
+        verify_repair_diff_review_unclassified: 1,
+      }),
+      windowWith({ verify_repair_diff_review: 3 }),
+    );
+    expect(findings[0]!.detail).toContain('スコープ逸脱系 1 件 / 計画欠落系 2 件 / 未分類 1 件');
   });
 
   it('fires independently per bucket', () => {

@@ -33,6 +33,15 @@ describe('isNonRunnableTaskSkip', () => {
     expect(isNonRunnableTaskSkip('Requirement replan review held: budget_exhausted')).toBe(true);
   });
 
+  test('回帰: not_reviewable は状態ガードによる保留で再試行しても解消しないためスキップ扱いにする', () => {
+    // task #1143: task が in-progress でない等の検証対象外状態では readSource() が null を返し、
+    // 再試行しても状態は変わらないのに WARN とリトライ消費が繰り返されていた。
+    expect(isNonRunnableTaskSkip('Requirement replan review held: not_reviewable')).toBe(true);
+    expect(
+      isNonRunnableTaskSkip('実行エラー: Requirement replan review held: not_reviewable'),
+    ).toBe(true);
+  });
+
   test('本物の失敗は従来どおり再試行対象のまま', () => {
     const failures = [
       'research.md was not saved. The workflow phase cannot be completed until the required file is written',

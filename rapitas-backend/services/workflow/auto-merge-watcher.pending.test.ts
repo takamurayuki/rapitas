@@ -38,6 +38,22 @@ mock.module('./auto-merge-baseline-drift', () => ({
 }));
 mock.module('./auto-merge-ci-failure', () => ({ handleCiFailure: mockHandleCiFailure }));
 
+// task 1145: a CANCELLED blocking check must rerun, not bounce ci_repair. Only
+// the watcher's BRANCH CHOICE is under test here, so the split is injected
+// rather than recomputed — splitRedChecks' own partitioning has unit coverage
+// in auto-merge-cancelled-checks.test.ts.
+let splitFixture: { failed: { name: string }[]; cancelled: { name: string }[] } = {
+  failed: [],
+  cancelled: [],
+};
+const mockHandleCancelled = mock(() => Promise.resolve(true));
+mock.module('./auto-merge-cancelled-checks', () => ({
+  splitRedChecks: () => splitFixture,
+  handleCancelledChecks: mockHandleCancelled,
+  CANCELLED_RERUN_CAUSE: 'auto_merge_cancelled_rerun',
+  MAX_CANCELLED_RERUNS: 2,
+}));
+
 mock.module('./ci-self-repair', () => ({
   attemptCiRepair: mock(() => Promise.resolve({ bounced: false })),
   CI_REPAIR_CAUSE: 'ci_repair',
@@ -99,7 +115,16 @@ const mockPrisma = {
     updateMany: mockTaskComplete,
   },
 };
-mock.module('../../config/database', () => ({ prisma: mockPrisma }));
+// NOTE: config/index.ts re-exports ensureDatabaseConnection from './database',
+// so a mock carrying only `prisma` makes that re-export fail to resolve and the
+// whole file errors out before any test runs. It passed only because another
+// test file in the same process had mocked it more completely —
+// bun's mock.module registry is process-global — so running this file alone
+// (or first) reported "0 pass 1 fail".
+mock.module('../../config/database', () => ({
+  prisma: mockPrisma,
+  ensureDatabaseConnection: mock(async () => {}),
+}));
 
 // NOTE (task 865): the real file moved to git-operations/pr/branch-pr-ops.ts;
 // the old path here silently created a SEPARATE (never-consulted) module
@@ -110,8 +135,12 @@ mock.module('../agents/orchestrator/git-operations/pr/branch-pr-ops', () => ({
   mergePullRequest: mockMerge,
 }));
 
+// `logger` is mirrored for the same reason as ensureDatabaseConnection above:
+// config/index.ts re-exports it from './logger'.
+const noopLogger = { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} };
 mock.module('../../config/logger', () => ({
-  createLogger: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {} }),
+  createLogger: () => noopLogger,
+  logger: noopLogger,
 }));
 
 const { AutoMergeWatcher } = await import('./auto-merge-watcher');
@@ -156,6 +185,46 @@ describe('AutoMergeWatcher — pending checks', () => {
     expect(mockMerge).not.toHaveBeenCalled();
     expect(mockTaskComplete).not.toHaveBeenCalled();
     expect(mockNotify).not.toHaveBeenCalled();
+  });
+});
+
+describe('AutoMergeWatcher — cancelled vs failed blocking checks', () => {
+  beforeEach(() => {
+    evaluateFixture = 'fail';
+    draftFixture = false;
+    mockHandleCiFailure.mockClear();
+    mockHandleCancelled.mockClear();
+  });
+
+  test('an all-cancelled PR is rerun and never bounced to ci_repair', async () => {
+    splitFixture = { failed: [], cancelled: [{ name: 'Build (ubuntu-latest)' }] };
+    mockHandleCancelled.mockImplementation(() => Promise.resolve(true));
+    await getProcess()(candidate, new Set(['Lint Code']));
+    expect(mockHandleCancelled).toHaveBeenCalled();
+    expect(mockHandleCiFailure).not.toHaveBeenCalled();
+  });
+
+  test('once the rerun budget is spent the normal failure path still runs', async () => {
+    splitFixture = { failed: [], cancelled: [{ name: 'Build (ubuntu-latest)' }] };
+    mockHandleCancelled.mockImplementation(() => Promise.resolve(false));
+    await getProcess()(candidate, new Set(['Lint Code']));
+    expect(mockHandleCiFailure).toHaveBeenCalled();
+    // Falling through must still name the cancelled check, not an empty list —
+    // an empty failedChecks would park the PR with no stated reason.
+    expect(mockHandleCiFailure.mock.calls[0]?.[1]).toEqual(['Build (ubuntu-latest)']);
+  });
+
+  test('a genuine failure alongside a cancellation repairs only the real failure', async () => {
+    splitFixture = {
+      failed: [{ name: 'Lint Code' }],
+      cancelled: [{ name: 'Build (ubuntu-latest)' }],
+    };
+    mockHandleCancelled.mockImplementation(() => Promise.resolve(true));
+    await getProcess()(candidate, new Set(['Lint Code']));
+    // No rerun: there is a real defect to fix, and the implementer must not be
+    // sent after a cancelled check it cannot influence.
+    expect(mockHandleCancelled).not.toHaveBeenCalled();
+    expect(mockHandleCiFailure.mock.calls[0]?.[1]).toEqual(['Lint Code']);
   });
 });
 

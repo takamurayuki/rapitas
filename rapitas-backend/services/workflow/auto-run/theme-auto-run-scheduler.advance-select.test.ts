@@ -31,6 +31,9 @@ import {
   mockGetIdleStopMinutes,
   mockGetSelfRefillWindowStart,
   mockMarkSelfRefillSucceeded,
+  mockTaskCount,
+  mockNotifyAllBlocked,
+  mockNotifyHeldTasks,
 } from './theme-auto-run-scheduler.test-support';
 
 let scheduler: ThemeAutoRunScheduler;
@@ -260,6 +263,44 @@ describe('advanceTheme — selection: task found', () => {
     await internal(scheduler).advanceTheme(1, null, 'priority', 0, null);
 
     expect(mockSetCurrentTask).not.toHaveBeenCalled();
+  });
+
+  // 2026-09-27: one blocked task routes EVERY dry point through the all_blocked
+  // branch, and holds on other tasks became invisible again there — the shape
+  // that hid #911 for 15 days. Measured: the branch reported "1 blocked" while
+  // four further tasks sat held.
+  it('reports held tasks on the all_blocked branch too, not only on all_done', async () => {
+    mockSelectNextTask.mockResolvedValue({ found: false, reason: 'all_blocked' });
+    mockGetIdleStopMinutes.mockResolvedValue(60); // armed → no dev restart, no refill
+    mockTaskCount.mockResolvedValue(1); // one blocked task
+    // The skip queries and countHeldTasks share mockTaskFindMany; route by shape.
+    mockTaskFindMany.mockImplementation((args: unknown) => {
+      const where = (args as { where?: { OR?: unknown[] } })?.where;
+      if (!where?.OR) return Promise.resolve([]);
+      return Promise.resolve([
+        {
+          id: 1100,
+          status: 'in-progress',
+          workflowStatus: 'awaiting_question',
+          workflowDisabled: false,
+          autoRunExcluded: true,
+        },
+        {
+          id: 1108,
+          status: 'todo',
+          workflowStatus: null,
+          workflowDisabled: false,
+          autoRunExcluded: true,
+        },
+      ]);
+    });
+
+    await internal(scheduler).advanceTheme(1, null, 'priority', 0, null);
+
+    expect(mockNotifyAllBlocked).toHaveBeenCalled();
+    expect(mockNotifyHeldTasks).toHaveBeenCalled();
+    const idleEvent = mockLogCycleEvent.mock.calls.find((c) => c[0] === 'theme.idle');
+    expect(idleEvent?.[1]).toMatchObject({ cause: 'all_blocked', blocked: 1, held: 2 });
   });
 
   it('excludes currently-blocked tasks from selection via skipIds', async () => {

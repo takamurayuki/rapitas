@@ -77,6 +77,8 @@ export const spies = {
   performAutoCommitAndPR: mock((taskId: number, verifyContent: string) =>
     wf.performAutoCommitAndPRImpl(taskId, verifyContent),
   ),
+  /** Verify gate's agent-created-PR lookup. Default: nothing found. / 既定は「見つからない」 */
+  adoptAgentCreatedPr: mock(() => Promise.resolve(wf.adoptAgentCreatedPrResult)),
   appendEvent: mock(() => Promise.resolve()),
   gitExec: mock(() => wf.gitRevParseImpl()),
 
@@ -114,6 +116,7 @@ export function resetWfMockState(): void {
   wf.isPrimaryWorkTree = false;
   wf.taskHasLinkedPrRow = null;
   wf.linkedPrRow = null;
+  wf.adoptAgentCreatedPrResult = false;
   wf.createWorktreeImpl = async () => '/fake/worktree/new';
   wf.executeTaskImpl = async () => ({ success: true, output: 'agent output' });
   wf.gitRevParseImpl = async () => {

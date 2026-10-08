@@ -8,6 +8,7 @@ import type { Category } from '@/types';
 import type { GoalFormData } from '../_hooks/useLearningGoals';
 import { INITIAL_FORM_DATA } from '../_hooks/useLearningGoals';
 import { formatDate } from '@/utils/date';
+import DateField from '@/components/ui/date-field/DateField';
 
 type WizardStep = 'goal' | 'level' | 'schedule' | 'confirm';
 
@@ -201,11 +202,11 @@ export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                 {t('deadline')}
               </label>
-              <input
-                type="date"
+              <DateField
                 value={formData.deadline}
-                onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+                onChange={(value) => setFormData({ ...formData, deadline: value })}
                 min={new Date().toISOString().split('T')[0]}
+                aria-label={t('deadline')}
                 className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:border-indigo-400"
                 autoFocus
               />

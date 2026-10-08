@@ -44,6 +44,8 @@ const GIT_SLOW_OP_TIMEOUT_MS = 120_000;
  * @param baseDir - The main repository root / メインリポジトリのルート
  * @param worktreePath - Absolute path to the worktree to remove / 削除するworktreeの絶対パス
  * @param deleteBranch - Whether to delete the associated branch (default: true) / 関連するブランチを削除するか（デフォルト: true）
+ * @param preservedSnapshotTag - Durable snapshot tag that makes a dirty tree removable / 汚れたworktreeを削除可能にする永続スナップショットタグ
+ * @param forceRemove - Disposable worktrees only (comparison cells): skip the uncommitted-work guard and force-delete the branch. Path safety still applies / 使い捨てworktree専用。未コミット保護を迂回しブランチも強制削除する（パス安全性検査は常に適用）
  * @returns Whether the worktree directory was actually removed (or was already gone) / worktreeディレクトリが実際に削除された（または既に存在しなかった）か
  */
 export async function removeWorktree(
@@ -51,6 +53,7 @@ export async function removeWorktree(
   worktreePath: string,
   deleteBranch: boolean = true,
   preservedSnapshotTag?: string,
+  forceRemove: boolean = false,
 ): Promise<boolean> {
   // NOTE: Validate path before any destructive operation — prevents accidental deletion of .git/ or main repo.
   // isPathSafeForWorktreeOperation already logs the rejection reason via git-operations/safety;
@@ -62,7 +65,7 @@ export async function removeWorktree(
   // Refuse before teardown: force removal also destroys uncommitted and new files.
   // Recovery may remove a dirty tree only when its durable snapshot still matches.
   const contentIsSafe = async (): Promise<boolean> => {
-    if (!existsSync(worktreePath)) return true;
+    if (!existsSync(worktreePath) || forceRemove) return true;
     // Without local metadata, Git can silently inspect the parent checkout.
     if (!existsSync(join(worktreePath, '.git'))) {
       logger.warn({ worktreePath }, '[removeWorktree] Missing Git metadata; preserving directory');
@@ -254,7 +257,7 @@ export async function removeWorktree(
           { cwd: baseDir, encoding: 'utf8', timeout: GIT_OP_TIMEOUT_MS },
         );
         const uniqueCount = parseInt(uniqueCountRaw.trim(), 10);
-        if (Number.isFinite(uniqueCount) && uniqueCount > 0) {
+        if (!forceRemove && Number.isFinite(uniqueCount) && uniqueCount > 0) {
           const { stdout: tip } = await execFileAsync('git', ['rev-parse', '--short', branchName], {
             cwd: baseDir,
             encoding: 'utf8',

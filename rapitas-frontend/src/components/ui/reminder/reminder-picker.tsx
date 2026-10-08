@@ -10,6 +10,7 @@
  */
 import { useTranslations } from 'next-intl';
 import { AlarmClock } from 'lucide-react';
+import DateField from '@/components/ui/date-field/DateField';
 import {
   localDateKey,
   REMINDER_PRESET_ORDER,
@@ -79,11 +80,10 @@ export function ReminderPicker({ value, onChange }: ReminderPickerProps) {
       ))}
       {value.preset === 'custom' && (
         <span className="flex items-center gap-1 rounded-md bg-zinc-100 px-1.5 py-0.5 dark:bg-zinc-800/80">
-          <input
-            type="date"
+          <DateField
             value={value.date}
             min={localDateKey()}
-            onChange={(e) => onChange({ ...value, date: e.target.value })}
+            onChange={(date) => onChange({ ...value, date })}
             aria-label={t('custom.dateAria')}
             className={inputCls}
           />

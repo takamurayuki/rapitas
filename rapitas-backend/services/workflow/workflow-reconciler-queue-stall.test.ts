@@ -20,6 +20,9 @@ const findManyMock = mock(() =>
 const updateManyMock = mock(() => Promise.resolve({ count: 1 }));
 const countMock = mock(() => Promise.resolve(0));
 const findFirstMock = mock(() => Promise.resolve(null as { taskId: number } | null));
+// task 1105: the sweep also asks which tasks cannot run at all (halted /
+// blocked). Default empty keeps every pre-existing case on the age-only path.
+const taskFindManyMock = mock(() => Promise.resolve([] as { id: number }[]));
 const mockPrisma = {
   workflowQueueItem: {
     findMany: findManyMock,
@@ -27,6 +30,7 @@ const mockPrisma = {
     count: countMock,
     findFirst: findFirstMock,
   },
+  task: { findMany: taskFindManyMock },
 };
 
 const resolveTaskWorkflowStateMock = mock(() =>
@@ -89,6 +93,7 @@ const NOW = 1_800_000_000_000;
 
 beforeEach(() => {
   findManyMock.mockReset().mockResolvedValue([]);
+  taskFindManyMock.mockReset().mockResolvedValue([]);
   updateManyMock.mockReset().mockResolvedValue({ count: 1 });
   countMock.mockReset().mockResolvedValue(0);
   findFirstMock.mockReset().mockResolvedValue(null);
@@ -100,6 +105,66 @@ beforeEach(() => {
   notifyQueueStalledRunnerAliveMock.mockReset().mockResolvedValue(undefined);
   logCycleEventMock.mockReset();
   resetQueueStarvationTracker();
+});
+
+describe('sweepStaleRunningItems — 実行しえないタスクの残骸 (task 1105)', () => {
+  /** Route the two queue-item queries by their where clause. */
+  function routeFindMany(
+    stale: { id: number; taskId: number; themeId: number | null }[],
+    residue: { id: number; taskId: number; themeId: number | null }[],
+  ): void {
+    findManyMock.mockImplementation((args: unknown) => {
+      const where = (args as { where?: { taskId?: { in?: number[] } } })?.where;
+      return Promise.resolve(where?.taskId?.in ? residue : stale);
+    });
+  }
+
+  test('halt 済みタスクの running 残骸は 40 分待たずに解放される', async () => {
+    routeFindMany([], [{ id: 4101, taskId: 1105, themeId: 1 }]);
+    taskFindManyMock.mockResolvedValue([{ id: 1105 }]);
+    resolveTaskWorkflowStateMock.mockResolvedValue({
+      status: 'blocked',
+      workflowStatus: 'in_progress',
+    });
+
+    expect(await sweepStaleRunningItems(NOW)).toBe(1);
+    const call = updateManyMock.mock.calls[0]?.[0] as { where: { id: number; status: string } };
+    expect(call.where).toEqual({ id: 4101, status: 'running' });
+    expect(logCycleEventMock).toHaveBeenCalledWith(
+      'task.stall_released',
+      expect.objectContaining({ task: 1105, cause: 'unrunnable_task_running_residue' }),
+    );
+  });
+
+  test('生存中のエージェントがいる限り解放しない（二重起動の防止は維持）', async () => {
+    routeFindMany([], [{ id: 4101, taskId: 1105, themeId: 1 }]);
+    taskFindManyMock.mockResolvedValue([{ id: 1105 }]);
+    resolveTaskWorkflowStateMock.mockResolvedValue({
+      status: 'blocked',
+      workflowStatus: 'in_progress',
+    });
+    hasLiveExecutionMock.mockResolvedValue(true);
+
+    expect(await sweepStaleRunningItems(NOW)).toBe(0);
+    expect(updateManyMock).not.toHaveBeenCalled();
+  });
+
+  test('halt / blocked のタスクが無ければ残骸の照会自体を行わない', async () => {
+    taskFindManyMock.mockResolvedValue([]);
+    await sweepStaleRunningItems(NOW);
+    const residueQuery = findManyMock.mock.calls.find(
+      (c) => (c[0] as { where?: { taskId?: unknown } })?.where?.taskId !== undefined,
+    );
+    expect(residueQuery).toBeUndefined();
+  });
+
+  test('照会条件は haltReason 付き または blocked', async () => {
+    await sweepStaleRunningItems(NOW);
+    expect(taskFindManyMock.mock.calls[0][0]).toEqual({
+      where: { OR: [{ haltReason: { not: null } }, { status: 'blocked' }] },
+      select: { id: true },
+    });
+  });
 });
 
 describe('sweepStaleRunningItems', () => {
@@ -212,6 +277,72 @@ describe('detectQueueStarvation', () => {
 
     expect(await detectQueueStarvation(NOW)).toBe(0);
     expect(startProcessingMock).not.toHaveBeenCalled();
+  });
+
+  // task 1106(2026-09-27): フェーズ継ぎ目で item が queued に戻る間もエージェントは
+  // 走っている。item の status だけを見ると running=0 / queued>0 に見えて、健全な
+  // ワークフローに飢餓アラートが出ていた。
+  test('queued 項目のタスクにエージェントが生存していれば発火しない', async () => {
+    primeStarvedCounts(2);
+    findManyMock.mockResolvedValue([{ id: 0, taskId: 1106, themeId: 1 }]);
+    taskFindManyMock.mockResolvedValue([
+      { id: 1106, status: 'in-progress', workflowStatus: 'in_progress', haltReason: null },
+    ] as never);
+    hasLiveExecutionMock.mockResolvedValue(true);
+
+    await detectQueueStarvation(NOW);
+    expect(await detectQueueStarvation(NOW + QUEUE_STARVATION_THRESHOLD_MS * 2)).toBe(0);
+    expect(startProcessingMock).not.toHaveBeenCalled();
+    expect(notifyQueueStarvationMock).not.toHaveBeenCalled();
+  });
+
+  test('生存エージェントが居なければ従来どおり発火する', async () => {
+    primeStarvedCounts(2);
+    findManyMock.mockResolvedValue([{ id: 0, taskId: 1106, themeId: 1 }]);
+    taskFindManyMock.mockResolvedValue([
+      { id: 1106, status: 'todo', workflowStatus: 'draft', haltReason: null },
+    ] as never);
+    hasLiveExecutionMock.mockResolvedValue(false);
+    findFirstMock.mockResolvedValue({ taskId: 1106 });
+
+    await detectQueueStarvation(NOW);
+    expect(await detectQueueStarvation(NOW + QUEUE_STARVATION_THRESHOLD_MS + 1_000)).toBe(1);
+  });
+
+  // 2026-09-27: 本日 7 回出た飢餓アラートは、待機中の項目がすべて halt / blocked /
+  // 質問待ち / マージ待ちで「ランナーが発行を拒否する相手」だった。飢餓とは
+  // 「発行できる仕事が待っているのに何も走っていない」ことを指す。
+  test.each([
+    [
+      'halt 済み',
+      { status: 'todo', workflowStatus: 'in_progress', haltReason: 'budget_cost_exceeded' },
+    ],
+    ['blocked', { status: 'blocked', workflowStatus: 'in_progress', haltReason: null }],
+    ['質問待ち', { status: 'todo', workflowStatus: 'awaiting_question', haltReason: null }],
+    [
+      'マージ待ち(verify_done)',
+      { status: 'in-progress', workflowStatus: 'verify_done', haltReason: null },
+    ],
+  ])('待機中の項目が %s だけなら発火しない', async (_label, taskState) => {
+    primeStarvedCounts(1);
+    findManyMock.mockResolvedValue([{ id: 0, taskId: 1105, themeId: 1 }]);
+    taskFindManyMock.mockResolvedValue([{ id: 1105, ...taskState }] as never);
+    hasLiveExecutionMock.mockResolvedValue(false);
+
+    await detectQueueStarvation(NOW);
+    expect(await detectQueueStarvation(NOW + QUEUE_STARVATION_THRESHOLD_MS * 2)).toBe(0);
+    expect(startProcessingMock).not.toHaveBeenCalled();
+  });
+
+  test('タスク状態が読めないときは従来どおり発火する(情報不足で黙らせない)', async () => {
+    primeStarvedCounts(1);
+    findManyMock.mockResolvedValue([{ id: 0, taskId: 1105, themeId: 1 }]);
+    taskFindManyMock.mockRejectedValue(new Error('db down') as never);
+    hasLiveExecutionMock.mockResolvedValue(false);
+    findFirstMock.mockResolvedValue({ taskId: 1105 });
+
+    await detectQueueStarvation(NOW);
+    expect(await detectQueueStarvation(NOW + QUEUE_STARVATION_THRESHOLD_MS + 1_000)).toBe(1);
   });
 
   test('初回観測では発火しない — フェーズ継ぎ目の一瞬の空隙を誤検出しない (task 585 回帰)', async () => {

@@ -16,6 +16,10 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
 import { getTaskExecutionCancellationVersion } from '../agents/task-execution-lock';
+import {
+  resolveForbiddenChangePlanHold,
+  PLAN_FORBIDDEN_CHANGE_HOLD_CAUSE,
+} from './forbidden-change-plan-hold';
 
 const log = createLogger('plan-auto-approve');
 
@@ -63,6 +67,13 @@ export async function resolveEffectiveAutoApprovePlan(taskId: number): Promise<b
   ]);
   if (!task) return false;
   if (await isManualPlanApprovalHeld(taskId)) return false;
+  // A plan that commits to a human-override-only change cannot be completed by
+  // auto-approving it — the verify-time gate would refuse the result after the
+  // whole implementation was paid for (task 1100: 41 files, task 1103: a full
+  // implement+verify round). Hold here and let the human answer the same
+  // question for the price of one planner run.
+  const forbiddenHold = await resolveForbiddenChangePlanHold(taskId);
+  if (forbiddenHold) return false;
   const isSubtask = task.parentId !== null && task.parentId !== undefined;
   const settings = userSettings as Record<string, unknown> | null;
   return (
@@ -133,6 +144,26 @@ export async function maybeAutoApprovePlan(
     return { newStatus: 'plan_created', autoApproved: false };
   }
   if (await isManualPlanApprovalHeld(taskId)) {
+    return { newStatus: 'plan_created', autoApproved: false };
+  }
+  // Stop BEFORE the implementation is paid for (see forbidden-change-plan-hold).
+  // Recorded as a transition so the history says why the task is waiting rather
+  // than leaving a silent plan_created.
+  const forbiddenHold = await resolveForbiddenChangePlanHold(taskId);
+  if (forbiddenHold) {
+    await recordTransition({
+      taskId,
+      fromStatus: 'plan_created',
+      toStatus: 'plan_created',
+      actor: 'system',
+      cause: PLAN_FORBIDDEN_CHANGE_HOLD_CAUSE,
+      phase: 'plan',
+      metadata: { paths: forbiddenHold.paths, instruction: forbiddenHold.instruction },
+    }).catch(() => {});
+    log.warn(
+      { taskId, paths: forbiddenHold.paths },
+      '[plan-auto-approve] auto-approval withheld — plan needs a human forbidden-change override',
+    );
     return { newStatus: 'plan_created', autoApproved: false };
   }
 

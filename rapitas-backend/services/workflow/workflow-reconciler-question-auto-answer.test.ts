@@ -146,6 +146,16 @@ mock.module('../communication/notification-service', () => ({
   notifyQuestionAutoAnswered: notifyQuestionAutoAnsweredMock,
 }));
 
+// task 1103: a failing human-override-only gate withholds the auto-adopt. The
+// gate has its own unit tests (question-auto-answer-override-gate.test.ts);
+// mocked as one boundary here so these cases control it directly.
+const resolveHumanOverrideHoldMock = mock(() =>
+  Promise.resolve<{ hold: boolean; check?: string }>({ hold: false }),
+);
+mock.module('./question-auto-answer-override-gate', () => ({
+  resolveHumanOverrideHold: resolveHumanOverrideHoldMock,
+}));
+
 const { healStaleQuestionAutoAnswer } = await import('./workflow-reconciler-question-auto-answer');
 
 function baseTask(overrides: Partial<Record<string, unknown>> = {}) {
@@ -171,10 +181,23 @@ beforeEach(() => {
     .mockResolvedValue({ taskId: 1, ok: true, toStatus: 'draft', kind: 'spec_change' });
   notifyQuestionAutoAnsweredMock.mockReset().mockResolvedValue(undefined);
   themeAutoRunFindUniqueMock.mockReset().mockResolvedValue({ enabled: true });
+  resolveHumanOverrideHoldMock.mockReset().mockResolvedValue({ hold: false });
   delete process.env.RAPITAS_QUESTION_AUTO_ANSWER_MS;
 });
 
 describe('healStaleQuestionAutoAnswer', () => {
+  test('skips when a human-override-only gate is failing (task 1103)', async () => {
+    resolveHumanOverrideHoldMock.mockResolvedValue({ hold: true, check: 'schema-change' });
+
+    const result = await healStaleQuestionAutoAnswer(new Date(NOW_MS));
+
+    expect(result).toEqual({ scanned: 1, autoAnswered: 0, skipped: 1 });
+    expect(applyQuestionAnswerByKindMock).not.toHaveBeenCalled();
+    // The question is left untouched — no auto-adopt note is appended.
+    expect(writeWorkflowFileMock).not.toHaveBeenCalled();
+    expect(notifyQuestionAutoAnsweredMock).not.toHaveBeenCalled();
+  });
+
   test('skips when the theme auto-run is stopped (nothing continues on its own)', async () => {
     taskFindManyMock.mockResolvedValue([baseTask({ themeId: 1 })]);
     themeAutoRunFindUniqueMock.mockResolvedValue({ enabled: false });

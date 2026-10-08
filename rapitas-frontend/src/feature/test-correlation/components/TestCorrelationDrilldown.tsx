@@ -100,6 +100,19 @@ export function TestCorrelationDrilldown({
                     runtimeVersion: entry.environment.runtimeVersion,
                   })}
                 </p>
+                {entry.failureTail && entry.failureTail.length > 0 ? (
+                  <div>
+                    <p className="text-zinc-500 dark:text-zinc-400">{t('failureTailLabel')}</p>
+                    <pre
+                      data-testid="failure-tail"
+                      className="mt-1 p-2 rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 overflow-x-auto max-h-40 overflow-y-auto whitespace-pre"
+                    >
+                      {entry.failureTail.join('\n')}
+                    </pre>
+                  </div>
+                ) : (
+                  <p className="text-zinc-400 dark:text-zinc-500 italic">{t('failureTailEmpty')}</p>
+                )}
               </div>
             ))}
           </div>

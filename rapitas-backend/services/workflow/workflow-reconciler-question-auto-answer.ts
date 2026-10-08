@@ -18,6 +18,7 @@ import {
   isQuestionBlockEligibleForAutoAnswer,
   composeAutoAnswerText,
 } from './question-options-parser';
+import { resolveHumanOverrideHold } from './question-auto-answer-override-gate';
 import { applyQuestionAnswerByKind } from '../../routes/workflow/handlers/workflow-handlers-resume-dispatch';
 import { writeWorkflowFile } from './workflow-file-utils';
 import { notifyQuestionAutoAnswered } from '../communication/notification-service';
@@ -204,6 +205,17 @@ async function tryAutoAnswerOne(
     log.info(
       { taskId: task.id, reason: eligibility.reason },
       '[reconciler] healStaleQuestionAutoAnswer: question not eligible for auto-answer',
+    );
+    return false;
+  }
+
+  // A failing human-override-only gate cannot be cleared by any answer this
+  // pass can give, so adopting would only replay the same failure (task 1103).
+  const overrideHold = await resolveHumanOverrideHold(task.id);
+  if (overrideHold.hold) {
+    log.info(
+      { taskId: task.id, check: overrideHold.check },
+      '[reconciler] healStaleQuestionAutoAnswer: a human-override-only gate is failing — leaving the question for the user',
     );
     return false;
   }

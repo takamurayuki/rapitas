@@ -12,7 +12,13 @@
  * lowering the CLI covers the tests, tsc and git it runs for itself.
  */
 import os from 'node:os';
-import { spawn, type ChildProcess, type SpawnOptions } from 'child_process';
+import {
+  execFile,
+  spawn,
+  type ChildProcess,
+  type ExecFileOptions,
+  type SpawnOptions,
+} from 'child_process';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('agents:process-priority');
@@ -90,6 +96,64 @@ export function spawnLowPriority(
     child.once('error', done);
   }
   return child;
+}
+
+/** What execFileLowPriority resolves with; mirrors promisify(execFile). */
+export interface ExecFileResult {
+  stdout: string;
+  stderr: string;
+}
+
+/** Collaborators, injectable for tests. */
+interface ExecFileDeps {
+  execFile: typeof execFile;
+  setPriority: (pid: number, priority: number) => void;
+}
+
+/**
+ * `promisify(execFile)` that drops the child to BELOW_NORMAL right after start.
+ *
+ * Needed because the verification gate's `spawn` calls already go through
+ * spawnLowPriority while three heavy steps did not: the line-limit ratchet, the
+ * red-state worktree setup, and the three generated-drift checks that
+ * ciParityChecks fires with Promise.all — three NORMAL-priority processes at
+ * once on a 4-core host.
+ *
+ * Rejects with the ORIGINAL error object: callers read `err.code` / `err.stdout`
+ * to tell a real failure from a missing script, so it must not be wrapped.
+ *
+ * @param file - Executable. / 実行ファイル
+ * @param args - Arguments. / 引数
+ * @param options - Passed to execFile unchanged. / execFile へそのまま渡す
+ * @param flag - Env switch for this process family. / 対象プロセス群の環境変数名
+ * @param deps - Test overrides. / テスト用差し替え
+ * @returns stdout/stderr once the child exits. / 子プロセスの出力
+ */
+export function execFileLowPriority(
+  file: string,
+  args: string[],
+  options: ExecFileOptions,
+  flag: PriorityFlag = 'RAPITAS_VERIFY_QUIET',
+  deps: Partial<ExecFileDeps> = {},
+): Promise<ExecFileResult> {
+  const d: ExecFileDeps = { execFile, setPriority: os.setPriority, ...deps };
+  return new Promise((resolve, reject) => {
+    const child = d.execFile(file, args, options, (err, stdout, stderr) => {
+      if (err) {
+        // promisify(execFile) attaches the output to the error; the raw callback
+        // passes it separately. Callers branch on `err.stdout` (the ratchet reads
+        // the violations out of a non-zero exit), so reattach it rather than
+        // handing back an error that looks like "the script could not run".
+        const e = err as NodeJS.ErrnoException & { stdout?: unknown; stderr?: unknown };
+        if (e.stdout === undefined) e.stdout = String(stdout ?? '');
+        if (e.stderr === undefined) e.stderr = String(stderr ?? '');
+        reject(e);
+        return;
+      }
+      resolve({ stdout: String(stdout ?? ''), stderr: String(stderr ?? '') });
+    });
+    lowerProcessPriority(child.pid, flag, d.setPriority);
+  });
 }
 
 /** Pids of helper children currently running (see spawnLowPriority). */

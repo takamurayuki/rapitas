@@ -77,12 +77,23 @@ export function detectCwdMismatch(
   return { cwd: input.executionCwd, themeDir: input.themeWorkingDirectory };
 }
 
+/**
+ * How far BEFORE the failure mark a recovery transition may sit and still count.
+ * NOTE: The mark (queue item completedAt) and the recovery transition are written by
+ * different code paths in one tick; #1116's cancelled row landed 14ms AFTER its
+ * artifact_reuse_fastforward, so a strict `recovery >= mark` rejected the recovery.
+ * Kept well under the 1s "recovery before a newer mark" case that must still flag.
+ */
+export const RECOVERY_CLOCK_SKEW_MS = 500;
+
 /** Snapshot for the false-failure detector (defect class B). */
 export interface FalseFailureInput {
   /** Latest terminal failure mark for the task, epoch ms (null = none). */
   failureMarkedAtMs: number | null;
   /** Earliest success artifact (PR / auto_pr_created), epoch ms (null = none). */
   successArtifactAtMs: number | null;
+  /** Latest recovery transition (requeue/retry) at or after the failure mark, epoch ms. */
+  recoveryAtMs?: number | null;
   windowMs?: number;
 }
 
@@ -99,6 +110,15 @@ export function detectFalseFailure(input: FalseFailureInput): { gapMs: number } 
   if (input.failureMarkedAtMs === null || input.successArtifactAtMs === null) return null;
   const gapMs = input.successArtifactAtMs - input.failureMarkedAtMs;
   if (gapMs <= 0) return null;
+  // A recovery between the mark and the success = a legitimate retry. A recovery
+  // BEFORE a newer mark is excluded upstream (evidence only reads recoveries >= the mark).
+  if (
+    input.recoveryAtMs != null &&
+    input.recoveryAtMs >= input.failureMarkedAtMs - RECOVERY_CLOCK_SKEW_MS &&
+    input.recoveryAtMs <= input.successArtifactAtMs
+  ) {
+    return null;
+  }
   if (gapMs > (input.windowMs ?? FALSE_FAILURE_WINDOW_MS)) return null;
   return { gapMs };
 }

@@ -12,6 +12,8 @@ import { orchestraRoutes } from './orchestra';
 import { workflowLearningRoutes } from './workflow-learning';
 import { themeAutoRunRoutes } from './theme-auto-run';
 import { taskSpecRoutes } from '../tasks/task-spec-routes';
+import executionDashboardRoute from './execution-dashboard.routes';
+import haltReleaseRoute from './halt-release.routes';
 import phaseTimelineRoute from './phase-timeline.routes';
 
 export { workflowRoutes } from './core/workflow';
@@ -28,4 +30,6 @@ export const workflowDomainRoutes = new Elysia()
   .use(workflowLearningRoutes)
   .use(themeAutoRunRoutes)
   .use(taskSpecRoutes)
+  .use(executionDashboardRoute)
+  .use(haltReleaseRoute)
   .use(phaseTimelineRoute);

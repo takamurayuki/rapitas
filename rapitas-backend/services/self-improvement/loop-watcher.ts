@@ -28,6 +28,8 @@ interface WatchRule {
   title: string;
   /** What the ensuing investigation should look at. */
   hint: string;
+  /** Optional measured sub-breakdown appended to the detail. */
+  breakdown?: (counts: LoopMetricsWindow['counts']) => string;
 }
 
 const RULES: WatchRule[] = [
@@ -48,6 +50,8 @@ const RULES: WatchRule[] = [
     metric: 'verify_repair_diff_review',
     title: '品質ループ停滞: 敵対的差分レビューの差し戻しが減っていない',
     hint: '差し戻し理由がスコープ逸脱系なら diff base 解決(混入)を、計画欠落系なら implement ストリーム注入の内容を疑う。',
+    breakdown: (c) =>
+      `直近窓の自動分類: スコープ逸脱系 ${c.verify_repair_diff_review_scope_drift} 件 / 計画欠落系 ${c.verify_repair_diff_review_plan_gap} 件 / 未分類 ${c.verify_repair_diff_review_unclassified} 件`,
   },
   {
     key: 'ci-repair',
@@ -133,6 +137,7 @@ export function evaluateRules(
         `　前窓は ${prev} 件 / 完了 ${prevCompleted} 件（${formatPct(prevRate)}）` +
         `。悪化要因: ${reasons.join('・')}。\n\n` +
         `調査の起点: ${rule.hint}\n\n` +
+        (rule.breakdown ? `${rule.breakdown(current.counts)}\n\n` : '') +
         `メトリクスの全体は GET /backlog/loop-metrics で取得できます。`,
     });
   }

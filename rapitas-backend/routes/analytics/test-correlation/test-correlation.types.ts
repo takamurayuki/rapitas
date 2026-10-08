@@ -50,6 +50,7 @@ export interface PrScanResponse {
 export interface ManualRunTestResult {
   file: string;
   status: TestRunStatus;
+  failureTail?: string[];
 }
 
 export interface ManualRunBody {

@@ -91,7 +91,8 @@ export const BLOCKED_ESCALATION_CAUSES: ReadonlySet<string> = new Set([
   'blocked_reescalated',
 ]);
 
-const RECOVERY_REQUEUE_CAUSES = new Set([
+/** Transition causes that re-queue a task on purpose (shared with queue-failure-mark-policy). */
+export const RECOVERY_REQUEUE_CAUSES: ReadonlySet<string> = new Set([
   'reconciler_requeue',
   'artifact_reuse_fastforward',
   'task_retried',
@@ -349,6 +350,18 @@ export interface TriStateDesyncInput {
    * (#1003). Applies only to Pattern B.
    */
   autoRunExcluded?: boolean | null;
+  /**
+   * True when a queued/running/waiting_approval WorkflowQueueItem exists for
+   * the task (same signal detectStagnation already uses via
+   * StagnationInput.hasActiveQueueItem). Pattern B's `todo`×advanced-
+   * `workflowStatus` shape is a normal pre-dispatch wait while the task sits
+   * in the queue, not a stuck/corrupted state — any transition cause NOT in
+   * RECOVERY_REQUEUE_CAUSES (e.g. auto_approve_plan) fired Pattern B on a
+   * queued task (#769). `undefined` (unresolved) is treated as false —
+   * mirrors themeAutoRunEnabled's fail-open default in the opposite
+   * direction: an unknown queue state must never silently suppress detection.
+   */
+  hasActiveQueueItem?: boolean;
   /** Current time (ms) — the recovery grace guard needs it to age the transition. */
   nowMs?: number;
   /** Pattern B recovery grace override (default DESYNC_RECOVERY_SETTLE_MS). */
@@ -412,7 +425,10 @@ function isWithinPatternASettle(input: TriStateDesyncInput): boolean {
  * EXCEPT ALSO when the theme is busy dispatching a different task (#969, see
  * TriStateDesyncInput.themeAutoRunBusyWithOtherTask) — EXCEPT ALSO when the task is
  * halted by the iteration budget (#1003, see TriStateDesyncInput.taskHalted) or opted out of
- * auto-run (`autoRunExcluded`).
+ * auto-run (`autoRunExcluded`) — EXCEPT ALSO when the task has an active queue item
+ * (`hasActiveQueueItem === true`), where the shape is a normal pre-dispatch
+ * wait regardless of transition cause (#769, see
+ * TriStateDesyncInput.hasActiveQueueItem).
  *
  * @param input - Cross-entity state snapshot. / 三面の状態スナップショット
  * @returns Detected pattern + human-readable summary, or null. / 検出結果またはnull
@@ -453,6 +469,9 @@ export function detectTriStateDesync(
     if (input.taskHalted) return null;
     // Operator opted out of auto-run (#1003) — nothing will dispatch it by design.
     if (input.autoRunExcluded) return null;
+    // Queued for dispatch → the shape is a normal pre-dispatch wait, not a
+    // stuck/corrupted state, regardless of the transition cause (#769).
+    if (input.hasActiveQueueItem === true) return null;
     return {
       kind: 'todo_status_workflow_advanced',
       detail: `task.status=todo のまま workflowStatus が前進済み(${input.workflowStatus})`,

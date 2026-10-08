@@ -47,6 +47,17 @@ export type SupervisorFileFn = (args: {
   evidenceLines?: string[];
 }) => Promise<boolean>;
 
+/** Tasks already reported as a false failure in this process (re-fire every watch tick otherwise). */
+const falseFailureFiledTaskIds = new Set<number>();
+
+/** Cap on remembered task ids. The concern store (dedupKey per signature) remains the durable dedup. */
+const FALSE_FAILURE_FILED_CAP = 1000;
+
+/** Test hook: clears the false-failure idempotency memory. */
+export function resetFalseFailureFiledForTest(): void {
+  falseFailureFiledTaskIds.clear();
+}
+
 /**
  * Kill switch for the whole supervisor-signature pass (extra DB load escape
  * hatch). Any value except '' / '0' / 'false' disables it.
@@ -109,8 +120,14 @@ export async function inspectSupervisorSignatures(args: {
   const falseFailure = detectFalseFailure({
     failureMarkedAtMs: ev.failureMarkedAtMs,
     successArtifactAtMs: ev.successArtifactAtMs,
+    recoveryAtMs: ev.recoveryAtMs,
   });
-  if (falseFailure && ev.failureMarkedAtMs !== null && ev.successArtifactAtMs !== null) {
+  if (
+    falseFailure &&
+    !falseFailureFiledTaskIds.has(task.id) &&
+    ev.failureMarkedAtMs !== null &&
+    ev.successArtifactAtMs !== null
+  ) {
     const gapSec = Math.round(falseFailure.gapMs / 1000);
     const ok = await file({
       signature: 'supervisor-false-failure',
@@ -131,7 +148,15 @@ export async function inspectSupervisorSignatures(args: {
         `時刻差: ${gapSec}秒`,
       ],
     });
-    if (ok) filed++;
+    if (ok) {
+      filed++;
+      // Bounded: drop the oldest entry so a long-lived process cannot grow this forever.
+      if (falseFailureFiledTaskIds.size >= FALSE_FAILURE_FILED_CAP) {
+        const oldest = falseFailureFiledTaskIds.values().next().value;
+        if (oldest !== undefined) falseFailureFiledTaskIds.delete(oldest);
+      }
+      falseFailureFiledTaskIds.add(task.id);
+    }
   }
 
   // C: the hang backstop killed a task that had just made progress (task 585 class).

@@ -7,7 +7,11 @@
  * unavailable while still allowing a REASONED suppression.
  */
 import { describe, test, expect } from 'bun:test';
-import { needsPlanForProtectedPath, specForConcernSource } from './concern-task-spec';
+import {
+  concernNeedsPlanForProtectedPath,
+  needsPlanForProtectedPath,
+  specForConcernSource,
+} from './concern-task-spec';
 
 describe('needsPlanForProtectedPath', () => {
   test('task 1044: 検証ゲート配下のスタックを持つ懸念は plan が必要', () => {
@@ -45,6 +49,43 @@ describe('needsPlanForProtectedPath', () => {
   });
 });
 
+describe('concernNeedsPlanForProtectedPath', () => {
+  // 2026-09-28, concern 11668 / task 1112: detail carried only the bare filename
+  // while `location` held the full path. convertConcernToTask builds the task
+  // body from BOTH, but the mode decision only saw detail — so the task was
+  // filed lightweight even though its fix lands under the tamper tripwire.
+  test('detail はファイル名だけ、location にフルパスがある場合も検知する', () => {
+    const concern = {
+      detail: 'phase-output-validator.ts:389の正規表現が過去状態の言及に誤反応する',
+      location: 'rapitas-backend/services/workflow/phase-output-validator.ts:389',
+    };
+    expect(needsPlanForProtectedPath(concern.detail)).toBe(false); // 旧判定は見落とす
+    expect(concernNeedsPlanForProtectedPath(concern)).toBe(true);
+  });
+
+  test('detail 側だけにフルパスがある従来のケースも引き続き検知する', () => {
+    expect(
+      concernNeedsPlanForProtectedPath({
+        detail:
+          'at spawnNewEntry (rapitas-backend/services/agents/verification/runtime-smoke/x.ts:1:1)',
+        location: null,
+      }),
+    ).toBe(true);
+  });
+
+  test('どちらにも保護パスが無ければ false、欠損入力でも落ちない', () => {
+    expect(
+      concernNeedsPlanForProtectedPath({
+        detail: 'services/system/log-health-check.ts:1',
+        location: 'services/system/log-health-check.ts:1',
+      }),
+    ).toBe(false);
+    expect(concernNeedsPlanForProtectedPath({})).toBe(false);
+    expect(concernNeedsPlanForProtectedPath(null)).toBe(false);
+    expect(concernNeedsPlanForProtectedPath(undefined)).toBe(false);
+  });
+});
+
 describe('specForConcernSource', () => {
   test('ログ由来の懸念には仕様を与える', () => {
     const spec = specForConcernSource('log_health');
@@ -72,10 +113,99 @@ describe('specForConcernSource', () => {
     expect(criteria).toContain('根拠');
   });
 
+  // 2026-09-27 タスク1110: 抑制ルールは正規化後のメッセージと照合される(数字列は
+  // `#` に畳まれる)が、その正規化は別ファイルにあり差分には現れない。差分しか見ない
+  // ジャッジは規約どおりの `#` パターンを生ログの数字と比べて不合格にし、費用上限の
+  // 1 分前に修復ラウンドを 1 回潰した。規約を基準文に載せてジャッジの入力に含める。
+  test('受入基準は抑制ルールの照合規約(数字は # に畳まれる)をジャッジに伝える', () => {
+    const criteria = (specForConcernSource('log_health')?.acceptanceCriteria ?? []).join('\n');
+    expect(criteria).toContain('正規化後');
+    expect(criteria).toContain('#');
+  });
+
   test('他の出所には仕様を与えない', () => {
     expect(specForConcernSource('agent')).toBeNull();
     expect(specForConcernSource('vuln_scan')).toBeNull();
     expect(specForConcernSource(null)).toBeNull();
     expect(specForConcernSource(undefined)).toBeNull();
+  });
+});
+
+describe('specForConcernSource — guard-incident', () => {
+  test('ガード違反由来の懸念にも仕様を与える', () => {
+    const spec = specForConcernSource('guard-incident');
+    expect(spec).not.toBeNull();
+    expect(spec?.acceptanceCriteria.length).toBeGreaterThan(0);
+  });
+
+  // The defect this template exists for: task 1116's auto-generated criterion
+  // was 「エージェントが同様の primary_mutation タイプの操作を試行しなくなること」.
+  // Nothing in a diff can show that, so verify marked it 未検証（行動効果）and a
+  // requirement_evidence_replan round was spent on it — and the fix it shipped
+  // (a prompt paragraph) then measurably failed: 5 incidents before, 1 after
+  // with the fix live. Every criterion must be decidable from the diff.
+  test('将来の行動を問う検証不能な基準を含まない', () => {
+    const criteria = (specForConcernSource('guard-incident')?.acceptanceCriteria ?? []).join('\n');
+    expect(criteria).not.toMatch(/しなくなる|再発しない|発生しなくなる|減ること/);
+  });
+
+  test('基準は差分または workflow 成果物で判定できる形になっている', () => {
+    const criteria = specForConcernSource('guard-incident')?.acceptanceCriteria ?? [];
+    for (const c of criteria) {
+      expect(c).toMatch(/差分|research\.md|verify\.md|plan\.md/);
+    }
+  });
+
+  // The hook is the detector, not the defect — relaxing it is how task 1086
+  // "resolved" its own denial.
+  test('検知器を緩める変更を禁じる', () => {
+    const constraints = (specForConcernSource('guard-incident')?.constraints ?? []).join('\n');
+    expect(constraints).toContain('primary-guard-hook');
+    expect(constraints).toMatch(/緩め|緩和/);
+  });
+
+  test('無関係なソースには仕様を与えない', () => {
+    expect(specForConcernSource('other')).toBeNull();
+  });
+});
+
+describe('specForConcernSource — 自己検出と品質ループ', () => {
+  // 5 of the 9 intake questions in the 14 days to 2026-10-07 fired with
+  // missing=[goals,constraints,acceptanceCriteria]; #1125 (self_incident_watch)
+  // and #1123 (loop_review) were two of them. Each question is a human
+  // intervention AND parks the task for a median 12.6 minutes, so seeding the
+  // spec removes both costs.
+  for (const source of ['self_incident_watch', 'loop_review']) {
+    test(`${source} に仕様を与える`, () => {
+      const spec = specForConcernSource(source);
+      expect(spec).not.toBeNull();
+      expect(spec?.goals.length).toBeGreaterThan(0);
+      expect(spec?.constraints.length).toBeGreaterThan(0);
+      expect(spec?.acceptanceCriteria.length).toBeGreaterThan(0);
+    });
+
+    test(`${source} の基準は差分か成果物で判定できる`, () => {
+      for (const c of specForConcernSource(source)?.acceptanceCriteria ?? []) {
+        expect(c).toMatch(/差分|research\.md|verify\.md|plan\.md/);
+      }
+    });
+
+    test(`${source} の基準に将来の行動を置かない`, () => {
+      const criteria = (specForConcernSource(source)?.acceptanceCriteria ?? []).join('\n');
+      expect(criteria).not.toMatch(/しなくなる|再発しない|発生しなくなる|減ること|減っている/);
+    });
+
+    test(`${source} は信号を消すことを禁じる`, () => {
+      const constraints = (specForConcernSource(source)?.constraints ?? []).join('\n');
+      expect(constraints).toMatch(/閾値|抑制|検知器|消/);
+    });
+  }
+
+  // The load-bearing distinction for a metric-driven task: requiring a measured
+  // IMPROVEMENT is unverifiable at completion time; requiring the measurement
+  // PLAN plus the current value is not.
+  test('品質ループは改善の実測ではなく測定計画と現在値を求める', () => {
+    const criteria = (specForConcernSource('loop_review')?.acceptanceCriteria ?? []).join('\n');
+    expect(criteria).toMatch(/現在値|基準値|測定/);
   });
 });

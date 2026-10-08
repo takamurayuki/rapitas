@@ -103,6 +103,13 @@ export function buildTestCorrelationRunRecord(
     failureTail?: Record<string, string[]>;
   },
 ): RunRecord {
+  const entryTail: Record<string, string[]> = {};
+  for (const r of reportResults) {
+    if (r.exitCode !== 0 && r.failureTail && r.failureTail.length > 0) {
+      entryTail[r.file] = r.failureTail;
+    }
+  }
+  const failureTail = { ...entryTail, ...(opts.failureTail ?? {}) };
   return {
     runId: opts.runId,
     timestamp: opts.timestamp,
@@ -111,7 +118,7 @@ export function buildTestCorrelationRunRecord(
     changedFiles: opts.changedFiles,
     testResults: toCorrelationTestResults(reportResults),
     environment: { platform: process.platform, runtimeVersion: Bun.version },
-    ...(opts.failureTail ? { failureTail: opts.failureTail } : {}),
+    ...(Object.keys(failureTail).length > 0 ? { failureTail } : {}),
   };
 }
 

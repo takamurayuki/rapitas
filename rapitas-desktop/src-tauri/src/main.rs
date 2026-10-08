@@ -26,10 +26,12 @@ mod shortcut_config;
 
 mod app_setup;
 mod browser;
+mod dev_server_wait;
 mod pomodoro_float;
 mod quick_capture;
 mod shortcuts;
 mod toast;
+mod today_todo;
 mod voice_commands;
 mod window_commands;
 

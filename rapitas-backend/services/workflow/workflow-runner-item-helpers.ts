@@ -84,6 +84,10 @@ export async function resolvePhaseTimeoutMs(
  */
 export async function shouldAutoApprovePlan(taskId: number): Promise<boolean> {
   const taskForApproval = await resolveTaskForPlanApproval(taskId);
+  // A plan committing to a human-override-only change must wait for the human,
+  // not burn an implementation first (see forbidden-change-plan-hold).
+  const { resolveForbiddenChangePlanHold } = await import('./forbidden-change-plan-hold');
+  if (await resolveForbiddenChangePlanHold(taskId)) return false;
   const userSettings = await prisma.userSettings.findFirst();
   const isSubtask = taskForApproval?.parentId != null;
   return !!(
@@ -169,6 +173,29 @@ export async function notifyParentOnSubtaskFailure(taskId: number): Promise<void
   }
 }
 
+/**
+ * Notify the parent that a SUCCESSFUL subtask reached its terminal state. The
+ * subtask completes on the queue-driven path, not through the task API, so this
+ * is where the parent finalize is triggered; a non-subtask is a no-op.
+ *
+ * Fire-and-forget: parent finalization must never delay or fail the queue item
+ * that just completed.
+ *
+ * @param taskId - The completed subtask. / 完了したサブタスク
+ * @param parentId - Its parent, or null/undefined for a top-level task. / 親タスク、無ければ null
+ */
+export function propagateSubtaskCompletion(taskId: number, parentId: number | null): void {
+  if (!parentId) return;
+  import('./subtask-completion-handler')
+    .then(({ onSubtaskCompleted }) => onSubtaskCompleted(taskId))
+    .catch((err: unknown) => {
+      log.warn(
+        { err, taskId, parentId },
+        '[WorkflowRunner] Failed to propagate subtask completion to parent',
+      );
+    });
+}
+
 /** Stop a failed phase before retrying, including a CLI abandoned by its timeout. */
 export async function stopFailedPhaseAgents(taskId: number, errorMessage: string): Promise<void> {
   try {
@@ -204,4 +231,23 @@ export function logPhaseFailure(
     { taskId, phase, role: result.role, error: result.error },
     `[WorkflowRunner] Phase failed for task ${taskId}: ${result.error ?? 'unknown error'}`,
   );
+}
+
+/** Max task ids attached to the slow-queue WARN (hot path; keeps the log line small). */
+const SLOW_QUEUE_MAX_TASK_IDS = 20;
+
+/**
+ * Builds the structured fields for the `Slow queue processing` WARN, adding the dequeued
+ * taskIds so the line can be correlated with queue items (task 1114).
+ *
+ * @param taskIds - TaskIds dequeued in this pass. / この回にdequeueしたタスクID
+ * @param tookMs - Elapsed ms. / 所要時間(ms)
+ * @returns Log fields; dequeuedCount/tookMs are kept for backward compatibility. / ログ項目
+ */
+export function slowQueueFields(taskIds: number[], tookMs: number) {
+  return {
+    dequeuedCount: taskIds.length,
+    tookMs,
+    taskIds: taskIds.slice(0, SLOW_QUEUE_MAX_TASK_IDS),
+  };
 }

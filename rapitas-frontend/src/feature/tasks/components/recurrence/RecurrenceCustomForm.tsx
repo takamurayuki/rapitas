@@ -12,6 +12,7 @@
 import { X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { formatDate } from '@/utils/date';
+import DateField from '@/components/ui/date-field/DateField';
 import { WEEKDAYS } from './recurrence-utils';
 
 /** Props for RecurrenceCustomForm. */
@@ -152,11 +153,12 @@ export function RecurrenceCustomForm({
         <label className="text-xs text-zinc-500 dark:text-zinc-400">
           {t('recurrenceCustomForm.endDateLabel')}
         </label>
-        <input
-          type="date"
+        <DateField
           value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          className="w-full mt-1 px-2 py-1 text-sm rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800"
+          onChange={setEndDate}
+          aria-label={t('recurrenceCustomForm.endDateLabel')}
+          wrapperClassName="mt-1"
+          className="w-full px-2 py-1 text-sm rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800"
         />
       </div>
 

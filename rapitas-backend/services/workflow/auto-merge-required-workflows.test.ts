@@ -8,6 +8,7 @@
 import { describe, it, expect } from 'bun:test';
 import {
   evaluateWorkflowRuns,
+  evaluateWorkflowJobs,
   checkRequiredWorkflows,
   ghExecutable,
   type RequiredWorkflowDeps,
@@ -39,6 +40,76 @@ describe('evaluateWorkflowRuns', () => {
   });
 });
 
+// task 1145 (2026-10-07): `Full Suite (Advisory)` hung 54 minutes in its browser
+// install step. It is deliberately NOT in the blocking-check set, yet it held
+// test-lint.yml at in_progress, so the run-level verdict was 'running' and the
+// merge waited on a job that cannot gate it. Cancelling was no escape either: a
+// `cancelled` run reads as 'failed', blocking the PR permanently.
+describe('evaluateWorkflowJobs', () => {
+  const BLOCKING = new Set(['Test Backend', 'Lint Code']);
+
+  it('is complete once every BLOCKING job is green, however an advisory job ends', () => {
+    for (const advisory of [
+      { status: 'in_progress', conclusion: null },
+      { status: 'completed', conclusion: 'failure' },
+      { status: 'completed', conclusion: 'cancelled' },
+      { status: 'queued', conclusion: null },
+    ]) {
+      expect(
+        evaluateWorkflowJobs(
+          [
+            { name: 'Test Backend', status: 'completed', conclusion: 'success' },
+            { name: 'Lint Code', status: 'completed', conclusion: 'success' },
+            { name: 'Full Suite (Advisory)', ...advisory },
+          ],
+          BLOCKING,
+        ),
+      ).toBe('complete');
+    }
+  });
+
+  it('is running while a blocking job has not finished', () => {
+    expect(
+      evaluateWorkflowJobs(
+        [
+          { name: 'Test Backend', status: 'completed', conclusion: 'success' },
+          { name: 'Lint Code', status: 'queued', conclusion: null },
+        ],
+        BLOCKING,
+      ),
+    ).toBe('running');
+  });
+
+  it('is failed when a blocking job is red or cancelled', () => {
+    for (const conclusion of ['failure', 'cancelled', 'timed_out']) {
+      expect(
+        evaluateWorkflowJobs([{ name: 'Lint Code', status: 'completed', conclusion }], BLOCKING),
+      ).toBe('failed');
+    }
+  });
+
+  it('accepts skipped and neutral blocking jobs, as the run-level verdict does', () => {
+    for (const conclusion of ['skipped', 'neutral']) {
+      expect(
+        evaluateWorkflowJobs([{ name: 'Lint Code', status: 'completed', conclusion }], BLOCKING),
+      ).toBe('complete');
+    }
+  });
+
+  it('returns null when the run carries no blocking job, so the caller keeps the run-level verdict', () => {
+    // file-size.yml under a renamed check, or a workflow whose jobs are all
+    // advisory: judging on zero jobs would wave through a workflow that never
+    // ran its gate. The caller must fall back rather than assume green.
+    expect(
+      evaluateWorkflowJobs(
+        [{ name: 'Post Preview Info', status: 'completed', conclusion: 'success' }],
+        BLOCKING,
+      ),
+    ).toBeNull();
+    expect(evaluateWorkflowJobs([], BLOCKING)).toBeNull();
+  });
+});
+
 function makeDeps(over: Partial<RequiredWorkflowDeps> = {}): RequiredWorkflowDeps & {
   dispatched: string[];
 } {
@@ -48,6 +119,7 @@ function makeDeps(over: Partial<RequiredWorkflowDeps> = {}): RequiredWorkflowDep
     workflowExists: () => true,
     readHead: async () => ({ sha: 'abc', ref: 'feature/x' }),
     readRuns: async () => [],
+    readRunJobs: async () => null,
     dispatch: async (_cwd, file) => {
       dispatched.push(file);
       return true;
@@ -114,6 +186,71 @@ describe('checkRequiredWorkflows', () => {
     const deps = makeDeps({ dispatch: async () => false });
     const r = await checkRequiredWorkflows('/repo', 8, deps);
     expect(r.complete).toBe(false);
+  });
+
+  // task 1145: the escalation from the run-level verdict to the job-level one.
+  it('is complete when a workflow is only held open by a non-blocking job', async () => {
+    const deps = makeDeps({
+      readRuns: async (_cwd, file) =>
+        file === 'test-lint.yml'
+          ? [{ databaseId: 99, status: 'in_progress', conclusion: null }]
+          : [{ databaseId: 98, status: 'completed', conclusion: 'success' }],
+      readRunJobs: async () => [
+        { name: 'Test Backend', status: 'completed', conclusion: 'success' },
+        { name: 'Lint Code', status: 'completed', conclusion: 'success' },
+        { name: 'Full Suite (Advisory)', status: 'in_progress', conclusion: null },
+      ],
+    });
+    const r = await checkRequiredWorkflows(
+      '/repo',
+      10,
+      deps,
+      new Set(['Test Backend', 'Lint Code']),
+    );
+    expect(r.complete).toBe(true);
+    expect(r.waiting).toEqual([]);
+  });
+
+  it('still waits when the job-level view shows a blocking job unfinished', async () => {
+    const deps = makeDeps({
+      readRuns: async () => [{ databaseId: 99, status: 'in_progress', conclusion: null }],
+      readRunJobs: async () => [{ name: 'Lint Code', status: 'in_progress', conclusion: null }],
+    });
+    const r = await checkRequiredWorkflows('/repo', 11, deps, new Set(['Lint Code']));
+    expect(r.complete).toBe(false);
+  });
+
+  it('keeps the run-level verdict when the jobs cannot be read (fails closed)', async () => {
+    const deps = makeDeps({
+      readRuns: async () => [{ databaseId: 99, status: 'completed', conclusion: 'failure' }],
+      readRunJobs: async () => null,
+    });
+    const r = await checkRequiredWorkflows('/repo', 12, deps, new Set(['Lint Code']));
+    expect(r.complete).toBe(false);
+  });
+
+  it('never escalates a MISSING workflow to the job view — it still dispatches', async () => {
+    const deps = makeDeps({
+      readRuns: async () => [],
+      readRunJobs: async () => [{ name: 'Lint Code', status: 'completed', conclusion: 'success' }],
+    });
+    const r = await checkRequiredWorkflows('/repo', 13, deps, new Set(['Lint Code']));
+    expect(r.complete).toBe(false);
+    expect(deps.dispatched.sort()).toEqual(['file-size.yml', 'test-lint.yml']);
+  });
+
+  it('does not read jobs at all on the green fast path', async () => {
+    let jobReads = 0;
+    const deps = makeDeps({
+      readRuns: async () => [{ databaseId: 1, status: 'completed', conclusion: 'success' }],
+      readRunJobs: async () => {
+        jobReads += 1;
+        return null;
+      },
+    });
+    const r = await checkRequiredWorkflows('/repo', 14, deps, new Set(['Lint Code']));
+    expect(r.complete).toBe(true);
+    expect(jobReads).toBe(0);
   });
 });
 

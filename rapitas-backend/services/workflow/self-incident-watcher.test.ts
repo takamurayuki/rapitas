@@ -20,6 +20,12 @@ const transitionFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown
 const sessionFindFirstMock = mock(() => Promise.resolve<unknown>(null));
 const executionFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
 const queueItemFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
+// #1126 moved the terminal-failure-mark lookup from findFirst to findMany (20
+// rows newest-first, then isFailureMarkQueueItem filters out a benign cancel).
+// The model mirror below kept only findFirst, so that call sync-threw, safeQuery
+// swallowed it as [], and the false-failure signature could never fire — the
+// suite reported it as a product failure for a product that was behaving.
+const queueItemFindManyMock = mock((_args: unknown) => Promise.resolve([] as unknown[]));
 const notificationFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
 const prFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
 const activityLogFindFirstMock = mock((_args: unknown) => Promise.resolve<unknown>(null));
@@ -51,7 +57,7 @@ mock.module('../../config/database', () => ({
     workflowTransition: { findMany: transitionFindManyMock, findFirst: transitionFindFirstMock },
     agentSession: { findFirst: sessionFindFirstMock },
     agentExecution: { findFirst: executionFindFirstMock },
-    workflowQueueItem: { findFirst: queueItemFindFirstMock },
+    workflowQueueItem: { findFirst: queueItemFindFirstMock, findMany: queueItemFindManyMock },
     notification: { findFirst: notificationFindFirstMock },
     gitHubPullRequest: { findFirst: prFindFirstMock },
     activityLog: { findFirst: activityLogFindFirstMock },
@@ -117,6 +123,7 @@ describe('runSelfIncidentWatch', () => {
     sessionFindFirstMock.mockReset().mockResolvedValue(null);
     executionFindFirstMock.mockReset().mockResolvedValue(null);
     queueItemFindFirstMock.mockReset().mockResolvedValue(null);
+    queueItemFindManyMock.mockReset().mockResolvedValue([]);
     notificationFindFirstMock.mockReset().mockResolvedValue(null);
     prFindFirstMock.mockReset().mockResolvedValue(null);
     activityLogFindFirstMock.mockReset().mockResolvedValue(null);
@@ -814,13 +821,18 @@ describe('runSelfIncidentWatch', () => {
     taskFindManyMock.mockResolvedValue([
       stagnantTask(now, { id: 581, updatedAt: new Date(now - 60_000) }),
     ]);
-    // Serves BOTH the active-queue probe (treated as active → no stagnation)
-    // and the supervisor failure-mark lookup (completedAt of the failed item).
+    // The active-queue probe (treated as active → no stagnation).
     queueItemFindFirstMock.mockResolvedValue({
       id: 7,
       completedAt: new Date(now - 120_000),
       status: 'failed',
     });
+    // The failure-mark lookup is a separate findMany since #1126: newest-first
+    // terminal rows, filtered by isFailureMarkQueueItem. An empty errorMessage
+    // on a `failed` row is what that filter accepts as a real failure mark.
+    queueItemFindManyMock.mockResolvedValue([
+      { completedAt: new Date(now - 120_000), status: 'failed', errorMessage: null },
+    ]);
     prFindFirstMock.mockResolvedValue({
       createdAt: new Date(now - 120_000 + 57_000),
       prNumber: 7,

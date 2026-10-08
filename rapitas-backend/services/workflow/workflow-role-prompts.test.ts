@@ -59,3 +59,28 @@ describe('planner completion-criteria verifiability guidance (task 933)', () => 
     expect(texts.planner.instruction).toContain('production-equivalent environment');
   });
 });
+
+describe('ad-hoc verification script prohibition (task 1111)', () => {
+  test.each(['ja', 'en'] as const)(
+    'implementer constraints steer pure-function checks toward *.test.ts for %s',
+    (language) => {
+      const texts = buildRoleTexts(1111, { title: 'Probe', description: null }, language);
+      const adHocKeyword =
+        language === 'ja' ? 'アドホックな検証スクリプト' : 'ad-hoc verification scripts';
+      const existingTestKeyword =
+        language === 'ja' ? '既存の `*.test.ts`' : 'existing or new `*.test.ts`';
+      expect(texts.implementer.constraints).toContain(adHocKeyword);
+      expect(texts.implementer.constraints).toContain(existingTestKeyword);
+      expect(texts.implementer.constraints).toContain('bun test --isolate');
+    },
+  );
+});
+
+describe('primary checkout guidance wiring (task 1116)', () => {
+  test.each(['ja', 'en'] as const)('is appended to implementer and verifier for %s', (language) => {
+    const texts = buildRoleTexts(1116, { title: 'Probe', description: null }, language);
+    expect(texts.implementer.constraints).toContain('git -C <primary>');
+    expect(texts.implementer.constraints).toContain('git branch --show-current');
+    expect(texts.verifier.instruction).toContain('git -C <primary>');
+  });
+});

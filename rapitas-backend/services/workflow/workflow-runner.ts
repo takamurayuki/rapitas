@@ -26,8 +26,11 @@ import {
   waitBeforeNextPhase,
   stopFailedPhaseAgents,
   logPhaseFailure,
+  propagateSubtaskCompletion,
+  slowQueueFields,
 } from './workflow-runner-item-helpers';
 import { taskVanishedMessage } from './queue-vanished-task-policy';
+import { parkItemIfHalted } from './workflow-runner-halt-guard';
 import { markEventLoopSection } from '../system/event-loop-lag-watchdog';
 import type { RunnerStatus, ActiveExecution } from './workflow-runner.types';
 
@@ -171,14 +174,13 @@ export class WorkflowRunner {
   private async processQueue(): Promise<void> {
     if (!this.running) return;
     const t0 = Date.now();
-    let dequeuedCount = 0;
+    const ids: number[] = []; // task 1114: correlates a slow-queue WARN with items
     const releaseSection = markEventLoopSection('workflow-runner:processQueue'); // task 1040: names this section on a concurrent event-loop-lag WARN
     try {
-      // Dequeue while there are free slots
       while (this.activeExecutions.size < this.queue.getMaxConcurrency()) {
         const item = await this.queue.dequeue();
         if (!item) break;
-        dequeuedCount++;
+        ids.push(item.taskId);
         this.executeWorkflowItem(item); // fire-and-forget
       }
     } catch (error) {
@@ -186,7 +188,7 @@ export class WorkflowRunner {
     } finally {
       releaseSection();
       const tookMs = Date.now() - t0; // task 966: diagnostic instrumentation for concern #966 (event-loop-lag WARN)
-      if (tookMs > 1000) log.warn({ dequeuedCount, tookMs }, 'Slow queue processing');
+      if (tookMs > 1000) log.warn(slowQueueFields(ids, tookMs), 'Slow queue processing');
     }
   }
 
@@ -258,21 +260,7 @@ export class WorkflowRunner {
             result: JSON.stringify({ completedAt: new Date().toISOString() }),
           });
           this.broadcastItemUpdate(item.id, item.taskId, 'workflow_completed', currentStatus);
-
-          // Propagate completion to the parent when this was a subtask. The
-          // subtask reaches its terminal state here (queue-driven), not via the
-          // task API, so this is the path that must notify the parent. The
-          // handler no-ops for non-subtasks (parentId === null).
-          if (task.parentId) {
-            const { onSubtaskCompleted } = await import('./subtask-completion-handler');
-            onSubtaskCompleted(item.taskId).catch((err) => {
-              log.warn(
-                { err, taskId: item.taskId, parentId: task.parentId },
-                '[WorkflowRunner] Failed to propagate subtask completion to parent',
-              );
-            });
-          }
-
+          propagateSubtaskCompletion(item.taskId, task.parentId);
           continueLoop = false;
           break;
         }
@@ -287,15 +275,7 @@ export class WorkflowRunner {
               result: JSON.stringify({ completedAt: new Date().toISOString() }),
             });
             this.broadcastItemUpdate(item.id, item.taskId, 'workflow_completed', 'completed');
-            if (task.parentId) {
-              const { onSubtaskCompleted } = await import('./subtask-completion-handler');
-              onSubtaskCompleted(item.taskId).catch((err) => {
-                log.warn(
-                  { err, taskId: item.taskId, parentId: task.parentId },
-                  '[WorkflowRunner] Failed to propagate subtask completion to parent',
-                );
-              });
-            }
+            propagateSubtaskCompletion(item.taskId, task.parentId);
             continueLoop = false;
             break;
           }
@@ -351,6 +331,12 @@ export class WorkflowRunner {
           continueLoop = false;
           break;
         }
+
+        // An iteration-budget halt must stop new spend, not just selection (task 1107).
+        const parked = await parkItemIfHalted(this.queue, item, currentStatus, (e, p) =>
+          this.broadcastItemUpdate(item.id, item.taskId, e, p),
+        );
+        if (parked) break;
 
         // Log phase transition
         await this.logPhaseTransition(item.taskId, currentStatus, 'advancing');

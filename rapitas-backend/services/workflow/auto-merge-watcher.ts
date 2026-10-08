@@ -18,6 +18,7 @@ import { createLogger } from '../../config/logger';
 import { mergePullRequest } from '../agents/orchestrator/git-operations/pr/branch-pr-ops';
 import { recordTransition } from './transition-recorder';
 import { handleCiFailure } from './auto-merge-ci-failure';
+import { splitRedChecks, handleCancelledChecks } from './auto-merge-cancelled-checks';
 import { fileConflictResolutionTask } from '../github/conflict-task';
 import { resolveIntegrationId } from '../github/pr-link';
 import {
@@ -36,6 +37,7 @@ import { recoverMergedTasks } from './auto-merge-recovery';
 import { evaluatePreMergeGate, RATCHET_CHECK_NAME } from './auto-merge-premerge-gate';
 import { checkBaselineDrift } from './auto-merge-baseline-drift';
 import { reapStalePrs } from './stale-pr-reaper';
+import { reconcilePrStates } from './pr-state-reconciler';
 
 const log = createLogger('workflow:auto-merge-watcher');
 
@@ -147,6 +149,13 @@ export class AutoMergeWatcher {
       // auto-PRs bounded at 3/tick. Never blocks the merge loop above.
       await reapStalePrs(prisma).catch((err) =>
         log.warn({ err }, '[auto-merge] Stale PR reap failed'),
+      );
+      // Read back the state of PRs closed OUTSIDE this app (stale bot, a human,
+      // a deleted base branch) — nothing else syncs those, so 19 tasks kept
+      // re-entering the loop above every tick for weeks (2026-09-28). Runs last
+      // and bounded: it only ever makes the NEXT tick cheaper.
+      await reconcilePrStates(prisma).catch((err) =>
+        log.warn({ err }, '[auto-merge] PR state reconcile failed'),
       );
     } catch (err) {
       log.error({ err }, '[auto-merge] Tick error');
@@ -330,6 +339,8 @@ export class AutoMergeWatcher {
     if (state === 'pass') {
       const gate = await evaluatePreMergeGate(c.cwd, c.prNumber, {
         localRatchet: c.mode === 'merge',
+        // Lets the required-workflow check ignore advisory jobs (task 1145).
+        blocking,
       });
       if (!gate.ok) {
         log.info(
@@ -440,9 +451,12 @@ export class AutoMergeWatcher {
       // Delegated: base update for BEHIND branches, DIRTY-conflict delegation
       // (via the injected handleMergeConflict), no-diff parking, and the
       // bounded CI self-repair bounce all live in auto-merge-ci-failure.
-      const failedChecks = checks
-        .filter((ch) => blocking.has(ch.name) && (ch.bucket === 'fail' || ch.bucket === 'cancel'))
-        .map((ch) => ch.name);
+      // A CANCELLED check is infrastructure (superseded push, manual stop,
+      // timeout-minutes kill), not a defect: rerun it rather than send an
+      // implementer after an unbroken diff (task 1145, 2026-10-07).
+      const { failed, cancelled } = splitRedChecks(checks, blocking);
+      if (failed.length === 0 && (await handleCancelledChecks(c, cancelled))) return;
+      const failedChecks = (failed.length > 0 ? failed : cancelled).map((ch) => ch.name);
       await handleCiFailure(c, failedChecks, (cand, reason) =>
         this.handleMergeConflict(cand, reason),
       );

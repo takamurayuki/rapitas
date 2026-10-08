@@ -209,17 +209,23 @@ export function handlePostManualRun(
 
   try {
     const runId = crypto.randomUUID();
+    // Only failing files keep a tail; a tail on a passing file would be misleading.
+    const failureTail: Record<string, string[]> = {};
+    for (const r of testResults) {
+      if (r.status === 'fail' && r.failureTail) failureTail[r.file] = r.failureTail;
+    }
     const record: RunRecord = {
       runId,
       timestamp: new Date().toISOString(),
       source: 'manual',
       commitSha: commitSha ?? null,
       changedFiles,
-      testResults,
+      testResults: testResults.map(({ file, status }) => ({ file, status })),
       environment: {
         platform: environment?.platform ?? 'manual',
         runtimeVersion: environment?.runtimeVersion ?? 'n/a',
       },
+      ...(Object.keys(failureTail).length > 0 ? { failureTail } : {}),
     };
     appendRunRecord(record, backendRoot);
     return { status: 200, body: { success: true, runId } };

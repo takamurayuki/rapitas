@@ -40,7 +40,10 @@ export interface RunRecord {
     platform: string;
     runtimeVersion: string;
   };
-  /** Truncated output tail keyed by failing test file. Absent for runs recorded before failure logs were stored. */
+  /**
+   * Bounded log tail per failing test file (key = TestResultEntry.file). Absent for
+   * passing runs and for runs recorded before log capture existed.
+   */
   failureTail?: Record<string, string[]>;
 }
 
@@ -76,6 +79,6 @@ export interface FailureDrilldownEntry {
   source: RunSource;
   environment: RunRecord['environment'];
   flaky: boolean;
-  /** Truncated failing-file output for this run, when it was recorded. */
+  /** Log tail of this test file in this run; omitted when none was recorded. */
   failureTail?: string[];
 }

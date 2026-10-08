@@ -222,6 +222,12 @@ export async function resolveVerifyPhaseStatus(params: {
           log.info({ taskId }, '[WorkflowCLIExecutor] PR creation in flight elsewhere — waiting');
           prSatisfied = await waitForInFlightPr(taskId);
         }
+        // An agent that created its own PR (CLAUDE.md step 6) leaves no local
+        // link, so every lookup above reports "no PR" over work that landed.
+        if (prRequested && !prSatisfied) {
+          const { adoptAgentCreatedPr } = await import('../github/agent-created-pr-adoption');
+          prSatisfied = await adoptAgentCreatedPr(taskId);
+        }
         noChangeCompletion =
           prRequested &&
           !prSatisfied &&

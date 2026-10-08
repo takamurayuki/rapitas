@@ -41,6 +41,7 @@ import {
   mockReleaseStaleActiveItems,
   mockIsOverlapHeld,
   mockRecordTransition,
+  mockTaskFindUnique,
 } from './theme-auto-run-scheduler.test-support';
 
 let scheduler: ThemeAutoRunScheduler;
@@ -105,6 +106,54 @@ describe('advanceTheme — hang backstop', () => {
     expect(mockNotifyAwaitingUserAnswer).toHaveBeenCalledWith(1, 100);
     expect(mockTaskUpdate).not.toHaveBeenCalled();
     expect(mockOnTaskFailed).not.toHaveBeenCalled();
+  });
+
+  // 2026-10-06, task 1114: the backend was down for hours while ThemeAutoRun
+  // still pointed at it. 1114 had passed verify and its PR #833 had merged, so
+  // the tenure wall was long past on the first tick after the restart — and the
+  // backstop fired on a COMPLETED task (completed → blocked → draft), leaving
+  // merged work queued to be redone.
+  it.each([
+    ['completed', { status: 'in-progress', workflowStatus: 'completed' }],
+    ['done', { status: 'done', workflowStatus: 'verify_done' }],
+    ['verify_done(マージ待ち)', { status: 'in-progress', workflowStatus: 'verify_done' }],
+  ])(
+    'ワークフローが既に決着したタスク(%s)は強制停止しない — 完了済みの作業をやり直しにしてはならない',
+    async (_label, settled) => {
+      mockIsAwaitingUserAnswer.mockResolvedValue(false);
+      mockHasLiveExecution.mockResolvedValue(false);
+      mockResolveLastProgressAt.mockResolvedValue(Date.now() - TEST_MAX_TASK_WALL_MS - 1000);
+      mockTaskFindUnique.mockResolvedValue(settled);
+
+      await internal(scheduler).advanceTheme(1, 100, 'priority', 1, staleLastRunAt());
+
+      expect(mockNotifyHangBackstop).not.toHaveBeenCalled();
+      expect(mockRevertChanges).not.toHaveBeenCalled();
+      // No demotion to blocked — that is what turned 1114 into work to redo.
+      expect(mockTaskUpdate).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'blocked' }) }),
+      );
+    },
+  );
+
+  // The guard must stay narrow: a task that is genuinely mid-flight is still
+  // force-stopped, which is the whole purpose of the backstop.
+  it('決着していないタスクは従来どおり強制停止する(免除は終端状態のみ)', async () => {
+    mockIsAwaitingUserAnswer.mockResolvedValue(false);
+    mockHasLiveExecution.mockResolvedValue(false);
+    mockResolveLastProgressAt.mockResolvedValue(Date.now() - TEST_MAX_TASK_WALL_MS - 1000);
+    mockTaskFindUnique.mockResolvedValue({ status: 'in-progress', workflowStatus: 'in_progress' });
+    mockResolveTaskWorkflowState.mockResolvedValue({
+      id: 100,
+      status: 'in-progress',
+      workflowStatus: 'in_progress',
+      workflowMode: null,
+      parentId: null,
+    });
+
+    await internal(scheduler).advanceTheme(1, 100, 'priority', 1, staleLastRunAt());
+
+    expect(mockNotifyHangBackstop).toHaveBeenCalledWith(1, 100, expect.any(Number));
   });
 
   it('force-stops and blocks a genuinely wedged task, then advances past it', async () => {

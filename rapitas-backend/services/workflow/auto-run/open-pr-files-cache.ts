@@ -41,6 +41,12 @@ interface CacheEntry {
 // broken gh is retried at most once per TTL window instead of every tick.
 const cache = new Map<string, CacheEntry>();
 
+/**
+ * One in-flight refresh per cache key, so a stale entry read by several callers
+ * in the same tick spawns one `gh` process, not one each.
+ */
+const refreshing = new Map<string, Promise<CacheEntry>>();
+
 // Concurrency cap: a theme with many open auto-PRs (observed 2026-09-18/19: 57
 // distinct PR numbers queried within one 5-minute window) previously fired one
 // parallel `gh pr view` process PER open PR on every cache-refresh — a burst
@@ -74,6 +80,9 @@ async function mapWithConcurrency<T, R>(
 /** Clear the memo (test isolation helper). */
 export function clearPrFilesCache(): void {
   cache.clear();
+  // Also drop in-flight refreshes: a test that clears the cache must not have a
+  // previous test's pending fetch write back into it.
+  refreshing.clear();
 }
 
 /** Resolve the platform-specific `gh` CLI invocation path (mirrors auto-merge-checks). */
@@ -199,6 +208,48 @@ async function getPrSnapshot(
   const hit = cache.get(key);
   if (hit && hit.expiresAt > now) return hit;
 
+  // Stale-while-revalidate. This is read on the auto-run scheduler's 12-second
+  // advance path (auto-run-advance-scope.ts queries every open auto-PR), so a
+  // blocking refresh puts a GitHub round-trip per PR — four at a time — inside
+  // the tick. Measured 2026-10-06: 116 "Slow theme advance" warnings in one
+  // backend session, 429.8 s in total, median 3.5 s and up to 9.9 s per tick,
+  // while the backend held 44% of a core. A PR's file list only changes when
+  // someone pushes, so serving the previous answer for the length of one refresh
+  // costs nothing a 60-second TTL was not already accepting.
+  if (hit) {
+    void refreshSnapshot(key, cwd, prNumber, deps).catch(() => {
+      // fetchSnapshot never rejects; this only guards a future refactor from
+      // turning a background refresh into an unhandled rejection.
+    });
+    return hit;
+  }
+
+  // Cold entry: nothing to serve, so this one caller waits.
+  return refreshSnapshot(key, cwd, prNumber, deps);
+}
+
+/** Fetch into the cache, collapsing concurrent refreshes of the same key. */
+function refreshSnapshot(
+  key: string,
+  cwd: string,
+  prNumber: number,
+  deps: PrFilesDeps,
+): Promise<CacheEntry> {
+  const existing = refreshing.get(key);
+  if (existing) return existing;
+  const pending = fetchSnapshot(key, cwd, prNumber, deps).finally(() => {
+    refreshing.delete(key);
+  });
+  refreshing.set(key, pending);
+  return pending;
+}
+
+async function fetchSnapshot(
+  key: string,
+  cwd: string,
+  prNumber: number,
+  deps: PrFilesDeps,
+): Promise<CacheEntry> {
   let files: string[] = [];
   let state: string | null = null;
   let headSha: string | null = null;
@@ -218,7 +269,7 @@ async function getPrSnapshot(
   } catch (err) {
     log.warn({ err, prNumber }, '[pr-files] gh pr view --json files failed — treating as empty');
   }
-  const entry = { files, state, headSha, expiresAt: now + PR_FILES_CACHE_TTL_MS };
+  const entry = { files, state, headSha, expiresAt: deps.now() + PR_FILES_CACHE_TTL_MS };
   cache.set(key, entry);
   return entry;
 }

@@ -7,6 +7,8 @@
  * only data, classifyLogSignature() and its types stay in the parent.
  */
 import type { Suppression } from './log-health-suppressions-types';
+import { WORKTREE_SUPPRESSIONS } from './log-health-suppression-rules-worktree';
+import { RUNTIME_SUPPRESSIONS } from './log-health-suppression-rules.runtime';
 
 /**
  * Lines that report a guard, a recovery, or an expected condition.
@@ -17,7 +19,8 @@ import type { Suppression } from './log-health-suppressions-types';
  */
 export const SUPPRESSIONS: Suppression[] = [
   {
-    test: /Refusing to (switch|create|commit|delete|reset)/i,
+    // hard-revert: same guard shape, a verb the alternation missed (task 1130).
+    test: /Refusing to (switch|create|commit|delete|reset|hard-revert)/i,
     because: 'ガードが危険な操作を拒否した — 防いだ側であり、壊れていない',
   },
   {
@@ -65,8 +68,11 @@ export const SUPPRESSIONS: Suppression[] = [
     because: 'シャットダウン時の通常終了 — クラッシュは別シグネチャで記録される',
   },
   {
-    test: /self-repair|re-running implement→verify/i,
-    because: '差し戻しループは専用の収束検出が担当する — ログ経由の二重起票',
+    // 'Guard incident filed as concern': the filer announcing a concern it
+    // already created (→ task 1132), re-filed as task 1144 for the same event.
+    test: /self-repair|re-running implement→verify|Guard incident filed as concern/i,
+    because:
+      '専用の仕組みが既に担当している事象の告知 — ログ経由の起票は二重になる(差し戻しループは収束検出、ガード違反は懸念起票器が担当)',
   },
   {
     test: /shutting down, cannot start|interrupted by shutdown/i,
@@ -142,6 +148,17 @@ export const SUPPRESSIONS: Suppression[] = [
     logger: /execution-file-logger/i,
     because:
       '実行が failed で終わった結末の記録 — 原因は当該実行のログ側に出ており、二重起票になる（失敗自体はDBの実行ステータス・fallback・stall監視で検知される）',
+  },
+  {
+    // ログ出力箇所: agents/orchestrator/execution-persistence.ts:249 の fileLogger.logWarn。
+    // 停止要求が先に DB を canceling/cancelled へ遷移させた競合で、updateMany の where
+    // (notIn canceling/cancelled) が 0 件になり結果の保存を意図的に捨てた時のみ発火する。
+    // 確認できない場合は 241 行で throw され別経路で可視化されるため、本ルールは
+    // "was not saved; cancellation could not be confirmed" を抑制しない。
+    test: /^\[ExecLog:#\] Execution result ignored after cancellation$/i,
+    logger: /execution-file-logger/i,
+    because:
+      '停止と結果保存の競合で停止側の状態を保全した記録 — 実行失敗ではなく、停止の事実は Execution cancelled と実行ステータスに残る',
   },
   {
     // ログ出力箇所: claude-code/execution-resolver.ts:204-208 の logger.error。
@@ -263,6 +280,15 @@ export const SUPPRESSIONS: Suppression[] = [
       'taskkillの第一試行失敗は対象PIDが既に終了済みのレースが大半で、process.kill()フォールバックが回復する — フォールバックも失敗した場合は別シグネチャで可視化される',
   },
   {
+    // ログ出力箇所: routes/agents/cli-tools/routes.ts:180 の log.error。UI 起点の更新で
+    // winget が非ゼロ終了しても、ルートが success:false+details を返して処理済み（#1141）。
+    // 他ロガーの同文言は隠さないよう logger を限定する。
+    test: /Command failed: winget (upgrade|install) /i,
+    logger: /routes:cli-tools:routes/i,
+    because:
+      'ユーザー操作による外部パッケージマネージャ(winget)の非ゼロ終了で、ルートが success:false と details をUIへ返済み — 二重通知になるため起票しない',
+  },
+  {
     // ログ出力箇所: worktree-remove.ts:154-158 の logger.warn（removeWorktree内、
     // git worktree remove の catch ブロック）。「is not a working tree」は当該
     // パスの登録エントリが既に prune 済み/削除済みであることを示すだけで、直後の
@@ -336,115 +362,8 @@ export const SUPPRESSIONS: Suppression[] = [
     because:
       'waitForHealthyのタイムアウトは呼び出し元(検証ゲート/ライブプレビュー)が既存の別シグネチャで結果を追随記録する — ポーリング過程のtelemetryであり単体では壊れた状態を示さない',
   },
-  {
-    // ログ出力箇所: git-operations/pr/pr-merge-ops.ts:154-157 の logger.warn
-    // （mergePullRequest内）。gh pr merge --delete-branch はGitHub側マージを先に
-    // 行い最後にローカルブランチ削除をするため、タスクworktreeが同ブランチを
-    // チェックアウト中だと削除だけ失敗して非0終了する。このWARNは
-    // readAuthoritativeMergeState が MERGED を確認した後にのみ出力され（152-153行）、
-    // 続けて pr view で再検証する（160-178行）。実マージ失敗は throw 経路で
-    // success:false となり別文言で可視化されるため、本ルールで失敗は隠れない（#1028）。
-    test: /Command failed: .*gh\.exe pr merge .*failed to delete local branch/is,
-    logger: /git-operations\/pr-merge-ops/i,
-    because:
-      'ローカルブランチ削除の失敗はGitHub上でMERGED確認済みの後にのみ出る回復記録 — 実マージ失敗はsuccess:falseの別経路で可視化される',
-  },
-  {
-    // ログ出力箇所: event-loop-lag-watchdog.ts:121-124 の log.warn（500ms間隔の
-    // ポーリングで2000ms超のイベントループ停止を検知した時点）。過去6回の発生
-    // （K-8776, K-9142, K-11160, K-11233, 本タスク#1040の元WARN）はいずれも単発
-    // 15秒未満・2時間規模の分散で、self-heal閾値（同ファイル35行目
-    // CATASTROPHIC_STALL_MS=15_000、37-45行目 CUMULATIVE_WINDOW_MS=120_000 /
-    // CUMULATIVE_TRIGGER_MS=30_000）に一度も到達していない。ウォッチドッグ自体は
-    // 正常に動作しており、日常的なDB/エージェント処理の負荷ピーク下で数秒単位の
-    // イベントループ停止が発生すること自体は許容範囲として設計された閾値の内側。
-    // 発生元の特定手段（activeSections診断）はtask 1040で workflow-runner.ts の
-    // processQueue と theme-auto-run-scheduler.ts の advanceTheme にも拡張済みで、
-    // 次回15秒以上の真の病的スタールが起きればself-heal（別ログ「Self-healing
-    // restart triggered」、ERRORレベル、抑制対象外）が引き続き検知する。
-    test: /^Event loop stalled ~#(?:\.#)?s$/,
-    logger: /event-loop-lag/i,
-    because:
-      '過去6回すべてself-heal閾値(単発15秒/累積120秒間に30秒)未到達 — ウォッチドッグは正常動作しており、閾値超の病的スタールは別シグネチャ(Self-healing restart triggered, ERROR)で引き続き検知される',
-  },
-  {
-    // ログ出力箇所: requirement-replan-commit.ts:134 の assertReviewedTaskCurrent
-    // （汎用Error）。stale_taskはEXPECTED_REPLAN_HOLD_REASONS
-    // (requirement-replan-policy.ts:48-55)に含まれ、isExpectedReplanHold(#1041)が
-    // trueを返す限りRequirementReplanHeldError（AppError派生、別文言
-    // "Requirement replan review held: ..."）経由で処理され、error-handler.ts:156-162の
-    // AppError分岐はlog.errorを呼ばずに応答するため本行の汎用Errorは発生しない。
-    // タスク#1046で報告されたスタックトレースの行番号（requirement-replan-commit.ts:122）
-    // は現行の投げ元行（134）と一致せず、#1041でNOTEコメントが追加される前の
-    // 旧ビルドが出力した陳腐化したログと判定した（K-11230/K-11231/K-11287と同一シグネチャ）。
-    test: /^Reviewed external work held: stale_task$/i,
-    logger: /error-handler/i,
-    because:
-      'stale_taskはisExpectedReplanHold(#1041)でRequirementReplanHeldError経由に分類され、本行の汎用Errorには到達しない — スタックトレースの行番号不一致(122≠134)から#1041適用前の旧ビルドが出力した陳腐化ログと判定',
-  },
-  {
-    // ログ出力箇所: queue-wait-exemption.ts:110-118 の liveOrQueuedBehind が
-    // 出す log.warn（verdict.waiting=false の分岐）。reason=no_own_queued /
-    // no_other_running はハング防止ガードの適用除外を与えないという正規の
-    // 既定分岐（同ファイル33-39行 QueueWaitReason 型、queue-wait-exemption.test.ts
-    // で個別ユニットテスト済み）であり、いずれの分岐も欠陥ではない。force-stop
-    // が実際に発生した場合は auto-run-active-decision.ts:160-163 の専用WARN
-    // 「Task # exceeded wall budget … — force-stopping …」と
-    // logCycleEvent('task.hang_backstop', …) が別途発行されるため、本行を
-    // 抑制してもハング防止の可視性は損なわれない（#1053）。reason=lookup_error
-    // （explainQueueWait の catch 分岐、同ファイル84-90行）は本物の照会失敗の
-    // ため対象外のまま残す。
-    test: /^\[ThemeAutoRunScheduler\] liveOrQueuedBehind\(task #\) = false \(reason: (no_own_queued|no_other_running)\)$/,
-    logger: /theme-auto-run-scheduler/i,
-    because:
-      'ハング防止ガードの適用除外を与えない正規の既定分岐 — force-stop実発生時は別WARN(Task # exceeded wall budget … — force-stopping)で引き続き可視化される',
-  },
-  {
-    // ログ出力箇所: claude-cli-provider.ts:272-274 の setTimeout が
-    // `Claude CLI timed out after ${timeoutMs}ms` で fail() → 261行目の
-    // reject(new ClaudeCliUnavailableError(message))。呼び出し元
-    // innovation-session.ts:242-253 の generateForTheme() が try/catch で確実に
-    // 捕捉し、log.warn({ err, themeId }, 'Innovation generation failed for theme')
-    // を出してから return 0 で後続テーマの処理を継続する（例外は
-    // runInnovationSession() のループへ伝播しない）。log-format-parser.ts:82 の
-    // msg 優先順位により、実際に記録される正規化メッセージは err.message
-    // （＝本タイムアウト文言）になる。submitIdea() は content hash で dedup
-    // されるため、このテーマのアイデア生成は次回実行時に再試行される（#1050）。
-    test: /^Claude CLI timed out after #ms$/i,
-    logger: /memory:innovation-session/i,
-    because:
-      'generateForTheme()のtry/catchが確実に捕捉しreturn 0で後続テーマ処理を継続する（innovation-session.ts:242-253）— タスク失敗に波及せず、次回実行時に再試行される想定内の失敗モード',
-  },
-  {
-    // ログ出力箇所: workflow-cli-executor-epilogue.ts:249 の log.warn。
-    // validateVerify（phase-output-validator.ts:170-184）の
-    // hasNonpassingVerifyVerdict 分岐が組み立てた summary をそのまま出す
-    // fail-soft な観測用ログであり、実際の repair/block 判定は同じ
-    // validateVerify() を再度呼ぶ別経路（status-transition.ts:207-260 /
-    // workflow-cli-executor-verify-gate.ts:97-154）が担う（同ファイル
-    // 236-238行のコメント参照）。verify.md が自ら受入基準未達（❌）を
-    // 報告した記録であり、判定ロジック側の誤検知ではない（#1049。
-    // K-11292/K-9668/K-8051は同一メッセージの未抑制な再発）。
-    // 後続の «...» 部分は verify.md ごとに可変のため固定句のみにマッチさせる。
-    test: /verify\.md explicitly reports a failed or partial overall verdict; repair is required\./i,
-    logger: /workflow-cli-executor/i,
-    because:
-      '検証ゲートがverify.md自身の受入基準未達（❌）報告を捕捉した — ゲートが働いた側であり、判定ロジックの誤りではない',
-  },
-  {
-    // ログ出力箇所: services/agents/claude-code/idle-monitor.ts:112-114 の
-    // logger.warn。104-111行の条件（出力受信済み・最終出力から5分超過・
-    // 未フラッシュの部分行なし・status===running・プロセス生存）が全て揃った
-    // 場合のみ発火する、意図的なハング検知・強制終了ロジック（#1084研究フェーズ
-    // 前提監査#1で確認済み）。force-kill後の結果は即座に失敗扱いにならず、
-    // execution-resolver.ts:292の`!ctx.idleTimeoutForceKilled`分岐によりgit
-    // diffベースの完了判定に委ねられる（同340-344行）。529過負荷等の回復不能な
-    // 障害はdetectApiOverload（execution-resolver-early-failures.ts:53-55）が
-    // 別途分類するため本ルールで致命的失敗の可視性は失われない。taskkill自体の
-    // 失敗も既に別シグネチャで抑制済み（本ファイル246行目）。
-    test: /OUTPUT IDLE HANG DETECTED: No output for #s after producing # chars\. Force-killing hung process\./i,
-    logger: /claude-code-agent/i,
-    because:
-      '出力受信後5分間無音という保守的な閾値でのみ発火する意図的なハング検知・自動復旧機構 — force-kill後はgit diffベースの完了判定に委ねられ、致命的失敗は別シグネチャ(529過負荷/taskkill失敗)で可視化される',
-  },
+  // Runtime / execution-path rules live in their own module so this file stays
+  // under the line limit; order is preserved (first match wins).
+  ...RUNTIME_SUPPRESSIONS,
+  ...WORKTREE_SUPPRESSIONS,
 ];

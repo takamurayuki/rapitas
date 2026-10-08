@@ -10,7 +10,8 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { ZERO_PROGRESS_THRESHOLD_MS } from './queue-stall-policy';
 
-const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
+const warnMock = mock((..._args: unknown[]) => {});
+const noopLogger = { info: () => {}, warn: warnMock, error: () => {}, debug: () => {} };
 
 interface ThemeRow {
   themeId: number;
@@ -20,6 +21,9 @@ interface ThemeRow {
 
 const findByStatusesMock = mock(() => Promise.resolve([] as ThemeRow[]));
 const countMock = mock(() => Promise.resolve(0));
+const findFirstMock = mock(() =>
+  Promise.resolve(null as { createdAt: Date; status: string } | null),
+);
 const notifyZeroProgressWhileRunningMock = mock(() => Promise.resolve());
 const logCycleEventMock = mock(() => {});
 
@@ -29,7 +33,7 @@ mock.module('../../config/logger', () => ({
   createLogger: () => noopLogger,
 }));
 mock.module('../../config/database', () => ({
-  prisma: { agentExecution: { count: countMock } },
+  prisma: { agentExecution: { count: countMock, findFirst: findFirstMock } },
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
 mock.module('./auto-run/theme-auto-run-service', () => ({
@@ -49,8 +53,37 @@ mock.module('../observability', () => ({
 
 const { detectZeroProgressWhileRunning, resetZeroProgressTracker } =
   await import('./workflow-reconciler-zero-progress');
+// The real guard, not a mock: mock.module is process-global and replacing the
+// guard here would break its own test file in the same run.
+const { guardImplementOverlap, resetOverlapGuardState } =
+  await import('./workflow-orchestrator-overlap-guard');
 
 const NOW = 1_800_000_000_000;
+const HOLD_CEILING_MS = 30 * 60 * 1000;
+
+/** Put a real overlap hold on the task, started at `startedAt`. */
+async function holdOverlap(taskId: number, startedAt: number): Promise<void> {
+  const outcome = await guardImplementOverlap(
+    taskId,
+    { role: 'implementer', outputFile: null, nextStatus: 'in_progress' },
+    { themeId: 1, theme: { workingDirectory: 'C:/repo' } },
+    'plan_approved',
+    {
+      openPrs: async () => [
+        { prNumber: 829, linkedTaskId: 999, createdAt: new Date(startedAt - 60_000) },
+      ],
+      prFiles: async () => ['a.ts'],
+      artifact: async () => '対象: `a.ts`',
+      parseFiles: () => ['a.ts'],
+      overlap: async () => ['a.ts'],
+      isParked: async () => false,
+      isHalted: async () => false,
+      ownPr: async () => null,
+      now: () => startedAt,
+    },
+  );
+  expect(outcome.done).toBe(true);
+}
 
 /** running テーマ1件（themeId=1）を返すよう findByStatuses をセットする。 */
 function primeRunningTheme(currentTaskId: number | null, themeId = 1): void {
@@ -60,18 +93,80 @@ function primeRunningTheme(currentTaskId: number | null, themeId = 1): void {
 beforeEach(() => {
   findByStatusesMock.mockReset().mockResolvedValue([]);
   countMock.mockReset().mockResolvedValue(0);
+  findFirstMock.mockReset().mockResolvedValue(null);
+  warnMock.mockReset();
   notifyZeroProgressWhileRunningMock.mockReset().mockResolvedValue(undefined);
   logCycleEventMock.mockReset();
   resetZeroProgressTracker();
+  resetOverlapGuardState();
 });
 
 describe('detectZeroProgressWhileRunning', () => {
-  test('currentTaskId=null のテーマは対象外 — 実行主体が無ければ計測もしない', async () => {
+  // 2026-10-06 20:18Z: the alarm fired with only {themeId, taskId, elapsedMinutes}, so
+  // "never ran" could not be told apart from "ran, then stopped" (e.g. a worktree reclaim).
+  test('警報ログに直近の実行の有無・時刻・状態を含める', async () => {
+    primeRunningTheme(1147);
+    const lastAt = new Date(NOW - 3_600_000);
+    findFirstMock.mockResolvedValue({ createdAt: lastAt, status: 'cancelled' });
+
+    await detectZeroProgressWhileRunning(NOW);
+    expect(await detectZeroProgressWhileRunning(NOW + ZERO_PROGRESS_THRESHOLD_MS)).toBe(1);
+    expect(warnMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: 1147,
+        lastExecutionAt: lastAt.toISOString(),
+        lastExecutionStatus: 'cancelled',
+      }),
+      '[reconciler] Zero-progress spin detected — theme running with no executions',
+    );
+  });
+
+  test('実行履歴が一度も無ければ lastExecutionAt は null', async () => {
+    primeRunningTheme(1147);
+
+    await detectZeroProgressWhileRunning(NOW);
+    await detectZeroProgressWhileRunning(NOW + ZERO_PROGRESS_THRESHOLD_MS);
+    expect(warnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ lastExecutionAt: null, lastExecutionStatus: null }),
+      expect.any(String),
+    );
+  });
+
+  // 2026-09-27: currentTaskId=null を「計測対象外」として捨てていたため、
+  // status=running / 選定なしのまま 4 時間 15 分前進しない状態を誰も報告できなかった。
+  // このパスでは実行数を数えず(実行主体が無いので意味がない)、その状態専用の
+  // ウォッチへ委譲する。
+  test('currentTaskId=null は実行数を数えず no-selection ウォッチへ委譲する', async () => {
     primeRunningTheme(null);
 
     expect(await detectZeroProgressWhileRunning(NOW)).toBe(0);
     expect(countMock).not.toHaveBeenCalled();
     expect(notifyZeroProgressWhileRunningMock).not.toHaveBeenCalled();
+  });
+
+  // 2026-09-27 15:00-15:15Z, task 1111: 重複ガードが実装フェーズを 30 分保留する間、
+  // この検知器は 17 回警報を出した。保留は設計どおりの待機であって空回りではない。
+  test('重複保留が上限内なら警報せず静かなイベントに落とす（1111 の 17 連打事例）', async () => {
+    primeRunningTheme(1111);
+    await holdOverlap(1111, NOW);
+
+    await detectZeroProgressWhileRunning(NOW);
+    expect(await detectZeroProgressWhileRunning(NOW + ZERO_PROGRESS_THRESHOLD_MS)).toBe(0);
+    expect(notifyZeroProgressWhileRunningMock).not.toHaveBeenCalled();
+    expect(logCycleEventMock).toHaveBeenCalledWith(
+      'theme.waiting_for_overlap_hold',
+      expect.objectContaining({ task: 1111, holdMs: ZERO_PROGRESS_THRESHOLD_MS }),
+    );
+  });
+
+  // 上限を超えた保留は本検知器が存在する理由そのもの（905/914/937）なので警報は残す。
+  test('重複保留が上限を超えていれば従来どおり警報する', async () => {
+    primeRunningTheme(1111);
+    await holdOverlap(1111, NOW - HOLD_CEILING_MS - 60_000);
+
+    await detectZeroProgressWhileRunning(NOW);
+    expect(await detectZeroProgressWhileRunning(NOW + ZERO_PROGRESS_THRESHOLD_MS)).toBe(1);
+    expect(notifyZeroProgressWhileRunningMock).toHaveBeenCalledTimes(1);
   });
 
   test('初回観測は発火しない（アームのみ）', async () => {

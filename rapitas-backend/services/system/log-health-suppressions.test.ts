@@ -33,11 +33,34 @@ describe('classifyLogSignature', () => {
     expect(classifyLogSignature(name, msg).suppressed).toBe(false);
   });
 
+  test('task 1149: real ExecLog cancellation line is suppressed after normalization, sibling is not', () => {
+    const ignored = normalizeMessage('[ExecLog:5434] Execution result ignored after cancellation');
+    expect(classifyLogSignature('execution-file-logger', ignored).suppressed).toBe(true);
+    const unconfirmed = normalizeMessage(
+      '[ExecLog:5434] Execution result was not saved; cancellation could not be confirmed',
+    );
+    expect(classifyLogSignature('execution-file-logger', unconfirmed).suppressed).toBe(false);
+  });
+
   test('a logger-scoped rule does not leak to other loggers', () => {
     // 'Already running' is routine for the workflow runner; elsewhere it may
     // be a real double-start, so the rule must not fire globally.
     expect(classifyLogSignature('workflow-runner', 'Already running').suppressed).toBe(true);
     expect(classifyLogSignature('payment-worker', 'Already running').suppressed).toBe(false);
+  });
+
+  test('task 1148: lock-revocation requeue WARN from workflow-runner.ts:455 is suppressed only for that logger and wording', () => {
+    // ExecutionCancelledError after a stop/reset is a designed requeue, not a failure.
+    const msg =
+      '[WorkflowRunner] Task # cancelled — requeued: Workflow preparation cancelled: execution lock ownership was revoked';
+    const v = classifyLogSignature('workflow-runner', msg);
+    expect(v.suppressed).toBe(true);
+    expect(v.because).toBeTruthy();
+    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    expect(
+      classifyLogSignature('workflow-runner', '[WorkflowRunner] Phase failed for task #: boom')
+        .suppressed,
+    ).toBe(false);
   });
 
   test('"no commits between" is scoped to github-service:client only', () => {
@@ -46,6 +69,18 @@ describe('classifyLogSignature', () => {
     expect(classifyLogSignature('some-other-logger', 'no commits between a and b').suppressed).toBe(
       false,
     );
+  });
+
+  test('task 1113: protected-path mode escalation WARN from workflow-orchestrator-protected-path-guard.ts:72-75 is suppressed', () => {
+    // guardProtectedPathMode() escalates a lightweight task to standard mode
+    // when research.md plans a protected-path change — a designed self-defense
+    // action, not a defect (tasks 1044/1055, K-11655).
+    const v = classifyLogSignature(
+      'workflow-orchestrator',
+      '[WorkflowOrchestrator] research.md plans a protected-path change in lightweight mode — escalating to standard so plan.md can list it',
+    );
+    expect(v.suppressed).toBe(true);
+    expect(v.because).toBeTruthy();
   });
 
   test('"nothing to publish (skipped before gh pr create)" is scoped to routes:workflow:auto-commit only', () => {
@@ -147,6 +182,22 @@ describe('classifyLogSignature', () => {
     // (e.g. a git-operations timeout) must still be filed.
     expect(
       classifyLogSignature('some-other-logger', 'Command failed: taskkill /PID # /T /F').suppressed,
+    ).toBe(false);
+  });
+
+  test('winget failures from the cli-tools update route are suppressed for that logger only', () => {
+    // Task #1141: routes.ts:180 logs a user-triggered winget exit != 0 that the
+    // route already returned to the UI as success:false + details.
+    const msg = 'Command failed: winget upgrade OpenJS.NodeJS.LTS';
+    expect(classifyLogSignature('routes:cli-tools:routes', msg).suppressed).toBe(true);
+    expect(
+      classifyLogSignature('routes:cli-tools:routes', 'Command failed: winget install Git.Git')
+        .suppressed,
+    ).toBe(true);
+    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    expect(
+      classifyLogSignature('routes:cli-tools:routes', 'Failed to fetch CLI tools status')
+        .suppressed,
     ).toBe(false);
   });
 
@@ -334,6 +385,36 @@ describe('classifyLogSignature', () => {
     ).toBe(false);
   });
 
+  test('"Verify was rejected by a fresh gate rejection" is scoped to the workflow-cli-executor logger only', () => {
+    // Task 1145: expected gate behaviour (verify-gate.ts:74-77). Another logger
+    // reusing the phrase must still be filed.
+    const msg =
+      '[WorkflowCLIExecutor] Verify was rejected by a fresh gate rejection — honoring it and skipping the completion epilogue';
+    expect(classifyLogSignature('workflow-cli-executor', msg).suppressed).toBe(true);
+    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    expect(
+      classifyLogSignature(
+        'workflow-cli-executor',
+        '[WorkflowCLIExecutor] Verify passed but no PR — blocking (completion requires a PR).',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"Adversarial review FAIL arrived after the workflow moved on" is scoped to routes:workflow:handlers:files only', () => {
+    // Task 1146: expected CAS guard (verify-adversarial-review.ts:239) that
+    // stops a stale FAIL from rolling back a task that already advanced.
+    const msg =
+      '[Workflow] Adversarial review FAIL arrived after the workflow moved on — skipping rollback entirely';
+    expect(classifyLogSignature('routes:workflow:handlers:files', msg).suppressed).toBe(true);
+    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    expect(
+      classifyLogSignature(
+        'routes:workflow:handlers:files',
+        '[Workflow] Adversarial review FAIL lost the compare-and-swap race',
+      ).suppressed,
+    ).toBe(false);
+  });
+
   test('"verify.md explicitly reports a failed or partial overall verdict" is scoped to the workflow-cli-executor logger only', () => {
     // Task 1049: this WARN is the epilogue's fail-soft observability log for
     // validateVerify's hasNonpassingVerifyVerdict branch — repair/block itself
@@ -351,5 +432,52 @@ describe('classifyLogSignature', () => {
         '[WorkflowCLIExecutor] verify.md explicitly reports a failed or partial overall verdict; repair is required. 未達: «...»',
       ).suppressed,
     ).toBe(true);
+  });
+
+  test('the real task-1110 runtime-smoke OS snapshot PowerShell failure is suppressed after normalization', () => {
+    // Task 1110: readRuntimeProcessSnapshot()'s windowsScript (runtime-process-snapshot.ts:32-44)
+    // is long enough that normalizeMessage's 200-char slice never reaches the
+    // Get-CimInstance/Get-NetTCPConnection calls — the rule must match on the
+    // script's leading comment instead, which does survive the slice.
+    const raw = [
+      'Command failed: powershell.exe -NoProfile -NonInteractive -Command ',
+      "$ErrorActionPreference = 'Stop'",
+      '# execFile decodes UTF-8. CP932 bytes for characters such as ソ contain 0x5c,',
+      '# which otherwise becomes an invalid JSON escape and blocks verified cleanup.',
+      '[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)',
+      '$OutputEncoding = [Console]::OutputEncoding',
+      '$rows = @(Get-CimInstance Win32_Process | ForEach-Object {',
+      '  [pscustomobject]@{pid=[int]$_.ProcessId; parentPid=[int]$_.ParentProcessId}',
+      '})',
+    ].join('\n');
+    expect(classifyLogSignature('runtime-smoke:registry', normalizeMessage(raw)).suppressed).toBe(
+      true,
+    );
+  });
+
+  test('the runtime-smoke OS snapshot failure signature is scoped to the runtime-smoke:registry logger only', () => {
+    // Task 1110: an unrelated logger reusing the same PowerShell invocation
+    // text must still be filed.
+    const raw =
+      "Command failed: powershell.exe -NoProfile -NonInteractive -Command $ErrorActionPreference = 'Stop' " +
+      '# execFile decodes UTF-8. CP932 bytes for characters such as ソ contain 0x5c,';
+    expect(classifyLogSignature('some-other-logger', normalizeMessage(raw)).suppressed).toBe(false);
+  });
+
+  test('task 1142: removeWorktree KEEPING unmerged branch WARN (worktree-remove.ts:266-268) is suppressed, sibling branch-delete failures are not', () => {
+    // The guard keeps a branch whose commits exist on no remote; it is a
+    // designed data-loss protection (task 536), not a defect.
+    const raw =
+      '[removeWorktree] KEEPING unmerged branch bugfix/t1131-update-task — 2 commit(s) exist on no remote (tip 573e6ec1). Push or recover (git checkout -b <name> 573e6ec1) before deleting.';
+    const v = classifyLogSignature('git-operations/worktree-ops', normalizeMessage(raw));
+    expect(v.suppressed).toBe(true);
+    expect(v.because).toBeTruthy();
+    expect(
+      classifyLogSignature(
+        'git-operations/worktree-ops',
+        '[removeWorktree] Failed to delete branch bugfix/t#-update-task',
+      ).suppressed,
+    ).toBe(false);
+    expect(classifyLogSignature('some-other-logger', normalizeMessage(raw)).suppressed).toBe(false);
   });
 });
