@@ -156,7 +156,8 @@
     { "importPath": "./statistics", "exportName": "statisticsRoutes" },
     { "importPath": "./reports", "exportName": "reportsRoutes" },
     { "importPath": "./intelligent-suggestions", "exportName": "intelligentSuggestionsRoutes" },
-    { "importPath": "./weekly-review", "exportName": "weeklyReviewRoutes" }
+    { "importPath": "./weekly-review", "exportName": "weeklyReviewRoutes" },
+    { "importPath": "./test-correlation", "exportName": "testCorrelationRoutes" }
   ],
   "lifestyle": [
     { "importPath": "./habits", "exportName": "habitsRoutes" },

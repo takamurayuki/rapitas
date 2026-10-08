@@ -42,6 +42,7 @@ import {
   saveFlakeHistory,
 } from './retry-policy';
 import type { FlakeHistoryFile } from './retry-policy';
+import { recordTestCorrelationHistory } from './test-correlation-hook';
 
 /** Completed result for a single test file subprocess. */
 export interface TestResult {
@@ -346,6 +347,9 @@ async function main(): Promise<void> {
     const pruned = pruneFlakeHistory(updated, policyConfig.historyWindow);
     saveFlakeHistory(pruned, root);
   }
+
+  // Record this run into the test-correlation history store (never affects exit code — see test-correlation-hook.ts).
+  await recordTestCorrelationHistory(reportResults, root);
 
   // Write test report if enabled via env (RAPITAS_TEST_REPORT=1 or RAPITAS_TEST_REPORT_PATH).
   const reportPath = writeTestReport(reportResults, wallMs, new Date().toISOString(), root);
