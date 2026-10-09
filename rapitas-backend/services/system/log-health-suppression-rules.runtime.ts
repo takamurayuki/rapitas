@@ -234,4 +234,16 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
     because:
       'not_reviewableはレビュー対象外の状態ガードによる期待保留(EXPECTED_REPLAN_HOLD_REASONS)で、キュー側でスキップ扱い済み — unknown/requires_human等の他reasonは可視のまま',
   },
+  {
+    // ログ出力箇所: workflow-reconciler-queue-stall.ts:141-144 の log.warn（sweepStaleRunningItems）。
+    // updateMany の CAS が running→cancelled に成功した後だけ出る回復の記録で、生存実行を
+    // 持つ非終端タスクは候補から除外済み、requeue しないため二重起動もない。task 1165 以降は
+    // 同時に runner の activeExecutions 枠も解放する。回復は cycle event task.stall_released と
+    // 通知 auto_run_stall_released で別系統に残る（#1160）。枠解放の失敗は別文言で可視のまま。
+    // NOTE: 親ファイル(log-health-suppression-rules.ts)は300行超のためこちらへ追加した。
+    test: /^\[reconciler\] Cancelled stale running queue item$/,
+    logger: /workflow-reconciler-queue-stall/i,
+    because:
+      '定期スイープが残留 running item を cancelled にして枠を解放した自己修復の記録 — 回復は task.stall_released / auto_run_stall_released で別途記録され、枠解放失敗は別文言で可視のまま',
+  },
 ];

@@ -12,6 +12,8 @@
  */
 
 export const SUPPRESSED: [string, string][] = [
+  // Task 1160: the periodic sweep released a stale running item (workflow-reconciler-queue-stall.ts).
+  ['workflow-reconciler-queue-stall', '[reconciler] Cancelled stale running queue item'],
   // Task 1149: a stop won the race against result persistence (execution-persistence.ts).
   ['execution-file-logger', '[ExecLog:#] Execution result ignored after cancellation'],
   [
@@ -170,6 +172,9 @@ export const SUPPRESSED: [string, string][] = [
 ];
 
 export const KEPT: [string, string][] = [
+  // Task 1160: the rule is logger-scoped, and the sweep's failed slot release stays visible.
+  ['workflow', '[reconciler] Cancelled stale running queue item'],
+  ['workflow-reconciler-queue-stall', '[reconciler] Runner slot release failed'],
   // Task 1149: the unconfirmed-cancellation failure and other loggers must stay visible.
   [
     'execution-file-logger',
