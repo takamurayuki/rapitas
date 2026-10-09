@@ -23,16 +23,18 @@ const log = createLogger('theme-auto-run-scheduler');
  * @param prisma - Prisma client / Prismaクライアント
  * @param taskId - Task about to be blocked / ブロック直前のタスク
  * @param themeId - Owning theme / テーマID
+ * @param since - Start of the current tenure for the execution lookup / 現在タスク化した時刻
  * @returns true when requeued (do not block) / 復帰したら true
  */
 export async function requeueIfNeverExecuted(
   prisma: PrismaClient,
   taskId: number,
   themeId: number,
+  since?: Date,
 ): Promise<boolean> {
   try {
     return (
-      (await taskNeverExecuted(prisma, taskId)) &&
+      (await taskNeverExecuted(prisma, taskId, since)) &&
       (await requeueUnstartedTask(prisma, taskId, themeId))
     );
   } catch (err) {
