@@ -132,6 +132,12 @@ export async function sweepStaleRunningItems(nowMs: number): Promise<number> {
       .catch(() => ({ count: 0 }));
     if (updated.count >= 1) {
       released++;
+      try {
+        // task 1165: the DB cancel alone leaves the runner's activeExecutions slot occupied
+        WorkflowRunner.getInstance().releaseQueueItem(item.id);
+      } catch (error) {
+        log.warn({ err: error, queueItemId: item.id }, '[reconciler] Runner slot release failed');
+      }
       log.warn(
         { queueItemId: item.id, taskId: item.taskId, cause },
         '[reconciler] Cancelled stale running queue item',
