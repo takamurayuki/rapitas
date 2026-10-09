@@ -12,11 +12,20 @@ let neverExecuted = true;
 // Optional per-call verdicts (consumed first) to model a lookup that changes between calls.
 let verdictQueue: boolean[] = [];
 let requeueResult = true;
+// Task 1166: when set, models an OLD execution at this epoch-ms; honoured only if `since` is passed.
+let pastExecutionAt: number | null = null;
+let lastSince: Date | undefined;
 const mockRequeue = mock((_p: unknown, _t: number, _th: number) => Promise.resolve(requeueResult));
 mock.module('./auto-run-execution-presence', () => ({
   hasAnyExecution: () => Promise.resolve(!neverExecuted),
-  taskNeverExecuted: () =>
-    Promise.resolve(verdictQueue.length > 0 ? (verdictQueue.shift() as boolean) : neverExecuted),
+  taskNeverExecuted: (_p: unknown, _t: number, since?: Date) => {
+    lastSince = since;
+    if (verdictQueue.length > 0) return Promise.resolve(verdictQueue.shift() as boolean);
+    if (pastExecutionAt != null) {
+      return Promise.resolve(since ? pastExecutionAt < since.getTime() : false);
+    }
+    return Promise.resolve(neverExecuted);
+  },
 }));
 mock.module('./requeue-unstarted-task', () => ({
   requeueUnstartedTask: mockRequeue,
@@ -38,6 +47,7 @@ const {
   mockGetThemeActiveQueueItems,
   mockSetCurrentTask,
   mockHasLiveExecution,
+  mockQueueItemFindFirst,
 } = support;
 
 let scheduler: InstanceType<typeof ThemeAutoRunScheduler>;
@@ -48,6 +58,8 @@ beforeEach(() => {
   neverExecuted = true;
   verdictQueue = [];
   requeueResult = true;
+  pastExecutionAt = null;
+  lastSince = undefined;
   resetAllMocks();
   mockRequeue.mockClear();
   mockStopTaskTreeAgents.mockClear();
@@ -134,5 +146,50 @@ describe('advanceTheme — hang backstop on never-executed tasks (task 1007)', (
     expect(mockNotifyHangBackstop).toHaveBeenCalled();
     expect(mockOnTaskFailed).toHaveBeenCalled();
     expect(mockRequeue).not.toHaveBeenCalled();
+  });
+
+  it('AC1: does not fire for a task whose only execution predates the current tenure (#1153 shape)', async () => {
+    const lastRunAt = overWall(1.6);
+    pastExecutionAt = new Date(lastRunAt).getTime() - 60_000;
+    await internal(scheduler).advanceTheme(1, 984, 'priority', 1, lastRunAt);
+
+    expect(lastSince?.toISOString()).toBe(lastRunAt);
+    expect(mockNotifyHangBackstop).not.toHaveBeenCalled();
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+    expect(mockOnTaskFailed).not.toHaveBeenCalled();
+    expect(mockStopTaskTreeAgents).not.toHaveBeenCalled();
+  });
+
+  it('AC2: still fires when the task executed during the current tenure and went quiet', async () => {
+    const lastRunAt = overWall(1.6);
+    pastExecutionAt = new Date(lastRunAt).getTime() + 60_000;
+    await internal(scheduler).advanceTheme(1, 984, 'priority', 1, lastRunAt);
+
+    expect(mockNotifyHangBackstop).toHaveBeenCalled();
+    expect(mockOnTaskFailed).toHaveBeenCalled();
+    expect(mockRequeue).not.toHaveBeenCalled();
+  });
+
+  it('AC1/AC3: past the 3x ceiling, a slot-starved task (past exec only, queued behind a running item) is not stopped, requeued or blocked', async () => {
+    const lastRunAt = overWall(4);
+    pastExecutionAt = new Date(lastRunAt).getTime() - 60_000;
+    mockQueueItemFindFirst.mockResolvedValue({ id: 1 }); // own queued item + another running item
+    await internal(scheduler).advanceTheme(1, 984, 'priority', 1, lastRunAt);
+
+    expect(mockNotifyHangBackstop).not.toHaveBeenCalled();
+    expect(mockStopTaskTreeAgents).not.toHaveBeenCalled();
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+    expect(mockOnTaskFailed).not.toHaveBeenCalled();
+    expect(mockRequeue).not.toHaveBeenCalled();
+  });
+
+  it('past the 3x ceiling without queue-wait evidence still goes to the bounded requeue', async () => {
+    const lastRunAt = overWall(4);
+    pastExecutionAt = new Date(lastRunAt).getTime() - 60_000;
+    mockQueueItemFindFirst.mockResolvedValue(null);
+    await internal(scheduler).advanceTheme(1, 984, 'priority', 1, lastRunAt);
+
+    expect(mockRequeue).toHaveBeenCalledTimes(1);
+    expect(mockNotifyHangBackstop).not.toHaveBeenCalled();
   });
 });
