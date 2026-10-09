@@ -7,6 +7,7 @@
  */
 
 export { handleGetFiles, handleSaveFile } from './workflow-handlers-files';
+export { handleGetFile } from './workflow-handlers-file-read';
 export {
   handleApprovePlan,
   handleUpdateStatus,
