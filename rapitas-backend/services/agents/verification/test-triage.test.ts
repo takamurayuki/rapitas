@@ -1,5 +1,8 @@
 import { describe, test, expect, mock } from 'bun:test';
-import { classifyFailures, triageTestFailures } from './test-triage';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { classifyFailures, defaultSetupWorktree, triageTestFailures } from './test-triage';
 
 describe('classifyFailures', () => {
   test('splits currently-failing files into pre-existing and new', () => {
@@ -213,6 +216,103 @@ describe('triageTestFailures — baseline infra retries (task 659)', () => {
     });
     expect(result).toBeNull();
     expect(setupWorktreeFn).toHaveBeenCalledTimes(2);
+    expect(removeWorktreeFn).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Task 1161: generated projects have no scripts/setup-worktree.cjs, so the old
+// setup always failed twice and left the test gate indeterminate (open). The
+// default setup now delegates to the project bootstrap instead.
+describe('defaultSetupWorktree — projects without setup-worktree.cjs (task 1161)', () => {
+  const withTmpDir = async (fn: (dir: string) => Promise<void>) => {
+    const dir = mkdtempSync(join(tmpdir(), 'triage-setup-'));
+    try {
+      await fn(dir);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  test('delegates to the bootstrap and succeeds when it linked dependencies', async () => {
+    await withTmpDir(async (dir) => {
+      const bootstrapFn = mock((_p: string) =>
+        Promise.resolve({ action: 'linked' as const, detail: '1 link(s): .' }),
+      );
+      expect(await defaultSetupWorktree(dir, bootstrapFn)).toBe(true);
+      expect(bootstrapFn).toHaveBeenCalledWith(dir);
+    });
+  });
+
+  test('succeeds when the bootstrap installed dependencies', async () => {
+    await withTmpDir(async (dir) => {
+      const bootstrapFn = () =>
+        Promise.resolve({ action: 'installed' as const, detail: '1 link(s): .' });
+      expect(await defaultSetupWorktree(dir, bootstrapFn)).toBe(true);
+    });
+  });
+
+  test('succeeds when the bootstrap skipped because node_modules is already usable', async () => {
+    await withTmpDir(async (dir) => {
+      const bootstrapFn = () =>
+        Promise.resolve({
+          action: 'skipped' as const,
+          detail: 'worktree already has usable node_modules',
+        });
+      expect(await defaultSetupWorktree(dir, bootstrapFn)).toBe(true);
+    });
+  });
+
+  test("returns 'no-manifest' when the baseline has no project manifest", async () => {
+    await withTmpDir(async (dir) => {
+      const bootstrapFn = () =>
+        Promise.resolve({ action: 'skipped' as const, detail: 'no manifest' });
+      expect(await defaultSetupWorktree(dir, bootstrapFn)).toBe('no-manifest');
+    });
+  });
+
+  test('returns false without leaking when the bootstrap throws', async () => {
+    await withTmpDir(async (dir) => {
+      const bootstrapFn = () => Promise.reject(new Error('install failed'));
+      expect(await defaultSetupWorktree(dir, bootstrapFn)).toBe(false);
+    });
+  });
+
+  test('runs a present setup script and skips the bootstrap', async () => {
+    await withTmpDir(async (dir) => {
+      mkdirSync(join(dir, 'scripts'));
+      writeFileSync(join(dir, 'scripts', 'setup-worktree.cjs'), 'process.exit(0);\n');
+      const bootstrapFn = mock(() => Promise.resolve({ action: 'linked' as const, detail: '' }));
+      expect(await defaultSetupWorktree(dir, bootstrapFn)).toBe(true);
+      expect(bootstrapFn).not.toHaveBeenCalled();
+    });
+  });
+
+  test('a present-but-failing setup script does not fall back to the bootstrap', async () => {
+    await withTmpDir(async (dir) => {
+      mkdirSync(join(dir, 'scripts'));
+      writeFileSync(join(dir, 'scripts', 'setup-worktree.cjs'), 'process.exit(1);\n');
+      const bootstrapFn = mock(() => Promise.resolve({ action: 'linked' as const, detail: '' }));
+      expect(await defaultSetupWorktree(dir, bootstrapFn)).toBe(false);
+      expect(bootstrapFn).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("triageTestFailures — 'no-manifest' baseline (task 1161)", () => {
+  test("returns null without retrying when setup reports 'no-manifest'", async () => {
+    const setupWorktreeFn = mock((_dir: string) => Promise.resolve('no-manifest' as const));
+    const removeWorktreeFn = mock(() => Promise.resolve());
+    const result = await triageTestFailures('/root/proj', '/workdir', ['a.test.ts'], {
+      isTestFileFailingFn: () => Promise.resolve(true),
+      resolveBaseCommitFn: () => Promise.resolve('abcdef'),
+      getMainRepoRootFn: () => Promise.resolve('/main-repo'),
+      createWorktreeFn: () => Promise.resolve(true),
+      setupWorktreeFn,
+      removeWorktreeFn,
+      retryDelayMs: 0,
+    });
+    expect(result).toBeNull();
+    expect(setupWorktreeFn).toHaveBeenCalledTimes(1);
     expect(removeWorktreeFn).toHaveBeenCalledTimes(1);
   });
 });
