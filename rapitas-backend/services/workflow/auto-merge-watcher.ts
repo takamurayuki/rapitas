@@ -38,6 +38,8 @@ import { evaluatePreMergeGate, RATCHET_CHECK_NAME } from './auto-merge-premerge-
 import { checkBaselineDrift } from './auto-merge-baseline-drift';
 import { reapStalePrs } from './stale-pr-reaper';
 import { reconcilePrStates } from './pr-state-reconciler';
+import { readyPullRequest } from '../agents/orchestrator/git-operations/pr/pr-draft-ops';
+import { resolveDraftHold } from './auto-merge-draft-promotion';
 
 const log = createLogger('workflow:auto-merge-watcher');
 
@@ -284,6 +286,10 @@ export class AutoMergeWatcher {
     if (checks === null) return; // transient gh error — retry next tick
 
     let state = evaluateAutoMergeChecks(checks, blocking);
+    // Captured BEFORE the no-CI fallback below can upgrade `unknown` to `pass`:
+    // only this value means blocking checks actually ran and passed, which is
+    // what the draft-promotion decision needs to distinguish.
+    const ciVerified = state === 'pass';
 
     // No blocking CI checks reported (e.g. the branch has no CI configured, or only
     // advisory checks ran). 'unknown' would wait for CI that never arrives and then
@@ -325,11 +331,21 @@ export class AutoMergeWatcher {
     if (state === 'pass') {
       const draft = await readIsDraft(c.cwd, c.prNumber);
       if (draft !== false) {
-        state = 'pending';
-        log.info(
-          { taskId: c.taskId, prNumber: c.prNumber, draft },
-          '[auto-merge] PR is draft (or draft state unknown) — holding, not merging/completing',
-        );
+        // A draft held here used to stay held FOREVER: promotion happened only
+        // at publication time, for a verdict that was already `pass`, so a PR
+        // opened draft because local verification was inconclusive never
+        // advanced even once CI proved it green (temporaid PR #1, 2026-10-11).
+        state = (await resolveDraftHold({
+          cwd: c.cwd,
+          prNumber: c.prNumber,
+          taskId: c.taskId,
+          draft,
+          ciVerified,
+          markReady: readyPullRequest,
+          log,
+        }))
+          ? 'pending'
+          : state;
       }
     }
 
