@@ -38,6 +38,7 @@ const resolveTaskWorkflowStateMock = mock(() =>
 );
 const hasLiveExecutionMock = mock(() => Promise.resolve(false));
 const startProcessingMock = mock(() => {});
+const releaseQueueItemMock = mock((_id: number) => true);
 // 既定は「ランナー停止中」= kick が有効な状況。稼働中の分岐は個別テストで切り替える。
 const isProcessingMock = mock(() => false);
 const notifyStallReleasedMock = mock(() => Promise.resolve());
@@ -70,6 +71,7 @@ mock.module('./workflow-runner', () => ({
     getInstance: () => ({
       startProcessing: startProcessingMock,
       isProcessing: isProcessingMock,
+      releaseQueueItem: releaseQueueItemMock,
     }),
   },
 }));
@@ -100,6 +102,7 @@ beforeEach(() => {
   resolveTaskWorkflowStateMock.mockReset().mockResolvedValue(null);
   hasLiveExecutionMock.mockReset().mockResolvedValue(false);
   startProcessingMock.mockReset();
+  releaseQueueItemMock.mockReset().mockReturnValue(true);
   notifyStallReleasedMock.mockReset().mockResolvedValue(undefined);
   notifyQueueStarvationMock.mockReset().mockResolvedValue(undefined);
   notifyQueueStalledRunnerAliveMock.mockReset().mockResolvedValue(undefined);
@@ -178,6 +181,25 @@ describe('sweepStaleRunningItems', () => {
     ).where;
     expect(where.status).toBe('running');
     expect(where.startedAt.lt.getTime()).toBe(NOW - RUNNING_ITEM_STALE_MS);
+  });
+
+  test('cancelling a stale running item also releases the runner activeExecutions slot (task 1165)', async () => {
+    findManyMock.mockResolvedValue([{ id: 4168, taskId: 1159, themeId: 1 }]);
+    resolveTaskWorkflowStateMock.mockResolvedValue({ status: 'done', workflowStatus: null });
+
+    expect(await sweepStaleRunningItems(NOW)).toBe(1);
+
+    expect(releaseQueueItemMock).toHaveBeenCalledWith(4168);
+  });
+
+  test('a lost CAS (count 0) does not release the runner slot (task 1165)', async () => {
+    findManyMock.mockResolvedValue([{ id: 4168, taskId: 1159, themeId: 1 }]);
+    resolveTaskWorkflowStateMock.mockResolvedValue({ status: 'done', workflowStatus: null });
+    updateManyMock.mockResolvedValue({ count: 0 });
+
+    expect(await sweepStaleRunningItems(NOW)).toBe(0);
+
+    expect(releaseQueueItemMock).not.toHaveBeenCalled();
   });
 
   test('a terminal (done) task の running 残留は cancel される（事例2の残留元回収）', async () => {

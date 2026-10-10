@@ -246,4 +246,19 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
     because:
       'not_reviewableはレビュー対象外の状態ガードによる期待保留(EXPECTED_REPLAN_HOLD_REASONS)で、キュー側でスキップ扱い済み — unknown/requires_human等の他reasonは可視のまま',
   },
+  {
+    // ログ出力箇所: services/workflow/task-budget.ts:166 の log.warn
+    // （resolveTaskBudgetCap 内）。支出が RAPITAS_TASK_BUDGET_USD の
+    // hardMultiple() 倍（既定 2 倍）以上のときだけ、次フェーズの tier を economy に
+    // 落とす設計通りの予算ガード通知で、タスクは停止せず完走できる（同ファイル
+    // 14-15行・125-128行）。resolveTaskBudgetCap はフェーズのディスパッチごとに
+    // 呼ばれるため、超過中のタスクではフェーズ数だけ繰り返し出る（#1163、
+    // K-11982/K-9324/K-11556 は同一シグネチャの未抑制な再発）。
+    // 真の暴走（ループ）は task-iteration-budget.ts の HARD stop が別経路で止める。
+    // 同ロガーの 'spend lookup failed'（DB障害の兆候）は別文言のため抑制しない。
+    test: /^\[task-budget\] runaway spend — capping at economy$/,
+    logger: /task-budget/i,
+    because:
+      '支出が予算の2倍超のタスクを停止せずeconomy tierへ落とす設計通りの予算ガード通知 — 真の暴走はiteration budgetのHARD stopが別経路で止め、支出取得失敗(spend lookup failed)は別文言で可視のまま',
+  },
 ];

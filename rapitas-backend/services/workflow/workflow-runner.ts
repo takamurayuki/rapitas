@@ -32,6 +32,7 @@ import {
 import { taskVanishedMessage } from './queue-vanished-task-policy';
 import { parkItemIfHalted } from './workflow-runner-halt-guard';
 import { markEventLoopSection } from '../system/event-loop-lag-watchdog';
+import * as staleActive from './workflow-runner-stale-active';
 import type { RunnerStatus, ActiveExecution } from './workflow-runner.types';
 
 export type { RunnerStatus } from './workflow-runner.types';
@@ -145,17 +146,12 @@ export class WorkflowRunner {
    * @returns Number of executions aborted. / 中断した実行数
    */
   abortTask(taskId: number): number {
-    let aborted = 0;
-    for (const exec of this.activeExecutions.values()) {
-      if (exec.taskId === taskId && !exec.abortController.signal.aborted) {
-        exec.abortController.abort();
-        aborted++;
-      }
-    }
-    if (aborted > 0) {
-      log.info(`[WorkflowRunner] Aborted ${aborted} in-flight execution(s) for task ${taskId}`);
-    }
-    return aborted;
+    return staleActive.abortTaskExecutions(this.activeExecutions, taskId);
+  }
+
+  /** Free the slot of an item cancelled in the DB by the sweep/reconciler (task 1165). */
+  releaseQueueItem(queueItemId: number): boolean {
+    return staleActive.releaseActiveExecution(this.activeExecutions, queueItemId);
   }
 
   /**
@@ -177,6 +173,8 @@ export class WorkflowRunner {
     const ids: number[] = []; // task 1114: correlates a slow-queue WARN with items
     const releaseSection = markEventLoopSection('workflow-runner:processQueue'); // task 1040: names this section on a concurrent event-loop-lag WARN
     try {
+      // task 1165: a sweep-cancelled item leaves a Map entry that would hold the slot forever
+      await staleActive.dropStaleActiveExecutions(this.activeExecutions);
       while (this.activeExecutions.size < this.queue.getMaxConcurrency()) {
         const item = await this.queue.dequeue();
         if (!item) break;
