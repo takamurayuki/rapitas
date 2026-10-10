@@ -191,6 +191,12 @@ describe('advanceTheme — hang backstop', () => {
         wallMinutes: expect.any(Number),
         workflowStatus: 'plan_approved',
         taskStatusFrom: 'in-progress',
+        // Task 1166 added this field and the assertion was not updated, so the
+        // suite went red on merge (PR #865). Asserted as the literal `false`
+        // rather than any Boolean because it carries the rule: the backstop may
+        // force-stop a task that HAS executed, and #1166 exists precisely to
+        // stop it firing on one that never got a slot.
+        neverExecutedSinceCurrent: false,
       },
     });
   });
