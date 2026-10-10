@@ -74,7 +74,23 @@ mock.module('../../../../../config/logger', () => ({
 }));
 mock.module('child_process', () => ({ execFile: mockExecFile, exec: mockExec }));
 mock.module('node:child_process', () => ({ execFile: mockExecFile, exec: mockExec }));
-mock.module('node:fs', () => ({ existsSync: mockExistsSync }));
+// NOTE: ONE object registered under BOTH specifiers. resolve-worktree-base-dir
+// imports existsSync from 'fs' while worktree-remove.ts imports it from
+// 'node:fs', but bun resolves the two to the same module — registering them
+// separately makes the second call silently replace the first, which detaches
+// mockExistsSync from the code under test entirely.
+// The fixture repo's own `.git` answers unconditionally because the owning-root
+// resolver requires it before it will hand any baseDir to removeWorktree;
+// everything else stays with mockExistsSync, which the tests below drive. It is
+// scoped to that one path on purpose — worktree-usable.ts and worktree-guard.ts
+// probe a WORKTREE's `.git` through the same function, and answering yes there
+// would flip the preservation checks these tests exist to pin.
+const fsMock = {
+  existsSync: (p: string) =>
+    String(p).replace(/\\/g, '/') === '/test/repo/.git' || mockExistsSync(p),
+};
+mock.module('node:fs', () => fsMock);
+mock.module('fs', () => fsMock);
 mock.module('node:fs/promises', () => ({
   rm: mock(() => Promise.resolve(undefined)),
   readdir: mock(() => Promise.resolve([])),

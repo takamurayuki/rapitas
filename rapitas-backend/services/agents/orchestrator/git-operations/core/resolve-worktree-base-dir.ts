@@ -27,6 +27,14 @@ export function resolveWorktreeBaseDir(
   if (worktreePath.includes('..')) return fallback;
 
   const normalizedWT = normalizePath(worktreePath);
+
+  // NOTE: Refuse a path that names the `.worktrees` container itself rather than
+  // a worktree inside it. Its parent IS a repo, so every check below would pass
+  // and the caller would be handed a baseDir whose removal target is the whole
+  // container — every worktree of that repo at once.
+  // (normalizePath resolves away any trailing slash, so one endsWith covers both spellings.)
+  if (normalizedWT.endsWith(`/${WORKTREE_DIR}`)) return fallback;
+
   for (const c of usable) {
     if (normalizedWT.startsWith(normalizePath(join(c, WORKTREE_DIR)) + '/')) return c;
   }

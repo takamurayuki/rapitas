@@ -63,4 +63,29 @@ describe('resolveWorktreeBaseDir', () => {
     const wt = join(rapitas, '.worktrees', 'task-1');
     expect(resolveWorktreeBaseDir(wt, ['', null, undefined, rapitas])).toBe(rapitas);
   });
+
+  test('refuses a path that names the .worktrees container itself', () => {
+    // The parent IS a repo, so without this guard the caller is handed a baseDir
+    // whose removal target is every worktree of that repo at once.
+    for (const wt of [join(foreign, '.worktrees'), `${foreign}/.worktrees/`]) {
+      expect(resolveWorktreeBaseDir(wt, [])).toBe('');
+      expect(resolveWorktreeBaseDir(wt, [rapitas])).toBe(rapitas);
+    }
+  });
+
+  // cleanupOrphanedWorktrees sweeps sessions across several repositories at once,
+  // so it has no candidate to offer and reads '' as "cannot tell".
+  describe('with no candidates (cross-repository sweep)', () => {
+    test('infers the owning repo from the path', () => {
+      expect(resolveWorktreeBaseDir(foreignWt, [])).toBe(foreign.replace(/\\/g, '/'));
+    });
+
+    test("returns '' when the path has no .worktrees segment", () => {
+      expect(resolveWorktreeBaseDir(rapitas, [])).toBe('');
+    });
+
+    test("returns '' when the inferred parent is not a repository", () => {
+      expect(resolveWorktreeBaseDir(join(root, 'nogit', '.worktrees', 'task-9'), [])).toBe('');
+    });
+  });
 });
