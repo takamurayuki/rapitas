@@ -32,7 +32,6 @@ import {
 import { taskVanishedMessage } from './queue-vanished-task-policy';
 import { parkItemIfHalted } from './workflow-runner-halt-guard';
 import { markEventLoopSection } from '../system/event-loop-lag-watchdog';
-import { dropStaleActiveExecutions } from './workflow-runner-stale-active';
 import type { RunnerStatus, ActiveExecution } from './workflow-runner.types';
 
 export type { RunnerStatus } from './workflow-runner.types';
@@ -178,11 +177,6 @@ export class WorkflowRunner {
     const ids: number[] = []; // task 1114: correlates a slow-queue WARN with items
     const releaseSection = markEventLoopSection('workflow-runner:processQueue'); // task 1040: names this section on a concurrent event-loop-lag WARN
     try {
-      // The loop below is gated on activeExecutions.size, which lives in memory
-      // and can outlive the DB row it tracks — the periodic sweep cancels an
-      // item it dispatched, and with concurrency 1 the runner then never
-      // dequeues again (#1165, observed twice on 2026-10-09). Reconcile first.
-      await dropStaleActiveExecutions(this.activeExecutions);
       while (this.activeExecutions.size < this.queue.getMaxConcurrency()) {
         const item = await this.queue.dequeue();
         if (!item) break;
