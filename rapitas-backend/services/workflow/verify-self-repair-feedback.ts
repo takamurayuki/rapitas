@@ -19,6 +19,7 @@ export {
   mergeRepairFeedback,
 } from './verify-repair-feedback-content';
 import { buildRepairFeedbackBlock, mergeRepairFeedback } from './verify-repair-feedback-content';
+import { repairFeedbackSources } from './verify-repair-pollution';
 
 /**
  * Write the verify failure back to verify.md so the re-run implementer reads
@@ -38,8 +39,14 @@ export async function writeRepairFeedback(
   try {
     // Belongs on verify.md, not question.md (Q&A) — the implementer re-reads it.
     const prior = (await readWorkflowFile(taskId, 'verify')) ?? verifyContent ?? '';
-    const block = buildRepairFeedbackBlock(reason, attempt, verifyContent);
-    await writeWorkflowFile(taskId, 'verify', mergeRepairFeedback(prior, block));
+    // A corrupt report must be dropped, not decorated. Appending feedback to a
+    // log-polluted body re-saves the pollution, so the next validation fails
+    // for the identical reason and the agent is asked to fix a file it was
+    // handed still broken — measured on task 1160: six versions, same three
+    // HARD patterns, body unchanged across five bounces, then halted.
+    const { base, quoted } = repairFeedbackSources(prior, verifyContent);
+    const block = buildRepairFeedbackBlock(reason, attempt, quoted);
+    await writeWorkflowFile(taskId, 'verify', mergeRepairFeedback(base, block));
   } catch (err) {
     log.warn({ err, taskId }, '[verify-repair] Failed to write repair feedback to verify.md');
   }
