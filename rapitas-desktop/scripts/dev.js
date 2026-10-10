@@ -1542,6 +1542,15 @@ if (!fs.existsSync(NEXT_TAURI_DIR)) {
 }
 
 let backend = null;
+// restartBackend と hotRestartBackend で共有する再起動ガード。
+// 2026-10-10 実測: restartBackend にガードが無く、hotRestartBackend の
+// isHotRestarting とも別変数だったため、exit 75 の自動再起動と watchdog 発の
+// 再起動が重なって startBackend() が多重に走った。`backend` は単一変数なので
+// 後の spawn が前を上書きし、先に起動したプロセスは追跡不能のまま生き残る。
+// 結果 :3001 に 3 つのバックエンドが同時 LISTEN し、同一 SQLite を取り合って
+// theme advance が最大 18 秒まで劣化した。restartFrontend の
+// isFrontendRestarting と同じ形で片方だけを通す。
+let isBackendRestarting = false;
 let frontend = null;
 let actualBackendPort = BACKEND_PORT;
 let actualFrontendPort = FRONTEND_PORT;
@@ -1838,6 +1847,19 @@ function notifyBackendDown(crashes) {
 }
 
 function startBackend(retryCount = 0) {
+  // 二重 spawn の最後の歯止め。`backend` は単一変数なので、生きているプロセスを
+  // 上書きすると前のプロセスが追跡不能のまま :3001 を LISTEN し続ける
+  // (2026-10-10 に 3 重起動として実測)。ガードを足した今も、将来新しい呼び出し
+  // 経路が増えたときに静かに再発させないため、ここで弾いて理由を残す。
+  if (backend && backend.exitCode === null && backend.signalCode === null) {
+    console.error(
+      `❌ Refusing to start a second backend: PID ${backend.pid} is still running. ` +
+        'Stop it first (stopBackendCompletely) — overwriting the handle leaks a ' +
+        'process that keeps :3001 LISTENING.',
+    );
+    return;
+  }
+
   // Always use dev:stable (no bun --watch) to ensure graceful shutdown handlers run
   const backendScript = 'dev:stable';
   if (retryCount === 0) {
@@ -2064,6 +2086,19 @@ async function stopBackendCompletely(skipShutdownApi = false) {
  * @param {boolean} processAlreadyExited - trueの場合、プロセスが既に終了済み（シャットダウンAPIスキップ）
  */
 async function restartBackend(processAlreadyExited = false) {
+  if (isBackendRestarting) {
+    console.log('  Backend restart already in progress, skipping...');
+    return;
+  }
+  isBackendRestarting = true;
+  try {
+    await restartBackendInner(processAlreadyExited);
+  } finally {
+    isBackendRestarting = false;
+  }
+}
+
+async function restartBackendInner(processAlreadyExited) {
   console.log('\n🔄 Restarting backend server...');
   console.log('  Step 1/4: Stopping backend completely...');
   await stopBackendCompletely(processAlreadyExited);
@@ -2185,11 +2220,14 @@ async function isAgentExecutionActive() {
  * ファイル変更検出時に使用。stopBackendCompletely() でグレースフルシャットダウンを経由する。
  */
 async function hotRestartBackend() {
-  if (isHotRestarting) {
-    console.log('  Hot restart already in progress, skipping...');
+  if (isHotRestarting || isBackendRestarting) {
+    console.log('  Backend restart already in progress, skipping hot restart...');
     return;
   }
   isHotRestarting = true;
+  // full restart 側と同じガードも立てる。別変数のままでは hot と full が
+  // 互いを素通りして二重 spawn になる(2026-10-10 の 3 重起動の経路)。
+  isBackendRestarting = true;
   try {
     console.log('\n🔥 Hot-restarting backend server...');
     console.log('  Step 1/3: Stopping backend completely...');
@@ -2217,6 +2255,7 @@ async function hotRestartBackend() {
     console.error('❌ Hot restart failed:', err.message || err);
   } finally {
     isHotRestarting = false;
+    isBackendRestarting = false;
     lastRestartCompletedAt = Date.now();
   }
 }

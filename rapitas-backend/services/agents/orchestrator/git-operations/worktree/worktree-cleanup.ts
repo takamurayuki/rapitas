@@ -13,6 +13,7 @@ import { existsSync } from 'node:fs';
 import * as fsPromises from 'node:fs/promises';
 import { createLogger } from '../../../../../config/logger';
 import { WORKTREE_DIR, normalizePath, isPathSafeForWorktreeOperation } from '../core/safety';
+import { resolveWorktreeOwnerRoot } from '../core/worktree-owner-root';
 import { prisma } from '../../../../../config/database';
 import { removeWorktree } from './worktree-remove';
 import {
@@ -221,9 +222,31 @@ export async function cleanupOrphanedWorktrees(
         continue;
       }
 
+      // NOTE: The owning root comes from the PATH, not from `baseDir`. One
+      // cleanup pass spans several repositories: a generated project's worktree
+      // lives under that project, so checking it against rapitas's root made
+      // isPathSafeForWorktreeOperation refuse it every time, the row below was
+      // never cleared, and the same paths were retried on every cycle forever
+      // (measured 2026-10-10: 70 rows / 15 paths / 5 projects, oldest from task
+      // 498 — the retry cost saturated the event loop). Generated projects also
+      // sit under different parents, so no single baseDir can cover them.
+      const ownerRoot = resolveWorktreeOwnerRoot(worktreePath);
+      if (!ownerRoot) {
+        // No `.worktrees` segment means removal can never succeed for this row.
+        // Clear the pointer instead of re-attempting it on every future cycle.
+        await prisma.agentSession.updateMany({
+          where: { id: { in: sessions.map((s) => s.id) } },
+          data: { worktreePath: null },
+        });
+        logger.warn(
+          `[cleanupOrphanedWorktrees] Unmanageable worktree path for ${sessions.length} session(s) — pointer cleared so it stops being retried: ${worktreePath}`,
+        );
+        continue;
+      }
+
       try {
         // Remove the worktree if it exists
-        const removed = await removeWorktree(baseDir, worktreePath);
+        const removed = await removeWorktree(ownerRoot, worktreePath);
         if (removed) {
           cleanedCount++;
 
