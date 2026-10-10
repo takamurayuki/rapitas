@@ -28,6 +28,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createLogger } from '../../../../../config/logger';
 import { bootstrapProjectDependencies } from './project-dependency-bootstrap';
+import { ensureRunCheckedWrapper, defaultWrapperSource } from './worktree-command-wrapper';
 
 const execAsync = promisify(exec);
 const logger = createLogger('git-operations/dependency-installer');
@@ -156,8 +157,13 @@ export async function installWorktreeDependencies(worktreePath: string): Promise
     // project in a gitignored sidecar and links it in — installing only when
     // the manifest fingerprint changes.
     const result = await bootstrapProjectDependencies(worktreePath);
+    // The prompts tell every implementer/verifier to verify through
+    // `node scripts/run-checked.cjs`, which ships with rapitas and is absent
+    // here. It is also the only thing printing a heartbeat every 30s, and the
+    // agent is killed after ~301s of silence — see worktree-command-wrapper.ts.
+    const wrapper = ensureRunCheckedWrapper(worktreePath, defaultWrapperSource(import.meta.dir));
     logger.info(
-      `[installWorktreeDependencies] No setup-worktree.cjs; project bootstrap ${result.action} (${result.detail}) for ${worktreePath}`,
+      `[installWorktreeDependencies] No setup-worktree.cjs; project bootstrap ${result.action} (${result.detail}), run-checked ${wrapper} for ${worktreePath}`,
     );
     return;
   }
