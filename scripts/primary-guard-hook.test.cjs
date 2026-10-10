@@ -98,15 +98,21 @@ test('process-kill words inside quoted data arguments are allowed', () => {
 });
 
 test('real process kills stay denied despite quoting tricks', () => {
+  // NOTE: two cases that used an arbitrary explicit PID moved to the
+  // PID-aware block below, where the listener set is injected. Since
+  // 2026-10-10 an explicit PID holding no backend listener is deliberately
+  // allowed (see that block for why), so asserting on a bare PID here would
+  // test the machine's current netstat output instead of the quoting rule this
+  // test is about. The chained/quoted evasions themselves are unchanged.
   for (const cmd of [
     'taskkill /F /IM bun.exe',
     'grep x f && pkill bun',
-    'echo "x"; taskkill /F /PID 1',
+    'echo "x"; taskkill /F /IM bun.exe',
     'bash -c "taskkill /F /IM bun.exe"',
     'powershell -Command "Stop-Process -Name bun"',
     '"taskkill" /F /IM bun.exe',
     "echo hi | 'pkill' bun",
-    'grep "a" f; Stop-Process -Id 3',
+    'grep "a" f; Stop-Process -Name bun',
     'echo "$(taskkill /F /IM bun.exe)"',
     'echo "unterminated taskkill',
   ]) {
@@ -517,4 +523,58 @@ test('a script run followed by rm in a separate segment is not a package install
     assert.equal(kindAt('npm --prefix x ci', cwd), 'package_install', cwd);
     assert.equal(kindAt('bun remove zod', cwd), 'package_install', cwd);
   }
+});
+
+// --- PID-aware process kill (2026-10-10 incident) ---------------------------
+// The blanket kill denial caused the outage it existed to prevent. exec 5553
+// started temporaid's server for a health check, tried to clean it up by PID,
+// was refused, and the survivor held the rapitas backend's INHERITED port-3001
+// LISTEN handle for 16 hours (it was a descendant of that backend through the
+// agent's shell). When the backend later force-exited, that handle kept a ghost
+// LISTEN alive whose accept queue filled, so every connection to 3001 was
+// refused — across three further automatic restarts. Killing that one process
+// cleared the ghost instantly.
+//
+// So: an explicit PID that holds no backend listener must be killable. Kills
+// that name no PID, or that name a listener, stay denied — and an unresolvable
+// listener set fails CLOSED.
+const killCtx = (protectedPids) => ({ ...ctx, cwd: WT, protectedPids });
+
+test('an explicit PID that holds no backend listener may be killed', () => {
+  assert.equal(classify('taskkill //PID 28880 //F', killCtx([21996])), null);
+  assert.equal(classify('taskkill /F /PID 28880', killCtx([])), null);
+  assert.equal(classify('Stop-Process -Id 28880 -Force', killCtx([])), null);
+  assert.equal(classify('kill -9 28880', killCtx([])), null);
+});
+
+test('killing a backend listener PID stays denied', () => {
+  assert.equal(classify('taskkill //PID 21996 //F', killCtx([21996])), 'process_kill');
+  assert.equal(classify('Stop-Process -Id 21996', killCtx([21996])), 'process_kill');
+  // One protected PID among several is enough to refuse the whole command.
+  assert.equal(classify('taskkill /PID 28880 /PID 21996 /F', killCtx([21996])), 'process_kill');
+  // Chaining and quoting must not smuggle a protected PID past the check —
+  // the cases these two replace in the quoting-tricks test above.
+  assert.equal(classify('echo "x"; taskkill /F /PID 21996', killCtx([21996])), 'process_kill');
+  assert.equal(classify('grep "a" f; Stop-Process -Id 21996', killCtx([21996])), 'process_kill');
+});
+
+test('kills that do not name an explicit PID stay denied', () => {
+  for (const c of [
+    'taskkill /F /IM bun.exe',
+    'pkill bun',
+    'killall node',
+    'Stop-Process -Name bun',
+    'Get-Process bun | Stop-Process',
+  ]) {
+    assert.equal(classify(c, killCtx([])), 'process_kill', c);
+  }
+});
+
+test('an unresolvable listener set fails CLOSED', () => {
+  assert.equal(classify('taskkill //PID 28880 //F', killCtx(null)), 'process_kill');
+});
+
+test('quoted kill words stay data under PID awareness', () => {
+  assert.equal(classify('grep -n "taskkill /PID 1" a.ts', killCtx([])), null);
+  assert.equal(classify(`printf '%s' '{"c":"taskkill /PID 28880"}'`, killCtx([])), null);
 });

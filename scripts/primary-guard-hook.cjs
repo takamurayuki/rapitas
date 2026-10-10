@@ -105,6 +105,73 @@ function hasProcessKill(code) {
   return quotedCommandWord || EXEC_INDIRECTION.test(rest) || PROC_KILL.test(rest);
 }
 
+/** The port whose listener is the agent's own lifeline and must never be killed. */
+const BACKEND_PORT = 3001;
+
+/** Targets a process by NAME rather than by PID — unenumerable, so never allowed. */
+const KILL_BY_NAME = /(?:\/IM\b|-Name\b|-InputObject\b|\b(?:pkill|killall)\b|\|\s*stop-process)/i;
+/** `taskkill /PID 123`, `//PID 123`, `/pid:123`, `-PID 123`. */
+const KILL_PID_FLAG = /[/-]{1,2}pid[:\s]\s*(\d{1,10})/gi;
+/** `Stop-Process -Id 123` or `-Id 123,456`. */
+const KILL_ID_FLAG = /-id[:\s]\s*([\d,\s]{1,64})/gi;
+
+/**
+ * The PIDs an explicit kill command names, or null when it does not name any.
+ *
+ * NOTE: This exists because the blanket denial caused the outage it was meant to
+ * prevent. On 2026-10-10 a verification agent started a generated project's
+ * server, tried to kill it by PID, was refused — and that survivor held the
+ * rapitas backend's INHERITED port-3001 listen handle (it was a descendant of
+ * the backend through the agent's shell). When the backend later force-exited,
+ * the handle kept a ghost LISTEN alive whose accept queue filled, refusing every
+ * connection to 3001 across three further restarts. Killing that one process
+ * cleared it instantly. An agent must be able to clean up what it started.
+ *
+ * @param code - Prose-stripped command / prose 除去済みコマンド
+ * @returns Explicit PIDs, or null when the command targets by name / 明示PID、名前指定なら null
+ */
+function extractKillPids(code) {
+  // Quoted spans are data (`grep "taskkill /PID 1"`), never the target list.
+  const bare = code.replace(QUOTED_SPAN, '""');
+  if (KILL_BY_NAME.test(bare)) return null;
+  const pids = new Set();
+  for (const m of bare.matchAll(KILL_PID_FLAG)) pids.add(Number(m[1]));
+  for (const m of bare.matchAll(KILL_ID_FLAG)) {
+    for (const part of m[1].split(',')) {
+      const n = Number(part.trim());
+      if (Number.isInteger(n) && n > 0) pids.add(n);
+    }
+  }
+  return pids.size > 0 ? [...pids] : null;
+}
+
+/**
+ * PIDs currently listening on the backend port, or null when that cannot be
+ * determined — the caller must then refuse, since an unknown listener set makes
+ * every kill potentially fatal to the agent's own connection.
+ *
+ * @returns Listening PIDs or null / LISTEN 中の PID、判定不能なら null
+ */
+function resolveBackendListenerPids() {
+  try {
+    const out = require('node:child_process').execFileSync('netstat', ['-ano'], {
+      encoding: 'utf8',
+      timeout: 5000,
+      windowsHide: true,
+    });
+    const pids = new Set();
+    for (const line of out.split('\n')) {
+      if (!/LISTENING/i.test(line)) continue;
+      if (!new RegExp(`:${BACKEND_PORT}\\s`).test(line)) continue;
+      const pid = Number(line.trim().split(/\s+/).pop());
+      if (Number.isInteger(pid) && pid > 0) pids.add(pid);
+    }
+    return [...pids];
+  } catch {
+    return null; // fail CLOSED
+  }
+}
+
 /**
  * Root of the rapitas checkout that owns this hook, with any `.worktrees/<name>`
  * suffix stripped so a worktree's own copy still resolves to the shared tree.
@@ -184,6 +251,25 @@ function sharesDependencyTree(code, ctx) {
 }
 
 /**
+ * Whether a kill command names only PIDs that hold no backend listener.
+ *
+ * Fails CLOSED on every uncertainty: a kill that targets by name, one that
+ * names no PID at all, and an undeterminable listener set all return false.
+ *
+ * @param code - Prose-stripped command / prose 除去済みコマンド
+ * @param ctx - May carry `protectedPids` (tests inject it) / `protectedPids` を持てる
+ * @returns true only when every named PID is safe to kill / 全対象が安全な場合のみ true
+ */
+function killTargetsOnlyUnprotectedPids(code, ctx) {
+  const pids = extractKillPids(code);
+  if (!pids) return false;
+  const protectedPids =
+    ctx && 'protectedPids' in ctx ? ctx.protectedPids : resolveBackendListenerPids();
+  if (!Array.isArray(protectedPids)) return false; // unresolvable → refuse
+  return pids.every((pid) => !protectedPids.includes(pid));
+}
+
+/**
  * Classify a command. Returns the incident kind or null when allowed.
  *
  * @param command - Shell command text / シェルコマンド
@@ -197,7 +283,7 @@ function classify(command, ctx) {
   // Evaluated once: both dependency-tree rules share the same hazard test.
   const sharedTree = sharesDependencyTree(code, ctx);
   if (PRISMA.test(code) && sharedTree) return 'prisma';
-  if (hasProcessKill(code)) return 'process_kill';
+  if (hasProcessKill(code) && !killTargetsOnlyUnprotectedPids(code, ctx)) return 'process_kill';
   // Quoted occurrences (`grep "pnpm install"`, commit text) are data, not commands.
   if (PACKAGE_INSTALL.test(code.replace(QUOTED_SPAN, '""')) && sharedTree)
     return 'package_install';

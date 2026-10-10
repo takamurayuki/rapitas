@@ -826,7 +826,42 @@ function isRapitasOwnedProcess(pid) {
   const KNOWN_RAPITAS_PROCESS_NAMES = ['node.exe', 'bun.exe', 'llama-server.exe'];
   if (!KNOWN_RAPITAS_PROCESS_NAMES.includes(name)) return false;
   const inspectable = `${proc.CommandLine || ''} ${proc.ExecutablePath || ''}`;
-  return /rapitas[-_/\\]/i.test(inspectable);
+  if (/rapitas[-_/\\]/i.test(inspectable)) return true;
+  // A server an AGENT started is rapitas-owned work even when nothing in its
+  // own command line says so. 2026-10-10: a verification agent started a
+  // generated project's server as `node dist/index.js` — no "rapitas" anywhere,
+  // so this returned false and forceKillAllOnPort refused to reclaim port 3001
+  // from it. That survivor held the backend's inherited LISTEN handle and kept a
+  // ghost socket alive for 16 hours. A user's own dev server on 3001 is NOT a
+  // descendant of an agent shell, so this stays narrow.
+  return hasAgentShellAncestor(pid);
+}
+
+/**
+ * Whether `pid` descends from a Claude agent shell (or a non-interactive agent
+ * CLI invocation), which makes it rapitas-spawned work regardless of its own
+ * command line.
+ *
+ * @param {number} pid
+ * @param {number} maxDepth
+ * @returns {boolean}
+ */
+function hasAgentShellAncestor(pid, maxDepth = 10) {
+  // `--print` / stream-json marks a MACHINE invocation; an interactive session
+  // has neither, and must never be treated as a killable ancestor chain.
+  const AGENT_SHELL =
+    /[\\/]\.claude[\\/]shell-snapshots[\\/]|--print\b|--output-format[= ]stream-json/i;
+  let current = pid;
+  for (let i = 0; i < maxDepth; i++) {
+    const procs = queryWin32Processes(`ProcessId=${current}`);
+    if (procs.length === 0) return false;
+    const proc = procs[0];
+    if (i > 0 && AGENT_SHELL.test(`${proc.CommandLine || ''}`)) return true;
+    const parentPid = Number(proc.ParentProcessId);
+    if (!Number.isInteger(parentPid) || parentPid <= 0 || parentPid === current) return false;
+    current = parentPid;
+  }
+  return false;
 }
 
 /**
@@ -1856,6 +1891,22 @@ function startBackend(retryCount = 0) {
       `❌ Refusing to start a second backend: PID ${backend.pid} is still running. ` +
         'Stop it first (stopBackendCompletely) — overwriting the handle leaks a ' +
         'process that keeps :3001 LISTENING.',
+    );
+    return;
+  }
+
+  // 誰かがまだバックエンドポートを掴んでいるなら、重ねて bind しない。
+  // Windows では同一 addr:port への二重 bind が成立してしまい、接続が新旧の
+  // ソケットに分散する(2026-10-10 実測: 生存3つ + 死んだPIDのゴースト1つが
+  // 同時 LISTEN し、接続はゴーストに吸われて全滅した)。起動を止めて理由を
+  // 出すほうが、黙って4つ目を作るより回復が早い。
+  const holders = [...getListeningPids(actualBackendPort)].filter((p) => p !== process.pid);
+  if (holders.length > 0) {
+    console.error(
+      `❌ Refusing to start the backend: port ${actualBackendPort} is still held by PID(s) ` +
+        `${holders.join(', ')}. Binding a second socket on the same port splits incoming ` +
+        'connections between them. Reclaim the port first (forceKillAllOnPort / ' +
+        'killGhostHandleHolders) — a held port is recoverable, a duplicate backend is not.',
     );
     return;
   }
