@@ -71,6 +71,18 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
       '過去6回すべてself-heal閾値(単発15秒/累積120秒間に30秒)未到達 — ウォッチドッグは正常動作しており、閾値超の病的スタールは別シグネチャ(Self-healing restart triggered, ERROR)で引き続き検知される',
   },
   {
+    // ログ出力箇所: workflow-runner.ts:191 の log.warn（processQueue の finally 内、
+    // queue.dequeue() 所要が1000ms超の時）。task 966/1114 で追加した
+    // event-loop-lag 発生元特定用の計装で、例外時は別に log.error(同:187) が出る。
+    // 過去の発生（K-11581, K-11653, K-11986）はいずれも散発。同じ負荷ピークは
+    // event-loop-lag 側でも抑制済みで、病的スタールは self-heal(ERROR) が検知する。
+    // tookMs/taskIds は構造化フィールドに残り、log-correlation.ts:18 の相関も維持される。
+    test: /^Slow queue processing$/,
+    logger: /^workflow-runner$/i,
+    because:
+      'dequeueが1秒超になっただけの負荷依存の診断記録 — 例外はlog.errorで別途可視、病的スタールはSelf-healing restart(ERROR)が検知し、tookMs等は構造化フィールドに残る',
+  },
+  {
     // ログ出力箇所: requirement-replan-commit.ts:134 の assertReviewedTaskCurrent
     // （汎用Error）。stale_taskはEXPECTED_REPLAN_HOLD_REASONS
     // (requirement-replan-policy.ts:48-55)に含まれ、isExpectedReplanHold(#1041)が
@@ -117,6 +129,20 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
     logger: /memory:innovation-session/i,
     because:
       'generateForTheme()のtry/catchが確実に捕捉しreturn 0で後続テーマ処理を継続する（innovation-session.ts:242-253）— タスク失敗に波及せず、次回実行時に再試行される想定内の失敗モード',
+  },
+  {
+    // ログ出力箇所: claude-cli-provider.ts:306-308 の setTimeout が
+    // `Claude CLI timed out after ${timeoutMs}ms` で fail(..., stop=true) し、
+    // :295 で ClaudeCliUnavailableError を reject（CLI は停止されリークなし）。
+    // /ai/chat は ai-chat.ts:110-115（ストリームは :194）の catch で logger
+    // routes:ai-chat の ERROR として記録し HTTP 500 + メッセージを呼び出し元へ返す。
+    // 呼び出し元は idea-box.ts:295-317 がフォールバックのタスクデータで継続、
+    // UI 側もエラー表示で劣化継続する。CLI の応答遅延という外部要因でありコード欠陥ではない（#1155）。
+    // 同ロガーの別文言（spawn 失敗等）と他ロガーの同文言は対象外のまま残す。
+    test: /^Claude CLI timed out after #ms$/i,
+    logger: /routes:ai-chat/i,
+    because:
+      '/ai/chat のCLIタイムアウトはHTTP 500で呼び出し元に返り、idea-box等は劣化動作で継続する（ai-chat.ts:110-115）— CLI応答遅延という想定内の外部要因',
   },
   {
     // ログ出力箇所: workflow-cli-executor-epilogue.ts:249 の log.warn。
@@ -206,5 +232,33 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
     logger: /workflow-runner/i,
     because:
       '停止・リセットによるロック所有権の取り消しをランナーが検知し、リトライ予算を消費せず再キューする設計通りの動作 — 実行失敗は別文言(ERROR/Phase failed)で可視のまま',
+  },
+  {
+    // ログ出力箇所: workflow-orchestrator-execute.ts:153 の log.error（role=auto_verifier）。
+    // 投げ元は workflow-cli-executor-verify-gate.ts:86 で、requirement-replan-service.ts:78
+    // の readSource() が null（タスクが in-progress でない／workflowStatus 対象外／verify 不在）
+    // のとき reason=not_reviewable を返す。EXPECTED_REPLAN_HOLD_REASONS
+    // （requirement-replan-policy.ts:48-55）の状態ガードで、queue-skip-policy.ts:28 が
+    // 再試行不要のスキップとして扱い済み（#1156）。unknown / requires_human:* /
+    // 他ロールの失敗は別文言のため抑制しない。
+    test: /^\[WorkflowOrchestrator\] Error in auto_verifier: Requirement replan review held: not_reviewable$/,
+    logger: /workflow-orchestrator/i,
+    because:
+      'not_reviewableはレビュー対象外の状態ガードによる期待保留(EXPECTED_REPLAN_HOLD_REASONS)で、キュー側でスキップ扱い済み — unknown/requires_human等の他reasonは可視のまま',
+  },
+  {
+    // ログ出力箇所: services/workflow/task-budget.ts:166 の log.warn
+    // （resolveTaskBudgetCap 内）。支出が RAPITAS_TASK_BUDGET_USD の
+    // hardMultiple() 倍（既定 2 倍）以上のときだけ、次フェーズの tier を economy に
+    // 落とす設計通りの予算ガード通知で、タスクは停止せず完走できる（同ファイル
+    // 14-15行・125-128行）。resolveTaskBudgetCap はフェーズのディスパッチごとに
+    // 呼ばれるため、超過中のタスクではフェーズ数だけ繰り返し出る（#1163、
+    // K-11982/K-9324/K-11556 は同一シグネチャの未抑制な再発）。
+    // 真の暴走（ループ）は task-iteration-budget.ts の HARD stop が別経路で止める。
+    // 同ロガーの 'spend lookup failed'（DB障害の兆候）は別文言のため抑制しない。
+    test: /^\[task-budget\] runaway spend — capping at economy$/,
+    logger: /task-budget/i,
+    because:
+      '支出が予算の2倍超のタスクを停止せずeconomy tierへ落とす設計通りの予算ガード通知 — 真の暴走はiteration budgetのHARD stopが別経路で止め、支出取得失敗(spend lookup failed)は別文言で可視のまま',
   },
 ];

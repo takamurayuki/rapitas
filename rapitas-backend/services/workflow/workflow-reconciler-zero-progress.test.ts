@@ -24,6 +24,9 @@ const countMock = mock(() => Promise.resolve(0));
 const findFirstMock = mock(() =>
   Promise.resolve(null as { createdAt: Date; status: string } | null),
 );
+const taskFindUniqueMock = mock(() =>
+  Promise.resolve(null as { status: string; workflowStatus: string | null } | null),
+);
 const notifyZeroProgressWhileRunningMock = mock(() => Promise.resolve());
 const logCycleEventMock = mock(() => {});
 
@@ -33,7 +36,10 @@ mock.module('../../config/logger', () => ({
   createLogger: () => noopLogger,
 }));
 mock.module('../../config/database', () => ({
-  prisma: { agentExecution: { count: countMock, findFirst: findFirstMock } },
+  prisma: {
+    agentExecution: { count: countMock, findFirst: findFirstMock },
+    task: { findUnique: taskFindUniqueMock },
+  },
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
 mock.module('./auto-run/theme-auto-run-service', () => ({
@@ -94,6 +100,7 @@ beforeEach(() => {
   findByStatusesMock.mockReset().mockResolvedValue([]);
   countMock.mockReset().mockResolvedValue(0);
   findFirstMock.mockReset().mockResolvedValue(null);
+  taskFindUniqueMock.mockReset().mockResolvedValue(null);
   warnMock.mockReset();
   notifyZeroProgressWhileRunningMock.mockReset().mockResolvedValue(undefined);
   logCycleEventMock.mockReset();
@@ -102,6 +109,42 @@ beforeEach(() => {
 });
 
 describe('detectZeroProgressWhileRunning', () => {
+  // 2026-10-08: 143 false alarms — tasks past verify (PR open, waiting on CI /
+  // auto-merge) run no agent by design, so "no executions" is not a spin.
+  test.each([['verify_done'], ['completed']])(
+    'workflowStatus=%s のタスクは警報を出さず静かな cycle event にする',
+    async (workflowStatus) => {
+      primeRunningTheme(1145);
+      taskFindUniqueMock.mockResolvedValue({ status: 'in_progress', workflowStatus });
+
+      await detectZeroProgressWhileRunning(NOW);
+      expect(await detectZeroProgressWhileRunning(NOW + ZERO_PROGRESS_THRESHOLD_MS)).toBe(0);
+      expect(warnMock).not.toHaveBeenCalled();
+      expect(notifyZeroProgressWhileRunningMock).not.toHaveBeenCalled();
+      expect(logCycleEventMock).toHaveBeenCalledWith(
+        'theme.waiting_for_merge',
+        expect.objectContaining({ task: 1145, ok: true }),
+      );
+    },
+  );
+
+  test('workflowStatus=in_progress で実行ゼロなら従来どおり検出する', async () => {
+    primeRunningTheme(905);
+    taskFindUniqueMock.mockResolvedValue({ status: 'in_progress', workflowStatus: 'in_progress' });
+
+    await detectZeroProgressWhileRunning(NOW);
+    expect(await detectZeroProgressWhileRunning(NOW + ZERO_PROGRESS_THRESHOLD_MS)).toBe(1);
+    expect(warnMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('タスク状態を読めない場合は免除せず警報に倒す', async () => {
+    primeRunningTheme(905);
+    taskFindUniqueMock.mockRejectedValue(new Error('db down'));
+
+    await detectZeroProgressWhileRunning(NOW);
+    expect(await detectZeroProgressWhileRunning(NOW + ZERO_PROGRESS_THRESHOLD_MS)).toBe(1);
+  });
+
   // 2026-10-06 20:18Z: the alarm fired with only {themeId, taskId, elapsedMinutes}, so
   // "never ran" could not be told apart from "ran, then stopped" (e.g. a worktree reclaim).
   test('警報ログに直近の実行の有無・時刻・状態を含める', async () => {

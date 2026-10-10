@@ -80,4 +80,37 @@ describe('checkBaselineDrift', () => {
       expect(messages).toEqual([]);
     }
   });
+
+  it('logs the WARN once per distinct drift, not on every 30min re-check', async () => {
+    const clock = { t: 1_000_000 };
+    let verdict: RatchetVerdict = { verdict: 'violation', detail: 'a.ts: 9 > baseline 5' };
+    let warns = 0;
+    const deps: DriftDeps = {
+      now: () => clock.t,
+      runRatchet: async () => verdict,
+      notifyDrift: async () => {},
+      warn: () => {
+        warns++;
+      },
+    };
+    await checkBaselineDrift({ repoRoot: '/r', deps });
+    clock.t += HOUR;
+    await checkBaselineDrift({ repoRoot: '/r', deps });
+    clock.t += HOUR;
+    await checkBaselineDrift({ repoRoot: '/r', deps });
+    expect(warns).toBe(1);
+
+    verdict = { verdict: 'violation', detail: 'b.ts: 9 > baseline 5' };
+    clock.t += HOUR;
+    await checkBaselineDrift({ repoRoot: '/r', deps });
+    expect(warns).toBe(2);
+
+    verdict = { verdict: 'pass' };
+    clock.t += HOUR;
+    await checkBaselineDrift({ repoRoot: '/r', deps });
+    verdict = { verdict: 'violation', detail: 'b.ts: 9 > baseline 5' };
+    clock.t += HOUR;
+    await checkBaselineDrift({ repoRoot: '/r', deps });
+    expect(warns).toBe(3);
+  });
 });

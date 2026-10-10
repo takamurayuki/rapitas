@@ -155,6 +155,9 @@ export const SUPPRESSED: [string, string][] = [
   // Task 1050: generateForTheme() catches the CLI timeout and continues
   // with the next theme (innovation-session.ts:242-253).
   ['memory:innovation-session', 'Claude CLI timed out after #ms'],
+  // Task 1155: /ai/chat returns the timeout as HTTP 500 and callers degrade
+  // gracefully (ai-chat.ts:110-115).
+  ['routes:ai-chat', 'Claude CLI timed out after #ms'],
   // Task 1145: verify gate honoring a fresh rejection (verify-gate.ts:74-77).
   [
     'workflow-cli-executor',
@@ -229,6 +232,8 @@ export const KEPT: [string, string][] = [
   // Same CLI timeout wording from a different caller (e.g. task-spec-deriver,
   // K-8927/K-5946) is not covered by this logger-scoped rule.
   ['task-spec-deriver', 'Claude CLI timed out after #ms'],
+  // Other failures on the same logger stay visible (task 1155).
+  ['routes:ai-chat', 'Claude CLI spawn failed: ENOENT'],
   // Same wording from another logger is not this rule's business (task 1148).
   [
     'some-other-logger',

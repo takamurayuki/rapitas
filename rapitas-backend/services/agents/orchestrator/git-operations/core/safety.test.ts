@@ -67,3 +67,12 @@ describe('isPathSafeForWorktreeOperation', () => {
     expect(isPathSafeForWorktreeOperation(evil, BASE)).toBe(false);
   });
 });
+
+describe('isPathSafeForWorktreeOperation — foreign repository worktree', () => {
+  test('false for another repo worktree under the wrong baseDir, true under its own parent', () => {
+    const foreignRepo = join(BASE, '..', 'contextflow');
+    const wt = join(foreignRepo, '.worktrees', 'task-1152-f2fc9924');
+    expect(isPathSafeForWorktreeOperation(wt, BASE)).toBe(false);
+    expect(isPathSafeForWorktreeOperation(wt, foreignRepo)).toBe(true);
+  });
+});

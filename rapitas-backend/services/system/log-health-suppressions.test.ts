@@ -329,6 +329,19 @@ describe('classifyLogSignature', () => {
     ).toBe(false);
   });
 
+  test('routes:ai-chat CLI timeout is suppressed but spawn failures and other loggers stay visible', () => {
+    // Task #1155: /ai/chat returns the timeout as HTTP 500 and callers degrade gracefully.
+    expect(
+      classifyLogSignature('routes:ai-chat', 'Claude CLI timed out after #ms').suppressed,
+    ).toBe(true);
+    expect(
+      classifyLogSignature('routes:ai-chat', 'Claude CLI spawn failed: ENOENT').suppressed,
+    ).toBe(false);
+    expect(
+      classifyLogSignature('some-other-logger', 'Claude CLI timed out after #ms').suppressed,
+    ).toBe(false);
+  });
+
   test('"[runtime-smoke] health check timed out" is scoped to the runtime-smoke:launcher logger only', () => {
     // Task #862: an unrelated logger reusing this phrase must still be filed.
     expect(
@@ -479,5 +492,21 @@ describe('classifyLogSignature', () => {
       ).suppressed,
     ).toBe(false);
     expect(classifyLogSignature('some-other-logger', normalizeMessage(raw)).suppressed).toBe(false);
+  });
+
+  test('task 1156: auto_verifier "replan review held: not_reviewable" is suppressed for workflow-orchestrator only', () => {
+    const msg =
+      '[WorkflowOrchestrator] Error in auto_verifier: Requirement replan review held: not_reviewable';
+    expect(classifyLogSignature('workflow-orchestrator', normalizeMessage(msg)).suppressed).toBe(
+      true,
+    );
+    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    for (const other of [
+      '[WorkflowOrchestrator] Error in auto_verifier: Requirement replan review held: unknown',
+      '[WorkflowOrchestrator] Error in auto_verifier: Requirement replan review held: requires_human:x',
+      '[WorkflowOrchestrator] Error in planner: Requirement replan review held: not_reviewable',
+    ]) {
+      expect(classifyLogSignature('workflow-orchestrator', other).suppressed).toBe(false);
+    }
   });
 });

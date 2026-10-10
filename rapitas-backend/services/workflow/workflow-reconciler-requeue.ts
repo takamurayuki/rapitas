@@ -9,6 +9,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
+import { restoreBlockedUnstartedTask } from './blocked-unstarted-restore';
 // NOTE: Thresholds live in blocked-task-policy (task 615) so the evidence /
 // escalation passes share the same constants — behavior here is unchanged.
 import {
@@ -390,6 +391,14 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
         { taskId: t.id },
         '[reconciler] Blocked task had a completed workflow — restored status=done, no draft reset',
       );
+      continue;
+    }
+
+    // Task 1166: a backstop block on a task that never executed was slot
+    // starvation, not a failed run — keep workflowStatus instead of draft-resetting.
+    const unstarted = await restoreBlockedUnstartedTask(prisma, t);
+    if (unstarted !== 'not_applicable') {
+      if (unstarted === 'restored') retried++;
       continue;
     }
 

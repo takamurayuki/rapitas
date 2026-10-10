@@ -14,6 +14,7 @@ import { prisma } from '../../config/database';
 import { getProjectRoot } from '../../config';
 import { createLogger } from '../../config/logger';
 import { removeWorktree } from '../agents/orchestrator/git-operations/worktree/worktree-ops';
+import { resolveWorktreeBaseDir } from '../agents/orchestrator/git-operations/core/resolve-worktree-base-dir';
 import { extractKnowledgeFromTask } from '../memory/task-knowledge-extractor';
 
 const log = createLogger('completed-task-cleanup');
@@ -71,7 +72,7 @@ async function deleteTaskWithArtifacts(taskId: number): Promise<void> {
       where: { worktreePath: { not: null }, config: { taskId } },
       select: { id: true, worktreePath: true },
     });
-    const baseDir = task?.workingDirectory ?? task?.theme?.workingDirectory ?? getProjectRoot();
+    const dirs = [task?.workingDirectory || task?.theme?.workingDirectory, getProjectRoot()];
 
     // NOTE: Multiple AgentSession rows for this task can share one worktree
     // directory (retries, self-repair bounces). Group by worktreePath before
@@ -90,7 +91,10 @@ async function deleteTaskWithArtifacts(taskId: number): Promise<void> {
 
     for (const [worktreePath, sessionIds] of sessionsByPath) {
       try {
-        const removed = await removeWorktree(baseDir, worktreePath);
+        const removed = await removeWorktree(
+          resolveWorktreeBaseDir(worktreePath, dirs),
+          worktreePath,
+        );
         if (removed) {
           await prisma.agentSession
             .updateMany({ where: { id: { in: sessionIds } }, data: { worktreePath: null } })

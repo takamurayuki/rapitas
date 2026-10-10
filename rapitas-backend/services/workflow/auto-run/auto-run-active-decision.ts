@@ -38,7 +38,7 @@ import { stopTaskTreeAgents } from '../../agents/stop-task-agents';
 import { selectAndEnqueueNextTask } from './auto-run-advance-select';
 import { isOverlapHeld } from '../workflow-orchestrator-overlap-guard';
 import { isTaskTerminalForQueue } from '../queue-terminal-task-guard';
-import { recordTransition } from '../transition-recorder';
+import { recordHangBackstopBlock } from './auto-run-hang-backstop-transition';
 
 import { resolveResumedTenureStart, resolveAutoRunRestartTenureStart } from './resume-tenure';
 import { resolveCurrentTaskOutcome } from './auto-run-resolve-outcome';
@@ -114,7 +114,12 @@ export async function advanceActiveTaskLocked(
     // movement; only their absence means wedged.
     // Task 1007: a task with ZERO executions is waiting in the queue, not hung
     // (984 was blocked at 72 min behind 881's ci_repair without ever running).
-    const neverExecuted = await taskNeverExecuted(prisma, currentTaskId);
+    // Task 1166: only executions since THIS tenure began count — a past run
+    // (exec 5514 on #1153) must not turn a slot-starved task into "wedged".
+    // Raw lastRunAt, not the resume-clamped tenureStart: clamping would hide a
+    // wedged run that began before a pause.
+    const since = new Date(lastRunAt);
+    const neverExecuted = await taskNeverExecuted(prisma, currentTaskId, since);
     const lastProgressAt = await resolveLastProgressAt(prisma, currentTaskId, tenureStart);
     const sinceProgressMs = Date.now() - lastProgressAt;
     // Liveness exemption: a running execution with a fresh heartbeat is
@@ -134,7 +139,13 @@ export async function advanceActiveTaskLocked(
     // deferred, and returned before the code that resolves a finished task
     // and picks the next one — auto-run sat "running" with a completed
     // current task and 9 runnable tasks untouched.
-    const waitingUnstarted = neverExecuted && withinHardCeiling;
+    // Task 1166: past the 3x ceiling a never-executed task is STILL only waiting
+    // when its own item is queued behind another task's running/live work (slot
+    // starvation, #1153). Without that evidence it is a stuck queue and falls
+    // to the bounded requeue below.
+    const queuedBehindSlot =
+      neverExecuted && !withinHardCeiling && (await liveOrQueuedBehind(prisma, currentTaskId));
+    const waitingUnstarted = neverExecuted && (withinHardCeiling || queuedBehindSlot);
     // A task whose workflow already finished cannot be hung, and force-stopping
     // it runs revertChanges and then demotes it — the backstop turns finished
     // work into work to redo.
@@ -168,11 +179,11 @@ export async function advanceActiveTaskLocked(
             : progressedRecently
               ? `progressed ${Math.round(sinceProgressMs / 1000)}s ago`
               : waitingUnstarted
-                ? 'has never executed (queue wait)'
+                ? `has not executed since becoming current (queue wait, ${Math.round(tenureMs / 60000)}min)`
                 : 'execution heartbeat is fresh'
         } — deferring hang backstop (theme ${themeId})`,
       );
-    } else if (await requeueIfNeverExecuted(prisma, currentTaskId, themeId)) {
+    } else if (await requeueIfNeverExecuted(prisma, currentTaskId, themeId, since)) {
       // Past the 3x ceiling without ever running: a stuck queue, not a hung
       // agent. Requeue (bounded) instead of blocking; setCurrentTask resets
       // the tenure clock.
@@ -208,36 +219,17 @@ export async function advanceActiveTaskLocked(
       // lifecycle notifications above).
       await notifyHangBackstop(themeId, currentTaskId, Math.round(MAX_TASK_WALL_MS / 60000));
       await stopTaskTreeAgents(currentTaskId);
-      // Read the row BEFORE the blocked write so the transition below can
-      // carry the pre-stop task.status (resolveTaskWorkflowState is the
-      // existing task-resolver helper; it returns null on a DB miss).
+      // Read the row BEFORE the blocked write so the transition carries the pre-stop status.
       const wallBudgetState = await resolveTaskWorkflowState(currentTaskId);
       await writeBlockedTask(prisma, currentTaskId).catch(() => {});
-      // Task 793: this write left no WorkflowTransition row, so downstream
-      // retro analysis (retro-evidence.ts) could not tell why a task went
-      // blocked here versus any other blocked path.
-      // NOTE: this path flips task.status to 'blocked', so the row records a
-      // REAL transition INTO blocked — fromStatus is the task's prior state
-      // (its workflowStatus, or task.status when the workflow never started),
-      // toStatus is 'blocked'. That matches the actual DB change and lets
-      // computePhaseTimings (retro-evidence.ts) attribute the timeline
-      // correctly; a self-loop (from===to) would have shown "nothing changed".
-      // 'blocked' is already an established timeline state here (see
-      // blocked-task-escalation and the retro dwell table). The unchanged
-      // workflowStatus is preserved in metadata for context.
-      const wallMinutes = Math.round(MAX_TASK_WALL_MS / 60000);
-      await recordTransition({
-        taskId: currentTaskId,
-        fromStatus: wallBudgetState?.workflowStatus ?? wallBudgetState?.status ?? null,
-        toStatus: 'blocked',
-        actor: 'system',
-        cause: 'auto_run_hang_backstop',
-        metadata: {
-          wallMinutes,
-          workflowStatus: wallBudgetState?.workflowStatus ?? null,
-          taskStatusFrom: wallBudgetState?.status ?? null,
-        },
-      }).catch(() => {});
+      // Task 793: leave a transition row so retro analysis can tell why it went blocked.
+      // Task 1166: flag a never-executed (queue-wait) block so the reconciler skips the draft reset.
+      await recordHangBackstopBlock(
+        currentTaskId,
+        wallBudgetState,
+        Math.round(MAX_TASK_WALL_MS / 60000),
+        neverExecuted,
+      );
       await onTaskFailed(themeId, `Task ${currentTaskId} timed out (auto-run hang guard)`);
       broadcastAutoRunUpdateImpl(themeId);
       await new Promise((r) => setTimeout(r, COOLDOWN_MS));

@@ -16,6 +16,7 @@ import {
   attachAutoRunCardStatus,
 } from '../../services/task/task-service';
 import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree/worktree-ops';
+import { resolveWorktreeBaseDir } from '../../services/agents/orchestrator/git-operations/core/resolve-worktree-base-dir';
 import { warnIfSubtaskCreatedDuringDisabledSplit } from '../../services/workflow/subtask-split-guard';
 import { getProjectRoot } from '../../config';
 import { cleanupCompletedTasks } from '../../services/task/completed-task-cleanup';
@@ -432,22 +433,20 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
           const sessionsWithWorktrees = await prisma.agentSession.findMany({
             where: {
               worktreePath: { not: null },
-              config: {
-                taskId: id,
-              },
+              config: { taskId: id },
             },
-            select: {
-              id: true,
-              worktreePath: true,
-            },
+            select: { id: true, worktreePath: true },
           });
 
-          const baseDir = task.workingDirectory ?? task.theme?.workingDirectory ?? getProjectRoot();
+          const dirs = [task.workingDirectory || task.theme?.workingDirectory, getProjectRoot()];
 
           for (const session of sessionsWithWorktrees) {
             if (!session.worktreePath) continue;
             try {
-              const removed = await removeWorktree(baseDir, session.worktreePath);
+              const removed = await removeWorktree(
+                resolveWorktreeBaseDir(session.worktreePath, dirs),
+                session.worktreePath,
+              );
               if (!removed) {
                 logger.warn(`[tasks] worktree remove refused: task ${id} ${session.worktreePath}`);
                 continue;
