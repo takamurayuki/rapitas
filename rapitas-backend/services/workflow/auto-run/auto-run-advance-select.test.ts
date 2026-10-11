@@ -29,15 +29,20 @@ mock.module('./dev-restart-on-dry', () => ({
   maybeRestartForUpdate: mock(async () => false),
 }));
 
+// Calendar-slot gate (task 1174): flipped per test to prove a hold stops
+// selection before any task is picked or enqueued.
+const calendarGateMock = mock(async () => false);
 mock.module('./auto-run-advance-gates', () => ({
   checkResourceContentionGate: mock(async () => false),
+  checkCalendarSlotGate: calendarGateMock,
   checkMergeBarrierGate: mock(() => false),
 }));
 
+const selectNextTaskMock = mock(async () => ({ found: true, taskId: 42, deferred: [43] }));
 mock.module('./auto-run-selection', () => ({
   AUTO_RUN_GLOBAL_MAX_CONCURRENCY: 1,
   overlappingFiles: mock(() => ['services/overlap.ts']),
-  selectNextTask: mock(async () => ({ found: true, taskId: 42, deferred: [43] })),
+  selectNextTask: selectNextTaskMock,
   recentThemeSuccessRate: mock(async () => null),
 }));
 
@@ -56,10 +61,11 @@ mock.module('./theme-auto-run-service', () => ({
   setCurrentTask: mock(async () => {}),
 }));
 
+const enqueueMock = mock(async () => ({ id: 1 }));
 mock.module('../workflow-queue', () => ({
   WorkflowQueueService: {
     getInstance: () => ({
-      enqueue: mock(async () => ({ id: 1 })),
+      enqueue: enqueueMock,
     }),
   },
 }));
@@ -88,5 +94,36 @@ describe('selectAndEnqueueNextTask — task.deferred prNumbers', () => {
     const [, fields] = deferredCalls[0]!;
     expect(fields.prNumbers).toEqual(SURVIVING_PR_NUMBERS);
     expect(fields.prNumbers).not.toContain(EXCLUDED_PR_NUMBER);
+  });
+});
+
+describe('selectAndEnqueueNextTask — calendar-slot gate (task 1174)', () => {
+  const prisma = {
+    task: {
+      findMany: mock(async () => []),
+      findUnique: mock(async () => ({ workflowStatus: 'todo' })),
+    },
+  } as unknown as import('../../../generated/prisma-postgres').PrismaClient;
+
+  it('neither selects nor enqueues while the calendar gate holds (outside free time)', async () => {
+    calendarGateMock.mockImplementationOnce(async () => true);
+    selectNextTaskMock.mockClear();
+    enqueueMock.mockClear();
+
+    await selectAndEnqueueNextTask(prisma, 7, 'priority', 0, new Map());
+
+    expect(calendarGateMock).toHaveBeenCalledWith(prisma, 7);
+    expect(selectNextTaskMock).not.toHaveBeenCalled();
+    expect(enqueueMock).not.toHaveBeenCalled();
+  });
+
+  it('selects and enqueues again once the gate releases (meeting over)', async () => {
+    selectNextTaskMock.mockClear();
+    enqueueMock.mockClear();
+
+    await selectAndEnqueueNextTask(prisma, 7, 'priority', 0, new Map());
+
+    expect(selectNextTaskMock).toHaveBeenCalledTimes(1);
+    expect(enqueueMock).toHaveBeenCalledTimes(1);
   });
 });

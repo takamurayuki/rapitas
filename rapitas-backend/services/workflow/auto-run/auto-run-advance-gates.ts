@@ -1,7 +1,7 @@
 /**
  * auto-run-advance-gates
  *
- * The resource-contention and merge-barrier holds that can defer next-task
+ * The resource-contention, calendar-slot and merge-barrier holds that can defer next-task
  * selection for a running theme. Split out of auto-run-advance-select.ts
  * (task 784) to stay under the file-size ratchet; the caller checks each
  * gate in order and returns early on a hold. Not responsible for selecting a
@@ -20,6 +20,15 @@ import {
 import { notifyResourceContentionHold } from './auto-run-notifications';
 import { getHostCpuBusyPercent } from '../../system/resource-telemetry';
 import { evaluateResourceGate, consumeResourceGateOverride } from './resource-contention-gate';
+import { evaluateCalendarGate, isSyncStale } from '../../scheduling/calendar-slot/free-slot';
+import {
+  clearCalendarHold,
+  consumeCalendarGateOverride,
+  getCalendarSlotSettings,
+  getCalendarSnapshot,
+  isCalendarHoldActive,
+  markCalendarHold,
+} from '../../scheduling/calendar-slot/calendar-hold-state';
 
 const log = createLogger('theme-auto-run-scheduler');
 
@@ -80,6 +89,82 @@ export async function checkResourceContentionGate(
     });
   await notifyResourceContentionHold(themeId, gate.cpuBusyPercent, gate.thresholdPercent);
   return true;
+}
+
+/**
+ * Calendar-slot gate (task 1174, default OFF): hold next-task selection from
+ * `leadMinutes` before a Google Calendar busy block until it ends, so new
+ * work only starts in free time. A running phase is never interrupted — it
+ * finishes at its phase boundary (the checkpoint) and the next selection
+ * waits here; at the meeting end the hold lifts and the existing selection
+ * cycle resumes the task from its saved workflowStatus. Fails open when the
+ * last sync errored or is stale. Only hold start/release transitions are
+ * logged (ActivityLog + cycle log) so a long meeting writes two rows, not one
+ * per tick.
+ *
+ * @param prisma - Prisma client / Prismaクライアント
+ * @param themeId - Theme being advanced / 対象テーマ
+ * @param now - Current time (injected for tests) / 現在時刻
+ * @returns true when selection should be held this cycle. / 保留すべきなら true
+ */
+export async function checkCalendarSlotGate(
+  prisma: PrismaClient,
+  themeId: number,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const settings = getCalendarSlotSettings();
+  if (!settings.enabled) return false;
+  const snapshot = getCalendarSnapshot();
+  const usable =
+    snapshot.lastStatus === 'ok' && !isSyncStale(snapshot.lastSyncedAt, now, settings.pollMinutes);
+  const gate = evaluateCalendarGate({
+    now,
+    busyBlocks: snapshot.busyBlocks,
+    leadMinutes: settings.leadMinutes,
+    enabled: usable,
+    overridden: usable && consumeCalendarGateOverride(themeId),
+  });
+  if (!gate.hold) {
+    if (clearCalendarHold(themeId)) {
+      const cause = usable ? gate.reason : 'calendar_unavailable';
+      logCycleEvent('task.calendar_hold_released', {
+        theme: themeId,
+        cause,
+        msg: 'calendar-slot gate — hold released, selection resumes from the saved phase',
+      });
+      await recordCalendarActivity(prisma, 'calendar_slot.hold_released', { themeId, cause });
+    }
+    return false;
+  }
+  const wasHeld = isCalendarHoldActive(themeId, now);
+  markCalendarHold(themeId, gate.releaseAt);
+  if (!wasHeld) {
+    logCycleEvent('task.calendar_hold', {
+      theme: themeId,
+      cause: gate.reason,
+      releaseAt: gate.releaseAt?.toISOString() ?? null,
+      msg: 'calendar-slot gate — holding next-task selection until the meeting ends',
+    });
+    await recordCalendarActivity(prisma, 'calendar_slot.hold_started', {
+      themeId,
+      reason: gate.reason,
+      meetingStartAt: gate.blockStartAt?.toISOString() ?? null,
+      releaseAt: gate.releaseAt?.toISOString() ?? null,
+    });
+  }
+  return true;
+}
+
+async function recordCalendarActivity(
+  prisma: PrismaClient,
+  action: string,
+  metadata: Record<string, unknown>,
+): Promise<void> {
+  await prisma.activityLog
+    .create({ data: { taskId: null, action, metadata: JSON.stringify(metadata) } })
+    .catch((err) => {
+      log.warn({ err, action }, '[ThemeAutoRunScheduler] Failed to record calendar-slot event');
+    });
 }
 
 /**

@@ -130,3 +130,29 @@ describe('checkNoSelectionProgress', () => {
     expect(createNotificationMock).not.toHaveBeenCalled();
   });
 });
+
+describe('checkNoSelectionProgress — calendar-slot hold exemption (task 1174)', () => {
+  test('カレンダー枠待ちで選定を保留中のテーマは停滞として報告しない', async () => {
+    const { markCalendarHold, resetCalendarHoldState } =
+      await import('../scheduling/calendar-slot/calendar-hold-state');
+    resetCalendarHoldState();
+    markCalendarHold(1, new Date(NOW + 2 * NO_SELECTION_THRESHOLD_MS));
+
+    expect(await checkNoSelectionProgress(1, NOW)).toBe('progressing');
+    expect(await checkNoSelectionProgress(1, NOW + NO_SELECTION_THRESHOLD_MS + 1_000)).toBe(
+      'progressing',
+    );
+    expect(createNotificationMock).not.toHaveBeenCalled();
+    resetCalendarHoldState();
+  });
+
+  test('保留の解除予定時刻を過ぎたマークは免除しない(永久免除にならない)', async () => {
+    const { markCalendarHold, resetCalendarHoldState } =
+      await import('../scheduling/calendar-slot/calendar-hold-state');
+    resetCalendarHoldState();
+    markCalendarHold(1, new Date(NOW - 1_000));
+
+    expect(await checkNoSelectionProgress(1, NOW)).toBe('armed');
+    resetCalendarHoldState();
+  });
+});

@@ -20,6 +20,7 @@ import { createNotification } from '../communication/notification-service';
 import { logCycleEvent } from '../observability';
 import { hasLiveExecution } from './auto-run/auto-run-selection';
 import { resolveQueuedWaiters } from './queue-starvation-waiters';
+import { isCalendarHoldActive } from '../scheduling/calendar-slot/calendar-hold-state';
 
 const log = createLogger('auto-run-no-selection-watch');
 
@@ -74,6 +75,12 @@ export async function checkNoSelectionProgress(
   // Every read is wrapped: this watch runs inside the reconciler's pass, and an
   // unreadable signal must never throw out of it. Failing toward 'progressing'
   // keeps a read error from manufacturing a stall report.
+  // A theme held by the calendar-slot gate (task 1174) has no current task on
+  // purpose: it is waiting for a free slot, not wedged.
+  if (isCalendarHoldActive(themeId, new Date(nowMs))) {
+    sinceMs.delete(themeId);
+    return 'progressing';
+  }
   let progressing = false;
   try {
     const queued = await prisma.workflowQueueItem.count({ where: { status: 'queued' } });

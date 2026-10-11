@@ -46,6 +46,10 @@ export type CycleEventName =
   // resource-contention gate (task 725): selection held one cycle because the
   // host CPU is busy AND the run is intentionally parallelized
   | 'task.resource_hold'
+  // calendar-slot gate (task 1174): selection held around a Google Calendar
+  // busy block / released at its end
+  | 'task.calendar_hold'
+  | 'task.calendar_hold_released'
   // implementer overlap hold (2026-08-30): the implementer is held because the
   // files its research/plan names are still changing in an open auto-PR
   | 'task.implement_overlap_hold'

@@ -33,6 +33,7 @@ import { projectHealthRoutes } from './monitoring/project-health';
 import { debugLogsRouter } from './monitoring/debug-logs';
 import { gitCacheMetricsRoutes } from './monitoring/git-cache-metrics';
 import { ciTimingRoutes } from './monitoring/ci-timing';
+import calendarSlotsCalendarSlotsRoute from './calendar-slots/calendar-slots.routes';
 import outageGuidanceRoute from './outage-guidance.routes';
 
 export { settingsRoutes } from './settings';
@@ -91,4 +92,5 @@ export const systemDomainRoutes = new Elysia()
   .use(debugLogsRouter)
   .use(gitCacheMetricsRoutes)
   .use(ciTimingRoutes)
+  .use(calendarSlotsCalendarSlotsRoute)
   .use(outageGuidanceRoute);

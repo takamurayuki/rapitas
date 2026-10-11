@@ -55,3 +55,24 @@ model PaidLeaveBalance {
   @@unique([userId, fiscalYear])
   @@index([fiscalYear])
 }
+
+// Google Calendar busy interval for the calendar-aware auto-run gate (task 1174).
+// Times only — no title / attendee / location column, by design (AC1).
+model CalendarBusyBlock {
+  id        Int      @id @default(autoincrement())
+  startAt   DateTime
+  endAt     DateTime
+  fetchedAt DateTime @default(now())
+
+  @@index([startAt])
+}
+
+// Single-row status of the calendar FreeBusy poller (id = 1). lastError never
+// contains event details; the OAuth token lives in the OS keychain, not here.
+model CalendarSyncState {
+  id           Int       @id @default(1)
+  lastSyncedAt DateTime?
+  lastStatus   String    @default("never") // never | ok | error
+  lastError    String?
+  updatedAt    DateTime  @updatedAt
+}
