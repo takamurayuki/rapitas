@@ -35,6 +35,7 @@ import {
   TimerOff,
   TriangleAlert,
   Unlock,
+  Waves,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -54,6 +55,7 @@ const typeColors: Record<string, string> = {
   knowledge_extracted: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400',
   knowledge_reminder: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
   memo_reminder: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400',
+  worker_health_deviation: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
   daily_report: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
   auto_run_awaiting_approval:
     'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
@@ -112,6 +114,7 @@ const typeIconComponents: Record<string, LucideIcon> = {
   knowledge_extracted: Library,
   knowledge_reminder: BookOpen,
   memo_reminder: AlarmClock,
+  worker_health_deviation: Waves,
   agent_execution_started: PlayCircle,
   daily_report: Sunrise,
   auto_run_awaiting_approval: Hourglass,

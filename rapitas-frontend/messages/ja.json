@@ -2342,7 +2342,24 @@
       "drilldownState": "状態",
       "drilldownRepairCount": "修復回数",
       "drilldownElapsed": "経過時間"
-    }
+    },
+    "workerHealthTitle": "ワーカー健全性の逸脱スクリーニング",
+    "workerHealthDescription": "実行完了数・タイムアウト率・再試行率・ワーカー再起動数を、同曜日・同時刻の直近4週間の中央値/MADからの偏差で正規化し、1本の複合スコアにまとめた一次スクリーニングです。原因の確認は下の個別指標で行ってください。",
+    "workerHealthLoading": "読み込み中…",
+    "workerHealthError": "ワーカー健全性データの取得に失敗しました",
+    "workerHealthEmpty": "表示できるデータがありません",
+    "workerHealthPending": "判定保留: 同曜日・同時刻の過去データが4週間分に満たないため、複合スコアはまだ算出できません（再起動数は記録開始から蓄積されます）。",
+    "workerHealthPendingShort": "保留",
+    "workerHealthDeviation": "ベースラインからの逸脱を検知しています。根拠は下の個別指標で確認してください。",
+    "workerHealthWeights": "指標の重み",
+    "workerHealthWeightShort": "重み {weight}",
+    "workerHealthComposite": "複合スコア",
+    "workerHealthRaw": "実測",
+    "workerHealthBaselineNote": "基準: 同曜日・同時刻の直近4週間の中央値とMAD。複合スコアは悪化方向のみを重み付けし、3点連続で1.5以上、または日次周期（自己相関）の崩れで通知します。",
+    "workerHealthMetric_completions": "実行完了数",
+    "workerHealthMetric_timeoutRate": "タイムアウト率",
+    "workerHealthMetric_retryRate": "再試行率",
+    "workerHealthMetric_restarts": "ワーカー再起動数"
   },
   "github": {
     "title": "GitHub連携",
@@ -3447,6 +3464,10 @@
       "auto_run_queue_stalled": {
         "title": "自動実行: キューが消費されていません（要調査）",
         "message": "実行中 0 件のままキュー待ちが約 {waitedMinutes} 分間消費されていません{taskRef}。ワークフローランナーは稼働中のため自動での再起動はできません — overlap-guard の保留超過など、原因調査が必要な可能性があります。"
+      },
+      "worker_health_deviation": {
+        "title": "ワーカー健全性: ベースラインからの逸脱を検知",
+        "message": "{reason}しています。主な寄与指標: {metric}（複合スコア {score}）。個別指標で根拠を確認してください。"
       }
     }
   },
