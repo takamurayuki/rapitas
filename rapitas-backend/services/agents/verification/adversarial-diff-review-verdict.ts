@@ -7,6 +7,7 @@
  */
 import type { AIProvider } from '../../../utils/ai-client/types';
 import { NON_VERDICT_REASON_RE } from './adversarial-diff-review-prompt';
+import type { BaseSatisfiedFinding } from './base-satisfied-plan-items';
 
 export type ReviewVerdict = 'pass' | 'fail' | 'unknown';
 
@@ -29,6 +30,8 @@ export interface DiffReviewResult {
   judged: boolean;
   /** Individual juror verdicts — recorded for future reliability weighting. */
   jurors?: JurorVerdict[];
+  /** Fail reasons dropped because the item already exists on the base ref. */
+  baseSatisfied?: BaseSatisfiedFinding[];
 }
 
 /**

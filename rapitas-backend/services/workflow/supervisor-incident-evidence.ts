@@ -32,6 +32,8 @@ const WORKING_DIRECTORY_LINE = /\[[^\]]+\]\s*Working directory:\s*(.+)/;
 export interface SupervisorEvidence {
   /** The task's theme workingDirectory (null = unset theme or no theme). */
   themeWorkingDirectory: string | null;
+  /** The task's own workingDirectory (resolved before the theme's by executors; null = unset). */
+  taskWorkingDirectory: string | null;
   /** cwd parsed from the latest execution's output head (null = not found). */
   executionCwd: string | null;
   /** The raw matched `Working directory` line, for the concern's evidence. */
@@ -114,15 +116,16 @@ export async function gatherSupervisorEvidence(task: { id: number }): Promise<Su
     () =>
       prisma.task.findUnique({
         where: { id: task.id },
-        select: { theme: { select: { workingDirectory: true } } },
+        select: { workingDirectory: true, theme: { select: { workingDirectory: true } } },
       }),
     null,
   );
   const themeWorkingDirectory = taskRow?.theme?.workingDirectory ?? null;
+  const taskWorkingDirectory = taskRow?.workingDirectory ?? null;
 
   let executionCwd: string | null = null;
   let executionCwdLine: string | null = null;
-  if (themeWorkingDirectory !== null) {
+  if (themeWorkingDirectory !== null || taskWorkingDirectory !== null) {
     const latestExec = await safeQuery(
       () =>
         prisma.agentExecution.findFirst({
@@ -311,6 +314,7 @@ export async function gatherSupervisorEvidence(task: { id: number }): Promise<Su
 
   return {
     themeWorkingDirectory,
+    taskWorkingDirectory,
     executionCwd,
     executionCwdLine,
     failureMarkedAtMs,

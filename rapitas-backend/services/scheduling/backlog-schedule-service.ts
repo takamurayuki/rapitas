@@ -21,7 +21,8 @@ export type BacklogJobKind =
   | 'gate_precision'
   | 'knowledge_reuse'
   | 'pr_risk_review'
-  | 'outage_simulation';
+  | 'outage_simulation'
+  | 'requirement_intake';
 /** How often a job runs. */
 export type BacklogFrequency = 'daily' | 'weekly';
 
@@ -49,6 +50,7 @@ export const BACKLOG_JOB_KINDS: readonly BacklogJobKind[] = [
   'knowledge_reuse',
   'pr_risk_review',
   'outage_simulation',
+  'requirement_intake',
 ];
 
 /**
@@ -96,6 +98,9 @@ export const DEFAULTS: Record<
   // concerns filed, and a no-op without an inventory file. Thursday keeps it
   // off the weekday 1-3 6:00 jobs.
   outage_simulation: { enabled: true, frequency: 'weekly', hour: 6, weekday: 4 },
+  // Default ON: filing is idempotent (title / [F-NN] match) and a theme without
+  // docs/requirements.md is a no-op. 8:00 stays clear of the 7:00 jobs.
+  requirement_intake: { enabled: true, frequency: 'daily', hour: 8, weekday: 1 },
 };
 
 /** Coerces an arbitrary value to a valid job kind, or null if unknown. */

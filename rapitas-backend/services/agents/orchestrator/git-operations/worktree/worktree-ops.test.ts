@@ -141,6 +141,9 @@ mock.module('../../../../../utils/common/branch-name-generator', () => ({
 
 const { cleanupOrphanedWorktrees, cleanupStaleWorktrees, removeWorktree, rmDirWithRetry } =
   await import('./worktree-ops');
+// The removal backoff is module-level state shared across every sweep, so a
+// refusal recorded by one test would make the next one skip instead of retry.
+const { resetRemovalBackoff } = await import('./worktree-removal-backoff');
 
 // ---------------------------------------------------------------------------
 // rmDirWithRetry
@@ -390,6 +393,7 @@ describe('cleanupOrphanedWorktrees', () => {
   const mockBaseDir = '/test/repo';
 
   beforeEach(() => {
+    resetRemovalBackoff();
     mockPrisma.agentSession.findMany.mockReset();
     mockPrisma.agentSession.update.mockReset();
     mockPrisma.agentSession.updateMany.mockReset();

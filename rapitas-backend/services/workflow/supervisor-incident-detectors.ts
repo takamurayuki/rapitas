@@ -45,7 +45,8 @@ export const NO_TARGET_PHRASES: readonly string[] = [
 
 // NOTE: 由来 self-development-theme.normalizePath — copied instead of imported
 // so this module stays DB-free (that module imports prisma at top level).
-function normalizePath(p: string): string {
+// Exported so the filer's idempotency key uses the identical normalization.
+export function normalizePath(p: string): string {
   return p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 }
 
@@ -55,26 +56,39 @@ export interface CwdMismatchInput {
   executionCwd: string | null;
   /** The task's theme workingDirectory, null when unset. */
   themeWorkingDirectory: string | null;
+  /**
+   * The task's own workingDirectory, null when unset. NOTE: executors resolve
+   * task.workingDirectory before the theme's (agent-core.ts:261), so a run
+   * inside it is legitimate even when it differs from the theme (#1180).
+   */
+  taskWorkingDirectory?: string | null;
 }
 
 /**
- * Detects an execution that ran outside its theme's working directory —
+ * Detects an execution that ran outside its expected working directories —
  * the "research investigated another repository" defect (task 580, fixed in
- * d22bdae0). Worktrees under `<themeDir>/.worktrees/` count as a match since
- * mutating roles legitimately run there.
+ * d22bdae0). Worktrees under `<dir>/.worktrees/` count as a match since
+ * mutating roles legitimately run there. Allowed roots are the theme's and
+ * the task's own directory only; anything else stays a mismatch.
  *
- * @param input - cwd + theme directory snapshot. / cwdとテーマディレクトリ
+ * @param input - cwd + theme/task directory snapshot. / cwdとテーマ・タスクディレクトリ
  * @returns The mismatched pair (original casing), or null. / 不一致ペアまたはnull
  */
 export function detectCwdMismatch(
   input: CwdMismatchInput,
 ): { cwd: string; themeDir: string } | null {
-  if (!input.executionCwd || !input.themeWorkingDirectory) return null;
+  if (!input.executionCwd) return null;
+  const roots = [input.themeWorkingDirectory, input.taskWorkingDirectory].filter(
+    (r): r is string => !!r,
+  );
+  if (roots.length === 0) return null;
   const cwd = normalizePath(input.executionCwd);
-  const themeDir = normalizePath(input.themeWorkingDirectory);
-  if (cwd === themeDir) return null;
-  if (cwd.startsWith(`${themeDir}/.worktrees/`)) return null;
-  return { cwd: input.executionCwd, themeDir: input.themeWorkingDirectory };
+  for (const root of roots) {
+    const dir = normalizePath(root);
+    if (cwd === dir || cwd.startsWith(`${dir}/.worktrees/`)) return null;
+  }
+  // themeDir keeps its historical meaning; the task dir stands in only when the theme has none.
+  return { cwd: input.executionCwd, themeDir: roots[0] };
 }
 
 /**

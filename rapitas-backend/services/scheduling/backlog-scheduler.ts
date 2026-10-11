@@ -32,6 +32,7 @@ import { evaluateAndRecordKnowledgeReuse } from '../supervision/knowledge-reuse-
 import { runPrRiskReviewJob } from '../self-improvement/pr-risk';
 import { runOutageSimulationJob } from '../outage-guidance/outage-simulation-job';
 import { BACKLOG_JOB_LABELS } from './backlog-job-labels';
+import { runRequirementIntakeJob } from './requirement-intake-job';
 
 const log = createLogger('scheduling:backlog');
 
@@ -51,6 +52,7 @@ const HANDLERS: Record<BacklogJobKind, () => Promise<number>> = {
   knowledge_reuse: evaluateAndRecordKnowledgeReuse,
   pr_risk_review: runPrRiskReviewJob,
   outage_simulation: runOutageSimulationJob,
+  requirement_intake: () => runRequirementIntakeJob(),
 };
 
 // Caps notification body length — raw Error.message can carry stack-trace-like

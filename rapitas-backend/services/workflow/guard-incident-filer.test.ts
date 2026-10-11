@@ -133,6 +133,58 @@ describe('fileGuardIncidents', () => {
     ).toBe(0);
   });
 
+  test('files under the self-development theme so the origin task theme is not inherited (#1180)', async () => {
+    const dir = setup([{ ts: 'a', taskId: 1153, kind: 'primary_mutation', command: 'cd /c/x' }]);
+    const calls: Parameters<GuardIncidentSubmit>[0][] = [];
+    await fileGuardIncidents({
+      dir,
+      submit: async (input) => {
+        calls.push(input);
+        return { id: 1 };
+      },
+      seen: new Set(),
+      isGuardTask: async () => false,
+      resolveThemeId: async () => 42,
+    });
+    expect(calls[0].themeId).toBe(42);
+    expect(calls[0].originTaskId).toBe(1153);
+  });
+
+  test('omits themeId when no self-development theme resolves', async () => {
+    const dir = setup([{ ts: 'a', taskId: 1153, kind: 'primary_mutation', command: 'cd /c/x' }]);
+    const calls: Parameters<GuardIncidentSubmit>[0][] = [];
+    await fileGuardIncidents({
+      dir,
+      submit: async (input) => {
+        calls.push(input);
+        return { id: 1 };
+      },
+      seen: new Set(),
+      isGuardTask: async () => false,
+      resolveThemeId: async () => null,
+    });
+    expect('themeId' in calls[0]).toBe(false);
+  });
+
+  test('still files (without themeId) when theme resolution throws', async () => {
+    const dir = setup([{ ts: 'a', taskId: 1153, kind: 'primary_mutation', command: 'cd /c/x' }]);
+    const calls: Parameters<GuardIncidentSubmit>[0][] = [];
+    const filed = await fileGuardIncidents({
+      dir,
+      submit: async (input) => {
+        calls.push(input);
+        return { id: 1 };
+      },
+      seen: new Set(),
+      isGuardTask: async () => false,
+      resolveThemeId: async () => {
+        throw new Error('boom');
+      },
+    });
+    expect(filed).toBe(1);
+    expect('themeId' in calls[0]).toBe(false);
+  });
+
   test('a missing directory is a no-op', async () => {
     expect(
       await fileGuardIncidents({
