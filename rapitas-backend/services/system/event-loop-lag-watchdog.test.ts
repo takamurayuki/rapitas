@@ -53,7 +53,9 @@ function triggerLags(
   selfHeal: (
     reason: string,
     sections: Array<{ name: string; runningMs: number }>,
+    recentSections: Array<{ name: string; durationMs: number; endedAgoMs: number }>,
   ) => void = () => {},
+  beforeTick: (tickIndex: number, advance: (ms: number) => void) => void = () => {},
 ): string[] {
   const realNow = Date.now;
   const realInterval = globalThis.setInterval;
@@ -70,13 +72,16 @@ function triggerLags(
   }) as unknown as typeof setInterval;
   globalThis.clearInterval = (() => {}) as typeof clearInterval;
   try {
-    startEventLoopLagWatchdog((reason, sections) => {
+    startEventLoopLagWatchdog((reason, sections, recentSections) => {
       reasons.push(reason);
-      selfHeal(reason, sections);
+      selfHeal(reason, sections, recentSections);
     });
     expect(intervalMs).toBe(500);
     expect(tick).toBeDefined();
-    for (const lagMs of lagMsList) {
+    for (const [index, lagMs] of lagMsList.entries()) {
+      beforeTick(index, (ms) => {
+        clockMs += ms;
+      });
       clockMs += intervalMs + lagMs;
       tick!();
     }
@@ -244,5 +249,78 @@ describe('markEventLoopSection — 停止元の名指し', () => {
     const sections = warnCalls[0][0].activeSections as Array<{ name: string }>;
     expect(sections).toHaveLength(1);
     b();
+  });
+});
+
+describe('markEventLoopSection — 解放済み区間の履歴 (#1208)', () => {
+  afterEach(() => {
+    stopEventLoopLagWatchdog();
+    warnCalls.length = 0;
+  });
+
+  type Recent = Array<{ name: string; durationMs: number; endedAgoMs: number }>;
+
+  test('停止中に解放された区間は recentSections として WARN に付与される', () => {
+    triggerLags([5000], undefined, (_i, advance) => {
+      const done = markEventLoopSection('worktree-cleanup');
+      advance(1000);
+      done();
+    });
+    const fields = warnCalls[0][0];
+    const recent = fields.recentSections as Recent;
+    expect(recent.map((s) => s.name)).toEqual(['worktree-cleanup']);
+    expect(recent[0].durationMs).toBe(1000);
+    expect('activeSections' in fields).toBe(false);
+  });
+
+  test('停止開始より前に解放された区間は付与しない', () => {
+    triggerLags([0, 3000], undefined, (i, advance) => {
+      if (i === 0) {
+        const done = markEventLoopSection('early-section');
+        done();
+      } else {
+        advance(60_000);
+      }
+    });
+    expect('recentSections' in warnCalls[0][0]).toBe(false);
+  });
+
+  test('履歴は新しい順に上限8件で打ち切る', () => {
+    triggerLags([5000], undefined, (_i, advance) => {
+      for (let n = 0; n < 12; n++) {
+        const done = markEventLoopSection(`s${n}`);
+        advance(100);
+        done();
+      }
+    });
+    const recent = warnCalls[0][0].recentSections as Recent;
+    expect(recent).toHaveLength(8);
+    expect(recent[0].name).toBe('s11');
+  });
+
+  test('self-heal に recentSections と process メトリクスが渡る', () => {
+    let received: Recent = [];
+    triggerLags(
+      [20_000],
+      (_reason, _sections, recent) => {
+        received = recent;
+      },
+      (_i, advance) => {
+        const done = markEventLoopSection('backlog-job:daily');
+        advance(1000);
+        done();
+      },
+    );
+    expect(received.map((s) => s.name)).toEqual(['backlog-job:daily']);
+    expect(typeof warnCalls[0][0].heapUsedMb).toBe('number');
+    expect(typeof warnCalls[0][0].rssMb).toBe('number');
+  });
+
+  test('stop で履歴をクリアし次回 run に持ち越さない', () => {
+    triggerLags([0], undefined, () => {
+      markEventLoopSection('leftover')();
+    });
+    triggerLags([5000]);
+    expect('recentSections' in warnCalls[0][0]).toBe(false);
   });
 });
