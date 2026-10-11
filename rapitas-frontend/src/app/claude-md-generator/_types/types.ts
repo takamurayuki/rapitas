@@ -14,6 +14,38 @@ export interface AppAnswers {
   priority: string;
 }
 
+/**
+ * What the user actually knows about their own project.
+ *
+ * NOTE: Every field is free text and every field may be blank. Blank means "not
+ * established", and the generator must record it as an assumption in the
+ * requirements' 前提と未決事項 section rather than inventing a figure that then
+ * decides the architecture. Measured 2026-10-11: TempoRaid's spec carried
+ * 「同時接続は最大1万人」, p95 150ms and 99.5% availability — none of which was
+ * ever asked, and all of which drove the choice of Redis room state plus a
+ * horizontally scaled API.
+ */
+export interface ProjectContext {
+  /** 想定ユーザー数（同時・月間など） */
+  users?: string;
+  /** レイテンシ・応答速度の要求 */
+  latency?: string;
+  /** 可用性・稼働率の要求 */
+  availability?: string;
+  /** 予算感（初期・運用） */
+  budget?: string;
+  /** 期限・リリース希望時期 */
+  deadline?: string;
+  /** 開発体制（人数・スキル） */
+  team?: string;
+  /** 既にある資産（データ・API・デザイン・アカウント） */
+  assets?: string;
+  /** 何が達成できたら成功か */
+  success?: string;
+  /** 業務ルール・法令・権利関係の制約 */
+  domainRules?: string;
+}
+
 export interface AppProposal {
   id: number;
   name: string;

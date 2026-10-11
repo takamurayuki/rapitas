@@ -9,6 +9,7 @@ import { ElementsPhase } from './_components/elements-phase';
 import { PlatformPhase } from './_components/platform-phase';
 import { LoadingPhase } from './_components/loading-phase';
 import { ProposalsPhase } from './_components/proposals-phase';
+import { ContextPhase } from './_components/context-phase';
 import { ResultPhase } from './_components/result-phase';
 
 export default function ClaudeMdGeneratorPage() {
@@ -78,7 +79,20 @@ export default function ClaudeMdGeneratorPage() {
         pickedProp={w.pickedProp}
         onPick={w.setPickedProp}
         onRegenerate={w.handleRegenerateProposals}
-        onGenerate={w.handleGenerateClaudeMd}
+        onGenerate={w.goToContext}
+      />
+    );
+
+  if (w.phase === 'context')
+    return (
+      <ContextPhase
+        topRef={w.topRef}
+        t={w.t}
+        appName={w.pickedProp?.name ?? ''}
+        context={w.projectContext}
+        onSetField={w.setContextField}
+        onGenerate={() => w.handleGenerateClaudeMd()}
+        onBack={() => w.setPhase('proposals')}
       />
     );
 

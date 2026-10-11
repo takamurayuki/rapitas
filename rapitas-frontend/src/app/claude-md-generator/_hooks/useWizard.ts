@@ -3,7 +3,13 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import type { AppAnswers, AppProposal, DynamicItem, GenerateResult } from '../_types/types';
+import type {
+  AppAnswers,
+  AppProposal,
+  DynamicItem,
+  GenerateResult,
+  ProjectContext,
+} from '../_types/types';
 import { proposeApps, generateClaudeMd } from '../_utils/api';
 import { AGENT_TARGETS, ELEMENTS, SUB_GENRES } from '../_utils/constants';
 
@@ -28,6 +34,12 @@ export type WizardPhase =
   | 'platform'
   | 'proposing'
   | 'proposals'
+  // NOTE: Inserted between picking an app and generating its specification.
+  // Before this, the whole 4-document package derived from six categorical
+  // answers plus an AI-written paragraph — the user never stated a single fact
+  // about their own project, so every figure in the non-functional
+  // requirements was the model's invention (measured 2026-10-11 on TempoRaid).
+  | 'context'
   | 'generating'
   | 'result';
 
@@ -51,6 +63,10 @@ export function useWizard() {
   const [proposals, setProposals] = useState<AppProposal[]>([]);
   const [aiErrorMessage, setAiErrorMessage] = useState('');
   const [pickedProp, setPickedProp] = useState<AppProposal | null>(null);
+  // Elicited project facts. Blank fields stay blank on purpose: the route sends
+  // them as 未確認 so the generator records an assumption instead of inventing
+  // a figure.
+  const [projectContext, setProjectContext] = useState<ProjectContext>({});
   const [result, setResult] = useState<GenerateResult | null>(null);
   const [setupPhase, setSetupPhase] = useState<SetupPhase>('idle');
   // Primary AI agent the scaffolded repo targets — decides the guide file's
@@ -227,14 +243,40 @@ export function useWizard() {
     await runProposeApps(answers);
   };
 
+  /** Sets one elicited fact; blank clears it back to 未確認. */
+  const setContextField = (key: keyof ProjectContext, value: string) =>
+    setProjectContext((prev) => ({ ...prev, [key]: value }));
+
   /**
-   * Generates the final CLAUDE.md for the picked proposal.
+   * Moves from the chosen proposal to the elicitation step.
+   *
+   * NOTE: Generation used to start here. Asking first is the whole point: the
+   * questions can be concrete now that the app is chosen, and the answers stop
+   * the model from inventing the figures that decide the architecture.
    */
-  const handleGenerateClaudeMd = async () => {
+  const goToContext = () => {
+    if (!pickedProp) return;
+    setPhase('context');
+  };
+
+  /**
+   * Generates the final document package for the picked proposal.
+   *
+   * @param reviewAnswers - Answers to a previous round's questions / 壁打ちの回答
+   */
+  const handleGenerateClaudeMd = async (reviewAnswers?: string) => {
     if (!pickedProp) return;
     setPhase('generating');
     try {
-      const r = await generateClaudeMd(t, answers, pickedProp, dynamicSubs, dynamicElements);
+      const r = await generateClaudeMd(
+        t,
+        answers,
+        pickedProp,
+        dynamicSubs,
+        dynamicElements,
+        projectContext,
+        reviewAnswers,
+      );
       setResult(r);
     } catch {
       setResult({
@@ -298,6 +340,7 @@ export function useWizard() {
     setAnswers({ genre: '', platform: '', scale: '', priority: '' });
     setProposals([]);
     setPickedProp(null);
+    setProjectContext({});
     setResult(null);
     // Reset setup state as well
     setSetupPhase('idle');
@@ -341,6 +384,9 @@ export function useWizard() {
     setAiErrorMessage,
     pickedProp,
     setPickedProp,
+    projectContext,
+    setContextField,
+    goToContext,
     result,
     setupPhase,
     setSetupPhase,
