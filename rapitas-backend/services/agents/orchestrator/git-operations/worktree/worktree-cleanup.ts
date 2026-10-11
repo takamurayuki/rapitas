@@ -13,6 +13,12 @@ import { normalizePath } from '../core/safety';
 import { resolveWorktreeBaseDir } from '../core/resolve-worktree-base-dir';
 import { prisma } from '../../../../../config/database';
 import { removeWorktree } from './worktree-remove';
+import {
+  shouldSkipRemovalAttempt,
+  recordRemovalRefused,
+  clearRemovalRefusal,
+  parkedRemovalCount,
+} from './worktree-removal-backoff';
 import { sweepTerminalTaskWorktrees } from './worktree-terminal-sweep';
 import { sweepFilesystemOrphans } from './worktree-filesystem-orphans';
 
@@ -119,9 +125,11 @@ async function reconcileTerminalSessions(keepSet: ReadonlySet<string>): Promise<
   }
 
   let keptSessionCount = 0;
+  let skippedCount = 0;
 
   for (const [worktreePath, sessionIds] of sessionsByPath) {
-    if (keepSet.has(normalizePath(worktreePath))) {
+    const normalized = normalizePath(worktreePath);
+    if (keepSet.has(normalized)) {
       // Per-group "nothing to do" noise — one line per still-live task on
       // every cleanup cycle. Debug-only; see the summary after the loop.
       logger.debug(
@@ -156,10 +164,25 @@ async function reconcileTerminalSessions(keepSet: ReadonlySet<string>): Promise<
       continue;
     }
 
+    // NOTE: The reasons removeWorktree refuses a reachable worktree persist —
+    // uncommitted work, missing Git metadata, a held handle — so re-attempting
+    // within the cooldown only burns git subprocesses and directory walks.
+    // Measured 2026-10-11, right after the owning-root fix let these paths
+    // reach removeWorktree at all: one sweep attempted 15 removals, every one
+    // refused with "Missing Git metadata; preserving directory", and the
+    // database timed out (P1008) for four unrelated writers two minutes later.
+    // The sibling sweeps (worktree-cleanup-stale, worktree-terminal-sweep)
+    // already back off; this one did not.
+    if (shouldSkipRemovalAttempt(normalized)) {
+      skippedCount++;
+      continue;
+    }
+
     try {
       const removed = await removeWorktree(ownerRoot, worktreePath);
       if (removed) {
         cleanedCount++;
+        clearRemovalRefusal(normalized);
 
         // Clear worktreePath on EVERY session row sharing this path — not just
         // the first — so none of them linger as future orphan candidates.
@@ -172,11 +195,13 @@ async function reconcileTerminalSessions(keepSet: ReadonlySet<string>): Promise<
           `[cleanupOrphanedWorktrees] Cleaned up worktree for ${sessionIds.length} session(s) (ids: ${sessionIds.join(',')}): ${worktreePath}`,
         );
       } else {
+        recordRemovalRefused(normalized);
         logger.warn(
           `[cleanupOrphanedWorktrees] removeWorktree refused for ${sessionIds.length} session(s) (ids: ${sessionIds.join(',')}): ${worktreePath}`,
         );
       }
     } catch (error) {
+      recordRemovalRefused(normalized);
       logger.warn(
         { err: error },
         `[cleanupOrphanedWorktrees] Failed to clean up ${sessionIds.length} session(s) (ids: ${sessionIds.join(',')}) worktree: ${worktreePath}`,
@@ -187,6 +212,13 @@ async function reconcileTerminalSessions(keepSet: ReadonlySet<string>): Promise<
   if (keptSessionCount > 0) {
     logger.info(
       `[cleanupOrphanedWorktrees] Kept ${keptSessionCount} session worktree(s) (owning tasks still live)`,
+    );
+  }
+  if (skippedCount > 0) {
+    // One line instead of a pair per worktree: the detail repeats every sweep,
+    // and the count is what tells an operator the backlog is growing.
+    logger.info(
+      `[cleanupOrphanedWorktrees] Skipped ${skippedCount} worktree(s) still inside the retry cooldown (${parkedRemovalCount()} parked)`,
     );
   }
 

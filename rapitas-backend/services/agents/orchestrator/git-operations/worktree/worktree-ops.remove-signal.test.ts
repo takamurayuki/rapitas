@@ -343,6 +343,30 @@ describe('cleanupOrphanedWorktrees — refused/failed removal is not treated as 
     expect(mockPrisma.agentSession.updateMany).not.toHaveBeenCalled();
   });
 
+  test('a refused path is skipped on the next sweep instead of retried', async () => {
+    // Measured 2026-10-11: once the owning-root fix let these paths reach
+    // removeWorktree, one sweep attempted 15 removals, every one refused with
+    // "Missing Git metadata; preserving directory", and the database timed out
+    // (P1008) for four unrelated writers two minutes later. The sibling sweeps
+    // already back off; this one did not.
+    mockPrisma.agentSession.findMany.mockResolvedValue([
+      { id: 1, worktreePath: mockWorktreePath, status: 'completed' },
+    ] as never);
+    gitRemoveFails();
+    mockExistsSync.mockImplementation(
+      (p: string) => p === mockWorktreePath || p === join(mockWorktreePath, '.git'),
+    );
+    mockRmDirWithRetry.mockResolvedValue(false);
+
+    expect(await cleanupOrphanedWorktrees(mockBaseDir)).toBe(0);
+    const attemptsAfterFirst = mockRmDirWithRetry.mock.calls.length;
+    expect(attemptsAfterFirst).toBeGreaterThan(0);
+
+    // Second sweep within the cooldown: no further removal work at all.
+    expect(await cleanupOrphanedWorktrees(mockBaseDir)).toBe(0);
+    expect(mockRmDirWithRetry.mock.calls.length).toBe(attemptsAfterFirst);
+  });
+
   test('increments cleanedCount and clears worktreePath when removeWorktree returns true', async () => {
     mockPrisma.agentSession.findMany.mockResolvedValue([
       { id: 1, worktreePath: mockWorktreePath, status: 'completed' },
