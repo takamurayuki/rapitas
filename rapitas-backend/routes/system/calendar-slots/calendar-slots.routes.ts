@@ -94,7 +94,12 @@ const calendarSlotsRoutes = new Elysia({ prefix: '/calendar-slots' })
   .post(
     '/override/:themeId',
     ({ params, set }) => {
-      requestCalendarGateOverride(parseInt(params.themeId, 10));
+      const themeId = Number(params.themeId);
+      if (!Number.isInteger(themeId) || themeId <= 0) {
+        set.status = 400;
+        return { error: 'invalid themeId' };
+      }
+      requestCalendarGateOverride(themeId);
       set.status = 204;
     },
     { params: t.Object({ themeId: t.String() }) },

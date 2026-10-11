@@ -6413,7 +6413,9 @@
       "hold_started": "会議前の保留を開始",
       "hold_released": "保留を解除して再開",
       "recomputed": "予定変更を検知して枠を再計算",
-      "sync_failed": "カレンダー同期に失敗"
+      "sync_failed": "カレンダー同期に失敗",
+      "phase_held": "実行中タスクをフェーズの区切りで保留",
+      "phase_released": "会議後にフェーズの区切りから再開"
     }
   }
 }

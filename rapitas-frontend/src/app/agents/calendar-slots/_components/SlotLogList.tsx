@@ -14,7 +14,17 @@ import type { SlotLogsResponse } from './calendar-slots-types';
 const ACTION_PREFIX = 'calendar_slot.';
 
 function summarize(metadata: Record<string, unknown>): string {
-  return ['themeId', 'reason', 'cause', 'releaseAt', 'nextRunAt', 'blockCount', 'error']
+  return [
+    'themeId',
+    'taskId',
+    'checkpoint',
+    'reason',
+    'cause',
+    'releaseAt',
+    'nextRunAt',
+    'blockCount',
+    'error',
+  ]
     .filter((k) => metadata[k] !== undefined && metadata[k] !== null)
     .map((k) => `${k}=${String(metadata[k])}`)
     .join(' · ');

@@ -37,6 +37,7 @@ import { broadcastAutoRunUpdateImpl } from './auto-run-lifecycle';
 import { stopTaskTreeAgents } from '../../agents/stop-task-agents';
 import { selectAndEnqueueNextTask } from './auto-run-advance-select';
 import { isOverlapHeld } from '../workflow-orchestrator-overlap-guard';
+import { isTaskCalendarHeld } from '../../scheduling/calendar-slot/calendar-hold-state';
 import { isTaskTerminalForQueue } from '../queue-terminal-task-guard';
 import { recordHangBackstopBlock } from './auto-run-hang-backstop-transition';
 
@@ -99,9 +100,15 @@ export async function advanceActiveTaskLocked(
     // follow exactly this misread (implement_overlap_hold at 16:04 → hang
     // backstop at 16:49); the 18:21 retry matches the same shape but only on
     // circumstantial evidence (no hold log survived the 17:34 self-restart).
-    if (isOverlapHeld(currentTaskId)) {
+    // Task 1174: a calendar phase checkpoint is likewise a wait (expires at meeting end).
+    const heldBy = isOverlapHeld(currentTaskId)
+      ? 'the overlap guard'
+      : isTaskCalendarHeld(currentTaskId)
+        ? 'a calendar checkpoint'
+        : null;
+    if (heldBy) {
       log.info(
-        `[ThemeAutoRunScheduler] Task ${currentTaskId} over tenure wall but held by the overlap guard — deferring hang backstop (theme ${themeId})`,
+        `[ThemeAutoRunScheduler] Task ${currentTaskId} over tenure wall but held by ${heldBy} — deferring hang backstop (theme ${themeId})`,
       );
       return;
     }

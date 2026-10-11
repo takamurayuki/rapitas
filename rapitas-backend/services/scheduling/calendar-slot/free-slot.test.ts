@@ -148,15 +148,12 @@ describe('evaluateCalendarGate', () => {
 describe('computeNextRunAt', () => {
   const busy = [block('10:00', '11:00')];
 
-  it('returns now when the current moment is free', () => {
-    expect(computeNextRunAt({ now: at('09:00'), busyBlocks: busy, leadMinutes: 10 })).toEqual(
-      at('09:00'),
-    );
-  });
-
-  it('returns the meeting end when currently held', () => {
-    expect(computeNextRunAt({ now: at('09:55'), busyBlocks: busy, leadMinutes: 10 })).toEqual(
-      at('11:00'),
+  it.each([
+    ['now when the current moment is free', '09:00', '09:00'],
+    ['the meeting end when currently held', '09:55', '11:00'],
+  ])('returns %s', (_label, now, expected) => {
+    expect(computeNextRunAt({ now: at(now), busyBlocks: busy, leadMinutes: 10 })).toEqual(
+      at(expected),
     );
   });
 

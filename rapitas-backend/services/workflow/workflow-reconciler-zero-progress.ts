@@ -223,6 +223,22 @@ export async function detectZeroProgressWhileRunning(nowMs: number): Promise<num
       continue;
     }
 
+    // A task stopped at its phase checkpoint by the calendar (task 1174) runs
+    // no execution until the meeting ends; the hold mark expires then, so an
+    // over-long wait still alarms below.
+    const { isTaskCalendarHeld } = await import('../scheduling/calendar-slot/calendar-hold-state');
+    if (isTaskCalendarHeld(taskId, new Date(nowMs))) {
+      logCycleEvent('theme.waiting_for_calendar_slot', {
+        theme: theme.themeId,
+        task: taskId,
+        ok: true,
+        cause: 'calendar_phase_hold_active',
+        waitedMinutes: Math.round((nowMs - tracked.since) / 60000),
+        msg: 'current task has no execution because it waits at a calendar checkpoint',
+      });
+      continue;
+    }
+
     // Past verify the task runs no agent by design: the PR is open and CI /
     // auto-merge decide the rest. 143 alarms on 2026-10-08 were all this shape
     // (tasks 1142/1145/1107 after verify_done). A task that sits there for good

@@ -31,7 +31,9 @@
       "hold_started": "Hold started before a meeting",
       "hold_released": "Hold released, resumed",
       "recomputed": "Schedule change detected, slots recomputed",
-      "sync_failed": "Calendar sync failed"
+      "sync_failed": "Calendar sync failed",
+      "phase_held": "Running task held at a phase checkpoint",
+      "phase_released": "Resumed from the phase checkpoint after the meeting"
     }
   }
 }

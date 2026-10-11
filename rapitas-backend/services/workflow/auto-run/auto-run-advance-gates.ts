@@ -94,10 +94,11 @@ export async function checkResourceContentionGate(
 /**
  * Calendar-slot gate (task 1174, default OFF): hold next-task selection from
  * `leadMinutes` before a Google Calendar busy block until it ends, so new
- * work only starts in free time. A running phase is never interrupted — it
- * finishes at its phase boundary (the checkpoint) and the next selection
- * waits here; at the meeting end the hold lifts and the existing selection
- * cycle resumes the task from its saved workflowStatus. Fails open when the
+ * work only starts in free time. This gate covers NEW tasks only; a task that
+ * is already running is stopped at its next phase boundary (the checkpoint)
+ * by workflow-orchestrator-calendar-guard.ts — the running phase itself is
+ * never interrupted. At the meeting end both holds lift and work resumes from
+ * the saved workflowStatus. Fails open when the
  * last sync errored or is stale. Only hold start/release transitions are
  * logged (ActivityLog + cycle log) so a long meeting writes two rows, not one
  * per tick.

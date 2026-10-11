@@ -126,6 +126,31 @@ describe('CalendarSlotsClient', () => {
     expect(screen.getByText('stale')).toBeInTheDocument();
   });
 
+  it('lists phase-boundary holds of running tasks with their checkpoint', async () => {
+    mockFetch.mockImplementation(
+      respond({
+        nextRuns: NEXT_RUNS,
+        sync: SYNC_OK,
+        logs: {
+          total: 1,
+          items: [
+            {
+              id: 10,
+              action: 'calendar_slot.phase_held',
+              metadata: { taskId: 7, checkpoint: 'plan_approved', reason: 'pre_meeting' },
+              createdAt: '2026-10-12T09:51:00.000Z',
+            },
+          ],
+        },
+      }),
+    );
+    render(<CalendarSlotsClient />);
+
+    await waitFor(() => expect(screen.getByText('action.phase_held')).toBeInTheDocument());
+    expect(screen.getByText(/taskId=7/)).toBeInTheDocument();
+    expect(screen.getByText(/checkpoint=plan_approved/)).toBeInTheDocument();
+  });
+
   it('shows the load error when the API is unreachable', async () => {
     mockFetch.mockRejectedValue(new Error('network'));
     render(<CalendarSlotsClient />);

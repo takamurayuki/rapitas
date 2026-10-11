@@ -3,12 +3,17 @@
  *
  * Process-local state shared between the calendar sync poller, the auto-run
  * calendar gate and the stall detectors (task 1174): the latest busy-block
- * snapshot, which themes are currently held, the one-shot manual override,
- * and the env-backed settings. Deliberately free of DB / Google imports so
+ * snapshot, which themes (selection) and tasks (phase boundary) are
+ * currently held, the one-shot manual override, and the env-backed settings. Deliberately free of DB / Google imports so
  * the scheduler can read it on every tick. Not responsible for deciding a
  * hold (free-slot.ts) or for fetching (calendar-sync-service.ts).
  */
-import type { BusyBlock } from './free-slot';
+import {
+  evaluateCalendarGate,
+  isSyncStale,
+  type BusyBlock,
+  type CalendarGateResult,
+} from './free-slot';
 
 export type CalendarSyncStatus = 'never' | 'ok' | 'error';
 
@@ -39,6 +44,7 @@ const EMPTY_SNAPSHOT: CalendarSnapshot = {
 
 let snapshot: CalendarSnapshot = { ...EMPTY_SNAPSHOT };
 const holds = new Map<number, Date | null>();
+const taskHolds = new Map<number, Date | null>();
 const pendingOverrides = new Set<number>();
 
 function readPositiveNumber(raw: string | undefined, fallback: number, min: number): number {
@@ -132,9 +138,73 @@ export function consumeCalendarGateOverride(themeId: number): boolean {
   return pendingOverrides.delete(themeId);
 }
 
+/**
+ * Decide the calendar hold for `now` from the current snapshot and settings.
+ * `usable` is false (and the gate fails open) when the gate is off, the last
+ * sync errored, or the snapshot is stale.
+ *
+ * @param now - Current time / 現在時刻
+ * @param overridden - Whether a manual override was consumed / 手動オーバーライド消費済みか
+ * @returns Usability of the snapshot and the gate decision / スナップショットの有効性と判定
+ */
+export function evaluateCalendarHoldNow(
+  now: Date,
+  overridden = false,
+): { usable: boolean; gate: CalendarGateResult } {
+  const settings = getCalendarSlotSettings();
+  const usable =
+    settings.enabled &&
+    snapshot.lastStatus === 'ok' &&
+    !isSyncStale(snapshot.lastSyncedAt, now, settings.pollMinutes);
+  const gate = evaluateCalendarGate({
+    now,
+    busyBlocks: snapshot.busyBlocks,
+    leadMinutes: settings.leadMinutes,
+    enabled: usable,
+    overridden,
+  });
+  return { usable, gate };
+}
+
+/**
+ * Mark a running task as stopped at its phase boundary by the calendar.
+ *
+ * @param taskId - Held task / 保留中のタスク
+ * @param releaseAt - When the hold lifts / 解除予定時刻
+ */
+export function markTaskCalendarHold(taskId: number, releaseAt: Date | null): void {
+  taskHolds.set(taskId, releaseAt);
+}
+
+/**
+ * Clear a task's phase-boundary hold mark.
+ *
+ * @param taskId - Task / タスク
+ * @returns Whether a hold mark existed / 保留マークが存在したか
+ */
+export function clearTaskCalendarHold(taskId: number): boolean {
+  return taskHolds.delete(taskId);
+}
+
+/**
+ * Whether the task is waiting at a phase boundary for a meeting to end. Like
+ * {@link isCalendarHoldActive}, an expired mark no longer counts, so a stall
+ * detector can never be blinded permanently.
+ *
+ * @param taskId - Task / タスク
+ * @param now - Current time / 現在時刻
+ * @returns true while the phase-boundary hold is in force / 保留中なら true
+ */
+export function isTaskCalendarHeld(taskId: number, now: Date = new Date()): boolean {
+  if (!taskHolds.has(taskId)) return false;
+  const releaseAt = taskHolds.get(taskId) ?? null;
+  return releaseAt === null || now.getTime() < releaseAt.getTime();
+}
+
 /** Reset every piece of state. Test-only — never call from production code. */
 export function resetCalendarHoldState(): void {
   snapshot = { ...EMPTY_SNAPSHOT };
   holds.clear();
+  taskHolds.clear();
   pendingOverrides.clear();
 }

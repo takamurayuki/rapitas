@@ -6,7 +6,11 @@
  * lastStatus='error' (recorded, never thrown) and is DB/Google independent.
  */
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { CalendarSyncService, type CalendarSlotStore } from './calendar-sync-service';
+import {
+  CalendarSyncService,
+  createPrismaCalendarSlotStore,
+  type CalendarSlotStore,
+} from './calendar-sync-service';
 import { getCalendarSnapshot, resetCalendarHoldState } from './calendar-hold-state';
 import type { BusyBlock } from './free-slot';
 
@@ -136,5 +140,88 @@ describe('CalendarSyncService.syncOnce', () => {
     const r = await svc.syncOnce();
     expect(r.status).toBe('error');
     expect(getCalendarSnapshot().lastError).toContain('db down');
+  });
+});
+
+describe('createPrismaCalendarSlotStore', () => {
+  function fakePrisma() {
+    const calls: Record<string, unknown[]> = {};
+    const rec = (name: string, ret: unknown) => async (args: unknown) => {
+      (calls[name] ??= []).push(args);
+      return ret;
+    };
+    const prisma = {
+      calendarBusyBlock: {
+        deleteMany: rec('deleteMany', {}),
+        createMany: rec('createMany', {}),
+        findMany: rec('findMany', [
+          { startAt: b('10:00', '11:00').startAt, endAt: b('10:00', '11:00').endAt },
+        ]),
+      },
+      calendarSyncState: {
+        upsert: rec('upsert', {}),
+        findUnique: rec('findUnique', { lastSyncedAt: NOW, lastStatus: 'ok', lastError: null }),
+      },
+      activityLog: { create: rec('activityCreate', {}) },
+      $transaction: async (ops: Promise<unknown>[]) => Promise.all(ops),
+    };
+    return { prisma, calls };
+  }
+
+  it('replaces blocks in one transaction with times only (no title/attendee columns)', async () => {
+    const { prisma, calls } = fakePrisma();
+    const store = createPrismaCalendarSlotStore(prisma);
+    await store.replaceBusyBlocks([b('10:00', '11:00')], NOW);
+    expect(calls.deleteMany).toEqual([{}]);
+    const data = (calls.createMany![0] as { data: Array<Record<string, unknown>> }).data;
+    expect(data).toEqual([
+      { startAt: b('10:00', '11:00').startAt, endAt: b('10:00', '11:00').endAt, fetchedAt: NOW },
+    ]);
+    expect(Object.keys(data[0]!)).toEqual(['startAt', 'endAt', 'fetchedAt']);
+  });
+
+  it('upserts the single sync-state row, reads it back, and records JSON activity', async () => {
+    const { prisma, calls } = fakePrisma();
+    const store = createPrismaCalendarSlotStore(prisma);
+    await store.saveSyncState({ lastSyncedAt: NOW, lastStatus: 'error', lastError: 'boom' });
+    expect(calls.upsert![0]).toMatchObject({
+      where: { id: 1 },
+      create: { id: 1, lastStatus: 'error', lastError: 'boom' },
+      update: { lastStatus: 'error', lastError: 'boom' },
+    });
+    expect(await store.loadSyncState()).toEqual({
+      lastSyncedAt: NOW,
+      lastStatus: 'ok',
+      lastError: null,
+    });
+    expect(await store.loadBusyBlocks()).toEqual([b('10:00', '11:00')]);
+    await store.recordActivity('calendar_slot.recomputed', { blockCount: 1 });
+    expect(calls.activityCreate![0]).toEqual({
+      data: { taskId: null, action: 'calendar_slot.recomputed', metadata: '{"blockCount":1}' },
+    });
+  });
+});
+
+describe('CalendarSyncService.start / stop', () => {
+  beforeEach(() => resetCalendarHoldState());
+
+  it('syncs immediately on start, is idempotent, and stops cleanly', async () => {
+    const { store } = makeStore();
+    let fetches = 0;
+    const svc = new CalendarSyncService({
+      store,
+      fetchBusy: async () => {
+        fetches++;
+        return [];
+      },
+      now: () => NOW,
+      leadMinutes: 10,
+    });
+    svc.start(5);
+    svc.start(5);
+    await new Promise((r) => setTimeout(r, 20));
+    svc.stop();
+    expect(fetches).toBe(1);
+    expect(getCalendarSnapshot().lastStatus).toBe('ok');
   });
 });
