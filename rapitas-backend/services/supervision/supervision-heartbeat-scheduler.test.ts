@@ -10,6 +10,19 @@ import { createTimelineFake } from './testing/timeline-fake';
 const fake = createTimelineFake();
 mock.module('../memory/timeline', () => fake.module);
 mock.module('../../config/database', () => ({ prisma: {} }));
+const logCalls: { level: string; msg: string }[] = [];
+const loggerSpy = new Proxy(
+  {},
+  {
+    get: (_t, level: string) => (_obj: unknown, msg?: string) => {
+      logCalls.push({ level, msg: typeof _obj === 'string' ? _obj : (msg ?? '') });
+    },
+  },
+);
+mock.module('../../config/logger', () => ({
+  createLogger: () => loggerSpy,
+  logger: loggerSpy,
+}));
 const refreshCalls: number[] = [];
 mock.module('./acceptance-status-service', () => ({
   refreshAcceptanceSnapshot: async (o: { heartbeatIntervalMs: number }) => {
@@ -24,6 +37,7 @@ const { SupervisionHeartbeatScheduler, emitHeartbeat } =
 afterEach(() => {
   fake.rows.length = 0;
   refreshCalls.length = 0;
+  logCalls.length = 0;
 });
 
 describe('SupervisionHeartbeatScheduler', () => {
@@ -52,5 +66,15 @@ describe('SupervisionHeartbeatScheduler', () => {
     const payload = JSON.parse(fake.rows[0].payload) as { pid: number; sourceKind: string };
     expect(payload.pid).toBe(process.pid);
     expect(payload.sourceKind).toBe('backend_timer');
+  });
+
+  test('a swallowed heartbeat write failure is logged as warn, not error', async () => {
+    // appendEvent already logs the root cause at ERROR; a second ERROR from the
+    // swallowed path would be filed as a duplicate concern.
+    fake.failNextAppends(1, 'supervision_monitor_heartbeat');
+    expect(await emitHeartbeat(60_000)).toBe(false);
+    const failure = logCalls.filter((c) => c.msg.includes('Heartbeat write failed'));
+    expect(failure).toHaveLength(1);
+    expect(failure[0].level).toBe('warn');
   });
 });
