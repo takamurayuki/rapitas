@@ -240,8 +240,18 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
     // のとき reason=not_reviewable を返す。EXPECTED_REPLAN_HOLD_REASONS
     // （requirement-replan-policy.ts:48-55）の状態ガードで、queue-skip-policy.ts:28 が
     // 再試行不要のスキップとして扱い済み（#1156）。unknown / requires_human:* /
-    // 他ロールの失敗は別文言のため抑制しない。
-    test: /^\[WorkflowOrchestrator\] Error in auto_verifier: Requirement replan review held: not_reviewable$/,
+    // budget_exhausted は別 reason のため抑制しない。
+    //
+    // NOTE: 当初は role=auto_verifier のみを対象にし「他ロールの失敗は別文言」と
+    // していたが、その前提は誤りだった。2026-10-11 実測: role=verifier が
+    // `[WorkflowOrchestrator] Error in verifier: Requirement replan review held:
+    // not_reviewable` を同一文言で出した。ゲートは
+    // workflow-cli-executor-epilogue.ts 経由で呼ばれ、ログのロール名は
+    // ディスパッチ元を反映するだけで、保留の性質は変わらない。
+    // queue-skip-policy.ts:28 はロール非依存にメッセージ本文で判定しており既に
+    // スキップ扱いなので、可視のまま残しても対処する先が無い。reason は厳密一致を
+    // 維持し、ロール綴りだけを広げる。
+    test: /^\[WorkflowOrchestrator\] Error in (?:auto_verifier|verifier): Requirement replan review held: not_reviewable$/,
     logger: /workflow-orchestrator/i,
     because:
       'not_reviewableはレビュー対象外の状態ガードによる期待保留(EXPECTED_REPLAN_HOLD_REASONS)で、キュー側でスキップ扱い済み — unknown/requires_human等の他reasonは可視のまま',
