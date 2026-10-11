@@ -48,7 +48,13 @@ function triggerLag(lagMs: number): void {
  * needed for the self-heal thresholds, which only fire after multiple ticks
  * (or one very large one). Returns the reasons passed to `selfHeal`, if any.
  */
-function triggerLags(lagMsList: number[], selfHeal: (reason: string) => void = () => {}): string[] {
+function triggerLags(
+  lagMsList: number[],
+  selfHeal: (
+    reason: string,
+    sections: Array<{ name: string; runningMs: number }>,
+  ) => void = () => {},
+): string[] {
   const realNow = Date.now;
   const realInterval = globalThis.setInterval;
   const realClear = globalThis.clearInterval;
@@ -64,9 +70,9 @@ function triggerLags(lagMsList: number[], selfHeal: (reason: string) => void = (
   }) as unknown as typeof setInterval;
   globalThis.clearInterval = (() => {}) as typeof clearInterval;
   try {
-    startEventLoopLagWatchdog((reason) => {
+    startEventLoopLagWatchdog((reason, sections) => {
       reasons.push(reason);
-      selfHeal(reason);
+      selfHeal(reason, sections);
     });
     expect(intervalMs).toBe(500);
     expect(tick).toBeDefined();
@@ -210,6 +216,24 @@ describe('markEventLoopSection — 停止元の名指し', () => {
     done();
     triggerLag(4900);
     expect('activeSections' in warnCalls[0][0]).toBe(false);
+  });
+
+  test('self-heal発火時に実行中セクションを自己修復アクションへ渡す（原因の名指し）', () => {
+    const done = markEventLoopSection('backlog-job:daily');
+    let received: Array<{ name: string; runningMs: number }> = [];
+    triggerLags([15_000], (_reason, sections) => {
+      received = sections;
+    });
+    done();
+    expect(received.map((s) => s.name)).toEqual(['backlog-job:daily']);
+  });
+
+  test('セクション未登録のself-healは空配列を渡す', () => {
+    let received: unknown[] | undefined;
+    triggerLags([15_000], (_reason, sections) => {
+      received = sections;
+    });
+    expect(received).toEqual([]);
   });
 
   test('同名の並行実行は片方の解除で他方を消さない', () => {
