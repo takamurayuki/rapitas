@@ -74,13 +74,37 @@ mock.module('../../../../../config/logger', () => ({
 }));
 mock.module('child_process', () => ({ execFile: mockExecFile, exec: mockExec }));
 mock.module('node:child_process', () => ({ execFile: mockExecFile, exec: mockExec }));
-mock.module('node:fs', () => ({ existsSync: mockExistsSync }));
+// NOTE: ONE object registered under BOTH specifiers. resolve-worktree-base-dir
+// imports existsSync from 'fs' while worktree-remove.ts imports it from
+// 'node:fs', but bun resolves the two to the same module — registering them
+// separately makes the second call silently replace the first, which detaches
+// mockExistsSync from the code under test entirely.
+// The fixture repo's own `.git` answers unconditionally because the owning-root
+// resolver requires it before it will hand any baseDir to removeWorktree;
+// everything else stays with mockExistsSync, which the tests below drive. It is
+// scoped to that one path on purpose — worktree-usable.ts and worktree-guard.ts
+// probe a WORKTREE's `.git` through the same function, and answering yes there
+// would flip the preservation checks these tests exist to pin.
+const fsMock = {
+  existsSync: (p: string) =>
+    String(p).replace(/\\/g, '/') === '/test/repo/.git' || mockExistsSync(p),
+  // Mirrored for core/git-exclude.ts, which reads the exclude list before
+  // appending. An export the graph needs but the mock omits is a load-time
+  // SyntaxError under bun, not a missing function.
+  readFileSync: mock(() => ''),
+};
+mock.module('node:fs', () => fsMock);
+mock.module('fs', () => fsMock);
 mock.module('node:fs/promises', () => ({
   rm: mock(() => Promise.resolve(undefined)),
   readdir: mock(() => Promise.resolve([])),
   stat: mock(() => Promise.resolve({ isDirectory: () => false } as import('node:fs').Stats)),
   mkdir: mock(() => Promise.resolve()),
   appendFile: mock(() => Promise.resolve()),
+  // core/git-exclude.ts reads the exclude list before appending, and
+  // worktree-command-wrapper copies the heartbeat wrapper.
+  readFile: mock(() => Promise.resolve('')),
+  copyFile: mock(() => Promise.resolve()),
 }));
 mock.module('../core/safety', () => ({
   WORKTREE_DIR: '.worktrees',
@@ -317,6 +341,30 @@ describe('cleanupOrphanedWorktrees — refused/failed removal is not treated as 
 
     expect(cleanedCount).toBe(0);
     expect(mockPrisma.agentSession.updateMany).not.toHaveBeenCalled();
+  });
+
+  test('a refused path is skipped on the next sweep instead of retried', async () => {
+    // Measured 2026-10-11: once the owning-root fix let these paths reach
+    // removeWorktree, one sweep attempted 15 removals, every one refused with
+    // "Missing Git metadata; preserving directory", and the database timed out
+    // (P1008) for four unrelated writers two minutes later. The sibling sweeps
+    // already back off; this one did not.
+    mockPrisma.agentSession.findMany.mockResolvedValue([
+      { id: 1, worktreePath: mockWorktreePath, status: 'completed' },
+    ] as never);
+    gitRemoveFails();
+    mockExistsSync.mockImplementation(
+      (p: string) => p === mockWorktreePath || p === join(mockWorktreePath, '.git'),
+    );
+    mockRmDirWithRetry.mockResolvedValue(false);
+
+    expect(await cleanupOrphanedWorktrees(mockBaseDir)).toBe(0);
+    const attemptsAfterFirst = mockRmDirWithRetry.mock.calls.length;
+    expect(attemptsAfterFirst).toBeGreaterThan(0);
+
+    // Second sweep within the cooldown: no further removal work at all.
+    expect(await cleanupOrphanedWorktrees(mockBaseDir)).toBe(0);
+    expect(mockRmDirWithRetry.mock.calls.length).toBe(attemptsAfterFirst);
   });
 
   test('increments cleanedCount and clears worktreePath when removeWorktree returns true', async () => {

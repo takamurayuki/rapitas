@@ -71,6 +71,18 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
       '過去6回すべてself-heal閾値(単発15秒/累積120秒間に30秒)未到達 — ウォッチドッグは正常動作しており、閾値超の病的スタールは別シグネチャ(Self-healing restart triggered, ERROR)で引き続き検知される',
   },
   {
+    // ログ出力箇所: workflow-runner.ts:191 の log.warn（processQueue の finally 内、
+    // queue.dequeue() 所要が1000ms超の時）。task 966/1114 で追加した
+    // event-loop-lag 発生元特定用の計装で、例外時は別に log.error(同:187) が出る。
+    // 過去の発生（K-11581, K-11653, K-11986）はいずれも散発。同じ負荷ピークは
+    // event-loop-lag 側でも抑制済みで、病的スタールは self-heal(ERROR) が検知する。
+    // tookMs/taskIds は構造化フィールドに残り、log-correlation.ts:18 の相関も維持される。
+    test: /^Slow queue processing$/,
+    logger: /^workflow-runner$/i,
+    because:
+      'dequeueが1秒超になっただけの負荷依存の診断記録 — 例外はlog.errorで別途可視、病的スタールはSelf-healing restart(ERROR)が検知し、tookMs等は構造化フィールドに残る',
+  },
+  {
     // ログ出力箇所: requirement-replan-commit.ts:134 の assertReviewedTaskCurrent
     // （汎用Error）。stale_taskはEXPECTED_REPLAN_HOLD_REASONS
     // (requirement-replan-policy.ts:48-55)に含まれ、isExpectedReplanHold(#1041)が
@@ -228,11 +240,36 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
     // のとき reason=not_reviewable を返す。EXPECTED_REPLAN_HOLD_REASONS
     // （requirement-replan-policy.ts:48-55）の状態ガードで、queue-skip-policy.ts:28 が
     // 再試行不要のスキップとして扱い済み（#1156）。unknown / requires_human:* /
-    // 他ロールの失敗は別文言のため抑制しない。
-    test: /^\[WorkflowOrchestrator\] Error in auto_verifier: Requirement replan review held: not_reviewable$/,
+    // budget_exhausted は別 reason のため抑制しない。
+    //
+    // NOTE: 当初は role=auto_verifier のみを対象にし「他ロールの失敗は別文言」と
+    // していたが、その前提は誤りだった。2026-10-11 実測: role=verifier が
+    // `[WorkflowOrchestrator] Error in verifier: Requirement replan review held:
+    // not_reviewable` を同一文言で出した。ゲートは
+    // workflow-cli-executor-epilogue.ts 経由で呼ばれ、ログのロール名は
+    // ディスパッチ元を反映するだけで、保留の性質は変わらない。
+    // queue-skip-policy.ts:28 はロール非依存にメッセージ本文で判定しており既に
+    // スキップ扱いなので、可視のまま残しても対処する先が無い。reason は厳密一致を
+    // 維持し、ロール綴りだけを広げる。
+    test: /^\[WorkflowOrchestrator\] Error in (?:auto_verifier|verifier): Requirement replan review held: not_reviewable$/,
     logger: /workflow-orchestrator/i,
     because:
       'not_reviewableはレビュー対象外の状態ガードによる期待保留(EXPECTED_REPLAN_HOLD_REASONS)で、キュー側でスキップ扱い済み — unknown/requires_human等の他reasonは可視のまま',
+  },
+  {
+    // ログ出力箇所: services/workflow/task-budget.ts:166 の log.warn
+    // （resolveTaskBudgetCap 内）。支出が RAPITAS_TASK_BUDGET_USD の
+    // hardMultiple() 倍（既定 2 倍）以上のときだけ、次フェーズの tier を economy に
+    // 落とす設計通りの予算ガード通知で、タスクは停止せず完走できる（同ファイル
+    // 14-15行・125-128行）。resolveTaskBudgetCap はフェーズのディスパッチごとに
+    // 呼ばれるため、超過中のタスクではフェーズ数だけ繰り返し出る（#1163、
+    // K-11982/K-9324/K-11556 は同一シグネチャの未抑制な再発）。
+    // 真の暴走（ループ）は task-iteration-budget.ts の HARD stop が別経路で止める。
+    // 同ロガーの 'spend lookup failed'（DB障害の兆候）は別文言のため抑制しない。
+    test: /^\[task-budget\] runaway spend — capping at economy$/,
+    logger: /task-budget/i,
+    because:
+      '支出が予算の2倍超のタスクを停止せずeconomy tierへ落とす設計通りの予算ガード通知 — 真の暴走はiteration budgetのHARD stopが別経路で止め、支出取得失敗(spend lookup failed)は別文言で可視のまま',
   },
   {
     // ログ出力箇所: workflow-reconciler-queue-stall.ts:141-144 の log.warn（sweepStaleRunningItems）。

@@ -826,7 +826,42 @@ function isRapitasOwnedProcess(pid) {
   const KNOWN_RAPITAS_PROCESS_NAMES = ['node.exe', 'bun.exe', 'llama-server.exe'];
   if (!KNOWN_RAPITAS_PROCESS_NAMES.includes(name)) return false;
   const inspectable = `${proc.CommandLine || ''} ${proc.ExecutablePath || ''}`;
-  return /rapitas[-_/\\]/i.test(inspectable);
+  if (/rapitas[-_/\\]/i.test(inspectable)) return true;
+  // A server an AGENT started is rapitas-owned work even when nothing in its
+  // own command line says so. 2026-10-10: a verification agent started a
+  // generated project's server as `node dist/index.js` — no "rapitas" anywhere,
+  // so this returned false and forceKillAllOnPort refused to reclaim port 3001
+  // from it. That survivor held the backend's inherited LISTEN handle and kept a
+  // ghost socket alive for 16 hours. A user's own dev server on 3001 is NOT a
+  // descendant of an agent shell, so this stays narrow.
+  return hasAgentShellAncestor(pid);
+}
+
+/**
+ * Whether `pid` descends from a Claude agent shell (or a non-interactive agent
+ * CLI invocation), which makes it rapitas-spawned work regardless of its own
+ * command line.
+ *
+ * @param {number} pid
+ * @param {number} maxDepth
+ * @returns {boolean}
+ */
+function hasAgentShellAncestor(pid, maxDepth = 10) {
+  // `--print` / stream-json marks a MACHINE invocation; an interactive session
+  // has neither, and must never be treated as a killable ancestor chain.
+  const AGENT_SHELL =
+    /[\\/]\.claude[\\/]shell-snapshots[\\/]|--print\b|--output-format[= ]stream-json/i;
+  let current = pid;
+  for (let i = 0; i < maxDepth; i++) {
+    const procs = queryWin32Processes(`ProcessId=${current}`);
+    if (procs.length === 0) return false;
+    const proc = procs[0];
+    if (i > 0 && AGENT_SHELL.test(`${proc.CommandLine || ''}`)) return true;
+    const parentPid = Number(proc.ParentProcessId);
+    if (!Number.isInteger(parentPid) || parentPid <= 0 || parentPid === current) return false;
+    current = parentPid;
+  }
+  return false;
 }
 
 /**
@@ -1542,6 +1577,15 @@ if (!fs.existsSync(NEXT_TAURI_DIR)) {
 }
 
 let backend = null;
+// restartBackend と hotRestartBackend で共有する再起動ガード。
+// 2026-10-10 実測: restartBackend にガードが無く、hotRestartBackend の
+// isHotRestarting とも別変数だったため、exit 75 の自動再起動と watchdog 発の
+// 再起動が重なって startBackend() が多重に走った。`backend` は単一変数なので
+// 後の spawn が前を上書きし、先に起動したプロセスは追跡不能のまま生き残る。
+// 結果 :3001 に 3 つのバックエンドが同時 LISTEN し、同一 SQLite を取り合って
+// theme advance が最大 18 秒まで劣化した。restartFrontend の
+// isFrontendRestarting と同じ形で片方だけを通す。
+let isBackendRestarting = false;
 let frontend = null;
 let actualBackendPort = BACKEND_PORT;
 let actualFrontendPort = FRONTEND_PORT;
@@ -1838,6 +1882,35 @@ function notifyBackendDown(crashes) {
 }
 
 function startBackend(retryCount = 0) {
+  // 二重 spawn の最後の歯止め。`backend` は単一変数なので、生きているプロセスを
+  // 上書きすると前のプロセスが追跡不能のまま :3001 を LISTEN し続ける
+  // (2026-10-10 に 3 重起動として実測)。ガードを足した今も、将来新しい呼び出し
+  // 経路が増えたときに静かに再発させないため、ここで弾いて理由を残す。
+  if (backend && backend.exitCode === null && backend.signalCode === null) {
+    console.error(
+      `❌ Refusing to start a second backend: PID ${backend.pid} is still running. ` +
+        'Stop it first (stopBackendCompletely) — overwriting the handle leaks a ' +
+        'process that keeps :3001 LISTENING.',
+    );
+    return;
+  }
+
+  // 誰かがまだバックエンドポートを掴んでいるなら、重ねて bind しない。
+  // Windows では同一 addr:port への二重 bind が成立してしまい、接続が新旧の
+  // ソケットに分散する(2026-10-10 実測: 生存3つ + 死んだPIDのゴースト1つが
+  // 同時 LISTEN し、接続はゴーストに吸われて全滅した)。起動を止めて理由を
+  // 出すほうが、黙って4つ目を作るより回復が早い。
+  const holders = [...getListeningPids(actualBackendPort)].filter((p) => p !== process.pid);
+  if (holders.length > 0) {
+    console.error(
+      `❌ Refusing to start the backend: port ${actualBackendPort} is still held by PID(s) ` +
+        `${holders.join(', ')}. Binding a second socket on the same port splits incoming ` +
+        'connections between them. Reclaim the port first (forceKillAllOnPort / ' +
+        'killGhostHandleHolders) — a held port is recoverable, a duplicate backend is not.',
+    );
+    return;
+  }
+
   // Always use dev:stable (no bun --watch) to ensure graceful shutdown handlers run
   const backendScript = 'dev:stable';
   if (retryCount === 0) {
@@ -2064,6 +2137,19 @@ async function stopBackendCompletely(skipShutdownApi = false) {
  * @param {boolean} processAlreadyExited - trueの場合、プロセスが既に終了済み（シャットダウンAPIスキップ）
  */
 async function restartBackend(processAlreadyExited = false) {
+  if (isBackendRestarting) {
+    console.log('  Backend restart already in progress, skipping...');
+    return;
+  }
+  isBackendRestarting = true;
+  try {
+    await restartBackendInner(processAlreadyExited);
+  } finally {
+    isBackendRestarting = false;
+  }
+}
+
+async function restartBackendInner(processAlreadyExited) {
   console.log('\n🔄 Restarting backend server...');
   console.log('  Step 1/4: Stopping backend completely...');
   await stopBackendCompletely(processAlreadyExited);
@@ -2185,11 +2271,14 @@ async function isAgentExecutionActive() {
  * ファイル変更検出時に使用。stopBackendCompletely() でグレースフルシャットダウンを経由する。
  */
 async function hotRestartBackend() {
-  if (isHotRestarting) {
-    console.log('  Hot restart already in progress, skipping...');
+  if (isHotRestarting || isBackendRestarting) {
+    console.log('  Backend restart already in progress, skipping hot restart...');
     return;
   }
   isHotRestarting = true;
+  // full restart 側と同じガードも立てる。別変数のままでは hot と full が
+  // 互いを素通りして二重 spawn になる(2026-10-10 の 3 重起動の経路)。
+  isBackendRestarting = true;
   try {
     console.log('\n🔥 Hot-restarting backend server...');
     console.log('  Step 1/3: Stopping backend completely...');
@@ -2217,6 +2306,7 @@ async function hotRestartBackend() {
     console.error('❌ Hot restart failed:', err.message || err);
   } finally {
     isHotRestarting = false;
+    isBackendRestarting = false;
     lastRestartCompletedAt = Date.now();
   }
 }

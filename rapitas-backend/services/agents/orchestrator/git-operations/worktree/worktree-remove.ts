@@ -3,7 +3,7 @@
  *
  * Safe removal of a single git worktree: dependency-install wait, teardown
  * script, branch-deletion safety checks, and cache invalidation.
- * Batch/startup cleanup lives in worktree-cleanup.ts.
+ * Batch/startup cleanup lives in worktree-cleanup-stale.ts and worktree-cleanup.ts.
  */
 
 import { execFile } from 'node:child_process';

@@ -369,7 +369,15 @@ export async function reviewDiffAdversarially(params: {
       );
     }
     const jurors = await mapJurors(panel, (provider) => askJuror(provider, prompt));
-    const aggregated = aggregateJuryVerdicts(jurors);
+    // A fail about a plan item that a sibling PR already put on the base ref can
+    // never be fixed by the diff — drop it deterministically (task 1196).
+    const { applyBaseSatisfiedFilter } = await import('./base-satisfied-plan-items');
+    const aggregated = await applyBaseSatisfiedFilter(aggregateJuryVerdicts(jurors), {
+      worktreePath,
+      preferredBaseBranch,
+      planContent,
+      changedFiles: diff.map((f) => f.filename),
+    });
 
     // Durable per-juror record for judge-reliability calibration; skipped for
     // dry runs (suppressEventLog) — a dry-run verdict isn't a realized outcome.

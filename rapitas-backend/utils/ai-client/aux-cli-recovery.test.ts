@@ -100,3 +100,22 @@ test('concurrent recovery shares observation and retries unresolved evidence on 
     await rmdir(directory);
   }
 });
+
+test('recovery in another process leaves a young intent confirmable by its launcher', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'rapitas-aux-recovery-'));
+  try {
+    const path = join(directory, 'registry.json');
+    const launcher = createOwnershipRegistry(path);
+    await launcher.recordLaunchIntent('launching', 'windows-job');
+    // A second backend process has its own (empty) liveTokens for this token.
+    const other = createAuxCliRecovery(createOwnershipRegistry(path), async () => {
+      throw new Error('inspect() must not be called for a root:null record');
+    });
+    await expect(other.assertReady()).rejects.toBeInstanceOf(ClaudeCliUnavailableError);
+    await launcher.confirmOwnership('launching', record.root!);
+    expect((await launcher.snapshot())[0]!.status).toBe('active');
+  } finally {
+    for (const name of await readdir(directory)) await unlink(join(directory, name));
+    await rmdir(directory);
+  }
+});

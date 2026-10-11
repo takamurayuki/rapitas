@@ -122,7 +122,9 @@ test('a root:null record ages out on its own without ever calling inspect', asyn
     const recorded = (await registry.snapshot())[0]!.recordedAt!;
     const justBefore = Date.parse(recorded) + STALE_INTENT_MS - 1;
     expect(await registry.reconcile('orphaned', inspectMustNotRun, justBefore)).toBe(false);
-    expect((await registry.snapshot())[0]!.status).toBe('unresolved');
+    // NOTE: a young intent stays 'intent' — another process may still be
+    // observing its launch, and rewriting it would fail that confirmOwnership.
+    expect((await registry.snapshot())[0]!.status).toBe('intent');
 
     const justAfter = Date.parse(recorded) + STALE_INTENT_MS;
     expect(await registry.reconcile('orphaned', inspectMustNotRun, justAfter)).toBe(true);
@@ -195,6 +197,42 @@ test('corruption remains blocking across restart and is not overwritten', async 
     await expect(createOwnershipRegistry(path).snapshot()).rejects.toThrow();
     await unlink(path);
     await expect(registry.snapshot()).rejects.toThrow();
+  });
+});
+
+test('a young intent reconciled by another instance can still be confirmed by its owner', async () => {
+  await withRegistry(async (path) => {
+    const owner = createOwnershipRegistry(path);
+    const other = createOwnershipRegistry(path);
+    await owner.recordLaunchIntent('launching');
+    const recorded = (await owner.snapshot())[0]!.recordedAt!;
+    const inspectMustNotRun = async () => {
+      throw new Error('inspect() must not be called for a root:null record');
+    };
+    expect(await other.reconcile('launching', inspectMustNotRun, Date.parse(recorded) + 1000)).toBe(
+      false,
+    );
+    expect((await owner.snapshot())[0]!.status).toBe('intent');
+    await owner.confirmOwnership('launching', rootIdentity);
+    expect((await owner.snapshot())[0]!.status).toBe('active');
+  });
+});
+
+test('a rejected logical confirmation does not latch the registry for later operations', async () => {
+  await withRegistry(async (path) => {
+    const registry = createOwnershipRegistry(path);
+    await registry.recordLaunchIntent('first');
+    await expect(registry.confirmOwnership('unknown', rootIdentity)).rejects.toThrow(
+      'Invalid ownership confirmation',
+    );
+    await expect(registry.markStopping('unknown')).rejects.toThrow('Unknown execution token');
+    await expect(registry.recordLaunchIntent('first')).rejects.toThrow('Duplicate execution token');
+    await expect(registry.recordDescendants('unknown', [], true)).rejects.toThrow(
+      'Invalid descendant observation',
+    );
+    await registry.recordLaunchIntent('second');
+    await registry.confirmOwnership('first', rootIdentity);
+    expect((await registry.snapshot()).map((row) => row.status)).toEqual(['active', 'intent']);
   });
 });
 

@@ -10,6 +10,25 @@ import { join } from 'path';
 import { WORKTREE_DIR, normalizePath } from './safety';
 
 /**
+ * Make a Windows-style path parseable on either platform.
+ *
+ * NOTE: normalizePath converts backslashes AFTER resolve(), and on POSIX
+ * resolve() treats `\` as an ordinary filename character — so a Windows path
+ * arrives as ONE relative segment and gets prefixed with the cwd, which makes
+ * every subsequent `.worktrees` inference point at a directory that cannot
+ * exist. Worktree paths come from the database, recorded by whichever host
+ * created them, so the input spelling is not tied to the running platform.
+ * Measured 2026-10-11: this is why `handles backslash separators` passed on
+ * Windows and failed on Linux CI.
+ *
+ * @param p - Possibly Windows-spelled path / Windows 形式を含みうるパス
+ * @returns The same path with forward slashes / スラッシュに統一したパス
+ */
+function toForwardSlashes(p: string): string {
+  return p.replace(/\\/g, '/');
+}
+
+/**
  * Resolve the baseDir to use when removing a worktree.
  *
  * @param worktreePath - Worktree to remove / 削除対象の worktree パス
@@ -26,9 +45,19 @@ export function resolveWorktreeBaseDir(
   // NOTE: Traversal paths are left to the guard; resolving them here would bypass its check.
   if (worktreePath.includes('..')) return fallback;
 
-  const normalizedWT = normalizePath(worktreePath);
+  const normalizedWT = normalizePath(toForwardSlashes(worktreePath));
+
+  // NOTE: Refuse a path that names the `.worktrees` container itself rather than
+  // a worktree inside it. Its parent IS a repo, so every check below would pass
+  // and the caller would be handed a baseDir whose removal target is the whole
+  // container — every worktree of that repo at once.
+  // (normalizePath resolves away any trailing slash, so one endsWith covers both spellings.)
+  if (normalizedWT.endsWith(`/${WORKTREE_DIR}`)) return fallback;
+
   for (const c of usable) {
-    if (normalizedWT.startsWith(normalizePath(join(c, WORKTREE_DIR)) + '/')) return c;
+    // Candidates come from the same database rows, so they get the same treatment.
+    if (normalizedWT.startsWith(normalizePath(toForwardSlashes(join(c, WORKTREE_DIR))) + '/'))
+      return c;
   }
 
   const marker = `/${WORKTREE_DIR}/`;

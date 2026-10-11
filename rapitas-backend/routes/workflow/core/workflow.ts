@@ -10,6 +10,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config';
 import {
   handleGetFiles,
+  handleGetFile,
   handleSaveFile,
   handleApprovePlan,
   handleUpdateStatus,
@@ -66,6 +67,13 @@ const workflowFileSaveBodySchema = t.Union([
 export const workflowRoutes = new Elysia({ prefix: '/workflow' })
 
   .get('/tasks/:taskId/files', (ctx) => handleGetFiles(ctx as Parameters<typeof handleGetFiles>[0]))
+
+  // Registered so the PUT above has a GET counterpart at the same URL: agents
+  // check for their own artifacts there, and the router's 404 was being read as
+  // the artifact's absence (see the NOTE on handleGetFile).
+  .get('/tasks/:taskId/files/:fileType', (ctx) =>
+    handleGetFile(ctx as Parameters<typeof handleGetFile>[0]),
+  )
 
   .put(
     '/tasks/:taskId/files/:fileType',

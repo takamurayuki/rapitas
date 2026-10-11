@@ -332,8 +332,8 @@ export const SUPPRESSIONS: Suppression[] = [
   },
   {
     // ログ出力箇所: services/agents/orchestrator/git-operations/worktree/
-    // worktree-cleanup.ts:216-218 の logger.warn（cleanupOrphanedWorktrees内、
-    // removeWorktreeがfalseを返した分岐）。falseは worktree-remove.ts:58-85 の
+    // worktree-cleanup.ts の reconcileTerminalSessions 内 logger.warn
+    // （removeWorktreeがfalseを返した分岐）。falseは worktree-remove.ts の
     // 保護ガード（未コミット作業の保全・.gitメタデータ欠落・保全を証明できない）が
     // 削除を拒否した結果で、防いだ側であり何も壊れていない。拒否時はDBの
     // worktreePathを残すため周期ごとに同一パスで再発する（task-997で13回、

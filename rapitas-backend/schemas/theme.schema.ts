@@ -39,6 +39,13 @@ export const themeSchema = {
     design: t.Optional(t.String()),
     // Architecture decision records written to docs/adr/.
     adr: t.Optional(t.String()),
+    // Project skeleton written at the root. Paths are validated by
+    // scaffold-project-writer — this schema only shapes the envelope.
+    scaffold: t.Optional(
+      t.Array(t.Object({ path: t.String({ maxLength: 200 }), content: t.String() }), {
+        maxItems: 60,
+      }),
+    ),
     // Repo-relative path for the agent guide (defaults to .claude/CLAUDE.md).
     agentFilePath: t.Optional(t.String()),
     basePath: t.Optional(t.String()),

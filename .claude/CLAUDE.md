@@ -134,6 +134,12 @@ curl -X PUT http://127.0.0.1:3001/workflow/tasks/{taskId}/files/{fileType} \
 # Read all workflow files
 curl http://127.0.0.1:3001/workflow/tasks/{taskId}/files
 
+# Read ONE workflow file (same URL shape as the PUT above)
+curl http://127.0.0.1:3001/workflow/tasks/{taskId}/files/{fileType}
+# Returns 200 with {"type":"research","exists":false} when the task has no such
+# artifact — a 404 here means the TASK is missing, never the artifact. Do not
+# treat a failed read as proof an artifact was never written; check `exists`.
+
 # Approve / reject plan
 curl -X POST http://127.0.0.1:3001/workflow/tasks/{taskId}/approve-plan \
   -H 'Content-Type: application/json' \

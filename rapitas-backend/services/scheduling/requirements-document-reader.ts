@@ -1,0 +1,112 @@
+/**
+ * requirements-document-reader
+ *
+ * Reads a generated project's `docs/requirements.md`, preferring the branch the
+ * document is authoritative on over whatever the working tree happens to hold.
+ * Not responsible for parsing it or deciding what to do with it — that is the
+ * intake job's and services/organization/'s job.
+ */
+
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { existsSync } from 'fs';
+import { readFile, stat } from 'fs/promises';
+import { join } from 'path';
+import { createLogger } from '../../config/logger';
+
+const log = createLogger('scheduling:requirements-reader');
+
+// NOTE: execFile (array-args, no shell) so a theme's branch name cannot be
+// interpreted as shell syntax. See services/github/gh-client.ts for the pattern.
+const execFileAsync = promisify(execFile);
+
+/** Requirements documents are tens of KiB; anything larger is not one. */
+export const MAX_REQUIREMENTS_BYTES = 512 * 1024;
+
+/** How long a git read may take before the working tree is used instead. */
+const GIT_READ_TIMEOUT_MS = 20_000;
+
+/** Reject a document that is too large to be one. */
+function withinSizeLimit(content: string, source: string): string | null {
+  const bytes = Buffer.byteLength(content, 'utf8');
+  if (bytes > MAX_REQUIREMENTS_BYTES) {
+    log.warn({ source, bytes }, 'requirements.md too large — skipping');
+    return null;
+  }
+  return content;
+}
+
+/**
+ * Read the document from `origin/<branch>`, the branch it is authoritative on.
+ *
+ * NOTE: Reading the working tree is the trap this avoids. A project's main
+ * checkout only advances when something pulls, and nothing in the job does:
+ * measured 2026-10-11, rapitas's own checkout sat SEVEN commits behind origin
+ * and temporaid's three, and reading the stale copy led to a wrong conclusion
+ * twice in one session. `git fetch` runs first, because `origin/<branch>` is
+ * itself only as fresh as the last fetch against that remote.
+ *
+ * @param workingDirectory - Repository to read from / 読み取り元リポジトリ
+ * @param branch - Authoritative branch / 正となるブランチ
+ * @returns Content, or null when git cannot provide it / git で取得できなければ null
+ */
+async function readFromOrigin(workingDirectory: string, branch: string): Promise<string | null> {
+  const run = (args: string[]) =>
+    execFileAsync('git', args, {
+      cwd: workingDirectory,
+      encoding: 'utf8',
+      timeout: GIT_READ_TIMEOUT_MS,
+      maxBuffer: MAX_REQUIREMENTS_BYTES * 2,
+    });
+
+  try {
+    // A failed fetch is not fatal: the existing origin ref may still be newer
+    // than the working tree, which is the comparison that matters here.
+    await run(['fetch', 'origin', branch, '--quiet']).catch((err) => {
+      log.debug({ err, workingDirectory, branch }, 'fetch failed; using the existing origin ref');
+    });
+    const { stdout } = await run(['show', `origin/${branch}:docs/requirements.md`]);
+    return withinSizeLimit(stdout, `origin/${branch}`);
+  } catch (err) {
+    log.debug({ err, workingDirectory, branch }, 'origin read unavailable');
+    return null;
+  }
+}
+
+/**
+ * Read a theme's requirements document, preferring the authoritative branch.
+ *
+ * Falls back to the working tree so a project without a remote (or a fresh one
+ * whose first push has not happened) still works — but says so, because a
+ * working-tree read may be arbitrarily out of date.
+ *
+ * @param workingDirectory - Theme working directory / テーマの作業ディレクトリ
+ * @param defaultBranch - Branch the documents are authoritative on / 正となるブランチ
+ * @returns Content, or null when missing, oversized or unreadable / 取得不能なら null
+ */
+export async function readRequirementsFile(
+  workingDirectory: string,
+  defaultBranch?: string | null,
+): Promise<string | null> {
+  const branch = defaultBranch?.trim();
+  if (branch) {
+    const fromOrigin = await readFromOrigin(workingDirectory, branch);
+    if (fromOrigin !== null) return fromOrigin;
+  }
+
+  const file = join(workingDirectory, 'docs', 'requirements.md');
+  if (!existsSync(file)) return null;
+  try {
+    const info = await stat(file);
+    if (!info.isFile()) return null;
+    const content = await readFile(file, 'utf8');
+    log.info(
+      { file, branch: branch ?? '(none)' },
+      'Read requirements.md from the working tree; it may be behind origin',
+    );
+    return withinSizeLimit(content, file);
+  } catch (err) {
+    log.warn({ err, file }, 'requirements.md unreadable — skipping');
+    return null;
+  }
+}

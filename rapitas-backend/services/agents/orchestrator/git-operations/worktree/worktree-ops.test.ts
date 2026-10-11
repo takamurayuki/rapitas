@@ -84,9 +84,27 @@ mock.module('../../../../../config/logger', () => ({
 }));
 mock.module('child_process', () => ({ execFile: mockExecFile, exec: mockExec }));
 mock.module('node:child_process', () => ({ execFile: mockExecFile, exec: mockExec }));
-mock.module('node:fs', () => ({
-  existsSync: mockExistsSync,
-}));
+// NOTE: ONE object registered under BOTH specifiers. resolve-worktree-base-dir
+// imports existsSync from 'fs' while the rest of the worktree modules import it
+// from 'node:fs', but bun resolves the two to the same module — registering them
+// separately makes the second call silently replace the first, which detaches
+// mockExistsSync from the code under test entirely.
+// The fixture repo's own `.git` answers unconditionally because the owning-root
+// resolver requires it before it will hand any baseDir to removeWorktree;
+// everything else stays with mockExistsSync, which the tests below drive. It is
+// scoped to that one path on purpose — worktree-usable.ts and worktree-guard.ts
+// probe a WORKTREE's `.git` through the same function, and answering yes there
+// would flip the work-preservation checks.
+const fsMock = {
+  existsSync: (p: string) =>
+    String(p).replace(/\\/g, '/') === '/test/repo/.git' || mockExistsSync(p),
+  // Mirrored for core/git-exclude.ts, which reads the exclude list before
+  // appending. An export the graph needs but the mock omits is a load-time
+  // SyntaxError under bun, not a missing function.
+  readFileSync: mock(() => ''),
+};
+mock.module('node:fs', () => fsMock);
+mock.module('fs', () => fsMock);
 mock.module('node:fs/promises', () => ({
   rm: mockFsRm,
   rmdir: mockFsRm,
@@ -94,6 +112,10 @@ mock.module('node:fs/promises', () => ({
   stat: mockStat,
   mkdir: mock(() => Promise.resolve()),
   appendFile: mock(() => Promise.resolve()),
+  // core/git-exclude.ts reads the exclude list before appending, and
+  // worktree-command-wrapper copies the heartbeat wrapper.
+  readFile: mock(() => Promise.resolve('')),
+  copyFile: mock(() => Promise.resolve()),
 }));
 const mockIsPathSafeForWorktreeOperation = mock(() => true);
 mock.module('../core/safety', () => ({
@@ -119,6 +141,9 @@ mock.module('../../../../../utils/common/branch-name-generator', () => ({
 
 const { cleanupOrphanedWorktrees, cleanupStaleWorktrees, removeWorktree, rmDirWithRetry } =
   await import('./worktree-ops');
+// The removal backoff is module-level state shared across every sweep, so a
+// refusal recorded by one test would make the next one skip instead of retry.
+const { resetRemovalBackoff } = await import('./worktree-removal-backoff');
 
 // ---------------------------------------------------------------------------
 // rmDirWithRetry
@@ -368,6 +393,7 @@ describe('cleanupOrphanedWorktrees', () => {
   const mockBaseDir = '/test/repo';
 
   beforeEach(() => {
+    resetRemovalBackoff();
     mockPrisma.agentSession.findMany.mockReset();
     mockPrisma.agentSession.update.mockReset();
     mockPrisma.agentSession.updateMany.mockReset();

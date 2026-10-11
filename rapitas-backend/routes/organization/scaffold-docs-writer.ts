@@ -11,6 +11,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { type ScaffoldFile, writeProjectSkeleton } from './scaffold-project-writer';
 
 /** The generated documents, any of which may be absent. */
 export interface ScaffoldDocs {
@@ -18,20 +19,35 @@ export interface ScaffoldDocs {
   design?: string;
   /** Architecture decision records. / 技術選定記録 */
   adr?: string;
+  /**
+   * Project skeleton (manifests, configs, entry stubs). Written so the project
+   * root carries its own package.json from creation: without it the first
+   * environment-setup task has nothing to install from, and an agent handed
+   * only docs cannot tell what to implement (task 1152 blocked on exactly that).
+   * / プロジェクト雛形
+   */
+  scaffold?: ScaffoldFile[];
 }
 
 /**
- * Write whichever documents were generated under `<projectPath>/docs`.
+ * Write whichever documents were generated under `<projectPath>/docs`, plus the
+ * project skeleton at the root.
  *
  * ADRs go to `docs/adr/0001-architecture-decisions.md` rather than a flat
  * `docs/adr.md`: records accumulate, and the numbered-file convention lets
  * later decisions land as 0002-, 0003- without rewriting the first one.
  *
+ * The skeleton is delegated to scaffold-project-writer, which validates every
+ * model-supplied path; rejections are returned here so the caller can log them.
+ *
  * @param projectPath - Absolute path of the scaffolded project. / プロジェクトの絶対パス
- * @param docs - Generated documents. Blank/whitespace entries are skipped. / 生成文書（空白のみは書き込まない）
- * @returns Repo-relative paths actually written. / 実際に書き込んだ相対パス
+ * @param docs - Generated documents and skeleton. Blank entries are skipped. / 生成文書と雛形
+ * @returns Written relative paths and any refused skeleton entries. / 書き込んだ相対パスと却下
  */
-export function writeScaffoldDocs(projectPath: string, docs: ScaffoldDocs): string[] {
+export function writeScaffoldDocs(
+  projectPath: string,
+  docs: ScaffoldDocs,
+): { written: string[]; rejected: Record<string, string> } {
   const entries: Array<[string, string | undefined]> = [
     ['docs/requirements.md', docs.requirements],
     ['docs/design.md', docs.design],
@@ -46,5 +62,7 @@ export function writeScaffoldDocs(projectPath: string, docs: ScaffoldDocs): stri
     fs.writeFileSync(absPath, content, 'utf8');
     written.push(relPath);
   }
-  return written;
+
+  const skeleton = writeProjectSkeleton(projectPath, docs.scaffold);
+  return { written: [...written, ...skeleton.written], rejected: skeleton.rejected };
 }

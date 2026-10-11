@@ -48,6 +48,15 @@ describe('themeSchema.setupFromClaudeMd', () => {
     expect(json.keys).toContain('adr');
   });
 
+  it('delivers the project skeleton to the handler', async () => {
+    const { status, json } = await postBody({
+      ...MINIMAL,
+      scaffold: [{ path: 'package.json', content: '{}' }],
+    });
+    expect(status).toBe(200);
+    expect(json.keys).toContain('scaffold');
+  });
+
   it('delivers the docs and target fields the handler writes', async () => {
     const { status, json } = await postBody({
       ...MINIMAL,

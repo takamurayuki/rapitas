@@ -28,6 +28,34 @@ describe('buildFallbackResponse', () => {
     expect(build().score).toBe(20);
   });
 
+  // Measured 2026-10-11: the template's 機能要件 used `- **[F-01] …**` and its
+  // criteria `- [ ] [F-01] …`, and the filer's FEATURE_BULLET regex matches
+  // neither. A degraded package scaffolded into a project therefore parsed as
+  // ZERO features and filed no implementation tasks at all — silently
+  // reproducing the gap theme 35 started from. The shape must stay parseable.
+  it('writes features and criteria in the shape the task filer parses', () => {
+    const requirements = build().requirements ?? '';
+    // Plain `- [F-NN] <name>` bullets, no bold wrapper, no checkbox prefix.
+    for (const id of ['F-01', 'F-02', 'F-03']) {
+      expect(requirements).toContain(`- [${id}] `);
+    }
+    expect(requirements).not.toMatch(/- \*\*\[F-\d+\]/);
+    expect(requirements).not.toMatch(/- \[ \] \[F-\d+\]/);
+  });
+
+  it('models three acceptance criteria per feature, not one', () => {
+    const requirements = build().requirements ?? '';
+    const criteriaBlock = requirements.slice(requirements.indexOf('# 受け入れ基準'));
+    for (const id of ['F-01', 'F-02', 'F-03']) {
+      const n = (criteriaBlock.match(new RegExp(`- \\[${id}\\] `, 'g')) ?? []).length;
+      expect(n, id).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('carries the assumptions section, since every value here is assumed', () => {
+    expect(build().requirements ?? '').toContain('# 前提と未決事項');
+  });
+
   it('banners every document that lands in the repository', () => {
     const r = build();
     for (const doc of [r.requirements, r.design, r.adr]) {
@@ -57,6 +85,13 @@ describe('buildFallbackResponse', () => {
     for (const field of ['文脈', '検討した代替案', '却下理由', 'トレードオフ', '撤回条件']) {
       expect(adr).toContain(field);
     }
+  });
+
+  it('ships no project skeleton rather than one for an invented stack', () => {
+    // Same reason the ADR records nothing: a package.json for a stack nobody
+    // chose would produce a project that LOOKS set up, and the next agent would
+    // build on invented dependencies.
+    expect(build().scaffold).toEqual([]);
   });
 
   it('points the agent guide at all three spec documents', () => {

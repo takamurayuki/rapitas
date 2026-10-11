@@ -321,7 +321,38 @@ describe('AIOrchestra.recoverOnStartup', () => {
 
     expect(mockRunner.startProcessing).not.toHaveBeenCalled();
     expect(mockQueue.setMaxConcurrency).not.toHaveBeenCalled();
-    expect(mockSchedulerRecoverOnStartup).toHaveBeenCalledTimes(1);
+  });
+
+  test('does NOT resume auto-run during boot — the resume is deferred', async () => {
+    // Resuming the agent loop while the UI's dev server warms up contends for
+    // this 4-core host (measured 2026-10-09: 166% of one core and an
+    // unreachable page). boot-settle holds the resume; boot itself returns.
+    delete process.env.RAPITAS_AUTORUN_BOOT_SETTLE_MS;
+    mockOrchestraSessionFindFirst.mockResolvedValue(null);
+    await AIOrchestra.getInstance().recoverOnStartup();
+    expect(mockSchedulerRecoverOnStartup).not.toHaveBeenCalled();
+  });
+
+  test('still repairs the stale queue at boot, despite the deferred resume', async () => {
+    // Only the resume moves. Holding the queue repair for a minute would leave
+    // the queue inconsistent for exactly that long.
+    delete process.env.RAPITAS_AUTORUN_BOOT_SETTLE_MS;
+    mockOrchestraSessionFindFirst.mockResolvedValue(null);
+    await AIOrchestra.getInstance().recoverOnStartup();
+    expect(mockQueue.recoverStaleItems).toHaveBeenCalledTimes(1);
+  });
+
+  test('resumes inline when the quiet period is opted out of', async () => {
+    process.env.RAPITAS_AUTORUN_BOOT_SETTLE_MS = '0';
+    try {
+      mockOrchestraSessionFindFirst.mockResolvedValue(null);
+      await AIOrchestra.getInstance().recoverOnStartup();
+      // The resume crosses a dynamic import(), so it lands a macrotask later.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(mockSchedulerRecoverOnStartup).toHaveBeenCalledTimes(1);
+    } finally {
+      delete process.env.RAPITAS_AUTORUN_BOOT_SETTLE_MS;
+    }
   });
 
   test('restores an in-flight session and resumes the runner', async () => {
@@ -338,10 +369,21 @@ describe('AIOrchestra.recoverOnStartup', () => {
   });
 
   test('a failing theme-auto-run recovery does not fail the whole startup recovery', async () => {
-    mockSchedulerRecoverOnStartup.mockRejectedValue(new Error('scheduler unavailable'));
-    const orchestra = AIOrchestra.getInstance();
-    await expect(orchestra.recoverOnStartup()).resolves.toBeUndefined();
-    expect(noopLog.warn).toHaveBeenCalled();
+    // Asserted with the wait opted out so the failure happens inside
+    // recoverOnStartup; with the wait on, it lands in boot-settle's timer
+    // callback, which catches it there instead (covered in boot-settle.test).
+    process.env.RAPITAS_AUTORUN_BOOT_SETTLE_MS = '0';
+    try {
+      mockSchedulerRecoverOnStartup.mockRejectedValue(new Error('scheduler unavailable'));
+      const orchestra = AIOrchestra.getInstance();
+      await expect(orchestra.recoverOnStartup()).resolves.toBeUndefined();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      // The attempt must really have been made — otherwise this would pass for
+      // the wrong reason (recovery never ran at all).
+      expect(mockSchedulerRecoverOnStartup).toHaveBeenCalledTimes(1);
+    } finally {
+      delete process.env.RAPITAS_AUTORUN_BOOT_SETTLE_MS;
+    }
   });
 });
 

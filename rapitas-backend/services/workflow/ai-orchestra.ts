@@ -226,12 +226,20 @@ export class AIOrchestra {
       this.runner.startProcessing();
     }
 
-    // Recover theme auto-run state (must run AFTER recoverStaleItems requeues items)
+    // Recover theme auto-run state (must run AFTER recoverStaleItems requeues
+    // items). Deferred past a quiet period rather than run inline: resuming the
+    // agent loop while the UI's dev server warms up contends for this 4-core
+    // host (measured 2026-10-09: 166% of one core and an unreachable page, vs
+    // 16-23% and an immediate 200 when the resume waited). The stale-queue
+    // repair above still runs at boot — only the resume moves.
     try {
-      const { ThemeAutoRunScheduler } = await import('./auto-run/theme-auto-run-scheduler');
-      await ThemeAutoRunScheduler.getInstance().recoverOnStartup();
+      const { deferAutoRunRecovery } = await import('./auto-run/boot-settle');
+      deferAutoRunRecovery(async () => {
+        const { ThemeAutoRunScheduler } = await import('./auto-run/theme-auto-run-scheduler');
+        await ThemeAutoRunScheduler.getInstance().recoverOnStartup();
+      });
     } catch (err) {
-      log.warn({ err }, '[AIOrchestra] Failed to recover theme auto-run state');
+      log.warn({ err }, '[AIOrchestra] Failed to schedule theme auto-run recovery');
     }
   }
 

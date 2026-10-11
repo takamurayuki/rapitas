@@ -45,6 +45,7 @@ const {
   awaitWorktreeDependencies,
   clearWorktreeDependenciesTracking,
   taskNeedsDependencies,
+  prepareWorktreeDependencies,
 } = await import('./dependency-installer');
 
 const TMP_ROOT = resolve('.tmp-tests/dependency-installer');
@@ -173,6 +174,97 @@ describe('startWorktreeDependenciesInstall / awaitWorktreeDependencies', () => {
     clearWorktreeDependenciesTracking(worktree);
     await startWorktreeDependenciesInstall(worktree);
     expect(mockExec).toHaveBeenCalledTimes(2);
+
+    clearWorktreeDependenciesTracking(worktree);
+  });
+});
+
+describe('prepareWorktreeDependencies', () => {
+  beforeEach(async () => {
+    resetMockOk();
+    await rm(TMP_ROOT, { recursive: true, force: true });
+    await mkdir(TMP_ROOT, { recursive: true });
+  });
+
+  afterEach(async () => {
+    await rm(TMP_ROOT, { recursive: true, force: true });
+  });
+
+  /** Defer the setup-worktree callback so "did it wait?" is observable. */
+  function resetMockSlow(delayMs: number): void {
+    mockExec.mockReset();
+    mockExec.mockImplementation(
+      (
+        _command: string,
+        options: unknown,
+        callback?: (error: Error | null, stdout: string, stderr: string) => void,
+      ) => {
+        const cb = (typeof options === 'function' ? options : callback) as
+          | ((error: Error | null, stdout: string, stderr: string) => void)
+          | undefined;
+        setTimeout(() => cb?.(null, '', ''), delayMs);
+        return { kill: mock(() => undefined) };
+      },
+    );
+  }
+
+  test('does not wait for a rapitas worktree, whose setup only links', async () => {
+    // The fast path exists so the agent's first output is not delayed 30-90s.
+    const worktree = join(TMP_ROOT, 'wt-rapitas');
+    await makeWorktreeWithSetup(worktree);
+    resetMockSlow(400);
+
+    const startedAt = Date.now();
+    const mode = await prepareWorktreeDependencies(worktree, () => {});
+    const elapsed = Date.now() - startedAt;
+
+    expect(mode).toBe('background');
+    // Returned long before the 400ms setup could have finished.
+    expect(elapsed).toBeLessThan(200);
+
+    await awaitWorktreeDependencies(worktree);
+    clearWorktreeDependenciesTracking(worktree);
+  });
+
+  test('waits for a generated project, which has no setup-worktree.cjs', async () => {
+    // Measured 2026-10-11: task 1185 lost this race and reported every gate
+    // "unverifiable, no node_modules" — a verify_repair bounce, not the fail-fast
+    // the parallel launch assumed.
+    const worktree = join(TMP_ROOT, 'wt-generated');
+    await mkdir(worktree, { recursive: true });
+
+    expect(await prepareWorktreeDependencies(worktree, () => {})).toBe('awaited');
+    // No setup-worktree.cjs means no exec; the project bootstrap handled it.
+    expect(mockExec).not.toHaveBeenCalled();
+
+    clearWorktreeDependenciesTracking(worktree);
+  });
+
+  test('reports a failure instead of throwing, so the agent still runs', async () => {
+    const worktree = join(TMP_ROOT, 'wt-prep-fail');
+    await makeWorktreeWithSetup(worktree);
+    mockExec.mockReset();
+    mockExec.mockImplementation(
+      (
+        _command: string,
+        options: unknown,
+        callback?: (error: Error | null, stdout: string, stderr: string) => void,
+      ) => {
+        const cb = (typeof options === 'function' ? options : callback) as
+          | ((error: Error | null, stdout: string, stderr: string) => void)
+          | undefined;
+        cb?.(new Error('link failed'), '', '');
+        return { kill: mock(() => undefined) };
+      },
+    );
+
+    const failures: unknown[] = [];
+    // A rapitas worktree takes the background path, so the rejection must reach
+    // the callback rather than becoming an unhandled rejection.
+    expect(await prepareWorktreeDependencies(worktree, (e) => failures.push(e))).toBe('background');
+    await new Promise((r) => setTimeout(r, 20));
+    expect(failures).toHaveLength(1);
+    expect(String(failures[0])).toContain('setup-worktree.cjs failed');
 
     clearWorktreeDependenciesTracking(worktree);
   });

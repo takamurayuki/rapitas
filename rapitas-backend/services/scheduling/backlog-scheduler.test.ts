@@ -99,6 +99,18 @@ describe('normalizeJobKind', () => {
     expect(BACKLOG_JOB_LABELS.outage_simulation).toBe('障害影響判定シミュレーション');
   });
 
+  it('registers requirement_intake daily at 8:00 with a label', () => {
+    expect(BACKLOG_JOB_KINDS).toContain('requirement_intake');
+    expect(normalizeJobKind('requirement_intake')).toBe('requirement_intake');
+    expect(DEFAULTS.requirement_intake).toEqual({
+      enabled: true,
+      frequency: 'daily',
+      hour: 8,
+      weekday: 1,
+    });
+    expect(BACKLOG_JOB_LABELS.requirement_intake).toBe('要件定義からのタスク起票');
+  });
+
   it('rejects unknown values as null', () => {
     expect(normalizeJobKind('bogus')).toBeNull();
     expect(normalizeJobKind(undefined)).toBeNull();

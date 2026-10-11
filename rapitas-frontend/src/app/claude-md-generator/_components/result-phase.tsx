@@ -94,6 +94,16 @@ export function ResultPhase({
         content: result?.adr || '',
       },
       {
+        kind: 'scaffold',
+        label: t('tabScaffold'),
+        filename: `${result?.scaffold?.length ?? 0} files at the project root`,
+        // Concatenated with path headers so the whole skeleton can be copied in
+        // one go; the backend writes each entry to its own validated path.
+        content: (result?.scaffold ?? [])
+          .map((f) => `// ===== ${f.path} =====\n${f.content}`)
+          .join('\n\n'),
+      },
+      {
         kind: 'claude_md',
         label: agentFileName,
         filename: agentTarget.path,
@@ -104,6 +114,8 @@ export function ResultPhase({
   }, [result, t, agentFileName, agentTarget.path]);
 
   const [activeKind, setActiveKind] = useState<DocKind>('requirements');
+  /** Explicit consent to scaffold a template-only (degraded) package. */
+  const [degradedAck, setDegradedAck] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const active = tabs.find((d) => d.kind === activeKind) || tabs[tabs.length - 1];
@@ -329,10 +341,45 @@ export function ResultPhase({
                 onSetBasePath={onSetBasePath}
               />
 
+              {/* NOTE: A degraded result is a template scaffold whose every
+                  figure is invented. Scaffolding it creates a real project whose
+                  docs then become the source of auto-filed implementation tasks,
+                  so the step asks for an explicit acknowledgement rather than
+                  relying on the notice above being read. */}
+              {result?.degraded && (
+                <label
+                  htmlFor="degraded-ack"
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    alignItems: 'flex-start',
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  <input
+                    id="degraded-ack"
+                    type="checkbox"
+                    checked={degradedAck}
+                    onChange={(e) => setDegradedAck(e.target.checked)}
+                    aria-labelledby="degraded-ack-text"
+                    style={{ marginTop: 3 }}
+                  />
+                  <span id="degraded-ack-text">{t('degradedAck')}</span>
+                </label>
+              )}
               <button
                 className="btn btn-p"
                 onClick={onCreateTheme}
-                style={{ background: 'var(--green)', fontSize: 14, padding: '12px 24px' }}
+                disabled={!!result?.degraded && !degradedAck}
+                title={result?.degraded && !degradedAck ? t('degradedBlocked') : undefined}
+                style={{
+                  background: 'var(--green)',
+                  fontSize: 14,
+                  padding: '12px 24px',
+                  opacity: result?.degraded && !degradedAck ? 0.5 : undefined,
+                  cursor: result?.degraded && !degradedAck ? 'not-allowed' : undefined,
+                }}
               >
                 {t('createTheme')}
               </button>

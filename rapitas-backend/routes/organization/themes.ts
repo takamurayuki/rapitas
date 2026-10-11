@@ -12,6 +12,7 @@ import * as path from 'path';
 import { execSync, execFileSync } from 'child_process';
 import { resolveThemeCategory } from './theme-category-resolver';
 import { writeScaffoldDocs } from './scaffold-docs-writer';
+import type { ScaffoldFile } from './scaffold-project-writer';
 
 /**
  * Validate a runtimeConfigJson value before it's persisted — a broken value
@@ -309,6 +310,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         requirements,
         design,
         adr,
+        scaffold,
         agentFilePath,
         basePath,
         description,
@@ -319,6 +321,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         requirements?: string;
         design?: string;
         adr?: string;
+        scaffold?: ScaffoldFile[];
         agentFilePath?: string;
         basePath?: string;
         description?: string;
@@ -386,7 +389,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
 
         // NOTE: Write human-readable requirements/design docs to docs/ so an AI
         // agent (and humans) have the full implementation package in the repo.
-        writeScaffoldDocs(projectPath, { requirements, design, adr });
+        writeScaffoldDocs(projectPath, { requirements, design, adr, scaffold });
 
         // Make initial commit and create develop branch
         try {

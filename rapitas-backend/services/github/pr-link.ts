@@ -13,6 +13,7 @@ import { parseOwnerRepo, ownerRepoFromGitRemote } from './git-exec';
 import { verifyPrOwnership } from './pr-ownership';
 import { notify } from '../workflow/auto-merge-notify';
 import { updateTaskPublicationMetadata } from './task-publication-metadata';
+import { pickIntegrationId, integrationCreateData } from './integration-provisioning';
 
 const log = createLogger('github-service:pr-link');
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
@@ -52,26 +53,71 @@ export async function resolveIntegrationId(
   repositoryUrl: string | null | undefined,
   workingDirectory: string | null | undefined,
 ): Promise<number | null> {
-  let ident = parseOwnerRepo(repositoryUrl);
-  if (!ident && workingDirectory) {
-    ident = await ownerRepoFromGitRemote(workingDirectory);
-  }
-
+  const ident = await resolveRepoIdentity(repositoryUrl, workingDirectory);
   const integrations = await prisma.gitHubIntegration.findMany({
     select: { id: true, ownerName: true, repositoryName: true },
   });
-  if (integrations.length === 0) return null;
+  return pickIntegrationId(integrations, ident);
+}
 
-  if (ident) {
-    const match = integrations.find(
-      (i) =>
-        i.ownerName.toLowerCase() === ident.owner && i.repositoryName.toLowerCase() === ident.repo,
+/** The repository a PR belongs to, from its theme's URL or the checkout's remote. */
+async function resolveRepoIdentity(
+  repositoryUrl: string | null | undefined,
+  workingDirectory: string | null | undefined,
+) {
+  const fromUrl = parseOwnerRepo(repositoryUrl);
+  if (fromUrl) return fromUrl;
+  return workingDirectory ? await ownerRepoFromGitRemote(workingDirectory) : null;
+}
+
+/**
+ * The integration for a repository, creating one when it has none yet.
+ *
+ * NOTE: Integrations were only ever created through the manual POST route, while
+ * `repo-bootstrap` creates a generated project's GitHub repo without
+ * registering one. The consequence was silent and total: `linkAutoCreatedPr`
+ * returned early, the PR was never persisted, and so auto-merge and ci_repair
+ * could not see it. Measured 2026-10-11 — six integrations existed and none for
+ * temporaid or contextflow, the two newest projects; temporaid's PR #1 sat green
+ * and unmerged with no row at all. Provisioning here, at the point a PR actually
+ * needs linking, also repairs projects created before this fix.
+ *
+ * @param prisma - Prisma client / Prismaクライアント
+ * @param repositoryUrl - Theme's repository URL / テーマのリポジトリURL
+ * @param workingDirectory - Checkout used to read the git remote / git remote を読む作業ディレクトリ
+ * @returns Integration id, or null when the repository cannot be identified / 連携ID、特定できなければ null
+ */
+export async function ensureIntegrationId(
+  prisma: PrismaClientInstance,
+  repositoryUrl: string | null | undefined,
+  workingDirectory: string | null | undefined,
+): Promise<number | null> {
+  const existing = await resolveIntegrationId(prisma, repositoryUrl, workingDirectory);
+  if (existing != null) return existing;
+
+  const ident = await resolveRepoIdentity(repositoryUrl, workingDirectory);
+  if (!ident) return null; // cannot place an unknown repository — never guess
+
+  const data = integrationCreateData(ident);
+  try {
+    const row = await prisma.gitHubIntegration.upsert({
+      where: { repositoryUrl: data.repositoryUrl },
+      update: {},
+      create: data,
+      select: { id: true },
+    });
+    log.info(
+      { integrationId: row.id, repositoryUrl: data.repositoryUrl },
+      '[ensureIntegrationId] Registered a GitHub integration for a repository that had none — its PRs are now visible to PR sync and auto-merge',
     );
-    if (match) return match.id;
+    return row.id;
+  } catch (err) {
+    log.warn(
+      { err, repositoryUrl: data.repositoryUrl },
+      '[ensureIntegrationId] Could not register the integration; the PR will not be tracked locally',
+    );
+    return null;
   }
-
-  // Unambiguous when only one integration is configured (the desktop default).
-  return integrations.length === 1 ? integrations[0].id : null;
 }
 
 /**
@@ -92,7 +138,10 @@ export async function linkAutoCreatedPr(
 ): Promise<number | null> {
   const { taskId, prNumber, prUrl, title, headBranch, baseBranch } = params;
   try {
-    const integrationId = await resolveIntegrationId(
+    // Provisioning (not just resolving) is what makes a generated project's PR
+    // trackable: without a row for its repository the link below is skipped and
+    // no watcher ever sees the PR.
+    const integrationId = await ensureIntegrationId(
       prisma,
       params.repositoryUrl,
       params.workingDirectory,

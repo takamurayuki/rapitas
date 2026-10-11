@@ -10,6 +10,23 @@
  * without pushing the route past its line limit.
  */
 
+/**
+ * What the user told us about their own project. Blank or absent means NOT
+ * ESTABLISHED, which the prompt turns into a recorded assumption rather than an
+ * invented figure. Mirrors ProjectContext in the wizard's types.
+ */
+export interface ProjectContextInput {
+  users?: string;
+  latency?: string;
+  availability?: string;
+  budget?: string;
+  deadline?: string;
+  team?: string;
+  assets?: string;
+  success?: string;
+  domainRules?: string;
+}
+
 /** Wizard answers + the chosen proposal, as the route receives them. */
 export interface ClaudeMdRequest {
   genre: string;
@@ -18,6 +35,10 @@ export interface ClaudeMdRequest {
   plat: string;
   scale: string;
   prio: string;
+  /** Elicited project facts; every field optional. / ヒアリング結果（全項目任意） */
+  context?: ProjectContextInput;
+  /** Answers to the review round's questions, when regenerating. / 壁打ちの回答 */
+  reviewAnswers?: string;
   proposal: {
     id: string;
     name: string;
@@ -29,12 +50,26 @@ export interface ClaudeMdRequest {
   };
 }
 
+/** One generated skeleton file, written at the project root. */
+export interface ScaffoldFile {
+  /** Project-relative path; validated server-side. / プロジェクト相対パス */
+  path: string;
+  content: string;
+}
+
 /** The generated package as the wizard consumes it. */
 export interface GenerateResult {
   tech_rationale: string;
   score: number;
   requirements: string;
   design: string;
+  /**
+   * Runnable project skeleton. Without it the project root holds only docs, so
+   * the first environment-setup task has nothing to install from and an agent
+   * handed documents alone cannot tell what to implement (task 1152 blocked on
+   * exactly that). / 実行可能なプロジェクト雛形
+   */
+  scaffold: ScaffoldFile[];
   /**
    * Architecture Decision Records: the reasoning behind the stack, including
    * the alternatives that were rejected. / 技術選定の意思決定記録
@@ -62,7 +97,8 @@ export const systemPrompt = `あなたはシニアプロダクトマネージャ
   "requirements": "要件定義書の全文（マークダウン）",
   "design": "設計書の全文（マークダウン）",
   "adr": "技術選定記録(ADR)の全文（マークダウン）",
-  "claude_md": "CLAUDE.mdの全文（マークダウン）"
+  "claude_md": "CLAUDE.mdの全文（マークダウン）",
+  "scaffold": [{ "path": "プロジェクト相対パス", "content": "ファイル全文" }]
 }
 
 ## 共通ルール（厳守）
@@ -70,14 +106,43 @@ export const systemPrompt = `あなたはシニアプロダクトマネージャ
 - 具体的・実装可能なレベルまで落とし込む。抽象的な一般論で埋めない。
 - 日本語で記述する（コード・コマンド・識別子は英語のまま）。
 
+## ヒアリング結果の扱い（最重要）
+入力の \`context\` は、ユーザー本人から聞き取った事実である。**空欄は「未確認」を意味する。**
+
+- **与えられた値は必ずそのまま使う。** 勝手に別の値へ丸めたり、厳しくしたりしない。
+- **空欄の項目について数値を創作してはならない。** 設計上どうしても値が必要な場合は、
+  仮定値を置いたうえで「# 前提と未決事項」に**仮定であることを明記**する。
+  これを守らないと、聞いてもいない数値がアーキテクチャと費用を確定させてしまう。
+- 非機能要件の各行には、**ヒアリング由来か仮定かが分かるように書く**
+  （例: ✅"同時接続 500（ヒアリング）" / ✅"p95 300ms（仮定・未確認）"）。
+- \`context.assets\` に既存資産があるなら、それを**作り直さない**設計にする。
+- \`context.budget\` / \`context.team\` が小さいなら、構成要素を減らす方向に寄せる。
+  マネージドサービス1つで足りるところに自前の分散構成を置かない。
+- \`context.domainRules\` は機能要件・非機能要件・スコープ外のいずれかに必ず反映する。
+
+\`reviewAnswers\` がある場合は、**前回の生成に対するユーザーの回答**である。
+その回答を反映して文書を作り直し、回答で確定した事項は「前提と未決事項」から外す。
+
 ## requirements（要件定義書）に必ず含めるセクション（この順序）
 1. # 概要（アプリ名・解決する課題・ターゲットユーザー・提供価値）
 2. # ユーザーストーリー（「〜として、〜したい、なぜなら〜」形式で主要5〜8件）
 3. # 機能要件（機能ごとにID付き [F-01] 形式・入力/処理/出力を明記）
 4. # 画面一覧（画面名・目的・主要UI要素・画面遷移）
 5. # 非機能要件（性能・セキュリティ・可用性・対応端末/ブラウザ）
+   - **ヒアリングで与えられていない数値は、自分で決めた値であることを明示する**。
+     与えられた値はそのまま使い、与えられていない値は「# 前提と未決事項」にも仮定として記載する。
 6. # 受け入れ基準（機能IDごとにGiven/When/Thenのチェックリスト）
-7. # スコープ外（今回作らないものを明記）
+   - **1機能あたり最低3件**。正常系・境界値・異常系をそれぞれ1件以上書く。
+     1件だけだと実装の判定が1つの振る舞いに限定され、残りは実装者の解釈に委ねられる。
+   - 各行は \`- [F-xx] Given … When … Then …\` の形式で、**差分だけで判定できる**ように書く
+     （❌「使いやすいこと」→ ✅「Given 5人目 When 参加 Then HTTP 409 が返る」）。
+7. # 前提と未決事項
+   - **ヒアリングされていない事項を暗黙の仮定にしない**。表形式で:
+     | # | 前提/未決事項 | 現在の扱い（仮定した値） | 決める人 | 決める期限 |
+   - 非機能要件の数値、外部サービスの可用性、法令・権利関係、運用体制など、
+     「本当は確認すべきだが確認していない」ものを必ず列挙する。1件も無い場合は
+     「無し」と書くのではなく、何を確認したのかを書く。
+8. # スコープ外（今回作らないものを明記）
 
 ## design（設計書）に必ず含めるセクション（この順序）
 1. # アーキテクチャ概要（構成図をテキスト/Mermaidで・各層の責務）
@@ -143,7 +208,32 @@ export const systemPrompt = `あなたはシニアプロダクトマネージャ
    - 禁止行動（本番DB操作・APIキーハードコード・承認なしのスキーマ変更）
    - 「実装前・実装中・実装後」のチェックリスト
 
+## scaffold（プロジェクト雛形）
+ドキュメントだけではエージェントは着手できない。**\`pnpm install\`（または該当のパッケージマネージャ）が
+そのまま通り、lint / typecheck / test / build のコマンドが「0件でも成功する」状態**のファイル一式を出力する。
+これは設計書の「ディレクトリ構成」「技術スタック」と**完全に一致**させること。
+
+必ず含めるもの:
+- ルートの \`package.json\`（scripts に dev / lint / typecheck / test / build を定義。モノレポなら
+  ワークスペース定義ファイルも）
+- TypeScript 設定（\`tsconfig.json\` / 必要なら \`tsconfig.base.json\`）
+- lint / format 設定、テストランナー設定
+- \`.gitignore\`（\`node_modules\`、ビルド出力、\`.env\` を必ず含める）
+- \`.env.example\`（設計書の「環境変数」と一致させる）
+- パッケージごとの \`package.json\` と、**各パッケージに1つだけ**エントリのスタブ
+  （例: \`src/index.ts\` に \`export {};\` 程度。機能は実装しない）
+- テストが0件で失敗する設定の場合は、各パッケージに**通ることが自明なテスト1本**だけ置く
+
+守るルール:
+- パスは**プロジェクト相対のみ**。先頭の \`/\`、\`C:\` のようなドライブ、\`..\` は禁止。
+- \`docs/\`、\`.claude/\`、\`.git/\`、\`node_modules/\` 配下は出力しない（別途生成される）。
+- **lockfile は出力しない**（インストール時に生成される）。
+- 依存のバージョンは設計書の技術スタック表と一致させる。存在しないバージョンを書かない。
+- ファイル数は**40個以内**、1ファイル 64KB 以内。機能実装・画面実装は含めない（土台のみ）。
+- ネイティブビルドが必要な依存（prisma / argon2 等）を使う場合、pnpm なら
+  \`onlyBuiltDependencies\` に明示する。
+
 ### スコア基準
-4点セット全体が「AIエージェントが即実装着手できる」完成度を100点満点で自己採点（95点以上を目標）。
+4点セット＋雛形全体が「AIエージェントが即実装着手できる」完成度を100点満点で自己採点（95点以上を目標）。
 
 JSONのみ出力。`;
