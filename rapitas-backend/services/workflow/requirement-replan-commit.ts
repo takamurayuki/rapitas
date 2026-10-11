@@ -9,7 +9,7 @@ import {
 } from './requirement-replan-evidence';
 import {
   rejectReplanLifecycle,
-  isRequirementReplanWindowExhausted,
+  wouldReplanExhaustWindow,
   isExpectedReplanHold,
 } from './requirement-replan-policy';
 import type { ReplanReviewResult } from './requirement-replan-review';
@@ -220,8 +220,9 @@ async function commitReviewedDecision(
         ]);
         const priorReplans = priorReplanRows.length;
         // task 956: a same-cause repeat-loop can fire before the absolute
-        // budget above is exhausted — see isRequirementReplanWindowExhausted.
-        const windowExhausted = isRequirementReplanWindowExhausted(
+        // budget above is exhausted — see wouldReplanExhaustWindow. Prior rows
+        // exclude this replan, so the pending one is counted by the helper (task 1198).
+        const windowExhausted = wouldReplanExhaustWindow(
           priorReplanRows.map((r) => ({ createdAtMs: r.createdAt.getTime() })),
           Date.now(),
         );

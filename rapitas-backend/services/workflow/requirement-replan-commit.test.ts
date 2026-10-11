@@ -361,13 +361,26 @@ test('two replans within the 60-minute window block before a third replan attemp
   });
 });
 
-test('a single replan within the window does not block (normal repair cycle)', async () => {
-  await db.$executeRawUnsafe(
-    "INSERT INTO WorkflowTransition (taskId,fromStatus,toStatus,actor,cause) VALUES (1,'plan_approved','research_done','system','requirement_evidence_replan')",
-  );
+test('the first replan in the window is committed (normal repair cycle)', async () => {
   expect((await commit()).committed).toBe(true);
   expect(await db.task.findUnique({ where: { id: 1 }, select: { status: true } })).toEqual({
     status: 'in-progress',
+  });
+});
+
+// Task 1198 / #1195: the prior-rows read excludes the replan being decided, so
+// one prior replan means the pending one is the 2nd in the window — it must be
+// refused before a 3rd phase_completed:implementer can fire.
+test('a 2nd replan within the window is blocked when only one prior replan exists (task 1198)', async () => {
+  await db.$executeRawUnsafe(
+    "INSERT INTO WorkflowTransition (taskId,fromStatus,toStatus,actor,cause) VALUES (1,'plan_approved','research_done','system','requirement_evidence_replan')",
+  );
+  expect(await commit()).toEqual({ committed: false, reason: 'budget_exhausted' });
+  expect(
+    await db.workflowTransition.count({ where: { cause: 'requirement_replan_budget_exhausted' } }),
+  ).toBe(1);
+  expect(await db.task.findUnique({ where: { id: 1 }, select: { status: true } })).toEqual({
+    status: 'blocked',
   });
 });
 
