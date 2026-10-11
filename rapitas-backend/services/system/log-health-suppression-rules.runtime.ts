@@ -285,4 +285,21 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
     because:
       'installは成功済みで、ビルドスクリプト承認は生成プロジェクトのonlyBuiltDependencies側の責務(rapitasでは解消不能) — install失敗/fingerprint記録失敗は別文言で可視のまま',
   },
+  {
+    // ログ出力箇所: services/workflow/workflow-queue.ts:140 の log.warn
+    // （dequeue の候補ループ内 catch）。例外の発生元は
+    // queue-dequeue-candidate.ts:171 の Serializable $transaction で、SQLite の
+    // P1008（Socket timeout）が負荷ピークで一過性に出たもの。catch は WARN を出して
+    // continue し、トランザクションは findUnique と update のみで失敗時は未コミット
+    // のため項目は queued のまま残り、次回 processQueue のポーリング
+    // （workflow-runner.ts:179）で再評価される。既知の DB 負荷源
+    // （worktree-cleanup.ts:167-179 の連続拒否）はバックオフ導入済み（#1211、
+    // K-12454 は同一シグネチャ）。メッセージは err.message が msg より優先される
+    // （log-format-parser.ts:82）ため Prisma 文言になる。
+    // 同ロガーの 'Transaction already closed'（K-12452）は別文言のため抑制しない。
+    test: /^Socket timeout \(the database failed to respond to a query within the configured timeout— see http<path> for more details\)\.$/,
+    logger: /^workflow-queue$/i,
+    because:
+      'dequeueのSerializableトランザクションで出る一過性のP1008 — 失敗時は未コミットでqueuedのまま残り次回ポーリングで自己回復する。他ロガーのP1008(timelineEvent等)とTransaction already closedは別シグネチャで可視のまま',
+  },
 ];
