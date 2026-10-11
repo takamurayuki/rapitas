@@ -337,9 +337,9 @@ export const SUPPRESSIONS: Suppression[] = [
     // 保護ガード（未コミット作業の保全・.gitメタデータ欠落・保全を証明できない）が
     // 削除を拒否した結果で、防いだ側であり何も壊れていない。拒否時はDBの
     // worktreePathを残すため周期ごとに同一パスで再発する（task-997で13回、
-    // task-1015で7回 = #1029）。拒否の根本原因は worktree-remove.ts:68/73/79 が
-    // 別シグネチャ（「Preserving uncommitted work」等）で必ず記録するため、
-    // 本ルールで恒久的な滞留の可視性は失われない。
+    // task-1015で7回 = #1029）。拒否の根本原因は worktree-remove.ts:71/76/83 が
+    // 別シグネチャで必ず記録する。「Preserving uncommitted work」は #1210 で
+    // 抑制へ反転したが、git失敗・メタデータ欠落の文言は可視のまま残る。
     test: /\[cleanupOrphanedWorktrees\] removeWorktree refused for # session\(s\)/i,
     logger: /git-operations\/worktree-ops/i,
     because:
