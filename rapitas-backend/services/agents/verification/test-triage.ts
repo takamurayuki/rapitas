@@ -32,6 +32,35 @@ const BASELINE_INFRA_ATTEMPTS = 2;
 /** Pause between baseline infra attempts — a small wait for the git index lock to clear. */
 const DEFAULT_RETRY_DELAY_MS = 300;
 
+/** Why a baseline worktree could not be prepared (task 1172). */
+export type SetupFailureKind =
+  | 'worktree-add'
+  | 'bootstrap-error'
+  | 'script-exit'
+  | 'script-timeout';
+
+const FAILURE_REASON_MAX_CHARS = 500;
+/** Latest failure per baseline dir; consumed by the final WARN so the log names the cause. */
+const setupFailures = new Map<string, { kind: SetupFailureKind; reason: string }>();
+
+function recordSetupFailure(dir: string, kind: SetupFailureKind, text: string): void {
+  setupFailures.set(dir, { kind, reason: text.trim().slice(-FAILURE_REASON_MAX_CHARS) });
+}
+
+/**
+ * Returns and clears the last recorded setup failure for a baseline dir.
+ *
+ * @param dir - Baseline worktree path / ベースライン worktree のパス
+ * @returns The failure, or undefined when none was recorded / 記録された失敗
+ */
+export function takeSetupFailure(
+  dir: string,
+): { kind: SetupFailureKind; reason: string } | undefined {
+  const failure = setupFailures.get(dir);
+  setupFailures.delete(dir);
+  return failure;
+}
+
 interface CmdResult {
   code: number;
   stdout: string;
@@ -137,6 +166,7 @@ async function defaultCreateWorktree(
   );
   if (res.code !== 0) {
     log.warn({ err: res.stderr }, 'test-triage: git worktree add failed');
+    recordSetupFailure(baselineDir, 'worktree-add', res.stderr);
   }
   return res.code === 0;
 }
@@ -167,12 +197,23 @@ export async function defaultSetupWorktree(
       return true;
     } catch (err) {
       log.warn({ err, baselineDir }, 'test-triage: project bootstrap failed in baseline');
+      recordSetupFailure(
+        baselineDir,
+        'bootstrap-error',
+        err instanceof Error ? err.message : String(err),
+      );
       return false;
     }
   }
   const res = await runTriageCmd(`node "${setupScript}"`, baselineDir, 120_000);
   if (res.code !== 0) {
     log.warn({ err: res.stderr }, 'test-triage: setup-worktree.cjs failed in baseline');
+    // runTriageCmd reports a timeout as exit 124
+    recordSetupFailure(
+      baselineDir,
+      res.code === 124 ? 'script-timeout' : 'script-exit',
+      res.stderr,
+    );
   }
   return res.code === 0;
 }
@@ -270,7 +311,7 @@ export async function triageTestFailures(
       if (baselineCreated) break;
       if (attempt >= BASELINE_INFRA_ATTEMPTS) {
         log.warn(
-          { baselineDir, attempts: attempt },
+          { baselineDir, attempts: attempt, ...takeSetupFailure(baselineDir) },
           'test-triage: baseline worktree creation failed after retries, triage indeterminate',
         );
         return null;
@@ -301,7 +342,7 @@ export async function triageTestFailures(
       }
       if (attempt >= BASELINE_INFRA_ATTEMPTS) {
         log.warn(
-          { baselineDir, attempts: attempt },
+          { baselineDir, attempts: attempt, ...takeSetupFailure(baselineDir) },
           'test-triage: baseline setup failed after retries, triage indeterminate',
         );
         return null;
@@ -335,6 +376,7 @@ export async function triageTestFailures(
     log.warn({ err }, 'test-triage: unexpected error during triage, triage indeterminate');
     return null;
   } finally {
+    setupFailures.delete(baselineDir);
     if (baselineCreated) {
       // NOTE: deleteBranch=false — detached HEAD has no branch to delete.
       await removeWt(mainRepoRoot, baselineDir, false).catch((err: unknown) =>

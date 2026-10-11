@@ -122,22 +122,79 @@ async function runInstall(dir: string): Promise<string> {
   return command;
 }
 
+/** Max time a caller waits for another worktree's in-flight install of the same root. */
+const INSTALL_WAIT_TIMEOUT_MS = INSTALL_TIMEOUT_MS + 60_000;
+
+/**
+ * Installs in flight per project root. Concurrent worktrees of one project (agent
+ * + baseline triage) used to run the same package-manager install in the same
+ * directory at once and corrupt each other's node_modules (task 1172).
+ */
+const rootInstallsInFlight = new Map<string, Promise<unknown>>();
+
+/** Injectable pieces of {@link ensureRootInstall}; tests avoid a real package manager. */
+export interface EnsureRootInstallOpts {
+  install?: (dir: string) => Promise<string>;
+  waitTimeoutMs?: number;
+}
+
 /**
  * Install at the project root if its manifests changed or nothing is installed.
+ * Calls for the same root are serialized: later callers wait (bounded) for the
+ * in-flight install, then re-check and usually find nothing left to do.
  *
+ * @param root - Project root / プロジェクトルート
+ * @param manifests - Manifests whose fingerprint decides reinstall / マニフェスト一覧
+ * @param opts - Injectable install and wait bound / テスト用の注入
  * @returns The command run, or null when the install was not needed / 実行したコマンド
  */
-async function ensureRootInstall(root: string, manifests: string[]): Promise<string | null> {
+export async function ensureRootInstall(
+  root: string,
+  manifests: string[],
+  opts: EnsureRootInstallOpts = {},
+): Promise<string | null> {
+  const install = opts.install ?? runInstall;
+  const deadline = Date.now() + (opts.waitTimeoutMs ?? INSTALL_WAIT_TIMEOUT_MS);
+
+  for (;;) {
+    const inflight = rootInstallsInFlight.get(root);
+    if (!inflight) break;
+    const remaining = deadline - Date.now();
+    // NOTE: Past the deadline we install anyway rather than hang the gate forever.
+    if (remaining <= 0) break;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      inflight.then(
+        () => undefined,
+        () => undefined, // the owner reports its own failure; we re-check and may retry
+      ),
+      new Promise<void>((r) => {
+        timer = setTimeout(r, remaining);
+      }),
+    ]);
+    clearTimeout(timer);
+  }
+
   const wanted = fingerprintManifests(root, manifests);
   if (wanted === recordedFingerprint(root) && holdsRealInstall(root)) return null;
-  const command = await runInstall(root);
+
+  const run = (async () => {
+    const command = await install(root);
+    try {
+      writeFileSync(join(root, FINGERPRINT_FILE), wanted, 'utf8');
+    } catch (err) {
+      // Non-fatal, but worth knowing: the next launch would reinstall.
+      logger.warn({ err, root }, '[projectBootstrap] Could not record the install fingerprint');
+    }
+    return command;
+  })();
+  // Registered synchronously after the check above, so no other caller can slip in between.
+  rootInstallsInFlight.set(root, run);
   try {
-    writeFileSync(join(root, FINGERPRINT_FILE), wanted, 'utf8');
-  } catch (err) {
-    // Non-fatal, but worth knowing: the next launch would reinstall.
-    logger.warn({ err, root }, '[projectBootstrap] Could not record the install fingerprint');
+    return await run;
+  } finally {
+    if (rootInstallsInFlight.get(root) === run) rootInstallsInFlight.delete(root);
   }
-  return command;
 }
 
 /**
