@@ -19,13 +19,25 @@ export interface RequirementTaskSpec {
   acceptanceCriteria: string[];
 }
 
-/** `[F-01]`, tolerating full-width brackets and surrounding spaces. */
-const FEATURE_BULLET = /^\s*[-*]\s*[[［]\s*(F-\d+)\s*[\]］]\s*(.*)$/;
+/**
+ * `[F-01]`, tolerating full-width brackets and surrounding spaces.
+ *
+ * NOTE: Exported so spec-consistency.ts checks the SAME shape this parser
+ * accepts. A second copy would let the checker pass a document the filer then
+ * reads differently.
+ */
+export const FEATURE_BULLET = /^\s*[-*]\s*[[［]\s*(F-\d+)\s*[\]］]\s*(.*)$/;
 /** A top-level section heading. */
 const HEADING = /^#\s*(.+?)\s*$/;
 
-/** The lines belonging to a `# <name>` section, excluding the heading itself. */
-function sectionLines(markdown: string, name: string): string[] {
+/**
+ * The lines belonging to a `# <name>` section, excluding the heading itself.
+ *
+ * @param markdown - Document to read / 対象の文書
+ * @param name - Exact heading text, without the `#` / `#` を除いた見出し文字列
+ * @returns The section's lines, or [] when the heading is absent / 見出しが無ければ []
+ */
+export function sectionLines(markdown: string, name: string): string[] {
   const lines = markdown.split(/\r?\n/);
   const start = lines.findIndex((l) => {
     const m = l.match(HEADING);
