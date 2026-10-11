@@ -212,6 +212,14 @@ export interface StagnationInput {
    * mirrors the other optional gates' fail-open convention.
    */
   blockedRetryPipelineArmed?: boolean | null;
+  /**
+   * True when `Task.haltReason` is set or the operator opted the task out of
+   * auto-run (`Task.autoRunExcluded`) — the selector never picks such a task, so
+   * its absence of execution/queue is deliberate. Mirrors TriStateDesyncInput.
+   * `null`/`undefined` leaves the task subject to detection (fail-open).
+   */
+  taskHalted?: boolean | null;
+  autoRunExcluded?: boolean | null;
   nowMs: number;
   thresholdMs?: number;
 }
@@ -257,6 +265,10 @@ export function detectStagnation(input: StagnationInput): { staleMs: number } | 
   // operator has already decided not to resume this task; repeating the
   // same finding every watch pass forever is noise, not signal.
   if (input.manuallyWithdrawn) return null;
+  // NOTE: halted / auto-run-excluded tasks are never selected by the auto-run
+  // selector, so "no execution, no queue" is the intended state, not stagnation
+  // (symmetric with detectTriStateDesync's gates).
+  if (input.taskHalted || input.autoRunExcluded) return null;
   // NOTE: blocked tasks are re-notified every 4h but the stagnation threshold is 30min, so
   // a notified blocked hold re-tripped detection 30min after every notice (#980).
   if (input.taskStatus === 'blocked' && input.blockedEscalationRecent) return null;
