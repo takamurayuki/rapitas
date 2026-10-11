@@ -6,7 +6,8 @@
  * components remain free of fetch logic.
  */
 
-import type { AppAnswers, AppProposal, DynamicItem } from '../_types/types';
+import type { AppAnswers, AppProposal, DynamicItem, ProjectContext } from '../_types/types';
+import type { ReviewSpecResult } from '../../api/review-spec/review-prompt';
 
 /**
  * Resolves human-readable labels for all wizard answers using the i18n function.
@@ -99,13 +100,27 @@ export async function generateClaudeMd(
   proposal: AppProposal,
   dynSubs?: DynamicItem[],
   dynElems?: DynamicItem[],
+  /** Elicited project facts; blank fields are sent as 未確認. / ヒアリング結果 */
+  context?: ProjectContext,
+  /** Answers to a previous review round, when regenerating. / 壁打ちの回答 */
+  reviewAnswers?: string,
 ) {
   const { genre, subs, elems, plat, scale, prio } = resolveLabels(t, answers, dynSubs, dynElems);
 
   const response = await fetch('/api/generate-claude-md', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ genre, subs, elems, plat, scale, prio, proposal }),
+    body: JSON.stringify({
+      genre,
+      subs,
+      elems,
+      plat,
+      scale,
+      prio,
+      proposal,
+      context,
+      reviewAnswers,
+    }),
   });
 
   if (!response.ok) {
@@ -119,4 +134,32 @@ export async function generateClaudeMd(
     throw new Error(t('claudeMdGenerateFailed'));
   }
   return data;
+}
+
+/**
+ * Review a generated package: mechanical findings plus the decisions the model
+ * made on its own authority.
+ *
+ * @param docs - The generated documents / 生成された文書
+ * @returns Findings and questions / 指摘と質問
+ * @throws {Error} When the review route itself fails / レビュー経路が失敗した場合
+ */
+export async function reviewSpec(docs: {
+  requirements?: string;
+  design?: string;
+  adr?: string;
+}): Promise<ReviewSpecResult> {
+  const response = await fetch('/api/review-spec', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      requirements: docs.requirements,
+      design: docs.design,
+      adr: docs.adr,
+    }),
+  });
+  if (!response.ok) throw new Error('review failed');
+  const data = await response.json();
+  if (data.error) throw new Error('review failed');
+  return data as ReviewSpecResult;
 }

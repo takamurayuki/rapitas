@@ -82,5 +82,6 @@ describe('primary checkout guidance wiring (task 1116)', () => {
     expect(texts.implementer.constraints).toContain('git -C <primary>');
     expect(texts.implementer.constraints).toContain('git branch --show-current');
     expect(texts.verifier.instruction).toContain('git -C <primary>');
+    expect(texts.implementer.constraints).toContain('PID');
   });
 });

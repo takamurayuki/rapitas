@@ -28,6 +28,25 @@ describe('PRIMARY_CHECKOUT_GUIDANCE', () => {
   );
 });
 
+describe('PRIMARY_CHECKOUT_GUIDANCE process lifecycle (task 1171)', () => {
+  test.each([
+    ['ja', '自力で終了させず', '最終報告'],
+    ['en', 'terminate', 'final report'],
+  ] as const)('%s tells agents to record started processes instead of killing', (lang, a, b) => {
+    const text = PRIMARY_CHECKOUT_GUIDANCE[lang];
+    expect(text).toContain(a);
+    expect(text).toContain(b);
+    expect(text).toContain('PID');
+    expect(text).not.toContain('verify.md');
+  });
+
+  test.each(['ja', 'en'] as const)('%s reaches the implementer constraints', (lang) => {
+    const t = buildRoleTexts(1, { title: 't', description: null }, lang);
+    expect(t.implementer.constraints).toContain('PID');
+    expect(t.implementer.constraints).toContain(lang === 'ja' ? '自力で終了させず' : 'terminate');
+  });
+});
+
 describe('PRIMARY_CHECKOUT_GUIDANCE wiring (task 1132)', () => {
   test.each(['ja', 'en'] as const)('%s tells agents their cwd is already the worktree', (lang) => {
     const text = PRIMARY_CHECKOUT_GUIDANCE[lang];
@@ -42,5 +61,18 @@ describe('PRIMARY_CHECKOUT_GUIDANCE wiring (task 1132)', () => {
     expect(t.planner.instruction).toContain(g);
     expect(t.implementer.constraints).toContain(g);
     expect(t.verifier.instruction).toContain(g);
+  });
+});
+
+describe('PRIMARY_CHECKOUT_GUIDANCE fallback-chain ban (task 1200)', () => {
+  test.each([
+    ['ja', '失敗時に worktree へ', '2>/dev/null'],
+    ['en', 'falls back to your worktree', '2>/dev/null'],
+  ] as const)('%s forbids the try-primary-then-worktree chain', (lang, a, b) => {
+    const text = PRIMARY_CHECKOUT_GUIDANCE[lang];
+    expect(text).toContain(a);
+    expect(text).toContain(b);
+    expect(text).toContain('<worktree>');
+    expect(text).not.toContain('C:/Projects');
   });
 });

@@ -66,7 +66,7 @@ export function ElementsPhase({
       title={t('elementsTitle')}
       sub={t('elementsSub')}
       step={3}
-      total={5}
+      total={6}
       onBack={onBack}
       onNext={onNext}
       nextLabel={t('next')}

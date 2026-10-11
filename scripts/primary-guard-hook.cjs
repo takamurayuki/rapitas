@@ -492,14 +492,14 @@ function decision(input, ctx) {
   if (!kind) return undefined;
   const reasons = {
     primary_mutation:
-      'Command rejected: it modifies the primary checkout. Work only inside your task worktree; run tests/git there and never cd to the primary repository. To read another task or branch (including a sibling worktree under .worktrees), do not cd there: use `git show origin/<branch>:<path>` or `git grep <pattern> origin/<branch>` from your worktree (run `git fetch origin <branch>` first if the ref is missing).' +
+      'Command rejected: it modifies the primary checkout. Work only inside your task worktree; run tests/git there and never cd to the primary repository. To read another task or branch (including a sibling worktree under .worktrees), do not cd there: use `git show origin/<branch>:<path>` or `git grep <pattern> origin/<branch>` from your worktree (run `git fetch origin <branch>` first if the ref is missing). A chain that tries the primary first and falls back to your worktree on failure (`cd <primary> 2>/dev/null; cd <worktree>`) is rejected too: skip the primary attempt and run from your cwd with relative paths.' +
       worktreeHint(ctx?.cwd ?? input.cwd, primaryRoot),
     primary_readonly:
       'Command rejected: never cd into the primary checkout, even to inspect it. Read-only git inspection is allowed without entering it (e.g. `git -C <primary-checkout-path> status`); everything else belongs in your task worktree.',
     prisma:
       'Command rejected: prisma generate/db push/db:prepare must not be run by agents (dev.js does it on startup; running it rewrites shared generated files and can kill the backend).',
     process_kill:
-      "Command rejected: never stop/kill processes (Stop-Process/taskkill/pkill). The backend on port 3001 is the agent's own connection.",
+      "Command rejected: never stop/kill processes (Stop-Process/taskkill/pkill). The backend on port 3001 is the agent's own connection. Do not stop a process you started yourself either; record its PID, command, and start reason in your final report (reflected into verify).",
     // NOTE: must not read as "give up and file a concern" — that is what task
     // 1153 did, bouncing verify forever. node_modules being link-shared means
     // the dependencies are ALREADY resolvable here, so the install is

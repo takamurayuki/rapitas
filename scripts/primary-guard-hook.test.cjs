@@ -86,6 +86,8 @@ test('classify reports the incident kind', () => {
   assert.equal(classify('bunx prisma generate', ctx), 'prisma');
   assert.equal(classify('taskkill /F /IM bun.exe', ctx), 'process_kill');
   assert.equal(classify('git status', ctx), null);
+  const reason = decision({ tool_name: 'Bash', tool_input: { command: 'taskkill /F /IM bun.exe' } }, ctx).hookSpecificOutput.permissionDecisionReason;
+  for (const w of ['started yourself', 'PID', 'final report']) assert.ok(reason.includes(w), w);
 });
 
 test('process-kill words inside quoted data arguments are allowed', () => {
@@ -416,8 +418,7 @@ test('write-bearing cd into <primary>/.worktrees stays primary_mutation and the 
   );
   assert.equal(r._kind, 'primary_mutation');
   const reason = r.hookSpecificOutput.permissionDecisionReason;
-  assert.match(reason, /git show origin\/<branch>:<path>/);
-  assert.match(reason, /git grep <pattern> origin\/<branch>/);
+  for (const re of [/git show origin\/<branch>:<path>/, /git grep <pattern> origin\/<branch>/, /falls back to your worktree/]) assert.match(reason, re);
 });
 
 // ---------------------------------------------------------------------------
