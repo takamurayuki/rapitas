@@ -49,6 +49,20 @@ describe('resolveWorktreeBaseDir', () => {
     expect(base.replace(/\\/g, '/')).toBe(foreign.replace(/\\/g, '/'));
   });
 
+  test('a backslash path and its forward-slash twin resolve identically', () => {
+    // Platform-independent statement of the rule above. Measured 2026-10-11:
+    // the assertion before this one passed on Windows and failed on Linux CI,
+    // because normalizePath converts backslashes only AFTER resolve() and POSIX
+    // resolve() treats `\` as a filename character — the Windows path arrived as
+    // one relative segment prefixed with the cwd. Worktree paths are read from
+    // the database, so their spelling does not follow the running platform.
+    const slashes = resolveWorktreeBaseDir(foreignWt, [rapitas]);
+    const backslashes = resolveWorktreeBaseDir(foreignWt.replace(/\//g, '\\'), [rapitas]);
+    expect(backslashes.replace(/\\/g, '/')).toBe(slashes.replace(/\\/g, '/'));
+    // And it is the owning repo, not the caller's fallback.
+    expect(slashes.replace(/\\/g, '/')).not.toBe(rapitas.replace(/\\/g, '/'));
+  });
+
   test('falls back to the first usable candidate when path has ..', () => {
     const wt = `${foreign}/.worktrees/x/../task-1152-f2fc9924`;
     expect(resolveWorktreeBaseDir(wt, [rapitas])).toBe(rapitas);
