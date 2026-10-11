@@ -14,6 +14,7 @@
 import { ACTIVE_EXEC } from './workflow-reconciler-requeue';
 import { BLOCKED_REESCALATION_INTERVAL_MS } from './blocked-task-policy';
 import { TERMINAL_TASK_STATUSES } from './incident-signature-unanswered-question';
+import { isPlanHoldAwaitingHuman } from './plan-hold-exclusion';
 export {
   detectRepeatLoop,
   isRepairBounceCause,
@@ -220,6 +221,9 @@ export interface StagnationInput {
    */
   taskHalted?: boolean | null;
   autoRunExcluded?: boolean | null;
+  /** Newest transition cause + newest plan-hold time (#1205); unresolved = fail-open. */
+  latestTransitionCause?: string | null;
+  latestPlanHoldAtMs?: number | null;
   nowMs: number;
   thresholdMs?: number;
 }
@@ -301,6 +305,8 @@ export function detectStagnation(input: StagnationInput): { staleMs: number } | 
   if (input.hasLiveExecution || input.hasActiveQueueItem) return null;
   const staleMs = input.nowMs - input.lastActivityAtMs;
   if (staleMs < (input.thresholdMs ?? STAGNATION_THRESHOLD_MS)) return null;
+  // Fresh forbidden-change plan hold = a human-override wait, already notified (#1205).
+  if (isPlanHoldAwaitingHuman(input)) return null;
   return { staleMs };
 }
 

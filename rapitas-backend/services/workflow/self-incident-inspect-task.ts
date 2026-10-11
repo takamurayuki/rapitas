@@ -101,6 +101,8 @@ export async function inspectTask(
     blockedRetryPipelineArmed,
     taskHalted: task.haltReason != null,
     autoRunExcluded: task.autoRunExcluded === true,
+    latestTransitionCause: state.latestTransitionCause,
+    latestPlanHoldAtMs: state.latestPlanHoldAtMs,
     nowMs,
   });
   if (stagnation) {
