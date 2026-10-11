@@ -10,11 +10,21 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import {
   runRequirementIntakeJob,
-  readRequirementsFile,
   MAX_FILES_PER_THEME_RUN,
+  MAX_UNSTARTED_PER_THEME,
   type RequirementIntakeDeps,
   type IntakeTheme,
 } from './requirement-intake-job';
+import { readRequirementsFile } from './requirements-document-reader';
+
+/** More features than either cap, for the throttling tests. */
+const MANY_FEATURES = [
+  '# 機能要件',
+  ...Array.from({ length: MAX_FILES_PER_THEME_RUN + 5 }, (_, i) => {
+    const n = String(i + 1).padStart(2, '0');
+    return `- [F-${n}] 機能${n}\n  出力: x`;
+  }),
+].join('\n');
 
 const DOC = [
   '# 機能要件',
@@ -34,19 +44,26 @@ function makeDeps(opts: {
   docs?: Record<string, string | null>;
   existing?: Record<number, string[]>;
   failTitles?: string[];
+  /** Un-started tasks the theme already holds; defaults to none. / 未着手件数 */
+  unstarted?: Record<number, number>;
 }) {
   const created: Array<{ title: string; themeId: number }> = [];
+  const branches: Array<string | null | undefined> = [];
   const deps: RequirementIntakeDeps = {
     listThemes: async () => opts.themes,
-    readRequirements: async (dir) => opts.docs?.[dir] ?? null,
+    readRequirements: async (dir, branch) => {
+      branches.push(branch);
+      return opts.docs?.[dir] ?? null;
+    },
     listExistingTitles: async (themeId) => opts.existing?.[themeId] ?? [],
+    countUnstartedTasks: async (themeId) => opts.unstarted?.[themeId] ?? 0,
     createTask: async (payload) => {
       if (opts.failTitles?.includes(payload.title)) throw new Error('boom');
       created.push({ title: payload.title, themeId: payload.themeId });
       return true;
     },
   };
-  return { deps, created };
+  return { deps, created, branches };
 }
 
 describe('runRequirementIntakeJob', () => {
@@ -119,16 +136,16 @@ describe('runRequirementIntakeJob', () => {
     expect(created.every((c) => c.themeId === 2)).toBe(true);
   });
 
-  it('caps filings per theme per run', async () => {
-    const many = Array.from({ length: MAX_FILES_PER_THEME_RUN + 5 }, (_, i) => {
-      const n = String(i + 1).padStart(2, '0');
-      return `- [F-${n}] 機能${n}\n  出力: x`;
-    });
+  it('files at most the outstanding cap even from a long document', async () => {
+    // MAX_FILES_PER_THEME_RUN remains the hard ceiling, but the outstanding cap
+    // is smaller and therefore the one that binds. A document with far more
+    // features than either must still leave the shared slot usable.
     const { deps } = makeDeps({
       themes: [{ id: 1, workingDirectory: '/proj' }],
-      docs: { '/proj': ['# 機能要件', ...many].join('\n') },
+      docs: { '/proj': MANY_FEATURES },
     });
-    expect(await runRequirementIntakeJob(deps)).toBe(MAX_FILES_PER_THEME_RUN);
+    expect(MAX_UNSTARTED_PER_THEME).toBeLessThan(MAX_FILES_PER_THEME_RUN);
+    expect(await runRequirementIntakeJob(deps)).toBe(MAX_UNSTARTED_PER_THEME);
   });
 
   it('carries acceptance criteria and out-of-scope constraints from the shared payload builder', async () => {
@@ -187,6 +204,52 @@ describe('runRequirementIntakeJob', () => {
     await runRequirementIntakeJob(deps);
     expect(created.map((c) => c.title)).toEqual(['[F-01] ログイン', '[F-02] 一覧表示']);
     expect(created.some((c) => c.title.startsWith('[DOC]'))).toBe(false);
+  });
+
+  // The auto-run slot limit is ONE and shared across themes, so filing a whole
+  // feature list at once starves every other project — with lastError and
+  // haltReason both null, so nothing looks wrong. Measured 2026-10-11:
+  // TempoRaid's 12 filed features held the only slot for about four hours.
+  it('files only up to the outstanding cap, deferring the rest', async () => {
+    const { deps, created } = makeDeps({
+      themes: [{ id: 7, workingDirectory: '/p' }],
+      docs: { '/p': MANY_FEATURES },
+      unstarted: { 7: 0 },
+    });
+    const filed = await runRequirementIntakeJob(deps);
+    expect(filed).toBe(MAX_UNSTARTED_PER_THEME);
+    expect(created).toHaveLength(MAX_UNSTARTED_PER_THEME);
+  });
+
+  it('files nothing while the theme is already at the cap', async () => {
+    const { deps, created } = makeDeps({
+      themes: [{ id: 7, workingDirectory: '/p' }],
+      docs: { '/p': MANY_FEATURES },
+      unstarted: { 7: MAX_UNSTARTED_PER_THEME },
+    });
+    expect(await runRequirementIntakeJob(deps)).toBe(0);
+    expect(created).toHaveLength(0);
+  });
+
+  it('files only the headroom when the theme is partly occupied', async () => {
+    const { deps, created } = makeDeps({
+      themes: [{ id: 7, workingDirectory: '/p' }],
+      docs: { '/p': MANY_FEATURES },
+      unstarted: { 7: MAX_UNSTARTED_PER_THEME - 1 },
+    });
+    expect(await runRequirementIntakeJob(deps)).toBe(1);
+    expect(created).toHaveLength(1);
+  });
+
+  it('passes the theme’s authoritative branch to the reader', async () => {
+    // Reading the working tree is the trap: measured 2026-10-11, rapitas's own
+    // checkout sat seven commits behind origin and temporaid's three.
+    const { deps, branches } = makeDeps({
+      themes: [{ id: 7, workingDirectory: '/p', defaultBranch: 'develop' }],
+      docs: { '/p': DOC },
+    });
+    await runRequirementIntakeJob(deps);
+    expect(branches).toEqual(['develop']);
   });
 
   it('a drift-filing failure does not lose the feature tasks', async () => {
