@@ -68,6 +68,15 @@ export function resetCwdMismatchFiledForTest(): void {
 }
 
 /**
+ * A cwd mismatch is only filed while the offending execution is this fresh.
+ * NOTE: The idempotency Set above dies with the process, so every restart used to
+ * re-file each stale (#1168-class) task once more; the evidence is the latest
+ * execution, whose age is durable DB state. A run older than this was already
+ * observed by earlier ticks (or is no longer actionable) and must not re-file.
+ */
+const CWD_MISMATCH_FRESH_WINDOW_MS = 60 * 60_000;
+
+/**
  * Kill switch for the whole supervisor-signature pass (extra DB load escape
  * hatch). Any value except '' / '0' / 'false' disables it.
  */
@@ -105,9 +114,12 @@ export async function inspectSupervisorSignatures(args: {
     taskWorkingDirectory: ev.taskWorkingDirectory,
   });
   // Key includes cwd + theme dir so a genuinely different recurrence is still filed.
-  const cwdKey = mismatch
-    ? `${task.id}|${normalizePath(mismatch.cwd)}|${normalizePath(mismatch.themeDir)}`
-    : null;
+  const cwdStale =
+    ev.executionAtMs !== null && nowMs - ev.executionAtMs > CWD_MISMATCH_FRESH_WINDOW_MS;
+  const cwdKey =
+    mismatch && !cwdStale
+      ? `${task.id}|${normalizePath(mismatch.cwd)}|${normalizePath(mismatch.themeDir)}`
+      : null;
   if (mismatch && cwdKey !== null && !cwdMismatchFiledKeys.has(cwdKey)) {
     const ok = await file({
       signature: 'supervisor-cwd-mismatch',

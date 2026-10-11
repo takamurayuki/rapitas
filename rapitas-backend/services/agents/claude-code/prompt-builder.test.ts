@@ -29,3 +29,22 @@ describe('workflow upload transport isolation', () => {
     });
   }
 });
+
+describe('Working Directory primary note (task 1200)', () => {
+  const PRIMARY = 'C:/repo/primary';
+  const task: AgentTask = { id: 1200, title: 't' };
+
+  test('adds the worktree-first note when workDir is the primary checkout', () => {
+    for (const t of [task, { ...task, optimizedPrompt: 'do it' }]) {
+      const prompt = buildStructuredPrompt(t, 'C:\\repo\\primary\\', '[test]', PRIMARY);
+      expect(prompt).toContain('primary checkout');
+      expect(prompt).toContain('never `cd` to it');
+    }
+  });
+
+  test('leaves the output unchanged for a task worktree', () => {
+    const wt = `${PRIMARY}/.worktrees/task-1200-abc`;
+    const prompt = buildStructuredPrompt(task, wt, '[test]', PRIMARY);
+    expect(prompt).not.toContain('never `cd` to it');
+  });
+});

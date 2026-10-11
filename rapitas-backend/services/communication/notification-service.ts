@@ -31,6 +31,7 @@ export type NotificationType =
   | 'consolidation_completed'
   | 'daily_report'
   | 'knowledge_extracted'
+  | 'worker_health_deviation'
   | 'system';
 
 interface CreateNotificationParams {

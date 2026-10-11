@@ -247,6 +247,7 @@ export const LUCIDE_USED_ICONS = [
   'Globe2',
   'Goal',
   'GraduationCap',
+  'Grid3x3',
   'Grip',
   'GripVertical',
   'Hammer',

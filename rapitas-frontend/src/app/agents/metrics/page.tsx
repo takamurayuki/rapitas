@@ -13,6 +13,9 @@ import { MetricsTable } from './_components/MetricsTable';
 import { RepairConvergenceCard } from './_components/RepairConvergenceCard';
 import { UtilizationChartCard } from './_components/UtilizationChartCard';
 import { JudgeEvalCard } from './_components/JudgeEvalCard';
+import { WorkerHealthCard } from './_components/WorkerHealthCard';
+import { useWorkerHealth } from './_hooks/useWorkerHealth';
+import { useWorkerHealthFocus } from './_hooks/useWorkerHealthFocus';
 import {
   SelfObservationWidget,
   CostOptimizationWidget,
@@ -40,6 +43,11 @@ function AgentMetricsPage() {
     exportData,
     refetch,
   } = useMetricsData();
+
+  const workerHealth = useWorkerHealth();
+  const { selectedMetric, setSelectedMetric } = useWorkerHealthFocus(
+    !loading && workerHealth.status !== 'loading',
+  );
 
   if (loading) {
     return <LoadingSpinner />;
@@ -100,6 +108,15 @@ function AgentMetricsPage() {
         <RepairConvergenceCard />
 
         <JudgeEvalCard />
+
+        {/* Worker-health anomaly screen: composite deviation from the same-hour
+            4-week baseline. Alerts deep-link here via ?panel=worker-health. */}
+        <WorkerHealthCard
+          data={workerHealth.data}
+          status={workerHealth.status}
+          selectedMetric={selectedMetric}
+          onSelectMetric={setSelectedMetric}
+        />
 
         {/* Utilization (busy-ratio) time series — union of execution intervals
             per UTC day / day length, per role and per CLI agent. */}

@@ -418,8 +418,7 @@ test('write-bearing cd into <primary>/.worktrees stays primary_mutation and the 
   );
   assert.equal(r._kind, 'primary_mutation');
   const reason = r.hookSpecificOutput.permissionDecisionReason;
-  assert.match(reason, /git show origin\/<branch>:<path>/);
-  assert.match(reason, /git grep <pattern> origin\/<branch>/);
+  for (const re of [/git show origin\/<branch>:<path>/, /git grep <pattern> origin\/<branch>/, /falls back to your worktree/]) assert.match(reason, re);
 });
 
 // ---------------------------------------------------------------------------

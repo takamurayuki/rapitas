@@ -63,3 +63,16 @@ describe('PRIMARY_CHECKOUT_GUIDANCE wiring (task 1132)', () => {
     expect(t.verifier.instruction).toContain(g);
   });
 });
+
+describe('PRIMARY_CHECKOUT_GUIDANCE fallback-chain ban (task 1200)', () => {
+  test.each([
+    ['ja', '失敗時に worktree へ', '2>/dev/null'],
+    ['en', 'falls back to your worktree', '2>/dev/null'],
+  ] as const)('%s forbids the try-primary-then-worktree chain', (lang, a, b) => {
+    const text = PRIMARY_CHECKOUT_GUIDANCE[lang];
+    expect(text).toContain(a);
+    expect(text).toContain(b);
+    expect(text).toContain('<worktree>');
+    expect(text).not.toContain('C:/Projects');
+  });
+});

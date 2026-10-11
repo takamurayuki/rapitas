@@ -2342,7 +2342,24 @@
       "drilldownState": "State",
       "drilldownRepairCount": "Repair count",
       "drilldownElapsed": "Elapsed"
-    }
+    },
+    "workerHealthTitle": "Worker health deviation screen",
+    "workerHealthDescription": "First-pass screen: execution completions, timeout rate, retry rate and worker restarts, each normalized as deviation from the median/MAD of the same weekday and hour over the last 4 weeks, combined into one composite score. Confirm causes in the per-metric panels below.",
+    "workerHealthLoading": "Loading…",
+    "workerHealthError": "Failed to load worker health data",
+    "workerHealthEmpty": "No data to display",
+    "workerHealthPending": "Pending: fewer than 4 weeks of same-weekday/same-hour history, so the composite score cannot be computed yet (restart counts accumulate from when recording started).",
+    "workerHealthPendingShort": "pending",
+    "workerHealthDeviation": "A deviation from baseline is being detected. Check the per-metric panels below for evidence.",
+    "workerHealthWeights": "Metric weights",
+    "workerHealthWeightShort": "weight {weight}",
+    "workerHealthComposite": "Composite score",
+    "workerHealthRaw": "Actual",
+    "workerHealthBaselineNote": "Baseline: median and MAD of the same weekday and hour over the last 4 weeks. Only deterioration is weighted; alerts fire on 3 consecutive points at or above 1.5, or on a collapse of the daily rhythm (autocorrelation).",
+    "workerHealthMetric_completions": "Completions",
+    "workerHealthMetric_timeoutRate": "Timeout rate",
+    "workerHealthMetric_retryRate": "Retry rate",
+    "workerHealthMetric_restarts": "Worker restarts"
   },
   "github": {
     "title": "GitHub Integration",
@@ -3447,6 +3464,10 @@
       "auto_run_queue_stalled": {
         "title": "Auto-run: the queue is not draining (needs a look)",
         "message": "0 running tasks while the queue sat unconsumed for about {waitedMinutes} min{taskRef}. The workflow runner is already alive, so it cannot be auto-restarted — this may need investigation (e.g. an overlap-guard hold outliving its own ceiling)."
+      },
+      "worker_health_deviation": {
+        "title": "Worker health: deviation from baseline detected",
+        "message": "Detected: {reason}. Main contributing metric: {metric} (composite score {score}). Check the per-metric panels for evidence."
       }
     }
   },

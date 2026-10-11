@@ -12,6 +12,7 @@ import { createLogger } from '../../../config/logger';
 import { registerProcess, unregisterProcess } from '../agent-process-tracker';
 import { rejectAllPendingRequests, sendIPCRequest, type PendingRequest } from './ipc';
 import { handleWorkerMessage } from './event-bridge';
+import { recordWorkerRestartSafely } from './worker-restart-log';
 
 const logger = createLogger('agent-worker-manager:lifecycle');
 
@@ -174,6 +175,7 @@ export async function handleWorkerCrash(state: WorkerState): Promise<void> {
   }
 
   logger.warn('[AgentWorkerManager] Worker crashed, attempting restart...');
+  recordWorkerRestartSafely(); // never throws; feeds the worker-health restart metric
   rejectAllPendingRequests(state.pendingRequests, new Error('Worker process crashed'));
 
   state.restartPromise = restartWorker(state);
