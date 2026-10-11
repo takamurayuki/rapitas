@@ -42,6 +42,13 @@ describe('classifyLogSignature', () => {
     expect(classifyLogSignature('execution-file-logger', unconfirmed).suppressed).toBe(false);
   });
 
+  test('task 1211: raw P1008 workflow-queue line is suppressed after normalization', () => {
+    const raw =
+      'Socket timeout (the database failed to respond to a query within the configured timeout— see https://pris.ly/d/sqlite-connector for more details).';
+    expect(classifyLogSignature('workflow-queue', normalizeMessage(raw)).suppressed).toBe(true);
+    expect(classifyLogSignature('memory:timeline', normalizeMessage(raw)).suppressed).toBe(false);
+  });
+
   test('a logger-scoped rule does not leak to other loggers', () => {
     // 'Already running' is routine for the workflow runner; elsewhere it may
     // be a real double-start, so the rule must not fire globally.

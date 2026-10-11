@@ -167,6 +167,10 @@ export const SUPPRESSED: [string, string][] = [
     'workflow-runner',
     '[WorkflowRunner] Task # cancelled — requeued: Workflow preparation cancelled: execution lock ownership was revoked',
   ],
+  [
+    'workflow-queue',
+    'Socket timeout (the database failed to respond to a query within the configured timeout— see http<path> for more details).',
+  ],
 ];
 
 export const KEPT: [string, string][] = [
@@ -241,4 +245,14 @@ export const KEPT: [string, string][] = [
   ],
   // Other WARNs from the same logger stay visible (task 1148).
   ['workflow-runner', '[WorkflowRunner] Phase failed for task #: Execution cancelled'],
+  // Task 1211: the same P1008 wording from another logger, and sibling WARNs
+  // from workflow-queue, must stay visible.
+  [
+    'memory:timeline',
+    'Socket timeout (the database failed to respond to a query within the configured timeout— see http<path> for more details).',
+  ],
+  [
+    'workflow-queue',
+    'Transaction API error: Transaction already closed: A commit cannot be executed on an expired transaction.',
+  ],
 ];
