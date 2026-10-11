@@ -297,6 +297,8 @@
     "prio_security_desc": "Finance, healthcare, PII",
     "createThemeSection": "Create Theme",
     "createTheme": "Create Theme",
+    "degradedAck": "I understand AI generation failed and this is a template scaffold. Every figure in the requirements and design documents is an assumption I must settle before implementation.",
+    "degradedBlocked": "Creating a project from the template scaffold would file implementation tasks against assumed values. Tick the box above, or start over.",
     "createThemeDescription": "Create a project folder and Git repository, add requirement and design documents (docs/) and instruction files for your chosen AI agent. Start development immediately tied to a theme.",
     "creatingTheme": "Creating theme...",
     "themeCreated": "Theme created",
