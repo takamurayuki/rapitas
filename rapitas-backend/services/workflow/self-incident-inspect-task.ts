@@ -99,6 +99,8 @@ export async function inspectTask(
     blockedEscalationRecent: isBlockedEscalationRecent(state.latestBlockedEscalationAtMs, nowMs),
     blockedEscalated,
     blockedRetryPipelineArmed,
+    taskHalted: task.haltReason != null,
+    autoRunExcluded: task.autoRunExcluded === true,
     nowMs,
   });
   if (stagnation) {
