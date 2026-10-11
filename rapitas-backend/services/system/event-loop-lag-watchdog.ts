@@ -44,16 +44,31 @@ const CUMULATIVE_WINDOW_MS = 120_000;
  */
 const CUMULATIVE_TRIGGER_MS = 30_000;
 
-/** Invoked at most once per watchdog run, when a stall crosses a self-heal threshold. */
-export type SelfHealAction = (reason: string) => void;
+/** A named synchronous section that was in flight when a stall was observed. */
+export interface ActiveSectionSnapshot {
+  name: string;
+  runningMs: number;
+}
+
+/**
+ * Invoked at most once per watchdog run, when a stall crosses a self-heal threshold.
+ * `sections` names the in-flight markEventLoopSection() sections so the restart
+ * record itself identifies the likely culprit.
+ */
+export type SelfHealAction = (reason: string, sections: ActiveSectionSnapshot[]) => void;
 
 /**
  * Dynamic import keeps shutdown-sequence.ts (and its Prisma/realtime-service
  * chain) out of this module's static graph — this file must stay importable
  * in isolation for the lag-detection unit tests, which never hit this path.
  */
-const defaultSelfHeal: SelfHealAction = (reason) => {
-  log.error({ reason }, '[event-loop-lag] Self-healing restart triggered');
+const defaultSelfHeal: SelfHealAction = (reason, sections) => {
+  // NOTE: message body stays fixed so normalizeMessage() keeps one signature; the
+  // culprit goes in a structured field (2026-09-25 / 10-08 restarts had no cause named).
+  log.error(
+    sections.length > 0 ? { reason, activeSections: sections } : { reason },
+    '[event-loop-lag] Self-healing restart triggered',
+  );
   import('./shutdown-sequence')
     .then(({ scheduleShutdownSequence }) => scheduleShutdownSequence('[event-loop-recovery]', 75))
     .catch((err) => log.error({ err }, '[event-loop-lag] Failed to trigger self-heal restart'));
@@ -127,13 +142,17 @@ export function startEventLoopLagWatchdog(selfHeal: SelfHealAction = defaultSelf
       if (!healingTriggered) {
         if (lagMs >= CATASTROPHIC_STALL_MS) {
           healingTriggered = true;
-          selfHeal(`single stall of ${lagMs}ms reached the ${CATASTROPHIC_STALL_MS}ms threshold`);
+          selfHeal(
+            `single stall of ${lagMs}ms reached the ${CATASTROPHIC_STALL_MS}ms threshold`,
+            sections,
+          );
         } else {
           const cumulativeMs = recentStalls.reduce((sum, stall) => sum + stall.lagMs, 0);
           if (cumulativeMs >= CUMULATIVE_TRIGGER_MS) {
             healingTriggered = true;
             selfHeal(
               `cumulative stall of ${cumulativeMs}ms within the last ${CUMULATIVE_WINDOW_MS}ms reached the ${CUMULATIVE_TRIGGER_MS}ms threshold`,
+              sections,
             );
           }
         }
