@@ -41,6 +41,7 @@ const {
   parseProcStatusRssKb,
   startResourceSampling,
   stopResourceSampling,
+  nextSampleDelayMs,
 } = await import('./process-resource-sampler');
 
 describe('parseTasklistCsvLine()', () => {
@@ -169,5 +170,51 @@ describe('start/stopResourceSampling() — プロセス消滅後・未対応プ�
     } finally {
       execOverride = null;
     }
+  });
+});
+
+describe('nextSampleDelayMs — Windows のサンプリング頻度 (2026-10-11)', () => {
+  // 実測: Windows ではこのマシンで1サンプルが tasklist のプロセス起動で
+  // 247〜394ms（最大566ms）かかる。2秒固定だと監視対象1件あたり
+  // 1コアの約16%をテレメトリのために常時消費していた。無フィルタ呼び出しで
+  // まとめる案は tasklist /v が 8156ms（8秒タイムアウト）で却下。
+  test('Windows は間隔を倍にして上限で止まる', () => {
+    expect(nextSampleDelayMs(2000, 'win32')).toBe(4000);
+    expect(nextSampleDelayMs(4000, 'win32')).toBe(8000);
+    expect(nextSampleDelayMs(16000, 'win32')).toBe(30000);
+    // 上限到達後は増えない
+    expect(nextSampleDelayMs(30000, 'win32')).toBe(30000);
+  });
+
+  test('POSIX は 2 秒固定 — /proc はプロセス起動を伴わない', () => {
+    expect(nextSampleDelayMs(2000, 'linux')).toBe(2000);
+    expect(nextSampleDelayMs(30000, 'linux')).toBe(2000);
+    expect(nextSampleDelayMs(2000, 'darwin')).toBe(2000);
+  });
+
+  test('短時間実行でも最初の数サンプルは密 — 10 秒以内に 3 回以上取れる', () => {
+    let elapsed = 0;
+    let delay = 2000;
+    let samples = 1; // start 時の即時サンプル
+    while (elapsed + delay <= 10_000) {
+      elapsed += delay;
+      samples += 1;
+      delay = nextSampleDelayMs(delay, 'win32');
+    }
+    expect(samples).toBeGreaterThanOrEqual(3);
+  });
+
+  test('10 分の実行で 2 秒固定より桁で少ない', () => {
+    let elapsed = 0;
+    let delay = 2000;
+    let samples = 1;
+    while (elapsed + delay <= 600_000) {
+      elapsed += delay;
+      samples += 1;
+      delay = nextSampleDelayMs(delay, 'win32');
+    }
+    expect(samples).toBeLessThan(40);
+    // 2 秒固定なら 300 回
+    expect(samples * 8).toBeLessThan(300);
   });
 });

@@ -15,7 +15,6 @@ import {
   markScheduleRun,
   ensureSchedulesSeeded,
   type BacklogJobKind,
-  type BacklogScheduleConfig,
 } from './backlog-schedule-service';
 import { startGuardIncidentFiler, stopGuardIncidentFiler } from '../workflow/guard-incident-filer';
 import { runInnovationSession } from '../memory/innovation-session';
@@ -33,6 +32,10 @@ import { runPrRiskReviewJob } from '../self-improvement/pr-risk';
 import { runOutageSimulationJob } from '../outage-guidance/outage-simulation-job';
 import { BACKLOG_JOB_LABELS } from './backlog-job-labels';
 import { runRequirementIntakeJob } from './requirement-intake-job';
+import { pickDueJob } from './backlog-schedule-due';
+
+// Re-exported so existing importers of the pure due-check keep their path.
+export { isJobDue, pickDueJob, type DueJobSelection } from './backlog-schedule-due';
 
 const log = createLogger('scheduling:backlog');
 
@@ -70,60 +73,6 @@ type ManualRunOutcome =
 const running = new Set<BacklogJobKind>();
 
 let pollHandle: ReturnType<typeof setInterval> | null = null;
-
-/** True when two dates fall on the same local calendar day. */
-function isSameLocalDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
-/** One day / one week in milliseconds, for the overdue check. */
-const DAY_MS = 24 * 60 * 60 * 1000;
-const WEEK_MS = 7 * DAY_MS;
-
-/**
- * Whether a job should fire at `now`. Pure — the scheduler's testable core.
- *
- * The configured hour is a NOT-BEFORE, not an exact match, and a job that is
- * overdue by more than a full extra period fires immediately regardless of the
- * hour.
- *
- * NOTE: this used to require `now.getHours() === s.hour`, so the job only ran
- * if the 60-second poller happened to be alive during that one hour. Anything
- * that took the backend out of that window — a sleeping desktop, a restart, a
- * provider outage — silently skipped the job for a whole day (a whole week for
- * weekly), with no path to catch up. Measured 2026-08-24: every job scheduled
- * between 03:00 and 07:00 had not run for four days while the 22:00 job was
- * current, and because the innovation session (03:00) is the only thing that
- * files new tasks, the backlog had produced nothing in five days. For an app
- * meant to run unattended, missing the window must delay the job, not cancel it.
- *
- * @param s - Schedule config / スケジュール設定
- * @param now - Current time / 現在時刻
- * @returns True if due / 実行すべきなら true
- */
-export function isJobDue(s: BacklogScheduleConfig, now: Date): boolean {
-  if (!s.enabled) return false;
-
-  if (s.frequency === 'weekly') {
-    // First ever run still waits for the configured weekday — without a prior
-    // run there is no cadence to catch up to.
-    if (!s.lastRunAt) return now.getDay() === s.weekday && now.getHours() >= s.hour;
-    const elapsed = now.getTime() - s.lastRunAt.getTime();
-    if (elapsed >= WEEK_MS * 2) return true; // overdue — catch up now
-    if (elapsed < WEEK_MS) return false;
-    return now.getHours() >= s.hour;
-  }
-
-  // Daily: the same-day guard keeps the cadence drift-free, and the overdue
-  // check is what recovers a missed window.
-  if (s.lastRunAt && isSameLocalDay(s.lastRunAt, now)) return false;
-  if (s.lastRunAt && now.getTime() - s.lastRunAt.getTime() >= DAY_MS * 2) return true;
-  return now.getHours() >= s.hour;
-}
 
 /**
  * Summarizes an unknown thrown value into a bounded, single-string message.
@@ -247,24 +196,27 @@ async function tick(): Promise<void> {
     return;
   }
 
-  for (const s of schedules) {
-    if (!isJobDue(s, now)) continue;
-    if (running.has(s.kind)) continue;
+  const { start: s, deferred } = pickDueJob(schedules, now, (kind) => running.has(kind));
+  if (!s) return;
 
-    // Capture lastRunAt before markScheduleRun overwrites it — used as the
-    // `since` cursor for health_check so only new log entries are processed.
-    const prevLastRunAt = s.lastRunAt ?? undefined;
+  // Capture lastRunAt before markScheduleRun overwrites it — used as the
+  // `since` cursor for health_check so only new log entries are processed.
+  const prevLastRunAt = s.lastRunAt ?? undefined;
 
-    // Claim the daily slot up front (persisted) so the next tick won't re-fire
-    // even if the job runs longer than the poll interval or the server restarts.
-    await markScheduleRun(s.kind, now).catch((err) =>
-      log.warn({ err, kind: s.kind }, 'Failed to record run start'),
-    );
-    log.info({ kind: s.kind, hour: s.hour }, 'Backlog job due — starting');
-    void runBacklogJobNow(s.kind, prevLastRunAt, { source: 'scheduled' }).catch((err) =>
-      log.warn({ err, kind: s.kind }, 'Scheduled backlog job failed'),
-    );
-  }
+  // Claim the daily slot up front (persisted) so the next tick won't re-fire
+  // even if the job runs longer than the poll interval or the server restarts.
+  await markScheduleRun(s.kind, now).catch((err) =>
+    log.warn({ err, kind: s.kind }, 'Failed to record run start'),
+  );
+  // `deferred` is logged so a staggered start is visibly a stagger and not a
+  // job silently going missing.
+  log.info(
+    deferred.length > 0 ? { kind: s.kind, hour: s.hour, deferred } : { kind: s.kind, hour: s.hour },
+    'Backlog job due — starting',
+  );
+  void runBacklogJobNow(s.kind, prevLastRunAt, { source: 'scheduled' }).catch((err) =>
+    log.warn({ err, kind: s.kind }, 'Scheduled backlog job failed'),
+  );
 }
 
 /**
