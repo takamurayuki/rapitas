@@ -360,6 +360,10 @@ jobs:
           src/feature/developer-mode/hooks/__tests__/execution-poll-loop.test.ts
           src/feature/tasks/components/gantt/gantt-utils.test.ts
           src/feature/tasks/hooks/__tests__/formatLogData.test.ts
+          src/app/api/generate-claude-md/fallback-package.test.ts
+          src/app/api/generate-claude-md/__tests__/context-rendering.test.ts
+          src/app/api/review-spec/__tests__/review-prompt.test.ts
+          src/app/backlog/settings/_components/__tests__/backlog-job-meta.test.ts
 
   lint:
     name: Lint Code

@@ -21,6 +21,12 @@
  */
 'use strict';
 
+import {
+  createPageEvents,
+  recordRequestFailure,
+  snapshotPageEvents,
+} from './smoke-page-events.mjs';
+
 let browser = null;
 let context = null;
 /** The single "current" page — every command here is used sequentially by one caller, never concurrently. */
@@ -28,13 +34,20 @@ let page = null;
 let pageEvents = null;
 
 function resetPageEvents() {
-  pageEvents = {
-    pageErrors: [],
-    consoleErrors: [],
-    serverErrors: [],
-    failedRequests: [],
-    pendingRequests: new Map(),
-  };
+  pageEvents = createPageEvents();
+}
+
+/**
+ * Close the current page without its cancelled requests becoming findings.
+ *
+ * Closing cancels whatever the page had in flight and Chromium reports each as
+ * net::ERR_ABORTED; see smoke-page-events.mjs for the measurement.
+ */
+async function closePageQuietly() {
+  if (!page) return;
+  if (pageEvents) pageEvents.tearingDown = true;
+  await page.close().catch(() => {});
+  page = null;
 }
 
 function attachListeners(p) {
@@ -49,11 +62,11 @@ function attachListeners(p) {
   });
   p.on('requestfinished', (request) => pageEvents.pendingRequests.delete(request));
   p.on('requestfailed', (request) => {
-    if (pageEvents.pendingRequests.has(request) && pageEvents.failedRequests.length < 20) {
-      pageEvents.failedRequests.push(
-        `${requestLabel(request)}: ${request.failure()?.errorText || 'failed'}`,
-      );
-    }
+    recordRequestFailure(pageEvents, {
+      label: requestLabel(request),
+      errorText: request.failure()?.errorText || '',
+      wasPending: pageEvents.pendingRequests.has(request),
+    });
     pageEvents.pendingRequests.delete(request);
   });
   p.on('pageerror', (err) => pageEvents.pageErrors.push(String(err.message).slice(0, 300)));
@@ -192,7 +205,7 @@ async function cmdSelectOption(args) {
 /** One-shot navigate + settle + collect + screenshot + close, mirroring browser-smoke.ts's per-path check. */
 async function cmdCheckPath(args) {
   if (!context) throw new Error('not launched');
-  if (page) await page.close().catch(() => {});
+  await closePageQuietly();
   page = await context.newPage();
   resetPageEvents();
   attachListeners(page);
@@ -232,9 +245,6 @@ async function cmdCheckPath(args) {
   } catch (e) {
     finding.navigationError = (e && e.message ? e.message : String(e)).slice(0, 300);
   }
-  finding.pageErrors = pageEvents.pageErrors;
-  finding.failedRequests = pageEvents.failedRequests;
-  finding.pendingRequests = [...pageEvents.pendingRequests.values()].slice(0, 20);
   if (!finding.screenshotPath && args.screenshotPath) {
     await page
       .screenshot({ path: args.screenshotPath, fullPage: false })
@@ -243,10 +253,11 @@ async function cmdCheckPath(args) {
       })
       .catch(() => {});
   }
-  finding.consoleErrors = pageEvents.consoleErrors;
-  finding.serverErrors = pageEvents.serverErrors;
-  await page.close().catch(() => {});
-  page = null;
+  // Snapshot AFTER the last page interaction and BEFORE the close, by value —
+  // the previous code assigned the live arrays, so aborts the close produced
+  // were still pushed into the finding it had already filled in.
+  Object.assign(finding, snapshotPageEvents(pageEvents));
+  await closePageQuietly();
   return finding;
 }
 

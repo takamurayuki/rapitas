@@ -5,13 +5,11 @@
  * `docs/requirements.md`, files an implementation task for every `[F-NN]`
  * feature that is not yet a task, and files one follow-up task when the
  * document has fallen out of step with the work.
- * Not responsible for parsing, payload shaping or drift rules — those live in
+ * Not responsible for reading the document (requirements-document-reader.ts),
+ * parsing it, payload shaping or drift rules — those live in
  * services/organization/requirements-task-{plan,payload}.ts and
  * services/organization/spec-drift.ts.
  */
-import { existsSync } from 'fs';
-import { readFile, stat } from 'fs/promises';
-import { join } from 'path';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { createTask } from '../task/task-mutations';
@@ -27,6 +25,7 @@ import {
   type DriftTaskPayload,
 } from '../organization/spec-drift';
 import { getDisabledThemeIds } from './theme-backlog-override-service';
+import { readRequirementsFile } from './requirements-document-reader';
 
 const log = createLogger('scheduling:requirement-intake');
 
@@ -38,47 +37,46 @@ const log = createLogger('scheduling:requirement-intake');
 export const MAX_FILES_PER_THEME_RUN = 30;
 /** Upper bound on themes scanned per run. */
 const MAX_THEMES = 50;
-/** Requirements documents are tens of KiB; anything larger is not one. */
-const MAX_REQUIREMENTS_BYTES = 512 * 1024;
+
+/**
+ * Outstanding un-started tasks a theme may hold before filing pauses.
+ *
+ * NOTE: The auto-run slot limit is ONE and it is shared across every theme, so
+ * a project that files its whole feature list at once starves the others — with
+ * no error anywhere, since `lastError` and `haltReason` both stay null and the
+ * starved themes simply look idle. Measured 2026-10-11: TempoRaid's 12 filed
+ * features occupied the only slot for about four hours, and rapitas's own
+ * backlog had to be held off by hand for the duration. Capping the OUTSTANDING
+ * count (not just the per-run count) keeps filing proportional to throughput,
+ * and bounds the damage of a bad parse to a few tasks instead of a dozen.
+ */
+export const MAX_UNSTARTED_PER_THEME = 3;
+
+/** Statuses that mean a filed task has not been worked yet. */
+const UNSTARTED_STATUSES = ['todo', 'draft'] as const;
 
 /** A theme eligible for scanning. */
 export interface IntakeTheme {
   id: number;
   workingDirectory: string | null;
+  /** Branch the project's documents are authoritative on. / 文書の正となるブランチ */
+  defaultBranch?: string | null;
 }
 
 /** Side-effecting collaborators, injectable so tests need no module mocking. */
 export interface RequirementIntakeDeps {
   listThemes: () => Promise<IntakeTheme[]>;
   /** Returns the document text, or null when absent / unreadable. */
-  readRequirements: (workingDirectory: string) => Promise<string | null>;
+  readRequirements: (
+    workingDirectory: string,
+    defaultBranch?: string | null,
+  ) => Promise<string | null>;
   /** Titles of every task in the theme, regardless of status. */
   listExistingTitles: (themeId: number) => Promise<string[]>;
+  /** How many filed tasks the theme has that nobody has started. */
+  countUnstartedTasks: (themeId: number) => Promise<number>;
   /** Files one task; a falsy result means nothing was created. */
   createTask: (payload: RequirementTaskPayload | DriftTaskPayload) => Promise<unknown>;
-}
-
-/**
- * Read `<dir>/docs/requirements.md`.
- *
- * @param workingDirectory - Theme working directory / テーマの作業ディレクトリ
- * @returns Content, or null when missing, oversized or unreadable / 取得不能なら null
- */
-export async function readRequirementsFile(workingDirectory: string): Promise<string | null> {
-  const file = join(workingDirectory, 'docs', 'requirements.md');
-  if (!existsSync(file)) return null;
-  try {
-    const info = await stat(file);
-    if (!info.isFile()) return null;
-    if (info.size > MAX_REQUIREMENTS_BYTES) {
-      log.warn({ file, size: info.size }, 'requirements.md too large — skipping');
-      return null;
-    }
-    return await readFile(file, 'utf8');
-  } catch (err) {
-    log.warn({ err, file }, 'requirements.md unreadable — skipping');
-    return null;
-  }
 }
 
 function defaultDeps(): RequirementIntakeDeps {
@@ -90,7 +88,7 @@ function defaultDeps(): RequirementIntakeDeps {
           workingDirectory: { not: null },
           ...(disabled.size > 0 ? { id: { notIn: [...disabled] } } : {}),
         },
-        select: { id: true, workingDirectory: true },
+        select: { id: true, workingDirectory: true, defaultBranch: true },
         take: MAX_THEMES,
       });
     },
@@ -99,6 +97,8 @@ function defaultDeps(): RequirementIntakeDeps {
       const rows = await prisma.task.findMany({ where: { themeId }, select: { title: true } });
       return rows.map((r) => r.title);
     },
+    countUnstartedTasks: (themeId) =>
+      prisma.task.count({ where: { themeId, status: { in: [...UNSTARTED_STATUSES] } } }),
     // NOTE: markAutoCreated is deliberately not called — flagging these as
     // backlog-created would make the auto-run exhaustion check ignore them.
     createTask: (payload) => createTask(prisma, { ...payload, status: 'todo' }),
@@ -120,7 +120,7 @@ export async function runRequirementIntakeJob(
   for (const theme of themes) {
     if (!theme.workingDirectory) continue;
     try {
-      total += await intakeTheme(theme.id, theme.workingDirectory, deps);
+      total += await intakeTheme(theme.id, theme.workingDirectory, theme.defaultBranch, deps);
     } catch (err) {
       log.warn({ err, themeId: theme.id }, 'Requirement intake failed for theme (non-fatal)');
     }
@@ -133,9 +133,10 @@ export async function runRequirementIntakeJob(
 async function intakeTheme(
   themeId: number,
   workingDirectory: string,
+  defaultBranch: string | null | undefined,
   deps: RequirementIntakeDeps,
 ): Promise<number> {
-  const markdown = await deps.readRequirements(workingDirectory);
+  const markdown = await deps.readRequirements(workingDirectory, defaultBranch);
   if (!markdown) return 0;
 
   const specs = parseRequirementTasks(markdown);
@@ -154,9 +155,18 @@ async function intakeTheme(
       return !existing.some((t) => t.trimStart().startsWith(label));
     });
 
-  const batch = pending.slice(0, MAX_FILES_PER_THEME_RUN);
+  // Throttle on the OUTSTANDING backlog, not just on this run's volume: the
+  // auto-run slot is shared across themes, so filing faster than the theme is
+  // worked starves every other project without raising an error anywhere.
+  const unstarted = await deps.countUnstartedTasks(themeId);
+  const headroom = Math.max(0, MAX_UNSTARTED_PER_THEME - unstarted);
+  const limit = Math.min(headroom, MAX_FILES_PER_THEME_RUN);
+  const batch = pending.slice(0, limit);
   if (pending.length > batch.length) {
-    log.info({ themeId, deferred: pending.length - batch.length }, 'Deferred to next run');
+    log.info(
+      { themeId, deferred: pending.length - batch.length, unstarted, cap: MAX_UNSTARTED_PER_THEME },
+      'Deferred to a later run to keep the shared auto-run slot fair',
+    );
   }
 
   let filed = 0;
