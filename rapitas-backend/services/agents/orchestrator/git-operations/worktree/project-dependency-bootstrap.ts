@@ -40,6 +40,7 @@ import {
   installInvocation,
   resolveInstallCommand,
 } from './project-manifests';
+import { ensurePrismaClient, type PrismaClientResult } from './project-prisma-client';
 
 const execAsync = promisify(exec);
 const logger = createLogger('git-operations/project-dependency-bootstrap');
@@ -197,26 +198,44 @@ export async function ensureRootInstall(
   }
 }
 
+/** Injectable pieces of {@link bootstrapProjectDependencies}; tests avoid a real package manager. */
+export interface BootstrapOpts {
+  /** Generates the project's Prisma client at its root. / ルートでクライアントを生成 */
+  ensurePrisma?: (root: string) => Promise<PrismaClientResult>;
+}
+
 /**
  * Prepare dependencies for a worktree of a non-rapitas project.
  *
  * @param worktreePath - Absolute worktree path / worktree の絶対パス
+ * @param opts - Injectable prisma step / テスト用の注入
  * @returns What was done / 実施内容
  * @throws {Error} When an install was required and failed / インストール失敗時
  */
-export async function bootstrapProjectDependencies(worktreePath: string): Promise<BootstrapResult> {
+export async function bootstrapProjectDependencies(
+  worktreePath: string,
+  opts: BootstrapOpts = {},
+): Promise<BootstrapResult> {
   const root = projectRootOf(worktreePath);
 
   // The normal path: the project root carries its own manifests.
   if (existsSync(join(root, 'package.json'))) {
     const installed = await ensureRootInstall(root, collectManifests(root));
+    // Before the link, so the client is already in the real tree the worktree is
+    // about to point at. The agent cannot do this itself — the worktree's
+    // node_modules is a link, which makes the guard deny `prisma generate`
+    // there; the root tree is real, so this is the only place it can happen.
+    const prisma = await (opts.ensurePrisma ?? ensurePrismaClient)(root);
     const linked = root === worktreePath ? [] : linkNodeModules(root, worktreePath);
     logger.info(
-      `[projectBootstrap] ${installed ? 'installed + ' : ''}linked ${linked.length} node_modules into ${worktreePath}`,
+      `[projectBootstrap] ${installed ? 'installed + ' : ''}linked ${linked.length} node_modules into ${worktreePath}; prisma ${prisma.action}`,
     );
+    const links = `${linked.length} link(s): ${linked.map((r) => r || '.').join(', ') || 'none'}`;
     return {
       action: installed ? 'installed' : 'linked',
-      detail: `${linked.length} link(s): ${linked.map((r) => r || '.').join(', ') || 'none'}`,
+      // Reported even when it failed: a missing client is the difference between
+      // a gate that measures and one that can only say "unverifiable".
+      detail: prisma.action === 'skipped' ? links : `${links}; prisma ${prisma.action}`,
     };
   }
 
