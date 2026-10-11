@@ -38,6 +38,8 @@ export interface SupervisorEvidence {
   executionCwd: string | null;
   /** The raw matched `Working directory` line, for the concern's evidence. */
   executionCwdLine: string | null;
+  /** Latest activity of that execution (completedAt, else heartbeat, else createdAt), epoch ms; null = unknown. */
+  executionAtMs: number | null;
   /** Latest terminal failure mark, epoch ms (max across queue item + notifications). */
   failureMarkedAtMs: number | null;
   /** Which source produced failureMarkedAtMs, for the concern's evidence. */
@@ -125,19 +127,22 @@ export async function gatherSupervisorEvidence(task: { id: number }): Promise<Su
 
   let executionCwd: string | null = null;
   let executionCwdLine: string | null = null;
+  let executionAtMs: number | null = null;
   if (themeWorkingDirectory !== null || taskWorkingDirectory !== null) {
     const latestExec = await safeQuery(
       () =>
         prisma.agentExecution.findFirst({
           where: { session: { config: { taskId: task.id } } },
           orderBy: { createdAt: 'desc' },
-          select: { output: true },
+          select: { output: true, completedAt: true, heartbeatAt: true, createdAt: true },
         }),
       null,
     );
     const parsed = parseWorkingDirectory(latestExec?.output?.slice(0, OUTPUT_HEAD_CHARS) ?? null);
     executionCwd = parsed?.cwd ?? null;
     executionCwdLine = parsed?.line ?? null;
+    const at = latestExec?.completedAt ?? latestExec?.heartbeatAt ?? latestExec?.createdAt ?? null;
+    executionAtMs = at instanceof Date ? at.getTime() : null;
   }
 
   // --- B (failure side) + C (backstop): terminal failure marks ------------
@@ -317,6 +322,7 @@ export async function gatherSupervisorEvidence(task: { id: number }): Promise<Su
     taskWorkingDirectory,
     executionCwd,
     executionCwdLine,
+    executionAtMs,
     failureMarkedAtMs,
     failureMarkSource,
     recoveryAtMs,

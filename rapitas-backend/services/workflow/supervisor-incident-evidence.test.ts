@@ -172,6 +172,7 @@ describe('gatherSupervisorEvidence', () => {
       themeWorkingDirectory: null,
       taskWorkingDirectory: null,
       executionCwd: null,
+      executionAtMs: null,
       executionCwdLine: null,
       failureMarkedAtMs: null,
       failureMarkSource: null,
