@@ -271,4 +271,18 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
     because:
       '支出が予算の2倍超のタスクを停止せずeconomy tierへ落とす設計通りの予算ガード通知 — 真の暴走はiteration budgetのHARD stopが別経路で止め、支出取得失敗(spend lookup failed)は別文言で可視のまま',
   },
+  {
+    // ログ出力箇所: services/agents/orchestrator/git-operations/worktree/
+    // project-dependency-bootstrap.ts:118-121 の logger.warn（runInstall 内）。
+    // install 出力に `Ignored build scripts:` があった場合のみ出る情報通知で、
+    // install 自体は成功している（installInvocation が
+    // --config.strict-dep-builds=false を付与、project-manifests.ts:87-89）。
+    // ネイティブビルドの承認は生成プロジェクト側の onlyBuiltDependencies の責務で、
+    // rapitas の差分では解消できない（#1209、K-12457 は同一シグネチャ）。
+    // 同ロガーの install 失敗・fingerprint 記録失敗は別文言のため抑制しない。
+    test: /^\[projectBootstrap\] Dependencies installed but their build scripts were skipped; declare onlyBuiltDependencies in the project manifest if a native build is required$/,
+    logger: /git-operations\/project-dependency-bootstrap/i,
+    because:
+      'installは成功済みで、ビルドスクリプト承認は生成プロジェクトのonlyBuiltDependencies側の責務(rapitasでは解消不能) — install失敗/fingerprint記録失敗は別文言で可視のまま',
+  },
 ];
