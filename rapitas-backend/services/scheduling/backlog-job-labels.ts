@@ -22,4 +22,5 @@ export const BACKLOG_JOB_LABELS: Record<BacklogJobKind, string> = {
   knowledge_reuse: '知識活用効果の測定',
   pr_risk_review: 'PR リスク予測の精度レビュー',
   outage_simulation: '障害影響判定シミュレーション',
+  requirement_intake: '要件定義からのタスク起票',
 };
