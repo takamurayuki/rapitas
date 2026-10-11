@@ -11,59 +11,27 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import {
-  Sparkles,
-  Bug,
-  Activity,
-  IterationCw,
-  MonitorCheck,
-  Sunrise,
-  ScanSearch,
-  ShieldHalf,
-  Play,
-  Loader2,
-  CalendarClock,
-} from 'lucide-react';
+import { Play, Loader2, CalendarClock } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import ProjectOverridesSection from './ProjectOverridesSection';
 import { Spinner } from '@/components/ui/spinner';
+import { resolveJobMeta } from './backlog-job-meta';
 
-type JobKind =
-  | 'innovation'
-  | 'vuln_scan'
-  | 'health_check'
-  | 'loop_review'
-  | 'ci_watch'
-  | 'daily_report'
-  | 'miss_ledger'
-  | 'pr_risk_review';
 type Frequency = 'daily' | 'weekly';
 
 interface Schedule {
-  kind: JobKind;
+  // NOTE: Not the local JobKind union. The backend owns the list of kinds and
+  // seeds a row for every one, so this can be a kind that shipped after this
+  // bundle — see resolveJobMeta for the page crash that assuming otherwise
+  // caused.
+  kind: string;
   enabled: boolean;
   frequency: Frequency;
   hour: number;
   weekday: number;
   lastRunAt: string | null;
 }
-
-// NOTE: `label`/`desc` text moved to i18n (backlog.settings.jobs.<kind>.*);
-// look it up with `t(\`jobs.${kind}.label\`)` at each render site.
-const JOB_META: Record<JobKind, { icon: typeof Sparkles; color: string }> = {
-  innovation: { icon: Sparkles, color: 'text-amber-500' },
-  vuln_scan: { icon: Bug, color: 'text-rose-500' },
-  health_check: { icon: Activity, color: 'text-sky-500' },
-  loop_review: { icon: IterationCw, color: 'text-emerald-500' },
-  ci_watch: { icon: MonitorCheck, color: 'text-violet-500' },
-  // NOTE: Sunrise = 自律活動デイリーレポート (ICON_POLICY §3).
-  daily_report: { icon: Sunrise, color: 'text-amber-500' },
-  // NOTE: ScanSearch = 検出漏れ兆候の学習・レビュー (ICON_POLICY §3).
-  miss_ledger: { icon: ScanSearch, color: 'text-indigo-500' },
-  // NOTE: ShieldHalf = PR リスク予測 (ICON_POLICY §3, glyphs-n-s.md).
-  pr_risk_review: { icon: ShieldHalf, color: 'text-orange-500' },
-};
 
 const FREQUENCIES: Frequency[] = ['daily', 'weekly'];
 const WEEKDAY_INDEXES = [0, 1, 2, 3, 4, 5, 6];
@@ -81,7 +49,8 @@ export default function BacklogSettingsClient() {
   const t = useTranslations('backlog');
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [runningKind, setRunningKind] = useState<JobKind | null>(null);
+  // Kinds come from the API, so these are plain strings (see Schedule.kind).
+  const [runningKind, setRunningKind] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const { showToast } = useToast();
 
@@ -102,7 +71,7 @@ export default function BacklogSettingsClient() {
   }, []);
 
   const patchSchedule = useCallback(
-    async (kind: JobKind, partial: Partial<Schedule>) => {
+    async (kind: string, partial: Partial<Schedule>) => {
       // Optimistic update — captured for revert; without the revert a failed
       // PATCH left the toggle showing a state the server never accepted.
       let before: Schedule[] = [];
@@ -132,7 +101,7 @@ export default function BacklogSettingsClient() {
   );
 
   const runNow = useCallback(
-    async (kind: JobKind) => {
+    async (kind: string) => {
       setRunningKind(kind);
       setNotice(null);
       try {
@@ -180,8 +149,8 @@ export default function BacklogSettingsClient() {
 
       <div className="space-y-4">
         {schedules.map((s) => {
-          const meta = JOB_META[s.kind];
-          const Icon = meta.icon;
+          const meta = resolveJobMeta(s.kind);
+          const Icon = meta?.icon;
           return (
             <div
               key={s.kind}
@@ -189,14 +158,20 @@ export default function BacklogSettingsClient() {
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-2">
-                  <Icon className={`mt-0.5 h-5 w-5 ${meta.color}`} />
+                  {Icon && <Icon className={`mt-0.5 h-5 w-5 ${meta?.color}`} />}
                   <div>
                     <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                      {t(`settings.jobs.${s.kind}.label`)}
+                      {/* A kind newer than this bundle has no i18n text either; show
+                          the raw kind so the job stays identifiable and toggleable. */}
+                      {t.has(`settings.jobs.${s.kind}.label`)
+                        ? t(`settings.jobs.${s.kind}.label`)
+                        : s.kind}
                     </div>
-                    <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-                      {t(`settings.jobs.${s.kind}.desc`)}
-                    </p>
+                    {t.has(`settings.jobs.${s.kind}.desc`) && (
+                      <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                        {t(`settings.jobs.${s.kind}.desc`)}
+                      </p>
+                    )}
                   </div>
                 </div>
                 {/* Enable toggle */}
