@@ -216,6 +216,13 @@ function parseRegistry(content: string): OwnershipRecord[] {
   return parsed.records;
 }
 
+/**
+ * A per-token input rejection (unknown/duplicate token, invalid identity).
+ * The registry file is healthy, so unlike corruption or I/O errors it must
+ * not latch and block every later operation in this process.
+ */
+class OwnershipLogicError extends Error {}
+
 const registryQueues = new Map<string, Promise<unknown>>();
 /** Serialize all instances using the same registry within this backend process. */
 async function serializeRegistry<T>(path: string, action: () => Promise<T>): Promise<T> {
@@ -286,6 +293,7 @@ export function createOwnershipRegistry(filename: string) {
       try {
         return await action();
       } catch (error) {
+        if (error instanceof OwnershipLogicError) throw error;
         failure = error instanceof Error ? error : new Error(String(error));
         throw failure;
       }
@@ -300,7 +308,7 @@ export function createOwnershipRegistry(filename: string) {
       run(async () => {
         const records = await read();
         if (records.some((row) => row.executionToken === executionToken))
-          throw new Error('Duplicate execution token');
+          throw new OwnershipLogicError('Duplicate execution token');
         records.push({
           executionToken,
           ...(ownershipScope ? { ownershipScope } : {}),
@@ -318,7 +326,7 @@ export function createOwnershipRegistry(filename: string) {
         const records = await read();
         const row = records.find((record) => record.executionToken === executionToken);
         if (!row || row.status !== 'intent' || !validIdentity(root))
-          throw new Error('Invalid ownership confirmation');
+          throw new OwnershipLogicError('Invalid ownership confirmation');
         row.root = root;
         row.status = 'active';
         await write(records);
@@ -332,7 +340,7 @@ export function createOwnershipRegistry(filename: string) {
         const records = await read();
         const row = records.find((record) => record.executionToken === executionToken);
         if (!row || !identities.every(validIdentity))
-          throw new Error('Invalid descendant observation');
+          throw new OwnershipLogicError('Invalid descendant observation');
         // Never forget a formerly captured child after reparenting or PID reuse.
         for (const identity of identities) {
           if (
@@ -350,7 +358,7 @@ export function createOwnershipRegistry(filename: string) {
       run(async () => {
         const records = await read();
         const row = records.find((record) => record.executionToken === executionToken);
-        if (!row) throw new Error('Unknown execution token');
+        if (!row) throw new OwnershipLogicError('Unknown execution token');
         row.status = 'stopping';
         await write(records);
       }),
@@ -371,6 +379,10 @@ export function createOwnershipRegistry(filename: string) {
           // forever (see STALE_INTENT_MS doc comment).
           const recordedAtMs = row.recordedAt ? Date.parse(row.recordedAt) : 0;
           resolved = nowMs - recordedAtMs >= STALE_INTENT_MS;
+          // A young intent may belong to another backend process that is still
+          // observing its launch (liveTokens is process-local). Rewriting it to
+          // 'unresolved' would make that process's confirmOwnership fail.
+          if (!resolved) return false;
         } else {
           try {
             // Evidence providers cannot mutate the stored ownership proof.
