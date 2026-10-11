@@ -63,13 +63,19 @@ mock.module('../../../../../utils/common/branch-name-generator', () => ({
 }));
 
 const mockExistsSync = mock((_path: string) => false);
-mock.module('node:fs', () => ({ existsSync: mockExistsSync }));
+// NOTE: readFileSync / readFile are mirrored because core/git-exclude.ts reads
+// the existing exclude list before appending. bun's mock.module replaces the
+// WHOLE module, so an export the graph needs but the mock omits is a
+// load-time SyntaxError, not a missing function.
+mock.module('node:fs', () => ({ existsSync: mockExistsSync, readFileSync: mock(() => '') }));
 mock.module('node:fs/promises', () => ({
   rm: mock(() => Promise.resolve()),
   readdir: mock(() => Promise.resolve([])),
   stat: mock(() => Promise.resolve({ isDirectory: () => false })),
   mkdir: mock(() => Promise.resolve()),
   appendFile: mock(() => Promise.resolve()),
+  readFile: mock(() => Promise.resolve('')),
+  copyFile: mock(() => Promise.resolve()),
 }));
 
 /** Per-test override: how the mocked `git worktree list --porcelain` behaves. */

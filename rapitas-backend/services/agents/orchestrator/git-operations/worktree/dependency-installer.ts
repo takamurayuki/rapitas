@@ -161,7 +161,10 @@ export async function installWorktreeDependencies(worktreePath: string): Promise
     // `node scripts/run-checked.cjs`, which ships with rapitas and is absent
     // here. It is also the only thing printing a heartbeat every 30s, and the
     // agent is killed after ~301s of silence — see worktree-command-wrapper.ts.
-    const wrapper = ensureRunCheckedWrapper(worktreePath, defaultWrapperSource(import.meta.dir));
+    const wrapper = await ensureRunCheckedWrapper(
+      worktreePath,
+      defaultWrapperSource(import.meta.dir),
+    );
     logger.info(
       `[installWorktreeDependencies] No setup-worktree.cjs; project bootstrap ${result.action} (${result.detail}), run-checked ${wrapper} for ${worktreePath}`,
     );

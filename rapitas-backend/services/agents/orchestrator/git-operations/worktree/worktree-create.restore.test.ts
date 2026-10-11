@@ -46,13 +46,22 @@ mock.module('../../../../../utils/common/branch-name-generator', () => ({
   hasTaskIdMarker: (branchName: string, taskId: number) =>
     new RegExp(`(?:^|[/-])t${taskId}(?:[/-]|$)`).test(branchName),
 }));
-mock.module('node:fs', () => ({ existsSync: mock(() => false) }));
+// NOTE: readFileSync / readFile are mirrored because core/git-exclude.ts reads
+// the existing exclude list before appending. bun's mock.module replaces the
+// WHOLE module, so an export the graph needs but the mock omits is a
+// load-time SyntaxError, not a missing function.
+mock.module('node:fs', () => ({
+  existsSync: mock(() => false),
+  readFileSync: mock(() => ''),
+}));
 mock.module('node:fs/promises', () => ({
   rm: mock(() => Promise.resolve()),
   readdir: mock(() => Promise.resolve([])),
   stat: mock(() => Promise.resolve({ isDirectory: () => false })),
   mkdir: mock(() => Promise.resolve()),
   appendFile: mock(() => Promise.resolve()),
+  readFile: mock(() => Promise.resolve('')),
+  copyFile: mock(() => Promise.resolve()),
 }));
 
 const BRANCH = 'feature/t911-update-task';

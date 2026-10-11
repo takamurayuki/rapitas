@@ -10,10 +10,10 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
-import * as fsPromises from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { createLogger } from '../../../../../config/logger';
 import { WORKTREE_DIR } from '../core/safety';
+import { appendExcludeBlock } from '../core/git-exclude';
 import { ensureGitRepository, validateAndSetupRemote } from './repository-setup';
 import { preflightWorktree } from './worktree-preflight';
 
@@ -359,12 +359,16 @@ export async function createWorktree(
       if (!excludePath.match(/^([a-zA-Z]:[\\/]|[\\/])/)) {
         excludePath = join(worktreePath, excludePath);
       }
-      await fsPromises.mkdir(join(excludePath, '..'), { recursive: true });
-      await fsPromises.appendFile(
-        excludePath,
-        '\n# rapitas agent transient files\n.wf-tmp.md\n.wf-tmp*\n',
-        'utf8',
-      );
+      // NOTE: Deduped append. `info/exclude` lives in the COMMON git directory,
+      // so one file is shared by every worktree of the repository — the
+      // unconditional append this replaced re-added the same block on every
+      // worktree creation. Measured 2026-10-11 on rapitas's own checkout: 5547
+      // lines holding 1380 copies, re-parsed by every `git status`, `git add`
+      // and `git diff` in the repo and in all of its worktrees.
+      await appendExcludeBlock(excludePath, 'rapitas agent transient files', [
+        '.wf-tmp.md',
+        '.wf-tmp*',
+      ]);
     } catch (excErr) {
       logger.warn(
         { err: excErr, worktreePath },

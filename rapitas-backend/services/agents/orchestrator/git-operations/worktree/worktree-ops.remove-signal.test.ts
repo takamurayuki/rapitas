@@ -88,6 +88,10 @@ mock.module('node:child_process', () => ({ execFile: mockExecFile, exec: mockExe
 const fsMock = {
   existsSync: (p: string) =>
     String(p).replace(/\\/g, '/') === '/test/repo/.git' || mockExistsSync(p),
+  // Mirrored for core/git-exclude.ts, which reads the exclude list before
+  // appending. An export the graph needs but the mock omits is a load-time
+  // SyntaxError under bun, not a missing function.
+  readFileSync: mock(() => ''),
 };
 mock.module('node:fs', () => fsMock);
 mock.module('fs', () => fsMock);
@@ -97,6 +101,10 @@ mock.module('node:fs/promises', () => ({
   stat: mock(() => Promise.resolve({ isDirectory: () => false } as import('node:fs').Stats)),
   mkdir: mock(() => Promise.resolve()),
   appendFile: mock(() => Promise.resolve()),
+  // core/git-exclude.ts reads the exclude list before appending, and
+  // worktree-command-wrapper copies the heartbeat wrapper.
+  readFile: mock(() => Promise.resolve('')),
+  copyFile: mock(() => Promise.resolve()),
 }));
 mock.module('../core/safety', () => ({
   WORKTREE_DIR: '.worktrees',
