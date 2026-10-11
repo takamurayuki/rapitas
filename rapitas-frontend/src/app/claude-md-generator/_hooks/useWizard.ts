@@ -10,7 +10,8 @@ import type {
   GenerateResult,
   ProjectContext,
 } from '../_types/types';
-import { proposeApps, generateClaudeMd } from '../_utils/api';
+import { proposeApps, generateClaudeMd, reviewSpec } from '../_utils/api';
+import { formatReviewAnswers, type ReviewSpecResult } from '../../api/review-spec/review-prompt';
 import { AGENT_TARGETS, ELEMENTS, SUB_GENRES } from '../_utils/constants';
 
 /** lucide icon name for user-added custom sub-genres/elements. / 自由入力で追加した項目のアイコン */
@@ -41,6 +42,12 @@ export type WizardPhase =
   // requirements was the model's invention (measured 2026-10-11 on TempoRaid).
   | 'context'
   | 'generating'
+  // NOTE: Between generation and the result. Before this the wizard was
+  // strictly one-way — result-phase had no refine path — so the first chance to
+  // notice a requirement gap was an implementation task bouncing. Measured
+  // 2026-10-11: TempoRaid's 12 tasks took 6 verify_repair rounds.
+  | 'reviewing'
+  | 'review'
   | 'result';
 
 export type SetupPhase = 'idle' | 'loading' | 'success' | 'error';
@@ -68,6 +75,9 @@ export function useWizard() {
   // a figure.
   const [projectContext, setProjectContext] = useState<ProjectContext>({});
   const [result, setResult] = useState<GenerateResult | null>(null);
+  // The review round's findings/questions and the user's answers to them.
+  const [review, setReview] = useState<ReviewSpecResult | null>(null);
+  const [reviewAnswers, setReviewAnswers] = useState<Record<string, string>>({});
   const [setupPhase, setSetupPhase] = useState<SetupPhase>('idle');
   // Primary AI agent the scaffolded repo targets — decides the guide file's
   // name/location (.claude/CLAUDE.md, AGENTS.md, GEMINI.md, …).
@@ -264,29 +274,65 @@ export function useWizard() {
    *
    * @param reviewAnswers - Answers to a previous round's questions / 壁打ちの回答
    */
-  const handleGenerateClaudeMd = async (reviewAnswers?: string) => {
+  const handleGenerateClaudeMd = async (answersBlock?: string) => {
     if (!pickedProp) return;
     setPhase('generating');
+    let generated: GenerateResult | null = null;
     try {
-      const r = await generateClaudeMd(
+      generated = await generateClaudeMd(
         t,
         answers,
         pickedProp,
         dynamicSubs,
         dynamicElements,
         projectContext,
-        reviewAnswers,
+        answersBlock,
       );
-      setResult(r);
+      setResult(generated);
     } catch {
       setResult({
         tech_rationale: '',
         score: 90,
         claude_md: t('errorOccurred'),
       });
+      setPhase('result');
+      return;
     }
-    setPhase('result');
+
+    // Review the documents before showing them as finished. A failure here must
+    // not strand the user on a spinner, so any problem falls through to result.
+    if (!generated) {
+      setPhase('result');
+      return;
+    }
+    setPhase('reviewing');
+    try {
+      const r = await reviewSpec({
+        requirements: generated.requirements,
+        design: generated.design,
+        adr: generated.adr,
+      });
+      setReview(r);
+      setReviewAnswers({});
+      setPhase('review');
+    } catch {
+      setPhase('result');
+    }
   };
+
+  /** Records one answer to a review question. */
+  const setReviewAnswer = (id: string, value: string) =>
+    setReviewAnswers((prev) => ({ ...prev, [id]: value }));
+
+  /** Regenerates the package with the review answers folded in. */
+  const handleRegenerateFromReview = async () => {
+    const block = formatReviewAnswers(review?.questions ?? [], reviewAnswers);
+    if (!block) return;
+    await handleGenerateClaudeMd(block);
+  };
+
+  /** Accepts the documents as they stand and moves to the result. */
+  const handleAcceptReview = () => setPhase('result');
 
   /**
    * Calls the setup-theme API to create a project directory from the generated CLAUDE.md.
@@ -341,6 +387,8 @@ export function useWizard() {
     setProposals([]);
     setPickedProp(null);
     setProjectContext({});
+    setReview(null);
+    setReviewAnswers({});
     setResult(null);
     // Reset setup state as well
     setSetupPhase('idle');
@@ -387,6 +435,11 @@ export function useWizard() {
     projectContext,
     setContextField,
     goToContext,
+    review,
+    reviewAnswers,
+    setReviewAnswer,
+    handleRegenerateFromReview,
+    handleAcceptReview,
     result,
     setupPhase,
     setSetupPhase,

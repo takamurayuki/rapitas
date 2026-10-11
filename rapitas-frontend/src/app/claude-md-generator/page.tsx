@@ -10,6 +10,7 @@ import { PlatformPhase } from './_components/platform-phase';
 import { LoadingPhase } from './_components/loading-phase';
 import { ProposalsPhase } from './_components/proposals-phase';
 import { ContextPhase } from './_components/context-phase';
+import { ReviewPhase } from './_components/review-phase';
 import { ResultPhase } from './_components/result-phase';
 
 export default function ClaudeMdGeneratorPage() {
@@ -96,8 +97,21 @@ export default function ClaudeMdGeneratorPage() {
       />
     );
 
-  if (w.phase === 'generating')
+  if (w.phase === 'generating' || w.phase === 'reviewing')
     return <LoadingPhase topRef={w.topRef} t={w.t} variant="generating" />;
+
+  if (w.phase === 'review')
+    return (
+      <ReviewPhase
+        topRef={w.topRef}
+        t={w.t}
+        review={w.review}
+        answers={w.reviewAnswers}
+        onSetAnswer={w.setReviewAnswer}
+        onRegenerate={w.handleRegenerateFromReview}
+        onAccept={w.handleAcceptReview}
+      />
+    );
 
   if (w.phase === 'result')
     return (

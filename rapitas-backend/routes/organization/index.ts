@@ -14,6 +14,7 @@ import { taskLabelsRoutes } from './labels';
 import { projectsRoutes } from './projects';
 import { milestonesRoutes } from './milestones';
 import { templatesRoutes } from './templates';
+import specConsistencyRoute from './spec-consistency.routes';
 
 export { categoriesRoutes } from './categories';
 export { themesRoutes } from './themes';
@@ -32,4 +33,5 @@ export const organizationDomainRoutes = new Elysia()
   .use(taskLabelsRoutes)
   .use(projectsRoutes)
   .use(milestonesRoutes)
-  .use(templatesRoutes);
+  .use(templatesRoutes)
+  .use(specConsistencyRoute);
