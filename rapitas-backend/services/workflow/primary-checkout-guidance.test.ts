@@ -28,6 +28,25 @@ describe('PRIMARY_CHECKOUT_GUIDANCE', () => {
   );
 });
 
+describe('PRIMARY_CHECKOUT_GUIDANCE process lifecycle (task 1171)', () => {
+  test.each([
+    ['ja', '自力で終了させず', '最終報告'],
+    ['en', 'terminate', 'final report'],
+  ] as const)('%s tells agents to record started processes instead of killing', (lang, a, b) => {
+    const text = PRIMARY_CHECKOUT_GUIDANCE[lang];
+    expect(text).toContain(a);
+    expect(text).toContain(b);
+    expect(text).toContain('PID');
+    expect(text).not.toContain('verify.md');
+  });
+
+  test.each(['ja', 'en'] as const)('%s reaches the implementer constraints', (lang) => {
+    const t = buildRoleTexts(1, { title: 't', description: null }, lang);
+    expect(t.implementer.constraints).toContain('PID');
+    expect(t.implementer.constraints).toContain(lang === 'ja' ? '自力で終了させず' : 'terminate');
+  });
+});
+
 describe('PRIMARY_CHECKOUT_GUIDANCE wiring (task 1132)', () => {
   test.each(['ja', 'en'] as const)('%s tells agents their cwd is already the worktree', (lang) => {
     const text = PRIMARY_CHECKOUT_GUIDANCE[lang];

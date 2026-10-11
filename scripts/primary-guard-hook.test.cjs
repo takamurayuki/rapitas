@@ -86,6 +86,8 @@ test('classify reports the incident kind', () => {
   assert.equal(classify('bunx prisma generate', ctx), 'prisma');
   assert.equal(classify('taskkill /F /IM bun.exe', ctx), 'process_kill');
   assert.equal(classify('git status', ctx), null);
+  const reason = decision({ tool_name: 'Bash', tool_input: { command: 'taskkill /F /IM bun.exe' } }, ctx).hookSpecificOutput.permissionDecisionReason;
+  for (const w of ['started yourself', 'PID', 'final report']) assert.ok(reason.includes(w), w);
 });
 
 test('process-kill words inside quoted data arguments are allowed', () => {
