@@ -80,6 +80,13 @@ export async function runAdversarialDiffReview(params: {
       worktreePath: reviewSession?.worktreePath,
     }).catch(() => null);
 
+    if (review?.baseSatisfied?.length && review.verdict !== 'fail') {
+      log.info(
+        { taskId, paths: review.baseSatisfied.map((s) => s.path) },
+        '[Workflow] Adversarial review passed — flagged plan items already exist on the base ref',
+      );
+    }
+
     if (review && review.verdict === 'fail') {
       // History-contamination recovery (task 539): when the out-of-plan files
       // behind this FAIL came from BRANCH HISTORY (the worktree was cut on
