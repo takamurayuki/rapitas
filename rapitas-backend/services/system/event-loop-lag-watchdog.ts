@@ -50,23 +50,40 @@ export interface ActiveSectionSnapshot {
   runningMs: number;
 }
 
+/** A named section that was released during (or just before) the observed stall. */
+export interface RecentSectionSnapshot {
+  name: string;
+  durationMs: number;
+  endedAgoMs: number;
+}
+
 /**
  * Invoked at most once per watchdog run, when a stall crosses a self-heal threshold.
- * `sections` names the in-flight markEventLoopSection() sections so the restart
- * record itself identifies the likely culprit.
+ * `sections` names the in-flight markEventLoopSection() sections and
+ * `recentSections` those released during the stall, so the restart record
+ * itself identifies the likely culprit.
  */
-export type SelfHealAction = (reason: string, sections: ActiveSectionSnapshot[]) => void;
+export type SelfHealAction = (
+  reason: string,
+  sections: ActiveSectionSnapshot[],
+  recentSections: RecentSectionSnapshot[],
+) => void;
 
 /**
  * Dynamic import keeps shutdown-sequence.ts (and its Prisma/realtime-service
  * chain) out of this module's static graph — this file must stay importable
  * in isolation for the lag-detection unit tests, which never hit this path.
  */
-const defaultSelfHeal: SelfHealAction = (reason, sections) => {
+const defaultSelfHeal: SelfHealAction = (reason, sections, recentSections) => {
   // NOTE: message body stays fixed so normalizeMessage() keeps one signature; the
   // culprit goes in a structured field (2026-09-25 / 10-08 restarts had no cause named).
   log.error(
-    sections.length > 0 ? { reason, activeSections: sections } : { reason },
+    {
+      reason,
+      ...(sections.length > 0 ? { activeSections: sections } : {}),
+      ...(recentSections.length > 0 ? { recentSections } : {}),
+      ...processMetrics(),
+    },
     '[event-loop-lag] Self-healing restart triggered',
   );
   import('./shutdown-sequence')
@@ -82,6 +99,21 @@ const defaultSelfHeal: SelfHealAction = (reason, sections) => {
  */
 const activeSections = new Map<symbol, { name: string; startedAtMs: number }>();
 
+/** Cap on released-section history; read only on a stall, so a short list is enough. */
+const RECENT_SECTION_LIMIT = 8;
+/**
+ * Sections already released by the time a stall is detected. The watchdog timer can
+ * only fire after the blocking synchronous code returns, so the culprit has usually
+ * been released by then and activeSections is empty (2026-10-08..11: 5 of 5 restarts
+ * logged no section, #1208).
+ */
+let recentSections: Array<{ name: string; startedAtMs: number; endedAtMs: number }> = [];
+
+function processMetrics(): { heapUsedMb: number; rssMb: number } {
+  const { heapUsed, rss } = process.memoryUsage();
+  return { heapUsedMb: Math.round(heapUsed / 1048576), rssMb: Math.round(rss / 1048576) };
+}
+
 /**
  * Registers a named section as running so a stall WARN emitted meanwhile lists it.
  *
@@ -90,9 +122,14 @@ const activeSections = new Map<symbol, { name: string; startedAtMs: number }>();
  */
 export function markEventLoopSection(name: string): () => void {
   const token = Symbol(name);
-  activeSections.set(token, { name, startedAtMs: Date.now() });
+  const startedAtMs = Date.now();
+  activeSections.set(token, { name, startedAtMs });
   return () => {
-    activeSections.delete(token);
+    if (!activeSections.delete(token)) return;
+    recentSections.push({ name, startedAtMs, endedAtMs: Date.now() });
+    if (recentSections.length > RECENT_SECTION_LIMIT) {
+      recentSections = recentSections.slice(-RECENT_SECTION_LIMIT);
+    }
   };
 }
 
@@ -120,6 +157,7 @@ export function formatEventLoopLagMessage(lagMs: number): string {
 export function startEventLoopLagWatchdog(selfHeal: SelfHealAction = defaultSelfHeal): void {
   if (handle) return;
   recentStalls = [];
+  recentSections = [];
   healingTriggered = false;
   let expected = Date.now() + CHECK_INTERVAL_MS;
   handle = setInterval(() => {
@@ -133,8 +171,23 @@ export function startEventLoopLagWatchdog(selfHeal: SelfHealAction = defaultSelf
         name: section.name,
         runningMs: now - section.startedAtMs,
       }));
+      // A section released at or after the expected tick time overlapped the stall.
+      const stallStartedAtMs = now - lagMs;
+      const released = recentSections
+        .filter((section) => section.endedAtMs >= stallStartedAtMs)
+        .reverse()
+        .map((section) => ({
+          name: section.name,
+          durationMs: section.endedAtMs - section.startedAtMs,
+          endedAgoMs: now - section.endedAtMs,
+        }));
       log.warn(
-        sections.length > 0 ? { lagMs, activeSections: sections } : { lagMs },
+        {
+          lagMs,
+          ...(sections.length > 0 ? { activeSections: sections } : {}),
+          ...(released.length > 0 ? { recentSections: released } : {}),
+          ...processMetrics(),
+        },
         formatEventLoopLagMessage(lagMs),
       );
       recentStalls.push({ atMs: now, lagMs });
@@ -145,6 +198,7 @@ export function startEventLoopLagWatchdog(selfHeal: SelfHealAction = defaultSelf
           selfHeal(
             `single stall of ${lagMs}ms reached the ${CATASTROPHIC_STALL_MS}ms threshold`,
             sections,
+            released,
           );
         } else {
           const cumulativeMs = recentStalls.reduce((sum, stall) => sum + stall.lagMs, 0);
@@ -153,6 +207,7 @@ export function startEventLoopLagWatchdog(selfHeal: SelfHealAction = defaultSelf
             selfHeal(
               `cumulative stall of ${cumulativeMs}ms within the last ${CUMULATIVE_WINDOW_MS}ms reached the ${CUMULATIVE_TRIGGER_MS}ms threshold`,
               sections,
+              released,
             );
           }
         }
@@ -168,6 +223,7 @@ export function stopEventLoopLagWatchdog(): void {
     handle = null;
   }
   recentStalls = [];
+  recentSections = [];
   healingTriggered = false;
   activeSections.clear();
 }
