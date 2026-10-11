@@ -94,3 +94,24 @@ export function isRequirementReplanWindowExhausted(
   ).length;
   return count >= 2;
 }
+
+/**
+ * Production-shaped window guard for the replan about to be committed (task 1198).
+ *
+ * `commitReviewedDecision` reads `priorReplanRows` BEFORE writing the current
+ * `requirement_evidence_replan`, so the rows never include the replan being
+ * decided. Feeding them straight to {@link isRequirementReplanWindowExhausted}
+ * (threshold 2) therefore only tripped on the 3rd replan — after the 3rd
+ * `phase_completed:implementer` had already fired (task #1195). This counts the
+ * pending replan itself, so the 2nd replan inside the window is refused.
+ *
+ * @param priorReplans - Already-committed replan timestamps (excludes the pending one). / コミット済みリプラン時刻（今回分を含まない）
+ * @param nowMs - Current time (ms). / 現在時刻
+ * @returns true when committing one more replan would make 2+ in the window. / 今回を加えて窓内2回以上ならtrue
+ */
+export function wouldReplanExhaustWindow(
+  priorReplans: ReplanTransitionTimestamp[],
+  nowMs: number,
+): boolean {
+  return isRequirementReplanWindowExhausted([...priorReplans, { createdAtMs: nowMs }], nowMs);
+}

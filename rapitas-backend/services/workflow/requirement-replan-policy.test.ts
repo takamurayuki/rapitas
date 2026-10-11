@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import {
   rejectReplanLifecycle,
   isRequirementReplanWindowExhausted,
+  wouldReplanExhaustWindow,
   type ReplanLifecycleSnapshot,
 } from './requirement-replan-policy';
 
@@ -79,5 +80,21 @@ test('a replan just outside the 60-minute window is not counted (boundary)', () 
   // the out-of-window one contributes nothing to the count.
   expect(isRequirementReplanWindowExhausted([justOutside, justInside, replanAt1018], nowMs)).toBe(
     true,
+  );
+});
+
+// Task 1198: production passes only PRIOR replans (the current one is written
+// after the read), so the 2nd replan in the window must already be refused.
+test('pending 2nd replan is refused when exactly one prior replan is in the window', () => {
+  const nowMs = replanAt1018.createdAtMs;
+  expect(wouldReplanExhaustWindow([], nowMs)).toBe(false);
+  expect(wouldReplanExhaustWindow([replanAt1002], nowMs)).toBe(true);
+  expect(isRequirementReplanWindowExhausted([replanAt1002], nowMs)).toBe(false);
+});
+
+test('a prior replan outside the window does not refuse the pending one', () => {
+  const nowMs = replanAt1018.createdAtMs;
+  expect(wouldReplanExhaustWindow([{ createdAtMs: nowMs - 60 * 60 * 1000 - 1 }], nowMs)).toBe(
+    false,
   );
 });
