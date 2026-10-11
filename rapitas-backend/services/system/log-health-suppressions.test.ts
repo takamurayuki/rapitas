@@ -320,13 +320,18 @@ describe('classifyLogSignature', () => {
     }
   });
 
-  test('the root-cause "Preserving uncommitted work" warn stays visible', () => {
-    expect(
-      classifyLogSignature(
-        'git-operations/worktree-ops',
-        '[removeWorktree] Preserving uncommitted work',
-      ).suppressed,
-    ).toBe(false);
+  test('"Preserving uncommitted work" is suppressed for worktree-ops only; adjacent guard signatures stay visible', () => {
+    // Task #1210: the line records the guard protecting work (worktree-remove.ts:76), not a defect.
+    const msg = '[removeWorktree] Preserving uncommitted work';
+    expect(classifyLogSignature('git-operations/worktree-ops', msg).suppressed).toBe(true);
+    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    for (const visible of [
+      '[removeWorktree] Missing Git metadata; preserving directory',
+      '[removeWorktree] Cannot prove work is preserved; refusing removal',
+      '[cleanupOrphanedWorktrees] Failed to remove orphaned directory after retries',
+    ]) {
+      expect(classifyLogSignature('git-operations/worktree-ops', visible).suppressed).toBe(false);
+    }
   });
 
   test('routes:ai-chat CLI timeout is suppressed but spawn failures and other loggers stay visible', () => {
