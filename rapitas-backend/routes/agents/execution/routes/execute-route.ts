@@ -38,7 +38,7 @@ import { resolveEffectiveAutoApprovePlan } from '../../../../services/workflow/p
 import { resolveEffectiveWorkflowDisabled } from '../../../../services/workflow/workflow-disabled';
 import { buildHypothesisContext } from '../../../../services/workflow/workflow-hypothesis-context';
 import {
-  startWorktreeDependenciesInstall,
+  prepareWorktreeDependencies,
   taskNeedsDependencies,
 } from '../../../../services/agents/orchestrator/git-operations/worktree/dependency-installer';
 import { assertSafeGitRef } from '../../../../utils/common/branch-name-generator';
@@ -626,29 +626,24 @@ export const executeRoute = new Elysia().post(
 
       const executionDir = worktreePath;
 
-      // NOTE: Kick off dependency install in the BACKGROUND, but DO NOT await it
-      // before launching the agent CLI. The agent typically spends 5-30s on
-      // research/grep before attempting any verification command (vitest, build),
-      // by which time the parallel pnpm install has usually finished. Worst case:
-      // the agent's verification fails fast → empty diff → post-execution-review
-      // marks the task as `blocked` and the user can re-run with logs.
-      // This avoids the 30-90s "first log appears late" UX problem that came
-      // from blocking the executeTask launch on install completion.
-      // Research mode: skip dependency install entirely. The agent is read-only
-      // and cannot run vitest/build/install commands anyway. This applies both
-      // to explicit `mode: 'research'` calls AND auto-downgraded codex+planner.
+      // A rapitas worktree only links the main node_modules, so the install runs
+      // in the BACKGROUND and the CLI launches in parallel — that avoids the
+      // 30-90s "first log appears late" problem. A generated project may need a
+      // real install and is waited for instead; see prepareWorktreeDependencies
+      // for the measurement behind the split.
+      // Research mode: skip entirely. The agent is read-only and cannot run
+      // vitest/build/install commands anyway. This applies both to explicit
+      // `mode: 'research'` calls AND auto-downgraded codex+planner.
       const needsDeps =
         !effectiveResearchMode && taskNeedsDependencies(task.title, task.description);
       if (needsDeps) {
-        startWorktreeDependenciesInstall(executionDir).catch((error) => {
+        const prepMode = await prepareWorktreeDependencies(executionDir, (error) => {
           log.warn(
             { err: error, taskId: taskIdNum },
-            `[API] Background dependency install failed; verification commands may fail`,
+            `[API] Dependency install failed; verification commands may fail`,
           );
         });
-        log.info(
-          `[API] Task ${taskIdNum}: dependency install running in background (agent CLI launching now in parallel)`,
-        );
+        log.info(`[API] Task ${taskIdNum}: dependency install ${prepMode}`);
       } else {
         log.info(
           `[API] Task ${taskIdNum}: skipping dependency install (task heuristic indicates no JS code change)`,

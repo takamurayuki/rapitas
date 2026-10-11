@@ -134,6 +134,44 @@ export function clearWorktreeDependenciesTracking(worktreePath: string): void {
   inflightInstalls.delete(worktreePath);
 }
 
+/** Whether the launch waited for dependencies or left them running. */
+export type DependencyPrepMode = 'awaited' | 'background';
+
+/**
+ * Prepare a worktree's dependencies before the agent CLI is launched.
+ *
+ * NOTE: A rapitas worktree only LINKS the main checkout's node_modules, which
+ * takes a second or two — launching in parallel is safe and keeps the agent's
+ * first output fast. A generated project has no setup-worktree.cjs and may need
+ * a real install at its project root, so the same parallel launch is a race the
+ * agent can lose. Measured 2026-10-11 on theme 35: task 1184 won it and task
+ * 1185 lost it, and losing it does NOT fail fast as the parallel launch assumed
+ * — the agent implemented the whole feature and then reported every gate
+ * "unverifiable, no node_modules", which is a verify_repair bounce, not a clean
+ * block. Waiting costs that one task a few seconds; the bounce costs a cycle.
+ *
+ * @param worktreePath - Worktree the agent will run in / エージェントが実行する worktree
+ * @param onBackgroundFailure - Called if a non-awaited install rejects / 非同期インストール失敗時
+ * @returns Whether this call waited / 待機したかどうか
+ */
+export async function prepareWorktreeDependencies(
+  worktreePath: string,
+  onBackgroundFailure: (error: unknown) => void,
+): Promise<DependencyPrepMode> {
+  const isRapitasWorktree = existsSync(join(worktreePath, 'scripts', 'setup-worktree.cjs'));
+  const install = startWorktreeDependenciesInstall(worktreePath);
+
+  if (isRapitasWorktree) {
+    install.catch(onBackgroundFailure);
+    return 'background';
+  }
+
+  // A failure here is reported the same way rather than thrown: the agent can
+  // still do useful work, and the verify gates will say what was unverifiable.
+  await install.catch(onBackgroundFailure);
+  return 'awaited';
+}
+
 /**
  * Make dependencies available in a worktree by LINKING the main checkout's
  * node_modules (via scripts/setup-worktree.cjs) — never by installing.
