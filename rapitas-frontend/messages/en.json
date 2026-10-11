@@ -6380,5 +6380,40 @@
     "closeAria": "Close (Esc)",
     "snoozeAria": "Snooze for 24 hours",
     "clearSnoozeButton": "Clear snooze ({count})"
+  },
+  "calendarSlots": {
+    "title": "Calendar free-slot scheduler",
+    "description": "Starts new auto-run work only in your Google Calendar free time (times only — event titles and attendees are never read).",
+    "loadFailed": "Failed to load calendar slot data",
+    "nextRunsTitle": "Next run schedule",
+    "gateHeld": "Held for a meeting",
+    "gateFree": "Ready to run",
+    "gateDisabled": "Gate disabled",
+    "nextRunAt": "Next start time",
+    "noFreeSlot": "No free time within the fetched range",
+    "leadMinutes": "Hold before meetings (min)",
+    "busyCount": "Busy blocks",
+    "runningPhaseNote": "A running phase is never force-stopped; it stops at the phase boundary. If it cannot reach that boundary before the meeting, it may keep running during the meeting.",
+    "heldThemes": "Held themes",
+    "releaseAt": "Resumes at",
+    "freeSlots": "Free slots",
+    "syncTitle": "Calendar sync",
+    "syncOk": "Synced",
+    "syncError": "Sync failed",
+    "syncNever": "Not synced",
+    "stale": "Stale",
+    "lastSyncedAt": "Last sync",
+    "pollMinutes": "Poll interval (min)",
+    "failOpenNote": "Calendar data is unavailable, so auto-run is not held by the calendar.",
+    "connect": "Connect Google Calendar",
+    "resync": "Sync now",
+    "logsTitle": "Execution log",
+    "logsEmpty": "No log entries yet",
+    "action": {
+      "hold_started": "Hold started before a meeting",
+      "hold_released": "Hold released, resumed",
+      "recomputed": "Schedule change detected, slots recomputed",
+      "sync_failed": "Calendar sync failed"
+    }
   }
 }
