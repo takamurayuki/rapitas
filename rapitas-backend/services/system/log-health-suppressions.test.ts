@@ -494,17 +494,26 @@ describe('classifyLogSignature', () => {
     expect(classifyLogSignature('some-other-logger', normalizeMessage(raw)).suppressed).toBe(false);
   });
 
-  test('task 1156: auto_verifier "replan review held: not_reviewable" is suppressed for workflow-orchestrator only', () => {
-    const msg =
-      '[WorkflowOrchestrator] Error in auto_verifier: Requirement replan review held: not_reviewable';
-    expect(classifyLogSignature('workflow-orchestrator', normalizeMessage(msg)).suppressed).toBe(
-      true,
-    );
-    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+  test('task 1156: "replan review held: not_reviewable" is suppressed for the verify roles on workflow-orchestrator only', () => {
+    // Both role spellings reach the same gate via workflow-cli-executor-epilogue.
+    // Measured 2026-10-11: role=verifier emitted this verbatim, and the original
+    // rule covered auto_verifier only, so an expected hold surfaced as an
+    // unsuppressed ERROR.
+    for (const role of ['auto_verifier', 'verifier']) {
+      const msg = `[WorkflowOrchestrator] Error in ${role}: Requirement replan review held: not_reviewable`;
+      expect(classifyLogSignature('workflow-orchestrator', normalizeMessage(msg)).suppressed).toBe(
+        true,
+      );
+      expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    }
     for (const other of [
       '[WorkflowOrchestrator] Error in auto_verifier: Requirement replan review held: unknown',
       '[WorkflowOrchestrator] Error in auto_verifier: Requirement replan review held: requires_human:x',
+      '[WorkflowOrchestrator] Error in verifier: Requirement replan review held: budget_exhausted',
+      // A non-verify role is still worth seeing: it would mean the gate ran
+      // somewhere it was not expected to.
       '[WorkflowOrchestrator] Error in planner: Requirement replan review held: not_reviewable',
+      '[WorkflowOrchestrator] Error in implementer: Requirement replan review held: not_reviewable',
     ]) {
       expect(classifyLogSignature('workflow-orchestrator', other).suppressed).toBe(false);
     }
