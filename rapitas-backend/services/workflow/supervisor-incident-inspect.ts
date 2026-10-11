@@ -20,6 +20,7 @@ import {
   FORCESTOP_MIN_GAP_MS,
   MISPLACEMENT_MIN_ITEMS,
   MISPLACEMENT_RATIO,
+  normalizePath,
 } from './supervisor-incident-detectors';
 
 /** The candidate-task shape the watcher already selects (structural match). */
@@ -58,6 +59,14 @@ export function resetFalseFailureFiledForTest(): void {
   falseFailureFiledTaskIds.clear();
 }
 
+/** (taskId|cwd|themeDir) keys already reported as a cwd mismatch — evidence is immutable, so re-filing every tick only inflates recurrence. */
+const cwdMismatchFiledKeys = new Set<string>();
+
+/** Test hook: clears the cwd-mismatch idempotency memory. */
+export function resetCwdMismatchFiledForTest(): void {
+  cwdMismatchFiledKeys.clear();
+}
+
 /**
  * Kill switch for the whole supervisor-signature pass (extra DB load escape
  * hatch). Any value except '' / '0' / 'false' disables it.
@@ -93,8 +102,13 @@ export async function inspectSupervisorSignatures(args: {
   const mismatch = detectCwdMismatch({
     executionCwd: ev.executionCwd,
     themeWorkingDirectory: ev.themeWorkingDirectory,
+    taskWorkingDirectory: ev.taskWorkingDirectory,
   });
-  if (mismatch) {
+  // Key includes cwd + theme dir so a genuinely different recurrence is still filed.
+  const cwdKey = mismatch
+    ? `${task.id}|${normalizePath(mismatch.cwd)}|${normalizePath(mismatch.themeDir)}`
+    : null;
+  if (mismatch && cwdKey !== null && !cwdMismatchFiledKeys.has(cwdKey)) {
     const ok = await file({
       signature: 'supervisor-cwd-mismatch',
       task,
@@ -110,10 +124,19 @@ export async function inspectSupervisorSignatures(args: {
       evidenceLines: [
         `実行cwd: ${mismatch.cwd}`,
         `テーマ作業ディレクトリ: ${mismatch.themeDir}`,
+        ...(ev.taskWorkingDirectory ? [`タスク作業ディレクトリ: ${ev.taskWorkingDirectory}`] : []),
         ...(ev.executionCwdLine ? [`該当行: ${ev.executionCwdLine}`] : []),
       ],
     });
-    if (ok) filed++;
+    if (ok) {
+      filed++;
+      // Bounded: drop the oldest entry so a long-lived process cannot grow this forever.
+      if (cwdMismatchFiledKeys.size >= FALSE_FAILURE_FILED_CAP) {
+        const oldest = cwdMismatchFiledKeys.values().next().value;
+        if (oldest !== undefined) cwdMismatchFiledKeys.delete(oldest);
+      }
+      cwdMismatchFiledKeys.add(cwdKey);
+    }
   }
 
   // B: a success artifact landed right after a terminal failure mark (task 580 / PR #7 class).

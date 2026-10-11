@@ -170,6 +170,7 @@ describe('gatherSupervisorEvidence', () => {
     const ev = await gatherSupervisorEvidence(task);
     expect(ev).toEqual({
       themeWorkingDirectory: null,
+      taskWorkingDirectory: null,
       executionCwd: null,
       executionCwdLine: null,
       failureMarkedAtMs: null,
@@ -189,6 +190,34 @@ describe('gatherSupervisorEvidence', () => {
     const ev = await gatherSupervisorEvidence(task);
     expect(executionFindFirstMock).not.toHaveBeenCalled();
     expect(ev.executionCwd).toBeNull();
+  });
+
+  test('gate A (#1180): task.workingDirectory is selected and reported beside the theme dir', async () => {
+    taskFindUniqueMock.mockResolvedValue({
+      workingDirectory: 'C:\\Projects\\temporaid',
+      theme: { workingDirectory: 'C:\\Projects\\rapitas' },
+    });
+    executionFindFirstMock.mockResolvedValue({
+      output: '[Claude Code] Working directory: C:\\Projects\\temporaid\\.worktrees\\t',
+    });
+    const ev = await gatherSupervisorEvidence(task);
+    const arg = taskFindUniqueMock.mock.calls[0]?.[0] as { select: { workingDirectory?: boolean } };
+    expect(arg.select.workingDirectory).toBe(true);
+    expect(ev.taskWorkingDirectory).toBe('C:\\Projects\\temporaid');
+    expect(ev.themeWorkingDirectory).toBe('C:\\Projects\\rapitas');
+  });
+
+  test('gate A (#1180): a task directory alone is enough to fetch the execution cwd', async () => {
+    taskFindUniqueMock.mockResolvedValue({
+      workingDirectory: 'C:\\Projects\\temporaid',
+      theme: null,
+    });
+    executionFindFirstMock.mockResolvedValue({
+      output: '[Claude Code] Working directory: C:\\Projects\\temporaid',
+    });
+    const ev = await gatherSupervisorEvidence(task);
+    expect(ev.themeWorkingDirectory).toBeNull();
+    expect(ev.executionCwd).toBe('C:\\Projects\\temporaid');
   });
 
   test('gate A: the cwd line beyond the 4000-char head is ignored', async () => {

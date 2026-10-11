@@ -4,12 +4,18 @@
  * Turns guard-incidents-*.ndjson lines (written by scripts/primary-guard-hook.cjs
  * when an agent command is denied) into security concerns. Not responsible for
  * detecting or denying commands — the hook does that in a separate process.
+ *
+ * NOTE: Concerns are pinned to the self-development theme. Without a themeId,
+ * submitConcern inherits the origin task's theme, so a denial raised in a
+ * generated project (e.g. temporaid) produced a task whose worktree was created
+ * in that project instead of rapitas (#1168, #1180).
  */
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import { resolveSelfDevelopmentThemeId } from './self-development-theme';
 import { submitConcern } from '../memory/concern-backlog-service';
 import type { SubmitConcernInput } from '../memory/concern-backlog-types';
 
@@ -104,11 +110,14 @@ export async function fileGuardIncidents(
     submit?: GuardIncidentSubmit;
     seen?: Set<string>;
     isGuardTask?: GuardTaskLookup;
+    /** Self-development theme resolver (injectable for tests). */
+    resolveThemeId?: () => Promise<number | null>;
   } = {},
 ): Promise<number> {
   const submit = opts.submit ?? submitConcern;
   const seen = opts.seen ?? processedKeys;
   const isGuardTask = opts.isGuardTask ?? isGuardIncidentTask;
+  const resolveThemeId = opts.resolveThemeId ?? resolveSelfDevelopmentThemeId;
   const dir = opts.dir ?? defaultDir();
   // The in-memory set alone reset on every backend restart, and the concern
   // backlog only dedups against LIVE concerns — so once a filed concern had
@@ -141,6 +150,13 @@ export async function fileGuardIncidents(
       );
       continue;
     }
+    let themeId: number | null = null;
+    try {
+      themeId = await resolveThemeId();
+    } catch (err) {
+      // Never drop a security notice over theme resolution — fall back to origin-theme inheritance.
+      log.warn({ err }, 'Self-development theme resolution failed; filing without themeId');
+    }
     try {
       await submit({
         title: `[Security] エージェントが禁止コマンドを実行しようとした (${rec.kind}, task ${rec.taskId ?? '?'})`,
@@ -156,6 +172,7 @@ export async function fileGuardIncidents(
         severity: 'high',
         location: 'scripts/primary-guard-hook.cjs',
         originTaskId: rec.taskId ?? undefined,
+        ...(themeId !== null ? { themeId } : {}),
         source: 'guard-incident',
         dedupKey,
       });

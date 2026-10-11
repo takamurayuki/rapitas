@@ -68,6 +68,62 @@ describe('detectCwdMismatch', () => {
   ])('does NOT detect when $name (fail-safe)', ({ over }) => {
     expect(detectCwdMismatch({ ...incident, ...over })).toBeNull();
   });
+
+  // #1180: executors resolve task.workingDirectory before the theme's, so a run
+  // inside the task's own directory is not a wrong-repository run.
+  describe('task.workingDirectory (#1180)', () => {
+    const taskDir = 'C:\\Projects\\temporaid';
+    const base = {
+      themeWorkingDirectory: 'C:\\Projects\\rapitas',
+      taskWorkingDirectory: taskDir,
+    };
+
+    it('does NOT detect a cwd equal to the task directory', () => {
+      expect(detectCwdMismatch({ ...base, executionCwd: taskDir })).toBeNull();
+    });
+
+    it('does NOT detect a worktree under the task directory', () => {
+      expect(
+        detectCwdMismatch({
+          ...base,
+          executionCwd: 'C:\\Projects\\temporaid\\.worktrees\\task-1168-29f8dc93',
+        }),
+      ).toBeNull();
+    });
+
+    it('does NOT detect separator/case differences against the task directory', () => {
+      expect(
+        detectCwdMismatch({ ...base, executionCwd: 'c:/projects/TEMPORAID/.worktrees/t/' }),
+      ).toBeNull();
+    });
+
+    it('still detects a cwd unrelated to both theme and task directories (task-580 class)', () => {
+      expect(detectCwdMismatch({ ...base, executionCwd: 'C:\\Projects\\other-repo' })).toEqual({
+        cwd: 'C:\\Projects\\other-repo',
+        themeDir: 'C:\\Projects\\rapitas',
+      });
+    });
+
+    it('without a task directory behaves as before', () => {
+      expect(
+        detectCwdMismatch({
+          executionCwd: 'C:\\Projects\\temporaid\\.worktrees\\x',
+          themeWorkingDirectory: 'C:\\Projects\\rapitas',
+          taskWorkingDirectory: null,
+        }),
+      ).not.toBeNull();
+    });
+
+    it('compares against the task directory when the theme has none', () => {
+      expect(
+        detectCwdMismatch({
+          executionCwd: 'C:\\elsewhere',
+          themeWorkingDirectory: null,
+          taskWorkingDirectory: taskDir,
+        }),
+      ).toEqual({ cwd: 'C:\\elsewhere', themeDir: taskDir });
+    });
+  });
 });
 
 describe('detectFalseFailure', () => {
