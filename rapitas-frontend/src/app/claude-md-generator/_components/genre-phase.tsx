@@ -27,7 +27,7 @@ interface GenrePhaseProps {
  */
 export function GenrePhase({ topRef, t, onSelectGenre }: GenrePhaseProps) {
   return (
-    <PageWrap topRef={topRef} title={t('genreTitle')} sub={t('genreSub')} step={1} total={5}>
+    <PageWrap topRef={topRef} title={t('genreTitle')} sub={t('genreSub')} step={1} total={6}>
       <div
         style={{
           display: 'grid',

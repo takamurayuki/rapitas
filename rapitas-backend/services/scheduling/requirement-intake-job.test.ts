@@ -145,6 +145,60 @@ describe('runRequirementIntakeJob', () => {
     expect(payloads[0].acceptanceCriteria[0]).toContain('Given 未ログイン');
     expect(payloads[0].constraints).toContain('スコープ外: 決済');
   });
+
+  // The documents are written at scaffold time and never updated, so decisions
+  // made during implementation live only in the code — measured 2026-10-11,
+  // task 1185 settled TempoRaid's room-capacity semantics while
+  // requirements.md still described only 「4人まで」.
+  it('files a documentation follow-up when the document and the work disagree', async () => {
+    const { deps, created } = makeDeps({
+      themes: [{ id: 7, workingDirectory: '/p' }],
+      docs: { '/p': DOC },
+      // Both features already filed, plus one the document no longer declares.
+      existing: { 7: ['[F-01] ログイン', '[F-02] 一覧表示', '[F-09] 消えた機能'] },
+    });
+    const filed = await runRequirementIntakeJob(deps);
+    expect(filed).toBe(1);
+    expect(created).toHaveLength(1);
+    expect(created[0].title.startsWith('[DOC]')).toBe(true);
+    expect(created[0].themeId).toBe(7);
+  });
+
+  it('does not file a second follow-up while one is open', async () => {
+    const { deps, created } = makeDeps({
+      themes: [{ id: 7, workingDirectory: '/p' }],
+      docs: { '/p': DOC },
+      existing: {
+        7: ['[F-01] ログイン', '[F-02] 一覧表示', '[F-09] 消えた機能', '[DOC] 既存の追随タスク'],
+      },
+    });
+    expect(await runRequirementIntakeJob(deps)).toBe(0);
+    expect(created).toHaveLength(0);
+  });
+
+  it('does not report the features it just filed as missing from the work', async () => {
+    // Drift is judged against the titles that existed BEFORE this run, so a
+    // first run on a fresh project files features only.
+    const { deps, created } = makeDeps({
+      themes: [{ id: 7, workingDirectory: '/p' }],
+      docs: { '/p': DOC },
+      existing: { 7: [] },
+    });
+    await runRequirementIntakeJob(deps);
+    expect(created.map((c) => c.title)).toEqual(['[F-01] ログイン', '[F-02] 一覧表示']);
+    expect(created.some((c) => c.title.startsWith('[DOC]'))).toBe(false);
+  });
+
+  it('a drift-filing failure does not lose the feature tasks', async () => {
+    const { deps, created } = makeDeps({
+      themes: [{ id: 7, workingDirectory: '/p' }],
+      docs: { '/p': DOC },
+      existing: { 7: ['[F-01] ログイン', '[F-02] 一覧表示', '[F-09] 消えた機能'] },
+      failTitles: ['[DOC] requirements.md を実装の実態に合わせる'],
+    });
+    expect(await runRequirementIntakeJob(deps)).toBe(0);
+    expect(created).toHaveLength(0);
+  });
 });
 
 describe('readRequirementsFile', () => {

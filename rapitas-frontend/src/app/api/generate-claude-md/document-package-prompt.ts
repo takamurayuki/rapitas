@@ -10,6 +10,23 @@
  * without pushing the route past its line limit.
  */
 
+/**
+ * What the user told us about their own project. Blank or absent means NOT
+ * ESTABLISHED, which the prompt turns into a recorded assumption rather than an
+ * invented figure. Mirrors ProjectContext in the wizard's types.
+ */
+export interface ProjectContextInput {
+  users?: string;
+  latency?: string;
+  availability?: string;
+  budget?: string;
+  deadline?: string;
+  team?: string;
+  assets?: string;
+  success?: string;
+  domainRules?: string;
+}
+
 /** Wizard answers + the chosen proposal, as the route receives them. */
 export interface ClaudeMdRequest {
   genre: string;
@@ -18,6 +35,10 @@ export interface ClaudeMdRequest {
   plat: string;
   scale: string;
   prio: string;
+  /** Elicited project facts; every field optional. / ヒアリング結果（全項目任意） */
+  context?: ProjectContextInput;
+  /** Answers to the review round's questions, when regenerating. / 壁打ちの回答 */
+  reviewAnswers?: string;
   proposal: {
     id: string;
     name: string;
@@ -84,6 +105,23 @@ export const systemPrompt = `あなたはシニアプロダクトマネージャ
 - 技術は必ず1つに確定する。"AかB" のような曖昧表現は禁止（❌"Next.js または Nuxt" → ✅"Next.js 14（理由:...）"）。
 - 具体的・実装可能なレベルまで落とし込む。抽象的な一般論で埋めない。
 - 日本語で記述する（コード・コマンド・識別子は英語のまま）。
+
+## ヒアリング結果の扱い（最重要）
+入力の \`context\` は、ユーザー本人から聞き取った事実である。**空欄は「未確認」を意味する。**
+
+- **与えられた値は必ずそのまま使う。** 勝手に別の値へ丸めたり、厳しくしたりしない。
+- **空欄の項目について数値を創作してはならない。** 設計上どうしても値が必要な場合は、
+  仮定値を置いたうえで「# 前提と未決事項」に**仮定であることを明記**する。
+  これを守らないと、聞いてもいない数値がアーキテクチャと費用を確定させてしまう。
+- 非機能要件の各行には、**ヒアリング由来か仮定かが分かるように書く**
+  （例: ✅"同時接続 500（ヒアリング）" / ✅"p95 300ms（仮定・未確認）"）。
+- \`context.assets\` に既存資産があるなら、それを**作り直さない**設計にする。
+- \`context.budget\` / \`context.team\` が小さいなら、構成要素を減らす方向に寄せる。
+  マネージドサービス1つで足りるところに自前の分散構成を置かない。
+- \`context.domainRules\` は機能要件・非機能要件・スコープ外のいずれかに必ず反映する。
+
+\`reviewAnswers\` がある場合は、**前回の生成に対するユーザーの回答**である。
+その回答を反映して文書を作り直し、回答で確定した事項は「前提と未決事項」から外す。
 
 ## requirements（要件定義書）に必ず含めるセクション（この順序）
 1. # 概要（アプリ名・解決する課題・ターゲットユーザー・提供価値）

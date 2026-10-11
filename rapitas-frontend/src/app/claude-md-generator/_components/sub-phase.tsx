@@ -72,7 +72,7 @@ export function SubPhase({
       })}
       sub={t('subSub')}
       step={2}
-      total={5}
+      total={6}
       onBack={onBack}
       onNext={() => onNext(subs.filter((s) => selectedSubs.includes(s.id)).map((s) => s.id))}
       nextLabel={t('next')}

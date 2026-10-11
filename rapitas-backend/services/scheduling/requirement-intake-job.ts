@@ -2,10 +2,12 @@
  * requirement-intake-job
  *
  * Periodic `requirement_intake` backlog job: reads each theme's
- * `docs/requirements.md` and files an implementation task for every `[F-NN]`
- * feature that is not yet a task.
- * Not responsible for parsing or payload shaping — that lives in
- * services/organization/requirements-task-{plan,payload}.ts.
+ * `docs/requirements.md`, files an implementation task for every `[F-NN]`
+ * feature that is not yet a task, and files one follow-up task when the
+ * document has fallen out of step with the work.
+ * Not responsible for parsing, payload shaping or drift rules — those live in
+ * services/organization/requirements-task-{plan,payload}.ts and
+ * services/organization/spec-drift.ts.
  */
 import { existsSync } from 'fs';
 import { readFile, stat } from 'fs/promises';
@@ -18,6 +20,12 @@ import {
   toTaskPayload,
   type RequirementTaskPayload,
 } from '../organization/requirements-task-payload';
+import {
+  detectSpecDrift,
+  toDriftTaskPayload,
+  DRIFT_TASK_PREFIX,
+  type DriftTaskPayload,
+} from '../organization/spec-drift';
 import { getDisabledThemeIds } from './theme-backlog-override-service';
 
 const log = createLogger('scheduling:requirement-intake');
@@ -47,7 +55,7 @@ export interface RequirementIntakeDeps {
   /** Titles of every task in the theme, regardless of status. */
   listExistingTitles: (themeId: number) => Promise<string[]>;
   /** Files one task; a falsy result means nothing was created. */
-  createTask: (payload: RequirementTaskPayload) => Promise<unknown>;
+  createTask: (payload: RequirementTaskPayload | DriftTaskPayload) => Promise<unknown>;
 }
 
 /**
@@ -162,5 +170,44 @@ async function intakeTheme(
       log.warn({ err, themeId, featureId: spec.id }, 'Failed to file feature task (non-fatal)');
     }
   }
+
+  filed += await fileDriftTask(themeId, markdown, existing, deps);
   return filed;
+}
+
+/**
+ * File the documentation follow-up when the document and the work disagree.
+ *
+ * Runs after filing so this run's new tasks count as filed — otherwise every
+ * run would report the features it had just created as missing from the work.
+ *
+ * @param themeId - Theme being scanned / 対象テーマ
+ * @param markdown - requirements.md content / requirements.md の内容
+ * @param existing - Task titles BEFORE this run's filing / 今回起票前のタスク名
+ * @param deps - Injected collaborators / 注入された依存
+ * @returns 1 when a task was filed, else 0 / 起票したら 1
+ */
+async function fileDriftTask(
+  themeId: number,
+  markdown: string,
+  existing: readonly string[],
+  deps: RequirementIntakeDeps,
+): Promise<number> {
+  // One open follow-up at a time: the job runs daily and the work is the same
+  // every run until someone does it.
+  if (existing.some((t) => t.trimStart().startsWith(DRIFT_TASK_PREFIX))) return 0;
+
+  const findings = detectSpecDrift({ requirements: markdown, existingTitles: existing });
+  const payload = toDriftTaskPayload(findings, { themeId });
+  if (!payload) return 0;
+
+  try {
+    const task = await deps.createTask(payload);
+    if (!task) return 0;
+    log.info({ themeId, findings: findings.length }, 'Filed documentation drift task');
+    return 1;
+  } catch (err) {
+    log.warn({ err, themeId }, 'Failed to file drift task (non-fatal)');
+    return 0;
+  }
 }
