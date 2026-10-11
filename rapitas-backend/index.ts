@@ -194,6 +194,7 @@ import { startWorktreeCleanupScheduler } from './services/scheduling/worktree-cl
 import { startDecisionTraceConsistencyScheduler } from './services/scheduling/decision-trace-consistency-scheduler';
 import { startAutoRestartMergedCodeScheduler } from './services/scheduling/auto-restart-merged-code';
 import { startMemoReminderScheduler } from './services/scheduling/memo-reminder-scheduler';
+import { startWorkerHealthAlertScheduler } from './services/agents/worker-health/worker-health-alert-service';
 import { AutoMergeWatcher } from './services/workflow/auto-merge-watcher';
 import { startWorkflowReconciler } from './services/workflow/workflow-reconciler';
 import { startResourceTelemetryIfEnabled } from './services/system/resource-telemetry';
@@ -294,6 +295,7 @@ const runStartupWarmup = async (): Promise<void> => {
     ['decision-trace-consistency-scheduler', () => startDecisionTraceConsistencyScheduler()],
     ['auto-restart-merged-code-scheduler', () => startAutoRestartMergedCodeScheduler()],
     ['memo-reminder-scheduler', () => startMemoReminderScheduler()],
+    ['worker-health-alert-scheduler', () => startWorkerHealthAlertScheduler()],
     ['auto-merge-watcher', () => AutoMergeWatcher.getInstance().start()],
     ['workflow-reconciler', () => startWorkflowReconciler()],
     ['resource-telemetry', () => startResourceTelemetryIfEnabled()],

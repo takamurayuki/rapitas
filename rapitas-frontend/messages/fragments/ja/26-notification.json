@@ -221,6 +221,10 @@
       "auto_run_queue_stalled": {
         "title": "自動実行: キューが消費されていません（要調査）",
         "message": "実行中 0 件のままキュー待ちが約 {waitedMinutes} 分間消費されていません{taskRef}。ワークフローランナーは稼働中のため自動での再起動はできません — overlap-guard の保留超過など、原因調査が必要な可能性があります。"
+      },
+      "worker_health_deviation": {
+        "title": "ワーカー健全性: ベースラインからの逸脱を検知",
+        "message": "{reason}しています。主な寄与指標: {metric}（複合スコア {score}）。個別指標で根拠を確認してください。"
       }
     }
   }
