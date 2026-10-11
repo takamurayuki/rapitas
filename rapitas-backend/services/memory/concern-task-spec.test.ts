@@ -156,6 +156,21 @@ describe('specForConcernSource — guard-incident', () => {
     }
   });
 
+  // 2026-10-11, task 1168: the criterion asked for the rejected command's 全文,
+  // but the only durable record is the guard-incidents NDJSON, truncated to
+  // MAX_COMMAND_CHARS=200 by primary-guard-hook.cjs. Measured: task 1153's line
+  // is exactly 200 chars, cut mid-path at `/c/Projects/temporaid/.worktr`. The
+  // agent tried four retrieval routes, documented the missing range and reported
+  // ⚠️ 一部 honestly — and that ⚠️ was read as a partial verdict, costing two
+  // verify_repair rounds for a criterion nothing could satisfy. A criterion must
+  // not demand evidence the system deliberately discards.
+  test('切り詰められて存在しない「全文」を要求しない', () => {
+    const criteria = (specForConcernSource('guard-incident')?.acceptanceCriteria ?? []).join('\n');
+    expect(criteria).not.toContain('全文');
+    // The achievable form: quote what was retained and state what was lost.
+    expect(criteria).toMatch(/200 字|欠落/);
+  });
+
   // The hook is the detector, not the defect — relaxing it is how task 1086
   // "resolved" its own denial.
   test('検知器を緩める変更を禁じる', () => {
