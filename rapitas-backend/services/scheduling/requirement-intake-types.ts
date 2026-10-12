@@ -16,6 +16,11 @@ export interface IntakeTheme {
   workingDirectory: string | null;
   /** Branch the project's documents are authoritative on. / 文書の正となるブランチ */
   defaultBranch?: string | null;
+  /**
+   * The theme's own preview config. Either this or a `rapitas.runtime.json` in
+   * the project turns runtime-smoke on. / テーマ側のプレビュー設定
+   */
+  runtimeConfigJson?: string | null;
 }
 
 /** Side-effecting collaborators, injectable so tests need no module mocking. */
@@ -30,6 +35,12 @@ export interface RequirementIntakeDeps {
   readDesign: (workingDirectory: string, defaultBranch?: string | null) => Promise<string | null>;
   /** Whether the project root carries a dependency manifest. / ルートに manifest があるか */
   hasProjectManifest: (workingDirectory: string) => boolean;
+  /**
+   * Whether the project root carries `rapitas.runtime.json`. Checked separately
+   * from the theme's own config because either one enables runtime-smoke.
+   * / ルートに rapitas.runtime.json があるか
+   */
+  hasRuntimeConfigFile: (workingDirectory: string) => boolean;
   /** Titles of every task in the theme, regardless of status. */
   listExistingTitles: (themeId: number) => Promise<string[]>;
   /** How many filed tasks the theme has that nobody has started. */

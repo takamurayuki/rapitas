@@ -37,6 +37,7 @@ export function projectNameOf(workingDirectory: string): string {
  * @param defaultBranch - Branch the documents are authoritative on / 正となるブランチ
  * @param existing - Task titles in the theme / 既存タスク名
  * @param deps - Injected collaborators / 注入された依存
+ * @param state - What is already in place, so the task says what is missing / 既存の状態
  * @returns 1 when a task was filed, else 0 / 起票したら 1
  */
 export async function fileBootstrapTask(
@@ -45,6 +46,7 @@ export async function fileBootstrapTask(
   defaultBranch: string | null | undefined,
   existing: readonly string[],
   deps: RequirementIntakeDeps,
+  state: { hasManifest?: boolean } = {},
 ): Promise<number> {
   if (existing.some((t) => t.trimStart().startsWith(BOOTSTRAP_TASK_PREFIX))) {
     log.info({ themeId }, 'Environment setup already filed — holding feature tasks until it lands');
@@ -55,13 +57,14 @@ export async function fileBootstrapTask(
     themeId,
     projectName: projectNameOf(workingDirectory),
     design,
+    hasManifest: state.hasManifest,
   });
   try {
     const task = await deps.createTask(payload);
     if (!task) return 0;
     log.info(
-      { themeId, workingDirectory },
-      'Filed the environment-setup task for a documents-only project; feature tasks wait for it',
+      { themeId, workingDirectory, hasManifest: state.hasManifest === true },
+      'Filed the environment-setup task; feature tasks wait for it',
     );
     return 1;
   } catch (err) {

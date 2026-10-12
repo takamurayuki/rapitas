@@ -37,16 +37,33 @@ export interface BootstrapState {
   hasManifest: boolean;
   /** `docs/requirements.md` was readable. / 要件定義書が読めた */
   hasRequirements: boolean;
+  /**
+   * Preview config is registered — `rapitas.runtime.json` or the theme's own
+   * `runtimeConfigJson`. Absent is treated as NOT registered.
+   * / プレビュー設定が登録済みか（未指定は未登録扱い）
+   */
+  hasRuntimeConfig?: boolean;
 }
 
 /**
- * Whether this project is still documents-only and needs setting up first.
+ * Whether this project still needs setting up before any feature task.
  *
- * @param state - What the filesystem showed / ファイルシステムの状態
+ * NOTE: preview config counts as part of "set up", not as a nice-to-have.
+ * Measured 2026-10-12: project generation now writes its skeleton
+ * (`package.json` and friends) at creation, so keying this on the manifest
+ * alone made the answer permanently false for every new project — and the setup
+ * task is the ONLY thing that registers `rapitas.runtime.json`. Without it
+ * runtime-smoke, which is opt-in, never runs, and every feature passes on
+ * static checks alone. That is exactly how TempoRaid shipped 12 "implemented"
+ * features behind a single upload panel. The two changes landed together and
+ * cancelled each other out.
+ *
+ * @param state - What the filesystem and theme showed / ファイルシステムとテーマの状態
  * @returns True when a setup task should come before feature tasks / 先に環境構築が必要か
  */
 export function needsEnvironmentBootstrap(state: BootstrapState): boolean {
-  return state.hasRequirements && !state.hasManifest;
+  if (!state.hasRequirements) return false;
+  return !state.hasManifest || !state.hasRuntimeConfig;
 }
 
 /** Context for {@link toBootstrapTaskPayload}. */
@@ -56,6 +73,13 @@ export interface BootstrapContext {
   projectName: string;
   /** `docs/design.md`, mined for the concrete stack. / 設計書 */
   design?: string | null;
+  /**
+   * Whether a manifest already exists, so the task says what is actually
+   * missing. A generated project now starts WITH one, and telling its agent
+   * the project is "documents only" would send it to rebuild what is there.
+   * / manifest が既にあるか
+   */
+  hasManifest?: boolean;
 }
 
 /** The task fields the workflow reads. Mirrors RequirementTaskPayload. */
@@ -108,10 +132,19 @@ export function toBootstrapTaskPayload(ctx: BootstrapContext): BootstrapTaskPayl
       : '## 技術スタック\n\n設計書に技術スタックのセクションがありません。' +
         '設計書の記述から読み取れる範囲で決め、決めた内容と理由を verify.md に明記してください。\n';
 
+  // A generated project now ships its skeleton at creation, so the opening
+  // line has to say which half is actually missing: told "documents only", an
+  // agent rebuilds a manifest that is already there and the real gap (preview
+  // config) stays open.
+  const situation = ctx.hasManifest
+    ? 'このプロジェクトには依存関係の manifest がありますが、プレビュー設定が未登録です。' +
+      'manifest と雛形は作り直さず、不足している設定と動作確認を整えてください。'
+    : 'このプロジェクトは現在 `docs/` の文書だけで、依存関係の manifest がありません。';
+
   return {
     title: `${BOOTSTRAP_TASK_PREFIX} ${ctx.projectName} の環境構築とプレビュー設定`,
     description:
-      `このプロジェクトは現在 \`docs/\` の文書だけで、依存関係の manifest がありません。` +
+      `${situation}` +
       `機能の実装タスクはこのタスクが完了するまで起票されません。\n\n` +
       `${stackBlock}\n` +
       `## なぜプレビュー設定まで必要か\n\n` +
@@ -123,18 +156,25 @@ export function toBootstrapTaskPayload(ctx: BootstrapContext): BootstrapTaskPayl
       `ここで登録しておくことが、以降の全タスクで起動確認を有効にする唯一の方法です。`,
     themeId: ctx.themeId,
     goals: [
-      '依存関係の manifest と lockfile を作り、インストールが成功する状態にする',
+      ctx.hasManifest
+        ? '既存の manifest で依存インストールが成功する状態にする（作り直さない）'
+        : '依存関係の manifest と lockfile を作り、インストールが成功する状態にする',
       'typecheck / lint / test / dev サーバー起動のスクリプトを用意する',
       `${RUNTIME_CONFIG_FILE} を作り、以降の実装タスクで起動確認が走るようにする`,
     ],
     constraints: [
       '機能の実装はしない。環境構築とプレビュー設定だけを行う',
       '要件定義書・設計書は変更しない',
+      ...(ctx.hasManifest
+        ? ['既存の manifest と雛形ファイルは作り直さない。不足分だけを足す']
+        : []),
       'worktree 内で依存インストールを行う場合、node_modules がリンク共有されている環境では禁止される。' +
         'その場合はプロジェクトルートで用意する',
     ],
     acceptanceCriteria: [
-      'プロジェクトルートに依存関係の manifest と lockfile が差分に含まれている',
+      ctx.hasManifest
+        ? 'プロジェクトルートの manifest から依存を解決した lockfile が差分に含まれている'
+        : 'プロジェクトルートに依存関係の manifest と lockfile が差分に含まれている',
       '依存インストールのコマンドが exit 0 で完了したことが verify.md に記録されている',
       'typecheck・lint・test の各コマンドが exit 0 で完了したことが verify.md に記録されている' +
         '（テストが0件の場合は、0件であることと理由を明記する）',

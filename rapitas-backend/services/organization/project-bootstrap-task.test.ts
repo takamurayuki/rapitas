@@ -23,12 +23,51 @@ describe('needsEnvironmentBootstrap', () => {
     expect(needsEnvironmentBootstrap({ hasRequirements: true, hasManifest: false })).toBe(true);
   });
 
-  test('manifest があれば不要（構築済み）', () => {
-    expect(needsEnvironmentBootstrap({ hasRequirements: true, hasManifest: true })).toBe(false);
-  });
-
   test('要件定義書が無ければ対象外（そもそも起票する材料がない）', () => {
     expect(needsEnvironmentBootstrap({ hasRequirements: false, hasManifest: false })).toBe(false);
+  });
+
+  // 実測 2026-10-12: プロジェクト生成が scaffold(package.json 等)を作成時に
+  // 書き出すようになったため、新規プロジェクトは最初から manifest を持つ。
+  // manifest の有無だけで判定すると [ENV] タスクは**決して**起票されず、
+  // プレビュー設定(rapitas.runtime.json)を登録する唯一の経路が消える。
+  // runtime-smoke はオプトインなので、以降の全機能が静的検査だけで合格し、
+  // TempoRaid(12機能・初期画面のみ)と同じ結果になる。
+  // この2つの変更は同時に入って互いを打ち消していた。
+  test('manifest があってもプレビュー設定が無ければ環境構築が必要', () => {
+    expect(
+      needsEnvironmentBootstrap({
+        hasRequirements: true,
+        hasManifest: true,
+        hasRuntimeConfig: false,
+      }),
+    ).toBe(true);
+  });
+
+  test('manifest とプレビュー設定が両方あれば不要（構築済み）', () => {
+    expect(
+      needsEnvironmentBootstrap({
+        hasRequirements: true,
+        hasManifest: true,
+        hasRuntimeConfig: true,
+      }),
+    ).toBe(false);
+  });
+
+  test('プレビュー設定があっても manifest が無ければ必要（依存が入らない）', () => {
+    expect(
+      needsEnvironmentBootstrap({
+        hasRequirements: true,
+        hasManifest: false,
+        hasRuntimeConfig: true,
+      }),
+    ).toBe(true);
+  });
+
+  test('hasRuntimeConfig 未指定は未登録として扱う（既定で安全側）', () => {
+    // 呼び出し側が渡し忘れたときに「登録済み」と誤認すると、起動確認が
+    // 静かに無効化される。欠落は必ず「未登録」に倒す。
+    expect(needsEnvironmentBootstrap({ hasRequirements: true, hasManifest: true })).toBe(true);
   });
 });
 

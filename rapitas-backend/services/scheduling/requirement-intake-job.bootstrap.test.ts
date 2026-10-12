@@ -5,39 +5,21 @@
  * requirement-intake-job.test.ts は 300 行上限に達したため分離した。
  */
 import { describe, it, expect } from 'bun:test';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
 import {
   runRequirementIntakeJob,
   MAX_FILES_PER_THEME_RUN,
-  MAX_UNSTARTED_PER_THEME,
   type RequirementIntakeDeps,
   type IntakeTheme,
 } from './requirement-intake-job';
-import { readRequirementsFile } from './requirements-document-reader';
 import { BOOTSTRAP_TASK_PREFIX, RUNTIME_CONFIG_FILE } from '../organization/project-bootstrap-task';
 
-/** More features than either cap, for the throttling tests. */
+/** More features than the per-run cap, so a bootstrap hold is unambiguous. */
 const MANY_FEATURES = [
   '# 機能要件',
   ...Array.from({ length: MAX_FILES_PER_THEME_RUN + 5 }, (_, i) => {
     const n = String(i + 1).padStart(2, '0');
     return `- [F-${n}] 機能${n}\n  出力: x`;
   }),
-].join('\n');
-
-const DOC = [
-  '# 機能要件',
-  '- [F-01] ログイン',
-  '  入力: メール',
-  '  出力: セッション',
-  '- [F-02] 一覧表示',
-  '  出力: 一覧',
-  '# 受け入れ基準',
-  '- [F-01] Given 未ログイン When 認証 Then セッションが作られる',
-  '# スコープ外',
-  '- 決済',
 ].join('\n');
 
 function makeDeps(opts: {
@@ -49,6 +31,8 @@ function makeDeps(opts: {
   unstarted?: Record<number, number>;
   /** Project roots that already have a dependency manifest; default: all do. / manifest のあるルート */
   manifests?: Record<string, boolean>;
+  /** Project roots that already have `rapitas.runtime.json`; default: all do. / プレビュー設定 */
+  runtimeConfigs?: Record<string, boolean>;
   /** docs/design.md per working directory. / 設計書 */
   designs?: Record<string, string | null>;
 }) {
@@ -62,6 +46,7 @@ function makeDeps(opts: {
     },
     readDesign: async (dir) => opts.designs?.[dir] ?? null,
     hasProjectManifest: (dir) => opts.manifests?.[dir] ?? true,
+    hasRuntimeConfigFile: (dir) => opts.runtimeConfigs?.[dir] ?? true,
     listExistingTitles: async (themeId) => opts.existing?.[themeId] ?? [],
     countUnstartedTasks: async (themeId) => opts.unstarted?.[themeId] ?? 0,
     createTask: async (payload) => {
@@ -112,17 +97,107 @@ describe('文書だけのプロジェクトは環境構築を先に起票する 
     expect(created).toHaveLength(0);
   });
 
-  it('manifest があれば従来どおり機能タスクを起票する', async () => {
+  it('manifest とプレビュー設定が揃っていれば機能タスクを起票する', async () => {
     const { deps, created } = makeDeps({
       themes: [{ id: 40, workingDirectory: WD, defaultBranch: 'develop' }],
       docs: { [WD]: MANY_FEATURES },
       manifests: { [WD]: true },
+      runtimeConfigs: { [WD]: true },
     });
 
     await runRequirementIntakeJob(deps);
 
     expect(created.length).toBeGreaterThan(0);
     expect(created.every((c) => !c.title.startsWith(BOOTSTRAP_TASK_PREFIX))).toBe(true);
+  });
+
+  // 実測 2026-10-12: プロジェクト生成が scaffold を作成時に書き出すため、新規
+  // プロジェクトは最初から manifest を持つ。manifest だけで判定していたので
+  // [ENV] タスクは決して起票されず、runtime-smoke を有効にする唯一の経路
+  // (rapitas.runtime.json の登録)が永久に閉じていた。ContextFlow の再生成でも
+  // scaffold 29ファイル中に rapitas.runtime.json は含まれなかった。
+  it('manifest があってもプレビュー設定が無ければ環境構築を先に起票する', async () => {
+    const { deps, created } = makeDeps({
+      themes: [{ id: 40, workingDirectory: WD, defaultBranch: 'develop' }],
+      docs: { [WD]: MANY_FEATURES },
+      designs: { [WD]: DESIGN },
+      manifests: { [WD]: true },
+      runtimeConfigs: { [WD]: false },
+    });
+
+    const filed = await runRequirementIntakeJob(deps);
+
+    expect(filed).toBe(1);
+    expect(created).toHaveLength(1);
+    expect(created[0].title.startsWith(BOOTSTRAP_TASK_PREFIX)).toBe(true);
+    expect(created.some((c) => /\[F-\d+\]/.test(c.title))).toBe(false);
+  });
+
+  it('テーマ側にプレビュー設定が登録済みなら機能タスクを起票する', async () => {
+    // Theme.runtimeConfigJson も runtime-smoke を有効にするので、ファイルが
+    // 無いことだけを理由に環境構築をやり直させてはならない。
+    const { deps, created } = makeDeps({
+      themes: [
+        {
+          id: 40,
+          workingDirectory: WD,
+          defaultBranch: 'develop',
+          runtimeConfigJson: '{"dev":{"command":"pnpm dev","url":"http://127.0.0.1:3000"}}',
+        },
+      ],
+      docs: { [WD]: MANY_FEATURES },
+      manifests: { [WD]: true },
+      runtimeConfigs: { [WD]: false },
+    });
+
+    await runRequirementIntakeJob(deps);
+
+    expect(created.length).toBeGreaterThan(0);
+    expect(created.every((c) => !c.title.startsWith(BOOTSTRAP_TASK_PREFIX))).toBe(true);
+  });
+
+  it('空文字の runtimeConfigJson は未登録として扱う', async () => {
+    const { deps, created } = makeDeps({
+      themes: [
+        { id: 40, workingDirectory: WD, defaultBranch: 'develop', runtimeConfigJson: '   ' },
+      ],
+      docs: { [WD]: MANY_FEATURES },
+      designs: { [WD]: DESIGN },
+      manifests: { [WD]: true },
+      runtimeConfigs: { [WD]: false },
+    });
+
+    await runRequirementIntakeJob(deps);
+
+    expect(created).toHaveLength(1);
+    expect(created[0].title.startsWith(BOOTSTRAP_TASK_PREFIX)).toBe(true);
+  });
+
+  it('manifest 済みの場合は「文書だけ」と言わず、作り直さないよう指示する', async () => {
+    // 既にある manifest を作り直させると、本当の不足(プレビュー設定)が
+    // 片付かないまま差分が膨らむ。
+    const payloads: string[] = [];
+    const { deps } = makeDeps({
+      themes: [{ id: 40, workingDirectory: WD, defaultBranch: 'develop' }],
+      docs: { [WD]: MANY_FEATURES },
+      designs: { [WD]: DESIGN },
+      manifests: { [WD]: true },
+      runtimeConfigs: { [WD]: false },
+    });
+    const spy: RequirementIntakeDeps = {
+      ...deps,
+      createTask: async (p) => {
+        payloads.push(p.description);
+        return true;
+      },
+    };
+
+    await runRequirementIntakeJob(spy);
+
+    expect(payloads).toHaveLength(1);
+    expect(payloads[0]).not.toContain('文書だけ');
+    expect(payloads[0]).toContain('プレビュー設定が未登録');
+    expect(payloads[0]).toContain(RUNTIME_CONFIG_FILE);
   });
 
   it('環境構築タスクは設計書の技術スタックを引き写す', async () => {

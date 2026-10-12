@@ -19,9 +19,12 @@ import { parseRequirementTasks, outOfScopeItems } from '../organization/requirem
 import { toTaskPayload } from '../organization/requirements-task-payload';
 import { getDisabledThemeIds } from './theme-backlog-override-service';
 import { readRequirementsFile, readDesignFile } from './requirements-document-reader';
-import { needsEnvironmentBootstrap } from '../organization/project-bootstrap-task';
+import {
+  needsEnvironmentBootstrap,
+  RUNTIME_CONFIG_FILE,
+} from '../organization/project-bootstrap-task';
 import { fileBootstrapTask, fileDriftTask } from './requirement-intake-filers';
-import type { RequirementIntakeDeps } from './requirement-intake-types';
+import type { IntakeTheme, RequirementIntakeDeps } from './requirement-intake-types';
 
 const log = createLogger('scheduling:requirement-intake');
 
@@ -76,7 +79,12 @@ function defaultDeps(): RequirementIntakeDeps {
           workingDirectory: { not: null },
           ...(disabled.size > 0 ? { id: { notIn: [...disabled] } } : {}),
         },
-        select: { id: true, workingDirectory: true, defaultBranch: true },
+        select: {
+          id: true,
+          workingDirectory: true,
+          defaultBranch: true,
+          runtimeConfigJson: true,
+        },
         take: MAX_THEMES,
       });
     },
@@ -85,6 +93,7 @@ function defaultDeps(): RequirementIntakeDeps {
     // Checked on the real filesystem rather than through git: the question is
     // whether an install can run HERE, which only the working tree answers.
     hasProjectManifest: (dir) => MANIFEST_FILES.some((f) => existsSync(join(dir, f))),
+    hasRuntimeConfigFile: (dir) => existsSync(join(dir, RUNTIME_CONFIG_FILE)),
     listExistingTitles: async (themeId) => {
       const rows = await prisma.task.findMany({ where: { themeId }, select: { title: true } });
       return rows.map((r) => r.title);
@@ -112,7 +121,7 @@ export async function runRequirementIntakeJob(
   for (const theme of themes) {
     if (!theme.workingDirectory) continue;
     try {
-      total += await intakeTheme(theme.id, theme.workingDirectory, theme.defaultBranch, deps);
+      total += await intakeTheme(theme, theme.workingDirectory, deps);
     } catch (err) {
       log.warn({ err, themeId: theme.id }, 'Requirement intake failed for theme (non-fatal)');
     }
@@ -123,11 +132,12 @@ export async function runRequirementIntakeJob(
 }
 
 async function intakeTheme(
-  themeId: number,
+  theme: IntakeTheme,
   workingDirectory: string,
-  defaultBranch: string | null | undefined,
   deps: RequirementIntakeDeps,
 ): Promise<number> {
+  const themeId = theme.id;
+  const defaultBranch = theme.defaultBranch;
   const markdown = await deps.readRequirements(workingDirectory, defaultBranch);
   if (!markdown) return 0;
 
@@ -143,13 +153,21 @@ async function intakeTheme(
   // registered preview config, so without the setup task's
   // `rapitas.runtime.json` every feature after it would pass on static checks
   // alone — the shape that shipped TempoRaid's upload-panel-only app.
+  // Preview config counts as part of being set up: the project now arrives with
+  // a manifest, so without this the setup task — the only thing that registers
+  // `rapitas.runtime.json` — would never be filed at all.
+  const hasManifest = deps.hasProjectManifest(workingDirectory);
   if (
     needsEnvironmentBootstrap({
       hasRequirements: true,
-      hasManifest: deps.hasProjectManifest(workingDirectory),
+      hasManifest,
+      hasRuntimeConfig:
+        Boolean(theme.runtimeConfigJson?.trim()) || deps.hasRuntimeConfigFile(workingDirectory),
     })
   ) {
-    return await fileBootstrapTask(themeId, workingDirectory, defaultBranch, existing, deps);
+    return await fileBootstrapTask(themeId, workingDirectory, defaultBranch, existing, deps, {
+      hasManifest,
+    });
   }
 
   // A reworded heading must not re-file the feature, so an existing title that
