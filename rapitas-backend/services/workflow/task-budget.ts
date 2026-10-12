@@ -23,6 +23,7 @@ import { prisma } from '../../config/database';
 // See task-budget.boundary.test.ts.
 import { createLogger } from '../../config/logger';
 import type { ModelTier } from '../ai/model-discovery';
+import { rollUpTaskSpend } from './task-spend-rollup';
 
 const log = createLogger('task-budget');
 
@@ -72,6 +73,35 @@ function coerceCost(v: unknown): number {
 }
 
 /**
+ * Read every cost row of a task and roll it up.
+ *
+ * Always reads the FULL history even for a windowed total: `costUsd` holds the
+ * CLI's session-cumulative `total_cost_usd`, so a chain that began before the
+ * window has to be walked from its start or its first in-window row drags the
+ * earlier spend in. {@link rollUpTaskSpend} applies the window to the
+ * increments instead.
+ *
+ * @param taskId - Task to total. / 対象タスクID
+ * @param since - Window start, or null for the lifetime. / 集計開始時刻
+ * @returns Total spend in USD. / 合計コスト
+ * @throws Propagates the underlying Prisma error on a failed read. / DB読み取り失敗時に例外を伝播
+ */
+async function readTaskSpendUsd(taskId: number, since: Date | null): Promise<number> {
+  const rows = await prisma.agentExecution.findMany({
+    where: { session: { config: { taskId } } },
+    select: { costUsd: true, claudeSessionId: true, startedAt: true },
+  });
+  return rollUpTaskSpend(
+    rows.map((r) => ({
+      costUsd: coerceCost(r.costUsd),
+      claudeSessionId: r.claudeSessionId,
+      startedAt: r.startedAt,
+    })),
+    since,
+  );
+}
+
+/**
  * Total USD already recorded against a task's executions.
  *
  * Rejects on a DB read failure instead of silently returning 0 — a failed
@@ -81,15 +111,11 @@ function coerceCost(v: unknown): number {
  * caller and is the layer that decides how to treat this failure.
  *
  * @param taskId - Task to total. / 対象タスクID
- * @returns Sum of costUsd. / 合計コスト
+ * @returns Rolled-up spend. / 合計コスト
  * @throws Propagates the underlying Prisma error on a failed read. / DB読み取り失敗時に例外を伝播
  */
 export async function getTaskSpendUsd(taskId: number): Promise<number> {
-  const rows = await prisma.agentExecution.findMany({
-    where: { session: { config: { taskId } } },
-    select: { costUsd: true },
-  });
-  return rows.reduce((a, r) => a + coerceCost(r.costUsd), 0);
+  return readTaskSpendUsd(taskId, null);
 }
 
 /**
@@ -109,14 +135,7 @@ export async function getTaskSpendUsd(taskId: number): Promise<number> {
  * @throws Propagates the underlying Prisma error on a failed read. / DB読み取り失敗時に例外を伝播
  */
 export async function getTaskSpendUsdSince(taskId: number, since: Date | null): Promise<number> {
-  const rows = await prisma.agentExecution.findMany({
-    where: {
-      session: { config: { taskId } },
-      ...(since ? { OR: [{ startedAt: null }, { startedAt: { gte: since } }] } : {}),
-    },
-    select: { costUsd: true },
-  });
-  return rows.reduce((a, r) => a + coerceCost(r.costUsd), 0);
+  return readTaskSpendUsd(taskId, since);
 }
 
 /**
