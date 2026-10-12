@@ -87,6 +87,7 @@ const {
   cleanupZombieProcesses,
   killProcessTreeSafely,
   clearAllPidFiles,
+  resetBackendProtectedPidsCache,
 } = await import('./agent-process-tracker');
 
 const PID_DIR = join(process.cwd(), '.agent-pids');
@@ -145,6 +146,10 @@ beforeEach(() => {
   warnMock.mockClear();
   errorMock.mockClear();
   debugMock.mockClear();
+
+  // The ancestry memo lives for the process; each test supplies its own
+  // snapshot, so clear it or the first test's answer sticks to all of them.
+  resetBackendProtectedPidsCache();
 
   existsSyncMock.mockImplementation(() => false);
   mkdirSyncMock.mockImplementation(() => undefined);
@@ -412,6 +417,27 @@ describe('killProcessTreeSafely', () => {
       expect.stringContaining('taskkill'),
       expect.anything(),
     );
+  });
+
+  // Measured 2026-10-13: resolving the backend's ancestry per call put a
+  // machine-wide PowerShell snapshot (execSync, 15s timeout) on every aux-CLI
+  // cleanup and agent teardown — the `knownTargets` callers, which previously
+  // took no snapshot. 41 event-loop-lag entries and two self-healing restarts
+  // in one day. The ancestry cannot change while this process runs, so one
+  // resolution per process is enough.
+  test('resolves the backend ancestry once, not per call', () => {
+    makePidAliveNotListening(1005);
+    makeBackendAncestor(1005);
+    const snapshots = () =>
+      execSyncMock.mock.calls.filter(([cmd]) => String(cmd).startsWith('powershell')).length;
+
+    killProcessTreeSafely(1006, { knownTargets: [1007] });
+    const afterFirst = snapshots();
+    killProcessTreeSafely(1008, { knownTargets: [1009] });
+    killProcessTreeSafely(1010, { knownTargets: [1011] });
+
+    expect(afterFirst).toBeLessThanOrEqual(1);
+    expect(snapshots()).toBe(afterFirst);
   });
 
   test('refuses to kill the backend itself', () => {
