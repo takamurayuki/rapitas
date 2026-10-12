@@ -12,6 +12,7 @@ import { createLogger } from '../../../config/logger';
 import { writeBlockedTask } from '../blocked-task-write';
 import { resolveTaskWorkflowState } from '../../task/task-resolver';
 import { WorkflowQueueService } from '../workflow-queue';
+import { readAutoRunHold } from './auto-run-hold-check';
 import { logCycleEvent } from '../../observability';
 import { COOLDOWN_MS, isAwaitingUserAnswer } from './auto-run-selection';
 import { liveOrQueuedBehind } from './queue-wait-exemption';
@@ -290,6 +291,37 @@ export async function resolveCurrentTaskOutcome(
         msg: 'task completed before re-enqueue — advancing to next',
       });
     }
+    broadcastAutoRunUpdateImpl(themeId);
+    await selectAndEnqueueNextTask(
+      prisma,
+      themeId,
+      order,
+      Math.max(0, globalActive - 1),
+      barrierHoldSince,
+    );
+    return;
+  }
+
+  // A task the operator parked must not be resumed. The selection side already
+  // refuses one (eligibleTopLevelTodoWhere), but this resume branch did not,
+  // so a hold stopped nothing: measured 2026-10-13, setting autoRunExcluded on
+  // #1214 was followed within seconds by a fresh queue item and a $8.86
+  // execution, and cancelling that item produced another. Release the theme's
+  // current task and move on, exactly as the runaway-cancel-loop branch above
+  // does — leaving currentTaskId pointing at a held task would retry every
+  // tick forever.
+  const hold = await readAutoRunHold(prisma, currentTaskId);
+  if (hold.held) {
+    log.warn(
+      `[ThemeAutoRunScheduler] Task ${currentTaskId} is held out of auto-run (${hold.reason}) — not resuming it (theme ${themeId})`,
+    );
+    logCycleEvent('task.skipped', {
+      theme: themeId,
+      task: currentTaskId,
+      cause: `held_${hold.reason}`,
+      msg: 'task is held out of auto-run — released so the theme can move on',
+    });
+    await setCurrentTask(themeId, null);
     broadcastAutoRunUpdateImpl(themeId);
     await selectAndEnqueueNextTask(
       prisma,
