@@ -31,16 +31,28 @@ const ops: OperationRecord[] = [
 
 describe('buildDeviationTimeline', () => {
   test('ok: classified entries, counts and plan hash', () => {
-    const t = buildDeviationTimeline({ planContent: PLAN, operations: ops, executionTerminal: true });
+    const t = buildDeviationTimeline({
+      planContent: PLAN,
+      operations: ops,
+      executionTerminal: true,
+    });
     expect(t.status).toBe('ok');
-    expect(t.entries.map((e) => e.category)).toEqual(['in_plan', 'out_of_plan', 'planned_not_executed']);
+    expect(t.entries.map((e) => e.category)).toEqual([
+      'in_plan',
+      'out_of_plan',
+      'planned_not_executed',
+    ]);
     expect(t.counts).toEqual({ inPlan: 1, outOfPlan: 1, plannedNotExecuted: 1 });
     expect(t.byKind).toEqual({ file_change: 0, command: 2, http: 0 });
     expect(t.planHash).toHaveLength(16);
   });
 
   test('ambiguous plan: warning, no entries, no counts', () => {
-    const t = buildDeviationTimeline({ planContent: '# 計画のみ', operations: ops, executionTerminal: true });
+    const t = buildDeviationTimeline({
+      planContent: '# 計画のみ',
+      operations: ops,
+      executionTerminal: true,
+    });
     expect(t.status).toBe('ambiguous');
     expect(t.entries).toEqual([]);
     expect(t.counts).toBeNull();
@@ -48,7 +60,11 @@ describe('buildDeviationTimeline', () => {
   });
 
   test('no operations recorded → no_operations', () => {
-    const t = buildDeviationTimeline({ planContent: PLAN, operations: [], executionTerminal: true });
+    const t = buildDeviationTimeline({
+      planContent: PLAN,
+      operations: [],
+      executionTerminal: true,
+    });
     expect(t.status).toBe('no_operations');
     expect(t.counts).toBeNull();
   });

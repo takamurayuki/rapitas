@@ -26,7 +26,9 @@ describe('parsePlanDeclaration', () => {
   });
 
   test('a fence with zero file patterns is ambiguous', () => {
-    const r = parsePlanDeclaration(fence(JSON.stringify({ version: 1, files: [], commands: ['bun'] })));
+    const r = parsePlanDeclaration(
+      fence(JSON.stringify({ version: 1, files: [], commands: ['bun'] })),
+    );
     expect(r.ambiguous).toBe(true);
     expect(r.declaration.commands).toEqual(['bun']);
   });

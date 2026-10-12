@@ -32,7 +32,12 @@ export interface ReadOperationsResult {
 
 /** Store API. */
 export interface OperationStore {
-  recordToolUse(executionId: number, toolName: string, input: unknown, logSequence?: number): number;
+  recordToolUse(
+    executionId: number,
+    toolName: string,
+    input: unknown,
+    logSequence?: number,
+  ): number;
   readOperations(executionId: number): ReadOperationsResult;
   hasOperations(executionId: number): boolean;
 }
@@ -88,7 +93,9 @@ export function createOperationStore(options: OperationStoreOptions = {}): Opera
       try {
         const parsed = JSON.parse(line) as OperationRecord | TruncationMarker;
         if ('truncated' in parsed) {
-          warnings.push(`truncated: operation log reached ${parsed.maxLines} lines; later operations were not recorded`);
+          warnings.push(
+            `truncated: operation log reached ${parsed.maxLines} lines; later operations were not recorded`,
+          );
         } else {
           operations.push(parsed);
         }

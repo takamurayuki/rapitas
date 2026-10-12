@@ -15,6 +15,33 @@ export const PLAN_DECLARATION_FENCE = 'json:plan-declaration';
 
 const FENCE_RE = /```json:plan-declaration[^\n]*\n([\s\S]*?)```/;
 
+/** Example fence embedded in the planner guidance (parses as a valid declaration). */
+const EXAMPLE_FENCE =
+  '```json:plan-declaration\n' +
+  '{"version":1,"files":["rapitas-backend/services/foo/**","rapitas-frontend/src/feature/foo/"],"commands":["bun","git"],"externalHosts":[]}\n' +
+  '```';
+
+/**
+ * Planner instruction asking for the declaration fence (ja/en). Lives next to
+ * the parser so the prompt and the parser never disagree on the fence shape.
+ */
+export const PLAN_DECLARATION_GUIDANCE: Readonly<Record<'ja' | 'en', string>> = {
+  ja:
+    '## 計画宣言（必須・機械可読）\n' +
+    'plan.md に次の形式の `json:plan-declaration` フェンスを1個だけ含めてください。実行時の操作はこの宣言と照合され、逸脱タイムラインに表示されます。\n' +
+    '- `files`: 追加・変更するファイルの glob / ディレクトリパターン（1件以上。0件だと「計画が曖昧」として判定に使われません）\n' +
+    '- `commands`: 実行予定のコマンド名（引数は書かない）\n' +
+    '- `"externalHosts"`: HTTP 通信する外部ホスト（localhost は不要。サブドメインは `*.example.com`）\n\n' +
+    EXAMPLE_FENCE,
+  en:
+    '## Plan declaration (REQUIRED, machine-readable)\n' +
+    'Include exactly one `json:plan-declaration` fence in plan.md. Runtime operations are checked against it and shown on the deviation timeline.\n' +
+    '- `files`: glob / directory patterns of files you will add or modify (at least one; zero makes the plan "ambiguous" and it is not used for judging)\n' +
+    '- `commands`: command names you will run (no arguments)\n' +
+    '- `"externalHosts"`: external hosts contacted over HTTP (localhost not needed; use `*.example.com` for subdomains)\n\n' +
+    EXAMPLE_FENCE,
+};
+
 /** Keep only non-empty trimmed strings, de-duplicated in order. */
 function toStringList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];

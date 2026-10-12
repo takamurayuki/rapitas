@@ -54,11 +54,21 @@ export function buildDeviationTimeline(input: BuildTimelineInput): DeviationTime
     return { status: 'unsupported_provider', ...empty, warnings, planHash };
   }
   if (parsed.ambiguous) {
-    return { status: 'ambiguous', ...empty, warnings: [AMBIGUOUS_PLAN_WARNING, ...warnings], planHash };
+    return {
+      status: 'ambiguous',
+      ...empty,
+      warnings: [AMBIGUOUS_PLAN_WARNING, ...warnings],
+      planHash,
+    };
   }
   if (input.operations.length === 0) {
     return { status: 'no_operations', ...empty, warnings, planHash };
   }
-  const result = classifyOperations(parsed, input.operations, input.executionTerminal, input.workDir);
+  const result = classifyOperations(
+    parsed,
+    input.operations,
+    input.executionTerminal,
+    input.workDir,
+  );
   return { ...result, warnings, planHash };
 }

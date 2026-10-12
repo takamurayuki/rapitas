@@ -4,7 +4,11 @@
  * Barrel for the plan-vs-execution deviation timeline services.
  */
 export * from './types';
-export { parsePlanDeclaration, hashDeclaration, PLAN_DECLARATION_FENCE } from './declaration-parser';
+export {
+  parsePlanDeclaration,
+  hashDeclaration,
+  PLAN_DECLARATION_FENCE,
+} from './declaration-parser';
 export { normalizePath, matchesPattern, matchesAnyPattern } from './glob-match';
 export { extractOperations, splitCommandNames, extractUrlHosts } from './operation-extractor';
 export type { ExtractedOperation } from './operation-extractor';
@@ -17,7 +21,11 @@ export {
   DEFAULT_MAX_OPERATION_LINES,
 } from './operation-store';
 export type { OperationStore, OperationStoreOptions } from './operation-store';
-export { buildDeviationTimeline, isSupportedProvider, AMBIGUOUS_PLAN_WARNING } from './timeline-builder';
+export {
+  buildDeviationTimeline,
+  isSupportedProvider,
+  AMBIGUOUS_PLAN_WARNING,
+} from './timeline-builder';
 export { buildAuditRecord, appendDeviationAudit, listDeviationAudits } from './audit';
 export {
   fetchLogContext,

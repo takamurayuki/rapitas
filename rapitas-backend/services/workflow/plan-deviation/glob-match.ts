@@ -84,7 +84,10 @@ export function matchesPattern(path: string, pattern: string, workDir?: string |
   if (!ABSOLUTE_RE.test(normalizedPath)) {
     return matchesNormalized(normalizedPath.replace(/^\/+/, ''), normalizedPattern);
   }
-  const segments = normalizedPath.replace(/^[a-z]:\//, '').replace(/^\//, '').split('/');
+  const segments = normalizedPath
+    .replace(/^[a-z]:\//, '')
+    .replace(/^\//, '')
+    .split('/');
   for (let i = 0; i < segments.length; i++) {
     if (matchesNormalized(segments.slice(i).join('/'), normalizedPattern)) return true;
   }

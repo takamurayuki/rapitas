@@ -48,7 +48,11 @@ export interface ExtractedOperation {
 export function splitCommandNames(command: string): string[] {
   const names: string[] = [];
   for (const segment of command.split(SEPARATOR_RE)) {
-    const tokens = segment.trim().replace(/^[({]+\s*/, '').split(/\s+/).filter(Boolean);
+    const tokens = segment
+      .trim()
+      .replace(/^[({]+\s*/, '')
+      .split(/\s+/)
+      .filter(Boolean);
     let i = 0;
     while (i < tokens.length && ENV_PREFIX_RE.test(tokens[i])) i++;
     const word = tokens[i];
@@ -73,7 +77,9 @@ export function extractUrlHosts(text: string): string[] {
   const hosts: string[] = [];
   for (const m of text.matchAll(URL_RE)) {
     const authority = m[1].replace(/^.*@/, '');
-    const host = (authority.startsWith('[') ? authority.replace(/\].*$/, ']') : authority.replace(/:\d*$/, ''))
+    const host = (
+      authority.startsWith('[') ? authority.replace(/\].*$/, ']') : authority.replace(/:\d*$/, '')
+    )
       .toLowerCase()
       .replace(/^\[|\]$/g, '');
     if (host && !hosts.includes(host)) hosts.push(host);

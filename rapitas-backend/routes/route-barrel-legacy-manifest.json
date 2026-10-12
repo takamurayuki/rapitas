@@ -145,7 +145,8 @@
     { "importPath": "./orchestra", "exportName": "orchestraRoutes" },
     { "importPath": "./workflow-learning", "exportName": "workflowLearningRoutes" },
     { "importPath": "./theme-auto-run", "exportName": "themeAutoRunRoutes" },
-    { "importPath": "../tasks/task-spec-routes", "exportName": "taskSpecRoutes" }
+    { "importPath": "../tasks/task-spec-routes", "exportName": "taskSpecRoutes" },
+    { "importPath": "./deviation", "exportName": "deviationRoutes" }
   ],
   "social": [
     { "importPath": "./comments", "exportName": "commentsRoutes" },

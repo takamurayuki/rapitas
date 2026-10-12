@@ -60,9 +60,14 @@ describe('handleWorkerMessage — tool_use recording', () => {
       store.recordToolUse(42, name, input);
     });
     handleWorkerMessage(ctx, message);
-    const lines = readFileSync(join(dir, 'plan-ops', '42.ndjson'), 'utf-8').trim().split('\n');
+    const lines = readFileSync(join(dir, 'plan-ops', '42.ndjson'), 'utf-8')
+      .trim()
+      .split('\n');
     expect(lines).toHaveLength(1);
-    expect(JSON.parse(lines[0])).toMatchObject({ kind: 'file_change', features: { path: 'src/a.ts' } });
+    expect(JSON.parse(lines[0])).toMatchObject({
+      kind: 'file_change',
+      features: { path: 'src/a.ts' },
+    });
     // Display output path is unchanged.
     expect(ctx.emitOutputInternal).toHaveBeenCalledTimes(1);
   });

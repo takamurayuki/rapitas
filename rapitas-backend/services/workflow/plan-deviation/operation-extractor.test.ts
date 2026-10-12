@@ -25,7 +25,9 @@ describe('splitCommandNames', () => {
 describe('extractUrlHosts', () => {
   test('extracts lower-case hosts without userinfo or port', () => {
     expect(
-      extractUrlHosts('curl https://User:pw@API.Example.com:8443/x && wget http://127.0.0.1:3001/a'),
+      extractUrlHosts(
+        'curl https://User:pw@API.Example.com:8443/x && wget http://127.0.0.1:3001/a',
+      ),
     ).toEqual(['api.example.com', '127.0.0.1']);
   });
   test('no URL → []', () => {

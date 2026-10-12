@@ -43,7 +43,8 @@ export function buildAuditRecord(input: BuildAuditInput): DeviationAuditRecord {
   let commentMasked: string | null = null;
   if (trimmed) {
     const masked = maskDeviationText(trimmed);
-    commentMasked = masked.length > MAX_COMMENT_LENGTH ? `${masked.slice(0, MAX_COMMENT_LENGTH)}…` : masked;
+    commentMasked =
+      masked.length > MAX_COMMENT_LENGTH ? `${masked.slice(0, MAX_COMMENT_LENGTH)}…` : masked;
   }
   const ambiguous = input.timeline.status === 'ambiguous';
   return {
@@ -71,7 +72,11 @@ export function buildAuditRecord(input: BuildAuditInput): DeviationAuditRecord {
 export function appendDeviationAudit(record: DeviationAuditRecord, baseDir?: string): void {
   const dir = auditDir(baseDir);
   mkdirSync(dir, { recursive: true });
-  appendFileSync(join(dir, `${Math.trunc(record.taskId)}.ndjson`), `${JSON.stringify(record)}\n`, 'utf-8');
+  appendFileSync(
+    join(dir, `${Math.trunc(record.taskId)}.ndjson`),
+    `${JSON.stringify(record)}\n`,
+    'utf-8',
+  );
 }
 
 /**

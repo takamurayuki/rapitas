@@ -53,7 +53,10 @@ describe('matchesPattern', () => {
 
   test('absolute path without workDir still matches by segment suffix', () => {
     expect(
-      matchesPattern('C:\\Projects\\rapitas\\.worktrees\\t\\rapitas-backend\\x.ts', 'rapitas-backend/**'),
+      matchesPattern(
+        'C:\\Projects\\rapitas\\.worktrees\\t\\rapitas-backend\\x.ts',
+        'rapitas-backend/**',
+      ),
     ).toBe(true);
     expect(matchesPattern('/home/u/repo/other/x.ts', 'rapitas-backend/**')).toBe(false);
   });

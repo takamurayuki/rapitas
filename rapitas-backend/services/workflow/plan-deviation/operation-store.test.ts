@@ -23,7 +23,9 @@ describe('operation store', () => {
     expect(store.recordToolUse(7, 'Write', { file_path: 'src/a.ts' }, 12)).toBe(1);
     expect(store.recordToolUse(7, 'Read', { file_path: 'src/a.ts' })).toBe(0);
     store.recordToolUse(7, 'Edit', { file_path: 'src/b.ts' });
-    const lines = readFileSync(join(dir, 'plan-ops', '7.ndjson'), 'utf-8').trim().split('\n');
+    const lines = readFileSync(join(dir, 'plan-ops', '7.ndjson'), 'utf-8')
+      .trim()
+      .split('\n');
     expect(lines).toHaveLength(2);
     const { operations, warnings } = store.readOperations(7);
     expect(warnings).toEqual([]);

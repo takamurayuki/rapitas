@@ -9,7 +9,8 @@ import { maskDeviationText } from './deviation-mask';
 const SK = 'sk-' + 'a1B2c3D4e5F6g7H8i9J0k1L2';
 const GHP = 'ghp_' + 'A'.repeat(36);
 const AKIA = 'AKIA' + 'ABCDEFGHIJKLMNOP';
-const JWT = 'eyJ' + 'hbGciOiJIUzI1NiJ9' + '.' + 'eyJzdWIiOiIxMjM0NSJ9' + '.' + 'c2lnbmF0dXJlLXZhbHVl';
+const JWT =
+  'eyJ' + 'hbGciOiJIUzI1NiJ9' + '.' + 'eyJzdWIiOiIxMjM0NSJ9' + '.' + 'c2lnbmF0dXJlLXZhbHVl';
 
 describe('maskDeviationText', () => {
   const cases: Array<[string, string, string]> = [

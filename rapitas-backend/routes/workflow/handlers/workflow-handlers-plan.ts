@@ -64,6 +64,8 @@ export async function handleApprovePlan({
       language?: 'ja' | 'en';
       overrideForbiddenChange?: boolean;
       overrideReason?: string;
+      /** Reviewer's judgement comment saved in the deviation audit (task 1218). */
+      comment?: string;
     };
     if (typeof parsedBody?.approved !== 'boolean') {
       throw new ValidationError('approved (boolean) is required');
@@ -187,6 +189,18 @@ export async function handleApprovePlan({
       },
     });
 
+    // Deviation audit (task 1218): counts / kinds / comment. Never blocks approval.
+    const deviationAudit = await import('../deviation/deviation-handlers')
+      .then(({ recordApprovalDeviationAudit }) =>
+        recordApprovalDeviationAudit({
+          taskId,
+          decision: parsedBody.approved ? 'approved' : 'rejected',
+          comment: typeof parsedBody.comment === 'string' ? parsedBody.comment : null,
+          source,
+        }),
+      )
+      .catch((err: unknown) => ({ saved: false as const, error: String(err) }));
+
     if (parsedBody.approved) {
       // Notify the theme auto-run scheduler so it can resume a paused theme.
       try {
@@ -245,6 +259,7 @@ export async function handleApprovePlan({
       task: updatedTask,
       workflowStatus: newStatus,
       autoAdvance: parsedBody.approved,
+      deviationAudit,
     };
   } catch (err) {
     if (err instanceof ValidationError || err instanceof NotFoundError) throw err;

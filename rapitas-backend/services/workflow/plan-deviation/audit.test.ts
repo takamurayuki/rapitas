@@ -72,13 +72,22 @@ describe('deviation audit', () => {
   test('records are appended, never overwritten', () => {
     const base = { taskId: 7, decision: 'approved' as const, source: 'ui', timeline: okTimeline };
     appendDeviationAudit(buildAuditRecord({ ...base, comment: 'first' }), dir);
-    appendDeviationAudit(buildAuditRecord({ ...base, decision: 'rejected', comment: 'second' }), dir);
+    appendDeviationAudit(
+      buildAuditRecord({ ...base, decision: 'rejected', comment: 'second' }),
+      dir,
+    );
     expect(listDeviationAudits(7, dir).map((r) => r.commentMasked)).toEqual(['first', 'second']);
     expect(listDeviationAudits(8, dir)).toEqual([]);
   });
 
   test('over-long comments are truncated', () => {
-    const r = buildAuditRecord({ taskId: 1, decision: 'approved', source: 'ui', comment: 'x'.repeat(5000), timeline: okTimeline });
+    const r = buildAuditRecord({
+      taskId: 1,
+      decision: 'approved',
+      source: 'ui',
+      comment: 'x'.repeat(5000),
+      timeline: okTimeline,
+    });
     expect(r.commentMasked!.length).toBeLessThanOrEqual(2001);
   });
 });

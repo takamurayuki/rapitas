@@ -17,7 +17,11 @@ function decl(partial: Partial<PlanDeclaration>): ParsedDeclaration {
 }
 
 let seq = 0;
-function op(kind: OperationRecord['kind'], features: OperationRecord['features'], at?: string): OperationRecord {
+function op(
+  kind: OperationRecord['kind'],
+  features: OperationRecord['features'],
+  at?: string,
+): OperationRecord {
   seq += 1;
   return {
     seq,
@@ -36,7 +40,11 @@ const opCategories = (r: ReturnType<typeof classifyOperations>) =>
 
 describe('classifyOperations', () => {
   test('ambiguous declaration is not used for judging', () => {
-    const r = classifyOperations(decl({ commands: ['git'] }), [op('command', { commandNames: ['rm'] })], true);
+    const r = classifyOperations(
+      decl({ commands: ['git'] }),
+      [op('command', { commandNames: ['rm'] })],
+      true,
+    );
     expect(r.status).toBe('ambiguous');
     expect(r.entries).toEqual([]);
     expect(r.counts).toBeNull();
@@ -66,7 +74,11 @@ describe('classifyOperations', () => {
   });
 
   test('commands are skipped when the plan declares none', () => {
-    const r = classifyOperations(decl({ files: ['src/**'] }), [op('command', { commandNames: ['rm'] })], true);
+    const r = classifyOperations(
+      decl({ files: ['src/**'] }),
+      [op('command', { commandNames: ['rm'] })],
+      true,
+    );
     expect(r.entries[0].category).toBe('skipped');
     expect(r.counts?.outOfPlan).toBe(0);
   });

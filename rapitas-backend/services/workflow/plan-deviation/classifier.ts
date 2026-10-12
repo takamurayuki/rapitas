@@ -85,7 +85,9 @@ function categorize(
     return names.every((n) => declared.includes(n)) ? 'in_plan' : 'out_of_plan';
   }
   const hosts = (op.features.hosts ?? []).filter((h) => !LOOPBACK_HOSTS.has(h));
-  return hosts.every((h) => externalHosts.some((d) => hostMatches(h, d))) ? 'in_plan' : 'out_of_plan';
+  return hosts.every((h) => externalHosts.some((d) => hostMatches(h, d)))
+    ? 'in_plan'
+    : 'out_of_plan';
 }
 
 /** Declared items no operation exercised, per step 3. */
@@ -98,7 +100,10 @@ function unexercisedItems(
   const out: Array<{ kind: OperationKind; item: string }> = [];
   for (const pattern of files) {
     const used = ops.some(
-      (o) => o.kind === 'file_change' && o.features.path && matchesPattern(o.features.path, pattern, workDir),
+      (o) =>
+        o.kind === 'file_change' &&
+        o.features.path &&
+        matchesPattern(o.features.path, pattern, workDir),
     );
     if (!used) out.push({ kind: 'file_change', item: pattern });
   }
@@ -109,7 +114,9 @@ function unexercisedItems(
     }
   }
   for (const host of externalHosts) {
-    if (!ops.some((o) => o.kind === 'http' && o.features.hosts?.some((h) => hostMatches(h, host)))) {
+    if (
+      !ops.some((o) => o.kind === 'http' && o.features.hosts?.some((h) => hostMatches(h, host)))
+    ) {
       out.push({ kind: 'http', item: host });
     }
   }
@@ -134,9 +141,7 @@ export function classifyOperations(
   // Step 1 — a plan without file patterns must not be used for judging (Q4).
   if (parsed.ambiguous) return { status: 'ambiguous', entries: [], counts: null, byKind: null };
 
-  const sorted = [...ops].sort(
-    (a, b) => a.occurredAt.localeCompare(b.occurredAt) || a.seq - b.seq,
-  );
+  const sorted = [...ops].sort((a, b) => a.occurredAt.localeCompare(b.occurredAt) || a.seq - b.seq);
   const entries: TimelineEntry[] = sorted.map((op) => ({
     category: categorize(op, parsed, workDir),
     kind: op.kind,

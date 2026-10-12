@@ -95,7 +95,8 @@ export function extractToolUses(json: Record<string, unknown>): ExtractedToolUse
   for (const block of content) {
     if (typeof block !== 'object' || block === null) continue;
     const b = block as { type?: unknown; id?: unknown; name?: unknown; input?: unknown };
-    if (b.type !== 'tool_use' || typeof b.name !== 'string' || b.name === 'AskUserQuestion') continue;
+    if (b.type !== 'tool_use' || typeof b.name !== 'string' || b.name === 'AskUserQuestion')
+      continue;
     out.push({ ...(typeof b.id === 'string' ? { id: b.id } : {}), name: b.name, input: b.input });
   }
   return out;

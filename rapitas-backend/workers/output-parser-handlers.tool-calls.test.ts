@@ -11,13 +11,13 @@ describe('processLine — toolCalls', () => {
     const line = JSON.stringify({
       type: 'assistant',
       message: {
-        content: [
-          { type: 'tool_use', id: 'tu_1', name: 'Bash', input: { command: 'git status' } },
-        ],
+        content: [{ type: 'tool_use', id: 'tu_1', name: 'Bash', input: { command: 'git status' } }],
       },
     });
     processLine(line, new Map<string, ToolInfo>(), { timeoutSeconds: 60 }, (m) => posted.push(m));
     const msg = posted.find((m) => m.type === 'assistant-message');
-    expect(msg?.toolCalls).toEqual([{ id: 'tu_1', name: 'Bash', input: { command: 'git status' } }]);
+    expect(msg?.toolCalls).toEqual([
+      { id: 'tu_1', name: 'Bash', input: { command: 'git status' } },
+    ]);
   });
 });

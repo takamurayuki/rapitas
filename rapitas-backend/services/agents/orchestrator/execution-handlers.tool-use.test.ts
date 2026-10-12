@@ -53,7 +53,11 @@ describe('setupOutputHandler — tool_use recorder', () => {
     setupOutputHandler(
       agent,
       { executionId: 1 } as unknown as OutputHandlerContext,
-      { addChunk: () => {}, registerCleanup: () => {}, lastQueuedSequence: () => 0 } as unknown as LogChunkManager,
+      {
+        addChunk: () => {},
+        registerCleanup: () => {},
+        lastQueuedSequence: () => 0,
+      } as unknown as LogChunkManager,
     );
     expect(() => toolHandler!('Write', { file_path: 'a' })).not.toThrow();
   });
