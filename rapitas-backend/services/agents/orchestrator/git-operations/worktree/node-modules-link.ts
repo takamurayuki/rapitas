@@ -26,23 +26,30 @@ import { SCAN_DEPTH } from './project-manifests';
 const logger = createLogger('git-operations/node-modules-link');
 
 /**
- * An installer's own bookkeeping entries — the only proof inside node_modules
- * that an install ran to completion. `.bin` is what makes any dependency's
- * binary runnable; the rest are each installer's state file or store.
+ * An installer's own record that it FINISHED — the only proof inside
+ * node_modules that an install ran to completion. `.bin` is what makes any
+ * dependency's binary runnable; the rest are each installer's end-of-install
+ * state file.
+ *
+ * NOTE: pnpm's `.pnpm` store is deliberately absent. It is created while pnpm
+ * works, not when it finishes, so it proves nothing — see the measured #1215
+ * case in the test file.
  */
-const INSTALL_MARKERS = ['.bin', '.pnpm', '.package-lock.json', '.modules.yaml', '.yarn-state.yml'];
+const INSTALL_MARKERS = ['.bin', '.package-lock.json', '.modules.yaml', '.yarn-state.yml'];
 
 /**
  * True when `dir/node_modules` is a COMPLETE install, by the only evidence that
  * is decidable from the directory: an installer's own bookkeeping entry.
  *
- * Package directories are not that evidence. Measured 2026-10-13 on ContextFlow
- * task #1217 — its `apps/web/node_modules` held `@types`, `next`, `next-auth`,
- * `react`, `react-dom`, `vitest` and `zod` and NO `.bin`. The old rule read any
- * non-dot entry as an install, so the link step skipped the directory and
- * `next dev` failed with "next not found" while the next package sat inside it.
- * runtime-smoke could not run and the task bounced on an environment fault it
- * had no part in. A tree that cannot execute a binary is a partial install.
+ * Package directories are not that evidence, and neither is a half-built store.
+ * Measured 2026-10-13 on ContextFlow: task #1217's `apps/web/node_modules` held
+ * `@types`, `next`, `next-auth`, `react`, `react-dom`, `vitest` and `zod` and NO
+ * `.bin`; task #1215's worktree root held `.pnpm` and nothing else. In both,
+ * `pnpm dev` failed with "next not found" while the next package sat inside the
+ * tree, pnpm itself warned "node_modules missing", runtime-smoke reported
+ * `unverifiable; completion withheld`, and the task could not finish — on an
+ * environment fault it had no part in. A tree no binary can be launched from is
+ * a partial install, however many packages it contains.
  *
  * Replacing a partial tree costs nothing: the link points at the project root's
  * own complete tree, which is where the install actually happened.

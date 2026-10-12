@@ -82,12 +82,37 @@ describe('holdsRealInstall', () => {
     expect(holdsRealInstall(worktree)).toBe(false);
   });
 
-  it('accepts a pnpm store or a .bin even though both are dot-entries', () => {
-    for (const marker of ['.pnpm', '.bin']) {
-      fs.rmSync(path.join(worktree, 'node_modules'), { recursive: true, force: true });
-      install(worktree, [marker]);
-      expect(holdsRealInstall(worktree)).toBe(true);
-    }
+  it('accepts a .bin even though it is a dot-entry', () => {
+    install(worktree, ['.bin']);
+    expect(holdsRealInstall(worktree)).toBe(true);
+  });
+
+  // Measured 2026-10-13 on ContextFlow task #1215, AFTER the first version of
+  // this rule shipped. Its worktree root node_modules held exactly one entry,
+  // `.pnpm`, and nothing else; `pnpm dev` still failed with "'next' は、内部
+  // コマンドまたは外部コマンド... として認識されていません" and pnpm itself
+  // warned "Local package.json exists, but node_modules missing". runtime-smoke
+  // then reported `unverifiable; completion withheld` and the task could not
+  // finish.
+  //
+  // `.pnpm` is the virtual store pnpm creates while it works, not a record that
+  // it finished — the install that completes writes `.modules.yaml` and `.bin`
+  // (both present in the project root this worktree should have linked to). The
+  // first version of this rule accepted `.pnpm` as completion evidence, which
+  // made this shape WORSE than the any-non-dot-entry rule it replaced: under
+  // the old rule `.pnpm` was a dot-entry and the tree got relinked.
+  it('rejects a lone .pnpm store (pnpm started but never finished)', () => {
+    install(worktree, ['.pnpm']);
+    expect(holdsRealInstall(worktree)).toBe(false);
+  });
+
+  // ContextFlow task #1217's worktree root, measured the same day: a `.pnpm`
+  // store plus package directories, still no `.bin` and no `.modules.yaml`, and
+  // `next dev` still could not start. Packages that no binary can be launched
+  // from are the same partial tree as the case above.
+  it('rejects a .pnpm store alongside packages but no .bin or .modules.yaml', () => {
+    install(worktree, ['.pnpm', '@types', 'eslint', 'typescript']);
+    expect(holdsRealInstall(worktree)).toBe(false);
   });
 
   // The real shapes measured in ContextFlow, so the rule is pinned to what
@@ -95,7 +120,6 @@ describe('holdsRealInstall', () => {
   for (const [label, entries] of [
     ['pnpm project root', ['.bin', '.cache', '.pnpm', '.modules.yaml', 'eslint', 'typescript']],
     ['pnpm workspace package', ['.bin', '@types', 'next', 'react', 'zod']],
-    ['worktree root linked by pnpm', ['.pnpm', '@types', 'eslint', 'typescript']],
     ['package whose deps ship a binary', ['.bin', '.vite', 'vitest', 'zod']],
     ['npm hoisted install', ['.package-lock.json', 'react']],
   ] as const) {
