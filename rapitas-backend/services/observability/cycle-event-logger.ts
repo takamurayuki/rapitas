@@ -83,6 +83,11 @@ export type CycleEventName =
   // dispatchable — the state that produced a four-hour silent outage on
   // 2026-09-27, watched by auto-run-no-selection-watch.
   | 'theme.no_selection_progress'
+  // The same "selected nothing" state, correctly attributed: every remaining
+  // task is held or awaiting an answer, so a person has to clear it and the
+  // scheduler is behaving. Split out 2026-10-13 after measuring 40
+  // no_selection_progress events in one day, all of them this state.
+  | 'theme.parked_awaiting_human'
   // git / PR outcomes
   | 'commit.created'
   | 'pr.created'
