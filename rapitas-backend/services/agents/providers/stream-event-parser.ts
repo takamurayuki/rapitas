@@ -70,3 +70,33 @@ export function processStreamEvent(json: Record<string, unknown>): StreamEventRe
 
   return { output, sessionId, isQuestion, questionText };
 }
+
+/** One tool call with its raw input, as needed by the plan-deviation recorder. */
+export interface ExtractedToolUse {
+  id?: string;
+  name: string;
+  input: unknown;
+}
+
+/**
+ * Extracts every tool_use block (name + raw input) from a stream-json event.
+ * Unlike processStreamEvent — which collapses calls to `[Tool: name]` — the
+ * input is kept so commands, paths and URLs can be judged against the plan.
+ * AskUserQuestion is excluded (it is a question, not an operation).
+ *
+ * @param json - Parsed JSON event from the Claude Code stream / Claude Codeストリームのパース済みイベント
+ * @returns Tool calls in block order; [] for non-assistant events / ツール呼び出し一覧
+ */
+export function extractToolUses(json: Record<string, unknown>): ExtractedToolUse[] {
+  if (json.type !== 'assistant' || !json.message || typeof json.message !== 'object') return [];
+  const content = (json.message as { content?: unknown }).content;
+  if (!Array.isArray(content)) return [];
+  const out: ExtractedToolUse[] = [];
+  for (const block of content) {
+    if (typeof block !== 'object' || block === null) continue;
+    const b = block as { type?: unknown; id?: unknown; name?: unknown; input?: unknown };
+    if (b.type !== 'tool_use' || typeof b.name !== 'string' || b.name === 'AskUserQuestion') continue;
+    out.push({ ...(typeof b.id === 'string' ? { id: b.id } : {}), name: b.name, input: b.input });
+  }
+  return out;
+}

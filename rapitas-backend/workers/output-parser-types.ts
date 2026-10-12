@@ -5,6 +5,7 @@
  */
 
 import type { QuestionDetectionResult } from '../services/agents/question-detection';
+import type { ExtractedToolUse } from '../services/agents/providers/stream-event-parser';
 
 // ==================== Worker Input Messages ====================
 
@@ -48,6 +49,8 @@ export type WorkerAssistantMessage = {
   type: 'assistant-message';
   displayOutput: string;
   toolUses: WorkerToolUse[];
+  /** Raw tool_use name + input, forwarded for plan-deviation recording (task 1218). */
+  toolCalls?: ExtractedToolUse[];
 };
 
 export type WorkerToolUse = {
