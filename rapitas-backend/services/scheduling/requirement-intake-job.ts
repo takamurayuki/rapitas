@@ -10,22 +10,18 @@
  * services/organization/requirements-task-{plan,payload}.ts and
  * services/organization/spec-drift.ts.
  */
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { createTask } from '../task/task-mutations';
 import { parseRequirementTasks, outOfScopeItems } from '../organization/requirements-task-plan';
-import {
-  toTaskPayload,
-  type RequirementTaskPayload,
-} from '../organization/requirements-task-payload';
-import {
-  detectSpecDrift,
-  toDriftTaskPayload,
-  DRIFT_TASK_PREFIX,
-  type DriftTaskPayload,
-} from '../organization/spec-drift';
+import { toTaskPayload } from '../organization/requirements-task-payload';
 import { getDisabledThemeIds } from './theme-backlog-override-service';
-import { readRequirementsFile } from './requirements-document-reader';
+import { readRequirementsFile, readDesignFile } from './requirements-document-reader';
+import { needsEnvironmentBootstrap } from '../organization/project-bootstrap-task';
+import { fileBootstrapTask, fileDriftTask } from './requirement-intake-filers';
+import type { RequirementIntakeDeps } from './requirement-intake-types';
 
 const log = createLogger('scheduling:requirement-intake');
 
@@ -55,29 +51,21 @@ export const MAX_UNSTARTED_PER_THEME = 3;
 /** Statuses that mean a filed task has not been worked yet. */
 const UNSTARTED_STATUSES = ['todo', 'draft'] as const;
 
-/** A theme eligible for scanning. */
-export interface IntakeTheme {
-  id: number;
-  workingDirectory: string | null;
-  /** Branch the project's documents are authoritative on. / 文書の正となるブランチ */
-  defaultBranch?: string | null;
-}
+/**
+ * Root files whose presence means dependencies can be installed here.
+ *
+ * A project scaffolded as documents-only has none of these, which is the state
+ * the environment-setup task exists to leave behind.
+ */
+const MANIFEST_FILES = [
+  'package.json',
+  'pnpm-workspace.yaml',
+  'Cargo.toml',
+  'pyproject.toml',
+  'go.mod',
+] as const;
 
-/** Side-effecting collaborators, injectable so tests need no module mocking. */
-export interface RequirementIntakeDeps {
-  listThemes: () => Promise<IntakeTheme[]>;
-  /** Returns the document text, or null when absent / unreadable. */
-  readRequirements: (
-    workingDirectory: string,
-    defaultBranch?: string | null,
-  ) => Promise<string | null>;
-  /** Titles of every task in the theme, regardless of status. */
-  listExistingTitles: (themeId: number) => Promise<string[]>;
-  /** How many filed tasks the theme has that nobody has started. */
-  countUnstartedTasks: (themeId: number) => Promise<number>;
-  /** Files one task; a falsy result means nothing was created. */
-  createTask: (payload: RequirementTaskPayload | DriftTaskPayload) => Promise<unknown>;
-}
+export type { IntakeTheme, RequirementIntakeDeps } from './requirement-intake-types';
 
 function defaultDeps(): RequirementIntakeDeps {
   return {
@@ -93,6 +81,10 @@ function defaultDeps(): RequirementIntakeDeps {
       });
     },
     readRequirements: readRequirementsFile,
+    readDesign: readDesignFile,
+    // Checked on the real filesystem rather than through git: the question is
+    // whether an install can run HERE, which only the working tree answers.
+    hasProjectManifest: (dir) => MANIFEST_FILES.some((f) => existsSync(join(dir, f))),
     listExistingTitles: async (themeId) => {
       const rows = await prisma.task.findMany({ where: { themeId }, select: { title: true } });
       return rows.map((r) => r.title);
@@ -145,6 +137,21 @@ async function intakeTheme(
   const existing = await deps.listExistingTitles(themeId);
   const existingSet = new Set(existing);
 
+  // A documents-only project gets its environment FIRST, and nothing else this
+  // run. Filing features into a directory with no manifest makes every gate
+  // report "unverified"; worse, runtime-smoke only runs for projects that
+  // registered preview config, so without the setup task's
+  // `rapitas.runtime.json` every feature after it would pass on static checks
+  // alone — the shape that shipped TempoRaid's upload-panel-only app.
+  if (
+    needsEnvironmentBootstrap({
+      hasRequirements: true,
+      hasManifest: deps.hasProjectManifest(workingDirectory),
+    })
+  ) {
+    return await fileBootstrapTask(themeId, workingDirectory, defaultBranch, existing, deps);
+  }
+
   // A reworded heading must not re-file the feature, so an existing title that
   // starts with the same `[F-NN]` label counts as filed.
   const pending = specs
@@ -183,41 +190,4 @@ async function intakeTheme(
 
   filed += await fileDriftTask(themeId, markdown, existing, deps);
   return filed;
-}
-
-/**
- * File the documentation follow-up when the document and the work disagree.
- *
- * Runs after filing so this run's new tasks count as filed — otherwise every
- * run would report the features it had just created as missing from the work.
- *
- * @param themeId - Theme being scanned / 対象テーマ
- * @param markdown - requirements.md content / requirements.md の内容
- * @param existing - Task titles BEFORE this run's filing / 今回起票前のタスク名
- * @param deps - Injected collaborators / 注入された依存
- * @returns 1 when a task was filed, else 0 / 起票したら 1
- */
-async function fileDriftTask(
-  themeId: number,
-  markdown: string,
-  existing: readonly string[],
-  deps: RequirementIntakeDeps,
-): Promise<number> {
-  // One open follow-up at a time: the job runs daily and the work is the same
-  // every run until someone does it.
-  if (existing.some((t) => t.trimStart().startsWith(DRIFT_TASK_PREFIX))) return 0;
-
-  const findings = detectSpecDrift({ requirements: markdown, existingTitles: existing });
-  const payload = toDriftTaskPayload(findings, { themeId });
-  if (!payload) return 0;
-
-  try {
-    const task = await deps.createTask(payload);
-    if (!task) return 0;
-    log.info({ themeId, findings: findings.length }, 'Filed documentation drift task');
-    return 1;
-  } catch (err) {
-    log.warn({ err, themeId }, 'Failed to file drift task (non-fatal)');
-    return 0;
-  }
 }

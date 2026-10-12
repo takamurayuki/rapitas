@@ -46,6 +46,34 @@ export const MIN_CRITERIA_PER_FEATURE = 3;
 /** The section that must exist so unknowns are recorded instead of assumed. */
 export const ASSUMPTIONS_SECTION = '前提と未決事項';
 
+/**
+ * The section that says, per feature, which screen and which action reach it.
+ *
+ * NOTE: without this, a feature can be "implemented" as a module nothing
+ * renders. Measured 2026-10-12 on TempoRaid: all 12 features shipped with unit
+ * tests and auto-merged, yet the web app contained exactly two .tsx files
+ * (App.tsx and AudioLoadPanel.tsx) — F-02..F-12 had no screen at all, and even
+ * F-01's analysis result only became a status string inside its own component.
+ * `store/app-store.ts` and `net/reconnecting-client.ts` were imported by
+ * nothing. Every gate passed because the acceptance criteria described MODULE
+ * behaviour, which unit tests satisfy, and because runtime-smoke is opt-in and
+ * that project had no preview config. Requiring the route and the action makes
+ * "reachable from the UI" part of the spec, so the diff-review judge and the
+ * implementer both see it.
+ */
+export const REACHABILITY_SECTION = '画面導線';
+
+/**
+ * Shortest reachability line that actually says something.
+ *
+ * A line must name a place (a route, a screen name, or a component) AND an
+ * action. "あとで決める" is the shape that slips through a presence-only check,
+ * so the text has to carry an arrow or a verb-like marker plus enough length to
+ * be more than a placeholder.
+ */
+const REACHABILITY_MIN_CHARS = 12;
+const REACHABILITY_ACTION = /→|->|から|押す|選[ぶび]|入力|開く|遷移|タップ|クリック/;
+
 /** Feature ids declared in a section, in document order, without duplicates. */
 function featureIdsIn(markdown: string, section: string): string[] {
   const seen = new Set<string>();
@@ -166,6 +194,48 @@ export function checkSpecConsistency(docs: SpecDocuments): SpecFinding[] {
       severity: 'warning',
       message: '設計書が空です。機能要件と設計の対応が検証できません。',
     });
+  }
+
+  const reachabilityLines = sectionLines(requirements, REACHABILITY_SECTION);
+  if (reachabilityLines.length === 0) {
+    findings.push({
+      code: 'missing_reachability_section',
+      severity: 'error',
+      message:
+        `要件定義書に \`# ${REACHABILITY_SECTION}\` セクションがありません。` +
+        '各 [F-NN] について「どの画面のどの操作から到達するか」を1行で書いてください。' +
+        'これが無いと、画面に繋がっていないモジュールでも単体テストで受入基準を満たせてしまいます。',
+    });
+  } else {
+    // Keep the raw line per feature: presence alone is not enough, the text has
+    // to name a place and an action.
+    const routes = new Map<string, string>();
+    for (const line of reachabilityLines) {
+      const m = line.match(FEATURE_BULLET);
+      if (m?.[1]) routes.set(m[1], (m[2] ?? '').trim());
+    }
+    for (const id of features) {
+      const route = routes.get(id);
+      if (route === undefined) {
+        findings.push({
+          code: 'unreachable_feature',
+          severity: 'error',
+          featureId: id,
+          message:
+            `[${id}] の画面導線が \`# ${REACHABILITY_SECTION}\` にありません。` +
+            'どの画面のどの操作から到達するかを書いてください。',
+        });
+      } else if (route.length < REACHABILITY_MIN_CHARS || !REACHABILITY_ACTION.test(route)) {
+        findings.push({
+          code: 'vague_reachability',
+          severity: 'error',
+          featureId: id,
+          message:
+            `[${id}] の画面導線が具体的ではありません（「${route}」）。` +
+            '画面(ルートや画面名)と操作(選ぶ/押す/入力など)の両方を含めてください。',
+        });
+      }
+    }
   }
 
   if (sectionLines(requirements, ASSUMPTIONS_SECTION).length === 0) {

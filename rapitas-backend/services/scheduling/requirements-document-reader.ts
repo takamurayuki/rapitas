@@ -50,7 +50,11 @@ function withinSizeLimit(content: string, source: string): string | null {
  * @param branch - Authoritative branch / 正となるブランチ
  * @returns Content, or null when git cannot provide it / git で取得できなければ null
  */
-async function readFromOrigin(workingDirectory: string, branch: string): Promise<string | null> {
+async function readFromOrigin(
+  workingDirectory: string,
+  branch: string,
+  fileName: string,
+): Promise<string | null> {
   const run = (args: string[]) =>
     execFileAsync('git', args, {
       cwd: workingDirectory,
@@ -65,10 +69,10 @@ async function readFromOrigin(workingDirectory: string, branch: string): Promise
     await run(['fetch', 'origin', branch, '--quiet']).catch((err) => {
       log.debug({ err, workingDirectory, branch }, 'fetch failed; using the existing origin ref');
     });
-    const { stdout } = await run(['show', `origin/${branch}:docs/requirements.md`]);
-    return withinSizeLimit(stdout, `origin/${branch}`);
+    const { stdout } = await run(['show', `origin/${branch}:docs/${fileName}`]);
+    return withinSizeLimit(stdout, `origin/${branch}:${fileName}`);
   } catch (err) {
-    log.debug({ err, workingDirectory, branch }, 'origin read unavailable');
+    log.debug({ err, workingDirectory, branch, fileName }, 'origin read unavailable');
     return null;
   }
 }
@@ -88,21 +92,59 @@ export async function readRequirementsFile(
   workingDirectory: string,
   defaultBranch?: string | null,
 ): Promise<string | null> {
+  return readProjectDoc(workingDirectory, 'requirements.md', defaultBranch);
+}
+
+/**
+ * Read `docs/design.md` the same way — authoritative branch first.
+ *
+ * The design document is what the environment-setup task quotes its technical
+ * stack from, so reading a stale working tree would hand the agent the wrong
+ * stack as if it were decided.
+ *
+ * @param workingDirectory - Theme working directory / テーマの作業ディレクトリ
+ * @param defaultBranch - Branch the documents are authoritative on / 正となるブランチ
+ * @returns Content, or null when missing, oversized or unreadable / 取得不能なら null
+ */
+export async function readDesignFile(
+  workingDirectory: string,
+  defaultBranch?: string | null,
+): Promise<string | null> {
+  return readProjectDoc(workingDirectory, 'design.md', defaultBranch);
+}
+
+/**
+ * Read one `docs/<fileName>`, preferring the authoritative branch.
+ *
+ * Falls back to the working tree so a project without a remote (or a fresh one
+ * whose first push has not happened) still works — but says so, because a
+ * working-tree read may be arbitrarily out of date.
+ *
+ * @param workingDirectory - Theme working directory / テーマの作業ディレクトリ
+ * @param fileName - File under `docs/` / docs 配下のファイル名
+ * @param defaultBranch - Branch the documents are authoritative on / 正となるブランチ
+ * @returns Content, or null when missing, oversized or unreadable / 取得不能なら null
+ */
+export async function readProjectDoc(
+  workingDirectory: string,
+  fileName: string,
+  defaultBranch?: string | null,
+): Promise<string | null> {
   const branch = defaultBranch?.trim();
   if (branch) {
-    const fromOrigin = await readFromOrigin(workingDirectory, branch);
+    const fromOrigin = await readFromOrigin(workingDirectory, branch, fileName);
     if (fromOrigin !== null) return fromOrigin;
   }
 
-  const file = join(workingDirectory, 'docs', 'requirements.md');
+  const file = join(workingDirectory, 'docs', fileName);
   if (!existsSync(file)) return null;
   try {
     const info = await stat(file);
     if (!info.isFile()) return null;
     const content = await readFile(file, 'utf8');
     log.info(
-      { file, branch: branch ?? '(none)' },
-      'Read requirements.md from the working tree; it may be behind origin',
+      { file, fileName, branch: branch ?? '(none)' },
+      'Read the document from the working tree; it may be behind origin',
     );
     return withinSizeLimit(content, file);
   } catch (err) {
