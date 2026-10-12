@@ -26,23 +26,35 @@ import { SCAN_DEPTH } from './project-manifests';
 const logger = createLogger('git-operations/node-modules-link');
 
 /**
- * Entries that mean a real node_modules holds an actual install. Everything
- * else at the top level of a dot-only directory is a regenerable tool cache.
+ * An installer's own bookkeeping entries — the only proof inside node_modules
+ * that an install ran to completion. `.bin` is what makes any dependency's
+ * binary runnable; the rest are each installer's state file or store.
  */
 const INSTALL_MARKERS = ['.bin', '.pnpm', '.package-lock.json', '.modules.yaml', '.yarn-state.yml'];
 
 /**
- * True when `dir/node_modules` holds packages rather than only tool caches.
+ * True when `dir/node_modules` is a COMPLETE install, by the only evidence that
+ * is decidable from the directory: an installer's own bookkeeping entry.
  *
- * A worktree can carry a node_modules containing nothing but `.vite` /
- * `.vite-temp` (Vite writes its cache there on first run). Treating that as an
- * install made the link step skip the directory forever, so the agent never got
- * `node_modules/.bin` and every gate kept failing — observed on task 1153.
+ * Package directories are not that evidence. Measured 2026-10-13 on ContextFlow
+ * task #1217 — its `apps/web/node_modules` held `@types`, `next`, `next-auth`,
+ * `react`, `react-dom`, `vitest` and `zod` and NO `.bin`. The old rule read any
+ * non-dot entry as an install, so the link step skipped the directory and
+ * `next dev` failed with "next not found" while the next package sat inside it.
+ * runtime-smoke could not run and the task bounced on an environment fault it
+ * had no part in. A tree that cannot execute a binary is a partial install.
+ *
+ * Replacing a partial tree costs nothing: the link points at the project root's
+ * own complete tree, which is where the install actually happened.
+ *
+ * Also still rejects the tool-cache-only shape this check was written for — a
+ * worktree holding nothing but `.vite` / `.vite-temp` after Vite ran once
+ * (task 1153).
  *
  * Follows links, so it also answers "does this link point at a usable tree?".
  *
  * @param dir - Directory holding node_modules / node_modules を持つディレクトリ
- * @returns Whether it is a genuine install / 本物のインストールか
+ * @returns Whether it is a complete install / 完全なインストールか
  */
 export function holdsRealInstall(dir: string): boolean {
   let entries: string[];
@@ -51,7 +63,7 @@ export function holdsRealInstall(dir: string): boolean {
   } catch {
     return false;
   }
-  return entries.some((name) => !name.startsWith('.') || INSTALL_MARKERS.includes(name));
+  return entries.some((name) => INSTALL_MARKERS.includes(name));
 }
 
 /** What sits at a prospective link path. */
