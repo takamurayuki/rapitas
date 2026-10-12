@@ -11,9 +11,10 @@ import {
   MAX_REVIEW_ROUNDS,
   type ReviewSpecResult,
 } from '../../api/review-spec/review-prompt';
-import { AGENT_TARGETS } from '../_utils/constants';
+import { useThemeSetup, type SetupPhase } from './useThemeSetup';
 import { useOptionCatalog } from './useOptionCatalog';
 import { useGenerationHistory, type GenerationEntry } from './useGenerationHistory';
+import { useConceptCandidates } from './useConceptCandidates';
 
 export type WizardPhase =
   | 'intro'
@@ -38,7 +39,7 @@ export type WizardPhase =
   | 'review'
   | 'result';
 
-export type SetupPhase = 'idle' | 'loading' | 'success' | 'error';
+export type { SetupPhase };
 
 /**
  * Manages all wizard state and exposes typed actions to phase components.
@@ -68,21 +69,12 @@ export function useWizard() {
   const [reviewAnswers, setReviewAnswers] = useState<Record<string, string>>({});
   /** Review rounds already shown, so the wizard cannot be held open forever. */
   const [reviewRound, setReviewRound] = useState(0);
-  const [setupPhase, setSetupPhase] = useState<SetupPhase>('idle');
-  // Primary AI agent the scaffolded repo targets — decides the guide file's
-  // name/location (.claude/CLAUDE.md, AGENTS.md, GEMINI.md, …).
-  const [agentTargetId, setAgentTargetId] = useState<string>(AGENT_TARGETS[0].id);
-  // Empty means "let the backend decide": category falls back to 開発, and
-  // basePath falls back to ~/Projects. Both were previously unreachable from
-  // the UI even though the backend already accepted basePath.
-  const [categoryId, setCategoryId] = useState<number | null>(null);
-  const [basePath, setBasePath] = useState<string>('');
-  const [createdThemePath, setCreatedThemePath] = useState<string | null>(null);
-  const [setupError, setSetupError] = useState<string | null>(null);
+  const setup = useThemeSetup(t);
   const topRef = useRef<HTMLDivElement>(null);
 
   const catalog = useOptionCatalog({ answers, setAnswers, t });
   const generations = useGenerationHistory();
+  const candidates = useConceptCandidates();
   const { dynamicSubs, dynamicElements } = catalog;
 
   // Platform phase local selections — kept at top level to avoid conditional hooks
@@ -120,6 +112,9 @@ export function useWizard() {
     setAnswers((a) => ({ ...a, genre: genreId, subs: [], elements: [] }));
     setPhase('sub');
     catalog.seedSubs(genreId);
+    void candidates
+      .fetchFor('subs', { genre: genreId })
+      .then((items) => catalog.mergeProposed('subs', items));
   };
 
   /**
@@ -132,6 +127,9 @@ export function useWizard() {
   const handleSubNext = (_selectedSubIds: string[]) => {
     setPhase('elements');
     catalog.seedElements();
+    void candidates
+      .fetchFor('elements', { genre: answers.genre, subs: answers.subs })
+      .then((items) => catalog.mergeProposed('elements', items));
   };
 
   /**
@@ -165,7 +163,13 @@ export function useWizard() {
   const runProposeApps = async (overrideAnswers: AppAnswers) => {
     setPhase('proposing');
     try {
-      const r = await proposeApps(t, overrideAnswers, dynamicSubs, dynamicElements);
+      const r = await proposeApps(
+        t,
+        overrideAnswers,
+        dynamicSubs,
+        dynamicElements,
+        candidates.proposed.genre,
+      );
       setProposals(r.proposals || []);
       if (r.aiFailed && r.errorCode) {
         setAiErrorMessage(translateAiErrorCode(r.errorCode));
@@ -235,6 +239,7 @@ export function useWizard() {
         dynamicElements,
         projectContext,
         answersBlock,
+        candidates.proposed.genre,
       );
       setResult(generated);
     } catch {
@@ -295,6 +300,25 @@ export function useWizard() {
     setPhase('result');
   };
 
+  /**
+   * Starts the wizard with options derived from the user's own words.
+   *
+   * The genre screen is shown immediately and the proposals are appended when
+   * they arrive: a spinner here would make the entry worse than the fixed
+   * catalog it is meant to improve on.
+   */
+  const startWithConcept = () => {
+    setPhase('genre');
+    void candidates.fetchFor('genre');
+  };
+
+  /** Re-derives the proposals after the concept is edited mid-flow. */
+  const changeConcept = (next: string) => {
+    candidates.setConcept(next);
+    if (!next.trim()) return;
+    void candidates.fetchFor('genre');
+  };
+
   /** Records one answer to a review question. */
   const setReviewAnswer = (id: string, value: string) =>
     setReviewAnswers((prev) => ({ ...prev, [id]: value }));
@@ -310,50 +334,6 @@ export function useWizard() {
   const handleAcceptReview = () => setPhase('result');
 
   /**
-   * Calls the setup-theme API to create a project directory from the generated CLAUDE.md.
-   */
-  const handleCreateTheme = async () => {
-    if (!pickedProp || !result) return;
-    setSetupPhase('loading');
-    setSetupError(null);
-    try {
-      const target = AGENT_TARGETS.find((a) => a.id === agentTargetId) || AGENT_TARGETS[0];
-      const response = await fetch('/api/setup-theme', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          appName: pickedProp.name,
-          claudeMd: result.claude_md,
-          requirements: result.requirements,
-          design: result.design,
-          adr: result.adr,
-          scaffold: result.scaffold,
-          description: pickedProp.tagline,
-          agentFilePath: target.path,
-          // Omitted (not null/empty) when unset so the backend's own fallbacks
-          // apply rather than being overridden with a blank value.
-          ...(categoryId !== null ? { categoryId } : {}),
-          ...(basePath.trim() ? { basePath: basePath.trim() } : {}),
-        }),
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        setSetupPhase('success');
-        setCreatedThemePath(data.projectPath);
-      } else {
-        // NOTE: Prefer the translated fallback over `data.error` — the API
-        // route returns Japanese prose that would otherwise leak into an
-        // English UI regardless of the user's locale setting.
-        setSetupPhase('error');
-        setSetupError(t('themeCreateError'));
-      }
-    } catch {
-      setSetupPhase('error');
-      setSetupError(t('themeCreateError'));
-    }
-  };
-
-  /**
    * Resets all wizard state back to the intro phase.
    */
   const handleRestart = () => {
@@ -364,26 +344,12 @@ export function useWizard() {
     setProjectContext({});
     catalog.reset();
     generations.reset();
+    candidates.reset();
     setReview(null);
     setReviewAnswers({});
     setReviewRound(0);
     setResult(null);
-    // Reset setup state as well
-    setSetupPhase('idle');
-    setAgentTargetId(AGENT_TARGETS[0].id);
-    setCategoryId(null);
-    setBasePath('');
-    setCreatedThemePath(null);
-    setSetupError(null);
-  };
-
-  /**
-   * Resets setup state to idle for retry functionality.
-   */
-  const handleResetSetup = () => {
-    setSetupPhase('idle');
-    setSetupError(null);
-    setCreatedThemePath(null);
+    setup.reset();
   };
 
   const toggleSub = (id: string) =>
@@ -413,6 +379,13 @@ export function useWizard() {
     projectContext,
     setContextField,
     goToContext,
+    concept: candidates.concept,
+    setConcept: candidates.setConcept,
+    changeConcept,
+    startWithConcept,
+    proposedOptions: candidates.proposed,
+    proposedLoading: candidates.loading,
+    proposedReason: candidates.degraded,
     history: generations.history,
     selectGeneration,
     review,
@@ -423,18 +396,15 @@ export function useWizard() {
     handleRegenerateFromReview,
     handleAcceptReview,
     result,
-    setupPhase,
-    setSetupPhase,
-    agentTargetId,
-    setAgentTargetId,
-    categoryId,
-    setCategoryId,
-    basePath,
-    setBasePath,
-    createdThemePath,
-    setCreatedThemePath,
-    setupError,
-    setSetupError,
+    setupPhase: setup.setupPhase,
+    agentTargetId: setup.agentTargetId,
+    setAgentTargetId: setup.setAgentTargetId,
+    categoryId: setup.categoryId,
+    setCategoryId: setup.setCategoryId,
+    basePath: setup.basePath,
+    setBasePath: setup.setBasePath,
+    createdThemePath: setup.createdThemePath,
+    setupError: setup.setupError,
     topRef,
     dynamicSubs,
     dynamicElements,
@@ -452,9 +422,9 @@ export function useWizard() {
     handlePlatformGenerate,
     handleRegenerateProposals,
     handleGenerateClaudeMd,
-    handleCreateTheme,
+    handleCreateTheme: () => setup.createTheme(pickedProp, result),
     handleRestart,
-    handleResetSetup,
+    handleResetSetup: setup.resetSetup,
     toggleSub,
     toggleElement,
     runProposeApps,
