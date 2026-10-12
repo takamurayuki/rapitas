@@ -20,15 +20,55 @@ export interface RequirementTaskSpec {
 }
 
 /**
- * `[F-01]`, tolerating full-width brackets and surrounding spaces.
+ * A feature declaration: `[F-01]` plus whatever markdown wraps it.
  *
- * NOTE: Exported so spec-consistency.ts checks the SAME shape this parser
- * accepts. A second copy would let the checker pass a document the filer then
- * reads differently.
+ * Accepts a list bullet, a sub-heading (`##`..`######`), an optional task
+ * checkbox, an optional bold wrapper and an optional colon, because the shape
+ * is not under our control and a shape we reject costs an entire project's
+ * tasks with no error anywhere:
+ * - `- [F-01] 名前` — the canonical form the prompt asks for.
+ * - `### [F-01] 名前` — what the live generator produced on 2026-10-12, since
+ *   each feature carries an 入力/処理/出力 block under it.
+ * - `- **[F-01] 名前**` — what the fallback template produced on 2026-10-11.
+ * - `- [ ] [F-01] Given … When … Then …` — criteria written as a checklist.
+ *
+ * Group 1 is the id, group 2 the remaining text with the wrapper stripped.
  */
-export const FEATURE_BULLET = /^\s*[-*]\s*[[［]\s*(F-\d+)\s*[\]］]\s*(.*)$/;
-/** A top-level section heading. */
-const HEADING = /^#\s*(.+?)\s*$/;
+const FEATURE_DECLARATION =
+  /^[ \t]*(?:[-*+][ \t]+(?:\[[ xX]\][ \t]+)?|#{2,6}[ \t]+)?\*{0,2}[ \t]*[[［][ \t]*(F-\d+)[ \t]*[\]］]\*{0,2}[ \t]*[:：]?[ \t]*(.*?)[ \t]*\*{0,2}[ \t]*$/;
+
+/** One feature declaration line, parsed. */
+interface FeatureLine {
+  id: string;
+  /** The text after the id, wrapper and colon removed. / ID以降の本文 */
+  text: string;
+}
+
+/**
+ * Parse a line as a feature declaration.
+ *
+ * NOTE: Exported so spec-consistency.ts and spec-drift.ts read the SAME shapes
+ * the filer accepts. A second copy would let the checker pass a document the
+ * filer then reads as empty.
+ *
+ * @param line - One markdown line / markdown の1行
+ * @returns The id and text, or null when the line declares no feature / 解析結果
+ */
+export function matchFeatureLine(line: string): FeatureLine | null {
+  const m = line.match(FEATURE_DECLARATION);
+  if (!m) return null;
+  return { id: m[1], text: m[2].replace(/^\*{1,2}|\*{1,2}$/g, '').trim() };
+}
+
+/**
+ * A TOP-LEVEL section heading only.
+ *
+ * NOTE: the negative lookahead matters. Without it `### [F-01] …` matched as a
+ * heading, so a 機能要件 section whose features are written as sub-headings
+ * ended at its very first feature and the document parsed as having none —
+ * measured 2026-10-12 against the live generator.
+ */
+const HEADING = /^#(?!#)[ \t]*(.+?)[ \t]*$/;
 
 /**
  * The lines belonging to a `# <name>` section, excluding the heading itself.
@@ -59,11 +99,11 @@ export function sectionLines(markdown: string, name: string): string[] {
 function criteriaById(markdown: string): Map<string, string[]> {
   const out = new Map<string, string[]>();
   for (const line of sectionLines(markdown, '受け入れ基準')) {
-    const m = line.match(FEATURE_BULLET);
-    if (!m?.[2]?.trim()) continue;
-    const list = out.get(m[1]) ?? [];
-    list.push(m[2].trim());
-    out.set(m[1], list);
+    const m = matchFeatureLine(line);
+    if (!m?.text) continue;
+    const list = out.get(m.id) ?? [];
+    list.push(m.text);
+    out.set(m.id, list);
   }
   return out;
 }
@@ -93,14 +133,14 @@ export function parseRequirementTasks(markdown: string): RequirementTaskSpec[] {
   };
 
   for (const line of sectionLines(markdown, '機能要件')) {
-    const m = line.match(FEATURE_BULLET);
+    const m = matchFeatureLine(line);
     if (m) {
       flush();
       current = {
-        id: m[1],
-        title: (m[2] ?? '').trim(),
+        id: m.id,
+        title: m.text,
         detail: '',
-        acceptanceCriteria: criteria.get(m[1]) ?? [],
+        acceptanceCriteria: criteria.get(m.id) ?? [],
       };
       continue;
     }

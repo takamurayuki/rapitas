@@ -8,7 +8,7 @@
  * judge whether the product is a good idea, and it never rewrites a document.
  */
 
-import { FEATURE_BULLET, sectionLines } from './requirements-task-plan';
+import { matchFeatureLine, sectionLines } from './requirements-task-plan';
 
 /** How much a finding should block. */
 export type SpecFindingSeverity = 'error' | 'warning';
@@ -78,7 +78,7 @@ const REACHABILITY_ACTION = /→|->|から|押す|選[ぶび]|入力|開く|遷�
 function featureIdsIn(markdown: string, section: string): string[] {
   const seen = new Set<string>();
   for (const line of sectionLines(markdown, section)) {
-    const id = line.match(FEATURE_BULLET)?.[1];
+    const id = matchFeatureLine(line)?.id;
     if (id) seen.add(id);
   }
   return [...seen];
@@ -88,9 +88,9 @@ function featureIdsIn(markdown: string, section: string): string[] {
 function criteriaCounts(markdown: string): Map<string, number> {
   const counts = new Map<string, number>();
   for (const line of sectionLines(markdown, '受け入れ基準')) {
-    const m = line.match(FEATURE_BULLET);
-    if (!m?.[2]?.trim()) continue;
-    counts.set(m[1], (counts.get(m[1]) ?? 0) + 1);
+    const m = matchFeatureLine(line);
+    if (!m?.text) continue;
+    counts.set(m.id, (counts.get(m.id) ?? 0) + 1);
   }
   return counts;
 }
@@ -211,8 +211,8 @@ export function checkSpecConsistency(docs: SpecDocuments): SpecFinding[] {
     // to name a place and an action.
     const routes = new Map<string, string>();
     for (const line of reachabilityLines) {
-      const m = line.match(FEATURE_BULLET);
-      if (m?.[1]) routes.set(m[1], (m[2] ?? '').trim());
+      const m = matchFeatureLine(line);
+      if (m) routes.set(m.id, m.text);
     }
     for (const id of features) {
       const route = routes.get(id);
