@@ -83,15 +83,40 @@ function isProcessAlive(pid: number): boolean {
  * @returns true when the PID must not be killed / kill してはいけなければ true
  */
 function backendProtectedPids(snapshot?: ProcessSnapshotEntry[]): Set<number> {
+  // Resolved ONCE per backend process. This set is `process.pid` plus its
+  // ancestors, which cannot change while this process runs, and the only way
+  // to learn it on Windows is a machine-wide PowerShell snapshot —
+  // `execSync`, 15s timeout, blocking the event loop for its whole duration.
+  //
+  // Measured 2026-10-13: resolving it per call added that blocking snapshot to
+  // every aux-CLI cleanup and every agent teardown (the `knownTargets` callers
+  // in aux-cli-cleanup and the three agent runners), paths that previously took
+  // no snapshot at all. 41 event-loop-lag entries and two self-healing
+  // restarts in one day, the last stall 22.5s — the same order as one snapshot
+  // timeout. Caching removes the regression without weakening the guard.
+  if (cachedProtectedPids) return cachedProtectedPids;
   try {
     const byPid = new Map<number, number>();
+    // Reuse a snapshot the caller already paid for; only pay for one otherwise.
     const entries = snapshot?.length ? snapshot : readProcessParents();
     for (const e of entries) byPid.set(e.pid, e.ppid);
-    return ancestorPids(process.pid, (p) => byPid.get(p));
+    const resolved = ancestorPids(process.pid, (p) => byPid.get(p));
+    // Only cache a real answer: a failed enumeration yields just {self}, and
+    // caching that would permanently drop the wrapper from the guard.
+    if (resolved.size > 1 || byPid.size > 0) cachedProtectedPids = resolved;
+    return resolved;
   } catch {
     // Unknown ancestry must still protect the backend process itself.
     return new Set([process.pid]);
   }
+}
+
+/** Memoized backend ancestry; see {@link backendProtectedPids}. */
+let cachedProtectedPids: Set<number> | null = null;
+
+/** Drop the memo so a test can exercise resolution again. */
+export function resetBackendProtectedPidsCache(): void {
+  cachedProtectedPids = null;
 }
 
 /** pid/ppid pairs for the whole machine, or [] when enumeration fails. */
