@@ -44,6 +44,34 @@ export interface RuntimeContractViolation {
   message: string;
 }
 
+/**
+ * Host names that mean "this machine" but can resolve to `::1`.
+ *
+ * These are NORMALISED to {@link REQUIRED_HOST} rather than rejected: three
+ * projects (tripla, trendline, fusen) already configure `http://localhost:
+ * {port}` and work, so rejecting them would switch off runtime verification
+ * for projects that are fine. Rewriting removes the ::1 ambiguity — which is
+ * what let a process on `[::]` intercept a probe meant for `127.0.0.1` — while
+ * keeping the author's intent.
+ */
+const LOOPBACK_ALIASES = ['localhost', '::1', '[::1]'];
+
+/**
+ * Rewrite a loopback alias in a runtime URL to {@link REQUIRED_HOST}.
+ *
+ * @param url - URL as written, `{port}` included / 記述されたURL
+ * @returns The URL with an unambiguous loopback host / 正規化後のURL
+ */
+export function normalizeRuntimeUrlHost(url: string): string {
+  const host = hostOf(url);
+  if (host === null || !LOOPBACK_ALIASES.includes(host)) return url;
+  // Replace only the authority's host, leaving scheme, port and path intact.
+  return url.replace(
+    /^(https?:\/\/)(\[[^\]]+\]|[^/:]+)/i,
+    (_m, scheme: string) => `${scheme}${REQUIRED_HOST}`,
+  );
+}
+
 /** Any bare port number in the text, ignoring the placeholder itself. */
 function literalPorts(text: string): number[] {
   const withoutPlaceholder = text.split(PORT_PLACEHOLDER).join('');
@@ -86,14 +114,17 @@ export function checkRuntimeConfigContract(raw: {
     });
   }
 
+  // A loopback alias is normalised by normalizeRuntimeUrlHost rather than
+  // reported; anything else (a wildcard, a remote host) cannot be probed safely
+  // and is a real violation.
   const host = hostOf(url);
-  if (host !== null && host !== REQUIRED_HOST) {
+  if (url && (host === null || (host !== REQUIRED_HOST && !LOOPBACK_ALIASES.includes(host)))) {
     violations.push({
       code: 'url_host_not_loopback',
       message:
-        `"url" のホストは ${REQUIRED_HOST} にしてください（現在: ${host}）。` +
-        'localhost は環境によって ::1 に解決され、IPv6 側で待ち受けている' +
-        '別プロセスへ接続が横取りされます。',
+        `"url" のホストは ${REQUIRED_HOST} にしてください（現在: ${host ?? '解析不能'}）。` +
+        'ワイルドカードや外部ホストは、どのプロセスに届いたか特定できないため' +
+        '起動確認の根拠になりません。IPv6 リテラルは角括弧で囲みます。',
     });
   }
 

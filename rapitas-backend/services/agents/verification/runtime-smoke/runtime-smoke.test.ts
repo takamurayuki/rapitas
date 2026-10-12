@@ -85,7 +85,9 @@ describe('parseRuntimeConfig', () => {
   test('clamps readyTimeoutMs and filters non-path checkPaths', () => {
     const { config } = parseRuntimeConfig(
       JSON.stringify({
-        start: 'x',
+        // `{port}` is mandatory now (launch contract): a start command without
+        // it cannot be placed on the harness's port.
+        start: 'x -p {port}',
         url: 'http://127.0.0.1:{port}',
         readyTimeoutMs: 99_999_999,
         checkPaths: ['/ok', 'not-a-path', '/two'],
@@ -170,7 +172,8 @@ describe('runRuntimeSmokeCheck', () => {
     writeFileSync(
       path.join(dir, 'rapitas.runtime.json'),
       JSON.stringify({
-        start: `node ${JSON.stringify(failScript)}`,
+        // The script ignores the argument; `{port}` is required by the contract.
+        start: `node ${JSON.stringify(failScript)} {port}`,
         url: 'http://127.0.0.1:{port}',
         readyTimeoutMs: 20_000,
       }),
