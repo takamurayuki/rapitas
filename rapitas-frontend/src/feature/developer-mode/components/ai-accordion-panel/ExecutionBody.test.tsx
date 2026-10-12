@@ -93,3 +93,26 @@ it('respects hidden logs after completion', () => {
   render(<ExecutionBody {...base} isCompleted showLogs={false} />);
   expect(fetchMock).not.toHaveBeenCalled();
 });
+
+it('shows the plan deviation timeline after completion (task #1218)', async () => {
+  const fetchMock = vi.fn(async (url: string) => ({
+    ok: true,
+    status: 200,
+    json: async () =>
+      url.includes('deviation-timeline')
+        ? {
+            status: 'ambiguous',
+            entries: [],
+            counts: null,
+            byKind: null,
+            warnings: [],
+            planHash: null,
+            executionId: null,
+          }
+        : { success: true, phases: [] },
+  }));
+  vi.stubGlobal('fetch', fetchMock);
+  render(<ExecutionBody {...base} isCompleted />);
+  expect(await screen.findByText('ambiguous')).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledWith('http://test:3001/workflow/tasks/894/deviation-timeline');
+});
