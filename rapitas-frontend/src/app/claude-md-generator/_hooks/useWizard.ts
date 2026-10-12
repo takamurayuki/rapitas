@@ -13,6 +13,7 @@ import {
 } from '../../api/review-spec/review-prompt';
 import { AGENT_TARGETS } from '../_utils/constants';
 import { useOptionCatalog } from './useOptionCatalog';
+import { useGenerationHistory, type GenerationEntry } from './useGenerationHistory';
 
 export type WizardPhase =
   | 'intro'
@@ -81,6 +82,7 @@ export function useWizard() {
   const topRef = useRef<HTMLDivElement>(null);
 
   const catalog = useOptionCatalog({ answers, setAnswers, t });
+  const generations = useGenerationHistory();
   const { dynamicSubs, dynamicElements } = catalog;
 
   // Platform phase local selections — kept at top level to avoid conditional hooks
@@ -251,6 +253,8 @@ export function useWizard() {
       setPhase('result');
       return;
     }
+    // Recorded on the review path too; this covers the case where the review
+    // itself could not run, so a package is never produced without an entry.
     setPhase('reviewing');
     try {
       const r = await reviewSpec({
@@ -259,6 +263,7 @@ export function useWizard() {
         adr: generated.adr,
       });
       setReview(r);
+      generations.record({ result: generated, review: r, answersBlock });
       // The round that just finished counts BEFORE deciding, so the cap is a
       // cap on rounds SHOWN rather than on regenerations attempted.
       const shown = reviewRound + 1;
@@ -273,8 +278,21 @@ export function useWizard() {
       // keeps the answer already given; a new question starts empty.
       setPhase('review');
     } catch {
+      generations.record({ result: generated, review: null, answersBlock });
       setPhase('result');
     }
+  };
+
+  /**
+   * Restores a previously generated package without calling the model again.
+   *
+   * @param entry - The history entry to return to / 戻る履歴
+   */
+  const selectGeneration = (entry: GenerationEntry) => {
+    setResult(entry.result);
+    setReview(entry.review);
+    setReviewAnswers({});
+    setPhase('result');
   };
 
   /** Records one answer to a review question. */
@@ -345,6 +363,7 @@ export function useWizard() {
     setPickedProp(null);
     setProjectContext({});
     catalog.reset();
+    generations.reset();
     setReview(null);
     setReviewAnswers({});
     setReviewRound(0);
@@ -394,6 +413,8 @@ export function useWizard() {
     projectContext,
     setContextField,
     goToContext,
+    history: generations.history,
+    selectGeneration,
     review,
     reviewRound,
     maxReviewRounds: MAX_REVIEW_ROUNDS,

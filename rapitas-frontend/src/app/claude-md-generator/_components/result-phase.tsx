@@ -10,6 +10,8 @@ import { AGENT_TARGETS } from '../_utils/constants';
 import { ScoreRing } from './score-ring';
 import { SetupTargetFields } from './setup-target-fields';
 import { DegradedNotice } from './degraded-notice';
+import { GenerationHistory } from './generation-history';
+import type { GenerationEntry } from '../_hooks/useGenerationHistory';
 
 interface ResultPhaseProps {
   topRef: React.RefObject<HTMLDivElement | null>;
@@ -33,6 +35,10 @@ interface ResultPhaseProps {
   onRestart: () => void;
   onCreateTheme: () => void;
   onResetSetup: () => void;
+  /** Packages generated this session, oldest first. / 今回の生成履歴 */
+  history?: readonly GenerationEntry[];
+  /** Restores one entry without regenerating. / 再生成せず復元する */
+  onSelectGeneration?: (entry: GenerationEntry) => void;
 }
 
 interface DocTab {
@@ -66,6 +72,8 @@ export function ResultPhase({
   onRestart,
   onCreateTheme,
   onResetSetup,
+  history,
+  onSelectGeneration,
 }: ResultPhaseProps) {
   const agentTarget = AGENT_TARGETS.find((a) => a.id === agentTargetId) || AGENT_TARGETS[0];
   // The agent guide's tab label/path follow the chosen primary agent.
@@ -466,6 +474,10 @@ export function ResultPhase({
             </div>
           )}
         </div>
+
+        {history && onSelectGeneration && (
+          <GenerationHistory history={history} onSelect={onSelectGeneration} />
+        )}
 
         <p
           style={{

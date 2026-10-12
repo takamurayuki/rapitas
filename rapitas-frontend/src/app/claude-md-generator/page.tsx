@@ -134,6 +134,8 @@ export default function ClaudeMdGeneratorPage() {
         onRestart={w.handleRestart}
         onCreateTheme={w.handleCreateTheme}
         onResetSetup={w.handleResetSetup}
+        history={w.history}
+        onSelectGeneration={w.selectGeneration}
       />
     );
 
