@@ -1,0 +1,37 @@
+{
+  "deviationTimeline": {
+    "title": "Plan vs. execution deviations",
+    "loadError": "Could not load the deviation timeline",
+    "ambiguous": "The plan is ambiguous",
+    "ambiguousHint": "No file path pattern is declared, so this plan is not used to judge deviations.",
+    "noOperations": "No operations were recorded for this execution (runs before recording started cannot be judged).",
+    "unsupportedProvider": "Deviation judging is not supported for this agent's executions.",
+    "noDeviations": "No deviations",
+    "counts": {
+      "outOfPlan": "Out of plan: {n}",
+      "plannedNotExecuted": "Not executed: {n}",
+      "inPlan": "In plan: {n}"
+    },
+    "category": {
+      "out_of_plan": "Out of plan",
+      "planned_not_executed": "Planned, not executed"
+    },
+    "kind": {
+      "file_change": "File change",
+      "command": "Command",
+      "http": "External access"
+    },
+    "clickHint": "Click to show the surrounding log lines",
+    "contextTitle": "Surrounding log lines",
+    "contextLoading": "Loading log…",
+    "contextEmpty": "No matching log lines",
+    "contextError": "Could not load the log",
+    "commentLabel": "Decision comment (saved to the audit record)",
+    "commentPlaceholder": "Why the deviation is acceptable, or what is wrong",
+    "approve": "Approve and record",
+    "reject": "Reject and record",
+    "submitting": "Recording…",
+    "saved": "Saved to the audit record",
+    "saveError": "Failed to save the audit record"
+  }
+}

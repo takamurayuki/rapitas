@@ -12,6 +12,7 @@ import { orchestraRoutes } from './orchestra';
 import { workflowLearningRoutes } from './workflow-learning';
 import { themeAutoRunRoutes } from './theme-auto-run';
 import { taskSpecRoutes } from '../tasks/task-spec-routes';
+import { deviationRoutes } from './deviation';
 import executionDashboardRoute from './execution-dashboard.routes';
 import haltReleaseRoute from './halt-release.routes';
 import phaseTimelineRoute from './phase-timeline.routes';
@@ -22,6 +23,7 @@ export { orchestraRoutes } from './orchestra';
 export { workflowLearningRoutes } from './workflow-learning';
 export { themeAutoRunRoutes } from './theme-auto-run';
 export { taskSpecRoutes } from '../tasks/task-spec-routes';
+export { deviationRoutes } from './deviation';
 
 export const workflowDomainRoutes = new Elysia()
   .use(workflowRoutes)
@@ -30,6 +32,7 @@ export const workflowDomainRoutes = new Elysia()
   .use(workflowLearningRoutes)
   .use(themeAutoRunRoutes)
   .use(taskSpecRoutes)
+  .use(deviationRoutes)
   .use(executionDashboardRoute)
   .use(haltReleaseRoute)
   .use(phaseTimelineRoute);

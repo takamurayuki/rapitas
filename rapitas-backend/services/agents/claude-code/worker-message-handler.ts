@@ -49,6 +49,8 @@ export interface WorkerMessageContext {
   readonly activeTools: Map<string, { name: string; startTime: number; info: string }>;
   /** The model id the router instructed this execution to run (`config.model`). */
   readonly instructedModel: string | undefined;
+  /** BaseAgent's tool-use handler (plan-deviation recorder), when registered. */
+  readonly toolUseHandler?: ((toolName: string, input: unknown) => void) | undefined;
 
   // ─── Mutable state (direct field access) ─────────────────────────────
   outputBuffer: string;
@@ -143,6 +145,14 @@ export function handleWorkerMessage(ctx: WorkerMessageContext, msg: WorkerOutput
           startTime: Date.now(),
           info: tool.info,
         });
+      }
+      for (const call of msg.toolCalls ?? []) {
+        try {
+          ctx.toolUseHandler?.(call.name, call.input);
+        } catch (err) {
+          // Deviation recording is observability only — never break the stream for it.
+          logger.warn({ err }, `${ctx.logPrefix} tool-use recorder failed`);
+        }
       }
       break;
 
