@@ -9,6 +9,7 @@
  */
 
 import { matchFeatureLine, sectionLines } from './requirements-task-plan';
+import { findUncoveredInputs } from './spec-input-coverage';
 
 /** How much a finding should block. */
 export type SpecFindingSeverity = 'error' | 'warning';
@@ -236,6 +237,24 @@ export function checkSpecConsistency(docs: SpecDocuments): SpecFinding[] {
         });
       }
     }
+  }
+
+  // A feature whose `入力` promises more than its criteria judge cannot
+  // converge: the planner scopes down to what is judgeable (correctly), the
+  // verifier reports the rest as unmet (honestly), and the gate bounces work
+  // that no repair cycle can do. Measured 2026-10-13 on F-01: $7.71 spent, no
+  // reachable pass. See spec-input-coverage for the full incident.
+  for (const gap of findUncoveredInputs(requirements)) {
+    findings.push({
+      code: 'uncovered_input_source',
+      severity: 'error',
+      featureId: gap.featureId,
+      message:
+        `[${gap.featureId}] の \`入力\` は ${[...gap.covered, ...gap.uncovered].join(' / ')} を挙げていますが、` +
+        `受け入れ基準と画面導線が触れているのは ${gap.covered.join(' / ')} だけです。` +
+        `${gap.uncovered.join(' / ')} は判定できないため、実装タスクにしても合格に到達できません。` +
+        '機能を分割するか、残りの対象にも受け入れ基準と画面導線を書いてください。',
+    });
   }
 
   if (sectionLines(requirements, ASSUMPTIONS_SECTION).length === 0) {
