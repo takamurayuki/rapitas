@@ -24,6 +24,7 @@
  */
 
 import { sectionLines } from './requirements-task-plan';
+import { PORT_PLACEHOLDER, REQUIRED_HOST, RESERVED_PORTS } from './runtime-config-contract';
 
 /** Title prefix so the task is recognisable and idempotent by title match. */
 export const BOOTSTRAP_TASK_PREFIX = '[ENV]';
@@ -153,7 +154,15 @@ export function toBootstrapTaskPayload(ctx: BootstrapContext): BootstrapTaskPayl
       `登録が無いと、以降の実装タスクはすべて静的検査(test/lint/typecheck)だけで合格します。` +
       `実測(2026-10-12): 生成プロジェクトはどちらも未登録で、12機能すべてが静的検査だけで通り、` +
       `出来上がったアプリは初期画面しか表示されませんでした。` +
-      `ここで登録しておくことが、以降の全タスクで起動確認を有効にする唯一の方法です。`,
+      `ここで登録しておくことが、以降の全タスクで起動確認を有効にする唯一の方法です。\n\n` +
+      `## ポートはハーネスが決める\n\n` +
+      `\`start\` と \`url\` のポートは必ず ${PORT_PLACEHOLDER} で書いてください。` +
+      `固定すると、ハーネスが割り当てたポートでアプリを起動できず、dev サーバーが自分で` +
+      `別のポートを選びます。実測(2026-10-12, task #1212): ポートを 3210 に固定した設定で` +
+      `Next.js が既定の 3000 を試し、rapitas のフロントエンドに塞がれていたため自動で` +
+      `インクリメントし、\`[::]:${RESERVED_PORTS[1]}\` — rapitas バックエンドのポート — を掴みました。` +
+      `\`url\` のホストも ${REQUIRED_HOST} にしてください。localhost は環境によって ::1 に解決され、` +
+      `IPv6 側で待ち受けている別プロセスへ接続が横取りされます。`,
     themeId: ctx.themeId,
     goals: [
       ctx.hasManifest
@@ -170,6 +179,8 @@ export function toBootstrapTaskPayload(ctx: BootstrapContext): BootstrapTaskPayl
         : []),
       'worktree 内で依存インストールを行う場合、node_modules がリンク共有されている環境では禁止される。' +
         'その場合はプロジェクトルートで用意する',
+      `${RUNTIME_CONFIG_FILE} でポートを固定しない。ポートは ${PORT_PLACEHOLDER} で受け取り、` +
+        `${RESERVED_PORTS.join(' / ')} は rapitas 自身（フロントエンド・バックエンド）が使うため絶対に指定しない`,
     ],
     acceptanceCriteria: [
       ctx.hasManifest
@@ -178,7 +189,13 @@ export function toBootstrapTaskPayload(ctx: BootstrapContext): BootstrapTaskPayl
       '依存インストールのコマンドが exit 0 で完了したことが verify.md に記録されている',
       'typecheck・lint・test の各コマンドが exit 0 で完了したことが verify.md に記録されている' +
         '（テストが0件の場合は、0件であることと理由を明記する）',
-      `${RUNTIME_CONFIG_FILE} が差分に含まれ、dev サーバーの起動コマンドと待ち受けURLが記載されている`,
+      `${RUNTIME_CONFIG_FILE} が差分に含まれ、\`start\` と \`url\` の両方に ${PORT_PLACEHOLDER} があり、` +
+        `\`url\` のホストが ${REQUIRED_HOST} である（例: \`"url": "http://${REQUIRED_HOST}:${PORT_PLACEHOLDER}"\`）`,
+      `${RESERVED_PORTS.join(' / ')} が ${RUNTIME_CONFIG_FILE} の差分に含まれていない` +
+        '（この2つは rapitas 自身が使うため、生成プロジェクトが掴むと rapitas 側が壊れる）',
+      `割り当てられたポートで dev サーバーが実際に待ち受けたことを、そのポート宛の HTTP 200 の実測として` +
+        'verify.md に記録している（pnpm の script 経由では `-- -p` が必要で、素の `-p` は転送されず' +
+        '既定ポートで起動してしまう）',
       `dev サーバーを ${RUNTIME_CONFIG_FILE} の設定で起動し、トップ画面が HTTP 200 を返したことが verify.md に記録されている`,
     ],
   };

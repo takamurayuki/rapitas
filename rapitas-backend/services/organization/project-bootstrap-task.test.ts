@@ -71,6 +71,31 @@ describe('needsEnvironmentBootstrap', () => {
   });
 });
 
+describe('プレビュー設定の受入基準は起動ポートの契約を明示する (2026-10-12)', () => {
+  // 実測: #1212 のエージェントは受入基準「起動コマンドと待ち受けURLが記載されている」
+  // を満たす形で {"start":"pnpm dev -p 3210","url":"http://localhost:3210"} を書いた。
+  // 基準がポート固定も localhost も禁じていなかったため、ハーネスが割り当てた
+  // ポートで起動できず、Next.js が 3000→3001 と自動インクリメントして
+  // バックエンドのポートを奪った。基準側で形を縛る。
+  const payload = () =>
+    toBootstrapTaskPayload({ themeId: 1, projectName: 'x', design: null, hasManifest: true });
+
+  test('受入基準が {port} プレースホルダを要求する', () => {
+    const all = payload().acceptanceCriteria.join('\n');
+    expect(all).toContain('{port}');
+  });
+
+  test('受入基準が 127.0.0.1 を要求する', () => {
+    expect(payload().acceptanceCriteria.join('\n')).toContain('127.0.0.1');
+  });
+
+  test('制約が rapitas の予約ポートを禁じる', () => {
+    const all = [...payload().constraints, ...payload().acceptanceCriteria].join('\n');
+    expect(all).toContain('3000');
+    expect(all).toContain('3001');
+  });
+});
+
 describe('stackLines', () => {
   const design = `# アーキテクチャ概要
 
