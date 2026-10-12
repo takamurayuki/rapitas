@@ -36,11 +36,15 @@ export interface RequirementIntakeDeps {
   /** Whether the project root carries a dependency manifest. / ルートに manifest があるか */
   hasProjectManifest: (workingDirectory: string) => boolean;
   /**
-   * Whether the project root carries `rapitas.runtime.json`. Checked separately
-   * from the theme's own config because either one enables runtime-smoke.
-   * / ルートに rapitas.runtime.json があるか
+   * Whether `rapitas.runtime.json` is present on the project's authoritative
+   * branch (falling back to the working tree). Checked separately from the
+   * theme's own config because either one enables runtime-smoke.
+   * / 正となるブランチに rapitas.runtime.json があるか
    */
-  hasRuntimeConfigFile: (workingDirectory: string) => boolean;
+  hasRuntimeConfigFile: (
+    workingDirectory: string,
+    defaultBranch?: string | null,
+  ) => Promise<boolean>;
   /** Titles of every task in the theme, regardless of status. */
   listExistingTitles: (themeId: number) => Promise<string[]>;
   /** How many filed tasks the theme has that nobody has started. */

@@ -53,7 +53,7 @@ function withinSizeLimit(content: string, source: string): string | null {
 async function readFromOrigin(
   workingDirectory: string,
   branch: string,
-  fileName: string,
+  relativePath: string,
 ): Promise<string | null> {
   const run = (args: string[]) =>
     execFileAsync('git', args, {
@@ -69,10 +69,10 @@ async function readFromOrigin(
     await run(['fetch', 'origin', branch, '--quiet']).catch((err) => {
       log.debug({ err, workingDirectory, branch }, 'fetch failed; using the existing origin ref');
     });
-    const { stdout } = await run(['show', `origin/${branch}:docs/${fileName}`]);
-    return withinSizeLimit(stdout, `origin/${branch}:${fileName}`);
+    const { stdout } = await run(['show', `origin/${branch}:${relativePath}`]);
+    return withinSizeLimit(stdout, `origin/${branch}:${relativePath}`);
   } catch (err) {
-    log.debug({ err, workingDirectory, branch, fileName }, 'origin read unavailable');
+    log.debug({ err, workingDirectory, branch, relativePath }, 'origin read unavailable');
     return null;
   }
 }
@@ -132,7 +132,7 @@ export async function readProjectDoc(
 ): Promise<string | null> {
   const branch = defaultBranch?.trim();
   if (branch) {
-    const fromOrigin = await readFromOrigin(workingDirectory, branch, fileName);
+    const fromOrigin = await readFromOrigin(workingDirectory, branch, `docs/${fileName}`);
     if (fromOrigin !== null) return fromOrigin;
   }
 
@@ -151,4 +151,34 @@ export async function readProjectDoc(
     log.warn({ err, file }, 'requirements.md unreadable — skipping');
     return null;
   }
+}
+
+/**
+ * Whether a file exists at the project ROOT on the authoritative branch.
+ *
+ * NOTE: the authoritative branch, not the working tree — the asymmetry was a
+ * deadlock. Measured 2026-10-12: task #1212 produced `rapitas.runtime.json`,
+ * verified it, and pushed it on `feature/t1212-update-config`. The intake read
+ * its documents from `origin/develop` but looked for the config in the main
+ * checkout, which nothing pulls, so the project counted as "still needs
+ * setting up" forever while the `[ENV]` title suppressed re-filing — feature
+ * tasks were held with no error anywhere. The working tree stays as a fallback
+ * for a project with no remote.
+ *
+ * @param workingDirectory - Theme working directory / テーマの作業ディレクトリ
+ * @param fileName - File at the repository root / リポジトリ直下のファイル名
+ * @param defaultBranch - Branch the project is authoritative on / 正となるブランチ
+ * @returns True when the file is present / 存在すれば true
+ */
+export async function hasProjectRootFile(
+  workingDirectory: string,
+  fileName: string,
+  defaultBranch?: string | null,
+): Promise<boolean> {
+  const branch = defaultBranch?.trim();
+  if (branch) {
+    const fromOrigin = await readFromOrigin(workingDirectory, branch, fileName);
+    if (fromOrigin !== null) return true;
+  }
+  return existsSync(join(workingDirectory, fileName));
 }

@@ -38,6 +38,8 @@ function makeDeps(opts: {
 }) {
   const created: Array<{ title: string; themeId: number }> = [];
   const branches: Array<string | null | undefined> = [];
+  /** Branch passed when looking the preview config up. / 設定探索に使われたブランチ */
+  const branchesAskedForConfig: Array<string | null | undefined> = [];
   const deps: RequirementIntakeDeps = {
     listThemes: async () => opts.themes,
     readRequirements: async (dir, branch) => {
@@ -46,7 +48,10 @@ function makeDeps(opts: {
     },
     readDesign: async (dir) => opts.designs?.[dir] ?? null,
     hasProjectManifest: (dir) => opts.manifests?.[dir] ?? true,
-    hasRuntimeConfigFile: (dir) => opts.runtimeConfigs?.[dir] ?? true,
+    hasRuntimeConfigFile: async (dir, branch) => {
+      branchesAskedForConfig.push(branch);
+      return opts.runtimeConfigs?.[dir] ?? true;
+    },
     listExistingTitles: async (themeId) => opts.existing?.[themeId] ?? [],
     countUnstartedTasks: async (themeId) => opts.unstarted?.[themeId] ?? 0,
     createTask: async (payload) => {
@@ -55,7 +60,7 @@ function makeDeps(opts: {
       return true;
     },
   };
-  return { deps, created, branches };
+  return { deps, created, branches, branchesAskedForConfig };
 }
 
 describe('文書だけのプロジェクトは環境構築を先に起票する (2026-10-12)', () => {
@@ -171,6 +176,38 @@ describe('文書だけのプロジェクトは環境構築を先に起票する 
 
     expect(created).toHaveLength(1);
     expect(created[0].title.startsWith(BOOTSTRAP_TASK_PREFIX)).toBe(true);
+  });
+
+  // 実測 2026-10-12: #1212 は rapitas.runtime.json を作って検証も通したが、
+  // 成果はタスクブランチに push されただけで main checkout には無い。
+  // 設定をワークツリーだけで探していたため「まだ環境構築が必要」と判定され続け、
+  // [ENV] のタイトル一致で再起票も抑止されて、機能タスクが無言で永久保留に
+  // なった。文書と同じく「正となるブランチ」を見る必要がある。
+  it('プレビュー設定は正となるブランチを見て判定する', async () => {
+    const { deps, branchesAskedForConfig } = makeDeps({
+      themes: [{ id: 40, workingDirectory: WD, defaultBranch: 'develop' }],
+      docs: { [WD]: MANY_FEATURES },
+      manifests: { [WD]: true },
+    });
+
+    await runRequirementIntakeJob(deps);
+
+    expect(branchesAskedForConfig).toEqual(['develop']);
+  });
+
+  it('ワークツリーに無くてもブランチ側にあれば機能タスクへ進む', async () => {
+    const { deps, created } = makeDeps({
+      themes: [{ id: 40, workingDirectory: WD, defaultBranch: 'develop' }],
+      docs: { [WD]: MANY_FEATURES },
+      manifests: { [WD]: true },
+      // ブランチ側にある状態を表す（探索自体がブランチ優先になった）
+      runtimeConfigs: { [WD]: true },
+    });
+
+    await runRequirementIntakeJob(deps);
+
+    expect(created.length).toBeGreaterThan(0);
+    expect(created.every((c) => !c.title.startsWith(BOOTSTRAP_TASK_PREFIX))).toBe(true);
   });
 
   it('manifest 済みの場合は「文書だけ」と言わず、作り直さないよう指示する', async () => {

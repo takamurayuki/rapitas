@@ -18,7 +18,11 @@ import { createTask } from '../task/task-mutations';
 import { parseRequirementTasks, outOfScopeItems } from '../organization/requirements-task-plan';
 import { toTaskPayload } from '../organization/requirements-task-payload';
 import { getDisabledThemeIds } from './theme-backlog-override-service';
-import { readRequirementsFile, readDesignFile } from './requirements-document-reader';
+import {
+  readRequirementsFile,
+  readDesignFile,
+  hasProjectRootFile,
+} from './requirements-document-reader';
 import {
   needsEnvironmentBootstrap,
   RUNTIME_CONFIG_FILE,
@@ -93,7 +97,7 @@ function defaultDeps(): RequirementIntakeDeps {
     // Checked on the real filesystem rather than through git: the question is
     // whether an install can run HERE, which only the working tree answers.
     hasProjectManifest: (dir) => MANIFEST_FILES.some((f) => existsSync(join(dir, f))),
-    hasRuntimeConfigFile: (dir) => existsSync(join(dir, RUNTIME_CONFIG_FILE)),
+    hasRuntimeConfigFile: (dir, branch) => hasProjectRootFile(dir, RUNTIME_CONFIG_FILE, branch),
     listExistingTitles: async (themeId) => {
       const rows = await prisma.task.findMany({ where: { themeId }, select: { title: true } });
       return rows.map((r) => r.title);
@@ -162,7 +166,8 @@ async function intakeTheme(
       hasRequirements: true,
       hasManifest,
       hasRuntimeConfig:
-        Boolean(theme.runtimeConfigJson?.trim()) || deps.hasRuntimeConfigFile(workingDirectory),
+        Boolean(theme.runtimeConfigJson?.trim()) ||
+        (await deps.hasRuntimeConfigFile(workingDirectory, defaultBranch)),
     })
   ) {
     return await fileBootstrapTask(themeId, workingDirectory, defaultBranch, existing, deps, {

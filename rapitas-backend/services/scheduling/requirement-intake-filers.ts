@@ -49,7 +49,17 @@ export async function fileBootstrapTask(
   state: { hasManifest?: boolean } = {},
 ): Promise<number> {
   if (existing.some((t) => t.trimStart().startsWith(BOOTSTRAP_TASK_PREFIX))) {
-    log.info({ themeId }, 'Environment setup already filed — holding feature tasks until it lands');
+    // WARN, not INFO: this hold is indistinguishable from normal throttling in
+    // the logs, and it has no exit of its own. Measured 2026-10-12 — #1212
+    // completed, produced the config and pushed it on a task branch that was
+    // never merged, so the project read as "still needs setting up" while this
+    // check suppressed re-filing. Feature tasks were held indefinitely with no
+    // error anywhere. Naming what is missing is what makes that state findable.
+    log.warn(
+      { themeId, workingDirectory, missing: 'preview config on the authoritative branch' },
+      'Environment setup is already filed but the project still lacks preview config — ' +
+        'feature tasks stay held. If the setup task is already done, its branch is probably unmerged',
+    );
     return 0;
   }
   const design = await deps.readDesign(workingDirectory, defaultBranch).catch(() => null);
