@@ -142,7 +142,7 @@ describe('theme auto-run gate for pattern B (#715)', () => {
   // task 977: resolveArmedThemeIds now also queries ThemeAutoRun once per
   // pass (enabled:true, status:'running'), and task #969's resolveThemeAutoRunRunState
   // adds a status:'running' query, alongside the pre-existing enabled:false query — both scoped to the same candidate theme ids.
-  test('queries ThemeAutoRun three times per pass (disabled + run-state + armed), each scoped to the candidates’ distinct theme ids', async () => {
+  test('queries ThemeAutoRun four times per pass (disabled + run-state + armed + paused), each scoped to the candidates’ distinct theme ids', async () => {
     const now = nextPassTime();
     taskFindManyMock.mockResolvedValue([
       pausedThemeTask(now, { id: 602, themeId: 25 }),
@@ -153,9 +153,17 @@ describe('theme auto-run gate for pattern B (#715)', () => {
 
     await runSelfIncidentWatch(now);
 
-    expect(themeAutoRunFindManyMock).toHaveBeenCalledTimes(3);
+    expect(themeAutoRunFindManyMock).toHaveBeenCalledTimes(4);
     const calls = themeAutoRunFindManyMock.mock.calls as unknown as Array<
-      [{ where: { themeId: { in: number[] }; enabled: boolean; status?: string } }]
+      [
+        {
+          where: {
+            themeId: { in: number[] };
+            enabled?: boolean;
+            status?: string | { in: string[] };
+          };
+        },
+      ]
     >;
     for (const [call] of calls) {
       expect(new Set(call.where.themeId.in)).toEqual(new Set([25, 9]));
@@ -164,6 +172,9 @@ describe('theme auto-run gate for pattern B (#715)', () => {
     const armedQuery = calls.find(([c]) => c.where.enabled === true);
     expect(disabledQuery).toBeDefined();
     expect(armedQuery?.[0].where.status).toBe('running');
+    // #1220: the paused-theme gate is one more batch query, never paused_approval.
+    const pausedQuery = calls.find(([c]) => typeof c.where.status === 'object');
+    expect(pausedQuery?.[0].where.status).toEqual({ in: ['paused', 'paused_user'] });
   });
 
   // #860 generalizes "theme auto-run disabled" into the same isWorkflowManaged
@@ -182,5 +193,35 @@ describe('theme auto-run gate for pattern B (#715)', () => {
 
     expect(filed).toBe(0);
     expect(submitConcernMock).not.toHaveBeenCalled();
+  });
+
+  // #1220: pauseAutoRun leaves enabled=true, so only the paused-status query
+  // can resolve this theme — the disabled/run-state/armed queries return nothing.
+  test('a theme paused by the operator (enabled=true, status=paused_user) suppresses stagnation', async () => {
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([
+      pausedThemeTask(now, { status: 'in-progress', updatedAt: new Date(now - 40 * 60 * 1000) }),
+    ]);
+    themeAutoRunFindManyMock.mockImplementation((args: unknown) => {
+      const status = (args as { where: { status?: unknown } }).where.status;
+      return Promise.resolve(typeof status === 'object' ? [{ themeId: 25 }] : []);
+    });
+
+    const filed = await runSelfIncidentWatch(now);
+
+    expect(filed).toBe(0);
+    expect(submitConcernMock).not.toHaveBeenCalled();
+  });
+
+  test('the same task still files stagnation when no theme row is paused', async () => {
+    const now = nextPassTime();
+    taskFindManyMock.mockResolvedValue([
+      pausedThemeTask(now, { status: 'in-progress', updatedAt: new Date(now - 40 * 60 * 1000) }),
+    ]);
+    themeAutoRunFindManyMock.mockResolvedValue([]);
+
+    await runSelfIncidentWatch(now);
+
+    expect(submitConcernMock).toHaveBeenCalled();
   });
 });

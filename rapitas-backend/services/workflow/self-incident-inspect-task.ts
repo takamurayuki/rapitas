@@ -39,6 +39,8 @@ import { fileFinding, type CandidateTask } from './self-incident-file-finding';
  *   `currentTaskId`, resolved once per pass by the caller (task #969). / 稼働中テーマとcurrentTaskIdの対応
  * @param armedThemeIds - Themes whose blocked-task retry/escalation pipeline is armed
  *   (task 977, resolved once per pass by the caller). / blockedタスク自動再試行パイプラインが有効なテーマID集合
+ * @param pausedUserThemeIds - Themes paused without automatic resume (`paused_user` / legacy
+ *   `paused`), resolved once per pass by the caller (task #1220). / 自動再開されない一時停止中のテーマID集合
  */
 export async function inspectTask(
   task: CandidateTask,
@@ -49,14 +51,15 @@ export async function inspectTask(
   repairBounceMinCount: number,
   themeAutoRunRunState: Map<number, { currentTaskId: number | null }>,
   armedThemeIds: Set<number>,
+  pausedUserThemeIds: Set<number> = new Set(),
 ): Promise<number> {
   const state = await gatherTaskState(task, nowMs, REPEAT_LOOP_WINDOW_MS);
   let filed = 0;
 
   // Structural dispatch gate (#860): a task that can never gain a live
   // execution/queue item — workflow disabled, non-development theme, or
-  // theme auto-run disabled — is a legitimate indefinite wait, not
-  // stagnation. Unthemed tasks fall through to `true` (managed) on purpose —
+  // theme auto-run disabled, or theme paused by the operator (#1220) — is a
+  // legitimate indefinite wait, not stagnation. Unthemed tasks fall through to `true` (managed) on purpose —
   // see incident-signature-detectors.ts's isWorkflowManaged JSDoc.
   const isWorkflowManaged =
     task.workflowDisabled || workflowDisabledGlobally
@@ -65,7 +68,9 @@ export async function inspectTask(
         ? false
         : task.themeId != null && disabledAutoRunThemeIds.has(task.themeId)
           ? false
-          : true;
+          : task.themeId != null && pausedUserThemeIds.has(task.themeId)
+            ? false
+            : true;
 
   const manuallyWithdrawn = state.latestTransitionCause === MANUAL_STOP_WITHDRAW_CAUSE;
   // Theme is actively dispatching a DIFFERENT task → this task is a normal

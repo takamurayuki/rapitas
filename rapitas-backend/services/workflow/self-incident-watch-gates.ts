@@ -10,6 +10,10 @@
  * logic itself — see incident-signature-detectors.ts.
  */
 import { prisma } from '../../config/database';
+import {
+  PAUSED_AUTO_RUN_STATUSES,
+  isAutoResumablePauseStatus,
+} from './auto-run/theme-auto-run-types';
 
 /**
  * Resolves each candidate's theme auto-run enabled state in one batch query
@@ -83,6 +87,33 @@ export async function resolveThemeAutoRunRunState(
     })
     .catch(() => [] as { themeId: number; currentTaskId: number | null }[]);
   return new Map(rows.map((r) => [r.themeId, { currentTaskId: r.currentTaskId }]));
+}
+
+/**
+ * Resolves which candidate themes are paused in a way that nothing will ever
+ * auto-resume (task #1220): `paused_user` (operator pause) and the legacy
+ * reason-unknown `paused`. `pauseAutoRun` leaves `enabled` untouched, so such a
+ * theme never lands in `resolveDisabledAutoRunThemeIds`, yet it dispatches
+ * nothing — its non-terminal tasks are an intentional indefinite wait, not
+ * stagnation. `paused_approval` is deliberately excluded: it is auto-resumed
+ * once the plan is approved, so a stall there is a real signal. The status set
+ * is derived from `isAutoResumablePauseStatus` so it cannot drift from the
+ * resume path. Query failure resolves to an empty set (fail-open — detection
+ * keeps working and one failed lookup cannot take the whole pass down).
+ *
+ * @param themeIds - Distinct, non-null theme ids among this pass's candidates. / 候補のテーマID一覧
+ * @returns Set of theme ids paused without automatic resume. / 自動再開されない一時停止中のテーマID集合
+ */
+export async function resolvePausedUserThemeIds(themeIds: number[]): Promise<Set<number>> {
+  if (themeIds.length === 0) return new Set();
+  const statuses = PAUSED_AUTO_RUN_STATUSES.filter((s) => !isAutoResumablePauseStatus(s));
+  const paused = await prisma.themeAutoRun
+    .findMany({
+      where: { themeId: { in: themeIds }, status: { in: [...statuses] } },
+      select: { themeId: true },
+    })
+    .catch(() => [] as { themeId: number }[]);
+  return new Set(paused.map((p) => p.themeId));
 }
 
 /**
