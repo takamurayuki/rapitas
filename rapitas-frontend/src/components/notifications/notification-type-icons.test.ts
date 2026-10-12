@@ -24,6 +24,12 @@ describe('resolveNotificationIcon', () => {
     expect(budget.colorClass).toContain('amber');
   });
 
+  it('maps the canary alert to its own red glyph (not the fallback)', () => {
+    const canary = resolveNotificationIcon('canary_triggered');
+    expect(canary.Icon).not.toBe(resolveNotificationIcon('some_future_type').Icon);
+    expect(canary.colorClass).toContain('red');
+  });
+
   it('falls back for null/undefined type', () => {
     expect(resolveNotificationIcon(null).colorClass).toContain('gray');
     expect(resolveNotificationIcon(undefined).colorClass).toContain('gray');
