@@ -17,7 +17,8 @@ mock.module('../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
 
-const { resolveArmedThemeIds } = await import('./self-incident-watch-gates');
+const { resolveArmedThemeIds, resolvePausedUserThemeIds } =
+  await import('./self-incident-watch-gates');
 
 beforeEach(() => {
   mockPrisma.themeAutoRun.findMany.mockReset().mockResolvedValue([]);
@@ -46,6 +47,34 @@ describe('resolveArmedThemeIds', () => {
     mockPrisma.themeAutoRun.findMany.mockRejectedValueOnce(new Error('db unavailable'));
 
     const result = await resolveArmedThemeIds([5]);
+
+    expect(result).toEqual(new Set());
+  });
+});
+
+describe('resolvePausedUserThemeIds (task #1220)', () => {
+  test('empty input returns an empty set without querying', async () => {
+    const result = await resolvePausedUserThemeIds([]);
+    expect(result).toEqual(new Set());
+    expect(mockPrisma.themeAutoRun.findMany).not.toHaveBeenCalled();
+  });
+
+  test('queries only non-auto-resumable pauses (paused, paused_user), never paused_approval', async () => {
+    mockPrisma.themeAutoRun.findMany.mockResolvedValueOnce([{ themeId: 34 }]);
+
+    const result = await resolvePausedUserThemeIds([34, 35]);
+
+    expect(result).toEqual(new Set([34]));
+    expect(mockPrisma.themeAutoRun.findMany).toHaveBeenCalledWith({
+      where: { themeId: { in: [34, 35] }, status: { in: ['paused', 'paused_user'] } },
+      select: { themeId: true },
+    });
+  });
+
+  test('query failure falls back to an empty set (fail-open — detection keeps working)', async () => {
+    mockPrisma.themeAutoRun.findMany.mockRejectedValueOnce(new Error('db unavailable'));
+
+    const result = await resolvePausedUserThemeIds([34]);
 
     expect(result).toEqual(new Set());
   });
