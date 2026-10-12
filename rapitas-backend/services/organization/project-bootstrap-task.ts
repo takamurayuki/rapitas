@@ -181,6 +181,14 @@ export function toBootstrapTaskPayload(ctx: BootstrapContext): BootstrapTaskPayl
         'その場合はプロジェクトルートで用意する',
       `${RUNTIME_CONFIG_FILE} でポートを固定しない。ポートは ${PORT_PLACEHOLDER} で受け取り、` +
         `${RESERVED_PORTS.join(' / ')} は rapitas 自身（フロントエンド・バックエンド）が使うため絶対に指定しない`,
+      // 実測 2026-10-12 (#1212): 検証者が HTTP 200 を示すために dev サーバーを
+      // 手動起動したが、プロセス kill は禁止されているため 6 プロセスが孤児化
+      // した。バックグラウンドタスクのタイムアウトは直下の子しか殺さない。
+      'dev サーバーを手動で起動しない。プロセスの停止は禁止されているため孤児が残り、' +
+        'ポートを掴んだまま以降の起動確認を EADDRINUSE で全滅させる。起動確認はハーネスに任せる',
+      `\`start\` はハーネスから渡されたポートを dev サーバー本体まで届ける形にする。` +
+        'pnpm の script 経由では `-- -p {port}` が必要で、素の `-p {port}` は転送されず' +
+        '既定ポートで起動してしまう',
     ],
     acceptanceCriteria: [
       ctx.hasManifest
@@ -193,10 +201,8 @@ export function toBootstrapTaskPayload(ctx: BootstrapContext): BootstrapTaskPayl
         `\`url\` のホストが ${REQUIRED_HOST} である（例: \`"url": "http://${REQUIRED_HOST}:${PORT_PLACEHOLDER}"\`）`,
       `${RESERVED_PORTS.join(' / ')} が ${RUNTIME_CONFIG_FILE} の差分に含まれていない` +
         '（この2つは rapitas 自身が使うため、生成プロジェクトが掴むと rapitas 側が壊れる）',
-      `割り当てられたポートで dev サーバーが実際に待ち受けたことを、そのポート宛の HTTP 200 の実測として` +
-        'verify.md に記録している（pnpm の script 経由では `-- -p` が必要で、素の `-p` は転送されず' +
-        '既定ポートで起動してしまう）',
-      `dev サーバーを ${RUNTIME_CONFIG_FILE} の設定で起動し、トップ画面が HTTP 200 を返したことが verify.md に記録されている`,
+      `起動確認(runtime-smoke)がこの設定で HTTP 200 を得たことが verify.md に記録されている` +
+        '（dev サーバーは自分で起動しない — 起動確認はハーネスが行う）',
     ],
   };
 }

@@ -94,6 +94,19 @@ describe('プレビュー設定の受入基準は起動ポートの契約を明�
     expect(all).toContain('3000');
     expect(all).toContain('3001');
   });
+
+  // 実測 2026-10-12 (#1212): 「dev サーバーを起動して HTTP 200 を確認せよ」と
+  // 求めた結果、検証者が手動起動し、kill を禁止されているため 6 プロセスが
+  // 孤児化した。1周ごとに増えるので、起動はハーネスに任せる。
+  test('dev サーバーの手動起動を禁じる', () => {
+    const all = [...payload().constraints, ...payload().acceptanceCriteria].join('\n');
+    expect(all).toContain('手動');
+    expect(all).toContain('孤児');
+  });
+
+  test('起動確認の根拠は runtime-smoke の結果に置く', () => {
+    expect(payload().acceptanceCriteria.join('\n')).toContain('runtime-smoke');
+  });
 });
 
 describe('stackLines', () => {
