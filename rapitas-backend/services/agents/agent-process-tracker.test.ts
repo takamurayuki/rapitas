@@ -109,7 +109,24 @@ function makePidAliveNotListening(pid: number): void {
 
 function makePidAliveAndListening(pid: number): void {
   tasklistOutcome = `Image Name  PID Session Name\nnode.exe    ${pid} Console`;
-  netstatOutcome = `  TCP    0.0.0.0:3001   0.0.0.0:0   LISTENING   ${pid}`;
+  netstatOutcome =
+    '  Proto  Local Address  Foreign Address  State     PID\r\n' +
+    `  TCP    0.0.0.0:3001   0.0.0.0:0        LISTENING ${pid}`;
+}
+
+/**
+ * Put `pid` in the process snapshot as this process's parent, so the reaper
+ * recognises it as the backend's own ancestry.
+ *
+ * NOTE: the guard is ancestry-based, not port-based (see
+ * backend-process-identity). Protecting by port protected an intruder that had
+ * taken 3001 and left the ghost unreapable (task #1212, 2026-10-12).
+ */
+function makeBackendAncestor(pid: number): void {
+  snapshotOutcome = JSON.stringify([
+    { ProcessId: process.pid, ParentProcessId: pid, CommandLine: 'bun server-entry.ts' },
+    { ProcessId: pid, ParentProcessId: 0, CommandLine: 'powershell backend-wrapper.ps1' },
+  ]);
 }
 
 function makePidDead(): void {
@@ -302,16 +319,35 @@ describe('cleanupZombieProcesses', () => {
     );
   });
 
-  test('protects a live process listening on port 3001 (never kills it)', () => {
+  test('protects the backend itself (never kills it)', () => {
     existsSyncMock.mockImplementation(() => true);
     readdirSyncMock.mockImplementation(() => ['worker-600.pid']);
     readFileSyncMock.mockImplementation(() =>
       JSON.stringify({ pid: 600, role: 'worker', startedAt: 't', parentPid: 1 }),
     );
-    makePidAliveAndListening(600);
+    makePidAliveNotListening(600);
+    makeBackendAncestor(600);
     expect(cleanupZombieProcesses()).toBe(0);
     expect(unlinkSyncMock).toHaveBeenCalledWith(join(PID_DIR, 'worker-600.pid'));
     expect(warnMock).toHaveBeenCalledTimes(1);
+  });
+
+  // 実測 2026-10-12 (ContextFlow task #1212): 生成プロジェクトの dev サーバーが
+  // Next.js の自動インクリメントで `[::]:3001` を掴み、ポート基準の保護が
+  // 侵入者を守ったため、系はゴースト LISTEN を自力で排除できなくなった。
+  // 「3001 を使っている」は保護の理由にならない。期待値を反転させる。
+  test('reaps an intruder that merely listens on the backend port', () => {
+    existsSyncMock.mockImplementation(() => true);
+    readdirSyncMock.mockImplementation(() => ['worker-601.pid']);
+    readFileSyncMock.mockImplementation(() =>
+      JSON.stringify({ pid: 601, role: 'worker', startedAt: 't', parentPid: 1 }),
+    );
+    makePidAliveAndListening(601);
+    expect(cleanupZombieProcesses()).toBe(1);
+    expect(execSyncMock).toHaveBeenCalledWith(
+      expect.stringContaining('taskkill'),
+      expect.anything(),
+    );
   });
 
   test('kills a live zombie process not on port 3001 and counts it', () => {
@@ -378,14 +414,24 @@ describe('killProcessTreeSafely', () => {
     );
   });
 
-  test('refuses to kill a process listening on port 3001', () => {
-    makePidAliveAndListening(1001);
+  test('refuses to kill the backend itself', () => {
+    makePidAliveNotListening(1001);
+    makeBackendAncestor(1001);
     expect(killProcessTreeSafely(1001)).toBe(false);
     expect(warnMock).toHaveBeenCalledTimes(1);
     expect(execSyncMock).not.toHaveBeenCalledWith(
       expect.stringContaining('taskkill'),
       expect.anything(),
     );
+  });
+
+  test('reaps a process that merely holds the backend port (#1212)', () => {
+    // ポートを掴んでいることは保護の理由にならない。これを保護していたため
+    // 侵入者が永久に残り、EADDRINUSE で以降の起動確認が全滅した。
+    makePidAliveAndListening(1004);
+    expect(killProcessTreeSafely(1004)).toBe(true);
+    const killCall = execSyncMock.mock.calls.find(([cmd]) => String(cmd).startsWith('taskkill'));
+    expect(String(killCall?.[0])).toContain('/PID 1004');
   });
 
   test('kills and reports success for a live process not on port 3001', () => {
@@ -451,14 +497,16 @@ describe('killProcessTreeSafely', () => {
     expect(String(killCall?.[0])).not.toContain('/PID 2200');
   });
 
-  test('drops a port-3001 listener from the target set but kills the rest', () => {
-    tasklistOutcome = 'node.exe 2300 Console';
-    // netstat marks descendant 2301 as the backend listener; 2300 must die alone.
-    netstatOutcome = `  TCP    127.0.0.1:3001   0.0.0.0:0   LISTENING   2301`;
+  test('drops the backend from the target set but kills the rest', () => {
+    // Both PIDs are alive; 2301 is this process's parent (the backend wrapper),
+    // so it must survive even though the caller handed it in as a target.
+    tasklistOutcome = 'node.exe 2300 Console\npowershell.exe 2301 Console';
     snapshotOutcome = JSON.stringify([
-      { ProcessId: 2301, ParentProcessId: 2300, CommandLine: 'bun index.ts' },
+      { ProcessId: process.pid, ParentProcessId: 2301, CommandLine: 'bun server-entry.ts' },
+      { ProcessId: 2301, ParentProcessId: 0, CommandLine: 'powershell backend-wrapper.ps1' },
+      { ProcessId: 2300, ParentProcessId: 0, CommandLine: 'pnpm dev' },
     ]);
-    expect(killProcessTreeSafely(2300)).toBe(true);
+    expect(killProcessTreeSafely(2300, { knownTargets: [2301] })).toBe(true);
     expect(warnMock).toHaveBeenCalledTimes(1);
     const killCall = execSyncMock.mock.calls.find(([cmd]) => String(cmd).startsWith('taskkill'));
     expect(String(killCall?.[0])).toContain('/PID 2300');
