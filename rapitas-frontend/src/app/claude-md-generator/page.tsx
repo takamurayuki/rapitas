@@ -110,6 +110,8 @@ export default function ClaudeMdGeneratorPage() {
         onSetAnswer={w.setReviewAnswer}
         onRegenerate={w.handleRegenerateFromReview}
         onAccept={w.handleAcceptReview}
+        round={w.reviewRound}
+        maxRounds={w.maxReviewRounds}
       />
     );
 

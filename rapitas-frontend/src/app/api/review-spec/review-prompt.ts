@@ -19,6 +19,34 @@ export interface ReviewQuestion {
   options: string[];
 }
 
+/**
+ * Review rounds a user may be asked to sit through.
+ *
+ * NOTE: the first version re-entered the review phase after EVERY regeneration
+ * and cleared the stored answers each time, so a fresh set of judgement
+ * questions appeared on every round and the user could never reach the result
+ * by answering — reported 2026-10-12 as 「何回回答しても次のフェーズに行かない」.
+ * The questions are advisory by construction (the mechanical checker owns the
+ * blocking half), so they must not be able to hold the wizard open.
+ */
+export const MAX_REVIEW_ROUNDS = 2;
+
+/**
+ * Whether the wizard should show another review round.
+ *
+ * Only a document set that is still NOT implementable earns another round, and
+ * never more than {@link MAX_REVIEW_ROUNDS}. A clean set goes straight to the
+ * result even if the model would happily keep asking questions.
+ *
+ * @param state.round - Rounds already shown (0 before the first) / 既に見せた回数
+ * @param state.implementable - Checker found no error-severity finding / error 無し
+ * @returns Whether to enter the review phase again / もう一度レビューを見せるか
+ */
+export function shouldReviewAgain(state: { round: number; implementable: boolean }): boolean {
+  if (state.implementable) return false;
+  return state.round < MAX_REVIEW_ROUNDS;
+}
+
 /** What the review route returns. */
 export interface ReviewSpecResult {
   /** Mechanical findings from the backend checker. / 機械検査の指摘 */

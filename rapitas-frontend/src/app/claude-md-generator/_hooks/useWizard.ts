@@ -3,29 +3,16 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import type {
-  AppAnswers,
-  AppProposal,
-  DynamicItem,
-  GenerateResult,
-  ProjectContext,
-} from '../_types/types';
+import type { AppAnswers, AppProposal, GenerateResult, ProjectContext } from '../_types/types';
 import { proposeApps, generateClaudeMd, reviewSpec } from '../_utils/api';
-import { formatReviewAnswers, type ReviewSpecResult } from '../../api/review-spec/review-prompt';
-import { AGENT_TARGETS, ELEMENTS, SUB_GENRES } from '../_utils/constants';
-
-/** lucide icon name for user-added custom sub-genres/elements. / 自由入力で追加した項目のアイコン */
-const CUSTOM_ICON = 'Plus';
-
-/**
- * Builds a stable, collision-resistant id for a user-typed custom option.
- *
- * @param label - the free-text label / 自由入力されたラベル
- * @returns a `custom_`-prefixed id / `custom_`接頭辞付きID
- */
-function customId(label: string): string {
-  return `custom_${label.trim().toLowerCase().replace(/\s+/g, '_')}`;
-}
+import {
+  formatReviewAnswers,
+  shouldReviewAgain,
+  MAX_REVIEW_ROUNDS,
+  type ReviewSpecResult,
+} from '../../api/review-spec/review-prompt';
+import { AGENT_TARGETS } from '../_utils/constants';
+import { useOptionCatalog } from './useOptionCatalog';
 
 export type WizardPhase =
   | 'intro'
@@ -78,6 +65,8 @@ export function useWizard() {
   // The review round's findings/questions and the user's answers to them.
   const [review, setReview] = useState<ReviewSpecResult | null>(null);
   const [reviewAnswers, setReviewAnswers] = useState<Record<string, string>>({});
+  /** Review rounds already shown, so the wizard cannot be held open forever. */
+  const [reviewRound, setReviewRound] = useState(0);
   const [setupPhase, setSetupPhase] = useState<SetupPhase>('idle');
   // Primary AI agent the scaffolded repo targets — decides the guide file's
   // name/location (.claude/CLAUDE.md, AGENTS.md, GEMINI.md, …).
@@ -91,8 +80,8 @@ export function useWizard() {
   const [setupError, setSetupError] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
 
-  const [dynamicSubs, setDynamicSubs] = useState<DynamicItem[]>([]);
-  const [dynamicElements, setDynamicElements] = useState<DynamicItem[]>([]);
+  const catalog = useOptionCatalog({ answers, setAnswers, t });
+  const { dynamicSubs, dynamicElements } = catalog;
 
   // Platform phase local selections — kept at top level to avoid conditional hooks
   const [localPlatform, setLocalPlatform] = useState<string | null>(null);
@@ -128,10 +117,7 @@ export function useWizard() {
   const handleSelectGenre = (genreId: string) => {
     setAnswers((a) => ({ ...a, genre: genreId, subs: [], elements: [] }));
     setPhase('sub');
-    const staticSubs = SUB_GENRES[genreId] || [];
-    setDynamicSubs(
-      staticSubs.map((s) => ({ id: s.id, icon: s.icon, label: t(`sub_${genreId}_${s.id}`) })),
-    );
+    catalog.seedSubs(genreId);
   };
 
   /**
@@ -143,47 +129,7 @@ export function useWizard() {
    */
   const handleSubNext = (_selectedSubIds: string[]) => {
     setPhase('elements');
-    setDynamicElements((prev) =>
-      prev.length > 0
-        ? prev
-        : ELEMENTS.map((e) => ({ id: e.id, icon: e.icon, label: t('elem_' + e.id) })),
-    );
-  };
-
-  /**
-   * Adds a user-typed custom sub-genre to the option list and selects it.
-   *
-   * @param label - free-text sub-genre name / 自由入力のサブジャンル名
-   */
-  const addCustomSub = (label: string) => {
-    const trimmed = label.trim();
-    if (!trimmed) return;
-    const id = customId(trimmed);
-    setDynamicSubs((prev) =>
-      prev.some((s) => s.id === id) ? prev : [...prev, { id, icon: CUSTOM_ICON, label: trimmed }],
-    );
-    setAnswers((a) => ({
-      ...a,
-      subs: a.subs?.includes(id) ? a.subs : [...(a.subs || []), id],
-    }));
-  };
-
-  /**
-   * Adds a user-typed custom element/feature to the option list and selects it.
-   *
-   * @param label - free-text element name / 自由入力の機能要素名
-   */
-  const addCustomElement = (label: string) => {
-    const trimmed = label.trim();
-    if (!trimmed) return;
-    const id = customId(trimmed);
-    setDynamicElements((prev) =>
-      prev.some((e) => e.id === id) ? prev : [...prev, { id, icon: CUSTOM_ICON, label: trimmed }],
-    );
-    setAnswers((a) => ({
-      ...a,
-      elements: a.elements?.includes(id) ? a.elements : [...(a.elements || []), id],
-    }));
+    catalog.seedElements();
   };
 
   /**
@@ -313,7 +259,18 @@ export function useWizard() {
         adr: generated.adr,
       });
       setReview(r);
-      setReviewAnswers({});
+      // The round that just finished counts BEFORE deciding, so the cap is a
+      // cap on rounds SHOWN rather than on regenerations attempted.
+      const shown = reviewRound + 1;
+      if (!shouldReviewAgain({ round: reviewRound, implementable: r.implementable })) {
+        setPhase('result');
+        return;
+      }
+      setReviewRound(shown);
+      // NOTE: answers are deliberately NOT cleared. Clearing them made every
+      // round look like a fresh interrogation and is why answering never
+      // reached the result (reported 2026-10-12). A question the model repeats
+      // keeps the answer already given; a new question starts empty.
       setPhase('review');
     } catch {
       setPhase('result');
@@ -387,8 +344,10 @@ export function useWizard() {
     setProposals([]);
     setPickedProp(null);
     setProjectContext({});
+    catalog.reset();
     setReview(null);
     setReviewAnswers({});
+    setReviewRound(0);
     setResult(null);
     // Reset setup state as well
     setSetupPhase('idle');
@@ -436,6 +395,8 @@ export function useWizard() {
     setContextField,
     goToContext,
     review,
+    reviewRound,
+    maxReviewRounds: MAX_REVIEW_ROUNDS,
     reviewAnswers,
     setReviewAnswer,
     handleRegenerateFromReview,
@@ -465,8 +426,8 @@ export function useWizard() {
     diffLabel,
     handleSelectGenre,
     handleSubNext,
-    addCustomSub,
-    addCustomElement,
+    addCustomSub: catalog.addCustomSub,
+    addCustomElement: catalog.addCustomElement,
     handlePlatformGenerate,
     handleRegenerateProposals,
     handleGenerateClaudeMd,
