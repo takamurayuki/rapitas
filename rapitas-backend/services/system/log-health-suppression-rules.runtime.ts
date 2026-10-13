@@ -40,6 +40,21 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
       'OSプロセス列挙スクリプトの単発失敗はworkdirをquarantinedにするだけで、次回acquireRuntimeServerがプロセス終了/ポート解放を再確認すると自動解除される（タイムアウトはa47037f4で30秒へ延長済み） — 未確認の間はunverifiable:trueでfail-closedのため誤って成功扱いになることはない',
   },
   {
+    // ログ出力箇所: runtime-server-registry-lifecycle.ts:284-285 の throw
+    // （ListenerOwnershipError）を同ファイル:311 の guardedRun catch が log.error する。
+    // 起動後のスナップショットで割り当てポートのLISTENERが所有ツリー外PID、0件、
+    // または未取得のとき発火する。catch後はentryがquarantined・unverifiable:trueで
+    // fail-closedになり、成功扱いにはならない。次回acquireRuntimeServerが再確認して
+    // 隔離を解除する。反復の原因切り分け用に、同ログへ diagnostics（port/listenerPids/
+    // ownedPids/listenersKnown）を構造化フィールドで出している。
+    // NOTE: 文言は固定。末尾に語が付く別シグネチャ（K-12552/K-12095等）を巻き込まない
+    // よう完全一致にしている。
+    test: /^Listener ownership is unconfirmed$/,
+    logger: /runtime-smoke:registry/i,
+    because:
+      '起動後のLISTENER所有確認が取れない場合の設計どおりのfail-closed（quarantined・unverifiable:trueで完了は保留され誤成功しない、次回acquireで自動再確認） — 下流のunverifiable WARNは残り、反復の原因はログのdiagnosticsで追跡できる',
+  },
+  {
     // ログ出力箇所: git-operations/pr/pr-merge-ops.ts:154-157 の logger.warn
     // （mergePullRequest内）。gh pr merge --delete-branch はGitHub側マージを先に
     // 行い最後にローカルブランチ削除をするため、タスクworktreeが同ブランチを
