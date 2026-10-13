@@ -31,17 +31,10 @@
  * reduces to a plain sum when every row is its own session.
  */
 
-/** One execution's cost row, as the budget reads it. */
-export interface SpendRow {
-  costUsd: number;
-  claudeSessionId: string | null;
-  startedAt: Date | null;
-}
+import { attributeIncrementalCosts, type CostRow } from '../agents/execution-cost-attribution';
 
-/** Non-negative finite cost, 0 for anything unusable. */
-function usableCost(value: number): number {
-  return Number.isFinite(value) && value > 0 ? value : 0;
-}
+/** One execution's cost row, as the budget reads it. */
+export type SpendRow = CostRow;
 
 /** Sort key: real time where known, otherwise last (a row with no start is pending). */
 function startedMs(row: SpendRow): number {
@@ -65,35 +58,10 @@ function startedMs(row: SpendRow): number {
  */
 export function rollUpTaskSpend(rows: readonly SpendRow[], since: Date | null): number {
   const sinceMs = since ? since.getTime() : null;
-  const chains = new Map<string, SpendRow[]>();
-  let soloTotal = 0;
-
-  for (const row of rows) {
-    const cost = usableCost(row.costUsd);
-    // No session id means nothing can be cumulative with it — count it alone.
-    if (!row.claudeSessionId) {
-      if (sinceMs === null || startedMs(row) >= sinceMs) soloTotal += cost;
-      continue;
-    }
-    const chain = chains.get(row.claudeSessionId);
-    if (chain) chain.push(row);
-    else chains.set(row.claudeSessionId, [row]);
-  }
-
-  let total = soloTotal;
-  for (const chain of chains.values()) {
-    chain.sort((a, b) => startedMs(a) - startedMs(b));
-    let previous = 0;
-    for (const row of chain) {
-      const cost = usableCost(row.costUsd);
-      // Only a DROP means the id was reused by a new chain, so the whole value
-      // is new spend. An equal value is the same cumulative total reported
-      // again — zero increment, not a second chain that coincidentally spent
-      // exactly as much.
-      const added = cost >= previous ? cost - previous : cost;
-      previous = cost;
-      if (sinceMs === null || startedMs(row) >= sinceMs) total += added;
-    }
-  }
+  const increments = attributeIncrementalCosts(rows);
+  let total = 0;
+  rows.forEach((row, index) => {
+    if (sinceMs === null || startedMs(row) >= sinceMs) total += increments[index];
+  });
   return total;
 }
