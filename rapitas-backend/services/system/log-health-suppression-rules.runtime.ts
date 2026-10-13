@@ -257,6 +257,23 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
       'not_reviewableはレビュー対象外の状態ガードによる期待保留(EXPECTED_REPLAN_HOLD_REASONS)で、キュー側でスキップ扱い済み — unknown/requires_human等の他reasonは可視のまま',
   },
   {
+    // ログ出力箇所: workflow-orchestrator-execute.ts:153 の log.error（role=auto_verifier|verifier）。
+    // 投げ元は workflow-cli-executor-verify-gate.ts:86。reason=theme_paused は
+    // requirement-replan-policy.ts:32-34 が themeStatus が stopping / paused* のときに返す
+    // 状態ガードで、テーマの pause は運用者操作に由来する運用状態。リプランは何も
+    // コミットせずタスク状態も変えない（requirement-replan-commit.ts:235 の
+    // rejectReplanLifecycle）ため欠陥ではない（#1222、K-12553 / K-12554）。
+    //
+    // NOTE: log.error 自体は発生源で止まっていない（verify-gate.ts:86 は
+    // isExpectedReplanHold を経由しない汎用 Error）。本ルールはログ健全性の
+    // 再起票を止めるだけで、発生源の分類変更は別タスクの範囲。reason は
+    // 厳密一致を維持し、unknown / requires_human:* / budget_exhausted は抑制しない。
+    test: /^\[WorkflowOrchestrator\] Error in (?:auto_verifier|verifier): Requirement replan review held: theme_paused$/,
+    logger: /workflow-orchestrator/i,
+    because:
+      'theme_pausedはテーマ pause/stopping という運用者操作由来の状態ガードによる期待保留で、リプランは何もコミットしない — unknown/requires_human等の他reasonは可視のまま',
+  },
+  {
     // ログ出力箇所: services/workflow/task-budget.ts:166 の log.warn
     // （resolveTaskBudgetCap 内）。支出が RAPITAS_TASK_BUDGET_USD の
     // hardMultiple() 倍（既定 2 倍）以上のときだけ、次フェーズの tier を economy に

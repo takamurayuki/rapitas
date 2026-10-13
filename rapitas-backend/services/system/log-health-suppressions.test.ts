@@ -530,4 +530,22 @@ describe('classifyLogSignature', () => {
       expect(classifyLogSignature('workflow-orchestrator', other).suppressed).toBe(false);
     }
   });
+
+  test('task 1222: "replan review held: theme_paused" is suppressed for the verify roles on workflow-orchestrator only', () => {
+    for (const role of ['auto_verifier', 'verifier']) {
+      const msg = `[WorkflowOrchestrator] Error in ${role}: Requirement replan review held: theme_paused`;
+      expect(classifyLogSignature('workflow-orchestrator', normalizeMessage(msg)).suppressed).toBe(
+        true,
+      );
+      expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    }
+    for (const other of [
+      '[WorkflowOrchestrator] Error in auto_verifier: Requirement replan review held: theme_paused_extra',
+      '[WorkflowOrchestrator] Error in auto_verifier: Requirement replan review held: unknown',
+      '[WorkflowOrchestrator] Error in verifier: Requirement replan review held: requires_human:x',
+      '[WorkflowOrchestrator] Error in planner: Requirement replan review held: theme_paused',
+    ]) {
+      expect(classifyLogSignature('workflow-orchestrator', other).suppressed).toBe(false);
+    }
+  });
 });
