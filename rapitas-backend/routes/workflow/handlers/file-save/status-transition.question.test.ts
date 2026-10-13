@@ -8,6 +8,7 @@ let userCause: string | null = null;
 let historyError = false;
 let race: (() => void) | undefined;
 let planQuestionCount = 0;
+let operatorWaitCount = 0;
 let capturedUpdateManyData: Record<string, unknown> | undefined;
 const recordTransition = mock(async (_args: unknown) => {});
 const updateMany = mock(
@@ -39,6 +40,7 @@ beforeEach(() => {
   historyError = false;
   race = undefined;
   planQuestionCount = 0;
+  operatorWaitCount = 0;
   capturedUpdateManyData = undefined;
   updateMany.mockClear();
   recordTransition.mockClear();
@@ -91,14 +93,24 @@ mock.module('../../../../services/communication/notification-service', () => ({
   createNotification: async () => ({}),
 }));
 const blockPlanQuestionOverBudget = mock(
-  async (_taskId: number, _count: number, _limit: number) => {},
+  async (_taskId: number, _count: number, _limit: number, _axis?: string) => {},
 );
+// Mirrors the real two-axis verdict (workflow-plan-question-guard.ts): the
+// charged axis is the one the NEW round belongs to. A stub that ignored
+// `waitsOnOperator` would hide the whole point of the wiring under test.
 mock.module('../../../../services/workflow/workflow-plan-question-guard', () => ({
-  checkPlanQuestionBudget: async (_taskId: number) => ({
-    allowed: planQuestionCount < 3,
-    count: planQuestionCount,
-    limit: 3,
-  }),
+  checkPlanQuestionBudget: async (_taskId: number, waitsOnOperator = false) => {
+    const count = waitsOnOperator ? 0 : planQuestionCount;
+    const allowed = count < 3;
+    return {
+      allowed,
+      count: planQuestionCount,
+      limit: 3,
+      operatorCount: operatorWaitCount,
+      operatorLimit: 3,
+      ...(allowed ? {} : { exhausted: waitsOnOperator ? 'operator' : 'agent' }),
+    };
+  },
   blockPlanQuestionOverBudget,
 }));
 
@@ -295,9 +307,64 @@ test('a plan-phase question at the lifetime budget cap is blocked instead of sav
     }),
   ).rejects.toThrow(/lifetime cap/);
   expect(updateMany).not.toHaveBeenCalled();
-  expect(blockPlanQuestionOverBudget).toHaveBeenCalledWith(901, 3, 3);
+  expect(blockPlanQuestionOverBudget).toHaveBeenCalledWith(901, 3, 3, 'agent');
   // workflowStatus must remain plan_approved — the exhausted question.md save never advances it.
   expect(workflowStatus).toBe('plan_approved');
+});
+
+// B6 / #1215: the agent budget is spent, but this round is an escalation only a
+// human can clear ("運用者がルートで依存を追加する"). It must still be allowed —
+// the measured failure was exactly this round being refused at 3/3 and the task
+// going blocked while the operator work was 37 minutes from done.
+const operatorWaitQuestion = (recommended: string) =>
+  '# 質問\n```json:options\n' +
+  JSON.stringify({
+    questions: [
+      {
+        id: 'Q1',
+        summary: '共有 node_modules のため依存追加ができない',
+        options: [
+          { key: 'A', label: '運用者がルートで依存を追加する', requiresOperatorAction: true },
+          { key: 'B', label: 'カバレッジ計測を後続タスクへ移す' },
+        ],
+        freeTextRequired: false,
+        recommended,
+        recommendedReason: '他9項目は実装済みで、依存追加を一度行えば計測で完了できる',
+      },
+    ],
+  }) +
+  '\n```';
+
+test('運用者作業待ちの質問は、エージェントの質問予算を使い切っていても保存できる', async () => {
+  workflowStatus = 'plan_approved';
+  status = 'in-progress';
+  planQuestionCount = 3;
+  const result = await computeAndApplyStatusTransition({
+    taskId: 901,
+    fileType: 'question',
+    currentStatus: 'plan_approved',
+    savedContent: operatorWaitQuestion('A'),
+  });
+  expect(result.newStatus).toBe('awaiting_question');
+  expect(blockPlanQuestionOverBudget).not.toHaveBeenCalled();
+  expect(recordTransition).toHaveBeenCalledWith(
+    expect.objectContaining({ metadata: expect.objectContaining({ operatorWait: true }) }),
+  );
+});
+
+test('運用者作業でない選択肢を推奨している質問は、従来どおり予算で止まる', async () => {
+  workflowStatus = 'plan_approved';
+  status = 'in-progress';
+  planQuestionCount = 3;
+  await expect(
+    computeAndApplyStatusTransition({
+      taskId: 901,
+      fileType: 'question',
+      currentStatus: 'plan_approved',
+      savedContent: operatorWaitQuestion('B'),
+    }),
+  ).rejects.toThrow(/lifetime cap/);
+  expect(blockPlanQuestionOverBudget).toHaveBeenCalledWith(901, 3, 3, 'agent');
 });
 
 test('a non-plan_approved question pause is unaffected by the plan-question budget', async () => {

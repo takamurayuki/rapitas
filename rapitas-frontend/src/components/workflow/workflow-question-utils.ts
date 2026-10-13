@@ -160,6 +160,15 @@ export interface StructuredQuestionOption {
    * NOTE: keep in sync with rapitas-backend/services/workflow/question-options-parser.ts
    */
   planRevision?: boolean;
+  /**
+   * True when choosing this option needs a human to act outside the workflow
+   * first (add a dependency at the repo root, merge another task's PR). Keeps
+   * the option out of the backend's stale-question auto-answer pass, and moves
+   * the question onto the operator-wait budget axis. Purely informational on
+   * the frontend; a human picking it manually is the intended path.
+   * NOTE: keep in sync with rapitas-backend/services/workflow/question-options-parser.ts
+   */
+  requiresOperatorAction?: boolean;
 }
 
 /** One machine-readable question parsed from a `json:options` block. */
@@ -230,6 +239,7 @@ export function parseOptionsBlock(md: string): StructuredQuestionsBlock | null {
             consequence: typeof o.consequence === 'string' ? o.consequence : '',
             mutatesGate: o.mutatesGate === true,
             planRevision: o.planRevision === true,
+            requiresOperatorAction: o.requiresOperatorAction === true,
           });
         }
       }
