@@ -92,6 +92,25 @@ mock.module('./app-launcher', () => ({
 /** How long the mocked health poll stays in its loop (lets the 2.5s tracker tick). */
 let healthyDelayMs = 0;
 
+// Stub the OS-level stop so quarantine cleanup never shells out to PowerShell
+// against the fake PID 999 used by this harness.
+mock.module('./runtime-process-stop', () => ({
+  terminateRuntimeIdentities: async () => ({ stopped: true, reason: '' }),
+  stopRuntimeProcesses: async () => ({ stopped: true, identities: [], reason: '' }),
+}));
+
+const loggedErrors: Array<{ fields: Record<string, unknown>; msg: string }> = [];
+const realLogger = await import('../../../../config/logger');
+mock.module('../../../../config/logger', () => ({
+  ...realLogger,
+  createLogger: () => ({
+    info: () => {},
+    warn: () => {},
+    debug: () => {},
+    error: (fields: Record<string, unknown>, msg: string) => loggedErrors.push({ fields, msg }),
+  }),
+}));
+
 const { spawnNewEntry } = await import('./runtime-server-registry-lifecycle');
 const { registry, nextGeneration: _unused } = await import('./runtime-server-registry-types');
 
@@ -115,6 +134,7 @@ beforeEach(() => {
   snapshotFailCount = null;
   healthyDelayMs = 0;
   registry.clear();
+  loggedErrors.length = 0;
 });
 
 // task 1055 (2026-09-24/25): `next dev` exited 1 on a missing module before
@@ -196,4 +216,26 @@ test('spawn stops the launched process when its OS identity is never confirmed',
   expect(result.ok).toBe(false);
   expect(JSON.stringify(result)).toContain('identity cannot be confirmed');
   expect(stopSpy).toBe(1);
+});
+
+// 2026-10-12 (task 1235): the ERROR carried no PIDs, so a listener outside the
+// owned tree could not be told apart from a missing/unread listener table.
+test('unconfirmed listener ownership is unverifiable and logs PID diagnostics with a fixed message', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-identity-'));
+  temporaryWorkdirs.push(dir);
+  rootPresent = true;
+
+  const result = await spawnNewEntry(dir, dir, cfg, 'fp');
+
+  expect(result.ok).toBe(false);
+  expect(JSON.stringify(result)).toContain('Listener ownership is unconfirmed');
+  expect(JSON.stringify(result)).toContain('"unverifiable":true');
+  const entry = loggedErrors.find((e) => e.msg.includes('workdir quarantined'));
+  expect((entry?.fields.err as Error).message).toBe('Listener ownership is unconfirmed');
+  expect(entry?.fields.diagnostics).toEqual({
+    port: 45999,
+    listenerPids: [],
+    ownedPids: [999],
+    listenersKnown: true,
+  });
 });
