@@ -11,6 +11,8 @@
  * for DB access — the budget module feeds it prior reasons.
  */
 
+import { isSameFinding } from './verify-evidence-similarity';
+
 /** Delimiters the validator wraps quoted evidence lines in. */
 const EVIDENCE_OPEN = '«';
 const EVIDENCE_CLOSE = '»';
@@ -72,6 +74,14 @@ export interface RepeatedEvidenceVerdict {
  * open, because a generic reason repeated three times says nothing about
  * whether the underlying finding changed.
  *
+ * Matching is by SIMILARITY, not string equality. Equality required the
+ * verifier to reproduce its row byte for byte, which it rarely does: measured
+ * 2026-10-13, this path fired for 1 of the 14 tasks with 2+ verify_repair
+ * bounces. #1168's bounces 2 and 3 are the same finding, differing only by an
+ * inserted "HTTP 404（…）" and 「結果もない」against「結果がない」. See
+ * verify-evidence-similarity for the threshold and the measurements behind it;
+ * an identical pair still scores 1, so this only ever widens the old rule.
+ *
  * @param currentReason - Reason about to trigger a bounce / 今回の理由
  * @param priorReasons - Reasons of prior bounces in the window / 過去の理由
  * @param threshold - Occurrences (current included) that mean treading water / 閾値
@@ -86,7 +96,8 @@ export function detectRepeatedEvidence(
   if (!key || threshold < 1) return { cutoff: false };
   let count = 1;
   for (const prior of priorReasons) {
-    if (extractRepeatKey(prior) === key) count++;
+    const priorKey = extractRepeatKey(prior);
+    if (priorKey !== null && isSameFinding(priorKey, key)) count++;
   }
   if (count < threshold) return { cutoff: false };
   return { cutoff: true, repeatedEvidence: key, count };
