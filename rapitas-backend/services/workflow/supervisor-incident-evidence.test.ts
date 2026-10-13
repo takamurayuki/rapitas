@@ -395,6 +395,44 @@ describe('gatherSupervisorEvidence', () => {
     expect(ev.recoveryAtMs).toBe(NOW + 248_000);
   });
 
+  test('a lightweight PR retry settling just after the PR counts as a recovery (#1220)', async () => {
+    // #1220: skip notification at 23:41:24, PR #892 at 23:48:26.610, the retry's
+    // required-merge hold landed 3s later. No phase_completed:* / requeue cause exists.
+    const markAt = NOW;
+    const prAt = NOW + 422_000;
+    const holdAt = prAt + 2_757;
+    notificationFindFirstMock.mockImplementation(
+      notificationStore([
+        {
+          type: 'auto_run_task_skipped',
+          metadata: `{"dedupKey":"auto_run_task_skipped:${task.id}"}`,
+          createdAt: new Date(markAt),
+        },
+      ]),
+    );
+    prFindFirstMock.mockResolvedValue({
+      createdAt: new Date(prAt),
+      prNumber: 892,
+      url: 'https://example.test/pull/892',
+    });
+    transitionFindFirstMock.mockImplementation((args: unknown) => {
+      const where = (
+        args as {
+          where: { cause: { in?: string[]; startsWith?: string }; metadata?: { contains: string } };
+        }
+      ).where;
+      const isRetryLookup =
+        where.cause.in?.includes('verify_awaiting_required_merge') === true &&
+        where.metadata?.contains === '"lightweightRetry":true';
+      return Promise.resolve(isRetryLookup ? { createdAt: new Date(holdAt) } : null);
+    });
+    const ev = await gatherSupervisorEvidence(task);
+    expect(ev.failureMarkedAtMs).toBe(markAt);
+    expect(ev.successArtifactAtMs).toBe(prAt);
+    // Clamped to the success time so detectFalseFailure's `recovery <= success` holds.
+    expect(ev.recoveryAtMs).toBe(prAt);
+  });
+
   test('no recovery lookup runs when there is no success artifact yet', async () => {
     queueItemFindFirstMock.mockResolvedValue({ completedAt: new Date(NOW), status: 'failed' });
     const ev = await gatherSupervisorEvidence(task);
