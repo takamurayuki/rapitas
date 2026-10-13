@@ -26,8 +26,14 @@ import {
 import {
   needsEnvironmentBootstrap,
   RUNTIME_CONFIG_FILE,
+  BOOTSTRAP_TASK_PREFIX,
 } from '../organization/project-bootstrap-task';
-import { fileBootstrapTask, fileDriftTask } from './requirement-intake-filers';
+import {
+  fileBootstrapTask,
+  fileDriftTask,
+  hasBootstrapTaskFiled,
+} from './requirement-intake-filers';
+import { reportIntakeOutcome, type IntakeOutcome } from './requirement-intake-outcome';
 import type { IntakeTheme, RequirementIntakeDeps } from './requirement-intake-types';
 
 const log = createLogger('scheduling:requirement-intake');
@@ -104,6 +110,16 @@ function defaultDeps(): RequirementIntakeDeps {
     },
     countUnstartedTasks: (themeId) =>
       prisma.task.count({ where: { themeId, status: { in: [...UNSTARTED_STATUSES] } } }),
+    // An unfinished setup task means the theme is legitimately waiting; zero
+    // unfinished ones mean the wait has no exit (see requirement-intake-outcome).
+    isBootstrapTaskFinished: async (themeId) =>
+      (await prisma.task.count({
+        where: {
+          themeId,
+          title: { startsWith: BOOTSTRAP_TASK_PREFIX },
+          status: { in: [...UNSTARTED_STATUSES] },
+        },
+      })) === 0,
     // NOTE: markAutoCreated is deliberately not called — flagging these as
     // backlog-created would make the auto-run exhaustion check ignore them.
     createTask: (payload) => createTask(prisma, { ...payload, status: 'todo' }),
@@ -125,7 +141,11 @@ export async function runRequirementIntakeJob(
   for (const theme of themes) {
     if (!theme.workingDirectory) continue;
     try {
-      total += await intakeTheme(theme, theme.workingDirectory, deps);
+      const outcome = await intakeTheme(theme, theme.workingDirectory, deps);
+      total += outcome.filed;
+      // A bare count cannot distinguish "nothing left to file" from "this theme
+      // can never file again" — reporting that difference is the point (F1).
+      await reportIntakeOutcome(outcome).catch(() => {});
     } catch (err) {
       log.warn({ err, themeId: theme.id }, 'Requirement intake failed for theme (non-fatal)');
     }
@@ -139,14 +159,14 @@ async function intakeTheme(
   theme: IntakeTheme,
   workingDirectory: string,
   deps: RequirementIntakeDeps,
-): Promise<number> {
+): Promise<IntakeOutcome> {
   const themeId = theme.id;
   const defaultBranch = theme.defaultBranch;
   const markdown = await deps.readRequirements(workingDirectory, defaultBranch);
-  if (!markdown) return 0;
+  if (!markdown) return { themeId, kind: 'requirements_missing', filed: 0 };
 
   const specs = parseRequirementTasks(markdown);
-  if (specs.length === 0) return 0;
+  if (specs.length === 0) return { themeId, kind: 'no_features_declared', filed: 0 };
   const outOfScope = outOfScopeItems(markdown);
   const existing = await deps.listExistingTitles(themeId);
   const existingSet = new Set(existing);
@@ -170,9 +190,24 @@ async function intakeTheme(
         (await deps.hasRuntimeConfigFile(workingDirectory, defaultBranch)),
     })
   ) {
-    return await fileBootstrapTask(themeId, workingDirectory, defaultBranch, existing, deps, {
-      hasManifest,
-    });
+    const filed = await fileBootstrapTask(
+      themeId,
+      workingDirectory,
+      defaultBranch,
+      existing,
+      deps,
+      {
+        hasManifest,
+      },
+    );
+    if (filed > 0) return { themeId, kind: 'filed', filed };
+    // Zero here means the setup task was already filed (or its creation
+    // failed). Whether that is a wait or a dead end depends on the task's own
+    // state, which only the caller's dep can answer.
+    const setupDone = hasBootstrapTaskFiled(existing)
+      ? await deps.isBootstrapTaskFinished?.(themeId)
+      : undefined;
+    return { themeId, kind: 'environment_pending', filed: 0, setupDone };
   }
 
   // A reworded heading must not re-file the feature, so an existing title that
@@ -212,5 +247,18 @@ async function intakeTheme(
   }
 
   filed += await fileDriftTask(themeId, markdown, existing, deps);
-  return filed;
+  if (filed > 0) return { themeId, kind: 'filed', filed };
+  // Nothing filed: either every declared feature already has a task (normal),
+  // or the cap is holding features back (a stop nobody was told about).
+  if (pending.length > 0) {
+    return {
+      themeId,
+      kind: 'throttled',
+      filed: 0,
+      pending: pending.length,
+      unstarted,
+      cap: MAX_UNSTARTED_PER_THEME,
+    };
+  }
+  return { themeId, kind: 'all_filed', filed: 0 };
 }

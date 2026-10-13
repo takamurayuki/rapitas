@@ -20,6 +20,20 @@ import type { RequirementIntakeDeps } from './requirement-intake-types';
 
 const log = createLogger('scheduling:requirement-intake');
 
+/**
+ * Whether an environment-setup task is already filed for this theme.
+ *
+ * Exported so the caller can classify the resulting zero-filing outcome
+ * (requirement-intake-outcome.ts) against the SAME prefix rule
+ * {@link fileBootstrapTask} applies, rather than a second copy of it.
+ *
+ * @param existing - Task titles in the theme. / 既存タスク名
+ * @returns Whether a setup task exists. / 環境構築タスクが既にあるか
+ */
+export function hasBootstrapTaskFiled(existing: readonly string[]): boolean {
+  return existing.some((t) => t.trimStart().startsWith(BOOTSTRAP_TASK_PREFIX));
+}
+
 /** Project name for the task title: the working directory's own folder name. */
 export function projectNameOf(workingDirectory: string): string {
   const parts = workingDirectory.replace(/[\\/]+$/, '').split(/[\\/]/);
@@ -48,7 +62,7 @@ export async function fileBootstrapTask(
   deps: RequirementIntakeDeps,
   state: { hasManifest?: boolean } = {},
 ): Promise<number> {
-  if (existing.some((t) => t.trimStart().startsWith(BOOTSTRAP_TASK_PREFIX))) {
+  if (hasBootstrapTaskFiled(existing)) {
     // WARN, not INFO: this hold is indistinguishable from normal throttling in
     // the logs, and it has no exit of its own. Measured 2026-10-12 — #1212
     // completed, produced the config and pushed it on a task branch that was

@@ -92,6 +92,11 @@ export type CycleEventName =
   // full. Added 2026-10-13: the refusal used to return 0 in silence, so a theme
   // that had stopped filing gave an operator nothing to go on.
   | 'backlog.cap_reached'
+  // Requirement intake filed nothing for a reason that is not "everything is
+  // already filed". Added 2026-10-14: the job returned a bare count, so a theme
+  // that can never file again looked identical to one with nothing to do —
+  // measured on TempoRaid, idle with its preview config never registered.
+  | 'intake.stalled'
   // git / PR outcomes
   | 'commit.created'
   | 'pr.created'
