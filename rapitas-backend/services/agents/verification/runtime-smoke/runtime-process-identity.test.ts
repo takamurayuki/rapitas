@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import {
+  describeStartOwnershipLoss,
   extendOwnedRuntimeTree,
   inspectOwnedRuntimeTree,
   type RuntimeProcessIdentity,
@@ -59,4 +60,18 @@ test('same-workdir unrelated process is never adopted without lineage', () => {
 
 test('a stale parent id on an older process does not establish ownership', () => {
   expect(extendOwnedRuntimeTree([root], [root, { ...child, birth: '999' }])).toEqual([root]);
+});
+
+test('start ownership loss message names the branch that fired', () => {
+  const prefix = 'Server ownership changed during start';
+  expect(describeStartOwnershipLoss({ safe: false, alive: [], reason: 'identity-mismatch' })).toBe(
+    `${prefix}: identity-mismatch`,
+  );
+  expect(describeStartOwnershipLoss({ safe: false, alive: [], reason: 'protected-process' })).toBe(
+    `${prefix}: protected-process`,
+  );
+  expect(describeStartOwnershipLoss({ safe: false, alive: [] })).toBe(`${prefix}: unknown`);
+  expect(describeStartOwnershipLoss({ safe: true, alive: [] })).toBe(
+    `${prefix}: all tracked processes exited`,
+  );
 });

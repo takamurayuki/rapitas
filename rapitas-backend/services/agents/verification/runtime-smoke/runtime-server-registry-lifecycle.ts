@@ -12,6 +12,7 @@ import { checkRuntimeStartScript } from './runtime-start-preflight';
 import { withRuntimeLaunchLock } from './runtime-launch-lock';
 import { stopRuntimeProcesses } from './runtime-process-stop';
 import { extendOwnedRuntimeTree, inspectOwnedRuntimeTree } from './runtime-process-identity';
+import { describeStartOwnershipLoss } from './runtime-process-identity';
 import { readRuntimeProcessSnapshot, ownsRuntimePort } from './runtime-process-snapshot';
 import { randomUUID } from 'crypto';
 import { createLogger } from '../../../../config/logger';
@@ -280,7 +281,7 @@ export async function spawnNewEntry(
       readySnapshot.protectedPids,
     );
     if (!readyIdentity.safe || readyIdentity.alive.length === 0)
-      throw new Error('Server ownership changed during start');
+      throw new Error(describeStartOwnershipLoss(readyIdentity));
     if (!ownsRuntimePort(readySnapshot, readyIdentity.alive, port))
       throw new Error('Listener ownership is unconfirmed');
     entry.state = 'active';
