@@ -362,7 +362,7 @@ for (const command of [
 }
 
 for (const command of [
-  'cd /c/Projects/rapitas && git status && git pull',
+  'cd /c/Projects/rapitas/rapitas-backend 2>/dev/null; cd /c/Projects/rapitas/.worktrees/task-1222-6d0b1cc3 && npx --no-install prettier --write rapitas-backend/a.ts',
   'cd /c/Projects/rapitas && cat a.txt > b.txt',
   'cd /c/Projects/rapitas && find . -name "*.log" -delete',
   'cd /c/Projects/rapitas && git branch feature/x',
@@ -418,7 +418,7 @@ test('write-bearing cd into <primary>/.worktrees stays primary_mutation and the 
   );
   assert.equal(r._kind, 'primary_mutation');
   const reason = r.hookSpecificOutput.permissionDecisionReason;
-  for (const re of [/git show origin\/<branch>:<path>/, /git grep <pattern> origin\/<branch>/, /falls back to your worktree/]) assert.match(reason, re);
+  for (const re of [/git show origin\/<branch>:<path>/, /git grep <pattern> origin\/<branch>/, /falls back to your worktree/, /<primary>\/rapitas-backend 2>\/dev\/null; cd <worktree>/, /relative `cd rapitas-backend`/]) assert.match(reason, re);
 });
 
 // ---------------------------------------------------------------------------
