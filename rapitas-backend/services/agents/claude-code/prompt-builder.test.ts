@@ -44,6 +44,18 @@ describe('Working Directory primary note (task 1200)', () => {
     }
   });
 
+  test('tells the agent formatter binaries already exist under the cwd (task 1229)', () => {
+    for (const t of [task, { ...task, optimizedPrompt: 'do it' }]) {
+      const prompt = buildStructuredPrompt(t, 'C:\\repo\\primary\\', '[test]', PRIMARY);
+      expect(prompt).toContain('node_modules/.bin');
+      expect(prompt).toContain('pnpm exec prettier --write <relative-path>');
+      expect(prompt).toContain('npx --no-install prettier --write <relative-path>');
+      expect(prompt).toContain('node node_modules/prettier/bin/prettier.cjs --write');
+      expect(prompt).toContain('if your role may run them');
+      expect(prompt).toContain('setup-worktree');
+    }
+  });
+
   test('leaves the output unchanged for a task worktree', () => {
     const wt = `${PRIMARY}/.worktrees/task-1200-abc`;
     const prompt = buildStructuredPrompt(task, wt, '[test]', PRIMARY);
