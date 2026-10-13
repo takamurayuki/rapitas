@@ -25,6 +25,7 @@ import { BLOCKED_REESCALATION_INTERVAL_MS } from './blocked-task-policy';
 import { gatherTaskState } from './self-incident-evidence';
 import { inspectSupervisorSignatures } from './supervisor-incident-inspect';
 import { fileFinding, type CandidateTask } from './self-incident-file-finding';
+import { readLastRetryDispatch } from './blocked-retry-dispatch';
 
 /**
  * Runs all three detectors over one task and files a concern per finding.
@@ -112,6 +113,18 @@ export async function inspectTask(
   });
   if (stagnation) {
     const staleMin = Math.round(stagnation.staleMs / 60_000);
+    // Task 1238: say why nothing picked the task up — theme slot state plus the
+    // dispatch outcome of its last blocked auto-retry — so a recurrence is
+    // diagnosable from the concern alone. Fail-open: evidence only.
+    const lastDispatch = await import('../../config/database')
+      .then((m) => readLastRetryDispatch(m.prisma as never, task.id))
+      .catch(() => null);
+    const themeState =
+      task.themeId == null
+        ? 'テーマ未所属'
+        : runState
+          ? `テーマ稼働中(currentTaskId=${runState.currentTaskId ?? 'null'})`
+          : 'テーマは稼働中でない(running 以外)';
     if (
       await fileFinding({
         signature: 'stagnation',
@@ -120,7 +133,8 @@ export async function inspectTask(
         title: '[自己検出] 停滞: 実行もキューも無いまま非終端タスクが放置される',
         explanation:
           `非終端タスク(status=${task.status}, workflowStatus=${task.workflowStatus ?? 'null'})が、` +
-          `実行中エージェントもアクティブなキュー項目も無いまま${staleMin}分間更新されていません。`,
+          `実行中エージェントもアクティブなキュー項目も無いまま${staleMin}分間更新されていません。` +
+          `[${themeState}; 直近のblocked再試行のdispatch=${lastDispatch ?? '記録なし'}]`,
         thresholdDescription:
           `停滞閾値 ${Math.round(STAGNATION_THRESHOLD_MS / 60_000)}分` +
           `（実行なし・キューなし・正当な待機状態でない非終端タスクが対象）`,
