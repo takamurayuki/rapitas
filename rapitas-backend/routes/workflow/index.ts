@@ -16,6 +16,7 @@ import { deviationRoutes } from './deviation';
 import executionDashboardRoute from './execution-dashboard.routes';
 import haltReleaseRoute from './halt-release.routes';
 import phaseTimelineRoute from './phase-timeline.routes';
+import queueSlotReleaseRoute from './queue-slot-release.routes';
 
 export { workflowRoutes } from './core/workflow';
 export { workflowRolesRoutes } from './core/workflow-roles';
@@ -35,4 +36,5 @@ export const workflowDomainRoutes = new Elysia()
   .use(deviationRoutes)
   .use(executionDashboardRoute)
   .use(haltReleaseRoute)
-  .use(phaseTimelineRoute);
+  .use(phaseTimelineRoute)
+  .use(queueSlotReleaseRoute);
