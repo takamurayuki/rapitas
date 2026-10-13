@@ -14,6 +14,10 @@ import {
   QUESTION_FORMAT_GUIDANCE_EN,
 } from './workflow-question-format-guidance';
 import { PRIMARY_CHECKOUT_GUIDANCE } from './primary-checkout-guidance';
+import {
+  VERDICT_SCOPE_GUIDANCE_JA,
+  VERDICT_SCOPE_GUIDANCE_EN,
+} from './verify-verdict-scope-guidance';
 import { PLAN_DECLARATION_GUIDANCE } from './plan-deviation/declaration-parser';
 import { resolveAcceptanceCriteria } from '../agents/verification/acceptance-self-check';
 
@@ -227,13 +231,14 @@ export function buildRoleTexts(
           '- 全体判定は「技術検証（テスト・型・lint・format）と受入基準の充足」だけで決めてください。**公開工程が未実施であることを理由に `⚠️ 一部失敗` を選んではいけません**（技術検証が通り受入基準を満たしていれば `✅ 検証成功`）。\n' +
           '- 公開工程は「残課題」ではなく、表の1行 `| 後工程（push / CI / merge） | 自動実行・判定対象外 |` として記載してください。plan.md のチェックリストに push/PR/マージ/運用確認の項目があっても、消化率の分母から除外して構いません。\n' +
           '- 一方、既に PR が存在して CI が失敗している場合は後工程ではなく実失敗です。失敗チェック名を残課題に書き、`⚠️ 一部失敗` にしてください。\n' +
+          VERDICT_SCOPE_GUIDANCE_JA +
           '上記「仮説台帳」に検証待ち仮説が列挙されている場合、`## 仮説評価` セクションで各仮説を1行 `- [#id] 成立|不成立: 根拠(file:line/テスト/計測)` で判定してください（成立は予測が実際に的中した場合のみ。確証が無ければ記載せず検証待ちのまま残す）。\n' +
           '\n### プレモーテム照合 (plan.md に `## プレモーテム` がある場合のみ必須)\n' +
           'plan.md のプレモーテム各項目について、記載の検知シグナル（テスト/コマンド）を実際に確認し、verify.md に `## プレモーテム照合` セクションを設けて1行ずつ `- <失敗原因の要約>: 発生せず|発生（根拠）` で判定してください。「発生」の項目は残課題として扱い、全体判定に反映すること。\n' +
           '\n### 出力規律（機械ゲート互換 — 厳守）\n' +
           '- タスク種別（軽量・マージ・競合解消・サブタスク）を問わず、冒頭は必ず `# 検証レポート` で開始し、`## 検証結果サマリ` `## テスト結果` `## チェックリスト消化状況` の3見出しを必ず含める。`# 検証結果` や `# Verify: PR#...` などの見出しで始めてはならない。\n' +
           '- 全体判定は冒頭サマリと表の「全体判定」セルの両方で `✅ 検証成功` / `❌ 検証失敗` / `⚠️ 一部失敗` をこの表記のまま使用する。「合格」「条件付き合格」「不合格」等への言い換えは禁止（機械判定はこの語彙のみを認識する）。\n' +
-          '- チェックリスト・受入基準の各行は `✅ 完了` / `❌ 未完了` / `➖ 対象外（理由）` の3値。`❌` は「本タスクの差分に欠陥または未実装があり、実装者が次の実装ラウンドで直せる項目」にだけ使う。前提となるモデル・フラグ・ファイルがこのコードベースに存在しない、この環境（OS・CI）では実行できない、計画側で撤回された、後工程（push/CI/merge）である — こうした項目は `➖ 対象外（理由）` と書く（`❌` は機械ゲートが実失敗として読み、同じ指摘での差し戻しループになる）。実行はできたが確認しきれなかった項目は `⚠️ 未検証（理由）` とし、全体判定にも反映する。\n' +
+          '- チェックリスト・受入基準の各行は `✅ 完了` / `❌ 未完了` / `➖ 対象外（理由）` の3値。`❌` は「本タスクの差分に欠陥または未実装があり、実装者が次の実装ラウンドで直せる項目」にだけ使う。前提となるモデル・フラグ・ファイルがこのコードベースに存在しない、この環境（OS・CI）では実行できない、計画側で撤回された、後工程（push/CI/merge）である — こうした項目は `➖ 対象外（理由）` と書く（`❌` は機械ゲートが実失敗として読み、同じ指摘での差し戻しループになる）。実行はできたが確認しきれなかった項目は `⚠️ 未検証（理由）` とし、**対応する受入基準がある場合に限り**全体判定に反映する（受入基準の無い注記は上記「全体判定の範囲」に従い反映しない）。\n' +
           '- 変更ファイル一覧は「ファイル | 種別（新規/変更） | 変更内容の要約」の表で書く。`| +追加 | -削除 |` 列・`(+120/-45)` などの行数差分数値・✏️/⏭️/🆕 の絵文字は書かない。\n' +
           '- 偽陽性検証（修正を一時的に外して意図的にREDを確認する検証）を記録する場合、`Tests N failed` / `N failed` のような数値集計行を本文に書かない（機械ゲートが実失敗と誤認し差し戻しループになる）。「修正を除去するとRED、復元するとGREENを確認」と1行で要約する。生ログを貼る場合は ```text フェンス内に限り、集計行は含めない。',
       },
@@ -355,13 +360,14 @@ export function buildRoleTexts(
           '- Decide the overall verdict from technical verification (tests, types, lint, format) and the acceptance criteria only. **Never choose `⚠️ Partial` because publication has not happened yet** — if the technical checks pass and the criteria are met, the verdict is `✅ Pass`.\n' +
           '- Record publication as a single table row `| Downstream (push / CI / merge) | automated, out of scope |`, not as a remaining item. Plan checklist entries about push/PR/merge/rollout may be excluded from the completion denominator.\n' +
           '- If a PR already exists and its CI is failing, that IS a real failure: name the failing check under remaining items and choose `⚠️ Partial`.\n' +
+          VERDICT_SCOPE_GUIDANCE_EN +
           'When the 仮説台帳 above lists open hypotheses, add a `## 仮説評価` section judging each as `- [#id] 成立|不成立: evidence(file:line/test/metric)` (成立 only when the prediction actually held; omit any you cannot confirm, leaving it open).\n' +
           '\n### Premortem cross-check (required ONLY when plan.md has a `## プレモーテム` section)\n' +
           'For each premortem item in plan.md, actually run/check its stated detection signal and add a `## プレモーテム照合` section to verify.md judging each as `- <failure-cause summary>: 発生せず|発生 (evidence)`. Any 発生 item counts as outstanding work and must be reflected in the overall verdict.\n' +
           '\n### Output discipline (machine-gate compatibility — strict)\n' +
           '- Regardless of task kind (lightweight / merge / conflict-resolution / subtask), start with `# Verification Report` and always include the required section headings listed above. Never start with `# Verify: PR#...` or other ad-hoc titles.\n' +
           '- Use the verdict vocabulary `✅ Pass` / `❌ Fail` / `⚠️ Partial` verbatim in BOTH the opening summary and the overall-verdict table cell; paraphrases such as "passed with conditions" are forbidden (the machine gates only recognize this vocabulary).\n' +
-          "- Each checklist / acceptance-criterion row is one of three values: `✅ done` / `❌ not done` / `➖ N/A (reason)`. Use `❌` ONLY for an item where this task's diff is defective or unimplemented and the implementer can fix it in the next round. An item whose premise (a model, flag or file) does not exist in this codebase, cannot run in this environment (OS / CI), was withdrawn by the plan owner, or is a downstream step (push / CI / merge) is written as `➖ N/A (reason)` — a `❌` there is read by the machine gate as a real failure and loops the task on the same finding. An item you ran but could not fully confirm is `⚠️ unverified (reason)` and must be reflected in the overall verdict.\n" +
+          '- Each checklist / acceptance-criterion row is one of three values: `✅ done` / `❌ not done` / `➖ N/A (reason)`. Use `❌` ONLY for an item where this task\'s diff is defective or unimplemented and the implementer can fix it in the next round. An item whose premise (a model, flag or file) does not exist in this codebase, cannot run in this environment (OS / CI), was withdrawn by the plan owner, or is a downstream step (push / CI / merge) is written as `➖ N/A (reason)` — a `❌` there is read by the machine gate as a real failure and loops the task on the same finding. An item you ran but could not fully confirm is `⚠️ unverified (reason)` and is reflected in the overall verdict ONLY when an acceptance criterion stands behind it (a note with none is not, per "What the overall verdict covers" above).\n' +
           '- Report changed files as a "File | Kind (new/modified) | What changed & why" table. Never emit `| +added | -removed |` columns, `(+120/-45)` line deltas, or ✏️/⏭️/🆕 emoji.\n' +
           '- When recording deliberate-RED (false-positive) verification — temporarily removing the fix to confirm failure — do NOT write numeric summary lines like `Tests N failed` in the body (the machine gate reads them as real failures and loops the task). Summarize in one line: "fix removed → RED, restored → GREEN". Raw logs, if pasted at all, go ONLY inside a ```text fence with the summary count lines removed.',
       },
