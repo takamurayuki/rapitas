@@ -184,6 +184,7 @@ describe('computeAndApplyStatusTransition — 非収束カットオフの二重�
     'stale_snapshot',
     'execution_superseded',
     'review_in_progress',
+    'theme_paused',
   ])(
     '想定内の保留理由 %s は RequirementReplanHeldError(409) で投げられ、ERRORログを誘発しない(#1023)',
     async (reason) => {

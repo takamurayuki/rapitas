@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import {
+  isExpectedReplanHold,
   rejectReplanLifecycle,
   isRequirementReplanWindowExhausted,
   wouldReplanExhaustWindow,
@@ -97,4 +98,10 @@ test('a prior replan outside the window does not refuse the pending one', () => 
   expect(wouldReplanExhaustWindow([{ createdAtMs: nowMs - 60 * 60 * 1000 - 1 }], nowMs)).toBe(
     false,
   );
+});
+
+test('theme_paused は想定内の保留であり、近い文字列や未知の理由は対象外', () => {
+  expect(isExpectedReplanHold('theme_paused')).toBe(true);
+  expect(isExpectedReplanHold('theme_paused_extra')).toBe(false);
+  expect(isExpectedReplanHold('unknown')).toBe(false);
 });
