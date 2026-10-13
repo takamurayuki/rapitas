@@ -433,6 +433,40 @@ describe('gatherSupervisorEvidence', () => {
     expect(ev.recoveryAtMs).toBe(prAt);
   });
 
+  test('a declared verify_pr_not_created block between mark and PR counts as a recovery even if the settle transition is missing (#1220)', async () => {
+    // The skip notification (mark) is the blocked state's own side effect; the pipeline then
+    // records verify_pr_not_created 18s later announcing the lightweight retry. If the retry's
+    // settle transition is never written (best-effort .catch), the PR is still the designed
+    // recovery, not a wrong verdict.
+    const markAt = NOW;
+    const blockedAt = NOW + 18_000;
+    const prAt = NOW + 422_000;
+    notificationFindFirstMock.mockImplementation(
+      notificationStore([
+        {
+          type: 'auto_run_task_skipped',
+          metadata: `{"dedupKey":"auto_run_task_skipped:${task.id}"}`,
+          createdAt: new Date(markAt),
+        },
+      ]),
+    );
+    prFindFirstMock.mockResolvedValue({
+      createdAt: new Date(prAt),
+      prNumber: 892,
+      url: 'https://example.test/pull/892',
+    });
+    transitionFindFirstMock.mockImplementation((args: unknown) => {
+      const where = (args as { where: { cause: { in?: string[] } } }).where;
+      return Promise.resolve(
+        where.cause.in?.includes('verify_pr_not_created') === true
+          ? { createdAt: new Date(blockedAt) }
+          : null,
+      );
+    });
+    const ev = await gatherSupervisorEvidence(task);
+    expect(ev.recoveryAtMs).toBe(blockedAt);
+  });
+
   test('no recovery lookup runs when there is no success artifact yet', async () => {
     queueItemFindFirstMock.mockResolvedValue({ completedAt: new Date(NOW), status: 'failed' });
     const ev = await gatherSupervisorEvidence(task);
