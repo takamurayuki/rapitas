@@ -60,11 +60,14 @@ function triggerLags(
   const realNow = Date.now;
   const realInterval = globalThis.setInterval;
   const realClear = globalThis.clearInterval;
+  const realCpuUsage = process.cpuUsage;
   let clockMs = 10_000;
   let tick: (() => void) | undefined;
   let intervalMs = 0;
   const reasons: string[] = [];
   Date.now = () => clockMs;
+  // CPU fully busy: every stall is cpu-bound, so existing thresholds apply unchanged.
+  process.cpuUsage = (() => ({ user: clockMs * 1000, system: 0 })) as typeof process.cpuUsage;
   globalThis.setInterval = ((callback: () => void, ms: number) => {
     tick = callback;
     intervalMs = ms;
@@ -88,6 +91,7 @@ function triggerLags(
   } finally {
     stopEventLoopLagWatchdog();
     Date.now = realNow;
+    process.cpuUsage = realCpuUsage;
     globalThis.setInterval = realInterval;
     globalThis.clearInterval = realClear;
   }
