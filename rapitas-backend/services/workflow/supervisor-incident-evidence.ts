@@ -28,6 +28,9 @@ const FAILURE_NOTIFICATION_TYPES = ['auto_run_task_skipped', 'auto_run_hang_back
  */
 const LIGHTWEIGHT_RETRY_SETTLE_CAUSES = [AWAITING_REQUIRED_MERGE_CAUSE, 'verify_passed'] as const;
 
+/** Cause the verify pipeline records when it blocks a task for a missing PR and schedules the retry. */
+const PR_NOT_CREATED_BLOCK_CAUSE = 'verify_pr_not_created';
+
 /** How long after the PR row the retry's settle transition may land (#1220: ~2.8s). */
 const LIGHTWEIGHT_RETRY_SETTLE_GRACE_MS = 60_000;
 
@@ -316,10 +319,29 @@ export async function gatherSupervisorEvidence(task: { id: number }): Promise<Su
     const lightweightRetryAtMs = lightweightRetry
       ? Math.min(lightweightRetry.createdAt.getTime(), successArtifactAtMs)
       : null;
+    // NOTE: #1220 — the mark (skip notification) is the blocked state's own side effect and the
+    // pipeline then records verify_pr_not_created, announcing the automatic PR retry. That
+    // declaration sits BEFORE the success, so it does not depend on the retry's best-effort
+    // settle transition being written (recordTransition(...).catch(() => {})) or landing
+    // inside the grace above. A PR after a declared block is the designed recovery.
+    const declaredBlock = await safeQuery(
+      () =>
+        prisma.workflowTransition.findFirst({
+          where: {
+            taskId: task.id,
+            cause: { in: [PR_NOT_CREATED_BLOCK_CAUSE] },
+            createdAt: { gte: recoveryFromDate, lte: new Date(successArtifactAtMs) },
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        }),
+      null,
+    );
     recoveryAtMs = maxMs(
       recovery?.createdAt.getTime() ?? null,
       progress?.createdAt.getTime() ?? null,
       lightweightRetryAtMs,
+      declaredBlock?.createdAt.getTime() ?? null,
     );
   }
 

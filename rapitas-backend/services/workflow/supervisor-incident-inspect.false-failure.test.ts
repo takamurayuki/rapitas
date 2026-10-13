@@ -55,4 +55,29 @@ describe('inspectSupervisorSignatures false-failure idempotency', () => {
     await run();
     expect(file).toHaveBeenCalledTimes(2);
   });
+  test('does not re-file a success artifact older than the fresh window after a restart (#1220 recurrence)', async () => {
+    // The idempotency Set is empty here, as after a backend restart. The artifact was already
+    // observed by earlier ticks hours ago; re-filing it is the "再発" #1220 produced at 03:14Z.
+    const file = mock(() => Promise.resolve(true));
+    const hoursLater = NOW + 60_000 + 3 * 60 * 60_000;
+    const filed = await inspectSupervisorSignatures({
+      task,
+      state: {} as never,
+      nowMs: hoursLater,
+      file,
+    });
+    expect(filed).toBe(0);
+    expect(file).not.toHaveBeenCalled();
+  });
+
+  test('still files while the success artifact is fresh', async () => {
+    const file = mock(() => Promise.resolve(true));
+    const filed = await inspectSupervisorSignatures({
+      task,
+      state: {} as never,
+      nowMs: NOW + 60_000 + 5 * 60_000,
+      file,
+    });
+    expect(filed).toBe(1);
+  });
 });
