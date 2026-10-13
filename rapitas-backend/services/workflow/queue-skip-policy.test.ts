@@ -42,6 +42,15 @@ describe('isNonRunnableTaskSkip', () => {
     ).toBe(true);
   });
 
+  test('回帰: theme_paused はテーマ pause が解除されるまで解消しないためスキップ扱いにする', () => {
+    // task #1236: verify ゲートの theme_paused が失敗として再試行を消費し、上限到達で
+    // キュー項目 failed → タスク blocked が書かれ、検知が停滞として起票していた。
+    expect(isNonRunnableTaskSkip('Requirement replan review held: theme_paused')).toBe(true);
+    expect(isNonRunnableTaskSkip('実行エラー: Requirement replan review held: theme_paused')).toBe(
+      true,
+    );
+  });
+
   test('本物の失敗は従来どおり再試行対象のまま', () => {
     const failures = [
       'research.md was not saved. The workflow phase cannot be completed until the required file is written',
