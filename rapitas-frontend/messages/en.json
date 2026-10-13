@@ -353,7 +353,6 @@
     "deleteFailed": "Failed to delete task",
     "duplicated": "Task duplicated",
     "duplicateFailed": "Failed to duplicate",
-    "openInPage": "Open in page",
     "duplicate": "Duplicate",
     "waitingForInput": "Waiting for input",
     "scrollLeft": "Scroll left",
