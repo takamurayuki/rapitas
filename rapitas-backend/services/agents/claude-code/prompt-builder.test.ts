@@ -39,6 +39,8 @@ describe('Working Directory primary note (task 1200)', () => {
       const prompt = buildStructuredPrompt(t, 'C:\\repo\\primary\\', '[test]', PRIMARY);
       expect(prompt).toContain('primary checkout');
       expect(prompt).toContain('never `cd` to it');
+      expect(prompt).toContain('cd <primary>/rapitas-backend');
+      expect(prompt).toContain('relative `cd rapitas-backend`');
     }
   });
 

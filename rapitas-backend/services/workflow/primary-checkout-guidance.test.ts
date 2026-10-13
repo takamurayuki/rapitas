@@ -76,3 +76,17 @@ describe('PRIMARY_CHECKOUT_GUIDANCE fallback-chain ban (task 1200)', () => {
     expect(text).not.toContain('C:/Projects');
   });
 });
+
+describe('PRIMARY_CHECKOUT_GUIDANCE primary-subdirectory chain (task 1227)', () => {
+  test.each(['ja', 'en'] as const)(
+    '%s names the <primary>/rapitas-backend form and a relative alternative',
+    (lang) => {
+      const text = PRIMARY_CHECKOUT_GUIDANCE[lang];
+      expect(text).toContain('cd <primary>/rapitas-backend 2>/dev/null; cd <worktree>');
+      expect(text).toContain('cd rapitas-backend');
+      expect(text).toContain('npx --no-install prettier --write rapitas-backend/<path>');
+      expect(text).not.toContain('C:/Projects');
+      expect(text).not.toContain('/c/Projects');
+    },
+  );
+});
