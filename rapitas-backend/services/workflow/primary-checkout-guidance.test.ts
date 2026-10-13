@@ -77,6 +77,27 @@ describe('PRIMARY_CHECKOUT_GUIDANCE fallback-chain ban (task 1200)', () => {
   });
 });
 
+describe('PRIMARY_CHECKOUT_GUIDANCE tool location (task 1229)', () => {
+  test.each(['ja', 'en'] as const)(
+    '%s says formatter binaries already exist in the worktree and how to run them',
+    (lang) => {
+      const text = PRIMARY_CHECKOUT_GUIDANCE[lang];
+      expect(text).toContain('prettier');
+      expect(text).toContain('node_modules/.bin');
+      expect(text).toContain('pnpm exec prettier --write <');
+      expect(text).toContain('npx --no-install prettier --write <');
+      expect(text).toContain('node node_modules/prettier/bin/prettier.cjs --write');
+      expect(text).toContain('setup-worktree');
+      expect(text).not.toContain('C:/Projects');
+      expect(text).not.toContain('/c/Projects');
+    },
+  );
+
+  test.each(['ja', 'en'] as const)('%s forbids install in the worktree', (lang) => {
+    expect(PRIMARY_CHECKOUT_GUIDANCE[lang]).toMatch(/install/);
+  });
+});
+
 describe('PRIMARY_CHECKOUT_GUIDANCE primary-subdirectory chain (task 1227)', () => {
   test.each(['ja', 'en'] as const)(
     '%s names the <primary>/rapitas-backend form and a relative alternative',
