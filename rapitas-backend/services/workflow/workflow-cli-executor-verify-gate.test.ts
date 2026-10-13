@@ -133,6 +133,21 @@ describe('resolveVerifyPhaseStatus — 完了と必須マージ待ちの分岐',
     expect(recordTransition).not.toHaveBeenCalled();
   });
 
+  test('task 1236: theme_paused is thrown as the typed expected-hold error, not a generic Error', async () => {
+    reviewReplan.mockResolvedValueOnce({ committed: false, reason: 'theme_paused' });
+    await expect(resolveVerifyPhaseStatus(params())).rejects.toMatchObject({
+      name: 'RequirementReplanHeldError',
+      message: 'Requirement replan review held: theme_paused',
+    });
+    expect(completeReview).not.toHaveBeenCalled();
+  });
+
+  test('task 1236: an unclassified hold reason stays a generic Error', async () => {
+    reviewReplan.mockResolvedValueOnce({ committed: false, reason: 'something_unknown' });
+    const err = await resolveVerifyPhaseStatus(params()).catch((e: Error) => e);
+    expect((err as Error).name).toBe('Error');
+  });
+
   test('missing server receipt cannot fall back to id-only completion', async () => {
     reviewReplan.mockResolvedValueOnce({ committed: false, reason: 'no_mismatch' });
     await expect(resolveVerifyPhaseStatus(params())).rejects.toThrow('Missing server completion');

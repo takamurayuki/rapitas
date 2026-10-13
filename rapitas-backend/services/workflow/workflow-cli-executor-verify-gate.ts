@@ -12,6 +12,8 @@ import { writeBlockedTask } from './blocked-task-write';
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { readWorkflowFile } from './workflow-file-utils';
+import { isExpectedReplanHold } from './requirement-replan-policy';
+import { RequirementReplanHeldError } from '../../middleware/error-handler';
 import type { ValidationResult } from './phase-output-validator';
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 import { recordTransition, type TransitionActor } from './transition-recorder';
@@ -83,6 +85,10 @@ export async function resolveVerifyPhaseStatus(params: {
   const replan = await attemptRequirementReplan(prisma, taskId);
   if (replan.committed) return 'research_done';
   if (replan.reason !== 'no_mismatch') {
+    // NOTE: Expected state-guard holds (theme_paused etc.) must surface as the same
+    // typed error as the HTTP save path (status-transition.ts) so the orchestrator
+    // can treat them as a hold instead of a crash (task 1236).
+    if (isExpectedReplanHold(replan.reason)) throw new RequirementReplanHeldError(replan.reason);
     throw new Error(`Requirement replan review held: ${replan.reason}`);
   }
   const finalize = async (cause: 'verify_passed' | 'verify_no_change_confirmed') => {
