@@ -15,10 +15,10 @@ import { createLogger } from '../../config/logger';
 import { logCycleEvent } from '../observability';
 import {
   clearTaskCalendarHold,
-  evaluateCalendarHoldNow,
   isTaskCalendarHeld,
   markTaskCalendarHold,
 } from '../scheduling/calendar-slot/calendar-hold-state';
+import { decideCalendarHold } from '../scheduling/calendar-slot/calendar-hold-decision';
 import type { WorkflowAdvanceResult } from './workflow-agent-executor';
 import type { RoleTransition, WorkflowStatus } from './workflow-types';
 
@@ -47,10 +47,8 @@ const defaultDeps: CalendarGuardDeps = {
     return item != null;
   },
   recordActivity: async (action, metadata) => {
-    const { prisma } = await import('../../config');
-    await prisma.activityLog.create({
-      data: { taskId: null, action, metadata: JSON.stringify(metadata) },
-    });
+    const { recordCalendarActivity } = await import('../scheduling/calendar-slot/calendar-store');
+    await recordCalendarActivity(action, metadata);
   },
 };
 
@@ -75,7 +73,7 @@ export async function guardCalendarPhaseBoundary(
 ): Promise<CalendarGuardOutcome> {
   const d: CalendarGuardDeps = { ...defaultDeps, ...deps };
   const now = d.now();
-  const { usable, gate } = evaluateCalendarHoldNow(now);
+  const { usable, gate } = await decideCalendarHold(now);
   if (!gate.hold) {
     if (clearTaskCalendarHold(taskId)) {
       const cause = usable ? gate.reason : 'calendar_unavailable';

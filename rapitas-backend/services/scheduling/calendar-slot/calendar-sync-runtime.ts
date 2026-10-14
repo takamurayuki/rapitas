@@ -2,9 +2,8 @@
  * calendar-sync-runtime
  *
  * Process singletons for the calendar slot feature (task 1174): the keychain
- * token store and the Prisma/Google-backed sync service, plus the idempotent
- * poller start. DB and googleapis are imported lazily so merely importing the
- * gate or the hold state never opens a Prisma client. Not responsible for
+ * token store and the Google-backed sync service, plus the idempotent poller
+ * start. googleapis is imported lazily so importing this module stays cheap. Not responsible for
  * any decision logic.
  */
 import { createLogger } from '../../../config/logger';
@@ -30,14 +29,8 @@ export function getCalendarTokenStore(): CalendarTokenStore {
  */
 export async function getCalendarSyncService(): Promise<CalendarSyncService> {
   if (service) return service;
-  const [{ prisma }, { createGoogleBusyFetcher }, { createPrismaCalendarSlotStore }] =
-    await Promise.all([
-      import('../../../config/database'),
-      import('./freebusy-client'),
-      import('./calendar-sync-service'),
-    ]);
+  const { createGoogleBusyFetcher } = await import('./freebusy-client');
   service = new CalendarSyncService({
-    store: createPrismaCalendarSlotStore(prisma),
     fetchBusy: createGoogleBusyFetcher(getCalendarTokenStore()),
   });
   return service;

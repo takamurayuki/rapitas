@@ -21,13 +21,27 @@ mock.module('../../system/resource-telemetry', () => ({
   getHostCpuBusyPercent: () => null,
 }));
 
+// Busy blocks and the poller status are read through calendar-store
+// (listBusyBlocks / getSyncState); each test sets what the DB would hold.
+let syncState: {
+  lastSyncedAt: Date | null;
+  lastStatus: 'never' | 'ok' | 'error';
+  lastError: string | null;
+} | null = null;
+let busyBlocks: Array<{ startAt: Date; endAt: Date }> = [];
+const getSyncStateMock = mock(async () => syncState);
+const listBusyBlocksMock = mock(async () => busyBlocks);
+mock.module('../../scheduling/calendar-slot/calendar-store', () => ({
+  getSyncState: getSyncStateMock,
+  listBusyBlocks: listBusyBlocksMock,
+  replaceBusyBlocks: mock(async () => true),
+  saveSyncState: mock(async () => true),
+  recordCalendarActivity: mock(async () => {}),
+}));
+
 const { checkCalendarSlotGate } = await import('./auto-run-advance-gates');
-const {
-  resetCalendarHoldState,
-  updateCalendarSnapshot,
-  isCalendarHoldActive,
-  requestCalendarGateOverride,
-} = await import('../../scheduling/calendar-slot/calendar-hold-state');
+const { resetCalendarHoldState, isCalendarHoldActive, requestCalendarGateOverride } =
+  await import('../../scheduling/calendar-slot/calendar-hold-state');
 
 const at = (hhmm: string) => new Date(`2026-10-12T${hhmm}:00.000Z`);
 const MEETING = { startAt: at('10:00'), endAt: at('11:00') };
@@ -50,12 +64,10 @@ describe('checkCalendarSlotGate', () => {
     process.env.RAPITAS_CALENDAR_GATE_ENABLED = 'true';
     process.env.RAPITAS_CALENDAR_LEAD_MINUTES = '10';
     process.env.RAPITAS_CALENDAR_POLL_MINUTES = '5';
-    updateCalendarSnapshot({
-      busyBlocks: [MEETING],
-      lastSyncedAt: at('09:45'),
-      lastStatus: 'ok',
-      lastError: null,
-    });
+    getSyncStateMock.mockClear();
+    listBusyBlocksMock.mockClear();
+    busyBlocks = [MEETING];
+    syncState = { lastSyncedAt: at('09:45'), lastStatus: 'ok', lastError: null };
   });
 
   afterEach(() => {
@@ -67,6 +79,19 @@ describe('checkCalendarSlotGate', () => {
     const { prisma, create } = makePrisma();
     expect(await checkCalendarSlotGate(prisma, 1, at('10:30'))).toBe(false);
     expect(create).not.toHaveBeenCalled();
+    expect(getSyncStateMock).not.toHaveBeenCalled();
+  });
+
+  it('reads the busy blocks through calendar-store (listBusyBlocks)', async () => {
+    const { prisma } = makePrisma();
+    expect(await checkCalendarSlotGate(prisma, 1, at('09:50'))).toBe(true);
+    expect(listBusyBlocksMock).toHaveBeenCalled();
+  });
+
+  it('fails open when no sync has ever been stored (tables missing before restart)', async () => {
+    syncState = null;
+    const { prisma } = makePrisma();
+    expect(await checkCalendarSlotGate(prisma, 1, at('10:30'))).toBe(false);
   });
 
   it('passes in a free slot', async () => {
@@ -95,7 +120,7 @@ describe('checkCalendarSlotGate', () => {
 
   it('releases exactly at the meeting end and logs the resume', async () => {
     const { prisma, create } = makePrisma();
-    updateCalendarSnapshot({ lastSyncedAt: at('10:55') });
+    syncState = { lastSyncedAt: at('10:55'), lastStatus: 'ok', lastError: null };
     expect(await checkCalendarSlotGate(prisma, 1, at('10:59'))).toBe(true);
     expect(await checkCalendarSlotGate(prisma, 1, at('11:00'))).toBe(false);
     expect(actions(create)).toEqual(['calendar_slot.hold_started', 'calendar_slot.hold_released']);
@@ -103,7 +128,7 @@ describe('checkCalendarSlotGate', () => {
   });
 
   it('fails open when the last sync errored', async () => {
-    updateCalendarSnapshot({ lastStatus: 'error', lastError: 'invalid_grant' });
+    syncState = { lastSyncedAt: at('09:45'), lastStatus: 'error', lastError: 'invalid_grant' };
     const { prisma } = makePrisma();
     expect(await checkCalendarSlotGate(prisma, 1, at('10:30'))).toBe(false);
   });
@@ -114,7 +139,7 @@ describe('checkCalendarSlotGate', () => {
   });
 
   it('bypasses exactly one cycle after a manual override', async () => {
-    updateCalendarSnapshot({ lastSyncedAt: at('10:25') });
+    syncState = { lastSyncedAt: at('10:25'), lastStatus: 'ok', lastError: null };
     const { prisma } = makePrisma();
     requestCalendarGateOverride(1);
     expect(await checkCalendarSlotGate(prisma, 1, at('10:30'))).toBe(false);

@@ -5,6 +5,8 @@
  */
 export * from './free-slot';
 export * from './calendar-hold-state';
+export * from './calendar-hold-decision';
+export * from './calendar-store';
 export * from './calendar-sync-service';
 export * from './token-store';
 export {

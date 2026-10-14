@@ -11,8 +11,25 @@ import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
 const logCycleEventMock = mock(() => {});
 mock.module('../observability', () => ({ logCycleEvent: logCycleEventMock }));
 
+// The hold is decided from what calendar-store returns (busy blocks + poller status).
+type SyncState = {
+  lastSyncedAt: Date | null;
+  lastStatus: 'never' | 'ok' | 'error';
+  lastError: string | null;
+};
+let syncState: SyncState | null = null;
+let busyBlocks: Array<{ startAt: Date; endAt: Date }> = [];
+mock.module('../scheduling/calendar-slot/calendar-store', () => ({
+  getSyncState: mock(async () => syncState),
+  listBusyBlocks: mock(async () => busyBlocks),
+  replaceBusyBlocks: mock(async () => true),
+  saveSyncState: mock(async () => true),
+  recordCalendarActivity: mock(async () => {}),
+}));
+const synced = (at: Date): SyncState => ({ lastSyncedAt: at, lastStatus: 'ok', lastError: null });
+
 const { guardCalendarPhaseBoundary } = await import('./workflow-orchestrator-calendar-guard');
-const { resetCalendarHoldState, updateCalendarSnapshot, isTaskCalendarHeld } =
+const { resetCalendarHoldState, isTaskCalendarHeld } =
   await import('../scheduling/calendar-slot/calendar-hold-state');
 
 const at = (hhmm: string) => new Date(`2026-10-12T${hhmm}:00.000Z`);
@@ -40,12 +57,8 @@ describe('guardCalendarPhaseBoundary', () => {
     process.env.RAPITAS_CALENDAR_GATE_ENABLED = 'true';
     process.env.RAPITAS_CALENDAR_LEAD_MINUTES = '10';
     process.env.RAPITAS_CALENDAR_POLL_MINUTES = '5';
-    updateCalendarSnapshot({
-      busyBlocks: [MEETING],
-      lastSyncedAt: at('09:48'),
-      lastStatus: 'ok',
-      lastError: null,
-    });
+    busyBlocks = [MEETING];
+    syncState = synced(at('09:48'));
   });
 
   afterEach(() => {
@@ -79,7 +92,7 @@ describe('guardCalendarPhaseBoundary', () => {
     });
 
     // A second re-check during the hold (fresh sync) does not log again.
-    updateCalendarSnapshot({ lastSyncedAt: at('10:25') });
+    syncState = synced(at('10:25'));
     const again = await guardCalendarPhaseBoundary(
       7,
       TRANSITION,
@@ -91,7 +104,7 @@ describe('guardCalendarPhaseBoundary', () => {
   });
 
   it('resumes from the saved checkpoint exactly at the meeting end', async () => {
-    updateCalendarSnapshot({ lastSyncedAt: at('10:55') });
+    syncState = synced(at('10:55'));
     const held = await guardCalendarPhaseBoundary(
       7,
       TRANSITION,
@@ -99,7 +112,7 @@ describe('guardCalendarPhaseBoundary', () => {
       makeDeps(at('10:59')).deps,
     );
     expect(held.done).toBe(true);
-    updateCalendarSnapshot({ lastSyncedAt: at('10:58') });
+    syncState = synced(at('10:58'));
     const { deps, recordActivity } = makeDeps(at('11:00'));
     const r = await guardCalendarPhaseBoundary(7, TRANSITION, 'plan_approved', deps);
     expect(r.done).toBe(false);
@@ -123,7 +136,7 @@ describe('guardCalendarPhaseBoundary', () => {
   });
 
   it('fails open when the last sync errored', async () => {
-    updateCalendarSnapshot({ lastStatus: 'error', lastError: 'invalid_grant' });
+    syncState = { lastSyncedAt: at('09:48'), lastStatus: 'error', lastError: 'invalid_grant' };
     const r = await guardCalendarPhaseBoundary(
       7,
       TRANSITION,

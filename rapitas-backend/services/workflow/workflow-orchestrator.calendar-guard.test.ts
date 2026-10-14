@@ -12,7 +12,12 @@ import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
 const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 const queueFindFirstMock = mock(async () => ({ id: 11 }) as { id: number } | null);
 const activityCreateMock = mock(async () => ({}));
+// calendar-store reads these two models through the (mocked) Prisma client.
+let busyRows: Array<{ startAt: Date; endAt: Date }> = [];
+let syncRow: { lastSyncedAt: Date; lastStatus: string; lastError: null } | null = null;
 const mockPrisma = {
+  calendarBusyBlock: { findMany: async () => busyRows },
+  calendarSyncState: { findUnique: async () => syncRow },
   task: { findUnique: async () => ({ workflowStatus: 'plan_approved' }) },
   workflowQueueItem: { findFirst: queueFindFirstMock },
   activityLog: { create: activityCreateMock },
@@ -62,8 +67,7 @@ const planGuardMock = mock(async () => ({
 mock.module('./workflow-orchestrator-plan-guard', () => ({ guardPlanValidity: planGuardMock }));
 
 const { WorkflowOrchestrator } = await import('./workflow-orchestrator');
-const { resetCalendarHoldState, updateCalendarSnapshot } =
-  await import('../scheduling/calendar-slot/calendar-hold-state');
+const { resetCalendarHoldState } = await import('../scheduling/calendar-slot/calendar-hold-state');
 
 describe('WorkflowOrchestrator.advanceWorkflow — calendar phase-boundary hold', () => {
   const saved = { ...process.env };
@@ -83,13 +87,9 @@ describe('WorkflowOrchestrator.advanceWorkflow — calendar phase-boundary hold'
 
   it('stops before the next phase while a meeting is within the lead window', async () => {
     const now = Date.now();
-    updateCalendarSnapshot({
-      // Meeting starts in 5 min (inside the 10-min lead window).
-      busyBlocks: [{ startAt: new Date(now + 5 * 60_000), endAt: new Date(now + 65 * 60_000) }],
-      lastSyncedAt: new Date(now),
-      lastStatus: 'ok',
-      lastError: null,
-    });
+    // Meeting starts in 5 min (inside the 10-min lead window).
+    busyRows = [{ startAt: new Date(now + 5 * 60_000), endAt: new Date(now + 65 * 60_000) }];
+    syncRow = { lastSyncedAt: new Date(now), lastStatus: 'ok', lastError: null };
 
     const r = await WorkflowOrchestrator.getInstance().advanceWorkflow(7, 'ja');
 
@@ -101,12 +101,8 @@ describe('WorkflowOrchestrator.advanceWorkflow — calendar phase-boundary hold'
 
   it('proceeds to the next phase in free time', async () => {
     const now = Date.now();
-    updateCalendarSnapshot({
-      busyBlocks: [{ startAt: new Date(now + 120 * 60_000), endAt: new Date(now + 180 * 60_000) }],
-      lastSyncedAt: new Date(now),
-      lastStatus: 'ok',
-      lastError: null,
-    });
+    busyRows = [{ startAt: new Date(now + 120 * 60_000), endAt: new Date(now + 180 * 60_000) }];
+    syncRow = { lastSyncedAt: new Date(now), lastStatus: 'ok', lastError: null };
 
     const r = await WorkflowOrchestrator.getInstance().advanceWorkflow(7, 'ja');
 

@@ -20,12 +20,11 @@ import {
 import { notifyResourceContentionHold } from './auto-run-notifications';
 import { getHostCpuBusyPercent } from '../../system/resource-telemetry';
 import { evaluateResourceGate, consumeResourceGateOverride } from './resource-contention-gate';
-import { evaluateCalendarGate, isSyncStale } from '../../scheduling/calendar-slot/free-slot';
+import { decideCalendarHold } from '../../scheduling/calendar-slot/calendar-hold-decision';
 import {
   clearCalendarHold,
   consumeCalendarGateOverride,
   getCalendarSlotSettings,
-  getCalendarSnapshot,
   isCalendarHoldActive,
   markCalendarHold,
 } from '../../scheduling/calendar-slot/calendar-hold-state';
@@ -98,8 +97,8 @@ export async function checkResourceContentionGate(
  * is already running is stopped at its next phase boundary (the checkpoint)
  * by workflow-orchestrator-calendar-guard.ts — the running phase itself is
  * never interrupted. At the meeting end both holds lift and work resumes from
- * the saved workflowStatus. Fails open when the
- * last sync errored or is stale. Only hold start/release transitions are
+ * the saved workflowStatus. Busy blocks are read via calendar-store
+ * (listBusyBlocks); fails open when the last sync errored or is stale. Only hold start/release transitions are
  * logged (ActivityLog + cycle log) so a long meeting writes two rows, not one
  * per tick.
  *
@@ -113,18 +112,10 @@ export async function checkCalendarSlotGate(
   themeId: number,
   now: Date = new Date(),
 ): Promise<boolean> {
-  const settings = getCalendarSlotSettings();
-  if (!settings.enabled) return false;
-  const snapshot = getCalendarSnapshot();
-  const usable =
-    snapshot.lastStatus === 'ok' && !isSyncStale(snapshot.lastSyncedAt, now, settings.pollMinutes);
-  const gate = evaluateCalendarGate({
-    now,
-    busyBlocks: snapshot.busyBlocks,
-    leadMinutes: settings.leadMinutes,
-    enabled: usable,
-    overridden: usable && consumeCalendarGateOverride(themeId),
-  });
+  if (!getCalendarSlotSettings().enabled) return false;
+  const { usable, gate } = await decideCalendarHold(now, () =>
+    consumeCalendarGateOverride(themeId),
+  );
   if (!gate.hold) {
     if (clearCalendarHold(themeId)) {
       const cause = usable ? gate.reason : 'calendar_unavailable';

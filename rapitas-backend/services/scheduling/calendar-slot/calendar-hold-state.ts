@@ -1,31 +1,14 @@
 /**
  * calendar-hold-state
  *
- * Process-local state shared between the calendar sync poller, the auto-run
- * calendar gate and the stall detectors (task 1174): the latest busy-block
- * snapshot, which themes (selection) and tasks (phase boundary) are
- * currently held, the one-shot manual override, and the env-backed settings. Deliberately free of DB / Google imports so
- * the scheduler can read it on every tick. Not responsible for deciding a
- * hold (free-slot.ts) or for fetching (calendar-sync-service.ts).
+ * Process-local state shared by the auto-run calendar gate, the phase-boundary
+ * guard and the stall detectors (task 1174): which themes (selection) and
+ * tasks (phase boundary) are currently held, the one-shot manual override,
+ * and the env-backed settings. Deliberately free of DB / Google imports so
+ * the stall detectors can read it on every tick. Busy blocks and the poller
+ * status live in the DB (calendar-store.ts); the hold decision is
+ * calendar-hold-decision.ts.
  */
-import {
-  evaluateCalendarGate,
-  isSyncStale,
-  type BusyBlock,
-  type CalendarGateResult,
-} from './free-slot';
-
-export type CalendarSyncStatus = 'never' | 'ok' | 'error';
-
-/** Latest calendar view the gate decides from. */
-export interface CalendarSnapshot {
-  busyBlocks: BusyBlock[];
-  lastSyncedAt: Date | null;
-  lastStatus: CalendarSyncStatus;
-  lastError: string | null;
-  /** End of the fetched range; nothing is known beyond it. */
-  horizonEnd: Date | null;
-}
 
 /** Env-backed gate settings. */
 export interface CalendarSlotSettings {
@@ -34,15 +17,6 @@ export interface CalendarSlotSettings {
   pollMinutes: number;
 }
 
-const EMPTY_SNAPSHOT: CalendarSnapshot = {
-  busyBlocks: [],
-  lastSyncedAt: null,
-  lastStatus: 'never',
-  lastError: null,
-  horizonEnd: null,
-};
-
-let snapshot: CalendarSnapshot = { ...EMPTY_SNAPSHOT };
 const holds = new Map<number, Date | null>();
 const taskHolds = new Map<number, Date | null>();
 const pendingOverrides = new Set<number>();
@@ -63,20 +37,6 @@ export function getCalendarSlotSettings(): CalendarSlotSettings {
     leadMinutes: readPositiveNumber(process.env.RAPITAS_CALENDAR_LEAD_MINUTES, 10, 0),
     pollMinutes: readPositiveNumber(process.env.RAPITAS_CALENDAR_POLL_MINUTES, 5, 1),
   };
-}
-
-/** @returns The latest snapshot. / 最新スナップショット */
-export function getCalendarSnapshot(): CalendarSnapshot {
-  return snapshot;
-}
-
-/**
- * Merge fields into the snapshot (called by the sync service).
- *
- * @param patch - Fields to overwrite / 上書きするフィールド
- */
-export function updateCalendarSnapshot(patch: Partial<CalendarSnapshot>): void {
-  snapshot = { ...snapshot, ...patch };
 }
 
 /**
@@ -139,34 +99,6 @@ export function consumeCalendarGateOverride(themeId: number): boolean {
 }
 
 /**
- * Decide the calendar hold for `now` from the current snapshot and settings.
- * `usable` is false (and the gate fails open) when the gate is off, the last
- * sync errored, or the snapshot is stale.
- *
- * @param now - Current time / 現在時刻
- * @param overridden - Whether a manual override was consumed / 手動オーバーライド消費済みか
- * @returns Usability of the snapshot and the gate decision / スナップショットの有効性と判定
- */
-export function evaluateCalendarHoldNow(
-  now: Date,
-  overridden = false,
-): { usable: boolean; gate: CalendarGateResult } {
-  const settings = getCalendarSlotSettings();
-  const usable =
-    settings.enabled &&
-    snapshot.lastStatus === 'ok' &&
-    !isSyncStale(snapshot.lastSyncedAt, now, settings.pollMinutes);
-  const gate = evaluateCalendarGate({
-    now,
-    busyBlocks: snapshot.busyBlocks,
-    leadMinutes: settings.leadMinutes,
-    enabled: usable,
-    overridden,
-  });
-  return { usable, gate };
-}
-
-/**
  * Mark a running task as stopped at its phase boundary by the calendar.
  *
  * @param taskId - Held task / 保留中のタスク
@@ -203,7 +135,6 @@ export function isTaskCalendarHeld(taskId: number, now: Date = new Date()): bool
 
 /** Reset every piece of state. Test-only — never call from production code. */
 export function resetCalendarHoldState(): void {
-  snapshot = { ...EMPTY_SNAPSHOT };
   holds.clear();
   taskHolds.clear();
   pendingOverrides.clear();

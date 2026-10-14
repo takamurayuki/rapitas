@@ -2,30 +2,48 @@
  * calendar-slots-handlers.test
  *
  * AC6 (task 1174): the dashboard API returns the next run schedule, the
- * calendar-slot execution log, and the sync state (incl. error / stale);
- * the OAuth callback rejects an unknown CSRF state and stores the refresh
- * token only through the token store.
+ * calendar-slot execution log, and the sync state (incl. error / stale /
+ * never synced), all read through calendar-store; the OAuth callback rejects
+ * an unknown CSRF state and stores the refresh token only through the token
+ * store.
  */
 import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
-import {
+
+// The dashboard reads busy blocks and the poller status through calendar-store.
+type SyncState = {
+  lastSyncedAt: Date | null;
+  lastStatus: 'never' | 'ok' | 'error';
+  lastError: string | null;
+};
+let syncState: SyncState | null = null;
+let busyBlocks: Array<{ startAt: Date; endAt: Date }> = [];
+mock.module('../../../services/scheduling/calendar-slot/calendar-store', () => ({
+  getSyncState: mock(async () => syncState),
+  listBusyBlocks: mock(async () => busyBlocks),
+  replaceBusyBlocks: mock(async () => true),
+  saveSyncState: mock(async () => true),
+  recordCalendarActivity: mock(async () => {}),
+}));
+
+const {
   buildNextRuns,
   buildSyncState,
   listSlotLogs,
   createOAuthState,
   completeCalendarOAuth,
   resetOAuthStates,
-} from './calendar-slots-handlers';
-import {
-  markCalendarHold,
-  resetCalendarHoldState,
-  updateCalendarSnapshot,
-} from '../../../services/scheduling/calendar-slot/calendar-hold-state';
-import { MemoryCalendarTokenStore } from '../../../services/scheduling/calendar-slot/token-store';
+} = await import('./calendar-slots-handlers');
+const { markCalendarHold, resetCalendarHoldState } =
+  await import('../../../services/scheduling/calendar-slot/calendar-hold-state');
+const { MemoryCalendarTokenStore } =
+  await import('../../../services/scheduling/calendar-slot/token-store');
 
 const at = (hhmm: string) => new Date(`2026-10-12T${hhmm}:00.000Z`);
 const saved = { ...process.env };
 
 beforeEach(() => {
+  syncState = null;
+  busyBlocks = [];
   resetCalendarHoldState();
   resetOAuthStates();
   process.env.RAPITAS_CALENDAR_GATE_ENABLED = 'true';
@@ -38,15 +56,11 @@ afterEach(() => {
 });
 
 describe('buildNextRuns', () => {
-  it('returns the next run time, free slots and active holds', () => {
-    updateCalendarSnapshot({
-      busyBlocks: [{ startAt: at('10:00'), endAt: at('11:00') }],
-      lastSyncedAt: at('09:55'),
-      lastStatus: 'ok',
-      horizonEnd: at('12:00'),
-    });
+  it('returns the next run time, free slots and active holds from the stored calendar', async () => {
+    busyBlocks = [{ startAt: at('10:00'), endAt: at('11:00') }];
+    syncState = { lastSyncedAt: at('09:55'), lastStatus: 'ok', lastError: null };
     markCalendarHold(3, at('11:00'));
-    const r = buildNextRuns(at('09:55'));
+    const r = await buildNextRuns(at('09:55'));
     expect(r.enabled).toBe(true);
     expect(r.leadMinutes).toBe(10);
     expect(r.nextRunAt).toBe(at('11:00').toISOString());
@@ -55,8 +69,12 @@ describe('buildNextRuns', () => {
       reason: 'pre_meeting',
       releaseAt: at('11:00').toISOString(),
     });
+    // Free from the meeting end to the end of the 7-day fetch horizon.
     expect(r.freeSlots).toEqual([
-      { startAt: at('11:00').toISOString(), endAt: at('12:00').toISOString() },
+      {
+        startAt: at('11:00').toISOString(),
+        endAt: new Date(at('09:55').getTime() + 7 * 86_400_000).toISOString(),
+      },
     ]);
     expect(r.busyBlocks).toEqual([
       { startAt: at('10:00').toISOString(), endAt: at('11:00').toISOString() },
@@ -66,18 +84,20 @@ describe('buildNextRuns', () => {
     expect(Object.keys(r.busyBlocks[0]!)).toEqual(['startAt', 'endAt']);
   });
 
-  it('reports no hold when the calendar is unusable (fail-open)', () => {
-    updateCalendarSnapshot({ lastStatus: 'error', lastError: 'invalid_grant' });
-    const r = buildNextRuns(at('10:30'));
+  it('reports no hold and no blocks when the calendar is unusable (fail-open)', async () => {
+    busyBlocks = [{ startAt: at('10:00'), endAt: at('11:00') }];
+    syncState = { lastSyncedAt: at('10:25'), lastStatus: 'error', lastError: 'invalid_grant' };
+    const r = await buildNextRuns(at('10:30'));
     expect(r.gate.hold).toBe(false);
     expect(r.nextRunAt).toBe(at('10:30').toISOString());
+    expect(r.busyBlocks).toEqual([]);
   });
 });
 
 describe('buildSyncState', () => {
-  it('flags a stale snapshot and surfaces the last error', () => {
-    updateCalendarSnapshot({ lastSyncedAt: at('09:00'), lastStatus: 'error', lastError: 'boom' });
-    const s = buildSyncState(at('09:30'), true);
+  it('flags a stale sync and surfaces the last error', async () => {
+    syncState = { lastSyncedAt: at('09:00'), lastStatus: 'error', lastError: 'boom' };
+    const s = await buildSyncState(at('09:30'), true);
     expect(s).toMatchObject({
       enabled: true,
       connected: true,
@@ -89,9 +109,18 @@ describe('buildSyncState', () => {
     });
   });
 
-  it('is fresh right after a successful sync', () => {
-    updateCalendarSnapshot({ lastSyncedAt: at('09:28'), lastStatus: 'ok', lastError: null });
-    expect(buildSyncState(at('09:30'), false).stale).toBe(false);
+  it('is fresh right after a successful sync', async () => {
+    syncState = { lastSyncedAt: at('09:28'), lastStatus: 'ok', lastError: null };
+    expect((await buildSyncState(at('09:30'), false)).stale).toBe(false);
+  });
+
+  it('reports never / stale when no sync row exists yet (before the first poll)', async () => {
+    expect(await buildSyncState(at('09:30'), false)).toMatchObject({
+      lastStatus: 'never',
+      lastSyncedAt: null,
+      lastError: null,
+      stale: true,
+    });
   });
 });
 

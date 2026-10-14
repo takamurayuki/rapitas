@@ -11,14 +11,18 @@ import { randomBytes } from 'crypto';
 import {
   computeFreeSlots,
   computeNextRunAt,
-  evaluateCalendarGate,
   isSyncStale,
 } from '../../../services/scheduling/calendar-slot/free-slot';
 import {
   getCalendarSlotSettings,
-  getCalendarSnapshot,
   listCalendarHolds,
 } from '../../../services/scheduling/calendar-slot/calendar-hold-state';
+import { decideCalendarHold } from '../../../services/scheduling/calendar-slot/calendar-hold-decision';
+import {
+  getSyncState,
+  listBusyBlocks,
+} from '../../../services/scheduling/calendar-slot/calendar-store';
+import { CALENDAR_HORIZON_DAYS } from '../../../services/scheduling/calendar-slot/calendar-sync-service';
 import type { CalendarTokenStore } from '../../../services/scheduling/calendar-slot/token-store';
 
 const LOG_ACTION_PREFIX = 'calendar_slot.';
@@ -28,25 +32,17 @@ const iso = (d: Date | null | undefined): string | null => (d ? d.toISOString() 
 
 /**
  * Next run schedule: next start time, current gate decision, free slots and
- * busy blocks (times only) within the fetched horizon, and held themes.
+ * busy blocks (times only) within the fetch horizon, and held themes. Read
+ * through calendar-store; an unusable calendar shows no blocks (fail-open).
  *
  * @param now - Current time / 現在時刻
  * @returns Dashboard payload / ダッシュボード用データ
  */
-export function buildNextRuns(now: Date) {
+export async function buildNextRuns(now: Date) {
   const settings = getCalendarSlotSettings();
-  const snap = getCalendarSnapshot();
-  const usable =
-    snap.lastStatus === 'ok' && !isSyncStale(snap.lastSyncedAt, now, settings.pollMinutes);
-  const blocks = usable ? snap.busyBlocks : [];
-  const gate = evaluateCalendarGate({
-    now,
-    busyBlocks: blocks,
-    leadMinutes: settings.leadMinutes,
-    enabled: settings.enabled && usable,
-    overridden: false,
-  });
-  const horizon = snap.horizonEnd ?? new Date(now.getTime() + 86_400_000);
+  const { usable, gate } = await decideCalendarHold(now);
+  const blocks = usable ? await listBusyBlocks() : [];
+  const horizon = new Date(now.getTime() + CALENDAR_HORIZON_DAYS * 86_400_000);
   return {
     enabled: settings.enabled,
     leadMinutes: settings.leadMinutes,
@@ -74,17 +70,18 @@ export function buildNextRuns(now: Date) {
  * @param connected - Whether a refresh token is stored / 連携済みか
  * @returns Sync status payload / 同期状態
  */
-export function buildSyncState(now: Date, connected: boolean) {
+export async function buildSyncState(now: Date, connected: boolean) {
   const settings = getCalendarSlotSettings();
-  const snap = getCalendarSnapshot();
+  const state = await getSyncState();
+  const lastSyncedAt = state?.lastSyncedAt ?? null;
   return {
     enabled: settings.enabled,
     connected,
     pollMinutes: settings.pollMinutes,
-    lastSyncedAt: iso(snap.lastSyncedAt),
-    lastStatus: snap.lastStatus,
-    lastError: snap.lastError,
-    stale: isSyncStale(snap.lastSyncedAt, now, settings.pollMinutes),
+    lastSyncedAt: iso(lastSyncedAt),
+    lastStatus: state?.lastStatus ?? 'never',
+    lastError: state?.lastError ?? null,
+    stale: isSyncStale(lastSyncedAt, now, settings.pollMinutes),
   };
 }
 
