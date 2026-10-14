@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Keyboard } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useShortcutStore, type ShortcutId } from '@/stores/shortcut-store';
+import { useShortcutStore, isTriageShortcutId, type ShortcutId } from '@/stores/shortcut-store';
 import { useNoteStore } from '@/stores/note-store';
 import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
@@ -32,7 +32,7 @@ export default function KeyboardShortcuts() {
     return () => window.removeEventListener(OPEN_SHORTCUTS_EVENT, handleOpenShortcuts);
   }, []);
 
-  const actionMap: Record<ShortcutId, () => void> = {
+  const actionMap: Partial<Record<ShortcutId, () => void>> = {
     newTask: () => router.push('/tasks/new'),
     dashboard: () => router.push('/dashboard'),
     home: () => router.push('/'),
@@ -69,6 +69,8 @@ export default function KeyboardShortcuts() {
       }
 
       for (const binding of shortcuts) {
+        // NOTE: triage keys are bare letters owned by /triage; firing them here would hijack typing on every page.
+        if (isTriageShortcutId(binding.id)) continue;
         // NOTE: When only ctrl is specified, match ctrlKey alone without metaKey
         const ctrlOnly = binding.ctrl && !binding.meta;
         const metaMatch = ctrlOnly

@@ -15,7 +15,8 @@ import { toJsonString, fromJsonString } from '../../../utils/database/db-helpers
 import type { SubtaskProposal } from '../../../services/claude-agent';
 import { createSubtasksInTransaction } from './bulk-approve-handler';
 import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
-import { isShutdownError } from '../../../services/agents/agent-worker/shutdown-error';
+import { startApprovedTaskExecution } from './execution-followup';
+import { assertExpectedUpdatedAt } from './concurrency-guard';
 import { FOREIGN_PR_ERROR_PREFIX } from '../../../services/agents/orchestrator/git-operations/pr/branch-pr-ops';
 import { notify } from '../../../services/workflow/auto-merge-notify';
 
@@ -27,7 +28,7 @@ export const approveRoutes = new Elysia()
     '/:id/approve',
     async (context) => {
       const params = context.params as { id: string };
-      const body = context.body as { selectedSubtasks?: number[] };
+      const body = context.body as { selectedSubtasks?: number[]; expectedUpdatedAt?: string };
       const approvalId = parseId(params.id, 'approval ID');
       const { selectedSubtasks } = body;
 
@@ -47,6 +48,7 @@ export const approveRoutes = new Elysia()
       if (approval.status !== 'pending') {
         throw new ValidationError('Approval request is not pending');
       }
+      assertExpectedUpdatedAt(approval.updatedAt, body.expectedUpdatedAt);
 
       await prisma.approvalRequest.update({
         where: { id: approvalId },
@@ -102,63 +104,12 @@ export const approveRoutes = new Elysia()
           },
         });
 
-        orchestrator
-          .executeTask(
-            {
-              id: task.id,
-              title: task.title,
-              description: task.description,
-              context: task.executionInstructions || undefined,
-              workingDirectory: proposedChanges.workingDirectory,
-            },
-            {
-              taskId: task.id,
-              sessionId: session.id,
-              agentConfigId: resolvedAgentConfigId,
-              workingDirectory: proposedChanges.workingDirectory,
-            },
-          )
-          .then(async (result) => {
-            await prisma.notification.create({
-              data: {
-                type: 'agent_execution_complete',
-                title: result.success ? 'Agent Execution Complete' : 'Agent Execution Failed',
-                message: result.success
-                  ? `Automatic execution of "${task.title}" completed successfully`
-                  : `Automatic execution of "${task.title}" failed: ${result.errorMessage}`,
-                link: `/tasks/${task.id}`,
-                metadata: toJsonString({
-                  sessionId: session.id,
-                  taskId: task.id,
-                  success: result.success,
-                }),
-              },
-            });
-
-            if (result.success) {
-              await prisma.task.update({
-                where: { id: task.id },
-                data: { status: 'done', completedAt: new Date() },
-              });
-            }
-          })
-          .catch(async (error) => {
-            if (isShutdownError(error)) {
-              // NOTE: Shutdown-originated reject is not a failure — demote to WARN
-              // and skip the error notification to avoid false "Agent Execution Error" noise.
-              log.warn({ err: error }, 'Agent execution interrupted by shutdown');
-              return;
-            }
-            log.error({ err: error }, 'Agent execution failed');
-            await prisma.notification.create({
-              data: {
-                type: 'agent_error',
-                title: 'Agent Execution Error',
-                message: `An error occurred during execution of "${task.title}"`,
-                link: `/tasks/${task.id}`,
-              },
-            });
-          });
+        startApprovedTaskExecution(
+          task,
+          session.id,
+          resolvedAgentConfigId,
+          proposedChanges.workingDirectory,
+        );
 
         return { success: true, sessionId: session.id, autoExecutionStarted: true };
       }
@@ -315,7 +266,10 @@ export const approveRoutes = new Elysia()
       params: t.Object({ id: t.String() }),
       body: t.Optional(
         t.Object(
-          { selectedSubtasks: t.Optional(t.Array(t.Number(), { maxItems: 500 })) },
+          {
+            selectedSubtasks: t.Optional(t.Array(t.Number(), { maxItems: 500 })),
+            expectedUpdatedAt: t.Optional(t.String({ maxLength: 64 })),
+          },
           { additionalProperties: false },
         ),
       ),

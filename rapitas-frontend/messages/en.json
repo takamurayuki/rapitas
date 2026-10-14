@@ -1539,7 +1539,11 @@
       "focusMode": "Focus Mode",
       "shortcutHelp": "Shortcut Help",
       "toggleAI": "Notes + AI",
-      "commandBar": "Command Bar"
+      "commandBar": "Command Bar",
+      "triageApprove": "Triage: Approve",
+      "triageDefer": "Triage: Defer",
+      "triageReject": "Triage: Send back",
+      "triageNext": "Triage: Next"
     }
   },
   "dashboard": {
@@ -6497,5 +6501,57 @@
     "submitting": "Recording…",
     "saved": "Saved to the audit record",
     "saveError": "Failed to save the audit record"
+  },
+  "triage": {
+    "title": "Decision Triage",
+    "empty": "No decisions waiting",
+    "remainingLabel": "{count} left",
+    "kind": "Kind",
+    "summary": "Summary",
+    "impact": "Impact",
+    "amount": "Amount",
+    "amountUnknown": "Amount unknown",
+    "impactSubtasks": "{count} subtasks",
+    "impactFiles": "{count} files",
+    "impactUnknown": "Impact unknown",
+    "kinds": {
+      "subtask_creation": "Subtask creation",
+      "task_execution": "Task execution",
+      "task_completion": "Task completion",
+      "code_review": "Code review"
+    },
+    "actions": {
+      "approve": "Approve",
+      "defer": "Defer",
+      "reject": "Send back",
+      "next": "Next",
+      "undo": "Undo",
+      "reload": "Reload"
+    },
+    "confirm": {
+      "title": "Confirmation required",
+      "body": "The amount is over 10,000 yen or unknown. Press the approve key ({key}) again to confirm, or Esc to cancel.",
+      "cancel": "Cancel"
+    },
+    "irreversibleNotice": "Approving starts execution and external notifications; once committed it cannot be undone. Undo is available only for about {seconds} seconds before commit.",
+    "conflict": {
+      "title": "State changed elsewhere",
+      "body": "This item was updated after it was loaded. Please reload."
+    },
+    "announce": {
+      "approved": "Approved. {count} left",
+      "rejected": "Sent back. {count} left",
+      "deferred": "Deferred. {count} left",
+      "skipped": "Moved on. {count} left",
+      "undone": "Undone. {count} left",
+      "undoUnavailable": "Cannot undo. Already committed; external notifications cannot be recalled",
+      "confirmRequired": "Confirmation required. Press the approve key again to confirm",
+      "confirmCancelled": "Confirmation cancelled",
+      "conflict": "Conflict detected. Please reload",
+      "failed": "Action failed. The item was put back",
+      "reloaded": "Reloaded. {count} left",
+      "empty": "No decisions waiting"
+    },
+    "loadFailed": "Failed to load pending decisions"
   }
 }
