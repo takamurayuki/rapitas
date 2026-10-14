@@ -17,6 +17,7 @@ import {
 } from './verify-convergence';
 import { DEFAULT_VERIFY_REPAIR_LIMIT } from './blocked-task-policy';
 import { detectRepeatedEvidence, extractRepeatKey } from './verify-repeat-evidence';
+import { compareUnresolvedIssues, extractUnresolvedIssues } from './verify-unresolved-issues';
 
 const log = createLogger('workflow:verify-self-repair');
 
@@ -149,6 +150,7 @@ export async function countLifetimeRepairs(taskId: number): Promise<number> {
 export async function detectRepairNonConvergence(
   taskId: number,
   currentReason: string,
+  currentVerifyContent?: string,
 ): Promise<ConvergenceVerdict> {
   try {
     const task = await prisma.task.findUnique({
@@ -157,9 +159,14 @@ export async function detectRepairNonConvergence(
     });
     const criteria = parseAcceptanceCriteria(task?.acceptanceCriteria ?? null);
     const threshold = resolveNonConvergenceThreshold();
-    // Short-circuit BEFORE any transition query when neither signal can fire:
-    // no criteria to match AND no quoted evidence to compare.
-    if (criteria.length === 0 && extractRepeatKey(currentReason) === null) return { cutoff: false };
+    // Short-circuit BEFORE any transition query when no signal can fire: no
+    // criteria, no quoted evidence, and no verify.md to compare 残課題 from.
+    if (
+      criteria.length === 0 &&
+      extractRepeatKey(currentReason) === null &&
+      !(currentVerifyContent && extractUnresolvedIssues(currentVerifyContent).length > 0)
+    )
+      return { cutoff: false };
 
     // Share the same window boundary as countPriorRepairs (task 832) — a manual
     // retry, a criteria replacement, a question resolution, or a plan
@@ -177,16 +184,29 @@ export async function detectRepairNonConvergence(
     });
 
     const priorReasons: string[] = [];
+    let previousVerify: string | null = null;
     for (const row of rows as { metadata: string | null }[]) {
       // Malformed metadata rows are skipped (retro-evidence pattern), never thrown.
       try {
-        const meta = JSON.parse(row.metadata ?? '{}') as { reason?: unknown };
+        const meta = JSON.parse(row.metadata ?? '{}') as {
+          reason?: unknown;
+          verifyContent?: unknown;
+        };
         if (typeof meta.reason === 'string' && meta.reason) priorReasons.push(meta.reason);
+        previousVerify = typeof meta.verifyContent === 'string' ? meta.verifyContent : null;
       } catch {}
     }
     const repeated = detectRepeatedEvidence(currentReason, priorReasons, threshold);
     if (repeated.cutoff) {
       return { cutoff: true, repeatedEvidence: repeated.repeatedEvidence, count: repeated.count };
+    }
+    // Third signal: the 残課題 list itself is identical to the previous round's.
+    // Evaluated after the two existing signals so their reasons keep priority.
+    if (currentVerifyContent) {
+      const unresolved = compareUnresolvedIssues(previousVerify, currentVerifyContent);
+      if (unresolved.unchanged) {
+        return { cutoff: true, unchangedUnresolved: unresolved.items, count: 2 };
+      }
     }
     if (criteria.length === 0) return { cutoff: false };
     const verdict = detectNonConvergence(currentReason, priorReasons, criteria, threshold);
