@@ -57,6 +57,8 @@ export interface ConvergenceVerdict {
    * criterion. Mutually exclusive with `criterionIndex`.
    */
   repeatedEvidence?: string;
+  /** Normalized 残課題 items identical across two consecutive rounds (when cutoff came from verify-unresolved-issues.ts). */
+  unchangedUnresolved?: string[];
 }
 
 /**

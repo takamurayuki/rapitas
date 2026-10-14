@@ -12,6 +12,7 @@ import { createLogger } from '../../../../config/logger';
 import type { VerificationCheck } from '../automated-verifier';
 import { resolveRuntimeConfig, resolveThemeWorkingDirectory } from './runtime-config';
 import { detectRuntimeHarnessDrift } from './runtime-start-preflight';
+import { applyFeatureReachability } from './feature-reachability';
 import { runBrowserSmoke, type SmokeRunResult } from './browser-smoke';
 import { acquireRuntimeServer, releaseRuntimeServer } from './worktree-server-registry';
 
@@ -269,7 +270,7 @@ export async function runRuntimeSmokeCheck(
       };
     }
 
-    const verdict = evaluateSmokeFindings(smoke);
+    const verdict = await applyFeatureReachability(evaluateSmokeFindings(smoke), cfg, workdir);
     if (verdict.ok && !cfg.readySelector) {
       return {
         name: 'runtime',

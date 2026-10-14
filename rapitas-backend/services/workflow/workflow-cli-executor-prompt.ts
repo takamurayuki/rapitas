@@ -270,6 +270,7 @@ ${
 - **plan.md を作成しないこと。** 計画フェーズは完了済み（plan.md があればそれに従う）か、このタスクは軽量モードで計画フェーズが意図的にスキップされています。CLAUDE.md に「plan.md を作成する」とあっても、実装フェーズの今は従わないでください。
 - Write/Edit で直接コードを変更し、関連テストを追加/更新し、変更を完成させてください（調査・計画だけで終わらせない）。
 - 完了後、検証フェーズが自動で続きます。
+- **新規依存が必要になっても worktree では install / add をしないこと**（\`pnpm install\` / \`pnpm add\` / \`npm i\` / \`yarn add\` や、それを包むスクリプトは拒否されます。\`package.json\` を編集しても何もインストールされません）。不足パッケージ名・版・必要な理由を事実として最終サマリ（verify）に記録し、それが無くても可能な範囲を完了させてください。
 
 ### git 操作の制限（厳守）
 今の作業ディレクトリはこのタスク専用の worktree で、ブランチは開いた PR に紐づいている場合があります。
@@ -280,6 +281,7 @@ ${
 - **Do NOT create plan.md.** The plan phase is already done (follow plan.md if present), or this is a lightweight task whose plan phase is intentionally skipped. Even if CLAUDE.md says to create plan.md, do NOT do so in this implementation phase.
 - Edit code directly (Write/Edit), add/update the relevant tests, and complete the change (do not stop at investigation/planning).
 - The verification phase follows automatically.
+- **If you need a new dependency, do not install/add it in the worktree** (\`pnpm install\` / \`pnpm add\` / \`npm i\` / \`yarn add\`, or a script wrapping them, is rejected; editing \`package.json\` installs nothing). Record the missing package name, version, and why it is needed as a plain fact in your final summary (verify), and complete everything that does not need it.
 
 ### git restrictions (strict)
 Your working directory is a task-dedicated worktree whose branch may back an OPEN pull request.

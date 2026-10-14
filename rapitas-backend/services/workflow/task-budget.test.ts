@@ -28,16 +28,29 @@ const spent = (...amounts: unknown[]) => amounts.map((costUsd) => ({ costUsd }))
 describe('getTaskSpendUsdSince', () => {
   beforeEach(() => findManyMock.mockReset().mockResolvedValue([]));
 
-  test('restricts the query to executions started at/after `since` (or not yet started)', async () => {
-    const since = new Date(1_000);
-    findManyMock.mockResolvedValue(spent(1, 2));
-    expect(await getTaskSpendUsdSince(7, since)).toBe(3);
-    expect(findManyMock.mock.calls[0]?.[0]).toMatchObject({
-      where: {
-        session: { config: { taskId: 7 } },
-        OR: [{ startedAt: null }, { startedAt: { gte: since } }],
-      },
-    });
+  // The window is applied to the INCREMENTS, not to the query. costUsd holds
+  // the CLI's session-cumulative total_cost_usd (measured 2026-10-13: a resumed
+  // session reports 0.00257 then 0.00456 with num_turns 1 each), so a chain
+  // that began before the window must still be walked from its start — a
+  // startedAt filter in SQL would make its first in-window row carry the whole
+  // pre-window total. Hence this asserts the amount, not the where-clause.
+  test('counts only spend inside the window, and reads the full history to do it', async () => {
+    const since = new Date(2_000);
+    findManyMock.mockResolvedValue([
+      { costUsd: 1, claudeSessionId: 's1', startedAt: new Date(1_000) },
+      { costUsd: 3, claudeSessionId: 's1', startedAt: new Date(3_000) },
+    ]);
+
+    // The session reported 1 before the window and 3 after it: 2 was spent
+    // inside. Summing the rows would say 4, filtering them in SQL would say 3.
+    expect(await getTaskSpendUsdSince(7, since)).toBe(2);
+    const where = (findManyMock.mock.calls[0]?.[0] as { where: Record<string, unknown> }).where;
+    expect(where).toEqual({ session: { config: { taskId: 7 } } });
+  });
+
+  test('executions that have not started yet count as in-window', async () => {
+    findManyMock.mockResolvedValue([{ costUsd: 2, claudeSessionId: null, startedAt: null }]);
+    expect(await getTaskSpendUsdSince(7, new Date(9_000))).toBe(2);
   });
 
   test('null `since` means lifetime (no startedAt filter)', async () => {
@@ -53,6 +66,21 @@ describe('getTaskSpendUsd', () => {
   test('sums numeric, string and Decimal-ish costs', async () => {
     findManyMock.mockResolvedValue(spent(1.5, '2.25', '"3.25"'));
     expect(await getTaskSpendUsd(1)).toBeCloseTo(7, 5);
+  });
+
+  // 実測 2026-10-13: #1214 のこのチェーン（claudeSessionId 5ad76864、5実行）を
+  // 合算すると $27.42 になるが、実際の支出は最終報告の $8.86。予算 $25 を
+  // 超えたとして halt された #1160（真 $13.13）と #1174（真 $17.96）は、
+  // どちらもこの多重計上による誤 halt だった。
+  test('実測: 同一セッションの累計報告を二重に数えない', async () => {
+    findManyMock.mockResolvedValue(
+      [1.94, 4.2, 5.97, 6.45, 8.86].map((costUsd, i) => ({
+        costUsd,
+        claudeSessionId: '5ad76864',
+        startedAt: new Date(1_000 + i),
+      })),
+    );
+    expect(await getTaskSpendUsd(1214)).toBeCloseTo(8.86, 5);
   });
 
   test('ignores nulls and unparseable values instead of throwing', async () => {

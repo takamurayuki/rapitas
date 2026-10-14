@@ -128,13 +128,34 @@ describe('bootstrapProjectDependencies — the normal path', () => {
     put(root, 'package.json', '{}');
     installed(root);
     await recordFingerprint(root);
-    fs.mkdirSync(path.join(worktree, 'node_modules', 'left-alone'), { recursive: true });
+    // A COMPLETE install: `.bin` is what makes it one. Package directories
+    // without an installer's bookkeeping entry are a partial install and get
+    // replaced by the link instead — see node-modules-link's holdsRealInstall
+    // and ContextFlow #1217, where exactly that partial shape left `next`
+    // unrunnable (2026-10-13).
+    for (const entry of ['.bin', 'left-alone']) {
+      fs.mkdirSync(path.join(worktree, 'node_modules', entry), { recursive: true });
+    }
 
     await bootstrapProjectDependencies(worktree);
 
     const link = path.join(worktree, 'node_modules');
     expect(fs.lstatSync(link).isSymbolicLink()).toBe(false);
     expect(fs.existsSync(path.join(link, 'left-alone'))).toBe(true);
+  });
+
+  it('replaces a partial install so a binary becomes runnable', async () => {
+    put(root, 'package.json', '{}');
+    installed(root);
+    await recordFingerprint(root);
+    // The #1217 shape: packages present, no `.bin`, so nothing can be executed.
+    fs.mkdirSync(path.join(worktree, 'node_modules', 'next'), { recursive: true });
+
+    await bootstrapProjectDependencies(worktree);
+
+    const link = path.join(worktree, 'node_modules');
+    expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(fs.existsSync(path.join(link, '.bin'))).toBe(true);
   });
 
   it('links nothing when the root IS the target (not a worktree)', async () => {

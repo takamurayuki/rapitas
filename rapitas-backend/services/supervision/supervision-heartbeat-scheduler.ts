@@ -81,7 +81,10 @@ export async function emitHeartbeat(
     // Deliberately swallowed: killing the scheduler on a write error would
     // extend the very blackout this module exists to detect. The missed sample
     // becomes a gap once the next write succeeds.
-    logger.error({ err, monitorId }, '[SupervisionHeartbeatScheduler] Heartbeat write failed');
+    // NOTE: warn, not error — appendEvent (memory:timeline) already logs the
+    // root cause at ERROR; a second ERROR here filed a duplicate concern for
+    // one transient SQLite P1008 (task 1206).
+    logger.warn({ err, monitorId }, '[SupervisionHeartbeatScheduler] Heartbeat write failed');
     if (source.sourceKind === 'backend_timer') {
       writeFailureTimes.push(new Date());
       if (writeFailureTimes.length > MAX_TRACKED_WRITE_FAILURES) writeFailureTimes.shift();

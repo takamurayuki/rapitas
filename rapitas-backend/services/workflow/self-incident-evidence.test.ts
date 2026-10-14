@@ -143,6 +143,34 @@ describe('gatherTaskState', () => {
     expect((await gatherTaskState(task, NOW, WINDOW_MS)).latestBlockedEscalationAtMs).toBeNull();
   });
 
+  test('latestPlanHoldAtMs comes from a dedicated newest-first plan-hold cause query (#1205)', async () => {
+    const heldAt = new Date(NOW - 21 * 60 * 60 * 1000);
+    transitionFindManyMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ createdAt: heldAt }]);
+
+    const state = await gatherTaskState(task, NOW, WINDOW_MS);
+
+    expect(state.latestPlanHoldAtMs).toBe(heldAt.getTime());
+    const args = transitionFindManyMock.mock.calls[3][0] as {
+      where: { cause: string };
+      orderBy: { createdAt: string };
+      take: number;
+    };
+    expect(args.where.cause).toBe('plan_forbidden_change_hold');
+    expect(args.orderBy).toEqual({ createdAt: 'desc' });
+    expect(args.take).toBe(1);
+  });
+
+  test('latestPlanHoldAtMs is null when no hold exists or the query fails (fail-open)', async () => {
+    expect((await gatherTaskState(task, NOW, WINDOW_MS)).latestPlanHoldAtMs).toBeNull();
+
+    transitionFindManyMock.mockReset().mockRejectedValue(new Error('db down'));
+    expect((await gatherTaskState(task, NOW, WINDOW_MS)).latestPlanHoldAtMs).toBeNull();
+  });
+
   test('a session with no executions leaves execution fields null', async () => {
     sessionFindFirstMock.mockResolvedValue({ id: 91, status: 'active', agentExecutions: [] });
 

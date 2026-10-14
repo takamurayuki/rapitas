@@ -28,6 +28,18 @@ export interface ParsedQuestionOption {
    * plan.md 改訂依頼へルーティングするか
    */
   planRevision?: boolean;
+  /**
+   * True when choosing this option needs a HUMAN to do something outside the
+   * workflow before the implementer can proceed — add a dependency at the
+   * repo root, merge another task's PR, provision a credential. Such an option
+   * is never auto-adopted: adopting it resumes the implementer against work
+   * that has not happened. Measured on #1215, where the recommended option
+   * "merge #1214 into develop, then resume" was auto-adopted after the
+   * 15-minute timeout and the next round recorded the outcome itself —
+   * "origin/develop は 185d098 のまま変わらず、verify が受入条件 0/3 で 2 回目
+   * の差し戻し". / 選択に運用者作業が必要か
+   */
+  requiresOperatorAction?: boolean;
 }
 
 /** One machine-readable question parsed from a `json:options` block. */
@@ -104,6 +116,7 @@ export function parseQuestionOptionsBlock(content: string): ParsedQuestionBlock 
             consequence: typeof o.consequence === 'string' ? o.consequence : '',
             mutatesGate: o.mutatesGate === true,
             planRevision: o.planRevision === true,
+            requiresOperatorAction: o.requiresOperatorAction === true,
           });
         }
       }
@@ -168,6 +181,15 @@ export function isQuestionBlockEligibleForAutoAnswer(
       return {
         eligible: false,
         reason: `question ${q.id} recommended option "${option.key}" mutates a gate`,
+      };
+    }
+    // Adopting this would resume the implementer against work only a human can
+    // do, which is a bounce loop rather than progress — the same shape as
+    // mutatesGate above, and the measured failure of #1215.
+    if (option.requiresOperatorAction) {
+      return {
+        eligible: false,
+        reason: `question ${q.id} recommended option "${option.key}" requires operator action`,
       };
     }
   }

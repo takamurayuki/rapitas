@@ -100,6 +100,57 @@ describe('parseRequirementTasks', () => {
     expect(specs[0].id).toBe('F-07');
     expect(specs[0].title).toBe('協力攻撃(ユニゾン)');
   });
+
+  // Measured 2026-10-12 against the live generator (「ドリフトユニオン」, 177s,
+  // 7 features): the model wrote its 機能要件 as `### [F-01] …` headings, since
+  // each feature carries an 入力/処理/出力 block. The bullet-only regex matched
+  // none of them, so a complete 6.2KB requirements document parsed as ZERO
+  // features — the same silent "nothing was filed" outcome the fallback
+  // template's `- **[F-01] …**` shape produced on 2026-10-11. The filer must
+  // accept every shape a feature declaration plausibly takes, because the
+  // failure is invisible: no error, just no tasks.
+  describe('feature declaration shapes', () => {
+    const body = '\n  - 入力: メール・パスワード。\n  - 出力: セッション。\n';
+
+    for (const [shape, line] of [
+      ['### heading (live generator)', '### [F-01] アカウント登録・ログイン'],
+      ['## heading', '## [F-01] アカウント登録・ログイン'],
+      ['bold bullet (fallback template)', '- **[F-01] アカウント登録・ログイン**'],
+      ['bold bullet with colon', '- **[F-01] アカウント登録・ログイン**: 概要。'],
+      ['checkbox bullet', '- [ ] [F-01] アカウント登録・ログイン'],
+      ['colon after the id', '- [F-01]: アカウント登録・ログイン'],
+    ] as const) {
+      it(`parses a feature written as ${shape}`, () => {
+        const specs = parseRequirementTasks(`# 機能要件\n\n${line}${body}`);
+        expect(specs.map((s) => s.id)).toEqual(['F-01']);
+        expect(specs[0].title).toContain('アカウント登録・ログイン');
+        // The body must still attach, not be swallowed by the declaration line.
+        expect(specs[0].detail).toContain('入力: メール・パスワード');
+      });
+    }
+
+    it('keeps heading-declared features separate instead of merging their bodies', () => {
+      const doc =
+        '# 機能要件\n\n### [F-01] ログイン\n  - 入力: メール。\n\n### [F-02] 移動の開始\n  - 入力: 目的地。\n';
+      const specs = parseRequirementTasks(doc);
+      expect(specs.map((s) => s.id)).toEqual(['F-01', 'F-02']);
+      expect(specs[0].detail).not.toContain('目的地');
+      expect(specs[1].detail).toContain('目的地');
+    });
+
+    it('does not treat a section heading as a feature', () => {
+      // `# 機能要件` itself and sibling sections must never become specs.
+      const specs = parseRequirementTasks(DOC);
+      expect(specs.map((s) => s.id)).toEqual(['F-01', 'F-02']);
+    });
+
+    it('reads criteria written with a checkbox prefix', () => {
+      const doc =
+        '# 機能要件\n\n- [F-01] ログイン\n\n# 受け入れ基準\n\n- [ ] [F-01] Given 未登録 When 登録 Then 201 が返る。\n';
+      const specs = parseRequirementTasks(doc);
+      expect(specs[0].acceptanceCriteria).toEqual(['Given 未登録 When 登録 Then 201 が返る。']);
+    });
+  });
 });
 
 describe('outOfScopeItems', () => {

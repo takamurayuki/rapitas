@@ -17,6 +17,7 @@ import {
   specIsImplementable,
   MIN_CRITERIA_PER_FEATURE,
   ASSUMPTIONS_SECTION,
+  REACHABILITY_SECTION,
 } from './spec-consistency';
 
 /** A document set with no findings, used as the baseline to break per test. */
@@ -39,6 +40,11 @@ const GOOD_REQUIREMENTS = `# 概要
 - [F-02] Given 有効なコード When 参加 Then 4人まで入れる。
 - [F-02] Given 5人目 When 参加 Then 拒否される。
 - [F-02] Given 無効なコード When 参加 Then 404 が返る。
+
+# ${REACHABILITY_SECTION}
+
+- [F-01] \`/\` のアップロードパネル → ファイルを選択 → 同画面に解析結果が出る
+- [F-02] \`/rooms\` の「ルームを作る」 → コードが表示される
 
 # ${ASSUMPTIONS_SECTION}
 
@@ -183,5 +189,64 @@ describe('checkSpecConsistency', () => {
     );
     // Still recognised as F-02, so no orphan/missing findings appear.
     expect(codes(docs)).toEqual([]);
+  });
+});
+
+describe('画面導線の検査 (2026-10-12)', () => {
+  // 実測 2026-10-12 TempoRaid: 12 機能すべてが単体テスト付きで実装・自動マージ
+  // されたが、画面に繋がっていたのは F-01 だけで、しかもその結果は文字列表示のみ。
+  // web アプリの .tsx は App.tsx と AudioLoadPanel.tsx の 2 つしかなく、F-02..F-12
+  // の画面は存在しない。store/app-store.ts と net/reconnecting-client.ts は
+  // どこからも import されていない。受入基準が「モジュールの振る舞い」だけだったため
+  // 単体テストで満たせてしまった。導線を要件に明記させ、無ければ実装に進ませない。
+  /** Drop one `# <name>` section, by index rather than by regex. */
+  function withoutSection(markdown: string, name: string): string {
+    const start = markdown.indexOf(`# ${name}`);
+    if (start < 0) throw new Error(`fixture has no section ${name}`);
+    const next = markdown.indexOf('\n# ', start + 1);
+    return markdown.slice(0, start) + (next < 0 ? '' : markdown.slice(next + 1));
+  }
+
+  test('画面導線セクションが無ければ error', () => {
+    const docs = good();
+    docs.requirements = withoutSection(docs.requirements, REACHABILITY_SECTION);
+    expect(docs.requirements).not.toContain(REACHABILITY_SECTION);
+    const findings = checkSpecConsistency(docs);
+    const f = findings.find((x) => x.code === 'missing_reachability_section');
+    expect(f).toBeDefined();
+    expect(f?.severity).toBe('error');
+    expect(specIsImplementable(findings)).toBe(false);
+  });
+
+  test('導線が書かれていない機能があれば、その機能を名指しして error', () => {
+    const docs = good();
+    docs.requirements = docs.requirements.replace(
+      '- [F-02] `/rooms` の「ルームを作る」 → コードが表示される\n',
+      '',
+    );
+    const findings = checkSpecConsistency(docs);
+    const f = findings.find((x) => x.code === 'unreachable_feature');
+    expect(f).toBeDefined();
+    expect(f?.severity).toBe('error');
+    expect(f?.message).toContain('F-02');
+    expect(specIsImplementable(findings)).toBe(false);
+  });
+
+  test('導線が揃っていれば指摘は出ない', () => {
+    const findings = checkSpecConsistency(good());
+    expect(findings.filter((f) => /reachab|unreachable/.test(f.code))).toEqual([]);
+    expect(specIsImplementable(findings)).toBe(true);
+  });
+
+  test('導線に画面も操作も書かれていなければ error（ラベルだけの行は無効）', () => {
+    const docs = good();
+    docs.requirements = docs.requirements.replace(
+      '- [F-02] `/rooms` の「ルームを作る」 → コードが表示される',
+      '- [F-02] あとで決める',
+    );
+    const findings = checkSpecConsistency(docs);
+    const f = findings.find((x) => x.code === 'vague_reachability');
+    expect(f).toBeDefined();
+    expect(f?.message).toContain('F-02');
   });
 });

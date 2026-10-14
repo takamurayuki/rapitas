@@ -8,6 +8,9 @@ import { PageWrap } from './page-wrap';
 import { CheckIcon } from './icons';
 import { CustomOptionInput } from './custom-option-input';
 import { WizardIcon } from './wizard-icons';
+import { ProposedOptions } from './proposed-options';
+import { ConceptChip } from './concept-chip';
+import { PROPOSED_ID_PREFIX } from '../../api/generate-option-candidates/candidates';
 
 interface SubPhaseProps {
   topRef: React.RefObject<HTMLDivElement | null>;
@@ -19,6 +22,12 @@ interface SubPhaseProps {
   selectedSubs: string[];
   /** Sub-genre options (static catalog + user-added custom items) / サブジャンル選択肢（静的＋自由入力） */
   dynamicSubs: DynamicItem[];
+  /** Human label for a concept-proposed genre, which has no i18n key. / 提案ジャンルの表示名 */
+  genreLabel?: string;
+  proposedLoading?: boolean;
+  proposedReason?: string;
+  concept?: string;
+  onChangeConcept?: (next: string) => void;
   /** Toggles a sub-genre selection by id / IDでサブジャンル選択を切り替える */
   onToggle: (id: string) => void;
   /** Adds a user-typed custom sub-genre / 自由入力のサブジャンルを追加 */
@@ -42,6 +51,11 @@ export function SubPhase({
   genre,
   selectedSubs,
   dynamicSubs,
+  genreLabel,
+  proposedLoading,
+  proposedReason,
+  concept = '',
+  onChangeConcept,
   onToggle,
   onAddCustom,
   onNext,
@@ -56,6 +70,11 @@ export function SubPhase({
           label: t(`sub_${genre}_${s.id}`),
         }));
 
+  // One selection list, two headings: proposals carry the PROPOSED_ID_PREFIX.
+  const proposed = subs.filter((s) => s.id.startsWith(PROPOSED_ID_PREFIX));
+  const standard = subs.filter((s) => !s.id.startsWith(PROPOSED_ID_PREFIX));
+  const hasProposals = proposed.length > 0 || proposedLoading || proposedReason;
+
   const [pulse, setPulse] = useState(false);
   const handleAdd = (label: string) => {
     onAddCustom(label);
@@ -68,7 +87,7 @@ export function SubPhase({
     <PageWrap
       topRef={topRef}
       title={(t as (k: string, v?: Record<string, unknown>) => string)('subTitle', {
-        genre: t('genre_' + genre),
+        genre: genreLabel || t('genre_' + genre),
       })}
       sub={t('subSub')}
       step={2}
@@ -79,6 +98,21 @@ export function SubPhase({
       canNext={true}
       backLabel={t('back')}
     >
+      {onChangeConcept && <ConceptChip concept={concept} onChange={onChangeConcept} />}
+
+      <ProposedOptions
+        items={proposed}
+        heading="この方向性に効く切り口"
+        onPick={onToggle}
+        selected={selectedSubs}
+        loading={proposedLoading}
+        degradedReason={proposedReason}
+      />
+
+      {hasProposals && (
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>定番の切り口</div>
+      )}
+
       <div
         style={{
           display: 'grid',
@@ -87,7 +121,7 @@ export function SubPhase({
           marginBottom: 16,
         }}
       >
-        {subs.map((s) => {
+        {standard.map((s) => {
           const isSel = selectedSubs.includes(s.id);
           const isCustom = s.id.startsWith('custom_');
           return (

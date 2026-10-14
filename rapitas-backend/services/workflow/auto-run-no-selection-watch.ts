@@ -20,6 +20,7 @@ import { createNotification } from '../communication/notification-service';
 import { logCycleEvent } from '../observability';
 import { hasLiveExecution } from './auto-run/auto-run-selection';
 import { resolveQueuedWaiters } from './queue-starvation-waiters';
+import { classifyThemeWork } from './auto-run/auto-run-theme-parked';
 
 const log = createLogger('auto-run-no-selection-watch');
 
@@ -35,12 +36,19 @@ const RENOTIFY_WINDOW_MS = 6 * 60 * 60 * 1000;
 
 const NOTIFY_TITLE = '自動実行が前進していません';
 
+/** Separate title: a parked theme is waiting for a person, not malfunctioning. */
+const PARKED_TITLE = '自動実行が人の対応を待っています';
+
 /** Episode anchors per theme; null entry = not currently in the state. */
 const sinceMs = new Map<number, number>();
+
+/** Themes already reported as parked in the CURRENT episode. */
+const parkedReported = new Set<number>();
 
 /** Reset the tracker. Test-only — never call from production code. */
 export function resetNoSelectionTracker(): void {
   sinceMs.clear();
+  parkedReported.clear();
 }
 
 /**
@@ -50,10 +58,16 @@ export function resetNoSelectionTracker(): void {
  */
 export function resetNoSelectionEpisode(themeId: number): void {
   sinceMs.delete(themeId);
+  parkedReported.delete(themeId);
 }
 
 /** What the watch concluded for one theme. */
-export type NoSelectionVerdict = 'armed' | 'progressing' | 'below-threshold' | 'reported';
+export type NoSelectionVerdict =
+  | 'armed'
+  | 'progressing'
+  | 'below-threshold'
+  | 'reported'
+  | 'parked';
 
 /**
  * Decide whether a theme's "running with no current task" state is a stall.
@@ -98,6 +112,7 @@ export async function checkNoSelectionProgress(
   }
   if (progressing) {
     sinceMs.delete(themeId);
+    parkedReported.delete(themeId);
     return 'progressing';
   }
 
@@ -109,6 +124,34 @@ export async function checkNoSelectionProgress(
   if (nowMs - anchor < NO_SELECTION_THRESHOLD_MS) return 'below-threshold';
 
   const stalledMinutes = Math.round((nowMs - anchor) / 60000);
+
+  // A theme whose whole remaining backlog is held or waiting on a human has
+  // nothing dispatchable BY DESIGN. Blaming the advance for it is wrong, and
+  // measured 2026-10-13 it was also the loudest thing in the log: 40 of these
+  // events in one day, every one for theme 34, whose six remaining tasks were
+  // five `autoRunExcluded` and one `awaiting_question`. A real stall hides
+  // behind a false alarm that frequent.
+  const parked = await readThemeWork(themeId);
+  if (parked?.parked) {
+    if (!parkedReported.has(themeId)) {
+      parkedReported.add(themeId);
+      log.warn(
+        { themeId, waitedMinutes: stalledMinutes, pending: parked.pending },
+        '[no-selection-watch] theme has selected nothing because all of its remaining work is held or awaiting an answer',
+      );
+      logCycleEvent('theme.parked_awaiting_human', {
+        theme: themeId,
+        ok: true,
+        cause: 'all_work_held_or_awaiting_answer',
+        waitedMinutes: stalledMinutes,
+        held: parked.pending,
+        msg: 'theme has nothing dispatchable because every remaining task is held or awaiting an answer — a person has to clear it',
+      });
+      await notifyParkedOncePerWindow(themeId, parked.pending, nowMs);
+    }
+    return 'parked';
+  }
+
   log.warn(
     { themeId, stalledMinutes },
     '[no-selection-watch] theme reports running but has selected nothing — the advance is not completing',
@@ -122,6 +165,72 @@ export async function checkNoSelectionProgress(
   });
   await notifyOncePerWindow(themeId, stalledMinutes, nowMs);
   return 'reported';
+}
+
+/**
+ * Classify the theme's own remaining backlog.
+ *
+ * Returns null on a read error so the caller falls through to the stall report
+ * it would have made anyway: an unreadable task list must neither manufacture a
+ * "parked" verdict nor silence a real stall.
+ *
+ * @param themeId - Theme whose backlog to weigh. / 対象テーマ
+ * @returns The verdict, or null when the tasks could not be read. / 判定、読めなければ null
+ */
+async function readThemeWork(
+  themeId: number,
+): Promise<{ parked: boolean; pending: number } | null> {
+  const tasks = await prisma.task
+    .findMany({
+      where: { themeId, status: { notIn: ['done', 'completed', 'cancelled'] } },
+      select: {
+        status: true,
+        workflowStatus: true,
+        haltReason: true,
+        autoRunExcluded: true,
+        workflowDisabled: true,
+      },
+    })
+    .catch(() => null);
+  if (!tasks) return null;
+  const verdict = classifyThemeWork(tasks);
+  return { parked: verdict.parked, pending: verdict.pending };
+}
+
+/**
+ * Tell the operator the theme is waiting on them, at most once per window.
+ *
+ * A separate title and link from the stall notification on purpose: "auto-run
+ * is not progressing" sends someone to debug the scheduler, and here the
+ * scheduler is doing exactly the right thing.
+ *
+ * @param themeId - Parked theme. / 対象テーマ
+ * @param pending - Non-terminal tasks, all of them held. / 保留中の件数
+ * @param nowMs - Current time (ms). / 現在時刻
+ */
+async function notifyParkedOncePerWindow(
+  themeId: number,
+  pending: number,
+  nowMs: number,
+): Promise<void> {
+  const link = `/themes/${themeId}`;
+  const recent = await prisma.notification
+    .findFirst({
+      where: { link, title: PARKED_TITLE, createdAt: { gt: new Date(nowMs - RENOTIFY_WINDOW_MS) } },
+      select: { id: true },
+    })
+    .catch(() => null);
+  if (recent) return;
+  await createNotification({
+    type: 'system',
+    title: PARKED_TITLE,
+    message:
+      `テーマ #${themeId} は残り ${pending} 件のタスクすべてが保留（自動実行の対象外・無効化・halt）` +
+      `または回答待ちのため、選定できるタスクがありません。系の不具合ではなく、人の判断を待っている状態です。` +
+      `保留の解除、または質問への回答をしてください。`,
+    link,
+    metadata: { themeId, pending, reason: 'all_work_held_or_awaiting_answer' },
+  }).catch(() => {});
 }
 
 /**

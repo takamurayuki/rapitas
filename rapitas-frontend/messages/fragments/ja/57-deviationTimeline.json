@@ -1,0 +1,37 @@
+{
+  "deviationTimeline": {
+    "title": "計画と実行の逸脱",
+    "loadError": "逸脱タイムラインを取得できませんでした",
+    "ambiguous": "計画が曖昧です",
+    "ambiguousHint": "変更ファイルのパスパターンが宣言されていないため、この計画は逸脱の判定に使用していません。",
+    "noOperations": "この実行には操作記録がありません（記録開始前の実行は判定できません）。",
+    "unsupportedProvider": "このエージェントの実行は逸脱判定に対応していません。",
+    "noDeviations": "逸脱はありません",
+    "counts": {
+      "outOfPlan": "計画外 {n}件",
+      "plannedNotExecuted": "未実行 {n}件",
+      "inPlan": "計画内 {n}件"
+    },
+    "category": {
+      "out_of_plan": "計画外",
+      "planned_not_executed": "計画にあるが未実行"
+    },
+    "kind": {
+      "file_change": "ファイル変更",
+      "command": "コマンド",
+      "http": "外部アクセス"
+    },
+    "clickHint": "クリックで該当ログの前後を表示",
+    "contextTitle": "該当ログの前後",
+    "contextLoading": "ログを読み込み中…",
+    "contextEmpty": "該当するログがありません",
+    "contextError": "ログを取得できませんでした",
+    "commentLabel": "判断コメント（監査記録に保存されます）",
+    "commentPlaceholder": "逸脱を許容する理由や指摘を入力",
+    "approve": "承認して記録",
+    "reject": "却下して記録",
+    "submitting": "記録中…",
+    "saved": "監査記録に保存しました",
+    "saveError": "監査記録の保存に失敗しました"
+  }
+}

@@ -46,6 +46,17 @@ function makeDeps(opts: {
   failTitles?: string[];
   /** Un-started tasks the theme already holds; defaults to none. / 未着手件数 */
   unstarted?: Record<number, number>;
+  /** Project roots that already have a dependency manifest; default: all do. / manifest のあるルート */
+  manifests?: Record<string, boolean>;
+  /**
+   * Project roots that already have `rapitas.runtime.json`; default: all do.
+   * Defaulting to present keeps these tests about FEATURE filing — the setup
+   * gate has its own tests below.
+   * / プレビュー設定のあるルート
+   */
+  runtimeConfigs?: Record<string, boolean>;
+  /** docs/design.md per working directory. / 設計書 */
+  designs?: Record<string, string | null>;
 }) {
   const created: Array<{ title: string; themeId: number }> = [];
   const branches: Array<string | null | undefined> = [];
@@ -55,6 +66,9 @@ function makeDeps(opts: {
       branches.push(branch);
       return opts.docs?.[dir] ?? null;
     },
+    readDesign: async (dir) => opts.designs?.[dir] ?? null,
+    hasProjectManifest: (dir) => opts.manifests?.[dir] ?? true,
+    hasRuntimeConfigFile: (dir) => opts.runtimeConfigs?.[dir] ?? true,
     listExistingTitles: async (themeId) => opts.existing?.[themeId] ?? [],
     countUnstartedTasks: async (themeId) => opts.unstarted?.[themeId] ?? 0,
     createTask: async (payload) => {

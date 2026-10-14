@@ -42,6 +42,13 @@ describe('classifyLogSignature', () => {
     expect(classifyLogSignature('execution-file-logger', unconfirmed).suppressed).toBe(false);
   });
 
+  test('task 1211: raw P1008 workflow-queue line is suppressed after normalization', () => {
+    const raw =
+      'Socket timeout (the database failed to respond to a query within the configured timeout— see https://pris.ly/d/sqlite-connector for more details).';
+    expect(classifyLogSignature('workflow-queue', normalizeMessage(raw)).suppressed).toBe(true);
+    expect(classifyLogSignature('memory:timeline', normalizeMessage(raw)).suppressed).toBe(false);
+  });
+
   test('a logger-scoped rule does not leak to other loggers', () => {
     // 'Already running' is routine for the workflow runner; elsewhere it may
     // be a real double-start, so the rule must not fire globally.
@@ -320,13 +327,18 @@ describe('classifyLogSignature', () => {
     }
   });
 
-  test('the root-cause "Preserving uncommitted work" warn stays visible', () => {
-    expect(
-      classifyLogSignature(
-        'git-operations/worktree-ops',
-        '[removeWorktree] Preserving uncommitted work',
-      ).suppressed,
-    ).toBe(false);
+  test('"Preserving uncommitted work" is suppressed for worktree-ops only; adjacent guard signatures stay visible', () => {
+    // Task #1210: the line records the guard protecting work (worktree-remove.ts:76), not a defect.
+    const msg = '[removeWorktree] Preserving uncommitted work';
+    expect(classifyLogSignature('git-operations/worktree-ops', msg).suppressed).toBe(true);
+    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    for (const visible of [
+      '[removeWorktree] Missing Git metadata; preserving directory',
+      '[removeWorktree] Cannot prove work is preserved; refusing removal',
+      '[cleanupOrphanedWorktrees] Failed to remove orphaned directory after retries',
+    ]) {
+      expect(classifyLogSignature('git-operations/worktree-ops', visible).suppressed).toBe(false);
+    }
   });
 
   test('routes:ai-chat CLI timeout is suppressed but spawn failures and other loggers stay visible', () => {
@@ -514,6 +526,24 @@ describe('classifyLogSignature', () => {
       // somewhere it was not expected to.
       '[WorkflowOrchestrator] Error in planner: Requirement replan review held: not_reviewable',
       '[WorkflowOrchestrator] Error in implementer: Requirement replan review held: not_reviewable',
+    ]) {
+      expect(classifyLogSignature('workflow-orchestrator', other).suppressed).toBe(false);
+    }
+  });
+
+  test('task 1222: "replan review held: theme_paused" is suppressed for the verify roles on workflow-orchestrator only', () => {
+    for (const role of ['auto_verifier', 'verifier']) {
+      const msg = `[WorkflowOrchestrator] Error in ${role}: Requirement replan review held: theme_paused`;
+      expect(classifyLogSignature('workflow-orchestrator', normalizeMessage(msg)).suppressed).toBe(
+        true,
+      );
+      expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    }
+    for (const other of [
+      '[WorkflowOrchestrator] Error in auto_verifier: Requirement replan review held: theme_paused_extra',
+      '[WorkflowOrchestrator] Error in auto_verifier: Requirement replan review held: unknown',
+      '[WorkflowOrchestrator] Error in verifier: Requirement replan review held: requires_human:x',
+      '[WorkflowOrchestrator] Error in planner: Requirement replan review held: theme_paused',
     ]) {
       expect(classifyLogSignature('workflow-orchestrator', other).suppressed).toBe(false);
     }

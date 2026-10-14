@@ -32,6 +32,8 @@ export type NotificationType =
   | 'daily_report'
   | 'knowledge_extracted'
   | 'worker_health_deviation'
+  | 'usage_budget_threshold'
+  | 'canary_triggered'
   | 'system';
 
 interface CreateNotificationParams {

@@ -77,6 +77,15 @@ export function resetCwdMismatchFiledForTest(): void {
 const CWD_MISMATCH_FRESH_WINDOW_MS = 60 * 60_000;
 
 /**
+ * A false failure is only filed while its success artifact is this fresh.
+ * NOTE: #1220 was re-filed ("再発") 3.4h after its PR because the in-memory Set above
+ * died with a backend restart and the immutable (mark, success) pair was detected again.
+ * The artifact time is durable DB state, so bounding by its age closes the restart path
+ * by mechanism: an artifact older than this was already seen by earlier ticks.
+ */
+const FALSE_FAILURE_FRESH_WINDOW_MS = 60 * 60_000;
+
+/**
  * Kill switch for the whole supervisor-signature pass (extra DB load escape
  * hatch). Any value except '' / '0' / 'false' disables it.
  */
@@ -157,8 +166,12 @@ export async function inspectSupervisorSignatures(args: {
     successArtifactAtMs: ev.successArtifactAtMs,
     recoveryAtMs: ev.recoveryAtMs,
   });
+  const falseFailureStale =
+    ev.successArtifactAtMs !== null &&
+    nowMs - ev.successArtifactAtMs > FALSE_FAILURE_FRESH_WINDOW_MS;
   if (
     falseFailure &&
+    !falseFailureStale &&
     !falseFailureFiledTaskIds.has(task.id) &&
     ev.failureMarkedAtMs !== null &&
     ev.successArtifactAtMs !== null

@@ -18,12 +18,13 @@ import { markLatestExecutionFailed, wasNonConvergenceCutoffJustRecorded } from '
 import type { CompletionReviewReceipt } from '../../../../services/workflow/requirement-replan-commit';
 import { parseQuestionOptionsBlock } from '../../../../services/workflow/question-options-parser';
 import { resolveExplicitOrDefaultKind } from '../../../../services/workflow/question-kind-resolver';
-import { RequirementReplanHeldError, ConflictError } from '../../../../middleware/error-handler';
-import { isExpectedReplanHold } from '../../../../services/workflow/requirement-replan-policy';
 import {
-  checkPlanQuestionBudget,
-  blockPlanQuestionOverBudget,
-} from '../../../../services/workflow/workflow-plan-question-guard';
+  OPERATOR_WAIT_METADATA_KEY,
+  roundWaitsOnOperator,
+} from '../../../../services/workflow/question-operator-action';
+import { RequirementReplanHeldError } from '../../../../middleware/error-handler';
+import { isExpectedReplanHold } from '../../../../services/workflow/requirement-replan-policy';
+import { enforcePlanQuestionBudget } from './plan-question-budget-gate';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -127,6 +128,10 @@ export async function computeAndApplyStatusTransition(params: {
   // live on task 415: verify_repair bounce → redundant file_saved:verify →
   // epilogue hard-block → blocked_auto_retry → reset to draft).
   let verifyRepairBounced = false;
+  // Parsed once and reused by the budget axis below and the kind resolution at
+  // the end of this function — the same block answers both.
+  const questionBlock = fileType === 'question' ? parseQuestionOptionsBlock(savedContent) : null;
+  const questionWaitsOnOperator = roundWaitsOnOperator(questionBlock);
   // Research may establish that code changes are unnecessary, not that verification is complete.
   if (fileType === 'research' && (!currentStatus || currentStatus === 'draft')) {
     log.info(`[Workflow] Research completed: setting newStatus to research_done`);
@@ -143,15 +148,12 @@ export async function computeAndApplyStatusTransition(params: {
     // 予算ガードを適用する。intake（research開始前）の質問は別 cause で raise
     // されるため対象外 — intake-policy.ts の ask/best-guess ポリシーの実効閾値を
     // 変えないため合算しない（研究フェーズの決定事項）。
+    // 人の作業を待つ質問（運用者が依存を追加する・他タスクをマージする等）は
+    // エージェントの質問予算とは別の軸で数える。同じ予算を共有していたため、
+    // #1215 では「運用者作業が終わるまで保留にする」という正当な
+    // エスカレーションが 3/3 で弾かれて blocked になった（B6）。
     if (currentStatus === 'plan_approved') {
-      const budget = await checkPlanQuestionBudget(taskId);
-      if (!budget.allowed) {
-        await blockPlanQuestionOverBudget(taskId, budget.count, budget.limit);
-        throw new ConflictError(
-          `plan-phase question rounds reached the lifetime cap (${budget.count}/${budget.limit}); task blocked instead of raising another question`,
-          'PLAN_QUESTION_BUDGET_EXHAUSTED',
-        );
-      }
+      await enforcePlanQuestionBudget(taskId, questionWaitsOnOperator);
     }
     // 質問.md が保存されたらユーザー回答待ち状態に遷移する。
     // 復帰先 status は transition log の metadata.previousStatus に保存しておき、
@@ -207,7 +209,9 @@ export async function computeAndApplyStatusTransition(params: {
     try {
       const { validateVerify } =
         await import('../../../../services/workflow/phase-output-validator');
-      const verifyValidation = validateVerify(savedContent);
+      const { loadPlanContentForVerify } =
+        await import('../../../../services/workflow/plan-for-verify');
+      const verifyValidation = validateVerify(savedContent, await loadPlanContentForVerify(taskId));
       if (!verifyValidation.ok && verifyValidation.severity >= 80) {
         // A historical pass or PR does not establish that this HEAD passed.
         // Current validation failures must repair or hold; never infer completion
@@ -379,12 +383,16 @@ export async function computeAndApplyStatusTransition(params: {
       // an explicit kind may be embedded in the saved question.md's
       // json:options block; absent one, resolveExplicitOrDefaultKind derives
       // the default from currentStatus (see question-kind-resolver.ts).
-      const explicitKind = parseQuestionOptionsBlock(savedContent)?.kind;
       transitionMetadata.kind = resolveExplicitOrDefaultKind({
         cause: `file_saved:${fileType}`,
-        explicitKind,
+        explicitKind: questionBlock?.kind,
         currentStatus,
       });
+      // Which budget axis this round belongs to, recorded so the guard can
+      // separate "the agent asked again" from "a human has not acted yet" on
+      // every FUTURE round. Rows written before this key existed carry none
+      // and count as agent rounds (question-operator-action.ts).
+      transitionMetadata[OPERATOR_WAIT_METADATA_KEY] = questionWaitsOnOperator;
     }
     // Skip the generic transition when the cutoff above already recorded its
     // OWN terminal transition for this save — recording both would duplicate

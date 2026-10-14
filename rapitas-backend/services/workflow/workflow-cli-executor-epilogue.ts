@@ -236,7 +236,11 @@ export async function runPhaseEpilogue(params: {
       // Structural validation: ensure the artifact has the required sections
       // so the next role isn't handed an under-specified document. We log the
       // result for observability but still advance — fail-soft for now.
-      const validation = validateOutput(transition.outputFile, fileContent);
+      const planForVerify =
+        transition.outputFile === 'verify'
+          ? await (await import('./plan-for-verify')).loadPlanContentForVerify(taskId)
+          : undefined;
+      const validation = validateOutput(transition.outputFile, fileContent, planForVerify);
       if (!validation.ok) {
         log.warn(
           {

@@ -9,7 +9,7 @@
  */
 
 import { ASSUMPTIONS_SECTION } from './spec-consistency';
-import { FEATURE_BULLET, sectionLines } from './requirements-task-plan';
+import { matchFeatureLine, sectionLines } from './requirements-task-plan';
 
 /** One way the document and the work have diverged. */
 export interface SpecDriftFinding {
@@ -31,7 +31,7 @@ const TITLE_FEATURE_LABEL = /^\s*[[［]\s*(F-\d+)\s*[\]］]/;
 function documentedFeatureIds(requirements: string): Set<string> {
   const out = new Set<string>();
   for (const line of sectionLines(requirements, '機能要件')) {
-    const id = line.match(FEATURE_BULLET)?.[1];
+    const id = matchFeatureLine(line)?.id;
     if (id) out.add(id);
   }
   return out;

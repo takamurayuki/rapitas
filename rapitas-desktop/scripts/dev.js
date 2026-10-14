@@ -50,9 +50,18 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { killDeadPidEstablishedPeers } = require('./dev-established-cleanup.cjs');
+const { waitForFrontendReady, DEFAULT_TIMEOUT_MS } = require('./wait-for-frontend-ready.cjs');
 
 const BACKEND_PORT = 3001;
 const FRONTEND_PORT = 3000;
+/**
+ * Ceiling on waiting for the frontend to serve its first page. Overridable
+ * because the first compile scales with the machine; exceeding it only changes
+ * the message, never whether startup continues.
+ */
+const FRONTEND_READY_TIMEOUT_MS = Number(
+  process.env.RAPITAS_FRONTEND_READY_TIMEOUT_MS || DEFAULT_TIMEOUT_MS,
+);
 // Local LLM sidecar (llama-server). Reclaimed on every (re)start so orphaned
 // instances from a previous run don't accumulate and peg the CPU.
 const LLAMA_SERVER_PORT = 8922;
@@ -2663,6 +2672,15 @@ async function main() {
   maybeClearStaleNextCache();
   startFrontendProcess();
 
+  // Next.js opens :3000 before it compiles anything, so the banner used to
+  // claim a screen that was still unreachable for the whole first compile.
+  // Wait for a real response before saying the frontend is up.
+  await waitForFrontendReady({
+    port: actualFrontendPort,
+    timeoutMs: FRONTEND_READY_TIMEOUT_MS,
+    log: { info: (m) => console.log(m), warn: (m) => log.warn(m) },
+  });
+
   console.log(
     `\n🖥️  Development mode: Backend :${actualBackendPort}, Frontend :${actualFrontendPort}`,
   );
@@ -2945,6 +2963,14 @@ async function restartFrontend(reason, opts = {}) {
     frontendBreachCount = 0;
     frontendCpuBreachCount = 0;
     frontendCpuLastSample = null;
+    // Same reason as the startup wait: a recycle also leaves the screen
+    // unreachable for a full recompile, and announcing it as recycled before
+    // it serves anything is what sends someone to an unreachable page.
+    await waitForFrontendReady({
+      port: actualFrontendPort,
+      timeoutMs: FRONTEND_READY_TIMEOUT_MS,
+      log: { info: (m) => console.log(m), warn: (m) => log.warn(m) },
+    });
     console.log(`✅ Frontend dev server recycled on :${actualFrontendPort} (backend untouched).`);
   } finally {
     isFrontendRestarting = false;

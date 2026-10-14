@@ -9,6 +9,7 @@ import './globals.css';
 import KeyboardShortcuts from '@/components/common/KeyboardShortcuts';
 import { ResumableExecutionsBanner } from '@/components/common/ResumableExecutionsBanner';
 import ScheduleReminderProvider from '@/components/providers/ScheduleReminderProvider';
+import UsageBudgetPromptProvider from '@/components/providers/UsageBudgetPromptProvider';
 import { NotificationToaster } from '@/components/notifications/notification-toaster';
 import { MainWindowOnly } from '@/components/common/main-window-only';
 import { TaskNavigateListener } from '@/components/common/TaskNavigateListener';
@@ -175,6 +176,7 @@ export default function RootLayout({
                             <SetupGate />
                           </Suspense>
                           <ScheduleReminderProvider />
+                          <UsageBudgetPromptProvider />
                           <NotificationToaster />
                           <AppVisibilityBridge />
                           <CacheWarmupInitializer />

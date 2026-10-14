@@ -21,6 +21,7 @@ import { spawn as nodeSpawn } from 'child_process';
 import { createLogger } from '../../config/logger';
 import { resolveEncryptionKey } from '../../utils/common/encryption-key-resolver';
 import { getDbProvider, type DbProvider } from '../../config/db-provider';
+import { markEventLoopSection } from './event-loop-lag-watchdog';
 
 const log = createLogger('backup-service');
 
@@ -176,6 +177,17 @@ async function backupSqlite(outPath: string): Promise<void> {
  * @returns Run result including the resulting record on success.
  */
 export async function runBackup(): Promise<BackupRunResult> {
+  // NOTE: Named so a ~06:00 JST event-loop stall that overlaps the backup (sync
+  // fs writes in encryptStreamToFile) is attributed instead of logged blank (#1231).
+  const release = markEventLoopSection('backup-run');
+  try {
+    return await runBackupInner();
+  } finally {
+    release();
+  }
+}
+
+async function runBackupInner(): Promise<BackupRunResult> {
   const start = Date.now();
   const provider = getDbProvider();
   const dir = backupDir();

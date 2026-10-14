@@ -72,3 +72,30 @@ describe('buildCliAgentPrompt — AGENTS.md注入', () => {
     expect(prompt).not.toContain('対象リポジトリ自身のAGENTS.md');
   });
 });
+
+describe('buildCliAgentPrompt — 新規依存が必要になった実装者への案内 (task 1215)', () => {
+  it('ja: worktree での install/add 禁止と verify への記録手順を実装者にだけ示す', () => {
+    const impl = buildCliAgentPrompt({
+      ...baseParams,
+      transition: transitionFor('implementer', null),
+    });
+    expect(impl).toContain('worktree では install / add をしないこと');
+    expect(impl).toContain('pnpm add');
+    expect(impl).toContain('不足パッケージ名・版・必要な理由');
+    const research = buildCliAgentPrompt({
+      ...baseParams,
+      transition: transitionFor('researcher', 'research'),
+    });
+    expect(research).not.toContain('worktree では install / add をしないこと');
+  });
+
+  it('en: tells the implementer to record the missing package instead of installing', () => {
+    const impl = buildCliAgentPrompt({
+      ...baseParams,
+      language: 'en' as const,
+      transition: transitionFor('implementer', null),
+    });
+    expect(impl).toContain('do not install/add it in the worktree');
+    expect(impl).toContain('package name, version, and why it is needed');
+  });
+});

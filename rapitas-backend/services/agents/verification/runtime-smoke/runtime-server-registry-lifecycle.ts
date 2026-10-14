@@ -12,7 +12,12 @@ import { checkRuntimeStartScript } from './runtime-start-preflight';
 import { withRuntimeLaunchLock } from './runtime-launch-lock';
 import { stopRuntimeProcesses } from './runtime-process-stop';
 import { extendOwnedRuntimeTree, inspectOwnedRuntimeTree } from './runtime-process-identity';
+import { describeStartOwnershipLoss } from './runtime-process-identity';
 import { readRuntimeProcessSnapshot, ownsRuntimePort } from './runtime-process-snapshot';
+import {
+  ListenerOwnershipError,
+  describeListenerOwnership,
+} from './runtime-listener-ownership-error';
 import { randomUUID } from 'crypto';
 import { createLogger } from '../../../../config/logger';
 import { allocateFreePort, launchApp, waitForHealthy } from './app-launcher';
@@ -280,9 +285,15 @@ export async function spawnNewEntry(
       readySnapshot.protectedPids,
     );
     if (!readyIdentity.safe || readyIdentity.alive.length === 0)
-      throw new Error('Server ownership changed during start');
+      throw new Error(describeStartOwnershipLoss(readyIdentity));
     if (!ownsRuntimePort(readySnapshot, readyIdentity.alive, port))
-      throw new Error('Listener ownership is unconfirmed');
+      throw new ListenerOwnershipError(
+        describeListenerOwnership(
+          readySnapshot,
+          readyIdentity.alive.map((identity) => identity.pid),
+          port,
+        ),
+      );
     entry.state = 'active';
     const lease = randomUUID();
     entry.leases.add(lease);
@@ -308,7 +319,14 @@ export async function spawnNewEntry(
     entry.state = 'quarantined';
     entry.leases.clear();
     entry.quarantineReason = `起動または所有情報保存に失敗: ${String(error)}`;
-    log.error({ err: error, key }, '[registry] start failed — workdir quarantined');
+    log.error(
+      {
+        err: error,
+        key,
+        diagnostics: error instanceof ListenerOwnershipError ? error.diagnostics : undefined,
+      },
+      '[registry] start failed — workdir quarantined',
+    );
     if (entry.identities?.length) {
       await stopOwnedAndVerify(entry, 'start-error');
     } else if (entry.app) {

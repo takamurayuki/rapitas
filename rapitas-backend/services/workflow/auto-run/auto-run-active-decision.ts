@@ -10,6 +10,7 @@ import { writeBlockedTask } from '../blocked-task-write';
  */
 import type { PrismaClient } from '../../../generated/prisma-postgres';
 import { createLogger } from '../../../config/logger';
+import { isTaskPlanApproved } from '../plan-approval-queue-sync';
 import { resolveTaskWorkflowState } from '../../task/task-resolver';
 
 import { logCycleEvent } from '../../observability';
@@ -264,7 +265,12 @@ export async function advanceActiveTaskLocked(
       currentItems,
     );
     if (releasedStaleCount === 0) {
-      if (hasItemAwaitingApproval(currentItems)) {
+      // An approved plan can still own a waiting_approval item (in-flight agent
+      // keeps it untouched); pausing again here would undo the resume each tick.
+      if (
+        hasItemAwaitingApproval(currentItems) &&
+        !(await isTaskPlanApproved(currentTaskId, prisma))
+      ) {
         await onAwaitingPlanApproval(themeId);
         await notifyAwaitingPlanApproval(themeId, currentTaskId);
         broadcastAutoRunUpdateImpl(themeId);
