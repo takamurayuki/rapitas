@@ -10,7 +10,12 @@ import { existsSync, mkdirSync, writeFileSync, unlinkSync, readdirSync, readFile
 import { join } from 'path';
 import { execSync } from 'child_process';
 import { createLogger } from '../../config/logger';
-import { listWindowsProcessSnapshot, collectKillTargets } from './process-tree-kill';
+import {
+  listWindowsProcessSnapshot,
+  collectKillTargets,
+  type ProcessSnapshotEntry,
+} from './process-tree-kill';
+import { ancestorPids, parseListenerPids } from './backend-process-identity';
 
 // Re-exported so agent runners get the capture + kill pair from one module.
 export { captureDescendants } from './process-tree-kill';
@@ -63,30 +68,95 @@ function isProcessAlive(pid: number): boolean {
 }
 
 /**
- * Check whether a PID is listening on port 3001.
- * Safety check before kill — enforces the CLAUDE.md constraint.
+ * Check whether killing a PID would take the backend down.
+ *
+ * NOTE: identity, not port. This guard used to refuse anything LISTENING on
+ * 3001, which protected an INTRUDER on that port as readily as the backend —
+ * measured 2026-10-12 (task #1212): a generated project's dev server
+ * auto-incremented onto `[::]:3001` and became permanently unreapable, exactly
+ * the ghost-listener shape that cost a two-hour outage on 2026-10-10. The
+ * reaper runs inside the backend, so the backend is this process and its
+ * ancestors (killing backend-wrapper.ps1 ends the backend too); everything else
+ * is reapable regardless of which port it holds.
  *
  * @param pid - Process ID to check / チェック対象のプロセスID
- * @returns true if listening on port 3001 / ポート3001をLISTENしていれば true
+ * @returns true when the PID must not be killed / kill してはいけなければ true
  */
-function isListeningOnBackendPort(pid: number): boolean {
+function backendProtectedPids(snapshot?: ProcessSnapshotEntry[]): Set<number> {
+  // Resolved ONCE per backend process. This set is `process.pid` plus its
+  // ancestors, which cannot change while this process runs, and the only way
+  // to learn it on Windows is a machine-wide PowerShell snapshot —
+  // `execSync`, 15s timeout, blocking the event loop for its whole duration.
+  //
+  // Measured 2026-10-13: resolving it per call added that blocking snapshot to
+  // every aux-CLI cleanup and every agent teardown (the `knownTargets` callers
+  // in aux-cli-cleanup and the three agent runners), paths that previously took
+  // no snapshot at all. 41 event-loop-lag entries and two self-healing
+  // restarts in one day, the last stall 22.5s — the same order as one snapshot
+  // timeout. Caching removes the regression without weakening the guard.
+  if (cachedProtectedPids) return cachedProtectedPids;
   try {
-    if (process.platform === 'win32') {
-      const result = execSync(`netstat -aon | findstr ":3001 " | findstr "LISTEN"`, {
-        stdio: 'pipe',
-        timeout: 5000,
-      }).toString();
-      return result.includes(String(pid));
-    }
-    const result = execSync(`lsof -iTCP:3001 -sTCP:LISTEN -t 2>/dev/null`, {
-      stdio: 'pipe',
-      timeout: 5000,
-    }).toString();
-    return result.trim().split('\n').includes(String(pid));
+    const byPid = new Map<number, number>();
+    // Reuse a snapshot the caller already paid for; only pay for one otherwise.
+    const entries = snapshot?.length ? snapshot : readProcessParents();
+    for (const e of entries) byPid.set(e.pid, e.ppid);
+    const resolved = ancestorPids(process.pid, (p) => byPid.get(p));
+    // Only cache a real answer: a failed enumeration yields just {self}, and
+    // caching that would permanently drop the wrapper from the guard.
+    if (resolved.size > 1 || byPid.size > 0) cachedProtectedPids = resolved;
+    return resolved;
   } catch {
-    return false;
+    // Unknown ancestry must still protect the backend process itself.
+    return new Set([process.pid]);
   }
 }
+
+/** Memoized backend ancestry; see {@link backendProtectedPids}. */
+let cachedProtectedPids: Set<number> | null = null;
+
+/** Drop the memo so a test can exercise resolution again. */
+export function resetBackendProtectedPidsCache(): void {
+  cachedProtectedPids = null;
+}
+
+/** pid/ppid pairs for the whole machine, or [] when enumeration fails. */
+function readProcessParents(): ProcessSnapshotEntry[] {
+  if (process.platform === 'win32') return listWindowsProcessSnapshot();
+  try {
+    const out = execSync('ps -eo pid=,ppid=', { stdio: 'pipe', timeout: 5000 }).toString();
+    return out
+      .split('\n')
+      .map((line) => line.trim().split(/\s+/).map(Number))
+      .filter(([p, pp]) => Number.isInteger(p) && Number.isInteger(pp))
+      .map(([pid, ppid]) => ({ pid, ppid, cmd: '' }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Report an intruder holding the backend's port, so a hijack is visible in the
+ * logs even though it is now reapable.
+ *
+ * @param pid - Process about to be killed / kill 直前のプロセス
+ */
+function warnIfShadowingBackendPort(pid: number): void {
+  if (process.platform !== 'win32') return;
+  try {
+    const out = execSync('netstat -aon', { stdio: 'pipe', timeout: 5000 }).toString();
+    if (!parseListenerPids(out, BACKEND_PORT).includes(pid)) return;
+    logger.warn(
+      { pid },
+      '[ProcessTracker] Reaping a process that was LISTENING on the backend port — ' +
+        'it is not the backend, so it was shadowing it',
+    );
+  } catch {
+    // Diagnostics only; never block a reap on this.
+  }
+}
+
+/** The port the backend serves on. */
+const BACKEND_PORT = 3001;
 
 /**
  * Write a PID file for an agent-related process.
@@ -209,15 +279,16 @@ export function cleanupZombieProcesses(): number {
           continue;
         }
 
-        // NOTE: Protect processes listening on port 3001 — they may be the backend server itself
-        if (isListeningOnBackendPort(info.pid)) {
+        // NOTE: Protect the backend itself — not merely whatever holds its port.
+        if (backendProtectedPids().has(info.pid)) {
           logger.warn(
             { pid: info.pid },
-            '[ProcessTracker] Skipping process — listening on port 3001 (backend protection)',
+            '[ProcessTracker] Skipping process — it is the backend or an ancestor of it',
           );
           unlinkSync(filepath);
           continue;
         }
+        warnIfShadowingBackendPort(info.pid);
 
         logger.info({ pid: info.pid, role: info.role }, '[ProcessTracker] Killing zombie process');
         try {
@@ -290,22 +361,27 @@ export function killProcessTreeSafely(
     for (const t of opts.knownTargets ?? []) {
       if (t !== process.pid && isProcessAlive(t)) targets.add(t);
     }
+    let snapshot: ProcessSnapshotEntry[] = [];
     if (process.platform === 'win32' && !opts.knownTargets) {
       // Snapshot-based enumeration also catches subtrees whose live parent
       // link is gone; [] on enumeration failure degrades to plain /T below.
-      const snapshot = listWindowsProcessSnapshot();
+      snapshot = listWindowsProcessSnapshot();
       for (const t of collectKillTargets(snapshot, pid, opts.workdir)) targets.add(t);
     }
     if (targets.size === 0) return false;
 
+    // One ancestry resolution per sweep, reusing the snapshot already taken.
+    const protectedPids = backendProtectedPids(snapshot);
     for (const t of [...targets]) {
-      if (isListeningOnBackendPort(t)) {
+      if (protectedPids.has(t)) {
         logger.warn(
           { pid: t },
-          '[ProcessTracker] Refusing to kill — listening on port 3001 (backend protection)',
+          '[ProcessTracker] Refusing to kill — it is the backend or an ancestor of it',
         );
         targets.delete(t);
+        continue;
       }
+      warnIfShadowingBackendPort(t);
     }
     if (targets.size === 0) return false;
 

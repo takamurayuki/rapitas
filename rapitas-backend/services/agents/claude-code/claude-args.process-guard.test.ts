@@ -8,13 +8,36 @@
 import { describe, test, expect } from 'bun:test';
 import { existsSync, readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { buildClaudeArgs } from './claude-args';
 import type { ClaudeCodeAgent } from './agent-core';
 
-const PRIMARY = 'C:\\Projects\\rapitas';
-const WORKTREE = 'C:\\Projects\\rapitas\\.worktrees\\task-907-9f54f7f2';
+/**
+ * The checkout these tests run in, with any `.worktrees/<name>` suffix stripped.
+ *
+ * NOTE: These used to be the literals `C:\Projects\rapitas` and its worktree.
+ * The hook decides the dependency-sharing hazard against ITS OWN location
+ * (`guardRepoRoot()` = the parent of `scripts/`), so those literals only lined
+ * up with it on the author's Windows machine. On Linux CI `cwd` resolved outside
+ * the repo root, `sharesDependencyTree` returned false, and `bunx prisma
+ * generate` came back allowed — this suite failed there while passing locally
+ * for months (measured 2026-10-11, run 38136675059). Deriving the root the same
+ * way the hook does removes the platform dependence and exercises paths that
+ * actually exist in the checkout.
+ */
+function checkoutRoot(): string {
+  const root = resolve(import.meta.dir, '..', '..', '..', '..').replace(/\\/g, '/');
+  const idx = root.toLowerCase().indexOf('/.worktrees/');
+  return idx > 0 ? root.slice(0, idx) : root;
+}
+
+const PRIMARY = checkoutRoot();
+const WORKTREE = join(PRIMARY, '.worktrees', 'task-907-9f54f7f2');
+/** msys spelling a bash agent types on Windows (`/c/Projects/...`); unchanged on POSIX. */
+const PRIMARY_MSYS = /^[a-z]:/i.test(PRIMARY)
+  ? `/${PRIMARY[0].toLowerCase()}${PRIMARY.slice(2)}`
+  : PRIMARY;
 
 function argsFor(investigationMode: boolean): string[] {
   const agent = {
@@ -95,20 +118,20 @@ describe('buildClaudeArgs injected PreToolUse hook (--settings)', () => {
   test('rejects primary-checkout commands, including cd chaining and relative-path work', () => {
     const decide = run(injectedDecision());
     expect(
-      decide(
-        'cd /c/Projects/rapitas && git pull && cd rapitas-backend && bun run db:prepare:sqlite',
-      ),
+      decide(`cd ${PRIMARY_MSYS} && git pull && cd rapitas-backend && bun run db:prepare:sqlite`),
     ).toBe('deny');
-    expect(decide('cd C:\\Projects\\rapitas; git pull')).toBe('deny');
-    expect(decide('cd /c/Projects/rapitas && sed -i s/a/b/ package.json')).toBe('deny');
-    expect(decide('cd /c/Projects/rapitas && python fix.py')).toBe('deny');
+    // Backslash spelling: the hook folds separators before matching, so this is
+    // the same root however the agent's shell writes it.
+    expect(decide(`cd ${PRIMARY.replace(/\//g, '\\')}; git pull`)).toBe('deny');
+    expect(decide(`cd ${PRIMARY_MSYS} && sed -i s/a/b/ package.json`)).toBe('deny');
+    expect(decide(`cd ${PRIMARY_MSYS} && python fix.py`)).toBe('deny');
     expect(decide('bunx prisma generate')).toBe('deny');
     expect(decide('taskkill /F /IM bun.exe')).toBe('deny');
     expect(decide('Stop-Process -Name bun -Force')).toBe('deny');
   });
 
   test('rejects mutating commands when the shell already sits in the primary checkout', () => {
-    const decide = run(injectedDecision(), `${PRIMARY}\\rapitas-backend`);
+    const decide = run(injectedDecision(), join(PRIMARY, 'rapitas-backend'));
     expect(decide('git pull')).toBe('deny');
     expect(decide('git status')).toBeUndefined();
   });
@@ -118,10 +141,10 @@ describe('buildClaudeArgs injected PreToolUse hook (--settings)', () => {
     expect(decide('git pull')).toBeUndefined();
     expect(decide('bun test --isolate foo.test.ts')).toBeUndefined();
     expect(decide(`cd ${WORKTREE} && git pull`)).toBeUndefined();
-    expect(decide('cd /c/Projects/rapitas/.worktrees/task-907-9f54f7f2 && python fix.py')).toBe(
-      undefined,
-    );
-    expect(decide('git -C /c/Projects/rapitas log --oneline -3')).toBeUndefined();
+    expect(
+      decide(`cd ${PRIMARY_MSYS}/.worktrees/task-907-9f54f7f2 && python fix.py`),
+    ).toBeUndefined();
+    expect(decide(`git -C ${PRIMARY_MSYS} log --oneline -3`)).toBeUndefined();
   });
 
   test('investigation mode keeps blocking shell tools outright', () => {

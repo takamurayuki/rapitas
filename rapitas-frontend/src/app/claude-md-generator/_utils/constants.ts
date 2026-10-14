@@ -184,6 +184,26 @@ export const PRIORITIES = [
   { id: 'security', icon: 'ShieldCheck' },
 ];
 
+/**
+ * The project facts worth asking for before generating a specification, in the
+ * order they are presented.
+ *
+ * NOTE: Order matters — the first four decide the architecture (and therefore
+ * the cost), so they come first. Each id drives `contextField_<id>` /
+ * `contextHint_<id>` in i18n and one key of ProjectContext.
+ */
+export const CONTEXT_FIELDS = [
+  'users',
+  'latency',
+  'availability',
+  'budget',
+  'deadline',
+  'team',
+  'assets',
+  'success',
+  'domainRules',
+] as const;
+
 /** A target AI coding agent and the repo path its instruction file lives at. */
 export interface AgentTarget {
   /** stable id / 識別子 */

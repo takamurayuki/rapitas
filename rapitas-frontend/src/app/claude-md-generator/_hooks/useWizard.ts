@@ -3,22 +3,18 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import type { AppAnswers, AppProposal, DynamicItem, GenerateResult } from '../_types/types';
-import { proposeApps, generateClaudeMd } from '../_utils/api';
-import { AGENT_TARGETS, ELEMENTS, SUB_GENRES } from '../_utils/constants';
-
-/** lucide icon name for user-added custom sub-genres/elements. / 自由入力で追加した項目のアイコン */
-const CUSTOM_ICON = 'Plus';
-
-/**
- * Builds a stable, collision-resistant id for a user-typed custom option.
- *
- * @param label - the free-text label / 自由入力されたラベル
- * @returns a `custom_`-prefixed id / `custom_`接頭辞付きID
- */
-function customId(label: string): string {
-  return `custom_${label.trim().toLowerCase().replace(/\s+/g, '_')}`;
-}
+import type { AppAnswers, AppProposal, GenerateResult, ProjectContext } from '../_types/types';
+import { proposeApps, generateClaudeMd, reviewSpec } from '../_utils/api';
+import {
+  formatReviewAnswers,
+  shouldReviewAgain,
+  MAX_REVIEW_ROUNDS,
+  type ReviewSpecResult,
+} from '../../api/review-spec/review-prompt';
+import { useThemeSetup, type SetupPhase } from './useThemeSetup';
+import { useOptionCatalog } from './useOptionCatalog';
+import { useGenerationHistory, type GenerationEntry } from './useGenerationHistory';
+import { useConceptCandidates } from './useConceptCandidates';
 
 export type WizardPhase =
   | 'intro'
@@ -28,10 +24,22 @@ export type WizardPhase =
   | 'platform'
   | 'proposing'
   | 'proposals'
+  // NOTE: Inserted between picking an app and generating its specification.
+  // Before this, the whole 4-document package derived from six categorical
+  // answers plus an AI-written paragraph — the user never stated a single fact
+  // about their own project, so every figure in the non-functional
+  // requirements was the model's invention (measured 2026-10-11 on TempoRaid).
+  | 'context'
   | 'generating'
+  // NOTE: Between generation and the result. Before this the wizard was
+  // strictly one-way — result-phase had no refine path — so the first chance to
+  // notice a requirement gap was an implementation task bouncing. Measured
+  // 2026-10-11: TempoRaid's 12 tasks took 6 verify_repair rounds.
+  | 'reviewing'
+  | 'review'
   | 'result';
 
-export type SetupPhase = 'idle' | 'loading' | 'success' | 'error';
+export type { SetupPhase };
 
 /**
  * Manages all wizard state and exposes typed actions to phase components.
@@ -51,22 +59,23 @@ export function useWizard() {
   const [proposals, setProposals] = useState<AppProposal[]>([]);
   const [aiErrorMessage, setAiErrorMessage] = useState('');
   const [pickedProp, setPickedProp] = useState<AppProposal | null>(null);
+  // Elicited project facts. Blank fields stay blank on purpose: the route sends
+  // them as 未確認 so the generator records an assumption instead of inventing
+  // a figure.
+  const [projectContext, setProjectContext] = useState<ProjectContext>({});
   const [result, setResult] = useState<GenerateResult | null>(null);
-  const [setupPhase, setSetupPhase] = useState<SetupPhase>('idle');
-  // Primary AI agent the scaffolded repo targets — decides the guide file's
-  // name/location (.claude/CLAUDE.md, AGENTS.md, GEMINI.md, …).
-  const [agentTargetId, setAgentTargetId] = useState<string>(AGENT_TARGETS[0].id);
-  // Empty means "let the backend decide": category falls back to 開発, and
-  // basePath falls back to ~/Projects. Both were previously unreachable from
-  // the UI even though the backend already accepted basePath.
-  const [categoryId, setCategoryId] = useState<number | null>(null);
-  const [basePath, setBasePath] = useState<string>('');
-  const [createdThemePath, setCreatedThemePath] = useState<string | null>(null);
-  const [setupError, setSetupError] = useState<string | null>(null);
+  // The review round's findings/questions and the user's answers to them.
+  const [review, setReview] = useState<ReviewSpecResult | null>(null);
+  const [reviewAnswers, setReviewAnswers] = useState<Record<string, string>>({});
+  /** Review rounds already shown, so the wizard cannot be held open forever. */
+  const [reviewRound, setReviewRound] = useState(0);
+  const setup = useThemeSetup(t);
   const topRef = useRef<HTMLDivElement>(null);
 
-  const [dynamicSubs, setDynamicSubs] = useState<DynamicItem[]>([]);
-  const [dynamicElements, setDynamicElements] = useState<DynamicItem[]>([]);
+  const catalog = useOptionCatalog({ answers, setAnswers, t });
+  const generations = useGenerationHistory();
+  const candidates = useConceptCandidates();
+  const { dynamicSubs, dynamicElements } = catalog;
 
   // Platform phase local selections — kept at top level to avoid conditional hooks
   const [localPlatform, setLocalPlatform] = useState<string | null>(null);
@@ -102,10 +111,10 @@ export function useWizard() {
   const handleSelectGenre = (genreId: string) => {
     setAnswers((a) => ({ ...a, genre: genreId, subs: [], elements: [] }));
     setPhase('sub');
-    const staticSubs = SUB_GENRES[genreId] || [];
-    setDynamicSubs(
-      staticSubs.map((s) => ({ id: s.id, icon: s.icon, label: t(`sub_${genreId}_${s.id}`) })),
-    );
+    catalog.seedSubs(genreId);
+    void candidates
+      .fetchFor('subs', { genre: genreId })
+      .then((items) => catalog.mergeProposed('subs', items));
   };
 
   /**
@@ -117,47 +126,10 @@ export function useWizard() {
    */
   const handleSubNext = (_selectedSubIds: string[]) => {
     setPhase('elements');
-    setDynamicElements((prev) =>
-      prev.length > 0
-        ? prev
-        : ELEMENTS.map((e) => ({ id: e.id, icon: e.icon, label: t('elem_' + e.id) })),
-    );
-  };
-
-  /**
-   * Adds a user-typed custom sub-genre to the option list and selects it.
-   *
-   * @param label - free-text sub-genre name / 自由入力のサブジャンル名
-   */
-  const addCustomSub = (label: string) => {
-    const trimmed = label.trim();
-    if (!trimmed) return;
-    const id = customId(trimmed);
-    setDynamicSubs((prev) =>
-      prev.some((s) => s.id === id) ? prev : [...prev, { id, icon: CUSTOM_ICON, label: trimmed }],
-    );
-    setAnswers((a) => ({
-      ...a,
-      subs: a.subs?.includes(id) ? a.subs : [...(a.subs || []), id],
-    }));
-  };
-
-  /**
-   * Adds a user-typed custom element/feature to the option list and selects it.
-   *
-   * @param label - free-text element name / 自由入力の機能要素名
-   */
-  const addCustomElement = (label: string) => {
-    const trimmed = label.trim();
-    if (!trimmed) return;
-    const id = customId(trimmed);
-    setDynamicElements((prev) =>
-      prev.some((e) => e.id === id) ? prev : [...prev, { id, icon: CUSTOM_ICON, label: trimmed }],
-    );
-    setAnswers((a) => ({
-      ...a,
-      elements: a.elements?.includes(id) ? a.elements : [...(a.elements || []), id],
-    }));
+    catalog.seedElements();
+    void candidates
+      .fetchFor('elements', { genre: answers.genre, subs: answers.subs })
+      .then((items) => catalog.mergeProposed('elements', items));
   };
 
   /**
@@ -191,7 +163,13 @@ export function useWizard() {
   const runProposeApps = async (overrideAnswers: AppAnswers) => {
     setPhase('proposing');
     try {
-      const r = await proposeApps(t, overrideAnswers, dynamicSubs, dynamicElements);
+      const r = await proposeApps(
+        t,
+        overrideAnswers,
+        dynamicSubs,
+        dynamicElements,
+        candidates.proposed.genre,
+      );
       setProposals(r.proposals || []);
       if (r.aiFailed && r.errorCode) {
         setAiErrorMessage(translateAiErrorCode(r.errorCode));
@@ -227,68 +205,133 @@ export function useWizard() {
     await runProposeApps(answers);
   };
 
+  /** Sets one elicited fact; blank clears it back to 未確認. */
+  const setContextField = (key: keyof ProjectContext, value: string) =>
+    setProjectContext((prev) => ({ ...prev, [key]: value }));
+
   /**
-   * Generates the final CLAUDE.md for the picked proposal.
+   * Moves from the chosen proposal to the elicitation step.
+   *
+   * NOTE: Generation used to start here. Asking first is the whole point: the
+   * questions can be concrete now that the app is chosen, and the answers stop
+   * the model from inventing the figures that decide the architecture.
    */
-  const handleGenerateClaudeMd = async () => {
+  const goToContext = () => {
+    if (!pickedProp) return;
+    setPhase('context');
+  };
+
+  /**
+   * Generates the final document package for the picked proposal.
+   *
+   * @param reviewAnswers - Answers to a previous round's questions / 壁打ちの回答
+   */
+  const handleGenerateClaudeMd = async (answersBlock?: string) => {
     if (!pickedProp) return;
     setPhase('generating');
+    let generated: GenerateResult | null = null;
     try {
-      const r = await generateClaudeMd(t, answers, pickedProp, dynamicSubs, dynamicElements);
-      setResult(r);
+      generated = await generateClaudeMd(
+        t,
+        answers,
+        pickedProp,
+        dynamicSubs,
+        dynamicElements,
+        projectContext,
+        answersBlock,
+        candidates.proposed.genre,
+      );
+      setResult(generated);
     } catch {
       setResult({
         tech_rationale: '',
         score: 90,
         claude_md: t('errorOccurred'),
       });
+      setPhase('result');
+      return;
     }
+
+    // Review the documents before showing them as finished. A failure here must
+    // not strand the user on a spinner, so any problem falls through to result.
+    if (!generated) {
+      setPhase('result');
+      return;
+    }
+    // Recorded on the review path too; this covers the case where the review
+    // itself could not run, so a package is never produced without an entry.
+    setPhase('reviewing');
+    try {
+      const r = await reviewSpec({
+        requirements: generated.requirements,
+        design: generated.design,
+        adr: generated.adr,
+      });
+      setReview(r);
+      generations.record({ result: generated, review: r, answersBlock });
+      // The round that just finished counts BEFORE deciding, so the cap is a
+      // cap on rounds SHOWN rather than on regenerations attempted.
+      const shown = reviewRound + 1;
+      if (!shouldReviewAgain({ round: reviewRound, implementable: r.implementable })) {
+        setPhase('result');
+        return;
+      }
+      setReviewRound(shown);
+      // NOTE: answers are deliberately NOT cleared. Clearing them made every
+      // round look like a fresh interrogation and is why answering never
+      // reached the result (reported 2026-10-12). A question the model repeats
+      // keeps the answer already given; a new question starts empty.
+      setPhase('review');
+    } catch {
+      generations.record({ result: generated, review: null, answersBlock });
+      setPhase('result');
+    }
+  };
+
+  /**
+   * Restores a previously generated package without calling the model again.
+   *
+   * @param entry - The history entry to return to / 戻る履歴
+   */
+  const selectGeneration = (entry: GenerationEntry) => {
+    setResult(entry.result);
+    setReview(entry.review);
+    setReviewAnswers({});
     setPhase('result');
   };
 
   /**
-   * Calls the setup-theme API to create a project directory from the generated CLAUDE.md.
+   * Starts the wizard with options derived from the user's own words.
+   *
+   * The genre screen is shown immediately and the proposals are appended when
+   * they arrive: a spinner here would make the entry worse than the fixed
+   * catalog it is meant to improve on.
    */
-  const handleCreateTheme = async () => {
-    if (!pickedProp || !result) return;
-    setSetupPhase('loading');
-    setSetupError(null);
-    try {
-      const target = AGENT_TARGETS.find((a) => a.id === agentTargetId) || AGENT_TARGETS[0];
-      const response = await fetch('/api/setup-theme', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          appName: pickedProp.name,
-          claudeMd: result.claude_md,
-          requirements: result.requirements,
-          design: result.design,
-          adr: result.adr,
-          scaffold: result.scaffold,
-          description: pickedProp.tagline,
-          agentFilePath: target.path,
-          // Omitted (not null/empty) when unset so the backend's own fallbacks
-          // apply rather than being overridden with a blank value.
-          ...(categoryId !== null ? { categoryId } : {}),
-          ...(basePath.trim() ? { basePath: basePath.trim() } : {}),
-        }),
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        setSetupPhase('success');
-        setCreatedThemePath(data.projectPath);
-      } else {
-        // NOTE: Prefer the translated fallback over `data.error` — the API
-        // route returns Japanese prose that would otherwise leak into an
-        // English UI regardless of the user's locale setting.
-        setSetupPhase('error');
-        setSetupError(t('themeCreateError'));
-      }
-    } catch {
-      setSetupPhase('error');
-      setSetupError(t('themeCreateError'));
-    }
+  const startWithConcept = () => {
+    setPhase('genre');
+    void candidates.fetchFor('genre');
   };
+
+  /** Re-derives the proposals after the concept is edited mid-flow. */
+  const changeConcept = (next: string) => {
+    candidates.setConcept(next);
+    if (!next.trim()) return;
+    void candidates.fetchFor('genre');
+  };
+
+  /** Records one answer to a review question. */
+  const setReviewAnswer = (id: string, value: string) =>
+    setReviewAnswers((prev) => ({ ...prev, [id]: value }));
+
+  /** Regenerates the package with the review answers folded in. */
+  const handleRegenerateFromReview = async () => {
+    const block = formatReviewAnswers(review?.questions ?? [], reviewAnswers);
+    if (!block) return;
+    await handleGenerateClaudeMd(block);
+  };
+
+  /** Accepts the documents as they stand and moves to the result. */
+  const handleAcceptReview = () => setPhase('result');
 
   /**
    * Resets all wizard state back to the intro phase.
@@ -298,23 +341,15 @@ export function useWizard() {
     setAnswers({ genre: '', platform: '', scale: '', priority: '' });
     setProposals([]);
     setPickedProp(null);
+    setProjectContext({});
+    catalog.reset();
+    generations.reset();
+    candidates.reset();
+    setReview(null);
+    setReviewAnswers({});
+    setReviewRound(0);
     setResult(null);
-    // Reset setup state as well
-    setSetupPhase('idle');
-    setAgentTargetId(AGENT_TARGETS[0].id);
-    setCategoryId(null);
-    setBasePath('');
-    setCreatedThemePath(null);
-    setSetupError(null);
-  };
-
-  /**
-   * Resets setup state to idle for retry functionality.
-   */
-  const handleResetSetup = () => {
-    setSetupPhase('idle');
-    setSetupError(null);
-    setCreatedThemePath(null);
+    setup.reset();
   };
 
   const toggleSub = (id: string) =>
@@ -341,19 +376,35 @@ export function useWizard() {
     setAiErrorMessage,
     pickedProp,
     setPickedProp,
+    projectContext,
+    setContextField,
+    goToContext,
+    concept: candidates.concept,
+    setConcept: candidates.setConcept,
+    changeConcept,
+    startWithConcept,
+    proposedOptions: candidates.proposed,
+    proposedLoading: candidates.loading,
+    proposedReason: candidates.degraded,
+    history: generations.history,
+    selectGeneration,
+    review,
+    reviewRound,
+    maxReviewRounds: MAX_REVIEW_ROUNDS,
+    reviewAnswers,
+    setReviewAnswer,
+    handleRegenerateFromReview,
+    handleAcceptReview,
     result,
-    setupPhase,
-    setSetupPhase,
-    agentTargetId,
-    setAgentTargetId,
-    categoryId,
-    setCategoryId,
-    basePath,
-    setBasePath,
-    createdThemePath,
-    setCreatedThemePath,
-    setupError,
-    setSetupError,
+    setupPhase: setup.setupPhase,
+    agentTargetId: setup.agentTargetId,
+    setAgentTargetId: setup.setAgentTargetId,
+    categoryId: setup.categoryId,
+    setCategoryId: setup.setCategoryId,
+    basePath: setup.basePath,
+    setBasePath: setup.setBasePath,
+    createdThemePath: setup.createdThemePath,
+    setupError: setup.setupError,
     topRef,
     dynamicSubs,
     dynamicElements,
@@ -366,14 +417,14 @@ export function useWizard() {
     diffLabel,
     handleSelectGenre,
     handleSubNext,
-    addCustomSub,
-    addCustomElement,
+    addCustomSub: catalog.addCustomSub,
+    addCustomElement: catalog.addCustomElement,
     handlePlatformGenerate,
     handleRegenerateProposals,
     handleGenerateClaudeMd,
-    handleCreateTheme,
+    handleCreateTheme: () => setup.createTheme(pickedProp, result),
     handleRestart,
-    handleResetSetup,
+    handleResetSetup: setup.resetSetup,
     toggleSub,
     toggleElement,
     runProposeApps,

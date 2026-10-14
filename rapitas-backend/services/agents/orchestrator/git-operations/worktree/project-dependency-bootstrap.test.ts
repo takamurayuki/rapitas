@@ -12,7 +12,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { bootstrapProjectDependencies, projectRootOf } from './project-dependency-bootstrap';
+import {
+  bootstrapProjectDependencies,
+  ensureRootInstall,
+  projectRootOf,
+} from './project-dependency-bootstrap';
 
 let base: string;
 let root: string;
@@ -124,13 +128,34 @@ describe('bootstrapProjectDependencies — the normal path', () => {
     put(root, 'package.json', '{}');
     installed(root);
     await recordFingerprint(root);
-    fs.mkdirSync(path.join(worktree, 'node_modules', 'left-alone'), { recursive: true });
+    // A COMPLETE install: `.bin` is what makes it one. Package directories
+    // without an installer's bookkeeping entry are a partial install and get
+    // replaced by the link instead — see node-modules-link's holdsRealInstall
+    // and ContextFlow #1217, where exactly that partial shape left `next`
+    // unrunnable (2026-10-13).
+    for (const entry of ['.bin', 'left-alone']) {
+      fs.mkdirSync(path.join(worktree, 'node_modules', entry), { recursive: true });
+    }
 
     await bootstrapProjectDependencies(worktree);
 
     const link = path.join(worktree, 'node_modules');
     expect(fs.lstatSync(link).isSymbolicLink()).toBe(false);
     expect(fs.existsSync(path.join(link, 'left-alone'))).toBe(true);
+  });
+
+  it('replaces a partial install so a binary becomes runnable', async () => {
+    put(root, 'package.json', '{}');
+    installed(root);
+    await recordFingerprint(root);
+    // The #1217 shape: packages present, no `.bin`, so nothing can be executed.
+    fs.mkdirSync(path.join(worktree, 'node_modules', 'next'), { recursive: true });
+
+    await bootstrapProjectDependencies(worktree);
+
+    const link = path.join(worktree, 'node_modules');
+    expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(fs.existsSync(path.join(link, '.bin'))).toBe(true);
   });
 
   it('links nothing when the root IS the target (not a worktree)', async () => {
@@ -190,5 +215,64 @@ describe('bootstrapProjectDependencies — the legacy path', () => {
     await recordFingerprint(root);
     await bootstrapProjectDependencies(worktree);
     expect(fs.existsSync(path.join(root, '.rapitas-deps'))).toBe(false);
+  });
+});
+
+// Task 1172: concurrent baseline/agent worktrees of one project used to run the
+// same install in the same root at once and corrupt each other's node_modules.
+describe('ensureRootInstall — same-root serialization (task 1172)', () => {
+  /** Fake install that creates a real-looking node_modules, like a package manager would. */
+  const fakeInstall = (calls: string[], gate?: Promise<void>) => async (dir: string) => {
+    calls.push(dir);
+    if (gate) await gate;
+    installed(dir);
+    return 'fake install';
+  };
+
+  it('runs one install for two concurrent calls on the same root', async () => {
+    put(root, 'package.json', '{}');
+    const calls: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const install = fakeInstall(calls, gate);
+
+    const first = ensureRootInstall(root, ['package.json'], { install });
+    const second = ensureRootInstall(root, ['package.json'], { install });
+    release();
+    const results = await Promise.all([first, second]);
+
+    expect(calls).toHaveLength(1);
+    expect(results.filter((r) => r !== null)).toHaveLength(1);
+  });
+
+  it('stops waiting after the timeout and installs itself', async () => {
+    put(root, 'package.json', '{}');
+    const calls: string[] = [];
+    // First install never settles within the test window.
+    const hung = new Promise<void>(() => {});
+    void ensureRootInstall(root, ['package.json'], { install: fakeInstall(calls, hung) });
+
+    const result = await ensureRootInstall(root, ['package.json'], {
+      install: fakeInstall(calls),
+      waitTimeoutMs: 20,
+    });
+
+    expect(result).toBe('fake install');
+    expect(calls).toHaveLength(2);
+  });
+
+  it('lets a waiter retry the install when the in-flight one failed', async () => {
+    put(root, 'package.json', '{}');
+    const calls: string[] = [];
+    const failing = async (dir: string) => {
+      calls.push(dir);
+      throw new Error('network down');
+    };
+    const first = ensureRootInstall(root, ['package.json'], { install: failing });
+    const second = ensureRootInstall(root, ['package.json'], { install: fakeInstall(calls) });
+
+    await expect(first).rejects.toThrow('network down');
+    expect(await second).toBe('fake install');
+    expect(calls).toHaveLength(2);
   });
 });

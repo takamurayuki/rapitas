@@ -1,8 +1,9 @@
 'use client';
 // AgentMetricsPage
 
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { Download, AlertCircle, XCircle, RefreshCw } from 'lucide-react';
+import { Download, AlertCircle, XCircle, RefreshCw, PiggyBank } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { requireAuth } from '@/contexts/AuthContext';
 import { useMetricsData } from './_hooks/useMetricsData';
@@ -13,6 +14,9 @@ import { MetricsTable } from './_components/MetricsTable';
 import { RepairConvergenceCard } from './_components/RepairConvergenceCard';
 import { UtilizationChartCard } from './_components/UtilizationChartCard';
 import { JudgeEvalCard } from './_components/JudgeEvalCard';
+import { WorkerHealthCard } from './_components/WorkerHealthCard';
+import { useWorkerHealth } from './_hooks/useWorkerHealth';
+import { useWorkerHealthFocus } from './_hooks/useWorkerHealthFocus';
 import {
   SelfObservationWidget,
   CostOptimizationWidget,
@@ -23,6 +27,7 @@ import { WorkflowLearningPanel } from '@/feature/intelligence/components/Workflo
 
 function AgentMetricsPage() {
   const t = useTranslations('agents');
+  const tBudget = useTranslations('usageBudget');
 
   const {
     overview,
@@ -41,6 +46,11 @@ function AgentMetricsPage() {
     refetch,
   } = useMetricsData();
 
+  const workerHealth = useWorkerHealth();
+  const { selectedMetric, setSelectedMetric } = useWorkerHealthFocus(
+    !loading && workerHealth.status !== 'loading',
+  );
+
   if (loading) {
     return <LoadingSpinner />;
   }
@@ -57,6 +67,13 @@ function AgentMetricsPage() {
             <p className="text-zinc-500 dark:text-zinc-400 mt-1">{t('metricsDescription')}</p>
           </div>
           <div className="flex items-center gap-3">
+            <Link
+              href="/agents/usage-budget"
+              className="px-4 py-2 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-zinc-300 dark:border-zinc-600 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors flex items-center gap-2"
+            >
+              <PiggyBank className="w-4 h-4" />
+              {tBudget('openFromMetrics')}
+            </Link>
             <button
               onClick={refetch}
               className="px-4 py-2 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-zinc-300 dark:border-zinc-600 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors flex items-center gap-2"
@@ -100,6 +117,15 @@ function AgentMetricsPage() {
         <RepairConvergenceCard />
 
         <JudgeEvalCard />
+
+        {/* Worker-health anomaly screen: composite deviation from the same-hour
+            4-week baseline. Alerts deep-link here via ?panel=worker-health. */}
+        <WorkerHealthCard
+          data={workerHealth.data}
+          status={workerHealth.status}
+          selectedMetric={selectedMetric}
+          onSelectMetric={setSelectedMetric}
+        />
 
         {/* Utilization (busy-ratio) time series — union of execution intervals
             per UTC day / day length, per role and per CLI agent. */}

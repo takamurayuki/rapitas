@@ -86,6 +86,8 @@ test('classify reports the incident kind', () => {
   assert.equal(classify('bunx prisma generate', ctx), 'prisma');
   assert.equal(classify('taskkill /F /IM bun.exe', ctx), 'process_kill');
   assert.equal(classify('git status', ctx), null);
+  const reason = decision({ tool_name: 'Bash', tool_input: { command: 'taskkill /F /IM bun.exe' } }, ctx).hookSpecificOutput.permissionDecisionReason;
+  for (const w of ['started yourself', 'PID', 'final report']) assert.ok(reason.includes(w), w);
 });
 
 test('process-kill words inside quoted data arguments are allowed', () => {
@@ -360,7 +362,7 @@ for (const command of [
 }
 
 for (const command of [
-  'cd /c/Projects/rapitas && git status && git pull',
+  'cd /c/Projects/rapitas/rapitas-backend 2>/dev/null; cd /c/Projects/rapitas/.worktrees/task-1222-6d0b1cc3 && npx --no-install prettier --write rapitas-backend/a.ts',
   'cd /c/Projects/rapitas && cat a.txt > b.txt',
   'cd /c/Projects/rapitas && find . -name "*.log" -delete',
   'cd /c/Projects/rapitas && git branch feature/x',
@@ -416,8 +418,7 @@ test('write-bearing cd into <primary>/.worktrees stays primary_mutation and the 
   );
   assert.equal(r._kind, 'primary_mutation');
   const reason = r.hookSpecificOutput.permissionDecisionReason;
-  assert.match(reason, /git show origin\/<branch>:<path>/);
-  assert.match(reason, /git grep <pattern> origin\/<branch>/);
+  for (const re of [/git show origin\/<branch>:<path>/, /git grep <pattern> origin\/<branch>/, /falls back to your worktree/, /<primary>\/rapitas-backend 2>\/dev\/null; cd <worktree>/, /relative `cd rapitas-backend`/]) assert.match(reason, re);
 });
 
 // ---------------------------------------------------------------------------
@@ -577,4 +578,28 @@ test('an unresolvable listener set fails CLOSED', () => {
 test('quoted kill words stay data under PID awareness', () => {
   assert.equal(classify('grep -n "taskkill /PID 1" a.ts', killCtx([])), null);
   assert.equal(classify(`printf '%s' '{"c":"taskkill /PID 28880"}'`, killCtx([])), null);
+});
+
+// 2026-10-13, task 1215: the agent needed an undeclared package, was told only
+// "install is unnecessary", and retried in another shape (`sed package.json &&
+// pnpm install`, then `pnpm add -D`). The reason must give a way to finish.
+test('package_install denial tells the agent how to finish when a package is genuinely missing', () => {
+  const command = 'cd packages/core && pnpm add -D @vitest/coverage-v8@2.1.4 --save-exact';
+  const d = decision({ tool_name: 'Bash', tool_input: { command }, cwd: WT }, { ...ctx, cwd: WT });
+  assert.equal(d?._kind, 'package_install');
+  const reason = d.hookSpecificOutput.permissionDecisionReason;
+  for (const w of ['package.json', 'verify.md', 'name and version', 'pnpm add', 'does not need it']) {
+    assert.ok(reason.includes(w), w);
+  }
+  // The pre-existing guidance must survive.
+  assert.ok(reason.includes('ls node_modules/.bin'));
+});
+
+test('install shapes used by the task-1215 retries stay package_install', () => {
+  for (const c of [
+    "cd ../../packages/core && sed -i 's/a/b/' package.json && cat package.json && cd ../.. && pnpm install 2>&1 | tail -15",
+    'cd packages/core && pnpm add -D @vitest/coverage-v8@2.1.4 --save-exact 2>&1 | tail -15; cat package.json',
+  ]) {
+    assert.equal(classify(c, { ...ctx, cwd: WT }), 'package_install', c);
+  }
 });

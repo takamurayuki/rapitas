@@ -75,6 +75,27 @@ export async function buildTddProtocolSection(
 }
 
 /**
+ * Guidance for when the implementer discovers it needs a package that is not declared.
+ *
+ * Task 1215: the refusal said only "install is unnecessary", so an agent that really
+ * needed @vitest/coverage-v8 retried as `sed package.json && pnpm install`, then `pnpm add`.
+ *
+ * @param language - Output language. / 出力言語
+ * @returns Guidance block with leading blank line. / 先頭に空行を持つ案内ブロック
+ */
+export function buildDependencyChangeGuidance(language: 'ja' | 'en'): string {
+  return language === 'ja'
+    ? '\n\n## 新規依存が必要になった場合\n' +
+        '- worktree の依存ツリーは共有リンクです。`pnpm install` / `pnpm add` / `npm i` / `yarn add` は形を変えても拒否されます。`package.json` を編集しても何もインストールされません。\n' +
+        '- 既に入っているバイナリは `ls node_modules/.bin` で確認し `pnpm exec <tool>` で使ってください。\n' +
+        '- 本当に未宣言のパッケージが要る場合は、パッケージ名・版・必要な理由を事実として最終サマリ（verify）に記録し、それが無くても可能な範囲を完了させてください。'
+    : '\n\n## When a new dependency is needed\n' +
+        '- The worktree dependency tree is a shared link. `pnpm install` / `pnpm add` / `npm i` / `yarn add` are rejected in any shape; editing `package.json` installs nothing.\n' +
+        '- Check installed binaries with `ls node_modules/.bin` and run them via `pnpm exec <tool>`.\n' +
+        '- If a genuinely undeclared package is required, record its name, version, and why it is needed as a plain fact in your final summary (verify), and complete everything that does not need it.';
+}
+
+/**
  * Build the implementer role's prompt context.
  *
  * @param taskId - Task id used to read prior artifacts and record metrics. / タスクID
@@ -204,6 +225,7 @@ export async function buildImplementerContext(
   if (tddSection) {
     ctx += tddSection;
   }
+  ctx += buildDependencyChangeGuidance(language);
   // research / verifyFeedback are budget-eligible: record BOTH the pre-budget
   // (raw) and injected (budgeted) size so the slimming effect is measurable
   // and the oversized-section culprit stays identifiable even in `log` mode.

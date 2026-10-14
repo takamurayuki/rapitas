@@ -5,7 +5,7 @@ import type { Task, Status } from '@/types';
 import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
 import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
-import { ExternalLink, Tag, Repeat, RefreshCw, Lock, Clock, History } from 'lucide-react';
+import { Tag, Repeat, RefreshCw, Lock, Clock, History } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
@@ -44,7 +44,6 @@ const TaskCard = memo(function TaskCard({
   onOpenInPage,
 }: TaskCardProps) {
   const t = useTranslations('task');
-  const tHome = useTranslations('home');
   const tWorkflow = useTranslations('workflow');
   const { showToast } = useToast();
 
@@ -182,8 +181,21 @@ const TaskCard = memo(function TaskCard({
           <div className="flex items-center gap-2 mb-1 min-w-0">
             <div className="flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
               <h3
-                className="font-medium text-zinc-900 dark:text-zinc-50 truncate text-sm min-w-0"
+                className={`font-medium text-zinc-900 dark:text-zinc-50 truncate text-sm min-w-0${
+                  onOpenInPage && !isSelectionMode
+                    ? ' hover:underline hover:text-blue-600 dark:hover:text-blue-400'
+                    : ''
+                }`}
                 title={task.title}
+                onClick={
+                  onOpenInPage && !isSelectionMode
+                    ? (e) => {
+                        // Stop the row's onClick so the slide panel doesn't open too.
+                        e.stopPropagation();
+                        onOpenInPage(task.id);
+                      }
+                    : undefined
+                }
               >
                 {task.title}
               </h3>
@@ -359,18 +371,6 @@ const TaskCard = memo(function TaskCard({
                 />
               );
             })}
-            {onOpenInPage && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenInPage(task.id);
-                }}
-                className="w-7 h-7 rounded-md flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-all duration-200 ease-out hover:scale-110"
-                aria-label={tHome('openInPage')}
-              >
-                <ExternalLink className="w-4 h-4" aria-hidden="true" />
-              </button>
-            )}
           </div>
         )}
       </div>

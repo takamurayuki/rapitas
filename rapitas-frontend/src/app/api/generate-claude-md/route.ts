@@ -3,12 +3,58 @@ import { createLogger } from '@/lib/logger';
 import {
   type ClaudeMdRequest,
   type GenerateResult,
+  type ProjectContextInput,
   type ScaffoldFile,
   systemPrompt,
 } from './document-package-prompt';
 import { buildFallbackResponse } from './fallback-package';
 
 const logger = createLogger('GenerateClaudeMdRoute');
+
+/** Japanese labels for the elicited facts, as the model reads them. */
+const CONTEXT_LABELS: Record<keyof ProjectContextInput, string> = {
+  users: '想定ユーザー数',
+  latency: 'レイテンシ要求',
+  availability: '可用性要求',
+  budget: '予算感',
+  deadline: '期限',
+  team: '開発体制',
+  assets: '既存資産',
+  success: '成功の定義',
+  domainRules: '業務ルール・法令',
+};
+
+/**
+ * Render the elicited facts, naming the blanks explicitly.
+ *
+ * NOTE: Unanswered fields are listed as 未確認 rather than omitted. Dropping
+ * them lets the model fill the silence with an invented figure, which is how a
+ * number nobody asked for ends up deciding the architecture; naming them makes
+ * the prompt's "record it as an assumption" rule applicable.
+ *
+ * @param context - Elicited facts, possibly absent / ヒアリング結果（無い場合あり）
+ * @returns A block to append to the user message / ユーザーメッセージに足すブロック
+ */
+export function renderContext(context: ProjectContextInput | undefined): string {
+  const keys = Object.keys(CONTEXT_LABELS) as (keyof ProjectContextInput)[];
+  const lines = keys.map((k) => {
+    const v = context?.[k]?.trim();
+    return `- ${CONTEXT_LABELS[k]}: ${v ? v : '未確認'}`;
+  });
+  return `\n\n## ヒアリング結果（空欄=未確認。創作せず「前提と未決事項」に記載すること）\n${lines.join('\n')}`;
+}
+
+/**
+ * Render the previous round's answers, when regenerating after a review.
+ *
+ * @param answers - Free-text answers, possibly absent / 回答（無い場合あり）
+ * @returns A block to append, or '' / 追記ブロック、無ければ空文字
+ */
+export function renderReviewAnswers(answers: string | undefined): string {
+  const text = answers?.trim();
+  if (!text) return '';
+  return `\n\n## 前回の生成に対するユーザーの回答（反映し、確定した事項は未決事項から外すこと）\n${text}`;
+}
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:3001').replace(
   'localhost',
@@ -77,7 +123,7 @@ function parseAIResponse(content: string): GenerateResult | null {
 export async function POST(request: NextRequest) {
   try {
     const body: ClaudeMdRequest = await request.json();
-    const { genre, subs, elems, plat, scale, prio, proposal } = body;
+    const { genre, subs, elems, plat, scale, prio, proposal, context, reviewAnswers } = body;
 
     const userMessage = `
 アプリ名: ${proposal.name}
@@ -89,6 +135,7 @@ export async function POST(request: NextRequest) {
 優先事項: ${prio}
 独自機能: ${proposal.unique}
 技術ヒント: ${proposal.tech_hint?.join('、') || ''}
+${renderContext(context)}${renderReviewAnswers(reviewAnswers)}
 `.trim();
 
     // Try AI generation via backend

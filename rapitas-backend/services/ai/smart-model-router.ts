@@ -22,6 +22,7 @@ import { classifyTier, inferCostPer1k } from './model-discovery/tier-classifier'
 import { listActiveCooldowns } from './provider-cooldown';
 import { recordDecision } from '../observability/decision-trace';
 import { buildRouteReason, type RouteDriver } from './routing-reason';
+import { sumAttributedSpend } from '../agents/execution-cost-attribution';
 
 const log = createLogger('smart-model-router');
 
@@ -46,20 +47,6 @@ const PROVIDER_LABEL: Record<'claude' | 'openai' | 'gemini' | 'ollama', string> 
   gemini: 'Gemini',
   ollama: 'Ollama (ローカル)',
 };
-
-/**
- * Coerce a recorded AgentExecution.costUsd (Prisma Decimal | number | string,
- * incl. legacy double-JSON-encoded strings like `"\"0.5\""`) to a number.
- *
- * @param v - Raw column value / 生のカラム値
- * @returns Finite non-negative number, 0 when unparseable / パース不能時は0
- */
-function coerceCostUsd(v: unknown): number {
-  if (v === null || v === undefined) return 0;
-  if (typeof v === 'number') return Number.isFinite(v) && v > 0 ? v : 0;
-  const n = parseFloat(String(v).replace(/"/g, ''));
-  return Number.isFinite(n) && n > 0 ? n : 0;
-}
 
 /** Pre-execution cost estimate. */
 export type CostEstimate = {
@@ -481,25 +468,21 @@ export async function getBudgetStatus(weeklyBudget: number | null = null): Promi
   // newly-released models alike get a real number.
   const { models: discoveredForBudget } = await discoverModels();
   const rateById = new Map(discoveredForBudget.map((m) => [m.id, m.costPer1kTokens ?? 0]));
-  let spent = 0;
-  for (const exec of executions) {
-    // Prefer the REAL recorded cost (parsed from the CLI's total_cost_usd).
-    // The tokensUsed×rate estimate includes cache-read tokens at full rate,
-    // which overstates spend by orders of magnitude on cache-heavy runs and
-    // made budgetPressure fire spuriously. Estimate only for legacy rows
-    // that predate cost recording.
-    const recorded = coerceCostUsd((exec as { costUsd?: unknown }).costUsd);
-    if (recorded > 0) {
-      spent += recorded;
-      continue;
-    }
+  // Each row's OWN increment, not the recorded value: costUsd holds the CLI's
+  // session-cumulative total_cost_usd, so summing the rows of a resumed session
+  // counts its running total again every cycle. Measured 2026-10-13: $523.84
+  // for the week against a real $357.66 over 450 executions. Estimating from
+  // tokens is the fallback only for legacy rows with no recorded cost — that
+  // estimate charges cache reads at full rate and overstates a cache-heavy run
+  // by orders of magnitude.
+  let spent = sumAttributedSpend(executions, (exec) => {
     const modelId = exec.agentConfig?.modelId || 'default';
     const rate =
       rateById.get(modelId) ??
       MODEL_COST_RATES[modelId] ??
       inferCostPer1k(modelId, classifyTier(modelId));
-    spent += (exec.tokensUsed / 1000) * rate;
-  }
+    return (exec.tokensUsed / 1000) * rate;
+  });
   spent = Math.round(spent * 100) / 100;
 
   const daysElapsed = Math.max(1, (now.getTime() - weekStart.getTime()) / (24 * 60 * 60 * 1000));

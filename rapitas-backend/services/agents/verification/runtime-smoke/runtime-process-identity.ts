@@ -97,3 +97,21 @@ export function inspectOwnedRuntimeTree(
   }
   return { safe: true, alive };
 }
+
+/**
+ * Build the error message for losing ownership of a server between spawn and
+ * readiness. The cause is appended because `protected-process` (a guard
+ * preventing a wrong kill) and a benign early exit were otherwise
+ * indistinguishable in the log.
+ *
+ * @param inspected - Result of `inspectOwnedRuntimeTree` / 所有確認の検査結果
+ * @returns Message starting with `Server ownership changed during start` / 原因付きエラーメッセージ
+ */
+export function describeStartOwnershipLoss(inspected: {
+  safe: boolean;
+  alive: RuntimeProcessIdentity[];
+  reason?: string;
+}): string {
+  const detail = inspected.safe ? 'all tracked processes exited' : inspected.reason || 'unknown';
+  return `Server ownership changed during start: ${detail}`;
+}

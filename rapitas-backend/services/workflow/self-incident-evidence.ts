@@ -10,6 +10,7 @@
 import { prisma } from '../../config/database';
 import { ACTIVE_EXEC } from './workflow-reconciler-requeue';
 import type { RepeatLoopTransition } from './incident-signature-detectors';
+import { PLAN_HOLD_CAUSE } from './plan-hold-exclusion';
 
 /** One workflow transition rendered into the evidence timeline. */
 export interface TransitionEvidenceRow {
@@ -50,6 +51,8 @@ export interface GatheredTaskState {
   hasActiveQueueItem: boolean;
   /** createdAt of the newest blocked_escalated/blocked_reescalated transition (null = none/lookup failed). */
   latestBlockedEscalationAtMs: number | null;
+  /** createdAt of the newest plan_forbidden_change_hold transition (null = none/lookup failed). */
+  latestPlanHoldAtMs: number | null;
 }
 
 // NOTE: mirrors BLOCKED_ESCALATED_CAUSE / BLOCKED_REESCALATED_CAUSE in blocked-task-escalation.ts
@@ -159,6 +162,16 @@ export async function gatherTaskState(
     })
     .catch(() => [] as { createdAt: Date }[]); // fail-open: null keeps detection on
 
+  // Separate query: a hold older than the 10-row timeline must still be found.
+  const latestPlanHold = await prisma.workflowTransition
+    .findMany({
+      where: { taskId: task.id, cause: PLAN_HOLD_CAUSE },
+      orderBy: { createdAt: 'desc' },
+      take: 1,
+      select: { createdAt: true },
+    })
+    .catch(() => [] as { createdAt: Date }[]); // fail-open: null keeps detection on
+
   return {
     taskId: task.id,
     title: task.title,
@@ -189,6 +202,7 @@ export async function gatherTaskState(
     hasAnyExecution: anyExec !== null,
     hasActiveQueueItem: activeQueueItem !== null,
     latestBlockedEscalationAtMs: latestEscalation[0]?.createdAt.getTime() ?? null,
+    latestPlanHoldAtMs: latestPlanHold[0]?.createdAt.getTime() ?? null,
   };
 }
 

@@ -90,6 +90,16 @@ const VERIFY_REVIEW_ADMITTED_CAUSE = 'verify_review_admitted';
  */
 const REPAIR_BOUNCE_CAUSES = new Set(['verify_repair', 'ci_repair']);
 
+/**
+ * Causes that deliberately send the task back to the planner (task 1202). Mirrors
+ * requirement-replan-commit.ts's REQUIREMENT_REPLAN_CAUSE and workflow-plan-revision-context.ts's
+ * PLAN_REVISION_CAUSE; duplicated because importing them would pull prisma into this
+ * DB-independent module. Unlike repair bounces they only re-authorize `phase_completed:*`
+ * (the planner re-run) — they are not themselves counted against a repair budget, and the
+ * user-actor one is recognised even though user transitions are otherwise excluded.
+ */
+const REPLAN_CAUSES = new Set(['requirement_evidence_replan', 'plan_revision_requested']);
+
 /** True when `cause` is a self-repair bounce cause (verify_repair/ci_repair). */
 export function isRepairBounceCause(cause: string): boolean {
   return REPAIR_BOUNCE_CAUSES.has(cause);
@@ -163,22 +173,31 @@ export function detectRepeatLoop(input: {
   const repairBounceMinCount = input.repairBounceMinCount ?? minCount;
   const windowStart = input.nowMs - windowMs;
 
-  const windowed = input.transitions
-    .filter(
-      (t) => t.actor !== 'user' && t.createdAtMs >= windowStart && t.createdAtMs <= input.nowMs,
-    )
+  const inWindow = input.transitions
+    .filter((t) => t.createdAtMs >= windowStart && t.createdAtMs <= input.nowMs)
     .sort((a, b) => a.createdAtMs - b.createdAtMs);
+  // actor='user' is excluded from counting, but a user-requested plan revision still legitimately
+  // re-authorizes one planner re-run, so replan causes are kept for the budget walk (task 1202).
+  const windowed = inWindow.filter((t) => t.actor !== 'user' || REPLAN_CAUSES.has(t.cause));
+  const replanTotal = windowed.filter((t) => REPLAN_CAUSES.has(t.cause)).length;
 
   let bounceTotal = 0;
   for (const t of windowed) {
     if (REPAIR_BOUNCE_CAUSES.has(t.cause)) bounceTotal += 1;
   }
 
-  let forgivenessBudget = bounceTotal > 0 ? 1 : 0;
+  let forgivenessBudget = bounceTotal > 0 || replanTotal > 0 ? 1 : 0;
   let verifyForgivenessBudget = bounceTotal > 0 ? 1 : 0;
   let reviewAdmittedForgivenessBudget = bounceTotal > 0 ? 1 : 0;
   const counts = new Map<string, number>();
   for (const t of windowed) {
+    if (REPLAN_CAUSES.has(t.cause)) {
+      // Each replan re-authorizes exactly one following phase_completed:* firing. Counted as a
+      // plain cause only when system-initiated, so a user request never itself reads as a loop.
+      forgivenessBudget += 1;
+      if (t.actor !== 'user') counts.set(t.cause, (counts.get(t.cause) ?? 0) + 1);
+      continue;
+    }
     if (REPAIR_BOUNCE_CAUSES.has(t.cause)) {
       forgivenessBudget += 1;
       verifyForgivenessBudget += 1;

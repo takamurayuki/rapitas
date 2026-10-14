@@ -492,20 +492,20 @@ function decision(input, ctx) {
   if (!kind) return undefined;
   const reasons = {
     primary_mutation:
-      'Command rejected: it modifies the primary checkout. Work only inside your task worktree; run tests/git there and never cd to the primary repository. To read another task or branch (including a sibling worktree under .worktrees), do not cd there: use `git show origin/<branch>:<path>` or `git grep <pattern> origin/<branch>` from your worktree (run `git fetch origin <branch>` first if the ref is missing).' +
+      'Command rejected: it modifies the primary checkout. Work only inside your task worktree; run tests/git there and never cd to the primary repository. To read another task or branch (including a sibling worktree under .worktrees), do not cd there: use `git show origin/<branch>:<path>` or `git grep <pattern> origin/<branch>` from your worktree (run `git fetch origin <branch>` first if the ref is missing). A chain that tries the primary first and falls back to your worktree on failure (`cd <primary> 2>/dev/null; cd <worktree>`) is rejected too: skip the primary attempt and run from your cwd with relative paths. A primary subdirectory is the same: `cd <primary>/rapitas-backend 2>/dev/null; cd <worktree>` is rejected at the first cd. You never need an absolute path: from your cwd use a relative `cd rapitas-backend`, or stay at the worktree root and run e.g. `npx --no-install prettier --write rapitas-backend/<path>`.' +
       worktreeHint(ctx?.cwd ?? input.cwd, primaryRoot),
     primary_readonly:
       'Command rejected: never cd into the primary checkout, even to inspect it. Read-only git inspection is allowed without entering it (e.g. `git -C <primary-checkout-path> status`); everything else belongs in your task worktree.',
     prisma:
       'Command rejected: prisma generate/db push/db:prepare must not be run by agents (dev.js does it on startup; running it rewrites shared generated files and can kill the backend).',
     process_kill:
-      "Command rejected: never stop/kill processes (Stop-Process/taskkill/pkill). The backend on port 3001 is the agent's own connection.",
+      "Command rejected: never stop/kill processes (Stop-Process/taskkill/pkill). The backend on port 3001 is the agent's own connection. Do not stop a process you started yourself either; record its PID, command, and start reason in your final report (reflected into verify).",
     // NOTE: must not read as "give up and file a concern" — that is what task
     // 1153 did, bouncing verify forever. node_modules being link-shared means
     // the dependencies are ALREADY resolvable here, so the install is
     // unnecessary rather than merely forbidden; say so and name the check.
     package_install:
-      'Command rejected: this checkout shares node_modules with its project root through a link, so an install here would rewrite the tree for the root and every sibling worktree. You do not need to install: the shared tree is already populated — run `ls node_modules/.bin` (PowerShell: `Get-ChildItem node_modules/.bin`) and use the binaries directly (`pnpm exec <tool>` / `npx <tool>` work and are allowed). If a binary really is missing, the environment was not prepared; report that specific missing binary in verify.md rather than attempting an install. A genuine dependency CHANGE (adding a package) is the operator\'s job in the project root.',
+      'Command rejected: this checkout shares node_modules with its project root through a link, so an install here would rewrite the tree for the root and every sibling worktree. You do not need to install: the shared tree is already populated — run `ls node_modules/.bin` (PowerShell: `Get-ChildItem node_modules/.bin`) and use the binaries directly (`pnpm exec <tool>` / `npx <tool>` work and are allowed). If a binary really is missing, the environment was not prepared; report that specific missing binary in verify.md rather than attempting an install. A genuine dependency CHANGE (adding a package) cannot be done from this worktree, and editing package.json here does not install anything, so do not edit the manifest and do not retry in another shape (`pnpm add`, `npm i`, `yarn add`, a script that wraps them). Instead state the missing package name and version, and why it is needed, in verify.md as a plain fact, and complete every part of the work that does not need it.',
   };
   return {
     hookSpecificOutput: {

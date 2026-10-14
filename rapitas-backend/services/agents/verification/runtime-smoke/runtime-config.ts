@@ -16,6 +16,11 @@
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { prisma } from '../../../../config/database';
+import {
+  checkRuntimeConfigContract,
+  normalizeRuntimeUrlHost,
+} from '../../../organization/runtime-config-contract';
+import { parseFeatureEntries, type FeatureEntry } from './feature-reachability';
 
 /** File name looked up at the worktree root. */
 export const RUNTIME_CONFIG_FILENAME = 'rapitas.runtime.json';
@@ -36,6 +41,8 @@ export interface RuntimeConfig {
   readySelector?: string;
   /** Browser readiness deadline, separate from server startup. */
   readinessTimeoutMs?: number;
+  /** Declared feature entry points checked against the shipped tree. */
+  featureEntries?: FeatureEntry[];
 }
 
 const DEFAULT_READY_TIMEOUT_MS = 90_000;
@@ -76,6 +83,18 @@ export function parseRuntimeConfig(raw: string): { config?: RuntimeConfig; error
     return { error: '"url" must be an http(s) URL (use {port} for the allocated port)' };
   }
 
+  // NOTE: the launch contract is enforced HERE, at the point a config is
+  // accepted, because an accepted bad config is not merely a failed run.
+  // Measured 2026-10-12 (task #1212): `{"start":"pnpm dev -p 3210",
+  // "url":"http://localhost:3210"}` passed, the harness could not place the app
+  // on its allocated port, Next.js auto-incremented from its own default and
+  // ended up LISTENING on `[::]:3001` — the backend's port. Rejecting the
+  // config is the only point at which that is still cheap.
+  const violations = checkRuntimeConfigContract({ start: o.start, url: o.url });
+  if (violations.length > 0) {
+    return { error: violations.map((v) => v.message).join(' ') };
+  }
+
   const healthPath = typeof o.healthPath === 'string' && o.healthPath ? o.healthPath : '/';
   if (
     o.readySelector !== undefined &&
@@ -104,10 +123,18 @@ export function parseRuntimeConfig(raw: string): { config?: RuntimeConfig; error
       : []
   ).slice(0, MAX_CHECK_PATHS);
 
+  const featureParse = parseFeatureEntries(o.featureEntries);
+  if (featureParse.error) return { error: featureParse.error };
+
   return {
     config: {
+      ...(featureParse.entries ? { featureEntries: featureParse.entries } : {}),
       start: o.start.trim(),
-      url: o.url.trim().replace(/\/+$/, ''),
+      // `localhost` is rewritten to 127.0.0.1 rather than rejected: three
+      // existing projects configure it and work, and the ambiguity being
+      // removed is `::1`, which is what let a process on `[::]` answer a probe
+      // meant for the app under test (task #1212, 2026-10-12).
+      url: normalizeRuntimeUrlHost(o.url.trim().replace(/\/+$/, '')),
       healthPath,
       readyTimeoutMs,
       checkPaths: checkPaths.length > 0 ? checkPaths : ['/'],

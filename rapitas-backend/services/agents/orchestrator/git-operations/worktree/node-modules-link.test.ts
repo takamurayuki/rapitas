@@ -64,18 +64,71 @@ describe('holdsRealInstall', () => {
     expect(holdsRealInstall(worktree)).toBe(false);
   });
 
-  it('accepts one holding packages', () => {
+  // Measured 2026-10-13 on ContextFlow task #1217. Its
+  // `apps/web/node_modules` held @types, next, next-auth, react, react-dom,
+  // vitest and zod — and NO `.bin`. Package directories alone were read as a
+  // genuine install, so linkNodeModules skipped the directory, and `next dev`
+  // then failed with "next not found" even though the next package was sitting
+  // right there. runtime-smoke could not run, and the task bounced for an
+  // environment reason rather than anything it had done. A tree that cannot
+  // execute a binary is a PARTIAL install, not a real one.
+  it('rejects packages without any install marker (a partial install)', () => {
+    install(worktree, ['@types', 'next', 'react', 'vitest', 'zod']);
+    expect(holdsRealInstall(worktree)).toBe(false);
+  });
+
+  it('rejects packages alongside a tool cache but no marker', () => {
     install(worktree, ['.vite', 'zod']);
+    expect(holdsRealInstall(worktree)).toBe(false);
+  });
+
+  it('accepts a .bin even though it is a dot-entry', () => {
+    install(worktree, ['.bin']);
     expect(holdsRealInstall(worktree)).toBe(true);
   });
 
-  it('accepts a pnpm store or a .bin even though both are dot-entries', () => {
-    for (const marker of ['.pnpm', '.bin']) {
-      fs.rmSync(path.join(worktree, 'node_modules'), { recursive: true, force: true });
-      install(worktree, [marker]);
-      expect(holdsRealInstall(worktree)).toBe(true);
-    }
+  // Measured 2026-10-13 on ContextFlow task #1215, AFTER the first version of
+  // this rule shipped. Its worktree root node_modules held exactly one entry,
+  // `.pnpm`, and nothing else; `pnpm dev` still failed with "'next' は、内部
+  // コマンドまたは外部コマンド... として認識されていません" and pnpm itself
+  // warned "Local package.json exists, but node_modules missing". runtime-smoke
+  // then reported `unverifiable; completion withheld` and the task could not
+  // finish.
+  //
+  // `.pnpm` is the virtual store pnpm creates while it works, not a record that
+  // it finished — the install that completes writes `.modules.yaml` and `.bin`
+  // (both present in the project root this worktree should have linked to). The
+  // first version of this rule accepted `.pnpm` as completion evidence, which
+  // made this shape WORSE than the any-non-dot-entry rule it replaced: under
+  // the old rule `.pnpm` was a dot-entry and the tree got relinked.
+  it('rejects a lone .pnpm store (pnpm started but never finished)', () => {
+    install(worktree, ['.pnpm']);
+    expect(holdsRealInstall(worktree)).toBe(false);
   });
+
+  // ContextFlow task #1217's worktree root, measured the same day: a `.pnpm`
+  // store plus package directories, still no `.bin` and no `.modules.yaml`, and
+  // `next dev` still could not start. Packages that no binary can be launched
+  // from are the same partial tree as the case above.
+  it('rejects a .pnpm store alongside packages but no .bin or .modules.yaml', () => {
+    install(worktree, ['.pnpm', '@types', 'eslint', 'typescript']);
+    expect(holdsRealInstall(worktree)).toBe(false);
+  });
+
+  // The real shapes measured in ContextFlow, so the rule is pinned to what
+  // actual installers produce rather than to invented fixtures.
+  for (const [label, entries] of [
+    ['pnpm project root', ['.bin', '.cache', '.pnpm', '.modules.yaml', 'eslint', 'typescript']],
+    ['pnpm workspace package', ['.bin', '@types', 'next', 'react', 'zod']],
+    ['package whose deps ship a binary', ['.bin', '.vite', 'vitest', 'zod']],
+    ['npm hoisted install', ['.package-lock.json', 'react']],
+  ] as const) {
+    it(`accepts a complete install: ${label}`, () => {
+      fs.rmSync(path.join(worktree, 'node_modules'), { recursive: true, force: true });
+      install(worktree, [...entries]);
+      expect(holdsRealInstall(worktree)).toBe(true);
+    });
+  }
 
   it('rejects an absent or empty node_modules', () => {
     expect(holdsRealInstall(worktree)).toBe(false);
@@ -128,10 +181,26 @@ describe('linkNodeModules', () => {
 
   it('never destroys a real install in the worktree', () => {
     install(root);
-    install(worktree, ['zod']);
+    install(worktree, ['.bin', 'zod']);
     expect(linkNodeModules(root, worktree)).toEqual([]);
     expect(linkState()).toBe('real');
     expect(fs.existsSync(path.join(worktree, 'node_modules', 'zod'))).toBe(true);
+  });
+
+  // The ContextFlow #1217 shape, measured 2026-10-13: the worktree's
+  // apps/web/node_modules held seven package directories and no `.bin`, so the
+  // link was skipped and `next` could not be executed from it. Replacing the
+  // partial tree with the link is what makes the binary resolvable.
+  it('replaces a partial workspace install that cannot run a binary', () => {
+    install(root);
+    install(path.join(root, 'apps/web'), ['.bin', 'next', 'react']);
+    install(path.join(worktree, 'apps/web'), ['next', 'react', 'zod']);
+
+    const linked = linkNodeModules(root, worktree).sort();
+
+    expect(linked).toEqual(['', 'apps/web']);
+    expect(linkState('apps/web')).toBe(`link->${path.join(root, 'apps', 'web', 'node_modules')}`);
+    expect(fs.existsSync(path.join(worktree, 'apps/web', 'node_modules', '.bin'))).toBe(true);
   });
 
   it('keeps a link that points elsewhere but still resolves', () => {

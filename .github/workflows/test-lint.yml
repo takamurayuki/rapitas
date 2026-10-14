@@ -358,8 +358,16 @@ jobs:
           src/feature/developer-mode/hooks/__tests__/execution-poll-handlers.test.ts
           src/feature/developer-mode/hooks/__tests__/execution-poll-terminal.test.ts
           src/feature/developer-mode/hooks/__tests__/execution-poll-loop.test.ts
+          src/feature/developer-mode/components/deviation-timeline/DeviationTimeline.test.tsx
+          src/feature/developer-mode/components/deviation-timeline/DeviationItem.test.tsx
+          src/feature/developer-mode/components/deviation-timeline/DeviationContextDialog.test.tsx
+          src/feature/developer-mode/components/deviation-timeline/useDeviationTimeline.test.ts
           src/feature/tasks/components/gantt/gantt-utils.test.ts
           src/feature/tasks/hooks/__tests__/formatLogData.test.ts
+          src/app/api/generate-claude-md/fallback-package.test.ts
+          src/app/api/generate-claude-md/__tests__/context-rendering.test.ts
+          src/app/api/review-spec/__tests__/review-prompt.test.ts
+          src/app/backlog/settings/_components/__tests__/backlog-job-meta.test.ts
 
   lint:
     name: Lint Code

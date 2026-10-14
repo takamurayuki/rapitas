@@ -25,6 +25,7 @@ import { BLOCKED_REESCALATION_INTERVAL_MS } from './blocked-task-policy';
 import { gatherTaskState } from './self-incident-evidence';
 import { inspectSupervisorSignatures } from './supervisor-incident-inspect';
 import { fileFinding, type CandidateTask } from './self-incident-file-finding';
+import { readLastRetryDispatch } from './blocked-retry-dispatch';
 
 /**
  * Runs all three detectors over one task and files a concern per finding.
@@ -39,6 +40,8 @@ import { fileFinding, type CandidateTask } from './self-incident-file-finding';
  *   `currentTaskId`, resolved once per pass by the caller (task #969). / 稼働中テーマとcurrentTaskIdの対応
  * @param armedThemeIds - Themes whose blocked-task retry/escalation pipeline is armed
  *   (task 977, resolved once per pass by the caller). / blockedタスク自動再試行パイプラインが有効なテーマID集合
+ * @param pausedUserThemeIds - Themes paused without automatic resume (`paused_user` / legacy
+ *   `paused`), resolved once per pass by the caller (task #1220). / 自動再開されない一時停止中のテーマID集合
  */
 export async function inspectTask(
   task: CandidateTask,
@@ -49,14 +52,15 @@ export async function inspectTask(
   repairBounceMinCount: number,
   themeAutoRunRunState: Map<number, { currentTaskId: number | null }>,
   armedThemeIds: Set<number>,
+  pausedUserThemeIds: Set<number> = new Set(),
 ): Promise<number> {
   const state = await gatherTaskState(task, nowMs, REPEAT_LOOP_WINDOW_MS);
   let filed = 0;
 
   // Structural dispatch gate (#860): a task that can never gain a live
   // execution/queue item — workflow disabled, non-development theme, or
-  // theme auto-run disabled — is a legitimate indefinite wait, not
-  // stagnation. Unthemed tasks fall through to `true` (managed) on purpose —
+  // theme auto-run disabled, or theme paused by the operator (#1220) — is a
+  // legitimate indefinite wait, not stagnation. Unthemed tasks fall through to `true` (managed) on purpose —
   // see incident-signature-detectors.ts's isWorkflowManaged JSDoc.
   const isWorkflowManaged =
     task.workflowDisabled || workflowDisabledGlobally
@@ -65,7 +69,9 @@ export async function inspectTask(
         ? false
         : task.themeId != null && disabledAutoRunThemeIds.has(task.themeId)
           ? false
-          : true;
+          : task.themeId != null && pausedUserThemeIds.has(task.themeId)
+            ? false
+            : true;
 
   const manuallyWithdrawn = state.latestTransitionCause === MANUAL_STOP_WITHDRAW_CAUSE;
   // Theme is actively dispatching a DIFFERENT task → this task is a normal
@@ -99,10 +105,26 @@ export async function inspectTask(
     blockedEscalationRecent: isBlockedEscalationRecent(state.latestBlockedEscalationAtMs, nowMs),
     blockedEscalated,
     blockedRetryPipelineArmed,
+    taskHalted: task.haltReason != null,
+    autoRunExcluded: task.autoRunExcluded === true,
+    latestTransitionCause: state.latestTransitionCause,
+    latestPlanHoldAtMs: state.latestPlanHoldAtMs,
     nowMs,
   });
   if (stagnation) {
     const staleMin = Math.round(stagnation.staleMs / 60_000);
+    // Task 1238: say why nothing picked the task up — theme slot state plus the
+    // dispatch outcome of its last blocked auto-retry — so a recurrence is
+    // diagnosable from the concern alone. Fail-open: evidence only.
+    const lastDispatch = await import('../../config/database')
+      .then((m) => readLastRetryDispatch(m.prisma as never, task.id))
+      .catch(() => null);
+    const themeState =
+      task.themeId == null
+        ? 'テーマ未所属'
+        : runState
+          ? `テーマ稼働中(currentTaskId=${runState.currentTaskId ?? 'null'})`
+          : 'テーマは稼働中でない(running 以外)';
     if (
       await fileFinding({
         signature: 'stagnation',
@@ -111,7 +133,8 @@ export async function inspectTask(
         title: '[自己検出] 停滞: 実行もキューも無いまま非終端タスクが放置される',
         explanation:
           `非終端タスク(status=${task.status}, workflowStatus=${task.workflowStatus ?? 'null'})が、` +
-          `実行中エージェントもアクティブなキュー項目も無いまま${staleMin}分間更新されていません。`,
+          `実行中エージェントもアクティブなキュー項目も無いまま${staleMin}分間更新されていません。` +
+          `[${themeState}; 直近のblocked再試行のdispatch=${lastDispatch ?? '記録なし'}]`,
         thresholdDescription:
           `停滞閾値 ${Math.round(STAGNATION_THRESHOLD_MS / 60_000)}分` +
           `（実行なし・キューなし・正当な待機状態でない非終端タスクが対象）`,

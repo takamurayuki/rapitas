@@ -25,6 +25,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { getTaskSpendUsdSince } from './task-budget';
+import { reportLifetimeSpendNotice } from './task-spend-notice';
 import { detectRepeatLoop, REPEAT_LOOP_WINDOW_MS } from './incident-signature-repeat-loop';
 import { activeClockStartMs } from './task-iteration-budget-active-clock';
 import { countNonAdvancingTransitions } from './task-iteration-budget-status';
@@ -343,6 +344,10 @@ export async function resolveIterationBudgetForTask(
     );
 
     consecutiveReadFailures.delete(taskId);
+    // Informational, never a halt input: the windowed `spentUsd` above is reset
+    // by every retry/replan, so nobody was ever told how much a task had spent
+    // in total. See task-spend-notice.ts for the measured reason.
+    void reportLifetimeSpendNotice(taskId, task.workflowStatus);
     return resolveIterationBudgetState({
       nowMs,
       windowStartMs,

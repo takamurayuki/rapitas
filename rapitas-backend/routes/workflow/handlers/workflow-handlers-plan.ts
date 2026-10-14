@@ -64,6 +64,8 @@ export async function handleApprovePlan({
       language?: 'ja' | 'en';
       overrideForbiddenChange?: boolean;
       overrideReason?: string;
+      /** Reviewer's judgement comment saved in the deviation audit (task 1218). */
+      comment?: string;
     };
     if (typeof parsedBody?.approved !== 'boolean') {
       throw new ValidationError('approved (boolean) is required');
@@ -187,12 +189,25 @@ export async function handleApprovePlan({
       },
     });
 
+    // Deviation audit (task 1218): counts / kinds / comment. Never blocks approval.
+    const deviationAudit = await import('../deviation/deviation-handlers')
+      .then(({ recordApprovalDeviationAudit }) =>
+        recordApprovalDeviationAudit({
+          taskId,
+          decision: parsedBody.approved ? 'approved' : 'rejected',
+          comment: typeof parsedBody.comment === 'string' ? parsedBody.comment : null,
+          source,
+        }),
+      )
+      .catch((err: unknown) => ({ saved: false as const, error: String(err) }));
+
     if (parsedBody.approved) {
-      // Notify the theme auto-run scheduler so it can resume a paused theme.
+      // Release waiting_approval queue items (also covers the subtask branch,
+      // which never reaches resumeAfterApproval), then resume a paused theme.
       try {
-        const { ThemeAutoRunScheduler } =
-          await import('../../../services/workflow/auto-run/theme-auto-run-scheduler');
-        await ThemeAutoRunScheduler.getInstance().onPlanApproved(taskId);
+        const { syncAfterPlanApprovalAndNotifyTheme } =
+          await import('../../../services/workflow/plan-approval-queue-sync');
+        await syncAfterPlanApprovalAndNotifyTheme(taskId);
       } catch (err) {
         log.warn({ err }, '[Workflow] Failed to notify ThemeAutoRunScheduler of plan approval');
       }
@@ -245,6 +260,7 @@ export async function handleApprovePlan({
       task: updatedTask,
       workflowStatus: newStatus,
       autoAdvance: parsedBody.approved,
+      deviationAudit,
     };
   } catch (err) {
     if (err instanceof ValidationError || err instanceof NotFoundError) throw err;

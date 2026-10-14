@@ -485,16 +485,31 @@
         "sectionSubtitle": "Same definitions as the supervisor baseline locked on 2026-08-30 (7-day rolling windows). Badges compare this week with last week: green is better, red is worse",
         "emptyHint": "Weekly KPI trends will appear here once workflow transitions are recorded",
         "vsPrevWeek": "vs last week",
-        "repairRate": { "title": "Repair Rate", "seriesLabel": "Repair rate" },
+        "repairRate": {
+          "title": "Repair Rate",
+          "seriesLabel": "Repair rate"
+        },
         "autoMerge": {
           "title": "Auto-Merge / Parked",
           "mergedLabel": "Auto-merged",
           "exhaustedLabel": "Merge retries exhausted"
         },
-        "conflictFiled": { "title": "Merge Conflicts Filed", "seriesLabel": "Conflicts filed" },
-        "noChangeConfirmed": { "title": "Verified No-Change", "seriesLabel": "Count" },
-        "nonConvergence": { "title": "Repair Non-Convergence", "seriesLabel": "Count" },
-        "leadTime": { "title": "Lead Time Median", "seriesLabel": "Duration (min)" }
+        "conflictFiled": {
+          "title": "Merge Conflicts Filed",
+          "seriesLabel": "Conflicts filed"
+        },
+        "noChangeConfirmed": {
+          "title": "Verified No-Change",
+          "seriesLabel": "Count"
+        },
+        "nonConvergence": {
+          "title": "Repair Non-Convergence",
+          "seriesLabel": "Count"
+        },
+        "leadTime": {
+          "title": "Lead Time Median",
+          "seriesLabel": "Duration (min)"
+        }
       }
     },
     "missSignatures": {
@@ -611,6 +626,23 @@
       "drilldownState": "State",
       "drilldownRepairCount": "Repair count",
       "drilldownElapsed": "Elapsed"
-    }
+    },
+    "workerHealthTitle": "Worker health deviation screen",
+    "workerHealthDescription": "First-pass screen: execution completions, timeout rate, retry rate and worker restarts, each normalized as deviation from the median/MAD of the same weekday and hour over the last 4 weeks, combined into one composite score. Confirm causes in the per-metric panels below.",
+    "workerHealthLoading": "Loading…",
+    "workerHealthError": "Failed to load worker health data",
+    "workerHealthEmpty": "No data to display",
+    "workerHealthPending": "Pending: fewer than 4 weeks of same-weekday/same-hour history, so the composite score cannot be computed yet (restart counts accumulate from when recording started).",
+    "workerHealthPendingShort": "pending",
+    "workerHealthDeviation": "A deviation from baseline is being detected. Check the per-metric panels below for evidence.",
+    "workerHealthWeights": "Metric weights",
+    "workerHealthWeightShort": "weight {weight}",
+    "workerHealthComposite": "Composite score",
+    "workerHealthRaw": "Actual",
+    "workerHealthBaselineNote": "Baseline: median and MAD of the same weekday and hour over the last 4 weeks. Only deterioration is weighted; alerts fire on 3 consecutive points at or above 1.5, or on a collapse of the daily rhythm (autocorrelation).",
+    "workerHealthMetric_completions": "Completions",
+    "workerHealthMetric_timeoutRate": "Timeout rate",
+    "workerHealthMetric_retryRate": "Retry rate",
+    "workerHealthMetric_restarts": "Worker restarts"
   }
 }

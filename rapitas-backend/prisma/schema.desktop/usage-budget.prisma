@@ -1,0 +1,44 @@
+// ============================================================================
+// usage-budget.prisma — AI usage budget planning (task #1173).
+// Monthly budget (tokens OR executions), per-theme manual share percentages
+// and read-only classification rules for executions whose task has no theme.
+// Purely advisory: nothing here blocks or throttles an execution.
+// NOTE: model/field names are pinned by services/usage-budget/
+// usage-budget-schema-drift.test.ts — rename both together.
+// ============================================================================
+
+// Single-row (id=1) budget. Missing row = not configured (no alerts).
+model UsageBudget {
+  id              Int       @id
+  unit            String    @default("tokens") // tokens | executions
+  monthlyLimit    Int
+  snoozedUntil    DateTime? // 「後回し」: suppress the prompt until this instant
+  acknowledgedKey String? // 「続行」: `YYYY-MM:<level>` the user already confirmed
+  lastNotifiedKey String? // `YYYY-MM:<level>` already notified (CAS target)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Manual allocation share per theme. themeId is deliberately NOT a foreign key
+// so deleting a theme never cascades here; 0 means 未分類 (unclassified) —
+// SQLite treats NULLs as distinct in unique indexes, so NULL cannot be used.
+model UsageBudgetThemeShare {
+  id           Int   @id @default(autoincrement())
+  budgetId     Int
+  themeId      Int
+  sharePercent Float
+
+  @@unique([budgetId, themeId])
+}
+
+// Aggregation-only re-classification: an execution whose Task.themeId is null
+// is counted under `themeId` when the task title contains `keyword`
+// (case-insensitive, first match by sortOrder wins). Never rewrites tasks.
+model UsageClassificationRule {
+  id        Int      @id @default(autoincrement())
+  themeId   Int
+  keyword   String
+  sortOrder Int      @default(0)
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+}

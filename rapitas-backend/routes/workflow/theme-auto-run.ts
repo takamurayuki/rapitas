@@ -4,6 +4,8 @@
  * HTTP routes for per-theme auto-execution control.
  *
  * POST /themes/:id/auto-run  { action: 'start' | 'pause' | 'stop', order?: 'priority' | 'created' }
+ *   A 'pause' response additionally carries `stillRunning` / `heldQueueItems` /
+ *   `unknown` / `note` — what the pause did NOT stop (see theme-pause-inflight).
  * GET  /themes/:id/auto-run  → ThemeAutoRunState
  */
 import { Elysia, t } from 'elysia';
@@ -17,6 +19,7 @@ import {
   toPublicAutoRunState,
 } from '../../services/workflow/auto-run/theme-auto-run-service';
 import { ThemeAutoRunScheduler } from '../../services/workflow/auto-run/theme-auto-run-scheduler';
+import { describePauseScope } from '../../services/workflow/auto-run/theme-pause-inflight';
 import { logCycleEvent } from '../../services/observability';
 import { HTTP_STATUS } from '../../utils/common/http-status';
 
@@ -132,6 +135,10 @@ export const themeAutoRunRoutes = new Elysia()
 
       try {
         let state;
+        // Filled only for 'pause': the response has to say what the pause did
+        // NOT stop, because it stops the next selection and nothing else
+        // (theme-pause-inflight.ts carries the incidents behind this).
+        let pauseScope: Awaited<ReturnType<typeof describePauseScope>> | undefined;
         if (action === 'start') {
           state = await startAutoRun(themeId, order);
           scheduler.start();
@@ -143,7 +150,15 @@ export const themeAutoRunRoutes = new Elysia()
           });
         } else if (action === 'pause') {
           state = await pauseAutoRun(themeId);
-          log.info(`[theme-auto-run] Paused auto-run for theme ${themeId}`);
+          pauseScope = await describePauseScope(themeId);
+          log.info(
+            {
+              themeId,
+              stillRunning: pauseScope.stillRunning.length,
+              heldQueueItems: pauseScope.heldQueueItems.length,
+            },
+            `[theme-auto-run] Paused auto-run for theme ${themeId} — next selection only`,
+          );
         } else {
           // stop
           state = await stopAutoRun(themeId);
@@ -174,7 +189,7 @@ export const themeAutoRunRoutes = new Elysia()
           );
         }
 
-        return { success: true, autoRun: toPublicAutoRunState(state) };
+        return { success: true, autoRun: toPublicAutoRunState(state), ...(pauseScope ?? {}) };
       } catch (err) {
         log.error({ err, themeId, action }, '[theme-auto-run] Action failed');
         context.set.status = HTTP_STATUS.INTERNAL_SERVER_ERROR;

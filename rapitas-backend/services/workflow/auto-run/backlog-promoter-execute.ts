@@ -29,7 +29,11 @@ import {
   CRITICAL_CONCERN_SEVERITIES,
 } from './backlog-bandit';
 import { pickDiverseIdeas, getRecentIdeaTaskTitles } from './idea-promotion-diversity';
-import { resolveLimit, countOutstandingAutoCreated } from './backlog-promoter-eligibility';
+import {
+  resolveLimit,
+  countOutstandingAutoCreated,
+  reportCapReached,
+} from './backlog-promoter-eligibility';
 
 const log = createLogger('auto-run:backlog-promoter');
 
@@ -254,7 +258,10 @@ export async function promoteBacklogForTheme(themeId: number): Promise<number> {
 
   const outstanding = await countOutstandingAutoCreated(themeId);
   let remaining = limit - outstanding;
-  if (remaining <= 0) return 0;
+  if (remaining <= 0) {
+    reportCapReached(themeId, outstanding, limit);
+    return 0;
+  }
 
   // Over-fetch ideas so the diversity pick has a real pool to choose from —
   // the open list is newest-first, and the newest ideas are typically the

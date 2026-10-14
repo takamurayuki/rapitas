@@ -32,7 +32,6 @@
     "deleteFailed": "タスクの削除に失敗しました",
     "duplicated": "タスクを複製しました",
     "duplicateFailed": "複製に失敗しました",
-    "openInPage": "ページで開く",
     "duplicate": "複製",
     "waitingForInput": "入力待ち",
     "scrollLeft": "左にスクロール",

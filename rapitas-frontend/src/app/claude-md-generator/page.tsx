@@ -9,16 +9,38 @@ import { ElementsPhase } from './_components/elements-phase';
 import { PlatformPhase } from './_components/platform-phase';
 import { LoadingPhase } from './_components/loading-phase';
 import { ProposalsPhase } from './_components/proposals-phase';
+import { ContextPhase } from './_components/context-phase';
+import { ReviewPhase } from './_components/review-phase';
 import { ResultPhase } from './_components/result-phase';
 
 export default function ClaudeMdGeneratorPage() {
   const w = useWizard();
 
   if (w.phase === 'intro')
-    return <IntroPhase topRef={w.topRef} t={w.t} onStart={() => w.setPhase('genre')} />;
+    return (
+      <IntroPhase
+        topRef={w.topRef}
+        t={w.t}
+        onStart={() => w.setPhase('genre')}
+        concept={w.concept}
+        onSetConcept={w.setConcept}
+        onStartWithConcept={w.startWithConcept}
+      />
+    );
 
   if (w.phase === 'genre')
-    return <GenrePhase topRef={w.topRef} t={w.t} onSelectGenre={w.handleSelectGenre} />;
+    return (
+      <GenrePhase
+        topRef={w.topRef}
+        t={w.t}
+        onSelectGenre={w.handleSelectGenre}
+        proposed={w.proposedOptions.genre}
+        proposedLoading={w.proposedLoading.genre}
+        proposedReason={w.proposedReason.genre}
+        concept={w.concept}
+        onChangeConcept={w.changeConcept}
+      />
+    );
 
   if (w.phase === 'sub')
     return (
@@ -28,6 +50,11 @@ export default function ClaudeMdGeneratorPage() {
         genre={w.answers.genre}
         selectedSubs={w.answers.subs || []}
         dynamicSubs={w.dynamicSubs}
+        genreLabel={w.proposedOptions.genre?.find((g) => g.id === w.answers.genre)?.label}
+        proposedLoading={w.proposedLoading.subs}
+        proposedReason={w.proposedReason.subs}
+        concept={w.concept}
+        onChangeConcept={w.changeConcept}
         onToggle={w.toggleSub}
         onAddCustom={w.addCustomSub}
         onNext={w.handleSubNext}
@@ -42,6 +69,10 @@ export default function ClaudeMdGeneratorPage() {
         t={w.t}
         selectedElements={w.answers.elements || []}
         dynamicElements={w.dynamicElements}
+        proposedLoading={w.proposedLoading.elements}
+        proposedReason={w.proposedReason.elements}
+        concept={w.concept}
+        onChangeConcept={w.changeConcept}
         onToggle={w.toggleElement}
         onAddCustom={w.addCustomElement}
         onNext={() => w.setPhase('platform')}
@@ -78,12 +109,40 @@ export default function ClaudeMdGeneratorPage() {
         pickedProp={w.pickedProp}
         onPick={w.setPickedProp}
         onRegenerate={w.handleRegenerateProposals}
-        onGenerate={w.handleGenerateClaudeMd}
+        onGenerate={w.goToContext}
       />
     );
 
-  if (w.phase === 'generating')
+  if (w.phase === 'context')
+    return (
+      <ContextPhase
+        topRef={w.topRef}
+        t={w.t}
+        appName={w.pickedProp?.name ?? ''}
+        context={w.projectContext}
+        onSetField={w.setContextField}
+        onGenerate={() => w.handleGenerateClaudeMd()}
+        onBack={() => w.setPhase('proposals')}
+      />
+    );
+
+  if (w.phase === 'generating' || w.phase === 'reviewing')
     return <LoadingPhase topRef={w.topRef} t={w.t} variant="generating" />;
+
+  if (w.phase === 'review')
+    return (
+      <ReviewPhase
+        topRef={w.topRef}
+        t={w.t}
+        review={w.review}
+        answers={w.reviewAnswers}
+        onSetAnswer={w.setReviewAnswer}
+        onRegenerate={w.handleRegenerateFromReview}
+        onAccept={w.handleAcceptReview}
+        round={w.reviewRound}
+        maxRounds={w.maxReviewRounds}
+      />
+    );
 
   if (w.phase === 'result')
     return (
@@ -104,6 +163,8 @@ export default function ClaudeMdGeneratorPage() {
         onRestart={w.handleRestart}
         onCreateTheme={w.handleCreateTheme}
         onResetSetup={w.handleResetSetup}
+        history={w.history}
+        onSelectGeneration={w.selectGeneration}
       />
     );
 

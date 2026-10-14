@@ -26,8 +26,20 @@ import { prepareAuxCli } from './aux-cli-launch';
 import { createClaudeCliStream } from './claude-cli-stream';
 import { ClaudeCliUnavailableError } from './cli-errors';
 import { guardPromptSize } from './prompt-size-guard';
+import {
+  DEFAULT_CLI_TIMEOUT_MS,
+  launcherDeadlineMs,
+  resolveCliTimeoutMs,
+} from './claude-cli-timeouts';
 
 export { ClaudeCliUnavailableError } from './cli-errors';
+// Re-exported from their new home so existing importers (routes/ai/ai-chat.ts,
+// the provider's own tests) keep working after the 500-line split.
+export {
+  DEFAULT_CLI_TIMEOUT_MS,
+  MAX_CLI_TIMEOUT_MS,
+  resolveCliTimeoutMs,
+} from './claude-cli-timeouts';
 
 const log = createLogger('ai-client:claude-cli');
 
@@ -57,44 +69,6 @@ async function checkClaudeAvailable(): Promise<boolean> {
   } finally {
     releaseSlot();
   }
-}
-
-// Per-call wall-clock cap. One-shot helper prompts are small; a stuck CLI must
-// not hang a background job forever.
-const CLI_TIMEOUT_MS = Number(process.env.RAPITAS_AUX_AI_CLI_TIMEOUT_MS) || 120_000;
-
-/** The default cap, exported so callers and tests can reason about it. */
-export const DEFAULT_CLI_TIMEOUT_MS = CLI_TIMEOUT_MS;
-
-/**
- * Hard ceiling for a per-call timeout. MAX_CONCURRENT is 2, so an unbounded
- * request from an HTTP-reachable caller would starve every other aux call.
- */
-export const MAX_CLI_TIMEOUT_MS = Number(process.env.RAPITAS_AUX_AI_CLI_MAX_TIMEOUT_MS) || 600_000;
-
-/**
- * Resolve the wall-clock cap for one CLI call.
- *
- * A few callers legitimately need longer than the default: the document-package
- * generator asks for three full markdown documents and measured 109s against a
- * 120s default on 2026-10-08, so it timed out on nearly every attempt and its
- * caller silently fell back to a hardcoded template. Raising the default for
- * everyone would defeat the cap's purpose (a stuck one-shot helper hanging a
- * background job), hence per-call.
- *
- * Only LONGER requests are honoured, and only up to {@link MAX_CLI_TIMEOUT_MS}:
- * a shorter request would make a normally-fine call fail, and the cap is a
- * safety bound rather than a scheduling knob.
- *
- * @param requestedMs - Caller's requested cap, if any. / 呼び出し側の希望上限
- * @returns The cap to apply. / 適用する上限
- */
-export function resolveCliTimeoutMs(requestedMs?: number): number {
-  if (typeof requestedMs !== 'number' || !Number.isFinite(requestedMs) || requestedMs <= 0) {
-    return DEFAULT_CLI_TIMEOUT_MS;
-  }
-  if (requestedMs <= DEFAULT_CLI_TIMEOUT_MS) return DEFAULT_CLI_TIMEOUT_MS;
-  return Math.min(requestedMs, MAX_CLI_TIMEOUT_MS);
 }
 
 // Concurrency cap: the auto-run loop + 30s memory queue can fire many aux calls
@@ -239,12 +213,21 @@ function trackAuxCliChild(child: ChildProcess): () => void {
 async function spawnCli(
   args: string[],
   prompt: string,
-  timeoutMs = CLI_TIMEOUT_MS,
+  timeoutMs = DEFAULT_CLI_TIMEOUT_MS,
 ): Promise<string> {
   const claudePath = await getClaudePathAsync();
   auxCliCleanup.assertReady();
   const [command, spawnArgs] = buildSpawnCommand(claudePath, args);
-  const launch = await prepareAuxCli(command, tmpdir(), buildCliEnv(), spawnArgs);
+  // NOTE: the launcher's deadline must track the JS timer below. Without this
+  // it kept its own 120s default and killed long calls (exit 124, "Auxiliary
+  // CLI launcher deadline exceeded") no matter what the caller requested.
+  const launch = await prepareAuxCli(
+    command,
+    tmpdir(),
+    buildCliEnv(),
+    spawnArgs,
+    launcherDeadlineMs(timeoutMs),
+  );
   return new Promise((resolve, reject) => {
     let child: ChildProcess;
     try {
@@ -457,7 +440,15 @@ export async function callClaudeCliStream(
   let launch: Awaited<ReturnType<typeof prepareAuxCli>>;
   let child: ChildProcess;
   try {
-    launch = await prepareAuxCli(command, tmpdir(), buildCliEnv(), spawnArgs);
+    // Same ordering as the one-shot path: the stream's own idle timer is the
+    // default cap, so the launcher must outlast it rather than race it.
+    launch = await prepareAuxCli(
+      command,
+      tmpdir(),
+      buildCliEnv(),
+      spawnArgs,
+      launcherDeadlineMs(DEFAULT_CLI_TIMEOUT_MS),
+    );
     child = spawn(
       launch?.command ?? command,
       launch?.args ?? spawnArgs,
@@ -491,6 +482,6 @@ export async function callClaudeCliStream(
     confirmed,
     untrack,
     releaseSlot,
-    CLI_TIMEOUT_MS,
+    DEFAULT_CLI_TIMEOUT_MS,
   );
 }

@@ -49,7 +49,12 @@ const TMP_ROOT = resolve('.tmp-tests/worktree-preflight');
 /** Builds a worktree directory with the requested combination of artifacts. */
 async function makeWorktree(
   name: string,
-  opts: { withScript?: boolean; withPackageJson?: boolean; withNodeModules?: boolean },
+  opts: {
+    withScript?: boolean;
+    withPackageJson?: boolean;
+    withNodeModules?: boolean;
+    withPartialNodeModules?: boolean;
+  },
 ): Promise<string> {
   const dir = join(TMP_ROOT, name);
   await mkdir(dir, { recursive: true });
@@ -61,7 +66,13 @@ async function makeWorktree(
     await writeFile(join(dir, 'package.json'), '{}');
   }
   if (opts.withNodeModules) {
-    await mkdir(join(dir, 'node_modules'), { recursive: true });
+    // `.bin` makes it a COMPLETE install rather than a bare directory — an empty
+    // node_modules resolves nothing, so the preflight must not read it as ready.
+    await mkdir(join(dir, 'node_modules', '.bin'), { recursive: true });
+  }
+  if (opts.withPartialNodeModules) {
+    // ContextFlow #1215's measured shape: pnpm's store and nothing else.
+    await mkdir(join(dir, 'node_modules', '.pnpm'), { recursive: true });
   }
   return dir;
 }
@@ -129,41 +140,96 @@ describe('preflightWorktree — setup script present', () => {
   });
 });
 
+// 実測した配管の欠落（2026-10-13）。
+//
+// `bootstrapProjectDependencies` は「プロジェクトルートで install → worktree に
+// node_modules をリンク」を正しく行うが、本番の呼び出し元は test-triage だけで、
+// **worktree 作成時には一度も呼ばれていなかった**。setup-worktree.cjs を持たない
+// プロジェクト（= 生成プロジェクト全部）では preflight が警告するだけで続行する。
+//
+// 実測: 本日のバックエンドログで `projectBootstrap` 0 回 / `installWorktreeDependencies`
+// 0 回に対し `[preflight] node_modules is absent` が 3 回。ContextFlow #1215 の
+// worktree は依存ゼロで起動し、07:06 の runtime-smoke が `next` を解決できず
+// `unverifiable; completion withheld` になり、エージェントが 07:13〜07:19 に
+// 403MB を自分でインストールして埋めた。警告は読む者がいなければ配管ではない。
 describe('preflightWorktree — no setup script', () => {
-  test('warns but does not throw when node_modules is missing and package.json is present', async () => {
+  test('prepares the project dependencies when node_modules is missing', async () => {
     const dir = await makeWorktree('unmanaged-missing', {
       withScript: false,
       withPackageJson: true,
       withNodeModules: false,
     });
+    const bootstrap = mock(() => Promise.resolve({ action: 'linked', detail: '1 link(s): .' }));
 
-    await expect(preflightWorktree(dir)).resolves.toBeUndefined();
+    await expect(preflightWorktree(dir, { bootstrap })).resolves.toBeUndefined();
 
-    expect(warnCalls.length).toBe(1);
+    expect(bootstrap).toHaveBeenCalledTimes(1);
+    expect(bootstrap.mock.calls[0]).toEqual([dir]);
+    // Still no setup script run — this path never had one.
     expect(execMock).not.toHaveBeenCalled();
   });
 
-  test('does not warn when node_modules is already present', async () => {
+  // The #1215 shape specifically: node_modules EXISTS but holds only pnpm's
+  // store, so existsSync said "ready" while nothing could resolve.
+  test('prepares the dependencies when node_modules exists but is a partial install', async () => {
+    const dir = await makeWorktree('unmanaged-partial', {
+      withScript: false,
+      withPackageJson: true,
+      withPartialNodeModules: true,
+    });
+    const bootstrap = mock(() => Promise.resolve({ action: 'installed', detail: 'pnpm install' }));
+
+    await expect(preflightWorktree(dir, { bootstrap })).resolves.toBeUndefined();
+
+    expect(bootstrap).toHaveBeenCalledTimes(1);
+  });
+
+  test('warns but does not throw when the preparation fails', async () => {
+    // An unmanaged project must not be hard-blocked by a package-manager
+    // failure: the agent can still install for itself, as it did before this
+    // path existed. Throwing here would turn a recoverable environment into a
+    // dead task.
+    const dir = await makeWorktree('unmanaged-broken', {
+      withScript: false,
+      withPackageJson: true,
+      withNodeModules: false,
+    });
+    const bootstrap = mock(() => Promise.reject(new Error('pnpm install failed: ENOSPC')));
+
+    await expect(preflightWorktree(dir, { bootstrap })).resolves.toBeUndefined();
+
+    expect(warnCalls.length).toBe(1);
+    // The cause has to reach the log, or the operator sees only "could not prepare".
+    // (JSON.stringify would render an Error as {}, so read the field.)
+    const logged = warnCalls[0][0] as { err?: Error };
+    expect(logged.err?.message).toContain('ENOSPC');
+  });
+
+  test('does nothing when node_modules is already a complete install', async () => {
     const dir = await makeWorktree('unmanaged-present', {
       withScript: false,
       withPackageJson: true,
       withNodeModules: true,
     });
+    const bootstrap = mock(() => Promise.resolve({ action: 'skipped', detail: '' }));
 
-    await expect(preflightWorktree(dir)).resolves.toBeUndefined();
+    await expect(preflightWorktree(dir, { bootstrap })).resolves.toBeUndefined();
 
+    expect(bootstrap).not.toHaveBeenCalled();
     expect(warnCalls.length).toBe(0);
   });
 
-  test('does not warn when there is no package.json (nothing to link)', async () => {
+  test('does nothing when there is no package.json (nothing to prepare)', async () => {
     const dir = await makeWorktree('unmanaged-no-package-json', {
       withScript: false,
       withPackageJson: false,
       withNodeModules: false,
     });
+    const bootstrap = mock(() => Promise.resolve({ action: 'skipped', detail: '' }));
 
-    await expect(preflightWorktree(dir)).resolves.toBeUndefined();
+    await expect(preflightWorktree(dir, { bootstrap })).resolves.toBeUndefined();
 
+    expect(bootstrap).not.toHaveBeenCalled();
     expect(warnCalls.length).toBe(0);
   });
 });

@@ -12,6 +12,7 @@ import {
   executeAPIAgent,
   type WorkflowAdvanceResult,
 } from './workflow-agent-executor';
+import { RequirementReplanHeldError } from '../../middleware/error-handler';
 import { isShutdownError } from '../agents/orchestrator/shutdown-error';
 import { tryProviderFallback, hasProviderErrorInOutput } from './workflow-provider-fallback';
 import type { RoleTransition, WorkflowStatus } from './workflow-types';
@@ -150,6 +151,18 @@ export async function executeAgentWithFallback(params: {
     }
 
     const errorMessage = error instanceof Error ? error.message : String(error);
+    if (error instanceof RequirementReplanHeldError) {
+      // NOTE: A state-guard hold (e.g. theme_paused) is not a crash and another provider
+      // cannot clear it; the message keeps the "Requirement replan review held:" prefix
+      // so queue-skip-policy cancels instead of retrying into a blocked write.
+      log.warn(`[WorkflowOrchestrator] ${transition.role} held: ${errorMessage}`);
+      return {
+        success: false,
+        role: transition.role,
+        status: currentStatus as WorkflowStatus,
+        error: `実行エラー: ${errorMessage}`,
+      };
+    }
     log.error(`[WorkflowOrchestrator] Error in ${transition.role}: ${errorMessage}`);
 
     // Thrown error path: also try fallback once.

@@ -22,6 +22,8 @@ import {
 } from './queries';
 import { getUsdJpyRate } from './currency-config';
 import { paretoFrontierRouter } from './pareto-frontier-router';
+import { workerHealthRouter } from './worker-health-router';
+import { usageBudgetRouter } from './usage-budget-router';
 import { computeGrowthLedgerMetrics } from '../../../services/self-improvement/growth-ledger-metrics';
 import { computeRetroKpiMetrics } from '../../../services/self-improvement/retro-kpi-metrics';
 import { readJudgeEvalResult } from '../../../services/observability/eval-judge-results';
@@ -45,6 +47,8 @@ function parseDateRange(query: Record<string, unknown>): DateRange {
 
 export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
   .use(paretoFrontierRouter) // NOTE: before `/:agentId` so the static paths are never captured
+  .use(workerHealthRouter)
+  .use(usageBudgetRouter)
 
   .get('/', async ({ query }) => {
     try {

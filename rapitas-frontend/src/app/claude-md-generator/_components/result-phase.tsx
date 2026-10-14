@@ -10,6 +10,8 @@ import { AGENT_TARGETS } from '../_utils/constants';
 import { ScoreRing } from './score-ring';
 import { SetupTargetFields } from './setup-target-fields';
 import { DegradedNotice } from './degraded-notice';
+import { GenerationHistory } from './generation-history';
+import type { GenerationEntry } from '../_hooks/useGenerationHistory';
 
 interface ResultPhaseProps {
   topRef: React.RefObject<HTMLDivElement | null>;
@@ -33,6 +35,10 @@ interface ResultPhaseProps {
   onRestart: () => void;
   onCreateTheme: () => void;
   onResetSetup: () => void;
+  /** Packages generated this session, oldest first. / 今回の生成履歴 */
+  history?: readonly GenerationEntry[];
+  /** Restores one entry without regenerating. / 再生成せず復元する */
+  onSelectGeneration?: (entry: GenerationEntry) => void;
 }
 
 interface DocTab {
@@ -66,6 +72,8 @@ export function ResultPhase({
   onRestart,
   onCreateTheme,
   onResetSetup,
+  history,
+  onSelectGeneration,
 }: ResultPhaseProps) {
   const agentTarget = AGENT_TARGETS.find((a) => a.id === agentTargetId) || AGENT_TARGETS[0];
   // The agent guide's tab label/path follow the chosen primary agent.
@@ -114,6 +122,8 @@ export function ResultPhase({
   }, [result, t, agentFileName, agentTarget.path]);
 
   const [activeKind, setActiveKind] = useState<DocKind>('requirements');
+  /** Explicit consent to scaffold a template-only (degraded) package. */
+  const [degradedAck, setDegradedAck] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const active = tabs.find((d) => d.kind === activeKind) || tabs[tabs.length - 1];
@@ -339,10 +349,45 @@ export function ResultPhase({
                 onSetBasePath={onSetBasePath}
               />
 
+              {/* NOTE: A degraded result is a template scaffold whose every
+                  figure is invented. Scaffolding it creates a real project whose
+                  docs then become the source of auto-filed implementation tasks,
+                  so the step asks for an explicit acknowledgement rather than
+                  relying on the notice above being read. */}
+              {result?.degraded && (
+                <label
+                  htmlFor="degraded-ack"
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    alignItems: 'flex-start',
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  <input
+                    id="degraded-ack"
+                    type="checkbox"
+                    checked={degradedAck}
+                    onChange={(e) => setDegradedAck(e.target.checked)}
+                    aria-labelledby="degraded-ack-text"
+                    style={{ marginTop: 3 }}
+                  />
+                  <span id="degraded-ack-text">{t('degradedAck')}</span>
+                </label>
+              )}
               <button
                 className="btn btn-p"
                 onClick={onCreateTheme}
-                style={{ background: 'var(--green)', fontSize: 14, padding: '12px 24px' }}
+                disabled={!!result?.degraded && !degradedAck}
+                title={result?.degraded && !degradedAck ? t('degradedBlocked') : undefined}
+                style={{
+                  background: 'var(--green)',
+                  fontSize: 14,
+                  padding: '12px 24px',
+                  opacity: result?.degraded && !degradedAck ? 0.5 : undefined,
+                  cursor: result?.degraded && !degradedAck ? 'not-allowed' : undefined,
+                }}
               >
                 {t('createTheme')}
               </button>
@@ -429,6 +474,10 @@ export function ResultPhase({
             </div>
           )}
         </div>
+
+        {history && onSelectGeneration && (
+          <GenerationHistory history={history} onSelect={onSelectGeneration} />
+        )}
 
         <p
           style={{

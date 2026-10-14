@@ -40,6 +40,21 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
       'OSプロセス列挙スクリプトの単発失敗はworkdirをquarantinedにするだけで、次回acquireRuntimeServerがプロセス終了/ポート解放を再確認すると自動解除される（タイムアウトはa47037f4で30秒へ延長済み） — 未確認の間はunverifiable:trueでfail-closedのため誤って成功扱いになることはない',
   },
   {
+    // ログ出力箇所: runtime-server-registry-lifecycle.ts:284-285 の throw
+    // （ListenerOwnershipError）を同ファイル:311 の guardedRun catch が log.error する。
+    // 起動後のスナップショットで割り当てポートのLISTENERが所有ツリー外PID、0件、
+    // または未取得のとき発火する。catch後はentryがquarantined・unverifiable:trueで
+    // fail-closedになり、成功扱いにはならない。次回acquireRuntimeServerが再確認して
+    // 隔離を解除する。反復の原因切り分け用に、同ログへ diagnostics（port/listenerPids/
+    // ownedPids/listenersKnown）を構造化フィールドで出している。
+    // NOTE: 文言は固定。末尾に語が付く別シグネチャ（K-12552/K-12095等）を巻き込まない
+    // よう完全一致にしている。
+    test: /^Listener ownership is unconfirmed$/,
+    logger: /runtime-smoke:registry/i,
+    because:
+      '起動後のLISTENER所有確認が取れない場合の設計どおりのfail-closed（quarantined・unverifiable:trueで完了は保留され誤成功しない、次回acquireで自動再確認） — 下流のunverifiable WARNは残り、反復の原因はログのdiagnosticsで追跡できる',
+  },
+  {
     // ログ出力箇所: git-operations/pr/pr-merge-ops.ts:154-157 の logger.warn
     // （mergePullRequest内）。gh pr merge --delete-branch はGitHub側マージを先に
     // 行い最後にローカルブランチ削除をするため、タスクworktreeが同ブランチを
@@ -257,6 +272,23 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
       'not_reviewableはレビュー対象外の状態ガードによる期待保留(EXPECTED_REPLAN_HOLD_REASONS)で、キュー側でスキップ扱い済み — unknown/requires_human等の他reasonは可視のまま',
   },
   {
+    // ログ出力箇所: workflow-orchestrator-execute.ts:153 の log.error（role=auto_verifier|verifier）。
+    // 投げ元は workflow-cli-executor-verify-gate.ts:86。reason=theme_paused は
+    // requirement-replan-policy.ts:32-34 が themeStatus が stopping / paused* のときに返す
+    // 状態ガードで、テーマの pause は運用者操作に由来する運用状態。リプランは何も
+    // コミットせずタスク状態も変えない（requirement-replan-commit.ts:235 の
+    // rejectReplanLifecycle）ため欠陥ではない（#1222、K-12553 / K-12554）。
+    //
+    // NOTE: log.error 自体は発生源で止まっていない（verify-gate.ts:86 は
+    // isExpectedReplanHold を経由しない汎用 Error）。本ルールはログ健全性の
+    // 再起票を止めるだけで、発生源の分類変更は別タスクの範囲。reason は
+    // 厳密一致を維持し、unknown / requires_human:* / budget_exhausted は抑制しない。
+    test: /^\[WorkflowOrchestrator\] Error in (?:auto_verifier|verifier): Requirement replan review held: theme_paused$/,
+    logger: /workflow-orchestrator/i,
+    because:
+      'theme_pausedはテーマ pause/stopping という運用者操作由来の状態ガードによる期待保留で、リプランは何もコミットしない — unknown/requires_human等の他reasonは可視のまま',
+  },
+  {
     // ログ出力箇所: services/workflow/task-budget.ts:166 の log.warn
     // （resolveTaskBudgetCap 内）。支出が RAPITAS_TASK_BUDGET_USD の
     // hardMultiple() 倍（既定 2 倍）以上のときだけ、次フェーズの tier を economy に
@@ -270,5 +302,36 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
     logger: /task-budget/i,
     because:
       '支出が予算の2倍超のタスクを停止せずeconomy tierへ落とす設計通りの予算ガード通知 — 真の暴走はiteration budgetのHARD stopが別経路で止め、支出取得失敗(spend lookup failed)は別文言で可視のまま',
+  },
+  {
+    // ログ出力箇所: services/agents/orchestrator/git-operations/worktree/
+    // project-dependency-bootstrap.ts:118-121 の logger.warn（runInstall 内）。
+    // install 出力に `Ignored build scripts:` があった場合のみ出る情報通知で、
+    // install 自体は成功している（installInvocation が
+    // --config.strict-dep-builds=false を付与、project-manifests.ts:87-89）。
+    // ネイティブビルドの承認は生成プロジェクト側の onlyBuiltDependencies の責務で、
+    // rapitas の差分では解消できない（#1209、K-12457 は同一シグネチャ）。
+    // 同ロガーの install 失敗・fingerprint 記録失敗は別文言のため抑制しない。
+    test: /^\[projectBootstrap\] Dependencies installed but their build scripts were skipped; declare onlyBuiltDependencies in the project manifest if a native build is required$/,
+    logger: /git-operations\/project-dependency-bootstrap/i,
+    because:
+      'installは成功済みで、ビルドスクリプト承認は生成プロジェクトのonlyBuiltDependencies側の責務(rapitasでは解消不能) — install失敗/fingerprint記録失敗は別文言で可視のまま',
+  },
+  {
+    // ログ出力箇所: services/workflow/workflow-queue.ts:140 の log.warn
+    // （dequeue の候補ループ内 catch）。例外の発生元は
+    // queue-dequeue-candidate.ts:171 の Serializable $transaction で、SQLite の
+    // P1008（Socket timeout）が負荷ピークで一過性に出たもの。catch は WARN を出して
+    // continue し、トランザクションは findUnique と update のみで失敗時は未コミット
+    // のため項目は queued のまま残り、次回 processQueue のポーリング
+    // （workflow-runner.ts:179）で再評価される。既知の DB 負荷源
+    // （worktree-cleanup.ts:167-179 の連続拒否）はバックオフ導入済み（#1211、
+    // K-12454 は同一シグネチャ）。メッセージは err.message が msg より優先される
+    // （log-format-parser.ts:82）ため Prisma 文言になる。
+    // 同ロガーの 'Transaction already closed'（K-12452）は別文言のため抑制しない。
+    test: /^Socket timeout \(the database failed to respond to a query within the configured timeout— see http<path> for more details\)\.$/,
+    logger: /^workflow-queue$/i,
+    because:
+      'dequeueのSerializableトランザクションで出る一過性のP1008 — 失敗時は未コミットでqueuedのまま残り次回ポーリングで自己回復する。他ロガーのP1008(timelineEvent等)とTransaction already closedは別シグネチャで可視のまま',
   },
 ];

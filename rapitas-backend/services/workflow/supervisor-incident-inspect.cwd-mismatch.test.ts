@@ -12,6 +12,7 @@ let evidence = {
   taskWorkingDirectory: null as string | null,
   executionCwd: 'C:\\Projects\\temporaid\\.worktrees\\task-1168-29f8dc93' as string | null,
   executionCwdLine: '[Claude Code] Working directory: C:\\Projects\\temporaid\\.worktrees\\x',
+  executionAtMs: null as number | null,
 };
 
 mock.module('./supervisor-incident-evidence', () => ({
@@ -53,6 +54,7 @@ beforeEach(() => {
     taskWorkingDirectory: null,
     executionCwd: 'C:\\Projects\\temporaid\\.worktrees\\task-1168-29f8dc93',
     executionCwdLine: '[Claude Code] Working directory: C:\\Projects\\temporaid\\.worktrees\\x',
+    executionAtMs: null,
   };
 });
 
@@ -117,5 +119,19 @@ describe('inspectSupervisorSignatures cwd-mismatch idempotency', () => {
     evidence.executionCwd = 'C:\\Projects\\repo-0';
     await run(file);
     expect(file).toHaveBeenCalledTimes(1002);
+  });
+
+  test('does not re-file after a restart when the offending execution is stale', async () => {
+    // Simulates the post-restart state: the Set is empty but the run is hours old.
+    evidence.executionAtMs = NOW - 3 * 60 * 60_000;
+    const file = mock(() => Promise.resolve(true));
+    expect(await run(file)).toBe(0);
+    expect(file).not.toHaveBeenCalled();
+  });
+
+  test('files when the offending execution is recent', async () => {
+    evidence.executionAtMs = NOW - 5 * 60_000;
+    const file = mock(() => Promise.resolve(true));
+    expect(await run(file)).toBe(1);
   });
 });

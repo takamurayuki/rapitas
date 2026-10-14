@@ -38,6 +38,54 @@ function makeSteps(hangOn?: keyof ShutdownSteps) {
   return { order, steps };
 }
 
+// D4, measured 2026-10-13: POST /agents/restart left the process alive (531MB,
+// 26 threads) with Listen 1 / CloseWait 36 / Established 6 and every connection
+// refused; recovery needed a restart from the terminal. The hole is that every
+// exit path in scheduleShutdownSequence is a TIMER, and a saturated event loop
+// never reaches a timer. Checking the deadline between steps means the first
+// step that does return triggers the exit.
+describe('runShutdownSteps budget', () => {
+  it('skips the remaining steps and reports them once the budget is spent', async () => {
+    const { order, steps } = makeSteps();
+    const skippedSeen: string[][] = [];
+    let calls = 0;
+    await runShutdownSteps('[test]', steps, {
+      // Spent only after the first step has run.
+      exceeded: () => ++calls > 1,
+      onExhausted: (skipped) => skippedSeen.push(skipped),
+    });
+    expect(order).toEqual(['stopServer', 'closeRealtime']);
+    expect(skippedSeen).toEqual([['stopRuntimeServers', 'shutdownExecutionOwners']]);
+  });
+
+  it('exits before the second step when the budget is already spent', async () => {
+    const { order, steps } = makeSteps();
+    await runShutdownSteps('[test]', steps, {
+      exceeded: () => true,
+      onExhausted: () => {},
+    });
+    // stopServer still runs: releasing the port is never skipped.
+    expect(order).toEqual(['stopServer']);
+  });
+
+  it('runs every step when the budget is never spent', async () => {
+    const { order, steps } = makeSteps();
+    await runShutdownSteps('[test]', steps, { exceeded: () => false, onExhausted: () => {} });
+    expect(order).toEqual([
+      'stopServer',
+      'closeRealtime',
+      'stopRuntimeServers',
+      'shutdownExecutionOwners',
+    ]);
+  });
+
+  it('behaves exactly as before when no budget is supplied', async () => {
+    const { order, steps } = makeSteps();
+    await runShutdownSteps('[test]', steps);
+    expect(order).toHaveLength(4);
+  });
+});
+
 describe('runShutdownSteps', () => {
   it('releases the listening socket before anything else', async () => {
     const { order, steps } = makeSteps();

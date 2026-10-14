@@ -52,13 +52,18 @@ export function createLogChunkManager(ctx: LogManagerContext) {
     pendingLogChunks.push({ chunk, isError, timestamp: new Date() });
   };
 
+  // Sequence number the most recently queued chunk has or will receive.
+  // Pending chunks are numbered in order at flush time, so the next one is
+  // logSequenceNumber + pending.length - 1.
+  const lastQueuedSequence = () => logSequenceNumber + pendingLogChunks.length - 1;
+
   const cleanup = async () => {
     clearInterval(logFlushInterval);
     await Promise.all(cleanupHandlers.map((handler) => handler()));
     await flushLogChunks();
   };
 
-  return { addChunk, cleanup, flushLogChunks, registerCleanup };
+  return { addChunk, cleanup, flushLogChunks, registerCleanup, lastQueuedSequence };
 }
 
 export type LogChunkManager = ReturnType<typeof createLogChunkManager>;

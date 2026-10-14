@@ -40,7 +40,7 @@ export function rejectReplanLifecycle(
 
 /**
  * Reject/hold reasons that are expected state guards, not crashes (#961,
- * #1023, #1041). Shared by every caller of {@link rejectReplanLifecycle} /
+ * #1023, #1041, #1233). Shared by every caller of {@link rejectReplanLifecycle} /
  * `commitReviewedDecision` so a state-guard hold is classified consistently
  * regardless of which call site (status-transition.ts, requirement-replan-commit.ts)
  * surfaces it as an error.
@@ -52,6 +52,9 @@ export const EXPECTED_REPLAN_HOLD_REASONS = new Set([
   'stale_snapshot',
   'execution_superseded',
   'review_in_progress',
+  // NOTE: Operator pause/stop of the theme is an intentional state, not a crash; the HTTP
+  // verify-save path surfaced it as a generic Error (500 + two ERROR logs) before this.
+  'theme_paused',
 ]);
 
 /** True when `reason` is a known state-guard hold, not an unexpected failure. */
@@ -93,4 +96,25 @@ export function isRequirementReplanWindowExhausted(
     (r) => r.createdAtMs >= windowStart && r.createdAtMs <= nowMs,
   ).length;
   return count >= 2;
+}
+
+/**
+ * Production-shaped window guard for the replan about to be committed (task 1198).
+ *
+ * `commitReviewedDecision` reads `priorReplanRows` BEFORE writing the current
+ * `requirement_evidence_replan`, so the rows never include the replan being
+ * decided. Feeding them straight to {@link isRequirementReplanWindowExhausted}
+ * (threshold 2) therefore only tripped on the 3rd replan — after the 3rd
+ * `phase_completed:implementer` had already fired (task #1195). This counts the
+ * pending replan itself, so the 2nd replan inside the window is refused.
+ *
+ * @param priorReplans - Already-committed replan timestamps (excludes the pending one). / コミット済みリプラン時刻（今回分を含まない）
+ * @param nowMs - Current time (ms). / 現在時刻
+ * @returns true when committing one more replan would make 2+ in the window. / 今回を加えて窓内2回以上ならtrue
+ */
+export function wouldReplanExhaustWindow(
+  priorReplans: ReplanTransitionTimestamp[],
+  nowMs: number,
+): boolean {
+  return isRequirementReplanWindowExhausted([...priorReplans, { createdAtMs: nowMs }], nowMs);
 }

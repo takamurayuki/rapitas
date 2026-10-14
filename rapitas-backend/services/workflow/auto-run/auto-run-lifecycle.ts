@@ -15,6 +15,7 @@ import { realtimeService } from '../../communication/realtime-service';
 import { hasPromotableBacklog, promoteBacklogForTheme } from './backlog-task-promoter';
 import { logCycleEvent } from '../../observability';
 import { getThemeActiveQueueItems, hasItemAwaitingApproval } from './auto-run-selection';
+import { isTaskPlanApproved, syncQueueAfterPlanApproval } from '../plan-approval-queue-sync';
 import { eligibleTopLevelTodoWhere } from './auto-run-eligibility';
 import {
   resumeAutoRun,
@@ -281,6 +282,18 @@ export async function processPausedThemesImpl(
     try {
       // If the queue item is no longer 'waiting_approval' (e.g. user approved in UI)
       // AND the ThemeAutoRun was not already resumed by onPlanApproved(), resume now.
+      // Plan already approved (auto-approve never touched the item, or an agent
+      // is in flight so the item cannot be rewritten): release what is safe and
+      // resume — a lingering waiting_approval item must not hold the theme.
+      if (await isTaskPlanApproved(state.currentTaskId, prisma)) {
+        await syncQueueAfterPlanApproval(state.currentTaskId, prisma);
+        await resumeAutoRun(state.themeId);
+        broadcastAutoRunUpdateImpl(state.themeId);
+        log.info(
+          `[ThemeAutoRunScheduler] Theme ${state.themeId} auto-resumed (approved plan, stale approval wait)`,
+        );
+        continue;
+      }
       const queueItems = await getThemeActiveQueueItems(prisma, state.themeId);
       const stillWaiting = hasItemAwaitingApproval(queueItems);
 

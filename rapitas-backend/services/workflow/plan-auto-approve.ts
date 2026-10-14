@@ -24,6 +24,35 @@ import {
 const log = createLogger('plan-auto-approve');
 
 /**
+ * Tells a human once that a plan is parked for a forbidden-change override. Stagnation
+ * detection now treats a fresh hold as a deliberate wait (#1205), so this notice is
+ * what keeps the wait visible. Never throws — a notify problem must not alter the hold.
+ *
+ * @param taskId - Held task. / 保留中のタスク
+ * @param themeId - Task's theme, null when none. / テーマID
+ * @param instruction - Operator instruction (override steps). / 運用者向け指示
+ */
+async function notifyPlanHold(
+  taskId: number,
+  themeId: number | null,
+  instruction: string,
+): Promise<void> {
+  try {
+    const { notifyOnce, taskLabel } = await import('./auto-run/auto-run-notifications-shared');
+    const label = await taskLabel(taskId);
+    await notifyOnce({
+      type: 'auto_run_awaiting_approval',
+      themeId,
+      taskId,
+      title: '計画の承認待ち（人間の override が必要）',
+      message: `「${label}」の計画は禁止変更を宣言しているため自動承認されません。${instruction}`,
+    });
+  } catch (err) {
+    log.error({ err, taskId }, '[plan-auto-approve] plan-hold notification failed');
+  }
+}
+
+/**
  * Read-only check: does a manual rejection currently hold auto-approve for
  * this task? A manual rejection remains a human gate until a later manual
  * approval. Does not mutate state.
@@ -122,6 +151,7 @@ export async function maybeAutoApprovePlan(
         workflowStatus: true,
         status: true,
         updatedAt: true,
+        themeId: true,
       },
     })
     .catch(() => null);
@@ -151,6 +181,14 @@ export async function maybeAutoApprovePlan(
   // than leaving a silent plan_created.
   const forbiddenHold = await resolveForbiddenChangePlanHold(taskId);
   if (forbiddenHold) {
+    // Read BEFORE recording: a re-save/heal re-records the hold, and must not re-notify.
+    const previous = await prisma.workflowTransition
+      .findFirst({
+        where: { taskId },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { cause: true },
+      })
+      .catch(() => null);
     await recordTransition({
       taskId,
       fromStatus: 'plan_created',
@@ -164,6 +202,9 @@ export async function maybeAutoApprovePlan(
       { taskId, paths: forbiddenHold.paths },
       '[plan-auto-approve] auto-approval withheld — plan needs a human forbidden-change override',
     );
+    if (previous?.cause !== PLAN_FORBIDDEN_CHANGE_HOLD_CAUSE) {
+      await notifyPlanHold(taskId, task.themeId ?? null, forbiddenHold.instruction);
+    }
     return { newStatus: 'plan_created', autoApproved: false };
   }
 
@@ -243,6 +284,15 @@ export async function maybeAutoApprovePlan(
     });
 
   log.info({ taskId, reason }, '[plan-auto-approve] Plan auto-approved');
+
+  // Without this the queue item stays waiting_approval and the theme stays
+  // paused_approval: no other path observes an automatic approval.
+  try {
+    const { syncAfterPlanApprovalAndNotifyTheme } = await import('./plan-approval-queue-sync');
+    await syncAfterPlanApprovalAndNotifyTheme(taskId);
+  } catch (err) {
+    log.warn({ err, taskId }, '[plan-auto-approve] Queue sync after auto-approval failed');
+  }
 
   if (opts.autoAdvance !== false) {
     // 1s delay so the workflowStatus update commits before the orchestrator

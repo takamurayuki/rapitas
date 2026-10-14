@@ -40,6 +40,7 @@ import {
   installInvocation,
   resolveInstallCommand,
 } from './project-manifests';
+import { ensurePrismaClient, type PrismaClientResult } from './project-prisma-client';
 
 const execAsync = promisify(exec);
 const logger = createLogger('git-operations/project-dependency-bootstrap');
@@ -122,44 +123,119 @@ async function runInstall(dir: string): Promise<string> {
   return command;
 }
 
+/** Max time a caller waits for another worktree's in-flight install of the same root. */
+const INSTALL_WAIT_TIMEOUT_MS = INSTALL_TIMEOUT_MS + 60_000;
+
+/**
+ * Installs in flight per project root. Concurrent worktrees of one project (agent
+ * + baseline triage) used to run the same package-manager install in the same
+ * directory at once and corrupt each other's node_modules (task 1172).
+ */
+const rootInstallsInFlight = new Map<string, Promise<unknown>>();
+
+/** Injectable pieces of {@link ensureRootInstall}; tests avoid a real package manager. */
+export interface EnsureRootInstallOpts {
+  install?: (dir: string) => Promise<string>;
+  waitTimeoutMs?: number;
+}
+
 /**
  * Install at the project root if its manifests changed or nothing is installed.
+ * Calls for the same root are serialized: later callers wait (bounded) for the
+ * in-flight install, then re-check and usually find nothing left to do.
  *
+ * @param root - Project root / プロジェクトルート
+ * @param manifests - Manifests whose fingerprint decides reinstall / マニフェスト一覧
+ * @param opts - Injectable install and wait bound / テスト用の注入
  * @returns The command run, or null when the install was not needed / 実行したコマンド
  */
-async function ensureRootInstall(root: string, manifests: string[]): Promise<string | null> {
+export async function ensureRootInstall(
+  root: string,
+  manifests: string[],
+  opts: EnsureRootInstallOpts = {},
+): Promise<string | null> {
+  const install = opts.install ?? runInstall;
+  const deadline = Date.now() + (opts.waitTimeoutMs ?? INSTALL_WAIT_TIMEOUT_MS);
+
+  for (;;) {
+    const inflight = rootInstallsInFlight.get(root);
+    if (!inflight) break;
+    const remaining = deadline - Date.now();
+    // NOTE: Past the deadline we install anyway rather than hang the gate forever.
+    if (remaining <= 0) break;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      inflight.then(
+        () => undefined,
+        () => undefined, // the owner reports its own failure; we re-check and may retry
+      ),
+      new Promise<void>((r) => {
+        timer = setTimeout(r, remaining);
+      }),
+    ]);
+    clearTimeout(timer);
+  }
+
   const wanted = fingerprintManifests(root, manifests);
   if (wanted === recordedFingerprint(root) && holdsRealInstall(root)) return null;
-  const command = await runInstall(root);
+
+  const run = (async () => {
+    const command = await install(root);
+    try {
+      writeFileSync(join(root, FINGERPRINT_FILE), wanted, 'utf8');
+    } catch (err) {
+      // Non-fatal, but worth knowing: the next launch would reinstall.
+      logger.warn({ err, root }, '[projectBootstrap] Could not record the install fingerprint');
+    }
+    return command;
+  })();
+  // Registered synchronously after the check above, so no other caller can slip in between.
+  rootInstallsInFlight.set(root, run);
   try {
-    writeFileSync(join(root, FINGERPRINT_FILE), wanted, 'utf8');
-  } catch (err) {
-    // Non-fatal, but worth knowing: the next launch would reinstall.
-    logger.warn({ err, root }, '[projectBootstrap] Could not record the install fingerprint');
+    return await run;
+  } finally {
+    if (rootInstallsInFlight.get(root) === run) rootInstallsInFlight.delete(root);
   }
-  return command;
+}
+
+/** Injectable pieces of {@link bootstrapProjectDependencies}; tests avoid a real package manager. */
+export interface BootstrapOpts {
+  /** Generates the project's Prisma client at its root. / ルートでクライアントを生成 */
+  ensurePrisma?: (root: string) => Promise<PrismaClientResult>;
 }
 
 /**
  * Prepare dependencies for a worktree of a non-rapitas project.
  *
  * @param worktreePath - Absolute worktree path / worktree の絶対パス
+ * @param opts - Injectable prisma step / テスト用の注入
  * @returns What was done / 実施内容
  * @throws {Error} When an install was required and failed / インストール失敗時
  */
-export async function bootstrapProjectDependencies(worktreePath: string): Promise<BootstrapResult> {
+export async function bootstrapProjectDependencies(
+  worktreePath: string,
+  opts: BootstrapOpts = {},
+): Promise<BootstrapResult> {
   const root = projectRootOf(worktreePath);
 
   // The normal path: the project root carries its own manifests.
   if (existsSync(join(root, 'package.json'))) {
     const installed = await ensureRootInstall(root, collectManifests(root));
+    // Before the link, so the client is already in the real tree the worktree is
+    // about to point at. The agent cannot do this itself — the worktree's
+    // node_modules is a link, which makes the guard deny `prisma generate`
+    // there; the root tree is real, so this is the only place it can happen.
+    const prisma = await (opts.ensurePrisma ?? ensurePrismaClient)(root);
     const linked = root === worktreePath ? [] : linkNodeModules(root, worktreePath);
     logger.info(
-      `[projectBootstrap] ${installed ? 'installed + ' : ''}linked ${linked.length} node_modules into ${worktreePath}`,
+      `[projectBootstrap] ${installed ? 'installed + ' : ''}linked ${linked.length} node_modules into ${worktreePath}; prisma ${prisma.action}`,
     );
+    const links = `${linked.length} link(s): ${linked.map((r) => r || '.').join(', ') || 'none'}`;
     return {
       action: installed ? 'installed' : 'linked',
-      detail: `${linked.length} link(s): ${linked.map((r) => r || '.').join(', ') || 'none'}`,
+      // Reported even when it failed: a missing client is the difference between
+      // a gate that measures and one that can only say "unverifiable".
+      detail: prisma.action === 'skipped' ? links : `${links}; prisma ${prisma.action}`,
     };
   }
 

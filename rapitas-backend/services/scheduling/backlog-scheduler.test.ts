@@ -5,7 +5,7 @@
  * covered elsewhere; this locks down the timing logic.
  */
 import { describe, it, expect } from 'bun:test';
-import { isJobDue } from './backlog-scheduler';
+import { isJobDue, pickDueJob } from './backlog-scheduler';
 import {
   BACKLOG_JOB_KINDS,
   DEFAULTS,
@@ -179,5 +179,55 @@ describe('daily_report registration', () => {
         monday,
       ),
     ).toBe(false);
+  });
+});
+
+describe('pickDueJob — 同時発火によるイベントループ停止の回避 (2026-10-11)', () => {
+  // 実測: tick() は due なジョブ全部を同一 tick 内で `void runBacklogJobNow` し、
+  // ずらしも同時実行数制限も無かった。hour=5 は vuln_scan + knowledge_reuse の
+  // 2本、hour=6 は loop_review + 曜日次第で pr_risk_review/outage_simulation。
+  // バックエンドログに `backlog-job:knowledge_reuse + backlog-job:vuln_scan` が
+  // 同時実行中の停止として残っており、3日で70回・計335秒の停止、15秒閾値を
+  // 越えた4回が自己修復再起動になっていた。
+  const at = (h: number) => new Date(2024, 0, 15, h, 0, 0);
+
+  it('同じ時刻に複数 due でも 1 件しか開始しない', () => {
+    const schedules = [
+      makeSchedule({ kind: 'vuln_scan', hour: 5 }),
+      makeSchedule({ kind: 'knowledge_reuse', hour: 5 }),
+      makeSchedule({ kind: 'loop_review', hour: 6 }),
+    ];
+    const picked = pickDueJob(schedules, at(6), () => false);
+    expect(picked.start?.kind).toBe('vuln_scan');
+    // 残りは失われず、次の tick(60秒後) に回る
+    expect(picked.deferred).toEqual(['knowledge_reuse', 'loop_review']);
+  });
+
+  it('延期されたジョブは次の tick でまだ due のまま', () => {
+    const deferredJob = makeSchedule({ kind: 'knowledge_reuse', hour: 5 });
+    // hour は NOT-BEFORE なので 60 秒後も due（lastRunAt は未設定のまま）
+    expect(isJobDue(deferredJob, new Date(2024, 0, 15, 6, 1, 0))).toBe(true);
+  });
+
+  it('すでに走っている種別は選ばない', () => {
+    const schedules = [
+      makeSchedule({ kind: 'vuln_scan', hour: 5 }),
+      makeSchedule({ kind: 'knowledge_reuse', hour: 5 }),
+    ];
+    const picked = pickDueJob(schedules, at(6), (kind) => kind === 'vuln_scan');
+    expect(picked.start?.kind).toBe('knowledge_reuse');
+    expect(picked.deferred).toEqual([]);
+  });
+
+  it('due が無ければ何も開始しない', () => {
+    const schedules = [makeSchedule({ kind: 'vuln_scan', hour: 5 })];
+    const picked = pickDueJob(schedules, at(4), () => false);
+    expect(picked.start).toBeNull();
+    expect(picked.deferred).toEqual([]);
+  });
+
+  it('無効なジョブは due にならない', () => {
+    const schedules = [makeSchedule({ kind: 'vuln_scan', hour: 5, enabled: false })];
+    expect(pickDueJob(schedules, at(6), () => false).start).toBeNull();
   });
 });

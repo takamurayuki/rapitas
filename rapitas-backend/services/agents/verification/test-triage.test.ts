@@ -2,7 +2,12 @@ import { describe, test, expect, mock } from 'bun:test';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { classifyFailures, defaultSetupWorktree, triageTestFailures } from './test-triage';
+import {
+  classifyFailures,
+  defaultSetupWorktree,
+  takeSetupFailure,
+  triageTestFailures,
+} from './test-triage';
 
 describe('classifyFailures', () => {
   test('splits currently-failing files into pre-existing and new', () => {
@@ -314,5 +319,74 @@ describe("triageTestFailures — 'no-manifest' baseline (task 1161)", () => {
     expect(result).toBeNull();
     expect(setupWorktreeFn).toHaveBeenCalledTimes(1);
     expect(removeWorktreeFn).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Task 1172: the final "baseline setup failed after retries" WARN carried no
+// cause, so every indeterminate triage needed a manual log dig.
+describe('baseline setup failure reasons (task 1172)', () => {
+  const withTmpDir = async (fn: (dir: string) => Promise<void>) => {
+    const dir = mkdtempSync(join(tmpdir(), 'triage-reason-'));
+    try {
+      await fn(dir);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  test('records a bootstrap-error with the message when the bootstrap throws', async () => {
+    await withTmpDir(async (dir) => {
+      const bootstrapFn = () => Promise.reject(new Error('pnpm install exited 1'));
+      expect(await defaultSetupWorktree(dir, bootstrapFn)).toBe(false);
+      const failure = takeSetupFailure(dir);
+      expect(failure?.kind).toBe('bootstrap-error');
+      expect(failure?.reason).toContain('pnpm install exited 1');
+      // consumed: a second take must not return a stale entry
+      expect(takeSetupFailure(dir)).toBeUndefined();
+    });
+  });
+
+  test('records script-exit with a truncated stderr tail when the setup script fails', async () => {
+    await withTmpDir(async (dir) => {
+      mkdirSync(join(dir, 'scripts'));
+      writeFileSync(
+        join(dir, 'scripts', 'setup-worktree.cjs'),
+        "console.error('x'.repeat(2000) + 'TAIL_MARKER'); process.exit(3);",
+      );
+      expect(await defaultSetupWorktree(dir)).toBe(false);
+      const failure = takeSetupFailure(dir);
+      expect(failure?.kind).toBe('script-exit');
+      expect(failure?.reason).toContain('TAIL_MARKER');
+      expect(failure?.reason.length).toBeLessThanOrEqual(500);
+    });
+  });
+
+  test('records nothing when setup succeeds', async () => {
+    await withTmpDir(async (dir) => {
+      const bootstrapFn = () => Promise.resolve({ action: 'linked' as const, detail: '' });
+      expect(await defaultSetupWorktree(dir, bootstrapFn)).toBe(true);
+      expect(takeSetupFailure(dir)).toBeUndefined();
+    });
+  });
+
+  test('a recorded failure is consumed by the final indeterminate WARN path', async () => {
+    const dirs: string[] = [];
+    const result = await triageTestFailures('/root/proj', '/workdir', ['a.test.ts'], {
+      isTestFileFailingFn: () => Promise.resolve(true),
+      resolveBaseCommitFn: () => Promise.resolve('abc123'),
+      getMainRepoRootFn: () => Promise.resolve('/root'),
+      createWorktreeFn: () => Promise.resolve(true),
+      removeWorktreeFn: () => Promise.resolve(),
+      retryDelayMs: 0,
+      setupWorktreeFn: async (dir) => {
+        dirs.push(dir);
+        await defaultSetupWorktree(dir, () => Promise.reject(new Error('boom')));
+        return false;
+      },
+    });
+    expect(result).toBeNull();
+    expect(dirs).toHaveLength(2);
+    // triage must not leak the entry after reporting it
+    expect(takeSetupFailure(dirs[0]!)).toBeUndefined();
   });
 });

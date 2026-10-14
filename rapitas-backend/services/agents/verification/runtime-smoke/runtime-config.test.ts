@@ -26,9 +26,13 @@ mock.module('../../../../config/database', () => ({
 const { resolveRuntimeConfig, getTaskThemeRuntimeConfigJson, setTaskThemeRuntimeConfigJson } =
   await import('./runtime-config');
 
+// NOTE: 127.0.0.1, not localhost. parseRuntimeConfig now enforces the launch
+// contract (runtime-config-contract), because localhost resolves to ::1 on this
+// platform and a config naming it let a generated app on `[::]` intercept
+// traffic meant for rapitas — measured 2026-10-12, task #1212.
 const VALID_CONFIG_JSON = JSON.stringify({
   start: 'npm run dev -- -p {port}',
-  url: 'http://localhost:{port}',
+  url: 'http://127.0.0.1:{port}',
 });
 
 test('validates and preserves a bounded browser readiness contract', async () => {
@@ -98,7 +102,7 @@ describe('resolveRuntimeConfig', () => {
       theme: {
         runtimeConfigJson: JSON.stringify({
           start: 'npm run dev:db -- -p {port}',
-          url: 'http://localhost:{port}',
+          url: 'http://127.0.0.1:{port}',
         }),
       },
     });
