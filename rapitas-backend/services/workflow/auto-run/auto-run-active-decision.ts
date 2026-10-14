@@ -1,4 +1,3 @@
-import { writeBlockedTask } from '../blocked-task-write';
 /**
  * auto-run-advance-active
  *
@@ -11,11 +10,9 @@ import { writeBlockedTask } from '../blocked-task-write';
 import type { PrismaClient } from '../../../generated/prisma-postgres';
 import { createLogger } from '../../../config/logger';
 import { isTaskPlanApproved } from '../plan-approval-queue-sync';
-import { resolveTaskWorkflowState } from '../../task/task-resolver';
 
 import { logCycleEvent } from '../../observability';
 import {
-  COOLDOWN_MS,
   MAX_TASK_WALL_MS,
   getThemeActiveQueueItems,
   hasItemAwaitingApproval,
@@ -25,21 +22,17 @@ import {
 import { liveOrQueuedBehind } from './queue-wait-exemption';
 import { taskNeverExecuted } from './auto-run-execution-presence';
 import { requeueIfNeverExecuted } from './requeue-if-never-executed';
-import { setCurrentTask, onTaskFailed, onAwaitingPlanApproval } from './theme-auto-run-service';
-import {
-  notifyAwaitingPlanApproval,
-  notifyAwaitingUserAnswer,
-  notifyHangBackstop,
-} from './auto-run-notifications';
+import { setCurrentTask, onAwaitingPlanApproval } from './theme-auto-run-service';
+import { notifyAwaitingPlanApproval, notifyAwaitingUserAnswer } from './auto-run-notifications';
 
 import { releaseStaleActiveItems } from './auto-run-stall-guard';
 
 import { broadcastAutoRunUpdateImpl } from './auto-run-lifecycle';
-import { stopTaskTreeAgents } from '../../agents/stop-task-agents';
 import { selectAndEnqueueNextTask } from './auto-run-advance-select';
 import { isOverlapHeld } from '../workflow-orchestrator-overlap-guard';
+import { handOffExhaustedMerge } from '../merge-exhausted-handoff';
 import { isTaskTerminalForQueue } from '../queue-terminal-task-guard';
-import { recordHangBackstopBlock } from './auto-run-hang-backstop-transition';
+import { forceStopOverWallBudget, requeueAndResetTenure } from './auto-run-hang-backstop-stop';
 
 import { resolveResumedTenureStart, resolveAutoRunRestartTenureStart } from './resume-tenure';
 import { resolveCurrentTaskOutcome } from './auto-run-resolve-outcome';
@@ -103,6 +96,26 @@ export async function advanceActiveTaskLocked(
     if (isOverlapHeld(currentTaskId)) {
       log.info(
         `[ThemeAutoRunScheduler] Task ${currentTaskId} over tenure wall but held by the overlap guard — deferring hang backstop (theme ${themeId})`,
+      );
+      return;
+    }
+    // A task parked at verify_done whose auto-merge candidate is EXHAUSTED has
+    // no owner, so `workflowSettled` below would defer forever while this very
+    // branch re-enqueues a queue item every tick. Resolve it here instead: park
+    // it for the operator and move the theme on. Deliberately NOT routed into
+    // the force-stop path below — the work is committed and pushed, so a hang
+    // verdict would revert the worktree and demote the task to redo it, and the
+    // 2nd PR would collide with the 1st (task 1258: 16 items / 10.5 h / 0
+    // executions, holding theme 1's only slot — see merge-exhausted-handoff).
+    if (await handOffExhaustedMerge(prisma, currentTaskId, themeId)) {
+      await setCurrentTask(themeId, null);
+      broadcastAutoRunUpdateImpl(themeId);
+      await selectAndEnqueueNextTask(
+        prisma,
+        themeId,
+        order,
+        Math.max(0, globalActive - 1),
+        barrierHoldSince,
       );
       return;
     }
@@ -188,61 +201,21 @@ export async function advanceActiveTaskLocked(
       // Past the 3x ceiling without ever running: a stuck queue, not a hung
       // agent. Requeue (bounded) instead of blocking; setCurrentTask resets
       // the tenure clock.
-      log.warn(
-        `[ThemeAutoRunScheduler] Task ${currentTaskId} never executed within the hard ceiling — requeued instead of blocked (theme ${themeId})`,
-      );
-      logCycleEvent('task.skipped', {
-        theme: themeId,
-        task: currentTaskId,
-        cause: 'backstop_unstarted_requeue',
-        msg: 'never-executed task requeued by hang backstop',
-      });
-      await setCurrentTask(themeId, currentTaskId);
-      broadcastAutoRunUpdateImpl(themeId);
+      await requeueAndResetTenure(themeId, currentTaskId);
       return;
     } else {
-      log.warn(
-        `[ThemeAutoRunScheduler] Task ${currentTaskId} exceeded wall budget (${Math.round(
-          MAX_TASK_WALL_MS / 60000,
-        )}min) — force-stopping (theme ${themeId}; neverExecuted=${neverExecuted}, queueWaitOrLive=${executionIsLive}, withinHardCeiling=${withinHardCeiling}, sinceProgress=${Math.round(sinceProgressMs / 1000)}s)`,
-      );
-      logCycleEvent('task.hang_backstop', {
-        theme: themeId,
-        task: currentTaskId,
-        ok: false,
-        cause: 'wall_budget_exceeded',
-        wallMinutes: Math.round(MAX_TASK_WALL_MS / 60000),
-        msg: 'task force-stopped by hang backstop',
-      });
-      // NOTE: logCycleEvent only writes the NDJSON cycle log — invisible unless
-      // an operator is tailing it. Persist a Notification too so a stalled run
-      // surfaces in the NotificationBell (same pattern as the other auto-run
-      // lifecycle notifications above).
-      await notifyHangBackstop(themeId, currentTaskId, Math.round(MAX_TASK_WALL_MS / 60000));
-      await stopTaskTreeAgents(currentTaskId);
-      // Read the row BEFORE the blocked write so the transition carries the pre-stop status.
-      const wallBudgetState = await resolveTaskWorkflowState(currentTaskId);
-      await writeBlockedTask(prisma, currentTaskId).catch(() => {});
-      // Task 793: leave a transition row so retro analysis can tell why it went blocked.
-      // Task 1166: flag a never-executed (queue-wait) block so the reconciler skips the draft reset.
-      await recordHangBackstopBlock(
-        currentTaskId,
-        wallBudgetState,
-        Math.round(MAX_TASK_WALL_MS / 60000),
-        neverExecuted,
-      );
-      await onTaskFailed(themeId, `Task ${currentTaskId} timed out (auto-run hang guard)`);
-      broadcastAutoRunUpdateImpl(themeId);
-      await new Promise((r) => setTimeout(r, COOLDOWN_MS));
-      // NOTE: was `this.advanceTheme(themeId, null, ...)` — a null currentTaskId always
-      // took the selection branch, so this direct call is equivalent (task 628).
-      await selectAndEnqueueNextTask(
+      await forceStopOverWallBudget({
         prisma,
         themeId,
+        taskId: currentTaskId,
         order,
-        Math.max(0, globalActive - 1),
+        globalActive,
         barrierHoldSince,
-      );
+        neverExecuted,
+        executionIsLive,
+        withinHardCeiling,
+        sinceProgressMs,
+      });
       return;
     }
   }
