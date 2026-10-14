@@ -34,6 +34,9 @@ When rules conflict, follow this order:
 - **`origin/*` を含む git の ref/オブジェクトは worktree からメインチェックアウトと共有済みであり、他ブランチの調査・比較・マージ可否確認のためにメインチェックアウトへ `cd` する必要は一切ない。**
   primary へ `cd` する行為自体が `scripts/primary-guard-hook.cjs` の禁止操作（primary_mutation）に該当しうる。比較コマンドは worktree 内から `origin/<branch>` を直接指定して実行する。
 
+- **primary や兄弟 worktree の絶対パス（`/c/Projects/<repo>/...`、`C:\Projects\<repo>\...`）を `cat` / `grep` / `ls` / `git -C` に渡さない。読み取りでも primary_mutation として拒否される。**
+  cwd が既に task 専用 worktree なので、検索・参照は cwd 相対パスで行う。環境確認は `node -v` 等と参照系を `;` で連結せず、`git branch --show-current` / `git status` を cwd で個別に実行する。他ブランチの内容は `git show origin/<branch>:<path>` で読む。`cd <primary>/... 2>/dev/null; cd <worktree>` のように primary を先に試して失敗時に worktree へ落とす連鎖も、先頭の `cd` の時点で拒否される。サブディレクトリが要るなら cwd からの相対 `cd rapitas-backend` か、cwd のまま相対パスで実行する。拒否されたら回避策を探さず、cwd 相対で再実施するか報告して停止する。
+
 ---
 
 ## 2. ARCHITECTURE
