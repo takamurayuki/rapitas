@@ -20,6 +20,7 @@ import {
   localDateStamp,
   type DailyReportRaw,
 } from './daily-report-core';
+import { runBriefingHook } from './briefing/briefing-hook';
 import {
   aiFormatDailyReport,
   formatDailyReport,
@@ -250,6 +251,12 @@ export async function runDailyReport(): Promise<number> {
   log.info(
     { date, aiFormatted, satiated: data.satiated, completed: data.completedTasks.length },
     '[daily-report] Daily report created',
+  );
+  // Fail-open audio briefing: runBriefingHook never throws and adds no
+  // notification unless audio was actually produced.
+  await runBriefingHook(
+    raw.tasks.map((t) => ({ id: t.id, title: t.title, prNumber: t.prNumber })),
+    date,
   );
   return 1;
 }

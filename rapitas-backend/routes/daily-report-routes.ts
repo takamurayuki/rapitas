@@ -10,6 +10,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../config/database';
 import { createLogger } from '../config/logger';
 import { dailyReportTitle } from '../services/reporting/daily-report-service';
+import { briefingRoutes } from './briefing-routes';
 
 const log = createLogger('routes:daily-report');
 
@@ -85,4 +86,6 @@ export const dailyReportRoutes = new Elysia({ prefix: '/growth' })
       };
     },
     { params: t.Object({ date: t.String() }) },
-  );
+  )
+  // Night audio briefing (token-protected) — served under /growth/briefing.
+  .use(briefingRoutes);
