@@ -10,6 +10,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
 import { restoreBlockedUnstartedTask } from './blocked-unstarted-restore';
+import { resetBlockedTaskForRetry } from './blocked-retry-dispatch';
 // NOTE: Thresholds live in blocked-task-policy (task 615) so the evidence /
 // escalation passes share the same constants — behavior here is unchanged.
 import {
@@ -186,9 +187,9 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
         haltReason: null,
         updatedAt: { lt: settleBefore, gt: notOlderThan },
       },
-      select: { id: true, workflowStatus: true },
+      select: { id: true, workflowStatus: true, themeId: true },
     })
-    .catch(() => [] as { id: number; workflowStatus: string | null }[]);
+    .catch(() => [] as { id: number; workflowStatus: string | null; themeId: number | null }[]);
 
   let retried = 0;
   for (const t of tasks) {
@@ -407,25 +408,10 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
       .catch(() => 0);
     if (attempts >= MAX_BLOCKED_RETRY) continue;
 
-    await prisma.task
-      .update({
-        where: { id: t.id },
-        data: { status: 'todo', workflowStatus: 'draft', updatedAt: new Date() },
-      })
-      .catch(() => {});
-    await recordTransition({
-      taskId: t.id,
-      fromStatus: t.workflowStatus,
-      toStatus: 'draft',
-      actor: 'system',
-      cause: 'blocked_auto_retry',
-      metadata: { reason: 'blocked_task_auto_retry', attempt: attempts + 1 },
-    }).catch(() => {});
+    // NOTE (task 1238): the bare draft reset left no execution and no queue item;
+    // resetBlockedTaskForRetry also attempts re-dispatch and records why it did not take.
+    await resetBlockedTaskForRetry(prisma, t, attempts + 1);
     retried++;
-    log.info(
-      { taskId: t.id, attempt: attempts + 1, wf: t.workflowStatus },
-      '[reconciler] Auto-retried blocked task -> todo (draft)',
-    );
   }
   return retried;
 }

@@ -202,11 +202,12 @@ export async function handleApprovePlan({
       .catch((err: unknown) => ({ saved: false as const, error: String(err) }));
 
     if (parsedBody.approved) {
-      // Notify the theme auto-run scheduler so it can resume a paused theme.
+      // Release waiting_approval queue items (also covers the subtask branch,
+      // which never reaches resumeAfterApproval), then resume a paused theme.
       try {
-        const { ThemeAutoRunScheduler } =
-          await import('../../../services/workflow/auto-run/theme-auto-run-scheduler');
-        await ThemeAutoRunScheduler.getInstance().onPlanApproved(taskId);
+        const { syncAfterPlanApprovalAndNotifyTheme } =
+          await import('../../../services/workflow/plan-approval-queue-sync');
+        await syncAfterPlanApprovalAndNotifyTheme(taskId);
       } catch (err) {
         log.warn({ err }, '[Workflow] Failed to notify ThemeAutoRunScheduler of plan approval');
       }

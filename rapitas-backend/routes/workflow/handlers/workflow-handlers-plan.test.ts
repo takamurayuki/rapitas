@@ -86,6 +86,10 @@ mock.module('../../../services/memory/decision-journal', () => ({
 mock.module('../../../services/workflow/auto-run/theme-auto-run-scheduler', () => ({
   ThemeAutoRunScheduler: { getInstance: () => ({ onPlanApproved: () => Promise.resolve() }) },
 }));
+const mockSyncQueue = mock(async (_taskId: number) => ({ released: 1 }));
+mock.module('../../../services/workflow/plan-approval-queue-sync', () => ({
+  syncAfterPlanApprovalAndNotifyTheme: mockSyncQueue,
+}));
 mock.module('../../../services/workflow/ai-orchestra', () => ({
   AIOrchestra: {
     getInstance: () => ({
@@ -114,6 +118,7 @@ beforeEach(() => {
   mockCreate.mockReset();
   mockCount.mockReset();
   mockRecordTransition.mockReset();
+  mockSyncQueue.mockClear();
   mockPreviewMissing.mockReset();
   mockUpdate.mockResolvedValue({ id: 1, workflowStatus: 'draft' });
   mockCreate.mockResolvedValue({});
@@ -349,5 +354,40 @@ describe('handleApprovePlan — forbiddenChangeOverride (task 1059)', () => {
     expect(mockRecordTransition).toHaveBeenCalledWith(
       expect.objectContaining({ cause: 'manual_plan_rejected' }),
     );
+  });
+});
+
+describe('handleApprovePlan — queue release after approval (task 1254)', () => {
+  const approve = () =>
+    handleApprovePlan({
+      params: { taskId: '1' },
+      body: { approved: true },
+      headers: UI_HEADERS,
+      set: makeSet(),
+    });
+
+  test('通常の承認で waiting_approval 項目の解放が呼ばれる', async () => {
+    mockFindUnique.mockResolvedValueOnce({ id: 1, workflowStatus: 'plan_created' });
+    await approve();
+    expect(mockSyncQueue).toHaveBeenCalledTimes(1);
+    expect(mockSyncQueue).toHaveBeenCalledWith(1);
+  });
+
+  test('サブタスク分割中(pendingSubtasks>0)の承認でも解放が呼ばれる', async () => {
+    mockFindUnique.mockResolvedValueOnce({ id: 1, workflowStatus: 'plan_created' });
+    mockCount.mockResolvedValue(2);
+    await approve();
+    expect(mockSyncQueue).toHaveBeenCalledTimes(1);
+  });
+
+  test('却下では解放しない', async () => {
+    mockFindUnique.mockResolvedValueOnce({ id: 1, workflowStatus: 'plan_created' });
+    await handleApprovePlan({
+      params: { taskId: '1' },
+      body: { approved: false },
+      headers: UI_HEADERS,
+      set: makeSet(),
+    });
+    expect(mockSyncQueue).not.toHaveBeenCalled();
   });
 });

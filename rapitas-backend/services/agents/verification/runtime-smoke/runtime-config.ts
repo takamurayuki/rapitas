@@ -20,6 +20,7 @@ import {
   checkRuntimeConfigContract,
   normalizeRuntimeUrlHost,
 } from '../../../organization/runtime-config-contract';
+import { parseFeatureEntries, type FeatureEntry } from './feature-reachability';
 
 /** File name looked up at the worktree root. */
 export const RUNTIME_CONFIG_FILENAME = 'rapitas.runtime.json';
@@ -40,6 +41,8 @@ export interface RuntimeConfig {
   readySelector?: string;
   /** Browser readiness deadline, separate from server startup. */
   readinessTimeoutMs?: number;
+  /** Declared feature entry points checked against the shipped tree. */
+  featureEntries?: FeatureEntry[];
 }
 
 const DEFAULT_READY_TIMEOUT_MS = 90_000;
@@ -120,8 +123,12 @@ export function parseRuntimeConfig(raw: string): { config?: RuntimeConfig; error
       : []
   ).slice(0, MAX_CHECK_PATHS);
 
+  const featureParse = parseFeatureEntries(o.featureEntries);
+  if (featureParse.error) return { error: featureParse.error };
+
   return {
     config: {
+      ...(featureParse.entries ? { featureEntries: featureParse.entries } : {}),
       start: o.start.trim(),
       // `localhost` is rewritten to 127.0.0.1 rather than rejected: three
       // existing projects configure it and work, and the ambiguity being

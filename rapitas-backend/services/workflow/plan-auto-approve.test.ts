@@ -14,6 +14,11 @@ mock.module('./workflow-orchestrator', () => ({
   WorkflowOrchestrator: { getInstance: () => ({ advanceWorkflow }) },
 }));
 
+const syncAndNotify = mock(async (_taskId: number) => ({ released: 1 }));
+mock.module('./plan-approval-queue-sync', () => ({
+  syncAfterPlanApprovalAndNotifyTheme: syncAndNotify,
+}));
+
 const logError = mock(() => {});
 const logInfo = mock(() => {});
 mock.module('../../config/logger', () => ({
@@ -77,6 +82,7 @@ beforeEach(() => {
   decisionUnavailable = false;
   approvalCount = 1;
   advanceWorkflow.mockClear();
+  syncAndNotify.mockClear();
   logError.mockClear();
   logInfo.mockClear();
   userSettings = null;
@@ -206,6 +212,25 @@ describe('maybeAutoApprovePlan', () => {
     expect(recordedTransitions).toHaveLength(1);
     expect(recordedTransitions[0].cause).toBe('auto_approve_plan');
     expect(activityLogCreates).toHaveLength(1);
+  });
+
+  test('global auto-approve releases the queue item / resumes the theme exactly once', async () => {
+    taskRow = { autoApprovePlan: false, parentId: null, workflowStatus: 'plan_created' };
+    userSettings = { autoApprovePlan: true };
+    await maybeAutoApprovePlan(7, 'ja', { autoAdvance: false });
+    expect(syncAndNotify).toHaveBeenCalledTimes(1);
+    expect(syncAndNotify).toHaveBeenCalledWith(7);
+  });
+
+  test('held or lost-CAS approval does not touch the queue', async () => {
+    taskRow = { autoApprovePlan: false, parentId: null, workflowStatus: 'plan_created' };
+    userSettings = { autoApprovePlan: true };
+    approvalCount = 0;
+    await maybeAutoApprovePlan(7, 'ja', { autoAdvance: false });
+    approvalCount = 1;
+    manualDecision = { cause: 'manual_plan_rejected' };
+    await maybeAutoApprovePlan(7, 'ja', { autoAdvance: false });
+    expect(syncAndNotify).not.toHaveBeenCalled();
   });
 
   test('global flag (no task-level flag) records the global reason', async () => {

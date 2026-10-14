@@ -49,6 +49,8 @@ export const mockTaskUpdate = mock(() => Promise.resolve({}));
 export const mockTaskFindUnique = mock(() =>
   Promise.resolve(null as { workflowStatus: string } | null),
 );
+export const mockQueueItemFindMany = mock(() => Promise.resolve([] as Array<{ id: number }>));
+export const mockAgentExecutionFindMany = mock(() => Promise.resolve([] as Array<{ id: number }>));
 export const mockThemeAutoRunUpdateMany = mock(() => Promise.resolve({ count: 0 }));
 export const mockThemeAutoRunCount = mock(() => Promise.resolve(0));
 export const mockQueueItemFindFirst = mock(() =>
@@ -87,7 +89,11 @@ mock.module('../../../config', () => ({
     },
     workflowQueueItem: {
       findFirst: mockQueueItemFindFirst,
+      findMany: mockQueueItemFindMany,
       updateMany: mockQueueItemUpdateMany,
+    },
+    agentExecution: {
+      findMany: mockAgentExecutionFindMany,
     },
     workflowTransition: {
       count: mockTransitionCount,

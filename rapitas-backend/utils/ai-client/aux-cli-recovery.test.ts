@@ -6,6 +6,7 @@ import { createAuxCliRecovery, inspectAuxCliRecovery } from './aux-cli-recovery'
 import {
   canReconcileOwnership,
   createOwnershipRegistry,
+  STALE_INTENT_MS,
   type OwnershipRecord,
 } from './aux-cli-ownership';
 import { ClaudeCliUnavailableError } from './cli-errors';
@@ -111,9 +112,63 @@ test('recovery in another process leaves a young intent confirmable by its launc
     const other = createAuxCliRecovery(createOwnershipRegistry(path), async () => {
       throw new Error('inspect() must not be called for a root:null record');
     });
-    await expect(other.assertReady()).rejects.toBeInstanceOf(ClaudeCliUnavailableError);
+    // A launch still inside its confirm window is not an unresolved hold.
+    await other.assertReady();
     await launcher.confirmOwnership('launching', record.root!);
     expect((await launcher.snapshot())[0]!.status).toBe('active');
+  } finally {
+    for (const name of await readdir(directory)) await unlink(join(directory, name));
+    await rmdir(directory);
+  }
+});
+
+test('an unconfirmed intent is ignored while young and aged out once stale', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'rapitas-aux-recovery-'));
+  try {
+    const registry = createOwnershipRegistry(join(directory, 'registry.json'));
+    await registry.recordLaunchIntent('crashed', 'windows-job');
+    const recorded = Date.parse((await registry.snapshot())[0]!.recordedAt!);
+    const unreachable = async () => {
+      throw new Error('inspect() must not be called for a root:null record');
+    };
+    const young = createAuxCliRecovery(
+      registry,
+      unreachable,
+      new Set(),
+      () => recorded + STALE_INTENT_MS - 1,
+    );
+    await young.assertReady();
+    expect((await registry.snapshot())[0]!.status).toBe('intent');
+    const aged = createAuxCliRecovery(
+      registry,
+      unreachable,
+      new Set(),
+      () => recorded + STALE_INTENT_MS,
+    );
+    await aged.assertReady();
+    expect(await registry.snapshot()).toEqual([]);
+  } finally {
+    for (const name of await readdir(directory)) await unlink(join(directory, name));
+    await rmdir(directory);
+  }
+});
+
+test('a young intent does not hide an older unresolved hold', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'rapitas-aux-recovery-'));
+  try {
+    const registry = createOwnershipRegistry(join(directory, 'registry.json'));
+    await registry.recordLaunchIntent('held', 'windows-job');
+    await registry.confirmOwnership('held', record.root!);
+    await registry.recordLaunchIntent('launching', 'windows-job');
+    const recovery = createAuxCliRecovery(registry, async (row) => ({
+      fullyEnumerated: true,
+      scopeEmpty: false,
+      observations: [{ expected: row.root!, actual: { kind: 'absent' } }],
+    }));
+    const failure = await recovery.assertReady().catch((error: Error) => error);
+    expect(failure).toBeInstanceOf(ClaudeCliUnavailableError);
+    expect((failure as Error).message).toContain('held');
+    expect((failure as Error).message).not.toContain('launching');
   } finally {
     for (const name of await readdir(directory)) await unlink(join(directory, name));
     await rmdir(directory);

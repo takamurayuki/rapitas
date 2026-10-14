@@ -49,6 +49,16 @@ export interface RequirementIntakeDeps {
   listExistingTitles: (themeId: number) => Promise<string[]>;
   /** How many filed tasks the theme has that nobody has started. */
   countUnstartedTasks: (themeId: number) => Promise<number>;
+  /**
+   * Whether every already-filed environment-setup task has finished. Decides
+   * whether a zero-filing run is a theme legitimately waiting for its setup
+   * task or one that can never file again (requirement-intake-outcome.ts).
+   *
+   * Optional: when omitted the outcome is left unreported rather than guessed,
+   * so a test fixture without it cannot manufacture a false alarm.
+   * / 環境構築タスクが完了済みか
+   */
+  isBootstrapTaskFinished?: (themeId: number) => Promise<boolean>;
   /** Files one task; a falsy result means nothing was created. */
   createTask: (
     payload: RequirementTaskPayload | DriftTaskPayload | BootstrapTaskPayload,

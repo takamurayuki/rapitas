@@ -122,6 +122,7 @@ describe('parseOptionsBlock', () => {
           consequence: '実装は最小限にする',
           mutatesGate: false,
           planRevision: false,
+          requiresOperatorAction: false,
         },
         {
           key: 'B',
@@ -129,6 +130,7 @@ describe('parseOptionsBlock', () => {
           consequence: 'テストを手厚くする',
           mutatesGate: false,
           planRevision: false,
+          requiresOperatorAction: false,
         },
       ],
       freeTextRequired: false,
@@ -223,6 +225,20 @@ describe('parseOptionsBlock', () => {
     const md =
       '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"a","mutatesGate":false}],"freeTextRequired":false}]}\n```';
     expect(parseOptionsBlock(md)?.questions[0].options[0].mutatesGate).toBe(false);
+  });
+
+  // Parity with the backend parser (B6) — nothing renders it here yet, but a
+  // field this parser drops is a field the two copies disagree about.
+  it('parses requiresOperatorAction:true on an option', () => {
+    const md =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"運用者が依存を追加する","requiresOperatorAction":true}],"freeTextRequired":false}]}\n```';
+    expect(parseOptionsBlock(md)?.questions[0].options[0].requiresOperatorAction).toBe(true);
+  });
+
+  it('defaults requiresOperatorAction to false when unspecified (backward compat)', () => {
+    const md =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"a"}],"freeTextRequired":false}]}\n```';
+    expect(parseOptionsBlock(md)?.questions[0].options[0].requiresOperatorAction).toBe(false);
   });
 
   it('defaults mutatesGate to false when unspecified (backward compat)', () => {

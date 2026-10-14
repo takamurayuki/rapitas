@@ -4,6 +4,7 @@ import {
   type OwnershipRecord,
   type OwnershipEvidence,
   type ProcessObservation,
+  STALE_INTENT_MS,
   type createOwnershipRegistry,
 } from './aux-cli-ownership';
 import { observeWindowsAuxJob, type WindowsJobObservation } from './windows-aux-job';
@@ -57,6 +58,7 @@ export function createAuxCliRecovery(
   registry: ReturnType<typeof createOwnershipRegistry>,
   inspect: (record: OwnershipRecord) => Promise<OwnershipEvidence> = inspectAuxCliRecovery,
   liveTokens: ReadonlySet<string> = new Set(),
+  now: () => number = Date.now,
 ) {
   let recovering: Promise<void> | null = null;
   return {
@@ -68,8 +70,17 @@ export function createAuxCliRecovery(
         );
         const unresolved: string[] = [];
         for (const record of pending) {
-          if (!(await registry.reconcile(record.executionToken, inspect)))
-            unresolved.push(record.executionToken);
+          const nowMs = now();
+          if (await registry.reconcile(record.executionToken, inspect, nowMs)) continue;
+          // A young unconfirmed intent belongs to a launch (possibly in another
+          // backend process; liveTokens is process-local) still inside its
+          // reserve()→confirm window. It is neither a hold nor a reason to fail.
+          const recordedAtMs = record.recordedAt ? Date.parse(record.recordedAt) : 0;
+          const youngIntent =
+            record.status === 'intent' &&
+            record.root === null &&
+            nowMs - recordedAtMs < STALE_INTENT_MS;
+          if (!youngIntent) unresolved.push(record.executionToken);
         }
         if (unresolved.length)
           // NOTE(task #914): this readiness barrier must classify as
