@@ -219,3 +219,52 @@ describe('computeTurbopackRootOverride', () => {
     expect(computeTurbopackRootOverride(tmpdir())).toBeUndefined();
   });
 });
+
+describe('featureEntries in runtime config', () => {
+  const base = { start: 'npm run dev -- -p {port}', url: 'http://127.0.0.1:{port}' };
+
+  test('undeclared config stays without featureEntries (existing behavior)', () => {
+    const { config } = parseRuntimeConfig(JSON.stringify(base));
+    expect(config!.featureEntries).toBeUndefined();
+  });
+
+  test('declared entries are parsed and invalid ones are rejected', () => {
+    const ok = parseRuntimeConfig(
+      JSON.stringify({ ...base, featureEntries: [{ id: 'f-01', file: 'src/A.tsx' }] }),
+    );
+    expect(ok.config!.featureEntries).toEqual([{ id: 'F-01', file: 'src/A.tsx' }]);
+    const bad = parseRuntimeConfig(
+      JSON.stringify({ ...base, featureEntries: [{ id: 'F-01', file: '../x' }] }),
+    );
+    expect(bad.error).toContain('featureEntries');
+  });
+
+  test('undeclared + clean smoke keeps ok and records 判定不能 in details', async () => {
+    const { applyFeatureReachability } = await import('./feature-reachability');
+    const smoke = evaluateSmokeFindings({ browserAvailable: true, findings: [finding()] });
+    const v = await applyFeatureReachability(smoke, {}, tmpdir());
+    expect(v.ok).toBe(true);
+    expect(v.errorCount).toBe(0);
+    expect(v.lines.join('\n')).toContain('判定不能');
+  });
+
+  test('unreachable feature on a real directory fails and is named', async () => {
+    const { applyFeatureReachability } = await import('./feature-reachability');
+    const dir = mkdtempSync(path.join(tmpdir(), 'reach-'));
+    writeFileSync(path.join(dir, 'empty.tsx'), '');
+    const smoke = evaluateSmokeFindings({ browserAvailable: true, findings: [finding()] });
+    const v = await applyFeatureReachability(
+      smoke,
+      {
+        featureEntries: [
+          { id: 'F-09', file: 'empty.tsx' },
+          { id: 'F-10', file: 'none.tsx' },
+        ],
+      },
+      dir,
+    );
+    expect(v.ok).toBe(false);
+    expect(v.errorCount).toBe(2);
+    expect(v.lines.join('\n')).toContain('F-09, F-10');
+  });
+});
