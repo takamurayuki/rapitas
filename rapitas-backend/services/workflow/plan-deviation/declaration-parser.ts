@@ -32,14 +32,16 @@ export const PLAN_DECLARATION_GUIDANCE: Readonly<Record<'ja' | 'en', string>> = 
     '- `files`: 追加・変更するファイルの glob / ディレクトリパターン（1件以上。0件だと「計画が曖昧」として判定に使われません）\n' +
     '- `commands`: 実行予定のコマンド名（引数は書かない）\n' +
     '- `"externalHosts"`: HTTP 通信する外部ホスト（localhost は不要。サブドメインは `*.example.com`）\n\n' +
-    EXAMPLE_FENCE,
+    EXAMPLE_FENCE +
+    '\n\n受入基準を意図的に対象外とする場合のみ、`json:out-of-scope-criteria` フェンスを1個だけ追加できます（例: ```json:out-of-scope-criteria {"version":1,"criteria":[{"id":3,"reason":"懸念#9903で追跡"}]}```）。`id` は受入条件の番号、`reason` は必須です。文言での縮小は認められません。',
   en:
     '## Plan declaration (REQUIRED, machine-readable)\n' +
     'Include exactly one `json:plan-declaration` fence in plan.md. Runtime operations are checked against it and shown on the deviation timeline.\n' +
     '- `files`: glob / directory patterns of files you will add or modify (at least one; zero makes the plan "ambiguous" and it is not used for judging)\n' +
     '- `commands`: command names you will run (no arguments)\n' +
     '- `"externalHosts"`: external hosts contacted over HTTP (localhost not needed; use `*.example.com` for subdomains)\n\n' +
-    EXAMPLE_FENCE,
+    EXAMPLE_FENCE +
+    '\n\nOnly when deliberately excluding an acceptance criterion, add exactly one `json:out-of-scope-criteria` fence (e.g. ```json:out-of-scope-criteria {"version":1,"criteria":[{"id":3,"reason":"tracked in concern #9903"}]}```). `id` is the criterion number and `reason` is required. Wording-based scope reduction is not honoured.',
 };
 
 /** Keep only non-empty trimmed strings, de-duplicated in order. */

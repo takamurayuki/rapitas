@@ -209,7 +209,9 @@ export async function computeAndApplyStatusTransition(params: {
     try {
       const { validateVerify } =
         await import('../../../../services/workflow/phase-output-validator');
-      const verifyValidation = validateVerify(savedContent);
+      const { loadPlanContentForVerify } =
+        await import('../../../../services/workflow/plan-for-verify');
+      const verifyValidation = validateVerify(savedContent, await loadPlanContentForVerify(taskId));
       if (!verifyValidation.ok && verifyValidation.severity >= 80) {
         // A historical pass or PR does not establish that this HEAD passed.
         // Current validation failures must repair or hold; never infer completion

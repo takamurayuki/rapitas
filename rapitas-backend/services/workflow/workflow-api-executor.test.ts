@@ -498,7 +498,7 @@ describe('executeAPIAgent — verify.md honesty gate', () => {
 
     mockWriteWorkflowFile.mockResolvedValueOnce('persisted verification');
     const result = await runVerify();
-    expect(mockValidateVerify).toHaveBeenCalledWith('persisted verification');
+    expect(mockValidateVerify).toHaveBeenCalledWith('persisted verification', undefined);
 
     expect(mockAttemptVerifyRepair).toHaveBeenCalledWith(
       1,

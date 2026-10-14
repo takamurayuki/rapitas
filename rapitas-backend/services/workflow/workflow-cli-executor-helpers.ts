@@ -114,16 +114,21 @@ export const WF_STATUS_RANK: Record<string, number> = {
  *
  * @param outputFile - Workflow output file type / 対象の成果物種別
  * @param content - Artifact markdown content / 成果物の本文
+ * @param planContent - plan.md body used by the verify gate's scope-reduction check / verify 判定用の plan 本文
  * @returns Structural validation result / 構造バリデーション結果
  */
-export function validateOutput(outputFile: string, content: string): ValidationResult {
+export function validateOutput(
+  outputFile: string,
+  content: string,
+  planContent?: string,
+): ValidationResult {
   switch (outputFile) {
     case 'research':
       return validateResearch(content);
     case 'plan':
       return validatePlan(content);
     case 'verify':
-      return validateVerify(content);
+      return validateVerify(content, planContent);
     default:
       return { ok: true, missingSections: [], severity: 0, summary: 'no validator' };
   }

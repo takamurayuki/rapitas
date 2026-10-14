@@ -23,6 +23,10 @@ import { quoteEvidenceLine } from './verify-repeat-evidence';
 import { isRunnerExitFailureLine } from './verify-exit-signal';
 import { validateSections } from './phase-output-validator-sections';
 import { isPastReferenceLine } from './past-reference-line';
+import {
+  parseOutOfScopeCriteria,
+  isDeclaredScopeReductionOnly,
+} from './plan-out-of-scope-criteria';
 
 export interface ValidationResult {
   ok: boolean;
@@ -171,14 +175,20 @@ function quoteNonpassingRows(content: string): string {
  * existing "treat as failed when validation fails" branch fires.
  *
  * @param content - verify.md body / verify.md 本文
+ * @param planContent - plan.md body; criteria it declares out of scope are not held against the report / plan.md 本文（非対象宣言の基準は不合格にしない）
  * @returns Validation result with contradiction details when applicable
  */
-export function validateVerify(content: string): ValidationResult {
+export function validateVerify(content: string, planContent?: string): ValidationResult {
   if (looksLogPolluted(content)) return pollutedResult('verify.md');
   // A `⚠️ 一部失敗` explained only by push/PR/CI/merge still pending is not a
   // failed implementation: those steps run AFTER this report. 94 of 96 such
   // bounces in the week to 2026-09-20 stated the technical checks passed.
-  if (hasNonpassingVerifyVerdict(content) && !isPublicationOnlyPartial(content)) {
+  // Likewise when the plan itself declared every remaining criterion out of scope.
+  if (
+    hasNonpassingVerifyVerdict(content) &&
+    !isPublicationOnlyPartial(content) &&
+    !isDeclaredScopeReductionOnly(content, parseOutOfScopeCriteria(planContent))
+  ) {
     return {
       ok: false,
       missingSections: [],
