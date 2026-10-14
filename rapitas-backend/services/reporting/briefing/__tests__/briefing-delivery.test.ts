@@ -81,6 +81,25 @@ describe('deliverBriefing', () => {
     expect(r2.status).toBe('skipped');
     expect(deps.notify).toHaveBeenCalledTimes(1);
   });
+
+  // CodeQL (PR #912, high): the existsSync guard and the writeFile are far
+  // apart — TTS synthesis runs between them — so two concurrent deliveries for
+  // the same date both pass the guard and the second clobbers the first,
+  // notifying twice. The guard is only a fast path; the create must be atomic.
+  it('delivers once when two runs for the same date race the existence guard', async () => {
+    const deps = mkDeps({
+      synthesize: async () => {
+        // Widen the check-to-write window so both callers are past the guard.
+        await new Promise((r) => setTimeout(r, 20));
+        return new Uint8Array([1]);
+      },
+    });
+
+    const [a, b] = await Promise.all([deliverBriefing(input, deps), deliverBriefing(input, deps)]);
+
+    expect([a.status, b.status].filter((s) => s === 'skipped')).toHaveLength(1);
+    expect(deps.notify).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('real-length loop', () => {

@@ -151,7 +151,27 @@ export async function deliverBriefing(
       audioSeconds: audio ? seconds : undefined,
       createdAt: new Date().toISOString(),
     };
-    await writeFile(paths.json, JSON.stringify(stored), 'utf8');
+    // Atomic create. The existsSync guard at the top of this function is only a
+    // fast path: TTS synthesis runs between the check and this write, so two
+    // concurrent deliveries for the same date both pass the guard and the
+    // second would clobber the first and notify twice (CodeQL high: "potential
+    // file system race condition", PR #912). 'wx' makes this single write the
+    // point that decides the winner. EEXIST is handled here rather than left to
+    // the catch below, which would misreport a lost race as a failed delivery
+    // and send the text fallback notification.
+    const claimed = await writeFile(paths.json, JSON.stringify(stored), {
+      encoding: 'utf8',
+      flag: 'wx',
+    })
+      .then(() => true)
+      .catch((err: NodeJS.ErrnoException) => {
+        if (err?.code === 'EEXIST') return false;
+        throw err;
+      });
+    // NOTE: the loser may already have written the audio file above. Both runs
+    // derive that name from the same date and mime, so it is the same path with
+    // equivalent content — the json is the record of truth either way.
+    if (!claimed) return { status: 'skipped' };
     if (!audio) return { status: 'script_only' };
     await deps.notify({
       title: `音声ブリーフィング ${input.date}`,
