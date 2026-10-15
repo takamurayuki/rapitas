@@ -385,4 +385,17 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
     because:
       '運用者の手書きSQLで DateTime 列にTEXTが入った行を読んだ一過性のデータ起因エラー — tickは例外を握り次周期で再試行し、行の修復後に自然回復する。他テーブルのInconsistent column dataは別シグネチャで可視のまま',
   },
+  {
+    // ログ出力箇所: routes/workflow/theme-auto-run.ts:90 の log.error
+    // （ロガー routes:theme-auto-run、GET /themes/:id/auto-run の catch）。
+    // 例外源は theme-auto-run-queries.ts:25 の prisma.themeAutoRun.findUnique。
+    // 原因は #1284 と同じ: 運用者が稼働中DBの DateTime 列(INTEGER epoch ms)へ TEXT を
+    // 手書きした行を Prisma が読めない。アプリ側は TEXT を生成せず、行の修復後に
+    // 自然回復する（#1285）。他ロガー/他テーブルの Inconsistent column data は
+    // 別シグネチャのため抑制しない。
+    test: /Invalid `prisma\.themeAutoRun\.findUnique\(\)` invocation[\s\S]*Inconsistent column data: Conversion failed: input contains invalid characters/i,
+    logger: /^routes:theme-auto-run$/i,
+    because:
+      '運用者の手書きSQLで DateTime 列にTEXTが入った行を読んだ一過性のデータ起因エラー — 行の修復後に自然回復する。他ロガー・他テーブルのInconsistent column dataは別シグネチャで可視のまま',
+  },
 ];
