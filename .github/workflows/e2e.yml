@@ -10,7 +10,11 @@ name: E2E Restart-Loop Smoke
 
 on:
   pull_request:
-    branches: [master, main]
+    # NOTE: `develop` is the branch every PR actually targets. While this list
+    # held only master/main, the whole workflow lay dormant from 2026-06-20 —
+    # the last PR to main — so the fault-injection job added in PR #724 never
+    # ran once, and its first execution (PR #919, 2026-10-15) failed.
+    branches: [master, main, develop]
     paths:
       - 'rapitas-backend/**'
   workflow_dispatch:
@@ -105,6 +109,22 @@ jobs:
           bun test scripts/__tests__/eval-runner.test.ts
           bun test scripts/__tests__/eval-collect-cases.test.ts
           bun test eval/private-set/case-schema.test.ts
+
+      # Both generated Prisma clients are runtime requirements and BOTH are
+      # gitignored, so they must be built here. The script points the isolated
+      # backend at a throwaway `file:` DB, which makes prisma-client-resolver
+      # require('generated/prisma-sqlite'); without this step that require threw
+      # at startup and the only symptom was "failed health check after 30062ms".
+      # The postgres client is needed too — many modules value-import `Prisma`
+      # from it regardless of the active provider. The URL below is never
+      # connected to; `generate` only needs the env var to exist.
+      - name: Generate Prisma clients
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://rapitas:rapitas@localhost:5432/rapitas_unused
+        run: |
+          bun run db:generate
+          bun run db:generate:sqlite
 
       - name: Run fault-injection E2E
         working-directory: rapitas-backend
