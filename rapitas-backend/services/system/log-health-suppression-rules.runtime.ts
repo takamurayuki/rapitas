@@ -68,6 +68,18 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
       '音声合成の上限（秒数・試行回数）超過は上限付き再試行の設計どおりの打ち切りで、観測例はテストの意図的な失敗系出力 — 同ロガーの別文言は抑制せず可視のまま',
   },
   {
+    // ログ出力箇所: reporting/briefing/briefing-delivery.ts:191 の log.error
+    // （deliverBriefing の catch。例外は :73 の tts.synthesize から伝播）。
+    // 観測された1件は briefing-delivery.test.ts:58-68 が synthesize に注入した
+    // Error('boom') で、本番の TTS 障害ではない。catch 後は :193 の fallbackNotify が
+    // テキスト通知を送り { status: 'fallback' } を返すため、配信は失われない。
+    // NOTE: 文言・ロガーとも完全一致。同ロガーの実 TTS 例外は文言が異なり可視のまま。
+    test: /^boom$/,
+    logger: /^reporting:briefing-delivery$/,
+    because:
+      '音声合成の例外はテキスト通知へフォールバックする設計どおりの動作で、観測例はテストが注入した Error(boom) の出力 — 同ロガーの別文言は抑制せず可視のまま',
+  },
+  {
     // ログ出力箇所: git-operations/pr/pr-merge-ops.ts:154-157 の logger.warn
     // （mergePullRequest内）。gh pr merge --delete-branch はGitHub側マージを先に
     // 行い最後にローカルブランチ削除をするため、タスクworktreeが同ブランチを
