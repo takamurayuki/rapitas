@@ -167,9 +167,9 @@ describe('applyQuestionAnswerByKind — stopOverride (task 944)', () => {
       workflowStatus: 'in_progress',
     });
 
-    await expect(
-      applyQuestionAnswerByKind({ ...BASE_PARAMS, stopOverride: true }),
-    ).rejects.toThrow('タスクの実行が停止されています');
+    await expect(applyQuestionAnswerByKind({ ...BASE_PARAMS, stopOverride: true })).rejects.toThrow(
+      'タスクの実行が停止されています',
+    );
     expect(mockApplyResumeFromQuestionAnswerLocked).not.toHaveBeenCalled();
   });
 

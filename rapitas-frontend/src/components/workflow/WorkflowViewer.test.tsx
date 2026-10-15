@@ -188,7 +188,9 @@ describe('WorkflowViewer — handleAnswerIntakeQuestion applies the resolved toS
     armHook('awaiting_question', QUESTION_MD);
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({ ok: false, status: 500, json: () => Promise.reject(new Error()) }),
+      vi
+        .fn()
+        .mockResolvedValue({ ok: false, status: 500, json: () => Promise.reject(new Error()) }),
     );
 
     render(<WorkflowViewer taskId={1} workflowStatus="awaiting_question" />);
@@ -198,9 +200,7 @@ describe('WorkflowViewer — handleAnswerIntakeQuestion applies the resolved toS
     });
     fireEvent.click(screen.getByText('questionPanel.submitAndResume'));
 
-    await waitFor(() =>
-      expect(mockSetAdvanceError).toHaveBeenCalledWith('viewer.advanceFailed'),
-    );
+    await waitFor(() => expect(mockSetAdvanceError).toHaveBeenCalledWith('viewer.advanceFailed'));
     expect(mockRefetch).not.toHaveBeenCalled();
 
     vi.unstubAllGlobals();
@@ -217,9 +217,7 @@ describe('WorkflowViewer — handleAnswerIntakeQuestion applies the resolved toS
     });
     fireEvent.click(screen.getByText('questionPanel.submitAndResume'));
 
-    await waitFor(() =>
-      expect(mockSetAdvanceError).toHaveBeenCalledWith('viewer.advanceFailed'),
-    );
+    await waitFor(() => expect(mockSetAdvanceError).toHaveBeenCalledWith('viewer.advanceFailed'));
     expect(mockApplyResolvedQuestionStatus).not.toHaveBeenCalled();
     expect(mockRefetch).not.toHaveBeenCalled();
 
