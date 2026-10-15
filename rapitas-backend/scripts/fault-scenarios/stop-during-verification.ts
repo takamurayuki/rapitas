@@ -8,7 +8,7 @@
  * contract, not the queue-cancellation implementation, which already has
  * dedicated unit coverage in routes/agents/execution/routes/).
  */
-import type { ScenarioContext, ScenarioResult } from './common';
+import { readFailedResponseBody, type ScenarioContext, type ScenarioResult } from './common';
 
 /**
  * Runs the stop-during-verification fault scenario.
@@ -27,7 +27,7 @@ export async function run(ctx: ScenarioContext): Promise<ScenarioResult> {
     return {
       name: 'stop-during-verification',
       passed: false,
-      detail: `task creation failed: HTTP ${createRes.status}`,
+      detail: `task creation failed: HTTP ${createRes.status}: ${await readFailedResponseBody(createRes)}`,
     };
   }
 
@@ -50,7 +50,7 @@ export async function run(ctx: ScenarioContext): Promise<ScenarioResult> {
     return {
       name: 'stop-during-verification',
       passed: false,
-      detail: `stop-execution failed: HTTP ${stopRes.status}`,
+      detail: `stop-execution failed: HTTP ${stopRes.status}: ${await readFailedResponseBody(stopRes)}`,
     };
   }
 
