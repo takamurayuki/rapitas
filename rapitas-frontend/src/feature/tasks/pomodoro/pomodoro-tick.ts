@@ -10,13 +10,18 @@ import { playNotificationSound } from './pomodoro-audio';
 import { syncPomodoroToBackend } from './pomodoro-sync';
 import type { PomodoroState } from './pomodoro-types';
 import { useLocaleStore } from '@/stores/locale-store';
-import ja from '../../../../messages/ja.json';
-import en from '../../../../messages/en.json';
+// NOTE: the `task` FRAGMENTS, not the full catalogs. This module reads only
+// `task.*`, but importing messages/{ja,en}.json pulled 577 KB of JSON into
+// whatever chunk it lands in (task 1268); the two task fragments are 51.5 KB.
+// The generator writes these from the same source as the merged catalogs, so
+// the keys below cannot drift from what useTranslations('task') resolves.
+import jaTask from '../../../../messages/fragments/ja/05-task.json';
+import enTask from '../../../../messages/fragments/en/05-task.json';
 
 type SetFn = (partial: Partial<PomodoroState>) => void;
 type GetFn = () => PomodoroState;
 
-const messages = { ja, en } as const;
+const messages = { ja: jaTask, en: enTask } as const;
 
 /**
  * Resolves a dot-path key under the `task` namespace from the current
