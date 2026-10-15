@@ -125,3 +125,17 @@ describe('PRIMARY_CHECKOUT_GUIDANCE primary-subdirectory chain (task 1227)', () 
     },
   );
 });
+
+describe('PRIMARY_CHECKOUT_GUIDANCE positive test-run form (task 1263)', () => {
+  test.each(['ja', 'en'] as const)(
+    '%s gives the cwd-relative cd + run-checked command without absolute paths',
+    (lang) => {
+      const text = PRIMARY_CHECKOUT_GUIDANCE[lang];
+      expect(text).toContain(
+        'cd rapitas-backend` then `node ../scripts/run-checked.cjs -- "bun test --isolate <test-file>"',
+      );
+      expect(text).not.toContain('C:/Projects');
+      expect(text).not.toContain('/c/Projects');
+    },
+  );
+});

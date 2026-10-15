@@ -18,3 +18,15 @@ describe('verificationEvidencePrompt', () => {
     expect(verificationEvidencePrompt(language)).toContain('runId');
   });
 });
+
+describe('shellExitCodeSafetyRule entry step (task 1263)', () => {
+  test.each(['ja', 'en'] as const)(
+    '%s tells how to enter rapitas-backend relatively',
+    (language) => {
+      const text = shellExitCodeSafetyRule(language);
+      expect(text).toContain('cd rapitas-backend');
+      expect(text).toContain('<primary>');
+      expect(text).not.toContain('/c/Projects');
+    },
+  );
+});
