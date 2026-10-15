@@ -9,9 +9,13 @@
  * backlog-promoter-execute.ts for the promotion itself.
  */
 import { prisma } from '../../../config/database';
+import { createLogger } from '../../../config/logger';
+import { logCycleEvent } from '../../observability';
 import { listConcerns } from '../../memory/concern-backlog-service';
 import { listIdeas } from '../../memory/idea-box-service';
 import { shouldRefillBacklogNow } from './auto-run-idle-timer';
+
+const log = createLogger('backlog-promoter');
 
 /** Blocked tasks older than this stop counting toward the cap (anti-deadlock). */
 const STALE_BLOCKED_MS = 2 * 60 * 60 * 1000;
@@ -27,6 +31,13 @@ const STALE_BLOCKED_MS = 2 * 60 * 60 * 1000;
  * per-item dedup (convertConcernToTask marks the source 'task_created', so it
  * leaves the open list) already prevents re-promoting a blocked item.
  *
+ * A HELD task does not occupy a slot either, for the same reason as a stale
+ * block: it cannot run, so it is not evidence that the theme is busy. Measured
+ * 2026-10-13 — theme 1 held 5 of its 6 slots with `autoRunExcluded` and theme
+ * 34 held all 3. Neither had reached the cap of 10 yet, but a hold persists
+ * until an operator lifts it, so the slots only accumulate. Parking one task
+ * must not become a reason to stop filing every other.
+ *
  * Exported (task 784) so auto-run-idle-timer.ts's attemptCriticalConcernBypass
  * can reuse the same cap check for the severity-bypass promotion path.
  *
@@ -40,13 +51,49 @@ export async function countOutstandingAutoCreated(themeId: number): Promise<numb
       where: {
         themeId,
         autoCreatedFromBacklog: true,
+        // Both columns are Boolean @default(false), so `false` matches every
+        // un-held row — there are no NULLs to miss here.
+        autoRunExcluded: false,
+        workflowDisabled: false,
         OR: [
           { status: { in: ['todo', 'in-progress'] } },
           { status: 'blocked', updatedAt: { gt: staleCutoff } },
         ],
+        // haltReason is nullable, and an empty string is not a halt (the same
+        // rule classifyAutoRunHold applies).
+        AND: [{ OR: [{ haltReason: null }, { haltReason: '' }] }],
       },
     })
     .catch(() => 0);
+}
+
+/**
+ * Record that promotion was skipped because the cap is full.
+ *
+ * Stopping at the cap is correct; returning 0 in silence was not. Neither the
+ * fact that filing had stopped nor the reason reached any log, so an operator
+ * watching a theme produce nothing had nothing to go on.
+ *
+ * Lives here rather than in backlog-promoter-execute.ts because that file is
+ * already past the 300-line soft limit, and the cap is this module's concept.
+ *
+ * @param themeId - Theme whose promotion was skipped. / 見送ったテーマID
+ * @param outstanding - Slots currently occupied. / 占有されている枠数
+ * @param limit - The cap. / 上限
+ */
+export function reportCapReached(themeId: number, outstanding: number, limit: number): void {
+  log.info(
+    { themeId, outstanding, limit },
+    '[backlog-promoter] At the outstanding-created cap — no promotion this round',
+  );
+  logCycleEvent('backlog.cap_reached', {
+    theme: themeId,
+    ok: true,
+    cause: 'outstanding_cap_reached',
+    outstanding,
+    limit,
+    msg: 'backlog promotion skipped: outstanding auto-created tasks fill the per-theme cap',
+  });
 }
 
 /**

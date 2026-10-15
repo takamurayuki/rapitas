@@ -7,7 +7,26 @@
  * this function was extracted specifically to be testable in isolation.
  */
 import { describe, expect, test } from 'bun:test';
-import { buildTddProtocolSection } from './workflow-implementer-context';
+import {
+  buildDependencyChangeGuidance,
+  buildTddProtocolSection,
+} from './workflow-implementer-context';
+
+describe('buildDependencyChangeGuidance', () => {
+  test('ja: forbids install/add in any shape and says to record the package in verify', () => {
+    const g = buildDependencyChangeGuidance('ja');
+    for (const w of ['pnpm add', 'package.json', 'ls node_modules/.bin', 'verify']) {
+      expect(g).toContain(w);
+    }
+    expect(g).toContain('何もインストールされません');
+  });
+
+  test('en: same guidance in English', () => {
+    const g = buildDependencyChangeGuidance('en');
+    expect(g).toContain('rejected in any shape');
+    expect(g).toContain('record its name, version, and why it is needed');
+  });
+});
 
 describe('buildTddProtocolSection', () => {
   test.each(['ja', 'en'] as const)(

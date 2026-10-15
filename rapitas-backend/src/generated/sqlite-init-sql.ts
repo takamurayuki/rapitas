@@ -1540,6 +1540,36 @@ CREATE TABLE "DailyScheduleBlock" (
 );
 
 -- CreateTable
+CREATE TABLE "UsageBudget" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "unit" TEXT NOT NULL DEFAULT 'tokens',
+    "monthlyLimit" INTEGER NOT NULL,
+    "snoozedUntil" DATETIME,
+    "acknowledgedKey" TEXT,
+    "lastNotifiedKey" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "UsageBudgetThemeShare" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "budgetId" INTEGER NOT NULL,
+    "themeId" INTEGER NOT NULL,
+    "sharePercent" REAL NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "UsageClassificationRule" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "themeId" INTEGER NOT NULL,
+    "keyword" TEXT NOT NULL,
+    "sortOrder" INTEGER NOT NULL DEFAULT 0,
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
 CREATE TABLE "WorkflowFile" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "taskId" INTEGER NOT NULL,
@@ -2171,6 +2201,9 @@ CREATE INDEX "PomodoroSession_status_idx" ON "PomodoroSession"("status");
 
 -- CreateIndex
 CREATE INDEX "PomodoroSession_taskId_idx" ON "PomodoroSession"("taskId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "UsageBudgetThemeShare_budgetId_themeId_key" ON "UsageBudgetThemeShare"("budgetId", "themeId");
 
 -- CreateIndex
 CREATE INDEX "WorkflowFile_fileType_updatedAt_idx" ON "WorkflowFile"("fileType", "updatedAt");

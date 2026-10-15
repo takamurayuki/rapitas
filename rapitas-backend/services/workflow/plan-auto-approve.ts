@@ -285,6 +285,15 @@ export async function maybeAutoApprovePlan(
 
   log.info({ taskId, reason }, '[plan-auto-approve] Plan auto-approved');
 
+  // Without this the queue item stays waiting_approval and the theme stays
+  // paused_approval: no other path observes an automatic approval.
+  try {
+    const { syncAfterPlanApprovalAndNotifyTheme } = await import('./plan-approval-queue-sync');
+    await syncAfterPlanApprovalAndNotifyTheme(taskId);
+  } catch (err) {
+    log.warn({ err, taskId }, '[plan-auto-approve] Queue sync after auto-approval failed');
+  }
+
   if (opts.autoAdvance !== false) {
     // 1s delay so the workflowStatus update commits before the orchestrator
     // queries it via role-resolver.

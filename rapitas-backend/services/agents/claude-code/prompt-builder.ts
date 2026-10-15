@@ -28,7 +28,7 @@ function primaryWorkDirNote(
   primaryRoot: string = process.env.RAPITAS_PRIMARY_ROOT ?? resolve(import.meta.dir, '../../../..'),
 ): string {
   if (normalizeDir(workDir) !== normalizeDir(primaryRoot)) return '';
-  return '**NOTE: this directory is the primary checkout. If your shell cwd is a task-specific worktree, work there and never `cd` to it; a chain such as `cd <primary> 2>/dev/null; cd <worktree>` is rejected by the pre-execution hook.**';
+  return '**NOTE: this directory is the primary checkout. If your shell cwd is a task-specific worktree, work there and never `cd` to it; a chain such as `cd <primary> 2>/dev/null; cd <worktree>` is rejected by the pre-execution hook, and so is `cd <primary>/rapitas-backend`. You never need to `cd` to the absolute path on the line above: from your cwd use a relative `cd rapitas-backend`, or stay at the worktree root and run commands with relative paths such as `npx --no-install prettier --write rapitas-backend/<path>`. Tool binaries (prettier / eslint / tsc) already exist in the `node_modules/.bin` of the worktree; if your role may run them, use `pnpm exec prettier --write <relative-path>`, `npx --no-install prettier --write <relative-path>`, or `node node_modules/prettier/bin/prettier.cjs --write <relative-path>` from your cwd instead of looking in the `node_modules` of the primary (if `node_modules` is missing, run `node scripts/setup-worktree.cjs`; never install).**';
 }
 
 /**

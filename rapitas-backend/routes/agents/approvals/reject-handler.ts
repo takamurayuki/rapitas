@@ -12,6 +12,7 @@ import { prisma } from '../../../config/database';
 import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
 import { orchestrator } from '../../../services/core/orchestrator-instance';
 import { fromJsonString } from '../../../utils/database/db-helpers';
+import { assertExpectedUpdatedAt } from './concurrency-guard';
 
 export const rejectRoutes = new Elysia()
   // Reject request
@@ -19,7 +20,7 @@ export const rejectRoutes = new Elysia()
     '/:id/reject',
     async (context) => {
       const params = context.params as { id: string };
-      const body = context.body as { reason?: string };
+      const body = (context.body ?? {}) as { reason?: string; expectedUpdatedAt?: string };
       const { id } = params;
       const { reason } = body;
 
@@ -36,6 +37,7 @@ export const rejectRoutes = new Elysia()
       if (!approval) {
         throw new NotFoundError('Approval request not found');
       }
+      assertExpectedUpdatedAt(approval.updatedAt, body.expectedUpdatedAt);
 
       await prisma.approvalRequest.update({
         where: { id: rejectionApprovalId },
@@ -75,7 +77,10 @@ export const rejectRoutes = new Elysia()
       params: t.Object({ id: t.String() }),
       body: t.Optional(
         t.Object(
-          { reason: t.Optional(t.String({ maxLength: 2000 })) },
+          {
+            reason: t.Optional(t.String({ maxLength: 2000 })),
+            expectedUpdatedAt: t.Optional(t.String({ maxLength: 64 })),
+          },
           { additionalProperties: false },
         ),
       ),

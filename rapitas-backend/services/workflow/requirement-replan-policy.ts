@@ -40,7 +40,7 @@ export function rejectReplanLifecycle(
 
 /**
  * Reject/hold reasons that are expected state guards, not crashes (#961,
- * #1023, #1041). Shared by every caller of {@link rejectReplanLifecycle} /
+ * #1023, #1041, #1233). Shared by every caller of {@link rejectReplanLifecycle} /
  * `commitReviewedDecision` so a state-guard hold is classified consistently
  * regardless of which call site (status-transition.ts, requirement-replan-commit.ts)
  * surfaces it as an error.
@@ -52,6 +52,9 @@ export const EXPECTED_REPLAN_HOLD_REASONS = new Set([
   'stale_snapshot',
   'execution_superseded',
   'review_in_progress',
+  // NOTE: Operator pause/stop of the theme is an intentional state, not a crash; the HTTP
+  // verify-save path surfaced it as a generic Error (500 + two ERROR logs) before this.
+  'theme_paused',
 ]);
 
 /** True when `reason` is a known state-guard hold, not an unexpected failure. */

@@ -17,11 +17,57 @@ const logger = createLogger('process-resource-sampler');
 /** Polling interval in ms. Also used as the wait before the first re-sample. */
 const POLL_INTERVAL_MS = 2000;
 
+/**
+ * Upper bound the Windows interval backs off to.
+ *
+ * NOTE: On Windows every sample is a process launch, and `tasklist` is slow
+ * here: measured 2026-10-11 on this dev box, one filtered
+ * `tasklist /fi "PID eq N" /v /fo csv /nh` took 247-394ms (median ~250ms,
+ * max 566ms). At the flat 2s interval that is ~16% of ONE core burned
+ * continuously per tracked agent, for telemetry — the single largest
+ * rapitas-attributable share of a sustained ~16%-of-4-cores load.
+ *
+ * Batching every tracked PID into one unfiltered call was measured and
+ * rejected: `tasklist /v` with no filter took 8156ms (it hit an 8s timeout),
+ * because `/v` resolves window titles and owners for every process on the box.
+ * `/fi` cannot express "PID in (a,b,c)", so there is no cheap batch form.
+ *
+ * Lowering the frequency is therefore the fix — but a flat long interval would
+ * under-report a SHORT run (a 10s agent would be left with only the sample
+ * taken at start, when its CPU time is still ~0). Backing off geometrically
+ * keeps the early resolution that short runs need and makes the steady state
+ * cheap: samples land at 0/2/6/14/30/60/90s…, so a 10-minute run takes ~25
+ * samples instead of 300.
+ */
+const WINDOWS_MAX_INTERVAL_MS = 30_000;
+
+/** Factor the Windows interval grows by after each sample. */
+const WINDOWS_BACKOFF_FACTOR = 2;
+
+/**
+ * The gap before the next sample.
+ *
+ * POSIX stays flat: `readFileSync('/proc/<pid>/stat')` is an in-memory read
+ * with no process launch, so frequent sampling costs effectively nothing and
+ * gives a better peak-RSS estimate.
+ *
+ * @param previousMs - Gap that was just waited / 直前の間隔
+ * @param platform - Injectable for tests / テスト用に注入可能
+ * @returns Next gap in ms / 次の間隔
+ */
+export function nextSampleDelayMs(previousMs: number, platform: string = process.platform): number {
+  if (platform !== 'win32') return POLL_INTERVAL_MS;
+  return Math.min(previousMs * WINDOWS_BACKOFF_FACTOR, WINDOWS_MAX_INTERVAL_MS);
+}
+
 /** USER_HZ assumed for /proc/<pid>/stat utime+stime → ms conversion (glibc x86_64 default; no sysconf(_SC_CLK_TCK) equivalent in Node/Bun). */
 const ASSUMED_USER_HZ = 100;
 
 interface SamplerEntry {
-  timer: ReturnType<typeof setInterval>;
+  /** Chained one-shot timer: the gap grows on Windows (see nextSampleDelayMs). */
+  timer: ReturnType<typeof setTimeout>;
+  /** Gap that was used for the sample just scheduled. / 直近に使った間隔 */
+  delayMs: number;
   /** Last observed cumulative CPU time (ms). Not accumulated across samples — the OS already reports it cumulatively per-process. */
   cpuTimeMs: number | null;
   /** Highest RSS (KB) observed across all samples. */
@@ -167,14 +213,35 @@ async function sampleOnce(pid: number): Promise<void> {
  */
 export function startResourceSampling(pid: number): void {
   if (registry.has(pid)) return;
-  const entry: SamplerEntry = {
-    timer: setInterval(() => {
-      void sampleOnce(pid);
-    }, POLL_INTERVAL_MS),
+
+  // Chained rather than setInterval: the gap changes between samples, and a
+  // one-shot chain also guarantees two samples never overlap — a Windows
+  // sample can take over 500ms, and setInterval would queue them up.
+  const schedule = (delayMs: number): void => {
+    const timer = setTimeout(() => {
+      void sampleOnce(pid).finally(() => {
+        // Re-read: stopResourceSampling may have run while the sample was in
+        // flight, in which case this PID must not be rescheduled.
+        if (registry.has(pid)) schedule(nextSampleDelayMs(delayMs));
+      });
+    }, delayMs);
+    const current = registry.get(pid);
+    if (current) {
+      current.timer = timer;
+      current.delayMs = delayMs;
+    } else {
+      // Raced with stop: do not leave an orphan timer behind.
+      clearTimeout(timer);
+    }
+  };
+
+  registry.set(pid, {
+    timer: setTimeout(() => undefined, 0),
+    delayMs: POLL_INTERVAL_MS,
     cpuTimeMs: null,
     peakRssKb: null,
-  };
-  registry.set(pid, entry);
+  });
+  schedule(POLL_INTERVAL_MS);
   void sampleOnce(pid);
 }
 
@@ -190,7 +257,9 @@ export function stopResourceSampling(pid: number): {
 } {
   const entry = registry.get(pid);
   if (!entry) return { cpuTimeMs: null, peakRssKb: null };
-  clearInterval(entry.timer);
+  clearTimeout(entry.timer);
+  // Deleted BEFORE returning so an in-flight sample's `.finally` sees the PID
+  // gone and does not reschedule itself.
   registry.delete(pid);
   return { cpuTimeMs: entry.cpuTimeMs, peakRssKb: entry.peakRssKb };
 }

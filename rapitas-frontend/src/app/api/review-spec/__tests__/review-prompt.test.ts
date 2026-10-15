@@ -11,7 +11,12 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { formatReviewAnswers, parseReviewQuestions } from '../review-prompt';
+import {
+  formatReviewAnswers,
+  parseReviewQuestions,
+  shouldReviewAgain,
+  MAX_REVIEW_ROUNDS,
+} from '../review-prompt';
 
 const wrap = (questions: unknown) => JSON.stringify({ questions });
 
@@ -105,5 +110,31 @@ describe('formatReviewAnswers', () => {
     );
     expect(formatReviewAnswers(questions, { scale: '   ' })).toBe('');
     expect(formatReviewAnswers(questions, {})).toBe('');
+  });
+});
+
+describe('shouldReviewAgain — 壁打ちの終了条件 (2026-10-12)', () => {
+  // 報告: 「実装前に確認しておきたい事を回答しても何回回答しても次のフェーズに
+  // 行かないでループしている」。原因は再生成のたびに無条件でレビューへ戻り、
+  // 保存済みの回答を消して新しい質問を出していたこと。モデルの質問は助言であり
+  // (ブロックする判定は機械検査が持つ)、ウィザードを開いたままにする力を持たせない。
+  it('機械検査が通っていれば、質問が残っていても結果へ進む', () => {
+    expect(shouldReviewAgain({ round: 0, implementable: true })).toBe(false);
+    expect(shouldReviewAgain({ round: 1, implementable: true })).toBe(false);
+  });
+
+  it('error が残っている間は再度レビューを見せる', () => {
+    expect(shouldReviewAgain({ round: 0, implementable: false })).toBe(true);
+    expect(shouldReviewAgain({ round: 1, implementable: false })).toBe(true);
+  });
+
+  it('上限に達したら、error が残っていても結果へ進む（永久ループを作らない）', () => {
+    expect(shouldReviewAgain({ round: MAX_REVIEW_ROUNDS, implementable: false })).toBe(false);
+    expect(shouldReviewAgain({ round: MAX_REVIEW_ROUNDS + 1, implementable: false })).toBe(false);
+  });
+
+  it('上限は有限（設定ミスで無限にならないこと）', () => {
+    expect(MAX_REVIEW_ROUNDS).toBeGreaterThan(0);
+    expect(MAX_REVIEW_ROUNDS).toBeLessThanOrEqual(3);
   });
 });

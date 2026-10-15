@@ -17,6 +17,10 @@ interface ReviewPhaseProps {
   onRegenerate: () => void;
   /** Accepts the documents as they are. / 現状のまま次へ進む */
   onAccept: () => void;
+  /** Rounds already shown, 1-based for display. / 表示中のラウンド(1始まり) */
+  round?: number;
+  /** Cap on rounds, so the user can see this ends. / ラウンド上限 */
+  maxRounds?: number;
 }
 
 const SEVERITY_COLOR: Record<string, string> = {
@@ -111,11 +115,16 @@ export function ReviewPhase({
   onSetAnswer,
   onRegenerate,
   onAccept,
+  round = 1,
+  maxRounds,
 }: ReviewPhaseProps) {
   const findings = review?.findings ?? [];
   const questions = review?.questions ?? [];
   const answered = questions.filter((q) => (answers[q.id] ?? '').trim()).length;
   const clean = findings.length === 0 && questions.length === 0;
+  // Shown because the first version looped: the user could not tell whether
+  // answering was making progress (reported 2026-10-12).
+  const isLastRound = maxRounds !== undefined && round >= maxRounds;
 
   return (
     <PageWrap topRef={topRef} title={t('reviewTitle')} sub={t('reviewSubtitle')} step={6} total={6}>
@@ -171,6 +180,15 @@ export function ReviewPhase({
         {review?.degradedReason && (
           <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 14 }}>
             {review.degradedReason}
+          </p>
+        )}
+
+        {maxRounds !== undefined && (
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 14, lineHeight: 1.7 }}>
+            {`壁打ち ${round} / ${maxRounds} 回目。`}
+            {isLastRound
+              ? '次の再生成で、質問が残っていても結果へ進みます。'
+              : '回答は次のラウンドに引き継がれます。いつでも「このまま進む」で結果へ移れます。'}
           </p>
         )}
 

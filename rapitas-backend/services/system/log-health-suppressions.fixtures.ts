@@ -12,6 +12,8 @@
  */
 
 export const SUPPRESSED: [string, string][] = [
+  // Task 1160: the periodic sweep released a stale running item (workflow-reconciler-queue-stall.ts).
+  ['workflow-reconciler-queue-stall', '[reconciler] Cancelled stale running queue item'],
   // Task 1149: a stop won the race against result persistence (execution-persistence.ts).
   ['execution-file-logger', '[ExecLog:#] Execution result ignored after cancellation'],
   [
@@ -167,9 +169,16 @@ export const SUPPRESSED: [string, string][] = [
     'workflow-runner',
     '[WorkflowRunner] Task # cancelled — requeued: Workflow preparation cancelled: execution lock ownership was revoked',
   ],
+  [
+    'workflow-queue',
+    'Socket timeout (the database failed to respond to a query within the configured timeout— see http<path> for more details).',
+  ],
 ];
 
 export const KEPT: [string, string][] = [
+  // Task 1160: the rule is logger-scoped, and the sweep's failed slot release stays visible.
+  ['workflow', '[reconciler] Cancelled stale running queue item'],
+  ['workflow-reconciler-queue-stall', '[reconciler] Runner slot release failed'],
   // Task 1149: the unconfirmed-cancellation failure and other loggers must stay visible.
   [
     'execution-file-logger',
@@ -241,4 +250,14 @@ export const KEPT: [string, string][] = [
   ],
   // Other WARNs from the same logger stay visible (task 1148).
   ['workflow-runner', '[WorkflowRunner] Phase failed for task #: Execution cancelled'],
+  // Task 1211: the same P1008 wording from another logger, and sibling WARNs
+  // from workflow-queue, must stay visible.
+  [
+    'memory:timeline',
+    'Socket timeout (the database failed to respond to a query within the configured timeout— see http<path> for more details).',
+  ],
+  [
+    'workflow-queue',
+    'Transaction API error: Transaction already closed: A commit cannot be executed on an expired transaction.',
+  ],
 ];

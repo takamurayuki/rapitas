@@ -44,7 +44,11 @@
       "focusMode": "フォーカスモード",
       "shortcutHelp": "ショートカットヘルプ",
       "toggleAI": "ノート+AI機能",
-      "commandBar": "コマンドバー"
+      "commandBar": "コマンドバー",
+      "triageApprove": "トリアージ: 承認",
+      "triageDefer": "トリアージ: 保留",
+      "triageReject": "トリアージ: 差し戻し",
+      "triageNext": "トリアージ: 次へ"
     }
   }
 }

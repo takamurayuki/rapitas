@@ -47,6 +47,7 @@ describe('parseQuestionOptionsBlock', () => {
           consequence: '実装は最小限にする',
           mutatesGate: false,
           planRevision: false,
+          requiresOperatorAction: false,
         },
         {
           key: 'B',
@@ -54,6 +55,7 @@ describe('parseQuestionOptionsBlock', () => {
           consequence: 'テストを手厚くする',
           mutatesGate: false,
           planRevision: false,
+          requiresOperatorAction: false,
         },
       ],
       freeTextRequired: false,
@@ -113,6 +115,42 @@ describe('parseQuestionOptionsBlock', () => {
       }),
     );
     expect(parsed?.questions[0].options[0].planRevision).toBe(false);
+  });
+
+  it('parses requiresOperatorAction on an option when present', () => {
+    const parsed = parseQuestionOptionsBlock(
+      block({
+        questions: [
+          {
+            id: 'Q1',
+            summary: '共有 node_modules のため依存追加ができない',
+            options: [
+              { key: 'A', label: '運用者がルートで依存を追加する', requiresOperatorAction: true },
+            ],
+            freeTextRequired: false,
+            recommended: 'A',
+            recommendedReason: '完了条件を緩めずに済むため',
+          },
+        ],
+      }),
+    );
+    expect(parsed?.questions[0].options[0].requiresOperatorAction).toBe(true);
+  });
+
+  it('defaults requiresOperatorAction to false when absent (backward compat)', () => {
+    const parsed = parseQuestionOptionsBlock(
+      block({
+        questions: [
+          {
+            id: 'Q1',
+            summary: 'x',
+            options: [{ key: 'A', label: 'a' }],
+            freeTextRequired: false,
+          },
+        ],
+      }),
+    );
+    expect(parsed?.questions[0].options[0].requiresOperatorAction).toBe(false);
   });
 
   it('returns null when freeTextRequired with no options', () => {
@@ -222,6 +260,38 @@ describe('isQuestionBlockEligibleForAutoAnswer', () => {
     const result = isQuestionBlockEligibleForAutoAnswer(parsed!);
     expect(result.eligible).toBe(false);
     expect(result.reason).toContain('mutates a gate');
+  });
+
+  // Measured on #1215: the recommended option was "merge #1214 into develop,
+  // then resume", auto-adopted after the 15-minute timeout. Nobody merged it,
+  // and the next round's own recommendedReason records the result — "origin/
+  // develop は 185d098 のまま変わらず、verify が受入条件 0/3 で 2 回目の差し戻し".
+  it('is ineligible when the recommended option requires operator action', () => {
+    const parsed = parseQuestionOptionsBlock(
+      block({
+        questions: [
+          {
+            id: 'Q1',
+            summary: 'coverage-v8 の導入が共有 node_modules のためブロックされる',
+            options: [
+              {
+                key: 'A',
+                label: '運用者がルートで @vitest/coverage-v8 を追加し、差分を取り込む',
+                requiresOperatorAction: true,
+                planRevision: true,
+              },
+              { key: 'B', label: 'カバレッジ計測を後続タスクへ移す', mutatesGate: true },
+            ],
+            freeTextRequired: false,
+            recommended: 'A',
+            recommendedReason: '他 9 項目は実装済みで、依存追加を一度行えば計測で完了できる',
+          },
+        ],
+      }),
+    );
+    const result = isQuestionBlockEligibleForAutoAnswer(parsed!);
+    expect(result.eligible).toBe(false);
+    expect(result.reason).toContain('operator action');
   });
 
   it('is ineligible when recommendedReason is empty/whitespace only', () => {

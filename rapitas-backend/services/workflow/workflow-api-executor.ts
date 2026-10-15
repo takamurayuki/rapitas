@@ -237,7 +237,11 @@ export async function executeAPIAgent(
       let resolvedNextStatus: string = transition.nextStatus;
       if (transition.outputFile === 'verify') {
         const { validateVerify } = await import('./phase-output-validator');
-        const verifyValidation = validateVerify(persistedOutput);
+        const { loadPlanContentForVerify } = await import('./plan-for-verify');
+        const verifyValidation = validateVerify(
+          persistedOutput,
+          await loadPlanContentForVerify(taskId),
+        );
         if (!verifyValidation.ok && verifyValidation.severity >= 80) {
           const { attemptVerifyRepair } = await import('./verify-self-repair');
           // CAS snapshot: the repair's compare-and-swap needs the status the

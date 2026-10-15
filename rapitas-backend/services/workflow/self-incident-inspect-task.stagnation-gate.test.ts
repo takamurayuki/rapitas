@@ -41,6 +41,16 @@ mock.module('./supervisor-incident-inspect', () => ({
   inspectSupervisorSignatures: async () => 0,
 }));
 
+let lastDispatch: string | null = 'slot_busy';
+mock.module('./blocked-retry-dispatch', () => ({
+  readLastRetryDispatch: async () => lastDispatch,
+  // Every export is mirrored: bun's mock.module is process-global and a partial
+  // mock makes importers of the other names fail to load.
+  ensureRetryDispatch: async () => 'error',
+  resetBlockedTaskForRetry: async () => 'error',
+}));
+mock.module('../../config/database', () => ({ prisma: {} }));
+
 const { inspectTask } = await import('./self-incident-inspect-task');
 
 const baseTask: CandidateTask = {
@@ -53,9 +63,22 @@ const baseTask: CandidateTask = {
   workflowDisabled: false,
 };
 
-async function stagnationFilings(task: CandidateTask): Promise<number> {
+async function stagnationFilings(
+  task: CandidateTask,
+  pausedUserThemeIds?: Set<number>,
+): Promise<number> {
   fileFindingMock.mockClear();
-  await inspectTask(task, NOW, new Set(), new Set(), false, 3, new Map(), new Set());
+  await inspectTask(
+    task,
+    NOW,
+    new Set(),
+    new Set(),
+    false,
+    3,
+    new Map(),
+    new Set(),
+    pausedUserThemeIds,
+  );
   return fileFindingMock.mock.calls.filter((c) => c[0].signature === 'stagnation').length;
 }
 
@@ -78,5 +101,62 @@ describe('inspectTask stagnation gate wiring (#1203)', () => {
     expect(await stagnationFilings({ ...baseTask, haltReason: null, autoRunExcluded: false })).toBe(
       1,
     );
+  });
+});
+
+describe('inspectTask stagnation gate: operator-paused theme (#1220)', () => {
+  const pausedTask: CandidateTask = {
+    ...baseTask,
+    id: 1214,
+    status: 'in-progress',
+    workflowStatus: 'plan_approved',
+    themeId: 34,
+  };
+
+  it('does not file stagnation when the task theme is paused by the operator', async () => {
+    expect(await stagnationFilings(pausedTask, new Set([34]))).toBe(0);
+  });
+
+  it('files stagnation when no theme is in the paused set (paused_approval is never in it)', async () => {
+    expect(await stagnationFilings(pausedTask, new Set())).toBe(1);
+  });
+
+  it('files stagnation when only a different theme is paused', async () => {
+    expect(await stagnationFilings(pausedTask, new Set([99]))).toBe(1);
+  });
+
+  it('keeps filing for an unthemed task even when some theme is paused', async () => {
+    expect(await stagnationFilings({ ...pausedTask, themeId: null }, new Set([34]))).toBe(1);
+  });
+});
+
+describe('inspectTask stagnation filing evidence (task 1238)', () => {
+  it('puts the theme slot state and last blocked-retry dispatch into the explanation', async () => {
+    lastDispatch = 'not_selected';
+    fileFindingMock.mockClear();
+    await inspectTask(
+      { ...baseTask, id: 1235, themeId: 5 },
+      NOW,
+      new Set(),
+      new Set(),
+      false,
+      3,
+      new Map([[5, { currentTaskId: null }]]),
+      new Set(),
+    );
+    const call = fileFindingMock.mock.calls.find((c) => c[0].signature === 'stagnation');
+    const explanation = (call?.[0] as unknown as { explanation: string }).explanation;
+    expect(explanation).toContain('テーマ稼働中(currentTaskId=null)');
+    expect(explanation).toContain('dispatch=not_selected');
+  });
+
+  it('states when the theme is not running and no dispatch was recorded', async () => {
+    lastDispatch = null;
+    fileFindingMock.mockClear();
+    await inspectTask(baseTask, NOW, new Set(), new Set(), false, 3, new Map(), new Set());
+    const call = fileFindingMock.mock.calls.find((c) => c[0].signature === 'stagnation');
+    const explanation = (call?.[0] as unknown as { explanation: string }).explanation;
+    expect(explanation).toContain('テーマは稼働中でない');
+    expect(explanation).toContain('dispatch=記録なし');
   });
 });

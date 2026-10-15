@@ -146,6 +146,32 @@ describe('hasPromotableBacklog', () => {
     expect(mockListConcerns).not.toHaveBeenCalled();
   });
 
+  // 実測 2026-10-13: 起票枠を埋めているのが「動けないタスク」だった。
+  // theme 1 は 6 枠のうち 5 件が autoRunExcluded、theme 34 は 3 枠すべてが
+  // autoRunExcluded。上限は 10 なのでまだ塞がっていないが、保留は運用者が
+  // 解除するまで残るので、溜まれば起票が止まる。
+  //
+  // このモジュールは既に「古い blocked は枠を解放する」判断をしている
+  // （恒久 blocked 10 件で起票が完全に止まった実績がある）。保留タスクも
+  // 同じで、運用者が1件を止めたことが他の全部を止める理由にはならない。
+  //
+  // `count` 自体はモックなので、ここでは where 句を検査する。
+  test('保留されたタスクは起票枠を占有しない', async () => {
+    mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 2 });
+    mockTaskCount.mockResolvedValue(0);
+    await hasPromotableBacklog(1);
+
+    const where = (mockTaskCount.mock.calls[0]?.[0] as { where: Record<string, unknown> }).where;
+    expect(where).toMatchObject({
+      themeId: 1,
+      autoCreatedFromBacklog: true,
+      autoRunExcluded: false,
+      workflowDisabled: false,
+    });
+    // haltReason は nullable で、空文字も halt ではない。
+    expect(where.AND).toEqual([{ OR: [{ haltReason: null }, { haltReason: '' }] }]);
+  });
+
   test('returns true when an open concern exists', async () => {
     mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 2 });
     mockTaskCount.mockResolvedValue(0);
@@ -224,6 +250,28 @@ describe('promoteBacklogForTheme — gating', () => {
     mockTaskCount.mockResolvedValue(3);
     expect(await promoteBacklogForTheme(1)).toBe(0);
     expect(mockListConcerns).not.toHaveBeenCalled();
+  });
+
+  // 上限で止めるのは正しいが、これまで無言で 0 を返していた。起票が止まって
+  // いることも、その理由も、どのログにも出なかった（F3「見えないと原因に
+  // たどり着けない」）。
+  test('上限で見送ったことを記録する（無言で 0 を返さない）', async () => {
+    mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 3 });
+    mockTaskCount.mockResolvedValue(3);
+    await promoteBacklogForTheme(42);
+
+    expect(mockLogCycleEvent).toHaveBeenCalledWith(
+      'backlog.cap_reached',
+      expect.objectContaining({ theme: 42, outstanding: 3, limit: 3 }),
+    );
+  });
+
+  test('枠が残っているときは見送りを記録しない', async () => {
+    mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 3 });
+    mockTaskCount.mockResolvedValue(1);
+    await promoteBacklogForTheme(42);
+
+    expect(mockLogCycleEvent).not.toHaveBeenCalledWith('backlog.cap_reached', expect.anything());
   });
 
   test('the outstanding-count query only counts fresh blocked tasks, not stale ones', async () => {

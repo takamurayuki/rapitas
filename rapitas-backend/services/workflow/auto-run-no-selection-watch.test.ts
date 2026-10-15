@@ -18,15 +18,23 @@ mock.module('../../config/logger', () => ({
 let queuedCount = 0;
 let currentTaskId: number | null = null;
 let recentNotification: { id: number } | null = null;
+/** The theme's own remaining tasks; one runnable task unless a test says otherwise. */
+let themeTasks: unknown[] | null = [
+  { status: 'todo', workflowStatus: 'draft', haltReason: null, autoRunExcluded: false },
+];
 const queueCountMock = mock(() => Promise.resolve(queuedCount));
 const themeFindUniqueMock = mock(() => Promise.resolve({ currentTaskId }));
 const notificationFindFirstMock = mock(() => Promise.resolve(recentNotification));
+const taskFindManyMock = mock(() =>
+  themeTasks ? Promise.resolve(themeTasks) : Promise.reject(new Error('DB unreadable')),
+);
 
 mock.module('../../config/database', () => ({
   prisma: {
     workflowQueueItem: { count: queueCountMock },
     themeAutoRun: { findUnique: themeFindUniqueMock },
     notification: { findFirst: notificationFindFirstMock },
+    task: { findMany: taskFindManyMock },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
@@ -47,9 +55,21 @@ mock.module('./auto-run/auto-run-selection', () => ({ hasLiveExecution: hasLiveE
 
 let waiters = { working: false, dispatchable: 0 };
 const resolveQueuedWaitersMock = mock(() => Promise.resolve(waiters));
+// NOTE: `() => true` would be a stub that contradicts the real rule, and
+// auto-run-theme-parked depends on exactly these clauses. Mirror them.
+const TERMINAL = ['done', 'completed', 'cancelled'];
 mock.module('./queue-starvation-waiters', () => ({
   resolveQueuedWaiters: resolveQueuedWaitersMock,
-  isDispatchableWaiter: () => true,
+  isDispatchableWaiter: (t: {
+    status: string;
+    workflowStatus: string | null;
+    haltReason?: unknown;
+  }) =>
+    !TERMINAL.includes(t.status) &&
+    !t.haltReason &&
+    t.status !== 'blocked' &&
+    t.workflowStatus !== 'awaiting_question' &&
+    t.workflowStatus !== 'verify_done',
 }));
 
 const { checkNoSelectionProgress, resetNoSelectionTracker, NO_SELECTION_THRESHOLD_MS } =
@@ -61,6 +81,9 @@ beforeEach(() => {
   queuedCount = 0;
   currentTaskId = null;
   recentNotification = null;
+  themeTasks = [
+    { status: 'todo', workflowStatus: 'draft', haltReason: null, autoRunExcluded: false },
+  ];
   waiters = { working: false, dispatchable: 0 };
   hasLiveExecutionMock.mockReset().mockResolvedValue(false);
   createNotificationMock.mockClear();
@@ -118,6 +141,71 @@ describe('checkNoSelectionProgress', () => {
     hasLiveExecutionMock.mockResolvedValue(true);
 
     expect(await checkNoSelectionProgress(1, NOW)).toBe('progressing');
+  });
+
+  // 実測 2026-10-13: この誤報が本日の cycle ログ最多イベント（40件、19:35〜22:46、
+  // 全てテーマ34）。そのときテーマ34 の残り6件は autoRunExcluded 5件と
+  // awaiting_question 1件で、発行可能なものは無かった。系の不具合ではない。
+  test('残り全件が保留なら「前進していない」ではなく park として報告する', async () => {
+    themeTasks = [
+      { status: 'todo', workflowStatus: 'draft', haltReason: null, autoRunExcluded: true },
+      { status: 'in-progress', workflowStatus: 'awaiting_question', haltReason: null },
+      { status: 'todo', workflowStatus: null, haltReason: null, autoRunExcluded: true },
+    ];
+    await checkNoSelectionProgress(34, NOW);
+
+    expect(await checkNoSelectionProgress(34, NOW + NO_SELECTION_THRESHOLD_MS + 1_000)).toBe(
+      'parked',
+    );
+    expect(logCycleEventMock).toHaveBeenCalledWith(
+      'theme.parked_awaiting_human',
+      expect.objectContaining({ theme: 34, cause: 'all_work_held_or_awaiting_answer', ok: true }),
+    );
+    // 誤った方の判定は出してはいけない。
+    expect(logCycleEventMock).not.toHaveBeenCalledWith(
+      'theme.no_selection_progress',
+      expect.anything(),
+    );
+  });
+
+  test('park の報告はエピソード中1回だけ（40件の繰り返しを止める）', async () => {
+    themeTasks = [
+      { status: 'todo', workflowStatus: 'draft', haltReason: null, autoRunExcluded: true },
+    ];
+    await checkNoSelectionProgress(34, NOW);
+    for (let i = 1; i <= 5; i++) {
+      expect(await checkNoSelectionProgress(34, NOW + NO_SELECTION_THRESHOLD_MS + i * 60_000)).toBe(
+        'parked',
+      );
+    }
+    expect(logCycleEventMock.mock.calls.length).toBe(1);
+  });
+
+  test('保留が解けて発行可能な仕事が戻れば、本来の停止判定に戻る', async () => {
+    themeTasks = [
+      { status: 'todo', workflowStatus: 'draft', haltReason: null, autoRunExcluded: true },
+    ];
+    await checkNoSelectionProgress(34, NOW);
+    expect(await checkNoSelectionProgress(34, NOW + NO_SELECTION_THRESHOLD_MS + 1_000)).toBe(
+      'parked',
+    );
+
+    themeTasks = [
+      { status: 'todo', workflowStatus: 'draft', haltReason: null, autoRunExcluded: false },
+    ];
+    expect(await checkNoSelectionProgress(34, NOW + NO_SELECTION_THRESHOLD_MS + 2_000)).toBe(
+      'reported',
+    );
+  });
+
+  // 読めないことを park の証拠にすると、本物の停止を黙らせてしまう。
+  test('タスクが読めない場合は従来どおり停止として報告する（fail toward reporting）', async () => {
+    themeTasks = null;
+    await checkNoSelectionProgress(1, NOW);
+
+    expect(await checkNoSelectionProgress(1, NOW + NO_SELECTION_THRESHOLD_MS + 1_000)).toBe(
+      'reported',
+    );
   });
 
   test('同一ウィンドウ内では通知を重ねない', async () => {

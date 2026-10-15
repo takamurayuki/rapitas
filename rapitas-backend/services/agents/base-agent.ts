@@ -176,6 +176,12 @@ export type GitCommitInfo = {
 export type AgentOutputHandler = (output: string, isError?: boolean) => void;
 
 /**
+ * Callback invoked for every tool call the agent makes, with its RAW input
+ * (used by the plan-deviation recorder; see services/workflow/plan-deviation).
+ */
+export type AgentToolUseHandler = (toolName: string, input: unknown) => void;
+
+/**
  * Callback handler invoked immediately when a question is detected during streaming.
  */
 export type QuestionDetectedHandler = (info: {
@@ -191,6 +197,7 @@ export abstract class BaseAgent {
   protected status: AgentStatus = 'idle';
   protected outputHandler?: AgentOutputHandler;
   protected questionDetectedHandler?: QuestionDetectedHandler;
+  protected toolUseHandler?: AgentToolUseHandler;
 
   constructor(
     public readonly id: string,
@@ -251,6 +258,15 @@ export abstract class BaseAgent {
    */
   setOutputHandler(handler: AgentOutputHandler): void {
     this.outputHandler = handler;
+  }
+
+  /**
+   * Set the tool-use handler (receives each tool call's raw input).
+   *
+   * @param handler - Callback per tool call / ツール呼び出しごとのコールバック
+   */
+  setToolUseHandler(handler: AgentToolUseHandler): void {
+    this.toolUseHandler = handler;
   }
 
   /**

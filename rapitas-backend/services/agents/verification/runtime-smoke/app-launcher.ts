@@ -117,6 +117,19 @@ export function launchApp(command: string, cwd: string, port: number): LaunchedA
   let stopRequested = false;
   let exited = false;
   let lastExitCode: number | null = null;
+
+  const sweep = (): void => {
+    if (stopped) return;
+    stopped = true;
+    if (!proc.pid) return;
+    // killProcessTreeSafely protects the backend by IDENTITY (self + ancestors),
+    // so a misconfigured start command can never take rapitas down, while a
+    // generated app squatting the backend's port is still reaped. Passing cwd
+    // lets it sweep subtrees orphaned by a dead intermediate parent (tauri-cli's
+    // BeforeDevCommand leak) that `taskkill /T` cannot reach.
+    killProcessTreeSafely(proc.pid, { workdir: cwd });
+  };
+
   proc.on('exit', (code) => {
     exited = true;
     lastExitCode = code;
@@ -129,6 +142,14 @@ export function launchApp(command: string, cwd: string, port: number): LaunchedA
         { command, cwd, port, exitCode: code, logsTail: lines.slice(-25).join('\n') },
         '[runtime-smoke] app exited unexpectedly before it was stopped',
       );
+      // NOTE: the watched process exiting does NOT mean the app is gone. With
+      // `shell: true` the watched process is the shell, and a pnpm script chain
+      // stacks several more shims under it — measured 2026-10-12 (task #1212):
+      // the shell exited 0 while `next dev` kept LISTENING, so the subtree was
+      // orphaned, held its port, and every later attempt failed EADDRINUSE. One
+      // of those orphans reached `[::]:3001` and shadowed the backend. Sweeping
+      // here is what keeps an unexpected exit from becoming a permanent block.
+      sweep();
     }
   });
 
@@ -140,17 +161,7 @@ export function launchApp(command: string, cwd: string, port: number): LaunchedA
     markStopRequested: () => {
       stopRequested = true;
     },
-    stop: () => {
-      if (stopped) return;
-      stopped = true;
-      if (proc.pid) {
-        // killProcessTreeSafely refuses the port-3001 backend, so a
-        // misconfigured start command can never take rapitas down. Passing
-        // cwd lets it sweep subtrees orphaned by a dead intermediate parent
-        // (tauri-cli's BeforeDevCommand leak) that `taskkill /T` cannot reach.
-        killProcessTreeSafely(proc.pid, { workdir: cwd });
-      }
-    },
+    stop: sweep,
   };
 }
 

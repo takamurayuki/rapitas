@@ -466,6 +466,7 @@ export const LUCIDE_USED_ICONS = [
   'Shuffle',
   'Sigma',
   'Signal',
+  'Siren',
   'SkipBack',
   'SkipForward',
   'SlidersHorizontal',

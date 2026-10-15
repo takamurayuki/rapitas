@@ -4,6 +4,7 @@
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
 import { SubtaskLogTabs } from '../SubtaskLogTabs';
 import { PhaseTimeline } from '../phase-timeline';
+import { DeviationTimeline } from '../deviation-timeline';
 import type { Task } from '@/types';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { ContinuationForm } from './ContinuationForm';
@@ -165,6 +166,7 @@ export function ExecutionBody({
         ) : showLogs ? (
           <PhaseTimeline taskId={taskId} isRunning={false} liveLogs={logs} />
         ) : null}
+        {showLogs && <DeviationTimeline taskId={taskId} />}
         <ContinuationForm
           continueInstruction={continueInstruction}
           onSetContinueInstruction={onSetContinueInstruction}

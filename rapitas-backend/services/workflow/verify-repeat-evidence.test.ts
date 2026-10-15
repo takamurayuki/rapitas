@@ -89,4 +89,31 @@ describe('detectRepeatedEvidence', () => {
       false,
     );
   });
+
+  // 実測 2026-10-13: 一字一句の一致を要求していたため、ほぼ発火していなかった
+  // （verify_repair が2回以上の14タスクのうち、この経路が発火したのは1件）。
+  // #1168 の bounce 2 と 3 は同じ指摘で、差分は「HTTP 404（…）」の挿入と
+  // 「結果もない / 結果がない」だけ。Dice 類似度 0.924 に対し、異タスク間の
+  // 最大は 0.497（465ペア）。
+  test('実測 #1168: 言い換えられた同一指摘を同一に数える', () => {
+    const b2 =
+      '未達: «research 行の存在確認 | ❌ | `GET /workflow/tasks/1168/files/research` が Resource not found» / «❌ 拒否コマンド全文の取得試行と記録（research 担当）。research 行が存在せず、4 手段の結果もない»';
+    const b3 =
+      '未達: «research 行の存在確認 | ❌ | `GET /workflow/tasks/1168/files/research` が HTTP 404（Resource not found）» / «❌ 拒否コマンド全文の取得試行と記録（research 担当）。research 行が存在せず、4 手段の結果がない»';
+
+    const v = detectRepeatedEvidence(b3, [b2], 2);
+    expect(v.cutoff).toBe(true);
+    expect(v.count).toBe(2);
+  });
+
+  // 誤って打ち切ると、進んでいるタスクを止めてしまう。実データで最も似ていた
+  // 異タスクの組（0.497）でも同一とみなさないこと。
+  test('実測: 別タスクの最も似ていた指摘どうしは同一に数えない', () => {
+    const a =
+      '未達: «ユニットテスト | ⚠️ 未検証 | 0 / 未実行 | worktree に `node_modules` が無く vitest を解決できない»';
+    const b =
+      '未達: «ユニットテスト(手動再実行) | ⚠️ 未検証 | 0 / 0 | `pnpm exec vitest` が `vitest not found`(exit 1)。`node_modules` が空»';
+
+    expect(detectRepeatedEvidence(b, [a], 2).cutoff).toBe(false);
+  });
 });

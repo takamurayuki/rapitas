@@ -201,7 +201,6 @@ vi.mock('@/components/ui/ModernCheckbox', () => ({
 vi.mock('lucide-react', async (importOriginal) => {
   const { buildLucideMock } = await import('@/__tests__/helpers/lucide-react-mock');
   return buildLucideMock(importOriginal, {
-    ExternalLink: 'external-link',
     Tag: 'tag',
     Copy: 'copy',
     Trash2: 'trash2',
@@ -400,11 +399,11 @@ describe('TaskCard', () => {
   });
 
   describe('イベントハンドリング', () => {
-    it('タスククリックで適切なコールバックが呼ばれる', () => {
+    it('行クリックで適切なコールバックが呼ばれる', () => {
       render(<TaskCard {...mockProps} />);
       const taskTitle = screen.getByText('Test Task');
-      // Click the clickable area (parent div with cursor-pointer)
-      fireEvent.click(taskTitle);
+      // Row area (title is a page link, so click its cursor-pointer ancestor)
+      fireEvent.click(taskTitle.closest('.cursor-pointer')!);
       expect(mockProps.onTaskClick).toHaveBeenCalledWith(1);
     });
 
@@ -433,15 +432,37 @@ describe('TaskCard', () => {
     });
   });
 
-  describe('ページで開くボタン', () => {
-    it('onOpenInPageが渡されている場合にボタンが表示される', () => {
+  describe('タイトルによるページ表示', () => {
+    it('タイトルクリックでページ表示コールバックが呼ばれ、パネルは開かない', () => {
       render(<TaskCard {...mockProps} />);
-      expect(screen.getByTestId('external-link')).toBeInTheDocument();
+      fireEvent.click(screen.getByText('Test Task'));
+      expect(mockProps.onOpenInPage).toHaveBeenCalledWith(1);
+      expect(mockProps.onTaskClick).not.toHaveBeenCalled();
     });
 
-    it('onOpenInPageが未定義の場合にボタンが非表示', () => {
-      render(<TaskCard {...mockProps} onOpenInPage={undefined} />);
+    it('タイトルはホバーで青色の下線表示になる', () => {
+      render(<TaskCard {...mockProps} />);
+      const cls = screen.getByText('Test Task').className;
+      expect(cls).toContain('hover:underline');
+      expect(cls).toContain('hover:text-blue-600');
+      expect(cls).toContain('dark:hover:text-blue-400');
+    });
+
+    it('ページで開くアイコンボタンは表示されない', () => {
+      render(<TaskCard {...mockProps} />);
       expect(screen.queryByTestId('external-link')).not.toBeInTheDocument();
+    });
+
+    it('onOpenInPageが未定義ならタイトルクリックは従来どおりパネルを開く', () => {
+      render(<TaskCard {...mockProps} onOpenInPage={undefined} />);
+      fireEvent.click(screen.getByText('Test Task'));
+      expect(mockProps.onTaskClick).toHaveBeenCalledWith(1);
+    });
+
+    it('選択モードではタイトルクリックでも遷移しない', () => {
+      render(<TaskCard {...mockProps} isSelectionMode={true} />);
+      fireEvent.click(screen.getByText('Test Task'));
+      expect(mockProps.onOpenInPage).not.toHaveBeenCalled();
     });
   });
 

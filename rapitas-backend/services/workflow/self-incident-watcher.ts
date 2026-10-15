@@ -20,6 +20,7 @@ import {
   resolveArmedThemeIds,
   resolveDisabledAutoRunThemeIds,
   resolveNonDevelopmentThemeIds,
+  resolvePausedUserThemeIds,
   resolveWorkflowDisabledGlobally,
   resolveThemeAutoRunRunState,
 } from './self-incident-watch-gates';
@@ -182,12 +183,14 @@ export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<
     workflowDisabledGlobally,
     themeAutoRunRunState,
     armedThemeIds,
+    pausedUserThemeIds,
   ] = await Promise.all([
     resolveDisabledAutoRunThemeIds(candidateThemeIds),
     resolveNonDevelopmentThemeIds(candidateThemeIds),
     resolveWorkflowDisabledGlobally(),
     resolveThemeAutoRunRunState(candidateThemeIds),
     resolveArmedThemeIds(candidateThemeIds),
+    resolvePausedUserThemeIds(candidateThemeIds),
   ]);
 
   // Resolved once per pass, not per task (task 837, generalizes task 835's
@@ -214,6 +217,7 @@ export async function runSelfIncidentWatch(nowMs: number = Date.now()): Promise<
         repairBounceMinCount,
         themeAutoRunRunState,
         armedThemeIds,
+        pausedUserThemeIds,
       );
     } catch (err) {
       // One broken task must not starve the rest of the scan.

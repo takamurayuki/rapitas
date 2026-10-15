@@ -8,6 +8,7 @@
 
 import { detectQuestionFromToolCall } from '../services/agents/question-detection';
 import { formatToolInfo } from './output-parser-parsers';
+import { extractToolUses } from '../services/agents/providers/stream-event-parser';
 
 export interface ToolInfo {
   name: string;
@@ -210,6 +211,9 @@ function processAssistantMessage(
       type: 'assistant-message',
       displayOutput,
       toolUses,
+      // NOTE: Raw inputs ride along so the main thread can judge operations
+      // against the plan; formatToolInfo's `info` is truncated for display.
+      toolCalls: extractToolUses(json as unknown as Record<string, unknown>),
     });
   }
 }

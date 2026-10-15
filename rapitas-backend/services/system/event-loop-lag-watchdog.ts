@@ -20,6 +20,14 @@
  * force-kill it. Only a FULLY deadlocked event loop (this watchdog's own
  * timer never fires again) is outside what this can catch; that case has no
  * pure-JS remedy and still needs an external actor.
+ *
+ * NOTE: A single stall is only restart-worthy when the process was burning CPU
+ * (2026-10-08..12: five daily restarts, 4 of them at ~06:00 JST, each logged with
+ * no section named). The timer only fires after the loop has recovered, so a stall
+ * during which the process used almost no CPU ("not-scheduled": OS suspension, AV
+ * scan, I/O wait) is already over and a restart fixes nothing while SIGTERMing
+ * running agents. Such a stall is logged with stallKind/cpuRatio instead; the
+ * cumulative trigger still catches a process that keeps stalling.
  */
 import { createLogger } from '../../config/logger';
 
@@ -44,29 +52,64 @@ const CUMULATIVE_WINDOW_MS = 120_000;
  */
 const CUMULATIVE_TRIGGER_MS = 30_000;
 
+/**
+ * Stall CPU ratio below this means the process was not running JS during the
+ * stall. Busy synchronous code uses ~1 core; ambiguous values fall to cpu-bound.
+ */
+const NOT_SCHEDULED_CPU_RATIO = 0.2;
+
+/** Whether the process was burning CPU during a stall. */
+export type StallKind = 'cpu-bound' | 'not-scheduled';
+
+/** Classification of a stall derived from process CPU time vs wall time. */
+export interface StallDiagnosis {
+  stallKind: StallKind;
+  cpuRatio: number;
+}
+
 /** A named synchronous section that was in flight when a stall was observed. */
 export interface ActiveSectionSnapshot {
   name: string;
   runningMs: number;
 }
 
+/** A named section that was released during (or just before) the observed stall. */
+export interface RecentSectionSnapshot {
+  name: string;
+  durationMs: number;
+  endedAgoMs: number;
+}
+
 /**
  * Invoked at most once per watchdog run, when a stall crosses a self-heal threshold.
- * `sections` names the in-flight markEventLoopSection() sections so the restart
- * record itself identifies the likely culprit.
+ * `sections` names the in-flight markEventLoopSection() sections and
+ * `recentSections` those released during the stall, so the restart record
+ * itself identifies the likely culprit.
  */
-export type SelfHealAction = (reason: string, sections: ActiveSectionSnapshot[]) => void;
+export type SelfHealAction = (
+  reason: string,
+  sections: ActiveSectionSnapshot[],
+  recentSections: RecentSectionSnapshot[],
+  diagnosis: StallDiagnosis,
+) => void;
 
 /**
  * Dynamic import keeps shutdown-sequence.ts (and its Prisma/realtime-service
  * chain) out of this module's static graph — this file must stay importable
  * in isolation for the lag-detection unit tests, which never hit this path.
  */
-const defaultSelfHeal: SelfHealAction = (reason, sections) => {
+const defaultSelfHeal: SelfHealAction = (reason, sections, recentSections, diagnosis) => {
   // NOTE: message body stays fixed so normalizeMessage() keeps one signature; the
   // culprit goes in a structured field (2026-09-25 / 10-08 restarts had no cause named).
   log.error(
-    sections.length > 0 ? { reason, activeSections: sections } : { reason },
+    {
+      reason,
+      stallKind: diagnosis.stallKind,
+      cpuRatio: diagnosis.cpuRatio,
+      ...(sections.length > 0 ? { activeSections: sections } : {}),
+      ...(recentSections.length > 0 ? { recentSections } : {}),
+      ...processMetrics(),
+    },
     '[event-loop-lag] Self-healing restart triggered',
   );
   import('./shutdown-sequence')
@@ -82,6 +125,21 @@ const defaultSelfHeal: SelfHealAction = (reason, sections) => {
  */
 const activeSections = new Map<symbol, { name: string; startedAtMs: number }>();
 
+/** Cap on released-section history; read only on a stall, so a short list is enough. */
+const RECENT_SECTION_LIMIT = 8;
+/**
+ * Sections already released by the time a stall is detected. The watchdog timer can
+ * only fire after the blocking synchronous code returns, so the culprit has usually
+ * been released by then and activeSections is empty (2026-10-08..11: 5 of 5 restarts
+ * logged no section, #1208).
+ */
+let recentSections: Array<{ name: string; startedAtMs: number; endedAtMs: number }> = [];
+
+function processMetrics(): { heapUsedMb: number; rssMb: number } {
+  const { heapUsed, rss } = process.memoryUsage();
+  return { heapUsedMb: Math.round(heapUsed / 1048576), rssMb: Math.round(rss / 1048576) };
+}
+
 /**
  * Registers a named section as running so a stall WARN emitted meanwhile lists it.
  *
@@ -90,9 +148,50 @@ const activeSections = new Map<symbol, { name: string; startedAtMs: number }>();
  */
 export function markEventLoopSection(name: string): () => void {
   const token = Symbol(name);
-  activeSections.set(token, { name, startedAtMs: Date.now() });
+  const startedAtMs = Date.now();
+  activeSections.set(token, { name, startedAtMs });
   return () => {
-    activeSections.delete(token);
+    if (!activeSections.delete(token)) return;
+    recentSections.push({ name, startedAtMs, endedAtMs: Date.now() });
+    if (recentSections.length > RECENT_SECTION_LIMIT) {
+      recentSections = recentSections.slice(-RECENT_SECTION_LIMIT);
+    }
+  };
+}
+
+/** Process CPU time (user+system) in ms, or null when unavailable. */
+function readCpuMs(): number | null {
+  try {
+    const { user, system } = process.cpuUsage();
+    const ms = (user + system) / 1000;
+    return Number.isFinite(ms) ? ms : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Classifies a stall from the CPU time consumed since the previous tick.
+ *
+ * @param cpuMs - CPU ms now / 現在のCPU時間
+ * @param prevCpuMs - CPU ms at the previous tick / 前回tickのCPU時間
+ * @param elapsedMs - Wall ms since the previous tick / 前回tickからの実経過時間
+ * @returns not-scheduled only on clear evidence; anything unmeasurable is cpu-bound (fail-safe: restart)
+ */
+function diagnoseStall(
+  cpuMs: number | null,
+  prevCpuMs: number | null,
+  elapsedMs: number,
+): StallDiagnosis {
+  if (cpuMs === null || prevCpuMs === null || elapsedMs <= 0) {
+    return { stallKind: 'cpu-bound', cpuRatio: 1 };
+  }
+  const delta = cpuMs - prevCpuMs;
+  if (!Number.isFinite(delta) || delta < 0) return { stallKind: 'cpu-bound', cpuRatio: 1 };
+  const cpuRatio = Math.round((delta / elapsedMs) * 100) / 100;
+  return {
+    stallKind: cpuRatio < NOT_SCHEDULED_CPU_RATIO ? 'not-scheduled' : 'cpu-bound',
+    cpuRatio,
   };
 }
 
@@ -120,12 +219,19 @@ export function formatEventLoopLagMessage(lagMs: number): string {
 export function startEventLoopLagWatchdog(selfHeal: SelfHealAction = defaultSelfHeal): void {
   if (handle) return;
   recentStalls = [];
+  recentSections = [];
   healingTriggered = false;
   let expected = Date.now() + CHECK_INTERVAL_MS;
+  let lastTickAtMs = Date.now();
+  let lastCpuMs = readCpuMs();
   handle = setInterval(() => {
     const now = Date.now();
     const lagMs = now - expected;
     expected = now + CHECK_INTERVAL_MS;
+    const cpuMs = readCpuMs();
+    const diagnosis = diagnoseStall(cpuMs, lastCpuMs, now - lastTickAtMs);
+    lastCpuMs = cpuMs;
+    lastTickAtMs = now;
     if (lagMs > REPORT_THRESHOLD_MS) {
       // NOTE: message body stays unchanged so normalizeMessage() keeps folding
       // every stall into one "~#.#s" signature; the culprit goes in a structured field.
@@ -133,18 +239,40 @@ export function startEventLoopLagWatchdog(selfHeal: SelfHealAction = defaultSelf
         name: section.name,
         runningMs: now - section.startedAtMs,
       }));
+      // A section released at or after the expected tick time overlapped the stall.
+      const stallStartedAtMs = now - lagMs;
+      const released = recentSections
+        .filter((section) => section.endedAtMs >= stallStartedAtMs)
+        .reverse()
+        .map((section) => ({
+          name: section.name,
+          durationMs: section.endedAtMs - section.startedAtMs,
+          endedAgoMs: now - section.endedAtMs,
+        }));
+      const skipSingleStallHeal =
+        lagMs >= CATASTROPHIC_STALL_MS && diagnosis.stallKind === 'not-scheduled';
       log.warn(
-        sections.length > 0 ? { lagMs, activeSections: sections } : { lagMs },
+        {
+          lagMs,
+          stallKind: diagnosis.stallKind,
+          cpuRatio: diagnosis.cpuRatio,
+          ...(skipSingleStallHeal ? { selfHealSkipped: 'not-scheduled-single-stall' } : {}),
+          ...(sections.length > 0 ? { activeSections: sections } : {}),
+          ...(released.length > 0 ? { recentSections: released } : {}),
+          ...processMetrics(),
+        },
         formatEventLoopLagMessage(lagMs),
       );
       recentStalls.push({ atMs: now, lagMs });
       recentStalls = recentStalls.filter((stall) => now - stall.atMs <= CUMULATIVE_WINDOW_MS);
       if (!healingTriggered) {
-        if (lagMs >= CATASTROPHIC_STALL_MS) {
+        if (lagMs >= CATASTROPHIC_STALL_MS && !skipSingleStallHeal) {
           healingTriggered = true;
           selfHeal(
             `single stall of ${lagMs}ms reached the ${CATASTROPHIC_STALL_MS}ms threshold`,
             sections,
+            released,
+            diagnosis,
           );
         } else {
           const cumulativeMs = recentStalls.reduce((sum, stall) => sum + stall.lagMs, 0);
@@ -153,6 +281,8 @@ export function startEventLoopLagWatchdog(selfHeal: SelfHealAction = defaultSelf
             selfHeal(
               `cumulative stall of ${cumulativeMs}ms within the last ${CUMULATIVE_WINDOW_MS}ms reached the ${CUMULATIVE_TRIGGER_MS}ms threshold`,
               sections,
+              released,
+              diagnosis,
             );
           }
         }
@@ -168,6 +298,7 @@ export function stopEventLoopLagWatchdog(): void {
     handle = null;
   }
   recentStalls = [];
+  recentSections = [];
   healingTriggered = false;
   activeSections.clear();
 }
