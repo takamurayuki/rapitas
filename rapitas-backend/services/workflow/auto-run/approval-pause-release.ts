@@ -82,9 +82,7 @@ export interface ApprovalPauseRelease {
  * @param facts - Observed state of the theme and its current task. / 観測した状態
  * @returns The release to perform, or null to keep waiting. / 解放内容、無ければ null
  */
-export function decideApprovalPauseRelease(
-  facts: ApprovalPauseFacts,
-): ApprovalPauseRelease | null {
+export function decideApprovalPauseRelease(facts: ApprovalPauseFacts): ApprovalPauseRelease | null {
   // task 883: an explicit user pause and the reason-unknown legacy pause must
   // never be lifted by a polling safety net.
   if (!isAutoResumablePauseStatus(narrowAutoRunStatus(facts.pauseStatus))) return null;
