@@ -24,6 +24,7 @@ commands at the bottom of each section only as a last resort.
 | Tauri sidecar binary not found | [§9 Backend binary missing in CI](#9-backend-sidecar-binary-missing-in-tauri-build) |
 | `make`/`npm` says scripts not found | [§10 Stale node_modules](#10-stale-node_modules-after-package-changes) |
 | API 500 `column ... does not exist` after a schema change | [§11 Dev schema not applied](#11-dev-schema-change-not-applied-column-does-not-exist) |
+| Desktop window shows "can't reach this page" after a restart that followed a `git pull` | [§12 Window left on the error page](#12-desktop-window-left-on-the-error-page-after-a-frontend-recycle) |
 
 ---
 
@@ -316,6 +317,54 @@ RAPITAS_DB_PROVIDER=postgresql bunx prisma db push --skip-generate
 >
 > **Never hand-edit `prisma/schema.desktop/`** — it is regenerated from
 > `prisma/schema/`. Edit the source folder only.
+
+---
+
+## 12. Desktop window left on the error page after a frontend recycle
+
+**Symptom:** The desktop window shows WebView2's own "このページに到達できません"
+/ "can't reach this page" and stays there. Seen right after restarting the
+backend when that restart followed a `git pull`.
+
+**Diagnosis:** Two independent facts combine.
+
+1. `restartBackendInner` (`rapitas-desktop/scripts/dev.js`) ends by calling
+   `frontendNextCacheIsStale()`, which compares `git rev-parse HEAD` against
+   `rapitas-desktop/.data/.next-build-ref`. A `git pull` moves HEAD, so the
+   check reports drift and `restartFrontend('next-cache-drift-after-backend-restart')`
+   recycles the frontend — correct behaviour, it stops a stale `.next` from
+   being served (see §10 and the 2026-08-05 CPU spin).
+2. The recovery in `src-tauri/src/dev_server_wait.rs` is armed **only** from
+   Tauri's `setup` hook (`app_setup.rs`), and it returns early when :3000 is
+   already listening. So it covers a cold app launch and nothing else.
+
+Restarting the backend does not restart `rapitas.exe`. The window therefore
+outlives the frontend it was pointed at, the port dies under it, and no code
+path re-navigates it. Measured on the 2026-10-15 17:38 restart, from process
+start times:
+
+```
+11:09:10  rapitas.exe / msedgewebview2   window created, setup ran, :3000 was up → armed nothing
+17:38:34  bun            backend restarted
+17:38:37  node           frontend recycled (.next-build-ref rewritten at 17:38:37.402)
+```
+
+**Fix:** Reload the window — any navigation re-runs it against the new dev
+server. Nothing is broken underneath; the backend and frontend are both
+healthy by then.
+
+```bash
+# Confirm both servers are actually up before blaming the window
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3001/agents/system-status
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3000/
+```
+
+> Deliberately not fixed (2026-10-15 decision). Making `dev_server_wait` a
+> standing watcher that re-navigates on every :3000 down→up transition would
+> cover this too, but the window only opens on the first restart after a pull,
+> and one manual reload clears it. Revisit if it starts happening on ordinary
+> restarts — that would mean `frontendNextCacheIsStale()` is reporting drift
+> when HEAD has not moved.
 
 ---
 
