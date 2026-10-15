@@ -27,3 +27,4 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `MessageSquarePlus`      | エージェントへの追加指示（実行完了後の継続指示 `ContinuationForm`/`ExecutionCompletedPanel`、および計画の修正依頼 `PlanRevisionRequest` — いずれも「走っている/走り終えたエージェントに文章で指示を足す」同一概念の再利用） |
 | `LifeBuoy`                | リカバリーメトリクス（エージェント実行フォールバックの種別×戦略別 成功率/レイテンシ/コスト集計。`RecoveryMetricsPanel` ヘッダー） |
 | `MoveUp`                  | リスト内の並び順を1つ上げる（AI利用予算の分類ルール一覧 `ClassificationRulesEditor` — 上にあるルールが優先。注: `ChevronUp`＝折りたたみ・優先度、`ArrowUp`＝ディレクトリピッカーの親フォルダへ移動とは別概念） |
+| `GitGraph`                | 失敗の系譜図（nav: /agents/failure-lineage、ページ見出し・空状態。ERROR/WARN ログの推定再発連鎖と根本原因候補の可視化。注: `GitBranch`＝ワークフローセクション/ブランチ名、`GitCompare`＝ドライラン差分比較とは別概念） |
