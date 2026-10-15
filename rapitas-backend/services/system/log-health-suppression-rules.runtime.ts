@@ -371,4 +371,18 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
     because:
       'dequeueのSerializableトランザクションで出る一過性のP1008 — 失敗時は未コミットでqueuedのまま残り次回ポーリングで自己回復する。他ロガーのP1008(timelineEvent等)とTransaction already closedは別シグネチャで可視のまま',
   },
+  {
+    // ログ出力箇所: services/workflow/auto-run/theme-auto-run-scheduler.ts:206 の
+    // log.error（tick の catch）。例外源は theme-auto-run-queries.ts:92 の
+    // prisma.themeAutoRun.findMany。Prisma(SQLite) の DateTime 列は INTEGER(epoch ms)
+    // で、運用者が稼働中DBへ TEXT を直接書いた行を読むと
+    // 'Conversion failed: input contains invalid characters' になる。アプリ側の
+    // 書き込みは Prisma 経由で TEXT を生成しない。tick は例外を握って次周期で再試行
+    // するため、行の修復後は自然回復する（#1284）。
+    // 他テーブル/他ロガーの Inconsistent column data は別シグネチャのため抑制しない。
+    test: /Invalid `prisma\.themeAutoRun\.findMany\(\)` invocation[\s\S]*Inconsistent column data: Conversion failed: input contains invalid characters/i,
+    logger: /^theme-auto-run-scheduler$/i,
+    because:
+      '運用者の手書きSQLで DateTime 列にTEXTが入った行を読んだ一過性のデータ起因エラー — tickは例外を握り次周期で再試行し、行の修復後に自然回復する。他テーブルのInconsistent column dataは別シグネチャで可視のまま',
+  },
 ];
