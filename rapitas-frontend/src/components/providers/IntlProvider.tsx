@@ -30,9 +30,7 @@ const resolved = new Map<Locale, Messages>([[defaultLocale, defaultMessages]]);
 
 export default function IntlProvider({ children }: { children: React.ReactNode }) {
   const locale = useLocaleStore((s) => s.locale);
-  const [messages, setMessages] = useState<Messages>(
-    () => resolved.get(locale) ?? defaultMessages,
-  );
+  const [messages, setMessages] = useState<Messages>(() => resolved.get(locale) ?? defaultMessages);
 
   useEffect(() => {
     const cached = resolved.get(locale);
