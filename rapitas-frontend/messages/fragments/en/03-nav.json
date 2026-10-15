@@ -30,6 +30,7 @@
     "memoryVisualization": "Memory Growth",
     "growthLedger": "Growth Ledger",
     "paretoFrontier": "Efficiency Frontier",
+    "failureLineage": "Failure Lineage",
     "missSignatures": "Miss Learning",
     "memoryAdmin": "Memory Admin",
     "growthReport": "Daily Report",

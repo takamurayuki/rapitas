@@ -86,3 +86,16 @@ describe('resolveQueuedWaiters', () => {
     expect(await resolveQueuedWaiters(1)).toEqual({ working: false, dispatchable: 0 });
   });
 });
+
+describe('resolveQueuedWaiters — calendar phase-boundary hold (task 1174)', () => {
+  test('会議待ちでフェーズ境界に保留中の項目は発行可能に数えない', async () => {
+    const { markTaskCalendarHold, resetCalendarHoldState } =
+      await import('../scheduling/calendar-slot/calendar-hold-state');
+    resetCalendarHoldState();
+    queuedTaskIds = [1200];
+    taskRows = [{ id: 1200, ...base, status: 'in-progress', workflowStatus: 'plan_approved' }];
+    markTaskCalendarHold(1200, new Date(Date.now() + 60 * 60_000));
+    expect(await resolveQueuedWaiters(1)).toEqual({ working: false, dispatchable: 0 });
+    resetCalendarHoldState();
+  });
+});

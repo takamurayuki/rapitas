@@ -20,6 +20,7 @@ import {
 import { narrowWorkflowStatus } from './workflow-types.guards.generated';
 import { runPreflight } from './workflow-orchestrator-preflight';
 import { guardImplementOverlap } from './workflow-orchestrator-overlap-guard';
+import { guardCalendarPhaseBoundary } from './workflow-orchestrator-calendar-guard';
 import { prepareAgentAndPrompt } from './workflow-orchestrator-agent-prep';
 import { runPreflightProbe } from './workflow-orchestrator-preflight-probe';
 import { guardPlanValidity } from './workflow-orchestrator-plan-guard';
@@ -165,6 +166,13 @@ export class WorkflowOrchestrator {
     const preflight = await observeWorkflowStage(taskId, 'preflight', () => runPreflight(taskId));
     if (preflight.done) return preflight.result;
     const { task, workflowMode, currentStatus, transition } = preflight;
+
+    // Calendar checkpoint (task 1174): stop at this phase boundary while a
+    // meeting is near; the runner re-queues and resumes from currentStatus.
+    const calendar = await observeWorkflowStage(taskId, 'calendar-guard', () =>
+      guardCalendarPhaseBoundary(taskId, transition, currentStatus),
+    );
+    if (calendar.done) return calendar.result;
 
     // Cheap DB-only check first: an invalid plan.md must be caught before the
     // implementer overlap hold (which can wait up to 30 min) rather than after

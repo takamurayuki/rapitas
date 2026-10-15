@@ -46,6 +46,14 @@ export type CycleEventName =
   // resource-contention gate (task 725): selection held one cycle because the
   // host CPU is busy AND the run is intentionally parallelized
   | 'task.resource_hold'
+  // calendar-slot gate (task 1174): selection held around a Google Calendar
+  // busy block / released at its end
+  | 'task.calendar_hold'
+  | 'task.calendar_hold_released'
+  // calendar phase-boundary hold (task 1174): a running task stopped at its
+  // next phase checkpoint around a busy block / resumed after it
+  | 'task.calendar_phase_hold'
+  | 'task.calendar_phase_released'
   // implementer overlap hold (2026-08-30): the implementer is held because the
   // files its research/plan names are still changing in an open auto-PR
   | 'task.implement_overlap_hold'
@@ -79,6 +87,8 @@ export type CycleEventName =
   | 'theme.waiting_for_slot'
   | 'theme.waiting_for_overlap_hold'
   | 'theme.waiting_for_merge'
+  // task 1174: current task waits at a calendar phase checkpoint
+  | 'theme.waiting_for_calendar_slot'
   // A theme reporting running while it has selected NOTHING and has nothing
   // dispatchable — the state that produced a four-hour silent outage on
   // 2026-09-27, watched by auto-run-no-selection-watch.
@@ -88,6 +98,7 @@ export type CycleEventName =
   // scheduler is behaving. Split out 2026-10-13 after measuring 40
   // no_selection_progress events in one day, all of them this state.
   | 'theme.parked_awaiting_human'
+  | 'theme.approval_pause_released'
   // Backlog promotion refused because the per-theme outstanding-created cap is
   // full. Added 2026-10-13: the refusal used to return 0 in silence, so a theme
   // that had stopped filing gave an operator nothing to go on.

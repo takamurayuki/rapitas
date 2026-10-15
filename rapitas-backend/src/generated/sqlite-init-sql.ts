@@ -1320,6 +1320,23 @@ CREATE TABLE "PaidLeaveBalance" (
 );
 
 -- CreateTable
+CREATE TABLE "CalendarBusyBlock" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "startAt" DATETIME NOT NULL,
+    "endAt" DATETIME NOT NULL,
+    "fetchedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "CalendarSyncState" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT DEFAULT 1,
+    "lastSyncedAt" DATETIME,
+    "lastStatus" TEXT NOT NULL DEFAULT 'never',
+    "lastError" TEXT,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
 CREATE TABLE "Notification" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "type" TEXT NOT NULL,
@@ -2121,6 +2138,9 @@ CREATE INDEX "PaidLeaveBalance_fiscalYear_idx" ON "PaidLeaveBalance"("fiscalYear
 
 -- CreateIndex
 CREATE UNIQUE INDEX "PaidLeaveBalance_userId_fiscalYear_key" ON "PaidLeaveBalance"("userId", "fiscalYear");
+
+-- CreateIndex
+CREATE INDEX "CalendarBusyBlock_startAt_idx" ON "CalendarBusyBlock"("startAt");
 
 -- CreateIndex
 CREATE INDEX "Memo_remindAt_idx" ON "Memo"("remindAt");

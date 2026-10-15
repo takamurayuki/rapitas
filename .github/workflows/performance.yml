@@ -11,7 +11,10 @@ on:
       - 'rapitas-frontend/**'
       - 'scripts/measure-performance.cjs'
   pull_request:
-    branches: [master, main]
+    # `push` above already covers develop, so this ran only AFTER a merge —
+    # a regression was measured once it was already on the branch. Adding
+    # develop here moves the measurement ahead of the merge.
+    branches: [master, main, develop]
     paths:
       - 'rapitas-backend/**'
       - 'rapitas-frontend/**'

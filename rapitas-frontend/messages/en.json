@@ -273,6 +273,7 @@
     "memoryVisualization": "Memory Growth",
     "growthLedger": "Growth Ledger",
     "paretoFrontier": "Efficiency Frontier",
+    "failureLineage": "Failure Lineage",
     "missSignatures": "Miss Learning",
     "memoryAdmin": "Memory Admin",
     "growthReport": "Daily Report",
@@ -2042,6 +2043,49 @@
         "advanced": "Advanced",
         "intermediate": "Intermediate",
         "beginner": "Beginner"
+      }
+    },
+    "failureLineage": {
+      "pageTitle": "Failure Lineage",
+      "pageSubtitle": "Normalizes and clusters ERROR/WARN logs, then estimates recurrence chains and root-cause candidates",
+      "estimateBanner": "Parent/child relations are estimates based on temporal proximity and shared attributes. They are not facts and include low-confidence links.",
+      "estimatedRelation": "Estimated parent/child relation",
+      "edgeConfidence": "Estimated confidence {confidence} (basis: {basis})",
+      "candidateBadge": "Root-cause candidate",
+      "reducedEstimate": "Fixing this node is estimated to remove {count} downstream events (estimate)",
+      "graphLabel": "Failure lineage graph (estimated)",
+      "windowLabel": "Time window",
+      "hoursOption": "Last {hours} hours",
+      "refresh": "Refresh",
+      "loading": "Loading…",
+      "truncated": "The log row limit was exceeded; the newest rows were used.",
+      "basis": {
+        "rule": "Known-chain rule",
+        "same_execution": "Same execution",
+        "same_resource": "Same resource",
+        "time_proximity": "Time proximity only"
+      },
+      "candidates": {
+        "title": "Root-cause candidates",
+        "none": "No candidates (no origin with downstream events was found)."
+      },
+      "allEvents": {
+        "title": "All events ({count})"
+      },
+      "empty": {
+        "title": "No ERROR/WARN logs in this window",
+        "hint": "Widen the window and refresh."
+      },
+      "validation": {
+        "title": "Validation result",
+        "description": "Replays version-controlled known failure chains through the estimator and checks that it reproduces their parent/child relations.",
+        "noTarget": "No validation target",
+        "matchRate": "Match rate with known chains {rate}%",
+        "matched": "Matched",
+        "mismatched": "Mismatched",
+        "unchecked": "Unchecked (live edges)",
+        "decisionLogMatches": "Related decision logs",
+        "chainLine": "{label}: reproduced {matched}/{expected}"
       }
     },
     "pareto": {
@@ -6383,6 +6427,43 @@
     "closeAria": "Close (Esc)",
     "snoozeAria": "Snooze for 24 hours",
     "clearSnoozeButton": "Clear snooze ({count})"
+  },
+  "calendarSlots": {
+    "title": "Calendar free-slot scheduler",
+    "description": "Starts new auto-run work only in your Google Calendar free time (times only — event titles and attendees are never read).",
+    "loadFailed": "Failed to load calendar slot data",
+    "nextRunsTitle": "Next run schedule",
+    "gateHeld": "Held for a meeting",
+    "gateFree": "Ready to run",
+    "gateDisabled": "Gate disabled",
+    "nextRunAt": "Next start time",
+    "noFreeSlot": "No free time within the fetched range",
+    "leadMinutes": "Hold before meetings (min)",
+    "busyCount": "Busy blocks",
+    "runningPhaseNote": "A running phase is never force-stopped; it stops at the phase boundary. If it cannot reach that boundary before the meeting, it may keep running during the meeting.",
+    "heldThemes": "Held themes",
+    "releaseAt": "Resumes at",
+    "freeSlots": "Free slots",
+    "syncTitle": "Calendar sync",
+    "syncOk": "Synced",
+    "syncError": "Sync failed",
+    "syncNever": "Not synced",
+    "stale": "Stale",
+    "lastSyncedAt": "Last sync",
+    "pollMinutes": "Poll interval (min)",
+    "failOpenNote": "Calendar data is unavailable, so auto-run is not held by the calendar.",
+    "connect": "Connect Google Calendar",
+    "resync": "Sync now",
+    "logsTitle": "Execution log",
+    "logsEmpty": "No log entries yet",
+    "action": {
+      "hold_started": "Hold started before a meeting",
+      "hold_released": "Hold released, resumed",
+      "recomputed": "Schedule change detected, slots recomputed",
+      "sync_failed": "Calendar sync failed",
+      "phase_held": "Running task held at a phase checkpoint",
+      "phase_released": "Resumed from the phase checkpoint after the meeting"
+    }
   },
   "usageBudget": {
     "title": "AI usage budget",
