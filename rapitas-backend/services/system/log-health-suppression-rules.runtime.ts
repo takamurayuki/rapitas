@@ -55,6 +55,19 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
       '起動後のLISTENER所有確認が取れない場合の設計どおりのfail-closed（quarantined・unverifiable:trueで完了は保留され誤成功しない、次回acquireで自動再確認） — 下流のunverifiable WARNは残り、反復の原因はログのdiagnosticsで追跡できる',
   },
   {
+    // ログ出力箇所: reporting/briefing/briefing-delivery.ts:82 の throw
+    // （synthesizeWithinLimit）を :130 の deliverBriefing が logger 'reporting:briefing-delivery'
+    // で log.error する（タスク1258のブランチ上のコード。この checkout には未マージ）。
+    // 観測された1件は briefing-delivery.test.ts:128 の失敗系テストが意図的に上限超過を
+    // 起こした出力で、本番経路の障害ではない。上限付き再試行の想定内の打ち切りであり、
+    // 配信は fail-open（呼び出し元のレポート本体は成功する）設計。
+    // NOTE: 文言・ロガーとも完全一致。同ロガーの別文言（TTS 例外など）は可視のまま。
+    test: /^Audio exceeded #s after # attempts$/,
+    logger: /^reporting:briefing-delivery$/,
+    because:
+      '音声合成の上限（秒数・試行回数）超過は上限付き再試行の設計どおりの打ち切りで、観測例はテストの意図的な失敗系出力 — 同ロガーの別文言は抑制せず可視のまま',
+  },
+  {
     // ログ出力箇所: git-operations/pr/pr-merge-ops.ts:154-157 の logger.warn
     // （mergePullRequest内）。gh pr merge --delete-branch はGitHub側マージを先に
     // 行い最後にローカルブランチ削除をするため、タスクworktreeが同ブランチを
