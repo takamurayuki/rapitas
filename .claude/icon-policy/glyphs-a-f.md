@@ -29,3 +29,4 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `AlarmClock`              | メモのリマインダー（quick-capture / /memos のリマインダー行アイコン・一覧のリマインダーバッジ。注: `AlarmClockPlus`＝学習時間の記録とは別概念） |
 | `ChartNoAxesCombined`     | 自己成長台帳ダッシュボード（nav: /agents/growth。ページ見出し・5指標カードの共通アイコン — 同一ページ内の同一概念として再利用） |
 | `ChartScatter`            | 効率フロンティア（ワークフロー実行パラメータの多目標パレート最適化ダッシュボード。nav: /agents/pareto、ページ見出し・空状態 — 同一概念の再利用。注: `ChartNoAxesCombined`＝成長台帳、`ChartSpline`＝単語帳の学習分析とは別概念） |
+| `CalendarSearch`          | カレンダー空き枠スケジューラ（Google カレンダーの空き時間連動の自動実行ゲート。/agents/calendar-slots ページ見出し。注: `CalendarClock`＝バックログ定期ジョブ設定、`CalendarRange`＝スケジュールグループとは別概念） |

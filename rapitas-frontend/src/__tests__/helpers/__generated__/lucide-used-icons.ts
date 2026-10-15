@@ -89,6 +89,7 @@ export const LUCIDE_USED_ICONS = [
   'CalendarDays',
   'CalendarPlus',
   'CalendarRange',
+  'CalendarSearch',
   'Camera',
   'Candy',
   'Car',
