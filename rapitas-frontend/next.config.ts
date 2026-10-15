@@ -10,7 +10,6 @@ const isTauriBuild = process.env.TAURI_BUILD === 'true';
 // in the desktop dev harness (2026-09-13). Keep distDir on .next-tauri; only
 // the export mode is deferred to the real build.
 const isStaticExport = isTauriBuild && process.env.NODE_ENV !== 'development';
-const disableTurbopack = process.env.NEXT_TURBO === '0';
 const isCI = process.env.CI === 'true';
 const isRuntimePreview = process.env.RAPITAS_RUNTIME_PREVIEW === 'true';
 const runtimePort = Number(process.env.PORT);
@@ -46,20 +45,25 @@ const nextConfig: NextConfig = {
   distDir: !isCI && isTauriBuild ? '.next-tauri' : '.next',
 
   // Turbopackのルートディレクトリをモノレポルートに設定（警告抑制）
-  // CI環境でTurbopackが無効化されている場合はこの設定をスキップ
   // RAPITAS_TURBOPACK_ROOT: git worktree では node_modules が main チェックアウトへの
   // ジャンクションで、実体パスが worktree ルート外になる。runtime-smoke の app-launcher が
   // worktree と実体の共通祖先を算出してこの env に設定し、Turbopack の
   // "points out of the filesystem root" 起動失敗を回避する（未設定時は従来通り）。
-  ...(disableTurbopack
-    ? {}
-    : {
-        turbopack: {
-          root: process.env.RAPITAS_TURBOPACK_ROOT
-            ? path.resolve(process.env.RAPITAS_TURBOPACK_ROOT)
-            : path.resolve(__dirname, '..'),
-        },
-      }),
+  //
+  // NOTE: This root is declared UNCONDITIONALLY. It used to be skipped when
+  // `NEXT_TURBO=0`, on the premise that CI runs webpack — but Turbopack is the
+  // default bundler in Next 16 and that env var does not turn it off: the CI
+  // build logs print `▲ Next.js <version> (Turbopack)` with NEXT_TURBO=0 set
+  // (bundle-size.yml, pr-preview.yml and tauri-build.yml all set it). Skipping
+  // the key therefore left Turbopack on its default root of this directory, so
+  // `extends: "../tsconfig.base.json"` sat outside the root. Next 16.2 tolerated
+  // that; 16.4 fails the build with `doesn't resolve correctly` (task 1281).
+  // Do not re-gate this on NEXT_TURBO.
+  turbopack: {
+    root: process.env.RAPITAS_TURBOPACK_ROOT
+      ? path.resolve(process.env.RAPITAS_TURBOPACK_ROOT)
+      : path.resolve(__dirname, '..'),
+  },
 
   // Tauri用の静的エクスポート設定（ビルド時のみ — 上記 isStaticExport 参照）
   ...(isStaticExport && {

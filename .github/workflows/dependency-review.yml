@@ -36,4 +36,40 @@ jobs:
           comment-summary-in-pr: on-failure
           # Disallow these license categories outright.
           deny-licenses: 'AGPL-1.0, AGPL-1.0-only, AGPL-1.0-or-later, AGPL-3.0, AGPL-3.0-only, AGPL-3.0-or-later, GPL-2.0, GPL-3.0, LGPL-2.0, LGPL-2.1, LGPL-3.0'
+          # Per-package exceptions to deny-licenses above. The policy itself is
+          # unchanged — only these exact packages are exempt, so any OTHER
+          # LGPL/GPL dependency still fails the gate.
+          #
+          # @img/sharp-libvips-* are the prebuilt libvips binaries that sharp
+          # loads, and sharp is a dependency of Next.js image optimization in
+          # rapitas-frontend — unlike rapitas-desktop (#936) it cannot simply be
+          # removed. All 13 platform variants are LGPL-3.0-or-later (verified via
+          # `npm view <pkg> license`), and so were the versions already in the
+          # lock before task 1281 bumped Next; dependency-review only inspects
+          # dependencies a PR CHANGES, which is why a pre-existing state first
+          # became visible on a version bump.
+          #
+          # LGPL permits linking from differently-licensed code without a
+          # source-disclosure obligation, and sharp consumes these as dynamically
+          # loaded prebuilt binaries rather than statically linking modified
+          # libvips, so this is within what the licence allows. Approved by the
+          # repository owner on 2026-10-15 (task 1281).
+          #
+          # The win32 variants are listed too although they were not in the
+          # failing set: this project builds on Windows, so a later lock change
+          # would otherwise re-trip the same gate for the same reason.
+          allow-dependencies-licenses: >-
+            pkg:npm/@img/sharp-libvips-darwin-arm64,
+            pkg:npm/@img/sharp-libvips-darwin-x64,
+            pkg:npm/@img/sharp-libvips-linux-arm,
+            pkg:npm/@img/sharp-libvips-linux-arm64,
+            pkg:npm/@img/sharp-libvips-linux-ppc64,
+            pkg:npm/@img/sharp-libvips-linux-riscv64,
+            pkg:npm/@img/sharp-libvips-linux-s390x,
+            pkg:npm/@img/sharp-libvips-linux-x64,
+            pkg:npm/@img/sharp-libvips-linuxmusl-arm64,
+            pkg:npm/@img/sharp-libvips-linuxmusl-x64,
+            pkg:npm/@img/sharp-libvips-win32-arm64,
+            pkg:npm/@img/sharp-libvips-win32-ia32,
+            pkg:npm/@img/sharp-libvips-win32-x64
           warn-only: false
