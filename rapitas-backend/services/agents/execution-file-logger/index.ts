@@ -12,10 +12,12 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { createLogger } from '../../../config/logger';
 import { buildLogFileContent } from './log-file-builder';
+import { buildMarkdownLog } from './log-markdown-builder';
 import { cleanupOldLogs } from './log-file-manager';
 import type { LogEventType, StructuredLogEntry, ExecutionSummary, FileLoggerConfig } from './types';
 
 export type { LogEventType, StructuredLogEntry, ExecutionSummary, FileLoggerConfig };
+export { buildMarkdownLog, validateHeadingContinuity } from './log-markdown-builder';
 
 const log = createLogger('execution-file-logger');
 
@@ -369,6 +371,17 @@ export class ExecutionFileLogger {
       const logContent = buildLogFileContent(summary, this.entries);
 
       await writeFile(this.logFilePath, logContent, 'utf-8');
+
+      // Companion outline for assistive tech; the .log stays the source of truth, so a failure here is non-fatal.
+      try {
+        await writeFile(
+          this.logFilePath.replace(/\.log$/, '.md'),
+          buildMarkdownLog(this.entries, summary),
+          'utf-8',
+        );
+      } catch (mdErr) {
+        log.warn({ err: mdErr }, `[ExecutionFileLogger] Failed to write Markdown outline`);
+      }
 
       await cleanupOldLogs(this.config.logDir, this.config.maxLogFiles);
 
