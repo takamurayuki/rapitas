@@ -98,6 +98,20 @@ describe('PRIMARY_CHECKOUT_GUIDANCE tool location (task 1229)', () => {
   });
 });
 
+describe('PRIMARY_CHECKOUT_GUIDANCE stepping-stone ban (task 1261)', () => {
+  test.each(['ja', 'en'] as const)(
+    '%s forbids cd <primary> && cd .worktrees and names pwd / rev-parse',
+    (lang) => {
+      const text = PRIMARY_CHECKOUT_GUIDANCE[lang];
+      expect(text).toContain('cd <primary> && cd .worktrees/<task>/rapitas-backend');
+      expect(text).toContain('pwd');
+      expect(text).toContain('git rev-parse --show-toplevel');
+      expect(text).not.toContain('C:/Projects');
+      expect(text).not.toContain('/c/Projects');
+    },
+  );
+});
+
 describe('PRIMARY_CHECKOUT_GUIDANCE primary-subdirectory chain (task 1227)', () => {
   test.each(['ja', 'en'] as const)(
     '%s names the <primary>/rapitas-backend form and a relative alternative',
