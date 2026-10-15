@@ -1539,7 +1539,11 @@
       "focusMode": "フォーカスモード",
       "shortcutHelp": "ショートカットヘルプ",
       "toggleAI": "ノート+AI機能",
-      "commandBar": "コマンドバー"
+      "commandBar": "コマンドバー",
+      "triageApprove": "トリアージ: 承認",
+      "triageDefer": "トリアージ: 保留",
+      "triageReject": "トリアージ: 差し戻し",
+      "triageNext": "トリアージ: 次へ"
     }
   },
   "dashboard": {
@@ -6497,5 +6501,57 @@
     "submitting": "記録中…",
     "saved": "監査記録に保存しました",
     "saveError": "監査記録の保存に失敗しました"
+  },
+  "triage": {
+    "title": "判断トリアージ",
+    "empty": "判断待ちはありません",
+    "remainingLabel": "残り{count}件",
+    "kind": "種別",
+    "summary": "要点",
+    "impact": "影響範囲",
+    "amount": "金額",
+    "amountUnknown": "金額不明",
+    "impactSubtasks": "サブタスク{count}件",
+    "impactFiles": "ファイル{count}件",
+    "impactUnknown": "影響範囲は不明",
+    "kinds": {
+      "subtask_creation": "サブタスク作成",
+      "task_execution": "タスク実行",
+      "task_completion": "タスク完了",
+      "code_review": "コードレビュー"
+    },
+    "actions": {
+      "approve": "承認",
+      "defer": "保留",
+      "reject": "差し戻し",
+      "next": "次へ",
+      "undo": "取り消し",
+      "reload": "再読み込み"
+    },
+    "confirm": {
+      "title": "確認が必要です",
+      "body": "金額が1万円を超えるか不明のため、もう一度承認キー（{key}）で確定します。Escで中止します。",
+      "cancel": "中止"
+    },
+    "irreversibleNotice": "承認すると実行や外部通知が行われ、確定後は取り消せません。取り消しは確定前の約{seconds}秒間のみ可能です。",
+    "conflict": {
+      "title": "他の操作で状態が変わりました",
+      "body": "項目の内容が取得後に更新されています。再読み込みしてください。"
+    },
+    "announce": {
+      "approved": "承認しました。残り{count}件",
+      "rejected": "差し戻しました。残り{count}件",
+      "deferred": "保留しました。残り{count}件",
+      "skipped": "次へ進みました。残り{count}件",
+      "undone": "取り消しました。残り{count}件",
+      "undoUnavailable": "取り消せません。確定済みのため外部通知は戻せません",
+      "confirmRequired": "確認が必要です。承認キーをもう一度押すと確定します",
+      "confirmCancelled": "確認を中止しました",
+      "conflict": "競合を検出しました。再読み込みしてください",
+      "failed": "操作に失敗しました。項目を戻しました",
+      "reloaded": "再読み込みしました。残り{count}件",
+      "empty": "判断待ちはありません"
+    },
+    "loadFailed": "判断待ちの取得に失敗しました"
   }
 }

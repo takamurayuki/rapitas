@@ -44,7 +44,11 @@
       "focusMode": "Focus Mode",
       "shortcutHelp": "Shortcut Help",
       "toggleAI": "Notes + AI",
-      "commandBar": "Command Bar"
+      "commandBar": "Command Bar",
+      "triageApprove": "Triage: Approve",
+      "triageDefer": "Triage: Defer",
+      "triageReject": "Triage: Send back",
+      "triageNext": "Triage: Next"
     }
   }
 }
