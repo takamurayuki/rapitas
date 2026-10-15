@@ -2,7 +2,7 @@
  * auto-run-advance-select
  *
  * The no-current-task branch of the auto-run scheduler's advance step:
- * global concurrency gate, resource/merge-barrier holds (auto-run-advance-
+ * global concurrency gate, resource/calendar-slot/merge-barrier holds (auto-run-advance-
  * gates.ts), self-deploy restart checks, next-task selection, all_done/
  * all_blocked idling with gated backlog refill (task 784), and enqueue.
  * Extracted verbatim from ThemeAutoRunScheduler.advanceTheme (task 628).
@@ -20,7 +20,11 @@ import {
   recentThemeSuccessRate,
 } from './auto-run-selection';
 import { getOpenAutoPrsForTheme } from './open-pr-files-cache';
-import { checkResourceContentionGate, checkMergeBarrierGate } from './auto-run-advance-gates';
+import {
+  checkResourceContentionGate,
+  checkCalendarSlotGate,
+  checkMergeBarrierGate,
+} from './auto-run-advance-gates';
 import { buildScopeOverlapContext } from './auto-run-advance-scope';
 import { setCurrentTask } from './theme-auto-run-service';
 import {
@@ -62,6 +66,7 @@ export async function selectAndEnqueueNextTask(
   }
 
   if (await checkResourceContentionGate(prisma, themeId)) return;
+  if (await checkCalendarSlotGate(prisma, themeId)) return;
 
   const openAutoPrs = await getOpenAutoPrsForTheme(prisma, themeId).catch(() => []);
   if (checkMergeBarrierGate(themeId, openAutoPrs, barrierHoldSince)) return;

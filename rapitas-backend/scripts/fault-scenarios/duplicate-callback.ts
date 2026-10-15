@@ -6,7 +6,7 @@
  * row, and asserts BOTH calls return a successful, idempotent response
  * rather than the second call erroring or duplicating state.
  */
-import type { ScenarioContext, ScenarioResult } from './common';
+import { readFailedResponseBody, type ScenarioContext, type ScenarioResult } from './common';
 
 /**
  * Runs the duplicate-callback fault scenario.
@@ -24,7 +24,7 @@ export async function run(ctx: ScenarioContext): Promise<ScenarioResult> {
     return {
       name: 'duplicate-callback',
       passed: false,
-      detail: `task creation failed: HTTP ${createRes.status}`,
+      detail: `task creation failed: HTTP ${createRes.status}: ${await readFailedResponseBody(createRes)}`,
     };
   }
   const created = (await createRes.json()) as { id?: number };

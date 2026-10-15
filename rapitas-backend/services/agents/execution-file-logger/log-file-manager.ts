@@ -116,6 +116,8 @@ export async function cleanupOldLogs(logDir: string, maxLogFiles: number): Promi
     for (let i = 0; i < deleteCount; i++) {
       try {
         await unlink(fileStats[i].path);
+        // Companion Markdown outline (written by ExecutionFileLogger.flush) must not outlive its log.
+        await unlink(fileStats[i].path.replace(/\.log$/, '.md')).catch(() => undefined);
       } catch {
         // Ignore individual file deletion failures — stale entries are not fatal.
       }

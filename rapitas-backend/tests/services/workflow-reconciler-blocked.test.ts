@@ -139,7 +139,20 @@ describe('correctBlockedByEvidence（受入基準1・3）', () => {
     expect(await correctBlockedByEvidence(NOW)).toBe(0);
     expect(await healBlockedStatusDesync(NOW)).toBe(0);
     expect(await requeueBlockedTasks(NOW)).toBe(0);
-    expect(mockPrisma.task.findMany).not.toHaveBeenCalled();
+    // Assert that NOTHING WAS CHANGED, not that nothing was read. The previous
+    // assertion here was `task.findMany).not.toHaveBeenCalled()`, which stood in
+    // for "no recovery happened" only as long as the no-armed-theme path did no
+    // queries at all. Task 1262 added a `settleStrandedRetryDrafts` scan to that
+    // path, so the proxy broke while the invariant held — the paused theme's own
+    // tasks are still stopped one level deeper, where `ensureRetryDispatch`
+    // returns `theme_not_running` and `settleOne` returns without counting or
+    // handing off (covered by blocked-retry-handoff.test.ts, "テーマが未稼働(存在
+    // する)なら計数せず待機する"). Mutations are the real invariant, so assert on
+    // those and let the read count be free to change.
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    expect(recordTransition).not.toHaveBeenCalled();
+    expect(escalateBlockedTask).not.toHaveBeenCalled();
+    expect(attemptPrOnlyRecovery).not.toHaveBeenCalled();
   });
   test.each(['open', 'merged'])(
     'required merge cannot complete from a local %s PR row',

@@ -62,3 +62,31 @@ export async function runWithTimeout(
 export function assertIsolatedPort(port: number): void {
   assertNotPort3001(port);
 }
+
+/** Max characters of a failed response body kept in a scenario detail. */
+export const RESPONSE_BODY_MAX_CHARS = 500;
+
+const ERROR_MESSAGE_MAX_CHARS = 200;
+
+/**
+ * Reads a failed response's body for inclusion in a scenario detail.
+ *
+ * The task-create route replaces every exception with a fixed 500 message, so the
+ * body is often the only server-side clue in the CI log. Never throws — the
+ * scenario must still report its own failure. Keeps the head of the body,
+ * where Prisma/Elysia put the error code.
+ *
+ * @param res - The non-ok response / 失敗したレスポンス
+ * @returns Text to append to a detail string / detail に付加する文字列
+ */
+export async function readFailedResponseBody(res: Response): Promise<string> {
+  try {
+    const raw = (await res.text()).trim();
+    if (!raw) return `no body: レスポンス本文は空でした（status=${res.status}）`;
+    if (raw.length <= RESPONSE_BODY_MAX_CHARS) return raw;
+    return `${raw.slice(0, RESPONSE_BODY_MAX_CHARS)}…（省略）`;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return `レスポンス本文を読めませんでした: ${msg.slice(0, ERROR_MESSAGE_MAX_CHARS)}`;
+  }
+}

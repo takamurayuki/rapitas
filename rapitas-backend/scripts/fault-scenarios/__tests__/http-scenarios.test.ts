@@ -109,3 +109,40 @@ describe('process-restart', () => {
     expect(free).toBe(false);
   });
 });
+
+describe('failure detail includes the response body', () => {
+  const failing = (body: string) =>
+    (async () =>
+      ({
+        ok: false,
+        status: 500,
+        json: async () => ({}),
+        text: async () => body,
+      }) as Response) as typeof fetch;
+
+  it('stop-during-verification', async () => {
+    globalThis.fetch = failing('P2022 Task.foo missing');
+    const r = await runStopDuringVerification(CTX);
+    expect(r.detail).toContain('HTTP 500');
+    expect(r.detail).toContain('P2022 Task.foo missing');
+  });
+
+  it('duplicate-callback', async () => {
+    globalThis.fetch = failing('P2022 Task.foo missing');
+    const r = await runDuplicateCallback(CTX);
+    expect(r.detail).toContain('P2022 Task.foo missing');
+  });
+
+  it('process-restart', async () => {
+    globalThis.fetch = failing('P2022 Task.foo missing');
+    const r = await runProcessRestart(CTX, async () => {});
+    expect(r.detail).toContain('P2022 Task.foo missing');
+  });
+
+  it('states when the body is empty', async () => {
+    globalThis.fetch = failing('');
+    const r = await runDuplicateCallback(CTX);
+    expect(r.detail).toContain('no body');
+    expect(r.detail).toContain('レスポンス本文は空でした');
+  });
+});

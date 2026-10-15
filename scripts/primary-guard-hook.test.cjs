@@ -418,7 +418,7 @@ test('write-bearing cd into <primary>/.worktrees stays primary_mutation and the 
   );
   assert.equal(r._kind, 'primary_mutation');
   const reason = r.hookSpecificOutput.permissionDecisionReason;
-  for (const re of [/git show origin\/<branch>:<path>/, /git grep <pattern> origin\/<branch>/, /falls back to your worktree/, /<primary>\/rapitas-backend 2>\/dev\/null; cd <worktree>/, /relative `cd rapitas-backend`/, /stepping stone \(`cd <primary> && cd \.worktrees\/<task>/, /git rev-parse --show-toplevel/]) assert.match(reason, re);
+  for (const re of [/git show origin\/<branch>:<path>/, /git grep <pattern> origin\/<branch>/, /falls back to your worktree/, /<primary>\/rapitas-backend 2>\/dev\/null; cd <worktree>/, /relative `cd rapitas-backend`/, /stepping stone \(`cd <primary> && cd \.worktrees\/<task>/, /git rev-parse --show-toplevel/, /cd rapitas-backend` then `node \.\.\/scripts\/run-checked\.cjs -- "bun test --isolate <test-file>"/]) assert.match(reason, re);
   const t1160 = { tool_name: 'Bash', cwd: WT, tool_input: { command: 'cd /c/Projects/rapitas && cd .worktrees/task-1160-530ea3f7/rapitas-backend && npx --no-install prettier --write x.ts' } }; assert.equal(decision(t1160, ctx)._kind, 'primary_mutation');
 });
 

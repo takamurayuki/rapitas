@@ -10,7 +10,7 @@
  * focuses on the fault-injection angle (mid-flight process loss).
  */
 import { waitForPortFree } from '../restart-loop-smoke';
-import type { ScenarioContext, ScenarioResult } from './common';
+import { readFailedResponseBody, type ScenarioContext, type ScenarioResult } from './common';
 
 /**
  * Runs the process-restart fault scenario.
@@ -32,7 +32,7 @@ export async function run(
     return {
       name: 'process-restart',
       passed: false,
-      detail: `task creation failed before restart: HTTP ${createRes.status}`,
+      detail: `task creation failed before restart: HTTP ${createRes.status}: ${await readFailedResponseBody(createRes)}`,
     };
   }
   const created = (await createRes.json()) as { id?: number };

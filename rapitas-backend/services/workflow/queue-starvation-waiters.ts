@@ -18,6 +18,7 @@ import { prisma } from '../../config/database';
 import { isTaskTerminalForQueue } from './workflow-queue';
 import { hasLiveExecution } from './auto-run/auto-run-selection';
 import { isOverlapHeld } from './workflow-orchestrator-overlap-guard';
+import { isTaskCalendarHeld } from '../scheduling/calendar-slot/calendar-hold-state';
 
 /** How many queued items to weigh before giving up on the scan. */
 const WAITER_SCAN_LIMIT = 20;
@@ -103,6 +104,9 @@ export async function resolveQueuedWaiters(queuedCount: number): Promise<QueuedW
     // this way for its files in PR #829 and the alert still blamed the
     // dispatcher (`runner_alive_not_dispatching`, 2026-09-27 23:52 JST).
     if (isOverlapHeld(item.taskId)) continue;
+    // Likewise a task stopped at its phase checkpoint until a meeting ends
+    // (task 1174); the hold expires at the meeting end.
+    if (isTaskCalendarHeld(item.taskId)) continue;
     // A vanished task is the vanished-task policy's business, not ours.
     if (!task || isDispatchableWaiter(task)) dispatchable++;
   }

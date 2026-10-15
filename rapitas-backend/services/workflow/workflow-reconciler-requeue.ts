@@ -11,6 +11,7 @@ import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
 import { restoreBlockedUnstartedTask } from './blocked-unstarted-restore';
 import { resetBlockedTaskForRetry } from './blocked-retry-dispatch';
+import { settleStrandedRetryDrafts } from './blocked-retry-handoff';
 // NOTE: Thresholds live in blocked-task-policy (task 615) so the evidence /
 // escalation passes share the same constants — behavior here is unchanged.
 import {
@@ -167,7 +168,11 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
     .findMany({ where: { enabled: true, status: 'running' }, select: { themeId: true } })
     .catch(() => [] as { themeId: number }[]);
   const armedThemeIds = armed.map((a) => a.themeId);
-  if (armedThemeIds.length === 0) return 0;
+  if (armedThemeIds.length === 0) {
+    // Stranded drafts must settle even with no armed theme (themeId-less ones hand off).
+    await settleStrandedRetryDrafts(prisma, nowMs);
+    return 0;
+  }
 
   // The verify->implement repair budget: a task that EXHAUSTED it needs
   // splitting / human attention, not auto-retry (re-queuing repeats the same
@@ -413,5 +418,8 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
     await resetBlockedTaskForRetry(prisma, t, attempts + 1);
     retried++;
   }
+  // NOTE (task 1262): drafts whose post-reset re-dispatch failed have no other owner;
+  // not added to `retried` — this is outside the MAX_BLOCKED_RETRY budget.
+  await settleStrandedRetryDrafts(prisma, nowMs);
   return retried;
 }

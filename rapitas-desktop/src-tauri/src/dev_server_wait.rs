@@ -22,6 +22,17 @@
 //! A TCP connect is the right readiness signal, not an HTTP request: once the
 //! port is bound, a navigation during the first compile simply waits for it
 //! rather than failing, which is the behaviour we want.
+//!
+//! NOTE: This covers a COLD APP LAUNCH only. `setup` runs once per
+//! `rapitas.exe`, and the early return below disarms everything when :3000 is
+//! already up — so a frontend recycled UNDER a live window (dev.js's
+//! `restartFrontend`, which a backend restart triggers whenever
+//! `frontendNextCacheIsStale()` sees HEAD move, i.e. after a `git pull`) leaves
+//! the window on the error page with nothing to bring it back. Measured
+//! 2026-10-15 17:38. Left as-is on purpose: one manual reload clears it and the
+//! window only opens on the first restart after a pull. Turning this into a
+//! standing watcher that re-navigates on each :3000 down→up transition is the
+//! fix if it ever becomes common. See docs/RUNBOOK.md §12.
 
 use std::net::{SocketAddr, TcpStream};
 use std::time::Duration;
