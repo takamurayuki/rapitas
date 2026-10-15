@@ -7,8 +7,14 @@
  */
 import { describe, expect, test, mock } from 'bun:test';
 
+const levels: string[] = [];
 mock.module('../../config/logger', () => ({
-  createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
+  createLogger: () => ({
+    info: () => {},
+    warn: () => levels.push('warn'),
+    error: () => levels.push('error'),
+    debug: () => {},
+  }),
 }));
 
 const { pushExistingPrBranch } = await import('./workflow-auto-commit-reuse-push');
@@ -32,5 +38,19 @@ describe('pushExistingPrBranch', () => {
     const out = await pushExistingPrBranch('C:\\wt\\task-1002', 'bugfix/t1002-update-task', run);
     expect(out.success).toBe(false);
     expect(out.error).toContain('non-fast-forward');
+  });
+
+  test('non-fast-forward rejection logs WARN, other failures stay ERROR', async () => {
+    levels.length = 0;
+    await pushExistingPrBranch('C:\wt', 'b', () =>
+      Promise.reject(new Error('! [rejected] b -> b (non-fast-forward)')),
+    );
+    expect(levels).toEqual(['warn']);
+    levels.length = 0;
+    const out = await pushExistingPrBranch('C:\wt', 'b', () =>
+      Promise.reject(new Error('fatal: Authentication failed')),
+    );
+    expect(out.success).toBe(false);
+    expect(levels).toEqual(['error']);
   });
 });
