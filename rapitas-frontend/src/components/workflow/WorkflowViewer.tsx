@@ -213,16 +213,25 @@ export default function WorkflowViewer({
         headers: { 'Content-Type': 'application/json', 'X-Rapitas-Source': 'ui' },
         body: JSON.stringify(selections ? { answer, selections } : { answer }),
       });
-      if (res.ok) {
-        const data = (await res.json().catch(() => null)) as { toStatus?: WorkflowStatus } | null;
-        if (data?.toStatus) {
-          applyResolvedQuestionStatus(data.toStatus);
-          onStatusChange?.(data.toStatus);
-        }
-        refetch();
+      const data = (await res.json().catch(() => null)) as {
+        toStatus?: WorkflowStatus;
+        error?: string;
+      } | null;
+      // A rejected answer (409 task_stopping, 400, …) is a response, not a
+      // thrown error: without this branch the call failed in total silence —
+      // no message, no status change — and the question just sat there (#944).
+      if (!res.ok) {
+        setAdvanceError(data?.error || tWorkflow('viewer.advanceFailed'));
+        return;
       }
+      if (data?.toStatus) {
+        applyResolvedQuestionStatus(data.toStatus);
+        onStatusChange?.(data.toStatus);
+      }
+      refetch();
     } catch {
-      /* leave the question visible so the user can retry */
+      // Leave the question visible so the user can retry — but say so.
+      setAdvanceError(tWorkflow('viewer.advanceFailed'));
     } finally {
       setSubmittingAnswer(false);
     }

@@ -288,6 +288,10 @@ export async function handleAnswerWorkflowQuestion({
       actor: 'user',
       sourceLabel: ANSWER_SOURCE_LABELS[answerSource],
       selections,
+      // The X-Rapitas-Source check above has already proven this answer is a
+      // human decision, which is what entitles it to supersede a stop that
+      // sealed the pause shut (task 944). No other caller may pass this.
+      stopOverride: true,
     });
     return {
       taskId: result.taskId,
