@@ -240,6 +240,7 @@ export const LUCIDE_USED_ICONS = [
   'GitCommitHorizontal',
   'GitCompare',
   'GitFork',
+  'GitGraph',
   'GitMerge',
   'GitPullRequest',
   'GitPullRequestArrow',
