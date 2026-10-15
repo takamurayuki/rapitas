@@ -26,10 +26,17 @@ describe('briefing delivery audio-limit suppression', () => {
   });
 
   test('is not suppressed for a different message on the same logger', () => {
-    for (const msg of ['boom', 'Audio exceeded 180s after 5 attempts (extra)']) {
+    for (const msg of ['Audio exceeded 180s after 5 attempts (extra)', 'boom (extra)']) {
       expect(
         classifyLogSignature('reporting:briefing-delivery', normalizeMessage(msg)).suppressed,
       ).toBe(false);
     }
+  });
+
+  test('suppresses the test-injected "boom" only on reporting:briefing-delivery', () => {
+    const verdict = classifyLogSignature('reporting:briefing-delivery', normalizeMessage('boom'));
+    expect(verdict.suppressed).toBe(true);
+    expect(verdict.because).toBeTruthy();
+    expect(classifyLogSignature('other-logger', normalizeMessage('boom')).suppressed).toBe(false);
   });
 });
