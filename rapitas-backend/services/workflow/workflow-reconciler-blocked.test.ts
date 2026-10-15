@@ -130,6 +130,18 @@ describe('requeueBlockedTasks re-dispatch after draft reset (task 1238)', () => 
     expect(selectCalls.length).toBe(0);
   });
 
+  test('task 1262: 引き渡し後(予算2回消化済みの blocked)は再び draft 化されず振動しない', async () => {
+    retriesRecorded = 2;
+    row = { ...row, status: 'blocked', workflowStatus: 'draft' };
+
+    expect(await requeueBlockedTasks(NOW)).toBe(0);
+    expect(row.status).toBe('blocked');
+    expect(
+      taskUpdates.some((u) => (u as { data: { status?: string } }).data.status === 'todo'),
+    ).toBe(false);
+    expect(selectCalls.length).toBe(0);
+  });
+
   test('テーマが paused_approval ならセレクタは起動せず theme_not_running を記録する', async () => {
     theme.status = 'paused_approval';
 
