@@ -88,6 +88,7 @@ export type CycleEventName =
   // scheduler is behaving. Split out 2026-10-13 after measuring 40
   // no_selection_progress events in one day, all of them this state.
   | 'theme.parked_awaiting_human'
+  | 'theme.approval_pause_released'
   // Backlog promotion refused because the per-theme outstanding-created cap is
   // full. Added 2026-10-13: the refusal used to return 0 in silence, so a theme
   // that had stopped filing gave an operator nothing to go on.
