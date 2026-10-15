@@ -72,6 +72,64 @@ async function killBackend(proc: Subprocess | null): Promise<void> {
   await new Promise<void>((r) => setTimeout(r, 300));
 }
 
+/** How many trailing lines of each stream to keep in a failure report. */
+const FAILURE_TAIL_LINES = 80;
+
+function tail(stream: string): string {
+  const lines = stream.replace(/\r\n/g, '\n').split('\n');
+  return lines.slice(-FAILURE_TAIL_LINES).join('\n').trim();
+}
+
+/**
+ * Builds the failure report for an isolated backend that never became healthy.
+ *
+ * Exists because the first real run of this job (PR #919, 2026-10-15) printed
+ * only "failed health check after 30062ms" and then exited: the child's piped
+ * stdout/stderr were never read, so the error that actually killed the backend
+ * never reached the CI log and the failure was undiagnosable. Keeps the TAIL of
+ * each stream, which is where a fatal error lands.
+ *
+ * @param elapsedMs - How long the health wait ran. / health待機の経過ミリ秒
+ * @param stdout - The child's stdout. / 子プロセスのstdout
+ * @param stderr - The child's stderr. / 子プロセスのstderr
+ * @returns A multi-line report for the CI log. / CIログ向けの複数行レポート
+ */
+export function formatBackendFailure(elapsedMs: number, stdout: string, stderr: string): string {
+  const out = tail(stdout);
+  const err = tail(stderr);
+  const lines = [`[fault-e2e] isolated backend failed health check after ${elapsedMs}ms`];
+  if (!out && !err) {
+    // Silence is itself the finding — the process died before logging anything.
+    // Say so, so a reader does not read it as truncated output.
+    lines.push('[fault-e2e] the backend produced no output on either stream (no output captured)');
+    return lines.join('\n');
+  }
+  lines.push(`[fault-e2e] --- backend stderr (last ${FAILURE_TAIL_LINES} lines) ---`);
+  lines.push(err || '(empty)');
+  lines.push(`[fault-e2e] --- backend stdout (last ${FAILURE_TAIL_LINES} lines) ---`);
+  lines.push(out || '(empty)');
+  return lines.join('\n');
+}
+
+/**
+ * Drains a spawned backend's piped streams. Never throws: this runs on a path
+ * that is already failing, and losing the report must not mask the real cause.
+ *
+ * @param proc - The spawned backend. / 起動したバックエンド
+ * @returns Both streams as text. / 両ストリームのテキスト
+ */
+async function readBackendStreams(proc: Subprocess): Promise<{ stdout: string; stderr: string }> {
+  const read = async (stream: unknown): Promise<string> => {
+    try {
+      if (!stream || typeof stream === 'number') return '';
+      return await new Response(stream as ReadableStream).text();
+    } catch {
+      return '';
+    }
+  };
+  return { stdout: await read(proc.stdout), stderr: await read(proc.stderr) };
+}
+
 /**
  * Renders scenario results as a Markdown summary table, mirroring
  * restart-loop-smoke.ts's renderSmokeMarkdown so both E2E jobs share a
@@ -114,7 +172,13 @@ async function main(): Promise<void> {
     proc = spawnIsolatedBackend(FAULT_E2E_PORT, databaseUrl);
     const health = await waitForHealth(FAULT_E2E_PORT, HEALTH_TIMEOUT_MS);
     if (!health.ok) {
-      console.error(`[fault-e2e] isolated backend failed health check after ${health.elapsedMs}ms`);
+      const failed = proc;
+      // Kill first: the streams only reach EOF once the child is gone, so
+      // reading them while it still holds the pipe open would block here.
+      await killBackend(failed);
+      proc = null;
+      const streams = await readBackendStreams(failed);
+      console.error(formatBackendFailure(health.elapsedMs, streams.stdout, streams.stderr));
       process.exit(1);
     }
 
