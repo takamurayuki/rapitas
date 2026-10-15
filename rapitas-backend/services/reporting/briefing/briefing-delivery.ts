@@ -7,7 +7,6 @@
  * the plain-text notification instead of being swallowed.
  */
 import { mkdir, readFile, writeFile } from 'fs/promises';
-import { existsSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import { createLogger } from '../../../config/logger';
@@ -119,7 +118,14 @@ export async function deliverBriefing(
   deps: BriefingDeliveryDeps,
 ): Promise<BriefingDeliveryResult> {
   const paths = briefingPaths(deps.dataDir, input.date);
-  if (existsSync(paths.json)) return { status: 'skipped' };
+  // Fast path: READ any prior briefing instead of checking that its file
+  // exists. An existsSync here is a check-then-use paired with the write below
+  // (CodeQL js/file-system-race, high) and that rule flags the pattern whether
+  // or not the write is exclusive — so removing the check is the only way to
+  // clear it. Nothing is lost: the exclusive write is what decides the winner,
+  // and this pre-read only has to spare us a redundant TTS synthesis.
+  if ((await readStoredBriefing(deps.dataDir, input.date)) !== null)
+    return { status: 'skipped' };
 
   const fallbackScript = buildBriefingScript(input, { narrative: deps.narrative });
   const { completed, held, decision } = fallbackScript.counts;
@@ -151,11 +157,10 @@ export async function deliverBriefing(
       audioSeconds: audio ? seconds : undefined,
       createdAt: new Date().toISOString(),
     };
-    // Atomic create. The existsSync guard at the top of this function is only a
-    // fast path: TTS synthesis runs between the check and this write, so two
-    // concurrent deliveries for the same date both pass the guard and the
-    // second would clobber the first and notify twice (CodeQL high: "potential
-    // file system race condition", PR #912). 'wx' makes this single write the
+    // Atomic create. The pre-read at the top of this function is only a fast
+    // path: TTS synthesis runs between it and this write, so two concurrent
+    // deliveries for the same date both get past it and the second would
+    // clobber the first and notify twice. 'wx' makes this single write the
     // point that decides the winner. EEXIST is handled here rather than left to
     // the catch below, which would misreport a lost race as a failed delivery
     // and send the text fallback notification.
