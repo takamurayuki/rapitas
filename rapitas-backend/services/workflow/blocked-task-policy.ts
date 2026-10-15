@@ -211,6 +211,22 @@ export const MANUAL_CORRECTION_PENDING_CAUSE = 'manual_correction_pr_not_landed'
  */
 export const ORPHAN_REQUEUE_EXHAUSTED_CAUSE = 'orphan_requeue_exhausted';
 
+/**
+ * WorkflowTransition.cause for a todo/draft task left stranded by a failed
+ * `blocked_auto_retry` re-dispatch and handed back to `blocked` (task 1262).
+ * Deliberately distinct from `blocked_auto_retry`, which MAX_BLOCKED_RETRY counts.
+ */
+export const BLOCKED_RETRY_HANDOFF_CAUSE = 'blocked_retry_handoff';
+
+/** Cause for each extra re-dispatch attempt of a stranded draft (not budget-counted). */
+export const BLOCKED_RETRY_REDISPATCH_CAUSE = 'blocked_retry_redispatch';
+
+/** Unselected re-dispatch attempts tolerated before the handoff to blocked. */
+export const MAX_RETRY_REDISPATCH = 3;
+
+/** Wait after a draft reset before re-dispatching, so the theme tick gets first pick. */
+export const RETRY_REDISPATCH_GRACE_MS = 10 * 60_000;
+
 /** Reason a blocked task is excluded from the blind auto-retry. */
 export type BlockedExclusionReason =
   | 'awaiting_question'
