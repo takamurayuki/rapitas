@@ -16,6 +16,11 @@ import { hasPromotableBacklog, promoteBacklogForTheme } from './backlog-task-pro
 import { logCycleEvent } from '../../observability';
 import { getThemeActiveQueueItems, hasItemAwaitingApproval } from './auto-run-selection';
 import { isTaskPlanApproved, syncQueueAfterPlanApproval } from '../plan-approval-queue-sync';
+import {
+  decideApprovalPauseRelease,
+  releaseApprovalPause,
+  resolveApprovalPauseFacts,
+} from './approval-pause-release';
 import { eligibleTopLevelTodoWhere } from './auto-run-eligibility';
 import {
   resumeAutoRun,
@@ -294,6 +299,20 @@ export async function processPausedThemesImpl(
         );
         continue;
       }
+      // Neither exit below can ever fire for a plan no automatic path may
+      // approve (a human-only forbidden change, or a task the operator pulled
+      // out of selection): the item stays waiting_approval and the plan stays
+      // plan_created, so the theme would hold its only slot forever. See
+      // approval-pause-release for the measurement.
+      const facts = await resolveApprovalPauseFacts(state.currentTaskId, state.status, prisma);
+      const release = decideApprovalPauseRelease(facts);
+      if (release) {
+        if (await releaseApprovalPause(state.themeId, state.currentTaskId, release, prisma)) {
+          broadcastAutoRunUpdateImpl(state.themeId);
+          continue;
+        }
+      }
+
       const queueItems = await getThemeActiveQueueItems(prisma, state.themeId);
       const stillWaiting = hasItemAwaitingApproval(queueItems);
 
