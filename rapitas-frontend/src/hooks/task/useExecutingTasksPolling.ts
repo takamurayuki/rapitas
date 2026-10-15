@@ -6,6 +6,7 @@ import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { useOnVisible } from '@/hooks/common/useOnVisible';
 import { createLogger } from '@/lib/logger';
+import { getAppHidden, subscribeAppHidden } from '@/hooks/common/app-visibility-store';
 
 const logger = createLogger('useExecutingTasksPolling');
 
@@ -32,6 +33,12 @@ export function useExecutingTasksPolling(options?: {
   const currentIntervalRef = useRef(interval);
   const errorCountRef = useRef(0);
   const lastSuccessTimeRef = useRef<number>(Date.now());
+  // NOTE: adjustPollingInterval and checkExecutingTasks are mutually
+  // recursive (adjustPollingInterval re-arms the interval with
+  // checkExecutingTasks; checkExecutingTasks calls adjustPollingInterval at
+  // the end of each poll). A ref breaks the circular dependency so neither
+  // useCallback needs the other declared first.
+  const checkExecutingTasksRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     onExecutingTaskFoundRef.current = onExecutingTaskFound;
@@ -66,7 +73,7 @@ export function useExecutingTasksPolling(options?: {
 
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
-          intervalRef.current = setInterval(checkExecutingTasks, newInterval);
+          intervalRef.current = setInterval(() => checkExecutingTasksRef.current(), newInterval);
         }
       }
     },
@@ -75,8 +82,10 @@ export function useExecutingTasksPolling(options?: {
 
   const checkExecutingTasks = useCallback(async () => {
     // Skip while backgrounded (this runs on Home/Kanban which are often left
-    // open behind other apps); useOnVisible re-checks on return.
-    if (typeof document !== 'undefined' && document.hidden) return;
+    // open behind other apps); useOnVisible re-checks on return. getAppHidden()
+    // covers minimize, which occlusion-disabled WebView2 doesn't report via
+    // document.hidden.
+    if ((typeof document !== 'undefined' && document.hidden) || getAppHidden()) return;
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
@@ -96,6 +105,11 @@ export function useExecutingTasksPolling(options?: {
         sessionId: number;
         parentId?: number | null;
         executionStatus: string;
+        startedAt?: string | null;
+        /** The whole (multi-phase) session's start — see agent-resume-router.ts. */
+        sessionStartedAt?: string | null;
+        /** Cumulative finished active time across all phases / re-runs (task #560). */
+        activeTimeMs?: number;
       }> = await res.json();
 
       const currentExecutingIds = new Set<number>();
@@ -103,18 +117,37 @@ export function useExecutingTasksPolling(options?: {
       for (const item of data) {
         if (item.executionStatus === 'running' || item.executionStatus === 'waiting_for_input') {
           currentExecutingIds.add(item.taskId);
+          // Cumulative base + live tick from the CURRENT row's startedAt: the
+          // base carries every finished execution (all phases / sessions), so
+          // anchoring on the running row cannot double-count them. A session
+          // anchor here WOULD double-count the session's own finished rows.
+          // Without the field (older backend) fall back to the session anchor,
+          // which at least spans phases within one session.
+          const hasCumulative = typeof item.activeTimeMs === 'number';
+          const elapsedAnchor = hasCumulative
+            ? (item.startedAt ?? item.sessionStartedAt ?? null)
+            : (item.sessionStartedAt ?? item.startedAt ?? null);
           setExecutingTask({
             taskId: item.taskId,
             sessionId: item.sessionId,
             status: item.executionStatus as 'running' | 'waiting_for_input',
+            startedAt: elapsedAnchor,
+            cumulativeActiveMs: hasCumulative ? item.activeTimeMs : 0,
           });
 
           // Reflect a running subtask on its PARENT card too: the home list does
           // not render subtasks as their own cards, so the parent shows the
-          // spinner while one of its subtasks is executing.
+          // spinner while one of its subtasks is executing. The parent's elapsed
+          // timer reflects the subtask's own session start, since the parent has
+          // no execution row of its own.
           if (item.parentId != null) {
             currentExecutingIds.add(item.parentId);
-            setExecutingTask({ taskId: item.parentId, status: 'running' });
+            setExecutingTask({
+              taskId: item.parentId,
+              status: 'running',
+              startedAt: elapsedAnchor,
+              cumulativeActiveMs: hasCumulative ? item.activeTimeMs : 0,
+            });
           }
 
           // Only callback for newly detected tasks
@@ -154,14 +187,26 @@ export function useExecutingTasksPolling(options?: {
 
       adjustPollingInterval(knownTaskIdsRef.current.size > 0, true);
 
-      // Reset known task state on prolonged errors
+      // Reset known task state on prolonged errors.
+      // CRITICAL: clear the STORE as well, not just the tracking ref. Clearing
+      // only the ref strands every card in "executing" forever: the removal
+      // loop above iterates the ref, so once it is empty the next successful
+      // poll (returning an empty list) has nothing left to remove — the
+      // spinner and the elapsed timer keep running for work that ended long
+      // ago. A backend restart takes well over a minute (prisma generate), so
+      // every restart reproduced this.
       if (timeSinceLastSuccess > 60000) {
         // 1 minute
         logger.warn('Long-term connectivity issues, clearing known tasks');
+        for (const staleId of knownTaskIdsRef.current) removeExecutingTask(staleId);
         knownTaskIdsRef.current.clear();
       }
     }
   }, [setExecutingTask, removeExecutingTask, fetchTaskUpdates, adjustPollingInterval]);
+
+  useEffect(() => {
+    checkExecutingTasksRef.current = checkExecutingTasks;
+  }, [checkExecutingTasks]);
 
   useEffect(() => {
     currentIntervalRef.current = interval;
@@ -184,4 +229,14 @@ export function useExecutingTasksPolling(options?: {
 
   // Re-check immediately when the user returns to rapitas.
   useOnVisible(checkExecutingTasks);
+
+  // Re-check immediately on restore from minimize. visibilitychange (behind
+  // useOnVisible above) never fires for that transition because occlusion is
+  // intentionally disabled, so without this the poll interval (up to 15s)
+  // would be the only thing to pick it back up.
+  useEffect(() => {
+    return subscribeAppHidden(() => {
+      if (!getAppHidden()) checkExecutingTasks();
+    });
+  }, [checkExecutingTasks]);
 }

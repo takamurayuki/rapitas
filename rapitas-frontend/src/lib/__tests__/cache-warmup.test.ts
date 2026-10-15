@@ -1,5 +1,154 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { recordTaskAccess } from '../cache-warmup';
+import {
+  recordTaskAccess,
+  warmupApplicationCache,
+  getCacheStatistics,
+  cleanupExpiredCache,
+} from '../cache-warmup';
+
+const mockApiFetch = vi.fn();
+const mockGetCacheStats = vi.fn();
+vi.mock('../api-client', () => ({
+  apiClient: {
+    fetch: (...args: unknown[]) => mockApiFetch(...args),
+    getCacheStats: (...args: unknown[]) => mockGetCacheStats(...args),
+  },
+}));
+
+const mockCacheManagerStats = vi.fn();
+vi.mock('../cache-utils', () => ({
+  cacheManager: {
+    getCacheStats: (...args: unknown[]) => mockCacheManagerStats(...args),
+  },
+}));
+
+vi.mock('@/lib/logger', () => ({
+  createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+}));
+
+describe('warmupApplicationCache', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockApiFetch.mockReset();
+    mockApiFetch.mockResolvedValue({});
+  });
+
+  it('設定・コアエンドポイント・アクティブタスクを事前フェッチすること', async () => {
+    await warmupApplicationCache();
+
+    const paths = mockApiFetch.mock.calls.map((c) => c[0]);
+    expect(paths).toContain('/settings');
+    expect(paths).toContain('/categories');
+    expect(paths).toContain('/labels');
+    expect(paths).toContain('/themes');
+    expect(paths).toContain('/agents');
+    expect(paths).toContain('/templates');
+    expect(paths).toContain('/tasks?status=todo,progress');
+  });
+
+  it('最近アクセスしたタスク（最大10件）を事前フェッチすること', async () => {
+    localStorage.setItem(
+      'rapitas-recent-tasks',
+      JSON.stringify({ ids: Array.from({ length: 15 }, (_, i) => i + 1) }),
+    );
+
+    await warmupApplicationCache();
+
+    const taskPaths = mockApiFetch.mock.calls
+      .map((c) => c[0] as string)
+      .filter((p) => /^\/tasks\/\d+$/.test(p));
+    expect(taskPaths).toHaveLength(10);
+    expect(taskPaths).toEqual([
+      '/tasks/1',
+      '/tasks/2',
+      '/tasks/3',
+      '/tasks/4',
+      '/tasks/5',
+      '/tasks/6',
+      '/tasks/7',
+      '/tasks/8',
+      '/tasks/9',
+      '/tasks/10',
+    ]);
+  });
+
+  it('最近アクセスしたタスクがない場合は個別タスクをフェッチしないこと', async () => {
+    await warmupApplicationCache();
+
+    const taskPaths = mockApiFetch.mock.calls
+      .map((c) => c[0] as string)
+      .filter((p) => /^\/tasks\/\d+$/.test(p));
+    expect(taskPaths).toHaveLength(0);
+  });
+
+  it('フェッチが失敗しても例外を投げない（non-critical）こと', async () => {
+    mockApiFetch.mockRejectedValue(new Error('network down'));
+
+    await expect(warmupApplicationCache()).resolves.toBeUndefined();
+  });
+
+  it('最近のタスクリストが破損したJSONの場合も空扱いで継続すること', async () => {
+    localStorage.setItem('rapitas-recent-tasks', 'not-json');
+
+    await expect(warmupApplicationCache()).resolves.toBeUndefined();
+    const taskPaths = mockApiFetch.mock.calls
+      .map((c) => c[0] as string)
+      .filter((p) => /^\/tasks\/\d+$/.test(p));
+    expect(taskPaths).toHaveLength(0);
+  });
+});
+
+describe('getCacheStatistics', () => {
+  beforeEach(() => {
+    mockGetCacheStats.mockReset();
+    mockCacheManagerStats.mockReset();
+  });
+
+  it('apiClientとcacheManagerの統計を合算すること', async () => {
+    mockGetCacheStats.mockReturnValue({ size: 100, entries: [{ key: 'a', size: 100, age: 0 }] });
+    mockCacheManagerStats.mockReturnValue({ size: 50, entries: [{ key: 'b', size: 50, age: 0 }] });
+
+    const stats = await getCacheStatistics();
+
+    expect(stats.totalSize).toBe(150);
+    expect(stats.totalEntries).toBe(2);
+    expect(stats.apiClient.size).toBe(100);
+    expect(stats.cacheManager.size).toBe(50);
+  });
+});
+
+describe('cleanupExpiredCache', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('期限切れエントリを除去し、期限内エントリは残すこと', () => {
+    const now = Date.now();
+    localStorage.setItem(
+      'rapitas-api-cache',
+      JSON.stringify({
+        fresh: { data: 1, timestamp: now, expiry: now + 100000 },
+        stale: { data: 2, timestamp: now - 200000, expiry: now - 1 },
+      }),
+    );
+
+    cleanupExpiredCache();
+
+    const cleaned = JSON.parse(localStorage.getItem('rapitas-api-cache')!);
+    expect(cleaned.fresh).toBeTruthy();
+    expect(cleaned.stale).toBeUndefined();
+  });
+
+  it('保存データがない場合は何もしないこと', () => {
+    expect(() => cleanupExpiredCache()).not.toThrow();
+    expect(localStorage.getItem('rapitas-api-cache')).toBeNull();
+  });
+
+  it('破損したJSONの場合も例外を投げないこと', () => {
+    localStorage.setItem('rapitas-api-cache', 'not-json');
+    expect(() => cleanupExpiredCache()).not.toThrow();
+  });
+});
 
 describe('cache-warmup', () => {
   beforeEach(() => {

@@ -72,7 +72,17 @@ export const HOME_TRAVEL_ICONS: Record<string, IconInfo> = {
   },
   LampDesk: {
     component: LampDesk,
-    keywords: ['デスクランプ', '卓上ライト', '照明', '勉強'],
+    keywords: [
+      'デスクランプ',
+      '卓上ライト',
+      '照明',
+      '勉強',
+      '学習',
+      '作業',
+      '机',
+      '勉強机',
+      '書斎',
+    ],
   },
   Armchair: {
     component: Armchair,
@@ -99,15 +109,25 @@ export const HOME_TRAVEL_ICONS: Record<string, IconInfo> = {
   // Travel & Outdoor
   Tent: {
     component: Tent,
-    keywords: ['テント', 'キャンプ', 'アウトドア', '野営'],
+    keywords: ['テント', 'キャンプ', 'アウトドア', '野営', '趣味', '外遊び'],
   },
   Backpack: {
     component: Backpack,
-    keywords: ['リュック', 'バックパック', 'カバン', '旅行', '通学'],
+    keywords: [
+      'リュック',
+      'バックパック',
+      'カバン',
+      '旅行',
+      '通学',
+      '外出',
+      '学生',
+      'お出かけ',
+      'トラベル',
+    ],
   },
   Luggage: {
     component: Luggage,
-    keywords: ['スーツケース', '荷物', '旅行', '出張'],
+    keywords: ['スーツケース', '荷物', '旅行', '出張', '海外旅行', '旅', 'パッキング', 'トラベル'],
   },
   Ticket: {
     component: Ticket,
@@ -115,7 +135,7 @@ export const HOME_TRAVEL_ICONS: Record<string, IconInfo> = {
   },
   Hotel: {
     component: Hotel,
-    keywords: ['ホテル', '宿泊', '旅館', '宿', '滞在'],
+    keywords: ['ホテル', '宿泊', '旅館', '宿', '滞在', '旅行', '旅', 'トラベル'],
   },
   Binoculars: {
     component: Binoculars,
@@ -160,15 +180,32 @@ export const HOME_TRAVEL_ICONS: Record<string, IconInfo> = {
   // Stationery & Office
   StickyNote: {
     component: StickyNote,
-    keywords: ['付箋', 'メモ', 'ポストイット', 'ノート'],
+    keywords: [
+      '付箋',
+      'メモ',
+      'ポストイット',
+      'ノート',
+      '覚書',
+      '振り返り',
+      'アイデアメモ',
+      'メモ書き',
+    ],
   },
   NotebookTabs: {
     component: NotebookTabs,
-    keywords: ['ノート', 'タブ', '整理', '分類', '手帳'],
+    keywords: ['ノート', 'タブ', '整理', '分類', '手帳', 'タブ管理', '記録', '勉強', '管理'],
   },
   Presentation: {
     component: Presentation,
-    keywords: ['プレゼン', 'スライド', '発表', '会議'],
+    keywords: [
+      'プレゼン',
+      'スライド',
+      '発表',
+      '会議',
+      'ミーティング',
+      'ビジネス',
+      'プレゼンテーション',
+    ],
   },
   Table: { component: Table, keywords: ['テーブル', '表', 'データ', '一覧'] },
   Table2: {

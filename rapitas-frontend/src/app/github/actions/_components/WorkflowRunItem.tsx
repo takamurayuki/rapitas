@@ -10,9 +10,11 @@
  */
 
 import { ChevronRight, ExternalLink, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { StatusIcon } from './StatusIcon';
 import { JobSection } from './JobSection';
 import type { WorkflowRun, RunDetail } from '../_types/actions.types';
+import { formatDateTime } from '@/utils/date';
 
 interface WorkflowRunItemProps {
   run: WorkflowRun;
@@ -25,7 +27,6 @@ interface WorkflowRunItemProps {
   isLoadingDetail: boolean;
   /** Set of expanded job databaseIds (shared across runs; ids are unique). / 展開中ジョブ */
   expandedJobs: Set<number>;
-  dateLocale: string;
   onToggle: () => void;
   onToggleJob: (jobId: number) => void;
 }
@@ -42,10 +43,10 @@ export function WorkflowRunItem({
   isExpanded,
   isLoadingDetail,
   expandedJobs,
-  dateLocale,
   onToggle,
   onToggleJob,
 }: WorkflowRunItemProps) {
+  const t = useTranslations('github');
   return (
     <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/50">
       <button onClick={onToggle} className="flex w-full items-center gap-3 px-4 py-2.5 text-left">
@@ -68,12 +69,12 @@ export function WorkflowRunItem({
               {run.displayTitle}
             </span>
           </div>
-          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-zinc-400">
+          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-zinc-500">
             <span className="rounded bg-zinc-100 px-1 py-0.5 font-mono dark:bg-zinc-800">
               {run.headBranch}
             </span>
             <span>{run.event}</span>
-            <span>{new Date(run.createdAt).toLocaleString(dateLocale)}</span>
+            <span>{formatDateTime(run.createdAt)}</span>
           </div>
         </div>
         <a
@@ -82,7 +83,7 @@ export function WorkflowRunItem({
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
           className="shrink-0 rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
-          title="GitHub で開く"
+          title={t('openInGitHub')}
         >
           <ExternalLink className="h-4 w-4" />
         </a>
@@ -91,7 +92,7 @@ export function WorkflowRunItem({
       {isExpanded && detail && (
         <div className="space-y-1.5 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700/50">
           {detail.jobs.length === 0 ? (
-            <p className="text-xs text-zinc-400">ジョブ情報がありません</p>
+            <p className="text-xs text-zinc-500">{t('workflowRunItem.noJobs')}</p>
           ) : (
             detail.jobs.map((job) => (
               <JobSection

@@ -20,8 +20,16 @@ import {
   writeWorkflowFile,
 } from '../workflow/workflow-file-utils';
 import { recordTransition } from '../workflow/transition-recorder';
-import { deriveTaskSpec } from '../task/task-spec-deriver';
-import { createNotification } from '../communication/notification-service';
+import { deriveTaskSpec, generateIntakeQuestions } from '../task/task-spec-deriver';
+import {
+  createNotification,
+  notifyIntakeQuestionPending,
+} from '../communication/notification-service';
+import {
+  extractReferencedTaskIds,
+  findContaminatedCriteria,
+  type ContaminatedCriterion,
+} from './spec-coherence-checker';
 import {
   checkSpecQuality,
   mergeSpecField,
@@ -53,6 +61,8 @@ interface IntakeTaskRow extends SpecQualityInput {
   id: number;
   title: string;
   workflowStatus: string | null;
+  /** Backlog-promoted (auto-filed) task — its intake question may be auto-adopted. */
+  autoCreatedFromBacklog?: boolean | null;
 }
 
 /**
@@ -68,6 +78,32 @@ export async function ensureIntakeReady(taskId: number): Promise<IntakeOutcome> 
   // Read spec fields via a narrow cast (see IntakeTaskRow) so an unknown-column
   // client cannot throw on access — missing columns read as undefined.
   const task = row as unknown as IntakeTaskRow;
+
+  // Coherence BEFORE thickness. A spec can be perfectly substantial and still
+  // be about the wrong task — that is the path task 671 took, straight through
+  // the adequate check and into ten repair rounds. Asked first because a thick
+  // wrong spec is worse than a thin right one: the thin one gets questions, the
+  // thick one gets built.
+  const contaminated = await findLiftedCriteria(task).catch((err) => {
+    log.warn({ err, taskId }, '[intake-gate] coherence check failed (non-fatal)');
+    return [];
+  });
+  if (contaminated.length > 0) {
+    // Ask once. If a question was already answered and the criteria still carry
+    // another task's vocabulary, asking again would loop (task 363's shape), so
+    // record it and let the run proceed — the diff review still catches it.
+    if (!(await hasAnsweredIntakeQuestion(taskId))) {
+      await raiseContaminationQuestion(task, contaminated);
+      return {
+        status: 'awaiting_question',
+        message: '受入基準が別タスクの内容を含んでいるため確認の質問を作成しました',
+      };
+    }
+    log.warn(
+      { taskId, criteria: contaminated.map((c) => c.index) },
+      '[intake-gate] criteria still look lifted after an answered question — proceeding',
+    );
+  }
 
   let quality = checkSpecQuality(task);
   if (quality.isAdequate) return { status: 'ready' };
@@ -86,22 +122,24 @@ export async function ensureIntakeReady(taskId: number): Promise<IntakeOutcome> 
     }
   }
 
-  // 2) Still thin → decide: ask once, or proceed on best-guess.
-  const alreadyAsked = await hasPriorIntakeQuestion(taskId);
+  // 2) Still thin → decide: keep asking until the user answers, or (once answered
+  // but still thin) proceed on best-guess. The workflow must NOT advance while a
+  // question is unanswered.
+  const wasAnswered = await hasAnsweredIntakeQuestion(taskId);
   const { policy, source } = resolveIntakePolicy();
-  const action = decideIntake(false, alreadyAsked, policy);
+  const action = decideIntake(false, wasAnswered, policy);
 
   if (action === 'ask') {
     await raiseIntakeQuestion(task, quality);
     return {
       status: 'awaiting_question',
-      message: '仕様が不十分なため確認の質問を作成しました（回答後に再開します）',
+      message: '仕様が不十分なため確認の質問を作成しました（回答されるまで先に進みません）',
     };
   }
 
-  await recordLowConfidence(task, quality, policy, alreadyAsked);
+  await recordLowConfidence(task, quality, policy, wasAnswered);
   log.info(
-    { taskId, score: quality.score, missing: quality.missing, policy, source, alreadyAsked },
+    { taskId, score: quality.score, missing: quality.missing, policy, source, wasAnswered },
     '[intake-gate] proceeding with thin spec (best-guess)',
   );
   return {
@@ -111,12 +149,103 @@ export async function ensureIntakeReady(taskId: number): Promise<IntakeOutcome> 
 }
 
 /**
+ * Criteria on this task that carry another task's subject matter.
+ *
+ * Only tasks this spec actually cites are considered, and never the task
+ * itself — a task may legitimately quote its own title.
+ *
+ * The task's own text is passed through as well, because the second detection
+ * path needs no lookup: a title of the form `#666「…」` carries the other
+ * task's subject inside this one, and criteria drawn from that quoted span are
+ * about the cited task by construction.
+ */
+async function findLiftedCriteria(task: IntakeTaskRow): Promise<ContaminatedCriterion[]> {
+  const criteria = parseSpecArray(task.acceptanceCriteria);
+  if (criteria.length === 0) return [];
+
+  const ownText = `${task.title} ${task.description ?? ''}`;
+  const ids = extractReferencedTaskIds(ownText).filter((id) => id !== task.id);
+  if (ids.length === 0) return [];
+
+  const referenced = await prisma.task.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, title: true },
+  });
+  return findContaminatedCriteria(criteria, referenced, ownText);
+}
+
+/**
+ * Pause the task and say which criteria belong to which other task.
+ *
+ * Deliberately concrete: it names the criterion, the phrase, and the task the
+ * phrase came from, because that is what a reader needs to decide whether to
+ * rewrite the criteria or keep them. The generic 「仕様が不十分」 question would
+ * not have helped here — the spec was not insufficient, it was misdirected.
+ */
+async function raiseContaminationQuestion(
+  task: IntakeTaskRow,
+  contaminated: ContaminatedCriterion[],
+): Promise<void> {
+  const resolved = await resolveWorkflowDir(task.id);
+  if (!resolved) {
+    log.warn({ taskId: task.id }, '[intake-gate] cannot resolve workflow dir — skipping question');
+    return;
+  }
+  const lines = [
+    '# 仕様確認: 受入基準が別タスクの内容を含んでいます',
+    '',
+    `タスク「${task.title}」の受入基準に、参照している別タスクが導入した用語がそのまま現れています。`,
+    'ゴールアンカー生成が観測元タスクの内容を取り込んだ可能性があります。',
+    '',
+    '## 該当する受入基準',
+    '',
+  ];
+  for (const c of contaminated) {
+    lines.push(`- 受入基準${c.index}: ${c.criterion}`);
+    lines.push(
+      `  - タスク #${c.sourceTaskId} の用語: ${c.phrases.map((p) => `「${p}」`).join(' ')}`,
+    );
+  }
+  lines.push(
+    '',
+    '## 判断してください',
+    '',
+    `- **A: 受入基準はこのタスクのものではない** — 基準を書き直してください。このタスク（${task.title}）が実際に達成すべきことを基準にします`,
+    '- **B: 受入基準は正しい** — 参照タスクと同じ用語を使うのが妥当な場合はこちらを選んでください。このまま実行します',
+    '',
+    'A の場合、受入基準を訂正してから回答してください（訂正すると修復予算もリセットされます）。',
+  );
+  await writeWorkflowFile(task.id, 'question', lines.join('\n'));
+
+  const fromStatus = task.workflowStatus ?? 'draft';
+  await prisma.task.update({
+    where: { id: task.id },
+    data: { workflowStatus: 'awaiting_question', updatedAt: new Date() },
+  });
+  await recordTransition({
+    taskId: task.id,
+    fromStatus,
+    toStatus: 'awaiting_question',
+    actor: 'system',
+    cause: 'intake_question',
+    phase: 'question',
+    metadata: {
+      previousStatus: fromStatus,
+      kind: 'spec_change',
+      reason: 'criteria_contamination',
+      criteria: contaminated.map((c) => c.index),
+      sourceTaskIds: [...new Set(contaminated.map((c) => c.sourceTaskId))],
+    },
+  });
+  await notifyIntakeQuestionPending({ taskId: task.id, taskTitle: task.title }).catch(() => {});
+}
+
+/**
  * Derive a spec from the description (+ prior answer) and persist any net-new
  * items. Returns the post-merge spec view, or null when nothing was added.
  */
 async function enrichSpec(taskId: number, task: IntakeTaskRow): Promise<SpecQualityInput | null> {
-  const resolved = await resolveWorkflowDir(taskId);
-  const priorAnswer = resolved ? await readWorkflowFile(resolved.dir, 'question') : null;
+  const priorAnswer = await readWorkflowFile(taskId, 'question');
   const basis = [task.description ?? '', priorAnswer ?? ''].join('\n\n').trim();
   if (!basis) return null;
 
@@ -159,12 +288,19 @@ async function enrichSpec(taskId: number, task: IntakeTaskRow): Promise<SpecQual
   return { description: task.description, goals, constraints, acceptanceCriteria };
 }
 
-/** Whether an intake clarifying question was already raised for this task. */
-async function hasPriorIntakeQuestion(taskId: number): Promise<boolean> {
-  const prior = await prisma.workflowTransition
-    .findFirst({ where: { taskId, cause: 'intake_question' }, select: { id: true } })
+/**
+ * Whether the USER has ANSWERED a prior intake question (the answer endpoint
+ * records a `intake_question_answered` transition). Distinguishes "asked but
+ * unanswered" (keep waiting) from "answered but still thin" (proceed best-guess).
+ *
+ * @param taskId - Task to check. / 対象タスク
+ * @returns true when an answer was recorded. / 回答済みなら true
+ */
+async function hasAnsweredIntakeQuestion(taskId: number): Promise<boolean> {
+  const answered = await prisma.workflowTransition
+    .findFirst({ where: { taskId, cause: 'intake_question_answered' }, select: { id: true } })
     .catch(() => null);
-  return prior !== null;
+  return answered !== null;
 }
 
 /** Write the clarifying question.md and move the task to awaiting_question. */
@@ -174,12 +310,27 @@ async function raiseIntakeQuestion(task: IntakeTaskRow, quality: SpecQualityResu
     log.warn({ taskId: task.id }, '[intake-gate] cannot resolve workflow dir — skipping question');
     return;
   }
+  // The executing agent (AI) proposes one focused question per missing field
+  // (1問1答); buildIntakeQuestion falls back to a single heuristic goal question
+  // when AI is unavailable/empty.
+  const aiQuestions = await generateIntakeQuestions(
+    task.title,
+    task.description ?? '',
+    quality.missing,
+  ).catch(() => []);
+  // Auto-filed (backlog-promoted) tasks get a machine-readable recommendation
+  // so the stale-question heal pass can adopt the narrowest scope unattended.
+  // Ideas 1038/1039 (2026-09-23) sat 13h in awaiting_question without one;
+  // answered at minimal scope they merged in ~20 min each with zero bounces.
+  // Human-filed tasks keep waiting for the human — no recommendation emitted.
   const body = buildIntakeQuestion({
     title: task.title,
     missing: quality.missing,
     reasons: quality.reasons,
+    questions: aiQuestions,
+    autoAdopt: task.autoCreatedFromBacklog === true,
   });
-  await writeWorkflowFile(resolved.dir, 'question', body, task.id);
+  await writeWorkflowFile(task.id, 'question', body);
 
   const fromStatus = task.workflowStatus ?? 'draft';
   await prisma.task.update({
@@ -187,7 +338,8 @@ async function raiseIntakeQuestion(task: IntakeTaskRow, quality: SpecQualityResu
     data: { workflowStatus: 'awaiting_question', updatedAt: new Date() },
   });
   // previousStatus lets resume-from-question restore the pre-question status
-  // (draft), which re-triggers this gate — now hasPriorIntakeQuestion()=true.
+  // (draft), which re-triggers this gate. It stays paused (asks again) until the
+  // user answers — see hasAnsweredIntakeQuestion / decideIntake.
   await recordTransition({
     taskId: task.id,
     fromStatus,
@@ -195,8 +347,17 @@ async function raiseIntakeQuestion(task: IntakeTaskRow, quality: SpecQualityResu
     actor: 'system',
     cause: 'intake_question',
     phase: 'question',
-    metadata: { previousStatus: fromStatus, missing: quality.missing, score: quality.score },
+    metadata: {
+      previousStatus: fromStatus,
+      kind: 'spec_change',
+      missing: quality.missing,
+      score: quality.score,
+    },
   });
+  // Surface the pause — an unanswered question NEVER advances on its own, so
+  // silence here is worse than the low-confidence proceed case below (#578/#579
+  // sat 4 days unseen). Best-effort like recordLowConfidence's notification.
+  await notifyIntakeQuestionPending({ taskId: task.id, taskTitle: task.title }).catch(() => {});
 }
 
 /** Record (audit + notify) that we proceeded despite a thin spec. */

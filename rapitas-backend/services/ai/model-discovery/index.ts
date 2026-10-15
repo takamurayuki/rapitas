@@ -52,6 +52,45 @@ export interface DiscoverOptions {
  * @param force - When true, bypass the cache and re-probe immediately. / キャッシュを無視
  * @param options - Probe behaviour overrides. / プローブ挙動の上書き
  */
+// One probe run per cache key at a time — concurrent callers share it.
+// Without this, every caller that arrived after TTL expiry spawned its OWN
+// full CLI probe set (probe storms), and each held its HTTP connection for
+// the whole run — starving the browser's 6-per-origin pool and timing out
+// unrelated requests (2026-09-03: GET /tasks/:id timeouts from the task
+// detail panel every 5 minutes at cache expiry).
+const inflight = new Map<string, Promise<DiscoveryResult>>();
+
+async function runProbes(cacheKey: string, options: DiscoverOptions): Promise<DiscoveryResult> {
+  const existing = inflight.get(cacheKey);
+  if (existing) return existing;
+  const run = (async () => {
+    const probes = await Promise.all([
+      probeClaude(options),
+      probeOpenAi(options),
+      probeGemini(options),
+      probeOllama(),
+    ]);
+    const flat: DiscoveredModel[] = probes.flatMap((p) => (p.available ? p.models : []));
+    const result: DiscoveryResult = {
+      fetchedAt: new Date().toISOString(),
+      providers: probes,
+      models: flat,
+    };
+    // Don't let a transient "nothing found" stick for the full TTL (see above).
+    const anyAvailable = probes.some((p) => p.available);
+    const ttl = anyAvailable ? CACHE_TTL_MS : EMPTY_RESULT_TTL_MS;
+    cache.set(cacheKey, { result, expiresAt: Date.now() + ttl });
+    log.info(
+      `Discovered ${flat.length} models across ${probes.filter((p) => p.available).length}/${probes.length} providers (${cacheKey})`,
+    );
+    return result;
+  })().finally(() => {
+    inflight.delete(cacheKey);
+  });
+  inflight.set(cacheKey, run);
+  return run;
+}
+
 export async function discoverModels(
   force = false,
   options: DiscoverOptions = {},
@@ -62,26 +101,15 @@ export async function discoverModels(
   if (!force && hit && hit.expiresAt > now) {
     return hit.result;
   }
-  const probes = await Promise.all([
-    probeClaude(options),
-    probeOpenAi(options),
-    probeGemini(options),
-    probeOllama(),
-  ]);
-  const flat: DiscoveredModel[] = probes.flatMap((p) => (p.available ? p.models : []));
-  const result: DiscoveryResult = {
-    fetchedAt: new Date().toISOString(),
-    providers: probes,
-    models: flat,
-  };
-  // Don't let a transient "nothing found" stick for the full TTL (see above).
-  const anyAvailable = probes.some((p) => p.available);
-  const ttl = anyAvailable ? CACHE_TTL_MS : EMPTY_RESULT_TTL_MS;
-  cache.set(cacheKey, { result, expiresAt: now + ttl });
-  log.info(
-    `Discovered ${flat.length} models across ${probes.filter((p) => p.available).length}/${probes.length} providers (${cacheKey})`,
-  );
-  return result;
+  // Stale-while-revalidate: an expired entry is still served IMMEDIATELY and
+  // the re-probe runs in the background — CLI probes take tens of seconds and
+  // must never hold a caller's request (or its browser connection) hostage.
+  // Only a cold start (no entry at all) or an explicit force waits.
+  if (!force && hit) {
+    void runProbes(cacheKey, options).catch(() => {});
+    return hit.result;
+  }
+  return runProbes(cacheKey, options);
 }
 
 /**

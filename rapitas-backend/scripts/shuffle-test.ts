@@ -2,27 +2,42 @@
 /**
  * shuffle-test.ts
  *
- * Collects backend unit test files, shuffles them using a seeded PRNG,
- * and runs `bun test <files...>` to surface test order dependencies.
- * Excludes integration tests (which require a live database connection).
+ * Shuffles the CI gate suite (scripts/ci-gate-tests.txt) with a seeded PRNG
+ * and runs `bun test <files...>` to surface test order dependencies in the
+ * SUPPORTED suite. Scoping to the gate manifest is deliberate: shuffling the
+ * whole corpus made this job assert "every test file passes on Linux" — a
+ * different (and unmet) claim that kept the job permanently red for reasons
+ * unrelated to ordering; whole-corpus health lives in the advisory full
+ * suite. Pass --all for the old exploratory whole-corpus shuffle (excluding
+ * DB-dependent integration tests).
  *
  * Environment variables:
  *   TEST_SHUFFLE_SEED  Optional integer seed. Defaults to DEFAULT_SEED.
  *                      Supply the logged seed on failure to reproduce the same order.
  *
  * Usage:
- *   bun scripts/shuffle-test.ts
+ *   bun scripts/shuffle-test.ts            # gate manifest (CI mode)
+ *   bun scripts/shuffle-test.ts --all      # whole corpus (exploratory)
  *   TEST_SHUFFLE_SEED=42 bun scripts/shuffle-test.ts
  */
 
+import { readFileSync } from 'fs';
 import { Glob } from 'bun';
-import { resolve } from 'path';
+import { relative, resolve } from 'path';
+import { parseGateManifest, validateManifestFiles } from './gate-manifest-parser';
 
 /** Fixed fallback seed used when TEST_SHUFFLE_SEED is not set. */
 const DEFAULT_SEED = 20250101;
 
-/** Matches paths that belong to integration tests (DB-dependent, excluded from shuffle). */
-export const INTEGRATION_EXCLUDE_PATTERN = /[/\\]tests[/\\]integration[/\\]/;
+/**
+ * Matches paths that belong to integration tests (DB-dependent, excluded from
+ * shuffle), plus playwright-worker-client.test.ts — it spawns a real system
+ * browser (msedge/chrome) and there is no browser-install step in the
+ * `test-full-advisory` CI job, so it always fails there (task #869). See that
+ * file's own header NOTE for the full rationale.
+ */
+export const INTEGRATION_EXCLUDE_PATTERN =
+  /(?:[/\\]tests[/\\]integration[/\\][\s\S]*|[/\\]runtime-smoke[/\\](playwright-worker-client|runtime-readiness)\.test\.ts)$/;
 
 /**
  * Creates a Linear Congruential Generator (LCG) seeded PRNG.
@@ -88,7 +103,7 @@ export function parseSeed(raw: string | undefined): number {
  * @param root - Absolute path to the backend root directory / バックエンドルートの絶対パス
  * @returns Sorted list of absolute file paths ready for shuffling
  */
-async function collectTestFiles(root: string): Promise<string[]> {
+export async function collectTestFiles(root: string): Promise<string[]> {
   const glob = new Glob('**/*.test.ts');
   const files: string[] = [];
   for await (const file of glob.scan({ cwd: root, absolute: true })) {
@@ -101,11 +116,32 @@ async function collectTestFiles(root: string): Promise<string[]> {
   return filterExcluded(files, INTEGRATION_EXCLUDE_PATTERN);
 }
 
+/**
+ * Loads the CI gate manifest as absolute paths, failing loudly on drift so a
+ * renamed/deleted gate file can't silently shrink the shuffled set.
+ *
+ * @param root - Backend root directory / バックエンドルート
+ * @returns Absolute test file paths from the manifest
+ */
+function collectGateManifestFiles(root: string): string[] {
+  const manifestPath = resolve(root, 'scripts', 'ci-gate-tests.txt');
+  const entries = parseGateManifest(readFileSync(manifestPath, 'utf-8'));
+  const missing = validateManifestFiles(entries, root);
+  if (missing.length > 0) {
+    console.error('[shuffle-test] Gate manifest lists missing files:');
+    for (const m of missing) console.error(`  ${m}`);
+    process.exit(1);
+  }
+  return entries.map((f) => resolve(root, f));
+}
+
 async function main(): Promise<void> {
   const root = resolve(import.meta.dir, '..');
   const seed = parseSeed(process.env.TEST_SHUFFLE_SEED);
+  const allMode = process.argv.includes('--all');
 
-  const files = await collectTestFiles(root);
+  const files = allMode ? await collectTestFiles(root) : collectGateManifestFiles(root);
+  console.log(`[shuffle-test] scope: ${allMode ? 'whole corpus (--all)' : 'CI gate manifest'}`);
 
   if (files.length === 0) {
     console.warn('[shuffle-test] No test files found — exiting with success.');
@@ -121,14 +157,52 @@ async function main(): Promise<void> {
   console.log('[shuffle-test] (Pass TEST_SHUFFLE_SEED=' + seed + ' to reproduce this order)\n');
   console.log('[shuffle-test] Running bun test in shuffled order...\n');
 
-  const proc = Bun.spawn(['bun', 'test', '--isolate', ...shuffled], {
-    cwd: root,
-    stdio: ['inherit', 'inherit', 'inherit'],
-    env: { ...process.env },
-  });
+  // Relative paths keep argv small; on Windows the ~32k command-line limit
+  // still can't fit ~700 paths in one spawn (ENAMETOOLONG), so batch there.
+  // Linux/CI keeps the single spawn — maximum cross-file interaction surface.
+  const relFiles = shuffled.map((f) => relative(root, f));
+  const batches = process.platform === 'win32' ? chunkByArgLength(relFiles, 25_000) : [relFiles];
+  if (batches.length > 1) {
+    console.log(`[shuffle-test] Windows argv limit — running in ${batches.length} batches.\n`);
+  }
 
-  const exitCode = await proc.exited;
+  let exitCode = 0;
+  for (const batch of batches) {
+    const proc = Bun.spawn(['bun', 'test', '--isolate', ...batch], {
+      cwd: root,
+      stdio: ['inherit', 'inherit', 'inherit'],
+      env: { ...process.env },
+    });
+    const code = await proc.exited;
+    // Keep running the remaining batches — a full failure list beats a
+    // fail-fast partial one for an order-dependency hunt.
+    if (code !== 0) exitCode = code;
+  }
   process.exit(exitCode);
+}
+
+/**
+ * Splits paths into batches whose joined argv length stays under the cap.
+ *
+ * @param files - Paths to batch / 分割対象のパス
+ * @param maxChars - Max combined characters per batch / バッチあたりの上限文字数
+ * @returns Ordered batches preserving the input order
+ */
+export function chunkByArgLength(files: readonly string[], maxChars: number): string[][] {
+  const batches: string[][] = [];
+  let current: string[] = [];
+  let length = 0;
+  for (const f of files) {
+    if (current.length > 0 && length + f.length + 1 > maxChars) {
+      batches.push(current);
+      current = [];
+      length = 0;
+    }
+    current.push(f);
+    length += f.length + 1;
+  }
+  if (current.length > 0) batches.push(current);
+  return batches;
 }
 
 // NOTE: Guard prevents main() from running when this file is imported by unit tests.

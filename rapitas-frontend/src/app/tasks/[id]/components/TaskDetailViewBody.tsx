@@ -1,15 +1,17 @@
 'use client';
 // TaskDetailViewBody
 import type { Task, Resource, Comment, WorkflowStatus, Priority } from '@/types';
-import CompactTaskDetailCard from '@/feature/tasks/components/CompactTaskDetailCard';
+import CompactTaskDetailCard from '@/feature/tasks/components/detail/CompactTaskDetailCard';
 import { API_BASE_URL } from '@/utils/api';
 import TaskAISection, { type TaskAISectionProps } from './TaskAISection';
 import TaskWorkflowSection from './TaskWorkflowSection';
+import TaskPreviewSection from './TaskPreviewSection';
 import SubtaskSection from './SubtaskSection';
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { CopilotChatPanel } from '@/components/copilot';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+import { useTranslations } from 'next-intl';
 
 const API_BASE = API_BASE_URL;
 
@@ -18,40 +20,36 @@ interface TaskActionsViewSlice {
   updateStatus: (id: number, status: string) => Promise<void>;
   isSubtaskSelectionMode: boolean;
   selectedSubtaskIds: Set<number>;
-  showSubtaskDeleteConfirm: 'all' | 'selected' | null;
-  setShowSubtaskDeleteConfirm: (v: 'all' | 'selected' | null) => void;
   editingSubtaskId: number | null;
   editingSubtaskTitle: string;
   editingSubtaskDescription: string;
   editingSubtaskPriority: Priority;
-  editingSubtaskLabels: string;
   editingSubtaskEstimatedHours: string;
+  editingSubtaskActualHours: string;
   toggleSubtaskSelectionMode: () => void;
   selectAllSubtasks: () => void;
   deselectAllSubtasks: () => void;
   toggleSubtaskSelection: (id: number) => void;
-  handleDeleteAllSubtasks: () => Promise<void>;
   handleDeleteSelectedSubtasks: () => Promise<void>;
   startEditingSubtask: (subtask: NonNullable<Task['subtasks']>[number]) => void;
   setEditingSubtaskTitle: (v: string) => void;
   setEditingSubtaskDescription: (v: string) => void;
   setEditingSubtaskPriority: (v: Priority) => void;
-  setEditingSubtaskLabels: (v: string) => void;
   setEditingSubtaskEstimatedHours: (v: string) => void;
+  setEditingSubtaskActualHours: (v: string) => void;
   saveSubtaskEdit: () => void;
   cancelEditingSubtask: () => void;
-  isAddingSubtask: boolean;
   newSubtaskTitle: string;
   newSubtaskDescription: string;
-  newSubtaskLabels: string;
+  newSubtaskPriority: Priority;
   newSubtaskEstimatedHours: string;
-  toggleAddSubtask: () => void;
+  newSubtaskActualHours: string;
   setNewSubtaskTitle: (v: string) => void;
   setNewSubtaskDescription: (v: string) => void;
-  setNewSubtaskLabels: (v: string) => void;
+  setNewSubtaskPriority: (v: Priority) => void;
   setNewSubtaskEstimatedHours: (v: string) => void;
+  setNewSubtaskActualHours: (v: string) => void;
   addSubtask: () => Promise<void>;
-  cancelAddSubtask: () => void;
 }
 
 /** Subset of useCommentSystem return values consumed by the view body. */
@@ -123,7 +121,8 @@ export default function TaskDetailViewBody({
   isParallelExecutionRunning,
   getSubtaskStatus,
 }: TaskDetailViewBodyProps) {
-  const isTaskStatusLoading = useExecutionStateStore((s) => s.loadingTaskIds.has(taskId));
+  const tDev = useTranslations('devMode');
+  useExecutionStateStore((s) => s.loadingTaskIds.has(taskId));
 
   // Context for the copilot's "next action" recommender (rule-based, see
   // next-action-recommender.ts). canRunAgent mirrors the execute-route gate.
@@ -161,7 +160,7 @@ export default function TaskDetailViewBody({
         />
       </div>
 
-      {/* Unified AI panel — copilot with execution inside */}
+      {/* AI Assistant — proactive next-action chat, on its own. */}
       <div id="td-ai" className="mb-6 scroll-mt-16">
         <CopilotChatPanel
           taskId={taskId}
@@ -170,23 +169,31 @@ export default function TaskDetailViewBody({
           taskDescription={task.description}
           onTaskUpdated={onTaskUpdated}
           nextActionContext={nextActionContext}
-        >
-          {/* NOTE: Always render the agent execution accordion. The component
-              itself shows a capability-aware body when the task lacks a theme,
-              workingDirectory, or API key. The legacy showAIPanel gate is
-              kept as a kill-switch but defaults to true. */}
-          {showAIPanel && (
-            <ErrorBoundary section="エージェント実行">
-              <TaskAISection
-                task={task}
-                taskId={taskId}
-                resolvedTaskId={resolvedTaskId}
-                {...aiSectionProps}
-              />
-            </ErrorBoundary>
-          )}
-        </CopilotChatPanel>
+        />
       </div>
+
+      {/* Agent Execution — split out from the AI assistant chat into its own
+          always-visible card. Nesting it inside the chat panel made it
+          compete for space with an unrelated conversational feature, which
+          both mismatched this card's height against its siblings and hid
+          the run controls behind an accordion; standing alone fixes both. */}
+      {/* Hidden entirely for themes without a workingDirectory (operator
+          request 2026-09-02): agents cannot run there, so the section only
+          ever showed setup guidance — noise on non-development tasks. */}
+      {showAIPanel && !!task.theme?.workingDirectory && (
+        <div id="td-execution" className="scroll-mt-16">
+          {/* mb-6: the section card carries its own bottom margin, so the
+              fallback needs one too or it sits flush against the workflow card. */}
+          <ErrorBoundary section={tDev('executionSection.title')} className="mb-6">
+            <TaskAISection
+              task={task}
+              taskId={taskId}
+              resolvedTaskId={resolvedTaskId}
+              {...aiSectionProps}
+            />
+          </ErrorBoundary>
+        </div>
+      )}
 
       {task.theme?.isDevelopment === true && (
         <div id="td-workflow" className="scroll-mt-16">
@@ -204,48 +211,52 @@ export default function TaskDetailViewBody({
         </div>
       )}
 
+      {task.theme?.isDevelopment === true && (
+        <div id="td-preview" className="scroll-mt-16">
+          <TaskPreviewSection taskId={taskId} />
+        </div>
+      )}
+
       <div id="td-subtasks" className="scroll-mt-16">
         <SubtaskSection
           subtasks={task.subtasks || []}
+          themeName={task.theme?.name}
+          categoryName={task.theme?.category?.name}
           isSubtaskSelectionMode={taskActions.isSubtaskSelectionMode}
           selectedSubtaskIds={taskActions.selectedSubtaskIds}
-          showSubtaskDeleteConfirm={taskActions.showSubtaskDeleteConfirm}
           editingSubtaskId={taskActions.editingSubtaskId}
           editingSubtaskTitle={taskActions.editingSubtaskTitle}
           editingSubtaskDescription={taskActions.editingSubtaskDescription}
           editingSubtaskPriority={taskActions.editingSubtaskPriority}
-          editingSubtaskLabels={taskActions.editingSubtaskLabels}
           editingSubtaskEstimatedHours={taskActions.editingSubtaskEstimatedHours}
+          editingSubtaskActualHours={taskActions.editingSubtaskActualHours}
           isParallelExecutionRunning={isParallelExecutionRunning}
           getSubtaskStatus={getSubtaskStatus}
           onToggleSelectionMode={taskActions.toggleSubtaskSelectionMode}
           onSelectAll={taskActions.selectAllSubtasks}
           onDeselectAll={taskActions.deselectAllSubtasks}
           onToggleSubtaskSelection={taskActions.toggleSubtaskSelection}
-          onSetDeleteConfirm={taskActions.setShowSubtaskDeleteConfirm}
-          onDeleteAll={taskActions.handleDeleteAllSubtasks}
           onDeleteSelected={taskActions.handleDeleteSelectedSubtasks}
           onStartEditingSubtask={taskActions.startEditingSubtask}
           onSetEditingSubtaskTitle={taskActions.setEditingSubtaskTitle}
           onSetEditingSubtaskDescription={taskActions.setEditingSubtaskDescription}
           onSetEditingSubtaskPriority={taskActions.setEditingSubtaskPriority}
-          onSetEditingSubtaskLabels={taskActions.setEditingSubtaskLabels}
           onSetEditingSubtaskEstimatedHours={taskActions.setEditingSubtaskEstimatedHours}
+          onSetEditingSubtaskActualHours={taskActions.setEditingSubtaskActualHours}
           onSaveSubtaskEdit={taskActions.saveSubtaskEdit}
           onCancelEditingSubtask={taskActions.cancelEditingSubtask}
           onUpdateStatus={taskActions.updateStatus}
-          isAddingSubtask={taskActions.isAddingSubtask}
           newSubtaskTitle={taskActions.newSubtaskTitle}
           newSubtaskDescription={taskActions.newSubtaskDescription}
-          newSubtaskLabels={taskActions.newSubtaskLabels}
+          newSubtaskPriority={taskActions.newSubtaskPriority}
           newSubtaskEstimatedHours={taskActions.newSubtaskEstimatedHours}
-          onToggleAddSubtask={taskActions.toggleAddSubtask}
+          newSubtaskActualHours={taskActions.newSubtaskActualHours}
           onSetNewSubtaskTitle={taskActions.setNewSubtaskTitle}
           onSetNewSubtaskDescription={taskActions.setNewSubtaskDescription}
-          onSetNewSubtaskLabels={taskActions.setNewSubtaskLabels}
+          onSetNewSubtaskPriority={taskActions.setNewSubtaskPriority}
           onSetNewSubtaskEstimatedHours={taskActions.setNewSubtaskEstimatedHours}
+          onSetNewSubtaskActualHours={taskActions.setNewSubtaskActualHours}
           onAddSubtask={taskActions.addSubtask}
-          onCancelAddSubtask={taskActions.cancelAddSubtask}
         />
       </div>
     </>

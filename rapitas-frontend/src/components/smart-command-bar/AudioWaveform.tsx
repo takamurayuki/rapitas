@@ -33,7 +33,7 @@ export default function AudioWaveform({
   const animFrameRef = useRef<number>(0);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const [level, setLevel] = useState(0);
+  const [, setLevel] = useState(0);
 
   useEffect(() => {
     if (!stream || !canvasRef.current) return;

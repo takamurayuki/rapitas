@@ -1,6 +1,8 @@
 import { useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Comment } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('useCommentSystem');
@@ -17,12 +19,14 @@ export interface UseCommentSystemParams {
 
 export function useCommentSystem({
   resolvedTaskId,
-  comments,
+  comments: _comments,
   setComments,
   newComment,
   setNewComment,
   setIsAddingComment,
 }: UseCommentSystemParams) {
+  const t = useTranslations('task');
+  const confirm = useConfirmDialog();
   /** Add a new comment (or reply). Returns the new comment ID or null. */
   const handleAddComment = useCallback(
     async (content?: string, parentId?: number): Promise<number | null> => {
@@ -87,7 +91,8 @@ export function useCommentSystem({
   /** Delete a comment by ID */
   const handleDeleteComment = useCallback(
     async (commentId: number) => {
-      if (!confirm('このコメントを削除しますか?')) return;
+      if (!(await confirm({ message: t('commentSystem.deleteConfirm'), variant: 'destructive' })))
+        return;
 
       try {
         const res = await fetch(`${API_BASE}/comments/${commentId}`, {
@@ -100,7 +105,7 @@ export function useCommentSystem({
         logger.error('Failed to delete comment:', err);
       }
     },
-    [setComments],
+    [setComments, confirm, t],
   );
 
   /** Create a link between two comments */

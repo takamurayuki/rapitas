@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { CircleDot, Filter, ArrowLeft, Loader2, ArrowRightCircle, Bug } from 'lucide-react';
@@ -10,15 +10,13 @@ import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { getTaskDetailPath } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
+import { EmptyState } from '@/components/ui/empty-state';
 
 const logger = createLogger('IssuesClient');
 
 export default function IssuesPage() {
   const t = useTranslations('github');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
   const searchParams = useSearchParams();
   const integrationId = searchParams.get('integrationId');
 
@@ -29,32 +27,23 @@ export default function IssuesPage() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState<number | null>(null);
 
-  useEffect(() => {
-    fetchIntegrations();
-  }, []);
-
-  useEffect(() => {
-    if (selectedIntegration) {
-      fetchIssues();
-    }
-  }, [selectedIntegration, stateFilter]);
-
-  const fetchIntegrations = async () => {
+  // NOTE: uses the setState updater form so this never needs
+  // `selectedIntegration` in its closure — keeps the callback stable ([]
+  // deps) so the mount effect below fetches integrations exactly once.
+  const fetchIntegrations = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/github/integrations`);
       if (res.ok) {
         const data = await res.json();
         setIntegrations(data);
-        if (!selectedIntegration && data.length > 0) {
-          setSelectedIntegration(data[0].id.toString());
-        }
+        setSelectedIntegration((prev) => (!prev && data.length > 0 ? data[0].id.toString() : prev));
       }
     } catch (error) {
       logger.error('Failed to fetch integrations:', error);
     }
-  };
+  }, []);
 
-  const fetchIssues = async () => {
+  const fetchIssues = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(
@@ -68,7 +57,17 @@ export default function IssuesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedIntegration, stateFilter]);
+
+  useEffect(() => {
+    fetchIntegrations();
+  }, [fetchIntegrations]);
+
+  useEffect(() => {
+    if (selectedIntegration) {
+      fetchIssues();
+    }
+  }, [selectedIntegration, stateFilter, fetchIssues]);
 
   const importAsConcern = async (issueId: number) => {
     setImporting(issueId);
@@ -110,7 +109,7 @@ export default function IssuesPage() {
             <select
               value={selectedIntegration}
               onChange={(e) => setSelectedIntegration(e.target.value)}
-              className="px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:border-blue-400"
+              className="px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:border-indigo-400"
             >
               <option value="">{t('selectRepository')}</option>
               {integrations.map((integration) => (
@@ -149,12 +148,11 @@ export default function IssuesPage() {
             ))}
           </div>
         ) : issues.length === 0 ? (
-          <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700">
-            <CircleDot className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
-            <p className="text-zinc-500 dark:text-zinc-400">
-              {selectedIntegration ? t('noIssues') : t('selectRepositoryPrompt')}
-            </p>
-          </div>
+          <EmptyState
+            icon={CircleDot}
+            title={selectedIntegration ? t('noIssues') : t('selectRepositoryPrompt')}
+            className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700"
+          />
         ) : (
           <div className="space-y-3">
             {issues.map((issue) => (
@@ -189,7 +187,7 @@ export default function IssuesPage() {
                     <div className="flex items-center gap-4 text-sm text-zinc-500 dark:text-zinc-400">
                       <span>#{issue.issueNumber}</span>
                       <span>by {issue.authorLogin}</span>
-                      <span>{new Date(issue.createdAt).toLocaleDateString(dateLocale)}</span>
+                      <span>{formatDate(issue.createdAt)}</span>
                     </div>
                     {hasLabels(issue.labels) && (
                       <div className="flex items-center gap-2 mt-2">

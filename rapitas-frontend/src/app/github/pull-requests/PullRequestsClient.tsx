@@ -20,6 +20,7 @@ import { createLogger } from '@/lib/logger';
 // Shared pagination control — ALWAYS use this for paginated lists (see
 // COMPONENT_SPLITTING_POLICY §7). Do not hand-roll prev/next buttons.
 import Pagination from '@/components/ui/pagination/Pagination';
+import { EmptyState } from '@/components/ui/empty-state';
 
 const logger = createLogger('PullRequestsClient');
 
@@ -197,9 +198,9 @@ export default function PullRequestsClient() {
             <select
               value={selectedIntegration}
               onChange={(e) => setSelectedIntegration(e.target.value)}
-              className="px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:border-blue-400"
+              className="px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:border-indigo-400"
             >
-              <option value="">すべてのリポジトリ</option>
+              <option value="">{t('pullRequestsClient.allRepositories')}</option>
               {integrations.map((integration) => (
                 <option key={integration.id} value={integration.id}>
                   {integration.ownerName}/{integration.repositoryName}
@@ -230,7 +231,7 @@ export default function PullRequestsClient() {
 
           {!loading && filteredRows.length > 0 && (
             <span className="text-sm text-zinc-500 dark:text-zinc-400 ml-auto">
-              {filteredRows.length} 件
+              {t('pullRequestsClient.resultCount', { count: filteredRows.length })}
             </span>
           )}
         </div>
@@ -242,12 +243,11 @@ export default function PullRequestsClient() {
             ))}
           </div>
         ) : filteredRows.length === 0 ? (
-          <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700">
-            <GitPullRequest className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
-            <p className="text-zinc-500 dark:text-zinc-400">
-              {integrations.length === 0 ? t('selectRepositoryPrompt') : t('noPullRequests')}
-            </p>
-          </div>
+          <EmptyState
+            icon={GitPullRequest}
+            title={integrations.length === 0 ? t('selectRepositoryPrompt') : t('noPullRequests')}
+            className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700"
+          />
         ) : (
           <>
             <div className="space-y-3">
@@ -287,7 +287,7 @@ export default function PullRequestsClient() {
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 text-sm text-zinc-400">
+                    <div className="flex items-center gap-3 text-sm text-zinc-500">
                       {pr._count?.reviews ? (
                         <div className="flex items-center gap-1" title={t('reviewCount')}>
                           <Eye className="w-4 h-4" />

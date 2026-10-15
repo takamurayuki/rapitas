@@ -47,7 +47,7 @@ export type {
   WeeklyReport,
 } from './task.types';
 
-export { priorityColors, priorityLabels } from './task.types';
+export { priorityColors, priorityLabelKeys } from './task.types';
 
 export type {
   ExecutionStatus,

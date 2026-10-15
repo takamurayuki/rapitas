@@ -2,6 +2,7 @@
 // ai-analysis-panel/usePromptOptimization.ts
 
 import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import type { OptimizedPromptResult } from './types';
 
@@ -32,6 +33,7 @@ export function usePromptOptimization(
   taskId: number,
   onPromptGenerated?: (prompt: string) => void,
 ): UsePromptOptimizationReturn {
+  const t = useTranslations('devMode.usePromptOptimization');
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
   const [promptResult, setPromptResult] = useState<OptimizedPromptResult | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
@@ -55,7 +57,7 @@ export function usePromptOptimization(
           const errData = await response.json();
           const errorMsg = errData.details
             ? `${errData.error}: ${errData.details}`
-            : errData.error || 'プロンプト生成に失敗しました';
+            : errData.error || t('generationFailed');
           throw new Error(errorMsg);
         }
 
@@ -66,12 +68,12 @@ export function usePromptOptimization(
           onPromptGenerated(data.optimizedPrompt);
         }
       } catch (err) {
-        setPromptError(err instanceof Error ? err.message : 'Errorが発生しました');
+        setPromptError(err instanceof Error ? err.message : t('errorOccurred'));
       } finally {
         setIsGeneratingPrompt(false);
       }
     },
-    [taskId, onPromptGenerated],
+    [taskId, onPromptGenerated, t],
   );
 
   const handleSubmitAnswers = useCallback(async () => {
@@ -80,7 +82,7 @@ export function usePromptOptimization(
     const requiredQuestions = promptResult.clarificationQuestions.filter((q) => q.isRequired);
     const unansweredRequired = requiredQuestions.filter((q) => !promptAnswers[q.id]?.trim());
     if (unansweredRequired.length > 0) {
-      setPromptError('必須の質問に回答してください');
+      setPromptError(t('requiredQuestionsHint'));
       return;
     }
 
@@ -100,7 +102,7 @@ export function usePromptOptimization(
     } finally {
       setIsSubmittingAnswers(false);
     }
-  }, [promptResult, promptAnswers, generatePrompt]);
+  }, [promptResult, promptAnswers, generatePrompt, t]);
 
   const handleCopyPrompt = useCallback(() => {
     if (promptResult?.optimizedPrompt) {

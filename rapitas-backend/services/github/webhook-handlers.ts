@@ -6,12 +6,11 @@
  * Not responsible for route registration, PR/Issue API calls, or sync logic.
  */
 
-import { PrismaClient } from '@prisma/client';
-import { createLogger } from '../../config/logger';
+import { PrismaClient } from '../../generated/prisma-postgres';
 import { realtimeService } from '../communication/realtime-service';
+import { makeOwnerRepoString } from './owner-repo';
 import type { GitHubWebhookPayload } from './types';
 
-const log = createLogger('github-service:webhook-handlers');
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 
 /**
@@ -27,7 +26,7 @@ export async function handlePullRequestEvent(
 ): Promise<void> {
   if (!payload.pull_request) return;
   const { action, pull_request, repository } = payload;
-  const repo = `${repository.owner.login}/${repository.name}`;
+  const repo = makeOwnerRepoString(repository.owner.login, repository.name);
 
   realtimeService.sendGitHubEvent('pull_request', {
     action,
@@ -86,7 +85,7 @@ export async function handlePullRequestReviewEvent(
 ): Promise<void> {
   if (!payload.pull_request || !payload.review) return;
   const { action, review, pull_request, repository } = payload;
-  const repo = `${repository.owner.login}/${repository.name}`;
+  const repo = makeOwnerRepoString(repository.owner.login, repository.name);
 
   realtimeService.sendGitHubEvent('pull_request_review', {
     action,
@@ -127,7 +126,7 @@ export async function handleCommentEvent(
 ): Promise<void> {
   if (!payload.comment) return;
   const { action, comment, issue, pull_request, repository } = payload;
-  const repo = `${repository.owner.login}/${repository.name}`;
+  const repo = makeOwnerRepoString(repository.owner.login, repository.name);
   const number = pull_request?.number || issue?.number;
 
   realtimeService.sendGitHubEvent(event, {
@@ -153,7 +152,7 @@ export async function handleIssueEvent(
 ): Promise<void> {
   if (!payload.issue) return;
   const { action, issue, repository } = payload;
-  const repo = `${repository.owner.login}/${repository.name}`;
+  const repo = makeOwnerRepoString(repository.owner.login, repository.name);
 
   realtimeService.sendGitHubEvent('issue', {
     action,

@@ -4,12 +4,10 @@
  * Handles recurring task generation logic with workflow file inheritance.
  * Uses the existing recurrence-service.ts for RRULE parsing.
  */
-import { PrismaClient, Task } from '@prisma/client';
+import { PrismaClient, Task } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
 import { parseRRule, expandRecurrence, RECURRENCE_PRESETS } from './recurrence-service';
-import { readFile, access } from 'fs/promises';
-import { join } from 'path';
-import { getTaskWorkflowDir } from '../workflow/workflow-paths';
+import { readWorkflowFile } from '../workflow/workflow-file-utils';
 
 type PrismaInstance = InstanceType<typeof PrismaClient>;
 
@@ -68,7 +66,7 @@ export async function setTaskRecurrence(
   // Validate RRULE format
   try {
     parseRRule(input.recurrenceRule);
-  } catch (err) {
+  } catch {
     throw new Error(`Invalid recurrence rule: ${input.recurrenceRule}`);
   }
 
@@ -124,40 +122,6 @@ export async function removeTaskRecurrence(prisma: PrismaInstance, taskId: numbe
 }
 
 /**
- * Resolve the workflow directory path from a task ID.
- */
-async function resolveWorkflowDir(prisma: PrismaInstance, taskId: number): Promise<string | null> {
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    include: { theme: { include: { category: true } } },
-  });
-
-  if (!task) return null;
-
-  const categoryId = task.theme?.categoryId ?? null;
-  const themeId = task.themeId ?? null;
-
-  return getTaskWorkflowDir(categoryId, themeId, taskId);
-}
-
-/**
- * Read a workflow file if it exists.
- */
-async function readWorkflowFile(
-  dirPath: string,
-  fileType: 'research' | 'plan' | 'verify',
-): Promise<string | null> {
-  const filePath = join(dirPath, `${fileType}.md`);
-  try {
-    await access(filePath);
-    const content = await readFile(filePath, 'utf-8');
-    return content;
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Inherit workflow context from the most recent completed task instance.
  * Returns a markdown summary to append to the new task's description.
  */
@@ -179,16 +143,10 @@ async function inheritWorkflowContext(
     return null;
   }
 
-  const workflowDir = await resolveWorkflowDir(prisma, lastCompletedTask.id);
-  if (!workflowDir) {
-    log.warn(`[recurring-task] Could not resolve workflow dir for task ${lastCompletedTask.id}`);
-    return null;
-  }
-
-  // Read workflow files
-  const research = await readWorkflowFile(workflowDir, 'research');
-  const plan = await readWorkflowFile(workflowDir, 'plan');
-  const verify = await readWorkflowFile(workflowDir, 'verify');
+  // Read workflow artifacts
+  const research = await readWorkflowFile(lastCompletedTask.id, 'research');
+  const plan = await readWorkflowFile(lastCompletedTask.id, 'plan');
+  const verify = await readWorkflowFile(lastCompletedTask.id, 'verify');
 
   if (!research && !plan && !verify) {
     log.debug(`[recurring-task] No workflow files found for task ${lastCompletedTask.id}`);
@@ -196,6 +154,8 @@ async function inheritWorkflowContext(
   }
 
   // Build context summary
+  // NOTE: toLocaleDateString('ja-JP') below builds task-instruction text carried
+  // into the next recurrence, not a UI datetime display — out of scope for #847.
   let summary = `\n\n---\n## 🔄 前回の実行履歴（自動継承）\n\n`;
   summary += `**前回実行日**: ${lastCompletedTask.completedAt ? new Date(lastCompletedTask.completedAt).toLocaleDateString('ja-JP') : '不明'}\n\n`;
 

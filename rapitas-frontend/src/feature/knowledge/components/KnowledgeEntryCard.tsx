@@ -17,7 +17,7 @@ const stageColors: Record<string, string> = {
 };
 
 const validationColors: Record<string, string> = {
-  pending: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+  pending: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
   validated: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
   rejected: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
   conflict: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
@@ -27,17 +27,36 @@ export function KnowledgeEntryCard({
   entry,
   similarity,
   onClick,
-  onArchive,
+  onArchive: _onArchive,
 }: KnowledgeEntryCardProps) {
   const t = useTranslations('knowledge');
 
   const confidencePercent = Math.round(entry.confidence * 100);
   const decayPercent = Math.round(entry.decayScore * 100);
+  // Defense in depth: `entry.tags` is typed string[], but a legacy
+  // consolidated entry created before the backend fix (services/memory/
+  // consolidation.ts) can still hold a stray non-string element — the
+  // hypothesis ledger overloads the same tags column with `{evidence:...}`,
+  // which used to leak into merged tag arrays and crash this render
+  // ("Objects are not valid as a React child... {evidence}").
+  const stringTags = entry.tags.filter((tag): tag is string => typeof tag === 'string');
 
   return (
     <div
       className="rounded-lg border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-800 cursor-pointer"
       onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
     >
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-1">
@@ -86,9 +105,9 @@ export function KnowledgeEntryCard({
         <span className="text-xs text-gray-400 dark:text-gray-500">
           {t(`sourceTypes.${entry.sourceType}`)}
         </span>
-        {entry.tags.length > 0 && (
+        {stringTags.length > 0 && (
           <div className="flex gap-1">
-            {entry.tags.slice(0, 3).map((tag) => (
+            {stringTags.slice(0, 3).map((tag) => (
               <span
                 key={tag}
                 className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
@@ -96,8 +115,8 @@ export function KnowledgeEntryCard({
                 {tag}
               </span>
             ))}
-            {entry.tags.length > 3 && (
-              <span className="text-xs text-gray-400">+{entry.tags.length - 3}</span>
+            {stringTags.length > 3 && (
+              <span className="text-xs text-gray-400">+{stringTags.length - 3}</span>
             )}
           </div>
         )}

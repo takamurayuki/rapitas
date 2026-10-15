@@ -2,7 +2,7 @@
 // HomeThemeFilter
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Priority, Theme } from '@/types';
+import type { Label, Priority, Theme } from '@/types';
 import { useTerminalContextStore } from '@/feature/terminal';
 import { Star, SwatchBook, ChevronDown, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
@@ -20,6 +20,8 @@ interface HomeThemeFilterProps {
   themeFilter: number | null;
   filter: string;
   priorityFilter: Priority | null;
+  labels: Label[];
+  labelFilter: number | null;
   sortBy: 'createdAt' | 'priority' | 'title';
   sortOrder: 'asc' | 'desc';
   isFilterExpanded: boolean;
@@ -31,6 +33,7 @@ interface HomeThemeFilterProps {
   onThemeChange: (themeId: number) => void;
   onFilterChange: (status: string) => void;
   onPriorityChange: (priority: Priority | null) => void;
+  onLabelChange: (labelId: number | null) => void;
   onSortByChange: (sortBy: 'createdAt' | 'priority' | 'title') => void;
   onSortOrderToggle: () => void;
   onFilterExpandedToggle: () => void;
@@ -50,6 +53,8 @@ export function HomeThemeFilter({
   themeFilter,
   filter,
   priorityFilter,
+  labels,
+  labelFilter,
   sortBy,
   sortOrder,
   isFilterExpanded,
@@ -61,6 +66,7 @@ export function HomeThemeFilter({
   onThemeChange,
   onFilterChange,
   onPriorityChange,
+  onLabelChange,
   onSortByChange,
   onSortOrderToggle,
   onFilterExpandedToggle,
@@ -160,12 +166,12 @@ export function HomeThemeFilter({
                   </button>
                 );
               })}
-              {/* Theme add — solid amber pill, distinct from the category add (slate folder tab). */}
+              {/* Theme add — matches FILTER button palette (slate). */}
               <button
                 onClick={() => router.push('/themes')}
-                title="テーマを追加"
-                aria-label="テーマを追加"
-                className="shrink-0 flex items-center justify-center px-2.5 py-1.5 rounded-sm bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 dark:hover:bg-amber-500/30 transition-colors"
+                title={t('addTheme')}
+                aria-label={t('addTheme')}
+                className="shrink-0 flex items-center justify-center px-2.5 py-1.5 rounded-sm bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
               </button>
@@ -215,12 +221,15 @@ export function HomeThemeFilter({
       <HomeExpandedFilters
         filter={filter}
         priorityFilter={priorityFilter}
+        labels={labels}
+        labelFilter={labelFilter}
         sortBy={sortBy}
         sortOrder={sortOrder}
         isFilterExpanded={isFilterExpanded}
         statusCounts={statusCounts}
         onFilterChange={onFilterChange}
         onPriorityChange={onPriorityChange}
+        onLabelChange={onLabelChange}
         onSortByChange={onSortByChange}
         onSortOrderToggle={onSortOrderToggle}
       />

@@ -1,0 +1,141 @@
+{
+  "devTools": {
+    "debugLogAnalyzer": {
+      "title": "Debug Log Analyzer",
+      "supportedFormats": "Supported formats: JSON, Syslog, Apache, Nginx, Node.js",
+      "tabs": {
+        "input": "Log Input",
+        "result": "Analysis Result",
+        "settings": "Settings"
+      },
+      "errors": {
+        "emptyContent": "Please enter log content",
+        "analysisFailed": "An error occurred during analysis"
+      },
+      "input": {
+        "logType": "Log type:",
+        "autoDetect": "Auto-detect",
+        "custom": "Custom",
+        "file": "File:",
+        "sample": "Sample:",
+        "logContent": "Log content:",
+        "lineCount": "{count} lines",
+        "placeholder": "Paste your logs or upload a file...",
+        "clear": "Clear",
+        "analyzing": "Analyzing...",
+        "analyzeStart": "Start Analysis"
+      },
+      "viewer": {
+        "title": "Log Analysis Result",
+        "tabs": {
+          "overview": "Overview",
+          "timeline": "Timeline",
+          "patterns": "Patterns",
+          "sources": "Sources",
+          "logs": "Log Details"
+        }
+      },
+      "summaryCards": {
+        "totalEntries": "Total Entries",
+        "errorCount": "Errors",
+        "warningCount": "Warnings",
+        "timeRange": "Time Range",
+        "minutes": "{count} min",
+        "notAvailable": "N/A"
+      },
+      "charts": {
+        "levelDistribution": "Log Level Distribution",
+        "timeline": "Log Timeline",
+        "sourceDistribution": "Log Count by Source",
+        "legendErrors": "Errors",
+        "legendWarnings": "Warnings",
+        "legendInfo": "Info"
+      },
+      "patterns": {
+        "frequentErrors": "Frequent Error Patterns",
+        "frequentWarnings": "Frequent Warning Patterns",
+        "frequentMessages": "Frequent Messages",
+        "occurrenceCount": "{count}x"
+      },
+      "entries": {
+        "title": "Log Entries",
+        "searchPlaceholder": "Search logs...",
+        "limitExceeded": "Display limit (1000 entries) exceeded. Use filters to narrow down the results."
+      },
+      "settings": {
+        "filterTitle": "Filter Settings",
+        "minLevel": "Minimum Log Level",
+        "sourceFilter": "Source Filter",
+        "sourceFilterPlaceholder": "e.g. app.main",
+        "startTime": "Start Time",
+        "endTime": "End Time",
+        "textSearch": "Text Search",
+        "searchPlaceholder": "Search keyword...",
+        "clearFilter": "Clear Filters",
+        "customParserTitle": "Custom Parser Settings",
+        "customParserHint": "Custom parser settings can be configured via the API endpoint."
+      }
+    },
+    "fileViewer": {
+      "loadFailedStatus": "Failed to load file: {status} {statusText}",
+      "loadFailedMessage": "Failed to load file: {message}",
+      "imageLoadFailed": "Failed to load image: {url}",
+      "pdfLoadFailed": "Failed to load PDF: {url}",
+      "previousFile": "Previous file (←)",
+      "nextFile": "Next file (→)",
+      "download": "Download",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "rotate": "Rotate",
+      "fullscreen": "Fullscreen",
+      "normalView": "Normal view",
+      "closeWithEsc": "Close (Esc)",
+      "openInNewTab": "Open in new tab",
+      "openInBrowser": "Open in browser",
+      "copyUrl": "Copy URL",
+      "urlCopied": "URL copied",
+      "unpreviewable": "This file type cannot be previewed"
+    },
+    "markdownViewer": {
+      "toc": "Table of Contents",
+      "copyCode": "Copy code"
+    },
+    "voice": {
+      "inlineMicButton": {
+        "ariaLabel": "Voice input",
+        "title": "Voice input (Ctrl+Shift+V)"
+      },
+      "inputBar": {
+        "listening": "Please speak...",
+        "recording": "Recording... ({seconds}s)",
+        "listeningVolume": "Please speak... (volume: {volume})",
+        "micStartFailed": "Failed to start microphone",
+        "recognizing": "Transcribing...",
+        "recognitionFailed": "Could not recognize speech",
+        "transcribeFailed": "Failed to transcribe",
+        "transcribeError": "Transcription error",
+        "navigatingTo": "Navigating to {label}...",
+        "creatingTask": "Creating task \"{title}\"...",
+        "taskCreated": "Task \"{title}\" created",
+        "taskCreateFailed": "Failed to create task",
+        "commandExecFailed": "Failed to execute command",
+        "navigateToResult": "Navigate to {label}",
+        "createTaskResult": "Create task \"{title}\"",
+        "searchResult": "Search for \"{query}\"",
+        "editPlaceholder": "Edit transcribed text...",
+        "sendAsCommand": "Run as AI command",
+        "insertText": "Insert text into field",
+        "shortcutToggle": "Ctrl+Shift+V: Start/stop recording",
+        "shortcutClose": "Esc: Close",
+        "autoConvert": "Auto-convert after 2s of silence",
+        "startRecording": "Start recording",
+        "stopRecording": "Stop recording"
+      },
+      "wakeWord": {
+        "listening": "Listening for wake word",
+        "lastHeard": " (last heard: {text})",
+        "activeIndicator": "Say “rapitas” to activate"
+      }
+    }
+  }
+}

@@ -3,8 +3,9 @@
 import { useCallback } from 'react';
 import type { Status, Task, Theme } from '@/types';
 import { useToast } from '@/components/ui/toast/ToastContainer';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { useTaskCacheStore } from '@/stores/task-cache-store';
-import { apiFetch } from '@/lib/api-client';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { API_BASE_URL } from '@/utils/api';
 import { useTranslations } from 'next-intl';
 import { createLogger } from '@/lib/logger';
@@ -16,14 +17,10 @@ interface UseHomeActionsParams {
   tasks: Task[];
   themes: Theme[];
   categoryFilter: number | null;
-  themeFilter: number | null;
-  defaultTheme: Theme | null;
   isSelectionMode: boolean;
   selectedTasks: Set<number>;
   setSelectedTasks: (tasks: Set<number>) => void;
   setIsSelectionMode: (v: boolean) => void;
-  setIsQuickAdding: (v: boolean) => void;
-  setQuickTaskTitle: (v: string) => void;
   triggerTaskCompletion: (taskId: number, x: number, y: number) => void;
   isTodayTask: (task?: Task | null) => boolean;
   fetchTasks: () => Promise<void>;
@@ -39,23 +36,21 @@ export function useHomeActions({
   tasks,
   themes,
   categoryFilter,
-  themeFilter,
-  defaultTheme,
   isSelectionMode,
   selectedTasks,
   setSelectedTasks,
   setIsSelectionMode,
-  setIsQuickAdding,
-  setQuickTaskTitle,
   triggerTaskCompletion,
   isTodayTask,
-  fetchTasks,
+  fetchTasks: _fetchTasks,
 }: UseHomeActionsParams) {
   const { showToast } = useToast();
+  const confirm = useConfirmDialog();
   const t = useTranslations('home');
   const tc = useTranslations('common');
   const updateTaskLocally = useTaskCacheStore((s) => s.updateTaskLocally);
   const removeTaskLocally = useTaskCacheStore((s) => s.removeTaskLocally);
+  const isTaskExecuting = useExecutionStateStore((s) => s.isTaskExecuting);
 
   /**
    * Updates a single task's status with optimistic update and rollback.
@@ -99,38 +94,6 @@ export function useHomeActions({
   );
 
   /**
-   * Creates a task with the current title and resets quick-add state on success.
-   *
-   * @param quickTaskTitle - Title entered in the quick-add input.
-   */
-  const handleQuickAdd = useCallback(
-    async (quickTaskTitle: string) => {
-      if (!quickTaskTitle.trim()) return;
-      try {
-        await apiFetch('/tasks', {
-          method: 'POST',
-          body: JSON.stringify({
-            title: quickTaskTitle,
-            status: 'todo',
-            priority: 'medium',
-            ...(themeFilter && { themeId: themeFilter }),
-            ...(!themeFilter && defaultTheme && { themeId: defaultTheme.id }),
-          }),
-          skipCache: true,
-        });
-        setQuickTaskTitle('');
-        setIsQuickAdding(false);
-        showToast(t('taskCreated'), 'success');
-        await fetchTasks();
-      } catch (e) {
-        logger.error(e);
-        showToast(t('createFailed'), 'error');
-      }
-    },
-    [themeFilter, defaultTheme, setQuickTaskTitle, setIsQuickAdding, showToast, t, fetchTasks],
-  );
-
-  /**
    * Toggles a task's presence in the current bulk selection.
    *
    * @param taskId - Task to toggle.
@@ -141,11 +104,16 @@ export function useHomeActions({
       if (newSelection.has(taskId)) {
         newSelection.delete(taskId);
       } else {
+        // Auto-executing tasks must stay out of the bulk selection — an
+        // unintended bulk status change mid-execution could cause the agent
+        // to misbehave. TaskCard's checkbox is already disabled for these;
+        // this guards any other caller of onToggleSelect.
+        if (isTaskExecuting(taskId)) return;
         newSelection.add(taskId);
       }
       setSelectedTasks(newSelection);
     },
-    [selectedTasks, setSelectedTasks],
+    [selectedTasks, setSelectedTasks, isTaskExecuting],
   );
 
   /**
@@ -181,30 +149,59 @@ export function useHomeActions({
 
   /**
    * Deletes all currently selected tasks after user confirmation.
+   * Protected (locked) tasks are skipped and remain in the task list with a partial-failure notice.
    */
   const bulkDelete = useCallback(async () => {
-    if (!confirm(t('bulkDeleteConfirm', { count: selectedTasks.size }))) return;
+    if (
+      !(await confirm({
+        message: t('bulkDeleteConfirm', { count: selectedTasks.size }),
+        variant: 'destructive',
+      }))
+    )
+      return;
     const taskIds = Array.from(selectedTasks);
+
+    const protectedIds = taskIds.filter((id) => tasks.find((task) => task.id === id)?.isProtected);
+    const deletableIds = taskIds.filter((id) => !tasks.find((task) => task.id === id)?.isProtected);
+
     try {
       await Promise.all(
-        taskIds.map((id) => fetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE' })),
+        deletableIds.map((id) => fetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE' })),
       );
-      for (const id of taskIds) removeTaskLocally(id);
-      showToast(`${taskIds.length}${t('bulkDeleted')}`, 'success');
-      setSelectedTasks(new Set());
-      setIsSelectionMode(false);
+      for (const id of deletableIds) removeTaskLocally(id);
+
+      if (protectedIds.length > 0) {
+        showToast(
+          t('bulkDeletePartialSkipped', { total: taskIds.length, skipped: protectedIds.length }),
+          'warning',
+        );
+        setSelectedTasks(new Set(protectedIds));
+      } else {
+        showToast(`${deletableIds.length}${t('bulkDeleted')}`, 'success');
+        setSelectedTasks(new Set());
+        setIsSelectionMode(false);
+      }
     } catch {
       showToast(t('bulkDeleteFailed'), 'error');
     }
-  }, [selectedTasks, removeTaskLocally, showToast, t, setSelectedTasks, setIsSelectionMode]);
+  }, [
+    selectedTasks,
+    tasks,
+    removeTaskLocally,
+    showToast,
+    t,
+    setSelectedTasks,
+    setIsSelectionMode,
+    confirm,
+  ]);
 
-  // NOTE: tc is consumed here only to satisfy the import; the tc reference
-  // originates from the same translations bundle used by child components.
+  // NOTE: tc and isSelectionMode are consumed here only to satisfy the interface contract;
+  // they originate from callers that pass them for symmetry with setIsSelectionMode.
   void tc;
+  void isSelectionMode;
 
   return {
     updateStatus,
-    handleQuickAdd,
     toggleTaskSelection,
     bulkUpdateStatus,
     bulkDelete,

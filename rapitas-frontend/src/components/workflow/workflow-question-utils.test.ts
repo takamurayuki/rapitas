@@ -1,0 +1,290 @@
+/**
+ * workflow-question-utils.test
+ *
+ * Unit tests for the pure Q&A parsing helpers (parseIntakeQuestions / splitIntakeQuestion).
+ */
+import { describe, it, expect } from 'vitest';
+import {
+  parseIntakeQuestions,
+  splitIntakeQuestion,
+  parseOptionsBlock,
+  stripOptionsBlock,
+  composeStructuredAnswer,
+} from './workflow-question-utils';
+
+describe('parseIntakeQuestions', () => {
+  it('parses multiple 質問N blocks with their 選択肢 (1問1答)', () => {
+    const md = [
+      '# 仕様確認',
+      '',
+      'タスクの仕様が不足しています。',
+      '',
+      '## 質問1: 達成すべきゴール',
+      '何を最優先しますか？',
+      '### 選択肢',
+      '- 速度を優先する',
+      '- 品質を優先する',
+      '',
+      '## 質問2: 完了条件',
+      'どの基準で完了とみなしますか？',
+      '### 選択肢',
+      '- テストが通る',
+      '- 計測で改善を確認',
+      '',
+      '## 回答方法',
+      '選択肢から選んでください。',
+    ].join('\n');
+
+    const { intro, questions } = parseIntakeQuestions(md);
+
+    expect(intro).toContain('仕様が不足');
+    expect(questions).toHaveLength(2);
+    expect(questions[0].label).toBe('質問1: 達成すべきゴール');
+    expect(questions[0].text).toBe('何を最優先しますか？');
+    expect(questions[0].options).toEqual(['速度を優先する', '品質を優先する']);
+    expect(questions[1].label).toBe('質問2: 完了条件');
+    expect(questions[1].options).toEqual(['テストが通る', '計測で改善を確認']);
+  });
+
+  it('stops the question list at a non-質問 heading (回答方法)', () => {
+    const md = '## 質問1: x\nq\n### 選択肢\n- a\n## 回答方法\n選んで';
+    const { questions } = parseIntakeQuestions(md);
+    expect(questions).toHaveLength(1);
+    expect(questions[0].options).toEqual(['a']);
+  });
+
+  it('returns no questions for a legacy single-question file (no 質問 blocks)', () => {
+    const md = '# 仕様確認\n\nこれは質問です。\n## 選択肢\n- はい\n- いいえ';
+    const { questions } = parseIntakeQuestions(md);
+    expect(questions).toHaveLength(0);
+  });
+
+  it('parses a question with no 選択肢 as free-text (empty options)', () => {
+    const md = '## 質問1: 自由記述\n詳細を教えてください\n## 回答方法\n記述';
+    const { questions } = parseIntakeQuestions(md);
+    expect(questions).toHaveLength(1);
+    expect(questions[0].options).toEqual([]);
+    expect(questions[0].text).toBe('詳細を教えてください');
+  });
+});
+
+describe('splitIntakeQuestion', () => {
+  it('strips the 選択肢 block from prose and returns the parsed options', () => {
+    const md = 'これは質問です。\n## 選択肢\n- A\n- B\n';
+    const { text, options } = splitIntakeQuestion(md);
+    expect(text).toBe('これは質問です。');
+    expect(options).toEqual(['A', 'B']);
+  });
+});
+
+const VALID_OPTIONS_MD = [
+  '# 仕様確認',
+  '',
+  '表・見出しを含む本文。',
+  '',
+  '```json:options',
+  JSON.stringify({
+    questions: [
+      {
+        id: 'Q1',
+        summary: '達成すべきゴール',
+        options: [
+          { key: 'A', label: '速度を優先する', consequence: '実装は最小限にする' },
+          { key: 'B', label: '品質を優先する', consequence: 'テストを手厚くする' },
+        ],
+        freeTextRequired: false,
+        freeTextReason: null,
+      },
+      {
+        id: 'Q2',
+        summary: 'APIキー',
+        options: [],
+        freeTextRequired: true,
+        freeTextReason: '選択肢で表現できない秘匿情報のため',
+      },
+    ],
+  }),
+  '```',
+].join('\n');
+
+describe('parseOptionsBlock', () => {
+  it('parses multiple questions with options and a freeTextRequired question', () => {
+    const block = parseOptionsBlock(VALID_OPTIONS_MD);
+    expect(block).not.toBeNull();
+    expect(block?.questions).toHaveLength(2);
+    expect(block?.questions[0]).toEqual({
+      id: 'Q1',
+      summary: '達成すべきゴール',
+      options: [
+        {
+          key: 'A',
+          label: '速度を優先する',
+          consequence: '実装は最小限にする',
+          mutatesGate: false,
+          planRevision: false,
+          requiresOperatorAction: false,
+        },
+        {
+          key: 'B',
+          label: '品質を優先する',
+          consequence: 'テストを手厚くする',
+          mutatesGate: false,
+          planRevision: false,
+          requiresOperatorAction: false,
+        },
+      ],
+      freeTextRequired: false,
+      freeTextReason: null,
+      recommendedKey: null,
+      recommendedReason: null,
+    });
+    expect(block?.questions[1]).toEqual({
+      id: 'Q2',
+      summary: 'APIキー',
+      options: [],
+      freeTextRequired: true,
+      freeTextReason: '選択肢で表現できない秘匿情報のため',
+      recommendedKey: null,
+      recommendedReason: null,
+    });
+  });
+
+  it('returns null when the json:options block is missing', () => {
+    expect(parseOptionsBlock('# 質問\n選択肢なしの旧形式質問です。')).toBeNull();
+  });
+
+  it('returns null for malformed JSON (trailing comma) instead of throwing', () => {
+    const md = '```json:options\n{"questions":[{"id":"Q1","summary":"x",}]}\n```';
+    expect(() => parseOptionsBlock(md)).not.toThrow();
+    expect(parseOptionsBlock(md)).toBeNull();
+  });
+
+  it('returns null when questions is an empty array', () => {
+    const md = '```json:options\n{"questions":[]}\n```';
+    expect(parseOptionsBlock(md)).toBeNull();
+  });
+
+  it('returns null when a question has neither options nor freeTextRequired', () => {
+    const md =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[],"freeTextRequired":false}]}\n```';
+    expect(parseOptionsBlock(md)).toBeNull();
+  });
+
+  it('parses recommended/recommendedReason when present and valid', () => {
+    const md =
+      '```json:options\n' +
+      JSON.stringify({
+        questions: [
+          {
+            id: 'Q1',
+            summary: '達成すべきゴール',
+            options: [
+              { key: 'A', label: '速度を優先する', consequence: '実装は最小限にする' },
+              { key: 'B', label: '品質を優先する', consequence: 'テストを手厚くする' },
+            ],
+            freeTextRequired: false,
+            freeTextReason: null,
+            recommended: 'B',
+            recommendedReason: 'plan.md §テスト戦略の実測値に基づき品質優先が妥当',
+          },
+        ],
+      }) +
+      '\n```';
+    const block = parseOptionsBlock(md);
+    expect(block?.questions[0].recommendedKey).toBe('B');
+    expect(block?.questions[0].recommendedReason).toBe(
+      'plan.md §テスト戦略の実測値に基づき品質優先が妥当',
+    );
+  });
+
+  it('degrades to no recommendation when recommended/recommendedReason are missing (backward compat)', () => {
+    const block = parseOptionsBlock(VALID_OPTIONS_MD);
+    expect(block?.questions[0].recommendedKey).toBeNull();
+    expect(block?.questions[0].recommendedReason).toBeNull();
+  });
+
+  it('degrades to no recommendation when recommended has an invalid type or names no existing option', () => {
+    const mdInvalidType =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"a"}],"freeTextRequired":false,"recommended":42,"recommendedReason":"x"}]}\n```';
+    expect(parseOptionsBlock(mdInvalidType)?.questions[0].recommendedKey).toBeNull();
+
+    const mdUnknownKey =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"a"}],"freeTextRequired":false,"recommended":"Z","recommendedReason":"x"}]}\n```';
+    const parsed = parseOptionsBlock(mdUnknownKey);
+    expect(parsed?.questions[0].recommendedKey).toBeNull();
+    expect(parsed?.questions[0].recommendedReason).toBeNull();
+  });
+
+  it('parses mutatesGate:true on an option', () => {
+    const md =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"a","mutatesGate":true}],"freeTextRequired":false}]}\n```';
+    expect(parseOptionsBlock(md)?.questions[0].options[0].mutatesGate).toBe(true);
+  });
+
+  it('parses mutatesGate:false on an option', () => {
+    const md =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"a","mutatesGate":false}],"freeTextRequired":false}]}\n```';
+    expect(parseOptionsBlock(md)?.questions[0].options[0].mutatesGate).toBe(false);
+  });
+
+  // Parity with the backend parser (B6) — nothing renders it here yet, but a
+  // field this parser drops is a field the two copies disagree about.
+  it('parses requiresOperatorAction:true on an option', () => {
+    const md =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"運用者が依存を追加する","requiresOperatorAction":true}],"freeTextRequired":false}]}\n```';
+    expect(parseOptionsBlock(md)?.questions[0].options[0].requiresOperatorAction).toBe(true);
+  });
+
+  it('defaults requiresOperatorAction to false when unspecified (backward compat)', () => {
+    const md =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"a"}],"freeTextRequired":false}]}\n```';
+    expect(parseOptionsBlock(md)?.questions[0].options[0].requiresOperatorAction).toBe(false);
+  });
+
+  it('defaults mutatesGate to false when unspecified (backward compat)', () => {
+    const md =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"a"}],"freeTextRequired":false}]}\n```';
+    expect(parseOptionsBlock(md)?.questions[0].options[0].mutatesGate).toBe(false);
+  });
+
+  it('parses planRevision:true on an option', () => {
+    const md =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"a","planRevision":true}],"freeTextRequired":false}]}\n```';
+    expect(parseOptionsBlock(md)?.questions[0].options[0].planRevision).toBe(true);
+  });
+
+  it('defaults planRevision to false when unspecified (backward compat)', () => {
+    const md =
+      '```json:options\n{"questions":[{"id":"Q1","summary":"x","options":[{"key":"A","label":"a"}],"freeTextRequired":false}]}\n```';
+    expect(parseOptionsBlock(md)?.questions[0].options[0].planRevision).toBe(false);
+  });
+});
+
+describe('stripOptionsBlock', () => {
+  it('removes the json:options fence and keeps the surrounding prose', () => {
+    const stripped = stripOptionsBlock(VALID_OPTIONS_MD);
+    expect(stripped).toContain('# 仕様確認');
+    expect(stripped).toContain('表・見出しを含む本文。');
+    expect(stripped).not.toContain('json:options');
+    expect(stripped).not.toContain('freeTextRequired');
+  });
+});
+
+describe('composeStructuredAnswer', () => {
+  it('composes selection + free-text answers with the selections audit list', () => {
+    const block = parseOptionsBlock(VALID_OPTIONS_MD);
+    if (!block) throw new Error('expected a parsed block');
+    const { answerText, selections } = composeStructuredAnswer(block.questions, [
+      { key: 'B', freeText: '' },
+      { key: null, freeText: 'sk-xxxx' },
+    ]);
+    expect(answerText).toContain('## Q1: 達成すべきゴール');
+    expect(answerText).toContain('選択: 品質を優先する（影響: テストを手厚くする）');
+    expect(answerText).toContain('## Q2: APIキー');
+    expect(answerText).toContain('自由入力: sk-xxxx');
+    expect(selections).toEqual([
+      { questionId: 'Q1', selectedKey: 'B' },
+      { questionId: 'Q2', selectedKey: null },
+    ]);
+  });
+});

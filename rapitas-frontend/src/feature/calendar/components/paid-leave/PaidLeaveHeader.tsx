@@ -2,6 +2,7 @@
 // PaidLeaveHeader
 
 import { X, Coffee } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 type PaidLeaveHeaderProps = {
   /** Hex color used for the icon background. */
@@ -40,6 +41,9 @@ export function PaidLeaveHeader({
   afterUsage,
   onClose,
 }: PaidLeaveHeaderProps) {
+  const t = useTranslations('calendar');
+  const tp = useTranslations('calendar.paidLeaveHeader');
+  const tc = useTranslations('common');
   return (
     <div className="px-5 pt-4 pb-0">
       <div className="flex items-center justify-between mb-3">
@@ -57,19 +61,22 @@ export function PaidLeaveHeader({
               {formattedStartDate}
             </p>
             {formattedEndDate ? (
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+              <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-0.5">
                 〜 {formattedEndDate}
                 <span className="ml-1 text-red-500 dark:text-red-400 font-medium">
-                  ({dayCount}日間)
+                  {t('dayCountSuffix', { count: dayCount })}
                 </span>
               </p>
             ) : (
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">有給休暇を申請</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-0.5">
+                {tp('requestPrompt')}
+              </p>
             )}
           </div>
         </div>
         <button
           onClick={onClose}
+          aria-label={tc('close')}
           className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
         >
           <X className="w-5 h-5" />
@@ -84,16 +91,22 @@ export function PaidLeaveHeader({
               ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
               : afterUsage < 5
                 ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'
-                : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                : 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400'
           }`}
         >
           <div className="flex justify-between items-center">
-            <span>有給残日数: {remainingDays}日</span>
-            <span>使用: {usedDays}日</span>
+            <span>
+              {t('paidLeaveBalance')}: {t('paidLeaveDays', { count: remainingDays })}
+            </span>
+            <span>
+              {tp('usedLabel')}: {t('paidLeaveDays', { count: usedDays })}
+            </span>
           </div>
           <div className="flex justify-between items-center mt-1">
-            <span className="font-medium">申請後: {afterUsage}日</span>
-            {afterUsage < 0 && <span className="text-xs">⚠️ 残日数不足</span>}
+            <span className="font-medium">
+              {tp('afterUsageLabel')}: {t('paidLeaveDays', { count: afterUsage })}
+            </span>
+            {afterUsage < 0 && <span className="text-xs">⚠️ {t('insufficientBalance')}</span>}
           </div>
         </div>
       </div>

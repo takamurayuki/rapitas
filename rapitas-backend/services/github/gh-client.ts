@@ -12,9 +12,19 @@ import { join } from 'path';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'util';
 import { createLogger } from '../../config/logger';
+import { withGhRetry, READ_RETRY_POLICY } from './gh-retry';
+import type { GhRetryPolicy } from './gh-retry';
 
 const log = createLogger('github-service:client');
 const execFileAsync = promisify(execFile);
+
+// `gh` calls hit the GitHub API over the network; 120s gives real requests
+// headroom while still bounding a hang so a caller awaiting this call can't
+// stall indefinitely (e.g. the implementer phase's PR-creation step).
+// Declared independently of git-operations' GIT_SLOW_OP_TIMEOUT_MS (same
+// value) to avoid a services/github -> services/agents/orchestrator import,
+// matching the existing SETUP_TIMEOUT_MS double-declaration pattern.
+const GH_CLI_TIMEOUT_MS = 120_000;
 
 // gh binary path. execFile takes the executable + an args array and does NOT go
 // through a shell, so arguments (issue titles/bodies with spaces, quotes, etc.)
@@ -42,6 +52,7 @@ export async function runGhCommand(
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024, // 10MB
       windowsHide: true,
+      timeout: GH_CLI_TIMEOUT_MS,
     });
     return stdout.trim();
   } catch (error) {
@@ -50,11 +61,33 @@ export async function runGhCommand(
       error && typeof error === 'object' && 'stderr' in error
         ? (error as { stderr: string }).stderr
         : undefined;
+    const failure = new Error(stderr || message);
     if (!opts?.skipLog) {
-      log.error({ message, stderr }, `gh command failed: gh ${args.join(' ')}`);
+      log.error({ err: failure }, `gh command failed: gh ${args.join(' ')}`);
     }
-    throw new Error(stderr || message);
+    throw failure;
   }
+}
+
+/**
+ * Execute a gh CLI command with exponential-backoff retries.
+ * Defaults to READ_RETRY_POLICY; callers must explicitly pass WRITE_RETRY_POLICY
+ * for non-idempotent operations (create / merge / comment) to avoid accidental
+ * duplicate-resource creation.
+ *
+ * @param args - Array of CLI arguments / CLIコマンド引数
+ * @param cwd - Optional working directory / 作業ディレクトリ
+ * @param opts - Options: policy overrides retry behaviour; skipLog suppresses error log / オプション
+ * @returns Trimmed stdout string / 標準出力文字列
+ * @throws {Error} When gh command fails after all retry attempts / 全リトライ失敗時
+ */
+export async function runGhCommandWithRetry(
+  args: string[],
+  cwd?: string,
+  opts?: { skipLog?: boolean; policy?: GhRetryPolicy },
+): Promise<string> {
+  const { policy = READ_RETRY_POLICY, ...baseOpts } = opts ?? {};
+  return withGhRetry(() => runGhCommand(args, cwd, baseOpts), policy);
 }
 
 /**

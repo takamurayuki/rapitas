@@ -2,10 +2,12 @@
  * Workflow Memory Context
  *
  * Retrieves relevant past knowledge for a task (similar lessons, prior concerns,
- * task patterns) from the RAG knowledge base and renders it as a prompt section
- * injected into the researcher / planner / implementer context. This closes the
- * "the agent never learns from itself" gap: every run starts from a blank slate
- * unless prior findings are fed back in.
+ * task patterns) from the knowledge base via the hybrid recall entry point
+ * (vector + lexical, all forgetting stages, config-driven thresholds) and
+ * renders it as a prompt section injected into the researcher / planner /
+ * implementer / verifier context. This closes the "the agent never learns from
+ * itself" gap: every run starts from a blank slate unless prior findings are
+ * fed back in.
  *
  * Recall is OUTCOME-WEIGHTED: an entry learned from a task that succeeded
  * first-try is ranked above one whose source task was blocked, and blocked
@@ -13,113 +15,76 @@
  * than dropped — "we tried X and it broke Y" is exactly what must not repeat.
  *
  * NOT responsible for executing agents, writing files, or generating embeddings —
- * it only reads the knowledge base and formats. Every failure path (embeddings
- * disabled, no DB, empty result) degrades silently to an empty string so context
- * building never breaks because memory was unavailable.
+ * it only reads the knowledge base and formats (rendering lives in
+ * workflow-memory-render.ts). Every failure path (embeddings disabled, no DB,
+ * empty result) degrades silently to an empty string so context building never
+ * breaks because memory was unavailable.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { searchKnowledge } from '../memory/rag/search';
+import { searchKnowledgeHybrid } from '../memory/recall/hybrid-search';
+import { getRecallConfig } from '../memory/recall/recall-config';
+import { recordRetrieval } from '../memory/outcome-reinforcement';
+import { applyOutcomeWeighting, renderMemorySection } from './workflow-memory-render';
+import type { EntryOutcome, MemoryEntry } from './workflow-memory-render';
+
+// Re-exported so existing importers (tests, other contexts) keep one entry point.
+export { applyOutcomeWeighting, renderMemorySection, TEXT } from './workflow-memory-render';
+export type { EntryOutcome, MemoryEntry } from './workflow-memory-render';
 
 const log = createLogger('workflow:memory-context');
 
-/** Max knowledge entries injected — bounds prompt growth. */
-const MAX_ENTRIES = 6;
-/** Minimum cosine similarity to be considered relevant. */
-const MIN_SIMILARITY = 0.55;
-/** Per-entry content snippet length fed to the model. */
-const SNIPPET_LEN = 400;
-
-/** The outcome of the task an entry was learned from. */
-export type EntryOutcome = 'first_try' | 'completed' | 'blocked';
-
-/** A knowledge entry shaped for rendering. */
-export interface MemoryEntry {
-  title: string;
-  content: string;
-  category: string;
-  similarity: number;
-  /** Source task the entry was learned from (null when unknown). */
-  sourceTaskId?: number | null;
-  /** Outcome of that source task — drives ranking weight and the label. */
-  outcome?: EntryOutcome | null;
-}
-
-/** Recall ranking weight by source-task outcome. */
-const OUTCOME_MULTIPLIER: Record<EntryOutcome, number> = {
-  first_try: 1.2,
-  completed: 1.05,
-  // Kept (a failure is a lesson) but ranked lower so proven knowledge leads.
-  blocked: 0.7,
-};
-
-const TEXT = {
-  ja: {
-    header: '# 過去の知見（記憶からの参照 — 同じ轍を踏まないこと）',
-    lead: '以下は過去のタスク・懸念・教訓から、本タスクに関連性が高い順に抽出した知見です。調査・実装の前提として活用し、既知の失敗や設計判断を繰り返さないでください。',
-    relevance: '関連度',
-    outcome: {
-      first_try: '✅ 初回成功の知見',
-      completed: '☑ 完了タスクの知見',
-      blocked: '⚠️ 前回ブロック（失敗の教訓 — 同じ轍を避ける）',
-    } as Record<EntryOutcome, string>,
-  },
-  en: {
-    header: '# Prior Knowledge (recalled from memory — do not repeat past mistakes)',
-    lead: 'The following are the most relevant lessons, concerns, and task patterns from past work. Use them as context for research/implementation and avoid repeating known failures or re-deciding settled design points.',
-    relevance: 'relevance',
-    outcome: {
-      first_try: '✅ from a first-try success',
-      completed: '☑ from a completed task',
-      blocked: '⚠️ previously BLOCKED (failure lesson — avoid repeating)',
-    } as Record<EntryOutcome, string>,
-  },
-} as const;
+/** Trailing window and cap for episodic failure recall. */
+const EPISODE_WINDOW_DAYS = 14;
+const MAX_EPISODES = 3;
 
 /**
- * Apply outcome weighting: attach each entry's outcome and re-sort by the
- * outcome-adjusted score. Pure — the testable core of the ranking change.
+ * Render the freshest failure episodes (theme-scoped when possible) as a short
+ * prompt section. Best-effort — any failure yields ''.
  *
- * @param entries - Entries with raw similarity + sourceTaskId. / 類似度付きエントリ
- * @param outcomeByTaskId - Map of source taskId → outcome. / タスク別アウトカム
- * @returns Entries with `outcome` set, sorted by adjusted score. / 重み付け後の並び
- */
-export function applyOutcomeWeighting(
-  entries: MemoryEntry[],
-  outcomeByTaskId: Map<number, EntryOutcome>,
-): MemoryEntry[] {
-  return entries
-    .map((e) => {
-      const outcome = e.sourceTaskId != null ? (outcomeByTaskId.get(e.sourceTaskId) ?? null) : null;
-      return {
-        entry: { ...e, outcome },
-        score: e.similarity * (outcome ? OUTCOME_MULTIPLIER[outcome] : 1),
-      };
-    })
-    .sort((a, b) => b.score - a.score)
-    .map((x) => x.entry);
-}
-
-/**
- * Render retrieved entries as a markdown prompt section. Pure — the testable core.
- *
- * @param entries - Relevant knowledge entries (already ranked). / 関連知見（順位済み）
+ * @param themeId - Theme to scope to (null → all themes). / 対象テーマ
  * @param language - Output language. / 出力言語
- * @returns The markdown section, or '' when there is nothing to inject. / 注入する節（無ければ空文字）
+ * @returns Markdown section, or '' when there are no recent failures. / 節
  */
-export function renderMemorySection(entries: MemoryEntry[], language: 'ja' | 'en'): string {
-  if (entries.length === 0) return '';
-  const t = TEXT[language];
-  const items = entries
-    .map((e) => {
-      const pct = Math.round(e.similarity * 100);
-      const marker = e.outcome ? ` — ${t.outcome[e.outcome]}` : '';
-      const snippet =
-        e.content.length > SNIPPET_LEN ? `${e.content.slice(0, SNIPPET_LEN)}…` : e.content;
-      return `## [${e.category}] ${e.title} (${t.relevance} ${pct}%)${marker}\n${snippet}`;
-    })
-    .join('\n\n');
-  return `${t.header}\n\n${t.lead}\n\n${items}`;
+async function buildFailureEpisodeSection(
+  themeId: number | null,
+  language: 'ja' | 'en',
+): Promise<string> {
+  try {
+    const cutoff = new Date();
+    cutoff.setUTCDate(cutoff.getUTCDate() - EPISODE_WINDOW_DAYS);
+    const rows = await prisma.episodeMemory.findMany({
+      where: { outcome: 'failure', phase: 'evaluate', createdAt: { gte: cutoff } },
+      orderBy: [{ importance: 'desc' }, { createdAt: 'desc' }],
+      // Over-fetch so theme filtering (context is a JSON string) still fills the cap.
+      take: 20,
+      select: { content: true, context: true, createdAt: true },
+    });
+    if (rows.length === 0) return '';
+
+    const matchesTheme = (context: string): boolean => {
+      if (themeId == null) return true;
+      try {
+        return (JSON.parse(context) as { themeId?: number | null }).themeId === themeId;
+      } catch {
+        return false;
+      }
+    };
+    const themed = rows.filter((r) => matchesTheme(r.context));
+    const picked = (themed.length > 0 ? themed : rows).slice(0, MAX_EPISODES);
+    if (picked.length === 0) return '';
+
+    const header =
+      language === 'ja'
+        ? '## 最近の失敗エピソード（直近の実行で実際に起きたこと）'
+        : '## Recent failure episodes (what actually went wrong lately)';
+    const items = picked
+      .map((e) => `- ${e.createdAt.toISOString().slice(0, 10)}: ${e.content}`)
+      .join('\n');
+    return `${header}\n${items}`;
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -135,7 +100,10 @@ async function fetchOutcomes(taskIds: number[]): Promise<Map<number, EntryOutcom
         eventType: 'task_outcome',
         correlationId: { in: taskIds.map((id) => `task_${id}`) },
       },
-      orderBy: { createdAt: 'desc' },
+      // id tiebreak: two task_outcome events can share a createdAt timestamp
+      // (same millisecond); the "first = latest" dedup below relies on a
+      // stable order, so break ties by id (higher id = written later).
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       select: { correlationId: true, payload: true },
     });
     for (const ev of events) {
@@ -173,6 +141,14 @@ export async function buildMemoryContext(
   task: { title: string; description: string | null },
   language: 'ja' | 'en' = 'ja',
 ): Promise<string> {
+  // NOTE: RAPITAS_EVAL_MODE is set ONLY by scripts/eval-runner.ts and
+  // scripts/fault-injection-e2e.ts (see docs/eval-private-set.md, and the
+  // matching gate in pr-create-ops.ts) — never by normal dev.js/index.ts
+  // startup. Evaluation baseline runs must not recall KB entries / episodes
+  // learned from the very tasks the corpus was built from, or fail-to-pass
+  // measures memory recall instead of net coding capability.
+  if (process.env.RAPITAS_EVAL_MODE === 'true') return '';
+
   try {
     const query = `${task.title}\n${task.description ?? ''}`.trim();
     if (!query) return '';
@@ -182,30 +158,53 @@ export async function buildMemoryContext(
       .catch(() => null);
     const themeId = taskRow?.themeId ?? undefined;
 
-    // Prefer project-scoped knowledge; fall back to cross-project lessons so a
-    // brand-new project still benefits from globally-learned patterns.
-    let results = await searchKnowledge({
+    // One hybrid call: prefers project-scoped knowledge and falls back to
+    // cross-project lessons (themeFallback) so a brand-new project still
+    // benefits from globally-learned patterns. Stages / threshold / count come
+    // from RAPITAS_KB_RECALL_* so nothing is hard-coded here any more.
+    const cfg = getRecallConfig();
+    const results = await searchKnowledgeHybrid({
       query,
-      limit: MAX_ENTRIES,
-      minSimilarity: MIN_SIMILARITY,
-      forgettingStage: 'active',
+      limit: cfg.maxEntries,
+      minSimilarity: cfg.minSimilarity,
+      stages: cfg.stages,
+      stageWeights: cfg.stageWeights,
       themeId,
+      themeFallback: true,
+      telemetry: { source: 'workflow', taskId },
     });
-    if (results.length === 0 && themeId !== undefined) {
-      results = await searchKnowledge({
-        query,
-        limit: MAX_ENTRIES,
-        minSimilarity: MIN_SIMILARITY,
-        forgettingStage: 'active',
-      });
-    }
+
+    // Record which entries were injected into THIS task so outcome-reinforcement
+    // can reward them on success / decay them on failure (outcome-gated learning).
+    recordRetrieval(
+      taskId,
+      results.map((r) => r.id),
+    );
+
+    // Ledger the recall itself, INCLUDING when it found nothing — an empty
+    // recall is the common case and is invisible to reinforcement, which only
+    // ever sees entries that were actually injected.
+    void import('../decision-ledger')
+      .then(({ recordRecallDecision }) =>
+        recordRecallDecision({
+          taskId,
+          entryIds: results.map((r) => r.id),
+          minSimilarity: cfg.minSimilarity,
+        }),
+      )
+      .catch(() => {});
 
     const entries: MemoryEntry[] = results.map((r) => ({
+      id: r.id,
       title: r.title,
       content: r.content,
       category: r.category,
       similarity: r.similarity,
       sourceTaskId: r.taskId,
+      validationStatus: r.validationStatus,
+      forgettingStage: r.forgettingStage,
+      channel: r.channel,
+      lexicalScore: r.lexicalScore,
     }));
 
     // Outcome-weight: rank proven knowledge above failures, label failures.
@@ -213,13 +212,32 @@ export async function buildMemoryContext(
       .map((e) => e.sourceTaskId)
       .filter((id): id is number => typeof id === 'number');
     const outcomes = await fetchOutcomes(sourceTaskIds);
-    const ranked = applyOutcomeWeighting(entries, outcomes);
+    // Second signal: has each entry actually been USED when recalled before?
+    // The outcome weight only knows the entry came from a task that went well.
+    // Settled recall decisions know whether anyone has ever reached for it.
+    const usefulness = await import('../decision-ledger')
+      .then(({ knowledgeUsefulness }) => knowledgeUsefulness(entries.map((e) => e.id)))
+      .catch(() => undefined);
+    const ranked = applyOutcomeWeighting(entries, outcomes, usefulness);
 
-    const section = renderMemorySection(ranked, language);
+    let section = renderMemorySection(ranked, language);
+    // Episodic recall: recent failure episodes for this theme. The episode
+    // table was write-only for the loop (recorded per task outcome, read by
+    // no prompt) — surfacing the freshest failures tells the agent what has
+    // been going wrong RIGHT NOW in this area, complementing the distilled
+    // knowledge entries above.
+    const episodes = await buildFailureEpisodeSection(themeId ?? null, language);
+    if (episodes) section = section ? `${section}\n\n${episodes}` : episodes;
     if (section) {
       log.info(
-        { taskId, themeId, count: ranked.length, weighted: outcomes.size },
-        '[memory-context] Injected prior knowledge (outcome-weighted)',
+        {
+          taskId,
+          themeId,
+          count: ranked.length,
+          weighted: outcomes.size,
+          withUsageRecord: usefulness?.size ?? 0,
+        },
+        '[memory-context] Injected prior knowledge (outcome- and usage-weighted)',
       );
     }
     return section;

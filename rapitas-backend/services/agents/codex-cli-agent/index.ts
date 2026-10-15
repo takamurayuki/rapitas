@@ -36,6 +36,8 @@ export { resolveCliPath };
 
 export class CodexCliAgent extends BaseAgent {
   private process: ChildProcess | null = null;
+  private runnerState: ProcessRunnerState | null = null;
+  private stopRequested = false;
   private config: CodexCliAgentConfig;
   private outputBuffer: string = '';
   private errorBuffer: string = '';
@@ -82,6 +84,7 @@ export class CodexCliAgent extends BaseAgent {
     task: AgentTask,
     _options?: Record<string, unknown>,
   ): Promise<AgentExecutionResult> {
+    this.stopRequested = false;
     this.status = 'running';
     this.outputBuffer = '';
     this.errorBuffer = '';
@@ -137,6 +140,7 @@ export class CodexCliAgent extends BaseAgent {
     // Build a shared state object so process-runner can mutate it
     const runnerState: ProcessRunnerState = {
       process: null,
+      cancelRequested: this.stopRequested,
       outputBuffer: this.outputBuffer,
       errorBuffer: this.errorBuffer,
       lineBuffer: this.lineBuffer,
@@ -145,6 +149,10 @@ export class CodexCliAgent extends BaseAgent {
       codexSessionId: this.codexSessionId,
       actualModel: null,
       status: this.status,
+      turnFailed: false,
+      turnFailureMessage: null,
+      activeCodexCommands: new Map(),
+      seenAgentMessageIds: new Set(),
     };
 
     // Extend config with task-level overrides (resume session, investigation
@@ -159,6 +167,7 @@ export class CodexCliAgent extends BaseAgent {
       outputLastMessageFile: this.config.outputLastMessageFile ?? task.outputLastMessageFile,
     };
 
+    this.runnerState = runnerState;
     const result = await spawnCodexProcess(
       effectiveConfig,
       workDir,
@@ -180,7 +189,7 @@ export class CodexCliAgent extends BaseAgent {
           this.detectedQuestion = state;
         },
         onStatusChange: (status) => {
-          this.status = status as typeof this.status;
+          this.status = this.stopRequested ? 'cancelled' : (status as typeof this.status);
         },
         logPrefix: this.logPrefix,
       },
@@ -190,7 +199,8 @@ export class CodexCliAgent extends BaseAgent {
     );
 
     // Sync back mutable state from runner
-    this.process = runnerState.process;
+    this.process = null;
+    this.runnerState = null;
     this.outputBuffer = runnerState.outputBuffer;
     this.errorBuffer = runnerState.errorBuffer;
     this.lineBuffer = runnerState.lineBuffer;
@@ -201,6 +211,13 @@ export class CodexCliAgent extends BaseAgent {
   }
 
   async stop(): Promise<void> {
+    this.stopRequested = true;
+    this.status = 'cancelled';
+    if (this.runnerState) {
+      this.runnerState.cancelRequested = true;
+      this.runnerState.status = 'cancelled';
+      this.process = this.runnerState.process;
+    }
     if (this.process) {
       this.status = 'cancelled';
       this.emitOutput(`\n${this.logPrefix} Stopping execution...\n`);
@@ -215,7 +232,10 @@ export class CodexCliAgent extends BaseAgent {
             logger.info(`${this.logPrefix} Process ${pid} killed via taskkill`);
           }
         } catch (e) {
-          logger.error({ err: e }, `${this.logPrefix} taskkill failed`);
+          // Same benign race as agent-core.ts's stop() — the process usually
+          // already exited between the null-check and the call; the fallback
+          // below recovers it.
+          logger.warn({ err: e }, `${this.logPrefix} taskkill failed`);
           try {
             this.process.kill();
           } catch (killErr) {
@@ -331,12 +351,12 @@ export class CodexCliAgent extends BaseAgent {
     args: string[],
     timeoutMs: number = 10000,
   ): Promise<{ ok: boolean; stderr: string }> {
-    return new Promise((resolve) => {
-      const isWindows = process.platform === 'win32';
-      const codexPath = resolveCliPath(
-        process.env.CODEX_CLI_PATH || (isWindows ? 'codex.cmd' : 'codex'),
-      );
+    const isWindows = process.platform === 'win32';
+    const codexPath = await resolveCliPath(
+      process.env.CODEX_CLI_PATH || (isWindows ? 'codex.cmd' : 'codex'),
+    );
 
+    return new Promise((resolve) => {
       // NOTE: With `shell: true`, Node.js does NOT auto-quote arguments
       // containing spaces. e.g. ['debug', 'prompt-input', 'health check']
       // becomes the literal command line `codex debug prompt-input health

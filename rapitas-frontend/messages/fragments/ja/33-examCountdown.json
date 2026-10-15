@@ -1,0 +1,15 @@
+{
+  "examCountdown": {
+    "today": "今日!",
+    "examDay": "当日",
+    "daysLeft": "あと{count}日",
+    "daysElapsed": "{count}日経過",
+    "daysElapsedUnit": "日経過",
+    "remaining": "あと",
+    "dayUnit": "日",
+    "weeksAndDays": "({weeks}週{days}日)",
+    "weekdayLabel": "曜日",
+    "monthLabel": "{month}月",
+    "yearMonthLabel": "{year}年{month}月"
+  }
+}

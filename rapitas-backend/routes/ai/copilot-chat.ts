@@ -14,6 +14,7 @@ import {
   type CopilotActionType,
 } from '../../services/ai/copilot-action-service';
 import { generateTaskRetrospective } from '../../services/ai/retrospective-service';
+import { aiRateLimiter } from '../../middleware/rate-limiter';
 
 const log = createLogger('routes:copilot-chat');
 
@@ -22,7 +23,13 @@ export const copilotChatRoutes = new Elysia()
   /** Non-streaming copilot chat (returns full response). */
   .post(
     '/copilot/chat',
-    async ({ body, set }) => {
+    async ({ body, set, headers }) => {
+      const ip = headers?.['x-forwarded-for'] || 'local';
+      if (
+        !aiRateLimiter(set as { status?: number | string; headers: Record<string, string> }, ip)
+      ) {
+        return { error: 'リクエストが多すぎます。しばらくしてから再試行してください。' };
+      }
       const { message, taskId, conversationHistory } = body;
 
       if (!message?.trim()) {
@@ -59,7 +66,13 @@ export const copilotChatRoutes = new Elysia()
   /** Streaming copilot chat (SSE text/event-stream). */
   .post(
     '/copilot/chat/stream',
-    async ({ body, set }) => {
+    async ({ body, set, headers }) => {
+      const ip = headers?.['x-forwarded-for'] || 'local';
+      if (
+        !aiRateLimiter(set as { status?: number | string; headers: Record<string, string> }, ip)
+      ) {
+        return { error: 'リクエストが多すぎます。しばらくしてから再試行してください。' };
+      }
       const { message, taskId, conversationHistory } = body;
 
       if (!message?.trim()) {
@@ -143,7 +156,13 @@ export const copilotChatRoutes = new Elysia()
    */
   .post(
     '/copilot/tasks/:taskId/retrospective',
-    async ({ params, set }) => {
+    async ({ params, set, headers }) => {
+      const ip = headers?.['x-forwarded-for'] || 'local';
+      if (
+        !aiRateLimiter(set as { status?: number | string; headers: Record<string, string> }, ip)
+      ) {
+        return { error: 'リクエストが多すぎます。しばらくしてから再試行してください。' };
+      }
       const taskId = parseInt(params.taskId);
       if (isNaN(taskId)) {
         set.status = 400;

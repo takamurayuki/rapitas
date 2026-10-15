@@ -1,7 +1,7 @@
 'use client';
 // CategoriesPage
 
-import { Plus, Edit2, FolderKanban } from 'lucide-react';
+import { Plus, Edit2, Folders } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { useTranslations } from 'next-intl';
 import { ListSkeleton } from '@/components/ui/LoadingSpinner';
@@ -55,7 +55,7 @@ export default function CategoriesPage() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-              <FolderKanban className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+              <Folders className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
               {t('categoryList')}
             </h1>
             <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
@@ -75,7 +75,7 @@ export default function CategoriesPage() {
 
         {/* Add new category form */}
         {isAdding && (
-          <div className="mb-4 rounded-xl border-2 border-indigo-500 bg-white dark:bg-indigo-dark-900 p-4 shadow-xl">
+          <div className="mb-4 rounded-xl border-2 border-indigo-500 bg-white dark:bg-indigo-dark-900 p-4">
             <h2 className="mb-3 text-base font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
               <Plus className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               {t('newCategoryCreate')}
@@ -93,7 +93,7 @@ export default function CategoriesPage() {
           <ListSkeleton count={4} showBadges />
         ) : items.length === 0 ? (
           <div className="text-center py-16 text-zinc-500 dark:text-zinc-400 bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
-            <FolderKanban className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
+            <Folders className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
             <p className="text-lg font-medium mb-2">{t('noCategories')}</p>
             <p className="text-sm mb-4">{t('noCategoriesDescription')}</p>
           </div>
@@ -116,7 +116,7 @@ export default function CategoriesPage() {
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             className={`rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900 hover:shadow-lg transition-all overflow-hidden ${
-                              snapshot.isDragging ? 'shadow-2xl ring-2 ring-indigo-500/50' : ''
+                              snapshot.isDragging ? 'shadow-lg ring-2 ring-indigo-500/50' : ''
                             }`}
                           >
                             {editingId === item.id ? (

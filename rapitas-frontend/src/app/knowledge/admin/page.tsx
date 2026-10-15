@@ -2,23 +2,20 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Settings, Loader2 } from 'lucide-react';
+import { Archive, Loader2 } from 'lucide-react';
 import { useMemoryStats } from '@/feature/knowledge/hooks/useMemoryStats';
 import { MemoryQueueStatus } from '@/feature/knowledge/components/MemoryQueueStatus';
 import { KnowledgeTimeline } from '@/feature/knowledge/components/KnowledgeTimeline';
 import { API_BASE_URL } from '@/utils/api';
+import { isImeComposing } from '@/utils/ime';
+import { formatDateTime } from '@/utils/date';
 
 export default function MemoryAdminPage() {
   const t = useTranslations('knowledge.admin');
-  const tc = useTranslations('common');
+  useTranslations('common');
 
-  const {
-    queueStatus,
-    consolidationRuns,
-    isLoading,
-    triggerConsolidation,
-    triggerForgettingSweep,
-  } = useMemoryStats();
+  const { queueStatus, consolidationRuns, triggerConsolidation, triggerForgettingSweep } =
+    useMemoryStats();
 
   const [isConsolidating, setIsConsolidating] = useState(false);
   const [isSweeping, setIsSweeping] = useState(false);
@@ -61,7 +58,7 @@ export default function MemoryAdminPage() {
   return (
     <div className="mx-auto max-w-6xl p-6">
       <div className="mb-6 flex items-center gap-3">
-        <Settings className="h-8 w-8 text-indigo-500" />
+        <Archive className="h-8 w-8 text-indigo-500" />
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">{t('title')}</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">{t('description')}</p>
@@ -130,7 +127,7 @@ export default function MemoryAdminPage() {
                 {consolidationRuns.map((run) => (
                   <tr key={run.id} className="border-b border-gray-100 dark:border-gray-800">
                     <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
-                      {new Date(run.runDate).toLocaleString()}
+                      {formatDateTime(run.runDate)}
                     </td>
                     <td className="px-3 py-2">
                       <span
@@ -139,7 +136,7 @@ export default function MemoryAdminPage() {
                             ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
                             : run.status === 'failed'
                               ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                              : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                              : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300'
                         }`}
                       >
                         {run.status}
@@ -177,7 +174,7 @@ export default function MemoryAdminPage() {
             onChange={(e) => setRagQuery(e.target.value)}
             placeholder={t('testQuery')}
             className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-            onKeyDown={(e) => e.key === 'Enter' && handleRagTest()}
+            onKeyDown={(e) => e.key === 'Enter' && !isImeComposing(e) && handleRagTest()}
           />
           <button
             onClick={handleRagTest}

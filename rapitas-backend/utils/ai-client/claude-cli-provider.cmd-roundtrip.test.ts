@@ -1,0 +1,169 @@
+/**
+ * claude-cli-provider.cmd-roundtrip.test
+ *
+ * Real-process, real-`cmd.exe` verification of `buildSpawnCommand` (task
+ * 977). The unit tests in claude-cli-provider.parsing.test.ts only assert on
+ * the literal escaped string; they cannot prove cmd.exe actually decodes it
+ * back to the original argv. This file spawns a mock `.cmd` shim shaped like
+ * a real `claude.cmd` (an `%*`-expanding batch wrapper around a Node script)
+ * and confirms the child process receives exactly the argv it was given.
+ * Mirrors codex-cli-agent/process-runner-args.cmd-roundtrip.test.ts.
+ *
+ * Windows-only: requires a live `cmd.exe`. Skipped everywhere else,
+ * including this repo's CI (`test-lint.yml` runs backend `bun test` only on
+ * `ubuntu-latest`) — so this suite is verified by local execution on
+ * Windows, not by CI.
+ */
+import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
+import { execSync, spawn } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { buildSpawnCommand } from './claude-cli-provider';
+
+const isWindows = process.platform === 'win32';
+const describeWindowsOnly = isWindows ? describe : describe.skip;
+
+describeWindowsOnly('buildSpawnCommand — real cmd.exe round-trip (Windows only)', () => {
+  let tmpDir: string;
+  let shimPath: string;
+
+  beforeAll(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'claude-cmd-roundtrip-'));
+    const echoScriptPath = join(tmpDir, 'echo-argv.js');
+    writeFileSync(echoScriptPath, 'process.stdout.write(JSON.stringify(process.argv.slice(2)));\n');
+
+    // Mirrors the re-parse-triggering structure of a real npm-installed
+    // `.cmd` shim: `%*` is expanded into a new command line that cmd.exe
+    // parses a second time, which is exactly the scenario
+    // `escapeWindowsShellArg`'s `doubleEscapeMetaChars` targets.
+    shimPath = join(tmpDir, 'mock-claude.cmd');
+    writeFileSync(shimPath, `@ECHO off\r\nnode "${echoScriptPath}" %*\r\n`);
+  });
+
+  afterAll(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function runRoundtrip(argv: string[]): Promise<string[]> {
+    const [command, finalArgs] = buildSpawnCommand(shimPath, argv);
+    return new Promise((resolve, reject) => {
+      const child = spawn(command, finalArgs, { shell: true, windowsHide: true });
+      let stdout = '';
+      let stderr = '';
+      child.stdout.setEncoding('utf8');
+      child.stderr.setEncoding('utf8');
+      child.stdout.on('data', (chunk: string) => {
+        stdout += chunk;
+      });
+      child.stderr.on('data', (chunk: string) => {
+        stderr += chunk;
+      });
+      child.on('close', (code) => {
+        if (code !== 0) {
+          reject(new Error(`mock-claude.cmd exited with code ${code}: ${stderr}`));
+          return;
+        }
+        try {
+          resolve(JSON.parse(stdout));
+        } catch (err) {
+          reject(new Error(`failed to parse child stdout as JSON: ${stdout} (${String(err)})`));
+        }
+      });
+      child.on('error', reject);
+    });
+  }
+
+  test.each([
+    ['plain flags and values', ['--print', '--output-format', 'json']],
+    ['trailing-backslash path', ['--cd', 'C:\\work\\nested\\']],
+    ['embedded quote and backslash', ['say "hi\\', 'plain']],
+    ['percent (env-var-like) token', ['-m', '%ANTHROPIC_API_KEY%']],
+    ['caret escape char itself', ['^literal^caret^']],
+    ['ampersand and pipe', ['a&b', 'c|d']],
+    ['angle brackets and redirection-like tokens', ['a<b>c']],
+    ['parentheses grouping tokens', ['(group)', 'a;b,c']],
+    ['empty string argument', ['--tools', '', '--flag']],
+  ])('round-trips %s through a real cmd.exe + %%*-expanding shim', async (_label, argv) => {
+    const received = await runRoundtrip(argv);
+    expect(received).toEqual(argv);
+  });
+
+  // The standalone installer ships a native `claude.exe` with no `.cmd` shim
+  // (task 970 regression): cmd.exe parses its command line exactly once, so the
+  // shim-depth escaping left `^--print^` in argv and the CLI silently fell back
+  // to plain-text output. node.exe stands in for that native target here.
+  test.each([
+    ['plain flags and values', ['--print', '--output-format', 'json']],
+    ['embedded quote and backslash', ['say "hi\\', 'plain']],
+    ['percent (env-var-like) token', ['-m', '%ANTHROPIC_API_KEY%']],
+    ['ampersand and pipe', ['a&b', 'c|d']],
+    ['empty string argument', ['--tools', '', '--flag']],
+  ])('round-trips %s through a real cmd.exe to a NATIVE .exe target', async (_label, argv) => {
+    const nodeExe = execSync('where node.exe', { encoding: 'utf8' }).split(/\r?\n/)[0]!.trim();
+    const echoScriptPath = join(tmpDir, 'echo-argv.js');
+    // Native target: the echo script path is a fixed, escape-free argument in
+    // front of the argv under test — exactly how a real exe sees its args.
+    const [command, finalArgs] = buildSpawnCommand(nodeExe, [echoScriptPath, ...argv]);
+    const received = await new Promise<string[]>((resolve, reject) => {
+      const child = spawn(command, finalArgs, { shell: true, windowsHide: true });
+      let stdout = '';
+      child.stdout.setEncoding('utf8');
+      child.stdout.on('data', (chunk: string) => {
+        stdout += chunk;
+      });
+      child.on('close', (code) => {
+        if (code !== 0) {
+          reject(new Error(`node.exe exited with code ${code}`));
+          return;
+        }
+        try {
+          resolve(JSON.parse(stdout));
+        } catch (err) {
+          reject(new Error(`failed to parse child stdout as JSON: ${stdout} (${String(err)})`));
+        }
+      });
+      child.on('error', reject);
+    });
+    expect(received).toEqual(argv);
+  });
+
+  test('the claude path itself is quoted safely even when it lives under a space-containing directory', async () => {
+    const spacedDir = mkdtempSync(join(tmpdir(), 'claude cmd roundtrip '));
+    try {
+      const echoScriptPath = join(spacedDir, 'echo-argv.js');
+      writeFileSync(
+        echoScriptPath,
+        'process.stdout.write(JSON.stringify(process.argv.slice(2)));\n',
+      );
+      const spacedShimPath = join(spacedDir, 'mock-claude.cmd');
+      writeFileSync(spacedShimPath, `@ECHO off\r\nnode "${echoScriptPath}" %*\r\n`);
+
+      const [command, finalArgs] = buildSpawnCommand(spacedShimPath, ['--print', '--json']);
+      const received = await new Promise<string[]>((resolve, reject) => {
+        const child = spawn(command, finalArgs, { shell: true, windowsHide: true });
+        let stdout = '';
+        child.stdout.setEncoding('utf8');
+        child.stdout.on('data', (chunk: string) => {
+          stdout += chunk;
+        });
+        let stderr = '';
+        child.stderr.setEncoding('utf8');
+        child.stderr.on('data', (chunk: string) => {
+          stderr += chunk;
+        });
+        child.on('close', (code) => {
+          if (code !== 0) {
+            reject(new Error(`exited with code ${code}: ${stderr}`));
+            return;
+          }
+          resolve(JSON.parse(stdout));
+        });
+        child.on('error', reject);
+      });
+      expect(received).toEqual(['--print', '--json']);
+    } finally {
+      rmSync(spacedDir, { recursive: true, force: true });
+    }
+  });
+});

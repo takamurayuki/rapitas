@@ -49,7 +49,18 @@ import type { IconInfo } from '../icon-registry';
 export const GENERAL_ICONS: Record<string, IconInfo> = {
   Tag: {
     component: Tag,
-    keywords: ['タグ', 'ラベル', 'マーク', 'しるし', '印'],
+    keywords: [
+      'タグ',
+      'ラベル',
+      'マーク',
+      'しるし',
+      '印',
+      'タグ付け',
+      'ラベル管理',
+      'カテゴリ',
+      '分類',
+      'グループ',
+    ],
   },
   Bookmark: {
     component: Bookmark,
@@ -65,7 +76,17 @@ export const GENERAL_ICONS: Record<string, IconInfo> = {
   },
   Star: {
     component: Star,
-    keywords: ['スター', '星', 'お気に入り', '評価', 'レーティング'],
+    keywords: [
+      'スター',
+      '星',
+      'お気に入り',
+      '評価',
+      'レーティング',
+      '重要',
+      'デフォルト',
+      '基本',
+      '優先',
+    ],
   },
   Heart: {
     component: Heart,
@@ -121,11 +142,30 @@ export const GENERAL_ICONS: Record<string, IconInfo> = {
   },
   Lightbulb: {
     component: Lightbulb,
-    keywords: ['電球', 'アイデア', 'ひらめき', '発想', '思いつき'],
+    keywords: [
+      '電球',
+      'アイデア',
+      'ひらめき',
+      '発想',
+      '思いつき',
+      'インサイト',
+      '発見',
+      'アイデアボックス',
+    ],
   },
   Target: {
     component: Target,
-    keywords: ['ターゲット', '目標', '的', 'ゴール', '狙い'],
+    keywords: [
+      'ターゲット',
+      '目標',
+      '的',
+      'ゴール',
+      '狙い',
+      '目的',
+      'KPI',
+      '達成目標',
+      'タスク管理',
+    ],
   },
   Crosshair: {
     component: Crosshair,
@@ -143,7 +183,16 @@ export const GENERAL_ICONS: Record<string, IconInfo> = {
   },
   Filter: {
     component: Filter,
-    keywords: ['フィルター', '絞り込み', 'ろ過', '選別'],
+    keywords: [
+      'フィルター',
+      '絞り込み',
+      'ろ過',
+      '選別',
+      'フィルタ',
+      'カテゴリ選択',
+      'ソート',
+      '分類',
+    ],
   },
   SlidersHorizontal: {
     component: SlidersHorizontal,

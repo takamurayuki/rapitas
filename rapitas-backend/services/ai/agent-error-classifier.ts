@@ -61,20 +61,30 @@ interface PatternRule {
   reason: CooldownReason;
   /** Substring (case-insensitive) or RegExp to match. */
   pattern: RegExp;
+  /**
+   * When true, this rule only matches in strict mode if an ERROR/FATAL/
+   * Exception/Traceback marker is also present in the message. Bare
+   * "429"/"too many requests" appear innocently in successful plan/code
+   * prose that merely discusses HTTP rate limiting (execution3874, task 898).
+   */
+  weak?: boolean;
 }
 
 // Order matters: more specific patterns first so they win.
 const RULES: PatternRule[] = [
+  // --- Provider-unambiguous markers ---
+  // Each CLI links its OWN billing page in the limit message, so the URL
+  // attributes the failure with certainty. These run first because the prose
+  // around them ("you've hit your ... limit") is nearly identical across
+  // providers and would otherwise be claimed by whichever rule came first.
+  { provider: 'claude', reason: 'quota', pattern: /claude\.ai\/settings\/usage/i },
+  { provider: 'openai', reason: 'quota', pattern: /codex\/settings\/usage/i },
+
   // --- ChatGPT / Codex CLI ---
   {
     provider: 'openai',
     reason: 'quota',
     pattern: /you'?ve hit your usage limit/i,
-  },
-  {
-    provider: 'openai',
-    reason: 'quota',
-    pattern: /codex\/settings\/usage/i,
   },
   { provider: 'openai', reason: 'quota', pattern: /purchase more credits/i },
   {
@@ -86,15 +96,62 @@ const RULES: PatternRule[] = [
   },
   { provider: 'openai', reason: 'auth', pattern: /not (authenticated|logged in)/i },
 
+  // --- Transient upstream failures (any provider) ---
+  // A 5xx from the model API is the SERVER's problem and clears on its own.
+  // Measured 2026-08-24 on task 624: "API Error: 500 Internal server error"
+  // matched no rule, so it was neither cooled down nor retried as transient —
+  // and, being unclassified, the retry floor treated it as a capability failure
+  // and escalated the next attempt to a premium model. A server-side blip must
+  // not make the run more expensive. The `transient` reason carries the short
+  // 30-second cooldown, which is the right pause for a blip.
+  // Anchored on the API-error wording so a literal "500" in code or prose
+  // cannot trip it.
+  {
+    provider: 'claude',
+    reason: 'transient',
+    pattern: /api error:?\s*5\d\d\b/i,
+  },
+  {
+    provider: 'claude',
+    reason: 'transient',
+    pattern:
+      /(internal server error|service unavailable|bad gateway|gateway timeout|overloaded_error)/i,
+  },
+
   // --- Anthropic / Claude Code CLI ---
   {
     provider: 'claude',
     reason: 'quota',
     pattern: /credit[ _]?balance[ _]?too[ _]?low/i,
   },
-  // Match Anthropic's specific error name, not the generic phrase, so we
-  // don't false-positive on prose like "implements rate limiting".
-  { provider: 'claude', reason: 'rate_limit', pattern: /rate_limit_error/i },
+  // Spend/usage caps the Claude Code CLI reports at session init. Measured
+  // 2026-08-19: 12 consecutive executions failed with "You've hit your monthly
+  // spend limit." and matched NO rule, so no cooldown was set, no provider
+  // fallback ran, and every task burned its 3 queue retries into a permanent
+  // `blocked` state — auto-run stayed dead for four days. The wording varies
+  // (monthly / weekly / 5-hour, "spend limit" vs "usage limit"), so match the
+  // limit phrasing loosely and the settings URL exactly.
+  {
+    provider: 'claude',
+    reason: 'quota',
+    pattern: /you'?ve hit your (?:\w+[- ])*(?:spend|usage|rate) limit/i,
+  },
+  {
+    provider: 'claude',
+    reason: 'quota',
+    pattern: /(?:approaching|reached) your (?:usage|spend) limit/i,
+  },
+  // Match Anthropic's specific error name in API error context only.
+  // The old /rate_limit_error/i also matched when agents wrote code that
+  // handles rate limit errors (e.g. `if (error.type === 'rate_limit_error')`
+  // or `case 'rate_limit_error':`).  Require either:
+  //   1. Same line as "anthropic" (CLI error format: "Anthropic API error: rate_limit_error")
+  //   2. Start of a line (bare CLI error output, not embedded in code)
+  {
+    provider: 'claude',
+    reason: 'rate_limit',
+    pattern: /anthropic[^\n]*rate_limit_error|(^|\n)\s*rate_limit_error\b/im,
+  },
   {
     provider: 'claude',
     reason: 'rate_limit',
@@ -106,14 +163,28 @@ const RULES: PatternRule[] = [
     reason: 'auth',
     pattern: /authentication.*expired|token.*expired/i,
   },
+  // NOTE: Specific model (e.g. Claude Fable 5) temporarily unavailable — do NOT
+  // cool the whole Claude provider; just drop the model constraint and retry.
+  {
+    provider: 'claude',
+    reason: 'model_unavailable',
+    pattern: /is currently unavailable(?:\b|\.)/i,
+  },
 
   // --- Google / Gemini CLI ---
   { provider: 'gemini', reason: 'quota', pattern: /resource_exhausted/i },
   { provider: 'gemini', reason: 'quota', pattern: /quota exceeded/i },
+  // NOTE: Bare "429"/"too many requests" matched successful plan prose that
+  // merely discussed local HTTP 429 handling (execution3874, task 898),
+  // triggering a spurious fallback re-run of an already-successful phase.
+  // `weak: true` requires an ERROR/FATAL/Exception/Traceback marker in
+  // strict mode (used to validate SUCCESSFUL run output); lenient/failed-run
+  // classification is unaffected.
   {
     provider: 'gemini',
     reason: 'rate_limit',
     pattern: /(too many requests|429)/i,
+    weak: true,
   },
   {
     provider: 'gemini',
@@ -164,8 +235,14 @@ export function classifyAgentError(
   const message = (input ?? '').slice(0, 4000);
   if (!message.trim()) return null;
 
+  // Only fire when the keyword sits next to an ERROR/FATAL marker so we
+  // don't trip on "implements rate limiting" or similar prose. Hoisted above
+  // the RULES loop so `weak` rules can gate on it in strict mode too.
+  const errorContext = /(^|\n)\s*(ERROR|FATAL|Exception|Traceback)/i.test(message);
+
   for (const rule of RULES) {
     if (rule.pattern.test(message)) {
+      if (strict && rule.weak && !errorContext) continue;
       return {
         reason: rule.reason,
         provider: rule.provider,
@@ -191,9 +268,6 @@ export function classifyAgentError(
   }
 
   // Last-resort: HTTP-style status hints commonly present in tool output.
-  // Only fire when the keyword sits next to an ERROR/FATAL marker so we
-  // don't trip on "implements rate limiting" or similar prose.
-  const errorContext = /(^|\n)\s*(ERROR|FATAL|Exception|Traceback)/i.test(message);
   if (errorContext) {
     if (/\b(429|rate[_ ]?limit(ed|ing)?)\b/i.test(message)) {
       return {

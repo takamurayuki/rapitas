@@ -7,7 +7,8 @@
 
 import { createLogger } from '../config/logger';
 import { exec } from 'child_process';
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../generated/prisma-postgres';
+import { resolvePrismaClientCtor } from '../config/prisma-client-resolver';
 import { AgentOrchestrator } from '../services/agents/agent-orchestrator';
 import type { ExecutionOptions, OrchestratorEvent } from '../services/agents/orchestrator/types';
 import type { AgentTask, AgentExecutionResult } from '../services/agents/base-agent';
@@ -48,7 +49,8 @@ class AgentWorker {
   private parentLivenessInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
-    this.prisma = new PrismaClient({
+    const PrismaClientCtor = resolvePrismaClientCtor();
+    this.prisma = new PrismaClientCtor({
       log: [
         { emit: 'event', level: 'error' },
         { emit: 'event', level: 'warn' },
@@ -208,15 +210,17 @@ class AgentWorker {
           break;
 
         case 'remove-worktree':
-          await this.orchestrator.removeWorktree(
+          result = await this.orchestrator.removeWorktree(
             data.baseDir as string,
             data.worktreePath as string,
           );
-          result = true;
           break;
 
         case 'cleanup-stale-worktrees':
-          result = await this.orchestrator.cleanupStaleWorktrees(data.baseDir as string);
+          result = await this.orchestrator.cleanupStaleWorktrees(
+            data.baseDir as string,
+            (data.keepPaths as string[] | undefined) ?? [],
+          );
           break;
 
         case 'revert-changes':

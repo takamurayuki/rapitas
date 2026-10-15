@@ -10,11 +10,12 @@
  *   - code-block-dom        : DOM fragment construction
  */
 
-export { highlightCode } from './code-block-highlight';
+export { highlightCode, getCursorOffset, setCursorOffset } from './code-block-highlight';
 export {
   getCurrentLine,
   getIndentation,
   getIndentString,
   shouldAutoIndent,
 } from './code-block-indent';
-export { createCodeBlockNode } from './code-block-dom';
+export { createCodeBlockNode, normalizeCodeBlocks } from './code-block-dom';
+export type { CodeBlockLabels } from './code-block-elements';

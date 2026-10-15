@@ -40,7 +40,7 @@ export default function IconButton({
   'aria-label': ariaLabel,
 }: Props) {
   const base =
-    'inline-flex items-center justify-center rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900';
+    'inline-flex items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900';
 
   // ghost variant uses IconButton-specific styles
   const getVariantStyle = (v: IconButtonVariant): string => {

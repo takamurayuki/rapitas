@@ -4,9 +4,10 @@
  * Session management endpoints: list active sessions, delete a specific session,
  * and admin-only cleanup of all expired sessions.
  */
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
+import { resolveSessionByToken } from '../../../services/core/auth-session-resolver';
 
 const log = createLogger('routes:auth:session');
 
@@ -18,17 +19,14 @@ export const authSessionRoutes = new Elysia()
 
   .get('/sessions', async ({ cookie: { sessionToken }, set }) => {
     try {
-      const token = sessionToken.value;
+      const token = sessionToken.value as string | undefined;
 
       if (!token) {
         set.status = 401;
         return { success: false, message: 'No session token' };
       }
 
-      const currentSession = await prisma.userSession.findFirst({
-        where: { sessionToken: token, expiresAt: { gt: new Date() } },
-        include: { user: true },
-      });
+      const currentSession = await resolveSessionByToken(String(token));
 
       if (!currentSession) {
         set.status = 401;
@@ -56,62 +54,66 @@ export const authSessionRoutes = new Elysia()
     }
   })
 
-  .delete('/sessions/:sessionId', async ({ params, cookie: { sessionToken }, set }) => {
-    try {
-      const token = sessionToken.value;
-      const { sessionId } = params;
+  .delete(
+    '/sessions/:sessionId',
+    async ({ params, cookie: { sessionToken }, set }) => {
+      try {
+        const token = sessionToken.value as string | undefined;
+        const { sessionId } = params;
 
-      if (!token) {
-        set.status = 401;
-        return { success: false, message: 'No session token' };
+        if (!token) {
+          set.status = 401;
+          return { success: false, message: 'No session token' };
+        }
+
+        const currentSession = await resolveSessionByToken(String(token));
+
+        if (!currentSession) {
+          set.status = 401;
+          return { success: false, message: 'Invalid session' };
+        }
+
+        const sessionIdNum = parseInt(sessionId);
+        if (isNaN(sessionIdNum)) {
+          set.status = 400;
+          return { success: false, message: 'Invalid session ID' };
+        }
+
+        const result = await prisma.userSession.deleteMany({
+          where: { id: sessionIdNum, userId: currentSession.user.id },
+        });
+
+        if (result.count === 0) {
+          set.status = 404;
+          return { success: false, message: 'Session not found' };
+        }
+
+        return { success: true, message: 'Session deleted successfully' };
+      } catch (error) {
+        log.error({ err: error }, 'Delete session error');
+        set.status = 500;
+        return { success: false, message: 'Internal server error deleting session' };
       }
-
-      const currentSession = await prisma.userSession.findFirst({
-        where: { sessionToken: token, expiresAt: { gt: new Date() } },
-        include: { user: true },
-      });
-
-      if (!currentSession) {
-        set.status = 401;
-        return { success: false, message: 'Invalid session' };
-      }
-
-      const sessionIdNum = parseInt(sessionId);
-      if (isNaN(sessionIdNum)) {
-        set.status = 400;
-        return { success: false, message: 'Invalid session ID' };
-      }
-
-      const result = await prisma.userSession.deleteMany({
-        where: { id: sessionIdNum, userId: currentSession.user.id },
-      });
-
-      if (result.count === 0) {
-        set.status = 404;
-        return { success: false, message: 'Session not found' };
-      }
-
-      return { success: true, message: 'Session deleted successfully' };
-    } catch (error) {
-      log.error({ err: error }, 'Delete session error');
-      set.status = 500;
-      return { success: false, message: 'Internal server error deleting session' };
-    }
-  })
+    },
+    {
+      // sessionId is a numeric UserSession.id encoded as a path string, not the
+      // opaque session token — parsed and validated (isNaN check) in the handler.
+      params: t.Object({
+        sessionId: t.String(),
+      }),
+    },
+  )
 
   .post('/cleanup-sessions', async ({ cookie: { sessionToken }, set }) => {
     try {
-      const token = sessionToken.value;
+      const token = sessionToken.value as string | undefined;
 
       if (!token) {
         set.status = 401;
         return { success: false, message: 'Authentication required' };
       }
 
-      const currentSession = await prisma.userSession.findFirst({
-        where: { sessionToken: token, expiresAt: { gt: new Date() } },
-        include: { user: true },
-      });
+      const currentSession = await resolveSessionByToken(String(token));
 
       if (!currentSession || currentSession.user.role !== 'admin') {
         set.status = 403;

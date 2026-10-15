@@ -1,0 +1,105 @@
+/**
+ * resolve-worktree-base-dir tests
+ *
+ * Verifies that a worktree of a foreign repository resolves to its own parent repo
+ * instead of the caller's fallback baseDir. Uses a temp dir to stay OS-independent.
+ */
+
+import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
+import { mkdtempSync, mkdirSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { resolveWorktreeBaseDir } from './resolve-worktree-base-dir';
+import { isPathSafeForWorktreeOperation } from './safety';
+
+let root: string;
+let rapitas: string;
+let foreign: string;
+let foreignWt: string;
+
+beforeAll(() => {
+  root = mkdtempSync(join(tmpdir(), 'rwbd-'));
+  rapitas = join(root, 'rapitas');
+  foreign = join(root, 'contextflow');
+  foreignWt = join(foreign, '.worktrees', 'task-1152-f2fc9924');
+  mkdirSync(join(rapitas, '.worktrees', 'task-1'), { recursive: true });
+  mkdirSync(join(foreign, '.git'), { recursive: true });
+  mkdirSync(foreignWt, { recursive: true });
+  mkdirSync(join(root, 'nogit', '.worktrees', 'task-9'), { recursive: true });
+});
+
+afterAll(() => {
+  rmSync(root, { recursive: true, force: true });
+});
+
+describe('resolveWorktreeBaseDir', () => {
+  test('keeps the candidate when the worktree is under it', () => {
+    const wt = join(rapitas, '.worktrees', 'task-1');
+    expect(resolveWorktreeBaseDir(wt, [rapitas])).toBe(rapitas);
+  });
+
+  test('resolves a foreign repo worktree to its parent repository', () => {
+    const base = resolveWorktreeBaseDir(foreignWt, [rapitas]);
+    expect(isPathSafeForWorktreeOperation(foreignWt, rapitas)).toBe(false);
+    expect(isPathSafeForWorktreeOperation(foreignWt, base)).toBe(true);
+  });
+
+  test('handles backslash separators', () => {
+    const base = resolveWorktreeBaseDir(foreignWt.replace(/\//g, '\\'), [rapitas]);
+    expect(base.replace(/\\/g, '/')).toBe(foreign.replace(/\\/g, '/'));
+  });
+
+  test('a backslash path and its forward-slash twin resolve identically', () => {
+    // Platform-independent statement of the rule above. Measured 2026-10-11:
+    // the assertion before this one passed on Windows and failed on Linux CI,
+    // because normalizePath converts backslashes only AFTER resolve() and POSIX
+    // resolve() treats `\` as a filename character — the Windows path arrived as
+    // one relative segment prefixed with the cwd. Worktree paths are read from
+    // the database, so their spelling does not follow the running platform.
+    const slashes = resolveWorktreeBaseDir(foreignWt, [rapitas]);
+    const backslashes = resolveWorktreeBaseDir(foreignWt.replace(/\//g, '\\'), [rapitas]);
+    expect(backslashes.replace(/\\/g, '/')).toBe(slashes.replace(/\\/g, '/'));
+    // And it is the owning repo, not the caller's fallback.
+    expect(slashes.replace(/\\/g, '/')).not.toBe(rapitas.replace(/\\/g, '/'));
+  });
+
+  test('falls back to the first usable candidate when path has ..', () => {
+    const wt = `${foreign}/.worktrees/x/../task-1152-f2fc9924`;
+    expect(resolveWorktreeBaseDir(wt, [rapitas])).toBe(rapitas);
+  });
+
+  test('falls back when the parent has no .git', () => {
+    const wt = join(root, 'nogit', '.worktrees', 'task-9');
+    expect(resolveWorktreeBaseDir(wt, [rapitas])).toBe(rapitas);
+  });
+
+  test('ignores empty/nullish candidates', () => {
+    const wt = join(rapitas, '.worktrees', 'task-1');
+    expect(resolveWorktreeBaseDir(wt, ['', null, undefined, rapitas])).toBe(rapitas);
+  });
+
+  test('refuses a path that names the .worktrees container itself', () => {
+    // The parent IS a repo, so without this guard the caller is handed a baseDir
+    // whose removal target is every worktree of that repo at once.
+    for (const wt of [join(foreign, '.worktrees'), `${foreign}/.worktrees/`]) {
+      expect(resolveWorktreeBaseDir(wt, [])).toBe('');
+      expect(resolveWorktreeBaseDir(wt, [rapitas])).toBe(rapitas);
+    }
+  });
+
+  // cleanupOrphanedWorktrees sweeps sessions across several repositories at once,
+  // so it has no candidate to offer and reads '' as "cannot tell".
+  describe('with no candidates (cross-repository sweep)', () => {
+    test('infers the owning repo from the path', () => {
+      expect(resolveWorktreeBaseDir(foreignWt, [])).toBe(foreign.replace(/\\/g, '/'));
+    });
+
+    test("returns '' when the path has no .worktrees segment", () => {
+      expect(resolveWorktreeBaseDir(rapitas, [])).toBe('');
+    });
+
+    test("returns '' when the inferred parent is not a repository", () => {
+      expect(resolveWorktreeBaseDir(join(root, 'nogit', '.worktrees', 'task-9'), [])).toBe('');
+    });
+  });
+});

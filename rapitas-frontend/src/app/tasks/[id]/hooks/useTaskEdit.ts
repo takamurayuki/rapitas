@@ -7,11 +7,13 @@
  */
 
 import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Task, Priority } from '@/types';
 import { getLabelsArray } from '@/utils/labels';
 import { API_BASE_URL } from '@/utils/api';
 import { clearApiCache } from '@/lib/api-client';
 import { createLogger } from '@/lib/logger';
+import { useToast } from '@/components/ui/toast/ToastContainer';
 
 const logger = createLogger('useTaskEdit');
 const API_BASE = API_BASE_URL;
@@ -28,6 +30,8 @@ interface UseTaskEditParams {
  * @returns edit state fields, setters, and action callbacks
  */
 export function useTaskEdit({ task, setTask }: UseTaskEditParams) {
+  const t = useTranslations('task');
+  const { showToast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -82,7 +86,7 @@ export function useTaskEdit({ task, setTask }: UseTaskEditParams) {
       setIsEditing(false);
     } catch (err) {
       logger.error(err);
-      alert('タスクの更新に失敗しました');
+      showToast(t('taskEdit.updateFailed'), 'error');
     }
   }, [
     task,
@@ -94,6 +98,8 @@ export function useTaskEdit({ task, setTask }: UseTaskEditParams) {
     editLabelIds,
     editEstimatedHours,
     setTask,
+    showToast,
+    t,
   ]);
 
   return {

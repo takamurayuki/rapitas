@@ -2,7 +2,7 @@
  * Agent Audit Router
  * Audit log and execution history endpoints.
  */
-import { Elysia, t } from 'elysia';
+import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 import { getAgentConfigAuditLogs, getRecentAuditLogs } from '../../../utils/agent/agent-audit-log';
 
@@ -129,7 +129,7 @@ export const taskExecutionLogsRouter = new Elysia({ prefix: '/tasks' })
 
     // Multi-execution mode (for the recovery dashboard)
     const allLogs = executions.flatMap((execution, execIndex) => {
-      return (execution.executionLogs || []).map((log, logIndex) => ({
+      return (execution.executionLogs || []).map((log, _logIndex) => ({
         id: log.id,
         chunk: log.logChunk,
         type: log.logType,

@@ -2,6 +2,7 @@
 // MetricsFilters
 import { Filter } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import DateField from '@/components/ui/date-field/DateField';
 import type { DateRange } from '../_hooks/useMetricsData';
 
 interface MetricsFiltersProps {
@@ -36,15 +37,15 @@ export function MetricsFilters({
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
             {t('startDate')}
           </label>
-          <input
-            type="date"
+          <DateField
             value={dateRange.startDate}
-            onChange={(e) =>
+            onChange={(value) =>
               setDateRange((prev) => ({
                 ...prev,
-                startDate: e.target.value,
+                startDate: value,
               }))
             }
+            aria-label={t('startDate')}
             className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
           />
         </div>
@@ -53,10 +54,10 @@ export function MetricsFilters({
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
             {t('endDate')}
           </label>
-          <input
-            type="date"
+          <DateField
             value={dateRange.endDate}
-            onChange={(e) => setDateRange((prev) => ({ ...prev, endDate: e.target.value }))}
+            onChange={(value) => setDateRange((prev) => ({ ...prev, endDate: value }))}
+            aria-label={t('endDate')}
             className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
           />
         </div>

@@ -4,15 +4,17 @@
  * Prunes old COMPLETED tasks to keep the task list manageable. Before deleting a
  * task it makes sure its lessons are captured in the knowledge base: if the task
  * has no KnowledgeEntry yet, it extracts knowledge first; if it already does, it
- * just deletes. Deletion also removes the task's workflow md files (disk) and any
- * git worktrees. Manual trigger only (see the /tasks/cleanup-completed route).
- * Not responsible for scheduling or for duplicate-subtask cleanup (task-cleanup.ts).
+ * just deletes. Deletion also removes any git worktrees; the task's workflow
+ * artifacts cascade-delete with the Task row (WorkflowFile/WorkflowFileVersion
+ * both have onDelete: Cascade). Manual trigger only (see the
+ * /tasks/cleanup-completed route). Not responsible for scheduling or for
+ * duplicate-subtask cleanup (task-cleanup.ts).
  */
 import { prisma } from '../../config/database';
 import { getProjectRoot } from '../../config';
 import { createLogger } from '../../config/logger';
-import { removeWorktree } from '../agents/orchestrator/git-operations/worktree-ops';
-import { deleteWorkflowDir } from '../workflow/workflow-file-utils';
+import { removeWorktree } from '../agents/orchestrator/git-operations/worktree/worktree-ops';
+import { resolveWorktreeBaseDir } from '../agents/orchestrator/git-operations/core/resolve-worktree-base-dir';
 import { extractKnowledgeFromTask } from '../memory/task-knowledge-extractor';
 
 const log = createLogger('completed-task-cleanup');
@@ -64,36 +66,53 @@ async function deleteTaskWithArtifacts(taskId: number): Promise<void> {
   try {
     const task = await prisma.task.findUnique({
       where: { id: taskId },
-      select: { workingDirectory: true },
+      select: { workingDirectory: true, theme: { select: { workingDirectory: true } } },
     });
     const sessions = await prisma.agentSession.findMany({
       where: { worktreePath: { not: null }, config: { taskId } },
       select: { id: true, worktreePath: true },
     });
-    const baseDir = task?.workingDirectory || getProjectRoot();
+    const dirs = [task?.workingDirectory || task?.theme?.workingDirectory, getProjectRoot()];
+
+    // NOTE: Multiple AgentSession rows for this task can share one worktree
+    // directory (retries, self-repair bounces). Group by worktreePath before
+    // calling removeWorktree so a shared path is only torn down once — see
+    // the matching fix + rationale in worktree-cleanup.ts (#825).
+    const sessionsByPath = new Map<string, number[]>();
     for (const s of sessions) {
       if (!s.worktreePath) continue;
+      const ids = sessionsByPath.get(s.worktreePath);
+      if (ids) {
+        ids.push(s.id);
+      } else {
+        sessionsByPath.set(s.worktreePath, [s.id]);
+      }
+    }
+
+    for (const [worktreePath, sessionIds] of sessionsByPath) {
       try {
-        await removeWorktree(baseDir, s.worktreePath);
-        await prisma.agentSession
-          .update({ where: { id: s.id }, data: { worktreePath: null } })
-          .catch(() => {});
-      } catch (wtErr) {
-        log.warn(
-          { err: wtErr, taskId, worktreePath: s.worktreePath },
-          '[cleanup] worktree remove failed',
+        const removed = await removeWorktree(
+          resolveWorktreeBaseDir(worktreePath, dirs),
+          worktreePath,
         );
+        if (removed) {
+          await prisma.agentSession
+            .updateMany({ where: { id: { in: sessionIds } }, data: { worktreePath: null } })
+            .catch(() => {});
+        } else {
+          log.warn({ taskId, worktreePath }, '[cleanup] removeWorktree refused or failed');
+        }
+      } catch (wtErr) {
+        log.warn({ err: wtErr, taskId, worktreePath }, '[cleanup] worktree remove failed');
       }
     }
   } catch (err) {
     log.warn({ err, taskId }, '[cleanup] worktree cleanup failed — proceeding');
   }
 
-  // 2. Remove the workflow md files on disk (research/plan/verify/question).
-  await deleteWorkflowDir(taskId).catch(() => false);
-
-  // 3. Delete the task row (cascades WorkflowFile / WorkflowTransition / sessions
-  //    etc.). KnowledgeEntry.taskId is NOT a FK, so recorded knowledge survives.
+  // 2. Delete the task row (cascades WorkflowFile / WorkflowFileVersion /
+  //    WorkflowTransition / sessions etc.). KnowledgeEntry.taskId is NOT a FK,
+  //    so recorded knowledge survives.
   await prisma.task.delete({ where: { id: taskId } });
 }
 
@@ -115,6 +134,10 @@ export async function cleanupCompletedTasks(opts: CleanupOptions = {}): Promise<
     where: {
       parentId: null,
       status: { in: COMPLETED_STATUSES },
+      // Protected tasks are never pruned, even when completed and beyond
+      // keepRecent. Excluding them here keeps completedTotal / candidate counts
+      // accurate for the dryRun preview.
+      isProtected: { not: true },
       ...(themeId !== null ? { themeId } : {}),
     },
     orderBy: [{ completedAt: 'desc' }, { updatedAt: 'desc' }],
@@ -146,8 +169,13 @@ export async function cleanupCompletedTasks(opts: CleanupOptions = {}): Promise<
         continue;
       }
 
-      const hasKnowledge =
-        (await prisma.knowledgeEntry.count({ where: { taskId: t.id } }).catch(() => 0)) > 0;
+      // NOTE: No `.catch()` here — a thrown error must propagate to the
+      // per-task try/catch below, which SKIPS (does not delete) the task this
+      // cycle. A bare `.catch(() => 0)` would make a transient DB failure look
+      // identical to "no knowledge recorded yet", which — combined with the
+      // extraction call below — could delete a task whose lessons were never
+      // actually verified as captured.
+      const hasKnowledge = (await prisma.knowledgeEntry.count({ where: { taskId: t.id } })) > 0;
 
       if (dryRun) {
         // Count what the real run would do, without recording or deleting.
@@ -162,7 +190,11 @@ export async function cleanupCompletedTasks(opts: CleanupOptions = {}): Promise<
         result.alreadyRecorded++;
       } else {
         // Capture lessons before the task (and its verify.md) are gone.
-        const ids = await extractKnowledgeFromTask(t.id).catch(() => [] as number[]);
+        // NOTE: No `.catch()` — see the knowledgeEntry.count note above. A
+        // thrown extraction error must also skip deletion this cycle rather
+        // than be conflated with "extraction ran fine and genuinely found
+        // nothing" (ids.length === 0 on a successful call).
+        const ids = await extractKnowledgeFromTask(t.id);
         if (ids.length > 0) result.knowledgeRecorded++;
         // If nothing was extractable, we still delete — there is nothing to keep.
       }

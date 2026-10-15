@@ -7,15 +7,40 @@ export type KnowledgeSourceType =
   | 'user_learning'
   | 'task_pattern'
   | 'distilled_procedure'
-  | 'consolidated';
+  | 'consolidated'
+  | 'concern'
+  | 'hypothesis'
+  | 'idea_box'
+  | 'retrospective'
+  | 'failure_lesson';
 
+// `category` is a plain string column shared by several unrelated producers
+// (distilled-knowledge categories, concern-backlog types, hypothesis domains,
+// idea-box categories — see services/memory/{distillation,concern-backlog-service,
+// hypothesis-service,idea-box-service}.ts on the backend) rather than one closed
+// enum, so this union must track all of them or KnowledgeEntryCard's
+// `t(`categories.${entry.category}`)` throws MISSING_MESSAGE for real rows.
 export type KnowledgeCategory =
   | 'procedure'
   | 'fact'
   | 'pattern'
   | 'preference'
   | 'insight'
-  | 'general';
+  | 'general'
+  | 'bug'
+  | 'refactor'
+  | 'security'
+  | 'perf'
+  | 'other'
+  | 'codebase'
+  | 'agent-behavior'
+  | 'architecture'
+  | 'improvement'
+  | 'bug_noticed'
+  | 'tech_debt'
+  | 'ux'
+  | 'feature'
+  | 'performance';
 
 export type ForgettingStage = 'active' | 'dormant' | 'archived';
 export type ValidationStatus = 'pending' | 'validated' | 'rejected' | 'conflict';
@@ -103,6 +128,40 @@ export interface KnowledgeStats {
   averageConfidence: number;
   averageDecayScore: number;
   recentlyAccessed: number;
+  /** Open (unresolved) contradiction pairs — the nightly sweep's convergence signal. */
+  unresolvedContradictions?: number;
+  /** Injected-knowledge → task-outcome causal aggregate (last 30 days). */
+  effectiveness?: {
+    sampledTasks: number;
+    successRate: number;
+    declarationRate: number;
+    usageRate: number;
+    wrongFlagged: number;
+    avgInjected: number;
+  };
+  /** Recall attempts (incl. empty ones) vs agent executions over the last 7 days. */
+  recall?: {
+    days: number;
+    attempts: number;
+    nonEmpty: number;
+    nonEmptyRate: number;
+    avgReturned: number;
+    avgTopSimilarity: number | null;
+    avgTopLexical: number | null;
+    lexicalOnlyShare: number;
+    executions: number;
+    attemptsPerExecution: number;
+    nonEmptyPerExecution: number;
+    bySource: Record<string, { attempts: number; nonEmpty: number }>;
+  };
+  /** Embedding model in use and re-index progress after a model switch. */
+  embeddingIndex?: {
+    activeModel: string | null;
+    configuredModel: string;
+    byModel: Record<string, number>;
+    total: number;
+    pendingReindex: number;
+  };
 }
 
 export interface KnowledgeListResponse {

@@ -10,8 +10,51 @@ import { createLogger } from '../../../config/logger';
 import type { AgentTask, AgentExecutionResult } from '../base-agent';
 import type { ExecutionOptions, ExecutionState } from '../orchestrator/types';
 import type { QuestionKey } from '../question-detection';
+import { getIpcExecutionTimeoutMs } from '../execution-timeouts';
 
 const logger = createLogger('agent-worker-manager:api');
+
+/**
+ * Terminate a task's executions after a phase-carrying IPC request timed out.
+ *
+ * A rejected IPC promise only abandons the CALLER's wait — the worker keeps
+ * running the CLI child, which then heartbeats on as an orphan: it burns tokens,
+ * can hold inherited socket handles, and (because its row stays `running` with
+ * a FRESH heartbeat) keeps the task card's spinner and elapsed timer ticking for
+ * work nobody is waiting for any more. Observed on task 585: abandoned at 20:00,
+ * CLI alive until 28:00. Dynamic import — stop-task-agents pulls in
+ * AgentWorkerManager, which imports this module.
+ *
+ * @param taskId - Task whose executions must be terminated. / 終端対象タスクID
+ * @param ipcType - IPC message type that timed out (for the recorded reason). / タイムアウトしたIPC種別
+ */
+async function terminateAfterIpcTimeout(taskId: number, ipcType: string): Promise<void> {
+  try {
+    const { stopTaskAgents } = await import('../stop-task-agents');
+    const { stoppedCount } = await stopTaskAgents(taskId, {
+      errorMessage: `IPC request timeout: ${ipcType} — 実行を終端しました`,
+    });
+    logger.warn(
+      { taskId, ipcType, stoppedCount },
+      '[AgentWorkerManager] IPC timed out — terminated the abandoned execution',
+    );
+  } catch (err) {
+    logger.error(
+      { err, taskId, ipcType },
+      '[AgentWorkerManager] Failed to terminate execution after IPC timeout',
+    );
+  }
+}
+
+/**
+ * Whether an error is the IPC layer's own request timeout (ipc.ts:72).
+ *
+ * @param err - Rejection reason to classify. / 判定対象のエラー
+ * @returns true when it is an IPC request timeout. / IPCタイムアウトなら true
+ */
+function isIpcTimeout(err: unknown): boolean {
+  return err instanceof Error && err.message.startsWith('IPC request timeout:');
+}
 
 /** Minimal IPC sender type accepted by all API helpers. */
 export type IpcSender = (
@@ -34,11 +77,16 @@ export async function executeTask(
   options: ExecutionOptions,
 ): Promise<AgentExecutionResult> {
   logger.info({ taskId: task.id }, '[AgentWorkerManager] Delegating task execution to worker');
-  return ipc(
-    'execute-task',
-    { task, options } as unknown as Record<string, unknown>,
-    1200000,
-  ) as Promise<AgentExecutionResult>;
+  try {
+    return (await ipc(
+      'execute-task',
+      { task, options } as unknown as Record<string, unknown>,
+      getIpcExecutionTimeoutMs(),
+    )) as AgentExecutionResult;
+  } catch (err) {
+    if (isIpcTimeout(err)) await terminateAfterIpcTimeout(task.id, 'execute-task');
+    throw err;
+  }
 }
 
 /**
@@ -59,7 +107,7 @@ export async function executeContinuation(
   return ipc(
     'continue-execution',
     { executionId, response, options } as unknown as Record<string, unknown>,
-    1200000,
+    getIpcExecutionTimeoutMs(),
   ) as Promise<AgentExecutionResult>;
 }
 
@@ -81,7 +129,7 @@ export async function executeContinuationWithLock(
   return ipc(
     'continue-with-lock',
     { executionId, response, options } as unknown as Record<string, unknown>,
-    1200000,
+    getIpcExecutionTimeoutMs(),
   ) as Promise<AgentExecutionResult>;
 }
 
@@ -101,7 +149,7 @@ export async function resumeInterruptedExecution(
   return ipc(
     'resume-execution',
     { executionId, options } as unknown as Record<string, unknown>,
-    1200000,
+    getIpcExecutionTimeoutMs(),
   ) as Promise<AgentExecutionResult>;
 }
 

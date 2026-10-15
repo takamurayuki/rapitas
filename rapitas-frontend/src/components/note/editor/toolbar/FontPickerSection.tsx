@@ -1,7 +1,9 @@
 'use client';
 // FontPickerSection
+import { useTranslations } from 'next-intl';
 import { ChevronDown } from 'lucide-react';
 import { fonts, fontSizePresets } from '../constants';
+import { isImeComposing } from '@/utils/ime';
 
 interface FontPickerSectionProps {
   currentFont: string;
@@ -33,20 +35,41 @@ export function FontPickerSection({
   onApplyFont,
   onApplyFontSize,
 }: FontPickerSectionProps) {
+  const t = useTranslations('notes');
+
+  // NOTE: Suppressing mousedown keeps focus (and the caret) inside the
+  // contentEditable while the pickers are used. Without it the click steals
+  // focus, and the click needed to get back into the editor re-places the
+  // caret outside the zero-width anchor span — dropping the chosen font.
+  const keepEditorFocus = (e: React.MouseEvent) => e.preventDefault();
+
+  /** Clamps and applies a typed font size on commit (blur / Enter). */
+  const commitFontSize = (raw: string) => {
+    const parsed = parseInt(raw);
+    const clamped = Number.isNaN(parsed) ? 16 : Math.min(72, Math.max(8, parsed));
+    setCurrentFontSize(String(clamped));
+    onApplyFontSize(`${clamped}px`);
+  };
+
   return (
     <>
       {/* Font family */}
       <div className="relative">
         <button
+          onMouseDown={keepEditorFocus}
           onClick={() => {
             setShowFontSizePicker(false);
             setShowFontPicker(!showFontPicker);
           }}
           className="flex items-center gap-0.5 px-1.5 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors text-xs min-w-[100px] justify-between h-6"
-          title="フォント"
+          title={t('toolbar.fontPicker.fontTitle')}
+          data-popup-trigger="1"
         >
           <span className="truncate">
-            {fonts.find((f) => f.value === currentFont)?.label || 'デフォルト'}
+            {(() => {
+              const found = fonts.find((f) => f.value === currentFont);
+              return found ? t(`editorColors.font.${found.labelKey}`) : t('common.default');
+            })()}
           </span>
           <ChevronDown className="w-2.5 h-2.5 shrink-0" />
         </button>
@@ -56,6 +79,7 @@ export function FontPickerSection({
               {fonts.map((font) => (
                 <button
                   key={font.value}
+                  onMouseDown={keepEditorFocus}
                   onClick={() => {
                     setCurrentFont(font.value);
                     onApplyFont(font.value);
@@ -65,7 +89,9 @@ export function FontPickerSection({
                     currentFont === font.value ? 'bg-zinc-100 dark:bg-zinc-700' : ''
                   }`}
                 >
-                  <span style={{ fontFamily: font.value }}>{font.label}</span>
+                  <span style={{ fontFamily: font.value }}>
+                    {t(`editorColors.font.${font.labelKey}`)}
+                  </span>
                 </button>
               ))}
             </div>
@@ -80,35 +106,35 @@ export function FontPickerSection({
           value={currentFontSize}
           onChange={(e) => {
             const value = e.target.value.replace(/[^0-9]/g, '');
-            if (value === '' || (parseInt(value) >= 8 && parseInt(value) <= 72)) {
+            // NOTE: Only an upper bound while typing — enforcing the minimum here
+            // rejected the first keystroke of any size starting below 8 (e.g. the
+            // "1" of "16"), making most sizes impossible to type. The lower bound
+            // is applied on commit via commitFontSize.
+            if (value === '' || parseInt(value) <= 72) {
               setCurrentFontSize(value);
             }
           }}
-          onBlur={() => {
-            if (currentFontSize === '') {
-              setCurrentFontSize('16');
-              onApplyFontSize('16px');
-            } else {
-              onApplyFontSize(`${currentFontSize}px`);
-            }
-          }}
+          onBlur={() => commitFontSize(currentFontSize)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !isImeComposing(e)) {
               e.preventDefault();
-              const size = currentFontSize === '' ? 16 : parseInt(currentFontSize);
-              onApplyFontSize(`${size}px`);
+              commitFontSize(currentFontSize);
               (e.target as HTMLInputElement).blur();
             }
           }}
-          className="w-10 px-0.5 text-center text-xs bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 focus:outline-none focus:border-blue-400 h-6 rounded"
-          title="フォントサイズ"
+          className="w-10 px-0.5 text-center text-xs bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 focus:outline-none focus:border-indigo-400 h-6 rounded"
+          title={t('toolbar.fontPicker.fontSizeTitle')}
+          aria-label={t('toolbar.fontPicker.fontSizeTitle')}
         />
         <button
+          onMouseDown={keepEditorFocus}
           onClick={() => {
             setShowFontPicker(false);
             setShowFontSizePicker(!showFontSizePicker);
           }}
           className="absolute right-0 top-0 bottom-0 px-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors rounded-r"
+          aria-label={t('toolbar.fontPicker.fontSizeTitle')}
+          data-popup-trigger="1"
         >
           <ChevronDown className="w-2.5 h-2.5" />
         </button>
@@ -118,6 +144,7 @@ export function FontPickerSection({
               {fontSizePresets.map((size) => (
                 <button
                   key={size}
+                  onMouseDown={keepEditorFocus}
                   onClick={() => {
                     setCurrentFontSize(size.toString());
                     onApplyFontSize(`${size}px`);

@@ -5,7 +5,6 @@
  * in the rapitas task management system.
  */
 
-import React from 'react';
 import type { Metadata } from 'next';
 import { AchievementsClient } from './_components/AchievementsClient';
 

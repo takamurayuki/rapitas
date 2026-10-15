@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import type { Priority, TaskTemplate, UserSettings } from '@/types';
+import type { ApplyTemplateFields } from '@/feature/tasks/components/dialog/ApplyTemplateDialog';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -45,6 +46,8 @@ export function useTaskFormActions(
   const [isDerivingSpec, setIsDerivingSpec] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [appliedTemplate, setAppliedTemplate] = useState<TaskTemplate | null>(null);
+  // Remembered so 適用解除 knows exactly which fields to revert.
+  const [appliedFields, setAppliedFields] = useState<ApplyTemplateFields | null>(null);
 
   // ── Subtask list ──────────────────────────────────────────────────────────
   const [subtasks, setSubtasks] = useState<PendingSubtask[]>([]);
@@ -115,15 +118,27 @@ export function useTaskFormActions(
    * Applies a template's data to the controlled form fields.
    *
    * @param template - Template to apply / 適用するテンプレート
+   * @param fields - Which fields to apply (all when omitted) / 適用するフィールドの選択
    */
-  const handleApplyTemplate = (template: TaskTemplate) => {
+  const handleApplyTemplate = (template: TaskTemplate, fields?: ApplyTemplateFields) => {
+    const f: ApplyTemplateFields = fields ?? {
+      title: true,
+      description: true,
+      priority: true,
+      estimatedHours: true,
+      subtasks: true,
+      labels: true,
+    };
     setAppliedTemplate(template);
+    setAppliedFields(f);
     const data = template.templateData;
-    if (data.title) setters.setTitle(data.title);
-    if (data.description) setters.setDescription(data.description);
-    if (data.priority) setters.setPriority(data.priority);
-    if (data.estimatedHours) setters.setEstimatedHours(data.estimatedHours.toString());
-    if (data.subtasks && Array.isArray(data.subtasks)) {
+    if (f.title && data.title) setters.setTitle(data.title);
+    if (f.description && data.description) setters.setDescription(data.description);
+    if (f.priority && data.priority) setters.setPriority(data.priority);
+    if (f.estimatedHours && data.estimatedHours) {
+      setters.setEstimatedHours(data.estimatedHours.toString());
+    }
+    if (f.subtasks && data.subtasks && Array.isArray(data.subtasks)) {
       setSubtasks(
         data.subtasks.map((st, idx) => ({
           id: `template-${idx}-${Date.now()}`,
@@ -133,6 +148,35 @@ export function useTaskFormActions(
         })),
       );
     }
+    // Templates persist label NAMES; resolve them to current label IDs before
+    // filling the form's selector. Names that no longer exist are skipped.
+    if (f.labels && data.labels && data.labels.length > 0) {
+      const names = data.labels;
+      fetch(`${API_BASE}/labels`)
+        .then((res) => (res.ok ? res.json() : []))
+        .then((all: Array<{ id: number; name: string }>) => {
+          const ids = all.filter((l) => names.includes(l.name)).map((l) => l.id);
+          if (ids.length > 0) setters.setSelectedLabelIds(ids);
+        })
+        .catch((err) => logger.error('Failed to apply template labels:', err));
+    }
+  };
+
+  /**
+   * Reverts a previously applied template: only the fields that were applied
+   * reset to their defaults (manual edits to those fields are discarded).
+   */
+  const handleClearTemplate = () => {
+    if (appliedFields) {
+      if (appliedFields.title) setters.setTitle('');
+      if (appliedFields.description) setters.setDescription('');
+      if (appliedFields.priority) setters.setPriority('medium');
+      if (appliedFields.estimatedHours) setters.setEstimatedHours('');
+      if (appliedFields.subtasks) setSubtasks([]);
+      if (appliedFields.labels) setters.setSelectedLabelIds([]);
+    }
+    setAppliedTemplate(null);
+    setAppliedFields(null);
   };
 
   // ── Title generation ──────────────────────────────────────────────────────
@@ -287,6 +331,7 @@ export function useTaskFormActions(
     handleSubmit,
     handleSubmitWithTitle,
     handleApplyTemplate,
+    handleClearTemplate,
     handleApplySuggestion,
   };
 }

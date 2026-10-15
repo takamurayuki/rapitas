@@ -10,6 +10,8 @@ import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
 const mockFindMany = mock(() => Promise.resolve([]));
 
 mock.module('../../config/database', () => ({
+  // mock.module replaces the whole module — mirror ensureDatabaseConnection so config/index.ts re-export survives shuffled test order (else 'export not found').
+  ensureDatabaseConnection: () => Promise.resolve(),
   prisma: {
     episodeMemory: { findMany: mockFindMany },
   },

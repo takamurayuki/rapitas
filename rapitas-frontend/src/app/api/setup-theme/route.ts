@@ -3,7 +3,7 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('SetupThemeRoute');
 
-const BACKEND_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001').replace(
+const BACKEND_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:3001').replace(
   'localhost',
   '127.0.0.1',
 );
@@ -15,16 +15,34 @@ interface SetupThemeRequest {
   requirements?: string;
   /** 設計書のマークダウン全文（docs/design.md として書き込む） / Design doc */
   design?: string;
+  /** 技術選定記録（docs/adr/0001-architecture-decisions.md として書き込む） / ADR doc */
+  adr?: string;
+  /** プロジェクト雛形。パス検証はバックエンド側で行う。 / Project skeleton */
+  scaffold?: Array<{ path: string; content: string }>;
   /** エージェント指示ファイルの相対パス（例 .claude/CLAUDE.md / AGENTS.md） / Agent guide repo-relative path */
   agentFilePath?: string;
+  /** 出力先の親ディレクトリ。未指定ならバックエンドが ~/Projects を使う。 / Parent dir for the project folder */
   basePath?: string;
   description?: string;
+  /** 作成するテーマのカテゴリ。未指定なら「開発」にフォールバックする。 / Target category */
+  categoryId?: number;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: SetupThemeRequest = await request.json();
-    const { appName, claudeMd, requirements, design, agentFilePath, basePath, description } = body;
+    const {
+      appName,
+      claudeMd,
+      requirements,
+      design,
+      adr,
+      scaffold,
+      agentFilePath,
+      basePath,
+      description,
+      categoryId,
+    } = body;
 
     if (!appName || !claudeMd) {
       return NextResponse.json(
@@ -46,9 +64,12 @@ export async function POST(request: NextRequest) {
         claudeMd,
         requirements,
         design,
+        adr,
+        scaffold,
         agentFilePath,
         basePath,
         description,
+        categoryId,
       }),
       signal: AbortSignal.timeout(30000), // 30 second timeout
     });

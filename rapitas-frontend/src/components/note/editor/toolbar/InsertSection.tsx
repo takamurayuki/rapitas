@@ -1,7 +1,9 @@
 'use client';
 // InsertSection
-import { TextQuote, Table, Link2, Code2, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { TextQuote, Table, Link2, Code2, Loader2, GitBranch } from 'lucide-react';
 import { borderLineColors, programmingLanguages } from '../constants';
+import { isImeComposing } from '@/utils/ime';
 
 interface InsertSectionProps {
   showLinkInput: boolean;
@@ -17,6 +19,7 @@ interface InsertSectionProps {
   onInsertTable: () => void;
   onInsertLink: () => void;
   onInsertCodeBlock: () => void;
+  onInsertDiagram: () => void;
   onOpenLinkInput: () => void;
   onOpenCodeInput: () => void;
   onApplyBorderLine: (color: string) => void;
@@ -42,10 +45,12 @@ export function InsertSection({
   onInsertTable,
   onInsertLink,
   onInsertCodeBlock,
+  onInsertDiagram,
   onOpenLinkInput,
   onOpenCodeInput,
   onApplyBorderLine,
 }: InsertSectionProps) {
+  const t = useTranslations('notes');
   return (
     <>
       {/* Link input */}
@@ -53,7 +58,8 @@ export function InsertSection({
         <button
           onClick={onOpenLinkInput}
           className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
-          title="リンク挿入"
+          title={t('toolbar.insert.linkInsertTitle')}
+          data-popup-trigger="1"
         >
           <Link2 className="w-3.5 h-3.5" />
         </button>
@@ -72,7 +78,7 @@ export function InsertSection({
                 value={linkUrl}
                 onChange={(e) => setLinkUrl(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (e.key === 'Enter' && !isImeComposing(e)) {
                     e.preventDefault();
                     onInsertLink();
                   }
@@ -80,16 +86,20 @@ export function InsertSection({
                     setShowLinkInput(false);
                   }
                 }}
-                placeholder="URLを入力..."
+                placeholder={t('toolbar.insert.urlPlaceholder')}
                 autoFocus
-                className="flex-1 min-w-0 px-2 py-1 bg-zinc-50 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded text-xs text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-blue-400"
+                className="flex-1 min-w-0 px-2 py-1 bg-zinc-50 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded text-xs text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-indigo-400"
               />
               <button
                 onClick={onInsertLink}
                 disabled={!linkUrl.trim() || isLinkLoading}
                 className="px-2 py-1 bg-indigo-500 hover:bg-indigo-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-600 text-white rounded text-xs transition-colors disabled:cursor-not-allowed shrink-0"
               >
-                {isLinkLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '挿入'}
+                {isLinkLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  t('toolbar.insert.insertButton')
+                )}
               </button>
             </div>
           </div>
@@ -103,7 +113,8 @@ export function InsertSection({
         <button
           onClick={onToggleBorderPicker}
           className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
-          title="縦線"
+          title={t('toolbar.insert.borderLineTitle')}
+          data-popup-trigger="1"
         >
           <TextQuote className="w-3.5 h-3.5" />
         </button>
@@ -120,7 +131,9 @@ export function InsertSection({
                     className="w-1 h-4 rounded-full shrink-0"
                     style={{ backgroundColor: color.value }}
                   />
-                  <span className="text-xs text-zinc-700 dark:text-zinc-200">{color.name}</span>
+                  <span className="text-xs text-zinc-700 dark:text-zinc-200">
+                    {t(`editorColors.border.${color.nameKey}`)}
+                  </span>
                 </button>
               ))}
             </div>
@@ -132,9 +145,18 @@ export function InsertSection({
       <button
         onClick={onInsertTable}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
-        title="テーブル挿入"
+        title={t('toolbar.insert.tableInsertTitle')}
       >
         <Table className="w-3.5 h-3.5" />
+      </button>
+
+      {/* Diagram block */}
+      <button
+        onClick={onInsertDiagram}
+        className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
+        title={t('toolbar.insert.diagramInsertTitle')}
+      >
+        <GitBranch className="w-3.5 h-3.5" />
       </button>
 
       {/* Code block */}
@@ -142,7 +164,8 @@ export function InsertSection({
         <button
           onClick={onOpenCodeInput}
           className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
-          title="コードブロック挿入"
+          title={t('toolbar.insert.codeBlockInsertTitle')}
+          data-popup-trigger="1"
         >
           <Code2 className="w-3.5 h-3.5" />
         </button>
@@ -159,12 +182,12 @@ export function InsertSection({
             }}
           >
             <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-2">
-              プログラミング言語を選択
+              {t('toolbar.insert.selectLanguageLabel')}
             </label>
             <select
               value={codeLanguage}
               onChange={(e) => setCodeLanguage(e.target.value)}
-              className="w-full px-2 py-1.5 bg-zinc-50 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400 mb-2"
+              className="w-full px-2 py-1.5 bg-zinc-50 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400 mb-2"
             >
               {programmingLanguages.map((lang) => (
                 <option key={lang.value} value={lang.value}>
@@ -176,7 +199,7 @@ export function InsertSection({
               onClick={onInsertCodeBlock}
               className="w-full px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded text-sm transition-colors"
             >
-              挿入
+              {t('toolbar.insert.insertButton')}
             </button>
           </div>
         )}

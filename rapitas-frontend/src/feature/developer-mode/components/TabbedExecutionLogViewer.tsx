@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { Terminal, Loader2, CheckCircle2, AlertCircle, Square, Clock, Layers } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Square, Clock, Layers } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { ExecutionLogViewer, type ExecutionLogStatus } from './ExecutionLogViewer';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
+import { Spinner } from '@/components/ui/spinner';
 
 const logger = createLogger('TabbedExecutionLogViewer');
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 
 /**
  * Subtask info
@@ -46,7 +48,7 @@ export interface TabbedExecutionLogViewerProps {
 function getStatusIcon(status: ParallelExecutionStatus | ExecutionLogStatus) {
   switch (status) {
     case 'running':
-      return <Loader2 className="w-3 h-3 animate-spin text-blue-400" />;
+      return <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />;
     case 'completed':
       return <CheckCircle2 className="w-3 h-3 text-green-400" />;
     case 'failed':
@@ -97,6 +99,7 @@ export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> =
   maxHeight = 200,
   className = '',
 }) => {
+  const t = useTranslations('devMode.tabbedExecutionLogViewer');
   // Selected tab (null = overall, number = subtask ID)
   const [selectedTab, setSelectedTab] = useState<number | null>(null);
   // Per-subtask log cache
@@ -178,6 +181,7 @@ export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> =
         isRunning={isRunning}
         maxHeight={maxHeight}
         collapsible={false}
+        resizable
         className={className}
       />
     );
@@ -195,7 +199,7 @@ export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> =
           }`}
         >
           <Layers className="w-3 h-3" />
-          全体
+          {t('overall')}
           {getStatusIcon(overallStatus)}
         </button>
 
@@ -219,7 +223,7 @@ export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> =
       <div className="relative">
         {loadingSubtaskId === selectedTab && (
           <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/80 z-10">
-            <Loader2 className="w-5 h-5 animate-spin text-violet-400" />
+            <Spinner size="md" className="text-violet-400" />
           </div>
         )}
         <ExecutionLogViewer
@@ -230,6 +234,7 @@ export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> =
           maxHeight={maxHeight}
           collapsible={false}
           showHeader={false}
+          resizable
         />
       </div>
     </div>

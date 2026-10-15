@@ -4,11 +4,8 @@
  * Message protocol type definitions for Worker <-> main thread communication.
  */
 
-import type {
-  QuestionKey,
-  QuestionDetails,
-  QuestionDetectionResult,
-} from '../services/agents/question-detection';
+import type { QuestionDetectionResult } from '../services/agents/question-detection';
+import type { ExtractedToolUse } from '../services/agents/providers/stream-event-parser';
 
 // ==================== Worker Input Messages ====================
 
@@ -52,6 +49,8 @@ export type WorkerAssistantMessage = {
   type: 'assistant-message';
   displayOutput: string;
   toolUses: WorkerToolUse[];
+  /** Raw tool_use name + input, forwarded for plan-deviation recording (task 1218). */
+  toolCalls?: ExtractedToolUse[];
 };
 
 export type WorkerToolUse = {
@@ -84,6 +83,8 @@ export type WorkerResultEvent = {
   usage?: WorkerResultUsage;
   /** Per-model breakdown (model id → tokens & cost). */
   modelUsage?: Record<string, WorkerResultModelUsage>;
+  /** Total assistant turns for this CLI session — equals LLM API call count. */
+  numTurns?: number;
 };
 
 export type WorkerResultUsage = {

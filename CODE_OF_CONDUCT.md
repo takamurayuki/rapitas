@@ -12,7 +12,8 @@ https://www.contributor-covenant.org/version/2/1/code_of_conduct/
 If you experience or witness unacceptable behavior, please report it to:
 
 - GitHub Issue (公開): プロジェクトの Issue として起票
-- メール (非公開): リポジトリの `SECURITY.md` に記載された連絡先
+- 非公開の報告: GitHub の Private Vulnerability Reporting（`SECURITY.md` 参照）または
+  メンテナ [@takamurayuki](https://github.com/takamurayuki) への DM
 
 報告は機密扱いとし、報告者の身元は公開しません。
 All reports are confidential and reporter identity is protected.

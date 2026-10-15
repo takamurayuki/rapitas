@@ -1,0 +1,126 @@
+{
+  "calendar": {
+    "title": "カレンダー",
+    "subtitle": "スケジュール・締め切り・試験日を一覧表示",
+    "newEvent": "新規イベント",
+    "noEvents": "イベントがありません",
+    "eventName": "イベント名",
+    "startDate": "開始日",
+    "endDate": "終了日",
+    "allDay": "終日",
+    "taskCreated": "タスクを作成しました",
+    "taskCreateFailed": "タスクの作成に失敗しました",
+    "scheduleAdded": "スケジュールを追加しました",
+    "scheduleAddFailed": "スケジュールの追加に失敗しました",
+    "paidLeaveCreated": "有給申請を登録しました",
+    "paidLeaveCreateFailed": "有給申請の登録に失敗しました",
+    "scheduleDeleted": "スケジュールを削除しました",
+    "scheduleDeleteFailed": "スケジュールの削除に失敗しました",
+    "reminderMinutesBefore": "{count}分前",
+    "reminderHoursBefore": "{count}時間前",
+    "reminderDaysBefore": "{count}日前",
+    "weekSun": "日",
+    "weekMon": "月",
+    "weekTue": "火",
+    "weekWed": "水",
+    "weekThu": "木",
+    "weekFri": "金",
+    "weekSat": "土",
+    "yearMonth": "{year}年 {month}月",
+    "prevMonth": "前月",
+    "nextMonth": "翌月",
+    "paidLeaveBalance": "有給残日数",
+    "paidLeaveDays": "{count}日",
+    "fiscalYear": "{year}年度",
+    "selectDateForPaidLeave": "日付を選択してから有給申請してください",
+    "paidLeaveRequest": "有給申請",
+    "legendMultiDay": "複数日",
+    "legendSchedule": "スケジュール",
+    "legendTask": "タスク",
+    "legendExam": "試験",
+    "legendHolidayIcon": "祝",
+    "legendHoliday": "祝日",
+    "doubleClickToAdd": "ダブルクリックで予定追加",
+    "selectDate": "日付を選択",
+    "addScheduleShort": "予定",
+    "addTaskShort": "タスク",
+    "paidLeaveShort": "有給",
+    "paidLeaveLabel": "有給休暇",
+    "noEventsOnDay": "この日の予定はありません",
+    "addSchedule": "スケジュールを追加",
+    "addTask": "タスクを追加",
+    "selectDateFromCalendar": "カレンダーから日付を選択してください",
+    "deadline": "締め切り",
+    "taskNamePlaceholder": "タスク名を入力...",
+    "creating": "作成中...",
+    "errorPage": {
+      "title": "カレンダー でエラーが発生しました",
+      "defaultMessage": "予期しないエラーが発生しました。",
+      "retry": "再試行"
+    },
+    "titleInputPlaceholder": "タイトルを入力",
+    "dayCountSuffix": "({count}日間)",
+    "optionsToggle": {
+      "open": "カラー・リマインド・メモ",
+      "close": "オプションを閉じる"
+    },
+    "insufficientBalance": "残日数不足",
+    "paidLeaveDurationPicker": {
+      "halfDay": "半日",
+      "halfDayTimeLabel": "半日休暇の時間",
+      "morningRange": "午前 (9:00-13:00)",
+      "afternoonRange": "午後 (13:00-17:00)"
+    },
+    "paidLeaveHeader": {
+      "requestPrompt": "有給休暇を申請",
+      "usedLabel": "使用",
+      "afterUsageLabel": "申請後"
+    },
+    "paidLeaveOptions": {
+      "reasonPlaceholder": "理由や備考を入力..."
+    },
+    "paidLeaveDialog": {
+      "leaveTypeLabel": "休暇の種類",
+      "submitting": "申請中...",
+      "annualLeave": "年次有給休暇",
+      "specialLeave": "特別休暇",
+      "sickLeave": "病気休暇",
+      "personalLeave": "私用休暇"
+    },
+    "scheduleEventDialog": {
+      "timedOption": "時間指定",
+      "addPrompt": "予定を追加",
+      "addButton": "追加する"
+    },
+    "scheduleOptionsPanel": {
+      "memoPlaceholder": "メモを追加..."
+    },
+    "scheduleConstants": {
+      "quickTimeMorning": "午前",
+      "quickTimeNoon": "昼",
+      "quickTimeAfternoon": "午後",
+      "quickTimeEvening": "夜"
+    },
+    "holidays": {
+      "newYearsDay": "元日",
+      "comingOfAgeDay": "成人の日",
+      "nationalFoundationDay": "建国記念の日",
+      "emperorsBirthday": "天皇誕生日",
+      "vernalEquinoxDay": "春分の日",
+      "showaDay": "昭和の日",
+      "greeneryDay": "みどりの日",
+      "constitutionDay": "憲法記念日",
+      "childrensDay": "こどもの日",
+      "marineDay": "海の日",
+      "mountainDay": "山の日",
+      "respectForTheAgedDay": "敬老の日",
+      "autumnalEquinoxDay": "秋分の日",
+      "sportsDay": "スポーツの日",
+      "healthAndSportsDay": "体育の日",
+      "cultureDay": "文化の日",
+      "laborThanksgivingDay": "勤労感謝の日",
+      "substituteHoliday": "振替休日",
+      "citizensHoliday": "国民の休日"
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import { cn } from '../utils';
+import { cn, toDateLocale } from '../utils';
 
 describe('cn', () => {
   it('joins multiple class names', () => {
@@ -23,5 +23,20 @@ describe('cn', () => {
 
   it('handles empty strings by filtering them out', () => {
     expect(cn('a', '', 'b')).toBe('a b');
+  });
+});
+
+describe('toDateLocale', () => {
+  it('maps "ja" to "ja-JP"', () => {
+    expect(toDateLocale('ja')).toBe('ja-JP');
+  });
+
+  it('maps "en" to "en-US"', () => {
+    expect(toDateLocale('en')).toBe('en-US');
+  });
+
+  it('falls back to "ja-JP" for an unrecognized locale', () => {
+    expect(toDateLocale('fr')).toBe('ja-JP');
+    expect(toDateLocale('')).toBe('ja-JP');
   });
 });

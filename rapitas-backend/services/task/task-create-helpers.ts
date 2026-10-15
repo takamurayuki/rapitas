@@ -4,9 +4,10 @@
  * Internal helpers for creating subtasks and parent tasks.
  * Called exclusively by task-mutations.ts — not part of the public API.
  */
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
-import { getDbProvider } from '../../config/db-provider';
+import { isApiRecoveryMode } from '../system/api-recovery-mode';
+import { getInsensitiveMode } from '../../config/db-provider';
 import { UserBehaviorService } from '../../src/services/user-behavior-service';
 import {
   analyzeTaskComplexityWithLearning,
@@ -20,10 +21,7 @@ type PrismaInstance = InstanceType<typeof PrismaClient>;
 const logger = createLogger('task-create-helpers');
 
 function titleEqualsFilter(title: string) {
-  if (getDbProvider() === 'sqlite') {
-    return { equals: title };
-  }
-  return { equals: title, mode: 'insensitive' };
+  return { equals: title, ...getInsensitiveMode() };
 }
 
 /**
@@ -78,6 +76,7 @@ export async function createSubtask(
           priority: data.priority ?? 'medium',
           ...(data.labels && { labels: data.labels }),
           ...(data.estimatedHours && { estimatedHours: data.estimatedHours }),
+          ...(data.actualHours && { actualHours: data.actualHours }),
           ...(data.dueDate && { dueDate: new Date(data.dueDate) }),
           ...(data.subject && { subject: data.subject }),
           parentId,
@@ -136,6 +135,7 @@ export async function createParentTask(
       priority: data.priority ?? 'medium',
       ...(data.labels && { labels: data.labels }),
       ...(data.estimatedHours && { estimatedHours: data.estimatedHours }),
+      ...(data.actualHours && { actualHours: data.actualHours }),
       ...(data.dueDate && { dueDate: new Date(data.dueDate) }),
       ...(data.subject && { subject: data.subject }),
       ...(data.projectId && { projectId: data.projectId }),
@@ -166,7 +166,7 @@ export async function createParentTask(
     include: TASK_FULL_INCLUDE,
   });
 
-  if (createdTask) {
+  if (createdTask && !isApiRecoveryMode()) {
     await UserBehaviorService.recordTaskCreated(createdTask.id, createdTask);
 
     // NOTE: Auto-assign workflow mode based on complexity analysis + learning history
@@ -190,20 +190,53 @@ export async function createParentTask(
       // (UI-editable) instead of the hardcoded 35/70 split.
       const { getAllModeSettings, recommendModeFromSettings } =
         await import('../workflow/workflow-mode-config');
-      const recommendedMode = recommendModeFromSettings(
+      const settingsMode = recommendModeFromSettings(
         analysis.complexityScore,
         await getAllModeSettings(),
       );
 
+      // Learned mode rules (nightly-generated from real outcomes) refine the
+      // settings-based default. Creation-time only — a user changing the mode
+      // later in the UI is the override and is never touched by rules.
+      const { applyModeRules } = await import('../workflow/learning/workflow-learning-optimizer');
+      const ruleDecision = await applyModeRules(
+        { themeId: data.themeId ?? null },
+        analysis.complexityScore,
+        settingsMode,
+      );
+      const recommendedMode = ruleDecision.mode;
+      if (ruleDecision.ruleIds.length > 0) {
+        // Surface the rule application in the task's activity log so the user
+        // can see WHY the mode differs from the complexity-range default.
+        await prisma.activityLog
+          .create({
+            data: {
+              taskId: createdTask.id,
+              action: 'workflow_mode_rule_applied',
+              metadata: JSON.stringify({
+                baseMode: settingsMode,
+                appliedMode: ruleDecision.mode,
+                ruleIds: ruleDecision.ruleIds,
+                reasons: ruleDecision.reasons,
+              }),
+            },
+          })
+          .catch(() => {});
+      }
+
+      // NOTE: The metadata heuristic score is used ONLY to pick the initial
+      // workflow mode — it is deliberately NOT persisted to complexityScore.
+      // That column now holds exclusively the code-grounded value the research
+      // agent assesses after inspecting the repo (applyResearchAssessedComplexity);
+      // the UI shows 複雑度"-" until then. Persisting the title/description
+      // heuristic here made a weak a-priori guess look like a measured value
+      // and fed model routing before research ever ran.
       await prisma.task.update({
         where: { id: createdTask.id },
-        data: {
-          workflowMode: recommendedMode,
-          complexityScore: analysis.complexityScore,
-        },
+        data: { workflowMode: recommendedMode },
       });
       logger.info(
-        `[task-create-helpers] Auto-assigned workflow mode: ${recommendedMode} (score: ${analysis.complexityScore}) for task ${createdTask.id}`,
+        `[task-create-helpers] Auto-assigned workflow mode: ${recommendedMode} (heuristic score: ${analysis.complexityScore}, not persisted) for task ${createdTask.id}`,
       );
     } catch (err) {
       // NOTE: Complexity analysis failure should not block task creation

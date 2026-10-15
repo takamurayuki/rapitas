@@ -1,5 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { useSplitView } from '../ui/useSplitView';
+import { setAppHidden } from '../common/app-visibility-store';
 
 const mockIsTauri = vi.fn().mockReturnValue(false);
 const mockOpenExternalUrlInSplitView = vi.fn().mockResolvedValue(undefined);
@@ -31,6 +32,7 @@ describe('useSplitView', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    setAppHidden(false);
   });
 
   it('should return isActive false in non-Tauri environment', () => {
@@ -56,7 +58,45 @@ describe('useSplitView', () => {
     expect(result.current.isActive).toBe(true);
   });
 
-  it('should poll status periodically', () => {
+  it('should recompute status on window resize', () => {
+    mockIsTauri.mockReturnValue(true);
+    mockIsSplitViewActive.mockReturnValue(false);
+
+    const { result } = renderHook(() => useSplitView());
+
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+
+    mockIsSplitViewActive.mockReturnValue(true);
+
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    expect(result.current.isActive).toBe(true);
+  });
+
+  it('should recompute status on visibilitychange', () => {
+    mockIsTauri.mockReturnValue(true);
+    mockIsSplitViewActive.mockReturnValue(false);
+
+    const { result } = renderHook(() => useSplitView());
+
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+
+    mockIsSplitViewActive.mockReturnValue(true);
+
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    expect(result.current.isActive).toBe(true);
+  });
+
+  it('should no longer poll on a 1-second interval', () => {
     mockIsTauri.mockReturnValue(true);
     mockIsSplitViewActive.mockReturnValue(false);
 
@@ -66,15 +106,13 @@ describe('useSplitView', () => {
       vi.advanceTimersByTime(0);
     });
 
-    // Change the mock return value
-    mockIsSplitViewActive.mockReturnValue(true);
+    const callsBeforeTick = mockIsSplitViewActive.mock.calls.length;
 
     act(() => {
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(5000);
     });
 
-    // isSplitViewActive should be called multiple times due to interval
-    expect(mockIsSplitViewActive.mock.calls.length).toBeGreaterThan(1);
+    expect(mockIsSplitViewActive.mock.calls.length).toBe(callsBeforeTick);
   });
 
   it('should open split view and refresh status', async () => {
@@ -125,15 +163,31 @@ describe('useSplitView', () => {
     expect(result.current.isActive).toBe(true);
   });
 
-  it('should cleanup timers on unmount', () => {
+  it('should skip recompute on resize while the app is hidden (minimized)', () => {
+    mockIsTauri.mockReturnValue(true);
+    mockIsSplitViewActive.mockReturnValue(false);
+    setAppHidden(true);
+
+    renderHook(() => useSplitView());
+
+    const callsBeforeEvent = mockIsSplitViewActive.mock.calls.length;
+
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    expect(mockIsSplitViewActive.mock.calls.length).toBe(callsBeforeEvent);
+  });
+
+  it('should cleanup timers and listeners on unmount', () => {
     const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
-    const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
+    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
 
     const { unmount } = renderHook(() => useSplitView());
 
     unmount();
 
     expect(clearTimeoutSpy).toHaveBeenCalled();
-    expect(clearIntervalSpy).toHaveBeenCalled();
+    expect(removeEventListenerSpy).toHaveBeenCalledWith('resize', expect.any(Function));
   });
 });

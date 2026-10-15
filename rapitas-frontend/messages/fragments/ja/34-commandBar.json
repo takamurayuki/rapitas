@@ -1,0 +1,13 @@
+{
+  "commandBar": {
+    "placeholder": "何をしたいですか？（タスク作成、学習開始、ページ移動...）",
+    "hintTask": "タスク作成",
+    "hintTaskExample": "「TODOアプリ作成」「バグ修正」",
+    "hintLearn": "学習開始",
+    "hintLearnExample": "「Pythonを学びたい」「React入門」",
+    "hintNavigate": "ページ移動",
+    "hintNavigateExample": "「ダッシュボード」「カレンダー」",
+    "toToggle": "で開閉",
+    "toClose": "で閉じる"
+  }
+}

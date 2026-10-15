@@ -1,0 +1,15 @@
+{
+  "examCountdown": {
+    "today": "Today!",
+    "examDay": "Today",
+    "daysLeft": "{count} days left",
+    "daysElapsed": "{count} days ago",
+    "daysElapsedUnit": " days ago",
+    "remaining": "In",
+    "dayUnit": "days",
+    "weeksAndDays": "({weeks}w {days}d)",
+    "weekdayLabel": "",
+    "monthLabel": "{month}",
+    "yearMonthLabel": "{month}/{year}"
+  }
+}

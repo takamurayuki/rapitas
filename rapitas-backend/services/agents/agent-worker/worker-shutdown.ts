@@ -11,6 +11,7 @@ import { cleanupZombieProcesses } from '../agent-process-tracker';
 import { sendIPCRequest, rejectAllPendingRequests } from './ipc';
 import { setupWorker } from './lifecycle';
 import type { WorkerState } from './lifecycle';
+import { SHUTDOWN_ERROR_MESSAGE } from './shutdown-error';
 
 const logger = createLogger('agent-worker-manager:shutdown');
 
@@ -50,7 +51,7 @@ export async function gracefulShutdown(state: WorkerState): Promise<void> {
     }
   }
 
-  rejectAllPendingRequests(state.pendingRequests, new Error('Manager is shutting down'));
+  rejectAllPendingRequests(state.pendingRequests, new Error(SHUTDOWN_ERROR_MESSAGE));
 
   if (state.workerProcess) {
     try {
@@ -58,9 +59,16 @@ export async function gracefulShutdown(state: WorkerState): Promise<void> {
         state.workerProcess.kill('SIGTERM');
       }
 
+      // NOTE: `.killed` flips true as soon as kill() successfully SENDS a
+      // signal — it does not mean the process has actually exited. Using it
+      // as the "still alive" check here meant this SIGKILL escalation could
+      // never fire (killed was already true right after the SIGTERM above),
+      // so a worker that ignored SIGTERM would hang shutdown indefinitely.
+      // Track real exit via the 'exit' event instead.
+      let hasExited = false;
       await new Promise<void>((resolve) => {
         const timeout = setTimeout(() => {
-          if (state.workerProcess && !state.workerProcess.killed) {
+          if (state.workerProcess && !hasExited) {
             logger.warn('[AgentWorkerManager] Force killing worker process');
             state.workerProcess.kill('SIGKILL');
           }
@@ -68,6 +76,7 @@ export async function gracefulShutdown(state: WorkerState): Promise<void> {
         }, 5000);
 
         state.workerProcess!.on('exit', () => {
+          hasExited = true;
           clearTimeout(timeout);
           resolve();
         });

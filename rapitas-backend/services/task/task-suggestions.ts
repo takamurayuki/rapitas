@@ -6,7 +6,7 @@
  * Prompt constants and builders live in task-ai-prompts.ts.
  * Does NOT handle task mutations or duplicate cleanup.
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
 import {
   sendAIMessage,

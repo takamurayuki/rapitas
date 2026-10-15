@@ -45,6 +45,21 @@ The CI/CD pipeline consists of several workflow files:
   - Code linting for TypeScript
   - Rust code formatting and Clippy checks
 
+#### Test Baseline & Failure Policy
+
+The test jobs in `test-lint.yml` follow a two-tier strategy:
+
+| Tier | Jobs | Merge impact |
+| ---- | ---- | ------------ |
+| **hard-gate** | `test-backend`, `test-sqlite`, `lint`, `check-frontend`, `rust-check`, `rust-check-windows` | Blocks merge on failure |
+| **advisory** | `test-full-advisory`, `test-order-check` | Visible in Step Summary; does **not** block merge |
+
+The gate suite file list is maintained in `rapitas-backend/scripts/ci-gate-tests.txt`
+(single source of truth). Do not edit the file list inline in the YAML.
+
+For full details on failure tiers, retrigger policy, coverage thresholds, and the gate
+escalation path, see **[TESTING_POLICY.md](TESTING_POLICY.md)**.
+
 ### 3. `security-scan.yml`
 
 - **Purpose**: Security vulnerability scanning
@@ -66,6 +81,31 @@ The CI/CD pipeline consists of several workflow files:
 - **Purpose**: Generate update metadata for Tauri auto-updater
 - **Triggers**: Release events, manual dispatch
 - **Output**: `update.json` file for Tauri updater
+
+### 6. Quality evals (`bun run eval:gates` / `bun run eval:judge`)
+
+Two "measure the AI, don't just trust it" scripts live in `rapitas-backend/scripts/`:
+
+| Script | CI status | Why |
+| ------ | --------- | --- |
+| `eval-gates.ts` (`bun run eval:gates`) | **Wired into `test-lint.yml`** (`test-backend` job) | Deterministic — scores the workflow quality-gate LOGIC (plan-scope, phase validators, the adversarial-judge reply *parser*) against a golden set with no live API calls. Safe to hard-gate. |
+| `eval-judge.ts` (`bun run eval:judge`) | **Not scheduled in CI** — local/manual only | Measures the adversarial diff-review **judge model's** end-to-end accuracy (does it return the right verdict on a labelled diff→verdict set). This makes real LLM calls, so it needs live credentials. The repo's Actions runners have no `CLAUDE_API_KEY`/equivalent secret provisioned, and the CLI-based auxiliary-AI path (the app's default, subscription-billed) needs an interactive `claude login` that a hosted runner can't perform — so there's no way to run it unattended today. |
+
+To run `eval:judge` locally:
+
+```bash
+cd rapitas-backend
+RAPITAS_EVAL_JUDGE=1 bun run eval:judge
+# optional: RAPITAS_EVAL_JUDGE_PROVIDER=claude|gemini|chatgpt (default claude)
+# optional: RAPITAS_EVAL_JUDGE_MIN=0.8 (accuracy threshold, default 0.8)
+```
+
+Without `RAPITAS_EVAL_JUDGE=1` it prints a skip notice and exits 0, so it is
+safe to leave un-set — it will never fail an unconfigured environment.
+If a `CLAUDE_API_KEY` (or provider-equivalent) secret is ever provisioned for
+Actions, this could be added as its own `continue-on-error: true` advisory job
+(same pattern as `test-full-advisory` in `test-lint.yml`) rather than a
+hard-gate, since live-LLM output is inherently non-deterministic.
 
 ## Setting Up the Pipeline
 

@@ -1,0 +1,551 @@
+/**
+ * log-health-suppressions.test
+ *
+ * Fixtures are REAL titles taken from the rapitas backlog on 2026-08-27, when
+ * 60 of 121 open concerns came from the log-health path and almost none named
+ * anything left broken.
+ */
+import { describe, test, expect } from 'bun:test';
+import { classifyLogSignature } from './log-health-suppressions';
+import { normalizeMessage } from './log-health-check';
+import { SUPPRESSED, KEPT } from './log-health-suppressions.fixtures';
+
+describe('classifyLogSignature', () => {
+  test('the real task-1011 gh pr merge line is suppressed after normalization', () => {
+    const raw = [
+      'Command failed: C:\\Program Files\\GitHub CLI\\gh.exe pr merge 778 --merge --delete-branch',
+      "failed to delete local branch feature/t1011-update-execution-agent: failed to run git: error: cannot delete branch 'feature/t1011-update-execution-agent' used by worktree at 'C:/Projects/rapitas/.worktrees/task-1011-b7839f22'",
+      '',
+    ].join('\n');
+    expect(
+      classifyLogSignature('git-operations/pr-merge-ops', normalizeMessage(raw)).suppressed,
+    ).toBe(true);
+  });
+
+  test.each(SUPPRESSED)('suppresses %s: %s', (name, msg) => {
+    const v = classifyLogSignature(name, msg);
+    expect(v.suppressed).toBe(true);
+    // Every suppression must be able to say why nothing is left broken.
+    expect(v.because).toBeTruthy();
+  });
+
+  test.each(KEPT)('keeps %s: %s', (name, msg) => {
+    expect(classifyLogSignature(name, msg).suppressed).toBe(false);
+  });
+
+  test('task 1149: real ExecLog cancellation line is suppressed after normalization, sibling is not', () => {
+    const ignored = normalizeMessage('[ExecLog:5434] Execution result ignored after cancellation');
+    expect(classifyLogSignature('execution-file-logger', ignored).suppressed).toBe(true);
+    const unconfirmed = normalizeMessage(
+      '[ExecLog:5434] Execution result was not saved; cancellation could not be confirmed',
+    );
+    expect(classifyLogSignature('execution-file-logger', unconfirmed).suppressed).toBe(false);
+  });
+
+  test('task 1211: raw P1008 workflow-queue line is suppressed after normalization', () => {
+    const raw =
+      'Socket timeout (the database failed to respond to a query within the configured timeout— see https://pris.ly/d/sqlite-connector for more details).';
+    expect(classifyLogSignature('workflow-queue', normalizeMessage(raw)).suppressed).toBe(true);
+    expect(classifyLogSignature('memory:timeline', normalizeMessage(raw)).suppressed).toBe(false);
+  });
+
+  test('a logger-scoped rule does not leak to other loggers', () => {
+    // 'Already running' is routine for the workflow runner; elsewhere it may
+    // be a real double-start, so the rule must not fire globally.
+    expect(classifyLogSignature('workflow-runner', 'Already running').suppressed).toBe(true);
+    expect(classifyLogSignature('payment-worker', 'Already running').suppressed).toBe(false);
+  });
+
+  test('task 1148: lock-revocation requeue WARN from workflow-runner.ts:455 is suppressed only for that logger and wording', () => {
+    // ExecutionCancelledError after a stop/reset is a designed requeue, not a failure.
+    const msg =
+      '[WorkflowRunner] Task # cancelled — requeued: Workflow preparation cancelled: execution lock ownership was revoked';
+    const v = classifyLogSignature('workflow-runner', msg);
+    expect(v.suppressed).toBe(true);
+    expect(v.because).toBeTruthy();
+    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    expect(
+      classifyLogSignature('workflow-runner', '[WorkflowRunner] Phase failed for task #: boom')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('"no commits between" is scoped to github-service:client only', () => {
+    // Same phrase from an unrelated logger must still be filed — the rule is
+    // about gh pr create no-op completions, not the phrase alone.
+    expect(classifyLogSignature('some-other-logger', 'no commits between a and b').suppressed).toBe(
+      false,
+    );
+  });
+
+  test('task 1113: protected-path mode escalation WARN from workflow-orchestrator-protected-path-guard.ts:72-75 is suppressed', () => {
+    // guardProtectedPathMode() escalates a lightweight task to standard mode
+    // when research.md plans a protected-path change — a designed self-defense
+    // action, not a defect (tasks 1044/1055, K-11655).
+    const v = classifyLogSignature(
+      'workflow-orchestrator',
+      '[WorkflowOrchestrator] research.md plans a protected-path change in lightweight mode — escalating to standard so plan.md can list it',
+    );
+    expect(v.suppressed).toBe(true);
+    expect(v.because).toBeTruthy();
+  });
+
+  test('"nothing to publish (skipped before gh pr create)" is scoped to routes:workflow:auto-commit only', () => {
+    // Task 1083: the phrase alone must not suppress an unrelated logger reusing it.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        'No commits between develop and bugfix/t1054-update-task — nothing to publish (skipped before gh pr create)',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('an unknown line is filed rather than dropped', () => {
+    // A missed suppression costs one noisy row; a wrong one hides a defect.
+    expect(classifyLogSignature('whatever', 'something nobody has seen').suppressed).toBe(false);
+  });
+
+  test('"Bad Request: Failed to parse JSON" is scoped to the error-handler logger only', () => {
+    // Task #702: the phrase alone must not suppress an unrelated logger reusing it.
+    expect(
+      classifyLogSignature('some-other-logger', 'Bad Request: Failed to parse JSON').suppressed,
+    ).toBe(false);
+  });
+
+  test('"Failed to parse JSON request body" is scoped to the error-handler logger only', () => {
+    // Task #861: the phrase alone must not suppress an unrelated logger reusing it.
+    expect(
+      classifyLogSignature('some-other-logger', 'Failed to parse JSON request body').suppressed,
+    ).toBe(false);
+  });
+
+  test('"Provider placed in cooldown" is scoped to the ai:provider-cooldown logger only', () => {
+    // Task #759: an unrelated logger reusing this phrase must still be filed.
+    expect(
+      classifyLogSignature('some-other-logger', 'Provider placed in cooldown').suppressed,
+    ).toBe(false);
+  });
+
+  test('"Detected provider error in successful output — forcing fallback" is scoped to task-executor only', () => {
+    // Task #782: an unrelated logger reusing this phrase must still be filed.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        'Detected provider error in successful output — forcing fallback',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"Provider failed — retrying with alternative agent config" is scoped to task-executor only', () => {
+    // Task #758: workflow-provider-fallback.ts emits a similar-sounding phrase
+    // ("Provider failed — retrying with Smart Router fallback") from a different
+    // logger; that is a separate mechanism and must not be filed under this rule.
+    expect(
+      classifyLogSignature(
+        'workflow-provider-fallback',
+        'Provider failed — retrying with alternative agent config',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"Stuck processing task requeued as pending" is scoped to memory:task-queue only', () => {
+    // Task #761: the phrase alone must not suppress an unrelated logger reusing it.
+    expect(
+      classifyLogSignature('some-other-logger', 'Stuck processing task requeued as pending')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('the dead_letter transition stays visible even though the requeue is suppressed', () => {
+    // Task #761: a real permanent failure must not be swallowed by the requeue rule.
+    expect(
+      classifyLogSignature('memory:task-queue', 'Stuck processing task moved to dead_letter')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('"Prompt/context too long — failing fast" is scoped to the claude-code-agent logger only', () => {
+    // Task #1036: the fail-fast line is the guard working; the same phrase elsewhere stays visible.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        '[claude-code] Prompt/context too long — failing fast so the session is excluded from future resumes.',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"[resolveCliPath] Failed to resolve" is scoped to the claude-code-agent logger only', () => {
+    // Task #779: an unrelated logger reusing this phrase must still be filed.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        '[resolveCliPath] Failed to resolve claude, using relative path',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"Command failed: taskkill" is scoped to the CLI-agent loggers only', () => {
+    // Task #810: an unrelated logger hitting the same execSync failure text
+    // (e.g. a git-operations timeout) must still be filed.
+    expect(
+      classifyLogSignature('some-other-logger', 'Command failed: taskkill /PID # /T /F').suppressed,
+    ).toBe(false);
+  });
+
+  test('winget failures from the cli-tools update route are suppressed for that logger only', () => {
+    // Task #1141: routes.ts:180 logs a user-triggered winget exit != 0 that the
+    // route already returned to the UI as success:false + details.
+    const msg = 'Command failed: winget upgrade OpenJS.NodeJS.LTS';
+    expect(classifyLogSignature('routes:cli-tools:routes', msg).suppressed).toBe(true);
+    expect(
+      classifyLogSignature('routes:cli-tools:routes', 'Command failed: winget install Git.Git')
+        .suppressed,
+    ).toBe(true);
+    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    expect(
+      classifyLogSignature('routes:cli-tools:routes', 'Failed to fetch CLI tools status')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('"OUTPUT IDLE HANG DETECTED" is suppressed for the claude-code-agent logger', () => {
+    // Task #1084: idle-monitor.ts:112-114's idle-hang force-kill is the guard
+    // working as designed (see log-health-suppression-rules.ts for the
+    // reasoning) — this must be classified as suppressed, not filed.
+    expect(
+      classifyLogSignature(
+        'claude-code-agent',
+        '[Claude Code] OUTPUT IDLE HANG DETECTED: No output for #s after producing # chars. Force-killing hung process.',
+      ).suppressed,
+    ).toBe(true);
+  });
+
+  test('"OUTPUT IDLE HANG DETECTED" is scoped to the claude-code-agent logger only', () => {
+    // Task #1084: the idle-hang force-kill is the guard working; an unrelated
+    // logger reusing this phrase must still be filed.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        '[Claude Code] OUTPUT IDLE HANG DETECTED: No output for #s after producing # chars. Force-killing hung process.',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('a failed process.kill() fallback after taskkill stays visible', () => {
+    // Task #810: only the first taskkill attempt is suppressed. If the
+    // process.kill() fallback also fails, that is a distinct, unsuppressed
+    // signature — the real-defect case must not be hidden.
+    expect(classifyLogSignature('claude-code-agent', 'process.kill() also failed').suppressed).toBe(
+      false,
+    );
+  });
+
+  test('"git worktree remove ... is not a working tree" is scoped to the worktree-ops logger only', () => {
+    // Task #824: an unrelated logger reusing this phrase must still be filed.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        "Command failed: git worktree remove <path> … fatal: '<path>' is not a working tree",
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('a Permission Denied worktree-remove failure (K-7336) stays visible', () => {
+    // Task #824: only the "is not a working tree" fallback is a no-op self-heal.
+    // A Permission Denied failure means the fs fallback did not run cleanly and
+    // must not be hidden by this rule.
+    expect(
+      classifyLogSignature(
+        'git-operations/worktree-ops',
+        "Command failed: git worktree remove <path> … error: failed to delete '<path>': Permission denied",
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"Idle-stop timer expired" is scoped to the auto-run:idle-timer logger only', () => {
+    // Task #823: an unrelated logger reusing this phrase must still be filed.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        '[auto-run-idle-timer] Idle-stop timer expired for theme # (enabled=false)',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('a failed idle-stop DB write stays visible even though the expiry record is suppressed', () => {
+    // Task #823: only the successful stop record is suppressed. If the DB
+    // update itself fails, that is a distinct, unsuppressed signature — the
+    // real-defect case must not be hidden.
+    expect(
+      classifyLogSignature(
+        'auto-run:idle-timer',
+        '[auto-run-idle-timer] stopThemeForIdleTimeout write failed',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"[Workflow] pre-PR base sync blocked PR creation" is scoped to the publish-guard logger only', () => {
+    // Task #1048/K-11293: the guard withholds PR creation on an unresolved
+    // base-sync conflict or a failed post-sync reverification — the guard
+    // working as designed, not a defect. An unrelated logger reusing the
+    // phrase must still be filed.
+    expect(
+      classifyLogSignature('some-other-logger', '[Workflow] pre-PR base sync blocked PR creation')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('"[Workflow] Worktree cleanup failed" is scoped to routes:workflow:auto-commit only', () => {
+    // Task #821/K-8422: an unrelated logger reusing this phrasing must still be filed.
+    expect(
+      classifyLogSignature('some-other-logger', '[Workflow] Worktree cleanup failed: <path>')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('a permanently stuck worktree removal stays visible via the scheduler signature', () => {
+    // Task #821: the immediate-attempt warn is suppressed because the 30-minute
+    // cleanupOrphanedWorktrees scheduler retries, but a retry-exhausted failure
+    // from that scheduler is a distinct, unsuppressed signature.
+    expect(
+      classifyLogSignature(
+        'git-operations/worktree-ops',
+        '[cleanupOrphanedWorktrees] Failed to remove orphaned directory after retries: <path>',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"[cleanupOrphanedWorktrees] removeWorktree refused" is suppressed only for the worktree-ops logger', () => {
+    // Task #1029: a refusal is the dirty-work guard working; the root cause is
+    // logged by worktree-remove.ts under its own signature.
+    for (const msg of [
+      '[cleanupOrphanedWorktrees] removeWorktree refused for # session(s) (ids: #): <path>',
+      '[cleanupOrphanedWorktrees] removeWorktree refused for # session(s) (ids: #,#,#,#,#,#): <path>',
+    ]) {
+      expect(classifyLogSignature('git-operations/worktree-ops', msg).suppressed).toBe(true);
+      expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    }
+  });
+
+  test('"Preserving uncommitted work" is suppressed for worktree-ops only; adjacent guard signatures stay visible', () => {
+    // Task #1210: the line records the guard protecting work (worktree-remove.ts:76), not a defect.
+    const msg = '[removeWorktree] Preserving uncommitted work';
+    expect(classifyLogSignature('git-operations/worktree-ops', msg).suppressed).toBe(true);
+    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    for (const visible of [
+      '[removeWorktree] Missing Git metadata; preserving directory',
+      '[removeWorktree] Cannot prove work is preserved; refusing removal',
+      '[cleanupOrphanedWorktrees] Failed to remove orphaned directory after retries',
+    ]) {
+      expect(classifyLogSignature('git-operations/worktree-ops', visible).suppressed).toBe(false);
+    }
+  });
+
+  test('routes:ai-chat CLI timeout is suppressed but spawn failures and other loggers stay visible', () => {
+    // Task #1155: /ai/chat returns the timeout as HTTP 500 and callers degrade gracefully.
+    expect(
+      classifyLogSignature('routes:ai-chat', 'Claude CLI timed out after #ms').suppressed,
+    ).toBe(true);
+    expect(
+      classifyLogSignature('routes:ai-chat', 'Claude CLI spawn failed: ENOENT').suppressed,
+    ).toBe(false);
+    expect(
+      classifyLogSignature('some-other-logger', 'Claude CLI timed out after #ms').suppressed,
+    ).toBe(false);
+  });
+
+  test('"[runtime-smoke] health check timed out" is scoped to the runtime-smoke:launcher logger only', () => {
+    // Task #862: an unrelated logger reusing this phrase must still be filed.
+    expect(
+      classifyLogSignature('some-other-logger', '[runtime-smoke] health check timed out')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('the live-preview health-check timeout stays visible under its own logger', () => {
+    // Task #862: preview-session-manager.ts uses a distinct logger and message
+    // ("preview-session" / "dev server did not become healthy in time") — that
+    // path is a manual, user-triggered preview and is intentionally out of
+    // scope for this rule, so it must not be caught by name-only matching.
+    expect(
+      classifyLogSignature('preview-session', '[preview] dev server did not become healthy in time')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('the real event-loop-lag WARN is suppressed after normalization (task 1040)', () => {
+    expect(
+      classifyLogSignature('event-loop-lag', normalizeMessage('Event loop stalled ~3.8s'))
+        .suppressed,
+    ).toBe(true);
+  });
+
+  test('"Event loop stalled" is scoped to the event-loop-lag logger only', () => {
+    // Task 1040: an unrelated logger reusing this phrase must still be filed.
+    expect(classifyLogSignature('some-other-logger', 'Event loop stalled ~#.#s').suppressed).toBe(
+      false,
+    );
+  });
+
+  test('the event-loop-lag self-heal restart ERROR stays visible', () => {
+    // Task 1040: only the sub-threshold WARN is suppressed. A catastrophic
+    // stall triggers a distinct ERROR-level message that must not be hidden.
+    expect(
+      classifyLogSignature('event-loop-lag', '[event-loop-lag] Self-healing restart triggered')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('"Reviewed external work held: stale_task" is scoped to the error-handler logger only', () => {
+    // Task 1046: the phrase alone must not suppress an unrelated logger, and
+    // a hold reason outside EXPECTED_REPLAN_HOLD_REASONS must stay visible
+    // even under error-handler since it still takes the generic-Error path.
+    expect(
+      classifyLogSignature('some-other-logger', 'Reviewed external work held: stale_task')
+        .suppressed,
+    ).toBe(false);
+    expect(
+      classifyLogSignature('error-handler', 'Reviewed external work held: budget_exhausted')
+        .suppressed,
+    ).toBe(false);
+  });
+
+  test('"Verify was rejected by a fresh gate rejection" is scoped to the workflow-cli-executor logger only', () => {
+    // Task 1145: expected gate behaviour (verify-gate.ts:74-77). Another logger
+    // reusing the phrase must still be filed.
+    const msg =
+      '[WorkflowCLIExecutor] Verify was rejected by a fresh gate rejection — honoring it and skipping the completion epilogue';
+    expect(classifyLogSignature('workflow-cli-executor', msg).suppressed).toBe(true);
+    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    expect(
+      classifyLogSignature(
+        'workflow-cli-executor',
+        '[WorkflowCLIExecutor] Verify passed but no PR — blocking (completion requires a PR).',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"Adversarial review FAIL arrived after the workflow moved on" is scoped to routes:workflow:handlers:files only', () => {
+    // Task 1146: expected CAS guard (verify-adversarial-review.ts:239) that
+    // stops a stale FAIL from rolling back a task that already advanced.
+    const msg =
+      '[Workflow] Adversarial review FAIL arrived after the workflow moved on — skipping rollback entirely';
+    expect(classifyLogSignature('routes:workflow:handlers:files', msg).suppressed).toBe(true);
+    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    expect(
+      classifyLogSignature(
+        'routes:workflow:handlers:files',
+        '[Workflow] Adversarial review FAIL lost the compare-and-swap race',
+      ).suppressed,
+    ).toBe(false);
+  });
+
+  test('"verify.md explicitly reports a failed or partial overall verdict" is scoped to the workflow-cli-executor logger only', () => {
+    // Task 1049: this WARN is the epilogue's fail-soft observability log for
+    // validateVerify's hasNonpassingVerifyVerdict branch — repair/block itself
+    // is handled elsewhere (status-transition.ts / verify-gate.ts). Scoping to
+    // the logger keeps an unrelated source reusing this phrase filed.
+    expect(
+      classifyLogSignature(
+        'some-other-logger',
+        'verify.md explicitly reports a failed or partial overall verdict; repair is required.',
+      ).suppressed,
+    ).toBe(false);
+    expect(
+      classifyLogSignature(
+        'workflow-cli-executor',
+        '[WorkflowCLIExecutor] verify.md explicitly reports a failed or partial overall verdict; repair is required. 未達: «...»',
+      ).suppressed,
+    ).toBe(true);
+  });
+
+  test('the real task-1110 runtime-smoke OS snapshot PowerShell failure is suppressed after normalization', () => {
+    // Task 1110: readRuntimeProcessSnapshot()'s windowsScript (runtime-process-snapshot.ts:32-44)
+    // is long enough that normalizeMessage's 200-char slice never reaches the
+    // Get-CimInstance/Get-NetTCPConnection calls — the rule must match on the
+    // script's leading comment instead, which does survive the slice.
+    const raw = [
+      'Command failed: powershell.exe -NoProfile -NonInteractive -Command ',
+      "$ErrorActionPreference = 'Stop'",
+      '# execFile decodes UTF-8. CP932 bytes for characters such as ソ contain 0x5c,',
+      '# which otherwise becomes an invalid JSON escape and blocks verified cleanup.',
+      '[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)',
+      '$OutputEncoding = [Console]::OutputEncoding',
+      '$rows = @(Get-CimInstance Win32_Process | ForEach-Object {',
+      '  [pscustomobject]@{pid=[int]$_.ProcessId; parentPid=[int]$_.ParentProcessId}',
+      '})',
+    ].join('\n');
+    expect(classifyLogSignature('runtime-smoke:registry', normalizeMessage(raw)).suppressed).toBe(
+      true,
+    );
+  });
+
+  test('the runtime-smoke OS snapshot failure signature is scoped to the runtime-smoke:registry logger only', () => {
+    // Task 1110: an unrelated logger reusing the same PowerShell invocation
+    // text must still be filed.
+    const raw =
+      "Command failed: powershell.exe -NoProfile -NonInteractive -Command $ErrorActionPreference = 'Stop' " +
+      '# execFile decodes UTF-8. CP932 bytes for characters such as ソ contain 0x5c,';
+    expect(classifyLogSignature('some-other-logger', normalizeMessage(raw)).suppressed).toBe(false);
+  });
+
+  test('task 1142: removeWorktree KEEPING unmerged branch WARN (worktree-remove.ts:266-268) is suppressed, sibling branch-delete failures are not', () => {
+    // The guard keeps a branch whose commits exist on no remote; it is a
+    // designed data-loss protection (task 536), not a defect.
+    const raw =
+      '[removeWorktree] KEEPING unmerged branch bugfix/t1131-update-task — 2 commit(s) exist on no remote (tip 573e6ec1). Push or recover (git checkout -b <name> 573e6ec1) before deleting.';
+    const v = classifyLogSignature('git-operations/worktree-ops', normalizeMessage(raw));
+    expect(v.suppressed).toBe(true);
+    expect(v.because).toBeTruthy();
+    expect(
+      classifyLogSignature(
+        'git-operations/worktree-ops',
+        '[removeWorktree] Failed to delete branch bugfix/t#-update-task',
+      ).suppressed,
+    ).toBe(false);
+    expect(classifyLogSignature('some-other-logger', normalizeMessage(raw)).suppressed).toBe(false);
+  });
+
+  test('task 1156: "replan review held: not_reviewable" is suppressed for the verify roles on workflow-orchestrator only', () => {
+    // Both role spellings reach the same gate via workflow-cli-executor-epilogue.
+    // Measured 2026-10-11: role=verifier emitted this verbatim, and the original
+    // rule covered auto_verifier only, so an expected hold surfaced as an
+    // unsuppressed ERROR.
+    for (const role of ['auto_verifier', 'verifier']) {
+      const msg = `[WorkflowOrchestrator] Error in ${role}: Requirement replan review held: not_reviewable`;
+      expect(classifyLogSignature('workflow-orchestrator', normalizeMessage(msg)).suppressed).toBe(
+        true,
+      );
+      expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    }
+    for (const other of [
+      '[WorkflowOrchestrator] Error in auto_verifier: Requirement replan review held: unknown',
+      '[WorkflowOrchestrator] Error in auto_verifier: Requirement replan review held: requires_human:x',
+      '[WorkflowOrchestrator] Error in verifier: Requirement replan review held: budget_exhausted',
+      // A non-verify role is still worth seeing: it would mean the gate ran
+      // somewhere it was not expected to.
+      '[WorkflowOrchestrator] Error in planner: Requirement replan review held: not_reviewable',
+      '[WorkflowOrchestrator] Error in implementer: Requirement replan review held: not_reviewable',
+    ]) {
+      expect(classifyLogSignature('workflow-orchestrator', other).suppressed).toBe(false);
+    }
+  });
+
+  test('task 1222: "replan review held: theme_paused" is suppressed for the verify roles on workflow-orchestrator only', () => {
+    for (const role of ['auto_verifier', 'verifier']) {
+      const msg = `[WorkflowOrchestrator] Error in ${role}: Requirement replan review held: theme_paused`;
+      expect(classifyLogSignature('workflow-orchestrator', normalizeMessage(msg)).suppressed).toBe(
+        true,
+      );
+      expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    }
+    for (const other of [
+      '[WorkflowOrchestrator] Error in auto_verifier: Requirement replan review held: theme_paused_extra',
+      '[WorkflowOrchestrator] Error in auto_verifier: Requirement replan review held: unknown',
+      '[WorkflowOrchestrator] Error in verifier: Requirement replan review held: requires_human:x',
+      '[WorkflowOrchestrator] Error in planner: Requirement replan review held: theme_paused',
+    ]) {
+      expect(classifyLogSignature('workflow-orchestrator', other).suppressed).toBe(false);
+    }
+  });
+});

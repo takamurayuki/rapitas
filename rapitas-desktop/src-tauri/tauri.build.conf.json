@@ -5,8 +5,14 @@
     "beforeDevCommand": "",
     "frontendDist": "../public"
   },
+  "app": {
+    "macOSPrivateApi": true
+  },
   "bundle": {
     "active": true,
+    "linux": {
+      "rpm": { "compression": { "type": "zstd", "level": 3 } }
+    },
     "targets": ["deb", "rpm", "nsis", "msi", "dmg", "app"],
     "externalBin": [],
     "resources": [

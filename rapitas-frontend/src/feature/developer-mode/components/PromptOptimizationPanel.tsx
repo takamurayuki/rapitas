@@ -2,6 +2,7 @@
 // PromptOptimizationPanel
 
 import { Sparkles, Loader2, AlertCircle, Wand2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { usePromptOptimization } from './prompt-optimization/usePromptOptimization';
 import { ClarificationQuestionsView } from './prompt-optimization/ClarificationQuestionsView';
 import { OptimizationResultView } from './prompt-optimization/OptimizationResultView';
@@ -36,6 +37,7 @@ export function PromptOptimizationPanel({ taskId, onPromptGenerated, className =
     handleReset,
     setResult,
   } = usePromptOptimization(taskId, onPromptGenerated);
+  const t = useTranslations('devMode.promptOptimizationPanel');
 
   // ── Idle ──
   if (!result && !isGenerating && !error) {
@@ -48,10 +50,8 @@ export function PromptOptimizationPanel({ taskId, onPromptGenerated, className =
             <Wand2 className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">プロンプト最適化</h3>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-              AIがタスク説明を分析し、エージェント向けに最適化されたプロンプトを生成します。
-            </p>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">{t('description')}</p>
           </div>
           <button
             onClick={() => generatePrompt()}
@@ -59,7 +59,7 @@ export function PromptOptimizationPanel({ taskId, onPromptGenerated, className =
             className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
           >
             <Sparkles className="w-4 h-4" />
-            プロンプトを生成
+            {t('generatePrompt')}
           </button>
         </div>
       </div>
@@ -80,10 +80,8 @@ export function PromptOptimizationPanel({ taskId, onPromptGenerated, className =
             <Loader2 className="absolute -top-1 -right-1 w-6 h-6 text-indigo-500 animate-spin" />
           </div>
           <div className="text-center">
-            <p className="font-medium text-zinc-900 dark:text-zinc-50">プロンプトを最適化中...</p>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-              AIがタスクを分析しています...
-            </p>
+            <p className="font-medium text-zinc-900 dark:text-zinc-50">{t('optimizing')}</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{t('analyzingTask')}</p>
           </div>
         </div>
       </div>
@@ -99,16 +97,14 @@ export function PromptOptimizationPanel({ taskId, onPromptGenerated, className =
         <div className="flex items-center gap-3">
           <AlertCircle className="w-6 h-6 text-red-500" />
           <div className="flex-1">
-            <p className="font-medium text-red-700 dark:text-red-300">
-              プロンプト生成に失敗しました
-            </p>
+            <p className="font-medium text-red-700 dark:text-red-300">{t('generationFailed')}</p>
             <p className="text-sm text-red-600 dark:text-red-400 mt-1">{error}</p>
           </div>
           <button
             onClick={handleRetry}
             className="px-3 py-1.5 text-sm font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors"
           >
-            再試行
+            {t('retry')}
           </button>
         </div>
       </div>

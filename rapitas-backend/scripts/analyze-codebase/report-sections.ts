@@ -128,6 +128,7 @@ export function renderMaintainabilitySection(
   maintainability: MaintainabilityMetrics,
   maintainabilityScore: number,
 ): string {
+  // NOTE: toLocaleString() below formats a line count (thousands separator), not a date — out of scope for #847
   let md = `## 4. Maintainability
 
 | Metric | Value |

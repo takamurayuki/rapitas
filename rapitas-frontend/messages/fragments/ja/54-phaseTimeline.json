@@ -1,0 +1,54 @@
+{
+  "phaseTimeline": {
+    "phaseLabel": {
+      "research": "調査",
+      "plan": "計画",
+      "implement": "実装",
+      "verify": "検証"
+    },
+    "sectionTitle": "{phase}",
+    "sectionTitleIteration": "{phase} ({n}回目)",
+    "status": {
+      "running": "実行中",
+      "completed": "完了",
+      "failed": "失敗"
+    },
+    "summary": {
+      "completed": "✓ {duration} ({lines}行)",
+      "failed": "✗ {duration} ({lines}行)",
+      "runningEmpty": "実行中…ログを待機しています",
+      "verifyPassFail": "{pass} pass / {fail} fail"
+    },
+    "filter": {
+      "all": "すべて",
+      "warnOnly": "⚠のみ"
+    },
+    "scrollToBottom": "末尾へ",
+    "boundaryUncertain": "フェーズ遷移の判定が不確実です",
+    "noLogsYet": "ログを待機しています…",
+    "loadingDetail": "読み込み中…",
+    "loadFailed": "ログの取得に失敗しました",
+    "expandAria": "フェーズを展開",
+    "collapseAria": "フェーズを折りたたむ",
+    "jumpToRunning": "実行中へ",
+    "iterationChip": "{n}回目",
+    "resizeLog": "ログの高さを変更",
+    "searchPlaceholder": "ログを検索",
+    "clearSearch": "検索をクリア",
+    "noResults": "結果なし",
+    "prevMatch": "前の一致項目",
+    "nextMatch": "次の一致項目",
+    "statusLabel": {
+      "inProgress": "進行中",
+      "blocked": "ブロック中",
+      "completed": "完了",
+      "cancelled": "キャンセル"
+    },
+    "searchToggle": {
+      "caseSensitive": "大文字と小文字を区別する",
+      "wholeWord": "単語単位で検索する",
+      "regex": "正規表現を使用する"
+    },
+    "runDivider": "─────── 実行 {n}/{total} ───────"
+  }
+}

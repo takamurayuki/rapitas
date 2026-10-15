@@ -1,0 +1,379 @@
+#!/usr/bin/env bun
+/**
+ * parallel-test.ts
+ *
+ * Runs backend unit test files in parallel using OS process isolation to prevent
+ * bun mock.module process-global contamination from spreading across test files.
+ * Each file is executed as a separate `bun test --isolate <file>` subprocess;
+ * stdout/stderr is buffered per file and flushed atomically on completion.
+ * Integration tests are excluded via INTEGRATION_EXCLUDE_PATTERN from shuffle-test.ts.
+ *
+ * Environment variables:
+ *   RAPITAS_TEST_CONCURRENCY         Max parallel subprocesses (default: max(1, cpuCount-1))
+ *   RAPITAS_TEST_FAILFAST            Set to "1" to stop dispatching new files on first failure
+ *   RAPITAS_TEST_RETRY_COUNT         Additional retry attempts on failure (default: 0, disabled)
+ *   RAPITAS_TEST_REPORT              Set to "1" to write .rapitas-test-report.json on completion
+ *   RAPITAS_TEST_REPORT_PATH         Explicit output path for the test report (implies reporting)
+ *   RAPITAS_TEST_ADAPTIVE_RETRY      Set to "1" to enable per-file adaptive retry (default: off)
+ *   RAPITAS_TEST_FLAKE_WINDOW        History window size in runs for adaptive retry (default: 10)
+ *   RAPITAS_TEST_FLAKE_HIGH_THRESHOLD Flake rate threshold for extra retries (default: 0.2)
+ *   RAPITAS_TEST_FLAKE_EXTRA_RETRIES  Extra retries for high-flake files (default: 2)
+ *   RAPITAS_TEST_HIGH_FLAKE_PATTERNS  Comma-separated regexes for inherently-flaky test paths
+ *   RAPITAS_TEST_FLAKE_HISTORY_PATH   Explicit path for the flake history JSON file
+ *
+ * Usage:
+ *   bun scripts/parallel-test.ts
+ *   RAPITAS_TEST_CONCURRENCY=8 bun scripts/parallel-test.ts
+ *   RAPITAS_TEST_RETRY_COUNT=2 RAPITAS_TEST_REPORT=1 bun scripts/parallel-test.ts
+ *   RAPITAS_TEST_ADAPTIVE_RETRY=1 RAPITAS_TEST_REPORT=1 bun scripts/parallel-test.ts
+ */
+
+import { cpus } from 'os';
+import { relative, resolve } from 'path';
+import { collectTestFiles } from './shuffle-test';
+import { writeTestReport } from './test-report';
+import type { TestResultEntry } from './test-report';
+import {
+  parseRetryPolicyConfig,
+  resolveFileRetryCount,
+  updateFlakeHistory,
+  pruneFlakeHistory,
+  loadFlakeHistoryOrEmpty,
+  saveFlakeHistory,
+} from './retry-policy';
+import type { FlakeHistoryFile } from './retry-policy';
+import { extractFailureTail } from '../services/analytics/test-correlation/failure-tail';
+import { recordTestCorrelationHistory } from './test-correlation-hook';
+
+/** Completed result for a single test file subprocess. */
+export interface TestResult {
+  /** Absolute path to the test file. */
+  file: string;
+  /** Process exit code; 0 = pass. */
+  exitCode: number;
+  /** Buffered stdout from the subprocess. */
+  stdout: string;
+  /** Buffered stderr from the subprocess. */
+  stderr: string;
+  /** Wall-clock elapsed time in milliseconds. */
+  elapsedMs: number;
+}
+
+/**
+ * Parses RAPITAS_TEST_RETRY_COUNT into a non-negative integer retry count.
+ * Returns 0 (disabled) for undefined, empty, non-numeric, negative, or Infinity input.
+ *
+ * @param envValue - Raw RAPITAS_TEST_RETRY_COUNT value / 環境変数の生の値
+ * @returns Non-negative integer number of additional retry attempts (0 = no retry)
+ */
+export function parseRetryCount(envValue: string | undefined): number {
+  if (envValue === undefined || envValue === '') return 0;
+  const parsed = parseInt(envValue, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return parsed;
+}
+
+/**
+ * Resolves the max concurrent subprocess count from env or CPU count.
+ *
+ * @param envValue - Raw RAPITAS_TEST_CONCURRENCY value / 環境変数の生の値
+ * @param cpuCount - Number of logical CPU cores / 論理CPUコア数
+ * @returns Positive integer concurrency limit (minimum 1)
+ */
+export function resolveConcurrency(envValue: string | undefined, cpuCount: number): number {
+  if (envValue !== undefined && envValue !== '') {
+    const parsed = parseInt(envValue, 10);
+    // NOTE: Infinity parses as a finite value check fails, so it correctly falls back to 1.
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    return 1;
+  }
+  return Math.max(1, cpuCount - 1);
+}
+
+/**
+ * Computes the final process exit code by returning the first non-zero code seen.
+ * Negative codes are normalised to 1.
+ *
+ * @param results - Completed test results / 完了したテスト結果の配列
+ * @returns 0 if all passed; first non-zero exit code (min 1) otherwise
+ */
+export function aggregateExitCode(results: TestResult[]): number {
+  for (const r of results) {
+    if (r.exitCode !== 0) return r.exitCode > 0 ? r.exitCode : 1;
+  }
+  return 0;
+}
+
+/**
+ * Formats a one-line progress entry for a completed test file.
+ *
+ * @param index - 1-based completion count / 完了順の1始まり番号
+ * @param total - Total test file count / テストファイルの総数
+ * @param passed - true if exit code was 0 / 合格判定
+ * @param relPath - Relative path from backend root / バックエンドルートからの相対パス
+ * @param elapsedMs - Elapsed wall-clock time / 経過時間（ミリ秒）
+ * @returns Formatted "[i/N] PASS|FAIL <relPath> (Xms)" string
+ */
+export function formatProgressLine(
+  index: number,
+  total: number,
+  passed: boolean,
+  relPath: string,
+  elapsedMs: number,
+): string {
+  return `[${index}/${total}] ${passed ? 'PASS' : 'FAIL'} ${relPath} (${elapsedMs.toFixed(0)}ms)`;
+}
+
+/**
+ * Whether a file executed ZERO tests — a coverage hole, not a failed assertion.
+ *
+ * The usual cause is an import that cannot resolve: `mock.module` replaces the
+ * whole module record, so one omitted export makes the whole file error out
+ * before any test runs. bun reports that as "0 pass / 1 fail / 1 error", which
+ * is indistinguishable from a single bad assertion once it is folded into a
+ * 1141-file failure count — five files were in that state on 2026-10-07, hiding
+ * 29 tests. Reported separately so the summary line names it.
+ *
+ * Returns false when the output carries no recognisable tally at all: that is
+ * "unknown" (a spawn failure or a timeout), and mislabelling it as a load error
+ * would send the reader to the wrong cause.
+ *
+ * @param stdout - The subprocess stdout. / 子プロセスの標準出力
+ * @param stderr - The subprocess stderr. / 子プロセスの標準エラー
+ * @returns true when bun reported zero passing tests. / 1件も走っていない場合 true
+ */
+export function ranNoTests(stdout: string, stderr: string): boolean {
+  // bun prints the tally as " 0 pass" on its own line. Anchoring to a line start
+  // keeps " 10 pass" / " 20 pass" from matching.
+  return /(?:^|\n)[ \t]*0 pass\b/.test(`${stdout}\n${stderr}`);
+}
+
+/**
+ * Build the one-line run summary.
+ *
+ * @param passedCount - Files whose subprocess exited 0. / 成功ファイル数
+ * @param failedCount - Files whose subprocess exited non-zero. / 失敗ファイル数
+ * @param notRunCount - Of those, how many ran no tests at all. / うち未実行ファイル数
+ * @param wallMs - Wall-clock duration. / 実時間（ミリ秒）
+ * @returns The summary line. / 集計行
+ */
+export function formatSummaryLine(
+  passedCount: number,
+  failedCount: number,
+  notRunCount: number,
+  wallMs: number,
+): string {
+  const notRun =
+    notRunCount > 0 ? ` (${notRunCount} ran NO tests — import/mock error, not an assertion)` : '';
+  return `[parallel-test] ${passedCount} passed, ${failedCount} failed${notRun} in ${(wallMs / 1000).toFixed(1)}s`;
+}
+
+/**
+ * Runs one test file in a subprocess and returns the buffered result.
+ * Spawn failure is reported as exit code 1 rather than throwing.
+ *
+ * @param file - Absolute path of the test file / テストファイルの絶対パス
+ * @param root - Backend root used as subprocess cwd / サブプロセスの作業ディレクトリ
+ * @returns Resolved TestResult after the subprocess exits
+ */
+export async function runFile(file: string, root: string): Promise<TestResult> {
+  const start = performance.now();
+  let proc: ReturnType<typeof Bun.spawn<'ignore', 'pipe', 'pipe'>>;
+  try {
+    // NOTE: File is passed as a separate array element — avoids shell injection / quoting issues.
+    // --isolate: double-protection on top of bunfig.toml's `isolate = true`.
+    proc = Bun.spawn(['bun', 'test', '--isolate', file], {
+      cwd: root,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env },
+    });
+  } catch (err) {
+    return {
+      file,
+      exitCode: 1,
+      stdout: '',
+      stderr: `[parallel-test] Spawn failed: ${String(err)}\n`,
+      elapsedMs: performance.now() - start,
+    };
+  }
+
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+
+  return {
+    file,
+    exitCode,
+    stdout,
+    stderr,
+    elapsedMs: performance.now() - start,
+  };
+}
+
+async function main(): Promise<void> {
+  const root = resolve(import.meta.dir, '..');
+  const concurrency = resolveConcurrency(process.env.RAPITAS_TEST_CONCURRENCY, cpus().length);
+  const failFast = process.env.RAPITAS_TEST_FAILFAST === '1';
+  const retryCount = parseRetryCount(process.env.RAPITAS_TEST_RETRY_COUNT);
+
+  const policyConfig = parseRetryPolicyConfig(process.env);
+  let flakeHistory: FlakeHistoryFile = {
+    version: 1,
+    updatedAt: '',
+    entries: {},
+  };
+  if (policyConfig.enabled) {
+    flakeHistory = loadFlakeHistoryOrEmpty(root);
+  }
+
+  const files = await collectTestFiles(root);
+
+  if (files.length === 0) {
+    console.warn('[parallel-test] No test files found — exiting with success.');
+    process.exit(0);
+  }
+
+  const retryDisplay = policyConfig.enabled
+    ? 'retry=adaptive'
+    : retryCount > 0
+      ? `retry=${retryCount}`
+      : '';
+  console.log(
+    `[parallel-test] files=${files.length} concurrency=${concurrency}${failFast ? ' fail-fast=ON' : ''}${retryDisplay ? ` ${retryDisplay}` : ''}`,
+  );
+  const wallStart = performance.now();
+
+  const results: TestResult[] = [];
+  const reportResults: TestResultEntry[] = [];
+  let completed = 0;
+  let firstFailCode = 0;
+  const queue = [...files];
+
+  /**
+   * Worker loop: each worker consumes files from the shared queue sequentially.
+   * Multiple workers run concurrently, draining the queue in parallel.
+   * NOTE: queue.shift() is race-free because JS is single-threaded — no await
+   * between the length check and the shift, so no other worker can interleave.
+   * NOTE: Retry happens within the current file before dispatching the next one,
+   * so fail-fast only stops new dispatches after all retries for the current file finish.
+   */
+  async function worker(): Promise<void> {
+    while (queue.length > 0) {
+      if (failFast && firstFailCode !== 0) break;
+      const file = queue.shift();
+      if (!file) break;
+
+      const relPath = relative(root, file);
+      const fileRetryCount = resolveFileRetryCount(relPath, retryCount, flakeHistory, policyConfig);
+      let result = await runFile(file, root);
+      let attempts = 1;
+
+      // Retry on failure up to fileRetryCount additional times.
+      while (result.exitCode !== 0 && attempts <= fileRetryCount) {
+        console.log(`[parallel-test] Retry ${attempts}/${fileRetryCount}: ${relPath}`);
+        result = await runFile(file, root);
+        attempts++;
+      }
+
+      const flaky = result.exitCode === 0 && attempts > 1;
+
+      completed++;
+      const passed = result.exitCode === 0;
+      console.log(formatProgressLine(completed, files.length, passed, relPath, result.elapsedMs));
+
+      // Flush buffered output atomically for this file immediately on completion.
+      if (result.stdout.trim() || result.stderr.trim()) {
+        console.log(`\n--- ${relPath} ---`);
+        if (result.stdout.trim()) process.stdout.write(result.stdout);
+        if (result.stderr.trim()) process.stderr.write(result.stderr);
+      }
+
+      results.push(result);
+      reportResults.push({
+        file: relPath,
+        elapsedMs: result.elapsedMs,
+        exitCode: result.exitCode,
+        attempts,
+        flaky,
+        ...(passed
+          ? {}
+          : {
+              failureTail: extractFailureTail(`${result.stdout}
+${result.stderr}`),
+            }),
+      });
+
+      if (!passed && firstFailCode === 0) {
+        firstFailCode = result.exitCode > 0 ? result.exitCode : 1;
+      }
+    }
+  }
+
+  // Launch min(concurrency, files.length) workers; each drains the shared queue.
+  const workers = Array.from({ length: Math.min(concurrency, files.length) }, () => worker());
+  await Promise.all(workers);
+
+  const wallMs = performance.now() - wallStart;
+  const failedResults = results.filter((r) => r.exitCode !== 0);
+  const passedCount = results.length - failedResults.length;
+  // Files that ran NO tests are called out separately: they are a silent
+  // coverage hole, and the one line everyone reads has to distinguish them from
+  // an ordinary red assertion.
+  const notRunResults = failedResults.filter((r) => ranNoTests(r.stdout, r.stderr));
+
+  console.log('\n' + '='.repeat(60));
+  console.log(formatSummaryLine(passedCount, failedResults.length, notRunResults.length, wallMs));
+
+  if (notRunResults.length > 0) {
+    console.log('\n[parallel-test] FILES THAT RAN NO TESTS (zero coverage from these):');
+    for (const r of notRunResults) {
+      console.log(`  ⚠ ${relative(root, r.file)}`);
+    }
+  }
+
+  if (failedResults.length > 0) {
+    console.log('\n[parallel-test] FAILED FILES:');
+    for (const r of failedResults) {
+      console.log(`  ✗ ${relative(root, r.file)}`);
+    }
+    console.log('\n[parallel-test] FAILED OUTPUT:');
+    for (const r of failedResults) {
+      const relPath = relative(root, r.file);
+      console.log(`\n=== FAIL: ${relPath} ===`);
+      if (r.stdout.trim()) process.stdout.write(r.stdout);
+      if (r.stderr.trim()) process.stderr.write(r.stderr);
+    }
+  }
+
+  // Update and persist flake history after all workers complete (no concurrency risk here).
+  if (policyConfig.enabled) {
+    const now = new Date().toISOString();
+    const updated = updateFlakeHistory(flakeHistory, reportResults, now);
+    const pruned = pruneFlakeHistory(updated, policyConfig.historyWindow);
+    saveFlakeHistory(pruned, root);
+  }
+
+  // Record this run into the test-correlation history store (never affects exit code — see test-correlation-hook.ts).
+  const failureOutputs = Object.fromEntries(
+    failedResults.map((r) => [relative(root, r.file), `${r.stdout}\n${r.stderr}`]),
+  );
+  await recordTestCorrelationHistory(reportResults, root, failureOutputs);
+
+  // Write test report if enabled via env (RAPITAS_TEST_REPORT=1 or RAPITAS_TEST_REPORT_PATH).
+  const reportPath = writeTestReport(reportResults, wallMs, new Date().toISOString(), root);
+  if (reportPath) {
+    console.log(`[parallel-test] Test report written to: ${reportPath}`);
+  }
+
+  process.exit(aggregateExitCode(results));
+}
+
+// NOTE: Guard prevents main() from running when this file is imported by unit tests.
+if (import.meta.main) {
+  main().catch((err: unknown) => {
+    console.error('[parallel-test] Fatal error:', err);
+    process.exit(1);
+  });
+}

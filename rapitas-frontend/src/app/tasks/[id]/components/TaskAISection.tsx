@@ -148,6 +148,10 @@ export default function TaskAISection({
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     if (isExecuting || isParallelExecutionRunning) {
+      // NOTE: Extended from 5s to 15s — this poll is for subtask discovery and status
+      // badges, not for the live execution log (that's useExecutionPolling at 1s).
+      // 15s is still fast enough to surface newly created subtasks without the
+      // tripled fetch rate causing noticeable backend load during parallel auto-run.
       pollIntervalRef.current = setInterval(async () => {
         try {
           const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
@@ -161,7 +165,7 @@ export default function TaskAISection({
         } catch {
           /* non-critical */
         }
-      }, 5000);
+      }, 15_000);
     }
     return () => {
       if (pollIntervalRef.current) {
@@ -178,7 +182,7 @@ export default function TaskAISection({
         className={
           embedded
             ? 'animate-pulse border-t border-zinc-200 dark:border-zinc-700'
-            : 'rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden animate-pulse'
+            : 'bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden animate-pulse'
         }
       >
         <div className="px-4 py-2.5 flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-800">
@@ -316,6 +320,7 @@ export default function TaskAISection({
       showAgentPanel={true}
       executionCapability={deriveExecutionCapability(task, cliAvailability)}
       themeId={task.themeId}
+      taskStatus={task.status}
       isExecuting={isExecuting}
       executionStatus={executionStatus as Parameters<typeof AIAccordionPanel>[0]['executionStatus']}
       executionResult={executionResult as Parameters<typeof AIAccordionPanel>[0]['executionResult']}

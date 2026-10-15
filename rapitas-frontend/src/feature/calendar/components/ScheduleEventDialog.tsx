@@ -11,9 +11,11 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { X, Clock, ChevronDown, CalendarDays } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { ScheduleEventInput } from '@/types';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
+import DateField from '@/components/ui/date-field/DateField';
 import { DEFAULT_EVENT_COLOR, DEFAULT_REMINDER_MINUTES, QUICK_TIMES } from './schedule-constants';
 import { getDefaultTimes, toUTCISO, calcDayCount, resolveEndAt } from './schedule-utils';
 import { ScheduleOptionsPanel } from './ScheduleOptionsPanel';
@@ -32,8 +34,9 @@ type Props = {
  * @param onSubmit - Async callback to persist the event / イベントを保存する非同期コールバック
  */
 export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }: Props) {
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
+  const t = useTranslations('calendar');
+  const tq = useTranslations('calendar.scheduleConstants');
+  const td = useTranslations('calendar.scheduleEventDialog');
   const defaults = getDefaultTimes();
 
   const [title, setTitle] = useState('');
@@ -49,6 +52,13 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
   const [submitting, setSubmitting] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Trap Tab focus inside the panel; declared before the title auto-focus
+  // effect below so that effect's explicit titleRef focus wins (React runs
+  // effects in declaration order, and useFocusTrap would otherwise steal
+  // focus to the first focusable element — the close button in the header).
+  useFocusTrap(panelRef, true);
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -84,19 +94,8 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
     }
   };
 
-  const formattedStartDate = new Date(startDate).toLocaleDateString(dateLocale, {
-    month: 'long',
-    day: 'numeric',
-    weekday: 'short',
-  });
-  const formattedEndDate =
-    isMultiDay && endDate > startDate
-      ? new Date(endDate).toLocaleDateString(dateLocale, {
-          month: 'long',
-          day: 'numeric',
-          weekday: 'short',
-        })
-      : null;
+  const formattedStartDate = formatDate(startDate);
+  const formattedEndDate = isMultiDay && endDate > startDate ? formatDate(endDate) : null;
   const isWeekend = [0, 6].includes(new Date(startDate).getDay());
   const dayCount = calcDayCount(startDate, endDate);
 
@@ -106,6 +105,11 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={td('addPrompt')}
+        tabIndex={-1}
         className="bg-white dark:bg-zinc-800 sm:rounded-2xl rounded-t-2xl border border-zinc-200 dark:border-zinc-700 shadow-2xl w-full sm:max-w-md animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
@@ -124,9 +128,7 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
                 style={{ backgroundColor: color }}
               >
                 <span className="text-[10px] leading-none opacity-80 uppercase">
-                  {new Date(startDate).toLocaleDateString(dateLocale, {
-                    month: 'short',
-                  })}
+                  {formatDate(startDate)}
                 </span>
                 <span className="text-lg leading-none font-bold">
                   {new Date(startDate).getDate()}
@@ -142,16 +144,19 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
                   <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
                     〜 {formattedEndDate}
                     <span className="ml-1 text-indigo-500 dark:text-indigo-400 font-medium">
-                      ({dayCount}日間)
+                      {t('dayCountSuffix', { count: dayCount })}
                     </span>
                   </p>
                 ) : (
-                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">予定を追加</p>
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+                    {td('addPrompt')}
+                  </p>
                 )}
               </div>
             </div>
             <button
               onClick={onClose}
+              aria-label="Close"
               className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
@@ -167,7 +172,7 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="タイトルを入力"
+            placeholder={t('titleInputPlaceholder')}
             className="w-full py-3 text-lg font-medium bg-transparent text-zinc-900 dark:text-zinc-50 placeholder-zinc-300 dark:placeholder-zinc-600 focus:outline-none border-b border-zinc-100 dark:border-zinc-700 focus:border-indigo-400 dark:focus:border-indigo-500 transition-colors"
           />
 
@@ -180,7 +185,7 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
                 onClick={() => setIsAllDay(true)}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${isAllDay ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`}
               >
-                終日
+                {t('allDay')}
               </button>
               <button
                 type="button"
@@ -188,7 +193,7 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${!isAllDay ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`}
               >
                 <Clock className="w-3.5 h-3.5" />
-                時間指定
+                {td('timedOption')}
               </button>
               <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-600" />
               <button
@@ -200,7 +205,7 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${isMultiDay ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-300 dark:ring-indigo-700' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`}
               >
                 <CalendarDays className="w-3.5 h-3.5" />
-                複数日
+                {t('legendMultiDay')}
               </button>
             </div>
 
@@ -209,29 +214,29 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
               <div className="flex items-center gap-2">
                 <div className="flex-1">
                   <label className="block text-xs text-zinc-400 dark:text-zinc-500 mb-1">
-                    開始日
+                    {t('startDate')}
                   </label>
-                  <input
-                    type="date"
+                  <DateField
                     value={startDate}
-                    onChange={(e) => {
-                      setStartDate(e.target.value);
-                      if (e.target.value > endDate) setEndDate(e.target.value);
+                    onChange={(value) => {
+                      setStartDate(value);
+                      if (value > endDate) setEndDate(value);
                     }}
-                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
+                    aria-label={t('startDate')}
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400 text-sm transition-all"
                   />
                 </div>
                 <div className="w-5 h-px bg-zinc-300 dark:bg-zinc-600 shrink-0 mt-5" />
                 <div className="flex-1">
                   <label className="block text-xs text-zinc-400 dark:text-zinc-500 mb-1">
-                    終了日
+                    {t('endDate')}
                   </label>
-                  <input
-                    type="date"
+                  <DateField
                     value={endDate}
                     min={startDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
+                    onChange={setEndDate}
+                    aria-label={t('endDate')}
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400 text-sm transition-all"
                   />
                 </div>
               </div>
@@ -243,7 +248,7 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
                 <div className="flex gap-1.5">
                   {QUICK_TIMES.map((qt) => (
                     <button
-                      key={qt.label}
+                      key={qt.labelKey}
                       type="button"
                       onClick={() => {
                         setStartTime(qt.start);
@@ -251,7 +256,7 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
                       }}
                       className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${startTime === qt.start && endTime === qt.end ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-300 dark:ring-indigo-700' : 'bg-zinc-50 dark:bg-zinc-700/50 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'}`}
                     >
-                      {qt.label}
+                      {tq(qt.labelKey)}
                     </button>
                   ))}
                 </div>
@@ -266,14 +271,14 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
                       const endH = (h + 1) % 24; // NOTE: wraps midnight (23:xx → 00:xx)
                       setEndTime(`${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
                     }}
-                    className="flex-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
+                    className="flex-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
                   />
                   <div className="w-5 h-px bg-zinc-300 dark:bg-zinc-600 shrink-0" />
                   <input
                     type="time"
                     value={endTime}
                     onChange={(e) => setEndTime(e.target.value)}
-                    className="flex-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
+                    className="flex-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
                   />
                 </div>
               </div>
@@ -289,7 +294,7 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
             <ChevronDown
               className={`w-3.5 h-3.5 transition-transform duration-200 ${showOptions ? 'rotate-180' : ''}`}
             />
-            {showOptions ? 'オプションを閉じる' : 'カラー・リマインド・メモ'}
+            {showOptions ? t('optionsToggle.close') : t('optionsToggle.open')}
           </button>
 
           {showOptions && (
@@ -313,10 +318,10 @@ export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }:
             {submitting ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                作成中...
+                {t('creating')}
               </span>
             ) : (
-              '追加する'
+              td('addButton')
             )}
           </button>
         </form>

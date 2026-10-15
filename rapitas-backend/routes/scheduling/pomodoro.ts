@@ -10,6 +10,7 @@ import {
   resumePomodoro,
   completePomodoro,
   cancelPomodoro,
+  checkpointPomodoro,
   getStatistics,
   getHistory,
 } from '../../services/scheduling/pomodoro-service';
@@ -34,7 +35,7 @@ export const pomodoroRoutes = new Elysia({ prefix: '/pomodoro' })
     async ({ body, set }) => {
       try {
         const b = body as {
-          taskId?: number;
+          taskId?: number | null;
           duration?: number;
           type?: 'work' | 'short_break' | 'long_break';
           completedPomodoros?: number;
@@ -54,7 +55,7 @@ export const pomodoroRoutes = new Elysia({ prefix: '/pomodoro' })
     },
     {
       body: t.Object({
-        taskId: t.Optional(t.Number()),
+        taskId: t.Optional(t.Nullable(t.Number())),
         duration: t.Optional(t.Number({ minimum: 60, maximum: 7200 })),
         type: t.Optional(
           t.Union([t.Literal('work'), t.Literal('short_break'), t.Literal('long_break')]),
@@ -118,6 +119,23 @@ export const pomodoroRoutes = new Elysia({ prefix: '/pomodoro' })
         success: false,
         error: error instanceof Error ? error.message : '完了処理に失敗しました',
       };
+    }
+  })
+
+  .post('/sessions/:id/checkpoint', async ({ params, set }) => {
+    try {
+      const sessionId = parseInt(params.id);
+      if (isNaN(sessionId)) {
+        set.status = 400;
+        return { success: false, error: '無効なセッションIDです' };
+      }
+      const result = await checkpointPomodoro(sessionId);
+      return { success: true, ...result };
+    } catch (error) {
+      log.error({ err: error }, 'Checkpoint pomodoro error');
+      const message = error instanceof Error ? error.message : '途中記録に失敗しました';
+      set.status = message === 'セッションが見つかりません' ? 404 : 400;
+      return { success: false, error: message };
     }
   })
 

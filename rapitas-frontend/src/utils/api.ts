@@ -1,4 +1,5 @@
 import { createLogger } from '@/lib/logger';
+import { mergeUiSourceHeaders } from '@/lib/api-headers';
 
 const logger = createLogger('Api');
 
@@ -6,7 +7,7 @@ const logger = createLogger('Api');
  * API Base URL
  * Retrieved from environment variable, falls back to default value
  */
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:3001';
 
 /**
  * Helper function to construct API endpoints
@@ -53,6 +54,9 @@ export async function fetchWithRetry(
 ): Promise<Response> {
   let lastError: Error | undefined;
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : 'unknown';
+  // NOTE: Built once outside the retry loop so every attempt carries the same
+  // headers; the X-Rapitas-Source tag feeds the backend's UI-quiet restart gate.
+  const headers = mergeUiSourceHeaders(init);
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
@@ -76,6 +80,7 @@ export async function fetchWithRetry(
 
       const response = await fetch(input, {
         ...init,
+        headers,
         signal: combinedSignal,
       });
 

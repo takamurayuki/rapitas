@@ -73,3 +73,43 @@ jobs:
           HEALTH_TIMEOUT_MS: 30000
           PORT_FREE_TIMEOUT_MS: 10000
         run: bun run e2e
+
+  # Advisory (continue-on-error): a new job rather than a required check, so
+  # early instability in this 2026-09 addition can't repeat the PR#610 pattern
+  # (10+ days of unresolved CI failure leading to task closure — see
+  # docs/eval-private-set.md). Uses its own throwaway SQLite file (PORT=3211,
+  # never 3210/3001/3000) instead of the postgres service above.
+  fault-injection-e2e:
+    name: Fault Injection E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install backend dependencies
+        working-directory: rapitas-backend
+        run: bun install
+
+      - name: Run unit tests for fault-injection helpers
+        working-directory: rapitas-backend
+        run: |
+          bun test scripts/fault-scenarios/__tests__/
+          bun test scripts/__tests__/fault-injection-e2e.test.ts
+          bun test scripts/__tests__/eval-runner.test.ts
+          bun test scripts/__tests__/eval-collect-cases.test.ts
+          bun test eval/private-set/case-schema.test.ts
+
+      - name: Run fault-injection E2E
+        working-directory: rapitas-backend
+        env:
+          # NOTE: PORT must not be 3001, 3000, or 3210; script enforces the 3001/3000 guard.
+          PORT: 3211
+          NODE_ENV: test
+        run: bun run eval:fault-injection

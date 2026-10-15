@@ -7,53 +7,58 @@
 
 import type { MemoAnalysis, TaskActivity } from './types';
 
+/** Translator shape accepted by timeAgo / generateMockTaskActivities. */
+type TFunc = (key: string, values?: Record<string, number | string>) => string;
+
 /**
  * Returns a human-readable relative time string for a given date.
  *
  * @param d - The date to format / フォーマットする日付
- * @returns Relative time string in Japanese / 日本語の相対時間文字列
+ * @param t - Translator bound to the `task` namespace / `task` 名前空間の翻訳関数
+ * @returns Relative time string / 相対時間文字列
  */
-export const timeAgo = (d: Date): string => {
+export const timeAgo = (d: Date, t: TFunc): string => {
   const m = Math.floor((Date.now() - d.getTime()) / 60000);
-  if (m < 1) return '今';
-  if (m < 60) return `${m}分前`;
+  if (m < 1) return t('time.now');
+  if (m < 60) return t('time.minutesAgo', { count: m });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}時間前`;
+  if (h < 24) return t('time.hoursAgo', { count: h });
   const days = Math.floor(h / 24);
-  if (days < 30) return `${days}日前`;
-  return `${Math.floor(days / 30)}ヶ月前`;
+  if (days < 30) return t('time.daysAgo', { count: days });
+  return t('time.monthsAgo', { count: Math.floor(days / 30) });
 };
 
 /**
  * Generates mock task activity history for a given task.
  *
  * @param taskId - Numeric task identifier / タスクID
+ * @param t - Translator bound to the `task` namespace / `task` 名前空間の翻訳関数
  * @returns Array of mock TaskActivity objects / モックのTaskActivityの配列
  */
-export const generateMockTaskActivities = (taskId: number): TaskActivity[] => [
+export const generateMockTaskActivities = (taskId: number, t: TFunc): TaskActivity[] => [
   {
     id: `${taskId}-1`,
     type: 'status_change',
-    action: 'ステータスを変更',
-    details: 'TODO → 進行中',
-    user: 'システム',
+    action: t('mockActivity.statusChanged'),
+    details: t('mockActivity.todoToInProgress'),
+    user: t('mockActivity.system'),
     timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
     changes: { status: { from: 'todo', to: 'in-progress' } },
   },
   {
     id: `${taskId}-2`,
     type: 'priority_change',
-    action: '優先度を変更',
-    details: '中 → 高',
-    user: 'ユーザー',
+    action: t('mockActivity.priorityChanged'),
+    details: t('mockActivity.mediumToHigh'),
+    user: t('mockActivity.user'),
     timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
     changes: { priority: { from: 'medium', to: 'high' } },
   },
   {
     id: `${taskId}-3`,
     type: 'assignment',
-    action: 'タスクを作成',
-    user: 'システム',
+    action: t('mockActivity.taskCreated'),
+    user: t('mockActivity.system'),
     timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
   },
 ];
@@ -63,9 +68,10 @@ export const generateMockTaskActivities = (taskId: number): TaskActivity[] => [
  * Performs a mock AI analysis of memo content, returning sentiment, keywords, and action items.
  *
  * @param content - Raw memo text to analyze / 分析するメモのテキスト
+ * @param t - Translator bound to the `task` namespace / `task` 名前空間の翻訳関数
  * @returns Resolved MemoAnalysis object / MemoAnalysisオブジェクト
  */
-export const analyzeMemo = async (content: string): Promise<MemoAnalysis> => {
+export const analyzeMemo = async (content: string, t: TFunc): Promise<MemoAnalysis> => {
   await new Promise((resolve) => setTimeout(resolve, 1500));
 
   const length = content.length;
@@ -100,8 +106,8 @@ export const analyzeMemo = async (content: string): Promise<MemoAnalysis> => {
 
   let summary = content.length > 50 ? content.substring(0, 47) + '...' : content;
 
-  if (hasActionWords) summary = `${summary} (アクション項目を含む)`;
-  if (hasIssueWords) summary = `${summary} (課題を報告)`;
+  if (hasActionWords) summary = `${summary} ${t('mockAnalysis.actionItemsSuffix')}`;
+  if (hasIssueWords) summary = `${summary} ${t('mockAnalysis.issueReportedSuffix')}`;
 
   return {
     summary,

@@ -1,0 +1,201 @@
+{
+  "notes": {
+    "common": {
+      "note": "ノート",
+      "split": "両方",
+      "searchPlaceholder": "ノートを検索...",
+      "newNote": "新規ノート",
+      "untitled": "(無題)",
+      "noNotes": "ノートがありません",
+      "default": "デフォルト",
+      "swapNoteLeft": "ノートを左に移動（AIを右に）",
+      "swapNoteRight": "ノートを右に移動（AIを左に）",
+      "swapAriaLabel": "左右を入れ替える"
+    },
+    "docTypes": {
+      "requirements": "要件定義",
+      "design": "設計書",
+      "minutes": "議事録",
+      "procedure": "手順書",
+      "specification": "仕様書",
+      "memo": "メモ"
+    },
+    "page": {
+      "headerTitle": "ノート"
+    },
+    "aiTab": {
+      "providerLabel": "AIプロバイダー",
+      "apiKeyLink": "設定画面でAPIキーを登録",
+      "modelLabel": "モデル",
+      "emptyTitle": "AIアシスタント",
+      "emptyLine1": "タスク管理、学習計画、コーディングの質問など、",
+      "emptyLine2": "あなたの作業をサポートします。",
+      "thinking": "考え中...",
+      "settingsTitle": "AI設定",
+      "clearChatTitle": "会話をクリア",
+      "messagePlaceholder": "メッセージを入力...",
+      "sendHint": "Enter で送信・Shift+Enter で改行"
+    },
+    "chatMessage": {
+      "copyCodeTitle": "コードをコピー"
+    },
+    "deleteModal": {
+      "title": "ノートの削除",
+      "subtitle": "この操作は取り消せません",
+      "confirmQuestion": "「<b>{noteTitle}</b>」を削除しますか？"
+    },
+    "diagramEdit": {
+      "headerTitle": "ダイアグラム編集",
+      "templatesLabel": "テンプレート:",
+      "templates": {
+        "flowchart": "フローチャート",
+        "sequence": "シーケンス図",
+        "state": "状態遷移図",
+        "er": "ER図",
+        "class": "クラス図",
+        "gantt": "Gantt"
+      },
+      "sourceLabel": "Mermaid ソース",
+      "sourcePlaceholder": "Mermaidコードを入力...",
+      "previewLabel": "プレビュー",
+      "rendering": "レンダリング中...",
+      "syntaxError": "⚠ 構文エラー — Mermaidの記法を確認してください"
+    },
+    "editorContentLabel": "ノート本文",
+    "editorToolbar": {
+      "boldTitle": "太字 (Ctrl+B)",
+      "italicTitle": "斜体 (Ctrl+I)",
+      "underlineTitle": "下線 (Ctrl+U)",
+      "bulletListTitle": "箇条書き",
+      "numberedListTitle": "番号付きリスト"
+    },
+    "editorFooter": {
+      "createdAt": "作成: {date}",
+      "updatedAt": "更新: {date}"
+    },
+    "editorHeader": {
+      "titlePlaceholder": "タイトルを入力...",
+      "deleteNoteTitle": "このノートを削除",
+      "saveTitle": "保存（Ctrl+S）",
+      "saved": "保存済み",
+      "noType": "種別なし"
+    },
+    "toolbar": {
+      "blockStyle": {
+        "title": "テキストスタイル",
+        "normal": "標準テキスト",
+        "h1": "見出し1",
+        "h2": "見出し2",
+        "h3": "見出し3"
+      },
+      "fontPicker": {
+        "fontTitle": "フォント",
+        "fontSizeTitle": "フォントサイズ"
+      },
+      "highlight": {
+        "highlightTitle": "ハイライト",
+        "colorSample": "{name}サンプル"
+      },
+      "insert": {
+        "linkInsertTitle": "リンク挿入",
+        "urlPlaceholder": "URLを入力...",
+        "insertButton": "挿入",
+        "borderLineTitle": "縦線",
+        "tableInsertTitle": "テーブル挿入",
+        "diagramInsertTitle": "ダイアグラム挿入（Mermaid）",
+        "codeBlockInsertTitle": "コードブロック挿入",
+        "selectLanguageLabel": "プログラミング言語を選択"
+      },
+      "textColor": {
+        "textColorTitle": "文字色",
+        "textColorLabel": "テキスト色"
+      }
+    },
+    "modalHeader": {
+      "ariaLabel": "ノートモーダル",
+      "searchAriaLabel": "ノートを検索",
+      "maximizeTitle": "全画面表示",
+      "restoreTitle": "元のサイズに戻す"
+    },
+    "tabContent": {
+      "emptyStateText": "ノートを選択するか、新規作成してください",
+      "createNoteButton": "新規ノート作成"
+    },
+    "hoverSidebar": {
+      "clearFilters": "フィルターをクリア",
+      "noSearchResults": "検索結果がありません",
+      "noContent": "内容なし",
+      "yesterday": "昨日",
+      "daysAgo": "{days}日前"
+    },
+    "sidebar": {
+      "noSearchResults": "検索結果なし"
+    },
+    "editorColors": {
+      "highlight": {
+        "yellow": "イエロー",
+        "green": "グリーン",
+        "blue": "ブルー",
+        "pink": "ピンク",
+        "purple": "パープル",
+        "orange": "オレンジ"
+      },
+      "border": {
+        "gray": "グレー",
+        "blue": "ブルー",
+        "green": "グリーン",
+        "red": "レッド",
+        "purple": "パープル",
+        "orange": "オレンジ"
+      },
+      "quickText": {
+        "black": "黒",
+        "red": "赤",
+        "orange": "橙",
+        "green": "緑",
+        "blue": "青",
+        "purple": "紫"
+      },
+      "highlightStyle": {
+        "full": "全体",
+        "boldMarker": "太マーカー",
+        "thinMarker": "細マーカー",
+        "underline": "下線"
+      },
+      "font": {
+        "default": "デフォルト",
+        "notoSansJp": "Noto Sans JP",
+        "hiraginoSans": "ヒラギノ角ゴ",
+        "yuGothic": "游ゴシック",
+        "meiryo": "メイリオ",
+        "msGothic": "MS ゴシック",
+        "georgia": "Georgia",
+        "arial": "Arial",
+        "timesNewRoman": "Times New Roman",
+        "courierNew": "Courier New",
+        "consolas": "Consolas"
+      }
+    },
+    "editorDom": {
+      "collapseToggleTitle": "折りたたむ / 展開する",
+      "descPlaceholder": "この処理の説明を入力...",
+      "copyButtonText": "コピー",
+      "copyButtonDoneText": "✓ コピー済",
+      "deleteButtonTitle": "コードブロックを削除",
+      "codePlaceholder": "// ここにコードを入力...",
+      "diagramDeleteTitle": "ダイアグラムを削除",
+      "diagramLoadingText": "ダイアグラムを読み込み中...",
+      "diagramSyntaxError": "構文エラー — Mermaidの記法を確認してください",
+      "linkCopyDoneText": "コピーしました！",
+      "tableHeading1": "見出し1",
+      "tableHeading2": "見出し2",
+      "tableHeading3": "見出し3"
+    },
+    "aiService": {
+      "apiError": "APIエラー: {status} {statusText}",
+      "communicationError": "AIとの通信中にエラーが発生しました",
+      "streamUnavailable": "レスポンスストリームを取得できませんでした",
+      "responseFailed": "応答の取得に失敗しました"
+    }
+  }
+}

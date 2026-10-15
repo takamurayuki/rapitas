@@ -7,9 +7,23 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import type { LearningStats, GrowthTimeline, GrowthTimelineEntry, MemoryOverview } from './types';
+import type { LearningStats, MemoryOverview } from './types';
 
 const log = createLogger('self-learning:learning');
+
+// Classification of WorkflowTransition.cause values as proxies for whether a
+// task's completion is backed by external evidence (PR merged, CI green,
+// verification passed) — see plan.md §acceptedTaskRateの算出定義
+// (autonomy audit 2026-09-06, first step toward a proper `accepted` concept).
+// Values confirmed present in services/workflow/*.ts before classification
+// (per implementer notes — unmatched causes fail closed into "unknown").
+const ACCEPTED_CAUSES = new Set([
+  'verify_passed',
+  'verify_no_change_confirmed',
+  'pr_ci_completed',
+  'auto_merged',
+]);
+const NOT_ACCEPTED_CAUSES = new Set(['verify_pr_not_created', 'auto_merge_blocked']);
 
 /**
  * Returns aggregate learning statistics including experiment counts,
@@ -23,8 +37,10 @@ export async function getLearningStats(): Promise<LearningStats> {
     completedExperiments,
     topPatterns,
     promptImprovements,
+    confirmedPromptImprovements,
     nodeCount,
     edgeCount,
+    acceptedStats,
   ] = await Promise.all([
     prisma.experiment.count(),
     prisma.experiment.count({ where: { status: 'completed' } }),
@@ -34,8 +50,12 @@ export async function getLearningStats(): Promise<LearningStats> {
       select: { id: true, description: true, occurrences: true },
     }),
     prisma.promptEvolution.count(),
+    // Only a completed before/after pair with a positive delta is evidence of
+    // an improvement; proposals and approvals are not (audit 2026-09-06).
+    prisma.promptEvolution.count({ where: { status: 'completed', performanceDelta: { gt: 0 } } }),
     prisma.knowledgeGraphNode.count(),
     prisma.knowledgeGraphEdge.count(),
+    computeAcceptedTaskStats(),
   ]);
 
   const recentExperiments = await prisma.experiment.findMany({
@@ -52,99 +72,110 @@ export async function getLearningStats(): Promise<LearningStats> {
     })
     .filter(Boolean) as string[];
 
+  // NOTE: "success" here has always meant "reached status=completed". The
+  // honest name is exposed alongside; successRate stays as an alias so the
+  // dashboard keeps rendering until it migrates.
+  const completionRate = totalExperiments > 0 ? completedExperiments / totalExperiments : 0;
   return {
     totalExperiments,
-    successRate: totalExperiments > 0 ? completedExperiments / totalExperiments : 0,
+    successRate: completionRate,
+    completionRate,
+    sampleCount: totalExperiments,
+    acceptedTaskRate: acceptedStats.acceptedTaskRate,
+    window: 'all',
+    unknownCount: acceptedStats.unknownCount,
     topPatterns,
     recentLearnings,
     promptImprovements,
+    confirmedPromptImprovements,
     knowledgeGraphSize: { nodes: nodeCount, edges: edgeCount },
   };
 }
 
 /**
- * Calculates a day-by-day growth timeline for the specified period.
+ * Classifies every task with a WorkflowTransition into accepted/not-accepted/
+ * unknown by its most recently observed classified cause, and derives the
+ * acceptance rate. Reads WorkflowTransition read-only — no new persistence.
  *
- * @param period - Time window: '7d', '30d', or 'all' / 集計期間
- * @returns GrowthTimeline with per-day entries / 日次エントリを含むGrowthTimeline
+ * @returns acceptedTaskRate (null when no classified task exists) and unknownCount
  */
-export async function getGrowthTimeline(
-  period: '7d' | '30d' | 'all' = '30d',
-): Promise<GrowthTimeline> {
-  const now = new Date();
-  let startDate: Date;
+async function computeAcceptedTaskStats(): Promise<{
+  acceptedTaskRate: number | null;
+  unknownCount: number;
+}> {
+  const relevantCauses = [...ACCEPTED_CAUSES, ...NOT_ACCEPTED_CAUSES];
+  const transitions = await prisma.workflowTransition.findMany({
+    select: { taskId: true, cause: true },
+    orderBy: { createdAt: 'desc' },
+  });
 
-  switch (period) {
-    case '7d':
-      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      break;
-    case '30d':
-      startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      break;
-    case 'all': {
-      const firstExperiment = await prisma.experiment.findFirst({
-        orderBy: { createdAt: 'asc' },
-        select: { createdAt: true },
-      });
-      startDate = firstExperiment?.createdAt ?? now;
-      break;
-    }
+  const decidedTaskIds = new Set<number>();
+  let acceptedCount = 0;
+  let notAcceptedCount = 0;
+  for (const t of transitions) {
+    if (decidedTaskIds.has(t.taskId)) continue;
+    if (!relevantCauses.includes(t.cause)) continue;
+    decidedTaskIds.add(t.taskId);
+    if (ACCEPTED_CAUSES.has(t.cause)) acceptedCount++;
+    else notAcceptedCount++;
   }
 
-  const dates: string[] = [];
-  const currentDate = new Date(startDate);
-  while (currentDate <= now) {
-    dates.push(currentDate.toISOString().split('T')[0]);
-    currentDate.setDate(currentDate.getDate() + 1);
-  }
+  const allTaskIds = new Set(transitions.map((t) => t.taskId));
+  const unknownCount = allTaskIds.size - decidedTaskIds.size;
 
-  const timeline: GrowthTimelineEntry[] = [];
-
-  for (const date of dates) {
-    const endOfDay = new Date(`${date}T23:59:59.999Z`);
-
-    const [
-      nodeCount,
-      edgeCount,
-      patternCount,
-      completedExpCount,
-      totalExpCount,
-      avgConfidenceResult,
-      promptCount,
-    ] = await Promise.all([
-      prisma.knowledgeGraphNode.count({ where: { createdAt: { lte: endOfDay } } }),
-      prisma.knowledgeGraphEdge.count({ where: { createdAt: { lte: endOfDay } } }),
-      prisma.learningPattern.count({ where: { createdAt: { lte: endOfDay } } }),
-      prisma.experiment.count({
-        where: { status: 'completed', completedAt: { lte: endOfDay } },
-      }),
-      prisma.experiment.count({ where: { createdAt: { lte: endOfDay } } }),
-      prisma.experiment.aggregate({
-        where: { status: 'completed', completedAt: { lte: endOfDay } },
-        _avg: { confidence: true },
-      }),
-      prisma.promptEvolution.count({ where: { createdAt: { lte: endOfDay } } }),
-    ]);
-
-    timeline.push({
-      date,
-      knowledgeNodes: nodeCount,
-      knowledgeEdges: edgeCount,
-      learningPatterns: patternCount,
-      experimentsCompleted: completedExpCount,
-      successRate: totalExpCount > 0 ? completedExpCount / totalExpCount : 0,
-      avgConfidence: avgConfidenceResult._avg?.confidence ?? 0,
-      promptImprovements: promptCount,
-    });
-  }
-
-  log.info({ period, totalDays: dates.length }, 'Growth timeline calculated');
-
+  const denominator = acceptedCount + notAcceptedCount;
   return {
-    timeline,
-    period,
-    totalDays: dates.length,
+    acceptedTaskRate: denominator > 0 ? acceptedCount / denominator : null,
+    unknownCount,
   };
+}
+
+// NOTE: getGrowthTimeline moved to ./growth-timeline.ts — rewritten from a
+// 7-queries-per-day loop to bulk fetch + pure bucketing, and the confidence
+// series changed from a cumulative successes-only mean (constant by
+// construction) to a 7-day trailing window over terminal experiments.
+
+/** Memory strength score plus its display level. */
+export interface MemoryStrength {
+  score: number;
+  level: 'beginner' | 'intermediate' | 'advanced' | 'expert';
+}
+
+/**
+ * Compute the memory-strength score from asymptotic (half-saturation) curves.
+ * Pure function exported for unit tests.
+ *
+ * NOTE: The previous linear formula (`nodes*0.3 + patterns*0.4 + …`) pinned
+ * the score at 100/"expert" permanently once ~250 patterns existed — the card
+ * could never move again in either direction. Each x/(x+k) term approaches
+ * its weight asymptotically instead, so growth keeps registering and the
+ * success-rate term (30%) can still pull the score down after a bad streak.
+ *
+ * @param counts - Current memory sizes. / 現在の記憶量
+ * @param successRate - Completed / total experiments (0-1). / 実験成功率
+ * @returns Score (0-100) and level band. / スコアとレベル
+ */
+export function computeMemoryStrength(
+  counts: { nodes: number; patterns: number; episodes: number },
+  successRate: number,
+): MemoryStrength {
+  const half = (x: number, k: number) => x / (x + k);
+  const score = Math.min(
+    100,
+    Math.floor(
+      25 * half(counts.nodes, 50) +
+        25 * half(counts.patterns, 300) +
+        30 * Math.max(0, Math.min(1, successRate)) +
+        20 * half(counts.episodes, 200),
+    ),
+  );
+
+  let level: MemoryStrength['level'];
+  if (score < 25) level = 'beginner';
+  else if (score < 50) level = 'intermediate';
+  else if (score < 75) level = 'advanced';
+  else level = 'expert';
+  return { score, level };
 }
 
 /**
@@ -189,21 +220,10 @@ export async function getMemoryOverview(): Promise<MemoryOverview> {
   ]);
   const currentSuccessRate = totalExperiments > 0 ? completedExperiments / totalExperiments : 0;
 
-  const memoryScore = Math.min(
-    100,
-    Math.floor(
-      nodeCount * 0.3 +
-        patternCount * 0.4 +
-        currentSuccessRate * 30 +
-        Math.min(1, episodeCount / 100) * 10,
-    ),
+  const { score: memoryScore, level: memoryLevel } = computeMemoryStrength(
+    { nodes: nodeCount, patterns: patternCount, episodes: episodeCount },
+    currentSuccessRate,
   );
-
-  let memoryLevel: 'beginner' | 'intermediate' | 'advanced' | 'expert';
-  if (memoryScore < 25) memoryLevel = 'beginner';
-  else if (memoryScore < 50) memoryLevel = 'intermediate';
-  else if (memoryScore < 75) memoryLevel = 'advanced';
-  else memoryLevel = 'expert';
 
   const [recentPatterns, recentNodes] = await Promise.all([
     prisma.learningPattern.findMany({

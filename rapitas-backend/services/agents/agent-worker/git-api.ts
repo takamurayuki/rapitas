@@ -61,15 +61,17 @@ export async function createWorktree(
  * @param ipc - IPC sender / IPC送信関数
  * @param baseDir - Main repository root / メインリポジトリルート
  * @param worktreePath - Worktree path to remove / 削除するworktreeパス
+ * @returns Whether the worktree was actually removed / worktreeが実際に削除されたか
  */
 export async function removeWorktree(
   ipc: IpcSender,
   baseDir: string,
   worktreePath: string,
-): Promise<void> {
+): Promise<boolean> {
   // NOTE: 5 min timeout — `git worktree remove --force` plus filesystem rm of
   // a populated worktree (including node_modules) can take 1-2 min on Windows.
-  await ipc('remove-worktree', { baseDir, worktreePath }, 5 * 60 * 1000);
+  const result = await ipc('remove-worktree', { baseDir, worktreePath }, 5 * 60 * 1000);
+  return result === true;
 }
 
 /**
@@ -79,13 +81,17 @@ export async function removeWorktree(
  * @param baseDir - Main repository root / メインリポジトリルート
  * @returns Count of cleaned worktrees / クリーンアップ数
  */
-export async function cleanupStaleWorktrees(ipc: IpcSender, baseDir: string): Promise<number> {
+export async function cleanupStaleWorktrees(
+  ipc: IpcSender,
+  baseDir: string,
+  keepPaths: string[] = [],
+): Promise<number> {
   // NOTE: 10 min ceiling — startup cleanup iterates over all stale worktrees
   // and runs `git worktree remove --force` on each, which on Windows must
   // delete the entire node_modules tree (hardlinks to pnpm store).
   // Each removal can take 30s-2min, multiplied by however many stale worktrees
   // were left behind by prior crashes.
-  return ipc('cleanup-stale-worktrees', { baseDir }, 10 * 60 * 1000) as Promise<number>;
+  return ipc('cleanup-stale-worktrees', { baseDir, keepPaths }, 10 * 60 * 1000) as Promise<number>;
 }
 
 /**

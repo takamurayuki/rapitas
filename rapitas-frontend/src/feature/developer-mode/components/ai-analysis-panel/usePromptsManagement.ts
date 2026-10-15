@@ -1,8 +1,10 @@
 'use client';
 // ai-analysis-panel/usePromptsManagement.ts
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import type { PromptsData } from './types';
 
 export type UsePromptsManagementReturn = {
@@ -28,6 +30,9 @@ export type UsePromptsManagementReturn = {
  * @returns State values and handler functions for prompt list management.
  */
 export function usePromptsManagement(taskId: number): UsePromptsManagementReturn {
+  const t = useTranslations('devMode.promptsManagement');
+  const tCommon = useTranslations('common');
+  const confirm = useConfirmDialog();
   const [promptsData, setPromptsData] = useState<PromptsData | null>(null);
   const [isLoadingPrompts, setIsLoadingPrompts] = useState(false);
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
@@ -35,7 +40,10 @@ export function usePromptsManagement(taskId: number): UsePromptsManagementReturn
   const [editingPromptText, setEditingPromptText] = useState('');
   const [promptsError, setPromptsError] = useState<string | null>(null);
 
-  const fetchPrompts = async () => {
+  // NOTE: memoized — consumers (e.g. AIAnalysisPanel's tab-switch effect) depend
+  // on this function's identity; an unmemoized version recreated every render
+  // would re-trigger that effect on every render and fetch in a loop.
+  const fetchPrompts = useCallback(async () => {
     setIsLoadingPrompts(true);
     setPromptsError(null);
     try {
@@ -44,17 +52,22 @@ export function usePromptsManagement(taskId: number): UsePromptsManagementReturn
         const data = await res.json();
         setPromptsData(data);
       } else {
-        throw new Error('プロンプト一覧の取得に失敗しました');
+        throw new Error(t('fetchFailed'));
       }
     } catch (err) {
-      setPromptsError(err instanceof Error ? err.message : 'Errorが発生しました');
+      setPromptsError(err instanceof Error ? err.message : t('genericError'));
     } finally {
       setIsLoadingPrompts(false);
     }
-  };
+  }, [taskId, t]);
 
   const generateAllPrompts = async () => {
-    if (!confirm('すべてのサブタスク（またはタスク）のプロンプトを生成しますか？')) return;
+    if (
+      !(await confirm({
+        message: t('generateAllConfirm'),
+      }))
+    )
+      return;
 
     setIsGeneratingAll(true);
     setPromptsError(null);
@@ -66,10 +79,10 @@ export function usePromptsManagement(taskId: number): UsePromptsManagementReturn
         await fetchPrompts();
       } else {
         const errData = await res.json();
-        throw new Error(errData.error || '一括生成に失敗しました');
+        throw new Error(errData.error || t('generateAllFailed'));
       }
     } catch (err) {
-      setPromptsError(err instanceof Error ? err.message : 'Errorが発生しました');
+      setPromptsError(err instanceof Error ? err.message : t('genericError'));
     } finally {
       setIsGeneratingAll(false);
     }
@@ -87,15 +100,15 @@ export function usePromptsManagement(taskId: number): UsePromptsManagementReturn
         setEditingPromptText('');
         await fetchPrompts();
       } else {
-        throw new Error('更新に失敗しました');
+        throw new Error(tCommon('updateFailed'));
       }
     } catch (err) {
-      setPromptsError(err instanceof Error ? err.message : 'Errorが発生しました');
+      setPromptsError(err instanceof Error ? err.message : t('genericError'));
     }
   };
 
   const deletePrompt = async (promptId: number) => {
-    if (!confirm('このプロンプトを削除しますか？')) return;
+    if (!(await confirm({ message: t('deleteConfirm'), variant: 'destructive' }))) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/prompts/${promptId}`, {
@@ -104,10 +117,10 @@ export function usePromptsManagement(taskId: number): UsePromptsManagementReturn
       if (res.ok) {
         await fetchPrompts();
       } else {
-        throw new Error('削除に失敗しました');
+        throw new Error(tCommon('deleteFailed'));
       }
     } catch (err) {
-      setPromptsError(err instanceof Error ? err.message : 'Errorが発生しました');
+      setPromptsError(err instanceof Error ? err.message : t('genericError'));
     }
   };
 

@@ -41,11 +41,9 @@ mock.module('../../config/logger', () => {
 });
 
 const removeWorktree = mock(() => Promise.resolve()) as any;
-mock.module('../../services/agents/orchestrator/git-operations/worktree-ops', () => ({
+mock.module('../../services/agents/orchestrator/git-operations/worktree/worktree-ops', () => ({
   removeWorktree,
 }));
-const deleteWorkflowDir = mock(() => Promise.resolve(true)) as any;
-mock.module('../../services/workflow/workflow-file-utils', () => ({ deleteWorkflowDir }));
 const extractKnowledgeFromTask = mock(() => Promise.resolve([101])) as any;
 mock.module('../../services/memory/task-knowledge-extractor', () => ({ extractKnowledgeFromTask }));
 
@@ -61,7 +59,6 @@ beforeEach(() => {
     sessionFindMany,
     sessionUpdate,
     removeWorktree,
-    deleteWorkflowDir,
     extractKnowledgeFromTask,
   ]) {
     m.mockReset();
@@ -70,7 +67,6 @@ beforeEach(() => {
   taskDelete.mockResolvedValue({});
   taskFindUnique.mockResolvedValue({ workingDirectory: null });
   sessionFindMany.mockResolvedValue([]);
-  deleteWorkflowDir.mockResolvedValue(true);
   extractKnowledgeFromTask.mockResolvedValue([101]);
 });
 
@@ -89,8 +85,6 @@ describe('cleanupCompletedTasks', () => {
     expect(taskDelete).toHaveBeenCalledTimes(3);
     // 記録済みなので抽出は呼ばれない
     expect(extractKnowledgeFromTask).not.toHaveBeenCalled();
-    // md ファイルも削除
-    expect(deleteWorkflowDir).toHaveBeenCalledTimes(3);
   });
 
   test('ナレッジ未記録なら抽出してから削除すること', async () => {
@@ -116,7 +110,6 @@ describe('cleanupCompletedTasks', () => {
     expect(r.deletedCount).toBe(2); // would-delete count
     expect(taskDelete).not.toHaveBeenCalled();
     expect(extractKnowledgeFromTask).not.toHaveBeenCalled();
-    expect(deleteWorkflowDir).not.toHaveBeenCalled();
   });
 
   test('themeId 指定時はそのテーマに絞って取得すること', async () => {
@@ -150,5 +143,47 @@ describe('cleanupCompletedTasks', () => {
     expect(r.skippedWithOpenSubtasks).toBe(1);
     expect(r.deletedCount).toBe(0);
     expect(taskDelete).not.toHaveBeenCalled();
+  });
+
+  describe('fault injection — knowledge-loss-before-delete', () => {
+    test('knowledgeEntry.count が失敗した場合、削除せずスキップすること', async () => {
+      // A transient count failure must NOT be treated as "no knowledge yet" —
+      // that would (combined with a failing/no-op extraction) delete a task
+      // whose lessons were never actually verified as captured.
+      taskFindMany.mockResolvedValueOnce([{ id: 50 }]);
+      knowledgeCount.mockRejectedValueOnce(new Error('transient DB error'));
+
+      const r = await cleanupCompletedTasks({ keepRecent: 0 });
+
+      expect(r.deletedCount).toBe(0);
+      expect(taskDelete).not.toHaveBeenCalled();
+      expect(extractKnowledgeFromTask).not.toHaveBeenCalled();
+    });
+
+    test('extractKnowledgeFromTask が失敗した場合、削除せずスキップすること', async () => {
+      // A thrown extraction error must skip deletion this cycle rather than
+      // be treated the same as "extraction ran fine and found nothing".
+      taskFindMany.mockResolvedValueOnce([{ id: 51 }]);
+      knowledgeCount.mockResolvedValue(0); // not recorded yet → tries to extract
+      extractKnowledgeFromTask.mockRejectedValueOnce(new Error('extractor crashed'));
+
+      const r = await cleanupCompletedTasks({ keepRecent: 0 });
+
+      expect(r.deletedCount).toBe(0);
+      expect(taskDelete).not.toHaveBeenCalled();
+      expect(r.knowledgeRecorded).toBe(0);
+    });
+
+    test('a genuinely-empty extraction result (no error) still deletes as before', async () => {
+      taskFindMany.mockResolvedValueOnce([{ id: 52 }]);
+      knowledgeCount.mockResolvedValue(0);
+      extractKnowledgeFromTask.mockResolvedValueOnce([]); // ran fine, nothing to keep
+
+      const r = await cleanupCompletedTasks({ keepRecent: 0 });
+
+      expect(r.deletedCount).toBe(1);
+      expect(taskDelete).toHaveBeenCalledTimes(1);
+      expect(r.knowledgeRecorded).toBe(0);
+    });
   });
 });

@@ -1,0 +1,91 @@
+{
+  "concerns": {
+    "emptyState": "該当する懸念はありません。",
+    "typeBug": "バグ",
+    "typeRefactor": "リファクタ",
+    "typeSecurity": "セキュリティ",
+    "typePerf": "パフォーマンス",
+    "typeOther": "その他",
+    "severityUrgent": "緊急",
+    "severityHigh": "高",
+    "severityMedium": "中",
+    "severityLow": "低",
+    "statusOpen": "未対応",
+    "statusTaskCreated": "タスク化済",
+    "statusAll": "すべて",
+    "sourceAgent": "エージェント",
+    "sourceUser": "ユーザー",
+    "sourceVulnScan": "脆弱性スキャン",
+    "sourceVulnScanAudit": "脆弱性監査",
+    "sourceCiWatch": "CI監視",
+    "sourceLoopReview": "品質ループ",
+    "sourceCodeReview": "コードレビュー",
+    "sourceGithubIssue": "GitHub Issue",
+    "sourceIdeaReclassified": "アイデア再分類",
+    "sourceVerificationTriage": "検証トリアージ",
+    "sourceLogHealth": "ログ健全性",
+    "sourceUnknown": "不明",
+    "severityHint": {
+      "urgent": "緊急 — 早急に対処すべき",
+      "high": "高 — 影響が大きい",
+      "medium": "中 — 着実に対処したい",
+      "low": "低 — あれば直したい"
+    },
+    "header": {
+      "title": "懸念",
+      "subtitle": "バグ・リスク・技術的負債など「直すべき問題」を記録してタスク化",
+      "addButton": "懸念を追加"
+    },
+    "filterBar": {
+      "allTypes": "すべての種別",
+      "allSeverities": "すべての優先度",
+      "allSources": "すべての発生源",
+      "allThemes": "すべてのテーマ"
+    },
+    "createForm": {
+      "title": "懸念を追加",
+      "submit": "登録",
+      "titlePlaceholder": "懸念をひとことで（例: 認証トークンが失効しても再ログインされない）",
+      "detailPlaceholder": "何が問題で、なぜ重要か",
+      "priorityLabel": "優先度",
+      "priorityTitle": "優先度（将来の影響の大きさ）",
+      "categoryOption": "カテゴリ",
+      "themeOption": "テーマ",
+      "locationPlaceholder": "対象箇所 (任意, 例: src/auth/token.ts:42)"
+    },
+    "card": {
+      "themeTitle": "テーマ: {name}",
+      "priorityTitle": "優先度: {hint}",
+      "taskCreatedBadge": "タスク化済 #{id}",
+      "githubIssueTitle": "GitHub Issue を開く",
+      "closedSuffix": " · closed",
+      "convertButton": "タスク化",
+      "publishTitle": "GitHub Issue として公開",
+      "publishButton": "GitHubに公開",
+      "originLink": "発見元 #{id}"
+    },
+    "messages": {
+      "convertFailed": "タスクへの変換に失敗しました",
+      "deleteFailed": "懸念の削除に失敗しました",
+      "publishSuccess": "GitHub Issue を作成しました",
+      "publishFailed": "GitHub への公開に失敗しました",
+      "createFailed": "懸念の登録に失敗しました"
+    },
+    "search": {
+      "title": "懸念検索（PERF）",
+      "inputLabel": "懸念を検索",
+      "placeholder": "例: Show me PERF-related blocking concerns",
+      "submit": "検索",
+      "voiceStart": "音声入力を開始",
+      "voiceStop": "音声入力を停止",
+      "voiceOffline": "オフラインでは音声入力を利用できません。テキスト検索を使用してください。",
+      "voiceUnsupported": "このブラウザは音声入力に対応していません。テキスト検索を使用してください。",
+      "offlineNotice": "オフライン: 取得済みの結果を検索しています。",
+      "resultCount": "{count}件の懸念が見つかりました",
+      "noResults": "該当する懸念はありません。",
+      "error": "検索に失敗しました。取得済みの結果を表示します。",
+      "listLabel": "検索結果",
+      "spoken": "影響度 {score}、関連タスク {count}件、優先度 {priority}"
+    }
+  }
+}

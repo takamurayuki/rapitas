@@ -96,6 +96,7 @@ describe('parseLsofPids', () => {
 // ---------------------------------------------------------------------------
 
 describe('waitForHealth', () => {
+  // eslint-disable-next-line local/prefer-test-each-for-similar -- mocks differ in structure (stateless response vs stateful call-counter vs always-throwing) and each case asserts a different subset of result fields, so a shared table would need per-case escape hatches that hurt clarity
   it('returns ok=true when /health responds with status "healthy"', async () => {
     const mockFetch = async (_url: string) =>
       new Response(JSON.stringify({ status: 'healthy' }), { status: 200 });
@@ -161,6 +162,7 @@ describe('waitForHealth', () => {
 // ---------------------------------------------------------------------------
 
 describe('waitForPortFree', () => {
+  // eslint-disable-next-line local/prefer-test-each-for-similar -- mocks differ in structure (stateless always-true/false vs stateful call-counter) and each case asserts a different subset of result fields (elapsedMs vs exact call count), so a shared table would need per-case escape hatches that hurt clarity
   it('returns free=true immediately when port is already free', async () => {
     const alwaysFree = async (_port: number) => true;
 
@@ -221,24 +223,34 @@ describe('isAllCyclesPassed', () => {
     error: 'Ghost socket detected',
   });
 
-  it('returns true when all cycles pass', () => {
-    expect(isAllCyclesPassed([pass(1), pass(2), pass(3)])).toBe(true);
-  });
-
-  it('returns false when any cycle has healthOk=false', () => {
-    expect(isAllCyclesPassed([pass(1), fail(2, 'timeout'), pass(3)])).toBe(false);
-  });
-
-  it('returns false when a cycle has an error (e.g. ghost socket)', () => {
-    expect(isAllCyclesPassed([pass(1), passWithError(2)])).toBe(false);
-  });
-
-  it('returns false for empty array (no cycles ran)', () => {
-    expect(isAllCyclesPassed([])).toBe(false);
-  });
-
-  it('returns true for a single successful cycle', () => {
-    expect(isAllCyclesPassed([pass(1)])).toBe(true);
+  it.each([
+    {
+      name: 'returns true when all cycles pass',
+      cycles: [pass(1), pass(2), pass(3)],
+      expected: true,
+    },
+    {
+      name: 'returns false when any cycle has healthOk=false',
+      cycles: [pass(1), fail(2, 'timeout'), pass(3)],
+      expected: false,
+    },
+    {
+      name: 'returns false when a cycle has an error (e.g. ghost socket)',
+      cycles: [pass(1), passWithError(2)],
+      expected: false,
+    },
+    {
+      name: 'returns false for empty array (no cycles ran)',
+      cycles: [] as CycleResult[],
+      expected: false,
+    },
+    {
+      name: 'returns true for a single successful cycle',
+      cycles: [pass(1)],
+      expected: true,
+    },
+  ])('$name', ({ cycles, expected }) => {
+    expect(isAllCyclesPassed(cycles)).toBe(expected);
   });
 });
 
@@ -265,23 +277,32 @@ describe('renderSmokeMarkdown', () => {
     { cycle: 3, healthOk: true, portFreeMs: 38, healthMs: 1100 },
   ];
 
-  it('includes PASSED badge when all cycles succeed', () => {
-    const md = renderSmokeMarkdown(allPass, 3210);
-    expect(md).toContain('✅ PASSED');
-    expect(md).not.toContain('❌ FAILED');
+  it.each([
+    {
+      name: 'includes PASSED badge when all cycles succeed',
+      data: allPass,
+      contains: ['✅ PASSED'],
+      notContains: ['❌ FAILED'],
+    },
+    {
+      name: 'includes FAILED badge when any cycle fails',
+      data: withFailure,
+      contains: ['❌ FAILED'],
+      notContains: ['✅ PASSED'],
+    },
+    {
+      name: 'includes the port number',
+      data: allPass,
+      contains: ['3210'],
+      notContains: [] as string[],
+    },
+  ])('$name', ({ data, contains, notContains }) => {
+    const md = renderSmokeMarkdown(data, 3210);
+    contains.forEach((s) => expect(md).toContain(s));
+    notContains.forEach((s) => expect(md).not.toContain(s));
   });
 
-  it('includes FAILED badge when any cycle fails', () => {
-    const md = renderSmokeMarkdown(withFailure, 3210);
-    expect(md).toContain('❌ FAILED');
-    expect(md).not.toContain('✅ PASSED');
-  });
-
-  it('includes the port number', () => {
-    const md = renderSmokeMarkdown(allPass, 3210);
-    expect(md).toContain('3210');
-  });
-
+  // eslint-disable-next-line local/prefer-test-each-for-similar -- each case has distinct setup (own local `results` arrays vs shared consts) and differently-shaped assertions (table-row slicing, regex counting, truncation checks); forcing a shared table would obscure each check rather than clarify it
   it('renders a Markdown table header', () => {
     const md = renderSmokeMarkdown(allPass, 3210);
     expect(md).toContain('| サイクル |');

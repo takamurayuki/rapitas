@@ -26,6 +26,11 @@ model KnowledgeEntry {
   validationMethod String?
   themeId         Int?
   taskId          Int?
+  sourceRef              String?   // Citation location (file path/URL/etc.), stronger than sourceId's "task_<id>" format
+  applicabilityConditions String?  // Free-text applicability conditions
+  entryVersion            Int       @default(1) // Incremented on each content update
+  expiresAt               DateTime? // Optional expiry for time-bound knowledge
+  counterEvidence         String?   // Known counter-evidence / exception cases
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   contradictions    KnowledgeContradiction[] @relation("EntryA")
@@ -93,6 +98,18 @@ model KnowledgeContradiction {
   description       String?
   resolution        String?   // "keep_a" | "keep_b" | "merge" | "dismiss" | null (unresolved)
   resolvedAt        DateTime?
+  claimA                   String?  // Structured conflicting claim extracted for entryA
+  claimB                   String?  // Structured conflicting claim extracted for entryB
+  citationA                String?  // Citation location backing claimA
+  citationB                String?  // Citation location backing claimB
+  asOfA                    String?  // Point-in-time / code version claimA applies to
+  asOfB                    String?  // Point-in-time / code version claimB applies to
+  codeVersionA              String?
+  codeVersionB              String?
+  confidence                Float?   // LLM-reported confidence in the contradiction judgement
+  needsReview               Boolean  @default(false) // Low-confidence pair kept for human review, not auto-conflicted
+  contentHashAAtDetection    String? // entryA.contentHash captured at detection time, used to detect corrections
+  contentHashBAtDetection    String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

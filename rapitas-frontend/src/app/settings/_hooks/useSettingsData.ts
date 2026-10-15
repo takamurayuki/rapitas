@@ -4,7 +4,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import type { UserSettings, ApiProvider } from '@/types';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { API_BASE_URL } from '@/utils/api';
+import { mergeUiSourceHeaders } from '@/lib/api-headers';
 import { createLogger } from '@/lib/logger';
 import { CACHE_KEYS, getCachedData, setCachedData } from './settings-cache';
 
@@ -50,7 +52,7 @@ async function fetchWithSWR<T>(
   if (cached) {
     onData(cached);
     // Background revalidate
-    fetch(url)
+    fetch(url, { headers: mergeUiSourceHeaders() })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data) {
@@ -64,7 +66,7 @@ async function fetchWithSWR<T>(
     return { cached: true, data: cached };
   }
 
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: mergeUiSourceHeaders() });
   if (res.ok) {
     const data = await res.json();
     onData(data);
@@ -72,20 +74,6 @@ async function fetchWithSWR<T>(
     return { cached: false, data };
   }
   return { cached: false, data: null };
-}
-
-/**
- * Make an API request with standard error handling.
- *
- * @returns Response data on success, throws on failure
- */
-async function apiRequest<T>(url: string, options: RequestInit, errorMessage: string): Promise<T> {
-  const res = await fetch(url, options);
-  if (!res.ok) {
-    const errData = await res.json().catch(() => null);
-    throw new Error(errData?.error ?? errorMessage);
-  }
-  return res.json();
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -108,7 +96,9 @@ function pollDownloadProgress(
 ): () => void {
   const interval = setInterval(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/local-llm/download-progress`);
+      const res = await fetch(`${API_BASE_URL}/local-llm/download-progress`, {
+        headers: mergeUiSourceHeaders(),
+      });
       if (res.ok) {
         const progress = await res.json();
         onProgress(progress);
@@ -134,6 +124,7 @@ function pollDownloadProgress(
 export function useSettingsData() {
   const t = useTranslations('settings');
   const tc = useTranslations('common');
+  const confirm = useConfirmDialog();
 
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -180,7 +171,7 @@ export function useSettingsData() {
   const fetchSettings = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { cached, data } = await fetchWithSWR<UserSettings>(
+      const { cached } = await fetchWithSWR<UserSettings>(
         `${API_BASE_URL}/settings`,
         CACHE_KEYS.settings,
         (data) => {
@@ -231,7 +222,9 @@ export function useSettingsData() {
 
   const fetchLocalLlmStatus = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/local-llm/status`);
+      const res = await fetch(`${API_BASE_URL}/local-llm/status`, {
+        headers: mergeUiSourceHeaders(),
+      });
       if (res.ok) setLocalLlmStatus(await res.json());
     } catch {
       // NOTE: Silently ignored — endpoint may not exist in all deployment configs.
@@ -258,7 +251,7 @@ export function useSettingsData() {
     try {
       const res = await fetch(`${API_BASE_URL}/settings/api-key`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: mergeUiSourceHeaders({ headers: { 'Content-Type': 'application/json' } }),
         body: JSON.stringify({
           apiKey: state.apiKeyInput,
           provider: providerKey,
@@ -294,12 +287,13 @@ export function useSettingsData() {
    * @param configuredField - Settings field to clear on success.
    */
   const deleteApiKey = async (providerKey: string, configuredField: keyof UserSettings) => {
-    if (!confirm(t('confirmDeleteKey'))) return;
+    if (!(await confirm({ message: t('confirmDeleteKey'), variant: 'destructive' }))) return;
     updateProviderState(providerKey, { isSaving: true });
     setError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/settings/api-key?provider=${providerKey}`, {
         method: 'DELETE',
+        headers: mergeUiSourceHeaders(),
       });
       if (res.ok) {
         updateProviderState(providerKey, {
@@ -333,7 +327,7 @@ export function useSettingsData() {
     try {
       const res = await fetch(`${API_BASE_URL}/settings/model`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: mergeUiSourceHeaders({ headers: { 'Content-Type': 'application/json' } }),
         body: JSON.stringify({ model, provider: providerKey }),
       });
       if (res.ok) {
@@ -359,7 +353,7 @@ export function useSettingsData() {
     try {
       const res = await fetch(`${API_BASE_URL}/settings`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: mergeUiSourceHeaders({ headers: { 'Content-Type': 'application/json' } }),
         body: JSON.stringify({ defaultAiProvider: provider }),
       });
       if (res.ok) {
@@ -380,7 +374,10 @@ export function useSettingsData() {
   const handleDownloadModel = async () => {
     setLocalLlmLoading(true);
     try {
-      await fetch(`${API_BASE_URL}/local-llm/download-model`, { method: 'POST' });
+      await fetch(`${API_BASE_URL}/local-llm/download-model`, {
+        method: 'POST',
+        headers: mergeUiSourceHeaders(),
+      });
       pollDownloadProgress(setDownloadProgress, (success) => {
         setLocalLlmLoading(false);
         fetchLocalLlmStatus();
@@ -400,7 +397,7 @@ export function useSettingsData() {
     try {
       const res = await fetch(`${API_BASE_URL}/local-llm/test-connection`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: mergeUiSourceHeaders({ headers: { 'Content-Type': 'application/json' } }),
         body: JSON.stringify({ url: ollamaUrlInput || undefined }),
       });
       const data = await res.json();
@@ -427,7 +424,7 @@ export function useSettingsData() {
     try {
       const res = await fetch(`${API_BASE_URL}/settings`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: mergeUiSourceHeaders({ headers: { 'Content-Type': 'application/json' } }),
         body: JSON.stringify(updates),
       });
       if (res.ok) {

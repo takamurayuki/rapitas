@@ -6,12 +6,16 @@
  * Private create helpers live in task-create-helpers.ts.
  * Does NOT handle suggestions, cleanup utilities, or query-only operations.
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
+import { isApiRecoveryMode } from '../system/api-recovery-mode';
 import { UserBehaviorService } from '../../src/services/user-behavior-service';
-import { notifyTaskCompleted } from '../communication/notification-service';
+import { notifyTaskCompleted, createNotification } from '../communication/notification-service';
+import { buildNotificationI18n } from '../communication/notification-i18n';
 import { onGeneratedTaskCompleted } from '../scheduling/recurring-task-service';
 import { createSubtask, createParentTask } from './task-create-helpers';
+import { syncParentStatusFromSubtasks } from './task-parent-status-sync';
+import { releaseCurrentArgs, releaseThemeCurrentOnTerminal } from './task-terminal-current-release';
 import { realtimeService } from '../communication/realtime-service';
 import { syncTaskToCalendar } from '../scheduling/task-calendar-sync';
 import {
@@ -47,6 +51,7 @@ export interface CreateTaskInput {
   labels?: string;
   labelIds?: number[];
   estimatedHours?: number;
+  actualHours?: number;
   dueDate?: string;
   subject?: string;
   parentId?: number;
@@ -65,6 +70,27 @@ export interface CreateTaskInput {
 }
 
 /**
+ * Recalculates a parent's actualHours as the sum of its subtasks' actualHours.
+ *
+ * The parent's stored work time must always reflect the subtask total once
+ * subtasks carry their own hours, so both the create and update paths call this.
+ *
+ * @param prisma - Prisma client instance / Prismaクライアント
+ * @param parentId - Parent task ID / 親タスクID
+ */
+async function recalcParentActualHours(prisma: PrismaInstance, parentId: number) {
+  const siblings = await prisma.task.findMany({
+    where: { parentId },
+    select: { actualHours: true },
+  });
+  const parentActual = siblings.reduce((sum, s) => sum + (s.actualHours ?? 0), 0);
+  await prisma.task.update({
+    where: { id: parentId },
+    data: { actualHours: parentActual > 0 ? parentActual : null },
+  });
+}
+
+/**
  * Creates a task (parent or subtask) based on whether parentId is provided.
  *
  * @param prisma - Prisma client instance / Prismaクライアント
@@ -77,6 +103,21 @@ export async function createTask(prisma: PrismaInstance, input: CreateTaskInput)
   const task = parentId
     ? await createSubtask(prisma, parentId, title, labelIds, rest)
     : await createParentTask(prisma, title, labelIds, rest);
+
+  // NOTE: A subtask created with actualHours must roll into the parent's
+  // total immediately — the update-path rollup never fires for creates.
+  if (task && parentId && rest.actualHours) {
+    await recalcParentActualHours(prisma, parentId);
+  }
+
+  // NOTE: Adding a subtask must recompute the parent's status the same way a
+  // subtask status CHANGE does (operator request 2026-09-03) — e.g. a new
+  // todo subtask under an all-done parent reopens it to in-progress. The
+  // sync's own guards (workflow-managed done deferral, no-op on same status)
+  // apply unchanged.
+  if (task && parentId) {
+    await syncParentStatusFromSubtasks(prisma, parentId);
+  }
 
   // NOTE: Broadcast task creation via SSE for real-time list updates.
   if (task) {
@@ -112,6 +153,9 @@ export async function createTask(prisma: PrismaInstance, input: CreateTaskInput)
           metadata: JSON.stringify({
             taskId: task.id,
             parentId: task.parentId ?? null,
+            i18n: buildNotificationI18n(parentId ? 'task_created_subtask' : 'task_created', {
+              taskTitle: task.title,
+            }),
           }),
         },
       })
@@ -132,8 +176,10 @@ export interface UpdateTaskInput {
   priority?: string;
   labels?: string;
   labelIds?: number[];
-  estimatedHours?: number;
-  dueDate?: string;
+  estimatedHours?: number | null;
+  actualHours?: number | null;
+  dueDate?: string | null;
+  startedAt?: string | null;
   subject?: string;
   projectId?: number;
   milestoneId?: number;
@@ -142,6 +188,8 @@ export interface UpdateTaskInput {
   goals?: string[];
   constraints?: string[];
   acceptanceCriteria?: string[];
+  isProtected?: boolean;
+  autoRunExcluded?: boolean;
 }
 
 /**
@@ -158,12 +206,16 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
 
   const currentTask = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { status: true, parentId: true, workflowStatus: true },
+    select: { status: true, parentId: true, workflowStatus: true, updatedAt: true },
   });
 
   if (!currentTask) {
     throw new Error(`タスク(ID: ${taskId})が見つかりません`);
   }
+
+  const reopening = currentTask.status === 'done' && fields.status === 'todo';
+  const resumingFromDone = currentTask.status === 'done' && fields.status === 'in-progress';
+  const leavingDone = reopening || resumingFromDone;
 
   // Record streak
   if (fields.status === 'done') {
@@ -176,14 +228,28 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
     });
   }
 
-  await prisma.task.update({
-    where: { id: taskId },
+  const updateArgs = {
+    where: {
+      id: taskId,
+      ...((fields.status === 'blocked' || leavingDone) && { updatedAt: currentTask.updatedAt }),
+    },
     data: {
+      // Make a manual re-block a new revision even within the same millisecond.
+      ...(fields.status === 'blocked' && {
+        updatedAt: new Date(Math.max(Date.now(), currentTask.updatedAt.getTime() + 1)),
+      }),
       ...(fields.title && { title: fields.title }),
       ...(fields.description !== undefined && { description: fields.description }),
       ...(fields.themeId !== undefined && { themeId: fields.themeId }),
       ...(fields.status && { status: fields.status }),
       ...(fields.status === 'done' && { completedAt: new Date() }),
+      // Reopening must not leave a terminal workflow badge/state behind.
+      // Retain artifacts; normal file-save guards validate their reuse.
+      ...(leavingDone && { completedAt: null }),
+      ...(reopening && {
+        startedAt: null,
+        ...(currentTask.workflowStatus === 'completed' && { workflowStatus: 'draft' }),
+      }),
       // Keep workflowStatus in lock-step when a workflow task is marked done.
       // The card badge reads workflowStatus, so a task completed via the kanban
       // (or any path through updateTask) would otherwise still show "進行中"
@@ -197,14 +263,20 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       ...(fields.priority && { priority: fields.priority }),
       ...(fields.labels && { labels: fields.labels }),
       ...(fields.estimatedHours !== undefined && { estimatedHours: fields.estimatedHours }),
+      ...(fields.actualHours !== undefined && { actualHours: fields.actualHours }),
       ...(fields.dueDate !== undefined && {
         dueDate: fields.dueDate ? new Date(fields.dueDate) : null,
+      }),
+      ...(fields.startedAt !== undefined && {
+        startedAt: fields.startedAt ? new Date(fields.startedAt) : null,
       }),
       ...(fields.subject !== undefined && { subject: fields.subject }),
       ...(fields.projectId !== undefined && { projectId: fields.projectId }),
       ...(fields.milestoneId !== undefined && { milestoneId: fields.milestoneId }),
       ...(fields.examGoalId !== undefined && { examGoalId: fields.examGoalId }),
       ...(fields.autoApprovePlan !== undefined && { autoApprovePlan: fields.autoApprovePlan }),
+      ...(fields.isProtected !== undefined && { isProtected: fields.isProtected }),
+      ...(fields.autoRunExcluded !== undefined && { autoRunExcluded: fields.autoRunExcluded }),
       // NOTE: Structured spec stored as JSON-array strings, mirroring `labels`.
       ...(fields.goals !== undefined && { goals: JSON.stringify(fields.goals) }),
       ...(fields.constraints !== undefined && { constraints: JSON.stringify(fields.constraints) }),
@@ -212,7 +284,22 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
         acceptanceCriteria: JSON.stringify(fields.acceptanceCriteria),
       }),
     },
-  });
+  };
+  // NOTE: atomic by design (acceptance 1) — a failed release also fails the status update.
+  // Terminal status: release the theme's currentTaskId in the SAME transaction (task 1009).
+  if (
+    (fields.status === 'done' || fields.status === 'cancelled') &&
+    typeof prisma.$transaction === 'function'
+  ) {
+    // Batch form: PrismaPromises are lazy, so nothing runs until $transaction executes them.
+    await prisma.$transaction([
+      prisma.task.update(updateArgs),
+      prisma.themeAutoRun.updateMany(releaseCurrentArgs(taskId)),
+    ]);
+  } else {
+    await prisma.task.update(updateArgs);
+    await releaseThemeCurrentOnTerminal(prisma, taskId, fields.status);
+  }
 
   // Update labels
   if (labelIds !== undefined) {
@@ -230,12 +317,25 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
   });
 
   // Record user behavior (parent tasks only)
-  if (!currentTask?.parentId && updatedTask) {
+  if (!currentTask?.parentId && updatedTask && !isApiRecoveryMode()) {
     if (fields.status && currentTask?.status !== fields.status) {
       if (fields.status === 'in-progress' && currentTask?.status !== 'in-progress') {
         await UserBehaviorService.recordTaskStarted(taskId, updatedTask);
       } else if (fields.status === 'done' && currentTask?.status !== 'done') {
-        await UserBehaviorService.recordTaskCompleted(taskId, updatedTask);
+        // Instrumentation for the complete-triggered event-loop stall bursts
+        // (2026-09-05 17:47, concern #514): WARN any completion hook >1s.
+        const timedWarn = async <T>(label: string, run: () => Promise<T>): Promise<T> => {
+          const t0 = Date.now();
+          try {
+            return await run();
+          } finally {
+            const tookMs = Date.now() - t0;
+            if (tookMs > 1000) logger.warn({ taskId, label, tookMs }, 'Slow completion hook');
+          }
+        };
+        await timedWarn('recordTaskCompleted', () =>
+          UserBehaviorService.recordTaskCompleted(taskId, updatedTask),
+        );
         notifyTaskCompleted(taskId, updatedTask.title).catch((err) => {
           logger.warn({ err, taskId }, 'Failed to send task completion notification');
         });
@@ -246,11 +346,20 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
         // NOTE: Auto-extract knowledge from completed tasks — connects Task → KnowledgeEntry.
         import('../memory/task-knowledge-extractor')
           .then(({ extractKnowledgeFromTask }) => {
-            extractKnowledgeFromTask(taskId).catch((err) => {
-              logger.warn({ err, taskId }, 'Failed to extract knowledge from completed task');
-            });
+            void timedWarn('extractKnowledge', () => extractKnowledgeFromTask(taskId)).catch(
+              (err) => {
+                logger.warn({ err, taskId }, 'Failed to extract knowledge from completed task');
+              },
+            );
           })
-          .catch(() => {});
+          .catch((err) => {
+            // NOTE: Unlike the inner catch above (which logs an extraction
+            // failure), this outer catch fires when the extractor MODULE
+            // itself couldn't even be imported. Without this log there was
+            // zero signal that knowledge extraction never ran at all for
+            // this completed task.
+            logger.warn({ err, taskId }, 'Failed to load knowledge extractor module');
+          });
       }
     }
 
@@ -275,17 +384,44 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
     }
   }
 
+  // NOTE: When a subtask's actualHours is updated, recalculate the parent's
+  // actualHours as the sum of all sibling actualHours so the parent always
+  // reflects total time spent across its subtasks.
+  if (fields.actualHours !== undefined && currentTask.parentId) {
+    await recalcParentActualHours(prisma, currentTask.parentId);
+  }
+
+  // NOTE: When a subtask's status changes, recompute the parent's status from
+  // all sibling statuses. See task-parent-status-sync.ts for the rule and why
+  // it defers 'done' to onSubtaskCompleted for workflow-managed parents.
+  if (fields.status !== undefined && currentTask.parentId) {
+    await syncParentStatusFromSubtasks(prisma, currentTask.parentId);
+  }
+
   // Subtask completion: when a SUBTASK (has parentId) is marked done via the
   // task API, check whether all siblings are done and finalize the parent.
   // NOTE: this MUST live outside the `!currentTask?.parentId` (parent-only)
   // block above — it was previously nested inside it with a contradictory
   // `currentTask?.parentId` guard, making it dead code that never ran, so a
   // split parent was never driven to completion after its subtasks finished.
-  if (fields.status === 'done' && currentTask?.parentId && updatedTask) {
+  if (fields.status === 'done' && currentTask?.parentId && updatedTask && !isApiRecoveryMode()) {
+    const parentId = currentTask.parentId;
     import('../workflow/subtask-completion-handler')
       .then(({ onSubtaskCompleted }) => {
         onSubtaskCompleted(taskId).catch((err) => {
-          logger.warn({ err, taskId }, 'Failed to handle subtask completion');
+          // FAIL RECOVERABLE, not silent: onSubtaskCompleted is the ONLY driver of
+          // parent finalization, and it fires again only when a SIBLING completes.
+          // If this is the last sibling, a swallowed failure here would strand the
+          // parent forever with no further trigger. Notify so a human can retry
+          // finalization (via the parent task) instead of it silently vanishing.
+          logger.warn({ err, taskId, parentId }, 'Failed to handle subtask completion');
+          createNotification({
+            type: 'system',
+            title: 'サブタスク完了処理に失敗',
+            message: `サブタスク #${taskId} の完了処理でエラーが発生しました。親タスク #${parentId} が完了しない場合は手動確認してください。`,
+            link: `/tasks?taskId=${parentId}`,
+            metadata: { taskId, parentId, reason: 'subtask_completion_handler_failed' },
+          }).catch(() => {});
         });
       })
       .catch(() => {});
@@ -297,6 +433,29 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
     resolveSearchMissForTask(prisma, taskId).catch((err) => {
       logger.warn({ err, taskId }, 'Failed to resolve search miss for task');
     });
+  }
+
+  // Replacing the acceptance criteria invalidates every repair reason recorded
+  // against the OLD ones. Those reasons cite criteria by NUMBER, and the numbers
+  // now point at different criteria, so the convergence detector counts a stale
+  // indictment against a criterion nobody has ever failed. Observed on task 672:
+  // the criteria were corrected mid-flight and the next single bounce tripped
+  // the cutoff using two pre-correction reasons.
+  //
+  // Recorded as an activity so the detector can bound its window on it, exactly
+  // as it already bounds on `task_retried`.
+  if (fields.acceptanceCriteria !== undefined && updatedTask) {
+    await prisma.activityLog
+      .create({
+        data: {
+          taskId,
+          action: 'acceptance_criteria_changed',
+          metadata: JSON.stringify({ count: fields.acceptanceCriteria.length }),
+        },
+      })
+      .catch((err: unknown) =>
+        logger.warn({ err, taskId }, '[task] criteria-change activity not recorded (non-fatal)'),
+      );
   }
 
   // NOTE: Broadcast task update via SSE — enables real-time sync across all connected clients.
@@ -318,7 +477,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
     });
 
     // NOTE: Bidirectional sync — task dueDate changes propagate to calendar events.
-    if (fields.dueDate !== undefined) {
+    if (fields.dueDate !== undefined && !isApiRecoveryMode()) {
       syncTaskToCalendar(taskId, updatedTask.dueDate, updatedTask.title).catch((err) => {
         logger.warn({ err, taskId }, 'Task-to-calendar sync failed');
       });

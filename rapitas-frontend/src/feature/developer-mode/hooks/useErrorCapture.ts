@@ -20,6 +20,10 @@ export function useErrorCapture({
   currentAgent,
   onError,
 }: UseErrorCaptureOptions = {}) {
+  // NOTE: must hold the raw console.error function (not the shared logger) — this
+  // hook monkey-patches the global console.error below, so it needs the actual
+  // built-in to both restore on cleanup and forward through from the patched version.
+  // eslint-disable-next-line no-console
   const originalConsoleError = useRef<typeof console.error>(console.error);
   const fetchInterceptorApplied = useRef(false);
 
@@ -48,8 +52,10 @@ export function useErrorCapture({
   useEffect(() => {
     if (!captureConsoleErrors) return;
 
+    // eslint-disable-next-line no-console
     originalConsoleError.current = console.error;
 
+    // eslint-disable-next-line no-console
     console.error = function (...args: unknown[]) {
       // Call original console.error
       originalConsoleError.current?.apply(console, args);
@@ -81,6 +87,7 @@ export function useErrorCapture({
 
     return () => {
       if (originalConsoleError.current) {
+        // eslint-disable-next-line no-console
         console.error = originalConsoleError.current;
       }
     };

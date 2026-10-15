@@ -5,7 +5,7 @@
  * listing active/interrupted/resumable executions, and reset.
  * Mutation operations live in execution-core.ts.
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma-postgres';
 import { orchestrator } from '../core/orchestrator-instance';
 import type { AgentExecutionWithExtras } from '../../types/agent-execution-types';
 import { createLogger } from '../../config/logger';

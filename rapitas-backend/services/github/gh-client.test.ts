@@ -13,19 +13,29 @@ import { describe, it, expect, mock, beforeEach } from 'bun:test';
 // Mutable state shared with the execFile mock closure so we can change
 // behavior per test without calling mockImplementationOnce.
 let capturedArgs: string[] = [];
+let capturedOpts: { timeout?: number } = {};
 let shouldGhFail = false;
+// failCount: fail this many times before succeeding (0 = always succeed unless shouldGhFail)
+let failCount = 0;
+// failError: stderr/message used when failing via failCount
+let failError = 'mock stderr';
 let ghStdout = '';
 
 const mockExecFile = mock(
   (
     _bin: string,
     args: string[],
-    _opts: object,
+    opts: object,
     cb: (err: Error | null, result?: { stdout: string; stderr: string }) => void,
   ) => {
     capturedArgs = [...args];
+    capturedOpts = opts as { timeout?: number };
     if (shouldGhFail) {
       const err = Object.assign(new Error('gh: command failed'), { stderr: 'mock stderr' });
+      cb(err);
+    } else if (failCount > 0) {
+      failCount--;
+      const err = Object.assign(new Error(failError), { stderr: failError });
       cb(err);
     } else {
       cb(null, { stdout: ghStdout, stderr: '' });
@@ -36,6 +46,9 @@ const mockExecFile = mock(
 const mockWriteFile = mock(() => Promise.resolve());
 const mockUnlink = mock(() => Promise.resolve());
 const mockWarn = mock(() => {});
+const mockError = mock(() => {});
+// NOTE: sleep is mocked to a no-op so runGhCommandWithRetry tests do not incur real delays.
+const mockSleep = mock((_ms: number) => Promise.resolve());
 
 // NOTE: Include exec as well to prevent "export not found" when pr-write.test.ts
 // runs in the same process (bun mock.module is process-global).
@@ -46,16 +59,26 @@ mock.module('../../config/logger', () => ({
     info: mock(() => {}),
     debug: mock(() => {}),
     warn: mockWarn,
-    error: mock(() => {}),
+    error: mockError,
   }),
 }));
+// NOTE: Mirror ALL exports — bun mock.module is process-global and any missing
+// export causes "export not found" when another test in the same process imports it.
+mock.module('../agents/abstraction/agent-retry', () => ({
+  sleep: mockSleep,
+  evaluateRetry: mock(async () => ({ shouldRetry: false, delay: 0 })),
+  executeWithRetry: mock(async () => ({})),
+  continueWithRetry: mock(async () => ({})),
+}));
 
-const { runGhCommandWithBody } = await import('./gh-client');
+const { runGhCommand, runGhCommandWithBody, runGhCommandWithRetry } = await import('./gh-client');
 
 describe('runGhCommandWithBody', () => {
   beforeEach(() => {
     capturedArgs = [];
     shouldGhFail = false;
+    failCount = 0;
+    failError = 'mock stderr';
     ghStdout = '';
     mockExecFile.mockClear();
     mockWriteFile.mockClear();
@@ -63,6 +86,7 @@ describe('runGhCommandWithBody', () => {
     mockUnlink.mockClear();
     mockUnlink.mockImplementation(() => Promise.resolve());
     mockWarn.mockClear();
+    mockSleep.mockClear();
   });
 
   it('bodyあり: UTF-8 で writeFile し --body-file を args に付与する', async () => {
@@ -155,5 +179,126 @@ describe('runGhCommandWithBody', () => {
     const paths = (mockWriteFile.mock.calls as [string, string, string][]).map(([p]) => p);
     const unique = new Set(paths);
     expect(unique.size).toBe(3);
+  });
+});
+
+describe('runGhCommand timeout (#809)', () => {
+  beforeEach(() => {
+    capturedArgs = [];
+    capturedOpts = {};
+    shouldGhFail = false;
+    failCount = 0;
+    ghStdout = '';
+    mockExecFile.mockClear();
+  });
+
+  it('渡す options に timeout: GH_CLI_TIMEOUT_MS (120秒) が含まれること', async () => {
+    ghStdout = 'ok';
+
+    await runGhCommand(['pr', 'view', '1']);
+
+    expect(capturedOpts.timeout).toBe(120_000);
+  });
+});
+
+describe('runGhCommandWithRetry', () => {
+  beforeEach(() => {
+    capturedArgs = [];
+    shouldGhFail = false;
+    failCount = 0;
+    failError = 'mock stderr';
+    ghStdout = '';
+    mockExecFile.mockClear();
+    mockSleep.mockClear();
+  });
+
+  it('success on first call — no sleep called', async () => {
+    ghStdout = 'pr-view-result';
+
+    const result = await runGhCommandWithRetry(['pr', 'view', '1']);
+
+    expect(result).toBe('pr-view-result');
+    expect(mockExecFile).toHaveBeenCalledTimes(1);
+    expect(mockSleep).not.toHaveBeenCalled();
+  });
+
+  it('1 failure (rate_limit) then success — retries once', async () => {
+    failCount = 1;
+    failError = 'API rate limit exceeded';
+    ghStdout = 'retry-success';
+
+    const result = await runGhCommandWithRetry(['pr', 'view', '1']);
+
+    expect(result).toBe('retry-success');
+    expect(mockExecFile).toHaveBeenCalledTimes(2);
+    expect(mockSleep).toHaveBeenCalledTimes(1);
+  });
+
+  it('auth error — throws immediately with no retry', async () => {
+    failCount = 99; // enough to exhaust retries if it tried
+    failError = 'bad credentials';
+
+    await expect(runGhCommandWithRetry(['pr', 'list'])).rejects.toThrow('bad credentials');
+    expect(mockExecFile).toHaveBeenCalledTimes(1);
+    expect(mockSleep).not.toHaveBeenCalled();
+  });
+
+  it('exhausts rate_limit retries — re-throws last error', async () => {
+    failCount = 99;
+    failError = 'API rate limit exceeded';
+
+    await expect(runGhCommandWithRetry(['pr', 'view', '1'])).rejects.toThrow(
+      'API rate limit exceeded',
+    );
+    // READ_RETRY_POLICY: maxRetries=3 → 4 total attempts
+    expect(mockExecFile).toHaveBeenCalledTimes(4);
+    expect(mockSleep).toHaveBeenCalledTimes(3);
+  });
+
+  it('skipLog opt is forwarded to runGhCommand', async () => {
+    failCount = 1;
+    failError = 'API rate limit exceeded';
+    ghStdout = 'ok';
+
+    // Verify skipLog suppresses error log — just ensure no throw and retry works
+    const result = await runGhCommandWithRetry(['pr', 'view', '1'], undefined, { skipLog: true });
+    expect(result).toBe('ok');
+    // Suppress is handled internally; primary concern is that retry still works
+    expect(mockExecFile).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('runGhCommand error logging', () => {
+  beforeEach(() => {
+    capturedArgs = [];
+    shouldGhFail = false;
+    failCount = 0;
+    failError = 'mock stderr';
+    ghStdout = '';
+    mockExecFile.mockClear();
+    mockError.mockClear();
+  });
+
+  it('stderr有りの失敗時: log.error の err.message が stderr と一致する', async () => {
+    failCount = 1;
+    failError = 'gh: pull request create failed: No commits between develop and bugfix/t#-x';
+
+    await expect(runGhCommand(['pr', 'create'])).rejects.toThrow(failError);
+
+    expect(mockError).toHaveBeenCalledTimes(1);
+    const [logArg] = mockError.mock.calls[0] as [{ err: Error }, string];
+    expect(logArg.err).toBeInstanceOf(Error);
+    expect(logArg.err.message).toBe(failError);
+  });
+
+  it('skipLog: true 指定時は log.error が呼ばれない', async () => {
+    failCount = 1;
+    failError = 'API rate limit exceeded';
+
+    await expect(runGhCommand(['pr', 'view', '1'], undefined, { skipLog: true })).rejects.toThrow(
+      failError,
+    );
+
+    expect(mockError).not.toHaveBeenCalled();
   });
 });

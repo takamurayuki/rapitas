@@ -6,6 +6,7 @@
 export { useAsyncOperation, useMultiAsyncOperation } from './useAsyncOperation';
 export type { AsyncOperationState, UseAsyncOperationReturn } from './useAsyncOperation';
 export { useDebounce } from './useDebounce';
+export { useElapsedTime } from './useElapsedTime';
 export { useLocalStorageState } from './useLocalStorageState';
 export { useSSE } from './useSse';
 export type {

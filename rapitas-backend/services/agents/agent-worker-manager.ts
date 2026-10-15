@@ -10,6 +10,7 @@
  */
 
 import { createLogger } from '../../config/logger';
+import { isApiRecoveryMode } from '../system/api-recovery-mode';
 import type { AgentTask, AgentExecutionResult } from './base-agent';
 import type { ExecutionOptions, ExecutionState } from './orchestrator/types';
 import type { QuestionKey } from './question-detection';
@@ -72,6 +73,7 @@ export class AgentWorkerManager {
    * Called during server startup in index.ts.
    */
   public async initialize(): Promise<void> {
+    if (isApiRecoveryMode()) throw new Error('Agent workers are held during API recovery');
     await initializeWorker(
       this.state,
       (baseDir) => this.cleanupStaleWorktrees(baseDir),
@@ -155,12 +157,16 @@ export class AgentWorkerManager {
     updatedTasks: number;
     updatedSessions: number;
     interruptedExecutionIds: number[];
+    reconciledBlockedSessions: number;
+    prunedWorktreePointers: number;
   }> {
     return this.ipc('recover-stale', {}, 30000) as Promise<{
       recoveredExecutions: number;
       updatedTasks: number;
       updatedSessions: number;
       interruptedExecutionIds: number[];
+      reconciledBlockedSessions: number;
+      prunedWorktreePointers: number;
     }>;
   }
 
@@ -202,7 +208,7 @@ export class AgentWorkerManager {
    * @param baseDir - Main repository root / メインリポジトリルート
    * @param worktreePath - Worktree to remove / 削除するworktreeパス
    */
-  async removeWorktree(baseDir: string, worktreePath: string): Promise<void> {
+  async removeWorktree(baseDir: string, worktreePath: string): Promise<boolean> {
     return git.removeWorktree(this.ipc.bind(this), baseDir, worktreePath);
   }
 
@@ -213,7 +219,18 @@ export class AgentWorkerManager {
    * @returns Count of cleaned worktrees / クリーンアップ数
    */
   async cleanupStaleWorktrees(baseDir: string): Promise<number> {
-    return git.cleanupStaleWorktrees(this.ipc.bind(this), baseDir);
+    // Liveness filter: worktrees of non-terminal tasks must survive worker
+    // (re)initialization — see worktree-keep-list.ts for the incident behind this.
+    let keepPaths: string[];
+    try {
+      const { computeWorktreeKeepPaths } = await import('./worktree-keep-list');
+      keepPaths = await computeWorktreeKeepPaths(baseDir);
+    } catch {
+      // Fail-safe: with no liveness verdict, DELETING is the dangerous action —
+      // skip this cleanup cycle entirely rather than wipe live work.
+      return 0;
+    }
+    return git.cleanupStaleWorktrees(this.ipc.bind(this), baseDir, keepPaths);
   }
 
   async commitChanges(

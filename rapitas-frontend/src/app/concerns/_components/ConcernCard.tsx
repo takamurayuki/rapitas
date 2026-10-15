@@ -9,6 +9,7 @@
  * concern's theme, so there is no repo picker.
  */
 
+import { useTranslations } from 'next-intl';
 import {
   ListPlus,
   Trash2,
@@ -19,8 +20,15 @@ import {
   FolderOpen,
 } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
-import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
-import { TYPE_META, SEVERITY_HINT, type Concern } from './concern-shared';
+import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
+import { formatDate } from '@/utils/date';
+import {
+  TYPE_META,
+  TYPE_LABEL_KEY,
+  SEVERITY_HINT_KEY,
+  SOURCE_LABEL_KEY,
+  type Concern,
+} from './concern-shared';
 
 interface ConcernCardProps {
   concern: Concern;
@@ -48,8 +56,13 @@ export function ConcernCard({
   onDelete,
   onPublish,
 }: ConcernCardProps) {
+  const t = useTranslations('concerns');
+  const tCommon = useTranslations('common');
   const TyIcon = TYPE_META[c.type].icon;
   const ThemeIcon = getIconComponent(theme?.icon || '') || FolderOpen;
+  // Unknown source values fall back to the raw string — next-intl's t() throws on
+  // missing keys, so it must not be called with an unmapped source.
+  const sourceLabel = SOURCE_LABEL_KEY[c.source] ? t(SOURCE_LABEL_KEY[c.source]) : c.source;
 
   return (
     <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/50">
@@ -60,7 +73,12 @@ export function ConcernCard({
               className={`flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${TYPE_META[c.type].badge}`}
             >
               <TyIcon className="h-2.5 w-2.5" />
-              {TYPE_META[c.type].label}
+              {t(TYPE_LABEL_KEY[c.type])}
+            </span>
+            {/* Source badge — text-only (no glyph; see ICON_POLICY: avoid minting
+                10+ new icon meanings for an open-ended source vocabulary). */}
+            <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+              {sourceLabel}
             </span>
             {/* Theme, then priority icon to its right (matches the idea box). */}
             <span className="flex items-center gap-1">
@@ -68,22 +86,22 @@ export function ConcernCard({
                 <span
                   className="flex items-center gap-0.5 text-[10px] font-medium"
                   style={{ color: theme.color || '#059669' }}
-                  title={`テーマ: ${theme.name}`}
+                  title={t('card.themeTitle', { name: theme.name })}
                 >
                   <ThemeIcon className="h-2.5 w-2.5" />
                   {theme.name}
                 </span>
               )}
-              <span title={`優先度: ${SEVERITY_HINT[c.severity]}`}>
+              <span title={t('card.priorityTitle', { hint: t(SEVERITY_HINT_KEY[c.severity]) })}>
                 <PriorityIcon priority={c.severity} size="sm" />
               </span>
             </span>
             {c.status === 'task_created' && c.createdTaskId && (
               <a
                 href={`/tasks/${c.createdTaskId}`}
-                className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 hover:underline dark:bg-emerald-900/30 dark:text-emerald-300"
+                className="rounded-full bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-600 hover:underline dark:bg-green-900/30 dark:text-green-300"
               >
-                タスク化済 #{c.createdTaskId}
+                {t('card.taskCreatedBadge', { id: c.createdTaskId })}
               </a>
             )}
             {/* GitHub publish link badge */}
@@ -92,7 +110,7 @@ export function ConcernCard({
                 href={c.linkedIssue.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                title="GitHub Issue を開く"
+                title={t('card.githubIssueTitle')}
                 className={`flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium hover:underline ${
                   c.linkedIssue.state === 'closed'
                     ? 'bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300'
@@ -100,19 +118,17 @@ export function ConcernCard({
                 }`}
               >
                 <CircleDot className="h-2.5 w-2.5" />#{c.linkedIssue.issueNumber}
-                {c.linkedIssue.state === 'closed' ? ' · closed' : ''}
+                {c.linkedIssue.state === 'closed' ? t('card.closedSuffix') : ''}
                 <ExternalLink className="h-2 w-2" />
               </a>
             )}
-            <span className="ml-auto text-[10px] text-zinc-400">
-              {new Date(c.createdAt).toLocaleDateString('ja-JP')}
-            </span>
+            <span className="ml-auto text-[10px] text-zinc-500">{formatDate(c.createdAt)}</span>
           </div>
           <p className="mt-1.5 text-sm font-medium text-zinc-900 dark:text-zinc-100">{c.title}</p>
           <p className="mt-0.5 whitespace-pre-wrap text-xs text-zinc-500 dark:text-zinc-400">
             {c.detail}
           </p>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-zinc-400">
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-zinc-500">
             {c.location && (
               <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono dark:bg-zinc-800">
                 {c.location}
@@ -120,7 +136,7 @@ export function ConcernCard({
             )}
             {c.originTaskId && (
               <a href={`/tasks/${c.originTaskId}`} className="hover:underline">
-                発見元 #{c.originTaskId}
+                {t('card.originLink', { id: c.originTaskId })}
               </a>
             )}
           </div>
@@ -136,7 +152,7 @@ export function ConcernCard({
             className="flex items-center gap-1 rounded-lg bg-indigo-500 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-indigo-600 disabled:opacity-50"
           >
             {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ListPlus className="h-3 w-3" />}
-            タスク化
+            {t('card.convertButton')}
           </button>
         )}
         {/* Publish to GitHub — one click; the server resolves the repo from the
@@ -145,17 +161,17 @@ export function ConcernCard({
           <button
             onClick={() => onPublish(c.id)}
             disabled={busy}
-            title="GitHub Issue として公開"
+            title={t('card.publishTitle')}
             className="flex items-center gap-1 rounded-lg border border-zinc-200 px-2.5 py-1 text-[11px] font-medium text-zinc-600 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-            GitHubに公開
+            {t('card.publishButton')}
           </button>
         )}
         <button
           onClick={() => onDelete(c.id)}
           disabled={busy}
-          title="削除"
+          title={tCommon('delete')}
           className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-rose-500 disabled:opacity-50 dark:hover:bg-zinc-800"
         >
           {busy ? (

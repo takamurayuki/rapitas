@@ -252,7 +252,7 @@ async function handleGetWorkflowFiles(args: Record<string, string>): Promise<MCP
 
   // NOTE: Use internal API to get workflow files consistently
   try {
-    const res = await fetch(`http://localhost:3001/workflow/tasks/${taskId}/files`);
+    const res = await fetch(`http://127.0.0.1:3001/workflow/tasks/${taskId}/files`);
     const data = await res.json();
     return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
   } catch {
@@ -264,7 +264,7 @@ async function handleSaveWorkflowFile(args: Record<string, string>): Promise<MCP
   const { taskId, fileType, content } = args;
 
   try {
-    const res = await fetch(`http://localhost:3001/workflow/tasks/${taskId}/files/${fileType}`, {
+    const res = await fetch(`http://127.0.0.1:3001/workflow/tasks/${taskId}/files/${fileType}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content }),
@@ -308,6 +308,8 @@ async function handleGetProgressSummary(args: Record<string, string>): Promise<M
     `In Progress: ${inProgress} | Todo: ${todo}`,
     '',
     completed.length > 0 ? '## Recently Completed' : '',
+    // NOTE: toLocaleDateString() below builds an MCP tool-response text line, not a
+    // UI datetime display — out of scope for #847.
     ...completed
       .slice(0, 10)
       .map((t) => `- #${t.id} ${t.title} (${t.updatedAt.toLocaleDateString()})`),

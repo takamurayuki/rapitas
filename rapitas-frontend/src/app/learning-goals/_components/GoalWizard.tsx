@@ -7,8 +7,8 @@ import { Sparkles, ChevronRight, ChevronLeft, CheckCircle2, Target } from 'lucid
 import type { Category } from '@/types';
 import type { GoalFormData } from '../_hooks/useLearningGoals';
 import { INITIAL_FORM_DATA } from '../_hooks/useLearningGoals';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
+import DateField from '@/components/ui/date-field/DateField';
 
 type WizardStep = 'goal' | 'level' | 'schedule' | 'confirm';
 
@@ -29,8 +29,6 @@ type Props = {
 export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
   const t = useTranslations('learning');
   const tc = useTranslations('common');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
 
   const WIZARD_STEPS: { key: WizardStep; label: string }[] = [
     { key: 'goal', label: t('goal') },
@@ -89,7 +87,7 @@ export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
                 ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20'
                 : idx < getStepIndex(currentStep)
                   ? 'text-emerald-500 dark:text-emerald-400 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700/50'
-                  : 'text-zinc-400 dark:text-zinc-500 cursor-default'
+                  : 'text-zinc-500 dark:text-zinc-500 cursor-default'
             }`}
           >
             <div className="flex items-center justify-center gap-2">
@@ -131,7 +129,7 @@ export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 placeholder={t('goalPlaceholder')}
-                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-base focus:outline-none focus:border-blue-400"
+                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-base focus:outline-none focus:border-indigo-400"
                 autoFocus
               />
             </div>
@@ -144,7 +142,7 @@ export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder={t('detailedDescriptionPlaceholder')}
                 rows={3}
-                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:border-blue-400 resize-none"
+                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:border-indigo-400 resize-none"
               />
             </div>
           </div>
@@ -170,7 +168,7 @@ export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
                 value={formData.currentLevel}
                 onChange={(e) => setFormData({ ...formData, currentLevel: e.target.value })}
                 placeholder={t('currentLevelPlaceholder')}
-                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:border-blue-400"
+                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:border-indigo-400"
                 autoFocus
               />
             </div>
@@ -183,7 +181,7 @@ export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
                 value={formData.targetLevel}
                 onChange={(e) => setFormData({ ...formData, targetLevel: e.target.value })}
                 placeholder={t('targetLevelPlaceholder')}
-                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:border-blue-400"
+                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:border-indigo-400"
               />
             </div>
           </div>
@@ -204,12 +202,12 @@ export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                 {t('deadline')}
               </label>
-              <input
-                type="date"
+              <DateField
                 value={formData.deadline}
-                onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+                onChange={(value) => setFormData({ ...formData, deadline: value })}
                 min={new Date().toISOString().split('T')[0]}
-                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:border-blue-400"
+                aria-label={t('deadline')}
+                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:border-indigo-400"
                 autoFocus
               />
               <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
@@ -254,7 +252,7 @@ export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
                       categoryId: e.target.value ? parseInt(e.target.value) : undefined,
                     })
                   }
-                  className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:border-blue-400"
+                  className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:border-indigo-400"
                 >
                   <option value="">{t('categoryAuto')}</option>
                   {categories.map((cat) => (
@@ -315,9 +313,7 @@ export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
                     {t('deadline')}
                   </span>
                   <p className="text-sm text-zinc-700 dark:text-zinc-300">
-                    {formData.deadline
-                      ? new Date(formData.deadline).toLocaleDateString(dateLocale)
-                      : t('deadlineUnset')}
+                    {formData.deadline ? formatDate(formData.deadline) : t('deadlineUnset')}
                   </p>
                 </div>
                 <div>

@@ -1,11 +1,8 @@
 'use client';
 import type { Priority } from '@/types';
 import LabelSelector from '@/feature/tasks/components/LabelSelector';
-import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
-import {
-  statusConfig as sharedStatusConfig,
-  renderStatusIcon,
-} from '@/feature/tasks/config/StatusConfig';
+import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
+import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import {
   Clock,
   FileText,
@@ -19,6 +16,7 @@ import {
 import { useTranslations } from 'next-intl';
 import { useRef } from 'react';
 import InlineMicButton from '@/components/voice/InlineMicButton';
+import DurationInput from '@/components/ui/hours-minutes-input/HoursMinutesInput';
 
 interface TaskEditFormProps {
   editTitle: string;
@@ -60,14 +58,14 @@ const PRIORITY_OPTIONS: Array<{
     value: 'medium',
     labelKey: 'priorityMedium',
     icon: <ChevronsUpDown className="w-3.5 h-3.5" />,
-    iconColor: 'text-blue-500',
-    bgColor: 'bg-blue-500',
+    iconColor: 'text-indigo-500',
+    bgColor: 'bg-indigo-500',
   },
   {
     value: 'low',
     labelKey: 'priorityLow',
     icon: <ChevronDown className="w-3.5 h-3.5" />,
-    iconColor: 'text-zinc-400',
+    iconColor: 'text-zinc-500',
     bgColor: 'bg-zinc-500',
   },
 ];
@@ -90,7 +88,7 @@ export default function TaskEditForm({
   const tc = useTranslations('common');
   const descriptionTextareaRef = useRef<HTMLTextAreaElement>(null);
   return (
-    <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
+    <div className="bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
       {/* Title Input with Status */}
       <div className="p-6 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -100,10 +98,11 @@ export default function TaskEditForm({
             value={editTitle}
             onChange={(e) => setEditTitle(e.target.value)}
             placeholder={t('taskNamePlaceholder')}
+            aria-label={t('taskNamePlaceholder')}
           />
           <div className="flex items-center gap-1 shrink-0">
             {(['todo', 'in-progress', 'done'] as const).map((status) => {
-              const config = sharedStatusConfig[status];
+              const config = getStatusDisplay(t, status);
               return (
                 <TaskStatusChange
                   key={status}
@@ -143,6 +142,7 @@ export default function TaskEditForm({
           value={editDescription}
           onChange={(e) => setEditDescription(e.target.value)}
           placeholder={t('markdownPlaceholder')}
+          aria-label={t('description')}
         />
       </div>
 
@@ -189,14 +189,10 @@ export default function TaskEditForm({
           <span className="text-sm font-medium">{t('estimatedTime')}</span>
         </div>
         <div className="flex items-center gap-2">
-          <input
-            type="number"
-            step="0.5"
-            min="0"
-            className="w-32 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-2.5 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
-            placeholder="0"
+          <DurationInput
             value={editEstimatedHours}
-            onChange={(e) => setEditEstimatedHours(e.target.value)}
+            onChange={setEditEstimatedHours}
+            aria-label={t('estimatedTime')}
           />
           <span className="text-sm text-zinc-500 dark:text-zinc-400">{tc('hours')}</span>
         </div>

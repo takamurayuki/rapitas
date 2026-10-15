@@ -5,6 +5,7 @@
  */
 
 import { createLogger } from '../../../config/logger';
+import { getErrorTypeStrategyOverrides } from './retry-policy';
 
 const pinoLog = createLogger('agent-error-handler');
 
@@ -398,15 +399,36 @@ export class DefaultErrorHandler implements IErrorHandler {
 /** Default singleton error handler instance. */
 let defaultHandler: DefaultErrorHandler | null = null;
 
+/**
+ * Returns the default singleton error handler.
+ * Initialised once at first call using env-var strategy overrides.
+ * Use resetDefaultErrorHandler() in tests to force re-evaluation after changing process.env.
+ *
+ * @returns Default error handler singleton / デフォルトエラーハンドラのシングルトン
+ */
 export function getDefaultErrorHandler(): DefaultErrorHandler {
   if (!defaultHandler) {
-    defaultHandler = new DefaultErrorHandler();
+    // NOTE(agent): Strategy overrides are read once at initialisation time.
+    // In production, env vars are stable across the process lifetime (restart to change).
+    const retryStrategies = getErrorTypeStrategyOverrides();
+    defaultHandler = new DefaultErrorHandler({ retryStrategies });
   }
   return defaultHandler;
 }
 
 export function setDefaultErrorHandler(handler: DefaultErrorHandler): void {
   defaultHandler = handler;
+}
+
+/**
+ * Resets the default singleton so the next call to getDefaultErrorHandler()
+ * re-reads env vars and creates a fresh instance.
+ *
+ * NOTE: Intended for use in tests only. Calling this in production discards
+ * error history accumulated by the old instance.
+ */
+export function resetDefaultErrorHandler(): void {
+  defaultHandler = null;
 }
 
 /** Wraps an unknown error into an AgentError. */

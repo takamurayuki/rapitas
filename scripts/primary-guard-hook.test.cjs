@@ -1,0 +1,606 @@
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { decision, classify, recordIncident } = require('./primary-guard-hook.cjs');
+
+const PRIMARY = 'C:\\Projects\\rapitas';
+const WT = 'C:\\Projects\\rapitas\\.worktrees\\task-907-9f54f7f2';
+const ctx = { primaryRoot: PRIMARY, projectDir: WT };
+const denied = (command, tool_name = 'Bash') =>
+  decision({ tool_name, tool_input: { command } }, ctx)?.hookSpecificOutput?.permissionDecision ===
+  'deny';
+
+test('denies the incident command (POSIX-style primary path)', () => {
+  assert.equal(
+    denied(
+      'cd /c/Projects/rapitas && git pull && cd rapitas-backend && RAPITAS_DB_PROVIDER=sqlite DATABASE_URL="file:./rapitas-ci.db" bun run db:prepare:sqlite',
+    ),
+    true,
+  );
+});
+
+for (const command of [
+  'cd C:\\Projects\\rapitas; git pull',
+  'cd C:/Projects/rapitas && git checkout main',
+  'cd "/c/Projects/rapitas/rapitas-backend" && bun install',
+  'Set-Location C:\\Projects\\rapitas\\rapitas-backend; bun run db:generate',
+  'rm -rf /c/Projects/rapitas/node_modules',
+  'echo x > C:/Projects/rapitas/a.txt',
+  'bunx prisma generate',
+  'bunx prisma db push',
+  'bun run db:prepare:sqlite',
+  'Stop-Process -Name bun -Force',
+  'taskkill /F /IM bun.exe',
+  'pkill -f bun',
+]) {
+  test(`denies: ${command}`, () => {
+    assert.equal(denied(command), true);
+    assert.equal(denied(command, 'PowerShell'), true);
+  });
+}
+
+for (const command of [
+  'git pull',
+  'git status --short',
+  'bun test --isolate foo.test.ts',
+  'cd C:\\Projects\\rapitas\\.worktrees\\task-907-9f54f7f2 && git pull',
+  'cd /c/Projects/rapitas/.worktrees/task-907-9f54f7f2/rapitas-backend && bun test a.test.ts',
+  'git -C /c/Projects/rapitas log --oneline -5',
+  'cat C:/Projects/rapitas/package.json',
+  'Get-Process -Name bun',
+]) {
+  test(`allows: ${command}`, () => {
+    assert.equal(decision({ tool_name: 'Bash', tool_input: { command } }, ctx), undefined);
+  });
+}
+
+test('ignores non-shell tools and non-string commands', () => {
+  assert.equal(
+    decision({ tool_name: 'Read', tool_input: { command: 'git pull' } }, ctx),
+    undefined,
+  );
+  assert.equal(decision({ tool_name: 'Bash', tool_input: {} }, ctx), undefined);
+});
+
+test('prisma / kill rules still apply when the primary root is unknown; path rule fails open', () => {
+  const noCtx = { primaryRoot: null, projectDir: '' };
+  assert.equal(
+    decision({ tool_name: 'Bash', tool_input: { command: 'bunx prisma db push' } }, noCtx)
+      .hookSpecificOutput.permissionDecision,
+    'deny',
+  );
+  assert.equal(
+    decision(
+      { tool_name: 'Bash', tool_input: { command: 'cd /c/Projects/rapitas && git pull' } },
+      noCtx,
+    ),
+    undefined,
+  );
+});
+
+test('classify reports the incident kind', () => {
+  assert.equal(classify('cd /c/Projects/rapitas && git pull', ctx), 'primary_mutation');
+  assert.equal(classify('bunx prisma generate', ctx), 'prisma');
+  assert.equal(classify('taskkill /F /IM bun.exe', ctx), 'process_kill');
+  assert.equal(classify('git status', ctx), null);
+  const reason = decision({ tool_name: 'Bash', tool_input: { command: 'taskkill /F /IM bun.exe' } }, ctx).hookSpecificOutput.permissionDecisionReason;
+  for (const w of ['started yourself', 'PID', 'final report']) assert.ok(reason.includes(w), w);
+});
+
+test('process-kill words inside quoted data arguments are allowed', () => {
+  const incident =
+    'printf \'%s\' \'{"tool_name":"Bash","tool_input":{"command":"grep -n \\"process_kill\\\\|taskkill\\\\|Stop-Process\\\\|pkill\\" a.test.ts';
+  assert.equal(classify('grep -n "process_kill\\|taskkill\\|Stop-Process\\|pkill" a.test.ts', ctx), null);
+  assert.equal(classify("rg 'pkill' src", ctx), null);
+  assert.equal(classify(`printf '%s' '{"c":"taskkill"}'`, ctx), null);
+  assert.equal(classify(incident + "'", ctx), null);
+});
+
+test('real process kills stay denied despite quoting tricks', () => {
+  // NOTE: two cases that used an arbitrary explicit PID moved to the
+  // PID-aware block below, where the listener set is injected. Since
+  // 2026-10-10 an explicit PID holding no backend listener is deliberately
+  // allowed (see that block for why), so asserting on a bare PID here would
+  // test the machine's current netstat output instead of the quoting rule this
+  // test is about. The chained/quoted evasions themselves are unchanged.
+  for (const cmd of [
+    'taskkill /F /IM bun.exe',
+    'grep x f && pkill bun',
+    'echo "x"; taskkill /F /IM bun.exe',
+    'bash -c "taskkill /F /IM bun.exe"',
+    'powershell -Command "Stop-Process -Name bun"',
+    '"taskkill" /F /IM bun.exe',
+    "echo hi | 'pkill' bun",
+    'grep "a" f; Stop-Process -Name bun',
+    'echo "$(taskkill /F /IM bun.exe)"',
+    'echo "unterminated taskkill',
+  ]) {
+    assert.equal(classify(cmd, ctx), 'process_kill', cmd);
+  }
+});
+
+test('search verbs may name kill words in quoted terms; real kills still deny', () => {
+  const allow = [
+    'grep -n "process_kill\\|taskkill\\|Stop-Process\\|pkill" rapitas-backend/a.test.ts | head -12',
+    "rg 'Stop-Process' .",
+    'Select-String -Pattern "taskkill" -Path a.ts',
+  ];
+  for (const c of allow) assert.equal(classify(c, ctx), null, c);
+  const deny = [
+    'grep x f; pkill bun',
+    'grep x f && Stop-Process -Name bun',
+    'grep x f | xargs taskkill /F',
+    'grep "$(pkill bun)" f',
+    'grep "`pkill bun`" f',
+    'sh -c "pkill bun"',
+    'grep "unterminated pkill',
+    "rg --pre 'pkill bun' x .",
+    'rg --pre "taskkill /F /IM bun.exe" x .',
+    'rg x --hostname-bin="pkill bun" .',
+    'grep "x" $(pkill bun)',
+    'grep -e x -f <(pkill bun)',
+  ];
+  for (const c of deny) assert.equal(classify(c, ctx), 'process_kill', c);
+});
+
+test('rg --pre / --hostname-bin execute their argument, so quoted kill words there stay denied', () => {
+  for (const c of [
+    "rg --pre 'pkill bun' x .",
+    'rg --pre "taskkill /F /IM bun.exe" x .',
+    'rg x --hostname-bin="pkill bun" .',
+    "rg --pre='Stop-Process -Name bun' x .",
+  ]) {
+    assert.equal(classify(c, ctx), 'process_kill', c);
+  }
+  // Plain searches naming the same words (and a lookalike flag) remain allowed.
+  assert.equal(classify("rg 'pkill' src", ctx), null);
+  assert.equal(classify("rg --pretty 'pkill' src", ctx), null);
+});
+
+test('recordIncident appends a redacted, truncated NDJSON line with the task id', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-'));
+  recordIncident(
+    {
+      kind: 'prisma',
+      command: 'DATABASE_URL=secret123 token=abc ' + 'x'.repeat(500),
+      projectDir: WT,
+    },
+    dir,
+  );
+  const file = fs.readdirSync(dir).find((f) => f.startsWith('guard-incidents-'));
+  const rec = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8').trim());
+  assert.equal(rec.taskId, 907);
+  assert.equal(rec.kind, 'prisma');
+  assert.ok(rec.command.length <= 200);
+  assert.ok(!rec.command.includes('secret123') && !rec.command.includes('abc'));
+});
+
+for (const command of [
+  'cd /c/Projects/rapitas && sed -i s/a/b/ package.json',
+  'cd /c/Projects/rapitas; python fix.py',
+  'Set-Location C:\\Projects\\rapitas\\rapitas-backend; python fix.py',
+  'pushd C:/Projects/rapitas && node script.js',
+]) {
+  test(`denies any command after cd into the primary checkout: ${command}`, () => {
+    assert.equal(denied(command), true);
+    assert.equal(denied(command, 'PowerShell'), true);
+  });
+}
+
+test('allows cd into a worktree path', () => {
+  const command = 'cd /c/Projects/rapitas/.worktrees/task-907-9f54f7f2 && python fix.py';
+  assert.equal(decision({ tool_name: 'Bash', tool_input: { command } }, ctx), undefined);
+});
+
+test('denies mutating commands when the shell cwd is the primary checkout', () => {
+  const primaryCwd = { ...ctx, cwd: 'C:\\Projects\\rapitas\\rapitas-backend' };
+  const run = (command, c) => decision({ tool_name: 'Bash', tool_input: { command } }, c);
+  assert.equal(run('git pull', primaryCwd)?.hookSpecificOutput.permissionDecision, 'deny');
+  assert.equal(run('git status', primaryCwd), undefined);
+  assert.equal(run('git pull', { ...ctx, cwd: WT }), undefined);
+});
+
+test('prose in heredoc bodies and commit messages does not trigger prisma/kill rules', () => {
+  const run = (command) => decision({ tool_name: 'Bash', tool_input: { command } }, ctx);
+  assert.equal(run("cat > notes.md << 'EOF'\nrun prisma generate then taskkill\nEOF"), undefined);
+  assert.equal(run('git commit -m "docs: never run prisma generate or taskkill"'), undefined);
+  // Code after the heredoc is still checked.
+  assert.equal(
+    run("cat > n.md << 'EOF'\nnotes\nEOF\nbunx prisma generate").hookSpecificOutput
+      .permissionDecision,
+    'deny',
+  );
+});
+
+test('backslash-escaped and unquoted heredocs: prose allowed, expansions still checked', () => {
+  const run = (command) => decision({ tool_name: 'Bash', tool_input: { command } }, ctx);
+  const isDeny = (r) => r?.hookSpecificOutput?.permissionDecision === 'deny';
+  // The reported incident shape: worktree cd + verify report written via heredoc.
+  assert.equal(
+    run(
+      "cd /c/Projects/rapitas/.worktrees/task-996-99e592e1 && cat > .wf-x.md <<'EOF'\n# 検証レポート\nprisma generate は禁止\nEOF",
+    ),
+    undefined,
+  );
+  // <<\EOF is quoted for the shell: no expansion, so the body is inert.
+  assert.equal(run('cat > n.md <<\\EOF\nrun prisma generate or taskkill\nEOF'), undefined);
+  // Unquoted <<EOF: plain prose is inert...
+  assert.equal(run('cat > n.md <<EOF\nrun prisma generate or taskkill\nEOF'), undefined);
+  // ...but $(...) and backticks in the body are executed by the shell.
+  assert.equal(isDeny(run('cat > n.md <<EOF\nx $(bunx prisma generate) y\nEOF')), true);
+  assert.equal(isDeny(run('cat > n.md <<EOF\nx `taskkill /F /IM bun.exe` y\nEOF')), true);
+  // Code after an unquoted heredoc is still checked.
+  assert.equal(isDeny(run('cat <<EOF\nnotes\nEOF\nbunx prisma generate')), true);
+});
+
+test('heredoc edge cases cannot be used to hide executed code', () => {
+  const run = (command) => decision({ tool_name: 'Bash', tool_input: { command } }, ctx);
+  const isDeny = (r) => r?.hookSpecificOutput?.permissionDecision === 'deny';
+  // Multi-line and nested command substitutions in an expanding heredoc body.
+  assert.equal(isDeny(run('cat <<EOF\nx $(\n  bunx prisma generate\n)\nEOF')), true);
+  assert.equal(isDeny(run('cat <<EOF\nx $(echo $(bunx prisma generate))\nEOF')), true);
+  assert.equal(isDeny(run('cat <<EOF\nx `\ntaskkill /F /IM bun.exe\n`\nEOF')), true);
+  // An escaped `\$(` is literal text for the shell, so it stays prose.
+  assert.equal(run('cat <<EOF\nnever run \\$(bunx prisma generate)\nEOF'), undefined);
+  // Here-strings and arithmetic shifts are not heredocs: the following code is still checked.
+  assert.equal(isDeny(run('cat <<< foo\nbunx prisma generate')), true);
+  assert.equal(isDeny(run('echo $((1<<EOF))\nbunx prisma generate')), true);
+  // An unterminated heredoc never swallows the remaining commands.
+  assert.equal(isDeny(run("cat <<'EOF'\nnotes\nbunx prisma generate")), true);
+  // Several heredocs on one line: each body is consumed in order.
+  assert.equal(run("cat <<'A' <<'B'\nprisma generate\nA\ntaskkill\nB"), undefined);
+  assert.equal(isDeny(run("cat <<'A' <<'B'\nx\nA\ny\nB\nbunx prisma generate")), true);
+});
+
+test('a denial carries a deny payload with the incident kind and reason', () => {
+  const r = decision(
+    { tool_name: 'Bash', tool_input: { command: 'cat <<EOF\n$(bunx prisma generate)\nEOF' } },
+    ctx,
+  );
+  assert.equal(r.hookSpecificOutput.permissionDecision, 'deny');
+  assert.equal(r._kind, 'prisma');
+  assert.match(r.hookSpecificOutput.permissionDecisionReason, /prisma/);
+});
+
+test('decision() itself is pure: a denial writes nothing', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-'));
+  process.env.RAPITAS_GUARD_LOG_DIR = dir;
+  decision({ tool_name: 'Bash', tool_input: { command: 'taskkill /F /IM bun.exe' } }, ctx);
+  delete process.env.RAPITAS_GUARD_LOG_DIR;
+  assert.equal(fs.readdirSync(dir).length, 0);
+});
+
+test('search-tool exec options (--pre / --hostname-bin) deny quoted kill words, plain searches stay allowed', () => {
+  for (const c of [
+    "rg --pre 'pkill bun' x .",
+    'rg x . --pre "killall bun"',
+    "rg --pre='taskkill /F /IM bun.exe' x .",
+    "rg x --hostname-bin 'Stop-Process -Name bun' .",
+  ]) {
+    assert.equal(classify(c, ctx), 'process_kill', c);
+  }
+  assert.equal(classify("rg 'pkill' --glob '*.ts' .", ctx), null);
+});
+
+test('exec-option denial is scoped to the option argument; other exec paths and plain pkill still deny', () => {
+  assert.equal(classify("rg --pre cat 'pkill' .", ctx), null);
+  assert.equal(classify("rg --pre cat 'taskkill' --glob '*.ts' .", ctx), null);
+  for (const c of [
+    'pkill bun',
+    'pkill -f bun',
+    'find . -name x -exec pkill bun \;',
+    'ls | xargs pkill',
+    'rg --pre pkill x .',
+    'rg --pre "sh -c \'pkill bun\'" x .',
+  ]) {
+    assert.equal(classify(c, ctx), 'process_kill', c);
+  }
+});
+
+// 2026-09-24, task 1055: a `pnpm install` run inside a worktree re-pointed 60
+// primary rapitas-frontend/node_modules symlinks at the worktree path.
+for (const command of [
+  'pnpm install --no-frozen-lockfile',
+  'cd rapitas-frontend && pnpm install',
+  'npm i cross-env',
+  'bun add -d vitest',
+  'yarn add lodash',
+  'pnpm -C rapitas-frontend install --frozen-lockfile',
+  'npm ci',
+  'pnpm up',
+]) {
+  test(`denies package install in a worktree: ${command}`, () => {
+    const d = decision({ tool_name: 'Bash', tool_input: { command }, cwd: WT }, { ...ctx, cwd: WT });
+    assert.equal(d?.hookSpecificOutput?.permissionDecision, 'deny');
+    assert.equal(d?._kind, 'package_install');
+  });
+}
+
+for (const command of [
+  'pnpm test',
+  'bun test services/x.test.ts',
+  'npm run dev:runtime -- -p 3005',
+  'bunx tsc --noEmit',
+  'grep -rn "pnpm install" docs/',
+  'git commit -m "docs: explain why npm install is forbidden"',
+  'bun run db:import',
+  // 2026-09-25, task 1086: `bun pm cache` only clears bun's global download
+  // cache, not the shared node_modules tree, so it must not be classified
+  // as package_install even though bare `rm` is in the verb list.
+  'bun pm cache rm',
+  'bun pm cache',
+]) {
+  test(`still allows non-install package commands: ${command}`, () => {
+    assert.equal(denied(command), false);
+  });
+}
+
+test('allows the reported task-911 incident command verbatim inside a worktree', () => {
+  const command =
+    'cd "C:/Projects/rapitas/.worktrees/task-911-5569f5fa/rapitas-backend" && bun pm cache rm';
+  assert.equal(classify(command, { ...ctx, cwd: WT }), null);
+});
+
+// Read-only inspection after entering primary: still denied, but classified
+// apart so the incident filer does not raise a security task for it.
+for (const command of [
+  'cd /c/Projects/rapitas && git worktree list | head -5',
+  'cd "C:\\Projects\\rapitas" && git status --porcelain --untracked-files=no',
+  'cd C:/Projects/rapitas; git log --oneline -5 -- rapitas-backend',
+  'Set-Location C:\\Projects\\rapitas; Get-Content package.json',
+  'cd /c/Projects/rapitas && cd rapitas-backend && git branch --show-current',
+  'cd /c/Projects/rapitas && find . -name "*.md" -maxdepth 1',
+]) {
+  test(`denies read-only inspection after cd into primary as primary_readonly: ${command}`, () => {
+    assert.equal(classify(command, { primaryRoot: PRIMARY }), 'primary_readonly');
+    assert.equal(denied(command), true);
+    assert.equal(denied(command, 'PowerShell'), true);
+  });
+}
+
+for (const command of [
+  'cd /c/Projects/rapitas/rapitas-backend 2>/dev/null; cd /c/Projects/rapitas/.worktrees/task-1222-6d0b1cc3 && npx --no-install prettier --write rapitas-backend/a.ts',
+  'cd /c/Projects/rapitas && cat a.txt > b.txt',
+  'cd /c/Projects/rapitas && find . -name "*.log" -delete',
+  'cd /c/Projects/rapitas && git branch feature/x',
+  'cd /c/Projects/rapitas && git diff --output=patch.diff',
+  'cd /c/Projects/rapitas && ls | xargs rm',
+  'cd /c/Projects/rapitas && python fix.py',
+  'cd /c/Projects/rapitas && cat $(ls)',
+  'cd /c/Projects/rapitas && tee out.txt',
+]) {
+  test(`anything that can write after cd into primary stays primary_mutation: ${command}`, () => {
+    assert.equal(classify(command, { primaryRoot: PRIMARY }), 'primary_mutation');
+    assert.equal(denied(command), true);
+  });
+}
+
+test('primary_readonly denial carries its own guidance', () => {
+  const r = decision(
+    { tool_name: 'Bash', tool_input: { command: 'cd /c/Projects/rapitas && git status' } },
+    ctx,
+  );
+  assert.equal(r._kind, 'primary_readonly');
+  assert.match(r.hookSpecificOutput.permissionDecisionReason, /git -C/);
+});
+
+const INCIDENT_1131 =
+  'cd /c/Projects/rapitas/rapitas-backend 2>/dev/null || cd ../..; pwd; grep -rn "x" --include=*.ts . -l | grep -v test | head -30';
+const reasonFor = (cwd) =>
+  decision({ tool_name: 'Bash', cwd, tool_input: { command: INCIDENT_1131 } }, ctx);
+
+test('primary_mutation denial names the worktree cwd so the agent can self-correct', () => {
+  const r = reasonFor(WT);
+  assert.equal(r._kind, 'primary_mutation');
+  assert.ok(r.hookSpecificOutput.permissionDecisionReason.includes(`"${WT}"`));
+  assert.match(r.hookSpecificOutput.permissionDecisionReason, /relative path/);
+});
+
+test('primary_mutation denial omits the path when cwd is missing or inside the primary checkout', () => {
+  for (const cwd of [undefined, '', PRIMARY, `${PRIMARY}\\rapitas-backend`]) {
+    const r = reasonFor(cwd);
+    assert.equal(r._kind, 'primary_mutation');
+    assert.ok(!r.hookSpecificOutput.permissionDecisionReason.includes(PRIMARY));
+  }
+});
+
+test('write-bearing cd into <primary>/.worktrees stays primary_mutation and the denial points to git show origin/<branch>', () => {
+  const r = decision(
+    {
+      tool_name: 'Bash',
+      cwd: WT,
+      tool_input: { command: 'cd /c/Projects/rapitas/.worktrees; ls | grep 1107; rm -f x.tmp' },
+    },
+    ctx,
+  );
+  assert.equal(r._kind, 'primary_mutation');
+  const reason = r.hookSpecificOutput.permissionDecisionReason;
+  for (const re of [/git show origin\/<branch>:<path>/, /git grep <pattern> origin\/<branch>/, /falls back to your worktree/, /<primary>\/rapitas-backend 2>\/dev\/null; cd <worktree>/, /relative `cd rapitas-backend`/, /stepping stone \(`cd <primary> && cd \.worktrees\/<task>/, /git rev-parse --show-toplevel/]) assert.match(reason, re);
+  const t1160 = { tool_name: 'Bash', cwd: WT, tool_input: { command: 'cd /c/Projects/rapitas && cd .worktrees/task-1160-530ea3f7/rapitas-backend && npx --no-install prettier --write x.ts' } }; assert.equal(decision(t1160, ctx)._kind, 'primary_mutation');
+});
+
+// ---------------------------------------------------------------------------
+// Dependency-tree rules (prisma / package_install) are scoped to checkouts that
+// actually SHARE node_modules by link. Applied unconditionally they blocked the
+// first setup of an unrelated generated project with no workaround from
+// anywhere: tasks 1152/1153 (2026-10-08) left C:\Projects\temporaid with zero
+// dependencies and no lockfile, so every gate reported "unverified" forever.
+// ---------------------------------------------------------------------------
+
+/** A standalone project tree, optionally sharing node_modules by junction. */
+function makeStandaloneProject(withLinkedNodeModules) {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-proj-'));
+  const root = path.join(base, 'myapp');
+  const wt = path.join(root, '.worktrees', 'task-1153-c3a5cb1f');
+  fs.mkdirSync(wt, { recursive: true });
+  if (withLinkedNodeModules) {
+    const target = path.join(root, 'node_modules');
+    fs.mkdirSync(target, { recursive: true });
+    // Same call scripts/setup-worktree.cjs makes.
+    fs.symlinkSync(target, path.join(wt, 'node_modules'), 'junction');
+  } else {
+    fs.mkdirSync(path.join(wt, 'node_modules'), { recursive: true });
+  }
+  return { base, wt };
+}
+
+const RAPITAS_ROOT = 'c:/projects/rapitas';
+const kindAt = (command, cwd) =>
+  classify(command, { primaryRoot: PRIMARY, guardRepoRoot: RAPITAS_ROOT, cwd });
+
+test('installs and prisma migrate are allowed in an unrelated project whose node_modules is real', () => {
+  const { base, wt } = makeStandaloneProject(false);
+  try {
+    for (const command of [
+      'pnpm install',
+      'pnpm install > .install.log 2>&1',
+      'npm ci',
+      'pnpm --filter server prisma migrate dev',
+      'pnpm exec playwright install chromium',
+    ]) {
+      assert.equal(kindAt(command, wt), null, command);
+    }
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test('the same installs stay denied once that project links node_modules from its root', () => {
+  const { base, wt } = makeStandaloneProject(true);
+  try {
+    assert.equal(kindAt('pnpm install', wt), 'package_install');
+    // Deeper package dir in the workspace: the link is found by walking up.
+    const deep = path.join(wt, 'apps', 'web');
+    fs.mkdirSync(deep, { recursive: true });
+    assert.equal(kindAt('pnpm install', deep), 'package_install');
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test('rapitas stays denied regardless of whether its node_modules link exists yet', () => {
+  for (const cwd of [PRIMARY, path.join(PRIMARY, 'rapitas-backend'), WT, path.join(WT, 'rapitas-frontend')]) {
+    assert.equal(kindAt('pnpm install', cwd), 'package_install', cwd);
+    assert.equal(kindAt('bunx prisma generate', cwd), 'prisma', cwd);
+  }
+});
+
+test('an unrelated project may not install INTO the rapitas checkout', () => {
+  const { base, wt } = makeStandaloneProject(false);
+  try {
+    for (const command of [
+      'pnpm --prefix C:/Projects/rapitas install',
+      'cd /c/Projects/rapitas && pnpm install',
+      'npm --prefix "C:\\Projects\\rapitas\\rapitas-backend" ci',
+    ]) {
+      assert.notEqual(kindAt(command, wt), null, command);
+    }
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test('an unknown cwd keeps the dependency rules denied (fail closed)', () => {
+  for (const cwd of [undefined, '']) {
+    assert.equal(kindAt('pnpm install', cwd), 'package_install');
+    assert.equal(kindAt('bunx prisma db push', cwd), 'prisma');
+  }
+});
+
+test('a script run followed by rm in a separate segment is not a package install', () => {
+  // `\S+` used to match across `;`, reading `bun ./probe.ts; rm -f ...` as
+  // "bun ... rm" (denied 2026-10-08; same class as task 1086's `bun pm cache rm`).
+  // Asserted from a worktree: inside the primary checkout a bare `rm` is
+  // (correctly) primary_mutation, which would mask the regex under test.
+  const inWorktree = path.join(WT, 'rapitas-backend');
+  assert.equal(kindAt('bun ./.probe-elysia-strip.ts; rm -f ./.probe-elysia-strip.ts', inWorktree), null);
+  assert.equal(kindAt('bun run build && rm -rf dist', inWorktree), null);
+  // Real installs in the same segment are still caught, worktree or not.
+  for (const cwd of [inWorktree, path.join(PRIMARY, 'rapitas-backend')]) {
+    assert.equal(kindAt('pnpm add -g npm', cwd), 'package_install', cwd);
+    assert.equal(kindAt('pnpm -C rapitas-frontend install', cwd), 'package_install', cwd);
+    assert.equal(kindAt('npm --prefix x ci', cwd), 'package_install', cwd);
+    assert.equal(kindAt('bun remove zod', cwd), 'package_install', cwd);
+  }
+});
+
+// --- PID-aware process kill (2026-10-10 incident) ---------------------------
+// The blanket kill denial caused the outage it existed to prevent. exec 5553
+// started temporaid's server for a health check, tried to clean it up by PID,
+// was refused, and the survivor held the rapitas backend's INHERITED port-3001
+// LISTEN handle for 16 hours (it was a descendant of that backend through the
+// agent's shell). When the backend later force-exited, that handle kept a ghost
+// LISTEN alive whose accept queue filled, so every connection to 3001 was
+// refused — across three further automatic restarts. Killing that one process
+// cleared the ghost instantly.
+//
+// So: an explicit PID that holds no backend listener must be killable. Kills
+// that name no PID, or that name a listener, stay denied — and an unresolvable
+// listener set fails CLOSED.
+const killCtx = (protectedPids) => ({ ...ctx, cwd: WT, protectedPids });
+
+test('an explicit PID that holds no backend listener may be killed', () => {
+  assert.equal(classify('taskkill //PID 28880 //F', killCtx([21996])), null);
+  assert.equal(classify('taskkill /F /PID 28880', killCtx([])), null);
+  assert.equal(classify('Stop-Process -Id 28880 -Force', killCtx([])), null);
+  assert.equal(classify('kill -9 28880', killCtx([])), null);
+});
+
+test('killing a backend listener PID stays denied', () => {
+  assert.equal(classify('taskkill //PID 21996 //F', killCtx([21996])), 'process_kill');
+  assert.equal(classify('Stop-Process -Id 21996', killCtx([21996])), 'process_kill');
+  // One protected PID among several is enough to refuse the whole command.
+  assert.equal(classify('taskkill /PID 28880 /PID 21996 /F', killCtx([21996])), 'process_kill');
+  // Chaining and quoting must not smuggle a protected PID past the check —
+  // the cases these two replace in the quoting-tricks test above.
+  assert.equal(classify('echo "x"; taskkill /F /PID 21996', killCtx([21996])), 'process_kill');
+  assert.equal(classify('grep "a" f; Stop-Process -Id 21996', killCtx([21996])), 'process_kill');
+});
+
+test('kills that do not name an explicit PID stay denied', () => {
+  for (const c of [
+    'taskkill /F /IM bun.exe',
+    'pkill bun',
+    'killall node',
+    'Stop-Process -Name bun',
+    'Get-Process bun | Stop-Process',
+  ]) {
+    assert.equal(classify(c, killCtx([])), 'process_kill', c);
+  }
+});
+
+test('an unresolvable listener set fails CLOSED', () => {
+  assert.equal(classify('taskkill //PID 28880 //F', killCtx(null)), 'process_kill');
+});
+
+test('quoted kill words stay data under PID awareness', () => {
+  assert.equal(classify('grep -n "taskkill /PID 1" a.ts', killCtx([])), null);
+  assert.equal(classify(`printf '%s' '{"c":"taskkill /PID 28880"}'`, killCtx([])), null);
+});
+
+// 2026-10-13, task 1215: the agent needed an undeclared package, was told only
+// "install is unnecessary", and retried in another shape (`sed package.json &&
+// pnpm install`, then `pnpm add -D`). The reason must give a way to finish.
+test('package_install denial tells the agent how to finish when a package is genuinely missing', () => {
+  const command = 'cd packages/core && pnpm add -D @vitest/coverage-v8@2.1.4 --save-exact';
+  const d = decision({ tool_name: 'Bash', tool_input: { command }, cwd: WT }, { ...ctx, cwd: WT });
+  assert.equal(d?._kind, 'package_install');
+  const reason = d.hookSpecificOutput.permissionDecisionReason;
+  for (const w of ['package.json', 'verify.md', 'name and version', 'pnpm add', 'does not need it']) {
+    assert.ok(reason.includes(w), w);
+  }
+  // The pre-existing guidance must survive.
+  assert.ok(reason.includes('ls node_modules/.bin'));
+});
+
+test('install shapes used by the task-1215 retries stay package_install', () => {
+  for (const c of [
+    "cd ../../packages/core && sed -i 's/a/b/' package.json && cat package.json && cd ../.. && pnpm install 2>&1 | tail -15",
+    'cd packages/core && pnpm add -D @vitest/coverage-v8@2.1.4 --save-exact 2>&1 | tail -15; cat package.json',
+  ]) {
+    assert.equal(classify(c, { ...ctx, cwd: WT }), 'package_install', c);
+  }
+});

@@ -4,10 +4,15 @@
  * 既存タスクから選択するためのモーダルダイアログ
  */
 
-import React, { useState, useEffect } from 'react';
-import { Search, X, Loader2 } from 'lucide-react';
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { Search, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { Task } from '@/types/task.types';
 import { useFocusTrap } from '@/hooks/common/useFocusTrap';
+import { formatDate } from '@/utils/date';
+import { Spinner } from '@/components/ui/spinner';
 
 interface TaskSelectorProps {
   isOpen: boolean;
@@ -18,59 +23,71 @@ interface TaskSelectorProps {
   description?: string;
 }
 
-const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : '';
+const API_BASE = process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:3001' : '';
+
+// NOTE: stable reference for the `excludeTaskIds` default — an inline `= []`
+// default creates a new array every render, which would defeat memoizing
+// `fetchTasks` below and re-trigger the fetch effects on every render.
+const EMPTY_TASK_IDS: number[] = [];
 
 export function TaskSelector({
   isOpen,
   onClose,
   onSelect,
-  excludeTaskIds = [],
-  title = 'タスクを選択',
-  description = '選択したいタスクをクリックしてください',
+  excludeTaskIds = EMPTY_TASK_IDS,
+  title,
+  description,
 }: TaskSelectorProps) {
+  const t = useTranslations('task.taskSelector');
+  const tc = useTranslations('common');
   const focusTrapRef = useFocusTrap<HTMLDivElement>(isOpen);
   const [searchQuery, setSearchQuery] = useState('');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const resolvedTitle = title ?? t('defaultTitle');
+  const resolvedDescription = description ?? t('defaultDescription');
 
-  const fetchTasks = async (query: string = '') => {
-    setIsLoading(true);
-    setError(null);
+  const fetchTasks = useCallback(
+    async (query: string = '') => {
+      setIsLoading(true);
+      setError(null);
 
-    try {
-      const searchParams = new URLSearchParams();
-      if (query) {
-        searchParams.append('search', query);
+      try {
+        const searchParams = new URLSearchParams();
+        if (query) {
+          searchParams.append('search', query);
+        }
+        searchParams.append('limit', '50');
+        searchParams.append('status', 'todo');
+        searchParams.append('status', 'in_progress');
+        searchParams.append('status', 'completed');
+
+        const response = await fetch(`${API_BASE}/tasks?${searchParams.toString()}`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch tasks: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        // NOTE: GET /tasks returns a flat array, not { tasks: [...] }.
+        const taskList = Array.isArray(data) ? data : (data.tasks ?? []);
+        const filteredTasks = taskList.filter((task: Task) => !excludeTaskIds.includes(task.id));
+        setTasks(filteredTasks);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : t('fetchFailed'));
+        setTasks([]);
+      } finally {
+        setIsLoading(false);
       }
-      searchParams.append('limit', '50');
-      searchParams.append('status', 'todo');
-      searchParams.append('status', 'in_progress');
-      searchParams.append('status', 'completed');
-
-      const response = await fetch(`${API_BASE}/tasks?${searchParams.toString()}`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch tasks: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      // NOTE: GET /tasks returns a flat array, not { tasks: [...] }.
-      const taskList = Array.isArray(data) ? data : (data.tasks ?? []);
-      const filteredTasks = taskList.filter((task: Task) => !excludeTaskIds.includes(task.id));
-      setTasks(filteredTasks);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'タスクの取得に失敗しました');
-      setTasks([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+    [excludeTaskIds, t],
+  );
 
   useEffect(() => {
     if (isOpen) {
       fetchTasks();
     }
-  }, [isOpen]);
+  }, [isOpen, fetchTasks]);
 
   useEffect(() => {
     if (isOpen) {
@@ -80,7 +97,7 @@ export function TaskSelector({
 
       return () => clearTimeout(timeoutId);
     }
-  }, [searchQuery, isOpen]);
+  }, [searchQuery, isOpen, fetchTasks]);
 
   const handleSelect = (task: Task) => {
     onSelect(task);
@@ -90,11 +107,13 @@ export function TaskSelector({
   const getStatusBadge = (status: string) => {
     const colors = {
       todo: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
-      in_progress: 'bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-300',
+      in_progress: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-800 dark:text-indigo-300',
       completed: 'bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-300',
       blocked: 'bg-orange-100 text-orange-700 dark:bg-orange-800 dark:text-orange-300',
     };
 
+    // NOTE: Status labels shown here are English by design (matches upstream
+    // status codes), not translated.
     const labels = {
       todo: 'Todo',
       in_progress: 'In Progress',
@@ -133,15 +152,15 @@ export function TaskSelector({
               id="task-selector-title"
               className="text-lg font-semibold text-gray-900 dark:text-gray-100"
             >
-              {title}
+              {resolvedTitle}
             </h2>
-            {description && (
-              <p className="text-sm text-gray-600 dark:text-gray-400">{description}</p>
+            {resolvedDescription && (
+              <p className="text-sm text-gray-600 dark:text-gray-400">{resolvedDescription}</p>
             )}
           </div>
           <button
             onClick={onClose}
-            aria-label="閉じる"
+            aria-label={tc('close')}
             className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
           >
             <X className="h-5 w-5" />
@@ -154,10 +173,10 @@ export function TaskSelector({
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="タスクを検索..."
+              placeholder={t('searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:border-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             />
           </div>
 
@@ -165,8 +184,8 @@ export function TaskSelector({
           <div className="flex-1 overflow-auto">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
-                <span className="ml-2 text-gray-500">タスクを検索中...</span>
+                <Spinner size="md" className="text-gray-500 dark:text-gray-500" />
+                <span className="ml-2 text-gray-500">{t('searching')}</span>
               </div>
             ) : error ? (
               <div className="text-center py-8">
@@ -175,7 +194,7 @@ export function TaskSelector({
             ) : tasks.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-gray-500 dark:text-gray-400">
-                  {searchQuery ? '検索結果が見つかりません' : '利用可能なタスクがありません'}
+                  {searchQuery ? t('noResults') : t('empty')}
                 </p>
               </div>
             ) : (
@@ -205,7 +224,9 @@ export function TaskSelector({
                           )}
                           {task.dueDate && (
                             <span className="text-xs text-gray-500 dark:text-gray-400">
-                              期限: {new Date(task.dueDate).toLocaleDateString('ja-JP')}
+                              {t('dueDate', {
+                                date: formatDate(task.dueDate),
+                              })}
                             </span>
                           )}
                         </div>
@@ -224,7 +245,7 @@ export function TaskSelector({
             onClick={onClose}
             className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
           >
-            キャンセル
+            {tc('cancel')}
           </button>
         </div>
       </div>

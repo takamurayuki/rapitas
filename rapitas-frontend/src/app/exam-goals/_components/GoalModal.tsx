@@ -1,12 +1,14 @@
 'use client';
 // GoalModal
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ICON_DATA, searchIcons } from '@/components/category/icon-data';
+import DateField from '@/components/ui/date-field/DateField';
 import { PRESET_COLORS } from './constants';
 import { renderGoalIcon } from './GoalCard';
 import type { ExamGoalFormData } from './constants';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 interface GoalModalProps {
   isEditing: boolean;
@@ -30,6 +32,17 @@ export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: 
   const tc = useTranslations('common');
   const [iconSearch, setIconSearch] = useState('');
   const [showIconPicker, setShowIconPicker] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  useFocusTrap(panelRef, true);
 
   const filteredIcons = iconSearch ? searchIcons(iconSearch) : Object.keys(ICON_DATA).slice(0, 30);
 
@@ -37,9 +50,19 @@ export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: 
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="goal-modal-title"
+        tabIndex={-1}
+        className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto"
+      >
         <div className="p-6">
-          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4">
+          <h2
+            id="goal-modal-title"
+            className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4"
+          >
             {isEditing ? t('editTitle') : t('newTitle')}
           </h2>
 
@@ -53,7 +76,7 @@ export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: 
                 value={formData.name}
                 onChange={(e) => set({ name: e.target.value })}
                 placeholder={t('examNameExample')}
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400"
                 required
               />
             </div>
@@ -62,11 +85,11 @@ export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: 
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                 {t('examDate')}
               </label>
-              <input
-                type="date"
+              <DateField
                 value={formData.examDate}
-                onChange={(e) => set({ examDate: e.target.value })}
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
+                onChange={(value) => set({ examDate: value })}
+                aria-label={t('examDate')}
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400"
                 required
               />
             </div>
@@ -80,7 +103,7 @@ export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: 
                 value={formData.targetScore}
                 onChange={(e) => set({ targetScore: e.target.value })}
                 placeholder={t('scoreExample')}
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400"
               />
             </div>
 
@@ -93,7 +116,7 @@ export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: 
                 onChange={(e) => set({ description: e.target.value })}
                 placeholder={t('descriptionPlaceholder')}
                 rows={2}
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400"
               />
             </div>
 
@@ -138,7 +161,7 @@ export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: 
                     value={iconSearch}
                     onChange={(e) => setIconSearch(e.target.value)}
                     placeholder={tc('searchIcon')}
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-sm mb-2 focus:outline-none focus:border-blue-400"
+                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-sm mb-2 focus:outline-none focus:border-indigo-400"
                   />
                   <div className="grid grid-cols-6 gap-1 max-h-40 overflow-y-auto">
                     {filteredIcons.map((iconName) => (

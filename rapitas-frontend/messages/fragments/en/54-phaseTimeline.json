@@ -1,0 +1,54 @@
+{
+  "phaseTimeline": {
+    "phaseLabel": {
+      "research": "Research",
+      "plan": "Plan",
+      "implement": "Implement",
+      "verify": "Verify"
+    },
+    "sectionTitle": "{phase}",
+    "sectionTitleIteration": "{phase} (attempt {n})",
+    "status": {
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "summary": {
+      "completed": "✓ {duration} ({lines} lines)",
+      "failed": "✗ {duration} ({lines} lines)",
+      "runningEmpty": "Running… waiting for logs",
+      "verifyPassFail": "{pass} pass / {fail} fail"
+    },
+    "filter": {
+      "all": "All",
+      "warnOnly": "Warnings only"
+    },
+    "scrollToBottom": "Jump to latest",
+    "boundaryUncertain": "Phase boundary could not be confirmed",
+    "noLogsYet": "Waiting for logs…",
+    "loadingDetail": "Loading…",
+    "loadFailed": "Failed to load logs",
+    "expandAria": "Expand phase",
+    "collapseAria": "Collapse phase",
+    "jumpToRunning": "Jump to running",
+    "iterationChip": "Run {n}",
+    "resizeLog": "Resize log height",
+    "searchPlaceholder": "Search logs",
+    "clearSearch": "Clear search",
+    "noResults": "No results",
+    "prevMatch": "Previous match",
+    "nextMatch": "Next match",
+    "statusLabel": {
+      "inProgress": "In progress",
+      "blocked": "Blocked",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "searchToggle": {
+      "caseSensitive": "Match case",
+      "wholeWord": "Match whole word",
+      "regex": "Use regular expression"
+    },
+    "runDivider": "─────── run {n}/{total} ───────"
+  }
+}

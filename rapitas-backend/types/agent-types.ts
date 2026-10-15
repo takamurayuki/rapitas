@@ -1,7 +1,7 @@
 /**
  * Agent関連の型定義
  */
-import type { AgentExecution } from '@prisma/client';
+import type { AgentExecution } from '../generated/prisma-postgres';
 
 /**
  * AgentExecution に question/questionType/questionDetails/claudeSessionId が

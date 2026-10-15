@@ -14,27 +14,11 @@ import type {
 import type { IAgentProvider, IAgent } from '../interfaces';
 import { createDefaultCapabilities } from '../index';
 import { ClaudeCodeAgentAdapter } from './claude-code-agent-adapter';
-
-function resolveCliPath(cliName: string): string {
-  if (process.platform !== 'win32') return cliName;
-  try {
-    const { execSync } = require('child_process');
-    const { existsSync } = require('fs');
-    const resolved = execSync(`where ${cliName}`, {
-      encoding: 'utf8',
-      timeout: 5000,
-      windowsHide: true,
-    })
-      .trim()
-      .split(/\r?\n/)[0];
-    if (resolved && existsSync(resolved)) {
-      return resolved;
-    }
-  } catch {
-    // fallback
-  }
-  return cliName;
-}
+// NOTE: static import (not require()) so bun:test's mock.module() can
+// intercept this path in tests — require() bypasses Bun's ESM module mock
+// registry, which silently made resolveCliPathAsync's `where` resolution hit
+// the real filesystem/CLI in any test that exercised isAvailable()/healthCheck().
+import { resolveCliPathAsync } from '../../../../utils/common/cli-path-resolver';
 
 /**
  * Claude Code Provider.
@@ -85,13 +69,12 @@ export class ClaudeCodeProvider implements IAgentProvider {
   async isAvailable(): Promise<boolean> {
     try {
       const { spawn } = await import('child_process');
+      const isWindows = process.platform === 'win32';
+      const claudePath = await resolveCliPathAsync(
+        process.env.CLAUDE_CODE_PATH || (isWindows ? 'claude.cmd' : 'claude'),
+      );
 
       return new Promise((resolve) => {
-        const isWindows = process.platform === 'win32';
-        const claudePath = resolveCliPath(
-          process.env.CLAUDE_CODE_PATH || (isWindows ? 'claude.cmd' : 'claude'),
-        );
-
         const proc = spawn(claudePath, ['--version'], { shell: true });
 
         const timeout = setTimeout(() => {

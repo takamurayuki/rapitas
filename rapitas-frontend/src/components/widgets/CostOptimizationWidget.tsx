@@ -6,10 +6,12 @@
  * Displays execution cost breakdown by model with optimization suggestions.
  * Uses recharts for visualization.
  */
-import React, { useState, useEffect, useCallback } from 'react';
-import { DollarSign, Zap, Lightbulb } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { DollarSign, Zap, Info } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
+import { formatJpy, useUsdJpyRate } from './useUsdJpyRate';
 
 type ModelBreakdown = {
   model: string;
@@ -41,6 +43,9 @@ function shortModelName(model: string): string {
 }
 
 export function CostOptimizationWidget() {
+  const t = useTranslations('home');
+  const tCommon = useTranslations('common');
+  const jpyRate = useUsdJpyRate();
   const [data, setData] = useState<CostData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -74,9 +79,10 @@ export function CostOptimizationWidget() {
 
   if (!data || data.totalExecutions === 0) return null;
 
+  // Chart values in yen so axis/tooltip read directly in JPY.
   const chartData = data.modelBreakdown.map((m) => ({
     name: shortModelName(m.model),
-    cost: m.estimatedCost,
+    cost: Math.round(m.estimatedCost * jpyRate),
     successRate: m.successRate,
     executions: m.executions,
   }));
@@ -87,15 +93,15 @@ export function CostOptimizationWidget() {
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
             <DollarSign className="w-4 h-4 text-emerald-500" />
-            コスト最適化
+            {t('costOptimization.title')}
           </h3>
-          <div className="flex items-center gap-3 text-xs text-zinc-400">
+          <div className="flex items-center gap-3 text-xs text-zinc-500">
             <span className="flex items-center gap-1">
               <Zap className="w-3 h-3" />
               {(data.totalTokens / 1000).toFixed(0)}K tokens
             </span>
             <span className="font-medium text-emerald-600 dark:text-emerald-400">
-              ${data.totalCost.toFixed(2)}
+              {formatJpy(data.totalCost, jpyRate)}
             </span>
           </div>
         </div>
@@ -114,8 +120,8 @@ export function CostOptimizationWidget() {
                   tick={{ fontSize: 10, fill: '#a1a1aa' }}
                   axisLine={false}
                   tickLine={false}
-                  width={35}
-                  tickFormatter={(v: number) => `$${v}`}
+                  width={48}
+                  tickFormatter={(v: number) => (v >= 1000 ? `¥${v / 1000}k` : `¥${v}`)}
                 />
                 <Tooltip
                   contentStyle={{
@@ -125,7 +131,13 @@ export function CostOptimizationWidget() {
                     fontSize: '12px',
                     color: '#e4e4e7',
                   }}
-                  formatter={((value: number) => [`$${value.toFixed(2)}`, 'コスト']) as never}
+                  formatter={
+                    ((value: number) => [
+                      // NOTE: numeric thousands-separator display (currency), not a date — out of scope for #847
+                      `¥${Math.round(value).toLocaleString('ja-JP')}`,
+                      t('costOptimization.costLabel'),
+                    ]) as never
+                  }
                 />
                 <Bar dataKey="cost" radius={[4, 4, 0, 0]}>
                   {chartData.map((_, i) => (
@@ -149,7 +161,10 @@ export function CostOptimizationWidget() {
                 <span className="text-zinc-600 dark:text-zinc-400">{shortModelName(m.model)}</span>
               </div>
               <div className="flex items-center gap-3 text-zinc-500 dark:text-zinc-400">
-                <span>{m.executions}回</span>
+                <span>
+                  {m.executions}
+                  {tCommon('times')}
+                </span>
                 <span
                   className={
                     m.successRate >= 80
@@ -159,7 +174,7 @@ export function CostOptimizationWidget() {
                 >
                   {m.successRate}%
                 </span>
-                <span className="font-medium">${m.estimatedCost.toFixed(2)}</span>
+                <span className="font-medium">{formatJpy(m.estimatedCost, jpyRate)}</span>
               </div>
             </div>
           ))}
@@ -173,7 +188,7 @@ export function CostOptimizationWidget() {
                 key={i}
                 className="text-xs text-amber-700 dark:text-amber-300 flex items-start gap-1.5"
               >
-                <Lightbulb className="w-3 h-3 mt-0.5 shrink-0" />
+                <Info className="w-3 h-3 mt-0.5 shrink-0" />
                 {s}
               </p>
             ))}

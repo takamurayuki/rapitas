@@ -29,34 +29,36 @@ describe('parseNaturalLanguageTask', () => {
   });
 
   describe('priority extraction', () => {
-    test('extracts urgent priority (Japanese)', () => {
-      const result = parseNaturalLanguageTask('緊急 レポート提出');
-      expect(result.priority).toBe('urgent');
-      expect(result.title).toBe('レポート提出');
-    });
-
-    test('extracts urgent priority (English)', () => {
-      const result = parseNaturalLanguageTask('ASAP submit report');
-      expect(result.priority).toBe('urgent');
-      expect(result.title).toBe('submit report');
-    });
-
-    test('extracts high priority (Japanese)', () => {
-      const result = parseNaturalLanguageTask('重要 プレゼン準備');
-      expect(result.priority).toBe('high');
-      expect(result.title).toBe('プレゼン準備');
-    });
-
-    test('extracts high priority (English)', () => {
-      const result = parseNaturalLanguageTask('important meeting prep');
-      expect(result.priority).toBe('high');
-      expect(result.title).toBe('meeting prep');
-    });
-
-    test('extracts low priority', () => {
-      const result = parseNaturalLanguageTask('低優先 掃除');
-      expect(result.priority).toBe('low');
-      expect(result.title).toBe('掃除');
+    test.each([
+      {
+        name: 'urgent priority (Japanese)',
+        input: '緊急 レポート提出',
+        priority: 'urgent',
+        title: 'レポート提出',
+      },
+      {
+        name: 'urgent priority (English)',
+        input: 'ASAP submit report',
+        priority: 'urgent',
+        title: 'submit report',
+      },
+      {
+        name: 'high priority (Japanese)',
+        input: '重要 プレゼン準備',
+        priority: 'high',
+        title: 'プレゼン準備',
+      },
+      {
+        name: 'high priority (English)',
+        input: 'important meeting prep',
+        priority: 'high',
+        title: 'meeting prep',
+      },
+      { name: 'low priority', input: '低優先 掃除', priority: 'low', title: '掃除' },
+    ])('extracts $name', ({ input, priority, title }) => {
+      const result = parseNaturalLanguageTask(input);
+      expect(result.priority).toBe(priority);
+      expect(result.title).toBe(title);
     });
 
     test('returns undefined when no priority specified', () => {
@@ -66,26 +68,18 @@ describe('parseNaturalLanguageTask', () => {
   });
 
   describe('estimated hours extraction', () => {
-    test('extracts hours (Japanese)', () => {
-      const result = parseNaturalLanguageTask('レポート作成 2時間');
-      expect(result.estimatedHours).toBe(2);
-      expect(result.title).toBe('レポート作成');
-    });
-
-    test('extracts hours with decimal', () => {
-      const result = parseNaturalLanguageTask('調査 1.5時間');
-      expect(result.estimatedHours).toBe(1.5);
-    });
-
-    test('extracts hours (English)', () => {
-      const result = parseNaturalLanguageTask('write docs 3 hours');
-      expect(result.estimatedHours).toBe(3);
-      expect(result.title).toBe('write docs');
-    });
-
-    test('extracts hours (short form)', () => {
-      const result = parseNaturalLanguageTask('review 2h');
-      expect(result.estimatedHours).toBe(2);
+    test.each([
+      { name: 'hours (Japanese)', input: 'レポート作成 2時間', hours: 2, title: 'レポート作成' },
+      { name: 'hours with decimal', input: '調査 1.5時間', hours: 1.5, title: undefined },
+      { name: 'hours (English)', input: 'write docs 3 hours', hours: 3, title: 'write docs' },
+      { name: 'hours (short form)', input: 'review 2h', hours: 2, title: undefined },
+    ])('extracts $name', ({ input, hours, title }) => {
+      const result = parseNaturalLanguageTask(input);
+      expect(result.estimatedHours).toBe(hours);
+      // Only some original cases asserted title; preserve exactly which ones did.
+      if (title !== undefined) {
+        expect(result.title).toBe(title);
+      }
     });
 
     test('converts minutes to hours', () => {
@@ -100,62 +94,34 @@ describe('parseNaturalLanguageTask', () => {
   });
 
   describe('date extraction - relative dates', () => {
-    test('extracts today (Japanese)', () => {
-      const result = parseNaturalLanguageTask('今日 買い物');
-      expect(result.dueDate).toMatch(/^2026-05-02T23:59$/);
-    });
-
-    test('extracts today (English)', () => {
-      const result = parseNaturalLanguageTask('today meeting');
-      expect(result.dueDate).toMatch(/^2026-05-02T23:59$/);
-    });
-
-    test('extracts tomorrow (Japanese)', () => {
-      const result = parseNaturalLanguageTask('明日 打ち合わせ');
-      expect(result.dueDate).toMatch(/^2026-05-03T23:59$/);
-    });
-
-    test('extracts tomorrow (English)', () => {
-      const result = parseNaturalLanguageTask('tomorrow review');
-      expect(result.dueDate).toMatch(/^2026-05-03T23:59$/);
-    });
-
-    test('extracts day after tomorrow', () => {
-      const result = parseNaturalLanguageTask('明後日 発表');
-      expect(result.dueDate).toMatch(/^2026-05-04T23:59$/);
-    });
-
-    test('extracts N days later (Japanese)', () => {
-      const result = parseNaturalLanguageTask('3日後 提出');
-      expect(result.dueDate).toMatch(/^2026-05-05T23:59$/);
-    });
-
-    test('extracts in N days (English)', () => {
-      const result = parseNaturalLanguageTask('in 5 days deadline');
-      expect(result.dueDate).toMatch(/^2026-05-07T23:59$/);
+    test.each([
+      { name: 'today (Japanese)', input: '今日 買い物', due: /^2026-05-02T23:59$/ },
+      { name: 'today (English)', input: 'today meeting', due: /^2026-05-02T23:59$/ },
+      { name: 'tomorrow (Japanese)', input: '明日 打ち合わせ', due: /^2026-05-03T23:59$/ },
+      { name: 'tomorrow (English)', input: 'tomorrow review', due: /^2026-05-03T23:59$/ },
+      { name: 'day after tomorrow', input: '明後日 発表', due: /^2026-05-04T23:59$/ },
+      { name: 'N days later (Japanese)', input: '3日後 提出', due: /^2026-05-05T23:59$/ },
+      { name: 'in N days (English)', input: 'in 5 days deadline', due: /^2026-05-07T23:59$/ },
+    ])('extracts $name', ({ input, due }) => {
+      const result = parseNaturalLanguageTask(input);
+      expect(result.dueDate).toMatch(due);
     });
   });
 
   describe('date extraction - weekdays', () => {
-    test('extracts weekday (Japanese)', () => {
+    test.each([
       // May 2, 2026 is Saturday. Friday would be May 8
-      const result = parseNaturalLanguageTask('金曜日 会議');
-      expect(result.dueDate).toMatch(/^2026-05-08T09:00$/);
-    });
-
-    test('extracts weekday (English)', () => {
-      const result = parseNaturalLanguageTask('monday meeting');
-      expect(result.dueDate).toMatch(/^2026-05-04T09:00$/);
-    });
-
-    test('extracts next week weekday (Japanese)', () => {
-      const result = parseNaturalLanguageTask('来週月曜 発表');
-      expect(result.dueDate).toMatch(/^2026-05-11T09:00$/);
-    });
-
-    test('extracts next week weekday (English)', () => {
-      const result = parseNaturalLanguageTask('next friday review');
-      expect(result.dueDate).toMatch(/^2026-05-15T09:00$/);
+      { name: 'weekday (Japanese)', input: '金曜日 会議', due: /^2026-05-08T09:00$/ },
+      { name: 'weekday (English)', input: 'monday meeting', due: /^2026-05-04T09:00$/ },
+      { name: 'next week weekday (Japanese)', input: '来週月曜 発表', due: /^2026-05-11T09:00$/ },
+      {
+        name: 'next week weekday (English)',
+        input: 'next friday review',
+        due: /^2026-05-15T09:00$/,
+      },
+    ])('extracts $name', ({ input, due }) => {
+      const result = parseNaturalLanguageTask(input);
+      expect(result.dueDate).toMatch(due);
     });
   });
 
@@ -177,29 +143,15 @@ describe('parseNaturalLanguageTask', () => {
   });
 
   describe('time extraction', () => {
-    test('extracts 24-hour format', () => {
-      const result = parseNaturalLanguageTask('15:30 会議');
-      expect(result.dueDate).toMatch(/T15:30$/);
-    });
-
-    test('extracts Japanese time format', () => {
-      const result = parseNaturalLanguageTask('3時半 打ち合わせ');
-      expect(result.dueDate).toMatch(/T15:30$/);
-    });
-
-    test('extracts AM/PM Japanese format', () => {
-      const result = parseNaturalLanguageTask('午後3時 ミーティング');
-      expect(result.dueDate).toMatch(/T15:00$/);
-    });
-
-    test('extracts pm format', () => {
-      const result = parseNaturalLanguageTask('3pm meeting');
-      expect(result.dueDate).toMatch(/T15:00$/);
-    });
-
-    test('extracts am format', () => {
-      const result = parseNaturalLanguageTask('10am standup');
-      expect(result.dueDate).toMatch(/T10:00$/);
+    test.each([
+      { name: '24-hour format', input: '15:30 会議', due: /T15:30$/ },
+      { name: 'Japanese time format', input: '3時半 打ち合わせ', due: /T15:30$/ },
+      { name: 'AM/PM Japanese format', input: '午後3時 ミーティング', due: /T15:00$/ },
+      { name: 'pm format', input: '3pm meeting', due: /T15:00$/ },
+      { name: 'am format', input: '10am standup', due: /T10:00$/ },
+    ])('extracts $name', ({ input, due }) => {
+      const result = parseNaturalLanguageTask(input);
+      expect(result.dueDate).toMatch(due);
     });
 
     test('combines date and time', () => {
@@ -234,19 +186,13 @@ describe('parseNaturalLanguageTask', () => {
   });
 
   describe('title cleanup', () => {
-    test('removes trailing particles', () => {
-      const result = parseNaturalLanguageTask('明日までにレポート');
-      expect(result.title).toBe('レポート');
-    });
-
-    test('removes leading particles', () => {
-      const result = parseNaturalLanguageTask('にレポート作成 明日');
-      expect(result.title).toBe('レポート作成');
-    });
-
-    test('removes "by" keyword', () => {
-      const result = parseNaturalLanguageTask('by tomorrow submit report');
-      expect(result.title).toBe('submit report');
+    test.each([
+      { name: 'trailing particles', input: '明日までにレポート', title: 'レポート' },
+      { name: 'leading particles', input: 'にレポート作成 明日', title: 'レポート作成' },
+      { name: '"by" keyword', input: 'by tomorrow submit report', title: 'submit report' },
+    ])('removes $name', ({ input, title }) => {
+      const result = parseNaturalLanguageTask(input);
+      expect(result.title).toBe(title);
     });
 
     test('falls back to original input if title becomes empty', () => {

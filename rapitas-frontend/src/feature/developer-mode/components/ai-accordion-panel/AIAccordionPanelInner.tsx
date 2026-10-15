@@ -1,7 +1,8 @@
 'use client';
 // AIAccordionPanelInner
 
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { ExecutionSection } from './ExecutionSection';
 import { useAccordionState } from './useAccordionState';
 import { usePromptOptimization } from './usePromptOptimization';
@@ -19,19 +20,21 @@ export function AIAccordionPanelInner({
   taskId,
   taskTitle,
   taskDescription,
-  config,
-  isAnalyzing,
-  analysisResult,
-  analysisError,
-  analysisApprovalId,
-  onAnalyze,
-  onApprove,
-  onReject,
-  onApproveSubtasks,
-  isApproving,
-  onOpenSettings,
+  // NOTE: unused since the analysis/subtask-approval sub-panel was removed; kept as `_`-prefixed
+  // because they are required by the shared AIAccordionPanelProps contract.
+  config: _config,
+  isAnalyzing: _isAnalyzing,
+  analysisResult: _analysisResult,
+  analysisError: _analysisError,
+  analysisApprovalId: _analysisApprovalId,
+  onAnalyze: _onAnalyze,
+  onApprove: _onApprove,
+  onReject: _onReject,
+  onApproveSubtasks: _onApproveSubtasks,
+  isApproving: _isApproving,
+  onOpenSettings: _onOpenSettings,
   onPromptGenerated,
-  onSubtasksCreated,
+  onSubtasksCreated: _onSubtasksCreated,
   showAgentPanel,
   executionCapability = 'ready',
   themeId,
@@ -43,8 +46,8 @@ export function AIAccordionPanelInner({
   optimizedPrompt,
   agentConfigId,
   resources,
-  agents,
-  onAgentChange,
+  agents: _agents,
+  onAgentChange: _onAgentChange,
   onExecute,
   onReset,
   onRestoreExecutionState,
@@ -57,39 +60,28 @@ export function AIAccordionPanelInner({
   parallelSessionId,
   subtaskLogs,
   onRefreshSubtaskLogs,
+  taskStatus,
 }: AIAccordionPanelProps) {
+  const t = useTranslations('devMode.aiAccordionPanelInner');
   // Subtask selection state (lives here to avoid circular deps between hooks)
-  const [selectedSubtasks, setSelectedSubtasks] = useState<number[]>([]);
-  const [isCreatingSubtasks, setIsCreatingSubtasks] = useState(false);
-  const [subtaskCreationSuccess, setSubtaskCreationSuccess] = useState(false);
+  // NOTE: only the setters survive — the values themselves are read by the
+  // analysis/subtask-approval sub-panel, which was removed from this component.
+  const [, setSelectedSubtasks] = useState<number[]>([]);
+  const [, setSubtaskCreationSuccess] = useState(false);
 
   // Accordion / tab state
-  const { expandedSection, setExpandedSection, toggleSection, analysisTab, setAnalysisTab } =
-    useAccordionState({
-      taskId,
-      onTaskChange: () => {
-        setSelectedSubtasks([]);
-        setSubtaskCreationSuccess(false);
-      },
-    });
+  const { setExpandedSection } = useAccordionState({
+    taskId,
+    onTaskChange: () => {
+      setSelectedSubtasks([]);
+      setSubtaskCreationSuccess(false);
+    },
+  });
 
   // Prompt optimization
-  const {
-    isGeneratingPrompt,
-    promptResult,
-    promptError,
-    copied,
-    questionAnswers,
-    isSubmittingAnswers,
-    setQuestionAnswers,
-    setPromptResult,
-    setPromptError,
-    generatePrompt,
-    handleSubmitAnswers,
-    handleCopyPrompt,
-    handleUsePrompt,
-    getCategoryLabel,
-  } = usePromptOptimization({ taskId, onPromptGenerated });
+  // NOTE: return value is unused here (the prompt-optimization sub-panel was removed),
+  // but the hook must still run for its internal side effects.
+  usePromptOptimization({ taskId, onPromptGenerated });
 
   // Execution lifecycle
   const exec = useExecutionManager({
@@ -115,80 +107,23 @@ export function AIAccordionPanelInner({
     setExpandedSection,
   });
 
-  // Derived analysis status icon
-  const getAnalysisStatus = (): 'loading' | 'success' | 'error' | 'idle' => {
-    if (isAnalyzing || isGeneratingPrompt) return 'loading';
-    if (analysisError || promptError) return 'error';
-    if (analysisResult || promptResult) return 'success';
-    return 'idle';
-  };
-
-  // Derived execution status icon
-  const getExecStatusIcon = ():
-    | 'loading'
-    | 'success'
-    | 'error'
-    | 'cancelled'
-    | 'interrupted'
-    | 'idle' => {
-    // NOTE: Show idle during state restoration to prevent flash of "running" spinner
-    if (exec.isRestoring) return 'idle';
-    if (exec.isRunning) return 'loading';
-    if (exec.isFailed) return 'error';
-    if (exec.isCompleted) return 'success';
-    if (exec.isCancelled) return 'cancelled';
-    if (exec.isInterrupted) return 'interrupted';
-    return 'idle';
-  };
-
   const hasSubtasks = !!(subtasks && subtasks.length > 0);
-
-  // Subtask selection helpers
-  const handleSelectSubtask = useCallback((index: number) => {
-    setSelectedSubtasks((prev) =>
-      prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index],
-    );
-  }, []);
-
-  const handleSelectAll = useCallback(() => {
-    if (!analysisResult?.suggestedSubtasks) return;
-    const allIndices = analysisResult.suggestedSubtasks.map((_, i) => i);
-    setSelectedSubtasks((prev) => (prev.length === allIndices.length ? [] : allIndices));
-  }, [analysisResult]);
-
-  const handleApproveSubtasks = useCallback(async () => {
-    setIsCreatingSubtasks(true);
-    try {
-      const result = await onApproveSubtasks(
-        selectedSubtasks.length > 0 ? selectedSubtasks : undefined,
-      );
-      if (result) {
-        setSubtaskCreationSuccess(true);
-        setSelectedSubtasks([]);
-        onSubtasksCreated?.();
-      }
-    } finally {
-      setIsCreatingSubtasks(false);
-    }
-  }, [selectedSubtasks, onApproveSubtasks, onSubtasksCreated]);
 
   return (
     <div
       className={
         embedded
           ? 'border-t border-zinc-200 dark:border-zinc-700'
-          : 'border-t border-zinc-200 dark:border-zinc-700 overflow-hidden'
+          : 'bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 mb-6 overflow-hidden'
       }
       role="region"
-      aria-label="AI エージェント実行パネル"
+      aria-label={t('panelAriaLabel')}
     >
       {showAgentPanel && (
         <ExecutionSection
           capability={executionCapability}
           themeId={themeId}
           taskId={taskId}
-          isExpanded={expandedSection === 'execution'}
-          onToggle={() => toggleSection('execution')}
           isRunning={exec.isRunning}
           isCompleted={exec.isCompleted}
           isCancelled={exec.isCancelled}
@@ -197,7 +132,6 @@ export function AIAccordionPanelInner({
           isExecuting={isExecuting}
           isParallelExecutionRunning={isParallelExecutionRunning}
           hasSubtasks={hasSubtasks}
-          execStatusIcon={getExecStatusIcon()}
           logs={exec.logs}
           showLogs={exec.showLogs}
           logViewerStatus={exec.logViewerStatus}
@@ -233,6 +167,7 @@ export function AIAccordionPanelInner({
           onStop={exec.handleStopExecution}
           onReset={exec.handleReset}
           onRerun={exec.handleRerunExecution}
+          taskStatus={taskStatus}
         />
       )}
     </div>

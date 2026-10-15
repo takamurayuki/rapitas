@@ -13,8 +13,20 @@ import { getApiKeyForProvider } from '../../../utils/ai-client';
 import { systemSchemas } from '../../../schemas/system.schema';
 import { createLogger } from '../../../config/logger';
 import { t } from 'elysia';
-import { PROVIDER_MODEL_COLUMNS, isValidProvider } from './settings-types';
+import { PROVIDER_MODEL_COLUMNS, isValidProvider, validateOllamaUrl } from './settings-types';
+import type { UserSettingsUpdateBody } from './settings-types';
+import {
+  applyPendingClientColumns,
+  applyAutoRestartOnMergedCode,
+  applyRetroReviewEnabled,
+  applyMergeBarrierEnabled,
+  applyUiLocale,
+} from './settings-extra-fields';
+import { readAutoRestartEnabled } from '../../../services/scheduling/auto-restart-merged-code/settings-store';
+import { readRetroReviewEnabled } from '../../../services/workflow/process-retro/retro-settings-store';
+import { readMergeBarrierEnabled } from '../../../services/scheduling/merge-barrier/merge-barrier';
 import { fetchAvailableModels } from './model-fetcher';
+import { readPromptLanguage } from '../../../services/system/prompt-language-store';
 
 const log = createLogger('routes:settings');
 
@@ -33,6 +45,10 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
 
     return {
       ...settings,
+      autoRestartOnMergedCode: readAutoRestartEnabled(),
+      retroReviewEnabled: readRetroReviewEnabled(),
+      uiLocale: readPromptLanguage(),
+      mergeBarrierEnabled: readMergeBarrierEnabled(),
       claudeApiKeyConfigured: apiKeyConfigured,
       chatgptApiKeyConfigured: chatgptConfigured,
       geminiApiKeyConfigured: geminiConfigured,
@@ -99,6 +115,18 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         skipAgentPermissionPrompts?: boolean;
       };
 
+      // NOTE: ollamaUrl is fetched server-side (see services/local-llm,
+      // services/ai/model-discovery/probes/ollama-probe.ts) — without this
+      // check a client could point it at an arbitrary internal/public host
+      // and use the backend as an SSRF proxy. Ollama only ever runs locally.
+      if (ollamaUrl !== undefined) {
+        const check = validateOllamaUrl(ollamaUrl);
+        if (!check.valid) {
+          set.status = 400;
+          return { error: check.error };
+        }
+      }
+
       try {
         let settings = await prisma.userSettings.findFirst();
         if (!settings) {
@@ -155,6 +183,18 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
             },
           });
         }
+
+        // NOTE: Moved to settings-extra-fields.ts — cast-written columns pending
+        // client regen (restartOnAutoRunDry / verifyRepairLimit /
+        // workflowDisabledGlobally) plus the file-backed autoRestartOnMergedCode
+        // toggle, which has no Prisma column at all.
+        const extraBody = body as UserSettingsUpdateBody;
+        const settingsRef = settings as Record<string, unknown>;
+        await applyPendingClientColumns(settings.id, extraBody, settingsRef);
+        applyAutoRestartOnMergedCode(extraBody, settingsRef);
+        applyRetroReviewEnabled(extraBody, settingsRef);
+        applyMergeBarrierEnabled(extraBody, settingsRef);
+        applyUiLocale(extraBody, settingsRef);
 
         return settings;
       } catch (error: unknown) {

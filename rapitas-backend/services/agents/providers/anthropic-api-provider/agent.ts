@@ -28,6 +28,26 @@ import {
 } from './models';
 import { buildPrompt, getDefaultSystemPrompt, mapApiError } from './agent-utils';
 
+// Model families that REMOVED the `temperature` param and 400 on any value
+// (Claude 5 family, Opus 4.7/4.8, Sonnet 5). Older models still accept it.
+const TEMPERATURE_REJECTING_MODEL_PATTERNS = [
+  /fable/i,
+  /mythos/i,
+  /sonnet-5/i,
+  /opus-4-[78]/i,
+  /claude-5/i,
+];
+
+/**
+ * Whether a model still accepts the `temperature` request param.
+ *
+ * @param modelId - The Claude model id. / Claudeモデルid
+ * @returns True if `temperature` may be sent (older models). / 送信可なら true
+ */
+export function modelAcceptsTemperature(modelId: string): boolean {
+  return !TEMPERATURE_REJECTING_MODEL_PATTERNS.some((re) => re.test(modelId));
+}
+
 /**
  * Anthropic API Agent
  */
@@ -82,6 +102,7 @@ export class AnthropicApiAgent extends AbstractAgent {
 
       const client = new Anthropic({ apiKey });
       // Lightweight API call to verify connectivity
+      // determinism-ok: connectivity ping; the response is discarded, not a prompt.
       await client.messages.create({
         model: this.config.model || 'claude-sonnet-4-20250514',
         max_tokens: 10,
@@ -179,7 +200,11 @@ export class AnthropicApiAgent extends AbstractAgent {
       const response = await client.messages.create({
         model: modelId,
         max_tokens: maxTokens,
-        temperature: this.config.temperature,
+        // NOTE (determinism): pin temperature to 0 for the most deterministic
+        // output on models that still accept the param (older Claude default
+        // to 1.0 when omitted). Claude 5 / Opus 4.7+ / Sonnet 5 REMOVED
+        // temperature entirely and 400 on ANY value — so omit it there.
+        ...(modelAcceptsTemperature(modelId) ? { temperature: this.config.temperature ?? 0 } : {}),
         system: this.config.systemPrompt || getDefaultSystemPrompt(context),
         messages: this.conversationHistory.map((msg) => ({
           role: msg.role,
@@ -218,13 +243,17 @@ export class AnthropicApiAgent extends AbstractAgent {
 
       this.updateMetrics(metrics);
 
-      return {
-        success: true,
-        state: 'completed',
-        output,
-        metrics,
-        sessionId: this._metadata.id,
-      };
+      // NOTE: llmCallCount flattened from metrics.apiCalls for saveExecutionResult compatibility.
+      return Object.assign(
+        {
+          success: true,
+          state: 'completed' as const,
+          output,
+          metrics,
+          sessionId: this._metadata.id,
+        },
+        { llmCallCount: metrics.apiCalls },
+      );
     } catch (error) {
       const endTime = new Date();
       const durationMs = endTime.getTime() - startTime.getTime();

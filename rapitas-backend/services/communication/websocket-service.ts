@@ -1,7 +1,8 @@
-import { Elysia, t } from 'elysia';
+import { Elysia } from 'elysia';
 import { prisma } from '../../config';
 import { cacheService } from '../core/cache-service';
 import { createLogger } from '../../config/logger';
+import { SHUTDOWN_ERROR_MESSAGE } from '../../utils/common/shutdown-error';
 
 const log = createLogger('websocket-service');
 
@@ -39,9 +40,11 @@ class WebSocketManager {
 
   constructor() {
     // Periodic health check
+    // NOTE: Extended from 30s to 60s — heartbeats are keepalive only; halving
+    // frequency has no UX impact and reduces WS overhead during auto-run.
     this.heartbeatInterval = setInterval(() => {
       this.checkClientHealth();
-    }, 30000); // Every 30 seconds
+    }, 60_000);
   }
 
   // Add a client.
@@ -197,7 +200,7 @@ class WebSocketManager {
     // Send shutdown notification to all clients
     this.broadcast({
       type: 'server-shutdown',
-      message: 'Server is shutting down',
+      message: SHUTDOWN_ERROR_MESSAGE,
     });
 
     // Close connections
@@ -212,13 +215,6 @@ class WebSocketManager {
 
 // WebSocket manager instance
 const wsManager = new WebSocketManager();
-
-// WebSocket handler type
-type WebSocketHandler<T = unknown> = (
-  ws: WebSocketInstance,
-  clientId: string,
-  data: T,
-) => void | Promise<void>;
 
 // WebSocket event handlers
 const webSocketHandlers = {

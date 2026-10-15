@@ -1,4 +1,4 @@
-import { Elysia, t, type Context } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../config';
 
 /**
@@ -159,9 +159,9 @@ async function handleTaskRequests(
  */
 async function handleCategoryRequests(
   method: string,
-  pathParts: string[],
-  body?: unknown,
-  query?: URLSearchParams,
+  _pathParts: string[],
+  _body?: unknown,
+  _query?: URLSearchParams,
 ) {
   if (method === 'GET') {
     return prisma.category.findMany();
@@ -174,9 +174,9 @@ async function handleCategoryRequests(
  */
 async function handleThemeRequests(
   method: string,
-  pathParts: string[],
-  body?: unknown,
-  query?: URLSearchParams,
+  _pathParts: string[],
+  _body?: unknown,
+  _query?: URLSearchParams,
 ) {
   if (method === 'GET') {
     return prisma.theme.findMany();
@@ -190,8 +190,8 @@ async function handleThemeRequests(
 async function handleStatisticsRequests(
   method: string,
   pathParts: string[],
-  body?: unknown,
-  query?: URLSearchParams,
+  _body?: unknown,
+  _query?: URLSearchParams,
 ) {
   if (method === 'GET' && pathParts[0] === 'tasks') {
     const [total, byStatus, byCategory] = await Promise.all([

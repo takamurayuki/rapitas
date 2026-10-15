@@ -1,0 +1,20 @@
+{
+  "kanban": {
+    "prevWeek": "Previous week",
+    "backToThisWeek": "Back to this week",
+    "nextWeek": "Next week",
+    "toggleFilters": "Toggle filters",
+    "clear": "Clear",
+    "tasksFound": " task(s) found",
+    "thisWeek": "This week ({start} - {end})",
+    "weeksAgo": "{count} week(s) ago ({start} - {end})",
+    "weeksLater": "{count} week(s) later ({start} - {end})",
+    "taskStatus": "Task is {status}",
+    "openInPage": "Open in page",
+    "priorityUrgent": "Urgent",
+    "updateFailed": "Failed to update",
+    "priorityLow": "Low",
+    "priorityMedium": "Medium",
+    "priorityHigh": "High"
+  }
+}

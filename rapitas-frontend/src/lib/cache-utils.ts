@@ -15,7 +15,8 @@ interface CacheEntry<T = unknown> {
 
 class CacheManager {
   private etagCache = new Map<string, CacheEntry<unknown>>();
-  private cacheVersion = '1.0';
+  // NOTE: Removed unused `cacheVersion` member — nothing versioned the cache
+  // entries and no invalidation path read it (noUnusedLocals).
 
   /**
    * Conditional request using ETag

@@ -1,0 +1,27 @@
+{
+  "banner": {
+    "backendDisconnected": "バックエンドサーバーとの接続が切断されました",
+    "connectionError": "接続エラー",
+    "backendUnreachable": "バックエンドサーバーに接続できません",
+    "closeAll": "すべて閉じる",
+    "inProgressWork": "進行中の作業",
+    "interruptedWork": "中断された作業",
+    "runningCount": "{count}件実行中",
+    "resumableCount": "{count}件再開可能",
+    "runningStatus": "実行中",
+    "interruptedStatus": "中断",
+    "interruptedAt": "{time}に中断",
+    "startedAt": "{time}に開始",
+    "details": "詳細",
+    "resumeLatest": "最新を再開",
+    "viewRunningTask": "実行中のタスクを確認",
+    "taskPrefix": "タスク #",
+    "resumeAll": "全て再開",
+    "updateAvailable": "アップデート v{version} が利用可能",
+    "downloading": "ダウンロード中…",
+    "percentComplete": "{pct}% 完了",
+    "installing": "インストール中…",
+    "updateNow": "今すぐ更新",
+    "laterDismiss": "後で"
+  }
+}

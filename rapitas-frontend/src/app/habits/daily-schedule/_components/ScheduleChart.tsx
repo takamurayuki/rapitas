@@ -11,7 +11,6 @@
 import type { DailyScheduleBlock } from '@/types';
 import { useTranslations } from 'next-intl';
 import {
-  timeToMinutes,
   minutesToAngle,
   polarToCartesian,
   getCategoryIcon,

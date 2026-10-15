@@ -71,14 +71,14 @@ export function ContradictionResolver({ contradiction, onResolve }: Contradictio
         <button
           onClick={() => handleResolve('keep_a')}
           disabled={isResolving}
-          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
           {t('keepA')}
         </button>
         <button
           onClick={() => handleResolve('keep_b')}
           disabled={isResolving}
-          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
           {t('keepB')}
         </button>

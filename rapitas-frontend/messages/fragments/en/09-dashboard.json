@@ -1,0 +1,24 @@
+{
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Check learning progress and statistics",
+    "streak": "Streak",
+    "target": "Target",
+    "taskComplete": "Tasks Completed",
+    "thisWeek": "This Week",
+    "studyHours": "Study Hours",
+    "overall": "Overall",
+    "pastTwoWeeks": "Study hours for the past 2 weeks",
+    "noRecords": "No study records",
+    "upcomingExams": "Upcoming Exams",
+    "noExamGoals": "No exam goals",
+    "addExamGoal": "Add exam goal",
+    "weeklySummary": "Weekly Summary",
+    "completedTasks": "Completed tasks",
+    "consecutiveDays": "Consecutive days",
+    "controllingExams": "Upcoming exams",
+    "errorBoundary": {
+      "defaultMessage": "An unexpected error occurred."
+    }
+  }
+}

@@ -1,6 +1,6 @@
 'use client';
 // HomeFilterPanel
-import type { Category, Priority, Theme, UserSettings } from '@/types';
+import type { Category, Label, Priority, Theme, UserSettings } from '@/types';
 import { EnhancedSkeletonBlock } from '@/components/ui/LoadingSpinner';
 import { useTranslations } from 'next-intl';
 import { HomeCategoryFilter } from './HomeCategoryFilter';
@@ -14,6 +14,9 @@ interface HomeFilterPanelProps {
   themeFilter: number | null;
   filter: string;
   priorityFilter: Priority | null;
+  /** Theme-scoped labels for the label filter row (empty → row hidden). */
+  labels: Label[];
+  labelFilter: number | null;
   sortBy: 'createdAt' | 'priority' | 'title';
   sortOrder: 'asc' | 'desc';
   appMode: string;
@@ -30,6 +33,7 @@ interface HomeFilterPanelProps {
   onThemeChange: (themeId: number) => void;
   onFilterChange: (status: string) => void;
   onPriorityChange: (priority: Priority | null) => void;
+  onLabelChange: (labelId: number | null) => void;
   onSortByChange: (sortBy: 'createdAt' | 'priority' | 'title') => void;
   onSortOrderToggle: () => void;
   onFilterExpandedToggle: () => void;
@@ -51,6 +55,8 @@ export function HomeFilterPanel({
   themeFilter,
   filter,
   priorityFilter,
+  labels,
+  labelFilter,
   sortBy,
   sortOrder,
   appMode,
@@ -67,6 +73,7 @@ export function HomeFilterPanel({
   onThemeChange,
   onFilterChange,
   onPriorityChange,
+  onLabelChange,
   onSortByChange,
   onSortOrderToggle,
   onFilterExpandedToggle,
@@ -98,7 +105,13 @@ export function HomeFilterPanel({
     );
   }
 
-  if (filtersLoading) {
+  // Only show the loading skeleton on the FIRST load (no data yet). Once
+  // categories exist, keep the filter visible during a refresh (stale-while-
+  // revalidate) — otherwise a periodic/stale-cache/force refresh blanks the whole
+  // filter into a skeleton, and on a busy backend (10s × retries) it reads as
+  // "filter stuck loading for a while". Mirrors the kanban board's
+  // `&& tasks.length === 0` guard.
+  if (filtersLoading && categories.length === 0) {
     return (
       <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 mb-4 animate-skeleton-fade-in">
         <div className="flex items-center overflow-x-auto bg-slate-50 dark:bg-slate-800/50">
@@ -146,7 +159,7 @@ export function HomeFilterPanel({
   if (categories.length === 0) return null;
 
   return (
-    <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 hover:border-indigo-500/50 mb-4">
+    <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 hover:border-blue-500/50 mb-4">
       <HomeCategoryFilter
         categories={categories}
         themes={themes}
@@ -162,6 +175,8 @@ export function HomeFilterPanel({
         themeFilter={themeFilter}
         filter={filter}
         priorityFilter={priorityFilter}
+        labels={labels}
+        labelFilter={labelFilter}
         sortBy={sortBy}
         sortOrder={sortOrder}
         isFilterExpanded={isFilterExpanded}
@@ -173,6 +188,7 @@ export function HomeFilterPanel({
         onThemeChange={onThemeChange}
         onFilterChange={onFilterChange}
         onPriorityChange={onPriorityChange}
+        onLabelChange={onLabelChange}
         onSortByChange={onSortByChange}
         onSortOrderToggle={onSortOrderToggle}
         onFilterExpandedToggle={onFilterExpandedToggle}

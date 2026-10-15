@@ -19,6 +19,7 @@ const mockPrisma = {
   notification: {
     create: mock(() => Promise.resolve(mockNotification)),
     count: mock(() => Promise.resolve(3)),
+    findFirst: mock(() => Promise.resolve(null as typeof mockNotification | null)),
   },
 };
 
@@ -41,6 +42,9 @@ const {
   notifyAgentExecutionCompleted,
   notifyApprovalRequested,
   notifyPomodoroCompleted,
+  notifyAuthenticationFailure,
+  notifyKnowledgeExtracted,
+  AUTH_FAILURE_NOTIFICATION_TITLE,
 } = await import('../../services/communication/notification-service');
 
 describe('createNotification', () => {
@@ -84,6 +88,40 @@ describe('createNotification', () => {
     expect(createCall.data.metadata).toBe(JSON.stringify({ key: 'value' }));
   });
 
+  test('i18nを指定した場合metadata.i18nとして埋め込むこと', async () => {
+    await createNotification({
+      type: 'system',
+      title: 'Test',
+      message: 'Test',
+      metadata: { key: 'value' },
+      i18n: { key: 'notification.types.system.title', params: { foo: 'bar' } },
+    });
+
+    const createCall = mockPrisma.notification.create.mock.calls[0]![0] as {
+      data: { metadata: string };
+    };
+    expect(JSON.parse(createCall.data.metadata)).toEqual({
+      key: 'value',
+      i18n: { key: 'notification.types.system.title', params: { foo: 'bar' } },
+    });
+  });
+
+  test('i18nのみ指定した場合でもmetadataを設定すること', async () => {
+    await createNotification({
+      type: 'system',
+      title: 'Test',
+      message: 'Test',
+      i18n: { key: 'notification.types.system.title' },
+    });
+
+    const createCall = mockPrisma.notification.create.mock.calls[0]![0] as {
+      data: { metadata: string };
+    };
+    expect(JSON.parse(createCall.data.metadata)).toEqual({
+      i18n: { key: 'notification.types.system.title' },
+    });
+  });
+
   test('metadataがない場合nullを設定すること', async () => {
     await createNotification({
       type: 'system',
@@ -117,7 +155,12 @@ describe('notifyTaskCompleted', () => {
     expect(createCall.data.title).toBe('タスク完了');
     expect(createCall.data.message).toContain('テストタスク');
     expect(createCall.data.link).toBe('/tasks?taskId=42');
-    expect(JSON.parse(createCall.data.metadata)).toEqual({ taskId: 42 });
+    const metadata = JSON.parse(createCall.data.metadata) as { taskId: number; i18n: unknown };
+    expect(metadata.taskId).toBe(42);
+    expect(metadata.i18n).toEqual({
+      key: 'notification.types.task_completed.title',
+      params: { taskTitle: 'テストタスク' },
+    });
   });
 });
 
@@ -170,7 +213,8 @@ describe('notifyApprovalRequested', () => {
     };
     expect(createCall.data.type).toBe('approval_requested');
     expect(createCall.data.link).toBe('/approvals');
-    expect(JSON.parse(createCall.data.metadata)).toEqual({ approvalId: 5 });
+    const metadata = JSON.parse(createCall.data.metadata) as { approvalId: number };
+    expect(metadata.approvalId).toBe(5);
   });
 });
 
@@ -201,5 +245,97 @@ describe('notifyPomodoroCompleted', () => {
     };
     expect(createCall.data.message).not.toContain('「');
     expect(createCall.data.message).toContain('#5');
+  });
+});
+
+// notifyAuthenticationFailure dedupes: auth breakage fails EVERY queued task's
+// EVERY phase, so without the findFirst-within-window guard the notification
+// feed floods with one identical "Claude 認証切れ" entry per failed phase
+// across the whole backlog. This locks the dedup window behavior (see
+// AUTH_NOTIFY_WINDOW_MS in notification-service.ts) so a future refactor
+// cannot silently drop it and reintroduce the flood.
+describe('notifyAuthenticationFailure — dedup window', () => {
+  beforeEach(() => {
+    mockPrisma.notification.create.mockReset();
+    mockPrisma.notification.create.mockResolvedValue(mockNotification);
+    mockPrisma.notification.findFirst.mockReset();
+    mockPrisma.notification.findFirst.mockResolvedValue(null);
+    mockBroadcast.mockReset();
+  });
+
+  test('creates the notification when no recent auth-failure alert exists', async () => {
+    mockPrisma.notification.findFirst.mockResolvedValue(null);
+
+    const result = await notifyAuthenticationFailure();
+
+    expect(result).not.toBeNull();
+    expect(mockPrisma.notification.create).toHaveBeenCalledTimes(1);
+    const createCall = mockPrisma.notification.create.mock.calls[0]![0] as {
+      data: { type: string; title: string; link: string };
+    };
+    expect(createCall.data.type).toBe('system');
+    expect(createCall.data.title).toBe(AUTH_FAILURE_NOTIFICATION_TITLE);
+    expect(createCall.data.link).toBe('/');
+  });
+
+  test('suppresses (returns null, does not create) when an alert already fired within the window', async () => {
+    mockPrisma.notification.findFirst.mockResolvedValue({
+      ...mockNotification,
+      title: AUTH_FAILURE_NOTIFICATION_TITLE,
+      createdAt: new Date(),
+    });
+
+    const result = await notifyAuthenticationFailure();
+
+    expect(result).toBeNull();
+    expect(mockPrisma.notification.create).not.toHaveBeenCalled();
+  });
+
+  test('scopes the dedup lookup to type=system and the exact auth-failure title', async () => {
+    await notifyAuthenticationFailure();
+
+    const [findFirstArgs] = mockPrisma.notification.findFirst.mock.calls[0] as [
+      { where: { type: string; title: string; createdAt: { gte: Date } } },
+    ];
+    expect(findFirstArgs.where.type).toBe('system');
+    expect(findFirstArgs.where.title).toBe(AUTH_FAILURE_NOTIFICATION_TITLE);
+    // A `gte` cutoff must be present — an unbounded lookup would suppress
+    // every future auth alert forever after the first one.
+    expect(findFirstArgs.where.createdAt.gte).toBeInstanceOf(Date);
+    expect(findFirstArgs.where.createdAt.gte.getTime()).toBeLessThan(Date.now());
+  });
+});
+
+describe('notifyKnowledgeExtracted', () => {
+  beforeEach(() => {
+    mockPrisma.notification.create.mockReset();
+    mockPrisma.notification.create.mockResolvedValue(mockNotification);
+    mockPrisma.notification.count.mockReset();
+    mockPrisma.notification.count.mockResolvedValue(0);
+    mockBroadcast.mockReset();
+  });
+
+  test('正しいtype/title/message/link/metadata/i18nで通知を作成すること', async () => {
+    await notifyKnowledgeExtracted(42, 'テストタスク', [1, 2, 3]);
+
+    const createCall = mockPrisma.notification.create.mock.calls[0]![0] as {
+      data: { type: string; title: string; message: string; link: string; metadata: string };
+    };
+    expect(createCall.data.type).toBe('knowledge_extracted');
+    expect(createCall.data.title).toBe('ナレッジ自動抽出完了');
+    expect(createCall.data.message).toContain('テストタスク');
+    expect(createCall.data.message).toContain('3件');
+    expect(createCall.data.link).toBe('/knowledge');
+    const metadata = JSON.parse(createCall.data.metadata) as {
+      taskId: number;
+      entryIds: number[];
+      i18n: { key: string; params: { taskTitle: string; count: number } };
+    };
+    expect(metadata.taskId).toBe(42);
+    expect(metadata.entryIds).toEqual([1, 2, 3]);
+    expect(metadata.i18n).toEqual({
+      key: 'notification.types.knowledge_extracted.title',
+      params: { taskTitle: 'テストタスク', count: 3 },
+    });
   });
 });

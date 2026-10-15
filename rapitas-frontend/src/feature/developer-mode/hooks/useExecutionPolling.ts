@@ -2,9 +2,11 @@
 // useExecutionPolling
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { createLogger } from '@/lib/logger';
 import { type ExecutionStreamState, trimLogs } from './execution-stream-types';
 import { type PollRefs, executePoll } from './execution-poll-handlers';
+import { getAppHidden } from '@/hooks/common/app-visibility-store';
 
 const logger = createLogger('ExecutionStream');
 
@@ -15,6 +17,7 @@ const logger = createLogger('ExecutionStream');
  * @returns Execution stream state and polling control methods
  */
 export function useExecutionPolling(taskId: number | null) {
+  const t = useTranslations('devMode.executionPolling');
   const [state, setState] = useState<ExecutionStreamState>({
     isConnected: false,
     isRunning: false,
@@ -47,6 +50,11 @@ export function useExecutionPolling(taskId: number | null) {
   // creates a new AgentExecution row) resets the output cursor and lets
   // the next phase's logs render without a page reload.
   const lastExecutionIdRef = useRef<number | null>(null);
+  // Guards against overlapping polls: a slow backend can make a poll take longer
+  // than the 1s interval, and without this the fetches stack up and saturate the
+  // browser's 6-connection/origin limit (the "task list stuck on the skeleton
+  // loader until Ctrl+R" jam during auto-run).
+  const pollInFlightRef = useRef(false);
 
   const refs: PollRefs = {
     lastProcessedStatusRef,
@@ -157,8 +165,20 @@ export function useExecutionPolling(taskId: number | null) {
       // The interval keeps ticking and resumes within 1s once the tab is
       // visible again; the offset cursor means no log lines are missed.
       const poll = () => {
-        if (typeof document !== 'undefined' && document.hidden) return;
-        executePoll(taskId, refs, lastOutputLengthRef, setState, stopPolling);
+        // getAppHidden() covers minimize, which occlusion-disabled WebView2
+        // doesn't report via document.hidden.
+        if ((typeof document !== 'undefined' && document.hidden) || getAppHidden()) return;
+        // Skip if the previous poll is still in flight so overlapping fetches can
+        // never pile up and exhaust the 6-connection/origin limit (which starves
+        // the task-list GET → the stuck-skeleton jam). The interval keeps ticking;
+        // the next tick after the in-flight poll resolves picks up where it left off.
+        if (pollInFlightRef.current) return;
+        pollInFlightRef.current = true;
+        void Promise.resolve(
+          executePoll(taskId, refs, lastOutputLengthRef, setState, stopPolling, t),
+        ).finally(() => {
+          pollInFlightRef.current = false;
+        });
       };
 
       // Initial poll
@@ -198,12 +218,12 @@ export function useExecutionPolling(taskId: number | null) {
       question: undefined,
       logs:
         shouldAddLog && prev.logs.length > 0
-          ? trimLogs([...prev.logs, '\n[キャンセル] 実行が停止されました。\n'])
+          ? trimLogs([...prev.logs, `\n${t('cancelledLog')}\n`])
           : shouldAddLog
-            ? ['[キャンセル] 実行が停止されました。\n']
+            ? [`${t('cancelledLog')}\n`]
             : prev.logs,
     }));
-  }, []);
+  }, [t]);
 
   const clearLogs = useCallback(() => {
     lastOutputLengthRef.current = 0;

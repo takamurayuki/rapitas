@@ -57,6 +57,22 @@ export interface DateRange {
   period: 'day' | 'week' | 'month';
 }
 
+/** One day of busy ratios (0..1) from /agent-metrics/utilization. */
+export interface UtilizationDailyPoint {
+  date: string;
+  byRole: Record<string, number>;
+  byAgent: Record<string, number>;
+}
+
+export interface AgentUtilization {
+  startDate: string;
+  endDate: string;
+  dayCount: number;
+  daily: UtilizationDailyPoint[];
+  roles: Array<{ role: string; utilization: number }>;
+  agents: Array<{ agent: string; utilization: number }>;
+}
+
 /**
  * Fetches all metrics data in parallel and manages date range filter state.
  *
@@ -71,15 +87,18 @@ export function useMetricsData() {
   const [performanceComparison, setPerformanceComparison] = useState<AgentPerformanceComparison[]>(
     [],
   );
+  const [utilization, setUtilization] = useState<AgentUtilization | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // NOTE: Default window is the trailing 7 days incl. today (task #581 spec) —
+  // start = today − 6 so the utilization chart pre-seeds exactly 7 UTC days.
   const [dateRange, setDateRange] = useState<DateRange>({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    startDate: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
     period: 'day',
   });
-  const [trendDays, setTrendDays] = useState(30);
+  const [trendDays, setTrendDays] = useState(7);
 
   const fetchMetricsData = async () => {
     try {
@@ -92,12 +111,16 @@ export function useMetricsData() {
         period: dateRange.period,
       });
 
-      const [overviewRes, agentMetricsRes, trendsRes, performanceRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/agent-metrics/overview?${queryParams}`),
-        fetch(`${API_BASE_URL}/agent-metrics?${queryParams}`),
-        fetch(`${API_BASE_URL}/agent-metrics/trends?period=${dateRange.period}&days=${trendDays}`),
-        fetch(`${API_BASE_URL}/agent-metrics/performance?${queryParams}`),
-      ]);
+      const [overviewRes, agentMetricsRes, trendsRes, performanceRes, utilizationRes] =
+        await Promise.all([
+          fetch(`${API_BASE_URL}/agent-metrics/overview?${queryParams}`),
+          fetch(`${API_BASE_URL}/agent-metrics?${queryParams}`),
+          fetch(
+            `${API_BASE_URL}/agent-metrics/trends?period=${dateRange.period}&days=${trendDays}`,
+          ),
+          fetch(`${API_BASE_URL}/agent-metrics/performance?${queryParams}`),
+          fetch(`${API_BASE_URL}/agent-metrics/utilization?${queryParams}`),
+        ]);
 
       if (overviewRes.ok) {
         const data = await overviewRes.json();
@@ -117,6 +140,13 @@ export function useMetricsData() {
       if (performanceRes.ok) {
         const data = await performanceRes.json();
         setPerformanceComparison(data.performance || []);
+      }
+
+      if (utilizationRes.ok) {
+        const data = await utilizationRes.json();
+        // The endpoint returns { error } on failure; reset to null then so the
+        // cards fall back to their empty state instead of stale data.
+        setUtilization(data && !('error' in data) ? data : null);
       }
     } catch (err) {
       logger.error('Failed to fetch metrics data:', err);
@@ -161,6 +191,7 @@ export function useMetricsData() {
     agentMetrics,
     executionTrends,
     performanceComparison,
+    utilization,
     loading,
     error,
     setError,
@@ -169,5 +200,7 @@ export function useMetricsData() {
     trendDays,
     setTrendDays,
     exportData,
+    /** Manual refresh — re-fetches all metrics with the current filters. */
+    refetch: fetchMetricsData,
   };
 }

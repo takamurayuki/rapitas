@@ -1,0 +1,8 @@
+{
+  "id": "case-09-subtask-chain-false-complete",
+  "category": "failure-recovery",
+  "taskDescription": "手動でのサブタスク完了操作が親タスクを誤って完了扱いにしてしまう不具合の修正（isParentFinalizable ガード追加）",
+  "initialFiles": ["rapitas-backend/services/agent-execution/execution-core.ts"],
+  "acceptanceCheck": "bun test services/agents/verification/automated-verifier.test.ts",
+  "expectedOutcome": "pass-to-pass"
+}

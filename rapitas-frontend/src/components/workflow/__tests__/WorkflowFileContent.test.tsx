@@ -2,6 +2,13 @@ import { render, fireEvent } from '@testing-library/react';
 import { WorkflowFileContent } from '../WorkflowFileContent';
 import type { WorkflowTab } from '../workflow-viewer-utils';
 
+// The mock echoes the translation key back; this suite only asserts on the
+// TOC's heading structure, not translated copy, so no key-path assertions
+// are needed here.
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 /**
  * Regression coverage for the in-file table of contents: every TOC link must
  * resolve to a rendered <h2> with the matching id. The earlier counter-based id
@@ -87,5 +94,40 @@ describe('WorkflowFileContent TOC', () => {
     const navButtons = Array.from(container.querySelectorAll('nav div button'));
     expect(navButtons).toHaveLength(1);
     expect(container.querySelector('[id="wf-h-受け入れ基準"]')?.tagName).toBe('H2');
+  });
+});
+
+/**
+ * When the phase-critic gate archives a rejected research.md/plan.md, the
+ * file briefly reports !exists while it regenerates. Without a distinct
+ * empty state this is indistinguishable from "this phase never ran" —
+ * these tests pin the two states apart.
+ */
+describe('WorkflowFileContent regenerating empty state', () => {
+  it('shows the generic empty state when the file does not exist and is not regenerating', () => {
+    const { getByText, queryByText } = render(
+      <WorkflowFileContent
+        isLoading={false}
+        activeFile={{ exists: false }}
+        activeTabConfig={TAB}
+        showApprovalButton={false}
+      />,
+    );
+    expect(getByText('empty')).toBeTruthy();
+    expect(queryByText('fileContent.regenerating')).toBeNull();
+  });
+
+  it('shows the regenerating empty state when isRegenerating is true', () => {
+    const { getByText, queryByText } = render(
+      <WorkflowFileContent
+        isLoading={false}
+        activeFile={{ exists: false }}
+        activeTabConfig={TAB}
+        showApprovalButton={false}
+        isRegenerating
+      />,
+    );
+    expect(getByText('fileContent.regenerating')).toBeTruthy();
+    expect(queryByText('empty')).toBeNull();
   });
 });

@@ -60,6 +60,8 @@ export type ExecutionStreamState = {
   tokensUsed?: number;
   /** Total token usage for the session */
   totalSessionTokens?: number;
+  /** Accumulated AI cost (USD) across the whole session */
+  totalSessionCostUsd?: number;
   /**
    * Increments every time the polling loop observes either:
    *   - a workflow phase reaching `completed` status (research_done /

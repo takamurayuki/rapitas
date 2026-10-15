@@ -4,10 +4,32 @@
 import { ExternalLink } from 'lucide-react';
 import type { DraggableProvided, DraggableStateSnapshot } from '@hello-pangea/dnd';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
+import { formatDate } from '@/utils/date';
+import type { Priority } from '@/types';
+
+const PRIORITY_BADGE: Record<Priority, { labelKey: string; className: string }> = {
+  low: {
+    labelKey: 'priorityLow',
+    className: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+  },
+  medium: {
+    labelKey: 'priorityMedium',
+    className: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-400',
+  },
+  high: {
+    labelKey: 'priorityHigh',
+    className: 'bg-amber-100 text-amber-600 dark:bg-amber-900 dark:text-amber-400',
+  },
+  urgent: {
+    labelKey: 'priorityUrgent',
+    className: 'bg-rose-100 text-rose-600 dark:bg-rose-900 dark:text-rose-400',
+  },
+};
 
 interface KanbanCardTask {
   id: number;
   title: string;
+  priority?: Priority | null;
   createdAt: string;
   estimatedHours?: number | null;
   labels?: unknown;
@@ -26,7 +48,6 @@ interface KanbanCardProps {
   provided: DraggableProvided;
   snapshot: DraggableStateSnapshot;
   executionClasses: ExecutionClasses | null;
-  dateLocale: string;
   onOpen: (taskId: number) => void;
   onOpenInPage: (taskId: number) => void;
   /** i18n helper for kanban namespace */
@@ -40,7 +61,6 @@ interface KanbanCardProps {
  * @param provided - DraggableProvided from @hello-pangea/dnd
  * @param snapshot - DraggableStateSnapshot for drag styling
  * @param executionClasses - Optional execution-state styling/label
- * @param dateLocale - Locale string for date formatting
  * @param onOpen - Open task in slide panel
  * @param onOpenInPage - Navigate to full task page
  * @param t - kanban translation function
@@ -50,7 +70,6 @@ export function KanbanCard({
   provided,
   snapshot,
   executionClasses,
-  dateLocale,
   onOpen,
   onOpenInPage,
   t,
@@ -61,15 +80,31 @@ export function KanbanCard({
       {...provided.draggableProps}
       {...provided.dragHandleProps}
       onClick={() => onOpen(task.id)}
+      onKeyDown={(e) => {
+        // NOTE: @hello-pangea/dnd's drag-handle keyboard sensor listens at the
+        // window level, not via an onKeyDown prop, so overriding this handler
+        // does not interfere with keyboard drag-and-drop.
+        if (e.key === 'Enter') {
+          onOpen(task.id);
+        }
+      }}
       className={`rounded-lg border bg-white dark:bg-zinc-800 p-3 shadow-sm transition-all cursor-pointer ${
         snapshot.isDragging
-          ? 'shadow-lg border-blue-500'
-          : 'border-zinc-200 dark:border-zinc-700 hover:shadow-md hover:border-blue-400 dark:hover:border-blue-600'
+          ? 'shadow-lg border-indigo-500'
+          : 'border-zinc-200 dark:border-zinc-700 hover:shadow-md hover:border-indigo-400 dark:hover:border-indigo-600'
       } ${executionClasses?.cardClass || ''}`}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <h3 className="flex-1 text-sm font-medium text-zinc-900 dark:text-zinc-50">{task.title}</h3>
         <div className="flex items-center gap-2">
+          {/* Priority badge */}
+          {task.priority && PRIORITY_BADGE[task.priority] && (
+            <span
+              className={`flex-shrink-0 px-1.5 py-0.5 rounded text-xs font-medium ${PRIORITY_BADGE[task.priority].className}`}
+            >
+              {t(PRIORITY_BADGE[task.priority].labelKey)}
+            </span>
+          )}
           {/* Execution state badge */}
           {executionClasses && (
             <div
@@ -87,7 +122,7 @@ export function KanbanCard({
               e.stopPropagation();
               onOpenInPage(task.id);
             }}
-            className="text-zinc-500 hover:text-blue-600 dark:text-zinc-400 dark:hover:text-blue-400 transition-colors"
+            className="text-zinc-500 hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-indigo-400 transition-colors"
             title={t('openInPage')}
           >
             <ExternalLink className="w-4 h-4" />
@@ -107,7 +142,7 @@ export function KanbanCard({
               d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
             />
           </svg>
-          {new Date(task.createdAt).toLocaleDateString(dateLocale)}
+          {formatDate(task.createdAt)}
         </span>
 
         {/* Subtasks */}
@@ -164,7 +199,7 @@ export function KanbanCard({
             .map((label, idx) => (
               <span
                 key={idx}
-                className="rounded-full bg-blue-100 dark:bg-blue-900 px-2 py-0.5 text-xs text-blue-700 dark:text-blue-300"
+                className="rounded-full bg-indigo-100 dark:bg-indigo-900 px-2 py-0.5 text-xs text-indigo-700 dark:text-indigo-300"
               >
                 {label}
               </span>

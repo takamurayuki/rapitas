@@ -1,9 +1,9 @@
 'use client';
 // ErrorTrendsChart
 
-import React from 'react';
 import { Card } from '@/components/ui/card';
 import { type ErrorSummary } from '../../services/error-analysis-service';
+import { formatTime } from '@/utils/date';
 
 type ErrorTrendsChartProps = {
   /** Trend data from errorAnalysisService.getErrorSummary(). */
@@ -26,11 +26,11 @@ export function ErrorTrendsChart({ summary }: ErrorTrendsChartProps) {
         {summary.errorTrends.map((trend, index) => (
           <div
             key={index}
-            className="flex-1 bg-blue-500 dark:bg-blue-600 rounded-t hover:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
+            className="flex-1 bg-indigo-500 dark:bg-indigo-600 rounded-t hover:bg-indigo-600 dark:hover:bg-indigo-700 transition-colors"
             style={{
               height: `${Math.max(5, (trend.count / maxCount) * 100)}%`,
             }}
-            title={`${trend.timestamp.toLocaleTimeString()}: ${trend.count} errors`}
+            title={`${formatTime(trend.timestamp)}: ${trend.count} errors`}
           />
         ))}
       </div>

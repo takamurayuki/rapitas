@@ -5,37 +5,22 @@
  * Not responsible for parsing CLI output or building prompts.
  */
 
-import { spawn, ChildProcess, execSync } from 'child_process';
-import { existsSync } from 'fs';
+import { spawn, ChildProcess } from 'child_process';
+import { spawnLowPriority } from '../process-priority';
 import type { GeminiCliAgentConfig } from './types';
 import { createLogger } from '../../../config/logger';
+import { buildSanitizedSpawnEnv } from '../../../utils/agent';
+import { registerProcess } from '../agent-process-tracker';
+import { startResourceSampling } from '../process-resource-sampler';
+import { resolveCliPathAsync } from '../../../utils/common/cli-path-resolver';
+import {
+  escapeWindowsShellArg,
+  escapeWindowsShellArgForTarget,
+} from '../../../utils/common/windows-shell-escape';
 
 const logger = createLogger('gemini-cli-agent:process-manager');
 
-/**
- * Resolve the full path to the Gemini CLI executable on Windows.
- *
- * @param cliName - Executable name to resolve / 解決するCLI名
- * @returns Resolved full path on Windows, or the original name on other platforms
- */
-export function resolveCliPath(cliName: string): string {
-  if (process.platform !== 'win32') return cliName;
-  try {
-    const resolved = execSync(`where ${cliName}`, {
-      encoding: 'utf8',
-      timeout: 5000,
-      windowsHide: true,
-    })
-      .trim()
-      .split(/\r?\n/)[0];
-    if (resolved && existsSync(resolved)) {
-      return resolved;
-    }
-  } catch {
-    // intentionally ignore - fallback to cliName if resolution fails
-  }
-  return cliName;
-}
+export { resolveCliPathAsync as resolveCliPath } from '../../../utils/common/cli-path-resolver';
 
 /**
  * Build the spawn arguments array for the Gemini CLI.
@@ -89,6 +74,15 @@ export function buildCliArgs(config: GeminiCliAgentConfig, resumeId?: string | n
     args.push('--allowlist', config.allowedTools.join(','));
   }
 
+  // NOTE(security): Gemini CLI supports `--allowed-mcp-server-names` to
+  // restrict which MCP servers may connect (mirroring Claude Code's
+  // `--strict-mcp-config`, see claude-execution-runner.ts), but its
+  // empty-list semantics (does an empty/omitted value mean "allow none" or
+  // "no restriction"?) could not be confirmed — the Gemini CLI is not
+  // installed in this environment to test against, and passing the flag with
+  // unverified semantics risks silently allowing everything (worse than
+  // today) rather than blocking it. Left as a follow-up: verify the flag's
+  // empty-list behavior against a real Gemini CLI install before wiring it in.
   if (config.disallowedTools && config.disallowedTools.length > 0) {
     args.push('--denylist', config.disallowedTools.join(','));
   }
@@ -99,26 +93,34 @@ export function buildCliArgs(config: GeminiCliAgentConfig, resumeId?: string | n
 /**
  * Build the environment variables for the Gemini CLI process.
  *
+ * NOTE: The spawned CLI is prompt-steerable (the task prompt can ask it to
+ * print/exfiltrate its own env), so start from a sanitized base — never the
+ * raw inherited process.env — to keep ENCRYPTION_KEY/DATABASE_URL/tokens out
+ * of its reach. GEMINI_ and GOOGLE_-prefixed vars are kept because the Gemini CLI
+ * authenticates and configures itself with them.
+ *
  * @param config - Agent configuration / エージェント設定
  * @returns Merged environment object
  */
 export function buildProcessEnv(config: GeminiCliAgentConfig): NodeJS.ProcessEnv {
   const isWindows = process.platform === 'win32';
 
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    FORCE_COLOR: '0',
-    NO_COLOR: '1',
-    CI: '1',
-    TERM: 'dumb',
-    // Gemini CLI refuses to run in directories it doesn't recognise as
-    // "trusted" with exit code 55. Workflows operate against external
-    // working directories the user has already opted into via theme
-    // configuration, so flag the workspace as trusted unconditionally.
-    // The user can override by setting GEMINI_CLI_TRUST_WORKSPACE=false
-    // at the parent-process level if they want stricter behaviour.
-    GEMINI_CLI_TRUST_WORKSPACE: process.env.GEMINI_CLI_TRUST_WORKSPACE ?? 'true',
-  };
+  const env: NodeJS.ProcessEnv = buildSanitizedSpawnEnv(
+    {
+      FORCE_COLOR: '0',
+      NO_COLOR: '1',
+      CI: '1',
+      TERM: 'dumb',
+      // Gemini CLI refuses to run in directories it doesn't recognise as
+      // "trusted" with exit code 55. Workflows operate against external
+      // working directories the user has already opted into via theme
+      // configuration, so flag the workspace as trusted unconditionally.
+      // The user can override by setting GEMINI_CLI_TRUST_WORKSPACE=false
+      // at the parent-process level if they want stricter behaviour.
+      GEMINI_CLI_TRUST_WORKSPACE: process.env.GEMINI_CLI_TRUST_WORKSPACE ?? 'true',
+    },
+    ['GEMINI_', 'GOOGLE_'],
+  );
 
   if (config.apiKey) {
     env.GEMINI_API_KEY = config.apiKey;
@@ -144,6 +146,27 @@ export function buildProcessEnv(config: GeminiCliAgentConfig): NodeJS.ProcessEnv
 }
 
 /**
+ * Build the platform-specific spawn command/args for the Gemini CLI
+ * (UTF-8 code page + escaped args on Windows). Extracted as a pure function
+ * (task 977) so the Windows quoting/escaping contract — shared with the
+ * Claude CLI providers via {@link escapeWindowsShellArg} — is independently
+ * testable without spawning a real process.
+ *
+ * @param geminiPath - Resolved path to the Gemini CLI executable / 解決されたCLIパス
+ * @param args - CLI argument array (must NOT contain the prompt) / CLIに渡す引数
+ * @returns Tuple of [finalCommand, finalArgs] ready for spawn() / spawn()に渡す[最終コマンド, 最終引数]のタプル
+ */
+export function buildGeminiSpawnCommand(geminiPath: string, args: string[]): [string, string[]] {
+  if (process.platform !== 'win32') return [geminiPath, args];
+  // escapeWindowsShellArg('' , true) already produces a safely-quoted empty
+  // token (^^^"^^^"), so the old "quote empty strings explicitly" special
+  // case is no longer needed — unconditional quoting subsumes it.
+  const argsString = args.map((arg) => escapeWindowsShellArgForTarget(geminiPath, arg)).join(' ');
+  const quotedPath = escapeWindowsShellArg(geminiPath, false);
+  return [`chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`, []];
+}
+
+/**
  * Spawn the Gemini CLI process and pipe the prompt via stdin.
  *
  * The prompt is delivered through stdin rather than the `-p` flag because
@@ -166,39 +189,14 @@ export function spawnGeminiProcess(
   env: NodeJS.ProcessEnv,
   prompt: string,
 ): ChildProcess {
-  const isWindows = process.platform === 'win32';
-
-  let finalCommand: string;
-  let finalArgs: string[];
-
-  if (isWindows) {
-    const argsString = args
-      .map((arg) => {
-        // Quote empty strings explicitly — without "" the empty value
-        // collapses in cmd.exe and the next flag is consumed as the
-        // missing value (`-p` followed by `--output-format` would
-        // produce `Not enough arguments following: p`).
-        if (arg === '') return '""';
-        if (arg.includes(' ') || arg.includes('&') || arg.includes('|')) {
-          return `"${arg}"`;
-        }
-        return arg;
-      })
-      .join(' ');
-    const quotedPath = geminiPath.includes(' ') ? `"${geminiPath}"` : geminiPath;
-    finalCommand = `chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`;
-    finalArgs = [];
-  } else {
-    finalCommand = geminiPath;
-    finalArgs = args;
-  }
+  const [finalCommand, finalArgs] = buildGeminiSpawnCommand(geminiPath, args);
 
   logger.info(
     { promptChars: prompt.length },
     `[ProcessManager] Spawning Gemini (prompt via stdin)`,
   );
 
-  const proc = spawn(finalCommand, finalArgs, {
+  const proc = spawnLowPriority(finalCommand, finalArgs, {
     cwd: workDir,
     shell: true,
     windowsHide: true, // NOTE: Prevents TCP handle inheritance — stops CLI process from inheriting port 3001 socket
@@ -211,6 +209,23 @@ export function spawnGeminiProcess(
   }
   if (proc.stderr) {
     proc.stderr.setEncoding('utf8');
+  }
+
+  // Track the PID so a crash of the parent backend (or a hung gemini process
+  // outliving its own timeout) can still be found and reaped by dev.js's
+  // startup cleanup / cleanupZombieProcesses — previously ONLY
+  // claude-execution-runner.ts's spawn registered here, so gemini CLI
+  // processes were invisible to the zombie sweep (and not `bun.exe`, so
+  // killStrayBunProcesses' name-based scan misses them too). Unregistered in
+  // stream-handler.ts's 'close' handler, where this process's lifecycle ends.
+  if (proc.pid) {
+    registerProcess({
+      pid: proc.pid,
+      role: 'cli-agent',
+      startedAt: new Date().toISOString(),
+      parentPid: process.pid,
+    });
+    startResourceSampling(proc.pid);
   }
 
   // Feed the prompt via stdin then close it so Gemini knows the prompt
@@ -243,7 +258,10 @@ export async function stopGeminiProcess(proc: ChildProcess, logPrefix: string): 
         logger.info(`${logPrefix} Process ${pid} killed via taskkill`);
       }
     } catch (e) {
-      logger.error({ err: e }, `${logPrefix} taskkill failed`);
+      // Same benign race as agent-core.ts's stop() — the process usually
+      // already exited between the null-check and the call; the fallback
+      // below recovers it.
+      logger.warn({ err: e }, `${logPrefix} taskkill failed`);
       try {
         proc.kill();
       } catch (killErr) {
@@ -277,12 +295,13 @@ export async function stopGeminiProcess(proc: ChildProcess, logPrefix: string): 
  *
  * @returns true if `gemini --version` exits with code 0 / 利用可能な場合はtrue
  */
-export function checkGeminiAvailability(): Promise<boolean> {
+export async function checkGeminiAvailability(): Promise<boolean> {
+  const isWindows = process.platform === 'win32';
+  const geminiPath = await resolveCliPathAsync(
+    process.env.GEMINI_CLI_PATH || (isWindows ? 'gemini.cmd' : 'gemini'),
+  );
+
   return new Promise((resolve) => {
-    const isWindows = process.platform === 'win32';
-    const geminiPath = resolveCliPath(
-      process.env.GEMINI_CLI_PATH || (isWindows ? 'gemini.cmd' : 'gemini'),
-    );
     const proc = spawn(geminiPath, ['--version'], { shell: true });
 
     const timeout = setTimeout(() => {

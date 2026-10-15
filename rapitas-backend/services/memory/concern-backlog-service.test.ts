@@ -15,9 +15,15 @@ const mockKnowledgeEntryCount = mock(() => Promise.resolve(0));
 const mockKnowledgeEntryGroupBy = mock(() => Promise.resolve([]));
 const mockKnowledgeEntryUpdate = mock(() => Promise.resolve({}));
 const mockKnowledgeEntryCreate = mock(() => Promise.resolve({ id: 1 }));
+const mockKnowledgeEntryDelete = mock(() => Promise.resolve({}));
 
 const mockGitHubIssueFindMany = mock(() => Promise.resolve([]));
 const mockThemeFindFirst = mock(() => Promise.resolve(null));
+// theme-resolution.ts's resolveDefaultThemeId reads ALL themes via findMany
+// (working-dir-aware ranking), not the single-row findFirst the old local
+// concern-backlog-service implementation used.
+const mockThemeFindMany = mock(() => Promise.resolve([] as Record<string, unknown>[]));
+const mockTaskFindUnique = mock(() => Promise.resolve(null as Record<string, unknown> | null));
 
 mock.module('../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
@@ -29,12 +35,17 @@ mock.module('../../config/database', () => ({
       groupBy: mockKnowledgeEntryGroupBy,
       update: mockKnowledgeEntryUpdate,
       create: mockKnowledgeEntryCreate,
+      delete: mockKnowledgeEntryDelete,
     },
     gitHubIssue: {
       findMany: mockGitHubIssueFindMany,
     },
     theme: {
       findFirst: mockThemeFindFirst,
+      findMany: mockThemeFindMany,
+    },
+    task: {
+      findUnique: mockTaskFindUnique,
     },
   },
 }));
@@ -52,14 +63,34 @@ mock.module('../task/task-mutations', () => ({
   createTask: mock(() => Promise.resolve({ id: 100 })),
 }));
 
+// Jev is not configured in this test environment (no RAPITAS_JEV_API_KEY),
+// so checkConcernStillRelevant already no-ops to null in every existing
+// test above — this mock only needs to be swapped for the dedicated
+// jev-not-relevant tests below.
+const mockCheckConcernStillRelevant = mock(() =>
+  Promise.resolve(null as { relevant: boolean; confidence: number } | null),
+);
+mock.module('./concern-relevance-check', () => ({
+  checkConcernStillRelevant: mockCheckConcernStillRelevant,
+}));
+
 const {
+  CONCERN_TYPES,
+  CONCERN_SEVERITIES,
   normalizeConcernType,
   normalizeConcernSeverity,
   markConcernResolved,
   getConcern,
+  setConcernStatus,
+  deleteConcern,
+  convertConcernToTask,
   listConcerns,
   getConcernStats,
+  submitConcern,
 } = await import('./concern-backlog-service');
+
+const { isConcernType, isConcernSeverity } =
+  await import('./concern-backlog-service.guards.generated');
 
 // ─── Reset helper ──────────────────────────────────────────────────────────────
 
@@ -70,8 +101,12 @@ function resetMocks() {
   mockKnowledgeEntryGroupBy.mockReset().mockResolvedValue([]);
   mockKnowledgeEntryUpdate.mockReset().mockResolvedValue({});
   mockKnowledgeEntryCreate.mockReset().mockResolvedValue({ id: 1 });
+  mockKnowledgeEntryDelete.mockReset().mockResolvedValue({});
   mockGitHubIssueFindMany.mockReset().mockResolvedValue([]);
   mockThemeFindFirst.mockReset().mockResolvedValue(null);
+  mockThemeFindMany.mockReset().mockResolvedValue([]);
+  mockTaskFindUnique.mockReset().mockResolvedValue(null);
+  mockCheckConcernStillRelevant.mockReset().mockResolvedValue(null);
 }
 
 // ─── Pure helper tests ────────────────────────────────────────────────────────
@@ -83,16 +118,12 @@ describe('normalizeConcernType', () => {
       expect(normalizeConcernType(t)).toBe(t),
   );
 
-  it('defaults unknown string to "bug"', () => {
-    expect(normalizeConcernType('unknown')).toBe('bug');
-  });
-
-  it('defaults undefined to "bug"', () => {
-    expect(normalizeConcernType(undefined)).toBe('bug');
-  });
-
-  it('defaults null to "bug"', () => {
-    expect(normalizeConcernType(null)).toBe('bug');
+  it.each([
+    { name: 'unknown string to "bug"', input: 'unknown' },
+    { name: 'undefined to "bug"', input: undefined },
+    { name: 'null to "bug"', input: null },
+  ])('defaults $name', ({ input }) => {
+    expect(normalizeConcernType(input)).toBe('bug');
   });
 });
 
@@ -174,6 +205,559 @@ describe('markConcernResolved', () => {
   });
 });
 
+// ─── setConcernStatus / deleteConcern / convertConcernToTask — concernId 境界値 ──
+// Regression coverage for #744: an out-of-range concernId (e.g. a huge float
+// parsed from a route param) must never reach `prisma.knowledgeEntry` — Prisma
+// throws PrismaClientValidationError ("Unable to fit value ... into a 64-bit
+// signed integer") when it does, which previously reached the DB unguarded.
+
+const OUT_OF_RANGE_CONCERN_ID = 6.0316055619162455e31;
+
+describe('setConcernStatus', () => {
+  beforeEach(resetMocks);
+
+  it('範囲外の concernId は findFirst を呼ばず false を返す', async () => {
+    const result = await setConcernStatus(OUT_OF_RANGE_CONCERN_ID, 'dismissed');
+
+    expect(result).toBe(false);
+    expect(mockKnowledgeEntryFindFirst).not.toHaveBeenCalled();
+    expect(mockKnowledgeEntryUpdate).not.toHaveBeenCalled();
+  });
+
+  it('存在する concern のステータスを更新して true を返す', async () => {
+    mockKnowledgeEntryFindFirst.mockResolvedValue({ id: 1 });
+
+    const result = await setConcernStatus(1, 'dismissed');
+
+    expect(result).toBe(true);
+    const call = mockKnowledgeEntryUpdate.mock.calls[0][0];
+    expect(call.data.sourceId).toBe('dismissed');
+  });
+
+  it('concern が見つからない場合は false を返す', async () => {
+    mockKnowledgeEntryFindFirst.mockResolvedValue(null);
+
+    const result = await setConcernStatus(999, 'open');
+
+    expect(result).toBe(false);
+    expect(mockKnowledgeEntryUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('deleteConcern', () => {
+  beforeEach(resetMocks);
+
+  it('範囲外の concernId は findFirst を呼ばず false を返す', async () => {
+    const result = await deleteConcern(OUT_OF_RANGE_CONCERN_ID);
+
+    expect(result).toBe(false);
+    expect(mockKnowledgeEntryFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('存在する concern を削除して true を返す', async () => {
+    mockKnowledgeEntryFindFirst.mockResolvedValue({ id: 1 });
+
+    const result = await deleteConcern(1);
+
+    expect(result).toBe(true);
+  });
+
+  it('concern が見つからない場合は false を返す', async () => {
+    mockKnowledgeEntryFindFirst.mockResolvedValue(null);
+
+    const result = await deleteConcern(999);
+
+    expect(result).toBe(false);
+  });
+});
+
+describe('convertConcernToTask', () => {
+  const CONCERN_ROW = {
+    id: 1,
+    title: 'Auth flaw',
+    content: 'JWT not validated',
+    category: 'security',
+    tags: '["severity:high"]',
+    sourceId: 'open',
+    themeId: 5,
+    taskId: null,
+    createdAt: new Date(),
+  };
+
+  beforeEach(resetMocks);
+
+  it('範囲外の concernId は findFirst を呼ばず null を返す', async () => {
+    const result = await convertConcernToTask(OUT_OF_RANGE_CONCERN_ID);
+
+    expect(result).toBeNull();
+    expect(mockKnowledgeEntryFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('concern が見つからない場合は null を返す', async () => {
+    mockKnowledgeEntryFindFirst.mockResolvedValue(null);
+
+    const result = await convertConcernToTask(999);
+
+    expect(result).toBeNull();
+  });
+
+  it('既にタスク化済みの concern は例外を投げる', async () => {
+    mockKnowledgeEntryFindFirst.mockResolvedValue({ ...CONCERN_ROW, sourceId: 'task_42' });
+
+    await expect(convertConcernToTask(1)).rejects.toThrow('この懸念は既にタスク化されています');
+  });
+
+  it('未タスク化の concern をタスクへ変換し taskId を返す', async () => {
+    mockKnowledgeEntryFindFirst.mockResolvedValue(CONCERN_ROW);
+
+    const result = await convertConcernToTask(1);
+
+    expect(result).toBe(100);
+    const call = mockKnowledgeEntryUpdate.mock.calls[0][0];
+    expect(call.data.sourceId).toBe('task_100');
+  });
+});
+
+// ─── submitConcern — theme attribution ─────────────────────────────────────────
+
+describe('submitConcern — theme attribution', () => {
+  beforeEach(resetMocks);
+
+  // Regression: submitConcern used to store `input.themeId ?? null` verbatim —
+  // any caller that omitted themeId (verification-gate.ts's pre-existing-
+  // failure filing, the public POST /concerns route, GitHub issue import) left
+  // the concern permanently theme-less, even when originTaskId was present and
+  // resolvable. Mirrors submitIdea's same invariant (idea-box-service.ts).
+
+  it('uses the explicit themeId when provided, without looking up the task', async () => {
+    await submitConcern({ title: 'タイトルが十分な長さの懸念', detail: '詳細', themeId: 7 });
+
+    expect(mockKnowledgeEntryCreate).toHaveBeenCalledTimes(1);
+    const call = mockKnowledgeEntryCreate.mock.calls[0][0] as { data: { themeId: number | null } };
+    expect(call.data.themeId).toBe(7);
+    expect(mockTaskFindUnique).not.toHaveBeenCalled();
+  });
+
+  it('resolves themeId from originTaskId when themeId is omitted', async () => {
+    mockTaskFindUnique.mockResolvedValue({ themeId: 12, workingDirectory: null });
+
+    await submitConcern({ title: 'タイトルが十分な長さの懸念', detail: '詳細', originTaskId: 511 });
+
+    expect(mockTaskFindUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 511 } }),
+    );
+    const call = mockKnowledgeEntryCreate.mock.calls[0][0] as { data: { themeId: number | null } };
+    expect(call.data.themeId).toBe(12);
+  });
+
+  it('falls back to the default theme when originTaskId has no theme of its own', async () => {
+    mockTaskFindUnique.mockResolvedValue({ themeId: null, workingDirectory: null });
+    mockThemeFindMany.mockResolvedValue([{ id: 3, isDefault: true, workingDirectory: null }]);
+
+    await submitConcern({ title: 'タイトルが十分な長さの懸念', detail: '詳細', originTaskId: 511 });
+
+    const call = mockKnowledgeEntryCreate.mock.calls[0][0] as { data: { themeId: number | null } };
+    expect(call.data.themeId).toBe(3);
+  });
+
+  it('falls back to the default theme when neither themeId nor originTaskId is given', async () => {
+    mockThemeFindMany.mockResolvedValue([{ id: 9, isDefault: true, workingDirectory: null }]);
+
+    await submitConcern({ title: 'タイトルが十分な長さの懸念', detail: '詳細' });
+
+    expect(mockTaskFindUnique).not.toHaveBeenCalled();
+    const call = mockKnowledgeEntryCreate.mock.calls[0][0] as { data: { themeId: number | null } };
+    expect(call.data.themeId).toBe(9);
+  });
+
+  it('stores themeId: null only when genuinely no theme exists at all', async () => {
+    mockThemeFindMany.mockResolvedValue([]);
+
+    await submitConcern({ title: 'タイトルが十分な長さの懸念', detail: '詳細' });
+
+    const call = mockKnowledgeEntryCreate.mock.calls[0][0] as { data: { themeId: number | null } };
+    expect(call.data.themeId).toBeNull();
+  });
+});
+
+// ─── submitConcern — source tag ────────────────────────────────────────────────
+
+describe('submitConcern — source tag', () => {
+  beforeEach(resetMocks);
+
+  it('stores the given source as a source:<value> tag', async () => {
+    await submitConcern({
+      title: 'タイトルが十分な長さの懸念',
+      detail: '詳細',
+      source: 'vuln_scan',
+    });
+
+    expect(mockKnowledgeEntryCreate).toHaveBeenCalledTimes(1);
+    const call = mockKnowledgeEntryCreate.mock.calls[0][0] as { data: { tags: string } };
+    const tags = JSON.parse(call.data.tags) as string[];
+    expect(tags).toContain('source:vuln_scan');
+  });
+
+  it('defaults to source:agent when source is omitted', async () => {
+    await submitConcern({ title: 'タイトルが十分な長さの懸念', detail: '詳細' });
+
+    const call = mockKnowledgeEntryCreate.mock.calls[0][0] as { data: { tags: string } };
+    const tags = JSON.parse(call.data.tags) as string[];
+    expect(tags).toContain('source:agent');
+  });
+});
+
+// ─── submitConcern — lifecycle-aware dedup ─────────────────────────────────────
+
+describe('submitConcern — lifecycle-aware dedup', () => {
+  beforeEach(resetMocks);
+
+  // Regression: dedup used to match any concern with the same contentHash
+  // regardless of lifecycle, so once a ci_watch red for a workflow left 'open'
+  // (promoted to a task, resolved, or forgotten) the same workflow breaking
+  // again was silently swallowed forever. Dedup must only block on a LIVE
+  // concern: 'open', or 'task_created' whose task is still in flight.
+
+  it('scopes the dedup lookup to active, non-resolved concerns', async () => {
+    await submitConcern({
+      title: 'CI赤の懸念タイトル',
+      detail: '詳細',
+      dedupKey: 'ci-red:1:Test',
+    });
+
+    const call = mockKnowledgeEntryFindMany.mock.calls[0][0] as {
+      where: { forgettingStage?: string; sourceId?: unknown };
+    };
+    expect(call.where.forgettingStage).toBe('active');
+    expect(call.where.sourceId).toEqual({ not: 'resolved' });
+  });
+
+  it('blocks (no new row) when a live OPEN concern with the same key exists', async () => {
+    mockKnowledgeEntryFindMany.mockResolvedValue([{ id: 5, sourceId: 'open' }]);
+
+    const result = await submitConcern({
+      title: 'CI赤の懸念タイトル',
+      detail: '詳細',
+      dedupKey: 'ci-red:1:Test',
+    });
+
+    expect(result.id).toBe(5);
+    expect(result.outcome).toBe('reused');
+    expect(result.reason).toBe('dedup-live-duplicate');
+    expect(mockKnowledgeEntryCreate).not.toHaveBeenCalled();
+  });
+
+  it('blocks when a dismissed concern with the same key exists (respects dismiss)', async () => {
+    mockKnowledgeEntryFindMany.mockResolvedValue([{ id: 5, sourceId: 'dismissed' }]);
+
+    const result = await submitConcern({
+      title: 'CI赤の懸念タイトル',
+      detail: '詳細',
+      dedupKey: 'ci-red:1:Test',
+    });
+
+    expect(result.id).toBe(5);
+    expect(result.outcome).toBe('reused');
+    expect(mockKnowledgeEntryCreate).not.toHaveBeenCalled();
+  });
+
+  it('blocks when the same-key task_created concern is still in flight', async () => {
+    mockKnowledgeEntryFindMany.mockResolvedValue([{ id: 5, sourceId: 'task_9' }]);
+    mockTaskFindUnique.mockResolvedValue({ status: 'in-progress' });
+
+    const result = await submitConcern({
+      title: 'CI赤の懸念タイトル',
+      detail: '詳細',
+      dedupKey: 'ci-red:1:Test',
+    });
+
+    expect(result.id).toBe(5);
+    expect(result.outcome).toBe('reused');
+    expect(mockKnowledgeEntryCreate).not.toHaveBeenCalled();
+  });
+
+  it('files a fresh concern when the same-key task_created concern已完了', async () => {
+    mockKnowledgeEntryFindMany.mockResolvedValue([{ id: 5, sourceId: 'task_9' }]);
+    mockTaskFindUnique.mockResolvedValue({ status: 'completed' });
+
+    await submitConcern({
+      title: 'CI赤の懸念タイトル',
+      detail: '詳細',
+      dedupKey: 'ci-red:1:Test',
+    });
+
+    // Terminal follow-up task → a recurrence is a new regression → new row filed.
+    expect(mockKnowledgeEntryCreate).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─── submitConcern — recurrencePolicy aggregation (#801) ───────────────────────
+
+describe('submitConcern — recurrencePolicy aggregation', () => {
+  beforeEach(resetMocks);
+
+  it('files exactly one concern when the same signature is detected twice in a row', async () => {
+    mockKnowledgeEntryFindMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: 11,
+        sourceId: 'open',
+        tags: JSON.stringify(['severity:high']),
+        content: '1回目の詳細',
+        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      },
+    ]);
+    mockKnowledgeEntryCreate.mockResolvedValueOnce({ id: 11 });
+
+    const first = await submitConcern({
+      title: '状態不整合の懸念',
+      detail: '1回目の詳細',
+      dedupKey: 'self-incident:tristate-desync',
+      recurrencePolicy: { enabled: true, instanceValue: 'taskId:100' },
+    });
+    const second = await submitConcern({
+      title: '状態不整合の懸念',
+      detail: '2回目の詳細',
+      dedupKey: 'self-incident:tristate-desync',
+      recurrencePolicy: { enabled: true, instanceValue: 'taskId:200' },
+    });
+
+    expect(first.id).toBe(11);
+    expect(first.outcome).toBe('created');
+    expect(first.reason).toBe('new');
+    expect(second.id).toBe(11);
+    expect(second.outcome).toBe('reused');
+    expect(second.reason).toBe('recurrence-merged-open');
+    expect(mockKnowledgeEntryCreate).toHaveBeenCalledTimes(1);
+    expect(mockKnowledgeEntryUpdate).toHaveBeenCalledTimes(1);
+    const updateCall = mockKnowledgeEntryUpdate.mock.calls[0][0] as {
+      data: { content: string; tags: string };
+    };
+    expect(updateCall.data.content).toContain('### 発生記録');
+    expect(JSON.parse(updateCall.data.tags)).toContain('occurrence:2');
+  });
+
+  it('escalates severity and references the prior entry for a done-task recurrence within the window', async () => {
+    const completedAt = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000);
+    mockKnowledgeEntryFindMany.mockResolvedValue([
+      {
+        id: 22,
+        sourceId: 'task_50',
+        tags: '[]',
+        content: '過去の詳細',
+        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      },
+    ]);
+    mockTaskFindUnique.mockResolvedValue({ status: 'done', completedAt });
+
+    const result = await submitConcern({
+      title: 'git command failed 懸念',
+      detail: '新しい詳細',
+      severity: 'medium',
+      dedupKey: 'log:backend|git|error|checkout',
+      recurrencePolicy: { enabled: true, instanceValue: 'git checkout -b feature/aaa' },
+    });
+
+    expect(mockKnowledgeEntryCreate).toHaveBeenCalledTimes(1);
+    const call = mockKnowledgeEntryCreate.mock.calls[0][0] as {
+      data: { content: string; tags: string };
+    };
+    expect(call.data.content).toContain('### 再発');
+    expect(call.data.content).toContain('#22');
+    const tags = JSON.parse(call.data.tags) as string[];
+    expect(tags).toContain('recurrenceOf:22');
+    expect(tags).toContain('severity:high'); // medium escalated to high
+    expect(result.outcome).toBe('created');
+    expect(result.reason).toBe('recurrence-of-done');
+  });
+
+  it('files a plain new concern (no escalation) for a done-task recurrence outside the window', async () => {
+    const completedAt = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000);
+    mockKnowledgeEntryFindMany.mockResolvedValue([
+      {
+        id: 23,
+        sourceId: 'task_51',
+        tags: '[]',
+        content: '過去の詳細',
+        createdAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
+      },
+    ]);
+    mockTaskFindUnique.mockResolvedValue({ status: 'done', completedAt });
+
+    const result = await submitConcern({
+      title: '状態不整合の懸念',
+      detail: '新しい詳細',
+      severity: 'medium',
+      dedupKey: 'self-incident:tristate-desync-old',
+      recurrencePolicy: { enabled: true, instanceValue: 'taskId:300' },
+    });
+
+    expect(mockKnowledgeEntryCreate).toHaveBeenCalledTimes(1);
+    const call = mockKnowledgeEntryCreate.mock.calls[0][0] as {
+      data: { content: string; tags: string };
+    };
+    expect(call.data.content).not.toContain('### 再発');
+    const tags = JSON.parse(call.data.tags) as string[];
+    expect(tags).not.toContain('recurrenceOf:23');
+    expect(tags).toContain('severity:medium'); // unchanged, no escalation
+    expect(result.outcome).toBe('created');
+    expect(result.reason).toBe('new');
+  });
+});
+
+// ─── submitConcern — 応答のoutcome区別 (#888) ───────────────────────────────────
+
+describe('submitConcern — 応答のoutcome区別', () => {
+  beforeEach(resetMocks);
+
+  it('near-duplicate 抑制時は outcome:suppressed, reason:near-duplicate を返す', async () => {
+    mockKnowledgeEntryFindMany
+      .mockResolvedValueOnce([]) // findBlockingDuplicate: no blocking dup
+      .mockResolvedValueOnce([{ id: 42, title: 'テーマ飽和判定の誤爆確認用タイトル' }]); // findNearDuplicate: near-dup match
+
+    const result = await submitConcern({
+      title: 'テーマ飽和判定の誤爆確認用タイトル',
+      detail: '詳細',
+    });
+
+    expect(result).toEqual({
+      id: 42,
+      outcome: 'suppressed',
+      reason: 'near-duplicate',
+      stored: false,
+    });
+    expect(mockKnowledgeEntryCreate).not.toHaveBeenCalled();
+  });
+
+  it('theme-saturation 抑制時は outcome:suppressed, reason:theme-saturation を返す', async () => {
+    mockKnowledgeEntryFindMany
+      .mockResolvedValueOnce([]) // findBlockingDuplicate: no blocking dup
+      .mockResolvedValueOnce([]) // findNearDuplicate: no near-dup
+      .mockResolvedValueOnce([
+        { id: 51, title: '監督ループ自動修復システムの誤動作報告B' },
+        { id: 52, title: '監督ループ自動修復システムの誤動作報告C' },
+        { id: 53, title: '監督ループ自動修復システムの誤動作報告D' },
+      ]); // findSaturatedTheme: theme cap reached
+
+    const result = await submitConcern({
+      title: '監督ループ自動修復システムの誤動作報告A',
+      detail: '詳細',
+    });
+
+    expect(result).toEqual({
+      id: 51,
+      outcome: 'suppressed',
+      reason: 'theme-saturation',
+      stored: false,
+    });
+    expect(mockKnowledgeEntryCreate).not.toHaveBeenCalled();
+  });
+
+  it('near-dup も飽和もない通常登録は outcome:created, reason:new を返す', async () => {
+    mockKnowledgeEntryFindMany
+      .mockResolvedValueOnce([]) // findBlockingDuplicate
+      .mockResolvedValueOnce([]) // findNearDuplicate
+      .mockResolvedValueOnce([]); // findSaturatedTheme
+    mockKnowledgeEntryCreate.mockResolvedValueOnce({ id: 7 });
+
+    const result = await submitConcern({
+      title: '新しい未分類の懸念タイトルです',
+      detail: '詳細',
+    });
+
+    expect(result).toEqual({ id: 7, outcome: 'created', reason: 'new', stored: true });
+  });
+
+  it('無関係な既存懸念がタイトルの疎な類似度だけでヒットしても内容が無関係なら新規作成される (#967)', async () => {
+    // タイトルのみでは salient=5・minJaccard=0.2 を満たすが、detail の内容は無関係な
+    // 3件（実際のバグ再現条件）。theme-saturation の newDetail 二次チェックにより
+    // 誤ってこれらのIDへ抑制されず、実際に新規 KnowledgeEntry が作成されることを確認する。
+    mockKnowledgeEntryFindMany
+      .mockResolvedValueOnce([]) // findBlockingDuplicate: no blocking dup
+      .mockResolvedValueOnce([]) // findNearDuplicate: bigram-Jaccard too low to match
+      .mockResolvedValueOnce([
+        {
+          id: 301,
+          title: '[Bug] PDF出力処理が正しく動作しない',
+          content:
+            'PDF出力機能で帳票を生成すると日本語フォントが埋め込まれず文字化けする。フォント埋め込み設定の見直しが必要。',
+        },
+        {
+          id: 302,
+          title: '[Bug] メール送信処理が正しく動作しない',
+          content:
+            'メール送信バッチが添付ファイルサイズ上限を超えると無言で送信を諦めてしまう。エラーログにも記録が残らない。',
+        },
+        {
+          id: 303,
+          title: '[Bug] キャッシュ削除処理が正しく動作しない',
+          content:
+            'キャッシュ削除ジョブが並行実行されるとロック競合で片方が失敗し、古いキャッシュが残り続けることがある。',
+        },
+      ]); // findSaturatedTheme: title-only would hit cap=3, but content is unrelated
+    mockKnowledgeEntryCreate.mockResolvedValueOnce({ id: 999 });
+
+    const result = await submitConcern({
+      title: '[Bug] 決済リトライ処理が正しく動作しない',
+      detail:
+        '決済APIのリトライ処理でタイムアウト後に再送すると二重課金が発生する場合がある。冪等キーの検証を強化する必要がある。',
+    });
+
+    expect(mockKnowledgeEntryCreate).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ id: 999, outcome: 'created', reason: 'new', stored: true });
+  });
+
+  it('Jevが確信を持って「関連性なし」と判定した場合は outcome:suppressed, reason:jev-not-relevant で id:null を返す', async () => {
+    mockKnowledgeEntryFindMany
+      .mockResolvedValueOnce([]) // findBlockingDuplicate
+      .mockResolvedValueOnce([]) // findNearDuplicate
+      .mockResolvedValueOnce([]); // findSaturatedTheme
+    mockCheckConcernStillRelevant.mockResolvedValueOnce({ relevant: false, confidence: 0.92 });
+
+    const result = await submitConcern({
+      title: '既に修正済みの一時的なエラーに見えるタイトル',
+      detail: '詳細',
+    });
+
+    expect(result).toEqual({
+      id: null,
+      outcome: 'suppressed',
+      reason: 'jev-not-relevant',
+      stored: false,
+    });
+    expect(mockKnowledgeEntryCreate).not.toHaveBeenCalled();
+  });
+
+  it('Jevが「関連性あり」と判定した場合は通常どおり outcome:created を返す', async () => {
+    mockKnowledgeEntryFindMany
+      .mockResolvedValueOnce([]) // findBlockingDuplicate
+      .mockResolvedValueOnce([]) // findNearDuplicate
+      .mockResolvedValueOnce([]); // findSaturatedTheme
+    mockCheckConcernStillRelevant.mockResolvedValueOnce({ relevant: true, confidence: 0.9 });
+    mockKnowledgeEntryCreate.mockResolvedValueOnce({ id: 8 });
+
+    const result = await submitConcern({
+      title: '現在も再現する具体的な不具合のタイトル',
+      detail: '詳細',
+    });
+
+    expect(result).toEqual({ id: 8, outcome: 'created', reason: 'new', stored: true });
+  });
+
+  it('dedupKey付きの懸念はJev判定をスキップする(既存のrecurrencePolicyと二重判定しない)', async () => {
+    mockKnowledgeEntryFindMany.mockResolvedValueOnce([]); // findBlockingDuplicate only
+    mockKnowledgeEntryCreate.mockResolvedValueOnce({ id: 9 });
+
+    const result = await submitConcern({
+      title: 'dedupKey付きの懸念',
+      detail: '詳細',
+      dedupKey: 'stable-key-1',
+    });
+
+    expect(result.outcome).toBe('created');
+    expect(mockCheckConcernStillRelevant).not.toHaveBeenCalled();
+  });
+});
+
 // ─── getConcern ───────────────────────────────────────────────────────────────
 
 describe('getConcern', () => {
@@ -240,6 +824,28 @@ describe('getConcern', () => {
     const concern = await getConcern(1);
 
     expect(concern!.status).toBe('resolved');
+  });
+
+  it('tags の source:<value> を ConcernEntry.source に読み出す', async () => {
+    mockKnowledgeEntryFindFirst.mockResolvedValue({
+      ...CONCERN_ROW,
+      tags: '["severity:high","source:vuln_scan"]',
+    });
+
+    const concern = await getConcern(1);
+
+    expect(concern!.source).toBe('vuln_scan');
+  });
+
+  it('source タグの無い既存データは source="unknown" にフォールバックする', async () => {
+    mockKnowledgeEntryFindFirst.mockResolvedValue({
+      ...CONCERN_ROW,
+      tags: '["severity:medium"]',
+    });
+
+    const concern = await getConcern(1);
+
+    expect(concern!.source).toBe('unknown');
   });
 });
 
@@ -309,6 +915,43 @@ describe('listConcerns', () => {
 
     expect(concerns[0].linkedIssue).toBeNull();
   });
+
+  it('source フィルタはクォート込み contains で where に渡される (vuln_scan_audit 誤マッチ防止)', async () => {
+    await listConcerns({ source: 'vuln_scan' });
+
+    const call = mockKnowledgeEntryFindMany.mock.calls[0][0];
+    expect(call.where.tags).toEqual({ contains: '"source:vuln_scan"' });
+  });
+
+  it('severity と source の同時指定は AND で両方の条件が効く', async () => {
+    await listConcerns({ severity: 'high', source: 'ci_watch' });
+
+    const call = mockKnowledgeEntryFindMany.mock.calls[0][0];
+    expect(call.where.tags).toBeUndefined();
+    expect(call.where.AND).toEqual([
+      { tags: { contains: 'severity:high' } },
+      { tags: { contains: '"source:ci_watch"' } },
+    ]);
+  });
+
+  it('severity 単独指定は従来どおり where.tags 直下に入る', async () => {
+    await listConcerns({ severity: 'high' });
+
+    const call = mockKnowledgeEntryFindMany.mock.calls[0][0];
+    expect(call.where.tags).toEqual({ contains: 'severity:high' });
+    expect(call.where.AND).toBeUndefined();
+  });
+
+  it('結果の各 concern に tags 由来の source が付与される', async () => {
+    mockKnowledgeEntryFindMany.mockResolvedValue([
+      { ...CONCERN_ROW, tags: '["severity:medium","source:loop_review"]' },
+    ]);
+    mockKnowledgeEntryCount.mockResolvedValue(1);
+
+    const { concerns } = await listConcerns({ status: 'all' });
+
+    expect(concerns[0].source).toBe('loop_review');
+  });
 });
 
 // ─── getConcernStats ──────────────────────────────────────────────────────────
@@ -347,5 +990,50 @@ describe('getConcernStats', () => {
     expect(stats.open).toBe(0);
     expect(stats.resolved).toBe(0);
     expect(stats.byType).toHaveLength(0);
+  });
+});
+
+// ─── SSOT 配列テスト ──────────────────────────────────────────────────────────
+
+describe('CONCERN_TYPES (SSOT array)', () => {
+  it('contains all expected concern type strings', () => {
+    expect(CONCERN_TYPES).toEqual(['bug', 'refactor', 'security', 'perf', 'other']);
+  });
+});
+
+describe('CONCERN_SEVERITIES (SSOT array)', () => {
+  it('contains all expected severity strings', () => {
+    expect(CONCERN_SEVERITIES).toEqual(['urgent', 'high', 'medium', 'low']);
+  });
+});
+
+describe('isConcernType (generated guard)', () => {
+  it.each(['bug', 'refactor', 'security', 'perf', 'other'] as const)(
+    'returns true for valid type "%s"',
+    (t) => {
+      expect(isConcernType(t)).toBe(true);
+    },
+  );
+
+  it('returns false for invalid string', () => {
+    expect(isConcernType('critical')).toBe(false);
+  });
+
+  it('returns false for null / undefined', () => {
+    expect(isConcernType(null)).toBe(false);
+    expect(isConcernType(undefined)).toBe(false);
+  });
+});
+
+describe('isConcernSeverity (generated guard)', () => {
+  it.each(['urgent', 'high', 'medium', 'low'] as const)(
+    'returns true for valid severity "%s"',
+    (s) => {
+      expect(isConcernSeverity(s)).toBe(true);
+    },
+  );
+
+  it('returns false for invalid string', () => {
+    expect(isConcernSeverity('critical')).toBe(false);
   });
 });

@@ -140,13 +140,26 @@ export class ExecutionFileLogger {
 
     if (this.config.enableConsolePassthrough) {
       const prefix = `[ExecLog:${this.executionId}]`;
+      // NOTE: context/error were previously dropped on the pino passthrough, so ERROR/WARN
+      // log lines (e.g. execution_end failures) carried no failure reason for triage (#694).
+      const pinoContext: Record<string, unknown> | undefined = error
+        ? { ...context, err: error }
+        : context;
       switch (level) {
         case 'ERROR':
         case 'FATAL':
-          log.error(`${prefix} ${message}`);
+          if (pinoContext) {
+            log.error(pinoContext, `${prefix} ${message}`);
+          } else {
+            log.error(`${prefix} ${message}`);
+          }
           break;
         case 'WARN':
-          log.warn(`${prefix} ${message}`);
+          if (pinoContext) {
+            log.warn(pinoContext, `${prefix} ${message}`);
+          } else {
+            log.warn(`${prefix} ${message}`);
+          }
           break;
         default:
           log.info(`${prefix} ${message}`);
@@ -213,15 +226,27 @@ export class ExecutionFileLogger {
   ): void {
     const durationMs = Date.now() - this.startedAt.getTime();
     const level = status === 'completed' ? 'INFO' : status === 'failed' ? 'ERROR' : 'WARN';
+    // NOTE: log-format-parser's parsePino() reads err.message (not a plain errorMessage
+    // field) to build the log-health-check dedup signature. Without this, every failed
+    // execution collapsed onto the same generic "Execution ended with status: failed"
+    // signature regardless of cause, so log-health-check kept re-filing one undiagnosable
+    // concern instead of one per actual failure reason (#694).
+    const err = result?.errorMessage ? new Error(result.errorMessage) : undefined;
 
-    this.log(level, 'execution_end', `Execution ended with status: ${status}`, {
-      status,
-      durationMs,
-      success: result?.success,
-      tokensUsed: result?.tokensUsed,
-      executionTimeMs: result?.executionTimeMs,
-      errorMessage: result?.errorMessage,
-    });
+    this.log(
+      level,
+      'execution_end',
+      `Execution ended with status: ${status}`,
+      {
+        status,
+        durationMs,
+        success: result?.success,
+        tokensUsed: result?.tokensUsed,
+        executionTimeMs: result?.executionTimeMs,
+        errorMessage: result?.errorMessage,
+      },
+      err,
+    );
   }
 
   /**

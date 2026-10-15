@@ -40,6 +40,9 @@ mock.module('../../config/logger', () => ({
 }));
 mock.module('../../utils/ai-client', () => ({
   getApiKeyForProvider: mock(() => Promise.resolve('test-key')),
+  // Pin `api` so the test exercises the paid path (with the mocked Anthropic SDK).
+  getAuxAiMode: () => 'api',
+  callClaudeCli: mock(() => Promise.resolve({ content: '[]', tokensUsed: 0 })),
 }));
 mock.module('../../services/memory/idea-box-service', () => ({
   getUnusedIdeasForContext: mock(() => Promise.resolve([])),

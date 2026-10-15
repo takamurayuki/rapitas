@@ -7,7 +7,7 @@
  */
 
 import type { Priority } from './common.types';
-import type { FileDiff, ScreenshotInfo } from './github.types';
+import type { FileDiff, GitCommit, ScreenshotInfo } from './github.types';
 
 // ==================== Execution status ====================
 
@@ -18,7 +18,13 @@ export type AgentStatus = 'pending' | 'running' | 'paused' | 'completed' | 'fail
 
 /** Common result envelope returned after initiating an agent execution. */
 export type ExecutionResult = {
-  success: boolean;
+  // Optional: a RESTORED execution (page reload / task-detail reopen) that is
+  // still running, waiting for input, or was interrupted has no definite
+  // success/failure verdict yet — `undefined` means "not a terminal result",
+  // distinct from `false` (failed). Consumers already relied on this
+  // three-state distinction (`=== true` / `=== false` / `!== undefined`)
+  // before the type declared it, via restoreExecutionState in useDeveloperMode.ts.
+  success?: boolean;
   sessionId?: number;
   executionId?: number;
   approvalRequestId?: number;
@@ -167,16 +173,14 @@ export type NotificationMetadata = {
 
 export type Notification = {
   id: number;
-  type:
-    | 'approval_request'
-    | 'task_created'
-    | 'task_completed'
-    | 'agent_error'
-    | 'daily_summary'
-    | 'pr_review_requested'
-    | 'agent_execution_started'
-    | 'knowledge_extracted'
-    | 'knowledge_reminder';
+  /**
+   * Backend `NotificationType` values plus ad-hoc strings from the several
+   * `prisma.notification.create` call sites that predate that union (see
+   * notification-service.ts for the canonical list). Kept as `string` here —
+   * unknown values fall back to a neutral icon (notification-type-icons.ts),
+   * so the frontend never needs to enumerate every backend type.
+   */
+  type: string;
   title: string;
   message: string;
   link?: string | null;
@@ -242,7 +246,7 @@ export type AgentExecution = {
   executionTimeMs?: number | null;
   errorMessage?: string | null;
   createdAt: string;
-  gitCommits?: import('./github.types').GitCommit[];
+  gitCommits?: GitCommit[];
 };
 
 // NOTE: TaskAnalysisConfig and AgentExecutionConfig moved to agent-config.types.ts

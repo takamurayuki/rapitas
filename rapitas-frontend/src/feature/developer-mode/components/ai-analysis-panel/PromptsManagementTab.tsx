@@ -1,6 +1,7 @@
 'use client';
 // ai-analysis-panel/PromptsManagementTab.tsx
 
+import { useTranslations } from 'next-intl';
 import {
   FileText,
   AlertCircle,
@@ -14,6 +15,7 @@ import {
   Save,
 } from 'lucide-react';
 import type { PromptsData } from './types';
+import { Spinner } from '@/components/ui/spinner';
 
 type Props = {
   promptsData: PromptsData | null;
@@ -49,17 +51,19 @@ export function PromptsManagementTab({
   onStartEditing,
   onCancelEditing,
 }: Props) {
+  const t = useTranslations('devMode.promptsManagementTab');
+  const tCommon = useTranslations('common');
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FileText className="w-4 h-4 text-zinc-500" />
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            保存済みプロンプト
+            {t('savedPrompts')}
           </span>
           {promptsData && (
             <span className="px-2 py-0.5 bg-zinc-100 dark:bg-indigo-dark-800 text-zinc-500 text-xs rounded">
-              {promptsData.prompts.length}件
+              {t('countSuffix', { count: promptsData.prompts.length })}
             </span>
           )}
         </div>
@@ -68,7 +72,7 @@ export function PromptsManagementTab({
             onClick={onFetchPrompts}
             disabled={isLoadingPrompts}
             className="p-1.5 text-zinc-400 hover:text-zinc-600 rounded"
-            title="更新"
+            title={t('refresh')}
           >
             <RefreshCw className={`w-4 h-4 ${isLoadingPrompts ? 'animate-spin' : ''}`} />
           </button>
@@ -82,7 +86,7 @@ export function PromptsManagementTab({
             ) : (
               <Zap className="w-3 h-3" />
             )}
-            一括生成
+            {t('generateAll')}
           </button>
         </div>
       </div>
@@ -96,7 +100,7 @@ export function PromptsManagementTab({
 
       {isLoadingPrompts ? (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="w-6 h-6 text-zinc-400 animate-spin" />
+          <Spinner size="lg" />
         </div>
       ) : promptsData ? (
         <div className="space-y-3">
@@ -105,8 +109,8 @@ export function PromptsManagementTab({
               <Target className="w-3 h-3" />
               <span className="font-medium">{promptsData.task.title}</span>
               {promptsData.task.hasSubtasks && promptsData.subtasks && (
-                <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">
-                  サブタスク: {promptsData.subtasks.length}件
+                <span className="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded">
+                  {t('subtaskCount', { count: promptsData.subtasks.length })}
                 </span>
               )}
             </div>
@@ -115,12 +119,8 @@ export function PromptsManagementTab({
           {promptsData.prompts.length === 0 ? (
             <div className="text-center py-6">
               <FileText className="w-10 h-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">
-                保存されたプロンプトはありません
-              </p>
-              <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                「一括生成」または「最適化」タブでプロンプトを生成してください
-              </p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">{t('emptyHint')}</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-500">{t('emptyGuide')}</p>
             </div>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -138,15 +138,17 @@ export function PromptsManagementTab({
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                            {isParentTask ? promptsData.task.title : (subtask?.title ?? '不明')}
+                            {isParentTask
+                              ? promptsData.task.title
+                              : (subtask?.title ?? t('unknown'))}
                           </span>
                           {isParentTask ? (
                             <span className="px-1.5 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 text-xs rounded">
-                              親タスク
+                              {t('parentTaskBadge')}
                             </span>
                           ) : (
-                            <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs rounded">
-                              サブタスク
+                            <span className="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs rounded">
+                              {t('subtaskBadge')}
                             </span>
                           )}
                           {prompt.qualityScore != null && (
@@ -159,7 +161,7 @@ export function PromptsManagementTab({
                                     : 'text-red-600'
                               }`}
                             >
-                              スコア: {prompt.qualityScore}
+                              {t('scoreLabel', { score: prompt.qualityScore })}
                             </span>
                           )}
                         </div>
@@ -169,12 +171,14 @@ export function PromptsManagementTab({
                           <>
                             <button
                               onClick={() => onUpdatePrompt(prompt.id, editingPromptText)}
+                              aria-label={tCommon('save')}
                               className="p-1 text-green-500 hover:text-green-600"
                             >
                               <Save className="w-3 h-3" />
                             </button>
                             <button
                               onClick={onCancelEditing}
+                              aria-label={tCommon('cancel')}
                               className="p-1 text-zinc-400 hover:text-zinc-600"
                             >
                               ×
@@ -185,21 +189,21 @@ export function PromptsManagementTab({
                             <button
                               onClick={() => onStartEditing(prompt.id, prompt.optimizedPrompt)}
                               className="p-1 text-zinc-400 hover:text-zinc-600"
-                              title="編集"
+                              title={t('edit')}
                             >
                               <Edit3 className="w-3 h-3" />
                             </button>
                             <button
                               onClick={() => navigator.clipboard.writeText(prompt.optimizedPrompt)}
                               className="p-1 text-zinc-400 hover:text-zinc-600"
-                              title="コピー"
+                              title={t('copy')}
                             >
                               <Copy className="w-3 h-3" />
                             </button>
                             <button
                               onClick={() => onDeletePrompt(prompt.id)}
                               className="p-1 text-red-400 hover:text-red-600"
-                              title="削除"
+                              title={t('delete')}
                             >
                               <Trash2 className="w-3 h-3" />
                             </button>
@@ -230,9 +234,7 @@ export function PromptsManagementTab({
       ) : (
         <div className="text-center py-6">
           <FileText className="w-10 h-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            プロンプト情報を読み込んでいます...
-          </p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('loadingPrompts')}</p>
         </div>
       )}
     </div>

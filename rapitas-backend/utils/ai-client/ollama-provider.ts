@@ -27,6 +27,11 @@ const OLLAMA_NUM_CTX = 4096;
 // grabs the whole machine and starves the (single-threaded) backend event loop.
 // Critical on low-core CPU-only PCs running a 3B model.
 const OLLAMA_NUM_THREAD = Math.max(1, Math.floor((cpus().length || 4) / 2));
+// Determinism: temperature 0 + a fixed seed make local inference reproducible
+// for an identical prompt (Ollama/llama-server both honor `seed` for greedy,
+// repeatable sampling). An arbitrary but fixed value — only its stability
+// across calls matters, not the specific number.
+const DETERMINISTIC_SEED = 42;
 
 /**
  * Check connectivity to a local LLM server.
@@ -106,7 +111,8 @@ export async function callOllama(
         model,
         messages: chatMessages,
         max_tokens: maxTokens || 256,
-        temperature: 0.7,
+        temperature: 0,
+        seed: DETERMINISTIC_SEED,
       })
     : JSON.stringify({
         model,
@@ -117,7 +123,8 @@ export async function callOllama(
           num_ctx: OLLAMA_NUM_CTX,
           num_predict: maxTokens || 256,
           num_thread: OLLAMA_NUM_THREAD,
-          temperature: 0.7,
+          temperature: 0,
+          seed: DETERMINISTIC_SEED,
         },
       });
 
@@ -203,7 +210,8 @@ export async function callOllamaStream(
       model,
       messages: chatMessages,
       max_tokens: maxTokens || 2048,
-      temperature: 0.7,
+      temperature: 0,
+      seed: DETERMINISTIC_SEED,
       stream: true,
     }),
     signal: AbortSignal.timeout(120000),

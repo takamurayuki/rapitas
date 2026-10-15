@@ -2,6 +2,7 @@
 // TaskActivityItem
 
 import { memo } from 'react';
+import { useTranslations } from 'next-intl';
 import { TrendingUp, User, ArrowRight, FileText, Tag, GitCommit } from 'lucide-react';
 import type { TaskActivity } from './types';
 import { timeAgo } from './memo-utils';
@@ -16,6 +17,7 @@ export const TaskActivityItem = memo(function TaskActivityItem({
 }: {
   activity: TaskActivity;
 }) {
+  const t = useTranslations('task');
   const getActivityIcon = () => {
     switch (activity.type) {
       case 'status_change':
@@ -36,7 +38,7 @@ export const TaskActivityItem = memo(function TaskActivityItem({
   const getActivityColor = () => {
     switch (activity.type) {
       case 'status_change':
-        return 'text-blue-500 bg-blue-50 dark:bg-blue-900/20';
+        return 'text-indigo-500 bg-indigo-50 dark:bg-indigo-900/20';
       case 'assignment':
         return 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20';
       case 'priority_change':
@@ -60,8 +62,8 @@ export const TaskActivityItem = memo(function TaskActivityItem({
             <span className="text-zinc-500 dark:text-zinc-400">{activity.details}</span>
           )}
         </div>
-        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-zinc-400">
-          <span>{timeAgo(new Date(activity.timestamp))}</span>
+        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-zinc-500">
+          <span>{timeAgo(new Date(activity.timestamp), t)}</span>
           {activity.user && (
             <>
               <span>•</span>

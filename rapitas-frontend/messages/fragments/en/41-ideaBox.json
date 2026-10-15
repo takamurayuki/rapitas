@@ -1,0 +1,90 @@
+{
+  "ideaBox": {
+    "title": "Idea Box",
+    "openLabel": "Open Idea Box",
+    "openWithCount": "Open Idea Box ({count} unused)",
+    "unusedCount": "{count} unused",
+    "emptyState": "No ideas yet. AI will automatically collect improvement suggestions while running.",
+    "addIdea": "Add idea",
+    "titlePlaceholder": "Idea title",
+    "contentPlaceholder": "Specific content",
+    "submit": "Post",
+    "catImprovement": "Improvement",
+    "catBugNoticed": "Bug",
+    "catTechDebt": "Tech debt",
+    "catUx": "UX",
+    "catFeature": "New feature",
+    "catPerformance": "Performance",
+    "priorityHint": {
+      "urgent": "Top priority",
+      "high": "Innovative — significantly raises app value",
+      "medium": "Steadily increases value",
+      "low": "Small improvement — nice to have"
+    },
+    "header": {
+      "statusEmpty": "Jot down ideas as they come",
+      "statusCount": "{count} ideas",
+      "title": "Ideas",
+      "subtitle": "Seeds for improvements and features you'd like to try. Jot them down, turn into tasks later.",
+      "addButton": "Add idea"
+    },
+    "list": {
+      "emptySearch": "No search results",
+      "emptyDefault": "No ideas yet",
+      "emptyHint": "Use the \"Add idea\" button above to jot one down"
+    },
+    "card": {
+      "themeFallback": "Project",
+      "priorityTitle": "Priority: {hint}",
+      "taskCreatedBadge": "Task created #{id}",
+      "sourceUser": "Manual",
+      "sourceAgent": "Agent",
+      "sourceCopilot": "AI assistant",
+      "convertTitle": "Create task (files immediately, no AI)",
+      "convertButton": "Create task",
+      "editAriaLabel": "Edit idea"
+    },
+    "createForm": {
+      "titleEdit": "Edit idea",
+      "titleAdd": "Add idea",
+      "saveAndConvert": "Save & create task",
+      "saveAndConvertNeedsTheme": "A theme is required to create a task",
+      "saveAndConvertTitle": "Save changes and create a task",
+      "titlePlaceholder": "Describe the idea in one line...",
+      "detailPlaceholder": "Details (optional)",
+      "priorityLabel": "Priority",
+      "priorityTitle": "Priority (how much it innovates / raises app value)",
+      "themeOption": "Theme"
+    },
+    "filterBar": {
+      "status": {
+        "open": "Open",
+        "used": "Task created",
+        "all": "All",
+        "uncategorized": "Uncategorized"
+      },
+      "allPriorities": "All priorities",
+      "priority": {
+        "urgent": "Urgent",
+        "high": "High",
+        "medium": "Medium",
+        "low": "Low"
+      },
+      "allThemes": "All themes",
+      "searchLabel": "Search: \"{query}\""
+    },
+    "themePicker": {
+      "title": "Select a theme",
+      "description": "This idea has no theme set. Select a theme to register it as a task.",
+      "themeLabel": "Theme",
+      "themeSelectPlaceholder": "Select a theme",
+      "noThemesWarning": "The selected category has no themes. Create a theme first."
+    },
+    "messages": {
+      "deleteFailed": "Failed to delete the idea",
+      "updateFailed": "Failed to update the idea",
+      "createFailed": "Failed to add the idea",
+      "convertFailed": "Failed to convert to a task"
+    }
+  }
+}

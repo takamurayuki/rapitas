@@ -41,7 +41,8 @@ export default function Button({
   iconPosition = 'left',
   fullWidth = false,
 }: Props) {
-  const base = 'inline-flex items-center justify-center font-medium rounded-lg border';
+  const base =
+    'inline-flex items-center justify-center font-medium rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900';
 
   const widthStyle = fullWidth ? 'w-full' : '';
 

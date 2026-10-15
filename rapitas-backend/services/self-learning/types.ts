@@ -73,46 +73,18 @@ export interface UpdateExperimentInput {
 }
 
 // --- Hypothesis ---
+// NOTE: Only the status vocabulary survives here. The Experiment-scoped
+// hypothesis scaffold (CreateHypothesisInput / HypothesisTestResult and the
+// `Hypothesis` table behind them) was retired 2026-08-24 — the live ledger is
+// KnowledgeEntry(sourceType='hypothesis'), served by routes/memory/hypothesis.ts.
 export type HypothesisStatus = 'proposed' | 'testing' | 'validated' | 'invalidated' | 'revised';
 
-export interface CreateHypothesisInput {
-  experimentId: number;
-  content: string;
-  reasoning?: string;
-  confidence?: number;
-  priority?: number;
-  parentId?: number;
-}
-
-export interface HypothesisTestResult {
-  passed: boolean;
-  evidence: string[];
-  metrics?: Record<string, number>;
-}
-
 // --- Critic ---
-export interface CriticScore {
-  accuracy: number; // 0-1.0
-  logic: number; // 0-1.0
-  coverage: number; // 0-1.0
-}
-
+// NOTE: Likewise, only the phase vocabulary survives. The Experiment-scoped
+// critic (CriticScore / CriticReviewInput / CriticReviewResult and the
+// `CriticReview` table) was retired 2026-08-24 — the live critic is
+// services/workflow/phase-critic.ts and its gate modules.
 export type CriticPhase = 'hypothesis' | 'plan' | 'execution';
-
-export interface CriticReviewInput {
-  experimentId: number;
-  phase: CriticPhase;
-  targetContent: string;
-  context?: string;
-}
-
-export interface CriticReviewResult {
-  score: CriticScore;
-  overallScore: number;
-  feedback: string;
-  suggestions: string[];
-  issues: string[];
-}
 
 // --- Knowledge Graph ---
 export type KnowledgeNodeType = 'concept' | 'problem' | 'solution' | 'technology' | 'pattern';
@@ -207,9 +179,33 @@ export interface CreatePatternInput {
 
 export interface LearningStats {
   totalExperiments: number;
+  /**
+   * @deprecated Alias of completionRate kept for API compatibility. It is the
+   * share of experiments that reached status=completed — NOT an acceptance,
+   * merge or defect-free rate (autonomy audit 2026-09-06).
+   */
   successRate: number;
+  /** Experiments with status=completed / totalExperiments (0-1). */
+  completionRate: number;
+  /** Denominator behind completionRate — read the rate with this in mind. */
+  sampleCount: number;
+  /**
+   * Tasks whose most recent classified WorkflowTransition.cause indicates an
+   * externally-verifiable outcome (PR merged/CI green/verify passed) versus
+   * one indicating no such evidence (e.g. no PR created, merge blocked).
+   * `null` when there is no classified task in the sample (autonomy audit
+   * 2026-09-06, first step toward a proper `accepted` concept).
+   */
+  acceptedTaskRate: number | null;
+  /** Aggregation window label for acceptedTaskRate — fixed to 'all' for now. */
+  window: 'all';
+  /** Tasks whose latest relevant cause did not match any known classification. */
+  unknownCount: number;
+  /** PromptEvolution rows whose recorded before/after pair improved (completed, delta > 0). */
+  confirmedPromptImprovements: number;
   topPatterns: Array<{ id: number; description: string; occurrences: number }>;
   recentLearnings: string[];
+  /** Every PromptEvolution row, any status — proposals included, not confirmed improvements. */
   promptImprovements: number;
   knowledgeGraphSize: { nodes: number; edges: number };
 }

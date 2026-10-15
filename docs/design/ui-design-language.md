@@ -77,11 +77,12 @@ real code we have already corrected or should watch for.
 ## 4. Tokens & defaults (current stack: Tailwind v4)
 
 - **Surfaces**: `bg-white` / `dark:bg-indigo-dark-900`. Separators: `border-zinc-200 dark:border-zinc-800`.
-- **Text**: primary `text-zinc-900 dark:text-zinc-100`; secondary `text-zinc-600 dark:text-zinc-400`; muted `text-zinc-400 dark:text-zinc-500`.
+- **Text**: primary `text-zinc-900 dark:text-zinc-100`; secondary `text-zinc-600 dark:text-zinc-400`; muted `text-zinc-500 dark:text-zinc-500` (light-mode `zinc-400` is ~2.8:1 on white — fails WCAG AA for real text; `zinc-400`/`zinc-500` remain fine on dark surfaces).
 - **Accent (single)**: `indigo` — active bg `indigo-50 dark:indigo-900/30`, active fg `indigo-600 dark:indigo-400`, primary action `bg-indigo-500/600`. Brand mark (logo/wordmark) may also use indigo as a small fixed identity element (see principle #3).
 - **Radius**: controls `rounded-md`/`rounded-lg`; avoid `rounded-2xl`+ on everything.
 - **Elevation**: borders by default; `shadow-lg` only for overlays/menus. Avoid `shadow-2xl`.
 - **Motion**: `transition-colors`/`transition-transform`; default `duration-150`/`200` (≤200ms), overlays/panels up to `duration-300`. No keyframe draw-ins for decoration (functional ones that track a state change are allowed — see §7).
+- **Status hues (one meaning = one hue, app-wide)**: running / in-progress / active phase = **blue** (`blue-600 dark:blue-400`, bg `blue-50 dark:blue-900/30`); waiting-on-user & warning = **amber**; error / blocked = **red**; success / completed = **green** (`green-500/600`, never emerald — emerald near-misses green and reads as drift; it stays reserved for non-completion meanings like the auto-run active state and learning-goals domain theming). Blue is reserved for the *running state* and is distinct from the indigo *interactive accent* — do not swap them. Sources of truth: `ui/status-card/StatusCard.tsx`, `workflow/WorkflowStatusIndicator.tsx`, `feature/tasks/config/StatusConfig.tsx`, `ui/alert.tsx`.
 - **Focus**: always a visible ring in the **accent**, on `focus-visible`: `focus-visible:ring-2 focus-visible:ring-indigo-500`. **Do not use `ring-blue-*`.** There are ~38 legacy `focus:ring-blue-500` instances (e.g. `header-search.tsx`, `app/tasks/new/NewTaskClient.tsx`, `HomeQuickAdd.tsx`); migrate each to `ring-indigo-500` (and `focus:` → `focus-visible:`) when you next touch that file.
 
 ### Type scale (role → recommended class)
@@ -93,7 +94,7 @@ real code we have already corrected or should watch for.
 | Section heading | `text-sm font-semibold` (14, often `uppercase tracking-wide text-zinc-500`) |
 | Body / default | `text-base` (16) or `text-sm` (14) in dense UI |
 | Secondary / label | `text-sm text-zinc-600 dark:text-zinc-400` (14) |
-| Caption / meta / kbd | `text-xs text-zinc-400 dark:text-zinc-500` (12) |
+| Caption / meta / kbd | `text-xs text-zinc-500 dark:text-zinc-400` (12) — bumped from `zinc-400` in light mode for AA contrast; dark stays `zinc-400` |
 
 Limit weights to `font-normal` / `font-medium` / `font-semibold`. Build emphasis with size + weight + color, not size alone, and never with the accent.
 
@@ -107,12 +108,15 @@ Track each screen/component as it is brought in line, so coverage is visible.
 |------|------|--------|-------------|
 | 2026-05-29 | Header / side nav | Nav moved below header; removed duplicated app name/icon; slim "メニュー" bar + pin; backdrop dim; softened shadow (`shadow-2xl`→`shadow-lg`); logo gradient-text → solid; dropped logo chip shadow. **Kept** the expand draw-in animation (signature — see §7) | #1, #2, #3, #10 |
 | 2026-05-29 | Task detail | Flatten the primary cards (task meta, subtasks, workflow) onto the surface system: `rounded-2xl shadow-xl` → `rounded-lg`, no shadow, unified border; one content radius. Hid the internal workflow file path (`tasks/1/17`). Focus rings → indigo (earlier). | #1, #3, #6 |
+| 2026-07-16 | Dashboard | Hierarchy: KPI strip → suggested-tasks as the single primary zone → study/exams → analytics. Dropped the oversized accent page icon; KPI/widget icons muted to zinc; card chrome unified to `rounded-lg` + border (no shadow, `dark:bg-zinc-900`); heatmap tabs & burnup period buttons now use the indigo active state (was white+`shadow-sm` / `bg-green-500`); burnup summary de-rainbowed (green kept for completed only); `font-bold`→`font-semibold`; page split per COMPONENT_SPLITTING_POLICY (`_components/`, `widgets/burnup-chart/`). | #1, #3, #6, #8, #10 |
+| 2026-07-16 | Ideas | Removed the "eureka" flash animation (glow + 600-800ms flash lines) from the header; amber ambient accent retired (active filters, primary actions → indigo; Lightbulb glyphs muted to zinc); add/save buttons' hard offset shadows → solid indigo primary + neutral secondary; inputs `border-0 shadow-sm` → bordered; `rounded-xl`/`rounded` → `rounded-lg`; `focus:border-blue-400` → `focus-visible:ring-indigo-500`; modal `shadow-xl` → `shadow-lg`. | #1, #3, #4, #6 |
+| 2026-07-25 | Ideas (add modal) | Reintroduced a small amber flash, deliberately narrower than the one removed 2026-07-16: the add-idea modal's `Lightbulb` icon plays a **single 0.45s** scale+glow flash (`animate-idea-lamp-flash`, globals.css) **only when a new idea POST actually succeeds** (`flashKey` counter in `use-idea-form.ts`, bumped once per successful add — never on mount, edit, or failure). Scoped to that one icon only — no surface/border/badge amber, so it doesn't reintroduce tell #1 (a second ambient accent competing with indigo). This satisfies tell #4's carve-out ("motion IS allowed when it explains a real state change") rather than reverting it — do not remove this as "AI-ish decorative motion" without first checking that it's still gated on the actual POST-success path. | (adds delight without reintroducing #1/#4) |
+| 2026-07-25 | Ideas (icon, add button, status tabs, task-created badge) | User explicitly asked for a wider re-skin after seeing the scoped flash above ("the icon/add-button/status filter/task-created badge should all be amber"), superseding the 2026-07-16 de-ambering for this feature specifically — this is a deliberate per-feature exception, not a reversion of tell #1 app-wide. `Lightbulb` icon and the primary "add idea" button (`IdeaBoxHeader.tsx`, `idea-create-form.tsx`) → amber-600/500, matching the already-shipped `IdeaBoxPanel.tsx` (home widget) palette for consistency between the two surfaces. Status filter tabs' active state and the "タスク化済" badge (`idea-filter-bar.tsx`, `idea-card.tsx`) → amber. Focus rings stay indigo (app-wide convention, untouched). Also removed the redundant Category→Theme two-step selector everywhere in this feature (add form, filter bar, theme-picker modal) — themes shown are already scoped to dev-project themes, so the category step added a click with no filtering value. | (per-feature exception to #1, not a regression) |
 
 ### Candidate next steps (not yet done — pick one at a time)
 
-- **Dashboard** (`app/dashboard`): 7+ equally-loud widgets, no hierarchy → lead with one focal area, group the rest (tell #6, #8).
-- **Ideas** (`app/ideas/_components/IdeasClient.tsx`): sparkle icons, dense controls → simplify, reserve accent (tell #5, #1).
 - **Empty states** across list pages → concrete next-action copy (tell #9).
+- **ExamCountdown** (`components/exam-countdown`): `shadow-sm/md` on the mini calendar chip, `font-extrabold` — normalize when next touched (tell #3, #8).
 
 ---
 

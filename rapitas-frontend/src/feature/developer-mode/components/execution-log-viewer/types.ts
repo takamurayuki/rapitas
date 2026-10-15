@@ -7,6 +7,10 @@
 
 export type ExecutionLogStatus = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled';
 
+/**
+ * @deprecated The viewer no longer has a mode toggle — it always renders the
+ * formatted (icon-based) log. Kept only for barrel-export backward compatibility.
+ */
 export type ExecutionLogViewMode = 'simple' | 'detailed';
 
 export type ExecutionLogViewerProps = {
@@ -14,7 +18,11 @@ export type ExecutionLogViewerProps = {
   logs: string[];
   /** Execution status */
   status: ExecutionLogStatus;
-  /** SSE connection state */
+  /**
+   * SSE connection state. Accepted for backward compatibility but no longer
+   * rendered — the "LIVE" streaming indicator was removed. Kept so existing
+   * callers compile unchanged.
+   */
   isConnected?: boolean;
   /** Whether running */
   isRunning?: boolean;
@@ -22,8 +30,6 @@ export type ExecutionLogViewerProps = {
   defaultExpanded?: boolean;
   /** Whether to start in fullscreen mode */
   defaultFullscreen?: boolean;
-  /** Default view mode */
-  defaultViewMode?: ExecutionLogViewMode;
   /** Custom class name */
   className?: string;
   /** Whether collapsible */
@@ -32,6 +38,12 @@ export type ExecutionLogViewerProps = {
   showHeader?: boolean;
   /** Max log height in pixels */
   maxHeight?: number;
+  /**
+   * When true, a drag handle at the bottom edge lets the user resize the log
+   * height (persisted to localStorage, keyboard-accessible). `maxHeight` then
+   * only serves as the initial height before a preference is stored.
+   */
+  resizable?: boolean;
   /** Task id — shown in the header as `Task #<id>` so it's easy to reference/share. */
   taskId?: number;
 };

@@ -7,7 +7,7 @@ import { formatBindingKey, type ShortcutId, type ShortcutBinding } from '@/store
 import { formatShortcutDisplay } from '../hooks/useShortcutSettings';
 
 /** A single shortcut entry as stored in the Zustand store. */
-type ShortcutEntry = ShortcutBinding & { id: ShortcutId; label: string };
+type ShortcutEntry = ShortcutBinding;
 
 /** Props for InAppShortcutsSection. */
 interface InAppShortcutsSectionProps {
@@ -63,6 +63,7 @@ export function InAppShortcutsSection({
 }: InAppShortcutsSectionProps) {
   const t = useTranslations('shortcuts');
   const tc = useTranslations('common');
+  const tLabels = useTranslations('shortcuts.labels');
 
   return (
     <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6 mb-6">
@@ -113,7 +114,9 @@ export function InAppShortcutsSection({
               {/* Row header: label + current binding + edit button */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-zinc-700 dark:text-zinc-300">{shortcut.label}</span>
+                  <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                    {tLabels(shortcut.id)}
+                  </span>
                   {isModified && (
                     <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded">
                       {t('modified')}

@@ -28,6 +28,8 @@ export interface Concern {
   severity: ConcernSeverity;
   location: string | null;
   status: ConcernStatus;
+  /** Origin label ("agent" | "user" | "vuln_scan" | ...). 'unknown' for pre-source rows. */
+  source: string;
   originTaskId: number | null;
   createdTaskId: number | null;
   themeId: number | null;
@@ -42,75 +44,112 @@ export interface GhIntegration {
   repositoryName: string;
 }
 
-export const TYPE_META: Record<ConcernType, { label: string; icon: typeof Bug; badge: string }> = {
+// NOTE: `label` text moved to i18n (concerns.type*); TYPE_LABEL_KEY maps a type
+// to its message key so callers can `t(TYPE_LABEL_KEY[type])`.
+export const TYPE_META: Record<ConcernType, { icon: typeof Bug; badge: string }> = {
   bug: {
-    label: 'バグ',
     icon: Bug,
     badge: 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-300',
   },
   refactor: {
-    label: 'リファクタ',
     icon: Wrench,
     badge: 'bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300',
   },
   security: {
-    label: 'セキュリティ',
     icon: ShieldAlert,
     badge: 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300',
   },
   perf: {
-    label: 'パフォーマンス',
     icon: Gauge,
     badge: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300',
   },
   other: {
-    label: 'その他',
     icon: CircleDot,
     badge: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
   },
 };
 export const TYPE_ORDER: ConcernType[] = ['bug', 'refactor', 'security', 'perf', 'other'];
+export const TYPE_LABEL_KEY: Record<ConcernType, string> = {
+  bug: 'typeBug',
+  refactor: 'typeRefactor',
+  security: 'typeSecurity',
+  perf: 'typePerf',
+  other: 'typeOther',
+};
 
-export const SEVERITY_META: Record<
-  ConcernSeverity,
-  { label: string; badge: string; active: string }
-> = {
+// NOTE: `label` text moved to i18n (concerns.severity*); SEVERITY_LABEL_KEY maps
+// a severity to its message key so callers can `t(SEVERITY_LABEL_KEY[severity])`.
+export const SEVERITY_META: Record<ConcernSeverity, { badge: string; active: string }> = {
   urgent: {
-    label: '緊急',
     badge:
       'bg-red-100 text-red-700 ring-1 ring-red-300 dark:bg-red-900/40 dark:text-red-300 dark:ring-red-700',
     active: 'bg-red-200 text-red-800 dark:bg-red-900/60 dark:text-red-200',
   },
   high: {
-    label: '高',
     badge:
       'bg-rose-50 text-rose-600 ring-1 ring-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:ring-rose-800',
     active: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
   },
   medium: {
-    label: '中',
     badge:
       'bg-amber-50 text-amber-600 ring-1 ring-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:ring-amber-800',
     active: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
   },
   low: {
-    label: '低',
     badge:
       'bg-sky-50 text-sky-600 ring-1 ring-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:ring-sky-800',
     active: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
   },
 };
 export const SEVERITY_ORDER: ConcernSeverity[] = ['urgent', 'high', 'medium', 'low'];
-/** Severity = how serious / urgent the concern is. Shown via PriorityIcon. */
-export const SEVERITY_HINT: Record<ConcernSeverity, string> = {
-  urgent: '緊急 — 早急に対処すべき',
-  high: '高 — 影響が大きい',
-  medium: '中 — 着実に対処したい',
-  low: '低 — あれば直したい',
+export const SEVERITY_LABEL_KEY: Record<ConcernSeverity, string> = {
+  urgent: 'severityUrgent',
+  high: 'severityHigh',
+  medium: 'severityMedium',
+  low: 'severityLow',
+};
+/** Severity = how serious / urgent the concern is. Shown via PriorityIcon. Message key under concerns.severityHint.*. */
+export const SEVERITY_HINT_KEY: Record<ConcernSeverity, string> = {
+  urgent: 'severityHint.urgent',
+  high: 'severityHint.high',
+  medium: 'severityHint.medium',
+  low: 'severityHint.low',
 };
 
-export const STATUS_TABS: { value: ConcernStatus | 'all'; label: string }[] = [
-  { value: 'open', label: '未対応' },
-  { value: 'task_created', label: 'タスク化済' },
-  { value: 'all', label: 'すべて' },
+// Known concern sources (filter options). The backend stores source as an
+// open-ended `source:<value>` tag, so values outside this list can still appear
+// on cards — they render as the raw string (no label key).
+export const SOURCE_ORDER: string[] = [
+  'agent',
+  'user',
+  'vuln_scan',
+  'vuln_scan_audit',
+  'ci_watch',
+  'loop_review',
+  'code_review',
+  'github_issue',
+  'idea_reclassified',
+  'verification-triage',
+  'log_health',
+  'unknown',
+];
+export const SOURCE_LABEL_KEY: Record<string, string> = {
+  agent: 'sourceAgent',
+  user: 'sourceUser',
+  vuln_scan: 'sourceVulnScan',
+  vuln_scan_audit: 'sourceVulnScanAudit',
+  ci_watch: 'sourceCiWatch',
+  loop_review: 'sourceLoopReview',
+  code_review: 'sourceCodeReview',
+  github_issue: 'sourceGithubIssue',
+  idea_reclassified: 'sourceIdeaReclassified',
+  'verification-triage': 'sourceVerificationTriage',
+  log_health: 'sourceLogHealth',
+  unknown: 'sourceUnknown',
+};
+
+export const STATUS_TABS: { value: ConcernStatus | 'all'; labelKey: string }[] = [
+  { value: 'open', labelKey: 'statusOpen' },
+  { value: 'task_created', labelKey: 'statusTaskCreated' },
+  { value: 'all', labelKey: 'statusAll' },
 ];

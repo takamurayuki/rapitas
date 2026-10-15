@@ -5,35 +5,38 @@
  *
  * AI agent execution log viewer component.
  *
- * Standalone execution log viewer independent of status cards.
- * Composes sub-components (LogViewerHeader, LiveStatsBar,
- * ExecutionSummaryCard) and delegates all state logic to useLogViewer.
+ * Standalone execution log viewer independent of status cards. Always renders the
+ * formatted, icon-based log (no mode toggle) with an always-visible search box
+ * (filters + highlights entries), an "errors only" quick-filter, and a final
+ * execution summary. The log body fills the panel — no progress/stats strips
+ * above it — to maximise the visible log area. Composes sub-components
+ * (LogViewerHeader, ExecutionSummaryCard, SimpleLogEntryList) and delegates all
+ * state logic to useLogViewer.
  */
 
 import React, { useMemo } from 'react';
-import { Terminal, ChevronDown, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { Terminal, ChevronDown, SearchX } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { SimpleLogEntryList } from '../SimpleLogEntry';
-import { WorkflowProgressBar } from '../WorkflowProgressBar';
 import { LogViewerHeader } from './LogViewerHeader';
-import { LiveStatsBar } from './LiveStatsBar';
 import { ExecutionSummaryCard } from './ExecutionSummaryCard';
-import { LogEntry } from './LogEntry';
 import { useLogViewer } from './useLogViewer';
+import { useResizableLogHeight, MIN_LOG_HEIGHT } from './useResizableLogHeight';
 import type { ExecutionLogViewerProps } from './types';
 
 export type { ExecutionLogStatus, ExecutionLogViewMode, ExecutionLogViewerProps } from './types';
 
 /**
- * Displays execution logs with advanced features such as auto-scroll, search,
- * copy, fullscreen, and view-mode toggling.
+ * Displays execution logs with auto-scroll, search filtering, an errors-only
+ * quick-filter, copy, and fullscreen. The log is always shown in the formatted,
+ * icon-based view.
  *
  * @param logs - Array of log strings to display. / 表示するログ文字列の配列。
  * @param status - Current execution status. / 現在の実行ステータス。
- * @param isConnected - Indicates if real-time streaming is active. / リアルタイムストリーミングが有効かどうか。
  * @param isRunning - Indicates if the execution is currently running. / 実行が進行中かどうか。
  * @param defaultExpanded - Whether the log viewer is expanded by default. / デフォルトで展開するかどうか。
  * @param defaultFullscreen - Whether the log viewer starts in fullscreen mode. / フルスクリーンモードで開始するかどうか。
- * @param defaultViewMode - Initial view mode ('simple' or 'detailed'). / 初期表示モード。
  * @param className - Additional CSS classes for the root element. / ルート要素への追加CSSクラス。
  * @param collapsible - Whether the log viewer can be collapsed. / 折り畳み可能かどうか。
  * @param showHeader - Whether to display the header bar. / ヘッダーバーを表示するかどうか。
@@ -42,31 +45,32 @@ export type { ExecutionLogStatus, ExecutionLogViewMode, ExecutionLogViewerProps 
 export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
   logs,
   status,
-  isConnected = false,
   isRunning = false,
   defaultExpanded = true,
   defaultFullscreen = false,
-  defaultViewMode = 'simple',
   className = '',
   collapsible = true,
   showHeader = true,
   maxHeight = 256,
+  resizable = false,
   taskId,
 }) => {
+  const t = useTranslations('devMode.executionLogViewer');
+  const tLog = useTranslations('devMode.logTransformer');
   const {
     isExpanded,
     isFullscreen,
-    viewMode,
     copied,
     autoScroll,
     searchQuery,
-    searchMatches,
-    currentMatchIndex,
+    highlightQuery,
     searchInputRef,
+    errorOnly,
+    hasActiveFilter,
+    matchCount,
     logContainerRef,
     displayedLogsCount,
-    simpleLogEntries,
-    currentPhase,
+    filteredSimpleEntries,
     executionSummary,
     handleScroll,
     handleScrollStart,
@@ -74,45 +78,46 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     scrollToBottom,
     toggleFullscreen,
     toggleExpanded,
-    toggleViewMode,
+    toggleErrorOnly,
     handleCopyLogs,
     clearSearchQuery,
     handleSearchQueryChange,
     handleSearchKeyDown,
-    goToNextMatch,
-    goToPreviousMatch,
     highlightText,
   } = useLogViewer({
     logs,
     defaultExpanded,
     defaultFullscreen,
-    defaultViewMode,
+    t: tLog,
   });
 
-  // Memoize log content based on view mode
+  // User-adjustable height (drag handle / arrow keys), persisted across mounts.
+  const resize = useResizableLogHeight(maxHeight);
+  const bodyHeight = isFullscreen ? undefined : resizable ? resize.height : maxHeight;
+
+  // Formatted log entries (filtered by search / errors-only). New-entry animation
+  // is suppressed while filtering since the list isn't tracking the live tail.
   const logContent = useMemo(() => {
     if (logs.length === 0) return null;
-
-    if (viewMode === 'simple') {
-      const newEntriesCount = Math.max(0, simpleLogEntries.length - (displayedLogsCount - 5));
-      return <SimpleLogEntryList entries={simpleLogEntries} newEntriesCount={newEntriesCount} />;
-    }
-
-    // Detailed mode
-    return logs.map((log, i) => {
-      const isNewEntry = i >= displayedLogsCount - 5; // Animate the latest 5 entries
-      return (
-        <LogEntry
-          key={i}
-          log={log}
-          index={i}
-          isNewEntry={isNewEntry}
-          searchQuery={searchQuery}
-          highlightText={highlightText}
-        />
-      );
-    });
-  }, [logs, searchQuery, highlightText, displayedLogsCount, viewMode, simpleLogEntries]);
+    const newEntriesCount = hasActiveFilter
+      ? 0
+      : Math.max(0, filteredSimpleEntries.length - (displayedLogsCount - 5));
+    return (
+      <SimpleLogEntryList
+        entries={filteredSimpleEntries}
+        newEntriesCount={newEntriesCount}
+        searchQuery={highlightQuery}
+        highlightText={highlightText}
+      />
+    );
+  }, [
+    logs.length,
+    filteredSimpleEntries,
+    hasActiveFilter,
+    displayedLogsCount,
+    highlightQuery,
+    highlightText,
+  ]);
 
   // Collapsed state: show a minimal button
   if (collapsible && !isExpanded && logs.length > 0) {
@@ -123,7 +128,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
       >
         <div className="flex items-center gap-2">
           <Terminal className="w-4 h-4 text-green-400" />
-          <span className="text-sm font-medium text-zinc-200">実行ログ</span>
+          <span className="text-sm font-medium text-zinc-200">{t('executionLog')}</span>
           {taskId != null && (
             <span className="px-1.5 py-0.5 bg-zinc-700 text-zinc-300 rounded text-xs font-mono">
               Task #{taskId}
@@ -139,6 +144,9 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     return null;
   }
 
+  // No entry matches the active filter — explain why the list is empty.
+  const showNoMatches = hasActiveFilter && matchCount === 0 && logs.length > 0;
+
   return (
     <div
       className={`transition-all duration-300 ${
@@ -150,35 +158,23 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
           status={status}
           taskId={taskId}
           isRunning={isRunning}
-          isConnected={isConnected}
-          viewMode={viewMode}
           isFullscreen={isFullscreen}
           collapsible={collapsible}
           autoScroll={autoScroll}
           copied={copied}
           searchQuery={searchQuery}
-          searchMatches={searchMatches}
-          currentMatchIndex={currentMatchIndex}
+          matchCount={matchCount}
+          errorOnly={errorOnly}
           searchInputRef={searchInputRef}
           onScrollToBottom={scrollToBottom}
           onCopyLogs={handleCopyLogs}
-          onToggleViewMode={toggleViewMode}
           onToggleFullscreen={toggleFullscreen}
           onToggleExpanded={toggleExpanded}
+          onToggleErrorOnly={toggleErrorOnly}
           onSearchQueryChange={handleSearchQueryChange}
           onSearchKeyDown={handleSearchKeyDown}
-          onGoToNextMatch={goToNextMatch}
-          onGoToPreviousMatch={goToPreviousMatch}
           onClearSearchQuery={clearSearchQuery}
         />
-      )}
-
-      {/* Workflow progress bar (simple mode only) */}
-      {viewMode === 'simple' && currentPhase && <WorkflowProgressBar currentPhase={currentPhase} />}
-
-      {/* Live execution stats bar */}
-      {viewMode === 'simple' && executionSummary && (isRunning || status === 'running') && (
-        <LiveStatsBar summary={executionSummary} />
       )}
 
       <div
@@ -188,36 +184,55 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         onMouseUp={handleScrollEnd}
         onTouchStart={handleScrollStart}
         onTouchEnd={handleScrollEnd}
-        className={`bg-zinc-900 overflow-auto execution-log-container break-words ${
-          viewMode === 'detailed' ? 'font-mono text-xs sm:text-sm' : 'text-xs sm:text-sm'
-        } ${isFullscreen ? 'flex-1' : ''} ${showHeader ? 'rounded-b-lg' : 'rounded-lg'}`}
-        style={{ height: isFullscreen ? undefined : maxHeight }}
+        className={`bg-zinc-900 overflow-auto execution-log-container break-words text-xs sm:text-sm ${
+          isFullscreen ? 'flex-1' : ''
+        } ${showHeader ? 'rounded-b-lg' : 'rounded-lg'}`}
+        style={{ height: bodyHeight }}
       >
-        {viewMode === 'simple' ? (
-          <div className="p-4">
-            {logContent || (
+        <div className="p-4">
+          {showNoMatches ? (
+            <div className="flex items-center justify-center py-8 text-zinc-500">
+              <div className="text-center">
+                <SearchX className="w-7 h-7 mx-auto mb-2 text-zinc-600" />
+                <p className="text-sm">
+                  {searchQuery ? t('noMatchForQuery', { query: searchQuery }) : t('noMatchingLogs')}
+                </p>
+              </div>
+            </div>
+          ) : (
+            logContent || (
               <div className="flex items-center justify-center py-8 text-zinc-500">
                 <div className="text-center">
-                  <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin" />
-                  <p>実行ログを取得中...</p>
+                  <Spinner size="lg" className="mx-auto mb-2" />
+                  <p>{t('fetchingLogs')}</p>
                 </div>
               </div>
-            )}
-            {executionSummary && (status === 'completed' || status === 'failed') && (
-              <ExecutionSummaryCard summary={executionSummary} status={status} />
-            )}
-          </div>
-        ) : (
-          <pre className="p-4 text-zinc-300 whitespace-pre-wrap wrap-break-words">
-            {logContent || (
-              <span className="text-zinc-500 flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                実行ログを取得中...
-              </span>
-            )}
-          </pre>
-        )}
+            )
+          )}
+          {executionSummary && (status === 'completed' || status === 'failed') && (
+            <ExecutionSummaryCard summary={executionSummary} status={status} />
+          )}
+        </div>
       </div>
+
+      {resizable && !isFullscreen && (
+        // Bottom resize handle: drag (pointer capture) or ArrowUp/ArrowDown.
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label={t('resizeLog')}
+          aria-valuenow={resize.height}
+          aria-valuemin={MIN_LOG_HEIGHT}
+          tabIndex={0}
+          onPointerDown={resize.onPointerDown}
+          onPointerMove={resize.onPointerMove}
+          onPointerUp={resize.onPointerUp}
+          onKeyDown={resize.onKeyDown}
+          className="group flex h-2.5 w-full cursor-ns-resize touch-none items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+        >
+          <div className="h-0.5 w-12 rounded-full bg-zinc-500 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100" />
+        </div>
+      )}
     </div>
   );
 };

@@ -251,6 +251,9 @@ export function runEnrichAndReview(id: number, title: string, content: string): 
  * @returns Number of ideas queued for reprocessing. / 再処理キューに積んだ件数
  */
 export async function reclassifyExistingIdeas(): Promise<number> {
+  // backfill that enqueues each idea for independent re-enrichment — order does
+  // not affect any prompt or per-idea result.
+  // determinism-ok: independent per-item enqueue, order irrelevant.
   const ideas = await prisma.knowledgeEntry.findMany({
     where: { sourceType: 'idea_box', forgettingStage: 'active' },
     select: { id: true, title: true, content: true },
@@ -471,9 +474,15 @@ export async function reviewIdea(ideaId: number, runId?: string): Promise<void> 
       tags: JSON.stringify(tags),
     };
 
-    // Apply refined title/content if reviewer suggested improvements
-    if (review.refinedTitle) updateData.title = review.refinedTitle;
-    if (review.refinedContent) updateData.content = review.refinedContent;
+    // Apply refined title/content if reviewer suggested improvements — but
+    // NEVER on a user-authored entry: the human's own words stay verbatim
+    // (observed: a captured fragment got replaced by plausible-but-hollow AI
+    // text). Defense in depth — submitIdea already skips this whole pipeline
+    // for source 'user'; this guards any other path into reviewIdea.
+    if (entry.sourceId !== 'user') {
+      if (review.refinedTitle) updateData.title = review.refinedTitle;
+      if (review.refinedContent) updateData.content = review.refinedContent;
+    }
 
     await prisma.knowledgeEntry.update({
       where: { id: ideaId },

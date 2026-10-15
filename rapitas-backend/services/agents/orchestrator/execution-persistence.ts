@@ -7,9 +7,7 @@ import type { QuestionKey } from '../question-detection';
 import type { ExecutionFileLogger } from '../execution-file-logger';
 import type { ExecutionState, OrchestratorEvent, PrismaClientInstance } from './types';
 import { toJsonString } from './execution-helpers-types';
-import { createLogger } from '../../../config/logger';
-
-const logger = createLogger('execution-persistence');
+import { ExecutionCancelledError } from '../execution-cancelled-error';
 
 /**
  * Coerce a possibly-stringified numeric value to a finite number.
@@ -56,15 +54,31 @@ export function determineExecutionStatus(
     tokensUsed?: number;
     executionTimeMs?: number;
     errorMessage?: string;
+    failureType?: string;
   },
   fileLogger: ExecutionFileLogger,
   state: ExecutionState,
   opts?: { investigationMode?: boolean },
 ): string {
+  if (state.status === 'cancelled') {
+    result.success = false;
+    result.waitingForInput = false;
+    result.failureType = 'cancelled';
+    result.errorMessage ??= 'Execution cancelled';
+  }
   if (result.waitingForInput) {
     state.status = 'waiting_for_input';
     fileLogger.logStatusChange('running', 'waiting_for_input', 'Question detected');
     return 'waiting_for_input';
+  } else if (result.failureType === 'cancelled') {
+    state.status = 'cancelled';
+    fileLogger.logExecutionEnd('cancelled', {
+      success: false,
+      tokensUsed: result.tokensUsed,
+      executionTimeMs: result.executionTimeMs,
+      errorMessage: result.errorMessage,
+    });
+    return 'cancelled';
   } else if (result.success) {
     if (opts?.investigationMode) {
       state.status = 'post_processing';
@@ -110,6 +124,7 @@ export async function saveExecutionResult(
     tokensUsed?: number;
     executionTimeMs?: number;
     errorMessage?: string;
+    failureType?: string;
     question?: string;
     questionType?: string;
     questionDetails?: unknown;
@@ -135,6 +150,12 @@ export async function saveExecutionResult(
     cacheCreationInputTokens?: number;
     /** Primary model used (largest token share). */
     modelName?: string;
+    /** LLM API call count for this execution (CLI: num_turns; API: apiCalls). */
+    llmCallCount?: number;
+    /** Measured child-process CPU time in ms, from process-resource-sampler. */
+    cpuTimeMs?: number | null;
+    /** Measured child-process peak RSS in KB, from process-resource-sampler. */
+    peakRssKb?: number | null;
   },
   fileLogger: ExecutionFileLogger,
   existingData?: {
@@ -142,6 +163,8 @@ export async function saveExecutionResult(
     tokensUsed?: number | null;
     executionTimeMs?: number | null;
     claudeSessionId?: string | null;
+    cpuTimeMs?: number | null;
+    peakRssKb?: number | null;
   },
   opts?: { investigationMode?: boolean },
 ): Promise<void> {
@@ -154,8 +177,25 @@ export async function saveExecutionResult(
   // strings (e.g. `"\"0\""`) from being written into SQLite Decimal columns.
   // Prior IPC bugs let stringified values through and corrupted ~1k rows.
   const safeCostUsd = toFiniteNumber(result.costUsd);
+  const safeLlmCallCount = toFiniteNumber(result.llmCallCount);
+  // Resource telemetry (task #714): CPU time accumulates across resumes/continuations,
+  // peak RSS tracks the worst-case value seen across the whole execution's lifetime.
+  // A resourceUpdate key is only ever included when a real (non-null) value exists —
+  // omitting the key (rather than writing null) preserves whatever the column already
+  // holds instead of clobbering it.
+  const safeCpuTimeMs = toFiniteNumber(result.cpuTimeMs);
+  const safePeakRssKb = toFiniteNumber(result.peakRssKb);
+  const resourceUpdate = {
+    ...(safeCpuTimeMs !== null && {
+      cpuTimeMs: (existingData?.cpuTimeMs ?? 0) + safeCpuTimeMs,
+    }),
+    ...(safePeakRssKb !== null && {
+      peakRssKb: Math.max(existingData?.peakRssKb ?? 0, safePeakRssKb),
+    }),
+  };
   const usageUpdate =
-    !result.waitingForInput && (safeCostUsd !== null || result.modelName)
+    !result.waitingForInput &&
+    (safeCostUsd !== null || result.modelName || safeLlmCallCount !== null)
       ? {
           ...(safeCostUsd !== null && {
             inputTokens: toFiniteNumber(result.inputTokens) ?? 0,
@@ -165,11 +205,15 @@ export async function saveExecutionResult(
             costUsd: safeCostUsd,
           }),
           ...(result.modelName && { modelName: result.modelName }),
+          ...(safeLlmCallCount !== null && { llmCallCount: safeLlmCallCount }),
         }
       : {};
 
-  await prisma.agentExecution.update({
-    where: { id: executionId },
+  const saved = await prisma.agentExecution.updateMany({
+    where: {
+      id: executionId,
+      status: { notIn: ['canceling', 'cancelling', 'cancelled', 'canceled'] },
+    },
     data: {
       status: executionStatus,
       output: state.output || result.output,
@@ -185,20 +229,41 @@ export async function saveExecutionResult(
       questionDetails: toJsonString(result.questionDetails),
       claudeSessionId: result.claudeSessionId || existingData?.claudeSessionId || null,
       ...usageUpdate,
+      ...resourceUpdate,
     },
   });
+  if (saved.count === 0) {
+    const current = await prisma.agentExecution.findUnique({
+      where: { id: executionId },
+      select: { status: true },
+    });
+    if (!current || !['canceling', 'cancelling', 'cancelled', 'canceled'].includes(current.status))
+      throw new Error('Execution result was not saved; cancellation could not be confirmed');
+    // A stop won the race. Preserve its persisted status and suppress success
+    // handling in callers that retain this result object after saving it.
+    state.status = 'cancelled';
+    result.success = false;
+    result.waitingForInput = false;
+    result.failureType = 'cancelled';
+    result.errorMessage = 'Execution result ignored after cancellation';
+    fileLogger.logWarn(result.errorMessage);
+    fileLogger.logStatusChange(executionStatus, 'cancelled', result.errorMessage);
+    return;
+  }
 
   // NOTE: Same defensive coercion as above — if upstream bugs send strings
   // for these fields, we still write a clean number to Prisma so the
   // Decimal/Int columns don't accumulate JSON-quoted garbage.
   const incTokens = toFiniteNumber(result.tokensUsed);
   const incCost = toFiniteNumber(result.costUsd);
-  if (incTokens || incCost) {
+  const incLlmCalls = !result.waitingForInput ? toFiniteNumber(result.llmCallCount) : null;
+  if (incTokens || incCost || incLlmCalls) {
     await prisma.agentSession.update({
       where: { id: sessionId },
       data: {
         totalTokensUsed: incTokens ? { increment: incTokens } : undefined,
         totalCostUsd: incCost ? { increment: incCost } : undefined,
+        totalLlmCallCount: incLlmCalls ? { increment: incLlmCalls } : undefined,
         lastActivityAt: new Date(),
       },
     });
@@ -225,6 +290,23 @@ export async function saveExecutionResult(
           deletions: commit.deletions,
         },
       });
+    }
+  }
+
+  // Clear-on-success (task #633): a completed execution that reported its
+  // model proves that provider is healthy again — reset its failure streak
+  // and lift any cooldown. Provider is derived from the reported modelName
+  // (not the task's config) so a fallback run that succeeded on claude does
+  // NOT clear gemini's streak. Executions without modelName (= usage never
+  // reported) prove nothing and are skipped.
+  if (executionStatus === 'completed' && result.modelName) {
+    try {
+      const { inferProviderFromModelName, recordProviderSuccess } =
+        await import('../../ai/provider-cooldown');
+      const provider = inferProviderFromModelName(result.modelName);
+      if (provider) recordProviderSuccess(provider);
+    } catch {
+      // Defensive: cooldown bookkeeping must never break result persistence.
     }
   }
 
@@ -324,29 +406,88 @@ export async function handleExecutionError(
   errorContext: string,
 ): Promise<void> {
   const errorMessage = error instanceof Error ? error.message : String(error);
-  state.status = 'failed';
+  let cancelled = error instanceof ExecutionCancelledError || state.status === 'cancelled';
+  let status: 'cancelled' | 'failed' = cancelled ? 'cancelled' : 'failed';
 
-  fileLogger.logError(
-    `${errorContext} failed with uncaught error`,
-    error instanceof Error ? error : new Error(errorMessage),
-  );
-  fileLogger.logExecutionEnd('failed', {
+  const completedAt = new Date();
+
+  // NOTE: Error terminations previously stamped completedAt but never wrote
+  // executionTimeMs, leaving failed rows with 0/null active time (task #560).
+  // Fill it from the wall span (completedAt - startedAt) ONLY when no CLI
+  // segment was recorded — an existing segment value (e.g. accumulated across
+  // a waiting_for_input resume) must not be clobbered with a larger wall span.
+  let executionTimeFill: { executionTimeMs: number } | Record<string, never> = {};
+  try {
+    const row = await prisma.agentExecution.findUnique({
+      where: { id: executionId },
+      select: { startedAt: true, executionTimeMs: true },
+    });
+    if (row?.startedAt && !row.executionTimeMs) {
+      executionTimeFill = {
+        executionTimeMs: Math.max(0, completedAt.getTime() - row.startedAt.getTime()),
+      };
+    }
+  } catch {
+    // Defensive: the lookup must never block persisting the failure itself.
+  }
+
+  // A stop can arrive while the timing lookup above is pending.
+  cancelled ||= state.status === 'cancelled';
+  status = cancelled ? 'cancelled' : 'failed';
+  const saved = await prisma.agentExecution.updateMany({
+    where: {
+      id: executionId,
+      status: { notIn: ['canceling', 'cancelling', 'cancelled', 'canceled', 'completed'] },
+    },
+    data: {
+      status,
+      output: state.output,
+      completedAt,
+      errorMessage,
+      ...executionTimeFill,
+    },
+  });
+
+  if (saved.count === 0) {
+    const current = await prisma.agentExecution.findUnique({
+      where: { id: executionId },
+      select: { status: true },
+    });
+    if (current?.status === 'completed') return;
+    if (!current)
+      throw new Error('Execution error was not saved; terminal state could not be confirmed');
+    const recognizedCancelStatus = ['canceling', 'cancelling', 'cancelled', 'canceled'].includes(
+      current.status,
+    );
+    if (!recognizedCancelStatus) {
+      if (!cancelled)
+        throw new Error('Execution error was not saved; terminal state could not be confirmed');
+      // NOTE: 呼び出し元が既に ExecutionCancelledError と分類済みの場合、DB確認レースだけを理由に
+      // 別種のErrorへ再分類すると下流のinstanceof判定が全滅する（task963）。
+      fileLogger.logWarn(
+        'Execution error was not saved for an already-cancelled state; treating as cancelled',
+        {
+          executionId,
+          currentStatus: current.status,
+        },
+      );
+    }
+    cancelled = true;
+    status = 'cancelled';
+  }
+  if (!cancelled)
+    fileLogger.logError(
+      `${errorContext} failed with uncaught error`,
+      error instanceof Error ? error : new Error(errorMessage),
+    );
+  fileLogger.logExecutionEnd(status, {
     success: false,
     errorMessage,
   });
 
-  await prisma.agentExecution.update({
-    where: { id: executionId },
-    data: {
-      status: 'failed',
-      output: state.output,
-      completedAt: new Date(),
-      errorMessage,
-    },
-  });
-
+  state.status = status;
   emitEvent({
-    type: 'execution_failed',
+    type: cancelled ? 'execution_cancelled' : 'execution_failed',
     executionId,
     sessionId,
     taskId,

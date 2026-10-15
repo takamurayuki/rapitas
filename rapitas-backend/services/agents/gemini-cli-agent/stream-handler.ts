@@ -11,7 +11,6 @@ import type { GeminiStreamEvent } from './types';
 import type { GeminiCliAgentConfig } from './types';
 import {
   detectQuestionFromToolCall,
-  createInitialWaitingState,
   updateWaitingStateFromDetection,
   tolegacyQuestionType,
 } from '../question-detection';
@@ -19,6 +18,11 @@ import type { QuestionWaitingState } from '../question-detection';
 import { parseStreamEvent, isNoiseLine } from './output-parser';
 import { createLogger } from '../../../config/logger';
 import { filterCliDiagnosticOutput, shouldHideRawCliLine } from '../cli-output-filter';
+import {
+  unregisterProcess,
+  killProcessTreeSafely,
+  captureDescendants,
+} from '../agent-process-tracker';
 
 const logger = createLogger('gemini-cli-agent:stream-handler');
 
@@ -204,7 +208,7 @@ export function attachStreamHandlers(
           callbacks.onOutputBufferAppend(displayOutput);
           callbacks.onOutput(displayOutput);
         }
-      } catch (e) {
+      } catch {
         // NOTE: Filter non-JSON output (e.g., chcp command output on Windows)
         if (isNoiseLine(line)) {
           logger.info(`${logPrefix} Filtered non-JSON output: ${line.trim().substring(0, 100)}`);
@@ -302,6 +306,23 @@ export function attachStreamHandlers(
   proc.on('close', (code: number | null) => {
     cleanupTimeoutCheck();
     cleanupIdleCheck();
+
+    if (proc.pid) {
+      const closedPid = proc.pid;
+      unregisterProcess(closedPid);
+      // On Windows, 'close' (stdio closed) does NOT guarantee the process
+      // exited — mirrors claude-execution-runner.ts's same reap-after-grace.
+      // killProcessTreeSafely refuses to touch a port-3001 (backend) process.
+      // Capture descendants NOW, while the parent links are still live — a
+      // command the agent launched can outlive both the agent and the shell
+      // that started it, and is then unreachable from the root.
+      const known = captureDescendants(closedPid);
+      const reap = setTimeout(
+        () => killProcessTreeSafely(closedPid, { knownTargets: known }),
+        3000,
+      );
+      (reap as { unref?: () => void }).unref?.();
+    }
 
     // Flush any remaining line buffer content
     const remaining = (proc as NodeJS.EventEmitter & { _lineBuffer?: string })._lineBuffer || '';

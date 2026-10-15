@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { ChevronLeft, ChevronRight, Coffee } from 'lucide-react';
 import type { ScheduleEvent } from '@/types';
-import { getHolidaysForMonth } from '@/utils/holidays';
+import { getHolidaysForMonth, type HolidayLabelKey } from '@/utils/holidays';
 import {
   getDaysInMonth,
   formatDateStr,
@@ -44,6 +44,7 @@ function CalendarHeader({
       <div className="flex items-center gap-2">
         <button
           onClick={onPrevMonth}
+          aria-label={t('prevMonth')}
           className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg"
         >
           <ChevronLeft className="w-5 h-5" />
@@ -56,6 +57,7 @@ function CalendarHeader({
         </h2>
         <button
           onClick={onNextMonth}
+          aria-label={t('nextMonth')}
           className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg"
         >
           <ChevronRight className="w-5 h-5" />
@@ -93,7 +95,7 @@ function WeekDayHeaders() {
             index === 0
               ? 'text-red-500'
               : index === 6
-                ? 'text-blue-500'
+                ? 'text-indigo-500'
                 : 'text-zinc-500 dark:text-zinc-400'
           }`}
         >
@@ -173,7 +175,8 @@ type DayCellProps = {
   isSelected: boolean;
   isToday: boolean;
   dayOfWeek: number;
-  holidayName?: string;
+  /** Holiday label key for this date, if it is a holiday (used only as an `isHoliday` flag here — no text is rendered). */
+  holidayLabelKey?: HolidayLabelKey;
   barAreaHeight: number;
   onSelectDate: (dateStr: string) => void;
   onDoubleClickDate: (dateStr: string) => void;
@@ -188,13 +191,13 @@ function DayCell({
   isSelected,
   isToday,
   dayOfWeek,
-  holidayName,
+  holidayLabelKey,
   barAreaHeight,
   onSelectDate,
   onDoubleClickDate,
 }: DayCellProps) {
   const tc = useTranslations('common');
-  const isHoliday = !!holidayName;
+  const isHoliday = !!holidayLabelKey;
   const hiddenCount = singleDayEvents.length - MAX_VISIBLE_EVENTS;
 
   const headerBgClass = isSelected
@@ -208,7 +211,7 @@ function DayCell({
     : dayOfWeek === 0 || isHoliday
       ? 'text-red-500'
       : dayOfWeek === 6
-        ? 'text-blue-500'
+        ? 'text-indigo-500'
         : 'text-zinc-700 dark:text-zinc-300';
 
   return (
@@ -236,7 +239,7 @@ function DayCell({
             <EventItem key={`${event.type}-${event.id}`} event={event} schedules={schedules} />
           ))}
           {hiddenCount > 0 && (
-            <div className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-1 leading-tight">
+            <div className="text-[9px] text-zinc-500 dark:text-zinc-500 pl-1 leading-tight">
               +{hiddenCount}
               {tc('items')}
             </div>
@@ -314,7 +317,7 @@ function CalendarLegend() {
           {t('legendHoliday')}
         </div>
       </div>
-      <span className="text-xs text-zinc-400 dark:text-zinc-500 hidden sm:inline">
+      <span className="text-xs text-zinc-500 dark:text-zinc-500 hidden sm:inline">
         {t('doubleClickToAdd')}
       </span>
     </div>
@@ -346,8 +349,8 @@ export function CalendarGrid({
   );
 
   const holidayMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const h of holidays) map.set(h.date, h.name);
+    const map = new Map<string, HolidayLabelKey>();
+    for (const h of holidays) map.set(h.date, h.labelKey);
     return map;
   }, [holidays]);
 
@@ -413,7 +416,7 @@ export function CalendarGrid({
                     isSelected={selectedDate === dateStr}
                     isToday={isToday(day)}
                     dayOfWeek={colIndex}
-                    holidayName={holidayMap.get(dateStr)}
+                    holidayLabelKey={holidayMap.get(dateStr)}
                     barAreaHeight={barAreaHeight}
                     onSelectDate={onSelectDate}
                     onDoubleClickDate={onDoubleClickDate}

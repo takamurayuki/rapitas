@@ -29,6 +29,15 @@ mock.module('../question-detection', () => ({
   tolegacyQuestionType: (type: string) => type,
 }));
 
+// notification-service: 認証失敗通知の発火回数を追跡する（実DB/SSEを叩かない）
+let authNotifyCallCount = 0;
+mock.module('../../communication/notification-service', () => ({
+  notifyAuthenticationFailure: () => {
+    authNotifyCallCount += 1;
+    return Promise.resolve(null);
+  },
+}));
+
 // モック確定後に動的 import
 const { buildResolveAfterParse } = await import('./execution-resolver');
 
@@ -69,6 +78,7 @@ function createCtx(overrides: Partial<ResolverContext> = {}): ResolverContext {
     claudeSessionId: null,
     hasFileModifyingToolCalls: false,
     idleTimeoutForceKilled: false,
+    wallClockTimeoutForceKilled: false,
     workerResultUsage: null,
     status: 'running',
     emitOutputInternal: () => {},
@@ -152,6 +162,230 @@ describe('buildResolveAfterParse — resume モード errorMessage 汚染除去'
     expect(result.success).toBe(false);
     // 生 stderr（本物の失効文言）は errorMessage に保持されること
     expect(result.errorMessage).toContain('no conversation found');
+  });
+});
+
+describe('buildResolveAfterParse — 認証失敗 (401) 検知', () => {
+  test('401 認証失敗出力: 失敗で解決し、再認証通知を発火し、ターミナル誘導を errorMessage に含む', async () => {
+    authNotifyCallCount = 0;
+    const ctx = createCtx({
+      outputBuffer:
+        '[System: api_retry]\nFailed to authenticate. API Error: 401 Invalid authentication credentials',
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1, // CLI は 401 で非ゼロ終了する
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    expect(authNotifyCallCount).toBe(1);
+    // 統合ターミナルでの再認証へ誘導していること
+    expect(result.errorMessage).toContain('claude login');
+    expect(result.errorMessage).toContain('認証');
+  });
+
+  test('認証エラーが無い通常の失敗では通知を発火しない', async () => {
+    authNotifyCallCount = 0;
+    const ctx = createCtx({ errorBuffer: 'some unrelated build error' });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    expect(authNotifyCallCount).toBe(0);
+  });
+});
+
+describe('buildResolveAfterParse — 入力長超過 (Prompt too long) 検知', () => {
+  test('task894の実文言 "Prompt is too long": failed かつ failureType=prompt_too_long', async () => {
+    const ctx = createCtx({
+      outputBuffer: 'API Error: Prompt is too long',
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    expect(result.failureType).toBe('prompt_too_long');
+    expect(result.errorMessage).toContain('Prompt Too Long');
+  });
+
+  // task 1035 (2026-09-22): a log-triage task ABOUT the 【Prompt Too Long】
+  // error carried the phrase in its own prompt echo and output, exited 0 with
+  // research.md saved, and was still recorded as failed (session excluded).
+  test('終了コード 0 なら本文に "Prompt is too long" があっても失敗扱いにしない', async () => {
+    const ctx = createCtx({
+      outputBuffer:
+        '[Claude Code] Prompt: 【Prompt Too Long】Claude Code CLI reported the prompt was too long — ログ出力箇所を特定する\n調査完了: 検出文言は "Prompt is too long"。',
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      0,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.failureType).toBeUndefined();
+    expect(result.errorMessage ?? '').not.toContain('Prompt Too Long');
+  });
+
+  test('authFailureHit が prompt_too_long より優先して評価される', async () => {
+    const ctx = createCtx({
+      outputBuffer: 'Failed to authenticate. API Error: 401 Invalid authentication credentials',
+      errorBuffer: 'Prompt is too long',
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    expect(result.failureType).toBeUndefined();
+    expect(result.errorMessage).toContain('認証');
+  });
+
+  test('入力長超過を含まない通常の失敗では failureType は付与されない', async () => {
+    const ctx = createCtx({ errorBuffer: 'some unrelated build error' });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    expect(result.failureType).toBeUndefined();
+  });
+});
+
+describe('buildResolveAfterParse — llmCallCount via workerResultUsage.numTurns', () => {
+  test('numTurns が存在する場合、llmCallCount として result に載る', async () => {
+    mockGitDiffResult = true;
+    const ctx = createCtx({
+      workerResultUsage: {
+        costUsd: 0.001,
+        inputTokens: 100,
+        outputTokens: 50,
+        numTurns: 3, // 3 LLM API calls in this CLI session
+      },
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      0,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(true);
+    expect(result.llmCallCount).toBe(3);
+  });
+
+  test('numTurns が undefined の場合、llmCallCount も undefined', async () => {
+    mockGitDiffResult = true;
+    const ctx = createCtx({
+      workerResultUsage: {
+        costUsd: 0.001,
+        inputTokens: 100,
+        outputTokens: 50,
+        // numTurns: undefined — CLI did not emit num_turns
+      },
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      0,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(true);
+    expect(result.llmCallCount).toBeUndefined();
+  });
+
+  test('workerResultUsage が null の場合、llmCallCount は undefined', async () => {
+    mockGitDiffResult = true;
+    const ctx = createCtx({ workerResultUsage: null });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      0,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(true);
+    expect(result.llmCallCount).toBeUndefined();
   });
 });
 
@@ -244,6 +478,107 @@ describe('buildResolveAfterParse — investigation mode', () => {
     expect(result.success).toBe(false);
   });
 
+  test('API過負荷: idleTimeoutForceKilled + exit1 + 529出力 → success:false（部分出力で誤完了させない）', async () => {
+    const ctx = createCtx({
+      idleTimeoutForceKilled: true,
+      outputBuffer: 'partial work...\nAPI Error: 529 Overloaded. This is a server-side issue',
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1, // force-kill non-zero exit
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+      undefined,
+      false, // not investigation mode — the overload guard applies regardless
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toContain('API Overload');
+  });
+
+  test('wall-clock kill + git diff 変更あり → success:false かつ failureType=wall_clock_timeout', async () => {
+    mockGitDiffResult = true;
+    const ctx = createCtx({
+      idleTimeoutForceKilled: true, // wall-clock 分岐は両フラグをセットする（idle-monitor.ts）
+      wallClockTimeoutForceKilled: true,
+      outputBuffer: 'implemented a lot of code...',
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1, // taskkill による非ゼロ終了
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    expect(result.failureType).toBe('wall_clock_timeout');
+  });
+
+  test('wall-clock kill + git diff 変更なし → success:false かつ failureType=wall_clock_timeout', async () => {
+    mockGitDiffResult = false;
+    const ctx = createCtx({
+      idleTimeoutForceKilled: true,
+      wallClockTimeoutForceKilled: true,
+      outputBuffer: 'was still reading files...',
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+      async () => false,
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    expect(result.failureType).toBe('wall_clock_timeout');
+  });
+
+  test('idle-hang kill のみ（wall-clock でない）→ failureType は付与されない', async () => {
+    mockGitDiffResult = true;
+    const ctx = createCtx({
+      idleTimeoutForceKilled: true,
+      wallClockTimeoutForceKilled: false,
+      outputBuffer: 'some output',
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(true);
+    expect(result.failureType).toBeUndefined();
+  });
+
   test('ケース4: investigationMode=false + exit0 → git diff 経路（短絡しない）', async () => {
     mockGitDiffResult = false; // git diff: 変更なし
     const ctx = createCtx({ outputBuffer: 'a'.repeat(300) });
@@ -267,4 +602,36 @@ describe('buildResolveAfterParse — investigation mode', () => {
     expect(result.success).toBe(false);
     expect(result.errorMessage).toContain('no actual code changes');
   });
+});
+
+describe('wall-clock timeout completion fence', () => {
+  test.each([0, 1, null])(
+    'rejects partial investigation output even with exit %s',
+    async (code) => {
+      const ctx = createCtx({
+        wallClockTimeoutForceKilled: true,
+        idleTimeoutForceKilled: true,
+        outputBuffer: 'partial research '.repeat(30),
+        finalResultText: 'earlier result',
+      });
+      const { resolve, promise } = createResolveTracker();
+      buildResolveAfterParse(
+        ctx,
+        code,
+        '/tmp/workdir',
+        Date.now(),
+        resolve,
+        () => [],
+        () => [],
+        undefined,
+        true,
+      )();
+      const result = await promise;
+      expect(result.success).toBe(false);
+      expect(result.waitingForInput).toBe(false);
+      expect(result.failureType).toBe('wall_clock_timeout');
+      expect(result.output).toBe(ctx.outputBuffer);
+      expect(ctx.status).toBe('failed');
+    },
+  );
 });

@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   CheckCircle,
   Target,
@@ -29,6 +30,8 @@ type TaskSuggestionDetailProps = {
 };
 
 export default function TaskSuggestionDetail({ suggestion, onApply }: TaskSuggestionDetailProps) {
+  const t = useTranslations('task');
+  const tc = useTranslations('common');
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['criteria', 'outcome']),
   );
@@ -50,7 +53,7 @@ export default function TaskSuggestionDetail({ suggestion, onApply }: TaskSugges
       case 'high':
         return 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30';
       case 'medium':
-        return 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30';
+        return 'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30';
       case 'low':
         return 'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30';
       default:
@@ -77,18 +80,20 @@ export default function TaskSuggestionDetail({ suggestion, onApply }: TaskSugges
             className={`px-2 py-1 rounded-md text-xs font-medium ${getPriorityColor(suggestion.priority)}`}
           >
             {suggestion.priority === 'urgent'
-              ? '緊急'
+              ? t('priorityUrgent')
               : suggestion.priority === 'high'
-                ? '高'
+                ? t('priorityHigh')
                 : suggestion.priority === 'medium'
-                  ? '中'
-                  : '低'}
-            優先度
+                  ? t('priorityMedium')
+                  : t('priorityLow')}
+            {t('priority')}
           </span>
           {suggestion.estimatedHours && (
             <div className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
               <Clock className="w-4 h-4" />
-              <span>{suggestion.estimatedHours}時間</span>
+              <span>
+                {t('taskSuggestionDetail.hoursSuffix', { hours: suggestion.estimatedHours })}
+              </span>
             </div>
           )}
         </div>
@@ -109,7 +114,7 @@ export default function TaskSuggestionDetail({ suggestion, onApply }: TaskSugges
             <div className="flex items-center gap-2 mb-1">
               <BarChart3 className="w-4 h-4 text-violet-600 dark:text-violet-400" />
               <span className="text-xs font-medium text-violet-700 dark:text-violet-300">
-                測定可能な成果
+                {t('taskSuggestionDetail.measurableOutcomeLabel')}
               </span>
             </div>
             <p className="text-xs text-violet-600 dark:text-violet-300">
@@ -119,15 +124,17 @@ export default function TaskSuggestionDetail({ suggestion, onApply }: TaskSugges
         )}
 
         {/* Time-bound */}
-        <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50">
+        <div className="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800/50">
           <div className="flex items-center gap-2 mb-1">
-            <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
-              推定所要時間
+            <Clock className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">
+              {t('taskSuggestionDetail.estimatedDurationLabel')}
             </span>
           </div>
-          <p className="text-xs text-blue-600 dark:text-blue-300">
-            {suggestion.estimatedHours ? `${suggestion.estimatedHours}時間` : '未設定'}
+          <p className="text-xs text-indigo-600 dark:text-indigo-300">
+            {suggestion.estimatedHours
+              ? t('taskSuggestionDetail.hoursSuffix', { hours: suggestion.estimatedHours })
+              : tc('notConfigured')}
           </p>
         </div>
       </div>
@@ -143,12 +150,14 @@ export default function TaskSuggestionDetail({ suggestion, onApply }: TaskSugges
             >
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
-                <span className="text-sm font-medium">完了条件</span>
+                <span className="text-sm font-medium">
+                  {t('taskSuggestionDetail.completionCriteriaLabel')}
+                </span>
               </div>
               {expandedSections.has('criteria') ? (
-                <ChevronDown className="w-4 h-4 text-zinc-400" />
+                <ChevronDown className="w-4 h-4 text-zinc-500" />
               ) : (
-                <ChevronRight className="w-4 h-4 text-zinc-400" />
+                <ChevronRight className="w-4 h-4 text-zinc-500" />
               )}
             </button>
             {expandedSections.has('criteria') && (
@@ -178,12 +187,14 @@ export default function TaskSuggestionDetail({ suggestion, onApply }: TaskSugges
             >
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                <span className="text-sm font-medium">前提条件</span>
+                <span className="text-sm font-medium">
+                  {t('taskSuggestionDetail.dependenciesLabel')}
+                </span>
               </div>
               {expandedSections.has('dependencies') ? (
-                <ChevronDown className="w-4 h-4 text-zinc-400" />
+                <ChevronDown className="w-4 h-4 text-zinc-500" />
               ) : (
-                <ChevronRight className="w-4 h-4 text-zinc-400" />
+                <ChevronRight className="w-4 h-4 text-zinc-500" />
               )}
             </button>
             {expandedSections.has('dependencies') && (
@@ -205,12 +216,14 @@ export default function TaskSuggestionDetail({ suggestion, onApply }: TaskSugges
             >
               <div className="flex items-center gap-2">
                 <Route className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                <span className="text-sm font-medium">推奨アプローチ</span>
+                <span className="text-sm font-medium">
+                  {t('taskSuggestionDetail.suggestedApproachLabel')}
+                </span>
               </div>
               {expandedSections.has('approach') ? (
-                <ChevronDown className="w-4 h-4 text-zinc-400" />
+                <ChevronDown className="w-4 h-4 text-zinc-500" />
               ) : (
-                <ChevronRight className="w-4 h-4 text-zinc-400" />
+                <ChevronRight className="w-4 h-4 text-zinc-500" />
               )}
             </button>
             {expandedSections.has('approach') && (
@@ -232,12 +245,12 @@ export default function TaskSuggestionDetail({ suggestion, onApply }: TaskSugges
             >
               <div className="flex items-center gap-2">
                 <Target className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                <span className="text-sm font-medium">提案理由</span>
+                <span className="text-sm font-medium">{t('taskSuggestionDetail.reasonLabel')}</span>
               </div>
               {expandedSections.has('reason') ? (
-                <ChevronDown className="w-4 h-4 text-zinc-400" />
+                <ChevronDown className="w-4 h-4 text-zinc-500" />
               ) : (
-                <ChevronRight className="w-4 h-4 text-zinc-400" />
+                <ChevronRight className="w-4 h-4 text-zinc-500" />
               )}
             </button>
             {expandedSections.has('reason') && (
@@ -255,7 +268,7 @@ export default function TaskSuggestionDetail({ suggestion, onApply }: TaskSugges
         onClick={onApply}
         className="w-full py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm transition-colors"
       >
-        このタスクを作成
+        {t('taskSuggestionDetail.createTaskButton')}
       </button>
     </div>
   );

@@ -6,6 +6,11 @@
  * Implementation is split across stale-execution-recovery.ts and execution-resume.ts.
  */
 
-export { recoverStaleExecutions, getInterruptedExecutions } from './stale-execution-recovery';
+export {
+  recoverStaleExecutions,
+  getInterruptedExecutions,
+  startExecutionLeaseSweep,
+  sweepDeadLeaseExecutions,
+} from './stale-execution-recovery';
 
 export { resumeInterruptedExecution, buildResumePrompt } from './execution-resume';

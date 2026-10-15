@@ -1,21 +1,21 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Sparkles,
   Loader2,
   AlertCircle,
-  Brain,
   Clock,
-  ListChecks,
-  Lightbulb,
+  ListTodo,
+  Info,
   Check,
   X,
   Settings,
   BrainCircuit,
 } from 'lucide-react';
 import type { TaskAnalysisResult, SubtaskProposal, Priority } from '@/types';
-import { priorityColors, priorityLabels } from '@/types';
+import { priorityColors, priorityLabelKeys } from '@/types';
 import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
 
 type TaskAnalysisPanelProps = {
@@ -39,6 +39,7 @@ export function TaskAnalysisPanel({
   isApproving,
   onOpenSettings,
 }: TaskAnalysisPanelProps) {
+  const t = useTranslations('devMode.taskAnalysisPanel');
   const [selectedSubtasks, setSelectedSubtasks] = useState<Set<number>>(new Set());
   const [selectAll, setSelectAll] = useState(true);
 
@@ -80,9 +81,9 @@ export function TaskAnalysisPanel({
   };
 
   const complexityLabels = {
-    simple: 'シンプル',
-    medium: '中程度',
-    complex: '複雑',
+    simple: t('complexitySimple'),
+    medium: t('complexityMedium'),
+    complex: t('complexityComplex'),
   };
 
   // Pre-analysis state
@@ -94,10 +95,8 @@ export function TaskAnalysisPanel({
             <BrainCircuit className="w-8 h-8 text-violet-600 dark:text-violet-400" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">AI タスク分析</h3>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-              AIがタスクを分析し、効率的なサブタスクを提案
-            </p>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">{t('subtitle')}</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -105,14 +104,14 @@ export function TaskAnalysisPanel({
               className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition-colors"
             >
               <Sparkles className="w-4 h-4" />
-              分析を開始
+              {t('startAnalysis')}
             </button>
 
             {onOpenSettings && (
               <button
                 onClick={onOpenSettings}
                 className="p-2.5 rounded-lg text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors"
-                title="AIタスク分析設定"
+                title={t('analysisSettingsTitle')}
               >
                 <Settings className="w-5 h-5" />
               </button>
@@ -150,14 +149,14 @@ export function TaskAnalysisPanel({
         <div className="flex items-center gap-3">
           <AlertCircle className="w-6 h-6 text-red-500" />
           <div className="flex-1">
-            <p className="font-medium text-red-700 dark:text-red-300">分析に失敗しました</p>
+            <p className="font-medium text-red-700 dark:text-red-300">{t('analysisFailed')}</p>
             <p className="text-sm text-red-600 dark:text-red-400 mt-1">{error}</p>
           </div>
           <button
             onClick={onAnalyze}
             className="px-3 py-1.5 text-sm font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors"
           >
-            再試行
+            {t('retry')}
           </button>
         </div>
       </div>
@@ -179,7 +178,7 @@ export function TaskAnalysisPanel({
                   AIAnalysis results
                 </h3>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                  {analysisResult.suggestedSubtasks.length}個のサブタスクを提案
+                  {t('subtasksProposed', { count: analysisResult.suggestedSubtasks.length })}
                 </p>
               </div>
             </div>
@@ -191,13 +190,13 @@ export function TaskAnalysisPanel({
               </span>
               <div className="flex items-center gap-1.5 text-sm text-zinc-600 dark:text-zinc-400">
                 <Clock className="w-4 h-4" />
-                <span>約{analysisResult.estimatedTotalHours}時間</span>
+                <span>{t('estimatedHours', { hours: analysisResult.estimatedTotalHours })}</span>
               </div>
               {onOpenSettings && (
                 <button
                   onClick={onOpenSettings}
                   className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors"
-                  title="開発者モード設定"
+                  title={t('devModeSettingsTitle')}
                 >
                   <Settings className="w-4 h-4" />
                 </button>
@@ -213,16 +212,16 @@ export function TaskAnalysisPanel({
         <div className="px-6 py-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <ListChecks className="w-5 h-5 text-zinc-400" />
+              <ListTodo className="w-5 h-5 text-zinc-400" />
               <span className="font-medium text-zinc-900 dark:text-zinc-50">
-                提案されたサブタスク
+                {t('suggestedSubtasks')}
               </span>
             </div>
             <button
               onClick={handleToggleAll}
               className="text-sm text-violet-600 dark:text-violet-400 hover:underline"
             >
-              {selectAll ? '全て解除' : '全て選択'}
+              {selectAll ? t('deselectAll') : t('selectAll')}
             </button>
           </div>
 
@@ -244,13 +243,14 @@ export function TaskAnalysisPanel({
             {analysisResult.reasoning && (
               <div className="mb-3">
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                  <span className="font-medium">分解理由:</span> {analysisResult.reasoning}
+                  <span className="font-medium">{t('reasoningLabel')}</span>{' '}
+                  {analysisResult.reasoning}
                 </p>
               </div>
             )}
             {analysisResult.tips && analysisResult.tips.length > 0 && (
               <div className="flex items-start gap-2">
-                <Lightbulb className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                <Info className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
                 <div className="text-sm text-zinc-600 dark:text-zinc-400">
                   {analysisResult.tips.map((tip, i) => (
                     <p key={i}>{tip}</p>
@@ -268,7 +268,7 @@ export function TaskAnalysisPanel({
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
           >
             <X className="w-4 h-4" />
-            却下
+            {t('reject')}
           </button>
           <button
             onClick={handleApprove}
@@ -280,7 +280,7 @@ export function TaskAnalysisPanel({
             ) : (
               <Check className="w-4 h-4" />
             )}
-            {selectAll ? '全て承認' : `${selectedSubtasks.size}件を承認`}
+            {selectAll ? t('approveAll') : t('approveSelected', { count: selectedSubtasks.size })}
           </button>
         </div>
       </div>
@@ -301,6 +301,7 @@ function SubtaskProposalItem({
   isSelected: boolean;
   onToggle: () => void;
 }) {
+  const tt = useTranslations('task');
   return (
     <button
       onClick={onToggle}
@@ -320,7 +321,7 @@ function SubtaskProposalItem({
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs text-zinc-400 dark:text-zinc-500">#{index + 1}</span>
+          <span className="text-xs text-zinc-500 dark:text-zinc-500">#{index + 1}</span>
           <span className="font-medium text-zinc-900 dark:text-zinc-50 truncate">
             {subtask.title}
           </span>
@@ -334,7 +335,7 @@ function SubtaskProposalItem({
           <span
             className={`px-2 py-0.5 rounded text-xs font-medium ${priorityColors[subtask.priority as Priority]}`}
           >
-            {priorityLabels[subtask.priority as Priority]}
+            {tt(priorityLabelKeys[subtask.priority as Priority])}
           </span>
           {subtask.estimatedHours && (
             <span className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">

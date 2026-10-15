@@ -1,19 +1,24 @@
 'use client';
 // EditorToolbar
+import { useTranslations } from 'next-intl';
 import { Bold, Italic, Underline, List, ListOrdered } from 'lucide-react';
+import { BlockStyleSection } from './toolbar/BlockStyleSection';
 import { FontPickerSection } from './toolbar/FontPickerSection';
 import { TextColorSection } from './toolbar/TextColorSection';
 import { HighlightSection } from './toolbar/HighlightSection';
 import { InsertSection } from './toolbar/InsertSection';
+import type { BlockType } from './block-format';
 
 export interface EditorToolbarProps {
   // Format state
+  currentBlockType: BlockType;
   currentFont: string;
   currentFontSize: string;
   currentTextColor: string;
   highlightStyleIndex: number;
 
   // Popup visibility
+  showBlockPicker: boolean;
   showFontPicker: boolean;
   showFontSizePicker: boolean;
   showTextColorPicker: boolean;
@@ -32,6 +37,7 @@ export interface EditorToolbarProps {
   setCurrentFontSize: (v: string) => void;
   setCurrentTextColor: (v: string) => void;
   setHighlightStyleIndex: (v: number) => void;
+  setShowBlockPicker: (v: boolean) => void;
   setShowFontPicker: (v: boolean) => void;
   setShowFontSizePicker: (v: boolean) => void;
   setShowTextColorPicker: (v: boolean) => void;
@@ -43,6 +49,7 @@ export interface EditorToolbarProps {
   setCodeLanguage: (v: string) => void;
 
   // Action callbacks
+  onApplyBlockType: (type: BlockType) => void;
   onApplyFormat: (command: string, value?: string) => void;
   onApplyHighlight: (color: string) => void;
   onApplyBorderLine: (color: string) => void;
@@ -52,6 +59,7 @@ export interface EditorToolbarProps {
   onInsertTable: () => void;
   onInsertLink: () => void;
   onInsertCodeBlock: () => void;
+  onInsertDiagram: () => void;
   onOpenLinkInput: () => void;
   onOpenCodeInput: () => void;
   onResetTextColor: () => void;
@@ -73,6 +81,7 @@ function makeToggle(
   props: EditorToolbarProps,
   field: keyof Pick<
     EditorToolbarProps,
+    | 'showBlockPicker'
     | 'showFontPicker'
     | 'showFontSizePicker'
     | 'showTextColorPicker'
@@ -83,6 +92,7 @@ function makeToggle(
   >,
 ): () => void {
   const setters: Record<string, (v: boolean) => void> = {
+    showBlockPicker: props.setShowBlockPicker,
     showFontPicker: props.setShowFontPicker,
     showFontSizePicker: props.setShowFontSizePicker,
     showTextColorPicker: props.setShowTextColorPicker,
@@ -106,7 +116,11 @@ function makeToggle(
  * @param props - All toolbar state, setters, and action callbacks
  */
 export default function EditorToolbar(props: EditorToolbarProps) {
+  const t = useTranslations('notes');
   const {
+    currentBlockType,
+    showBlockPicker,
+    onApplyBlockType,
     currentFont,
     currentFontSize,
     currentTextColor,
@@ -139,6 +153,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
     onInsertTable,
     onInsertLink,
     onInsertCodeBlock,
+    onInsertDiagram,
     onOpenLinkInput,
     onOpenCodeInput,
     onResetTextColor,
@@ -147,9 +162,24 @@ export default function EditorToolbar(props: EditorToolbarProps) {
 
   const toggleColorPicker = makeToggle(props, 'showColorPicker');
   const toggleBorderPicker = makeToggle(props, 'showBorderPicker');
+  const toggleBlockPicker = makeToggle(props, 'showBlockPicker');
+
+  // NOTE: Formatting buttons must not steal focus from the contentEditable —
+  // losing focus collapses/loses the selection the command should apply to.
+  const keepEditorFocus = (e: React.MouseEvent) => e.preventDefault();
 
   return (
     <div className="flex items-center gap-0.5 px-4 pb-1.5 border-b border-zinc-200 dark:border-zinc-700">
+      {/* Block style first — JIRA convention places the paragraph-style selector leftmost. */}
+      <BlockStyleSection
+        currentBlockType={currentBlockType}
+        showBlockPicker={showBlockPicker}
+        onToggleBlockPicker={toggleBlockPicker}
+        onApplyBlockType={onApplyBlockType}
+      />
+
+      <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
+
       <FontPickerSection
         currentFont={currentFont}
         currentFontSize={currentFontSize}
@@ -167,23 +197,26 @@ export default function EditorToolbar(props: EditorToolbarProps) {
 
       {/* Basic formatting */}
       <button
+        onMouseDown={keepEditorFocus}
         onClick={() => onApplyFormat('bold')}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
-        title="太字"
+        title={t('editorToolbar.boldTitle')}
       >
         <Bold className="w-3.5 h-3.5" />
       </button>
       <button
+        onMouseDown={keepEditorFocus}
         onClick={() => onApplyFormat('italic')}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
-        title="斜体"
+        title={t('editorToolbar.italicTitle')}
       >
         <Italic className="w-3.5 h-3.5" />
       </button>
       <button
+        onMouseDown={keepEditorFocus}
         onClick={() => onApplyFormat('underline')}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
-        title="下線"
+        title={t('editorToolbar.underlineTitle')}
       >
         <Underline className="w-3.5 h-3.5" />
       </button>
@@ -211,16 +244,18 @@ export default function EditorToolbar(props: EditorToolbarProps) {
 
       {/* Lists */}
       <button
+        onMouseDown={keepEditorFocus}
         onClick={() => onApplyFormat('insertUnorderedList')}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
-        title="箇条書き"
+        title={t('editorToolbar.bulletListTitle')}
       >
         <List className="w-3.5 h-3.5" />
       </button>
       <button
+        onMouseDown={keepEditorFocus}
         onClick={() => onApplyFormat('insertOrderedList')}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
-        title="番号付きリスト"
+        title={t('editorToolbar.numberedListTitle')}
       >
         <ListOrdered className="w-3.5 h-3.5" />
       </button>
@@ -241,6 +276,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
         onInsertTable={onInsertTable}
         onInsertLink={onInsertLink}
         onInsertCodeBlock={onInsertCodeBlock}
+        onInsertDiagram={onInsertDiagram}
         onOpenLinkInput={onOpenLinkInput}
         onOpenCodeInput={onOpenCodeInput}
         onApplyBorderLine={onApplyBorderLine}

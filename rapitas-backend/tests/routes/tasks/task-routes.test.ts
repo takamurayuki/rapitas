@@ -5,6 +5,13 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { Elysia } from 'elysia';
 
+// Supports both the interactive (callback) and the batch (array) form of $transaction.
+function transactionImpl(arg: unknown): Promise<unknown> {
+  return Array.isArray(arg)
+    ? Promise.all(arg)
+    : (arg as (tx: unknown) => Promise<unknown>)(mockPrisma);
+}
+
 const mockPrisma = {
   task: {
     findMany: mock(() => Promise.resolve([])),
@@ -43,7 +50,24 @@ const mockPrisma = {
     create: mock(() => Promise.resolve({ id: 1 })),
     updateMany: mock(() => Promise.resolve({ count: 0 })),
   },
-  $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
+  workflowTransition: {
+    findMany: mock(() => Promise.resolve([])),
+    create: mock(() => Promise.resolve({ id: 1 })),
+  },
+  agentExecution: {
+    findMany: mock(() => Promise.resolve([])),
+  },
+  // Retry route always records a requirement-review retry request (task
+  // /tasks/:id/retry generates an idempotency key even without a header) via
+  // recordRequirementReviewRetryRequest — must be mocked or retryTask throws.
+  requirementReviewRetryRequest: {
+    create: mock(() => Promise.resolve({ id: 1 })),
+  },
+  // updateTask releases the theme's currentTaskId in the same transaction (task 1009).
+  themeAutoRun: {
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
+  },
+  $transaction: mock(transactionImpl),
 };
 
 mock.module('../../../config/database', () => ({
@@ -54,7 +78,16 @@ mock.module('../../../services/achievement-checker', () => ({
   checkAchievements: mock(() => Promise.resolve()),
 }));
 mock.module('../../../services/communication/notification-service', () => ({
+  createNotification: mock(() => Promise.resolve({ id: 1 })),
   notifyTaskCompleted: mock(() => Promise.resolve()),
+  notifyAgentExecutionCompleted: mock(() => Promise.resolve()),
+  notifyApprovalRequested: mock(() => Promise.resolve()),
+  AUTH_FAILURE_NOTIFICATION_TITLE: 'Claude 認証切れ',
+  notifyAuthenticationFailure: mock(() => Promise.resolve()),
+  notifyPomodoroCompleted: mock(() => Promise.resolve()),
+  // NOTE: task-knowledge-extractor が完了タスクのナレッジ抽出成功時に呼ぶ。
+  // bun の mock.module は全export完全ミラーが必須(欠けると load error)。
+  notifyKnowledgeExtracted: mock(() => Promise.resolve()),
 }));
 mock.module('../../../src/services/user-behavior-service', () => ({
   UserBehaviorService: {
@@ -127,12 +160,15 @@ function resetAllMocks() {
     }
   }
   // Restore default for $transaction
-  mockPrisma.$transaction.mockImplementation((fn: (tx: unknown) => Promise<unknown>) =>
-    fn(mockPrisma),
-  );
+  mockPrisma.$transaction.mockImplementation(transactionImpl);
   // createTask chains `notification.create(...).catch(...)`; a reset
   // (undefined-returning) mock would throw on `.catch` of undefined → 500.
   mockPrisma.notification.create.mockResolvedValue({ id: 1 });
+  // NOTE: createTask now calls syncParentStatusFromSubtasks unconditionally
+  // for every subtask creation (task-mutations.ts) — it awaits
+  // prisma.task.findMany(...).length, so a reset (undefined-returning) mock
+  // throws → 500. Restore the pre-reset default (empty siblings).
+  mockPrisma.task.findMany.mockResolvedValue([]);
 }
 
 function createApp() {
@@ -204,6 +240,38 @@ describe('GET /tasks', () => {
     const res = await app.handle(new Request('http://localhost/tasks?since=invalid'));
     expect(res.status).toBe(400);
   });
+
+  test('blockedタスクにWorkflowTransitionの最新causeを1クエリで付与すること', async () => {
+    const tasks = [
+      { id: 1, title: 'Task 1', status: 'todo', parentId: null },
+      { id: 2, title: 'Task 2', status: 'blocked', parentId: null },
+    ];
+    mockPrisma.task.findMany.mockResolvedValue(tasks);
+    mockPrisma.workflowTransition.findMany.mockResolvedValue([
+      { taskId: 2, cause: 'verify_pr_not_created' },
+    ]);
+
+    const res = await app.handle(new Request('http://localhost/tasks'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.workflowTransition.findMany).toHaveBeenCalledTimes(1);
+    const call = mockPrisma.workflowTransition.findMany.mock.calls[0]![0] as {
+      where: { taskId: { in: number[] } };
+    };
+    expect(call.where.taskId.in).toEqual([2]);
+    expect(body[0].blockedCause).toBeUndefined();
+    expect(body[1].blockedCause).toBe('verify_pr_not_created');
+  });
+
+  test('blockedタスクが無ければWorkflowTransitionへ問い合わせないこと', async () => {
+    const tasks = [{ id: 1, title: 'Task 1', status: 'todo', parentId: null }];
+    mockPrisma.task.findMany.mockResolvedValue(tasks);
+
+    await app.handle(new Request('http://localhost/tasks'));
+
+    expect(mockPrisma.workflowTransition.findMany).not.toHaveBeenCalled();
+  });
 });
 
 describe('GET /tasks/:id', () => {
@@ -239,6 +307,54 @@ describe('GET /tasks/:id', () => {
   test('無効なIDでValidationErrorを返すこと', async () => {
     const res = await app.handle(new Request('http://localhost/tasks/abc'));
     expect(res.status).toBe(400);
+  });
+
+  test('activeTimeMs / wallClockMs / phaseBreakdown を実行行の集計から付与すること', async () => {
+    const task = { id: 1, title: 'Test Task', status: 'in-progress', subtasks: [] };
+    mockPrisma.task.findUnique.mockResolvedValue(task);
+    const t0 = new Date('2026-08-12T00:00:00.000Z').getTime();
+    mockPrisma.agentExecution.findMany.mockResolvedValue([
+      {
+        startedAt: new Date(t0),
+        completedAt: new Date(t0 + 10 * 60_000),
+        status: 'completed',
+        session: { mode: 'workflow-researcher' },
+      },
+      {
+        startedAt: new Date(t0 + 12 * 60_000),
+        completedAt: new Date(t0 + 42 * 60_000),
+        status: 'completed',
+        session: { mode: 'workflow-implementer' },
+      },
+    ]);
+
+    const res = await app.handle(new Request('http://localhost/tasks/1'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    // 既存フィールドは不変（後方互換）
+    expect(body.id).toBe(1);
+    expect(body.title).toBe('Test Task');
+    // 追加フィールド: 全完了実行の (completedAt - startedAt) 合計
+    expect(body.activeTimeMs).toBe(40 * 60_000);
+    expect(body.wallClockMs).toBe(42 * 60_000);
+    expect(body.phaseBreakdown).toEqual([
+      { role: 'researcher', execCount: 1, activeTimeMs: 10 * 60_000 },
+      { role: 'implementer', execCount: 1, activeTimeMs: 30 * 60_000 },
+    ]);
+  });
+
+  test('集計が失敗してもタスク本体は返すこと（best-effort）', async () => {
+    const task = { id: 1, title: 'Test Task', status: 'todo', subtasks: [] };
+    mockPrisma.task.findUnique.mockResolvedValue(task);
+    mockPrisma.agentExecution.findMany.mockRejectedValue(new Error('DB down'));
+
+    const res = await app.handle(new Request('http://localhost/tasks/1'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.id).toBe(1);
+    expect(body.activeTimeMs).toBeUndefined();
   });
 });
 

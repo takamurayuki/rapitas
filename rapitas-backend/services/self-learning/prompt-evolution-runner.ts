@@ -8,10 +8,19 @@
  * このランナーは GitHub Actions の cron ワークフロー
  * `.github/workflows/prompt-evolution-weekly.yml` から bun で起動される想定。
  * 失敗してもエージェント実行に影響しないよう、すべての例外は内部で握りつぶす。
+ *
+ * NOTE: 母集団は AgentExecution（session.mode=workflow-{role}）。AgentSession を
+ * 分母にしていた頃は、CLI 実行系がセッションを 'active' のまま終えるため大半の
+ * 完了実行が欠測し、confirmedPromptImprovements が恒常的に 0 だった（task 893）。
+ * NOTE: 成功判定は status='completed' 単独では不十分 — verify / adversarial
+ * ゲートに差し戻された実行も 'completed' のまま残るため、gate 差し戻しが成功例
+ * として学習されていた。role-evidence と同じ ROLE_TROUBLE_CAUSES
+ * （WorkflowTransition.cause）で差し戻しを失敗側に補正する。
  */
 
 import { createLogger } from '../../config/logger';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma-postgres';
+import { ROLE_TROUBLE_CAUSES } from '../workflow/role-evidence';
 
 const log = createLogger('self-learning:prompt-evolution-runner');
 
@@ -24,13 +33,43 @@ const SUCCESS_RATE_THRESHOLD = 0.7;
 /** ロール毎に必要な最小サンプル数。これ未満だと統計的に判断不可能。 */
 const MIN_SAMPLE_SIZE = 5;
 
-interface RoleEvaluation {
+/**
+ * Execution statuses that have not reached a terminal outcome yet. They are
+ * neither a success nor a failure, so they are excluded from the denominator
+ * instead of being scored (they would otherwise read as failures).
+ */
+const IN_PROGRESS_STATUSES: ReadonlySet<string> = new Set([
+  'running',
+  'pending',
+  'waiting_for_input',
+  'post_processing',
+]);
+
+/** Terminal statuses that carry a quality signal and therefore form the denominator. */
+const SCORED_STATUSES: ReadonlySet<string> = new Set(['completed', 'failed']);
+
+/**
+ * Why rows inside the window were kept out of the denominator. Reported so a
+ * low `totalRuns` can be audited ("why is N so small?") instead of silently
+ * looking like a missing population.
+ */
+export interface RoleEvaluationExclusions {
+  /** Not terminal yet (see IN_PROGRESS_STATUSES). / 未終端 */
+  inProgress: number;
+  /** Cancelled by an operator or the auto-run stop path — not a quality signal. / 取消 */
+  cancelled: number;
+  /** Any other status value; excluded rather than guessed at. / 未知の状態値 */
+  unknownStatus: number;
+}
+
+export interface RoleEvaluation {
   role: string;
   totalRuns: number;
   successRuns: number;
   successRate: number;
   shouldEvolve: boolean;
   reason: string;
+  excluded: RoleEvaluationExclusions;
 }
 
 /**
@@ -43,12 +82,14 @@ export async function runPromptEvolution(prisma: PrismaClient): Promise<RoleEval
   const since = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
   const evaluations: RoleEvaluation[] = [];
 
+  // NOTE: reviewer is retired (removal in progress elsewhere); auto_verifier is
+  // the lightweight-mode verify role and has its own prompt to evolve.
   const roles: ReadonlyArray<string> = [
     'researcher',
     'planner',
-    'reviewer',
     'implementer',
     'verifier',
+    'auto_verifier',
   ];
 
   for (const role of roles) {
@@ -69,8 +110,11 @@ export async function runPromptEvolution(prisma: PrismaClient): Promise<RoleEval
       threshold: SUCCESS_RATE_THRESHOLD,
       evaluations: evaluations.map((e) => ({
         role: e.role,
+        totalRuns: e.totalRuns,
         successRate: Number(e.successRate.toFixed(3)),
         evolved: e.shouldEvolve,
+        // Denominator audit trail: a small totalRuns must be explainable.
+        excluded: e.excluded,
       })),
     },
     '[runner] prompt evolution cycle completed',
@@ -79,22 +123,89 @@ export async function runPromptEvolution(prisma: PrismaClient): Promise<RoleEval
 }
 
 /**
- * 直近 since 以降の AgentSession で mode=workflow-{role} のものを集計し、成功率を出す。
+ * 直近 since 以降の AgentExecution（session.mode=workflow-{role}）を集計し、成功率を出す。
+ *
+ * NOTE: 母集団は AgentSession ではなく AgentExecution。CLI 実行系は
+ * AgentSession をほぼ更新しないまま終えるため（workflow-cli-executor）、
+ * セッション状態を分母にすると大半の完了実行が欠測し、SETTLE_MIN_RUNS に
+ * 永久に届かなかった。role-evidence.getRoleModelOutcomes と同じ関係
+ * （AgentExecution.session.config.taskId）で集計を揃える。
+ *
+ * ゲート対象ロール（ROLE_TROUBLE_CAUSES 参照）は status='completed' に加えて、
+ * そのタスクにロールの成果物を差し戻す WorkflowTransition（verify_repair 等）が
+ * 記録されていないことを成功の条件とする — role-evidence と同じ定義。
+ * 「実行が完了した」は「成果物が受け入れられた」ではないため、単純な
+ * status='completed' への置換はしない。
  */
-async function evaluateRole(
+export async function evaluateRole(
   prisma: PrismaClient,
   role: string,
   since: Date,
+  scopeTaskIds?: number[],
 ): Promise<RoleEvaluation> {
-  const sessions = await prisma.agentSession.findMany({
+  // NOTE: status で DB 側を絞らない — 除外理由（未終端/取消/未知）ごとの件数を
+  // 出すには、除外された行そのものを数える必要があるため。
+  const executions = await prisma.agentExecution.findMany({
     where: {
-      mode: `workflow-${role}`,
       createdAt: { gte: since },
+      session: {
+        mode: `workflow-${role}`,
+        // Limits the post-approval measurement to a candidate's staged tasks
+        // (prompt-comparison / stagedTaskIds) instead of the whole role. When
+        // scopeTaskIds is undefined, the where clause is unchanged from before.
+        ...(scopeTaskIds ? { config: { taskId: { in: scopeTaskIds } } } : {}),
+      },
     },
-    select: { status: true },
+    select: { status: true, session: { select: { config: { select: { taskId: true } } } } },
   });
-  const total = sessions.length;
-  const success = sessions.filter((s) => s.status === 'completed').length;
+
+  // Gate-rejection lookup: tasks whose transitions indict this role's output.
+  // Missing outcome evidence must skip evaluation, not become successful training data.
+  const troubleCauses = ROLE_TROUBLE_CAUSES[role] ?? [];
+  const taskIds = [
+    ...new Set(
+      executions
+        .map((e) => e.session?.config?.taskId)
+        .filter((id): id is number => typeof id === 'number'),
+    ),
+  ];
+  let troubledTasks = new Set<number>();
+  if (troubleCauses.length > 0 && taskIds.length > 0) {
+    const troubleRows = await prisma.workflowTransition.findMany({
+      where: {
+        taskId: { in: taskIds },
+        cause: { in: troubleCauses },
+        createdAt: { gte: since },
+      },
+      select: { taskId: true },
+      distinct: ['taskId'],
+    });
+    troubledTasks = new Set(troubleRows.map((t) => t.taskId));
+  }
+
+  const excluded: RoleEvaluationExclusions = { inProgress: 0, cancelled: 0, unknownStatus: 0 };
+  let total = 0;
+  let success = 0;
+  for (const execution of executions) {
+    const status = execution.status;
+    if (IN_PROGRESS_STATUSES.has(status)) {
+      excluded.inProgress += 1;
+      continue;
+    }
+    if (status === 'cancelled') {
+      excluded.cancelled += 1;
+      continue;
+    }
+    if (!SCORED_STATUSES.has(status)) {
+      excluded.unknownStatus += 1;
+      continue;
+    }
+    total += 1;
+    const taskId = execution.session?.config?.taskId;
+    const gateRejected = typeof taskId === 'number' && troubledTasks.has(taskId);
+    if (status === 'completed' && !gateRejected) success += 1;
+  }
+
   const rate = total === 0 ? 1 : success / total;
   const enoughSamples = total >= MIN_SAMPLE_SIZE;
   const shouldEvolve = enoughSamples && rate < SUCCESS_RATE_THRESHOLD;
@@ -104,6 +215,7 @@ async function evaluateRole(
     successRuns: success,
     successRate: rate,
     shouldEvolve,
+    excluded,
     reason: !enoughSamples
       ? `insufficient samples (${total} < ${MIN_SAMPLE_SIZE})`
       : shouldEvolve
@@ -120,8 +232,14 @@ async function evaluateRole(
 async function emitEvolutionCandidate(prisma: PrismaClient, ev: RoleEvaluation): Promise<void> {
   // PromptEvolution model がある前提。フィールド構成はリポジトリ標準に合わせて
   // basePromptKey + status='pending' で記録する。
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const promptEvolutionDelegate = (prisma as any).promptEvolution;
+  // NOTE: feature-detected via an unknown-cast rather than `any` — the model may
+  // be absent from an older/regenerated client, so callers must null-check
+  // `create` before use anyway; `unknown` keeps that check type-safe.
+  const promptEvolutionDelegate = (
+    prisma as unknown as {
+      promptEvolution?: { create: (args: unknown) => Promise<unknown> };
+    }
+  ).promptEvolution;
   if (!promptEvolutionDelegate || typeof promptEvolutionDelegate.create !== 'function') {
     log.warn('[runner] PromptEvolution model unavailable in current schema; skip emit');
     return;
@@ -136,6 +254,7 @@ async function emitEvolutionCandidate(prisma: PrismaClient, ev: RoleEvaluation):
         totalRuns: ev.totalRuns,
         successRuns: ev.successRuns,
         successRate: ev.successRate,
+        excluded: ev.excluded,
       }),
     },
   });

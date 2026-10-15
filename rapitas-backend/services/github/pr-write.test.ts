@@ -22,26 +22,29 @@ mock.module('./gh-client', () => ({
   runGhCommandWithBody: mockRunGhCommandWithBody,
 }));
 
-// exec is used by createPullRequest (git push) and syncLocalBranchWithRemote
-let execShouldFail = false;
-const mockExec = mock(
-  (
-    _cmd: string,
-    _opts: object,
-    cb: (err: Error | null, result?: { stdout: string; stderr: string }) => void,
-  ) => {
-    if (execShouldFail) {
-      cb(new Error('git push failed'));
-    } else {
-      cb(null, { stdout: '', stderr: '' });
-    }
-  },
-);
+// runGitCommand is used by createPullRequest (git push) and syncLocalBranchWithRemote.
+// NOTE: Mirror ALL git-exec exports to prevent "export not found" in the same bun process.
+let gitShouldFail = false;
+// Scripted per-subcommand responses for syncLocalBranchWithRemote scenarios.
+// Key = args.join(' '); value = resolved stdout, or an Error to reject with.
+let gitResponses: Record<string, string | Error> = {};
+const mockRunGitCommand = mock((args: string[], _cwd?: string, _opts?: { skipLog?: boolean }) => {
+  if (gitShouldFail) return Promise.reject(new Error('git push failed'));
+  const resp = gitResponses[args.join(' ')];
+  if (resp instanceof Error) return Promise.reject(resp);
+  return Promise.resolve(resp ?? '');
+});
 
-// NOTE: Include execFile as well to prevent "export not found" when gh-client.test.ts
+mock.module('./git-exec', () => ({
+  runGitCommand: mockRunGitCommand,
+  parseOwnerRepo: mock(() => null),
+  ownerRepoFromGitRemote: mock(() => Promise.resolve(null)),
+}));
+
+// NOTE: Include exec and execFile to prevent "export not found" when gh-client.test.ts
 // runs in the same process (bun mock.module is process-global).
 mock.module('child_process', () => ({
-  exec: mockExec,
+  exec: mock(() => {}),
   execFile: mock(() => {}),
 }));
 
@@ -52,6 +55,7 @@ const {
   approvePullRequest,
   requestChanges,
   createPullRequest,
+  syncLocalBranchWithRemote,
 } = await import('./pr-write');
 
 // ─── mergePullRequest ─────────────────────────────────────────────────────────
@@ -60,6 +64,17 @@ describe('mergePullRequest', () => {
   beforeEach(() => {
     mockRunGhCommand.mockReset();
     mockRunGhCommandWithBody.mockReset();
+  });
+
+  describe('prNumber validation', () => {
+    it.each([
+      { name: '0', prNumber: 0, errorMatch: '無効なPR番号です: 0' },
+      { name: 'negative', prNumber: -1, errorMatch: '無効なPR番号です: -1' },
+      { name: 'NaN', prNumber: NaN, errorMatch: /無効なPR番号です/ },
+    ])('throws without calling gh when prNumber is $name', async ({ prNumber, errorMatch }) => {
+      await expect(mergePullRequest('owner/repo', prNumber)).rejects.toThrow(errorMatch);
+      expect(mockRunGhCommand).not.toHaveBeenCalled();
+    });
   });
 
   describe('without auto option', () => {
@@ -92,6 +107,46 @@ describe('mergePullRequest', () => {
 
       const [args] = mockRunGhCommand.mock.calls[0] as [string[]];
       expect(args).toContain('--squash');
+    });
+
+    it('runs update-branch then retries merge on head-behind error, returns autoQueued: false', async () => {
+      // First call: merge fails with head-behind error.
+      mockRunGhCommand.mockRejectedValueOnce(
+        new Error('Pull request is not up to date with the base branch'),
+      );
+      // Second call: update-branch succeeds.
+      mockRunGhCommand.mockResolvedValueOnce('');
+      // Third call: retry merge succeeds.
+      mockRunGhCommand.mockResolvedValueOnce('');
+
+      const result = await mergePullRequest('owner/repo', 10, { method: 'squash' });
+
+      expect(result).toEqual({ autoQueued: false });
+      expect(mockRunGhCommand).toHaveBeenCalledTimes(3);
+      const [updateArgs] = mockRunGhCommand.mock.calls[1] as [string[]];
+      expect(updateArgs).toContain('update-branch');
+      expect(updateArgs).toContain('10');
+    });
+
+    it('throws CI-retry message when update-branch succeeds but retry merge also fails', async () => {
+      mockRunGhCommand.mockRejectedValueOnce(new Error('base branch was modified'));
+      mockRunGhCommand.mockResolvedValueOnce(''); // update-branch succeeds
+      mockRunGhCommand.mockRejectedValueOnce(new Error('still not mergeable'));
+
+      await expect(mergePullRequest('owner/repo', 10)).rejects.toThrow(
+        'ブランチを最新化しました。CI 完了後に再度マージしてください',
+      );
+      expect(mockRunGhCommand).toHaveBeenCalledTimes(3);
+    });
+
+    it('rethrows original merge error when update-branch reports already up to date', async () => {
+      const originalError = new Error('not up to date with the base branch');
+      mockRunGhCommand.mockRejectedValueOnce(originalError);
+      // update-branch exits non-zero with "already up to date"
+      mockRunGhCommand.mockRejectedValueOnce(new Error('Pull request is already up-to-date'));
+
+      await expect(mergePullRequest('owner/repo', 10)).rejects.toBe(originalError);
+      expect(mockRunGhCommand).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -167,7 +222,9 @@ describe('mergePullRequest', () => {
       mockRunGhCommand.mockRejectedValueOnce(
         new Error('Auto-merge is not allowed for this repository'),
       );
-      const directMergeError = new Error('Pull request is not mergeable');
+      // NOTE: This error does not match HEAD_BEHIND_RE, so no update-branch retry
+      // is attempted and the error propagates directly to the caller.
+      const directMergeError = new Error('Pull request has unresolved merge conflicts');
       mockRunGhCommand.mockRejectedValueOnce(directMergeError);
 
       await expect(mergePullRequest('owner/repo', 7, { auto: true })).rejects.toBe(
@@ -187,6 +244,28 @@ describe('mergePullRequest', () => {
       const [fallbackArgs] = mockRunGhCommand.mock.calls[1] as [string[]];
       expect(fallbackArgs).toContain('--delete-branch');
       expect(fallbackArgs).not.toContain('--auto');
+    });
+
+    it('auto fallback direct merge recovers from head-behind via update-branch + retry', async () => {
+      // First call: --auto fails (auto-merge not enabled).
+      mockRunGhCommand.mockRejectedValueOnce(
+        new Error('Auto-merge is not allowed for this repository'),
+      );
+      // Second call: fallback direct merge fails with head-behind.
+      mockRunGhCommand.mockRejectedValueOnce(
+        new Error('Pull request is not up to date with the base branch'),
+      );
+      // Third call: update-branch succeeds.
+      mockRunGhCommand.mockResolvedValueOnce('');
+      // Fourth call: retry merge succeeds.
+      mockRunGhCommand.mockResolvedValueOnce('');
+
+      const result = await mergePullRequest('owner/repo', 7, { auto: true });
+
+      expect(result).toEqual({ autoQueued: false });
+      expect(mockRunGhCommand).toHaveBeenCalledTimes(4);
+      const [updateArgs] = mockRunGhCommand.mock.calls[2] as [string[]];
+      expect(updateArgs).toContain('update-branch');
     });
   });
 });
@@ -270,8 +349,8 @@ describe('requestChanges', () => {
 describe('createPullRequest', () => {
   beforeEach(() => {
     mockRunGhCommandWithBody.mockReset();
-    mockExec.mockClear();
-    execShouldFail = false;
+    mockRunGitCommand.mockClear();
+    gitShouldFail = false;
   });
 
   it('正常系: git push 後に runGhCommandWithBody で PR を作成し success を返す', async () => {
@@ -300,7 +379,7 @@ describe('createPullRequest', () => {
   });
 
   it('git push 失敗 → success: false でエラーメッセージを返す', async () => {
-    execShouldFail = true;
+    gitShouldFail = true;
 
     const result = await createPullRequest(
       '/workspace',
@@ -313,5 +392,33 @@ describe('createPullRequest', () => {
     expect(result.success).toBe(false);
     expect(result.error).toBeDefined();
     expect(mockRunGhCommandWithBody).not.toHaveBeenCalled();
+  });
+});
+
+// ─── syncLocalBranchWithRemote ────────────────────────────────────────────────
+
+describe('syncLocalBranchWithRemote', () => {
+  beforeEach(() => {
+    mockRunGitCommand.mockClear();
+    gitShouldFail = false;
+    gitResponses = {};
+  });
+
+  it('diverged branch with unresolved conflict → merge --abort called with skipLog: true', async () => {
+    gitResponses = {
+      'branch --show-current': 'develop',
+      'merge --ff-only origin/develop': new Error('Not possible to fast-forward'),
+      'status --porcelain': '',
+      'merge --no-ff --no-edit origin/develop': new Error('CONFLICT (content)'),
+    };
+
+    const result = await syncLocalBranchWithRemote('/workspace', 'develop');
+
+    expect(result.synced).toBe(false);
+    const abortCall = mockRunGitCommand.mock.calls.find(
+      (c) => (c[0] as string[]).includes('merge') && (c[0] as string[]).includes('--abort'),
+    ) as [string[], string, { skipLog?: boolean }?] | undefined;
+    expect(abortCall).toBeDefined();
+    expect(abortCall?.[2]?.skipLog).toBe(true);
   });
 });

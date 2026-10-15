@@ -11,11 +11,68 @@
  * silently skipped — leaving the task stuck at `plan_created` even when
  * the user had `userSettings.autoApprovePlan = true` configured.
  */
+import { ExecutionCancelledError } from '../agents/execution-cancelled-error';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
+import { getTaskExecutionCancellationVersion } from '../agents/task-execution-lock';
+import {
+  resolveForbiddenChangePlanHold,
+  PLAN_FORBIDDEN_CHANGE_HOLD_CAUSE,
+} from './forbidden-change-plan-hold';
 
 const log = createLogger('plan-auto-approve');
+
+/**
+ * Tells a human once that a plan is parked for a forbidden-change override. Stagnation
+ * detection now treats a fresh hold as a deliberate wait (#1205), so this notice is
+ * what keeps the wait visible. Never throws — a notify problem must not alter the hold.
+ *
+ * @param taskId - Held task. / 保留中のタスク
+ * @param themeId - Task's theme, null when none. / テーマID
+ * @param instruction - Operator instruction (override steps). / 運用者向け指示
+ */
+async function notifyPlanHold(
+  taskId: number,
+  themeId: number | null,
+  instruction: string,
+): Promise<void> {
+  try {
+    const { notifyOnce, taskLabel } = await import('./auto-run/auto-run-notifications-shared');
+    const label = await taskLabel(taskId);
+    await notifyOnce({
+      type: 'auto_run_awaiting_approval',
+      themeId,
+      taskId,
+      title: '計画の承認待ち（人間の override が必要）',
+      message: `「${label}」の計画は禁止変更を宣言しているため自動承認されません。${instruction}`,
+    });
+  } catch (err) {
+    log.error({ err, taskId }, '[plan-auto-approve] plan-hold notification failed');
+  }
+}
+
+/**
+ * Read-only check: does a manual rejection currently hold auto-approve for
+ * this task? A manual rejection remains a human gate until a later manual
+ * approval. Does not mutate state.
+ *
+ * @param taskId - Task to check. / 対象タスク
+ * @returns True while a manual rejection is in effect. / 却下保留中かどうか
+ */
+export async function isManualPlanApprovalHeld(taskId: number): Promise<boolean> {
+  try {
+    const decision = await prisma.workflowTransition.findFirst({
+      where: { taskId, cause: { in: ['manual_plan_rejected', 'manual_plan_approved'] } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: { cause: true },
+    });
+    return decision?.cause === 'manual_plan_rejected';
+  } catch (err) {
+    log.warn({ err, taskId }, '[plan-auto-approve] Cannot verify manual approval; holding');
+    return true;
+  }
+}
 
 /**
  * Resolves whether the plan WILL be auto-approved for this task: task-level flag
@@ -38,6 +95,14 @@ export async function resolveEffectiveAutoApprovePlan(taskId: number): Promise<b
       .catch(() => null),
   ]);
   if (!task) return false;
+  if (await isManualPlanApprovalHeld(taskId)) return false;
+  // A plan that commits to a human-override-only change cannot be completed by
+  // auto-approving it — the verify-time gate would refuse the result after the
+  // whole implementation was paid for (task 1100: 41 files, task 1103: a full
+  // implement+verify round). Hold here and let the human answer the same
+  // question for the price of one planner run.
+  const forbiddenHold = await resolveForbiddenChangePlanHold(taskId);
+  if (forbiddenHold) return false;
   const isSubtask = task.parentId !== null && task.parentId !== undefined;
   const settings = userSettings as Record<string, unknown> | null;
   return (
@@ -75,11 +140,19 @@ export async function maybeAutoApprovePlan(
   language: 'ja' | 'en' = 'ja',
   opts: { autoAdvance?: boolean } = {},
 ): Promise<PlanAutoApproveResult> {
+  const cancellationVersion = getTaskExecutionCancellationVersion(taskId);
   const userSettings = await prisma.userSettings.findFirst().catch(() => null);
   const task = await prisma.task
     .findUnique({
       where: { id: taskId },
-      select: { autoApprovePlan: true, parentId: true, workflowStatus: true },
+      select: {
+        autoApprovePlan: true,
+        parentId: true,
+        workflowStatus: true,
+        status: true,
+        updatedAt: true,
+        themeId: true,
+      },
     })
     .catch(() => null);
 
@@ -100,6 +173,40 @@ export async function maybeAutoApprovePlan(
   if (!taskLevel && !globalLevel && !subtaskLevel) {
     return { newStatus: 'plan_created', autoApproved: false };
   }
+  if (await isManualPlanApprovalHeld(taskId)) {
+    return { newStatus: 'plan_created', autoApproved: false };
+  }
+  // Stop BEFORE the implementation is paid for (see forbidden-change-plan-hold).
+  // Recorded as a transition so the history says why the task is waiting rather
+  // than leaving a silent plan_created.
+  const forbiddenHold = await resolveForbiddenChangePlanHold(taskId);
+  if (forbiddenHold) {
+    // Read BEFORE recording: a re-save/heal re-records the hold, and must not re-notify.
+    const previous = await prisma.workflowTransition
+      .findFirst({
+        where: { taskId },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { cause: true },
+      })
+      .catch(() => null);
+    await recordTransition({
+      taskId,
+      fromStatus: 'plan_created',
+      toStatus: 'plan_created',
+      actor: 'system',
+      cause: PLAN_FORBIDDEN_CHANGE_HOLD_CAUSE,
+      phase: 'plan',
+      metadata: { paths: forbiddenHold.paths, instruction: forbiddenHold.instruction },
+    }).catch(() => {});
+    log.warn(
+      { taskId, paths: forbiddenHold.paths },
+      '[plan-auto-approve] auto-approval withheld — plan needs a human forbidden-change override',
+    );
+    if (previous?.cause !== PLAN_FORBIDDEN_CHANGE_HOLD_CAUSE) {
+      await notifyPlanHold(taskId, task.themeId ?? null, forbiddenHold.instruction);
+    }
+    return { newStatus: 'plan_created', autoApproved: false };
+  }
 
   const reason = taskLevel
     ? 'task-level autoApprovePlan setting enabled'
@@ -107,14 +214,19 @@ export async function maybeAutoApprovePlan(
       ? 'subtask autoApproveSubtaskPlan setting enabled'
       : 'global autoApprovePlan setting enabled';
 
-  await prisma.task
-    .update({
-      where: { id: taskId },
-      data: { workflowStatus: 'plan_approved', updatedAt: new Date() },
-    })
-    .catch((err) => {
-      log.warn({ err, taskId }, '[plan-auto-approve] Failed to flip status to plan_approved');
-    });
+  if (getTaskExecutionCancellationVersion(taskId) !== cancellationVersion) {
+    return { newStatus: 'plan_created', autoApproved: false };
+  }
+  const approved = await prisma.task.updateMany({
+    where: {
+      id: taskId,
+      workflowStatus: 'plan_created',
+      status: 'in-progress',
+      updatedAt: task.updatedAt,
+    },
+    data: { workflowStatus: 'plan_approved', updatedAt: new Date() },
+  });
+  if (approved.count !== 1) return { newStatus: 'plan_created', autoApproved: false };
 
   await recordTransition({
     taskId,
@@ -130,6 +242,25 @@ export async function maybeAutoApprovePlan(
       reason,
     },
   });
+
+  // Decision journal: the auto-approval is a prediction too — recording it
+  // with decidedBy:'auto' lets calibration stats compare the policy's accuracy
+  // against human gate calls. Fire-and-forget.
+  void import('../memory/decision-journal')
+    .then(async ({ recordPlanDecision }) => {
+      const t = await prisma.task
+        .findUnique({ where: { id: taskId }, select: { title: true, themeId: true } })
+        .catch(() => null);
+      return recordPlanDecision({
+        taskId,
+        approved: true,
+        decidedBy: 'auto',
+        reason,
+        taskTitle: t?.title ?? null,
+        themeId: t?.themeId ?? null,
+      });
+    })
+    .catch(() => {});
 
   await prisma.activityLog
     .create({
@@ -154,18 +285,40 @@ export async function maybeAutoApprovePlan(
 
   log.info({ taskId, reason }, '[plan-auto-approve] Plan auto-approved');
 
+  // Without this the queue item stays waiting_approval and the theme stays
+  // paused_approval: no other path observes an automatic approval.
+  try {
+    const { syncAfterPlanApprovalAndNotifyTheme } = await import('./plan-approval-queue-sync');
+    await syncAfterPlanApprovalAndNotifyTheme(taskId);
+  } catch (err) {
+    log.warn({ err, taskId }, '[plan-auto-approve] Queue sync after auto-approval failed');
+  }
+
   if (opts.autoAdvance !== false) {
     // 1s delay so the workflowStatus update commits before the orchestrator
     // queries it via role-resolver.
     setTimeout(async () => {
       try {
         const { WorkflowOrchestrator } = await import('./workflow-orchestrator');
+        if (getTaskExecutionCancellationVersion(taskId) !== cancellationVersion) {
+          log.info({ taskId }, '[plan-auto-approve] Stop revoked the scheduled next phase');
+          return;
+        }
+        if (await isManualPlanApprovalHeld(taskId)) return;
+        if (getTaskExecutionCancellationVersion(taskId) !== cancellationVersion) return;
         const result = await WorkflowOrchestrator.getInstance().advanceWorkflow(taskId, language);
         log.info(
           { taskId, success: result.success, error: result.error },
           '[plan-auto-approve] Auto-advance after auto-approval',
         );
       } catch (err) {
+        if (err instanceof ExecutionCancelledError) {
+          log.info(
+            { taskId, reason: err.message },
+            '[plan-auto-approve] Auto-advance cancelled by stop',
+          );
+          return;
+        }
         log.error({ err, taskId }, '[plan-auto-approve] Auto-advance failed (non-fatal)');
       }
     }, 1000);

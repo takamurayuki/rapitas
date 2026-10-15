@@ -199,5 +199,14 @@ describe('Agent Metrics Router', () => {
       expect(data.recentExecutions).toBeDefined();
       expect(Array.isArray(data.recentExecutions)).toBe(true);
     });
+
+    it('should return error without calling prisma when agentId is not numeric', async () => {
+      const response = await app.handle(new Request('http://localhost/agent-metrics/abc'));
+
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.error).toBeDefined();
+      expect(mockFindUnique).not.toHaveBeenCalled();
+    });
   });
 });

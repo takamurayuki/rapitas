@@ -7,7 +7,6 @@
 
 import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
-import { createLogger } from '../../../config/logger';
 import { parseId } from '../../../middleware/error-handler';
 import { orchestrator } from '../../../services/core/orchestrator-instance';
 import { parseApprovalJsonFields } from '../approvals/helpers';
@@ -17,8 +16,6 @@ import { rejectRoutes } from '../approvals/reject-handler';
 
 // Re-export orchestrator for backward compatibility
 export { orchestrator };
-
-const log = createLogger('routes:approvals');
 
 export const approvalsRoutes = new Elysia({ prefix: '/approvals' })
   // Get approval list

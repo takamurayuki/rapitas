@@ -2,7 +2,7 @@
  * Workflow Learning Routes
  * Workflow learning optimization API endpoints
  */
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { parseId } from '../../middleware/error-handler';
 import { createLogger } from '../../config/logger';
 import { prisma } from '../../config';
@@ -11,6 +11,7 @@ import {
   getWorkflowRecommendation,
   getLearningStats,
 } from '../../services/workflow/learning/workflow-learning-optimizer';
+import { predictAndPersistTaskDuration } from '../../services/workflow/learning/duration-prediction-service';
 
 const log = createLogger('routes:workflow-learning');
 
@@ -37,6 +38,33 @@ export const workflowLearningRoutes = new Elysia({ prefix: '/workflow/learning' 
       };
     } catch (err) {
       log.error({ err }, 'Error getting workflow recommendation');
+      throw err;
+    }
+  })
+
+  // Get (and persist) the distribution-based duration prediction for a task.
+  // Returns predictable=false with null stats when history is below the
+  // sample threshold — numbers are never fabricated.
+  .get('/tasks/:taskId/duration-prediction', async ({ params }) => {
+    try {
+      const taskId = parseId(params.taskId, 'task ID');
+
+      const prediction = await predictAndPersistTaskDuration(taskId);
+
+      if (!prediction) {
+        return {
+          success: true,
+          prediction: null,
+          message: 'タスクが見つからないか、予測を算出できません',
+        };
+      }
+
+      return {
+        success: true,
+        prediction,
+      };
+    } catch (err) {
+      log.error({ err }, 'Error getting duration prediction');
       throw err;
     }
   })
@@ -98,32 +126,39 @@ export const workflowLearningRoutes = new Elysia({ prefix: '/workflow/learning' 
   })
 
   // Enable/disable a specific rule
-  .patch('/rules/:ruleId', async ({ params, body }) => {
-    try {
-      const ruleId = parseId(params.ruleId, 'rule ID');
-      const parsedBody = body as { isActive?: boolean };
+  .patch(
+    '/rules/:ruleId',
+    async ({ params, body }) => {
+      try {
+        const ruleId = parseId(params.ruleId, 'rule ID');
+        const parsedBody = body as { isActive?: boolean };
 
-      const rule = await prisma.workflowOptimizationRule.update({
-        where: { id: ruleId },
-        data: {
-          ...(typeof parsedBody?.isActive === 'boolean' && { isActive: parsedBody.isActive }),
-          updatedAt: new Date(),
-        },
-      });
+        const rule = await prisma.workflowOptimizationRule.update({
+          where: { id: ruleId },
+          data: {
+            ...(typeof parsedBody?.isActive === 'boolean' && { isActive: parsedBody.isActive }),
+            updatedAt: new Date(),
+          },
+        });
 
-      return {
-        success: true,
-        rule: {
-          ...rule,
-          condition: JSON.parse(rule.condition),
-          recommendation: JSON.parse(rule.recommendation),
-        },
-      };
-    } catch (err) {
-      log.error({ err }, 'Error updating optimization rule');
-      throw err;
-    }
-  })
+        return {
+          success: true,
+          rule: {
+            ...rule,
+            condition: JSON.parse(rule.condition),
+            recommendation: JSON.parse(rule.recommendation),
+          },
+        };
+      } catch (err) {
+        log.error({ err }, 'Error updating optimization rule');
+        throw err;
+      }
+    },
+    {
+      params: t.Object({ ruleId: t.String() }),
+      body: t.Object({ isActive: t.Boolean() }, { additionalProperties: false }),
+    },
+  )
 
   // Get learning records (for debugging/analysis)
   .get('/records', async ({ query }) => {

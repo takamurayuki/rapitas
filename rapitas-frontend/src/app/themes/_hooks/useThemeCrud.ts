@@ -7,7 +7,9 @@
  */
 import { useTranslations } from 'next-intl';
 import { useToast } from '@/components/ui/toast/ToastContainer';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { API_BASE_URL } from '@/utils/api';
+import { mergeUiSourceHeaders } from '@/lib/api-headers';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 import { createLogger } from '@/lib/logger';
 import type { Theme } from '@/types';
@@ -20,7 +22,9 @@ const addWorkingDirectoryToFavorites = async (path: string) => {
   if (!path.trim()) return;
 
   try {
-    const checkRes = await fetch(`${API_BASE_URL}/directories/favorites`);
+    const checkRes = await fetch(`${API_BASE_URL}/directories/favorites`, {
+      headers: mergeUiSourceHeaders(),
+    });
     const favorites = await checkRes.json();
 
     if (!Array.isArray(favorites)) return;
@@ -30,7 +34,7 @@ const addWorkingDirectoryToFavorites = async (path: string) => {
 
     await fetch(`${API_BASE_URL}/directories/favorites`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: mergeUiSourceHeaders({ headers: { 'Content-Type': 'application/json' } }),
       body: JSON.stringify({ path }),
     });
   } catch (err) {
@@ -56,6 +60,7 @@ export function useThemeCrud({ getFormData, fetchItems }: Options) {
   const t = useTranslations('themes');
   const tc = useTranslations('common');
   const { showToast } = useToast();
+  const confirm = useConfirmDialog();
   const clearFilterCache = useFilterDataStore((s) => s.clearCache);
 
   /**
@@ -74,11 +79,15 @@ export function useThemeCrud({ getFormData, fetchItems }: Options) {
       showToast(t('categoryRequired'), 'error');
       return;
     }
+    if (formData.isDevelopment && !formData.repositoryUrl.trim()) {
+      showToast(t('repositoryUrlRequired'), 'error');
+      return;
+    }
 
     try {
       const res = await fetch(`${API_BASE_URL}/themes`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: mergeUiSourceHeaders({ headers: { 'Content-Type': 'application/json' } }),
         body: JSON.stringify(formData),
       });
 
@@ -116,12 +125,16 @@ export function useThemeCrud({ getFormData, fetchItems }: Options) {
       showToast(t('categoryRequired'), 'error');
       return;
     }
+    if (formData.isDevelopment && !formData.repositoryUrl.trim()) {
+      showToast(t('repositoryUrlRequired'), 'error');
+      return;
+    }
 
     try {
       logger.debug('Updating theme with data:', formData);
       const res = await fetch(`${API_BASE_URL}/themes/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: mergeUiSourceHeaders({ headers: { 'Content-Type': 'application/json' } }),
         body: JSON.stringify(formData),
       });
 
@@ -164,11 +177,12 @@ export function useThemeCrud({ getFormData, fetchItems }: Options) {
    * @param name - Display name shown in the confirmation prompt. / 確認ダイアログに表示される名前
    */
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(t('deleteConfirm', { name }))) return;
+    if (!(await confirm({ message: t('deleteConfirm', { name }), variant: 'destructive' }))) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/themes/${id}`, {
         method: 'DELETE',
+        headers: mergeUiSourceHeaders(),
       });
       if (!res.ok) throw new Error(tc('deleteFailed'));
       showToast(t('deleted'), 'success');
@@ -189,6 +203,7 @@ export function useThemeCrud({ getFormData, fetchItems }: Options) {
     try {
       const res = await fetch(`${API_BASE_URL}/themes/${id}/set-default`, {
         method: 'PATCH',
+        headers: mergeUiSourceHeaders(),
       });
       if (!res.ok) throw new Error(t('defaultSetFailed'));
       showToast(t('defaultSet'), 'success');
@@ -245,7 +260,7 @@ export function useThemeCrud({ getFormData, fetchItems }: Options) {
     try {
       const res = await fetch(`${API_BASE_URL}/themes/reorder`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: mergeUiSourceHeaders({ headers: { 'Content-Type': 'application/json' } }),
         body: JSON.stringify({ orders }),
       });
       if (!res.ok) throw new Error(t('reorderFailed'));

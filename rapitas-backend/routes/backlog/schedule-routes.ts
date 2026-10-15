@@ -13,6 +13,7 @@ import {
   normalizeJobKind,
 } from '../../services/scheduling/backlog-schedule-service';
 import { runBacklogJobNow } from '../../services/scheduling/backlog-scheduler';
+import { computeLoopMetrics } from '../../services/self-improvement/loop-metrics';
 
 const log = createLogger('routes:backlog-schedule');
 
@@ -21,6 +22,20 @@ export const backlogScheduleRoutes = new Elysia({ prefix: '/backlog' })
   .get('/schedules', async () => {
     return { schedules: await listSchedules() };
   })
+
+  /**
+   * Quality-improvement-loop metrics: weekly bounce/repair counts from the
+   * WorkflowTransition log. The measured basis for the loop_review job and
+   * for judging whether a loop intervention actually moved the numbers.
+   */
+  .get(
+    '/loop-metrics',
+    async ({ query }) => {
+      const weeks = Math.min(12, Math.max(2, Number(query.weeks) || 5));
+      return await computeLoopMetrics({ windowCount: weeks });
+    },
+    { query: t.Object({ weeks: t.Optional(t.String()) }) },
+  )
 
   /** Update one job's timing/enabled state. */
   .patch(

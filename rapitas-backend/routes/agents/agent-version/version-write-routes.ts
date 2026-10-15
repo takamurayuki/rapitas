@@ -5,7 +5,7 @@
  * Read-only GET routes live in version-read-routes.ts.
  */
 
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 import { logAgentConfigChange } from '../../../utils/agent/agent-audit-log';
 import { createLogger } from '../../../config/logger';
@@ -16,63 +16,77 @@ const log = createLogger('routes:agent-version-write');
 export const agentVersionWriteRoutes = new Elysia()
 
   // Update agent to specific version
-  .post('/agents/:id/update', async ({ params, body }) => {
-    try {
-      const agentId = parseInt(params.id);
-      const { targetVersion } = body as { targetVersion: string };
+  .post(
+    '/agents/:id/update',
+    async ({ params, body }) => {
+      try {
+        const agentId = parseInt(params.id);
+        const { targetVersion } = body as { targetVersion: string };
 
-      const agent = await prisma.aIAgentConfig.findUnique({ where: { id: agentId } });
-      if (!agent) {
-        return { success: false, error: 'Agent not found' };
+        const agent = await prisma.aIAgentConfig.findUnique({ where: { id: agentId } });
+        if (!agent) {
+          return { success: false, error: 'Agent not found' };
+        }
+
+        const availableVersions =
+          AVAILABLE_AGENT_VERSIONS[agent.agentType as keyof typeof AVAILABLE_AGENT_VERSIONS];
+        const targetVersionInfo =
+          availableVersions?.[targetVersion as keyof typeof availableVersions];
+
+        if (!targetVersionInfo) {
+          return { success: false, error: 'Target version not available' };
+        }
+
+        const previousVersion = agent.version;
+
+        const updatedAgent = await prisma.aIAgentConfig.update({
+          where: { id: agentId },
+          data: {
+            version: targetVersion,
+            latestVersion: getLatestVersionKey(agent.agentType),
+            isInstalled: true,
+            installPath: `/usr/local/agents/${agent.agentType}/${targetVersion}`,
+            updatedAt: new Date(),
+          },
+        });
+
+        await logAgentConfigChange({
+          agentConfigId: agentId,
+          action: 'update_version',
+          changeDetails: {
+            from: previousVersion,
+            to: targetVersion,
+            versionInfo: targetVersionInfo,
+          },
+          previousValues: { version: previousVersion },
+          newValues: { version: targetVersion },
+        });
+
+        return {
+          success: true,
+          data: {
+            agent: updatedAgent,
+            versionInfo: targetVersionInfo,
+            message: `Successfully updated ${agent.name} from version ${previousVersion || 'none'} to ${targetVersion}`,
+          },
+        };
+      } catch (error) {
+        log.error({ err: error }, '[Agent Version Write] Error updating agent version');
+        return {
+          success: false,
+          error: 'Failed to update agent version',
+          details: error instanceof Error ? error.message : String(error),
+        };
       }
-
-      const availableVersions =
-        AVAILABLE_AGENT_VERSIONS[agent.agentType as keyof typeof AVAILABLE_AGENT_VERSIONS];
-      const targetVersionInfo =
-        availableVersions?.[targetVersion as keyof typeof availableVersions];
-
-      if (!targetVersionInfo) {
-        return { success: false, error: 'Target version not available' };
-      }
-
-      const previousVersion = agent.version;
-
-      const updatedAgent = await prisma.aIAgentConfig.update({
-        where: { id: agentId },
-        data: {
-          version: targetVersion,
-          latestVersion: getLatestVersionKey(agent.agentType),
-          isInstalled: true,
-          installPath: `/usr/local/agents/${agent.agentType}/${targetVersion}`,
-          updatedAt: new Date(),
-        },
-      });
-
-      await logAgentConfigChange({
-        agentConfigId: agentId,
-        action: 'update_version',
-        changeDetails: { from: previousVersion, to: targetVersion, versionInfo: targetVersionInfo },
-        previousValues: { version: previousVersion },
-        newValues: { version: targetVersion },
-      });
-
-      return {
-        success: true,
-        data: {
-          agent: updatedAgent,
-          versionInfo: targetVersionInfo,
-          message: `Successfully updated ${agent.name} from version ${previousVersion || 'none'} to ${targetVersion}`,
-        },
-      };
-    } catch (error) {
-      log.error({ err: error }, '[Agent Version Write] Error updating agent version');
-      return {
-        success: false,
-        error: 'Failed to update agent version',
-        details: error instanceof Error ? error.message : String(error),
-      };
-    }
-  })
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Object(
+        { targetVersion: t.String({ maxLength: 200 }) },
+        { additionalProperties: false },
+      ),
+    },
+  )
 
   // Install agent
   .post('/agents/:id/install', async ({ params }) => {

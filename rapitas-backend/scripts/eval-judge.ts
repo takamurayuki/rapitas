@@ -21,6 +21,10 @@ import {
 } from '../services/agents/verification/adversarial-diff-review';
 import { sendAIMessage } from '../utils/ai-client';
 import { DEFAULT_MODELS, type AIProvider } from '../utils/ai-client/types';
+import {
+  writeJudgeEvalResult,
+  type JudgeEvalCaseResult,
+} from '../services/observability/eval-judge-results';
 
 interface Fixture {
   name: string;
@@ -125,50 +129,60 @@ async function main(): Promise<void> {
     (process.env.RAPITAS_EVAL_JUDGE || '').trim().toLowerCase(),
   );
   if (!enabled) {
-    // eslint-disable-next-line no-console
     console.log('⏭  Judge eval skipped — set RAPITAS_EVAL_JUDGE=1 to run (makes live LLM calls).');
     return;
   }
 
   const provider = resolveProvider();
   const minAccuracy = Number(process.env.RAPITAS_EVAL_JUDGE_MIN || '0.8');
-  // eslint-disable-next-line no-console
   console.log(`Judge eval — provider=${provider}, ${FIXTURES.length} cases, min=${minAccuracy}\n`);
 
   let correct = 0;
   let errored = 0;
+  const cases: JudgeEvalCaseResult[] = [];
   for (const f of FIXTURES) {
     let got: ReviewVerdict = 'unknown';
     try {
       got = await judge(provider, f);
     } catch (err) {
       errored++;
-      // eslint-disable-next-line no-console
       console.error(
         `💥 ${f.name}: judge call failed — ${err instanceof Error ? err.message : err}`,
       );
+      cases.push({ name: f.name, expected: f.expected, got: 'unknown', ok: false });
       continue;
     }
     const ok = got === f.expected;
     if (ok) correct++;
-    // eslint-disable-next-line no-console
+    cases.push({ name: f.name, expected: f.expected, got, ok });
     console.log(`${ok ? '✅' : '❌'} ${f.name} → got=${got}, expected=${f.expected}`);
   }
 
+  const accuracy = correct / FIXTURES.length;
+  // Persist the snapshot before any threshold-driven exit so a failing run's
+  // result is still visible in the metrics UI, not just in CI logs.
+  writeJudgeEvalResult({
+    timestamp: new Date().toISOString(),
+    provider,
+    correct,
+    total: FIXTURES.length,
+    errored,
+    accuracy,
+    minAccuracy,
+    passed: accuracy >= minAccuracy,
+    cases,
+  });
+
   if (errored === FIXTURES.length) {
-    // eslint-disable-next-line no-console
     console.error(`\nAll ${errored} cases errored — judge provider "${provider}" unreachable.`);
     process.exit(1);
   }
 
-  const accuracy = correct / FIXTURES.length;
-  // eslint-disable-next-line no-console
   console.log(
     `\nJudge accuracy: ${correct}/${FIXTURES.length} (${Math.round(accuracy * 100)}%)` +
       (errored ? ` — ${errored} errored` : ''),
   );
   if (accuracy < minAccuracy) {
-    // eslint-disable-next-line no-console
     console.error(`Below threshold ${Math.round(minAccuracy * 100)}% — failing.`);
     process.exit(1);
   }

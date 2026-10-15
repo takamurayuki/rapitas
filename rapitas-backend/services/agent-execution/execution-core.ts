@@ -6,7 +6,7 @@
  * Continuation logic lives in execution-continue.ts.
  * Read-only queries live in execution-queries.ts.
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma-postgres';
 import { orchestrator } from '../core/orchestrator-instance';
 import type { ExecutionRequest, ExecutionResult } from '../../types/agent-execution-types';
 import { createLogger } from '../../config/logger';

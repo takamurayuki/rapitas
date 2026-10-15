@@ -2,16 +2,31 @@
  * Agent Metrics Router
  *
  * Elysia route definitions for the /agent-metrics endpoint group. Delegates all
- * database access to query functions in queries.ts and all type definitions to
+ * database access to query functions in queries/ and all type definitions to
  * types.ts. Does not contain business logic.
  */
 
 import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
-import { getAgentMetrics, getExecutionTrends, getMetricsOverview } from './queries';
-import { getAgentPerformanceComparison } from './performance-query';
-import { getSelfObservationSummary } from './observation-query';
+import {
+  getAgentMetrics,
+  getExecutionTrends,
+  getMetricsOverview,
+  getAgentPerformanceComparison,
+  getSelfObservationSummary,
+  getAgentUsageBreakdown,
+  getAgentUtilization,
+  getCostOptimizationInsights,
+  getRepairConvergenceStats,
+} from './queries';
+import { getUsdJpyRate } from './currency-config';
+import { paretoFrontierRouter } from './pareto-frontier-router';
+import { workerHealthRouter } from './worker-health-router';
+import { usageBudgetRouter } from './usage-budget-router';
+import { computeGrowthLedgerMetrics } from '../../../services/self-improvement/growth-ledger-metrics';
+import { computeRetroKpiMetrics } from '../../../services/self-improvement/retro-kpi-metrics';
+import { readJudgeEvalResult } from '../../../services/observability/eval-judge-results';
 import type { DateRange } from './types';
 
 const log = createLogger('routes:agent-metrics');
@@ -31,6 +46,9 @@ function parseDateRange(query: Record<string, unknown>): DateRange {
 }
 
 export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
+  .use(paretoFrontierRouter) // NOTE: before `/:agentId` so the static paths are never captured
+  .use(workerHealthRouter)
+  .use(usageBudgetRouter)
 
   .get('/', async ({ query }) => {
     try {
@@ -80,6 +98,40 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
     }
   })
 
+  /**
+   * Display config for usage views — currently the USD→JPY rate so every
+   * usage widget converts recorded USD costs to yen consistently.
+   */
+  .get('/usage-config', () => ({ usdJpyRate: getUsdJpyRate() }))
+
+  /**
+   * Per-role usage breakdown: cost / tokens / cache effectiveness grouped by
+   * the workflow role that ran each execution. Powers the agent usage widget.
+   */
+  .get('/usage-breakdown', async ({ query }) => {
+    try {
+      const days = Math.min(90, Math.max(1, parseInt(query.days as string) || 14));
+      return await getAgentUsageBreakdown(days);
+    } catch (error) {
+      log.error({ err: error }, 'Error fetching agent usage breakdown');
+      return { error: 'Failed to fetch agent usage breakdown' };
+    }
+  })
+
+  /**
+   * Per-role / per-CLI-agent daily busy ratio (interval union / day length,
+   * 0..1). Powers the utilization time-series cards on the metrics page.
+   */
+  .get('/utilization', async ({ query }) => {
+    try {
+      const { startDate, endDate } = parseDateRange(query);
+      return await getAgentUtilization({ startDate, endDate });
+    } catch (error) {
+      log.error({ err: error }, 'Error fetching agent utilization');
+      return { error: 'Failed to fetch utilization' };
+    }
+  })
+
   .get('/performance', async ({ query }) => {
     try {
       const performance = await getAgentPerformanceComparison(parseDateRange(query));
@@ -93,6 +145,9 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
   .get('/:agentId', async ({ params, query }) => {
     try {
       const agentId = parseInt(params.agentId);
+      if (Number.isNaN(agentId)) {
+        return { error: 'Invalid agentId' };
+      }
       const dateRange = parseDateRange(query);
 
       const whereClause: { createdAt?: { gte?: Date; lte?: Date } } = {};
@@ -196,103 +251,75 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
    */
   .get('/cost-optimization', async () => {
     try {
-      const executions = await prisma.agentExecution.findMany({
-        where: { status: 'completed', tokensUsed: { gt: 0 } },
-        include: {
-          agentConfig: { select: { modelId: true, agentType: true, name: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 500,
-      });
-
-      // NOTE: Token cost rates per 1K tokens (input+output average estimate)
-      const costPer1kTokens: Record<string, number> = {
-        'claude-opus-4-20250514': 0.025,
-        'claude-sonnet-4-20250514': 0.006,
-        'claude-haiku-4-5-20251001': 0.002,
-        'claude-3-5-sonnet-20241022': 0.006,
-        default: 0.01,
-      };
-
-      type ModelStats = {
-        model: string;
-        executions: number;
-        successCount: number;
-        successRate: number;
-        totalTokens: number;
-        avgTokens: number;
-        avgTimeMs: number;
-        estimatedCost: number;
-      };
-
-      const modelMap = new Map<
-        string,
-        { total: number; success: number; tokens: number; time: number; costs: number }
-      >();
-
-      for (const exec of executions) {
-        const modelId = exec.agentConfig?.modelId || 'unknown';
-        const rate = costPer1kTokens[modelId] || costPer1kTokens['default'];
-        const cost = (exec.tokensUsed / 1000) * rate;
-
-        const existing = modelMap.get(modelId) || {
-          total: 0,
-          success: 0,
-          tokens: 0,
-          time: 0,
-          costs: 0,
-        };
-        existing.total++;
-        if (exec.status === 'completed') existing.success++;
-        existing.tokens += exec.tokensUsed;
-        existing.time += exec.executionTimeMs || 0;
-        existing.costs += cost;
-        modelMap.set(modelId, existing);
-      }
-
-      const modelStats: ModelStats[] = Array.from(modelMap.entries()).map(([model, s]) => ({
-        model,
-        executions: s.total,
-        successCount: s.success,
-        successRate: s.total > 0 ? Math.round((s.success / s.total) * 100) : 0,
-        totalTokens: s.tokens,
-        avgTokens: s.total > 0 ? Math.round(s.tokens / s.total) : 0,
-        avgTimeMs: s.total > 0 ? Math.round(s.time / s.total) : 0,
-        estimatedCost: Math.round(s.costs * 100) / 100,
-      }));
-
-      // Generate optimization suggestions
-      const suggestions: string[] = [];
-      const sorted = [...modelStats].sort((a, b) => b.estimatedCost - a.estimatedCost);
-
-      if (sorted.length >= 2) {
-        const expensive = sorted[0];
-        const cheaper = sorted.find(
-          (s) => s.model !== expensive.model && s.successRate >= expensive.successRate * 0.9,
-        );
-        if (cheaper) {
-          const savings = expensive.estimatedCost - cheaper.estimatedCost;
-          suggestions.push(
-            `${expensive.model}の代わりに${cheaper.model}を使用すると、成功率を維持しながら$${savings.toFixed(2)}の削減が見込めます`,
-          );
-        }
-      }
-
-      const totalCost = modelStats.reduce((sum, s) => sum + s.estimatedCost, 0);
-      const totalTokens = modelStats.reduce((sum, s) => sum + s.totalTokens, 0);
-
-      return {
-        success: true,
-        data: {
-          totalCost: Math.round(totalCost * 100) / 100,
-          totalTokens,
-          totalExecutions: executions.length,
-          modelBreakdown: modelStats,
-          suggestions,
-        },
-      };
+      const data = await getCostOptimizationInsights();
+      return { success: true, data };
     } catch (error) {
       log.error({ err: error }, 'Error generating cost optimization insights');
       return { error: 'Failed to generate cost optimization insights' };
+    }
+  })
+
+  /**
+   * Verify-repair loop convergence: how often the self-repair bounce
+   * (verify -> implement -> verify) eventually converges vs leaves a task
+   * blocked, and how many iterations convergence takes.
+   */
+  .get('/repair-convergence', async () => {
+    try {
+      const data = await getRepairConvergenceStats();
+      return { success: true, data };
+    } catch (error) {
+      log.error({ err: error }, 'Error computing repair convergence stats');
+      return { error: 'Failed to compute repair convergence stats' };
+    }
+  })
+
+  /**
+   * Weekly self-growth ledger for the /agents/growth dashboard: autonomous
+   * completion rate, critic first-pass rate, repair efficiency, defect
+   * recurrence rate and KB validated ratio, bucketed into rolling windows.
+   */
+  .get('/growth-ledger', async ({ query }) => {
+    try {
+      const windowDays = Math.min(30, Math.max(1, parseInt(query.windowDays as string) || 7));
+      const windowCount = Math.min(26, Math.max(1, parseInt(query.windowCount as string) || 12));
+      const data = await computeGrowthLedgerMetrics({ windowDays, windowCount });
+      return { success: true, data };
+    } catch (error) {
+      log.error({ err: error }, 'Error computing growth ledger metrics');
+      return { error: 'Failed to compute growth ledger metrics' };
+    }
+  })
+
+  /**
+   * Weekly self-improvement KPI ledger (task #774): repair rate, auto-merge
+   * outcome counts, no-change confirmations, non-convergence count and
+   * lead-time median from WorkflowTransition. Machine-readable so loop_review
+   * can consume it. Defaults follow the supervisor baseline: 7-day windows, 8 weeks.
+   */
+  .get('/retro-kpi', async ({ query }) => {
+    try {
+      const windowDays = Math.min(30, Math.max(1, parseInt(query.windowDays as string) || 7));
+      const windowCount = Math.min(26, Math.max(1, parseInt(query.windowCount as string) || 8));
+      const data = await computeRetroKpiMetrics({ windowDays, windowCount });
+      return { success: true, data };
+    } catch (error) {
+      log.error({ err: error }, 'Error computing retro kpi metrics');
+      return { error: 'Failed to compute retro kpi metrics' };
+    }
+  })
+
+  /**
+   * Latest adversarial-judge accuracy eval snapshot (scripts/eval-judge.ts,
+   * opt-in RAPITAS_EVAL_JUDGE=1). `data` is null when the eval has never run.
+   */
+  .get('/judge-eval', ({ set }) => {
+    try {
+      const data = readJudgeEvalResult();
+      return { success: true, data };
+    } catch (error) {
+      log.error({ err: error }, 'Error reading judge eval result');
+      set.status = 500;
+      return { success: false, data: null };
     }
   });

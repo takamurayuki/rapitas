@@ -1,12 +1,9 @@
 'use client';
 // TaskCardSubtaskPanel
+import { useTranslations } from 'next-intl';
 import type { Task } from '@/types';
-import SubtaskStatusButtons from '@/feature/tasks/components/SubtaskStatusButtons';
-import {
-  statusConfig,
-  renderStatusIcon,
-  isInProgressStatus,
-} from '@/feature/tasks/config/StatusConfig';
+import SubtaskStatusButtons from '@/feature/tasks/components/status/SubtaskStatusButtons';
+import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 
 interface TaskCardSubtaskPanelProps {
@@ -25,6 +22,7 @@ export default function TaskCardSubtaskPanel({
   onTaskUpdated,
   onStatusChange,
 }: TaskCardSubtaskPanelProps) {
+  const t = useTranslations('task');
   // Live agent-execution state (GET /tasks/executing polling). The spinner is
   // driven by THIS — actual agent execution — not the in-progress status.
   const executingTasks = useExecutionStateStore((s) => s.executingTasks);
@@ -34,10 +32,7 @@ export default function TaskCardSubtaskPanel({
       onClick={(e) => e.stopPropagation()}
     >
       {subtasks.map((subtask, index) => {
-        const subtaskStatus =
-          statusConfig[subtask.status as keyof typeof statusConfig] || statusConfig.todo;
-        // in-progress STATUS drives the box look; agent EXECUTION drives the spinner.
-        const inProgress = isInProgressStatus(subtask.status);
+        const subtaskStatus = getStatusDisplay(t, subtask.status);
         // A done subtask must never show the running spinner even if a stale
         // execution-state entry lingers (orphaned agentExecution row still
         // returned by /tasks/executing) — trust the persisted terminal status.
@@ -63,11 +58,7 @@ export default function TaskCardSubtaskPanel({
             <div
               className={`relative flex items-center justify-center w-6 h-6 rounded ${
                 subtaskStatus.color
-              } ${subtaskStatus.bgColor} ${
-                inProgress
-                  ? ''
-                  : `border ${subtaskStatus.borderColor.replace('border-l-', 'border-')}`
-              } shrink-0`}
+              } ${subtaskStatus.bgColor} border ${subtaskStatus.borderColor.replace('border-l-', 'border-')} shrink-0`}
               aria-label={subtaskStatus.label}
             >
               {/* Spinner only while an agent is actually executing this subtask

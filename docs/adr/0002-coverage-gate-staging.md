@@ -117,3 +117,58 @@ order of business risk:
 - [ ] 2026-08-15: Raise frontend threshold to 80 — close out this ADR
 - [ ] If any step needs to slip, append a **revision note** to this ADR
       (do not silently change the dates)
+
+## Revision note — 2026-07-03 (schedule slipped; gate was fiction)
+
+Honest status update, recorded rather than silently editing the dates above.
+
+**What actually happened:** the ratchet did not advance. As of 2026-07-03:
+
+- Measured frontend coverage is **≈ 11.7% lines** (11.57% statements, 10.57%
+  functions, 9.63% branches) across 84 test files / 989 source files.
+- `vitest.config.ts` carried thresholds of **30/25/28/30**, but
+  `test-lint.yml` runs `vitest run` **without `--coverage`** — so the gate ran
+  *nowhere*. The number was aspirational config, not an enforced gate.
+- Backend coverage Phases A/B never landed; `bunfig.toml` keeps
+  `coverage = false` and only an opt-in `test:coverage` script exists.
+
+**Corrective decision:** stop pretending. Set the `vitest.config.ts` thresholds
+to a floor just **below current measured coverage** (11/9/10/11) so that a
+`vitest run --coverage` invocation is a *real, green* gate again, then ratchet
+those numbers up as tests actually land. A truthful low floor that is enforced
+is worth more — especially for a repo shown to reviewers — than a high number
+nothing checks. Wiring `--coverage` into the CI job (so the floor blocks
+regressions) is the next concrete step; until then the floor is enforceable
+locally and via the opt-in script.
+
+The 80% long-term target is unchanged; the path to it is reset to reality.
+
+## Revision note — 2026-07-16 (backend Phases A+B landed; root cause found)
+
+**Root cause of the dead measurement:** the `backend-tests` gate has carried
+`--coverage` in its args all along, but `bunfig.toml`'s `coverage = false`
+**silently overrides the CLI flag** in bun 1.3.13 — CI printed no coverage
+table and nothing failed. Phase A was not "never landed" so much as landed and
+silently disabled by config precedence.
+
+**What changed:**
+
+- `bunfig.toml`: removed `coverage = false` (default stays off for plain
+  `bun test`; the gate opts in via `--coverage`) and added
+  `coverageSkipTestFiles = true` so test files stop inflating the denominator.
+- Phase B is enforced in the gate runner, not bunfig: `ci-gates.ts` declares
+  `coverageFloor` per gate and `scripts/coverage-floor.ts` aggregates
+  `coverage/lcov.info` (LF/LH/FNF/FNH) after a full-manifest run. A missing
+  lcov file **fails the gate** — the exact "silently disabled" regression can
+  no longer produce a false green. `--files`-filtered subset runs skip the
+  floor (a subset's percentage is not comparable to the full-suite floor).
+- Observed on 2026-07-16: **41.08% lines / 52.83% functions** (gate suite,
+  lcov aggregate). Floor set per the Phase B formula (round down to nearest
+  5%): **40% lines / 50% functions**.
+- Scope caveat: bun coverage counts only modules loaded by the gate suite
+  (16 files), not the whole backend. The floor still catches regressions in
+  everything the gate exercises; widening the manifest widens the measured
+  scope (and is the Phase C ratchet path).
+
+Frontend `--coverage` wiring in CI remains open (the 2026-07-03 note's "next
+concrete step").

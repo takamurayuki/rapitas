@@ -18,5 +18,7 @@ export type ResumableExecution = {
   completedAt: string | null;
   createdAt: string;
   workingDirectory: string | null;
+  workflowStatus: string | null;
+  workflowMode: string | null;
   canResume: boolean;
 };

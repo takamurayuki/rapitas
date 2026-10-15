@@ -113,19 +113,28 @@ export async function notifyToolExecution(
   toolName: string,
   input: unknown,
   logFn: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void,
-): Promise<{ end: (output: unknown, success: boolean, error?: string) => Promise<void> }> {
+): Promise<{
+  skipped: boolean;
+  end: (output: unknown, success: boolean, error?: string) => Promise<void>;
+}> {
   const startTime = Date.now();
 
   if (hooks.beforeToolCall) {
     const shouldContinue = await hooks.beforeToolCall(context, toolName, input);
     if (shouldContinue === false) {
+      // NOTE: `beforeToolCall`'s JSDoc contract is "return false to skip the
+      // tool call" — this previously only logged that intent and still ran
+      // emitToolStart unconditionally, so the veto had no actual effect.
+      // Returning skipped:true here lets the caller honor it.
       logFn('info', `Tool ${toolName} skipped by beforeToolCall hook`);
+      return { skipped: true, end: async () => {} };
     }
   }
 
   await events.emitToolStart(toolId, toolName, input);
 
   return {
+    skipped: false,
     end: async (output: unknown, success: boolean, error?: string) => {
       const durationMs = Date.now() - startTime;
       await events.emitToolEnd(toolId, toolName, output, success, durationMs, error);

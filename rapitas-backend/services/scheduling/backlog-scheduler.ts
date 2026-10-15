@@ -15,11 +15,27 @@ import {
   markScheduleRun,
   ensureSchedulesSeeded,
   type BacklogJobKind,
-  type BacklogScheduleConfig,
 } from './backlog-schedule-service';
+import { startGuardIncidentFiler, stopGuardIncidentFiler } from '../workflow/guard-incident-filer';
 import { runInnovationSession } from '../memory/innovation-session';
 import { runVulnerabilityScan } from '../memory/vulnerability-scan';
 import { runLogHealthCheck } from '../system/log-health-check';
+import { markEventLoopSection } from '../system/event-loop-lag-watchdog';
+import { runLoopReview } from '../self-improvement/loop-watcher';
+import { runCiWatch } from '../self-improvement/ci-green-keeper';
+import { createNotification } from '../communication/notification-service';
+import { runDailyReport } from '../reporting/daily-report-service';
+import { runMissLedgerJob } from '../self-improvement/miss-ledger-job';
+import { runGatePrecisionJob } from '../self-improvement/gate-precision-job';
+import { evaluateAndRecordKnowledgeReuse } from '../supervision/knowledge-reuse-evaluator';
+import { runPrRiskReviewJob } from '../self-improvement/pr-risk';
+import { runOutageSimulationJob } from '../outage-guidance/outage-simulation-job';
+import { BACKLOG_JOB_LABELS } from './backlog-job-labels';
+import { runRequirementIntakeJob } from './requirement-intake-job';
+import { pickDueJob } from './backlog-schedule-due';
+
+// Re-exported so existing importers of the pure due-check keep their path.
+export { isJobDue, pickDueJob, type DueJobSelection } from './backlog-schedule-due';
 
 const log = createLogger('scheduling:backlog');
 
@@ -31,7 +47,26 @@ const HANDLERS: Record<BacklogJobKind, () => Promise<number>> = {
   innovation: runInnovationSession,
   vuln_scan: runVulnerabilityScan,
   health_check: runLogHealthCheck,
+  loop_review: runLoopReview,
+  ci_watch: runCiWatch,
+  daily_report: runDailyReport,
+  miss_ledger: runMissLedgerJob,
+  gate_precision: runGatePrecisionJob,
+  knowledge_reuse: evaluateAndRecordKnowledgeReuse,
+  pr_risk_review: runPrRiskReviewJob,
+  outage_simulation: runOutageSimulationJob,
+  requirement_intake: () => runRequirementIntakeJob(),
 };
+
+// Caps notification body length — raw Error.message can carry stack-trace-like
+// noise that would clutter the notification list.
+const ERROR_SUMMARY_MAX_LEN = 300;
+
+/** Outcome of a manual (run-now) job execution, used for the completion notification. */
+type ManualRunOutcome =
+  | { kind: 'success'; count: number }
+  | { kind: 'failure'; error: unknown }
+  | { kind: 'skipped' };
 
 // In-memory guard so a slow job (LLM calls take tens of seconds) is never
 // started twice — neither by overlapping ticks nor by a manual "run now".
@@ -39,48 +74,113 @@ const running = new Set<BacklogJobKind>();
 
 let pollHandle: ReturnType<typeof setInterval> | null = null;
 
-/** True when two dates fall on the same local calendar day. */
-function isSameLocalDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
+/**
+ * Summarizes an unknown thrown value into a bounded, single-string message.
+ *
+ * @param err - Thrown value / スローされた値
+ * @returns Message truncated to 300 chars / 300字に切り詰めた要約
+ */
+function errorSummary(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.length > ERROR_SUMMARY_MAX_LEN
+    ? `${message.slice(0, ERROR_SUMMARY_MAX_LEN)}…`
+    : message;
 }
 
 /**
- * Whether a job should fire at `now`: enabled, the local hour matches, the
- * weekday matches (weekly only), and it hasn't already run today. Pure — the
- * scheduler's testable core.
+ * Records the outcome of a manual (run-now) execution: persists lastRunAt
+ * (except when skipped — nothing actually ran) and creates a completion
+ * notification. Best-effort — failures here are logged and never affect the
+ * job's own result.
  *
- * @param s - Schedule config / スケジュール設定
- * @param now - Current time / 現在時刻
- * @returns True if due / 実行すべきなら true
+ * @param kind - Job that ran / 実行したジョブ
+ * @param outcome - Success/failure/skip result / 実行結果
  */
-export function isJobDue(s: BacklogScheduleConfig, now: Date): boolean {
-  if (!s.enabled) return false;
-  if (now.getHours() !== s.hour) return false;
-  if (s.frequency === 'weekly' && now.getDay() !== s.weekday) return false;
-  if (s.lastRunAt && isSameLocalDay(s.lastRunAt, now)) return false;
-  return true;
+async function recordManualRunOutcome(
+  kind: BacklogJobKind,
+  outcome: ManualRunOutcome,
+): Promise<void> {
+  const label = BACKLOG_JOB_LABELS[kind];
+  if (outcome.kind !== 'skipped') {
+    // Also guards against a same-day duplicate scheduled fire: isJobDue checks
+    // lastRunAt against the current local day.
+    await markScheduleRun(kind, new Date()).catch((err) =>
+      log.warn({ err, kind }, 'Failed to record manual run in lastRunAt'),
+    );
+  }
+  let title: string;
+  let message: string;
+  let metadata: Record<string, unknown>;
+  if (outcome.kind === 'success') {
+    title = `${label}が完了しました`;
+    message = `生成件数: ${outcome.count} 件`;
+    metadata = { kind, source: 'run_now', outcome: 'success', count: outcome.count };
+  } else if (outcome.kind === 'failure') {
+    title = `${label}に失敗しました`;
+    message = errorSummary(outcome.error);
+    metadata = { kind, source: 'run_now', outcome: 'failure', error: errorSummary(outcome.error) };
+  } else {
+    title = `${label}はスキップされました`;
+    message = '既に実行中のため今回は開始されませんでした';
+    metadata = { kind, source: 'run_now', outcome: 'skipped' };
+  }
+  await createNotification({
+    type: 'system',
+    title,
+    message,
+    link: '/backlog/settings',
+    metadata,
+  }).catch((err) => log.warn({ err, kind }, 'Failed to create run-now completion notification'));
 }
 
 /**
  * Runs a backlog job immediately, ignoring its schedule. Used by the "run now"
  * button. No-op (returns 0) if the job is already running.
  *
+ * When called as a manual run (default), the completion (success / failure /
+ * skip) is recorded as a Notification and lastRunAt is updated; the scheduled
+ * path opts out via `opts.source` to avoid daily notification noise.
+ *
  * @param kind - Job to run / 実行するジョブ
+ * @param since - For health_check only: process entries on or after this time
+ * @param opts - source: 'manual' (default, notifies) or 'scheduled' (silent)
  * @returns Number of items produced (ideas/concerns) / 生成件数
  */
-export async function runBacklogJobNow(kind: BacklogJobKind): Promise<number> {
+export async function runBacklogJobNow(
+  kind: BacklogJobKind,
+  since?: Date,
+  opts: { source?: 'manual' | 'scheduled' } = {},
+): Promise<number> {
+  const source = opts.source ?? 'manual';
   if (running.has(kind)) {
     log.info({ kind }, 'Job already running — skipping duplicate run');
+    if (source === 'manual') {
+      await recordManualRunOutcome(kind, { kind: 'skipped' });
+    }
     return 0;
   }
   running.add(kind);
+  const startedAtMs = Date.now();
+  const releaseSection = markEventLoopSection(`backlog-job:${kind}`);
   try {
-    return await HANDLERS[kind]();
+    const count = kind === 'health_check' ? await runLogHealthCheck(since) : await HANDLERS[kind]();
+    // WARN (not info) so slow runs reach the file log — instrumentation for
+    // the daily ~06:00 event-loop stalls (concern #514).
+    const tookMs = Date.now() - startedAtMs;
+    if (tookMs > 3000) {
+      log.warn({ kind, tookMs }, `Backlog job ran ${Math.round(tookMs / 100) / 10}s`);
+    }
+    if (source === 'manual') {
+      await recordManualRunOutcome(kind, { kind: 'success', count });
+    }
+    return count;
+  } catch (err) {
+    if (source === 'manual') {
+      await recordManualRunOutcome(kind, { kind: 'failure', error: err });
+    }
+    throw err;
   } finally {
+    releaseSection();
     running.delete(kind);
   }
 }
@@ -96,20 +196,27 @@ async function tick(): Promise<void> {
     return;
   }
 
-  for (const s of schedules) {
-    if (!isJobDue(s, now)) continue;
-    if (running.has(s.kind)) continue;
+  const { start: s, deferred } = pickDueJob(schedules, now, (kind) => running.has(kind));
+  if (!s) return;
 
-    // Claim the daily slot up front (persisted) so the next tick won't re-fire
-    // even if the job runs longer than the poll interval or the server restarts.
-    await markScheduleRun(s.kind, now).catch((err) =>
-      log.warn({ err, kind: s.kind }, 'Failed to record run start'),
-    );
-    log.info({ kind: s.kind, hour: s.hour }, 'Backlog job due — starting');
-    void runBacklogJobNow(s.kind).catch((err) =>
-      log.warn({ err, kind: s.kind }, 'Scheduled backlog job failed'),
-    );
-  }
+  // Capture lastRunAt before markScheduleRun overwrites it — used as the
+  // `since` cursor for health_check so only new log entries are processed.
+  const prevLastRunAt = s.lastRunAt ?? undefined;
+
+  // Claim the daily slot up front (persisted) so the next tick won't re-fire
+  // even if the job runs longer than the poll interval or the server restarts.
+  await markScheduleRun(s.kind, now).catch((err) =>
+    log.warn({ err, kind: s.kind }, 'Failed to record run start'),
+  );
+  // `deferred` is logged so a staggered start is visibly a stagger and not a
+  // job silently going missing.
+  log.info(
+    deferred.length > 0 ? { kind: s.kind, hour: s.hour, deferred } : { kind: s.kind, hour: s.hour },
+    'Backlog job due — starting',
+  );
+  void runBacklogJobNow(s.kind, prevLastRunAt, { source: 'scheduled' }).catch((err) =>
+    log.warn({ err, kind: s.kind }, 'Scheduled backlog job failed'),
+  );
 }
 
 /**
@@ -121,6 +228,7 @@ export function startBacklogScheduler(): void {
   pollHandle = setInterval(() => {
     tick().catch((err) => log.warn({ err }, 'Backlog scheduler tick failed'));
   }, POLL_INTERVAL_MS);
+  startGuardIncidentFiler();
   log.info('Backlog scheduler started');
 }
 
@@ -133,4 +241,5 @@ export function stopBacklogScheduler(): void {
     pollHandle = null;
     log.info('Backlog scheduler stopped');
   }
+  stopGuardIncidentFiler();
 }

@@ -5,7 +5,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { categorySchema } from '../../schemas/category.schema';
-import { NotFoundError, ValidationError, parseId } from '../../middleware/error-handler';
+import { NotFoundError, ValidationError } from '../../middleware/error-handler';
 
 // Default category definitions
 const DEFAULT_CATEGORIES = [
@@ -247,25 +247,31 @@ export const categoriesRoutes = new Elysia({ prefix: '/categories' })
   )
 
   // Delete category (default categories cannot be deleted)
-  .delete('/:id', async (context) => {
-    const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
-      throw new ValidationError('Invalid ID');
-    }
+  .delete(
+    '/:id',
+    async (context) => {
+      const { params } = context;
+      const id = parseInt(params.id);
+      if (isNaN(id)) {
+        throw new ValidationError('Invalid ID');
+      }
 
-    const category = await prisma.category.findUnique({ where: { id } });
-    if (!category) {
-      throw new NotFoundError('Category not found');
-    }
-    if (category.isDefault) {
-      throw new ValidationError('デフォルトカテゴリは削除できません');
-    }
+      const category = await prisma.category.findUnique({ where: { id } });
+      if (!category) {
+        throw new NotFoundError('Category not found');
+      }
+      if (category.isDefault) {
+        throw new ValidationError('デフォルトカテゴリは削除できません');
+      }
 
-    return await prisma.category.delete({
-      where: { id },
-    });
-  })
+      return await prisma.category.delete({
+        where: { id },
+      });
+    },
+    {
+      params: t.Object({ id: t.String() }),
+    },
+  )
 
   // Set default category (for task list initial selection)
   .patch('/:id/set-default', async (context) => {

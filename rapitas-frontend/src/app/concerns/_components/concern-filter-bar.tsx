@@ -1,0 +1,125 @@
+/**
+ * ConcernFilterBar
+ *
+ * Status / type / severity / source / theme filter controls for the concern list.
+ * Pure presentational — all state lives in useConcerns.
+ */
+'use client';
+import type { Dispatch, SetStateAction } from 'react';
+import { useTranslations } from 'next-intl';
+import type { Theme } from '@/types';
+import {
+  STATUS_TABS,
+  TYPE_ORDER,
+  TYPE_LABEL_KEY,
+  SEVERITY_ORDER,
+  SEVERITY_LABEL_KEY,
+  SOURCE_ORDER,
+  SOURCE_LABEL_KEY,
+  type ConcernSeverity,
+  type ConcernStatus,
+  type ConcernType,
+} from './concern-shared';
+
+interface ConcernFilterBarProps {
+  statusFilter: ConcernStatus | 'all';
+  setStatusFilter: Dispatch<SetStateAction<ConcernStatus | 'all'>>;
+  typeFilter: ConcernType | 'all';
+  setTypeFilter: Dispatch<SetStateAction<ConcernType | 'all'>>;
+  severityFilter: ConcernSeverity | 'all';
+  setSeverityFilter: Dispatch<SetStateAction<ConcernSeverity | 'all'>>;
+  sourceFilter: string | 'all';
+  setSourceFilter: Dispatch<SetStateAction<string | 'all'>>;
+  themeFilter: number | 'all';
+  setThemeFilter: Dispatch<SetStateAction<number | 'all'>>;
+  /** Themes with a working directory (the only valid publish targets). */
+  workingDirThemes: Theme[];
+}
+
+/**
+ * Render the concern-list filter bar.
+ *
+ * @param props - Filter state and setters from useConcerns. / useConcerns のフィルタ状態とセッター。
+ */
+export function ConcernFilterBar({
+  statusFilter,
+  setStatusFilter,
+  typeFilter,
+  setTypeFilter,
+  severityFilter,
+  setSeverityFilter,
+  sourceFilter,
+  setSourceFilter,
+  themeFilter,
+  setThemeFilter,
+  workingDirThemes,
+}: ConcernFilterBarProps) {
+  const t = useTranslations('concerns');
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
+        {STATUS_TABS.map((tab) => (
+          <button
+            key={tab.value}
+            onClick={() => setStatusFilter(tab.value)}
+            className={`px-3 py-1 text-xs font-medium transition-colors ${
+              statusFilter === tab.value
+                ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+                : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+            }`}
+          >
+            {t(tab.labelKey)}
+          </button>
+        ))}
+      </div>
+      <select
+        value={typeFilter}
+        onChange={(e) => setTypeFilter(e.target.value as ConcernType | 'all')}
+        className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+      >
+        <option value="all">{t('filterBar.allTypes')}</option>
+        {TYPE_ORDER.map((ty) => (
+          <option key={ty} value={ty}>
+            {t(TYPE_LABEL_KEY[ty])}
+          </option>
+        ))}
+      </select>
+      <select
+        value={severityFilter}
+        onChange={(e) => setSeverityFilter(e.target.value as ConcernSeverity | 'all')}
+        className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+      >
+        <option value="all">{t('filterBar.allSeverities')}</option>
+        {SEVERITY_ORDER.map((sv) => (
+          <option key={sv} value={sv}>
+            {t(SEVERITY_LABEL_KEY[sv])}
+          </option>
+        ))}
+      </select>
+      <select
+        value={sourceFilter}
+        onChange={(e) => setSourceFilter(e.target.value)}
+        className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+      >
+        <option value="all">{t('filterBar.allSources')}</option>
+        {SOURCE_ORDER.map((sv) => (
+          <option key={sv} value={sv}>
+            {t(SOURCE_LABEL_KEY[sv])}
+          </option>
+        ))}
+      </select>
+      <select
+        value={themeFilter === 'all' ? '' : String(themeFilter)}
+        onChange={(e) => setThemeFilter(e.target.value ? parseInt(e.target.value) : 'all')}
+        className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+      >
+        <option value="">{t('filterBar.allThemes')}</option>
+        {workingDirThemes.map((th) => (
+          <option key={th.id} value={th.id}>
+            {th.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}

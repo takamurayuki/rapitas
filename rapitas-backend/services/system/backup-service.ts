@@ -21,6 +21,7 @@ import { spawn as nodeSpawn } from 'child_process';
 import { createLogger } from '../../config/logger';
 import { resolveEncryptionKey } from '../../utils/common/encryption-key-resolver';
 import { getDbProvider, type DbProvider } from '../../config/db-provider';
+import { markEventLoopSection } from './event-loop-lag-watchdog';
 
 const log = createLogger('backup-service');
 
@@ -130,15 +131,36 @@ async function backupSqlite(outPath: string): Promise<void> {
   const dbPath = path.resolve(dbUrl.replace(/^file:/, ''));
   if (!fs.existsSync(dbPath)) throw new Error(`SQLite database not found: ${dbPath}`);
 
-  // VACUUM INTO produces a consistent copy without locking writers for long.
-  const { Database } = await import('bun:sqlite');
+  // VACUUM INTO produces a consistent copy without locking writers for long —
+  // but bun:sqlite runs it SYNCHRONOUSLY, and on the grown DB (~270MB) that
+  // froze the main event loop ~10-12s every run (the daily 06:00 stalls,
+  // 2026-09-03..05, concern #514). Run it in a child bun process instead: the
+  // main loop only awaits the exit.
   const tmpPath = `${outPath}.tmp.sqlite`;
-
-  const src = new Database(dbPath);
-  try {
-    src.exec(`VACUUM INTO '${tmpPath.replace(/'/g, "''")}'`);
-  } finally {
-    src.close();
+  // Paths travel via env, NOT argv — `bun -e` puts script args at argv[1],
+  // which silently shifted positional reads and produced an empty snapshot
+  // on first deploy (caught by the size sanity check below).
+  const vacuumScript =
+    'const {Database} = require("bun:sqlite");' +
+    'const src = new Database(process.env.RAPITAS_BK_SRC);' +
+    `try { src.exec("VACUUM INTO '" + process.env.RAPITAS_BK_DST.replaceAll("'", "''") + "'"); } finally { src.close(); }`;
+  const proc = Bun.spawn(['bun', '-e', vacuumScript], {
+    env: { ...process.env, RAPITAS_BK_SRC: dbPath, RAPITAS_BK_DST: tmpPath },
+    stdout: 'ignore',
+    stderr: 'pipe',
+  });
+  const exitCode = await proc.exited;
+  if (exitCode !== 0) {
+    const stderr = await new Response(proc.stderr).text().catch(() => '');
+    fs.rmSync(tmpPath, { force: true });
+    throw new Error(`VACUUM INTO child failed (exit ${exitCode}): ${stderr.slice(0, 300)}`);
+  }
+  // Sanity: a real snapshot can never be smaller than the source's first page
+  // block — refuse to "succeed" with an empty archive.
+  const snapSize = fs.existsSync(tmpPath) ? fs.statSync(tmpPath).size : 0;
+  if (snapSize < 4096) {
+    fs.rmSync(tmpPath, { force: true });
+    throw new Error(`VACUUM INTO produced a suspiciously small snapshot (${snapSize} bytes)`);
   }
 
   try {
@@ -155,6 +177,17 @@ async function backupSqlite(outPath: string): Promise<void> {
  * @returns Run result including the resulting record on success.
  */
 export async function runBackup(): Promise<BackupRunResult> {
+  // NOTE: Named so a ~06:00 JST event-loop stall that overlaps the backup (sync
+  // fs writes in encryptStreamToFile) is attributed instead of logged blank (#1231).
+  const release = markEventLoopSection('backup-run');
+  try {
+    return await runBackupInner();
+  } finally {
+    release();
+  }
+}
+
+async function runBackupInner(): Promise<BackupRunResult> {
   const start = Date.now();
   const provider = getDbProvider();
   const dir = backupDir();

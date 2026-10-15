@@ -7,7 +7,9 @@ import { prisma } from '../../config/database';
 import { ValidationError } from '../../middleware/error-handler';
 import { mkdir, writeFile, unlink, copyFile, stat } from 'fs/promises';
 import { existsSync } from 'fs';
-import { join, basename, extname } from 'path';
+import { join, basename, extname, resolve, sep } from 'path';
+import { tmpdir } from 'os';
+import { getProjectRoot } from '../../config';
 
 // Get MIME type from file extension
 function getMimeType(filePath: string): string {
@@ -59,6 +61,80 @@ import { randomUUID } from 'crypto';
 
 // Upload directory configuration
 const UPLOAD_DIR = join(process.cwd(), 'uploads');
+
+/**
+ * Resolve a request-supplied filename to an absolute path INSIDE UPLOAD_DIR,
+ * or throw if it would escape (path traversal). `path.join` alone does not
+ * strip `..`, so a raw `:filename` param like `../../.env` would read secrets.
+ *
+ * @param filename - Untrusted filename from the URL. / URL由来の未検証ファイル名
+ * @returns Contained absolute path. / uploads配下に収まる絶対パス
+ * @throws {ValidationError} When the path escapes UPLOAD_DIR. / 配下から外れる場合
+ */
+function resolveUploadPath(filename: string): string {
+  const resolved = resolve(UPLOAD_DIR, filename);
+  const root = resolve(UPLOAD_DIR);
+  if (resolved !== root && !resolved.startsWith(root + sep)) {
+    throw new ValidationError('ファイルが見つかりません');
+  }
+  return resolved;
+}
+
+// Filenames that must never be copyable through upload-from-path, regardless
+// of which root they resolve under — a stray allowlisted root (e.g. a theme
+// working directory that happens to contain a `.git` checkout or a `.env`)
+// must not become a path to secrets via this endpoint.
+const SENSITIVE_UPLOAD_FILENAME_PATTERN =
+  /(^|[\\/])(\.env(\..+)?|\.git|id_rsa(\.pub)?|.*\.key|.*\.pem|\.npmrc|\.aws|credentials(\.json)?)$/i;
+
+/**
+ * Base directories a `filePath` sent to POST /resources/upload-from-path is
+ * allowed to resolve inside. Defaults to the OS temp dir (where a Tauri
+ * file/drag-drop picker stages files) and this repo's root (covers theme
+ * working directories that live inside the monorepo checkout); operators can
+ * add project checkouts that live elsewhere via RAPITAS_UPLOAD_ALLOWED_ROOTS
+ * (comma-separated absolute paths).
+ *
+ * @returns Resolved absolute allowlisted root paths / 許可ルートの絶対パス一覧
+ */
+export function getAllowedUploadSourceRoots(): string[] {
+  const roots = new Set<string>([resolve(tmpdir()), resolve(getProjectRoot())]);
+  const extra = process.env.RAPITAS_UPLOAD_ALLOWED_ROOTS;
+  if (extra) {
+    for (const raw of extra.split(',')) {
+      const trimmed = raw.trim();
+      if (trimmed) roots.add(resolve(trimmed));
+    }
+  }
+  return Array.from(roots);
+}
+
+/**
+ * Resolves and validates an untrusted source file path for
+ * `POST /resources/upload-from-path`. Without this check, `sourcePath` was
+ * passed straight to `existsSync`/`stat`/`copyFile` with no containment,
+ * letting any caller (the endpoint is reachable cross-site — it's a
+ * same-origin localhost API with no auth) copy `.env`, SSH keys, or any
+ * other file readable by the backend process into `uploads/`, then download
+ * it via `GET /resources/file/:filename`.
+ *
+ * @param sourcePath - Untrusted absolute path from the request body / リクエストボディの未検証絶対パス
+ * @returns Resolved, allowlist-contained absolute path / 許可ルート配下に収まる絶対パス
+ * @throws {ValidationError} When the path escapes every allowlisted root, or matches a known-sensitive filename
+ */
+export function resolveUploadSourcePath(sourcePath: string): string {
+  const resolved = resolve(sourcePath);
+  if (SENSITIVE_UPLOAD_FILENAME_PATTERN.test(resolved)) {
+    throw new ValidationError('このファイルはアップロードできません');
+  }
+  const roots = getAllowedUploadSourceRoots();
+  const contained = roots.some((root) => resolved === root || resolved.startsWith(root + sep));
+  if (!contained) {
+    throw new ValidationError('許可されていない場所のファイルです');
+  }
+  return resolved;
+}
+
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_MIME_TYPES = [
   // Images
@@ -157,74 +233,91 @@ export const resourcesRoutes = new Elysia()
   )
 
   // Upload file resource
-  .post('/resources/upload', async (context) => {
-    const { body } = context;
-    const {
-      taskId: taskIdStr,
-      file,
-      title,
-      description,
-    } = body as {
-      taskId?: string;
-      file: File;
-      title?: string;
-      description?: string;
-    };
+  .post(
+    '/resources/upload',
+    async (context) => {
+      const { body } = context;
+      const {
+        taskId: taskIdStr,
+        file,
+        title,
+        description,
+      } = body as {
+        taskId?: string;
+        file: File;
+        title?: string;
+        description?: string;
+      };
 
-    // Validate file exists
-    if (!file || !(file instanceof File)) {
-      throw new ValidationError('ファイルが見つかりません');
-    }
+      // Validate file exists
+      if (!file || !(file instanceof File)) {
+        throw new ValidationError('ファイルが見つかりません');
+      }
 
-    // NOTE: taskId from FormData is a string, convert to number
-    const taskId = taskIdStr ? parseInt(taskIdStr, 10) : undefined;
-    if (taskIdStr && (isNaN(taskId!) || taskId! <= 0)) {
-      throw new ValidationError('無効なタスクIDです');
-    }
+      // NOTE: taskId from FormData is a string, convert to number
+      const taskId = taskIdStr ? parseInt(taskIdStr, 10) : undefined;
+      if (taskIdStr && (isNaN(taskId!) || taskId! <= 0)) {
+        throw new ValidationError('無効なタスクIDです');
+      }
 
-    // Validate file size
-    if (file.size > MAX_FILE_SIZE) {
-      throw new ValidationError(
-        `ファイルサイズは${MAX_FILE_SIZE / 1024 / 1024}MB以下にしてください`,
-      );
-    }
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        throw new ValidationError(
+          `ファイルサイズは${MAX_FILE_SIZE / 1024 / 1024}MB以下にしてください`,
+        );
+      }
 
-    // Validate MIME type (extract base MIME type without charset)
-    const baseMimeType = file.type.split(';')[0].trim();
-    if (!ALLOWED_MIME_TYPES.includes(baseMimeType)) {
-      throw new ValidationError(`許可されていないファイル形式です: ${file.type}`);
-    }
+      // Validate MIME type (extract base MIME type without charset)
+      const baseMimeType = file.type.split(';')[0].trim();
+      if (!ALLOWED_MIME_TYPES.includes(baseMimeType)) {
+        throw new ValidationError(`許可されていないファイル形式です: ${file.type}`);
+      }
 
-    await ensureUploadDir();
+      await ensureUploadDir();
 
-    // Generate unique filename
-    const ext = file.name.split('.').pop() || '';
-    const uniqueName = `${randomUUID()}.${ext}`;
-    const filePath = join(UPLOAD_DIR, uniqueName);
+      // Generate unique filename
+      const ext = file.name.split('.').pop() || '';
+      const uniqueName = `${randomUUID()}.${ext}`;
+      const filePath = join(UPLOAD_DIR, uniqueName);
 
-    // Save file
-    const buffer = await file.arrayBuffer();
-    await writeFile(filePath, Buffer.from(buffer));
+      // Save file
+      const buffer = await file.arrayBuffer();
+      await writeFile(filePath, Buffer.from(buffer));
 
-    // Determine type based on MIME
-    let resourceType = 'file';
-    if (baseMimeType.startsWith('image/')) resourceType = 'image';
-    else if (baseMimeType === 'application/pdf') resourceType = 'pdf';
+      // Determine type based on MIME
+      let resourceType = 'file';
+      if (baseMimeType.startsWith('image/')) resourceType = 'image';
+      else if (baseMimeType === 'application/pdf') resourceType = 'pdf';
 
-    // Create resource record
-    return await prisma.resource.create({
-      data: {
-        title: title || file.name,
-        type: resourceType,
-        fileName: file.name,
-        filePath: uniqueName,
-        fileSize: file.size,
-        mimeType: baseMimeType,
-        ...(taskId && { taskId }),
-        ...(description && { description }),
-      },
-    });
-  })
+      // Create resource record
+      return await prisma.resource.create({
+        data: {
+          title: title || file.name,
+          type: resourceType,
+          fileName: file.name,
+          filePath: uniqueName,
+          fileSize: file.size,
+          mimeType: baseMimeType,
+          ...(taskId && { taskId }),
+          ...(description && { description }),
+        },
+      });
+    },
+    {
+      // NOTE: `file` is intentionally left OUT of this schema (no t.File()).
+      // routes/system/transcribe.ts already documents that Elysia's t.File()
+      // validator can reject valid multipart FormData; the handler above does
+      // its own File-instance/size/MIME checks. additionalProperties is left
+      // at its default (permissive) so the multipart `file` part still reaches
+      // the handler unvalidated by the framework layer — only the string
+      // fields get framework-level validation here.
+      body: t.Object({
+        taskId: t.Optional(t.String()),
+        title: t.Optional(t.String({ maxLength: 200 })),
+        description: t.Optional(t.String({ maxLength: 5000 })),
+      }),
+    },
+  )
 
   // Upload file from path (for Tauri drag-drop)
   .post(
@@ -243,13 +336,17 @@ export const resourcesRoutes = new Elysia()
         description?: string;
       };
 
+      // Contain sourcePath to the allowlisted roots before touching the
+      // filesystem — see resolveUploadSourcePath for why this is required.
+      const resolvedSourcePath = resolveUploadSourcePath(sourcePath);
+
       // Validate source file exists
-      if (!existsSync(sourcePath)) {
+      if (!existsSync(resolvedSourcePath)) {
         throw new ValidationError('ファイルが見つかりません');
       }
 
       // Get file stats
-      const stats = await stat(sourcePath);
+      const stats = await stat(resolvedSourcePath);
       if (stats.size > MAX_FILE_SIZE) {
         throw new ValidationError(
           `ファイルサイズは${MAX_FILE_SIZE / 1024 / 1024}MB以下にしてください`,
@@ -257,9 +354,9 @@ export const resourcesRoutes = new Elysia()
       }
 
       // Get file info
-      const fileName = basename(sourcePath);
-      const ext = extname(sourcePath).slice(1) || '';
-      const mimeType = getMimeType(sourcePath);
+      const fileName = basename(resolvedSourcePath);
+      const ext = extname(resolvedSourcePath).slice(1) || '';
+      const mimeType = getMimeType(resolvedSourcePath);
 
       // Validate MIME type
       const baseMimeType = mimeType.split(';')[0].trim();
@@ -274,7 +371,7 @@ export const resourcesRoutes = new Elysia()
       const destPath = join(UPLOAD_DIR, uniqueName);
 
       // Copy file to uploads directory
-      await copyFile(sourcePath, destPath);
+      await copyFile(resolvedSourcePath, destPath);
 
       // Determine type based on MIME
       let resourceType = 'file';
@@ -309,7 +406,7 @@ export const resourcesRoutes = new Elysia()
   .get('/resources/file/:filename', async (context) => {
     const { params, set } = context;
     const { filename } = params;
-    const filePath = join(UPLOAD_DIR, filename);
+    const filePath = resolveUploadPath(filename);
 
     if (!existsSync(filePath)) {
       throw new ValidationError('ファイルが見つかりません');
@@ -346,7 +443,7 @@ export const resourcesRoutes = new Elysia()
   .get('/resources/download/:filename', async (context) => {
     const { params, set } = context;
     const { filename } = params;
-    const filePath = join(UPLOAD_DIR, filename);
+    const filePath = resolveUploadPath(filename);
 
     if (!existsSync(filePath)) {
       throw new ValidationError('ファイルが見つかりません');
@@ -375,20 +472,28 @@ export const resourcesRoutes = new Elysia()
   })
 
   // Delete resource (and file if exists)
-  .delete('/resources/:id', async (context) => {
-    const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) throw new ValidationError('無効なIDです');
+  .delete(
+    '/resources/:id',
+    async (context) => {
+      const { params } = context;
+      const id = parseInt(params.id);
+      if (isNaN(id)) throw new ValidationError('無効なIDです');
 
-    // Get resource to check for file
-    const resource = await prisma.resource.findUnique({ where: { id } });
+      // Get resource to check for file
+      const resource = await prisma.resource.findUnique({ where: { id } });
 
-    if (resource?.filePath) {
-      const filePath = join(UPLOAD_DIR, resource.filePath);
-      if (existsSync(filePath)) {
-        await unlink(filePath);
+      if (resource?.filePath) {
+        const filePath = join(UPLOAD_DIR, resource.filePath);
+        if (existsSync(filePath)) {
+          await unlink(filePath);
+        }
       }
-    }
 
-    return await prisma.resource.delete({ where: { id } });
-  });
+      return await prisma.resource.delete({ where: { id } });
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+    },
+  );

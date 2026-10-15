@@ -42,13 +42,7 @@ export function ResumableExecutionsBanner() {
   // Detect task detail page (/tasks/[id] pattern)
   const isTaskDetailPage = /^\/tasks\/\d+/.test(pathname);
 
-  if (
-    isLoading ||
-    isDismissed ||
-    (executions.length === 0 && !connectionError) ||
-    isTaskDetailPage ||
-    isTaskDetailVisible
-  ) {
+  if (isLoading || isDismissed || isTaskDetailPage || isTaskDetailVisible) {
     return null;
   }
 
@@ -57,8 +51,8 @@ export function ResumableExecutionsBanner() {
     if (isIntentionalRestart || isServerRestarting) return null;
 
     return (
-      <div className="fixed bottom-20 right-6 z-[60] max-w-sm w-full animate-in slide-in-from-right-4 duration-300">
-        <div className="border rounded-2xl shadow-xl overflow-hidden backdrop-blur-sm bg-red-50 dark:bg-red-950/95 border-red-200/80 dark:border-red-700/60">
+      <div className="fixed bottom-6 right-6 z-[60] max-w-sm w-full animate-in slide-in-from-right-4 duration-300">
+        <div className="border rounded-2xl shadow-xl overflow-hidden bg-red-50 dark:bg-red-950/95 border-red-200/80 dark:border-red-700/60">
           <div className="px-4 py-3.5">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-xl bg-red-500 shadow-lg">
@@ -86,10 +80,16 @@ export function ResumableExecutionsBanner() {
     );
   }
 
+  // A stale `connectionError` while the backend IS connected (a single
+  // resumable-executions probe timed out or returned 503 during warm-up) used
+  // to fall through here and paint the "中断された作業" card with a count of 0.
+  // With nothing to show there is nothing to render, whatever the error state.
+  if (executions.length === 0) return null;
+
   const hasRunning = runningCount > 0;
 
   const bannerBg = hasRunning
-    ? 'bg-linear-to-br from-blue-50 to-indigo-50 dark:from-blue-950/95 dark:to-indigo-950/95 border-blue-200/80 dark:border-blue-700/60 shadow-blue-500/10 dark:shadow-blue-900/20'
+    ? 'bg-linear-to-br from-blue-50 to-blue-50 dark:from-blue-950/95 dark:to-blue-950/95 border-blue-200/80 dark:border-blue-700/60 shadow-blue-500/10 dark:shadow-blue-900/20'
     : 'bg-linear-to-br from-amber-50 to-orange-50 dark:from-amber-950/95 dark:to-orange-950/95 border-amber-200/80 dark:border-amber-700/60 shadow-amber-500/10 dark:shadow-amber-900/20';
 
   const headerHoverBg = hasRunning
@@ -97,7 +97,7 @@ export function ResumableExecutionsBanner() {
     : 'hover:bg-amber-100/50 dark:hover:bg-amber-900/30';
 
   const iconBg = hasRunning
-    ? 'bg-linear-to-br from-blue-400 to-indigo-500 shadow-blue-500/30'
+    ? 'bg-linear-to-br from-blue-400 to-blue-500 shadow-blue-500/30'
     : 'bg-linear-to-br from-amber-400 to-orange-500 shadow-amber-500/30';
 
   const pingColor = hasRunning ? 'bg-blue-400' : 'bg-amber-400';
@@ -120,8 +120,10 @@ export function ResumableExecutionsBanner() {
     : 'hover:bg-amber-200/60 dark:hover:bg-amber-800/40';
 
   return (
-    <div className="fixed bottom-20 right-6 z-[60] max-w-sm w-full animate-in slide-in-from-right-4 duration-300">
-      <div className={`border rounded-2xl shadow-xl backdrop-blur-sm ${bannerBg}`}>
+    // bottom-6: the former bottom-20 reserved space for the floating AI icon,
+    // which no longer exists.
+    <div className="fixed bottom-6 right-6 z-[60] max-w-sm w-full animate-in slide-in-from-right-4 duration-300">
+      <div className={`border rounded-2xl shadow-xl ${bannerBg}`}>
         {/* Collapsible header */}
         <div
           className={`px-4 py-3.5 flex items-center justify-between cursor-pointer transition-colors ${headerHoverBg}`}

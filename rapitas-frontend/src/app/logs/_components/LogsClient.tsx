@@ -10,6 +10,7 @@
  */
 import { useEffect, useState, useCallback } from 'react';
 import { ScrollText, FolderOpen, AlertCircle, RefreshCw } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { DebugLogAnalyzer } from '@/components/debug-log-analyzer';
 import { useDebugLogAnalyzer } from '@/hooks/feature/useDebugLogAnalyzer';
 import type { LogType, LogAnalysisResult } from '@/types/debug-log';
@@ -39,13 +40,13 @@ function toLogType(fmt: ThemeLogRead['configuredFormat']): LogType {
   return fmt === 'pino' || fmt === 'json' ? 'json' : 'unknown';
 }
 
-const SOURCE_LABEL: Record<ThemeLogRead['source'], string> = {
-  configured: '設定されたログディレクトリ',
-  scanned: '作業ディレクトリから自動検出',
-  none: 'ログ未検出',
-};
-
 export default function LogsClient() {
+  const t = useTranslations('logs');
+  const SOURCE_LABEL: Record<ThemeLogRead['source'], string> = {
+    configured: t('sourceLabels.configured'),
+    scanned: t('sourceLabels.scanned'),
+    none: t('sourceLabels.none'),
+  };
   const [themes, setThemes] = useState<LogTheme[]>([]);
   const [themesLoading, setThemesLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -86,14 +87,14 @@ export default function LogsClient() {
   const onAnalyze = useCallback(
     async (content: string, type?: LogType): Promise<LogAnalysisResult> => {
       const result = await analyzeLog(content, type);
-      if (!result) throw new Error('ログ分析に失敗しました');
+      if (!result) throw new Error(t('analyzeFailed'));
       return result;
     },
-    [analyzeLog],
+    [analyzeLog, t],
   );
 
   if (themesLoading) {
-    return <div className="p-6 text-sm text-zinc-500">読み込み中…</div>;
+    return <div className="p-6 text-sm text-zinc-500">{t('loading')}</div>;
   }
 
   if (themes.length === 0) {
@@ -101,10 +102,7 @@ export default function LogsClient() {
       <div className="mx-auto max-w-2xl p-6">
         <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
           <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
-          <div>
-            作業ディレクトリが設定されたテーマがありません。テーマに作業ディレクトリを設定すると、
-            そのテーマのログをここで分析できます。
-          </div>
+          <div>{t('noThemesHint')}</div>
         </div>
       </div>
     );
@@ -114,12 +112,14 @@ export default function LogsClient() {
     <div className="mx-auto max-w-5xl space-y-4 p-4 sm:p-6">
       <div className="flex items-center gap-2">
         <ScrollText className="h-5 w-5 text-violet-500" />
-        <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">ログ分析</h1>
+        <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>
       </div>
 
       {/* Theme switcher + source banner */}
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
-        <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">テーマ</label>
+        <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          {t('themeLabel')}
+        </label>
         <select
           value={selectedId ?? ''}
           onChange={(e) => setSelectedId(Number(e.target.value))}
@@ -135,10 +135,10 @@ export default function LogsClient() {
           onClick={() => selectedId != null && loadLogs(selectedId)}
           disabled={readLoading}
           className="flex items-center gap-1 rounded-lg border border-zinc-300 px-2.5 py-1.5 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          title="再読み込み"
+          title={t('reload')}
         >
           <RefreshCw className={`h-3.5 w-3.5 ${readLoading ? 'animate-spin' : ''}`} />
-          再読み込み
+          {t('reload')}
         </button>
 
         {read && (
@@ -146,19 +146,21 @@ export default function LogsClient() {
             <FolderOpen className="h-3.5 w-3.5 shrink-0" />
             <span className="shrink-0">{SOURCE_LABEL[read.source]}:</span>
             <span className="truncate font-mono">{read.directory ?? '—'}</span>
-            {read.truncated && <span className="shrink-0 text-amber-500">（一部のみ表示）</span>}
+            {read.truncated && (
+              <span className="shrink-0 text-amber-500">{t('truncatedSuffix')}</span>
+            )}
           </div>
         )}
       </div>
 
       {read?.note && (
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-800/40 dark:text-zinc-300">
-          {read.note} 下の入力欄にログを貼り付けて分析することもできます。
+          {read.note} {t('noteHint')}
         </div>
       )}
 
       {readLoading ? (
-        <div className="p-6 text-sm text-zinc-500">ログを読み込み中…</div>
+        <div className="p-6 text-sm text-zinc-500">{t('loadingLogs')}</div>
       ) : (
         // key={selectedId} resets the analyzer's state when the theme changes.
         <DebugLogAnalyzer

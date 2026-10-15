@@ -1,0 +1,10 @@
+{
+  "todayTodo": {
+    "title": "今日のTodo",
+    "empty": "着手できるタスクがありません",
+    "allSnoozed": "すべてのタスクがスヌーズされています",
+    "closeAria": "閉じる (Esc)",
+    "snoozeAria": "24時間スヌーズ",
+    "clearSnoozeButton": "スヌーズ解除 ({count}件)"
+  }
+}

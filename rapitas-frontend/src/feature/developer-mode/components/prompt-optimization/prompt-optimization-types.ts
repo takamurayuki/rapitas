@@ -62,22 +62,24 @@ export type OptimizedPromptResult = {
 // ─── Category helpers ────────────────────────────────────────────────────────
 
 /**
- * Returns the Japanese display label for a question category.
+ * Returns the display label for a question category.
  *
  * @param category - Category key / カテゴリキー
- * @returns Japanese label string
+ * @param t - Translation function from `useTranslations('devMode.promptOptimizationTypes')` / 翻訳関数
+ * @returns Localized label string
  */
-export const getCategoryLabel = (category: string): string => {
-  const labels: Record<string, string> = {
-    scope: 'スコープ',
-    technical: '技術的',
-    requirements: '要件',
-    constraints: '制約',
-    integration: '統合',
-    testing: 'テスト',
-    deliverables: '成果物',
+export const getCategoryLabel = (category: string, t: (key: string) => string): string => {
+  const keys: Record<string, string> = {
+    scope: 'category.scope',
+    technical: 'category.technical',
+    requirements: 'category.requirements',
+    constraints: 'category.constraints',
+    integration: 'category.integration',
+    testing: 'category.testing',
+    deliverables: 'category.deliverables',
   };
-  return labels[category] || category;
+  const key = keys[category];
+  return key ? t(key) : category;
 };
 
 /**
@@ -88,7 +90,7 @@ export const getCategoryLabel = (category: string): string => {
  */
 export const getCategoryColor = (category: string): string => {
   const colors: Record<string, string> = {
-    scope: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    scope: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
     technical: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
     requirements: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
     constraints: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',

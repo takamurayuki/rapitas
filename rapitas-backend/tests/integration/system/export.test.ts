@@ -7,7 +7,7 @@
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import { Elysia } from 'elysia';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../../generated/prisma-postgres';
 import { exportRoutes } from '../../../routes/system/export';
 
 // Create own PrismaClient for test setup/cleanup to avoid mock pollution from other tests

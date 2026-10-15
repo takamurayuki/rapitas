@@ -55,18 +55,21 @@ export function resolveIntakePolicy(overrides?: {
  * the single decision point the gate and its tests share.
  *
  * @param isAdequate - Whether the spec passed the quality check. / 仕様が十分か
- * @param alreadyAsked - Whether an intake question was already raised once. / 既に1回質問済みか
+ * @param wasAnswered - Whether the user has ANSWERED a prior intake question. / ユーザーが回答済みか
  * @param policy - The resolved ambiguity policy. / 解決済みポリシー
  * @returns The action to take. / 取るべきアクション
  */
 export function decideIntake(
   isAdequate: boolean,
-  alreadyAsked: boolean,
+  wasAnswered: boolean,
   policy: IntakePolicy,
 ): IntakeAction {
   if (isAdequate) return 'ready';
-  // Ask at most once: a second ambiguous pass (e.g. a weak answer) proceeds on
-  // best-guess instead of looping forever on the same question.
-  if (policy === 'ask' && !alreadyAsked) return 'ask';
+  // Keep asking (stay paused in awaiting_question) until the USER answers — the
+  // workflow must NOT proceed on best-guess while a question is unanswered. The
+  // orchestrator/reconciler skip awaiting_question tasks, so this pauses rather
+  // than loops. Once answered, if the spec is STILL thin we proceed on best-guess
+  // (the user's answer is folded in) instead of re-asking forever.
+  if (policy === 'ask' && !wasAnswered) return 'ask';
   return 'proceed_low_confidence';
 }

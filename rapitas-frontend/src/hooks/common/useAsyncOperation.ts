@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 
 /**
  * State for async operations
@@ -46,6 +47,7 @@ export function useAsyncOperation<T, Args extends unknown[] = []>(
     onError?: (error: Error) => void;
   },
 ): UseAsyncOperationReturn<T, Args> {
+  const t = useTranslations('common');
   const [data, setData] = useState<T | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +63,7 @@ export function useAsyncOperation<T, Args extends unknown[] = []>(
         options?.onSuccess?.(result);
         return result;
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'エラーが発生しました';
+        const errorMessage = err instanceof Error ? err.message : t('errorOccurred');
         setError(errorMessage);
         options?.onError?.(err instanceof Error ? err : new Error(errorMessage));
         return null;
@@ -69,7 +71,7 @@ export function useAsyncOperation<T, Args extends unknown[] = []>(
         setIsLoading(false);
       }
     },
-    [operation, options],
+    [operation, options, t],
   );
 
   const reset = useCallback(() => {
@@ -96,6 +98,7 @@ export function useAsyncOperation<T, Args extends unknown[] = []>(
 export function useMultiAsyncOperation<
   Operations extends Record<string, (...args: unknown[]) => Promise<unknown>>,
 >(operations: Operations) {
+  const t = useTranslations('common');
   type OperationKeys = keyof Operations;
   type OperationStates = {
     [K in OperationKeys]: AsyncOperationState<Awaited<ReturnType<Operations[K]>>>;
@@ -131,7 +134,7 @@ export function useMultiAsyncOperation<
         }));
         return result as Awaited<ReturnType<Operations[K]>>;
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'エラーが発生しました';
+        const errorMessage = err instanceof Error ? err.message : t('errorOccurred');
         setStates((prev) => ({
           ...prev,
           [key]: { ...prev[key], isLoading: false, error: errorMessage },
@@ -139,7 +142,7 @@ export function useMultiAsyncOperation<
         return null;
       }
     },
-    [operations],
+    [operations, t],
   );
 
   const reset = useCallback((key: OperationKeys) => {

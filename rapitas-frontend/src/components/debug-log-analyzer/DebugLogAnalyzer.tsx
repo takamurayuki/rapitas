@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FileCode } from 'lucide-react';
@@ -92,10 +93,11 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [selectedTab, setSelectedTab] = useState('input');
   const [filter, setFilter] = useState<LogFilter>({});
+  const t = useTranslations('devTools');
 
   const handleAnalyze = useCallback(async () => {
     if (!logContent.trim()) {
-      setError('ログコンテンツを入力してください');
+      setError(t('debugLogAnalyzer.errors.emptyContent'));
       return;
     }
 
@@ -110,11 +112,11 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
       setAnalysisResult(result);
       setSelectedTab('result');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '解析中にエラーが発生しました');
+      setError(err instanceof Error ? err.message : t('debugLogAnalyzer.errors.analysisFailed'));
     } finally {
       setIsAnalyzing(false);
     }
-  }, [logContent, selectedLogType, onAnalyze]);
+  }, [logContent, selectedLogType, onAnalyze, t]);
 
   const handleExport = useCallback(() => {
     if (!analysisResult) return;
@@ -145,20 +147,20 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">デバッグログ解析ツール</h1>
+        <h1 className="text-3xl font-bold">{t('debugLogAnalyzer.title')}</h1>
         <Badge variant="outline" className="text-sm">
           <FileCode className="w-4 h-4 mr-1" />
-          対応形式: JSON, Syslog, Apache, Nginx, Node.js
+          {t('debugLogAnalyzer.supportedFormats')}
         </Badge>
       </div>
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>
         <TabsList>
-          <TabsTrigger value="input">ログ入力</TabsTrigger>
+          <TabsTrigger value="input">{t('debugLogAnalyzer.tabs.input')}</TabsTrigger>
           <TabsTrigger value="result" disabled={!analysisResult}>
-            解析結果
+            {t('debugLogAnalyzer.tabs.result')}
           </TabsTrigger>
-          <TabsTrigger value="settings">設定</TabsTrigger>
+          <TabsTrigger value="settings">{t('debugLogAnalyzer.tabs.settings')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="input" className="space-y-4">

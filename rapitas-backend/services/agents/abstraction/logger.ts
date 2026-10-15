@@ -319,7 +319,7 @@ export class BufferingLogger implements IAgentLogger {
     this.log('error', message, errorContext);
   }
 
-  child(context: Record<string, unknown>): IAgentLogger {
+  child(_context: Record<string, unknown>): IAgentLogger {
     // Buffering logger does not create children
     return this;
   }

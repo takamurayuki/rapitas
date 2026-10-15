@@ -68,7 +68,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
   'azure-openai': {
     name: 'Azure OpenAI',
     icon: <Globe className="w-5 h-5" />,
-    color: 'text-blue-500',
+    color: 'text-indigo-500',
     defaultEndpoint: '',
     defaultModel: '',
     models: [],
@@ -80,7 +80,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
   gemini: {
     name: 'Gemini CLI',
     icon: <Activity className="w-5 h-5" />,
-    color: 'text-blue-500',
+    color: 'text-indigo-500',
     defaultModel: '',
     models: [],
     requiresApiKey: false,

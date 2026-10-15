@@ -2,6 +2,7 @@
 // usePromptOptimization
 
 import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import type { PromptResult } from './types';
 
@@ -38,6 +39,7 @@ export function usePromptOptimization({
   taskId,
   onPromptGenerated,
 }: UsePromptOptimizationOptions): UsePromptOptimizationResult {
+  const t = useTranslations('devMode.usePromptOptimization');
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
   const [promptResult, setPromptResult] = useState<PromptResult | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
@@ -59,7 +61,7 @@ export function usePromptOptimization({
 
         if (!response.ok) {
           const errData = await response.json();
-          throw new Error(errData.error || 'プロンプト生成に失敗しました');
+          throw new Error(errData.error || t('generateFailed'));
         }
 
         const data: PromptResult = await response.json();
@@ -69,12 +71,12 @@ export function usePromptOptimization({
           onPromptGenerated(data.optimizedPrompt);
         }
       } catch (err) {
-        setPromptError(err instanceof Error ? err.message : 'エラーが発生しました');
+        setPromptError(err instanceof Error ? err.message : t('genericError'));
       } finally {
         setIsGeneratingPrompt(false);
       }
     },
-    [taskId, onPromptGenerated],
+    [taskId, onPromptGenerated, t],
   );
 
   const handleSubmitAnswers = useCallback(async () => {
@@ -84,7 +86,7 @@ export function usePromptOptimization({
     const requiredQuestions = promptResult.clarificationQuestions.filter((q) => q.isRequired);
     const unansweredRequired = requiredQuestions.filter((q) => !questionAnswers[q.id]?.trim());
     if (unansweredRequired.length > 0) {
-      setPromptError('必須の質問に回答してください');
+      setPromptError(t('requiredQuestionsUnanswered'));
       return;
     }
 
@@ -105,7 +107,7 @@ export function usePromptOptimization({
     } finally {
       setIsSubmittingAnswers(false);
     }
-  }, [promptResult, questionAnswers, generatePrompt]);
+  }, [promptResult, questionAnswers, generatePrompt, t]);
 
   const handleCopyPrompt = useCallback(() => {
     if (promptResult?.optimizedPrompt) {
@@ -121,18 +123,21 @@ export function usePromptOptimization({
     }
   }, [promptResult, onPromptGenerated]);
 
-  const getCategoryLabel = useCallback((category: string): string => {
-    const labels: Record<string, string> = {
-      scope: 'スコープ',
-      technical: '技術',
-      requirements: '要件',
-      constraints: '制約',
-      integration: '統合',
-      testing: 'テスト',
-      deliverables: '成果物',
-    };
-    return labels[category] || category;
-  }, []);
+  const getCategoryLabel = useCallback(
+    (category: string): string => {
+      const labels: Record<string, string> = {
+        scope: t('category.scope'),
+        technical: t('category.technical'),
+        requirements: t('category.requirements'),
+        constraints: t('category.constraints'),
+        integration: t('category.integration'),
+        testing: t('category.testing'),
+        deliverables: t('category.deliverables'),
+      };
+      return labels[category] || category;
+    },
+    [t],
+  );
 
   return {
     isGeneratingPrompt,

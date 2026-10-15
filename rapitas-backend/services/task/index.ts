@@ -11,3 +11,4 @@ export * from './task-create-helpers';
 export * from './task-frequency-suggestions';
 export * from './task-suggestions';
 export * from './task-ai-prompts';
+export * from './task-resolver';

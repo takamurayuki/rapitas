@@ -26,6 +26,8 @@ const mockPromptEvolutionFindMany = mock(() => Promise.resolve([]));
 const mockTaskFindFirst = mock(() => Promise.resolve(null));
 
 mock.module('../../config/database', () => ({
+  // mock.module replaces the whole module — mirror ensureDatabaseConnection so config/index.ts re-export survives shuffled test order (else 'export not found').
+  ensureDatabaseConnection: () => Promise.resolve(),
   prisma: {
     task: { findUnique: mockTaskFindUnique, findFirst: mockTaskFindFirst },
     knowledgeEntry: { findMany: mockKnowledgeEntryFindMany },
@@ -94,5 +96,46 @@ describe('gatherSharedKnowledge → findRelevantKnowledgeForAgent — mode guard
     const innerOr = where.OR[0].OR;
     expect((innerOr[0] as { title: StringFilter }).title).not.toHaveProperty('mode');
     expect((innerOr[1] as { content: StringFilter }).content).not.toHaveProperty('mode');
+  });
+});
+
+describe('gatherSharedKnowledge — skipKnowledge toggle', () => {
+  beforeEach(() => {
+    mockKnowledgeEntryFindMany.mockReset();
+    mockKnowledgeEntryFindMany.mockResolvedValue([]);
+    mockTaskFindUnique.mockReset();
+    mockTaskFindUnique.mockResolvedValue({
+      id: 1,
+      title: 'Test task with keywords',
+      description: 'find relevant knowledge here',
+      themeId: null,
+      taskLabels: [],
+      theme: null,
+    });
+    mockLearningPatternFindMany.mockReset();
+    mockLearningPatternFindMany.mockResolvedValue([]);
+    mockPromptEvolutionFindMany.mockReset();
+    mockPromptEvolutionFindMany.mockResolvedValue([]);
+  });
+
+  it('skipKnowledge=true returns an empty result without querying the DB', async () => {
+    const result = await gatherSharedKnowledge(1, true);
+
+    expect(result).toEqual({
+      patterns: [],
+      relevantKnowledge: [],
+      promptEvolutions: [],
+      warnings: [],
+    });
+    expect(mockTaskFindUnique).not.toHaveBeenCalled();
+    expect(mockKnowledgeEntryFindMany).not.toHaveBeenCalled();
+    expect(mockLearningPatternFindMany).not.toHaveBeenCalled();
+    expect(mockPromptEvolutionFindMany).not.toHaveBeenCalled();
+  });
+
+  it('skipKnowledge omitted (default false) preserves existing lookup behavior', async () => {
+    await gatherSharedKnowledge(1);
+
+    expect(mockTaskFindUnique).toHaveBeenCalledTimes(1);
   });
 });

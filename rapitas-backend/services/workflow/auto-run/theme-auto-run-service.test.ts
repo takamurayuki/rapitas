@@ -35,6 +35,7 @@ const {
   resumeAutoRun,
   isThemeAutoRunActive,
   finalizeStop,
+  onAwaitingPlanApproval,
 } = await import('./theme-auto-run-service');
 
 // ---------------------------------------------------------------------------
@@ -73,28 +74,52 @@ function resetMocks() {
 describe('isThemeAutoRunActive', () => {
   beforeEach(resetMocks);
 
-  it('returns false for null themeId', async () => {
-    expect(await isThemeAutoRunActive(null)).toBe(false);
-  });
-
-  it('returns true when status is running', async () => {
-    mockFindUnique.mockResolvedValue({ status: 'running' });
-    expect(await isThemeAutoRunActive(42)).toBe(true);
-  });
-
-  it('returns true when status is paused', async () => {
-    mockFindUnique.mockResolvedValue({ status: 'paused' });
-    expect(await isThemeAutoRunActive(42)).toBe(true);
-  });
-
-  it('returns false when status is idle', async () => {
-    mockFindUnique.mockResolvedValue({ status: 'idle' });
-    expect(await isThemeAutoRunActive(42)).toBe(false);
-  });
-
-  it('returns false when record does not exist', async () => {
-    mockFindUnique.mockResolvedValue(null);
-    expect(await isThemeAutoRunActive(42)).toBe(false);
+  it.each([
+    {
+      desc: 'returns false for null themeId',
+      themeId: null as number | null,
+      mockValue: undefined as Record<string, unknown> | null | undefined,
+      expected: false,
+    },
+    {
+      desc: 'returns true when status is running',
+      themeId: 42,
+      mockValue: { status: 'running' },
+      expected: true,
+    },
+    {
+      desc: 'returns true when status is paused',
+      themeId: 42,
+      mockValue: { status: 'paused' },
+      expected: true,
+    },
+    {
+      desc: 'returns true when status is paused_user (task 883)',
+      themeId: 42,
+      mockValue: { status: 'paused_user' },
+      expected: true,
+    },
+    {
+      desc: 'returns true when status is paused_approval (task 883)',
+      themeId: 42,
+      mockValue: { status: 'paused_approval' },
+      expected: true,
+    },
+    {
+      desc: 'returns false when status is idle',
+      themeId: 42,
+      mockValue: { status: 'idle' },
+      expected: false,
+    },
+    {
+      desc: 'returns false when record does not exist',
+      themeId: 42,
+      mockValue: null,
+      expected: false,
+    },
+  ])('$desc', async ({ themeId, mockValue, expected }) => {
+    if (mockValue !== undefined) mockFindUnique.mockResolvedValue(mockValue);
+    expect(await isThemeAutoRunActive(themeId)).toBe(expected);
   });
 });
 
@@ -127,20 +152,50 @@ describe('startAutoRun', () => {
     expect(mockUpsert).not.toHaveBeenCalled();
     expect(result.status).toBe('running');
   });
+
+  it('clears idleSince/idleStoppedAt (task 784: a start ends any idle-stop timer)', async () => {
+    mockFindUnique.mockResolvedValue(null);
+    mockUpsert.mockResolvedValue(makeRecord({ status: 'running' }));
+
+    const result = await startAutoRun(42);
+
+    expect(mockUpdateMany).toHaveBeenCalledWith({
+      where: { themeId: 42 },
+      data: { idleSince: null, idleStoppedAt: null },
+    });
+    expect(result.idleSince).toBeNull();
+    expect(result.idleStoppedAt).toBeNull();
+  });
 });
 
 describe('pauseAutoRun', () => {
   beforeEach(resetMocks);
 
-  it('sets status to paused', async () => {
-    mockUpsert.mockResolvedValue(makeRecord({ status: 'paused' }));
+  it('sets status to paused_user so auto-resume never overrides an explicit pause (task 883)', async () => {
+    mockUpsert.mockResolvedValue(makeRecord({ status: 'paused_user' }));
     const result = await pauseAutoRun(42);
     expect(mockUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        update: expect.objectContaining({ status: 'paused' }),
+        create: expect.objectContaining({ status: 'paused_user' }),
+        update: expect.objectContaining({ status: 'paused_user' }),
       }),
     );
-    expect(result.status).toBe('paused');
+    expect(result.status).toBe('paused_user');
+  });
+});
+
+describe('onAwaitingPlanApproval', () => {
+  beforeEach(resetMocks);
+
+  it('sets status to paused_approval on the running→paused transition (task 883)', async () => {
+    mockUpdateMany.mockResolvedValue({ count: 1 });
+    await onAwaitingPlanApproval(42);
+    expect(mockUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { themeId: 42, status: 'running' },
+        data: expect.objectContaining({ status: 'paused_approval' }),
+      }),
+    );
   });
 });
 
@@ -162,8 +217,8 @@ describe('stopAutoRun', () => {
 describe('resumeAutoRun', () => {
   beforeEach(resetMocks);
 
-  it('transitions paused → running', async () => {
-    mockFindUnique.mockResolvedValue(makeRecord({ status: 'paused' }));
+  it('transitions paused_approval → running', async () => {
+    mockFindUnique.mockResolvedValue(makeRecord({ status: 'paused_approval' }));
     mockUpdate.mockResolvedValue(makeRecord({ status: 'running' }));
 
     const result = await resumeAutoRun(42);
@@ -178,6 +233,22 @@ describe('resumeAutoRun', () => {
 
     const result = await resumeAutoRun(42);
     expect(result?.status).toBe('running');
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it('no-ops when paused for a user-initiated pause (paused_user, task 883)', async () => {
+    mockFindUnique.mockResolvedValue(makeRecord({ status: 'paused_user' }));
+
+    const result = await resumeAutoRun(42);
+    expect(result?.status).toBe('paused_user');
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it('no-ops for a reason-unknown legacy pause (bare "paused", task 883)', async () => {
+    mockFindUnique.mockResolvedValue(makeRecord({ status: 'paused' }));
+
+    const result = await resumeAutoRun(42);
+    expect(result?.status).toBe('paused');
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
@@ -197,6 +268,15 @@ describe('finalizeStop', () => {
     expect(mockUpdateMany).toHaveBeenCalledWith({
       where: { themeId: 42 },
       data: { status: 'idle', enabled: false, currentTaskId: null },
+    });
+  });
+
+  it('also clears idleSince/idleStoppedAt (task 784: a USER stop is never auto re-armed)', async () => {
+    mockUpdateMany.mockResolvedValue({ count: 1 });
+    await finalizeStop(42);
+    expect(mockUpdateMany).toHaveBeenCalledWith({
+      where: { themeId: 42 },
+      data: { idleSince: null, idleStoppedAt: null },
     });
   });
 });

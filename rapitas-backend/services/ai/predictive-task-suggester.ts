@@ -5,9 +5,7 @@
  * and suggests tasks to work on now, ranked by relevance.
  */
 import { prisma } from '../../config/database';
-import { createLogger } from '../../config/logger';
-
-const _log = createLogger('predictive-suggester');
+// NOTE: Removed unused logger — nothing in this module logs (noUnusedLocals).
 
 interface TaskSuggestion {
   taskId: number;
@@ -31,8 +29,16 @@ interface ProductivityPattern {
 
 /**
  * Suggest optimal tasks for the current time slot/day as a ranked list.
+ *
+ * @param limit - Max number of suggestions to return / 返却する最大件数
+ * @param scope - `"today"` additionally excludes tasks with a non-null
+ *   `completedAt` (belt-and-braces alongside the status filter below);
+ *   `"all"`/未指定 keeps the existing behaviour unchanged. / スコープ指定
  */
-export async function getSuggestedTasks(limit: number = 5): Promise<{
+export async function getSuggestedTasks(
+  limit: number = 5,
+  scope?: 'today' | 'all',
+): Promise<{
   suggestions: TaskSuggestion[];
   currentPattern: ProductivityPattern;
   focusLevel: 'high' | 'medium' | 'low';
@@ -46,7 +52,7 @@ export async function getSuggestedTasks(limit: number = 5): Promise<{
   const pattern = await analyzeCurrentPattern(hourOfDay, dayOfWeek);
 
   // 2. Get open tasks
-  const openTasks = await prisma.task.findMany({
+  const allOpenTasks = await prisma.task.findMany({
     where: {
       status: { in: ['todo', 'in-progress'] },
       parentId: null,
@@ -62,6 +68,9 @@ export async function getSuggestedTasks(limit: number = 5): Promise<{
     orderBy: { updatedAt: 'desc' },
     take: 100,
   });
+
+  const openTasks =
+    scope === 'today' ? allOpenTasks.filter((t) => t.completedAt === null) : allOpenTasks;
 
   if (openTasks.length === 0) {
     return {
@@ -91,8 +100,9 @@ export async function getSuggestedTasks(limit: number = 5): Promise<{
     });
   }
 
-  // 4. Sort by score and return top results
-  scored.sort((a, b) => b.score - a.score);
+  // 4. Sort by score and return top results. Tie-break on taskId so equal
+  // scores can't reorder across the slice boundary between identical runs.
+  scored.sort((a, b) => b.score - a.score || a.taskId - b.taskId);
   const suggestions = scored.slice(0, limit);
 
   const focusLevel: 'high' | 'medium' | 'low' =
@@ -162,7 +172,8 @@ export async function getProductivityHeatmap(days: number = 90): Promise<{
 
   // Peak hours and low hours
   const sortedHours = Object.entries(hourTotals)
-    .sort((a, b) => b[1] - a[1])
+    // Tie-break on hour so equal-total hours have a stable order across runs.
+    .sort((a, b) => b[1] - a[1] || Number(a[0]) - Number(b[0]))
     .map(([h]) => parseInt(h));
 
   const peakHours = sortedHours.slice(0, 3);
@@ -271,10 +282,18 @@ async function analyzeCurrentPattern(
         if (t.themeId) themeCount[t.themeId] = (themeCount[t.themeId] || 0) + 1;
       }
 
-      preferredPriority = Object.entries(priorityCount).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+      // Tie-break on the key so equal counts resolve to a stable winner.
+      preferredPriority =
+        Object.entries(priorityCount).sort(
+          (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+        )[0]?.[0] ?? null;
       preferredThemeId =
         Object.entries(themeCount).length > 0
-          ? parseInt(Object.entries(themeCount).sort((a, b) => b[1] - a[1])[0][0])
+          ? parseInt(
+              Object.entries(themeCount).sort(
+                (a, b) => b[1] - a[1] || Number(a[0]) - Number(b[0]),
+              )[0][0],
+            )
           : null;
     }
   }

@@ -1,6 +1,7 @@
 'use client';
 // useCopilotChat — hook for the AI copilot chat panel.
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 
 export interface CopilotMessage {
@@ -24,6 +25,7 @@ export interface CopilotMessage {
 }
 
 export function useCopilotChat(taskId?: number) {
+  const t = useTranslations('copilot.useCopilotChat');
   const [messages, setMessages] = useState<CopilotMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,12 +119,12 @@ export function useCopilotChat(taskId?: number) {
         };
         setMessages((prev) => [...prev, assistantMsg]);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'エラーが発生しました');
+        setError(err instanceof Error ? err.message : t('sendMessageError'));
       } finally {
         setIsLoading(false);
       }
     },
-    [messages, isLoading, taskId],
+    [messages, isLoading, taskId, t],
   );
 
   /** Execute a copilot action (analyze, execute, create_subtasks, update_status). */
@@ -135,18 +137,18 @@ export function useCopilotChat(taskId?: number) {
 
       // Add a system message showing the action in progress
       const actionLabels: Record<string, string> = {
-        analyze: 'タスクを分析中...',
-        execute: 'エージェント実行を開始中...',
-        create_subtasks: 'サブタスクを作成中...',
-        update_status: 'ステータスを更新中...',
-        update_estimate: '見積もりを反映中...',
-        get_execution_status: '実行状態を確認中...',
+        analyze: t('actionAnalyzing'),
+        execute: t('actionExecuting'),
+        create_subtasks: t('actionCreatingSubtasks'),
+        update_status: t('actionUpdatingStatus'),
+        update_estimate: t('actionApplyingEstimate'),
+        get_execution_status: t('actionCheckingExecutionStatus'),
       };
 
       const pendingMsg: CopilotMessage = {
         id: `action-${Date.now()}`,
         role: 'system',
-        content: actionLabels[action] ?? `${action}を実行中...`,
+        content: actionLabels[action] ?? t('actionRunningGeneric', { action }),
         createdAt: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, pendingMsg]);
@@ -188,7 +190,7 @@ export function useCopilotChat(taskId?: number) {
             resultMsg.actions = [
               {
                 type: 'create_subtasks',
-                label: `サブタスクを作成 (${analysisData.suggestedSubtasks.length}件)`,
+                label: t('createSubtasksLabel', { count: analysisData.suggestedSubtasks.length }),
                 params: {
                   subtasks: analysisData.suggestedSubtasks.map((s) => ({
                     title: s.title,
@@ -202,14 +204,14 @@ export function useCopilotChat(taskId?: number) {
 
         setMessages((prev) => prev.map((m) => (m.id === pendingMsg.id ? resultMsg : m)));
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'アクション実行に失敗しました');
+        setError(err instanceof Error ? err.message : t('actionError'));
         // Remove the pending message on error
         setMessages((prev) => prev.filter((m) => m.id !== pendingMsg.id));
       } finally {
         setIsLoading(false);
       }
     },
-    [taskId, isLoading],
+    [taskId, isLoading, t],
   );
 
   /**
@@ -229,7 +231,7 @@ export function useCopilotChat(taskId?: number) {
     const pendingMsg: CopilotMessage = {
       id: `retro-${Date.now()}`,
       role: 'system',
-      content: '成果物を分析して振り返りを生成中...',
+      content: t('retrospectiveGenerating'),
       createdAt: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, pendingMsg]);
@@ -262,7 +264,7 @@ export function useCopilotChat(taskId?: number) {
     } catch (err) {
       // Cancellation is not an error — just drop the pending message.
       if (!(err instanceof Error && err.name === 'AbortError')) {
-        setError(err instanceof Error ? err.message : '振り返りの生成に失敗しました');
+        setError(err instanceof Error ? err.message : t('retrospectiveError'));
       }
       setMessages((prev) => prev.filter((m) => m.id !== pendingMsg.id));
     } finally {
@@ -270,7 +272,7 @@ export function useCopilotChat(taskId?: number) {
       setIsRetrospecting(false);
       retroAbortRef.current = null;
     }
-  }, [taskId, isLoading]);
+  }, [taskId, isLoading, t]);
 
   /** Aborts an in-flight retrospective generation. */
   const cancelRetrospective = useCallback(() => {

@@ -12,8 +12,10 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Star, Crown, Award, Sparkles, X, CheckCircle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { AchievementNotification } from '../../types/achievement';
 import { getRarityColor } from '../../data/achievements';
+import { formatTime } from '@/utils/date';
 
 interface AchievementToastProps {
   notifications: AchievementNotification[];
@@ -43,6 +45,7 @@ const SingleToast: React.FC<SingleToastProps> = ({
   autoHideDuration,
   index,
 }) => {
+  const t = useTranslations('achievements');
   const [isVisible, setIsVisible] = useState(true);
   const [progress, setProgress] = useState(100);
 
@@ -93,21 +96,6 @@ const SingleToast: React.FC<SingleToastProps> = ({
       CheckCircle,
     }[notification.icon] || Trophy;
 
-  const getRarityEmoji = (rarity: string) => {
-    switch (rarity) {
-      case 'legendary':
-        return '🏆';
-      case 'epic':
-        return '💜';
-      case 'rare':
-        return '💙';
-      case 'common':
-        return '💚';
-      default:
-        return '🏅';
-    }
-  };
-
   return (
     <AnimatePresence>
       {isVisible && (
@@ -150,13 +138,14 @@ const SingleToast: React.FC<SingleToastProps> = ({
             {/* Header */}
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center space-x-2">
-                <span className="text-lg">{getRarityEmoji(notification.rarity)}</span>
+                <Trophy className="w-4 h-4" style={{ color: rarityColor }} />
                 <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  実績解除！
+                  {t('toast.unlockedLabel')}
                 </span>
               </div>
               <button
                 onClick={handleDismiss}
+                aria-label={t('toast.dismissLabel')}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -208,14 +197,13 @@ const SingleToast: React.FC<SingleToastProps> = ({
               <div className="flex items-center space-x-1 text-yellow-500">
                 <Star className="w-4 h-4 fill-current" />
                 <span className="font-semibold">+{notification.pointsReward}</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">ポイント</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {t('toast.pointsLabel')}
+                </span>
               </div>
 
               <div className="text-xs text-gray-400 dark:text-gray-500">
-                {new Date(notification.timestamp).toLocaleTimeString('ja-JP', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                {formatTime(notification.timestamp)}
               </div>
             </motion.div>
           </div>
@@ -268,6 +256,7 @@ export const AchievementToast: React.FC<AchievementToastProps> = ({
   autoHideDuration = 5000,
   position = 'top-right',
 }) => {
+  const t = useTranslations('achievements');
   // Only show unshown notifications, limited by maxVisible
   const visibleNotifications = notifications
     .filter((n) => !n.isShown)
@@ -314,8 +303,10 @@ export const AchievementToast: React.FC<AchievementToastProps> = ({
           className="text-center"
         >
           <div className="inline-flex items-center px-3 py-2 bg-gray-800 dark:bg-gray-700 text-white text-sm rounded-lg shadow-lg">
-            <Sparkles className="w-4 h-4 mr-2" />+
-            {notifications.filter((n) => !n.isShown).length - maxVisible} 個の実績
+            <Sparkles className="w-4 h-4 mr-2" />
+            {t('toast.moreCount', {
+              count: notifications.filter((n) => !n.isShown).length - maxVisible,
+            })}
           </div>
         </motion.div>
       )}

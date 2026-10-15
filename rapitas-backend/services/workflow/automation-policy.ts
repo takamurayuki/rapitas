@@ -11,10 +11,18 @@
  * 自動化判断は `routes/workflow/workflow-auto-commit.ts` がここを呼ぶことで一元化される。
  */
 
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('workflow:automation-policy');
+
+/**
+ * Last-logged policy signature per task. `resolveAutomationPolicy` is called on a
+ * hot path (the 60s auto-merge poll iterates every open PR), so logging on every
+ * call floods the log with identical lines. We log only when a task's resolved
+ * policy first appears or actually changes. / 解決ポリシーが変化した時だけログする。
+ */
+const lastLoggedPolicy = new Map<number, string>();
 
 /**
  * The single "landing strategy" a task uses to reach completion, derived from
@@ -27,7 +35,9 @@ const log = createLogger('workflow:automation-policy');
  * Direct-to-default `commit` and PR-based `pr`/`merge` are mutually exclusive
  * landing strategies; a higher mode supersedes the lower ones.
  */
-export type LandingMode = 'merge' | 'pr' | 'commit' | 'none';
+// @gen-guard-fallback: none
+export const LANDING_MODES = ['merge', 'pr', 'commit', 'none'] as const;
+export type LandingMode = (typeof LANDING_MODES)[number];
 
 /**
  * Collapse a resolved policy into its single landing mode.
@@ -45,6 +55,19 @@ export function resolveLandingMode(policy: {
   if (policy.autoCreatePR) return 'pr';
   if (policy.autoCommit) return 'commit';
   return 'none';
+}
+
+/**
+ * Whether `pr`-mode tasks defer completion until the PR's CI goes green,
+ * instead of completing at PR creation. Defaults to enabled — only an
+ * explicit `'false'`/`'0'` opts back into the legacy immediate-completion
+ * behaviour (task 873/948: PR未マージのまま completed 扱いになる不具合の根本対処).
+ *
+ * @returns True unless `RAPITAS_STAGED_COMPLETION` is explicitly `'false'`/`'0'`. / 明示無効化時のみ false
+ */
+export function isStagedCompletionEnabled(): boolean {
+  const v = process.env.RAPITAS_STAGED_COMPLETION;
+  return v !== 'false' && v !== '0';
 }
 
 /**
@@ -101,7 +124,9 @@ export async function resolveAutomationPolicy(
 
   // Global defaults set on the "タスク設定" page (UserSettings). These sit between
   // a per-task override and the env/hardcoded fallback.
-  const userSettings = (await prisma.userSettings.findFirst().catch(() => null)) as {
+  // A failed read is not an absent setting: falling back could silently disable
+  // a required merge. Let publication/completion callers withhold and retry.
+  const userSettings = (await prisma.userSettings.findFirst()) as {
     autoCommitDefault?: boolean | null;
     autoCreatePRDefault?: boolean | null;
     autoMergePRDefault?: boolean | null;
@@ -128,16 +153,22 @@ export async function resolveAutomationPolicy(
   const acpr = resolveOne('autoCreatePR', userSettings?.autoCreatePRDefault, envAutoCreatePR, true);
   const ampr = resolveOne('autoMergePR', userSettings?.autoMergePRDefault, envAutoMergePR, false);
 
-  log.debug(
-    {
-      taskId,
-      autoCommit: ac.value,
-      autoCreatePR: acpr.value,
-      autoMergePR: ampr.value,
-      sources: { autoCommit: ac.source, autoCreatePR: acpr.source, autoMergePR: ampr.source },
-    },
-    '[automation-policy] resolved policy',
-  );
+  // Only log when this task's resolved policy is new or changed — avoids flooding
+  // the log with one identical line per open PR on every 60s auto-merge poll.
+  const signature = `${ac.value}:${acpr.value}:${ampr.value}:${ac.source}:${acpr.source}:${ampr.source}`;
+  if (lastLoggedPolicy.get(taskId) !== signature) {
+    lastLoggedPolicy.set(taskId, signature);
+    log.debug(
+      {
+        taskId,
+        autoCommit: ac.value,
+        autoCreatePR: acpr.value,
+        autoMergePR: ampr.value,
+        sources: { autoCommit: ac.source, autoCreatePR: acpr.source, autoMergePR: ampr.source },
+      },
+      '[automation-policy] resolved policy',
+    );
+  }
 
   return {
     autoCommit: ac.value,

@@ -104,7 +104,8 @@ export function ThemeForm({
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder={t('themeNamePlaceholder')}
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all"
+            aria-label={t('themeName')}
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 transition-all"
             autoFocus
           />
         </div>
@@ -119,7 +120,8 @@ export function ThemeForm({
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             placeholder={t('descriptionPlaceholder')}
             rows={1}
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all resize-none"
+            aria-label={tc('descriptionOptional')}
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 transition-all resize-none"
           />
         </div>
 
@@ -134,13 +136,15 @@ export function ThemeForm({
                 type="color"
                 value={formData.color}
                 onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                aria-label={tc('color')}
                 className="h-9 w-12 rounded-lg border border-zinc-300 dark:border-zinc-700 cursor-pointer"
               />
               <input
                 type="text"
                 value={formData.color}
                 onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all font-mono"
+                aria-label={tc('color')}
+                className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 transition-all font-mono"
               />
             </div>
           </div>
@@ -174,7 +178,8 @@ export function ThemeForm({
               value={iconSearchQuery}
               onChange={(e) => setIconSearchQuery(e.target.value)}
               placeholder={t('searchIconPlaceholder')}
-              className="w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:border-blue-400 transition-all"
+              aria-label={t('searchIconPlaceholder')}
+              className="w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:border-indigo-400 transition-all"
             />
           </div>
 
@@ -190,7 +195,7 @@ export function ThemeForm({
                 selectedIcon={formData.icon}
                 onIconSelect={(iconName) => setFormData({ ...formData, icon: iconName })}
                 renderIcon={renderIcon}
-                accentClass="bg-purple-500"
+                accentClass="bg-indigo-500"
               />
             </div>
           </div>
@@ -232,7 +237,8 @@ export function ThemeForm({
                   categoryId: e.target.value ? Number(e.target.value) : null,
                 })
               }
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all"
+              aria-label={t('belongsToCategory')}
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 transition-all"
             >
               <option value="" disabled>
                 {t('selectCategory')}
@@ -280,7 +286,7 @@ export function ThemeForm({
         </button>
         <button
           onClick={() => onSave(isEdit ? itemId : undefined)}
-          className="flex items-center gap-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 px-3 py-2 text-sm text-white transition-all shadow-lg hover:shadow-xl font-medium"
+          className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-3 py-2 text-sm text-white transition-colors font-medium"
         >
           <Save className="w-3.5 h-3.5" />
           {isEdit ? tc('save') : tc('create')}

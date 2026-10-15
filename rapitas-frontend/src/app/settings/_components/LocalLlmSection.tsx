@@ -109,7 +109,7 @@ export function LocalLlmSection({
               value={ollamaUrlInput}
               onChange={(e) => onOllamaUrlChange(e.target.value)}
               placeholder="http://localhost:11434"
-              className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:border-blue-400"
+              className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:border-indigo-400"
             />
             <button
               onClick={() => onSaveLocalLlmSettings({ ollamaUrl: ollamaUrlInput })}
@@ -144,10 +144,10 @@ export function LocalLlmSection({
           <div className="flex items-center justify-between mb-2">
             <div>
               <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Qwen2.5-0.5B (Q4) — llama-server用
+                {t('localLlmSection.bundledModelTitle')}
               </h4>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                Ollamaがない場合のフォールバックモデル (~400MB)
+                {t('localLlmSection.bundledModelDescription')}
               </p>
             </div>
             <span

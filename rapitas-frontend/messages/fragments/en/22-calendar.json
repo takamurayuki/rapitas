@@ -1,0 +1,126 @@
+{
+  "calendar": {
+    "title": "Calendar",
+    "subtitle": "View schedules, deadlines, and exam dates",
+    "newEvent": "New event",
+    "noEvents": "No events",
+    "eventName": "Event name",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "allDay": "All day",
+    "taskCreated": "Task created",
+    "taskCreateFailed": "Failed to create task",
+    "scheduleAdded": "Schedule added",
+    "scheduleAddFailed": "Failed to add schedule",
+    "paidLeaveCreated": "Paid leave request registered",
+    "paidLeaveCreateFailed": "Failed to register paid leave request",
+    "scheduleDeleted": "Schedule deleted",
+    "scheduleDeleteFailed": "Failed to delete schedule",
+    "reminderMinutesBefore": "{count} min before",
+    "reminderHoursBefore": "{count} hour(s) before",
+    "reminderDaysBefore": "{count} day(s) before",
+    "weekSun": "Sun",
+    "weekMon": "Mon",
+    "weekTue": "Tue",
+    "weekWed": "Wed",
+    "weekThu": "Thu",
+    "weekFri": "Fri",
+    "weekSat": "Sat",
+    "yearMonth": "{month}/{year}",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "paidLeaveBalance": "Paid leave remaining",
+    "paidLeaveDays": "{count} day(s)",
+    "fiscalYear": "FY{year}",
+    "selectDateForPaidLeave": "Please select a date before requesting paid leave",
+    "paidLeaveRequest": "Request paid leave",
+    "legendMultiDay": "Multi-day",
+    "legendSchedule": "Schedule",
+    "legendTask": "Task",
+    "legendExam": "Exam",
+    "legendHolidayIcon": "H",
+    "legendHoliday": "Holiday",
+    "doubleClickToAdd": "Double-click to add event",
+    "selectDate": "Select a date",
+    "addScheduleShort": "Schedule",
+    "addTaskShort": "Task",
+    "paidLeaveShort": "Leave",
+    "paidLeaveLabel": "Paid leave",
+    "noEventsOnDay": "No events on this day",
+    "addSchedule": "Add schedule",
+    "addTask": "Add task",
+    "selectDateFromCalendar": "Select a date from the calendar",
+    "deadline": "Deadline",
+    "taskNamePlaceholder": "Enter task name...",
+    "creating": "Creating...",
+    "errorPage": {
+      "title": "An error occurred in Calendar",
+      "defaultMessage": "An unexpected error occurred.",
+      "retry": "Retry"
+    },
+    "titleInputPlaceholder": "Enter a title",
+    "dayCountSuffix": "({count} days)",
+    "optionsToggle": {
+      "open": "Color, reminder & memo",
+      "close": "Hide options"
+    },
+    "insufficientBalance": "Insufficient balance",
+    "paidLeaveDurationPicker": {
+      "halfDay": "Half day",
+      "halfDayTimeLabel": "Half-day leave time",
+      "morningRange": "Morning (9:00-13:00)",
+      "afternoonRange": "Afternoon (13:00-17:00)"
+    },
+    "paidLeaveHeader": {
+      "requestPrompt": "Request paid leave",
+      "usedLabel": "Used",
+      "afterUsageLabel": "After request"
+    },
+    "paidLeaveOptions": {
+      "reasonPlaceholder": "Enter a reason or note..."
+    },
+    "paidLeaveDialog": {
+      "leaveTypeLabel": "Leave type",
+      "submitting": "Submitting...",
+      "annualLeave": "Annual paid leave",
+      "specialLeave": "Special leave",
+      "sickLeave": "Sick leave",
+      "personalLeave": "Personal leave"
+    },
+    "scheduleEventDialog": {
+      "timedOption": "Set time",
+      "addPrompt": "Add an event",
+      "addButton": "Add"
+    },
+    "scheduleOptionsPanel": {
+      "memoPlaceholder": "Add a memo..."
+    },
+    "scheduleConstants": {
+      "quickTimeMorning": "Morning",
+      "quickTimeNoon": "Noon",
+      "quickTimeAfternoon": "Afternoon",
+      "quickTimeEvening": "Evening"
+    },
+    "holidays": {
+      "newYearsDay": "New Year's Day",
+      "comingOfAgeDay": "Coming of Age Day",
+      "nationalFoundationDay": "National Foundation Day",
+      "emperorsBirthday": "Emperor's Birthday",
+      "vernalEquinoxDay": "Vernal Equinox Day",
+      "showaDay": "Showa Day",
+      "greeneryDay": "Greenery Day",
+      "constitutionDay": "Constitution Day",
+      "childrensDay": "Children's Day",
+      "marineDay": "Marine Day",
+      "mountainDay": "Mountain Day",
+      "respectForTheAgedDay": "Respect for the Aged Day",
+      "autumnalEquinoxDay": "Autumnal Equinox Day",
+      "sportsDay": "Sports Day",
+      "healthAndSportsDay": "Health and Sports Day",
+      "cultureDay": "Culture Day",
+      "laborThanksgivingDay": "Labor Thanksgiving Day",
+      "substituteHoliday": "Substitute Holiday",
+      "citizensHoliday": "Citizens' Holiday"
+    }
+  }
+}

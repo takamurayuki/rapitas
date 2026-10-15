@@ -16,6 +16,7 @@ model Category {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   themes      Theme[]
+  labels      Label[]
 }
 
 model Theme {
@@ -29,6 +30,12 @@ model Theme {
   repositoryUrl    String?
   workingDirectory String?
   defaultBranch    String?        @default("develop")
+  // JSON: rapitas.runtime.json's shape ({start,url,healthPath,readyTimeoutMs,
+  // checkPaths}) — centralizes runtime-verification config in rapitas instead
+  // of a file each project repo must carry separately. See runtime-config.ts's
+  // parseRuntimeConfig/resolveRuntimeConfig. A project without this set (and
+  // without the file) is simply not opted into runtime verification/preview.
+  runtimeConfigJson String?
   sortOrder        Int            @default(0)
   categoryId       Int?
   category         Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -39,6 +46,7 @@ model Theme {
   userBehaviors    UserBehavior[]
   taskPatterns     TaskPattern[]
   behaviorSummaries UserBehaviorSummary[]
+  labels           Label[]
 }
 
 model Project {
@@ -87,8 +95,12 @@ model Task {
   project               Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
   milestoneId           Int?
   milestone             Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  // DEPRECATED: superseded by studyGoalId (unified StudyGoal). Kept so legacy
+  // imports/exports keep working; startup migration copies values over.
   examGoalId            Int?
   examGoal              ExamGoal?     @relation(fields: [examGoalId], references: [id], onDelete: SetNull)
+  studyGoalId           Int?
+  studyGoal             StudyGoal?    @relation(fields: [studyGoalId], references: [id], onDelete: SetNull)
   timeEntries           TimeEntry[]
   pomodoroSessions      PomodoroSession[]
   comments              Comment[]
@@ -109,6 +121,14 @@ model Task {
   prompts               TaskPrompt[]
   githubIssueId         Int?
   githubPrId            Int?
+  // Short-lived compare-and-swap claim guarding the "does this task already
+  // have an open PR" check + `gh pr create` call as one atomic section, so two
+  // concurrent auto-PR attempts for the same task (e.g. a duplicate/retried
+  // verify.md save) can't both pass the check and each create a PR. Cleared
+  // right after the section finishes (success or failure); a stale value
+  // (crash mid-section) self-expires after PR_CREATION_LOCK_STALE_MS — see
+  // services/github/pr-duplicate-guard.ts.
+  prCreationLockedAt    DateTime?
   autoExecutable        Boolean       @default(false)
   requireApproval       String        @default("always")
   createdAt             DateTime      @default(now())
@@ -121,7 +141,26 @@ model Task {
   complexityScore       Float?    // Auto-determined complexity score (0-100)
   workflowModeOverride  Boolean   @default(false) // Whether mode was manually changed
   autoApprovePlan       Boolean   @default(false) // Whether to auto-approve plan.md at task level
+  // Explicit human override for a plan.md that declares a forbidden change (e.g. an
+  // unauthorized Prisma schema edit — see schema-change-gate.ts). Defaults to false so
+  // auto-approval and unattended manual approval remain blocked by default (task 896);
+  // only a manual approve-plan call that sends overrideForbiddenChange+overrideReason
+  // sets this to true — the AI's own auto-approval/plan-save code never writes it.
+  forbiddenChangeOverride       Boolean   @default(false)
+  forbiddenChangeOverrideReason String?
+  // Per-task off-switch for the multi-phase workflow (see UserSettings.workflowDisabledGlobally
+  // for the global equivalent — effective state is the OR of both). Locked
+  // (server-enforced) once status leaves 'todo'; a reset back to 'todo'
+  // re-unlocks it.
+  workflowDisabled      Boolean   @default(false)
+  // User-set exclusion from auto-run task selection (unrelated to
+  // workflowDisabled — the workflow phases still run normally, this task is
+  // just never auto-picked). Freely toggleable at any status, unlike
+  // workflowDisabled's todo-only lock: excluding a task mid-run just stops it
+  // being re-selected once its current run ends.
+  autoRunExcluded       Boolean   @default(false)
   workflowLearningRecords WorkflowLearningRecord[]
+  durationPrediction    TaskDurationPrediction?
 
   // Recurring task fields
   isRecurring           Boolean   @default(false) // Whether this is a recurring master task
@@ -139,6 +178,25 @@ model Task {
   // theme ran out of work. Counted (todo/in-progress) against the per-theme
   // UserSettings.autoCreateFromBacklogLimit so promotion never overfills a theme.
   autoCreatedFromBacklog Boolean  @default(false)
+  // When true, the task is protected from deletion (manual, bulk, or cleanup
+  // prune) to guard against accidental loss. Enforced at the DELETE endpoint.
+  isProtected           Boolean   @default(false)
+
+  // Execution generation counter (task 881). Incremented atomically on every
+  // user stop-execution call; the DB row is the durable source of truth used
+  // by stale-recovery guards to tell "this session belongs to a generation the
+  // user already stopped" apart from a live one — the prior mechanism
+  // (task-execution-lock.ts cancellationVersions) lives only in process
+  // memory and is lost on restart / not shared across workers.
+  executionGenerationId Int       @default(0)
+  // Iteration-budget halt bookkeeping (task 881, task-iteration-budget.ts).
+  // Populated ONLY when the automatic iteration budget halts a task (time /
+  // cost / attempts / same-cause repeat / no-progress) — a user-initiated
+  // stop-execution does not write these fields, see stop-route.ts.
+  haltReason            String?
+  haltedAt              DateTime?
+  // JSON: { requiresNewHypothesis: boolean, note: string }
+  resumeCondition       String?
 
   @@index([status])
   @@index([themeId])
@@ -147,10 +205,14 @@ model Task {
   @@index([dueDate])
   @@index([isRecurring, nextOccurrence])
 
-  // Workflow markdown file index (research/plan/question/verify metadata).
+  // Workflow markdown artifacts (research/plan/question/verify), DB-backed.
   workflowFiles        WorkflowFile[]
+  // Superseded WorkflowFile versions (overwrite/archive history).
+  workflowFileVersions WorkflowFileVersion[]
   // Append-only audit trail of workflow status transitions.
   workflowTransitions  WorkflowTransition[]
+  requirementReviewClaims RequirementReviewClaim[]
+  requirementReviewRetryRequests RequirementReviewRetryRequest[]
 }
 
 model Comment {
@@ -190,6 +252,14 @@ model Label {
   color       String      @default("#6366F1")
   icon        String?
   sortOrder   Int         @default(0)
+  // NOTE: Labels are scoped per CATEGORY (2026-07 migration) — a per-theme
+  // scope forced re-creating the same vocabulary for every theme.
+  categoryId  Int?
+  category    Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  // NOTE: Deprecated — superseded by categoryId. Kept so the startup backfill
+  // (routes/organization/labels.ts) can migrate old rows; remove afterwards.
+  themeId     Int?
+  theme       Theme?      @relation(fields: [themeId], references: [id], onDelete: SetNull)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   tasks       TaskLabel[]

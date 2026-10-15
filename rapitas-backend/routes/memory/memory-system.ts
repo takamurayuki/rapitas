@@ -13,6 +13,15 @@ import { memoryTaskQueue } from '../../services/memory';
 import { runForgettingSweep } from '../../services/memory/forgetting';
 import { buildRAGContext } from '../../services/memory/rag/context-builder';
 import { getEmbeddingCount } from '../../services/memory/rag/vector-index';
+import { ensureEmbeddingReady } from '../../services/memory/rag/embedding';
+import {
+  countReindexPending,
+  enqueueReindex,
+  getEmbeddingIndexStatus,
+  getReindexJob,
+} from '../../services/memory/rag/reindex';
+import { getRecallMetrics } from '../../services/memory/recall/recall-metrics';
+import { getDecisionCalibrationStats } from '../../services/memory/decision-journal';
 import type {
   ContradictionResolution,
   TimelineEventType,
@@ -22,6 +31,11 @@ import type {
 // Type definitions for request bodies
 interface ResolveContradictionBody {
   resolution: ContradictionResolution;
+}
+
+interface ReindexBody {
+  dryRun?: boolean;
+  maxEntries?: number;
 }
 
 export const memorySystemRoutes = new Elysia({ prefix: '/memory' })
@@ -103,6 +117,12 @@ export const memorySystemRoutes = new Elysia({ prefix: '/memory' })
     },
   )
 
+  // GET /memory/decisions/stats - Plan-gate decision calibration
+  // (human approvals vs auto-approvals: whose judgment is more accurate)
+  .get('/decisions/stats', async () => {
+    return getDecisionCalibrationStats();
+  })
+
   // GET /memory/queue/status - Queue status
   .get('/queue/status', async () => {
     const status = await memoryTaskQueue.getStatus();
@@ -110,10 +130,53 @@ export const memorySystemRoutes = new Elysia({ prefix: '/memory' })
     return { ...status, embeddingCount };
   })
 
+  // GET /memory/queue/dead-letter - Diagnose dead_letter rows (taskType/payload/errorMessage)
+  .get(
+    '/queue/dead-letter',
+    async ({ query }) => {
+      const limit = query.limit ? parseInt(query.limit) : 50;
+      return memoryTaskQueue.getDeadLetterTasks(Number.isFinite(limit) && limit > 0 ? limit : 50);
+    },
+    { query: t.Object({ limit: t.Optional(t.String()) }) },
+  )
+
   // POST /memory/forgetting/sweep - Manual forgetting sweep
   .post('/forgetting/sweep', async () => {
     const result = await runForgettingSweep();
     return result;
+  })
+
+  // GET /memory/recall/metrics - Recall attempt metrics (non-empty rate,
+  // attempts per agent execution) over the last N days
+  .get(
+    '/recall/metrics',
+    async ({ query }) => {
+      const days = query.days ? parseInt(query.days) : 7;
+      return getRecallMetrics(Number.isFinite(days) && days > 0 ? days : 7);
+    },
+    { query: t.Object({ days: t.Optional(t.String()) }) },
+  )
+
+  // GET /memory/embeddings/status - Embedding model / index migration status
+  .get('/embeddings/status', async () => {
+    const [status, reindexJob] = await Promise.all([getEmbeddingIndexStatus(), getReindexJob()]);
+    return { ...status, reindexJob };
+  })
+
+  // POST /memory/embeddings/reindex - Re-embed with the active model
+  // (dryRun → counts only; otherwise enqueues a `reembed` job, reusing a pending one)
+  .post('/embeddings/reindex', async ({ body }) => {
+    const typedBody = (body ?? {}) as ReindexBody;
+    if (typedBody.dryRun) {
+      const targetModel = await ensureEmbeddingReady();
+      return { targetModel, pending: await countReindexPending(targetModel) };
+    }
+    const maxEntries =
+      typeof typedBody.maxEntries === 'number' && typedBody.maxEntries > 0
+        ? Math.floor(typedBody.maxEntries)
+        : undefined;
+    const jobId = await enqueueReindex(memoryTaskQueue, maxEntries);
+    return { jobId };
   })
 
   // GET /memory/rag/test - RAG test

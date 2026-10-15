@@ -1,0 +1,241 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "mermaidRenderError": "Diagram rendering failed — showing the source instead",
+    "mermaidRendering": "Rendering diagram...",
+    "saving": "Saving...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "update": "Update",
+    "add": "Add",
+    "close": "Close",
+    "back": "Back",
+    "confirm": "Confirm",
+    "search": "Search",
+    "error": "Error",
+    "success": "Success",
+    "warning": "Warning",
+    "info": "Info",
+    "yes": "Yes",
+    "no": "No",
+    "or": "Or",
+    "other": "Other",
+    "none": "None",
+    "all": "All",
+    "hours": "hours",
+    "hoursPerDay": "hours/day",
+    "items": "items",
+    "times": "times",
+    "color": "Color",
+    "icon": "Icon",
+    "selectIcon": "Select icon",
+    "searchIcon": "Search icons... (e.g. book, work, star)",
+    "descriptionOptional": "Description (optional)",
+    "shortDescription": "Short description",
+    "unexpectedError": "An unexpected error occurred",
+    "errorOccurred": "An error occurred",
+    "fetchFailed": "Failed to fetch",
+    "createFailed": "Failed to create",
+    "updateFailed": "Failed to update",
+    "deleteFailed": "Failed to delete",
+    "saveFailed": "Failed to save",
+    "createNew": "Create new",
+    "beginner": "Beginner",
+    "intermediate": "Intermediate",
+    "advanced": "Advanced",
+    "language": "Language",
+    "japanese": "Japanese",
+    "english": "English",
+    "total": "Total:",
+    "average": "Average:",
+    "select": "Select",
+    "configured": "Configured",
+    "notConfigured": "Not configured",
+    "change": "Change",
+    "noData": "No data",
+    "detail": "Details",
+    "resume": "Resume",
+    "copy": "Copy",
+    "copySuffix": "(Copy)",
+    "running": "Running",
+    "completed": "Completed",
+    "pending": "Pending",
+    "today": "Today",
+    "weekly": "Weekly",
+    "monthly": "Monthly",
+    "export": "Export",
+    "adding": "Adding...",
+    "resetToDefault": "Reset to default",
+    "retry": "Retry",
+    "showApiKey": "Show API key",
+    "hideApiKey": "Hide API key",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "sendMessage": "Send message",
+    "backendConnectionError": {
+      "title": "Cannot connect to the backend server",
+      "description": "Make sure the backend server (port 3001) is running. Restart the dev server, or run <code>bun run dev</code> in a terminal.",
+      "errorDetails": "Error details"
+    },
+    "errorBoundary": {
+      "genericError": "An error occurred in this section",
+      "sectionError": "An error occurred in {section}",
+      "unexpectedError": "Unexpected error"
+    },
+    "keyboardShortcuts": {
+      "macHelp": "⌘ is the Command key, ⇧ is the Shift key",
+      "ctrlHelp": "Ctrl is the Control key"
+    },
+    "offlineIndicator": {
+      "offlineTitle": "You're offline. Changes are saved locally.",
+      "offlineLabel": "Offline",
+      "syncing": "Syncing...",
+      "pendingTitle": "{count} change(s) pending sync. Tap to sync.",
+      "pendingLabel": "{count} pending"
+    },
+    "agentSwitcher": {
+      "custom": "Custom",
+      "loading": "Loading...",
+      "builtIn": "Claude Code (built-in)",
+      "label": "Execution agent",
+      "selectPlaceholder": "Select an agent",
+      "default": "Default"
+    },
+    "pagination": {
+      "firstPage": "First page",
+      "prevPage": "Previous page",
+      "nextPage": "Next page",
+      "lastPage": "Last page"
+    },
+    "statusCard": {
+      "processing": "Running",
+      "waitingForInput": "Waiting for input",
+      "ariaLabel": "Status: {label}"
+    },
+    "directoryPicker": {
+      "placeholder": "Enter or select a directory path",
+      "pathInputPlaceholder": "Enter a path...",
+      "confirm": "Confirm",
+      "manualEntryTitle": "Enter path manually",
+      "browse": "Browse",
+      "browseTitle": "Browse for a folder",
+      "selectDirectory": "Select a directory",
+      "manualPathPlaceholder": "Enter a path directly (e.g. C:\\Projects, D:\\)",
+      "move": "Go",
+      "chooseFromFavoritesHint": "Choose a folder from your favorites",
+      "currentlySelected": "Selected:",
+      "select": "Select",
+      "goUp": "Go to parent folder",
+      "driveList": "Drives",
+      "createFolderTitle": "Create new folder",
+      "newShort": "New",
+      "hideFavorites": "Hide favorites",
+      "showFavorites": "Show favorites",
+      "removeFavorite": "Remove from favorites",
+      "addFavoriteTitle": "Add to favorites",
+      "favorited": "Favorited",
+      "folderNamePlaceholder": "Enter a folder name...",
+      "backToDrives": "Back to drives",
+      "noSubfolders": "No subfolders",
+      "selectFromFavorites": "Choose from favorites",
+      "favoritesCount": "({count})",
+      "selectAnotherFolder": "Choose another folder",
+      "currentlySelectedInline": "(currently selected)",
+      "favoritesHeader": "Favorites ({count})",
+      "hide": "Hide",
+      "fetchError": "Failed to load directory",
+      "nameRequired": "Please enter a folder name",
+      "invalidChars": "Folder name contains invalid characters",
+      "createError": "Failed to create folder",
+      "filterPlaceholder": "Filter folders...",
+      "clearFilter": "Clear filter",
+      "noFilterMatch": "No folders match \"{filter}\"",
+      "openFolder": "Open folder",
+      "folderList": "Folders"
+    },
+    "authContext": {
+      "networkError": "A network error occurred",
+      "googleAuthUrlFailed": "Failed to get the Google authentication URL"
+    },
+    "loginForm": {
+      "usernameRequired": "Please enter your username",
+      "passwordRequired": "Please enter your password",
+      "passwordTooShort": "Password must be at least 6 characters",
+      "loginError": "An error occurred while logging in"
+    },
+    "useSse": {
+      "connectionError": "An error occurred with the SSE connection",
+      "connectionErrorDetail": "A connection error occurred. Please check your network connection.",
+      "createFailed": "Failed to create the SSE connection",
+      "createFailedShort": "Failed to create the connection."
+    },
+    "useTauriVoice": {
+      "recognitionFailed": "Could not recognize the speech."
+    },
+    "useDebugLogAnalyzer": {
+      "analysisFailed": "Log analysis failed",
+      "analysisError": "An error occurred during log analysis",
+      "typeDetectionFailed": "Type detection failed",
+      "typeListFetchFailed": "Failed to fetch the list of supported types",
+      "streamAnalysisFailed": "Stream analysis failed",
+      "streamAnalysisError": "An error occurred during stream analysis"
+    },
+    "useIdeaBox": {
+      "fetchFailed": "Failed to fetch ideas",
+      "submitFailed": "Failed to submit idea"
+    },
+    "useReportGenerator": {
+      "generateFailed": "Failed to generate the report ({status})",
+      "generateError": "An error occurred while generating the report"
+    },
+    "useScheduleReminders": {
+      "eventAtTime": "You have an event at {time}"
+    },
+    "useGlobalSearch": {
+      "searchFailed": "Search failed"
+    },
+    "usePomodoroStats": {
+      "fetchFailed": "Failed to fetch Pomodoro stats"
+    },
+    "useStudyProgress": {
+      "fetchFailed": "Failed to fetch progress data"
+    },
+    "useWorkflowApproval": {
+      "approveFailed": "Approval failed"
+    },
+    "useWorkflowFiles": {
+      "fetchFailed": "Failed to fetch workflow files"
+    },
+    "useWorkflowRoles": {
+      "fetchFailed": "Failed to fetch role settings",
+      "updateFailed": "Failed to update role settings"
+    },
+    "kanbanErrorTitle": "An error occurred in Kanban",
+    "knowledgeErrorTitle": "An error occurred in Knowledge Base",
+    "reportsErrorTitle": "An error occurred in Reports",
+    "iconGrid": {
+      "noMatch": "No matching icons"
+    },
+    "validation": {
+      "required": "Please enter {field}",
+      "minLength": "{field} must be at least {min} characters",
+      "maxLength": "{field} must be at most {max} characters",
+      "urlProtocol": "{field} must use HTTP or HTTPS",
+      "urlInvalid": "{field} format is invalid",
+      "apiKeyRequired": "Please enter your API key",
+      "apiKeyTooShort": "API key is too short (10+ characters required)",
+      "apiKeyPrefixAnthropic": "Anthropic API key must start with \"sk-ant-api\"",
+      "apiKeyPrefixOpenai": "OpenAI API key must start with \"sk-\"",
+      "apiKeyPrefixGemini": "Google AI API key must start with \"AIza\"",
+      "apiKeyPrefixClaude": "Claude API key must start with \"sk-ant-api\"",
+      "numberInvalid": "{field} must be a number",
+      "numberMin": "{field} must be at least {min}",
+      "numberMax": "{field} must be at most {max}",
+      "serverCommError": "Failed to communicate with the server",
+      "listSeparator": ", "
+    }
+  }
+}

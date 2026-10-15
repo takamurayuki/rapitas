@@ -8,6 +8,9 @@ import { PageWrap } from './page-wrap';
 import { CheckIcon } from './icons';
 import { CustomOptionInput } from './custom-option-input';
 import { WizardIcon } from './wizard-icons';
+import { ProposedOptions } from './proposed-options';
+import { ConceptChip } from './concept-chip';
+import { PROPOSED_ID_PREFIX } from '../../api/generate-option-candidates/candidates';
 
 interface ElementsPhaseProps {
   topRef: React.RefObject<HTMLDivElement | null>;
@@ -17,6 +20,10 @@ interface ElementsPhaseProps {
   selectedElements: string[];
   /** Element options (static catalog + user-added custom items) / 機能要素の選択肢（静的＋自由入力） */
   dynamicElements: DynamicItem[];
+  proposedLoading?: boolean;
+  proposedReason?: string;
+  concept?: string;
+  onChangeConcept?: (next: string) => void;
   /** Toggles an element selection by id / IDで要素選択を切り替える */
   onToggle: (id: string) => void;
   /** Adds a user-typed custom element / 自由入力の機能要素を追加 */
@@ -39,6 +46,10 @@ export function ElementsPhase({
   t,
   selectedElements,
   dynamicElements,
+  proposedLoading,
+  proposedReason,
+  concept = '',
+  onChangeConcept,
   onToggle,
   onAddCustom,
   onNext,
@@ -53,6 +64,11 @@ export function ElementsPhase({
           label: t(`elem_${e.id}`),
         }));
 
+  // One selection list, two headings: proposals carry the PROPOSED_ID_PREFIX.
+  const proposed = elements.filter((e) => e.id.startsWith(PROPOSED_ID_PREFIX));
+  const standard = elements.filter((e) => !e.id.startsWith(PROPOSED_ID_PREFIX));
+  const hasProposals = proposed.length > 0 || proposedLoading || proposedReason;
+
   const [pulse, setPulse] = useState(false);
   const handleAdd = (label: string) => {
     onAddCustom(label);
@@ -66,13 +82,28 @@ export function ElementsPhase({
       title={t('elementsTitle')}
       sub={t('elementsSub')}
       step={3}
-      total={5}
+      total={6}
       onBack={onBack}
       onNext={onNext}
       nextLabel={t('next')}
       canNext={true}
       backLabel={t('back')}
     >
+      {onChangeConcept && <ConceptChip concept={concept} onChange={onChangeConcept} />}
+
+      <ProposedOptions
+        items={proposed}
+        heading="この題材に効く機能要素"
+        onPick={onToggle}
+        selected={selectedElements}
+        loading={proposedLoading}
+        degradedReason={proposedReason}
+      />
+
+      {hasProposals && (
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>定番の要素</div>
+      )}
+
       <div
         style={{
           display: 'grid',
@@ -81,7 +112,7 @@ export function ElementsPhase({
           marginBottom: 16,
         }}
       >
-        {elements.map((e) => {
+        {standard.map((e) => {
           const isSel = selectedElements.includes(e.id);
           const isCustom = e.id.startsWith('custom_');
           return (

@@ -7,20 +7,19 @@
  * or delegates to SubtaskEditForm when this item is being edited.
  */
 
-import { Pencil, CheckSquare, Square, Bot, Clock } from 'lucide-react';
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
-import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
-import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
+import { useState } from 'react';
+import { Pencil, Bot, Clock, Timer, AlignLeft } from 'lucide-react';
+import TaskDescription from '@/feature/tasks/components/text/TaskDescription';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
+import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
+import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
-import {
-  statusConfig as sharedStatusConfig,
-  renderStatusIcon,
-  isInProgressStatus,
-} from '@/feature/tasks/config/StatusConfig';
+import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { useTranslations } from 'next-intl';
-import { getLabelsArray, hasLabels } from '@/utils/labels';
+import { ModernCheckbox } from '@/components/ui/ModernCheckbox';
 import { SubtaskEditForm } from './SubtaskEditForm';
 import type { Task, Priority } from '@/types';
+import { formatHoursCompact } from '@/utils/duration';
 
 type Subtask = NonNullable<Task['subtasks']>[number];
 
@@ -34,19 +33,23 @@ interface SubtaskItemProps {
   editingSubtaskTitle: string;
   editingSubtaskDescription: string;
   editingSubtaskPriority: Priority;
-  editingSubtaskLabels: string;
   editingSubtaskEstimatedHours: string;
+  editingSubtaskActualHours: string;
   onToggleSelection: () => void;
   onStartEditing: (subtask: Subtask) => void;
   onSetEditingTitle: (v: string) => void;
   onSetEditingDescription: (v: string) => void;
   onSetEditingPriority: (v: Priority) => void;
-  onSetEditingLabels: (v: string) => void;
   onSetEditingEstimatedHours: (v: string) => void;
+  onSetEditingActualHours: (v: string) => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   /** @param id - subtask id / サブタスクID */
   onUpdateStatus: (id: number, status: string) => void;
+  /** Parent task's theme name — used as note-link hierarchy metadata. */
+  themeName?: string;
+  /** Parent task's category name — used as note-link hierarchy metadata. */
+  categoryName?: string;
 }
 
 /**
@@ -64,20 +67,28 @@ export function SubtaskItem({
   editingSubtaskTitle,
   editingSubtaskDescription,
   editingSubtaskPriority,
-  editingSubtaskLabels,
   editingSubtaskEstimatedHours,
+  editingSubtaskActualHours,
   onToggleSelection,
   onStartEditing,
   onSetEditingTitle,
   onSetEditingDescription,
   onSetEditingPriority,
-  onSetEditingLabels,
   onSetEditingEstimatedHours,
+  onSetEditingActualHours,
   onSaveEdit,
   onCancelEdit,
   onUpdateStatus,
+  themeName,
+  categoryName,
 }: SubtaskItemProps) {
   const t = useTranslations('task');
+  const tc = useTranslations('common');
+
+  // The details panel (description + linked notes) stays fully hidden by
+  // default so rows keep their compact height; the AlignLeft toggle expands it.
+  const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
+  const description = subtask.description?.trim();
 
   // Live agent-execution state for THIS subtask (from GET /tasks/executing polling).
   // Sequential subtasks each run their own agent, so the running one shows a spinner.
@@ -94,37 +105,45 @@ export function SubtaskItem({
     <div
       className={`transition-colors ${
         isSelectionMode && isSelected
-          ? 'bg-blue-50 dark:bg-blue-950/20 ring-1 ring-blue-500 dark:ring-blue-400'
+          ? 'bg-indigo-50 dark:bg-indigo-950/20 ring-1 ring-indigo-500 dark:ring-indigo-400'
           : ''
       }`}
     >
       {isEditing ? (
         <SubtaskEditForm
+          subtask={subtask}
+          themeName={themeName}
+          categoryName={categoryName}
           editingSubtaskTitle={editingSubtaskTitle}
           editingSubtaskDescription={editingSubtaskDescription}
           editingSubtaskPriority={editingSubtaskPriority}
-          editingSubtaskLabels={editingSubtaskLabels}
           editingSubtaskEstimatedHours={editingSubtaskEstimatedHours}
+          editingSubtaskActualHours={editingSubtaskActualHours}
           onSetEditingTitle={onSetEditingTitle}
           onSetEditingDescription={onSetEditingDescription}
           onSetEditingPriority={onSetEditingPriority}
-          onSetEditingLabels={onSetEditingLabels}
           onSetEditingEstimatedHours={onSetEditingEstimatedHours}
+          onSetEditingActualHours={onSetEditingActualHours}
           onSaveEdit={onSaveEdit}
           onCancelEdit={onCancelEdit}
         />
       ) : (
         <div className="p-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/30">
-          <div className="flex items-center justify-between gap-3">
+          {/* In selection mode the whole row toggles selection (mirrors the
+              task list's card behaviour) and the action cluster is hidden. */}
+          <div
+            className={`flex items-center justify-between gap-3 ${isSelectionMode ? 'cursor-pointer' : ''}`}
+            onClick={isSelectionMode ? onToggleSelection : undefined}
+          >
             <div className="flex items-center gap-2 flex-1 min-w-0">
               {isSelectionMode && (
-                <button onClick={onToggleSelection} className="shrink-0">
-                  {isSelected ? (
-                    <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                  ) : (
-                    <Square className="w-5 h-5 text-zinc-400" />
-                  )}
-                </button>
+                <ModernCheckbox
+                  checked={isSelected}
+                  onChange={onToggleSelection}
+                  onClick={(e) => e.stopPropagation()}
+                  className="shrink-0"
+                  aria-label={`${t('select')} ${subtask.title}`}
+                />
               )}
               {!isSelectionMode && (
                 <div className="shrink-0">
@@ -133,17 +152,10 @@ export function SubtaskItem({
                     // + renderStatusIcon glyph in a rounded box, and — when the
                     // subtask is in-progress/running — the same outer-border
                     // spinning loader the task list uses (icon-outer-border-spin).
-                    const cfg =
-                      sharedStatusConfig[subtask.status as keyof typeof sharedStatusConfig] ??
-                      sharedStatusConfig.todo;
-                    const inProgress = isInProgressStatus(subtask.status) || showRunning;
+                    const cfg = getStatusDisplay(t, subtask.status);
                     return (
                       <div
-                        className={`relative flex w-6 h-6 items-center justify-center rounded-md ${cfg.color} ${cfg.bgColor} ${
-                          inProgress
-                            ? ''
-                            : `border-2 ${cfg.borderColor.replaceAll('border-l-', 'border-')}`
-                        }`}
+                        className={`relative flex w-6 h-6 items-center justify-center rounded-md ${cfg.color} ${cfg.bgColor} border ${cfg.borderColor.replaceAll('border-l-', 'border-')}`}
                         aria-label={cfg.label}
                       >
                         {/* Spinner only while an agent is actually executing this
@@ -181,7 +193,7 @@ export function SubtaskItem({
                 </div>
               )}
               <span
-                className={`text-sm truncate ${subtask.status === 'done' ? 'text-zinc-400 line-through' : 'text-zinc-900 dark:text-zinc-50'}`}
+                className={`text-sm truncate ${subtask.status === 'done' ? 'text-zinc-500 line-through' : 'text-zinc-900 dark:text-zinc-50'}`}
               >
                 {subtask.title}
               </span>
@@ -192,35 +204,47 @@ export function SubtaskItem({
                   AI
                 </span>
               )}
-              {hasLabels(subtask.labels) && (
-                <div className="hidden sm:flex gap-1 shrink-0">
-                  {getLabelsArray(subtask.labels)
-                    .slice(0, 2)
-                    .map((label, idx) => (
-                      <span
-                        key={idx}
-                        className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300"
-                      >
-                        {label}
-                      </span>
-                    ))}
-                  {getLabelsArray(subtask.labels).length > 2 && (
-                    <span className="text-[10px] px-1 py-0.5 text-zinc-400">
-                      +{getLabelsArray(subtask.labels).length - 2}
-                    </span>
-                  )}
-                </div>
-              )}
-              {subtask.estimatedHours && (
-                <span className="hidden sm:inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300 shrink-0">
+              {/* NOTE: No label chips — subtask labels are a parent-task concern. */}
+              {subtask.estimatedHours != null && (
+                <span
+                  className="hidden sm:inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300 shrink-0"
+                  title={t('subtaskEstimatedHours')}
+                >
                   <Clock className="w-2.5 h-2.5" />
-                  {subtask.estimatedHours}h
+                  {formatHoursCompact(subtask.estimatedHours)}
+                </span>
+              )}
+              {subtask.actualHours != null && (
+                <span
+                  className="hidden sm:inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 shrink-0"
+                  title={t('subtaskActualHours')}
+                >
+                  <Timer className="w-2.5 h-2.5" />
+                  {formatHoursCompact(subtask.actualHours)}
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1 shrink-0">
+            {/* Action cluster hidden while selecting — the row itself is the
+                selection target, mirroring the task list. */}
+            <div className={`flex items-center gap-1 shrink-0 ${isSelectionMode ? 'hidden' : ''}`}>
+              {/* Description-only panel — note links live in the edit form. */}
+              {description && (
+                <button
+                  type="button"
+                  onClick={() => setIsDetailsExpanded((v) => !v)}
+                  title={isDetailsExpanded ? tc('collapse') : tc('expand')}
+                  aria-expanded={isDetailsExpanded}
+                  className={`flex items-center justify-center rounded-lg p-1.5 transition-colors ${
+                    isDetailsExpanded
+                      ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
+                      : 'text-zinc-500 dark:text-zinc-500 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-400'
+                  }`}
+                >
+                  <AlignLeft className="w-3.5 h-3.5" />
+                </button>
+              )}
               {(['todo', 'in-progress', 'done'] as const).map((status) => {
-                const config = sharedStatusConfig[status];
+                const config = getStatusDisplay(t, status);
                 return (
                   <TaskStatusChange
                     key={status}
@@ -235,13 +259,22 @@ export function SubtaskItem({
               })}
               <button
                 onClick={() => onStartEditing(subtask)}
-                className="flex items-center justify-center rounded-lg p-1.5 text-zinc-400 dark:text-zinc-500 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30 dark:hover:text-blue-400 transition-colors"
+                className="flex items-center justify-center rounded-lg p-1.5 text-zinc-500 dark:text-zinc-500 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-400 transition-colors"
                 title={t('subtaskDetails')}
               >
                 <Pencil className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
+          {/* pl-8 aligns the panel with the title (w-6 icon/checkbox + gap-2).
+              NOTE: TaskDescription (same renderer as the parent card) so
+              /rapitas-note/ links become working note chips instead of raw
+              anchors that 404. */}
+          {isDetailsExpanded && description && (
+            <div className="mt-2 pl-8 text-xs">
+              <TaskDescription description={description} isCompact={true} maxInitialLength={300} />
+            </div>
+          )}
         </div>
       )}
     </div>

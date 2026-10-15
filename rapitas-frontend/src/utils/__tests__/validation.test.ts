@@ -7,6 +7,7 @@ import {
   validateClaudeApiKey,
   validateNumber,
   collectErrors,
+  translateValidationError,
 } from '../validation';
 
 describe('validateRequired', () => {
@@ -17,7 +18,7 @@ describe('validateRequired', () => {
   it('returns invalid for empty string', () => {
     const result = validateRequired('', 'Field');
     expect(result.valid).toBe(false);
-    expect(result.error).toContain('Field');
+    expect(result.error).toEqual({ code: 'required', params: { field: 'Field' } });
   });
 
   it('returns invalid for whitespace-only string', () => {
@@ -156,13 +157,27 @@ describe('collectErrors', () => {
     expect(result.errors).toHaveLength(0);
   });
 
-  it('collects all error messages', () => {
+  it('collects all error objects', () => {
+    const error1 = { code: 'required' as const, params: { field: 'A' } };
+    const error2 = { code: 'apiKeyTooShort' as const };
     const result = collectErrors(
-      { valid: false, error: 'Error 1' },
+      { valid: false, error: error1 },
       { valid: true },
-      { valid: false, error: 'Error 2' },
+      { valid: false, error: error2 },
     );
     expect(result.valid).toBe(false);
-    expect(result.errors).toEqual(['Error 1', 'Error 2']);
+    expect(result.errors).toEqual([error1, error2]);
+  });
+});
+
+describe('translateValidationError', () => {
+  it('calls the translator with the error code and params', () => {
+    const t = (key: string, params?: Record<string, string | number>) =>
+      `${key}:${JSON.stringify(params ?? {})}`;
+    const message = translateValidationError(t, {
+      code: 'minLength',
+      params: { field: 'Name', min: 3 },
+    });
+    expect(message).toBe('minLength:{"field":"Name","min":3}');
   });
 });

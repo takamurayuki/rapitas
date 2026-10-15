@@ -12,6 +12,11 @@ import { parseJsonArray } from '../../utils/common/json-extractor';
 import { createContentHash } from './utils';
 import { appendEvent } from './timeline';
 import { memoryTaskQueue } from './index';
+import { getInsensitiveMode } from '../../config/db-provider';
+import { findSemanticDuplicate, findLexicalDuplicate } from './dedup';
+import { boostDuplicateWithCooldown } from './task-knowledge-duplicate-boost';
+import { readWorkflowFile } from '../workflow/workflow-file-utils';
+import { notifyKnowledgeExtracted } from '../communication/notification-service';
 
 const log = createLogger('memory:task-knowledge');
 
@@ -39,8 +44,16 @@ export async function extractKnowledgeFromTask(taskId: number): Promise<number[]
       return entryIds;
     }
 
+    // NOTE: Only DEVELOPMENT tasks (themes with a workingDirectory) are mined —
+    // operator decision 2026-09-05: study/personal tasks yield noise knowledge, and
+    // the synchronous DB/similarity work stalled the event loop 2-3s per manual completion.
+    if (!task.theme?.workingDirectory) {
+      log.debug({ taskId }, 'Skipping knowledge extraction — theme has no workingDirectory');
+      return entryIds;
+    }
+
     // Load verify.md content
-    const verifyContent = await loadVerifyContent(taskId, task.theme?.categoryId, task.themeId);
+    const verifyContent = (await readWorkflowFile(taskId, 'verify')) ?? '';
 
     // Build extraction context
     const context = buildExtractionContext(task, verifyContent);
@@ -64,6 +77,24 @@ export async function extractKnowledgeFromTask(taskId: number): Promise<number[]
 
       if (existing) {
         log.debug({ taskId, title: item.title }, 'Duplicate knowledge entry, skipping');
+        continue;
+      }
+
+      // Near-duplicate (same lesson, different wording) — reinforce the
+      // existing entry instead of storing a paraphrase. This is the main cure for
+      // the ~11-near-duplicates-per-task bloat: corroboration strengthens one
+      // memory rather than spawning many. Two channels: embedding cosine plus
+      // the lexical bigram fallback (cosine misses Japanese paraphrases — the
+      // failure mode behind the contradiction-backlog explosion).
+      const dupId =
+        (await findSemanticDuplicate(item.content)) ??
+        (await findLexicalDuplicate(item.title, item.content));
+      if (dupId != null) {
+        await boostDuplicateWithCooldown(dupId, 0.1);
+        log.debug(
+          { taskId, title: item.title, dupId },
+          'Near-duplicate knowledge — reinforced existing instead of inserting',
+        );
         continue;
       }
 
@@ -98,16 +129,7 @@ export async function extractKnowledgeFromTask(taskId: number): Promise<number[]
         payload: { taskId, entriesCreated: entryIds.length, entryIds },
       });
 
-      // Create notification
-      await prisma.notification.create({
-        data: {
-          type: 'knowledge_extracted',
-          title: 'ナレッジ自動抽出完了',
-          message: `タスク「${task.title}」から${entryIds.length}件のナレッジを抽出しました`,
-          link: `/knowledge`,
-          metadata: JSON.stringify({ taskId, entryIds }),
-        },
-      });
+      await notifyKnowledgeExtracted(taskId, task.title, entryIds);
 
       log.info({ taskId, count: entryIds.length }, 'Knowledge extracted from task');
     }
@@ -116,6 +138,176 @@ export async function extractKnowledgeFromTask(taskId: number): Promise<number[]
   }
 
   return entryIds;
+}
+
+/** WorkflowTransition causes worth reflecting on (a task hit trouble / failed). */
+const FAILURE_CAUSES = [
+  'verify_repair',
+  'ci_repair',
+  'adversarial_review_failed',
+  'verify_validation_failed',
+  'verify_no_changes',
+  'verify_pr_not_created',
+  'auto_merge_blocked',
+  'log_polluted_rejected',
+];
+
+/**
+ * Reflexion (Shinn 2023): on a task that FAILED or needed repair, distil a
+ * concrete, transferable lesson ("what went wrong → what to do instead") and
+ * store it as knowledge so similar future tasks retrieve+inject it. Failures are
+ * the richest learning signal, yet the success-only extractor ignored them — this
+ * is what lets the loop get smarter from its mistakes. Best-effort; never throws.
+ *
+ * Stored as sourceType 'failure_lesson', which the recall path
+ * (findRelatedKnowledge / buildMemoryContext) surfaces like any knowledge —
+ * trust-weighted, decayed, deduped, validated by the same background queue.
+ *
+ * @param taskId - The task that reached a terminal failure. / 失敗したタスク
+ * @param finalStatus - Terminal status (reflects when not 'completed' or trouble fired). / 終端状態
+ * @returns Created knowledge entry ids. / 作成した知識ID
+ */
+export async function reflectOnFailure(taskId: number, finalStatus: string): Promise<number[]> {
+  const entryIds: number[] = [];
+  try {
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      include: {
+        theme: { include: { category: true } },
+        comments: { orderBy: { createdAt: 'desc' }, take: 5 },
+        taskLabels: { include: { label: true } },
+      },
+    });
+    if (!task) return entryIds;
+
+    // The WHY: which trouble causes fired and how often (the failure's shape).
+    const troubles = await prisma.workflowTransition
+      .groupBy({
+        by: ['cause'],
+        where: { taskId, cause: { in: FAILURE_CAUSES } },
+        _count: { cause: true },
+      })
+      .catch(() => [] as { cause: string | null; _count: { cause: number } }[]);
+    const causeSummary = troubles.map((t) => `${t.cause} ×${t._count.cause}`).join(', ');
+    // A clean completion with no trouble has no failure to reflect on.
+    if (!causeSummary && finalStatus === 'completed') return entryIds;
+
+    const verifyContent = (await readWorkflowFile(taskId, 'verify').catch(() => null)) ?? '';
+    const context = [
+      `タスク: ${task.title}`,
+      task.description ? `説明: ${task.description.slice(0, 400)}` : '',
+      `最終状態: ${finalStatus}`,
+      causeSummary ? `発生したトラブル: ${causeSummary}` : '',
+      verifyContent ? `検証レポート(抜粋):\n${verifyContent.slice(0, 1500)}` : '',
+      task.comments.length
+        ? `コメント:\n${task.comments
+            .slice(0, 3)
+            .map((c) => c.content)
+            .join('\n')
+            .slice(0, 400)}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+    if (context.length < 60) return entryIds;
+
+    const lessons = await extractFailureLessonWithAI(context);
+    for (const item of lessons) {
+      const hash = createContentHash(item.content);
+      const existing = await prisma.knowledgeEntry.findFirst({
+        where: { contentHash: hash, forgettingStage: { not: 'archived' } },
+      });
+      if (existing) continue;
+      const dupId =
+        (await findSemanticDuplicate(item.content)) ??
+        (await findLexicalDuplicate(item.title, item.content));
+      if (dupId != null) {
+        await boostDuplicateWithCooldown(dupId, 0.15);
+        continue;
+      }
+      const entry = await prisma.knowledgeEntry.create({
+        data: {
+          sourceType: 'failure_lesson',
+          sourceId: `task_${taskId}`,
+          title: item.title,
+          content: item.content,
+          contentHash: hash,
+          category: item.category,
+          tags: JSON.stringify([
+            'reflexion',
+            'failure',
+            ...task.taskLabels.map((tl) => tl.label.name),
+          ]),
+          // A failure is a concrete, high-signal lesson — slightly above the
+          // success extractor's 0.7 so it ranks in retrieval.
+          confidence: 0.75,
+          themeId: task.themeId,
+          taskId: task.id,
+          validationStatus: 'pending',
+        },
+      });
+      entryIds.push(entry.id);
+      await memoryTaskQueue.enqueue('embed', { entryId: entry.id, content: item.content }, 10);
+      await memoryTaskQueue.enqueue('validate', { entryId: entry.id }, 5);
+    }
+    if (entryIds.length > 0) {
+      await appendEvent({
+        eventType: 'task_knowledge_extracted',
+        actorType: 'system',
+        payload: {
+          taskId,
+          finalStatus,
+          entryIds,
+          causes: causeSummary,
+          kind: 'failure_reflection',
+        },
+      }).catch(() => {});
+      log.info(
+        { taskId, count: entryIds.length, causes: causeSummary },
+        '[reflexion] Distilled failure lessons',
+      );
+    }
+  } catch (err) {
+    log.warn({ err, taskId }, '[reflexion] reflectOnFailure failed');
+  }
+  return entryIds;
+}
+
+/** Reflexion-framed extraction: a lesson to AVOID this failure next time. */
+async function extractFailureLessonWithAI(context: string): Promise<ExtractedKnowledge[]> {
+  try {
+    const response = await sendAIMessage({
+      messages: [
+        {
+          role: 'user',
+          content: `次のタスクは失敗または修復を要しました。この失敗から、**今後の類似タスクで同じ失敗を避けるための、具体的で転用可能な教訓**を抽出してください。
+
+${context}
+
+純粋なJSON配列のみ（マークダウンのコードブロックなし）:
+[
+  { "title": "教訓の要点（簡潔）", "content": "何が問題で、次回どうすべきか。可能なら file:line / パターン名 / テスト名で具体化する", "category": "procedure|pattern|insight" }
+]
+
+ルール:
+- 汎用的で転用可能なもののみ（このタスク固有の些末は除外）
+- 最大2件
+- 抽出すべき教訓が無ければ []`,
+        },
+      ],
+      maxTokens: 700,
+    });
+    const parsed = parseJsonArray<ExtractedKnowledge>(response.content.trim());
+    if (!parsed) return [];
+    const valid = ['procedure', 'pattern', 'insight', 'fact', 'preference', 'general'];
+    return parsed
+      .filter((i) => i.title && i.content)
+      .map((i) => ({ ...i, category: valid.includes(i.category) ? i.category : 'insight' }))
+      .slice(0, 2);
+  } catch (err) {
+    log.warn({ err }, '[reflexion] extractFailureLessonWithAI failed');
+    return [];
+  }
 }
 
 /**
@@ -178,7 +370,10 @@ export async function findRelatedKnowledge(
         tags: true,
         validationStatus: true,
       },
-      orderBy: [{ decayScore: 'desc' }, { confidence: 'desc' }],
+      // Tertiary `id` key breaks ties when both decayScore and confidence
+      // match — otherwise which entries survive the take/slice boundary
+      // (and their relative order) could vary run to run.
+      orderBy: [{ decayScore: 'desc' }, { confidence: 'desc' }, { id: 'asc' }],
       take: limit * 3, // Fetch extra for post-scoring
     });
 
@@ -216,7 +411,11 @@ export async function findRelatedKnowledge(
       };
     });
 
-    return scored.sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, limit);
+    // Secondary `id` key breaks ties on identical relevanceScore — this list
+    // feeds the related-knowledge context in the next prompt.
+    return scored
+      .sort((a, b) => b.relevanceScore - a.relevanceScore || a.id - b.id)
+      .slice(0, limit);
   } catch (error) {
     log.error({ err: error }, 'Failed to find related knowledge');
     return [];
@@ -260,21 +459,14 @@ export async function searchCrossProjectKnowledge(
 
     if (keywords.length === 0) return { results: [], totalAcrossProjects: 0, projectCount: 0 };
 
-    // `mode: 'insensitive'` is Postgres-only; SQLite raises PrismaClientValidationError
-    // at runtime when it is present. Fall back to case-sensitive `contains` on SQLite.
-    // keywords are already lower-cased (line 244-248) so SQLite hits lower-case DB entries.
-    const isPostgres =
-      process.env.RAPITAS_DB_PROVIDER !== 'sqlite' &&
-      !process.env.DATABASE_URL?.startsWith('file:');
-    const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};
-
+    // NOTE: keywords are already lower-cased (line 244-248) so SQLite hits lower-case DB entries.
     const entries = await prisma.knowledgeEntry.findMany({
       where: {
         forgettingStage: { in: ['active', 'dormant'] },
         OR: keywords.map((kw) => ({
           OR: [
-            { title: { contains: kw, ...insensitive } },
-            { content: { contains: kw, ...insensitive } },
+            { title: { contains: kw, ...getInsensitiveMode() } },
+            { content: { contains: kw, ...getInsensitiveMode() } },
           ],
         })),
       },
@@ -288,7 +480,8 @@ export async function searchCrossProjectKnowledge(
         themeId: true,
         tags: true,
       },
-      orderBy: [{ decayScore: 'desc' }, { confidence: 'desc' }],
+      // Tertiary `id` key breaks ties (see getRelatedKnowledge above).
+      orderBy: [{ decayScore: 'desc' }, { confidence: 'desc' }, { id: 'asc' }],
       take: limit * 5,
     });
 
@@ -296,7 +489,8 @@ export async function searchCrossProjectKnowledge(
     const themeIds = [...new Set(entries.map((e) => e.themeId).filter(Boolean))] as number[];
     const themes =
       themeIds.length > 0
-        ? await prisma.theme.findMany({
+        ? // determinism-ok: collapsed into an id→name Map below — order irrelevant.
+          await prisma.theme.findMany({
             where: { id: { in: themeIds } },
             select: { id: true, name: true },
           })
@@ -331,7 +525,11 @@ export async function searchCrossProjectKnowledge(
       };
     });
 
-    const sorted = scored.sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, limit);
+    // Secondary `id` key breaks ties on identical relevanceScore (see
+    // getRelatedKnowledge above) — this list also feeds a prompt.
+    const sorted = scored
+      .sort((a, b) => b.relevanceScore - a.relevanceScore || a.id - b.id)
+      .slice(0, limit);
     const uniqueThemes = new Set(entries.map((e) => e.themeId).filter(Boolean));
 
     return {
@@ -346,27 +544,6 @@ export async function searchCrossProjectKnowledge(
 }
 
 // ──── Helper Functions ────
-
-async function loadVerifyContent(
-  taskId: number,
-  categoryId: number | null | undefined,
-  themeId: number | null,
-): Promise<string> {
-  try {
-    const { join } = await import('path');
-    const { readFile } = await import('fs/promises');
-    const dir = join(
-      process.cwd(),
-      'tasks',
-      String(categoryId ?? 0),
-      String(themeId ?? 0),
-      String(taskId),
-    );
-    return await readFile(join(dir, 'verify.md'), 'utf-8');
-  } catch {
-    return '';
-  }
-}
 
 function buildExtractionContext(
   task: {

@@ -110,6 +110,7 @@ export class AnthropicApiProvider implements IAgentProvider {
       const client = new Anthropic({ apiKey });
 
       // NOTE: Uses cheapest model (Haiku) for health check to minimize cost
+      // determinism-ok: health-check ping; the response is discarded, not a prompt.
       await client.messages.create({
         model: 'claude-3-5-haiku-20241022',
         max_tokens: 5,

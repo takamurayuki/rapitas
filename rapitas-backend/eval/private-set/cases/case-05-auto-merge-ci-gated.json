@@ -1,0 +1,8 @@
+{
+  "id": "case-05-auto-merge-ci-gated",
+  "category": "feature",
+  "taskDescription": "autoMergePR タスクを CI が緑になった後に AutoMergeWatcher が自動マージする CI ゲート付き自動マージ機能の実装",
+  "initialFiles": ["rapitas-backend/services/workflow/auto-merge-watcher.ts"],
+  "acceptanceCheck": "bun test services/github/pr-guards.test.ts",
+  "expectedOutcome": "fail-to-pass"
+}

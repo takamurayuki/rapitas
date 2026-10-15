@@ -1,0 +1,115 @@
+{
+  "copilot": {
+    "aiAssistantPanel": {
+      "title": "AI Assistant",
+      "subtitle": "Feel free to ask anything",
+      "settingsTitle": "AI settings",
+      "clearTitle": "Clear conversation",
+      "expand": "Expand",
+      "minimize": "Minimize",
+      "providerLabel": "AI provider",
+      "notConfiguredSuffix": " (not configured)",
+      "registerApiKeyLink": "Register an API key in Settings",
+      "modelLabel": "Model",
+      "defaultOption": "Default",
+      "welcomeTitle": "Welcome to the AI Assistant",
+      "welcomeDescLine1": "Ask about task management, learning plans, coding, and more —",
+      "welcomeDescLine2": "I'm here to support your work.",
+      "thinking": "Thinking...",
+      "setApiKeyLink": "Set an API key in Settings",
+      "messagePlaceholder": "Type a message...",
+      "sendHint": "Enter to send, Shift+Enter for a new line"
+    },
+    "chatComponents": {
+      "analysisCard": {
+        "complexityLabel": "Complexity:",
+        "estimateLabel": "Estimate:",
+        "appliedLabel": "Applied",
+        "applyEstimateButton": "Apply estimate",
+        "suggestedSubtasksLabel": "Suggested subtasks ({count})",
+        "deselectLabel": "Deselect",
+        "selectedCountLabel": "{count} selected",
+        "createSubtasksButton": "Create subtasks",
+        "subtasksCreatedMessage": "Subtasks created"
+      },
+      "proactiveInsight": {
+        "todoInsight": "Not started yet. Want to talk through your approach?",
+        "inProgressInsight": "In progress. Anything you're stuck on?",
+        "doneInsight": "Completed. Want to run a retrospective?"
+      }
+    },
+    "chatPanel": {
+      "title": "AI Assistant",
+      "resetAriaLabel": "Reset to start",
+      "resetTitle": "Reset the conversation"
+    },
+    "nextActionRecommendations": {
+      "noRecommendations": "No recommended actions for the current state.",
+      "heading": "Next steps",
+      "actions": {
+        "reflect": {
+          "label": "Reflect on this task",
+          "reason": "Dig into the deliverables (research/plan/verify) and capture learnings as knowledge"
+        },
+        "complete": {
+          "label": "Mark task as done",
+          "reason": "All {done}/{total} subtasks are complete"
+        },
+        "continue": {
+          "label": "Run with the agent",
+          "reason": "In progress — the agent can run the next phase"
+        },
+        "completeManual": {
+          "label": "Mark task as done",
+          "reason": "Close the task once implementation is finished"
+        },
+        "analyze": {
+          "label": "Analyze with AI",
+          "reason": "Let AI suggest an approach and subtasks before you start"
+        },
+        "execute": {
+          "label": "Run with the agent",
+          "reason": "Subtasks are ready — let the agent get started"
+        },
+        "start": {
+          "label": "Start working",
+          "reason": "Ready to go — set the status to in progress"
+        },
+        "split": {
+          "label": "Split into subtasks",
+          "reason": "Complexity {score}. Splitting it up keeps things manageable"
+        },
+        "estimate": {
+          "label": "Estimate effort",
+          "reason": "No estimate yet — adding one makes planning easier"
+        },
+        "blocked": {
+          "label": "Check why it's blocked",
+          "reason": "This task is blocked — find out why before doing anything else"
+        },
+        "retry": {
+          "label": "Retry with the agent",
+          "reason": "The last run failed — let the agent try again"
+        },
+        "failedManual": {
+          "label": "Check why it failed",
+          "reason": "The last run failed — find out why"
+        }
+      }
+    },
+    "useCopilotChat": {
+      "sendMessageError": "An error occurred",
+      "actionAnalyzing": "Analyzing task...",
+      "actionExecuting": "Starting agent execution...",
+      "actionCreatingSubtasks": "Creating subtasks...",
+      "actionUpdatingStatus": "Updating status...",
+      "actionApplyingEstimate": "Applying estimate...",
+      "actionCheckingExecutionStatus": "Checking execution status...",
+      "actionRunningGeneric": "Running {action}...",
+      "createSubtasksLabel": "Create subtasks ({count})",
+      "actionError": "Failed to execute action",
+      "retrospectiveGenerating": "Analyzing artifacts and generating retrospective...",
+      "retrospectiveError": "Failed to generate retrospective"
+    }
+  }
+}

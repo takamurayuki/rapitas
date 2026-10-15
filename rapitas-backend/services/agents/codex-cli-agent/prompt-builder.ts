@@ -65,6 +65,9 @@ export function buildStructuredPrompt(task: AgentTask, logPrefix: string): strin
     sections.push('以下の順序でタスクを実装してください：');
     sections.push('');
 
+    // `order` is a unique explicit sequence key (the dependency identifier), so
+    // equal-key ties are impossible — the sort is deterministic.
+    // determinism-ok: unique sequence key, no ties.
     const sortedSubtasks = [...analysis.subtasks].sort((a, b) => a.order - b.order);
 
     for (const subtask of sortedSubtasks) {

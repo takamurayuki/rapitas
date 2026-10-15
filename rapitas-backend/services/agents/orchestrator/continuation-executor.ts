@@ -24,8 +24,12 @@ import {
   emitResultEvent,
   handleExecutionError,
 } from './execution-helpers';
-import { isSessionResumeFailure, handleResumeFailureFallbacks } from './fallback-handler';
+import { isSessionResumeFailure } from '../session-resume-detector';
+import { applyTaskStatusFromWorkflow } from '../../workflow/apply-task-status-from-workflow';
+import { handleResumeFailureFallbacks } from './fallback-handler';
 import { buildContinuationAgentConfig } from './continuation-agent-config';
+import { buildShutdownErrorMessage } from './shutdown-error';
+import { withLlmCallScope, getLlmCallCount } from '../../../utils/llm-call-context';
 
 const logger = createLogger('continuation-executor');
 
@@ -194,9 +198,10 @@ export async function executeContinuationInternal(
   if (ctx.isShuttingDown) {
     ctx.activeAgents.delete(execution.id);
     ctx.activeExecutions.delete(execution.id);
-    fileLogger.logError('Server is shutting down, cannot continue execution');
+    const shutdownMsg = buildShutdownErrorMessage('continue execution');
+    fileLogger.logWarn(shutdownMsg);
     await fileLogger.flush();
-    throw new Error('Server is shutting down, cannot continue execution');
+    throw new Error(shutdownMsg);
   }
 
   setupQuestionDetectedHandler(agent, {
@@ -282,24 +287,33 @@ export async function executeContinuationInternal(
       workingDirectory: task?.workingDirectory || undefined,
     };
 
-    let result = await agent.execute(agentTask);
+    let result = await withLlmCallScope(async () => {
+      let r = await agent.execute(agentTask);
 
-    // Fallback on --resume failure
-    if (isSessionResumeFailure(result, claudeSessionId)) {
-      result = await handleResumeFailureFallbacks(
-        ctx,
-        agent,
-        agentConfig,
-        agentTask,
-        agentInfo,
-        execution,
-        state,
-        fileLogger,
-        logManager,
-        taskId,
-        claudeSessionId!,
-      );
-    }
+      // Fallback on --resume failure
+      if (isSessionResumeFailure(r, claudeSessionId)) {
+        r = await handleResumeFailureFallbacks(
+          ctx,
+          agent,
+          agentConfig,
+          agentTask,
+          agentInfo,
+          execution,
+          state,
+          fileLogger,
+          logManager,
+          taskId,
+          claudeSessionId!,
+        );
+      }
+
+      // Merge Tier 2 (ALS sendAIMessage calls) into Tier 1 (CLI num_turns)
+      const alsCount = getLlmCallCount();
+      if (alsCount > 0) {
+        r = { ...r, llmCallCount: (r.llmCallCount ?? 0) + alsCount };
+      }
+      return r;
+    });
 
     await saveExecutionResult(
       ctx.prisma,
@@ -313,11 +327,25 @@ export async function executeContinuationInternal(
         tokensUsed: execution.tokensUsed,
         executionTimeMs: execution.executionTimeMs,
         claudeSessionId: execution.claudeSessionId,
+        cpuTimeMs: execution.cpuTimeMs,
+        peakRssKb: execution.peakRssKb,
       },
     );
     emitResultEvent(result, execution.id, execution.sessionId, taskId, (event) =>
       ctx.emitEvent(event),
     );
+
+    // NOTE: This is the gap that let a task's execution log read "completed"
+    // while Task.status/workflowStatus silently sat stale — every OTHER
+    // launch path (execute-route → execute-post-handler, continue-route →
+    // continue-post-handler) runs an equivalent epilogue after the CLI exits;
+    // this question-answer continuation path previously only called
+    // saveExecutionResult (AgentExecution row only) and returned. Skip when
+    // the agent asked ANOTHER question — the workflow is still paused, not
+    // finished.
+    if (!result.waitingForInput) {
+      await applyTaskStatusFromWorkflow(ctx.prisma, taskId, '[ContinuationExecutor]');
+    }
 
     return result;
   } catch (error) {
@@ -332,13 +360,30 @@ export async function executeContinuationInternal(
       (event) => ctx.emitEvent(event),
       'Continuation',
     );
+    // Mirrors continue-post-handler.ts's handleContinueError: an uncaught
+    // continuation failure must not leave the task stuck showing
+    // 'in-progress' with no execution actually running.
+    await ctx.prisma.task
+      .update({ where: { id: taskId }, data: { status: 'todo' } })
+      .catch((e: unknown) =>
+        logger.error(
+          { err: e },
+          `[ContinuationExecutor] Failed to reset task ${taskId} to todo after error`,
+        ),
+      );
     throw error;
   } finally {
     await logManager.cleanup();
     await fileLogger.flush();
     ctx.activeExecutions.delete(execution.id);
     ctx.activeAgents.delete(execution.id);
-    await agentFactory.removeAgent(agent.id);
+    // NOTE: Remove agentInfo.agent (not the stale `agent` local), because
+    // handleResumeFailureFallbacks swaps agentInfo.agent to a new agent
+    // instance on --resume failure. Removing the original `agent` here left
+    // every post-fallback agent permanently registered in AgentFactory's
+    // activeAgents map (fallback-handler.ts only ever removes the *previous*
+    // agent in its chain, never the final one it returns).
+    await agentFactory.removeAgent(agentInfo.agent.id);
   }
 }
 

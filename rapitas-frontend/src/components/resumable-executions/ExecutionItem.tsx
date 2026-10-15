@@ -3,6 +3,8 @@
 
 import { Clock, ExternalLink, Loader2, Play, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import type { WorkflowStatus } from '@/types';
+import WorkflowStatusIndicator from '@/components/workflow/WorkflowStatusIndicator';
 import type { ResumableExecution } from './types';
 
 interface ExecutionItemProps {
@@ -42,7 +44,7 @@ export function ExecutionItem({
           <div className="flex items-center gap-1.5">
             <a
               href={`/tasks/${exec.taskId}?showHeader=true`}
-              className="font-medium text-sm text-zinc-900 dark:text-zinc-100 hover:text-amber-600 dark:hover:text-amber-400 truncate block transition-colors"
+              className="font-medium text-sm text-zinc-900 dark:text-zinc-100 hover:text-blue-600 dark:hover:text-blue-400 truncate block transition-colors"
             >
               {exec.taskTitle || `${t('taskPrefix')}${exec.taskId}`}
             </a>
@@ -73,15 +75,19 @@ export function ExecutionItem({
                   })}
             </p>
           </div>
+
+          {/* Workflow phase indicator */}
+          {exec.workflowStatus && (
+            <div className="mt-1.5">
+              <WorkflowStatusIndicator
+                status={exec.workflowStatus as WorkflowStatus}
+                workflowMode={exec.workflowMode}
+                size="sm"
+              />
+            </div>
+          )}
         </div>
       </div>
-
-      {/* Last output preview */}
-      {exec.output && (
-        <div className="mb-2.5 p-2 bg-zinc-50 dark:bg-zinc-800/60 rounded-lg text-xs font-mono text-zinc-600 dark:text-zinc-400 max-h-14 overflow-hidden line-clamp-2">
-          {exec.output.slice(-150)}
-        </div>
-      )}
 
       {/* Action row */}
       <div className="flex items-center gap-2">
@@ -104,7 +110,7 @@ export function ExecutionItem({
           href={`/tasks/${exec.taskId}?showHeader=true`}
           className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
             !exec.canResume
-              ? 'flex-1 bg-linear-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-sm hover:shadow-md'
+              ? 'flex-1 bg-linear-to-r from-blue-500 to-blue-500 hover:from-blue-600 hover:to-blue-600 text-white shadow-sm hover:shadow-md'
               : 'bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300'
           }`}
         >
@@ -117,6 +123,7 @@ export function ExecutionItem({
           disabled={isDismissing}
           className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
           title={tc('close')}
+          aria-label={tc('close')}
         >
           {isDismissing ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-400" />

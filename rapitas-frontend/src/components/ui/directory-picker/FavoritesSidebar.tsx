@@ -10,6 +10,7 @@
  */
 
 import { Folder, GitBranch, Star, Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { FavoriteDirectory } from './types';
 
 type FavoritesSidebarProps = {
@@ -37,6 +38,8 @@ export function FavoritesSidebar({
   onRemove,
   onHide,
 }: FavoritesSidebarProps) {
+  const t = useTranslations('common');
+
   if (favorites.length === 0) return null;
 
   return (
@@ -45,14 +48,14 @@ export function FavoritesSidebar({
         <div className="flex items-center gap-2">
           <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
           <span className="text-xs font-medium text-yellow-700 dark:text-yellow-400">
-            お気に入り ({favorites.length})
+            {t('directoryPicker.favoritesHeader', { count: favorites.length })}
           </span>
         </div>
         <button
           onClick={onHide}
-          className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+          className="text-xs text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
         >
-          非表示
+          {t('directoryPicker.hide')}
         </button>
       </div>
 
@@ -64,7 +67,7 @@ export function FavoritesSidebar({
               key={fav.id}
               className={`flex items-center gap-2 px-4 py-2 transition-colors group ${
                 isCurrentValue
-                  ? 'bg-purple-50 dark:bg-purple-900/20 border-l-4 border-purple-500'
+                  ? 'bg-indigo-50 dark:bg-indigo-900/30 border-l-4 border-indigo-500'
                   : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
               }`}
             >
@@ -73,20 +76,20 @@ export function FavoritesSidebar({
                 className="flex-1 flex items-center gap-3 text-left min-w-0"
               >
                 <Folder
-                  className={`w-4 h-4 shrink-0 ${isCurrentValue ? 'text-purple-500' : 'text-yellow-500'}`}
+                  className={`w-4 h-4 shrink-0 ${isCurrentValue ? 'text-indigo-500' : 'text-yellow-500'}`}
                 />
                 <div className="flex-1 min-w-0">
                   <div
-                    className={`text-sm font-medium truncate ${isCurrentValue ? 'text-purple-700 dark:text-purple-300' : 'text-zinc-700 dark:text-zinc-300'}`}
+                    className={`text-sm font-medium truncate ${isCurrentValue ? 'text-indigo-700 dark:text-indigo-300' : 'text-zinc-700 dark:text-zinc-300'}`}
                   >
                     {fav.name || fav.path.split(/[\\/]/).pop()}
                     {isCurrentValue && (
-                      <span className="ml-2 text-xs font-normal text-purple-500 dark:text-purple-400">
-                        (現在選択中)
+                      <span className="ml-2 text-xs font-normal text-indigo-500 dark:text-indigo-400">
+                        {t('directoryPicker.currentlySelectedInline')}
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-zinc-400 dark:text-zinc-500 truncate font-mono">
+                  <div className="text-xs text-zinc-500 dark:text-zinc-500 truncate font-mono">
                     {fav.path}
                   </div>
                 </div>
@@ -102,7 +105,7 @@ export function FavoritesSidebar({
                   onRemove(fav.id);
                 }}
                 className="p-1.5 text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all rounded-md hover:bg-red-50 dark:hover:bg-red-900/20"
-                title="お気に入りから削除"
+                title={t('directoryPicker.removeFavorite')}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>

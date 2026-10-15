@@ -1,0 +1,446 @@
+/**
+ * gen-resolver-boundary-tests.test
+ *
+ * Unit tests for the boundary-value test scaffolding generator.
+ * Covers every exported function at ≥80% branch coverage.
+ */
+
+import { describe, test, expect } from 'bun:test';
+import {
+  hasResolverCandidate,
+  extractDbImportPath,
+  detectNonStandardImports,
+  extractResolverFunctions,
+  extractModelUsage,
+  generateBoundaryTestSource,
+  parseFilesArg,
+  scanForResolverFiles,
+  checkDrift,
+  type ExtractedFunction,
+  type ModelUsage,
+} from './gen-resolver-boundary-tests';
+
+// ---------------------------------------------------------------------------
+// hasResolverCandidate
+// ---------------------------------------------------------------------------
+describe('hasResolverCandidate', () => {
+  test.each([
+    {
+      name: 'both markers are present',
+      content: `import { prisma } from '../config/database';\nexport async function resolveTask(id: number) {}`,
+      expected: true,
+    },
+    {
+      name: 'prisma import is absent',
+      content: `export async function resolveTask(id: number) {}`,
+      expected: false,
+    },
+    {
+      name: 'resolve function is absent',
+      content: `import { prisma } from '../config/database';`,
+      expected: false,
+    },
+    { name: 'both markers are absent', content: '', expected: false },
+  ])('returns $expected when $name', ({ content, expected }) => {
+    expect(hasResolverCandidate(content)).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractDbImportPath
+// ---------------------------------------------------------------------------
+describe('extractDbImportPath', () => {
+  test('extracts path from double-quoted import', () => {
+    const content = `import { prisma } from "../../config/database";`;
+    expect(extractDbImportPath(content)).toBe('../../config/database');
+  });
+
+  test('extracts path from single-quoted import', () => {
+    const content = `import { prisma, ensureDatabaseConnection } from '../config/database';`;
+    expect(extractDbImportPath(content)).toBe('../config/database');
+  });
+
+  test('returns null when no prisma import exists', () => {
+    expect(extractDbImportPath(`import { something } from 'elsewhere';`)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// detectNonStandardImports
+// ---------------------------------------------------------------------------
+describe('detectNonStandardImports', () => {
+  test('returns empty array for allowed imports only', () => {
+    const content = [
+      `import type { Task } from '@prisma/client';`,
+      `import { prisma } from '../../config/database';`,
+      `import { createLogger } from '../../config/logger';`,
+    ].join('\n');
+    expect(detectNonStandardImports(content)).toEqual([]);
+  });
+
+  test('detects non-standard value imports', () => {
+    const content = `import { ghClient } from './gh-client';`;
+    expect(detectNonStandardImports(content)).toContain('./gh-client');
+  });
+
+  test('ignores type-only imports', () => {
+    const content = `import type { Foo } from './some-module';`;
+    expect(detectNonStandardImports(content)).toEqual([]);
+  });
+
+  test('returns multiple non-standard paths', () => {
+    const content = [`import { a } from './mod-a';`, `import { b } from './mod-b';`].join('\n');
+    const result = detectNonStandardImports(content);
+    expect(result).toContain('./mod-a');
+    expect(result).toContain('./mod-b');
+    expect(result).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractResolverFunctions
+// ---------------------------------------------------------------------------
+describe('extractResolverFunctions', () => {
+  test.each([
+    {
+      name: 'a single number param function',
+      content: `export async function resolveTask(taskId: number) { return null; }`,
+      expected: { name: 'resolveTask', paramName: 'taskId', paramType: 'number' },
+      expectedLength: 1,
+      expectedManualReviewLength: 0,
+    },
+    {
+      name: 'a single string param function',
+      content: `export async function resolveUser(email: string) { return null; }`,
+      expected: { name: 'resolveUser', paramName: 'email', paramType: 'string' },
+    },
+    {
+      name: 'a number | null param function',
+      content: `export async function resolveItem(linkedId: number | null) { return null; }`,
+      expected: { paramType: 'number | null' },
+    },
+  ])('extracts $name', ({ content, expected, expectedLength, expectedManualReviewLength }) => {
+    const { functions, manualReview } = extractResolverFunctions('/fake/path.ts', content);
+    expect(functions[0]).toMatchObject(expected);
+    if (expectedLength !== undefined) expect(functions).toHaveLength(expectedLength);
+    if (expectedManualReviewLength !== undefined) {
+      expect(manualReview).toHaveLength(expectedManualReviewLength);
+    }
+  });
+
+  test('flags multi-arg functions in manualReview', () => {
+    const content = `export async function resolveByEmailAndId(email: string, id: number) { return null; }`;
+    const { functions, manualReview } = extractResolverFunctions('/fake/path.ts', content);
+    expect(functions).toHaveLength(0);
+    expect(manualReview[0]).toContain('resolveByEmailAndId');
+    expect(manualReview[0]).toContain('2 params');
+  });
+
+  test('flags zero-arg functions in manualReview', () => {
+    const content = `export async function resolveDefault() { return null; }`;
+    const { functions, manualReview } = extractResolverFunctions('/fake/path.ts', content);
+    expect(functions).toHaveLength(0);
+    expect(manualReview[0]).toContain('0 params');
+  });
+
+  test('flags unsupported param types in manualReview', () => {
+    const content = `export async function resolveById(id: string | number) { return null; }`;
+    const { functions, manualReview } = extractResolverFunctions('/fake/path.ts', content);
+    expect(functions).toHaveLength(0);
+    expect(manualReview[0]).toContain('unsupported param type');
+  });
+
+  test('handles multi-line function signatures (trailing comma)', () => {
+    const content = [
+      'export async function resolveTaskForExecution(',
+      '  taskId: number,',
+      ') {',
+      '  return null;',
+      '}',
+    ].join('\n');
+    const { functions } = extractResolverFunctions('/fake/path.ts', content);
+    expect(functions).toHaveLength(1);
+    expect(functions[0]).toMatchObject({
+      name: 'resolveTaskForExecution',
+      paramName: 'taskId',
+      paramType: 'number',
+    });
+  });
+
+  test('extracts multiple functions from the same file', () => {
+    const content = [
+      `export async function resolveTaskA(id: number) {}`,
+      `export async function resolveTaskB(name: string) {}`,
+    ].join('\n');
+    const { functions } = extractResolverFunctions('/fake/path.ts', content);
+    expect(functions).toHaveLength(2);
+    expect(functions.map((f) => f.name)).toEqual(['resolveTaskA', 'resolveTaskB']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractModelUsage
+// ---------------------------------------------------------------------------
+describe('extractModelUsage', () => {
+  test('extracts single-line prisma call', () => {
+    const content = `return prisma.task.findUnique({ where: { id } }).catch(() => null);`;
+    const models = extractModelUsage(content);
+    expect(models).toHaveLength(1);
+    expect(models[0]).toMatchObject({ modelName: 'task', methods: ['findUnique'] });
+  });
+
+  test('extracts multi-line prisma call', () => {
+    // NOTE: This is the real format used in task-resolver.ts — the regex must handle whitespace.
+    const content = [
+      'return prisma.task',
+      '  .findUnique({ where: { id } })',
+      '  .catch(() => null);',
+    ].join('\n');
+    const models = extractModelUsage(content);
+    expect(models).toHaveLength(1);
+    expect(models[0]).toMatchObject({ modelName: 'task', methods: ['findUnique'] });
+  });
+
+  test('deduplicates same model+method used multiple times', () => {
+    const content = [
+      `return prisma.task.findUnique({ where: { id: a } }).catch(() => null);`,
+      `return prisma.task.findUnique({ where: { id: b } }).catch(() => null);`,
+    ].join('\n');
+    const models = extractModelUsage(content);
+    expect(models).toHaveLength(1);
+    expect(models[0].methods).toEqual(['findUnique']);
+  });
+
+  test('collects multiple methods for the same model', () => {
+    const content = [
+      `return prisma.session.findFirst({ where: { token } }).catch(() => null);`,
+      `return prisma.session.findUnique({ where: { id } }).catch(() => null);`,
+    ].join('\n');
+    const models = extractModelUsage(content);
+    expect(models).toHaveLength(1);
+    expect(models[0].methods.sort()).toEqual(['findFirst', 'findUnique']);
+  });
+
+  test('collects multiple models', () => {
+    const content = [
+      `return prisma.task.findUnique({ where: { id } }).catch(() => null);`,
+      `return prisma.user.findFirst({ where: { email } }).catch(() => null);`,
+    ].join('\n');
+    const models = extractModelUsage(content);
+    expect(models).toHaveLength(2);
+    const names = models.map((m) => m.modelName).sort();
+    expect(names).toEqual(['task', 'user']);
+  });
+
+  test('returns empty array when no prisma calls are found', () => {
+    expect(extractModelUsage(`const x = 1;`)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// generateBoundaryTestSource
+// ---------------------------------------------------------------------------
+describe('generateBoundaryTestSource', () => {
+  const SOURCE = '/app/services/task/task-resolver.ts';
+  const OUTPUT = '/app/services/task/task-resolver.boundary.test.ts';
+  const DB_IMPORT = '../../config/database';
+
+  const NUMBER_FN: ExtractedFunction = {
+    name: 'resolveTask',
+    paramName: 'id',
+    paramType: 'number',
+  };
+  const STRING_FN: ExtractedFunction = {
+    name: 'resolveUser',
+    paramName: 'email',
+    paramType: 'string',
+  };
+  const NULLABLE_FN: ExtractedFunction = {
+    name: 'resolveItem',
+    paramName: 'linkedId',
+    paramType: 'number | null',
+  };
+  const TASK_MODEL: ModelUsage = { modelName: 'task', methods: ['findUnique'] };
+
+  test('generates a valid TypeScript file header', () => {
+    const src = generateBoundaryTestSource(SOURCE, OUTPUT, [NUMBER_FN], [TASK_MODEL], DB_IMPORT);
+    expect(src).toContain('task-resolver.boundary.test');
+    expect(src).toContain('自動生成ファイル');
+    expect(src).toContain("import { describe, test, expect, mock, beforeEach } from 'bun:test'");
+  });
+
+  test.each([
+    {
+      name: 'ID_EDGES for number params',
+      fns: [NUMBER_FN],
+      contains: ['ID_EDGES'],
+      notContains: ['STRING_EDGES'],
+    },
+    {
+      name: 'STRING_EDGES for string params',
+      fns: [STRING_FN],
+      contains: ['STRING_EDGES'],
+      notContains: ['ID_EDGES'],
+    },
+    {
+      name: 'NULLABLE_ID_EDGES for number | null params',
+      fns: [NULLABLE_FN],
+      contains: ['NULLABLE_ID_EDGES'],
+      notContains: [],
+    },
+    {
+      name: 'multiple edge constants when functions have different param types',
+      fns: [NUMBER_FN, STRING_FN],
+      contains: ['ID_EDGES', 'STRING_EDGES'],
+      notContains: [],
+    },
+  ])('imports $name', ({ fns, contains, notContains }) => {
+    const src = generateBoundaryTestSource(SOURCE, OUTPUT, fns, [TASK_MODEL], DB_IMPORT);
+    for (const c of contains) expect(src).toContain(c);
+    for (const c of notContains) expect(src).not.toContain(c);
+  });
+
+  test.each([
+    {
+      name: 'mock variable declaration',
+      models: [TASK_MODEL],
+      contains: ['const mockTaskFindUnique = mock(() => Promise.resolve(null))'],
+    },
+    {
+      name: 'mock.module with correct db path',
+      models: [TASK_MODEL],
+      contains: [`mock.module('${DB_IMPORT}'`, 'task: { findUnique: mockTaskFindUnique }'],
+    },
+    {
+      name: 'empty prisma shape when no models detected',
+      models: [],
+      contains: ['prisma: {},'],
+    },
+    {
+      name: 'beforeEach with mock resets',
+      models: [TASK_MODEL],
+      contains: ['mockTaskFindUnique.mockReset()', 'mockTaskFindUnique.mockResolvedValue(null)'],
+    },
+    {
+      name: 'test.each with rejection setup',
+      models: [TASK_MODEL],
+      contains: ['mockTaskFindUnique.mockRejectedValueOnce(new Error'],
+    },
+  ])('generates $name', ({ models, contains }) => {
+    const src = generateBoundaryTestSource(SOURCE, OUTPUT, [NUMBER_FN], models, DB_IMPORT);
+    for (const c of contains) expect(src).toContain(c);
+  });
+
+  test('includes the HACK comment exactly once', () => {
+    const src = generateBoundaryTestSource(
+      SOURCE,
+      OUTPUT,
+      [NUMBER_FN, NULLABLE_FN],
+      [TASK_MODEL],
+      DB_IMPORT,
+    );
+    const occurrences = (src.match(/HACK\(agent\)/g) ?? []).length;
+    expect(occurrences).toBe(1);
+  });
+
+  test('generates logger mock', () => {
+    const src = generateBoundaryTestSource(SOURCE, OUTPUT, [NUMBER_FN], [TASK_MODEL], DB_IMPORT);
+    expect(src).toContain('createLogger');
+    expect(src).toContain('noopLogger');
+  });
+
+  test('casts parameter correctly for number | null type', () => {
+    const src = generateBoundaryTestSource(SOURCE, OUTPUT, [NULLABLE_FN], [TASK_MODEL], DB_IMPORT);
+    expect(src).toContain('edge as number | null');
+    expect(src).toContain('as (number | null)[]');
+    expect(src).toContain('NULLABLE_ID_EDGES.map((bc) => bc.value)');
+  });
+
+  test('generates one describe block per function', () => {
+    const src = generateBoundaryTestSource(
+      SOURCE,
+      OUTPUT,
+      [NUMBER_FN, STRING_FN],
+      [TASK_MODEL],
+      DB_IMPORT,
+    );
+    const describeCount = (src.match(/^describe\(/gm) ?? []).length;
+    expect(describeCount).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseFilesArg
+// ---------------------------------------------------------------------------
+describe('parseFilesArg', () => {
+  test('returns null when no --files flag is present', () => {
+    expect(parseFilesArg(['node', 'script.ts', '--check'])).toBeNull();
+  });
+
+  test.each([
+    {
+      name: '--files=a.ts,b.ts',
+      argv: ['node', 'script.ts', '--files=a.ts,b.ts'],
+      expected: ['a.ts', 'b.ts'],
+    },
+    { name: '--files= with empty value', argv: ['node', 'script.ts', '--files='], expected: [] },
+    {
+      name: '--files followed by positional arguments',
+      argv: ['node', 'script.ts', '--files', 'a.ts', 'b.ts'],
+      expected: ['a.ts', 'b.ts'],
+    },
+  ])('parses $name', ({ argv, expected }) => {
+    const result = parseFilesArg(argv);
+    expect(result).toEqual(expected);
+  });
+
+  test('stops collecting files at the next flag', () => {
+    const result = parseFilesArg(['node', 'script.ts', '--files', 'a.ts', '--check']);
+    expect(result).toEqual(['a.ts']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// scanForResolverFiles — empty-list early exit
+// ---------------------------------------------------------------------------
+describe('scanForResolverFiles', () => {
+  test('returns empty array when files option is an empty list', () => {
+    // Empty list = no resolver files in the changeset → scan must be skipped entirely.
+    const result = scanForResolverFiles({ files: [] });
+    expect(result).toEqual([]);
+  });
+
+  test('performs full scan when files option is undefined', () => {
+    const withUndefined = scanForResolverFiles(undefined);
+    const withNoOpts = scanForResolverFiles();
+    expect(withUndefined.length).toBe(withNoOpts.length);
+    expect(withUndefined.length).toBeGreaterThan(0);
+  });
+
+  test('skips files carrying the manual opt-out marker', () => {
+    // workflow-disabled.ts is a fail-open boolean resolver that opts out via
+    // the marker; it must never appear in the scan (and thus never be
+    // generated or drift-checked).
+    const all = scanForResolverFiles();
+    const optedOut = all.filter((r) => r.filePath.includes('workflow-disabled'));
+    expect(optedOut).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkDrift (integration: runs against real generated files)
+// ---------------------------------------------------------------------------
+describe('checkDrift', () => {
+  test('reports no drift after generator run', async () => {
+    // All 4 generated files were just regenerated; drift must be zero.
+    const drifts = await checkDrift();
+    const driftPaths = drifts.map((d) => d.file);
+    expect(driftPaths).toEqual([]);
+  });
+
+  test('returns empty array when passed an empty files list', async () => {
+    // Empty changeset → no resolver files affected → no drift possible.
+    const drifts = await checkDrift({ files: [] });
+    expect(drifts).toEqual([]);
+  });
+});

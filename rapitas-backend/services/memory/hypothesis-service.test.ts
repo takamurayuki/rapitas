@@ -1,0 +1,94 @@
+/**
+ * hypothesis-service.test
+ *
+ * Pins the two gates that make the ledger trustworthy: the falsifiability gate
+ * (a hypothesis must be a concrete testable claim) and the evidence gate (only a
+ * concrete artifact counts — the defense against an agent "proving" a hypothesis
+ * just to close it). Pure functions, no DB.
+ */
+import { describe, test, expect } from 'bun:test';
+import {
+  HYPOTHESIS_DOMAINS,
+  checkFalsifiable,
+  isConcreteArtifact,
+  normalizeDomain,
+} from './hypothesis-service';
+import { isHypothesisDomain } from './hypothesis-service.guards.generated';
+
+describe('checkFalsifiable', () => {
+  test('accepts a concrete testable claim', () => {
+    expect(checkFalsifiable('git-exec のキャッシュ層導入で PR 取得の往復回数が減る')).toBeNull();
+  });
+
+  test('rejects a too-short statement', () => {
+    expect(checkFalsifiable('速い')).not.toBeNull();
+    expect(checkFalsifiable('x')).not.toBeNull();
+  });
+
+  test('rejects a bare question (no claim to test)', () => {
+    expect(checkFalsifiable('キャッシュ導入で速くなるのは本当か？')).not.toBeNull();
+    expect(checkFalsifiable('Is the cache layer actually faster?')).not.toBeNull();
+  });
+
+  test('trims before measuring length', () => {
+    expect(checkFalsifiable('          ')).not.toBeNull();
+  });
+});
+
+describe('isConcreteArtifact', () => {
+  test.each([
+    { name: 'file:line', input: 'services/github/git-exec.ts:42' },
+    { name: 'a test name', input: 'worktree-usable.test.ts pass 8/8' },
+    { name: 'a measurement / number', input: '13.8s -> 2.5s' },
+    { name: 'a #PR', input: '#226' },
+    { name: 'a path', input: 'routes/memory/' },
+  ])('accepts $name', ({ input }) => {
+    expect(isConcreteArtifact(input)).toBe(true);
+  });
+
+  test('rejects hand-wavy assertions', () => {
+    expect(isConcreteArtifact('seems faster')).toBe(false);
+    expect(isConcreteArtifact('it works')).toBe(false);
+    expect(isConcreteArtifact('')).toBe(false);
+    expect(isConcreteArtifact('  ')).toBe(false);
+  });
+});
+
+describe('normalizeDomain', () => {
+  test('passes through valid domains', () => {
+    expect(normalizeDomain('performance')).toBe('performance');
+    expect(normalizeDomain('agent-behavior')).toBe('agent-behavior');
+  });
+
+  test('defaults unknown to codebase', () => {
+    expect(normalizeDomain('nonsense')).toBe('codebase');
+    expect(normalizeDomain(undefined)).toBe('codebase');
+    expect(normalizeDomain(42)).toBe('codebase');
+  });
+});
+
+describe('HYPOTHESIS_DOMAINS (SSOT array)', () => {
+  test('contains all expected domain strings', () => {
+    expect(HYPOTHESIS_DOMAINS).toEqual([
+      'codebase',
+      'agent-behavior',
+      'performance',
+      'architecture',
+      'other',
+    ]);
+  });
+});
+
+describe('isHypothesisDomain (generated guard)', () => {
+  test.each(['codebase', 'agent-behavior', 'performance', 'architecture', 'other'] as const)(
+    'returns true for valid domain "%s"',
+    (d) => {
+      expect(isHypothesisDomain(d)).toBe(true);
+    },
+  );
+
+  test('returns false for invalid domain', () => {
+    expect(isHypothesisDomain('unknown')).toBe(false);
+    expect(isHypothesisDomain(null)).toBe(false);
+  });
+});

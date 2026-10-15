@@ -1,8 +1,9 @@
 'use client';
 
-import { useReducer, useCallback, useRef } from 'react';
+import { useReducer, useCallback, useRef, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import type { AIChatMessage, AIChatState, AIChatAction, ApiProvider } from '@/types';
-import { sendMessageToAI, sendMessageToAIStream } from './ai-service';
+import { sendMessageToAI, sendMessageToAIStream, type AIServiceMessages } from './ai-service';
 
 const initialState: AIChatState = {
   messages: [],
@@ -86,6 +87,18 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
   const streamingMessageRef = useRef<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Localized fallback error strings threaded into ai-service, which has no
+  // hook access of its own (see AIServiceMessages).
+  const t = useTranslations('notes.aiService');
+  const aiServiceMessages = useMemo<AIServiceMessages>(
+    () => ({
+      apiError: (status, statusText) => t('apiError', { status, statusText }),
+      communicationError: t('communicationError'),
+      streamUnavailable: t('streamUnavailable'),
+    }),
+    [t],
+  );
+
   const sendMessage = useCallback(
     async (content: string) => {
       if (!content.trim() || state.isLoading) return;
@@ -138,15 +151,19 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
             dispatch({ type: 'SET_ERROR', payload: error });
             onError?.(error);
           },
+          aiServiceMessages,
         );
       } else {
-        const response = await sendMessageToAI({
-          message: content.trim(),
-          conversationHistory: [...state.messages, userMessage],
-          systemPrompt,
-          provider,
-          model,
-        });
+        const response = await sendMessageToAI(
+          {
+            message: content.trim(),
+            conversationHistory: [...state.messages, userMessage],
+            systemPrompt,
+            provider,
+            model,
+          },
+          aiServiceMessages,
+        );
 
         if (response.success && response.message) {
           const assistantMessage: AIChatMessage = {
@@ -158,7 +175,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
           dispatch({ type: 'ADD_MESSAGE', payload: assistantMessage });
           onResponseReceived?.(assistantMessage);
         } else {
-          const errorMessage = response.error || '応答の取得に失敗しました';
+          const errorMessage = response.error || t('responseFailed');
           dispatch({ type: 'SET_ERROR', payload: errorMessage });
           onError?.(errorMessage);
         }
@@ -176,6 +193,8 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       onMessageSent,
       onResponseReceived,
       onError,
+      aiServiceMessages,
+      t,
     ],
   );
 

@@ -4,6 +4,12 @@
  */
 import { Elysia } from 'elysia';
 import { createLogger } from '../config/logger';
+import { HTTP_STATUS } from '../utils/common/http-status';
+import {
+  RESOURCE_NOT_FOUND,
+  VALIDATION_ERROR,
+  JSON_PARSE_ERROR,
+} from '../utils/common/error-messages';
 
 const log = createLogger('error-handler');
 
@@ -58,6 +64,25 @@ export class AuthenticationError extends AppError {
   constructor(message: string = 'Authentication required', code?: string) {
     super(401, message, code);
     this.name = 'AuthenticationError';
+  }
+}
+
+/**
+ * Requirement-replan review held with an expected, non-crash reason
+ * (e.g. `budget_exhausted`: priorReplans reached its cap — a terminal state
+ * that retries cannot resolve, not an unexpected failure).
+ *
+ * NOTE (task #961): status-transition.ts previously threw a plain `Error`
+ * here, which fell through to the "Generic server error" branch below and
+ * logged at ERROR level on every occurrence — including this expected one.
+ * Extending AppError routes it through the `error instanceof AppError`
+ * branch instead, which returns the response without calling `log.error`,
+ * suppressing the false-alarm ERROR log at its actual emission site.
+ */
+export class RequirementReplanHeldError extends AppError {
+  constructor(reason: string) {
+    super(409, `Requirement replan review held: ${reason}`, 'REQUIREMENT_REPLAN_HELD');
+    this.name = 'RequirementReplanHeldError';
   }
 }
 
@@ -123,7 +148,7 @@ function isPrismaError(error: unknown): boolean {
 // (e.g. a ValidationError surfaced as 500 "無効なIDです" instead of 400 JSON).
 export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
   { as: 'global' },
-  ({ code, error, set }) => {
+  ({ code, error, set, path, request }) => {
     // Ensure JSON content type for all error responses
     set.headers['Content-Type'] = 'application/json; charset=utf-8';
 
@@ -138,9 +163,9 @@ export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
 
     // Elysia validation error
     if (code === 'VALIDATION') {
-      set.status = 400;
+      set.status = HTTP_STATUS.BAD_REQUEST;
       return {
-        error: 'Validation error',
+        error: VALIDATION_ERROR,
         details:
           'message' in error && typeof error.message === 'string' ? error.message : String(error),
       };
@@ -148,14 +173,25 @@ export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
 
     // Not found
     if (code === 'NOT_FOUND') {
-      set.status = 404;
-      return { error: 'Resource not found' };
+      set.status = HTTP_STATUS.NOT_FOUND;
+      return { error: RESOURCE_NOT_FOUND };
+    }
+
+    // Request body is not valid JSON. Elysia's ParseError already carries
+    // status 400, but without this branch it fell through to the generic
+    // fallback below, which overwrote it with 500 and logged it as an
+    // unclassified server error (K-6588, K-6729, #683).
+    if (code === 'PARSE') {
+      const cause = error.cause instanceof Error ? error.cause.message : undefined;
+      log.warn({ path, method: request.method, cause }, 'Failed to parse JSON request body');
+      set.status = HTTP_STATUS.BAD_REQUEST;
+      return { error: JSON_PARSE_ERROR };
     }
 
     // Prisma related errors (all types)
     if (isPrismaError(error)) {
       log.error({ err: error }, 'Prisma Error');
-      set.status = 400;
+      set.status = HTTP_STATUS.BAD_REQUEST;
       return {
         error: 'Database query error',
       };
@@ -163,7 +199,7 @@ export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
 
     // Generic server error
     log.error({ err: error }, 'Unhandled error');
-    set.status = 500;
+    set.status = HTTP_STATUS.INTERNAL_SERVER_ERROR;
 
     return {
       error: 'Server error occurred',

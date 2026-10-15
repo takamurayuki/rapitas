@@ -7,6 +7,7 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from '../../config/logger';
+import { runGhCommandWithBody } from '../github/gh-client';
 
 const execFileAsync = promisify(execFile);
 const log = createLogger('ai-code-review');
@@ -210,16 +211,9 @@ export async function postReviewToPR(
   }
 
   const body = formatReviewAsMarkdown(review);
-  const ghPath = process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
 
   try {
-    await execFileAsync(
-      process.platform === 'win32' ? 'cmd' : 'sh',
-      process.platform === 'win32'
-        ? ['/c', `${ghPath} pr comment ${prNumber} --body "${body.replace(/"/g, '\\"')}"`]
-        : ['-c', `${ghPath} pr comment ${prNumber} --body '${body.replace(/'/g, "'\\''")}'`],
-      { cwd: workingDirectory, timeout: 15000 },
-    );
+    await runGhCommandWithBody(['pr', 'comment', String(prNumber)], body, workingDirectory);
     log.info(`[CodeReview] Posted review comment to PR #${prNumber}`);
   } catch (error) {
     log.error({ err: error }, `[CodeReview] Failed to post comment to PR #${prNumber}`);

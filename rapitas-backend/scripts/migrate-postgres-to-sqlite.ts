@@ -98,7 +98,10 @@ export function parseCreateTableOrder(sql: string): string[] {
   return [...sql.matchAll(/CREATE TABLE\s+"([^"]+)"/g)].map((match) => match[1]);
 }
 
-export function normalizeSqliteValue(value: unknown): unknown {
+/** Value shapes bun:sqlite's `Statement.run()` bindings accept after normalization. */
+type SqliteBindingValue = string | number | null | Buffer;
+
+export function normalizeSqliteValue(value: unknown): SqliteBindingValue {
   if (value === null || value === undefined) return null;
   if (typeof value === 'boolean') return value ? 1 : 0;
   if (typeof value === 'bigint') return Number(value);
@@ -112,7 +115,11 @@ export function normalizeSqliteValue(value: unknown): unknown {
     return JSON.stringify(value);
   }
 
-  return value;
+  // NOTE: All non-primitive/boolean/bigint/Date cases are handled above and return early,
+  // so control only reaches here for plain string/number values. TS can't narrow `unknown`
+  // down to that pair through the preceding typeof/instanceof chain, so an explicit
+  // annotation (not `any`) documents the real remaining shape instead of widening it away.
+  return value as string | number;
 }
 
 export async function migrateSecretFields(row: AnyRow): Promise<AnyRow> {
@@ -156,7 +163,7 @@ export function insertRows(
 
   const insertMany = database.transaction((items: AnyRow[]) => {
     for (const row of items) {
-      const values = columns.map((column) => normalizeSqliteValue(row[column])) as any[];
+      const values = columns.map((column) => normalizeSqliteValue(row[column]));
       statement.run(...values);
     }
   });
@@ -216,7 +223,13 @@ async function createPostgresClient(postgresUrl: string): Promise<PrismaLike> {
   process.env.RAPITAS_DB_PROVIDER = 'postgresql';
   process.env.DATABASE_URL = postgresUrl;
 
-  const { PrismaClient } = await import('@prisma/client');
+  // Always the postgres client, not resolvePrismaClientCtor()'s DATABASE_URL-
+  // sniffing pick — this script sets DATABASE_URL at runtime (above), after
+  // that resolver's module-load-time isSqlite check would already have run,
+  // so it can't be trusted here. The postgres/sqlite clients generate to
+  // separate folders (see prisma-client-resolver.ts); this migration always
+  // reads FROM postgres, so import that folder directly.
+  const { PrismaClient } = await import('../generated/prisma-postgres');
   return new PrismaClient() as PrismaLike;
 }
 

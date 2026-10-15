@@ -1,7 +1,6 @@
 'use client';
 // ErrorFilters
 
-import React from 'react';
 import { Card } from '@/components/ui/card';
 import Button from '@/components/ui/button/Button';
 import { Search, RefreshCw, Download } from 'lucide-react';

@@ -16,11 +16,12 @@
 
 import { classifyAgentError, type ClassifiedError } from './agent-error-classifier';
 import { isProviderInCooldown, markProviderCooldown, type Provider } from './provider-cooldown';
+import { createLogger } from '../../config/logger';
 
-const log = {
-  info: (data: unknown, message: string) => console.info(message, data),
-  warn: (data: unknown, message: string) => console.warn(message, data),
-};
+// NOTE: Use the shared pino logger, not a console shim. The console.* shim tripped
+// the no-console lint ERROR, which made project-wide `bun run lint` exit non-zero
+// and blocked every auto-run task whose DoD requires a clean lint.
+const log = createLogger('ai:agent-fallback');
 
 type AgentConfigRecord = {
   id: number;
@@ -104,6 +105,30 @@ export async function findFallbackAgentConfig(
   const classified = classifyAgentError(errorBlob, currentProvider ?? undefined);
   if (!classified || !classified.retryWithFallback) return null;
 
+  const { prisma } = await import('../../config/database');
+  const candidates = await prisma.aIAgentConfig.findMany({
+    where: { isActive: true },
+    orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }],
+  });
+
+  // NOTE: model_unavailable means the specific model ID is down, not the whole
+  // provider. Retry with the same agent config type but clear modelId so the CLI
+  // falls back to its default model. Do NOT put the provider in cooldown.
+  if (classified.reason === 'model_unavailable') {
+    const sameProviderConfig = candidates.find(
+      (c) => agentTypeToProvider(c.agentType) === currentProvider,
+    );
+    if (sameProviderConfig) {
+      log.info(
+        { currentProvider, agent: sameProviderConfig.name },
+        'Model unavailable — retrying with same provider, default model (no --model flag)',
+      );
+      return { agentConfig: { ...sameProviderConfig, modelId: null }, classified };
+    }
+    log.warn({ currentProvider }, 'Model unavailable but no same-provider config found');
+    return null;
+  }
+
   // Place the failed provider into cooldown so subsequent automatic routing
   // (Smart Router, listActiveCooldowns, this very lookup) skips it.
   markProviderCooldown(classified.provider, classified.reason, classified.resetAt, {
@@ -113,12 +138,6 @@ export async function findFallbackAgentConfig(
   // Pick the most appropriate alternative: prefer the user's default,
   // otherwise the most recently updated active config from a different
   // provider that isn't itself in cooldown.
-  const { prisma } = await import('../../config/database');
-  const candidates = await prisma.aIAgentConfig.findMany({
-    where: { isActive: true },
-    orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }],
-  });
-
   for (const c of candidates) {
     const provider = agentTypeToProvider(c.agentType);
     if (!provider) continue;

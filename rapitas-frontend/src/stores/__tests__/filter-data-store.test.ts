@@ -221,4 +221,109 @@ describe('filterDataStore', () => {
       expect(apiFetch).toHaveBeenCalled();
     });
   });
+
+  describe('backgroundRefresh', () => {
+    afterEach(() => {
+      (Storage.prototype.setItem as unknown as { mockRestore?: () => void }).mockRestore?.();
+    });
+
+    it('updates categories/themes and clears any error on success', async () => {
+      const mockCategories = [{ id: 1, name: 'Cat1' }];
+      const mockThemes = [{ id: 1, name: 'Theme1' }];
+      vi.mocked(apiFetch).mockResolvedValueOnce(mockCategories).mockResolvedValueOnce(mockThemes);
+      useFilterDataStore.setState({ error: 'stale error' });
+
+      await useFilterDataStore.getState().backgroundRefresh();
+
+      const state = useFilterDataStore.getState();
+      expect(state.categories).toEqual(mockCategories);
+      expect(state.themes).toEqual(mockThemes);
+      expect(state.error).toBeNull();
+      expect(state.lastUpdated).not.toBeNull();
+    });
+
+    it('silently swallows an unexpected synchronous error (e.g. a persistence write failure)', async () => {
+      vi.mocked(apiFetch)
+        .mockResolvedValueOnce([{ id: 1, name: 'Cat1' }])
+        .mockResolvedValueOnce([]);
+      const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('quota exceeded');
+      });
+
+      // The persisted `set()` call throws synchronously (localStorage write
+      // failure) INSIDE backgroundRefresh's try block — this must be caught
+      // and swallowed, never surfacing as an unhandled rejection.
+      await expect(useFilterDataStore.getState().backgroundRefresh()).resolves.toBeUndefined();
+
+      setItemSpy.mockRestore();
+    });
+  });
+
+  describe('persisted rehydration', () => {
+    afterEach(() => {
+      localStorage.removeItem('filter-data-store');
+    });
+
+    it('logs a stale-cache notice when rehydrating with expired persisted data', async () => {
+      const staleLastUpdated = Date.now() - 2 * 60 * 60 * 1000; // 2h ago (expired)
+      localStorage.setItem(
+        'filter-data-store',
+        JSON.stringify({
+          state: {
+            categories: [{ id: 1, name: 'Cat1' }],
+            themes: [{ id: 1, name: 'Theme1' }],
+            lastUpdated: staleLastUpdated,
+            isInitialized: true,
+            cacheExpireTime: 60 * 60 * 1000,
+          },
+          version: 0,
+        }),
+      );
+
+      await useFilterDataStore.persist.rehydrate();
+
+      const state = useFilterDataStore.getState();
+      expect(state.isInitialized).toBe(true);
+      expect(state.isDataFresh()).toBe(false);
+    });
+  });
+
+  describe('module-level debug helpers (development only)', () => {
+    const originalEnv = process.env.NODE_ENV;
+
+    afterEach(() => {
+      // NODE_ENV is typed read-only in @types/node; Object.assign bypasses that
+      // at the type level while still mutating the real process.env at runtime.
+      Object.assign(process.env, { NODE_ENV: originalEnv });
+      delete (window as unknown as Record<string, unknown>).filterDataStoreDebug;
+    });
+
+    it('exposes window.filterDataStoreDebug when NODE_ENV=development', async () => {
+      vi.resetModules();
+      Object.assign(process.env, { NODE_ENV: 'development' });
+
+      const mod = await import('../filter-data-store');
+
+      const debugHelpers = (
+        window as unknown as {
+          filterDataStoreDebug?: {
+            getState: () => unknown;
+            clearCache: () => void;
+            refreshData: (force?: boolean) => Promise<void>;
+            checkFreshness: () => boolean;
+          };
+        }
+      ).filterDataStoreDebug;
+
+      expect(debugHelpers).toBeDefined();
+      expect(debugHelpers!.getState()).toBe(mod.useFilterDataStore.getState());
+
+      // Exercise each helper's body (not just its type) for full coverage.
+      expect(typeof debugHelpers!.checkFreshness()).toBe('boolean');
+      debugHelpers!.clearCache();
+      expect(mod.useFilterDataStore.getState().categories).toEqual([]);
+      await debugHelpers!.refreshData(false);
+      expect(vi.mocked(apiFetch)).toHaveBeenCalled();
+    });
+  });
 });

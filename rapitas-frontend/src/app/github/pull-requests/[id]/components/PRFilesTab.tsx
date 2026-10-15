@@ -81,7 +81,7 @@ export function PRFilesTab({ diff, expandedFiles, onToggleFile }: PRFilesTabProp
                         : line.startsWith('-') && !line.startsWith('---')
                           ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
                           : line.startsWith('@@')
-                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
+                            ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300'
                             : 'text-zinc-600 dark:text-zinc-400'
                     }`}
                   >

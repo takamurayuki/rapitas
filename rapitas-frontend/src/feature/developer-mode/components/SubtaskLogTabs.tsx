@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Loader2,
   CheckCircle2,
@@ -14,7 +15,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import type { Task } from '@/types';
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { ExecutionLogViewer, type ExecutionLogStatus } from './ExecutionLogViewer';
 import { WorkflowLogViewer } from './WorkflowLogViewer';
 
@@ -36,22 +37,32 @@ interface SubtaskLogTabsProps {
 }
 
 /** Get phase label from workflow status */
-function getPhaseLabel(workflowStatus?: string): string {
+function getPhaseLabel(t: ReturnType<typeof useTranslations>, workflowStatus?: string): string {
   switch (workflowStatus) {
     case 'draft':
-      return '初期化';
+      // draft = researcher running (→ research_done on completion)
+      return t('phase.draft');
     case 'research_done':
-      return '調査完了';
+      // research_done = planner running (→ plan_created); lightweight implements here
+      return t('phase.researchDone');
     case 'plan_created':
-      return '計画作成';
+      return t('phase.planCreated');
     case 'plan_approved':
-      return '計画承認済';
+      // plan_approved = implementer running (→ in_progress on completion)
+      return t('phase.planApproved');
     case 'in_progress':
-      return '実装中';
+      // in_progress = verifier running (→ verify_done on completion)
+      return t('phase.inProgress');
+    case 'verify_done':
+      return t('phase.verifyDone');
+    case 'awaiting_question':
+      return t('phase.awaitingQuestion');
+    case 'blocked':
+      return t('phase.blocked');
     case 'completed':
-      return '完了';
+      return t('phase.completed');
     default:
-      return workflowStatus || '待機中';
+      return workflowStatus || t('phase.waiting');
   }
 }
 
@@ -86,6 +97,7 @@ export function SubtaskLogTabs({
   maxHeight = 200,
   useWorkflow = false,
 }: SubtaskLogTabsProps) {
+  const t = useTranslations('devMode.subtaskLogTabs');
   // "All" tab + subtask tabs
   const [activeTab, setActiveTab] = useState<number | 'all'>('all');
   // Toggle workflow view mode
@@ -208,8 +220,8 @@ export function SubtaskLogTabs({
     const elapsed = Math.floor((now.getTime() - startTime.getTime()) / 1000);
     const minutes = Math.floor(elapsed / 60);
     const seconds = elapsed % 60;
-    return `${minutes}分${seconds}秒`;
-  }, [startTime]);
+    return t('elapsedTime', { minutes, seconds });
+  }, [startTime, t]);
 
   if (subtasks.length === 0) {
     return null;
@@ -222,12 +234,12 @@ export function SubtaskLogTabs({
           onClick={() => setActiveTab('all')}
           className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium rounded-t-lg border-b-2 transition-colors whitespace-nowrap shrink-0 ${
             activeTab === 'all'
-              ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-indigo-500'
+              ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-500'
               : 'bg-zinc-50 dark:bg-indigo-dark-800/50 text-zinc-600 dark:text-zinc-400 border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800'
           }`}
         >
           <Terminal className="w-3 h-3" />
-          <span>全体</span>
+          <span>{t('allTab')}</span>
           {isRunning && <Loader2 className="w-2.5 h-2.5 animate-spin" />}
           <span className="px-1 py-0.5 bg-zinc-200 dark:bg-zinc-700 rounded text-[9px]">
             {allLogs.length}
@@ -245,7 +257,7 @@ export function SubtaskLogTabs({
               onClick={() => setActiveTab(subtask.id)}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium rounded-t-lg border-b-2 transition-colors whitespace-nowrap shrink-0 max-w-[150px] ${
                 isActive
-                  ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-indigo-500'
+                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-500'
                   : 'bg-zinc-50 dark:bg-indigo-dark-800/50 text-zinc-600 dark:text-zinc-400 border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800'
               }`}
               title={subtask.title}
@@ -266,10 +278,10 @@ export function SubtaskLogTabs({
             onClick={() => setShowWorkflowView((prev) => !prev)}
             className={`p-1.5 rounded transition-colors shrink-0 ml-1 ${
               showWorkflowView
-                ? 'text-indigo-400 bg-indigo-900/30'
+                ? 'text-blue-400 bg-blue-900/30'
                 : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-800'
             }`}
-            title={showWorkflowView ? 'フラット表示に切替' : 'ワークフロー表示に切替'}
+            title={showWorkflowView ? t('toggleFlatView') : t('toggleWorkflowView')}
           >
             <GitBranch className="w-3 h-3" />
           </button>
@@ -279,7 +291,7 @@ export function SubtaskLogTabs({
           <button
             onClick={() => onRefreshLogs(activeTab === 'all' ? undefined : activeTab)}
             className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors shrink-0 ml-auto"
-            title="ログを更新"
+            title={t('refreshLogs')}
           >
             <RefreshCw className="w-3 h-3" />
           </button>
@@ -310,22 +322,23 @@ export function SubtaskLogTabs({
             }
             collapsible={false}
             maxHeight={maxHeight}
+            resizable
           />
         ) : (
-          <div className="flex flex-col items-center justify-center py-8 text-zinc-400 dark:text-zinc-500">
+          <div className="flex flex-col items-center justify-center py-8 text-zinc-500 dark:text-zinc-500">
             <Terminal className="w-6 h-6 mb-2 opacity-50" />
-            <p className="text-[10px]">{isRunning ? 'ログを待機中...' : 'ログがありません'}</p>
+            <p className="text-[10px]">{isRunning ? t('waitingLogs') : t('noLogs')}</p>
           </div>
         )}
       </div>
 
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-[10px] text-zinc-500 dark:text-zinc-400">
-          <span className="font-medium">進捗:</span>
+          <span className="font-medium">{t('progressLabel')}</span>
           <span>
-            {completedCount}/{subtasks.length} 完了
+            {t('progressCount', { completed: completedCount, total: subtasks.length })}
             {elapsedTime && isRunning && (
-              <span className="ml-2 text-zinc-600">経過: {elapsedTime}</span>
+              <span className="ml-2 text-zinc-600">{t('elapsedLabel', { time: elapsedTime })}</span>
             )}
           </span>
         </div>
@@ -354,7 +367,7 @@ export function SubtaskLogTabs({
                 </span>
                 {hasWorkflowInfo && (
                   <span className={`shrink-0 ${getPhaseStyle(workflowStatus)}`}>
-                    {getPhaseLabel(workflowStatus)}
+                    {getPhaseLabel(t, workflowStatus)}
                   </span>
                 )}
                 {!hasWorkflowInfo && status && (
@@ -372,22 +385,22 @@ export function SubtaskLogTabs({
                     }`}
                   >
                     {status === 'completed'
-                      ? '完了'
+                      ? t('statusLabel.completed')
                       : status === 'running'
-                        ? '実行中'
+                        ? t('statusLabel.running')
                         : status === 'failed'
-                          ? '失敗'
+                          ? t('statusLabel.failed')
                           : status === 'blocked'
-                            ? 'ブロック中'
+                            ? t('statusLabel.blocked')
                             : status === 'scheduled'
-                              ? 'スケジュール済'
-                              : '待機中'}
+                              ? t('statusLabel.scheduled')
+                              : t('statusLabel.waiting')}
                   </span>
                 )}
                 {parentTask && (
                   <span
                     className="flex items-center gap-0.5 text-zinc-500 shrink-0"
-                    title={`依存先: ${parentTask.title}`}
+                    title={t('dependencyTitle', { title: parentTask.title })}
                   >
                     <ArrowRight className="w-2.5 h-2.5" />
                     <span className="truncate max-w-[60px]">{parentTask.title}</span>

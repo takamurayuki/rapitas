@@ -1,16 +1,14 @@
 'use client';
 import type { Task, DeveloperModeConfig, WorkflowFile } from '@/types';
-import GlobalPomodoroModal from '@/feature/tasks/pomodoro/GlobalPomodoroModal';
 import { DeveloperModeConfigModal } from '@/feature/developer-mode/components/DeveloperModeConfig';
 import SaveAsTemplateDialog from '@/feature/tasks/components/dialog/SaveAsTemplateDialog';
 import PlanApprovalModal from '@/components/workflow/PlanApprovalModal';
 import { useTranslations } from 'next-intl';
+import { useToast } from '@/components/ui/toast/ToastContainer';
 
 interface TaskDetailModalsProps {
   task: Task;
   taskId: number;
-  showPomodoroModal: boolean;
-  onClosePomodoroModal: () => void;
   showDevModeConfig: boolean;
   onCloseDevModeConfig: () => void;
   devModeConfig: DeveloperModeConfig | null;
@@ -30,8 +28,6 @@ interface TaskDetailModalsProps {
 export default function TaskDetailModals({
   task,
   taskId,
-  showPomodoroModal,
-  onClosePomodoroModal,
   showDevModeConfig,
   onCloseDevModeConfig,
   devModeConfig,
@@ -46,15 +42,9 @@ export default function TaskDetailModals({
   onApprovalComplete,
 }: TaskDetailModalsProps) {
   const t = useTranslations('task');
+  const { showToast } = useToast();
   return (
     <>
-      <GlobalPomodoroModal
-        isOpen={showPomodoroModal}
-        onClose={onClosePomodoroModal}
-        taskId={task?.id}
-        taskTitle={task?.title}
-      />
-
       <DeveloperModeConfigModal
         config={devModeConfig}
         isOpen={showDevModeConfig}
@@ -71,7 +61,7 @@ export default function TaskDetailModals({
           isOpen={showSaveTemplateDialog}
           onClose={onCloseSaveTemplateDialog}
           onSuccess={() => {
-            alert(t('templateSaved'));
+            showToast(t('templateSaved'), 'success');
           }}
         />
       )}

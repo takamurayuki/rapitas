@@ -1,6 +1,7 @@
 'use client';
 // AnalysisSection
 
+import { useTranslations } from 'next-intl';
 import {
   BrainCircuit,
   ChevronDown,
@@ -91,6 +92,7 @@ export function AnalysisSection({
   onRetryPrompt,
   getCategoryLabel,
 }: AnalysisSectionProps) {
+  const t = useTranslations('devMode.analysisSection');
   return (
     <div className="border-b border-zinc-100 dark:border-zinc-800">
       {/* Section header (accordion trigger) */}
@@ -102,7 +104,9 @@ export function AnalysisSection({
       >
         <div className="flex items-center gap-2">
           <BrainCircuit className="w-4 h-4 text-violet-500" />
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">タスク分析</span>
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            {t('taskAnalysis')}
+          </span>
           {analysisStatusIcon === 'loading' && <SkeletonBlock className="w-3 h-3 rounded" />}
           {analysisStatusIcon === 'success' && <CheckCircle2 className="w-3 h-3 text-green-500" />}
           {analysisStatusIcon === 'error' && <AlertCircle className="w-3 h-3 text-red-500" />}
@@ -130,7 +134,7 @@ export function AnalysisSection({
               }`}
             >
               <ListTodo className="w-3.5 h-3.5" />
-              サブタスク
+              {t('subtasksTab')}
               {analysisResult?.suggestedSubtasks?.length ? (
                 <span className="px-1 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded text-[10px]">
                   {analysisResult.suggestedSubtasks.length}
@@ -149,7 +153,7 @@ export function AnalysisSection({
               }`}
             >
               <FileText className="w-3.5 h-3.5" />
-              プロンプト
+              {t('promptTab')}
               {promptResult && (
                 <span className="px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded text-[10px]">
                   ✓

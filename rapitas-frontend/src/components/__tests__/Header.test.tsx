@@ -49,7 +49,7 @@ vi.mock('@/hooks/useDarkMode', () => ({
   }),
 }));
 
-vi.mock('@/stores/shortcutStore', () => ({
+vi.mock('@/stores/shortcut-store', () => ({
   useShortcutStore: (selector: (state: { shortcuts: [] }) => unknown) =>
     selector({ shortcuts: [] }),
 }));
@@ -72,7 +72,7 @@ vi.mock('next-intl', () => ({
 }));
 
 // Mock components
-vi.mock('@/components/app-icon', () => ({
+vi.mock('@/components/common/app-icon', () => ({
   default: ({ size, className }: { size?: number; className?: string }) => (
     <div data-testid="app-icon" />
   ),
@@ -82,7 +82,7 @@ vi.mock('@/feature/tasks/pomodoro/GlobalPomodoroWidget', () => ({
   default: () => <div data-testid="pomodoro-widget" />,
 }));
 
-vi.mock('@/components/KeyboardShortcuts', () => ({
+vi.mock('@/components/common/KeyboardShortcuts', () => ({
   OPEN_SHORTCUTS_EVENT: 'open-shortcuts',
 }));
 
@@ -92,6 +92,13 @@ vi.mock('@/components/NotificationBell', () => ({
 
 vi.mock('@/components/LanguageSwitcher', () => ({
   default: () => <div data-testid="language-switcher" />,
+}));
+
+// NOTE: useHeader() throws without a ToastProvider ancestor (used for the
+// restart-timeout toast). Mock the hook directly — same pattern as
+// TaskCard.test.tsx.
+vi.mock('@/components/ui/toast/ToastContainer', () => ({
+  useToast: () => ({ showToast: vi.fn() }),
 }));
 
 // Mock Tauri utilities
@@ -104,63 +111,59 @@ vi.mock('@/utils/api', () => ({
   API_BASE_URL: 'http://localhost:3001',
 }));
 
-// Mock lucide-react icons used in Header
-vi.mock('lucide-react', () => {
-  const createIcon = (name: string) => {
-    const Icon = ({ className }: { className?: string }) => (
-      <div data-testid={name} className={className} />
-    );
-    Icon.displayName = name;
-    return Icon;
-  };
-  return {
-    Menu: createIcon('menu-icon'),
-    Home: createIcon('home-icon'),
-    Columns3: createIcon('columns3-icon'),
-    List: createIcon('list-icon'),
-    Tags: createIcon('tags-icon'),
-    SwatchBook: createIcon('swatchbook-icon'),
-    Search: createIcon('search-icon'),
-    X: createIcon('x-icon'),
-    FolderOpen: createIcon('folder-open-icon'),
-    FolderKanban: createIcon('folder-kanban-icon'),
-    ChevronDown: createIcon('chevron-down-icon'),
-    ChevronRight: createIcon('chevron-right-icon'),
-    Target: createIcon('target-icon'),
-    BarChart3: createIcon('bar-chart3-icon'),
-    Trophy: createIcon('trophy-icon'),
-    Flame: createIcon('flame-icon'),
-    Brain: createIcon('brain-icon'),
-    FileText: createIcon('file-text-icon'),
-    Calendar: createIcon('calendar-icon'),
-    Clock: createIcon('clock-icon'),
-    GraduationCap: createIcon('graduation-cap-icon'),
-    Keyboard: createIcon('keyboard-icon'),
-    Bot: createIcon('bot-icon'),
-    CheckCircle: createIcon('check-circle-icon'),
-    Settings: createIcon('settings-icon'),
-    Github: createIcon('github-icon'),
-    GitPullRequest: createIcon('git-pull-request-icon'),
-    CircleDot: createIcon('circle-dot-icon'),
-    Code: createIcon('code-icon'),
-    Key: createIcon('key-icon'),
-    Pin: createIcon('pin-icon'),
-    PinOff: createIcon('pin-off-icon'),
-    MessageSquare: createIcon('message-square-icon'),
-    SquareArrowDown: createIcon('square-arrow-down-icon'),
-    EllipsisVertical: createIcon('ellipsis-vertical-icon'),
-    Moon: createIcon('moon-icon'),
-    Sun: createIcon('sun-icon'),
-    BookMarked: createIcon('book-marked-icon'),
-    RotateCw: createIcon('rotate-cw-icon'),
-    Loader2: createIcon('loader2-icon'),
-    Sparkles: createIcon('sparkles-icon'),
-    NotebookTabs: createIcon('notebook-tabs-icon'),
-    User: createIcon('user-icon'),
-    LogOut: createIcon('log-out-icon'),
-    Package: createIcon('package-icon'),
-    Lightbulb: createIcon('lightbulb-icon'),
-  };
+// NOTE: Uses the shared self-repairing factory. Newly-imported icons are
+// auto-stubbed; only icons whose test-ids are asserted below need overrides.
+vi.mock('lucide-react', async (importOriginal) => {
+  const { buildLucideMock } = await import('@/__tests__/helpers/lucide-react-mock');
+  return buildLucideMock(importOriginal, {
+    Menu: 'menu-icon',
+    Home: 'home-icon',
+    Columns3: 'columns3-icon',
+    List: 'list-icon',
+    Tags: 'tags-icon',
+    SwatchBook: 'swatchbook-icon',
+    Search: 'search-icon',
+    X: 'x-icon',
+    LayoutDashboard: 'layout-dashboard-icon',
+    LayoutList: 'layout-list-icon',
+    Folders: 'folders-icon',
+    FolderKanban: 'folder-kanban-icon',
+    ChevronDown: 'chevron-down-icon',
+    ChevronRight: 'chevron-right-icon',
+    Target: 'target-icon',
+    BarChart3: 'bar-chart3-icon',
+    Trophy: 'trophy-icon',
+    CalendarRange: 'calendar-range-icon',
+    Brain: 'brain-icon',
+    FileText: 'file-text-icon',
+    Calendar: 'calendar-icon',
+    Clock: 'clock-icon',
+    GraduationCap: 'graduation-cap-icon',
+    Keyboard: 'keyboard-icon',
+    Bot: 'bot-icon',
+    CheckCircle: 'check-circle-icon',
+    Settings: 'settings-icon',
+    GitPullRequest: 'git-pull-request-icon',
+    CircleDot: 'circle-dot-icon',
+    Code: 'code-icon',
+    Key: 'key-icon',
+    Pin: 'pin-icon',
+    PinOff: 'pin-off-icon',
+    MessageSquare: 'message-square-icon',
+    SquareArrowDown: 'square-arrow-down-icon',
+    EllipsisVertical: 'ellipsis-vertical-icon',
+    Moon: 'moon-icon',
+    Sun: 'sun-icon',
+    BookMarked: 'book-marked-icon',
+    RotateCw: 'rotate-cw-icon',
+    Loader2: 'loader2-icon',
+    Sparkles: 'sparkles-icon',
+    NotebookTabs: 'notebook-tabs-icon',
+    User: 'user-icon',
+    LogOut: 'log-out-icon',
+    Package: 'package-icon',
+    Lightbulb: 'lightbulb-icon',
+  });
 });
 
 // Mock window.dispatchEvent
@@ -261,31 +264,23 @@ describe('Header', () => {
   });
 
   describe('Dark mode toggle', () => {
-    it('dark mode button in more menu is clickable', async () => {
+    it('dark mode toggle switch is clickable', () => {
       render(<Header />);
-      // Dark mode toggle is inside the more menu (EllipsisVertical button)
-      const moreMenuButton = screen.getByRole('button', { name: /moreMenu/i });
-      fireEvent.click(moreMenuButton);
-
-      await waitFor(() => {
-        // The dark mode button text is t('switchToDark') = 'switchToDark'
-        const darkModeButton = screen.getByText('switchToDark');
-        fireEvent.click(darkModeButton);
-        expect(mockToggleTheme).toHaveBeenCalled();
-      });
+      // Dark mode is a standalone toggle switch in the toolbar (not behind a
+      // menu); its accessible name is t('switchToDark') = 'switchToDark' in
+      // light mode (useDarkMode mock returns isDarkMode: false).
+      const darkModeButton = screen.getByRole('switch', { name: 'switchToDark' });
+      fireEvent.click(darkModeButton);
+      expect(mockToggleTheme).toHaveBeenCalled();
     });
 
-    it('displays appropriate icon based on dark mode state', async () => {
+    it('displays appropriate icon based on dark mode state', () => {
       render(<Header />);
-      // Open more menu
-      const moreMenuButton = screen.getByRole('button', { name: /moreMenu/i });
-      fireEvent.click(moreMenuButton);
-
-      await waitFor(() => {
-        // In light mode (isDarkMode: false), shows Moon icon and "switchToDark" text
-        expect(screen.getByTestId('moon-icon')).toBeInTheDocument();
-        expect(screen.getByText('switchToDark')).toBeInTheDocument();
-      });
+      // In light mode (isDarkMode: false), both Moon and Sun icons are always
+      // rendered (opacity-toggled); the switch's accessible name reflects the
+      // action it performs next.
+      expect(screen.getByTestId('moon-icon')).toBeInTheDocument();
+      expect(screen.getByRole('switch', { name: 'switchToDark' })).toBeInTheDocument();
     });
   });
 

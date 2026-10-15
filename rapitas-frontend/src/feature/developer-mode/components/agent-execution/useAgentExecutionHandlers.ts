@@ -2,6 +2,7 @@
 // useAgentExecutionHandlers
 
 import { useCallback, useRef, type Dispatch, type SetStateAction } from 'react';
+import { useTranslations } from 'next-intl';
 import type { ExecutionResult } from '../../hooks/useDeveloperMode';
 import { API_BASE_URL } from '@/utils/api';
 import type { PrState } from './agent-execution-types';
@@ -70,6 +71,7 @@ export type AgentExecutionHandlers = {
  * @returns Object containing all handler functions
  */
 export function useAgentExecutionHandlers(s: SharedExecutionState): AgentExecutionHandlers {
+  const t = useTranslations('devMode.useAgentExecutionHandlers');
   const sendingResponseRef = useRef(false);
 
   const handleExecute = async () => {
@@ -119,14 +121,14 @@ export function useAgentExecutionHandlers(s: SharedExecutionState): AgentExecuti
         }, 500);
         s._setShowLogs(true);
       } else {
-        const errorData = await response.json().catch(() => ({ error: '継続実行に失敗しました' }));
+        const errorData = await response.json().catch(() => ({ error: t('continuationFailed') }));
         logger.error('Failed to continue execution:', errorData);
-        s.setFollowUpError(errorData.error || '継続実行に失敗しました。再度お試しください。');
+        s.setFollowUpError(errorData.error || t('continuationFailedRetry'));
         s.setFollowUpInstruction(savedInstruction);
       }
     } catch (err) {
       logger.error('Error continuing execution:', err);
-      s.setFollowUpError('サーバーとの通信に失敗しました。再度お試しください。');
+      s.setFollowUpError(t('communicationFailedRetry'));
       s.setFollowUpInstruction(savedInstruction);
     }
   };
@@ -230,7 +232,7 @@ export function useAgentExecutionHandlers(s: SharedExecutionState): AgentExecuti
     } catch (err) {
       s.setPrState({
         status: 'error',
-        error: err instanceof Error ? err.message : 'PR作成に失敗しました',
+        error: err instanceof Error ? err.message : t('prCreateFailed'),
       });
     }
   };
@@ -257,7 +259,7 @@ export function useAgentExecutionHandlers(s: SharedExecutionState): AgentExecuti
       s.setPrState((prev: PrState) => ({
         ...prev,
         status: 'error',
-        error: err instanceof Error ? err.message : 'マージに失敗しました',
+        error: err instanceof Error ? err.message : t('mergeFailed'),
       }));
     }
   };

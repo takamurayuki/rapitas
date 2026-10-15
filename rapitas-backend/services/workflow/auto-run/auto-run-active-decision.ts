@@ -1,0 +1,272 @@
+/**
+ * auto-run-advance-active
+ *
+ * The current-task branch of the auto-run scheduler's advance step: hang
+ * backstop (wall-clock tenure guard), active-item wait / stall release, and
+ * terminal resolution (completed / failed / vanished item re-enqueue). On
+ * resolution it continues into next-task selection (auto-run-advance-select).
+ * Extracted verbatim from ThemeAutoRunScheduler.advanceTheme (task 628).
+ */
+import type { PrismaClient } from '../../../generated/prisma-postgres';
+import { createLogger } from '../../../config/logger';
+import { isTaskPlanApproved } from '../plan-approval-queue-sync';
+
+import { logCycleEvent } from '../../observability';
+import {
+  MAX_TASK_WALL_MS,
+  getThemeActiveQueueItems,
+  hasItemAwaitingApproval,
+  isAwaitingUserAnswer,
+  resolveLastProgressAt,
+} from './auto-run-selection';
+import { liveOrQueuedBehind } from './queue-wait-exemption';
+import { taskNeverExecuted } from './auto-run-execution-presence';
+import { requeueIfNeverExecuted } from './requeue-if-never-executed';
+import { setCurrentTask, onAwaitingPlanApproval } from './theme-auto-run-service';
+import { notifyAwaitingPlanApproval, notifyAwaitingUserAnswer } from './auto-run-notifications';
+
+import { releaseStaleActiveItems } from './auto-run-stall-guard';
+
+import { broadcastAutoRunUpdateImpl } from './auto-run-lifecycle';
+import { selectAndEnqueueNextTask } from './auto-run-advance-select';
+import { isOverlapHeld } from '../workflow-orchestrator-overlap-guard';
+import { handOffExhaustedMerge } from '../merge-exhausted-handoff';
+import { isTaskTerminalForQueue } from '../queue-terminal-task-guard';
+import { forceStopOverWallBudget, requeueAndResetTenure } from './auto-run-hang-backstop-stop';
+
+import { resolveResumedTenureStart, resolveAutoRunRestartTenureStart } from './resume-tenure';
+import { resolveCurrentTaskOutcome } from './auto-run-resolve-outcome';
+
+const log = createLogger('theme-auto-run-scheduler');
+
+/**
+ * Advance a running theme that has a current task: resolve the current task's
+ * outcome (hang backstop / in-flight wait / terminal resolution) and, once it
+ * is resolved, continue into next-task selection.
+ *
+ * @param prisma - Prisma client / Prismaクライアント
+ * @param themeId - Theme to advance / 進めるテーマID
+ * @param currentTaskId - Currently tracked task / 現在のタスクID
+ * @param order - Task selection order / タスク選択順序
+ * @param globalActive - Current global auto-run active count / グローバルアクティブ数
+ * @param lastRunAt - When the current task became current / 現在タスクの開始時刻
+ * @param barrierHoldSince - Per-theme merge-barrier hold start, forwarded to selection / マージバリア保留開始時刻
+ */
+export async function advanceActiveTaskLocked(
+  prisma: PrismaClient,
+  themeId: number,
+  currentTaskId: number,
+  order: 'priority' | 'created',
+  globalActive: number,
+  lastRunAt: string | null,
+  barrierHoldSince: Map<number, number>,
+): Promise<void> {
+  // Hang backstop: never let a wedged run burn tokens indefinitely. If the
+  // task has been the current task longer than MAX_TASK_WALL_MS, force-stop
+  // it, mark it blocked (skip), and advance. This sits ABOVE WorkflowRunner's
+  // per-phase timeout as a whole-task safety net (the user's "正常性確認").
+  // EXEMPT a task that is waiting for the USER'S ANSWER: it burns no tokens,
+  // and force-stopping it runs revertChanges — destroying the agent's
+  // uncommitted work just because the user was away for 45 min.
+  let tenureStart = lastRunAt ? new Date(lastRunAt).getTime() : Date.now();
+  if (lastRunAt && Date.now() - tenureStart >= MAX_TASK_WALL_MS) {
+    tenureStart = await resolveResumedTenureStart(prisma, currentTaskId, tenureStart);
+    // A paused theme freezes lastRunAt while accruing no work, so any pause
+    // longer than the wall fires the backstop 13 s after resuming (task 1116,
+    // 2026-10-06). Clamp to when auto-run actually restarted.
+    tenureStart = await resolveAutoRunRestartTenureStart(prisma, themeId, tenureStart);
+  }
+  const tenureMs = Date.now() - tenureStart;
+  if (lastRunAt && tenureMs >= MAX_TASK_WALL_MS) {
+    if (await isAwaitingUserAnswer(prisma, currentTaskId)) {
+      await notifyAwaitingUserAnswer(themeId, currentTaskId);
+      if (!(await liveOrQueuedBehind(prisma, currentTaskId))) {
+        await setCurrentTask(themeId, null);
+        broadcastAutoRunUpdateImpl(themeId);
+      }
+      return;
+    }
+    // EXEMPT a task held by the overlap guard (task 793): the implementer has
+    // not even started — it is queued behind another open auto-PR touching
+    // the same files — so the tenure wall is measuring wait time, not stuck
+    // work. In task 784's timeline the 16:51 manual retry was confirmed to
+    // follow exactly this misread (implement_overlap_hold at 16:04 → hang
+    // backstop at 16:49); the 18:21 retry matches the same shape but only on
+    // circumstantial evidence (no hold log survived the 17:34 self-restart).
+    if (isOverlapHeld(currentTaskId)) {
+      log.info(
+        `[ThemeAutoRunScheduler] Task ${currentTaskId} over tenure wall but held by the overlap guard — deferring hang backstop (theme ${themeId})`,
+      );
+      return;
+    }
+    // A task parked at verify_done whose auto-merge candidate is EXHAUSTED has
+    // no owner, so `workflowSettled` below would defer forever while this very
+    // branch re-enqueues a queue item every tick. Resolve it here instead: park
+    // it for the operator and move the theme on. Deliberately NOT routed into
+    // the force-stop path below — the work is committed and pushed, so a hang
+    // verdict would revert the worktree and demote the task to redo it, and the
+    // 2nd PR would collide with the 1st (task 1258: 16 items / 10.5 h / 0
+    // executions, holding theme 1's only slot — see merge-exhausted-handoff).
+    if (await handOffExhaustedMerge(prisma, currentTaskId, themeId)) {
+      await setCurrentTask(themeId, null);
+      broadcastAutoRunUpdateImpl(themeId);
+      await selectAndEnqueueNextTask(
+        prisma,
+        themeId,
+        order,
+        Math.max(0, globalActive - 1),
+        barrierHoldSince,
+      );
+      return;
+    }
+    // Measure time since PROGRESS, not tenure. A multi-phase task legitimately
+    // outlives the task wall (the implementer alone may run 56 min against a
+    // 45-min wall), and the liveness check below cannot see the phase seam
+    // where one execution has ended and the next has not started: task 585
+    // was killed there, 8 seconds after its implementer committed a complete
+    // implementation. Transitions and heartbeats are the actual evidence of
+    // movement; only their absence means wedged.
+    // Task 1007: a task with ZERO executions is waiting in the queue, not hung
+    // (984 was blocked at 72 min behind 881's ci_repair without ever running).
+    // Task 1166: only executions since THIS tenure began count — a past run
+    // (exec 5514 on #1153) must not turn a slot-starved task into "wedged".
+    // Raw lastRunAt, not the resume-clamped tenureStart: clamping would hide a
+    // wedged run that began before a pause.
+    const since = new Date(lastRunAt);
+    const neverExecuted = await taskNeverExecuted(prisma, currentTaskId, since);
+    const lastProgressAt = await resolveLastProgressAt(prisma, currentTaskId, tenureStart);
+    const sinceProgressMs = Date.now() - lastProgressAt;
+    // Liveness exemption: a running execution with a fresh heartbeat is
+    // SLOW, not wedged — killing it destroys legitimate long work (task
+    // 563: healthy 31-min implementer force-stopped because multi-phase
+    // tenure crossed the 45-min wall). While live, the role wall-clock /
+    // phase timeouts govern; the tenure wall only fires once the task has
+    // no live execution. A hard ceiling (3x) still bounds runaway tokens
+    // even with a heartbeat, preserving the original guard's purpose.
+    const withinHardCeiling = tenureMs < MAX_TASK_WALL_MS * 3;
+    const progressedRecently = sinceProgressMs < MAX_TASK_WALL_MS && withinHardCeiling;
+    const executionIsLive =
+      withinHardCeiling && !progressedRecently && (await liveOrQueuedBehind(prisma, currentTaskId));
+    // CRITICAL: deferring must FALL THROUGH to the normal resolution below,
+    // never return. Returning here wedged the whole theme: task 594 finished
+    // while over the tenure wall, so every tick saw "progressed 429s ago",
+    // deferred, and returned before the code that resolves a finished task
+    // and picks the next one — auto-run sat "running" with a completed
+    // current task and 9 runnable tasks untouched.
+    // Task 1166: past the 3x ceiling a never-executed task is STILL only waiting
+    // when its own item is queued behind another task's running/live work (slot
+    // starvation, #1153). Without that evidence it is a stuck queue and falls
+    // to the bounded requeue below.
+    const queuedBehindSlot =
+      neverExecuted && !withinHardCeiling && (await liveOrQueuedBehind(prisma, currentTaskId));
+    const waitingUnstarted = neverExecuted && (withinHardCeiling || queuedBehindSlot);
+    // A task whose workflow already finished cannot be hung, and force-stopping
+    // it runs revertChanges and then demotes it — the backstop turns finished
+    // work into work to redo.
+    //
+    // Measured 2026-10-06: the backend was down for hours while ThemeAutoRun
+    // still pointed at task 1114, which had passed verify at 17:41 with its PR
+    // #833 merged at 17:51. On the first tick after the restart the tenure wall
+    // was long past (it counts real time, and downtime is real time), so the
+    // backstop fired on a COMPLETED task: 06:53 completed → blocked
+    // (auto_run_hang_backstop), 06:57 completed → draft (blocked_auto_retry),
+    // leaving it at status=todo with its work already merged and queued to be
+    // done a second time.
+    //
+    // Counting downtime is NOT the defect — a live task's agent process dies
+    // with the backend, so re-running that IS right. The defect is applying a
+    // hang verdict to a task with nothing left to run. The shared terminal
+    // predicate is reused so "terminal" cannot drift from the queue guards';
+    // verify_done joins it because that state is settled by the runner's own
+    // wait and the auto-merge watcher, never by dispatching an agent.
+    const settledTask = await prisma.task
+      .findUnique({ where: { id: currentTaskId }, select: { status: true, workflowStatus: true } })
+      .catch(() => null);
+    const workflowSettled =
+      !!settledTask &&
+      (isTaskTerminalForQueue(settledTask) || settledTask.workflowStatus === 'verify_done');
+    if (progressedRecently || executionIsLive || waitingUnstarted || workflowSettled) {
+      log.info(
+        `[ThemeAutoRunScheduler] Task ${currentTaskId} over tenure wall but ${
+          workflowSettled
+            ? `its workflow already settled (status=${settledTask?.status}, workflow=${settledTask?.workflowStatus})`
+            : progressedRecently
+              ? `progressed ${Math.round(sinceProgressMs / 1000)}s ago`
+              : waitingUnstarted
+                ? `has not executed since becoming current (queue wait, ${Math.round(tenureMs / 60000)}min)`
+                : 'execution heartbeat is fresh'
+        } — deferring hang backstop (theme ${themeId})`,
+      );
+    } else if (await requeueIfNeverExecuted(prisma, currentTaskId, themeId, since)) {
+      // Past the 3x ceiling without ever running: a stuck queue, not a hung
+      // agent. Requeue (bounded) instead of blocking; setCurrentTask resets
+      // the tenure clock.
+      await requeueAndResetTenure(themeId, currentTaskId);
+      return;
+    } else {
+      await forceStopOverWallBudget({
+        prisma,
+        themeId,
+        taskId: currentTaskId,
+        order,
+        globalActive,
+        barrierHoldSince,
+        neverExecuted,
+        executionIsLive,
+        withinHardCeiling,
+        sinceProgressMs,
+      });
+      return;
+    }
+  }
+
+  // Active queue items (queued / running / waiting_approval) for this task.
+  const queueItems = await getThemeActiveQueueItems(prisma, themeId);
+  const currentItems = queueItems.filter((i) => i.taskId === currentTaskId);
+
+  // While the task still has an ACTIVE item it is in flight: never move on.
+  // This is the core "one task fully completes before the next starts"
+  // guarantee — the only non-terminal exit here is the approval pause.
+  if (currentItems.length > 0) {
+    // Task 618 (事例2): a TERMINAL task can still hold active items (e.g. a
+    // 'running' residue after an abort). Waiting on those would wedge the
+    // theme forever — release them and resolve the task in THIS tick.
+    const releasedStaleCount = await releaseStaleActiveItems(
+      prisma,
+      themeId,
+      currentTaskId,
+      currentItems,
+    );
+    if (releasedStaleCount === 0) {
+      // An approved plan can still own a waiting_approval item (in-flight agent
+      // keeps it untouched); pausing again here would undo the resume each tick.
+      if (
+        hasItemAwaitingApproval(currentItems) &&
+        !(await isTaskPlanApproved(currentTaskId, prisma))
+      ) {
+        await onAwaitingPlanApproval(themeId);
+        await notifyAwaitingPlanApproval(themeId, currentTaskId);
+        broadcastAutoRunUpdateImpl(themeId);
+        logCycleEvent('task.awaiting_approval', {
+          theme: themeId,
+          task: currentTaskId,
+          cause: 'plan_approval_gate',
+          msg: 'theme paused — plan awaiting approval',
+        });
+      }
+      // queued / running → still working; wait for the next tick.
+      return;
+    }
+    // released > 0: the items were residue of an already-terminal task.
+    // Fall through to the terminal resolution below in the same tick.
+  }
+
+  await resolveCurrentTaskOutcome(
+    prisma,
+    themeId,
+    currentTaskId,
+    order,
+    globalActive,
+    barrierHoldSince,
+  );
+}

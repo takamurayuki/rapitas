@@ -3,23 +3,23 @@
 
 import {
   Rocket,
-  ChevronDown,
-  ChevronUp,
-  CheckCircle2,
   AlertCircle,
-  Loader2,
   Play,
   Square,
   RefreshCw,
-  ExternalLink,
+  RotateCcw,
+  GitPullRequest,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import type { Task } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
+import { PillButton } from '@/components/ui/pill-button';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
-import { ExecutionBody, workflowPhaseLabel } from './ExecutionBody';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
+import { useTaskPrAvailability } from '../../hooks/useTaskPrAvailability';
+import { ExecutionBody } from './ExecutionBody';
 import { ExecutionCapabilityGuide, type ExecutionCapability } from './ExecutionCapabilityGuide';
 
 export type ExecutionSectionProps = {
@@ -33,8 +33,6 @@ export type ExecutionSectionProps = {
   themeId?: number | null;
   /** Task ID — used to open this task's PR detail page after completion. */
   taskId: number;
-  isExpanded: boolean;
-  onToggle: () => void;
   // Status flags
   isRunning: boolean;
   isCompleted: boolean;
@@ -44,7 +42,6 @@ export type ExecutionSectionProps = {
   isExecuting: boolean;
   isParallelExecutionRunning?: boolean;
   hasSubtasks: boolean;
-  execStatusIcon: 'loading' | 'success' | 'error' | 'cancelled' | 'interrupted' | 'idle';
   // Logs
   logs: string[];
   showLogs: boolean;
@@ -90,11 +87,16 @@ export type ExecutionSectionProps = {
   onStop: () => Promise<void>;
   onReset: () => void;
   onRerun: () => Promise<void>;
+  /** Raw task.status — disables the run button when the task is already done. */
+  taskStatus?: string;
 };
 
 /**
- * Collapsible execution accordion section with a context-aware action bar.
- * Mounts ExecutionBody inside the expanded area.
+ * Always-visible execution section with a context-aware action bar. Mounts
+ * ExecutionBody directly beneath the header — this used to be a collapsible
+ * accordion, but that hid the run form/logs by default and made this section
+ * look sparse next to the task detail page's other always-shown cards
+ * (research/plan/verify, preview); always rendering it fixed both.
  *
  * @param props - All derived state and event handlers from the parent component.
  */
@@ -102,17 +104,14 @@ export function ExecutionSection({
   capability = 'ready',
   themeId,
   taskId,
-  isExpanded,
-  onToggle,
   isRunning,
   isCompleted,
   isCancelled,
   isFailed,
   isInterrupted,
   isExecuting,
-  isParallelExecutionRunning,
+  isParallelExecutionRunning: _isParallelExecutionRunning,
   hasSubtasks,
-  execStatusIcon,
   logs,
   showLogs,
   logViewerStatus,
@@ -148,9 +147,19 @@ export function ExecutionSection({
   onStop,
   onReset,
   onRerun,
+  taskStatus,
 }: ExecutionSectionProps) {
   const router = useRouter();
+  const t = useTranslations('devMode.executionSection');
   const [prError, setPrError] = useState<string | null>(null);
+  // Hide "PRを開く" when the completed task never produced a PR — a button
+  // that only errors on click reads as broken (operator feedback).
+  const prAvailability = useTaskPrAvailability(taskId, isCompleted);
+
+  // NOTE: task.status reflects the manual status toggle, which is independent of
+  // workflow polling state. We guard the run button on both to prevent re-running
+  // a task the user has explicitly marked done.
+  const isTaskDone = taskStatus === 'done' || taskStatus === 'completed';
 
   // Open this task's PR detail page (replaces the old approval-page link). The
   // PR is auto-created on completion, so resolve it by task and navigate. When
@@ -173,217 +182,176 @@ export function ExecutionSection({
       // PR exists on GitHub but isn't synced locally — open it on GitHub.
       if (body?.reason === 'not_synced') {
         if (body.prUrl) window.open(body.prUrl, '_blank', 'noopener,noreferrer');
-        setPrError(
-          body.prUrl
-            ? 'PRはローカル未同期のため、GitHubで開きました。統合ページで同期すると一覧にも表示されます。'
-            : (body.error ?? 'PRはローカルに同期されていません。'),
-        );
+        setPrError(body.prUrl ? t('prNotSyncedOpened') : (body.error ?? t('prNotSynced')));
         return;
       }
-      setPrError(body?.error ?? 'このタスクのPRはまだ作成されていません。');
+      setPrError(body?.error ?? t('prNotCreated'));
     } catch {
-      setPrError('PR情報の取得に失敗しました。時間をおいて再度お試しください。');
+      setPrError(t('prFetchFailed'));
     }
   };
 
   return (
     <div>
-      {/* Accordion header with action buttons */}
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={onToggle}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onToggle();
-          }
-        }}
-        className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer"
-        aria-expanded={isExpanded}
-        aria-controls="execution-section-content"
-      >
+      {/* Header — always visible, no accordion. Matches TaskPreviewSection's
+          header exactly (p-4 + border-b + text-lg title). No status label
+          next to the title: the running/completed/error state is already
+          conveyed by the body content and the action buttons below, and a
+          duplicate text badge here was redundant. */}
+      <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Rocket className="w-4 h-4 text-indigo-500" />
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            エージェント実行
-          </span>
-          {/* NOTE: Status badge shown only when collapsed — expanded view has its own status in logs */}
-          {!isExpanded && execStatusIcon === 'loading' && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 text-[10px] rounded">
-              <Loader2 className="w-2.5 h-2.5 animate-spin" />
-              実行中
-            </span>
-          )}
-          {!isExpanded && execStatusIcon === 'success' && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-[10px] rounded">
-              <CheckCircle2 className="w-2.5 h-2.5" />
-              {pollingSessionMode?.startsWith('workflow-')
-                ? workflowPhaseLabel(pollingSessionMode)
-                : '実行完了'}
-            </span>
-          )}
-          {!isExpanded && execStatusIcon === 'error' && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] rounded">
-              <AlertCircle className="w-2.5 h-2.5" />
-              エラー
-            </span>
-          )}
-          {!isExpanded && execStatusIcon === 'cancelled' && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-[10px] rounded">
-              <Square className="w-2.5 h-2.5" />
-              停止
-            </span>
-          )}
-          {!isExpanded && execStatusIcon === 'interrupted' && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[10px] rounded">
-              <AlertCircle className="w-2.5 h-2.5" />
-              中断
-            </span>
-          )}
+          <Rocket className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+          <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
         </div>
 
         <div className="flex items-center gap-1.5">
           {isRunning && (
-            <button
+            <PillButton
+              icon={Square}
+              color="zinc"
               onClick={(e) => {
                 e.stopPropagation();
                 onStop();
               }}
-              className="flex items-center gap-1 px-2 py-1 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300 text-[10px] font-medium rounded transition-colors"
-              aria-label="実行を停止"
+              ariaLabel={t('stopAria')}
             >
-              <Square className="w-2.5 h-2.5" />
-              停止
-            </button>
+              {t('stop')}
+            </PillButton>
           )}
           {isCompleted && (
             <>
-              <button
+              <PillButton
+                icon={RotateCcw}
+                color="zinc"
+                iconVariant="plain"
                 onClick={(e) => {
                   e.stopPropagation();
                   onReset();
                 }}
-                className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
               >
-                <RefreshCw className="w-2.5 h-2.5" />
-                リセット
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openTaskPr();
-                }}
-                className="flex items-center gap-1 px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-medium rounded transition-colors"
-              >
-                <ExternalLink className="w-2.5 h-2.5" />
-                PRを開く
-              </button>
+                {t('reset')}
+              </PillButton>
+              {prAvailability === 'available' && (
+                <PillButton
+                  icon={GitPullRequest}
+                  color="emerald"
+                  iconVariant="plain"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openTaskPr();
+                  }}
+                >
+                  {t('openPr')}
+                </PillButton>
+              )}
             </>
           )}
           {isCancelled && (
-            <button
+            <PillButton
+              icon={RefreshCw}
+              color="amber"
+              iconVariant="plain"
               onClick={(e) => {
                 e.stopPropagation();
                 onRerun();
               }}
-              className="flex items-center gap-1 px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-[10px] font-medium rounded transition-colors"
             >
-              <RefreshCw className="w-2.5 h-2.5" />
-              再実行
-            </button>
+              {t('rerun')}
+            </PillButton>
           )}
           {isInterrupted && (
             <>
-              <button
+              <PillButton
+                icon={RotateCcw}
+                color="zinc"
+                iconVariant="plain"
                 onClick={(e) => {
                   e.stopPropagation();
                   onReset();
                 }}
-                className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
               >
-                <RefreshCw className="w-2.5 h-2.5" />
-                リセット
-              </button>
-              <button
+                {t('reset')}
+              </PillButton>
+              <PillButton
+                icon={RefreshCw}
+                color="amber"
+                iconVariant="plain"
                 onClick={(e) => {
                   e.stopPropagation();
                   onRerun();
                 }}
-                className="flex items-center gap-1 px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-medium rounded transition-colors"
               >
-                <RefreshCw className="w-2.5 h-2.5" />
-                再実行
-              </button>
+                {t('rerun')}
+              </PillButton>
             </>
           )}
           {isFailed && !isRunning && !isCompleted && (
             <>
-              <button
+              <PillButton
+                icon={RotateCcw}
+                color="zinc"
+                iconVariant="plain"
                 onClick={(e) => {
                   e.stopPropagation();
                   onReset();
                 }}
-                className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
               >
-                <RefreshCw className="w-2.5 h-2.5" />
-                リセット
-              </button>
-              <button
+                {t('reset')}
+              </PillButton>
+              <PillButton
+                icon={RefreshCw}
+                color="red"
+                iconVariant="plain"
                 onClick={(e) => {
                   e.stopPropagation();
                   onRerun();
                 }}
-                className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-[10px] font-medium rounded transition-colors"
               >
-                <RefreshCw className="w-2.5 h-2.5" />
-                再試行
-              </button>
+                {t('retry')}
+              </PillButton>
             </>
           )}
           {!isRunning && !isCompleted && !isCancelled && !isFailed && !isInterrupted && (
-            <button
+            <PillButton
+              icon={Play}
+              color="indigo"
               onClick={(e) => {
                 e.stopPropagation();
-                if (capability === 'ready') onExecute();
+                if (capability === 'ready' && !isTaskDone) onExecute();
               }}
-              disabled={isExecuting || capability !== 'ready'}
+              disabled={isExecuting || capability !== 'ready' || isTaskDone}
               title={
-                capability !== 'ready'
-                  ? 'タスクの設定が完了するとエージェントを実行できます'
-                  : '実行開始'
+                isTaskDone
+                  ? t('runDisabledTaskDone')
+                  : capability !== 'ready'
+                    ? t('runDisabledSetupIncomplete')
+                    : t('startExecution')
               }
-              className="flex items-center gap-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="実行開始"
+              ariaLabel={t('startExecution')}
             >
-              <Play className="w-2.5 h-2.5" />
-              実行
-            </button>
-          )}
-          {isExpanded ? (
-            <ChevronUp className="w-4 h-4 text-zinc-400" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-zinc-400" />
+              {t('run')}
+            </PillButton>
           )}
         </div>
       </div>
 
       {prError && (
-        <div className="px-4 pb-2 -mt-1 flex items-start gap-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+        <div className="px-4 pt-3 flex items-start gap-1.5 text-[11px] text-amber-600 dark:text-amber-400">
           <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
           <span>{prError}</span>
         </div>
       )}
 
-      {isExpanded && capability !== 'ready' && (
-        <div id="execution-section-content" className="px-4 pb-3 space-y-3">
+      {capability !== 'ready' && (
+        <div id="execution-section-content" className="p-4 space-y-3">
           <ExecutionCapabilityGuide capability={capability} themeId={themeId} />
         </div>
       )}
 
-      {isExpanded && capability === 'ready' && (
-        <div id="execution-section-content" className="px-4 pb-3 space-y-3">
+      {capability === 'ready' && (
+        <div id="execution-section-content" className="p-4 space-y-3">
           <ExecutionBody
+            taskId={taskId}
             isRunning={isRunning}
             isCompleted={isCompleted}
             isCancelled={isCancelled}

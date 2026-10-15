@@ -83,29 +83,26 @@ describe('SyslogParser', () => {
     expect(result!.metadata!.pid).toBe(1234);
   });
 
-  test('severity 0-2がFATALになること', () => {
-    // priority = facility * 8 + severity. severity=0: priority=0
-    const log = '<0>Jan  1 10:00:00 host app[1]: Emergency';
+  test.each([
+    { label: '0-2がFATALになること', priority: 0, message: 'Emergency', expected: LogLevel.FATAL },
+    {
+      label: '3がERRORになること',
+      priority: 3,
+      message: 'Error occurred',
+      expected: LogLevel.ERROR,
+    },
+    {
+      label: '4がWARNになること',
+      priority: 4,
+      message: 'Warning message',
+      expected: LogLevel.WARN,
+    },
+    { label: '7がDEBUGになること', priority: 7, message: 'Debug info', expected: LogLevel.DEBUG },
+  ])('severity $label', ({ priority, message, expected }) => {
+    // priority = facility * 8 + severity; facility=0 here so priority === severity
+    const log = `<${priority}>Jan  1 10:00:00 host app[1]: ${message}`;
     const result = parser.parse(log);
-    expect(result!.level).toBe(LogLevel.FATAL);
-  });
-
-  test('severity 3がERRORになること', () => {
-    const log = '<3>Jan  1 10:00:00 host app[1]: Error occurred';
-    const result = parser.parse(log);
-    expect(result!.level).toBe(LogLevel.ERROR);
-  });
-
-  test('severity 4がWARNになること', () => {
-    const log = '<4>Jan  1 10:00:00 host app[1]: Warning message';
-    const result = parser.parse(log);
-    expect(result!.level).toBe(LogLevel.WARN);
-  });
-
-  test('severity 7がDEBUGになること', () => {
-    const log = '<7>Jan  1 10:00:00 host app[1]: Debug info';
-    const result = parser.parse(log);
-    expect(result!.level).toBe(LogLevel.DEBUG);
+    expect(result!.level).toBe(expected);
   });
 
   test('不正なフォーマットでcanParseがfalseを返すこと', () => {

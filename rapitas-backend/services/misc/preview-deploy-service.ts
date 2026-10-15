@@ -5,7 +5,7 @@
  * Checks deployment status and posts preview URLs back to PR comments.
  */
 import { createLogger } from '../../config/logger';
-import { prisma } from '../../config/database';
+import { runGhCommandWithBody } from '../github/gh-client';
 
 const log = createLogger('preview-deploy');
 
@@ -30,10 +30,6 @@ export async function triggerPreviewDeploy(
   prNumber: number,
   branchName: string,
 ): Promise<DeploymentStatus> {
-  const settings = await prisma.userSettings.findFirst();
-  // HACK(agent): Cast needed until prisma generate runs with new schema fields
-  const settingsData = settings as Record<string, unknown> | null;
-
   const vercelToken = process.env.VERCEL_TOKEN;
   const netlifyToken = process.env.NETLIFY_AUTH_TOKEN;
 
@@ -62,15 +58,25 @@ async function checkGitHubDeployments(
   prNumber: number,
 ): Promise<DeploymentStatus> {
   try {
-    const { execSync } = await import('child_process');
-    const ghPath = process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
+    // NOTE: prNumber must be validated BEFORE it's interpolated anywhere near
+    // a shell command — this guard makes that invariant explicit and
+    // enforced, rather than just asserted in a comment.
+    if (!Number.isInteger(prNumber)) {
+      throw new Error(`Invalid prNumber: ${prNumber}`);
+    }
 
-    // SECURITY: safe - prNumber is a validated integer from function parameter
-    const checksJson = execSync(`${ghPath} pr checks ${prNumber} --json name,state,link`, {
-      cwd: workingDirectory,
-      encoding: 'utf8',
-      timeout: 15000,
-    });
+    const { execFileSync } = await import('child_process');
+    const ghPath = process.platform === 'win32' ? 'C:\\Program Files\\GitHub CLI\\gh.exe' : 'gh';
+
+    const checksJson = execFileSync(
+      ghPath,
+      ['pr', 'checks', String(prNumber), '--json', 'name,state,link'],
+      {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+        timeout: 15000,
+      },
+    );
 
     const checks = JSON.parse(checksJson) as Array<{
       name: string;
@@ -115,14 +121,12 @@ async function checkGitHubDeployments(
 async function triggerVercelDeploy(
   workingDirectory: string,
   prNumber: number,
-  branchName: string,
-  token: string,
+  _branchName: string,
+  _token: string,
 ): Promise<DeploymentStatus> {
   try {
     // NOTE: Vercel auto-deploys on push if GitHub integration is configured.
     // We poll for the deployment status rather than triggering manually.
-    const { execSync } = await import('child_process');
-    const ghPath = process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
 
     // Wait briefly for Vercel to pick up the push
     await new Promise((r) => setTimeout(r, 5000));
@@ -146,8 +150,8 @@ async function triggerVercelDeploy(
 async function triggerNetlifyDeploy(
   workingDirectory: string,
   prNumber: number,
-  branchName: string,
-  token: string,
+  _branchName: string,
+  _token: string,
 ): Promise<DeploymentStatus> {
   try {
     // NOTE: Similar to Vercel — Netlify auto-deploys from GitHub.
@@ -182,20 +186,13 @@ async function postDeploymentComment(
   if (!deployment.previewUrl) return;
 
   try {
-    const { execSync } = await import('child_process');
-    const ghPath = process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
-
     const body =
       `🚀 **Preview Deploy** (${deployment.provider})\n\n` +
       `Status: ${deployment.status}\n` +
       `Preview: ${deployment.previewUrl}\n\n` +
       `---\n🤖 Posted by Rapitas`;
 
-    execSync(`${ghPath} pr comment ${prNumber} --body "${body.replace(/"/g, '\\"')}"`, {
-      cwd: workingDirectory,
-      encoding: 'utf8',
-      timeout: 15000,
-    });
+    await runGhCommandWithBody(['pr', 'comment', String(prNumber)], body, workingDirectory);
 
     log.info(`[PreviewDeploy] Posted preview URL for PR #${prNumber}: ${deployment.previewUrl}`);
   } catch (error) {

@@ -10,6 +10,12 @@
  * Connects once (lazily) to `/events/subscribe/*` — the backend treats the
  * `*` channel as "all channels" — and dispatches by SSE event type.
  * Not responsible for parsing payloads; handlers receive the raw MessageEvent.
+ *
+ * When the page is hidden (tray minimize, switching apps), the connection is
+ * closed to stop WebView2 SSE→React re-render CPU usage (~10% → ~2%). All
+ * state lives in PostgreSQL, so re-subscribing on visibility restores state.
+ * Polling hooks already guard on document.hidden via useOnVisible, so no extra
+ * state-refresh logic is needed here.
  */
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -20,6 +26,15 @@ type EventHandler = (event: MessageEvent) => void;
 type ConnectionListener = (connected: boolean) => void;
 
 const RECONNECT_DELAY_MS = 5000;
+const WATCHDOG_INTERVAL_MS = 15_000;
+// The server pings every 60s. The threshold MUST comfortably exceed one ping
+// interval: a 75s value left only 15s of slack, and ordinary timer/event-loop
+// jitter pushed ping gaps past it — the watchdog then rebuilt a HEALTHY
+// connection roughly once a minute, all day (server logs showed client-187
+// within hours). Two missed pings + slack is the reliable dead-link signal;
+// the reconnect blind window this allows is covered by the toaster's
+// replay-on-reconnect.
+const STALL_THRESHOLD_MS = 150_000;
 
 class SharedEventSourceManager {
   private es: EventSource | null = null;
@@ -29,6 +44,53 @@ class SharedEventSourceManager {
   private connectionListeners = new Set<ConnectionListener>();
   private connected = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  /** True while the page is hidden; prevents auto-reconnect until visible again. */
+  private paused = false;
+  /** Timestamp of the last received SSE event (any type, including pings). */
+  private lastEventAt = 0;
+  private watchdogTimer: ReturnType<typeof setInterval> | null = null;
+
+  constructor() {
+    // Always listen for server pings — they are the liveness signal the
+    // watchdog measures, independent of what the app subscribes to.
+    this.boundTypes.add('ping');
+    if (typeof document !== 'undefined') {
+      // Primary: browser visibilitychange (covers browser tabs + most Tauri cases).
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          this.handleHidden();
+        } else {
+          this.handleVisible();
+        }
+      });
+      // Fallback: Tauri emits rapitas:window-hide/show from Rust's CloseRequested
+      // handler and show_main_window(). visibilitychange is unreliable when the
+      // host HWND is hidden via ShowWindow(SW_HIDE) without put_IsVisible(false).
+      this.setupTauriVisibilityListener();
+    }
+  }
+
+  /**
+   * Subscribe to Tauri-specific window hide/show events as a belt-and-suspenders
+   * supplement to the document visibilitychange handler above.
+   * No-ops in non-Tauri environments (dynamic import gracefully fails).
+   */
+  private async setupTauriVisibilityListener(): Promise<void> {
+    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
+    try {
+      const { listen } = await import('@tauri-apps/api/event');
+      await listen<null>('rapitas:window-hide', () => {
+        logger.debug('SSE pausing via Tauri window-hide event');
+        this.handleHidden();
+      });
+      await listen<null>('rapitas:window-show', () => {
+        logger.debug('SSE resuming via Tauri window-show event');
+        this.handleVisible();
+      });
+    } catch {
+      // Not in Tauri or event API unavailable — visibilitychange is the fallback.
+    }
+  }
 
   /**
    * Subscribe to an SSE event type. Opens the shared connection on first use.
@@ -46,6 +108,7 @@ class SharedEventSourceManager {
     set.add(handler);
 
     this.ensureConnected();
+    this.startWatchdog();
     this.bindType(eventType);
 
     return () => {
@@ -75,14 +138,64 @@ class SharedEventSourceManager {
     return this.connected;
   }
 
+  private handleHidden(): void {
+    if (this.paused) return;
+    this.paused = true;
+    // Cancel any pending reconnect so it doesn't reopen while hidden.
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.es) {
+      this.es.close();
+      this.es = null;
+      logger.debug('SSE paused (window hidden)');
+    }
+    this.setConnected(false);
+  }
+
+  private handleVisible(): void {
+    if (!this.paused) return;
+    this.paused = false;
+    logger.debug('SSE resuming (window visible)');
+    this.ensureConnected();
+  }
+
+  /**
+   * Liveness watchdog: the pause/visibility machinery and EventSource's own
+   * retry logic both have silent failure modes (a backend restart can leave a
+   * zombie connection that never errors). Rebuild whenever the connection is
+   * missing or no event — pings included — has arrived within the threshold.
+   */
+  private startWatchdog(): void {
+    if (this.watchdogTimer || typeof window === 'undefined') return;
+    this.watchdogTimer = setInterval(() => {
+      if (this.paused) return;
+      const stalled = this.es !== null && Date.now() - this.lastEventAt > STALL_THRESHOLD_MS;
+      if (this.es === null || stalled) {
+        logger.warn(
+          stalled ? 'Shared SSE stalled — rebuilding' : 'Shared SSE missing — reconnecting',
+        );
+        this.es?.close();
+        this.es = null;
+        this.setConnected(false);
+        this.ensureConnected();
+      }
+    }, WATCHDOG_INTERVAL_MS);
+  }
+
   private ensureConnected(): void {
-    if (this.es || typeof window === 'undefined') return;
+    if (this.paused || this.es || typeof window === 'undefined') return;
 
     // `*` subscribes to ALL channels (realtime-service checks subscriptions.has('*')).
     const es = new EventSource(`${API_BASE_URL}/events/subscribe/*`);
     this.es = es;
+    // A fresh connection gets a full stall window before the watchdog may
+    // judge it — otherwise a reconnect could be killed before its first ping.
+    this.lastEventAt = Date.now();
 
     es.onopen = () => {
+      this.lastEventAt = Date.now();
       this.setConnected(true);
     };
 
@@ -104,7 +217,7 @@ class SharedEventSourceManager {
   }
 
   private scheduleReconnect(): void {
-    if (this.reconnectTimer) return;
+    if (this.reconnectTimer || this.paused) return;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.ensureConnected();
@@ -123,6 +236,7 @@ class SharedEventSourceManager {
     // One DOM listener per type per connection; handlers resolve at dispatch
     // time so late subscribers are included without re-attaching.
     es.addEventListener(eventType, (event) => {
+      this.lastEventAt = Date.now();
       const set = this.handlers.get(eventType);
       if (!set) return;
       for (const handler of set) {

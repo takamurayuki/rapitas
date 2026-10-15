@@ -62,7 +62,7 @@ type AccordionItemProps = {
   className?: string;
 };
 
-export function AccordionItem({ id, children, className = '' }: AccordionItemProps) {
+export function AccordionItem({ id: _id, children, className = '' }: AccordionItemProps) {
   return (
     <div className={`border-b border-zinc-100 dark:border-zinc-800 last:border-b-0 ${className}`}>
       {children}

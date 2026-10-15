@@ -11,6 +11,7 @@ import type { AgentExecutionContext, AgentExecutionResult } from '../abstraction
 import type { GeminiCliConfig, GeminiStreamEvent } from './gemini-cli-types';
 import { processStreamEvent } from './gemini-cli-types';
 import { resolveCliPath } from './gemini-cli-agent';
+import { buildSpawnCommand } from './gemini-runner-args';
 
 /** Callback used by the runner to emit output lines back to the agent. */
 export type EmitOutputFn = (output: string, isError: boolean, streaming: boolean) => Promise<void>;
@@ -55,6 +56,9 @@ function buildArgs(
   if (config.checkpointId) args.push('--checkpoint', config.checkpointId);
   if (config.allowedTools?.length) args.push('--allowlist', config.allowedTools.join(','));
   if (config.disallowedTools?.length) args.push('--denylist', config.disallowedTools.join(','));
+  // NOTE(security): See gemini-cli-agent/process-manager.ts's buildCliArgs for
+  // why --allowed-mcp-server-names isn't wired in here either (unverified
+  // empty-list semantics — Gemini CLI not installed in this environment).
   return args;
 }
 
@@ -99,35 +103,18 @@ export async function runGeminiCli(
   log: LogFn,
 ): Promise<AgentExecutionResult> {
   const startTime = Date.now();
+  const isWindows = process.platform === 'win32';
+  const geminiPath = await resolveCliPath(
+    config.cliPath || process.env.GEMINI_CLI_PATH || (isWindows ? 'gemini.cmd' : 'gemini'),
+  );
 
   return new Promise((resolve) => {
     const timeout = context.timeout || config.timeout || 900000;
-    const isWindows = process.platform === 'win32';
-    const geminiPath = resolveCliPath(
-      config.cliPath || process.env.GEMINI_CLI_PATH || (isWindows ? 'gemini.cmd' : 'gemini'),
-    );
 
     const args = buildArgs(prompt, config, context);
     const env = buildEnv(config);
 
-    let finalCommand: string;
-    let finalArgs: string[];
-
-    if (isWindows) {
-      const argsString = args
-        .map((arg) =>
-          arg.includes(' ') || arg.includes('&') || arg.includes('|')
-            ? `"${arg.replace(/"/g, '\\"')}"`
-            : arg,
-        )
-        .join(' ');
-      const quotedPath = geminiPath.includes(' ') ? `"${geminiPath}"` : geminiPath;
-      finalCommand = `chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`;
-      finalArgs = [];
-    } else {
-      finalCommand = geminiPath;
-      finalArgs = args;
-    }
+    const [finalCommand, finalArgs] = buildSpawnCommand(geminiPath, args, isWindows);
 
     log('info', 'Starting Gemini CLI execution', {
       workDir,

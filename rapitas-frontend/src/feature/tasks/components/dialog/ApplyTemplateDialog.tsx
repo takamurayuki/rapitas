@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  FileStack,
+  LayoutTemplate,
   X,
   Search,
   Check,
@@ -12,26 +12,62 @@ import {
   Tag,
   SwatchBook,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { TaskTemplate, Theme } from '@/types';
 import { getIconComponent } from '@/components/category/icon-data';
 import { API_BASE_URL } from '@/utils/api';
 import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
+
+/** Which template fields the user chose to apply to the form. */
+export type ApplyTemplateFields = {
+  title: boolean;
+  description: boolean;
+  priority: boolean;
+  estimatedHours: boolean;
+  subtasks: boolean;
+  labels: boolean;
+};
+
+const ALL_FIELDS: ApplyTemplateFields = {
+  title: true,
+  description: true,
+  priority: true,
+  estimatedHours: true,
+  subtasks: true,
+  labels: true,
+};
 
 type Props = {
   isOpen: boolean;
   onClose: () => void;
   selectedTheme: Theme | null;
-  onApply: (template: TaskTemplate) => void;
+  onApply: (template: TaskTemplate, fields: ApplyTemplateFields) => void;
 };
 
 export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, onApply }: Props) {
+  const t = useTranslations('task.applyTemplateDialog');
+  const tc = useTranslations('common');
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<TaskTemplate | null>(null);
+  // Field checkboxes reset to all-on whenever a template is picked.
+  const [applyFields, setApplyFields] = useState<ApplyTemplateFields>(ALL_FIELDS);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useFocusTrap(panelRef, isOpen);
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     const fetchTemplates = async () => {
@@ -48,29 +84,40 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
 
         const res = await fetch(`${API_BASE_URL}/templates?${params.toString()}`);
         if (!res.ok) {
-          throw new Error('テンプレートの取得に失敗しました');
+          throw new Error(t('fetchFailed'));
         }
-        const data = await res.json();
+        const raw = (await res.json()) as Array<
+          Omit<TaskTemplate, 'templateData'> & {
+            templateData: TaskTemplate['templateData'] | string;
+          }
+        >;
+        // NOTE: The API stored templateData as a JSON string and (before the
+        // 2026-07-14 server fix) returned it unparsed — apply/preview silently
+        // read undefined fields. Parse defensively so both server versions work.
+        const data: TaskTemplate[] = raw.map((tpl) => {
+          if (typeof tpl.templateData !== 'string') {
+            return { ...tpl, templateData: tpl.templateData ?? {} } as TaskTemplate;
+          }
+          try {
+            return { ...tpl, templateData: JSON.parse(tpl.templateData) } as TaskTemplate;
+          } catch {
+            return { ...tpl, templateData: {} } as TaskTemplate;
+          }
+        });
         setTemplates(data);
-
-        const uniqueCategories = [
-          ...new Set(data.map((t: TaskTemplate) => t.category)),
-        ] as string[];
-        setCategories(uniqueCategories);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'エラーが発生しました');
+        setError(err instanceof Error ? err.message : tc('errorOccurred'));
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchTemplates();
-  }, [isOpen, selectedTheme]);
+  }, [isOpen, selectedTheme, t, tc]);
 
   // Reset when modal closes
   useEffect(() => {
     if (!isOpen) {
-      setSelectedCategory(null);
       setSearchQuery('');
       setSelectedTemplate(null);
       setError(null);
@@ -79,18 +126,26 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
 
   const filteredTemplates = useMemo(() => {
     return templates.filter((template) => {
-      const matchesCategory = !selectedCategory || template.category === selectedCategory;
       const matchesSearch =
         !searchQuery ||
         template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         template.description?.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesCategory && matchesSearch;
+      return matchesSearch;
     });
-  }, [templates, selectedCategory, searchQuery]);
+  }, [templates, searchQuery]);
+
+  const selectTemplate = (template: TaskTemplate) => {
+    setSelectedTemplate(template);
+    setApplyFields(ALL_FIELDS);
+  };
+
+  const toggleField = (key: keyof ApplyTemplateFields) => {
+    setApplyFields((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const handleApply = () => {
     if (selectedTemplate) {
-      onApply(selectedTemplate);
+      onApply(selectedTemplate, applyFields);
       onClose();
     }
   };
@@ -103,20 +158,33 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
   if (!isOpen) return null;
 
   return (
+    // NOTE: No backdrop-blur — this page keeps animating behind the overlay
+    // (subtask spinners, polling), and blur forces a full-viewport recomposite
+    // every frame that animates, causing visible stutter. Solid scrim per
+    // docs/design/ui-design-language.md (glassmorphism/backdrop-blur is a
+    // rejected pattern there too).
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
       onClick={handleClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="apply-template-dialog-title"
+        tabIndex={-1}
         className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
           <div>
-            <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-              <FileStack className="w-5 h-5 text-violet-500" />
-              テンプレートを適用
+            <h2
+              id="apply-template-dialog-title"
+              className="text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2"
+            >
+              <LayoutTemplate className="w-5 h-5 text-violet-500" />
+              {t('title')}
             </h2>
             {selectedTheme && (
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 flex items-center gap-1.5">
@@ -124,12 +192,8 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
                   const ThemeIcon = getIconComponent(selectedTheme.icon || '') || SwatchBook;
                   return (
                     <>
-                      <span
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: selectedTheme.color }}
-                      />
                       <ThemeIcon className="w-3.5 h-3.5" style={{ color: selectedTheme.color }} />
-                      {selectedTheme.name}のテンプレート
+                      {t('themeTemplates', { theme: selectedTheme.name })}
                     </>
                   );
                 })()}
@@ -138,56 +202,25 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
           </div>
           <button
             onClick={handleClose}
+            aria-label={tc('close')}
             className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Search & Filter */}
-        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0 space-y-3">
-          {/* Search */}
+        {/* Search — カテゴリ絞り込みは廃止 (テンプレートはカテゴリ>テーマ自動所属)。 */}
+        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="テンプレートを検索..."
-              className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl pl-10 pr-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-blue-400 transition-all"
+              placeholder={t('searchPlaceholder')}
+              className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl pl-10 pr-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-indigo-400 transition-all"
             />
           </div>
-
-          {/* Categories */}
-          {categories.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedCategory(null)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                  selectedCategory === null
-                    ? 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700'
-                    : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
-                }`}
-              >
-                すべて
-              </button>
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                    selectedCategory === cat
-                      ? 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700'
-                      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Content */}
@@ -226,17 +259,15 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
             </div>
           ) : filteredTemplates.length === 0 ? (
             <div className="text-center py-12">
-              <FileStack className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-3" />
+              <LayoutTemplate className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-3" />
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
                 {templates.length === 0
                   ? selectedTheme
-                    ? `${selectedTheme.name}のテンプレートはまだありません`
-                    : 'テンプレートがありません'
-                  : '条件に一致するテンプレートがありません'}
+                    ? t('emptyForTheme', { theme: selectedTheme.name })
+                    : t('empty')
+                  : t('noMatch')}
               </p>
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
-                タスク詳細画面から「テンプレートとして保存」で作成できます
-              </p>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">{t('emptyHint')}</p>
             </div>
           ) : (
             <div className="grid gap-3">
@@ -244,7 +275,7 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
                 <button
                   key={template.id}
                   type="button"
-                  onClick={() => setSelectedTemplate(template)}
+                  onClick={() => selectTemplate(template)}
                   className={`w-full text-left p-4 rounded-xl border transition-all ${
                     selectedTemplate?.id === template.id
                       ? 'bg-violet-50 dark:bg-violet-900/30 border-violet-300 dark:border-violet-700 ring-2 ring-violet-500/20'
@@ -273,25 +304,31 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
                         {template.templateData.estimatedHours && (
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-                            {template.templateData.estimatedHours}時間
+                            {t('cardEstimatedHours', {
+                              hours: template.templateData.estimatedHours,
+                            })}
                           </span>
                         )}
                         {template.templateData.subtasks &&
                           template.templateData.subtasks.length > 0 && (
                             <span className="flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3" />
-                              サブタスク{template.templateData.subtasks.length}件
+                              {t('cardSubtasksCount', {
+                                count: template.templateData.subtasks.length,
+                              })}
                             </span>
                           )}
                         {template.templateData.labels &&
                           template.templateData.labels.length > 0 && (
                             <span className="flex items-center gap-1">
                               <Tag className="w-3 h-3" />
-                              ラベル{template.templateData.labels.length}件
+                              {t('cardLabelsCount', {
+                                count: template.templateData.labels.length,
+                              })}
                             </span>
                           )}
                         <span className="text-zinc-300 dark:text-zinc-600">
-                          使用回数: {template.useCount}
+                          {t('useCount', { count: template.useCount })}
                         </span>
                       </div>
                     </div>
@@ -303,42 +340,124 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
           )}
         </div>
 
-        {/* Template Preview (when selected) */}
+        {/* Template preview — checkboxes pick which fields get applied. */}
         {selectedTemplate && (
-          <div className="border-t border-zinc-200 dark:border-zinc-800 p-4 bg-zinc-50 dark:bg-zinc-800/50 shrink-0">
+          <div className="border-t border-zinc-200 dark:border-zinc-800 p-4 bg-zinc-50 dark:bg-zinc-800/50 shrink-0 max-h-56 overflow-y-auto scrollbar-thin">
             <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-              テンプレートに含まれる情報
+              {t('previewTitle')}
             </h4>
-            <ul className="text-sm text-zinc-500 dark:text-zinc-400 space-y-1">
+            <ul className="text-sm text-zinc-500 dark:text-zinc-400 space-y-1.5">
               {selectedTemplate.templateData.title && (
-                <li>• タイトル: {selectedTemplate.templateData.title}</li>
+                <li>
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={applyFields.title}
+                      onChange={() => toggleField('title')}
+                      className="mt-0.5 accent-violet-600"
+                    />
+                    <span>
+                      {t('previewFieldTitle', { value: selectedTemplate.templateData.title })}
+                    </span>
+                  </label>
+                </li>
+              )}
+              {selectedTemplate.templateData.description && (
+                <li>
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={applyFields.description}
+                      onChange={() => toggleField('description')}
+                      className="mt-0.5 accent-violet-600"
+                    />
+                    <span className="line-clamp-2">
+                      {t('previewFieldDescription', {
+                        value: selectedTemplate.templateData.description.slice(0, 120),
+                      })}
+                    </span>
+                  </label>
+                </li>
               )}
               {selectedTemplate.templateData.priority && (
-                <li>• 優先度: {selectedTemplate.templateData.priority}</li>
+                <li>
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={applyFields.priority}
+                      onChange={() => toggleField('priority')}
+                      className="mt-0.5 accent-violet-600"
+                    />
+                    <span>
+                      {t('previewFieldPriority', { value: selectedTemplate.templateData.priority })}
+                    </span>
+                  </label>
+                </li>
               )}
               {selectedTemplate.templateData.estimatedHours && (
                 <li>
-                  • 見積もり時間: {selectedTemplate.templateData.estimatedHours}
-                  時間
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={applyFields.estimatedHours}
+                      onChange={() => toggleField('estimatedHours')}
+                      className="mt-0.5 accent-violet-600"
+                    />
+                    <span>
+                      {t('previewFieldEstimatedHours', {
+                        value: selectedTemplate.templateData.estimatedHours,
+                      })}
+                    </span>
+                  </label>
                 </li>
               )}
               {selectedTemplate.templateData.subtasks &&
                 selectedTemplate.templateData.subtasks.length > 0 && (
                   <li>
-                    • サブタスク: {selectedTemplate.templateData.subtasks.length}件
-                    <ul className="ml-4 mt-1 space-y-0.5 text-xs text-zinc-400 dark:text-zinc-500">
-                      {selectedTemplate.templateData.subtasks.slice(0, 3).map((st, idx) => (
-                        <li key={idx}>- {st.title}</li>
-                      ))}
-                      {selectedTemplate.templateData.subtasks.length > 3 && (
-                        <li>...他 {selectedTemplate.templateData.subtasks.length - 3}件</li>
-                      )}
-                    </ul>
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={applyFields.subtasks}
+                        onChange={() => toggleField('subtasks')}
+                        className="mt-0.5 accent-violet-600"
+                      />
+                      <span>
+                        {t('previewFieldSubtasks', {
+                          count: selectedTemplate.templateData.subtasks.length,
+                        })}
+                        <ul className="ml-1 mt-1 space-y-0.5 text-xs text-zinc-400 dark:text-zinc-500">
+                          {selectedTemplate.templateData.subtasks.slice(0, 3).map((st, idx) => (
+                            <li key={idx}>- {st.title}</li>
+                          ))}
+                          {selectedTemplate.templateData.subtasks.length > 3 && (
+                            <li>
+                              {t('previewMoreSubtasks', {
+                                count: selectedTemplate.templateData.subtasks.length - 3,
+                              })}
+                            </li>
+                          )}
+                        </ul>
+                      </span>
+                    </label>
                   </li>
                 )}
               {selectedTemplate.templateData.labels &&
                 selectedTemplate.templateData.labels.length > 0 && (
-                  <li>• ラベル: {selectedTemplate.templateData.labels.join(', ')}</li>
+                  <li>
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={applyFields.labels}
+                        onChange={() => toggleField('labels')}
+                        className="mt-0.5 accent-violet-600"
+                      />
+                      <span>
+                        {t('previewFieldLabels', {
+                          value: selectedTemplate.templateData.labels.join(', '),
+                        })}
+                      </span>
+                    </label>
+                  </li>
                 )}
             </ul>
           </div>
@@ -351,7 +470,7 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
             onClick={handleClose}
             className="flex-1 px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"
           >
-            キャンセル
+            {tc('cancel')}
           </button>
           <button
             type="button"
@@ -359,7 +478,7 @@ export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, on
             disabled={!selectedTemplate}
             className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-violet-600 rounded-xl hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            テンプレートを適用
+            {t('title')}
           </button>
         </div>
       </div>

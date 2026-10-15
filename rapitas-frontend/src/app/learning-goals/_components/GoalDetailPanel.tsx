@@ -5,8 +5,7 @@ import { useTranslations } from 'next-intl';
 import {
   Sparkles,
   Trash2,
-  CheckCircle2,
-  Lightbulb,
+  Info,
   ListTodo,
   BookOpen,
   Clock,
@@ -20,8 +19,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import type { LearningGoal, GeneratedLearningPlan } from '@/types';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
 
 type Props = {
   goal: LearningGoal;
@@ -56,8 +54,7 @@ export function GoalDetailPanel({
   onAdapt,
 }: Props) {
   const t = useTranslations('learning');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
+  const tCommon = useTranslations('common');
 
   return (
     <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
@@ -107,6 +104,7 @@ export function GoalDetailPanel({
           )}
           <button
             onClick={onDelete}
+            aria-label={tCommon('delete')}
             className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
           >
             <Trash2 className="w-5 h-5" />
@@ -127,7 +125,7 @@ export function GoalDetailPanel({
         {goal.deadline && (
           <div className="flex items-center gap-1.5">
             <Calendar className="w-4 h-4" />
-            <span>〜{new Date(goal.deadline).toLocaleDateString(dateLocale)}</span>
+            <span>〜{formatDate(goal.deadline)}</span>
           </div>
         )}
         <div className="flex items-center gap-1.5">
@@ -163,7 +161,7 @@ export function GoalDetailPanel({
               <button
                 onClick={onAdapt}
                 disabled={adapting}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors disabled:opacity-50"
               >
                 {adapting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -238,7 +236,7 @@ export function GoalDetailPanel({
                                       ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
                                       : task.priority === 'low'
                                         ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-                                        : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                        : 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
                                   }`}
                                 >
                                   {task.priority === 'high'
@@ -263,7 +261,7 @@ export function GoalDetailPanel({
                                       </span>
                                     )}
                                     {sub.estimatedHours && (
-                                      <span className="text-zinc-400 dark:text-zinc-500">
+                                      <span className="text-zinc-500 dark:text-zinc-500">
                                         {' '}
                                         ({sub.estimatedHours}h)
                                       </span>
@@ -284,8 +282,8 @@ export function GoalDetailPanel({
 
           {/* Recommended resources */}
           {plan.recommendedResources && plan.recommendedResources.length > 0 && (
-            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4">
-              <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-2">
+            <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4 mb-4">
+              <h3 className="font-semibold text-indigo-800 dark:text-indigo-200 mb-2 flex items-center gap-2">
                 <BookOpen className="w-4 h-4" />
                 {t('recommendedResources')}
               </h3>
@@ -302,7 +300,7 @@ export function GoalDetailPanel({
                               ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
                               : resource.type === 'practice'
                                 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                : 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
                       }`}
                     >
                       {resource.type === 'book'
@@ -316,10 +314,10 @@ export function GoalDetailPanel({
                               : t('resourceWeb')}
                     </span>
                     <div>
-                      <span className="font-medium text-blue-800 dark:text-blue-200">
+                      <span className="font-medium text-indigo-800 dark:text-indigo-200">
                         {resource.title}
                       </span>
-                      <span className="text-blue-600 dark:text-blue-300">
+                      <span className="text-indigo-600 dark:text-indigo-300">
                         {' '}
                         - {resource.description}
                       </span>
@@ -328,7 +326,7 @@ export function GoalDetailPanel({
                           href={resource.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-0.5 ml-1 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                          className="inline-flex items-center gap-0.5 ml-1 text-indigo-500 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
                         >
                           <ExternalLink className="w-3 h-3" />
                         </a>
@@ -344,7 +342,7 @@ export function GoalDetailPanel({
           {plan.tips && plan.tips.length > 0 && (
             <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 mb-4">
               <h3 className="font-semibold text-amber-800 dark:text-amber-200 mb-2 flex items-center gap-2">
-                <Lightbulb className="w-4 h-4" />
+                <Info className="w-4 h-4" />
                 {t('learningTips')}
               </h3>
               <ul className="space-y-1">

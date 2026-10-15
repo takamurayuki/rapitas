@@ -8,6 +8,8 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';
+import { useOnVisible } from '@/hooks/common/useOnVisible';
+import { getAppHidden, subscribeAppHidden } from '@/hooks/common/app-visibility-store';
 
 export type AutoRunStatus = 'idle' | 'running' | 'paused' | 'stopping';
 
@@ -64,6 +66,10 @@ export function useThemeAutoRun(themeId: number | null | undefined, isDevelopmen
 
   const fetchState = useCallback(async () => {
     if (!themeId || !isDevelopment) return;
+    // Skip while in tray — saves a network round-trip; useOnVisible re-checks on return.
+    // getAppHidden() covers minimize, which occlusion-disabled WebView2 doesn't
+    // report via document.hidden.
+    if ((typeof document !== 'undefined' && document.hidden) || getAppHidden()) return;
     try {
       const res = await fetch(`${API_BASE_URL}/themes/${themeId}/auto-run`);
       if (!res.ok) return;
@@ -96,6 +102,21 @@ export function useThemeAutoRun(themeId: number | null | undefined, isDevelopmen
 
     return () => clearPoll();
   }, [themeId, isDevelopment, fetchState]);
+
+  // Re-fetch immediately when the user returns from tray/another app.
+  useOnVisible(fetchState);
+
+  // Re-fetch immediately on restore from minimize. visibilitychange (behind
+  // useOnVisible above) never fires for that transition because occlusion is
+  // intentionally disabled, so without this the 8s poll interval would be
+  // the only thing to pick it back up.
+  useEffect(
+    () =>
+      subscribeAppHidden(() => {
+        if (!getAppHidden()) fetchState();
+      }),
+    [fetchState],
+  );
 
   const sendAction = useCallback(
     async (action: 'start' | 'pause' | 'stop', order?: 'priority' | 'created') => {

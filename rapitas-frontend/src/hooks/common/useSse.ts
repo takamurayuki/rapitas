@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('useSSE');
@@ -77,6 +78,7 @@ export interface UseSSEReturn<T> {
 }
 
 export function useSSE<T = unknown>(options: UseSSEOptions<T> = {}): UseSSEReturn<T> {
+  const t = useTranslations('common');
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -136,17 +138,19 @@ export function useSSE<T = unknown>(options: UseSSEOptions<T> = {}): UseSSERetur
 
         eventSource.onerror = (event) => {
           logger.warn('SSE connection error:', event);
-          const connectionError = new Error('SSE接続でエラーが発生しました');
+          const connectionError = new Error(t('useSse.connectionError'));
           optionsRef.current.onConnectionError?.(connectionError);
           setError({
-            error: '接続エラーが発生しました。ネットワーク接続を確認してください。',
+            error: t('useSse.connectionErrorDetail'),
           });
           disconnect();
         };
 
         eventSource.addEventListener('start', (event) => {
           try {
-            const parsed: SSEEvent = JSON.parse(event.data);
+            // Parsing (not just the result) gates onStart — malformed payloads fall
+            // through to the catch below instead of firing the callback.
+            JSON.parse(event.data);
             optionsRef.current.onStart?.();
           } catch (e) {
             logger.errorThrottled('Failed to parse start event:', e);
@@ -220,16 +224,15 @@ export function useSSE<T = unknown>(options: UseSSEOptions<T> = {}): UseSSERetur
         });
       } catch (err) {
         logger.error('Failed to create EventSource:', err);
-        const connectionError =
-          err instanceof Error ? err : new Error('SSE接続の作成に失敗しました');
+        const connectionError = err instanceof Error ? err : new Error(t('useSse.createFailed'));
         optionsRef.current.onConnectionError?.(connectionError);
         setError({
-          error: '接続の作成に失敗しました。',
+          error: t('useSse.createFailedShort'),
         });
         setIsLoading(false);
       }
     },
-    [disconnect],
+    [disconnect, t],
   );
 
   // Cleanup on component unmount

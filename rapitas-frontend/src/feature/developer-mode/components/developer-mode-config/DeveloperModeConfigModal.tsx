@@ -9,13 +9,15 @@
  * component handles layout, tab switching, and prop wiring only.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Bot, X, Save, Loader2, AlertCircle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { ModalProps, TabId } from './types';
 import { TABS } from './types';
 import { useDeveloperModeConfigModal } from './useDeveloperModeConfigModal';
 import { TaskAnalysisTab } from './TaskAnalysisTab';
 import { AgentExecutionTab } from './AgentExecutionTab';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 /**
  * Renders the full-screen overlay modal for developer-mode AI assistant config.
@@ -25,6 +27,8 @@ import { AgentExecutionTab } from './AgentExecutionTab';
  */
 export function DeveloperModeConfigModal(props: ModalProps) {
   const { isOpen, onCloseAction } = props;
+  const t = useTranslations('devMode.developerModeConfigModal');
+  const tCommon = useTranslations('common');
 
   // NOTE: activeTab lives here, not in the hook, because it controls only
   // which panel is visible and does not affect any persisted state.
@@ -122,6 +126,19 @@ export function DeveloperModeConfigModal(props: ModalProps) {
     setAdditionalInstructions,
   } = useDeveloperModeConfigModal(props);
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseAction();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onCloseAction]);
+
+  useFocusTrap(dialogRef, isOpen);
+
   if (!isOpen) return null;
 
   const availableAgents = getAvailableAgents();
@@ -181,19 +198,30 @@ export function DeveloperModeConfigModal(props: ModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCloseAction} />
-      <div className="relative bg-white dark:bg-indigo-dark-900 rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="developer-mode-config-modal-title"
+        tabIndex={-1}
+        className="relative bg-white dark:bg-indigo-dark-900 rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-violet-100 dark:bg-violet-900/30 rounded-lg">
               <Bot className="w-5 h-5 text-violet-600 dark:text-violet-400" />
             </div>
-            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              AIアシスタント設定
+            <h2
+              id="developer-mode-config-modal-title"
+              className="text-lg font-semibold text-zinc-900 dark:text-zinc-50"
+            >
+              {t('title')}
             </h2>
           </div>
           <button
             onClick={onCloseAction}
+            aria-label={tCommon('close')}
             className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
           >
             <X className="w-5 h-5" />
@@ -220,7 +248,7 @@ export function DeveloperModeConfigModal(props: ModalProps) {
                   }`}
                 >
                   <TabIcon className="w-4 h-4" />
-                  {tab.label}
+                  {t(tab.labelKey)}
                 </button>
               );
             })}
@@ -232,7 +260,7 @@ export function DeveloperModeConfigModal(props: ModalProps) {
           {isLoadingConfigs ? (
             <div className="flex items-center justify-center gap-2 py-8 text-sm text-zinc-500">
               <Loader2 className="w-4 h-4 animate-spin" />
-              設定を読み込み中...
+              {t('loadingSettings')}
             </div>
           ) : (
             <>
@@ -328,7 +356,7 @@ export function DeveloperModeConfigModal(props: ModalProps) {
             onClick={onCloseAction}
             className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
           >
-            キャンセル
+            {tCommon('cancel')}
           </button>
           <button
             onClick={handleSaveAction}
@@ -338,12 +366,12 @@ export function DeveloperModeConfigModal(props: ModalProps) {
             {isSaving ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                保存中...
+                {tCommon('saving')}
               </>
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                設定を保存
+                {t('saveSettings')}
               </>
             )}
           </button>

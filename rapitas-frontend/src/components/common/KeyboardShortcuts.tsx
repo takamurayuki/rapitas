@@ -1,9 +1,11 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Keyboard } from 'lucide-react';
-import { useShortcutStore, type ShortcutId } from '@/stores/shortcut-store';
+import { useTranslations } from 'next-intl';
+import { useShortcutStore, isTriageShortcutId, type ShortcutId } from '@/stores/shortcut-store';
 import { useNoteStore } from '@/stores/note-store';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 const getIsMac = () => {
   if (typeof window === 'undefined') return false;
@@ -14,9 +16,15 @@ export const OPEN_SHORTCUTS_EVENT = 'openKeyboardShortcuts';
 
 export default function KeyboardShortcuts() {
   const router = useRouter();
+  const t = useTranslations('common');
+  const tNav = useTranslations('nav');
+  const tLabels = useTranslations('shortcuts.labels');
   const [showHelp, setShowHelp] = useState(false);
   const [isMac, _setIsMac] = useState(() => getIsMac());
   const shortcuts = useShortcutStore((state) => state.shortcuts);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useFocusTrap(panelRef, showHelp);
 
   useEffect(() => {
     const handleOpenShortcuts = () => setShowHelp(true);
@@ -24,7 +32,7 @@ export default function KeyboardShortcuts() {
     return () => window.removeEventListener(OPEN_SHORTCUTS_EVENT, handleOpenShortcuts);
   }, []);
 
-  const actionMap: Record<ShortcutId, () => void> = {
+  const actionMap: Partial<Record<ShortcutId, () => void>> = {
     newTask: () => router.push('/tasks/new'),
     dashboard: () => router.push('/dashboard'),
     home: () => router.push('/'),
@@ -61,6 +69,8 @@ export default function KeyboardShortcuts() {
       }
 
       for (const binding of shortcuts) {
+        // NOTE: triage keys are bare letters owned by /triage; firing them here would hijack typing on every page.
+        if (isTriageShortcutId(binding.id)) continue;
         // NOTE: When only ctrl is specified, match ctrlKey alone without metaKey
         const ctrlOnly = binding.ctrl && !binding.meta;
         const metaMatch = ctrlOnly
@@ -107,9 +117,11 @@ export default function KeyboardShortcuts() {
       onClick={() => setShowHelp(false)}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="keyboard-shortcuts-title"
+        tabIndex={-1}
         className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -120,13 +132,13 @@ export default function KeyboardShortcuts() {
               id="keyboard-shortcuts-title"
               className="text-lg font-semibold text-zinc-900 dark:text-zinc-50"
             >
-              キーボードショートカット
+              {tNav('keyboardShortcuts')}
             </h2>
           </div>
           <button
             onClick={() => setShowHelp(false)}
             className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg"
-            aria-label="閉じる"
+            aria-label={t('close')}
           >
             <X className="w-5 h-5" aria-hidden="true" />
           </button>
@@ -135,7 +147,9 @@ export default function KeyboardShortcuts() {
         <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
           {shortcuts.map((binding) => (
             <div key={binding.id} className="flex items-center justify-between py-2">
-              <span className="text-sm text-zinc-700 dark:text-zinc-300">{binding.label}</span>
+              <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                {tLabels(binding.id)}
+              </span>
               <kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-700 rounded text-xs font-mono text-zinc-600 dark:text-zinc-400">
                 {formatShortcut(binding)}
               </kbd>
@@ -145,7 +159,7 @@ export default function KeyboardShortcuts() {
 
         <div className="p-4 border-t border-zinc-200 dark:border-zinc-700 text-center">
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {isMac ? '\u2318 は Command キー、\u21E7 は Shift キー' : 'Ctrl は Control キー'}
+            {isMac ? t('keyboardShortcuts.macHelp') : t('keyboardShortcuts.ctrlHelp')}
           </p>
         </div>
       </div>

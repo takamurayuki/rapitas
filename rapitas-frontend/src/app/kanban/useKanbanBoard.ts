@@ -2,7 +2,7 @@
 // useKanbanBoard
 
 import { useState, useCallback, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { DropResult } from '@hello-pangea/dnd';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 import { API_BASE_URL } from '@/utils/api';
@@ -11,6 +11,7 @@ import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { useTaskAutoSync } from '@/hooks/task/useTaskAutoSync';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { createLogger } from '@/lib/logger';
+import type { Status } from '@/types';
 
 const logger = createLogger('useKanbanBoard');
 const API_BASE = API_BASE_URL;
@@ -38,6 +39,7 @@ export function useKanbanBoard(
   updateFailedMessage: string,
 ) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const tasks = useTaskCacheStore((s) => s.tasks);
   const taskCacheInitialized = useTaskCacheStore((s) => s.initialized);
   const taskCacheLoading = useTaskCacheStore((s) => s.loading);
@@ -65,7 +67,7 @@ export function useKanbanBoard(
 
   const updateStatus = async (id: number, status: string) => {
     const oldTask = tasks.find((task) => task.id === id);
-    updateTaskLocally(id, { status: status as import('@/types').Status });
+    updateTaskLocally(id, { status: status as Status });
 
     try {
       const res = await fetch(`${API_BASE}/tasks/${id}`, {
@@ -96,15 +98,23 @@ export function useKanbanBoard(
       setSelectedTaskId(taskId);
       setIsPanelOpen(true);
       showTaskDetail();
+      // NOTE: Encode the open panel in the URL so router.back() from the note split view
+      // returns here with ?panel=taskId, allowing the mount effect below to re-open it.
+      router.replace(`/kanban?panel=${taskId}`);
     },
-    [showTaskDetail],
+    [router, showTaskDetail],
   );
 
   const closeTaskPanel = useCallback(() => {
     setIsPanelOpen(false);
     hideTaskDetail();
     setTimeout(() => setSelectedTaskId(null), 300);
-  }, [hideTaskDetail]);
+    // Remove panel param from URL, preserving other params.
+    const params = new URLSearchParams(window.location.search);
+    params.delete('panel');
+    const qs = params.toString();
+    router.replace('/kanban' + (qs ? `?${qs}` : ''));
+  }, [router, hideTaskDetail]);
 
   // NOTE: Poll only to reflect executing state onto cards (spinner). Auto-opening
   // the detail panel on execution covered the board with its backdrop and made it
@@ -118,9 +128,17 @@ export function useKanbanBoard(
   useEffect(() => {
     fetchTasks();
 
+    // Restore slide panel after returning from the note split view via router.back().
+    // NOTE: [] is intentional — runs once on mount only to restore URL-encoded panel state.
+    const panelTaskId = searchParams.get('panel');
+    if (panelTaskId) {
+      openTaskPanel(Number(panelTaskId));
+    }
+
     const handleFocus = () => fetchTaskUpdates();
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /**
@@ -136,8 +154,8 @@ export function useKanbanBoard(
         return {
           cardClass: 'execution-pulse-blue',
           borderColor: 'blue',
-          badgeClass: 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300',
-          dotClass: 'bg-blue-500',
+          badgeClass: 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300',
+          dotClass: 'bg-indigo-500',
           label: runningLabel,
         };
       case 'waiting_for_input':

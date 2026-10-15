@@ -184,4 +184,88 @@ describe('fetchWithRetry', () => {
     const result = await fetchWithRetry(url);
     expect(result.ok).toBe(true);
   });
+
+  describe('X-Rapitas-Source header injection', () => {
+    /** Normalize the init argument of a fetch spy call into Headers. */
+    function headersOf(init: RequestInit | undefined): Headers {
+      return new Headers(init?.headers);
+    }
+
+    it('adds x-rapitas-source: ui when no headers are given', async () => {
+      vi.useRealTimers();
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+      fetchSpy.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+      await fetchWithRetry('http://test.com/api');
+
+      expect(headersOf(fetchSpy.mock.calls[0]?.[1]).get('x-rapitas-source')).toBe('ui');
+    });
+
+    it('preserves caller headers given as a plain object', async () => {
+      vi.useRealTimers();
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+      fetchSpy.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+      await fetchWithRetry('http://test.com/api', {
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const headers = headersOf(fetchSpy.mock.calls[0]?.[1]);
+      expect(headers.get('content-type')).toBe('application/json');
+      expect(headers.get('x-rapitas-source')).toBe('ui');
+    });
+
+    it('preserves caller headers given as a Headers instance', async () => {
+      vi.useRealTimers();
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+      fetchSpy.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+      await fetchWithRetry('http://test.com/api', {
+        headers: new Headers({ Authorization: 'Bearer token' }),
+      });
+
+      const headers = headersOf(fetchSpy.mock.calls[0]?.[1]);
+      expect(headers.get('authorization')).toBe('Bearer token');
+      expect(headers.get('x-rapitas-source')).toBe('ui');
+    });
+
+    it('preserves caller headers given as a [key, value][] array', async () => {
+      vi.useRealTimers();
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+      fetchSpy.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+      await fetchWithRetry('http://test.com/api', {
+        headers: [['X-Custom', 'abc']],
+      });
+
+      const headers = headersOf(fetchSpy.mock.calls[0]?.[1]);
+      expect(headers.get('x-custom')).toBe('abc');
+      expect(headers.get('x-rapitas-source')).toBe('ui');
+    });
+
+    it('does not overwrite a caller-provided x-rapitas-source value', async () => {
+      vi.useRealTimers();
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+      fetchSpy.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+      await fetchWithRetry('http://test.com/api', {
+        headers: { 'x-rapitas-source': 'custom' },
+      });
+
+      expect(headersOf(fetchSpy.mock.calls[0]?.[1]).get('x-rapitas-source')).toBe('custom');
+    });
+
+    it('keeps the header on retry attempts', async () => {
+      vi.useRealTimers();
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+      fetchSpy.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+      fetchSpy.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+      await fetchWithRetry('http://test.com/api', undefined, 3, 10);
+
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(headersOf(fetchSpy.mock.calls[0]?.[1]).get('x-rapitas-source')).toBe('ui');
+      expect(headersOf(fetchSpy.mock.calls[1]?.[1]).get('x-rapitas-source')).toBe('ui');
+    });
+  });
 });

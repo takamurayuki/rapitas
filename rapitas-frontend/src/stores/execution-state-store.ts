@@ -4,6 +4,14 @@ interface ExecutingTask {
   taskId: number;
   sessionId?: number;
   status: 'running' | 'waiting_for_input' | 'completed' | 'failed';
+  /** ISO timestamp the underlying AgentExecution started, for elapsed-time display. */
+  startedAt?: string | null;
+  /**
+   * Cumulative active time (ms) over the task's FINISHED executions across all
+   * phases / re-runs (task #560). The timer renders this base + the live
+   * elapsed since `startedAt`, so a new phase row no longer resets it to 0.
+   */
+  cumulativeActiveMs?: number;
 }
 
 /**
@@ -42,6 +50,10 @@ interface ExecutionStateStore {
   isTaskExecuting: (taskId: number) => boolean;
   /** Get execution status of specified task */
   getExecutingTaskStatus: (taskId: number) => 'running' | 'waiting_for_input' | null;
+  /** Get the ISO start timestamp of a task's running execution, or null if unknown. */
+  getExecutingTaskStartedAt: (taskId: number) => string | null;
+  /** Get the cumulative finished active time (ms) of a task, 0 when unknown. */
+  getExecutingTaskActiveMs: (taskId: number) => number;
   /** Mark a task as loading execution status (skeleton should be shown) */
   setTaskLoading: (taskId: number) => void;
   /** Mark a task as done loading execution status */
@@ -68,6 +80,25 @@ interface ExecutionStateStore {
 /** How long to suppress question re-publishing after an answer (ms). */
 const ANSWER_GRACE_MS = 8000;
 
+/**
+ * Lazily prune stale answeredAt entries (older than ANSWER_GRACE_MS).
+ * Returns the original Map if nothing was pruned (avoids unnecessary allocation).
+ *
+ * @param map - Current answeredAt Map / 現在のanswerAt Map
+ * @param now - Current epoch ms / 現在時刻
+ * @returns Pruned copy, or the original if unchanged / 変更なければ元のMapを返す
+ */
+function pruneAnsweredAt(map: Map<number, number>, now: number): Map<number, number> {
+  let pruned = map;
+  for (const [id, ts] of map) {
+    if (now - ts >= ANSWER_GRACE_MS) {
+      if (pruned === map) pruned = new Map(map);
+      pruned.delete(id);
+    }
+  }
+  return pruned;
+}
+
 export const useExecutionStateStore = create<ExecutionStateStore>()((set, get) => ({
   executingTasks: new Map(),
   loadingTaskIds: new Set(),
@@ -75,20 +106,32 @@ export const useExecutionStateStore = create<ExecutionStateStore>()((set, get) =
   answeredAt: new Map<number, number>(),
   setLiveQuestion: (taskId, question) =>
     set((state) => {
+      const now = Date.now();
+      // NOTE: Prune stale grace-window entries on every call so the Map cannot
+      // grow unbounded during long auto-run sessions.
+      const answeredAt = pruneAnsweredAt(state.answeredAt, now);
+
       const existing = state.liveQuestions.get(taskId) ?? null;
       // Suppress re-publishing a question within the grace window after an answer
       // (the poller keeps reporting waiting_for_input until the backend clears it).
       if (question !== null) {
-        const answered = state.answeredAt.get(taskId);
-        if (answered !== undefined && Date.now() - answered < ANSWER_GRACE_MS) {
-          if (existing === null) return state;
+        const answered = answeredAt.get(taskId);
+        if (answered !== undefined && now - answered < ANSWER_GRACE_MS) {
+          if (existing === null) {
+            return answeredAt !== state.answeredAt ? { answeredAt } : state;
+          }
           const cleared = new Map(state.liveQuestions);
           cleared.delete(taskId);
-          return { liveQuestions: cleared };
+          return {
+            liveQuestions: cleared,
+            ...(answeredAt !== state.answeredAt ? { answeredAt } : {}),
+          };
         }
       }
       // Skip no-op updates to avoid re-render loops (the publisher fires on every poll).
-      if (question === null && existing === null) return state;
+      if (question === null && existing === null) {
+        return answeredAt !== state.answeredAt ? { answeredAt } : state;
+      }
       if (
         question &&
         existing &&
@@ -98,12 +141,15 @@ export const useExecutionStateStore = create<ExecutionStateStore>()((set, get) =
         existing.sessionId === question.sessionId &&
         existing.timeoutDeadline === question.timeoutDeadline
       ) {
-        return state;
+        return answeredAt !== state.answeredAt ? { answeredAt } : state;
       }
       const newMap = new Map(state.liveQuestions);
       if (question === null) newMap.delete(taskId);
       else newMap.set(taskId, question);
-      return { liveQuestions: newMap };
+      return {
+        liveQuestions: newMap,
+        ...(answeredAt !== state.answeredAt ? { answeredAt } : {}),
+      };
     }),
   getLiveQuestion: (taskId) => get().liveQuestions.get(taskId) ?? null,
   markQuestionAnswered: (taskId) =>
@@ -132,7 +178,16 @@ export const useExecutionStateStore = create<ExecutionStateStore>()((set, get) =
   setExecutingTask: (task) =>
     set((state) => {
       const existing = state.executingTasks.get(task.taskId);
-      if (existing && existing.status === task.status && existing.sessionId === task.sessionId) {
+      if (
+        existing &&
+        existing.status === task.status &&
+        existing.sessionId === task.sessionId &&
+        // Normalize BOTH sides: a stored task may hold `undefined` while the
+        // incoming one is normalized to null — without this the dedup never
+        // short-circuits and re-clones the Map every poll.
+        (existing.startedAt ?? null) === (task.startedAt ?? null) &&
+        (existing.cumulativeActiveMs ?? 0) === (task.cumulativeActiveMs ?? 0)
+      ) {
         return state;
       }
       const newMap = new Map(state.executingTasks);
@@ -141,12 +196,21 @@ export const useExecutionStateStore = create<ExecutionStateStore>()((set, get) =
     }),
   removeExecutingTask: (taskId) =>
     set((state) => {
-      if (!state.executingTasks.has(taskId)) return state;
+      const hadTask = state.executingTasks.has(taskId);
+      const hadQuestion = state.liveQuestions.has(taskId);
+      if (!hadTask && !hadQuestion) return state;
       const newMap = new Map(state.executingTasks);
       newMap.delete(taskId);
-      return { executingTasks: newMap };
+      // A live question only exists while its execution is alive. Stopping
+      // auto-run cancels the execution, and the stale question kept ticking its
+      // auto-continue countdown (and re-surfaced on reopening the task detail)
+      // because nothing dropped it (2026-09-14).
+      if (!hadQuestion) return { executingTasks: newMap };
+      const questions = new Map(state.liveQuestions);
+      questions.delete(taskId);
+      return { executingTasks: newMap, liveQuestions: questions };
     }),
-  clearAll: () => set({ executingTasks: new Map() }),
+  clearAll: () => set({ executingTasks: new Map(), liveQuestions: new Map() }),
   isTaskExecuting: (taskId) => {
     const task = get().executingTasks.get(taskId);
     return task?.status === 'running' || task?.status === 'waiting_for_input';
@@ -159,4 +223,6 @@ export const useExecutionStateStore = create<ExecutionStateStore>()((set, get) =
     }
     return null;
   },
+  getExecutingTaskStartedAt: (taskId) => get().executingTasks.get(taskId)?.startedAt ?? null,
+  getExecutingTaskActiveMs: (taskId) => get().executingTasks.get(taskId)?.cumulativeActiveMs ?? 0,
 }));

@@ -9,11 +9,12 @@
  * drift-prone) transition tables.
  *
  * The status state machine is fixed, so a mode is configured by toggling the
- * OPTIONAL phases (plan / review / auto-verify) rather than by arbitrary
+ * OPTIONAL phases (plan / auto-verify) rather than by arbitrary
  * reordering — this keeps every generated transition table valid.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import { WORKFLOW_MODES } from './workflow-types';
 import type { RoleTransition, WorkflowMode } from './workflow-types';
 
 const log = createLogger('workflow-mode-config');
@@ -23,8 +24,6 @@ export interface WorkflowModeSettings {
   mode: WorkflowMode;
   /** Include the planner phase (research → plan). */
   includePlan: boolean;
-  /** Include the plan-review phase (only meaningful when includePlan). */
-  includeReview: boolean;
   /** Use auto_verifier instead of verifier for the verify phase. */
   autoVerify: boolean;
   /** Inclusive complexity-score range that auto-selects this mode. */
@@ -38,7 +37,6 @@ export const DEFAULT_MODE_SETTINGS: Record<WorkflowMode, WorkflowModeSettings> =
   lightweight: {
     mode: 'lightweight',
     includePlan: false,
-    includeReview: false,
     autoVerify: true,
     complexityMin: 0,
     complexityMax: 35,
@@ -47,7 +45,6 @@ export const DEFAULT_MODE_SETTINGS: Record<WorkflowMode, WorkflowModeSettings> =
   standard: {
     mode: 'standard',
     includePlan: true,
-    includeReview: false,
     autoVerify: false,
     complexityMin: 36,
     complexityMax: 70,
@@ -56,7 +53,6 @@ export const DEFAULT_MODE_SETTINGS: Record<WorkflowMode, WorkflowModeSettings> =
   comprehensive: {
     mode: 'comprehensive',
     includePlan: true,
-    includeReview: true,
     autoVerify: false,
     complexityMin: 71,
     complexityMax: 100,
@@ -91,7 +87,10 @@ function parseRow(row: {
 }): WorkflowModeSettings {
   const mode = row.mode as WorkflowMode;
   const fallback = DEFAULT_MODE_SETTINGS[mode] ?? DEFAULT_MODE_SETTINGS.standard;
-  let toggles: { includePlan?: boolean; includeReview?: boolean; autoVerify?: boolean } = {};
+  // NOTE: Legacy rows may still carry `includeReview` (reviewer role retired
+  // 2026-08) — unknown keys in stepDefinitions are safely ignored here because
+  // only the fields below are ever read.
+  let toggles: { includePlan?: boolean; autoVerify?: boolean } = {};
   try {
     const parsed = JSON.parse(row.stepDefinitions || '{}');
     toggles = parsed?.phases ?? parsed ?? {};
@@ -101,7 +100,6 @@ function parseRow(row: {
   return {
     mode,
     includePlan: toggles.includePlan ?? fallback.includePlan,
-    includeReview: toggles.includeReview ?? fallback.includeReview,
     autoVerify: toggles.autoVerify ?? fallback.autoVerify,
     complexityMin: row.complexityMin ?? fallback.complexityMin,
     complexityMax: row.complexityMax ?? fallback.complexityMax,
@@ -110,11 +108,10 @@ function parseRow(row: {
 }
 
 /** Serialize toggle settings into the row's `stepDefinitions` JSON shape. */
-function toggleJson(s: Pick<WorkflowModeSettings, 'includePlan' | 'includeReview' | 'autoVerify'>) {
+function toggleJson(s: Pick<WorkflowModeSettings, 'includePlan' | 'autoVerify'>) {
   return JSON.stringify({
     phases: {
       includePlan: s.includePlan,
-      includeReview: s.includeReview,
       autoVerify: s.autoVerify,
     },
   });
@@ -130,8 +127,24 @@ function toggleJson(s: Pick<WorkflowModeSettings, 'includePlan' | 'includeReview
  * @returns The selected workflow mode. / 選択されたワークフローモード
  */
 export async function selectModeByComplexity(score: number): Promise<WorkflowMode> {
-  const all = await getAllModeSettings();
-  const order: WorkflowMode[] = ['lightweight', 'standard', 'comprehensive'];
+  return pickModeForScore(score, await getAllModeSettings());
+}
+
+/**
+ * Pure band resolution for a complexity score (testable without the DB).
+ *
+ * @param score - 0-100 complexity score. / 複雑度スコア
+ * @param all - Per-mode settings. / モード別設定
+ * @returns The selected workflow mode. / 選択されたモード
+ */
+export function pickModeForScore(
+  score: number,
+  all: Record<
+    WorkflowMode,
+    Pick<WorkflowModeSettings, 'isEnabled' | 'complexityMin' | 'complexityMax'>
+  >,
+): WorkflowMode {
+  const order: WorkflowMode[] = [...WORKFLOW_MODES];
   for (const m of order) {
     const s = all[m];
     if (s.isEnabled && score >= s.complexityMin && score <= s.complexityMax) return m;
@@ -139,7 +152,10 @@ export async function selectModeByComplexity(score: number): Promise<WorkflowMod
   if (score <= 35 && all.lightweight.isEnabled) return 'lightweight';
   if (score <= 70 && all.standard.isEnabled) return 'standard';
   if (all.comprehensive.isEnabled) return 'comprehensive';
-  return order.find((m) => all[m].isEnabled) ?? 'comprehensive';
+  // A score ABOVE every enabled band must clamp DOWN to the highest enabled
+  // tier, not fall through to the lowest: with comprehensive disabled, a
+  // score-76 task resolved to lightweight and 18 files went unplanned (#784).
+  return [...order].reverse().find((m) => all[m].isEnabled) ?? 'comprehensive';
 }
 
 /** Tier rank of each mode (ceremony level): lightweight < standard < comprehensive. */
@@ -199,8 +215,14 @@ export function applyProvisionalBias(
 export async function selectProvisionalMode(score: number): Promise<WorkflowMode> {
   const base = await selectModeByComplexity(score);
   const all = await getAllModeSettings();
-  // Trust 'lightweight' only in the lower half of its configured band.
-  const lightweightConfidentMax = Math.floor(all.lightweight.complexityMax / 2);
+  // Honour the FULL configured lightweight band: a score within the user's
+  // configured lightweight range (≤ complexityMax) stays lightweight, instead of
+  // biasing the upper half up to 'standard'. The old half-band bias made the
+  // actual mode disagree with the configured complexity ranges (observed: score
+  // 35 with lightweight=[0,35] resolved to standard). Research-assessed complexity
+  // can still UPGRADE (never downgrade), so a genuinely complex task the metadata
+  // under-scored still gets a plan phase.
+  const lightweightConfidentMax = all.lightweight.complexityMax;
   return applyProvisionalBias(base, score, all.standard.isEnabled, lightweightConfidentMax);
 }
 
@@ -308,11 +330,10 @@ export function buildTransitions(s: WorkflowModeSettings): Record<string, RoleTr
     draft: { role: 'researcher', outputFile: 'research', nextStatus: 'research_done' },
   };
   if (s.includePlan) {
+    // NOTE: No plan_created entry — the reviewer role was retired 2026-08
+    // (plan-review is covered by phase-critic + adversarial diff-review);
+    // plan_created is the human/auto approval gate, not an agent phase.
     t.research_done = { role: 'planner', outputFile: 'plan', nextStatus: 'plan_created' };
-    if (s.includeReview) {
-      // Review keeps the status at plan_created (it annotates the plan).
-      t.plan_created = { role: 'reviewer', outputFile: 'question', nextStatus: 'plan_created' };
-    }
     t.plan_approved = { role: 'implementer', outputFile: null, nextStatus: 'in_progress' };
   } else {
     // No plan phase — implement straight after research.

@@ -20,7 +20,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 
-const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+import { API_BASE_URL as API_BASE } from '@/utils/api';
 
 interface ExamGoalData {
   id: number;
@@ -111,7 +111,7 @@ export default function LearningDashboardPage() {
       </h1>
 
       {/* Study Streak Banner */}
-      <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl p-5 text-white">
+      <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl p-5 text-white">
         <div className="flex flex-wrap items-center gap-6">
           <div className="flex items-center gap-3">
             <Flame className="w-10 h-10" />
@@ -168,7 +168,7 @@ export default function LearningDashboardPage() {
           sub={`${examGoals.filter((g) => !g.isCompleted).length} active`}
         />
         <StatCard
-          icon={<BookOpen className="w-5 h-5 text-blue-500" />}
+          icon={<BookOpen className="w-5 h-5 text-indigo-500" />}
           label="Learning Goals"
           value={learningGoals.length}
           sub={`${learningGoals.filter((g) => g.status === 'active').length} active`}
@@ -296,7 +296,7 @@ function StatCard({
         <span className="text-sm text-zinc-500 dark:text-zinc-400">{label}</span>
       </div>
       <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{value}</div>
-      <div className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">{sub}</div>
+      <div className="text-xs text-zinc-500 dark:text-zinc-500 mt-1">{sub}</div>
     </div>
   );
 }

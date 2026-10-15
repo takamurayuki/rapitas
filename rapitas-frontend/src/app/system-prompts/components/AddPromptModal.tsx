@@ -7,10 +7,11 @@
  * Validates key format (lowercase alphanumeric + underscores) before submitting.
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { CATEGORY_LABELS } from './types';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 interface AddPromptModalProps {
   onClose: () => void;
@@ -33,6 +34,17 @@ export function AddPromptModal({ onClose, onSuccess }: AddPromptModalProps) {
   const [category, setCategory] = useState('general');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  useFocusTrap(panelRef, true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,9 +84,19 @@ export function AddPromptModal({ onClose, onSuccess }: AddPromptModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-auto bg-white dark:bg-zinc-800 rounded-lg shadow-xl">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-prompt-modal-title"
+        tabIndex={-1}
+        className="w-full max-w-2xl max-h-[90vh] overflow-auto bg-white dark:bg-zinc-800 rounded-lg shadow-xl"
+      >
         <div className="p-6">
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
+          <h2
+            id="add-prompt-modal-title"
+            className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4"
+          >
             {t('addSystemPrompt')}
           </h2>
           <form onSubmit={handleSubmit}>
@@ -89,7 +111,7 @@ export function AddPromptModal({ onClose, onSuccess }: AddPromptModalProps) {
                     value={key}
                     onChange={(e) => setKey(e.target.value)}
                     placeholder={t('keyPlaceholder')}
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-blue-400 font-mono text-sm"
+                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-indigo-400 font-mono text-sm"
                     required
                   />
                   <p className="text-xs text-zinc-400 mt-1">{t('keyHint')}</p>
@@ -101,7 +123,7 @@ export function AddPromptModal({ onClose, onSuccess }: AddPromptModalProps) {
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-blue-400"
+                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-indigo-400"
                   >
                     {Object.entries(CATEGORY_LABELS).map(([value, { labelKey }]) => (
                       <option key={value} value={value}>
@@ -120,7 +142,7 @@ export function AddPromptModal({ onClose, onSuccess }: AddPromptModalProps) {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={t('namePlaceholder')}
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-blue-400"
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-indigo-400"
                   required
                 />
               </div>
@@ -133,7 +155,7 @@ export function AddPromptModal({ onClose, onSuccess }: AddPromptModalProps) {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder={t('descriptionPlaceholder')}
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-blue-400"
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-indigo-400"
                 />
               </div>
               <div>
@@ -145,7 +167,7 @@ export function AddPromptModal({ onClose, onSuccess }: AddPromptModalProps) {
                   onChange={(e) => setContent(e.target.value)}
                   rows={10}
                   placeholder={t('contentPlaceholder')}
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 font-mono text-sm focus:border-blue-400 resize-y"
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 font-mono text-sm focus:border-indigo-400 resize-y"
                   required
                 />
               </div>

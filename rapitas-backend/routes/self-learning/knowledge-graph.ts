@@ -12,14 +12,9 @@ import {
   getSubgraph,
   mergeNodes,
   getGraphStats,
-  CreateNodeInput,
-  CreateEdgeInput,
   KnowledgeNodeType,
   KnowledgeEdgeType,
 } from '../../services/self-learning';
-import { createLogger } from '../../config/logger';
-
-const log = createLogger('routes:knowledge-graph');
 
 export const knowledgeGraphRoutes = new Elysia({ prefix: '/knowledge-graph' })
   // --- Nodes ---

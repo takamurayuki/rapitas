@@ -48,6 +48,23 @@ export interface SpeechRecognition extends EventTarget {
   onend: () => void;
 }
 
+/** Return shape of the {@link useSpeechRecognition} hook. */
+export interface UseSpeechRecognitionReturn {
+  isListening: boolean;
+  transcript: string;
+  interimTranscript: string;
+  error: string | null;
+  isSupported: boolean;
+  isTranscribing: boolean;
+  startListening: () => void;
+  stopListening: () => void;
+  resetTranscript: () => void;
+  /** Submit a user correction to improve future accuracy. / ユーザー修正を送信して将来の精度を向上 */
+  submitCorrection: (correctedText: string) => void;
+  /** Active MediaStream for waveform visualization (null when not recording). */
+  activeStream: MediaStream | null;
+}
+
 // Global Window augmentation — this is the SOLE file that declares these.
 // Do NOT duplicate this in other files (causes TS2717).
 declare global {

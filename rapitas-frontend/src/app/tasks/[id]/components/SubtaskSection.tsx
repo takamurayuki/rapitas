@@ -3,151 +3,148 @@
 /**
  * SubtaskSection
  *
- * Orchestrates the subtask card: header, delete confirmation, add form, and item list.
- * All state is owned by the parent and threaded in as props.
+ * Orchestrates the subtask card: header, add form, item list, and the
+ * selection footer. All state except add-form visibility is owned by the
+ * parent and threaded in as props.
  */
 
+import { useState } from 'react';
+import { Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { Task, Priority } from '@/types';
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { SubtaskHeader } from './subtask-section/SubtaskHeader';
-import { SubtaskDeleteConfirm } from './subtask-section/SubtaskDeleteConfirm';
 import { AddSubtaskForm } from './subtask-section/AddSubtaskForm';
 import { SubtaskItem } from './subtask-section/SubtaskItem';
 
 interface SubtaskSectionProps {
   subtasks: NonNullable<Task['subtasks']>;
+  /** Parent task's theme name — note-link hierarchy metadata for subtasks. */
+  themeName?: string;
+  /** Parent task's category name — note-link hierarchy metadata for subtasks. */
+  categoryName?: string;
   isSubtaskSelectionMode: boolean;
   selectedSubtaskIds: Set<number>;
-  showSubtaskDeleteConfirm: 'all' | 'selected' | null;
   editingSubtaskId: number | null;
   editingSubtaskTitle: string;
   editingSubtaskDescription: string;
   editingSubtaskPriority: Priority;
-  editingSubtaskLabels: string;
   editingSubtaskEstimatedHours: string;
+  editingSubtaskActualHours: string;
   isParallelExecutionRunning: boolean;
   getSubtaskStatus: (subtaskId: number) => ParallelExecutionStatus | undefined;
   onToggleSelectionMode: () => void;
   onSelectAll: () => void;
   onDeselectAll: () => void;
   onToggleSubtaskSelection: (id: number) => void;
-  onSetDeleteConfirm: (v: 'all' | 'selected' | null) => void;
-  onDeleteAll: () => void;
+  /** Deletes the selected subtasks — the handler shows the shared confirm modal first. */
   onDeleteSelected: () => void;
   onStartEditingSubtask: (subtask: NonNullable<Task['subtasks']>[number]) => void;
   onSetEditingSubtaskTitle: (v: string) => void;
   onSetEditingSubtaskDescription: (v: string) => void;
   onSetEditingSubtaskPriority: (v: Priority) => void;
-  onSetEditingSubtaskLabels: (v: string) => void;
   onSetEditingSubtaskEstimatedHours: (v: string) => void;
+  onSetEditingSubtaskActualHours: (v: string) => void;
   onSaveSubtaskEdit: () => void;
   onCancelEditingSubtask: () => void;
   onUpdateStatus: (id: number, status: string) => void;
-  isAddingSubtask: boolean;
   newSubtaskTitle: string;
   newSubtaskDescription: string;
-  newSubtaskLabels: string;
+  newSubtaskPriority: Priority;
   newSubtaskEstimatedHours: string;
-  onToggleAddSubtask: () => void;
+  newSubtaskActualHours: string;
   onSetNewSubtaskTitle: (v: string) => void;
   onSetNewSubtaskDescription: (v: string) => void;
-  onSetNewSubtaskLabels: (v: string) => void;
+  onSetNewSubtaskPriority: (v: Priority) => void;
   onSetNewSubtaskEstimatedHours: (v: string) => void;
+  onSetNewSubtaskActualHours: (v: string) => void;
   onAddSubtask: () => void;
-  onCancelAddSubtask: () => void;
 }
 
 export default function SubtaskSection({
   subtasks,
+  themeName,
+  categoryName,
   isSubtaskSelectionMode,
   selectedSubtaskIds,
-  showSubtaskDeleteConfirm,
   editingSubtaskId,
   editingSubtaskTitle,
   editingSubtaskDescription,
   editingSubtaskPriority,
-  editingSubtaskLabels,
   editingSubtaskEstimatedHours,
+  editingSubtaskActualHours,
   isParallelExecutionRunning,
   getSubtaskStatus,
   onToggleSelectionMode,
   onSelectAll,
   onDeselectAll,
   onToggleSubtaskSelection,
-  onSetDeleteConfirm,
-  onDeleteAll,
   onDeleteSelected,
   onStartEditingSubtask,
   onSetEditingSubtaskTitle,
   onSetEditingSubtaskDescription,
   onSetEditingSubtaskPriority,
-  onSetEditingSubtaskLabels,
   onSetEditingSubtaskEstimatedHours,
+  onSetEditingSubtaskActualHours,
   onSaveSubtaskEdit,
   onCancelEditingSubtask,
   onUpdateStatus,
-  isAddingSubtask,
   newSubtaskTitle,
   newSubtaskDescription,
-  newSubtaskLabels,
+  newSubtaskPriority,
   newSubtaskEstimatedHours,
-  onToggleAddSubtask,
+  newSubtaskActualHours,
   onSetNewSubtaskTitle,
   onSetNewSubtaskDescription,
-  onSetNewSubtaskLabels,
+  onSetNewSubtaskPriority,
   onSetNewSubtaskEstimatedHours,
+  onSetNewSubtaskActualHours,
   onAddSubtask,
-  onCancelAddSubtask,
 }: SubtaskSectionProps) {
-  const doneCount = subtasks.filter((s) => s.status === 'done').length;
-  const hasSubtasks = subtasks.length > 0;
-  const progressPercent = hasSubtasks ? Math.round((doneCount / subtasks.length) * 100) : 0;
+  const tc = useTranslations('common');
+
+  // While a subtask is being edited, collapse the card to just that item so the
+  // edit form is the only thing on screen (other rows and the add form hide).
+  const isEditingAny = editingSubtaskId !== null;
+
+  // User-controlled visibility of the add form (header toggle) — purely a
+  // view preference, so it lives here rather than in the parent hooks.
+  // Hidden by default; while open the card focuses on the form alone
+  // (subtask list hides), mirroring the edit-mode behaviour.
+  const [isAddFormVisible, setIsAddFormVisible] = useState(false);
+  const isAddMode = isAddFormVisible && !isEditingAny && !isSubtaskSelectionMode;
+  const visibleSubtasks = isEditingAny
+    ? subtasks.filter((s) => s.id === editingSubtaskId)
+    : subtasks;
 
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden mb-6">
       <SubtaskHeader
         subtasks={subtasks}
-        doneCount={doneCount}
-        progressPercent={progressPercent}
         isSubtaskSelectionMode={isSubtaskSelectionMode}
         selectedSubtaskIds={selectedSubtaskIds}
-        onToggleAddSubtask={onToggleAddSubtask}
         onToggleSelectionMode={onToggleSelectionMode}
         onSelectAll={onSelectAll}
         onDeselectAll={onDeselectAll}
-        onSetDeleteConfirm={onSetDeleteConfirm}
+        isAddFormVisible={isAddFormVisible}
+        onToggleAddForm={() => setIsAddFormVisible((v) => !v)}
       />
 
-      {showSubtaskDeleteConfirm && (
-        <SubtaskDeleteConfirm
-          mode={showSubtaskDeleteConfirm}
-          totalCount={subtasks.length}
-          selectedCount={selectedSubtaskIds.size}
-          onConfirm={showSubtaskDeleteConfirm === 'all' ? onDeleteAll : onDeleteSelected}
-          onCancel={() => onSetDeleteConfirm(null)}
-        />
-      )}
-
-      {isAddingSubtask && (
-        <AddSubtaskForm
-          newSubtaskTitle={newSubtaskTitle}
-          newSubtaskDescription={newSubtaskDescription}
-          newSubtaskLabels={newSubtaskLabels}
-          newSubtaskEstimatedHours={newSubtaskEstimatedHours}
-          onSetNewSubtaskTitle={onSetNewSubtaskTitle}
-          onSetNewSubtaskDescription={onSetNewSubtaskDescription}
-          onSetNewSubtaskLabels={onSetNewSubtaskLabels}
-          onSetNewSubtaskEstimatedHours={onSetNewSubtaskEstimatedHours}
-          onAddSubtask={onAddSubtask}
-          onCancelAddSubtask={onCancelAddSubtask}
-        />
-      )}
-
-      <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-        {subtasks.map((subtask) => (
+      {/* border-b closes the last row with a line even when nothing renders
+          below (selection mode); forms below carry no top border of their own.
+          Hidden entirely while the add form is open — add mode focuses the
+          card on the form alone, like edit mode does. */}
+      <div
+        className={`divide-y divide-zinc-100 dark:divide-zinc-800 ${
+          isAddMode ? 'hidden' : ''
+        } ${visibleSubtasks.length > 0 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}`}
+      >
+        {visibleSubtasks.map((subtask) => (
           <SubtaskItem
             key={subtask.id}
             subtask={subtask}
+            themeName={themeName}
+            categoryName={categoryName}
             isEditing={editingSubtaskId === subtask.id}
             isSelectionMode={isSubtaskSelectionMode}
             isSelected={selectedSubtaskIds.has(subtask.id)}
@@ -156,21 +153,60 @@ export default function SubtaskSection({
             editingSubtaskTitle={editingSubtaskTitle}
             editingSubtaskDescription={editingSubtaskDescription}
             editingSubtaskPriority={editingSubtaskPriority}
-            editingSubtaskLabels={editingSubtaskLabels}
             editingSubtaskEstimatedHours={editingSubtaskEstimatedHours}
+            editingSubtaskActualHours={editingSubtaskActualHours}
             onToggleSelection={() => onToggleSubtaskSelection(subtask.id)}
             onStartEditing={onStartEditingSubtask}
             onSetEditingTitle={onSetEditingSubtaskTitle}
             onSetEditingDescription={onSetEditingSubtaskDescription}
             onSetEditingPriority={onSetEditingSubtaskPriority}
-            onSetEditingLabels={onSetEditingSubtaskLabels}
             onSetEditingEstimatedHours={onSetEditingSubtaskEstimatedHours}
+            onSetEditingActualHours={onSetEditingSubtaskActualHours}
             onSaveEdit={onSaveSubtaskEdit}
             onCancelEdit={onCancelEditingSubtask}
             onUpdateStatus={onUpdateStatus}
           />
         ))}
       </div>
+
+      {/* Selection footer — mirrors the forms' footer band (divider comes from
+          the list's border-b): the destructive bulk action sits at the bottom,
+          styled like the save button. */}
+      {isSubtaskSelectionMode && selectedSubtaskIds.size > 0 && (
+        <div className="flex items-center justify-end gap-2 px-4 py-3 bg-zinc-100/70 dark:bg-zinc-900/60">
+          {/* ボタン自体は従来のコンパクトな削除デザインのまま — フッター
+              セクション化 (区切り+帯) だけをフォームの保存行と揃える。
+              確認はタスク一覧と同じ共通モーダル (ハンドラ側で表示)。 */}
+          <button
+            onClick={onDeleteSelected}
+            className="flex h-8 items-center gap-1 px-2.5 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 bg-white dark:bg-zinc-900 text-red-600 dark:text-red-400 shadow-[0_2px_0_0_#fca5a5] dark:shadow-[0_2px_0_0_#7f1d1d] hover:bg-red-50 dark:hover:bg-red-900/30 active:translate-y-[1px] active:shadow-none transition-all duration-75"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {tc('delete')}
+          </button>
+        </div>
+      )}
+
+      {/* Add form only in add mode (never while editing or bulk-selecting);
+          adding closes the form so the updated list is immediately visible. */}
+      {isAddMode && (
+        <AddSubtaskForm
+          newSubtaskTitle={newSubtaskTitle}
+          newSubtaskDescription={newSubtaskDescription}
+          newSubtaskPriority={newSubtaskPriority}
+          newSubtaskEstimatedHours={newSubtaskEstimatedHours}
+          newSubtaskActualHours={newSubtaskActualHours}
+          onSetNewSubtaskTitle={onSetNewSubtaskTitle}
+          onSetNewSubtaskDescription={onSetNewSubtaskDescription}
+          onSetNewSubtaskPriority={onSetNewSubtaskPriority}
+          onSetNewSubtaskEstimatedHours={onSetNewSubtaskEstimatedHours}
+          onSetNewSubtaskActualHours={onSetNewSubtaskActualHours}
+          onAddSubtask={() => {
+            onAddSubtask();
+            setIsAddFormVisible(false);
+          }}
+        />
+      )}
     </div>
   );
 }

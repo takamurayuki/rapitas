@@ -11,41 +11,48 @@ import {
   Menu,
   X,
   Home,
-  Columns3,
   Tags,
   SwatchBook,
-  FolderOpen,
-  FolderKanban,
+  LayoutList,
+  LayoutDashboard,
+  Folders,
   FolderGit2,
   ScrollText,
-  Target,
+  Milestone,
   BarChart3,
   GanttChartSquare,
-  Flame,
-  Brain,
   FileText,
   FileCog,
   Calendar,
+  CalendarRange,
   CalendarClock,
   Clock,
   GraduationCap,
   Bot,
   Settings,
+  UserCog,
+  Archive,
   GitPullRequest,
   CircleDot,
   GitMerge,
   Code,
-  Key,
   MessageSquare,
-  Sparkles,
   Lightbulb,
   Bug,
   Inbox,
   NotebookTabs,
+  NotepadText,
   Package,
-  BookMarked,
-  Keyboard,
-  Scale,
+  Beaker,
+  Sprout,
+  Sunrise,
+  Library,
+  Search,
+  Workflow,
+  WalletCards,
+  ChartNoAxesCombined,
+  ChartScatter,
+  ScanSearch,
 } from 'lucide-react';
 import Link from 'next/link';
 import AppIcon from '@/components/common/app-icon';
@@ -57,22 +64,6 @@ import { SideNav } from './side-nav';
 import { HeaderSearch } from './header-search';
 import { HeaderToolbar } from './header-toolbar';
 import { RestartDialogs } from './restart-dialogs';
-import type { AppMode } from '@/stores/app-mode-store';
-
-/**
- * Filters nav items to only include those visible in the given app mode.
- *
- * @param items - Full nav item list / 全ナビアイテムリスト
- * @param currentMode - Current application mode / 現在のアプリモード
- * @returns Filtered nav items / フィルタリングされたナビアイテム
- */
-function filterNavItems(items: NavItem[], currentMode: AppMode): NavItem[] {
-  if (currentMode === 'all') return items;
-  return items.filter((item) => {
-    if (!item.mode) return true;
-    return item.mode === currentMode;
-  });
-}
 
 /**
  * Sticky application header with a hamburger-triggered side navigation panel.
@@ -80,6 +71,7 @@ function filterNavItems(items: NavItem[], currentMode: AppMode): NavItem[] {
 export default function Header() {
   const h = useHeader();
   const t = useTranslations('nav');
+  const tTask = useTranslations('task');
 
   if (h.hideHeader || (h.isTaskDetailPage && !h.showHeader)) {
     return null;
@@ -92,63 +84,67 @@ export default function Header() {
       icon: Home,
       shortcut: h.getShortcutLabel('home'),
       children: [
-        { href: '/gantt', label: 'ガントチャート', icon: GanttChartSquare },
+        { href: '/gantt', label: tTask('ganttView.title'), icon: GanttChartSquare },
         {
           href: '#',
           label: t('category'),
-          icon: FolderOpen,
+          icon: LayoutList,
           children: [
             {
               href: '/categories',
               label: t('categoryList'),
-              icon: FolderKanban,
+              icon: Folders,
             },
             { href: '/themes', label: t('themeList'), icon: SwatchBook },
             { href: '/labels', label: t('labelList'), icon: Tags },
           ],
         },
-        {
-          href: '/settings/developer-mode',
-          label: t('taskSettings'),
-          icon: Settings,
-        },
       ],
     },
     {
       href: '#',
-      label: 'バックログ',
+      label: t('backlog'),
       icon: Inbox,
       children: [
-        { href: '/ideas', label: 'アイデアボックス', icon: Lightbulb },
-        { href: '/concerns', label: '懸念バックログ', icon: Bug },
-        { href: '/decisions', label: 'デシジョンジャーナル', icon: Scale },
-        { href: '/backlog/settings', label: '設定', icon: CalendarClock },
+        { href: '/ideas', label: t('ideas'), icon: Lightbulb },
+        { href: '/concerns', label: t('concerns'), icon: Bug },
+        { href: '/hypotheses', label: t('hypotheses'), icon: Beaker },
+        { href: '/backlog/settings', label: t('settings'), icon: CalendarClock },
       ],
     },
     {
       href: '/dashboard',
       label: t('dashboard'),
-      icon: BarChart3,
+      icon: LayoutDashboard,
       shortcut: h.getShortcutLabel('dashboard'),
+    },
+    {
+      href: '/notes',
+      label: t('notes'),
+      icon: NotebookTabs,
+    },
+    {
+      href: '/memos',
+      label: t('memos'),
+      icon: NotepadText,
     },
     {
       href: '#',
       label: t('learning'),
       icon: GraduationCap,
-      mode: 'learning',
       children: [
         {
-          href: '/learning-goals',
-          label: t('learningGoals'),
-          icon: BookMarked,
+          href: '/learning-roadmap',
+          label: t('learningRoadmap'),
+          icon: Milestone,
         },
-        { href: '/exam-goals', label: t('examGoals'), icon: Target },
+        { href: '/vocabulary', label: t('vocabulary'), icon: WalletCards },
       ],
     },
     {
       href: '#',
       label: t('habitsAchievements'),
-      icon: Calendar,
+      icon: CalendarRange,
       children: [
         {
           href: '/calendar',
@@ -156,7 +152,6 @@ export default function Header() {
           icon: Calendar,
           shortcut: h.getShortcutLabel('calendar'),
         },
-        { href: '/habits', label: t('habitTracker'), icon: Flame },
         {
           href: '/habits/daily-schedule',
           label: t('dailySchedule'),
@@ -169,7 +164,6 @@ export default function Header() {
       href: '#',
       label: t('development'),
       icon: Code,
-      mode: 'development',
       children: [
         {
           href: '#',
@@ -186,33 +180,61 @@ export default function Header() {
             { href: '/github/actions', label: 'CI/CD', icon: GitMerge },
           ],
         },
-        { href: '/logs', label: 'ログ分析', icon: ScrollText },
+        { href: '/logs', label: t('logAnalysis'), icon: ScrollText },
         {
           href: '#',
           label: t('agent'),
           icon: Bot,
           children: [
-            { href: '/agents', label: t('agentManagement'), icon: Settings },
-            { href: '/agents/metrics', label: t('metrics'), icon: BarChart3 },
+            // NOTE: UserCog, not Settings — the gear glyph is owned by 設定
+            // (ICON_POLICY: one glyph, one meaning app-wide).
+            { href: '/agents', label: t('agentManagement'), icon: UserCog },
             {
-              href: '/agents/versions',
-              label: t('versionControl'),
-              icon: Package,
+              href: '/agents/execution-dashboard',
+              label: t('executionDashboard'),
+              icon: Workflow,
+            },
+            { href: '/agents/metrics', label: t('metrics'), icon: BarChart3 },
+            // NOTE: Sunrise = 自律活動デイリーレポート (ICON_POLICY §3) — the
+            // same glyph is reused on the /agents/daily-report page (same
+            // concept). /agents/growth is owned by the growth ledger below.
+            {
+              href: '/agents/daily-report',
+              label: t('growthReport'),
+              icon: Sunrise,
             },
             {
               href: '/agents/memory',
               label: t('memoryVisualization'),
-              icon: Sparkles,
+              icon: Sprout,
+            },
+            {
+              href: '/agents/growth',
+              label: t('growthLedger'),
+              icon: ChartNoAxesCombined,
+            },
+            // NOTE: ChartScatter = 効率フロンティア (ICON_POLICY glyphs-a-f) — the
+            // same glyph is reused on the /agents/pareto page (same concept).
+            {
+              href: '/agents/pareto',
+              label: t('paretoFrontier'),
+              icon: ChartScatter,
+            },
+            // NOTE: ScanSearch = 検出漏れ兆候の学習・レビュー (ICON_POLICY §3).
+            {
+              href: '/agents/miss-signatures',
+              label: t('missSignatures'),
+              icon: ScanSearch,
             },
             {
               href: '#',
               label: t('knowledgeBase'),
-              icon: Brain,
+              icon: Library,
               children: [
                 {
                   href: '/knowledge',
                   label: t('knowledgeBrowser'),
-                  icon: Brain,
+                  icon: Search,
                 },
                 {
                   href: '/knowledge/contradictions',
@@ -222,7 +244,10 @@ export default function Header() {
                 {
                   href: '/knowledge/admin',
                   label: t('memoryAdmin'),
-                  icon: Settings,
+                  // NOTE: Archive, not Settings — the page administers the KB's
+                  // validation/forgetting (archival) lifecycle, and the gear
+                  // glyph is owned by 設定.
+                  icon: Archive,
                 },
               ],
             },
@@ -242,85 +267,69 @@ export default function Header() {
       ],
     },
     {
-      href: '#',
+      // Single entry into the unified settings hub; sub-sections (general /
+      // API keys / task automation / shortcuts / CLI tools) are the hub's tabs.
+      href: '/settings/general',
       label: t('settings'),
       icon: Settings,
-      children: [
-        {
-          href: '/settings/general',
-          label: t('generalSettings'),
-          icon: Settings,
-        },
-        { href: '/settings', label: t('apiKeySettings'), icon: Key },
-        {
-          href: '/settings/shortcuts',
-          label: t('shortcutSettings'),
-          icon: Keyboard,
-        },
-      ],
     },
   ];
 
-  const filteredNavItems = filterNavItems(navItems, h.appMode);
+  const filteredNavItems = navItems;
 
   return (
     <>
       {/* z-110: above the task slide panel (z-50) and side nav (z-100) so header
           menus are never hidden behind them, but below modal dialogs (z-200). */}
       <header className="sticky top-0 z-110 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => h.setIsMenuOpen(!h.isMenuOpen)}
-                className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                aria-label={t('openMenu')}
-              >
-                {h.isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-              </button>
+        <div className="flex items-center justify-between h-16 px-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => h.setIsMenuOpen(!h.isMenuOpen)}
+              className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              aria-label={t('openMenu')}
+            >
+              {h.isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
 
-              <Link href="/" className="flex items-center gap-2 group">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center w-8 h-8 bg-indigo-500 rounded-lg">
-                    <AppIcon size={20} className="text-white" />
-                  </div>
-                  <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
-                    Rapi+
-                  </span>
+            <Link href="/" className="flex items-center gap-2 group">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center w-8 h-8 bg-indigo-500 rounded-lg">
+                  <AppIcon size={20} className="text-white" />
                 </div>
-              </Link>
-            </div>
-
-            <HeaderSearch
-              searchQuery={h.searchQuery}
-              setSearchQuery={h.setSearchQuery}
-              handleSearchKeyDown={h.handleSearchKeyDown}
-              debounceTimerRef={h.debounceTimerRef}
-            />
-
-            <HeaderToolbar
-              hasMounted={h.hasMounted}
-              isAuthLoading={h.isAuthLoading}
-              isAuthenticated={h.isAuthenticated}
-              user={h.user}
-              isUserMenuOpen={h.isUserMenuOpen}
-              setIsUserMenuOpen={h.setIsUserMenuOpen}
-              userMenuRef={h.userMenuRef}
-              handleLogout={h.handleLogout}
-              isMoreMenuOpen={h.isMoreMenuOpen}
-              setIsMoreMenuOpen={h.setIsMoreMenuOpen}
-              moreMenuRef={h.moreMenuRef}
-              modalState={h.modalState}
-              openModal={h.openModal}
-              closeModal={h.closeModal}
-              isDarkMode={h.isDarkMode}
-              darkModeMounted={h.darkModeMounted}
-              toggleTheme={h.toggleTheme}
-              isTauriEnv={h.isTauriEnv}
-              isRestarting={h.isRestarting}
-              handleRestartClick={h.handleRestartClick}
-            />
+                <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+                  Rapi+
+                </span>
+              </div>
+            </Link>
           </div>
+
+          <HeaderSearch
+            searchQuery={h.searchQuery}
+            setSearchQuery={h.setSearchQuery}
+            handleSearchKeyDown={h.handleSearchKeyDown}
+            debounceTimerRef={h.debounceTimerRef}
+          />
+
+          <HeaderToolbar
+            hasMounted={h.hasMounted}
+            isAuthLoading={h.isAuthLoading}
+            isAuthenticated={h.isAuthenticated}
+            user={h.user}
+            isUserMenuOpen={h.isUserMenuOpen}
+            setIsUserMenuOpen={h.setIsUserMenuOpen}
+            userMenuRef={h.userMenuRef}
+            handleLogout={h.handleLogout}
+            isMoreMenuOpen={h.isMoreMenuOpen}
+            setIsMoreMenuOpen={h.setIsMoreMenuOpen}
+            moreMenuRef={h.moreMenuRef}
+            isDarkMode={h.isDarkMode}
+            darkModeMounted={h.darkModeMounted}
+            toggleTheme={h.toggleTheme}
+            isTauriEnv={h.isTauriEnv}
+            isRestarting={h.isRestarting}
+            handleRestartClick={h.handleRestartClick}
+          />
         </div>
       </header>
 

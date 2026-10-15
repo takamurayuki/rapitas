@@ -3,18 +3,20 @@
  *
  * Orchestrates all task-level and subtask-level actions for the task detail page.
  * Delegates task field editing to useTaskEdit and subtask management to
- * useSubtaskManagement. Owns task CRUD (status update, delete, duplicate, refetch).
+ * useSubtaskManagement. Owns task CRUD (status update, delete, refetch).
  */
 
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import type { Task } from '@/types';
-import { getTaskDetailPath } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
 import { clearApiCache } from '@/lib/api-client';
 import { createLogger } from '@/lib/logger';
 import { useTaskEdit } from './useTaskEdit';
 import { useSubtaskManagement } from './useSubtaskManagement';
+import { useToast } from '@/components/ui/toast/ToastContainer';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 
 const logger = createLogger('useTaskActions');
 const API_BASE = API_BASE_URL;
@@ -27,7 +29,6 @@ export interface UseTaskActionsParams {
   isThisTaskTimer: boolean;
   pomodoroState: { isTimerRunning: boolean };
   stopTimer: () => void;
-  setShowPomodoroModal: (show: boolean) => void;
   setShowCompleteOverlay: (show: boolean) => void;
 }
 
@@ -45,10 +46,12 @@ export function useTaskActions({
   isThisTaskTimer,
   pomodoroState,
   stopTimer,
-  setShowPomodoroModal,
   setShowCompleteOverlay,
 }: UseTaskActionsParams) {
   const router = useRouter();
+  const t = useTranslations('task');
+  const { showToast } = useToast();
+  const confirm = useConfirmDialog();
 
   const taskEdit = useTaskEdit({ task, setTask });
   const subtaskManagement = useSubtaskManagement({
@@ -58,6 +61,17 @@ export function useTaskActions({
     onTaskUpdated,
   });
 
+  const refetchTask = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
+      if (res.ok) {
+        setTask(await res.json());
+      }
+    } catch (err) {
+      logger.error('Failed to refetch task:', err);
+    }
+  }, [resolvedTaskId, setTask]);
+
   const updateStatus = useCallback(
     async (taskId: number, newStatus: string) => {
       if (newStatus === 'done') {
@@ -65,6 +79,7 @@ export function useTaskActions({
       }
 
       const previousTask = task;
+      const isSubtaskUpdate = task ? taskId !== task.id : false;
       setTask((prev) => {
         if (!prev) return prev;
         if (prev.id === taskId) {
@@ -89,89 +104,64 @@ export function useTaskActions({
         });
         if (!res.ok) {
           setTask(previousTask);
-          throw new Error('ステータス更新に失敗しました');
+          throw new Error(t('statusUpdateFailed'));
         }
         // NOTE: Invalidate apiFetch cache so subsequent fetches get fresh data
         clearApiCache(`/tasks/${taskId}`);
+        // NOTE: A subtask's status change can trigger backend-side recomputation
+        // of the PARENT task's own status (and actualHours) — the optimistic
+        // patch above only touches the subtask entry in local state, so without
+        // this the page keeps showing the parent's stale status until a manual
+        // reload. Refetch the whole (parent) task to pick up that side effect.
+        if (isSubtaskUpdate) {
+          await refetchTask();
+        }
         onTaskUpdated?.();
       } catch (err) {
         logger.error(err);
         setTask(previousTask);
       }
     },
-    [task, setTask, onTaskUpdated, setShowCompleteOverlay],
+    [task, setTask, onTaskUpdated, setShowCompleteOverlay, t, refetchTask],
   );
 
   const deleteTask = useCallback(async () => {
-    if (!confirm('このタスクを削除しますか?')) return;
+    // Protected tasks can't be deleted; tell the user how to unprotect first
+    // (backend also enforces this with a 409).
+    if (task?.isProtected) {
+      showToast(t('protectedDeleteWarning'), 'warning');
+      return;
+    }
+    if (!(await confirm({ message: t('deleteTaskConfirm'), variant: 'destructive' }))) return;
 
     try {
       const res = await fetch(`${API_BASE}/tasks/${task?.id}`, {
         method: 'DELETE',
       });
-      if (!res.ok) throw new Error('削除に失敗しました');
+      if (!res.ok) throw new Error(t('deleteTaskFailed'));
 
       if (isThisTaskTimer && pomodoroState.isTimerRunning) {
         stopTimer();
       }
-      setShowPomodoroModal(false);
       router.back();
     } catch (err) {
       logger.error(err);
-      alert('タスクの削除に失敗しました');
+      showToast(t('deleteTaskFailed'), 'error');
     }
   }, [
     task?.id,
+    task?.isProtected,
     isThisTaskTimer,
     pomodoroState.isTimerRunning,
     stopTimer,
-    setShowPomodoroModal,
     router,
+    showToast,
+    confirm,
+    t,
   ]);
 
-  const duplicateTask = useCallback(async () => {
-    if (!task) return;
-
-    try {
-      const duplicateData = {
-        title: `${task.title} (コピー)`,
-        description: task.description || undefined,
-        status: 'todo',
-        labels: task.labels || undefined,
-        labelIds: task.taskLabels?.map((tl) => tl.labelId) || [],
-        estimatedHours: task.estimatedHours || undefined,
-        dueDate: task.dueDate || undefined,
-        projectId: task.projectId || undefined,
-        milestoneId: task.milestoneId || undefined,
-        themeId: task.themeId || undefined,
-      };
-
-      const res = await fetch(`${API_BASE}/tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(duplicateData),
-      });
-
-      if (!res.ok) throw new Error('複製に失敗しました');
-
-      const newTask = await res.json();
-      router.push(getTaskDetailPath(newTask.id));
-    } catch (err) {
-      logger.error(err);
-      alert('タスクの複製に失敗しました');
-    }
-  }, [task, router]);
-
-  const refetchTask = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
-      if (res.ok) {
-        setTask(await res.json());
-      }
-    } catch (err) {
-      logger.error('Failed to refetch task:', err);
-    }
-  }, [resolvedTaskId, setTask]);
+  // NOTE: duplicateTask was removed 2026-07-14 — the detail-menu 複製 action
+  // was dropped in favor of the template flow (テンプレート設定 → 適用).
 
   return {
     // Task edit state
@@ -181,7 +171,6 @@ export function useTaskActions({
     // Task CRUD
     updateStatus,
     deleteTask,
-    duplicateTask,
     refetchTask,
   };
 }

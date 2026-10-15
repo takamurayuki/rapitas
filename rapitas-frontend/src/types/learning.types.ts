@@ -12,6 +12,10 @@ export type Label = {
   color: string;
   icon?: string | null;
   sortOrder: number;
+  /** Owning category — null for global labels (2026-07 migration from per-theme). */
+  categoryId?: number | null;
+  /** @deprecated superseded by categoryId; kept while old rows migrate. */
+  themeId?: number | null;
   createdAt: string;
   updatedAt: string;
   _count?: { tasks: number };

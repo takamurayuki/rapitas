@@ -42,7 +42,8 @@ export function HeaderSearch({
     if (pathname === '/search') {
       router.push('/search');
     } else if (pathname === '/kanban') {
-      router.push('/kanban');
+      // NOTE: replace (not push) to avoid adding a history entry for the clear action.
+      router.replace('/kanban', { scroll: false });
     } else if (pathname === '/') {
       router.push('/');
     }
@@ -58,11 +59,12 @@ export function HeaderSearch({
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={handleSearchKeyDown}
           placeholder={t('searchPlaceholder')}
-          className="w-full pl-10 pr-4 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-400 placeholder-zinc-400 dark:placeholder-zinc-500 transition-all"
+          className="w-full pl-10 pr-4 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-indigo-400 placeholder-zinc-400 dark:placeholder-zinc-500 transition-all"
         />
         {searchQuery && (
           <button
             onClick={handleClear}
+            aria-label={t('clearSearch')}
             className="absolute right-3 top-1/2 transform -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
           >
             <X className="w-4 h-4" />

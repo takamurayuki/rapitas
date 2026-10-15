@@ -1,4 +1,13 @@
 /**
+ * Localized strings for link-card DOM behaviour re-wired after loading saved
+ * note HTML. Supplied by the React layer (useNoteEditor) via `useTranslations`.
+ */
+export interface LinkCardLabels {
+  /** Text shown briefly on a link-card's copy button after a successful copy. */
+  copyDoneText: string;
+}
+
+/**
  * Create a styled link-card anchor element.
  */
 export function createLinkNode(url: string, title: string, favicon: string): HTMLAnchorElement {
@@ -57,8 +66,13 @@ export function createLinkNode(url: string, title: string, favicon: string): HTM
  *
  * @param root          The container element (contentEditable div)
  * @param onContentChange  Callback for dirty-flag (used to wire code-block event handlers)
+ * @param labels        Localized strings for the re-wired copy button / 再接続するコピーボタンの多言語文字列
  */
-export function normalizeLinkCards(root: HTMLElement, onContentChange: () => void): void {
+export function normalizeLinkCards(
+  root: HTMLElement,
+  onContentChange: () => void,
+  labels: LinkCardLabels,
+): void {
   const anchors = Array.from(root.querySelectorAll('a'));
 
   for (const a of anchors) {
@@ -134,7 +148,7 @@ export function normalizeLinkCards(root: HTMLElement, onContentChange: () => voi
         const codeText = codeElement.textContent || '';
         navigator.clipboard.writeText(codeText).then(() => {
           const originalText = copyButton.textContent;
-          copyButton.textContent = 'コピーしました！';
+          copyButton.textContent = labels.copyDoneText;
           (copyButton as HTMLElement).style.backgroundColor = '#22c55e';
           setTimeout(() => {
             copyButton.textContent = originalText;

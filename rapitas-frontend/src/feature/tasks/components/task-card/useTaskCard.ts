@@ -2,14 +2,16 @@
 // useTaskCard
 import { useState, useRef, useEffect } from 'react';
 import type { Task, Status } from '@/types';
-import { statusConfig, resolveStatusConfig } from '@/feature/tasks/config/StatusConfig';
+import { getStatusDisplay } from '@/feature/tasks/config/StatusConfig';
 import { useToast } from '@/components/ui/toast/ToastContainer';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { API_BASE_URL } from '@/utils/api';
 import { prefetch } from '@/lib/api-client';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { useTranslations } from 'next-intl';
 import { createLogger } from '@/lib/logger';
-import { useProgressColors } from '../TaskCompletionAnimation';
+import { useElapsedTime } from '@/hooks/common/useElapsedTime';
+import { useProgressColors } from '../completion/TaskCompletionAnimation';
 
 const logger = createLogger('TaskCard');
 
@@ -47,14 +49,16 @@ export interface TaskCardHook {
   setExpandedSubtasks: React.Dispatch<React.SetStateAction<boolean>>;
   localSubtasks: Task[];
   handleSubtaskStatusChange: (subtaskId: number, newStatus: string) => void;
-  currentStatus: (typeof statusConfig)[keyof typeof statusConfig];
-  completionRate: number | null;
-  getProgressBarColor: (rate: number) => string;
+  currentStatus: ReturnType<typeof getStatusDisplay>;
   executionStatus: string | null;
+  /** Live-ticking "M:SS" elapsed time since the agent started, or null when not running. */
+  executionElapsed: string | null;
   executionClasses: ExecutionClasses | null;
   isWaitingForInput: boolean;
   waitingAmberConfig: WaitingAmberConfig;
   cardBorderColor: string;
+  /** Card surface classes: amber while waiting for the user, else the status colour. */
+  cardBgColor: string;
   sweepColors: ReturnType<typeof useProgressColors>;
   handleMouseEnter: () => Promise<void>;
   duplicateTask: () => Promise<void>;
@@ -74,7 +78,7 @@ export function useTaskCard(
   task: Task,
   onStatusChange: (taskId: number, status: Status, cardElement?: HTMLElement) => void,
   onTaskUpdated?: () => void,
-  onTaskClick?: (taskId: number) => void,
+  _onTaskClick?: (taskId: number) => void,
 ): TaskCardHook {
   const t = useTranslations('task');
   const tc = useTranslations('common');
@@ -93,9 +97,16 @@ export function useTaskCard(
   const [localSubtasks, setLocalSubtasks] = useState(task.subtasks || []);
 
   const { showToast } = useToast();
+  const confirm = useConfirmDialog();
 
   const storeExecutionStatus = useExecutionStateStore((state) =>
     state.getExecutingTaskStatus(task.id),
+  );
+  const storeExecutionStartedAt = useExecutionStateStore((state) =>
+    state.getExecutingTaskStartedAt(task.id),
+  );
+  const storeExecutionActiveMs = useExecutionStateStore((state) =>
+    state.getExecutingTaskActiveMs(task.id),
   );
 
   // Sync localSubtasks when the prop changes
@@ -110,6 +121,14 @@ export function useTaskCard(
   // "any subtask has in-progress STATUS", which spun the loader even for tasks a
   // user had manually marked in-progress.)
   const executionStatus = storeExecutionStatus;
+  // Cumulative finished active time as the base + live tick of the current
+  // execution row — the display accumulates across phase / re-run boundaries
+  // instead of resetting to 0 on each new phase's row (task #560).
+  const executionElapsed = useElapsedTime(
+    storeExecutionStartedAt,
+    executionStatus === 'running' || executionStatus === 'waiting_for_input',
+    storeExecutionActiveMs,
+  );
 
   // Close context menu on outside click
   useEffect(() => {
@@ -134,21 +153,10 @@ export function useTaskCard(
     onStatusChange(subtaskId, newStatus as Status);
   };
 
-  const currentStatus = resolveStatusConfig(task.status);
+  const currentStatus = getStatusDisplay(t, task.status);
 
-  const completionRate = localSubtasks.length
-    ? Math.round(
-        (localSubtasks.filter((s) => s.status === 'done').length / localSubtasks.length) * 100,
-      )
-    : null;
-
-  const getProgressBarColor = (rate: number) => {
-    if (rate === 100) return 'bg-green-500';
-    if (rate >= 80) return 'bg-gradient-to-r from-blue-500 to-green-500';
-    if (rate >= 50) return 'bg-blue-500';
-    return 'bg-gradient-to-r from-blue-500 to-orange-500';
-  };
-
+  // NOTE: Removed completionRate/getProgressBarColor — subtask progress
+  // aggregation now lives in TaskCardSubtaskProgress (segmented status-hue bar).
   const getExecutionClasses = (): ExecutionClasses | null => {
     switch (executionStatus) {
       case 'running':
@@ -170,8 +178,22 @@ export function useTaskCard(
     }
   };
 
-  const executionClasses = getExecutionClasses();
-  const isWaitingForInput = executionStatus === 'waiting_for_input';
+  // A workflow paused on question.md (`awaiting_question`) has NO live
+  // execution row — the agent exited after writing the question — so the
+  // execution-store status alone never turned the card amber for the current
+  // file-based question flow (only the legacy in-CLI AskUserQuestion did).
+  // Treat both as "waiting for the user" so the card reads amber either way.
+  const isAwaitingQuestion =
+    task.workflowStatus === 'awaiting_question' && task.status !== 'done' && !executionStatus;
+  const executionClasses: ExecutionClasses | null = isAwaitingQuestion
+    ? {
+        borderColor: 'amber',
+        badgeClass: 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300',
+        dotClass: 'bg-amber-500',
+        label: t('waitingForInput'),
+      }
+    : getExecutionClasses();
+  const isWaitingForInput = executionStatus === 'waiting_for_input' || isAwaitingQuestion;
 
   const waitingAmberConfig: WaitingAmberConfig = {
     color: 'text-amber-700 dark:text-amber-300',
@@ -183,6 +205,14 @@ export function useTaskCard(
   const cardBorderColor = isWaitingForInput
     ? waitingAmberConfig.borderColor
     : currentStatus.borderColor;
+
+  // A question-paused card only tinted its left border, so it read like an
+  // ordinary in-progress card in a list (2026-09-14). The surface now follows
+  // the same amber as the badge; the dark fallback stays with the status path
+  // because its `dark:bg-*` would otherwise compete with the amber one.
+  const cardBgColor = isWaitingForInput
+    ? waitingAmberConfig.bgColor
+    : `${currentStatus.bgColor} dark:bg-indigo-dark-900`;
 
   const sweepColors = useProgressColors(1, 2);
 
@@ -222,7 +252,14 @@ export function useTaskCard(
   };
 
   const deleteTask = async () => {
-    if (!confirm(tHome('deleteConfirm'))) return;
+    // Protected tasks can't be deleted; surface a toast before the confirm so
+    // the user understands why (backend also enforces this with a 409).
+    if (task.isProtected) {
+      showToast(t('taskCard.protectedDeleteError'), 'error');
+      setShowContextMenu(false);
+      return;
+    }
+    if (!(await confirm({ message: tHome('deleteConfirm'), variant: 'destructive' }))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${task.id}`, {
         method: 'DELETE',
@@ -249,13 +286,13 @@ export function useTaskCard(
     localSubtasks,
     handleSubtaskStatusChange,
     currentStatus,
-    completionRate,
-    getProgressBarColor,
     executionStatus,
+    executionElapsed,
     executionClasses,
     isWaitingForInput,
     waitingAmberConfig,
     cardBorderColor,
+    cardBgColor,
     sweepColors,
     handleMouseEnter,
     duplicateTask,

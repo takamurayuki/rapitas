@@ -29,15 +29,17 @@ export {
 export { formatApiError, handleApiError } from './error-handler';
 
 export { callClaude, callClaudeStream } from './claude-provider';
+export { callClaudeCli, callClaudeCliStream, isClaudeCliAvailable } from './claude-cli-provider';
 export { callChatGPT, callChatGPTStream } from './chatgpt-provider';
 export { callGemini, callGeminiStream } from './gemini-provider';
 export { callOllama, callOllamaStream, checkOllamaConnection } from './ollama-provider';
 
 // --- Unified API ---
-import { type AIProvider, type AIRequestOptions, type AIResponse, PROVIDER_NAMES } from './types';
+import { type AIRequestOptions, type AIResponse, PROVIDER_NAMES } from './types';
 import { getApiKeyForProvider, getDefaultModel, getDefaultProvider } from './credentials';
 import { handleApiError } from './error-handler';
 import { callClaude } from './claude-provider';
+import { callClaudeCli, callClaudeCliStream } from './claude-cli-provider';
 import { callChatGPT } from './chatgpt-provider';
 import { callGemini } from './gemini-provider';
 import { callOllama } from './ollama-provider';
@@ -49,6 +51,7 @@ import { getOllamaUrl } from './credentials';
 import { ensureLocalLLM, isLocalLLMEnabled } from '../../services/local-llm';
 import { createLogger } from '../../config';
 import { buildRAGContext } from '../../services/memory/rag/context-builder';
+import { incrementLlmCall } from '../llm-call-context';
 import {
   generateCacheKey,
   getCachedResponse,
@@ -113,10 +116,51 @@ async function sendStreamWithPaidProvider(options: AIRequestOptions): Promise<Re
   }
 }
 
+// Lives in its own module so barrel-free consumers (phase-critic) can read the
+// mode without loading — or being blocked by a test's fixed mock of — this file.
+import { getAuxAiMode } from './aux-ai-mode';
+export { getAuxAiMode, type AuxAiMode } from './aux-ai-mode';
+
+/**
+ * Non-local generation target: subscription CLI in `cli` mode, else the paid API.
+ * Used as the fallback when the local LLM is unavailable/disabled.
+ */
+async function runAuxNonLocal(options: AIRequestOptions): Promise<AIResponse> {
+  if (getAuxAiMode() === 'cli') {
+    return callClaudeCli(
+      options.model,
+      options.messages,
+      options.systemPrompt,
+      options.maxTokens || 2048,
+      options.timeoutMs,
+    );
+  }
+  return sendWithPaidProvider(options);
+}
+
+/** Streaming counterpart of {@link runAuxNonLocal}. */
+async function runAuxNonLocalStream(options: AIRequestOptions): Promise<ReadableStream> {
+  if (getAuxAiMode() === 'cli') {
+    return callClaudeCliStream(
+      options.model,
+      options.messages,
+      options.systemPrompt,
+      options.maxTokens || 2048,
+    );
+  }
+  return sendStreamWithPaidProvider(options);
+}
+
 /**
  * Unified AI chat API (non-streaming).
  */
 export async function sendAIMessage(options: AIRequestOptions): Promise<AIResponse> {
+  if (process.env.RAPITAS_TASK901_MAINTENANCE === 'api')
+    throw new Error('AI is held during API recovery');
+  const auxMode = getAuxAiMode();
+  if (auxMode === 'off') {
+    throw new Error('補助AI機能は無効化されています (RAPITAS_AUX_AI=off)。');
+  }
   const provider = options.provider || 'claude';
 
   // Local LLM (Ollama preferred -> llama-server -> paid API fallback)
@@ -125,7 +169,9 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
     // EXPECTED state, not a failure — route straight to the paid API without a
     // warning. Otherwise every memory/contradiction job logged a WARN per call.
     if (!isLocalLLMEnabled()) {
-      return await sendWithPaidProvider(options);
+      const result = await runAuxNonLocal(options);
+      incrementLlmCall();
+      return result;
     }
     try {
       const ollamaUrl = await getOllamaUrl();
@@ -163,6 +209,7 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
         const cacheKey = generateCacheKey('ollama', localLLM.model, systemPrompt, options.messages);
         const cached = getCachedResponse(cacheKey);
         if (cached) {
+          incrementLlmCall();
           return cached;
         }
 
@@ -180,20 +227,42 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
           'ollama',
           localLLM.model,
         );
+        incrementLlmCall();
         return response;
       }
 
-      return await callOllama(
+      const ollamaResult = await callOllama(
         localLLM.url,
         localLLM.model,
         options.messages,
         systemPrompt,
         maxTokens,
       );
+      incrementLlmCall();
+      return ollamaResult;
     } catch (error) {
-      log.warn({ err: error }, 'Local LLM failed, falling back to paid API');
-      return await sendWithPaidProvider(options);
+      log.warn({ err: error }, 'Local LLM failed, falling back');
+      const fallbackResult = await runAuxNonLocal(options);
+      incrementLlmCall();
+      return fallbackResult;
     }
+  }
+
+  // Delegate to the subscription CLI instead of any paid API when in `cli` mode.
+  if (auxMode === 'cli') {
+    const result = await callClaudeCli(
+      options.model,
+      options.messages,
+      options.systemPrompt,
+      options.maxTokens || 2048,
+      // NOTE: This is the branch every non-ollama caller takes, so dropping
+      // timeoutMs here silently pinned them all to the 120s default — which is
+      // how the document-package generator kept falling back despite asking
+      // for 300s (the request reached here and the option was discarded).
+      options.timeoutMs,
+    );
+    incrementLlmCall();
+    return result;
   }
 
   const apiKey = await getApiKeyForProvider(provider);
@@ -208,16 +277,40 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
   const maxTokens = options.maxTokens || 2048;
 
   try {
+    let paidResult: Awaited<ReturnType<typeof callClaude>>;
     switch (provider) {
       case 'claude':
-        return await callClaude(apiKey, model, options.messages, options.systemPrompt, maxTokens);
+        paidResult = await callClaude(
+          apiKey,
+          model,
+          options.messages,
+          options.systemPrompt,
+          maxTokens,
+        );
+        break;
       case 'chatgpt':
-        return await callChatGPT(apiKey, model, options.messages, options.systemPrompt, maxTokens);
+        paidResult = await callChatGPT(
+          apiKey,
+          model,
+          options.messages,
+          options.systemPrompt,
+          maxTokens,
+        );
+        break;
       case 'gemini':
-        return await callGemini(apiKey, model, options.messages, options.systemPrompt, maxTokens);
+        paidResult = await callGemini(
+          apiKey,
+          model,
+          options.messages,
+          options.systemPrompt,
+          maxTokens,
+        );
+        break;
       default:
         throw new Error(`未対応のプロバイダーです: ${provider}`);
     }
+    incrementLlmCall();
+    return paidResult;
   } catch (error) {
     handleApiError(error, provider);
   }
@@ -227,13 +320,19 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
  * Unified AI chat API (streaming).
  */
 export async function sendAIMessageStream(options: AIRequestOptions): Promise<ReadableStream> {
+  if (process.env.RAPITAS_TASK901_MAINTENANCE === 'api')
+    throw new Error('AI is held during API recovery');
+  const auxMode = getAuxAiMode();
+  if (auxMode === 'off') {
+    throw new Error('補助AI機能は無効化されています (RAPITAS_AUX_AI=off)。');
+  }
   const provider = options.provider || 'claude';
 
   // Local LLM (Ollama preferred -> llama-server -> paid API fallback)
   if (provider === 'ollama') {
     // Disabled by config is the expected state — fall back silently (see sendAIMessage).
     if (!isLocalLLMEnabled()) {
-      return await sendStreamWithPaidProvider(options);
+      return await runAuxNonLocalStream(options);
     }
     try {
       const ollamaUrl = await getOllamaUrl();
@@ -247,9 +346,19 @@ export async function sendAIMessageStream(options: AIRequestOptions): Promise<Re
         maxTokens,
       );
     } catch (error) {
-      log.warn({ err: error }, 'Local LLM stream failed, falling back to paid API');
-      return await sendStreamWithPaidProvider(options);
+      log.warn({ err: error }, 'Local LLM stream failed, falling back');
+      return await runAuxNonLocalStream(options);
     }
+  }
+
+  // Delegate to the subscription CLI instead of any paid API when in `cli` mode.
+  if (auxMode === 'cli') {
+    return callClaudeCliStream(
+      options.model,
+      options.messages,
+      options.systemPrompt,
+      options.maxTokens || 2048,
+    );
   }
 
   const apiKey = await getApiKeyForProvider(provider);
