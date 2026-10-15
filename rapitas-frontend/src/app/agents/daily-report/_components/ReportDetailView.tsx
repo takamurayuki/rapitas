@@ -12,6 +12,7 @@ import { useTranslations } from 'next-intl';
 import { PauseCircle } from 'lucide-react';
 import { MarkdownView } from '@/components/markdown/MarkdownView';
 import type { ReportDetail } from './growth-types';
+import BriefingPlayer from './briefing-player';
 
 /** Count tile definitions: i18n key + value picker. */
 const COUNT_KEYS = [
@@ -79,6 +80,8 @@ export default function ReportDetailView({ report }: Props) {
           </div>
         </div>
       )}
+
+      <BriefingPlayer date={report.date} />
 
       {report.reportMarkdown ? (
         <MarkdownView content={report.reportMarkdown} />
