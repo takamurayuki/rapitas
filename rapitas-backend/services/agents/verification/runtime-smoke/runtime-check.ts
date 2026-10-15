@@ -77,6 +77,9 @@ export function normalizeLocalHost(url: string): string {
   }
 }
 
+/** Failed-request labels are `METHOD url: errorText` (smoke-page-events.mjs). */
+const ABORTED_SUFFIX = ': net::ERR_ABORTED';
+
 /**
  * Pure verdict over smoke findings — the testable core.
  *
@@ -100,7 +103,18 @@ export function evaluateSmokeFindings(smoke: SmokeRunResult): {
       lines.push(`✗ ${f.path}: ページを開けない — ${f.navigationError}`);
       continue;
     }
-    const hard = f.pageErrors.length + f.serverErrors.length + (f.failedRequests?.length ?? 0);
+    // NOTE: A request the page itself cancelled under load (e.g. a polling API
+    // aborted by a Fast Refresh) is not an application defect; it flaked the
+    // gate roughly one run in five (task 1240). Connection refusals, 5xx and
+    // page errors stay hard. Exact trailing match so ERR_ABORTED_XYZ is not relaxed.
+    const abortedCount = (f.failedRequests ?? []).filter((r) => r.endsWith(ABORTED_SUFFIX)).length;
+    const hard =
+      f.pageErrors.length +
+      f.serverErrors.length +
+      ((f.failedRequests?.length ?? 0) - abortedCount);
+    if (abortedCount > 0) {
+      lines.push(`    (net::ERR_ABORTED ×${abortedCount} — 参考情報、ブロックしません)`);
+    }
     if (hard > 0) {
       errorCount += hard;
       lines.push(`✗ ${f.path}: HTTP ${f.httpStatus}`);

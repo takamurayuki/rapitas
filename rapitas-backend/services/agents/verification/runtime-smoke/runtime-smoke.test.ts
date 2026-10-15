@@ -21,6 +21,61 @@ mock.module('../../../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
 
+// The crash-launch test must not spawn the real PowerShell process snapshot
+// (Get-CimInstance, up to SNAPSHOT_TIMEOUT_MS=30s under suite load) nor write
+// rt-check-* records into the production .agent-pids/runtime-servers.json.
+// runRuntimeSmokeCheck has no injection point, so stub the two leaf modules.
+// NOTE: mock.module is process-global — every real export is mirrored.
+const realSnapshotModule = await import('./runtime-process-snapshot');
+const realLauncherModule = await import('./app-launcher');
+let launchedPid: number | undefined;
+// NOTE: Bun's mock.module rewrites the live namespace, so the original
+// function must be captured by reference first or the wrapper recurses.
+const realLaunchApp = realLauncherModule.launchApp;
+const realLauncherExports = { ...realLauncherModule };
+mock.module('./app-launcher', () => ({
+  ...realLauncherExports,
+  launchApp: (...args: Parameters<typeof realLaunchApp>) => {
+    const app = realLaunchApp(...args);
+    launchedPid = app.pid;
+    return app;
+  },
+}));
+// Reports the really-launched child while it is alive, so the registry's
+// identity check follows its intended path; everything else is an empty OS.
+mock.module('./runtime-process-snapshot', () => ({
+  ...realSnapshotModule,
+  readRuntimeProcessSnapshot: async () => {
+    let alive = false;
+    if (launchedPid !== undefined) {
+      try {
+        process.kill(launchedPid, 0);
+        alive = true;
+      } catch {
+        alive = false;
+      }
+    }
+    return {
+      processes: alive
+        ? [{ pid: launchedPid!, parentPid: 1, birth: '1', command: 'node fail.js' }]
+        : [],
+      protectedPids: new Set<number>(),
+      listeners: [],
+    };
+  },
+}));
+mock.module('./runtime-registry-store', () => ({
+  RuntimeRegistryStore: class {
+    private rows: unknown[] = [];
+    async read() {
+      return this.rows;
+    }
+    async update(change: (rows: unknown[]) => unknown[]) {
+      this.rows = change(this.rows);
+    }
+  },
+}));
+
 const { parseRuntimeConfig, substitutePort } = await import('./runtime-config');
 const {
   evaluateSmokeFindings,
@@ -133,6 +188,72 @@ describe('evaluateSmokeFindings', () => {
       findings: [finding({ navigationError: 'net::ERR_CONNECTION_REFUSED' })],
     });
     expect(v.ok).toBe(false);
+  });
+});
+
+describe('evaluateSmokeFindings — net::ERR_ABORTED is advisory', () => {
+  const aborted = [
+    'GET http://127.0.0.1:3000/__rapitas_api/schedules/reminders/pending',
+    'GET http://127.0.0.1:3000/__rapitas_api/tasks/executing',
+    'GET http://127.0.0.1:3000/__rapitas_api/events/status',
+  ].map((l) => `${l}: net::ERR_ABORTED`);
+  const run = (over: Partial<PathFinding>) =>
+    evaluateSmokeFindings({ browserAvailable: true, findings: [finding(over)] });
+
+  test('aborted-only failed requests do not fail the check and stay visible as advisory', () => {
+    const v = run({ failedRequests: aborted });
+    expect(v.ok).toBe(true);
+    expect(v.errorCount).toBe(0);
+    const text = v.lines.join('\n');
+    expect(text).toContain('net::ERR_ABORTED ×3');
+    expect(text).toContain('参考情報、ブロックしません');
+  });
+
+  test('repeated evaluation of the same input is stable', () => {
+    for (let i = 0; i < 3; i++) {
+      const v = run({ failedRequests: aborted });
+      expect(v.ok).toBe(true);
+      expect(v.errorCount).toBe(0);
+    }
+  });
+
+  test('aborted mixed with a connection refusal still fails', () => {
+    const v = run({
+      failedRequests: [...aborted, 'GET http://127.0.0.1:3000/api/x: net::ERR_CONNECTION_REFUSED'],
+    });
+    expect(v.ok).toBe(false);
+    expect(v.errorCount).toBe(1);
+  });
+
+  test('aborted mixed with a 5xx or a page error still fails', () => {
+    expect(run({ failedRequests: aborted, serverErrors: ['500 http://x/api'] }).ok).toBe(false);
+    expect(run({ failedRequests: aborted, pageErrors: ['TypeError: x'] }).ok).toBe(false);
+  });
+
+  test('only an exact trailing ": net::ERR_ABORTED" is treated as aborted', () => {
+    const v = run({ failedRequests: ['GET http://x/api: net::ERR_ABORTED_XYZ'] });
+    expect(v.ok).toBe(false);
+    expect(v.errorCount).toBe(1);
+  });
+
+  test('empty or undefined failedRequests emit no advisory line', () => {
+    expect(run({ failedRequests: [] }).lines.join('\n')).not.toContain('ERR_ABORTED');
+    expect(run({}).ok).toBe(true);
+  });
+
+  test('contract: the collector emits labels ending in ": net::ERR_ABORTED"', async () => {
+    const { createPageEvents, recordRequestFailure, snapshotPageEvents } =
+      await import('./smoke-page-events.mjs');
+    const events = createPageEvents();
+    recordRequestFailure(events, {
+      label: 'GET http://127.0.0.1:3000/api/tasks/executing',
+      errorText: 'net::ERR_ABORTED',
+      wasPending: true,
+    });
+    const { failedRequests } = snapshotPageEvents(events);
+    expect(failedRequests).toHaveLength(1);
+    expect(failedRequests[0].endsWith(': net::ERR_ABORTED')).toBe(true);
+    expect(run({ failedRequests }).ok).toBe(true);
   });
 });
 

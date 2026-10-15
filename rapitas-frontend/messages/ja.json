@@ -273,6 +273,7 @@
     "memoryVisualization": "記憶の成長",
     "growthLedger": "成長台帳",
     "paretoFrontier": "効率フロンティア",
+    "failureLineage": "失敗の系譜図",
     "missSignatures": "検出漏れ学習",
     "memoryAdmin": "メモリ管理",
     "growthReport": "デイリーレポート",
@@ -2042,6 +2043,49 @@
         "advanced": "アドバンスド",
         "intermediate": "中級",
         "beginner": "ビギナー"
+      }
+    },
+    "failureLineage": {
+      "pageTitle": "失敗の系譜図",
+      "pageSubtitle": "ERROR/WARN ログを正規化・クラスタリングし、再発連鎖と根本原因の候補を推定して表示します",
+      "estimateBanner": "親子関係は時間的近接と共通属性による推定です。事実ではなく、確信度の低い関係を含みます。",
+      "estimatedRelation": "推定された親子関係",
+      "edgeConfidence": "推定の確信度 {confidence}（根拠: {basis}）",
+      "candidateBadge": "根本原因の候補",
+      "reducedEstimate": "このノードを修正すると後続 {count} 件が減る見込み（推定）",
+      "graphLabel": "失敗の系譜図（推定）",
+      "windowLabel": "対象期間",
+      "hoursOption": "直近 {hours} 時間",
+      "refresh": "再取得",
+      "loading": "読み込み中…",
+      "truncated": "ログ件数が上限を超えたため、新しい順に切り詰めて計算しています。",
+      "basis": {
+        "rule": "既知連鎖ルール",
+        "same_execution": "同一実行",
+        "same_resource": "同一リソース",
+        "time_proximity": "時間的近接のみ"
+      },
+      "candidates": {
+        "title": "根本原因の候補",
+        "none": "候補はありません（後続イベントを持つ起点が見つかりませんでした）。"
+      },
+      "allEvents": {
+        "title": "全イベント（{count} 件）"
+      },
+      "empty": {
+        "title": "対象期間に ERROR/WARN ログはありません",
+        "hint": "期間を広げて再取得してください。"
+      },
+      "validation": {
+        "title": "妥当性の検証結果",
+        "description": "版管理した既知の失敗連鎖を推定器に再生し、親子関係を再現できるかを確認します。",
+        "noTarget": "照合対象なし",
+        "matchRate": "既知連鎖との一致率 {rate}%",
+        "matched": "一致",
+        "mismatched": "不一致",
+        "unchecked": "未照合（実データのエッジ）",
+        "decisionLogMatches": "意思決定ログの関連件数",
+        "chainLine": "{label}: {matched}/{expected} 件を再現"
       }
     },
     "pareto": {

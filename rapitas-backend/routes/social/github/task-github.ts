@@ -9,10 +9,12 @@ import { prisma } from '../../../config/database';
 import { GitHubService } from '../../../services/core/github-service';
 import { resolveIntegrationOrThrow } from '../../../services/github/resource-guard';
 import { makeOwnerRepoString } from '../../../services/github/owner-repo';
+import { registerGithubPrRoutes } from './task-github-register-pr';
 
 const githubService = new GitHubService(prisma);
 
 export const taskGithubRoutes = new Elysia()
+  .use(registerGithubPrRoutes)
   // Create GitHub Issue from Task
   .post(
     '/tasks/:id/create-github-issue',

@@ -52,6 +52,7 @@ import {
   WalletCards,
   ChartNoAxesCombined,
   ChartScatter,
+  GitGraph,
   ScanSearch,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -219,6 +220,12 @@ export default function Header() {
               href: '/agents/pareto',
               label: t('paretoFrontier'),
               icon: ChartScatter,
+            },
+            // NOTE: GitGraph = 失敗の系譜図 (ICON_POLICY glyphs-g-m).
+            {
+              href: '/agents/failure-lineage',
+              label: t('failureLineage'),
+              icon: GitGraph,
             },
             // NOTE: ScanSearch = 検出漏れ兆候の学習・レビュー (ICON_POLICY §3).
             {
