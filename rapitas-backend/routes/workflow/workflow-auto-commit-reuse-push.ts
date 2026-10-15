@@ -16,6 +16,8 @@ const log = createLogger('routes:workflow:auto-commit:reuse-push');
 // `git push` hits the network; 120s bounds a hang without cutting real pushes short.
 const GIT_PUSH_TIMEOUT_MS = 120_000;
 
+const NON_FAST_FORWARD_RE = /non-fast-forward|fetch first|tip of your current branch is behind/i;
+
 /** Outcome of {@link pushExistingPrBranch}. */
 export interface ReusePushResult {
   success: boolean;
@@ -59,7 +61,18 @@ export async function pushExistingPrBranch(
     return { success: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    log.error({ err, cwd, branch }, '[Workflow] Push to the existing PR branch failed');
+    if (NON_FAST_FORWARD_RE.test(message)) {
+      // NOTE: A non-fast-forward rejection means the remote PR branch advanced (conflict
+      // resolution / ci_repair pushed first). It is a safe, expected refusal and the failure
+      // is surfaced to the caller via the returned error, so ERROR would double-report it.
+      // Auth/network failures below stay ERROR.
+      log.warn(
+        { err, cwd, branch },
+        '[Workflow] Push to the existing PR branch rejected (non-fast-forward)',
+      );
+    } else {
+      log.error({ err, cwd, branch }, '[Workflow] Push to the existing PR branch failed');
+    }
     return { success: false, error: message };
   }
 }
