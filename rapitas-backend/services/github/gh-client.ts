@@ -6,10 +6,9 @@
  */
 
 import { execFile } from 'child_process';
-import { writeFile, unlink } from 'fs/promises';
+import { writeFile, mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { randomUUID } from 'node:crypto';
 import { promisify } from 'util';
 import { createLogger } from '../../config/logger';
 import { withGhRetry, READ_RETRY_POLICY } from './gh-retry';
@@ -94,9 +93,9 @@ export async function runGhCommandWithRetry(
  * Execute a gh CLI command whose body may contain multi-line text, Japanese
  * characters, or exceed the Windows CreateProcess argument-length limit.
  *
- * Writes `body` to a UTF-8 temp file in os.tmpdir(), appends
- * `--body-file <path>` to args, then calls runGhCommand. The temp file is
- * unconditionally removed in a finally block — unlink failures emit a warn
+ * Writes `body` to a UTF-8 file inside a private mkdtemp directory, appends
+ * `--body-file <path>` to args, then calls runGhCommand. The directory is
+ * unconditionally removed in a finally block — cleanup failures emit a warn
  * log only and do not affect the return value.
  *
  * When `body` is undefined, delegates directly to runGhCommand without
@@ -119,13 +118,17 @@ export async function runGhCommandWithBody(
     return runGhCommand(baseArgs, cwd, opts);
   }
 
-  const tmpPath = join(tmpdir(), `gh-body-${randomUUID()}.md`);
+  // mkdtemp rather than a UUID-named file placed directly in os.tmpdir(): the
+  // UUID itself is unguessable, but the containing directory is shared and a
+  // private 0700 directory removes the question at the same cost.
+  const tmpDir = await mkdtemp(join(tmpdir(), 'gh-body-'));
+  const tmpPath = join(tmpDir, 'body.md');
   try {
     await writeFile(tmpPath, body, 'utf8');
     return await runGhCommand([...baseArgs, '--body-file', tmpPath], cwd, opts);
   } finally {
     try {
-      await unlink(tmpPath);
+      await rm(tmpDir, { recursive: true, force: true });
     } catch (err) {
       // NOTE: Disk cleanup failure; OS will eventually clear os.tmpdir() so
       // we log a warning instead of propagating to avoid masking the gh result.

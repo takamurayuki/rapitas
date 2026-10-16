@@ -137,7 +137,8 @@ export async function readProjectDoc(
   }
 
   const file = join(workingDirectory, 'docs', fileName);
-  if (!existsSync(file)) return null;
+  // No existsSync() ahead of the stat: the file can be removed between the
+  // two calls, and a missing file is already handled by the catch below.
   try {
     const info = await stat(file);
     if (!info.isFile()) return null;
@@ -148,6 +149,9 @@ export async function readProjectDoc(
     );
     return withinSizeLimit(content, file);
   } catch (err) {
+    // A missing document is the normal case for a repo without docs/, and was
+    // silent before this function stopped pre-checking with existsSync.
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
     log.warn({ err, file }, 'requirements.md unreadable — skipping');
     return null;
   }
