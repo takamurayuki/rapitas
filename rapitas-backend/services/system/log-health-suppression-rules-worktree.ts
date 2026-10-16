@@ -36,4 +36,16 @@ export const WORKTREE_SUPPRESSIONS: Suppression[] = [
     because:
       '未コミット作業を持つworktreeの削除を拒否して作業を守った保護ガードの記録 — 削除は行われずデータは失われず、再出力は30分バックオフで有界。git失敗・メタデータ欠落は別シグネチャで可視化される',
   },
+  {
+    // ログ出力箇所: plan-auto-approve.ts:201-204 の logger.warn（maybeAutoApprovePlan内、
+    // resolveForbiddenChangePlanHold が非nullの分岐）。計画がスキーマ等の人間overrideが
+    // 必要なファイルを宣言した場合に自動承認を見送る設計どおりの保護ガード。直前に
+    // recordTransition(cause=plan_forbidden_change_hold) で遷移がDBに残り、初回のみ
+    // notifyPlanHold で通知される。24h超の保留は plan-hold-exclusion.ts の停滞検知が再開する（#1296）。
+    // NOTE: 兄弟ログ（[forbidden-change-plan-hold]）は別ロガー・別文言のため本ルールの対象外。
+    test: /^\[plan-auto-approve\] auto-approval withheld — plan needs a human forbidden-change override$/i,
+    logger: /^plan-auto-approve$/i,
+    because:
+      '人間のoverrideが必要な計画を自動承認しなかった設計どおりの保護ガードの記録 — 保留は遷移として記録され初回に通知もされ、24h超は停滞検知が再開する。他の plan-auto-approve の警告は別シグネチャで可視化される',
+  },
 ];
