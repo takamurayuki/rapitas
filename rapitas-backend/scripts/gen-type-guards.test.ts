@@ -8,15 +8,7 @@
  */
 
 import { describe, expect, test, beforeAll, afterAll } from 'bun:test';
-import {
-  readFileSync,
-  writeFileSync,
-  unlinkSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-} from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { tmpdir } from 'os';
