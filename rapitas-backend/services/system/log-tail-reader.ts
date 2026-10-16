@@ -5,7 +5,7 @@
  * is never fully materialised in one synchronous string operation.
  * Not responsible for parsing lines or applying time filters.
  */
-import { open, stat } from 'fs/promises';
+import { open } from 'fs/promises';
 
 /**
  * Reads up to maxBytes from the end of a file and drops a leading partial line.
@@ -15,11 +15,15 @@ import { open, stat } from 'fs/promises';
  * @returns Whole lines of the tail as text / 末尾の完全な行のテキスト
  */
 export async function readLogTail(path: string, maxBytes: number): Promise<string> {
-  const { size } = await stat(path);
-  const start = Math.max(0, size - maxBytes);
+  // Open first and size the open handle, rather than stat()-ing the path and
+  // then opening it: a log can be rotated between those two calls, so the old
+  // order could size the buffer from one file and read from another.
   const handle = await open(path, 'r');
   let raw: string;
+  let start = 0;
   try {
+    const { size } = await handle.stat();
+    start = Math.max(0, size - maxBytes);
     const buf = Buffer.alloc(size - start);
     const { bytesRead } = await handle.read(buf, 0, buf.length, start);
     raw = buf.toString('utf-8', 0, bytesRead);

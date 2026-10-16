@@ -302,12 +302,17 @@ export async function attemptWorktreeRebuildRecovery(params: {
       ...excludeSpecs,
     ]);
     if (patch.trim()) {
-      const patchFile = join(tmpdir(), `rapitas-recovery-task-${taskId}-${Date.now()}.patch`);
+      // mkdtemp rather than a task-and-timestamp name directly in os.tmpdir():
+      // that name was predictable, so another account on a shared machine could
+      // pre-create it as a symlink and have this write land on a file of their
+      // choosing. The directory is removed with the patch still inside it.
+      const patchDir = await fsPromises.mkdtemp(join(tmpdir(), 'rapitas-recovery-'));
+      const patchFile = join(patchDir, 'recovery.patch');
       await fsPromises.writeFile(patchFile, patch, 'utf8');
       try {
         await runGit(newWorktreePath, ['apply', '--whitespace=nowarn', patchFile]);
       } finally {
-        await fsPromises.rm(patchFile, { force: true }).catch(() => {});
+        await fsPromises.rm(patchDir, { recursive: true, force: true }).catch(() => {});
       }
     }
   } catch (err) {

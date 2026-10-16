@@ -5,7 +5,7 @@
  * level→severity mapping, and the async differential readGlobalEntries.
  */
 import { describe, it, expect, afterEach } from 'bun:test';
-import { writeFileSync, unlinkSync, existsSync } from 'fs';
+import { writeFileSync, unlinkSync, existsSync, mkdtempSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { groupEntries, levelToSeverity, readGlobalEntries } from './log-health-check';
@@ -228,9 +228,12 @@ describe('levelToSeverity', () => {
 
 describe('readGlobalEntries', () => {
   const tmpFiles: string[] = [];
+  // One private directory for the suite: writing fixtures straight into
+  // os.tmpdir() under fixed names let a parallel run read or clobber them.
+  const tmpRoot = mkdtempSync(join(tmpdir(), 'rapitas-log-health-'));
 
   function writeTmp(name: string, content: string): string {
-    const p = join(tmpdir(), name);
+    const p = join(tmpRoot, name);
     writeFileSync(p, content, 'utf-8');
     tmpFiles.push(p);
     return p;
@@ -243,7 +246,7 @@ describe('readGlobalEntries', () => {
   });
 
   it('returns [] when the file does not exist', async () => {
-    const entries = await readGlobalEntries(0, join(tmpdir(), '__nonexistent_test__.log'));
+    const entries = await readGlobalEntries(0, join(tmpRoot, '__nonexistent_test__.log'));
     expect(entries).toEqual([]);
   });
 

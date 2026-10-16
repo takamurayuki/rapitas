@@ -106,10 +106,9 @@ function clearNextCache() {
 
       // Restore hash file
       if (hashFileBackup) {
-        const cacheDir = path.dirname(HASH_FILE);
-        if (!fs.existsSync(cacheDir)) {
-          fs.mkdirSync(cacheDir, { recursive: true });
-        }
+        // mkdirSync with recursive is already a no-op for an existing
+        // directory, so the existsSync only added a window between the two.
+        fs.mkdirSync(path.dirname(HASH_FILE), { recursive: true });
         fs.writeFileSync(HASH_FILE, hashFileBackup, 'utf8');
       }
       cleared = true;
