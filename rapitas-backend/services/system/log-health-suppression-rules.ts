@@ -9,6 +9,7 @@
 import type { Suppression } from './log-health-suppressions-types';
 import { BACKLOG_SUPPRESSIONS } from './log-health-suppression-rules-backlog';
 import { WORKTREE_SUPPRESSIONS } from './log-health-suppression-rules-worktree';
+import { STALE_ACTIVE_SUPPRESSIONS } from './log-health-suppression-rules-stale-active';
 import { RUNTIME_SUPPRESSIONS } from './log-health-suppression-rules.runtime';
 
 /**
@@ -368,4 +369,5 @@ export const SUPPRESSIONS: Suppression[] = [
   ...RUNTIME_SUPPRESSIONS,
   ...WORKTREE_SUPPRESSIONS,
   ...BACKLOG_SUPPRESSIONS,
+  ...STALE_ACTIVE_SUPPRESSIONS,
 ];
