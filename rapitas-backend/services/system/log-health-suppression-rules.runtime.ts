@@ -182,6 +182,19 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
       '運用者が立てた保留(auto_run_excluded)を再開分岐で検知し再実行せず解放した設計どおりの動作 — task.skipped(held_auto_run_excluded)サイクルログと Task.autoRunExcluded が残り、halted/workflow_disabled は引き続き可視',
   },
   {
+    // ログ出力箇所: requirement-intake-outcome.ts:142 の log.warn（reportIntakeOutcome）。
+    // kind=throttled は未着手タスク数が MAX_UNSTARTED_PER_THEME に達した背圧で、
+    // requirement-intake-job.ts:253-261 は何も書き換えず return するだけの正常動作。
+    // 同関数が logCycleEvent('intake.stalled') と窓単位の通知を別途出すため、
+    // 本行を抑制しても上限到達の追跡可能性は失われない（#1294）。
+    // environment_pending は機能タスクが永久に起票されない真の行き止まりなので
+    // 対象外のまま可視に残す（末尾 throttled$ で固定）。
+    test: /^\[intake\] nothing can be filed for this theme: throttled$/,
+    logger: /requirement-intake/i,
+    because:
+      '未着手タスク上限到達による正常な背圧 — intake.stalled サイクルログと窓単位の通知が残り、行き止まりの environment_pending は引き続き可視',
+  },
+  {
     // ログ出力箇所: claude-cli-provider.ts:272-274 の setTimeout が
     // `Claude CLI timed out after ${timeoutMs}ms` で fail() → 261行目の
     // reject(new ClaudeCliUnavailableError(message))。呼び出し元
