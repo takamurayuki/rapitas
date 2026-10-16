@@ -44,7 +44,14 @@ const mockExecFile = mock(
 );
 
 const mockWriteFile = mock(() => Promise.resolve());
-const mockUnlink = mock(() => Promise.resolve());
+const mockRm = mock(() => Promise.resolve());
+// Unique per call, so the concurrency test still proves two bodies never
+// share a path — that property moved from the UUID to the mkdtemp directory.
+let mkdtempCounter = 0;
+const mockMkdtemp = mock((prefix: string) => {
+  mkdtempCounter += 1;
+  return Promise.resolve(prefix + String(mkdtempCounter));
+});
 const mockWarn = mock(() => {});
 const mockError = mock(() => {});
 // NOTE: sleep is mocked to a no-op so runGhCommandWithRetry tests do not incur real delays.
@@ -53,7 +60,15 @@ const mockSleep = mock((_ms: number) => Promise.resolve());
 // NOTE: Include exec as well to prevent "export not found" when pr-write.test.ts
 // runs in the same process (bun mock.module is process-global).
 mock.module('child_process', () => ({ execFile: mockExecFile, exec: mock(() => {}) }));
-mock.module('fs/promises', () => ({ writeFile: mockWriteFile, unlink: mockUnlink }));
+// NOTE: Mirror every fs/promises export the module under test imports — bun
+// mock.module is process-global, and a missing one fails the whole file with
+// "Export named 'x' not found" (hit when unlink gave way to mkdtemp/rm).
+mock.module('fs/promises', () => ({
+  writeFile: mockWriteFile,
+  mkdtemp: mockMkdtemp,
+  rm: mockRm,
+  unlink: mock(() => Promise.resolve()),
+}));
 mock.module('../../config/logger', () => ({
   createLogger: () => ({
     info: mock(() => {}),
@@ -83,8 +98,9 @@ describe('runGhCommandWithBody', () => {
     mockExecFile.mockClear();
     mockWriteFile.mockClear();
     mockWriteFile.mockImplementation(() => Promise.resolve());
-    mockUnlink.mockClear();
-    mockUnlink.mockImplementation(() => Promise.resolve());
+    mockRm.mockClear();
+    mockRm.mockImplementation(() => Promise.resolve());
+    mockMkdtemp.mockClear();
     mockWarn.mockClear();
     mockSleep.mockClear();
   });
@@ -102,21 +118,26 @@ describe('runGhCommandWithBody', () => {
     const [tmpPath, content, encoding] = mockWriteFile.mock.calls[0] as [string, string, string];
     expect(content).toBe('ボディ内容\n改行あり');
     expect(encoding).toBe('utf8');
-    expect(tmpPath).toMatch(/gh-body-.+\.md$/);
+    expect(tmpPath).toContain('gh-body-');
+    expect(tmpPath.endsWith('body.md')).toBe(true);
     expect(capturedArgs).toContain('--body-file');
     expect(capturedArgs).toContain(tmpPath);
     expect(capturedArgs).not.toContain('--body');
-    expect(mockUnlink).toHaveBeenCalledTimes(1);
-    expect(mockUnlink.mock.calls[0][0]).toBe(tmpPath);
+    // The private directory is removed, not just the file inside it.
+    expect(mockRm).toHaveBeenCalledTimes(1);
+    const removed = mockRm.mock.calls[0][0] as string;
+    expect(tmpPath.startsWith(removed)).toBe(true);
+    expect(mockRm.mock.calls[0][1]).toEqual({ recursive: true, force: true });
   });
 
-  it('body = undefined: writeFile/unlink を呼ばず --body-file も付与しない', async () => {
+  it('body = undefined: writeFile/rm を呼ばず --body-file も付与しない', async () => {
     ghStdout = 'ok';
 
     await runGhCommandWithBody(['gh', '--version'], undefined);
 
     expect(mockWriteFile).not.toHaveBeenCalled();
-    expect(mockUnlink).not.toHaveBeenCalled();
+    expect(mockMkdtemp).not.toHaveBeenCalled();
+    expect(mockRm).not.toHaveBeenCalled();
     expect(capturedArgs).not.toContain('--body-file');
   });
 
@@ -129,24 +150,24 @@ describe('runGhCommandWithBody', () => {
     const [, content] = mockWriteFile.mock.calls[0] as [string, string, string];
     expect(content).toBe('');
     expect(capturedArgs).toContain('--body-file');
-    expect(mockUnlink).toHaveBeenCalledTimes(1);
+    expect(mockRm).toHaveBeenCalledTimes(1);
   });
 
-  it('gh コマンド失敗時も unlink を実行する (finally 保証)', async () => {
+  it('gh コマンド失敗時も rm を実行する (finally 保証)', async () => {
     shouldGhFail = true;
 
     await expect(runGhCommandWithBody(['issue', 'create'], 'ボディ')).rejects.toThrow();
 
-    // unlink must be called even when the gh command fails
+    // the temp directory must be removed even when the gh command fails
     expect(mockWriteFile).toHaveBeenCalledTimes(1);
-    expect(mockUnlink).toHaveBeenCalledTimes(1);
+    expect(mockRm).toHaveBeenCalledTimes(1);
     const writtenPath = (mockWriteFile.mock.calls[0] as [string])[0];
-    expect(mockUnlink.mock.calls[0][0]).toBe(writtenPath);
+    expect(writtenPath.startsWith(mockRm.mock.calls[0][0] as string)).toBe(true);
   });
 
-  it('unlink 失敗は warn のみ — 成功結果は変えない', async () => {
+  it('一時ディレクトリの削除失敗は warn のみ — 成功結果は変えない', async () => {
     ghStdout = 'done';
-    mockUnlink.mockRejectedValueOnce(new Error('EPERM: permission denied'));
+    mockRm.mockRejectedValueOnce(new Error('EPERM: permission denied'));
 
     const result = await runGhCommandWithBody(['issue', 'view', '42'], 'body');
 
@@ -167,7 +188,7 @@ describe('runGhCommandWithBody', () => {
     expect(encoding).toBe('utf8');
   });
 
-  it('並行呼び出しで一時ファイル名が衝突しない (uuid がユニーク)', async () => {
+  it('並行呼び出しで一時ファイル名が衝突しない (mkdtemp がユニーク)', async () => {
     ghStdout = 'ok';
 
     await Promise.all([

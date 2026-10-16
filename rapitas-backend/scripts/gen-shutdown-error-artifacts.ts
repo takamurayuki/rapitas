@@ -236,9 +236,13 @@ export function updateChangelog(date: string): void {
   const hash = computeSsotHash();
   const hashMarker = `<!-- hash:${hash} -->`;
 
+  // Read and treat ENOENT as "no file yet", rather than existsSync-then-read:
+  // the file can appear or vanish between those two calls.
   let existing = '';
-  if (existsSync(CHANGELOG_PATH)) {
+  try {
     existing = readFileSync(CHANGELOG_PATH, 'utf-8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
   }
 
   if (existing.includes(hashMarker)) {

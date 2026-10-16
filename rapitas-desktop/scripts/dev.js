@@ -1567,10 +1567,13 @@ if (!fs.existsSync(BINARIES_DIR)) {
   fs.mkdirSync(BINARIES_DIR, { recursive: true });
 }
 
-if (!fs.existsSync(dummyBinaryPath)) {
-  console.log('Creating dummy sidecar binary for development...');
-  fs.writeFileSync(dummyBinaryPath, '');
-  console.log(`Created: ${dummyBinaryPath}`);
+// 'wx' decides it in one call: an existsSync ahead of the write left a window
+// in which a concurrent dev.js could truncate a sidecar the other just made.
+try {
+  fs.writeFileSync(dummyBinaryPath, '', { flag: 'wx' });
+  console.log(`Created dummy sidecar binary for development: ${dummyBinaryPath}`);
+} catch (err) {
+  if (err.code !== 'EEXIST') throw err;
 }
 
 // 開発モード用にダミーの.next-tauriディレクトリを作成

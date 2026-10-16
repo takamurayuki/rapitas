@@ -9,7 +9,7 @@
  */
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { spawnSync } from 'child_process';
-import { mkdirSync, writeFileSync, rmSync } from 'fs';
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { tmpdir } from 'os';
@@ -36,8 +36,9 @@ const SCRIPT = join(SCRIPTS_DIR, 'check-docs-health.ts');
 let tmpRoot: string;
 
 function setup() {
-  tmpRoot = join(tmpdir(), `check-docs-health-test-${Date.now()}`);
-  mkdirSync(tmpRoot, { recursive: true });
+  // mkdtempSync creates the directory and picks the name, so two runs in the
+  // same millisecond can no longer share it.
+  tmpRoot = mkdtempSync(join(tmpdir(), 'check-docs-health-test-'));
 }
 
 function teardown() {

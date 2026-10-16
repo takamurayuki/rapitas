@@ -9,7 +9,7 @@
  * per-candidate comparison records), so this lock is contended across
  * candidates and retries briefly before giving up.
  */
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
+import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { dataDir } from './prompt-comparison-store';
 import { decideWithAlphaSpending, type AlphaDecision } from './prompt-comparison-alpha-ledger';
@@ -89,8 +89,9 @@ export function writeAlphaLedger(state: AlphaLedgerState): boolean {
 export function acquireAlphaLedgerLock(): boolean {
   const file = ledgerLockFile();
   try {
-    if (existsSync(file)) return false;
     mkdirSync(dataDir(), { recursive: true });
+    // 'wx' fails atomically when the file already exists, which IS the lock;
+    // an existsSync() ahead of it only widened the window that flag closes.
     writeFileSync(file, String(Date.now()), { flag: 'wx' });
     return true;
   } catch {
