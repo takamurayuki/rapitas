@@ -155,6 +155,21 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
       'ハング防止ガードの適用除外を与えない正規の既定分岐 — force-stop実発生時は別WARN(Task # exceeded wall budget … — force-stopping)で引き続き可視化される',
   },
   {
+    // ログ出力箇所: theme-auto-run-scheduler.ts:349-352 の log.warn。
+    // task-iteration-budget.ts:219-231 の純関数が、同一原因の反復
+    // (detectRepeatLoop) と試行数の下限を満たしたときに shouldHalt を返す
+    // 設計どおりの停止判定の通知であり、例外・失敗経路ではない。halt は
+    // Task.haltReason/haltedAt/resumeCondition(新仮説が必要)と遷移
+    // iteration_budget_halted に記録され、実行停止・current task 解放・再キュー
+    // 除外も揃うため、本行を抑制しても追跡可能性は失われない。
+    // budget_time/cost/attempts_exceeded・no_progress は別の判断が要るため
+    // 対象外のまま残す（#1292）。
+    test: /^\[ThemeAutoRunScheduler\] Task # halted by iteration budget \(repeat_cause_detected\)$/,
+    logger: /theme-auto-run-scheduler/i,
+    because:
+      '同一原因の反復を検知した反復予算ゲートの設計どおりの停止通知 — haltReason/resumeCondition と遷移iteration_budget_haltedがDBに残り、他のhalt理由は引き続き可視',
+  },
+  {
     // ログ出力箇所: claude-cli-provider.ts:272-274 の setTimeout が
     // `Claude CLI timed out after ${timeoutMs}ms` で fail() → 261行目の
     // reject(new ClaudeCliUnavailableError(message))。呼び出し元
