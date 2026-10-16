@@ -154,6 +154,12 @@ export const SUPPRESSED: [string, string][] = [
     'theme-auto-run-scheduler',
     '[ThemeAutoRunScheduler] liveOrQueuedBehind(task #) = false (reason: no_other_running)',
   ],
+  // Task 1292: repeat_cause_detected halt is a designed guard report; halt is
+  // recorded in Task.haltReason + iteration_budget_halted transition.
+  [
+    'theme-auto-run-scheduler',
+    '[ThemeAutoRunScheduler] Task # halted by iteration budget (repeat_cause_detected)',
+  ],
   // Task 1050: generateForTheme() catches the CLI timeout and continues
   // with the next theme (innovation-session.ts:242-253).
   ['memory:innovation-session', 'Claude CLI timed out after #ms'],
