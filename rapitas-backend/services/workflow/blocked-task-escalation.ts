@@ -19,6 +19,7 @@ import { submitConcern } from '../memory/concern-backlog-service';
 import { resolveSelfDevelopmentThemeId } from './self-development-theme';
 import type { BlockedExclusionReason } from './blocked-task-policy';
 import { BLOCKED_REESCALATION_INTERVAL_MS } from './blocked-task-policy';
+import { buildResumeQuestion, loadConditionState } from './resume-condition';
 import { buildNotificationI18n } from '../communication/notification-i18n';
 
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
@@ -125,6 +126,9 @@ export async function escalateBlockedTask(
   if (already >= 1) return false;
 
   const copy = REASON_COPY[reason];
+  // Task 1290: the ONE structured question that can release this stop (none for non-resumable reasons).
+  const rq = buildResumeQuestion(reason);
+  const resumeQuestion = rq.kind === 'question' ? rq : null;
 
   // Best-effort side effects: a notification/concern failure must not abort
   // the escalation — the transition below still marks it handled, and the
@@ -136,12 +140,16 @@ export async function escalateBlockedTask(
       data: {
         type: copy.notificationType,
         title: 'ブロックされたタスクが対応待ちです',
-        message: `#${task.id}「${task.title}」は自動再試行の対象外です（理由: ${reason}）。${copy.needs}${detail ? ` ${detail}` : ''}`,
+        message: `#${task.id}「${task.title}」は自動再試行の対象外です（理由: ${reason}）。${copy.needs}${detail ? ` ${detail}` : ''}${resumeQuestion ? ` 再開条件の質問: ${resumeQuestion.text}` : ''}`,
         link: `/tasks?taskId=${task.id}`,
         metadata: JSON.stringify({
           taskId: task.id,
           reason,
           source: 'blocked_escalation',
+          resumeQuestion: resumeQuestion && {
+            text: resumeQuestion.text,
+            spec: resumeQuestion.spec,
+          },
           i18n: buildNotificationI18n('blocked_escalation', {
             taskId: task.id,
             taskTitle: task.title,
@@ -241,6 +249,13 @@ export async function reescalateIfOverdue(
   if (!last) return false;
   const elapsedMs = nowMs - last.createdAt.getTime();
   if (elapsedMs < thresholdMs) return false;
+  // Task 1290: an active approved condition means the next retry pass handles it — a re-notification would be noise.
+  const cond = await loadConditionState(
+    prisma,
+    { id: task.id, status: 'blocked', workflowStatus: workflowStatus ?? null },
+    nowMs,
+  ).catch(() => null);
+  if (cond?.state === 'active') return false;
 
   const copy = REASON_COPY[reason];
   const hours = Math.floor(elapsedMs / (60 * 60 * 1000));
