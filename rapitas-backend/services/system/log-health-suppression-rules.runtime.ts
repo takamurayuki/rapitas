@@ -170,6 +170,18 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
       '同一原因の反復を検知した反復予算ゲートの設計どおりの停止通知 — haltReason/resumeCondition と遷移iteration_budget_haltedがDBに残り、他のhalt理由は引き続き可視',
   },
   {
+    // ログ出力箇所: auto-run-resolve-outcome.ts:315-317 の log.warn。currentTaskId が
+    // 保留(autoRunExcluded)のまま再開分岐に入ったとき、auto-run-hold-check.ts の
+    // 保留検知が再キューせず解放して次タスクへ進む設計どおりの動作（#1214 の保留無視
+    // 再実行対策）。再キュー・実行は発生しない。logCycleEvent('task.skipped',
+    // held_auto_run_excluded) と Task.autoRunExcluded が残るため追跡可能性は失われない。
+    // halted / workflow_disabled は別判断が要るため対象外（#1293）。
+    test: /^\[ThemeAutoRunScheduler\] Task # is held out of auto-run \(auto_run_excluded\) — not resuming it \(theme #\)$/,
+    logger: /theme-auto-run-scheduler/i,
+    because:
+      '運用者が立てた保留(auto_run_excluded)を再開分岐で検知し再実行せず解放した設計どおりの動作 — task.skipped(held_auto_run_excluded)サイクルログと Task.autoRunExcluded が残り、halted/workflow_disabled は引き続き可視',
+  },
+  {
     // ログ出力箇所: claude-cli-provider.ts:272-274 の setTimeout が
     // `Claude CLI timed out after ${timeoutMs}ms` で fail() → 261行目の
     // reject(new ClaudeCliUnavailableError(message))。呼び出し元
