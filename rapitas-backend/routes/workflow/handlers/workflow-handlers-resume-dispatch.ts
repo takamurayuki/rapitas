@@ -64,6 +64,13 @@ export interface ApplyQuestionAnswerByKindParams {
   selections?: AnswerSelection[];
   /** Extra fields merged into the recorded transition's metadata. / 追加メタデータ */
   extraMetadata?: Record<string, unknown>;
+  /**
+   * Let this answer supersede a stop that sealed the pause (task 944). Set
+   * ONLY by a caller that has proven the answer is human — `answer-question`
+   * verifies `X-Rapitas-Source` before passing it. Honoured only together
+   * with `actor:'user'` on a task still in `awaiting_question`. / 停止の上書きを要求
+   */
+  stopOverride?: boolean;
 }
 
 const VALID_KINDS = new Set<QuestionKind>([
@@ -77,13 +84,55 @@ const VALID_KINDS = new Set<QuestionKind>([
  * on record. Called twice (before and after the reads below) — a stop may
  * land while those reads are in flight.
  *
+ * `allowOverride` opens the one documented escape hatch (task 944). A stop
+ * recorded while the task was ALREADY paused on a question seals the pause
+ * shut: `isLatestExecutionCancelled` clears only once a newer execution
+ * starts, and the scheduler never selects an `awaiting_question` task
+ * (`heldAwaitingQuestion`), so no execution can start — both ways out of the
+ * pause reject here forever and the task is stuck, invisible. A human
+ * answering IS the instruction to continue, so it supersedes the stop; the
+ * caller records that it did.
+ *
  * @param taskId - Task being answered. / 対象タスク
- * @throws {ConflictError} `task_stopping` when the latest execution is cancelled.
+ * @param override - The answer's actor/override request, when it may claim the escape hatch. / 上書き要求
+ * @returns True when a stop was on record and was overridden. / 停止を上書きしたら true
+ * @throws {ConflictError} `task_stopping` when a stop is on record and may not be overridden.
  */
-export async function assertTaskNotStopping(taskId: number): Promise<void> {
-  if (await isLatestExecutionCancelled(taskId)) {
+export async function assertTaskNotStopping(
+  taskId: number,
+  override?: Pick<ApplyQuestionAnswerByKindParams, 'actor' | 'stopOverride'>,
+): Promise<boolean> {
+  if (!(await isLatestExecutionCancelled(taskId))) return false;
+  // The task read behind this only happens once a stop is actually on record.
+  if (!override || !(await isStopOverrideAllowed(taskId, override))) {
     throw new ConflictError('タスクの実行が停止されています', 'task_stopping');
   }
+  log.warn({ taskId }, '[resume-dispatch] human answer supersedes an unresumed stop (task 944)');
+  return true;
+}
+
+/**
+ * Whether this answer is entitled to override an on-record stop.
+ *
+ * Two conditions, both required. `actor==='user'` keeps the escape hatch away
+ * from the unattended auto-answer heal pass, which answers as `system` and
+ * must stay subject to the stop. Still being in `awaiting_question` is what
+ * makes it the sealed-pause case at all — a task that already advanced out of
+ * the pause is not stuck, so its stop still means what it says.
+ *
+ * @param taskId - Task being answered. / 対象タスク
+ * @param params - The answer's actor and whether its caller asked to override. / 回答のactorと上書き要求
+ * @returns True when the stop may be overridden. / 上書きを許す場合 true
+ */
+async function isStopOverrideAllowed(
+  taskId: number,
+  params: Pick<ApplyQuestionAnswerByKindParams, 'actor' | 'stopOverride'>,
+): Promise<boolean> {
+  if (params.stopOverride !== true || params.actor !== 'user') return false;
+  const task = await prisma.task
+    .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+    .catch(() => null);
+  return task?.workflowStatus === 'awaiting_question';
 }
 
 /**
@@ -248,7 +297,8 @@ async function tryRoutePlanRevision(
  * strategy that kind maps to.
  *
  * Guards, in order (each rejects with NO state change on failure):
- *  1. {@link assertTaskNotStopping} — 409 `task_stopping`.
+ *  1. {@link assertTaskNotStopping} — 409 `task_stopping`, unless a human
+ *     answer claims the task-944 escape hatch (see {@link isStopOverrideAllowed}).
  *  2. No `awaiting_question` transition exists for the task — 404.
  *  3. `kind==='spec_change'` with no `answer` — 400 `ValidationError` (a
  *     resume-from-question caller must never silently treat an unconfirmed
@@ -287,7 +337,7 @@ async function applyQuestionAnswerByKindLocked(params: ApplyQuestionAnswerByKind
 }> {
   const { taskId, answer, actor, sourceLabel, selections, extraMetadata } = params;
 
-  await assertTaskNotStopping(taskId);
+  let stopOverridden = await assertTaskNotStopping(taskId, params);
 
   const target = await prisma.workflowTransition.findFirst({
     where: { taskId, toStatus: 'awaiting_question' },
@@ -320,11 +370,20 @@ async function applyQuestionAnswerByKindLocked(params: ApplyQuestionAnswerByKind
   }
 
   await assertQuestionNotOutdated(taskId, target.id);
-  await assertTaskNotStopping(taskId);
+  // Must take the same override as guard 1. `isLatestExecutionCancelled`
+  // cannot tell "the stop guard 1 already saw" from "a stop that landed since"
+  // — it answers one boolean about the latest execution. Leaving this one
+  // absolute would therefore re-seal the very dead end the override exists to
+  // open, for every sealed pause, not just for the mid-answer race.
+  stopOverridden = (await assertTaskNotStopping(taskId, params)) || stopOverridden;
   await claimQuestionAnswerSlot(taskId);
 
   const planRevisionResult = await tryRoutePlanRevision(taskId, selections, answer, sourceLabel);
   if (planRevisionResult) return planRevisionResult;
+
+  // Audit trail for the escape hatch — a reader of the transition history must
+  // be able to see that this answer ran despite a stop still on record.
+  const overrideMetadata = stopOverridden ? { stopOverridden: true } : {};
 
   const strategy = resolveQuestionAnswerStrategy(kind);
   if (strategy === 'reset_draft') {
@@ -336,7 +395,7 @@ async function applyQuestionAnswerByKindLocked(params: ApplyQuestionAnswerByKind
       actor,
       sourceLabel: sourceLabel ?? 'answer-question',
       selections,
-      extraMetadata: { ...(extraMetadata ?? {}), kind },
+      extraMetadata: { ...(extraMetadata ?? {}), kind, ...overrideMetadata },
     });
     return { ...result, kind };
   }
@@ -346,7 +405,12 @@ async function applyQuestionAnswerByKindLocked(params: ApplyQuestionAnswerByKind
     actor,
     answer,
     recheckCompletionGate: strategy === 'resume_previous_no_gate',
-    extraMetadata: { ...(extraMetadata ?? {}), kind, ...(sourceLabel ? { sourceLabel } : {}) },
+    extraMetadata: {
+      ...(extraMetadata ?? {}),
+      kind,
+      ...(sourceLabel ? { sourceLabel } : {}),
+      ...overrideMetadata,
+    },
   });
   return { taskId: result.taskId, ok: true, toStatus: result.toStatus, kind };
 }

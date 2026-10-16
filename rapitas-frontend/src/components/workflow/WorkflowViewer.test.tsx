@@ -28,6 +28,7 @@ vi.mock('@/utils/api', () => ({ API_BASE_URL: 'http://test:3001' }));
 const mockRefetch = vi.fn();
 const mockApplyResolvedQuestionStatus = vi.fn();
 const mockSetActiveTab = vi.fn();
+const mockSetAdvanceError = vi.fn();
 
 function makeFiles(questionContent: string) {
   return {
@@ -57,7 +58,7 @@ function armHook(effectiveStatus: string, questionContent: string) {
     applyResolvedQuestionStatus: mockApplyResolvedQuestionStatus,
     isAdvancing: false,
     advanceError: null,
-    setAdvanceError: vi.fn(),
+    setAdvanceError: mockSetAdvanceError,
     roles: [],
     autoComplexityAnalysis: false,
     isPolling: false,
@@ -75,6 +76,7 @@ describe('WorkflowViewer — handleAnswerIntakeQuestion applies the resolved toS
     mockRefetch.mockClear();
     mockApplyResolvedQuestionStatus.mockClear();
     mockSetActiveTab.mockClear();
+    mockSetAdvanceError.mockClear();
   });
 
   it.each([
@@ -143,10 +145,21 @@ describe('WorkflowViewer — handleAnswerIntakeQuestion applies the resolved toS
     vi.unstubAllGlobals();
   });
 
-  it('does not apply a status when the fetch itself fails (leaves the question visible for retry)', async () => {
+  // Task 944: a rejected answer is a RESPONSE, not a thrown error. Before the
+  // fix neither branch ran, so a 409 produced no message and no status change
+  // and the question just sat there — the reported "answering does nothing".
+  it('surfaces the server message when the answer is rejected (409 task_stopping)', async () => {
     armHook('awaiting_question', QUESTION_MD);
     const onStatusChange = vi.fn();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: () =>
+          Promise.resolve({ error: 'タスクの実行が停止されています', code: 'task_stopping' }),
+      }),
+    );
 
     render(
       <WorkflowViewer
@@ -161,7 +174,50 @@ describe('WorkflowViewer — handleAnswerIntakeQuestion applies the resolved toS
     });
     fireEvent.click(screen.getByText('questionPanel.submitAndResume'));
 
-    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mockSetAdvanceError).toHaveBeenCalledWith('タスクの実行が停止されています'),
+    );
+    expect(mockApplyResolvedQuestionStatus).not.toHaveBeenCalled();
+    expect(onStatusChange).not.toHaveBeenCalled();
+    expect(mockRefetch).not.toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
+  });
+
+  it('falls back to the generic message when a rejection carries no body', async () => {
+    armHook('awaiting_question', QUESTION_MD);
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue({ ok: false, status: 500, json: () => Promise.reject(new Error()) }),
+    );
+
+    render(<WorkflowViewer taskId={1} workflowStatus="awaiting_question" />);
+
+    fireEvent.change(screen.getByPlaceholderText('questionPanel.freeTextPlaceholder'), {
+      target: { value: '承認します' },
+    });
+    fireEvent.click(screen.getByText('questionPanel.submitAndResume'));
+
+    await waitFor(() => expect(mockSetAdvanceError).toHaveBeenCalledWith('viewer.advanceFailed'));
+    expect(mockRefetch).not.toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
+  });
+
+  it('surfaces a network failure instead of failing silently', async () => {
+    armHook('awaiting_question', QUESTION_MD);
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
+
+    render(<WorkflowViewer taskId={1} workflowStatus="awaiting_question" />);
+
+    fireEvent.change(screen.getByPlaceholderText('questionPanel.freeTextPlaceholder'), {
+      target: { value: '承認します' },
+    });
+    fireEvent.click(screen.getByText('questionPanel.submitAndResume'));
+
+    await waitFor(() => expect(mockSetAdvanceError).toHaveBeenCalledWith('viewer.advanceFailed'));
     expect(mockApplyResolvedQuestionStatus).not.toHaveBeenCalled();
     expect(mockRefetch).not.toHaveBeenCalled();
 
@@ -174,6 +230,7 @@ describe('WorkflowViewer — answered question no longer renders the answer form
     mockRefetch.mockClear();
     mockApplyResolvedQuestionStatus.mockClear();
     mockSetActiveTab.mockClear();
+    mockSetAdvanceError.mockClear();
   });
 
   it('renders the form while paused on the question', () => {

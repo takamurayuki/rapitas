@@ -37,6 +37,7 @@ import {
 } from './blocked-task-policy';
 import { resolveBlockedTaskEvidence } from './blocked-task-evidence';
 import { resolveAutomationPolicy } from './automation-policy';
+import { loadResumeReleases } from './resume-condition';
 import { escalateBlockedTask, reescalateIfOverdue } from './blocked-task-escalation';
 
 const log = createLogger('workflow-reconciler');
@@ -358,6 +359,13 @@ export async function escalateAbandonedBlocked(nowMs: number): Promise<number> {
       })
       .catch(() => 0);
 
+    // Task 1290: same evaluator requeueBlockedTasks uses, so a released reason is
+    // retryable here too and is not escalated while retry owns it.
+    const resumeReleases = await loadResumeReleases(
+      prisma,
+      { id: t.id, status: 'blocked', workflowStatus: t.workflowStatus },
+      nowMs,
+    );
     const classification = classifyBlockedExclusion({
       workflowStatus: t.workflowStatus,
       ageMs: nowMs - t.updatedAt.getTime(),
@@ -368,6 +376,7 @@ export async function escalateAbandonedBlocked(nowMs: number): Promise<number> {
       unverifiableHeld: unverifiableHeldCount > 0,
       manualCorrectionPending: manualCorrectionPendingCount > 0,
       prNotCreatedCount,
+      resumeReleases,
     });
     if (classification === 'retryable') continue; // requeueBlockedTasks owns it
 

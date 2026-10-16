@@ -13,6 +13,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { API_BASE_URL } from '@/utils/api';
 import { useShortcutStore } from '@/stores/shortcut-store';
 import { TriageItemCard } from './_components/triage-item-card';
+import { DecisionTimerPanel } from './_components/decision-timer-panel';
 import { TriageConfirmStep } from './_components/triage-confirm-step';
 import { TriageLiveRegion } from './_components/triage-live-region';
 import {
@@ -201,7 +202,10 @@ function TriageStream({ initialItems }: { initialItems: TriageItem[] }) {
 
       <div ref={focusRef} tabIndex={-1} className="outline-none space-y-4">
         {stream.current ? (
-          <TriageItemCard item={stream.current} />
+          <>
+            <TriageItemCard item={stream.current} />
+            <DecisionTimerPanel item={stream.current} />
+          </>
         ) : (
           <p className="text-zinc-600 dark:text-zinc-300">{t('empty')}</p>
         )}

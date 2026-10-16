@@ -279,6 +279,12 @@ export interface BlockedClassificationInput {
    * classification independently of `attempts`. / PR作成失敗の累計回数
    */
   prNotCreatedCount?: number;
+  /**
+   * Reasons an approved, unexpired resume condition releases (task 1290). A
+   * released reason's exclusion is skipped; absent = classification unchanged.
+   * / 承認済み再開条件で解除される理由
+   */
+  resumeReleases?: readonly BlockedExclusionReason[];
 }
 
 /**
@@ -317,18 +323,28 @@ export function classifyBlockedExclusion(input: BlockedClassificationInput): Blo
   // Non-convergence beats age/budget: the cutoff already established that
   // re-running cannot help (same criterion never progressed), whatever the
   // remaining retry budget says.
-  if (input.nonConverged) return 'verify_no_convergence';
+  const released = (r: BlockedExclusionReason) => input.resumeReleases?.includes(r) ?? false;
+  if (input.nonConverged && !released('verify_no_convergence')) return 'verify_no_convergence';
   // A manual correction already established the task's PR did not land —
   // this is a decisive determination, not an age/budget concern, so it is
   // checked before either (mirrors unverifiableHeld/nonConverged's priority).
   if (input.manualCorrectionPending) return 'manual_correction_pending';
   if (input.ageMs > MAX_ORPHAN_REQUEUE_AGE_MS) return 'abandoned_old';
-  if (input.repairs >= input.verifyRepairLimit) return 'verify_repair_exhausted';
+  if (input.repairs >= input.verifyRepairLimit && !released('verify_repair_exhausted')) {
+    return 'verify_repair_exhausted';
+  }
   // Checked before the generic retry cap (task 713): a task blocked purely by
   // repeated PR-creation failures is classified by that specific failure mode
   // — see MAX_PR_RECOVERY_ATTEMPTS — rather than the coincidentally-aligned
   // generic budget below, which drifts if MAX_BLOCKED_RETRY ever changes.
-  if ((input.prNotCreatedCount ?? 0) >= MAX_PR_RECOVERY_ATTEMPTS) return 'pr_recovery_exhausted';
-  if (input.attempts >= MAX_BLOCKED_RETRY) return 'retry_cap_exhausted';
+  if (
+    (input.prNotCreatedCount ?? 0) >= MAX_PR_RECOVERY_ATTEMPTS &&
+    !released('pr_recovery_exhausted')
+  ) {
+    return 'pr_recovery_exhausted';
+  }
+  if (input.attempts >= MAX_BLOCKED_RETRY && !released('retry_cap_exhausted')) {
+    return 'retry_cap_exhausted';
+  }
   return 'retryable';
 }

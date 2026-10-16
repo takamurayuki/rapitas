@@ -300,7 +300,12 @@ for (const endpoint of endpoints) {
     expect(completionGate).not.toHaveBeenCalled();
   });
 
-  test(`${endpoint}: persisted stop refuses answer without changing task or files`, async () => {
+  // A stop persisted BEFORE the answer began seals the pause: it clears only
+  // when a newer execution starts, and an `awaiting_question` task is never
+  // selected, so nothing can start it (task 944). The header-verified
+  // answer-question is therefore allowed through and records the override;
+  // resume-from-question, which proves no human source, still refuses.
+  test(`${endpoint}: persisted stop — human answer proceeds, unverified resume refuses`, async () => {
     const taskId = await pendingQuestion('execution_continuation');
     await recordTransition({
       taskId,
@@ -311,11 +316,27 @@ for (const endpoint of endpoints) {
     });
     const before = await snapshot(taskId);
     const set: { status?: number } = {};
-    await expect(callEndpoint(endpoint, taskId, set)).rejects.toThrow();
-    expect(set.status).toBe(409);
-    expect(await snapshot(taskId)).toEqual(before);
-    expect(redispatch).not.toHaveBeenCalled();
-    expect(reexecute).not.toHaveBeenCalled();
+
+    if (endpoint === 'resume-from-question') {
+      await expect(callEndpoint(endpoint, taskId, set)).rejects.toThrow();
+      expect(set.status).toBe(409);
+      expect(await snapshot(taskId)).toEqual(before);
+      expect(redispatch).not.toHaveBeenCalled();
+      expect(reexecute).not.toHaveBeenCalled();
+      return;
+    }
+
+    expect(await callEndpoint(endpoint, taskId, set)).toMatchObject({
+      ok: true,
+      toStatus: 'in_progress',
+      resolvedKind: 'execution_continuation',
+    });
+    expect((await snapshot(taskId)).task.workflowStatus).toBe('in_progress');
+    const transition = await db.workflowTransition.findFirstOrThrow({
+      where: { taskId, cause: 'question_resolved' },
+      orderBy: { id: 'desc' },
+    });
+    expect(JSON.parse(transition.metadata)).toMatchObject({ stopOverridden: true });
   });
 
   test(`${endpoint}: a newer question arriving during lookup rejects the stale answer`, async () => {
@@ -364,7 +385,12 @@ for (const endpoint of endpoints) {
     expect(completionGate).not.toHaveBeenCalled();
   });
 
-  test(`${endpoint}: stop arriving after the first check prevents the answer`, async () => {
+  // The second stop check (guard 5) carries the same task-944 override as the
+  // first, and necessarily so: `isLatestExecutionCancelled` returns one boolean
+  // about the latest execution, so a stop injected here is indistinguishable
+  // from the one a sealed pause already carried. An unverified resume still
+  // loses to it; a human answer still wins, and says so in the transition.
+  test(`${endpoint}: stop arriving after the first check — resume loses, human answer wins`, async () => {
     const taskId = await pendingQuestion('execution_continuation');
     const before = await snapshot(taskId);
     let injected = false;
@@ -381,14 +407,29 @@ for (const endpoint of endpoints) {
     };
     const set: { status?: number } = {};
     try {
-      await expect(callEndpoint(endpoint, taskId, set)).rejects.toMatchObject({
-        code: 'task_stopping',
+      if (endpoint === 'resume-from-question') {
+        await expect(callEndpoint(endpoint, taskId, set)).rejects.toMatchObject({
+          code: 'task_stopping',
+        });
+        expect(injected).toBe(true);
+        expect(set.status).toBe(409);
+        expect(await snapshot(taskId)).toEqual(before);
+        expect(redispatch).not.toHaveBeenCalled();
+        expect(reexecute).not.toHaveBeenCalled();
+        expect(completionGate).not.toHaveBeenCalled();
+        return;
+      }
+
+      expect(await callEndpoint(endpoint, taskId, set)).toMatchObject({
+        ok: true,
+        toStatus: 'in_progress',
       });
       expect(injected).toBe(true);
-      expect(set.status).toBe(409);
-      expect(await snapshot(taskId)).toEqual(before);
-      expect(redispatch).not.toHaveBeenCalled();
-      expect(reexecute).not.toHaveBeenCalled();
+      const transition = await db.workflowTransition.findFirstOrThrow({
+        where: { taskId, cause: 'question_resolved' },
+        orderBy: { id: 'desc' },
+      });
+      expect(JSON.parse(transition.metadata)).toMatchObject({ stopOverridden: true });
       expect(completionGate).not.toHaveBeenCalled();
     } finally {
       beforePauseLookup = undefined;

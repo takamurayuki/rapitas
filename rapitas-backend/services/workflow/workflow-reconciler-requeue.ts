@@ -26,6 +26,7 @@ import {
   MANUAL_CORRECTION_PENDING_CAUSE,
   PR_RETRY_LIGHTWEIGHT_CAUSE,
 } from './blocked-task-policy';
+import { loadResumeReleases, sweepResumeConditions } from './resume-condition';
 import { isAwaitingRequiredMerge } from './verify-settle-artifact-recovery';
 import { hasLiveExecution } from './workflow-reconciler-undispatchable';
 
@@ -163,6 +164,9 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
   const settleBefore = new Date(nowMs - BLOCKED_RETRY_SETTLE_MS);
   const notOlderThan = new Date(nowMs - MAX_ORPHAN_REQUEUE_AGE_MS);
 
+  // Task 1290: materialize expired / state-changed resume conditions first (never throws).
+  await sweepResumeConditions(prisma, nowMs);
+
   // Respect user stops: only retry blocked tasks in themes that are still armed.
   const armed = await prisma.themeAutoRun
     .findMany({ where: { enabled: true, status: 'running' }, select: { themeId: true } })
@@ -209,6 +213,14 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
     // blind retry — so leave it paused.
     if (t.workflowStatus === 'awaiting_question') continue;
 
+    // Task 1290: reasons an approved, unexpired resume condition releases. Shared
+    // with the escalation classifier (same evaluator) so the two cannot drift.
+    const releases = await loadResumeReleases(
+      prisma,
+      { id: t.id, status: 'blocked', workflowStatus: t.workflowStatus },
+      nowMs,
+    );
+
     // Skip tasks that exhausted verify-repair — re-running repeats the same
     // failing implement→verify cycle (the task is too hard, needs splitting, not
     // blind retry). Count since the last manual retry so a user re-try grants a
@@ -229,7 +241,7 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
         },
       })
       .catch(() => 0);
-    if (repairs >= verifyRepairLimit) {
+    if (repairs >= verifyRepairLimit && !releases.includes('verify_repair_exhausted')) {
       log.info(
         { taskId: t.id, repairs, verifyRepairLimit },
         '[reconciler] Blocked task exhausted verify-repair — leaving blocked (needs split/manual), not auto-retrying',
@@ -250,7 +262,7 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
         },
       })
       .catch(() => 0);
-    if (nonConverged > 0) {
+    if (nonConverged > 0 && !releases.includes('verify_no_convergence')) {
       log.info(
         { taskId: t.id, nonConverged },
         '[reconciler] Blocked task was cut off for non-convergence — leaving blocked (needs split/spec revision), not auto-retrying',
@@ -310,7 +322,10 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
     const totalPrNotCreated = await prisma.workflowTransition
       .count({ where: { taskId: t.id, cause: 'verify_pr_not_created' } })
       .catch(() => 0);
-    if (totalPrNotCreated >= MAX_PR_RECOVERY_ATTEMPTS) {
+    if (
+      totalPrNotCreated >= MAX_PR_RECOVERY_ATTEMPTS &&
+      !releases.includes('pr_recovery_exhausted')
+    ) {
       log.info(
         { taskId: t.id, totalPrNotCreated },
         '[reconciler] Blocked task exhausted PR-creation recovery — leaving blocked for escalation, not auto-retrying',
@@ -411,7 +426,7 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
     const attempts = await prisma.workflowTransition
       .count({ where: { taskId: t.id, cause: 'blocked_auto_retry' } })
       .catch(() => 0);
-    if (attempts >= MAX_BLOCKED_RETRY) continue;
+    if (attempts >= MAX_BLOCKED_RETRY && !releases.includes('retry_cap_exhausted')) continue;
 
     // NOTE (task 1238): the bare draft reset left no execution and no queue item;
     // resetBlockedTaskForRetry also attempts re-dispatch and records why it did not take.
