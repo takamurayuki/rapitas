@@ -10,7 +10,7 @@
  */
 
 import { createLogger } from '../../config/logger';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma-postgres';
 
 const log = createLogger('self-learning:workflow-learning-recorder');
 
@@ -59,13 +59,19 @@ export async function recordWorkflowExecution(
       return;
     }
 
+    // The prediction half of the row. Callers on the execution path do not know
+    // what was predicted, so fall back to the snapshot research took, then to the
+    // task's own fields. Without this the row records an outcome with nothing to
+    // compare it against — which is why predictedComplexity was 13% filled.
+    const predicted = await resolvePrediction(prisma, input);
+
     await prisma.workflowLearningRecord.create({
       data: {
         taskId: input.taskId,
-        workflowMode: input.workflowMode ?? 'standard',
-        predictedComplexity: input.predictedComplexity ?? null,
+        workflowMode: predicted.workflowMode ?? 'standard',
+        predictedComplexity: predicted.predictedComplexity,
         actualDurationMinutes: input.actualDurationMinutes ?? null,
-        estimatedDuration: input.estimatedDuration ?? null,
+        estimatedDuration: predicted.estimatedDuration,
         outcome: input.outcome,
         success: input.outcome === 'completed',
         categoryId: task.theme?.categoryId ?? null,
@@ -84,6 +90,108 @@ export async function recordWorkflowExecution(
   } catch (err) {
     log.warn({ err, taskId: input.taskId }, '[Recorder] Failed to write learning record');
   }
+}
+
+/**
+ * Record the learning row for one execution, reading everything it needs from
+ * the execution row itself.
+ *
+ * Exists so the two places an execution can reach a terminal state share one
+ * implementation. Investigation phases (research / plan / verify) finish as
+ * `post_processing` and are flipped to `completed` only after their artifact is
+ * validated — a path that never passed through the recorder, so the phases that
+ * ASSESS the complexity were themselves absent from the ledger.
+ *
+ * @param prisma - Prisma client / Prisma クライアント
+ * @param executionId - Execution that just reached a terminal state. / 終端に達した実行ID
+ * @param outcome - How it ended. / 終了種別
+ */
+export async function recordExecutionOutcome(
+  prisma: PrismaClient,
+  executionId: number,
+  outcome: 'completed' | 'failed' | 'cancelled',
+): Promise<void> {
+  try {
+    const execution = await prisma.agentExecution.findUnique({
+      where: { id: executionId },
+      select: {
+        executionTimeMs: true,
+        errorMessage: true,
+        modelName: true,
+        session: { select: { config: { select: { taskId: true } } } },
+      },
+    });
+    const taskId = execution?.session?.config?.taskId;
+    if (typeof taskId !== 'number') return;
+
+    await recordWorkflowExecution(prisma, {
+      taskId,
+      outcome,
+      actualDurationMinutes: execution?.executionTimeMs
+        ? Math.round(execution.executionTimeMs / 60000)
+        : null,
+      errorMessage: execution?.errorMessage ?? null,
+      modelName: execution?.modelName ?? null,
+    });
+  } catch (err) {
+    log.warn({ err, executionId }, '[Recorder] Failed to record execution outcome');
+  }
+}
+
+/**
+ * Resolve what was predicted for this task, in descending order of fidelity:
+ * the caller's explicit values, the snapshot taken when research fixed the
+ * complexity, then the task row itself.
+ *
+ * The task-row fallback exists for tasks that predate the snapshot and for
+ * paths that never run research; it is a reconstruction, not a record, so it is
+ * used last.
+ */
+async function resolvePrediction(
+  prisma: PrismaClient,
+  input: ExecutionRecordInput,
+): Promise<{
+  predictedComplexity: number | null;
+  workflowMode: string | null;
+  estimatedDuration: number | null;
+}> {
+  const explicit = {
+    predictedComplexity: input.predictedComplexity ?? null,
+    workflowMode: input.workflowMode ?? null,
+    // NOT taken from the snapshot. The snapshot's estimate is for the WHOLE
+    // task; this writer's actualDurationMinutes is one execution. Putting them
+    // in the same row invites a comparison of two different things — observed
+    // live: a 76-minute task estimate beside 1-, 5- and 12-minute phases. The
+    // task-scoped writer (recordWorkflowCompletion) carries the estimate.
+    estimatedDuration: input.estimatedDuration ?? null,
+  };
+  if (explicit.predictedComplexity !== null && explicit.workflowMode !== null) return explicit;
+
+  try {
+    const { readModePrediction } = await import('../workflow/learning/mode-prediction');
+    const snapshot = await readModePrediction(input.taskId);
+    if (snapshot) {
+      return {
+        predictedComplexity: explicit.predictedComplexity ?? snapshot.predictedComplexity,
+        workflowMode: explicit.workflowMode ?? snapshot.workflowMode,
+        estimatedDuration: explicit.estimatedDuration,
+      };
+    }
+  } catch {
+    // Fall through to the task row — a missing snapshot is expected, not an error.
+  }
+
+  const task = await prisma.task
+    .findUnique({
+      where: { id: input.taskId },
+      select: { complexityScore: true, workflowMode: true },
+    })
+    .catch(() => null);
+  return {
+    predictedComplexity: explicit.predictedComplexity ?? task?.complexityScore ?? null,
+    workflowMode: explicit.workflowMode ?? task?.workflowMode ?? null,
+    estimatedDuration: explicit.estimatedDuration,
+  };
 }
 
 /**

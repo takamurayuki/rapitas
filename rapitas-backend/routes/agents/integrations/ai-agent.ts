@@ -12,6 +12,7 @@
  *   - agent-test-router       — connection test endpoints (legacy + new)
  *   - agent-discovery-router  — agent types, models, and preset setup
  *   - agent-resume-router     — interrupted execution resumption + executing-tasks list
+ *   - decision-trace-router   — decision-trace audit DAG viewer
  */
 import { Elysia } from 'elysia';
 
@@ -21,11 +22,14 @@ import { agentExecutionRouter } from '../execution-management/agent-execution-ro
 import { agentSessionRouter } from '../crud/agent-session-router';
 import { agentAuditRouter, taskExecutionLogsRouter } from '../monitoring/agent-audit-router';
 import { agentSystemRouter } from '../system/agent-system-router';
+import { resourceGateRouter } from '../system/resource-gate-router';
 import { agentCrudRouter } from '../crud/agent-crud-router';
 import { agentApiKeyRouter } from '../config/agent-api-key-router';
 import { agentTestRouter } from '../monitoring/agent-test-router';
 import { agentDiscoveryRouter } from '../crud/agent-discovery-router';
 import { agentResumeRouter } from '../execution-management/agent-resume-router';
+import { decisionLedgerRouter } from '../monitoring/decision-ledger-router';
+import { decisionTraceRouter } from '../monitoring/decision-trace-router';
 
 export const aiAgentRoutes = new Elysia()
   .use(agentConfigRouter)
@@ -35,8 +39,11 @@ export const aiAgentRoutes = new Elysia()
   .use(agentAuditRouter)
   .use(taskExecutionLogsRouter)
   .use(agentSystemRouter)
+  .use(resourceGateRouter)
   .use(agentCrudRouter)
   .use(agentApiKeyRouter)
   .use(agentTestRouter)
   .use(agentDiscoveryRouter)
-  .use(agentResumeRouter);
+  .use(agentResumeRouter)
+  .use(decisionTraceRouter)
+  .use(decisionLedgerRouter);

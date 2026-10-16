@@ -2,21 +2,25 @@
 // TaskCard
 import React, { useState, memo } from 'react';
 import type { Task, Status } from '@/types';
-import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
-import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
-import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
-import { ExternalLink, Tag, Repeat, RefreshCw } from 'lucide-react';
+import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
+import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
+import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
+import { Tag, Repeat, RefreshCw, Lock, Clock, History } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { getIconComponent } from '@/components/category/icon-data';
-import { CardLightSweep } from './TaskCompletionAnimation';
 import { ModernCheckbox } from '@/components/ui/ModernCheckbox';
+import { resolveBlockedCauseLabel } from '@/components/workflow/workflow-blocked-cause';
 import { useTranslations } from 'next-intl';
-import { useLocaleStore as _useLocaleStore } from '@/stores/locale-store';
+import { formatDate } from '@/utils/date';
 import { useTaskCard } from './task-card/useTaskCard';
 import TaskCardContextMenu from './task-card/TaskCardContextMenu';
 import TaskCardSubtaskPanel from './task-card/TaskCardSubtaskPanel';
+import TaskCardSubtaskProgress from './task-card/TaskCardSubtaskProgress';
+import TaskCardAutoRunToggle from './task-card/TaskCardAutoRunToggle';
+import TaskCardAutoRunQueueBadge from './task-card/TaskCardAutoRunQueueBadge';
+import styles from './TaskCard.module.css';
 
 interface TaskCardProps {
   task: Task;
@@ -27,7 +31,6 @@ interface TaskCardProps {
   onToggleSelect?: (taskId: number) => void;
   onTaskUpdated?: () => void;
   onOpenInPage?: (taskId: number) => void;
-  sweepingTaskId?: number | null;
 }
 
 const TaskCard = memo(function TaskCard({
@@ -39,10 +42,9 @@ const TaskCard = memo(function TaskCard({
   onToggleSelect,
   onTaskUpdated,
   onOpenInPage,
-  sweepingTaskId,
 }: TaskCardProps) {
   const t = useTranslations('task');
-  const tHome = useTranslations('home');
+  const tWorkflow = useTranslations('workflow');
   const { showToast } = useToast();
 
   const tc = useTaskCard(task, onStatusChange, onTaskUpdated, onTaskClick);
@@ -61,39 +63,25 @@ const TaskCard = memo(function TaskCard({
       if (res.ok) {
         await onTaskUpdated?.();
       } else {
-        showToast('再実行への切り替えに失敗しました', 'error');
+        showToast(t('taskCard.retryFailed'), 'error');
       }
     } catch {
-      showToast('再実行への切り替えに失敗しました', 'error');
+      showToast(t('taskCard.retryFailed'), 'error');
     } finally {
       setIsRetrying(false);
     }
   };
-
-  // NOTE: cardSize is kept local because it only drives the perimeter calculation
-  // which is currently unused (_perimeter). Kept for future progress-ring feature.
-  const [_cardSize, setCardSize] = useState({ w: 0, h: 0 });
-
-  React.useEffect(() => {
-    if (!tc.cardRef.current) return;
-    const { width, height } = tc.cardRef.current.getBoundingClientRect();
-    setCardSize({ w: width, h: height });
-  }, [tc.cardRef]);
 
   return (
     <div
       ref={tc.cardRef}
       data-task-card
       onMouseEnter={tc.handleMouseEnter}
-      className={`group relative z-0 w-full min-w-0 rounded-lg border-l-4 border-t border-r border-b transition-all duration-300 ease-out hover:duration-200 ${
+      className={`${styles.card} group relative z-0 w-full min-w-0 rounded-lg border-l-4 border-t border-r border-b ${
         isSelected
           ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-400 dark:border-indigo-600 ring-1 ring-indigo-500/40 dark:ring-indigo-400/40'
-          : `${tc.cardBorderColor} border-zinc-200 dark:border-zinc-800 ${tc.currentStatus.bgColor} dark:bg-indigo-dark-900`
-      } ${
-        !isSelected
-          ? 'hover:shadow-xl hover:scale-[1.02] hover:-translate-y-0.5 hover:border-opacity-80 dark:hover:shadow-2xl dark:hover:shadow-black/30'
-          : ''
-      } ${
+          : `${tc.cardBorderColor} border-zinc-200 dark:border-zinc-800 ${tc.cardBgColor} shadow-[0_2px_0_0_#e4e4e7] dark:shadow-[0_2px_0_0_#27272a]`
+      } ${!isSelected ? styles.interactive : ''} ${
         tc.executionClasses?.borderColor === 'blue'
           ? 'ai-glow-blue'
           : tc.executionClasses?.borderColor === 'amber'
@@ -101,13 +89,15 @@ const TaskCard = memo(function TaskCard({
             : ''
       }`}
     >
-      <CardLightSweep active={sweepingTaskId === task.id} colors={tc.sweepColors} />
-
       {/* Main row */}
       <div
-        className="relative z-10 flex items-center gap-3 px-3 py-2.5 min-w-0 cursor-pointer transition-all duration-300 ease-out hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 rounded-t-lg"
+        className="relative z-10 flex items-center gap-3 px-3 py-2.5 min-w-0 cursor-pointer hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 rounded-t-lg"
         onClick={() => {
           if (isSelectionMode && onToggleSelect) {
+            // Auto-executing tasks are excluded from bulk selection — an
+            // unintended bulk status change mid-execution could cause the
+            // agent to misbehave (see ModernCheckbox's disabled state below).
+            if (tc.executionStatus) return;
             onToggleSelect(task.id);
           } else {
             onTaskClick(task.id);
@@ -129,6 +119,8 @@ const TaskCard = memo(function TaskCard({
             onClick={(e) => e.stopPropagation()}
             className="mr-1"
             aria-label={`${t('select')} ${task.title}`}
+            disabled={Boolean(tc.executionStatus)}
+            title={t('taskCard.executingCannotSelect')}
           />
         ) : (
           <div
@@ -143,6 +135,16 @@ const TaskCard = memo(function TaskCard({
                   ).replace('border-l-', 'border-')}`
             } shrink-0`}
             aria-label={tc.isWaitingForInput ? tc.waitingAmberConfig.label : tc.currentStatus.label}
+            // The list endpoint batches the latest WorkflowTransition.cause onto
+            // `task.blockedCause` for blocked tasks (one query for the whole
+            // list — see attachBlockedCauses on the backend). Fall back to the
+            // generic hint when the cause is absent/unrecognized.
+            title={
+              (task.status as string) === 'blocked'
+                ? (resolveBlockedCauseLabel(tWorkflow, task.blockedCause) ??
+                  tWorkflow('statusIndicator.blockedGenericHint'))
+                : undefined
+            }
           >
             {(tc.executionStatus === 'running' || tc.executionStatus === 'waiting_for_input') && (
               <svg
@@ -179,39 +181,45 @@ const TaskCard = memo(function TaskCard({
           <div className="flex items-center gap-2 mb-1 min-w-0">
             <div className="flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
               <h3
-                className="font-medium text-zinc-900 dark:text-zinc-50 truncate text-sm min-w-0"
+                className={`font-medium text-zinc-900 dark:text-zinc-50 truncate text-sm min-w-0${
+                  onOpenInPage && !isSelectionMode
+                    ? ' hover:underline hover:text-blue-600 dark:hover:text-blue-400'
+                    : ''
+                }`}
                 title={task.title}
+                onClick={
+                  onOpenInPage && !isSelectionMode
+                    ? (e) => {
+                        // Stop the row's onClick so the slide panel doesn't open too.
+                        e.stopPropagation();
+                        onOpenInPage(task.id);
+                      }
+                    : undefined
+                }
               >
                 {task.title}
               </h3>
               <PriorityIcon priority={task.priority} size="md" />
 
+              {task.isProtected && (
+                <span title={t('taskCard.protectedBadge')}>
+                  <Lock size={14} className="text-amber-500 dark:text-amber-400 shrink-0" />
+                </span>
+              )}
+
               {task.isRecurring && (
-                <span title="繰り返しタスク">
+                <span title={t('taskCard.recurringBadge')}>
                   <Repeat size={14} className="text-indigo-500 dark:text-indigo-400 shrink-0" />
                 </span>
               )}
 
               {task.sourceTaskId && (
                 <span
-                  className="text-xs text-zinc-400 dark:text-zinc-500 shrink-0"
-                  title="繰り返しから生成されたタスク"
+                  className="text-zinc-500 dark:text-zinc-500 shrink-0"
+                  title={t('taskCard.generatedFromRecurrenceBadge')}
                 >
-                  🔄
+                  <History size={14} aria-hidden="true" />
                 </span>
-              )}
-
-              {tc.executionClasses && (
-                <div
-                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium shrink-0 ${tc.executionClasses.badgeClass}`}
-                  title={tc.executionClasses.label}
-                >
-                  <div
-                    className={`w-1.5 h-1.5 rounded-full execution-dot-pulse ${tc.executionClasses.dotClass}`}
-                    aria-hidden="true"
-                  />
-                  <span>{tc.executionClasses.label}</span>
-                </div>
               )}
             </div>
           </div>
@@ -219,66 +227,52 @@ const TaskCard = memo(function TaskCard({
           {/* Subtask progress + meta badges
               NOTE: flex-wrap + min-w-0 で狭幅時にバッジを折返し、横スクロールを防ぐ */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400 min-w-0">
+            {/* Elapsed time for a running/waiting agent — the #1 operator blind
+                spot: a spinner alone doesn't say whether an agent has been
+                stuck for 30s or 30min. */}
+            {tc.executionElapsed && (
+              <span
+                className={`inline-flex items-center gap-1 shrink-0 rounded-full border px-1.5 py-0.5 font-medium ${
+                  tc.isWaitingForInput
+                    ? 'border-amber-300 dark:border-amber-600 text-amber-600 dark:text-amber-400'
+                    : 'border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400'
+                }`}
+                title={t('taskCard.elapsedTimeTooltip')}
+              >
+                <Clock className="w-3 h-3" aria-hidden="true" />
+                <span>
+                  {tc.isWaitingForInput
+                    ? t('taskCard.waitingForInputLabel')
+                    : t('taskCard.runningLabel')}
+                </span>
+                <span>{tc.executionElapsed}</span>
+              </span>
+            )}
+            <TaskCardAutoRunQueueBadge task={task} isExecuting={Boolean(tc.executionElapsed)} />
             {tc.localSubtasks.length > 0 && (
-              <>
-                <div className="shrink-0 flex items-center gap-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      tc.setExpandedSubtasks(!tc.expandedSubtasks);
-                    }}
-                    className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1 transition-all duration-200 ease-out hover:scale-105"
-                    aria-expanded={tc.expandedSubtasks}
-                    aria-label={t('subtasks')}
-                  >
-                    <svg
-                      className={`w-3 h-3 transition-transform duration-300 ease-out ${
-                        tc.expandedSubtasks ? 'rotate-90' : ''
-                      }`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                    {tc.localSubtasks.filter((s) => s.status === 'done').length}/
-                    {tc.localSubtasks.length}
-                  </button>
-                  {tc.completionRate !== null && (
-                    // NOTE: w-75 は非標準のため無効だった。狭幅で潰れないよう shrink-0 + 最大幅を指定。
-                    <div className="w-20 sm:w-32 md:w-48 max-w-full h-1 ml-1 shrink-0 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full ${tc.getProgressBarColor(tc.completionRate)} transition-all duration-700 ease-out`}
-                        style={{ width: `${tc.completionRate}%` }}
-                      />
-                    </div>
-                  )}
-                </div>
-              </>
+              <TaskCardSubtaskProgress
+                subtasks={tc.localSubtasks}
+                expanded={tc.expandedSubtasks}
+                onToggle={() => tc.setExpandedSubtasks(!tc.expandedSubtasks)}
+                label={t('subtasks')}
+              />
             )}
 
-            {task.estimatedHours && (
-              <>
-                <span className="text-zinc-300 dark:text-zinc-700">•</span>
-                <span className="shrink-0">{task.estimatedHours}h</span>
-              </>
+            {/* 工数バッジ — サブタスク行と同じオレンジのピル (Clock + Xh)。 */}
+            {task.estimatedHours != null && (
+              <span
+                className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300 shrink-0"
+                title={t('compactTaskDetailCard.workloadLabel')}
+              >
+                <Clock className="w-2.5 h-2.5" aria-hidden="true" />
+                {task.estimatedHours}h
+              </span>
             )}
 
             {task.createdAt && (
               <>
                 <span className="text-zinc-300 dark:text-zinc-700">•</span>
-                <span className="shrink-0">
-                  {new Date(task.createdAt).toLocaleDateString('ja-JP', {
-                    month: 'numeric',
-                    day: 'numeric',
-                  })}
-                </span>
+                <span className="shrink-0">{formatDate(task.createdAt)}</span>
               </>
             )}
 
@@ -340,8 +334,8 @@ const TaskCard = memo(function TaskCard({
               <button
                 onClick={handleRetry}
                 disabled={isRetrying}
-                title="再実行（todo に戻して自動実行の対象に戻します）"
-                aria-label="タスクを再実行"
+                title={t('taskCard.retryTooltip')}
+                aria-label={t('taskCard.retryAriaLabel')}
                 className="w-7 h-7 rounded-md flex items-center justify-center text-rose-500 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-all duration-200 ease-out hover:scale-110 disabled:opacity-50"
               >
                 <RefreshCw
@@ -350,9 +344,15 @@ const TaskCard = memo(function TaskCard({
                 />
               </button>
             )}
+            {/* Auto-run only ever runs on a development theme with a working
+                directory set (see theme-auto-run.ts's own gate) — showing the
+                toggle on every other theme offered a control with no effect. */}
+            {task.theme?.isDevelopment && task.theme?.workingDirectory && (
+              <TaskCardAutoRunToggle task={task} onTaskUpdated={onTaskUpdated} />
+            )}
             {['todo', 'in-progress', 'done'].map((status) => {
               // NOTE: Amber override applied to in-progress button when task is waiting_for_input
-              const baseConfig = statusConfig[status as keyof typeof statusConfig];
+              const baseConfig = getStatusDisplay(t, status);
               const config =
                 tc.isWaitingForInput && status === 'in-progress'
                   ? { ...baseConfig, ...tc.waitingAmberConfig }
@@ -371,18 +371,6 @@ const TaskCard = memo(function TaskCard({
                 />
               );
             })}
-            {onOpenInPage && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenInPage(task.id);
-                }}
-                className="w-7 h-7 rounded-md flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all duration-200 ease-out hover:scale-110"
-                aria-label={tHome('openInPage')}
-              >
-                <ExternalLink className="w-4 h-4" aria-hidden="true" />
-              </button>
-            )}
           </div>
         )}
       </div>

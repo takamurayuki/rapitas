@@ -1,0 +1,25 @@
+{
+  "hypotheses": {
+    "header": {
+      "title": "仮説",
+      "subtitle": "エージェントが調査で立てた反証可能な仮説と、証拠・確信度の推移。立証済みは想起時に信頼重み付けされ、反証済みは注入されません。"
+    },
+    "status": {
+      "open": "検証待ち",
+      "supported": "立証済み",
+      "refuted": "反証済み",
+      "inconclusive": "結論保留",
+      "all": "すべて"
+    },
+    "loading": "読み込み中…",
+    "empty": "仮説がありません。エージェントが調査フェーズで反証可能な仮説を立てると、ここに記録されます。",
+    "deleteConfirm": "この仮説を削除しますか？",
+    "card": {
+      "taskRef": "#task {id}",
+      "themeTitle": "テーマ: {name}",
+      "confidenceLabel": "確信 {pct}%",
+      "artifactWrap": "（{artifact}）",
+      "moveTo": "→ {label}"
+    }
+  }
+}

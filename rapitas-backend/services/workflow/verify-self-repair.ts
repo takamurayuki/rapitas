@@ -7,24 +7,52 @@
  * implementer phase with the failure as feedback, so the runner re-runs
  * implement → verify automatically. Bounded by a per-task attempt cap (counted
  * from WorkflowTransition rows — no schema change); once exhausted the caller
- * blocks as before. Not responsible for spawning agents — the status-driven
- * WorkflowRunner picks up the re-implement phase on its next poll.
+ * blocks as before. Not responsible for spawning agents.
+ *
+ * Split into verify-self-repair-{budget,feedback,resume}.ts (task 764) — this
+ * file keeps only the orchestration surface (attemptVerifyRepair /
+ * hasFreshVerifyRejection / resolveImplementEntryStatus) that external callers
+ * import.
  */
 import { prisma } from '../../config/database';
+import { commitVerifyRepair } from './verify-repair-commit';
 import { createLogger } from '../../config/logger';
-import { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
 import { recordTransition } from './transition-recorder';
+import {
+  VERIFY_NON_CONVERGENCE_CAUSE,
+  VERIFY_REPAIR_LIFETIME_CAUSE,
+  MAX_VERIFY_REPAIR_LIFETIME,
+} from './blocked-task-policy';
+import {
+  REPAIR_CAUSE,
+  resolveMaxRepairs,
+  countPriorRepairs,
+  countLifetimeRepairs,
+  detectRepairNonConvergence,
+  resolveRepairWindowStart,
+} from './verify-self-repair-budget';
+import { ensureRunnerResumes, resolveRepairCaller } from './verify-self-repair-resume';
+import { buildUnchangedUnresolvedDetail } from './verify-unresolved-issues';
+import { attemptInvariantCutoff, INVARIANT_NON_CONVERGENCE_CAUSE } from './verify-invariant-repair';
 
 const log = createLogger('workflow:verify-self-repair');
 
-/** WorkflowTransition.cause used to count + identify repair bounces. */
-const REPAIR_CAUSE = 'verify_repair';
+/** Transition cause recorded when a verdict is cut off as not repairable by the implementer. */
+export const VERIFY_NON_REPAIRABLE_CAUSE = 'verify_repair_non_repairable';
 
-/** Default max verify→implement repair cycles before giving up and blocking. */
-const DEFAULT_MAX_VERIFY_REPAIRS = Math.max(
-  0,
-  parseInt(process.env.RAPITAS_MAX_VERIFY_REPAIRS ?? '2', 10) || 2,
-);
+/**
+ * A verdict whose ONLY failing gate is the anti-tampering tripwire. The
+ * implementer cannot make a protected path unprotected, so bouncing it back
+ * repeats the identical failure: task 867 (2026-09-06) looped 8 times over
+ * three hours on `tamper=NG(1)` with lint/type/test/format all green.
+ *
+ * @param reason - Verdict summary as recorded on the verify transition / 判定要約
+ * @returns True when tamper is the sole failing gate / tamper 単独失敗なら true
+ */
+export function isTamperOnlyVerdict(reason: string): boolean {
+  if (!/tamper=NG/.test(reason)) return false;
+  return !/\b(lint|typecheck|test|format|coverage|scope|runtime|schema-change)=NG/.test(reason);
+}
 
 export interface VerifyRepairResult {
   /** True when the workflow was bounced back to implement (caller must NOT block). */
@@ -33,16 +61,14 @@ export interface VerifyRepairResult {
   newStatus?: string;
   /** 1-based attempt number for this bounce. */
   attempt?: number;
-}
-
-/**
- * Count how many verify→implement repair bounces this task has already had.
- *
- * @param taskId - Task id / タスクID
- * @returns Prior repair count / これまでの修復回数
- */
-async function countPriorRepairs(taskId: number): Promise<number> {
-  return prisma.workflowTransition.count({ where: { taskId, cause: REPAIR_CAUSE } }).catch(() => 0);
+  /**
+   * True when the bounce was skipped because the workflow already moved past
+   * the evaluated status (stale verdict — e.g. a re-verify passed meanwhile).
+   * Callers must treat this as "do nothing": neither bounce NOR block.
+   */
+  stale?: boolean;
+  /** True when this call already recorded its own terminal transition (non-convergence cutoff) — callers must skip their own `verify_validation_failed` record to avoid double-recording (task 705). */
+  cutoffRecorded?: boolean;
 }
 
 /**
@@ -54,57 +80,14 @@ async function countPriorRepairs(taskId: number): Promise<number> {
  * @param taskId - Task id / タスクID
  * @returns The status to bounce to / 戻す先のstatus
  */
-async function resolveImplementEntryStatus(
+export async function resolveImplementEntryStatus(
   taskId: number,
 ): Promise<'plan_approved' | 'research_done'> {
-  const plan = await prisma.workflowFile
-    .findFirst({ where: { taskId, fileType: 'plan' }, select: { id: true } })
-    .catch(() => null);
+  const plan = await prisma.workflowFile.findFirst({
+    where: { taskId, fileType: 'plan' },
+    select: { id: true },
+  });
   return plan ? 'plan_approved' : 'research_done';
-}
-
-/**
- * Write the verify failure back to question.md so the re-run implementer reads
- * it as feedback (the implementer context surfaces question.md). Preserves any
- * existing content by appending a clearly-marked section. Best-effort.
- *
- * @param taskId - Task id / タスクID
- * @param reason - Validator summary / バリデータの要約
- * @param verifyContent - The rejected verify.md (for the agent's reference) / 却下されたverify.md
- * @param attempt - 1-based attempt number / 試行回数
- */
-async function writeRepairFeedback(
-  taskId: number,
-  reason: string,
-  verifyContent: string,
-  attempt: number,
-): Promise<void> {
-  try {
-    const info = await resolveWorkflowDir(taskId);
-    if (!info) return;
-    // Verification feedback belongs to the verify artifact, not question.md
-    // (Q&A). The implementer context reads verify.md for this on re-run.
-    const prior = (await readWorkflowFile(info.dir, 'verify')) ?? '';
-    const block = [
-      `# 検証フェーズからの差し戻し（自己修復 ${attempt} 回目）`,
-      '',
-      `直前の検証 (verify.md) が不合格でした: ${reason}`,
-      '',
-      '以下を厳守して **実装を修正** してください:',
-      '- verify.md に出ている失敗（失敗テスト・型/lint エラー・未達の受け入れ基準）を実際に解消する。',
-      '- 「成功した」と書くだけ・テスト結果を偽るのは禁止。テストを実際に通すこと。',
-      '- スコープ厳守（plan.md 記載外のファイルは変更しない）。',
-      '',
-      '## 参考: 不合格となった verify.md の冒頭',
-      '```md',
-      verifyContent.slice(0, 1500),
-      '```',
-    ].join('\n');
-    const next = prior.trim() ? `${prior.trim()}\n\n---\n\n${block}` : block;
-    await writeWorkflowFile(info.dir, 'verify', next, taskId);
-  } catch (err) {
-    log.warn({ err, taskId }, '[verify-repair] Failed to write repair feedback to verify.md');
-  }
 }
 
 /**
@@ -124,101 +107,264 @@ export async function attemptVerifyRepair(
   reason: string,
   verifyContent: string,
 ): Promise<VerifyRepairResult> {
-  if (DEFAULT_MAX_VERIFY_REPAIRS === 0) return { bounced: false };
+  const max = await resolveMaxRepairs();
+  if (max === 0) return { bounced: false };
 
-  const prior = await countPriorRepairs(taskId);
-  if (prior >= DEFAULT_MAX_VERIFY_REPAIRS) {
+  // A completed task is never rolled back — completion means a newer verify
+  // already passed (typically with a PR); this verdict is stale by definition.
+  if (currentStatus === 'completed') {
     log.warn(
-      { taskId, prior, max: DEFAULT_MAX_VERIFY_REPAIRS },
+      { taskId },
+      '[verify-repair] Verdict targets an already-completed task — skipping stale bounce',
+    );
+    return { bounced: false, stale: true };
+  }
+
+  const evaluatedTask = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { status: true, workflowStatus: true, updatedAt: true },
+  });
+  if (
+    !evaluatedTask ||
+    evaluatedTask.status !== 'in-progress' ||
+    evaluatedTask.workflowStatus === 'completed' ||
+    (currentStatus === null && evaluatedTask.workflowStatus === 'verify_done') ||
+    (currentStatus !== null && evaluatedTask.workflowStatus !== currentStatus)
+  )
+    return { bounced: false, stale: true };
+  const evaluatedExecution = await prisma.agentExecution.findFirst({
+    where: { session: { config: { taskId } } },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { id: true },
+  });
+  const caller = resolveRepairCaller();
+  const prior = await countPriorRepairs(taskId);
+  if (prior >= max) {
+    log.warn(
+      { taskId, caller, prior, max },
       '[verify-repair] Repair attempts exhausted — caller should block',
     );
     return { bounced: false };
   }
 
-  const attempt = prior + 1;
-  const newStatus = await resolveImplementEntryStatus(taskId);
-
-  await writeRepairFeedback(taskId, reason, verifyContent, attempt);
-
-  // Keep the task non-terminal and roll the workflow back to the implementer
-  // entry so the runner re-runs implement → verify (rather than treating it as
-  // failed/blocked).
-  await prisma.task
-    .update({
-      where: { id: taskId },
-      data: { status: 'in-progress', workflowStatus: newStatus, updatedAt: new Date() },
-    })
-    .catch((err) =>
-      log.warn({ err, taskId }, '[verify-repair] Failed to reset task to in-progress'),
+  // Non-repairable cutoff: only the tamper tripwire failed. No implementer
+  // run can change that verdict — escalate on the first sighting instead of
+  // spending the whole repair budget on identical bounces.
+  if (isTamperOnlyVerdict(reason)) {
+    const detail =
+      '検証失敗が tamper ゲート（保護パスの計画外変更）のみで、実装者には解消できません。保護パス配下の変更は plan.md（またはタスク仕様）に明記して承認するか、人が差分を確認してコミットしてください。';
+    const taskRow = await prisma.task
+      .findUnique({ where: { id: taskId }, select: { title: true, themeId: true } })
+      .catch(() => null);
+    try {
+      const { escalateBlockedTask } = await import('./blocked-task-escalation');
+      await escalateBlockedTask(
+        prisma,
+        { id: taskId, title: taskRow?.title ?? `#${taskId}`, themeId: taskRow?.themeId ?? null },
+        'verify_no_convergence',
+        Date.now(),
+        detail,
+        currentStatus ?? null,
+      );
+    } catch (err) {
+      log.warn({ err, taskId }, '[verify-repair] Non-repairable escalation failed');
+    }
+    await recordTransition({
+      taskId,
+      fromStatus: currentStatus ?? null,
+      toStatus: currentStatus ?? 'blocked',
+      actor: 'system',
+      cause: VERIFY_NON_REPAIRABLE_CAUSE,
+      phase: 'verify',
+      metadata: { reason },
+    }).catch((err) =>
+      log.warn({ err, taskId }, '[verify-repair] Failed to record non-repairable transition'),
     );
+    log.warn({ taskId }, '[verify-repair] Tamper-only verdict — not repairable, cutting off');
+    return { bounced: false, cutoffRecorded: true };
+  }
 
-  await recordTransition({
+  // Non-convergence cutoff (task 619): same criterion flagged threshold+ times
+  // (not necessarily consecutive) with a non-shrinking indicted set means treading water — escalate.
+  const verdict = await detectRepairNonConvergence(taskId, reason, verifyContent);
+  if (verdict.cutoff) {
+    const detail = verdict.unchangedUnresolved
+      ? buildUnchangedUnresolvedDetail(verdict.unchangedUnresolved)
+      : verdict.repeatedEvidence
+        ? `同じ検証指摘「${verdict.repeatedEvidence.split('\n')[0]}」が${verdict.count}回の差し戻しで繰り返され、実装側で解消されていません。実装者では直せない指摘（存在しない前提・環境で実行不能な項目・計画の誤り）の可能性が高く、計画または仕様の見直しが必要です。`
+        : `受入基準${verdict.criterionIndex}が${verdict.count}回の差し戻しで指摘され、指摘集合が減っていません。タスク分割または仕様の見直しが必要です。`;
+    const taskRow = await prisma.task
+      .findUnique({ where: { id: taskId }, select: { title: true, themeId: true } })
+      .catch(() => null);
+    try {
+      // Dynamic import: keeps the escalation module out of this module's static graph.
+      const { escalateBlockedTask } = await import('./blocked-task-escalation');
+      await escalateBlockedTask(
+        prisma,
+        { id: taskId, title: taskRow?.title ?? `#${taskId}`, themeId: taskRow?.themeId ?? null },
+        'verify_no_convergence',
+        Date.now(),
+        detail,
+        currentStatus ?? null,
+      );
+    } catch (err) {
+      log.warn({ err, taskId }, '[verify-repair] Non-convergence escalation failed');
+    }
+    // Recorded LAST so it is the latest transition — hasFreshVerifyRejection
+    // reads only the newest row, and this cause must veto the executor epilogue.
+    await recordTransition({
+      taskId,
+      fromStatus: currentStatus ?? null,
+      toStatus: currentStatus ?? 'blocked',
+      actor: 'system',
+      cause: VERIFY_NON_CONVERGENCE_CAUSE,
+      phase: 'verify',
+      metadata: {
+        criterionIndex: verdict.criterionIndex,
+        count: verdict.count,
+        previousCriteria: verdict.previousCriteria,
+        currentCriteria: verdict.currentCriteria,
+        repeatedEvidence: verdict.repeatedEvidence,
+        unchangedUnresolved: verdict.unchangedUnresolved,
+        reason,
+      },
+    }).catch((err) =>
+      log.warn({ err, taskId }, '[verify-repair] Failed to record non-convergence transition'),
+    );
+    log.warn(
+      {
+        taskId,
+        criterionIndex: verdict.criterionIndex,
+        count: verdict.count,
+        previousCriteria: verdict.previousCriteria,
+        currentCriteria: verdict.currentCriteria,
+        repeatedEvidence: verdict.repeatedEvidence,
+      },
+      '[verify-repair] Repair loop not converging — cutting off (caller should block)',
+    );
+    return { bounced: false, cutoffRecorded: true };
+  }
+
+  // Lifetime cap (task 946): the windowed budget above resets on
+  // question_resolved/task_retried/acceptance_criteria_changed/
+  // plan_invalid_replan, so several resets can let repairs accumulate past
+  // any single window's limit without ever tripping it (task 907: 18 bounces
+  // across 3 windows of 7/3/8). This is a safety net independent of the
+  // window boundary.
+  const lifetimeCount = await countLifetimeRepairs(taskId);
+  if (lifetimeCount >= MAX_VERIFY_REPAIR_LIFETIME) {
+    const detail = `累計${lifetimeCount}回の修復差し戻しが上限（${MAX_VERIFY_REPAIR_LIFETIME}）を超えました。窓リセットにより個々の予算は消費されていませんが、タスク全体としては収束していません。`;
+    const taskRow = await prisma.task
+      .findUnique({ where: { id: taskId }, select: { title: true, themeId: true } })
+      .catch(() => null);
+    try {
+      const { escalateBlockedTask } = await import('./blocked-task-escalation');
+      await escalateBlockedTask(
+        prisma,
+        { id: taskId, title: taskRow?.title ?? `#${taskId}`, themeId: taskRow?.themeId ?? null },
+        'verify_no_convergence',
+        Date.now(),
+        detail,
+        currentStatus ?? null,
+      );
+    } catch (err) {
+      log.warn({ err, taskId }, '[verify-repair] Lifetime-cap escalation failed');
+    }
+    await recordTransition({
+      taskId,
+      fromStatus: currentStatus ?? null,
+      toStatus: currentStatus ?? 'blocked',
+      actor: 'system',
+      cause: VERIFY_REPAIR_LIFETIME_CAUSE,
+      phase: 'verify',
+      metadata: { lifetimeCount, max: MAX_VERIFY_REPAIR_LIFETIME, reason },
+    }).catch((err) =>
+      log.warn({ err, taskId }, '[verify-repair] Failed to record lifetime-cap transition'),
+    );
+    log.warn(
+      { taskId, lifetimeCount, max: MAX_VERIFY_REPAIR_LIFETIME },
+      '[verify-repair] Lifetime repair cap exceeded — cutting off (caller should block)',
+    );
+    return { bounced: false, cutoffRecorded: true };
+  }
+
+  // Task 755: recurring checkWorkflowInvariants violations (task #572) — see verify-invariant-repair.ts.
+  const invariantWindow = await resolveRepairWindowStart(taskId);
+  if (await attemptInvariantCutoff(taskId, currentStatus, reason, invariantWindow))
+    return { bounced: false, cutoffRecorded: true };
+
+  const committed = await commitVerifyRepair(prisma, {
     taskId,
-    fromStatus: currentStatus ?? null,
-    toStatus: newStatus,
-    actor: 'system',
-    cause: REPAIR_CAUSE,
-    phase: 'verify',
-    metadata: { attempt, max: DEFAULT_MAX_VERIFY_REPAIRS, reason },
+    updatedAt: evaluatedTask.updatedAt,
+    workflowStatus: evaluatedTask.workflowStatus,
+    executionId: evaluatedExecution?.id ?? null,
+    max,
+    reason,
+    verifyContent,
+    caller,
+  });
+  if (!committed.committed) {
+    log.info({ taskId, reason: committed.reason }, '[verify-repair] Repair admission held');
+    return committed.reason === 'budget_exhausted' || committed.reason === 'repair_disabled'
+      ? { bounced: false }
+      : { bounced: false, stale: true };
+  }
+  const { attempt, newStatus } = committed;
+
+  // Self-drive the re-run: a single/manual execution has no poller, so a
+  // bounce would otherwise park the task at in-progress forever. Re-queue +
+  // idempotently start the runner so implement→verify re-runs regardless of
+  // launch mode.
+  await ensureRunnerResumes(taskId, {
+    updatedAt: committed.updatedAt,
+    workflowStatus: newStatus,
+    executionId: evaluatedExecution?.id ?? null,
   });
 
-  // Self-drive the re-run. The WorkflowRunner only polls while an AIOrchestra
-  // session or theme-auto-run is active; a single/manual execution has no poller,
-  // so a bounce would otherwise park the task at in-progress forever (the very
-  // stuck-state this loop is meant to avoid). Re-queue + idempotently start the
-  // runner so implement → verify actually re-runs regardless of launch mode.
-  await ensureRunnerResumes(taskId).catch((err) =>
-    log.warn({ err, taskId }, '[verify-repair] Failed to re-queue for self-repair'),
-  );
-
   log.info(
-    { taskId, attempt, max: DEFAULT_MAX_VERIFY_REPAIRS, newStatus },
+    { taskId, attempt, max, newStatus },
     '[verify-repair] Bounced verify failure back to implementer',
   );
   return { bounced: true, newStatus, attempt };
 }
 
 /**
- * Re-queue the task and ensure the WorkflowRunner is processing, so the
- * implement→verify re-run happens for a SINGLE/MANUAL execution that has no
- * poller driving it.
+ * Whether the most recent transition for this task is a fresh verify-phase
+ * rejection (bounce / adversarial-review FAIL / non-convergence cutoff /
+ * failed PR-creation — see rejectionCauses). The CLI executor's epilogue runs
+ * AFTER the agent's HTTP verify.md save, so a bounce recorded during that save
+ * must veto commit/PR/complete — without this, task 485's epilogue completed
+ * seconds after the jury bounced it. The freshness window guards against stale
+ * rows from a save that bypassed the HTTP handler.
  *
- * Skips entirely when the task's theme has ACTIVE auto-run: that scheduler
- * already re-enqueues its current task (with its themeId, so the global
- * concurrency gate counts it) and starts the runner. Enqueuing here too would
- * add a themeId-LESS item the gate can't see — letting the scheduler launch a
- * second task concurrently (the "multiple agents started before others
- * finished" bug). Idempotent: enqueue throws when an active item already exists
- * — swallowed. The per-task single-agent mutex prevents a duplicate agent.
- *
- * @param taskId - Task to resume / 再開対象タスク
+ * @param taskId - Task id / タスクID
+ * @param windowMs - Max age for the rejection to count. / 有効期間
+ * @returns True when completion must be skipped. / 完了処理を止めるべきか
  */
-async function ensureRunnerResumes(taskId: number): Promise<void> {
-  // Defer to the theme auto-run scheduler when it owns this task.
-  try {
-    const task = await prisma.task
-      .findUnique({ where: { id: taskId }, select: { themeId: true } })
-      .catch(() => null);
-    const { isThemeAutoRunActive } = await import('./auto-run/theme-auto-run-service');
-    if (await isThemeAutoRunActive(task?.themeId ?? null)) {
-      log.info(
-        { taskId, themeId: task?.themeId },
-        '[verify-repair] Theme auto-run is active — letting the scheduler resume (no extra enqueue)',
-      );
-      return;
-    }
-  } catch (err) {
-    // If we cannot determine auto-run state, fall through and self-drive — a
-    // stuck single-exec task is worse than a redundant (deduped) enqueue.
-    log.warn({ err, taskId }, '[verify-repair] Could not check theme auto-run state');
-  }
-
-  const { WorkflowQueueService } = await import('./workflow-queue');
-  const { WorkflowRunner } = await import('./workflow-runner');
-  try {
-    await WorkflowQueueService.getInstance().enqueue({ taskId });
-  } catch {
-    // Already queued/running — a driver is active; nothing to enqueue.
-  }
-  WorkflowRunner.getInstance().startProcessing(); // idempotent (guarded by `running`)
+export async function hasFreshVerifyRejection(
+  taskId: number,
+  windowMs = 30 * 60_000,
+): Promise<boolean> {
+  const last = await prisma.workflowTransition
+    .findFirst({
+      where: { taskId },
+      orderBy: { createdAt: 'desc' },
+      select: { cause: true, createdAt: true },
+    })
+    .catch(() => null);
+  if (!last) return false;
+  // NOTE: VERIFY_NON_CONVERGENCE_CAUSE / INVARIANT_NON_CONVERGENCE_CAUSE also
+  // count — a cutoff task (619, 794) must not be completed by a late epilogue
+  // either. 'verify_pr_not_created' too: the HTTP gate already failed to
+  // produce a PR, so without it here the epilogue retries the same doomed PR
+  // attempt (task 673).
+  const rejectionCauses = [
+    REPAIR_CAUSE,
+    'adversarial_review_failed',
+    VERIFY_NON_CONVERGENCE_CAUSE,
+    INVARIANT_NON_CONVERGENCE_CAUSE,
+    'verify_pr_not_created',
+  ];
+  if (!rejectionCauses.includes(last.cause)) return false;
+  return Date.now() - last.createdAt.getTime() <= windowMs;
 }

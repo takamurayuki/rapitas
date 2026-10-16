@@ -7,8 +7,7 @@
  *
  * Connects: KnowledgeEntry → Task suggestions (the missing feedback loop).
  */
-import { PrismaClient } from '@prisma/client';
-import { searchKnowledge } from '../memory/rag/search';
+import { PrismaClient } from '../../generated/prisma-postgres';
 import { sendAIMessage } from '../../utils/ai-client';
 import { parseJsonArray } from '../../utils/common/json-extractor';
 import { createLogger } from '../../config';
@@ -166,7 +165,10 @@ ${gapSummary || 'なし'}
         priority: s.priority || 'medium',
         source: (s.source as KnowledgeSuggestion['source']) || 'knowledge-followup',
         relatedKnowledgeIds: relatedIds,
-        confidence: s.confidence || 0.7,
+        // NOTE: `|| 0.7` previously coerced a legitimate confidence of 0 to 0.7 — only
+        // fall back when the AI omitted the field (undefined/non-number), not when it
+        // reported genuine zero confidence.
+        confidence: typeof s.confidence === 'number' ? s.confidence : 0.7,
       };
     });
 

@@ -11,7 +11,7 @@ const sample = `ERROR: You've hit your usage limit. ... try again at 1:19 PM.`;
 const fallback = await findFallbackAgentConfig(sample, 'codex');
 if (fallback) {
   console.log(
-    `Fallback choice: ${(fallback.agentConfig as any).name} (agentType=${(fallback.agentConfig as any).agentType})`,
+    `Fallback choice: ${fallback.agentConfig.name} (agentType=${fallback.agentConfig.agentType})`,
   );
 } else {
   console.log('No fallback available!');

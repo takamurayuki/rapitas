@@ -6,9 +6,29 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { themeSchema } from '../../schemas/theme.schema';
 import { NotFoundError, ValidationError } from '../../middleware/error-handler';
+import { parseRuntimeConfig } from '../../services/agents/verification/runtime-smoke/runtime-config';
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
+import { resolveThemeCategory } from './theme-category-resolver';
+import { writeScaffoldDocs } from './scaffold-docs-writer';
+import type { ScaffoldFile } from './scaffold-project-writer';
+
+/**
+ * Validate a runtimeConfigJson value before it's persisted — a broken value
+ * would otherwise silently fail later, at preview/verify time, far from
+ * where the mistake was made.
+ *
+ * @param runtimeConfigJson - Raw JSON string from the request body, or undefined/empty to skip. / リクエストの生JSON文字列
+ * @throws {ValidationError} When the JSON is malformed or fails shape validation. / 不正な場合
+ */
+function validateRuntimeConfigJsonOrThrow(runtimeConfigJson: string | null | undefined): void {
+  if (!runtimeConfigJson || !runtimeConfigJson.trim()) return; // absent/empty = not opted in (or clearing it)
+  const { error } = parseRuntimeConfig(runtimeConfigJson);
+  if (error) {
+    throw new ValidationError(`runtimeConfigJson が不正です: ${error}`);
+  }
+}
 
 export const themesRoutes = new Elysia({ prefix: '/themes' })
   // Get all themes
@@ -72,6 +92,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         repositoryUrl,
         workingDirectory,
         defaultBranch,
+        runtimeConfigJson,
         categoryId,
       } = body as {
         name: string;
@@ -82,8 +103,11 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         repositoryUrl?: string;
         workingDirectory?: string;
         defaultBranch?: string;
+        runtimeConfigJson?: string;
         categoryId: number;
       };
+
+      validateRuntimeConfigJsonOrThrow(runtimeConfigJson);
 
       return await prisma.theme.create({
         data: {
@@ -96,6 +120,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
           ...(repositoryUrl && { repositoryUrl }),
           ...(workingDirectory && { workingDirectory }),
           ...(defaultBranch && { defaultBranch }),
+          ...(runtimeConfigJson && { runtimeConfigJson }),
         },
         include: { category: true },
       });
@@ -133,6 +158,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         repositoryUrl,
         workingDirectory,
         defaultBranch,
+        runtimeConfigJson,
         categoryId,
       } = body as {
         name?: string;
@@ -143,9 +169,12 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         repositoryUrl?: string;
         workingDirectory?: string;
         defaultBranch?: string;
+        runtimeConfigJson?: string | null;
         categoryId?: number | null;
         sortOrder?: number;
       };
+
+      validateRuntimeConfigJsonOrThrow(runtimeConfigJson);
 
       const updateData: Record<string, unknown> = {};
       if (name !== undefined) updateData.name = name;
@@ -156,6 +185,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
       if (repositoryUrl !== undefined) updateData.repositoryUrl = repositoryUrl;
       if (workingDirectory !== undefined) updateData.workingDirectory = workingDirectory;
       if (defaultBranch !== undefined) updateData.defaultBranch = defaultBranch;
+      if (runtimeConfigJson !== undefined) updateData.runtimeConfigJson = runtimeConfigJson;
       if (categoryId !== undefined) updateData.categoryId = categoryId;
 
       // Auto-link to Development category when isDevelopment is being set to true and no categoryId specified
@@ -180,34 +210,54 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
   )
 
   // Delete theme
-  .delete('/:id', async (context) => {
-    const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
-      throw new ValidationError('無効なIDです');
-    }
+  .delete(
+    '/:id',
+    async (context) => {
+      const { params } = context;
+      const id = parseInt(params.id);
+      if (isNaN(id)) {
+        throw new ValidationError('無効なIDです');
+      }
 
-    return await prisma.theme.delete({
-      where: { id },
-    });
-  })
+      return await prisma.theme.delete({
+        where: { id },
+      });
+    },
+    {
+      params: t.Object({ id: t.String() }),
+    },
+  )
 
   // Reorder themes
-  .patch('/reorder', async (context) => {
-    const { body } = context;
-    const { orders } = body as { orders: Array<{ id: number; sortOrder: number }> };
+  .patch(
+    '/reorder',
+    async (context) => {
+      const { body } = context;
+      const { orders } = body as { orders: Array<{ id: number; sortOrder: number }> };
 
-    await Promise.all(
-      orders.map(({ id, sortOrder }) =>
-        prisma.theme.update({
-          where: { id },
-          data: { sortOrder },
-        }),
-      ),
-    );
+      await Promise.all(
+        orders.map(({ id, sortOrder }) =>
+          prisma.theme.update({
+            where: { id },
+            data: { sortOrder },
+          }),
+        ),
+      );
 
-    return { success: true };
-  })
+      return { success: true };
+    },
+    {
+      body: t.Object({
+        orders: t.Array(
+          t.Object({
+            id: t.Number(),
+            sortOrder: t.Number(),
+          }),
+          { maxItems: 500 },
+        ),
+      }),
+    },
+  )
 
   // Set default theme (per category: only one default per category)
   .patch('/:id/set-default', async (context) => {
@@ -252,17 +302,31 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
   .post(
     '/setup-from-claude-md',
     async (context) => {
-      const { body } = context;
-      const { appName, claudeMd, requirements, design, agentFilePath, basePath, description } =
-        body as {
-          appName: string;
-          claudeMd: string;
-          requirements?: string;
-          design?: string;
-          agentFilePath?: string;
-          basePath?: string;
-          description?: string;
-        };
+      const { body, set } = context;
+      // categoryId: target category; omitted falls back to 開発.
+      const {
+        appName,
+        claudeMd,
+        requirements,
+        design,
+        adr,
+        scaffold,
+        agentFilePath,
+        basePath,
+        description,
+        categoryId,
+      } = body as {
+        appName: string;
+        claudeMd: string;
+        requirements?: string;
+        design?: string;
+        adr?: string;
+        scaffold?: ScaffoldFile[];
+        agentFilePath?: string;
+        basePath?: string;
+        description?: string;
+        categoryId?: number;
+      };
 
       try {
         // NOTE: Sanitize app name to create folder name — supports ASCII, Japanese, and mixed names.
@@ -307,7 +371,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         // Initialize git repository
         try {
           execSync('git init', { cwd: projectPath, stdio: 'pipe' });
-        } catch (error) {
+        } catch {
           throw new ValidationError('Git リポジトリの初期化に失敗しました');
         }
 
@@ -325,16 +389,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
 
         // NOTE: Write human-readable requirements/design docs to docs/ so an AI
         // agent (and humans) have the full implementation package in the repo.
-        if (requirements?.trim() || design?.trim()) {
-          const docsDir = path.join(projectPath, 'docs');
-          fs.mkdirSync(docsDir, { recursive: true });
-          if (requirements?.trim()) {
-            fs.writeFileSync(path.join(docsDir, 'requirements.md'), requirements, 'utf8');
-          }
-          if (design?.trim()) {
-            fs.writeFileSync(path.join(docsDir, 'design.md'), design, 'utf8');
-          }
-        }
+        writeScaffoldDocs(projectPath, { requirements, design, adr, scaffold });
 
         // Make initial commit and create develop branch
         try {
@@ -355,24 +410,16 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         try {
           execSync('git branch develop', { cwd: projectPath, stdio: 'pipe' });
           execSync('git checkout develop', { cwd: projectPath, stdio: 'pipe' });
-        } catch (error) {
+        } catch {
           // NOTE: Non-fatal — develop branch creation can fail if default branch is already 'develop'
         }
 
-        // Find or create Development category
-        let devCategory = await prisma.category.findFirst({
-          where: { name: '開発', isDefault: true },
-        });
-
-        if (!devCategory) {
-          // Create Development category if it doesn't exist
-          devCategory = await prisma.category.create({
-            data: {
-              name: '開発',
-              mode: 'development',
-              isDefault: true,
-            },
-          });
+        // See theme-category-resolver: caller's choice wins, 開発 is the
+        // fallback, an unknown id is rejected, and isDevelopment follows mode.
+        const resolved = await resolveThemeCategory(prisma.category, categoryId);
+        if (!resolved.ok) {
+          set.status = 400;
+          return { success: false, error: resolved.error };
         }
 
         // Create theme record
@@ -380,8 +427,8 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
           data: {
             name: appName,
             description: description || `${appName}プロジェクトのテーマ`,
-            categoryId: devCategory.id,
-            isDevelopment: true,
+            categoryId: resolved.category.id,
+            isDevelopment: resolved.isDevelopment,
             workingDirectory: projectPath,
             defaultBranch: 'develop',
           },
@@ -444,15 +491,21 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
       throw new ValidationError('repositoryUrl パラメータが必要です');
     }
 
-    // Validate URL format
-    if (!repositoryUrl.match(/^https?:\/\/.+\/.+\.git$|^https?:\/\/.+\/.+$/)) {
+    // Validate URL format. The trailing `.+` used to allow shell metacharacters
+    // (" ; ` $ | &) through to a shell-string git command — a command-injection
+    // sink reachable cross-site (GET bypasses the CSRF guard). Reject any
+    // metacharacter, and run git via execFile (array args, no shell) below.
+    if (
+      !repositoryUrl.match(/^https?:\/\/.+\/.+\.git$|^https?:\/\/.+\/.+$/) ||
+      /["'`;$|&<>\\\s]/.test(repositoryUrl)
+    ) {
       throw new ValidationError('無効なリポジトリURLです');
     }
 
     try {
-      // Use git ls-remote to fetch branches
-      const command = `git ls-remote --heads "${repositoryUrl}"`;
-      const output = execSync(command, {
+      // execFile (no shell): repositoryUrl is passed as a discrete argv element,
+      // so metacharacters can never be interpreted even if the regex is loosened.
+      const output = execFileSync('git', ['ls-remote', '--heads', repositoryUrl], {
         encoding: 'utf8',
         timeout: 10000, // 10 second timeout
         maxBuffer: 1024 * 1024, // 1MB buffer

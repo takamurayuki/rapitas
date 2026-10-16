@@ -12,7 +12,7 @@
  *
  * Three tiers enforce progressively relaxed constraints:
  *   prod    – production source; strictest gate
- *   scripts – build/tooling scripts; console allowed as warning
+ *   scripts – build/tooling scripts; console output IS the product, unrestricted
  *   tests   – test files; console and `any` both unrestricted
  *
  * @param {'prod'|'scripts'|'tests'} stage - The code stage.
@@ -24,7 +24,12 @@ export function stagedSeverity(stage) {
     case 'prod':
       return {
         'no-console': 'error',
-        '@typescript-eslint/no-explicit-any': 'warn',
+        // NOTE: 'error', not 'warn' — CLAUDE.md §3's "No any" rule was only a
+        // warning until 2026-07-16, so violations passed CI silently. An
+        // unavoidable `any` (e.g. cross-provider Prisma StringFilter casts)
+        // requires an eslint-disable directive WITH the adjacent
+        // `// HACK(agent): reason` comment the policy already mandates.
+        '@typescript-eslint/no-explicit-any': 'error',
         '@typescript-eslint/no-unused-vars': [
           'warn',
           { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
@@ -32,8 +37,9 @@ export function stagedSeverity(stage) {
       };
     case 'scripts':
       return {
-        // NOTE: Scripts may log freely, but warnings surface accidental debug output.
-        'no-console': 'warn',
+        // NOTE: CLI tools under scripts/** print to stdout/stderr as their actual
+        // output contract, not debug leakage — no-console has no signal here.
+        'no-console': 'off',
       };
     case 'tests':
       return {

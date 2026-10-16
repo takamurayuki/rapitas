@@ -1,25 +1,23 @@
 /**
  * DevProjectFields
  *
- * Renders the "Development Project" collapsible section inside ThemeForm,
- * including repository URL, working directory picker, directory status
- * indicator, and default branch selector. Folder-creation UI is delegated
- * to FolderCreator.
+ * Renders the "Development Project" section of ThemeForm as a three-step
+ * setup pipeline (working directory → repository → branch), where each step
+ * communicates its state via icon + chip instead of prose. Folder-creation UI
+ * is delegated to FolderCreator, repo/branch actions to RepoInitializer and
+ * BranchCreator.
  */
-import {
-  Code,
-  FolderGit2,
-  FolderOpen,
-  CheckCircle,
-  Loader2,
-  GitBranch,
-  AlertCircle,
-} from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { Code, FolderGit2, FolderOpen, GitBranch, AlertCircle, AppWindow } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { DirectoryPicker } from '@/components/ui/DirectoryPicker';
+import { RuntimeConfigEditor } from '@/components/runtime-config/RuntimeConfigEditor';
 import type { FormData } from '../_hooks/useThemesPage';
 import type { Category } from '@/types';
 import { FolderCreator } from './folder-creator';
+import { RepoInitializer } from './repo-initializer';
+import { BranchCreator } from './branch-creator';
+import { SetupStep, type StepState } from './setup-step';
 
 type DirStatus = {
   checking: boolean;
@@ -48,12 +46,25 @@ type Props = {
   onCreateNewFolder: () => void;
 };
 
+// Shared control metrics for every input/select in this section (h-9 rows).
+const inputClass =
+  'w-full h-9 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 text-sm focus:outline-none focus:border-indigo-400 transition-colors';
+
+// A URL is worth querying only once it names owner AND repository — firing on
+// every keystroke queried partial URLs whose failures raced the real one.
+const COMPLETE_REPO_URL = /github\.com[/:][\w.-]+\/[\w.-]+/;
+
+/** Debounce (ms) between typing pauses and the automatic branch fetch. */
+const BRANCH_FETCH_DEBOUNCE_MS = 500;
+
 /**
  * Development-project sub-section of the theme form.
  *
  * @param props.formData - Current form values.
  * @param props.setFormData - Setter for form values.
- * @param props.editingId - Non-null when editing an existing theme (suppresses auto-detect banner).
+ * @param props.editingId - Non-null when editing an existing theme; used as the
+ *   RuntimeConfigEditor's remount key so switching between themes (or to "new")
+ *   re-parses its value instead of fighting the previous target's typed state.
  */
 export function DevProjectFields({
   formData,
@@ -77,8 +88,66 @@ export function DevProjectFields({
 }: Props) {
   const t = useTranslations('themes');
 
+  // Debounced branch fetch for typed URLs (programmatic fetches stay immediate).
+  const branchFetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (branchFetchTimer.current) clearTimeout(branchFetchTimer.current);
+    };
+  }, []);
+  const scheduleBranchFetch = (url: string) => {
+    if (branchFetchTimer.current) clearTimeout(branchFetchTimer.current);
+    if (!COMPLETE_REPO_URL.test(url)) return; // partial URL — wait for more input
+    branchFetchTimer.current = setTimeout(() => onFetchBranches(url), BRANCH_FETCH_DEBOUNCE_MS);
+  };
+
+  const dirState: StepState = dirStatus.checking
+    ? 'checking'
+    : !formData.workingDirectory.trim()
+      ? 'pending'
+      : dirStatus.exists === true
+        ? 'done'
+        : dirStatus.exists === false
+          ? 'attention'
+          : 'pending';
+
+  const repoState: StepState = formData.repositoryUrl.trim()
+    ? 'done'
+    : dirStatus.exists === true
+      ? 'attention'
+      : 'pending';
+
+  const branchState: StepState = loadingBranches
+    ? 'checking'
+    : branchError
+      ? 'attention'
+      : branches.length > 0
+        ? 'done'
+        : 'pending';
+
+  // Lightweight client-side sanity check only (non-empty required fields) —
+  // full shape validation (URL format, timeout clamping, etc.) is the
+  // backend's job at save time (parseRuntimeConfig), not duplicated here.
+  // RuntimeConfigEditor always serializes well-formed JSON with start/url as
+  // strings, so checking `typeof` alone would read "done" the instant any
+  // field is touched even with start/url still blank — trim().length is the
+  // actual signal that those two required fields are filled in.
+  const runtimeConfigState: StepState = (() => {
+    const raw = formData.runtimeConfigJson.trim();
+    if (!raw) return 'pending';
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      const o = parsed as Record<string, unknown>;
+      const start = typeof o?.start === 'string' ? o.start.trim() : '';
+      const url = typeof o?.url === 'string' ? o.url.trim() : '';
+      return start && url ? 'done' : 'attention';
+    } catch {
+      return 'attention';
+    }
+  })();
+
   return (
-    <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4 space-y-3">
+    <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3">
       {/* isDevelopment checkbox */}
       <label className="flex items-center gap-2 cursor-pointer">
         <input
@@ -97,7 +166,7 @@ export function DevProjectFields({
               setFormData({ ...formData, isDevelopment: checked });
             }
           }}
-          className="w-4 h-4 rounded border-zinc-300 text-purple-600 focus:ring-purple-500"
+          className="w-4 h-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
         />
         <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
           <Code className="w-3.5 h-3.5" />
@@ -106,54 +175,13 @@ export function DevProjectFields({
       </label>
 
       {formData.isDevelopment && (
-        <div className="space-y-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
-          <p className="text-xs text-purple-700 dark:text-purple-300 mb-2">
-            {t('devProjectDescription')}
-          </p>
-
-          {/* Repository URL */}
-          <div>
-            <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1 flex items-center gap-1.5">
-              <FolderGit2 className="w-3.5 h-3.5" />
-              {t('githubRepoUrl')}
-            </label>
-            <input
-              type="text"
-              value={formData.repositoryUrl}
-              onChange={(e) => {
-                const newUrl = e.target.value;
-                setFormData({ ...formData, repositoryUrl: newUrl });
-                if (newUrl.trim()) {
-                  onFetchBranches(newUrl);
-                } else {
-                  setBranches([]);
-                  setBranchError(null);
-                }
-              }}
-              onBlur={(e) => {
-                // Fetch branches on blur if not already loaded
-                const url = e.target.value.trim();
-                if (url && branches.length === 0 && !loadingBranches) {
-                  onFetchBranches(url);
-                }
-              }}
-              placeholder="https://github.com/username/repository"
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all"
-            />
-            {dirStatus.isGitRepo && formData.repositoryUrl && !editingId && (
-              <p className="mt-1 text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                <CheckCircle className="w-3 h-3" />
-                リポジトリURLを自動検出しました
-              </p>
-            )}
-          </div>
-
-          {/* Working directory */}
-          <div>
-            <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1 flex items-center gap-1.5">
-              <FolderOpen className="w-3.5 h-3.5" />
-              {t('workingDirectory')}
-            </label>
+        <div className="p-4 bg-zinc-50 dark:bg-zinc-900/40 rounded-lg border border-zinc-200 dark:border-zinc-800">
+          {/* Step 1 — working directory */}
+          <SetupStep
+            state={dirState}
+            label={t('stepWorkingDirectory')}
+            labelIcon={<FolderOpen className="w-3.5 h-3.5" />}
+          >
             <DirectoryPicker
               value={formData.workingDirectory}
               onChange={(path) => {
@@ -162,61 +190,93 @@ export function DevProjectFields({
               }}
               placeholder="C:\Projects\my-project / /home/user/projects/my-project"
             />
-
-            {formData.workingDirectory.trim() && (
+            {formData.workingDirectory.trim() && dirStatus.exists === false && (
               <div className="mt-2">
-                {dirStatus.checking ? (
-                  <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    {t('checkingFolder')}
-                  </div>
-                ) : dirStatus.exists === true ? (
-                  <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    {t('folderFound')}
-                    {dirStatus.isGitRepo && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 rounded text-xs">
-                        <GitBranch className="w-3 h-3" />
-                        Git
-                      </span>
-                    )}
-                  </div>
-                ) : dirStatus.exists === false ? (
-                  <FolderCreator
-                    newFolderName={newFolderName}
-                    setNewFolderName={setNewFolderName}
-                    isCreatingDir={isCreatingDir}
-                    showCreateFolder={showCreateFolder}
-                    onCreateDirectory={onCreateDirectory}
-                    onCreateNewFolder={onCreateNewFolder}
-                  />
-                ) : null}
+                <FolderCreator
+                  newFolderName={newFolderName}
+                  setNewFolderName={setNewFolderName}
+                  isCreatingDir={isCreatingDir}
+                  showCreateFolder={showCreateFolder}
+                  onCreateDirectory={onCreateDirectory}
+                  onCreateNewFolder={onCreateNewFolder}
+                />
               </div>
             )}
+          </SetupStep>
 
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              {t('workingDirectoryHelp')}
-            </p>
-          </div>
+          {/* Step 2 — repository (git / GitHub) */}
+          <SetupStep
+            state={repoState}
+            label={t('stepRepository')}
+            labelIcon={<FolderGit2 className="w-3.5 h-3.5" />}
+            badge={
+              dirStatus.isGitRepo ? (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium">
+                  <GitBranch className="w-3 h-3" />
+                  Git
+                </span>
+              ) : undefined
+            }
+          >
+            <RepoInitializer
+              workingDirectory={formData.workingDirectory.trim()}
+              defaultBranch={formData.defaultBranch}
+              showButton={
+                !dirStatus.checking &&
+                dirStatus.exists === true &&
+                (!dirStatus.isGitRepo || !formData.repositoryUrl.trim())
+              }
+              onInitialized={(repositoryUrl) => {
+                setFormData({ ...formData, repositoryUrl });
+                onFetchBranches(repositoryUrl);
+                onCheckDirectory(formData.workingDirectory);
+              }}
+            >
+              <input
+                type="text"
+                value={formData.repositoryUrl}
+                onChange={(e) => {
+                  const newUrl = e.target.value;
+                  setFormData({ ...formData, repositoryUrl: newUrl });
+                  if (newUrl.trim()) {
+                    scheduleBranchFetch(newUrl);
+                  } else {
+                    setBranches([]);
+                    setBranchError(null);
+                  }
+                }}
+                onBlur={(e) => {
+                  // Fetch branches on blur if not already loaded
+                  const url = e.target.value.trim();
+                  if (url && branches.length === 0 && !loadingBranches) {
+                    onFetchBranches(url);
+                  }
+                }}
+                aria-label={t('githubRepoUrl')}
+                title={t('githubRepoUrl')}
+                placeholder="https://github.com/username/repository"
+                className={inputClass}
+              />
+            </RepoInitializer>
+          </SetupStep>
 
-          {/* Default branch */}
-          <div>
-            <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1 flex items-center gap-1.5">
-              <GitBranch className="w-3.5 h-3.5" />
-              {t('defaultBranch')}
-              {loadingBranches && <Loader2 className="w-3 h-3 animate-spin text-purple-500" />}
-            </label>
-
+          {/* Step 3 — default branch */}
+          <SetupStep
+            state={branchState}
+            label={t('stepBranch')}
+            labelIcon={<GitBranch className="w-3.5 h-3.5" />}
+          >
             {branches.length > 0 ? (
               <select
                 value={formData.defaultBranch}
                 onChange={(e) => setFormData({ ...formData, defaultBranch: e.target.value })}
-                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all"
+                aria-label={t('defaultBranch')}
+                className={inputClass}
               >
                 {branches.map((branch) => (
                   <option key={branch} value={branch}>
                     {branch}
-                    {branch === 'develop' && ' (推奨)'}
+                    {branch === 'develop' && ` ${t('branchRecommendedSuffix')}`}
                     {branch === 'main' && branches.length > 1 && ' (GitHub Flow)'}
                   </option>
                 ))}
@@ -226,9 +286,10 @@ export function DevProjectFields({
                 type="text"
                 value={formData.defaultBranch}
                 onChange={(e) => setFormData({ ...formData, defaultBranch: e.target.value })}
+                aria-label={t('defaultBranch')}
                 placeholder="develop"
                 disabled={loadingBranches}
-                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`${inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}
               />
             )}
 
@@ -239,12 +300,39 @@ export function DevProjectFields({
               </p>
             )}
 
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              {branches.length > 0
-                ? `${branches.length}個のブランチが見つかりました`
-                : 'リポジトリURLを入力するとブランチ一覧が表示されます'}
+            <BranchCreator
+              workingDirectory={formData.workingDirectory.trim()}
+              branches={branches}
+              defaultBranch={formData.defaultBranch}
+              enabled={dirStatus.exists === true && dirStatus.isGitRepo}
+              onCreated={(branch, pushed) => {
+                setFormData({ ...formData, defaultBranch: branch });
+                // NOTE: Only refresh the remote branch list when the branch was
+                // pushed — a local-only branch is not listed remotely, and the
+                // refresh would auto-reset defaultBranch to the first entry.
+                if (pushed && formData.repositoryUrl.trim()) {
+                  onFetchBranches(formData.repositoryUrl);
+                }
+              }}
+            />
+          </SetupStep>
+
+          {/* Step 4 — runtime config (live preview + runtime verification) */}
+          <SetupStep
+            state={runtimeConfigState}
+            label={t('stepRuntimeConfig')}
+            labelIcon={<AppWindow className="w-3.5 h-3.5" />}
+            isLast
+          >
+            <RuntimeConfigEditor
+              key={editingId ?? 'new'}
+              value={formData.runtimeConfigJson}
+              onChange={(json) => setFormData({ ...formData, runtimeConfigJson: json })}
+            />
+            <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+              {t('runtimeConfigHelp')}
             </p>
-          </div>
+          </SetupStep>
         </div>
       )}
     </div>

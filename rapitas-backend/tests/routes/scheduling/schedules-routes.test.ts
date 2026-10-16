@@ -185,7 +185,7 @@ describe('POST /schedules/', () => {
     expect(mockPrisma.scheduleEvent.create).toHaveBeenCalledTimes(1);
   });
 
-  test('タイトルなしで400を返すこと', async () => {
+  test('空タイトルで422を返すこと（スキーマ minLength で拒否）', async () => {
     const res = await app.handle(
       new Request('http://localhost/schedules/', {
         method: 'POST',
@@ -197,10 +197,11 @@ describe('POST /schedules/', () => {
       }),
     );
 
-    expect(res.status).toBe(400);
+    // title は t.String({ minLength: 1 }) — 空文字はハンドラ到達前に 422 で弾く。
+    expect(res.status).toBe(422);
   });
 
-  test('startAtなしで400を返すこと', async () => {
+  test('startAtなしで422を返すこと（スキーマ検証で必須フィールド欠落を拒否）', async () => {
     const res = await app.handle(
       new Request('http://localhost/schedules/', {
         method: 'POST',
@@ -211,7 +212,8 @@ describe('POST /schedules/', () => {
       }),
     );
 
-    expect(res.status).toBe(400);
+    // startAt は必須 — スキーマがハンドラ到達前に 422 で弾く。
+    expect(res.status).toBe(422);
   });
 });
 

@@ -27,6 +27,7 @@ CREATE TABLE "AgentSession" (
     "lastActivityAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "totalTokensUsed" INTEGER NOT NULL DEFAULT 0,
     "totalCostUsd" DECIMAL NOT NULL DEFAULT 0,
+    "totalLlmCallCount" INTEGER NOT NULL DEFAULT 0,
     "errorMessage" TEXT,
     "metadata" TEXT,
     "branchName" TEXT,
@@ -117,6 +118,11 @@ CREATE TABLE "AgentExecution" (
     "questionType" TEXT,
     "questionDetails" TEXT,
     "claudeSessionId" TEXT,
+    "llmCallCount" INTEGER NOT NULL DEFAULT 0,
+    "cpuTimeMs" INTEGER,
+    "peakRssKb" INTEGER,
+    "ownerId" TEXT,
+    "heartbeatAt" DATETIME,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "AgentExecution_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "AgentSession" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "AgentExecution_agentConfigId_fkey" FOREIGN KEY ("agentConfigId") REFERENCES "AIAgentConfig" ("id") ON DELETE SET NULL ON UPDATE CASCADE
@@ -203,6 +209,28 @@ CREATE TABLE "CopilotMessage" (
     "claudeSessionId" TEXT,
     "metadata" TEXT NOT NULL DEFAULT '{}',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "AgentDecisionTrace" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER,
+    "executionId" INTEGER,
+    "sessionId" INTEGER,
+    "nodeKey" TEXT NOT NULL,
+    "parentKeys" TEXT NOT NULL DEFAULT '[]',
+    "kind" TEXT NOT NULL,
+    "summary" TEXT NOT NULL,
+    "stage" TEXT NOT NULL DEFAULT 'full',
+    "inputMasked" TEXT NOT NULL DEFAULT '{}',
+    "candidatesMasked" TEXT NOT NULL DEFAULT '[]',
+    "adoptedId" TEXT NOT NULL,
+    "adoptedReason" TEXT NOT NULL,
+    "rejectedReasons" TEXT NOT NULL DEFAULT '{}',
+    "consistency" TEXT NOT NULL DEFAULT 'pending',
+    "consistencyNote" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "verifiedAt" DATETIME
 );
 
 -- CreateTable
@@ -331,6 +359,7 @@ CREATE TABLE "Theme" (
     "repositoryUrl" TEXT,
     "workingDirectory" TEXT,
     "defaultBranch" TEXT DEFAULT 'develop',
+    "runtimeConfigJson" TEXT,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
     "categoryId" INTEGER,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -380,6 +409,7 @@ CREATE TABLE "Task" (
     "projectId" INTEGER,
     "milestoneId" INTEGER,
     "examGoalId" INTEGER,
+    "studyGoalId" INTEGER,
     "isDeveloperMode" BOOLEAN NOT NULL DEFAULT false,
     "isAiTaskAnalysis" BOOLEAN NOT NULL DEFAULT false,
     "agentGenerated" BOOLEAN NOT NULL DEFAULT false,
@@ -390,6 +420,7 @@ CREATE TABLE "Task" (
     "acceptanceCriteria" TEXT,
     "githubIssueId" INTEGER,
     "githubPrId" INTEGER,
+    "prCreationLockedAt" DATETIME,
     "autoExecutable" BOOLEAN NOT NULL DEFAULT false,
     "requireApproval" TEXT NOT NULL DEFAULT 'always',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -400,6 +431,10 @@ CREATE TABLE "Task" (
     "complexityScore" REAL,
     "workflowModeOverride" BOOLEAN NOT NULL DEFAULT false,
     "autoApprovePlan" BOOLEAN NOT NULL DEFAULT false,
+    "forbiddenChangeOverride" BOOLEAN NOT NULL DEFAULT false,
+    "forbiddenChangeOverrideReason" TEXT,
+    "workflowDisabled" BOOLEAN NOT NULL DEFAULT false,
+    "autoRunExcluded" BOOLEAN NOT NULL DEFAULT false,
     "isRecurring" BOOLEAN NOT NULL DEFAULT false,
     "recurrenceRule" TEXT,
     "recurrenceEndAt" DATETIME,
@@ -410,11 +445,17 @@ CREATE TABLE "Task" (
     "sourceTaskId" INTEGER,
     "nextOccurrence" DATETIME,
     "autoCreatedFromBacklog" BOOLEAN NOT NULL DEFAULT false,
+    "isProtected" BOOLEAN NOT NULL DEFAULT false,
+    "executionGenerationId" INTEGER NOT NULL DEFAULT 0,
+    "haltReason" TEXT,
+    "haltedAt" DATETIME,
+    "resumeCondition" TEXT,
     CONSTRAINT "Task_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "Task_themeId_fkey" FOREIGN KEY ("themeId") REFERENCES "Theme" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Task_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Task_milestoneId_fkey" FOREIGN KEY ("milestoneId") REFERENCES "Milestone" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Task_examGoalId_fkey" FOREIGN KEY ("examGoalId") REFERENCES "ExamGoal" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
+    CONSTRAINT "Task_studyGoalId_fkey" FOREIGN KEY ("studyGoalId") REFERENCES "StudyGoal" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Task_sourceTaskId_fkey" FOREIGN KEY ("sourceTaskId") REFERENCES "Task" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
@@ -449,8 +490,12 @@ CREATE TABLE "Label" (
     "color" TEXT NOT NULL DEFAULT '#6366F1',
     "icon" TEXT,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
+    "categoryId" INTEGER,
+    "themeId" INTEGER,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "Label_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
+    CONSTRAINT "Label_themeId_fkey" FOREIGN KEY ("themeId") REFERENCES "Theme" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -588,6 +633,25 @@ CREATE TABLE "WorkflowLearningRecord" (
 );
 
 -- CreateTable
+CREATE TABLE "TaskDurationPrediction" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER NOT NULL,
+    "groupingKey" TEXT NOT NULL,
+    "predictable" BOOLEAN NOT NULL DEFAULT false,
+    "sampleSize" INTEGER NOT NULL DEFAULT 0,
+    "medianMinutes" INTEGER,
+    "p25Minutes" INTEGER,
+    "p75Minutes" INTEGER,
+    "confidence" REAL NOT NULL DEFAULT 0,
+    "predictedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "actualDurationMinutes" INTEGER,
+    "errorMinutes" INTEGER,
+    "errorRatio" REAL,
+    "resolvedAt" DATETIME,
+    CONSTRAINT "TaskDurationPrediction_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "WorkflowOptimizationRule" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "ruleType" TEXT NOT NULL,
@@ -601,6 +665,45 @@ CREATE TABLE "WorkflowOptimizationRule" (
     "lastEvaluated" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "DetectionMissCase" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER NOT NULL,
+    "gate" TEXT NOT NULL,
+    "reason" TEXT NOT NULL DEFAULT '',
+    "evidenceJson" TEXT NOT NULL DEFAULT '{}',
+    "detectedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "dedupKey" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "GatePrecisionCase" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER NOT NULL,
+    "gate" TEXT NOT NULL,
+    "criterionIndex" INTEGER,
+    "reason" TEXT NOT NULL DEFAULT '',
+    "verdict" TEXT NOT NULL,
+    "evidenceJson" TEXT NOT NULL DEFAULT '{}',
+    "detectedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "dedupKey" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "MissSignatureSuggestion" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "caseId" INTEGER,
+    "signature" TEXT NOT NULL,
+    "explanation" TEXT NOT NULL DEFAULT '',
+    "status" TEXT NOT NULL DEFAULT 'pending_review',
+    "reviewedBy" TEXT,
+    "reviewedAt" DATETIME,
+    "dedupKey" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateTable
@@ -727,6 +830,47 @@ CREATE TABLE "FavoriteDirectory" (
 );
 
 -- CreateTable
+CREATE TABLE "GitRetryMetric" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "variant" TEXT NOT NULL,
+    "command" TEXT NOT NULL,
+    "attempts" INTEGER NOT NULL,
+    "succeeded" BOOLEAN NOT NULL,
+    "totalDelayMs" INTEGER NOT NULL,
+    "totalElapsedMs" INTEGER NOT NULL,
+    "finalErrorCategory" TEXT,
+    "baseDelay" INTEGER NOT NULL,
+    "maxDelay" INTEGER NOT NULL,
+    "maxRetries" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "StudyGoal" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "type" TEXT NOT NULL DEFAULT 'skill',
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "deadline" DATETIME,
+    "status" TEXT NOT NULL DEFAULT 'active',
+    "color" TEXT NOT NULL DEFAULT '#10B981',
+    "icon" TEXT,
+    "dailyMinutes" INTEGER NOT NULL DEFAULT 60,
+    "categoryId" INTEGER,
+    "themeId" INTEGER,
+    "currentLevel" TEXT,
+    "targetLevel" TEXT,
+    "generatedPlan" TEXT,
+    "isApplied" BOOLEAN NOT NULL DEFAULT false,
+    "targetScore" TEXT,
+    "actualScore" TEXT,
+    "legacySource" TEXT,
+    "legacyId" INTEGER,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
 CREATE TABLE "ExamGoal" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "name" TEXT NOT NULL,
@@ -749,6 +893,18 @@ CREATE TABLE "StudyStreak" (
     "tasksCompleted" INTEGER NOT NULL DEFAULT 0,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "StudySession" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "goalId" INTEGER,
+    "minutes" INTEGER NOT NULL,
+    "source" TEXT NOT NULL DEFAULT 'manual',
+    "note" TEXT,
+    "studiedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "pomodoroSessionId" INTEGER
 );
 
 -- CreateTable
@@ -795,6 +951,49 @@ CREATE TABLE "HabitLog" (
 );
 
 -- CreateTable
+CREATE TABLE "VocabDeck" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "VocabCard" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "deckId" INTEGER NOT NULL,
+    "front" TEXT NOT NULL,
+    "back" TEXT NOT NULL,
+    "note" TEXT,
+    "syllables" TEXT,
+    "pronunciation" TEXT,
+    "partOfSpeech" TEXT,
+    "details" TEXT,
+    "intervalDays" REAL NOT NULL DEFAULT 0,
+    "easeFactor" REAL NOT NULL DEFAULT 2.5,
+    "repetitions" INTEGER NOT NULL DEFAULT 0,
+    "lapses" INTEGER NOT NULL DEFAULT 0,
+    "dueAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "reviewedAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "VocabCard_deckId_fkey" FOREIGN KEY ("deckId") REFERENCES "VocabDeck" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "VocabReviewLog" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "cardId" INTEGER NOT NULL,
+    "deckId" INTEGER NOT NULL,
+    "grade" TEXT NOT NULL,
+    "elapsedDays" REAL NOT NULL,
+    "intervalDays" REAL NOT NULL,
+    "repetitions" INTEGER NOT NULL,
+    "reviewedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
 CREATE TABLE "Resource" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "taskId" INTEGER,
@@ -833,6 +1032,11 @@ CREATE TABLE "KnowledgeEntry" (
     "validationMethod" TEXT,
     "themeId" INTEGER,
     "taskId" INTEGER,
+    "sourceRef" TEXT,
+    "applicabilityConditions" TEXT,
+    "entryVersion" INTEGER NOT NULL DEFAULT 1,
+    "expiresAt" DATETIME,
+    "counterEvidence" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );
@@ -871,6 +1075,18 @@ CREATE TABLE "KnowledgeContradiction" (
     "description" TEXT,
     "resolution" TEXT,
     "resolvedAt" DATETIME,
+    "claimA" TEXT,
+    "claimB" TEXT,
+    "citationA" TEXT,
+    "citationB" TEXT,
+    "asOfA" TEXT,
+    "asOfB" TEXT,
+    "codeVersionA" TEXT,
+    "codeVersionB" TEXT,
+    "confidence" REAL,
+    "needsReview" BOOLEAN NOT NULL DEFAULT false,
+    "contentHashAAtDetection" TEXT,
+    "contentHashBAtDetection" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "KnowledgeContradiction_entryAId_fkey" FOREIGN KEY ("entryAId") REFERENCES "KnowledgeEntry" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
@@ -992,6 +1208,81 @@ CREATE TABLE "EpisodeMemory" (
 );
 
 -- CreateTable
+CREATE TABLE "PrRiskConfig" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "stage" TEXT NOT NULL DEFAULT 'off',
+    "threshold" REAL NOT NULL DEFAULT 0.5,
+    "modelJson" TEXT,
+    "modelVersion" INTEGER NOT NULL DEFAULT 0,
+    "stageChangedAt" DATETIME,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "PrRiskScore" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "repo" TEXT NOT NULL,
+    "prNumber" INTEGER NOT NULL,
+    "headSha" TEXT NOT NULL,
+    "taskId" INTEGER,
+    "score" REAL NOT NULL,
+    "baseLogit" REAL NOT NULL,
+    "featuresJson" TEXT NOT NULL,
+    "contributionsJson" TEXT NOT NULL,
+    "thresholdUsed" REAL NOT NULL,
+    "stage" TEXT NOT NULL,
+    "modelVersion" INTEGER NOT NULL,
+    "held" BOOLEAN NOT NULL DEFAULT false,
+    "commentPostedAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "PrOutcome" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "repo" TEXT NOT NULL,
+    "prNumber" INTEGER NOT NULL,
+    "mergeSha" TEXT,
+    "mergedAt" DATETIME,
+    "label" TEXT NOT NULL DEFAULT 'pending',
+    "failureKind" TEXT,
+    "revertSha" TEXT,
+    "revertAt" DATETIME,
+    "incidentNote" TEXT,
+    "labeledAt" DATETIME,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "PrRiskMonthlyMetric" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "month" TEXT NOT NULL,
+    "sample" INTEGER NOT NULL,
+    "tp" INTEGER NOT NULL,
+    "fp" INTEGER NOT NULL,
+    "fn" INTEGER NOT NULL,
+    "tn" INTEGER NOT NULL,
+    "precision" REAL,
+    "recall" REAL,
+    "fpr" REAL,
+    "threshold" REAL NOT NULL,
+    "modelVersion" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "PrRiskThresholdReview" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "month" TEXT NOT NULL,
+    "previousThreshold" REAL NOT NULL,
+    "proposedThreshold" REAL,
+    "adopted" BOOLEAN NOT NULL,
+    "reason" TEXT NOT NULL,
+    "sample" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
 CREATE TABLE "ScheduleEvent" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "title" TEXT NOT NULL,
@@ -1029,6 +1320,23 @@ CREATE TABLE "PaidLeaveBalance" (
 );
 
 -- CreateTable
+CREATE TABLE "CalendarBusyBlock" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "startAt" DATETIME NOT NULL,
+    "endAt" DATETIME NOT NULL,
+    "fetchedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "CalendarSyncState" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT DEFAULT 1,
+    "lastSyncedAt" DATETIME,
+    "lastStatus" TEXT NOT NULL DEFAULT 'never',
+    "lastError" TEXT,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
 CREATE TABLE "Notification" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "type" TEXT NOT NULL,
@@ -1039,6 +1347,17 @@ CREATE TABLE "Notification" (
     "readAt" DATETIME,
     "metadata" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "Memo" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "content" TEXT NOT NULL,
+    "remindAt" DATETIME,
+    "remindedAt" DATETIME,
+    "isDone" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
 );
 
 -- CreateTable
@@ -1067,7 +1386,13 @@ CREATE TABLE "UserSettings" (
     "autoApprovePlan" BOOLEAN NOT NULL DEFAULT false,
     "autoApproveSubtaskPlan" BOOLEAN NOT NULL DEFAULT true,
     "autoComplexityAnalysis" BOOLEAN NOT NULL DEFAULT false,
+    "workflowDisabledGlobally" BOOLEAN NOT NULL DEFAULT false,
     "autoCreateFromBacklogLimit" INTEGER NOT NULL DEFAULT 0,
+    "restartOnAutoRunDry" BOOLEAN NOT NULL DEFAULT false,
+    "verifyRepairLimit" INTEGER NOT NULL DEFAULT 2,
+    "executionStallThresholdMinutes" INTEGER NOT NULL DEFAULT 5,
+    "idleStopMinutes" INTEGER NOT NULL DEFAULT 60,
+    "selfRefillWindowStart" TEXT NOT NULL DEFAULT '03:00',
     "autoCommitDefault" BOOLEAN NOT NULL DEFAULT false,
     "autoCreatePRDefault" BOOLEAN NOT NULL DEFAULT false,
     "autoMergePRDefault" BOOLEAN NOT NULL DEFAULT false,
@@ -1215,16 +1540,59 @@ CREATE TABLE "DailyScheduleBlock" (
 );
 
 -- CreateTable
+CREATE TABLE "UsageBudget" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "unit" TEXT NOT NULL DEFAULT 'tokens',
+    "monthlyLimit" INTEGER NOT NULL,
+    "snoozedUntil" DATETIME,
+    "acknowledgedKey" TEXT,
+    "lastNotifiedKey" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "UsageBudgetThemeShare" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "budgetId" INTEGER NOT NULL,
+    "themeId" INTEGER NOT NULL,
+    "sharePercent" REAL NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "UsageClassificationRule" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "themeId" INTEGER NOT NULL,
+    "keyword" TEXT NOT NULL,
+    "sortOrder" INTEGER NOT NULL DEFAULT 0,
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
 CREATE TABLE "WorkflowFile" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "taskId" INTEGER NOT NULL,
     "fileType" TEXT NOT NULL,
+    "content" TEXT NOT NULL DEFAULT '',
     "sha256" TEXT NOT NULL,
     "sizeBytes" INTEGER NOT NULL,
-    "absolutePath" TEXT NOT NULL,
+    "absolutePath" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "WorkflowFile_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "WorkflowFileVersion" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER NOT NULL,
+    "fileType" TEXT NOT NULL,
+    "content" TEXT NOT NULL,
+    "sha256" TEXT NOT NULL,
+    "sizeBytes" INTEGER NOT NULL,
+    "archivedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "WorkflowFileVersion_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -1315,6 +1683,33 @@ CREATE TABLE "WorkflowQueueItem" (
 );
 
 -- CreateTable
+CREATE TABLE "RequirementReviewClaim" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER NOT NULL,
+    "snapshotDigest" TEXT NOT NULL,
+    "requestKey" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "claimToken" TEXT NOT NULL,
+    "ownerInstanceId" TEXT NOT NULL,
+    "heartbeatAt" DATETIME NOT NULL,
+    "resultJson" TEXT,
+    "reason" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "RequirementReviewClaim_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "RequirementReviewRetryRequest" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "requestId" TEXT NOT NULL,
+    "taskId" INTEGER NOT NULL,
+    "consumedAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "RequirementReviewRetryRequest_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "ThemeAutoRun" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "themeId" INTEGER NOT NULL,
@@ -1326,12 +1721,18 @@ CREATE TABLE "ThemeAutoRun" (
     "lastError" TEXT,
     "lastRunAt" DATETIME,
     "startedAt" DATETIME,
+    "idleSince" DATETIME,
+    "idleStoppedAt" DATETIME,
+    "lastSelfRefillAt" DATETIME,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );
 
 -- CreateIndex
 CREATE UNIQUE INDEX "DeveloperModeConfig_taskId_key" ON "DeveloperModeConfig"("taskId");
+
+-- CreateIndex
+CREATE INDEX "AgentExecution_status_heartbeatAt_idx" ON "AgentExecution"("status", "heartbeatAt");
 
 -- CreateIndex
 CREATE INDEX "AgentExecutionLog_executionId_sequenceNumber_idx" ON "AgentExecutionLog"("executionId", "sequenceNumber");
@@ -1362,6 +1763,18 @@ CREATE INDEX "CopilotMessage_taskId_createdAt_idx" ON "CopilotMessage"("taskId",
 
 -- CreateIndex
 CREATE INDEX "CopilotMessage_claudeSessionId_idx" ON "CopilotMessage"("claudeSessionId");
+
+-- CreateIndex
+CREATE INDEX "AgentDecisionTrace_taskId_nodeKey_idx" ON "AgentDecisionTrace"("taskId", "nodeKey");
+
+-- CreateIndex
+CREATE INDEX "AgentDecisionTrace_executionId_idx" ON "AgentDecisionTrace"("executionId");
+
+-- CreateIndex
+CREATE INDEX "AgentDecisionTrace_kind_idx" ON "AgentDecisionTrace"("kind");
+
+-- CreateIndex
+CREATE INDEX "AgentDecisionTrace_consistency_idx" ON "AgentDecisionTrace"("consistency");
 
 -- CreateIndex
 CREATE INDEX "UserBehavior_userId_actionType_idx" ON "UserBehavior"("userId", "actionType");
@@ -1469,6 +1882,18 @@ CREATE INDEX "WorkflowLearningRecord_outcome_idx" ON "WorkflowLearningRecord"("o
 CREATE INDEX "WorkflowLearningRecord_createdAt_idx" ON "WorkflowLearningRecord"("createdAt");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "TaskDurationPrediction_taskId_key" ON "TaskDurationPrediction"("taskId");
+
+-- CreateIndex
+CREATE INDEX "TaskDurationPrediction_taskId_idx" ON "TaskDurationPrediction"("taskId");
+
+-- CreateIndex
+CREATE INDEX "TaskDurationPrediction_groupingKey_idx" ON "TaskDurationPrediction"("groupingKey");
+
+-- CreateIndex
+CREATE INDEX "TaskDurationPrediction_resolvedAt_idx" ON "TaskDurationPrediction"("resolvedAt");
+
+-- CreateIndex
 CREATE INDEX "WorkflowOptimizationRule_ruleType_idx" ON "WorkflowOptimizationRule"("ruleType");
 
 -- CreateIndex
@@ -1476,6 +1901,45 @@ CREATE INDEX "WorkflowOptimizationRule_confidence_idx" ON "WorkflowOptimizationR
 
 -- CreateIndex
 CREATE INDEX "WorkflowOptimizationRule_isActive_idx" ON "WorkflowOptimizationRule"("isActive");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "DetectionMissCase_dedupKey_key" ON "DetectionMissCase"("dedupKey");
+
+-- CreateIndex
+CREATE INDEX "DetectionMissCase_gate_idx" ON "DetectionMissCase"("gate");
+
+-- CreateIndex
+CREATE INDEX "DetectionMissCase_taskId_idx" ON "DetectionMissCase"("taskId");
+
+-- CreateIndex
+CREATE INDEX "DetectionMissCase_detectedAt_idx" ON "DetectionMissCase"("detectedAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "GatePrecisionCase_dedupKey_key" ON "GatePrecisionCase"("dedupKey");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_gate_idx" ON "GatePrecisionCase"("gate");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_taskId_idx" ON "GatePrecisionCase"("taskId");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_verdict_idx" ON "GatePrecisionCase"("verdict");
+
+-- CreateIndex
+CREATE INDEX "GatePrecisionCase_detectedAt_idx" ON "GatePrecisionCase"("detectedAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "MissSignatureSuggestion_dedupKey_key" ON "MissSignatureSuggestion"("dedupKey");
+
+-- CreateIndex
+CREATE INDEX "MissSignatureSuggestion_status_idx" ON "MissSignatureSuggestion"("status");
+
+-- CreateIndex
+CREATE INDEX "MissSignatureSuggestion_caseId_idx" ON "MissSignatureSuggestion"("caseId");
+
+-- CreateIndex
+CREATE INDEX "MissSignatureSuggestion_reviewedAt_idx" ON "MissSignatureSuggestion"("reviewedAt");
 
 -- CreateIndex
 CREATE INDEX "PromptEvolution_category_idx" ON "PromptEvolution"("category");
@@ -1499,10 +1963,34 @@ CREATE UNIQUE INDEX "GitHubIssue_integrationId_issueNumber_key" ON "GitHubIssue"
 CREATE UNIQUE INDEX "FavoriteDirectory_path_key" ON "FavoriteDirectory"("path");
 
 -- CreateIndex
+CREATE INDEX "GitRetryMetric_variant_idx" ON "GitRetryMetric"("variant");
+
+-- CreateIndex
+CREATE INDEX "GitRetryMetric_createdAt_idx" ON "GitRetryMetric"("createdAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "StudyGoal_legacySource_legacyId_key" ON "StudyGoal"("legacySource", "legacyId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "StudyStreak_date_key" ON "StudyStreak"("date");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "StudySession_pomodoroSessionId_key" ON "StudySession"("pomodoroSessionId");
+
+-- CreateIndex
+CREATE INDEX "StudySession_studiedAt_idx" ON "StudySession"("studiedAt");
+
+-- CreateIndex
+CREATE INDEX "StudySession_goalId_studiedAt_idx" ON "StudySession"("goalId", "studiedAt");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "HabitLog_habitId_date_key" ON "HabitLog"("habitId", "date");
+
+-- CreateIndex
+CREATE INDEX "VocabCard_deckId_dueAt_idx" ON "VocabCard"("deckId", "dueAt");
+
+-- CreateIndex
+CREATE INDEX "VocabReviewLog_deckId_reviewedAt_idx" ON "VocabReviewLog"("deckId", "reviewedAt");
 
 -- CreateIndex
 CREATE INDEX "KnowledgeEntry_sourceType_sourceId_idx" ON "KnowledgeEntry"("sourceType", "sourceId");
@@ -1613,6 +2101,24 @@ CREATE INDEX "EpisodeMemory_phase_idx" ON "EpisodeMemory"("phase");
 CREATE INDEX "EpisodeMemory_importance_idx" ON "EpisodeMemory"("importance");
 
 -- CreateIndex
+CREATE INDEX "PrRiskScore_repo_prNumber_idx" ON "PrRiskScore"("repo", "prNumber");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PrRiskScore_repo_prNumber_headSha_key" ON "PrRiskScore"("repo", "prNumber", "headSha");
+
+-- CreateIndex
+CREATE INDEX "PrOutcome_label_idx" ON "PrOutcome"("label");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PrOutcome_repo_prNumber_key" ON "PrOutcome"("repo", "prNumber");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PrRiskMonthlyMetric_month_key" ON "PrRiskMonthlyMetric"("month");
+
+-- CreateIndex
+CREATE INDEX "PrRiskThresholdReview_month_idx" ON "PrRiskThresholdReview"("month");
+
+-- CreateIndex
 CREATE INDEX "ScheduleEvent_type_idx" ON "ScheduleEvent"("type");
 
 -- CreateIndex
@@ -1632,6 +2138,12 @@ CREATE INDEX "PaidLeaveBalance_fiscalYear_idx" ON "PaidLeaveBalance"("fiscalYear
 
 -- CreateIndex
 CREATE UNIQUE INDEX "PaidLeaveBalance_userId_fiscalYear_key" ON "PaidLeaveBalance"("userId", "fiscalYear");
+
+-- CreateIndex
+CREATE INDEX "CalendarBusyBlock_startAt_idx" ON "CalendarBusyBlock"("startAt");
+
+-- CreateIndex
+CREATE INDEX "Memo_remindAt_idx" ON "Memo"("remindAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "BacklogSchedule_kind_key" ON "BacklogSchedule"("kind");
@@ -1691,10 +2203,16 @@ CREATE INDEX "PomodoroSession_status_idx" ON "PomodoroSession"("status");
 CREATE INDEX "PomodoroSession_taskId_idx" ON "PomodoroSession"("taskId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "UsageBudgetThemeShare_budgetId_themeId_key" ON "UsageBudgetThemeShare"("budgetId", "themeId");
+
+-- CreateIndex
 CREATE INDEX "WorkflowFile_fileType_updatedAt_idx" ON "WorkflowFile"("fileType", "updatedAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowFile_taskId_fileType_key" ON "WorkflowFile"("taskId", "fileType");
+
+-- CreateIndex
+CREATE INDEX "WorkflowFileVersion_taskId_fileType_archivedAt_idx" ON "WorkflowFileVersion"("taskId", "fileType", "archivedAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRoleConfig_role_key" ON "WorkflowRoleConfig"("role");
@@ -1731,6 +2249,18 @@ CREATE INDEX "WorkflowQueueItem_themeId_status_idx" ON "WorkflowQueueItem"("them
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowQueueItem_taskId_orchestraSessionId_key" ON "WorkflowQueueItem"("taskId", "orchestraSessionId");
+
+-- CreateIndex
+CREATE INDEX "RequirementReviewClaim_taskId_status_idx" ON "RequirementReviewClaim"("taskId", "status");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RequirementReviewClaim_taskId_snapshotDigest_key" ON "RequirementReviewClaim"("taskId", "snapshotDigest");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RequirementReviewRetryRequest_requestId_key" ON "RequirementReviewRetryRequest"("requestId");
+
+-- CreateIndex
+CREATE INDEX "RequirementReviewRetryRequest_taskId_createdAt_idx" ON "RequirementReviewRetryRequest"("taskId", "createdAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ThemeAutoRun_themeId_key" ON "ThemeAutoRun"("themeId");

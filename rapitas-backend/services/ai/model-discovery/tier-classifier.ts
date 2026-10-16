@@ -28,17 +28,24 @@ export function classifyTier(modelId: string): ModelTier {
   }
 
   // 2. Premium markers — flagship reasoning / large-context tiers.
+  // `fable|mythos`: Anthropic's Mythos-class tier sits ABOVE Opus.
+  // `\bo\d\b` / `gpt-?5\b` carry a `(?!-(?:mini|nano))` guard so small
+  // variants ("o3-mini", "gpt-5-nano") fall through to the economy check —
+  // the old `o\d-(?:pro|max|preview)?\b` matched with an EMPTY suffix and
+  // misclassified "o3-mini" as premium. NOTE: premium must stay checked
+  // BEFORE economy — "geMINI" contains "mini", so an economy-first order
+  // would swallow every Gemini flagship.
   if (
-    /(opus|claude-3-opus|gpt-?5\b|o\d-(?:pro|max|preview)?\b|2\.5-pro|gemini-?\d-pro|pro-thinking|gpt-4-turbo|gpt-4-vision|premium)/.test(
+    /(opus|fable|mythos|claude-3-opus|gpt-?5\b(?!-(?:mini|nano))|\bo\d\b(?!-(?:mini|nano))|2\.5-pro|gemini-?\d(?:\.\d)?-pro|pro-thinking|gpt-4-turbo|gpt-4-vision|premium)/.test(
       m,
     )
   ) {
     return 'premium';
   }
 
-  // 3. Economy markers — small/fast variants. Checked BEFORE standard so that
-  // names like "gpt-4o-mini" land in economy rather than standard ("4o").
-  if (/(haiku|mini|flash|lite|nano|small|tiny|economy|micro|fast\b)/.test(m)) {
+  // 3. Economy markers — small/fast variants. `mini` requires a leading
+  // separator so "gemini" (the substring trap above) never matches.
+  if (/(haiku|(?:^|[-_.])mini\b|flash|lite|nano|small|tiny|economy|micro|fast\b)/.test(m)) {
     return 'economy';
   }
 
@@ -63,7 +70,13 @@ export function inferCostPer1k(modelId: string, tier: ModelTier): number {
     case 'standard':
       // gpt-4o-class hovers around $0.008, sonnet around $0.006 — average.
       return 0.006;
-    case 'premium':
-      return modelId.toLowerCase().includes('opus') ? 0.025 : 0.012;
+    case 'premium': {
+      // Mythos-class (fable/mythos) sits ABOVE Opus in Anthropic's actual
+      // pricing — must be checked before the opus branch or cheapest()
+      // picks fable/mythos as the "cheap premium" option (#797).
+      const id = modelId.toLowerCase();
+      if (/fable|mythos/.test(id)) return 0.04;
+      return id.includes('opus') ? 0.025 : 0.012;
+    }
   }
 }

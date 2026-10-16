@@ -32,11 +32,11 @@ export function DevToolsSection() {
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                  <Terminal className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+                  <Terminal className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                 </div>
                 <div>
-                  <h3 className="font-medium text-zinc-900 dark:text-zinc-50 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                  <h3 className="font-medium text-zinc-900 dark:text-zinc-50 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                     {t('cliManagement')}
                   </h3>
                   <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
@@ -51,11 +51,13 @@ export function DevToolsSection() {
       </div>
 
       {/* Integrations panel */}
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs dark:shadow-2xl dark:shadow-black/50 overflow-hidden">
+      <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-xs overflow-hidden">
         <div className="p-6 border-b border-zinc-200 dark:border-zinc-800">
-          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">外部連携</h2>
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
+            {t('devToolsSection.integrationsTitle')}
+          </h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Webhook通知とIDE統合の設定
+            {t('devToolsSection.integrationsDescription')}
           </p>
         </div>
         <div className="p-6 space-y-6">

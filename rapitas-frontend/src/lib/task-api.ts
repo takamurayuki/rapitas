@@ -3,7 +3,10 @@
  */
 
 import { apiClient, apiFetch, debouncedFetch, parallelFetch } from './api-client';
+import { createLogger } from '@/lib/logger';
 import type { Task, Status } from '@/types';
+
+const logger = createLogger('task-api');
 
 type RequestOptions = {
   cacheTime?: number;
@@ -96,7 +99,7 @@ export async function fetchTaskStatistics(): Promise<{
     });
   } catch (error) {
     // Fallback if endpoint not yet implemented
-    console.warn('Statistics endpoint not available, using fallback data:', error);
+    logger.warn('Statistics endpoint not available, using fallback data:', error);
 
     // Fetch basic task info and calculate statistics
     try {
@@ -126,7 +129,7 @@ export async function fetchTaskStatistics(): Promise<{
       return { total, byStatus, byCategory };
     } catch (fallbackError) {
       // Return default values if fallback also fails
-      console.error('Failed to fetch tasks for statistics fallback:', fallbackError);
+      logger.error('Failed to fetch tasks for statistics fallback:', fallbackError);
       return {
         total: 0,
         byStatus: {

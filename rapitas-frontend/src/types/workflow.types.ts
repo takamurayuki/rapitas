@@ -11,6 +11,9 @@ export type WorkflowStatus =
   | 'plan_created'
   | 'plan_approved'
   | 'in_progress'
+  // Paused awaiting the user's answer to an intake/clarification question.
+  | 'awaiting_question'
+  | 'blocked'
   | 'verify_done'
   | 'completed';
 
@@ -30,16 +33,11 @@ export type WorkflowPathInfo = {
   taskId: number;
   categoryId: number | null;
   themeId: number | null;
-  dir: string;
 };
 
-export type WorkflowRole =
-  | 'researcher'
-  | 'planner'
-  | 'reviewer'
-  | 'implementer'
-  | 'verifier'
-  | 'auto_verifier';
+// NOTE: 'reviewer' removed 2026-08 — the role was retired (plan-review is
+// covered by the backend's phase-critic + adversarial diff-review gates).
+export type WorkflowRole = 'researcher' | 'planner' | 'implementer' | 'verifier' | 'auto_verifier';
 
 export type WorkflowRoleConfig = {
   id: number;
@@ -60,7 +58,7 @@ export type WorkflowRoleConfig = {
    * Auto-select provider preference for this role:
    * - `claude` / `openai` / `gemini` / `ollama`: prefer that provider on tier ties.
    * - `cross-provider`: pick a provider different from the previous phase
-   *   (mitigates self-evaluation bias for reviewer/verifier roles).
+   *   (mitigates self-evaluation bias for verifier roles).
    * - `null`: fall back to UserSettings.defaultAiProvider.
    */
   preferredProviderOverride?: 'claude' | 'openai' | 'gemini' | 'ollama' | 'cross-provider' | null;

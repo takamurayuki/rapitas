@@ -1,0 +1,17 @@
+{
+  "autoRun": {
+    "start": "Auto-run",
+    "startTitle": "Auto-execute tasks in this theme one by one",
+    "pause": "Pause",
+    "pauseTitle": "Pause auto-run after current task completes",
+    "resume": "Resume",
+    "resumeTitle": "Resume auto-run",
+    "stop": "Stop",
+    "stopTitle": "Stop auto-run and cancel the in-flight task",
+    "awaitingApproval": "Awaiting approval",
+    "statusIdle": "Idle",
+    "statusRunning": "Running",
+    "statusPaused": "Paused",
+    "statusStopping": "Stopping"
+  }
+}

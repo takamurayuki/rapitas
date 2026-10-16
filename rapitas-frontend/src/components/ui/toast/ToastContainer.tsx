@@ -1,15 +1,17 @@
 'use client';
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
-import Toast, { type ToastType } from './toast';
+import Toast, { type ToastType, type ToastAction } from './toast';
 
 interface ToastMessage {
   id: string;
   message: string;
   type: ToastType;
+  action?: ToastAction;
 }
 
 interface ToastContextType {
-  showToast: (message: string, type?: ToastType) => void;
+  /** options.action renders a one-tap follow-up button inside the toast. */
+  showToast: (message: string, type?: ToastType, options?: { action?: ToastAction }) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -25,10 +27,13 @@ export function useToast() {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const showToast = useCallback((message: string, type: ToastType = 'info') => {
-    const id = Math.random().toString(36).substr(2, 9);
-    setToasts((prev) => [...prev, { id, message, type }]);
-  }, []);
+  const showToast = useCallback(
+    (message: string, type: ToastType = 'info', options?: { action?: ToastAction }) => {
+      const id = Math.random().toString(36).substr(2, 9);
+      setToasts((prev) => [...prev, { id, message, type, action: options?.action }]);
+    },
+    [],
+  );
 
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
@@ -43,6 +48,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             key={toast.id}
             message={toast.message}
             type={toast.type}
+            action={
+              toast.action && {
+                label: toast.action.label,
+                // Acting on the toast also dismisses it.
+                onClick: () => {
+                  toast.action?.onClick();
+                  removeToast(toast.id);
+                },
+              }
+            }
             onClose={() => removeToast(toast.id)}
           />
         ))}

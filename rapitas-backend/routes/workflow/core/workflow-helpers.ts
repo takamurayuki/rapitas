@@ -5,71 +5,42 @@
  * Not responsible for route definitions or business logic orchestration.
  */
 
-import { readFile, stat } from 'fs/promises';
 import { prisma } from '../../../config';
-import { getTaskWorkflowDir } from '../../../services/workflow/workflow-paths';
+import { WORKFLOW_STATUSES, WORKFLOW_FILE_TYPES } from '../../../services/workflow/workflow-types';
+import type { WorkflowFileType } from '../../../services/workflow/workflow-types';
 
-export const VALID_FILE_TYPES = ['research', 'question', 'plan', 'verify'] as const;
-export type WorkflowFileType = (typeof VALID_FILE_TYPES)[number];
+// NOTE: Re-exported as backward-compatible aliases so existing consumers (handlers, tests)
+// continue to import from this path without change. The SSOT is workflow-types.ts.
+export type { WorkflowFileType };
+export const VALID_WORKFLOW_STATUSES = WORKFLOW_STATUSES;
+export const VALID_FILE_TYPES = WORKFLOW_FILE_TYPES;
 
-export const VALID_WORKFLOW_STATUSES = [
-  'draft',
-  'research_done',
-  'plan_created',
-  'plan_approved',
-  'in_progress',
-  'verify_done',
-  'completed',
-] as const;
+// NOTE: Re-exported from services to avoid the duplicate implementation that previously lived here.
+export { resolveWorkflowDir } from '../../../services/workflow/workflow-file-utils';
 
 /**
- * Resolve the workflow directory path from a task ID.
- * Traverses Task -> Theme -> Category relations to get IDs.
+ * Get metadata and content for a single workflow file (DB-backed — see
+ * WorkflowFile in prisma/schema/workflow.prisma).
  *
- * @param taskId - The task ID to resolve / タスクIDからディレクトリを解決する
- * @returns Resolved task, dir path, and related IDs, or null if not found
- */
-export async function resolveWorkflowDir(taskId: number) {
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    include: { theme: { include: { category: true } } },
-  });
-
-  if (!task) return null;
-
-  const categoryId = task.theme?.categoryId ?? null;
-  const themeId = task.themeId ?? null;
-
-  return {
-    task,
-    dir: getTaskWorkflowDir(categoryId, themeId, taskId),
-    categoryId,
-    themeId,
-  };
-}
-
-/**
- * Get metadata and content for a single workflow file.
- *
- * @param filePath - Absolute path to the markdown file / ファイルパス
+ * @param taskId - Task the artifact belongs to. / 対象タスクID
  * @param fileType - The workflow file type label / ファイル種別
  * @returns File info object including existence, content, and timestamps
  */
-export async function getFileInfo(filePath: string, fileType: WorkflowFileType) {
-  try {
-    const content = await readFile(filePath, 'utf-8');
-    const stats = await stat(filePath);
-    return {
-      type: fileType,
-      exists: true,
-      content,
-      lastModified: stats.mtime.toISOString(),
-      size: stats.size,
-    };
-  } catch {
-    return {
-      type: fileType,
-      exists: false,
-    };
+export async function getFileInfo(taskId: number, fileType: WorkflowFileType) {
+  const row = await prisma.workflowFile
+    .findUnique({
+      where: { taskId_fileType: { taskId, fileType } },
+      select: { content: true, sizeBytes: true, updatedAt: true },
+    })
+    .catch(() => null);
+  if (!row) {
+    return { type: fileType, exists: false };
   }
+  return {
+    type: fileType,
+    exists: true,
+    content: row.content,
+    lastModified: row.updatedAt.toISOString(),
+    size: row.sizeBytes,
+  };
 }

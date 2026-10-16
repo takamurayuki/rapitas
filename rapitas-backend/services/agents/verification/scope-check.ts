@@ -22,6 +22,8 @@ const SCOPE_ALLOWLIST = new Set([
 
 /** File-like token: dotted extension at the end (with or without dir segments). */
 const PATHISH_RE = /^[\w.@-]+(?:[/\\][\w.@[\]-]+)*\.[A-Za-z]{1,6}$/;
+/** Explicit hidden files such as `.gitignore` have no conventional extension. */
+const DOTFILE_RE = /^(?:[\w.@[\]-]+[/\\])*\.[\w-]+(?:\.[\w-]+)*$/;
 /** Directory-like token: one or more path segments ending in a slash. */
 const DIRISH_RE = /^[\w.@-]+(?:[/\\][\w.@-]+)*[/\\]$/;
 
@@ -51,7 +53,7 @@ export function parsePlanFiles(planContent: string): string[] {
       .replace(/\\/g, '/');
     if (!token) return;
     if (requireSeparator && !token.includes('/')) return;
-    if (PATHISH_RE.test(token)) {
+    if (PATHISH_RE.test(token) || DOTFILE_RE.test(token)) {
       out.add(token);
       const slash = token.lastIndexOf('/');
       if (slash > 0) out.add(token.slice(0, slash + 1)); // parent dir (keep trailing '/')
@@ -137,5 +139,8 @@ export function evaluateScopeCheck(
       `plan.md に記載のないファイルが変更されています（計画外変更）。` +
       `該当ファイルを revert するか、計画の意図に含まれるなら plan.md に追記してください:\n` +
       offending.slice(0, 40).join('\n'),
+    // Structured list for the history-contamination classifier — capped like
+    // `details` so downstream `git log` fan-out stays bounded.
+    offendingFiles: offending.slice(0, 40),
   };
 }

@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Label } from '@/types';
 import { getIconComponent, ICON_DATA } from '@/components/category/icon-data';
 import { API_BASE_URL } from '@/utils/api';
@@ -10,24 +11,37 @@ const logger = createLogger('LabelSelector');
 type LabelSelectorProps = {
   selectedLabelIds: number[];
   onChange: (labelIds: number[]) => void;
+  /** Restrict choices to this category's labels (labels are category-scoped);
+      omit to show everything. */
+  categoryId?: number | null;
+  /** Pre-fetched labels — when provided the selector skips its own fetch
+      (parents use this to hide themselves when the list is empty). */
+  labels?: Label[];
   className?: string;
 };
 
 export default function LabelSelector({
   selectedLabelIds,
   onChange,
+  categoryId,
+  labels: providedLabels,
   className = '',
 }: LabelSelectorProps) {
-  const [labels, setLabels] = useState<Label[]>([]);
-  const [loading, setLoading] = useState(true);
+  const t = useTranslations('task.labelSelector');
+  const [fetchedLabels, setFetchedLabels] = useState<Label[]>([]);
+  const [loading, setLoading] = useState(providedLabels == null);
+  const hasProvidedLabels = providedLabels != null;
 
   useEffect(() => {
+    if (hasProvidedLabels) return; // parent owns the data
     const fetchLabels = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/labels`);
         if (res.ok) {
-          const data = await res.json();
-          setLabels(data);
+          const data = (await res.json()) as Label[];
+          setFetchedLabels(
+            categoryId != null ? data.filter((l) => l.categoryId === categoryId) : data,
+          );
         }
       } catch (e) {
         logger.error('Failed to fetch labels:', e);
@@ -36,7 +50,9 @@ export default function LabelSelector({
       }
     };
     fetchLabels();
-  }, []);
+  }, [categoryId, hasProvidedLabels]);
+
+  const labels = providedLabels ?? fetchedLabels;
 
   const toggleLabel = (labelId: number) => {
     if (selectedLabelIds.includes(labelId)) {
@@ -70,9 +86,9 @@ export default function LabelSelector({
   if (labels.length === 0) {
     return (
       <div className={`text-sm text-zinc-500 dark:text-zinc-400 ${className}`}>
-        ラベルがありません。
+        {t('empty')}
         <a href="/labels" className="text-indigo-600 dark:text-indigo-400 hover:underline ml-1">
-          ラベルを作成
+          {t('createLabel')}
         </a>
       </div>
     );

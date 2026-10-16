@@ -1,0 +1,21 @@
+{
+  "decisionJournal": {
+    "title": "Decision Journal",
+    "subtitle": "Record decisions and improve your prediction accuracy",
+    "navLabel": "Decision Journal",
+    "addButton": "Record Decision",
+    "reviewButton": "Today's Review",
+    "emptyMessage": "No decisions recorded yet.",
+    "calibration": {
+      "pending": "Pending",
+      "correct": "Correct",
+      "partial": "Partially correct",
+      "wrong": "Wrong"
+    },
+    "status": {
+      "open": "Open",
+      "reviewed": "Reviewed",
+      "archived": "Archived"
+    }
+  }
+}

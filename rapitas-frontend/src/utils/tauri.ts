@@ -218,7 +218,7 @@ export async function openExternalUrl(url: string): Promise<void> {
 
 export async function openExternalUrlInSplitView(
   url: string,
-  title: string = 'External Link',
+  _title: string = 'External Link',
 ): Promise<void> {
   if (!isTauri()) {
     window.open(url, '_blank');

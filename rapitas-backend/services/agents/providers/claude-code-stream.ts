@@ -4,11 +4,11 @@
  * Low-level process spawning, stdin chunked writing, and stream-json event parsing
  * for the Claude Code CLI. Does NOT manage agent lifecycle or provider configuration.
  */
-import { spawn } from 'child_process';
-import { getProjectRoot } from '../../../config';
+import { spawnLowPriority } from '../process-priority';
 import type { AgentExecutionContext, AgentExecutionResult } from '../abstraction/types';
 import { resolveCliPath } from './cli-utils';
 import { processStreamEvent } from './stream-event-parser';
+import { buildSanitizedSpawnEnv } from '../../../utils/agent';
 
 export { processStreamEvent } from './stream-event-parser';
 
@@ -114,13 +114,13 @@ export async function runClaudeCode(
   emitOutput: (output: string, isError: boolean) => Promise<void>,
 ): Promise<AgentExecutionResult> {
   const startTime = Date.now();
+  const isWindows = process.platform === 'win32';
+  const baseClaudePath =
+    config.cliPath || process.env.CLAUDE_CODE_PATH || (isWindows ? 'claude.cmd' : 'claude');
+  const claudePath = await resolveCliPath(baseClaudePath);
 
   return new Promise((resolve) => {
     const timeout = context.timeout || config.timeout || 900000;
-    const isWindows = process.platform === 'win32';
-    const baseClaudePath =
-      config.cliPath || process.env.CLAUDE_CODE_PATH || (isWindows ? 'claude.cmd' : 'claude');
-    const claudePath = resolveCliPath(baseClaudePath);
 
     const args: string[] = ['--print', '--verbose', '--output-format', 'stream-json'];
 
@@ -133,6 +133,17 @@ export async function runClaudeCode(
     }
 
     if (config.dangerouslySkipPermissions || context.dangerouslySkipPermissions) {
+      // NOTE(security): Same headless-no-TTY constraint as
+      // claude-execution-runner.ts's buildClaudeArgs — this process is spawned
+      // with piped stdio and no TTY, so any permission mode that can still
+      // prompt (acceptEdits auto-approves only a handful of filesystem Bash
+      // commands; everything else, including test/build/git, still prompts)
+      // would abort the run with nobody able to answer. `dontAsk` avoids that
+      // but requires enumerating exact Bash command patterns up front, which
+      // this general-purpose coding agent can't know ahead of time. Bypass
+      // stays, compensated by worktree isolation, the sanitized spawn env
+      // below (strips ENCRYPTION_KEY/DATABASE_URL/*_TOKEN/etc.), and the
+      // `--disallowedTools` denylist.
       args.push('--dangerously-skip-permissions');
       args.push('--permission-mode', 'bypassPermissions');
     }
@@ -140,9 +151,23 @@ export async function runClaudeCode(
     if (config.model) args.push('--model', config.model);
     if (config.maxTokens) args.push('--max-tokens', String(config.maxTokens));
 
+    // NOTE(security): No --mcp-config is passed to this spawn either, so
+    // --strict-mcp-config prevents the CLI from ambiently loading MCP servers
+    // from the machine's global/project config (see claude-execution-runner.ts's
+    // buildClaudeArgs for the full rationale — this is the same fix mirrored
+    // for the streaming provider's spawn path).
+    args.push('--strict-mcp-config');
+
     // NOTE: Disable worktree tools to prevent the spawned CLI from creating nested worktrees
     // that conflict with rapitas-managed worktrees and could corrupt .git/ directory structure.
-    args.push('--disallowedTools', 'EnterWorktree,ExitWorktree');
+    // NOTE(security): Also block network-egress (WebFetch/WebSearch) and
+    // meta/recursion tools (ToolSearch/Skill/Task) — no prompt built for this
+    // agent instructs it to use them, so they are pure attack surface. Mirrors
+    // the denylist in claude-execution-runner.ts's buildClaudeArgs.
+    args.push(
+      '--disallowedTools',
+      'EnterWorktree,ExitWorktree,WebFetch,WebSearch,ToolSearch,Skill,Task',
+    );
 
     let finalCommand: string;
     let finalArgs: string[];
@@ -157,11 +182,15 @@ export async function runClaudeCode(
     }
 
     try {
-      const proc = spawn(finalCommand, finalArgs, {
+      const proc = spawnLowPriority(finalCommand, finalArgs, {
         cwd: workDir,
         shell: true,
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1', CI: '1', TERM: 'dumb' },
+        // NOTE: The spawned CLI is prompt-steerable (the task prompt can ask it
+        // to print/exfiltrate its own env), so start from a sanitized base —
+        // never the raw inherited env — to keep ENCRYPTION_KEY/DATABASE_URL/
+        // GITHUB_TOKEN/etc out of its reach.
+        env: buildSanitizedSpawnEnv({ FORCE_COLOR: '0', NO_COLOR: '1', CI: '1', TERM: 'dumb' }),
       });
 
       if (proc.stdout) proc.stdout.setEncoding('utf8');

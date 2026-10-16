@@ -25,27 +25,14 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recommendAgentForRole } from './role-recommender';
+import { resolveTaskWorkflowState } from '../task/task-resolver';
 
 const log = createLogger('role-resolver');
 
-type WorkflowRole =
-  | 'researcher'
-  | 'planner'
-  | 'reviewer'
-  | 'implementer'
-  | 'verifier'
-  | 'auto_verifier';
-
-type WorkflowStatus =
-  | 'draft'
-  | 'research_done'
-  | 'plan_created'
-  | 'plan_approved'
-  | 'in_progress'
-  | 'verify_done'
-  | 'completed';
-
-type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
+import { narrowWorkflowStatus, narrowWorkflowMode } from './workflow-types.guards.generated';
+import type { WorkflowRole } from './workflow-types';
+import { reconcileStatusFromExistingArtifacts } from './artifact-reuse-reconciler';
+import { shouldAutoSelectModel as shouldAutoSelect } from './role-route-inputs';
 
 // NOTE: The status→role map is now derived from the DB-backed, UI-editable
 // mode config (workflow-mode-config.ts) — the single source of truth shared
@@ -55,10 +42,9 @@ export interface ResolvedRoleAgent {
   role: WorkflowRole;
   agentConfigId: number | null;
   /**
-   * Per-role model override. `null` means "no explicit override; use the
-   * agent's default OR the SmartRouter auto-pick if 'auto'".
-   * `'auto'` is a sentinel string used by the UI to mean "let the SmartRouter
-   * pick the cheapest/best-fit model based on task complexity + budget".
+   * Per-role model override, or null when the SmartRouter should pick.
+   * `'auto'` is the UI sentinel for that; an unset/empty value means the same
+   * (see shouldAutoSelectModel in role-route-inputs).
    */
   modelId: string | null;
   /** True when modelId is null/'auto' — caller should invoke SmartRouter. */
@@ -73,19 +59,35 @@ export interface ResolvedRoleAgent {
  *          workflow context (caller should use its own fallback). / 解決結果またはnull
  */
 export async function resolveAgentForTask(taskId: number): Promise<ResolvedRoleAgent | null> {
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    select: { workflowStatus: true, workflowMode: true },
-  });
+  const task = await resolveTaskWorkflowState(taskId);
   if (!task) return null;
 
-  const status = (task.workflowStatus as WorkflowStatus | null) ?? 'draft';
+  let status = narrowWorkflowStatus(task.workflowStatus);
   // Terminal statuses have no next role.
   if (status === 'verify_done' || status === 'completed') return null;
 
-  const mode: WorkflowMode = (task.workflowMode as WorkflowMode | null) ?? 'comprehensive';
+  const mode = narrowWorkflowMode(task.workflowMode);
   const { getModeSettings, buildRoleByStatus } = await import('./workflow-mode-config');
-  const role = buildRoleByStatus(await getModeSettings(mode))[status];
+  const modeSettings = await getModeSettings(mode);
+
+  // Fast-forward past research/plan phases whose artifacts already exist and
+  // are good enough to reuse — this is the SAME check runAdvanceWorkflow does
+  // before dispatching, but this function is the SEPARATE path the manual
+  // "実行" button (execute-route.ts) uses, which never goes through
+  // runAdvanceWorkflow at all. Without this, clicking Execute on a
+  // re-dispatched task with existing research.md/plan.md would still pick the
+  // researcher role from the stale status instead of the actually-needed one.
+  const reconciled = await reconcileStatusFromExistingArtifacts(
+    taskId,
+    status,
+    modeSettings.includePlan,
+  ).catch((err) => {
+    log.warn({ err, taskId }, 'Artifact-reuse reconciliation failed');
+    return { status, advanced: false };
+  });
+  status = reconciled.status;
+
+  const role = buildRoleByStatus(modeSettings)[status];
   if (!role) {
     log.debug({ taskId, status, mode }, 'No role mapped for current workflow status');
     return null;
@@ -99,7 +101,9 @@ export async function resolveAgentForTask(taskId: number): Promise<ResolvedRoleA
   //   - explicit modelId set ("claude-haiku-4-5-...") → use as-is
   //   - modelId === 'auto' or null/empty → SmartRouter picks
   const roleModelId = roleConfig?.modelId ?? null;
-  const shouldAutoSelectModel = !roleModelId || roleModelId === 'auto' || roleModelId.trim() === '';
+  // Same predicate the orchestrator uses — imported, not restated, so the two
+  // dispatch surfaces cannot drift apart on what an unset model means.
+  const shouldAutoSelectModel = shouldAutoSelect(roleModelId);
 
   if (roleConfig?.isEnabled && roleConfig.agentConfigId) {
     return {
@@ -114,7 +118,7 @@ export async function resolveAgentForTask(taskId: number): Promise<ResolvedRoleA
   // assignment exists. This ensures every role gets the BEST-FIT agent
   // available even when the user hasn't manually configured WorkflowRoleConfig.
   // codex (which ignores planning instructions) is automatically excluded
-  // from researcher/planner/reviewer roles by the capability registry.
+  // from researcher/planner roles by the capability registry.
   log.info(
     { taskId, role, reason: roleConfig ? 'role disabled' : 'no role config' },
     'Falling back to capability-based agent recommendation',

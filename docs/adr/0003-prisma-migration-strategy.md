@@ -123,10 +123,11 @@ on the following plan:
 
 ### Neutral
 
-- The 71-model `schema.prisma` may benefit from being split into a
-  `prismaSchemaFolder` (Prisma 5+ preview) **before** Phase 2, so the
-  baseline migration is generated against a cleaner source. This is tracked
-  separately in `project-improve.md` and is **not** a hard prerequisite.
+- The single-file `schema.prisma` was later split into a `prismaSchemaFolder`
+  layout (see [ADR-0006](0006-prisma-schema-folder-split.md)), so the
+  baseline migration (when Phase 2 happens) will be generated against the
+  cleaner per-domain source. This was not treated as a hard prerequisite for
+  Phase 2.
 
 ## Follow-ups
 

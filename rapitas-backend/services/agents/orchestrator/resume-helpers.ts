@@ -5,8 +5,8 @@
  * from the database. Used exclusively by execution-resume.ts.
  */
 
-import { agentFactory } from '../agent-factory';
-import type { AgentConfigInput, AgentType } from '../agent-factory';
+import { narrowAgentType } from '../agent-factory';
+import type { AgentConfigInput } from '../agent-factory';
 import { resolveStoredSecret } from '../../../utils/common/secret-store';
 import { createLogger } from '../../../config';
 import type { OrchestratorContext } from './types';
@@ -20,6 +20,7 @@ const logger = createLogger('resume-helpers');
  * @param lastOutput - Tail of previous output / 前回出力の末尾
  * @param logSummary - Recent log entries / 最近のログエントリ
  * @param errorMessage - Interruption reason if any / 中断理由
+ * @param workflowStatus - Current task workflowStatus, if known / 現在のタスクworkflowStatus
  * @returns Formatted prompt string / フォーマット済みプロンプト
  */
 export function buildResumePrompt(
@@ -27,6 +28,7 @@ export function buildResumePrompt(
   lastOutput: string,
   logSummary: string,
   errorMessage: string | null,
+  workflowStatus?: string | null,
 ): string {
   let prompt = `# 作業再開
 
@@ -44,10 +46,30 @@ ${lastOutput}
 \`\`\`
 `;
 
+  // NOTE: logSummary was accepted as a parameter but never appended to the
+  // prompt — the caller's last-50-chunk execution log context was silently
+  // dropped, leaving the resumed agent without the log detail the parameter
+  // exists to provide. Restored.
+  if (logSummary.trim()) {
+    prompt += `
+## 直近のログ
+\`\`\`
+${logSummary}
+\`\`\`
+`;
+  }
+
   if (errorMessage) {
     prompt += `
 ## 中断理由
 ${errorMessage}
+`;
+  }
+
+  if (workflowStatus) {
+    prompt += `
+## 現在のワークフロー状態
+このタスクの現在の workflowStatus は \`${workflowStatus}\` です。中断前に想定していたフェーズと異なっている可能性があります。
 `;
   }
 
@@ -56,6 +78,7 @@ ${errorMessage}
 上記の情報を基に、中断されたタスクを続行してください。
 - 既に完了した作業は繰り返さないでください
 - 中断された地点から作業を再開してください
+- ファイルを保存する前に、必ず GET /workflow/tasks/{タスクID}/files で現在保存済みの内容と workflowStatus を確認してください。直前の保存が拒否された場合は、同じ内容を再送信せず、エラーメッセージの指示に従ってください
 - 不明な点があれば質問してください
 `;
 
@@ -70,7 +93,7 @@ export async function resolveAgentConfig(
   ctx: OrchestratorContext,
   agentConfigId: number,
   fallback: AgentConfigInput,
-  claudeSessionId: string | null,
+  resumeSessionId: string | null,
 ): Promise<AgentConfigInput> {
   const dbConfig = await ctx.prisma.aIAgentConfig.findUnique({
     where: { id: agentConfigId },
@@ -92,7 +115,7 @@ export async function resolveAgentConfig(
   }
 
   return {
-    type: (dbConfig.agentType as AgentType) || 'claude-code',
+    type: narrowAgentType(dbConfig.agentType),
     name: dbConfig.name,
     endpoint: dbConfig.endpoint || undefined,
     apiKey: decryptedApiKey,
@@ -101,7 +124,7 @@ export async function resolveAgentConfig(
     timeout: fallback.timeout,
     dangerouslySkipPermissions: true,
     yoloMode: true,
-    resumeSessionId: claudeSessionId || undefined,
+    resumeSessionId: resumeSessionId || undefined,
     continueConversation: false,
   };
 }

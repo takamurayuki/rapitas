@@ -80,9 +80,11 @@ export function handleOrchestratorEvent(eventData: Record<string, unknown>): voi
   const executionChannel = `execution:${executionId}`;
   const sessionChannel = `session:${sessionId}`;
 
+  // NOTE: broadcastMulti, not two broadcast() calls — the app's shared
+  // EventSource subscribes '*' and used to receive every event TWICE (once
+  // per channel), duplicating streamed output chunks in the UI.
   const broadcastToBoth = (type: string, data: Record<string, unknown>) => {
-    realtimeService.broadcast(executionChannel, type, data);
-    realtimeService.broadcast(sessionChannel, type, data);
+    realtimeService.broadcastMulti([executionChannel, sessionChannel], type, data);
   };
 
   switch (eventType) {
@@ -98,14 +100,12 @@ export function handleOrchestratorEvent(eventData: Record<string, unknown>): voi
     case 'execution_output': {
       const outputData = eventData.data as { output: string; isError: boolean } | undefined;
       if (outputData) {
-        realtimeService.broadcast(executionChannel, 'execution_output', {
+        // NOTE: sessionId is included so consumers of the shared/app-wide SSE
+        // connection (which receives every session's output on one socket) can
+        // filter to the session they own — see useExecutionStreamSSE.ts.
+        broadcastToBoth('execution_output', {
           executionId,
-          output: outputData.output,
-          isError: outputData.isError,
-          timestamp: new Date().toISOString(),
-        });
-        realtimeService.broadcast(sessionChannel, 'execution_output', {
-          executionId,
+          sessionId,
           output: outputData.output,
           isError: outputData.isError,
           timestamp: new Date().toISOString(),

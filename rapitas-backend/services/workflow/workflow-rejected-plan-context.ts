@@ -78,6 +78,9 @@ export async function buildRejectedPlanContext(
       .catch(() => null);
     if (self?.themeId == null) return '';
 
+    // collapsed into an id→title Map below; the ordered scan uses
+    // workflowTransition.findMany with orderBy createdAt.
+    // determinism-ok: collapsed into a Map, order irrelevant.
     const themeTasks = await prisma.task.findMany({
       where: { themeId: self.themeId },
       select: { id: true, title: true },

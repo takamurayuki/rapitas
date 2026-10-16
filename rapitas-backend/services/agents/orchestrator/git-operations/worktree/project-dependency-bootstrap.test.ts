@@ -1,0 +1,278 @@
+/**
+ * project-dependency-bootstrap.test
+ *
+ * Covers which branch the bootstrap takes and what it records, without running
+ * a package manager: the install paths are reached only in states that are
+ * already prepared, so every assertion here is about the decision, not the
+ * download. Real directories and junctions throughout — link handling is
+ * exactly what a mocked fs would hide.
+ */
+
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {
+  bootstrapProjectDependencies,
+  ensureRootInstall,
+  projectRootOf,
+} from './project-dependency-bootstrap';
+
+let base: string;
+let root: string;
+let worktree: string;
+
+beforeEach(() => {
+  base = fs.mkdtempSync(path.join(os.tmpdir(), 'proj-boot-'));
+  root = path.join(base, 'myapp');
+  worktree = path.join(root, '.worktrees', 'task-1153-c3a5cb1f');
+  fs.mkdirSync(worktree, { recursive: true });
+});
+
+afterEach(() => {
+  // Clear junctions first: a recursive remove would descend through them.
+  for (const rel of ['', 'apps/web']) {
+    const link = path.join(worktree, rel, 'node_modules');
+    try {
+      if (fs.lstatSync(link).isSymbolicLink()) fs.unlinkSync(link);
+    } catch {
+      /* not present */
+    }
+  }
+  fs.rmSync(base, { recursive: true, force: true });
+});
+
+const put = (dir: string, rel: string, body: string) => {
+  const p = path.join(dir, rel);
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, body, 'utf8');
+};
+
+/** Install `dir` and record the fingerprint so no reinstall is triggered. */
+const installed = (dir: string, entries = ['.bin', 'zod']) => {
+  for (const e of entries) fs.mkdirSync(path.join(dir, 'node_modules', e), { recursive: true });
+};
+
+const recordFingerprint = async (dir: string) => {
+  const { collectManifests, fingerprintManifests } = await import('./project-manifests');
+  fs.writeFileSync(
+    path.join(dir, 'node_modules', '.rapitas-deps-fingerprint'),
+    fingerprintManifests(dir, collectManifests(dir)),
+    'utf8',
+  );
+};
+
+describe('projectRootOf', () => {
+  it('returns the project that owns a worktree', () => {
+    expect(projectRootOf(worktree)).toBe(root);
+  });
+
+  it('returns the path itself when it is not a worktree', () => {
+    expect(projectRootOf(root)).toBe(root);
+  });
+
+  it('handles a posix-separator path on any platform', () => {
+    expect(projectRootOf('C:/Projects/temporaid/.worktrees/task-1153-c3a5cb1f')).toBe(
+      'C:/Projects/temporaid',
+    );
+  });
+});
+
+describe('bootstrapProjectDependencies — the normal path', () => {
+  it('links the root tree in and runs no install when the fingerprint matches', async () => {
+    put(root, 'package.json', '{}');
+    put(root, 'pnpm-workspace.yaml', "packages:\n  - 'apps/*'\n");
+    put(root, 'apps/web/package.json', '{}');
+    installed(root);
+    installed(path.join(root, 'apps/web'));
+    await recordFingerprint(root);
+
+    const result = await bootstrapProjectDependencies(worktree);
+
+    expect(result.action).toBe('linked');
+    expect(fs.readlinkSync(path.join(worktree, 'node_modules'))).toBe(
+      path.join(root, 'node_modules'),
+    );
+    expect(fs.readlinkSync(path.join(worktree, 'apps', 'web', 'node_modules'))).toBe(
+      path.join(root, 'apps', 'web', 'node_modules'),
+    );
+    expect(fs.existsSync(path.join(worktree, 'node_modules', '.bin'))).toBe(true);
+  });
+
+  it('is idempotent across launches', async () => {
+    put(root, 'package.json', '{}');
+    installed(root);
+    await recordFingerprint(root);
+
+    await bootstrapProjectDependencies(worktree);
+    const again = await bootstrapProjectDependencies(worktree);
+
+    expect(again.action).toBe('linked');
+    expect(again.detail).toContain('.');
+  });
+
+  it('replaces the worktree cache-only node_modules rather than skipping it', async () => {
+    put(root, 'package.json', '{}');
+    installed(root);
+    await recordFingerprint(root);
+    fs.mkdirSync(path.join(worktree, 'node_modules', '.vite'), { recursive: true });
+
+    await bootstrapProjectDependencies(worktree);
+
+    const link = path.join(worktree, 'node_modules');
+    expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(fs.existsSync(path.join(link, '.bin'))).toBe(true);
+  });
+
+  it('never destroys a real install already in the worktree', async () => {
+    put(root, 'package.json', '{}');
+    installed(root);
+    await recordFingerprint(root);
+    // A COMPLETE install: `.bin` is what makes it one. Package directories
+    // without an installer's bookkeeping entry are a partial install and get
+    // replaced by the link instead — see node-modules-link's holdsRealInstall
+    // and ContextFlow #1217, where exactly that partial shape left `next`
+    // unrunnable (2026-10-13).
+    for (const entry of ['.bin', 'left-alone']) {
+      fs.mkdirSync(path.join(worktree, 'node_modules', entry), { recursive: true });
+    }
+
+    await bootstrapProjectDependencies(worktree);
+
+    const link = path.join(worktree, 'node_modules');
+    expect(fs.lstatSync(link).isSymbolicLink()).toBe(false);
+    expect(fs.existsSync(path.join(link, 'left-alone'))).toBe(true);
+  });
+
+  it('replaces a partial install so a binary becomes runnable', async () => {
+    put(root, 'package.json', '{}');
+    installed(root);
+    await recordFingerprint(root);
+    // The #1217 shape: packages present, no `.bin`, so nothing can be executed.
+    fs.mkdirSync(path.join(worktree, 'node_modules', 'next'), { recursive: true });
+
+    await bootstrapProjectDependencies(worktree);
+
+    const link = path.join(worktree, 'node_modules');
+    expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(fs.existsSync(path.join(link, '.bin'))).toBe(true);
+  });
+
+  it('links nothing when the root IS the target (not a worktree)', async () => {
+    put(root, 'package.json', '{}');
+    installed(root);
+    await recordFingerprint(root);
+
+    const result = await bootstrapProjectDependencies(root);
+
+    expect(result.action).toBe('linked');
+    expect(result.detail).toContain('none');
+  });
+});
+
+describe('bootstrapProjectDependencies — the legacy path', () => {
+  it('leaves a worktree alone when it already resolves dependencies', async () => {
+    // A project scaffolded before the skeleton change: no root manifest, but an
+    // earlier revision already linked or installed into this worktree.
+    put(worktree, 'package.json', '{}');
+    installed(worktree);
+
+    const result = await bootstrapProjectDependencies(worktree);
+
+    expect(result.action).toBe('skipped');
+    expect(result.detail).toContain('already has usable node_modules');
+  });
+
+  it('treats a link to a live tree as already prepared', async () => {
+    put(worktree, 'package.json', '{}');
+    const elsewhere = path.join(base, 'old-shared-tree');
+    installed(elsewhere);
+    fs.symlinkSync(
+      path.join(elsewhere, 'node_modules'),
+      path.join(worktree, 'node_modules'),
+      'junction',
+    );
+
+    const result = await bootstrapProjectDependencies(worktree);
+
+    expect(result.action).toBe('skipped');
+    expect(fs.readlinkSync(path.join(worktree, 'node_modules'))).toBe(
+      path.join(elsewhere, 'node_modules'),
+    );
+  });
+
+  it('does nothing for a docs-only repo instead of attempting an install', async () => {
+    // ContextFlow's state when task 1152 blocked.
+    put(worktree, 'docs/design.md', '# design');
+    const result = await bootstrapProjectDependencies(worktree);
+    expect(result.action).toBe('skipped');
+    expect(result.detail).toBe('no manifest');
+  });
+
+  it('never creates the retired .rapitas-deps sidecar', async () => {
+    put(root, 'package.json', '{}');
+    installed(root);
+    await recordFingerprint(root);
+    await bootstrapProjectDependencies(worktree);
+    expect(fs.existsSync(path.join(root, '.rapitas-deps'))).toBe(false);
+  });
+});
+
+// Task 1172: concurrent baseline/agent worktrees of one project used to run the
+// same install in the same root at once and corrupt each other's node_modules.
+describe('ensureRootInstall — same-root serialization (task 1172)', () => {
+  /** Fake install that creates a real-looking node_modules, like a package manager would. */
+  const fakeInstall = (calls: string[], gate?: Promise<void>) => async (dir: string) => {
+    calls.push(dir);
+    if (gate) await gate;
+    installed(dir);
+    return 'fake install';
+  };
+
+  it('runs one install for two concurrent calls on the same root', async () => {
+    put(root, 'package.json', '{}');
+    const calls: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const install = fakeInstall(calls, gate);
+
+    const first = ensureRootInstall(root, ['package.json'], { install });
+    const second = ensureRootInstall(root, ['package.json'], { install });
+    release();
+    const results = await Promise.all([first, second]);
+
+    expect(calls).toHaveLength(1);
+    expect(results.filter((r) => r !== null)).toHaveLength(1);
+  });
+
+  it('stops waiting after the timeout and installs itself', async () => {
+    put(root, 'package.json', '{}');
+    const calls: string[] = [];
+    // First install never settles within the test window.
+    const hung = new Promise<void>(() => {});
+    void ensureRootInstall(root, ['package.json'], { install: fakeInstall(calls, hung) });
+
+    const result = await ensureRootInstall(root, ['package.json'], {
+      install: fakeInstall(calls),
+      waitTimeoutMs: 20,
+    });
+
+    expect(result).toBe('fake install');
+    expect(calls).toHaveLength(2);
+  });
+
+  it('lets a waiter retry the install when the in-flight one failed', async () => {
+    put(root, 'package.json', '{}');
+    const calls: string[] = [];
+    const failing = async (dir: string) => {
+      calls.push(dir);
+      throw new Error('network down');
+    };
+    const first = ensureRootInstall(root, ['package.json'], { install: failing });
+    const second = ensureRootInstall(root, ['package.json'], { install: fakeInstall(calls) });
+
+    await expect(first).rejects.toThrow('network down');
+    expect(await second).toBe('fake install');
+    expect(calls).toHaveLength(2);
+  });
+});

@@ -6,7 +6,8 @@
  * components remain free of fetch logic.
  */
 
-import type { AppAnswers, AppProposal, DynamicItem } from '../_types/types';
+import type { AppAnswers, AppProposal, DynamicItem, ProjectContext } from '../_types/types';
+import type { ReviewSpecResult } from '../../api/review-spec/review-prompt';
 
 /**
  * Resolves human-readable labels for all wizard answers using the i18n function.
@@ -22,8 +23,14 @@ export function resolveLabels(
   answers: AppAnswers,
   dynSubs?: DynamicItem[],
   dynElems?: DynamicItem[],
+  dynGenres?: readonly DynamicItem[],
 ) {
-  const genre = t('genre_' + answers.genre);
+  // NOTE: a concept-proposed genre has no translation key, so `t()` would send
+  // the key itself ("genre_ai_meeting_actions") to the proposal prompt as if it
+  // were the genre name. Dynamic items win, exactly as they already do for
+  // sub-genres and elements below.
+  const genre =
+    dynGenres?.find((g) => g.id === answers.genre)?.label || t('genre_' + answers.genre);
   const subs = (answers.subs || [])
     .map((id: string) => {
       const dynItem = dynSubs?.find((s) => s.id === id);
@@ -51,6 +58,7 @@ export function resolveLabels(
  * @param answers - wizard answers to build the prompt from / プロンプト構築用ウィザード回答
  * @param dynSubs - AI-generated sub-genre items / AIが生成したサブジャンル一覧
  * @param dynElems - AI-generated element items / AIが生成した要素一覧
+ * @param dynGenres - concept-proposed genre items / 題材から提案されたジャンル一覧
  * @returns raw API response with `proposals` array / proposalsを含む生のAPIレスポンス
  * @throws {Error} when the HTTP response is not ok or contains a top-level error field
  */
@@ -59,8 +67,15 @@ export async function proposeApps(
   answers: AppAnswers,
   dynSubs?: DynamicItem[],
   dynElems?: DynamicItem[],
+  dynGenres?: readonly DynamicItem[],
 ) {
-  const { genre, subs, elems, plat, scale, prio } = resolveLabels(t, answers, dynSubs, dynElems);
+  const { genre, subs, elems, plat, scale, prio } = resolveLabels(
+    t,
+    answers,
+    dynSubs,
+    dynElems,
+    dynGenres,
+  );
 
   const response = await fetch('/api/generate-proposals', {
     method: 'POST',
@@ -69,15 +84,16 @@ export async function proposeApps(
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `HTTP ${response.status}: プロポーザル生成に失敗しました`);
+    // NOTE: Prefer the translated fallback over the raw API error string —
+    // the route may return Japanese prose regardless of the user's locale.
+    throw new Error(t('proposalGenerateFailed'));
   }
 
   const data = await response.json();
   if (data.error) {
-    throw new Error(data.error);
+    throw new Error(t('proposalGenerateFailed'));
   }
-  // NOTE: aiFailed with errorMessage is handled by the caller, not thrown here.
+  // NOTE: aiFailed with errorCode is handled by the caller, not thrown here.
   return data;
 }
 
@@ -98,23 +114,74 @@ export async function generateClaudeMd(
   proposal: AppProposal,
   dynSubs?: DynamicItem[],
   dynElems?: DynamicItem[],
+  /** Elicited project facts; blank fields are sent as 未確認. / ヒアリング結果 */
+  context?: ProjectContext,
+  /** Answers to a previous review round, when regenerating. / 壁打ちの回答 */
+  reviewAnswers?: string,
+  /** Concept-proposed genre items, so a proposed genre keeps its label. / 題材から提案されたジャンル */
+  dynGenres?: readonly DynamicItem[],
 ) {
-  const { genre, subs, elems, plat, scale, prio } = resolveLabels(t, answers, dynSubs, dynElems);
+  const { genre, subs, elems, plat, scale, prio } = resolveLabels(
+    t,
+    answers,
+    dynSubs,
+    dynElems,
+    dynGenres,
+  );
 
   const response = await fetch('/api/generate-claude-md', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ genre, subs, elems, plat, scale, prio, proposal }),
+    body: JSON.stringify({
+      genre,
+      subs,
+      elems,
+      plat,
+      scale,
+      prio,
+      proposal,
+      context,
+      reviewAnswers,
+    }),
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `HTTP ${response.status}: CLAUDE.md生成に失敗しました`);
+    // NOTE: Prefer the translated fallback over the raw API error string —
+    // the route may return Japanese prose regardless of the user's locale.
+    throw new Error(t('claudeMdGenerateFailed'));
   }
 
   const data = await response.json();
   if (data.error) {
-    throw new Error(data.error);
+    throw new Error(t('claudeMdGenerateFailed'));
   }
   return data;
+}
+
+/**
+ * Review a generated package: mechanical findings plus the decisions the model
+ * made on its own authority.
+ *
+ * @param docs - The generated documents / 生成された文書
+ * @returns Findings and questions / 指摘と質問
+ * @throws {Error} When the review route itself fails / レビュー経路が失敗した場合
+ */
+export async function reviewSpec(docs: {
+  requirements?: string;
+  design?: string;
+  adr?: string;
+}): Promise<ReviewSpecResult> {
+  const response = await fetch('/api/review-spec', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      requirements: docs.requirements,
+      design: docs.design,
+      adr: docs.adr,
+    }),
+  });
+  if (!response.ok) throw new Error('review failed');
+  const data = await response.json();
+  if (data.error) throw new Error('review failed');
+  return data as ReviewSpecResult;
 }

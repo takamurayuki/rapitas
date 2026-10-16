@@ -9,11 +9,14 @@ edition = "2021"
 tauri-build = { version = "2.5", features = [] }
 
 [dependencies]
-tauri = { version = "2.10.1", features = ["tray-icon", "image-png"] }
+# macos-private-api: required for WebviewWindowBuilder::transparent() to compile
+# on macOS (tauri gates it behind this feature there; other OSes need no flag).
+tauri = { version = "2.10.1", features = ["tray-icon", "image-png", "macos-private-api"] }
 tauri-plugin-shell = "2.3"
 tauri-plugin-global-shortcut = "2.3"
 tauri-plugin-updater = "2.5"
 tauri-plugin-process = "2.3"
+tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 url = "2"
@@ -27,9 +30,14 @@ tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
 # boundary (avoids UTF-8 corruption when a multibyte char spans read chunks).
 portable-pty = "0.9"
 base64 = "0.22"
+# Pomodoro float window glass transparency (acrylic) — see pomodoro_float.rs.
+window-vibrancy = "0.6"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["winuser", "processthreadsapi", "psapi", "shellapi", "winreg", "dwmapi"] }
+# AppUserModelID registration — Windows silently drops toast notifications
+# whose AUMID isn't registered (dev/portable runs have no installer to do it).
+winreg = "0.52"
 windows = { version = "0.58", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
 
 [features]

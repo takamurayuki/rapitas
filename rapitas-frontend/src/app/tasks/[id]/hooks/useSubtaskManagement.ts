@@ -7,12 +7,13 @@
  */
 
 import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Task, Priority } from '@/types';
-import { getLabelsArray } from '@/utils/labels';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { useSubtaskDeletion } from './useSubtaskDeletion';
+import { useToast } from '@/components/ui/toast/ToastContainer';
 
 const logger = createLogger('useSubtaskManagement');
 const API_BASE = API_BASE_URL;
@@ -36,20 +37,24 @@ export function useSubtaskManagement({
   setTask,
   onTaskUpdated,
 }: UseSubtaskManagementParams) {
+  const t = useTranslations('task');
+  const { showToast } = useToast();
   // ── Add new subtask ─────────────────────────────────────────────────
-  const [isAddingSubtask, setIsAddingSubtask] = useState(false);
+  // NOTE: No label state — subtask labels are intentionally unsupported;
+  // labels are configured on the parent task only.
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [newSubtaskDescription, setNewSubtaskDescription] = useState('');
-  const [newSubtaskLabels, setNewSubtaskLabels] = useState('');
+  const [newSubtaskPriority, setNewSubtaskPriority] = useState<Priority>('medium');
   const [newSubtaskEstimatedHours, setNewSubtaskEstimatedHours] = useState('');
+  const [newSubtaskActualHours, setNewSubtaskActualHours] = useState('');
 
   // ── Inline subtask editing ───────────────────────────────────────────
   const [editingSubtaskId, setEditingSubtaskId] = useState<number | null>(null);
   const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('');
   const [editingSubtaskDescription, setEditingSubtaskDescription] = useState('');
   const [editingSubtaskPriority, setEditingSubtaskPriority] = useState<Priority>('medium');
-  const [editingSubtaskLabels, setEditingSubtaskLabels] = useState('');
   const [editingSubtaskEstimatedHours, setEditingSubtaskEstimatedHours] = useState('');
+  const [editingSubtaskActualHours, setEditingSubtaskActualHours] = useState('');
 
   // ── Helpers ──────────────────────────────────────────────────────────
   const refetchTask = useCallback(async () => {
@@ -80,30 +85,11 @@ export function useSubtaskManagement({
   });
 
   // ── Add subtask ──────────────────────────────────────────────────────
-  const toggleAddSubtask = useCallback(() => {
-    setIsAddingSubtask((prev) => !prev);
-    setNewSubtaskTitle('');
-    setNewSubtaskDescription('');
-    setNewSubtaskLabels('');
-    setNewSubtaskEstimatedHours('');
-  }, []);
-
-  const cancelAddSubtask = useCallback(() => {
-    setIsAddingSubtask(false);
-    setNewSubtaskTitle('');
-    setNewSubtaskDescription('');
-    setNewSubtaskLabels('');
-    setNewSubtaskEstimatedHours('');
-  }, []);
-
   const addSubtask = useCallback(async () => {
     if (!task || !newSubtaskTitle.trim()) return;
 
-    const labelsArray = newSubtaskLabels
-      .split(',')
-      .map((l) => l.trim())
-      .filter(Boolean);
     const hours = newSubtaskEstimatedHours ? parseFloat(newSubtaskEstimatedHours) : undefined;
+    const actual = newSubtaskActualHours ? parseFloat(newSubtaskActualHours) : undefined;
 
     try {
       const res = await fetch(`${API_BASE}/tasks`, {
@@ -113,14 +99,12 @@ export function useSubtaskManagement({
           title: newSubtaskTitle.trim(),
           parentId: task.id,
           status: 'todo',
-          priority: 'medium',
+          priority: newSubtaskPriority,
           ...(newSubtaskDescription.trim() && {
             description: newSubtaskDescription.trim(),
           }),
-          ...(labelsArray.length > 0 && {
-            labels: JSON.stringify(labelsArray),
-          }),
           ...(hours && !isNaN(hours) && { estimatedHours: hours }),
+          ...(actual && !isNaN(actual) && { actualHours: actual }),
         }),
       });
 
@@ -129,22 +113,25 @@ export function useSubtaskManagement({
       await refetchTask();
       setNewSubtaskTitle('');
       setNewSubtaskDescription('');
-      setNewSubtaskLabels('');
+      setNewSubtaskPriority('medium');
       setNewSubtaskEstimatedHours('');
-      setIsAddingSubtask(false);
+      setNewSubtaskActualHours('');
       onTaskUpdated?.();
     } catch (err) {
       logger.error(err);
-      alert('サブタスクの作成に失敗しました');
+      showToast(t('subtaskManagement.createFailed'), 'error');
     }
   }, [
     task,
     newSubtaskTitle,
     newSubtaskDescription,
-    newSubtaskLabels,
+    newSubtaskPriority,
     newSubtaskEstimatedHours,
+    newSubtaskActualHours,
     refetchTask,
     onTaskUpdated,
+    showToast,
+    t,
   ]);
 
   // ── Inline editing ────────────────────────────────────────────────────
@@ -153,8 +140,8 @@ export function useSubtaskManagement({
     setEditingSubtaskTitle(subtask.title);
     setEditingSubtaskDescription(subtask.description || '');
     setEditingSubtaskPriority((subtask.priority as Priority) || 'medium');
-    setEditingSubtaskLabels(getLabelsArray(subtask.labels).join(', '));
     setEditingSubtaskEstimatedHours(subtask.estimatedHours?.toString() || '');
+    setEditingSubtaskActualHours(subtask.actualHours?.toString() || '');
   }, []);
 
   const cancelEditingSubtask = useCallback(() => {
@@ -162,8 +149,8 @@ export function useSubtaskManagement({
     setEditingSubtaskTitle('');
     setEditingSubtaskDescription('');
     setEditingSubtaskPriority('medium');
-    setEditingSubtaskLabels('');
     setEditingSubtaskEstimatedHours('');
+    setEditingSubtaskActualHours('');
   }, []);
 
   const updateSubtask = useCallback(
@@ -173,8 +160,8 @@ export function useSubtaskManagement({
         title?: string;
         description?: string;
         priority?: string;
-        labels?: string[];
         estimatedHours?: number | null;
+        actualHours?: number | null;
       },
     ) => {
       try {
@@ -191,26 +178,22 @@ export function useSubtaskManagement({
         setEditingSubtaskDescription('');
       } catch (err) {
         logger.error(err);
-        alert('サブタスクの更新に失敗しました');
+        showToast(t('subtaskManagement.updateFailed'), 'error');
       }
     },
-    [refetchTask],
+    [refetchTask, showToast, t],
   );
 
   const saveSubtaskEdit = useCallback(() => {
     if (editingSubtaskId && editingSubtaskTitle.trim()) {
-      const labelArray = editingSubtaskLabels
-        .split(',')
-        .map((l) => l.trim())
-        .filter(Boolean);
       updateSubtask(editingSubtaskId, {
         title: editingSubtaskTitle,
         description: editingSubtaskDescription || undefined,
         priority: editingSubtaskPriority,
-        labels: labelArray.length > 0 ? labelArray : undefined,
         estimatedHours: editingSubtaskEstimatedHours
           ? parseFloat(editingSubtaskEstimatedHours)
           : null,
+        actualHours: editingSubtaskActualHours ? parseFloat(editingSubtaskActualHours) : null,
       });
     }
   }, [
@@ -218,23 +201,22 @@ export function useSubtaskManagement({
     editingSubtaskTitle,
     editingSubtaskDescription,
     editingSubtaskPriority,
-    editingSubtaskLabels,
     editingSubtaskEstimatedHours,
+    editingSubtaskActualHours,
     updateSubtask,
   ]);
 
   return {
-    isAddingSubtask,
     newSubtaskTitle,
     setNewSubtaskTitle,
     newSubtaskDescription,
     setNewSubtaskDescription,
-    newSubtaskLabels,
-    setNewSubtaskLabels,
+    newSubtaskPriority,
+    setNewSubtaskPriority,
     newSubtaskEstimatedHours,
     setNewSubtaskEstimatedHours,
-    toggleAddSubtask,
-    cancelAddSubtask,
+    newSubtaskActualHours,
+    setNewSubtaskActualHours,
     addSubtask,
     editingSubtaskId,
     editingSubtaskTitle,
@@ -243,10 +225,10 @@ export function useSubtaskManagement({
     setEditingSubtaskDescription,
     editingSubtaskPriority,
     setEditingSubtaskPriority,
-    editingSubtaskLabels,
-    setEditingSubtaskLabels,
     editingSubtaskEstimatedHours,
     setEditingSubtaskEstimatedHours,
+    editingSubtaskActualHours,
+    setEditingSubtaskActualHours,
     startEditingSubtask,
     cancelEditingSubtask,
     saveSubtaskEdit,

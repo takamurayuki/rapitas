@@ -16,16 +16,16 @@ import {
 } from 'lucide-react';
 import type { ScheduleEvent } from '@/types';
 import { getTaskDetailPath } from '@/utils/tauri';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { formatDate } from '@/utils/date';
+import type { HolidayLabelKey } from '@/utils/holidays';
 import type { CalendarEvent } from '../_utils/calendar-helpers';
 
 type Props = {
   selectedDate: string | null;
   events: CalendarEvent[];
   schedules: ScheduleEvent[];
-  /** Map from date string to holiday name. */
-  holidayMap: Map<string, string>;
+  /** Map from date string to holiday label key (resolved via `calendar.holidays`). */
+  holidayMap: Map<string, HolidayLabelKey>;
   onAddSchedule: () => void;
   onAddTask: () => void;
   onAddPaidLeave: () => void;
@@ -63,8 +63,7 @@ export function DayEventsSidebar({
   const router = useRouter();
   const t = useTranslations('calendar');
   const tc = useTranslations('common');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
+  const tHoliday = useTranslations('calendar.holidays');
 
   const selectedDateEvents = selectedDate
     ? events.filter((e) => {
@@ -80,18 +79,11 @@ export function DayEventsSidebar({
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="font-semibold text-zinc-800 dark:text-zinc-200">
-            {selectedDate
-              ? new Date(selectedDate).toLocaleDateString(dateLocale, {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                  weekday: 'short',
-                })
-              : t('selectDate')}
+            {selectedDate ? formatDate(selectedDate) : t('selectDate')}
           </h3>
           {selectedDate && holidayMap.get(selectedDate) && (
             <p className="text-xs font-medium text-red-500 dark:text-red-400 mt-0.5">
-              {holidayMap.get(selectedDate)}
+              {tHoliday(holidayMap.get(selectedDate)!)}
             </p>
           )}
         </div>
@@ -106,7 +98,7 @@ export function DayEventsSidebar({
             </button>
             <button
               onClick={onAddTask}
-              className="flex items-center gap-1 px-2 py-1 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+              className="flex items-center gap-1 px-2 py-1 text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
             >
               <Plus className="w-4 h-4" />
               {t('addTaskShort')}
@@ -180,19 +172,13 @@ export function DayEventsSidebar({
                       {event.endDate && (
                         <span className="flex items-center gap-1 text-xs text-indigo-500 dark:text-indigo-400">
                           <CalendarIcon className="w-3 h-3" />
-                          {new Date(event.date).toLocaleDateString(dateLocale, {
-                            month: 'short',
-                            day: 'numeric',
-                          })}
+                          {formatDate(event.date)}
                           {' 〜 '}
-                          {new Date(event.endDate).toLocaleDateString(dateLocale, {
-                            month: 'short',
-                            day: 'numeric',
-                          })}
+                          {formatDate(event.endDate)}
                         </span>
                       )}
                       {event.time && (
-                        <span className="flex items-center gap-1 text-xs text-zinc-400 dark:text-zinc-500">
+                        <span className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-500">
                           <Clock className="w-3 h-3" />
                           {event.time}
                           {event.endTime && ` 〜 ${event.endTime}`}
@@ -206,7 +192,7 @@ export function DayEventsSidebar({
                       )}
                     </div>
                     {event.description && (
-                      <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 truncate">
+                      <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1 truncate">
                         {event.description}
                       </p>
                     )}

@@ -2,6 +2,7 @@
  * Database Helper Utilities
  * Functions for JSON field handling and ID parsing
  */
+import { INVALID_ID } from '../common/error-messages';
 
 /**
  * Get labels as an array
@@ -68,7 +69,7 @@ export function fromJsonString<T = unknown>(value: unknown): T | null {
 export function parseId(id: string): number {
   const parsed = parseInt(id);
   if (isNaN(parsed)) {
-    throw new Error('無効なIDです');
+    throw new Error(INVALID_ID);
   }
   return parsed;
 }

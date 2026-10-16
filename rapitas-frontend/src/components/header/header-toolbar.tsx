@@ -18,9 +18,6 @@ import {
   Settings,
   SquareArrowDown,
   RotateCw,
-  Loader2,
-  Sparkles,
-  NotebookTabs,
   User,
   LogOut,
 } from 'lucide-react';
@@ -30,6 +27,7 @@ import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 import { useTranslations } from 'next-intl';
 import { hideToTray } from '@/utils/tauri';
+import { Spinner } from '@/components/ui/spinner';
 import type { UseHeaderReturn } from './useHeader';
 
 type HeaderToolbarProps = Pick<
@@ -45,9 +43,6 @@ type HeaderToolbarProps = Pick<
   | 'isMoreMenuOpen'
   | 'setIsMoreMenuOpen'
   | 'moreMenuRef'
-  | 'modalState'
-  | 'openModal'
-  | 'closeModal'
   | 'isDarkMode'
   | 'darkModeMounted'
   | 'toggleTheme'
@@ -72,9 +67,6 @@ export function HeaderToolbar({
   isMoreMenuOpen,
   setIsMoreMenuOpen,
   moreMenuRef,
-  modalState,
-  openModal,
-  closeModal,
   isDarkMode,
   darkModeMounted,
   toggleTheme,
@@ -136,6 +128,34 @@ export function HeaderToolbar({
 
       <NotificationBell />
 
+      <button
+        onClick={toggleTheme}
+        role="switch"
+        aria-checked={darkModeMounted ? isDarkMode : false}
+        aria-label={darkModeMounted && isDarkMode ? t('switchToLight') : t('switchToDark')}
+        title={darkModeMounted && isDarkMode ? t('switchToLight') : t('switchToDark')}
+        className="relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer items-center rounded-full bg-zinc-100 transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 dark:bg-zinc-800"
+      >
+        <span
+          className={`pointer-events-none inline-flex h-[18px] w-[18px] items-center justify-center rounded-full shadow-sm transition-transform duration-200 ease-in-out ${
+            darkModeMounted && isDarkMode
+              ? 'translate-x-[19px] bg-zinc-900'
+              : 'translate-x-[1px] bg-white'
+          }`}
+        >
+          <Sun
+            className={`absolute h-[11px] w-[11px] text-amber-500 transition-opacity duration-200 ${
+              darkModeMounted && isDarkMode ? 'opacity-0' : 'opacity-100'
+            }`}
+          />
+          <Moon
+            className={`absolute h-[11px] w-[11px] text-white transition-opacity duration-200 ${
+              darkModeMounted && isDarkMode ? 'opacity-100' : 'opacity-0'
+            }`}
+          />
+        </span>
+      </button>
+
       {/* Guest sign-in is intentionally hidden: an account has no benefit on a
           local single-user app. Re-add a `/auth/login` link here once cloud
           sync / sharing makes accounts meaningful. */}
@@ -156,7 +176,7 @@ export function HeaderToolbar({
                   {user.username}
                 </p>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">{user.email}</p>
-                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
+                <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1">
                   {user.role === 'admin' ? t('admin') : t('user')}
                 </p>
               </div>
@@ -183,37 +203,6 @@ export function HeaderToolbar({
         </button>
         {isMoreMenuOpen && (
           <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 z-50">
-            <button
-              onClick={() => {
-                if (modalState.isOpen) {
-                  closeModal();
-                } else {
-                  openModal();
-                }
-                setIsMoreMenuOpen(false);
-              }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
-            >
-              {modalState.activeTab === 'ai' ? (
-                <Sparkles className="w-4 h-4" />
-              ) : (
-                <NotebookTabs className="w-4 h-4" />
-              )}
-              <span>{modalState.isOpen ? t('closeNoteAI') : t('openNoteAI')}</span>
-            </button>
-            <button
-              onClick={() => {
-                toggleTheme();
-              }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
-            >
-              {darkModeMounted && isDarkMode ? (
-                <Sun className="w-4 h-4" />
-              ) : (
-                <Moon className="w-4 h-4" />
-              )}
-              <span>{darkModeMounted && isDarkMode ? t('switchToLight') : t('switchToDark')}</span>
-            </button>
             <Link
               href="/settings/general"
               onClick={() => setIsMoreMenuOpen(false)}
@@ -241,7 +230,7 @@ export function HeaderToolbar({
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isRestarting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Spinner size="sm" className="text-zinc-700 dark:text-zinc-300" />
               ) : (
                 <RotateCw className="w-4 h-4" />
               )}

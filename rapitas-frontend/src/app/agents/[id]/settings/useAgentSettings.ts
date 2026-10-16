@@ -5,7 +5,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
-import { validateUrl, validateApiKey, type ValidationResult } from '@/utils/validation';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
+import {
+  validateUrl,
+  validateApiKey,
+  translateValidationError,
+  type ValidationResult,
+} from '@/utils/validation';
 import { createLogger } from '@/lib/logger';
 import type { AgentConfig, ModelOption } from './agent-settings-types';
 import { saveAgentSettings, deleteAgentApiKey, deleteAgent } from './agent-settings-api';
@@ -23,7 +29,9 @@ const logger = createLogger('useAgentSettings');
 export function useAgentSettings(id: string) {
   const t = useTranslations('agents');
   const tc = useTranslations('common');
+  const tv = useTranslations('common.validation');
   const router = useRouter();
+  const confirm = useConfirmDialog();
 
   const [agent, setAgent] = useState<AgentConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -100,16 +108,24 @@ export function useAgentSettings(id: string) {
             t('settingsEndpoint'),
             agent?.agentType === 'custom' || agent?.agentType === 'azure-openai',
           );
-          return result.valid ? null : (result.error ?? null);
+          return result.valid
+            ? null
+            : result.error
+              ? translateValidationError(tv, result.error)
+              : null;
         case 'apiKey':
           if (!value.trim()) return null;
           result = validateApiKey(value, agent?.agentType);
-          return result.valid ? null : (result.error ?? null);
+          return result.valid
+            ? null
+            : result.error
+              ? translateValidationError(tv, result.error)
+              : null;
         default:
           return null;
       }
     },
-    [agent?.agentType, t],
+    [agent?.agentType, t, tv],
   );
 
   const updateField = useCallback(
@@ -130,15 +146,18 @@ export function useAgentSettings(id: string) {
     setSaving(true);
 
     try {
-      const result = await saveAgentSettings({
-        id,
-        agentType: agent.agentType,
-        endpoint,
-        modelId,
-        apiKey,
-        capabilities,
-        settingsEndpointLabel: t('settingsEndpoint'),
-      });
+      const result = await saveAgentSettings(
+        {
+          id,
+          agentType: agent.agentType,
+          endpoint,
+          modelId,
+          apiKey,
+          capabilities,
+          settingsEndpointLabel: t('settingsEndpoint'),
+        },
+        tv,
+      );
 
       if (!result.ok) {
         setFieldErrors(result.fieldErrors);
@@ -160,7 +179,7 @@ export function useAgentSettings(id: string) {
   };
 
   const handleDeleteApiKey = async () => {
-    if (!confirm(t('confirmDeleteApiKey'))) return;
+    if (!(await confirm({ message: t('confirmDeleteApiKey'), variant: 'destructive' }))) return;
     setError('');
     setSuccessMessage('');
     try {
@@ -194,7 +213,7 @@ export function useAgentSettings(id: string) {
   };
 
   const handleDelete = async () => {
-    if (!confirm(t('confirmDeleteAgent'))) return;
+    if (!(await confirm({ message: t('confirmDeleteAgent'), variant: 'destructive' }))) return;
     try {
       await deleteAgent(id);
       router.push('/agents');

@@ -23,7 +23,12 @@ function copySqliteSchema() {
     if (entry.name === '_generators.prisma') {
       contents = contents
         .replace('Prisma schema for PostgreSQL', 'Prisma schema for SQLite desktop')
-        .replace('provider = "postgresql"', 'provider = "sqlite"');
+        .replace('provider = "postgresql"', 'provider = "sqlite"')
+        // Diverge the generated client's output from the postgres source's —
+        // otherwise both schemas would generate to the SAME folder and the
+        // one generated last would clobber the other (see the NOTE in the
+        // source _generators.prisma for why this matters).
+        .replace('output = "../../generated/prisma-postgres"', 'output = "../../generated/prisma-sqlite"');
     }
 
     contents = contents.replace(/\s+@db\.Decimal\(\d+,\s*\d+\)/g, '');

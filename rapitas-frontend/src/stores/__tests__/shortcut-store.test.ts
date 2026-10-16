@@ -118,6 +118,42 @@ describe('shortcutStore', () => {
     });
   });
 
+  describe('triage shortcuts', () => {
+    const triageIds = ['triageApprove', 'triageDefer', 'triageReject', 'triageNext'] as const;
+
+    it('ships four single-key defaults without modifiers', () => {
+      for (const id of triageIds) {
+        const b = useShortcutStore.getState().shortcuts.find((s) => s.id === id);
+        expect(b).toBeDefined();
+        expect(b).toMatchObject({ meta: false, ctrl: false, shift: false });
+        expect(b?.key).toHaveLength(1);
+      }
+    });
+
+    it('can be rebound and reports a duplicate against another triage key', () => {
+      useShortcutStore.getState().updateShortcut('triageApprove', { key: 'Y' });
+      expect(useShortcutStore.getState().shortcuts.find((s) => s.id === 'triageApprove')?.key).toBe(
+        'Y',
+      );
+      const dup = useShortcutStore
+        .getState()
+        .findDuplicate('triageDefer', { key: 'Y', meta: false, shift: false, ctrl: false });
+      expect(dup?.id).toBe('triageApprove');
+    });
+
+    it('fills triage ids missing from legacy persisted data with defaults', async () => {
+      const legacy = DEFAULT_SHORTCUTS.filter((s) => !s.id.startsWith('triage'));
+      localStorage.setItem(
+        'shortcut-bindings-storage',
+        JSON.stringify({ state: { shortcuts: legacy }, version: 0 }),
+      );
+      await useShortcutStore.persist.rehydrate();
+      const ids = useShortcutStore.getState().shortcuts.map((s) => s.id);
+      for (const id of triageIds) expect(ids).toContain(id);
+      expect(ids).toContain('newTask');
+    });
+  });
+
   describe('formatBindingKey', () => {
     it('should format a meta+key binding', () => {
       expect(formatBindingKey({ key: 'N', meta: true, shift: false, ctrl: false })).toBe('meta+N');

@@ -1,0 +1,201 @@
+{
+  "notes": {
+    "common": {
+      "note": "Note",
+      "split": "Split",
+      "searchPlaceholder": "Search notes...",
+      "newNote": "New note",
+      "untitled": "(Untitled)",
+      "noNotes": "No notes",
+      "default": "Default",
+      "swapNoteLeft": "Move note to left (AI to right)",
+      "swapNoteRight": "Move note to right (AI to left)",
+      "swapAriaLabel": "Swap left and right"
+    },
+    "docTypes": {
+      "requirements": "Requirements",
+      "design": "Design doc",
+      "minutes": "Meeting notes",
+      "procedure": "Procedure",
+      "specification": "Specification",
+      "memo": "Memo"
+    },
+    "page": {
+      "headerTitle": "Notes"
+    },
+    "aiTab": {
+      "providerLabel": "AI provider",
+      "apiKeyLink": "Register an API key in settings",
+      "modelLabel": "Model",
+      "emptyTitle": "AI assistant",
+      "emptyLine1": "Ask about task management, study plans, coding, and more —",
+      "emptyLine2": "I'm here to support your work.",
+      "thinking": "Thinking...",
+      "settingsTitle": "AI settings",
+      "clearChatTitle": "Clear conversation",
+      "messagePlaceholder": "Type a message...",
+      "sendHint": "Enter to send, Shift+Enter for a new line"
+    },
+    "chatMessage": {
+      "copyCodeTitle": "Copy code"
+    },
+    "deleteModal": {
+      "title": "Delete note",
+      "subtitle": "This action cannot be undone",
+      "confirmQuestion": "Delete \"<b>{noteTitle}</b>\"?"
+    },
+    "diagramEdit": {
+      "headerTitle": "Edit diagram",
+      "templatesLabel": "Templates:",
+      "templates": {
+        "flowchart": "Flowchart",
+        "sequence": "Sequence diagram",
+        "state": "State diagram",
+        "er": "ER diagram",
+        "class": "Class diagram",
+        "gantt": "Gantt"
+      },
+      "sourceLabel": "Mermaid source",
+      "sourcePlaceholder": "Enter Mermaid code...",
+      "previewLabel": "Preview",
+      "rendering": "Rendering...",
+      "syntaxError": "⚠ Syntax error — check your Mermaid syntax"
+    },
+    "editorContentLabel": "Note content",
+    "editorToolbar": {
+      "boldTitle": "Bold (Ctrl+B)",
+      "italicTitle": "Italic (Ctrl+I)",
+      "underlineTitle": "Underline (Ctrl+U)",
+      "bulletListTitle": "Bullet list",
+      "numberedListTitle": "Numbered list"
+    },
+    "editorFooter": {
+      "createdAt": "Created: {date}",
+      "updatedAt": "Updated: {date}"
+    },
+    "editorHeader": {
+      "titlePlaceholder": "Enter a title...",
+      "deleteNoteTitle": "Delete this note",
+      "saveTitle": "Save (Ctrl+S)",
+      "saved": "Saved",
+      "noType": "No type"
+    },
+    "toolbar": {
+      "blockStyle": {
+        "title": "Text style",
+        "normal": "Normal text",
+        "h1": "Heading 1",
+        "h2": "Heading 2",
+        "h3": "Heading 3"
+      },
+      "fontPicker": {
+        "fontTitle": "Font",
+        "fontSizeTitle": "Font size"
+      },
+      "highlight": {
+        "highlightTitle": "Highlight",
+        "colorSample": "{name} sample"
+      },
+      "insert": {
+        "linkInsertTitle": "Insert link",
+        "urlPlaceholder": "Enter a URL...",
+        "insertButton": "Insert",
+        "borderLineTitle": "Border line",
+        "tableInsertTitle": "Insert table",
+        "diagramInsertTitle": "Insert diagram (Mermaid)",
+        "codeBlockInsertTitle": "Insert code block",
+        "selectLanguageLabel": "Select a programming language"
+      },
+      "textColor": {
+        "textColorTitle": "Text color",
+        "textColorLabel": "Text color"
+      }
+    },
+    "modalHeader": {
+      "ariaLabel": "Note modal",
+      "searchAriaLabel": "Search notes",
+      "maximizeTitle": "Maximize",
+      "restoreTitle": "Restore size"
+    },
+    "tabContent": {
+      "emptyStateText": "Select a note or create a new one",
+      "createNoteButton": "Create new note"
+    },
+    "hoverSidebar": {
+      "clearFilters": "Clear filters",
+      "noSearchResults": "No search results",
+      "noContent": "No content",
+      "yesterday": "Yesterday",
+      "daysAgo": "{days}d ago"
+    },
+    "sidebar": {
+      "noSearchResults": "No results"
+    },
+    "editorColors": {
+      "highlight": {
+        "yellow": "Yellow",
+        "green": "Green",
+        "blue": "Blue",
+        "pink": "Pink",
+        "purple": "Purple",
+        "orange": "Orange"
+      },
+      "border": {
+        "gray": "Gray",
+        "blue": "Blue",
+        "green": "Green",
+        "red": "Red",
+        "purple": "Purple",
+        "orange": "Orange"
+      },
+      "quickText": {
+        "black": "Black",
+        "red": "Red",
+        "orange": "Orange",
+        "green": "Green",
+        "blue": "Blue",
+        "purple": "Purple"
+      },
+      "highlightStyle": {
+        "full": "Full",
+        "boldMarker": "Bold marker",
+        "thinMarker": "Thin marker",
+        "underline": "Underline"
+      },
+      "font": {
+        "default": "Default",
+        "notoSansJp": "Noto Sans JP",
+        "hiraginoSans": "Hiragino Sans",
+        "yuGothic": "Yu Gothic",
+        "meiryo": "Meiryo",
+        "msGothic": "MS Gothic",
+        "georgia": "Georgia",
+        "arial": "Arial",
+        "timesNewRoman": "Times New Roman",
+        "courierNew": "Courier New",
+        "consolas": "Consolas"
+      }
+    },
+    "editorDom": {
+      "collapseToggleTitle": "Collapse / Expand",
+      "descPlaceholder": "Describe what this code does...",
+      "copyButtonText": "Copy",
+      "copyButtonDoneText": "✓ Copied",
+      "deleteButtonTitle": "Delete code block",
+      "codePlaceholder": "// Enter your code here...",
+      "diagramDeleteTitle": "Delete diagram",
+      "diagramLoadingText": "Loading diagram...",
+      "diagramSyntaxError": "Syntax error — check your Mermaid notation",
+      "linkCopyDoneText": "Copied!",
+      "tableHeading1": "Heading 1",
+      "tableHeading2": "Heading 2",
+      "tableHeading3": "Heading 3"
+    },
+    "aiService": {
+      "apiError": "API error: {status} {statusText}",
+      "communicationError": "An error occurred while communicating with the AI",
+      "streamUnavailable": "Could not get the response stream",
+      "responseFailed": "Failed to get a response"
+    }
+  }
+}

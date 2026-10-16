@@ -11,19 +11,9 @@
 
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import {
-  CheckSquare,
-  Clock,
-  Bot,
-  Target,
-  Flame,
-  Calendar,
-  TrendingUp,
-  Award,
-  BarChart3,
-  PieChart,
-  Activity,
-} from 'lucide-react';
+import { CheckSquare, Clock, Bot, Target, TrendingUp } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { formatDateTime } from '@/utils/date';
 import type { PlayerStats } from '../../types/achievement';
 
 interface TaskStatsBoardProps {
@@ -69,6 +59,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color
 
           <div className="mb-2">
             <span className="text-3xl font-bold text-gray-900 dark:text-white">
+              {/* NOTE: numeric thousands-separator display, not a date — out of scope for #847 */}
               {typeof value === 'number' ? value.toLocaleString() : value}
             </span>
             {subtitle && (
@@ -117,13 +108,12 @@ const ProgressRing: React.FC<ProgressRingProps> = ({
   percentage,
   size = 120,
   strokeWidth = 8,
-  color = '#3b82f6',
+  color = '#6366f1',
   label,
   value,
 }) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const strokeDasharray = `${(percentage / 100) * circumference} ${circumference}`;
 
   return (
     <div className="flex flex-col items-center">
@@ -181,6 +171,7 @@ interface StreakIndicatorProps {
 }
 
 const StreakIndicator: React.FC<StreakIndicatorProps> = ({ current, max, label, icon, color }) => {
+  const t = useTranslations('achievements');
   return (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
       <div className="flex items-center space-x-3">
@@ -191,7 +182,9 @@ const StreakIndicator: React.FC<StreakIndicatorProps> = ({ current, max, label, 
           <div className="text-sm text-gray-600 dark:text-gray-400">{label}</div>
           <div className="flex items-baseline space-x-2">
             <span className="text-2xl font-bold text-gray-900 dark:text-white">{current}</span>
-            <span className="text-sm text-gray-500 dark:text-gray-400">/ 最高 {max}日</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {t('statsBoard.maxStreakSuffix', { max })}
+            </span>
           </div>
         </div>
       </div>
@@ -204,6 +197,9 @@ const StreakIndicator: React.FC<StreakIndicatorProps> = ({ current, max, label, 
  * メインタスク統計ボードコンポーネント
  */
 export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, className = '' }) => {
+  const t = useTranslations('achievements');
+  const tCommon = useTranslations('common');
+  const tDashboard = useTranslations('dashboard');
   const {
     totalTasksCompleted,
     tasksCompletedToday,
@@ -224,10 +220,12 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, cla
 
   // Format time duration
   const formatTime = (minutes: number): string => {
-    if (minutes < 60) return `${minutes}分`;
+    if (minutes < 60) return t('statsBoard.minutesOnly', { minutes });
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
-    return mins > 0 ? `${hours}時間${mins}分` : `${hours}時間`;
+    return mins > 0
+      ? t('statsBoard.hoursAndMinutes', { hours, minutes: mins })
+      : t('statsBoard.hoursOnly', { hours });
   };
 
   // Calculate weekly goals progress
@@ -241,56 +239,60 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, cla
       study: Math.min((studyTimeThisWeek / weeklyStudyGoal) * 100, 100),
       agents: Math.min((agentExecutionsThisWeek / weeklyAgentGoal) * 100, 100),
     }),
-    [tasksCompletedThisWeek, studyTimeThisWeek, agentExecutionsThisWeek],
+    [tasksCompletedThisWeek, studyTimeThisWeek, agentExecutionsThisWeek, weeklyStudyGoal],
   );
 
   return (
     <div className={`space-y-8 ${className}`}>
       {/* Overview Stats */}
       <div>
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">📊 統計概要</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+          {t('statsBoard.overviewHeading')}
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
-            title="総タスク数"
+            title={t('statsBoard.totalTasks')}
             value={totalTasksCompleted}
             icon={<CheckSquare className="w-5 h-5" />}
-            color="#10b981"
+            color="#22c55e"
             trend={{
               value: tasksCompletedToday,
-              label: '今日',
+              label: tCommon('today'),
               isPositive: tasksCompletedToday > 0,
             }}
           />
 
           <StatCard
-            title="総学習時間"
+            title={t('statsBoard.totalStudyTime')}
             value={formatTime(totalStudyTimeMinutes)}
             icon={<Clock className="w-5 h-5" />}
-            color="#3b82f6"
+            color="#6366f1"
             trend={{
               value: studyTimeToday,
-              label: `今日 ${formatTime(studyTimeToday)}`,
+              label: t('statsBoard.todayWithTime', { time: formatTime(studyTimeToday) }),
               isPositive: studyTimeToday > 0,
             }}
           />
 
           <StatCard
-            title="エージェント実行"
+            title={t('statsBoard.agentExecutions')}
             value={totalAgentExecutions}
-            subtitle="回"
+            subtitle={tCommon('times')}
             icon={<Bot className="w-5 h-5" />}
             color="#8b5cf6"
             trend={{
               value: agentExecutionsToday,
-              label: '今日',
+              label: tCommon('today'),
               isPositive: agentExecutionsToday > 0,
             }}
           />
 
           <StatCard
-            title="高優先度タスク"
+            title={t('statsBoard.highPriorityTasks')}
             value={highPriorityTasksCompleted}
-            subtitle={`完了率 ${Math.round(onTimeCompletionRate)}%`}
+            subtitle={t('statsBoard.completionRateSubtitle', {
+              rate: Math.round(onTimeCompletionRate),
+            })}
             icon={<Target className="w-5 h-5" />}
             color="#f59e0b"
           />
@@ -299,25 +301,27 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, cla
 
       {/* Weekly Progress */}
       <div>
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">📈 今週の進捗</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+          {t('statsBoard.weeklyProgressHeading')}
+        </h2>
         <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <ProgressRing
               percentage={weeklyProgress.tasks}
-              color="#10b981"
-              label="タスク完了"
+              color="#22c55e"
+              label={t('statsBoard.taskCompletionLabel')}
               value={`${tasksCompletedThisWeek}/${weeklyTaskGoal}`}
             />
             <ProgressRing
               percentage={weeklyProgress.study}
-              color="#3b82f6"
-              label="学習時間"
+              color="#6366f1"
+              label={tDashboard('studyHours')}
               value={`${formatTime(studyTimeThisWeek)}`}
             />
             <ProgressRing
               percentage={weeklyProgress.agents}
               color="#8b5cf6"
-              label="エージェント"
+              label={t('statsBoard.agentLabel')}
               value={`${agentExecutionsThisWeek}/${weeklyAgentGoal}`}
             />
           </div>
@@ -326,21 +330,23 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, cla
 
       {/* Streaks */}
       <div>
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">🔥 連続記録</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+          {t('statsBoard.streaksHeading')}
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <StreakIndicator
             current={currentTaskStreak}
             max={maxTaskStreak}
-            label="タスク完了連続日数"
+            label={t('statsBoard.taskStreakLabel')}
             icon={<CheckSquare className="w-5 h-5" />}
-            color="#10b981"
+            color="#22c55e"
           />
           <StreakIndicator
             current={currentStudyStreak}
             max={maxStudyStreak}
-            label="学習連続日数"
+            label={t('statsBoard.studyStreakLabel')}
             icon={<Clock className="w-5 h-5" />}
-            color="#3b82f6"
+            color="#6366f1"
           />
         </div>
       </div>
@@ -348,7 +354,7 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, cla
       {/* Today's Activity */}
       <div>
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-          📅 今日のアクティビティ
+          {t('statsBoard.todayActivityHeading')}
         </h2>
         <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -356,27 +362,35 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, cla
               <div className="text-3xl font-bold text-green-600 dark:text-green-400 mb-1">
                 {tasksCompletedToday}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">完了タスク</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {t('statsBoard.completedTasksLabel')}
+              </div>
             </div>
 
             <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1">
+              <div className="text-3xl font-bold text-indigo-600 dark:text-indigo-400 mb-1">
                 {formatTime(studyTimeToday)}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">学習時間</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {tDashboard('studyHours')}
+              </div>
             </div>
 
             <div className="text-center">
               <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-1">
                 {agentExecutionsToday}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">エージェント実行</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {t('statsBoard.agentExecutions')}
+              </div>
             </div>
           </div>
 
           <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
             <div className="text-sm text-gray-600 dark:text-gray-400 text-center">
-              最終更新: {playerStats.lastUpdatedAt.toLocaleString('ja-JP')}
+              {t('statsBoard.lastUpdated', {
+                date: formatDateTime(playerStats.lastUpdatedAt),
+              })}
             </div>
           </div>
         </div>

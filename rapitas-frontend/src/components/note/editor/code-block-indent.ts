@@ -24,11 +24,24 @@ const BRACE_INDENT_LANGS = [
 
 /**
  * Get the current line text before the cursor position.
+ * When `codeElement` is provided, computes the line via the element's full text
+ * content so that it works correctly even when the element contains highlight
+ * `<span>` children (where `range.startContainer` is a text node inside a span).
  *
  * @param range - Current selection range / 現在の選択範囲
+ * @param codeElement - Optional: the contenteditable code element / コード要素（省略可）
  * @returns Text of the line up to the cursor / カーソル前の行テキスト
  */
-export function getCurrentLine(range: Range): string {
+export function getCurrentLine(range: Range, codeElement?: HTMLElement): string {
+  if (codeElement) {
+    const preRange = document.createRange();
+    preRange.selectNodeContents(codeElement);
+    preRange.setEnd(range.startContainer, range.startOffset);
+    const textBeforeCursor = preRange.toString();
+    const lines = textBeforeCursor.split('\n');
+    return lines[lines.length - 1];
+  }
+  // Fallback: direct text-node read (works when no span elements are present)
   const container = range.startContainer;
   const text = container.textContent ?? '';
   const beforeCursor = text.substring(0, range.startOffset);

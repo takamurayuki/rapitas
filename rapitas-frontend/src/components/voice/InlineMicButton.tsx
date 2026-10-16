@@ -6,9 +6,11 @@
  * Small microphone button that can be placed inside any input field.
  * Opens the global voice input bar targeting the associated input element.
  */
-import { useCallback, useRef } from 'react';
+import { useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { Mic } from 'lucide-react';
 import { useVoiceInput } from './VoiceInputProvider';
+import { VOICE_INPUT_DISABLED } from './VoiceInputProvider';
 
 interface InlineMicButtonProps {
   /** The input element to target (pass via ref). */
@@ -19,8 +21,11 @@ interface InlineMicButtonProps {
   className?: string;
 }
 
-export default function InlineMicButton({ inputRef, onText, className }: InlineMicButtonProps) {
+// NOTE: voice input disabled — the gate wrapper below keeps hooks
+// unconditional inside the inner component (rules-of-hooks).
+function InlineMicButtonInner({ inputRef, onText, className }: InlineMicButtonProps) {
   const { openVoiceInput } = useVoiceInput();
+  const t = useTranslations('devTools');
 
   const handleClick = useCallback(() => {
     if (onText) {
@@ -37,10 +42,15 @@ export default function InlineMicButton({ inputRef, onText, className }: InlineM
       type="button"
       onClick={handleClick}
       className={`p-1 text-zinc-400 hover:text-indigo-500 transition-colors ${className || ''}`}
-      aria-label="音声入力"
-      title="音声入力 (Ctrl+Shift+V)"
+      aria-label={t('voice.inlineMicButton.ariaLabel')}
+      title={t('voice.inlineMicButton.title')}
     >
       <Mic className="w-4 h-4" />
     </button>
   );
+}
+
+export default function InlineMicButton(props: InlineMicButtonProps) {
+  if (VOICE_INPUT_DISABLED) return null;
+  return <InlineMicButtonInner {...props} />;
 }

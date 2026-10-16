@@ -20,6 +20,14 @@ export function GanttBar({ bar, isOnCriticalPath = false, onClick, onHover }: Ga
     onClick?.(bar.taskId);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      e.stopPropagation();
+      onClick?.(bar.taskId);
+    }
+  };
+
   const handleMouseEnter = () => {
     onHover?.(bar.taskId);
   };
@@ -36,19 +44,16 @@ export function GanttBar({ bar, isOnCriticalPath = false, onClick, onHover }: Ga
       baseClass += ' ring-2 ring-red-400 ring-opacity-60';
     }
 
-    if (bar.status === 'completed') {
-      baseClass += ' opacity-70';
+    if (bar.status === 'done') {
+      baseClass += ' opacity-80';
     }
 
     return baseClass;
   };
 
-  // バーが短すぎる場合はテキストを表示しない
-  const shouldShowText = bar.width > 60;
-
   return (
     <g>
-      {/* バー本体 */}
+      {/* バー本体 — タイトルは左列に表示するためバー内は省略 */}
       <rect
         x={bar.x}
         y={bar.y}
@@ -56,26 +61,14 @@ export function GanttBar({ bar, isOnCriticalPath = false, onClick, onHover }: Ga
         height={bar.height}
         fill={bar.color}
         className={getBarStyle()}
-        rx={4} // 角丸
+        rx={4}
         onClick={handleClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onKeyDown={onClick ? handleKeyDown : undefined}
+        role={onClick ? 'button' : undefined}
+        tabIndex={onClick ? 0 : undefined}
       />
-
-      {/* バー内のテキスト（幅が十分な場合のみ） */}
-      {shouldShowText && (
-        <text
-          x={bar.x + 8}
-          y={bar.y + bar.height / 2 + 4}
-          fill="white"
-          fontSize="12"
-          fontWeight="500"
-          className="pointer-events-none select-none"
-          textAnchor="start"
-        >
-          <tspan>{bar.title.length > 20 ? `${bar.title.slice(0, 17)}...` : bar.title}</tspan>
-        </text>
-      )}
 
       {/* ステータスインジケーター */}
       {bar.status === 'in-progress' && (

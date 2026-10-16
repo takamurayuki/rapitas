@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { Priority, Theme, WorkflowMode } from '@/types';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
 import { useTaskFormData } from './useTaskFormData';
 import { useTaskFormActions } from './useTaskFormActions';
 
@@ -26,8 +24,6 @@ export interface PendingSubtask {
 export function useNewTaskForm() {
   const t = useTranslations('task');
   const tc = useTranslations('common');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
 
   // ── Controlled form fields ────────────────────────────────────────────────
   const [title, setTitle] = useState('');
@@ -84,7 +80,6 @@ export function useNewTaskForm() {
     // translations
     t,
     tc,
-    dateLocale,
     // core fields
     title,
     setTitle,

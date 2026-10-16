@@ -3,9 +3,28 @@ import type { Task } from '@/types';
 import type { WorkflowStatus } from '@/types';
 import WorkflowViewer from '@/components/workflow/WorkflowViewer';
 import WorkflowStatusIndicator from '@/components/workflow/WorkflowStatusIndicator';
-import { Loader2, Feather, Gauge, Layers, type LucideIcon } from 'lucide-react';
+import { CircleSmall, Diamond, GitBranch, Pyramid, type LucideIcon } from 'lucide-react';
+import { Toggle } from '@/components/ui/Toggle';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
+import { Spinner } from '@/components/ui/spinner';
+import { resolveBlockedCauseLabel } from '@/components/workflow/workflow-blocked-cause';
+import CriticHistorySection from '@/components/workflow/CriticHistorySection';
+import RepairStagnationBanner from '@/components/workflow/RepairStagnationBanner';
+import RepairIterationMetricsPanel from '@/components/workflow/RepairIterationMetricsPanel';
+import DryRunPanel from '@/components/workflow/DryRunPanel';
+import PhaseBreakdown from '@/feature/tasks/components/detail/PhaseBreakdown';
+import { useWorkflowDisabledToggle } from '../hooks/useWorkflowDisabledToggle';
+
+// Statuses where a worktree is likely to exist — DryRunPanel is not shown
+// before this (it would just 404). See workflow-handlers-dry-run.ts.
+const DRY_RUN_VISIBLE_STATUSES: ReadonlySet<WorkflowStatus> = new Set([
+  'plan_approved',
+  'in_progress',
+  'blocked',
+  'verify_done',
+  'completed',
+]);
 
 export interface TaskWorkflowSectionProps {
   task: Task;
@@ -35,6 +54,111 @@ export default function TaskWorkflowSection({
   setTask,
 }: TaskWorkflowSectionProps) {
   const t = useTranslations('workflow');
+
+  // task.status (not workflowStatus) is what actually goes 'blocked' — the
+  // phase pill above only tracks workflowStatus, which stays at whatever
+  // phase it last reached (e.g. 'plan_approved') even while the task itself
+  // is blocked. Cast is needed because Status only types 'todo'/'in-progress'/
+  // 'done' at the type level, though the backend also sends 'blocked'/'failed'
+  // (same pattern as TaskCard.tsx's isRetryable check).
+  const isBlocked = (task?.status as string) === 'blocked';
+
+  // Why the task is blocked — fetched lazily (only while blocked) from the
+  // append-only WorkflowTransition log, since the cause isn't on the Task
+  // object itself. See BLOCKED_CAUSE_I18N_KEYS above for the causes this
+  // recognizes; anything else falls back to the generic hint.
+  const [blockedCause, setBlockedCause] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isBlocked || !taskId) {
+      setBlockedCause(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/transitions`);
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          success?: boolean;
+          transitions?: Array<{ cause?: string | null }>;
+        };
+        if (cancelled || !data.success || !data.transitions?.length) return;
+        const latestCause = data.transitions[data.transitions.length - 1]?.cause ?? null;
+        const label = resolveBlockedCauseLabel(t, latestCause);
+        if (label) setBlockedCause(label);
+      } catch {
+        // Non-fatal — the pill falls back to the generic hint.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isBlocked, taskId, t]);
+
+  // The phase-critic gate can silently archive a freshly-saved research.md /
+  // plan.md and roll workflowStatus back a step (research_done → draft,
+  // plan_created → research_done) when it fails quality review — a bounded
+  // self-repair loop (see phase-critic-gate.ts). Without this, the file just
+  // vanishes from the viewer and the status regresses with no visible
+  // explanation, reading as "why did my saved file disappear?". Surface the
+  // rejection reason whenever the CURRENT status is exactly the rollback
+  // target of the latest such transition (i.e. nothing has superseded it yet
+  // — a fresh research.md/plan.md save moves the status forward again and
+  // this banner naturally stops matching).
+  const [criticRejection, setCriticRejection] = useState<{
+    phase: 'research' | 'plan';
+    reasons: string[];
+    severity: number | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (
+      !taskId ||
+      (currentWorkflowStatus !== 'draft' && currentWorkflowStatus !== 'research_done')
+    ) {
+      setCriticRejection(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/transitions`);
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          success?: boolean;
+          transitions?: Array<{
+            cause?: string | null;
+            toStatus?: string | null;
+            metadata?: { reasons?: unknown; severity?: unknown };
+          }>;
+        };
+        if (cancelled || !data.success || !data.transitions?.length) return;
+        const latest = data.transitions[data.transitions.length - 1];
+        const phase =
+          latest?.cause === 'research_critic_failed'
+            ? 'research'
+            : latest?.cause === 'plan_critic_failed'
+              ? 'plan'
+              : null;
+        if (!phase || latest?.toStatus !== currentWorkflowStatus) {
+          setCriticRejection(null);
+          return;
+        }
+        const reasons = Array.isArray(latest.metadata?.reasons)
+          ? latest.metadata!.reasons.filter((r): r is string => typeof r === 'string')
+          : [];
+        const severity =
+          typeof latest.metadata?.severity === 'number' ? latest.metadata.severity : null;
+        setCriticRejection({ phase, reasons, severity });
+      } catch {
+        // Non-fatal — the banner simply doesn't show.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [taskId, currentWorkflowStatus]);
 
   // Compute the *effective* auto-approve state by OR-ing the task-level flag
   // with the global UserSettings entries — matches the backend rule in
@@ -66,6 +190,14 @@ export default function TaskWorkflowSection({
     };
   }, []);
 
+  const {
+    effectiveWorkflowDisabled,
+    globallyForced: workflowDisabledGloballyForced,
+    isLocked: workflowToggleLocked,
+    isToggling: isTogglingWorkflowDisabled,
+    toggle: handleToggleWorkflowDisabled,
+  } = useWorkflowDisabledToggle(taskId, task, setTask);
+
   const isSubtask = !!task?.parentId;
   const taskFlag = !!task?.autoApprovePlan;
   const globalFlag = !!globalAutoApprove?.autoApprovePlan;
@@ -79,27 +211,27 @@ export default function TaskWorkflowSection({
         ? 'subtask-global'
         : undefined;
 
-  // Colour + icon the complexity chip by workflow mode so the tier is legible
-  // at a glance (low→high = emerald/Feather → amber/Gauge → rose/Layers). A
-  // mode-specific icon also avoids clashing with the auto-approve chip's dot.
+  // Colour + icon the complexity chip by workflow mode. A cohesive shape
+  // progression for 簡単/標準/高度: CircleSmall (a small dot) → Diamond → Pyramid
+  // (layered/hierarchical = complex). Colours go emerald → blue → rose (easy→hard).
   const MODE_STYLES: Record<string, { chip: string; icon: LucideIcon }> = {
     lightweight: {
       chip: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-      icon: Feather,
+      icon: CircleSmall,
     },
     standard: {
-      chip: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-      icon: Gauge,
+      chip: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+      icon: Diamond,
     },
     comprehensive: {
       chip: 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
-      icon: Layers,
+      icon: Pyramid,
     },
   };
   const MODE_LABELS: Record<string, string> = {
-    lightweight: '軽量',
-    standard: '標準',
-    comprehensive: '包括',
+    lightweight: t('modeLightweight'),
+    standard: t('modeStandard'),
+    comprehensive: t('modeComprehensive'),
   };
   const complexity = task?.complexityScore;
   const modeLabel = task?.workflowMode
@@ -108,19 +240,49 @@ export default function TaskWorkflowSection({
   const modeStyle = task?.workflowMode ? MODE_STYLES[task.workflowMode] : undefined;
   // Brand-coloured fallback keeps the chip visible when the mode is unknown.
   const complexityChipClass =
-    modeStyle?.chip ?? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300';
-  const ComplexityIcon = modeStyle?.icon ?? Gauge;
+    modeStyle?.chip ?? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+  const ComplexityIcon = modeStyle?.icon ?? Diamond;
+
+  // Escalating colour so a severity-92 rejection reads as more urgent than a
+  // severity-55 one at a glance, instead of every rejection looking identical.
+  const severityStyle = (severity: number | null): { label: string; chip: string } | null => {
+    if (severity == null) return null;
+    if (severity >= 80) {
+      return {
+        label: t('taskWorkflowSection.criticRejection.severity.high'),
+        chip: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+      };
+    }
+    if (severity >= 50) {
+      return {
+        label: t('taskWorkflowSection.criticRejection.severity.medium'),
+        chip: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+      };
+    }
+    return {
+      label: t('taskWorkflowSection.criticRejection.severity.low'),
+      chip: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
+    };
+  };
 
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 mb-6">
       <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
+            <GitBranch className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
-            <WorkflowStatusIndicator status={currentWorkflowStatus} size="sm" />
+            <WorkflowStatusIndicator
+              status={isBlocked ? 'blocked' : currentWorkflowStatus}
+              size="sm"
+              workflowMode={task?.workflowMode}
+              blockedCause={isBlocked ? blockedCause : undefined}
+            />
             {/* Loading spinner lives on the left so the right chips end flush
                 with the card padding (matching the title's left inset). */}
-            {isWorkflowLoading && <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />}
+            {isWorkflowLoading && (
+              <Spinner size="sm" className="text-zinc-400 dark:text-zinc-400" />
+            )}
           </div>
           <div className="flex items-center gap-2">
             {(modeLabel || complexity != null) && (
@@ -128,14 +290,21 @@ export default function TaskWorkflowSection({
                 className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${complexityChipClass}`}
                 title={
                   modeLabel
-                    ? `ワークフロー: ${modeLabel}${task?.workflowModeOverride ? '（手動指定）' : '（複雑度から自動選択）'}`
+                    ? task?.workflowModeOverride
+                      ? t('taskWorkflowSection.modeTooltipManual', { mode: modeLabel })
+                      : t('taskWorkflowSection.modeTooltipAuto', { mode: modeLabel })
                     : undefined
                 }
               >
                 <ComplexityIcon className="h-3.5 w-3.5" />
-                {modeLabel ?? 'ワークフロー'}
-                {complexity != null ? ` · 複雑度 ${Math.round(complexity)}` : ''}
-                {task?.workflowModeOverride ? '（手動）' : ''}
+                {modeLabel ?? t('title')}
+                {complexity != null
+                  ? t('taskWorkflowSection.complexitySuffix', { score: Math.round(complexity) })
+                  : // Not yet assessed: the score now comes exclusively from the
+                    // research agent's code-grounded evaluation — show a pending
+                    // "-" instead of hiding the field (or a heuristic guess).
+                    t('taskWorkflowSection.complexityPendingSuffix')}
+                {task?.workflowModeOverride ? t('taskWorkflowSection.manualSuffix') : ''}
               </span>
             )}
             <span
@@ -144,12 +313,55 @@ export default function TaskWorkflowSection({
                   ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
                   : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
               }`}
-              title={`計画自動承認: ${effectiveAutoApprove ? 'ON（plan.md 保存で自動進行）' : 'OFF（手動承認が必要）'}`}
+              title={
+                effectiveAutoApprove
+                  ? t('taskWorkflowSection.autoApproveTooltipOn')
+                  : t('taskWorkflowSection.autoApproveTooltipOff')
+              }
             >
               <span
                 className={`inline-block h-1.5 w-1.5 rounded-full ${effectiveAutoApprove ? 'bg-emerald-500' : 'bg-zinc-400'}`}
               />
-              自動承認 {effectiveAutoApprove ? 'ON' : 'OFF'}
+              {t('taskWorkflowSection.autoApproveBadge', {
+                state: effectiveAutoApprove ? 'ON' : 'OFF',
+              })}
+            </span>
+            {/* Per-task "skip the multi-phase workflow" toggle — locked once
+                the task has left 'todo' (server-enforced too, see
+                handleSetWorkflowDisabled). Reflects task.workflowDisabled;
+                the global setting can independently force this on regardless
+                of the task-level value (see effectiveWorkflowDisabled). */}
+            <span
+              className="flex shrink-0 items-center gap-1.5"
+              title={
+                workflowToggleLocked
+                  ? t('taskWorkflowSection.workflowDisabledToggle.lockedTooltip')
+                  : workflowDisabledGloballyForced
+                    ? t('taskWorkflowSection.workflowDisabledToggle.globallyForcedTooltip')
+                    : effectiveWorkflowDisabled
+                      ? t('taskWorkflowSection.workflowDisabledToggle.onTooltip')
+                      : t('taskWorkflowSection.workflowDisabledToggle.offTooltip')
+              }
+            >
+              {/* One colour in both states: the switch already carries the
+                  state, and recolouring the name made the label itself read as
+                  a status. */}
+              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                {t('taskWorkflowSection.workflowDisabledToggle.label')}
+              </span>
+              {/* Reads as the label says: ON = the workflow RUNS. The underlying
+                  flag is `workflowDisabled`, so the switch is its inverse — a
+                  switch named ワークフロー that was on while the workflow was off
+                  would state the opposite of the truth. Indigo, not amber: with
+                  this polarity ON is the ordinary state, not a warning. */}
+              <Toggle
+                checked={!effectiveWorkflowDisabled}
+                onChange={handleToggleWorkflowDisabled}
+                disabled={workflowToggleLocked || isTogglingWorkflowDisabled}
+                size="sm"
+                color="indigo"
+                srLabel={t('taskWorkflowSection.workflowDisabledToggle.label')}
+              />
             </span>
           </div>
         </div>
@@ -185,7 +397,65 @@ export default function TaskWorkflowSection({
         // displays the current value. Editing happens via the task settings
         // page so the UX matches the "状態表示だけ" policy.
         showWorkflowMode={true}
+        criticRejectionPhase={criticRejection?.phase ?? null}
+        workflowDisabled={effectiveWorkflowDisabled}
       />
+
+      {criticRejection &&
+        (() => {
+          const severity = severityStyle(criticRejection.severity);
+          return (
+            <div className="px-4 pb-4">
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">
+                    {t('taskWorkflowSection.criticRejection.title', {
+                      phase: t(
+                        `taskWorkflowSection.criticRejection.phase.${criticRejection.phase}`,
+                      ),
+                    })}
+                  </p>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {severity && (
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${severity.chip}`}
+                      >
+                        {severity.label}
+                        {criticRejection.severity != null ? ` (${criticRejection.severity})` : ''}
+                      </span>
+                    )}
+                    {criticRejection.reasons.length > 1 && (
+                      <span className="rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
+                        {t('taskWorkflowSection.criticRejection.reasonsCount', {
+                          count: criticRejection.reasons.length,
+                        })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {criticRejection.reasons.length > 0 && (
+                  <ul className="mt-2 list-disc list-outside space-y-1.5 pl-5 text-sm text-amber-700 dark:text-amber-300 leading-relaxed">
+                    {criticRejection.reasons.map((reason, i) => (
+                      <li key={i}>{reason}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+      {/* フェーズ別実行時間（role × 各回の実働内訳、task #560） */}
+      <PhaseBreakdown taskId={taskId} />
+
+      <RepairStagnationBanner taskId={taskId} />
+      <RepairIterationMetricsPanel taskId={taskId} />
+
+      {currentWorkflowStatus && DRY_RUN_VISIBLE_STATUSES.has(currentWorkflowStatus) && (
+        <DryRunPanel taskId={taskId} />
+      )}
+
+      <CriticHistorySection taskId={taskId} />
 
       {workflowError && (
         <div className="px-4 pb-4">

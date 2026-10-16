@@ -1,6 +1,14 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useStudyProgress } from '../study/useStudyProgress';
 
+// NOTE: t must be a stable reference (not a fresh arrow fn per call) — the hook
+// includes `t` in a useEffect dependency array, and an unstable mock would
+// re-trigger the effect (and its fetch) on every render.
+vi.mock('next-intl', () => {
+  const t = (key: string) => key;
+  return { useTranslations: () => t };
+});
+
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({
     debug: vi.fn(),
@@ -154,7 +162,7 @@ describe('useStudyProgress', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(result.current.error).toBe('進捗データの取得に失敗しました');
+    expect(result.current.error).toBe('useStudyProgress.fetchFailed');
   });
 
   it('should refresh data when refresh() is called', async () => {

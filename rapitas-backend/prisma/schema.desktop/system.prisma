@@ -16,6 +16,22 @@ model Notification {
   createdAt         DateTime  @default(now())
 }
 
+// Lightweight memo (quick-capture メモモード): a thing to remember or a tiny
+// record — deliberately smaller than the Notes feature (documents, tags, AI).
+// An optional one-shot reminder is delivered through the Notification pipeline
+// by services/scheduling/memo-reminder-scheduler.ts.
+model Memo {
+  id         Int       @id @default(autoincrement())
+  content    String
+  remindAt   DateTime? // when to notify; null = plain memo
+  remindedAt DateTime? // set once the reminder notification fired (one-shot)
+  isDone     Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([remindAt])
+}
+
 model UserSettings {
   id                          Int       @id @default(autoincrement())
   developerModeDefault        Boolean   @default(false)
@@ -41,10 +57,39 @@ model UserSettings {
   autoApprovePlan             Boolean   @default(false) // Whether to auto-approve when saving plan.md
   autoApproveSubtaskPlan      Boolean   @default(true)  // Auto-approve subtask plan.md (default ON)
   autoComplexityAnalysis      Boolean   @default(false) // Whether to enable automatic complexity analysis
+  // Global off-switch for the multi-phase workflow (research/plan/verify as
+  // separate saved artifacts + phase-critic gate). When true, new task
+  // executions skip straight to a single direct-implementation pass (still
+  // gated by lint/test verification, adversarial diff review, and the
+  // completion gate — only the phase ceremony is skipped). A per-task
+  // Task.workflowDisabled flag can additionally opt a single task in/out.
+  workflowDisabledGlobally    Boolean   @default(false)
   // Max concurrent auto-created backlog tasks PER THEME. 0 = disabled (opt-in).
   // When a theme's auto-run runs out of work it promotes open concerns (then
   // ideas once concerns are clear) into tasks up to this cap. See backlog-task-promoter.
   autoCreateFromBacklogLimit  Int       @default(0)
+  // Dev: when auto-run runs dry (no live agents), restart the backend to pick up
+  // committed fixes before creating more tasks. Gated by HEAD-moved + no-agents +
+  // rate-limit in dev-restart-on-dry.ts. Only effective under dev.js (exit 75).
+  restartOnAutoRunDry         Boolean   @default(false)
+  // Max verify->implement self-repair cycles before a task is blocked. The
+  // verifier's failure is fed back to the implementer to fix and re-verify, up
+  // to this many times. 0 disables auto-repair. See verify-self-repair.ts.
+  verifyRepairLimit           Int       @default(2)
+  // Minutes of no-progress before a task is flagged stalled on the execution
+  // dashboard (default 5). UI-display threshold only; does NOT affect the
+  // existing automatic-intervention thresholds in queue-stall-policy.ts. See
+  // execution-dashboard-service.ts / task 870.
+  executionStallThresholdMinutes Int    @default(5)
+  // Idle-stop timer (task 784): once a theme's auto-run runs dry (queue and
+  // active executions empty) and NO new task is filed for this many minutes,
+  // auto-run is stopped (ThemeAutoRun.enabled=false) with a notification.
+  // 0 disables the timer. See auto-run-idle-timer.ts / auto-run-lifecycle.ts.
+  idleStopMinutes             Int       @default(60)
+  // Nightly self-refill window (task 784): backlog self-refill (concerns/ideas
+  // -> tasks) runs at most once per day, not before this local "HH:MM". Empty
+  // string disables self-refill entirely. See backlog-task-promoter.ts.
+  selfRefillWindowStart       String    @default("03:00")
   // Global automation defaults (task-level overrides win, then these, then env).
   autoCommitDefault           Boolean   @default(false) // Default: auto-commit on completion
   autoCreatePRDefault         Boolean   @default(false) // Default: auto-create PR on completion

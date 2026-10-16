@@ -10,7 +10,7 @@
  * 500-line per-file limit. The function reads and writes the agent's
  * `/** @internal *\/` public state directly.
  */
-import { spawn } from 'child_process';
+import { spawnLowPriority } from '../process-priority';
 import { writeFileSync, unlinkSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -21,95 +21,57 @@ import {
   registerProcess,
   unregisterProcess,
   killProcessTreeSafely,
+  captureDescendants,
 } from '../agent-process-tracker';
+import { startResourceSampling, stopResourceSampling } from '../process-resource-sampler';
 import { getClaudePath, buildSpawnCommand } from './cli-utils';
+import { buildSanitizedSpawnEnv } from '../../../utils/agent';
 import { buildStructuredPrompt } from './prompt-builder';
 import { startIdleMonitor } from './idle-monitor';
 import type { ClaudeCodeAgent } from './agent-core';
+import { formatPromptPreview } from '../../../utils/agent/prompt-preview';
+
+import { writePromptChunks } from './stdin-prompt-writer';
+import { buildClaudeArgs } from './claude-args';
+export { buildClaudeArgs } from './claude-args';
 
 const logger = createLogger('claude-code-agent');
 
 /**
- * Build the Claude Code CLI argument list from agent config. Pure function.
+ * Build the env passed to the Claude Code CLI subprocess.
+ *
+ * @returns Sanitized environment (see buildSanitizedSpawnEnv) plus CLI-friendly overrides / サニタイズ済み環境
  */
-function buildClaudeArgs(agent: ClaudeCodeAgent): { args: string[]; logExtras: string[] } {
-  const cfg = agent.config;
-  const args: string[] = ['--print', '--verbose', '--output-format', 'stream-json'];
-  const logExtras: string[] = [];
-
-  if (cfg.resumeSessionId) {
-    args.push('--resume', cfg.resumeSessionId);
-    logExtras.push(
-      `${agent.logPrefix} Resuming specific session with --resume ${cfg.resumeSessionId}`,
-    );
-  } else if (cfg.continueConversation) {
-    args.push('--continue');
-    logExtras.push(`${agent.logPrefix} Continuing most recent conversation with --continue`);
-  }
-
-  if (cfg.dangerouslySkipPermissions) {
-    args.push('--dangerously-skip-permissions');
-    // NOTE: Also set permission-mode to ensure all file edits (including .claude/) are allowed
-    args.push('--permission-mode', 'bypassPermissions');
-  }
-  if (cfg.model) args.push('--model', cfg.model);
-  if (cfg.maxTokens) args.push('--max-tokens', String(cfg.maxTokens));
-
-  // NOTE: Disable worktree tools to prevent the spawned CLI from creating nested worktrees
-  // that conflict with rapitas-managed worktrees and could corrupt .git/ directory structure.
-  // Investigation mode (research / planner / reviewer): block ALL mutating
-  // tools so the agent can't bypass the parent-only workflow contract by
-  // writing files directly, running shell commands (curl / git / pnpm),
-  // or invoking the workflow API itself. Read-only tools (Read / Glob /
-  // Grep / WebFetch / WebSearch) remain available so the agent can still
-  // investigate the codebase.
-  const disallowed = ['EnterWorktree', 'ExitWorktree'];
-  if (cfg.investigationMode) {
-    disallowed.push(
-      'Bash',
-      'PowerShell',
-      'Edit',
-      'Write',
-      // NOTE: 'MultiEdit' removed — current Claude Code CLI has no such tool and
-      // logged "Permission deny rule MultiEdit matches no known tool" every run.
-      // File mutation is already blocked via Edit/Write/NotebookEdit.
-      'NotebookEdit',
-      'Task', // disallow Agent/Task tool to prevent recursion / tool re-acquisition
-      // The agent previously pivoted to these tools when blocked from
-      // Bash/PowerShell, trying to find a way to call the workflow API.
-      // Block them too so it stays on the read-only Read/Glob/Grep path
-      // and just outputs the markdown report to stdout.
-      'WebFetch',
-      'ToolSearch',
-      'Skill',
-    );
-    logExtras.push(
-      `${agent.logPrefix} Investigation mode: blocking write/shell tools (${disallowed.slice(2).join(',')})`,
-    );
-  }
-  args.push('--disallowedTools', disallowed.join(','));
-
-  return { args, logExtras };
-}
-
-/** Build the env passed to the Claude Code CLI subprocess. */
-function buildSpawnEnv(): NodeJS.ProcessEnv {
+export function buildSpawnEnv(): NodeJS.ProcessEnv {
   const isWindows = process.platform === 'win32';
-  return {
-    ...process.env,
+  // NOTE: Heap cap for EVERY node process in the agent's tree (NODE_OPTIONS is
+  // inherited by child processes, so `next build` etc. get it too). Task 553:
+  // an agent-run webpack build with splitChunks.maxSize grew to 48 GB RSS and
+  // starved the host (1.9 GB free of 64 GB) — an explicit OOM failure the agent
+  // can see and self-repair beats a silent host-wide stall. 8192 MB is generous:
+  // CI runners build this frontend within ~7 GB total RAM.
+  const heapMb = Math.max(
+    1024,
+    parseInt(process.env.RAPITAS_AGENT_NODE_HEAP_MB ?? '8192', 10) || 8192,
+  );
+  // NOTE: The spawned CLI is prompt-steerable (the task prompt itself can ask
+  // it to print/exfiltrate its own env), so start from a sanitized base —
+  // never the raw inherited env — to keep ENCRYPTION_KEY/DATABASE_URL/
+  // GITHUB_TOKEN/etc out of its reach.
+  return buildSanitizedSpawnEnv({
     FORCE_COLOR: '0',
     NO_COLOR: '1',
     CI: '1',
     TERM: 'dumb',
     PYTHONUNBUFFERED: '1',
-    NODE_OPTIONS: '--no-warnings',
+    NODE_OPTIONS: `--no-warnings --max-old-space-size=${heapMb}`,
     ...(isWindows && {
       LANG: 'en_US.UTF-8',
       PYTHONIOENCODING: 'utf-8',
       PYTHONUTF8: '1',
       CHCP: '65001', // Enable UTF-8 mode on Windows 10+
     }),
-  };
+  });
 }
 
 /** Stream the prompt to stdin in 16 KB chunks (avoids buffering issues). */
@@ -118,28 +80,20 @@ async function writePromptToStdin(agent: ClaudeCodeAgent, prompt: string): Promi
     logger.info(`${agent.logPrefix} stdin is not available`);
     return;
   }
-  const stdin = agent.process.stdin;
-  const CHUNK_SIZE = 16384; // 16KB chunks
-
-  stdin.on('error', (err) => {
-    logger.error({ err }, `${agent.logPrefix} stdin error`);
-  });
-
-  // Convert prompt to UTF-8 Buffer to prevent encoding issues
-  const promptBuffer = Buffer.from(prompt, 'utf8');
-  logger.info(`${agent.logPrefix} Prompt buffer size: ${promptBuffer.length} bytes`);
-
-  for (let i = 0; i < promptBuffer.length; i += CHUNK_SIZE) {
-    const chunk = promptBuffer.subarray(i, Math.min(i + CHUNK_SIZE, promptBuffer.length));
-    const canContinue = stdin.write(chunk);
-    if (!canContinue) {
-      await new Promise<void>((r) => stdin.once('drain', r));
-    }
-  }
-
-  stdin.end();
+  const { bytes, completed } = await writePromptChunks(
+    agent.process.stdin,
+    prompt,
+    (err, closed) => {
+      // NOTE: EPIPE means the CLI exited before reading the prompt; the close handler reports the real cause.
+      if (closed)
+        logger.warn(
+          `${agent.logPrefix} stdin closed by CLI before prompt was fully written (${err.message})`,
+        );
+      else logger.error({ err }, `${agent.logPrefix} stdin error`);
+    },
+  );
   logger.info(
-    `${agent.logPrefix} Prompt written to stdin (${promptBuffer.length} bytes) in chunks`,
+    `${agent.logPrefix} Prompt ${completed ? 'written to stdin' : 'write aborted'} (${bytes} bytes)`,
   );
 }
 
@@ -154,7 +108,7 @@ async function writePromptToStdin(agent: ClaudeCodeAgent, prompt: string): Promi
  * @param resolve - Promise resolver from execute().
  * @param buildResolveAfterParse - Bound `agent.buildResolveAfterParse`.
  */
-export function runClaudeExecution(
+export async function runClaudeExecution(
   agent: ClaudeCodeAgent,
   task: AgentTask,
   workDir: string,
@@ -166,8 +120,9 @@ export function runClaudeExecution(
     workDir: string,
     startTime: number,
     resolve: (result: AgentExecutionResult) => void,
+    resourceStats?: { cpuTimeMs: number | null; peakRssKb: number | null },
   ) => () => void,
-): void {
+): Promise<void> {
   // In --resume or --continue mode, use the prompt (user response) as-is
   // Adding extra text would break the session resumption context
   const isResumeMode = !!(agent.config.resumeSessionId || agent.config.continueConversation);
@@ -194,26 +149,25 @@ export function runClaudeExecution(
   const { args, logExtras } = buildClaudeArgs(agent);
   for (const line of logExtras) logger.info(line);
 
-  const claudePath = getClaudePath();
+  const claudePath = await getClaudePath();
   const [finalCommand, finalArgs] = buildSpawnCommand(claudePath, args);
 
-  logger.info(`${agent.logPrefix} Platform: ${process.platform}`);
-  logger.info(`${agent.logPrefix} Claude path: ${claudePath}`);
+  logger.info(`${agent.logPrefix} Platform: ${process.platform} / Claude path: ${claudePath}`);
   logger.info(`${agent.logPrefix} Work directory: ${workDir}`);
   logger.info(`${agent.logPrefix} Prompt length: ${prompt.length} chars / Timeout: ${timeout}ms`);
   logger.info(`${agent.logPrefix} Args: ${args.join(' ')}`);
 
   agent.emitOutputInternal(`${agent.logPrefix} Starting execution...\n`);
+  agent.emitOutputInternal(`${agent.logPrefix} Model: ${agent.config.model ?? 'default'}\n`);
   agent.emitOutputInternal(`${agent.logPrefix} Working directory: ${workDir}\n`);
   agent.emitOutputInternal(`${agent.logPrefix} Timeout: ${timeout / 1000}s\n`);
-  agent.emitOutputInternal(
-    `${agent.logPrefix} Prompt: ${prompt.substring(0, 200)}${prompt.length > 200 ? '...' : ''}\n\n`,
-  );
+  // One line only — untagged continuation lines render as agent narrative (formatPromptPreview).
+  agent.emitOutputInternal(`${agent.logPrefix} Prompt: ${formatPromptPreview(prompt)}\n\n`);
 
   const cleanupPromptFile = () => {
     try {
       unlinkSync(promptFile);
-    } catch (_) {
+    } catch {
       // Prompt file may already be deleted
     }
   };
@@ -221,7 +175,7 @@ export function runClaudeExecution(
   try {
     logger.info(`${agent.logPrefix} Final command: ${finalCommand}`);
 
-    agent.process = spawn(finalCommand, finalArgs, {
+    agent.process = spawnLowPriority(finalCommand, finalArgs, {
       cwd: workDir,
       shell: true,
       windowsHide: true, // NOTE: Prevents TCP handle inheritance — stops CLI process from inheriting port 3001 socket
@@ -243,6 +197,7 @@ export function runClaudeExecution(
         startedAt: new Date().toISOString(),
         parentPid: process.pid,
       });
+      startResourceSampling(agent.process.pid);
     }
 
     writePromptToStdin(agent, prompt).catch((err) => {
@@ -270,6 +225,9 @@ export function runClaudeExecution(
       getProcess: () => agent.process,
       setIdleTimeoutForceKilled: (v) => {
         agent.idleTimeoutForceKilled = v;
+      },
+      setWallClockTimeoutForceKilled: (v) => {
+        agent.wallClockTimeoutForceKilled = v;
       },
     });
 
@@ -329,17 +287,29 @@ export function runClaudeExecution(
       agent.emitOutputInternal(output, true);
     });
 
+    let resourceStats: { cpuTimeMs: number | null; peakRssKb: number | null } = {
+      cpuTimeMs: null,
+      peakRssKb: null,
+    };
     agent.process.on('close', (code: number | null) => {
       monitor.cleanup();
       cleanupPromptFile();
       if (agent.process?.pid) {
         const closedPid = agent.process.pid;
         unregisterProcess(closedPid);
+        resourceStats = stopResourceSampling(closedPid);
         // On Windows, 'close' (stdio closed) does NOT guarantee the process
         // exited — a completed `claude --print` agent can stay resident and pile
         // up as a zombie. Reap its tree after a short grace if still alive.
         // killProcessTreeSafely refuses to touch a port-3001 (backend) process.
-        const reap = setTimeout(() => killProcessTreeSafely(closedPid), 3000);
+        // Capture descendants NOW, while the parent links are still live — a
+        // command the agent launched can outlive both the agent and the shell
+        // that started it, and is then unreachable from the root.
+        const known = captureDescendants(closedPid);
+        const reap = setTimeout(
+          () => killProcessTreeSafely(closedPid, { knownTargets: known }),
+          3000,
+        );
         (reap as { unref?: () => void }).unref?.();
       }
       const executionTimeMs = Date.now() - startTime;
@@ -357,13 +327,13 @@ export function runClaudeExecution(
       );
       logger.info(`${agent.logPrefix} Final output length: ${agent.outputBuffer.length}`);
       logger.info(`${agent.logPrefix} Last 500 chars of output: ${agent.outputBuffer.slice(-500)}`);
-
       if (agent.getStatus() === 'cancelled') {
         resolve({
           success: false,
           output: agent.outputBuffer,
           errorMessage: 'Execution cancelled',
           executionTimeMs,
+          failureType: 'cancelled',
         });
         return;
       }
@@ -371,7 +341,13 @@ export function runClaudeExecution(
       // Skip if already resolved by timeout
       if (agent.getStatus() === 'failed') return;
 
-      const resolveAfterParse = buildResolveAfterParse(code, workDir, startTime, resolve);
+      const resolveAfterParse = buildResolveAfterParse(
+        code,
+        workDir,
+        startTime,
+        resolve,
+        resourceStats,
+      );
 
       // If a Worker exists, send parse-complete and wait for results;
       // otherwise fall back to direct execution

@@ -153,33 +153,48 @@ export const agentDiscoveryRouter = new Elysia()
   )
 
   // Validate agent configuration without persisting
-  .post('/agents/validate-config', async ({ body, set }) => {
-    const { agentType, apiKey, endpoint, modelId, additionalConfig } = body as {
-      agentType: string;
-      apiKey?: string;
-      endpoint?: string;
-      modelId?: string;
-      additionalConfig?: Record<string, unknown>;
-    };
+  .post(
+    '/agents/validate-config',
+    async ({ body, set }) => {
+      const { agentType, apiKey, endpoint, modelId, additionalConfig } = body as {
+        agentType: string;
+        apiKey?: string;
+        endpoint?: string;
+        modelId?: string;
+        additionalConfig?: Record<string, unknown>;
+      };
 
-    const errors: string[] = [];
+      const errors: string[] = [];
 
-    if (apiKey) {
-      const apiKeyResult = validateApiKeyFormat(agentType, apiKey);
-      if (!apiKeyResult.valid && apiKeyResult.message) {
-        errors.push(apiKeyResult.message);
+      if (apiKey) {
+        const apiKeyResult = validateApiKeyFormat(agentType, apiKey);
+        if (!apiKeyResult.valid && apiKeyResult.message) {
+          errors.push(apiKeyResult.message);
+        }
       }
-    }
 
-    const configResult = validateAgentConfig(agentType, { endpoint, modelId, additionalConfig });
-    if (!configResult.valid) {
-      errors.push(...configResult.errors);
-    }
+      const configResult = validateAgentConfig(agentType, { endpoint, modelId, additionalConfig });
+      if (!configResult.valid) {
+        errors.push(...configResult.errors);
+      }
 
-    if (errors.length > 0) {
-      set.status = 400;
-      return { valid: false, errors };
-    }
+      if (errors.length > 0) {
+        set.status = 400;
+        return { valid: false, errors };
+      }
 
-    return { valid: true, errors: [] };
-  });
+      return { valid: true, errors: [] };
+    },
+    {
+      body: t.Object(
+        {
+          agentType: t.String({ maxLength: 100 }),
+          apiKey: t.Optional(t.String({ maxLength: 500 })),
+          endpoint: t.Optional(t.String({ maxLength: 500 })),
+          modelId: t.Optional(t.String({ maxLength: 200 })),
+          additionalConfig: t.Optional(t.Record(t.String(), t.Any())),
+        },
+        { additionalProperties: false },
+      ),
+    },
+  );

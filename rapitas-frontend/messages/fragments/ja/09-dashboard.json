@@ -1,0 +1,24 @@
+{
+  "dashboard": {
+    "title": "ダッシュボード",
+    "subtitle": "学習の進捗と統計を確認",
+    "streak": "連続記録",
+    "target": "目標",
+    "taskComplete": "タスク完了",
+    "thisWeek": "今週",
+    "studyHours": "学習時間",
+    "overall": "全体",
+    "pastTwoWeeks": "過去2週間の学習時間",
+    "noRecords": "学習記録がありません",
+    "upcomingExams": "直近の試験",
+    "noExamGoals": "試験目標がありません",
+    "addExamGoal": "試験目標を追加",
+    "weeklySummary": "今週のサマリー",
+    "completedTasks": "完了タスク",
+    "consecutiveDays": "連続日数",
+    "controllingExams": "控えている試験",
+    "errorBoundary": {
+      "defaultMessage": "予期しないエラーが発生しました。"
+    }
+  }
+}

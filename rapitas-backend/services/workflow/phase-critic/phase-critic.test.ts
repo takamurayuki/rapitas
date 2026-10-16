@@ -1,12 +1,86 @@
 /**
  * phase-critic.test
  *
- * Unit tests for the pure critique aggregation and the tolerant lens parser.
+ * Unit tests for the pure critique aggregation, the tolerant lens parser, the
+ * head+tail truncation helper, and (task 911) an ai-client-mocked integration
+ * test proving acceptance criteria actually reach the sent lens prompt.
  */
-import { describe, it, expect, afterEach } from 'bun:test';
+import { describe, it, expect, afterEach, beforeEach, mock } from 'bun:test';
 import { aggregateCritiques, SEVERE_THRESHOLD } from './critique-aggregator';
-import { parseCriticResponse, isPhaseCriticEnabled } from './phase-critic';
 import type { CriticVerdict } from './phase-critic-types';
+
+const sendAIMessageMock = mock(async () => ({
+  content: '{"pass":true,"severity":0,"issues":[]}',
+}));
+const isAnyApiKeyConfiguredMock = mock(async () => true);
+const getDefaultProviderMock = mock(async () => 'anthropic');
+/** Aux AI mode the critic sees; 'api' keeps the API-key gate active for the existing cases. */
+let auxAiMode: 'cli' | 'api' | 'off' = 'api';
+
+mock.module('../../../utils/ai-client', () => ({
+  sendAIMessage: sendAIMessageMock,
+  getDefaultProvider: getDefaultProviderMock,
+  getDefaultModel: async () => 'configured-critic-model',
+  isAnyApiKeyConfigured: isAnyApiKeyConfiguredMock,
+}));
+mock.module('../../../utils/ai-client/aux-ai-mode', () => ({
+  getAuxAiMode: () => auxAiMode,
+}));
+
+mock.module('../../../config/logger', () => ({
+  createLogger: () => ({ info: mock(() => {}), warn: mock(() => {}), debug: mock(() => {}) }),
+}));
+
+/**
+ * Prisma double for the AC1 end-to-end test below. Only `./phase-critic`'s own
+ * deps (`ai-client`, `logger`) are mocked elsewhere in this file — `prisma` is
+ * mocked here so `applyPhaseCriticGate` runs its REAL `gatherCriticContext`
+ * (unexported, so it can only be exercised through this entry point) and the
+ * REAL `critiquePhase`, proving the DB-declared acceptance criteria survive
+ * the whole DB → gate → lens-input chain rather than a hand-built context
+ * object (which the sibling test above starts from).
+ */
+const gateMockPrisma = {
+  task: {
+    findUnique: mock(() =>
+      Promise.resolve<{
+        title: string;
+        description: string | null;
+        acceptanceCriteria: string | null;
+      } | null>(null),
+    ),
+    updateMany: mock(() => Promise.resolve({ count: 1 })),
+  },
+  workflowTransition: {
+    count: mock(() => Promise.resolve(0)),
+    findFirst: mock(() => Promise.resolve<{ metadata: string } | null>(null)),
+  },
+  workflowFile: {
+    findFirst: mock(() => Promise.resolve<{ content: string } | null>(null)),
+  },
+};
+mock.module('../../../config/database', () => ({
+  prisma: gateMockPrisma,
+  ensureDatabaseConnection: () => Promise.resolve(),
+}));
+mock.module('../transition-recorder', () => ({ recordTransition: mock(() => Promise.resolve()) }));
+mock.module('../workflow-file-utils', () => ({
+  archiveWorkflowFile: mock(() => Promise.resolve(true)),
+}));
+mock.module('../workflow-redispatch', () => ({
+  REDISPATCH_DELAY_MS: 1000,
+  scheduleWorkflowRedispatch: mock(() => {}),
+}));
+
+const {
+  parseCriticResponse,
+  isPhaseCriticEnabled,
+  buildCriticUserMessage,
+  truncateWithNotice,
+  lensSystemPrompt,
+  critiquePhase,
+} = await import('./phase-critic');
+const { applyPhaseCriticGate } = await import('./phase-critic-gate');
 
 const v = (over: Partial<CriticVerdict>): CriticVerdict => ({
   lens: 'l',
@@ -14,6 +88,27 @@ const v = (over: Partial<CriticVerdict>): CriticVerdict => ({
   severity: 0,
   issues: [],
   ...over,
+});
+
+describe('live evaluation control fixtures', () => {
+  it('keeps the short control intact and actually truncates the long control', async () => {
+    const { FIXTURES } = await import('../../../scripts/eval-phase-critic');
+    const short = FIXTURES.find((f) => f.name === 'adequate-plan-short')!;
+    const full = FIXTURES.find((f) => f.name === 'adequate-plan-full-truncated')!;
+    // Mirrors ARTIFACT_MAX_CHARS (phase-critic.ts) — asserted by value, not
+    // imported, since it is a private module constant. AC1: the truncated
+    // flag alone does not prove the fixtures actually straddle the 16000
+    // threshold; this pins the underlying .length so a future padding
+    // regression (task 911 supervisor measurement 2026-09-09) fails loudly.
+    const TRUNCATION_THRESHOLD = 16000;
+    expect(short.content.length).toBeLessThan(TRUNCATION_THRESHOLD);
+    expect(full.content.length).toBeGreaterThan(TRUNCATION_THRESHOLD);
+    expect(buildCriticUserMessage(short.content, short.context).truncated).toBe(false);
+    expect(buildCriticUserMessage(full.content, full.context).truncated).toBe(true);
+    expect(short.expectedVerdict).toBe('pass');
+    expect(full.expectedVerdict).toBe('unknown');
+    expect(full.context).toEqual(short.context);
+  });
 });
 
 describe('aggregateCritiques', () => {
@@ -85,6 +180,231 @@ describe('parseCriticResponse', () => {
   });
 });
 
+describe('truncateWithNotice', () => {
+  it('returns text unchanged when within the limit', () => {
+    const r = truncateWithNotice('short', 100);
+    expect(r).toEqual({ text: 'short', truncated: false });
+  });
+
+  it('preserves both the head and the tail of the original text when over the limit', () => {
+    const text = `HEAD${'x'.repeat(20000)}TAIL`;
+    const r = truncateWithNotice(text, 16000);
+    expect(r.truncated).toBe(true);
+    expect(r.text.startsWith('HEAD')).toBe(true);
+    expect(r.text.endsWith('TAIL')).toBe(true);
+    expect(r.text).toContain('中略');
+    expect(r.text).toContain('原文はここで終わっていません');
+    expect(r.text.length).toBeLessThanOrEqual(16000);
+  });
+
+  it('preserves task909real plan tail content (実装者への申し送り事項) at the 60/40 head/tail ratio (premortem item 2)', async () => {
+    const { FIXTURES } = await import('../../../scripts/eval-phase-critic');
+    const realPlan = FIXTURES.find((f) => f.name === 'real-plan-narrow-mismatch')!.content;
+    expect(realPlan.length).toBeGreaterThan(16000);
+    const r = truncateWithNotice(realPlan, 16000);
+    expect(r.truncated).toBe(true);
+    expect(r.text).toContain('実装者への申し送り事項');
+    expect(r.text).toContain('Windowsパス区切り（バックスラッシュ）とUnix区切り');
+  });
+});
+
+describe('lensSystemPrompt', () => {
+  it('forbids demanding plan-level implementation detail only for the research phase', () => {
+    const research = lensSystemPrompt('research', { name: 'completeness', angle: 'x' });
+    const plan = lensSystemPrompt('plan', { name: 'feasibility', angle: 'x' });
+    expect(research).toContain('research.mdの役割は影響範囲・依存関係・リスクの調査');
+    expect(plan).not.toContain('research.mdの役割は影響範囲・依存関係・リスクの調査');
+  });
+
+  it('forbids treating an omission marker as a real gap in both phases', () => {
+    const research = lensSystemPrompt('research', { name: 'completeness', angle: 'x' });
+    const plan = lensSystemPrompt('plan', { name: 'feasibility', angle: 'x' });
+    expect(research).toContain('省略は表示上の制約であり、原文の欠落ではない');
+    expect(plan).toContain('省略は表示上の制約であり、原文の欠落ではない');
+  });
+});
+
+describe('buildCriticUserMessage', () => {
+  it('with no context, is the artifact alone', () => {
+    const { message, truncated } = buildCriticUserMessage('plan body');
+    expect(message).toBe('# 批評対象アーティファクト\nplan body');
+    expect(truncated).toBe(false);
+  });
+
+  it('orders grounding sections before the artifact and labels them as reference-only', () => {
+    const { message } = buildCriticUserMessage('plan body', {
+      taskBrief: 'title\n\ndesc',
+      acceptanceCriteria: ['AC1: 満たすこと', 'AC2: 満たすこと'],
+      referenceArtifact: 'research body',
+      priorReasons: ['issue 1', 'issue 2'],
+    });
+    const iTask = message.indexOf('# タスク要求');
+    const iAc = message.indexOf('# 受入基準');
+    const iRef = message.indexOf('# 先行フェーズ文書');
+    const iPrior = message.indexOf('# 前回の批評指摘');
+    const iArtifact = message.indexOf('# 批評対象アーティファクト');
+    expect(iTask).toBeGreaterThanOrEqual(0);
+    expect(iAc).toBeGreaterThan(iTask);
+    expect(iRef).toBeGreaterThan(iAc);
+    expect(iPrior).toBeGreaterThan(iRef);
+    expect(iArtifact).toBeGreaterThan(iPrior);
+    expect(message).toContain('- issue 1');
+    expect(message).toContain('- AC1: 満たすこと');
+    expect(message).toContain('批評対象ではない');
+  });
+
+  it('omits the acceptance criteria section when none are given', () => {
+    const { message } = buildCriticUserMessage('x', { taskBrief: 'brief' });
+    expect(message).not.toContain('# 受入基準');
+  });
+
+  it('skips empty/whitespace grounding fields', () => {
+    const { message, truncated } = buildCriticUserMessage('x', {
+      taskBrief: '  ',
+      referenceArtifact: '',
+      priorReasons: [],
+    });
+    expect(message).toBe('# 批評対象アーティファクト\nx');
+    expect(truncated).toBe(false);
+  });
+
+  it('bounds every section (taskBrief 3k / AC 4k / reference 8k / reasons 8 / artifact 16k) without silently dropping the tail', () => {
+    const artifact = `HEAD${'a'.repeat(20000)}TAIL`;
+    const { message, truncated } = buildCriticUserMessage(artifact, {
+      taskBrief: 'b'.repeat(5000),
+      referenceArtifact: 'c'.repeat(10000),
+      priorReasons: Array.from({ length: 12 }, (_, i) => `r${i}`),
+    });
+    expect(truncated).toBe(true);
+    expect(message).not.toContain('b'.repeat(3001));
+    expect(message).not.toContain('c'.repeat(8001));
+    expect(message).toContain('- r7');
+    expect(message).not.toContain('- r8');
+    // Task 911: the artifact's tail must survive truncation, not just its head.
+    expect(message).toContain('HEAD');
+    expect(message).toContain('TAIL');
+  });
+
+  it('prepends the truncation warning banner only when a section was actually truncated', () => {
+    const truncatedMsg = buildCriticUserMessage('a'.repeat(20000)).message;
+    const untruncatedMsg = buildCriticUserMessage('short').message;
+    expect(truncatedMsg.startsWith('⚠️')).toBe(true);
+    expect(untruncatedMsg.startsWith('⚠️')).toBe(false);
+  });
+});
+
+describe('critiquePhase — sendAIMessage integration (task 911)', () => {
+  beforeEach(() => {
+    sendAIMessageMock.mockClear();
+    sendAIMessageMock.mockImplementation(async () => ({
+      content: '{"pass":true,"severity":0,"issues":[]}',
+    }));
+    isAnyApiKeyConfiguredMock.mockClear().mockImplementation(async () => true);
+    getDefaultProviderMock.mockClear().mockImplementation(async () => 'anthropic');
+    auxAiMode = 'api';
+  });
+
+  it('includes the acceptance criteria text in the message actually sent to the lens (AC1)', async () => {
+    await critiquePhase('research', 'research body', {
+      acceptanceCriteria: ['ユニークな受入基準テキストXYZ123'],
+    });
+    expect(sendAIMessageMock).toHaveBeenCalled();
+    const call = sendAIMessageMock.mock.calls[0]?.[0] as {
+      messages: { content: string }[];
+    };
+    expect(call.messages[0]?.content).toContain('ユニークな受入基準テキストXYZ123');
+    expect(call.messages[0]?.content).toContain('# 受入基準');
+    expect(sendAIMessageMock.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ model: 'configured-critic-model' }),
+    );
+  });
+
+  it('AC1 end-to-end: DB-declared acceptance criteria reach the actual message sent to the critic', async () => {
+    gateMockPrisma.task.findUnique.mockResolvedValue({
+      title: 'タイトル',
+      description: '説明文',
+      acceptanceCriteria: JSON.stringify(['一意な受入基準ABC999']),
+    });
+
+    await applyPhaseCriticGate({
+      taskId: 911,
+      phase: 'research',
+      content: 'research body',
+      currentStatus: 'research_done',
+    });
+
+    expect(sendAIMessageMock).toHaveBeenCalled();
+    const call = sendAIMessageMock.mock.calls[0]?.[0] as { messages: { content: string }[] };
+    expect(call.messages[0]?.content).toContain('一意な受入基準ABC999');
+    expect(call.messages[0]?.content).toContain('# 受入基準');
+  });
+
+  it('reports inputTruncated:true when the artifact exceeds the limit', async () => {
+    const result = await critiquePhase('research', 'a'.repeat(20000));
+    expect(result.inputTruncated).toBe(true);
+    expect(result.verdict).toBe('unknown');
+  });
+
+  it('reports inputTruncated:false when nothing needed truncating', async () => {
+    const result = await critiquePhase('research', 'short body');
+    expect(result.inputTruncated).toBe(false);
+    expect(result.evaluationComplete).toBe(true);
+  });
+
+  it('does not judge without required grounding after a retrieval failure', async () => {
+    const result = await critiquePhase('research', 'artifact', { unavailable: true });
+    expect(result.verdict).toBe('unknown');
+    expect(result.evaluationComplete).toBe(false);
+    expect(sendAIMessageMock).not.toHaveBeenCalled();
+  });
+
+  // 2026-09-25 #911: the live evaluation ran from a task worktree whose key
+  // lives only in the DB; the key gate returned unknown for every lens without
+  // ever calling the model, even though the CLI path needs no key.
+  it('still calls the lens in cli mode when no API key is configured', async () => {
+    auxAiMode = 'cli';
+    isAnyApiKeyConfiguredMock.mockImplementation(async () => false);
+    const result = await critiquePhase('research', 'short body');
+    expect(sendAIMessageMock).toHaveBeenCalled();
+    expect(result.verdict).toBe('pass');
+  });
+
+  it('keeps the API-key gate in api mode', async () => {
+    auxAiMode = 'api';
+    isAnyApiKeyConfiguredMock.mockImplementation(async () => false);
+    const result = await critiquePhase('research', 'short body');
+    expect(sendAIMessageMock).not.toHaveBeenCalled();
+    expect(result.verdict).toBe('unknown');
+  });
+
+  for (const position of ['head', 'middle', 'tail']) {
+    it(`does not claim full validation with an important ${position} correction in a long brief`, async () => {
+      const correction = 'IMPORTANT_CORRECTION_DO_NOT_COMPLETE_UNMET_REQUIREMENTS';
+      const padding = 'x'.repeat(4000);
+      const taskBrief =
+        position === 'head'
+          ? correction + padding + padding
+          : position === 'tail'
+            ? padding + padding + correction
+            : padding + correction + padding;
+      const { message, truncated } = buildCriticUserMessage('short artifact', { taskBrief });
+      expect(truncated).toBe(true);
+      expect(message.includes(correction)).toBe(position !== 'middle');
+      const result = await critiquePhase('research', 'short artifact', { taskBrief });
+      expect(result.verdict).toBe('unknown');
+      expect(result.inputTruncated).toBe(true);
+    });
+  }
+
+  it('does not report complete evaluation when a lens times out', async () => {
+    sendAIMessageMock.mockImplementationOnce(async () => {
+      throw new Error('Claude CLI timed out');
+    });
+    const result = await critiquePhase('research', 'short body');
+    expect(result.evaluationComplete).toBe(false);
+  });
+});
+
 describe('isPhaseCriticEnabled', () => {
   const original = process.env.RAPITAS_PHASE_CRITIC;
   afterEach(() => {
@@ -92,15 +412,22 @@ describe('isPhaseCriticEnabled', () => {
     else process.env.RAPITAS_PHASE_CRITIC = original;
   });
 
-  it('is off by default', () => {
+  it('is ON by default (R7 — premortem/critic gate is standing)', () => {
     delete process.env.RAPITAS_PHASE_CRITIC;
-    expect(isPhaseCriticEnabled()).toBe(false);
+    expect(isPhaseCriticEnabled()).toBe(true);
   });
 
-  it('is on for truthy values', () => {
+  it('stays on for truthy values', () => {
     for (const val of ['1', 'true', 'on', 'yes']) {
       process.env.RAPITAS_PHASE_CRITIC = val;
       expect(isPhaseCriticEnabled()).toBe(true);
+    }
+  });
+
+  it('opts out for 0 / false / off', () => {
+    for (const val of ['0', 'false', 'off']) {
+      process.env.RAPITAS_PHASE_CRITIC = val;
+      expect(isPhaseCriticEnabled()).toBe(false);
     }
   });
 });

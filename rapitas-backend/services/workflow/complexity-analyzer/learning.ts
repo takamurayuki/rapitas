@@ -27,7 +27,10 @@ export async function analyzeTaskComplexityWithLearning(
     const { prisma } = await import('../../../config');
 
     // Fetch learning records for the same theme
-    const where: Record<string, unknown> = { success: true };
+    // Per-task rows only for the duration average below: WorkflowLearningRecord
+    // also holds one row per EXECUTION, whose duration is a single phase.
+    const { taskScopedRecordWhere } = await import('../learning/task-scoped-records');
+    const where: Record<string, unknown> = { success: true, ...taskScopedRecordWhere() };
     if (input.themeId) where.themeId = input.themeId;
 
     const records = await prisma.workflowLearningRecord.findMany({
@@ -63,7 +66,12 @@ export async function analyzeTaskComplexityWithLearning(
       modeCount[r.workflowMode] = (modeCount[r.workflowMode] || 0) + 1;
     }
 
-    const sortedModes = Object.entries(modeCount).sort((a, b) => b[1] - a[1]);
+    // Tie-break on mode name: this picks the top workflow MODE (an
+    // execution-selection decision), so equal counts must resolve to the same
+    // winner across runs rather than by object-key-iteration whim.
+    const sortedModes = Object.entries(modeCount).sort(
+      (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+    );
     const topMode = sortedModes[0];
 
     // If sufficient data recommends a different mode than base analysis

@@ -7,10 +7,21 @@
  */
 
 export { handleGetFiles, handleSaveFile } from './workflow-handlers-files';
+export { handleGetFile } from './workflow-handlers-file-read';
 export {
   handleApprovePlan,
   handleUpdateStatus,
   handleAdvanceWorkflow,
 } from './workflow-handlers-plan';
-export { handleSetMode, handleAnalyzeComplexity, handleGetModes } from './workflow-handlers-mode';
-export { handleResumeFromQuestion } from './workflow-handlers-resume';
+export {
+  handleSetMode,
+  handleSetWorkflowDisabled,
+  handleAnalyzeComplexity,
+  handleGetModes,
+} from './workflow-handlers-mode';
+export { handleResumeFromQuestion, handleAnswerWorkflowQuestion } from './workflow-handlers-resume';
+export { handleRunVerification } from './workflow-handlers-verification';
+export {
+  handleRunVerificationStatus,
+  handleRunVerificationLatest,
+} from './workflow-handlers-verification-status';

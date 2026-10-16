@@ -8,7 +8,7 @@
 import type React from 'react';
 import type { ExecutionStatus, ExecutionResult } from '../../hooks/useDeveloperMode';
 import type { Task } from '@/types';
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
 import type { AgentExecutionHandlers } from './useAgentExecutionHandlers';
 
@@ -80,6 +80,8 @@ export type UseAgentExecutionReturn = AgentExecutionHandlers & {
   logs: string[];
   isSseConnected: boolean;
   pollingTokensUsed: number | undefined;
+  /** Accumulated AI cost (USD) across the whole session. */
+  pollingTotalSessionCostUsd: number | undefined;
   pollingSessionMode: string | undefined;
   isRunning: boolean;
   isCompleted: boolean;

@@ -6,6 +6,7 @@
  */
 import { describe, test, expect } from 'bun:test';
 import { cleanGeneratedTitle } from '../../utils/common/title-cleaner';
+import { BOUNDARY_STRINGS } from '../helpers/boundary-values';
 
 describe('cleanGeneratedTitle', () => {
   // ── 基本的なクリーニング ──────────────────────────────────────────────
@@ -130,12 +131,8 @@ describe('cleanGeneratedTitle', () => {
     );
   });
 
-  test('空文字列の場合は空文字列を返す', () => {
-    expect(cleanGeneratedTitle('')).toBe('');
-  });
-
-  test('空白のみの場合は空文字列を返す', () => {
-    expect(cleanGeneratedTitle('   ')).toBe('');
+  test.each(BOUNDARY_STRINGS)('境界文字列 $label → 空文字列を返すこと', ({ value }) => {
+    expect(cleanGeneratedTitle(value)).toBe('');
   });
 
   test('連続スペースを正規化する', () => {

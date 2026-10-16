@@ -30,17 +30,25 @@
 
 作業範囲に応じて必要なものだけ実行する。
 
+**`| tail` / `| head` / `; echo $?` を検証コマンドに付けない。** Git Bash はパイプの終了コードが最後のコマンド（tail 等）のものになり、元コマンドが失敗していても `$?` が 0 になる（`false | tail -1` の `$?` は 0）。長い出力を末尾だけ確認したい場合やログをファイルに残したい場合は、リポジトリルートの `node scripts/run-checked.cjs -- <command>` を経由する。全出力は `.verification-logs/` に保存されつつコンソールには末尾のみ表示され、ラッパー自身の終了コードが元コマンドの終了コードと常に一致する（`echo $?`/`echo $LASTEXITCODE` の再取得は不要）。パイプ・`;`・`&&`・`||` を含むコマンドは exit 2 で拒否される。
+
 ```powershell
 cd rapitas-backend
-bunx tsc --noEmit
+node ../scripts/run-checked.cjs -- "bunx tsc --noEmit"
 bun test --isolate <test-file>
 ```
 
 ```powershell
 cd rapitas-frontend
-pnpm test -- --run
-pnpm exec tsc --noEmit
+node ../scripts/run-checked.cjs -- "pnpm test -- --run"
+node ../scripts/run-checked.cjs -- "pnpm exec tsc --noEmit"
 pnpm exec prettier --check .
+```
+
+特定のテストファイルだけを実行したい場合、`pnpm test -- --run <filter>` は `vitest run -- --run <filter>` に展開され `--run` が二重指定になり `filter` が空になる（全件実行になる）。対象ファイルを絞るときは代わりに対象ファイルパスを直接渡す:
+
+```powershell
+pnpm exec vitest run src/path/to/target.test.ts
 ```
 
 ```powershell
@@ -129,9 +137,11 @@ CI/CD や配布ビルドでは、OS ごとの依存関係に注意する。Linux
 
 5. **DB を共有していることに注意する。** 統合テストは PostgreSQL を共有するため、複数 worktree 並行で破壊的なテストを走らせない。テスト用に独立した DB が必要な場合は `DATABASE_URL` を実行時に上書きして別スキーマに向ける。
 
-6. **worktree を削除する前に、作業ブランチを push 済みであることを確認する。** `node_modules` と生成物はリンクなのでデータロスはないが、`.env` と未コミット変更は worktree 削除で失われる。
+6. **`origin/*` を含む git の参照・オブジェクトはメインチェックアウトと共有済みなので、他ブランチの調査・比較・マージ可否確認のためにメインチェックアウトへ `cd` する必要は一切ない。** `git worktree add` で作成した worktree は Git の仕様上、常にメインリポジトリの `.git` オブジェクト/ref ストアを共有する。`git merge-tree` や `git diff` 等の比較コマンドは worktree 内から `origin/<branch>` を直接指定して実行できる。対象ブランチの参照が未フェッチであれば `git fetch origin <branch>` を worktree 内で実行すればよい。
 
-7. **worktree を削除する前に必ず teardown を実行する。** Windows の junction や symlink は `git worktree remove` / `rm -rf` を妨げる（"resource busy" / "Directory not empty" エラー）。次の手順で削除する:
+7. **worktree を削除する前に、作業ブランチを push 済みであることを確認する。** `node_modules` と生成物はリンクなのでデータロスはないが、`.env` と未コミット変更は worktree 削除で失われる。
+
+8. **worktree を削除する前に必ず teardown を実行する。** Windows の junction や symlink は `git worktree remove` / `rm -rf` を妨げる（"resource busy" / "Directory not empty" エラー）。次の手順で削除する:
 
    ```bash
    # 1. worktree 内のリンクと .env を撤去

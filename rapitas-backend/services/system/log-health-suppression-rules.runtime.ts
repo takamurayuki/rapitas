@@ -1,0 +1,401 @@
+/**
+ * log-health-suppression-rules.runtime
+ *
+ * The runtime/execution half of the suppression table: shell command failures,
+ * CLI timeouts, hang detection, event-loop stalls and the scheduler's own
+ * status reports. Data only — classifyLogSignature() and the types stay in
+ * log-health-suppressions.ts, and the remaining rules in
+ * log-health-suppression-rules.ts.
+ *
+ * Split out when the parent reached 494 of its 500-line hard limit and task
+ * 1141's agent, adding one correct rule, pushed it to 503 and was blocked by the
+ * verification gate. Rules were moved verbatim; none were edited in the move.
+ */
+import type { Suppression } from './log-health-suppressions-types';
+
+/** Same contract as SUPPRESSIONS: first match wins, each entry says why nothing is broken. */
+export const RUNTIME_SUPPRESSIONS: Suppression[] = [
+  {
+    // ログ出力箇所: runtime-server-registry-lifecycle.ts:122/311 の stopOwnedAndVerify/
+    // spawnNewEntry の catch。readRuntimeProcessSnapshot()（runtime-process-snapshot.ts:118）
+    // がOS プロセス列挙用PowerShellスクリプト実行で失敗（execFileのタイムアウト等）した
+    // 際に発火する。タスク1110で確認: a47037f4（2026-09-27T00:17:36Z）が
+    // SNAPSHOT_TIMEOUT_MS を10秒から30秒へ延長し、spawnNewEntry の起動追跡ループには
+    // 3回連続失敗までリトライする自己修復も追加済みだが、開始前/停止後の単発呼び出し
+    // （beforeStart/afterStop、リトライ対象外）は依然として一度の失敗で本ERRORに到達
+    // し得る。ただしこの失敗はentryをquarantined状態にするのみで、次回の
+    // acquireRuntimeServer（worktree-server-registry.ts:184-221）が改めてスナップショット
+    // を取得し、プロセス終了・ポート解放・ディレクトリ解放を確認できた時点で自動的に
+    // quarantineを解除する。確認が取れない間は unverifiable:true でfail-closedに倒れる
+    // ため、誤って成功扱いになることはなく、この行を抑制しても恒久障害の可視性は失われない。
+    // NOTE: normalizeMessage（log-health-check.ts:203）は正規化後のメッセージを200文字で
+    // 切り詰める。windowsScript本体（runtime-process-snapshot.ts:32-44）に含まれる
+    // Get-CimInstance/Get-NetTCPConnectionはこの200文字を超えた位置にあり届かないため、
+    // 200文字以内で必ず生き残るスクリプト冒頭のコメント文言（同ファイル34-35行、
+    // execFileがUTF-8をデコードする際にCP932のバイト列がJSONエスケープを壊す事情の説明）
+    // を照合対象にする。
+    test: /Command failed: powershell\.exe -NoProfile -NonInteractive -Command \$ErrorActionPreference = 'Stop' # execFile decodes UTF-#\. CP# bytes for characters such as ソ contain #/i,
+    logger: /runtime-smoke:registry/i,
+    because:
+      'OSプロセス列挙スクリプトの単発失敗はworkdirをquarantinedにするだけで、次回acquireRuntimeServerがプロセス終了/ポート解放を再確認すると自動解除される（タイムアウトはa47037f4で30秒へ延長済み） — 未確認の間はunverifiable:trueでfail-closedのため誤って成功扱いになることはない',
+  },
+  {
+    // ログ出力箇所: runtime-server-registry-lifecycle.ts:284-285 の throw
+    // （ListenerOwnershipError）を同ファイル:311 の guardedRun catch が log.error する。
+    // 起動後のスナップショットで割り当てポートのLISTENERが所有ツリー外PID、0件、
+    // または未取得のとき発火する。catch後はentryがquarantined・unverifiable:trueで
+    // fail-closedになり、成功扱いにはならない。次回acquireRuntimeServerが再確認して
+    // 隔離を解除する。反復の原因切り分け用に、同ログへ diagnostics（port/listenerPids/
+    // ownedPids/listenersKnown）を構造化フィールドで出している。
+    // NOTE: 文言は固定。末尾に語が付く別シグネチャ（K-12552/K-12095等）を巻き込まない
+    // よう完全一致にしている。
+    test: /^Listener ownership is unconfirmed$/,
+    logger: /runtime-smoke:registry/i,
+    because:
+      '起動後のLISTENER所有確認が取れない場合の設計どおりのfail-closed（quarantined・unverifiable:trueで完了は保留され誤成功しない、次回acquireで自動再確認） — 下流のunverifiable WARNは残り、反復の原因はログのdiagnosticsで追跡できる',
+  },
+  {
+    // ログ出力箇所: reporting/briefing/briefing-delivery.ts:82 の throw
+    // （synthesizeWithinLimit）を :130 の deliverBriefing が logger 'reporting:briefing-delivery'
+    // で log.error する（タスク1258のブランチ上のコード。この checkout には未マージ）。
+    // 観測された1件は briefing-delivery.test.ts:128 の失敗系テストが意図的に上限超過を
+    // 起こした出力で、本番経路の障害ではない。上限付き再試行の想定内の打ち切りであり、
+    // 配信は fail-open（呼び出し元のレポート本体は成功する）設計。
+    // NOTE: 文言・ロガーとも完全一致。同ロガーの別文言（TTS 例外など）は可視のまま。
+    test: /^Audio exceeded #s after # attempts$/,
+    logger: /^reporting:briefing-delivery$/,
+    because:
+      '音声合成の上限（秒数・試行回数）超過は上限付き再試行の設計どおりの打ち切りで、観測例はテストの意図的な失敗系出力 — 同ロガーの別文言は抑制せず可視のまま',
+  },
+  {
+    // ログ出力箇所: reporting/briefing/briefing-delivery.ts:191 の log.error
+    // （deliverBriefing の catch。例外は :73 の tts.synthesize から伝播）。
+    // 観測された1件は briefing-delivery.test.ts:58-68 が synthesize に注入した
+    // Error('boom') で、本番の TTS 障害ではない。catch 後は :193 の fallbackNotify が
+    // テキスト通知を送り { status: 'fallback' } を返すため、配信は失われない。
+    // NOTE: 文言・ロガーとも完全一致。同ロガーの実 TTS 例外は文言が異なり可視のまま。
+    test: /^boom$/,
+    logger: /^reporting:briefing-delivery$/,
+    because:
+      '音声合成の例外はテキスト通知へフォールバックする設計どおりの動作で、観測例はテストが注入した Error(boom) の出力 — 同ロガーの別文言は抑制せず可視のまま',
+  },
+  {
+    // ログ出力箇所: git-operations/pr/pr-merge-ops.ts:154-157 の logger.warn
+    // （mergePullRequest内）。gh pr merge --delete-branch はGitHub側マージを先に
+    // 行い最後にローカルブランチ削除をするため、タスクworktreeが同ブランチを
+    // チェックアウト中だと削除だけ失敗して非0終了する。このWARNは
+    // readAuthoritativeMergeState が MERGED を確認した後にのみ出力され（152-153行）、
+    // 続けて pr view で再検証する（160-178行）。実マージ失敗は throw 経路で
+    // success:false となり別文言で可視化されるため、本ルールで失敗は隠れない（#1028）。
+    test: /Command failed: .*gh\.exe pr merge .*failed to delete local branch/is,
+    logger: /git-operations\/pr-merge-ops/i,
+    because:
+      'ローカルブランチ削除の失敗はGitHub上でMERGED確認済みの後にのみ出る回復記録 — 実マージ失敗はsuccess:falseの別経路で可視化される',
+  },
+  {
+    // ログ出力箇所: event-loop-lag-watchdog.ts:121-124 の log.warn（500ms間隔の
+    // ポーリングで2000ms超のイベントループ停止を検知した時点）。過去6回の発生
+    // （K-8776, K-9142, K-11160, K-11233, 本タスク#1040の元WARN）はいずれも単発
+    // 15秒未満・2時間規模の分散で、self-heal閾値（同ファイル35行目
+    // CATASTROPHIC_STALL_MS=15_000、37-45行目 CUMULATIVE_WINDOW_MS=120_000 /
+    // CUMULATIVE_TRIGGER_MS=30_000）に一度も到達していない。ウォッチドッグ自体は
+    // 正常に動作しており、日常的なDB/エージェント処理の負荷ピーク下で数秒単位の
+    // イベントループ停止が発生すること自体は許容範囲として設計された閾値の内側。
+    // 発生元の特定手段（activeSections診断）はtask 1040で workflow-runner.ts の
+    // processQueue と theme-auto-run-scheduler.ts の advanceTheme にも拡張済みで、
+    // 次回15秒以上の真の病的スタールが起きればself-heal（別ログ「Self-healing
+    // restart triggered」、ERRORレベル、抑制対象外）が引き続き検知する。
+    test: /^Event loop stalled ~#(?:\.#)?s$/,
+    logger: /event-loop-lag/i,
+    because:
+      '過去6回すべてself-heal閾値(単発15秒/累積120秒間に30秒)未到達 — ウォッチドッグは正常動作しており、閾値超の病的スタールは別シグネチャ(Self-healing restart triggered, ERROR)で引き続き検知される',
+  },
+  {
+    // ログ出力箇所: workflow-runner.ts:191 の log.warn（processQueue の finally 内、
+    // queue.dequeue() 所要が1000ms超の時）。task 966/1114 で追加した
+    // event-loop-lag 発生元特定用の計装で、例外時は別に log.error(同:187) が出る。
+    // 過去の発生（K-11581, K-11653, K-11986）はいずれも散発。同じ負荷ピークは
+    // event-loop-lag 側でも抑制済みで、病的スタールは self-heal(ERROR) が検知する。
+    // tookMs/taskIds は構造化フィールドに残り、log-correlation.ts:18 の相関も維持される。
+    test: /^Slow queue processing$/,
+    logger: /^workflow-runner$/i,
+    because:
+      'dequeueが1秒超になっただけの負荷依存の診断記録 — 例外はlog.errorで別途可視、病的スタールはSelf-healing restart(ERROR)が検知し、tookMs等は構造化フィールドに残る',
+  },
+  {
+    // ログ出力箇所: requirement-replan-commit.ts:134 の assertReviewedTaskCurrent
+    // （汎用Error）。stale_taskはEXPECTED_REPLAN_HOLD_REASONS
+    // (requirement-replan-policy.ts:48-55)に含まれ、isExpectedReplanHold(#1041)が
+    // trueを返す限りRequirementReplanHeldError（AppError派生、別文言
+    // "Requirement replan review held: ..."）経由で処理され、error-handler.ts:156-162の
+    // AppError分岐はlog.errorを呼ばずに応答するため本行の汎用Errorは発生しない。
+    // タスク#1046で報告されたスタックトレースの行番号（requirement-replan-commit.ts:122）
+    // は現行の投げ元行（134）と一致せず、#1041でNOTEコメントが追加される前の
+    // 旧ビルドが出力した陳腐化したログと判定した（K-11230/K-11231/K-11287と同一シグネチャ）。
+    test: /^Reviewed external work held: stale_task$/i,
+    logger: /error-handler/i,
+    because:
+      'stale_taskはisExpectedReplanHold(#1041)でRequirementReplanHeldError経由に分類され、本行の汎用Errorには到達しない — スタックトレースの行番号不一致(122≠134)から#1041適用前の旧ビルドが出力した陳腐化ログと判定',
+  },
+  {
+    // ログ出力箇所: queue-wait-exemption.ts:110-118 の liveOrQueuedBehind が
+    // 出す log.warn（verdict.waiting=false の分岐）。reason=no_own_queued /
+    // no_other_running はハング防止ガードの適用除外を与えないという正規の
+    // 既定分岐（同ファイル33-39行 QueueWaitReason 型、queue-wait-exemption.test.ts
+    // で個別ユニットテスト済み）であり、いずれの分岐も欠陥ではない。force-stop
+    // が実際に発生した場合は auto-run-active-decision.ts:160-163 の専用WARN
+    // 「Task # exceeded wall budget … — force-stopping …」と
+    // logCycleEvent('task.hang_backstop', …) が別途発行されるため、本行を
+    // 抑制してもハング防止の可視性は損なわれない（#1053）。reason=lookup_error
+    // （explainQueueWait の catch 分岐、同ファイル84-90行）は本物の照会失敗の
+    // ため対象外のまま残す。
+    test: /^\[ThemeAutoRunScheduler\] liveOrQueuedBehind\(task #\) = false \(reason: (no_own_queued|no_other_running)\)$/,
+    logger: /theme-auto-run-scheduler/i,
+    because:
+      'ハング防止ガードの適用除外を与えない正規の既定分岐 — force-stop実発生時は別WARN(Task # exceeded wall budget … — force-stopping)で引き続き可視化される',
+  },
+  {
+    // ログ出力箇所: claude-cli-provider.ts:272-274 の setTimeout が
+    // `Claude CLI timed out after ${timeoutMs}ms` で fail() → 261行目の
+    // reject(new ClaudeCliUnavailableError(message))。呼び出し元
+    // innovation-session.ts:242-253 の generateForTheme() が try/catch で確実に
+    // 捕捉し、log.warn({ err, themeId }, 'Innovation generation failed for theme')
+    // を出してから return 0 で後続テーマの処理を継続する（例外は
+    // runInnovationSession() のループへ伝播しない）。log-format-parser.ts:82 の
+    // msg 優先順位により、実際に記録される正規化メッセージは err.message
+    // （＝本タイムアウト文言）になる。submitIdea() は content hash で dedup
+    // されるため、このテーマのアイデア生成は次回実行時に再試行される（#1050）。
+    test: /^Claude CLI timed out after #ms$/i,
+    logger: /memory:innovation-session/i,
+    because:
+      'generateForTheme()のtry/catchが確実に捕捉しreturn 0で後続テーマ処理を継続する（innovation-session.ts:242-253）— タスク失敗に波及せず、次回実行時に再試行される想定内の失敗モード',
+  },
+  {
+    // ログ出力箇所: claude-cli-provider.ts:306-308 の setTimeout が
+    // `Claude CLI timed out after ${timeoutMs}ms` で fail(..., stop=true) し、
+    // :295 で ClaudeCliUnavailableError を reject（CLI は停止されリークなし）。
+    // /ai/chat は ai-chat.ts:110-115（ストリームは :194）の catch で logger
+    // routes:ai-chat の ERROR として記録し HTTP 500 + メッセージを呼び出し元へ返す。
+    // 呼び出し元は idea-box.ts:295-317 がフォールバックのタスクデータで継続、
+    // UI 側もエラー表示で劣化継続する。CLI の応答遅延という外部要因でありコード欠陥ではない（#1155）。
+    // 同ロガーの別文言（spawn 失敗等）と他ロガーの同文言は対象外のまま残す。
+    test: /^Claude CLI timed out after #ms$/i,
+    logger: /routes:ai-chat/i,
+    because:
+      '/ai/chat のCLIタイムアウトはHTTP 500で呼び出し元に返り、idea-box等は劣化動作で継続する（ai-chat.ts:110-115）— CLI応答遅延という想定内の外部要因',
+  },
+  {
+    // ログ出力箇所: workflow-cli-executor-epilogue.ts:249 の log.warn。
+    // validateVerify（phase-output-validator.ts:170-184）の
+    // hasNonpassingVerifyVerdict 分岐が組み立てた summary をそのまま出す
+    // fail-soft な観測用ログであり、実際の repair/block 判定は同じ
+    // validateVerify() を再度呼ぶ別経路（status-transition.ts:207-260 /
+    // workflow-cli-executor-verify-gate.ts:97-154）が担う（同ファイル
+    // 236-238行のコメント参照）。verify.md が自ら受入基準未達（❌）を
+    // 報告した記録であり、判定ロジック側の誤検知ではない（#1049。
+    // K-11292/K-9668/K-8051は同一メッセージの未抑制な再発）。
+    // 後続の «...» 部分は verify.md ごとに可変のため固定句のみにマッチさせる。
+    test: /verify\.md explicitly reports a failed or partial overall verdict; repair is required\./i,
+    logger: /workflow-cli-executor/i,
+    because:
+      '検証ゲートがverify.md自身の受入基準未達（❌）報告を捕捉した — ゲートが働いた側であり、判定ロジックの誤りではない',
+  },
+  {
+    // ログ出力箇所: services/agents/claude-code/idle-monitor.ts:112-114 の
+    // logger.warn。104-111行の条件（出力受信済み・最終出力から5分超過・
+    // 未フラッシュの部分行なし・status===running・プロセス生存）が全て揃った
+    // 場合のみ発火する、意図的なハング検知・強制終了ロジック（#1084研究フェーズ
+    // 前提監査#1で確認済み）。force-kill後の結果は即座に失敗扱いにならず、
+    // execution-resolver.ts:292の`!ctx.idleTimeoutForceKilled`分岐によりgit
+    // diffベースの完了判定に委ねられる（同340-344行）。529過負荷等の回復不能な
+    // 障害はdetectApiOverload（execution-resolver-early-failures.ts:53-55）が
+    // 別途分類するため本ルールで致命的失敗の可視性は失われない。taskkill自体の
+    // 失敗も既に別シグネチャで抑制済み（本ファイル246行目）。
+    test: /OUTPUT IDLE HANG DETECTED: No output for #s after producing # chars\. Force-killing hung process\./i,
+    logger: /claude-code-agent/i,
+    because:
+      '出力受信後5分間無音という保守的な閾値でのみ発火する意図的なハング検知・自動復旧機構 — force-kill後はgit diffベースの完了判定に委ねられ、致命的失敗は別シグネチャ(529過負荷/taskkill失敗)で可視化される',
+  },
+  {
+    // ログ出力箇所: workflow-orchestrator-protected-path-guard.ts:72-75 の
+    // guardProtectedPathMode。lightweightタスクのimplementer遷移直前に
+    // research.mdの「変更予定箇所」節（plannedChangeSection）を走査し、保護パス
+    // （services/agents/verification/、services/workflow/{completion-gate,
+    // phase-output-validator,verify-self-repair,phase-critic}* 等）への変更が
+    // 計画されている場合に発火する。lightweightモードにはplan.mdが無く
+    // タンパーゲートを通せないため、standardモードへ自動昇格しplanner再実行を
+    // スケジュールする（タスク1044/1055で実際に検証ラウンドを失った実績あり、
+    // 同ファイル10-13行）。ガードが意図通り作動した記録であり欠陥ではない
+    // （タスク#1113、K-11655、発生回数1回・単発）。
+    test: /research\.md plans a protected-path change in lightweight mode — escalating to standard so plan\.md can list it/i,
+    logger: /workflow-orchestrator/i,
+    because:
+      'lightweightタスクが保護パスへの変更を計画していたためstandardモードへ自動昇格しplan.mdで対象ファイルを明記できるようにした — タンパーゲート失敗を未然に防ぐ設計通りの自己防御動作',
+  },
+  {
+    // ログ出力箇所: workflow-cli-executor-verify-gate.ts:74-77 の log.warn。
+    // hasFreshVerifyRejection（verify-self-repair.ts:340-366）または
+    // wasVerifyValidationFailureJustRecorded が真、つまり HTTP の verify 保存
+    // ゲートが直前に差し戻した場合だけ発火する。エピローグが差し戻しの上に
+    // commit/PR/complete を重ねないための早期 return で、phaseStatus は
+    // currentWfStatus を維持する。差し戻し自体は recordTransition で記録される
+    // （verify-self-repair.ts:210-212）。同 logger の
+    // 'Verify passed but no PR' は別文言のため抑制しない（#1145）。
+    test: /Verify was rejected by a fresh gate rejection — honoring it and skipping the completion epilogue/i,
+    logger: /workflow-cli-executor/i,
+    because:
+      '検証ゲートの直近差し戻しをエピローグが尊重して止めた設計通りの動作 — 差し戻しはtransitionに記録され別経路で可視化される',
+  },
+  {
+    // ログ出力箇所: routes/workflow/handlers/file-save/verify-adversarial-review.ts:239
+    // の log.warn。敵対的レビューがFAILを返した後、再読込したworkflowStatusが
+    // verify_done でなくなっている（self-repair等で先へ進んだ）場合だけ発火する
+    // (同222-231行)。完了/マージ済みタスクを plan_approved へ巻き戻さない
+    // compare-and-swap 防御（task 503）で、ロールバックもtransition記録もスキップする。
+    // 同 logger の 'lost the compare-and-swap race' や 'repairs exhausted' は
+    // 別文言のため抑制しない（#1146）。
+    test: /Adversarial review FAIL arrived after the workflow moved on — skipping rollback entirely/i,
+    logger: /routes:workflow:handlers:files/i,
+    because:
+      '古いFAIL判定が先へ進んだタスクを巻き戻さないためのCAS防御が設計通り作動した記録 — 実害のある競合敗北・修復枯渇は別文言で可視のまま',
+  },
+  {
+    // ログ出力箇所: workflow-runner.ts:455 の log.warn（ExecutionCancelledError 捕捉時）。
+    // 例外の発生元は workflow-orchestrator.ts:123-128 の assertOwnership で、
+    // owner 省略の releaseTaskExecutionLock(taskId)（task-execution-lock.ts:133-141、
+    // stop/reset/continue 系ルートと stop-task-agents.ts から呼ばれる）による
+    // 停止・リセット操作でロック所有権が取り消された場合だけ発火する。ランナーは
+    // リトライ予算を消費せずキュー項目を queued へ戻す（同447-453行のNOTE、
+    // workflow-runner-shutdown.test.ts で固定）。ERROR 経路（Execution error for
+    // task #）や 'Phase failed for task #' は別文言のため抑制しない（#1148）。
+    test: /Task # cancelled — requeued: Workflow preparation cancelled: execution lock ownership was revoked/i,
+    logger: /workflow-runner/i,
+    because:
+      '停止・リセットによるロック所有権の取り消しをランナーが検知し、リトライ予算を消費せず再キューする設計通りの動作 — 実行失敗は別文言(ERROR/Phase failed)で可視のまま',
+  },
+  {
+    // ログ出力箇所: workflow-orchestrator-execute.ts:153 の log.error（role=auto_verifier）。
+    // 投げ元は workflow-cli-executor-verify-gate.ts:86 で、requirement-replan-service.ts:78
+    // の readSource() が null（タスクが in-progress でない／workflowStatus 対象外／verify 不在）
+    // のとき reason=not_reviewable を返す。EXPECTED_REPLAN_HOLD_REASONS
+    // （requirement-replan-policy.ts:48-55）の状態ガードで、queue-skip-policy.ts:28 が
+    // 再試行不要のスキップとして扱い済み（#1156）。unknown / requires_human:* /
+    // budget_exhausted は別 reason のため抑制しない。
+    //
+    // NOTE: 当初は role=auto_verifier のみを対象にし「他ロールの失敗は別文言」と
+    // していたが、その前提は誤りだった。2026-10-11 実測: role=verifier が
+    // `[WorkflowOrchestrator] Error in verifier: Requirement replan review held:
+    // not_reviewable` を同一文言で出した。ゲートは
+    // workflow-cli-executor-epilogue.ts 経由で呼ばれ、ログのロール名は
+    // ディスパッチ元を反映するだけで、保留の性質は変わらない。
+    // queue-skip-policy.ts:28 はロール非依存にメッセージ本文で判定しており既に
+    // スキップ扱いなので、可視のまま残しても対処する先が無い。reason は厳密一致を
+    // 維持し、ロール綴りだけを広げる。
+    test: /^\[WorkflowOrchestrator\] Error in (?:auto_verifier|verifier): Requirement replan review held: not_reviewable$/,
+    logger: /workflow-orchestrator/i,
+    because:
+      'not_reviewableはレビュー対象外の状態ガードによる期待保留(EXPECTED_REPLAN_HOLD_REASONS)で、キュー側でスキップ扱い済み — unknown/requires_human等の他reasonは可視のまま',
+  },
+  {
+    // ログ出力箇所: workflow-orchestrator-execute.ts:153 の log.error（role=auto_verifier|verifier）。
+    // 投げ元は workflow-cli-executor-verify-gate.ts:86。reason=theme_paused は
+    // requirement-replan-policy.ts:32-34 が themeStatus が stopping / paused* のときに返す
+    // 状態ガードで、テーマの pause は運用者操作に由来する運用状態。リプランは何も
+    // コミットせずタスク状態も変えない（requirement-replan-commit.ts:235 の
+    // rejectReplanLifecycle）ため欠陥ではない（#1222、K-12553 / K-12554）。
+    //
+    // NOTE: log.error 自体は発生源で止まっていない（verify-gate.ts:86 は
+    // isExpectedReplanHold を経由しない汎用 Error）。本ルールはログ健全性の
+    // 再起票を止めるだけで、発生源の分類変更は別タスクの範囲。reason は
+    // 厳密一致を維持し、unknown / requires_human:* / budget_exhausted は抑制しない。
+    test: /^\[WorkflowOrchestrator\] Error in (?:auto_verifier|verifier): Requirement replan review held: theme_paused$/,
+    logger: /workflow-orchestrator/i,
+    because:
+      'theme_pausedはテーマ pause/stopping という運用者操作由来の状態ガードによる期待保留で、リプランは何もコミットしない — unknown/requires_human等の他reasonは可視のまま',
+  },
+  {
+    // ログ出力箇所: services/workflow/task-budget.ts:166 の log.warn
+    // （resolveTaskBudgetCap 内）。支出が RAPITAS_TASK_BUDGET_USD の
+    // hardMultiple() 倍（既定 2 倍）以上のときだけ、次フェーズの tier を economy に
+    // 落とす設計通りの予算ガード通知で、タスクは停止せず完走できる（同ファイル
+    // 14-15行・125-128行）。resolveTaskBudgetCap はフェーズのディスパッチごとに
+    // 呼ばれるため、超過中のタスクではフェーズ数だけ繰り返し出る（#1163、
+    // K-11982/K-9324/K-11556 は同一シグネチャの未抑制な再発）。
+    // 真の暴走（ループ）は task-iteration-budget.ts の HARD stop が別経路で止める。
+    // 同ロガーの 'spend lookup failed'（DB障害の兆候）は別文言のため抑制しない。
+    test: /^\[task-budget\] runaway spend — capping at economy$/,
+    logger: /task-budget/i,
+    because:
+      '支出が予算の2倍超のタスクを停止せずeconomy tierへ落とす設計通りの予算ガード通知 — 真の暴走はiteration budgetのHARD stopが別経路で止め、支出取得失敗(spend lookup failed)は別文言で可視のまま',
+  },
+  {
+    // ログ出力箇所: workflow-reconciler-queue-stall.ts:141-144 の log.warn（sweepStaleRunningItems）。
+    // updateMany の CAS が running→cancelled に成功した後だけ出る回復の記録で、生存実行を
+    // 持つ非終端タスクは候補から除外済み、requeue しないため二重起動もない。task 1165 以降は
+    // 同時に runner の activeExecutions 枠も解放する。回復は cycle event task.stall_released と
+    // 通知 auto_run_stall_released で別系統に残る（#1160）。枠解放の失敗は別文言で可視のまま。
+    // NOTE: 親ファイル(log-health-suppression-rules.ts)は300行超のためこちらへ追加した。
+    test: /^\[reconciler\] Cancelled stale running queue item$/,
+    logger: /workflow-reconciler-queue-stall/i,
+    because:
+      '定期スイープが残留 running item を cancelled にして枠を解放した自己修復の記録 — 回復は task.stall_released / auto_run_stall_released で別途記録され、枠解放失敗は別文言で可視のまま',
+  },
+  {
+    // ログ出力箇所: services/agents/orchestrator/git-operations/worktree/
+    // project-dependency-bootstrap.ts:118-121 の logger.warn（runInstall 内）。
+    // install 出力に `Ignored build scripts:` があった場合のみ出る情報通知で、
+    // install 自体は成功している（installInvocation が
+    // --config.strict-dep-builds=false を付与、project-manifests.ts:87-89）。
+    // ネイティブビルドの承認は生成プロジェクト側の onlyBuiltDependencies の責務で、
+    // rapitas の差分では解消できない（#1209、K-12457 は同一シグネチャ）。
+    // 同ロガーの install 失敗・fingerprint 記録失敗は別文言のため抑制しない。
+    test: /^\[projectBootstrap\] Dependencies installed but their build scripts were skipped; declare onlyBuiltDependencies in the project manifest if a native build is required$/,
+    logger: /git-operations\/project-dependency-bootstrap/i,
+    because:
+      'installは成功済みで、ビルドスクリプト承認は生成プロジェクトのonlyBuiltDependencies側の責務(rapitasでは解消不能) — install失敗/fingerprint記録失敗は別文言で可視のまま',
+  },
+  {
+    // ログ出力箇所: services/workflow/workflow-queue.ts:140 の log.warn
+    // （dequeue の候補ループ内 catch）。例外の発生元は
+    // queue-dequeue-candidate.ts:171 の Serializable $transaction で、SQLite の
+    // P1008（Socket timeout）が負荷ピークで一過性に出たもの。catch は WARN を出して
+    // continue し、トランザクションは findUnique と update のみで失敗時は未コミット
+    // のため項目は queued のまま残り、次回 processQueue のポーリング
+    // （workflow-runner.ts:179）で再評価される。既知の DB 負荷源
+    // （worktree-cleanup.ts:167-179 の連続拒否）はバックオフ導入済み（#1211、
+    // K-12454 は同一シグネチャ）。メッセージは err.message が msg より優先される
+    // （log-format-parser.ts:82）ため Prisma 文言になる。
+    // 同ロガーの 'Transaction already closed'（K-12452）は別文言のため抑制しない。
+    test: /^Socket timeout \(the database failed to respond to a query within the configured timeout— see http<path> for more details\)\.$/,
+    logger: /^workflow-queue$/i,
+    because:
+      'dequeueのSerializableトランザクションで出る一過性のP1008 — 失敗時は未コミットでqueuedのまま残り次回ポーリングで自己回復する。他ロガーのP1008(timelineEvent等)とTransaction already closedは別シグネチャで可視のまま',
+  },
+  {
+    // ログ出力箇所: services/workflow/auto-run/theme-auto-run-scheduler.ts:206 の
+    // log.error（tick の catch）。例外源は theme-auto-run-queries.ts:92 の
+    // prisma.themeAutoRun.findMany。Prisma(SQLite) の DateTime 列は INTEGER(epoch ms)
+    // で、運用者が稼働中DBへ TEXT を直接書いた行を読むと
+    // 'Conversion failed: input contains invalid characters' になる。アプリ側の
+    // 書き込みは Prisma 経由で TEXT を生成しない。tick は例外を握って次周期で再試行
+    // するため、行の修復後は自然回復する（#1284）。
+    // 他テーブル/他ロガーの Inconsistent column data は別シグネチャのため抑制しない。
+    test: /Invalid `prisma\.themeAutoRun\.findMany\(\)` invocation[\s\S]*Inconsistent column data: Conversion failed: input contains invalid characters/i,
+    logger: /^theme-auto-run-scheduler$/i,
+    because:
+      '運用者の手書きSQLで DateTime 列にTEXTが入った行を読んだ一過性のデータ起因エラー — tickは例外を握り次周期で再試行し、行の修復後に自然回復する。他テーブルのInconsistent column dataは別シグネチャで可視のまま',
+  },
+  {
+    // ログ出力箇所: routes/workflow/theme-auto-run.ts:90 の log.error
+    // （ロガー routes:theme-auto-run、GET /themes/:id/auto-run の catch）。
+    // 例外源は theme-auto-run-queries.ts:25 の prisma.themeAutoRun.findUnique。
+    // 原因は #1284 と同じ: 運用者が稼働中DBの DateTime 列(INTEGER epoch ms)へ TEXT を
+    // 手書きした行を Prisma が読めない。アプリ側は TEXT を生成せず、行の修復後に
+    // 自然回復する（#1285）。他ロガー/他テーブルの Inconsistent column data は
+    // 別シグネチャのため抑制しない。
+    test: /Invalid `prisma\.themeAutoRun\.findUnique\(\)` invocation[\s\S]*Inconsistent column data: Conversion failed: input contains invalid characters/i,
+    logger: /^routes:theme-auto-run$/i,
+    because:
+      '運用者の手書きSQLで DateTime 列にTEXTが入った行を読んだ一過性のデータ起因エラー — 行の修復後に自然回復する。他ロガー・他テーブルのInconsistent column dataは別シグネチャで可視のまま',
+  },
+];

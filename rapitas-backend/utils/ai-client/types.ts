@@ -21,6 +21,13 @@ export type AIRequestOptions = {
   ragThemeId?: number;
   /** Skip response cache lookup for this request. */
   skipCache?: boolean;
+  /**
+   * Longer wall-clock cap for THIS call when it legitimately needs more than
+   * the 120s default — e.g. generating a multi-document package. Only honoured
+   * on the CLI path, only when longer than the default, and clamped to
+   * MAX_CLI_TIMEOUT_MS so one caller cannot pin a CLI slot.
+   */
+  timeoutMs?: number;
 };
 
 export type AIResponse = {

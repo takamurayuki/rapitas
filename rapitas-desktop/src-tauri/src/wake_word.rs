@@ -181,12 +181,23 @@ fn detection_loop(app_handle: &tauri::AppHandle) -> Result<(), String> {
                         use tauri::Emitter;
                         let _ = app_handle.emit("wake-word-detected", &text);
 
-                        // Bring window to foreground
+                        // Bring window to foreground only when the user has
+                        // explicitly hidden it (minimized / not visible).
+                        // NOTE: If the window is merely backgrounded — e.g. the
+                        // user is working in another app while auto-run is active —
+                        // calling set_focus() would steal the cursor and freeze
+                        // their input without any user intent. The frontend's
+                        // wake-word-detected handler provides a non-intrusive
+                        // visual cue in that case.
                         use tauri::Manager;
                         if let Some(window) = app_handle.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.unminimize();
-                            let _ = window.set_focus();
+                            let is_minimized = window.is_minimized().unwrap_or(false);
+                            let is_visible = window.is_visible().unwrap_or(true);
+                            if is_minimized || !is_visible {
+                                let _ = window.show();
+                                let _ = window.unminimize();
+                                let _ = window.set_focus();
+                            }
                         }
                     }
                 }

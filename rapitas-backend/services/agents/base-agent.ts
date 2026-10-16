@@ -65,7 +65,7 @@ export type AgentTask = {
   /** Whether plan.md should be auto-approved (skips waiting for user approval). */
   autoApprovePlan?: boolean;
   /**
-   * Investigation mode: agent runs as read-only researcher/planner/reviewer.
+   * Investigation mode: agent runs as read-only researcher/planner.
    * For codex this triggers `--sandbox=read-only --ask-for-approval=never`
    * so code modifications are physically impossible.
    */
@@ -92,8 +92,10 @@ export type AgentTask = {
  *
  * @deprecated Use QuestionDetectionMethod in new implementations.
  * Question detection now relies solely on AskUserQuestion tool calls.
+ * SSOT is now types/agent-execution-types.ts — this re-export exists for backward compatibility.
  */
-export type QuestionType = 'tool_call' | 'none';
+import type { QuestionType } from '../../types/agent-execution-types';
+export type { QuestionType };
 
 // QuestionDetails is re-exported from question-detection.ts for backward compatibility
 
@@ -118,7 +120,15 @@ export type AgentExecutionResult = {
   /** Number of retry attempts before this result. */
   retryCount?: number;
   /** Classified failure reason (for retry decisions). */
-  failureType?: 'test_failed' | 'lint_error' | 'type_error' | 'timeout' | 'unknown';
+  failureType?:
+    | 'test_failed'
+    | 'lint_error'
+    | 'type_error'
+    | 'timeout'
+    | 'wall_clock_timeout'
+    | 'cancelled'
+    | 'prompt_too_long'
+    | 'unknown';
   /** Real cost (USD) reported by Claude Code's stream-json `result` event. */
   costUsd?: number;
   /** Standard input tokens reported by `result.usage.input_tokens`. */
@@ -131,6 +141,12 @@ export type AgentExecutionResult = {
   cacheCreationInputTokens?: number;
   /** Primary model used for this execution (largest token share in `modelUsage`). */
   modelName?: string;
+  /** LLM API call count for this execution. CLI: from stream-json num_turns. API: 1 per callApi. */
+  llmCallCount?: number;
+  /** Measured child-process CPU time in ms, sampled by process-resource-sampler. null when unmeasured. */
+  cpuTimeMs?: number | null;
+  /** Measured child-process peak RSS in KB, sampled by process-resource-sampler. null when unmeasured. */
+  peakRssKb?: number | null;
   /**
    * The agent's FINAL assistant message only (Claude Code stream-json `result`
    * event). Unlike `output` — which concatenates every streamed assistant
@@ -160,6 +176,12 @@ export type GitCommitInfo = {
 export type AgentOutputHandler = (output: string, isError?: boolean) => void;
 
 /**
+ * Callback invoked for every tool call the agent makes, with its RAW input
+ * (used by the plan-deviation recorder; see services/workflow/plan-deviation).
+ */
+export type AgentToolUseHandler = (toolName: string, input: unknown) => void;
+
+/**
  * Callback handler invoked immediately when a question is detected during streaming.
  */
 export type QuestionDetectedHandler = (info: {
@@ -175,6 +197,7 @@ export abstract class BaseAgent {
   protected status: AgentStatus = 'idle';
   protected outputHandler?: AgentOutputHandler;
   protected questionDetectedHandler?: QuestionDetectedHandler;
+  protected toolUseHandler?: AgentToolUseHandler;
 
   constructor(
     public readonly id: string,
@@ -235,6 +258,15 @@ export abstract class BaseAgent {
    */
   setOutputHandler(handler: AgentOutputHandler): void {
     this.outputHandler = handler;
+  }
+
+  /**
+   * Set the tool-use handler (receives each tool call's raw input).
+   *
+   * @param handler - Callback per tool call / ツール呼び出しごとのコールバック
+   */
+  setToolUseHandler(handler: AgentToolUseHandler): void {
+    this.toolUseHandler = handler;
   }
 
   /**

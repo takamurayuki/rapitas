@@ -4,6 +4,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('useLoginForm');
@@ -25,20 +26,22 @@ interface UseLoginFormReturn {
   clearErrors: () => void;
 }
 
-function validate(username: string, password: string): LoginErrors {
+function validate(username: string, password: string, t: (key: string) => string): LoginErrors {
   const errors: LoginErrors = {};
   if (!username.trim()) {
-    errors.username = 'ユーザー名を入力してください';
+    errors.username = t('loginForm.usernameRequired');
   }
   if (!password) {
-    errors.password = 'パスワードを入力してください';
+    errors.password = t('loginForm.passwordRequired');
   } else if (password.length < 6) {
-    errors.password = 'パスワードは6文字以上で入力してください';
+    errors.password = t('loginForm.passwordTooShort');
   }
   return errors;
 }
 
 export function useLoginForm(): UseLoginFormReturn {
+  const t = useTranslations('common');
+  const tAuth = useTranslations('auth');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<LoginErrors>({});
@@ -52,7 +55,7 @@ export function useLoginForm(): UseLoginFormReturn {
     async (e: React.FormEvent) => {
       e.preventDefault();
 
-      const validationErrors = validate(username, password);
+      const validationErrors = validate(username, password, t);
       if (Object.keys(validationErrors).length > 0) {
         setErrors(validationErrors);
         return;
@@ -70,19 +73,19 @@ export function useLoginForm(): UseLoginFormReturn {
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error(data.message || 'ログインに失敗しました');
+          throw new Error(data.message || tAuth('loginFailed'));
         }
 
         // Successful login - redirect handled by caller or auth context
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'ログイン中にエラーが発生しました';
+        const message = err instanceof Error ? err.message : t('loginForm.loginError');
         logger.error('Login failed:', err);
         setErrors({ form: message });
       } finally {
         setIsSubmitting(false);
       }
     },
-    [username, password],
+    [username, password, t, tAuth],
   );
 
   return {

@@ -6,6 +6,7 @@
  * to sub-modules in this directory.
  */
 
+import { execSync } from 'child_process';
 import type { ChildProcess } from 'child_process';
 import { BaseAgent } from '../base-agent';
 import type {
@@ -48,9 +49,8 @@ export type ClaudeCodeAgentConfig = {
    */
   investigationMode?: boolean;
   /**
-   * Investigation phase output type — drives the prompt template only.
-   * The runner does not need to inspect this; it is forwarded to the
-   * prompt builder via the AgentTask field.
+   * Phase output type. Verifier evidence may succeed without a code diff,
+   * independently of investigationMode's read-only tool restrictions.
    */
   investigationOutputType?: 'research' | 'plan' | 'review' | 'verify';
 };
@@ -87,6 +87,8 @@ export class ClaudeCodeAgent extends BaseAgent {
   public hasFileModifyingToolCalls: boolean = false;
   /** @internal Flag indicating forced termination due to idle hang */
   public idleTimeoutForceKilled: boolean = false;
+  /** @internal Flag indicating forced termination due to the wall-clock cap (task 546) */
+  public wallClockTimeoutForceKilled: boolean = false;
   /** @internal Worker thread for output parsing */
   public parserWorker: Worker | null = null;
   /** @internal Artifacts parsed by the Worker */
@@ -117,6 +119,11 @@ export class ClaudeCodeAgent extends BaseAgent {
   /** @internal Top-level alias of `config.continueConversation` for helper context. */
   public get continueConversation(): boolean | undefined {
     return this.config.continueConversation;
+  }
+
+  /** @internal Top-level alias of `config.model` for helper context. */
+  public get instructedModel(): string | undefined {
+    return this.config.model;
   }
 
   getCapabilities(): AgentCapability {
@@ -181,6 +188,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     startTime: number,
     resolve: (result: AgentExecutionResult) => void,
     taskId?: number,
+    resourceStats?: { cpuTimeMs: number | null; peakRssKb: number | null },
   ): () => void {
     return buildResolveAfterParse(
       this as unknown as Parameters<typeof buildResolveAfterParse>[0],
@@ -199,7 +207,16 @@ export class ClaudeCodeAgent extends BaseAgent {
             where: { id: taskId },
             select: { workflowStatus: true },
           });
-          if (t?.workflowStatus === 'plan_created' || t?.workflowStatus === 'plan_approved') {
+          if (
+            t?.workflowStatus === 'plan_created' ||
+            t?.workflowStatus === 'plan_approved' ||
+            // A research phase saved research.md and produced no code on purpose —
+            // a valid pause, not a "planned but didn't implement" failure. The
+            // workflow auto-advances to the next phase (lightweight: implement;
+            // standard: plan). Without this a lightweight research run failed with
+            // "Agent output a plan but no actual code changes were made".
+            t?.workflowStatus === 'research_done'
+          ) {
             return true;
           }
           // A plan that was split into subtasks delegates all implementation
@@ -213,11 +230,15 @@ export class ClaudeCodeAgent extends BaseAgent {
           return false;
         }
       },
-      this.config.investigationMode,
+      this.config.investigationMode || this.config.investigationOutputType === 'verify',
+      resourceStats,
     );
   }
 
-  async execute(task: AgentTask, options?: Record<string, unknown>): Promise<AgentExecutionResult> {
+  async execute(
+    task: AgentTask,
+    _options?: Record<string, unknown>,
+  ): Promise<AgentExecutionResult> {
     this.status = 'running';
     this.outputBuffer = '';
     this.errorBuffer = '';
@@ -227,6 +248,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     this.claudeSessionId = null;
     this.hasFileModifyingToolCalls = false;
     this.idleTimeoutForceKilled = false;
+    this.wallClockTimeoutForceKilled = false;
     this.workerArtifacts = [];
     this.workerCommits = [];
     this.workerResultUsage = null;
@@ -250,7 +272,7 @@ export class ClaudeCodeAgent extends BaseAgent {
           executionTimeMs: Date.now() - startTime,
         };
       }
-    } catch (error) {
+    } catch {
       this.status = 'failed';
       return {
         success: false,
@@ -273,8 +295,15 @@ export class ClaudeCodeAgent extends BaseAgent {
     }
 
     return new Promise((resolve) => {
-      runClaudeExecution(this, task, workDir, startTime, timeout, resolve, (code, wd, st, res) =>
-        this.buildResolveAfterParse(code, wd, st, res, task.id),
+      runClaudeExecution(
+        this,
+        task,
+        workDir,
+        startTime,
+        timeout,
+        resolve,
+        (code, wd, st, res, resourceStats) =>
+          this.buildResolveAfterParse(code, wd, st, res, task.id, resourceStats),
       );
     });
   }
@@ -291,12 +320,14 @@ export class ClaudeCodeAgent extends BaseAgent {
       try {
         const pid = this.process.pid;
         if (pid) {
-          const { execSync: exec } = require('child_process');
-          exec(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
+          execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
           logger.info(`${this.logPrefix} Process ${pid} killed via taskkill (question detected)`);
         }
       } catch (e) {
-        logger.error({ err: e }, `${this.logPrefix} taskkill failed (question detected)`);
+        // taskkill fails most often because the target PID already exited between
+        // the null-check and the call (idle-monitor.ts:129 treats the identical
+        // failure the same way) — the process.kill() fallback below recovers it.
+        logger.warn({ err: e }, `${this.logPrefix} taskkill failed (question detected)`);
         try {
           this.process.kill();
         } catch (killErr) {
@@ -320,13 +351,15 @@ export class ClaudeCodeAgent extends BaseAgent {
         try {
           const pid = this.process.pid;
           if (pid) {
-            const { execSync: exec } = require('child_process');
             // /T terminates the entire process tree, /F forces termination
-            exec(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
+            execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
             logger.info(`${this.logPrefix} Process ${pid} killed via taskkill`);
           }
         } catch (e) {
-          logger.error({ err: e }, `${this.logPrefix} taskkill failed`);
+          // Same benign race as killProcessForQuestion() above — the fallback
+          // below recovers it, and idle-monitor.ts already logs the identical
+          // failure at warn.
+          logger.warn({ err: e }, `${this.logPrefix} taskkill failed`);
           try {
             this.process.kill();
           } catch (killErr) {

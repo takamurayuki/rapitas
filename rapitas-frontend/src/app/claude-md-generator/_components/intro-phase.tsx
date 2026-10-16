@@ -10,6 +10,11 @@ interface IntroPhaseProps {
   t: (key: string) => string;
   /** Advances the wizard to the genre selection phase / ウィザードをジャンル選択フェーズへ進める */
   onStart: () => void;
+  /** The user's own words about what they want to build. / 題材 */
+  concept: string;
+  onSetConcept: (v: string) => void;
+  /** Starts with concept-derived options. / 題材から選択肢を提案して開始 */
+  onStartWithConcept: () => void;
 }
 
 /**
@@ -19,7 +24,15 @@ interface IntroPhaseProps {
  * @param t - translation function / 翻訳関数
  * @param onStart - callback to begin the wizard / ウィザード開始コールバック
  */
-export function IntroPhase({ topRef, t, onStart }: IntroPhaseProps) {
+export function IntroPhase({
+  topRef,
+  t,
+  onStart,
+  concept,
+  onSetConcept,
+  onStartWithConcept,
+}: IntroPhaseProps) {
+  const hasConcept = concept.trim().length > 0;
   return (
     <div
       className="cmd-gen"
@@ -119,13 +132,72 @@ export function IntroPhase({ topRef, t, onStart }: IntroPhaseProps) {
           ))}
         </div>
 
-        <button
-          className="btn btn-p"
-          onClick={onStart}
-          style={{ fontSize: 16, padding: '15px 48px' }}
+        {/* NOTE: optional on purpose. Written, it becomes the source of the
+            option cards, which is what lifts the fixed-catalog ceiling
+            (reported 2026-10-12). Left blank, the wizard behaves exactly as
+            before, so the easy path is never taken away. */}
+        <div
+          style={{
+            border: '1px solid var(--border)',
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 24,
+            textAlign: 'left',
+          }}
         >
-          {t('start')}
-        </button>
+          <label
+            htmlFor="wizard-concept"
+            style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 8 }}
+          >
+            作りたいもの・解決したい課題（任意）
+          </label>
+          <textarea
+            id="wizard-concept"
+            value={concept}
+            onChange={(e) => onSetConcept(e.target.value)}
+            rows={3}
+            placeholder={'例: 会議の録音から、次に誰が何をするかだけを抜き出して本人に配りたい'}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: 'var(--card)',
+              color: 'inherit',
+              fontSize: 13,
+              lineHeight: 1.7,
+              resize: 'vertical',
+            }}
+          />
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8, lineHeight: 1.7 }}>
+            ここに書くと、この内容に合わせた選択肢を提案します。
+            空欄のままでも始められます（定番の選択肢を表示）。
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button
+            className="btn btn-p"
+            onClick={onStartWithConcept}
+            disabled={!hasConcept}
+            title={hasConcept ? undefined : '上の欄に書くと提案できます'}
+            style={{
+              fontSize: 15,
+              padding: '14px 32px',
+              opacity: hasConcept ? undefined : 0.5,
+              cursor: hasConcept ? undefined : 'not-allowed',
+            }}
+          >
+            選択肢を提案してもらう
+          </button>
+          <button
+            className="btn btn-g"
+            onClick={onStart}
+            style={{ fontSize: 15, padding: '14px 32px' }}
+          >
+            定番から選ぶ
+          </button>
+        </div>
       </div>
     </div>
   );

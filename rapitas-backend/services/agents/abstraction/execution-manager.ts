@@ -13,7 +13,6 @@ import type {
   AgentExecutionContext,
   AgentTaskDefinition,
   AgentExecutionResult,
-  AgentProviderConfig,
 } from './types';
 import type { IAgent, IAgentExecutionManager, IAgentLogger } from './interfaces';
 import { AgentRegistry } from './registry';

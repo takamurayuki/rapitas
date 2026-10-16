@@ -91,7 +91,7 @@ export function DefaultProviderSection({ settings, onSaveDefaultProvider }: Prop
                           ? 'text-violet-700 dark:text-violet-300'
                           : isConfigured
                             ? 'text-zinc-900 dark:text-zinc-100'
-                            : 'text-zinc-400 dark:text-zinc-600'
+                            : 'text-zinc-500 dark:text-zinc-600'
                       }`}
                     >
                       {PROVIDER_LABELS[p]}

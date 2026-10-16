@@ -40,6 +40,8 @@ export function generateMarkdownReport(result: AnalysisResult): string {
     maintainability,
   } = result;
 
+  // NOTE: the toLocaleString() calls in the template below format line/size counts
+  // (thousands separators), not dates — out of scope for #847.
   let md = `# Rapitas Codebase Analysis Report (v${metadata.version})
 
 > Generated: ${metadata.generatedAt}

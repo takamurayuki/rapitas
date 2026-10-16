@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import type { DeveloperModeConfig, TaskAnalysisConfig, AgentExecutionConfig } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -49,6 +50,8 @@ export function useDeveloperModeConfigModal({
   onAgentConfigChangeAction,
   taskId,
 }: Params) {
+  const t = useTranslations('devMode.developerModeConfigModal');
+  const tCommon = useTranslations('common');
   // ── Composed hooks ────────────────────────────────────────────────────────
   const agentManager = useAgentManager();
   const apiKeyManager = useApiKeyManager();
@@ -240,7 +243,7 @@ export function useDeveloperModeConfigModal({
 
         if (!analysisRes.ok) {
           const errData = await analysisRes.json().catch(() => ({}));
-          throw new Error(errData.error || 'タスク分析設定の保存に失敗しました');
+          throw new Error(errData.error || t('analysisConfigSaveFailed'));
         }
 
         const executionRes = await fetch(`${API_BASE_URL}/agent-execution-config/${taskId}`, {
@@ -267,13 +270,13 @@ export function useDeveloperModeConfigModal({
 
         if (!executionRes.ok) {
           const errData = await executionRes.json().catch(() => ({}));
-          throw new Error(errData.error || 'エージェント実行設定の保存に失敗しました');
+          throw new Error(errData.error || t('executionConfigSaveFailed'));
         }
       }
 
       onCloseAction();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : '保存に失敗しました');
+      setSaveError(err instanceof Error ? err.message : tCommon('saveFailed'));
     } finally {
       setIsSaving(false);
     }

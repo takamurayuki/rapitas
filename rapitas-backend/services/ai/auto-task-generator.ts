@@ -11,7 +11,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { getApiKeyForProvider } from '../../utils/ai-client';
+import { getApiKeyForProvider, getAuxAiMode, callClaudeCli } from '../../utils/ai-client';
 import { parseJsonArray } from '../../utils/common/json-extractor';
 import {
   getUnusedIdeasForContext,
@@ -83,7 +83,10 @@ async function gatherContext(categoryId?: number | null) {
         completedAt: true,
         theme: { select: { name: true } },
       },
-      orderBy: { completedAt: 'desc' },
+      // Secondary `id` key breaks ties on identical completedAt timestamps —
+      // without it, tied rows can reorder across otherwise-identical calls
+      // and reshuffle the task list fed into this prompt.
+      orderBy: [{ completedAt: 'desc' }, { id: 'asc' }],
       take: 20,
     }),
     prisma.task.findMany({
@@ -93,7 +96,8 @@ async function gatherContext(categoryId?: number | null) {
         ...categoryFilter,
       },
       select: { title: true, status: true, priority: true, theme: { select: { name: true } } },
-      orderBy: { updatedAt: 'desc' },
+      // Secondary `id` key breaks ties on identical updatedAt timestamps (see above).
+      orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
       take: 20,
     }),
     prisma.theme.findMany({
@@ -102,6 +106,9 @@ async function gatherContext(categoryId?: number | null) {
         isDevelopment: true,
         ...(categoryId ? { categoryId } : {}),
       },
+      // No orderBy previously — DB-whim ordering fed a differently-ordered
+      // theme list into the same prompt across identical calls.
+      orderBy: { id: 'asc' },
     }),
     getUnusedIdeasForContext(categoryId ?? null, 10),
   ]);
@@ -216,11 +223,9 @@ export async function autoGenerateTasks(
     };
   }
 
-  const apiKey =
-    (await getApiKeyForProvider('claude').catch(() => null)) ?? process.env.ANTHROPIC_API_KEY;
-
-  if (!apiKey) {
-    throw new Error('Anthropic API key is not configured');
+  const auxMode = getAuxAiMode();
+  if (auxMode === 'off') {
+    throw new Error('補助AI機能は無効化されています (RAPITAS_AUX_AI=off)。');
   }
 
   const context = await gatherContext(categoryId);
@@ -228,15 +233,33 @@ export async function autoGenerateTasks(
 
   log.info({ categoryId, ideaCount: context.ideas.length }, 'Generating auto-tasks via Claude...');
 
-  const client = new Anthropic({ apiKey });
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: MAX_TOKENS,
-    temperature: 0.7,
-    messages: [{ role: 'user', content: prompt }],
-  });
-
-  const text = response.content.map((block) => (block.type === 'text' ? block.text : '')).join('');
+  let text: string;
+  if (auxMode === 'cli') {
+    // Prefer the subscription CLI — no per-token billing.
+    const res = await callClaudeCli(
+      MODEL,
+      [{ role: 'user', content: prompt }],
+      undefined,
+      MAX_TOKENS,
+    );
+    text = res.content;
+  } else {
+    const apiKey =
+      (await getApiKeyForProvider('claude').catch(() => null)) ?? process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      throw new Error('Anthropic API key is not configured');
+    }
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: MODEL,
+      max_tokens: MAX_TOKENS,
+      // Pinned to 0 — this generates task suggestions from a fixed input
+      // snapshot; the same input should always yield the same suggestions.
+      temperature: 0,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    text = response.content.map((block) => (block.type === 'text' ? block.text : '')).join('');
+  }
 
   const parsed = parseJsonArray<GeneratedTask>(text);
   if (!parsed) {

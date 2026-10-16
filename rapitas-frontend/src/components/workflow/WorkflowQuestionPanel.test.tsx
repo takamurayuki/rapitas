@@ -1,0 +1,215 @@
+/**
+ * WorkflowQuestionPanel.test
+ *
+ * Component tests for the Q&A panel: Markdown rendering of the question
+ * body, the hideFreeText / freeTextReason display branches, and option
+ * selection triggering onAnswer.
+ */
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
+import { WorkflowQuestionPanel } from './WorkflowQuestionPanel';
+import type { LiveQuestion } from '@/stores/execution-state-store';
+import { setAppHidden } from '@/hooks/common/app-visibility-store';
+
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string, values?: Record<string, unknown>) =>
+    values ? `${key}:${JSON.stringify(values)}` : key,
+}));
+
+vi.mock('lucide-react', async (importOriginal) => {
+  const { buildLucideMock } = await import('@/__tests__/helpers/lucide-react-mock');
+  return buildLucideMock(importOriginal);
+});
+
+const baseQuestion: LiveQuestion = {
+  taskId: 1,
+  text: '## 見出し\n\n| A | B |\n| - | - |\n| 1 | 2 |',
+  options: ['選択肢A', '選択肢B'],
+};
+
+describe('WorkflowQuestionPanel', () => {
+  it('renders the question body as Markdown (heading + table)', () => {
+    render(<WorkflowQuestionPanel question={baseQuestion} submitting={false} onAnswer={vi.fn()} />);
+    expect(screen.getByRole('heading', { level: 2, name: '見出し' })).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+  });
+
+  it('clicking an option button then submit calls onAnswer with the option text', () => {
+    const onAnswer = vi.fn();
+    render(
+      <WorkflowQuestionPanel question={baseQuestion} submitting={false} onAnswer={onAnswer} />,
+    );
+    fireEvent.click(screen.getByText('選択肢A'));
+    fireEvent.click(screen.getByText('questionPanel.submit'));
+    expect(onAnswer).toHaveBeenCalledWith('選択肢A');
+  });
+
+  it('shows the free-text row by default (no hideFreeText)', () => {
+    render(<WorkflowQuestionPanel question={baseQuestion} submitting={false} onAnswer={vi.fn()} />);
+    expect(
+      screen.getByPlaceholderText('questionPanel.freeTextInputPlaceholder'),
+    ).toBeInTheDocument();
+  });
+
+  it('hides the free-text row when hideFreeText is set, but keeps the submit button', () => {
+    const onAnswer = vi.fn();
+    render(
+      <WorkflowQuestionPanel
+        question={baseQuestion}
+        submitting={false}
+        onAnswer={onAnswer}
+        hideFreeText
+      />,
+    );
+    expect(
+      screen.queryByPlaceholderText('questionPanel.freeTextInputPlaceholder'),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('選択肢B'));
+    fireEvent.click(screen.getByText('questionPanel.submit'));
+    expect(onAnswer).toHaveBeenCalledWith('選択肢B');
+  });
+
+  it('shows the freeTextReason notice when freeTextOnly + freeTextReason are set', () => {
+    render(
+      <WorkflowQuestionPanel
+        question={baseQuestion}
+        submitting={false}
+        onAnswer={vi.fn()}
+        freeTextOnly
+        freeTextReason="APIキーは選択肢で表現できないため"
+      />,
+    );
+    expect(
+      screen.getByText(
+        'questionPanel.freeTextRequiredNotice:{"reason":"APIキーは選択肢で表現できないため"}',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('does not show the freeTextReason notice when freeTextOnly is set without a reason', () => {
+    render(
+      <WorkflowQuestionPanel
+        question={baseQuestion}
+        submitting={false}
+        onAnswer={vi.fn()}
+        freeTextOnly
+      />,
+    );
+    expect(screen.queryByText(/freeTextRequiredNotice/)).not.toBeInTheDocument();
+  });
+
+  it('badges the option matching recommendedLabel and shows the recommendation reason', () => {
+    render(
+      <WorkflowQuestionPanel
+        question={baseQuestion}
+        submitting={false}
+        onAnswer={vi.fn()}
+        recommendedLabel="選択肢B"
+        recommendedReason="plan.md §設計判断の根拠を参照"
+      />,
+    );
+    const optionB = screen.getByText('選択肢B').closest('button');
+    expect(optionB?.textContent).toContain('questionPanel.recommendedBadge');
+    const optionA = screen.getByText('選択肢A').closest('button');
+    expect(optionA?.textContent).not.toContain('questionPanel.recommendedBadge');
+    expect(screen.getByText('questionPanel.recommendedReasonLabel')).toBeInTheDocument();
+    expect(screen.getByText(/plan\.md §設計判断の根拠を参照/)).toBeInTheDocument();
+  });
+
+  it('does not show the recommendation badge/reason when recommendedLabel is unset (live question compat)', () => {
+    render(<WorkflowQuestionPanel question={baseQuestion} submitting={false} onAnswer={vi.fn()} />);
+    expect(screen.queryByText('questionPanel.recommendedBadge')).not.toBeInTheDocument();
+    expect(screen.queryByText('questionPanel.recommendedReasonLabel')).not.toBeInTheDocument();
+  });
+
+  describe('自動継続カウントダウン（timeoutDeadline）', () => {
+    const questionWithDeadline: LiveQuestion = {
+      ...baseQuestion,
+      timeoutDeadline: '2026-01-01T00:01:00.000Z',
+    };
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      setAppHidden(false);
+    });
+
+    it('1秒ごとに残り秒数が減っていく', () => {
+      render(
+        <WorkflowQuestionPanel
+          question={questionWithDeadline}
+          submitting={false}
+          onAnswer={vi.fn()}
+        />,
+      );
+      expect(screen.getByText('60')).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+      expect(screen.getByText('57')).toBeInTheDocument();
+    });
+
+    it('document.hidden の間はカウントダウンが停止する', () => {
+      render(
+        <WorkflowQuestionPanel
+          question={questionWithDeadline}
+          submitting={false}
+          onAnswer={vi.fn()}
+        />,
+      );
+      const hiddenSpy = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+      expect(screen.getByText('60')).toBeInTheDocument();
+      hiddenSpy.mockRestore();
+    });
+
+    it('visibilitychange で表示に戻った瞬間に正しい残り秒数へ即座に更新される', () => {
+      render(
+        <WorkflowQuestionPanel
+          question={questionWithDeadline}
+          submitting={false}
+          onAnswer={vi.fn()}
+        />,
+      );
+      const hiddenSpy = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(screen.getByText('60')).toBeInTheDocument();
+
+      hiddenSpy.mockReturnValue(false);
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(screen.getByText('50')).toBeInTheDocument();
+      hiddenSpy.mockRestore();
+    });
+
+    it('最小化（getAppHidden）から復帰した瞬間に正しい残り秒数へ即座に更新される', () => {
+      render(
+        <WorkflowQuestionPanel
+          question={questionWithDeadline}
+          submitting={false}
+          onAnswer={vi.fn()}
+        />,
+      );
+      setAppHidden(true);
+      act(() => {
+        vi.advanceTimersByTime(15_000);
+      });
+      expect(screen.getByText('60')).toBeInTheDocument();
+
+      act(() => {
+        setAppHidden(false);
+      });
+      expect(screen.getByText('45')).toBeInTheDocument();
+    });
+  });
+});

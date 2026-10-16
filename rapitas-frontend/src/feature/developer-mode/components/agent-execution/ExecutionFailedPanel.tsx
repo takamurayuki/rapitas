@@ -2,14 +2,18 @@
 // ExecutionFailedPanel
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 import { Play, AlertCircle, RefreshCw, Zap } from 'lucide-react';
 import { formatTokenCount } from './useAgentExecution';
+import { formatCostUsd } from './agent-execution-utils';
 
 type Props = {
   /** Error message to display. */
   errorMessage: string;
   /** Total tokens used before the failure. */
   pollingTokensUsed: number | undefined;
+  /** Accumulated AI cost (USD) across the whole session. */
+  pollingTotalSessionCostUsd: number | undefined;
   /** Whether a new execution is in progress (disables retry button). */
   isExecuting: boolean;
   /** Rendered log panel (passed from parent). */
@@ -28,11 +32,13 @@ type Props = {
 export function ExecutionFailedPanel({
   errorMessage,
   pollingTokensUsed,
+  pollingTotalSessionCostUsd,
   isExecuting,
   logsNode,
   onReset,
   onRetry,
 }: Props) {
+  const t = useTranslations('devMode.executionFailedPanel');
   return (
     <>
       <div className="bg-linear-to-r from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/30 rounded-xl border border-red-200 dark:border-red-800 overflow-hidden">
@@ -42,14 +48,17 @@ export function ExecutionFailedPanel({
               <AlertCircle className="w-8 h-8 text-red-600 dark:text-red-400" />
             </div>
             <div className="flex-1">
-              <h3 className="font-bold text-lg text-red-700 dark:text-red-300">
-                実行に失敗しました
-              </h3>
+              <h3 className="font-bold text-lg text-red-700 dark:text-red-300">{t('title')}</h3>
               <p className="text-sm text-red-600 dark:text-red-400 mt-1">{errorMessage}</p>
               {(pollingTokensUsed ?? 0) > 0 && (
-                <div className="flex items-center gap-1.5 mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                  <Zap className="w-3.5 h-3.5" />
-                  <span>{formatTokenCount(pollingTokensUsed ?? 0)}</span>
+                <div className="flex items-center gap-3 mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                  <span className="flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5" />
+                    {formatTokenCount(pollingTokensUsed ?? 0)}
+                  </span>
+                  {(pollingTotalSessionCostUsd ?? 0) > 0 && (
+                    <span>{formatCostUsd(pollingTotalSessionCostUsd ?? 0)}</span>
+                  )}
                 </div>
               )}
             </div>
@@ -59,7 +68,7 @@ export function ExecutionFailedPanel({
                 className="flex items-center gap-2 px-4 py-2.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg font-medium transition-colors border border-zinc-300 dark:border-zinc-600"
               >
                 <RefreshCw className="w-4 h-4" />
-                リセット
+                {t('reset')}
               </button>
               <button
                 onClick={onRetry}
@@ -67,7 +76,7 @@ export function ExecutionFailedPanel({
                 className="flex items-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Play className="w-4 h-4" />
-                再実行
+                {t('retry')}
               </button>
             </div>
           </div>

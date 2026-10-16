@@ -1,0 +1,14 @@
+{
+  "voice": {
+    "speechRecognitionHook": {
+      "recordingTooShort": "録音が短すぎます。",
+      "transcribeConnectionFailed": "文字起こしサーバーへの接続に失敗しました。",
+      "micPermissionDenied": "マイクの使用が許可されていません。",
+      "micStartFailed": "マイクの起動に失敗しました: {message}",
+      "audioProcessingError": "音声処理エラー: {message}",
+      "recognitionError": "音声認識エラー: {code}",
+      "recordingWithLevel": "録音中... (音量:{freqAvg} rms:{rms} 無音:{silenceSec}s)",
+      "listeningWithLevel": "話してください... (音量:{freqAvg} rms:{rms})"
+    }
+  }
+}

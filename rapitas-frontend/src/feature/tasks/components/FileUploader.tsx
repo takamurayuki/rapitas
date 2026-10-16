@@ -4,30 +4,36 @@ import {
   Upload,
   X,
   File,
-  Image,
+  // NOTE: aliased — eslint-config-next's jsx-a11y setup treats any component
+  // literally named `Image` as next/image's <Image>, which requires an `alt`
+  // prop this decorative lucide icon doesn't have.
+  Image as ImageIcon,
   FileText,
   Trash2,
   Download,
   ExternalLink,
-  Loader2,
   Check,
   Eye,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { Resource } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import FileViewer from '@/components/file-viewer/FileViewer';
 import { createLogger } from '@/lib/logger';
+import { Spinner } from '@/components/ui/spinner';
 
 const logger = createLogger('FileUploader');
 
 // Download state type
 type DownloadState = 'idle' | 'downloading' | 'completed';
 
-async function downloadFile(url: string, fileName: string) {
+// NOTE: Pure helper outside the component — receives the already-resolved
+// message so it doesn't need a useTranslations hook of its own.
+async function downloadFile(url: string, fileName: string, failedMessage: string) {
   try {
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error('ダウンロードに失敗しました');
+      throw new Error(failedMessage);
     }
     const blob = await response.blob();
     const blobUrl = URL.createObjectURL(blob);
@@ -51,28 +57,37 @@ type FileUploaderProps = {
 };
 
 export default function FileUploader({ taskId, resources, onResourcesChange }: FileUploaderProps) {
+  const t = useTranslations('task.fileUploader');
+  const tc = useTranslations('common');
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadStates, setDownloadStates] = useState<Record<number, DownloadState>>({});
   const [viewingResource, setViewingResource] = useState<Resource | null>(null);
+  // NOTE: memoized so FileViewer's keyboard-navigation effect (which depends
+  // on these callbacks) doesn't re-subscribe its listener on every render.
+  const handleCloseViewer = useCallback(() => setViewingResource(null), []);
+  const handleNavigateViewer = useCallback((res: Resource) => setViewingResource(res), []);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Download with animation feedback
-  const handleDownload = useCallback(async (resourceId: number, url: string, fileName: string) => {
-    setDownloadStates((prev) => ({ ...prev, [resourceId]: 'downloading' }));
-    try {
-      await downloadFile(url, fileName);
-      setDownloadStates((prev) => ({ ...prev, [resourceId]: 'completed' }));
-      // Reset to idle after 2 seconds
-      setTimeout(() => {
+  const handleDownload = useCallback(
+    async (resourceId: number, url: string, fileName: string) => {
+      setDownloadStates((prev) => ({ ...prev, [resourceId]: 'downloading' }));
+      try {
+        await downloadFile(url, fileName, t('downloadFailed'));
+        setDownloadStates((prev) => ({ ...prev, [resourceId]: 'completed' }));
+        // Reset to idle after 2 seconds
+        setTimeout(() => {
+          setDownloadStates((prev) => ({ ...prev, [resourceId]: 'idle' }));
+        }, 2000);
+      } catch (e) {
         setDownloadStates((prev) => ({ ...prev, [resourceId]: 'idle' }));
-      }, 2000);
-    } catch (e) {
-      setDownloadStates((prev) => ({ ...prev, [resourceId]: 'idle' }));
-      setError(e instanceof Error ? e.message : 'ダウンロードに失敗しました');
-    }
-  }, []);
+        setError(e instanceof Error ? e.message : t('downloadFailed'));
+      }
+    },
+    [t],
+  );
 
   const uploadFiles = useCallback(
     async (files: FileList) => {
@@ -92,19 +107,19 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
 
           if (!res.ok) {
             const errorData = await res.json().catch(() => ({}));
-            throw new Error(errorData.message || 'アップロードに失敗しました');
+            throw new Error(errorData.message || t('uploadFailed'));
           }
           await res.json();
         }
 
         onResourcesChange();
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'アップロードに失敗しました');
+        setError(e instanceof Error ? e.message : t('uploadFailed'));
       } finally {
         setIsUploading(false);
       }
     },
-    [taskId, onResourcesChange],
+    [taskId, onResourcesChange, t],
   );
 
   // NOTE: Native browser drag events (works in Tauri with dragDropEnabled: true)
@@ -162,23 +177,23 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
       });
 
       if (!res.ok) {
-        throw new Error('削除に失敗しました');
+        throw new Error(t('deleteFailed'));
       }
 
       onResourcesChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '削除に失敗しました');
+      setError(e instanceof Error ? e.message : t('deleteFailed'));
     }
   };
 
   const getFileIcon = (resource: Resource) => {
     if (resource.type === 'image' || resource.mimeType?.startsWith('image/')) {
-      return <Image className="w-4 h-4 text-emerald-500" />;
+      return <ImageIcon className="w-4 h-4 text-emerald-500" />;
     }
     if (resource.type === 'pdf' || resource.mimeType === 'application/pdf') {
       return <FileText className="w-4 h-4 text-rose-500" />;
     }
-    return <File className="w-4 h-4 text-blue-500" />;
+    return <File className="w-4 h-4 text-indigo-500" />;
   };
 
   const formatFileSize = (bytes?: number | null) => {
@@ -212,8 +227,8 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
       <div
         className={`relative border-2 border-dashed rounded-xl p-4 transition-all cursor-pointer ${
           dragActive
-            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-            : 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 dark:hover:border-blue-500'
+            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+            : 'border-zinc-200 dark:border-zinc-700 hover:border-indigo-200 dark:hover:border-indigo-500'
         }`}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -231,17 +246,15 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
         />
         <div className="flex flex-col items-center gap-2 text-center pointer-events-none">
           {isUploading ? (
-            <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+            <Spinner size="lg" className="text-indigo-500 dark:text-indigo-500" />
           ) : (
             <Upload className="w-8 h-8 text-zinc-400 dark:text-zinc-500" />
           )}
           <div>
             <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              {isUploading ? 'アップロード中...' : 'ファイルをドラッグ&ドロップ'}
+              {isUploading ? t('uploading') : t('dragDrop')}
             </p>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              または クリックして選択（最大10MB）
-            </p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('dragDropHint')}</p>
           </div>
         </div>
       </div>
@@ -271,6 +284,12 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
               {/* Preview or Icon */}
               {resource.type === 'image' && resource.filePath ? (
                 <div className="w-10 h-10 rounded-lg overflow-hidden bg-zinc-200 dark:bg-zinc-700 shrink-0">
+                  {/*
+                    NOTE: thumbnail is served from the (deployment-specific) API host,
+                    which isn't registered in next.config's image remotePatterns, so
+                    next/image isn't a safe swap here.
+                  */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={getFileUrl(resource)}
                     alt={resource.title}
@@ -298,8 +317,8 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={() => setViewingResource(resource)}
-                  className="p-1.5 text-zinc-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-                  title="プレビュー"
+                  className="p-1.5 text-zinc-500 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
+                  title={t('preview')}
                 >
                   <Eye className="w-4 h-4" />
                 </button>
@@ -307,8 +326,8 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
                   href={getFileUrl(resource)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-1.5 text-zinc-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-                  title="新しいタブで開く"
+                  className="p-1.5 text-zinc-500 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
+                  title={t('openInNewTab')}
                 >
                   <ExternalLink className="w-4 h-4" />
                 </a>
@@ -324,42 +343,42 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
                     disabled={downloadStates[resource.id] === 'downloading'}
                     className={`relative p-1.5 rounded-lg transition-all duration-300 ${
                       downloadStates[resource.id] === 'completed'
-                        ? 'text-emerald-500 bg-emerald-100 dark:bg-emerald-900/40 scale-110'
+                        ? 'text-green-500 bg-green-100 dark:bg-green-900/40 scale-110'
                         : downloadStates[resource.id] === 'downloading'
-                          ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30'
-                          : 'text-zinc-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                          ? 'text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
+                          : 'text-zinc-500 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30'
                     }`}
                     title={
                       downloadStates[resource.id] === 'completed'
-                        ? 'ダウンロード完了'
+                        ? t('downloadCompleted')
                         : downloadStates[resource.id] === 'downloading'
-                          ? 'ダウンロード中...'
-                          : 'ダウンロード'
+                          ? t('downloading')
+                          : t('download')
                     }
                   >
                     {downloadStates[resource.id] === 'completed' ? (
                       <Check className="w-4 h-4 animate-[successPop_0.4s_ease-out]" />
                     ) : downloadStates[resource.id] === 'downloading' ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Spinner size="sm" className="text-indigo-500 dark:text-indigo-500" />
                     ) : (
                       <Download className="w-4 h-4" />
                     )}
                     {/* Ripple effect on completion */}
                     {downloadStates[resource.id] === 'completed' && (
-                      <span className="absolute inset-0 rounded-lg bg-emerald-400/30 animate-[ripple_0.6s_ease-out]" />
+                      <span className="absolute inset-0 rounded-lg bg-green-400/30 animate-[ripple_0.6s_ease-out]" />
                     )}
                   </button>
                   {/* Success tooltip */}
                   {downloadStates[resource.id] === 'completed' && (
-                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 rounded-md whitespace-nowrap animate-[fadeInUp_0.3s_ease-out] shadow-sm">
-                      完了!
+                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 text-xs font-medium text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/60 rounded-md whitespace-nowrap animate-[fadeInUp_0.3s_ease-out] shadow-sm">
+                      {t('done')}
                     </span>
                   )}
                 </div>
                 <button
                   onClick={() => handleDelete(resource.id)}
                   className="p-1.5 text-zinc-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors"
-                  title="削除"
+                  title={tc('delete')}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -374,9 +393,9 @@ export default function FileUploader({ taskId, resources, onResourcesChange }: F
         <FileViewer
           resource={viewingResource}
           isOpen={!!viewingResource}
-          onClose={() => setViewingResource(null)}
+          onClose={handleCloseViewer}
           resources={fileResources}
-          onNavigate={(res) => setViewingResource(res)}
+          onNavigate={handleNavigateViewer}
         />
       )}
     </div>

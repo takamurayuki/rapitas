@@ -123,6 +123,33 @@ model WorkflowLearningRecord {
   @@index([createdAt])
 }
 
+// Task duration predictions - distribution-based duration estimates (median /
+// IQR / sample size / confidence) persisted per task. Two-stage lifecycle:
+// (1) prediction time — row upserted by taskId with the distribution stats;
+// (2) task completion — actual duration and prediction error are resolved
+// into the same row so accuracy can be audited later.
+model TaskDurationPrediction {
+  id                    Int       @id @default(autoincrement())
+  taskId                Int       @unique
+  task                  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  groupingKey           String    // Population identifier, e.g. "theme:12|mode:standard"
+  predictable           Boolean   @default(false) // Whether history met the sample threshold
+  sampleSize            Int       @default(0) // Number of completion rows in the population
+  medianMinutes         Int?      // null while predictable=false (no fabricated values)
+  p25Minutes            Int?      // First quartile (nearest-rank)
+  p75Minutes            Int?      // Third quartile (nearest-rank)
+  confidence            Float     @default(0) // 0-1; 0 while predictable=false
+  predictedAt           DateTime  @default(now())
+  actualDurationMinutes Int?      // Filled on task completion
+  errorMinutes          Int?      // actual - median, filled on completion
+  errorRatio            Float?    // actual / median (null when median <= 0)
+  resolvedAt            DateTime? // When the prediction error was resolved
+
+  @@index([taskId])
+  @@index([groupingKey])
+  @@index([resolvedAt])
+}
+
 // Workflow optimization rules - patterns extracted from learning data
 model WorkflowOptimizationRule {
   id                Int       @id @default(autoincrement())
@@ -141,6 +168,93 @@ model WorkflowOptimizationRule {
   @@index([ruleType])
   @@index([confidence])
   @@index([isActive])
+}
+
+// Detection-miss ledger — one row per quality-gate slip-through discovered
+// AFTER the fact (task #578). A "miss" is deliberately narrow (precision over
+// recall): only ci_repair transitions (verify passed, CI then failed) and
+// concerns filed against an already-completed task qualify. verify_repair
+// bounces are NOT misses — the gate caught those BEFORE completion.
+model DetectionMissCase {
+  id           Int      @id @default(autoincrement())
+  taskId       Int
+  /** Which gate the defect slipped past: ci_repair | post_completion_concern */
+  gate         String
+  /** Human-readable slip reason (transition metadata.reason / concern title). */
+  reason       String   @default("")
+  /** JSON evidence: transitionId/concernId, occurredAt, logRef, prNumber. */
+  evidenceJson String   @default("{}")
+  /** When the evidence event happened (not when this row was recorded). */
+  detectedAt   DateTime @default(now())
+  /** miss:<gate>:<taskId>:<discriminator> — absorbs re-scans of the same event. */
+  dedupKey     String   @unique
+  createdAt    DateTime @default(now())
+
+  @@index([gate])
+  @@index([taskId])
+  @@index([detectedAt])
+}
+
+// Gate-precision ledger — one row per verify_repair dispute (the SAME
+// acceptance criterion flagged by 2+ bounces, per verify-convergence.ts's
+// non-convergence detector) once it is RESOLVED one way or another. Answers a
+// question loop-metrics.ts cannot: when a bounce category repeats, did the
+// implementer eventually satisfy it on its own (the gate was doing its job),
+// or did it only resolve after a human/plan-level intervention (the gate or
+// the requirement's phrasing may itself be the problem)? Deliberately scoped
+// to verify_repair only — ci_repair reasons are CI failure text, not
+// criterion-matchable prose (see identifyIndictedCriteria).
+model GatePrecisionCase {
+  id             Int      @id @default(autoincrement())
+  taskId         Int
+  /** Repair gate this dispute came from. v1: always "verify_repair". */
+  gate           String
+  /** 1-based acceptance-criterion index repeatedly indicted, when identifiable. */
+  criterionIndex Int?
+  /** The most recent bounce reason text in the disputed run. */
+  reason         String   @default("")
+  /** resolved_by_implementation | resolved_by_human | unresolved_blocked */
+  verdict        String
+  /** JSON evidence: transitionIds, bounceCount, firstBounceAt, resolvedAt, resolvedByTransitionId. */
+  evidenceJson   String   @default("{}")
+  /** When the dispute resolved (or was last observed, for unresolved_blocked). */
+  detectedAt     DateTime @default(now())
+  /** gate-precision:<taskId>:<criterionIndex>:<lastBounceTransitionId> — absorbs re-scans. */
+  dedupKey       String   @unique
+  createdAt      DateTime @default(now())
+
+  @@index([gate])
+  @@index([taskId])
+  @@index([verdict])
+  @@index([detectedAt])
+}
+
+// Signature suggestions learned from detection-miss cases (task #578).
+// Lifecycle mirrors PromptEvolution's human-in-the-loop pattern:
+// pending_review → approved | rejected (human), or → auto_applied once the
+// rejection rate stays under the auto threshold (mode derived statelessly —
+// see services/self-improvement/miss-approval-mode.ts). auto_applied rows can
+// still be rejected later by a human; that rejection re-enters the window and
+// flips the mode back to manual.
+model MissSignatureSuggestion {
+  id          Int       @id @default(autoincrement())
+  /** Source DetectionMissCase.id; null for signatures without a single case. */
+  caseId      Int?
+  /** The proposed detection cue (what the next watcher/reviewer should look for). */
+  signature   String
+  /** Why this cue predicts the defect type — required explanation text. */
+  explanation String    @default("")
+  status      String    @default("pending_review") // pending_review | approved | rejected | auto_applied
+  /** Who decided: human | auto. Null while pending. */
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  /** suggest:<gate>:<signatureKey> — one row per distinct cue. */
+  dedupKey    String    @unique
+  createdAt   DateTime  @default(now())
+
+  @@index([status])
+  @@index([caseId])
+  @@index([reviewedAt])
 }
 
 // Prompt evolution records - history of prompt improvements.

@@ -1,7 +1,10 @@
 'use client';
 // MemoInputArea
 
-import { Loader2, Plus, Zap } from 'lucide-react';
+import { Plus, Zap } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { Spinner } from '@/components/ui/spinner';
+import { isImeComposing } from '@/utils/ime';
 import type { MemoType } from './types';
 import { MEMO_TYPE_CONFIG } from './types';
 
@@ -35,11 +38,14 @@ export function MemoInputArea({
   onSubmit,
   onOpenTemplates,
 }: MemoInputAreaProps) {
+  const t = useTranslations('task.memoInputArea');
+  const tt = useTranslations('task');
+  const tCommon = useTranslations('common');
   return (
     <div className="space-y-2 mb-3">
       {/* Memo Type Selector & Template Button */}
       <div className="flex items-center gap-2 px-1">
-        <span className="text-[10px] text-zinc-500">種類:</span>
+        <span className="text-[10px] text-zinc-500">{t('typeLabel')}</span>
         <div className="flex gap-1">
           {(Object.keys(MEMO_TYPE_CONFIG) as MemoType[]).map((type) => {
             const config = MEMO_TYPE_CONFIG[type];
@@ -53,11 +59,11 @@ export function MemoInputArea({
                 className={`flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
                   isSelected
                     ? `${config.color.badge} border-current`
-                    : 'text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-300'
+                    : 'text-zinc-500 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-300'
                 }`}
               >
                 <Icon className="w-2.5 h-2.5" />
-                {config.label}
+                {tt(config.labelKey)}
               </button>
             );
           })}
@@ -66,10 +72,10 @@ export function MemoInputArea({
         <button
           onClick={onOpenTemplates}
           className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-full hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors"
-          title="テンプレートを使用"
+          title={t('useTemplateTooltip')}
         >
           <Zap className="w-2.5 h-2.5" />
-          テンプレート
+          {t('template')}
         </button>
       </div>
 
@@ -80,16 +86,18 @@ export function MemoInputArea({
             value={newComment}
             onChange={(e) => onNewCommentChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) {
                 e.preventDefault();
                 onSubmit();
               }
             }}
-            placeholder={`${MEMO_TYPE_CONFIG[selectedMemoType].label}メモを追加...（Shift+Enterで改行）`}
+            placeholder={t('addMemoPlaceholder', {
+              type: tt(MEMO_TYPE_CONFIG[selectedMemoType].labelKey),
+            })}
             className={`w-full px-2.5 py-2 text-xs bg-zinc-50 dark:bg-zinc-800 border rounded-lg outline-none focus:ring-1 placeholder:text-zinc-400 resize-none transition-colors ${
               selectedMemoType !== 'general'
                 ? `${MEMO_TYPE_CONFIG[selectedMemoType].color.border} focus:border-current focus:ring-current/30`
-                : 'border-zinc-200 dark:border-zinc-700 focus:border-blue-400 focus:ring-indigo-400/30'
+                : 'border-zinc-200 dark:border-zinc-700 focus:border-indigo-400 focus:ring-indigo-400/30'
             }`}
             disabled={isAddingComment}
             rows={2}
@@ -98,10 +106,11 @@ export function MemoInputArea({
         <button
           onClick={onSubmit}
           disabled={!newComment.trim() || isAddingComment}
-          className="self-stretch px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-40 transition-colors"
+          aria-label={tCommon('add')}
+          className="self-stretch px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg disabled:opacity-40 transition-colors"
         >
           {isAddingComment ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <Spinner size="sm" className="text-white dark:text-white" />
           ) : (
             <Plus className="w-3.5 h-3.5" />
           )}

@@ -9,6 +9,7 @@
  */
 
 import { Folder, FolderOpen, GitBranch, Star, Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { FavoriteDirectory } from './types';
 
 type FavoritesOnlyPanelProps = {
@@ -36,6 +37,8 @@ export function FavoritesOnlyPanel({
   onRemove,
   onStartBrowsing,
 }: FavoritesOnlyPanelProps) {
+  const t = useTranslations('common');
+
   return (
     <div className="h-72 flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/10 dark:to-amber-900/10 border-b border-yellow-100 dark:border-yellow-900/30">
@@ -43,19 +46,19 @@ export function FavoritesOnlyPanel({
           <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
           <div>
             <span className="text-sm font-medium text-yellow-700 dark:text-yellow-400">
-              お気に入りから選択
+              {t('directoryPicker.selectFromFavorites')}
             </span>
             <span className="text-xs text-yellow-600/70 dark:text-yellow-500/70 ml-2">
-              ({favorites.length}件)
+              {t('directoryPicker.favoritesCount', { count: favorites.length })}
             </span>
           </div>
         </div>
         <button
           onClick={onStartBrowsing}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 bg-white dark:bg-zinc-800 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-md transition-colors border border-purple-200 dark:border-purple-800"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 bg-white dark:bg-zinc-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-md transition-colors border border-indigo-200 dark:border-indigo-800"
         >
           <FolderOpen className="w-3.5 h-3.5" />
-          別のフォルダを選択
+          {t('directoryPicker.selectAnotherFolder')}
         </button>
       </div>
 
@@ -67,7 +70,7 @@ export function FavoritesOnlyPanel({
               key={fav.id}
               className={`flex items-center gap-2 px-4 py-3 transition-colors group ${
                 isCurrentValue
-                  ? 'bg-purple-50 dark:bg-purple-900/20 border-l-4 border-purple-500'
+                  ? 'bg-indigo-50 dark:bg-indigo-900/30 border-l-4 border-indigo-500'
                   : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
               }`}
             >
@@ -76,20 +79,20 @@ export function FavoritesOnlyPanel({
                 className="flex-1 flex items-center gap-3 text-left min-w-0"
               >
                 <Folder
-                  className={`w-5 h-5 shrink-0 ${isCurrentValue ? 'text-purple-500' : 'text-yellow-500'}`}
+                  className={`w-5 h-5 shrink-0 ${isCurrentValue ? 'text-indigo-500' : 'text-yellow-500'}`}
                 />
                 <div className="flex-1 min-w-0">
                   <div
-                    className={`text-sm font-medium truncate ${isCurrentValue ? 'text-purple-700 dark:text-purple-300' : 'text-zinc-700 dark:text-zinc-300'}`}
+                    className={`text-sm font-medium truncate ${isCurrentValue ? 'text-indigo-700 dark:text-indigo-300' : 'text-zinc-700 dark:text-zinc-300'}`}
                   >
                     {fav.name || fav.path.split(/[\\/]/).pop()}
                     {isCurrentValue && (
-                      <span className="ml-2 text-xs font-normal text-purple-500 dark:text-purple-400">
-                        (現在選択中)
+                      <span className="ml-2 text-xs font-normal text-indigo-500 dark:text-indigo-400">
+                        {t('directoryPicker.currentlySelectedInline')}
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-zinc-400 dark:text-zinc-500 truncate font-mono">
+                  <div className="text-xs text-zinc-500 dark:text-zinc-500 truncate font-mono">
                     {fav.path}
                   </div>
                 </div>
@@ -105,7 +108,7 @@ export function FavoritesOnlyPanel({
                   onRemove(fav.id);
                 }}
                 className="p-1.5 text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all rounded-md hover:bg-red-50 dark:hover:bg-red-900/20"
-                title="お気に入りから削除"
+                title={t('directoryPicker.removeFavorite')}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>

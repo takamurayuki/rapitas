@@ -34,7 +34,8 @@ export const intelligentSuggestionsRoutes = new Elysia({ prefix: '/intelligence'
   .get('/suggested-tasks', async ({ query }) => {
     try {
       const limit = Math.min(parseInt(query?.limit || '5', 10), 20);
-      const result = await getSuggestedTasks(limit);
+      const scope = query?.scope === 'today' ? 'today' : undefined;
+      const result = await getSuggestedTasks(limit, scope);
       return { success: true, ...result };
     } catch (err) {
       log.error({ err }, 'Error getting suggested tasks');

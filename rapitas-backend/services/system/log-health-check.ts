@@ -11,7 +11,11 @@
  *
  * Not responsible for capturing logs (the logger / each project does) or fixing.
  */
-import { readFileSync, readdirSync, statSync, unlinkSync, existsSync } from 'fs';
+import { readFile } from 'fs/promises';
+import { readLogTail } from './log-tail-reader';
+import { markEventLoopSection } from './event-loop-lag-watchdog';
+import { classifyLogSignature } from './log-health-suppressions';
+import { readdirSync, statSync, existsSync } from 'fs';
 import { join } from 'path';
 import { createLogger, getBackendLogFilePath } from '../../config/logger';
 import { prisma } from '../../config/database';
@@ -25,6 +29,8 @@ import {
   type LogFormat,
 } from '../scheduling/theme-backlog-override-service';
 import { parseLogEntries, type ParsedLogEntry } from './log-format-parser';
+import { pruneOldLogs } from './log-health-prune';
+import { fileCausalSuggestions } from '../workflow/causal-analysis/causal-suggestion-filer';
 
 const log = createLogger('system:log-health-check');
 
@@ -32,12 +38,17 @@ const log = createLogger('system:log-health-check');
 const MAX_CONCERNS = 20;
 /** Only the last N lines of a file are scanned, to bound work on a noisy day. */
 const MAX_LINES = 5_000;
+/**
+ * Only this many trailing bytes of the backend log are read. The log grows all
+ * day, and reading + splitting the whole file before slicing to MAX_LINES was a
+ * multi-second synchronous stall (concern #1033); 4 MiB comfortably holds
+ * MAX_LINES pino lines (~200-800 B each).
+ */
+const TAIL_READ_BYTES = 4 * 1024 * 1024;
 /** Max files scanned per project log directory. */
 const MAX_FILES_PER_THEME = 20;
 /** Max parsed entries kept per project, to bound memory/work. */
 const MAX_ENTRIES_PER_THEME = 4_000;
-/** Delete daily backend log files older than this many days. */
-const RETENTION_DAYS = 14;
 
 interface Grouped {
   signature: string;
@@ -46,6 +57,20 @@ interface Grouped {
   normalizedMsg: string;
   sampleStack?: string;
   count: number;
+  /**
+   * One occurrence's message exactly as logged, before normalisation.
+   *
+   * The signature deliberately strips the varying parts so every occurrence
+   * groups together — but that same normalised string is also used as the
+   * concern's TITLE, so identifiers vanish from the only text the agent gets:
+   * "Execution error for task #: Task # not found" names no task. Tasks 695,
+   * 699, 700 and 701 all completed as 修正不要 because nothing in the filing
+   * said which task, when, or how often (measured 2026-08-28).
+   */
+  sampleMsg: string;
+  /** Epoch ms of the first and last occurrence seen, when the log carried times. */
+  firstSeenMs?: number;
+  lastSeenMs?: number;
 }
 
 /** Numeric level → concern severity. */
@@ -70,17 +95,113 @@ function startOfTodayMs(): number {
 }
 
 /**
+ * A canonical 8-4-4-4-12 UUID. Must be collapsed as ONE unit before the
+ * generic hex/digit rules below: those only fold hex runs of 8+ chars and pure
+ * digit runs, so a UUID's 4-char middle segments survive with a per-value
+ * letter pattern ("...-6e3b-40bd-..." → "-#e#b-#bd-" vs "-c#-#-b#a-"). That
+ * made one recurring failure produce a different signature — and therefore a
+ * NEW concern and task — on every occurrence, because the dedup key is built
+ * from this output. Measured 2026-08-18: six byte-identical
+ * "Claude CLI exited" tasks filed from a single repeating cause.
+ */
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+/**
+ * A JSON payload embedded in a message — collapsed whole, nesting included.
+ * Greedy to the LAST brace on purpose: CLI payloads nest, and a non-greedy
+ * match left the outer object open, so two reports of one failure still looked
+ * different.
+ */
+const JSON_BLOB_RE = /\{["'].*\}/gs;
+
+/** Windows or POSIX absolute path, collapsed so the same defect in two trees groups. */
+const ABS_PATH_RE = new RegExp(
+  String.raw`(?:[A-Za-z]:[\\\\/][^\s,;)"']*|/(?:home|Users|var|tmp)/[^\s,;)"']*)`,
+  'g',
+);
+
+/**
+ * Everything from the first `--flag` onward in a command line.
+ *
+ * `gh pr create --title <whatever this task is called>` is ONE failure however
+ * many tasks hit it, but the title made every occurrence a distinct signature.
+ * Measured 2026-08-27: three `gh pr create` failures were three separate
+ * concerns, and two of them were filings ABOUT earlier filings — the arguments
+ * carried the previous task's name, so the recursion never collapsed.
+ *
+ * The command and subcommand survive; only the arguments go. Which command
+ * failed is the finding, and what it was called with is the occurrence.
+ */
+const COMMAND_ARGS_RE = /\s--\S[^\n]*/g;
+
+/**
+ * Everything after `git command failed: git <subcommand>` — the subcommand
+ * itself (checkout / merge / push / ...) survives; positional arguments
+ * (branch names, refs, paths) do not. `--flag` arguments are already handled
+ * by COMMAND_ARGS_RE above, so this only needs to catch the single-dash /
+ * bare-positional case COMMAND_ARGS_RE misses (e.g. `git checkout -b
+ * feature/aaa` vs `git checkout -b feature/bbb`), which otherwise makes the
+ * same failing command a new signature — and a new task — per branch name.
+ */
+const GIT_POSITIONAL_ARGS_RE = /(git command failed: git \S+)[^\n]*/;
+
+/**
+ * Matches "Process exited with code N" — see PROCESS_EXIT_ANCHOR usage below.
+ */
+const PROCESS_EXIT_ANCHOR_RE = /Process exited with code \d+/;
+
+/**
+ * Folds the unlabeled CLI-transcript tail that execution-resolver.ts (and the
+ * sibling codex/gemini runners) append straight after "Process exited with
+ * code N" — arbitrary conversation/tool-output text that differs on every
+ * failing run even when the underlying cause repeats, so left as-is it makes
+ * the same recurring failure file a brand new concern every time (K-8332,
+ * task #806, measured 2026-08-31). Labeled sections the resolver may still
+ * append (【Standard Error Output】, 【Session Resume Mode】, …) are kept
+ * verbatim — they can distinguish genuinely different causes — only the
+ * unlabeled runs of text between/after them collapse to one placeholder.
+ */
+function foldProcessExitTail(msg: string): string {
+  const anchor = PROCESS_EXIT_ANCHOR_RE.exec(msg);
+  if (!anchor) return msg;
+  const head = msg.slice(0, anchor.index);
+  const rest = msg.slice(anchor.index + anchor[0].length);
+  const labelIdx = rest.indexOf('【');
+  const tail = labelIdx === -1 ? rest : rest.slice(0, labelIdx);
+  const afterLabel = labelIdx === -1 ? '' : rest.slice(labelIdx);
+  const folded = tail.trim() ? ' …' : tail;
+  return `${head}Process exited with code #${folded}${afterLabel}`;
+}
+
+/**
  * Normalizes a message so volatile parts (ids, counts, hex) collapse, letting
  * "task 12 failed" and "task 34 failed" group together.
  */
-function normalizeMessage(raw: string): string {
-  return raw
-    .replace(/0x[0-9a-fA-F]+/g, '#')
-    .replace(/[0-9a-fA-F]{8,}/g, '#') // uuids / hashes
-    .replace(/\d+/g, '#')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 200);
+export function normalizeMessage(raw: string): string {
+  return (
+    foldProcessExitTail(raw)
+      .replace(UUID_RE, '#') // whole UUIDs first — see UUID_RE
+      // A JSON payload carries the whole variable state of a failure. Left in,
+      // one repeating cause becomes a new signature per occurrence: measured
+      // 2026-08-27, four byte-identical 「Claude CLI exited」 concerns sat open
+      // together, and a fifth truncated before the payload made a fifth.
+      .replace(JSON_BLOB_RE, '{…}')
+      // Absolute paths make the SAME defect in two worktrees (or two projects)
+      // dedupe as two: 'setup-worktree.cjs not found at <A>' and '… at <B>'
+      // were both open at once, as were two 'git worktree remove' failures.
+      .replace(ABS_PATH_RE, '<path>')
+      // Same command, different arguments, is the same failure.
+      .replace(COMMAND_ARGS_RE, ' …')
+      // Same git subcommand, different positional args (branch name, ref) —
+      // see GIT_POSITIONAL_ARGS_RE.
+      .replace(GIT_POSITIONAL_ARGS_RE, '$1 …')
+      .replace(/0x[0-9a-fA-F]+/g, '#')
+      .replace(/[0-9a-fA-F]{8,}/g, '#') // hashes / bare hex ids
+      .replace(/\d+/g, '#')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 200)
+  );
 }
 
 /**
@@ -99,11 +220,25 @@ export function groupEntries(entries: ParsedLogEntry[]): Grouped[] {
     const bucket = entry.level >= 50 ? 'error' : 'warn';
     const signature = `${name}|${bucket}|${normalizedMsg}`;
 
+    // A guard that refused, a recovery that succeeded, a fail-open that
+    // continued — alarming wording, nothing left broken. Filing them buried the
+    // real defects: 60 of 121 open concerns came from this path and almost none
+    // named anything to fix (measured 2026-08-27).
+    const verdict = classifyLogSignature(name, normalizedMsg);
+    if (verdict.suppressed) {
+      log.debug({ name, normalizedMsg, because: verdict.because }, '[log-health] suppressed');
+      continue;
+    }
+
     const existing = groups.get(signature);
     if (existing) {
       existing.count++;
       existing.level = Math.max(existing.level, entry.level);
       if (!existing.sampleStack && entry.stack) existing.sampleStack = entry.stack;
+      if (entry.time !== undefined) {
+        existing.firstSeenMs = Math.min(existing.firstSeenMs ?? entry.time, entry.time);
+        existing.lastSeenMs = Math.max(existing.lastSeenMs ?? entry.time, entry.time);
+      }
     } else {
       groups.set(signature, {
         signature,
@@ -112,6 +247,9 @@ export function groupEntries(entries: ParsedLogEntry[]): Grouped[] {
         normalizedMsg,
         sampleStack: entry.stack,
         count: 1,
+        sampleMsg: entry.msg || '(メッセージなし)',
+        firstSeenMs: entry.time,
+        lastSeenMs: entry.time,
       });
     }
   }
@@ -131,12 +269,31 @@ async function fileGroupedConcerns(
     const label = levelLabel(g.level);
     const prefix = opts.projectLabel ? `(${opts.projectLabel}) ` : '';
     const title = `[ログ:${label}] ${prefix}${g.normalizedMsg.slice(0, 100)}`;
+    // The title carries the NORMALISED signature so occurrences group, which
+    // strips exactly the identifiers an investigator needs. Put the raw form
+    // back here — one real occurrence, how many, and over what window — or the
+    // task is unactionable and completes as 修正不要 (tasks 695/699/700/701).
+    const occurrence = [`発生回数: ${g.count} 回`];
+    if (g.firstSeenMs !== undefined && g.lastSeenMs !== undefined) {
+      const span =
+        g.firstSeenMs === g.lastSeenMs
+          ? new Date(g.firstSeenMs).toISOString()
+          : `${new Date(g.firstSeenMs).toISOString()} 〜 ${new Date(g.lastSeenMs).toISOString()}`;
+      occurrence.push(`発生時刻: ${span}`);
+    }
     const detailParts = [
       `ロガー: ${g.name}`,
       `レベル: ${label}`,
       opts.projectLabel ? `プロジェクト: ${opts.projectLabel}` : 'ソース: rapitas バックエンド',
+      ...occurrence,
       '',
       'ログから検出された warning/error です。頻発する場合は原因調査を推奨します。',
+      '',
+      '実際のログ行（正規化前。タイトルの `#` はグループ化のため数値を除いたもので、',
+      '調査にはこちらの値を使うこと）:',
+      '```text',
+      g.sampleMsg.slice(0, 600),
+      '```',
     ];
     if (g.sampleStack) detailParts.push('', '例:', g.sampleStack.slice(0, 800));
 
@@ -151,28 +308,54 @@ async function fileGroupedConcerns(
       // by project — NOT title+detail, which drift between runs via the sample
       // stack and the max level (label). Keeps one concern per recurring cause.
       dedupKey: `log:${opts.projectLabel ?? 'backend'}|${g.signature}`,
+      // Aggregates same-signature refilings instead of one row per occurrence
+      // (task #801) — instanceValue keeps the raw (pre-normalization) log line
+      // an investigator needs, since the dedupKey/title only carry the signature.
+      recurrencePolicy: { enabled: true, instanceValue: g.sampleMsg.slice(0, 300) },
     });
     filed++;
   }
   return filed;
 }
 
-/** Reads + parses rapitas's own backend log for today (pino NDJSON). */
-function readGlobalEntries(): ParsedLogEntry[] {
-  const path = getBackendLogFilePath();
+/**
+ * Reads + parses rapitas's own backend log, filtered to entries on or after sinceMs.
+ *
+ * @param sinceMs - Epoch ms lower bound; entries with time < sinceMs are dropped
+ * @param filePath - Override log file path (test injection only)
+ * @param maxBytes - Trailing bytes to read (test injection only) / 末尾から読むバイト数
+ * @returns Filtered parsed entries / フィルタ済みエントリ
+ */
+export async function readGlobalEntries(
+  sinceMs: number,
+  filePath?: string,
+  maxBytes: number = TAIL_READ_BYTES,
+): Promise<ParsedLogEntry[]> {
+  const path = filePath ?? getBackendLogFilePath();
   if (!existsSync(path)) return [];
   try {
-    const lines = readFileSync(path, 'utf-8').split('\n');
+    const raw = await readLogTail(path, maxBytes);
+    const lines = raw.split('\n');
     const content = (lines.length > MAX_LINES ? lines.slice(-MAX_LINES) : lines).join('\n');
-    return parseLogEntries(content, 'pino');
+    // Yield once so the parse below does not extend the read's synchronous span.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    return parseLogEntries(content, 'pino').filter(
+      (e) => e.time === undefined || e.time >= sinceMs,
+    );
   } catch (err) {
     log.warn({ err }, 'Failed to read backend log file');
     return [];
   }
 }
 
-/** Reads today's log files in a project's directory and parses them. */
-function readThemeEntries(dir: string, format: LogFormat): ParsedLogEntry[] {
+/**
+ * Reads today's log files in a project's directory and parses them.
+ *
+ * @param dir - Log directory path / ログディレクトリパス
+ * @param format - Log format / ログフォーマット
+ * @returns Parsed entries for today / 今日のエントリ
+ */
+async function readThemeEntries(dir: string, format: LogFormat): Promise<ParsedLogEntry[]> {
   if (!existsSync(dir)) {
     log.warn({ dir }, 'Project log directory missing — skipping');
     return [];
@@ -201,7 +384,7 @@ function readThemeEntries(dir: string, format: LogFormat): ParsedLogEntry[] {
     scanned++;
     let content: string;
     try {
-      content = readFileSync(full, 'utf-8');
+      content = await readFile(full, 'utf-8');
     } catch {
       continue;
     }
@@ -217,73 +400,77 @@ function readThemeEntries(dir: string, format: LogFormat): ParsedLogEntry[] {
   return entries.slice(0, MAX_ENTRIES_PER_THEME);
 }
 
-/** Deletes daily backend log files older than the retention window. */
-function pruneOldLogs(): void {
-  const dir = join(getBackendLogFilePath(), '..');
-  let files: string[];
-  try {
-    files = readdirSync(dir);
-  } catch {
-    return;
-  }
-  const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
-  for (const file of files) {
-    const m = file.match(/^backend-(\d{4})-(\d{2})-(\d{2})\.log$/);
-    if (!m) continue;
-    const fileTime = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime();
-    if (fileTime < cutoff) {
-      try {
-        unlinkSync(join(dir, file));
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-}
-
 /**
  * Run the daily log health check across rapitas's backend log and every opted-in
  * project's logs, filing distinct problems as concerns; then prune old logs.
+ * Global and per-project sources run in parallel for faster completion.
  *
+ * @param since - Only process entries on or after this time (defaults to start of today)
  * @returns Number of concerns filed / 起票された懸念の数
  */
-export async function runLogHealthCheck(): Promise<number> {
-  log.info('Starting log health check');
-  let filed = 0;
+export async function runLogHealthCheck(since?: Date): Promise<number> {
+  const release = markEventLoopSection('log-health-check');
+  try {
+    return await runLogHealthCheckInner(since);
+  } finally {
+    release();
+  }
+}
 
-  // 1. Global: rapitas's own backend. Attribute to the default theme so the
-  // resulting concerns (and any task created from them) are theme-scoped — a
-  // theme-less task is invisible in the category-filtered home task list.
+async function runLogHealthCheckInner(since?: Date): Promise<number> {
+  log.info('Starting log health check');
+
+  // NOTE: Clamp the window to today's start — prevents reading old data when
+  // since is a prior day's lastRunAt (daily job; diff value is future-use only).
+  const sinceMs = Math.max(startOfTodayMs(), since?.getTime() ?? 0);
+
+  // Prefetch DB lookups sequentially before launching parallel I/O.
   const defaultThemeId = await resolveDefaultThemeId();
   if (defaultThemeId === null) {
     log.warn(
       'No default theme set — global backend-log concerns stay theme-less and will be hidden from the category-filtered task list',
     );
   }
-  filed += await fileGroupedConcerns(groupEntries(readGlobalEntries()), {
-    themeId: defaultThemeId ?? undefined,
-  });
 
-  // 2. Per-project: each theme that opted in with a log dir + format.
   const targets = await getHealthCheckTargets();
+  let nameById = new Map<number, string>();
   if (targets.length > 0) {
     const themes = await prisma.theme.findMany({
       where: { id: { in: targets.map((t) => t.themeId) } },
       select: { id: true, name: true },
     });
-    const nameById = new Map(themes.map((t) => [t.id, t.name]));
-    for (const target of targets) {
+    nameById = new Map(themes.map((t) => [t.id, t.name]));
+  }
+
+  // 1. Global: rapitas's own backend. Attribute to the default theme so the
+  // resulting concerns (and any task created from them) are theme-scoped.
+  const globalTask = (async () => {
+    const entries = await readGlobalEntries(sinceMs);
+    const causal = await fileCausalSuggestions(defaultThemeId ?? undefined, entries);
+    const grouped = await fileGroupedConcerns(groupEntries(entries), {
+      themeId: defaultThemeId ?? undefined,
+    });
+    return causal + grouped;
+  })();
+
+  // 2. Per-project: each opted-in theme runs concurrently with the global task.
+  const themeTasks = targets.map((target) =>
+    (async () => {
       try {
-        const entries = readThemeEntries(target.logDir, target.logFormat);
-        filed += await fileGroupedConcerns(groupEntries(entries), {
+        const entries = await readThemeEntries(target.logDir, target.logFormat);
+        return fileGroupedConcerns(groupEntries(entries), {
           themeId: target.themeId,
           projectLabel: nameById.get(target.themeId) ?? `theme#${target.themeId}`,
         });
       } catch (err) {
         log.warn({ err, themeId: target.themeId }, 'Project log scan failed (non-fatal)');
+        return 0;
       }
-    }
-  }
+    })(),
+  );
+
+  const results = await Promise.all([globalTask, ...themeTasks]);
+  const filed = results.reduce((sum, n) => sum + n, 0);
 
   pruneOldLogs();
   log.info({ filed, projects: targets.length }, 'Log health check complete');

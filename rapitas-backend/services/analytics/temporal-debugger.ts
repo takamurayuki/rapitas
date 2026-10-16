@@ -4,6 +4,12 @@
  * Records agent reasoning traces tied to code changes and provides
  * a queryable timeline of "why this code was written."
  * Enables developers to understand past decisions months later.
+ *
+ * NOTE: This is a per-EXECUTION best-effort extraction (regex over the run's
+ * output text, after the fact). Structured per-DECISION audit records written
+ * at the moment each decision happens live in
+ * `services/observability/decision-trace/` — the two mechanisms are separate
+ * and never call each other.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
@@ -129,25 +135,6 @@ export async function getFileTemporalHistory(
   limit: number = 20,
 ): Promise<FileTemporalHistory> {
   try {
-    // Find commits that touched this file
-    const commits = await prisma.gitCommit.findMany({
-      where: {
-        OR: [{ message: { contains: filePath } }, { commitHash: { not: undefined } }],
-      },
-      include: {
-        execution: {
-          include: {
-            session: {
-              include: { config: { include: { task: { select: { id: true, title: true } } } } },
-            },
-            agentConfig: { select: { modelId: true } },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
-
     // Also search timeline events for this file
     const events = await prisma.timelineEvent.findMany({
       where: {

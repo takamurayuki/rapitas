@@ -313,6 +313,42 @@ describe('AgentRegistry', () => {
       const best = await registry.selectBestProvider(['codeGeneration']);
       expect(best!.providerId).toBe('fast');
     });
+
+    test('スコア同点時は providerId の昇順で決定的にタイブレークすること', async () => {
+      // Same capabilities + same latency → identical score. Without the
+      // secondary providerId sort key, which one wins would depend on
+      // registration/insertion order (not guaranteed stable across refactors).
+      registry.registerProvider(
+        createMockProvider('zeta', { codeGeneration: true }, { latency: 100 }),
+      );
+      registry.registerProvider(
+        createMockProvider('alpha', { codeGeneration: true }, { latency: 100 }),
+      );
+      registry.registerProvider(
+        createMockProvider('mid', { codeGeneration: true }, { latency: 100 }),
+      );
+
+      const best = await registry.selectBestProvider(['codeGeneration']);
+      expect(best!.providerId).toBe('alpha');
+    });
+
+    test('スコア同点タイブレークは登録順を反転しても同じ結果になること', async () => {
+      // Registers in the reverse order of the previous test — the winner must
+      // still be 'alpha' (providerId sort), proving the tiebreak is not
+      // secretly relying on insertion/iteration order.
+      registry.registerProvider(
+        createMockProvider('mid', { codeGeneration: true }, { latency: 100 }),
+      );
+      registry.registerProvider(
+        createMockProvider('alpha', { codeGeneration: true }, { latency: 100 }),
+      );
+      registry.registerProvider(
+        createMockProvider('zeta', { codeGeneration: true }, { latency: 100 }),
+      );
+
+      const best = await registry.selectBestProvider(['codeGeneration']);
+      expect(best!.providerId).toBe('alpha');
+    });
   });
 
   describe('アイドルエージェントクリーンアップ', () => {

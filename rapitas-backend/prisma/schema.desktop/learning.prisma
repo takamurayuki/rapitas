@@ -4,6 +4,41 @@
 // rather than recreating a monolithic schema.prisma.
 // ============================================================================
 
+// Unified study goal — merges the former LearningGoal (skill acquisition) and
+// ExamGoal (exam with a date and score). `type` selects which optional field
+// group applies. Legacy rows are copied in once at startup by
+// services/learning/study-goal-migration.ts; the old tables stay untouched as
+// a safety net and for legacy imports.
+model StudyGoal {
+  id            Int       @id @default(autoincrement())
+  type          String    @default("skill") // skill | exam
+  title         String
+  description   String?
+  deadline      DateTime? // exam: 試験日 / skill: 達成期限
+  status        String    @default("active") // active | completed | archived
+  color         String    @default("#10B981")
+  icon          String?
+  dailyMinutes  Int       @default(60) // daily study quota for pace tracking
+  categoryId    Int?
+  themeId       Int?
+  // Skill-type fields
+  currentLevel  String?
+  targetLevel   String?
+  generatedPlan String? // JSON of the generated learning plan
+  isApplied     Boolean   @default(false)
+  // Exam-type fields
+  targetScore   String?
+  actualScore   String?
+  // Migration provenance (idempotency + traceability)
+  legacySource  String? // 'learning_goal' | 'exam_goal'
+  legacyId      Int?
+  tasks         Task[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([legacySource, legacyId])
+}
+
 model ExamGoal {
   id            Int       @id @default(autoincrement())
   name          String
@@ -26,6 +61,26 @@ model StudyStreak {
   tasksCompleted  Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+// One recorded block of study time (manual log, completed pomodoro on a
+// study-goal task, or a vocab review session). Feeds the StudyStreak daily
+// aggregate and gives the roadmap analytics per-goal attribution
+// (interleaving / Zeigarnik-resume rules need to know WHICH goal was studied).
+// Deliberately no FK to StudyGoal: history must survive goal deletion, same
+// rationale as VocabReviewLog.
+model StudySession {
+  id                Int      @id @default(autoincrement())
+  goalId            Int? // StudyGoal.id at recording time (no FK by design)
+  minutes           Int
+  source            String   @default("manual") // manual | pomodoro | vocab
+  note              String?
+  studiedAt         DateTime @default(now())
+  createdAt         DateTime @default(now())
+  pomodoroSessionId Int?     @unique // PomodoroSession.id at recording time (no FK by design, dedup key for automatic pomodoro study-time recording)
+
+  @@index([studiedAt])
+  @@index([goalId, studiedAt])
 }
 
 // Learning goals (flexible goal setting → automatic task generation)
@@ -70,6 +125,61 @@ model HabitLog {
   createdAt DateTime @default(now())
 
   @@unique([habitId, date])
+}
+
+// Vocabulary book (単語帳): decks of flashcards with per-card spaced-repetition
+// state (SM-2-lite — see services/learning/vocab-srs.ts for the scheduler).
+model VocabDeck {
+  id          Int         @id @default(autoincrement())
+  name        String
+  description String?
+  cards       VocabCard[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model VocabCard {
+  id           Int       @id @default(autoincrement())
+  deckId       Int
+  deck         VocabDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  front        String // term / prompt side
+  back         String // meaning / answer side (summary, one meaning per line)
+  note         String? // example sentence, mnemonic, etc.
+  // Dictionary-style enrichment (all optional; the simple front/back flow works without them)
+  syllables    String? // e.g. "con・found"
+  pronunciation String? // e.g. "/kənˈfaʊnd/"
+  partOfSpeech String? // e.g. 他動詞
+  // JSON: VocabSense[] — per-sense meaning/example plus synonyms & antonyms
+  // (see rapitas-frontend vocab.types.ts). Stored as a string for provider
+  // portability (SQLite has no JSON column type).
+  details      String?
+  // SRS state (SM-2-lite)
+  intervalDays Float     @default(0) // current review interval
+  easeFactor   Float     @default(2.5) // growth multiplier, floored at 1.3
+  repetitions  Int       @default(0) // consecutive successful reviews
+  lapses       Int       @default(0) // times forgotten after being learned
+  dueAt        DateTime  @default(now()) // next review due
+  reviewedAt   DateTime? // last review timestamp
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([deckId, dueAt])
+}
+
+// One row per graded review — raw data for the forgetting-curve analytics.
+// Deliberately no FK: logs must survive card/deck deletion so the learner's
+// history (and the personal retention curve) never silently shrinks.
+model VocabReviewLog {
+  id           Int      @id @default(autoincrement())
+  cardId       Int
+  deckId       Int
+  grade        String // again | good | easy
+  elapsedDays  Float // time since the previous review (or card creation)
+  intervalDays Float // the scheduled interval that was being tested
+  repetitions  Int // successful repetitions BEFORE this review
+  reviewedAt   DateTime @default(now())
+
+  @@index([deckId, reviewedAt])
 }
 
 model Resource {

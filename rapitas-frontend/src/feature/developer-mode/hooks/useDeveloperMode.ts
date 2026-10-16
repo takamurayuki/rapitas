@@ -2,18 +2,21 @@
 // useDeveloperMode
 
 import { useState, useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import type { ExecutionStatus, ExecutionResult } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { createLogger } from '@/lib/logger';
 import { useDeveloperModeConfig } from './useDeveloperModeConfig';
 import { useAgentExecutionActions } from './useAgentExecutionActions';
+import { isPhaseAutoAdvancing } from './execution-poll-completion';
 
 const logger = createLogger('useDeveloperMode');
 
 export type { ExecutionStatus, ExecutionResult };
 
 export function useDeveloperMode(taskId: number) {
+  const t = useTranslations('devMode.useDeveloperMode');
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>('idle');
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
@@ -96,6 +99,25 @@ export function useDeveloperMode(taskId: number) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
 
+  // The auto-restore effect above is a ONE-SHOT check on mount. If the task
+  // detail page stays open and a NEW execution starts afterward through any
+  // path other than this tab's own execute button (an external agent hitting
+  // the workflow/execution API directly, another tab, auto-run), nothing here
+  // ever learns about it — the panel stays frozen showing whatever state was
+  // last known (e.g. a stale "completed" green panel from the PREVIOUS run)
+  // until the page is manually reloaded. Periodically re-check while not
+  // already tracking a live execution so a fresh run is picked up promptly;
+  // once isExecuting flips true, useAgentExecution's own SSE/polling takes
+  // over live tracking of that session.
+  useEffect(() => {
+    if (!taskId || isRestoringState || isExecuting) return;
+    const interval = setInterval(() => {
+      restoreExecutionState().catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restoreExecutionState is a stable closure over taskId
+  }, [taskId, isRestoringState, isExecuting]);
+
   /**
    * Restore in-progress execution state on mount.
    * Fetches persisted log output from DB so execution history survives app restarts.
@@ -104,7 +126,11 @@ export function useDeveloperMode(taskId: number) {
    */
   const restoreExecutionState = async () => {
     try {
-      const statusRes = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-status`);
+      // 15s cap: a mid-restart backend accepts but never answers — an unbounded
+      // fetch pinned isRestoringState=true and froze the panel on the skeleton (2026-08-30).
+      const statusRes = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-status`, {
+        signal: AbortSignal.timeout(15_000),
+      });
       if (!statusRes.ok) return null;
 
       const statusData = await statusRes.json();
@@ -128,7 +154,9 @@ export function useDeveloperMode(taskId: number) {
       let fullOutput = statusData.output || '';
       if (!fullOutput) {
         try {
-          const logsRes = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-logs`);
+          const logsRes = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-logs`, {
+            signal: AbortSignal.timeout(15_000),
+          });
           if (logsRes.ok) {
             const logsData = await logsRes.json();
             if (logsData.logs?.length > 0) {
@@ -141,18 +169,50 @@ export function useDeveloperMode(taskId: number) {
         }
       }
 
+      // A 'completed' execution row does not mean the whole task is done —
+      // it may just be a phase boundary (research→plan→…) with more phases
+      // still to come, or the task still actively self-repairing (verify
+      // bounce). Without this check, opening/reloading the task detail page
+      // between two phases read the single just-finished row as a genuine
+      // completion: the completed badge, Reset button, and "PRを開く" button
+      // all appeared before the task had actually finished.
+      const isStillAdvancing =
+        statusData.executionStatus === 'completed' && isPhaseAutoAdvancing(statusData);
+
       if (
         statusData.executionStatus === 'running' ||
-        statusData.executionStatus === 'waiting_for_input'
+        statusData.executionStatus === 'waiting_for_input' ||
+        isStillAdvancing
       ) {
         setIsExecuting(true);
         setExecutionStatus('running');
-        setExecutingTask({
-          taskId,
-          sessionId: statusData.sessionId,
-          status:
-            statusData.executionStatus === 'waiting_for_input' ? 'waiting_for_input' : 'running',
-        });
+        // NOTE: isStillAdvancing (a phase-boundary 'completed' row) is local-only —
+        // it must NOT reach the global execution store below. That store is shared
+        // with the task list's "next up" badge (TaskCardAutoRunQueueBadge), which
+        // reads it as "an agent is literally running right now." Between phases no
+        // agent process exists yet, so writing it there made every "next up" task
+        // flip to the running badge the instant its detail view was opened.
+        if (
+          statusData.executionStatus === 'running' ||
+          statusData.executionStatus === 'waiting_for_input'
+        ) {
+          // With the cumulative base (activeTimeMs, task #560) the anchor is the
+          // CURRENT execution row — the base already carries every finished
+          // execution, so a session anchor would double-count them. Older
+          // backends without the field fall back to the session anchor (spans
+          // phases within one session at least).
+          const hasCumulative = typeof statusData.activeTimeMs === 'number';
+          setExecutingTask({
+            taskId,
+            sessionId: statusData.sessionId,
+            status:
+              statusData.executionStatus === 'waiting_for_input' ? 'waiting_for_input' : 'running',
+            startedAt: hasCumulative
+              ? (statusData.startedAt ?? statusData.sessionStartedAt ?? null)
+              : (statusData.sessionStartedAt ?? statusData.startedAt ?? null),
+            cumulativeActiveMs: hasCumulative ? statusData.activeTimeMs : 0,
+          });
+        }
       } else if (statusData.executionStatus === 'interrupted') {
         // Display interrupted state as idle (treat as non-running after server restart)
         setIsExecuting(false);
@@ -165,11 +225,27 @@ export function useDeveloperMode(taskId: number) {
         setExecutionStatus('failed');
       }
 
+      // Regression: this used to be `statusData.executionStatus !== 'failed'`,
+      // which evaluates to `true` for 'interrupted' too — an execution that
+      // was killed mid-run (server restart, crash, SIGTERM) then read as a
+      // SUCCESSFUL completion on the next task-detail load. Only 'completed'
+      // and 'failed' are actual terminal verdicts; 'running'/'waiting_for_input'/
+      // 'interrupted'/a still-advancing 'completed' row must stay `undefined`
+      // so isRestoredTerminal (which checks `success !== undefined`) doesn't
+      // fire for them.
+      const success = isStillAdvancing
+        ? undefined
+        : statusData.executionStatus === 'completed'
+          ? true
+          : statusData.executionStatus === 'failed'
+            ? false
+            : undefined;
+
       setExecutionResult({
-        success: statusData.executionStatus !== 'failed',
+        success,
         sessionId: statusData.sessionId,
         executionId: statusData.executionId,
-        message: '実行状態を復元しました',
+        message: t('stateRestored'),
         output: fullOutput,
         waitingForInput: statusData.waitingForInput,
         question: statusData.question,

@@ -9,6 +9,7 @@
 
 import { memo, type RefObject } from 'react';
 import { Terminal } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { TerminalLine } from './TerminalLine';
 import type { LogLine } from './terminal-utils';
 
@@ -33,6 +34,7 @@ export const TerminalOutput = memo(function TerminalOutput({
   isRunning,
   isWaiting,
 }: TerminalOutputProps) {
+  const t = useTranslations('devMode.terminalOutput');
   return (
     <div
       ref={outputRef}
@@ -41,7 +43,7 @@ export const TerminalOutput = memo(function TerminalOutput({
       {lines.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-full text-zinc-600 gap-2">
           <Terminal className="w-6 h-6" />
-          <span className="text-[10px]">指示を入力してAIエージェントを実行</span>
+          <span className="text-[10px]">{t('emptyHint')}</span>
         </div>
       ) : (
         lines.map((line) => <TerminalLine key={line.id} line={line} />)

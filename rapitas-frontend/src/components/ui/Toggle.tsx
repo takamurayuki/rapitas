@@ -37,7 +37,7 @@ type ToggleSize = keyof typeof SIZE_STYLES;
  */
 const COLOR_STYLES = {
   indigo: 'peer-checked:bg-indigo-500 peer-focus-visible:ring-indigo-500/60',
-  blue: 'peer-checked:bg-blue-500 peer-focus-visible:ring-indigo-500/60',
+  blue: 'peer-checked:bg-indigo-500 peer-focus-visible:ring-indigo-500/60',
   green: 'peer-checked:bg-emerald-500 peer-focus-visible:ring-emerald-500/60',
   amber: 'peer-checked:bg-amber-500 peer-focus-visible:ring-amber-500/60',
   red: 'peer-checked:bg-red-500 peer-focus-visible:ring-red-500/60',
@@ -108,7 +108,13 @@ export const Toggle = forwardRef<HTMLInputElement, ToggleProps>(function Toggle(
   const sizing = SIZE_STYLES[size];
   const activeColor = COLOR_STYLES[color];
   const switchEl = (
-    <span className="inline-flex items-center">
+    // `relative` anchors the sr-only input, which is position:absolute. Without
+    // a positioned ancestor here it resolves against whatever is positioned
+    // further up — inside the task slide panel that was the panel root, putting
+    // the 1px input hundreds of pixels away (measured y=1737 in an 1000px
+    // viewport). Clicking the label focuses it and the browser scrolls it into
+    // view, so the panel jumped and left blank space behind.
+    <span className="relative inline-flex items-center">
       <input
         ref={ref}
         id={id}

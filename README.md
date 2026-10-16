@@ -29,7 +29,8 @@
 | **Agentic systems** | Not just an LLM API call — the *orchestration*: isolated execution, a quality gate, a self-repair retry loop, and a workflow state machine. |
 | **Systems / OS-level** | Real PTY (ConPTY) integration, multi-process lifecycle, graceful shutdown, and a kernel-socket-leak fix that previously required a reboot. |
 | **End-to-end ownership** | Three runtimes — Tauri/Rust desktop, Bun/Elysia backend, Next.js/React frontend — integrated by one person. |
-| **Engineering maturity** | ADRs, enforced code/comment/folder policies, an automated agent-output gate, profiled-and-fixed startup performance, CI (lint + type-check + tests + clippy). |
+| **Engineering maturity** | ADRs, enforced code/comment/folder policies, an automated agent-output gate, profiled-and-fixed startup performance, CI (lint + type-check + Rust clippy + a curated blocking test suite, full suite advisory). |
+| **Product polish** | Fully bilingual (English / 日本語) UI via next-intl — every user-facing string localized, switchable at runtime. |
 
 **Stack:** Tauri 2 + Rust · Bun + Elysia + Prisma (SQLite local / PostgreSQL web) · Next.js 16 + React 19 + Tailwind 4 + TypeScript · multi-provider LLMs (Claude / OpenAI / Gemini) + local LLM (Ollama) + RAG embeddings.
 
@@ -39,7 +40,7 @@
 
 AI coding agents are powerful but **unsafe by default**: they edit files in place, happily produce broken diffs, and flood you with PRs to babysit. I wanted an agent that could take a task and *actually finish it* — without (a) touching my working tree while I work, (b) shipping code that doesn't lint or type-check, or (c) locking me into one AI CLI. So rapitas is built on three opinions:
 
-1. **Isolate the agent.** Every run happens in a throwaway git worktree, never the main checkout.
+1. **Isolate the agent.** Every *code-mutating* run (implementer/verifier) happens in a throwaway git worktree — and if that isolation can't be established, the run is **refused** rather than falling back to the main checkout. Read-only research/plan phases run against the live tree with Bash/Edit/Write/git tools disabled at the CLI level.
 2. **Gate the output.** No diff becomes a commit/PR until an automated lint + type-check gate passes — and if it fails, the agent is sent back to fix its own mess (bounded retries).
 3. **Don't get locked in.** Claude Code / Codex / Gemini are interchangeable, with model-tier routing and fallback.
 
@@ -77,7 +78,7 @@ Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · design decisions: [docs
 
 ### 1. Safe autonomous agent execution → **[full deep-dive](docs/deep-dive/safe-agent-execution.md)**
 
-An agent runs the `research → plan → verify` workflow inside an isolated worktree; an automated **verification gate** (ESLint `--format json` + `tsc --noEmit`, scoped to the files the agent changed) must pass before any commit/PR. On failure, a **self-repair loop** re-runs the agent in the *same* worktree with the lint/type errors as feedback (default 2 retries), and the gate **guards both** auto-PR paths. The gate is **fail-closed**: if the tooling can't run, the task is blocked rather than waved through. A workflow state machine prevents out-of-order or regressive steps, and self-contradictory verify reports ("all tests pass" + failures) can't trigger a PR.
+An agent runs the `research → plan → verify` workflow inside an isolated worktree; an automated **verification gate** (ESLint `--format json` + `tsc --noEmit`, scoped to the files the agent changed) must pass before any commit/PR. On failure, a **self-repair loop** re-runs the agent in the *same* worktree with the lint/type errors as feedback (default 2 retries), and the gate guards **both** auto-PR paths. The gate is **fail-closed on the check result**: if a check can't run or its output can't be parsed, that check is treated as a failure and the task is blocked, never waved through. (One deliberate carve-out: an unexpected *crash in the verifier harness itself* fails open, so a bug in the gate can't wedge every task — the tradeoff is documented in the code.) A workflow state machine prevents out-of-order or regressive steps, and self-contradictory verify reports ("all tests pass" + failures) can't trigger a PR.
 
 ### 2. Resilient multi-process desktop lifecycle
 
@@ -142,7 +143,7 @@ Full setup (Web/PostgreSQL build, individual processes, commands, troubleshootin
 - 🔬 [Deep-dive: Safe autonomous agent execution](docs/deep-dive/safe-agent-execution.md)
 - 🏛️ [Architecture](docs/ARCHITECTURE.md) · [ADRs](docs/adr/)
 - 🛠️ [Setup & development](docs/SETUP.md) · [Performance notes](docs/PERFORMANCE.md) · [Runbook](docs/RUNBOOK.md)
-- 🧭 [CLAUDE.md](CLAUDE.md) — AI agent operating rules
+- 🧭 [.claude/CLAUDE.md](.claude/CLAUDE.md) — AI agent operating rules
 
 ## License
 

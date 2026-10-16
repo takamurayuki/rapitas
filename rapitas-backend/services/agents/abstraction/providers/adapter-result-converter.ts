@@ -41,13 +41,13 @@ export function mapQuestionType(
  *
  * @param legacyResult - Result from the legacy ClaudeCodeAgent / レガシーエージェントの結果
  * @param startTime - Execution start timestamp / 実行開始時刻
- * @param context - Current execution context / 実行コンテキスト
+ * @param _context - Current execution context (unused) / 実行コンテキスト（未使用）
  * @returns Converted result in the abstraction layer format / 抽象化レイヤーの形式に変換された結果
  */
 export function convertLegacyResult(
   legacyResult: LegacyExecutionResult,
   startTime: Date,
-  context: AgentExecutionContext,
+  _context: AgentExecutionContext,
 ): AgentExecutionResult {
   const endTime = new Date();
   const durationMs = endTime.getTime() - startTime.getTime();

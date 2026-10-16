@@ -20,6 +20,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTranslations } from 'next-intl';
 import { checkIsTaskDetailPage } from './types';
 import { useClickOutside } from './useClickOutside';
+import { useToast } from '@/components/ui/toast/ToastContainer';
+import { isImeComposing } from '@/utils/ime';
 import type { AppMode } from '@/stores/app-mode-store';
 
 /** All state and callbacks surfaced to Header sub-components. */
@@ -90,7 +92,7 @@ export function useHeader(): UseHeaderReturn {
   const [isTauriEnv, setIsTauriEnv] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [isRestarting, setIsRestarting] = useState(false);
+  const isRestarting = useServerRestartStore((s) => s.isRestarting);
   const [restartConfirmDialog, setRestartConfirmDialog] = useState<{
     open: boolean;
     activeExecutions: number;
@@ -111,6 +113,7 @@ export function useHeader(): UseHeaderReturn {
   const { modalState, openModal, closeModal } = useNoteStore();
   const t = useTranslations('nav');
   const tc = useTranslations('common');
+  const { showToast } = useToast();
 
   // Click-outside handlers — stable references required by useClickOutside dep array
   const closeMoreMenu = useCallback(() => setIsMoreMenuOpen(false), []);
@@ -163,7 +166,6 @@ export function useHeader(): UseHeaderReturn {
    * Fires the restart API call and polls until the server is back up.
    */
   const executeRestart = async () => {
-    setIsRestarting(true);
     // Flag the restart globally so the logger + connection-error UI go quiet
     // immediately, before the SSE shutdown event would otherwise set it.
     useServerRestartStore.getState().setRestarting(true);
@@ -179,7 +181,18 @@ export function useHeader(): UseHeaderReturn {
       for (let i = 0; i < maxAttempts; i++) {
         await new Promise((r) => setTimeout(r, 2000));
         try {
-          const res = await fetch(`${API_BASE_URL}/agents/system-status`);
+          // A hung TCP connection (ghost socket, IPv6/loopback mismatch — see
+          // useBackendHealth.checkHealth's same pattern) can block this fetch
+          // indefinitely with no AbortController. Without a per-attempt
+          // timeout, one stuck iteration stalls the whole loop forever and the
+          // "restarting" modal never reaches either its success or timeout
+          // branch — it just hangs.
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          const res = await fetch(`${API_BASE_URL}/agents/system-status`, {
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
           if (res.ok) {
             window.location.reload();
             return;
@@ -188,10 +201,9 @@ export function useHeader(): UseHeaderReturn {
           // intentionally ignore - server not ready yet, continue polling
         }
       }
-      setIsRestarting(false);
       // Restart didn't complete in time — re-enable logging so real errors show.
       useServerRestartStore.getState().setRestarting(false);
-      alert(t('restartTimeout'));
+      showToast(t('restartTimeout'), 'error');
     };
     waitForServer();
   };
@@ -235,7 +247,7 @@ export function useHeader(): UseHeaderReturn {
   };
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && searchQuery.trim()) {
+    if (e.key === 'Enter' && !isImeComposing(e) && searchQuery.trim()) {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       isUpdatingSearchRef.current = true;
       router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
@@ -280,11 +292,18 @@ export function useHeader(): UseHeaderReturn {
   useEffect(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
 
-    if (pathname === '/' || pathname === '/kanban' || pathname === '/ideas') {
+    if (pathname === '/kanban') {
+      // NOTE: Kanban uses ?q= for real-time column filtering; replace to avoid history spam.
       debounceTimerRef.current = setTimeout(() => {
         isUpdatingSearchRef.current = true;
-        // Preserve original behavior: '/' and '/kanban' both write into '/?search=...';
-        // '/ideas' keeps its own URL.
+        const params = new URLSearchParams();
+        if (searchQuery.trim()) params.set('q', searchQuery.trim());
+        const newUrl = params.toString() ? `/kanban?${params}` : '/kanban';
+        router.replace(newUrl, { scroll: false });
+      }, 300);
+    } else if (pathname === '/' || pathname === '/ideas') {
+      debounceTimerRef.current = setTimeout(() => {
+        isUpdatingSearchRef.current = true;
         const targetPath = pathname === '/ideas' ? '/ideas' : '/';
         if (searchQuery.trim()) {
           router.push(`${targetPath}?search=${encodeURIComponent(searchQuery.trim())}`);
@@ -311,6 +330,10 @@ export function useHeader(): UseHeaderReturn {
     if (pathname === '/search') {
       const q = searchParams.get('q');
       if (q && searchQuery !== q) setSearchQuery(q);
+    } else if (pathname === '/kanban') {
+      // Sync header search box with kanban's ?q= param (e.g. on direct navigation or clear).
+      const q = searchParams.get('q') ?? '';
+      if (searchQuery !== q) setSearchQuery(q);
     } else {
       const search = searchParams.get('search');
       if (search && searchQuery !== search) setSearchQuery(search);

@@ -1,6 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export interface NoteTaskMeta {
+  taskTitle: string;
+  themeName: string;
+  categoryName: string;
+}
+
+export const DOC_TYPES = ['要件定義', '設計書', '議事録', '手順書', '仕様書', 'メモ'] as const;
+export type DocType = (typeof DOC_TYPES)[number];
+
 export interface Note {
   id: string;
   title: string;
@@ -10,6 +19,12 @@ export interface Note {
   isPinned: boolean;
   tags: string[];
   color?: string;
+  /** Document type for organizing design/requirements docs / 要件定義・設計書などの種別 */
+  docType?: DocType;
+  /** Task IDs this note is linked to. */
+  linkedTaskIds?: number[];
+  /** Hierarchy metadata keyed by taskId — populated when linking from a task context. */
+  linkedTaskMeta?: Record<number, NoteTaskMeta>;
 }
 
 export type ModalTab = 'note' | 'ai' | 'split';
@@ -34,12 +49,16 @@ interface NoteState {
   modalState: NoteModalState;
   searchQuery: string;
   selectedTags: string[];
+  selectedDocType: DocType | null;
 
   // Note operations
-  createNote: () => void;
+  createNote: (title?: string) => void;
   updateNote: (id: string, updates: Partial<Note>) => void;
   deleteNote: (id: string) => void;
   setCurrentNote: (id: string | null) => void;
+  linkNoteToTask: (noteId: string, taskId: number, meta?: NoteTaskMeta) => void;
+  unlinkNoteFromTask: (noteId: string, taskId: number) => void;
+  getNotesForTask: (taskId: number) => Note[];
 
   // Modal operations
   toggleModal: () => void;
@@ -56,6 +75,7 @@ interface NoteState {
   // Search and filter
   setSearchQuery: (query: string) => void;
   toggleTag: (tag: string) => void;
+  setSelectedDocType: (docType: DocType | null) => void;
   clearFilters: () => void;
 
   // Get filtered notes
@@ -86,11 +106,16 @@ export const useNoteStore = create<NoteState>()(
       modalState: defaultModalState,
       searchQuery: '',
       selectedTags: [],
+      selectedDocType: null,
 
-      createNote: () => {
+      createNote: (title?: string) => {
+        // NOTE: Guard against onClick events being passed as title when used as a
+        // direct event handler (e.g. onClick={createNote}).  The MouseEvent is truthy
+        // so `title ?? fallback` would store it instead of the fallback string.
+        const safeTitle = typeof title === 'string' ? title : undefined;
         const newNote: Note = {
           id: Date.now().toString(),
-          title: '新しいノート',
+          title: safeTitle ?? '',
           content: '',
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -115,16 +140,16 @@ export const useNoteStore = create<NoteState>()(
           const updatedNote = newState.notes.find((n) => n.id === id);
           if (
             updatedNote &&
-            (updatedNote.content.trim() !== '' || updatedNote.title !== '新しいノート')
+            (updatedNote.content.trim() !== '' || updatedNote.title.trim() !== '')
           ) {
             const hasEmptyNote = newState.notes.some(
-              (n) => n.content.trim() === '' && n.title === '新しいノート' && n.id !== id,
+              (n) => n.content.trim() === '' && n.title.trim() === '' && n.id !== id,
             );
 
             if (!hasEmptyNote) {
               const newNote: Note = {
                 id: Date.now().toString(),
-                title: '新しいノート',
+                title: '',
                 content: '',
                 createdAt: new Date(),
                 updatedAt: new Date(),
@@ -146,13 +171,13 @@ export const useNoteStore = create<NoteState>()(
 
           // After deletion, create new empty note if none exists
           const hasEmptyNote = newNotes.some(
-            (n) => n.content.trim() === '' && n.title === '新しいノート',
+            (n) => n.content.trim() === '' && n.title.trim() === '',
           );
 
           if (!hasEmptyNote && newNotes.length > 0) {
             const newNote: Note = {
               id: Date.now().toString() + '-delete',
-              title: '新しいノート',
+              title: '',
               content: '',
               createdAt: new Date(),
               updatedAt: new Date(),
@@ -173,18 +198,14 @@ export const useNoteStore = create<NoteState>()(
         if (id) {
           const state = get();
           const currentNote = state.notes.find((n) => n.id === id);
-          if (
-            currentNote &&
-            currentNote.content.trim() === '' &&
-            currentNote.title === '新しいノート'
-          ) {
+          if (currentNote && currentNote.content.trim() === '' && currentNote.title.trim() === '') {
             const otherEmptyNote = state.notes.find(
-              (n) => n.content.trim() === '' && n.title === '新しいノート' && n.id !== id,
+              (n) => n.content.trim() === '' && n.title.trim() === '' && n.id !== id,
             );
             if (!otherEmptyNote) {
               const newNote: Note = {
                 id: Date.now().toString() + '-auto',
-                title: '新しいノート',
+                title: '',
                 content: '',
                 createdAt: new Date(),
                 updatedAt: new Date(),
@@ -197,6 +218,41 @@ export const useNoteStore = create<NoteState>()(
             }
           }
         }
+      },
+
+      linkNoteToTask: (noteId, taskId, meta) => {
+        set((state) => ({
+          notes: state.notes.map((n) =>
+            n.id === noteId
+              ? {
+                  ...n,
+                  linkedTaskIds: [...new Set([...(n.linkedTaskIds ?? []), taskId])],
+                  ...(meta
+                    ? { linkedTaskMeta: { ...(n.linkedTaskMeta ?? {}), [taskId]: meta } }
+                    : {}),
+                }
+              : n,
+          ),
+        }));
+      },
+
+      unlinkNoteFromTask: (noteId, taskId) => {
+        set((state) => ({
+          notes: state.notes.map((n) => {
+            if (n.id !== noteId) return n;
+            const newMeta = { ...(n.linkedTaskMeta ?? {}) };
+            delete newMeta[taskId];
+            return {
+              ...n,
+              linkedTaskIds: (n.linkedTaskIds ?? []).filter((id) => id !== taskId),
+              linkedTaskMeta: newMeta,
+            };
+          }),
+        }));
+      },
+
+      getNotesForTask: (taskId) => {
+        return get().notes.filter((n) => n.linkedTaskIds?.includes(taskId));
       },
 
       toggleModal: () => {
@@ -301,8 +357,12 @@ export const useNoteStore = create<NoteState>()(
         });
       },
 
+      setSelectedDocType: (docType) => {
+        set({ selectedDocType: docType });
+      },
+
       clearFilters: () => {
-        set({ searchQuery: '', selectedTags: [] });
+        set({ searchQuery: '', selectedTags: [], selectedDocType: null });
       },
 
       getFilteredNotes: () => {
@@ -325,6 +385,11 @@ export const useNoteStore = create<NoteState>()(
           filtered = filtered.filter((note) =>
             state.selectedTags.every((tag) => note.tags.includes(tag)),
           );
+        }
+
+        // DocType filter
+        if (state.selectedDocType) {
+          filtered = filtered.filter((note) => note.docType === state.selectedDocType);
         }
 
         // Sort by pinned first, then by updatedAt

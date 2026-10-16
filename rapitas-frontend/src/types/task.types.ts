@@ -15,16 +15,19 @@ export type { Priority, Status } from './common.types';
 
 export const priorityColors = {
   low: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-  medium: 'bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-300',
+  medium: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-800 dark:text-indigo-300',
   high: 'bg-orange-100 text-orange-700 dark:bg-orange-800 dark:text-orange-300',
   urgent: 'bg-red-100 text-red-700 dark:bg-red-800 dark:text-red-300',
 };
 
-export const priorityLabels = {
-  low: '低',
-  medium: '中',
-  high: '高',
-  urgent: '緊急',
+// NOTE: Values are i18n keys into the `task` namespace (e.g. t('priorityLow')),
+// not display strings — resolve via useTranslations('task') at render time.
+// Reuses the existing task.priorityLow/Medium/High/Urgent keys.
+export const priorityLabelKeys = {
+  low: 'priorityLow',
+  medium: 'priorityMedium',
+  high: 'priorityHigh',
+  urgent: 'priorityUrgent',
 };
 
 export type TimeEntry = {
@@ -121,6 +124,33 @@ export type Task = {
   complexityScore?: number | null;
   workflowModeOverride?: boolean | null;
   autoApprovePlan?: boolean;
+  /**
+   * Per-task off-switch for the multi-phase workflow — see
+   * UserSettings.workflowDisabledGlobally for the global equivalent (effective
+   * state is the OR of both). Server-locked once status leaves 'todo'.
+   */
+  workflowDisabled?: boolean | null;
+  /**
+   * User-set exclusion from auto-run task selection. Unrelated to
+   * workflowDisabled — the task still runs its normal workflow phases when
+   * executed manually, it is just never auto-picked. Freely toggleable at
+   * any status.
+   */
+  autoRunExcluded?: boolean | null;
+  /**
+   * True when this exact task is the theme's current auto-run pick right
+   * now (batched server-side — see attachAutoRunCardStatus). An agent may
+   * not actually be dispatched yet (e.g. an overlap-guard hold); pair with
+   * the live execution-state store to tell "next up, still waiting" apart
+   * from "actually running".
+   */
+  autoRunCurrent?: boolean;
+  /**
+   * True when the task is eligible for auto-run selection and its theme is
+   * running, but it isn't the current pick yet — waiting its turn behind
+   * other tasks.
+   */
+  autoRunQueued?: boolean;
   // Recurring task fields
   isRecurring?: boolean;
   recurrenceRule?: string | null;
@@ -133,6 +163,15 @@ export type Task = {
   sourceTask?: Task | null;
   generatedTasks?: Task[];
   nextOccurrence?: string | null;
+  /** When true, the task is protected from deletion (guards against accidental loss). */
+  isProtected?: boolean;
+  /**
+   * Latest `WorkflowTransition.cause` for this task, present only when
+   * `status === 'blocked'`. Batched onto the task-list response (see
+   * `attachBlockedCauses` on the backend) so list views can show the real
+   * blocked reason without an N-request per-card fetch.
+   */
+  blockedCause?: string | null;
   createdAt: string;
   updatedAt: string;
 };

@@ -38,20 +38,26 @@ describe('normalizeExitCode', () => {
     expect(normalizeExitCode(2, null)).toBe(2);
   });
 
-  test('null + signalCode=SIGKILL (プロセス強制終了) → 1 を返す', () => {
-    expect(normalizeExitCode(null, 'SIGKILL')).toBe(1);
-  });
-
-  test('null + signalCode=SIGTERM (プロセス終了シグナル) → 1 を返す', () => {
-    expect(normalizeExitCode(null, 'SIGTERM')).toBe(1);
-  });
-
-  test('null + signalCode=null (signal なし・原因不明の終了) → 安全側として 1 を返す', () => {
-    expect(normalizeExitCode(null, null)).toBe(1);
-  });
-
-  test('null + signalCode 省略 → 1 を返す', () => {
-    expect(normalizeExitCode(null)).toBe(1);
+  test.each([
+    {
+      desc: 'null + signalCode=SIGKILL (プロセス強制終了) → 1 を返す',
+      signalCode: 'SIGKILL' as string | null | undefined,
+    },
+    {
+      desc: 'null + signalCode=SIGTERM (プロセス終了シグナル) → 1 を返す',
+      signalCode: 'SIGTERM' as string | null | undefined,
+    },
+    {
+      desc: 'null + signalCode=null (signal なし・原因不明の終了) → 安全側として 1 を返す',
+      signalCode: null as string | null | undefined,
+    },
+    {
+      // NOTE: omits the second argument entirely (not just an explicit null) to cover the default-parameter path.
+      desc: 'null + signalCode 省略 → 1 を返す',
+      signalCode: undefined as string | null | undefined,
+    },
+  ])('$desc', ({ signalCode }) => {
+    expect(normalizeExitCode(null, signalCode)).toBe(1);
   });
 });
 
@@ -80,26 +86,37 @@ describe('resolveDbProvider', () => {
     }
   });
 
-  test('RAPITAS_DB_PROVIDER=sqlite → sqlite を返す', () => {
-    process.env.RAPITAS_DB_PROVIDER = 'sqlite';
-    expect(resolveDbProvider()).toBe('sqlite');
-  });
-
-  test('RAPITAS_DB_PROVIDER=postgresql → postgresql を返す', () => {
-    process.env.RAPITAS_DB_PROVIDER = 'postgresql';
-    expect(resolveDbProvider()).toBe('postgresql');
-  });
-
-  test('RAPITAS_DB_PROVIDER=postgresql が file: DATABASE_URL より優先される', () => {
-    process.env.RAPITAS_DB_PROVIDER = 'postgresql';
-    process.env.DATABASE_URL = 'file:./dev.db';
-    expect(resolveDbProvider()).toBe('postgresql');
-  });
-
-  test('RAPITAS_DB_PROVIDER=sqlite が postgresql:// DATABASE_URL より優先される', () => {
-    process.env.RAPITAS_DB_PROVIDER = 'sqlite';
-    process.env.DATABASE_URL = 'postgresql://localhost:5432/rapitas';
-    expect(resolveDbProvider()).toBe('sqlite');
+  test.each([
+    {
+      desc: 'RAPITAS_DB_PROVIDER=sqlite → sqlite を返す',
+      provider: 'sqlite',
+      databaseUrl: undefined as string | undefined,
+      expected: 'sqlite',
+    },
+    {
+      desc: 'RAPITAS_DB_PROVIDER=postgresql → postgresql を返す',
+      provider: 'postgresql',
+      databaseUrl: undefined as string | undefined,
+      expected: 'postgresql',
+    },
+    {
+      desc: 'RAPITAS_DB_PROVIDER=postgresql が file: DATABASE_URL より優先される',
+      provider: 'postgresql',
+      databaseUrl: 'file:./dev.db' as string | undefined,
+      expected: 'postgresql',
+    },
+    {
+      desc: 'RAPITAS_DB_PROVIDER=sqlite が postgresql:// DATABASE_URL より優先される',
+      provider: 'sqlite',
+      databaseUrl: 'postgresql://localhost:5432/rapitas' as string | undefined,
+      expected: 'sqlite',
+    },
+  ])('$desc', ({ provider, databaseUrl, expected }) => {
+    process.env.RAPITAS_DB_PROVIDER = provider;
+    if (databaseUrl !== undefined) {
+      process.env.DATABASE_URL = databaseUrl;
+    }
+    expect(resolveDbProvider()).toBe(expected);
   });
 
   test('明示設定なし + DATABASE_URL=file:./dev.db → sqlite を返す', () => {

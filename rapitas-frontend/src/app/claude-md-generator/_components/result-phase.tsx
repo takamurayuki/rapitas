@@ -8,6 +8,10 @@ import type { SetupPhase } from '../_hooks/useWizard';
 import { GLOBAL_CSS } from '../_utils/styles';
 import { AGENT_TARGETS } from '../_utils/constants';
 import { ScoreRing } from './score-ring';
+import { SetupTargetFields } from './setup-target-fields';
+import { DegradedNotice } from './degraded-notice';
+import { GenerationHistory } from './generation-history';
+import type { GenerationEntry } from '../_hooks/useGenerationHistory';
 
 interface ResultPhaseProps {
   topRef: React.RefObject<HTMLDivElement | null>;
@@ -20,11 +24,21 @@ interface ResultPhaseProps {
   agentTargetId: string;
   /** Selects the primary agent (decides the guide file name/path) / 対象エージェントを選択 */
   onSetAgentTarget: (id: string) => void;
+  /** Chosen category id; null lets the backend fall back to 開発 / 選択カテゴリ（nullで開発にフォールバック） */
+  categoryId: number | null;
+  onSetCategoryId: (id: number | null) => void;
+  /** Parent directory for the scaffolded project; empty uses ~/Projects / 出力先の親ディレクトリ（空で ~/Projects） */
+  basePath: string;
+  onSetBasePath: (v: string) => void;
   createdThemePath: string | null;
   setupError: string | null;
   onRestart: () => void;
   onCreateTheme: () => void;
   onResetSetup: () => void;
+  /** Packages generated this session, oldest first. / 今回の生成履歴 */
+  history?: readonly GenerationEntry[];
+  /** Restores one entry without regenerating. / 再生成せず復元する */
+  onSelectGeneration?: (entry: GenerationEntry) => void;
 }
 
 interface DocTab {
@@ -35,9 +49,9 @@ interface DocTab {
 }
 
 /**
- * Result screen presenting the generated 3-document package (requirements,
- * design, CLAUDE.md) in tabs with per-tab copy, plus the theme-creation action
- * that scaffolds and git-inits the repository.
+ * Result screen presenting the generated 4-document package (requirements,
+ * design, ADRs, CLAUDE.md) in tabs with per-tab copy, plus the theme-creation
+ * action that scaffolds and git-inits the repository.
  *
  * @param props - ResultPhaseProps / ResultPhaseProps参照
  */
@@ -49,11 +63,17 @@ export function ResultPhase({
   setupPhase,
   agentTargetId,
   onSetAgentTarget,
+  categoryId,
+  onSetCategoryId,
+  basePath,
+  onSetBasePath,
   createdThemePath,
   setupError,
   onRestart,
   onCreateTheme,
   onResetSetup,
+  history,
+  onSelectGeneration,
 }: ResultPhaseProps) {
   const agentTarget = AGENT_TARGETS.find((a) => a.id === agentTargetId) || AGENT_TARGETS[0];
   // The agent guide's tab label/path follow the chosen primary agent.
@@ -76,6 +96,22 @@ export function ResultPhase({
         content: result?.design || '',
       },
       {
+        kind: 'adr',
+        label: t('tabAdr'),
+        filename: 'docs/adr/0001-architecture-decisions.md',
+        content: result?.adr || '',
+      },
+      {
+        kind: 'scaffold',
+        label: t('tabScaffold'),
+        filename: `${result?.scaffold?.length ?? 0} files at the project root`,
+        // Concatenated with path headers so the whole skeleton can be copied in
+        // one go; the backend writes each entry to its own validated path.
+        content: (result?.scaffold ?? [])
+          .map((f) => `// ===== ${f.path} =====\n${f.content}`)
+          .join('\n\n'),
+      },
+      {
         kind: 'claude_md',
         label: agentFileName,
         filename: agentTarget.path,
@@ -86,6 +122,8 @@ export function ResultPhase({
   }, [result, t, agentFileName, agentTarget.path]);
 
   const [activeKind, setActiveKind] = useState<DocKind>('requirements');
+  /** Explicit consent to scaffold a template-only (degraded) package. */
+  const [degradedAck, setDegradedAck] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const active = tabs.find((d) => d.kind === activeKind) || tabs[tabs.length - 1];
@@ -149,6 +187,8 @@ export function ResultPhase({
             </button>
           </div>
         </div>
+
+        {result?.degraded && <DegradedNotice reason={result.degradedReason} />}
 
         <ScoreRing score={result?.score || 95} label={t('scoreLabel')} />
 
@@ -302,10 +342,52 @@ export function ResultPhase({
                 </div>
               </div>
 
+              <SetupTargetFields
+                categoryId={categoryId}
+                onSetCategoryId={onSetCategoryId}
+                basePath={basePath}
+                onSetBasePath={onSetBasePath}
+              />
+
+              {/* NOTE: A degraded result is a template scaffold whose every
+                  figure is invented. Scaffolding it creates a real project whose
+                  docs then become the source of auto-filed implementation tasks,
+                  so the step asks for an explicit acknowledgement rather than
+                  relying on the notice above being read. */}
+              {result?.degraded && (
+                <label
+                  htmlFor="degraded-ack"
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    alignItems: 'flex-start',
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  <input
+                    id="degraded-ack"
+                    type="checkbox"
+                    checked={degradedAck}
+                    onChange={(e) => setDegradedAck(e.target.checked)}
+                    aria-labelledby="degraded-ack-text"
+                    style={{ marginTop: 3 }}
+                  />
+                  <span id="degraded-ack-text">{t('degradedAck')}</span>
+                </label>
+              )}
               <button
                 className="btn btn-p"
                 onClick={onCreateTheme}
-                style={{ background: 'var(--green)', fontSize: 14, padding: '12px 24px' }}
+                disabled={!!result?.degraded && !degradedAck}
+                title={result?.degraded && !degradedAck ? t('degradedBlocked') : undefined}
+                style={{
+                  background: 'var(--green)',
+                  fontSize: 14,
+                  padding: '12px 24px',
+                  opacity: result?.degraded && !degradedAck ? 0.5 : undefined,
+                  cursor: result?.degraded && !degradedAck ? 'not-allowed' : undefined,
+                }}
               >
                 {t('createTheme')}
               </button>
@@ -392,6 +474,10 @@ export function ResultPhase({
             </div>
           )}
         </div>
+
+        {history && onSelectGeneration && (
+          <GenerationHistory history={history} onSelect={onSelectGeneration} />
+        )}
 
         <p
           style={{

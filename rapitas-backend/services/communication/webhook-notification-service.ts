@@ -41,7 +41,8 @@ export type WebhookEventType =
   | 'safety_report_ready'
   | 'task_created'
   | 'agent_execution_completed'
-  | 'knowledge_created';
+  | 'knowledge_created'
+  | 'test_failure_correlation_alert';
 
 /** Custom webhook endpoint configuration. */
 export interface CustomWebhook {
@@ -188,6 +189,7 @@ function getEventEmoji(event: WebhookEventType): string {
     agent_execution_completed: '🤖',
     safety_report_ready: '🛡️',
     knowledge_created: '🧠',
+    test_failure_correlation_alert: '🧪',
   };
   return map[event] || '📋';
 }
@@ -203,6 +205,7 @@ function getEventLabel(event: WebhookEventType): string {
     agent_execution_completed: 'エージェント実行完了',
     safety_report_ready: 'セーフティレポート',
     knowledge_created: 'ナレッジ作成',
+    test_failure_correlation_alert: 'テスト失敗リスク警告',
   };
   return map[event] || event;
 }
@@ -218,6 +221,7 @@ function getEventColor(event: WebhookEventType): number {
     task_created: 0x3b82f6,
     agent_execution_completed: 0x22c55e,
     knowledge_created: 0x8b5cf6,
+    test_failure_correlation_alert: 0xf59e0b,
   };
   return map[event] || 0x6b7280;
 }

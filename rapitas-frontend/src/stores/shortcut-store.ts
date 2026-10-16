@@ -10,11 +10,30 @@ export type ShortcutId =
   | 'focusMode'
   | 'shortcutHelp'
   | 'toggleAI'
-  | 'commandBar';
+  | 'commandBar'
+  | 'triageApprove'
+  | 'triageDefer'
+  | 'triageReject'
+  | 'triageNext';
 
+/** Triage-screen ids: plain single keys, handled only by the /triage page, never by the global handler. */
+export const TRIAGE_SHORTCUT_IDS = [
+  'triageApprove',
+  'triageDefer',
+  'triageReject',
+  'triageNext',
+] as const satisfies readonly ShortcutId[];
+
+/** Whether the id belongs to the triage screen (and so must be skipped by global key handlers). */
+export function isTriageShortcutId(id: ShortcutId): boolean {
+  return (TRIAGE_SHORTCUT_IDS as readonly ShortcutId[]).includes(id);
+}
+
+// NOTE: no static `label` field — `id` doubles as the message key under
+// `shortcuts.labels` (see KeyboardShortcuts.tsx / in-app-shortcuts-section.tsx),
+// so the display label stays localized instead of being frozen in this store.
 export type ShortcutBinding = {
   id: ShortcutId;
-  label: string;
   /** Key (e.g. 'N', 'D', '/') */
   key: string;
   /** Whether to use Ctrl/Cmd */
@@ -28,7 +47,6 @@ export type ShortcutBinding = {
 const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   {
     id: 'newTask',
-    label: '新規タスク作成',
     key: 'N',
     meta: true,
     shift: false,
@@ -36,7 +54,6 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   },
   {
     id: 'dashboard',
-    label: 'ダッシュボード',
     key: 'D',
     meta: true,
     shift: false,
@@ -44,7 +61,6 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   },
   {
     id: 'home',
-    label: 'ホーム（タスク一覧）',
     key: 'H',
     meta: true,
     shift: false,
@@ -52,7 +68,6 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   },
   {
     id: 'kanban',
-    label: 'カンバンビュー',
     key: 'K',
     meta: true,
     shift: true,
@@ -60,7 +75,6 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   },
   {
     id: 'calendar',
-    label: 'カレンダー',
     key: 'L',
     meta: true,
     shift: false,
@@ -68,7 +82,6 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   },
   {
     id: 'focusMode',
-    label: 'フォーカスモード',
     key: 'F',
     meta: true,
     shift: true,
@@ -76,7 +89,6 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   },
   {
     id: 'shortcutHelp',
-    label: 'ショートカットヘルプ',
     key: '/',
     meta: true,
     shift: false,
@@ -84,7 +96,6 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   },
   {
     id: 'toggleAI',
-    label: 'ノート+AI機能',
     key: 'E',
     meta: false,
     shift: false,
@@ -92,12 +103,15 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   },
   {
     id: 'commandBar',
-    label: 'コマンドバー',
     key: 'K',
     meta: true,
     shift: false,
     ctrl: false,
   },
+  { id: 'triageApprove', key: 'A', meta: false, shift: false, ctrl: false },
+  { id: 'triageDefer', key: 'H', meta: false, shift: false, ctrl: false },
+  { id: 'triageReject', key: 'R', meta: false, shift: false, ctrl: false },
+  { id: 'triageNext', key: 'N', meta: false, shift: false, ctrl: false },
 ];
 
 interface ShortcutState {
@@ -147,6 +161,15 @@ export const useShortcutStore = create<ShortcutState>()(
     }),
     {
       name: 'shortcut-bindings-storage',
+      // NOTE: persisted data written before a shortcut id existed lacks it; without
+      // this merge the persisted array would replace the defaults and drop the new id.
+      merge: (persisted, current) => {
+        const stored = (persisted as Partial<ShortcutState> | undefined)?.shortcuts;
+        if (!Array.isArray(stored)) return current;
+        const known = new Set(stored.map((s) => s.id));
+        const missing = DEFAULT_SHORTCUTS.filter((d) => !known.has(d.id)).map((d) => ({ ...d }));
+        return { ...current, shortcuts: [...stored, ...missing] };
+      },
     },
   ),
 );

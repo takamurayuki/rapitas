@@ -3,12 +3,36 @@
  * 監査・ログ機能（監査ログ、実行ログ）のテスト
  */
 
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach, mock } from 'bun:test';
 import { Elysia } from 'elysia';
-import {
-  agentAuditRouter,
-  taskExecutionLogsRouter,
-} from '../../../routes/agents/monitoring/agent-audit-router';
+
+mock.module('../../../config/logger', () => ({
+  createLogger: () => ({
+    info: () => {},
+    error: () => {},
+    warn: () => {},
+    debug: () => {},
+  }),
+}));
+
+const mockPrisma = {
+  agentConfigAuditLog: {
+    findMany: mock(() => Promise.resolve([])),
+    create: mock(() => Promise.resolve({ id: 1 })),
+  },
+  developerModeConfig: {
+    // Returns null so execution-logs handler takes the early-exit path: { logs: [], ... }
+    findUnique: mock(() => Promise.resolve(null)),
+  },
+};
+
+mock.module('../../../config/database', () => ({
+  prisma: mockPrisma,
+  ensureDatabaseConnection: () => Promise.resolve(),
+}));
+
+const { agentAuditRouter, taskExecutionLogsRouter } =
+  await import('../../../routes/agents/monitoring/agent-audit-router');
 
 interface AuditLogResponse {
   logs: unknown[];

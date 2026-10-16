@@ -58,7 +58,7 @@ export interface SelectionContext {
   /**
    * Providers to remove from the candidate pool before selection. Used to
    * realise "cross-provider review" — the orchestrator passes the upstream
-   * phase's provider here so reviewer/verifier picks a different family,
+   * phase's provider here so the verifier picks a different family,
    * mitigating the self-evaluation bias common across LLM-as-judge research.
    */
   excludeProviders?: Provider[];

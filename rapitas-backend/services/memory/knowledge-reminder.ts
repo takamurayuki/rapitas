@@ -8,6 +8,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { boostDecayOnAccess } from './forgetting';
 import { appendEvent } from './timeline';
+import { buildNotificationI18n } from '../communication/notification-i18n';
 
 const log = createLogger('memory:reminder');
 
@@ -67,6 +68,9 @@ export async function scanAndRemind(): Promise<ReminderScanResult> {
 
     // Exclude recently reminded entries
     const minInterval = MIN_REMINDER_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
+    // results are collapsed into a Set of ids below — used only to exclude
+    // recently-reminded entries.
+    // determinism-ok: collapsed into a Set, order irrelevant.
     const recentReminders = await prisma.notification.findMany({
       where: {
         type: 'knowledge_reminder',
@@ -80,7 +84,13 @@ export async function scanAndRemind(): Promise<ReminderScanResult> {
       if (n.metadata) {
         try {
           const meta = JSON.parse(n.metadata);
+          // Legacy rows carry a single entryId; digest rows carry entryIds[].
           if (meta.entryId) recentlyRemindedIds.add(meta.entryId);
+          if (Array.isArray(meta.entryIds)) {
+            for (const id of meta.entryIds) {
+              if (typeof id === 'number') recentlyRemindedIds.add(id);
+            }
+          }
         } catch {
           // ignore
         }
@@ -103,24 +113,34 @@ export async function scanAndRemind(): Promise<ReminderScanResult> {
         content: entry.content.slice(0, 200),
         daysSinceAccess,
       });
+    }
 
-      // Create notification
+    // One digest notification per scan. Per-entry notifications flooded the
+    // feed with 5 same-titled rows every daily scan, burying actionable
+    // notifications (e.g. auto-merge stalls) under review nudges.
+    if (reminderEntries.length > 0) {
+      const lines = reminderEntries.map(
+        (e) =>
+          `「${e.title}」（${e.daysSinceAccess >= 0 ? `${e.daysSinceAccess}日間アクセスなし` : '未アクセス'}、記憶強度${Math.round(e.decayScore * 100)}%）`,
+      );
+      const lineText = lines.join('、');
       await prisma.notification.create({
         data: {
           type: 'knowledge_reminder',
-          title: '忘れかけているナレッジ',
-          message: `「${entry.title}」を復習しませんか？（${daysSinceAccess >= 0 ? `${daysSinceAccess}日間アクセスなし` : '未アクセス'}、記憶強度: ${Math.round(entry.decayScore * 100)}%）`,
+          title: `忘れかけているナレッジ（${reminderEntries.length}件）`,
+          message: `復習しませんか？ ${lineText}`,
           link: `/knowledge`,
           metadata: JSON.stringify({
-            entryId: entry.id,
-            decayScore: entry.decayScore,
-            daysSinceAccess,
-            category: entry.category,
+            entryIds: reminderEntries.map((e) => e.id),
+            count: reminderEntries.length,
+            i18n: buildNotificationI18n('knowledge_reminder', {
+              count: reminderEntries.length,
+              lines: lineText,
+            }),
           }),
         },
       });
-
-      remindersCreated++;
+      remindersCreated = reminderEntries.length;
     }
 
     if (remindersCreated > 0) {

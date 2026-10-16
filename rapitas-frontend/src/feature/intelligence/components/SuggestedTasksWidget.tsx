@@ -1,15 +1,18 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Zap, Brain, TrendingUp, TrendingDown, Minus, Play, EyeOff } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { Zap, Brain, TrendingUp, TrendingDown, Minus, Play, EyeOff, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useSuggestedTasks, type TaskSuggestion } from '../hooks/useIntelligence';
 
+// NOTE: Urgent/high keep warning hues (red/amber, app-wide status meanings);
+// medium/low stay zinc — indigo is reserved for active/primary action only.
 const priorityColors: Record<string, string> = {
   urgent: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-  high: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-  medium: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  low: 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400',
+  high: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  medium: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+  low: 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-500',
 };
 
 const focusIcons: Record<string, typeof TrendingUp> = {
@@ -20,7 +23,7 @@ const focusIcons: Record<string, typeof TrendingUp> = {
 
 const focusColors: Record<string, string> = {
   high: 'text-green-600 dark:text-green-400',
-  medium: 'text-yellow-600 dark:text-yellow-400',
+  medium: 'text-amber-600 dark:text-amber-400',
   low: 'text-red-500 dark:text-red-400',
 };
 
@@ -54,6 +57,9 @@ function addSnoozedTask(taskId: number) {
 }
 
 export function SuggestedTasksWidget() {
+  const t = useTranslations('intelligence.suggestedTasksWidget');
+  const tTask = useTranslations('task');
+  const tCommon = useTranslations('common');
   const { data, loading, fetch, updateTaskStatus, startPomodoro } = useSuggestedTasks();
   const [snoozedTasks, setSnoozedTasks] = useState<number[]>([]);
   const [updatingTask, setUpdatingTask] = useState<number | null>(null);
@@ -100,7 +106,7 @@ export function SuggestedTasksWidget() {
 
   if (loading) {
     return (
-      <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
+      <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
         <div className="animate-pulse space-y-3">
           <div className="h-5 bg-zinc-200 dark:bg-zinc-700 rounded w-40" />
           {[1, 2, 3].map((i) => (
@@ -116,16 +122,27 @@ export function SuggestedTasksWidget() {
 
   if (!data || filteredSuggestions.length === 0) {
     return (
-      <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
-        <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-3 flex items-center gap-2">
-          <Zap className="w-5 h-5 text-amber-500" />
-          今やるべきタスク
+      <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-3 flex items-center gap-2">
+          <Zap className="w-5 h-5 text-zinc-400 dark:text-zinc-500" />
+          {t('title')}
         </h2>
-        <div className="py-6 text-center text-sm text-zinc-400 dark:text-zinc-500">
+        <div className="py-6 text-center text-sm text-zinc-500 dark:text-zinc-500">
           <Brain className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          {data && data.suggestions.length > 0
-            ? 'すべてのタスクがスヌーズされています'
-            : '提案するタスクがありません'}
+          {data && data.suggestions.length > 0 ? (
+            t('allSnoozed')
+          ) : (
+            <>
+              <p className="mb-3">{t('noTasksAvailable')}</p>
+              <Link
+                href="/tasks/new"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+              >
+                <Plus className="h-4 w-4" />
+                {t('createTaskLink')}
+              </Link>
+            </>
+          )}
         </div>
       </div>
     );
@@ -134,11 +151,11 @@ export function SuggestedTasksWidget() {
   const FocusIcon = focusIcons[data.focusLevel] || Minus;
 
   return (
-    <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
-          <Zap className="w-5 h-5 text-amber-500" />
-          今やるべきタスク
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+          <Zap className="w-5 h-5 text-zinc-400 dark:text-zinc-500" />
+          {t('title')}
         </h2>
         <div className={`flex items-center gap-1 text-xs ${focusColors[data.focusLevel]}`}>
           <FocusIcon className="w-3.5 h-3.5" />
@@ -150,9 +167,9 @@ export function SuggestedTasksWidget() {
         {filteredSuggestions.slice(0, 5).map((task, index) => (
           <div
             key={task.taskId}
-            className="flex items-center gap-3 p-3 rounded-lg bg-zinc-50/50 dark:bg-zinc-700/30 group"
+            className="flex items-center gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 group"
           >
-            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-bold shrink-0">
+            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-semibold shrink-0">
               {index + 1}
             </div>
 
@@ -173,7 +190,7 @@ export function SuggestedTasksWidget() {
               >
                 {task.priority}
               </span>
-              <span className="text-xs text-zinc-400 dark:text-zinc-500">{task.score}pt</span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-500">{task.score}pt</span>
 
               {/* Status Dropdown */}
               <select
@@ -185,33 +202,33 @@ export function SuggestedTasksWidget() {
                   }
                 }}
                 disabled={updatingTask === task.taskId}
-                className="text-xs bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded px-2 py-1 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 value=""
               >
                 <option value="" disabled>
-                  変更
+                  {tCommon('change')}
                 </option>
                 <option value="todo">Todo</option>
-                <option value="in-progress">進行中</option>
-                <option value="done">完了</option>
+                <option value="in-progress">{tTask('statusInProgress')}</option>
+                <option value="done">{tTask('statusDone')}</option>
               </select>
 
               {/* Start Today Button */}
               <button
                 onClick={(e) => handleStartToday(task, e)}
                 disabled={updatingTask === task.taskId}
-                className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded hover:bg-indigo-200 dark:hover:bg-indigo-800/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="ステータスを進行中にしてポモドーロを開始"
+                className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-800/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title={t('startTodayTitle')}
               >
                 <Play className="w-3 h-3" />
-                今日やる
+                {t('startTodayButton')}
               </button>
 
               {/* Snooze Button */}
               <button
                 onClick={(e) => handleSnooze(task, e)}
-                className="p-1.5 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-600 rounded transition-colors"
-                title="24時間スヌーズ"
+                className="p-1.5 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-md transition-colors"
+                title={t('snoozeTitle')}
               >
                 <EyeOff className="w-3.5 h-3.5" />
               </button>
@@ -227,9 +244,9 @@ export function SuggestedTasksWidget() {
               localStorage.removeItem(SNOOZE_STORAGE_KEY);
               setSnoozedTasks([]);
             }}
-            className="text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+            className="text-[10px] text-zinc-500 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
           >
-            スヌーズ解除 ({snoozedTasks.length}件)
+            {t('clearSnoozeButton', { count: snoozedTasks.length })}
           </button>
         </div>
       )}

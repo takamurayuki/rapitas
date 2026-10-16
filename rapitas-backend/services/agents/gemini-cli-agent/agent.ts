@@ -24,6 +24,7 @@ import {
   stopGeminiProcess,
   checkGeminiAvailability,
 } from './process-manager';
+import { stopResourceSampling } from '../process-resource-sampler';
 import { parseArtifacts, parseCommits } from './output-parser';
 import { buildStructuredPrompt } from './prompt-builder';
 import { attachStreamHandlers } from './stream-handler';
@@ -64,7 +65,10 @@ export class GeminiCliAgent extends BaseAgent {
     };
   }
 
-  async execute(task: AgentTask, options?: Record<string, unknown>): Promise<AgentExecutionResult> {
+  async execute(
+    task: AgentTask,
+    _options?: Record<string, unknown>,
+  ): Promise<AgentExecutionResult> {
     this.status = 'running';
     this.outputBuffer = '';
     this.errorBuffer = '';
@@ -108,6 +112,11 @@ export class GeminiCliAgent extends BaseAgent {
       };
     }
 
+    const isWindows = process.platform === 'win32';
+    const geminiPath = await resolveCliPath(
+      process.env.GEMINI_CLI_PATH || (isWindows ? 'gemini.cmd' : 'gemini'),
+    );
+
     return new Promise((resolve) => {
       const prompt = buildStructuredPrompt(task, this.logPrefix);
 
@@ -118,11 +127,6 @@ export class GeminiCliAgent extends BaseAgent {
       // Windows shell truncation of long multi-line prompts.
       const args = buildCliArgs(this.config, resumeId);
 
-      const isWindows = process.platform === 'win32';
-      const geminiPath = resolveCliPath(
-        process.env.GEMINI_CLI_PATH || (isWindows ? 'gemini.cmd' : 'gemini'),
-      );
-
       logger.info(
         `${this.logPrefix} Platform: ${process.platform}, Path: ${geminiPath}, Dir: ${workDir}`,
       );
@@ -131,6 +135,8 @@ export class GeminiCliAgent extends BaseAgent {
       );
 
       this.emitOutput(`${this.logPrefix} Starting execution...\n`);
+      // Persist the model into the stored log stream (parity with claude runner).
+      this.emitOutput(`${this.logPrefix} Model: ${this.config.model ?? 'default'}\n`);
       this.emitOutput(`${this.logPrefix} Working directory: ${workDir}\n`);
 
       try {
@@ -183,6 +189,9 @@ export class GeminiCliAgent extends BaseAgent {
           // onClose
           (code) => {
             this.detectedQuestion = detectedQuestionRef.value;
+            const resourceStats = this.process?.pid
+              ? stopResourceSampling(this.process.pid)
+              : { cpuTimeMs: null, peakRssKb: null };
 
             if (this.status === 'cancelled') {
               resolve({
@@ -190,6 +199,8 @@ export class GeminiCliAgent extends BaseAgent {
                 output: this.outputBuffer,
                 errorMessage: 'Execution cancelled',
                 executionTimeMs: Date.now() - startTime,
+                failureType: 'cancelled',
+                ...resourceStats,
               });
               return;
             }
@@ -218,6 +229,7 @@ export class GeminiCliAgent extends BaseAgent {
                 // NOTE: Re-using claudeSessionId field for session continuation (checkpoint ID takes priority)
                 claudeSessionId: this.checkpointId || this.geminiSessionId || undefined,
                 modelName: this.config.model,
+                ...resourceStats,
               });
               return;
             }
@@ -244,6 +256,7 @@ export class GeminiCliAgent extends BaseAgent {
               claudeSessionId: this.checkpointId || this.geminiSessionId || undefined,
               modelName: this.config.model,
               errorMessage,
+              ...resourceStats,
             });
           },
           // onStatusFailed

@@ -49,6 +49,15 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
 
+    # Build (ubuntu-latest) is a BLOCKING auto-merge check, and without this it
+    # inherits GitHub's 6-hour default: two of the last 40 runs hung in the apt
+    # step and sat for 113 and 35 minutes, stalling every PR behind them.
+    # Measured job durations are 8m median / 15m max across all three platforms.
+    # 45m rather than 30m so install-ci-system-deps.sh's retry budget (2 x 600s)
+    # plus this job's own ~14m of work completes INSIDE the bound: at 30m the job
+    # was killed mid-retry, turning an apt outage into a red blocking check and a
+    # false ci_repair bounce.
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -79,8 +88,7 @@ jobs:
       - name: Install system dependencies (Ubuntu)
         if: matrix.platform == 'ubuntu-latest'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          bash scripts/install-ci-system-deps.sh \
             libgtk-3-dev \
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
@@ -102,6 +110,8 @@ jobs:
             ca-certificates \
             zsync \
             squashfs-tools \
+            rpm \
+            cpio \
             libc6-dev \
             libgcc-s1
 
@@ -134,7 +144,20 @@ jobs:
         working-directory: rapitas-desktop
         run: pnpm install --no-frozen-lockfile
 
-      - name: Generate Prisma Client
+      # NOTE: the dual-client layout (generated/prisma-postgres +
+      # generated/prisma-sqlite) means backend sources import the postgres
+      # client with STATIC value imports; `bun build --compile` must be able
+      # to resolve BOTH clients even though the desktop runtime picks sqlite
+      # via resolvePrismaClientCtor. A dummy URL suffices — generate never
+      # connects. Without this step the binary build fails on every platform
+      # with `Could not resolve: "../generated/prisma-postgres"`.
+      - name: Generate postgres Prisma Client (for static imports)
+        working-directory: rapitas-backend
+        run: bunx prisma generate
+        env:
+          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
+
+      - name: Generate SQLite Prisma Client
         working-directory: rapitas-backend
         run: |
           echo "Generating SQLite Prisma Client for desktop build..."
@@ -178,7 +201,7 @@ jobs:
           # embed .node native libraries and user machines have no node_modules,
           # so without this the installed backend dies at startup (the
           # PrismaClientInitializationError incident).
-          Copy-Item node_modules/.prisma/client/*query_engine*.node ../rapitas-desktop/src-tauri/binaries/
+          Copy-Item generated/prisma-sqlite/*query_engine*.node ../rapitas-desktop/src-tauri/binaries/
           echo "Bundled Prisma engine(s):"
           Get-ChildItem ../rapitas-desktop/src-tauri/binaries/*query_engine* | Format-Table Name, Length
 
@@ -200,7 +223,7 @@ jobs:
           Copy-Item rapitas-backend.exe (Join-Path $smokeDir "rapitas-backend.exe")
           # Mirror the installed layout: engine beside the exe + explicit path
           # (release.rs does the same at runtime).
-          Copy-Item node_modules/.prisma/client/*query_engine*.node $smokeDir
+          Copy-Item generated/prisma-sqlite/*query_engine*.node $smokeDir
           $engine = Get-ChildItem (Join-Path $smokeDir "*query_engine*.node") | Select-Object -First 1
           $env:PRISMA_QUERY_ENGINE_LIBRARY = $engine.FullName
 
@@ -300,7 +323,7 @@ jobs:
           # Bundle the Prisma query engine — bun's single-file compile cannot
           # embed .node native libraries and user machines have no node_modules,
           # so without this the installed backend dies at startup.
-          cp node_modules/.prisma/client/*query_engine*.node ../rapitas-desktop/src-tauri/binaries/
+          cp generated/prisma-sqlite/*query_engine*.node ../rapitas-desktop/src-tauri/binaries/
           echo "Bundled Prisma engine(s):"
           ls -la ../rapitas-desktop/src-tauri/binaries/*query_engine*
 
@@ -355,7 +378,7 @@ jobs:
           cp rapitas-backend "$SMOKE_DIR/rapitas-backend"
           # Mirror the installed layout: engine beside the exe + explicit path
           # (release.rs does the same at runtime).
-          cp node_modules/.prisma/client/*query_engine*.node "$SMOKE_DIR/"
+          cp generated/prisma-sqlite/*query_engine*.node "$SMOKE_DIR/"
           ENGINE=$(ls "$SMOKE_DIR"/*query_engine*.node | head -1)
           cd "$SMOKE_DIR"
 
@@ -511,6 +534,7 @@ jobs:
       - name: Prepare backend binary configuration
         working-directory: rapitas-desktop
         run: |
+          node --test scripts/backend-resource-dedup.test.js
           # Run the script to prepare backend binary configuration
           node scripts/prepare-backend-binary.js ${{ matrix.target }}
 
@@ -551,16 +575,47 @@ jobs:
 
       - name: Build Tauri application
         working-directory: rapitas-desktop
+        shell: bash
         run: |
           # Build Tauri application with the correct target
           echo "Building Tauri app for ${{ matrix.platform }} (${{ matrix.target }})"
-          echo "Bundle targets: deb, rpm (AppImage disabled)"
-          pnpm run build --target ${{ matrix.target }}
+          if [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
+            # AppImage requires linuxdeploy which is unavailable in CI runners.
+            # Explicitly limit Linux bundles to deb and rpm only.
+            echo "Bundle targets: deb, rpm (AppImage disabled — linuxdeploy not available in CI)"
+            pnpm run build --target "${{ matrix.target }}" --bundles deb,rpm
+          else
+            pnpm run build --target "${{ matrix.target }}"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CI: true
           DATABASE_URL: "postgresql://user:password@localhost:5432/rapitas?schema=public"  # Valid dummy URL for CI
           TARGET: ${{ matrix.target }}  # Pass target to build scripts
+
+      - name: Verify RPM payload
+        if: matrix.platform == 'ubuntu-latest'
+        working-directory: rapitas-desktop
+        shell: bash
+        run: |
+          set -euxo pipefail
+          bundle_dir="src-tauri/target/${{ matrix.target }}/release/bundle/rpm"
+          packages=("$bundle_dir"/*.rpm)
+          test "${#packages[@]}" -eq 1
+          rpm --checksig --nosignature "${packages[0]}"
+          rpm -qp --qf 'RPM payload: %{PAYLOADCOMPRESSOR}, flags %{PAYLOADFLAGS}, installed bytes %{SIZE}\n' "${packages[0]}"
+          payload_dir=$(mktemp -d "$RUNNER_TEMP/rpm-payload.XXXXXX")
+          # rpm2cpio 4.18 compares against the legacy archive-size tag, which
+          # Tauri RPMs omit. rpm2archive validates the header/file archive instead.
+          rpm2archive -n "${packages[0]}" > "$payload_dir/payload.tar"
+          tar -xf "$payload_dir/payload.tar" -C "$payload_dir"
+          node --test scripts/verify-tauri-rpm-binary.test.cjs
+          node scripts/verify-tauri-rpm-binary.cjs "src-tauri/target/${{ matrix.target }}/release/rapitas" "$payload_dir/usr/bin/rapitas"
+          mapfile -t backends < <(find "$payload_dir" -type f -name "rapitas-backend-${{ matrix.target }}")
+          find "$payload_dir" -name '*rapitas-backend*' -ls
+          printf 'Backend matches: %s\n' "${#backends[@]}"
+          test "${#backends[@]}" -eq 1
+          cmp "src-tauri/binaries/rapitas-backend-${{ matrix.target }}" "${backends[0]}"
 
       - name: List build artifacts
         working-directory: rapitas-desktop
@@ -598,7 +653,7 @@ jobs:
             rapitas-desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos/
 
       - name: Upload artifacts (Linux)
-        if: matrix.platform == 'ubuntu-latest'
+        if: always() && matrix.platform == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: rapitas-linux-${{ matrix.target }}

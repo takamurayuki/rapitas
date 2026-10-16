@@ -8,9 +8,12 @@
 
 import { API_BASE_URL } from '@/utils/api';
 import { offlineFetch } from '@/lib/offline-queue';
+import { createLogger } from '@/lib/logger';
 import { ApiClientCache } from './cache';
 import { ApiClientBatch } from './batch';
 import type { RequestOptions } from './types';
+
+const logger = createLogger('api-client');
 
 /**
  * Hard ceiling on any single API request. Without a cap, a stalled
@@ -25,6 +28,18 @@ import type { RequestOptions } from './types';
  * short enough that a recoverable hang surfaces as an actionable error.
  */
 const REQUEST_TIMEOUT_MS = 30_000;
+
+/**
+ * Marks every request from this client as UI-originated so the backend's
+ * ui-activity-tracker can defer boundary self-restarts while the user is
+ * actively operating the UI (RAPITAS_RESTART_UI_QUIET_MS quiet gate).
+ *
+ * NOTE: Values must mirror UI_SOURCE_HEADER / UI_SOURCE_VALUE in
+ * rapitas-backend/services/scheduling/auto-restart-merged-code/ui-activity-tracker.ts
+ * — the backend constants cannot be imported across packages.
+ */
+export const UI_SOURCE_HEADER = 'X-Rapitas-Source';
+export const UI_SOURCE_VALUE = 'ui';
 
 /**
  * Per-attempt timeout for idempotent GETs. A healthy backend serves GETs in
@@ -331,7 +346,9 @@ export class APIClient {
       const elapsed = Date.now() - requestStartedAt;
       const msg = `Request timeout after ${elapsed}ms — ${requestLabel}`;
 
-      console.error('[api-client] timeout', { requestLabel, elapsedMs: elapsed });
+      // A timeout is a transient transport failure. Group the warning across
+      // endpoints for one minute; the caller still receives the full error.
+      logger.warnThrottled('[api-client] timeout', requestLabel);
       timeoutController.abort(new Error(msg));
     }, timeoutMs);
 
@@ -355,6 +372,7 @@ export class APIClient {
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        [UI_SOURCE_HEADER]: UI_SOURCE_VALUE,
         ...options.headers,
       },
     };

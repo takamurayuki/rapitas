@@ -1,0 +1,54 @@
+{
+  "quickCapture": {
+    "modeIdea": "アイデア",
+    "modeVocab": "単語",
+    "modeTask": "タスク",
+    "modeMemo": "メモ",
+    "memoHint": "Enter 保存（Shift+Enter で改行）/ Esc 閉じる。リマインダーを付けると通知されます",
+    "memo": {
+      "placeholder": "覚えておきたいこと・簡単な記録...",
+      "contentAria": "メモの内容",
+      "reminderAria": "リマインダー",
+      "customAria": "リマインダー日時",
+      "presets": {
+        "none": "通知なし",
+        "30m": "30分後",
+        "1h": "1時間後",
+        "3h": "3時間後",
+        "tomorrow": "明日9時",
+        "custom": "日時指定"
+      },
+      "custom": {
+        "dateAria": "リマインダーの日付",
+        "timeAria": "リマインダーの時刻"
+      }
+    },
+    "categoryAria": "カテゴリを選択",
+    "themeAria": "登録先テーマ",
+    "taskNoThemes": "テーマがありません — テーマ設定から作成してください",
+    "taskTitlePlaceholder": "タスクのタイトル...",
+    "taskDescPlaceholder": "説明（任意）...",
+    "taskHint": "タイトルで Enter 保存 / 説明は Ctrl+Enter 保存 / Esc 閉じる",
+    "modeSwitchHint": "Ctrl+Tab でモード切替",
+    "hintAria": "操作ヒント",
+    "pinAria": "ピン留め（フォーカスを失っても閉じない）",
+    "unpinAria": "ピン留めを解除",
+    "deckAria": "登録先デッキ",
+    "vocabNoDecks": "デッキがありません",
+    "addDeck": "デッキを追加",
+    "newDeckPlaceholder": "新しいデッキ名...",
+    "renameDeckAria": "デッキ名を変更",
+    "vocabFrontPlaceholder": "単語...",
+    "vocabBackPlaceholder": "意味（複数は改行で）...",
+    "vocabHint": "表で Enter → 裏へ / 裏で Enter 保存（変化形タブ中は次のタブへ）/ Ctrl+Enter でカード保存 / Esc 閉じる",
+    "vocabConjBodyPlaceholder": "例文・説明（1行目=例文、2行目以降=説明）...",
+    "placeholder": "アイデアのタイトル...",
+    "titleAria": "アイデアのタイトル",
+    "bodyPlaceholder": "詳細メモ（任意）...",
+    "bodyAria": "アイデアの詳細",
+    "hint": "タイトルで Enter 保存 / 本文は Ctrl+Enter 保存 / Esc 閉じる",
+    "saving": "保存中...",
+    "saved": "保存しました",
+    "failed": "保存に失敗しました — 内容は保持されています"
+  }
+}

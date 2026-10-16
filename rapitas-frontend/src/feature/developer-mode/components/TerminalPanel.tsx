@@ -11,7 +11,9 @@
 
 import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import { Square, RotateCcw } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { AIAgentConfig, ExecutionStatus, ExecutionResult } from '@/types';
+import { isImeComposing } from '@/utils/ime';
 import { ModelSelector } from './ModelSelector';
 import { useExecutionPolling } from '../hooks/useExecutionStream';
 import { StatusDot } from './terminal/TerminalLine';
@@ -60,6 +62,7 @@ export const TerminalPanel = memo(function TerminalPanel({
   onStopExecution,
   onRestoreExecutionState,
 }: Props) {
+  const t = useTranslations('devMode.terminalPanel');
   const [input, setInput] = useState('');
   const [lines, setLines] = useState<LogLine[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -170,7 +173,7 @@ export const TerminalPanel = memo(function TerminalPanel({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) {
         e.preventDefault();
         handleSubmit();
       }
@@ -187,12 +190,12 @@ export const TerminalPanel = memo(function TerminalPanel({
         {
           id: `s-${lineIdCounter.current++}`,
           type: 'system' as const,
-          text: '[System] 実行を停止しました',
+          text: t('stoppedLog'),
           ts: Date.now(),
         },
       ]),
     );
-  }, [onStopExecution, polling]);
+  }, [onStopExecution, polling, t]);
 
   const handleReset = useCallback(() => {
     onReset();
@@ -204,26 +207,26 @@ export const TerminalPanel = memo(function TerminalPanel({
   }, [onReset, polling]);
 
   const statusLabel = useMemo(() => {
-    if (isWaiting) return '入力待ち';
-    if (isRunning) return '実行中';
+    if (isWaiting) return t('statusWaitingForInput');
+    if (isRunning) return t('statusRunning');
     switch (polling.status) {
       case 'completed':
-        return '完了';
+        return t('statusCompleted');
       case 'failed':
-        return '失敗';
+        return t('statusFailed');
       case 'cancelled':
-        return '中断';
+        return t('statusInterrupted');
       default:
-        return '待機';
+        return t('statusIdle');
     }
-  }, [isWaiting, isRunning, polling.status]);
+  }, [isWaiting, isRunning, polling.status, t]);
 
   return (
     <div className="flex flex-col h-full bg-zinc-900 rounded-lg overflow-hidden border border-zinc-700">
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 bg-zinc-800 border-b border-zinc-700">
         <StatusDot status={polling.status} waitingForInput={isWaiting} />
-        <span className="text-[10px] text-zinc-400 font-mono">{statusLabel}</span>
+        <span className="text-[10px] text-zinc-500 font-mono">{statusLabel}</span>
         <div className="flex-1" />
 
         <ModelSelector
@@ -238,7 +241,7 @@ export const TerminalPanel = memo(function TerminalPanel({
             <button
               onClick={handleStop}
               className="p-1 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded transition-colors"
-              title="停止"
+              title={t('stop')}
             >
               <Square className="w-3 h-3" />
             </button>
@@ -246,7 +249,7 @@ export const TerminalPanel = memo(function TerminalPanel({
           <button
             onClick={handleReset}
             className="p-1 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 rounded transition-colors"
-            title="リセット"
+            title={t('reset')}
           >
             <RotateCcw className="w-3 h-3" />
           </button>

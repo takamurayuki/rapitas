@@ -11,7 +11,9 @@ import { createLogger } from '../../../config/logger';
 import { analyzeTaskComplexity, type TaskComplexityInput } from '../complexity-analyzer';
 import { matchesCondition, type RuleGenerationResult } from './workflow-learning-helpers';
 import { estimateDurationFromHistory, getDirectInsight } from './workflow-learning-estimator';
+import { predictAndPersistTaskDuration } from './duration-prediction-service';
 import { runRuleDetection } from './workflow-learning-rules';
+import { resolveTaskForLearning } from '../../task/task-resolver';
 
 // Re-export sub-module symbols so existing imports from this path keep working.
 export { recordWorkflowCompletion, getLearningStats } from './workflow-learning-stats';
@@ -79,6 +81,90 @@ export async function generateOptimizationRules(): Promise<RuleGenerationResult>
 }
 
 // ───────────────────────────────────────────────
+// Rule application at mode-assignment time
+// ───────────────────────────────────────────────
+
+/** Result of applying learned mode rules to a base mode decision. */
+export interface RuleModeDecision {
+  mode: 'lightweight' | 'standard' | 'comprehensive';
+  ruleIds: number[];
+  reasons: string[];
+}
+
+/**
+ * Apply active high-confidence MODE rules to a base mode decision.
+ *
+ * The nightly generateOptimizationRules cron has produced rules for months,
+ * but their only consumer was the read-only learning panel — recommendations
+ * were rendered, never applied. This is the application path, called when a
+ * task's workflow mode is auto-assigned at creation. The human override is
+ * structural: users change the mode any time via the task UI, and rules never
+ * touch a task after creation.
+ *
+ * Only set_mode / downgrade_mode actions with confidence > 0.7 apply;
+ * skip_phase / adjust_threshold stay advisory (panel-only) for now.
+ *
+ * @param task - Fields the rule conditions match on. / 条件マッチ用フィールド
+ * @param complexityScore - The task's computed complexity score. / 複雑度スコア
+ * @param baseMode - Mode recommended by the settings-based ranges. / 基準モード
+ * @returns The (possibly rule-adjusted) mode plus applied rules. / 適用結果
+ */
+export async function applyModeRules(
+  task: { themeId: number | null },
+  complexityScore: number,
+  baseMode: 'lightweight' | 'standard' | 'comprehensive',
+): Promise<RuleModeDecision> {
+  try {
+    const rules = await prisma.workflowOptimizationRule.findMany({
+      where: { isActive: true, confidence: { gte: CONFIDENCE_THRESHOLD } },
+      orderBy: { confidence: 'desc' },
+    });
+
+    let mode = baseMode;
+    const ruleIds: number[] = [];
+    const reasons: string[] = [];
+
+    for (const rule of rules) {
+      const condition = JSON.parse(rule.condition) as Record<string, unknown>;
+      const recommendation = JSON.parse(rule.recommendation) as {
+        action?: string;
+        targetMode?: 'lightweight' | 'standard' | 'comprehensive';
+        reason?: string;
+      };
+
+      // `workflowMode: mode` — a rule conditioned on originalMode matches the
+      // CURRENT decision, so a chain of rules evaluates against the running result.
+      if (
+        !matchesCondition(condition, { themeId: task.themeId, workflowMode: mode }, complexityScore)
+      ) {
+        continue;
+      }
+      if (
+        (recommendation.action === 'set_mode' || recommendation.action === 'downgrade_mode') &&
+        rule.confidence > 0.7 &&
+        recommendation.targetMode
+      ) {
+        mode = recommendation.targetMode;
+        ruleIds.push(rule.id);
+        if (recommendation.reason) reasons.push(recommendation.reason);
+      }
+    }
+
+    if (ruleIds.length > 0) {
+      await prisma.workflowOptimizationRule.updateMany({
+        where: { id: { in: ruleIds } },
+        data: { lastEvaluated: new Date() },
+      });
+    }
+    return { mode, ruleIds, reasons };
+  } catch (err) {
+    // Rule application must never block mode assignment.
+    log.warn({ err }, 'applyModeRules failed; keeping base mode');
+    return { mode: baseMode, ruleIds: [], reasons: [] };
+  }
+}
+
+// ───────────────────────────────────────────────
 // Task Optimization Recommendations
 // ───────────────────────────────────────────────
 
@@ -92,13 +178,7 @@ export async function getWorkflowRecommendation(
   taskId: number,
 ): Promise<WorkflowRecommendation | null> {
   try {
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      include: {
-        theme: { include: { category: true } },
-        taskLabels: { include: { label: true } },
-      },
-    });
+    const task = await resolveTaskForLearning(taskId);
 
     if (!task) return null;
 
@@ -154,20 +234,16 @@ export async function getWorkflowRecommendation(
       }
     }
 
-    const estimatedDuration = await estimateDurationFromHistory(
-      task.themeId,
-      recommendedMode,
-      analysis.complexityScore,
-    );
-
     if (matchedRules.length > 0) {
       await prisma.workflowOptimizationRule.updateMany({
         where: { id: { in: matchedRules.map((r) => r.ruleId) } },
         data: { lastEvaluated: new Date() },
       });
-    }
-
-    if (matchedRules.length === 0) {
+    } else {
+      // NOTE: Resolved before estimateDurationFromHistory below so the duration
+      // estimate reflects the final recommended mode. Previously this ran AFTER
+      // the estimate was computed, so a direct-insight override left the
+      // returned estimatedDuration stale (computed for the pre-override mode).
       const directInsight = await getDirectInsight(task, analysis.complexityScore);
       if (directInsight) {
         recommendedMode = directInsight.mode as 'lightweight' | 'standard' | 'comprehensive';
@@ -175,10 +251,20 @@ export async function getWorkflowRecommendation(
       }
     }
 
+    const estimatedDuration = await estimateDurationFromHistory(
+      task.themeId,
+      recommendedMode,
+      analysis.complexityScore,
+    );
+
     const confidence =
       matchedRules.length > 0
         ? matchedRules.reduce((sum, r) => sum + r.confidence, 0) / matchedRules.length
         : 0.5;
+
+    // NOTE: fire-and-forget — distribution-prediction persistence must never
+    // delay or fail the recommendation response (fail-open by design).
+    void predictAndPersistTaskDuration(taskId).catch(() => {});
 
     return {
       taskId,

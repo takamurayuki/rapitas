@@ -7,65 +7,82 @@
  * removed — a completed task's PR is opened directly instead.)
  */
 
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
 import { orchestrator } from '../../../services/core/orchestrator-instance';
 import { fromJsonString } from '../../../utils/database/db-helpers';
+import { assertExpectedUpdatedAt } from './concurrency-guard';
 
 export const rejectRoutes = new Elysia()
   // Reject request
-  .post('/:id/reject', async (context) => {
-    const params = context.params as { id: string };
-    const body = context.body as { reason?: string };
-    const { id } = params;
-    const { reason } = body;
+  .post(
+    '/:id/reject',
+    async (context) => {
+      const params = context.params as { id: string };
+      const body = (context.body ?? {}) as { reason?: string; expectedUpdatedAt?: string };
+      const { id } = params;
+      const { reason } = body;
 
-    const rejectionApprovalId = parseId(id, 'approval ID');
-    const approval = await prisma.approvalRequest.findUnique({
-      where: { id: rejectionApprovalId },
-      include: {
-        config: {
-          include: { task: true },
-        },
-      },
-    });
-
-    if (!approval) {
-      throw new NotFoundError('Approval request not found');
-    }
-
-    await prisma.approvalRequest.update({
-      where: { id: rejectionApprovalId },
-      data: {
-        status: 'rejected',
-        rejectedAt: new Date(),
-        rejectionReason: reason,
-      },
-    });
-
-    if (approval.requestType === 'code_review') {
-      const proposedChanges = fromJsonString<{
-        workingDirectory: string;
-      }>(approval.proposedChanges);
-
-      if (!proposedChanges) {
-        throw new ValidationError('Invalid proposed changes data');
-      }
-
-      const reverted = await orchestrator.revertChanges(proposedChanges.workingDirectory);
-
-      await prisma.notification.create({
-        data: {
-          type: 'pr_changes_requested',
-          title: 'コードレビュー却下',
-          message: `「${approval.config.task.title}」のコードレビューが却下されました${reason ? `: ${reason}` : ''}。変更は元に戻されました。`,
-          link: `/tasks/${approval.config.taskId}`,
+      const rejectionApprovalId = parseId(id, 'approval ID');
+      const approval = await prisma.approvalRequest.findUnique({
+        where: { id: rejectionApprovalId },
+        include: {
+          config: {
+            include: { task: true },
+          },
         },
       });
 
-      return { success: true, reverted };
-    }
+      if (!approval) {
+        throw new NotFoundError('Approval request not found');
+      }
+      assertExpectedUpdatedAt(approval.updatedAt, body.expectedUpdatedAt);
 
-    return { success: true };
-  });
+      await prisma.approvalRequest.update({
+        where: { id: rejectionApprovalId },
+        data: {
+          status: 'rejected',
+          rejectedAt: new Date(),
+          rejectionReason: reason,
+        },
+      });
+
+      if (approval.requestType === 'code_review') {
+        const proposedChanges = fromJsonString<{
+          workingDirectory: string;
+        }>(approval.proposedChanges);
+
+        if (!proposedChanges) {
+          throw new ValidationError('Invalid proposed changes data');
+        }
+
+        const reverted = await orchestrator.revertChanges(proposedChanges.workingDirectory);
+
+        await prisma.notification.create({
+          data: {
+            type: 'pr_changes_requested',
+            title: 'コードレビュー却下',
+            message: `「${approval.config.task.title}」のコードレビューが却下されました${reason ? `: ${reason}` : ''}。変更は元に戻されました。`,
+            link: `/tasks/${approval.config.taskId}`,
+          },
+        });
+
+        return { success: true, reverted };
+      }
+
+      return { success: true };
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Optional(
+        t.Object(
+          {
+            reason: t.Optional(t.String({ maxLength: 2000 })),
+            expectedUpdatedAt: t.Optional(t.String({ maxLength: 64 })),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    },
+  );

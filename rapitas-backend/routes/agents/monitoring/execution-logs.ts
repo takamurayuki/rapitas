@@ -2,7 +2,7 @@
  * Execution Log File API Routes
  * AI agent execution log file access endpoints
  */
-import { Elysia, t } from 'elysia';
+import { Elysia } from 'elysia';
 import { readFile } from 'fs/promises';
 import {
   listExecutionLogFiles,

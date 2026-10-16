@@ -2,26 +2,71 @@ import type { NextConfig } from 'next';
 import path from 'path';
 
 const isTauriBuild = process.env.TAURI_BUILD === 'true';
-const disableTurbopack = process.env.NEXT_TURBO === '0';
+// `output: 'export'` is a BUILD-time concern (prepare-tauri-build.js copies the
+// `_placeholder` pages per id). Under `next dev` (NODE_ENV=development) it
+// makes Next 16 reject every dynamic-route request whose param is not in
+// generateStaticParams() — /tasks/905, /github/pull-requests/632,
+// /vocabulary/3 all 500'd with "missing param … required with output: export"
+// in the desktop dev harness (2026-09-13). Keep distDir on .next-tauri; only
+// the export mode is deferred to the real build.
+const isStaticExport = isTauriBuild && process.env.NODE_ENV !== 'development';
 const isCI = process.env.CI === 'true';
+const isRuntimePreview = process.env.RAPITAS_RUNTIME_PREVIEW === 'true';
+const runtimePort = Number(process.env.PORT);
+if (
+  isRuntimePreview &&
+  (isTauriBuild || !Number.isInteger(runtimePort) || runtimePort < 1024 || runtimePort > 65535)
+) {
+  throw new Error(
+    'Runtime preview requires a web server and an explicit PORT between 1024 and 65535.',
+  );
+}
 
+// NOTE: この config に webpack キー(splitChunks 等)を追加しないこと。Next 16 の Turbopack ビルドは
+// 「webpack 設定あり・turbopack 設定なし」を validateTurboNextConfig が検出すると process.exit(1) で
+// 強制失敗する(task #553 で実測)。バンドル予算は scripts/check-bundle-size.cjs の eager 限定判定で担保する。
 const nextConfig: NextConfig = {
+  // Runtime checks and local API links use the IPv4 loopback host. Next's
+  // default localhost allowlist otherwise rejects their dev WebSocket/font requests.
+  allowedDevOrigins: ['127.0.0.1'],
+
+  // The owned runtime launcher allocates PORT. Serve its API on that same
+  // loopback origin so preview ports need no permanent backend CORS grants.
+  // Only the explicit dev:runtime command enables this fixed local target.
+  ...(isRuntimePreview && {
+    env: { NEXT_PUBLIC_API_BASE_URL: `http://127.0.0.1:${runtimePort}/__rapitas_api` },
+    rewrites: async () => [
+      { source: '/__rapitas_api/:path*', destination: 'http://127.0.0.1:3001/:path*' },
+    ],
+  }),
+
   // ビルド出力ディレクトリを環境で分離
   // CI環境では標準の.nextを使用（静的エクスポートは常にoutディレクトリに出力される）
   distDir: !isCI && isTauriBuild ? '.next-tauri' : '.next',
 
   // Turbopackのルートディレクトリをモノレポルートに設定（警告抑制）
-  // CI環境でTurbopackが無効化されている場合はこの設定をスキップ
-  ...(disableTurbopack
-    ? {}
-    : {
-        turbopack: {
-          root: path.resolve(__dirname, '..'),
-        },
-      }),
+  // RAPITAS_TURBOPACK_ROOT: git worktree では node_modules が main チェックアウトへの
+  // ジャンクションで、実体パスが worktree ルート外になる。runtime-smoke の app-launcher が
+  // worktree と実体の共通祖先を算出してこの env に設定し、Turbopack の
+  // "points out of the filesystem root" 起動失敗を回避する（未設定時は従来通り）。
+  //
+  // NOTE: This root is declared UNCONDITIONALLY. It used to be skipped when
+  // `NEXT_TURBO=0`, on the premise that CI runs webpack — but Turbopack is the
+  // default bundler in Next 16 and that env var does not turn it off: the CI
+  // build logs print `▲ Next.js <version> (Turbopack)` with NEXT_TURBO=0 set
+  // (bundle-size.yml, pr-preview.yml and tauri-build.yml all set it). Skipping
+  // the key therefore left Turbopack on its default root of this directory, so
+  // `extends: "../tsconfig.base.json"` sat outside the root. Next 16.2 tolerated
+  // that; 16.4 fails the build with `doesn't resolve correctly` (task 1281).
+  // Do not re-gate this on NEXT_TURBO.
+  turbopack: {
+    root: process.env.RAPITAS_TURBOPACK_ROOT
+      ? path.resolve(process.env.RAPITAS_TURBOPACK_ROOT)
+      : path.resolve(__dirname, '..'),
+  },
 
-  // Tauri用の静的エクスポート設定
-  ...(isTauriBuild && {
+  // Tauri用の静的エクスポート設定（ビルド時のみ — 上記 isStaticExport 参照）
+  ...(isStaticExport && {
     output: 'export',
     // 静的エクスポート時はImage Optimizationを無効化
     images: {

@@ -1,5 +1,6 @@
 'use client';
 // HighlightSection
+import { useTranslations } from 'next-intl';
 import { Highlighter } from 'lucide-react';
 import { highlightColors, highlightStyles } from '../constants';
 
@@ -23,12 +24,14 @@ export function HighlightSection({
   onToggleColorPicker,
   onApplyHighlight,
 }: HighlightSectionProps) {
+  const t = useTranslations('notes');
   return (
     <div className="relative">
       <button
         onClick={onToggleColorPicker}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
-        title="ハイライト"
+        title={t('toolbar.highlight.highlightTitle')}
+        data-popup-trigger="1"
       >
         <Highlighter className="w-3.5 h-3.5" />
       </button>
@@ -38,14 +41,14 @@ export function HighlightSection({
           <div className="flex items-center gap-1 mb-2 p-0.5 bg-zinc-100 dark:bg-zinc-700 rounded-md">
             {highlightStyles.map((style, i) => (
               <button
-                key={style.name}
+                key={style.nameKey}
                 onClick={() => setHighlightStyleIndex(i)}
                 className={`flex-1 py-1 rounded text-xs font-medium transition-all ${
                   highlightStyleIndex === i
                     ? 'bg-white dark:bg-zinc-600 shadow-sm text-zinc-900 dark:text-zinc-50'
                     : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
                 }`}
-                title={style.name}
+                title={t(`editorColors.highlightStyle.${style.nameKey}`)}
               >
                 <span
                   style={{
@@ -79,7 +82,9 @@ export function HighlightSection({
                     borderRadius: '2px',
                   }}
                 >
-                  {color.name}サンプル
+                  {t('toolbar.highlight.colorSample', {
+                    name: t(`editorColors.highlight.${color.nameKey}`),
+                  })}
                 </span>
               </button>
             ))}

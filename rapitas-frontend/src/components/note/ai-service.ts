@@ -12,9 +12,26 @@ export type SendMessageOptions = {
 };
 
 /**
+ * Localized error strings for this module's fallback messages (used when the
+ * backend didn't send a specific error). This module has no hook access, so
+ * the caller (useAIChat) builds these from `useTranslations` and passes them in.
+ */
+export interface AIServiceMessages {
+  /** Fallback error text when a non-OK response carries no `error` field. */
+  apiError: (status: number, statusText: string) => string;
+  /** Fallback error text for a thrown/network error with no message. */
+  communicationError: string;
+  /** Error text when the stream response body can't be read. */
+  streamUnavailable: string;
+}
+
+/**
  * AIにメッセージを送信し、応答を取得する（マルチプロバイダー対応）
  */
-export async function sendMessageToAI(options: SendMessageOptions): Promise<AIServiceResponse> {
+export async function sendMessageToAI(
+  options: SendMessageOptions,
+  messages: AIServiceMessages,
+): Promise<AIServiceResponse> {
   const { message, conversationHistory = [], systemPrompt, provider, model } = options;
 
   try {
@@ -37,7 +54,7 @@ export async function sendMessageToAI(options: SendMessageOptions): Promise<AISe
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `APIエラー: ${response.status} ${response.statusText}`);
+      throw new Error(errorData.error || messages.apiError(response.status, response.statusText));
     }
 
     const data = await response.json();
@@ -49,7 +66,7 @@ export async function sendMessageToAI(options: SendMessageOptions): Promise<AISe
     logger.error('AI API Error:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'AIとの通信中にエラーが発生しました',
+      error: error instanceof Error ? error.message : messages.communicationError,
     };
   }
 }
@@ -62,6 +79,7 @@ export async function sendMessageToAIStream(
   onChunk: (chunk: string) => void,
   onComplete: () => void,
   onError: (error: string) => void,
+  messages: AIServiceMessages,
 ): Promise<void> {
   const { message, conversationHistory = [], systemPrompt, provider, model } = options;
 
@@ -85,12 +103,12 @@ export async function sendMessageToAIStream(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `APIエラー: ${response.status} ${response.statusText}`);
+      throw new Error(errorData.error || messages.apiError(response.status, response.statusText));
     }
 
     const reader = response.body?.getReader();
     if (!reader) {
-      throw new Error('レスポンスストリームを取得できませんでした');
+      throw new Error(messages.streamUnavailable);
     }
 
     const decoder = new TextDecoder();
@@ -130,7 +148,7 @@ export async function sendMessageToAIStream(
     onComplete();
   } catch (error) {
     logger.error('AI Stream Error:', error);
-    onError(error instanceof Error ? error.message : 'AIとの通信中にエラーが発生しました');
+    onError(error instanceof Error ? error.message : messages.communicationError);
   }
 }
 

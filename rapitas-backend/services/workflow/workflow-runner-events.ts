@@ -8,17 +8,25 @@
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { realtimeService } from '../communication/realtime-service';
+import { logCycleEvent } from '../observability';
 import type { RunnerStatus } from './workflow-runner';
 
 const log = createLogger('workflow-runner');
 
+// Labels reflect the phase ACTUALLY running at each status (see buildTransitions):
+// the implementer runs at plan_approved (→ in_progress), the verifier runs at
+// in_progress (→ verify_done). So plan_approved = 実装中 and in_progress = 検証中
+// — keeping these in sync with the frontend status badge so the live transition
+// log doesn't say 実装中 while the task is actually verifying.
 const PHASE_LABELS: Record<string, string> = {
-  draft: '初期化',
-  research_done: '調査完了',
-  plan_created: '計画作成',
-  plan_approved: '計画承認',
-  in_progress: '実装中',
+  draft: '調査中',
+  research_done: '計画中',
+  plan_created: '計画作成済',
+  plan_approved: '実装中',
+  in_progress: '検証中',
   verify_done: '検証完了',
+  awaiting_question: '回答待ち',
+  blocked: 'ブロック中',
   completed: '完了',
   advancing: '次フェーズへ進行中',
 };
@@ -60,6 +68,21 @@ export async function logPhaseTransition(
       newLabel: PHASE_LABELS[newPhase] || newPhase,
       timestamp: new Date().toISOString(),
     });
+
+    // Skip the AI cycle log for the synthetic 'advancing' pseudo-phase (the
+    // runner emits previousPhase→'advancing' on EVERY poll tick before a phase
+    // runs) and for no-op transitions (previousPhase===newPhase). Both are
+    // poll-rate noise that otherwise drowns every real lifecycle event in the
+    // cycle stream. The human UI trail (ActivityLog + broadcast above) still
+    // records them, so the UI is unaffected.
+    if (newPhase !== 'advancing' && previousPhase !== newPhase) {
+      logCycleEvent('phase.transition', {
+        task: taskId,
+        from: previousPhase,
+        to: newPhase,
+        msg: `${PHASE_LABELS[previousPhase] || previousPhase} → ${PHASE_LABELS[newPhase] || newPhase}`,
+      });
+    }
   } catch (error) {
     log.warn({ err: error }, `[WorkflowRunner] Failed to log phase transition for task ${taskId}`);
   }

@@ -1,0 +1,31 @@
+{
+  "search": {
+    "title": "Search",
+    "placeholder": "Enter search keywords...",
+    "noResults": "No results found",
+    "resultCount": "{count} results",
+    "filterAll": "All",
+    "filterTask": "Tasks",
+    "filterComment": "Comments",
+    "filterResource": "Resources",
+    "searchResultsFor": "Search results for \"{query}\": {total} items",
+    "noMatchResults": "No results found for \"{query}\"",
+    "tryDifferentKeyword": "Try searching with different keywords",
+    "enterKeywordToSearch": "Enter a keyword to start searching",
+    "missPanel": {
+      "heading": "Frequently searched keywords with no results",
+      "hitCount": "{count} times",
+      "creating": "Creating…",
+      "createTask": "Create task"
+    },
+    "filterPanel": {
+      "typeHeading": "Type",
+      "statusHeading": "Status",
+      "typeNote": "Note",
+      "statusActive": "In progress"
+    },
+    "historyHeading": "Recent searches",
+    "relevanceLabel": "Relevance {relevance}%",
+    "searching": "Searching..."
+  }
+}

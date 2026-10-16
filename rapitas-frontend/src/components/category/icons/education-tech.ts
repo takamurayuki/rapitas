@@ -63,24 +63,75 @@ import type { IconInfo } from '../icon-registry';
 /** Icon entries for Education & Learning and Technology & Devices. */
 export const EDUCATION_TECH_ICONS: Record<string, IconInfo> = {
   // Education & Learning
-  Book: { component: Book, keywords: ['本', 'ブック', '読書', '学習', '知識'] },
-  BookOpen: { component: BookOpen, keywords: ['本', '開く', '読書中', '学習'] },
+  Book: {
+    component: Book,
+    keywords: [
+      '本',
+      'ブック',
+      '読書',
+      '学習',
+      '知識',
+      '勉強',
+      '語学',
+      '資格',
+      'スキル',
+      '参考書',
+      '書籍',
+    ],
+  },
+  BookOpen: {
+    component: BookOpen,
+    keywords: ['本', '開く', '読書中', '学習', '勉強中', '勉強', '読む'],
+  },
   BookMarked: {
     component: BookMarked,
     keywords: ['本', 'しおり', '読みかけ', '保存'],
   },
   Library: {
     component: Library,
-    keywords: ['図書館', 'ライブラリ', '書庫', '本棚'],
+    keywords: [
+      '図書館',
+      'ライブラリ',
+      '書庫',
+      '本棚',
+      '知識ベース',
+      '資料',
+      'リファレンス',
+      'ナレッジベース',
+    ],
   },
   GraduationCap: {
     component: GraduationCap,
-    keywords: ['卒業', '学生', '大学', '学習', '教育', '帽子'],
+    keywords: [
+      '卒業',
+      '学生',
+      '大学',
+      '学習',
+      '教育',
+      '帽子',
+      '勉強',
+      '資格取得',
+      'スキルアップ',
+      '試験',
+      '受験',
+      '合格',
+    ],
   },
   School: { component: School, keywords: ['学校', '教育', 'スクール', '校舎'] },
   Pencil: {
     component: Pencil,
-    keywords: ['鉛筆', 'ペンシル', '書く', '編集', 'メモ'],
+    keywords: [
+      '鉛筆',
+      'ペンシル',
+      '書く',
+      '編集',
+      'メモ',
+      '勉強',
+      '記録',
+      'ノート',
+      '日記',
+      'メモ取り',
+    ],
   },
   PencilLine: {
     component: PencilLine,
@@ -94,7 +145,7 @@ export const EDUCATION_TECH_ICONS: Record<string, IconInfo> = {
   },
   NotebookPen: {
     component: NotebookPen,
-    keywords: ['ノート', 'メモ', '記録', '書く'],
+    keywords: ['ノート', 'メモ', '記録', '書く', '日記', '手帳', '勉強', '振り返り', 'ジャーナル'],
   },
   FileEdit: {
     component: FileEdit,

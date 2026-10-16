@@ -21,6 +21,7 @@ export function useHomeState() {
     null,
   );
   const [priorityFilter, setPriorityFilter] = useState<Priority | null>(null);
+  const [labelFilter, setLabelFilter] = useState<number | null>(null);
   const [isFilterExpanded, setIsFilterExpanded] = useLocalStorageState<boolean>(
     'isFilterExpanded',
     false,
@@ -37,10 +38,6 @@ export function useHomeState() {
   // --- Task panel state ---
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-
-  // --- Quick-add state ---
-  const [isQuickAdding, setIsQuickAdding] = useState(false);
-  const [quickTaskTitle, setQuickTaskTitle] = useState('');
 
   // --- Bulk selection state ---
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
@@ -59,6 +56,8 @@ export function useHomeState() {
     setThemeFilter,
     priorityFilter,
     setPriorityFilter,
+    labelFilter,
+    setLabelFilter,
     isFilterExpanded,
     setIsFilterExpanded,
 
@@ -79,12 +78,6 @@ export function useHomeState() {
     setSelectedTaskId,
     isPanelOpen,
     setIsPanelOpen,
-
-    // Quick-add
-    isQuickAdding,
-    setIsQuickAdding,
-    quickTaskTitle,
-    setQuickTaskTitle,
 
     // Bulk selection
     selectedTasks,

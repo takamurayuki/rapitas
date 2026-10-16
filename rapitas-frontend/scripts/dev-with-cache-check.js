@@ -19,8 +19,21 @@ const PACKAGE_JSON = path.join(ROOT, 'package.json');
 const HASH_FILE = path.join(ROOT, 'node_modules', '.cache', '.deps-hash');
 
 /**
- * Calculate hash of dependency files
+ * Calculate hash of dependency files + inlined build-time env vars.
+ *
+ * NEXT_PUBLIC_* values get baked into compiled chunks at build time, but
+ * Turbopack's persistent dev cache (.next/dev/cache/turbopack/) is keyed on
+ * SOURCE content, not on these env vars — so when the parent process (e.g.
+ * rapitas-desktop's dev.js, which injects NEXT_PUBLIC_API_BASE_URL) changes
+ * one of these values without touching any source file, a plain restart
+ * silently keeps serving the OLD baked-in value from cache. This bit us
+ * directly: dev.js switched NEXT_PUBLIC_API_BASE_URL between 127.0.0.1 and
+ * localhost, the app was fully restarted, and the browser kept using the
+ * stale host for a long time after. Folding these vars into the hash makes a
+ * value change look like a dependency change, forcing the cache clear below.
  */
+const INLINED_ENV_VARS = ['NEXT_PUBLIC_API_BASE_URL'];
+
 function calculateDepsHash() {
   const lockContent = fs.existsSync(LOCK_FILE)
     ? fs.readFileSync(LOCK_FILE, 'utf8')
@@ -28,10 +41,13 @@ function calculateDepsHash() {
   const pkgContent = fs.existsSync(PACKAGE_JSON)
     ? fs.readFileSync(PACKAGE_JSON, 'utf8')
     : '';
+  const envContent = INLINED_ENV_VARS.map((name) => `${name}=${process.env[name] || ''}`).join(
+    '\n',
+  );
 
   return crypto
     .createHash('sha256')
-    .update(lockContent + pkgContent)
+    .update(lockContent + pkgContent + envContent)
     .digest('hex');
 }
 

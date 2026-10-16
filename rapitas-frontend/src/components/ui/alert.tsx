@@ -14,8 +14,10 @@ export const Alert = React.forwardRef<HTMLDivElement, AlertProps>(
         'border-red-200 bg-red-50 text-red-900 dark:border-red-700 dark:bg-red-900/10 dark:text-red-400',
       success:
         'border-green-200 bg-green-50 text-green-900 dark:border-green-700 dark:bg-green-900/10 dark:text-green-400',
+      // NOTE: warning uses AMBER — the app-wide warning hue (StatusCard /
+      // WorkflowStatusIndicator both use amber). This was the only yellow.
       warning:
-        'border-yellow-200 bg-yellow-50 text-yellow-900 dark:border-yellow-700 dark:bg-yellow-900/10 dark:text-yellow-400',
+        'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-900/10 dark:text-amber-400',
     };
 
     return (

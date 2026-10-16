@@ -7,6 +7,7 @@
  */
 import { timingSafeEqual } from 'crypto';
 import { createLogger } from '../config/logger';
+import { HTTP_STATUS } from '../utils/common/http-status';
 
 const log = createLogger('local-auth');
 
@@ -91,8 +92,90 @@ export function createApiTokenGuard():
     }
 
     return new Response(JSON.stringify({ error: 'Unauthorized: missing or invalid API token' }), {
-      status: 401,
+      status: HTTP_STATUS.UNAUTHORIZED,
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
     });
+  };
+}
+
+// State-changing methods that a cross-site page could trigger against the
+// loopback API. GET/HEAD are exempt (reads; and the token guard still applies
+// when configured).
+const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+// Origins the app itself is allowed to send state-changing requests from.
+// Mirrors index.ts's cors() origin allowlist (CORS_ORIGIN when set, otherwise
+// the frontend dev server / Tauri webview defaults) so the Origin fallback
+// below never blocks legitimate app traffic.
+function resolveAllowedOrigins(): Set<string> {
+  const configured = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim());
+  return new Set(
+    configured && configured.length > 0
+      ? configured
+      : ['http://localhost:3000', 'http://127.0.0.1:3000', 'tauri://localhost'],
+  );
+}
+
+/**
+ * Cross-site request guard (CSRF backstop for the default tokenless deployment).
+ *
+ * The backend binds to loopback with no user auth, so ANY web page the user has
+ * open can POST to http://127.0.0.1:3001 — a classic drive-by-localhost CSRF
+ * vector (CORS restricts who can READ the response, not who can SEND a
+ * state-changing request). Browsers label such requests `Sec-Fetch-Site:
+ * cross-site`; we reject state-changing methods carrying that label. Same-origin
+ * / same-site / none (direct navigation) and non-browser clients that omit the
+ * header (Tauri IPC, curl, EventSource) pass through, so app traffic is
+ * unaffected. Runs unconditionally, independent of RAPITAS_API_TOKEN.
+ *
+ * NOTE(security): Some non-browser HTTP clients (older WebViews, some
+ * fetch polyfills) send an `Origin` header but no `Sec-Fetch-Site` at all,
+ * which would otherwise slip past the check above. As defense in depth, when
+ * Sec-Fetch-Site is absent AND an Origin header IS present, that Origin must
+ * be in the allowed set (same set index.ts's cors() trusts) or the request is
+ * blocked. Requests with neither header (Tauri IPC, curl, server-to-server,
+ * EventSource) are not the CSRF threat model (a browser tab can't forge them
+ * without also sending Sec-Fetch-Site or Origin) and still pass through.
+ *
+ * @returns onRequest handler that blocks cross-site writes. / クロスサイト書き込みを拒否
+ */
+export function createCrossSiteGuard(): (ctx: { request: Request }) => Response | undefined {
+  const allowedOrigins = resolveAllowedOrigins();
+
+  return ({ request }) => {
+    if (!STATE_CHANGING_METHODS.has(request.method)) return undefined;
+
+    const block = (reason: string): Response => {
+      log.warn(
+        `Blocked cross-site ${request.method} to ${new URL(request.url).pathname} (${reason})`,
+      );
+      return new Response(JSON.stringify({ error: 'Cross-site request blocked' }), {
+        status: HTTP_STATUS.FORBIDDEN,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    };
+
+    const site = request.headers.get('sec-fetch-site');
+    if (site === 'cross-site') {
+      // NOTE: localhost:3000 → 127.0.0.1:3001 is "cross-site" by registrable
+      // domain although both are loopback. The frontend targets 127.0.0.1 on
+      // purpose: a `localhost` target paid a ~200-300ms IPv6 happy-eyeballs
+      // fallback on EVERY request because Windows silently drops [::1]:3001
+      // SYNs (measured 2026-09-06: 210ms vs 1ms connect). An allow-listed
+      // Origin is therefore accepted here — safe, because a browser never lets
+      // a page forge Origin, so a drive-by site still carries its own origin
+      // and is blocked. Cross-site WITHOUT Origin stays blocked: nothing
+      // browser-vouched identifies the sender.
+      const origin = request.headers.get('origin');
+      if (origin && allowedOrigins.has(origin)) return undefined;
+      return block(`sec-fetch-site: cross-site, origin: ${origin ?? '(none)'}`);
+    }
+    if (!site) {
+      const origin = request.headers.get('origin');
+      if (origin && !allowedOrigins.has(origin)) {
+        return block(`no sec-fetch-site, disallowed origin: ${origin}`);
+      }
+    }
+    return undefined;
   };
 }

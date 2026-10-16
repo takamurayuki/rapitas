@@ -1,10 +1,12 @@
 'use client';
 // OfflineIndicator
-import { useEffect, useState } from 'react';
-import { WifiOff, CloudOff, Loader2 } from 'lucide-react';
+import { WifiOff, CloudOff } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useOfflineQueue } from '@/hooks/common/useOfflineQueue';
+import { Spinner } from '@/components/ui/spinner';
 
 export function OfflineIndicator() {
+  const t = useTranslations('common');
   // NOTE: useOfflineQueue spreads status fields to the top level (not nested).
   // On SSR / initial hydration, IndexedDB is unavailable, so fields may be
   // undefined until the first client-side effect runs. Default to safe values.
@@ -39,21 +41,25 @@ export function OfflineIndicator() {
       }}
       title={
         !isOnline
-          ? 'オフライン中。変更はローカルに保存されています。'
+          ? t('offlineIndicator.offlineTitle')
           : isSyncing
-            ? '同期中...'
-            : `${pendingCount}件の変更が同期待ちです。タップで同期。`
+            ? t('offlineIndicator.syncing')
+            : t('offlineIndicator.pendingTitle', { count: pendingCount })
       }
     >
       {!isOnline ? (
         <WifiOff className="h-3.5 w-3.5" />
       ) : isSyncing ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <Spinner size="sm" className="text-white dark:text-white" />
       ) : (
         <CloudOff className="h-3.5 w-3.5" />
       )}
       <span>
-        {!isOnline ? 'オフライン' : isSyncing ? '同期中...' : `${pendingCount}件 同期待ち`}
+        {!isOnline
+          ? t('offlineIndicator.offlineLabel')
+          : isSyncing
+            ? t('offlineIndicator.syncing')
+            : t('offlineIndicator.pendingLabel', { count: pendingCount })}
       </span>
     </button>
   );

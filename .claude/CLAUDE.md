@@ -31,6 +31,12 @@ When rules conflict, follow this order:
 - **git worktree に入ったら、コードを触る前に必ず `node scripts/setup-worktree.cjs` を実行する。**
   これでメインの `node_modules`・Prisma 生成物・`.env` が worktree から使えるようになる。スクリプトは冪等で `--check` モードあり。詳細ルールは `AGENTS.md` の「git worktree 運用ルール」を参照。
 
+- **`origin/*` を含む git の ref/オブジェクトは worktree からメインチェックアウトと共有済みであり、他ブランチの調査・比較・マージ可否確認のためにメインチェックアウトへ `cd` する必要は一切ない。**
+  primary へ `cd` する行為自体が `scripts/primary-guard-hook.cjs` の禁止操作（primary_mutation）に該当しうる。比較コマンドは worktree 内から `origin/<branch>` を直接指定して実行する。
+
+- **primary や兄弟 worktree の絶対パス（`/c/Projects/<repo>/...`、`C:\Projects\<repo>\...`）を `cat` / `grep` / `ls` / `git -C` に渡さない。読み取りでも primary_mutation として拒否される。**
+  cwd が既に task 専用 worktree なので、検索・参照は cwd 相対パスで行う。環境確認は `node -v` 等と参照系を `;` で連結せず、`git branch --show-current` / `git status` を cwd で個別に実行する。他ブランチの内容は `git show origin/<branch>:<path>` で読む。`cd <primary>/... 2>/dev/null; cd <worktree>` のように primary を先に試して失敗時に worktree へ落とす連鎖も、先頭の `cd` の時点で拒否される。サブディレクトリが要るなら cwd からの相対 `cd rapitas-backend` か、cwd のまま相対パスで実行する。拒否されたら回避策を探さず、cwd 相対で再実施するか報告して停止する。
+
 ---
 
 ## 2. ARCHITECTURE
@@ -56,9 +62,9 @@ Automatically handles on each start:
 
 ### Hard rules
 
-- No `any` type in TypeScript. If unavoidable, add `// HACK(agent): reason`.
+- No `any` type in TypeScript — machine-enforced: `@typescript-eslint/no-explicit-any` is an **error** in prod code (eslint-shared.mjs; `.d.ts` and test files exempt). If unavoidable, add `// HACK(agent): reason` AND the matching `// eslint-disable-next-line @typescript-eslint/no-explicit-any` directive.
 - File size limit: 300–500 lines. Split before adding to an oversized file.
-- Test coverage: ≥ 80% for all new code.
+- Test coverage: new code should ship with tests. **≥ 80% is the long-term target, not an immediate gate** — coverage is raised via the staged ratchet in [ADR-0002](../docs/adr/0002-coverage-gate-staging.md); the enforced floor lives in `rapitas-frontend/vitest.config.ts`. Do not claim 80% is met today; it is not.
 - All public functions require JSDoc/rustdoc. (See COMMENT_POLICY.md)
 
 ### Naming conventions
@@ -91,41 +97,59 @@ Language: English only. Use imperative mood ("Add", not "Added").
 
 ## 4. WORKFLOW
 
-### File structure
+> **IMPORTANT — orchestrator-driven, single-phase execution.**
+> When the workflow system / auto-run dispatches you, your task prompt names a
+> **role** (researcher / planner / implementer / verifier). You execute **exactly
+> that ONE phase, then stop.** The orchestrator advances the workflow between agent
+> runs — **do NOT walk through the steps below yourself** (e.g. don't create
+> `plan.md` when you were dispatched to implement).
+>
+> **The complexity-based MODE decides which phases exist:**
+>
+> - **lightweight** (low complexity): research → **implement** → verify. **NO plan phase.**
+> - **standard / comprehensive**: research → plan → (approval) → implement → verify.
+>
+> So if you are the **implementer** and there is no `plan.md`, this is a lightweight
+> task: **implement directly from `research.md` — do NOT create a `plan.md`.** "Step
+> 2 — Plan" below applies ONLY to standard/comprehensive tasks. The step-by-step
+> below documents the FULL (comprehensive) workflow; skip the steps your phase or
+> mode does not include.
 
-```
-rapitas-backend/tasks/
-└── [categoryId]/
-    └── [themeId]/
-        └── [taskId]/
-            ├── research.md
-            ├── question.md   (optional)
-            ├── plan.md
-            └── verify.md
-```
+### Artifact storage
 
-If categoryId or themeId is unset, use `0`.
+research.md / question.md (optional) / plan.md / verify.md are **not files on
+disk** — each is one row in the `WorkflowFile` table (`taskId` + `fileType` +
+`content`), written and read exclusively through the Workflow API below.
+Overwriting or archiving one moves its prior content into `WorkflowFileVersion`
+instead of a `_archive/<timestamp>/` folder. Never assume or construct a
+filesystem path for these artifacts.
 
 ### Workflow API (use exclusively — never write files directly)
 
 ```bash
 # Save a workflow file
-curl -X PUT http://localhost:3001/workflow/tasks/{taskId}/files/{fileType} \
+curl -X PUT http://127.0.0.1:3001/workflow/tasks/{taskId}/files/{fileType} \
   -H 'Content-Type: application/json' \
   -d '{"content":"..."}'
 
 # fileType: research | question | plan | verify
 
 # Read all workflow files
-curl http://localhost:3001/workflow/tasks/{taskId}/files
+curl http://127.0.0.1:3001/workflow/tasks/{taskId}/files
+
+# Read ONE workflow file (same URL shape as the PUT above)
+curl http://127.0.0.1:3001/workflow/tasks/{taskId}/files/{fileType}
+# Returns 200 with {"type":"research","exists":false} when the task has no such
+# artifact — a 404 here means the TASK is missing, never the artifact. Do not
+# treat a failed read as proof an artifact was never written; check `exists`.
 
 # Approve / reject plan
-curl -X POST http://localhost:3001/workflow/tasks/{taskId}/approve-plan \
+curl -X POST http://127.0.0.1:3001/workflow/tasks/{taskId}/approve-plan \
   -H 'Content-Type: application/json' \
   -d '{"approved": true}'
 
 # Update status manually
-curl -X PUT http://localhost:3001/workflow/tasks/{taskId}/status \
+curl -X PUT http://127.0.0.1:3001/workflow/tasks/{taskId}/status \
   -H 'Content-Type: application/json' \
   -d '{"status": "in_progress"}'
 ```
@@ -167,8 +191,13 @@ Resume only after the user answers.
 - For scope decisions: `options: ["A: 最小限の変更", "B: 標準的なリファクタリング", "C: 包括的な再設計"]`
 - For approach decisions: `options: ["方法A: (具体的な説明)", "方法B: (具体的な説明)"]`
 - When multiple independent questions exist, ask them as separate AskUserQuestion calls with individual option sets.
+- When saving the machine-readable `json:options` block in question.md (see the Workflow API's question-format guidance), each question MUST also set `recommended` (the `key` of the option you would pick) and `recommendedReason` (1-2 sentences citing a plan.md section, a measurement, or a test result — not a generic claim). If you cannot judge, do not omit these fields — set `freeTextRequired: true` and state why in `freeTextReason` instead.
 
 #### Step 2 — Plan (`plan.md`)
+
+> **Standard/comprehensive mode only — SKIPPED in lightweight mode.** Only run this
+> step when dispatched as the `planner`. If you are the implementer (lightweight
+> task, no `plan.md`), skip straight to Step 4 and implement from `research.md`.
 
 Save a checklist-based plan. Status auto-transitions to `plan_created`.
 
@@ -182,6 +211,8 @@ Required sections:
 **After saving plan.md — STOP. Do not implement until the user approves.**
 
 #### Step 2.5 — Subtask Splitting (automatic when plan is large)
+
+> **この手順は `RAPITAS_ENABLE_SUBTASK_SPLIT` が有効な場合のみ適用されます。無効時（既定）は分割せず、単一タスクとして計画してください。**
 
 When the plan meets **any** of the following thresholds, split into subtasks:
 
@@ -204,24 +235,24 @@ When the plan meets **any** of the following thresholds, split into subtasks:
 
 ```bash
 # Register subtasks via API (parent taskId = current task)
-curl -X POST http://localhost:3001/tasks \
+curl -X POST http://127.0.0.1:3001/tasks \
   -H 'Content-Type: application/json' \
   -d '{"title":"<subtask title>","parentId":<parentTaskId>,"description":"<scope>"}'
 ```
 
-**Subtask workflow directory:**
+**Subtask layout** (research.md/plan.md/verify.md are `WorkflowFile` DB rows —
+see "Artifact storage" above, not real paths; `subtasks/{n}/instruction.md`
+below is illustrative of the per-subtask instruction content, not a literal
+directory):
 
 ```
-tasks/{categoryId}/{themeId}/{taskId}/
-├── research.md
-├── plan.md
-├── subtasks/
-│   ├── 1/
-│   │   └── instruction.md   # Execution instruction for agent
-│   ├── 2/
-│   │   └── instruction.md
-│   └── ...
-└── verify.md                # Final integration verification (covers ALL subtasks)
+[parent task]
+├── research.md               (DB)
+├── plan.md                   (DB)
+├── subtask 1 → instruction.md   # Execution instruction for agent
+├── subtask 2 → instruction.md
+├── ...
+└── verify.md                 (DB) — final integration verification (covers ALL subtasks)
 ```
 
 **instruction.md format (for each subtask):**
@@ -265,9 +296,35 @@ Only then begin implementation.
 
 #### Step 4 — Implementation (with safeguards)
 
+**TDD is required for every task**, except docs-only / config-only /
+dependency-bump-only changes (see `looksLikeTrivialTask` in
+`automated-verifier.ts`). Write the test FIRST, confirm it fails for the
+right reason (RED), then implement until it passes (GREEN) — a test added
+after the fact that would pass with or without your change does not satisfy
+this. Bug-fix tasks specifically must have their test reproduce the reported
+defect, not just cover the touched code path.
+
+This is enforced automatically by the verification gate, not just asked for
+in prose — do not treat it as optional:
+
+- **coverage** (hard gate): at least one changed file matches a test-file
+  pattern, whenever the task requires tests (`requiresTestsForTask`).
+- **red-state** (hard gate, `red-state-check.ts`): your changed test file(s),
+  run with their CURRENT content against the diff's BASE commit (before your
+  source changes) in a disposable worktree. If they still pass without your
+  fix, the gate fails — the test isn't proving new behavior, and self-repair
+  will bounce it back to you. (This check fails OPEN on any infrastructure
+  error — a transient git/worktree problem never blocks a legitimately good
+  change; only a confirmed "passed without the fix" is a real failure.)
+
+The implementer prompt already carries this protocol
+(`workflow-implementer-context.ts`'s `buildTddProtocolSection`) — follow the
+instructions it gives you rather than re-deriving this from scratch.
+
 **Stop and report immediately if any of the following occur:**
 
-- A file not listed in plan.md needs to be changed
+- A **protected** file not listed in plan.md needs to be changed — `services/agents/verification/`, `services/workflow/{completion-gate,phase-output-validator,verify-self-repair,phase-critic}*`, `.github/workflows/`, `.husky/`, `scripts/{pre-commit-check,auto-fix-commit,primary-guard-hook}*`. Touching these outside the plan is a HARD gate failure (anti-tampering tripwire).
+  For any **other** file outside plan.md: do not stop. The plan-scope check is ADVISORY (demoted in task 298) — make the change, and record the file and the reason in verify.md's changed-files table.
 - A test fails and self-correction has failed 3 times
 - A new design decision is required mid-implementation
 
@@ -277,7 +334,7 @@ Commit in logical units. Run tests after each unit.
 
 Save after implementation is complete. Required sections:
 
-- Changed files (new / modified, with line delta)
+- Changed files table: File | Kind (new/modified) | What changed & why, one line (no line counts / diff deltas)
 - Test results (unit / integration / E2E pass/fail counts)
 - Plan checklist completion status and percentage
 - Unresolved concerns (or "None")

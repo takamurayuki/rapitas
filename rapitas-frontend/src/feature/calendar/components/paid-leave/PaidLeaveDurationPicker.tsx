@@ -2,6 +2,8 @@
 // PaidLeaveDurationPicker
 
 import { Clock, CalendarDays } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import DateField from '@/components/ui/date-field/DateField';
 
 type PaidLeaveDurationPickerProps = {
   isAllDay: boolean;
@@ -42,6 +44,8 @@ export function PaidLeaveDurationPicker({
   onMorningHalfDay,
   onAfternoonHalfDay,
 }: PaidLeaveDurationPickerProps) {
+  const t = useTranslations('calendar');
+  const tp = useTranslations('calendar.paidLeaveDurationPicker');
   return (
     <div className="mt-4 space-y-3">
       {/* Duration type toggles */}
@@ -55,7 +59,7 @@ export function PaidLeaveDurationPicker({
               : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'
           }`}
         >
-          終日
+          {t('allDay')}
         </button>
         <button
           type="button"
@@ -67,7 +71,7 @@ export function PaidLeaveDurationPicker({
           }`}
         >
           <Clock className="w-3.5 h-3.5" />
-          半日
+          {tp('halfDay')}
         </button>
         <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-600" />
         <button
@@ -80,7 +84,7 @@ export function PaidLeaveDurationPicker({
           }`}
         >
           <CalendarDays className="w-3.5 h-3.5" />
-          複数日
+          {t('legendMultiDay')}
         </button>
       </div>
 
@@ -88,23 +92,27 @@ export function PaidLeaveDurationPicker({
       {isMultiDay && (
         <div className="flex items-center gap-2">
           <div className="flex-1">
-            <label className="block text-xs text-zinc-400 dark:text-zinc-500 mb-1">開始日</label>
-            <input
-              type="date"
+            <label className="block text-xs text-zinc-500 dark:text-zinc-500 mb-1">
+              {t('startDate')}
+            </label>
+            <DateField
               value={startDate}
-              onChange={(e) => onStartDateChange(e.target.value)}
-              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
+              onChange={onStartDateChange}
+              aria-label={t('startDate')}
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400 text-sm transition-all"
             />
           </div>
           <div className="w-5 h-px bg-zinc-300 dark:bg-zinc-600 shrink-0 mt-5" />
           <div className="flex-1">
-            <label className="block text-xs text-zinc-400 dark:text-zinc-500 mb-1">終了日</label>
-            <input
-              type="date"
+            <label className="block text-xs text-zinc-500 dark:text-zinc-500 mb-1">
+              {t('endDate')}
+            </label>
+            <DateField
               value={endDate}
               min={startDate}
-              onChange={(e) => onEndDateChange(e.target.value)}
-              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
+              onChange={onEndDateChange}
+              aria-label={t('endDate')}
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400 text-sm transition-all"
             />
           </div>
         </div>
@@ -113,7 +121,7 @@ export function PaidLeaveDurationPicker({
       {/* Half-day time selection — only for single day */}
       {isHalfDay && !isMultiDay && (
         <div className="space-y-2">
-          <p className="text-xs text-zinc-400 dark:text-zinc-500">半日休暇の時間</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-500">{tp('halfDayTimeLabel')}</p>
           <div className="flex gap-2">
             <button
               type="button"
@@ -124,7 +132,7 @@ export function PaidLeaveDurationPicker({
                   : 'bg-zinc-50 dark:bg-zinc-700/50 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
               }`}
             >
-              午前 (9:00-13:00)
+              {tp('morningRange')}
             </button>
             <button
               type="button"
@@ -135,7 +143,7 @@ export function PaidLeaveDurationPicker({
                   : 'bg-zinc-50 dark:bg-zinc-700/50 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
               }`}
             >
-              午後 (13:00-17:00)
+              {tp('afternoonRange')}
             </button>
           </div>
         </div>

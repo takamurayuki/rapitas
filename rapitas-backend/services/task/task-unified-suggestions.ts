@@ -5,7 +5,7 @@
  * knowledge-based), deduplicates by title similarity, and returns a
  * ranked list with source attribution and confidence scores.
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
 import { getFrequencyBasedSuggestions } from './task-frequency-suggestions';
 import { getKnowledgeBasedSuggestions } from './task-knowledge-suggestions';

@@ -15,7 +15,8 @@ export { runConsolidation, getConsolidationRuns } from './consolidation';
 export { runForgettingSweep, boostDecayOnAccess } from './forgetting';
 export { distillFromExecution } from './distillation';
 export { triggerReconsolidation } from './reconsolidation';
-export { validateEntry } from './validation';
+export { validateEntry, revalidatePendingBacklog } from './validation';
+export { drainStaleConflicts, revalidateStaleConflicts } from './contradiction-sweep';
 export {
   detectContradictions,
   resolveContradiction,
@@ -33,6 +34,10 @@ export {
 } from './rag/vector-index';
 export { vectorSearch, searchKnowledge } from './rag/search';
 export { buildRAGContext, buildTaskRAGContext } from './rag/context-builder';
+export { searchKnowledgeHybrid } from './recall/hybrid-search';
+
+// Stats (moved out of this file to keep it under the size limit)
+export { getKnowledgeStats } from './knowledge-stats';
 
 // Utils
 export { createContentHash, cosineSimilarity } from './utils';
@@ -47,10 +52,14 @@ import { upsertEmbedding, deleteEmbedding } from './rag/vector-index';
 import { validateEntry } from './validation';
 import { detectContradictions } from './contradiction';
 import { runConsolidation } from './consolidation';
-import { runForgettingSweep } from './forgetting';
+import { runForgettingSweep, boostDecayOnAccess } from './forgetting';
 import { distillFromExecution } from './distillation';
-import { createContentHash } from './utils';
+import { findSemanticDuplicate, findLexicalDuplicate } from './dedup';
+import { runReindexBatch, maybeEnqueueReindex } from './rag/reindex';
+import { invalidateLexicalIndex } from './recall/lexical-index';
+import { createContentHash, parseTagsAsStrings } from './utils';
 import { appendEvent } from './timeline';
+import { getInsensitiveMode } from '../../config/db-provider';
 import type {
   CreateKnowledgeEntryInput,
   UpdateKnowledgeEntryInput,
@@ -72,11 +81,32 @@ export async function initializeMemorySystem(): Promise<void> {
     log.info({ recovered }, 'Journal entries recovered');
   }
 
+  // 1.5. Reap `processing` rows orphaned by a prior restart/crash, before this
+  // process's own worker ever runs processNext() — every matching row is
+  // unambiguously stale at this point.
+  const reaped = await memoryTaskQueue.reapStuckProcessing();
+  if (reaped.reapedToPending + reaped.reapedToDeadLetter > 0) {
+    log.info(reaped, 'Stuck memory task queue rows reaped on startup');
+  }
+
   // 2. Register task handlers
   memoryTaskQueue.registerHandler('embed', async (payload) => {
-    const { entryId, content } = payload as { entryId: number; content: string };
-    const { embedding } = await generateEmbedding(content);
-    upsertEmbedding(entryId, embedding, content.slice(0, 200));
+    const { entryId, title, content } = payload as {
+      entryId: number;
+      title?: string;
+      content: string;
+    };
+    // Title + content (title optional for rows queued before this change); the
+    // stored model name is the one ACTUALLY used, never a hard-coded default.
+    const text = title ? `${title}\n${content}` : content;
+    const { embedding, model } = await generateEmbedding(text);
+    upsertEmbedding(entryId, embedding, content.slice(0, 200), model);
+  });
+
+  // Full re-embedding after an embedding-model switch (chunked, resumable).
+  memoryTaskQueue.registerHandler('reembed', async (payload) => {
+    const { maxEntries } = payload as { maxEntries?: number };
+    await runReindexBatch(typeof maxEntries === 'number' ? { maxEntries } : {});
   });
 
   memoryTaskQueue.registerHandler('validate', async (payload) => {
@@ -120,6 +150,12 @@ export async function initializeMemorySystem(): Promise<void> {
     }
   });
 
+  // 2.5. Queue a re-index when the loaded model differs from the index (not
+  // awaited: loading the model must not delay server startup).
+  void maybeEnqueueReindex(memoryTaskQueue).catch((err: unknown) => {
+    log.warn({ err }, 'Auto re-index check failed');
+  });
+
   // 3. Start queue worker
   memoryTaskQueue.start();
 
@@ -145,6 +181,35 @@ export function shutdownMemorySystem(): void {
 export async function createKnowledgeEntry(input: CreateKnowledgeEntryInput) {
   const contentHash = createContentHash(input.content);
 
+  // De-dup at the write: an exact-hash or semantic duplicate REINFORCES the
+  // existing entry instead of storing a paraphrase (the brain strengthens a
+  // memory on corroboration rather than keeping N copies of one fact). This is
+  // the source-level cure for knowledge-base bloat. Best-effort — any failure
+  // falls through to a normal insert.
+  const exact = await prisma.knowledgeEntry
+    .findFirst({
+      where: { contentHash, forgettingStage: { not: 'archived' } },
+      select: { id: true },
+    })
+    .catch(() => null);
+  if (exact) {
+    await boostDecayOnAccess(exact.id, 0.1).catch(() => {});
+    const existing = await prisma.knowledgeEntry.findUnique({ where: { id: exact.id } });
+    if (existing) return existing;
+  }
+  // Two-channel dedup: embedding cosine misses Japanese paraphrases, so the
+  // lexical bigram check backs it up (same lesson reworded = reinforce, not insert).
+  // Same `title\ncontent` shape as the stored embeddings so the cosine compares
+  // like with like.
+  const dupId =
+    (await findSemanticDuplicate(`${input.title}\n${input.content}`)) ??
+    (await findLexicalDuplicate(input.title, input.content));
+  if (dupId != null) {
+    await boostDecayOnAccess(dupId, 0.1).catch(() => {});
+    const existing = await prisma.knowledgeEntry.findUnique({ where: { id: dupId } });
+    if (existing) return existing;
+  }
+
   const entry = await prisma.knowledgeEntry.create({
     data: {
       sourceType: input.sourceType,
@@ -157,6 +222,10 @@ export async function createKnowledgeEntry(input: CreateKnowledgeEntryInput) {
       confidence: input.confidence ?? 1.0,
       themeId: input.themeId,
       taskId: input.taskId,
+      sourceRef: input.sourceRef,
+      applicabilityConditions: input.applicabilityConditions,
+      expiresAt: input.expiresAt,
+      counterEvidence: input.counterEvidence,
     },
   });
 
@@ -164,9 +233,16 @@ export async function createKnowledgeEntry(input: CreateKnowledgeEntryInput) {
     eventType: 'knowledge_created',
     payload: { entryId: entry.id, sourceType: input.sourceType, category: entry.category },
   });
+  // The lexical recall index is TTL-cached; drop it so the new lesson is
+  // recallable by the next task instead of after the TTL.
+  invalidateLexicalIndex();
 
   // Queue background embedding + validation + contradiction detection
-  await memoryTaskQueue.enqueue('embed', { entryId: entry.id, content: input.content }, 10);
+  await memoryTaskQueue.enqueue(
+    'embed',
+    { entryId: entry.id, title: input.title, content: input.content },
+    10,
+  );
   await memoryTaskQueue.enqueue('validate', { entryId: entry.id }, 5);
   await memoryTaskQueue.enqueue('detect_contradiction', { entryId: entry.id }, 3);
 
@@ -182,12 +258,20 @@ export async function updateKnowledgeEntry(id: number, input: UpdateKnowledgeEnt
   if (input.content !== undefined) {
     data.content = input.content;
     data.contentHash = createContentHash(input.content);
+    // Bump the version each time the content actually changes — the hash detects
+    // WHETHER it changed, entryVersion counts HOW MANY times (audit + re-eval).
+    data.entryVersion = { increment: 1 };
   }
   if (input.category !== undefined) data.category = input.category;
   if (input.tags !== undefined) data.tags = JSON.stringify(input.tags);
   if (input.confidence !== undefined) data.confidence = input.confidence;
   if (input.themeId !== undefined) data.themeId = input.themeId;
   if (input.taskId !== undefined) data.taskId = input.taskId;
+  if (input.sourceRef !== undefined) data.sourceRef = input.sourceRef;
+  if (input.applicabilityConditions !== undefined)
+    data.applicabilityConditions = input.applicabilityConditions;
+  if (input.expiresAt !== undefined) data.expiresAt = input.expiresAt;
+  if (input.counterEvidence !== undefined) data.counterEvidence = input.counterEvidence;
 
   const entry = await prisma.knowledgeEntry.update({
     where: { id },
@@ -199,9 +283,15 @@ export async function updateKnowledgeEntry(id: number, input: UpdateKnowledgeEnt
     payload: { entryId: id },
   });
 
+  if (input.content !== undefined || input.title !== undefined) invalidateLexicalIndex();
+
   // Re-embed + re-validate if content changed
   if (input.content !== undefined) {
-    await memoryTaskQueue.enqueue('embed', { entryId: id, content: input.content }, 10);
+    await memoryTaskQueue.enqueue(
+      'embed',
+      { entryId: id, title: input.title ?? entry.title, content: input.content },
+      10,
+    );
     await memoryTaskQueue.enqueue('validate', { entryId: id }, 5);
     await memoryTaskQueue.enqueue('detect_contradiction', { entryId: id }, 3);
   }
@@ -261,18 +351,10 @@ export async function listKnowledgeEntries(options: KnowledgeListOptions = {}) {
   if (forgettingStage) where.forgettingStage = forgettingStage;
   if (validationStatus) where.validationStatus = validationStatus;
   if (themeId) where.themeId = themeId;
-  // `mode: 'insensitive'` is Postgres-only. The SQLite (desktop) Prisma schema omits
-  // `mode` from StringFilter, so sending it raises PrismaClientValidationError at
-  // runtime. Detect SQLite the same way config/database.ts does — a `file:` DATABASE_URL
-  // — and fall back to case-sensitive `contains` on SQLite.
-  const isPostgres =
-    process.env.RAPITAS_DB_PROVIDER !== 'sqlite' && !process.env.DATABASE_URL?.startsWith('file:');
-  const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};
-
   if (search) {
     where.OR = [
-      { title: { contains: search, ...insensitive } },
-      { content: { contains: search, ...insensitive } },
+      { title: { contains: search, ...getInsensitiveMode() } },
+      { content: { contains: search, ...getInsensitiveMode() } },
     ];
   }
 
@@ -287,53 +369,15 @@ export async function listKnowledgeEntries(options: KnowledgeListOptions = {}) {
   ]);
 
   return {
-    entries: entries.map((e) => ({ ...e, tags: JSON.parse(e.tags) })),
+    // NOTE: JSON.parse(e.tags) alone would return a raw object for a
+    // hypothesis-sourced or corrupted-consolidation entry (see utils.ts's
+    // parseTagsAsStrings doc) instead of the string[] every consumer
+    // expects — that object then reaching the frontend as an array element
+    // is what crashed KnowledgeEntryCard.tsx's tag pills.
+    entries: entries.map((e) => ({ ...e, tags: parseTagsAsStrings(e.tags) })),
     total,
     page,
     limit,
     totalPages: Math.ceil(total / limit),
-  };
-}
-
-/**
- * Retrieve knowledge entry statistics.
- */
-export async function getKnowledgeStats() {
-  const [
-    totalEntries,
-    byCategory,
-    byStage,
-    byValidation,
-    bySource,
-    avgConfidence,
-    avgDecay,
-    recentlyAccessed,
-  ] = await Promise.all([
-    prisma.knowledgeEntry.count(),
-    prisma.knowledgeEntry.groupBy({ by: ['category'], _count: { id: true } }),
-    prisma.knowledgeEntry.groupBy({ by: ['forgettingStage'], _count: { id: true } }),
-    prisma.knowledgeEntry.groupBy({ by: ['validationStatus'], _count: { id: true } }),
-    prisma.knowledgeEntry.groupBy({ by: ['sourceType'], _count: { id: true } }),
-    prisma.knowledgeEntry.aggregate({ _avg: { confidence: true } }),
-    prisma.knowledgeEntry.aggregate({ _avg: { decayScore: true } }),
-    prisma.knowledgeEntry.count({
-      where: { lastAccessedAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
-    }),
-  ]);
-
-  const toRecord = (
-    items: Array<{ _count: { id: number }; [key: string]: unknown }>,
-    key: string,
-  ) => Object.fromEntries(items.map((i) => [i[key], i._count.id]));
-
-  return {
-    totalEntries,
-    byCategory: toRecord(byCategory, 'category'),
-    byStage: toRecord(byStage, 'forgettingStage'),
-    byValidation: toRecord(byValidation, 'validationStatus'),
-    bySource: toRecord(bySource, 'sourceType'),
-    averageConfidence: avgConfidence._avg.confidence ?? 0,
-    averageDecayScore: avgDecay._avg.decayScore ?? 0,
-    recentlyAccessed,
   };
 }

@@ -3,46 +3,27 @@
  *
  * Builds the post-parse resolution callback that decides whether a Claude
  * Code execution succeeded, failed, was interrupted, or is waiting for
- * input. Extracted from agent-core.ts to keep that file under the
- * 500-line per-file limit.
- *
- * The resolver is data-driven: it receives the agent's mutable state
- * via a `ResolverContext` and the bound `resolve()` callback from the
- * outer Promise. All status mutations go through `ctx.status = ...`.
+ * input. Extracted from agent-core.ts to keep that file under the 500-line
+ * per-file limit. Data-driven: receives the agent's mutable state via a
+ * `ResolverContext` and the bound `resolve()` callback from the outer
+ * Promise. All status mutations go through `ctx.status = ...`.
  */
 import { tolegacyQuestionType } from '../question-detection';
-import type { QuestionWaitingState } from '../question-detection';
 import type { AgentArtifact, AgentExecutionResult, GitCommitInfo } from '../base-agent';
 import { checkGitDiff } from './git-diff-checker';
 import { createLogger } from '../../../config/logger';
-import type { WorkerResultUsageSnapshot } from './worker-message-handler';
+import { notifyAuthenticationFailure } from '../../communication/notification-service';
+import {
+  detectApiOverload,
+  detectAuthFailure,
+  detectModelMismatch,
+  detectPromptTooLong,
+} from './execution-resolver-early-failures';
+import { PROMPT_TOO_LONG_MARKER } from './failure-reason-markers';
+import type { ResolverContext } from './execution-resolver-context';
+export type { ResolverContext } from './execution-resolver-context';
 
 const logger = createLogger('claude-code-agent');
-
-/** Read/write state the resolver needs from the host agent. */
-export interface ResolverContext {
-  readonly logPrefix: string;
-  readonly resumeSessionId: string | undefined;
-  readonly continueConversation: boolean | undefined;
-
-  // Buffers and accumulated state
-  outputBuffer: string;
-  /** Clean FINAL assistant message from the stream-json `result` event. */
-  finalResultText: string;
-  errorBuffer: string;
-  lineBuffer: string;
-  detectedQuestion: QuestionWaitingState;
-  claudeSessionId: string | null;
-  hasFileModifyingToolCalls: boolean;
-  idleTimeoutForceKilled: boolean;
-  workerResultUsage: WorkerResultUsageSnapshot | null;
-
-  // Mutated by the resolver
-  status: string;
-
-  // BaseAgent emit proxy
-  emitOutputInternal(output: string, isError?: boolean): void;
-}
 
 /**
  * Build the resolution callback used after the Worker finishes parsing.
@@ -58,7 +39,7 @@ export interface ResolverContext {
  * @param checkPlanCreated - Async check for whether the agent created a plan
  *   awaiting approval (so "no code changes" is a pause, not a failure) /
  *   承認待ちのプランを作成したか（コード変更なしを失敗ではなく一時停止として扱うため）
- * @param investigationMode - When true, skip the git-diff check and return success if
+ * @param allowNoCodeChanges - When true, skip the git-diff check and return success if
  *   meaningful output is present. Mirrors the codex contract (success === exit 0 with output).
  *   Empty output still falls through to the existing no-change failure path. /
  *   trueの場合、git-diffチェックをスキップし、有意な出力があれば成功を返す。
@@ -74,7 +55,8 @@ export function buildResolveAfterParse(
   getArtifacts: () => AgentArtifact[],
   getCommits: () => GitCommitInfo[],
   checkPlanCreated?: () => Promise<boolean>,
-  investigationMode?: boolean,
+  allowNoCodeChanges?: boolean,
+  resourceStats?: { cpuTimeMs: number | null; peakRssKb: number | null },
 ): () => void {
   return () => {
     const artifacts = getArtifacts();
@@ -86,22 +68,59 @@ export function buildResolveAfterParse(
     // so every resolve() path below carries it.
     const finalMessage = ctx.finalResultText?.trim() || undefined;
     /** Spread real-cost fields (from stream-json `result`) into the resolved value. */
-    const usageFields: Partial<AgentExecutionResult> = usage
-      ? {
-          costUsd: usage.costUsd,
-          inputTokens: usage.inputTokens,
-          outputTokens: usage.outputTokens,
-          cacheReadInputTokens: usage.cacheReadInputTokens,
-          cacheCreationInputTokens: usage.cacheCreationInputTokens,
-          modelName: usage.modelName,
-          tokensUsed:
-            (usage.inputTokens ?? 0) +
-            (usage.outputTokens ?? 0) +
-            (usage.cacheReadInputTokens ?? 0) +
-            (usage.cacheCreationInputTokens ?? 0),
-          finalMessage,
-        }
-      : { finalMessage };
+    const usageFields: Partial<AgentExecutionResult> = {
+      ...(usage
+        ? {
+            costUsd: usage.costUsd,
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            cacheReadInputTokens: usage.cacheReadInputTokens,
+            cacheCreationInputTokens: usage.cacheCreationInputTokens,
+            modelName: usage.modelName,
+            tokensUsed:
+              (usage.inputTokens ?? 0) +
+              (usage.outputTokens ?? 0) +
+              (usage.cacheReadInputTokens ?? 0) +
+              (usage.cacheCreationInputTokens ?? 0),
+            // NOTE: num_turns from stream-json result = total assistant LLM calls for this CLI session.
+            llmCallCount: usage.numTurns,
+            finalMessage,
+          }
+        : { finalMessage }),
+      // Resource telemetry (task #714) — merged unconditionally (even when
+      // sampling never captured a value) so every resolve() branch below
+      // carries the same keys via `...usageFields`, matching the waitingForInput
+      // exception noted in plan.md (the sampler is stopped before close, so a
+      // value is already final by the time any branch runs).
+      cpuTimeMs: resourceStats?.cpuTimeMs ?? null,
+      peakRssKb: resourceStats?.peakRssKb ?? null,
+    };
+
+    // Tags the fact of a wall-clock kill (regardless of success/failure below) so
+    // downstream fallback-decision logic can skip provider-error classification —
+    // a wall-clock kill is not evidence of a provider issue (task 546).
+    const forceKillFields: Partial<AgentExecutionResult> = ctx.wallClockTimeoutForceKilled
+      ? { failureType: 'wall_clock_timeout' }
+      : {};
+
+    // A wall-clock kill interrupts unfinished work. Partial files, output, or
+    // an earlier question cannot prove completion or authorize publication.
+    if (ctx.wallClockTimeoutForceKilled) {
+      ctx.status = 'failed';
+      resolve({
+        success: false,
+        output: ctx.outputBuffer,
+        artifacts,
+        commits,
+        executionTimeMs,
+        waitingForInput: false,
+        claudeSessionId: ctx.claudeSessionId || undefined,
+        errorMessage: 'Execution exceeded its wall-clock timeout; partial work was preserved.',
+        ...usageFields,
+        ...forceKillFields,
+      });
+      return;
+    }
 
     logger.info(`${ctx.logPrefix} Running question detection...`);
     logger.info(
@@ -121,17 +140,9 @@ export function buildResolveAfterParse(
 
     // Detect Claude Code's "selected model is invalid" message early so the
     // execution is reported as failed instead of slipping through as a 1.3s
-    // success. This happens when SmartRouter picks an OpenAI / codex model
-    // ID for a claude-code agent — claude-code prints
-    //   "There's an issue with the selected model (X). It may not exist or
-    //    you may not have access to it. Run --model to pick a different
-    //    model."
-    // and exits. The combined output is short and would otherwise pass the
-    // existing exit-code check.
-    const modelMismatchHit =
-      /There'?s an issue with the selected model.*Run --model to pick a different/i.test(
-        ctx.outputBuffer + '\n' + ctx.errorBuffer,
-      );
+    // success (SmartRouter picked an OpenAI/codex model id for a claude-code
+    // agent). The combined output is short and would otherwise pass the exit-code check.
+    const modelMismatchHit = detectModelMismatch(ctx.outputBuffer + '\n' + ctx.errorBuffer);
     if (modelMismatchHit) {
       logger.error(
         { logPrefix: ctx.logPrefix, executionTimeMs },
@@ -147,8 +158,67 @@ export function buildResolveAfterParse(
         waitingForInput: false,
         claudeSessionId: ctx.claudeSessionId || undefined,
         errorMessage:
-          'Claude Code rejected the selected model. The orchestrator picked a model from a different provider (likely codex-/gpt- family) and routed it to a claude-code agent. Re-run after the role-resolver agent-switch lands; if the issue persists check WorkflowRoleConfig.preferredProviderOverride for this role.',
+          'Claude Code rejected the selected model. Either the orchestrator picked a model from a different provider (likely codex-/gpt- family) and routed it to a claude-code agent — re-run after the role-resolver agent-switch lands, and if the issue persists check WorkflowRoleConfig.preferredProviderOverride for this role — or the installed Claude Code CLI is older than the version the model requires; check if a CLI update is available (`claude update`).',
         ...usageFields,
+        ...forceKillFields,
+      });
+      return;
+    }
+
+    // Detect a Claude CLI authentication failure BEFORE the generic exit-code
+    // path — otherwise it silently burns retries across every queued task
+    // (observed: task 322 failed ~12x, $6.17 in-flight). Fire a deduplicated
+    // notification so the user knows to re-authenticate; fire-and-forget so a
+    // notify error never blocks resolve().
+    const authFailureHit = detectAuthFailure(ctx.outputBuffer + '\n' + ctx.errorBuffer);
+    if (authFailureHit) {
+      logger.error(
+        { logPrefix: ctx.logPrefix, executionTimeMs },
+        '[claude-code] Authentication failed (expired/invalid credentials). Failing fast and notifying the user to re-authenticate.',
+      );
+      void notifyAuthenticationFailure().catch(() => {});
+      ctx.status = 'failed';
+      resolve({
+        success: false,
+        output: ctx.outputBuffer,
+        artifacts,
+        commits,
+        executionTimeMs,
+        waitingForInput: false,
+        claudeSessionId: ctx.claudeSessionId || undefined,
+        errorMessage:
+          'Claude CLI の認証に失敗しました（認証情報の期限切れ/無効）。統合ターミナルで `claude login`（またはこのセッションで /login）を実行して再認証してください。再認証後、ブロックされたタスクは自動で再試行されます。',
+        ...usageFields,
+        ...forceKillFields,
+      });
+      return;
+    }
+
+    // Detect the CLI reporting the prompt/session context was too long (task
+    // 894: "Prompt is too long"). --resume of the SAME session reloads the
+    // already-too-large transcript, so it would repeat this failure —
+    // tagged so phase-session-resume.ts / execution-resume.ts stop resuming it.
+    // Non-zero exit only: the real failure exits 1 (task 981); task 1035 merely DISCUSSED the phrase.
+    const promptTooLongHit =
+      code !== 0 && detectPromptTooLong(ctx.outputBuffer + '\n' + ctx.errorBuffer);
+    if (promptTooLongHit) {
+      logger.error(
+        { logPrefix: ctx.logPrefix, executionTimeMs },
+        '[claude-code] Prompt/context too long — failing fast so the session is excluded from future resumes.',
+      );
+      ctx.status = 'failed';
+      resolve({
+        success: false,
+        output: ctx.outputBuffer,
+        artifacts,
+        commits,
+        executionTimeMs,
+        waitingForInput: false,
+        claudeSessionId: ctx.claudeSessionId || undefined,
+        failureType: 'prompt_too_long',
+        errorMessage: `${PROMPT_TOO_LONG_MARKER}Claude Code CLI reported the prompt/context was too long (exit code ${code}). The session's accumulated transcript has likely exceeded the model's context window — resuming this same session via --resume will very likely repeat this failure. Cold-start with a short structured handoff instead.`,
+        ...usageFields,
+        ...forceKillFields,
       });
       return;
     }
@@ -177,6 +247,7 @@ export function buildResolveAfterParse(
         questionKey,
         claudeSessionId: ctx.claudeSessionId || undefined,
         ...usageFields,
+        ...forceKillFields,
       });
       return;
     }
@@ -188,8 +259,7 @@ export function buildResolveAfterParse(
       errorParts.push(`Process exited with code ${code}`);
 
       if (ctx.resumeSessionId) {
-        // NOTE: Neutral label only — asserting "session expired" here caused false-positive
-        // SESSION_FAILURE_RE matches on every resume-mode failure regardless of actual cause.
+        // NOTE: Neutral label only — asserting "session expired" caused false-positive SESSION_FAILURE_RE matches.
         errorParts.push(`\n\n【Session Resume Mode】Session ID: ${ctx.resumeSessionId}`);
       } else if (ctx.continueConversation) {
         errorParts.push(`\n\n【Conversation Continue Mode】\nUsing --continue flag`);
@@ -234,6 +304,35 @@ export function buildResolveAfterParse(
         claudeSessionId: ctx.claudeSessionId || undefined,
         errorMessage,
         ...usageFields,
+        ...forceKillFields,
+      });
+      return;
+    }
+
+    // A force-kill after an UNRECOVERED API overload is a real failure, not a
+    // benign "finished work then hung" exit (observed: "[Result: success]" +
+    // exit 1 + "API Error: 529 Overloaded"). A 529 that was retried and
+    // RECOVERED (clean exit) is unaffected — gated on the force-kill path only.
+    const apiOverloadHit = detectApiOverload(
+      ctx.outputBuffer + '\n' + ctx.errorBuffer,
+      ctx.idleTimeoutForceKilled,
+    );
+    if (apiOverloadHit) {
+      logger.error(
+        `${ctx.logPrefix} Force-killed after an unrecovered API overload (529). Failing so the phase retries instead of being marked complete on partial output.`,
+      );
+      ctx.status = 'failed';
+      resolve({
+        success: false,
+        output: ctx.outputBuffer,
+        artifacts,
+        commits,
+        executionTimeMs,
+        waitingForInput: false,
+        claudeSessionId: ctx.claudeSessionId || undefined,
+        errorMessage: `${errorMessage ?? `Process exited with code ${code}`}\n\n【API Overload】Provider returned 529 Overloaded and retries were exhausted; the run did not complete.`,
+        ...usageFields,
+        ...forceKillFields,
       });
       return;
     }
@@ -244,17 +343,15 @@ export function buildResolveAfterParse(
       );
     }
 
-    // investigation mode (research/plan/review): file mutation is blocked by
-    // --disallowedTools, so git diff is ALWAYS empty by design. Skipping the
-    // diff check here prevents a successful read-only phase from being reported
-    // as a "no code changes" failure (which fired a spurious ERROR log + daily
-    // false concern). Mirrors the codex contract (success === exit 0).
-    if (investigationMode) {
+    // Investigation phases and verifiers produce evidence without requiring
+    // implementation changes. This result policy must not enable investigation
+    // tool restrictions: verifiers still need shell access to run checks.
+    if (allowNoCodeChanges) {
       const hasMeaningfulOutput =
         (finalMessage?.length ?? 0) > 0 || ctx.outputBuffer.trim().length >= 200;
       if (hasMeaningfulOutput) {
         logger.info(
-          `${ctx.logPrefix} Investigation mode: meaningful output present, resolving as success (skipping git diff check)`,
+          `${ctx.logPrefix} Evidence phase: meaningful output present, resolving as success (skipping git diff check)`,
         );
         ctx.status = 'completed'; // determineExecutionStatus remaps to post_processing for investigation
         resolve({
@@ -266,6 +363,7 @@ export function buildResolveAfterParse(
           waitingForInput: false,
           claudeSessionId: ctx.claudeSessionId || undefined,
           ...usageFields,
+          ...forceKillFields,
         });
         return;
       }
@@ -295,6 +393,7 @@ export function buildResolveAfterParse(
             waitingForInput: false,
             claudeSessionId: ctx.claudeSessionId || undefined,
             ...usageFields,
+            ...forceKillFields,
           });
         } else if (ctx.hasFileModifyingToolCalls) {
           // NOTE: File-modifying tools were used but not reflected in git diff
@@ -312,6 +411,7 @@ export function buildResolveAfterParse(
             waitingForInput: false,
             claudeSessionId: ctx.claudeSessionId || undefined,
             ...usageFields,
+            ...forceKillFields,
           });
         } else if (checkPlanCreated && (await checkPlanCreated().catch(() => false))) {
           // A plan was saved and the task is awaiting approval. The agent
@@ -330,6 +430,7 @@ export function buildResolveAfterParse(
             waitingForInput: false,
             claudeSessionId: ctx.claudeSessionId || undefined,
             ...usageFields,
+            ...forceKillFields,
           });
         } else {
           // Only planning was done — no implementation
@@ -348,6 +449,7 @@ export function buildResolveAfterParse(
             errorMessage:
               'Agent output a plan but no actual code changes were made. Please review the prompt and re-execute.',
             ...usageFields,
+            ...forceKillFields,
           });
         }
       })
@@ -368,6 +470,7 @@ export function buildResolveAfterParse(
             waitingForInput: false,
             claudeSessionId: ctx.claudeSessionId || undefined,
             ...usageFields,
+            ...forceKillFields,
           });
         } else {
           // No file-modifying tools used — treat as failure
@@ -386,6 +489,7 @@ export function buildResolveAfterParse(
             errorMessage:
               'Could not verify agent execution results. Code changes cannot be confirmed.',
             ...usageFields,
+            ...forceKillFields,
           });
         }
       });

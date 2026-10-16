@@ -15,7 +15,7 @@ const log = createLogger('memory:validation');
  * Validate a knowledge entry against duplicates and conflicts.
  */
 export async function validateEntry(entryId: number): Promise<{
-  status: 'validated' | 'rejected' | 'conflict';
+  status: 'validated' | 'rejected' | 'conflict' | 'skipped';
   reason: string;
   duplicateOf?: number;
 }> {
@@ -24,7 +24,14 @@ export async function validateEntry(entryId: number): Promise<{
   });
 
   if (!entry) {
-    throw new Error(`KnowledgeEntry not found: ${entryId}`);
+    // Deletion raced ahead of the queued validate task — this is not
+    // retryable (every retry hits the same missing row), so we skip
+    // instead of throwing to avoid a deterministic dead_letter.
+    log.warn({ entryId }, 'validateEntry: 対象のKnowledgeEntryが見つからずスキップ');
+    return {
+      status: 'skipped',
+      reason: '対象のKnowledgeEntryが見つかりません（削除された可能性があります）',
+    };
   }
 
   // Stage 1: Heuristic - exact duplicate detection by contentHash
@@ -172,4 +179,71 @@ export async function validateEntry(entryId: number): Promise<{
 
   log.debug({ entryId }, 'Entry validated');
   return { status: 'validated', reason: '検証通過' };
+}
+
+/**
+ * Retroactively validate the oldest 'pending' entries.
+ *
+ * Entries ARE validated at write time, but three paths return them to
+ * 'pending' with nothing scheduled to ever re-validate: entries created before
+ * the validate-on-write pipeline existed, reconsolidated entries
+ * (reconsolidation.ts resets validationStatus after a content rewrite), and
+ * orphaned conflicts reverted by the conflict sweep. Without this sweep the
+ * pending share of the KB only grows — at audit time 56% of entries sat
+ * unvalidated, so recall could never trust-boost them.
+ *
+ * validateEntry always terminates a pending status (validated / rejected /
+ * conflict / skipped — LLM or vector failure falls through to 'validated',
+ * a deleted target falls through to 'skipped'), so a plain oldest-first
+ * fetch drains the backlog without a cursor; entries that throw for other
+ * reasons are retried on a later sweep.
+ *
+ * @param limit - Max entries to validate in this sweep; defaults to
+ *   RAPITAS_KB_PENDING_SWEEP_BUDGET or 100. / 1回の検証上限
+ * @returns Outcome counts for the sweep. / 検証結果の内訳
+ */
+export async function revalidatePendingBacklog(limit?: number): Promise<{
+  examined: number;
+  validated: number;
+  rejected: number;
+  conflict: number;
+  skipped: number;
+  failed: number;
+}> {
+  const rawBudget = Number(process.env.RAPITAS_KB_PENDING_SWEEP_BUDGET);
+  const budget =
+    limit ?? (Number.isFinite(rawBudget) && rawBudget > 0 ? Math.floor(rawBudget) : 100);
+
+  const entries = await prisma.knowledgeEntry.findMany({
+    // Archived knowledge is excluded — it is already out of recall, so
+    // validating it spends LLM budget on entries no prompt will ever see.
+    where: { validationStatus: 'pending', forgettingStage: { not: 'archived' } },
+    select: { id: true },
+    orderBy: { id: 'asc' },
+    take: budget,
+  });
+
+  const counts = {
+    examined: entries.length,
+    validated: 0,
+    rejected: 0,
+    conflict: 0,
+    skipped: 0,
+    failed: 0,
+  };
+
+  for (const e of entries) {
+    try {
+      const result = await validateEntry(e.id);
+      counts[result.status]++;
+    } catch (error) {
+      counts.failed++;
+      log.warn({ err: error, entryId: e.id }, 'Pending-backlog validation failed for entry');
+    }
+  }
+
+  if (counts.examined > 0) {
+    log.info(counts, 'Pending-backlog validation sweep finished');
+  }
+  return counts;
 }

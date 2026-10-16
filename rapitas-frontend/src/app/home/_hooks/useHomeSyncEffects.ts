@@ -9,6 +9,7 @@ interface UseHomeSyncEffectsParams {
   categoryFilter: number | null;
   themeFilter: number | null;
   priorityFilter: Priority | null;
+  labelFilter: number | null;
   searchQuery: string;
   themes: Theme[];
   visibleCategories: Category[];
@@ -38,6 +39,7 @@ export function useHomeSyncEffects({
   categoryFilter,
   themeFilter,
   priorityFilter,
+  labelFilter,
   searchQuery,
   themes,
   visibleCategories,
@@ -53,7 +55,15 @@ export function useHomeSyncEffects({
   // Reset to page 1 whenever any filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, categoryFilter, themeFilter, priorityFilter, searchQuery, setCurrentPage]);
+  }, [
+    filter,
+    categoryFilter,
+    themeFilter,
+    priorityFilter,
+    labelFilter,
+    searchQuery,
+    setCurrentPage,
+  ]);
 
   // Clamp page to valid range when total pages shrinks
   useEffect(() => {

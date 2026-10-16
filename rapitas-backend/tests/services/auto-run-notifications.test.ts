@@ -32,8 +32,13 @@ mock.module('../../config', () => ({
   getProjectRoot: () => 'C:/Projects/rapitas',
 }));
 
-const { notifyAwaitingPlanApproval, notifyAwaitingUserAnswer, notifyTaskSkipped, notifyAllDone } =
-  await import('../../services/workflow/auto-run/auto-run-notifications');
+const {
+  notifyAwaitingPlanApproval,
+  notifyAwaitingUserAnswer,
+  notifyTaskSkipped,
+  notifyAllDone,
+  notifyAllBlocked,
+} = await import('../../services/workflow/auto-run/auto-run-notifications');
 
 describe('auto-run-notifications', () => {
   beforeEach(() => {
@@ -86,6 +91,19 @@ describe('auto-run-notifications', () => {
     };
     expect(arg.data.message).toContain('開発テーマ');
     expect(JSON.parse(arg.data.metadata).dedupKey).toBe('auto_run_all_done:theme-7');
+  });
+
+  test('全ブロック通知: 全完了と別 type で、blocked/エスカレーション件数を本文へ含めること（task 615）', async () => {
+    await notifyAllBlocked(7, 10, 4);
+
+    const arg = mockPrisma.notification.create.mock.calls[0][0] as {
+      data: { type: string; message: string; metadata: string };
+    };
+    expect(arg.data.type).toBe('auto_run_all_blocked');
+    expect(arg.data.message).toContain('10 件');
+    expect(arg.data.message).toContain('4 件');
+    expect(arg.data.message).toContain('閉塞');
+    expect(JSON.parse(arg.data.metadata).dedupKey).toBe('auto_run_all_blocked:theme-7');
   });
 
   test('通知作成が失敗しても例外を投げないこと（best-effort）', async () => {

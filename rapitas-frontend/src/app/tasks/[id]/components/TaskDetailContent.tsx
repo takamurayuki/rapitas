@@ -1,11 +1,13 @@
 'use client';
 // TaskDetailContent
 import { useRef, useState, useEffect } from 'react';
-import type { Task, Resource, Comment, WorkflowStatus, DeveloperModeConfig } from '@/types';
+import type { Task, DeveloperModeConfig } from '@/types';
 import TaskDetailViewBody, { type TaskDetailViewBodyProps } from './TaskDetailViewBody';
 import TaskDetailModals from './TaskDetailModals';
 import { TaskDetailQuickNav, type QuickNavSection } from './TaskDetailQuickNav';
 import { Info, Bot, GitBranch, ListTodo } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { openPomodoroFloatWindow } from '@/feature/tasks/pomodoro/pomodoro-float-launcher';
 import type { WorkflowFile } from '@/types';
 import type { Priority } from '@/types';
 
@@ -15,7 +17,6 @@ interface TaskEditSlice {
   startEditing: () => void;
   saveTask: () => Promise<void>;
   cancelEditing: () => void;
-  duplicateTask: () => Promise<void>;
   deleteTask: () => Promise<void>;
   editTitle: string;
   setEditTitle: (v: string) => void;
@@ -39,8 +40,6 @@ export interface TaskDetailContentProps {
   isPageMode: boolean;
   isThisTaskTimer: boolean;
   pomodoroState: { isTimerRunning: boolean; taskId?: number | null };
-  showPomodoroModal: boolean;
-  setShowPomodoroModal: (v: boolean) => void;
   showDevModeConfig: boolean;
   setShowDevModeConfig: (v: boolean) => void;
   showSaveTemplateDialog: boolean;
@@ -76,8 +75,6 @@ export default function TaskDetailContent({
   isPageMode,
   isThisTaskTimer,
   pomodoroState,
-  showPomodoroModal,
-  setShowPomodoroModal,
   showDevModeConfig,
   setShowDevModeConfig,
   showSaveTemplateDialog,
@@ -94,6 +91,9 @@ export default function TaskDetailContent({
   taskActions,
   viewBodyProps,
 }: TaskDetailContentProps) {
+  const t = useTranslations('task');
+  const tCommon = useTranslations('common');
+  const tWorkflow = useTranslations('workflow');
   const containerRef = useRef<HTMLDivElement>(null);
   const [contentReady, setContentReady] = useState(false);
   const initialScrollDoneRef = useRef(false);
@@ -109,12 +109,12 @@ export default function TaskDetailContent({
 
   // Quick-jump targets — must match the section ids in TaskDetailViewBody.
   const quickNavSections: QuickNavSection[] = [
-    { id: 'td-info', label: '詳細', icon: Info },
+    { id: 'td-info', label: tCommon('detail'), icon: Info },
     { id: 'td-ai', label: 'AI', icon: Bot },
     ...(task.theme?.isDevelopment === true
-      ? [{ id: 'td-workflow', label: 'ワークフロー', icon: GitBranch }]
+      ? [{ id: 'td-workflow', label: tWorkflow('title'), icon: GitBranch }]
       : []),
-    { id: 'td-subtasks', label: 'サブタスク', icon: ListTodo },
+    { id: 'td-subtasks', label: t('subtasks'), icon: ListTodo },
   ];
 
   return (
@@ -127,7 +127,12 @@ export default function TaskDetailContent({
       // resolves it via closest(); in panel mode the marker lives on the panel div.
       data-task-scroll-container={isPageMode ? '' : undefined}
       className={`bg-background scrollbar-thin transition-opacity duration-200 ${
-        isPageMode ? 'h-[calc(100vh-5rem)]' : ''
+        // min-h-full in panel mode: the panel root paints dark:bg-zinc-950 and
+        // its scroll area has no background of its own, so a short task (few
+        // sections, or a workflow card collapsed to one empty tab) left this
+        // bg-background block ending mid-panel with the darker root showing
+        // below it. Filling the scroll area keeps the surface continuous.
+        isPageMode ? 'h-[calc(100vh-5rem)]' : 'min-h-full'
       } ${
         contentReady
           ? `opacity-100 ${isPageMode ? 'overflow-auto' : ''}`
@@ -141,8 +146,7 @@ export default function TaskDetailContent({
         isThisTaskTimer={isThisTaskTimer}
         pomodoroState={pomodoroState}
         onBack={onBack}
-        onOpenPomodoro={() => setShowPomodoroModal(true)}
-        onDuplicateTask={taskActions.duplicateTask}
+        onOpenPomodoro={() => void openPomodoroFloatWindow({ id: task.id, title: task.title })}
         onDeleteTask={taskActions.deleteTask}
         onOpenSaveTemplate={() => setShowSaveTemplateDialog(true)}
       />
@@ -161,8 +165,6 @@ export default function TaskDetailContent({
       <TaskDetailModals
         task={task}
         taskId={taskId}
-        showPomodoroModal={showPomodoroModal}
-        onClosePomodoroModal={() => setShowPomodoroModal(false)}
         showDevModeConfig={showDevModeConfig}
         onCloseDevModeConfig={() => setShowDevModeConfig(false)}
         devModeConfig={devModeConfig}

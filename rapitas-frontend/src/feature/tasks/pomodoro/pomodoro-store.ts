@@ -9,7 +9,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { getAudioContext, closeAudioContext } from './pomodoro-audio';
-import { syncPomodoroToBackend } from './pomodoro-sync';
+import { syncPomodoroToBackend, isSyncOwner } from './pomodoro-sync';
 import { handleTick } from './pomodoro-tick';
 import { broadcastState, getBroadcastChannel, closeBroadcastChannel } from './pomodoro-broadcast';
 import { DEFAULT_SHORT_BREAK, DEFAULT_LONG_BREAK, DEFAULT_SETTINGS } from './pomodoro-types';
@@ -27,21 +27,31 @@ export { formatTime, getRemainingTime } from './pomodoro-utils';
 
 // --- Timer interval singleton ---
 
-let timerIntervalId: ReturnType<typeof setInterval> | null = null;
+// NOTE: pinned to globalThis, NOT module scope — Next dev HMR re-evaluates
+// this module and a module-scope id resets to null while the OLD interval
+// keeps ticking. Every hot update then leaked one more 1s tick per window;
+// dozens of stale ticks firing boundary syncs/broadcasts were the root cause
+// of the recurring WebView2 CPU spikes (2026-09-03). Same reason the current
+// store hook is re-published below: leaked timers must tick the LIVE store.
+const g = globalThis as unknown as {
+  __rapitasPomodoroTick?: ReturnType<typeof setInterval> | null;
+  __rapitasPomodoroStore?: () => { tick: () => void };
+  __rapitasPomodoroWired?: boolean;
+};
 
 const startTimerInterval = (): void => {
   if (typeof window === 'undefined') return;
-  if (timerIntervalId) return;
+  if (g.__rapitasPomodoroTick) return;
 
-  timerIntervalId = setInterval(() => {
-    usePomodoroStore.getState().tick();
+  g.__rapitasPomodoroTick = setInterval(() => {
+    (g.__rapitasPomodoroStore ?? usePomodoroStore.getState)().tick();
   }, 1000);
 };
 
 const stopTimerInterval = (): void => {
-  if (timerIntervalId) {
-    clearInterval(timerIntervalId);
-    timerIntervalId = null;
+  if (g.__rapitasPomodoroTick) {
+    clearInterval(g.__rapitasPomodoroTick);
+    g.__rapitasPomodoroTick = null;
   }
 };
 
@@ -56,6 +66,8 @@ export const usePomodoroStore = create<PomodoroState>()(
     (set, get) => ({
       taskId: null,
       taskTitle: null,
+      lastUsedTaskId: null,
+      lastUsedTaskTitle: null,
       isTimerRunning: false,
       isPaused: false,
       isBreakTime: false,
@@ -93,13 +105,24 @@ export const usePomodoroStore = create<PomodoroState>()(
         set({ settings: { ...state.settings, ...newSettings } });
       },
 
-      startTimer: (taskId: number, taskTitle: string) => {
+      setLastUsedTask: (taskId: number, taskTitle: string) => {
+        // Task handover from the task detail page to the (separate-webview)
+        // float window: broadcast so the float's idle screen re-renders with
+        // the task without needing a rehydrate.
+        const newState = { lastUsedTaskId: taskId, lastUsedTaskTitle: taskTitle };
+        set(newState);
+        broadcastState(newState);
+      },
+
+      startTimer: (taskId: number | null, taskTitle: string | null) => {
         // Eagerly warm up AudioContext to satisfy browser autoplay policy on first user gesture.
         getAudioContext();
 
         const newState = {
           taskId,
           taskTitle,
+          lastUsedTaskId: taskId,
+          lastUsedTaskTitle: taskTitle,
           isTimerRunning: true,
           isPaused: false,
           isBreakTime: false,
@@ -180,6 +203,21 @@ export const usePomodoroStore = create<PomodoroState>()(
         });
       },
 
+      cutBreakShort: () => {
+        // Early break exit (operator request 2026-09-03): unlike endBreak,
+        // only the ELAPSED break time is added — crediting the full duration
+        // for a break the user cut short would inflate the break stats.
+        const state = get();
+        const newState = {
+          isBreakTime: false,
+          pomodoroSeconds: 0,
+          accumulatedBreakSeconds: state.accumulatedBreakSeconds + state.pomodoroSeconds,
+          showBreakEndDialog: false,
+        };
+        set(newState);
+        broadcastState(newState);
+      },
+
       endBreak: () => {
         const state = get();
         const breakDuration =
@@ -198,7 +236,7 @@ export const usePomodoroStore = create<PomodoroState>()(
 
       _initializeTimer: () => {
         const state = get();
-        if (state.isTimerRunning && !state.isPaused && !timerIntervalId) {
+        if (state.isTimerRunning && !state.isPaused && !g.__rapitasPomodoroTick) {
           startTimerInterval();
         }
       },
@@ -209,6 +247,8 @@ export const usePomodoroStore = create<PomodoroState>()(
       partialize: (state) => ({
         taskId: state.taskId,
         taskTitle: state.taskTitle,
+        lastUsedTaskId: state.lastUsedTaskId,
+        lastUsedTaskTitle: state.lastUsedTaskTitle,
         isTimerRunning: state.isTimerRunning,
         isPaused: state.isPaused,
         isBreakTime: state.isBreakTime,
@@ -239,9 +279,21 @@ export const usePomodoroStore = create<PomodoroState>()(
 
 // --- Cross-tab sync setup ---
 
+// Wire cross-window sync exactly once per window (globalThis guard): under
+// dev HMR this module re-evaluates, and re-wiring would stack duplicate
+// channel handlers and Tauri listeners (see the tick singleton note above).
 if (typeof window !== 'undefined') {
+  g.__rapitasPomodoroStore = usePomodoroStore.getState;
+}
+if (typeof window !== 'undefined' && !g.__rapitasPomodoroWired) {
+  g.__rapitasPomodoroWired = true;
   const channel = getBroadcastChannel();
   if (channel) {
+    // NOTE: this handler is wired ONCE (first evaluation) but must always
+    // update the CURRENT store instance — hence the setState/getState pair is
+    // captured from the module that wired it; under HMR zustand keeps the
+    // same store object alive across re-evals for an unchanged create() call,
+    // and a full reload rewires from scratch.
     channel.onmessage = (event) => {
       if (event.data?.type === 'STATE_UPDATE' && event.data?.state) {
         const currentState = usePomodoroStore.getState();
@@ -252,9 +304,9 @@ if (typeof window !== 'undefined') {
           _hasHydrated: currentState._hasHydrated,
         });
 
-        if (newState.isTimerRunning && !timerIntervalId) {
+        if (newState.isTimerRunning && !g.__rapitasPomodoroTick) {
           startTimerInterval();
-        } else if (!newState.isTimerRunning && timerIntervalId) {
+        } else if (!newState.isTimerRunning && g.__rapitasPomodoroTick) {
           stopTimerInterval();
         }
       }
@@ -266,4 +318,36 @@ if (typeof window !== 'undefined') {
     closeBroadcastChannel();
     closeAudioContext();
   });
+
+  // The pomodoro-float window delegates Checkpoint and Cancel here (via Tauri
+  // events) instead of calling syncPomodoroToBackend itself, because
+  // /pomodoro-float is excluded from isSyncOwner. Registered at module level
+  // (not inside a component) so it keeps working for the lifetime of the main
+  // window regardless of what is currently rendered.
+  // Gated on isSyncOwner(): ONLY the owner may handle a delegated action. This
+  // module runs in every Tauri window, so without the gate the float window
+  // registered the handler for the very event it emits — and handling it there
+  // re-enters the delegation, because a non-owner's checkpoint()/cancel() emits
+  // the request instead of calling the backend:
+  //
+  //   float receives → checkpoint() → not owner → delegateToMain() → emits →
+  //   float receives → …
+  //
+  // One press of 「作業時間を登録」 started an unbounded loop. Measured
+  // 2026-10-06 over CDP while it ran: 3,680 `plugin:event|emit_to` calls in 15 s
+  // from /pomodoro-float (245/s) and 4,460 GET /pomodoro/active in 15 s from
+  // main (297/s). The UI held ~300% of one core with the GPU process at 0% and
+  // JS reported "idle" (the time is in the fetch/IPC plumbing, not in JS
+  // frames), and the backend's health probe went from 8 ms to 172 ms, which is
+  // what made the app look disconnected.
+  if ('__TAURI_INTERNALS__' in window && isSyncOwner()) {
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen('pomodoro-float:checkpoint-request', () => {
+        void syncPomodoroToBackend.checkpoint();
+      });
+      listen('pomodoro-float:cancel-request', () => {
+        void syncPomodoroToBackend.cancel();
+      });
+    });
+  }
 }

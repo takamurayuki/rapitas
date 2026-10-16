@@ -63,7 +63,7 @@ export function QuickActions({
   const dropdownButtonRef = useRef<HTMLButtonElement>(null);
 
   const colorClass = hasRunning
-    ? 'bg-linear-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white'
+    ? 'bg-linear-to-r from-blue-500 to-blue-500 hover:from-blue-600 hover:to-blue-600 text-white'
     : 'bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white';
 
   const resumeAllBtnClass = hasRunning
@@ -93,7 +93,7 @@ export function QuickActions({
         ) : (
           <a
             href={`/tasks/${executions[0].taskId}?showHeader=true`}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-linear-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-lg text-xs font-semibold transition-all shadow-sm hover:shadow-md"
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-linear-to-r from-blue-500 to-blue-500 hover:from-blue-600 hover:to-blue-600 text-white rounded-lg text-xs font-semibold transition-all shadow-sm hover:shadow-md"
           >
             <ExternalLink className="w-3.5 h-3.5" />
             {t('viewRunningTask')}

@@ -20,3 +20,9 @@ export { getFrequencyBasedSuggestions, generateAISuggestions } from './task-sugg
 
 // Cleanup: duplicate subtask removal
 export { cleanupDuplicateSubtasks, cleanupAllDuplicateSubtasks } from './task-cleanup';
+
+// Blocked-cause: batched WorkflowTransition.cause attach for list responses
+export { attachBlockedCauses, type TaskLikeForBlockedCause } from './blocked-cause';
+
+// Auto-run card status: batched "current pick / waiting its turn" attach
+export { attachAutoRunCardStatus, type TaskLikeForAutoRunCardStatus } from './auto-run-card-status';

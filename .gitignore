@@ -17,7 +17,31 @@ analysis-result.json
 # Agent transient workflow files — written then curl'd to the workflow/concern/
 # idea APIs (.wf-tmp.md, .wf-concern.json, .wf-idea.json). Ignored repo-wide so
 # they never appear in any git diff/status/add or the changed-file list.
+#
+# The hyphen was load-bearing and should not have been: task 674 wrote
+# `.wf674.json`, which matched nothing here, was committed as an unplanned
+# artifact, and the diff review cut the task off for scope creep — the only
+# change in that diff was the stray file. Match the prefix, not one spelling
+# of it.
 .wf-*
+.wf[0-9]*
+# The same scratch files with a MANGLED name: an agent passing a Windows path
+# through a POSIX shell loses the backslashes, so `C:\Projects\rapitas\
+# .worktrees\task-949-…\.wf-check-949.json` lands in the repo root as
+# `Projectsrapitas.worktreestask-949-….wf-check-949.json` — no leading dot, so
+# the rules above never matched and the diff review bounced tasks 808/825/949
+# for the stray artifact. Match the marker anywhere in the name.
+*.wf-*
+*.wf[0-9]*
+# Verification-result dumps agents write next to the code (task 914 committed
+# `.verify-result-914-*.json` and was bounced for it).
+.verify-result-*
+*.verify-result-*
+# Agent PID files. agent-process-tracker writes them under process.cwd(),
+# which is the worktree ROOT when the CLI runs there — the rapitas-backend/
+# ignore never applies, and auto-commit's `git add -A` swept two of them into
+# task 710's diff (bounced by the diff review as unplanned artifacts).
+.agent-pids/
 
 # Memory system vector DB
 rapitas-backend/data/
@@ -27,3 +51,15 @@ rapitas-frontend/bun.lock
 rapitas-desktop/bun.lock
 
 rapitas-desktop/.data/
+
+# Full command output from scripts/run-checked.cjs (task 916) — console only
+# shows a tail, the complete log lives here for later inspection.
+.verification-logs/
+
+.supervisor/
+
+# Codex CLI local config / supervisor prompt
+.codex/
+
+# Scoped tsconfig the verification gate writes next to the checked project (automated-verifier.ts); pid-named scratch, never source
+.rapitas-verify-scoped-*.tsconfig.json

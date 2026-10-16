@@ -2,7 +2,8 @@
 // MemoAnalysisDisplay
 
 import { memo } from 'react';
-import { Brain, Eye, EyeOff } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { Brain, Eye, EyeOff, Smile, Meh, Frown } from 'lucide-react';
 import type { MemoAnalysis } from './types';
 import { timeAgo } from './memo-utils';
 
@@ -22,6 +23,8 @@ export const MemoAnalysisDisplay = memo(function MemoAnalysisDisplay({
   isVisible: boolean;
   onToggle: () => void;
 }) {
+  const t = useTranslations('task');
+
   const getImportanceColor = (importance: MemoAnalysis['importance']) => {
     switch (importance) {
       case 'high':
@@ -36,11 +39,11 @@ export const MemoAnalysisDisplay = memo(function MemoAnalysisDisplay({
   const getSentimentIcon = (sentiment: MemoAnalysis['sentiment']) => {
     switch (sentiment) {
       case 'positive':
-        return <span className="text-emerald-500">😊</span>;
+        return <Smile className="w-3 h-3 text-emerald-500" aria-hidden="true" />;
       case 'negative':
-        return <span className="text-red-500">😔</span>;
+        return <Frown className="w-3 h-3 text-red-500" aria-hidden="true" />;
       case 'neutral':
-        return <span className="text-zinc-400">😐</span>;
+        return <Meh className="w-3 h-3 text-zinc-500" aria-hidden="true" />;
     }
   };
 
@@ -52,7 +55,7 @@ export const MemoAnalysisDisplay = memo(function MemoAnalysisDisplay({
         className="flex items-center gap-1 px-2 py-0.5 text-[10px] bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 rounded-full hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
       >
         <Brain className="w-2.5 h-2.5" />
-        AI分析結果
+        {t('memoAnalysisDisplay.toggleButton')}
         {isVisible ? <EyeOff className="w-2.5 h-2.5" /> : <Eye className="w-2.5 h-2.5" />}
       </button>
 
@@ -62,7 +65,7 @@ export const MemoAnalysisDisplay = memo(function MemoAnalysisDisplay({
           {/* Summary */}
           <div>
             <h4 className="text-[10px] font-medium text-purple-700 dark:text-purple-300 mb-1">
-              要約
+              {t('memoAnalysisDisplay.summary')}
             </h4>
             <p className="text-[10px] text-zinc-600 dark:text-zinc-400">{analysis.summary}</p>
           </div>
@@ -74,15 +77,15 @@ export const MemoAnalysisDisplay = memo(function MemoAnalysisDisplay({
                 analysis.importance,
               )}`}
             >
-              重要度:{' '}
+              {t('memoAnalysisDisplay.importanceLabel')}{' '}
               {analysis.importance === 'high'
-                ? '高'
+                ? t('priorityHigh')
                 : analysis.importance === 'medium'
-                  ? '中'
-                  : '低'}
+                  ? t('priorityMedium')
+                  : t('priorityLow')}
             </span>
             <span className="flex items-center gap-1 text-[9px] text-zinc-500 dark:text-zinc-400">
-              感情: {getSentimentIcon(analysis.sentiment)}
+              {t('memoAnalysisDisplay.sentimentLabel')} {getSentimentIcon(analysis.sentiment)}
             </span>
           </div>
 
@@ -90,7 +93,7 @@ export const MemoAnalysisDisplay = memo(function MemoAnalysisDisplay({
           {analysis.keywords.length > 0 && (
             <div>
               <h4 className="text-[10px] font-medium text-purple-700 dark:text-purple-300 mb-1">
-                キーワード
+                {t('memoAnalysisDisplay.keywords')}
               </h4>
               <div className="flex flex-wrap gap-1">
                 {analysis.keywords.map((keyword, index) => (
@@ -109,7 +112,7 @@ export const MemoAnalysisDisplay = memo(function MemoAnalysisDisplay({
           {analysis.actionItems.length > 0 && (
             <div>
               <h4 className="text-[10px] font-medium text-purple-700 dark:text-purple-300 mb-1">
-                アクション項目
+                {t('memoAnalysisDisplay.actionItems')}
               </h4>
               <ul className="space-y-0.5">
                 {analysis.actionItems.map((item, index) => (
@@ -126,8 +129,8 @@ export const MemoAnalysisDisplay = memo(function MemoAnalysisDisplay({
           )}
 
           {/* Analysis timestamp */}
-          <div className="text-[8px] text-zinc-400 text-right">
-            分析日時: {timeAgo(new Date(analysis.analyzedAt))}
+          <div className="text-[8px] text-zinc-500 text-right">
+            {t('memoAnalysisDisplay.analyzedAt')} {timeAgo(new Date(analysis.analyzedAt), t)}
           </div>
         </div>
       )}

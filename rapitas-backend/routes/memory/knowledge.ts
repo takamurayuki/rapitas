@@ -11,10 +11,12 @@ import {
   listKnowledgeEntries,
   getKnowledgeStats,
 } from '../../services/memory';
-import { searchKnowledge } from '../../services/memory/rag/search';
+import { searchKnowledgeHybrid } from '../../services/memory/recall/hybrid-search';
 import { resetEmbeddingPipeline } from '../../services/memory/rag/embedding';
 import { boostDecayOnAccess } from '../../services/memory/forgetting';
+import { parseTagsAsStrings } from '../../services/memory/utils';
 import { prisma } from '../../config/database';
+import { HTTP_STATUS } from '../../utils/common/http-status';
 import type {
   KnowledgeSourceType,
   KnowledgeCategory,
@@ -47,6 +49,18 @@ interface UpdateKnowledgeBody {
 
 interface PinKnowledgeBody {
   until: string;
+}
+
+const STAGES: ForgettingStage[] = ['active', 'dormant', 'archived'];
+
+/** Parse `active,dormant` → valid stages; undefined when none are valid. */
+function parseStagesParam(raw: string | undefined): ForgettingStage[] | undefined {
+  if (!raw) return undefined;
+  const stages = raw
+    .split(',')
+    .map((s) => s.trim() as ForgettingStage)
+    .filter((s) => STAGES.includes(s));
+  return stages.length > 0 ? stages : undefined;
 }
 
 export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
@@ -90,17 +104,20 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
     },
   )
 
-  // GET /knowledge/search - Vector similarity search
+  // GET /knowledge/search - Hybrid (vector + lexical) search. Defaults for
+  // minSimilarity / stages / lexical come from RAPITAS_KB_RECALL_*.
   .get(
     '/search',
     async ({ query }) => {
-      const results = await searchKnowledge({
+      const results = await searchKnowledgeHybrid({
         query: query.q,
         limit: query.limit ? parseInt(query.limit) : 10,
-        minSimilarity: query.minSimilarity ? parseFloat(query.minSimilarity) : 0.5,
-        forgettingStage: query.forgettingStage as ForgettingStage | undefined,
+        minSimilarity: query.minSimilarity ? parseFloat(query.minSimilarity) : undefined,
+        stages: parseStagesParam(query.forgettingStage),
         category: query.category as KnowledgeCategory | undefined,
         themeId: query.themeId ? parseInt(query.themeId) : undefined,
+        lexical: query.lexical === undefined ? undefined : query.lexical !== '0',
+        telemetry: { source: 'api' },
       });
       return { results };
     },
@@ -112,6 +129,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
         forgettingStage: t.Optional(t.String()),
         category: t.Optional(t.String()),
         themeId: t.Optional(t.String()),
+        lexical: t.Optional(t.String()),
       }),
     },
   )
@@ -130,8 +148,12 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
   // GET /knowledge/:id - Entry details
   .get(
     '/:id',
-    async ({ params }) => {
+    async ({ params, set }) => {
       const id = parseInt(params.id);
+      if (isNaN(id)) {
+        set.status = HTTP_STATUS.BAD_REQUEST;
+        return { error: 'Invalid ID' };
+      }
       const entry = await prisma.knowledgeEntry.findUnique({
         where: { id },
         include: {
@@ -155,7 +177,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
       // Update access count to slow forgetting decay
       await boostDecayOnAccess(id);
 
-      return { ...entry, tags: JSON.parse(entry.tags) };
+      return { ...entry, tags: parseTagsAsStrings(entry.tags) };
     },
     { params: t.Object({ id: t.String() }) },
   )
@@ -196,8 +218,12 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
   // PUT /knowledge/:id - Update
   .put(
     '/:id',
-    async ({ params, body }) => {
+    async ({ params, body, set }) => {
       const id = parseInt(params.id);
+      if (isNaN(id)) {
+        set.status = HTTP_STATUS.BAD_REQUEST;
+        return { error: 'Invalid ID' };
+      }
       const typedBody = body as UpdateKnowledgeBody;
       const entry = await updateKnowledgeEntry(id, {
         title: typedBody.title,
@@ -227,8 +253,12 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
   // DELETE /knowledge/:id - Archive
   .delete(
     '/:id',
-    async ({ params }) => {
+    async ({ params, set }) => {
       const id = parseInt(params.id);
+      if (isNaN(id)) {
+        set.status = HTTP_STATUS.BAD_REQUEST;
+        return { error: 'Invalid ID' };
+      }
       const entry = await archiveKnowledgeEntry(id);
       return { success: true, entry };
     },
@@ -238,8 +268,12 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
   // POST /knowledge/:id/pin - Pin entry
   .post(
     '/:id/pin',
-    async ({ params, body }) => {
+    async ({ params, body, set }) => {
       const id = parseInt(params.id);
+      if (isNaN(id)) {
+        set.status = HTTP_STATUS.BAD_REQUEST;
+        return { error: 'Invalid ID' };
+      }
       const typedBody = body as PinKnowledgeBody;
       const until = new Date(typedBody.until);
       const entry = await pinKnowledgeEntry(id, until);

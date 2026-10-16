@@ -7,6 +7,7 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Download } from 'lucide-react';
@@ -29,16 +30,18 @@ interface LogAnalysisViewerProps {
  */
 export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({ analysis, onExport }) => {
   const [selectedTab, setSelectedTab] = useState('overview');
+  const t = useTranslations('devTools');
+  const tCommon = useTranslations('common');
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">ログ解析結果</h2>
+        <h2 className="text-2xl font-bold">{t('debugLogAnalyzer.viewer.title')}</h2>
         {onExport && (
           <Button onClickAction={onExport} variant="outline" size="sm">
             <Download className="w-4 h-4 mr-2" />
-            エクスポート
+            {tCommon('export')}
           </Button>
         )}
       </div>
@@ -47,11 +50,11 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({ analysis, 
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>
         <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview">概要</TabsTrigger>
-          <TabsTrigger value="timeline">タイムライン</TabsTrigger>
-          <TabsTrigger value="patterns">パターン</TabsTrigger>
-          <TabsTrigger value="sources">ソース</TabsTrigger>
-          <TabsTrigger value="logs">ログ詳細</TabsTrigger>
+          <TabsTrigger value="overview">{t('debugLogAnalyzer.viewer.tabs.overview')}</TabsTrigger>
+          <TabsTrigger value="timeline">{t('debugLogAnalyzer.viewer.tabs.timeline')}</TabsTrigger>
+          <TabsTrigger value="patterns">{t('debugLogAnalyzer.viewer.tabs.patterns')}</TabsTrigger>
+          <TabsTrigger value="sources">{t('debugLogAnalyzer.viewer.tabs.sources')}</TabsTrigger>
+          <TabsTrigger value="logs">{t('debugLogAnalyzer.viewer.tabs.logs')}</TabsTrigger>
         </TabsList>
 
         <LogChartsTab analysis={analysis} />

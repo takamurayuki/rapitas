@@ -10,10 +10,12 @@ import {
   type DraggableStateSnapshot,
 } from '@hello-pangea/dnd';
 import { KanbanCard } from './KanbanCard';
+import type { Priority } from '@/types';
 
 interface ColumnTask {
   id: number;
   title: string;
+  priority?: Priority | null;
   createdAt: string;
   estimatedHours?: number | null;
   labels?: unknown;
@@ -32,7 +34,6 @@ interface KanbanColumnProps {
   label: string;
   tasks: ColumnTask[];
   getExecutionClasses: (taskId: number) => ExecutionClasses | null;
-  dateLocale: string;
   onOpenTask: (taskId: number) => void;
   onOpenTaskInPage: (taskId: number) => void;
   /** i18n helper for kanban namespace */
@@ -46,7 +47,6 @@ interface KanbanColumnProps {
  * @param label - Human-readable column heading
  * @param tasks - Tasks to render in this column
  * @param getExecutionClasses - Returns execution-state styling for a task ID
- * @param dateLocale - Locale string for card date formatting
  * @param onOpenTask - Open task in slide panel
  * @param onOpenTaskInPage - Navigate to full task page
  * @param t - kanban translation function
@@ -56,7 +56,6 @@ export function KanbanColumn({
   label,
   tasks,
   getExecutionClasses,
-  dateLocale,
   onOpenTask,
   onOpenTaskInPage,
   t,
@@ -77,7 +76,7 @@ export function KanbanColumn({
             {...provided.droppableProps}
             className={`flex-1 rounded-lg p-3 transition-colors ${
               snapshot.isDraggingOver
-                ? 'bg-blue-50 dark:bg-blue-950'
+                ? 'bg-indigo-50 dark:bg-indigo-950'
                 : 'bg-zinc-50 dark:bg-indigo-dark-900'
             } min-h-[200px]`}
           >
@@ -93,7 +92,6 @@ export function KanbanColumn({
                       provided={draggableProvided}
                       snapshot={draggableSnapshot}
                       executionClasses={getExecutionClasses(task.id)}
-                      dateLocale={dateLocale}
                       onOpen={onOpenTask}
                       onOpenInPage={onOpenTaskInPage}
                       t={t}

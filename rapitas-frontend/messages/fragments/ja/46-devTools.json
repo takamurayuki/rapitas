@@ -1,0 +1,141 @@
+{
+  "devTools": {
+    "debugLogAnalyzer": {
+      "title": "デバッグログ解析ツール",
+      "supportedFormats": "対応形式: JSON, Syslog, Apache, Nginx, Node.js",
+      "tabs": {
+        "input": "ログ入力",
+        "result": "解析結果",
+        "settings": "設定"
+      },
+      "errors": {
+        "emptyContent": "ログコンテンツを入力してください",
+        "analysisFailed": "解析中にエラーが発生しました"
+      },
+      "input": {
+        "logType": "ログタイプ:",
+        "autoDetect": "自動検出",
+        "custom": "カスタム",
+        "file": "ファイル:",
+        "sample": "サンプル:",
+        "logContent": "ログコンテンツ:",
+        "lineCount": "{count} 行",
+        "placeholder": "ログを貼り付けるか、ファイルをアップロードしてください...",
+        "clear": "クリア",
+        "analyzing": "解析中...",
+        "analyzeStart": "解析開始"
+      },
+      "viewer": {
+        "title": "ログ解析結果",
+        "tabs": {
+          "overview": "概要",
+          "timeline": "タイムライン",
+          "patterns": "パターン",
+          "sources": "ソース",
+          "logs": "ログ詳細"
+        }
+      },
+      "summaryCards": {
+        "totalEntries": "総エントリー数",
+        "errorCount": "エラー数",
+        "warningCount": "警告数",
+        "timeRange": "時間範囲",
+        "minutes": "{count}分",
+        "notAvailable": "N/A"
+      },
+      "charts": {
+        "levelDistribution": "ログレベル分布",
+        "timeline": "ログタイムライン",
+        "sourceDistribution": "ソース別ログ数",
+        "legendErrors": "エラー",
+        "legendWarnings": "警告",
+        "legendInfo": "情報"
+      },
+      "patterns": {
+        "frequentErrors": "頻出エラーパターン",
+        "frequentWarnings": "頻出警告パターン",
+        "frequentMessages": "頻出メッセージ",
+        "occurrenceCount": "{count}回"
+      },
+      "entries": {
+        "title": "ログエントリー",
+        "searchPlaceholder": "ログを検索...",
+        "limitExceeded": "表示上限（1000件）を超えています。フィルターを使用して絞り込んでください。"
+      },
+      "settings": {
+        "filterTitle": "フィルター設定",
+        "minLevel": "最小ログレベル",
+        "sourceFilter": "ソースフィルター",
+        "sourceFilterPlaceholder": "例: app.main",
+        "startTime": "開始時刻",
+        "endTime": "終了時刻",
+        "textSearch": "テキスト検索",
+        "searchPlaceholder": "検索キーワード...",
+        "clearFilter": "フィルターをクリア",
+        "customParserTitle": "カスタムパーサー設定",
+        "customParserHint": "カスタムパーサーの設定は、APIエンドポイント経由で設定可能です。"
+      }
+    },
+    "fileViewer": {
+      "loadFailedStatus": "ファイルの読み込みに失敗しました: {status} {statusText}",
+      "loadFailedMessage": "ファイルの読み込みに失敗しました: {message}",
+      "imageLoadFailed": "画像の読み込みに失敗しました: {url}",
+      "pdfLoadFailed": "PDFの読み込みに失敗しました: {url}",
+      "previousFile": "前のファイル (←)",
+      "nextFile": "次のファイル (→)",
+      "download": "ダウンロード",
+      "zoomIn": "拡大",
+      "zoomOut": "縮小",
+      "rotate": "回転",
+      "fullscreen": "全画面表示",
+      "normalView": "通常表示",
+      "closeWithEsc": "閉じる (Esc)",
+      "openInNewTab": "新しいタブで開く",
+      "openInBrowser": "ブラウザで開く",
+      "copyUrl": "URLをコピー",
+      "urlCopied": "URLをコピーしました",
+      "unpreviewable": "このファイルタイプはプレビューできません"
+    },
+    "markdownViewer": {
+      "toc": "目次",
+      "copyCode": "コードをコピー"
+    },
+    "voice": {
+      "inlineMicButton": {
+        "ariaLabel": "音声入力",
+        "title": "音声入力 (Ctrl+Shift+V)"
+      },
+      "inputBar": {
+        "listening": "話してください...",
+        "recording": "録音中... ({seconds}s)",
+        "listeningVolume": "話してください... (音量: {volume})",
+        "micStartFailed": "マイクの起動に失敗しました",
+        "recognizing": "文字起こし中...",
+        "recognitionFailed": "音声を認識できませんでした",
+        "transcribeFailed": "文字起こしに失敗しました",
+        "transcribeError": "文字起こしエラー",
+        "navigatingTo": "{label} に移動します...",
+        "creatingTask": "タスク「{title}」を作成中...",
+        "taskCreated": "タスク「{title}」を作成しました",
+        "taskCreateFailed": "タスク作成に失敗しました",
+        "commandExecFailed": "コマンド実行に失敗しました",
+        "navigateToResult": "{label} に移動",
+        "createTaskResult": "タスク「{title}」を作成",
+        "searchResult": "「{query}」を検索",
+        "editPlaceholder": "音声テキストを編集...",
+        "sendAsCommand": "AIコマンドとして実行",
+        "insertText": "テキストを入力欄に挿入",
+        "shortcutToggle": "Ctrl+Shift+V: 録音開始/停止",
+        "shortcutClose": "Esc: 閉じる",
+        "autoConvert": "無音2秒で自動変換",
+        "startRecording": "録音を開始",
+        "stopRecording": "録音を停止"
+      },
+      "wakeWord": {
+        "listening": "ウェイクワード待機中",
+        "lastHeard": " (最後: {text})",
+        "activeIndicator": "「ラピタス」で起動"
+      }
+    }
+  }
+}

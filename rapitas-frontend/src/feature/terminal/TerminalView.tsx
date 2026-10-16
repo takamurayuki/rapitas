@@ -8,6 +8,7 @@
 'use client';
 import { useCallback } from 'react';
 import { X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { useTerminalSession } from './useTerminalSession';
 import { useTerminalStore } from './terminal-store';
@@ -41,6 +42,7 @@ export default function TerminalView({
   onClose,
 }: TerminalViewProps) {
   const { showToast } = useToast();
+  const t = useTranslations('terminal');
 
   const onCommandComplete = useCallback(
     (exitCode: number, durationMs: number) => {
@@ -50,11 +52,11 @@ export default function TerminalView({
       if (watching) return;
       const seconds = Math.round(durationMs / 1000);
       showToast(
-        `ターミナルのコマンドが完了しました (exit ${exitCode}, ${seconds}s)`,
+        t('commandCompleteToast', { exitCode, seconds }),
         exitCode === 0 ? 'success' : 'error',
       );
     },
-    [showToast],
+    [showToast, t],
   );
 
   const containerRef = useTerminalSession(sessionId, { cwd, initialCommand, onCommandComplete });
@@ -74,8 +76,8 @@ export default function TerminalView({
             onClose();
           }}
           className="absolute right-1 top-1 z-10 rounded p-0.5 text-zinc-400 opacity-0 hover:bg-zinc-700 hover:text-zinc-100 group-hover:opacity-100"
-          aria-label="ペインを閉じる"
-          title="ペインを閉じる"
+          aria-label={t('closePane')}
+          title={t('closePane')}
         >
           <X className="h-3.5 w-3.5" aria-hidden="true" />
         </button>

@@ -67,6 +67,7 @@ describe('diffSnapshots', () => {
       expect(diffSnapshots(snap, snap)).toEqual([]);
     });
 
+    // eslint-disable-next-line local/prefer-test-each-for-similar -- fetch case also asserts the exact `after` function reference via array indexing; setTimeout/process.exit use find() with fewer checks, not one uniform shape
     test('detects fetch reference change', () => {
       const mockFetch = () => Promise.resolve(new Response());
       const before = makeSnapshot({ functions: { fetch: globalThis.fetch } });
@@ -116,36 +117,61 @@ describe('diffSnapshots', () => {
   });
 
   describe('process.env tracking', () => {
-    test('detects env key addition', () => {
-      const before = makeSnapshot({ env: {} });
-      const after = makeSnapshot({ env: { NEW_KEY: 'value' } });
-      const diffs = diffSnapshots(before, after);
-      expect(diffs).toHaveLength(1);
-      expect(diffs[0].key).toBe('process.env.NEW_KEY');
-      expect(diffs[0].kind).toBe('env_added');
-      expect(diffs[0].before).toBeUndefined();
-      expect(diffs[0].after).toBe('value');
-    });
-
-    test('detects env key removal', () => {
-      const before = makeSnapshot({ env: { OLD_KEY: 'value' } });
-      const after = makeSnapshot({ env: {} });
-      const diffs = diffSnapshots(before, after);
-      expect(diffs).toHaveLength(1);
-      expect(diffs[0].key).toBe('process.env.OLD_KEY');
-      expect(diffs[0].kind).toBe('env_removed');
-      expect(diffs[0].before).toBe('value');
-      expect(diffs[0].after).toBeUndefined();
-    });
-
-    test('detects env value change', () => {
-      const before = makeSnapshot({ env: { API_KEY: 'old' } });
-      const after = makeSnapshot({ env: { API_KEY: 'new' } });
-      const diffs = diffSnapshots(before, after);
-      expect(diffs).toHaveLength(1);
-      expect(diffs[0].key).toBe('process.env.API_KEY');
-      expect(diffs[0].kind).toBe('env_changed');
-    });
+    test.each([
+      {
+        label: 'key addition',
+        beforeEnv: {},
+        afterEnv: { NEW_KEY: 'value' },
+        expectedKey: 'process.env.NEW_KEY',
+        expectedKind: 'env_added',
+        expectedBefore: undefined as string | undefined,
+        expectedAfter: 'value' as string | undefined,
+        checkValues: true,
+      },
+      {
+        label: 'key removal',
+        beforeEnv: { OLD_KEY: 'value' },
+        afterEnv: {},
+        expectedKey: 'process.env.OLD_KEY',
+        expectedKind: 'env_removed',
+        expectedBefore: 'value' as string | undefined,
+        expectedAfter: undefined as string | undefined,
+        checkValues: true,
+      },
+      {
+        label: 'value change',
+        beforeEnv: { API_KEY: 'old' },
+        afterEnv: { API_KEY: 'new' },
+        expectedKey: 'process.env.API_KEY',
+        expectedKind: 'env_changed',
+        expectedBefore: undefined as string | undefined,
+        expectedAfter: undefined as string | undefined,
+        checkValues: false,
+      },
+    ])(
+      'detects env $label',
+      ({
+        beforeEnv,
+        afterEnv,
+        expectedKey,
+        expectedKind,
+        expectedBefore,
+        expectedAfter,
+        checkValues,
+      }) => {
+        const before = makeSnapshot({ env: beforeEnv });
+        const after = makeSnapshot({ env: afterEnv });
+        const diffs = diffSnapshots(before, after);
+        expect(diffs).toHaveLength(1);
+        expect(diffs[0].key).toBe(expectedKey);
+        expect(diffs[0].kind).toBe(expectedKind);
+        // value checks only apply to the addition/removal cases, matching the original per-case assertions
+        if (checkValues) {
+          expect(diffs[0].before).toBe(expectedBefore);
+          expect(diffs[0].after).toBe(expectedAfter);
+        }
+      },
+    );
 
     test('returns no diff for unchanged env', () => {
       const env = { STABLE: 'value' };
@@ -204,6 +230,7 @@ describe('formatLeakWarnings', () => {
     }
   });
 
+  // eslint-disable-next-line local/prefer-test-each-for-similar -- indexed multi-assertion checks (this test and the next) vs a loop-based single-assertion check with an extra testLabel arg (the third) aren't one uniform shape
   test('includes the changed key in each warning', () => {
     const warnings = formatLeakWarnings(diffs);
     expect(warnings[0]).toContain('fetch');

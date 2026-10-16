@@ -20,6 +20,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { CATEGORY_LABELS, type SystemPrompt } from './types';
+import { formatDateTime } from '@/utils/date';
 
 interface PromptCardProps {
   prompt: SystemPrompt;
@@ -86,9 +87,20 @@ export function PromptCard({
       <div
         className="flex items-center justify-between p-4 cursor-pointer"
         onClick={() => !isEditing && onToggleExpand()}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if ((e.key === 'Enter' || e.key === ' ') && !isEditing) {
+            e.preventDefault();
+            onToggleExpand();
+          }
+        }}
       >
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <button className="text-zinc-400 dark:text-zinc-500 shrink-0">
+          <button
+            aria-label={isExpanded ? tc('collapse') : tc('expand')}
+            className="text-zinc-400 dark:text-zinc-500 shrink-0"
+          >
             {isExpanded ? (
               <ChevronDown className="w-5 h-5" />
             ) : (
@@ -120,6 +132,9 @@ export function PromptCard({
         <div className="flex items-center gap-2 shrink-0 ml-3" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={onToggleActive}
+            role="switch"
+            aria-checked={prompt.isActive}
+            aria-label={t('toggleActive')}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
               prompt.isActive ? 'bg-indigo-600' : 'bg-zinc-300 dark:bg-zinc-600'
             }`}
@@ -145,7 +160,7 @@ export function PromptCard({
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-blue-400"
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-indigo-400"
                 />
               </div>
               <div>
@@ -156,7 +171,7 @@ export function PromptCard({
                   type="text"
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-blue-400"
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-indigo-400"
                 />
               </div>
               <div>
@@ -167,7 +182,7 @@ export function PromptCard({
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
                   rows={15}
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 font-mono text-sm focus:border-blue-400 resize-y"
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 font-mono text-sm focus:border-indigo-400 resize-y"
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -209,13 +224,13 @@ export function PromptCard({
           ) : (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <div className="text-xs text-zinc-400 dark:text-zinc-500">
+                <div className="text-xs text-zinc-500 dark:text-zinc-500">
                   {t('keyLabel')}{' '}
                   <code className="px-1 py-0.5 bg-zinc-100 dark:bg-zinc-700 rounded">
                     {prompt.key}
                   </code>
                   <span className="mx-2">|</span>
-                  {t('updatedLabel')} {new Date(prompt.updatedAt).toLocaleString('ja-JP')}
+                  {t('updatedLabel')} {formatDateTime(prompt.updatedAt)}
                 </div>
                 <div className="flex items-center gap-1">
                   <button

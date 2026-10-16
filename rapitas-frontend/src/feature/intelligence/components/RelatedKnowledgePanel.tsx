@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Lightbulb, BookOpen, ExternalLink } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { Library, BookOpen, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { useRelatedKnowledge } from '../hooks/useIntelligence';
 
@@ -11,16 +12,16 @@ interface RelatedKnowledgePanelProps {
   themeId?: number | null;
 }
 
-const categoryLabels: Record<string, string> = {
-  procedure: '手順',
-  pattern: 'パターン',
-  insight: '知見',
-  fact: '事実',
-  preference: '設定',
-  general: '一般',
-};
-
 export function RelatedKnowledgePanel({ title, description, themeId }: RelatedKnowledgePanelProps) {
+  const t = useTranslations('intelligence.relatedKnowledgePanel');
+  const categoryLabels: Record<string, string> = {
+    procedure: t('categoryProcedure'),
+    pattern: t('categoryPattern'),
+    insight: t('categoryInsight'),
+    fact: t('categoryFact'),
+    preference: t('categoryPreference'),
+    general: t('categoryGeneral'),
+  };
   const { entries, loading, search } = useRelatedKnowledge();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -39,9 +40,9 @@ export function RelatedKnowledgePanel({ title, description, themeId }: RelatedKn
   return (
     <div className="rounded-lg border border-indigo-200 dark:border-indigo-800/50 bg-indigo-50/50 dark:bg-indigo-900/10 p-3">
       <div className="flex items-center gap-2 mb-2">
-        <Lightbulb className="w-4 h-4 text-indigo-500" />
+        <Library className="w-4 h-4 text-indigo-500" />
         <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">
-          関連ナレッジ
+          {t('title')}
         </span>
         {loading && (
           <div className="w-3 h-3 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin" />
@@ -67,8 +68,8 @@ export function RelatedKnowledgePanel({ title, description, themeId }: RelatedKn
                 <span className="text-[10px] text-indigo-500 dark:text-indigo-400">
                   {categoryLabels[entry.category] || entry.category}
                 </span>
-                <span className="text-[10px] text-zinc-400">
-                  関連度: {Math.round(entry.relevanceScore)}%
+                <span className="text-[10px] text-zinc-500">
+                  {t('relevanceScore', { score: Math.round(entry.relevanceScore) })}
                 </span>
               </div>
             </div>

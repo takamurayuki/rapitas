@@ -63,3 +63,4 @@ What did we decide? Be specific.
 | [0004](./0004-typescript-strictness-ratchet.md) | TypeScript strictness ratchet | accepted |
 | [0005](./0005-realtime-transport.md) | Realtime transport: keep `ws`, remove dead Socket.IO | accepted (implemented 2026-04-09) |
 | [0006](./0006-prisma-schema-folder-split.md) | Split `schema.prisma` into a `prismaSchemaFolder` | accepted (implemented 2026-04-09) |
+| [0007](./0007-always-red-ci-gates-file-size-and-full-suite.md) | Always-red CI gates: file-size ratchet and Full Suite (Advisory) | accepted |

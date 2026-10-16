@@ -5,6 +5,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { ValidationError, NotFoundError } from '../../middleware/error-handler';
+import { getInsensitiveMode } from '../../config/db-provider';
 
 // Helper to get comment with links
 async function getCommentWithLinks(commentId: number) {
@@ -156,27 +157,35 @@ export const commentsRoutes = new Elysia()
   )
 
   // Delete comment
-  .delete('/comments/:id', async (context) => {
-    const params = context.params as { id: string };
-    const commentId = parseInt(params.id);
-    if (isNaN(commentId)) {
-      throw new ValidationError('無効なコメントIDです');
-    }
+  .delete(
+    '/comments/:id',
+    async (context) => {
+      const params = context.params as { id: string };
+      const commentId = parseInt(params.id);
+      if (isNaN(commentId)) {
+        throw new ValidationError('無効なコメントIDです');
+      }
 
-    const comment = await prisma.comment.findUnique({
-      where: { id: commentId },
-    });
+      const comment = await prisma.comment.findUnique({
+        where: { id: commentId },
+      });
 
-    if (!comment) {
-      throw new NotFoundError('コメントが見つかりません');
-    }
+      if (!comment) {
+        throw new NotFoundError('コメントが見つかりません');
+      }
 
-    await prisma.comment.delete({
-      where: { id: commentId },
-    });
+      await prisma.comment.delete({
+        where: { id: commentId },
+      });
 
-    return { success: true };
-  })
+      return { success: true };
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+    },
+  )
 
   // ========== Comment Links API ==========
 
@@ -338,27 +347,35 @@ export const commentsRoutes = new Elysia()
   )
 
   // Delete a link
-  .delete('/comment-links/:id', async (context) => {
-    const { params } = context;
-    const linkId = parseInt(params.id);
-    if (isNaN(linkId)) {
-      throw new ValidationError('無効なリンクIDです');
-    }
+  .delete(
+    '/comment-links/:id',
+    async (context) => {
+      const { params } = context;
+      const linkId = parseInt(params.id);
+      if (isNaN(linkId)) {
+        throw new ValidationError('無効なリンクIDです');
+      }
 
-    const link = await prisma.commentLink.findUnique({
-      where: { id: linkId },
-    });
+      const link = await prisma.commentLink.findUnique({
+        where: { id: linkId },
+      });
 
-    if (!link) {
-      throw new NotFoundError('リンクが見つかりません');
-    }
+      if (!link) {
+        throw new NotFoundError('リンクが見つかりません');
+      }
 
-    await prisma.commentLink.delete({
-      where: { id: linkId },
-    });
+      await prisma.commentLink.delete({
+        where: { id: linkId },
+      });
 
-    return { success: true };
-  })
+      return { success: true };
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+    },
+  )
 
   // Search comments for linking (across all tasks or within a task)
   .get(
@@ -385,17 +402,9 @@ export const commentsRoutes = new Elysia()
         whereClause.taskId = parseInt(taskId);
       }
 
-      // `mode: 'insensitive'` is Postgres-only; SQLite (desktop) Prisma client omits
-      // `mode` from StringFilter and raises PrismaClientValidationError at runtime.
-      // Attach conditionally — same pattern as search-route.ts:62-65.
-      const isPostgres =
-        process.env.RAPITAS_DB_PROVIDER !== 'sqlite' &&
-        !process.env.DATABASE_URL?.startsWith('file:');
-      const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};
-
       // If search query provided, filter by content
       if (q && q.trim()) {
-        whereClause.content = { contains: q.trim(), ...insensitive };
+        whereClause.content = { contains: q.trim(), ...getInsensitiveMode() };
       }
 
       const comments = await prisma.comment.findMany({

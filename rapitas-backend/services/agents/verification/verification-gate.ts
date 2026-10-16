@@ -6,17 +6,25 @@
  * neither can publish a PR when the agent introduced new lint/type errors.
  *
  * On a new failure it marks the task `blocked` (and the session `failed` with
- * the evidence) and returns ok:false. A crash in the verifier itself is
- * non-fatal — the gate opens (ok:true) rather than blocking on tooling trouble.
+ * the evidence) and returns ok:false. A verifier crash is unverifiable, not a
+ * pass: publishing must wait until verification can run successfully.
  */
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import {
   runAutomatedVerification,
   renderVerificationMarkdown,
+  requiresTestsForTask,
   type VerificationResult,
 } from './automated-verifier';
-import { resolveWorkflowDir, readWorkflowFile } from '../../workflow/workflow-file-utils';
+import { readWorkflowFile } from '../../workflow/workflow-file-utils';
+import { parsePlanFiles } from './scope-check';
+import { parseSpecArray } from '../../../utils/common/spec-array';
+import { submitConcern } from '../../memory/concern-backlog-service';
+import { writeBlockedStatusDurable } from '../../workflow/durable-blocked-write';
+import { recordTransition } from '../../workflow/transition-recorder';
+import { VERIFICATION_UNVERIFIABLE_HOLD_CAUSE } from '../../workflow/blocked-task-policy';
+import { resolvePreferredBaseBranch } from '../../task/task-resolver';
 
 const log = createLogger('agents:verification-gate');
 
@@ -28,21 +36,120 @@ const log = createLogger('agents:verification-gate');
  * @param taskId - Task whose plan to load / 対象タスク
  * @returns plan.md content or null / plan.md の内容
  */
-async function loadPlanContent(taskId: number): Promise<string | null> {
+export async function loadPlanContent(taskId: number): Promise<string | null> {
   try {
-    const info = await resolveWorkflowDir(taskId);
-    if (!info) return null;
-    return (await readWorkflowFile(info.dir, 'plan')) || null;
+    return (await readWorkflowFile(taskId, 'plan')) || null;
   } catch {
     return null;
   }
 }
 
+/**
+ * Protected-path TEST files a plan-less (lightweight) task declares in its
+ * own spec. The tamper tripwire otherwise fails every lightweight task that
+ * touches a test under a protected directory — even when the operator wrote
+ * that file into the task (task 867, 2026-09-06: 8 identical bounces). Only
+ * `*.test.ts(x)` paths qualify; production gate code stays hard-blocked.
+ *
+ * @param specText - Title, description, goals, constraints, acceptance criteria joined / タスク仕様の文面
+ * @returns Test-file paths to allow for the tamper check / tamper 許可パス
+ */
+export function protectedTestPathsFromSpec(specText: string): string[] {
+  return parsePlanFiles(specText).filter((f) => /\.test\.tsx?$/.test(f));
+}
+
 export interface GateOutcome {
-  /** True when the gate is open (no new failures, or verifier skipped/crashed). */
+  /** True when verification permits publishing. Crashes never open the gate. */
   ok: boolean;
   /** The verification result, or null when the verifier could not run. */
   result: VerificationResult | null;
+  /**
+   * Three-way verdict (task 1099), propagated from `result.verdict`. A
+   * verifier crash yields `'fail'`, never `'unknown'` — see
+   * `verificationCrashResult`.
+   */
+  verdict: 'pass' | 'fail' | 'unknown';
+}
+
+/** Tooling failures cannot establish correctness or justify code-repair retries. */
+export function verificationCrashResult(): VerificationResult {
+  return {
+    ok: false,
+    unverifiable: true,
+    changedFiles: [],
+    checks: [],
+    summary:
+      'Automated verification could not complete; restore the verifier and rerun verification.',
+    verdict: 'fail',
+  };
+}
+
+/**
+ * Files concerns for pre-existing test failures found during triage. Non-fatal:
+ * failures to submit are logged and swallowed so the gate outcome is unaffected.
+ * Uses dedupKey `test-baseline:<file>` (task-independent) so the same failing
+ * test is filed only once regardless of how many tasks trigger verification.
+ *
+ * @param taskId - Task whose verification found the failures / 発見タスク
+ * @param result - Verification result containing triage data / 検証結果
+ */
+async function reportPreExistingFailures(
+  taskId: number,
+  result: VerificationResult,
+): Promise<void> {
+  const testCheck = result.checks.find((c) => c.name === 'test');
+  const preExisting = testCheck?.preExistingFailures;
+  if (!preExisting || preExisting.length === 0) return;
+  for (const file of preExisting) {
+    await submitConcern({
+      title: `既存テスト失敗: ${file}`,
+      detail: `テストファイル \`${file}\` はエージェントの変更以前から失敗していました。タスク #${taskId} の検証中に検出されました。`,
+      type: 'bug',
+      severity: 'high',
+      location: file,
+      originTaskId: taskId,
+      source: 'verification-triage',
+      dedupKey: `test-baseline:${file}`,
+    }).catch((err: unknown) =>
+      log.warn({ err, file }, 'Failed to submit pre-existing failure concern (non-fatal)'),
+    );
+  }
+}
+
+/**
+ * Files concerns for test failures whose attribution was INDETERMINATE (the
+ * merge-base baseline comparison failed even after retries). The gate does
+ * not block on these (task 659) — the concern backlog is where the signal
+ * lands so a persistently broken baseline infra is still noticed. Kept
+ * separate from reportPreExistingFailures: "known old breakage" and "could
+ * not tell" carry different severities and wording. Non-fatal, and dedupKey
+ * `test-triage-indeterminate:<file>` is task-independent so repeated infra
+ * flakiness on the same file does not pile up concerns.
+ *
+ * @param taskId - Task whose verification hit the indeterminate triage / 発見タスク
+ * @param result - Verification result containing triage data / 検証結果
+ */
+export async function reportIndeterminateTriage(
+  taskId: number,
+  result: VerificationResult,
+): Promise<void> {
+  const testCheck = result.checks.find((c) => c.name === 'test');
+  const indeterminate = testCheck?.indeterminateFailures;
+  if (!indeterminate || indeterminate.length === 0) return;
+  for (const file of indeterminate) {
+    await submitConcern({
+      title: `テスト失敗の帰責判定不能: ${file}`,
+      detail: `テストファイル \`${file}\` はタスク #${taskId} の検証中に失敗しましたが、merge-base ベースライン worktree の作成/セットアップが再試行後も失敗したため、本変更に起因する失敗か既存の失敗かを判定できませんでした。ゲートはブロックしていません。ベースライン比較インフラ（worktree 作成 / setup-worktree.cjs）の健全性を確認してください。`,
+      type: 'other',
+      severity: 'medium',
+      location: file,
+      originTaskId: taskId,
+      source: 'verification-triage',
+      dedupKey: `test-triage-indeterminate:${file}`,
+    }).catch((err: unknown) =>
+      log.warn({ err, file }, 'Failed to submit indeterminate triage concern (non-fatal)'),
+    );
+  }
 }
 
 /**
@@ -59,18 +166,61 @@ export async function runVerificationGate(
   sessionId?: number,
 ): Promise<GateOutcome> {
   const planContent = await loadPlanContent(taskId);
-  const result = await runAutomatedVerification(worktreePath, { planContent }).catch((err) => {
-    log.warn({ err, taskId }, 'Automated verification crashed — skipping gate');
-    return null;
+  // Bug-fix tasks must ship a reproducing/regression test: a fix that changes
+  // no test is exactly the leaky gate SWT-Bench / UTBoost measured (R4).
+  const task = await prisma.task
+    .findUnique({
+      where: { id: taskId },
+      select: {
+        title: true,
+        description: true,
+        goals: true,
+        constraints: true,
+        acceptanceCriteria: true,
+      },
+    })
+    .catch(() => null);
+  const requireTests = requiresTestsForTask(`${task?.title ?? ''}\n${task?.description ?? ''}`);
+  const specText = [
+    task?.title ?? '',
+    task?.description ?? '',
+    ...parseSpecArray(task?.goals),
+    ...parseSpecArray(task?.constraints),
+    ...parseSpecArray(task?.acceptanceCriteria),
+  ].join('\n');
+  const tamperAllowlist = planContent ? undefined : protectedTestPathsFromSpec(specText);
+  // The worktree's ACTUAL fork point, not a guess — see automated-verifier.ts's
+  // diffBaseRef doc comment (task 506: a guess-only base can land on a stale
+  // branch and misread unrelated pre-existing commits as this task's own
+  // out-of-scope/tampering changes, false-failing this HARD gate).
+  // NOTE: theme.defaultBranch, not AgentExecutionConfig.targetBranch alone
+  // (task 511: that table is empty for the autonomous pipeline) — see
+  // resolvePreferredBaseBranch's doc comment.
+  const preferredBaseBranch = await resolvePreferredBaseBranch(taskId);
+  const result = await runAutomatedVerification(worktreePath, {
+    planContent,
+    tamperAllowlist,
+    requireTests,
+    preferredBaseBranch,
+    taskId,
+  }).catch((err): VerificationResult => {
+    log.error({ err, taskId }, 'Automated verification crashed — blocking gate');
+    return verificationCrashResult();
   });
-  if (!result) return { ok: true, result: null };
+
+  // Report pre-existing / indeterminate failures as concerns before the gate
+  // verdict is applied. Runs regardless of ok/NG so concerns are filed even
+  // when the gate passes (an indeterminate triage ALWAYS passes — task 659).
+  await reportPreExistingFailures(taskId, result);
+  await reportIndeterminateTriage(taskId, result);
+
   if (result.ok) {
     log.info({ taskId, summary: result.summary }, 'Automated verification passed');
-    return { ok: true, result };
+    return { ok: true, result, verdict: result.verdict };
   }
 
   await blockTaskForVerification(taskId, result, sessionId);
-  return { ok: false, result };
+  return { ok: false, result, verdict: result.verdict };
 }
 
 /**
@@ -91,19 +241,74 @@ export async function blockTaskForVerification(
     { taskId, sessionId, summary: result.summary },
     'Automated verification failed — blocking',
   );
-  await prisma.task
-    .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
-    .catch((err) => log.warn({ err, taskId }, 'Failed to mark task blocked'));
+  // DURABLE WRITE: `status: 'blocked'` is the terminal action that actually
+  // stops the self-repair retry loop (verification-retry.ts reads task status
+  // via this same block path). A bare `.catch(() => warn)` here used to let
+  // the write silently no-op, leaving the task looking un-blocked to any
+  // downstream automation even though verification genuinely failed.
+  await writeBlockedStatusDurable({
+    taskId,
+    log,
+    source: 'verification-gate',
+    notification: {
+      title: '検証失敗タスクのブロック処理に失敗',
+      message: `タスク #${taskId} は自動検証に失敗しましたが、ブロック状態として記録できませんでした。手動で確認してください。`,
+    },
+  });
   if (sessionId !== undefined) {
-    await prisma.agentSession
-      .update({
-        where: { id: sessionId },
-        data: {
-          status: 'failed',
-          completedAt: new Date(),
-          errorMessage: `自動検証に失敗しました（${result.summary}）。エージェントの変更が新たな lint/型エラーを混入しています。worktree は保持しています。\n\n${renderVerificationMarkdown(result)}`,
-        },
-      })
-      .catch((err) => log.warn({ err, sessionId }, 'Failed to mark session failed'));
+    await markSessionFailedDurable(sessionId, taskId, result);
   }
+  // Structured hold reason for the blocked-task passes: a check that could
+  // not run (runtime harness drift / quarantine) is an infrastructure hold,
+  // excluded from blind auto-retry until a manual retry opens a new window.
+  // A verifier crash (no check evidence at all) is left retryable.
+  const unverifiableChecks = result.checks.filter((c) => c.unverifiable).map((c) => c.name);
+  if (result.unverifiable && unverifiableChecks.length > 0) {
+    await recordTransition({
+      taskId,
+      fromStatus: null,
+      toStatus: 'blocked',
+      actor: 'system',
+      cause: VERIFICATION_UNVERIFIABLE_HOLD_CAUSE,
+      phase: 'verify',
+      metadata: { summary: result.summary, unverifiableChecks },
+    }).catch((err) =>
+      log.warn({ err, taskId }, 'Failed to record the unverifiable hold transition'),
+    );
+  }
+}
+
+/**
+ * Marks a session `failed` with the verification evidence, retrying once on
+ * failure. Mirrors `writeBlockedStatusDurable`'s retry-once pattern: without
+ * it, a swallowed write here left the session stuck `running` with no active
+ * process even though the task itself was correctly blocked above.
+ *
+ * @param sessionId - Session to fail / 失敗にするセッション
+ * @param taskId - Owning task, for log context / ログ用のタスクID
+ * @param result - The failing verification result / 失敗した検証結果
+ */
+async function markSessionFailedDurable(
+  sessionId: number,
+  taskId: number,
+  result: VerificationResult,
+): Promise<void> {
+  const data = {
+    status: 'failed' as const,
+    completedAt: new Date(),
+    errorMessage: `自動検証に失敗しました（${result.summary}）。${result.unverifiable ? '検証環境の問題により正しさを確認できません。検証環境を復旧して再検証してください。' : '検証で問題が検出されました。'}worktree は保持しています。\n\n${renderVerificationMarkdown(result)}`,
+  };
+  const attempt = () =>
+    prisma.agentSession
+      .update({ where: { id: sessionId }, data })
+      .then(() => true)
+      .catch(() => false);
+
+  if (await attempt()) return;
+  log.warn({ taskId, sessionId }, 'Failed to mark session failed — retrying once');
+  if (await attempt()) return;
+  log.error(
+    { taskId, sessionId },
+    'Failed to mark session failed twice — session may remain stuck running',
+  );
 }

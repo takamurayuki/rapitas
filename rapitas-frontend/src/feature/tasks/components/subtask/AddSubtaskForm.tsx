@@ -49,7 +49,7 @@ export default function AddSubtaskForm({
       <button
         type="button"
         onClick={onStartAddingSubtask}
-        className="w-full rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 px-4 py-3 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+        className="w-full rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 px-4 py-3 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
       >
         {t('addSubtask')}
       </button>
@@ -65,7 +65,7 @@ export default function AddSubtaskForm({
         <div>
           <input
             type="text"
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-blue-400"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-indigo-400"
             placeholder={t('subtaskTitleRequired')}
             value={subtaskTitle}
             onChange={(e) => onSubtaskTitleChange(e.target.value)}
@@ -75,7 +75,7 @@ export default function AddSubtaskForm({
 
         <div>
           <textarea
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-blue-400 font-mono"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-indigo-400 font-mono"
             placeholder={t('descriptionMarkdown')}
             value={subtaskDescription}
             onChange={(e) => onSubtaskDescriptionChange(e.target.value)}
@@ -86,7 +86,7 @@ export default function AddSubtaskForm({
         <div className="grid grid-cols-2 gap-2">
           <input
             type="text"
-            className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-blue-400"
+            className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-indigo-400"
             placeholder={t('labelsCommaSeparated')}
             value={subtaskLabels}
             onChange={(e) => onSubtaskLabelsChange(e.target.value)}
@@ -95,7 +95,7 @@ export default function AddSubtaskForm({
             type="number"
             step="0.5"
             min="0"
-            className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-blue-400"
+            className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-indigo-400"
             placeholder={t('estimatedHours')}
             value={subtaskEstimatedHours}
             onChange={(e) => onSubtaskEstimatedHoursChange(e.target.value)}
@@ -106,7 +106,7 @@ export default function AddSubtaskForm({
           <button
             type="button"
             onClick={onAddSubtask}
-            className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+            className="flex-1 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
             disabled={!subtaskTitle.trim()}
           >
             {tc('add')}

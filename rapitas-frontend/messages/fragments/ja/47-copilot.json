@@ -1,0 +1,115 @@
+{
+  "copilot": {
+    "aiAssistantPanel": {
+      "title": "AIアシスタント",
+      "subtitle": "何でもお気軽にご質問ください",
+      "settingsTitle": "AI設定",
+      "clearTitle": "会話をクリア",
+      "expand": "展開",
+      "minimize": "最小化",
+      "providerLabel": "AIプロバイダー",
+      "notConfiguredSuffix": "（未設定）",
+      "registerApiKeyLink": "設定画面でAPIキーを登録",
+      "modelLabel": "モデル",
+      "defaultOption": "デフォルト",
+      "welcomeTitle": "AIアシスタントへようこそ",
+      "welcomeDescLine1": "タスク管理、学習計画、コーディングの質問など、",
+      "welcomeDescLine2": "あなたの作業をサポートします。",
+      "thinking": "考え中...",
+      "setApiKeyLink": "設定画面でAPIキーを設定する",
+      "messagePlaceholder": "メッセージを入力...",
+      "sendHint": "Enter で送信・Shift+Enter で改行"
+    },
+    "chatComponents": {
+      "analysisCard": {
+        "complexityLabel": "複雑度:",
+        "estimateLabel": "推定:",
+        "appliedLabel": "反映済み",
+        "applyEstimateButton": "見積もりを反映",
+        "suggestedSubtasksLabel": "提案サブタスク ({count}件)",
+        "deselectLabel": "解除",
+        "selectedCountLabel": "{count}件選択",
+        "createSubtasksButton": "サブタスクを作成",
+        "subtasksCreatedMessage": "サブタスクを作成しました"
+      },
+      "proactiveInsight": {
+        "todoInsight": "着手前です。アプローチの壁打ちをしませんか？",
+        "inProgressInsight": "進行中です。詰まっている点はありませんか？",
+        "doneInsight": "完了済みです。振り返りを行いますか？"
+      }
+    },
+    "chatPanel": {
+      "title": "AIアシスタント",
+      "resetAriaLabel": "最初に戻る",
+      "resetTitle": "会話を最初に戻す"
+    },
+    "nextActionRecommendations": {
+      "noRecommendations": "いまの状態でおすすめのアクションはありません。",
+      "heading": "次の一手",
+      "actions": {
+        "reflect": {
+          "label": "振り返りをする",
+          "reason": "成果物(調査/計画/検証)を深掘りし、学びをナレッジに蓄積します"
+        },
+        "complete": {
+          "label": "タスクを完了にする",
+          "reason": "サブタスク {done}/{total} がすべて完了しています"
+        },
+        "continue": {
+          "label": "エージェントで実行する",
+          "reason": "進行中です。エージェントで次のフェーズを実行できます"
+        },
+        "completeManual": {
+          "label": "タスクを完了にする",
+          "reason": "実装が終わったらタスクをクローズしましょう"
+        },
+        "analyze": {
+          "label": "AIで分析する",
+          "reason": "着手前にAIが進め方とサブタスクを提案します"
+        },
+        "execute": {
+          "label": "エージェントで実行する",
+          "reason": "サブタスクの準備ができています。エージェントに着手させましょう"
+        },
+        "start": {
+          "label": "着手する",
+          "reason": "準備OK。ステータスを進行中にします"
+        },
+        "split": {
+          "label": "サブタスクに分解する",
+          "reason": "複雑度 {score}。分割して進めると安全です"
+        },
+        "estimate": {
+          "label": "工数を見積もる",
+          "reason": "工数が未設定です。見積もると計画が立てやすくなります"
+        },
+        "blocked": {
+          "label": "ブロック理由を確認する",
+          "reason": "タスクがブロックされています。まず原因を確認しましょう"
+        },
+        "retry": {
+          "label": "エージェントで再実行する",
+          "reason": "前回の実行が失敗しました。エージェントに再試行させましょう"
+        },
+        "failedManual": {
+          "label": "失敗の原因を確認する",
+          "reason": "前回の実行が失敗しました。原因を確認しましょう"
+        }
+      }
+    },
+    "useCopilotChat": {
+      "sendMessageError": "エラーが発生しました",
+      "actionAnalyzing": "タスクを分析中...",
+      "actionExecuting": "エージェント実行を開始中...",
+      "actionCreatingSubtasks": "サブタスクを作成中...",
+      "actionUpdatingStatus": "ステータスを更新中...",
+      "actionApplyingEstimate": "見積もりを反映中...",
+      "actionCheckingExecutionStatus": "実行状態を確認中...",
+      "actionRunningGeneric": "{action}を実行中...",
+      "createSubtasksLabel": "サブタスクを作成 ({count}件)",
+      "actionError": "アクション実行に失敗しました",
+      "retrospectiveGenerating": "成果物を分析して振り返りを生成中...",
+      "retrospectiveError": "振り返りの生成に失敗しました"
+    }
+  }
+}

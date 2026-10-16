@@ -1,0 +1,171 @@
+/**
+ * CompactTaskDetailWorkloadSection
+ *
+ * Workload/deadline accordion body for CompactTaskDetailCard: estimated vs.
+ * actual hours inputs, due-date input, a live progress bar, and the
+ * read-only label list. Extracted from the card component to keep it under
+ * the size limit; markup and behavior are unchanged.
+ */
+'use client';
+import { type useTranslations } from 'next-intl';
+import { type Task } from '@/types';
+import { sumSubtaskActualHours } from '@/utils/subtask-hours';
+import { Calendar, Clock, Timer } from 'lucide-react';
+import DurationInput from '@/components/ui/hours-minutes-input/HoursMinutesInput';
+import DateField from '@/components/ui/date-field/DateField';
+
+export interface CompactTaskDetailWorkloadSectionProps {
+  task: Task;
+  /** `useTranslations('task')` from the parent — kept as a prop to avoid a duplicate hook call. */
+  t: ReturnType<typeof useTranslations<'task'>>;
+  estHoursInput: string;
+  setEstHoursInput: (value: string) => void;
+  actHoursInput: string;
+  setActHoursInput: (value: string) => void;
+  dueDateInput: string;
+  setDueDateInput: (value: string) => void;
+  patchTask: (data: Record<string, unknown>) => Promise<void>;
+}
+
+/** Workload/deadline accordion body (hours inputs + progress bar + labels). */
+export default function CompactTaskDetailWorkloadSection({
+  task,
+  t,
+  estHoursInput,
+  setEstHoursInput,
+  actHoursInput,
+  setActHoursInput,
+  dueDateInput,
+  setDueDateInput,
+  patchTask,
+}: CompactTaskDetailWorkloadSectionProps) {
+  // When any subtask has work time registered, the parent's work time is the
+  // subtask total (read-only) — manual input would be overwritten by the
+  // backend rollup on the next subtask update anyway.
+  const subtaskActualSum = sumSubtaskActualHours(task.subtasks);
+  const actualFromSubtasks = subtaskActualSum !== null;
+
+  // NOTE: Use local input state for the progress bar so it updates on keystroke,
+  // not only after the parent re-fetches the task on blur.
+  const displayedEst = estHoursInput ? parseFloat(estHoursInput) : null;
+  const displayedAct = actualFromSubtasks
+    ? subtaskActualSum
+    : actHoursInput
+      ? parseFloat(actHoursInput)
+      : 0;
+  const hasEst = displayedEst != null && displayedEst > 0;
+  const pct = hasEst ? Math.min(100, (displayedAct / displayedEst) * 100) : 0;
+  const barColor = !hasEst
+    ? 'bg-green-500/30'
+    : displayedAct > displayedEst
+      ? 'bg-red-500'
+      : displayedAct >= displayedEst * 0.8
+        ? 'bg-amber-500'
+        : 'bg-green-500';
+
+  return (
+    <div className="space-y-4">
+      {/* 工数 / 作業時間 / 期限 — 3列横並び */}
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+            <span className="flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5" />
+              {t('compactTaskDetailCard.workloadLabel')}
+            </span>
+          </label>
+          <div className="flex items-center gap-1">
+            <DurationInput
+              value={estHoursInput}
+              onChange={setEstHoursInput}
+              onBlur={() =>
+                patchTask({
+                  estimatedHours: estHoursInput ? parseFloat(estHoursInput) : null,
+                })
+              }
+              aria-label={t('compactTaskDetailCard.workloadLabel')}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+            <span className="flex items-center gap-1">
+              <Timer className="w-3.5 h-3.5" />
+              {t('compactTaskDetailCard.actualWorkTimeLabel')}
+              {actualFromSubtasks && (
+                <span className="px-1 py-0.5 text-[10px] font-medium rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+                  {t('compactTaskDetailCard.subtaskHoursSumHint')}
+                </span>
+              )}
+            </span>
+          </label>
+          <div className="flex items-center gap-1">
+            {actualFromSubtasks ? (
+              <div
+                className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1.5 text-sm text-zinc-700 dark:text-zinc-300"
+                title={t('compactTaskDetailCard.subtaskHoursSumHint')}
+                aria-label={t('compactTaskDetailCard.actualWorkTimeLabel')}
+              >
+                {subtaskActualSum.toFixed(1)}
+              </div>
+            ) : (
+              <DurationInput
+                value={actHoursInput}
+                onChange={setActHoursInput}
+                onBlur={() =>
+                  patchTask({
+                    actualHours: actHoursInput ? parseFloat(actHoursInput) : null,
+                  })
+                }
+                aria-label={t('compactTaskDetailCard.actualWorkTimeLabel')}
+              />
+            )}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+            <span className="flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5" />
+              {t('dueDate')}
+            </span>
+          </label>
+          <DateField
+            withTime
+            value={dueDateInput}
+            onChange={setDueDateInput}
+            onBlur={() =>
+              patchTask({
+                dueDate: dueDateInput ? new Date(dueDateInput).toISOString() : null,
+              })
+            }
+            aria-label={t('dueDate')}
+            className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1.5 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
+          />
+        </div>
+      </div>
+
+      {/* 進捗バー: 作業時間 / 工数 (入力値をリアルタイム反映) */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+            {t('compactTaskDetailCard.progressLabel')}
+          </span>
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+            {displayedAct.toFixed(1)}h{hasEst ? ` / ${displayedEst}h` : ''}
+            {hasEst && (
+              <span className="ml-1 text-zinc-500 dark:text-zinc-500">({pct.toFixed(0)}%)</span>
+            )}
+          </span>
+        </div>
+        <div className="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-150 ${barColor}`}
+            style={{ width: hasEst ? `${pct}%` : displayedAct > 0 ? '100%' : '0%' }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -12,12 +12,32 @@ on:
       - 'rapitas-desktop/src-tauri/src/**/*.rs'
       - 'scripts/check-large-files.cjs'
       - '.github/workflows/file-size.yml'
+  # Runs on integration-branch pushes too so a ratchet regression that slipped
+  # past the PR gate (e.g. merged with no check reported) turns develop red
+  # immediately instead of silently breaking every later PR (task 1021).
+  push:
+    branches:
+      - master
+      - main
+      - develop
+    paths:
+      - 'rapitas-backend/**/*.ts'
+      - 'rapitas-frontend/src/**/*.{ts,tsx}'
+      - 'rapitas-desktop/src-tauri/src/**/*.rs'
+      - 'scripts/check-large-files.cjs'
+      - '.github/workflows/file-size.yml'
   workflow_dispatch:
 
 jobs:
   file-size:
     name: Enforce per-file line limits (with ratchet baseline)
     runs-on: ubuntu-latest
+    # Hang backstop, not a constraint: 0.2m median / 0.3m max over the last ~20 runs.
+    # Two blocking checks hung in unrelated install steps on 2026-10-07 (apt,
+    # then a browser install) and held merges for 66 and 113 minutes against
+    # GitHub's 6-hour default, with no way out — cancelling a run makes it
+    # `cancelled`, which the pre-merge gate reads as failed.
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,6 +46,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      # Pins the ratchet semantics (GREW/NEW only fail) before scanning real
+      # files, so a logic regression is caught here rather than as a
+      # mysterious red/green flip on unrelated PRs (task 600).
+      - name: Run file-size script tests
+        run: node --test scripts/check-large-files.test.cjs
 
       # Hard fail if any NEW file exceeds 500 lines, OR if any file already in
       # .baselines/file-size.json grew beyond its snapshot. Existing baseline

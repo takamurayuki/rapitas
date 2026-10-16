@@ -6,8 +6,21 @@
  * sourceType='idea_box'. Used by the auto-task generator for balanced task creation.
  */
 import { prisma } from '../../config/database';
+import { buildIdeaSearchFilter } from './idea-box-search';
+import { NEARDUP_JACCARD, SALIENT_LEN, SATURATION_CAP } from './idea-box-tuning';
 import { createLogger } from '../../config/logger';
 import { createContentHash } from './utils';
+import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
+import { narrowEnum } from '../../utils/common/type-guards';
+import { findSaturatedTheme, findNearDuplicate } from './theme-saturation';
+import { resolveTaskThemeId, resolveDefaultThemeId } from './theme-resolution';
+import { evaluateIdeaDomainFit, isDomainGateEnabled, getDomainGateMode } from './idea-domain-gate';
+
+// Re-exported for backward compatibility — these lived here before being
+// shared with concern-backlog-service.ts (see theme-resolution.ts). Existing
+// dynamic imports (idea-extractor.ts) and direct imports of this module keep
+// working unchanged.
+export { resolveTaskThemeId, resolveDefaultThemeId };
 
 const log = createLogger('memory:idea-box');
 
@@ -39,13 +52,12 @@ export type IdeaScope = 'global' | 'project';
  * How much the idea would innovate or raise the app's value if built. Conveys
  * the idea's "temperature": high = transformative, low = nice-to-have.
  */
-export type IdeaPriority = 'urgent' | 'high' | 'medium' | 'low';
-
-const VALID_PRIORITIES: readonly IdeaPriority[] = ['urgent', 'high', 'medium', 'low'];
+export const IDEA_PRIORITIES = ['urgent', 'high', 'medium', 'low'] as const;
+export type IdeaPriority = (typeof IDEA_PRIORITIES)[number];
 
 /** Coerces an arbitrary value to a valid priority, defaulting to medium. */
 export function normalizeIdeaPriority(value: unknown): IdeaPriority {
-  return VALID_PRIORITIES.includes(value as IdeaPriority) ? (value as IdeaPriority) : 'medium';
+  return narrowEnum(value, IDEA_PRIORITIES, 'medium');
 }
 
 export interface IdeaBoxEntry {
@@ -87,44 +99,24 @@ export interface SubmitIdeaInput {
  * @param input - Idea details / アイデアの詳細
  * @returns Created KnowledgeEntry ID, or existing ID if duplicate / 作成されたID
  */
-/**
- * Resolve the most appropriate theme for ideas filed against a task, so they
- * don't fall into the "global" bucket just because the task itself has no theme.
- * Order: the task's own theme → a theme whose working directory matches the
- * task's → the default theme. Returns null only when none can be found (then the
- * idea is genuinely global).
- *
- * @param taskId - Task the idea came from / アイデアの発生元タスクID
- * @returns The best theme id, or null. / 最適なテーマID、無ければnull
- */
-export async function resolveTaskThemeId(taskId: number): Promise<number | null> {
-  try {
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: { themeId: true, workingDirectory: true },
-    });
-    if (task?.themeId != null) return task.themeId;
-    if (task?.workingDirectory) {
-      const byDir = await prisma.theme.findFirst({
-        where: { workingDirectory: task.workingDirectory },
-        select: { id: true },
-      });
-      if (byDir) return byDir.id;
-    }
-    const def = await prisma.theme.findFirst({
-      where: { isDefault: true },
-      select: { id: true },
-    });
-    return def?.id ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
-  const hash = createContentHash(`${input.title}:${input.content}`);
+  // 文字化けチェック＆修正: agent submissions (via curl / files on Windows) can
+  // arrive mojibake'd; repair title/content BEFORE storing so a garbled idea never
+  // lands in the box. sanitizeMarkdownContent only adopts a fix that improves the
+  // mojibake score, else keeps the original — so clean text is untouched.
+  const sanTitle = sanitizeMarkdownContent(input.title);
+  const sanContent = sanitizeMarkdownContent(input.content);
+  const title = sanTitle.content;
+  const content = sanContent.content;
+  if (sanTitle.wasFixed || sanContent.wasFixed) {
+    log.info(
+      { issues: [...sanTitle.issues, ...sanContent.issues] },
+      '[idea-box] Repaired mojibake before registering idea',
+    );
+  }
+  const hash = createContentHash(`${title}:${content}`);
 
-  // Deduplicate
+  // Exact-hash dedup (cheap).
   const existing = await prisma.knowledgeEntry.findFirst({
     where: { contentHash: hash, sourceType: 'idea_box' },
     select: { id: true },
@@ -135,21 +127,129 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
     return existing.id;
   }
 
-  const scope = input.scope ?? (input.themeId ? 'project' : 'global');
+  // NOTE: Human-typed submissions (explicit source === 'user': the /ideas add
+  // form and the quick-capture popup) BYPASS the anti-monoculture gates below.
+  // Those gates exist to stop the AI flood (idea-extractor / innovation session)
+  // from re-filing near-duplicates — not to discard a human's deliberate input.
+  // A human idea silently swallowed (route replies success, list shows nothing)
+  // destroys capture trust; merging happens later at triage in /ideas instead.
+  // Exact-hash dedup above still applies (identical text IS the same idea).
+  const isHumanSubmission = input.source === 'user';
+
+  // Theme-saturation gate (anti-monoculture): reject when the idea box already holds
+  // SATURATION_CAP+ open ideas about the same theme (lexical, see findSaturatedTheme-
+  // Anchor). Breaks the self-reinforcing loop — the agent works on theme X →
+  // idea-extractor + innovation session keep re-filing "theme X" ideas → near-
+  // duplicate tasks (observed: 96 ideas almost all type-guard/SSOT; PRs #270-275 six
+  // near-synonymous type-guard refactors). Both funnel through here, so one gate
+  // stops both. Returns the existing anchor id so callers treat it as a no-op dedup.
+  // Near-duplicate gate first (cheaper signal, catches exact re-files even when
+  // the theme is not yet saturated). Reinforce the existing idea by returning its
+  // id so the caller treats the submission as a no-op dedup.
+  if (!isHumanSubmission) {
+    const dupId = await findNearDuplicate(title, { sourceType: 'idea_box' }, NEARDUP_JACCARD);
+    if (dupId != null) {
+      log.info(
+        { dupId, title: input.title, threshold: NEARDUP_JACCARD },
+        '[idea-box] Rejected idea: near-duplicate of an existing idea (anti-monoculture)',
+      );
+      return dupId;
+    }
+
+    const anchorId = await findSaturatedTheme(title, {
+      sourceType: 'idea_box',
+      cap: SATURATION_CAP,
+      salient: SALIENT_LEN,
+    });
+    if (anchorId != null) {
+      log.info(
+        { anchorId, title: input.title },
+        '[idea-box] Rejected idea: theme over-represented (anti-monoculture)',
+      );
+      return anchorId;
+    }
+  }
+
+  // Always attribute an idea to a real theme so it never falls into the global
+  // (地球儀) bucket: use the caller's themeId, else the source task's theme, else
+  // the default theme. With a single-project setup (only rapitas) every idea thus
+  // lands on that theme. Only an explicit scope:'global' keeps it themeless.
+  let themeId = input.themeId ?? null;
+  if (themeId == null && input.scope !== 'global') {
+    if (input.taskId != null) themeId = await resolveTaskThemeId(input.taskId);
+    if (themeId == null) themeId = await resolveDefaultThemeId();
+  }
+
+  // Domain-fit gate (#738): idea #5592 (media-conversion proposal) was attached
+  // to the ime-live-converter theme and auto-promoted into task #602 with no
+  // matching code in that repo. Lexical bigram-containment check between the
+  // idea text and the theme's own material flags a gross mismatch before the
+  // idea is stored. Default mode 'log' only records the mismatch (threshold is
+  // an unvalidated heuristic); RAPITAS_IDEA_DOMAIN_GATE_MODE=enforce also
+  // reassigns themeId=null so the existing uncategorized-idea skip in
+  // backlog-task-promoter.ts (auto-promotion) keeps it from becoming another
+  // empty-target task. Skipped for human submissions (see isHumanSubmission).
+  if (!isHumanSubmission && themeId != null && isDomainGateEnabled()) {
+    const domainFit = await evaluateIdeaDomainFit({ title, content, themeId });
+    if (domainFit.mismatch) {
+      const mode = getDomainGateMode();
+      log.info(
+        { title: input.title, themeId, score: domainFit.score, mode, reason: domainFit.reason },
+        '[idea-box] Domain-fit gate flagged mismatch',
+      );
+      if (mode === 'enforce') themeId = null;
+    }
+  }
+
+  // Quality-Diversity gate (R5): the lexical filters above catch re-files, not
+  // semantic monoculture. An independent judge compares the candidate against
+  // its nearest open neighbors and assigns a QD grid cell; occupied cells only
+  // admit a candidate that beats the incumbents. Fail-open (judge unavailable
+  // → accepted as before). A rejection returns the duplicate/incumbent id so
+  // callers see a no-op dedup, matching the lexical gates' contract.
+  // Skipped for human submissions (see isHumanSubmission above).
+  let qdCell: string | null = null;
+  if (!isHumanSubmission) {
+    const { evaluateIdeaQd } = await import('./idea-qd-gate');
+    const qd = await evaluateIdeaQd({ title, content, themeId });
+    if (!qd.accept) {
+      log.info(
+        { title: input.title, duplicateOfId: qd.duplicateOfId, reason: qd.reason },
+        '[idea-box] Rejected idea by QD gate',
+      );
+      if (qd.duplicateOfId != null) return qd.duplicateOfId;
+      // No concrete incumbent to point at — anchor on the most recent open idea,
+      // mirroring the saturation gate's anchor behavior.
+      const fallback = await prisma.knowledgeEntry.findFirst({
+        where: { sourceType: 'idea_box' },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true },
+      });
+      if (fallback) return fallback.id;
+    }
+    qdCell = qd.cell ?? null;
+  }
+
+  const scope = input.scope ?? (themeId ? 'project' : 'global');
   const priority = normalizeIdeaPriority(input.priority);
-  const allTags = [...(input.tags ?? []), `scope:${scope}`, `priority:${priority}`];
+  const allTags = [
+    ...(input.tags ?? []),
+    `scope:${scope}`,
+    `priority:${priority}`,
+    ...(qdCell ? [`cell:${qdCell}`] : []),
+  ];
 
   const entry = await prisma.knowledgeEntry.create({
     data: {
       sourceType: 'idea_box',
       sourceId: input.source ?? 'user',
-      title: input.title,
-      content: input.content,
+      title,
+      content,
       contentHash: hash,
       category: input.category ?? 'improvement',
       tags: JSON.stringify(allTags),
       confidence: input.confidence ?? 0.7,
-      themeId: input.themeId ?? null,
+      themeId,
       taskId: input.taskId ?? null,
       forgettingStage: 'active',
       decayScore: 1.0,
@@ -162,9 +262,16 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
   // Pipeline: enrich (Ollama) → review (Haiku) asynchronously, serialised via
   // the shared enrichment queue so bursts of submissions don't fire concurrent
   // local-LLM calls (which can spike CPU and starve foreground requests).
-  import('./idea-extractor')
-    .then(({ runEnrichAndReview }) => runEnrichAndReview(entry.id, input.title, input.content))
-    .catch(() => {});
+  // NOTE: Skipped entirely for human-typed submissions — a manually captured
+  // idea is a fragment ("egg" stage, not requirements-ready); machine
+  // refinement used to overwrite the human's own words with plausible-but-
+  // hollow text and burned two LLM calls per idea for nothing. Human ideas
+  // stay verbatim until the human triages them.
+  if (!isHumanSubmission) {
+    import('./idea-extractor')
+      .then(({ runEnrichAndReview }) => runEnrichAndReview(entry.id, input.title, input.content))
+      .catch(() => {});
+  }
 
   return entry.id;
 }
@@ -186,6 +293,7 @@ export async function listIdeas(options: {
   priority?: string;
   limit?: number;
   offset?: number;
+  search?: string;
 }): Promise<{ ideas: IdeaBoxEntry[]; total: number }> {
   const {
     categoryId,
@@ -205,6 +313,7 @@ export async function listIdeas(options: {
     scope,
     status,
     priority,
+    search: options.search,
   });
 
   // PERF: project the FE-shown columns only. The default Prisma select
@@ -215,7 +324,10 @@ export async function listIdeas(options: {
   const [entries, total] = await Promise.all([
     prisma.knowledgeEntry.findMany({
       where,
-      orderBy: [{ confidence: 'desc' }, { createdAt: 'desc' }],
+      // Default to 起票順 (creation order, newest first) so the list is stable and
+      // predictable, instead of reshuffling by AI confidence. (The auto-task
+      // context picker below still ranks by confidence — that is a different need.)
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit,
       skip: offset,
       select: {
@@ -441,6 +553,7 @@ async function buildWhereClause(opts: {
   scope?: IdeaScope;
   status?: 'open' | 'used' | 'all';
   priority?: string;
+  search?: string;
 }) {
   const { categoryId, themeId, unusedOnly, scope, status, priority } = opts;
   // themeIdが直接指定されている場合はそれを優先、そうでなければcategoryIdからthemeIdsを取得
@@ -506,6 +619,7 @@ async function buildWhereClause(opts: {
     ...themeFilter,
     ...scopeFilter,
     ...priorityFilter,
+    ...buildIdeaSearchFilter(opts.search),
   };
 }
 

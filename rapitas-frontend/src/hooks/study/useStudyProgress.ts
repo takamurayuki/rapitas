@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('useStudyProgress');
@@ -28,6 +29,7 @@ interface StudyProgressReturn extends StudyProgressData {
 }
 
 export function useStudyProgress(goalId: number | null): StudyProgressReturn {
+  const t = useTranslations('common');
   const [data, setData] = useState<StudyProgressData>({
     progress: 0,
     totalHours: 0,
@@ -51,7 +53,7 @@ export function useStudyProgress(goalId: number | null): StudyProgressReturn {
 
     fetch(`/api/learning-goals/${goalId}/progress`)
       .then((res) => {
-        if (!res.ok) throw new Error('進捗データの取得に失敗しました');
+        if (!res.ok) throw new Error(t('useStudyProgress.fetchFailed'));
         return res.json();
       })
       .then((json) => {
@@ -86,7 +88,7 @@ export function useStudyProgress(goalId: number | null): StudyProgressReturn {
     return () => {
       cancelled = true;
     };
-  }, [goalId, refreshKey]);
+  }, [goalId, refreshKey, t]);
 
   return { ...data, loading, error, refresh };
 }

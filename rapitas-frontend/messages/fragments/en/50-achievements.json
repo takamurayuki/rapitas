@@ -1,0 +1,56 @@
+{
+  "achievements": {
+    "client": {
+      "loadFailed": "Failed to load achievement data",
+      "headerTitle": "🏆 Achievements & Stats",
+      "headerSubtitle": "Review your learning and task-management progress",
+      "disableNotifications": "Disable notifications",
+      "enableNotifications": "Enable notifications",
+      "refreshTitle": "Refresh data",
+      "clearNotifications": "Clear notifications",
+      "tabs": {
+        "achievements": "Achievements",
+        "stats": "Stats",
+        "badges": "Badges"
+      },
+      "stats": {
+        "unlockedCount": "Unlocked",
+        "completionRate": "Completion rate",
+        "points": "Points",
+        "totalTasks": "Total tasks"
+      },
+      "badgesComingSoonTitle": "Badges are coming soon",
+      "badgesComingSoonHint": "Stay tuned — coming soon!",
+      "recentActivityTitle": "🎉 Recent achievements",
+      "devInfoTitle": "Debug info"
+    },
+    "toast": {
+      "unlockedLabel": "Achievement unlocked!",
+      "pointsLabel": "points",
+      "moreCount": "+{count} more achievements",
+      "dismissLabel": "Dismiss"
+    },
+    "statsBoard": {
+      "overviewHeading": "📊 Overview",
+      "totalTasks": "Total tasks",
+      "totalStudyTime": "Total study time",
+      "agentExecutions": "Agent executions",
+      "highPriorityTasks": "High-priority tasks",
+      "completionRateSubtitle": "{rate}% completion",
+      "todayWithTime": "Today {time}",
+      "weeklyProgressHeading": "📈 This week's progress",
+      "taskCompletionLabel": "Tasks completed",
+      "agentLabel": "Agent",
+      "streaksHeading": "🔥 Streaks",
+      "taskStreakLabel": "Task completion streak",
+      "studyStreakLabel": "Study streak",
+      "maxStreakSuffix": "/ best {max}d",
+      "todayActivityHeading": "📅 Today's activity",
+      "completedTasksLabel": "Completed tasks",
+      "lastUpdated": "Last updated: {date}",
+      "minutesOnly": "{minutes}m",
+      "hoursOnly": "{hours}h",
+      "hoursAndMinutes": "{hours}h {minutes}m"
+    }
+  }
+}

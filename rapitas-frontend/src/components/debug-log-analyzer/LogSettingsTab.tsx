@@ -6,12 +6,22 @@
  */
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import DateField from '@/components/ui/date-field/DateField';
+
+// Mirrors <Input>'s own classes so the replaced datetime fields keep the look of
+// the text fields beside them (DateField renders a plain input, not <Input>).
+const LOG_INPUT_CLASS =
+  'flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm ' +
+  'placeholder:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 ' +
+  'focus-visible:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 ' +
+  'dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-400';
 import type { LogFilter, LogLevel } from '@/types/debug-log';
 
 interface LogSettingsTabProps {
@@ -31,16 +41,18 @@ interface LogSettingsTabProps {
  * @param props - LogSettingsTabProps
  */
 export const LogSettingsTab: React.FC<LogSettingsTabProps> = ({ filter, onFilterChange }) => {
+  const t = useTranslations('devTools');
+  const tCommon = useTranslations('common');
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>フィルター設定</CardTitle>
+          <CardTitle>{t('debugLogAnalyzer.settings.filterTitle')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>最小ログレベル</Label>
+              <Label>{t('debugLogAnalyzer.settings.minLevel')}</Label>
               <Select
                 value={filter.level || ''}
                 onChange={(e) =>
@@ -50,7 +62,7 @@ export const LogSettingsTab: React.FC<LogSettingsTabProps> = ({ filter, onFilter
                   })
                 }
               >
-                <option value="">すべて</option>
+                <option value="">{tCommon('all')}</option>
                 <option value="trace">TRACE</option>
                 <option value="debug">DEBUG</option>
                 <option value="info">INFO</option>
@@ -61,9 +73,9 @@ export const LogSettingsTab: React.FC<LogSettingsTabProps> = ({ filter, onFilter
             </div>
 
             <div className="space-y-2">
-              <Label>ソースフィルター</Label>
+              <Label>{t('debugLogAnalyzer.settings.sourceFilter')}</Label>
               <Input
-                placeholder="例: app.main"
+                placeholder={t('debugLogAnalyzer.settings.sourceFilterPlaceholder')}
                 value={filter.source || ''}
                 onChange={(e) =>
                   onFilterChange({
@@ -75,37 +87,41 @@ export const LogSettingsTab: React.FC<LogSettingsTabProps> = ({ filter, onFilter
             </div>
 
             <div className="space-y-2">
-              <Label>開始時刻</Label>
-              <Input
-                type="datetime-local"
+              <Label>{t('debugLogAnalyzer.settings.startTime')}</Label>
+              <DateField
+                withTime
                 value={filter.startTime ? filter.startTime.toISOString().slice(0, 16) : ''}
-                onChange={(e) =>
+                onChange={(value) =>
                   onFilterChange({
                     ...filter,
-                    startTime: e.target.value ? new Date(e.target.value) : undefined,
+                    startTime: value ? new Date(value) : undefined,
                   })
                 }
+                aria-label={t('debugLogAnalyzer.settings.startTime')}
+                className={LOG_INPUT_CLASS}
               />
             </div>
 
             <div className="space-y-2">
-              <Label>終了時刻</Label>
-              <Input
-                type="datetime-local"
+              <Label>{t('debugLogAnalyzer.settings.endTime')}</Label>
+              <DateField
+                withTime
                 value={filter.endTime ? filter.endTime.toISOString().slice(0, 16) : ''}
-                onChange={(e) =>
+                onChange={(value) =>
                   onFilterChange({
                     ...filter,
-                    endTime: e.target.value ? new Date(e.target.value) : undefined,
+                    endTime: value ? new Date(value) : undefined,
                   })
                 }
+                aria-label={t('debugLogAnalyzer.settings.endTime')}
+                className={LOG_INPUT_CLASS}
               />
             </div>
 
             <div className="col-span-2 space-y-2">
-              <Label>テキスト検索</Label>
+              <Label>{t('debugLogAnalyzer.settings.textSearch')}</Label>
               <Input
-                placeholder="検索キーワード..."
+                placeholder={t('debugLogAnalyzer.settings.searchPlaceholder')}
                 value={filter.searchText || ''}
                 onChange={(e) =>
                   onFilterChange({
@@ -122,20 +138,18 @@ export const LogSettingsTab: React.FC<LogSettingsTabProps> = ({ filter, onFilter
             onClickAction={() => onFilterChange({})}
             disabled={Object.keys(filter).length === 0}
           >
-            フィルターをクリア
+            {t('debugLogAnalyzer.settings.clearFilter')}
           </Button>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>カスタムパーサー設定</CardTitle>
+          <CardTitle>{t('debugLogAnalyzer.settings.customParserTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           <Alert>
-            <AlertDescription>
-              カスタムパーサーの設定は、APIエンドポイント経由で設定可能です。
-            </AlertDescription>
+            <AlertDescription>{t('debugLogAnalyzer.settings.customParserHint')}</AlertDescription>
           </Alert>
         </CardContent>
       </Card>

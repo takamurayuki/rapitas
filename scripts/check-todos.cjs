@@ -93,9 +93,13 @@ function* walk(dir) {
   }
 }
 
-// Match a tag preceded by `//` `/*` `#` or `*` (line/block comment markers).
+// Match a tag preceded by a comment marker. `//` `/*` `#` may appear anywhere
+// on the line (trailing comments); a bare `*` continuation marker must be at
+// line start (JSDoc). Anchoring `*` to line-start prevents a mid-line `*`
+// (e.g. the regex `\s*HACK` inside a tag DETECTOR's own source) from being
+// miscounted as a real tag — the counter previously matched itself.
 // Captures the tag, optional `(scope)`, and the message.
-const TAG_RE = /(?:\/\/|\/\*|\*|#)\s*(TODO|FIXME|HACK|NOTE)(?:\(([^)]*)\))?\s*:?\s*(.*)/;
+const TAG_RE = /(?:(?:\/\/|\/\*|#)\s*|^\s*\*\s*)(TODO|FIXME|HACK|NOTE)(?:\(([^)]*)\))?\s*:?\s*(.*)/;
 
 function scan() {
   /** @type {Array<{file: string, line: number, tag: string, scope: string|null, message: string}>} */

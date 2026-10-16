@@ -8,13 +8,32 @@ vi.mock('@/components/ui/toast/ToastContainer', () => ({
   useToast: () => ({ showToast: vi.fn() }),
 }));
 
+// NOTE: useTaskCard now calls useConfirmDialog; without this mock every render
+// throws "must be used within ConfirmDialogProvider".
+vi.mock('@/components/ui/dialog/ConfirmDialogProvider', () => ({
+  useConfirmDialog: () => vi.fn().mockResolvedValue(false),
+}));
+
+// Mutable so individual tests can simulate a task mid auto-execution — see
+// mockExecutingStatus below and the 選択モード/自動実行中 describe block.
+let mockExecutingStatus: 'running' | 'waiting_for_input' | null = null;
 vi.mock('@/stores/execution-state-store', () => ({
   useExecutionStateStore: (
     selector: (state: {
-      getExecutingTaskStatus: (id: number) => null;
+      getExecutingTaskStatus: (id: number) => 'running' | 'waiting_for_input' | null;
+      getExecutingTaskStartedAt: (id: number) => null;
+      getExecutingTaskActiveMs: (id: number) => number;
       executingTasks: Map<number, unknown>;
     }) => unknown,
-  ) => selector({ getExecutingTaskStatus: () => null, executingTasks: new Map() }),
+  ) =>
+    selector({
+      getExecutingTaskStatus: () => mockExecutingStatus,
+      getExecutingTaskStartedAt: () => null,
+      // NOTE: useTaskCard now selects the cumulative active-time base (task #560);
+      // omitting this getter makes every render throw TypeError.
+      getExecutingTaskActiveMs: () => 0,
+      executingTasks: new Map(),
+    }),
 }));
 
 vi.mock('next-intl', () => ({
@@ -67,13 +86,13 @@ vi.mock('@/utils/labels', () => ({
 }));
 
 // Mock PriorityIcon component
-vi.mock('@/feature/tasks/components/PriorityIcon', () => ({
+vi.mock('@/feature/tasks/components/priority/PriorityIcon', () => ({
   default: ({ priority }: { priority: string | null | undefined; size?: string }) =>
     priority ? <span data-testid="priority-icon">{priority}</span> : null,
 }));
 
 // Mock TaskStatusChange component
-vi.mock('@/feature/tasks/components/TaskStatusChange', () => ({
+vi.mock('@/feature/tasks/components/status/TaskStatusChange', () => ({
   default: ({
     status,
     currentStatus,
@@ -100,7 +119,7 @@ vi.mock('@/feature/tasks/components/TaskStatusChange', () => ({
 }));
 
 // Mock SubtaskStatusButtons
-vi.mock('@/feature/tasks/components/SubtaskStatusButtons', () => ({
+vi.mock('@/feature/tasks/components/status/SubtaskStatusButtons', () => ({
   default: () => <div data-testid="subtask-status-buttons" />,
 }));
 
@@ -111,32 +130,37 @@ vi.mock('@/feature/tasks/config/StatusConfig', () => {
       color: 'text-zinc-700',
       bgColor: 'bg-zinc-100',
       borderColor: 'border-l-zinc-400',
-      label: '未着手',
+      labelKey: 'statusTodo',
     },
     'in-progress': {
-      color: 'text-blue-700',
-      bgColor: 'bg-blue-50',
-      borderColor: 'border-l-blue-500',
-      label: '進行中',
+      color: 'text-indigo-700',
+      bgColor: 'bg-indigo-50',
+      borderColor: 'border-l-indigo-500',
+      labelKey: 'statusInProgress',
     },
     done: {
       color: 'text-green-700',
       bgColor: 'bg-green-50',
       borderColor: 'border-l-green-500',
-      label: '完了',
+      labelKey: 'statusDone',
     },
   };
+  const resolveStatusConfig = (status: string) =>
+    statusConfig[status as keyof typeof statusConfig] || statusConfig.todo;
   return {
     statusConfig,
-    resolveStatusConfig: (status: string) =>
-      statusConfig[status as keyof typeof statusConfig] || statusConfig.todo,
+    resolveStatusConfig,
+    getStatusDisplay: (t: (key: string) => string, status: string) => {
+      const config = resolveStatusConfig(status);
+      return { ...config, label: t(config.labelKey) };
+    },
     isInProgressStatus: (status: string) => status === 'in-progress' || status === 'blocked',
     renderStatusIcon: (status: string) => <span data-testid={`status-icon-${status}`} />,
   };
 });
 
 // Mock TaskCompletionAnimation
-vi.mock('../TaskCompletionAnimation', () => ({
+vi.mock('../completion/TaskCompletionAnimation', () => ({
   CardLightSweep: ({ active }: { active: boolean }) =>
     active ? <div data-testid="card-light-sweep" /> : null,
   useProgressColors: () => ({
@@ -152,15 +176,19 @@ vi.mock('@/components/ui/ModernCheckbox', () => ({
     checked,
     onChange,
     onClick,
+    disabled,
   }: {
     checked: boolean;
     onChange: () => void;
     onClick?: (e: React.MouseEvent) => void;
+    disabled?: boolean;
   }) => (
     <button
       role="checkbox"
       aria-checked={checked}
+      aria-disabled={disabled}
       onClick={(e) => {
+        if (disabled) return;
         if (onClick) onClick(e);
         onChange();
       }}
@@ -168,22 +196,16 @@ vi.mock('@/components/ui/ModernCheckbox', () => ({
   ),
 }));
 
-// Mock lucide-react icons used in TaskCard
-vi.mock('lucide-react', () => {
-  const createIcon = (name: string) => {
-    const Icon = ({ className }: { className?: string }) => (
-      <div data-testid={name} className={className} />
-    );
-    Icon.displayName = name;
-    return Icon;
-  };
-  return {
-    ExternalLink: createIcon('external-link'),
-    Tag: createIcon('tag'),
-    Copy: createIcon('copy'),
-    Trash2: createIcon('trash2'),
-    Edit: createIcon('edit'),
-  };
+// NOTE: Uses the shared self-repairing factory so new icons (Repeat, RefreshCw, etc.)
+// are auto-stubbed without updating this allowlist.
+vi.mock('lucide-react', async (importOriginal) => {
+  const { buildLucideMock } = await import('@/__tests__/helpers/lucide-react-mock');
+  return buildLucideMock(importOriginal, {
+    Tag: 'tag',
+    Copy: 'copy',
+    Trash2: 'trash2',
+    Edit: 'edit',
+  });
 });
 
 vi.mock('@/components/category/icon-data', () => ({
@@ -212,12 +234,12 @@ const mockProps = {
   onToggleSelect: vi.fn(),
   onTaskUpdated: vi.fn(),
   onOpenInPage: vi.fn(),
-  sweepingTaskId: null,
 };
 
 describe('TaskCard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockExecutingStatus = null;
   });
 
   describe('基本レンダリング', () => {
@@ -228,8 +250,8 @@ describe('TaskCard', () => {
 
     it('作成日が表示される', () => {
       render(<TaskCard {...mockProps} />);
-      // Date formatted as ja-JP month/day
-      expect(screen.getByText('1/1')).toBeInTheDocument();
+      // Date formatted via the app-standard formatDate() (yyyy/mm/dd)
+      expect(screen.getByText('2024/01/01')).toBeInTheDocument();
     });
 
     it('ラベルがある場合にラベル数が表示される', () => {
@@ -260,6 +282,60 @@ describe('TaskCard', () => {
       render(<TaskCard {...mockProps} task={taskInProgress} />);
       expect(screen.getByTestId('status-icon-in-progress')).toBeInTheDocument();
     });
+
+    it('blockedステータスではステータスアイコンに汎用ヒントのtitleが付く', () => {
+      const blockedTask = { ...mockTask, status: 'blocked' as Status };
+      render(<TaskCard {...mockProps} task={blockedTask} />);
+      const icon = screen.getByTestId('status-icon-blocked');
+      expect(icon.closest('div[title]')).toHaveAttribute(
+        'title',
+        'statusIndicator.blockedGenericHint',
+      );
+    });
+
+    it('blocked以外のステータスではtitleが付かない', () => {
+      render(<TaskCard {...mockProps} />);
+      const icon = screen.getByTestId('status-icon-todo');
+      expect(icon.closest('div')).not.toHaveAttribute('title');
+    });
+
+    it('blockedCauseが既知コードの場合、バッチ取得したcauseを反映したtitleになる', () => {
+      const blockedTask = {
+        ...mockTask,
+        status: 'blocked' as Status,
+        blockedCause: 'verify_pr_not_created',
+      };
+      render(<TaskCard {...mockProps} task={blockedTask} />);
+      const icon = screen.getByTestId('status-icon-blocked');
+      expect(icon.closest('div[title]')).toHaveAttribute(
+        'title',
+        'statusIndicator.blockedCauses.verifyPrNotCreated',
+      );
+    });
+
+    it('blockedCauseが未知コードの場合、unknown-causeのtitleになる', () => {
+      const blockedTask = {
+        ...mockTask,
+        status: 'blocked' as Status,
+        blockedCause: 'some_unrecognized_code',
+      };
+      render(<TaskCard {...mockProps} task={blockedTask} />);
+      const icon = screen.getByTestId('status-icon-blocked');
+      expect(icon.closest('div[title]')).toHaveAttribute(
+        'title',
+        'statusIndicator.blockedCauseUnknown',
+      );
+    });
+
+    it('blockedCauseが無い場合は汎用ヒントにフォールバックする', () => {
+      const blockedTask = { ...mockTask, status: 'blocked' as Status, blockedCause: null };
+      render(<TaskCard {...mockProps} task={blockedTask} />);
+      const icon = screen.getByTestId('status-icon-blocked');
+      expect(icon.closest('div[title]')).toHaveAttribute(
+        'title',
+        'statusIndicator.blockedGenericHint',
+      );
+    });
   });
 
   describe('プライオリティ表示', () => {
@@ -268,6 +344,19 @@ describe('TaskCard', () => {
       const priorityIcon = screen.getByTestId('priority-icon');
       expect(priorityIcon).toBeInTheDocument();
       expect(priorityIcon).toHaveTextContent('high');
+    });
+  });
+
+  describe('保護表示', () => {
+    it('保護タスクではロックアイコンが表示される', () => {
+      const protectedTask = { ...mockTask, isProtected: true };
+      render(<TaskCard {...mockProps} task={protectedTask} />);
+      expect(screen.getByTestId('Lock-icon')).toBeInTheDocument();
+    });
+
+    it('非保護タスクではロックアイコンが表示されない', () => {
+      render(<TaskCard {...mockProps} />);
+      expect(screen.queryByTestId('Lock-icon')).not.toBeInTheDocument();
     });
   });
 
@@ -290,14 +379,31 @@ describe('TaskCard', () => {
       fireEvent.click(checkbox);
       expect(mockProps.onToggleSelect).toHaveBeenCalledWith(1);
     });
+
+    it('自動実行中のタスクはチェックボックスが無効化され選択できない', () => {
+      mockExecutingStatus = 'running';
+      render(<TaskCard {...mockProps} isSelectionMode={true} />);
+      const checkbox = screen.getByRole('checkbox');
+      expect(checkbox).toHaveAttribute('aria-disabled', 'true');
+      fireEvent.click(checkbox);
+      expect(mockProps.onToggleSelect).not.toHaveBeenCalled();
+    });
+
+    it('自動実行中のタスクは行クリックでも選択状態が切り替わらない', () => {
+      mockExecutingStatus = 'waiting_for_input';
+      render(<TaskCard {...mockProps} isSelectionMode={true} />);
+      // The row itself (not the checkbox) also toggles selection on click.
+      fireEvent.click(screen.getByText('Test Task'));
+      expect(mockProps.onToggleSelect).not.toHaveBeenCalled();
+    });
   });
 
   describe('イベントハンドリング', () => {
-    it('タスククリックで適切なコールバックが呼ばれる', () => {
+    it('行クリックで適切なコールバックが呼ばれる', () => {
       render(<TaskCard {...mockProps} />);
       const taskTitle = screen.getByText('Test Task');
-      // Click the clickable area (parent div with cursor-pointer)
-      fireEvent.click(taskTitle);
+      // Row area (title is a page link, so click its cursor-pointer ancestor)
+      fireEvent.click(taskTitle.closest('.cursor-pointer')!);
       expect(mockProps.onTaskClick).toHaveBeenCalledWith(1);
     });
 
@@ -326,28 +432,43 @@ describe('TaskCard', () => {
     });
   });
 
-  describe('ページで開くボタン', () => {
-    it('onOpenInPageが渡されている場合にボタンが表示される', () => {
+  describe('タイトルによるページ表示', () => {
+    it('タイトルクリックでページ表示コールバックが呼ばれ、パネルは開かない', () => {
       render(<TaskCard {...mockProps} />);
-      expect(screen.getByTestId('external-link')).toBeInTheDocument();
+      fireEvent.click(screen.getByText('Test Task'));
+      expect(mockProps.onOpenInPage).toHaveBeenCalledWith(1);
+      expect(mockProps.onTaskClick).not.toHaveBeenCalled();
     });
 
-    it('onOpenInPageが未定義の場合にボタンが非表示', () => {
-      render(<TaskCard {...mockProps} onOpenInPage={undefined} />);
+    it('タイトルはホバーで青色の下線表示になる', () => {
+      render(<TaskCard {...mockProps} />);
+      const cls = screen.getByText('Test Task').className;
+      expect(cls).toContain('hover:underline');
+      expect(cls).toContain('hover:text-blue-600');
+      expect(cls).toContain('dark:hover:text-blue-400');
+    });
+
+    it('ページで開くアイコンボタンは表示されない', () => {
+      render(<TaskCard {...mockProps} />);
       expect(screen.queryByTestId('external-link')).not.toBeInTheDocument();
+    });
+
+    it('onOpenInPageが未定義ならタイトルクリックは従来どおりパネルを開く', () => {
+      render(<TaskCard {...mockProps} onOpenInPage={undefined} />);
+      fireEvent.click(screen.getByText('Test Task'));
+      expect(mockProps.onTaskClick).toHaveBeenCalledWith(1);
+    });
+
+    it('選択モードではタイトルクリックでも遷移しない', () => {
+      render(<TaskCard {...mockProps} isSelectionMode={true} />);
+      fireEvent.click(screen.getByText('Test Task'));
+      expect(mockProps.onOpenInPage).not.toHaveBeenCalled();
     });
   });
 
   describe('アニメーション', () => {
-    it('スイープアニメーションコンポーネントがレンダリングされる', () => {
-      render(<TaskCard {...mockProps} sweepingTaskId={1} />);
-      const cardContainer = screen.getByText('Test Task').closest('[data-task-card]');
-      expect(cardContainer).toBeInTheDocument();
-      expect(screen.getByTestId('card-light-sweep')).toBeInTheDocument();
-    });
-
-    it('非スイープ時もカードは正常に表示される', () => {
-      render(<TaskCard {...mockProps} sweepingTaskId={2} />);
+    it('カードは正常に表示される', () => {
+      render(<TaskCard {...mockProps} />);
       const cardContainer = screen.getByText('Test Task').closest('[data-task-card]');
       expect(cardContainer).toBeInTheDocument();
     });
@@ -386,5 +507,37 @@ describe('TaskCard', () => {
       expect(clickableArea).toBeInTheDocument();
       expect(clickableArea).toHaveClass('cursor-pointer');
     });
+  });
+});
+
+describe('質問待ち (awaiting_question) の表示', () => {
+  beforeEach(() => {
+    mockExecutingStatus = null;
+  });
+
+  it('question.md で停止中のタスクは実行行が無くてもアンバー表示になる', () => {
+    const { container } = render(
+      <TaskCard
+        {...mockProps}
+        task={{ ...mockTask, status: 'in-progress', workflowStatus: 'awaiting_question' }}
+      />,
+    );
+    const card = container.querySelector('[data-task-card]') as HTMLElement;
+    expect(card.className).toContain('ai-glow-amber');
+    expect(card.className).toContain('border-l-amber-500');
+    // The status pill announces the waiting state (aria-label) even without a
+    // live execution row.
+    expect(screen.getAllByLabelText('waitingForInput').length).toBeGreaterThan(0);
+  });
+
+  it('通常の in-progress タスクはアンバーにならない', () => {
+    const { container } = render(
+      <TaskCard
+        {...mockProps}
+        task={{ ...mockTask, status: 'in-progress', workflowStatus: 'in_progress' }}
+      />,
+    );
+    const card = container.querySelector('[data-task-card]') as HTMLElement;
+    expect(card.className).not.toContain('ai-glow-amber');
   });
 });

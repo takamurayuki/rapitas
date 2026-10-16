@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { AgentExecution, AgentExecutionStatus, AIAgentConfig } from '@/types';
+import type { AgentExecution, AIAgentConfig } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 
 export type ExecuteTaskOptions = {
@@ -42,7 +42,7 @@ export type UseAgentExecutionReturn = {
 
 export function useAgentExecution(): UseAgentExecutionReturn {
   const [isExecuting, setIsExecuting] = useState(false);
-  const [currentExecution, setCurrentExecution] = useState<AgentExecution | null>(null);
+  const [currentExecution] = useState<AgentExecution | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const executeTask = useCallback(async (taskId: number, options: ExecuteTaskOptions = {}) => {

@@ -4,11 +4,11 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { DragDropContext } from '@hello-pangea/dnd';
-import TaskSlidePanel from '@/feature/tasks/components/TaskSlidePanel';
+import TaskSlidePanel from '@/feature/tasks/components/detail/TaskSlidePanel';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
-import { useLocaleStore } from '@/stores/locale-store';
-import { toDateLocale } from '@/lib/utils';
+import { useFilterDataStore } from '@/stores/filter-data-store';
+import { formatDate } from '@/utils/date';
 import { useKanbanFilters } from './useKanbanFilters';
 import { useKanbanBoard } from './useKanbanBoard';
 import { KanbanWeekNav } from './components/KanbanWeekNav';
@@ -21,7 +21,7 @@ type Priority = 'low' | 'medium' | 'high' | 'urgent';
 
 const PRIORITY_STYLES: Record<Priority, { color: string; bg: string }> = {
   low: { color: 'text-slate-600', bg: 'bg-slate-100 dark:bg-slate-800' },
-  medium: { color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900' },
+  medium: { color: 'text-indigo-600', bg: 'bg-indigo-100 dark:bg-indigo-900' },
   high: { color: 'text-amber-600', bg: 'bg-amber-100 dark:bg-amber-900' },
   urgent: { color: 'text-rose-600', bg: 'bg-rose-100 dark:bg-rose-900' },
 };
@@ -50,9 +50,9 @@ function getWeekDateRange(weekOffset: number): { start: Date; end: Date } {
 export default function KanbanPage() {
   const t = useTranslations('kanban');
   const tt = useTranslations('task');
-  const tc = useTranslations('common');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
+  useTranslations('common');
+  const themes = useFilterDataStore((s) => s.themes);
+  const initFilterData = useFilterDataStore((s) => s.initializeData);
 
   const priorityConfig: Record<Priority, { label: string; color: string; bg: string }> = {
     low: { label: tt('priorityLow'), ...PRIORITY_STYLES.low },
@@ -92,10 +92,10 @@ export default function KanbanPage() {
   } = useKanbanBoard(tt('running'), tt('waitingForInput'), t('updateFailed'));
 
   const {
-    searchQuery,
-    setSearchQuery,
     selectedPriorities,
     selectedLabelIds,
+    selectedThemeId,
+    setSelectedThemeId,
     labels,
     setLabels,
     filteredTasks,
@@ -119,10 +119,11 @@ export default function KanbanPage() {
       }
     };
     fetchLabels();
-  }, [setLabels]);
+    initFilterData();
+  }, [setLabels, initFilterData]);
 
   const getWeekDisplayText = () => {
-    const fmt = (d: Date) => d.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' });
+    const fmt = (d: Date) => formatDate(d);
     const start = fmt(currentWeekRange.start);
     const end = fmt(currentWeekRange.end);
     if (currentWeek === 0) return t('thisWeek', { start, end });
@@ -144,25 +145,26 @@ export default function KanbanPage() {
           prevLabel={t('prevWeek')}
           nextLabel={t('nextWeek')}
           backLabel={t('backToThisWeek')}
-        />
-
-        <KanbanFilterBar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
           showFilters={showFilters}
           onToggleFilters={() => setShowFilters((v) => !v)}
           hasActiveFilters={hasActiveFilters}
           onClearFilters={clearFilters}
+          filteredCount={filteredTasks.filter((task) => !task.parentId).length}
+          t={t}
+        />
+
+        <KanbanFilterBar
+          showFilters={showFilters}
           selectedPriorities={selectedPriorities}
           onTogglePriority={togglePriority}
           priorityConfig={priorityConfig}
           selectedLabelIds={selectedLabelIds}
           onToggleLabel={toggleLabel}
           labels={labels}
-          filteredCount={filteredTasks.filter((t) => !t.parentId).length}
-          tc={tc}
+          themes={themes}
+          selectedThemeId={selectedThemeId}
+          onSelectTheme={setSelectedThemeId}
           tt={tt}
-          t={t}
         />
 
         {(!taskCacheInitialized || loading || taskCacheLoading) && tasks.length === 0 ? (
@@ -189,7 +191,6 @@ export default function KanbanPage() {
                   label={column.label}
                   tasks={getTasksByStatus(column.id)}
                   getExecutionClasses={getKanbanExecutionClasses}
-                  dateLocale={dateLocale}
                   onOpenTask={openTaskPanel}
                   onOpenTaskInPage={openTaskInPage}
                   t={t as (key: string, values?: Record<string, unknown>) => string}

@@ -4,6 +4,8 @@
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { Elysia } from 'elysia';
+import { tmpdir } from 'os';
+import { join, resolve } from 'path';
 
 const mockPrisma = {
   resource: {
@@ -27,8 +29,17 @@ mock.module('../../../config/logger', () => ({
     debug: () => {},
   }),
 }));
+// resources.ts allowlists sourcePath against getProjectRoot() (see
+// resolveUploadSourcePath) — pin it to a fixed, non-existent path so
+// containment assertions below are deterministic regardless of where the
+// test runner's checkout actually lives.
+const FAKE_PROJECT_ROOT = resolve(tmpdir(), '__rapitas_test_project_root__');
+mock.module('../../../config', () => ({
+  getProjectRoot: () => FAKE_PROJECT_ROOT,
+}));
 
-const { resourcesRoutes } = await import('../../../routes/learning/resources');
+const { resourcesRoutes, resolveUploadSourcePath } =
+  await import('../../../routes/learning/resources');
 const { ValidationError } = await import('../../../middleware/error-handler');
 
 function resetAllMocks() {
@@ -195,5 +206,37 @@ describe('DELETE /resources/:id', () => {
     );
 
     expect(res.status).toBe(400);
+  });
+});
+
+// POST /resources/upload-from-path's `sourcePath` used to be passed straight
+// to existsSync/stat/copyFile with no containment (CRITICAL: arbitrary file
+// read — a caller could copy .env / SSH keys into uploads/ then download
+// them via GET /resources/file/:filename). resolveUploadSourcePath is the
+// fix: it must accept paths inside the allowlisted roots and reject both
+// traversal-to-outside and known-sensitive filenames.
+describe('resolveUploadSourcePath (upload-from-path path containment)', () => {
+  test('accepts a path inside the OS temp dir (an allowlisted root)', () => {
+    const inRoot = join(tmpdir(), 'rapitas-upload-test.txt');
+    expect(resolveUploadSourcePath(inRoot)).toBe(resolve(inRoot));
+  });
+
+  test('rejects an absolute path outside every allowlisted root', () => {
+    const outside =
+      process.platform === 'win32' ? 'C:\\Windows\\System32\\drivers\\etc\\hosts' : '/etc/passwd';
+    expect(() => resolveUploadSourcePath(outside)).toThrow(ValidationError);
+  });
+
+  test('rejects a traversal path that resolves outside the allowlist', () => {
+    const traversal = join(tmpdir(), '..', '..', '..', '..', 'etc', 'passwd');
+    expect(() => resolveUploadSourcePath(traversal)).toThrow(ValidationError);
+  });
+
+  test('rejects a known-sensitive filename even inside an allowlisted root', () => {
+    const envInRoot = join(tmpdir(), '.env');
+    expect(() => resolveUploadSourcePath(envInRoot)).toThrow(ValidationError);
+
+    const sshKeyInRoot = join(tmpdir(), 'id_rsa');
+    expect(() => resolveUploadSourcePath(sshKeyInRoot)).toThrow(ValidationError);
   });
 });

@@ -12,6 +12,7 @@ import { updateWaitingStateFromDetection, tolegacyQuestionType } from '../questi
 import type { QuestionWaitingState } from '../question-detection';
 import type { WorkerOutputMessage, WorkerInputMessage } from '../../../workers/output-parser-types';
 import { createLogger } from '../../../config/logger';
+import { pickPrimaryModel } from './model-attribution';
 import type { AgentArtifact, AgentExecutionResult, GitCommitInfo } from '../base-agent';
 
 /**
@@ -26,9 +27,14 @@ export interface WorkerResultUsageSnapshot {
   cacheCreationInputTokens?: number;
   /** Model id with the largest token share in `modelUsage`. */
   modelName?: string;
+  /** Total assistant turns (= LLM API calls) reported by stream-json `result.num_turns`. */
+  numTurns?: number;
 }
 
 const logger = createLogger('claude-code-agent');
+// Records actual incoming activity, never a timer-generated claim of progress.
+const lastThinkingEmission = new WeakMap<WorkerMessageContext, number>();
+const THINKING_ACTIVITY_INTERVAL_MS = 30_000;
 
 /**
  * Mutable state and callbacks the Worker message handler needs to
@@ -41,6 +47,10 @@ export interface WorkerMessageContext {
   readonly resumeSessionId: string | undefined;
   readonly process: ChildProcess | null;
   readonly activeTools: Map<string, { name: string; startTime: number; info: string }>;
+  /** The model id the router instructed this execution to run (`config.model`). */
+  readonly instructedModel: string | undefined;
+  /** BaseAgent's tool-use handler (plan-deviation recorder), when registered. */
+  readonly toolUseHandler?: ((toolName: string, input: unknown) => void) | undefined;
 
   // ─── Mutable state (direct field access) ─────────────────────────────
   outputBuffer: string;
@@ -98,6 +108,25 @@ export function handleWorkerMessage(ctx: WorkerMessageContext, msg: WorkerOutput
       if (msg.subtype === 'error') {
         logger.error(`${ctx.logPrefix} System error event: ${msg.errorMessage}`);
       }
+      // NOTE: thinking_tokens fires once per internal "thinking" chunk and
+      // carries no text of its own (see lifecycle-patterns.ts) — during a long
+      // thinking burst this repeated the SAME line dozens of times into the
+      // persisted output/execution log with zero added information. Collapse
+      // consecutive repeats at the source, while retaining one received event
+      // every 30 seconds so observers can distinguish activity from silence.
+      // This is activity evidence, not evidence of successful task progress.
+      if (msg.subtype === 'thinking_tokens' && msg.displayOutput) {
+        const now = Date.now();
+        const lastEmission = lastThinkingEmission.get(ctx);
+        if (
+          ctx.outputBuffer.endsWith(msg.displayOutput) &&
+          lastEmission !== undefined &&
+          now - lastEmission < THINKING_ACTIVITY_INTERVAL_MS
+        ) {
+          break;
+        }
+        lastThinkingEmission.set(ctx, now);
+      }
       if (msg.displayOutput) {
         ctx.outputBuffer += msg.displayOutput;
         ctx.emitOutputInternal(msg.displayOutput);
@@ -116,6 +145,14 @@ export function handleWorkerMessage(ctx: WorkerMessageContext, msg: WorkerOutput
           startTime: Date.now(),
           info: tool.info,
         });
+      }
+      for (const call of msg.toolCalls ?? []) {
+        try {
+          ctx.toolUseHandler?.(call.name, call.input);
+        } catch (err) {
+          // Deviation recording is observability only — never break the stream for it.
+          logger.warn({ err }, `${ctx.logPrefix} tool-use recorder failed`);
+        }
       }
       break;
 
@@ -148,7 +185,8 @@ export function handleWorkerMessage(ctx: WorkerMessageContext, msg: WorkerOutput
         outputTokens: msg.usage?.outputTokens,
         cacheReadInputTokens: msg.usage?.cacheReadInputTokens,
         cacheCreationInputTokens: msg.usage?.cacheCreationInputTokens,
-        modelName: pickPrimaryModel(msg.modelUsage),
+        modelName: pickPrimaryModel(msg.modelUsage, ctx.instructedModel),
+        numTurns: msg.numTurns,
       };
       break;
 
@@ -235,31 +273,6 @@ export function handleWorkerMessage(ctx: WorkerMessageContext, msg: WorkerOutput
       logger.error({ stack: msg.stack }, `${ctx.logPrefix} Worker error: ${msg.message}`);
       break;
   }
-}
-
-/**
- * Choose the primary model from a `modelUsage` map. Picks the model with the
- * largest combined input + output token share so subagent calls do not
- * dominate the headline figure.
- */
-function pickPrimaryModel(
-  modelUsage:
-    | Record<
-        string,
-        {
-          inputTokens?: number;
-          outputTokens?: number;
-        }
-      >
-    | undefined,
-): string | undefined {
-  if (!modelUsage) return undefined;
-  let best: { name: string; tokens: number } | null = null;
-  for (const [name, u] of Object.entries(modelUsage)) {
-    const tokens = (u.inputTokens ?? 0) + (u.outputTokens ?? 0);
-    if (!best || tokens > best.tokens) best = { name, tokens };
-  }
-  return best?.name;
 }
 
 // Re-export types so callers don't need a second import path.

@@ -10,6 +10,7 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import VoiceInputBar, { type VoiceTarget } from './VoiceInputBar';
 import WakeWordDetector from './WakeWordDetector';
+import { API_BASE_URL } from '@/utils/api';
 
 interface VoiceInputContextType {
   /** Open the voice input bar. */
@@ -41,6 +42,12 @@ export function useVoiceInput(): VoiceInputContextType {
   return useContext(VoiceInputContext);
 }
 
+// NOTE: Voice input is fully disabled (operator decision 2026-09-02 — the
+// feature is unused, and its /transcribe/warm pre-warm calls were being
+// rejected by the CSRF guard in a retry-ish pattern). Runtime is inert; full
+// file/route removal is tracked as a rapitas task.
+export const VOICE_INPUT_DISABLED = true;
+
 export default function VoiceInputProvider({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [target, setTarget] = useState<VoiceTarget | undefined>(undefined);
@@ -50,6 +57,7 @@ export default function VoiceInputProvider({ children }: { children: React.React
   });
 
   const openVoiceInput = useCallback((t?: VoiceTarget) => {
+    if (VOICE_INPUT_DISABLED) return;
     setTarget(t);
     setIsOpen(true);
   }, []);
@@ -60,12 +68,15 @@ export default function VoiceInputProvider({ children }: { children: React.React
   }, []);
 
   // NOTE: Pre-warm Whisper daemon on app load so first voice input is fast.
+  // Uses the app-wide API base — a host differing from the page's (127.0.0.1 vs
+  // localhost) is cross-site to the browser and the CSRF guard rejects the POST.
   useEffect(() => {
-    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-    fetch(`${BACKEND}/transcribe/warm`, { method: 'POST' }).catch(() => {});
+    if (VOICE_INPUT_DISABLED) return;
+    fetch(`${API_BASE_URL}/transcribe/warm`, { method: 'POST' }).catch(() => {});
   }, []);
 
   const handleSetWakeWord = useCallback((enabled: boolean) => {
+    if (VOICE_INPUT_DISABLED) return;
     setWakeWordEnabled(enabled);
     localStorage.setItem('rapitas-wake-word-enabled', String(enabled));
 
@@ -85,6 +96,7 @@ export default function VoiceInputProvider({ children }: { children: React.React
 
   // Listen for Tauri wake-word-detected event (works even when window is minimized)
   useEffect(() => {
+    if (VOICE_INPUT_DISABLED) return;
     if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
 
     let unlisten: (() => void) | null = null;

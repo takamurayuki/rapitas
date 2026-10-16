@@ -8,8 +8,9 @@
  */
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
-import { validateName } from '@/utils/validation';
+import { validateName, translateValidationError } from '@/utils/validation';
 import { createLogger } from '@/lib/logger';
 import type { AIAgentConfig, ApiProvider, ApiKeyStatusMap } from './types';
 import { CLI_AGENT_TYPES, PROVIDER_TO_AGENT_TYPES } from './types';
@@ -22,6 +23,8 @@ const logger = createLogger('useAgentManager');
  * @returns Agent list state, loading flags, and mutation callbacks.
  */
 export function useAgentManager() {
+  const t = useTranslations('devMode.useAgentManager');
+  const tv = useTranslations('common.validation');
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
   const [isLoadingAgents, setIsLoadingAgents] = useState(false);
   const [isSettingDefault, setIsSettingDefault] = useState(false);
@@ -128,9 +131,11 @@ export function useAgentManager() {
     setInlineAgentError(null);
     setInlineAgentNameError(null);
 
-    const nameResult = validateName(inlineAgentName, 'エージェント名', 1, 50);
+    const nameResult = validateName(inlineAgentName, t('agentNameField'), 1, 50);
     if (!nameResult.valid) {
-      setInlineAgentNameError(nameResult.error ?? null);
+      setInlineAgentNameError(
+        nameResult.error ? translateValidationError(tv, nameResult.error) : null,
+      );
       return;
     }
 
@@ -159,10 +164,10 @@ export function useAgentManager() {
         );
       } else {
         const data = await res.json().catch(() => null);
-        setInlineAgentError(data?.error ?? 'エージェントの追加に失敗しました');
+        setInlineAgentError(data?.error ?? t('addAgentFailed'));
       }
     } catch {
-      setInlineAgentError('エージェントの追加に失敗しました');
+      setInlineAgentError(t('addAgentFailed'));
     } finally {
       setIsSavingAgent(false);
     }

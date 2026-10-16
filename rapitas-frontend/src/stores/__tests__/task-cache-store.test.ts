@@ -408,6 +408,56 @@ describe('taskCacheStore', () => {
       expect(fetchWithRetry).toHaveBeenCalledTimes(2);
     });
 
+    it('does not ping-pong between fetchUpdates and fetchAll forever when the server keeps reporting the same count mismatch', async () => {
+      // Regression: the resync path used to call fetchAll(), which — since
+      // lastFetchedAt was already set — just called fetchUpdates() right
+      // back with the SAME `/tasks?since=...` request. A server that still
+      // reports the same mismatch on that identical request (the realistic
+      // case: nothing changed between the two calls) made the pair loop
+      // forever instead of ever reaching a real, unconditional /tasks fetch.
+      useTaskCacheStore.setState({
+        tasks: [
+          { id: 1, title: 'Task 1' } as never,
+          { id: 2, title: 'Task 2' } as never,
+          { id: 3, title: 'Task 3' } as never,
+        ],
+        lastFetchedAt: new Date().toISOString(),
+        initialized: true,
+      });
+
+      vi.mocked(fetchWithRetry).mockImplementation((input) => {
+        // The real backend answers the same `since` query identically every
+        // time nothing has changed — only a plain, unconditional GET /tasks
+        // (no `since`) represents a genuine full refetch.
+        const url = String(input);
+        if (url.includes('since=')) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({ incremental: true, tasks: [], totalCount: 2, activeIds: [] }),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve([
+              { id: 1, title: 'Task 1' },
+              { id: 2, title: 'Task 2' },
+            ]),
+        } as Response);
+      });
+
+      await useTaskCacheStore.getState().fetchUpdates();
+
+      // Exactly one mismatch-detecting incremental call, then one real full
+      // fetch — never a second incremental call.
+      expect(fetchWithRetry).toHaveBeenCalledTimes(2);
+      const urls = vi.mocked(fetchWithRetry).mock.calls.map((c) => c[0]);
+      expect(urls.filter((u) => String(u).includes('since=')).length).toBe(1);
+      expect(useTaskCacheStore.getState().loading).toBe(false);
+      expect(useTaskCacheStore.getState().tasks).toHaveLength(2);
+    });
+
     it('should track consecutive failures across multiple fetch attempts', async () => {
       useTaskCacheStore.setState({
         tasks: [{ id: 1, title: 'Task' } as never],
@@ -457,6 +507,24 @@ describe('taskCacheStore', () => {
 
       expect(statusDuringFetch).toBe('reconnecting');
       expect(useTaskCacheStore.getState().connectionStatus).toBe('online');
+    });
+
+    it('suppresses further error logs after MAX_LOGGED_FAILURES + 1 consecutive failures', async () => {
+      useTaskCacheStore.setState({
+        tasks: [{ id: 1, title: 'Task' } as never],
+        lastFetchedAt: new Date().toISOString(),
+        initialized: true,
+      });
+
+      vi.mocked(fetchWithRetry).mockRejectedValue(new Error('Failed to fetch'));
+
+      // MAX_LOGGED_FAILURES = 3: the 4th consecutive failure crosses into the
+      // "suppress further error logs" branch.
+      for (let i = 0; i < 4; i++) {
+        await useTaskCacheStore.getState().fetchUpdates(true);
+      }
+
+      expect(useTaskCacheStore.getState().consecutiveFailures).toBe(4);
     });
 
     it('should set offline on HTTP error response', async () => {
@@ -536,6 +604,48 @@ describe('taskCacheStore', () => {
       await expect(useTaskCacheStore.getState().fetchAll()).resolves.toBeUndefined();
       expect(useTaskCacheStore.getState().tasks).toEqual(mockTasks);
       expect(useTaskCacheStore.getState().lastFetchedAt).not.toBeNull();
+    });
+  });
+
+  describe('applyMaxCacheSize (via fetchAll cache cap)', () => {
+    it('evicts the oldest completed tasks when the merged list exceeds MAX_CACHE_SIZE (800)', async () => {
+      const activeTasks = Array.from({ length: 10 }, (_, i) => ({
+        id: i + 1,
+        status: 'todo',
+        title: `Active ${i}`,
+      }));
+      const doneTasks = Array.from({ length: 800 }, (_, i) => ({
+        id: 1000 + i,
+        status: 'done',
+        title: `Done ${i}`,
+      }));
+      const allTasks = [...activeTasks, ...doneTasks]; // 810 total, over the 800 cap
+
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(allTasks),
+      } as Response);
+
+      await useTaskCacheStore.getState().fetchAll();
+
+      const state = useTaskCacheStore.getState();
+      const active = state.tasks.filter(
+        (t) => (t as unknown as { status: string }).status !== 'done',
+      );
+      const done = state.tasks.filter(
+        (t) => (t as unknown as { status: string }).status === 'done',
+      );
+
+      // All active tasks are always retained; done tasks are capped so the
+      // total stays at MAX_CACHE_SIZE (800).
+      expect(active).toHaveLength(10);
+      expect(done).toHaveLength(790);
+      expect(state.tasks).toHaveLength(800);
+
+      // The highest-id (most recent) done tasks are kept; the oldest 10 are evicted.
+      const doneIds = done.map((t) => t.id);
+      expect(Math.min(...doneIds)).toBe(1010);
+      expect(Math.max(...doneIds)).toBe(1799);
     });
   });
 });

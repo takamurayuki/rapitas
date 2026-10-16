@@ -14,11 +14,15 @@
  */
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mic, MicOff, X, Send, Wand2, Loader2, Navigation, Plus, Search } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { Mic, MicOff, X, Send, Wand2, Navigation, ListPlus, Search } from 'lucide-react';
 import AudioWaveform from '../smart-command-bar/AudioWaveform';
 import { encodeWav, resamplePcm } from '@/lib/audio/wav-codec';
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+import { Spinner } from '@/components/ui/spinner';
+// NOTE: Use the app-wide API base — a host differing from the page's (127.0.0.1
+// vs localhost) is cross-site to the browser and the CSRF guard rejects POSTs.
+import { API_BASE_URL as BACKEND_URL } from '@/utils/api';
+import { VOICE_INPUT_DISABLED } from './VoiceInputProvider';
 
 /** Voice command from backend. */
 interface VoiceCommandResponse {
@@ -45,8 +49,12 @@ interface VoiceInputBarProps {
   target?: VoiceTarget;
 }
 
-export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBarProps) {
+// NOTE: voice input disabled — the gate wrapper below keeps hooks
+// unconditional inside the inner component (rules-of-hooks).
+function VoiceInputBarInner({ isOpen, onClose, target }: VoiceInputBarProps) {
   const router = useRouter();
+  const t = useTranslations('devTools');
+  const tCommon = useTranslations('common');
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [lastCommand, setLastCommand] = useState<VoiceCommandResponse | null>(null);
@@ -61,12 +69,152 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
   const chunksRef = useRef<Blob[]>([]);
   const silenceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Deliver transcribed text to target
+  const deliverResult = useCallback(
+    (text: string) => {
+      if (!target || target.type === 'command') {
+        // AI command mode — will be handled by parent
+        return;
+      }
+
+      if (target.type === 'input' && target.element) {
+        const el = target.element;
+        const currentValue = el.value;
+        const start = el.selectionStart ?? currentValue.length;
+        const end = el.selectionEnd ?? currentValue.length;
+        const newValue = currentValue.slice(0, start) + text + currentValue.slice(end);
+
+        // Set value and trigger React change event
+        const nativeSetter =
+          Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set ??
+          Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
+
+        nativeSetter?.call(el, newValue);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.focus();
+        el.setSelectionRange(start + text.length, start + text.length);
+      }
+
+      if (target.type === 'callback') {
+        target.onText(text);
+      }
+    },
+    [target],
+  );
+
+  // Execute a parsed voice command
+  const executeCommand = useCallback(
+    (cmd: VoiceCommandResponse) => {
+      switch (cmd.type) {
+        case 'navigate':
+          if (cmd.path) {
+            setInterimInfo(t('voice.inputBar.navigatingTo', { label: cmd.label || cmd.path }));
+            setTimeout(() => {
+              router.push(cmd.path!);
+              onClose();
+            }, 500);
+          }
+          break;
+
+        case 'create_task':
+          if (cmd.title) {
+            setInterimInfo(t('voice.inputBar.creatingTask', { title: cmd.title }));
+            fetch(`${BACKEND_URL}/tasks`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ title: cmd.title }),
+            })
+              .then((res) => {
+                if (res.ok) {
+                  setInterimInfo(t('voice.inputBar.taskCreated', { title: cmd.title! }));
+                  setTimeout(() => onClose(), 1500);
+                }
+              })
+              .catch(() => setError(t('voice.inputBar.taskCreateFailed')));
+          }
+          break;
+
+        case 'search':
+          if (cmd.query) {
+            router.push(`/search?q=${encodeURIComponent(cmd.query)}`);
+            onClose();
+          }
+          break;
+      }
+    },
+    [router, onClose, t],
+  );
+
+  // Transcribe audio and deliver result
+  const transcribeAndDeliver = useCallback(
+    async (blob: Blob) => {
+      setIsTranscribing(true);
+      setInterimInfo(t('voice.inputBar.recognizing'));
+
+      try {
+        // Decode webm → PCM → WAV
+        const decodeCtx = new AudioContext();
+        const arrayBuffer = await blob.arrayBuffer();
+        const audioBuffer = await decodeCtx.decodeAudioData(arrayBuffer);
+        await decodeCtx.close();
+
+        const pcm = audioBuffer.getChannelData(0);
+        const rate = audioBuffer.sampleRate;
+        const resampled = rate === 16000 ? pcm : resamplePcm(pcm, rate, 16000);
+        const wavBlob = encodeWav(
+          resampled instanceof Float32Array ? resampled : new Float32Array(resampled),
+          16000,
+        );
+
+        const formData = new FormData();
+        formData.append('audio', wavBlob, 'audio.wav');
+        formData.append('language', 'ja');
+
+        const response = await fetch(`${BACKEND_URL}/transcribe`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (response.ok) {
+          const result = (await response.json()) as {
+            text: string;
+            command?: VoiceCommandResponse;
+            processingMs?: number;
+          };
+
+          if (result.text.trim()) {
+            setTranscript(result.text.trim());
+
+            // Auto-execute voice commands
+            if (result.command && result.command.type !== 'text') {
+              setLastCommand(result.command);
+              executeCommand(result.command);
+            } else {
+              deliverResult(result.text.trim());
+            }
+          } else {
+            setInterimInfo(t('voice.inputBar.recognitionFailed'));
+          }
+        } else {
+          const data = await response.json().catch(() => ({ error: tCommon('error') }));
+          setError((data as { error?: string }).error || t('voice.inputBar.transcribeFailed'));
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : t('voice.inputBar.transcribeError'));
+      } finally {
+        setIsTranscribing(false);
+        setInterimInfo('');
+      }
+    },
+    [t, tCommon, executeCommand, deliverResult],
+  );
+
   // Start recording
   const startRecording = useCallback(async () => {
     try {
       setError(null);
       setTranscript('');
-      setInterimInfo('話してください...');
+      setInterimInfo(t('voice.inputBar.listening'));
 
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: true,
@@ -118,14 +266,14 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
 
         if (state.hasSpoken) {
           const silenceMs = Date.now() - state.lastSoundTime;
-          setInterimInfo(`録音中... (${(silenceMs / 1000).toFixed(1)}s)`);
+          setInterimInfo(t('voice.inputBar.recording', { seconds: (silenceMs / 1000).toFixed(1) }));
 
           if (silenceMs > SILENCE_MS) {
             clearInterval(timer);
             recorder.stop();
           }
         } else {
-          setInterimInfo(`話してください... (音量: ${avg.toFixed(0)})`);
+          setInterimInfo(t('voice.inputBar.listeningVolume', { volume: avg.toFixed(0) }));
         }
       }, 100);
 
@@ -152,9 +300,9 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'マイクの起動に失敗しました');
+      setError(err instanceof Error ? err.message : t('voice.inputBar.micStartFailed'));
     }
-  }, []);
+  }, [t, transcribeAndDeliver]);
 
   // Stop recording manually
   const stopRecording = useCallback(() => {
@@ -166,143 +314,6 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
       mediaRecorderRef.current.stop();
     }
   }, []);
-
-  // Transcribe audio and deliver result
-  const transcribeAndDeliver = async (blob: Blob) => {
-    setIsTranscribing(true);
-    setInterimInfo('文字起こし中...');
-
-    try {
-      // Decode webm → PCM → WAV
-      const decodeCtx = new AudioContext();
-      const arrayBuffer = await blob.arrayBuffer();
-      const audioBuffer = await decodeCtx.decodeAudioData(arrayBuffer);
-      await decodeCtx.close();
-
-      const pcm = audioBuffer.getChannelData(0);
-      const rate = audioBuffer.sampleRate;
-      const resampled = rate === 16000 ? pcm : resamplePcm(pcm, rate, 16000);
-      const wavBlob = encodeWav(
-        resampled instanceof Float32Array ? resampled : new Float32Array(resampled),
-        16000,
-      );
-
-      const formData = new FormData();
-      formData.append('audio', wavBlob, 'audio.wav');
-      formData.append('language', 'ja');
-
-      const response = await fetch(`${BACKEND_URL}/transcribe`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (response.ok) {
-        const result = (await response.json()) as {
-          text: string;
-          command?: VoiceCommandResponse;
-          processingMs?: number;
-        };
-
-        if (result.text.trim()) {
-          setTranscript(result.text.trim());
-
-          // Auto-execute voice commands
-          if (result.command && result.command.type !== 'text') {
-            setLastCommand(result.command);
-            executeCommand(result.command);
-          } else {
-            deliverResult(result.text.trim());
-          }
-        } else {
-          setInterimInfo('音声を認識できませんでした');
-        }
-      } else {
-        const data = await response.json().catch(() => ({ error: 'エラー' }));
-        setError((data as { error?: string }).error || '文字起こしに失敗しました');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '文字起こしエラー');
-    } finally {
-      setIsTranscribing(false);
-      setInterimInfo('');
-    }
-  };
-
-  // Execute a parsed voice command
-  const executeCommand = useCallback(
-    (cmd: VoiceCommandResponse) => {
-      switch (cmd.type) {
-        case 'navigate':
-          if (cmd.path) {
-            setInterimInfo(`${cmd.label || cmd.path} に移動します...`);
-            setTimeout(() => {
-              router.push(cmd.path!);
-              onClose();
-            }, 500);
-          }
-          break;
-
-        case 'create_task':
-          if (cmd.title) {
-            setInterimInfo(`タスク「${cmd.title}」を作成中...`);
-            fetch(`${BACKEND_URL}/tasks`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ title: cmd.title }),
-            })
-              .then((res) => {
-                if (res.ok) {
-                  setInterimInfo(`タスク「${cmd.title}」を作成しました`);
-                  setTimeout(() => onClose(), 1500);
-                }
-              })
-              .catch(() => setError('タスク作成に失敗しました'));
-          }
-          break;
-
-        case 'search':
-          if (cmd.query) {
-            router.push(`/search?q=${encodeURIComponent(cmd.query)}`);
-            onClose();
-          }
-          break;
-      }
-    },
-    [router, onClose],
-  );
-
-  // Deliver transcribed text to target
-  const deliverResult = useCallback(
-    (text: string) => {
-      if (!target || target.type === 'command') {
-        // AI command mode — will be handled by parent
-        return;
-      }
-
-      if (target.type === 'input' && target.element) {
-        const el = target.element;
-        const currentValue = el.value;
-        const start = el.selectionStart ?? currentValue.length;
-        const end = el.selectionEnd ?? currentValue.length;
-        const newValue = currentValue.slice(0, start) + text + currentValue.slice(end);
-
-        // Set value and trigger React change event
-        const nativeSetter =
-          Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set ??
-          Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
-
-        nativeSetter?.call(el, newValue);
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.focus();
-        el.setSelectionRange(start + text.length, start + text.length);
-      }
-
-      if (target.type === 'callback') {
-        target.onText(text);
-      }
-    },
-    [target],
-  );
 
   // Send transcript as AI command
   const sendAsCommand = useCallback(async () => {
@@ -319,9 +330,9 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
         onClose();
       }
     } catch {
-      setError('コマンド実行に失敗しました');
+      setError(t('voice.inputBar.commandExecFailed'));
     }
-  }, [transcript, onClose]);
+  }, [transcript, onClose, t]);
 
   // Keyboard shortcut to toggle
   useEffect(() => {
@@ -345,10 +356,15 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
   }, [isOpen, isRecording, startRecording, stopRecording, onClose]);
 
   // Auto-start recording when opened
+  // NOTE: intentionally keyed only on `isOpen` — this must fire once when the
+  // bar transitions closed→open, not whenever isRecording/isTranscribing flip
+  // back to false at the end of a recording (that would auto-restart a new
+  // recording immediately after every command, without the user asking).
   useEffect(() => {
     if (isOpen && !isRecording && !isTranscribing) {
       startRecording();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -362,6 +378,9 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
             <button
               onClick={isRecording ? stopRecording : startRecording}
               disabled={isTranscribing}
+              aria-label={
+                isRecording ? t('voice.inputBar.stopRecording') : t('voice.inputBar.startRecording')
+              }
               className={`p-3 rounded-xl transition-all ${
                 isTranscribing
                   ? 'bg-amber-500/20 text-amber-400'
@@ -371,7 +390,7 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
               }`}
             >
               {isTranscribing ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Spinner size="md" className="text-amber-400 dark:text-amber-400" />
               ) : isRecording ? (
                 <MicOff className="w-5 h-5" />
               ) : (
@@ -382,7 +401,7 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
             <div className="flex-1 min-w-0">
               {stream && <AudioWaveform stream={stream} width={300} height={32} />}
               {!stream && interimInfo && (
-                <span className="text-sm text-zinc-400">{interimInfo}</span>
+                <span className="text-sm text-zinc-500">{interimInfo}</span>
               )}
               {error && <span className="text-sm text-red-400">{error}</span>}
             </div>
@@ -404,12 +423,17 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
               {lastCommand.type === 'navigate' && (
                 <Navigation className="w-4 h-4 text-indigo-400" />
               )}
-              {lastCommand.type === 'create_task' && <Plus className="w-4 h-4 text-green-400" />}
+              {lastCommand.type === 'create_task' && (
+                <ListPlus className="w-4 h-4 text-green-400" />
+              )}
               {lastCommand.type === 'search' && <Search className="w-4 h-4 text-amber-400" />}
               <span className="text-sm text-zinc-300">
-                {lastCommand.type === 'navigate' && `${lastCommand.label} に移動`}
-                {lastCommand.type === 'create_task' && `タスク「${lastCommand.title}」を作成`}
-                {lastCommand.type === 'search' && `「${lastCommand.query}」を検索`}
+                {lastCommand.type === 'navigate' &&
+                  t('voice.inputBar.navigateToResult', { label: lastCommand.label ?? '' })}
+                {lastCommand.type === 'create_task' &&
+                  t('voice.inputBar.createTaskResult', { title: lastCommand.title ?? '' })}
+                {lastCommand.type === 'search' &&
+                  t('voice.inputBar.searchResult', { query: lastCommand.query ?? '' })}
               </span>
             </div>
           )}
@@ -421,20 +445,20 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
                 type="text"
                 value={transcript}
                 onChange={(e) => setTranscript(e.target.value)}
-                className="flex-1 bg-zinc-800 text-zinc-100 rounded-lg px-3 py-2 text-sm border border-zinc-700 focus:border-blue-400 outline-none"
-                placeholder="音声テキストを編集..."
+                className="flex-1 bg-zinc-800 text-zinc-100 rounded-lg px-3 py-2 text-sm border border-zinc-700 focus:border-indigo-400 outline-none"
+                placeholder={t('voice.inputBar.editPlaceholder')}
               />
               <button
                 onClick={sendAsCommand}
                 className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                title="AIコマンドとして実行"
+                title={t('voice.inputBar.sendAsCommand')}
               >
                 <Wand2 className="w-4 h-4" />
               </button>
               <button
                 onClick={() => deliverResult(transcript)}
                 className="p-2 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600 transition-colors"
-                title="テキストを入力欄に挿入"
+                title={t('voice.inputBar.insertText')}
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -443,12 +467,17 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
 
           {/* Shortcut hint */}
           <div className="flex items-center justify-center gap-4 text-[10px] text-zinc-600">
-            <span>Ctrl+Shift+V: 録音開始/停止</span>
-            <span>Esc: 閉じる</span>
-            <span>無音2秒で自動変換</span>
+            <span>{t('voice.inputBar.shortcutToggle')}</span>
+            <span>{t('voice.inputBar.shortcutClose')}</span>
+            <span>{t('voice.inputBar.autoConvert')}</span>
           </div>
         </div>
       </div>
     </div>
   );
+}
+
+export default function VoiceInputBar(props: VoiceInputBarProps) {
+  if (VOICE_INPUT_DISABLED) return null;
+  return <VoiceInputBarInner {...props} />;
 }

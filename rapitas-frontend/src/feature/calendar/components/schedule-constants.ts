@@ -6,17 +6,27 @@
  * Not responsible for UI rendering or date calculations.
  */
 
-/** Available reminder offsets (in minutes before the event). */
+/**
+ * Available reminder offsets (in minutes before the event).
+ *
+ * NOTE: no static `label` field — consuming components derive the display
+ * label from `value` via `calendar.reminderMinutesBefore` /
+ * `reminderHoursBefore` / `reminderDaysBefore` (see getReminderOptionLabel
+ * usages) so the text stays translated.
+ */
 export const REMINDER_OPTIONS = [
-  { value: null, label: 'なし' },
-  { value: 5, label: '5分前' },
-  { value: 10, label: '10分前' },
-  { value: 15, label: '15分前' },
-  { value: 30, label: '30分前' },
-  { value: 60, label: '1時間前' },
-  { value: 1440, label: '1日前' },
+  { value: null },
+  { value: 5 },
+  { value: 10 },
+  { value: 15 },
+  { value: 30 },
+  { value: 60 },
+  { value: 1440 },
 ] as const;
 
+// NOTE: `label` values below are English color names shown only as a hover
+// `title` tooltip on swatch buttons — deliberately left untranslated (i18n
+// migration, deferred: not Japanese sentence text, low-value to localize).
 /** Available event accent colors. */
 export const COLOR_OPTIONS = [
   { value: '#6366F1', label: 'Indigo' },
@@ -31,10 +41,10 @@ export const COLOR_OPTIONS = [
 
 /** Quick-select time presets shown as pill buttons in the time picker. */
 export const QUICK_TIMES = [
-  { start: '09:00', end: '10:00', label: '午前' },
-  { start: '12:00', end: '13:00', label: '昼' },
-  { start: '15:00', end: '16:00', label: '午後' },
-  { start: '19:00', end: '20:00', label: '夜' },
+  { start: '09:00', end: '10:00', labelKey: 'quickTimeMorning' as const },
+  { start: '12:00', end: '13:00', labelKey: 'quickTimeNoon' as const },
+  { start: '15:00', end: '16:00', labelKey: 'quickTimeAfternoon' as const },
+  { start: '19:00', end: '20:00', labelKey: 'quickTimeEvening' as const },
 ] as const;
 
 /** Default accent color for new events. */

@@ -3,20 +3,19 @@
 /**
  * directory-picker/useDirectoryPicker
  *
- * Custom hook that composes useFavorites with browser navigation state and
- * all edit/create-folder logic for the DirectoryPicker component.
+ * Custom hook that composes useFavorites and useFolderCreation with browser
+ * navigation state and inline-edit logic for the DirectoryPicker component.
  * Not responsible for any JSX rendering.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
-import { createLogger } from '@/lib/logger';
 import type { BrowseResult, FavoriteDirectory, DirectoryEntry } from './types';
 import { useFavorites } from './useFavorites';
+import { useFolderCreation, type UseFolderCreationReturn } from './useFolderCreation';
 
-const logger = createLogger('useDirectoryPicker');
-
-export type UseDirectoryPickerReturn = {
+export type UseDirectoryPickerReturn = UseFolderCreationReturn & {
   isOpen: boolean;
   handleOpen: () => Promise<void>;
   handleClose: () => void;
@@ -33,7 +32,7 @@ export type UseDirectoryPickerReturn = {
   handleGoUp: () => void;
   handleGoToDrives: () => void;
   handleGoToPath: () => void;
-  handleSelect: () => void;
+  handleSelectPath: (path: string) => void;
   favorites: FavoriteDirectory[];
   showFavorites: boolean;
   setShowFavorites: (v: boolean) => void;
@@ -51,16 +50,6 @@ export type UseDirectoryPickerReturn = {
   handleStartEdit: () => void;
   handleEditComplete: () => void;
   handleEditCancel: () => void;
-  isCreatingFolder: boolean;
-  newFolderName: string;
-  setNewFolderName: (v: string) => void;
-  isCreating: boolean;
-  createError: string | null;
-  setCreateError: (v: string | null) => void;
-  newFolderInputRef: React.RefObject<HTMLInputElement | null>;
-  handleStartCreateFolder: () => void;
-  handleCancelCreateFolder: () => void;
-  handleCreateFolder: () => Promise<void>;
   dropdownRef: React.RefObject<HTMLDivElement | null>;
 };
 
@@ -75,6 +64,7 @@ export function useDirectoryPicker(
   value: string,
   onChange: (path: string) => void,
 ): UseDirectoryPickerReturn {
+  const t = useTranslations('common');
   const {
     favorites,
     isLoadingFavorites,
@@ -99,14 +89,14 @@ export function useDirectoryPicker(
   const [favoritesOnlyMode, setFavoritesOnlyMode] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
-  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
-  const newFolderInputRef = useRef<HTMLInputElement>(null);
+
+  const handleEditComplete = useCallback(() => {
+    if (editValue !== value) onChange(editValue);
+    setIsEditing(false);
+  }, [editValue, value, onChange]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -120,7 +110,7 @@ export function useDirectoryPicker(
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isEditing, editValue]);
+  }, [isEditing, handleEditComplete]);
 
   const browseDirectory = async (path?: string) => {
     setIsLoading(true);
@@ -141,11 +131,15 @@ export function useDirectoryPicker(
       setIsGitRepo(data.isGitRepo || false);
       setIsDriveList(data.isDriveList || false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'ディレクトリの取得に失敗しました');
+      setError(err instanceof Error ? err.message : t('directoryPicker.fetchError'));
     } finally {
       setIsLoading(false);
     }
   };
+
+  const folderCreation = useFolderCreation(currentPath, (createdPath) =>
+    browseDirectory(createdPath),
+  );
 
   const handleOpen = async () => {
     setIsOpen(true);
@@ -177,14 +171,18 @@ export function useDirectoryPicker(
     setIsOpen(false);
     setError(null);
     setManualPath('');
-    setIsCreatingFolder(false);
-    setNewFolderName('');
-    setCreateError(null);
+    folderCreation.resetFolderCreation();
   };
 
-  const handleSelect = () => {
-    if (currentPath) {
-      onChange(currentPath);
+  /**
+   * Confirms the given path as the picker's value and closes the modal.
+   * Used by the footer select button (highlighted row or current path).
+   *
+   * @param path - Directory path to confirm / 確定するディレクトリパス
+   */
+  const handleSelectPath = (path: string) => {
+    if (path) {
+      onChange(path);
       handleClose();
     }
   };
@@ -206,66 +204,9 @@ export function useDirectoryPicker(
     }, 0);
   };
 
-  const handleEditComplete = () => {
-    if (editValue !== value) onChange(editValue);
-    setIsEditing(false);
-  };
-
   const handleEditCancel = () => {
     setIsEditing(false);
     setEditValue(value);
-  };
-
-  const handleStartCreateFolder = () => {
-    setIsCreatingFolder(true);
-    setNewFolderName('');
-    setCreateError(null);
-    setTimeout(() => {
-      newFolderInputRef.current?.focus();
-    }, 0);
-  };
-
-  const handleCancelCreateFolder = () => {
-    setIsCreatingFolder(false);
-    setNewFolderName('');
-    setCreateError(null);
-  };
-
-  const handleCreateFolder = async () => {
-    if (!newFolderName.trim()) {
-      setCreateError('フォルダ名を入力してください');
-      return;
-    }
-    if (/[<>:"/\\|?*]/.test(newFolderName)) {
-      setCreateError('フォルダ名に使用できない文字が含まれています');
-      return;
-    }
-    const sep = currentPath.includes('\\') ? '\\' : '/';
-    const newPath = currentPath
-      ? `${currentPath}${currentPath.endsWith('\\') || currentPath.endsWith('/') ? '' : sep}${newFolderName.trim()}`
-      : newFolderName.trim();
-    setIsCreating(true);
-    setCreateError(null);
-    try {
-      const res = await fetch(`${API_BASE_URL}/directories/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: newPath }),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        setCreateError(data.error || 'フォルダの作成に失敗しました');
-        return;
-      }
-      setIsCreatingFolder(false);
-      setNewFolderName('');
-      setCreateError(null);
-      browseDirectory(data.path);
-    } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'フォルダの作成に失敗しました');
-    } finally {
-      setIsCreating(false);
-    }
   };
 
   return {
@@ -285,7 +226,7 @@ export function useDirectoryPicker(
     handleGoUp,
     handleGoToDrives,
     handleGoToPath,
-    handleSelect,
+    handleSelectPath,
     favorites,
     showFavorites,
     setShowFavorites,
@@ -303,16 +244,7 @@ export function useDirectoryPicker(
     handleStartEdit,
     handleEditComplete,
     handleEditCancel,
-    isCreatingFolder,
-    newFolderName,
-    setNewFolderName,
-    isCreating,
-    createError,
-    setCreateError,
-    newFolderInputRef,
-    handleStartCreateFolder,
-    handleCancelCreateFolder,
-    handleCreateFolder,
+    ...folderCreation,
     dropdownRef,
   };
 }

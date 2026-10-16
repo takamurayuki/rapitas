@@ -3,6 +3,7 @@
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Target } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { GrowthTimeline } from '../types';
 
 const TOOLTIP_STYLE = {
@@ -29,16 +30,17 @@ export function ConfidenceTrendChart({
   growthTimeline,
   formatChartDate,
 }: ConfidenceTrendChartProps) {
+  const t = useTranslations('agents.memory.confidenceTrendChart');
   const data = growthTimeline.timeline.filter((d) => d.avgConfidence > 0);
   if (data.length === 0) return null;
 
   return (
-    <div className="mb-8 p-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm dark:shadow-2xl dark:shadow-black/50">
+    <div className="mb-8 p-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm">
       <div className="flex items-center gap-3 mb-6">
         <div className="p-2 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-lg">
           <Target className="w-5 h-5" />
         </div>
-        <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">信頼度の推移</h3>
+        <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{t('title')}</h3>
       </div>
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={data}>
@@ -57,7 +59,9 @@ export function ConfidenceTrendChart({
           />
           <Tooltip
             contentStyle={TOOLTIP_STYLE}
-            formatter={((v: unknown) => [`${(Number(v) * 100).toFixed(1)}%`, '信頼度']) as never}
+            formatter={
+              ((v: unknown) => [`${(Number(v) * 100).toFixed(1)}%`, t('tooltipLabel')]) as never
+            }
           />
           <Bar dataKey="avgConfidence" fill="#f59e0b" radius={[4, 4, 0, 0]} />
         </BarChart>

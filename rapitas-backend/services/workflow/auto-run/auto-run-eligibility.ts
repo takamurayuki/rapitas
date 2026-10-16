@@ -1,0 +1,56 @@
+/**
+ * auto-run-eligibility
+ *
+ * Shared "runnable top-level todo" where-fragment for the idle-side counters
+ * in auto-run-lifecycle.ts / auto-run-idle-timer.ts. This definition MUST stay
+ * in sync with selectNextTask's eligibility (auto-run-selection.ts) —
+ * task 635 (2026-08-24 awaiting_question, 2026-08-26 workflowDisabled) showed
+ * twice that when the idle-side counters count a task selectNextTask refuses,
+ * the theme resumes and is immediately bounced back to idle: a 12s
+ * running/idle flap. Task 884 collapsed the 3 idle-side duplicates that
+ * carried this risk into this single helper.
+ */
+import type { Prisma } from '../../../generated/prisma-postgres';
+
+/**
+ * Where-fragment for a top-level (parentId:null) 'todo' task that
+ * selectNextTask would also consider eligible: not workflow-disabled, not
+ * user-excluded from auto-run, and not parked on an unanswered question.
+ * `extra` is merged in for callers that
+ * need an additional narrowing clause (e.g. autoCreatedFromBacklog:false).
+ *
+ * @param themeId - Theme to scope the count to. / 対象テーマID
+ * @param extra - Additional where clauses to merge in. / 追加の絞り込み条件
+ * @returns Prisma where input for prisma.task.count/findMany. / count/findMany用のwhere条件
+ */
+export function eligibleTopLevelTodoWhere(
+  themeId: number,
+  extra?: Prisma.TaskWhereInput,
+): Prisma.TaskWhereInput {
+  return {
+    themeId,
+    // selectNextTask also picks 'in-progress' rows whose workflow is not
+    // finished (mid-run answer, retry, reset). Counting only 'todo' here left
+    // #1088 (2026-09-25) invisible: its execution-phase question was answered
+    // while status was 'in-progress', so the armed-idle theme never resumed
+    // although the state endpoint reported it as remaining.
+    status: { in: ['todo', 'in-progress'] },
+    parentId: null,
+    workflowDisabled: false,
+    autoRunExcluded: false,
+    // NOTE: iteration-budget halted tasks (task 881/995) are skipped by auto-run-advance-select's
+    // skipIds; counting them here made the idle side resume a theme the selector then refuses.
+    haltReason: null,
+    AND: [
+      {
+        OR: [
+          { status: 'todo' },
+          { workflowStatus: null },
+          { workflowStatus: { notIn: ['completed', 'verify_done'] } },
+        ],
+      },
+      { OR: [{ workflowStatus: null }, { workflowStatus: { not: 'awaiting_question' } }] },
+    ],
+    ...extra,
+  };
+}

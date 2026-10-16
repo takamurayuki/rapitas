@@ -130,7 +130,7 @@ export function TaskCreationSettingsCard({
                   value={localDelay}
                   onChange={onDelayChange}
                   onBlur={onDelayBlur}
-                  className="w-16 px-2 py-1 text-sm text-center rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 focus:outline-none focus:border-blue-400"
+                  className="w-16 px-2 py-1 text-sm text-center rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 focus:outline-none focus:border-indigo-400"
                 />
                 <span className="text-sm text-zinc-500 dark:text-zinc-400">{t('devSeconds')}</span>
               </div>

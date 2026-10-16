@@ -7,247 +7,70 @@
  * the task is flagged. NOT responsible for creating the PR (that is the
  * workflow auto-commit path) — only for the CI-gated merge step.
  *
- * Eligibility is derived from existing data (completed task + autoMergePR policy
- * + an open linked PR, minus a transition marker), so no schema change is needed.
+ * Candidate discovery lives in auto-merge-candidates; check/merge-state reads in
+ * auto-merge-checks; exhausted-budget parking (with head-change resume) in
+ * auto-merge-exhaustion; CI-failure handling (update-branch, no-diff parking,
+ * bounded self-repair) in auto-merge-ci-failure. This file owns the tick loop
+ * and the merge decisions.
  */
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { resolveAutomationPolicy } from './automation-policy';
-import { mergePullRequest } from '../agents/orchestrator/git-operations/branch-pr-ops';
+import { mergePullRequest } from '../agents/orchestrator/git-operations/pr/branch-pr-ops';
 import { recordTransition } from './transition-recorder';
-import { attemptCiRepair } from './ci-self-repair';
+import { handleCiFailure } from './auto-merge-ci-failure';
+import { splitRedChecks, handleCancelledChecks } from './auto-merge-cancelled-checks';
+import { fileConflictResolutionTask } from '../github/conflict-task';
+import { resolveIntegrationId } from '../github/pr-link';
+import {
+  blockingChecks,
+  evaluateAutoMergeChecks,
+  readPrChecks,
+  readMergeState,
+  readIsDraft,
+} from './auto-merge-checks';
+import { markExhausted } from './auto-merge-exhaustion';
+import { notify } from './auto-merge-notify';
+import { findCandidates, type Candidate } from './auto-merge-candidates';
+import { countWithFailClosed } from '../../utils/database/fail-closed-count';
+import { canContinueAutoMerge } from './auto-merge-task-guard';
+import { recoverMergedTasks } from './auto-merge-recovery';
+import { evaluatePreMergeGate, RATCHET_CHECK_NAME } from './auto-merge-premerge-gate';
+import { checkBaselineDrift } from './auto-merge-baseline-drift';
+import { reapStalePrs } from './stale-pr-reaper';
+import { reconcilePrStates } from './pr-state-reconciler';
+import { readyPullRequest } from '../agents/orchestrator/git-operations/pr/pr-draft-ops';
+import { resolveDraftHold } from './auto-merge-draft-promotion';
 
-const execAsync = promisify(exec);
 const log = createLogger('workflow:auto-merge-watcher');
 
 /** Poll cadence. CI takes minutes, so a 60s tick is plenty. */
 const POLL_INTERVAL_MS = 60_000;
 /** Give up waiting for CI after this long and flag the PR for review. */
 const PENDING_TIMEOUT_MS = 90 * 60 * 1000; // 90 min
-/** Transition causes that mark a task's auto-merge/CI-completion as resolved. */
-const DONE_CAUSES = ['auto_merged', 'auto_merge_blocked', 'pr_ci_completed'];
-
 /**
- * Staged completion (RAPITAS_STAGED_COMPLETION): when ON, a task that landed via
- * a PR is NOT completed at PR creation — `pr` mode completes when the PR's CI is
- * green (no merge), `merge` mode completes when the PR is merged. The watcher
- * therefore also picks up not-yet-completed tasks (verify_done) and marks them
- * done at the right point. When OFF, only already-`done` autoMergePR tasks merge
- * (legacy behaviour), so nothing regresses.
+ * File a conflict-resolution task at most this many times for one PR before
+ * giving up and blocking for manual review. Each re-file happens only AFTER the
+ * prior conflict task finished without making the PR mergeable, so this bounds a
+ * genuinely-unresolvable conflict instead of re-filing forever.
  */
-function stagedCompletionEnabled(): boolean {
-  return (
-    process.env.RAPITAS_STAGED_COMPLETION === 'true' ||
-    process.env.RAPITAS_STAGED_COMPLETION === '1'
-  );
-}
-
-/**
- * Checks that GATE the merge. A PR merges only when every present blocking check
- * passes; advisory checks (bundle size, performance, CodeQL, previews) are
- * ignored. Overridable via RAPITAS_AUTOMERGE_CHECKS (comma-separated names).
- */
-const DEFAULT_BLOCKING_CHECKS = [
-  'Test Backend',
-  'Lint Code',
-  'Check Frontend',
-  'Test SQLite Compatible Suite',
-  'Check Rust Code',
-  'Lint Markdown files',
-  'Lint GitHub Actions workflows',
-  'Secret scanning',
-  // Build gates: never auto-merge code that doesn't build. (macOS/Windows build
-  // matrices are intentionally NOT blocking — they are slower/flakier; the Linux
-  // build + Quick Build Check are the representative gate. Override via
-  // RAPITAS_AUTOMERGE_CHECKS if your matrix differs.)
-  'Quick Build Check',
-  'Build (ubuntu-latest)',
-];
-
-function blockingChecks(): Set<string> {
-  const raw = process.env.RAPITAS_AUTOMERGE_CHECKS;
-  const names = raw
-    ? raw
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : DEFAULT_BLOCKING_CHECKS;
-  return new Set(names);
-}
-
-function ghPath(): string {
-  return process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
-}
-
-export type CheckState = 'pass' | 'fail' | 'pending' | 'unknown';
-
-/** One CI check as returned by `gh pr checks --json name,bucket`. */
-export interface PrCheck {
-  name: string;
-  bucket: string;
-}
-
-/**
- * Decide the aggregate state of the blocking checks. Pure — the testable core.
- *
- * @param checks - All checks reported for the PR. / PRの全チェック
- * @param blocking - Names that gate the merge. / マージをゲートするチェック名
- * @returns 'pass' when every present blocking check passed, 'fail' if any
- *   failed/cancelled, 'pending' if any is still running, 'unknown' if none of
- *   the blocking checks have reported yet. / 集約状態
- */
-export function evaluateAutoMergeChecks(checks: PrCheck[], blocking: Set<string>): CheckState {
-  const relevant = checks.filter((c) => blocking.has(c.name));
-  if (relevant.length === 0) return 'unknown';
-  if (relevant.some((c) => c.bucket === 'fail' || c.bucket === 'cancel')) return 'fail';
-  if (relevant.some((c) => c.bucket === 'pending')) return 'pending';
-  // Everything present is pass/skipping.
-  return 'pass';
-}
-
-/** Read the PR's checks via gh. Tolerates gh's non-zero exit on red/pending. */
-async function readPrChecks(cwd: string, prNumber: number): Promise<PrCheck[] | null> {
-  try {
-    const { stdout } = await execAsync(`${ghPath()} pr checks ${prNumber} --json name,bucket`, {
-      cwd,
-      encoding: 'utf8',
-    });
-    return JSON.parse(stdout) as PrCheck[];
-  } catch (err) {
-    // gh exits non-zero when checks are failing/pending but still prints JSON.
-    const stdout = (err as { stdout?: string }).stdout;
-    if (stdout) {
-      try {
-        return JSON.parse(stdout) as PrCheck[];
-      } catch {
-        /* fall through */
-      }
-    }
-    log.warn({ err, prNumber }, '[auto-merge] Failed to read PR checks');
-    return null;
-  }
-}
-
-interface NotifyParams {
-  taskId: number;
-  type: string;
-  title: string;
-  message: string;
-}
-async function notify(p: NotifyParams): Promise<void> {
-  await prisma.notification
-    .create({
-      data: {
-        type: p.type,
-        title: p.title,
-        message: p.message,
-        link: `/tasks/${p.taskId}`,
-        metadata: JSON.stringify({ taskId: p.taskId }),
-      },
-    })
-    .catch(() => {});
-}
-
-/** A task whose PR is waiting on CI before auto-merge / CI-green completion. */
-interface Candidate {
-  taskId: number;
-  taskTitle: string;
-  prNumber: number;
-  baseBranch: string;
-  cwd: string;
-  threshold: number;
-  completedAt: Date | null;
-  /** `merge`: merge on CI green, then complete. `pr`: complete on CI green (no merge). */
-  mode: 'merge' | 'pr';
-}
+const MAX_CONFLICT_RETRIES = 2;
 
 /**
  * Mark a task row done/completed (idempotent). Used when the watcher is the one
  * that reaches a task's completion point under staged completion.
  */
-async function completeTaskRow(taskId: number): Promise<void> {
-  await prisma.task
-    .update({
-      where: { id: taskId },
+async function completeTaskRow(taskId: number): Promise<boolean> {
+  if (!(await canContinueAutoMerge(taskId))) return false;
+  const result = await prisma.task
+    .updateMany({
+      where: { id: taskId, status: { in: ['in-progress', 'in_progress', 'done', 'completed'] } },
       data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
     })
-    .catch((err) => log.warn({ err, taskId }, '[auto-merge] completeTaskRow failed'));
-}
-
-/**
- * Find tasks whose linked PR is open, that opted into auto-merge, and that have
- * not already been merged/blocked. Bounded by the (small) set of open linked PRs.
- */
-async function findCandidates(): Promise<Candidate[]> {
-  const openPrs = await prisma.gitHubPullRequest.findMany({
-    where: { state: 'open', linkedTaskId: { not: null } },
-    select: { prNumber: true, baseBranch: true, linkedTaskId: true },
-  });
-
-  const out: Candidate[] = [];
-  for (const pr of openPrs) {
-    const taskId = pr.linkedTaskId;
-    if (taskId == null) continue;
-
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: {
-        id: true,
-        title: true,
-        status: true,
-        workflowStatus: true,
-        completedAt: true,
-        workingDirectory: true,
-        theme: { select: { workingDirectory: true } },
-      },
+    .catch((err) => {
+      log.warn({ err, taskId }, '[auto-merge] completeTaskRow failed');
+      return { count: 0 };
     });
-    if (!task) continue;
-
-    const staged = stagedCompletionEnabled();
-    const isCompleted = task.status === 'done' || task.status === 'completed';
-    // Under staged completion the task is still in-progress at verify_done while
-    // its PR's CI runs; pick those up so the watcher can complete them.
-    const isAwaitingCi = staged && task.workflowStatus === 'verify_done' && !isCompleted;
-    if (!isCompleted && !isAwaitingCi) continue;
-
-    const policy = await resolveAutomationPolicy(prisma, taskId).catch(() => null);
-    // merge mode in any era; pr mode (complete on CI green, no merge) only when
-    // staged completion is enabled — otherwise pr-mode tasks already completed at
-    // verify and the watcher must not touch them.
-    const mode: 'merge' | 'pr' | null = policy?.autoMergePR
-      ? 'merge'
-      : staged && policy?.autoCreatePR
-        ? 'pr'
-        : null;
-    if (!mode) continue;
-
-    // Already merged or already given up — skip.
-    const resolved = await prisma.workflowTransition
-      .count({ where: { taskId, cause: { in: DONE_CAUSES } } })
-      .catch(() => 0);
-    if (resolved > 0) continue;
-
-    const cwd = task.workingDirectory || task.theme?.workingDirectory;
-    if (!cwd) continue;
-
-    const cfg = await prisma.agentExecutionConfig
-      .findUnique({ where: { taskId }, select: { mergeCommitThreshold: true } })
-      .catch(() => null);
-
-    out.push({
-      taskId,
-      taskTitle: task.title,
-      prNumber: pr.prNumber,
-      baseBranch: pr.baseBranch || 'develop',
-      cwd,
-      threshold: cfg?.mergeCommitThreshold ?? 5,
-      completedAt: task.completedAt,
-      mode,
-    });
-  }
-  return out;
+  return result.count > 0;
 }
 
 /** Record a terminal auto-merge outcome so the candidate is not reprocessed. */
@@ -287,20 +110,55 @@ export class AutoMergeWatcher {
     this.timer = null;
   }
 
+  /**
+   * Whether a tick (candidate evaluation / merge processing) is in flight.
+   * The task-boundary restart governance consults this so a self-restart
+   * never fires while a merge is mid-processing (quiescence condition c).
+   * Ticks are short (12s-class), so a coinciding boundary is merely pushed
+   * to the next one.
+   *
+   * @returns True while a tick is being processed / tick処理中はtrue
+   */
+  isMerging(): boolean {
+    return this.ticking;
+  }
+
   /** One pass: evaluate every candidate's CI and merge / block / wait. */
   async tick(): Promise<void> {
     if (this.ticking) return; // never overlap ticks
     this.ticking = true;
     try {
-      const candidates = await findCandidates();
+      // Runs BEFORE candidate discovery: findCandidates only walks OPEN PRs, so
+      // a task whose PR merged while its completion write was lost is invisible
+      // there forever. Recovering first also stops the same task from being
+      // processed twice in one tick (task 895).
+      const recovered = await recoverMergedTasks().catch((err) => {
+        log.warn({ err }, '[auto-merge] Merged-task recovery failed');
+        return [] as number[];
+      });
+      void checkBaselineDrift().catch(() => {}); // throttled + throwaway worktree; never blocks the tick
+      const candidates = (await findCandidates()).filter((c) => !recovered.includes(c.taskId));
       const blocking = blockingChecks();
       for (const c of candidates) {
         try {
+          if (!(await canContinueAutoMerge(c.taskId))) continue;
           await this.process(c, blocking);
         } catch (err) {
           log.warn({ err, taskId: c.taskId }, '[auto-merge] Candidate failed');
         }
       }
+      // Stale-PR reaper (task 1061): close abandoned exhausted+conflicted
+      // auto-PRs bounded at 3/tick. Never blocks the merge loop above.
+      await reapStalePrs(prisma).catch((err) =>
+        log.warn({ err }, '[auto-merge] Stale PR reap failed'),
+      );
+      // Read back the state of PRs closed OUTSIDE this app (stale bot, a human,
+      // a deleted base branch) — nothing else syncs those, so 19 tasks kept
+      // re-entering the loop above every tick for weeks (2026-09-28). Runs last
+      // and bounded: it only ever makes the NEXT tick cheaper.
+      await reconcilePrStates(prisma).catch((err) =>
+        log.warn({ err }, '[auto-merge] PR state reconcile failed'),
+      );
     } catch (err) {
       log.error({ err }, '[auto-merge] Tick error');
     } finally {
@@ -308,16 +166,217 @@ export class AutoMergeWatcher {
     }
   }
 
+  /**
+   * When a CI-green PR fails to merge because of a real CONFLICT (GitHub
+   * mergeStateStatus DIRTY), automatically file the "PR #N の競合を解消" agent task
+   * so auto-run resolves it on the PR branch — then a later tick re-merges the now
+   * CLEAN PR with no human step. Deduped (one active task per PR) and bounded
+   * (MAX_CONFLICT_RETRIES re-files before parking as exhausted for manual review).
+   *
+   * @param c - The auto-merge candidate. / 自動マージ候補
+   * @param mergeError - The merge failure message (for the blocked note). / マージ失敗理由
+   * @returns true when the conflict path handled this (caller returns). / 競合処理したか
+   */
+  private async handleMergeConflict(c: Candidate, mergeError?: string): Promise<boolean> {
+    const ghState = await readMergeState(c.cwd, c.prNumber);
+    // DIRTY is GitHub's "the PR has merge conflicts" state. Any other failure
+    // (e.g. branch protection, permissions) is NOT a conflict — let the caller
+    // block it for manual review.
+    if (ghState !== 'DIRTY') return false;
+
+    // FAIL CLOSED: a count error must not read as "0 prior conflict-filings" —
+    // that would re-file a conflict-resolution task on every DB hiccup instead
+    // of respecting MAX_CONFLICT_RETRIES, the exact unbounded re-filing this
+    // bound exists to prevent (see the multi-day PR #287 spin noted below).
+    const conflictAttempts = await countWithFailClosed(
+      prisma.workflowTransition.count({
+        where: { taskId: c.taskId, cause: 'auto_merge_conflict_filed' },
+      }),
+      MAX_CONFLICT_RETRIES,
+      log,
+      { taskId: c.taskId, prNumber: c.prNumber },
+      'auto-merge-conflict-retries',
+    );
+    if (conflictAttempts >= MAX_CONFLICT_RETRIES) {
+      // Park as exhausted (terminal until the PR head changes). A windowed
+      // `auto_merge_blocked` mark here recycled forever: the 30-min retry window
+      // re-admitted the candidate, the attempt cap re-hit, and the same
+      // notification re-fired every cooldown for days (observed: task 363 / PR
+      // #287 spinning 3+ days).
+      await markExhausted(
+        c.taskId,
+        c.prNumber,
+        c.cwd,
+        `conflict unresolved after ${conflictAttempts} attempts: ${mergeError ?? ''}`,
+      );
+      await notify({
+        taskId: c.taskId,
+        type: 'auto_merge_conflict_unresolved',
+        title: '自動マージ保留（競合未解消）',
+        message: `PR #${c.prNumber} の競合が自動解消の上限まで解消できませんでした。手動で確認してください。競合を解消してpushすると自動マージを再開します。`,
+      });
+      return true;
+    }
+
+    // Need the PR's head branch + title to author the resolution instructions.
+    // MUST scope by the repo behind c.cwd, not prNumber alone — RAPITAS tracks
+    // multiple projects' PRs in one table, and prNumber collides across repos
+    // (e.g. two different projects each having their own PR #8). An unscoped
+    // findFirst previously picked whichever repo's row happened to match,
+    // authoring instructions with a completely unrelated branch/title.
+    const integrationId = await resolveIntegrationId(prisma, null, c.cwd);
+    if (integrationId == null) {
+      log.warn(
+        { taskId: c.taskId, prNumber: c.prNumber, cwd: c.cwd },
+        "[auto-merge] Could not resolve the GitHub integration for this candidate's repo — refusing to author conflict-resolution instructions from an unscoped PR lookup",
+      );
+      return false;
+    }
+    const prRow = await prisma.gitHubPullRequest
+      .findFirst({
+        where: { prNumber: c.prNumber, integrationId },
+        select: { title: true, headBranch: true, baseBranch: true },
+      })
+      .catch(() => null);
+    if (!prRow?.headBranch) {
+      // Can't author instructions without the head branch — fall back to block.
+      return false;
+    }
+
+    const themeRow = await prisma.task
+      .findUnique({ where: { id: c.taskId }, select: { themeId: true } })
+      .catch(() => null);
+
+    const filed = await fileConflictResolutionTask(
+      {
+        prNumber: c.prNumber,
+        title: prRow.title || c.taskTitle,
+        baseBranch: prRow.baseBranch || c.baseBranch,
+        headBranch: prRow.headBranch,
+      },
+      c.cwd,
+      themeRow?.themeId ?? null,
+    );
+
+    if (filed.created) {
+      // Non-terminal mark: bounds re-files AND lets the next tick re-merge.
+      await mark(c.taskId, 'auto_merge_conflict_filed', `filed conflict task #${filed.taskId}`);
+      await notify({
+        taskId: c.taskId,
+        type: 'auto_merge_conflict_filed',
+        title: '競合を自動解消中',
+        message: `PR #${c.prNumber} にマージ競合を検出。解消タスク#${filed.taskId}を自動起票しました。解消後に自動マージします。`,
+      });
+      log.info(
+        { taskId: c.taskId, prNumber: c.prNumber, conflictTaskId: filed.taskId },
+        '[auto-merge] Conflict detected — filed resolution task, will re-merge when CLEAN',
+      );
+      return true;
+    }
+    if (filed.taskId) {
+      // An active conflict task is still resolving — wait, re-merge next tick.
+      return true;
+    }
+    // Creation failed — let the caller block it.
+    return false;
+  }
+
   private async process(c: Candidate, blocking: Set<string>): Promise<void> {
     const checks = await readPrChecks(c.cwd, c.prNumber);
     if (checks === null) return; // transient gh error — retry next tick
 
-    const state = evaluateAutoMergeChecks(checks, blocking);
+    let state = evaluateAutoMergeChecks(checks, blocking);
+    // Captured BEFORE the no-CI fallback below can upgrade `unknown` to `pass`:
+    // only this value means blocking checks actually ran and passed, which is
+    // what the draft-promotion decision needs to distinguish.
+    const ciVerified = state === 'pass';
+
+    // No blocking CI checks reported (e.g. the branch has no CI configured, or only
+    // advisory checks ran). 'unknown' would wait for CI that never arrives and then
+    // time out → auto_merge_blocked, so a CLEAN, mergeable PR would never merge.
+    // Defer to GitHub's authoritative merge state: only when GitHub itself reports
+    // CLEAN (nothing blocking) do we treat it as pass. BLOCKED/BEHIND/DIRTY/UNKNOWN
+    // keep waiting, so this never merges past a real pending/failed required check.
+    if (state === 'unknown') {
+      const ghState = await readMergeState(c.cwd, c.prNumber);
+      if (ghState === 'CLEAN') {
+        state = 'pass';
+        log.info(
+          { taskId: c.taskId, prNumber: c.prNumber },
+          '[auto-merge] No blocking CI checks; GitHub merge state CLEAN — treating as pass',
+        );
+      } else if (ghState === 'DIRTY' && c.mode === 'merge') {
+        // A real merge conflict with no CI to wait on. Without this branch an
+        // auto-run PR (which usually has NO CI configured) sits at 'unknown'
+        // forever: the conflict path below is reached ONLY via state==='pass' →
+        // mergePullRequest, so handleMergeConflict never runs and no resolution
+        // task is ever filed (the user-reported "conflict auto-resolve does
+        // nothing"). A conflict never clears by waiting — file the resolution task
+        // now; a later tick re-merges once it pushes the fix and the PR goes CLEAN.
+        log.info(
+          { taskId: c.taskId, prNumber: c.prNumber },
+          '[auto-merge] No blocking CI checks; GitHub merge state DIRTY — auto-filing conflict resolution',
+        );
+        if (await this.handleMergeConflict(c, 'merge state DIRTY (no CI checks)')) return;
+        await mark(c.taskId, 'auto_merge_blocked', 'conflict unresolved (DIRTY, no CI)');
+        return;
+      }
+    }
+
+    // Draft PRs (task 1099: `unknown` verdict) must never merge or complete —
+    // this is the final backstop before EITHER the CI-green path above or the
+    // no-CI+mergeState-CLEAN fallback path reaches 'pass'; both converge here.
+    // Fail-closed: a read failure (null) holds exactly like draft===true, so
+    // "could not tell" never gets treated as "not draft".
+    if (state === 'pass') {
+      const draft = await readIsDraft(c.cwd, c.prNumber);
+      if (draft !== false) {
+        // A draft held here used to stay held FOREVER: promotion happened only
+        // at publication time, for a verdict that was already `pass`, so a PR
+        // opened draft because local verification was inconclusive never
+        // advanced even once CI proved it green (temporaid PR #1, 2026-10-11).
+        state = (await resolveDraftHold({
+          cwd: c.cwd,
+          prNumber: c.prNumber,
+          taskId: c.taskId,
+          draft,
+          ciVerified,
+          markReady: readyPullRequest,
+          log,
+        }))
+          ? 'pending'
+          : state;
+      }
+    }
+
+    // Never trust 'pass' until the required workflows finished on the head SHA and
+    // (merge mode) the ratchet holds on the merge ref — PR #707 slipped through the
+    // no-checks path above with file-size never run (task 1021).
+    if (state === 'pass') {
+      const gate = await evaluatePreMergeGate(c.cwd, c.prNumber, {
+        localRatchet: c.mode === 'merge',
+        // Lets the required-workflow check ignore advisory jobs (task 1145).
+        blocking,
+      });
+      if (!gate.ok) {
+        log.info(
+          { taskId: c.taskId, prNumber: c.prNumber, ...gate },
+          '[auto-merge] Pre-merge gate held the PR',
+        );
+        if (gate.reason === 'ratchet_violation') {
+          await handleCiFailure(c, [RATCHET_CHECK_NAME], (cand, r) =>
+            this.handleMergeConflict(cand, r),
+          );
+          return;
+        }
+        state = 'pending'; // waits, and still reaches the CI-timeout path below
+      }
+    }
 
     if (state === 'pass') {
       // PR mode: CI is green and we DO NOT merge — completion is reaching green.
       if (c.mode === 'pr') {
-        await completeTaskRow(c.taskId);
+        if (!(await completeTaskRow(c.taskId))) return;
         await mark(c.taskId, 'pr_ci_completed', `PR #${c.prNumber} CI green`);
         await notify({
           taskId: c.taskId,
@@ -332,12 +391,44 @@ export class AutoMergeWatcher {
         return;
       }
 
-      const res = await mergePullRequest(c.cwd, c.prNumber, c.threshold, c.baseBranch);
+      const res = await mergePullRequest(c.cwd, c.prNumber, c.threshold, c.baseBranch, () =>
+        canContinueAutoMerge(c.taskId),
+      );
+      if (!(await canContinueAutoMerge(c.taskId))) return;
       if (res.success) {
         // Under staged completion the task is still in-progress at verify_done;
         // completing on merge is the merge-mode completion point. Idempotent for
         // the legacy path where the task was already done.
-        await completeTaskRow(c.taskId);
+        if (!(await completeTaskRow(c.taskId))) return;
+        // Sync the LOCAL PR mirror to merged. The watcher merged on GitHub, but
+        // nothing else updates the local GitHubPullRequest row (there is no webhook
+        // in dev), so it kept showing 'open' even though the PR was merged — the
+        // "PR won't merge" the user saw was actually a stale local state.
+        // MUST scope by the repo behind c.cwd: prNumber collides across the
+        // repos sharing this table, so an unscoped update also flipped ANOTHER
+        // project's same-numbered open PR to merged, silently removing it from
+        // its own auto-merge candidacy. Fail-closed on an unresolvable
+        // integration — a stale-open local row self-heals on the next GitHub
+        // sync, a clobbered foreign row does not.
+        const syncIntegrationId = await resolveIntegrationId(prisma, null, c.cwd).catch(() => null);
+        if (syncIntegrationId == null) {
+          log.warn(
+            { taskId: c.taskId, prNumber: c.prNumber, cwd: c.cwd },
+            "[auto-merge] Could not resolve this candidate's GitHub integration — skipping the local PR mirror sync to avoid clobbering another repo's same-numbered PR",
+          );
+        } else {
+          await prisma.gitHubPullRequest
+            .updateMany({
+              where: { integrationId: syncIntegrationId, prNumber: c.prNumber, state: 'open' },
+              data: { state: 'merged', updatedAt: new Date() },
+            })
+            .catch((err) =>
+              log.warn(
+                { err, prNumber: c.prNumber },
+                '[auto-merge] Failed to sync local PR row to merged',
+              ),
+            );
+        }
         await mark(c.taskId, 'auto_merged', `strategy=${res.mergeStrategy}`);
         await notify({
           taskId: c.taskId,
@@ -354,6 +445,12 @@ export class AutoMergeWatcher {
           { taskId: c.taskId, prNumber: c.prNumber, reason: res.error },
           '[auto-merge] Head behind base — updated branch, will retry next tick',
         );
+      } else if (await this.handleMergeConflict(c, res.error)) {
+        // A real merge conflict — handled by auto-filing a resolution task (or
+        // waiting on an in-flight one / parking after the bound). Either way the
+        // candidate is NOT marked terminal here so a later tick re-merges once the
+        // conflict task pushes its fix and the PR goes CLEAN.
+        return;
       } else {
         await mark(c.taskId, 'auto_merge_blocked', `merge failed: ${res.error}`);
         await notify({
@@ -367,38 +464,18 @@ export class AutoMergeWatcher {
     }
 
     if (state === 'fail') {
-      // CI failed — try to self-repair: bounce the task back to the implementer
-      // with the failing checks as feedback so it fixes them, pushes to the same
-      // PR branch, and CI re-runs. The watcher merges once CI goes green. Only
-      // flag the PR for review once the bounded repair budget is exhausted.
-      const failedChecks = checks
-        .filter((ch) => blocking.has(ch.name) && (ch.bucket === 'fail' || ch.bucket === 'cancel'))
-        .map((ch) => ch.name);
-      const repair = await attemptCiRepair(c.taskId, failedChecks);
-      if (repair.bounced) {
-        await notify({
-          taskId: c.taskId,
-          type: 'auto_merge_ci_repair',
-          title: 'CI失敗を自動修正中',
-          message: `PR #${c.prNumber} のCI失敗（${failedChecks.join(', ') || '不明'}）を検出。実装を修正して再検証します（${repair.attempt}回目）。`,
-        });
-        log.info(
-          { taskId: c.taskId, prNumber: c.prNumber, attempt: repair.attempt },
-          '[auto-merge] CI failed — bounced for self-repair',
-        );
-      } else {
-        await mark(c.taskId, 'auto_merge_blocked', 'ci failed (repairs exhausted)');
-        await notify({
-          taskId: c.taskId,
-          type: 'auto_merge_ci_failed',
-          title: '自動マージ保留（CI失敗・修復上限）',
-          message: `PR #${c.prNumber} のCIが自動修正の上限まで失敗したため、自動マージせずレビュー待ちにしました。`,
-        });
-        log.info(
-          { taskId: c.taskId, prNumber: c.prNumber },
-          '[auto-merge] Held — CI failed, repairs exhausted',
-        );
-      }
+      // Delegated: base update for BEHIND branches, DIRTY-conflict delegation
+      // (via the injected handleMergeConflict), no-diff parking, and the
+      // bounded CI self-repair bounce all live in auto-merge-ci-failure.
+      // A CANCELLED check is infrastructure (superseded push, manual stop,
+      // timeout-minutes kill), not a defect: rerun it rather than send an
+      // implementer after an unbroken diff (task 1145, 2026-10-07).
+      const { failed, cancelled } = splitRedChecks(checks, blocking);
+      if (failed.length === 0 && (await handleCancelledChecks(c, cancelled))) return;
+      const failedChecks = (failed.length > 0 ? failed : cancelled).map((ch) => ch.name);
+      await handleCiFailure(c, failedChecks, (cand, reason) =>
+        this.handleMergeConflict(cand, reason),
+      );
       return;
     }
 

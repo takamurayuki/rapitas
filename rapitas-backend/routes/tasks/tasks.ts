@@ -12,10 +12,17 @@ import {
   updateTask,
   cleanupDuplicateSubtasks,
   cleanupAllDuplicateSubtasks,
+  attachBlockedCauses,
+  attachAutoRunCardStatus,
 } from '../../services/task/task-service';
-import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree-ops';
+import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree/worktree-ops';
+import { resolveWorktreeBaseDir } from '../../services/agents/orchestrator/git-operations/core/resolve-worktree-base-dir';
+import { warnIfSubtaskCreatedDuringDisabledSplit } from '../../services/workflow/subtask-split-guard';
 import { getProjectRoot } from '../../config';
 import { cleanupCompletedTasks } from '../../services/task/completed-task-cleanup';
+import { computeTaskActiveTime } from '../../services/agent-execution/task-active-time';
+import { TASK_NOT_FOUND, INVALID_ID } from '../../utils/common/error-messages';
+import { retryTask } from './task-retry-handler';
 
 import { QueryOptimizers } from '../../utils/database/prisma-optimization';
 
@@ -67,20 +74,31 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   )
 
   // Get task statistics
-  .get('/statistics', async () => {
+  .get('/statistics', async ({ set }) => {
     try {
-      const stats = await QueryOptimizers.getTaskStatistics(prisma, { parentId: null });
+      // byCategory used to be computed by loading every top-level task's
+      // theme relation into JS (`findMany` with no `take`) — an O(task count)
+      // query that got slower as the table grew and was the single heaviest
+      // request this endpoint made (holding a connection open long enough to
+      // trip the frontend's 15s api-client timeout under load). themeId is
+      // indexed (see schema/core.prisma's @@index([themeId])), so grouping by
+      // it is a proper DB-side aggregate; themes themselves are few enough
+      // (tens, not thousands) to load in full and join in JS.
+      const [stats, themeCounts, themes] = await Promise.all([
+        QueryOptimizers.getTaskStatistics(prisma, { parentId: null }),
+        prisma.task.groupBy({
+          by: ['themeId'],
+          where: { parentId: null },
+          _count: { _all: true },
+        }),
+        prisma.theme.findMany({ select: { id: true, categoryId: true } }),
+      ]);
 
-      // Get category statistics via Theme relation (Task has no direct categoryId)
-      const tasksWithTheme = await prisma.task.findMany({
-        where: { parentId: null },
-        select: { theme: { select: { categoryId: true } } },
-      });
-
+      const themeIdToCategoryId = new Map(themes.map((t) => [t.id, t.categoryId ?? 0]));
       const byCategory: Record<number, number> = {};
-      for (const t of tasksWithTheme) {
-        const catId = t.theme?.categoryId ?? 0;
-        byCategory[catId] = (byCategory[catId] || 0) + 1;
+      for (const tc of themeCounts) {
+        const catId = tc.themeId != null ? (themeIdToCategoryId.get(tc.themeId) ?? 0) : 0;
+        byCategory[catId] = (byCategory[catId] || 0) + tc._count._all;
       }
 
       return {
@@ -89,7 +107,13 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         byCategory,
       };
     } catch (error) {
+      // NOTE: BUG FIX — this previously returned 200 on failure. The frontend
+      // (fetchTaskStatistics in task-api.ts) relies on a non-2xx status to
+      // trigger its fallback (recompute stats from GET /tasks); a 200 with an
+      // `{error}` body silently bypassed that fallback and returned malformed
+      // data (missing total/byStatus/byCategory) to callers instead.
       logger.error({ err: error }, 'Statistics endpoint error');
+      set.status = 500;
       return { error: error instanceof Error ? error.message : 'Unknown error' };
     }
   })
@@ -97,11 +121,13 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   // Get all tasks (supports incremental fetch via `since` param)
   .get('/', async (context) => {
     const { query } = context;
-    const { projectId, milestoneId, priority, since } = query as {
+    const { projectId, milestoneId, priority, since, dueDateOn } = query as {
       projectId?: string;
       milestoneId?: string;
       priority?: string;
       since?: string;
+      /** Filter to tasks whose dueDate falls on this UTC date (YYYY-MM-DD). */
+      dueDateOn?: string;
     };
 
     const baseWhere = {
@@ -109,6 +135,15 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       ...(projectId && { projectId: parseInt(projectId) }),
       ...(milestoneId && { milestoneId: parseInt(milestoneId) }),
       ...(priority && { priority }),
+      ...(dueDateOn && {
+        dueDate: {
+          // NOTE: No trailing Z — uses local timezone midnight so JST/local dates match
+          // what the browser stored (new Date('YYYY-MM-DD') in JS = UTC midnight, but
+          // task creation typically stores local midnight; match by local range here).
+          gte: new Date(`${dueDateOn}T00:00:00.000`),
+          lte: new Date(`${dueDateOn}T23:59:59.999`),
+        },
+      }),
     };
 
     // If `since` is provided, return only tasks updated after that timestamp + total count
@@ -155,6 +190,9 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         }),
       ]);
 
+      await attachBlockedCauses(prisma, updated);
+      await attachAutoRunCardStatus(prisma, updated);
+
       return {
         tasks: updated,
         totalCount,
@@ -189,6 +227,9 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       ...(page && pageSize && { skip: (page - 1) * pageSize }),
     });
 
+    await attachBlockedCauses(prisma, tasks);
+    await attachAutoRunCardStatus(prisma, tasks);
+
     if (page && pageSize) {
       const totalCount = await prisma.task.count({ where: baseWhere });
       return {
@@ -208,10 +249,10 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     const { params } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
-      throw new ValidationError('無効なIDです');
+      throw new ValidationError(INVALID_ID);
     }
 
-    return await prisma.task.findUnique({
+    const task = await prisma.task.findUnique({
       where: { id },
       include: {
         subtasks: {
@@ -228,6 +269,18 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         },
       },
     });
+    if (!task) return task;
+
+    // Cumulative active time / current-cycle wall-clock / per-role breakdown
+    // (task #560). Additive fields only — existing consumers are unaffected.
+    // Best-effort: an aggregation failure must never break the task detail.
+    try {
+      const timing = await computeTaskActiveTime(prisma, id);
+      return { ...task, ...timing };
+    } catch (error) {
+      logger.warn({ err: error, taskId: id }, '[tasks] active-time aggregation failed');
+      return task;
+    }
   })
 
   // Create task
@@ -236,7 +289,13 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     async (context) => {
       const { body } = context;
       try {
-        return await createTask(prisma, body as Parameters<typeof createTask>[1]);
+        const created = await createTask(prisma, body as Parameters<typeof createTask>[1]);
+        // Detection net for the disabled subtask-split chain (task 545) —
+        // fire-and-forget so the guard can never delay or fail the creation.
+        if (created?.parentId) {
+          void warnIfSubtaskCreatedDuringDisabledSplit(created).catch(() => {});
+        }
+        return created;
       } catch (error) {
         if (error instanceof AppError) throw error;
         if (error instanceof Error && error.message.includes('見つかりません')) {
@@ -273,99 +332,125 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   )
 
   // Update task
-  .patch('/:id', async (context) => {
-    const { params, body } = context;
-    const taskId = parseInt(params.id);
-    if (isNaN(taskId)) {
-      throw new ValidationError('無効なIDです');
-    }
-    return await updateTask(prisma, taskId, body as Parameters<typeof updateTask>[2]);
-  })
+  .patch(
+    '/:id',
+    async (context) => {
+      const { params, body } = context;
+      const taskId = parseInt(params.id);
+      if (isNaN(taskId)) {
+        throw new ValidationError(INVALID_ID);
+      }
+      return await updateTask(prisma, taskId, body as Parameters<typeof updateTask>[2]);
+    },
+    {
+      // NOTE: Length caps on free-text fields prevent an unbounded-payload DoS
+      // (e.g. a multi-MB `description`) from reaching the DB layer. Mirrors the
+      // field whitelist in UpdateTaskInput (task-mutations.ts); all optional.
+      body: t.Object(
+        {
+          title: t.Optional(t.String({ maxLength: 500 })),
+          description: t.Optional(t.String({ maxLength: 20000 })),
+          themeId: t.Optional(t.Number()),
+          status: t.Optional(t.String({ maxLength: 100 })),
+          priority: t.Optional(t.String({ maxLength: 100 })),
+          labels: t.Optional(t.String({ maxLength: 2000 })),
+          labelIds: t.Optional(t.Array(t.Number())),
+          estimatedHours: t.Optional(t.Nullable(t.Number())),
+          actualHours: t.Optional(t.Nullable(t.Number())),
+          dueDate: t.Optional(t.Nullable(t.String({ maxLength: 100 }))),
+          startedAt: t.Optional(t.Nullable(t.String({ maxLength: 100 }))),
+          subject: t.Optional(t.String({ maxLength: 500 })),
+          projectId: t.Optional(t.Number()),
+          milestoneId: t.Optional(t.Number()),
+          examGoalId: t.Optional(t.Number()),
+          autoApprovePlan: t.Optional(t.Boolean()),
+          goals: t.Optional(t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 })),
+          constraints: t.Optional(t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 })),
+          acceptanceCriteria: t.Optional(
+            t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 }),
+          ),
+          isProtected: t.Optional(t.Boolean()),
+          autoRunExcluded: t.Optional(t.Boolean()),
+        },
+        // NOTE: additionalProperties left permissive (not false) — updateTask()
+        // already destructures only the whitelisted fields above and silently
+        // drops the rest, and unlike execute-route's body this one has many
+        // long-tail callers; hard-rejecting unknown fields risked breaking a
+        // caller that (harmlessly) sends an extra field.
+        { additionalProperties: true },
+      ),
+    },
+  )
 
   // Retry a task that auto-run parked as blocked (or that failed): return it to
   // 'todo' so the next selection picks it up. Without this the only recovery
   // path was manually editing the status — blocked tasks just accumulated.
   .post('/:id/retry', async (context) => {
-    const { params, set } = context;
+    const { params, set, headers } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
-      throw new ValidationError('無効なIDです');
+      throw new ValidationError(INVALID_ID);
     }
-    const task = await prisma.task.findUnique({ where: { id }, select: { status: true } });
-    if (!task) {
-      set.status = 404;
-      return { error: 'タスクが見つかりません' };
-    }
-    if (task.status !== 'blocked' && task.status !== 'failed') {
-      throw new ValidationError('blocked / failed のタスクのみ再実行できます');
-    }
-
-    const updated = await prisma.task.update({ where: { id }, data: { status: 'todo' } });
-
-    await prisma.activityLog
-      .create({
-        data: {
-          taskId: id,
-          action: 'task_retried',
-          metadata: JSON.stringify({ from: task.status }),
-          createdAt: new Date(),
-        },
-      })
-      .catch(() => {});
-
-    // Mark the skip notification read — notifyOnce dedups on an UNREAD
-    // notification of the same task, so leaving it unread would suppress the
-    // alert if this retry fails and the task is skipped again.
-    await prisma.notification
-      .updateMany({
-        where: {
-          type: 'auto_run_task_skipped',
-          isRead: false,
-          metadata: { contains: `"dedupKey":"auto_run_task_skipped:${id}"` },
-        },
-        data: { isRead: true, readAt: new Date() },
-      })
-      .catch(() => {});
-
-    return updated;
+    const retryRequestId = headers['idempotency-key']?.trim() || crypto.randomUUID();
+    set.headers['x-retry-request-id'] = retryRequestId;
+    const updated = await retryTask(id, (code) => void (set.status = code), retryRequestId);
+    return updated ?? { error: TASK_NOT_FOUND };
   })
 
   // Delete task
-  .delete('/:id', async (context) => {
-    const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
-      throw new ValidationError('無効なIDです');
-    }
+  .delete(
+    '/:id',
+    async (context) => {
+      const { params, set } = context;
+      const id = parseInt(params.id);
+      if (isNaN(id)) {
+        throw new ValidationError(INVALID_ID);
+      }
 
-    // Clean up any worktrees associated with this task before deletion
-    try {
-      const task = await prisma.task.findUnique({
+      // Guard: a protected task is blocked from deletion to prevent accidental
+      // loss. This is the single choke point for ALL manual delete paths (card
+      // context menu, detail page, bulk list delete) since they all hit DELETE
+      // /:id. Checked before any worktree cleanup so we never touch a task we
+      // are not going to delete.
+      const guard = await prisma.task.findUnique({
         where: { id },
-        select: { workingDirectory: true },
+        select: { isProtected: true },
       });
+      if (guard?.isProtected) {
+        set.status = 409;
+        return { error: '保護されたタスクは削除できません' };
+      }
 
-      if (task) {
-        // Find any agent sessions with worktrees for this task
-        const sessionsWithWorktrees = await prisma.agentSession.findMany({
-          where: {
-            worktreePath: { not: null },
-            config: {
-              taskId: id,
-            },
-          },
-          select: {
-            id: true,
-            worktreePath: true,
-          },
+      // Clean up any worktrees associated with this task before deletion
+      try {
+        const task = await prisma.task.findUnique({
+          where: { id },
+          select: { workingDirectory: true, theme: { select: { workingDirectory: true } } },
         });
 
-        const baseDir = task.workingDirectory || getProjectRoot();
+        if (task) {
+          // Find any agent sessions with worktrees for this task
+          const sessionsWithWorktrees = await prisma.agentSession.findMany({
+            where: {
+              worktreePath: { not: null },
+              config: { taskId: id },
+            },
+            select: { id: true, worktreePath: true },
+          });
 
-        for (const session of sessionsWithWorktrees) {
-          if (session.worktreePath) {
+          const dirs = [task.workingDirectory || task.theme?.workingDirectory, getProjectRoot()];
+
+          for (const session of sessionsWithWorktrees) {
+            if (!session.worktreePath) continue;
             try {
-              await removeWorktree(baseDir, session.worktreePath);
+              const removed = await removeWorktree(
+                resolveWorktreeBaseDir(session.worktreePath, dirs),
+                session.worktreePath,
+              );
+              if (!removed) {
+                logger.warn(`[tasks] worktree remove refused: task ${id} ${session.worktreePath}`);
+                continue;
+              }
               await prisma.agentSession.update({
                 where: { id: session.id },
                 data: { worktreePath: null },
@@ -379,30 +464,33 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
             }
           }
         }
+      } catch (cleanupError) {
+        logger.warn(
+          { err: cleanupError },
+          `[tasks] Failed to clean up worktrees for task ${id}, proceeding with deletion`,
+        );
       }
-    } catch (cleanupError) {
-      logger.warn(
-        { err: cleanupError },
-        `[tasks] Failed to clean up worktrees for task ${id}, proceeding with deletion`,
-      );
-    }
 
-    return await prisma.task.delete({
-      where: { id },
-    });
-  })
+      return await prisma.task.delete({
+        where: { id },
+      });
+    },
+    {
+      params: t.Object({ id: t.String() }),
+    },
+  )
 
   // Delete duplicate subtasks (under a specific task)
   .post('/:id/cleanup-duplicates', async (context) => {
     const { params } = context;
     const parentId = parseInt(params.id);
     if (isNaN(parentId)) {
-      throw new ValidationError('無効なIDです');
+      throw new ValidationError(INVALID_ID);
     }
 
     const parentTask = await prisma.task.findUnique({ where: { id: parentId } });
     if (!parentTask) {
-      throw new ValidationError('タスクが見つかりません');
+      throw new ValidationError(TASK_NOT_FOUND);
     }
 
     const deletedIds = await cleanupDuplicateSubtasks(prisma, parentId);
@@ -471,43 +559,49 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   })
 
   // Bulk delete all subtasks under a specific task
-  .delete('/:id/subtasks', async (context) => {
-    const { params } = context;
-    const parentId = parseInt(params.id);
-    if (isNaN(parentId)) {
-      throw new ValidationError('無効なIDです');
-    }
+  .delete(
+    '/:id/subtasks',
+    async (context) => {
+      const { params } = context;
+      const parentId = parseInt(params.id);
+      if (isNaN(parentId)) {
+        throw new ValidationError(INVALID_ID);
+      }
 
-    const parentTask = await prisma.task.findUnique({
-      where: { id: parentId },
-    });
+      const parentTask = await prisma.task.findUnique({
+        where: { id: parentId },
+      });
 
-    if (!parentTask) {
-      throw new ValidationError('タスクが見つかりません');
-    }
+      if (!parentTask) {
+        throw new ValidationError(TASK_NOT_FOUND);
+      }
 
-    const subtasks = await prisma.task.findMany({
-      where: { parentId },
-      select: { id: true },
-    });
+      const subtasks = await prisma.task.findMany({
+        where: { parentId },
+        select: { id: true },
+      });
 
-    const deletedCount = subtasks.length;
+      const deletedCount = subtasks.length;
 
-    await prisma.task.deleteMany({
-      where: { parentId },
-    });
+      await prisma.task.deleteMany({
+        where: { parentId },
+      });
 
-    logger.info(`[tasks] Deleted all ${deletedCount} subtasks for parent task ${parentId}`);
+      logger.info(`[tasks] Deleted all ${deletedCount} subtasks for parent task ${parentId}`);
 
-    return {
-      success: true,
-      deletedCount,
-      message:
-        deletedCount > 0
-          ? `${deletedCount}件のサブタスクを削除しました`
-          : '削除するサブタスクがありませんでした',
-    };
-  })
+      return {
+        success: true,
+        deletedCount,
+        message:
+          deletedCount > 0
+            ? `${deletedCount}件のサブタスクを削除しました`
+            : '削除するサブタスクがありませんでした',
+      };
+    },
+    {
+      params: t.Object({ id: t.String() }),
+    },
+  )
 
   // Delete selected subtasks by ID
   .post(
@@ -515,7 +609,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     async ({ params, body }) => {
       const parentId = parseInt(params.id);
       if (isNaN(parentId)) {
-        throw new ValidationError('無効なIDです');
+        throw new ValidationError(INVALID_ID);
       }
 
       const { subtaskIds } = body as { subtaskIds: number[] };
@@ -529,15 +623,12 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       });
 
       if (!parentTask) {
-        throw new ValidationError('タスクが見つかりません');
+        throw new ValidationError(TASK_NOT_FOUND);
       }
 
       // Verify subtasks belong to this parent
       const validSubtasks = await prisma.task.findMany({
-        where: {
-          id: { in: subtaskIds },
-          parentId,
-        },
+        where: { id: { in: subtaskIds }, parentId },
         select: { id: true },
       });
 
@@ -574,8 +665,12 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       };
     },
     {
-      body: t.Object({
-        subtaskIds: t.Array(t.Number()),
-      }),
+      params: t.Object({ id: t.String() }),
+      body: t.Object(
+        {
+          subtaskIds: t.Array(t.Number(), { maxItems: 500 }),
+        },
+        { additionalProperties: false },
+      ),
     },
   );

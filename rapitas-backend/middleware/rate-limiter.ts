@@ -2,8 +2,8 @@
  * Rate Limiter Middleware
  * Configurable in-memory rate limiting for API endpoints
  */
-import { Elysia } from 'elysia';
 import { createLogger } from '../config/logger';
+import { HTTP_STATUS } from '../utils/common/http-status';
 
 const log = createLogger('rate-limiter');
 
@@ -66,7 +66,7 @@ export function createRateLimiter(
     const key = ip || 'unknown';
     if (!checkLimit(store, key, config)) {
       log.warn({ key, limiter: name }, 'Rate limit exceeded');
-      set.status = 429;
+      set.status = HTTP_STATUS.TOO_MANY_REQUESTS;
       set.headers['Retry-After'] = String(Math.ceil(config.windowMs / 1000));
       return false;
     }

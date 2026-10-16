@@ -13,7 +13,7 @@ import type {
   AIAgentConfig,
 } from '@/types';
 import type { ExecutionStatus, ExecutionResult } from '../../hooks/useDeveloperMode';
-import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import type { ExecutionCapability } from './ExecutionCapabilityGuide';
 
 export type PromptClarificationQuestion = {
@@ -71,6 +71,8 @@ export type AIAccordionPanelProps = {
   executionCapability?: ExecutionCapability;
   /** Theme ID for deep-linking the capability guide to the theme edit screen. */
   themeId?: number | null;
+  /** Raw task.status — used to disable/hide the run button when the task is already done. */
+  taskStatus?: string;
   isExecuting: boolean;
   executionStatus: ExecutionStatus;
   executionResult: ExecutionResult | null;

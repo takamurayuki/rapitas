@@ -4,7 +4,7 @@
  * Utilities for detecting and removing duplicate subtasks within a parent task.
  * Does NOT handle task creation, updates, or suggestions.
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
 
 type PrismaInstance = InstanceType<typeof PrismaClient>;

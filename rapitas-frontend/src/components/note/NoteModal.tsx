@@ -203,11 +203,16 @@ export default function NoteModal() {
   }, [closeModal]);
 
   // Sync DOM position on open without triggering a re-render
+  // NOTE: intentionally keyed only on `isOpen` — this is a one-shot sync when
+  // the modal opens. Position/maximize changes are already applied directly
+  // to the DOM by the drag/resize rAF loops above; re-running this effect on
+  // every position change would fight those loops and reset mid-drag styles.
   useEffect(() => {
     if (modalState.isOpen && modalRef.current && !modalState.isMaximized) {
       modalRef.current.style.left = `${modalState.position.x}px`;
       modalRef.current.style.top = `${modalState.position.y}px`;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modalState.isOpen]);
 
   const handleTabChange = (tab: ModalTab) => {

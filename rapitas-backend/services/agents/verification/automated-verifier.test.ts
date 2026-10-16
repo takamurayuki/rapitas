@@ -5,13 +5,104 @@
  * tsc error file extraction) and the markdown renderer. Command execution and
  * git/file I/O are integration concerns covered elsewhere.
  */
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect, afterEach } from 'bun:test';
 import {
   parseEslintErrorCount,
   parseTscErrorFiles,
   renderVerificationMarkdown,
+  looksLikeBugFixTask,
+  looksLikeTrivialTask,
+  requiresTestsForTask,
+  tamperCheck,
+  coverageCheck,
+  generatedSyncCheck,
+  computeOverallOk,
+  mergeChecks,
+  type VerificationCheck,
   type VerificationResult,
 } from './automated-verifier';
+
+describe('computeOverallOk', () => {
+  const check = (name: VerificationCheck['name'], ok: boolean): VerificationCheck => ({
+    name,
+    ran: true,
+    ok,
+    errorCount: ok ? 0 : 1,
+    details: `${name}: ${ok ? 'ok' : 'NG'}`,
+  });
+
+  // Pins the advisory exclusion (task 617 premortem 1): dropping 'acceptance'
+  // from the exclusion list turns it into a hard gate and makes this RED.
+  it('stays ok when only the advisory acceptance check fails', () => {
+    const checks = [
+      check('lint', true),
+      check('typecheck', true),
+      check('test', true),
+      check('acceptance', false),
+    ];
+    expect(computeOverallOk(checks)).toBe(true);
+  });
+
+  it('stays ok when only the advisory scope check fails', () => {
+    expect(computeOverallOk([check('lint', true), check('scope', false)])).toBe(true);
+  });
+
+  it('fails when a correctness check fails, regardless of advisory results', () => {
+    expect(computeOverallOk([check('lint', false), check('acceptance', true)])).toBe(false);
+    expect(computeOverallOk([check('test', false), check('scope', false)])).toBe(false);
+  });
+
+  // Pins schema-change as a HARD gate (task 892) — unlike scope/acceptance,
+  // it must NOT be added to the advisory exclusion list. A future edit that
+  // excludes it would make this RED.
+  it('fails when schema-change is NG, even with all other checks ok', () => {
+    const checks = [
+      check('lint', true),
+      check('typecheck', true),
+      check('test', true),
+      check('schema-change', false),
+    ];
+    expect(computeOverallOk(checks)).toBe(false);
+  });
+});
+
+describe('generatedSyncCheck', () => {
+  it('returns null when no prisma schema file changed', () => {
+    expect(generatedSyncCheck(['rapitas-backend/services/foo.ts'])).toBeNull();
+    // schema.desktop is a generated OUTPUT, not a source schema — no trigger.
+    expect(generatedSyncCheck(['rapitas-backend/prisma/schema.desktop/agents.prisma'])).toBeNull();
+  });
+
+  it('fails when a schema changes without both regenerated artifacts', () => {
+    const onlySchema = generatedSyncCheck(['rapitas-backend/prisma/schema/agents.prisma']);
+    expect(onlySchema?.ok).toBe(false);
+    expect(onlySchema?.details).toContain('db:prepare:sqlite');
+
+    const missingInitSql = generatedSyncCheck([
+      'rapitas-backend/prisma/schema/agents.prisma',
+      'rapitas-backend/prisma/schema.desktop/agents.prisma',
+    ]);
+    expect(missingInitSql?.ok).toBe(false);
+  });
+
+  it('passes when the schema change ships with both regenerated artifacts', () => {
+    const check = generatedSyncCheck([
+      'rapitas-backend/prisma/schema/agents.prisma',
+      'rapitas-backend/prisma/schema.desktop/agents.prisma',
+      'rapitas-backend/src/generated/sqlite-init-sql.ts',
+    ]);
+    expect(check?.ok).toBe(true);
+  });
+
+  it('normalizes Windows path separators before matching', () => {
+    const check = generatedSyncCheck([
+      'rapitas-backend\\prisma\\schema\\agents.prisma',
+      'rapitas-backend\\prisma\\schema.desktop\\agents.prisma',
+      'rapitas-backend\\src\\generated\\sqlite-init-sql.ts',
+    ]);
+    expect(check?.ok).toBe(true);
+  });
+});
 
 describe('parseEslintErrorCount', () => {
   it('sums errorCount across files, ignoring warnings', () => {
@@ -50,68 +141,426 @@ describe('parseTscErrorFiles', () => {
 });
 
 describe('renderVerificationMarkdown', () => {
-  it('renders pass/fail and embeds details only for failing checks', () => {
-    const result: VerificationResult = {
-      ok: false,
-      changedFiles: ['src/a.ts', 'src/b.ts'],
-      checks: [
-        { name: 'lint', ran: true, ok: false, errorCount: 2, details: 'eslint: 2 errors' },
-        { name: 'typecheck', ran: true, ok: true, errorCount: 0, details: 'tsc ok' },
+  it.each([
+    {
+      name: 'renders pass/fail and embeds details only for failing checks',
+      result: {
+        ok: false,
+        changedFiles: ['src/a.ts', 'src/b.ts'],
+        checks: [
+          { name: 'lint', ran: true, ok: false, errorCount: 2, details: 'eslint: 2 errors' },
+          { name: 'typecheck', ran: true, ok: true, errorCount: 0, details: 'tsc ok' },
+        ],
+        summary: '自動検証: lint=NG(2) / typecheck=ok',
+      } as VerificationResult,
+      expectedContains: [
+        '❌ 失敗',
+        'lint: ❌ 2件',
+        'eslint: 2 errors',
+        'typecheck: ✅ OK',
+        '対象変更ファイル: 2件',
       ],
-      summary: '自動検証: lint=NG(2) / typecheck=ok',
-    };
+    },
+    {
+      name: 'renders a failing test check (Phase ① dynamic gate)',
+      result: {
+        ok: false,
+        changedFiles: ['src/a.ts'],
+        checks: [
+          { name: 'lint', ran: true, ok: true, errorCount: 0, details: 'eslint: 0 errors' },
+          { name: 'typecheck', ran: true, ok: true, errorCount: 0, details: 'tsc ok' },
+          {
+            name: 'test',
+            ran: true,
+            ok: false,
+            errorCount: 1,
+            details: 'npm run test failed:\n1 failing',
+          },
+        ],
+        summary: '自動検証: lint=ok / typecheck=ok / test=NG(1)',
+      } as VerificationResult,
+      expectedContains: ['test: ❌ 1件', 'npm run test failed'],
+    },
+    {
+      name: 'renders an unverifiable result as fail-closed and shows its details',
+      result: {
+        ok: false,
+        unverifiable: true,
+        changedFiles: ['src/a.ts'],
+        checks: [
+          { name: 'lint', ran: false, ok: true, errorCount: 0, details: 'lint: not applicable' },
+          {
+            name: 'typecheck',
+            ran: false,
+            ok: false,
+            errorCount: 0,
+            details: 'tsconfig.json is present but the tsc binary could not be resolved.',
+            unverifiable: true,
+          },
+        ],
+        summary: '自動検証: lint=skip / typecheck=UNVERIFIED',
+      } as VerificationResult,
+      // details surfaced even though the check did not "run"
+      expectedContains: [
+        '⚠️ 未検証（ツールを実行できず fail-closed）',
+        'typecheck: ⚠️ 未検証（ツール実行不可）',
+        'could not be resolved',
+      ],
+    },
+    {
+      name: 'renders pre-existing failures as a separate section when present',
+      result: {
+        ok: true,
+        changedFiles: ['src/a.ts'],
+        checks: [
+          {
+            name: 'test',
+            ran: true,
+            ok: true,
+            errorCount: 0,
+            details: '1 test command(s): passed (2 pre-existing failure(s) excluded)',
+            preExistingFailures: [
+              'tests/services/idea-box-service.test.ts',
+              'tests/services/other.test.ts',
+            ],
+          },
+        ],
+        summary: '自動検証: test=ok',
+      } as VerificationResult,
+      expectedContains: [
+        '✅ 合格',
+        '既存失敗（本変更とは無関係）',
+        'idea-box-service.test.ts',
+        '懸念バックログに起票済み',
+      ],
+    },
+  ])('$name', ({ result, expectedContains }) => {
     const md = renderVerificationMarkdown(result);
-    expect(md).toContain('❌ 失敗');
-    expect(md).toContain('lint: ❌ 2件');
-    expect(md).toContain('eslint: 2 errors');
-    expect(md).toContain('typecheck: ✅ OK');
-    expect(md).toContain('対象変更ファイル: 2件');
+    for (const s of expectedContains) expect(md).toContain(s);
   });
 
-  it('renders a failing test check (Phase ① dynamic gate)', () => {
+  it('does not render pre-existing section when none detected', () => {
     const result: VerificationResult = {
       ok: false,
       changedFiles: ['src/a.ts'],
       checks: [
-        { name: 'lint', ran: true, ok: true, errorCount: 0, details: 'eslint: 0 errors' },
-        { name: 'typecheck', ran: true, ok: true, errorCount: 0, details: 'tsc ok' },
         {
           name: 'test',
           ran: true,
           ok: false,
           errorCount: 1,
-          details: 'npm run test failed:\n1 failing',
+          details: 'bun test failed:\n1 failing',
         },
       ],
-      summary: '自動検証: lint=ok / typecheck=ok / test=NG(1)',
+      summary: '自動検証: test=NG(1)',
     };
     const md = renderVerificationMarkdown(result);
-    expect(md).toContain('test: ❌ 1件');
-    expect(md).toContain('npm run test failed');
+    expect(md).not.toContain('既存失敗');
   });
 
-  it('renders an unverifiable result as fail-closed and shows its details', () => {
+  it('renders mixed: new failure blocks gate, pre-existing listed separately', () => {
     const result: VerificationResult = {
       ok: false,
-      unverifiable: true,
       changedFiles: ['src/a.ts'],
       checks: [
-        { name: 'lint', ran: false, ok: true, errorCount: 0, details: 'lint: not applicable' },
         {
-          name: 'typecheck',
-          ran: false,
+          name: 'test',
+          ran: true,
           ok: false,
-          errorCount: 0,
-          details: 'tsconfig.json is present but the tsc binary could not be resolved.',
-          unverifiable: true,
+          errorCount: 1,
+          details: 'bun test tests/services/new.test.ts failed:\n1 failing',
+          preExistingFailures: ['tests/services/idea-box-service.test.ts'],
         },
       ],
-      summary: '自動検証: lint=skip / typecheck=UNVERIFIED',
+      summary: '自動検証: test=NG(1)',
     };
     const md = renderVerificationMarkdown(result);
-    expect(md).toContain('⚠️ 未検証（ツールを実行できず fail-closed）');
-    expect(md).toContain('typecheck: ⚠️ 未検証（ツール実行不可）');
-    // details surfaced even though the check did not "run"
-    expect(md).toContain('could not be resolved');
+    expect(md).toContain('❌ 失敗');
+    expect(md).toContain('既存失敗（本変更とは無関係）');
+    expect(md).toContain('idea-box-service.test.ts');
+  });
+});
+
+describe('looksLikeBugFixTask', () => {
+  it('returns false for null/undefined/empty text', () => {
+    expect(looksLikeBugFixTask(null)).toBe(false);
+    expect(looksLikeBugFixTask(undefined)).toBe(false);
+    expect(looksLikeBugFixTask('')).toBe(false);
+  });
+
+  it('returns false for text with no bug-related keywords', () => {
+    expect(looksLikeBugFixTask('新しいダッシュボード widget を追加する')).toBe(false);
+  });
+
+  it.each([
+    'ログイン画面でバグが発生',
+    '保存時に不具合がある',
+    '起動時にクラッシュする',
+    '例外が発生する',
+    '入力するとエラーになる',
+    'アプリが落ちる',
+    'アイコンが表示されない',
+    'ボタンが動かない',
+    'fix a bug in the parser',
+    'app crash on startup',
+    'this is a regression',
+    'the sort order is broken',
+  ])('returns true for %j', (text) => {
+    expect(looksLikeBugFixTask(text)).toBe(true);
+  });
+
+  it('is case-insensitive for English keywords', () => {
+    expect(looksLikeBugFixTask('BUG in the retry logic')).toBe(true);
+  });
+});
+
+describe('looksLikeTrivialTask', () => {
+  it('returns false for null/undefined/empty text', () => {
+    expect(looksLikeTrivialTask(null)).toBe(false);
+    expect(looksLikeTrivialTask(undefined)).toBe(false);
+    expect(looksLikeTrivialTask('')).toBe(false);
+  });
+
+  it('returns false for substantive task text (feature/bug/refactor)', () => {
+    expect(looksLikeTrivialTask('新しいダッシュボード widget を追加する')).toBe(false);
+    expect(looksLikeTrivialTask('ログイン画面でバグが発生')).toBe(false);
+    expect(looksLikeTrivialTask('認証ロジックをリファクタリングする')).toBe(false);
+  });
+
+  it.each([
+    'READMEのみ更新する',
+    'ドキュメントのみ修正',
+    'typoの修正',
+    '誤字脱字を直す',
+    'コメントのみ追加',
+    '設定値のみ変更する',
+    '依存関係のバージョンを更新のみ',
+    'update the README',
+    'fix a typo in the docstring',
+    'comment-only change',
+    'dependency bump',
+  ])('returns true for %j', (text) => {
+    expect(looksLikeTrivialTask(text)).toBe(true);
+  });
+});
+
+describe('requiresTestsForTask', () => {
+  it('is the inverse of looksLikeTrivialTask', () => {
+    expect(requiresTestsForTask('新しいAPIエンドポイントを追加する')).toBe(true);
+    expect(requiresTestsForTask('READMEのみ更新する')).toBe(false);
+  });
+
+  it('defaults to true (tests required) for a non-bug-fix feature task — the core TDD-adoption behavior change', () => {
+    // Before TDD adoption, only looksLikeBugFixTask-shaped tasks required
+    // tests; this task text matches neither bug-fix nor trivial keywords, so
+    // it exercises the new default-on path.
+    expect(requiresTestsForTask('エクスポート機能にCSV形式を追加する')).toBe(true);
+  });
+});
+
+describe('tamperCheck', () => {
+  it('returns null when no protected path is changed', () => {
+    expect(tamperCheck(['src/foo.ts', 'src/bar.test.ts'], null)).toBeNull();
+  });
+
+  it('returns ok when the protected file is listed in the plan', () => {
+    const result = tamperCheck(
+      ['services/workflow/completion-gate.ts'],
+      ['services/workflow/completion-gate.ts'],
+    );
+    expect(result).toEqual({
+      name: 'tamper',
+      ran: true,
+      ok: true,
+      errorCount: 0,
+      details: 'tamper: 1 protected file(s) changed — all listed in the approved plan',
+    });
+  });
+
+  it('fails when a protected file is changed but not listed in the plan', () => {
+    const result = tamperCheck(['services/workflow/completion-gate.ts'], ['src/foo.ts']);
+    expect(result?.ok).toBe(false);
+    expect(result?.errorCount).toBe(1);
+    expect(result?.details).toContain('services/workflow/completion-gate.ts');
+    expect(result?.details).toContain('計画外の変更');
+  });
+
+  it('treats a null planFiles (plan-less mode) as an empty plan — always unplanned', () => {
+    const result = tamperCheck(['.github/workflows/test-lint.yml'], null);
+    expect(result?.ok).toBe(false);
+    expect(result?.errorCount).toBe(1);
+  });
+
+  it('matches protected paths regardless of path separator and case', () => {
+    const result = tamperCheck(['SERVICES\\AGENTS\\VERIFICATION\\foo.ts'], []);
+    expect(result?.ok).toBe(false);
+  });
+
+  it('matches a plan entry via suffix containment (relative vs. absolute-ish paths)', () => {
+    const result = tamperCheck(['.husky/pre-commit'], ['rapitas-backend/.husky/pre-commit']);
+    expect(result?.ok).toBe(true);
+  });
+
+  it('only counts unplanned protected files toward errorCount when some are planned', () => {
+    const result = tamperCheck(
+      ['.husky/pre-commit', 'scripts/pre-commit-check.ts'],
+      ['.husky/pre-commit'],
+    );
+    expect(result?.ok).toBe(false);
+    expect(result?.errorCount).toBe(1);
+    expect(result?.details).toContain('scripts/pre-commit-check.ts');
+    expect(result?.details).not.toContain('.husky/pre-commit');
+  });
+
+  // 2026-09-25, task 1086: a guard-incident task (lightweight, no plan) relaxed
+  // the guard hook's own regex in response to being denied — the hook must be
+  // planned like the other tripwire files.
+  it('flags the primary guard hook and its test', () => {
+    expect(tamperCheck(['scripts/primary-guard-hook.cjs'], null)?.ok).toBe(false);
+    expect(tamperCheck(['scripts/primary-guard-hook.test.cjs'], null)?.ok).toBe(false);
+  });
+
+  it('flags the actual phase-critic gate files', () => {
+    expect(tamperCheck(['services/workflow/phase-critic/phase-critic.ts'], null)?.ok).toBe(false);
+    expect(tamperCheck(['services/workflow/phase-critic/phase-critic-gate.ts'], null)?.ok).toBe(
+      false,
+    );
+    expect(tamperCheck(['services/workflow/phase-critic/phase-critic.test.ts'], null)?.ok).toBe(
+      false,
+    );
+    expect(
+      tamperCheck(['services/workflow/phase-critic/phase-critic-gate.test.ts'], null)?.ok,
+    ).toBe(false);
+  });
+
+  it('does not flag unrelated siblings in the phase-critic/ directory (task 936)', () => {
+    // critic-lessons.ts distills repair feedback into checklist notes — it
+    // does not implement the phase-critic gate, but the old regex substring-
+    // matched the "services/workflow/phase-critic" DIRECTORY prefix and
+    // flagged every file inside it.
+    expect(tamperCheck(['services/workflow/phase-critic/critic-lessons.ts'], null)).toBeNull();
+    expect(tamperCheck(['services/workflow/phase-critic/critic-lessons.test.ts'], null)).toBeNull();
+    expect(tamperCheck(['services/workflow/phase-critic/critic-inflight.ts'], null)).toBeNull();
+    expect(tamperCheck(['services/workflow/phase-critic/critique-aggregator.ts'], null)).toBeNull();
+    expect(tamperCheck(['services/workflow/phase-critic/index.ts'], null)).toBeNull();
+  });
+});
+
+describe('coverageCheck', () => {
+  const ORIGINAL_ENV = process.env.RAPITAS_REQUIRE_TESTS;
+  afterEach(() => {
+    if (ORIGINAL_ENV === undefined) delete process.env.RAPITAS_REQUIRE_TESTS;
+    else process.env.RAPITAS_REQUIRE_TESTS = ORIGINAL_ENV;
+  });
+
+  it('returns null when not forced and the env opt-in is unset', () => {
+    delete process.env.RAPITAS_REQUIRE_TESTS;
+    expect(coverageCheck(['src/foo.ts'])).toBeNull();
+  });
+
+  it.each(['1', 'true', 'on', 'TRUE', 'On'])('is enabled via RAPITAS_REQUIRE_TESTS=%s', (val) => {
+    process.env.RAPITAS_REQUIRE_TESTS = val;
+    const result = coverageCheck(['src/foo.ts']);
+    expect(result?.ok).toBe(false);
+  });
+
+  it('is disabled for other env values', () => {
+    process.env.RAPITAS_REQUIRE_TESTS = '0';
+    expect(coverageCheck(['src/foo.ts'])).toBeNull();
+  });
+
+  it('returns null when forced but no source files changed (only exempt/test files)', () => {
+    delete process.env.RAPITAS_REQUIRE_TESTS;
+    expect(
+      coverageCheck(['src/foo.d.ts', 'src/bar.config.ts', 'src/baz.stories.tsx'], true),
+    ).toBeNull();
+  });
+
+  it('fails when forced and a source file changed without a paired test', () => {
+    delete process.env.RAPITAS_REQUIRE_TESTS;
+    const result = coverageCheck(['src/foo.ts'], true);
+    expect(result).toEqual({
+      name: 'coverage',
+      ran: true,
+      ok: false,
+      errorCount: 1,
+      details: 'ソース変更にテストが伴っていません（テストの追加/更新が必要）:\nsrc/foo.ts',
+    });
+  });
+
+  it('passes when forced and a test file was changed alongside the source', () => {
+    delete process.env.RAPITAS_REQUIRE_TESTS;
+    const result = coverageCheck(['src/foo.ts', 'src/foo.test.ts'], true);
+    expect(result).toEqual({
+      name: 'coverage',
+      ran: true,
+      ok: true,
+      errorCount: 0,
+      details: 'coverage: 1 test file(s) changed alongside source',
+    });
+  });
+});
+
+// Task 659: a triage that came back null (baseline comparison indeterminate)
+// yields an ok:true part carrying `indeterminate`; merging must keep the gate
+// open, carry the unattributed files, and STILL fail on a genuine failure.
+describe('mergeChecks — indeterminate triage (task 659)', () => {
+  const indeterminatePart: VerificationCheck = {
+    name: 'test',
+    ran: true,
+    ok: true,
+    errorCount: 0,
+    details: '1 test command(s) failed, but the baseline comparison was indeterminate',
+    indeterminate: true,
+    indeterminateFailures: ['a.test.ts'],
+  };
+  const passingPart: VerificationCheck = {
+    name: 'test',
+    ran: true,
+    ok: true,
+    errorCount: 0,
+    details: '2 test command(s): passed',
+  };
+  const failingPart: VerificationCheck = {
+    name: 'test',
+    ran: true,
+    ok: false,
+    errorCount: 1,
+    details: 'bun test --isolate b.test.ts failed',
+  };
+
+  it('keeps the merged test check ok and carries the unattributed files', () => {
+    const merged = mergeChecks('test', [indeterminatePart, passingPart]);
+    expect(merged.ok).toBe(true);
+    expect(merged.errorCount).toBe(0);
+    expect(merged.indeterminate).toBe(true);
+    expect(merged.indeterminateFailures).toEqual(['a.test.ts']);
+    expect(merged.unverifiable).toBeUndefined();
+  });
+
+  it('still fails when another project part has a genuine new failure', () => {
+    const merged = mergeChecks('test', [indeterminatePart, failingPart]);
+    expect(merged.ok).toBe(false);
+    expect(merged.errorCount).toBe(1);
+    expect(merged.indeterminateFailures).toEqual(['a.test.ts']);
+    expect(merged.details).toContain('b.test.ts failed');
+  });
+
+  it('omits the indeterminate fields when no part is indeterminate', () => {
+    const merged = mergeChecks('test', [passingPart, failingPart]);
+    expect(merged.indeterminate).toBeUndefined();
+    expect(merged.indeterminateFailures).toBeUndefined();
+  });
+
+  it('does not let an indeterminate test check hide a real lint failure in computeOverallOk', () => {
+    const lintFail: VerificationCheck = {
+      name: 'lint',
+      ran: true,
+      ok: false,
+      errorCount: 2,
+      details: 'eslint: 2 errors',
+    };
+    expect(computeOverallOk([mergeChecks('test', [indeterminatePart]), lintFail])).toBe(false);
+    expect(computeOverallOk([mergeChecks('test', [indeterminatePart])])).toBe(true);
   });
 });

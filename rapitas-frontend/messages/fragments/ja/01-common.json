@@ -1,0 +1,241 @@
+{
+  "common": {
+    "loading": "読み込み中...",
+    "mermaidRenderError": "図の描画に失敗したため、ソースを表示しています",
+    "mermaidRendering": "図を描画中...",
+    "saving": "保存中...",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "edit": "編集",
+    "create": "作成",
+    "update": "更新",
+    "add": "追加",
+    "close": "閉じる",
+    "back": "戻る",
+    "confirm": "確認",
+    "search": "検索",
+    "error": "エラー",
+    "success": "成功",
+    "warning": "警告",
+    "info": "情報",
+    "yes": "はい",
+    "no": "いいえ",
+    "or": "または",
+    "other": "その他",
+    "none": "なし",
+    "all": "すべて",
+    "hours": "時間",
+    "hoursPerDay": "時間/日",
+    "items": "件",
+    "times": "回",
+    "color": "カラー",
+    "icon": "アイコン",
+    "selectIcon": "アイコンを選択",
+    "searchIcon": "アイコンを検索...（例: 本、仕事、星）",
+    "descriptionOptional": "説明（任意）",
+    "shortDescription": "簡単な説明",
+    "unexpectedError": "予期しないエラーが発生しました",
+    "errorOccurred": "エラーが発生しました",
+    "fetchFailed": "取得に失敗しました",
+    "createFailed": "作成に失敗しました",
+    "updateFailed": "更新に失敗しました",
+    "deleteFailed": "削除に失敗しました",
+    "saveFailed": "保存に失敗しました",
+    "createNew": "新規作成",
+    "beginner": "初級",
+    "intermediate": "中級",
+    "advanced": "上級",
+    "language": "言語",
+    "japanese": "日本語",
+    "english": "英語",
+    "total": "合計:",
+    "average": "平均:",
+    "select": "選択してください",
+    "configured": "設定済み",
+    "notConfigured": "未設定",
+    "change": "変更",
+    "noData": "データがありません",
+    "detail": "詳細",
+    "resume": "再開",
+    "copy": "コピー",
+    "copySuffix": "(コピー)",
+    "running": "実行中",
+    "completed": "完了",
+    "pending": "保留中",
+    "today": "今日",
+    "weekly": "週間",
+    "monthly": "月間",
+    "export": "エクスポート",
+    "adding": "追加中...",
+    "resetToDefault": "デフォルトに戻す",
+    "retry": "再試行",
+    "showApiKey": "APIキーを表示",
+    "hideApiKey": "APIキーを隠す",
+    "expand": "展開",
+    "collapse": "折りたたむ",
+    "sendMessage": "メッセージを送信",
+    "backendConnectionError": {
+      "title": "バックエンドサーバーに接続できません",
+      "description": "バックエンドサーバー（ポート3001）が起動していることを確認してください。開発サーバーを再起動するか、ターミナルで<code>bun run dev</code>を実行してください。",
+      "errorDetails": "エラー詳細"
+    },
+    "errorBoundary": {
+      "genericError": "このセクションでエラーが発生しました",
+      "sectionError": "{section} でエラーが発生しました",
+      "unexpectedError": "予期しないエラー"
+    },
+    "keyboardShortcuts": {
+      "macHelp": "⌘ は Command キー、⇧ は Shift キー",
+      "ctrlHelp": "Ctrl は Control キー"
+    },
+    "offlineIndicator": {
+      "offlineTitle": "オフライン中。変更はローカルに保存されています。",
+      "offlineLabel": "オフライン",
+      "syncing": "同期中...",
+      "pendingTitle": "{count}件の変更が同期待ちです。タップで同期。",
+      "pendingLabel": "{count}件 同期待ち"
+    },
+    "agentSwitcher": {
+      "custom": "カスタム",
+      "loading": "読込中...",
+      "builtIn": "Claude Code（ビルトイン）",
+      "label": "実行エージェント",
+      "selectPlaceholder": "エージェントを選択",
+      "default": "デフォルト"
+    },
+    "pagination": {
+      "firstPage": "最初のページ",
+      "prevPage": "前のページ",
+      "nextPage": "次のページ",
+      "lastPage": "最後のページ"
+    },
+    "statusCard": {
+      "processing": "実行中",
+      "waitingForInput": "入力待ち",
+      "ariaLabel": "ステータス: {label}"
+    },
+    "directoryPicker": {
+      "placeholder": "ディレクトリパスを入力または選択",
+      "pathInputPlaceholder": "パスを入力...",
+      "confirm": "確定",
+      "manualEntryTitle": "パスを直接入力",
+      "browse": "参照",
+      "browseTitle": "フォルダを参照",
+      "selectDirectory": "ディレクトリを選択",
+      "manualPathPlaceholder": "パスを直接入力 (例: C:\\Projects, D:\\)",
+      "move": "移動",
+      "chooseFromFavoritesHint": "お気に入りからフォルダを選択してください",
+      "currentlySelected": "選択中:",
+      "select": "選択",
+      "goUp": "上のフォルダへ",
+      "driveList": "ドライブ一覧",
+      "createFolderTitle": "新規フォルダを作成",
+      "newShort": "新規",
+      "hideFavorites": "お気に入りを非表示",
+      "showFavorites": "お気に入りを表示",
+      "removeFavorite": "お気に入りから削除",
+      "addFavoriteTitle": "お気に入りに追加",
+      "favorited": "登録済",
+      "folderNamePlaceholder": "フォルダ名を入力...",
+      "backToDrives": "ドライブ一覧に戻る",
+      "noSubfolders": "サブフォルダがありません",
+      "selectFromFavorites": "お気に入りから選択",
+      "favoritesCount": "({count}件)",
+      "selectAnotherFolder": "別のフォルダを選択",
+      "currentlySelectedInline": "(現在選択中)",
+      "favoritesHeader": "お気に入り ({count})",
+      "hide": "非表示",
+      "fetchError": "ディレクトリの取得に失敗しました",
+      "nameRequired": "フォルダ名を入力してください",
+      "invalidChars": "フォルダ名に使用できない文字が含まれています",
+      "createError": "フォルダの作成に失敗しました",
+      "filterPlaceholder": "フォルダ名で絞り込み...",
+      "clearFilter": "絞り込みをクリア",
+      "noFilterMatch": "「{filter}」に一致するフォルダがありません",
+      "openFolder": "フォルダを開く",
+      "folderList": "フォルダ一覧"
+    },
+    "authContext": {
+      "networkError": "ネットワークエラーが発生しました",
+      "googleAuthUrlFailed": "Google認証URLの取得に失敗しました"
+    },
+    "loginForm": {
+      "usernameRequired": "ユーザー名を入力してください",
+      "passwordRequired": "パスワードを入力してください",
+      "passwordTooShort": "パスワードは6文字以上で入力してください",
+      "loginError": "ログイン中にエラーが発生しました"
+    },
+    "useSse": {
+      "connectionError": "SSE接続でエラーが発生しました",
+      "connectionErrorDetail": "接続エラーが発生しました。ネットワーク接続を確認してください。",
+      "createFailed": "SSE接続の作成に失敗しました",
+      "createFailedShort": "接続の作成に失敗しました。"
+    },
+    "useTauriVoice": {
+      "recognitionFailed": "音声を認識できませんでした。"
+    },
+    "useDebugLogAnalyzer": {
+      "analysisFailed": "ログ解析に失敗しました",
+      "analysisError": "ログ解析中にエラーが発生しました",
+      "typeDetectionFailed": "タイプ検出に失敗しました",
+      "typeListFetchFailed": "タイプ一覧の取得に失敗しました",
+      "streamAnalysisFailed": "ストリーム解析に失敗しました",
+      "streamAnalysisError": "ストリーム解析中にエラーが発生しました"
+    },
+    "useIdeaBox": {
+      "fetchFailed": "アイデアの取得に失敗",
+      "submitFailed": "アイデアの投稿に失敗"
+    },
+    "useReportGenerator": {
+      "generateFailed": "レポートの生成に失敗しました ({status})",
+      "generateError": "レポート生成中にエラーが発生しました"
+    },
+    "useScheduleReminders": {
+      "eventAtTime": "{time} に予定があります"
+    },
+    "useGlobalSearch": {
+      "searchFailed": "検索に失敗しました"
+    },
+    "usePomodoroStats": {
+      "fetchFailed": "ポモドーロ統計の取得に失敗しました"
+    },
+    "useStudyProgress": {
+      "fetchFailed": "進捗データの取得に失敗しました"
+    },
+    "useWorkflowApproval": {
+      "approveFailed": "承認処理に失敗しました"
+    },
+    "useWorkflowFiles": {
+      "fetchFailed": "ワークフローファイルの取得に失敗しました"
+    },
+    "useWorkflowRoles": {
+      "fetchFailed": "ロール設定の取得に失敗しました",
+      "updateFailed": "ロール設定の更新に失敗しました"
+    },
+    "kanbanErrorTitle": "かんばん でエラーが発生しました",
+    "knowledgeErrorTitle": "ナレッジベース でエラーが発生しました",
+    "reportsErrorTitle": "レポート でエラーが発生しました",
+    "iconGrid": {
+      "noMatch": "一致するアイコンがありません"
+    },
+    "validation": {
+      "required": "{field}を入力してください",
+      "minLength": "{field}は{min}文字以上で入力してください",
+      "maxLength": "{field}は{max}文字以下で入力してください",
+      "urlProtocol": "{field}はHTTPまたはHTTPSプロトコルを使用してください",
+      "urlInvalid": "{field}の形式が正しくありません",
+      "apiKeyRequired": "APIキーを入力してください",
+      "apiKeyTooShort": "APIキーが短すぎます（10文字以上）",
+      "apiKeyPrefixAnthropic": "Anthropic APIキーは「sk-ant-api」で始まる必要があります",
+      "apiKeyPrefixOpenai": "OpenAI APIキーは「sk-」で始まる必要があります",
+      "apiKeyPrefixGemini": "Google AI APIキーは「AIza」で始まる必要があります",
+      "apiKeyPrefixClaude": "Claude APIキーは「sk-ant-api」で始まる必要があります",
+      "numberInvalid": "{field}は数値で入力してください",
+      "numberMin": "{field}は{min}以上で入力してください",
+      "numberMax": "{field}は{max}以下で入力してください",
+      "serverCommError": "サーバーとの通信に失敗しました",
+      "listSeparator": "、"
+    }
+  }
+}

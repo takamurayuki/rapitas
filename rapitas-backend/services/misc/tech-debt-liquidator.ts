@@ -68,27 +68,28 @@ export async function scanForTechDebt(workingDirectory: string): Promise<TechDeb
   let totalFiles = 0;
 
   try {
-    const { execSync } = await import('child_process');
+    const { execFileSync } = await import('child_process');
+    const { readFileSync } = await import('fs');
+    const { join } = await import('path');
 
     // 1. Find large files (>500 lines)
     try {
-      const result = execSync(`git ls-files "*.ts" "*.tsx" "*.js" "*.jsx" | head -200`, {
+      // NOTE: execFileSync passes args as an array (no shell), so no pipe is
+      // available for `| head -200` — take the first 200 lines in JS instead.
+      const result = execFileSync('git', ['ls-files', '*.ts', '*.tsx', '*.js', '*.jsx'], {
         cwd: workingDirectory,
         encoding: 'utf8',
         timeout: 15000,
       });
-      const files = result.trim().split('\n').filter(Boolean);
+      const files = result.trim().split('\n').filter(Boolean).slice(0, 200);
       totalFiles = files.length;
 
       for (const file of files) {
         try {
-          // SECURITY: safe - file path comes from git ls-files (local git index), not user input
-          const wc = execSync(`wc -l < "${file}"`, {
-            cwd: workingDirectory,
-            encoding: 'utf8',
-            timeout: 5000,
-          }).trim();
-          const lineCount = parseInt(wc);
+          // NOTE: Counting lines in JS instead of spawning `wc -l < file` —
+          // that redirect needs a shell, which we're removing here entirely.
+          const content = readFileSync(join(workingDirectory, file), 'utf8');
+          const lineCount = content.length ? content.split('\n').length : 0;
           if (lineCount > 500) {
             items.push({
               id: `large-${file}`,
@@ -109,12 +110,12 @@ export async function scanForTechDebt(workingDirectory: string): Promise<TechDeb
 
     // 2. Find any type usage
     try {
-      const anyUsage = execSync(`git grep -n ": any" -- "*.ts" "*.tsx" | head -50`, {
+      const anyUsage = execFileSync('git', ['grep', '-n', ': any', '--', '*.ts', '*.tsx'], {
         cwd: workingDirectory,
         encoding: 'utf8',
         timeout: 15000,
       });
-      const anyLines = anyUsage.trim().split('\n').filter(Boolean);
+      const anyLines = anyUsage.trim().split('\n').filter(Boolean).slice(0, 50);
       // NOTE: Group by file to avoid noise
       const fileGroups = new Map<string, number>();
       for (const line of anyLines) {
@@ -140,12 +141,12 @@ export async function scanForTechDebt(workingDirectory: string): Promise<TechDeb
 
     // 3. Find TODO/FIXME/HACK comments
     try {
-      const todos = execSync(`git grep -n "TODO\\|FIXME\\|HACK" -- "*.ts" "*.tsx" | head -50`, {
-        cwd: workingDirectory,
-        encoding: 'utf8',
-        timeout: 15000,
-      });
-      const todoLines = todos.trim().split('\n').filter(Boolean);
+      const todos = execFileSync(
+        'git',
+        ['grep', '-n', 'TODO\\|FIXME\\|HACK', '--', '*.ts', '*.tsx'],
+        { cwd: workingDirectory, encoding: 'utf8', timeout: 15000 },
+      );
+      const todoLines = todos.trim().split('\n').filter(Boolean).slice(0, 50);
       const fileGroups = new Map<string, string[]>();
       for (const line of todoLines) {
         const [filePart, ...rest] = line.split(':');
@@ -173,12 +174,16 @@ export async function scanForTechDebt(workingDirectory: string): Promise<TechDeb
 
     // 4. Find files with no corresponding test file
     try {
-      const srcFiles = execSync(
-        `git ls-files "src/**/*.ts" "services/**/*.ts" "routes/**/*.ts" | grep -v ".test." | grep -v ".spec." | grep -v "index.ts" | head -100`,
+      // NOTE: The `| grep -v ... | head` pipeline needs a shell; replicated
+      // as plain JS array filters below instead.
+      const srcFiles = execFileSync(
+        'git',
+        ['ls-files', 'src/**/*.ts', 'services/**/*.ts', 'routes/**/*.ts'],
         { cwd: workingDirectory, encoding: 'utf8', timeout: 10000 },
       );
-      const testFiles = execSync(
-        `git ls-files "**/*.test.ts" "**/*.spec.ts" "tests/**/*.ts" | head -200`,
+      const testFiles = execFileSync(
+        'git',
+        ['ls-files', '**/*.test.ts', '**/*.spec.ts', 'tests/**/*.ts'],
         { cwd: workingDirectory, encoding: 'utf8', timeout: 10000 },
       );
       const testSet = new Set(
@@ -186,6 +191,7 @@ export async function scanForTechDebt(workingDirectory: string): Promise<TechDeb
           .trim()
           .split('\n')
           .filter(Boolean)
+          .slice(0, 200)
           .map((f) => f.replace(/\.test\.ts$|\.spec\.ts$/, '').replace(/^tests\//, '')),
       );
 
@@ -193,10 +199,12 @@ export async function scanForTechDebt(workingDirectory: string): Promise<TechDeb
         .trim()
         .split('\n')
         .filter(Boolean)
+        .filter((f) => !f.includes('.test.') && !f.includes('.spec.') && !f.includes('index.ts'))
         .filter((f) => {
           const baseName = f.replace(/\.ts$/, '');
           return !testSet.has(baseName) && !testSet.has(f.replace(/\.ts$/, ''));
-        });
+        })
+        .slice(0, 100);
 
       if (untestedFiles.length > 10) {
         items.push({

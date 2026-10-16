@@ -3,6 +3,7 @@
 
 import { memo, useMemo } from 'react';
 import { History, MessageSquare, Pin } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { NoteData, TaskActivity } from './types';
 import { MEMO_TYPE_CONFIG } from './types';
 import { generateMockTaskActivities } from './memo-utils';
@@ -21,7 +22,9 @@ export const TaskTimeline = memo(function TaskTimeline({
   taskId: number;
   notes: NoteData[];
 }) {
-  const activities = useMemo(() => generateMockTaskActivities(taskId), [taskId]);
+  const t = useTranslations('task.taskTimeline');
+  const tt = useTranslations('task');
+  const activities = useMemo(() => generateMockTaskActivities(taskId, tt), [taskId, tt]);
 
   const timelineItems = useMemo(() => {
     const items: Array<
@@ -52,7 +55,7 @@ export const TaskTimeline = memo(function TaskTimeline({
     return (
       <div className="text-center py-4">
         <History className="w-6 h-6 text-zinc-300 dark:text-zinc-600 mx-auto mb-1.5" />
-        <p className="text-[10px] text-zinc-400">タスクの履歴がありません</p>
+        <p className="text-[10px] text-zinc-500">{t('empty')}</p>
       </div>
     );
   }
@@ -83,16 +86,16 @@ export const TaskTimeline = memo(function TaskTimeline({
                     <span
                       className={`px-1.5 py-0.5 text-[9px] rounded-full ${MEMO_TYPE_CONFIG[(item.data as NoteData).memoType || 'general'].color.badge}`}
                     >
-                      {MEMO_TYPE_CONFIG[(item.data as NoteData).memoType || 'general'].label}
+                      {tt(MEMO_TYPE_CONFIG[(item.data as NoteData).memoType || 'general'].labelKey)}
                     </span>
                     {(item.data as NoteData).isPinned && (
-                      <Pin className="w-2.5 h-2.5 text-blue-500" />
+                      <Pin className="w-2.5 h-2.5 text-indigo-500" />
                     )}
                   </div>
                   <p className="text-xs text-zinc-700 dark:text-zinc-300 mt-0.5 line-clamp-2">
                     {(item.data as NoteData).content}
                   </p>
-                  <div className="text-[10px] text-zinc-400 mt-0.5">
+                  <div className="text-[10px] text-zinc-500 mt-0.5">
                     {(item.data as NoteData).time}
                   </div>
                 </div>

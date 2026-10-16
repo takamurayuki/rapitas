@@ -6,8 +6,10 @@ import { useTranslations } from 'next-intl';
 import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
 import { useBackendHealth } from '@/hooks/common/useBackendHealth';
 import { useOnVisible } from '@/hooks/common/useOnVisible';
+import { getAppHidden, subscribeAppHidden } from '@/hooks/common/app-visibility-store';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { createLogger } from '@/lib/logger';
+import { useToast } from '@/components/ui/toast/ToastContainer';
 import type { ResumableExecution } from './types';
 
 const logger = createLogger('useResumableExecutions');
@@ -45,6 +47,7 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
   const tc = useTranslations('common');
   const tNotification = useTranslations('notification');
   const t = useTranslations('banner');
+  const { showToast } = useToast();
 
   const [executions, setExecutions] = useState<ResumableExecution[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,8 +77,10 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
 
   const fetchResumableExecutions = useCallback(async () => {
     // Skip while backgrounded; this is a global always-mounted poller, so it's a
-    // steady drain when the user is in another app. useOnVisible refreshes on return.
-    if (typeof document !== 'undefined' && document.hidden) return [];
+    // steady drain when the user is in another app. useOnVisible refreshes on
+    // return. getAppHidden() covers minimize, which occlusion-disabled WebView2
+    // doesn't report via document.hidden.
+    if ((typeof document !== 'undefined' && document.hidden) || getAppHidden()) return [];
     try {
       setConnectionError(null);
       const res = await fetchWithRetry(
@@ -97,6 +102,12 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
         return data;
       } else {
         logger.warn(`Failed to fetch resumable executions: ${res.status} ${res.statusText}`);
+        // 503 means the backend explicitly couldn't verify interrupted-execution
+        // state (DB query failure) — surface it as a connection issue rather than
+        // silently treating the resulting empty list as "nothing interrupted".
+        if (res.status === 503) {
+          setConnectionError(new Error(t('backendDisconnected')));
+        }
         setExecutions([]);
       }
     } catch (error) {
@@ -108,7 +119,7 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
       setIsLoading(false);
     }
     return [];
-  }, []);
+  }, [t]);
 
   const { isConnected, isIntentionalRestart } = useBackendHealth({
     onReconnectAction: () => {
@@ -175,6 +186,52 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
     if (!isDismissed && isConnected) fetchResumableExecutions();
   });
 
+  // Refresh immediately on restore from minimize. visibilitychange (behind
+  // useOnVisible above) never fires for that transition because occlusion is
+  // intentionally disabled, so without this the poll interval (10-15s) would
+  // be the only thing to pick it back up.
+  useEffect(() => {
+    return subscribeAppHidden(() => {
+      if (!getAppHidden() && !isDismissed && isConnected) fetchResumableExecutions();
+    });
+  }, [isDismissed, isConnected, fetchResumableExecutions]);
+
+  const handleResume = useCallback(
+    async (executionId: number, isAutoResume = false) => {
+      setResumingIds((prev) => new Set(prev).add(executionId));
+      try {
+        const res = await fetchWithRetry(
+          `${API_BASE_URL}/agents/executions/${executionId}/resume`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setExecutions((prev) => prev.filter((e) => e.id !== executionId));
+          if (!isAutoResume && data.taskId) {
+            // Brief delay to let the backend start processing before redirecting
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            window.location.href = `/tasks/${data.taskId}?showHeader=true`;
+          }
+        } else {
+          logger.error(`Failed to resume execution: ${res.status} ${res.statusText}`);
+          if (!isAutoResume) showToast(`${tc('errorOccurred')}: ${res.status}`, 'error');
+        }
+      } catch (error) {
+        logger.warn('Error resuming execution:', error);
+      } finally {
+        setResumingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(executionId);
+          return next;
+        });
+      }
+    },
+    [tc, showToast],
+  );
+
   // Auto-resume — runs at most once per session
   useEffect(() => {
     if (autoResumeCheckedRef.current || isLoading) return;
@@ -187,37 +244,7 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
     (async () => {
       for (const exec of resumable) await handleResume(exec.id, true);
     })();
-  }, [autoResume, isLoading, executions]);
-
-  const handleResume = async (executionId: number, isAutoResume = false) => {
-    setResumingIds((prev) => new Set(prev).add(executionId));
-    try {
-      const res = await fetchWithRetry(`${API_BASE_URL}/agents/executions/${executionId}/resume`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setExecutions((prev) => prev.filter((e) => e.id !== executionId));
-        if (!isAutoResume && data.taskId) {
-          // Brief delay to let the backend start processing before redirecting
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          window.location.href = `/tasks/${data.taskId}?showHeader=true`;
-        }
-      } else {
-        logger.error(`Failed to resume execution: ${res.status} ${res.statusText}`);
-        if (!isAutoResume) alert(`${tc('errorOccurred')}: ${res.status}`);
-      }
-    } catch (error) {
-      logger.warn('Error resuming execution:', error);
-    } finally {
-      setResumingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(executionId);
-        return next;
-      });
-    }
-  };
+  }, [autoResume, isLoading, executions, handleResume]);
 
   const handleDismiss = async (executionId: number) => {
     const exec = executions.find((e) => e.id === executionId);

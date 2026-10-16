@@ -21,6 +21,29 @@ import type { CodexCliAgentConfig } from './types';
 const logger = createLogger('codex-cli-agent/json-event-handler');
 
 /**
+ * Shape of the `item` payload on official `--json` `item.*` events, per
+ * https://github.com/openai/codex/blob/main/sdk/typescript/src/items.ts.
+ * Fields beyond `agent_message`/`command_execution` are not implemented
+ * (unconfirmed shapes) — see the `item.completed` default branch below.
+ */
+type CodexItemPayload = {
+  id?: string;
+  type?: string;
+  text?: string;
+  command?: string;
+  exit_code?: number;
+  status?: 'in_progress' | 'completed' | 'failed';
+  aggregated_output?: string;
+};
+
+/**
+ * Max chars of a failed command's aggregated_output shown inline in the live
+ * log — mirrors the stderr tail length used on process close
+ * (process-runner.ts's `state.errorBuffer.slice(-4096)`).
+ */
+const FAILED_COMMAND_OUTPUT_TAIL_LIMIT = 4096;
+
+/**
  * Process a single parsed JSON event object from Codex CLI stdout.
  * Mutates state and invokes callbacks for any display output or question detection.
  *
@@ -63,12 +86,105 @@ export function processJsonEvent(
           ? json.error.message
           : json.message || json.error || 'unknown';
       displayOutput += `\n[Result: failed]\n${errorMessage}\n`;
+      // NOTE: only the first turn.failed within an execution is kept — the
+      // earliest failure reason is the most likely root cause, and a later
+      // turn.failed (e.g. from a follow-up retry inside the same run) should
+      // not overwrite it.
+      if (!state.turnFailed) {
+        state.turnFailed = true;
+        state.turnFailureMessage =
+          typeof errorMessage === 'string' ? errorMessage : String(errorMessage);
+      }
       break;
     }
 
     case 'turn.completed':
       displayOutput += `\n[Result: completed]\n`;
       break;
+
+    case 'item.started': {
+      const item = json.item as CodexItemPayload | undefined;
+      if (item?.type === 'command_execution' && typeof item.id === 'string') {
+        const command = typeof item.command === 'string' ? item.command : '(unknown command)';
+        state.activeCodexCommands.set(item.id, { command, startedAt: Date.now() });
+        displayOutput += `[Command] ${command} を開始しました\n`;
+      } else {
+        // NOTE: item.type shapes beyond command_execution are unconfirmed
+        // against primary source — record the type only, no display/throw.
+        logger.info(`${logPrefix} item.started with unhandled item.type: ${item?.type}`);
+      }
+      break;
+    }
+
+    case 'item.updated':
+      // NOTE: item.updated repeats the same item as it streams, so acting on
+      // it here would duplicate the [Command]/[Command Done] lines already
+      // emitted by item.started/item.completed. Intentional full no-op.
+      break;
+
+    case 'item.completed': {
+      const item = json.item as CodexItemPayload | undefined;
+      if (item?.type === 'agent_message' && typeof item.text === 'string') {
+        const messageId = typeof item.id === 'string' ? item.id : undefined;
+        // NOTE: same first-occurrence-wins pattern as state.turnFailed above —
+        // a retried turn can re-send an item.completed for an id already
+        // flushed to displayOutput, which would otherwise double the final
+        // AgentExecutionResult.output. Items without an id can't be
+        // deduplicated and are always appended (unchanged prior behaviour).
+        if (!messageId || !state.seenAgentMessageIds.has(messageId)) {
+          displayOutput += item.text;
+          if (messageId) state.seenAgentMessageIds.add(messageId);
+        } else {
+          logger.info(`${logPrefix} Skipped duplicate agent_message item.completed: ${messageId}`);
+        }
+      } else if (item?.type === 'command_execution') {
+        const command = typeof item.command === 'string' ? item.command : '(unknown command)';
+        const started =
+          typeof item.id === 'string' ? state.activeCodexCommands.get(item.id) : undefined;
+        const durationLabel = started
+          ? `${((Date.now() - started.startedAt) / 1000).toFixed(1)}s, `
+          : '';
+        const exitCode = typeof item.exit_code === 'number' ? item.exit_code : undefined;
+        const failed = exitCode !== undefined ? exitCode !== 0 : item.status === 'failed';
+        const exitLabel = exitCode !== undefined ? `exit ${exitCode}` : (item.status ?? 'unknown');
+        const label = failed ? 'Command Failed' : 'Command Done';
+        const aggregatedOutput =
+          typeof item.aggregated_output === 'string' ? item.aggregated_output : undefined;
+
+        // NOTE: this is a log-visibility distinction only — a non-zero exit
+        // from a single command must not, by itself, decide the overall
+        // AgentExecutionResult.success. That is governed solely by
+        // state.turnFailed (see process-runner-close-result.ts).
+        displayOutput += `[${label}] ${command} (${durationLabel}${exitLabel})\n`;
+        if (failed) {
+          logger.warn(
+            { command, exitCode, aggregatedOutputLength: aggregatedOutput?.length ?? 0 },
+            `${logPrefix} ${label}: ${command} (${exitLabel})`,
+          );
+          // NOTE: surfaced inline (tail only) so a failing command's output is
+          // visible in the live log at the point of failure, not only on the
+          // stderr-tail diagnostic that process-runner.ts logs at process close.
+          if (aggregatedOutput) {
+            const tail =
+              aggregatedOutput.length > FAILED_COMMAND_OUTPUT_TAIL_LIMIT
+                ? aggregatedOutput.slice(-FAILED_COMMAND_OUTPUT_TAIL_LIMIT)
+                : aggregatedOutput;
+            displayOutput += `${tail}\n`;
+          }
+        } else {
+          logger.info(
+            { command, exitCode, aggregatedOutputLength: aggregatedOutput?.length ?? 0 },
+            `${logPrefix} ${label}: ${command} (${exitLabel})`,
+          );
+        }
+        if (typeof item.id === 'string') state.activeCodexCommands.delete(item.id);
+      } else {
+        // NOTE: item.type shapes beyond agent_message/command_execution are
+        // unconfirmed against primary source — record the type only.
+        logger.info(`${logPrefix} item.completed with unhandled item.type: ${item?.type}`);
+      }
+      break;
+    }
 
     case 'assistant':
     case 'message':

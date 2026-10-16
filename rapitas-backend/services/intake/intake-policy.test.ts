@@ -52,11 +52,11 @@ describe('decideIntake', () => {
     expect(decideIntake(true, true, 'best_guess')).toBe('ready');
   });
 
-  it('asks when thin, policy=ask, and not yet asked', () => {
+  it('keeps asking when thin, policy=ask, and NOT yet answered (waits for the user)', () => {
     expect(decideIntake(false, false, 'ask')).toBe('ask');
   });
 
-  it('does not ask twice — proceeds after a prior question', () => {
+  it('proceeds (best-guess) only AFTER the user answered but the spec is still thin', () => {
     expect(decideIntake(false, true, 'ask')).toBe('proceed_low_confidence');
   });
 

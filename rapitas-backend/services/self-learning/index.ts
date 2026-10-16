@@ -15,18 +15,6 @@ export {
   getExperimentTimeline,
 } from './experiment-engine';
 
-// Hypothesis Manager
-export {
-  createHypothesis,
-  updateHypothesisStatus,
-  reviseHypothesis,
-  getHypotheses,
-  rankHypotheses,
-} from './hypothesis';
-
-// Critic System
-export { performReview, getReviews, getAverageScores } from './critic';
-
 // Learning Engine
 export {
   analyzeFailure,
@@ -35,9 +23,14 @@ export {
   listPatterns,
   recordPromptEvolution,
   getPromptEvolutionHistory,
+  summarizePromptEvolution,
+  getPromptEvolutionSummary,
   getLearningStats,
   getGrowthTimeline,
   getMemoryOverview,
+  type PromptEvolutionRow,
+  type PromptEvolutionRecentEntry,
+  type PromptEvolutionGroupSummary,
 } from './learning-engine';
 
 // Knowledge Graph

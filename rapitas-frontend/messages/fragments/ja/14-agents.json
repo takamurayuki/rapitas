@@ -1,0 +1,691 @@
+{
+  "agents": {
+    "title": "エージェント管理",
+    "subtitle": "AIエージェントの設定と実行管理",
+    "noAgents": "エージェントがありません",
+    "createAgent": "エージェントを作成",
+    "agentName": "エージェント名",
+    "agentType": "エージェントタイプ",
+    "status": "ステータス",
+    "lastRun": "最終実行",
+    "metrics": "使用量",
+    "metricsSubtitle": "各エージェントの使用量統計",
+    "pageTitle": "AIエージェント管理",
+    "pageSubtitle": "ワークフローの各フェーズにAIエージェントを割り当て、協調開発を管理します",
+    "noActiveAgents": "アクティブなエージェントがありません",
+    "custom": "カスタム",
+    "confirmDelete": "エージェント「{name}」を削除しますか？",
+    "deleteFailed": "エージェントの削除に失敗しました",
+    "deleted": "エージェント「{name}」を削除しました",
+    "active": "アクティブ",
+    "default": "デフォルト",
+    "settings": "設定",
+    "action": "アクション",
+    "model": "モデル",
+    "registeredAgents": "登録済みエージェント",
+    "agent": "エージェント",
+    "workflowRoles": "ワークフローロール設定",
+    "workflowRolesDescription": "各フェーズを担当するAIエージェントとモデルを設定します。成果物（Markdown）をバトンとして渡し、複数のAIが協調して開発を進めます。",
+    "howToUse": "ワークフローの使い方",
+    "step1Title": "ロールを設定",
+    "step1Description": "各フェーズにAIエージェントとモデルを割り当て",
+    "step2Title": "タスクで開始",
+    "step2Description": "タスク詳細でワークフローを開始し、各フェーズを実行",
+    "step3Title": "承認して完了",
+    "step3Description": "計画を承認し実装、検証後にタスクを完了",
+    "metricsTitle": "エージェント使用量",
+    "metricsDescription": "各エージェント（Claude Code / Codex / Gemini）の使用量とコストを実測データで表示",
+    "growthTitle": "自律活動デイリーレポート",
+    "growthDescription": "夜間にやったこと・学んだこと・決めたことと理由を、毎朝1通に統合した日次アーカイブ",
+    "growthEmpty": "レポートはまだありません。毎朝7:00（バックログ設定で変更可）に自動生成されます。",
+    "growthSelectPrompt": "左の一覧から日付を選択してください",
+    "growthLoadFailed": "デイリーレポートの取得に失敗しました",
+    "growthReportHeading": "デイリーレポート {date}",
+    "growthAiBadge": "AI整形",
+    "growthPlainBadge": "素の集計",
+    "growthSatiatedBadge": "飽和静止",
+    "growthSatiatedReasonTitle": "静止していた理由",
+    "growthCount_completed": "完了タスク",
+    "growthCount_mergedPrs": "マージPR",
+    "growthCount_concerns": "懸念",
+    "growthCount_decisions": "意思決定",
+    "growthCount_restarts": "再起動",
+    "growthCount_interventions": "人間介入",
+    "dataExport": "データエクスポート",
+    "metricsFetchFailed": "メトリクスデータの取得に失敗しました",
+    "utilizationRoleTitle": "役割別稼働率",
+    "utilizationAgentTitle": "CLIエージェント別稼働率",
+    "utilizationEmpty": "この期間の実行データはありません",
+    "utilizationNoData": "データなし",
+    "utilizationRefresh": "更新",
+    "filterSettings": "フィルター設定",
+    "startDate": "開始日",
+    "endDate": "終了日",
+    "period": "期間",
+    "periodDay": "日単位",
+    "periodWeek": "週単位",
+    "periodMonth": "月単位",
+    "trendDays": "トレンド期間（日）",
+    "totalExecutions": "総実行回数",
+    "successRate": "成功率",
+    "totalTokenUsage": "総トークン使用量",
+    "activeAgents": "アクティブエージェント",
+    "recoveryMetrics": {
+      "title": "リカバリーメトリクス",
+      "window": "直近{days}日間",
+      "empty": "記録されたフォールバック試行はまだありません",
+      "loadFailed": "リカバリーメトリクスの取得に失敗しました",
+      "lowSample": "サンプル不足",
+      "errorType": "エラー種別",
+      "strategy": "戦略",
+      "attempts": "試行数",
+      "successRate": "成功率",
+      "avgLatency": "平均レイテンシ",
+      "avgCost": "平均コスト",
+      "failureReasons": "失敗理由"
+    },
+    "errorDiagnosis": {
+      "title": "エラー診断",
+      "window": "直近{days}日間",
+      "summary": "{total}件・平均信頼度{avgConfidence}・フィードバック率{feedbackRate}・有用と判定された率{helpfulRate}",
+      "empty": "記録されたLLM診断はまだありません",
+      "loadFailed": "エラー診断の取得に失敗しました",
+      "lowConfidence": "低信頼度",
+      "rootCause": "推定原因",
+      "confidence": "信頼度",
+      "suggestedAction": "提案アクション",
+      "feedback": "フィードバック"
+    },
+    "probeMetrics": {
+      "title": "プリフライトprobeメトリクス",
+      "window": "直近{days}日間",
+      "empty": "記録されたprobe試行はまだありません",
+      "loadFailed": "probeメトリクスの取得に失敗しました",
+      "lowSample": "サンプル不足",
+      "target": "probe対象",
+      "attempts": "試行数",
+      "successRate": "成功率",
+      "avgLatency": "平均レイテンシ",
+      "transientRetries": "一時障害リトライ数",
+      "permanentFailures": "永続障害数"
+    },
+    "systemStatus": {
+      "title": "システム状態",
+      "pill": {
+        "healthy": "正常",
+        "busy": "実行中",
+        "shutting_down": "シャットダウン中",
+        "interrupted": "中断あり",
+        "unhealthy": "異常",
+        "unknown": "確認不可"
+      },
+      "running": "実行中のexecution数",
+      "active": "アクティブなexecution数",
+      "interrupted": "中断したexecution数",
+      "queueDepth": "キュー滞留数",
+      "activePreviews": "起動中のプレビュー数",
+      "uptime": "稼働時間"
+    },
+    "resourceContention": {
+      "title": "リソース競合ゲート",
+      "enabled": "有効",
+      "disabled": "無効",
+      "hostCpuNote": "ホスト全体のCPU使用率です。特定テーマへの帰属は行いません。",
+      "currentCpu": "現在のCPU使用率",
+      "threshold": "しきい値",
+      "landingTitle": "完了タスクの着地分類",
+      "landingCount": "件数",
+      "landingClasses": {
+        "qualified": "計上（検証・受入条件・自動 merge 証跡あり）",
+        "landing_pending": "merge 完了待ち",
+        "policy_unreadable": "merge 証跡を確認できない",
+        "merge_not_requested": "merge 未要求（commit/PR 止まり）",
+        "criteria_missing": "事前受入条件なし",
+        "unverified_completion": "独立検証なしの完了",
+        "publish_after_stop": "停止後の公開",
+        "manual_merge": "手動 merge（介入）",
+        "landing_failed": "merge 失敗",
+        "subtask": "サブタスク（件数除外）"
+      },
+      "effectiveMaxConcurrency": "実効並列度",
+      "unsampled": "未計測",
+      "empty": "見送り履歴はありません",
+      "loadFailed": "リソース競合ゲート情報の取得に失敗しました",
+      "deferredAt": "見送り日時",
+      "theme": "テーマ",
+      "runNow": "今すぐ実行",
+      "nextTick": "次回のスケジューラtickで再評価します"
+    },
+    "repairConvergence": {
+      "title": "自己修復ループの収束状況",
+      "convergenceRate": "収束率",
+      "avgIterations": "平均反復回数",
+      "enteredLoop": "修復ループ突入数",
+      "blocked": "ブロック中"
+    },
+    "judgeEval": {
+      "title": "敵対的レビュー判定の精度",
+      "accuracy": "正解率",
+      "correctOfTotal": "{correct} / {total} 件正解",
+      "provider": "プロバイダ",
+      "status": "ステータス",
+      "passed": "合格",
+      "failed": "不合格",
+      "errored": "{count}件エラー",
+      "lastRun": "最終実行",
+      "caseBreakdown": "ケース別の結果",
+      "empty": "判定精度evalは未実行です。RAPITAS_EVAL_JUDGE=1 を設定して scripts/eval-judge.ts を実行してください。",
+      "loadFailed": "判定精度evalの結果取得に失敗しました"
+    },
+    "executionTrend": "実行トレンド",
+    "successful": "成功",
+    "failed": "失敗",
+    "performanceComparison": "エージェント性能比較",
+    "executionCount": "実行回数",
+    "successRatePercent": "成功率(%)",
+    "tokenDistribution": "トークン使用量分布",
+    "detailMetrics": "エージェント詳細メトリクス",
+    "agentNameCol": "エージェント名",
+    "modelCol": "モデル",
+    "executionCountCol": "実行回数",
+    "successRateCol": "成功率",
+    "averageExecutionTime": "平均実行時間",
+    "tokenUsage": "トークン使用量",
+    "tokensUsed": "使用トークン数",
+    "lastExecution": "最終実行",
+    "noMetricsData": "メトリクスデータがありません",
+    "agentNotFound": "エージェントが見つかりません",
+    "agentFetchFailed": "エージェントの取得に失敗しました",
+    "settingsEndpoint": "エンドポイント",
+    "settingsSaveFailed": "設定の保存に失敗しました",
+    "apiKeySaveFailed": "APIキーの保存に失敗しました",
+    "settingsSaved": "設定を保存しました",
+    "confirmDeleteApiKey": "APIキーを削除しますか？",
+    "apiKeyDeleted": "APIキーを削除しました",
+    "apiKeyDeleteFailed": "APIキーの削除に失敗しました",
+    "connectionSuccess": "接続成功",
+    "connectionFailed": "接続失敗",
+    "connectionTestFailed": "接続テストに失敗しました",
+    "confirmDeleteAgent": "このエージェント設定を削除しますか？",
+    "backToAgentList": "エージェント一覧に戻る",
+    "settingsFor": "{name}の設定",
+    "basicSettings": "基本設定",
+    "selectModel": "モデルを選択",
+    "apiKeyTitle": "APIキー",
+    "apiKeyConfigured": "APIキー設定済み",
+    "apiKeyNotConfigured": "APIキー未設定",
+    "deleteApiKey": "APIキーを削除",
+    "newApiKey": "新しいAPIキー（変更する場合）",
+    "howToGetApiKey": "APIキーの取得方法",
+    "apiKeyEncryptionInfo": "APIキーはAES-256-GCMで暗号化されてデータベースに保存されます。サーバー側で復号化されてAPIリクエストに使用されます。",
+    "claudeCodeLocalCli": "Claude CodeはローカルCLIを使用（APIキー不要）",
+    "codexLocalCli": "Codex CLIはローカルCLIを使用（APIキー不要、ChatGPTアカウントで認証）",
+    "geminiLocalCli": "Gemini CLIはローカルCLIを使用（APIキー不要、Googleアカウントで認証）",
+    "apiKeyGeneric": "APIキー",
+    "localCliMode": "ローカルCLIモード",
+    "localCliDescription": "Claude Codeはローカルにインストールされたclaudeコマンドを使用します。APIキーは不要ですが、Claude CLIが正しくインストールされている必要があります。",
+    "connectionTest": "接続テスト",
+    "testConnection": "接続をテスト",
+    "errorPage": {
+      "title": "エージェント でエラーが発生しました",
+      "defaultMessage": "予期しないエラーが発生しました。",
+      "retry": "再試行"
+    },
+    "globalProviderPreference": {
+      "title": "デフォルトエージェント",
+      "subtitle": "自動選択時の優先プロバイダ。ロール側で個別上書きされない場合に使われます",
+      "recheckTitle": "CLI / API へ再 probe してキャッシュを破棄",
+      "recheckButton": "再チェック",
+      "checking": "確認中…",
+      "available": "✓ 応答あり ({count} モデル検出)",
+      "noResponse": "応答なし",
+      "rechecking": "再チェック中… ({count}/{max})",
+      "footerNote": "CLI が応答するかのみを確認しています（API キーはチェック対象外。5分キャッシュ）"
+    },
+    "skipPermissionToggle": {
+      "title": "エージェントの許可確認をスキップ",
+      "onDescription": "Claude Code には <code1>--dangerously-skip-permissions</code1>、Codex / Gemini には <code2>--yolo</code2> を付けて起動します。実行が止まりませんが、ファイル編集やコマンド実行を即座に行うので注意。",
+      "offDescription": "CLI 標準の許可プロンプトを surface します。安全ですが、実行中に質問が来るたびタスクが一時停止します。",
+      "srLabel": "エージェント許可確認スキップ"
+    },
+    "agentSettingsSections": {
+      "azureEndpointExample": "例: https://your-resource.openai.azure.com/openai/deployments/your-deployment"
+    },
+    "memory": {
+      "pageTitle": "記憶の成長",
+      "pageSubtitle": "AIエージェントが蓄積した知識と学習パターンの成長を可視化します",
+      "emptyTitle": "記憶データがありません",
+      "emptyHint": "エージェントがタスクを実行すると、ここに学習の成長が表示されます",
+      "strengthCard": {
+        "title": "記憶強度"
+      },
+      "overviewCards": {
+        "totalMemory": "記憶総量",
+        "weeklyChange": "先週比",
+        "knowledgeNodes": "ナレッジノード",
+        "patterns": "パターン: {count}",
+        "successRate": "成功率",
+        "experiments": "実験数: {count}",
+        "episodes": "エピソード記憶",
+        "monthlyChange": "先月比"
+      },
+      "growthTrendChart": {
+        "title": "知識の成長トレンド",
+        "period7d": "7日間",
+        "period30d": "30日間",
+        "periodAll": "全期間",
+        "legendKnowledgeNodes": "ナレッジノード",
+        "legendLearningPatterns": "学習パターン",
+        "legendExperimentsCompleted": "完了実験",
+        "emptyGrowth": "成長データがまだありません",
+        "successRateTitle": "成功率の推移",
+        "successRateLabel": "成功率",
+        "emptySuccessRate": "成功率データがまだありません",
+        "distributionTitle": "知識分布",
+        "emptyDistribution": "まだ知識が蓄積されていません"
+      },
+      "confidenceTrendChart": {
+        "title": "信頼度の推移",
+        "tooltipLabel": "信頼度"
+      },
+      "recentLearnings": {
+        "patternsTitle": "最近の学習パターン",
+        "confidenceLabel": "信頼度 {percent}%",
+        "emptyPatternsTitle": "学習パターンはまだありません",
+        "emptyPatternsHint": "エージェントがタスクを重ねると、ここに傾向が蓄積されます。",
+        "nodesTitle": "最新のナレッジノード",
+        "emptyNodesTitle": "ナレッジノードはまだありません",
+        "emptyNodesHint": "エージェントが学習すると、知識がここに記録されます。"
+      },
+      "nodeTypeLabels": {
+        "concept": "コンセプト",
+        "problem": "問題",
+        "solution": "解決策",
+        "technology": "テクノロジー",
+        "pattern": "パターン"
+      },
+      "decisionCalibration": {
+        "title": "plan承認の判断精度",
+        "subtitle": "あなたの承認/差し戻しと自動承認ポリシーを、タスクの実結果で採点した較正値です。",
+        "empty": "まだ較正済みの判断がありません。plan承認とタスク完了が重なると蓄積されます。",
+        "precisionLabel": "的中率",
+        "decider": {
+          "user": "あなた",
+          "auto": "自動承認"
+        },
+        "correctCount": "的中 {count}",
+        "wrongCount": "外れ {count}",
+        "partialCount": "判定保留 {count}",
+        "pendingCount": "結果待ち {count}"
+      },
+      "levelLabels": {
+        "expert": "エキスパート",
+        "advanced": "アドバンスド",
+        "intermediate": "中級",
+        "beginner": "ビギナー"
+      }
+    },
+    "failureLineage": {
+      "pageTitle": "失敗の系譜図",
+      "pageSubtitle": "ERROR/WARN ログを正規化・クラスタリングし、再発連鎖と根本原因の候補を推定して表示します",
+      "estimateBanner": "親子関係は時間的近接と共通属性による推定です。事実ではなく、確信度の低い関係を含みます。",
+      "estimatedRelation": "推定された親子関係",
+      "edgeConfidence": "推定の確信度 {confidence}（根拠: {basis}）",
+      "candidateBadge": "根本原因の候補",
+      "reducedEstimate": "このノードを修正すると後続 {count} 件が減る見込み（推定）",
+      "graphLabel": "失敗の系譜図（推定）",
+      "windowLabel": "対象期間",
+      "hoursOption": "直近 {hours} 時間",
+      "refresh": "再取得",
+      "loading": "読み込み中…",
+      "truncated": "ログ件数が上限を超えたため、新しい順に切り詰めて計算しています。",
+      "basis": {
+        "rule": "既知連鎖ルール",
+        "same_execution": "同一実行",
+        "same_resource": "同一リソース",
+        "time_proximity": "時間的近接のみ"
+      },
+      "candidates": {
+        "title": "根本原因の候補",
+        "none": "候補はありません（後続イベントを持つ起点が見つかりませんでした）。"
+      },
+      "allEvents": {
+        "title": "全イベント（{count} 件）"
+      },
+      "empty": {
+        "title": "対象期間に ERROR/WARN ログはありません",
+        "hint": "期間を広げて再取得してください。"
+      },
+      "validation": {
+        "title": "妥当性の検証結果",
+        "description": "版管理した既知の失敗連鎖を推定器に再生し、親子関係を再現できるかを確認します。",
+        "noTarget": "照合対象なし",
+        "matchRate": "既知連鎖との一致率 {rate}%",
+        "matched": "一致",
+        "mismatched": "不一致",
+        "unchecked": "未照合（実データのエッジ）",
+        "decisionLogMatches": "意思決定ログの関連件数",
+        "chainLine": "{label}: {matched}/{expected} 件を再現"
+      }
+    },
+    "pareto": {
+      "pageTitle": "効率フロンティア",
+      "pageSubtitle": "過去のワークフロー実行ログから実行時間・成功率・リソースコストのパレート最適解を可視化し、ビジネス目標からパラメータセットを推奨します",
+      "cpuMemoryNotice": "CPU/メモリの実測値は実行ログに記録されていないため、リソース消費量の軸は1実行あたりのコスト（USD）で代用しています。",
+      "filters": {
+        "title": "集計条件",
+        "windowDays": "集計期間",
+        "days": "直近{days}日",
+        "complexityBand": "データ特性（複雑度）",
+        "role": "役割",
+        "band": {
+          "all": "すべて",
+          "low": "低複雑度（〜35）",
+          "medium": "中複雑度（36〜70）",
+          "high": "高複雑度（71〜）"
+        }
+      },
+      "workflowType": {
+        "lightweight": "軽量",
+        "standard": "標準",
+        "comprehensive": "詳細",
+        "unknown": "タイプ不明"
+      },
+      "roles": {
+        "all": "すべての役割",
+        "researcher": "調査",
+        "planner": "計画",
+        "implementer": "実装",
+        "verifier": "検証",
+        "auto_verifier": "自動検証"
+      },
+      "segment": {
+        "title": "{workflowType} × {role}",
+        "sampleSize": "{count}件",
+        "baseline": "現状ミックス",
+        "frontier": "パレート最適",
+        "dominated": "劣位",
+        "unreliableShort": "データ不足",
+        "axisTime": "平均実行時間（秒）"
+      },
+      "table": {
+        "model": "モデル",
+        "samples": "件数",
+        "successRate": "成功率",
+        "timeSec": "平均実行時間",
+        "costUsd": "平均コスト",
+        "status": "判定",
+        "optimal": "パレート最適",
+        "dominated": "劣位",
+        "unreliable": "データ不足（{min}件未満）",
+        "currentMix": "基準",
+        "ci": "数値は 推定値 [95%信頼区間下限 – 上限]。成功率はWilson区間、時間・コストは正規近似。"
+      },
+      "goal": {
+        "title": "ビジネス目標からパラメータセットを推奨",
+        "hint": "月初の目標を入力すると、集計条件内の各ワークフロータイプ×役割について、目標を満たす最も低コストなモデル割り当てと月間影響の試算を返します。",
+        "kind": "目標の種類",
+        "kinds": {
+          "successRate": "成功率を目標値まで引き上げる",
+          "throughput": "スループットを向上させる",
+          "cost": "コストを削減する"
+        },
+        "valueLabel": {
+          "successRate": "目標成功率（%）",
+          "throughput": "スループット向上率（%）",
+          "cost": "コスト削減率（%）"
+        },
+        "submit": "推奨を計算",
+        "loading": "計算中..."
+      },
+      "recommendation": {
+        "title": "推奨結果",
+        "correlationNote": "推奨は過去実行の相関に基づく推定であり、モデル間の無作為割り当てによる因果効果ではありません。信頼度は推奨点の件数（20件で100%）に基づきます。",
+        "noSegments": "集計条件に該当する実行がありません。",
+        "reason": {
+          "ok": "目標達成可能",
+          "already_met": "現状で目標達成済み",
+          "insufficient_data": "データ不足",
+          "target_unreachable": "目標未達"
+        },
+        "recommended": "推奨パラメータセット",
+        "alternative": "最も近い候補",
+        "current": "現状",
+        "insufficientHint": "この区分には信頼できる候補（{min}件以上）がありません。",
+        "monthlyVolume": "月間実行数（推定）",
+        "deltaCost": "コスト差分 / 月",
+        "deltaTime": "実行時間差分 / 件",
+        "deltaHours": "所要時間差分 / 月",
+        "deltaSuccess": "成功率差分",
+        "confidence": "信頼度"
+      },
+      "empty": {
+        "title": "集計対象の実行がありません",
+        "hint": "ワークフロー実行が蓄積されると、ワークフロータイプ×役割ごとのパレート曲線がここに表示されます"
+      }
+    },
+    "growth": {
+      "pageTitle": "自己成長台帳",
+      "pageSubtitle": "ワークフロー遷移と懸念履歴から見る、時間とともに賢くなっている週次の証拠",
+      "emptyTitle": "成長台帳データがまだありません",
+      "emptyHint": "タスクが完了し懸念が記録されると、ここに週次系列が表示されます",
+      "emptyChart": "この期間のデータはまだありません",
+      "noData": "データなし",
+      "detailsToggle": "詳細指標を見る（5 つの週次チャートと KPI）",
+      "digest": {
+        "title": "今週の運転ダイジェスト",
+        "subtitle": "工程が人手も差し戻しもなく流れた割合を 1 本の指数にまとめ、先週と比べます。能力や設計成熟度の採点ではありません",
+        "indexLabel": "運転指数",
+        "indexHint": "自律完遂率・調査/計画の初回通過率・懸念再発率(反転)・知識検証率・差し戻し率(反転)のうち、標本 5 件以上の率の平均。件数や所要時間は含みません",
+        "sampleNote": "完了タスク {tasks} 件・有効な率 {rates}/6",
+        "chartTitle": "運転指数の推移",
+        "vsPrevWeek": "先週比",
+        "emptyChart": "この期間のデータはまだありません",
+        "noData": "データなし",
+        "verdict": {
+          "improving": "改善傾向",
+          "flat": "横ばい",
+          "worsening": "悪化",
+          "insufficient": "判定に必要な 2 週分のデータなし"
+        },
+        "rates": {
+          "autonomy": "自律完遂率",
+          "researchFirstPass": "調査の初回通過率",
+          "planFirstPass": "計画の初回通過率",
+          "defectRecurrence": "懸念の再発率(低いほど良い)",
+          "kbQuality": "知識の検証率",
+          "repairRate": "差し戻し率(低いほど良い)"
+        },
+        "tiles": {
+          "autonomousCompleted": "無人で完了したタスク",
+          "autoMerged": "自動マージ成功",
+          "repairRate": "差し戻し率"
+        }
+      },
+      "autonomy": {
+        "title": "自律完遂率",
+        "seriesLabel": "自律完遂率"
+      },
+      "criticFirstPass": {
+        "title": "批評一発通過率",
+        "researchLabel": "研究の一発通過",
+        "planLabel": "計画の一発通過"
+      },
+      "repairEfficiency": {
+        "title": "修復効率",
+        "seriesLabel": "完了タスクあたりの修復回数"
+      },
+      "defectRecurrence": {
+        "title": "欠陥再発率",
+        "seriesLabel": "再発率"
+      },
+      "kbQuality": {
+        "title": "知識の質",
+        "seriesLabel": "検証済み比率"
+      },
+      "retroKpi": {
+        "sectionTitle": "自己改善KPI",
+        "sectionSubtitle": "監督者が2026-08-30に固定した基線と同一定義のKPI（7日ローリング窓）。バッジは今週と先週の差分で、改善は緑・悪化は赤",
+        "emptyHint": "ワークフロー遷移が記録されると、ここに週次のKPI推移が表示されます",
+        "vsPrevWeek": "先週比",
+        "repairRate": {
+          "title": "差し戻し率",
+          "seriesLabel": "差し戻し率"
+        },
+        "autoMerge": {
+          "title": "自動マージ／駐機",
+          "mergedLabel": "自動マージ成功",
+          "exhaustedLabel": "マージ試行上限到達"
+        },
+        "conflictFiled": {
+          "title": "マージ競合起票",
+          "seriesLabel": "競合起票件数"
+        },
+        "noChangeConfirmed": {
+          "title": "検証で修正不要と確認",
+          "seriesLabel": "件数"
+        },
+        "nonConvergence": {
+          "title": "修復非収束",
+          "seriesLabel": "件数"
+        },
+        "leadTime": {
+          "title": "リードタイム中央値",
+          "seriesLabel": "所要時間（分）"
+        }
+      }
+    },
+    "missSignatures": {
+      "title": "検出漏れ兆候レビュー",
+      "subtitle": "品質ゲートを素通りした欠陥事例から学習した検出兆候の提案を、承認または棄却します。承認された兆候は知識ベースに反映され、将来の調査・検出器実装のヒントになります。",
+      "mode": {
+        "label": "現在の反映モード",
+        "manual": "承認必須",
+        "auto": "自動反映"
+      },
+      "basis": {
+        "initial_gate": "初期学習期間 — 人間レビューの実績が既定件数に達するまで全件承認必須です",
+        "insufficient_data": "データ不足 — 窓内のレビュー件数が下限未満のため判定を保留しています（自動反映へは移行しません）",
+        "low_rejection": "棄却率が閾値以下 — 承認待ちの提案は自動反映されます",
+        "high_rejection": "棄却率が閾値超過 — 自動反映は停止し承認必須へ戻りました"
+      },
+      "rejectionRate": "棄却率",
+      "rejectionRateNone": "判定なし",
+      "window": "直近{days}日: レビュー{samples}件 / 棄却{rejections}件",
+      "counts": {
+        "pendingReview": "承認待ち",
+        "approved": "承認済み",
+        "rejected": "棄却",
+        "autoApplied": "自動反映",
+        "cases": "記録事例"
+      },
+      "signaturePending": "承認待ちの提案",
+      "explanationLabel": "説明",
+      "approve": "承認",
+      "reject": "棄却",
+      "empty": "承認待ちの提案はありません。検出漏れが発生していない期間は、提案が無いのが正常です。",
+      "loadFailed": "データの読み込みに失敗しました",
+      "reviewFailed": "レビューの送信に失敗しました"
+    },
+    "supervision": {
+      "title": "監督受入状態",
+      "subtitle": "無介入の連続運用と知識再利用効果を証跡から判定します。観測できない期間は成功として扱いません。",
+      "met": "受入基準を達成",
+      "notMet": "未達",
+      "loadFailed": "監督受入状態を取得できませんでした。取得できない状態は未達として扱います。",
+      "reasonsTitle": "未達理由",
+      "noReasons": "未達理由はありません",
+      "denominatorsTitle": "実測分母",
+      "streakCount": "連続完了タスク数（無介入）",
+      "observedHours": "観測済みの無介入時間（時間）",
+      "observedGapMinutes": "観測欠落の合計（分・控除済み）",
+      "heartbeat": "監視ハートビート",
+      "heartbeatAge": "最終 {seconds} 秒前",
+      "heartbeatNone": "記録なし",
+      "snapshotAge": "判定スナップショット",
+      "snapshotAgeValue": "{minutes} 分前",
+      "snapshotNone": "未作成",
+      "blockingTasks": "未解決の失敗・中断タスク",
+      "none": "なし",
+      "knowledgeTitle": "知識再利用の比較評価",
+      "evalSetVersion": "評価セットバージョン",
+      "methodVersion": "比較方式バージョン",
+      "pairedN": "対照ペア数",
+      "missingRetainedN": "欠測・失敗を保持した件数",
+      "successWithKB": "成功率（知識あり）",
+      "successWithoutKB": "成功率（知識なし）",
+      "effect": "効果量 / 不確実性",
+      "threshold": "{value} / 必要 {required}",
+      "reasons": {
+        "streak_task_count_below_threshold": "無介入で完了したタスクが10件に届いていません",
+        "streak_duration_below_threshold": "観測済みの無介入時間が24時間に届いていません",
+        "recent_intervention": "直近に人/監督による介入（修正・承認代行・再試行代行）がありました",
+        "self_gate_mutation": "監督ゲート自体を変更するコミットがあり、連続記録がリセットされました",
+        "observation_gap_present": "観測欠落の期間があります",
+        "no_observation_evidence": "観測証跡（ハートビート等）がありません",
+        "snapshot_stale": "判定スナップショットが古いか存在しません",
+        "intervention_write_failed": "介入記録の書き込みに失敗し、未回収の記録があります",
+        "knowledge_reuse_evidence_insufficient": "知識再利用の比較証拠（同時対照・欠測保持）が不足しています",
+        "monitor_heartbeat_stale": "監視ハートビートが途絶えています",
+        "failure_or_interruption_in_streak": "失敗または中断したタスクがあり、連続記録がリセットされました",
+        "gate_mutation_unobservable": "ゲート変更コミットを確認できません（git 読み取り失敗）",
+        "observation_history_truncated": "観測履歴が上限で打ち切られ、欠落を確認しきれていません",
+        "landing_evidence_pending": "merge 完了待ちのタスクがある",
+        "landing_evidence_unobservable": "merge 証跡を確認できないタスクがある",
+        "merge_not_requested": "merge まで到達していない完了がある",
+        "acceptance_criteria_missing": "事前受入条件が未登録の完了がある",
+        "unverified_completion_detected": "独立検証を経ていない完了がある",
+        "publish_after_stop_detected": "停止後に公開された変更がある",
+        "subtask_not_counted": "サブタスクは件数に含めない",
+        "unresolved_high_severity_concern": "重要な未解決品質欠陥がある"
+      }
+    },
+    "executionDashboard": {
+      "title": "実行可視化ダッシュボード",
+      "subtitle": "実行中の全タスクが今どこにいるかを1画面で把握できます",
+      "flowChartTitle": "パイプライン全体像",
+      "stage": {
+        "queued": "キュー待ち",
+        "running": "実行中",
+        "repairing": "修復中",
+        "awaitingJudgement": "判定待ち",
+        "completed": "完了",
+        "failed": "失敗",
+        "cancelled": "中断"
+      },
+      "frequentFailureWarning": "頻繁に失敗中",
+      "frequentFailureBadge": "頻繁に失敗中（{count}回）",
+      "stalledBadge": "停滞",
+      "emptyState": "実行中のタスクはありません",
+      "elapsedMinutes": "経過 {minutes}分",
+      "exportCsvButton": "実行ログをエクスポート（CSV）",
+      "exportJsonButton": "実行ログをエクスポート（JSON）",
+      "loading": "読み込み中…",
+      "loadFailed": "データの取得に失敗しました",
+      "truncatedNotice": "表示中 {shown}件（実際は{total}件） — 他のタスクは表示を省略しています",
+      "drilldownTitle": "タスク実行詳細",
+      "drilldownLoading": "読み込み中…",
+      "drilldownLoadFailed": "データの取得に失敗しました",
+      "drilldownState": "状態",
+      "drilldownRepairCount": "修復回数",
+      "drilldownElapsed": "経過時間"
+    },
+    "workerHealthTitle": "ワーカー健全性の逸脱スクリーニング",
+    "workerHealthDescription": "実行完了数・タイムアウト率・再試行率・ワーカー再起動数を、同曜日・同時刻の直近4週間の中央値/MADからの偏差で正規化し、1本の複合スコアにまとめた一次スクリーニングです。原因の確認は下の個別指標で行ってください。",
+    "workerHealthLoading": "読み込み中…",
+    "workerHealthError": "ワーカー健全性データの取得に失敗しました",
+    "workerHealthEmpty": "表示できるデータがありません",
+    "workerHealthPending": "判定保留: 同曜日・同時刻の過去データが4週間分に満たないため、複合スコアはまだ算出できません（再起動数は記録開始から蓄積されます）。",
+    "workerHealthPendingShort": "保留",
+    "workerHealthDeviation": "ベースラインからの逸脱を検知しています。根拠は下の個別指標で確認してください。",
+    "workerHealthWeights": "指標の重み",
+    "workerHealthWeightShort": "重み {weight}",
+    "workerHealthComposite": "複合スコア",
+    "workerHealthRaw": "実測",
+    "workerHealthBaselineNote": "基準: 同曜日・同時刻の直近4週間の中央値とMAD。複合スコアは悪化方向のみを重み付けし、3点連続で1.5以上、または日次周期（自己相関）の崩れで通知します。",
+    "workerHealthMetric_completions": "実行完了数",
+    "workerHealthMetric_timeoutRate": "タイムアウト率",
+    "workerHealthMetric_retryRate": "再試行率",
+    "workerHealthMetric_restarts": "ワーカー再起動数"
+  }
+}

@@ -11,89 +11,85 @@ import { createHash } from 'crypto';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { createTask } from '../task/task-mutations';
+import { specForConcernSource } from './concern-task-spec';
+import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
+import { findSaturatedTheme, findNearDuplicate } from './theme-saturation';
+import { resolveTaskThemeId, resolveDefaultThemeId } from './theme-resolution';
+import { resolveFiling } from './concern-recurrence-policy';
+import { checkConcernStillRelevant } from './concern-relevance-check';
+import {
+  CONCERN_TYPES,
+  CONCERN_SEVERITIES,
+  CONCERN_STATUSES,
+  normalizeConcernType,
+  normalizeConcernSeverity,
+  SEVERITY_WEIGHT,
+  type ConcernType,
+  type ConcernSeverity,
+  type ConcernStatus,
+  type LinkedIssueRef,
+  type ConcernEntry,
+  type SubmitConcernInput,
+  type ConcernFilingResult,
+} from './concern-backlog-types';
+
+// Re-exported for backward compatibility — log-health-check.ts imports
+// resolveDefaultThemeId from this module.
+export { resolveDefaultThemeId };
+
+// Type/constant/normalizer re-exports — moved to concern-backlog-types.ts (#888)
+// so existing importers (routes, concern-recurrence-policy.ts, the generated
+// guards file) keep working unchanged.
+export {
+  CONCERN_TYPES,
+  CONCERN_SEVERITIES,
+  CONCERN_STATUSES,
+  normalizeConcernType,
+  normalizeConcernSeverity,
+};
+export type {
+  ConcernType,
+  ConcernSeverity,
+  ConcernStatus,
+  LinkedIssueRef,
+  ConcernEntry,
+  SubmitConcernInput,
+  ConcernFilingOutcome,
+  ConcernFilingReason,
+  ConcernFilingResult,
+} from './concern-backlog-types';
+
+// Near-duplicate gate threshold (character-bigram Jaccard). Mirrors the idea box:
+// rejects an almost-identical OPEN concern re-file (e.g. the gen/Prettier-drift
+// concern filed twice) that the substring saturation gate misses when only 1-2
+// copies exist. 0.45 catches clones (≥0.49) without touching distinct facets.
+const CONCERN_NEARDUP_JACCARD = (() => {
+  const v = parseFloat(process.env.RAPITAS_CONCERN_NEARDUP_JACCARD ?? '0.45');
+  return Number.isFinite(v) && v > 0 && v <= 1 ? v : 0.45;
+})();
+
+// Theme-saturation additionally requires this whole-title bigram similarity so
+// a single short shared token (e.g. "Codex") can no longer anchor an
+// unrelated concern into the wrong theme (#888, concern #7336).
+const CONCERN_SATURATION_MIN_JACCARD = (() => {
+  const v = parseFloat(process.env.RAPITAS_CONCERN_SATURATION_MIN_JACCARD ?? '0.2');
+  return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 0.2;
+})();
 
 const log = createLogger('memory:concern-backlog');
 
-/** What kind of concern this is. */
-export type ConcernType = 'bug' | 'refactor' | 'security' | 'perf' | 'other';
-/** How serious / urgent the concern is. */
-export type ConcernSeverity = 'urgent' | 'high' | 'medium' | 'low';
 /**
- * Lifecycle state of a concern.
- * `resolved` is reached when a concern published to GitHub has its issue closed
- * (status is pulled from GitHub on sync — see markConcernResolved).
+ * True when a concern id is safe to bind into a Prisma `where: { id }` clause.
+ * Callers (route params, GitHub sync payloads) may pass out-of-range floats;
+ * Prisma throws PrismaClientValidationError before this reaches SQLite when
+ * the value doesn't fit a 64-bit signed integer, so this must be checked
+ * before any `knowledgeEntry` query runs. / concernId が Prisma に渡して安全か
+ *
+ * @param concernId - Candidate concern id / 判定対象の懸念ID
+ * @returns True when safe to query with / クエリに使って安全なら true
  */
-export type ConcernStatus = 'open' | 'task_created' | 'dismissed' | 'resolved';
-
-/** A GitHub issue a concern was published to / imported from. */
-export interface LinkedIssueRef {
-  /** GitHubIssue row id (DB), not the issue number. */
-  id: number;
-  issueNumber: number;
-  url: string;
-  /** "open" | "closed" */
-  state: string;
-}
-
-const VALID_TYPES: readonly ConcernType[] = ['bug', 'refactor', 'security', 'perf', 'other'];
-const VALID_SEVERITIES: readonly ConcernSeverity[] = ['urgent', 'high', 'medium', 'low'];
-
-/** Coerces an arbitrary value to a valid concern type (default 'bug'). */
-export function normalizeConcernType(value: unknown): ConcernType {
-  return VALID_TYPES.includes(value as ConcernType) ? (value as ConcernType) : 'bug';
-}
-/** Coerces an arbitrary value to a valid severity (default 'medium'). */
-export function normalizeConcernSeverity(value: unknown): ConcernSeverity {
-  return VALID_SEVERITIES.includes(value as ConcernSeverity)
-    ? (value as ConcernSeverity)
-    : 'medium';
-}
-
-/** Severity → numeric weight, used for ordering (higher = surfaces first). */
-const SEVERITY_WEIGHT: Record<ConcernSeverity, number> = {
-  urgent: 0.95,
-  high: 0.9,
-  medium: 0.6,
-  low: 0.3,
-};
-
-export interface ConcernEntry {
-  id: number;
-  title: string;
-  detail: string;
-  type: ConcernType;
-  severity: ConcernSeverity;
-  /** Code location (file / area) the concern refers to, if known. */
-  location: string | null;
-  status: ConcernStatus;
-  /** Task during whose execution the concern was found, if any. */
-  originTaskId: number | null;
-  /** Task created from this concern, if converted. */
-  createdTaskId: number | null;
-  themeId: number | null;
-  createdAt: Date;
-  /** GitHub issue this concern was published to / imported from, if any. */
-  linkedIssue?: LinkedIssueRef | null;
-}
-
-export interface SubmitConcernInput {
-  title: string;
-  detail: string;
-  type?: ConcernType;
-  severity?: ConcernSeverity;
-  location?: string;
-  /** Origin: the task being implemented when the concern was spotted. */
-  originTaskId?: number;
-  themeId?: number;
-  /** Origin label: "agent" | "user" | "code_review" | ... */
-  source?: string;
-  /**
-   * Stable de-duplication key. When set, duplicates are detected by this key
-   * alone instead of title+detail — use it when the detail carries volatile
-   * parts (stack traces, counts, ids) that would otherwise let the same
-   * root-cause concern be filed repeatedly. / 同一原因の重複登録を防ぐ安定キー。
-   */
-  dedupKey?: string;
+function isValidConcernId(concernId: number): boolean {
+  return Number.isSafeInteger(concernId) && concernId > 0;
 }
 
 function contentHash(input: string): string {
@@ -101,13 +97,74 @@ function contentHash(input: string): string {
 }
 
 /**
+ * Task statuses meaning a concern's follow-up work has closed out. Kept in sync
+ * with completed-task-cleanup's TERMINAL_SUBTASK_STATUSES.
+ */
+const TERMINAL_TASK_STATUSES = ['done', 'completed', 'failed', 'cancelled', 'archived'];
+
+/**
+ * Finds a LIVE concern that should dedup-block a new filing with this hash, or
+ * null when none does. "Live" = still actionable: an `open` concern, or a
+ * `task_created` concern whose follow-up task hasn't reached a terminal state.
+ *
+ * Resolved, dismissed-elsewhere by forgetting (non-active), and `task_created`
+ * rows whose task already finished do NOT block: the same signature recurring
+ * after its follow-up closed out is a genuine regression — e.g. a mainline
+ * workflow ci_watch filed, that got fixed, then broke again — and must file a
+ * fresh concern instead of being silently swallowed by the closed-out row's
+ * hash. A `dismissed` row still blocks (respects the user's explicit dismiss).
+ *
+ * @param hash - contentHash of the concern being filed / 起票する懸念のハッシュ
+ * @returns Blocking concern id, or null when a fresh filing is allowed / ブロックするID、無ければnull
+ */
+async function findBlockingDuplicate(hash: string): Promise<number | null> {
+  // `resolved` and forgotten (forgettingStage != 'active') rows are excluded in
+  // the query: they represent a closed-out problem, so a recurrence is new.
+  const rows = await prisma.knowledgeEntry.findMany({
+    where: {
+      contentHash: hash,
+      sourceType: 'concern',
+      forgettingStage: 'active',
+      sourceId: { not: 'resolved' },
+    },
+    select: { id: true, sourceId: true },
+  });
+  for (const row of rows) {
+    const sourceId = row.sourceId ?? 'open';
+    const taskMatch = sourceId.match(/^task_(\d+)$/);
+    if (!taskMatch) return row.id; // 'open' or 'dismissed' → still live/blocking
+    // task_created: block only while the follow-up task is still in flight. A
+    // terminal (or deleted) task means the fix landed, so a recurrence re-files.
+    const task = await prisma.task
+      .findUnique({ where: { id: Number(taskMatch[1]) }, select: { status: true } })
+      .catch(() => null);
+    if (task && !TERMINAL_TASK_STATUSES.includes(task.status)) return row.id;
+  }
+  return null;
+}
+
+/**
  * Files a concern into the backlog. Deduplicates by `dedupKey` when provided,
- * otherwise by title+detail.
+ * otherwise by title+detail. The returned `outcome`/`reason` let a caller
+ * tell a genuine new filing apart from a merge into an existing row or a
+ * silent anti-monoculture suppression (#888) — `id` alone cannot.
  *
  * @param input - Concern details / 懸念の詳細
- * @returns Created (or existing duplicate) KnowledgeEntry id / 作成・既存のID
+ * @returns The anchoring/created KnowledgeEntry id plus how it got there / ID と起票結果の内訳
  */
-export async function submitConcern(input: SubmitConcernInput): Promise<number> {
+export async function submitConcern(input: SubmitConcernInput): Promise<ConcernFilingResult> {
+  // 文字化けチェック＆修正: repair title/detail BEFORE storing so a garbled concern
+  // never lands in the backlog (agent submissions over curl/files on Windows can
+  // arrive mojibake'd). Only an effective fix is adopted; clean text is untouched.
+  const sanTitle = sanitizeMarkdownContent(input.title);
+  const sanDetail = sanitizeMarkdownContent(input.detail);
+  input = { ...input, title: sanTitle.content, detail: sanDetail.content };
+  if (sanTitle.wasFixed || sanDetail.wasFixed) {
+    log.info(
+      { issues: [...sanTitle.issues, ...sanDetail.issues] },
+      '[concern-backlog] Repaired mojibake before registering concern',
+    );
+  }
   const type = normalizeConcernType(input.type);
   const severity = normalizeConcernSeverity(input.severity);
   // A stable dedupKey wins over title+detail so a recurring concern whose detail
@@ -116,17 +173,96 @@ export async function submitConcern(input: SubmitConcernInput): Promise<number> 
     ? contentHash(`concern-dedup:${input.dedupKey}`)
     : contentHash(`concern:${input.title}:${input.detail}`);
 
-  const existing = await prisma.knowledgeEntry.findFirst({
-    where: { contentHash: hash, sourceType: 'concern' },
-    select: { id: true },
-  });
-  if (existing) {
-    log.debug({ id: existing.id }, 'Duplicate concern skipped');
-    return existing.id;
+  const decision = await resolveFiling(prisma, { input, hash, severity, findBlockingDuplicate });
+  if (decision.reuseId != null) {
+    const reason = decision.reuseReason ?? 'dedup-live-duplicate';
+    return { id: decision.reuseId, outcome: 'reused', reason, stored: false };
   }
 
-  const tags = [`severity:${severity}`];
+  // Anti-monoculture: concerns are the bigger flood source — the agent re-files
+  // near-identical "gen:type-guards / SSOT / Prettier-drift" concerns as it works
+  // the same theme, and they promote to tasks FIRST. Reject a title that shares a
+  // ≥8-char substring with ≥3 existing OPEN concerns (a near-dup re-file or an
+  // over-covered theme). Skipped for dedupKey'd concerns (those have their own
+  // stable identity, e.g. test-baseline:<file>). Returns the anchor id as a no-op.
+  if (!input.dedupKey) {
+    const dupId = await findNearDuplicate(
+      input.title,
+      { sourceType: 'concern', openConcernOnly: true, newDetail: input.detail },
+      CONCERN_NEARDUP_JACCARD,
+    );
+    if (dupId != null) {
+      log.info(
+        { dupId, title: input.title, threshold: CONCERN_NEARDUP_JACCARD },
+        '[concern-backlog] Rejected concern: near-duplicate of an existing concern (anti-monoculture)',
+      );
+      return { id: dupId, outcome: 'suppressed', reason: 'near-duplicate', stored: false };
+    }
+
+    const anchorId = await findSaturatedTheme(input.title, {
+      sourceType: 'concern',
+      cap: 3,
+      // 8 chars was too high for Japanese: theme markers like "境界値テスト"(6),
+      // "差分スキャン"(6), "マニフェスト"(6), "型ガード生成"(6) share only 4-6 chars,
+      // so a "境界値テスト自動生成/drift検知" monoculture slipped straight through
+      // (lcsLen maxed at 6 across the cluster). 5 catches those 5-6 char clusters
+      // while staying above the 3-char generic words (テスト/自動/生成/CI) that must
+      // NOT trip the gate. Env-tunable. (Idea gate uses SALIENT_LEN=4 / cap=8.)
+      salient: Number(process.env.RAPITAS_CONCERN_SATURATION_SALIENT) || 5,
+      openConcernOnly: true,
+      minJaccard: CONCERN_SATURATION_MIN_JACCARD,
+      newDetail: input.detail,
+    });
+    if (anchorId != null) {
+      log.info(
+        { anchorId, title: input.title },
+        '[concern-backlog] Rejected concern: theme over-represented / near-duplicate (anti-monoculture)',
+      );
+      return { id: anchorId, outcome: 'suppressed', reason: 'theme-saturation', stored: false };
+    }
+
+    // Filing-time relevance pre-check (Jev — see concern-relevance-check.ts).
+    // The existing staleness checks (log-concern-recurrence.ts,
+    // self-detect-relevance.ts) only run later, at promotion time, and only
+    // for log-derived / 2 of the known self-detect signature shapes. This
+    // runs here for every text-deduped concern instead, judged by Jev's
+    // natural-language reasoning rather than per-signature code. No-ops
+    // entirely (checkConcernStillRelevant returns null immediately) until
+    // RAPITAS_JEV_API_KEY is configured — filing proceeds unchanged.
+    const relevance = await checkConcernStillRelevant({
+      title: input.title,
+      detail: input.detail,
+    }).catch((err) => {
+      log.warn({ err }, '[concern-backlog] Jev relevance check threw — filing as usual');
+      return null;
+    });
+    if (relevance?.relevant === false) {
+      log.info(
+        { title: input.title, confidence: relevance.confidence },
+        '[concern-backlog] Rejected concern: Jev judged it no longer relevant',
+      );
+      return { id: null, outcome: 'suppressed', reason: 'jev-not-relevant', stored: false };
+    }
+  }
+
+  // 'agent' fallback mirrors hypothesis-service's `input.source ?? 'agent'`; every
+  // current caller passes source explicitly, so this only guards future direct calls.
+  const tags = [`severity:${decision.severity ?? severity}`, `source:${input.source ?? 'agent'}`];
   if (input.location?.trim()) tags.push(`loc:${input.location.trim()}`);
+  if (decision.extraTag) tags.push(decision.extraTag);
+
+  // Always attribute a concern to a real theme, mirroring submitIdea's same
+  // invariant (idea-box-service.ts): use the caller's themeId, else the
+  // origin task's theme, else the default theme. Without this, any caller
+  // that omitted themeId (whether or not it passed originTaskId) left the
+  // concern permanently theme-less — invisible in theme-filtered UI, AND
+  // invisible to per-theme backlog auto-promotion (listConcerns' `where.
+  // themeId = themeId` never matches a null row), silently stalling forever.
+  let themeId = input.themeId ?? null;
+  if (themeId == null) {
+    if (input.originTaskId != null) themeId = await resolveTaskThemeId(input.originTaskId);
+    if (themeId == null) themeId = await resolveDefaultThemeId();
+  }
 
   const entry = await prisma.knowledgeEntry.create({
     data: {
@@ -134,13 +270,13 @@ export async function submitConcern(input: SubmitConcernInput): Promise<number> 
       // sourceId encodes the lifecycle status ('open' | 'task_<id>' | 'dismissed').
       sourceId: 'open',
       title: input.title,
-      content: input.detail,
+      content: decision.detail ?? input.detail,
       contentHash: hash,
       // category holds the type so getConcernStats can group by it.
       category: type,
       tags: JSON.stringify(tags),
-      confidence: SEVERITY_WEIGHT[severity],
-      themeId: input.themeId ?? null,
+      confidence: SEVERITY_WEIGHT[decision.severity ?? severity],
+      themeId,
       taskId: input.originTaskId ?? null,
       forgettingStage: 'active',
       decayScore: 1.0,
@@ -149,10 +285,22 @@ export async function submitConcern(input: SubmitConcernInput): Promise<number> 
   });
 
   log.info(
-    { id: entry.id, type, severity, originTaskId: input.originTaskId, source: input.source },
+    {
+      id: entry.id,
+      type,
+      severity: decision.severity ?? severity,
+      themeId,
+      originTaskId: input.originTaskId,
+      source: input.source,
+    },
     'Concern filed',
   );
-  return entry.id;
+  return {
+    id: entry.id,
+    outcome: 'created',
+    reason: decision.detail != null ? 'recurrence-of-done' : 'new',
+    stored: true,
+  };
 }
 
 interface ConcernRow {
@@ -172,6 +320,7 @@ function toConcernEntry(entry: ConcernRow): ConcernEntry {
   const parsedTags = JSON.parse(entry.tags || '[]') as string[];
   const severityTag = parsedTags.find((t) => t.startsWith('severity:'));
   const locTag = parsedTags.find((t) => t.startsWith('loc:'));
+  const sourceTag = parsedTags.find((t) => t.startsWith('source:'));
   const sourceId = entry.sourceId ?? 'open';
   const taskMatch = sourceId.match(/^task_(\d+)$/);
   const status: ConcernStatus = taskMatch
@@ -189,6 +338,8 @@ function toConcernEntry(entry: ConcernRow): ConcernEntry {
     severity: normalizeConcernSeverity(severityTag?.slice('severity:'.length)),
     location: locTag ? locTag.slice('loc:'.length) : null,
     status,
+    // Pre-source rows can't be attributed after the fact — 'unknown', not 'agent'.
+    source: sourceTag ? sourceTag.slice('source:'.length) : 'unknown',
     originTaskId: entry.taskId,
     createdTaskId: taskMatch ? parseInt(taskMatch[1]) : null,
     themeId: entry.themeId,
@@ -244,16 +395,26 @@ export async function listConcerns(options: {
   status?: ConcernStatus | 'all';
   type?: ConcernType;
   severity?: ConcernSeverity;
+  source?: string;
   themeId?: number;
   limit?: number;
   offset?: number;
 }): Promise<{ concerns: ConcernEntry[]; total: number }> {
-  const { status = 'open', type, severity, themeId, limit = 20, offset = 0 } = options;
+  const { status = 'open', type, severity, source, themeId, limit = 20, offset = 0 } = options;
 
   const where: Record<string, unknown> = { sourceType: 'concern', forgettingStage: 'active' };
   if (type) where.category = type;
-  // Severity is stored as a `severity:<level>` tag (always set by submitConcern).
-  if (severity) where.tags = { contains: `severity:${severity}` };
+  // Severity/source live as `severity:<level>` / `source:<value>` tags. Both must
+  // survive simultaneous filtering, so they go through AND instead of two plain
+  // `where.tags` assignments (the second would silently clobber the first).
+  const tagConditions: { contains: string }[] = [];
+  if (severity) tagConditions.push({ contains: `severity:${severity}` });
+  // NOTE: source keeps the JSON-serialized quotes in the needle — real source values
+  // have prefix pairs (vuln_scan / vuln_scan_audit), so an unquoted contains would
+  // cross-match them; severity values have no such pairs and stay unquoted as-is.
+  if (source) tagConditions.push({ contains: `"source:${source}"` });
+  if (tagConditions.length === 1) where.tags = tagConditions[0];
+  else if (tagConditions.length > 1) where.AND = tagConditions.map((c) => ({ tags: c }));
   if (themeId) where.themeId = themeId;
   if (status === 'open') where.sourceId = 'open';
   else if (status === 'task_created') where.sourceId = { startsWith: 'task_' };
@@ -286,6 +447,7 @@ export async function listConcerns(options: {
  * @returns Concern or null when not found / 懸念、無ければ null
  */
 export async function getConcern(concernId: number): Promise<ConcernEntry | null> {
+  if (!isValidConcernId(concernId)) return null;
   const row = await prisma.knowledgeEntry.findFirst({
     where: { id: concernId, sourceType: 'concern' },
     select: CONCERN_SELECT,
@@ -307,6 +469,7 @@ export async function getConcern(concernId: number): Promise<ConcernEntry | null
  * @returns True when the concern's status actually changed / 変化したか
  */
 export async function markConcernResolved(concernId: number, resolved: boolean): Promise<boolean> {
+  if (!isValidConcernId(concernId)) return false;
   const row = await prisma.knowledgeEntry.findFirst({
     where: { id: concernId, sourceType: 'concern' },
     select: { id: true, sourceId: true },
@@ -333,6 +496,7 @@ export async function setConcernStatus(
   concernId: number,
   status: 'dismissed' | 'open',
 ): Promise<boolean> {
+  if (!isValidConcernId(concernId)) return false;
   const existing = await prisma.knowledgeEntry.findFirst({
     where: { id: concernId, sourceType: 'concern' },
     select: { id: true },
@@ -345,6 +509,7 @@ export async function setConcernStatus(
 
 /** Deletes a concern. */
 export async function deleteConcern(concernId: number): Promise<boolean> {
+  if (!isValidConcernId(concernId)) return false;
   const existing = await prisma.knowledgeEntry.findFirst({
     where: { id: concernId, sourceType: 'concern' },
     select: { id: true },
@@ -361,25 +526,6 @@ const SEVERITY_TO_PRIORITY: Record<ConcernSeverity, 'urgent' | 'high' | 'medium'
   medium: 'medium',
   low: 'low',
 };
-
-/**
- * Resolves the fallback theme for concerns with no explicit theme (rapitas's own
- * backend-log health check, or a user filing without picking a theme).
- *
- * NOTE: the home task list filters tasks by the selected category via their
- * theme, so a theme-less task is silently invisible there. Attributing such
- * concerns to the user's default theme keeps the resulting task category-scoped
- * and therefore visible.
- *
- * @returns Default theme id, or null when none is marked default / 既定テーマID
- */
-export async function resolveDefaultThemeId(): Promise<number | null> {
-  const theme = await prisma.theme.findFirst({
-    where: { isDefault: true },
-    select: { id: true },
-  });
-  return theme?.id ?? null;
-}
 
 /** Type → task title prefix. */
 const TYPE_PREFIX: Record<ConcernType, string> = {
@@ -398,6 +544,7 @@ const TYPE_PREFIX: Record<ConcernType, string> = {
  * @returns Created task id, or null on failure / 作成タスクID
  */
 export async function convertConcernToTask(concernId: number): Promise<number | null> {
+  if (!isValidConcernId(concernId)) return null;
   const row = await prisma.knowledgeEntry.findFirst({
     where: { id: concernId, sourceType: 'concern' },
     select: CONCERN_SELECT,
@@ -423,12 +570,18 @@ export async function convertConcernToTask(concernId: number): Promise<number | 
     );
   }
 
+  // A log-derived concern carries a logger name and a stack sample but no
+  // spec, so the intake gate stops and asks an operator before anything runs
+  // (tasks 700/702). Seed the spec its origin implies instead.
+  const spec = specForConcernSource(concern.source);
+
   const task = await createTask(prisma, {
     title: `${TYPE_PREFIX[concern.type]} ${concern.title}`.slice(0, 200),
     description: descriptionParts.join('\n'),
     priority: SEVERITY_TO_PRIORITY[concern.severity],
     status: 'todo',
     themeId,
+    ...(spec ?? {}),
   });
   if (!task) return null;
 

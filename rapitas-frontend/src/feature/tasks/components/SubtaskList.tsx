@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import { type Task } from '@/types';
 import { useTranslations } from 'next-intl';
-import { type ParallelExecutionStatus } from './SubtaskExecutionStatus';
+import { type ParallelExecutionStatus } from './status/SubtaskExecutionStatus';
 import { useSubtaskSelection } from './subtask/useSubtaskSelection';
 import SubtaskListHeader from './subtask/SubtaskListHeader';
 import SubtaskItem from './subtask/SubtaskItem';

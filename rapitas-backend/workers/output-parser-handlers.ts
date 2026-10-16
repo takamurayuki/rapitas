@@ -8,6 +8,7 @@
 
 import { detectQuestionFromToolCall } from '../services/agents/question-detection';
 import { formatToolInfo } from './output-parser-parsers';
+import { extractToolUses } from '../services/agents/providers/stream-event-parser';
 
 export interface ToolInfo {
   name: string;
@@ -71,6 +72,8 @@ interface ParsedJsonMessage {
   >;
   session_id?: string;
   error?: string;
+  /** CLI session's total assistant turn count — equals LLM API call count. */
+  num_turns?: number;
   // NOTE: json.message could also be a string in system error events
   [key: string]: unknown;
 }
@@ -208,6 +211,9 @@ function processAssistantMessage(
       type: 'assistant-message',
       displayOutput,
       toolUses,
+      // NOTE: Raw inputs ride along so the main thread can judge operations
+      // against the plan; formatToolInfo's `info` is truncated for display.
+      toolCalls: extractToolUses(json as unknown as Record<string, unknown>),
     });
   }
 }
@@ -298,6 +304,9 @@ function processResultEvent(json: ParsedJsonMessage, postResult: PostResultFn): 
       )
     : undefined;
 
+  // NOTE: num_turns is the assistant turn count for this session — equals LLM API call count.
+  const numTurns = typeof json.num_turns === 'number' ? json.num_turns : undefined;
+
   postResult({
     type: 'result-event',
     displayOutput,
@@ -308,6 +317,7 @@ function processResultEvent(json: ParsedJsonMessage, postResult: PostResultFn): 
     result: typeof json.result === 'string' ? json.result : undefined,
     usage,
     modelUsage,
+    numTurns,
   });
 }
 

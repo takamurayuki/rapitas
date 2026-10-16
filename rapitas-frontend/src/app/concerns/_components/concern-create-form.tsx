@@ -1,0 +1,194 @@
+/**
+ * ConcernCreateForm
+ *
+ * The "add concern" modal: title/detail inputs plus the priority, type, and
+ * project (category → theme) pickers and the optional location field. Modal so
+ * filing keeps you on the page (continuous adding). Pure presentational — all
+ * state lives in useConcerns.
+ */
+'use client';
+import type { Dispatch, RefObject, SetStateAction } from 'react';
+import { useTranslations } from 'next-intl';
+import { Bug } from 'lucide-react';
+import type { Category, Theme } from '@/types';
+import { Modal } from '@/components/ui/modal/Modal';
+import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
+import {
+  TYPE_ORDER,
+  TYPE_LABEL_KEY,
+  SEVERITY_ORDER,
+  SEVERITY_HINT_KEY,
+  type ConcernSeverity,
+  type ConcernType,
+} from './concern-shared';
+
+interface ConcernCreateFormProps {
+  open: boolean;
+  onClose: () => void;
+  titleRef: RefObject<HTMLInputElement | null>;
+  newTitle: string;
+  setNewTitle: Dispatch<SetStateAction<string>>;
+  newDetail: string;
+  setNewDetail: Dispatch<SetStateAction<string>>;
+  newType: ConcernType;
+  setNewType: Dispatch<SetStateAction<ConcernType>>;
+  newSeverity: ConcernSeverity;
+  setNewSeverity: Dispatch<SetStateAction<ConcernSeverity>>;
+  newLocation: string;
+  setNewLocation: Dispatch<SetStateAction<string>>;
+  newCategoryId: number | null;
+  onCategoryChange: (id: number | null) => void;
+  newThemeId: number | null;
+  setNewThemeId: Dispatch<SetStateAction<number | null>>;
+  categories: Category[];
+  /** Working-dir themes narrowed by the selected category. */
+  filteredThemes: Theme[];
+  onSubmit: () => void;
+}
+
+/**
+ * Render the add-concern modal.
+ *
+ * @param props - Add-form state, setters, and the submit/close handlers from useConcerns. / useConcerns の追加フォーム状態・セッター・送信/閉じるハンドラ。
+ */
+export function ConcernCreateForm({
+  open,
+  onClose,
+  titleRef,
+  newTitle,
+  setNewTitle,
+  newDetail,
+  setNewDetail,
+  newType,
+  setNewType,
+  newSeverity,
+  setNewSeverity,
+  newLocation,
+  setNewLocation,
+  newCategoryId,
+  onCategoryChange,
+  newThemeId,
+  setNewThemeId,
+  categories,
+  filteredThemes,
+  onSubmit,
+}: ConcernCreateFormProps) {
+  const t = useTranslations('concerns');
+  const tCommon = useTranslations('common');
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      icon={<Bug className="h-4 w-4 text-rose-500" />}
+      title={t('createForm.title')}
+      maxWidthClass="max-w-2xl"
+      footer={
+        <>
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+          >
+            {tCommon('cancel')}
+          </button>
+          <button
+            onClick={onSubmit}
+            disabled={!newTitle.trim() || !newDetail.trim()}
+            className="rounded-lg px-3 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-300 bg-white dark:bg-zinc-900 border border-rose-200 dark:border-rose-800 shadow-[0_2px_0_0_#fda4af] dark:shadow-[0_2px_0_0_#881337] transition-all duration-75 hover:bg-rose-50 dark:hover:bg-rose-900/20 active:translate-y-[1px] active:shadow-none disabled:opacity-40"
+          >
+            {t('createForm.submit')}
+          </button>
+        </>
+      }
+    >
+      <div>
+        <input
+          ref={titleRef}
+          value={newTitle}
+          onChange={(e) => setNewTitle(e.target.value)}
+          placeholder={t('createForm.titlePlaceholder')}
+          className="mb-2 w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-1.5 text-sm outline-none focus:border-indigo-400 dark:border-zinc-700"
+        />
+        <textarea
+          value={newDetail}
+          onChange={(e) => setNewDetail(e.target.value)}
+          placeholder={t('createForm.detailPlaceholder')}
+          rows={3}
+          className="mb-2 w-full resize-none rounded-lg border border-zinc-200 bg-transparent px-3 py-1.5 text-sm outline-none focus:border-indigo-400 dark:border-zinc-700"
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Priority — moved below the title (icons like the task list) */}
+          <span className="flex items-center gap-1.5">
+            <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
+              {t('createForm.priorityLabel')}
+            </span>
+            <span
+              className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700"
+              title={t('createForm.priorityTitle')}
+            >
+              {SEVERITY_ORDER.map((sv) => (
+                <button
+                  key={sv}
+                  type="button"
+                  onClick={() => setNewSeverity(sv)}
+                  title={t(SEVERITY_HINT_KEY[sv])}
+                  className={`px-2 py-1 transition-colors ${
+                    newSeverity === sv
+                      ? 'bg-zinc-100 dark:bg-zinc-800'
+                      : 'opacity-40 hover:opacity-100 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  <PriorityIcon priority={sv} size="sm" showTitle />
+                </button>
+              ))}
+            </span>
+          </span>
+          {/* Type — pulldown to keep the row compact */}
+          <select
+            value={newType}
+            onChange={(e) => setNewType(e.target.value as ConcernType)}
+            className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-800"
+          >
+            {TYPE_ORDER.map((ty) => (
+              <option key={ty} value={ty}>
+                {t(TYPE_LABEL_KEY[ty])}
+              </option>
+            ))}
+          </select>
+          {/* Project (category → theme) on one line — always project-scoped */}
+          <span className="flex items-center gap-2">
+            <select
+              value={newCategoryId ?? ''}
+              onChange={(e) => onCategoryChange(e.target.value ? parseInt(e.target.value) : null)}
+              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-800"
+            >
+              <option value="">{t('createForm.categoryOption')}</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={newThemeId ?? ''}
+              onChange={(e) => setNewThemeId(e.target.value ? parseInt(e.target.value) : null)}
+              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-800"
+            >
+              <option value="">{t('createForm.themeOption')}</option>
+              {filteredThemes.map((th) => (
+                <option key={th.id} value={th.id}>
+                  {th.name}
+                </option>
+              ))}
+            </select>
+          </span>
+          <input
+            value={newLocation}
+            onChange={(e) => setNewLocation(e.target.value)}
+            placeholder={t('createForm.locationPlaceholder')}
+            className="min-w-[10rem] flex-1 rounded-lg border border-zinc-200 bg-transparent px-2 py-1 text-[11px] outline-none focus:border-indigo-400 dark:border-zinc-700"
+          />
+        </div>
+      </div>
+    </Modal>
+  );
+}

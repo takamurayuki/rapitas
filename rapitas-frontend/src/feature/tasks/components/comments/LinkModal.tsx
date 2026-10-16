@@ -1,13 +1,15 @@
 'use client';
 // LinkModal
 
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
+import { useTranslations } from 'next-intl';
 import { Link2, Search, X, MessageSquare, Loader2 } from 'lucide-react';
 import type { CommentSearchResult } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import type { NoteData } from './comment-types';
-import { LABEL_COLORS } from './comment-types';
+import { LABEL_COLORS, getLinkLabelDisplay } from './comment-types';
 import { timeAgo } from './comment-types';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 type LinkModalProps = {
   source: NoteData;
@@ -27,10 +29,30 @@ export const LinkModal = memo(function LinkModal({
   onSelect,
   onClose,
 }: LinkModalProps) {
+  const t = useTranslations('task');
   const [q, setQ] = useState('');
   const [results, setResults] = useState<CommentSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [label, setLabel] = useState('');
+  const panelRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  useFocusTrap(panelRef, true);
+
+  // NOTE: Declared after useFocusTrap so this effect runs later and wins final
+  // focus — the close button precedes the search input in DOM order, so the
+  // trap's auto-focus would otherwise land on the close button instead.
+  useEffect(() => {
+    searchInputRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     const search = async () => {
@@ -44,7 +66,7 @@ export const LinkModal = memo(function LinkModal({
         if (q.trim()) p.set('q', q.trim());
         const res = await fetch(`${API_BASE_URL}/comments/search?${p}`);
         if (res.ok) setResults(await res.json());
-      } catch (_) {
+      } catch {
         // Search request failed - silently ignore
       } finally {
         setLoading(false);
@@ -61,6 +83,11 @@ export const LinkModal = memo(function LinkModal({
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="link-modal-title"
+        tabIndex={-1}
         className="w-full max-w-sm mx-4 bg-white dark:bg-indigo-dark-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
@@ -68,13 +95,17 @@ export const LinkModal = memo(function LinkModal({
         <div className="p-3 border-b border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1.5">
-              <Link2 className="w-3.5 h-3.5 text-blue-500" />
-              <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                メモをリンク
+              <Link2 className="w-3.5 h-3.5 text-indigo-500" />
+              <span
+                id="link-modal-title"
+                className="text-xs font-medium text-zinc-700 dark:text-zinc-300"
+              >
+                {t('linkModal.title')}
               </span>
             </div>
             <button
               onClick={onClose}
+              aria-label="Close"
               className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
             >
               <X className="w-3.5 h-3.5" />
@@ -82,9 +113,9 @@ export const LinkModal = memo(function LinkModal({
           </div>
 
           {/* Source preview */}
-          <div className="px-2 py-1.5 mb-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-md">
-            <p className="text-[10px] text-blue-500 dark:text-blue-400 font-medium mb-0.5">
-              リンク元
+          <div className="px-2 py-1.5 mb-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-md">
+            <p className="text-[10px] text-indigo-500 dark:text-indigo-400 font-medium mb-0.5">
+              {t('linkModal.sourceLabel')}
             </p>
             <p className="text-[10px] text-zinc-600 dark:text-zinc-400 line-clamp-1">
               {source.content}
@@ -95,11 +126,11 @@ export const LinkModal = memo(function LinkModal({
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400" />
             <input
+              ref={searchInputRef}
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="メモを検索..."
-              className="w-full pl-7 pr-3 py-1.5 text-xs bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-blue-400 focus:border-blue-400 transition-colors"
-              autoFocus
+              placeholder={t('linkModal.searchPlaceholder')}
+              className="w-full pl-7 pr-3 py-1.5 text-xs bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-indigo-400 focus:border-indigo-400 transition-colors"
             />
           </div>
 
@@ -118,7 +149,7 @@ export const LinkModal = memo(function LinkModal({
                       : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-600'
                   }`}
                 >
-                  {l}
+                  {getLinkLabelDisplay(t, l)}
                 </button>
               );
             })}
@@ -129,8 +160,8 @@ export const LinkModal = memo(function LinkModal({
         <div className="max-h-48 overflow-y-auto">
           {loading ? (
             <div className="p-4 text-center">
-              <Loader2 className="w-4 h-4 animate-spin mx-auto text-blue-500" />
-              <p className="text-[10px] text-zinc-400 mt-1">検索中...</p>
+              <Loader2 className="w-4 h-4 animate-spin mx-auto text-indigo-500" />
+              <p className="text-[10px] text-zinc-400 mt-1">{t('linkModal.searching')}</p>
             </div>
           ) : results.length > 0 ? (
             <div className="p-1.5 space-y-0.5">
@@ -140,16 +171,16 @@ export const LinkModal = memo(function LinkModal({
                   onClick={() => onSelect(r.id, label || undefined)}
                   className="w-full flex items-start gap-2 p-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-lg transition-colors group"
                 >
-                  <MessageSquare className="w-3 h-3 text-zinc-400 group-hover:text-blue-500 shrink-0 mt-0.5 transition-colors" />
+                  <MessageSquare className="w-3 h-3 text-zinc-400 group-hover:text-indigo-500 shrink-0 mt-0.5 transition-colors" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-zinc-700 dark:text-zinc-300 line-clamp-2 leading-relaxed">
                       {r.content}
                     </p>
                     <p className="text-[10px] text-zinc-400 mt-0.5">
-                      {timeAgo(new Date(r.createdAt))}
+                      {timeAgo(new Date(r.createdAt), t)}
                     </p>
                   </div>
-                  <Link2 className="w-3 h-3 text-zinc-300 group-hover:text-blue-500 shrink-0 mt-0.5 transition-colors" />
+                  <Link2 className="w-3 h-3 text-zinc-300 group-hover:text-indigo-500 shrink-0 mt-0.5 transition-colors" />
                 </button>
               ))}
             </div>
@@ -157,7 +188,7 @@ export const LinkModal = memo(function LinkModal({
             <div className="p-6 text-center">
               <Search className="w-5 h-5 text-zinc-300 dark:text-zinc-600 mx-auto mb-1.5" />
               <p className="text-xs text-zinc-400">
-                {q ? '一致するメモがありません' : 'リンク先のメモを検索'}
+                {q ? t('linkModal.noResults') : t('linkModal.searchHint')}
               </p>
             </div>
           )}

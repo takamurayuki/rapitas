@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Clock, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 const STORAGE_KEY = 'rapitas-search-history';
 const MAX_HISTORY = 10;
@@ -32,6 +33,7 @@ export function addToSearchHistory(query: string): void {
 }
 
 export default function SearchHistory({ onSelect }: SearchHistoryProps) {
+  const t = useTranslations('search');
   const [history, setHistory] = useState<string[]>([]);
 
   useEffect(() => {
@@ -53,7 +55,7 @@ export default function SearchHistory({ onSelect }: SearchHistoryProps) {
     <div className="flex flex-col gap-2">
       <h4 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase flex items-center gap-1">
         <Clock className="w-3 h-3" />
-        最近の検索
+        {t('historyHeading')}
       </h4>
       <div className="flex flex-wrap gap-1.5">
         {history.map((item) => (
@@ -65,10 +67,19 @@ export default function SearchHistory({ onSelect }: SearchHistoryProps) {
           >
             {item}
             <X
+              role="button"
+              tabIndex={0}
               className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity"
               onClick={(e) => {
                 e.stopPropagation();
                 removeItem(item);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  removeItem(item);
+                }
               }}
             />
           </button>

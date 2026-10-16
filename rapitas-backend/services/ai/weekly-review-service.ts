@@ -10,10 +10,10 @@
  * Tier S #3 — see docs/adr/ if a future change deserves an ADR.
  */
 import Anthropic from '@anthropic-ai/sdk';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma-postgres';
 import { prisma as defaultPrisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { getApiKeyForProvider } from '../../utils/ai-client';
+import { getApiKeyForProvider, getAuxAiMode, callClaudeCli } from '../../utils/ai-client';
 
 type PrismaInstance = InstanceType<typeof PrismaClient>;
 
@@ -21,7 +21,9 @@ const log = createLogger('ai:weekly-review');
 
 const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
 const MAX_TOKENS = 600;
-const TEMPERATURE = 0.5;
+// Pinned to 0 — the same week's aggregate stats should always narrate the
+// same review text, not vary run-to-run.
+const TEMPERATURE = 0;
 
 /** Aggregated stats fed into the Claude prompt. */
 export interface WeeklyAggregate {
@@ -214,6 +216,25 @@ export async function callClaudeForReview(
   prompt: string,
   model: string = DEFAULT_MODEL,
 ): Promise<string> {
+  const auxMode = getAuxAiMode();
+  if (auxMode === 'off') {
+    throw new Error('補助AI機能は無効化されています (RAPITAS_AUX_AI=off)。');
+  }
+  // Prefer the subscription CLI — no per-token billing.
+  if (auxMode === 'cli') {
+    const res = await callClaudeCli(
+      model,
+      [{ role: 'user', content: prompt }],
+      undefined,
+      MAX_TOKENS,
+    );
+    const cliText = res.content.trim();
+    if (!cliText) {
+      throw new Error('Claude returned an empty response');
+    }
+    return cliText;
+  }
+
   const apiKey = await resolveApiKey();
   if (!apiKey) {
     throw new Error('Anthropic API key is not configured');

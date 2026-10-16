@@ -14,6 +14,33 @@ import { logAutoCommit, logAutoPR } from './workflow-activity-logger';
 import { runVerificationGate } from '../../services/agents/verification/verification-gate';
 import { resolveAutomationPolicy } from '../../services/workflow/automation-policy';
 import { linkAutoCreatedPr } from '../../services/github/pr-link';
+import { resolveCommitCwd } from './commit-cwd';
+import { FOREIGN_PR_ERROR_PREFIX } from '../../services/agents/orchestrator/git-operations/pr/branch-pr-ops';
+import { notify } from '../../services/workflow/auto-merge-notify';
+import {
+  findOpenPrForTask,
+  claimPrCreationLock,
+  releasePrCreationLock,
+} from '../../services/github/pr-duplicate-guard';
+import type { BaseSyncResult } from '../../services/workflow/pre-pr-base-sync';
+import { PR_CREATION_IN_FLIGHT_ERROR } from '../../services/workflow/pr-in-flight-wait';
+import {
+  syncHarnessIfDrifted,
+  type HarnessDriftSyncResult,
+} from '../../services/workflow/harness-drift-sync';
+import { countCommitsAhead, isNoChangeCompletion } from './workflow-auto-commit-classify';
+import {
+  readHeadRevision,
+  runPreSaveChecks,
+  saveTaskWorkLocally,
+} from './workflow-auto-commit-presave';
+import { syncAndReverifyBeforePublish } from './workflow-auto-commit-publish-guard';
+import { readyPullRequest } from '../../services/agents/orchestrator/git-operations/pr/pr-draft-ops';
+import { pushExistingPrBranch } from './workflow-auto-commit-reuse-push';
+import {
+  PUBLICATION_CANCELLED_ERROR,
+  publicationAborted,
+} from '../../services/workflow/publication-cancellation-guard';
 
 const log = createLogger('routes:workflow:auto-commit');
 
@@ -31,6 +58,31 @@ export type AutoCommitPRResult = {
     error?: string;
   };
   autoPRResult?: { success: boolean; prUrl?: string; prNumber?: number; error?: string };
+  /**
+   * Pre-PR base-branch sync outcome (task 573 A). Kept as an INDEPENDENT field —
+   * its detail must never be concatenated into the commit/PR error blob, or
+   * merge wording could trip {@link isNoChangeCompletion} into a false
+   * "no change" completion.
+   */
+  baseSyncResult?: BaseSyncResult;
+  /**
+   * Pre-gate harness sync outcome (2026-09-13): when the task branch predates
+   * the runtime-verification harness, origin/<base> is merged in BEFORE the
+   * gate so the runtime check can run instead of holding as UNVERIFIED. Kept
+   * independent of the error blob for the same reason as baseSyncResult.
+   */
+  harnessSyncResult?: HarnessDriftSyncResult;
+  /**
+   * Pre-save stage (2026-09-13): tamper/secret screen (hard) and plan-scope
+   * (advisory) evaluated on the tree BEFORE it is recorded as a local commit.
+   */
+  preSaveResult?: { ok: boolean; summary: string; secrets: string[]; scopeDetails?: string };
+  /** HEAD the gate (or the post-sync re-gate) verified. */
+  verifiedRevision?: string | null;
+  /** HEAD at publication time; equals verifiedRevision whenever a PR was made. */
+  publishedRevision?: string | null;
+  /** Three-way verdict (task 1099): 'unknown' → draft PR only; 'fail' never reaches PR creation. */
+  verdict?: 'pass' | 'fail' | 'unknown';
   autoMergeResult?: {
     success: boolean;
     mergeStrategy?: string;
@@ -44,8 +96,14 @@ export type AutoCommitPRResult = {
    * the gate already set it `blocked`.
    */
   verificationBlocked?: boolean;
+  /** Infrastructure could not verify correctness; code repair is not justified. */
+  verificationUnverifiable?: boolean;
   error?: string;
 };
+
+// Shared classification helpers live in workflow-auto-commit-classify.ts (kept
+// re-exported here so existing importers of this module are unaffected).
+export { countCommitsAhead, isNoChangeCompletion } from './workflow-auto-commit-classify';
 
 /**
  * Perform auto-commit, PR creation, optional merge, and worktree cleanup after verify.md is saved.
@@ -75,26 +133,26 @@ export async function performAutoCommitAndPR(
     const autoMergePR = execConfig ? execConfig.autoMergePR : policy.autoMergePR;
     result.requested = { autoCommit, autoCreatePR, autoMergePR };
 
-    if (!autoCommit && !autoCreatePR && !autoMergePR) {
-      return result;
-    }
+    if (!autoCommit && !autoCreatePR && !autoMergePR) return result;
+
+    // Boundary 1/5 — entry. A stop recorded before this call must not produce a
+    // commit or PR at all.
+    if (await publicationAborted(taskId, 'entry'))
+      return { ...result, error: PUBLICATION_CANCELLED_ERROR };
 
     const task = await prisma.task.findUnique({
       where: { id: taskId },
       include: {
         theme: true,
         developerModeConfig: {
-          include: {
-            agentSessions: { orderBy: { lastActivityAt: 'desc' }, take: 1 },
-          },
+          include: { agentSessions: { orderBy: { lastActivityAt: 'desc' }, take: 1 } },
         },
       },
     });
 
     if (!task) return result;
-
-    // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
-    const workingDirectory = execConfig?.workingDirectory || task.theme?.workingDirectory;
+    // CRITICAL: explicit cwd → task worktree → theme dir (see commit-cwd.ts; task 774).
+    const workingDirectory = await resolveCommitCwd(execConfig, task, taskId);
     if (!workingDirectory) {
       log.warn(`[workflow] Task ${taskId} rejected: workingDirectory not configured.`);
       return {
@@ -144,55 +202,118 @@ export async function performAutoCommitAndPR(
       );
     }
 
-    // Automated verification gate — do NOT auto-commit/PR if the agent
-    // introduced new lint/type errors. Mirrors the post-execution-review gate so
-    // BOTH auto-PR paths are protected (closes the verify.md-triggered gap).
-    const gate = await runVerificationGate(taskId, gitCwd, latestSession?.id);
-    if (!gate.ok) {
-      log.error(
-        { taskId, summary: gate.result?.summary },
-        '[Workflow] Automated verification failed — aborting auto-commit/PR',
-      );
+    // Ordering (2026-09-13): pre-save checks → local save on the task branch →
+    // base sync → gate on the synced code → push/PR only after the gate passes.
+    // The merge needs a clean tree; a failed gate keeps commit + diagnosis.
+    const preSave = await runPreSaveChecks({ taskId, gitCwd, preferredBaseBranch: targetBranch });
+    result.preSaveResult = preSave.record;
+    if (!preSave.ok) {
+      log.error({ taskId, summary: preSave.summary }, '[Workflow] Pre-save check failed');
       return {
         ...result,
         verificationBlocked: true,
-        error: `自動検証に失敗しました（${gate.result?.summary ?? 'lint/型エラー'}）。auto-commit/PR を中止し、タスクをブロックしました。`,
+        verificationUnverifiable: false,
+        error: `自動検証に失敗しました（${preSave.summary}）。ローカル保存前チェックで停止し、コミット/PR を行っていません。`,
       };
     }
 
     const orchestrator = AgentOrchestrator.getInstance(prisma);
-
-    // Process autoCommit
     if (autoCommit) {
-      try {
-        if (branchName) {
-          await orchestrator.createBranch(gitCwd, branchName);
-        }
-        const commitResult = await orchestrator.createCommit(
-          gitCwd,
-          `feat(task-${taskId}): ${task.title}`,
+      // Boundary 2/5 — the last point before this run writes to git (locally).
+      if (await publicationAborted(taskId, 'before_commit'))
+        return { ...result, error: PUBLICATION_CANCELLED_ERROR };
+      const saved = await saveTaskWorkLocally({
+        orchestrator,
+        gitCwd,
+        branchName,
+        message: `feat(task-${taskId}): ${task.title}`,
+        targetBranch,
+      });
+      result.autoCommitResult = saved;
+      if (!saved.success) {
+        log.error(
+          { taskId, error: saved.error },
+          `[Workflow] Local save failed for task ${taskId}`,
         );
-        result.autoCommitResult = {
-          success: true,
-          hash: commitResult.hash,
-          branch: commitResult.branch,
-          filesChanged: commitResult.filesChanged,
-        };
-        log.info(`[Workflow] Auto-commit successful for task ${taskId}: ${commitResult.hash}`);
-        await logAutoCommit(
-          taskId,
-          commitResult.hash,
-          commitResult.branch,
-          commitResult.filesChanged,
-          commitResult.additions,
-          commitResult.deletions,
-        );
-      } catch (commitError) {
-        log.error({ err: commitError }, `[Workflow] Auto-commit failed for task ${taskId}`);
-        result.autoCommitResult = {
-          success: false,
-          error: commitError instanceof Error ? commitError.message : String(commitError),
-        };
+        return { ...result, error: `ローカル保存に失敗しました: ${saved.error}` };
+      }
+      log.info(`[Workflow] Local save recorded for task ${taskId}: ${saved.hash}`);
+      await logAutoCommit(
+        taskId,
+        saved.hash ?? '',
+        saved.branch ?? '',
+        saved.filesChanged ?? 0,
+        saved.additions ?? 0,
+        saved.deletions ?? 0,
+        saved.alreadyCommitted ?? false,
+      );
+    }
+
+    // Harness drift remediation (2026-09-13, tasks 901/905): a branch cut before
+    // the runtime harness holds as UNVERIFIED; merge origin/<base> in (the tree
+    // is committed now, so the merge can land). Never a pass by itself.
+    const harnessSync = await syncHarnessIfDrifted({
+      taskId,
+      gitCwd,
+      baseBranch: targetBranch,
+      sessionId: latestSession?.id,
+    }).catch((err): null => {
+      log.warn({ err, taskId }, '[Workflow] harness sync threw — leaving the gate to decide');
+      return null;
+    });
+    if (harnessSync) result.harnessSyncResult = harnessSync;
+
+    // Automated verification gate — do NOT auto-commit/PR if the agent
+    // introduced new lint/type errors. Mirrors the post-execution-review gate so
+    // BOTH auto-PR paths are protected (closes the verify.md-triggered gap).
+    const gate = await runVerificationGate(taskId, gitCwd, latestSession?.id);
+    result.verdict = gate.verdict;
+    if (!gate.ok) {
+      // The local commit above is kept on the task branch together with this
+      // diagnosis; nothing is pushed or published.
+      log.error(
+        { taskId, summary: gate.result?.summary, savedCommit: result.autoCommitResult?.hash },
+        '[Workflow] Automated verification failed — holding the local commit, no push/PR',
+      );
+      return {
+        ...result,
+        verificationBlocked: true,
+        verificationUnverifiable: gate.result?.unverifiable === true || gate.result === null,
+        error: `自動検証に失敗しました（${gate.result?.summary ?? 'lint/型エラー'}）。ローカルコミットは保持し、push/PR を中止してタスクをブロックしました。`,
+      };
+    }
+
+    // The revision the gate verified. Publication must ship exactly this HEAD
+    // (or a re-verified one) — see workflow-auto-commit-publish-guard.ts.
+    result.verifiedRevision = await readHeadRevision(gitCwd);
+
+    // Boundary 3/5 — the verification gate above runs lint/type/tests and can
+    // take minutes; a stop during it must not fall through into push/PR.
+    if (await publicationAborted(taskId, 'after_verification_gate'))
+      return { ...result, error: PUBLICATION_CANCELLED_ERROR };
+
+    // Pre-PR base sync (task 573 A) + re-verification of the final code when
+    // the merge moved HEAD. Runs BEFORE the PR-creation lock — the aux
+    // resolution + re-verify can exceed the lock's 5-min staleness window.
+    if (autoCreatePR && result.autoCommitResult?.success) {
+      const guard = await syncAndReverifyBeforePublish({
+        taskId,
+        gitCwd,
+        baseBranch: targetBranch,
+        sessionId: latestSession?.id,
+        verifiedRevision: result.verifiedRevision,
+        verdict: result.verdict ?? 'fail',
+      });
+      result.baseSyncResult = guard.baseSync;
+      result.verifiedRevision = guard.verifiedRevision;
+      result.publishedRevision = guard.headRevision;
+      result.verdict = guard.verdict;
+      if (!guard.ok) {
+        // NOTE: guard.error is a FIXED sentence (no raw git/merge output) so
+        // completion classification never misreads it. Worktree preserved.
+        if (guard.verificationBlocked) result.verificationBlocked = true;
+        if (guard.verificationUnverifiable) result.verificationUnverifiable = true;
+        return { ...result, error: guard.error };
       }
     }
 
@@ -205,47 +326,142 @@ export async function performAutoCommitAndPR(
       };
     }
     if (autoCreatePR && result.autoCommitResult?.success) {
-      try {
-        const prTitle = `[Task-${taskId}] ${task.title}`;
-        const prBody = `## Summary\n\nAuto-generated PR for Task #${taskId}: ${task.title}\n\n## Verification Report\n\n${verifyContent}\n\n---\n🤖 Generated automatically by Rapitas AI Agent`;
-        const prResult = await orchestrator.createPullRequest(
-          gitCwd,
-          prTitle,
-          prBody,
-          targetBranch,
+      // Boundary 4/5 — the pre-PR base sync above can run an aux conflict
+      // resolution and a full re-verification, so re-read the stop intent
+      // before publishing anything to GitHub.
+      if (await publicationAborted(taskId, 'before_pr'))
+        return { ...result, error: PUBLICATION_CANCELLED_ERROR };
+      // One-open-PR-per-task guard: createPullRequest's own reuse check is
+      // branch-scoped (gh pr list --head <branch>) and misses a task's real
+      // open PR whenever this run lands on a DIFFERENT branch than the PR was
+      // opened from (recreated worktree, diverged push renamed to
+      // <branch>-<sha>). Claim the lock first so two concurrent auto-PR
+      // attempts for this task can't both pass the check and each create one.
+      const lockClaimed = await claimPrCreationLock(prisma, taskId);
+      if (!lockClaimed) {
+        log.info(
+          `[Workflow] Task ${taskId}: another PR-creation attempt is already in flight — skipping`,
         );
-        result.autoPRResult = prResult;
+        result.autoPRResult = { success: false, error: PR_CREATION_IN_FLIGHT_ERROR };
+      } else {
+        try {
+          const existingOpenPr = await findOpenPrForTask(prisma, taskId);
+          if (existingOpenPr) {
+            log.info(
+              `[Workflow] Task ${taskId} already has open PR #${existingOpenPr.prNumber} — reusing instead of creating a new one`,
+            );
+            // The create path pushes inside createPullRequest; this short-circuit
+            // skipped that call, so ci_repair fixes were saved locally and never
+            // reached the PR (tasks 995/1002, 2026-09-20). Push explicitly.
+            const pushBranch = result.autoCommitResult?.branch ?? branchName;
+            const pushed = pushBranch
+              ? await pushExistingPrBranch(gitCwd, pushBranch)
+              : { success: false, error: 'branch name unknown — cannot push to the existing PR' };
+            result.autoPRResult = pushed.success
+              ? { success: true, prUrl: existingOpenPr.url, prNumber: existingOpenPr.prNumber }
+              : {
+                  success: false,
+                  prUrl: existingOpenPr.url,
+                  prNumber: existingOpenPr.prNumber,
+                  error: `既存 PR #${existingOpenPr.prNumber} への push に失敗しました: ${pushed.error}`,
+                };
+            // Draft→ready promotion (task 1099): the automated half of the draft/ready OR condition.
+            if (pushed.success && result.verdict === 'pass') {
+              await readyPullRequest(gitCwd, existingOpenPr.prNumber);
+            }
+          } else {
+            const prTitle = `[Task-${taskId}] ${task.title}`;
+            const prBody = `## Summary\n\nAuto-generated PR for Task #${taskId}: ${task.title}\n\n## Verification Report\n\n${verifyContent}\n\n---\n🤖 Generated automatically by Rapitas AI Agent`;
+            // Pass the session's branchName as the explicit PR head — gitCwd's
+            // raw checkout can sit on the base branch when the worktree is gone
+            // (task 594: head resolved to "develop" and PR creation failed with
+            // head==base despite the session branch being pushed).
+            // Ask git before asking GitHub. A branch with nothing ahead of the
+            // base cannot become a PR; `gh pr create` reports that as a failure
+            // and the gh client logs every failed command at ERROR — six times
+            // in one day for no-change completions (tasks 699/700/707/735/736/
+            // 739). The "No commits between" wording is kept on purpose: it is
+            // what isNoChangeCompletion classifies, so the no-change path below
+            // is unchanged; only the pointless gh call and its ERROR line go.
+            const aheadOfBase = await countCommitsAhead(gitCwd, targetBranch);
+            const prResult =
+              aheadOfBase === 0
+                ? {
+                    success: false as const,
+                    error: `No commits between ${targetBranch} and ${branchName ?? 'HEAD'} — nothing to publish (skipped before gh pr create)`,
+                  }
+                : await orchestrator.createPullRequest(
+                    gitCwd,
+                    prTitle,
+                    prBody,
+                    targetBranch,
+                    branchName ?? undefined,
+                    result.verdict === 'unknown',
+                  );
+            result.autoPRResult = prResult;
 
-        if (prResult.success) {
-          log.info(`[Workflow] Auto-PR created for task ${taskId}: ${prResult.prUrl}`);
-          await logAutoPR(taskId, task.title, prResult.prUrl, prResult.prNumber);
-          // Persist + link the PR locally so the task's "PRを開く" button can
-          // resolve task → local PR id. Without this the by-task lookup 404s and
-          // the button silently does nothing.
-          if (prResult.prNumber != null && prResult.prUrl) {
-            await linkAutoCreatedPr(prisma, {
-              taskId,
-              prNumber: prResult.prNumber,
-              prUrl: prResult.prUrl,
-              title: prTitle,
-              headBranch: result.autoCommitResult?.branch ?? branchName ?? 'unknown',
-              baseBranch: targetBranch,
-              repositoryUrl: task.theme?.repositoryUrl,
-              workingDirectory: gitCwd,
-            });
+            if (prResult.success) {
+              log.info(`[Workflow] Auto-PR created for task ${taskId}: ${prResult.prUrl}`);
+              await logAutoPR(taskId, task.title, prResult.prUrl, prResult.prNumber);
+              // Persist + link the PR locally so the task's "PRを開く" button can
+              // resolve task → local PR id. Without this the by-task lookup 404s and
+              // the button silently does nothing.
+              if (prResult.prNumber != null && prResult.prUrl) {
+                await linkAutoCreatedPr(prisma, {
+                  taskId,
+                  prNumber: prResult.prNumber,
+                  prUrl: prResult.prUrl,
+                  title: prTitle,
+                  headBranch: result.autoCommitResult?.branch ?? branchName ?? 'unknown',
+                  baseBranch: targetBranch,
+                  repositoryUrl: task.theme?.repositoryUrl,
+                  workingDirectory: gitCwd,
+                });
+              }
+            } else {
+              // NOTE (task 687): "no commits between" / "nothing to commit" is
+              // an already-implemented no-op that verify-commit-pr-pipeline.ts
+              // completes successfully via this SAME isNoChangeCompletion
+              // classifier — logging it at ERROR filed the same benign outcome
+              // as a recurring generic bug report. Only a genuine PR-creation
+              // failure (auth, network, foreign-PR collision, etc.) is an
+              // operational error worth ERROR severity.
+              const benignNoChange = isNoChangeCompletion({
+                errorBlob: prResult.error ?? '',
+                filesChanged: result.autoCommitResult?.filesChanged,
+              });
+              // NOTE: pino's stdSerializers only special-case the `err` key —
+              // `error:` silently dropped the failure reason from the log
+              // (task 687), leaving log-health-check unable to diagnose repeats.
+              const logPrOutcome = benignNoChange ? log.warn.bind(log) : log.error.bind(log);
+              logPrOutcome(
+                { err: new Error(prResult.error ?? 'unknown error') },
+                benignNoChange
+                  ? `[Workflow] Auto-PR skipped for task ${taskId}: already implemented, no changes to publish`
+                  : `[Workflow] Auto-PR creation failed for task ${taskId}`,
+              );
+              // Task-identity mismatch (task 541): the branch's open PR belongs to
+              // another task — surface it instead of a silent generic failure so
+              // the user can resolve the stale branch/PR collision.
+              if (prResult.error?.startsWith(FOREIGN_PR_ERROR_PREFIX)) {
+                await notify({
+                  taskId,
+                  type: 'auto_pr_identity_mismatch',
+                  title: '自動PR作成を中止しました',
+                  message: `タスク ${taskId} のブランチには他タスクのPRが開いたまま残っているため、誤リンクを避けてPR作成を中止しました。${prResult.error}`,
+                });
+              }
+            }
           }
-        } else {
-          log.error(
-            { error: prResult.error },
-            `[Workflow] Auto-PR creation failed for task ${taskId}`,
-          );
+        } catch (prError) {
+          log.error({ err: prError }, `[Workflow] Auto-PR failed for task ${taskId}`);
+          result.autoPRResult = {
+            success: false,
+            error: prError instanceof Error ? prError.message : String(prError),
+          };
+        } finally {
+          await releasePrCreationLock(prisma, taskId);
         }
-      } catch (prError) {
-        log.error({ err: prError }, `[Workflow] Auto-PR failed for task ${taskId}`);
-        result.autoPRResult = {
-          success: false,
-          error: prError instanceof Error ? prError.message : String(prError),
-        };
       }
     }
 
@@ -262,33 +478,14 @@ export async function performAutoCommitAndPR(
       );
     }
 
-    // Clean up git worktree after commit/PR/merge is complete.
-    // NOTE: baseDir must be the *target* repository (workingDirectory) so the
-    // worktree's parent git context matches. Passing the rapitas source root
-    // here would either fail silently or operate against the wrong repo.
-    const worktreePath = latestSession?.worktreePath;
-    if (worktreePath) {
-      try {
-        await orchestrator.removeWorktree(workingDirectory, worktreePath);
-        await prisma.agentSession.update({
-          where: { id: latestSession.id },
-          data: { worktreePath: null },
-        });
-        result.worktreeCleanupResult = { success: true, worktreePath };
-        log.info(`[Workflow] Worktree cleaned up for task ${taskId}: ${worktreePath}`);
-      } catch (cleanupError) {
-        // NOTE: Cleanup failure should not fail the overall workflow
-        log.error(
-          { err: cleanupError },
-          `[Workflow] Worktree cleanup failed for task ${taskId}: ${worktreePath}`,
-        );
-        result.worktreeCleanupResult = {
-          success: false,
-          worktreePath,
-          error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
-        };
-      }
-    }
+    // A verify save is still inside the running CLI and precedes reviewed
+    // completion / CI / merge. Preserve its worktree and session reference.
+    // The existing cleanup scheduler owns eventual cleanup eligibility.
+    if (
+      latestSession?.worktreePath &&
+      (await publicationAborted(taskId, 'before_worktree_cleanup'))
+    )
+      return { ...result, error: PUBLICATION_CANCELLED_ERROR };
   } catch (error) {
     log.error({ err: error }, `[Workflow] Auto-commit/PR process failed for task ${taskId}`);
   }

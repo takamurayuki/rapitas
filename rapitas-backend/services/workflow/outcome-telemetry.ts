@@ -42,7 +42,7 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
     const task = await prisma.task
       .findUnique({
         where: { id: taskId },
-        select: { themeId: true, workflowMode: true, complexityScore: true },
+        select: { title: true, themeId: true, workflowMode: true, complexityScore: true },
       })
       .catch(() => null);
 
@@ -79,9 +79,195 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
       { taskId, finalStatus, firstTrySuccess, troubleCount },
       '[telemetry] Task outcome recorded',
     );
+
+    // Ideation calibration (R6): when this task was promoted from a concern or
+    // idea, record the ideation-time value estimate (priority/confidence) next
+    // to the realized outcome. LLM ideation scores are systematically
+    // optimistic and re-rank after execution (Ideation-Execution Gap) — this
+    // event stream is the ground truth a future scorer recalibrates against.
+    await recordIdeationCalibration(taskId, finalStatus, firstTrySuccess, troubleCount).catch(
+      (err) => log.warn({ err, taskId }, '[telemetry] Ideation calibration failed'),
+    );
+
+    // Outcome-gated reinforcement: reward the knowledge entries this task used
+    // when it completed, decay them when it was blocked — so what survives the
+    // forgetting curve is what actually helped. Fine-grained when agents
+    // declared per-entry usage (R8: entry-level credit assignment instead of
+    // uniform set-level ±). Declarations from ALL phase artifacts are merged —
+    // each role declares in its own .md (research/plan/verify), and parsing
+    // only verify.md silently dropped the researcher's and planner's credit.
+    // Best-effort, never blocks.
+    await import('../memory/outcome-reinforcement')
+      .then(async ({ applyOutcomeReinforcement, parseKnowledgeUsage, mergeKnowledgeUsage }) => {
+        const usage = await readWorkflowArtifacts(taskId)
+          .then((bodies) => mergeKnowledgeUsage(bodies.map(parseKnowledgeUsage)))
+          .catch(() => undefined);
+        return applyOutcomeReinforcement(taskId, finalStatus === 'completed', usage);
+      })
+      .catch((err) => log.warn({ err, taskId }, '[telemetry] Outcome reinforcement failed'));
+
+    // Calibrate the plan-gate decisions (human approvals AND auto-approvals)
+    // recorded for this task against its real outcome — closes the decision
+    // journal loop so gate accuracy per decider becomes measurable. Best-effort.
+    // Settle this task's machine decisions here, at the same point its human
+    // ones are calibrated. The periodic sweep still runs as a backstop and uses
+    // the same judging code, so the two can never disagree about a verdict.
+    await import('../decision-ledger')
+      .then(({ settleDecisions }) => settleDecisions(taskId))
+      .catch((err) => log.warn({ err, taskId }, '[telemetry] Decision settlement failed'));
+
+    await import('../memory/decision-journal')
+      .then(({ calibratePlanDecisionsForTask }) =>
+        calibratePlanDecisionsForTask(taskId, finalStatus),
+      )
+      .catch((err) => log.warn({ err, taskId }, '[telemetry] Decision calibration failed'));
+
+    // Validate the hypotheses this task formed: completion → "for" evidence, a
+    // block → "against". Closes the create→inject→VALIDATE loop so good
+    // conjectures graduate and bad ones get refuted. Best-effort.
+    await import('../memory/hypothesis-outcome-validation')
+      .then(({ validateHypothesesForTaskOutcome }) =>
+        validateHypothesesForTaskOutcome(taskId, task?.themeId ?? null, finalStatus),
+      )
+      .catch((err) => log.warn({ err, taskId }, '[telemetry] Hypothesis validation failed'));
+
+    // Bridge the outcome into the self-learning subsystem (Experiment + Episode +
+    // concept node) so the agent-memory page's knowledge-nodes / episodic-memory
+    // / success-rate stop sitting at 0 — those tables were never wired to the
+    // auto-run flow. Best-effort.
+    await import('../self-learning/task-learning-recorder')
+      .then(({ recordTaskLearningArtifacts }) =>
+        recordTaskLearningArtifacts(taskId, finalStatus, {
+          title: task?.title ?? null,
+          themeId: task?.themeId ?? null,
+          workflowMode: task?.workflowMode ?? null,
+          complexityScore: task?.complexityScore ?? null,
+        }),
+      )
+      .catch((err) => log.warn({ err, taskId }, '[telemetry] Learning-artifact recording failed'));
+
+    // Self-experiment loop: advance the single active experiment (if any) with
+    // this terminal task; reaching its target N triggers the control-vs-
+    // treatment judgement inside. Best-effort — same failure isolation as the
+    // rest of this chain.
+    await import('../self-learning/experiment-loop/experiment-lifecycle')
+      .then(({ updateExperimentProgress }) => updateExperimentProgress(taskId, finalStatus))
+      .catch((err) => log.warn({ err, taskId }, '[telemetry] Experiment progress update failed'));
+
+    // Reflexion: when the task failed OR needed repair, distil a transferable
+    // lesson from the failure and store it as knowledge (retrieved+injected into
+    // similar future tasks). Failures are the richest learning signal — this is
+    // how the loop gets smarter from its mistakes. Best-effort.
+    if (finalStatus !== 'completed' || troubleCount > 0) {
+      await import('../memory/task-knowledge-extractor')
+        .then(({ reflectOnFailure }) => reflectOnFailure(taskId, finalStatus))
+        .catch((err) => log.warn({ err, taskId }, '[telemetry] Failure reflection failed'));
+    }
+
+    // Process retrospective: review the completed task's PROCESS (transition
+    // timeline, bounce causes, phase dwell times) with one aux-AI call and file
+    // education-candidate concerns for systemic friction. Completed tasks only —
+    // failures already go through reflectOnFailure above. Best-effort, last in
+    // the chain (the AI call is the slowest step and must never delay the rest).
+    if (finalStatus === 'completed') {
+      await import('./process-retro/retro-review')
+        .then(({ runProcessRetro }) => runProcessRetro(taskId))
+        .catch((err) => log.warn({ err, taskId }, '[telemetry] Process retro failed'));
+
+      // Playbook extraction: when this completion forms a same-shape cluster
+      // with recent completed tasks (similar title AND overlapping changed
+      // files), distil ONE reusable procedure doc so future same-shape tasks
+      // start from experience instead of a blank research. Best-effort.
+      await import('../memory/playbook/playbook-generate')
+        .then(({ maybeGeneratePlaybook }) => maybeGeneratePlaybook(taskId))
+        .catch((err) => log.warn({ err, taskId }, '[telemetry] Playbook generation failed'));
+    }
   } catch (err) {
     log.warn({ err, taskId }, '[telemetry] Failed to record task outcome');
   }
+}
+
+/**
+ * Read every saved workflow artifact that can carry a `## 使用知識` usage
+ * declaration (research.md / plan.md / verify.md). Missing/empty files are
+ * skipped — a research-only completion still yields its research.md.
+ *
+ * @param taskId - Task whose artifacts to read. / 対象タスク
+ * @returns Non-empty artifact bodies. / 成果物本文の配列
+ */
+/**
+ * Read a task's workflow artifacts as raw markdown.
+ *
+ * Exported for the decision ledger, which settles knowledge recalls from the
+ * agent's own usage declaration inside these same artifacts.
+ *
+ * @param taskId - Task whose artifacts to read. / 対象タスクID
+ * @returns Artifact bodies, empty on failure. / 成果物本文
+ */
+export async function readWorkflowArtifacts(taskId: number): Promise<string[]> {
+  const { readWorkflowFile } = await import('./workflow-file-utils');
+  const bodies = await Promise.all(
+    // Every artifact a role can declare knowledge usage in.
+    (['research', 'plan', 'verify'] as const).map((fileType) =>
+      readWorkflowFile(taskId, fileType).catch(() => null),
+    ),
+  );
+  return bodies.filter((b): b is string => !!b?.trim());
+}
+
+/**
+ * Record the ideation-vs-execution calibration event for a backlog-promoted
+ * task: what the origin concern/idea PREDICTED (priority, confidence) against
+ * what actually HAPPENED. No-op when the task has no backlog origin.
+ *
+ * @param taskId - Terminal task. / 終了タスク
+ * @param finalStatus - Terminal status. / 最終状態
+ * @param firstTrySuccess - Completed without repair bounces. / 一発成功か
+ * @param troubleCount - Repair/bounce transition count. / 修復回数
+ */
+async function recordIdeationCalibration(
+  taskId: number,
+  finalStatus: string,
+  firstTrySuccess: boolean,
+  troubleCount: number,
+): Promise<void> {
+  const origin = await prisma.knowledgeEntry
+    .findFirst({
+      where: {
+        OR: [
+          { sourceType: 'concern', sourceId: `task_${taskId}` },
+          { sourceType: 'idea_box', sourceId: `used_task_${taskId}` },
+        ],
+      },
+      select: { id: true, sourceType: true, confidence: true, tags: true },
+    })
+    .catch(() => null);
+  if (!origin) return;
+
+  const task = await prisma.task
+    .findUnique({ where: { id: taskId }, select: { priority: true, themeId: true } })
+    .catch(() => null);
+
+  await appendEvent({
+    eventType: 'ideation_calibration',
+    actorType: 'system',
+    payload: {
+      taskId,
+      themeId: task?.themeId ?? null,
+      origin: origin.sourceType === 'concern' ? 'concern' : 'idea',
+      entryId: origin.id,
+      predictedPriority: task?.priority ?? null,
+      predictedConfidence: origin.confidence,
+      realizedStatus: finalStatus,
+      firstTrySuccess,
+      troubleCount,
+    },
+    correlationId: `task_${taskId}`,
+  });
+  log.info(
+    { taskId, origin: origin.sourceType, entryId: origin.id, finalStatus, firstTrySuccess },
+    '[telemetry] Ideation calibration recorded',
+  );
 }
 
 /**
@@ -100,7 +286,7 @@ export async function recentThemeEscalation(themeId: number | null | undefined):
       where: { parentId: null, themeId, status: { in: ['done', 'completed', 'blocked'] } },
       orderBy: [{ completedAt: 'desc' }, { updatedAt: 'desc' }],
       take: RECENT_WINDOW,
-      select: { id: true, status: true },
+      select: { id: true, status: true, workflowStatus: true },
     });
     if (recent.length < MIN_SAMPLES) return 0;
 
@@ -113,7 +299,13 @@ export async function recentThemeEscalation(themeId: number | null | undefined):
       })
       .catch(() => [] as Array<{ taskId: number }>);
     const troubled = new Set(troubledRows.map((r) => r.taskId));
-    for (const t of recent) if (t.status === 'blocked') troubled.add(t.id);
+    // NOTE: A task parked on an unanswered spec question is waiting on a HUMAN,
+    // not struggling — counting it inflated the rate and (via computeMinTier)
+    // used to pin the whole theme to premium. Every other blocked task still
+    // counts: those were blocked by the workflow itself.
+    for (const t of recent) {
+      if (t.status === 'blocked' && t.workflowStatus !== 'awaiting_question') troubled.add(t.id);
+    }
 
     const rate = troubled.size / recent.length;
     const escalation = rate >= 0.5 ? 2 : rate >= 0.25 ? 1 : 0;

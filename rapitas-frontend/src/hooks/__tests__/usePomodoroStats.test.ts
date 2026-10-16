@@ -1,6 +1,13 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { usePomodoroStats } from '../study/usePomodoroStats';
 
+// NOTE: t must be a stable reference — fetchStats depends on it, and an
+// unstable mock would re-trigger the mount effect (and its fetch) every render.
+vi.mock('next-intl', () => {
+  const t = (key: string) => key;
+  return { useTranslations: () => t };
+});
+
 vi.mock('@/utils/api', () => ({
   API_BASE_URL: 'http://test:3001',
 }));

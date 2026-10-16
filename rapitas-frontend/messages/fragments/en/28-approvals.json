@@ -1,0 +1,30 @@
+{
+  "approvals": {
+    "title": "Approvals",
+    "subtitle": "Approve or reject AI agent execution plans",
+    "noApprovals": "No pending approvals",
+    "approve": "Approve",
+    "reject": "Reject",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "pendingList": "Pending Approvals",
+    "pendingSubtitle": "Review and approve AI proposals",
+    "bulkApprove": "Bulk approve {count}",
+    "pending": "Pending",
+    "expired": "Expired",
+    "noPendingApprovals": "No pending proposals",
+    "noApprovedApprovals": "No approved proposals",
+    "noRejectedApprovals": "No rejected proposals",
+    "selectAll": "Select all",
+    "task": "Task",
+    "subtaskCount": "{count} subtasks",
+    "proposedSubtasks": "Proposed Subtasks",
+    "approxHours": "Approx. {hours} hours",
+    "decompositionReason": "Decomposition reason:",
+    "approveAll": "Approve all",
+    "approveCount": "Approve {count}",
+    "codeReview": "Code Review",
+    "filesChanged": "{count} files changed",
+    "loadingChanges": "Loading changes..."
+  }
+}

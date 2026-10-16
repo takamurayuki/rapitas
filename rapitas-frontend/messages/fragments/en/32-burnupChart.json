@@ -1,0 +1,15 @@
+{
+  "burnupChart": {
+    "title": "Burnup",
+    "noData": "No data available",
+    "completed": "Completed",
+    "added": "Added",
+    "remaining": "Remaining",
+    "perDay": "/day",
+    "allThemes": "All Themes",
+    "cumulativeCompleted": "Cumulative Completed",
+    "idealPace": "Ideal Pace",
+    "days": "{count}d",
+    "cumulativeTooltip": "{date}: Cumulative completed {count}"
+  }
+}

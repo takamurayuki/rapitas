@@ -66,7 +66,7 @@ export const PROVIDERS: ProviderConfig[] = [
     configuredField: 'geminiApiKeyConfigured',
     modelField: 'geminiDefaultModel',
     icon: GeminiIcon,
-    iconColor: 'text-blue-500',
+    iconColor: 'text-indigo-500',
   },
 ];
 
@@ -195,7 +195,7 @@ export function ApiKeySection({
                       onChange={(e) =>
                         onSaveModel(provider.key, provider.modelField, e.target.value)
                       }
-                      className="w-full appearance-none px-4 py-2.5 pr-10 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-400 transition-all text-zinc-900 dark:text-zinc-100"
+                      className="w-full appearance-none px-4 py-2.5 pr-10 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-indigo-400 transition-all text-zinc-900 dark:text-zinc-100"
                     >
                       <option value="">{tc('select')}</option>
                       {availableModels[provider.key].map((model) => (
@@ -230,7 +230,7 @@ export function ApiKeySection({
                           })
                         }
                         placeholder={provider.placeholder}
-                        className="w-full px-4 py-2.5 pr-12 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-400 transition-all"
+                        className="w-full px-4 py-2.5 pr-12 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-indigo-400 transition-all"
                       />
                       <button
                         type="button"

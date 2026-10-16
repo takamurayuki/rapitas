@@ -1,0 +1,19 @@
+# cargo-audit policy for the Tauri desktop crate.
+#
+# Each ignore below is an EXPLICIT, time-boxed risk acceptance. Remove the
+# entry as soon as the upstream fix chain lands (tracked in the comments).
+
+[advisories]
+ignore = [
+  # RUSTSEC-2026-0194 / RUSTSEC-2026-0195: quick-xml <0.41 DoS (quadratic
+  # duplicate-attribute check / unbounded NsReader namespace allocation).
+  # Transitive only: tauri -> plist -> quick-xml. plist (latest 1.9.0) still
+  # requires quick-xml ^0.39, so no compatible upgrade path exists yet.
+  # Exposure: plist handles macOS Info.plist; this project ships Windows
+  # binaries only, and the vulnerable parse paths never receive untrusted
+  # input here. DoS-only class, no RCE/exfiltration.
+  # Re-check: `cargo update -p plist && cargo audit` once plist adopts
+  # quick-xml >=0.41, then delete these two entries.
+  "RUSTSEC-2026-0194",
+  "RUSTSEC-2026-0195",
+]

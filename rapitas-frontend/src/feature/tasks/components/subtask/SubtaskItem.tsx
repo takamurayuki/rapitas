@@ -11,11 +11,14 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
-import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
-import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
-import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
+import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
+import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
+import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { Pencil, Check, X, Bot, CheckSquare, Square } from 'lucide-react';
-import { SubtaskTitleIndicator, type ParallelExecutionStatus } from '../SubtaskExecutionStatus';
+import {
+  SubtaskTitleIndicator,
+  type ParallelExecutionStatus,
+} from '../status/SubtaskExecutionStatus';
 
 interface SubtaskItemProps {
   subtask: Task;
@@ -82,7 +85,7 @@ export default function SubtaskItem({
 
   const selectionBorder =
     isSelectionMode && isSelected
-      ? 'border-blue-500 dark:border-blue-400 ring-1 ring-blue-500 dark:ring-blue-400'
+      ? 'border-indigo-500 dark:border-indigo-400 ring-1 ring-indigo-500 dark:ring-indigo-400'
       : 'border-zinc-200 dark:border-zinc-700';
 
   if (isCompleted) {
@@ -99,9 +102,9 @@ export default function SubtaskItem({
             {isSelectionMode && (
               <button onClick={() => onToggleSelect(subtask.id)} className="shrink-0">
                 {isSelected ? (
-                  <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  <CheckSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                 ) : (
-                  <Square className="w-5 h-5 text-zinc-400" />
+                  <Square className="w-5 h-5 text-zinc-500" />
                 )}
               </button>
             )}
@@ -121,7 +124,7 @@ export default function SubtaskItem({
           </div>
           <div className="flex items-center gap-1 ml-4">
             {(['todo', 'in-progress', 'done'] as const).map((status) => {
-              const config = statusConfig[status];
+              const config = getStatusDisplay(t, status);
               return (
                 <TaskStatusChange
                   key={status}
@@ -137,7 +140,7 @@ export default function SubtaskItem({
             {canEdit && (
               <button
                 onClick={() => onStartEditing(subtask)}
-                className="w-6 h-6 rounded flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                className="w-6 h-6 rounded flex items-center justify-center text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
                 title={tc('edit')}
               >
                 <Pencil className="w-3.5 h-3.5" />
@@ -166,7 +169,7 @@ export default function SubtaskItem({
             className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
           >
             {isSelected ? (
-              <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              <CheckSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
             ) : (
               <Square className="w-5 h-5" />
             )}
@@ -179,14 +182,14 @@ export default function SubtaskItem({
         <div className="space-y-3">
           <input
             type="text"
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:border-blue-400"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:border-indigo-400"
             value={editingTitle}
             onChange={(e) => onEditingTitleChange(e.target.value)}
             placeholder={t('subtaskTitle')}
             autoFocus
           />
           <textarea
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-blue-400 font-mono"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-indigo-400 font-mono"
             value={editingDescription}
             onChange={(e) => onEditingDescriptionChange(e.target.value)}
             placeholder={t('descriptionMarkdown')}
@@ -196,7 +199,7 @@ export default function SubtaskItem({
             <button
               onClick={onSaveEdit}
               disabled={!editingTitle.trim()}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
             >
               <Check className="w-4 h-4" />
               {tc('save')}
@@ -239,7 +242,7 @@ export default function SubtaskItem({
             </div>
             <div className="flex items-center gap-1 ml-4 shrink-0">
               {(['todo', 'in-progress', 'done'] as const).map((status) => {
-                const config = statusConfig[status];
+                const config = getStatusDisplay(t, status);
                 return (
                   <TaskStatusChange
                     key={status}
@@ -255,7 +258,7 @@ export default function SubtaskItem({
               {canEdit && (
                 <button
                   onClick={() => onStartEditing(subtask)}
-                  className="w-6 h-6 rounded flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                  className="w-6 h-6 rounded flex items-center justify-center text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
                   title={tc('edit')}
                 >
                   <Pencil className="w-3.5 h-3.5" />

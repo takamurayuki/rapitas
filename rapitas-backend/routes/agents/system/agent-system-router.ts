@@ -5,11 +5,17 @@
  */
 import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
-import { orchestrator, stopServer } from '../../../services/core/orchestrator-instance';
+import { orchestrator } from '../../../services/core/orchestrator-instance';
 import { isEncryptionKeyConfigured } from '../../../utils/common/encryption';
-import { realtimeService } from '../../../services/communication/realtime-service';
 import { createLogger } from '../../../config/logger';
+import { scheduleShutdownSequence } from '../../../services/system/shutdown-sequence';
 import { AuthenticationError } from '../../../middleware/error-handler';
+import { getActivePreviewCount } from '../../../services/agents/preview/preview-session-manager';
+import {
+  isResumableInterrupted,
+  getCurrentActiveExecutionIds,
+  getLiveTaskIdsForActiveExecutions,
+} from '../../../services/agents/resumable-execution';
 
 const log = createLogger('routes:agent-system');
 
@@ -26,6 +32,131 @@ function requireAdmin(headers: Record<string, string | undefined>): void {
   if (!token || token !== process.env.ADMIN_SECRET) {
     throw new AuthenticationError('Admin authentication required');
   }
+}
+
+// NOTE: scheduleShutdownSequence moved to services/system/shutdown-sequence.ts —
+// the auto-restart-merged-code scheduler became a second caller, and the exit
+// path belongs in the service layer, not a router.
+
+/**
+ * Snapshot of live agent activity: how many executions are actually running,
+ * how many DB rows claim to be running/pending, how many are stranded
+ * `interrupted`, and how deep the auto-run queue is. Shared by `/agents/system-status`
+ * and the top-level `/health` aggregate (see index.ts) so both report identical
+ * numbers from one code path instead of drifting.
+ *
+ * @returns Snapshot fields plus a derived overall `status` label / システム状態スナップショット
+ */
+export async function getAgentSystemSnapshot(): Promise<{
+  status: string;
+  isShuttingDown: boolean;
+  activeExecutions: number;
+  activeExecutionsDegraded: boolean;
+  runningExecutions: number;
+  interruptedExecutions: number;
+  interruptedExecutionsHistoryCount: number;
+  interruptedExecutionsDegraded: boolean;
+  queueDepth: number;
+  activePreviewCount: number;
+  serverTime: string;
+}> {
+  // One deduplicated snapshot of both execution owners. Reuse it below so
+  // visibility and interrupted filtering cannot observe different IPC reads.
+  let activeExecutionIds: number[] | null = null;
+  try {
+    activeExecutionIds = await getCurrentActiveExecutionIds();
+  } catch (err) {
+    log.debug({ err }, '[agent-system] Live execution ownership unavailable');
+  }
+  const activeExecutionsDegraded = activeExecutionIds === null;
+  const isShuttingDown = orchestrator.isInShutdown();
+
+  // Count running/pending executions, but EXCLUDE orphaned rows whose task is
+  // already terminal/blocked. A blocked or done task cannot have a legitimately
+  // live agent — a row left at 'running' there is a stale record (process died,
+  // task was blocked) and made the restart dialog falsely warn "1 task running"
+  // even though the orchestrator's real active count was 0 (task 223 / exec 686).
+  const runningExecutions = await prisma.agentExecution.count({
+    where: {
+      status: { in: ['running', 'pending'] },
+      session: { config: { task: { status: { in: ['todo', 'in-progress'] } } } },
+    },
+  });
+
+  const activeExecutions = activeExecutionIds?.length ?? runningExecutions;
+
+  // Raw count of every `interrupted` row regardless of whether its task can
+  // still be resumed — kept as its own field (never removed/renamed) so
+  // operators retain the historical total even after the filtering below.
+  const interruptedExecutionsHistoryCount = await prisma.agentExecution.count({
+    where: {
+      status: 'interrupted',
+    },
+  });
+
+  // Resumability-filtered count: excludes `interrupted` rows whose task is
+  // already terminal (done/completed/cancelled/failed/archived, or
+  // workflowStatus=completed) and rows whose task already has a live
+  // execution running elsewhere — matching the definition `/resumable-executions`
+  // uses, so the two endpoints never disagree about what's "operationally
+  // interrupted". If this computation itself fails, fall back to the raw
+  // count (never silently to 0) and flag `interruptedExecutionsDegraded` so
+  // the derived `status` below does not report `healthy` on unverified data.
+  let interruptedExecutions = interruptedExecutionsHistoryCount;
+  let interruptedExecutionsDegraded = false;
+  try {
+    const interruptedRows = await prisma.agentExecution.findMany({
+      where: { status: 'interrupted' },
+      select: {
+        session: {
+          select: {
+            config: {
+              select: { task: { select: { id: true, status: true, workflowStatus: true } } },
+            },
+          },
+        },
+      },
+    });
+    if (activeExecutionIds === null) throw new Error('Live execution ownership unavailable');
+    const liveTaskIds = await getLiveTaskIdsForActiveExecutions(activeExecutionIds);
+    interruptedExecutions = interruptedRows.filter((row) =>
+      isResumableInterrupted({ status: 'interrupted' }, row.session.config?.task, liveTaskIds),
+    ).length;
+  } catch (err) {
+    log.warn(
+      { err },
+      '[agent-system] Resumable-interrupted computation failed, falling back to raw count',
+    );
+    interruptedExecutionsDegraded = true;
+  }
+
+  // Auto-run backlog depth — cheap indexed count (@@index([status, priority])
+  // on WorkflowQueueItem), not a new tracking mechanism.
+  const queueDepth = await prisma.workflowQueueItem.count({ where: { status: 'queued' } });
+
+  // NOTE: `interruptedExecutionsDegraded` is checked BEFORE the raw count —
+  // a failed computation must never be allowed to read as `healthy` just
+  // because the raw-count fallback happens to be 0 (task 913 counter-example).
+  let status = 'healthy';
+  if (isShuttingDown) status = 'shutting_down';
+  else if (activeExecutionsDegraded) status = 'active_executions_unknown';
+  else if (activeExecutions > 0) status = 'busy';
+  else if (interruptedExecutionsDegraded) status = 'interrupted_executions_unknown';
+  else if (interruptedExecutions > 0) status = 'interrupted_executions';
+
+  return {
+    status,
+    isShuttingDown,
+    activeExecutions,
+    activeExecutionsDegraded,
+    runningExecutions,
+    interruptedExecutions,
+    interruptedExecutionsHistoryCount,
+    interruptedExecutionsDegraded,
+    queueDepth,
+    activePreviewCount: getActivePreviewCount(),
+    serverTime: new Date().toISOString(),
+  };
 }
 
 export const agentSystemRouter = new Elysia({ prefix: '/agents' })
@@ -190,49 +321,7 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
     };
   })
 
-  .get('/system-status', async () => {
-    // NOTE: Sync getActiveExecutionCount() returns a cached value (0 right after startup).
-    // Use the async version when available to get the accurate count from the worker.
-    const workerMgr = orchestrator as unknown as {
-      getActiveExecutionCountAsync?: () => Promise<number>;
-    };
-    const activeExecutions = workerMgr.getActiveExecutionCountAsync
-      ? await workerMgr.getActiveExecutionCountAsync()
-      : orchestrator.getActiveExecutionCount?.() || 0;
-    const isShuttingDown = orchestrator.isInShutdown();
-
-    // Count running/pending executions, but EXCLUDE orphaned rows whose task is
-    // already terminal/blocked. A blocked or done task cannot have a legitimately
-    // live agent — a row left at 'running' there is a stale record (process died,
-    // task was blocked) and made the restart dialog falsely warn "1 task running"
-    // even though the orchestrator's real active count was 0 (task 223 / exec 686).
-    const runningExecutions = await prisma.agentExecution.count({
-      where: {
-        status: { in: ['running', 'pending'] },
-        session: { config: { task: { status: { in: ['todo', 'in-progress'] } } } },
-      },
-    });
-
-    const interruptedExecutions = await prisma.agentExecution.count({
-      where: {
-        status: 'interrupted',
-      },
-    });
-
-    let status = 'healthy';
-    if (isShuttingDown) status = 'shutting_down';
-    else if (activeExecutions > 0) status = 'busy';
-    else if (interruptedExecutions > 0) status = 'interrupted_executions';
-
-    return {
-      status,
-      isShuttingDown,
-      activeExecutions,
-      runningExecutions,
-      interruptedExecutions,
-      serverTime: new Date().toISOString(),
-    };
-  })
+  .get('/system-status', async () => getAgentSystemSnapshot())
 
   // Validate agent configuration
   .get('/validate-config', async () => {
@@ -307,25 +396,7 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
 
       const activeCount = orchestrator.getActiveExecutionCount();
 
-      setTimeout(async () => {
-        try {
-          log.info('[shutdown] Closing all SSE connections...');
-          realtimeService.shutdown();
-
-          log.info('[shutdown] Closing listening socket first for quick port release...');
-          await stopServer();
-          log.info('[shutdown] Listening socket closed, port released.');
-
-          log.info('[shutdown] Stopping agents and saving state...');
-          await orchestrator.gracefulShutdown({ skipServerStop: true });
-          log.info('[shutdown] Agent shutdown completed.');
-        } catch (error) {
-          log.error({ err: error }, '[shutdown] Graceful shutdown error');
-        } finally {
-          log.info('[shutdown] Exiting process...');
-          setTimeout(() => process.exit(0), 200);
-        }
-      }, 300);
+      scheduleShutdownSequence('[shutdown]', 0);
 
       return {
         success: true,
@@ -350,25 +421,7 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
 
       const activeCount = orchestrator.getActiveExecutionCount();
 
-      setTimeout(async () => {
-        try {
-          log.info('[restart] Closing all SSE connections...');
-          realtimeService.shutdown();
-
-          log.info('[restart] Closing listening socket first for quick port release...');
-          await stopServer();
-          log.info('[restart] Listening socket closed, port released.');
-
-          log.info('[restart] Stopping agents and saving state...');
-          await orchestrator.gracefulShutdown({ skipServerStop: true });
-          log.info('[restart] Agent shutdown completed.');
-        } catch (error) {
-          log.error({ err: error }, '[restart] Graceful shutdown error');
-        } finally {
-          log.info('[restart] Exiting with restart code...');
-          setTimeout(() => process.exit(75), 200);
-        }
-      }, 300);
+      scheduleShutdownSequence('[restart]', 75);
 
       return {
         success: true,

@@ -5,7 +5,7 @@
  * precondition checks, DB record creation, and instruction assembly.
  * Used by execution-core.ts and execution-continue.ts.
  */
-import { PrismaClient, AgentExecution, AgentSession } from '@prisma/client';
+import { PrismaClient, AgentExecution, AgentSession } from '../../generated/prisma-postgres';
 
 /**
  * Returns an existing session or creates a new one.

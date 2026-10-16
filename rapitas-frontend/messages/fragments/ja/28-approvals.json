@@ -1,0 +1,30 @@
+{
+  "approvals": {
+    "title": "承認待ち",
+    "subtitle": "AIエージェントの実行計画を承認・却下",
+    "noApprovals": "承認待ちの項目はありません",
+    "approve": "承認",
+    "reject": "却下",
+    "approved": "承認済み",
+    "rejected": "却下済み",
+    "pendingList": "承認待ち一覧",
+    "pendingSubtitle": "AIからの提案を確認・承認",
+    "bulkApprove": "{count}件を一括承認",
+    "pending": "承認待ち",
+    "expired": "期限切れ",
+    "noPendingApprovals": "承認待ちの提案はありません",
+    "noApprovedApprovals": "承認済みの提案はありません",
+    "noRejectedApprovals": "却下済みの提案はありません",
+    "selectAll": "全て選択",
+    "task": "タスク",
+    "subtaskCount": "{count}件のサブタスク",
+    "proposedSubtasks": "提案されたサブタスク",
+    "approxHours": "約{hours}時間",
+    "decompositionReason": "分解理由:",
+    "approveAll": "全て承認",
+    "approveCount": "{count}件を承認",
+    "codeReview": "コードレビュー",
+    "filesChanged": "{count}ファイル変更",
+    "loadingChanges": "変更を読み込み中..."
+  }
+}

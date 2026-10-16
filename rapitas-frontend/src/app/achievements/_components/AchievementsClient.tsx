@@ -11,18 +11,8 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Trophy,
-  BarChart3,
-  Gift,
-  Settings,
-  RefreshCw,
-  Bell,
-  BellOff,
-  Download,
-  Share2,
-  Filter,
-} from 'lucide-react';
+import { Trophy, BarChart3, Gift, RefreshCw, Bell, BellOff } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import {
   AchievementPanel,
   TaskStatsBoard,
@@ -30,6 +20,7 @@ import {
 } from '../../../components/achievement';
 import { useAchievements } from '../../../hooks/use-achievements';
 import { useTaskStats } from '../../../hooks/use-task-stats';
+import { formatDateTime } from '@/utils/date';
 
 interface AchievementsClientProps {
   userId: number;
@@ -42,13 +33,14 @@ type TabType = 'achievements' | 'stats' | 'badges';
  * メイン実績クライアントコンポーネント
  */
 export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }) => {
+  const t = useTranslations('achievements');
+  const tCommon = useTranslations('common');
   const [activeTab, setActiveTab] = useState<TabType>('achievements');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   // Hooks
   const {
     achievements,
-    unlockedAchievements,
     progress,
     notifications,
     playerStats,
@@ -63,13 +55,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
     refreshAchievements,
   } = useAchievements({ userId });
 
-  const {
-    trackTaskCompletion,
-    trackStudySession,
-    trackAgentExecution,
-    recentAchievements,
-    isTracking,
-  } = useTaskStats({ userId });
+  const { recentAchievements, isTracking } = useTaskStats({ userId });
 
   // Loading state
   if (isLoading && !playerStats) {
@@ -97,14 +83,14 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
         <div className="text-center">
           <Trophy className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">
-            実績データの読み込みに失敗しました
+            {t('client.loadFailed')}
           </h2>
           <button
             onClick={() => refreshAchievements()}
-            className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            className="inline-flex items-center space-x-2 px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
           >
             <RefreshCw className="w-4 h-4" />
-            <span>再試行</span>
+            <span>{tCommon('retry')}</span>
           </button>
         </div>
       </div>
@@ -112,9 +98,14 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
   }
 
   const tabs = [
-    { id: 'achievements', label: '実績', icon: Trophy, count: unlockedCount },
-    { id: 'stats', label: '統計', icon: BarChart3 },
-    { id: 'badges', label: 'バッジ', icon: Gift, count: 0 }, // TODO: Implement badges count
+    {
+      id: 'achievements',
+      label: t('client.tabs.achievements'),
+      icon: Trophy,
+      count: unlockedCount,
+    },
+    { id: 'stats', label: t('client.tabs.stats'), icon: BarChart3 },
+    { id: 'badges', label: t('client.tabs.badges'), icon: Gift, count: 0 }, // TODO: Implement badges count
   ] as const;
 
   const handleTabClick = (tabId: TabType) => {
@@ -148,7 +139,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              🏆 実績・統計
+              {t('client.headerTitle')}
             </motion.h1>
             <motion.p
               className="text-gray-600 dark:text-gray-400"
@@ -156,7 +147,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
             >
-              あなたの学習・タスク管理の成果を確認しましょう
+              {t('client.headerSubtitle')}
             </motion.p>
           </div>
 
@@ -166,10 +157,14 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
               onClick={() => setNotificationsEnabled(!notificationsEnabled)}
               className={`p-2 rounded-lg transition-colors ${
                 notificationsEnabled
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-indigo-500 text-white'
                   : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
               }`}
-              title={`通知を${notificationsEnabled ? '無効' : '有効'}にする`}
+              title={
+                notificationsEnabled
+                  ? t('client.disableNotifications')
+                  : t('client.enableNotifications')
+              }
             >
               {notificationsEnabled ? (
                 <Bell className="w-5 h-5" />
@@ -183,7 +178,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
               onClick={() => refreshAchievements()}
               disabled={isLoading}
               className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
-              title="データを更新"
+              title={t('client.refreshTitle')}
             >
               <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
@@ -194,7 +189,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
                 onClick={clearNotifications}
                 className="px-3 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
               >
-                通知をクリア
+                {t('client.clearNotifications')}
               </button>
             )}
           </div>
@@ -211,28 +206,37 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
             <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {unlockedCount}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">解除済み実績</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {t('client.stats.unlockedCount')}
+            </div>
           </div>
 
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+            <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
               {Math.round(completionPercentage)}%
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">完了率</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {t('client.stats.completionRate')}
+            </div>
           </div>
 
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
             <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+              {/* NOTE: numeric thousands-separator display, not a date — out of scope for #847 */}
               {totalPoints.toLocaleString()}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">ポイント</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {t('client.stats.points')}
+            </div>
           </div>
 
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
             <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
               {playerStats?.totalTasksCompleted || 0}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">総タスク数</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {t('client.stats.totalTasks')}
+            </div>
           </div>
         </motion.div>
 
@@ -250,7 +254,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
                 onClick={() => handleTabClick(tab.id as TabType)}
                 className={`flex items-center space-x-2 px-6 py-4 font-medium transition-colors relative ${
                   activeTab === tab.id
-                    ? 'text-blue-600 dark:text-blue-400'
+                    ? 'text-indigo-600 dark:text-indigo-400'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                 }`}
               >
@@ -260,7 +264,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
                   <span
                     className={`px-2 py-1 text-xs rounded-full ${
                       activeTab === tab.id
-                        ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
+                        ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
                     }`}
                   >
@@ -269,7 +273,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
                 )}
                 {activeTab === tab.id && (
                   <motion.div
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 dark:bg-indigo-400"
                     layoutId="activeTab"
                   />
                 )}
@@ -322,9 +326,11 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
                 >
                   <Gift className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-gray-600 dark:text-gray-400 mb-2">
-                    バッジ機能は準備中です
+                    {t('client.badgesComingSoonTitle')}
                   </h3>
-                  <p className="text-gray-500 dark:text-gray-500">近日公開予定です。お楽しみに！</p>
+                  <p className="text-gray-500 dark:text-gray-500">
+                    {t('client.badgesComingSoonHint')}
+                  </p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -340,7 +346,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
             transition={{ delay: 0.4 }}
           >
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              🎉 最近の実績
+              {t('client.recentActivityTitle')}
             </h3>
             <div className="flex flex-wrap gap-2">
               {recentAchievements.map((achievementId, index) => (
@@ -361,12 +367,17 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
         {/* Debug info (development only) */}
         {process.env.NODE_ENV === 'development' && (
           <div className="mt-8 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
-            <h4 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2">開発情報</h4>
+            <h4 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2">
+              {t('client.devInfoTitle')}
+            </h4>
             <div className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
               <div>User ID: {userId}</div>
               <div>Tracking: {isTracking ? 'Active' : 'Inactive'}</div>
               <div>Notifications: {notifications.length} pending</div>
-              <div>Last update: {playerStats?.lastUpdatedAt?.toLocaleString('ja-JP')}</div>
+              <div>
+                Last update:{' '}
+                {playerStats?.lastUpdatedAt ? formatDateTime(playerStats.lastUpdatedAt) : ''}
+              </div>
             </div>
           </div>
         )}

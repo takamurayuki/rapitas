@@ -1,5 +1,6 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   X,
   Download,
@@ -15,13 +16,15 @@ import {
   Code,
   Image as ImageIcon,
   File,
-  Loader2,
 } from 'lucide-react';
 import type { Resource } from '@/types';
-import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
+import { API_BASE_URL } from '@/utils/api';
 import MarkdownViewer from './MarkdownViewer';
 import './markdown-viewer.css';
 import { createLogger } from '@/lib/logger';
+import { Spinner } from '@/components/ui/spinner';
+import { useToast } from '@/components/ui/toast/ToastContainer';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 const logger = createLogger('FileViewer');
 
 type FileViewerProps = {
@@ -39,6 +42,8 @@ export default function FileViewer({
   resources = [],
   onNavigate,
 }: FileViewerProps) {
+  const { showToast } = useToast();
+  const t = useTranslations('devTools');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string>('');
@@ -125,24 +130,29 @@ export default function FileViewer({
         });
 
         if (!res.ok) {
-          throw new Error(`ファイルの読み込みに失敗しました: ${res.status} ${res.statusText}`);
+          throw new Error(
+            t('fileViewer.loadFailedStatus', { status: res.status, statusText: res.statusText }),
+          );
         }
 
         const text = await res.text();
         setTextContent(text);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
-        setError(`ファイルの読み込みに失敗しました: ${message}`);
+        setError(t('fileViewer.loadFailedMessage', { message }));
       } finally {
         setIsLoading(false);
       }
     };
 
     loadFile();
+    // NOTE: `t` intentionally omitted — it is not memoized by next-intl, so
+    // including it would re-run the fetch on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, resource]);
 
   // On image load complete
-  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+  const handleImageLoad = (_e: React.SyntheticEvent<HTMLImageElement>) => {
     setIsLoading(false);
   };
 
@@ -151,7 +161,7 @@ export default function FileViewer({
     logger.error('Image load error:', e);
     const url = getFileUrl(resource);
     logger.error('Failed to load image from:', url);
-    setError(`画像の読み込みに失敗しました: ${url}`);
+    setError(t('fileViewer.imageLoadFailed', { url }));
     setIsLoading(false);
   };
 
@@ -160,17 +170,17 @@ export default function FileViewer({
   const canNavigatePrev = currentIndex > 0;
   const canNavigateNext = currentIndex < resources.length - 1;
 
-  const handlePrevious = () => {
+  const handlePrevious = useCallback(() => {
     if (canNavigatePrev && onNavigate) {
       onNavigate(resources[currentIndex - 1]);
     }
-  };
+  }, [canNavigatePrev, onNavigate, resources, currentIndex]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (canNavigateNext && onNavigate) {
       onNavigate(resources[currentIndex + 1]);
     }
-  };
+  }, [canNavigateNext, onNavigate, resources, currentIndex]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -188,7 +198,10 @@ export default function FileViewer({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, currentIndex]);
+  }, [isOpen, handlePrevious, handleNext, onClose]);
+
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, isOpen);
 
   if (!isOpen) return null;
 
@@ -198,6 +211,11 @@ export default function FileViewer({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
       {/* Main Container */}
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="file-viewer-title"
+        tabIndex={-1}
         className={`relative bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ${
           isFullscreen
             ? 'w-full h-full m-0 rounded-none'
@@ -215,13 +233,16 @@ export default function FileViewer({
               ) : fileType === 'markdown' ? (
                 <FileText className="w-5 h-5 text-purple-500" />
               ) : fileType === 'text' ? (
-                <Code className="w-5 h-5 text-blue-500" />
+                <Code className="w-5 h-5 text-indigo-500" />
               ) : (
                 <File className="w-5 h-5 text-zinc-500" />
               )}
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              <h3
+                id="file-viewer-title"
+                className="text-lg font-semibold text-zinc-900 dark:text-zinc-100"
+              >
                 {resource.title || resource.fileName}
               </h3>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">{resource.mimeType}</p>
@@ -237,7 +258,7 @@ export default function FileViewer({
                   onClick={handlePrevious}
                   disabled={!canNavigatePrev}
                   className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  title="前のファイル (←)"
+                  title={t('fileViewer.previousFile')}
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -248,7 +269,7 @@ export default function FileViewer({
                   onClick={handleNext}
                   disabled={!canNavigateNext}
                   className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  title="次のファイル (→)"
+                  title={t('fileViewer.nextFile')}
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -261,21 +282,21 @@ export default function FileViewer({
                 <button
                   onClick={() => setImageScale(Math.min(imageScale + 0.25, 3))}
                   className="p-1.5 sm:p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                  title="拡大"
+                  title={t('fileViewer.zoomIn')}
                 >
                   <ZoomIn className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
                 <button
                   onClick={() => setImageScale(Math.max(imageScale - 0.25, 0.5))}
                   className="p-1.5 sm:p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                  title="縮小"
+                  title={t('fileViewer.zoomOut')}
                 >
                   <ZoomOut className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
                 <button
                   onClick={() => setImageRotation((r) => r + 90)}
                   className="p-1.5 sm:p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                  title="回転"
+                  title={t('fileViewer.rotate')}
                 >
                   <RotateCw className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
@@ -286,7 +307,7 @@ export default function FileViewer({
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
               className="p-1.5 sm:p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-              title={isFullscreen ? '通常表示' : '全画面表示'}
+              title={isFullscreen ? t('fileViewer.normalView') : t('fileViewer.fullscreen')}
             >
               {isFullscreen ? (
                 <Minimize2 className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -298,7 +319,7 @@ export default function FileViewer({
               href={getDownloadUrl(resource)}
               download={resource.fileName || resource.title}
               className="p-1.5 sm:p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-              title="ダウンロード"
+              title={t('fileViewer.download')}
             >
               <Download className="w-4 h-4 sm:w-5 sm:h-5" />
             </a>
@@ -307,14 +328,15 @@ export default function FileViewer({
               target="_blank"
               rel="noopener noreferrer"
               className="hidden sm:flex p-1.5 sm:p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-              title="新しいタブで開く"
+              title={t('fileViewer.openInNewTab')}
             >
               <ExternalLink className="w-4 h-4 sm:w-5 sm:h-5" />
             </a>
             <button
               onClick={onClose}
+              aria-label="Close"
               className="p-1.5 sm:p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-              title="閉じる (Esc)"
+              title={t('fileViewer.closeWithEsc')}
             >
               <X className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
@@ -325,7 +347,7 @@ export default function FileViewer({
         <div className="pt-24 sm:pt-20 h-full overflow-auto bg-zinc-50 dark:bg-black/50">
           {isLoading && (
             <div className="flex items-center justify-center h-full">
-              <Loader2 className="w-8 h-8 text-zinc-400 animate-spin" />
+              <Spinner size="lg" />
             </div>
           )}
 
@@ -340,19 +362,19 @@ export default function FileViewer({
                   href={getFileUrl(resource)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  ブラウザで開く
+                  {t('fileViewer.openInBrowser')}
                 </a>
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(getFileUrl(resource));
-                    alert('URLをコピーしました');
+                    showToast(t('fileViewer.urlCopied'), 'success');
                   }}
                   className="flex items-center gap-2 px-4 py-2 bg-zinc-500 text-white rounded-lg hover:bg-zinc-600 transition-colors"
                 >
-                  URLをコピー
+                  {t('fileViewer.copyUrl')}
                 </button>
               </div>
             </div>
@@ -361,6 +383,13 @@ export default function FileViewer({
           {/* Image Viewer */}
           {fileType === 'image' && !error && (
             <div className="flex items-center justify-center h-full p-8">
+              {/*
+                NOTE: next/image is not a safe swap here — this is a zoomable/rotatable
+                viewer for images served from the (deployment-specific) API host, which
+                isn't registered in next.config's image remotePatterns, and dimensions
+                are unknown ahead of load.
+              */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={getFileUrl(resource)}
                 alt={resource.title || resource.fileName || ''}
@@ -387,7 +416,7 @@ export default function FileViewer({
                 logger.error('PDF load error:', e);
                 const url = getFileUrl(resource);
                 logger.error('Failed to load PDF from:', url);
-                setError(`PDFの読み込みに失敗しました: ${url}`);
+                setError(t('fileViewer.pdfLoadFailed', { url }));
                 setIsLoading(false);
               }}
             />
@@ -413,16 +442,14 @@ export default function FileViewer({
           {fileType === 'other' && !error && (
             <div className="flex flex-col items-center justify-center h-full gap-4">
               <File className="w-16 h-16 text-zinc-400" />
-              <p className="text-zinc-600 dark:text-zinc-400">
-                このファイルタイプはプレビューできません
-              </p>
+              <p className="text-zinc-600 dark:text-zinc-400">{t('fileViewer.unpreviewable')}</p>
               <a
                 href={getDownloadUrl(resource)}
                 download={resource.fileName || resource.title}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
               >
                 <Download className="w-4 h-4" />
-                ダウンロード
+                {t('fileViewer.download')}
               </a>
             </div>
           )}

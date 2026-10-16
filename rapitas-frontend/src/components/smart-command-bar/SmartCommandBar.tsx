@@ -5,7 +5,6 @@ import {
   type Search,
   Command,
   ArrowRight,
-  Loader2,
   BookOpen,
   ListTodo,
   Compass,
@@ -16,10 +15,16 @@ import {
   MicOff,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { isImeComposing } from '@/utils/ime';
 import { useTranslations } from 'next-intl';
 import { useShortcutStore } from '@/stores/shortcut-store';
 import { useSpeechRecognition } from '@/hooks/common/useSpeechRecognition';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
+import { createLogger } from '@/lib/logger';
+import { Spinner } from '@/components/ui/spinner';
 import AudioWaveform from './AudioWaveform';
+
+const logger = createLogger('SmartCommandBar');
 
 type Intent = 'create_task' | 'start_learning' | 'navigate' | 'search';
 
@@ -41,6 +46,7 @@ export default function SmartCommandBar() {
   const [isSearching, setIsSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const t = useTranslations('commandBar');
   const shortcuts = useShortcutStore((s) => s.shortcuts);
@@ -113,6 +119,8 @@ export default function SmartCommandBar() {
     }
   }, [isOpen]);
 
+  useFocusTrap(panelRef, isOpen);
+
   // Debounced search suggestions
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -182,7 +190,7 @@ export default function SmartCommandBar() {
         }
       }
     } catch (e) {
-      console.error('Smart action failed:', e);
+      logger.error('Smart action failed:', e);
     } finally {
       setIsProcessing(false);
     }
@@ -201,9 +209,11 @@ export default function SmartCommandBar() {
 
       {/* Command bar */}
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={t('placeholder')}
+        tabIndex={-1}
         className="relative w-full max-w-xl mx-4 bg-white dark:bg-zinc-800 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden"
       >
         {/* Input */}
@@ -228,7 +238,7 @@ export default function SmartCommandBar() {
               } else if (e.key === 'ArrowUp' && suggestions.length > 0) {
                 e.preventDefault();
                 setSelectedIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
-              } else if (e.key === 'Enter') {
+              } else if (e.key === 'Enter' && !isImeComposing(e)) {
                 e.preventDefault();
                 if (selectedIndex >= 0 && suggestions[selectedIndex]) {
                   const s = suggestions[selectedIndex];
@@ -269,7 +279,7 @@ export default function SmartCommandBar() {
               type="button"
             >
               {isTranscribing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Spinner size="sm" className="text-white dark:text-white" />
               ) : isListening ? (
                 <MicOff className="w-4 h-4" />
               ) : (
@@ -282,7 +292,7 @@ export default function SmartCommandBar() {
             <AudioWaveform stream={activeStream} width={120} height={28} />
           )}
           {interimTranscript && !activeStream && (
-            <span className="text-xs text-zinc-400 italic truncate max-w-32">
+            <span className="text-xs text-zinc-500 italic truncate max-w-32">
               {interimTranscript}
             </span>
           )}
@@ -290,7 +300,7 @@ export default function SmartCommandBar() {
             <span className="text-xs text-amber-500 truncate max-w-48">{voiceError}</span>
           )}
           {isProcessing ? (
-            <Loader2 className="w-5 h-5 text-purple-500 animate-spin shrink-0" />
+            <Spinner size="md" className="text-purple-500 dark:text-purple-500 shrink-0" />
           ) : (
             <button
               onClick={handleSubmit}
@@ -334,7 +344,7 @@ export default function SmartCommandBar() {
                 {s.type === 'task' ? (
                   <ListTodo className="w-4 h-4 text-violet-500 shrink-0" />
                 ) : s.type === 'comment' ? (
-                  <MessageSquare className="w-4 h-4 text-blue-500 shrink-0" />
+                  <MessageSquare className="w-4 h-4 text-indigo-500 shrink-0" />
                 ) : (
                   <FileText className="w-4 h-4 text-emerald-500 shrink-0" />
                 )}
@@ -343,7 +353,7 @@ export default function SmartCommandBar() {
                     <HighlightText text={s.title} query={input} />
                   </div>
                   {s.matchContext === 'description' && (
-                    <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                    <span className="text-xs text-zinc-500 dark:text-zinc-500">
                       matched in description
                     </span>
                   )}
@@ -354,7 +364,7 @@ export default function SmartCommandBar() {
                       s.status === 'done'
                         ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                         : s.status === 'in-progress'
-                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                          ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
                           : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400'
                     }`}
                   >
@@ -365,8 +375,8 @@ export default function SmartCommandBar() {
             ))}
           </div>
         ) : isSearching ? (
-          <div className="px-4 py-3 flex items-center gap-2 text-sm text-zinc-400 dark:text-zinc-500 border-b border-zinc-100 dark:border-zinc-700">
-            <Loader2 className="w-4 h-4 animate-spin" />
+          <div className="px-4 py-3 flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-500 border-b border-zinc-100 dark:border-zinc-700">
+            <Spinner size="sm" />
             <span>Searching...</span>
           </div>
         ) : null}
@@ -388,7 +398,7 @@ export default function SmartCommandBar() {
             />
             <HintItem
               icon={Compass}
-              color="text-blue-500"
+              color="text-indigo-500"
               text={t('hintNavigate')}
               example={t('hintNavigateExample')}
             />
@@ -396,7 +406,7 @@ export default function SmartCommandBar() {
         )}
 
         {/* Footer */}
-        <div className="px-4 py-2 border-t border-zinc-100 dark:border-zinc-700 flex items-center justify-between text-xs text-zinc-400 dark:text-zinc-500">
+        <div className="px-4 py-2 border-t border-zinc-100 dark:border-zinc-700 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-500">
           <span className="flex items-center gap-1">
             <Command className="w-3 h-3" />
             <span>+K {t('toToggle')}</span>
@@ -423,7 +433,7 @@ function HintItem({
     <div className="flex items-center gap-2 text-sm">
       <Icon className={`w-4 h-4 ${color} shrink-0`} />
       <span className="text-zinc-600 dark:text-zinc-400">{text}</span>
-      <span className="text-zinc-400 dark:text-zinc-500 text-xs">— {example}</span>
+      <span className="text-zinc-500 dark:text-zinc-500 text-xs">— {example}</span>
     </div>
   );
 }

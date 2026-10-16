@@ -1,7 +1,8 @@
 'use client';
 // custom-option-input
 
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { isImeComposing } from '@/utils/ime';
 
 interface CustomOptionInputProps {
   /** Placeholder shown in the text field / 入力欄のプレースホルダ */
@@ -37,7 +38,7 @@ export function CustomOptionInput({ placeholder, addLabel, onAdd }: CustomOption
         placeholder={placeholder}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') {
+          if (e.key === 'Enter' && !isImeComposing(e)) {
             e.preventDefault();
             commit();
           }

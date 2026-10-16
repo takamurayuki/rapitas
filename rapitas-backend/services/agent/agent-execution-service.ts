@@ -8,7 +8,7 @@
  *   - agent-execution/execution-continue.ts — continueExecution
  *   - agent-execution/execution-queries.ts  — read queries and reset
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma-postgres';
 import type {
   ExecutionRequest,
   ExecutionResult,

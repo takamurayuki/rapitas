@@ -4,6 +4,10 @@ import type { NextActionContext } from '../next-action-recommender';
 
 vi.mock('@/utils/api', () => ({ API_BASE_URL: 'http://test' }));
 
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 // Non-dev todo with an estimate and low complexity → a single "着手する" action.
 const ctxTodoManual: NextActionContext = {
   status: 'todo',
@@ -26,12 +30,12 @@ describe('CopilotChatPanel', () => {
 
   it('renders the panel header', () => {
     render(<CopilotChatPanel taskId={1} taskTitle="test" taskStatus="todo" />);
-    expect(screen.getByText('AIアシスタント')).toBeInTheDocument();
+    expect(screen.getByText('title')).toBeInTheDocument();
   });
 
   it('renders proactive insight for todo status', () => {
     render(<CopilotChatPanel taskId={1} taskTitle="test" taskStatus="todo" />);
-    expect(screen.getByText(/着手前/)).toBeInTheDocument();
+    expect(screen.getByText(/todoInsight/)).toBeInTheDocument();
   });
 
   it('renders a recommended next action from context', () => {
@@ -43,8 +47,10 @@ describe('CopilotChatPanel', () => {
         nextActionContext={ctxTodoManual}
       />,
     );
-    expect(screen.getByText('次の一手')).toBeInTheDocument();
-    expect(screen.getByText('着手する')).toBeInTheDocument();
+    expect(screen.getByText('heading')).toBeInTheDocument();
+    // NOTE: the mocked t() echoes the key verbatim (see the next-intl mock above);
+    // labels/reasons are now resolved via labelKey/reasonKey, not raw text.
+    expect(screen.getByText('actions.start.label')).toBeInTheDocument();
   });
 
   it('executes the copilot action when a recommendation is clicked', async () => {
@@ -56,7 +62,7 @@ describe('CopilotChatPanel', () => {
         nextActionContext={ctxTodoManual}
       />,
     );
-    fireEvent.click(screen.getByText('着手する'));
+    fireEvent.click(screen.getByText('actions.start.label'));
     await waitFor(() => {
       const calls = vi.mocked(global.fetch).mock.calls;
       expect(calls.some((c) => String(c[0]).includes('/copilot/action'))).toBe(true);
@@ -73,7 +79,7 @@ describe('CopilotChatPanel', () => {
         nextActionContext={ctxDone}
       />,
     );
-    fireEvent.click(screen.getByText('振り返りをする'));
+    fireEvent.click(screen.getByText('actions.reflect.label'));
     await waitFor(() => {
       const calls = vi.mocked(global.fetch).mock.calls;
       expect(calls.some((c) => String(c[0]).includes('/copilot/tasks/1/retrospective'))).toBe(true);

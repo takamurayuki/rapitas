@@ -1,23 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { FileStack, X, FolderPlus, Check } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { LayoutTemplate, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { Task, TaskTemplate } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
-import { createLogger } from '@/lib/logger';
-
-const logger = createLogger('SaveAsTemplateDialog');
-
-// Default categories
-const DEFAULT_CATEGORIES = [
-  '開発',
-  'デザイン',
-  'ドキュメント',
-  'ミーティング',
-  'レビュー',
-  '調査',
-  'その他',
-];
+import { useFilterDataStore } from '@/stores/filter-data-store';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 type Props = {
   task: Task;
@@ -27,14 +16,43 @@ type Props = {
 };
 
 export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess }: Props) {
+  const t = useTranslations('task');
+  const tCommon = useTranslations('common');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('');
-  const [customCategory, setCustomCategory] = useState('');
-  const [isCustomCategory, setIsCustomCategory] = useState(false);
-  const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // NOTE: The category picker was removed (2026-07-14) — the template belongs
+  // to the task's current category > theme. The category NAME is resolved via
+  // the filter store because the task API returns theme without its category.
+  const filterThemes = useFilterDataStore((s) => s.themes);
+  const filterCategories = useFilterDataStore((s) => s.categories);
+  const initializeFilterData = useFilterDataStore((s) => s.initializeData);
+  // The store is only guaranteed to be primed on the home page — load it here
+  // so the resolved scope doesn't silently fall back to その他.
+  useEffect(() => {
+    if (isOpen) initializeFilterData();
+  }, [isOpen, initializeFilterData]);
+  const resolvedTheme = filterThemes.find((th) => th.id === task.themeId);
+  const resolvedCategory =
+    resolvedTheme?.categoryId != null
+      ? filterCategories.find((c) => c.id === resolvedTheme.categoryId)
+      : null;
+  const categoryName = resolvedCategory?.name ?? task.theme?.category?.name ?? 'その他';
+
+  useFocusTrap(panelRef, isOpen);
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   // Set initial values from task info when modal opens
   useEffect(() => {
@@ -45,35 +63,9 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
     }
   }, [isOpen, task]);
 
-  // Fetch existing categories
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/templates/categories`);
-        if (res.ok) {
-          const data = await res.json();
-          // Merge default and existing categories
-          const merged = [...new Set([...DEFAULT_CATEGORIES, ...data])];
-          setCategories(merged);
-        }
-      } catch (err) {
-        logger.error('Failed to fetch categories:', err);
-      }
-    };
-    if (isOpen) {
-      fetchCategories();
-    }
-  }, [isOpen]);
-
   const handleSubmit = async () => {
-    const finalCategory = isCustomCategory ? customCategory : category;
-
     if (!name.trim()) {
-      setError('テンプレート名を入力してください');
-      return;
-    }
-    if (!finalCategory.trim()) {
-      setError('カテゴリを選択または入力してください');
+      setError(t('saveAsTemplateDialog.nameRequiredError'));
       return;
     }
 
@@ -87,13 +79,13 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
         body: JSON.stringify({
           name: name.trim(),
           description: description.trim() || undefined,
-          category: finalCategory.trim(),
+          category: categoryName,
         }),
       });
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'テンプレートの作成に失敗しました');
+        throw new Error(data.error || t('saveAsTemplateDialog.createFailedError'));
       }
 
       const template = await res.json();
@@ -102,11 +94,8 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
 
       setName('');
       setDescription('');
-      setCategory('');
-      setCustomCategory('');
-      setIsCustomCategory(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'エラーが発生しました');
+      setError(err instanceof Error ? err.message : t('saveAsTemplateDialog.genericError'));
     } finally {
       setIsSubmitting(false);
     }
@@ -121,21 +110,30 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
       onClick={handleClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="save-as-template-dialog-title"
+        tabIndex={-1}
         className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-lg overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* Header — LayoutTemplate: same glyph as the テンプレート設定 menu entry. */}
         <div className="flex items-center justify-between p-5 border-b border-zinc-200 dark:border-zinc-800">
-          <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-            <FileStack className="w-5 h-5 text-violet-500" />
-            テンプレートとして保存
+          <h2
+            id="save-as-template-dialog-title"
+            className="text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2"
+          >
+            <LayoutTemplate className="w-5 h-5 text-violet-500" />
+            {t('templateSettings')}
           </h2>
           <button
             onClick={handleClose}
+            aria-label={tCommon('close')}
             className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
@@ -152,103 +150,54 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
 
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-              テンプレート名 <span className="text-red-500">*</span>
+              {t('saveAsTemplateDialog.nameLabel')} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="テンプレート名を入力"
-              className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-blue-400 transition-all"
+              placeholder={t('saveAsTemplateDialog.namePlaceholder')}
+              className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-indigo-400 transition-all"
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-              説明（任意）
+              {tCommon('descriptionOptional')}
             </label>
+            {/* rows=8: reclaim the vertical space freed by the removed category
+                picker so long descriptions stay readable. */}
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="テンプレートの説明を入力"
-              rows={3}
-              className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-blue-400 transition-all resize-none"
+              placeholder={t('saveAsTemplateDialog.descriptionPlaceholder')}
+              rows={8}
+              className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-indigo-400 transition-all resize-none"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-              カテゴリ <span className="text-red-500">*</span>
-            </label>
-
-            {!isCustomCategory ? (
-              <div className="space-y-2">
-                <div className="flex flex-wrap gap-2">
-                  {categories.map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setCategory(cat)}
-                      className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
-                        category === cat
-                          ? 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
-                      }`}
-                    >
-                      {category === cat && <Check className="w-3.5 h-3.5 inline mr-1" />}
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsCustomCategory(true);
-                    setCategory('');
-                  }}
-                  className="flex items-center gap-1.5 text-sm text-violet-600 dark:text-violet-400 hover:underline"
-                >
-                  <FolderPlus className="w-4 h-4" />
-                  新しいカテゴリを作成
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  value={customCategory}
-                  onChange={(e) => setCustomCategory(e.target.value)}
-                  placeholder="新しいカテゴリ名を入力"
-                  className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-4 py-2.5 text-sm border border-zinc-200 dark:border-zinc-700 outline-none focus:border-blue-400 transition-all"
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsCustomCategory(false);
-                    setCustomCategory('');
-                  }}
-                  className="text-sm text-zinc-500 hover:underline"
-                >
-                  既存のカテゴリから選択
-                </button>
-              </div>
-            )}
           </div>
 
           <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4">
             <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-              テンプレートに含まれる情報
+              {t('saveAsTemplateDialog.infoHeading')}
             </h4>
             <ul className="text-sm text-zinc-500 dark:text-zinc-400 space-y-1">
-              <li>• タイトル: {task.title}</li>
-              <li>• 優先度: {task.priority}</li>
-              {task.estimatedHours && <li>• 見積もり時間: {task.estimatedHours}時間</li>}
+              {/* Auto-assigned scope: current category > theme */}
+              <li>
+                • {categoryName}
+                {resolvedTheme ? ` > ${resolvedTheme.name}` : ''}
+              </li>
+              <li>• {t('saveAsTemplateDialog.infoTitle', { title: task.title })}</li>
+              <li>• {t('saveAsTemplateDialog.infoPriority', { priority: task.priority })}</li>
+              {task.estimatedHours && (
+                <li>
+                  • {t('saveAsTemplateDialog.infoEstimatedHours', { hours: task.estimatedHours })}
+                </li>
+              )}
               {task.subtasks && task.subtasks.length > 0 && (
-                <li>• サブタスク: {task.subtasks.length}件</li>
+                <li>• {t('saveAsTemplateDialog.infoSubtasks', { count: task.subtasks.length })}</li>
               )}
               {task.taskLabels && task.taskLabels.length > 0 && (
-                <li>• ラベル: {task.taskLabels.length}件</li>
+                <li>• {t('saveAsTemplateDialog.infoLabels', { count: task.taskLabels.length })}</li>
               )}
             </ul>
           </div>
@@ -261,7 +210,7 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
             onClick={handleClose}
             className="flex-1 px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"
           >
-            キャンセル
+            {tCommon('cancel')}
           </button>
           <button
             type="button"
@@ -269,7 +218,7 @@ export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess 
             disabled={isSubmitting}
             className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-violet-600 rounded-xl hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? '保存中...' : 'テンプレートとして保存'}
+            {isSubmitting ? tCommon('saving') : t('saveAsTemplate')}
           </button>
         </div>
       </div>

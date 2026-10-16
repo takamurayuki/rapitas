@@ -1,12 +1,13 @@
 'use client';
 // ChatMessage
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Copy, Check } from 'lucide-react';
+import { LazySyntaxHighlighter } from '@/components/markdown/lazy-syntax-highlighter';
+import { formatTime } from '@/utils/date';
 import type { AIChatMessage } from '@/types';
 
 /**
@@ -15,6 +16,7 @@ import type { AIChatMessage } from '@/types';
  * @param message - The chat message to display / 表示するチャットメッセージ
  */
 export default function ChatMessage({ message }: { message: AIChatMessage }) {
+  const t = useTranslations('notes');
   const isUser = message.role === 'user';
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
@@ -23,7 +25,7 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
       <div
         className={`max-w-[80%] rounded-2xl px-4 py-3 ${
           isUser
-            ? 'bg-linear-to-r from-blue-500 to-indigo-600 text-white rounded-br-md'
+            ? 'bg-linear-to-r from-indigo-500 to-indigo-600 text-white rounded-br-md'
             : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-bl-md'
         }`}
       >
@@ -90,15 +92,16 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
                   return (
                     <div className="relative group mb-3">
                       {lang !== 'text' && (
-                        <div className="absolute top-0 right-0 px-2 py-1 text-xs text-zinc-400 bg-zinc-800 rounded-tr-md rounded-bl-md z-10">
+                        <div className="absolute top-0 right-0 px-2 py-1 text-xs text-zinc-500 bg-zinc-800 rounded-tr-md rounded-bl-md z-10">
                           {lang}
                         </div>
                       )}
                       <div className="rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700">
-                        <SyntaxHighlighter
-                          style={oneDark}
+                        <LazySyntaxHighlighter
+                          code={codeString}
                           language={lang}
-                          PreTag="div"
+                          theme="oneDark"
+                          preTag="div"
                           customStyle={{
                             margin: 0,
                             padding: '1rem',
@@ -113,9 +116,7 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
                                 "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace",
                             },
                           }}
-                        >
-                          {codeString}
-                        </SyntaxHighlighter>
+                        />
                       </div>
                       <button
                         onClick={() => {
@@ -124,7 +125,7 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
                           setTimeout(() => setCopiedCode(null), 2000);
                         }}
                         className="absolute top-2 right-2 px-2 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center gap-1"
-                        title="コードをコピー"
+                        title={t('chatMessage.copyCodeTitle')}
                       >
                         {copiedCode === codeString ? (
                           <>
@@ -143,7 +144,7 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
                 },
                 pre: ({ children }) => <>{children}</>,
                 blockquote: ({ children }) => (
-                  <blockquote className="border-l-4 border-blue-500 dark:border-blue-400 pl-4 my-3 text-zinc-600 dark:text-zinc-400 italic">
+                  <blockquote className="border-l-4 border-indigo-500 dark:border-indigo-400 pl-4 my-3 text-zinc-600 dark:text-zinc-400 italic">
                     {children}
                   </blockquote>
                 ),
@@ -177,7 +178,7 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 underline decoration-1 underline-offset-2"
+                    className="text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 underline decoration-1 underline-offset-2"
                   >
                     {children}
                   </a>
@@ -196,13 +197,10 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
         )}
         <span
           className={`text-xs mt-2 block ${
-            isUser ? 'text-blue-100' : 'text-zinc-400 dark:text-zinc-500'
+            isUser ? 'text-indigo-100' : 'text-zinc-500 dark:text-zinc-500'
           }`}
         >
-          {message.timestamp.toLocaleTimeString('ja-JP', {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
+          {formatTime(message.timestamp)}
         </span>
       </div>
     </div>

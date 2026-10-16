@@ -1,10 +1,14 @@
 /**
  * RAG Context Builder
  *
- * Builds RAG context strings from queries for injection into agent prompts.
+ * Builds RAG context strings from queries for injection into agent prompts
+ * (the single-execution / task-executor path). Uses the same hybrid recall
+ * entry point and RAPITAS_KB_RECALL_* configuration as the workflow path so
+ * both agree on stages and thresholds.
  */
 import { createLogger } from '../../../config/logger';
-import { searchKnowledge } from './search';
+import { searchKnowledgeHybrid } from '../recall/hybrid-search';
+import { getRecallConfig } from '../recall/recall-config';
 import type { RAGContext } from '../types';
 
 const log = createLogger('memory:rag:context-builder');
@@ -20,15 +24,18 @@ export async function buildRAGContext(
     themeId?: number;
   },
 ): Promise<RAGContext> {
-  const { limit = 5, minSimilarity = 0.6, themeId } = options ?? {};
+  const cfg = getRecallConfig();
+  const { limit = 5, minSimilarity = cfg.minSimilarity, themeId } = options ?? {};
 
   try {
-    const results = await searchKnowledge({
+    const results = await searchKnowledgeHybrid({
       query,
       limit,
       minSimilarity,
-      forgettingStage: 'active',
+      stages: cfg.stages,
+      stageWeights: cfg.stageWeights,
       themeId,
+      telemetry: { source: 'task_rag' },
     });
 
     const entries = results.map((r) => ({
@@ -37,7 +44,8 @@ export async function buildRAGContext(
       content: r.content,
       category: r.category,
       confidence: r.confidence,
-      similarity: r.similarity,
+      // Lexical-only hits carry no cosine; surface their coverage as the score.
+      similarity: r.channel === 'lexical' ? (r.lexicalScore ?? 0) : r.similarity,
     }));
 
     // Build context text string
@@ -66,6 +74,7 @@ export async function buildRAGContext(
  * Build RAG context for task execution.
  *
  * Searches related knowledge using the task's title, description, and theme.
+ * The similarity floor comes from the recall config (no per-caller constant).
  */
 export async function buildTaskRAGContext(task: {
   title: string;
@@ -76,7 +85,6 @@ export async function buildTaskRAGContext(task: {
 
   const context = await buildRAGContext(query, {
     limit: 5,
-    minSimilarity: 0.5,
     themeId: task.themeId ?? undefined,
   });
 

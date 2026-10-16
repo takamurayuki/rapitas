@@ -90,7 +90,7 @@ export default function FocusClient() {
     } catch (e) {
       logger.error('Failed to save time entry:', e);
     }
-  }, [customWorkTime, taskId, startTime, sessionsCompleted, showToast]);
+  }, [customWorkTime, taskId, startTime, sessionsCompleted, showToast, t]);
 
   const playNotificationSound = useCallback(() => {
     // Generate simple beep sound
@@ -139,7 +139,15 @@ export default function FocusClient() {
       setMode('work');
       setTimeLeft(customWorkTime * 60);
     }
-  }, [soundEnabled, mode, saveTimeEntry, customBreakTime, customWorkTime, playNotificationSound]);
+  }, [
+    soundEnabled,
+    mode,
+    saveTimeEntry,
+    customBreakTime,
+    customWorkTime,
+    playNotificationSound,
+    t,
+  ]);
 
   const startTimer = () => {
     if (!isRunning && mode === 'work') {
@@ -319,6 +327,7 @@ export default function FocusClient() {
         <div className="flex items-center gap-4 mb-8">
           <button
             onClick={resetTimer}
+            aria-label={t('resetTimer')}
             className="p-4 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
           >
             <RotateCcw className="w-6 h-6" />
@@ -326,6 +335,7 @@ export default function FocusClient() {
 
           <button
             onClick={isRunning ? pauseTimer : startTimer}
+            aria-label={isRunning ? t('pauseTimer') : t('startTimer')}
             className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${
               mode === 'work'
                 ? 'bg-indigo-500 hover:bg-indigo-400'

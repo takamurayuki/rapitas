@@ -22,6 +22,7 @@ import {
   ErrorCategory,
   ErrorSeverity,
 } from '../../services/error-analysis-service';
+import { formatTime } from '@/utils/date';
 
 const severityConfig = {
   [ErrorSeverity.CRITICAL]: {
@@ -40,7 +41,7 @@ const severityConfig = {
     label: 'Medium',
   },
   [ErrorSeverity.LOW]: {
-    color: 'bg-blue-500 dark:bg-blue-600',
+    color: 'bg-indigo-500 dark:bg-indigo-600',
     icon: Info,
     label: 'Low',
   },
@@ -54,7 +55,7 @@ const severityConfig = {
 const categoryColors: Record<ErrorCategory, string> = {
   [ErrorCategory.SYNTAX]: 'bg-purple-500',
   [ErrorCategory.RUNTIME]: 'bg-red-500',
-  [ErrorCategory.NETWORK]: 'bg-blue-500',
+  [ErrorCategory.NETWORK]: 'bg-indigo-500',
   [ErrorCategory.PERMISSION]: 'bg-orange-500',
   [ErrorCategory.CONFIGURATION]: 'bg-green-500',
   [ErrorCategory.DEPENDENCY]: 'bg-indigo-500',
@@ -103,9 +104,23 @@ export function ErrorList({
               key={error.id}
               className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
             >
-              <div className="p-4 cursor-pointer" onClick={() => onToggleExpansion(error.id)}>
+              <div
+                className="p-4 cursor-pointer"
+                onClick={() => onToggleExpansion(error.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onToggleExpansion(error.id);
+                  }
+                }}
+              >
                 <div className="flex items-start space-x-3">
-                  <button className="mt-1">
+                  <button
+                    className="mt-1"
+                    aria-label={expandedErrors.has(error.id) ? 'Collapse' : 'Expand'}
+                  >
                     {expandedErrors.has(error.id) ? (
                       <ChevronDown className="h-4 w-4" />
                     ) : (
@@ -124,9 +139,7 @@ export function ErrorList({
                       <Badge variant="default" className="text-xs">
                         {severityConfig[error.severity].label}
                       </Badge>
-                      <span className="text-xs text-gray-500">
-                        {error.timestamp.toLocaleTimeString()}
-                      </span>
+                      <span className="text-xs text-gray-500">{formatTime(error.timestamp)}</span>
                     </div>
                     <p className="text-sm font-medium">{error.message}</p>
                     {error.affectedTasks.length > 0 && (
@@ -175,7 +188,7 @@ export function ErrorList({
                               href={link}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center space-x-2 text-sm text-blue-500 hover:text-blue-600"
+                              className="flex items-center space-x-2 text-sm text-indigo-500 hover:text-indigo-600"
                             >
                               <ExternalLink className="h-3 w-3" />
                               <span>{link}</span>
@@ -195,7 +208,7 @@ export function ErrorList({
                               className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400"
                             >
                               <Clock className="h-3 w-3" />
-                              <span>{relatedError.timestamp.toLocaleTimeString()}</span>
+                              <span>{formatTime(relatedError.timestamp)}</span>
                               <span className="truncate">{relatedError.message}</span>
                             </div>
                           ))}

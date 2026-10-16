@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Coffee, Pause, Hourglass } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import GlobalPomodoroModal from './GlobalPomodoroModal';
+import { openPomodoroFloatWindow } from './pomodoro-float-launcher';
 import {
   usePomodoroStore,
   formatTime,
@@ -18,7 +18,6 @@ const logger = createLogger('GlobalPomodoroWidget');
 
 export default function GlobalPomodoroWidget() {
   const t = useTranslations('pomodoro');
-  const [showModal, setShowModal] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   // NOTE: null during SSR, only read state on client side
@@ -65,7 +64,11 @@ export default function GlobalPomodoroWidget() {
     const checkTaskExists = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/tasks/${state.taskId}`, {
-          signal: controller.signal,
+          // Unmount abort AND a hard timeout — a request sent during a
+          // backend-restart init window is never answered, and without the
+          // timeout it leaks one of the 6 per-origin connection slots for
+          // the lifetime of this mount (2026-09-03 pool-starvation incident).
+          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]),
         });
         if (!res.ok) {
           // Stop timer if task not found
@@ -99,7 +102,6 @@ export default function GlobalPomodoroWidget() {
     isTimerRunning,
     isPaused,
     isBreakTime,
-    taskId,
     taskTitle,
     pomodoroCount,
     pomodoroSeconds,
@@ -133,7 +135,7 @@ export default function GlobalPomodoroWidget() {
     } else if (isPaused) {
       return <Pause className="w-4 h-4 text-orange-500" />;
     } else {
-      return <Hourglass className="w-4 h-4 text-blue-500 animate-pulse" />;
+      return <Hourglass className="w-4 h-4 text-indigo-500 animate-pulse" />;
     }
   };
 
@@ -144,21 +146,18 @@ export default function GlobalPomodoroWidget() {
       return 'bg-orange-50 dark:bg-orange-950 border-orange-300 dark:border-orange-700';
     }
     // Working (active) state
-    return 'bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-700';
+    return 'bg-indigo-50 dark:bg-indigo-950 border-indigo-300 dark:border-indigo-700';
   };
 
   return (
-    <>
-      <button
-        onClick={() => setShowModal(true)}
-        className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 border rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors ${getButtonStyle()}`}
-        title={`${taskTitle} - ${t('timeManagement')}`}
-      >
-        {getIcon()}
-        <span>{t('timeManagement')}</span>
-        <span className="text-xs font-mono tabular-nums">{formatTime(remainingTime)}</span>
-      </button>
-      <GlobalPomodoroModal isOpen={showModal} onClose={() => setShowModal(false)} />
-    </>
+    <button
+      onClick={() => void openPomodoroFloatWindow()}
+      className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 border rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors ${getButtonStyle()}`}
+      title={`${taskTitle} - ${t('timeManagement')}`}
+    >
+      {getIcon()}
+      <span>{t('timeManagement')}</span>
+      <span className="text-xs font-mono tabular-nums">{formatTime(remainingTime)}</span>
+    </button>
   );
 }

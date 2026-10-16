@@ -2,6 +2,7 @@
 // usePromptOptimization
 
 import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import type { OptimizedPromptResult } from './prompt-optimization-types';
 
@@ -16,6 +17,7 @@ export function usePromptOptimization(
   taskId: number,
   onPromptGenerated?: (prompt: string) => void,
 ) {
+  const t = useTranslations('devMode.promptOptimization');
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState<OptimizedPromptResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +40,7 @@ export function usePromptOptimization(
 
         if (!response.ok) {
           const errData = await response.json();
-          throw new Error(errData.error || 'プロンプト生成に失敗しました');
+          throw new Error(errData.error || t('generateFailed'));
         }
 
         const data: OptimizedPromptResult = await response.json();
@@ -49,12 +51,12 @@ export function usePromptOptimization(
           onPromptGenerated(data.optimizedPrompt);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Errorが発生しました');
+        setError(err instanceof Error ? err.message : t('genericError'));
       } finally {
         setIsGenerating(false);
       }
     },
-    [taskId, onPromptGenerated],
+    [taskId, onPromptGenerated, t],
   );
 
   const handleSubmitAnswers = useCallback(async () => {
@@ -63,7 +65,7 @@ export function usePromptOptimization(
     const requiredQuestions = result.clarificationQuestions.filter((q) => q.isRequired);
     const unansweredRequired = requiredQuestions.filter((q) => !answers[q.id]?.trim());
     if (unansweredRequired.length > 0) {
-      setError('必須の質問に回答してください');
+      setError(t('requiredQuestionsUnanswered'));
       return;
     }
 
@@ -84,7 +86,7 @@ export function usePromptOptimization(
     } finally {
       setIsSubmittingAnswers(false);
     }
-  }, [result, answers, generatePrompt]);
+  }, [result, answers, generatePrompt, t]);
 
   const handleCopyPrompt = useCallback(() => {
     if (result?.optimizedPrompt) {

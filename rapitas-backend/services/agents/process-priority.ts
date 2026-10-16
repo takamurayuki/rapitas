@@ -1,0 +1,169 @@
+/**
+ * ProcessPriority
+ *
+ * Starts helper processes — agent CLIs and verification commands — at
+ * BELOW_NORMAL priority so the UI and the backend stay responsive on the
+ * 4-core host. Owns only the priority knob; what the processes do stays with
+ * their runners.
+ *
+ * Measured 2026-08-30 (60 s sample): the agent CLI alone used 39% of one
+ * core and the UI's WebView2 another third; a verify on top pegged the box.
+ * On Windows a child inherits BELOW_NORMAL / IDLE from its parent, so
+ * lowering the CLI covers the tests, tsc and git it runs for itself.
+ */
+import os from 'node:os';
+import {
+  execFile,
+  spawn,
+  type ChildProcess,
+  type ExecFileOptions,
+  type SpawnOptions,
+} from 'child_process';
+import { createLogger } from '../../config/logger';
+
+const log = createLogger('agents:process-priority');
+
+/** node:os priority for helper processes (Windows BELOW_NORMAL_PRIORITY_CLASS). */
+export const LOW_PRIORITY = os.constants.priority.PRIORITY_BELOW_NORMAL;
+
+/** Env switch per process family; `off|0|false` keeps normal priority. Default ON. */
+export type PriorityFlag = 'RAPITAS_AGENT_QUIET' | 'RAPITAS_VERIFY_QUIET';
+
+/**
+ * Whether the given family should be started at low priority.
+ *
+ * @param flag - Env variable naming the family. / 対象プロセス群の環境変数名
+ * @returns false only when the variable is set to off/0/false. / 明示的に無効化された時だけ false
+ */
+export function isLowPriorityEnabled(flag: PriorityFlag): boolean {
+  const raw = (process.env[flag] ?? '').trim().toLowerCase();
+  return !(raw === 'off' || raw === '0' || raw === 'false');
+}
+
+/**
+ * Lower a freshly spawned child to BELOW_NORMAL priority.
+ *
+ * Best effort: a missing pid (mocked spawn, spawn failure) or an OS refusal
+ * is logged at debug level and never fails the caller.
+ *
+ * @param pid - Child process id from `spawn()`. / spawn した子プロセスの pid
+ * @param flag - Env switch for this process family. / 対象プロセス群の環境変数名
+ * @param setPriority - Override for tests. / テスト用差し替え
+ * @returns true when the priority was applied. / 適用できたら true
+ */
+export function lowerProcessPriority(
+  pid: number | undefined,
+  flag: PriorityFlag,
+  setPriority: (pid: number, priority: number) => void = os.setPriority,
+): boolean {
+  if (pid === undefined || !isLowPriorityEnabled(flag)) return false;
+  try {
+    setPriority(pid, LOW_PRIORITY);
+    return true;
+  } catch (err) {
+    log.debug({ err, pid, flag }, '[process-priority] could not lower child priority');
+    return false;
+  }
+}
+
+/**
+ * `spawn()` that drops the child to BELOW_NORMAL right after it starts.
+ *
+ * @param command - Executable or shell command line. / コマンド
+ * @param args - Arguments, as for `spawn()`. / 引数
+ * @param options - Passed to `spawn()` unchanged. / spawn オプション
+ * @param flag - Env switch for this process family. / 対象プロセス群の環境変数名
+ * @returns The child process. / 子プロセス
+ */
+export function spawnLowPriority(
+  command: string,
+  args: string[],
+  options: SpawnOptions,
+  flag: PriorityFlag = 'RAPITAS_AGENT_QUIET',
+): ChildProcess {
+  const child = spawn(command, args, options);
+  lowerProcessPriority(child.pid, flag);
+  // Track liveness so restart gates can refuse to kill the backend while a
+  // helper (verification run, agent CLI) is mid-flight: children spawned via
+  // a shell inherit the listen socket, and a restart during a verify run left
+  // the dead backend's :3001 LISTEN alive three times on 2026-08-30/31.
+  if (child.pid !== undefined) {
+    activeChildren.add(child.pid);
+    const done = () => {
+      if (child.pid !== undefined) activeChildren.delete(child.pid);
+    };
+    child.once('exit', done);
+    child.once('error', done);
+  }
+  return child;
+}
+
+/** What execFileLowPriority resolves with; mirrors promisify(execFile). */
+export interface ExecFileResult {
+  stdout: string;
+  stderr: string;
+}
+
+/** Collaborators, injectable for tests. */
+interface ExecFileDeps {
+  execFile: typeof execFile;
+  setPriority: (pid: number, priority: number) => void;
+}
+
+/**
+ * `promisify(execFile)` that drops the child to BELOW_NORMAL right after start.
+ *
+ * Needed because the verification gate's `spawn` calls already go through
+ * spawnLowPriority while three heavy steps did not: the line-limit ratchet, the
+ * red-state worktree setup, and the three generated-drift checks that
+ * ciParityChecks fires with Promise.all — three NORMAL-priority processes at
+ * once on a 4-core host.
+ *
+ * Rejects with the ORIGINAL error object: callers read `err.code` / `err.stdout`
+ * to tell a real failure from a missing script, so it must not be wrapped.
+ *
+ * @param file - Executable. / 実行ファイル
+ * @param args - Arguments. / 引数
+ * @param options - Passed to execFile unchanged. / execFile へそのまま渡す
+ * @param flag - Env switch for this process family. / 対象プロセス群の環境変数名
+ * @param deps - Test overrides. / テスト用差し替え
+ * @returns stdout/stderr once the child exits. / 子プロセスの出力
+ */
+export function execFileLowPriority(
+  file: string,
+  args: string[],
+  options: ExecFileOptions,
+  flag: PriorityFlag = 'RAPITAS_VERIFY_QUIET',
+  deps: Partial<ExecFileDeps> = {},
+): Promise<ExecFileResult> {
+  const d: ExecFileDeps = { execFile, setPriority: os.setPriority, ...deps };
+  return new Promise((resolve, reject) => {
+    const child = d.execFile(file, args, options, (err, stdout, stderr) => {
+      if (err) {
+        // promisify(execFile) attaches the output to the error; the raw callback
+        // passes it separately. Callers branch on `err.stdout` (the ratchet reads
+        // the violations out of a non-zero exit), so reattach it rather than
+        // handing back an error that looks like "the script could not run".
+        const e = err as NodeJS.ErrnoException & { stdout?: unknown; stderr?: unknown };
+        if (e.stdout === undefined) e.stdout = String(stdout ?? '');
+        if (e.stderr === undefined) e.stderr = String(stderr ?? '');
+        reject(e);
+        return;
+      }
+      resolve({ stdout: String(stdout ?? ''), stderr: String(stderr ?? '') });
+    });
+    lowerProcessPriority(child.pid, flag, d.setPriority);
+  });
+}
+
+/** Pids of helper children currently running (see spawnLowPriority). */
+const activeChildren = new Set<number>();
+
+/**
+ * How many helper children (verification commands, agent CLIs) are running.
+ *
+ * @returns Live child count. / 生存中の子プロセス数
+ */
+export function countActiveHelperChildren(): number {
+  return activeChildren.size;
+}

@@ -9,7 +9,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { ArrowLeft, Copy, FileStack, Trash2, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, LayoutTemplate, Trash2, type LucideIcon } from 'lucide-react';
 import type { Task } from '@/types';
 import DropdownMenu from '@/components/ui/dropdown/DropdownMenu';
 import TaskPomodoroButton from './TaskPomodoroButton';
@@ -34,7 +34,6 @@ interface TaskDetailQuickNavProps {
   pomodoroState: PomodoroState;
   onBack: () => void;
   onOpenPomodoro: () => void;
-  onDuplicateTask: () => void;
   onDeleteTask: () => void;
   onOpenSaveTemplate: () => void;
 }
@@ -52,7 +51,6 @@ export function TaskDetailQuickNav({
   pomodoroState,
   onBack,
   onOpenPomodoro,
-  onDuplicateTask,
   onDeleteTask,
   onOpenSaveTemplate,
 }: TaskDetailQuickNavProps) {
@@ -138,13 +136,34 @@ export function TaskDetailQuickNav({
   const jumpTo = (id: string) => {
     setActiveId(id); // optimistic: the pressed chip is active immediately
     programmaticUntilRef.current = Date.now() + 800;
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const target = document.getElementById(id);
+    if (!target) return;
+
+    // Scroll the DESIGNATED container, never scrollIntoView. scrollIntoView
+    // walks up and scrolls every scrollable ancestor, and the slide panel's
+    // root is `overflow-hidden` — which hides the scrollbar but stays
+    // programmatically scrollable. Jumping to a section therefore slid the
+    // panel's own content up (measured: 53px for the upper sections, 738px for
+    // サブタスク) and left that much empty panel below the content.
+    const scroller = navRef.current?.closest('[data-task-scroll-container]');
+    if (!(scroller instanceof HTMLElement)) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    // Land the section just under the sticky nav rather than beneath it.
+    const navHeight = navRef.current?.getBoundingClientRect().height ?? 0;
+    const top =
+      target.getBoundingClientRect().top -
+      scroller.getBoundingClientRect().top +
+      scroller.scrollTop -
+      navHeight;
+    scroller.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
   };
 
   return (
     <div
       ref={navRef}
-      className="sticky top-0 z-10 border-b border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95"
+      className="sticky top-0 z-10 border-b border-zinc-200 bg-white/95 dark:border-zinc-800 dark:bg-zinc-900/95"
     >
       <div className="mx-auto flex max-w-4xl items-center justify-between gap-2 px-3 py-1.5 sm:px-4 md:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto scrollbar-thin">
@@ -171,7 +190,7 @@ export function TaskDetailQuickNav({
                 aria-current={isActive ? 'true' : undefined}
                 className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                   !isScrollable
-                    ? 'cursor-default text-zinc-400 opacity-60 dark:text-zinc-500'
+                    ? 'cursor-default text-zinc-500 opacity-60 dark:text-zinc-500'
                     : isActive
                       ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
                       : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200'
@@ -196,13 +215,10 @@ export function TaskDetailQuickNav({
             variant="ghost"
             items={[
               {
-                label: t('duplicateTask'),
-                icon: <Copy className="w-4 h-4" />,
-                onClick: onDuplicateTask,
-              },
-              {
-                label: t('saveAsTemplate'),
-                icon: <FileStack className="w-4 h-4" />,
+                // NOTE: 複製は削除 (2026-07-14 要望)。テンプレート設定から
+                // テンプレート適用で代替できる。
+                label: t('templateSettings'),
+                icon: <LayoutTemplate className="w-4 h-4" />,
                 onClick: onOpenSaveTemplate,
               },
               {

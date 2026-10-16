@@ -2,10 +2,11 @@
 // WorkflowFileContent
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, List, ChevronDown, Pencil } from 'lucide-react';
+import { List, ChevronDown, RefreshCw } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
+import { useTranslations } from 'next-intl';
 import type { WorkflowTab } from './workflow-viewer-utils';
 import { MarkdownView } from '../markdown/MarkdownView';
-import { WorkflowFileEditor } from './WorkflowFileEditor';
 
 /** A heading extracted from markdown for the in-file table of contents. */
 interface TocHeading {
@@ -97,10 +98,14 @@ interface WorkflowFileContentProps {
   /** Whether to show the inline plan-approval CTA (plan tab + plan_created status) */
   showApprovalButton: boolean;
   onPlanApprovalRequest?: () => void;
-  /** Task id — enables inline editing of the plan. / インライン編集に必要 */
-  taskId?: number;
-  /** Called after a successful inline save so the parent refetches. / 保存後の再取得 */
-  onSaved?: () => void;
+  /**
+   * True when this tab's file was just archived by the phase-critic gate and
+   * is being regenerated (see WorkflowViewer's criticRejectionPhase). Swaps
+   * the generic "not yet generated" empty state for one that makes clear
+   * nothing was lost — the plain empty state is indistinguishable from a
+   * task that never ran this phase at all.
+   */
+  isRegenerating?: boolean;
 }
 
 /**
@@ -118,21 +123,11 @@ export function WorkflowFileContent({
   activeTabConfig,
   showApprovalButton,
   onPlanApprovalRequest,
-  taskId,
-  onSaved,
+  isRegenerating = false,
 }: WorkflowFileContentProps) {
+  const t = useTranslations('workflow');
+  const tc = useTranslations('common');
   const headings = useMemo(() => extractHeadings(activeFile?.content ?? ''), [activeFile?.content]);
-
-  // Inline editing is offered for the plan only (refine before approving). It
-  // requires a taskId (the save target); without it the tab stays read-only.
-  const canEdit =
-    activeTabConfig.id === 'plan' && !!activeFile?.exists && typeof taskId === 'number';
-  const [isEditing, setIsEditing] = useState(false);
-  // Leaving the plan tab (or losing the file) must drop edit mode so a stale
-  // editor never lingers over a different tab's content.
-  useEffect(() => {
-    if (!canEdit) setIsEditing(false);
-  }, [canEdit]);
 
   // The TOC is sticky and vertical, so its height varies with the heading count.
   // Measure it and feed the value into each <h2>'s scroll-margin-top so clicked
@@ -170,54 +165,41 @@ export function WorkflowFileContent({
   if (isLoading && !activeFile) {
     return (
       <div className="flex items-center justify-center h-32">
-        <Loader2 className="h-5 w-5 text-zinc-400 animate-spin mr-2" />
-        <span className="text-sm text-zinc-500 dark:text-zinc-400">読み込み中...</span>
+        <Spinner size="md" className="mr-2" />
+        <span className="text-sm text-zinc-500 dark:text-zinc-400">{tc('loading')}</span>
       </div>
     );
   }
 
   if (!activeFile?.exists) {
+    if (isRegenerating) {
+      return (
+        <div className="text-center py-10">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 mb-3">
+            <RefreshCw className="h-6 w-6 text-amber-600 dark:text-amber-400 animate-spin" />
+          </div>
+          <p className="text-sm text-amber-700 dark:text-amber-300">
+            {t('fileContent.regenerating')}
+          </p>
+        </div>
+      );
+    }
     return (
       <div className="text-center py-10">
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-800 mb-3">
-          <activeTabConfig.icon className="h-6 w-6 text-zinc-400" />
+          <activeTabConfig.icon className="h-6 w-6 text-zinc-500" />
         </div>
         <p className="text-sm text-zinc-500 dark:text-zinc-400">{activeTabConfig.emptyText}</p>
       </div>
     );
   }
 
-  // Inline plan editor (replaces the read-only view while editing).
-  if (isEditing && canEdit && typeof taskId === 'number') {
-    return (
-      <WorkflowFileEditor
-        taskId={taskId}
-        fileType="plan"
-        initialContent={activeFile?.content || ''}
-        onCancel={() => setIsEditing(false)}
-        onSaved={() => {
-          setIsEditing(false);
-          onSaved?.();
-        }}
-      />
-    );
-  }
-
   return (
     <div className="space-y-3">
-      {/* Edit CTA — lets a human refine the plan before approval. */}
-      {canEdit && (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => setIsEditing(true)}
-            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            計画を編集
-          </button>
-        </div>
-      )}
+      {/* Plan controls. Asking the PLANNER for a change is the preferred route:
+          editing by hand means reading the whole document to change one line and
+          leaves no record of why it changed, while plan.md is the contract the
+          verify and adversarial gates judge the implementer against. */}
       {/* In-file table of contents — sticky so it stays clickable after the
           content scrolls. -mx-5/px-5 cancel the parent p-5 so the background
           spans the card. top:88px (inline, not an arbitrary class which may not
@@ -233,11 +215,11 @@ export function WorkflowFileContent({
             type="button"
             onClick={() => setTocOpen((open) => !open)}
             aria-expanded={tocOpen}
-            className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+            className="flex items-center gap-1 text-[11px] font-medium text-zinc-500 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
           >
             <List className="h-3.5 w-3.5" />
-            <span>目次</span>
-            <span className="text-zinc-400/70 dark:text-zinc-500/70">({headings.length})</span>
+            <span>{t('fileContent.tableOfContents')}</span>
+            <span className="text-zinc-500/70 dark:text-zinc-500/70">({headings.length})</span>
             <ChevronDown
               className={`h-3.5 w-3.5 transition-transform ${tocOpen ? '' : '-rotate-90'}`}
             />
@@ -277,17 +259,17 @@ export function WorkflowFileContent({
           <div className="flex items-center justify-between bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 border border-amber-200 dark:border-amber-800">
             <div>
               <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
-                計画の承認が必要です
+                {t('planApprovalRequired')}
               </p>
               <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-                内容を確認して承認すると実装フェーズに移行します
+                {t('fileContent.approveToImplementHint')}
               </p>
             </div>
             <button
               onClick={onPlanApprovalRequest}
               className="bg-amber-600 hover:bg-amber-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
             >
-              承認して実装開始
+              {t('fileContent.approveAndImplement')}
             </button>
           </div>
         </div>

@@ -1,0 +1,109 @@
+{
+  "intelligence": {
+    "agentKnowledgeContext": {
+      "categorySuccessStrategy": "Success pattern",
+      "categoryFailurePattern": "Failure pattern",
+      "categoryOptimization": "Optimization",
+      "categoryAntiPattern": "Anti-pattern",
+      "categoryProcedure": "Procedure",
+      "categoryPattern": "Pattern",
+      "categoryInsight": "Insight",
+      "categoryFact": "Fact",
+      "loading": "Loading shared knowledge...",
+      "title": "Agent shared knowledge",
+      "itemCount": "{count}",
+      "warningCount": "{count} warnings",
+      "pastFailuresHeading": "Past failure patterns",
+      "occurrenceCount": "{count} occurrences",
+      "learnedPatternsHeading": "Learned patterns",
+      "relatedKnowledgeHeading": "Related knowledge",
+      "promptEvolutionsHeading": "Prompt evolution history",
+      "scoreLabel": "Score: {score}"
+    },
+    "knowledgeReminderWidget": {
+      "title": "Knowledge reminders",
+      "atRiskStat": "At risk",
+      "dormantStat": "Dormant",
+      "recentlyReviewedStat": "Recently reviewed",
+      "needsReviewHeading": "Knowledge that needs review",
+      "showContentTitle": "Show content",
+      "retentionScore": "Retention: {score}%",
+      "snoozeTitle": "Review later (snooze 24h)",
+      "markReviewedTitle": "Mark as reviewed",
+      "noContent": "No content",
+      "allStable": "All knowledge is stable"
+    },
+    "productivityHeatmap": {
+      "title": "Productivity heatmap",
+      "daysLabel": "{days}d",
+      "peakLabel": "Peak:",
+      "lowLabel": "Low:",
+      "hourSuffix": "{hour}:00",
+      "dayLabels": [
+        "Sun",
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri",
+        "Sat"
+      ],
+      "cellTitle": "{day} {hour}:00: {count} completed (click for details)",
+      "legendLow": "Low",
+      "legendHigh": "High",
+      "popoverTitle": "{day} {hour}:00 completed tasks",
+      "completedAtLabel": "Completed:",
+      "noTasksInSlot": "No tasks completed in this time slot",
+      "closePopover": "Close details"
+    },
+    "relatedKnowledgePanel": {
+      "categoryProcedure": "Procedure",
+      "categoryPattern": "Pattern",
+      "categoryInsight": "Insight",
+      "categoryFact": "Fact",
+      "categoryPreference": "Preference",
+      "categoryGeneral": "General",
+      "title": "Related knowledge",
+      "relevanceScore": "Relevance: {score}%"
+    },
+    "relatedSearchMissPanel": {
+      "title": "Searches with no results in this area",
+      "description": "Past searches that returned no results in the same area — spot the pitfalls in advance.",
+      "failCount": "{count} misses"
+    },
+    "suggestedTasksWidget": {
+      "title": "Tasks to do now",
+      "allSnoozed": "All tasks are snoozed",
+      "noTasksAvailable": "No tasks are ready to start.",
+      "createTaskLink": "Create a task",
+      "startTodayTitle": "Set status to in progress and start a pomodoro",
+      "startTodayButton": "Start today",
+      "snoozeTitle": "Snooze for 24 hours",
+      "clearSnoozeButton": "Clear snoozed ({count})"
+    },
+    "workflowLearningPanel": {
+      "title": "Workflow learning",
+      "generateRulesButton": "Generate rules",
+      "recordsStat": "Learning records",
+      "activeRulesStat": "Active rules",
+      "overrideRateStat": "Override rate",
+      "predictionAccuracyStat": "Prediction accuracy",
+      "modeStatsHeading": "Results by mode",
+      "itemCount": "{count}",
+      "minutesLabel": "{minutes}m",
+      "optimizationRulesHeading": "Optimization rules ({count})",
+      "noRulesYet": "Rules are generated automatically as learning data accumulates",
+      "confidenceLabel": "Confidence: {confidence}%",
+      "sampleSizeLabel": "({count})",
+      "deactivateTitle": "Deactivate",
+      "activateTitle": "Activate",
+      "ruleTypeSkipPhase": "Skip phase",
+      "ruleTypeDowngradeMode": "Downgrade mode",
+      "ruleTypeUpgradeMode": "Upgrade mode",
+      "ruleTypeAdjustTime": "Adjust time",
+      "modeLightweight": "Lightweight",
+      "modeStandard": "Standard",
+      "modeComprehensive": "Comprehensive"
+    }
+  }
+}

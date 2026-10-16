@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import type { LucideIcon } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 type IconGridProps = {
   icons: string[];
@@ -44,10 +44,12 @@ IconButton.displayName = 'IconButton';
 // Icon grid component
 export const IconGrid = memo(
   ({ icons, selectedIcon, onIconSelect, renderIcon, accentClass }: IconGridProps) => {
+    const t = useTranslations('common');
+
     if (icons.length === 0) {
       return (
         <div className="col-span-8 text-center py-6 text-sm text-zinc-500 dark:text-zinc-400">
-          一致するアイコンがありません
+          {t('iconGrid.noMatch')}
         </div>
       );
     }

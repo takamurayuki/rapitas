@@ -67,7 +67,11 @@ export default function RegisterPage() {
 
   // Check password strength
   useEffect(() => {
-    const { password } = formData;
+    // NOTE: reads `formData.password` directly (not destructured from the
+    // whole object) so this effect can depend on just that field — depending
+    // on the whole `formData` would re-run on every keystroke in any field
+    // (username/email/confirmPassword too), not just password changes.
+    const password = formData.password;
     setPasswordStrength({
       length: password.length >= 8,
       lowercase: /[a-z]/.test(password),
@@ -111,7 +115,7 @@ export default function RegisterPage() {
       } else {
         setError(result.error || t('registrationFailed'));
       }
-    } catch (err) {
+    } catch {
       setError(tc('unexpectedError'));
     } finally {
       setIsSubmitting(false);
@@ -135,7 +139,7 @@ export default function RegisterPage() {
         setError(result.error || t('googleConnectionFailed'));
       }
       // On success, redirect is automatically handled by AuthContext
-    } catch (err) {
+    } catch {
       setError(tc('unexpectedError'));
     } finally {
       setIsGoogleLoading(false);
@@ -154,7 +158,7 @@ export default function RegisterPage() {
           </div>
 
           {/* Form skeleton */}
-          <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-2xl p-8 space-y-6">
+          <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-lg p-8 space-y-6">
             <div className="space-y-4">
               {[1, 2, 3, 4].map((i) => (
                 <div key={i}>
@@ -274,7 +278,7 @@ export default function RegisterPage() {
                   required
                   value={formData.username}
                   onChange={handleInputChange}
-                  className="appearance-none relative block w-full pl-10 px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-blue-400 focus:z-10 sm:text-sm"
+                  className="appearance-none relative block w-full pl-10 px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
                   placeholder={t('usernamePlaceholder')}
                 />
               </div>
@@ -300,7 +304,7 @@ export default function RegisterPage() {
                   required
                   value={formData.email}
                   onChange={handleInputChange}
-                  className="appearance-none relative block w-full pl-10 px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-blue-400 focus:z-10 sm:text-sm"
+                  className="appearance-none relative block w-full pl-10 px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
                   placeholder="email@example.com"
                 />
               </div>
@@ -326,7 +330,7 @@ export default function RegisterPage() {
                   required
                   value={formData.password}
                   onChange={handleInputChange}
-                  className="appearance-none relative block w-full pl-10 pr-10 px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-blue-400 focus:z-10 sm:text-sm"
+                  className="appearance-none relative block w-full pl-10 pr-10 px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
                   placeholder={t('passwordPlaceholder')}
                 />
                 <button
@@ -398,7 +402,7 @@ export default function RegisterPage() {
                   required
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
-                  className="appearance-none relative block w-full pl-10 pr-10 px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-blue-400 focus:z-10 sm:text-sm"
+                  className="appearance-none relative block w-full pl-10 pr-10 px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
                   placeholder={t('confirmPasswordPlaceholder')}
                 />
                 <button

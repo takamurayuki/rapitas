@@ -9,6 +9,7 @@
 
 import { memo, type RefObject } from 'react';
 import { Play, Send, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface TerminalInputProps {
   /** Forwarded ref used by the parent to focus the input. */
@@ -40,11 +41,12 @@ export const TerminalInput = memo(function TerminalInput({
   onKeyDown,
   onSubmit,
 }: TerminalInputProps) {
+  const t = useTranslations('devMode.terminalInput');
   const placeholder = isWaiting
-    ? '回答を入力...'
+    ? t('placeholderWaiting')
     : isRunning
-      ? '実行中...'
-      : '指示を入力... (Enter で送信)';
+      ? t('placeholderRunning')
+      : t('placeholderIdle');
 
   return (
     <div className="flex items-end gap-2 px-3 py-2 bg-zinc-800/50 border-t border-zinc-700">
@@ -64,7 +66,7 @@ export const TerminalInput = memo(function TerminalInput({
         onClick={onSubmit}
         disabled={!value.trim() || submitting || (isRunning && !isWaiting)}
         className="p-1.5 text-zinc-400 hover:text-violet-400 disabled:opacity-30 disabled:hover:text-zinc-400 transition-colors"
-        title={isWaiting ? '回答を送信' : '実行'}
+        title={isWaiting ? t('sendAnswer') : t('run')}
       >
         {submitting ? (
           <Loader2 className="w-3.5 h-3.5 animate-spin" />

@@ -78,7 +78,17 @@ export const FOOD_NATURE_ICONS: Record<string, IconInfo> = {
   // Food & Drinks
   Coffee: {
     component: Coffee,
-    keywords: ['コーヒー', 'カフェ', '飲み物', '休憩', '朝'],
+    keywords: [
+      'コーヒー',
+      'カフェ',
+      '飲み物',
+      '休憩',
+      '朝',
+      'ブレイク',
+      'カフェタイム',
+      'リフレッシュ',
+      'コーヒーブレイク',
+    ],
   },
   CupSoda: {
     component: CupSoda,
@@ -92,15 +102,34 @@ export const FOOD_NATURE_ICONS: Record<string, IconInfo> = {
   },
   UtensilsCrossed: {
     component: UtensilsCrossed,
-    keywords: ['食事', 'レストラン', 'カトラリー', 'フォークナイフ'],
+    keywords: [
+      '食事',
+      'レストラン',
+      'カトラリー',
+      'フォークナイフ',
+      '食生活',
+      'グルメ',
+      '食べること',
+      '外食',
+    ],
   },
   Utensils: {
     component: Utensils,
-    keywords: ['カトラリー', '食器', '食事', 'フォーク', 'スプーン'],
+    keywords: ['カトラリー', '食器', '食事', 'フォーク', 'スプーン', '料理', '食生活'],
   },
   ChefHat: {
     component: ChefHat,
-    keywords: ['シェフ', '料理人', '調理', 'コック帽'],
+    keywords: [
+      'シェフ',
+      '料理人',
+      '調理',
+      'コック帽',
+      '料理',
+      '自炊',
+      'クッキング',
+      '食事作り',
+      '料理習慣',
+    ],
   },
   Pizza: {
     component: Pizza,
@@ -110,7 +139,20 @@ export const FOOD_NATURE_ICONS: Record<string, IconInfo> = {
     component: Sandwich,
     keywords: ['サンドイッチ', 'パン', 'ランチ', '軽食'],
   },
-  Salad: { component: Salad, keywords: ['サラダ', '野菜', 'ヘルシー', '健康'] },
+  Salad: {
+    component: Salad,
+    keywords: [
+      'サラダ',
+      '野菜',
+      'ヘルシー',
+      '健康',
+      '食事管理',
+      'ダイエット',
+      '健康食',
+      '食生活',
+      '栄養',
+    ],
+  },
   Soup: { component: Soup, keywords: ['スープ', '汁物', '温かい', '料理'] },
   Popcorn: {
     component: Popcorn,
@@ -161,9 +203,36 @@ export const FOOD_NATURE_ICONS: Record<string, IconInfo> = {
   // Nature & Weather
   Sun: {
     component: Sun,
-    keywords: ['太陽', '晴れ', '日', '明るい', '昼', 'ライト'],
+    keywords: [
+      '太陽',
+      '晴れ',
+      '日',
+      '明るい',
+      '昼',
+      'ライト',
+      '日常',
+      '朝活',
+      '毎日',
+      'ルーティン',
+      '習慣',
+      '朝の習慣',
+      '朝',
+    ],
   },
-  Moon: { component: Moon, keywords: ['月', '夜', '暗い', 'ダーク', '睡眠'] },
+  Moon: {
+    component: Moon,
+    keywords: [
+      '月',
+      '夜',
+      '暗い',
+      'ダーク',
+      '睡眠',
+      '夜活',
+      '夜の習慣',
+      '就寝',
+      'ナイトルーティン',
+    ],
+  },
   CloudSun: {
     component: CloudSun,
     keywords: ['曇りのち晴れ', '天気', '雲', '太陽'],

@@ -38,7 +38,10 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const isPageMode = searchParams.get('showHeader') === 'true';
+  // NOTE: In split view (?note=xxx), the right pane (TaskNoteSplitView) owns
+  // the scroll container. Enabling isPageMode here would add a second
+  // overflow-auto + fixed height, causing a double scrollbar.
+  const isPageMode = searchParams.get('showHeader') === 'true' && !searchParams.get('note');
 
   // NOTE: useParams() may not work in Tauri iframes,
   // so we fall back to extracting the ID from window.location.
@@ -72,13 +75,11 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
     setResources,
     globalSettings,
     cliAvailability,
-    showAIAssistant,
     setShowAIAssistant,
     refreshTask,
   } = useTaskDetailData({ resolvedTaskId });
 
   // ─── Pomodoro ────────────────────────────────────────────────────────────
-  const [showPomodoroModal, setShowPomodoroModal] = useState(false);
   const { state: pomodoroState, stopTimer } = usePomodoro();
   const isThisTaskTimer = pomodoroState.taskId === task?.id;
 
@@ -134,6 +135,7 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
   } = useWorkflowHandlers({
     taskId,
     workflowStatus,
+    taskWorkflowStatus: task?.workflowStatus ?? null,
     refetchWorkflowFiles,
     restoreExecutionState,
     onTaskUpdated,
@@ -180,7 +182,7 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
   // ─── Task actions / comment system ────────────────────────────────────────
   const [newComment, setNewComment] = useState('');
   const [isAddingComment, setIsAddingComment] = useState(false);
-  const [showCompleteOverlay, setShowCompleteOverlay] = useState(false);
+  const [, setShowCompleteOverlay] = useState(false);
 
   const taskActions = useTaskActions({
     task,
@@ -190,7 +192,6 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
     isThisTaskTimer,
     pomodoroState,
     stopTimer,
-    setShowPomodoroModal,
     setShowCompleteOverlay,
   });
 
@@ -343,8 +344,6 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
       isPageMode={isPageMode}
       isThisTaskTimer={isThisTaskTimer}
       pomodoroState={pomodoroState}
-      showPomodoroModal={showPomodoroModal}
-      setShowPomodoroModal={setShowPomodoroModal}
       showDevModeConfig={showDevModeConfig}
       setShowDevModeConfig={setShowDevModeConfig}
       showSaveTemplateDialog={showSaveTemplateDialog}

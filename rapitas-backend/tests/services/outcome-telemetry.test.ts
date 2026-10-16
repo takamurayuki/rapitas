@@ -68,6 +68,24 @@ describe('recentThemeEscalation', () => {
     transitionFindMany.mockResolvedValueOnce([]);
     expect(await recentThemeEscalation(1)).toBe(0);
   });
+
+  test('仕様質問待ちで blocked のタスクは難航に数えない（人間待ちであって困難ではない）', async () => {
+    const parked = tasks(4, 2).map((t) =>
+      t.status === 'blocked' ? { ...t, workflowStatus: 'awaiting_question' } : t,
+    );
+    taskFindMany.mockResolvedValueOnce(parked);
+    transitionFindMany.mockResolvedValueOnce([]);
+    expect(await recentThemeEscalation(1)).toBe(0);
+  });
+
+  test('質問待ち以外の blocked は従来どおり難航に数える', async () => {
+    const stuck = tasks(4, 2).map((t) =>
+      t.status === 'blocked' ? { ...t, workflowStatus: 'in_progress' } : t,
+    );
+    taskFindMany.mockResolvedValueOnce(stuck);
+    transitionFindMany.mockResolvedValueOnce([]);
+    expect(await recentThemeEscalation(1)).toBe(2);
+  });
 });
 
 describe('recordTaskOutcome', () => {

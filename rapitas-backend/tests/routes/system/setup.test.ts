@@ -95,6 +95,9 @@ describe('GET /system/setup/status', () => {
 
   it('プロバイダー1つ以上利用可能 + DB接続OKで setupComplete=true', async () => {
     process.env.DATABASE_URL = 'postgresql://u:p@localhost:5432/db';
+    // NOTE: RAPITAS_DB_PROVIDER may be 'sqlite' in the .env file; delete it so
+    // getDbProvider() falls back to DATABASE_URL prefix detection (→ 'postgresql').
+    delete process.env.RAPITAS_DB_PROVIDER;
     const r = await callStatus();
     expect(r.providers.find((p) => p.provider === 'claude')?.available).toBe(true);
     expect(r.setupComplete).toBe(true);

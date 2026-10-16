@@ -2,93 +2,89 @@
  * Workflow CLI Executor
  *
  * Executes CLI-type workflow agents (claude-code, codex, gemini) via
- * AgentOrchestrator. Builds the agent prompt, delegates execution, reads
- * back the output file, and applies the Markdown extraction fallback.
+ * AgentOrchestrator. Resolves the working directory, builds the agent
+ * prompt, delegates execution, and hands the result off to the epilogue /
+ * post-processing modules. Not responsible for prompt text, worktree
+ * resolution, or phase-status gating — see the sibling
+ * workflow-cli-executor-* modules.
  */
-import { mkdir } from 'fs/promises';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { join } from 'path';
 import { prisma } from '../../config';
-import { AgentOrchestrator } from '../agents/agent-orchestrator';
 import { createLogger } from '../../config/logger';
-import {
-  readWorkflowFile,
-  writeWorkflowFile,
-  cleanupRootWorkflowFiles,
-  extractMarkdownFromOutput,
-} from './workflow-file-utils';
-import {
-  validateResearch,
-  validatePlan,
-  validateVerify,
-  type ValidationResult,
-} from './phase-output-validator';
-import type { RoleTransition, WorkflowAdvanceResult, WorkflowMode } from './workflow-types';
-import { recordTransition, type TransitionActor } from './transition-recorder';
-import { evaluateCompletionGate } from './completion-gate';
-import { checkWorkflowInvariants } from './workflow-invariants';
-import { maybeAutoApprovePlan } from './plan-auto-approve';
+import { ExecutionCancelledError } from '../agents/execution-cancelled-error';
+import { AgentOrchestrator } from '../agents/agent-orchestrator';
+import { resolveTaskWithTheme } from '../task/task-resolver';
+import { getAgentTimeoutMs } from '../agents/execution-timeouts';
+import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
+import { resolveExecutionWorkdir } from './workflow-cli-executor-worktree';
+import { buildCliAgentPrompt } from './workflow-cli-executor-prompt';
+import { buildColdStartHandoffPrompt } from './workflow-cli-executor-coldstart-prompt';
+import { readAgentsMdConstraints } from './workflow-agents-md-context';
+import { harvestInvestigationOutput, runPhaseEpilogue } from './workflow-cli-executor-epilogue';
+import { runPostProcessing } from './workflow-cli-executor-postprocess';
+import { resolvePhaseResumeDecision } from './phase-session-resume';
 
-const log = createLogger('workflow-cli-executor');
-const execAsync = promisify(exec);
+const log = createLogger('workflow:cli-executor');
 
 // Disk-existence guard for reusing a recorded worktree. Re-exported here so the
 // existing worktree-reuse.test.ts import path keeps working; the single source
-// of truth now lives in git-operations/worktree-usable so every execution entry
+// of truth now lives in git-operations/worktree/worktree-usable so every execution entry
 // point (orchestrator, continue-execution route) shares the same check.
-export { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree-usable';
-import { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree-usable';
-import { isBackendPrimaryCheckout } from '../agents/orchestrator/git-operations/worktree-guard';
+export { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree/worktree-usable';
 
 /**
- * Resolves the git repository root for a directory.
+ * Drive the AgentSession this phase created to a terminal status.
  *
- * @param dir - Directory to resolve from / 起点ディレクトリ
- * @returns Repo root path, or null when not inside a git repo / リポジトリルート、無ければ null
+ * NOTE: the session was created 'active' and nothing ever updated it, so every
+ * CLI-driven role left its session 'active' until the orphan sweep relabelled
+ * it 'interrupted'. That erased the population every outcome measurement reads
+ * (prompt-evolution, role evidence) — task 893. Best-effort by design: a
+ * bookkeeping write must never change the phase's own result.
+ *
+ * @param sessionId - Session opened for this phase. / このフェーズのセッションID
+ * @param success - Whether the phase succeeded. / フェーズが成功したか
  */
-async function resolveGitRoot(dir: string): Promise<string | null> {
+async function finalizeAgentSession(
+  sessionId: number,
+  success: boolean,
+  cancelled = false,
+): Promise<void> {
   try {
-    const { stdout } = await execAsync('git rev-parse --show-toplevel', {
-      cwd: dir,
-      encoding: 'utf8',
+    await prisma.agentSession.updateMany({
+      where: {
+        id: sessionId,
+        status: { in: ['active', 'running'] },
+        ...(cancelled
+          ? {}
+          : {
+              agentExecutions: {
+                none: { status: { in: ['canceling', 'cancelling', 'cancelled', 'canceled'] } },
+              },
+            }),
+      },
+      data: {
+        status: cancelled ? 'cancelled' : success ? 'completed' : 'failed',
+        lastActivityAt: new Date(),
+      },
     });
-    return stdout.trim() || null;
   } catch {
-    return null;
+    /* session bookkeeping is never worth failing (or delaying) the phase for */
   }
 }
-
-/**
- * Linear rank of each workflow status, used to advance status FORWARD only.
- * The HTTP file-save handler may have already advanced the task (e.g. plan
- * auto-approved, or verify auto-completed); the executor must not regress it
- * back to the phase's nominal nextStatus afterwards.
- */
-const WF_STATUS_RANK: Record<string, number> = {
-  draft: 0,
-  research_done: 1,
-  plan_created: 2,
-  plan_approved: 3,
-  in_progress: 4,
-  verify_done: 5,
-  completed: 6,
-};
 
 /**
  * Execute a CLI agent (claude-code, codex, gemini) via AgentOrchestrator.
  *
  * The agent is given a prompt that includes language instructions and a curl
- * command to save its output via the workflow API. If the agent writes the
- * file directly, that is also detected as a success.
+ * command to save its output via the workflow API. When the agent's own final
+ * message is a clean report instead, extractMarkdownFromOutput recovers it as
+ * a fallback (still saved via writeWorkflowFile, not a direct filesystem write).
  *
- * @param taskId - Task being processed. / 処理中のタスクID
+ * @param taskId - Task being processed; also the key for reading/writing its workflow artifacts. / 処理中のタスクID（成果物の読み書きキーも兼ねる）
  * @param task - Task title and description. / タスクのタイトルと説明
  * @param agentConfig - Agent configuration record. / エージェント設定レコード
  * @param systemPrompt - System prompt content. / システムプロンプト内容
  * @param context - Role context assembled by buildRoleContext. / buildRoleContextで組み立てられたロールコンテキスト
  * @param transition - Current role transition definition. / 現在のロール遷移定義
- * @param workflowDir - Absolute path to the workflow directory. / ワークフローディレクトリの絶対パス
  * @param language - Output language. / 出力言語
  * @param advanceWorkflow - Callback to start the next phase (for auto-advance). / 次フェーズを開始するコールバック
  * @param getOrCreateDevConfig - Callback to resolve the dev config record. / devConfigレコードを解決するコールバック
@@ -101,166 +97,33 @@ export async function executeCLIAgent(
   systemPrompt: string,
   context: string,
   transition: RoleTransition,
-  workflowDir: string,
   language: 'ja' | 'en',
   advanceWorkflow: (taskId: number, language: 'ja' | 'en') => Promise<WorkflowAdvanceResult>,
   getOrCreateDevConfig: (taskId: number) => Promise<{ id: number }>,
+  assertOwnership?: () => void,
 ): Promise<WorkflowAdvanceResult> {
   const orchestrator = AgentOrchestrator.getInstance(prisma);
 
   // NOTE: Resolve workingDirectory from theme — implementation runs in the target project,
   // not in the rapitas project itself. Workflow files (plan.md, verify.md) are saved
   // separately via the workflow API regardless of cwd.
-  const taskWithTheme = await prisma.task.findUnique({
-    where: { id: taskId },
-    select: {
-      themeId: true,
-      workflowStatus: true,
-      theme: { select: { workingDirectory: true } },
-    },
-  });
-  const themeWorkDir = taskWithTheme?.theme?.workingDirectory || null;
-  const isImplementationRole = transition.role === 'implementer';
-  const isVerifierRole = transition.role === 'verifier' || transition.role === 'auto_verifier';
-  // CRITICAL: implementer / verifier must run inside the per-task git worktree
-  // that the original execute-route call created via executeSetup. Without
-  // this, code edits land directly on the dev project root, no branch is
-  // produced, and the auto-commit/PR pipeline can't fire (no diff to compare,
-  // no branch to push). Earlier code defaulted to `themeWorkDir` which is the
-  // dev project ROOT — the user reported "worktree が作成されない / コミット
-  // も PR も作られない" exactly because of this regression.
-  // Look up the most recent session for THIS task that already has a
-  // worktreePath. The execute-route's research mode setup or a prior
-  // implementer run is the usual source. We resolve this BEFORE creating
-  // the new session so the new session can inherit the worktree path
-  // immediately (and the agent runs inside it).
-  let resolvedWorktreePath: string | null = null;
-  let resolvedBranchName: string | null = null;
-  if (isImplementationRole || isVerifierRole) {
-    const sessionWithWorktree = await prisma.agentSession
-      .findFirst({
-        where: {
-          config: { taskId },
-          worktreePath: { not: null },
-        },
-        orderBy: { createdAt: 'desc' },
-        select: { worktreePath: true, branchName: true },
-      })
-      .catch(() => null);
-    // Only REUSE a recorded worktree if it still exists ON DISK. A prior
-    // session may record a worktreePath that was later removed (a stop/cleanup,
-    // or a worktree that never finished creating). Reusing a phantom path makes
-    // every implementer/verifier re-launch fail with "Working directory does not
-    // exist" and retry forever (task 30: .worktrees/task-30-… was gone). When the
-    // recorded path is missing, fall through to recreate a fresh worktree.
-    const recordedPath = sessionWithWorktree?.worktreePath ?? null;
-    if (canReuseWorktree(recordedPath)) {
-      resolvedWorktreePath = recordedPath;
-      resolvedBranchName = sessionWithWorktree?.branchName ?? null;
-      log.info(
-        { taskId, role: transition.role, worktreePath: resolvedWorktreePath },
-        '[WorkflowCLIExecutor] Reusing existing worktree from prior session',
-      );
-    } else {
-      if (recordedPath) {
-        log.warn(
-          { taskId, role: transition.role, recordedPath },
-          '[WorkflowCLIExecutor] Recorded worktree no longer exists on disk — recreating instead of reusing a phantom path',
-        );
-      }
-      // No prior worktree — create one so implementer/verifier always runs in
-      // isolation and produces a branch the auto-PR pipeline can push. Host it
-      // in the theme's project dir, or — when unset (e.g. rapitas
-      // self-development) — the git root of the backend's cwd, so we still get
-      // an isolated worktree instead of editing the live checkout directly
-      // (which previously flipped the main checkout's branch mid-run).
-      let worktreeBase = themeWorkDir;
-      if (!worktreeBase) {
-        worktreeBase = await resolveGitRoot(process.cwd());
-        if (worktreeBase) {
-          log.info(
-            { taskId, role: transition.role, worktreeBase },
-            '[WorkflowCLIExecutor] No themeWorkDir; isolating in a worktree of the cwd git root',
-          );
-        }
-      }
-      if (worktreeBase) {
-        try {
-          const { generateFallbackBranchName } =
-            await import('../../utils/common/branch-name-generator');
-          const taskTitle =
-            (await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } }))
-              ?.title ?? `task-${taskId}`;
-          // Reuse the EXISTING feature branch (it holds the prior implementation
-          // and the commits already pushed to the PR) when a prior session
-          // recorded one — e.g. a ci_repair re-run after the worktree was cleaned
-          // up. Recreating on a FRESH branch loses the PR's work and re-implements
-          // from scratch, so the CI fix never lands on the PR branch (observed:
-          // task 227 re-implement loop). createWorktree checks out an existing
-          // branch as-is, keeping its commits.
-          const priorBranch = sessionWithWorktree?.branchName?.trim();
-          const branchName =
-            priorBranch || generateFallbackBranchName(taskTitle) || `feature/task-${taskId}-auto`;
-          const wt = await orchestrator.createWorktree(worktreeBase, branchName, taskId, null);
-          resolvedWorktreePath = wt;
-          resolvedBranchName = branchName;
-          log.info(
-            { taskId, role: transition.role, worktreePath: wt, branchName },
-            '[WorkflowCLIExecutor] Created new worktree (no prior session had one)',
-          );
-        } catch (wtErr) {
-          log.error(
-            { err: wtErr, taskId, role: transition.role, worktreeBase },
-            '[WorkflowCLIExecutor] Failed to create worktree — running without isolation',
-          );
-        }
-      } else {
-        log.warn(
-          {
-            taskId,
-            themeId: taskWithTheme?.themeId ?? null,
-            role: transition.role,
-            themeWorkDir: null,
-            cwd: process.cwd(),
-          },
-          '[WorkflowCLIExecutor] No themeWorkDir and no git root; running at cwd (no isolation). Fix: set theme workingDirectory in the theme settings.',
-        );
-      }
-    }
-  }
-  // CRITICAL: implementer / verifier must run inside the per-task git
-  // worktree. Earlier code defaulted to `themeWorkDir` which is the dev
-  // project ROOT — the user reported "worktree が作成されない / コミット
-  // も PR も作られない" exactly because of this regression.
-  const effectiveWorkDir: string =
-    resolvedWorktreePath ??
-    (isImplementationRole || isVerifierRole ? (themeWorkDir ?? process.cwd()) : process.cwd());
+  const taskWithTheme = await resolveTaskWithTheme(taskId);
 
-  // SAFETY (②): a mutating role running in the backend's OWN primary checkout
-  // would create/switch a branch there via its own git commands, and the dev
-  // backend would then run that stale branch on restart (the recurring
-  // main-checkout clobber). When worktree isolation failed and the cwd fell back
-  // to the self primary, REFUSE rather than clobber — the task errors with a
-  // clear cause and can be retried once a worktree can be created. Other themes'
-  // repos and linked worktrees of the self repo are NOT affected.
-  if (
-    (isImplementationRole || isVerifierRole) &&
-    (await isBackendPrimaryCheckout(effectiveWorkDir))
-  ) {
-    log.error(
-      { taskId, role: transition.role, effectiveWorkDir },
-      '[WorkflowCLIExecutor] Refusing to run a mutating role in the primary checkout — worktree isolation failed',
-    );
-    return {
-      success: false,
-      role: transition.role,
-      status: (taskWithTheme?.workflowStatus as WorkflowAdvanceResult['status']) || 'draft',
-      error:
-        'worktree 隔離に失敗したため primary チェックアウトでの実行を中止しました（dev ブランチの切替を防止）。worktree を再生成して再実行してください。',
-    };
-  }
+  const workdir = await resolveExecutionWorkdir({
+    taskId,
+    transition,
+    orchestrator,
+    taskWithTheme,
+  });
+  if (workdir.abort) return workdir.abort;
+  const { resolvedWorktreePath, resolvedBranchName, effectiveWorkDir } = workdir;
+  // Target repository's OWN AGENTS.md — never rapitas' own (task 892 premise
+  // #4: fixing rapitas-specific rules onto other themes previously caused a
+  // false-investigation incident, task580 in workflow-cli-executor-worktree.ts).
+  const agentsMd = readAgentsMdConstraints(effectiveWorkDir);
 
   const devConfig = await getOrCreateDevConfig(taskId);
+  assertOwnership?.();
   const session = await prisma.agentSession.create({
     data: {
       configId: devConfig.id,
@@ -273,749 +136,165 @@ export async function executeCLIAgent(
     },
   });
 
-  await mkdir(workflowDir, { recursive: true });
-
-  const outputFilePath = transition.outputFile
-    ? join(workflowDir, `${transition.outputFile}.md`).replace(/\\/g, '/')
-    : null;
-
-  const cliTexts = {
-    ja: {
-      systemHeader: '## システム指示',
-      fileHeader: '## 重要: 結果ファイルの保存',
-      fileInstruction: '調査・分析が完了したら、結果を以下のAPI経由で保存してください。',
-      noRootFiles: '**プロジェクトルートには絶対にファイルを作成しないでください。**',
-      apiCommand: '**API保存コマンド**:',
-      contentPlaceholder: '# ファイル内容をここに記述',
-      powershellCommand: '**PowerShell保存コマンド（Windows/Codex向け）**:',
-      prohibitions:
-        '**禁止事項**: Write、mkdir、echo等によるプロジェクトルートへの直接ファイル作成は厳禁です。',
-      mandatory: '必ず上記APIコマンドを使用してファイル保存を行ってから完了してください。',
-    },
-    en: {
-      systemHeader: '## System Instructions',
-      fileHeader: '## Important: Saving Result Files',
-      fileInstruction:
-        'After completing the research/analysis, please save the results via the following API.',
-      noRootFiles: '**Never create files in the project root directory.**',
-      apiCommand: '**API Save Command**:',
-      contentPlaceholder: '# Write file content here',
-      powershellCommand: '**PowerShell Save Command (for Windows/Codex)**:',
-      prohibitions:
-        '**Prohibited**: Direct file creation to the project root using Write, mkdir, echo, etc. is strictly forbidden.',
-      mandatory: 'Please make sure to save files using the API command above before completing.',
-    },
-  };
-
-  const cliT = cliTexts[language];
-
-  // NOTE: Language instruction placed before context so agents see the language requirement early.
-  const languageInstruction =
-    language === 'ja'
-      ? 'すべての出力（Markdownファイル含む）を日本語で記述してください。'
-      : 'Write all output (including Markdown files) in English.';
-  let fullPrompt = '';
-  if (systemPrompt) fullPrompt += `${cliT.systemHeader}\n${systemPrompt}\n\n`;
-  fullPrompt += `## ${language === 'ja' ? '出力言語' : 'Output Language'}\n${languageInstruction}\n\n`;
-
-  // Existing-feature gate: before treating the task as a green-field design
-  // problem, the agent must scan the working directory for matching code.
-  // Without this, AI was repeatedly designing things like "アイデアボックス"
-  // from scratch even though they already exist in the repo, leading to
-  // wasted research and irrelevant clarifying questions.
-  const existingFeatureGate =
-    language === 'ja'
-      ? `## 重要: 既存機能チェック（最優先）
-
-**新規機能として設計を始める前に、まず既存実装を確認してください。**
-
-このタスクのタイトル・説明から主要キーワード（機能名・エンティティ名・画面名・URLパス等）を抽出し、対象リポジトリ内を以下の手段で必ず検索してください:
-
-1. **ファイル名検索**: \`find\` / \`Glob\` で関連しそうなファイル名 (例: \`**/idea-box*\`, \`**/IdeaBox*\`)
-2. **コード内全文検索**: \`grep\` / \`Grep\` でキーワード（日本語表記・英語表記の両方）
-3. **ルート/ナビゲーション**: \`routes/\` / \`pages/\` / \`app/\` 配下のエンドポイントとリンク
-4. **DB schema**: \`prisma/schema/\` のテーブル名・関連 model
-
-検出結果に応じて分岐:
-- **既存機能と判定**: research.md / plan.md の冒頭に「**既存機能**」と明記し、現在の実装ファイル一覧・現在の振る舞いを要約してから、**追加・修正点の差分のみ**を設計対象としてください。新規UI/UX仕様の質問は不要です。
-- **既存機能の拡張**: 既存ファイルへの修正案として記述し、新規ファイルは最小限に。
-- **完全に新規**: 既存に類似機能がないことを明示した上で、初めて新規設計に入ってください。
-
-この既存機能チェックの結果は、研究フェーズ・計画フェーズの出力ファイルに必ず**「既存機能チェック」セクション**として残してください。
-
-`
-      : `## CRITICAL: Existing-feature check (do this FIRST)
-
-**Before treating the task as a green-field design problem, audit the existing implementation.**
-
-Extract the principal keywords from the task title/description (feature names, entity names, screen names, URL paths) and search the working repository using:
-
-1. **File-name search**: \`find\` / \`Glob\` for likely names (e.g. \`**/idea-box*\`).
-2. **Full-text search**: \`grep\` / \`Grep\` for keywords (both English and the user's language).
-3. **Routes/navigation**: scan \`routes/\` / \`pages/\` / \`app/\` for matching endpoints / links.
-4. **DB schema**: scan \`prisma/schema/\` for matching tables / models.
-
-Branch on the result:
-- **Already exists**: write "**EXISTING FEATURE**" at the top of research.md / plan.md, summarise current files and behaviour, and design ONLY the diff (additions / modifications). Do NOT ask UI/UX clarification questions for already-implemented surfaces.
-- **Extension of existing**: scope changes as edits to existing files; minimise new files.
-- **Truly new**: state explicitly that no similar feature exists, then proceed with green-field design.
-
-Always include an "Existing-feature check" section in the research / plan output that lists what you found.
-
-`;
-  fullPrompt += existingFeatureGate;
-  fullPrompt += context;
-
-  // Investigation phases (research/plan/review) MUST run with read-only
+  // Investigation phases (research/plan) MUST run with read-only
   // sandbox so codex (and any other CLI agent) cannot modify code. The
   // agent's final message is captured via codex `-o <file>` (a temp file
   // we then upload to the workflow API server-side). This is the official
   // safe pattern: codex CANNOT save the md itself, the OS guarantees it.
-  const isInvestigationPhase =
-    transition.role === 'researcher' ||
-    transition.role === 'planner' ||
-    transition.role === 'reviewer';
+  const isInvestigationPhase = transition.role === 'researcher' || transition.role === 'planner';
 
-  // Investigation phases save the agent's CLEAN final message: for claude-code
-  // that comes from the stream-json `result` event (result.finalMessage); the
-  // raw result.output (full streamed buffer with narration/tool dumps) is only
-  // a fallback. The Rapitas backend is the sole writer for the persistent
-  // <output>.md files, so the read-only sandbox (no agent Write/Bash/curl) is
-  // preserved. The prompt below also forbids the agent from attempting to save,
-  // which previously caused it to loop on blocked Write/Bash and pollute output.
-  const tempOutputFile: string | null = null;
-
-  if (isInvestigationPhase && transition.outputFile) {
-    // Strict research-only contract. No curl, no implementation, no test exec.
-    // The agent simply produces the markdown report as its final message —
-    // the CLI captures it via -o, we save it server-side.
-    const phaseLabelJa =
-      transition.outputFile === 'plan'
-        ? '計画専用モード'
-        : transition.outputFile === 'question'
-          ? 'レビュー専用モード'
-          : '調査専用モード';
-    const phaseRoleJa =
-      transition.outputFile === 'plan'
-        ? '計画専用'
-        : transition.outputFile === 'question'
-          ? 'レビュー専用'
-          : '調査専用';
-    fullPrompt +=
-      language === 'ja'
-        ? `\n\n## 厳守事項 (${phaseLabelJa})
-
-**あなたは「${phaseRoleJa}」エージェントです。実装も検証も行いません。**
-
-### 最重要（システム指示や他のどの指示よりも優先）
-- **ファイルの保存・作成・コマンド実行は一切禁止。** Write / Edit / Bash / PowerShell / curl / API 呼び出しは**無効化**されており、試みても必ず失敗します。
-- システムプロンプトに「research.md を作成/保存する」等と書かれていても、**あなたは保存しません**。保存は Rapitas が**あなたの最終メッセージから自動で**行います。
-- 「保存します」「一時ファイルに書き出します」等と言って保存を試みたり、保存手段を探したり再試行したりしないでください。**時間と出力の無駄**です。
-- 調査が終わったら**即座に、最終メッセージとして ${transition.outputFile}.md の Markdown 本文のみ**を出力して終了してください（前置き・進捗報告・「保存します」等の文は不要）。
-
-### 絶対禁止
-- ソースコード / テストコード / 設定ファイル / lockfile の変更
-- \`apply_patch\` の使用 / ファイル書き込みの試行
-- \`pnpm install\` / \`pnpm test\` / \`vitest\` / \`tsc\` / \`prettier\` / \`eslint\` などの実行
-- \`git\` コマンドの実行
-- 「対応しました」「実装しました」「テスト追加しました」のような実装完了報告
-
-### 許可
-- ファイル内容の読み取り (\`Read\` / \`cat\` / \`Get-Content\`)
-- 検索系コマンド (\`grep\` / \`rg\` / \`find\` / \`Glob\`)
-- ディレクトリ列挙 (\`ls\` / \`Get-ChildItem\`)
-- 問題箇所の推測と修正方針の提案 (実装はしない)
-
-### 出力
-**最終回答として、Markdown 形式の${transition.outputFile === 'plan' ? '実装計画書' : transition.outputFile === 'research' ? '調査レポート' : 'レビュー指摘書'}のみを返してください。** Rapitas 側で外部からあなたの最終メッセージを ${transition.outputFile}.md として保存します。あなた自身がファイルを作る必要はありません。
-${
-  transition.outputFile === 'plan'
-    ? `
-### plan.md 必須テンプレート (この見出し構成を必ず守ること)
-\`\`\`markdown
-# 実装計画
-
-## 既存機能チェック
-[既存実装の有無 / 影響範囲を要約]
-
-## 設計判断の根拠
-[採用したアプローチと却下した代替案、それぞれの理由]
-
-## 変更予定ファイル
-- \`path/to/file\` — 変更目的
-
-## 実装チェックリスト
-- [ ] 各タスクは検証可能な単位で記述
-
-## テスト計画
-- ユニット / 統合 / E2E
-
-## リスク評価
-- 破壊的変更 / 互換性 / マイグレーション
-
-## 完了条件
-- 観測可能な成功条件
-\`\`\`
-冒頭は必ず \`# 実装計画\` で始め、\`## 設計判断の根拠\` と \`## 実装チェックリスト\` を欠落させないでください。これらが無いと validator が plan.md を不適合と判定し、後段の実装エージェントが質問を出して止まります。
-`
-    : transition.outputFile === 'research'
-      ? `
-### 調査結果に基づく複雑度評価（必須）
-実際にコードを調査して把握した「変更が必要なファイル数・影響範囲・リスク・既存実装の有無」に基づき、このタスクの実装複雑度を 0〜100 の整数で1つ算出し、research.md の末尾に必ず次の形式で記載してください（後段のモデル/ワークフロー自動選択に使用します。タイトルの語感ではなく実コードの状況で判断すること）:
-\`\`\`
-## 複雑度評価
-スコア: <0-100の整数>
-理由: <変更ファイル数・影響範囲・リスクの観点で簡潔に>
-\`\`\`
-目安: 0-35=軽微（1〜2ファイル・低リスク）、36-70=中規模、71-100=大規模/高リスク（スキーマ・認証・決済・多数ファイル）。`
-      : ''
-}`
-        : `\n\n## STRICT RULES (Investigation-only mode)
-
-**You are an investigation-only agent. You do NOT implement or verify.**
-
-### FORBIDDEN
-- Modifying source code / test code / config / lockfile
-- Using \`apply_patch\` or attempting any file write
-- Running \`pnpm install\` / \`pnpm test\` / \`vitest\` / \`tsc\` / \`prettier\` / \`eslint\`
-- Running any \`git\` command
-- Saying "対応しました" / "implemented" / "added tests"
-
-### ALLOWED
-- Reading files (\`Read\` / \`cat\` / \`Get-Content\`)
-- Search (\`grep\` / \`rg\` / \`find\` / \`Glob\`)
-- Directory listing (\`ls\` / \`Get-ChildItem\`)
-- Reasoning about problems and proposing approaches (NO implementation)
-
-### OUTPUT
-**Return ONLY the markdown ${transition.outputFile === 'plan' ? 'implementation plan' : transition.outputFile === 'research' ? 'investigation report' : 'review report'} as your final assistant message.** Rapitas will capture your final message externally and save it as ${transition.outputFile}.md. You do NOT need to create the file yourself.
-`;
-  } else if (outputFilePath) {
-    // Non-investigation phase OR non-codex agent fallback: keep the legacy
-    // "save via curl" instructions so other CLIs (claude-code, gemini) can
-    // also produce md files.
-    fullPrompt += `\n\n${cliT.fileHeader}\n${cliT.fileInstruction}\n${cliT.noRootFiles}\n\n`;
-    fullPrompt += `${cliT.apiCommand}\n\`\`\`bash\n`;
-    fullPrompt += `curl -X PUT http://localhost:${process.env.PORT || '3001'}/workflow/tasks/${taskId}/files/${transition.outputFile} \\\n`;
-    fullPrompt += `  -H 'Content-Type: application/json' \\\n`;
-    fullPrompt += `  -d '{"content":"${cliT.contentPlaceholder}"}'\n\`\`\`\n\n`;
-    fullPrompt += `${cliT.powershellCommand}\n\`\`\`powershell\n`;
-    fullPrompt += `$content = @'\n${cliT.contentPlaceholder}\n'@\n`;
-    fullPrompt += `$body = @{ content = $content } | ConvertTo-Json -Depth 10\n`;
-    fullPrompt += `Invoke-RestMethod -Method Put -Uri "http://localhost:${process.env.PORT || '3001'}/workflow/tasks/${taskId}/files/${transition.outputFile}" -ContentType "application/json; charset=utf-8" -Body $body\n`;
-    fullPrompt += `\`\`\`\n\n`;
-    fullPrompt += `${cliT.prohibitions}\n${cliT.mandatory}`;
-  }
-
-  // Concern Backlog: agents must FILE out-of-scope issues, never fix them inline.
-  // This is what stops "not my task → ignore it" for bugs/risks spotted in passing.
-  const port = process.env.PORT || '3001';
-  fullPrompt += `
-
-## 起票の振り分け（懸念バックログ と アイデアボックス）
-作業中に今回のタスクのスコープ外で何かに気づいたら、その場で直さず（スコープ外の変更は禁止）、内容に応じて次の**どちらか一方**に起票してください。**両方には入れないこと。**
-判定ルール: 「壊れている / 壊れうる / 危険」= 不具合・リスク → 懸念バックログ。「壊れてはいないが、こうすればもっと良くなる」= 前向きな改善・新機能 → アイデアボックス。
-
-### 懸念バックログ（不具合・リスク）→ POST /concerns
-対象: バグ、脆弱性・セキュリティ問題、データ破壊/クラッシュ/誤動作のリスク、将来バグの温床になりかねないコード、明確なパフォーマンス劣化。
-（「リファクタ」は"バグの温床・壊れやすい"ことが理由のときだけ懸念。単に綺麗にしたい/より良くしたいだけならアイデアボックスへ。）
-起票（修正は起票されたタスクで別途行う）:
-\`\`\`bash
-curl -X POST http://localhost:${port}/concerns \\
-  -H 'Content-Type: application/json' \\
-  -d '{"title":"簡潔な要約","detail":"何が問題で、なぜ重要か","type":"bug|refactor|security|perf|other","severity":"high|medium|low","location":"path/to/file.ts:行 など","originTaskId":${taskId}}'
-\`\`\`
-
-### アイデアボックス（前向きな改善・革新）→ POST /idea-box
-対象: 新機能、既存機能のブラッシュアップ、UX改善、革新的なアイデア（今は壊れていないが、あれば品質・生産性・価値が上がるもの）。バグ・リスクは入れない。起票:
-\`\`\`bash
-curl -X POST http://localhost:${port}/idea-box \\
-  -H 'Content-Type: application/json' \\
-  -d '{"title":"簡潔なアイデア名","content":"何を・なぜ・期待される効果","category":"improvement","scope":"global|project","priority":"high|medium|low"}'
-\`\`\`
-日本語が "?" に化ける場合は、内容を作業ディレクトリの .wf-idea.json に UTF-8 で書いてから --data-binary @.wf-idea.json で送る（.wf-* はコミットされません）。アイデアが無ければ何もしなくて構いません。`;
-
-  const result = await orchestrator.executeTask(
-    {
-      id: taskId,
-      title: `[${transition.role}] ${task.title}`,
-      description: fullPrompt,
-      workingDirectory: effectiveWorkDir,
-    },
-    {
-      taskId,
-      sessionId: session.id,
-      agentConfigId: agentConfig.id,
-      workingDirectory: effectiveWorkDir,
-      modelIdOverride: agentConfig.modelId || undefined,
-      autoCompleteTask: false,
-      investigationMode: isInvestigationPhase,
-      // Phase-specific output type. Drives codex's positional headline
-      // (`# 調査レポート` vs `# 実装計画` vs `# レビュー指摘`) so each
-      // role's CLI invocation produces an artifact in the correct shape.
-      // Without this, planner phases were force-shaped as research reports
-      // and the validator flagged plan.md for missing 設計判断の根拠 /
-      // 実装チェックリスト sections.
-      investigationOutputType:
-        transition.outputFile === 'plan'
-          ? 'plan'
-          : transition.outputFile === 'verify'
-            ? 'verify'
-            : transition.outputFile === 'question'
-              ? 'review'
-              : 'research',
-      // For investigation phases, codex writes its final message to a TEMP
-      // file via -o. We read that temp file after the run and upload it to
-      // the workflow API ourselves — codex never gets to touch the
-      // workflow file path directly.
-      outputLastMessageFile: tempOutputFile ?? undefined,
-    },
-  );
-
-  // Investigation-mode result harvesting: if codex wrote to the temp file,
-  // upload its contents to the workflow API server-side (codex itself
-  // Investigation-phase harvest: capture stdout (result.output) and save it
-  // to the workflow API as <outputFile>.md. codex `exec` writes the final
-  // assistant message to stdout for any --sandbox mode, so this works
-  // even with read-only sandbox where codex itself cannot write files.
-  // Prefer the agent's CLEAN final message (stream-json `result` event) over
-  // the raw outputBuffer. outputBuffer concatenates every streamed assistant
-  // delta, tool-result display, and status line — which polluted research.md /
-  // plan.md with mid-run narration ("研究レポートを書き出します…"), false-start
-  // blocks, and tool dumps. finalMessage is just the final report.
-  const rawInvestigation = result.finalMessage?.trim() || result.output?.trim();
-  if (isInvestigationPhase && transition.outputFile && rawInvestigation) {
-    // Never persist raw agent logs into the .md. When the agent crashes (e.g.
-    // "Uncaught ReferenceError: Workflow is not defined") finalMessage is empty
-    // and result.output is the full log-laden stdout buffer — extract the clean
-    // report and quality-gate it. A null result (log-only output) means we write
-    // NOTHING, so the phase fails cleanly instead of producing a poisoned file.
-    const cleaned = extractMarkdownFromOutput(rawInvestigation, transition.outputFile);
-    if (!cleaned) {
-      log.warn(
-        {
+  // Repair bounce: continue the CLI session this role already built — unless
+  // its only resumable session was exhausted by a prompt-too-long failure, in
+  // which case cold-start with a SHORT structured handoff prompt instead of
+  // replaying the same oversized context that caused the failure (task 900).
+  const resumeDecision = await resolvePhaseResumeDecision({
+    taskId,
+    role: transition.role,
+    workingDirectory: effectiveWorkDir,
+    agentType: agentConfig.agentType,
+  });
+  const fullPrompt =
+    resumeDecision.coldStartReason === 'prompt_too_long_exhausted'
+      ? buildColdStartHandoffPrompt({
           taskId,
-          role: transition.role,
-          outputFile: transition.outputFile,
-          rawChars: rawInvestigation.length,
-          usedFinalMessage: !!result.finalMessage?.trim(),
-        },
-        '[WorkflowCLIExecutor] Agent output had no clean report (log-only) — skipping md write',
-      );
-    } else {
-      try {
-        await writeWorkflowFile(workflowDir, transition.outputFile, cleaned, taskId);
-        log.info(
-          {
-            taskId,
-            role: transition.role,
-            outputFile: transition.outputFile,
-            chars: cleaned.length,
-            usedFinalMessage: !!result.finalMessage?.trim(),
-          },
-          '[WorkflowCLIExecutor] Captured clean report and saved to workflow API',
-        );
-      } catch (captureErr) {
-        log.warn(
-          { err: captureErr, taskId, role: transition.role },
-          '[WorkflowCLIExecutor] Failed to save report to workflow API',
-        );
-      }
-    }
-  }
-
-  const updatedTask = await prisma.task.findUnique({ where: { id: taskId } });
-  const currentWfStatus = updatedTask?.workflowStatus || 'draft';
-  let effectiveSuccess = result.success;
-  let phaseStatus = transition.nextStatus;
-  let phaseError = effectiveSuccess ? undefined : result.errorMessage;
-
-  if (transition.outputFile) {
-    let fileContent = await readWorkflowFile(workflowDir, transition.outputFile);
-
-    // Fallback: extract Markdown from raw output when agent did not save via API
-    if (!fileContent && result.output && result.output.trim().length > 100) {
-      log.info(
-        `[WorkflowCLIExecutor] ${transition.outputFile}.md not found, extracting from output (${result.output.length} chars)`,
-      );
-      const extractedContent = extractMarkdownFromOutput(result.output, transition.outputFile);
-      if (extractedContent) {
-        await writeWorkflowFile(workflowDir, transition.outputFile, extractedContent, taskId);
-        fileContent = extractedContent;
-        log.info(
-          `[WorkflowCLIExecutor] Saved extracted content (${extractedContent.length} chars)`,
-        );
-      }
-    }
-
-    if (fileContent) {
-      // Structural validation: ensure the artifact has the required sections
-      // so the next role isn't handed an under-specified document. We log the
-      // result for observability but still advance — fail-soft for now.
-      const validation = validateOutput(transition.outputFile, fileContent);
-      if (!validation.ok) {
-        log.warn(
-          {
-            taskId,
-            role: transition.role,
-            outputFile: transition.outputFile,
-            missingSections: validation.missingSections,
-            severity: validation.severity,
-          },
-          `[WorkflowCLIExecutor] ${validation.summary}`,
-        );
-      }
-
-      // Code-grounded complexity: the research agent assessed the task AFTER
-      // inspecting the repo and embedded a 0-100 score in research.md. Persist
-      // it so downstream model/workflow auto-selection uses a real signal
-      // instead of the title/description keyword heuristic.
-      if (transition.outputFile === 'research' && typeof fileContent === 'string') {
-        try {
-          const { parseResearchComplexity } = await import('./research-complexity');
-          const assessed = parseResearchComplexity(fileContent);
-          if (assessed !== null) {
-            // Dynamically select the workflow (lightweight/standard/comprehensive)
-            // from the code-grounded complexity, so the remaining phases follow
-            // the right depth. The orchestrator reads task.workflowMode each
-            // advance, so updating it here takes effect for plan/review/verify.
-            // Respect a manual override — never clobber a user-pinned mode.
-            const current = await prisma.task
-              .findUnique({
-                where: { id: taskId },
-                select: { workflowModeOverride: true, workflowMode: true },
-              })
-              .catch(() => null);
-            const data: { complexityScore: number; workflowMode?: string } = {
-              complexityScore: assessed,
-            };
-            if (!current?.workflowModeOverride) {
-              const { selectModeByComplexity, higherMode } = await import('./workflow-mode-config');
-              const assessedMode = await selectModeByComplexity(assessed);
-              const currentMode = (current?.workflowMode as WorkflowMode) || 'comprehensive';
-              // Upgrade only: research-grounded complexity may RAISE ceremony (a
-              // task that looked trivial actually needs a plan) but must not LOWER
-              // it — research.md was already written for the provisional mode set
-              // before research; dropping the plan now would strand a
-              // plan-assuming research artifact.
-              const upgraded = higherMode(currentMode, assessedMode);
-              if (upgraded !== currentMode) data.workflowMode = upgraded;
-            }
-            await prisma.task.update({ where: { id: taskId }, data });
-            log.info(
-              {
-                taskId,
-                complexityScore: assessed,
-                workflowMode: data.workflowMode ?? '(unchanged)',
-              },
-              '[WorkflowCLIExecutor] Applied research-assessed complexity (upgrade-only)',
-            );
-          }
-        } catch (cErr) {
-          log.warn(
-            { err: cErr, taskId },
-            '[WorkflowCLIExecutor] Failed to apply research-assessed complexity',
-          );
-        }
-      }
-
-      const isVerifyPhase = transition.outputFile === 'verify';
-      const curRank = WF_STATUS_RANK[currentWfStatus] ?? 0;
-      const nextRank = WF_STATUS_RANK[transition.nextStatus] ?? 0;
-
-      if (isVerifyPhase) {
-        // Verify phase: mirror the HTTP file-save auto-complete so orchestrator
-        // / queue-driven runs (subtasks) don't get stuck at verify_done with
-        // task.status still 'in-progress'. A passing verify completes the task;
-        // a hard validation failure blocks it for fix + re-verify.
-        const hardFail = !validation.ok && validation.severity >= 80;
-        if (currentWfStatus === 'completed') {
-          // The HTTP handler already completed it — don't touch / regress.
-          phaseStatus = 'completed';
-        } else if (hardFail) {
-          await prisma.task
-            .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
-            .catch(() => {});
-          await recordTransition({
-            taskId,
-            fromStatus: currentWfStatus,
-            toStatus: currentWfStatus,
-            actor: transition.role as TransitionActor,
-            cause: 'verify_validation_failed',
-            phase: 'verify',
-            sessionId: session.id,
-            metadata: { reason: validation.summary },
-            invariantViolation: true,
-            invariantMessage: validation.summary,
-          });
-          phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
-        } else {
-          // Completion gate: a passing verify may only complete the task when it
-          // is backed by REAL code changes, or verify.md explicitly justifies a
-          // no-op. Otherwise it's the silent-skip pattern (agent claimed work it
-          // never did — empty diff, no commit) and we block for inspection.
-          const gate = await evaluateCompletionGate(
-            resolvedWorktreePath,
-            typeof fileContent === 'string' ? fileContent : '',
-          );
-          if (!gate.allow) {
-            await prisma.task.update({
-              where: { id: taskId },
-              data: { status: 'blocked' },
-            });
-            await recordTransition({
-              taskId,
-              fromStatus: currentWfStatus,
-              toStatus: currentWfStatus,
-              actor: transition.role as TransitionActor,
-              cause: 'verify_no_changes',
-              phase: 'verify',
-              sessionId: session.id,
-              metadata: { reason: gate.reason },
-              invariantViolation: true,
-              invariantMessage:
-                '検証は通過しましたが、実装による変更がありません（verify.md に「変更不要の理由」の明記もなし）。暗黙的な完了を防ぐためタスクをブロックしました。',
-            });
-            phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
-            log.warn(
-              { taskId, reason: gate.reason },
-              '[WorkflowCLIExecutor] Verify passed but no code changes and no justification — blocking instead of completing',
-            );
-          } else {
-            await prisma.task.update({
-              where: { id: taskId },
-              data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
-            });
-            await recordTransition({
-              taskId,
-              fromStatus: currentWfStatus,
-              toStatus: 'completed',
-              actor: transition.role as TransitionActor,
-              cause: 'verify_passed',
-              phase: 'verify',
-              sessionId: session.id,
-              metadata: {
-                chars: typeof fileContent === 'string' ? fileContent.length : 0,
-                gate: gate.reason,
-              },
-            });
-            phaseStatus = 'completed';
-          }
-        }
-      } else if (currentWfStatus !== transition.nextStatus && nextRank > curRank) {
-        // Advance FORWARD only. Never regress a status the HTTP handler already
-        // advanced (e.g. plan auto-approved → plan_approved).
-        await prisma.task.update({
-          where: { id: taskId },
-          data: { workflowStatus: transition.nextStatus },
-        });
-        const violations = await checkWorkflowInvariants(taskId);
-        await recordTransition({
-          taskId,
-          fromStatus: currentWfStatus,
-          toStatus: transition.nextStatus,
-          actor: transition.role as TransitionActor,
-          cause: `phase_completed:${transition.role}`,
-          phase: transition.outputFile ?? transition.role,
-          sessionId: session.id,
-          metadata: {
-            outputFile: transition.outputFile,
-            chars: typeof fileContent === 'string' ? fileContent.length : 0,
-          },
-          invariantViolation: violations.length > 0,
-          invariantMessage:
-            violations.length > 0
-              ? violations.map((v) => `${v.code}:${v.message}`).join(' | ')
-              : undefined,
-        });
-
-        // Auto-approve plan when the user's settings allow it. Without
-        // this, the orchestrator-driven planner phase would land on
-        // `plan_created` and wait for a UI click — even when
-        // `userSettings.autoApprovePlan = true` is enabled, because the
-        // auto-approve helper used to live exclusively in the HTTP file
-        // handler that the orchestrator path bypasses.
-        if (transition.nextStatus === 'plan_created') {
-          const approval = await maybeAutoApprovePlan(taskId, language).catch(() => null);
-          if (approval?.autoApproved) {
-            log.info(
-              { taskId, reason: approval.reason },
-              '[WorkflowCLIExecutor] Plan auto-approved after planner phase',
-            );
-            phaseStatus = 'plan_approved';
-          }
-        }
-      } else {
-        // Already at/past this phase's nextStatus (HTTP handler advanced it).
-        phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
-      }
-      if (!effectiveSuccess) {
-        log.info(
-          `[WorkflowCLIExecutor] Agent reported failure but ${transition.outputFile}.md exists, treating as success`,
-        );
-        effectiveSuccess = true;
-      }
-    } else {
-      effectiveSuccess = false;
-      phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
-      phaseError =
-        `${transition.outputFile}.md was not saved. ` +
-        'The workflow phase cannot be completed until the required file is written via the workflow API.';
-      log.warn(
-        {
-          taskId,
-          role: transition.role,
-          outputFile: transition.outputFile,
-          agentSuccess: result.success,
-          outputLength: result.output?.length ?? 0,
-        },
-        '[WorkflowCLIExecutor] Required workflow file was not saved; treating phase as failed',
-      );
-    }
-  } else if (effectiveSuccess && currentWfStatus !== transition.nextStatus) {
-    await prisma.task.update({
-      where: { id: taskId },
-      data: { workflowStatus: transition.nextStatus },
-    });
-    await recordTransition({
-      taskId,
-      fromStatus: currentWfStatus,
-      toStatus: transition.nextStatus,
-      actor: transition.role as TransitionActor,
-      cause: `phase_completed:${transition.role}`,
-      phase: transition.outputFile ?? transition.role,
-      sessionId: session.id,
-      metadata: { outputFile: transition.outputFile ?? null },
-    });
-  }
-
-  try {
-    await cleanupRootWorkflowFiles(taskId);
-  } catch (cleanupError) {
-    log.warn({ err: cleanupError }, '[WorkflowCLIExecutor] Cleanup warning');
-  }
-
-  // Flip the AgentExecution row from `post_processing` (set when codex
-  // exited 0 in investigation mode) to `completed` now that the role's
-  // output file has been validated and saved. Without this, downstream
-  // jobs like the distillation worker skip the execution because they
-  // refuse to act on a non-completed row, and the FE's "完了" badge
-  // never lights up for planner / reviewer / verifier phases.
-  if (effectiveSuccess && isInvestigationPhase) {
-    try {
-      await prisma.agentExecution.updateMany({
-        where: { sessionId: session.id, status: 'post_processing' },
-        data: { status: 'completed', completedAt: new Date() },
-      });
-      log.info(
-        { taskId, role: transition.role, outputFile: transition.outputFile },
-        '[WorkflowCLIExecutor] AgentExecution flipped post_processing → completed',
-      );
-    } catch (flipErr) {
-      log.warn(
-        { err: flipErr, taskId, sessionId: session.id },
-        '[WorkflowCLIExecutor] Failed to flip post_processing → completed',
-      );
-    }
-    // Emit the deferred timeline event now that the artifact is on disk.
-    try {
-      const { appendEvent } = await import('../memory/timeline');
-      const latestExec = await prisma.agentExecution
-        .findFirst({
-          where: { sessionId: session.id },
-          orderBy: { createdAt: 'desc' },
-          select: { id: true, agentConfig: { select: { agentType: true } } },
+          task,
+          systemPrompt,
+          transition,
+          workflowStatus: taskWithTheme?.workflowStatus,
+          agentsMd,
+          language,
         })
-        .catch(() => null);
-      if (latestExec) {
-        await appendEvent({
-          eventType: 'agent_execution_completed',
-          actorType: 'agent',
-          actorId: latestExec.agentConfig?.agentType ?? 'codex',
-          payload: {
-            executionId: latestExec.id,
-            taskId,
-            success: true,
-            phase: transition.role,
-          },
-          correlationId: `execution_${latestExec.id}`,
-        }).catch(() => {});
-      }
-    } catch {
-      /* timeline emission is best-effort */
-    }
-    log.info(
-      { taskId, role: transition.role, outputFile: transition.outputFile },
-      `[WorkflowCLIExecutor] ${transition.role} phase completed`,
+      : buildCliAgentPrompt({
+          taskId,
+          language,
+          systemPrompt,
+          context,
+          transition,
+          agentsMd,
+        });
+
+  // For the harvest guard below: a critic rejection recorded AFTER this point
+  // means the artifact this phase produced was already judged and bounced.
+  const phaseStartedAt = new Date();
+
+  // Everything past this point is wrapped so the session reaches a terminal
+  // status on the success path, the failure path, AND when the epilogue /
+  // post-processing throws. `finally` performs a side effect only — it never
+  // returns or throws, so the original result/exception propagates unchanged.
+  let sessionSucceeded = false;
+  let sessionCancelled = false;
+  try {
+    assertOwnership?.();
+    const result = await orchestrator.executeTask(
+      {
+        id: taskId,
+        title: `[${transition.role}] ${task.title}`,
+        description: fullPrompt,
+        workingDirectory: effectiveWorkDir,
+      },
+      {
+        taskId,
+        sessionId: session.id,
+        assertExecutionAllowed: assertOwnership,
+        agentConfigId: agentConfig.id,
+        workingDirectory: effectiveWorkDir,
+        modelIdOverride: agentConfig.modelId || undefined,
+        resumeSessionId: resumeDecision.sessionId ?? undefined,
+        // Role-aware wall-clock cap: implementer gets 2x the base (task 546).
+        timeout: getAgentTimeoutMs(transition.role),
+        autoCompleteTask: false,
+        // Verifiers need shell access for checks and workflow artifact saves.
+        // Their no-code result policy is selected by the output type below.
+        investigationMode: isInvestigationPhase,
+        // Phase-specific output type. Drives codex's positional headline
+        // (`# 調査レポート` vs `# 実装計画` vs `# レビュー指摘`) so each
+        // role's CLI invocation produces an artifact in the correct shape.
+        // Without this, planner phases were force-shaped as research reports
+        // and the validator flagged plan.md for missing 設計判断の根拠 /
+        // 実装チェックリスト sections.
+        investigationOutputType:
+          transition.outputFile === 'plan'
+            ? 'plan'
+            : transition.outputFile === 'verify'
+              ? 'verify'
+              : 'research',
+        // For investigation phases, codex writes its final message to a TEMP
+        // file via -o. We read that temp file after the run and upload it to
+        // the workflow API ourselves — codex never gets to touch the
+        // workflow file path directly. (outputLastMessageFile is currently
+        // always unused — no CLI path sets a temp file — but the option is
+        // kept wired for when one does.)
+        outputLastMessageFile: undefined,
+      },
     );
+
+    assertOwnership?.();
+    // Attempt summary (task 900): character/byte length + session-reuse +
+    // model + end-reason as ONE structured log record, never the prompt body
+    // or errorMessage full text — used to diagnose resume/cold-start behavior
+    // without leaking task input into logs.
     log.info(
       {
         taskId,
-        fromRole: transition.role,
-        nextWorkflowStatus: transition.nextStatus,
+        role: transition.role,
+        attemptId: session.id,
+        promptChars: fullPrompt.length,
+        promptBytes: Buffer.byteLength(fullPrompt, 'utf8'),
+        sessionReused: resumeDecision.sessionId !== null,
+        coldStartReason: resumeDecision.coldStartReason,
+        requestedModel: agentConfig.modelId ?? 'auto',
+        actualModel: result.modelName ?? null,
+        endReason: result.failureType ?? (result.success ? 'success' : 'failed'),
       },
-      '[WorkflowCLIExecutor] Next phase queued',
+      '[WorkflowCLIExecutor] Attempt summary',
     );
-  }
 
-  const finalResult: WorkflowAdvanceResult = {
-    success: effectiveSuccess,
-    role: transition.role,
-    status: phaseStatus,
-    output: result.output,
-    error: effectiveSuccess ? undefined : phaseError,
-  };
+    await harvestInvestigationOutput({
+      taskId,
+      transition,
+      result,
+      isInvestigationPhase,
+      phaseStartedAt,
+    });
 
-  // Auto-start verification phase after implementer completes
-  if (effectiveSuccess && transition.role === 'implementer') {
-    log.info('[WorkflowCLIExecutor] Implementer done, auto-starting verifier...');
-    // NOTE: 1s delay to ensure DB updates have committed before the next phase reads them.
-    setTimeout(() => {
-      advanceWorkflow(taskId, language).catch((error) => {
-        log.error({ err: error }, '[WorkflowCLIExecutor] Failed to auto-advance to verifier');
-      });
-    }, 1000);
-  } else if (
-    effectiveSuccess &&
-    phaseStatus === 'plan_approved' &&
-    transition.role !== 'implementer' &&
-    transition.role !== 'verifier' &&
-    transition.role !== 'auto_verifier'
-  ) {
-    // The plan was created AND auto-approved during THIS run — typically because
-    // the agent did research+plan in a single pass. The auto-advance that would
-    // normally start the implementer fires when plan.md is saved, but at that
-    // moment this very execution was still running, so it was blocked. Nothing
-    // retried after it finished, leaving the workflow stalled at plan_approved
-    // with no implementer execution and no further logs. Start the implementer
-    // here now that this phase has actually completed.
-    log.info(
-      { taskId, role: transition.role },
-      '[WorkflowCLIExecutor] Plan approved within this run — auto-starting implementer...',
-    );
-    setTimeout(() => {
-      advanceWorkflow(taskId, language).catch((error) => {
-        log.error({ err: error }, '[WorkflowCLIExecutor] Failed to auto-advance to implementer');
-      });
-    }, 1000);
-  }
+    assertOwnership?.();
+    const { effectiveSuccess, phaseStatus, phaseError, superseded } = await runPhaseEpilogue({
+      taskId,
+      transition,
+      session,
+      result,
+      resolvedWorktreePath,
+      language,
+      phaseStartedAt,
+    });
 
-  return finalResult;
-}
+    sessionSucceeded = effectiveSuccess;
+    const finalResult: WorkflowAdvanceResult = {
+      success: effectiveSuccess,
+      ...(superseded ? { superseded: true } : {}),
+      role: transition.role,
+      status: phaseStatus,
+      output: result.output,
+      error: effectiveSuccess ? undefined : phaseError,
+    };
 
-/**
- * Dispatch validation by output-file type. Returns a permissive result for
- * unknown types so the executor doesn't reject legitimate artifacts.
- */
-function validateOutput(outputFile: string, content: string): ValidationResult {
-  switch (outputFile) {
-    case 'research':
-      return validateResearch(content);
-    case 'plan':
-      return validatePlan(content);
-    case 'verify':
-      return validateVerify(content);
-    default:
-      return { ok: true, missingSections: [], severity: 0, summary: 'no validator' };
+    assertOwnership?.();
+    await runPostProcessing({
+      taskId,
+      transition,
+      session,
+      language,
+      effectiveSuccess,
+      phaseStatus,
+      isInvestigationPhase,
+      advanceWorkflow,
+    });
+
+    return finalResult;
+  } catch (error) {
+    sessionCancelled = error instanceof ExecutionCancelledError;
+    throw error;
+  } finally {
+    await finalizeAgentSession(session.id, sessionSucceeded, sessionCancelled);
   }
 }

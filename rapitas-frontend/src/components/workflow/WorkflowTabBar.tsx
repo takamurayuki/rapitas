@@ -1,9 +1,12 @@
 'use client';
 // WorkflowTabBar
 
-import { Clock, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Clock, RefreshCw, CheckCircle2, HelpCircle } from 'lucide-react';
+import { PlanRevisionRequest } from './PlanRevisionRequest';
+import { useTranslations } from 'next-intl';
 import type { WorkflowFileType, WorkflowStatus } from '@/types';
 import type { WorkflowTab } from './workflow-viewer-utils';
+import { formatDateTime } from '@/utils/date';
 
 interface WorkflowTabBarProps {
   /** Tabs to display (filtered by the current workflow mode) */
@@ -14,6 +17,8 @@ interface WorkflowTabBarProps {
   tabStatus: Record<WorkflowFileType, boolean>;
   /** Resolved effective status used to determine badge visibility */
   effectiveStatus: WorkflowStatus | null;
+  /** Number of pending Q&A questions (badged on the Q&A tab). / Q&A質問数 */
+  questionCount?: number;
   /** Called when user clicks a tab */
   onTabChange: (tab: WorkflowFileType) => void;
   /** Active file's last-modified time; undefined when no file is shown. */
@@ -22,6 +27,19 @@ interface WorkflowTabBarProps {
   onRefetch?: () => void;
   /** Whether a reload is in flight. */
   isRefetching?: boolean;
+  /**
+   * Tab currently being regenerated after a phase-critic rejection (see
+   * WorkflowViewer's criticRejectionPhase). While its file is absent this
+   * tab shows a "regenerating" indicator instead of nothing, so the empty
+   * state doesn't read as "the file was lost".
+   */
+  regeneratingTab?: 'research' | 'plan' | null;
+  /**
+   * Task id — enables the plan-revision request. Shown only while the PLAN tab
+   * is selected: it acts on plan.md, so offering it from another tab would be
+   * ambiguous about what is being revised.
+   */
+  taskId?: number;
 }
 
 /**
@@ -38,23 +56,46 @@ export function WorkflowTabBar({
   activeTab,
   tabStatus,
   effectiveStatus,
+  questionCount = 0,
   onTabChange,
   lastModified,
   onRefetch,
   isRefetching,
+  regeneratingTab = null,
+  taskId,
 }: WorkflowTabBarProps) {
+  const t = useTranslations('workflow');
+  const tAutoRun = useTranslations('autoRun');
   return (
     // Sticky below the task-detail toolbar (top-11) so the tabs stay reachable
     // while scrolling the file; the in-file TOC sticks just beneath this bar.
     <div className="sticky top-11 z-[6] flex items-center justify-between border-b border-zinc-200 bg-white dark:border-zinc-700 dark:bg-indigo-dark-900">
-      <nav className="flex">
+      {/* min-w-0 lets the row shrink below its content (a flex child defaults
+          to min-width:auto). Deliberately NOT an overflow container: making it
+          one changes the formatting context inside a sticky bar, which is a
+          layout risk that was not buying a fix for anything observed. */}
+      <nav className="flex min-w-0 flex-1">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           const hasContent = tabStatus[tab.id];
           const TabIcon = tab.icon;
-          // Show badge for plan tab awaiting approval
-          const needsAttention =
+          // Attention badges: a plan awaiting approval, or a question awaiting the
+          // user's answer. While awaiting an answer the Q&A tab must NOT show the
+          // "done" check (that wrongly reads as answered) — show 要回答 instead; the
+          // check appears only once the question has been answered/resolved.
+          const planNeedsApproval =
             tab.id === 'plan' && effectiveStatus === 'plan_created' && hasContent;
+          const questionNeedsAnswer =
+            tab.id === 'question' && effectiveStatus === 'awaiting_question' && hasContent;
+          const needsAttention = planNeedsApproval || questionNeedsAnswer;
+          // The "done" check and the question count are mutually exclusive: once
+          // answered (check shown) the count is stale noise, so suppress it.
+          const showDoneCheck = hasContent && !needsAttention;
+          // The phase-critic gate archives a rejected research.md/plan.md, so
+          // the file briefly reports !hasContent while it regenerates. Without
+          // this the tab would look identical to "never produced" (see the
+          // final `null` branch below).
+          const isRegenerating = !hasContent && tab.id === regeneratingTab;
 
           return (
             <button
@@ -68,19 +109,36 @@ export function WorkflowTabBar({
             >
               <TabIcon className="h-4 w-4" />
               <span>{tab.label}</span>
+              {/* Question count: lets the user see at a glance how many questions
+                  await before opening the tab. Hidden once answered (the done
+                  check takes over) per user request. */}
+              {tab.id === 'question' && questionCount > 0 && !showDoneCheck && (
+                <span className="flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">
+                  {questionCount}
+                </span>
+              )}
               {
                 needsAttention ? (
                   <span className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-800/50 text-amber-700 dark:text-amber-300 text-[10px] font-medium rounded-full">
-                    <Clock className="h-2.5 w-2.5" />
-                    承認待ち
+                    {questionNeedsAnswer ? (
+                      <HelpCircle className="h-2.5 w-2.5" />
+                    ) : (
+                      <Clock className="h-2.5 w-2.5" />
+                    )}
+                    {questionNeedsAnswer ? t('tabBar.answerNeeded') : tAutoRun('awaitingApproval')}
                   </span>
                 ) : hasContent ? (
                   // A filled check reads as "this phase is done" — the previous
                   // solid green dot looked like a live/active status light.
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                  <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-400" />
+                ) : isRegenerating ? (
+                  <span className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-800/50 text-amber-700 dark:text-amber-300 text-[10px] font-medium rounded-full">
+                    <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                    {t('tabBar.regenerating')}
+                  </span>
                 ) : null
-                // Not produced yet: show nothing — an in-progress phase surfaces
-                // its own loading indicator elsewhere.
+                // Not produced yet (and not regenerating): show nothing — an
+                // in-progress phase surfaces its own loading indicator elsewhere.
               }
             </button>
           );
@@ -88,16 +146,20 @@ export function WorkflowTabBar({
       </nav>
       {onRefetch && (
         <div className="flex shrink-0 items-center gap-2 px-3 text-xs text-zinc-500 dark:text-zinc-400">
+          {activeTab === 'plan' && tabStatus.plan && typeof taskId === 'number' && (
+            <PlanRevisionRequest taskId={taskId} onRequested={onRefetch} />
+          )}
           {lastModified !== undefined && (
             <span>
-              更新: {lastModified ? new Date(lastModified).toLocaleString('ja-JP') : '不明'}
+              {t('tabBar.updated')}{' '}
+              {lastModified ? formatDateTime(lastModified) : t('planApprovalModal.unknown')}
             </span>
           )}
           <button
             onClick={onRefetch}
             disabled={isRefetching}
-            title="再読み込み"
-            className="text-zinc-400 transition-colors hover:text-zinc-600 disabled:opacity-50 dark:hover:text-zinc-300"
+            title={t('tabBar.reload')}
+            className="text-zinc-500 transition-colors hover:text-zinc-600 disabled:opacity-50 dark:hover:text-zinc-300"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
           </button>

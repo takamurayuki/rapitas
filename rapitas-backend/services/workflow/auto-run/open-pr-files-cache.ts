@@ -1,0 +1,275 @@
+/**
+ * OpenPrFilesCache
+ *
+ * Lists a theme's OPEN auto-created PRs (GitHubPullRequest state='open' with a
+ * linkedTaskId belonging to the theme) and fetches each PR's changed files via
+ * `gh pr view <n> --json files,state`, memoized per repository and PR with a TTL so the
+ * 12-second scheduler tick never stampedes the GitHub API. gh failures are
+ * fail-open (empty file list → no deferral) — a broken gh must not stop task
+ * selection.
+ * Not responsible for overlap decisions — see auto-run-selection.ts.
+ */
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import type { PrismaClient } from '../../../generated/prisma-postgres';
+import { createLogger } from '../../../config/logger';
+import { readExhaustionRecord } from '../auto-merge-exhaustion';
+
+const execAsync = promisify(exec);
+const log = createLogger('workflow:open-pr-files-cache');
+
+/** TTL for one PR's changed-file list (= 5 scheduler polls of 12 s). */
+export const PR_FILES_CACHE_TTL_MS = 60_000;
+
+/** One open auto-created PR relevant to scope-overlap scheduling. */
+export interface OpenAutoPr {
+  prNumber: number;
+  linkedTaskId: number | null;
+  /** PR row creation time; consumers use it to ignore stale PRs. */
+  createdAt: Date | null;
+}
+
+interface CacheEntry {
+  files: string[];
+  state: string | null;
+  /** Head commit SHA (headRefOid), read alongside files/state in the same gh call. */
+  headSha: string | null;
+  expiresAt: number;
+}
+
+// Repository/PR-keyed memo. Failures are cached too (as []) so a persistently
+// broken gh is retried at most once per TTL window instead of every tick.
+const cache = new Map<string, CacheEntry>();
+
+/**
+ * One in-flight refresh per cache key, so a stale entry read by several callers
+ * in the same tick spawns one `gh` process, not one each.
+ */
+const refreshing = new Map<string, Promise<CacheEntry>>();
+
+// Concurrency cap: a theme with many open auto-PRs (observed 2026-09-18/19: 57
+// distinct PR numbers queried within one 5-minute window) previously fired one
+// parallel `gh pr view` process PER open PR on every cache-refresh — a burst
+// of dozens of simultaneous CLI spawns stampeding local CPU, mirroring the
+// exact class of problem claude-cli-provider.ts's MAX_CONCURRENT already
+// solves for aux-AI calls. Serialize to a small pool instead.
+const MAX_CONCURRENT_GH_CALLS = Number(process.env.RAPITAS_PR_FILES_CACHE_CONCURRENCY) || 4;
+
+/**
+ * Runs `fn` over `items`, at most `limit` calls in flight at once, preserving
+ * result order. A hand-rolled pool (no dependency) mirroring the acquire/
+ * release slot pattern already used for aux-CLI concurrency.
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      results[index] = await fn(items[index]!);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+/** Clear the memo (test isolation helper). */
+export function clearPrFilesCache(): void {
+  cache.clear();
+  // Also drop in-flight refreshes: a test that clears the cache must not have a
+  // previous test's pending fetch write back into it.
+  refreshing.clear();
+}
+
+/** Resolve the platform-specific `gh` CLI invocation path (mirrors auto-merge-checks). */
+function ghPath(): string {
+  return process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
+}
+
+/** Injectable side effects for unit tests. */
+export interface PrFilesDeps {
+  /** Run `gh <args>` in cwd and return stdout. */
+  execGh: (command: string, cwd: string) => Promise<string>;
+  /** Clock (epoch ms). */
+  now: () => number;
+}
+
+const defaultDeps: PrFilesDeps = {
+  execGh: async (command, cwd) => {
+    // NOTE: 15s cap — an uncapped gh (credential prompt, dead network) blocked
+    // the runner's whole processQueue for 16 minutes on 2026-08-30. A timeout
+    // surfaces as an exec error and the caller already fails open on those.
+    const { stdout } = await execAsync(command, { cwd, encoding: 'utf8', timeout: 15_000 });
+    return stdout;
+  },
+  now: () => Date.now(),
+};
+
+/**
+ * The theme's open auto-created PRs (state='open' + linkedTaskId in the
+ * theme's tasks). No relation is assumed between the PR and Task tables —
+ * task ids are collected first, mirroring pr-duplicate-guard's query shape.
+ *
+ * @param prisma - Prisma client / Prismaクライアント
+ * @param themeId - Theme whose tasks to scan / 対象テーマ
+ * @returns Open auto-PRs, [] on any DB error (fail-open) / オープン自動PR一覧
+ */
+export async function getOpenAutoPrsForTheme(
+  prisma: PrismaClient,
+  themeId: number,
+  deps: PrFilesDeps = defaultDeps,
+): Promise<OpenAutoPr[]> {
+  try {
+    const tasks = await prisma.task.findMany({
+      where: { themeId },
+      select: { id: true },
+    });
+    if (tasks.length === 0) return [];
+    const rows = await prisma.gitHubPullRequest.findMany({
+      where: { state: 'open', linkedTaskId: { in: tasks.map((t) => t.id) } },
+      select: { prNumber: true, linkedTaskId: true, createdAt: true },
+    });
+    if (rows.length === 0) return rows;
+    const theme = await prisma.theme.findUnique({
+      where: { id: themeId },
+      select: { workingDirectory: true },
+    });
+    const cwd = theme?.workingDirectory;
+    if (!cwd) return rows;
+    const snapshots = await mapWithConcurrency(rows, MAX_CONCURRENT_GH_CALLS, (row) =>
+      getPrSnapshot(cwd, row.prNumber, deps),
+    );
+    // Exhausted + head-unchanged PRs (auto-merge gave up and no one pushed a
+    // fix since) must not keep contributing to scope-overlap holds or the
+    // merge barrier forever — that is exactly the permanent-park bug this
+    // filter closes (task 1061). A PR whose head moved since the park is left
+    // untouched: that is a live retry, not an abandoned candidate. Rows
+    // without a linkedTaskId, or whose head SHA is unreadable, are kept
+    // (fail-open — indeterminate is not evidence of exhaustion). DB
+    // synchronization is bounded and can miss old closed/merged PRs: unknown
+    // remote state retains the DB candidate; only confirmed terminal PRs stop
+    // contributing to both merge barriers and scope-overlap holds.
+    const kept: OpenAutoPr[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]!;
+      const snapshot = snapshots[i]!;
+      if (['CLOSED', 'MERGED'].includes(snapshot.state ?? '')) continue;
+      if (row.linkedTaskId == null || !snapshot.headSha) {
+        kept.push(row);
+        continue;
+      }
+      const exhaustion = await readExhaustionRecord(prisma, row.linkedTaskId).catch(() => ({
+        exhausted: false,
+        headSha: null,
+        exhaustedAt: null,
+      }));
+      if (exhaustion.exhausted && exhaustion.headSha && exhaustion.headSha === snapshot.headSha) {
+        continue; // parked exhausted, head unchanged — drop from scope/merge-barrier scans
+      }
+      kept.push(row);
+    }
+    return kept;
+  } catch (err) {
+    log.warn({ err, themeId }, '[pr-files] open auto-PR lookup failed — treating as none');
+    return [];
+  }
+}
+
+/**
+ * Changed files of one nonterminal PR via `gh pr view <n> --json files,state`, memoized for
+ * {@link PR_FILES_CACHE_TTL_MS}. gh errors resolve to [] (fail-open) and are
+ * cached for the same TTL to bound retry rate.
+ *
+ * @param cwd - Repo working directory for gh / gh実行ディレクトリ
+ * @param prNumber - PR number / PR番号
+ * @param deps - Injectable exec/clock (tests) / テスト用注入
+ * @returns Repo-relative changed file paths / 変更ファイルパス一覧
+ */
+export async function getPrChangedFiles(
+  cwd: string,
+  prNumber: number,
+  deps: PrFilesDeps = defaultDeps,
+): Promise<string[]> {
+  const snapshot = await getPrSnapshot(cwd, prNumber, deps);
+  return ['CLOSED', 'MERGED'].includes(snapshot.state ?? '') ? [] : snapshot.files;
+}
+
+async function getPrSnapshot(
+  cwd: string,
+  prNumber: number,
+  deps: PrFilesDeps,
+): Promise<CacheEntry> {
+  const now = deps.now();
+  const key = JSON.stringify([cwd, prNumber]);
+  const hit = cache.get(key);
+  if (hit && hit.expiresAt > now) return hit;
+
+  // Stale-while-revalidate. This is read on the auto-run scheduler's 12-second
+  // advance path (auto-run-advance-scope.ts queries every open auto-PR), so a
+  // blocking refresh puts a GitHub round-trip per PR — four at a time — inside
+  // the tick. Measured 2026-10-06: 116 "Slow theme advance" warnings in one
+  // backend session, 429.8 s in total, median 3.5 s and up to 9.9 s per tick,
+  // while the backend held 44% of a core. A PR's file list only changes when
+  // someone pushes, so serving the previous answer for the length of one refresh
+  // costs nothing a 60-second TTL was not already accepting.
+  if (hit) {
+    void refreshSnapshot(key, cwd, prNumber, deps).catch(() => {
+      // fetchSnapshot never rejects; this only guards a future refactor from
+      // turning a background refresh into an unhandled rejection.
+    });
+    return hit;
+  }
+
+  // Cold entry: nothing to serve, so this one caller waits.
+  return refreshSnapshot(key, cwd, prNumber, deps);
+}
+
+/** Fetch into the cache, collapsing concurrent refreshes of the same key. */
+function refreshSnapshot(
+  key: string,
+  cwd: string,
+  prNumber: number,
+  deps: PrFilesDeps,
+): Promise<CacheEntry> {
+  const existing = refreshing.get(key);
+  if (existing) return existing;
+  const pending = fetchSnapshot(key, cwd, prNumber, deps).finally(() => {
+    refreshing.delete(key);
+  });
+  refreshing.set(key, pending);
+  return pending;
+}
+
+async function fetchSnapshot(
+  key: string,
+  cwd: string,
+  prNumber: number,
+  deps: PrFilesDeps,
+): Promise<CacheEntry> {
+  let files: string[] = [];
+  let state: string | null = null;
+  let headSha: string | null = null;
+  try {
+    const stdout = await deps.execGh(
+      `${ghPath()} pr view ${prNumber} --json files,state,headRefOid`,
+      cwd,
+    );
+    const parsed = JSON.parse(stdout) as {
+      files?: Array<{ path?: string }>;
+      state?: string;
+      headRefOid?: string;
+    };
+    state = typeof parsed.state === 'string' ? parsed.state.toUpperCase() : null;
+    files = (parsed.files ?? []).map((f) => (f.path ?? '').trim()).filter((p) => p.length > 0);
+    headSha = typeof parsed.headRefOid === 'string' && parsed.headRefOid ? parsed.headRefOid : null;
+  } catch (err) {
+    log.warn({ err, prNumber }, '[pr-files] gh pr view --json files failed — treating as empty');
+  }
+  const entry = { files, state, headSha, expiresAt: deps.now() + PR_FILES_CACHE_TTL_MS };
+  cache.set(key, entry);
+  return entry;
+}

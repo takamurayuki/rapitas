@@ -4,14 +4,17 @@
  * Signal handlers, graceful shutdown, and agent state persistence.
  */
 import { createLogger } from '../../../config/logger';
-import type {
-  PrismaClientInstance,
-  ActiveAgentInfo,
-  ExecutionState,
-  OrchestratorEvent,
-  EventListener,
-} from './types';
+import type { PrismaClientInstance, ActiveAgentInfo, ExecutionState } from './types';
 import type { QuestionTimeoutManager } from './question-timeout-manager';
+import { stopAllPreviewSessions } from '../preview/preview-session-manager';
+import { recordTransition } from '../../workflow/transition-recorder';
+
+/**
+ * How long a graceful shutdown may take when triggered by an uncaught
+ * exception before the process leaves anyway. Short on purpose: the supervisor
+ * restarts us, and a hung exit is worse than an abrupt one.
+ */
+const UNCAUGHT_SHUTDOWN_TIMEOUT_MS = 10_000;
 
 const logger = createLogger('lifecycle-manager');
 
@@ -42,8 +45,11 @@ export async function saveAgentState(
       ? `プロセスが中断されました。\n\n【最後の出力】\n${info.lastOutput.slice(-1000)}`
       : `プロセスが異常終了しました。\n\n【最後の出力】\n${info.lastOutput.slice(-1000)}`;
 
-  await prisma.agentExecution.update({
-    where: { id: executionId },
+  const saved = await prisma.agentExecution.updateMany({
+    where: {
+      id: executionId,
+      status: { in: ['pending', 'running', 'waiting_for_input', 'interrupted'] },
+    },
     data: {
       status,
       output: info.state.output,
@@ -51,10 +57,15 @@ export async function saveAgentState(
       completedAt: new Date(),
     },
   });
+  // A concurrent stop or normal completion owns the terminal state.
+  if (saved.count !== 1) return;
 
   try {
-    await prisma.agentSession.update({
-      where: { id: info.sessionId },
+    await prisma.agentSession.updateMany({
+      where: {
+        id: info.sessionId,
+        status: { in: ['pending', 'active', 'running', 'waiting_for_input', 'interrupted'] },
+      },
       data: {
         status: 'interrupted',
         lastActivityAt: new Date(),
@@ -70,14 +81,27 @@ export async function saveAgentState(
   try {
     const task = await prisma.task.findUnique({
       where: { id: info.taskId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, workflowStatus: true },
     });
     if (task && task.status === 'in-progress') {
-      await prisma.task.update({
-        where: { id: info.taskId },
+      const reverted = await prisma.task.updateMany({
+        where: { id: info.taskId, status: 'in-progress', workflowStatus: task.workflowStatus },
         data: { status: 'todo' },
       });
+      if (reverted.count !== 1) return;
       logger.info(`[LifecycleManager] Task ${info.taskId} reverted to 'todo' during shutdown`);
+      // Record the revert so isWithinRecoveryGrace (incident-signature-detectors.ts)
+      // can grant this deliberate `status='todo'` × advanced `workflowStatus`
+      // shape its recovery grace period (task 709: previously unrecorded,
+      // causing an immediate Pattern B false positive — task #602).
+      await recordTransition({
+        taskId: info.taskId,
+        fromStatus: task.workflowStatus,
+        toStatus: task.workflowStatus ?? 'draft',
+        actor: 'system',
+        cause: 'agent_lifecycle_shutdown_revert',
+        metadata: { reason: 'backend_shutdown_revert' },
+      }).catch(() => {});
     }
   } catch (error) {
     logger.error({ err: error, taskId: info.taskId }, `[LifecycleManager] Failed to update task`);
@@ -128,6 +152,14 @@ export async function gracefulShutdown(
   try {
     ctx.questionTimeoutManager.cancelAllTimeouts();
     ctx.questionTimeoutManager.clearAllLocks();
+
+    // Live-preview sessions spawn a playwright-worker.mjs Node child process
+    // (plus the browser it launched) that nothing else kills on shutdown —
+    // stop them here so a restart while a preview is open/starting can't
+    // leave that process tree orphaned.
+    await stopAllPreviewSessions().catch((err) => {
+      logger.error({ err }, '[LifecycleManager] Failed to stop preview sessions during shutdown');
+    });
 
     const stopPromises = Array.from(ctx.activeAgents.entries()).map(async ([executionId, info]) => {
       try {
@@ -199,7 +231,28 @@ export function setupSignalHandlers(
 
   process.on('uncaughtException', async (error) => {
     logger.error({ err: error }, '[LifecycleManager] Uncaught exception');
-    await shutdownFn();
+    // Exiting is the right call — an uncaught exception leaves state we cannot
+    // vouch for — but the exit must actually happen. A graceful shutdown that
+    // hangs leaves a process that is neither dead nor serving: it keeps the
+    // port bound, answers nothing, and the supervisor sees a live PID and does
+    // not restart it. That is precisely the state observed on 2026-08-27, when
+    // a backend held port 3001 against its own replacement.
+    //
+    // So: try to shut down cleanly, but leave regardless.
+    const forced = setTimeout(() => {
+      logger.error(
+        { timeoutMs: UNCAUGHT_SHUTDOWN_TIMEOUT_MS },
+        '[LifecycleManager] Graceful shutdown did not finish — exiting anyway',
+      );
+      process.exit(1);
+    }, UNCAUGHT_SHUTDOWN_TIMEOUT_MS);
+    forced.unref?.();
+    try {
+      await shutdownFn();
+    } catch (err) {
+      logger.error({ err }, '[LifecycleManager] Shutdown threw during uncaught-exception handling');
+    }
+    clearTimeout(forced);
     process.exit(1);
   });
 

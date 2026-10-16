@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { Brain, Plus, BarChart3 } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useLocalStorageState } from '@/hooks/common/useLocalStorageState';
+import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 import { useKnowledge } from '@/feature/knowledge/hooks/useKnowledge';
 import { useKnowledgeSearch } from '@/feature/knowledge/hooks/useKnowledgeSearch';
 import { useMemoryStats } from '@/feature/knowledge/hooks/useMemoryStats';
@@ -44,6 +46,18 @@ export default function KnowledgeClient() {
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [newCategory, setNewCategory] = useState<KnowledgeCategory>('general');
+  const createModalPanelRef = useRef<HTMLDivElement>(null);
+
+  useFocusTrap(createModalPanelRef, showCreateModal);
+
+  useEffect(() => {
+    if (!showCreateModal) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowCreateModal(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showCreateModal]);
 
   const { entries, total, totalPages, isLoading, createEntry } = useKnowledge({
     page,
@@ -172,15 +186,7 @@ export default function KnowledgeClient() {
           ))}
         </div>
       ) : displayEntries.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center dark:border-gray-700 dark:bg-gray-800">
-          <Brain className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600" />
-          <p className="mt-3 text-sm font-medium text-gray-900 dark:text-gray-100">
-            {t('noResults')}
-          </p>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {t('noResultsDescription')}
-          </p>
-        </div>
+        <EmptyState icon={Brain} title={t('noResults')} description={t('noResultsDescription')} />
       ) : (
         <div className="space-y-3">
           {displayEntries.map((entry) => (
@@ -208,8 +214,18 @@ export default function KnowledgeClient() {
       {/* Create Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="mx-4 w-full max-w-lg rounded-xl bg-white p-6 dark:bg-gray-800">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+          <div
+            ref={createModalPanelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="knowledge-create-modal-title"
+            tabIndex={-1}
+            className="mx-4 w-full max-w-lg rounded-xl bg-white p-6 dark:bg-gray-800"
+          >
+            <h2
+              id="knowledge-create-modal-title"
+              className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4"
+            >
               {t('createEntry')}
             </h2>
             <div className="space-y-4">

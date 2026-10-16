@@ -1,0 +1,136 @@
+'use client';
+/**
+ * IdleExecutionForm
+ *
+ * Compact idle-state execution form for the AI accordion panel: an inline
+ * instruction input plus a collapsible "詳細設定" section for branch / base
+ * branch. Presentational only — all state is lifted to the parent except the
+ * local collapse toggle.
+ */
+
+import { useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { Sparkles, GitBranch, ChevronDown, ChevronUp } from 'lucide-react';
+
+export type IdleExecutionFormProps = {
+  optimizedPrompt?: string | null;
+  instruction: string;
+  branchName: string;
+  baseBranch: string;
+  baseBranches: string[];
+  onSetInstruction: (v: string) => void;
+  onSetBranchName: (v: string) => void;
+  onSetBaseBranch: (v: string) => void;
+};
+
+/**
+ * Compact idle-state execution form with inline instruction + collapsible details.
+ *
+ * @param props - Lifted instruction/branch state and setters / 持ち上げた指示・ブランチ状態とセッター
+ */
+export function IdleExecutionForm({
+  optimizedPrompt,
+  instruction,
+  branchName,
+  baseBranch,
+  baseBranches,
+  onSetInstruction,
+  onSetBranchName,
+  onSetBaseBranch,
+}: IdleExecutionFormProps) {
+  const [showDetails, setShowDetails] = useState(false);
+  const t = useTranslations('devMode.idleExecutionForm');
+
+  return (
+    <div className="space-y-2">
+      {/* Inline instruction input */}
+      <div className="flex items-center gap-1.5">
+        <input
+          type="text"
+          value={instruction}
+          onChange={(e) => onSetInstruction(e.target.value)}
+          placeholder={t('instructionPlaceholder')}
+          className="flex-1 px-2.5 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-xs focus:outline-none focus:border-indigo-400"
+          aria-label={t('instructionAriaLabel')}
+        />
+      </div>
+
+      {/* Status badges */}
+      {optimizedPrompt && (
+        <div className="flex items-center gap-1.5 px-1">
+          <Sparkles className="w-2.5 h-2.5 text-green-500" />
+          <span className="text-[10px] text-green-600 dark:text-green-400">
+            {t('optimizedPromptApplied')}
+          </span>
+        </div>
+      )}
+
+      {/* Collapsible details */}
+      <button
+        onClick={() => setShowDetails(!showDetails)}
+        className="flex items-center gap-1 px-1 text-[10px] text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+      >
+        {showDetails ? (
+          <ChevronUp className="w-2.5 h-2.5" />
+        ) : (
+          <ChevronDown className="w-2.5 h-2.5" />
+        )}
+        {t('detailsToggle')}
+      </button>
+
+      {showDetails && (
+        <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-2.5 space-y-2">
+          <div>
+            <label className="flex items-center gap-1 text-[10px] text-zinc-500 dark:text-zinc-400 mb-1">
+              <GitBranch className="w-2.5 h-2.5" />
+              {t('branchNameLabel')}
+              <span className="text-zinc-500 dark:text-zinc-500">{t('branchNameHint')}</span>
+            </label>
+            <input
+              type="text"
+              value={branchName}
+              onChange={(e) => onSetBranchName(e.target.value)}
+              placeholder={t('branchNamePlaceholder')}
+              className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-mono focus:outline-none focus:border-indigo-400"
+              aria-label={t('branchNameLabel')}
+            />
+          </div>
+
+          {/* Base branch: the branch the new feature branch is cut from and the
+              PR targets. Populated with the repo's origin branches; defaults to
+              the theme's default branch. */}
+          <div>
+            <label className="flex items-center gap-1 text-[10px] text-zinc-500 dark:text-zinc-400 mb-1">
+              <GitBranch className="w-2.5 h-2.5" />
+              {t('baseBranchLabel')}
+              <span className="text-zinc-500 dark:text-zinc-500">{t('baseBranchHint')}</span>
+            </label>
+            {baseBranches.length > 0 ? (
+              <select
+                value={baseBranch}
+                onChange={(e) => onSetBaseBranch(e.target.value)}
+                className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-mono focus:outline-none focus:border-indigo-400"
+                aria-label={t('baseBranchLabel')}
+              >
+                {baseBranches.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={baseBranch}
+                onChange={(e) => onSetBaseBranch(e.target.value)}
+                placeholder="develop"
+                className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-mono focus:outline-none focus:border-indigo-400"
+                aria-label={t('baseBranchLabel')}
+              />
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

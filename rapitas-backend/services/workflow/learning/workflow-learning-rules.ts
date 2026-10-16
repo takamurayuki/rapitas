@@ -205,7 +205,11 @@ async function detectThemeOptimalMode(
     }
 
     if (!bestMode) continue;
-    const mostUsedMode = [...modeStats.entries()].sort((a, b) => b[1].total - a[1].total)[0]?.[0];
+    // Tie-break on mode name so the "most used mode" comparison is stable
+    // across runs when two modes tie on total usage.
+    const mostUsedMode = [...modeStats.entries()].sort(
+      (a, b) => b[1].total - a[1].total || a[0].localeCompare(b[0]),
+    )[0]?.[0];
     if (bestMode === mostUsedMode) continue;
 
     const bestStats = modeStats.get(bestMode)!;
@@ -244,6 +248,9 @@ async function detectComplexityThresholdAdjustment(
 
   if (lightweightFailed.length < 3) return;
 
+  // numeric sort to compute a median value — equal complexities sort
+  // identically, so tie order cannot change the median.
+  // determinism-ok: median of numbers, tie order irrelevant.
   const complexities = lightweightFailed.map((r) => r.predictedComplexity!).sort((a, b) => a - b);
   const medianComplexity = complexities[Math.floor(complexities.length / 2)];
 

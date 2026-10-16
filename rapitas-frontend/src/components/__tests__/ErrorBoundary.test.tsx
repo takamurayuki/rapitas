@@ -41,9 +41,9 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>,
     );
 
-    expect(screen.getByText('このセクションでエラーが発生しました')).toBeInTheDocument();
+    expect(screen.getByText('errorBoundary.genericError')).toBeInTheDocument();
     expect(screen.getByText('Test error message')).toBeInTheDocument();
-    expect(screen.getByText('再試行')).toBeInTheDocument();
+    expect(screen.getByText('retry')).toBeInTheDocument();
   });
 
   it('renders section name in error message when provided', () => {
@@ -53,7 +53,9 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>,
     );
 
-    expect(screen.getByText('TaskList でエラーが発生しました')).toBeInTheDocument();
+    // NOTE: The mocked useTranslations echoes the key and ignores params, so the
+    // interpolated section name isn't observable here — real next-intl interpolates it.
+    expect(screen.getByText('errorBoundary.sectionError')).toBeInTheDocument();
   });
 
   it('renders custom fallback when provided', () => {
@@ -89,13 +91,13 @@ describe('ErrorBoundary', () => {
     );
 
     // Error UI is shown
-    expect(screen.getByText('再試行')).toBeInTheDocument();
+    expect(screen.getByText('retry')).toBeInTheDocument();
     expect(screen.getByText('Test error message')).toBeInTheDocument();
 
     // Click retry - resets error state, but ThrowError still throws so error UI reappears
-    fireEvent.click(screen.getByText('再試行'));
+    fireEvent.click(screen.getByText('retry'));
 
     // The component re-throws, so error UI is shown again (verifying the reset->re-catch cycle works)
-    expect(screen.getByText('再試行')).toBeInTheDocument();
+    expect(screen.getByText('retry')).toBeInTheDocument();
   });
 });

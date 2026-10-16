@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import {
-  Bot,
   Send,
   Loader2,
   Trash2,
@@ -9,15 +9,17 @@ import {
   Settings,
   AlertCircle,
   MessageCircle,
-  X,
   Minimize2,
   Maximize2,
 } from 'lucide-react';
 import { useAIChat } from '../note/useAIChat';
+import { Spinner } from '@/components/ui/spinner';
+import { isImeComposing } from '@/utils/ime';
 import { fetchConfiguredProviders, fetchAvailableModels } from '../note/ai-service';
 import Link from 'next/link';
 import type { AIChatMessage, ApiProvider } from '@/types';
 import { useUIModeStore } from '@/stores/ui-mode-store';
+import { formatTime } from '@/utils/date';
 
 const PROVIDER_LABELS: Record<ApiProvider, string> = {
   claude: 'Claude',
@@ -29,7 +31,7 @@ const PROVIDER_LABELS: Record<ApiProvider, string> = {
 const PROVIDER_COLORS: Record<ApiProvider, string> = {
   claude: 'bg-orange-500',
   chatgpt: 'bg-green-500',
-  gemini: 'bg-blue-500',
+  gemini: 'bg-indigo-500',
   ollama: 'bg-purple-500',
 };
 
@@ -48,13 +50,10 @@ const ChatMessage = ({ message }: { message: AIChatMessage }) => {
         <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
         <span
           className={`text-xs mt-1 block ${
-            isUser ? 'text-blue-100' : 'text-zinc-400 dark:text-zinc-500'
+            isUser ? 'text-indigo-100' : 'text-zinc-500 dark:text-zinc-500'
           }`}
         >
-          {message.timestamp.toLocaleTimeString('ja-JP', {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
+          {formatTime(message.timestamp)}
         </span>
       </div>
     </div>
@@ -62,6 +61,8 @@ const ChatMessage = ({ message }: { message: AIChatMessage }) => {
 };
 
 export default function AIAssistantPanel() {
+  const t = useTranslations('copilot.aiAssistantPanel');
+  const tCommon = useTranslations('common');
   const { currentMode } = useUIModeStore();
   const [inputValue, setInputValue] = useState('');
   const [showSettings, setShowSettings] = useState(false);
@@ -84,6 +85,10 @@ export default function AIAssistantPanel() {
   });
 
   // Fetch configured providers and available models
+  // NOTE: `selectedProvider` is read only to pick an initial default and is
+  // intentionally excluded — this fetch must run once on mount, not every
+  // time the user picks a provider (that would re-trigger the network call
+  // from the very state update this effect makes).
   useEffect(() => {
     fetchConfiguredProviders().then((providers) => {
       setConfiguredProviders(providers);
@@ -92,6 +97,7 @@ export default function AIAssistantPanel() {
       }
     });
     fetchAvailableModels().then(setAvailableModels);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-scroll message list
@@ -119,7 +125,7 @@ export default function AIAssistantPanel() {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) {
         e.preventDefault();
         handleSendMessage();
       }
@@ -151,11 +157,9 @@ export default function AIAssistantPanel() {
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                  AIアシスタント
+                  {t('title')}
                 </h2>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  何でもお気軽にご質問ください
-                </p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
               </div>
               {configuredProviders.length > 0 && (
                 <span className="px-2 py-1 bg-zinc-100 dark:bg-zinc-700 rounded-lg text-xs font-medium">
@@ -171,7 +175,7 @@ export default function AIAssistantPanel() {
                     ? 'bg-zinc-100 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100'
                     : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                 }`}
-                title="AI設定"
+                title={t('settingsTitle')}
               >
                 <Settings className="w-5 h-5" />
               </button>
@@ -179,7 +183,7 @@ export default function AIAssistantPanel() {
                 <button
                   onClick={clearMessages}
                   className="p-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
-                  title="会話をクリア"
+                  title={t('clearTitle')}
                 >
                   <Trash2 className="w-5 h-5" />
                 </button>
@@ -187,7 +191,7 @@ export default function AIAssistantPanel() {
               <button
                 onClick={() => setIsMinimized(!isMinimized)}
                 className="p-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
-                title={isMinimized ? '展開' : '最小化'}
+                title={isMinimized ? t('expand') : t('minimize')}
               >
                 {isMinimized ? (
                   <Maximize2 className="w-5 h-5" />
@@ -204,7 +208,7 @@ export default function AIAssistantPanel() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                    AIプロバイダー
+                    {t('providerLabel')}
                   </label>
                   <div className="flex gap-2">
                     {(['claude', 'chatgpt', 'gemini'] as ApiProvider[]).map((p) => {
@@ -225,10 +229,12 @@ export default function AIAssistantPanel() {
                               ? 'bg-indigo-600 dark:bg-indigo-500 text-white shadow-sm'
                               : isConfigured
                                 ? 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-600'
-                                : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 cursor-not-allowed'
+                                : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-600 cursor-not-allowed'
                           }`}
                           title={
-                            isConfigured ? PROVIDER_LABELS[p] : `${PROVIDER_LABELS[p]}（未設定）`
+                            isConfigured
+                              ? PROVIDER_LABELS[p]
+                              : `${PROVIDER_LABELS[p]}${t('notConfiguredSuffix')}`
                           }
                         >
                           <span
@@ -244,10 +250,10 @@ export default function AIAssistantPanel() {
                   {configuredProviders.length === 0 && (
                     <Link
                       href="/settings"
-                      className="inline-flex items-center gap-1 mt-2 text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400"
+                      className="inline-flex items-center gap-1 mt-2 text-sm text-indigo-500 hover:text-indigo-600 dark:text-indigo-400"
                     >
                       <Settings className="w-4 h-4" />
-                      設定画面でAPIキーを登録
+                      {t('registerApiKeyLink')}
                     </Link>
                   )}
                 </div>
@@ -255,14 +261,14 @@ export default function AIAssistantPanel() {
                 {currentModels.length > 0 && (
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                      モデル
+                      {t('modelLabel')}
                     </label>
                     <select
                       value={selectedModel}
                       onChange={(e) => setSelectedModel(e.target.value)}
-                      className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
+                      className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400"
                     >
-                      <option value="">デフォルト</option>
+                      <option value="">{t('defaultOption')}</option>
                       {currentModels.map((m) => (
                         <option key={m.value} value={m.value}>
                           {m.label}
@@ -289,12 +295,12 @@ export default function AIAssistantPanel() {
                   <MessageCircle className="w-12 h-12 text-zinc-400 dark:text-zinc-500" />
                 </div>
                 <h3 className="text-lg font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                  AIアシスタントへようこそ
+                  {t('welcomeTitle')}
                 </h3>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-md">
-                  タスク管理、学習計画、コーディングの質問など、
+                  {t('welcomeDescLine1')}
                   <br />
-                  あなたの作業をサポートします。
+                  {t('welcomeDescLine2')}
                 </p>
               </div>
             ) : (
@@ -306,8 +312,10 @@ export default function AIAssistantPanel() {
                   <div className="flex justify-start mb-4">
                     <div className="bg-white dark:bg-zinc-800 rounded-2xl rounded-bl-md px-4 py-3 shadow-md">
                       <div className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                        <span className="text-sm text-zinc-500 dark:text-zinc-400">考え中...</span>
+                        <Spinner size="sm" className="text-indigo-500" />
+                        <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                          {t('thinking')}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -329,10 +337,10 @@ export default function AIAssistantPanel() {
                   error.includes('APIキーが無効です')) && (
                   <Link
                     href="/settings"
-                    className="inline-flex items-center gap-1 mt-2 text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
+                    className="inline-flex items-center gap-1 mt-2 text-sm text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300"
                   >
                     <Settings className="w-4 h-4" />
-                    設定画面でAPIキーを設定する
+                    {t('setApiKeyLink')}
                   </Link>
                 )}
               </div>
@@ -352,14 +360,15 @@ export default function AIAssistantPanel() {
               value={inputValue}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder="メッセージを入力..."
+              placeholder={t('messagePlaceholder')}
               disabled={isLoading}
-              className="flex-1 resize-none rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px] max-h-[150px]"
+              className="flex-1 resize-none rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px] max-h-[150px]"
               rows={1}
             />
             <button
               onClick={handleSendMessage}
               disabled={!inputValue.trim() || isLoading}
+              aria-label={tCommon('sendMessage')}
               className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed text-white rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
             >
               {isLoading ? (
@@ -369,8 +378,8 @@ export default function AIAssistantPanel() {
               )}
             </button>
           </div>
-          <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-2 text-center">
-            Enter で送信・Shift+Enter で改行
+          <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-2 text-center">
+            {t('sendHint')}
           </p>
         </div>
       </div>

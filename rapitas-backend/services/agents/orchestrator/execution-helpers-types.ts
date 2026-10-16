@@ -3,7 +3,6 @@
  *
  * Type definitions for execution helpers shared across orchestrator modules.
  */
-import type { BaseAgent } from '../base-agent';
 import type { QuestionKey } from '../question-detection';
 import type { ExecutionFileLogger } from '../execution-file-logger';
 import type {

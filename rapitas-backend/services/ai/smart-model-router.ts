@@ -19,7 +19,10 @@ import {
   type Provider,
 } from './model-discovery';
 import { classifyTier, inferCostPer1k } from './model-discovery/tier-classifier';
-import { isProviderInCooldown, listActiveCooldowns } from './provider-cooldown';
+import { listActiveCooldowns } from './provider-cooldown';
+import { recordDecision } from '../observability/decision-trace';
+import { buildRouteReason, type RouteDriver } from './routing-reason';
+import { sumAttributedSpend } from '../agents/execution-cost-attribution';
 
 const log = createLogger('smart-model-router');
 
@@ -33,6 +36,9 @@ const MODEL_COST_RATES: Record<string, number> = {};
 
 /** Tier fallback table mirroring `MODEL_COST_RATES`. Empty by design. */
 const MODEL_TIERS: Record<string, 'premium' | 'standard' | 'economy' | 'free'> = {};
+
+/** Highest → lowest capability. Index 0 is the strongest tier. */
+const TIER_ORDER: ModelTier[] = ['premium', 'standard', 'economy', 'free'];
 
 /** Provider label shown in trade-off strings. */
 const PROVIDER_LABEL: Record<'claude' | 'openai' | 'gemini' | 'ollama', string> = {
@@ -163,13 +169,13 @@ export interface SmartRouteOptions {
   /**
    * Providers to drop from the candidate pool before selection. Used by the
    * orchestrator to realise cross-provider review (exclude the upstream phase
-   * provider when picking for reviewer/verifier).
+   * provider when picking for verifier).
    */
   excludeProviders?: Provider[];
   /**
    * Minimum capability tier (a role floor). The complexity/budget tier is
    * RAISED up to this — never below it — so capability-critical phases
-   * (implementer writing code, reviewer/verifier judging it) are not run on an
+   * (implementer writing code, verifier judging it) are not run on an
    * economy model just because the task scored low complexity.
    */
   minTier?: ModelTier;
@@ -179,6 +185,41 @@ export interface SmartRouteOptions {
    * cost-explorer, NOT by the orchestrator's decision. Default true.
    */
   includeAlternatives?: boolean;
+  /**
+   * Evidence-proven cheaper tier for the role being routed (role-evidence.ts).
+   * LOWERS the complexity/budget tier toward it — by at most ONE step per
+   * decision, and never below `minTier` — so proven-cheap models are actually
+   * chosen instead of the heuristic always paying for the safe default.
+   * Callers must not pass this when escalation/risk floors are active.
+   */
+  capTier?: ModelTier;
+  /**
+   * Which workflow role is being routed. Recorded in the decision trace only —
+   * never affects selection. Without it the ledger can count how often a tier
+   * was adopted but not for WHAT, so the question the premium floor turns on
+   * ("did paying more buy anything for THIS role?") cannot be asked of it.
+   */
+  role?: string;
+  /**
+   * Why `minTier` was set (role floor / risk / retry). Recorded in the decision
+   * trace and the reason string; never affects selection.
+   */
+  minTierReason?: string;
+  /**
+   * Where the risk decision came from: an evidence source (declared change
+   * targets / the research verdict) or the pre-research keyword fallback.
+   * Recorded in the trace only — never affects selection. Without it an audit
+   * cannot tell a measured floor from a guessed one.
+   */
+  riskSource?: string;
+  /**
+   * Absolute ceiling applied AFTER every floor. Unlike `capTier` this is not a
+   * one-step nudge — it is the per-task spend backstop, and a floor must never
+   * be able to spend past it.
+   */
+  hardCapTier?: ModelTier;
+  /** Why `hardCapTier` was set. Recorded in the trace; never affects selection. */
+  hardCapReason?: string;
 }
 
 export async function getSmartRoute(
@@ -210,19 +251,56 @@ export async function getSmartRoute(
     recommendedTier = 'economy';
   } else if (complexity <= 70) {
     recommendedTier = 'standard';
+  } else if (complexity > 85) {
+    // Very high complexity forces premium regardless of urgency: a standard
+    // model failing here re-runs through the verify/adversarial repair loop,
+    // which costs MORE tokens than a premium first attempt (escalation would
+    // force premium on the retry anyway — pay once, not twice).
+    recommendedTier = 'premium';
   } else {
     recommendedTier = isUrgent ? 'premium' : 'standard';
   }
 
-  // Role floor: raise (never lower) the tier to the caller's minimum so
-  // capability-critical phases don't run on an economy model on a low-complexity
-  // task. TIER_ORDER index 0 = highest capability.
-  if (opts.minTier) {
-    const TIER_ORDER: ModelTier[] = ['premium', 'standard', 'economy', 'free'];
-    if (TIER_ORDER.indexOf(recommendedTier as ModelTier) > TIER_ORDER.indexOf(opts.minTier)) {
-      recommendedTier = opts.minTier;
+  // Evidence cap: when a cheaper tier has a proven success record for this
+  // role, lower the heuristic tier toward it — at most ONE step per decision
+  // so a high-complexity task never jumps straight from premium to economy on
+  // evidence gathered mostly from smaller tasks.
+  let evidenceApplied = false;
+  if (opts.capTier) {
+    const rec = TIER_ORDER.indexOf(recommendedTier as ModelTier);
+    const cap = TIER_ORDER.indexOf(opts.capTier);
+    if (cap > rec) {
+      recommendedTier = TIER_ORDER[Math.min(cap, rec + 1)];
+      evidenceApplied = true;
     }
   }
+
+  // Role floor: raise (never lower) the tier to the caller's minimum so
+  // capability-critical phases don't run on an economy model on a low-complexity
+  // task. Applied AFTER the evidence cap — floors always win. TIER_ORDER
+  // index 0 = highest capability.
+  let floorApplied = false;
+  if (opts.minTier) {
+    if (TIER_ORDER.indexOf(recommendedTier as ModelTier) > TIER_ORDER.indexOf(opts.minTier)) {
+      recommendedTier = opts.minTier;
+      evidenceApplied = false;
+      floorApplied = true;
+    }
+  }
+
+  // Spend backstop: applied LAST so it wins over every floor. A task that has
+  // already spent its budget must not buy another premium phase no matter
+  // which rule asked for one (task 658 ran four premium phases for $50.04
+  // before anything noticed). Only ever lowers.
+  let budgetCapApplied = false;
+  if (opts.hardCapTier) {
+    if (TIER_ORDER.indexOf(recommendedTier as ModelTier) < TIER_ORDER.indexOf(opts.hardCapTier)) {
+      recommendedTier = opts.hardCapTier;
+      floorApplied = false;
+      budgetCapApplied = true;
+    }
+  }
+  void budgetCapApplied;
 
   // Run the dynamic discovery layer: probes CLI/API surfaces of every
   // configured provider and returns whatever models they advertise right now.
@@ -274,22 +352,35 @@ export async function getSmartRoute(
         tradeoff: tradeoffLabel(m),
       });
     }
+    // `alternatives` is an informational display list attached to the decision
+    // (cheapest-first), not the selected route — equal-cost reordering has no
+    // effect on which model is actually chosen or on any prompt.
+    // determinism-ok: display-only alternatives list, not the selected route.
     alternatives.sort((a, b) => a.estimatedCost - b.estimatedCost);
   }
 
   // Last-resort fallback: nothing was discovered. Prefer any discovered model;
-  // else a valid current Sonnet id (NOT a date-suffixed one, which can be
-  // rejected at spawn) so the orchestrator never gets an empty/invalid id.
-  const finalModel = recommendedModel ?? discovery.models[0]?.id ?? 'claude-sonnet-4-6';
+  // else the bare 'sonnet' ALIAS — the CLI resolves it to the current Sonnet
+  // release, so this never goes stale the way a pinned versioned id
+  // ('claude-sonnet-4-6') did once that release was retired.
+  const finalModel = recommendedModel ?? discovery.models[0]?.id ?? 'sonnet';
   const costEstimate = await estimateCost(complexity, finalModel);
 
-  const reason = budgetPressure
-    ? `予算残高が少ないため${recommendedTier}モデルを推奨`
-    : complexity <= 35
-      ? `複雑度${complexity}（低）のため${recommendedTier}モデルで十分`
-      : complexity > 70
-        ? `複雑度${complexity}（高）のため${recommendedTier}モデルを推奨`
-        : `複雑度${complexity}（中）に基づき${recommendedTier}モデルを推奨`;
+  // The floor is applied last and overrides everything, so it is checked first
+  // here — otherwise the explanation credits a rule that was overruled.
+  const driver: RouteDriver = floorApplied
+    ? 'floor'
+    : evidenceApplied
+      ? 'evidence'
+      : budgetPressure
+        ? 'budget'
+        : 'complexity';
+  const reason = buildRouteReason({
+    tier: recommendedTier,
+    complexity,
+    driver,
+    floorReason: opts.minTierReason,
+  });
 
   const availableProviders = discovery.providers.filter((p) => p.available).map((p) => p.provider);
   log.info(
@@ -297,6 +388,48 @@ export async function getSmartRoute(
       `provider=${selected?.model.provider ?? 'fallback'}, model=${finalModel}, cost=$${costEstimate.estimatedCost}, ` +
       `available=[${availableProviders.join(',')}], discovered=${discovery.models.length}`,
   );
+
+  // Audit trail: record this routing decision (param_select). Fire-and-forget —
+  // masking/staging happen inside the recorder; the route result is unchanged.
+  void recordDecision({
+    taskId,
+    nodeKey: `task${taskId}:model-route:${Date.now()}`,
+    kind: 'param_select',
+    summary: `モデル選択: ${finalModel}`,
+    input: {
+      role: opts.role ?? null,
+      tier: recommendedTier,
+      complexity,
+      budgetPressure,
+      isUrgent,
+      weeklyBudget,
+      // Recorded so the premium share stays attributable in later audits:
+      // without these the trace cannot distinguish "complexity said premium"
+      // from "a risk/retry floor forced it".
+      minTier: opts.minTier ?? null,
+      minTierReason: opts.minTierReason ?? null,
+      riskSource: opts.riskSource ?? null,
+      hardCapTier: opts.hardCapTier ?? null,
+      hardCapReason: opts.hardCapReason ?? null,
+      capTier: opts.capTier ?? null,
+      driver,
+    },
+    candidates: [
+      {
+        id: finalModel,
+        label: recommendedTier,
+        meta: { estimatedCost: costEstimate.estimatedCost },
+      },
+      ...alternatives.map((a) => ({
+        id: a.modelId,
+        label: a.tradeoff,
+        meta: { estimatedCost: a.estimatedCost },
+      })),
+    ],
+    adoptedId: finalModel,
+    adoptedReason: reason,
+    rejectedReasons: Object.fromEntries(alternatives.map((a) => [a.modelId, a.tradeoff])),
+  }).catch(() => {});
 
   return {
     recommendedModel: finalModel,
@@ -335,15 +468,21 @@ export async function getBudgetStatus(weeklyBudget: number | null = null): Promi
   // newly-released models alike get a real number.
   const { models: discoveredForBudget } = await discoverModels();
   const rateById = new Map(discoveredForBudget.map((m) => [m.id, m.costPer1kTokens ?? 0]));
-  let spent = 0;
-  for (const exec of executions) {
+  // Each row's OWN increment, not the recorded value: costUsd holds the CLI's
+  // session-cumulative total_cost_usd, so summing the rows of a resumed session
+  // counts its running total again every cycle. Measured 2026-10-13: $523.84
+  // for the week against a real $357.66 over 450 executions. Estimating from
+  // tokens is the fallback only for legacy rows with no recorded cost — that
+  // estimate charges cache reads at full rate and overstates a cache-heavy run
+  // by orders of magnitude.
+  let spent = sumAttributedSpend(executions, (exec) => {
     const modelId = exec.agentConfig?.modelId || 'default';
     const rate =
       rateById.get(modelId) ??
       MODEL_COST_RATES[modelId] ??
       inferCostPer1k(modelId, classifyTier(modelId));
-    spent += (exec.tokensUsed / 1000) * rate;
-  }
+    return (exec.tokensUsed / 1000) * rate;
+  });
   spent = Math.round(spent * 100) / 100;
 
   const daysElapsed = Math.max(1, (now.getTime() - weekStart.getTime()) / (24 * 60 * 60 * 1000));

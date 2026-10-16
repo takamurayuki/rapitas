@@ -4,7 +4,7 @@
  * All types used across orchestrator modules are centralized here
  * to prevent circular dependencies.
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../../generated/prisma-postgres';
 export type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 
 import type { AgentOutputHandler, AgentStatus, TaskAnalysisInfo, BaseAgent } from '../base-agent';
@@ -13,6 +13,8 @@ import type { ExecutionFileLogger } from '../execution-file-logger';
 import type { AgentConfigInput } from '../agent-factory';
 
 export type ExecutionOptions = {
+  /** Main-process admission check, repeated after async setup before launching an agent. */
+  assertExecutionAllowed?: () => void;
   taskId: number;
   sessionId: number;
   agentConfigId?: number;
@@ -27,6 +29,14 @@ export type ExecutionOptions = {
   branchName?: string;
   /** Override the DB-configured model for this execution only. */
   modelIdOverride?: string;
+  /**
+   * Claude CLI session id to continue via `--resume` instead of cold-starting.
+   * Set by the workflow when the same role re-runs on the same task in the same
+   * worktree (a repair bounce), so the agent keeps the context it just built
+   * rather than re-reading ~105k tokens. Falls back to a fresh session
+   * automatically when the CLI rejects the id.
+   */
+  resumeSessionId?: string;
   /** When false, successful execution does not mark Task.status as done. */
   autoCompleteTask?: boolean;
   /**
@@ -35,7 +45,7 @@ export type ExecutionOptions = {
    */
   disableFallback?: boolean;
   /**
-   * Investigation mode: agent runs as read-only researcher/planner/reviewer.
+   * Investigation mode: agent runs as read-only researcher/planner.
    * For codex specifically this means `--sandbox=read-only
    * --ask-for-approval=never -o <file>` so the agent CANNOT modify code at
    * the OS level — perfect for the safe research → plan → review chain.
@@ -45,7 +55,7 @@ export type ExecutionOptions = {
   /**
    * Output artifact type for investigation mode. Drives codex's
    * positional headline (`# 調査レポート` / `# 実装計画` / …) so the
-   * planner/reviewer phases produce documents with the correct shape
+   * planner phase produces documents with the correct shape
    * instead of being force-shaped as research reports.
    */
   investigationOutputType?: 'research' | 'plan' | 'review' | 'verify';

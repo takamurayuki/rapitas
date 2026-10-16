@@ -2,6 +2,7 @@
 // useCommentsSection
 
 import { useMemo, useRef, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Comment } from '@/types';
 import { timeAgo } from './comment-types';
 import type { NoteData, CommentLink } from './comment-types';
@@ -23,6 +24,7 @@ export function useCommentsSection(
   onCreateLink?: (from: number, to: number, label?: string) => Promise<void>,
   onDeleteLink?: (id: number) => Promise<void>,
 ) {
+  const t = useTranslations('task');
   const [editId, setEditId] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
   const [replyId, setReplyId] = useState<number | null>(null);
@@ -55,13 +57,13 @@ export function useCommentsSection(
       );
       return {
         ...c,
-        time: timeAgo(new Date(c.createdAt)),
+        time: timeAgo(new Date(c.createdAt), t),
         replies: c.replies?.map(process),
         links,
       };
     };
     return comments.filter((c) => !c.parentId).map(process);
-  }, [comments]);
+  }, [comments, t]);
 
   const count = comments.filter((c) => !c.parentId).length;
   const replyCount = comments.filter((c) => c.parentId).length;
@@ -127,14 +129,14 @@ export function useCommentsSection(
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       el.querySelector<HTMLDivElement>('.group')?.classList.add(
         'ring-2',
-        'ring-blue-400',
+        'ring-indigo-400',
         'ring-offset-1',
       );
       // NOTE: Ring highlight auto-removes after 2s to avoid permanent styling.
       setTimeout(() => {
         el.querySelector<HTMLDivElement>('.group')?.classList.remove(
           'ring-2',
-          'ring-blue-400',
+          'ring-indigo-400',
           'ring-offset-1',
         );
       }, 2000);

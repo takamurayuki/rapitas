@@ -7,7 +7,7 @@
  * Handles data fetching, filtering, and delegates rendering to sub-components.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { MessageSquare, Plus, Search } from 'lucide-react';
@@ -16,11 +16,18 @@ import { createLogger } from '@/lib/logger';
 import { CATEGORY_LABELS, type SystemPrompt } from './components/types';
 import { PromptCard } from './components/PromptCard';
 import { AddPromptModal } from './components/AddPromptModal';
+import { PromptEvolutionSummary } from './components/PromptEvolutionSummary';
+import { PromptEvolutionProposals } from './components/PromptEvolutionProposals';
+import { useToast } from '@/components/ui/toast/ToastContainer';
+import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
+import { EmptyState } from '@/components/ui/empty-state';
 
 const logger = createLogger('SystemPromptsPage');
 
 export default function SystemPromptsPage() {
   const t = useTranslations('prompts');
+  const { showToast } = useToast();
+  const confirm = useConfirmDialog();
   const [prompts, setPrompts] = useState<SystemPrompt[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingPrompt, setEditingPrompt] = useState<SystemPrompt | null>(null);
@@ -29,11 +36,19 @@ export default function SystemPromptsPage() {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    fetchPrompts();
+  const seedPrompts = useCallback(async () => {
+    try {
+      await fetch(`${API_BASE_URL}/system-prompts/seed`, { method: 'POST' });
+      const res = await fetch(`${API_BASE_URL}/system-prompts`);
+      if (res.ok) {
+        setPrompts(await res.json());
+      }
+    } catch (error) {
+      logger.error('Failed to seed system prompts:', error);
+    }
   }, []);
 
-  const fetchPrompts = async () => {
+  const fetchPrompts = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/system-prompts`);
       if (res.ok) {
@@ -48,19 +63,11 @@ export default function SystemPromptsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [seedPrompts]);
 
-  const seedPrompts = async () => {
-    try {
-      await fetch(`${API_BASE_URL}/system-prompts/seed`, { method: 'POST' });
-      const res = await fetch(`${API_BASE_URL}/system-prompts`);
-      if (res.ok) {
-        setPrompts(await res.json());
-      }
-    } catch (error) {
-      logger.error('Failed to seed system prompts:', error);
-    }
-  };
+  useEffect(() => {
+    fetchPrompts();
+  }, [fetchPrompts]);
 
   const handleSave = async (key: string, updates: Partial<SystemPrompt>) => {
     try {
@@ -79,7 +86,7 @@ export default function SystemPromptsPage() {
   };
 
   const handleReset = async (key: string) => {
-    if (!confirm(t('confirmReset'))) return;
+    if (!(await confirm({ message: t('confirmReset') }))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/system-prompts/${key}/reset`, {
         method: 'POST',
@@ -94,7 +101,7 @@ export default function SystemPromptsPage() {
   };
 
   const handleDelete = async (key: string) => {
-    if (!confirm(t('confirmDelete'))) return;
+    if (!(await confirm({ message: t('confirmDelete'), variant: 'destructive' }))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/system-prompts/${key}`, {
         method: 'DELETE',
@@ -103,7 +110,7 @@ export default function SystemPromptsPage() {
         fetchPrompts();
       } else {
         const data = await res.json();
-        alert(data.error || t('deleteFailed'));
+        showToast(data.error || t('deleteFailed'), 'error');
       }
     } catch (error) {
       logger.error('Failed to delete system prompt:', error);
@@ -171,6 +178,9 @@ export default function SystemPromptsPage() {
           </button>
         </div>
 
+        <PromptEvolutionProposals />
+        <PromptEvolutionSummary />
+
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
@@ -179,7 +189,7 @@ export default function SystemPromptsPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('searchPrompts')}
-              className="w-full pl-10 pr-4 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-400"
+              className="w-full pl-10 pr-4 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
             />
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -210,12 +220,11 @@ export default function SystemPromptsPage() {
         </div>
 
         {Object.keys(groupedPrompts).length === 0 ? (
-          <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700">
-            <MessageSquare className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
-            <p className="text-zinc-500 dark:text-zinc-400">
-              {searchQuery ? t('noSearchResults') : t('noPrompts')}
-            </p>
-          </div>
+          <EmptyState
+            icon={MessageSquare}
+            title={searchQuery ? t('noSearchResults') : t('noPrompts')}
+            className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700"
+          />
         ) : (
           <div className="space-y-6">
             {Object.entries(groupedPrompts).map(([category, categoryPrompts]) => {
@@ -230,7 +239,7 @@ export default function SystemPromptsPage() {
                     <span className={`px-2 py-0.5 rounded text-xs ${categoryInfo.color}`}>
                       {t(categoryInfo.labelKey)}
                     </span>
-                    <span className="text-zinc-400 dark:text-zinc-600">
+                    <span className="text-zinc-500 dark:text-zinc-600">
                       ({categoryPrompts.length})
                     </span>
                   </h2>

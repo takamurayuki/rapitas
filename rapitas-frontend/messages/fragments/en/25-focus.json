@@ -1,0 +1,23 @@
+{
+  "focus": {
+    "currentTask": "Current task",
+    "focusTime": "Focus Time",
+    "breakTime": "Break Time",
+    "session": "Session {number}",
+    "completeTask": "Complete task",
+    "work": "Work",
+    "break": "Break",
+    "minutes": "{count} min",
+    "focusSessionNote": "Focus session {number}",
+    "workTimeRecorded": "Recorded {minutes} minutes of work time",
+    "workTimeFinished": "Work time finished!",
+    "breakFinished": "Break finished!",
+    "takeBreakMessage": "Good work! Take a break.",
+    "resumeWorkMessage": "Let's resume work.",
+    "taskCompleted": "Task completed!",
+    "taskCompleteFailed": "Failed to complete task",
+    "resetTimer": "Reset timer",
+    "pauseTimer": "Pause timer",
+    "startTimer": "Start timer"
+  }
+}

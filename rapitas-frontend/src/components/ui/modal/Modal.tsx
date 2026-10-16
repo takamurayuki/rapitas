@@ -9,8 +9,10 @@
  * put and can keep adding.
  */
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { useFocusTrap } from './use-focus-trap';
 
 interface ModalProps {
   open: boolean;
@@ -45,6 +47,9 @@ export function Modal({
   footer,
   maxWidthClass = 'max-w-lg',
 }: ModalProps) {
+  const t = useTranslations('common');
+  const dialogRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -53,6 +58,10 @@ export function Modal({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
+
+  // Trap Tab focus inside the panel while open; restores focus to the
+  // trigger element on close.
+  useFocusTrap(dialogRef, open);
 
   if (!open) return null;
 
@@ -63,9 +72,11 @@ export function Modal({
       role="presentation"
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        className={`w-full ${maxWidthClass} rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900`}
+        tabIndex={-1}
+        className={`w-full ${maxWidthClass} rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900 focus:outline-none`}
         onClick={(e) => e.stopPropagation()}
       >
         {(title || icon) && (
@@ -77,7 +88,7 @@ export function Modal({
             <button
               type="button"
               onClick={onClose}
-              aria-label="閉じる"
+              aria-label={t('close')}
               className="rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
             >
               <X className="h-4 w-4" />

@@ -54,7 +54,7 @@ export function resolveDbProvider(): DbProvider {
  * @param signalCode - Signal name if the process was killed, otherwise null / プロセスが終了シグナルで停止した場合のシグナル名
  * @returns Normalized exit code; 0 = success, non-zero = failure / 正規化された終了コード（0は成功、非0は失敗）
  */
-export function normalizeExitCode(exitCode: number | null, signalCode?: string | null): number {
+export function normalizeExitCode(exitCode: number | null, _signalCode?: string | null): number {
   if (exitCode !== null) return exitCode;
   // NOTE: null means the process was killed or timed out — treat as failure (1).
   // Returning 0 here would silently swallow prisma schema errors / OOM kills.

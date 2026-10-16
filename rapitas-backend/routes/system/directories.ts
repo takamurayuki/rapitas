@@ -274,30 +274,41 @@ export const directoriesRoutes = new Elysia({ prefix: '/directories' })
   )
 
   // Update favorite directory
-  .patch('/favorites/:id', async (context) => {
-    const { params, body } = context;
-    const id = parseInt(params.id);
-    const { name } = body as { name?: string };
+  .patch(
+    '/favorites/:id',
+    async (context) => {
+      const { params, body } = context;
+      const id = parseInt(params.id);
+      const { name } = body as { name?: string };
 
-    try {
-      const favorite = await prisma.favoriteDirectory.update({
-        where: { id },
-        data: { ...(name && { name }) },
-      });
+      try {
+        const favorite = await prisma.favoriteDirectory.update({
+          where: { id },
+          data: { ...(name && { name }) },
+        });
 
-      return {
-        ...favorite,
-        exists: fs.existsSync(favorite.path),
-        isGitRepo: fs.existsSync(path.join(favorite.path, '.git')),
-      };
-    } catch (error) {
-      return {
-        error:
-          (error instanceof Error ? error.message : String(error)) ||
-          'お気に入りの更新に失敗しました',
-      };
-    }
-  })
+        return {
+          ...favorite,
+          exists: fs.existsSync(favorite.path),
+          isGitRepo: fs.existsSync(path.join(favorite.path, '.git')),
+        };
+      } catch (error) {
+        return {
+          error:
+            (error instanceof Error ? error.message : String(error)) ||
+            'お気に入りの更新に失敗しました',
+        };
+      }
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+      body: t.Object({
+        name: t.Optional(t.String({ maxLength: 200 })),
+      }),
+    },
+  )
 
   // Create a new directory
   .post(
@@ -355,18 +366,26 @@ export const directoriesRoutes = new Elysia({ prefix: '/directories' })
   )
 
   // Delete favorite directory
-  .delete('/favorites/:id', async (context) => {
-    const { params } = context;
-    const id = parseInt(params.id);
+  .delete(
+    '/favorites/:id',
+    async (context) => {
+      const { params } = context;
+      const id = parseInt(params.id);
 
-    try {
-      await prisma.favoriteDirectory.delete({ where: { id } });
-      return { success: true };
-    } catch (error) {
-      return {
-        error:
-          (error instanceof Error ? error.message : String(error)) ||
-          'お気に入りの削除に失敗しました',
-      };
-    }
-  });
+      try {
+        await prisma.favoriteDirectory.delete({ where: { id } });
+        return { success: true };
+      } catch (error) {
+        return {
+          error:
+            (error instanceof Error ? error.message : String(error)) ||
+            'お気に入りの削除に失敗しました',
+        };
+      }
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+    },
+  );
