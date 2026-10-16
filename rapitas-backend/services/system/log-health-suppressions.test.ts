@@ -548,4 +548,18 @@ describe('classifyLogSignature', () => {
       expect(classifyLogSignature('workflow-orchestrator', other).suppressed).toBe(false);
     }
   });
+
+  test('task 1294: intake throttled WARN is suppressed only for requirement-intake, environment_pending stays visible', () => {
+    const raw = '[intake] nothing can be filed for this theme: throttled';
+    expect(
+      classifyLogSignature('scheduling:requirement-intake', normalizeMessage(raw)).suppressed,
+    ).toBe(true);
+    expect(classifyLogSignature('some-other-logger', raw).suppressed).toBe(false);
+    expect(
+      classifyLogSignature(
+        'scheduling:requirement-intake',
+        '[intake] nothing can be filed for this theme: environment_pending',
+      ).suppressed,
+    ).toBe(false);
+  });
 });

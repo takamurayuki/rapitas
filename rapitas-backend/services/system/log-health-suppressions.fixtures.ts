@@ -154,6 +154,21 @@ export const SUPPRESSED: [string, string][] = [
     'theme-auto-run-scheduler',
     '[ThemeAutoRunScheduler] liveOrQueuedBehind(task #) = false (reason: no_other_running)',
   ],
+  // Task 1292: repeat_cause_detected halt is a designed guard report; halt is
+  // recorded in Task.haltReason + iteration_budget_halted transition.
+  [
+    'theme-auto-run-scheduler',
+    '[ThemeAutoRunScheduler] Task # halted by iteration budget (repeat_cause_detected)',
+  ],
+  // Task 1293: resume branch releases an auto_run_excluded task without requeue
+  // (auto-run-resolve-outcome.ts:315-317); logCycleEvent task.skipped remains.
+  [
+    'theme-auto-run-scheduler',
+    '[ThemeAutoRunScheduler] Task # is held out of auto-run (auto_run_excluded) — not resuming it (theme #)',
+  ],
+  // Task 1294: throttled is intake back-pressure (requirement-intake-outcome.ts:142);
+  // intake.stalled cycle event + windowed notification remain.
+  ['scheduling:requirement-intake', '[intake] nothing can be filed for this theme: throttled'],
   // Task 1050: generateForTheme() catches the CLI timeout and continues
   // with the next theme (innovation-session.ts:242-253).
   ['memory:innovation-session', 'Claude CLI timed out after #ms'],
@@ -176,6 +191,13 @@ export const SUPPRESSED: [string, string][] = [
 ];
 
 export const KEPT: [string, string][] = [
+  // Task 1294: environment_pending is a real dead end and must stay visible;
+  // the same wording from another logger is not this rule's business.
+  [
+    'scheduling:requirement-intake',
+    '[intake] nothing can be filed for this theme: environment_pending',
+  ],
+  ['some-other-logger', '[intake] nothing can be filed for this theme: throttled'],
   // Task 1160: the rule is logger-scoped, and the sweep's failed slot release stays visible.
   ['workflow', '[reconciler] Cancelled stale running queue item'],
   ['workflow-reconciler-queue-stall', '[reconciler] Runner slot release failed'],

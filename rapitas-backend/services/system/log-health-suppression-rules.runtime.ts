@@ -155,6 +155,46 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
       'ハング防止ガードの適用除外を与えない正規の既定分岐 — force-stop実発生時は別WARN(Task # exceeded wall budget … — force-stopping)で引き続き可視化される',
   },
   {
+    // ログ出力箇所: theme-auto-run-scheduler.ts:349-352 の log.warn。
+    // task-iteration-budget.ts:219-231 の純関数が、同一原因の反復
+    // (detectRepeatLoop) と試行数の下限を満たしたときに shouldHalt を返す
+    // 設計どおりの停止判定の通知であり、例外・失敗経路ではない。halt は
+    // Task.haltReason/haltedAt/resumeCondition(新仮説が必要)と遷移
+    // iteration_budget_halted に記録され、実行停止・current task 解放・再キュー
+    // 除外も揃うため、本行を抑制しても追跡可能性は失われない。
+    // budget_time/cost/attempts_exceeded・no_progress は別の判断が要るため
+    // 対象外のまま残す（#1292）。
+    test: /^\[ThemeAutoRunScheduler\] Task # halted by iteration budget \(repeat_cause_detected\)$/,
+    logger: /theme-auto-run-scheduler/i,
+    because:
+      '同一原因の反復を検知した反復予算ゲートの設計どおりの停止通知 — haltReason/resumeCondition と遷移iteration_budget_haltedがDBに残り、他のhalt理由は引き続き可視',
+  },
+  {
+    // ログ出力箇所: auto-run-resolve-outcome.ts:315-317 の log.warn。currentTaskId が
+    // 保留(autoRunExcluded)のまま再開分岐に入ったとき、auto-run-hold-check.ts の
+    // 保留検知が再キューせず解放して次タスクへ進む設計どおりの動作（#1214 の保留無視
+    // 再実行対策）。再キュー・実行は発生しない。logCycleEvent('task.skipped',
+    // held_auto_run_excluded) と Task.autoRunExcluded が残るため追跡可能性は失われない。
+    // halted / workflow_disabled は別判断が要るため対象外（#1293）。
+    test: /^\[ThemeAutoRunScheduler\] Task # is held out of auto-run \(auto_run_excluded\) — not resuming it \(theme #\)$/,
+    logger: /theme-auto-run-scheduler/i,
+    because:
+      '運用者が立てた保留(auto_run_excluded)を再開分岐で検知し再実行せず解放した設計どおりの動作 — task.skipped(held_auto_run_excluded)サイクルログと Task.autoRunExcluded が残り、halted/workflow_disabled は引き続き可視',
+  },
+  {
+    // ログ出力箇所: requirement-intake-outcome.ts:142 の log.warn（reportIntakeOutcome）。
+    // kind=throttled は未着手タスク数が MAX_UNSTARTED_PER_THEME に達した背圧で、
+    // requirement-intake-job.ts:253-261 は何も書き換えず return するだけの正常動作。
+    // 同関数が logCycleEvent('intake.stalled') と窓単位の通知を別途出すため、
+    // 本行を抑制しても上限到達の追跡可能性は失われない（#1294）。
+    // environment_pending は機能タスクが永久に起票されない真の行き止まりなので
+    // 対象外のまま可視に残す（末尾 throttled$ で固定）。
+    test: /^\[intake\] nothing can be filed for this theme: throttled$/,
+    logger: /requirement-intake/i,
+    because:
+      '未着手タスク上限到達による正常な背圧 — intake.stalled サイクルログと窓単位の通知が残り、行き止まりの environment_pending は引き続き可視',
+  },
+  {
     // ログ出力箇所: claude-cli-provider.ts:272-274 の setTimeout が
     // `Claude CLI timed out after ${timeoutMs}ms` で fail() → 261行目の
     // reject(new ClaudeCliUnavailableError(message))。呼び出し元

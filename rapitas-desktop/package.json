@@ -15,10 +15,10 @@
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
-    "@tauri-apps/cli": "^2.10.0",
+    "@tauri-apps/cli": "^2.12.3",
     "jimp": "^1.6.0"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.10.1"
+    "@tauri-apps/api": "^2.12.4"
   }
 }
