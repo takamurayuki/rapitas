@@ -49,6 +49,14 @@
       "reloaded": "Reloaded. {count} left",
       "empty": "No decisions waiting"
     },
+    "timer": {
+      "estimate": "This kind of decision usually takes about {minutes} min (median of the last {count})",
+      "insufficient": "A typical duration for this kind of decision appears once {min} are recorded",
+      "start": "Start decision",
+      "finish": "Finish decision",
+      "discard": "Discard timing",
+      "elapsed": "Elapsed {time}"
+    },
     "loadFailed": "Failed to load pending decisions"
   }
 }

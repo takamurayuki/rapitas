@@ -49,6 +49,14 @@
       "reloaded": "再読み込みしました。残り{count}件",
       "empty": "判断待ちはありません"
     },
+    "timer": {
+      "estimate": "この種の判断は通常約{minutes}分（直近{count}件の中央値）",
+      "insufficient": "記録が{min}件たまると、この種の判断の所要時間の目安を表示します",
+      "start": "判断を開始",
+      "finish": "判断を完了",
+      "discard": "計測を破棄",
+      "elapsed": "経過 {time}"
+    },
     "loadFailed": "判断待ちの取得に失敗しました"
   }
 }
