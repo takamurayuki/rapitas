@@ -8,7 +8,15 @@
  */
 
 import { describe, expect, test, beforeAll, afterAll } from 'bun:test';
-import { readFileSync, writeFileSync, unlinkSync, existsSync, mkdirSync, rmSync } from 'fs';
+import {
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+} from 'fs';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { tmpdir } from 'os';
@@ -360,7 +368,9 @@ describe('formatGuardSource', () => {
 // ---------------------------------------------------------------------------
 
 describe('generated guard runtime behaviour', () => {
-  const tmpDir = join(tmpdir(), `gen-type-guards-test-${process.pid}`);
+  // mkdtempSync: a pid-named directory is predictable and is reused once the
+  // OS recycles the pid, so two runs could share this tree.
+  const tmpDir = mkdtempSync(join(tmpdir(), 'gen-type-guards-test-'));
   const sourceFile = join(tmpDir, 'test-types.ts');
   const generatedFile = join(tmpDir, 'test-types.guards.generated.ts');
 
@@ -464,7 +474,7 @@ describe('checkDrift — real workflow-types.ts', () => {
 });
 
 describe('checkDrift — tmpdir scenarios', () => {
-  const tmpDir2 = join(tmpdir(), `gen-type-guards-drift-${process.pid}`);
+  const tmpDir2 = mkdtempSync(join(tmpdir(), 'gen-type-guards-drift-'));
 
   afterAll(() => {
     if (existsSync(tmpDir2)) rmSync(tmpDir2, { recursive: true });

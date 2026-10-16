@@ -69,8 +69,11 @@ describe('GET /system/setup/status', () => {
   });
 
   it('SQLite かつファイル不存在の場合は connected=false', async () => {
-    const fakePath = path.join(os.tmpdir(), `rapitas-setup-test-${Date.now()}.db`);
-    if (fs.existsSync(fakePath)) fs.rmSync(fakePath);
+    // A fresh private directory guarantees the file is absent without having
+    // to check for it first, and the name cannot be predicted by anything
+    // else writing to os.tmpdir().
+    const fakeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rapitas-setup-test-'));
+    const fakePath = path.join(fakeDir, 'absent.db');
     process.env.DATABASE_URL = `file:${fakePath}`;
     process.env.RAPITAS_DB_PROVIDER = 'sqlite';
     const r = await callStatus();
@@ -80,7 +83,8 @@ describe('GET /system/setup/status', () => {
   });
 
   it('SQLite かつファイル存在 + クエリ成功で connected=true', async () => {
-    const realPath = path.join(os.tmpdir(), `rapitas-setup-${Date.now()}.db`);
+    const realDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rapitas-setup-'));
+    const realPath = path.join(realDir, 'present.db');
     fs.writeFileSync(realPath, 'fake');
     process.env.DATABASE_URL = `file:${realPath}`;
     process.env.RAPITAS_DB_PROVIDER = 'sqlite';

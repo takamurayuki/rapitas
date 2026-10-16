@@ -8,7 +8,7 @@
  *   __tests__ / tests ツリー、integration 除外）し scoped コマンドを構築
  */
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import { mkdirSync, writeFileSync, rmSync } from 'fs';
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { parsePlanFiles, evaluateScopeCheck } from '../../services/agents/verification/scope-check';
@@ -135,7 +135,9 @@ describe('evaluateScopeCheck — 緩い plan でも計画内変更を通すこ�
 });
 
 describe('related-tests (fixture dirs)', () => {
-  const root = join(tmpdir(), `rapitas-related-tests-${process.pid}`);
+  // mkdtempSync: a pid-named directory is predictable and is reused as soon
+  // as the OS recycles the pid, so two runs could share this tree.
+  const root = mkdtempSync(join(tmpdir(), 'rapitas-related-tests-'));
 
   beforeAll(() => {
     rmSync(root, { recursive: true, force: true });
@@ -232,7 +234,7 @@ describe('related-tests (fixture dirs)', () => {
 describe('related-tests — vitest (frontend) はファイルスコープ実行 / 全体スイートにしない', () => {
   // task 185 回帰: フロント(vitest/pnpm, bun.lock 無し)の1ファイル変更で
   // 全体スイートを走らせ、無関係な既存赤テストで誤NGになっていた。
-  const root = join(tmpdir(), `rapitas-vitest-scope-${process.pid}`);
+  const root = mkdtempSync(join(tmpdir(), 'rapitas-vitest-scope-'));
 
   beforeAll(() => {
     rmSync(root, { recursive: true, force: true });
