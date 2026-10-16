@@ -7,6 +7,7 @@
  * only data, classifyLogSignature() and its types stay in the parent.
  */
 import type { Suppression } from './log-health-suppressions-types';
+import { BACKLOG_SUPPRESSIONS } from './log-health-suppression-rules-backlog';
 import { WORKTREE_SUPPRESSIONS } from './log-health-suppression-rules-worktree';
 import { RUNTIME_SUPPRESSIONS } from './log-health-suppression-rules.runtime';
 
@@ -366,4 +367,5 @@ export const SUPPRESSIONS: Suppression[] = [
   // under the line limit; order is preserved (first match wins).
   ...RUNTIME_SUPPRESSIONS,
   ...WORKTREE_SUPPRESSIONS,
+  ...BACKLOG_SUPPRESSIONS,
 ];
