@@ -10,7 +10,7 @@
  * run is discarded rather than trusted (partial shadow-run data would skew
  * the verdict).
  */
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
+import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
 import { dirname, join } from 'path';
 import type { ComparisonRecord } from './prompt-comparison-types';
@@ -88,10 +88,10 @@ export function writeComparisonRecord(record: ComparisonRecord): boolean {
 export function acquireComparisonLock(promptEvolutionId: number): boolean {
   const file = lockFile(promptEvolutionId);
   try {
-    if (existsSync(file)) return false;
     mkdirSync(dirname(file), { recursive: true });
-    // 'wx' fails atomically if the file already exists — closes the
-    // check-then-write race between the existsSync check above and this write.
+    // 'wx' fails atomically when the file already exists, which IS the lock.
+    // An existsSync() ahead of it only widened the window that flag closes,
+    // so this write is the single point that decides the winner.
     writeFileSync(file, String(Date.now()), { flag: 'wx' });
     return true;
   } catch {

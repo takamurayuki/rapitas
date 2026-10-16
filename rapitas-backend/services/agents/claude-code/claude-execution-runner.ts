@@ -11,7 +11,7 @@
  * `/** @internal *\/` public state directly.
  */
 import { spawnLowPriority } from '../process-priority';
-import { writeFileSync, unlinkSync, mkdirSync, existsSync } from 'fs';
+import { writeFileSync, mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import type { AgentTask, AgentExecutionResult } from '../base-agent';
@@ -138,12 +138,15 @@ export async function runClaudeExecution(
     logger.info(`${agent.logPrefix} Using simple prompt (no AI task analysis)`);
   }
 
-  // Save prompt to temp file to bypass Windows command-line character limit
-  const tempDir = join(tmpdir(), 'rapitas-prompts');
-  if (!existsSync(tempDir)) {
-    mkdirSync(tempDir, { recursive: true });
-  }
-  const promptFile = join(tempDir, `prompt-${Date.now()}.txt`);
+  // Save prompt to temp file to bypass Windows command-line character limit.
+  // mkdtempSync rather than a fixed rapitas-prompts directory holding a
+  // timestamped file: both names were predictable, so another account on a
+  // shared machine could pre-create either path as a symlink and read the
+  // prompt (it carries repository content) or redirect the write elsewhere.
+  // mkdtempSync returns a fresh 0700 directory whose name cannot be known
+  // before the call.
+  const tempDir = mkdtempSync(join(tmpdir(), 'rapitas-prompts-'));
+  const promptFile = join(tempDir, 'prompt.txt');
   writeFileSync(promptFile, prompt, 'utf-8');
 
   const { args, logExtras } = buildClaudeArgs(agent);
@@ -166,7 +169,7 @@ export async function runClaudeExecution(
 
   const cleanupPromptFile = () => {
     try {
-      unlinkSync(promptFile);
+      rmSync(tempDir, { recursive: true, force: true });
     } catch {
       // Prompt file may already be deleted
     }
