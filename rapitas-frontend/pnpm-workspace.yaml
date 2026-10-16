@@ -42,6 +42,13 @@ minimumReleaseAgeExclude:
   - js-yaml@4.3.2
   - nanoid@3.3.18
   - undici@7.29.1
+  - dompurify@3.4.13 || 3.4.14 || 3.4.15 || 3.4.16
+  - browserslist@4.28.7
+  - source-map-js@1.2.2
+  - baseline-browser-mapping@2.11.0
+  - postcss-selector-parser@7.1.6
+  - mermaid@11.16.1
+  - vitest@4.1.11
 overrides:
   # NOTE: ONE entry per package per major line. Only the FIRST matching
   # range selector takes effect -- appending a stricter rule below an
@@ -50,17 +57,13 @@ overrides:
   # floor, EDIT the entry; never add a second one for the same major.
   '@babel/core@<=7.29.0': ^7.29.1
   '@babel/plugin-transform-modules-systemjs@>=7.12.0 <=7.29.3': ^7.29.4
+  baseline-browser-mapping@>=2.0.0 <2.11.0: ^2.11.0
   brace-expansion@>=1.0.0 <1.1.20: ^1.1.20
   brace-expansion@>=5.0.0 <5.0.11: ^5.0.11
-  dompurify@<3.4.7: ^3.4.7
-  dompurify@<3.4.9: ^3.4.9
-  dompurify@<=3.4.10: ^3.4.11
-  dompurify@<=3.4.11: ^3.4.12
-  dompurify@<=3.4.5: ^3.4.6
-  dompurify@<=3.4.6: ^3.4.7
-  dompurify@>=3.0.0 <=3.4.7: ^3.4.8
   # NOTE: no elliptic override — the advisory's patched version (6.6.2) is not
   # published yet (low severity, storybook dev-only chain). Re-add when released.
+  browserslist@<4.28.7: ^4.28.7
+  dompurify@<3.4.16: ^3.4.16
   esbuild@>=0.27.3 <0.28.1: ^0.28.1
   fast-uri@>=3.0.0 <3.1.7: ^3.1.7
   js-yaml@>=4.0.0 <4.3.2: ^4.3.2
@@ -68,8 +71,10 @@ overrides:
   postcss@<8.5.10: ^8.5.10
   postcss@<=8.5.11: ^8.5.12
   postcss@<=8.5.17: ^8.5.18
+  postcss-selector-parser@>=7.0.0 <7.1.6: ^7.1.6
   qs@>=6.11.1 <=6.15.1: ^6.15.2
   sharp@<0.35.0: ^0.35.0
+  source-map-js@>=1.0.0 <1.2.2: ^1.2.2
   undici@>=7.0.0 <7.29.1: ^7.29.1
   uuid@<11.1.1: ^11.1.1
   vite: ^7.3.2
