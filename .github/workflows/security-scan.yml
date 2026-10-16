@@ -65,10 +65,21 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit
 
-      - name: Update Rust dependencies
-        working-directory: rapitas-desktop/src-tauri
-        run: cargo update
-
+      # Audits the COMMITTED Cargo.lock — deliberately with no `cargo update`
+      # first. Two reasons, both measured 2026-10-16 (#960):
+      #   1. Updating first scored a tree that only ever existed in this
+      #      runner. The committed lock held five packages with advisories
+      #      (rustls, tauri, quick-xml, tar, serde_with) that this job
+      #      reported as clean for as long as it existed, because it audited
+      #      the updated tree instead — 587 crates resolved there against 607
+      #      in the lock.
+      #   2. It cannot succeed anyway: the `zip` crate keeps only its newest
+      #      release unyanked (99 of its last 100 published versions are
+      #      yanked) while every published `tauri-plugin-updater`, up to
+      #      2.14.0, still requires `zip = "^4"` — now entirely yanked.
+      #      Resolution fails before cargo-audit ever runs.
+      # Keeping dependencies current is Dependabot's job; this gate's job is
+      # to score what we actually ship. Do not reintroduce `cargo update`.
       - name: Run cargo audit
         working-directory: rapitas-desktop/src-tauri
         run: cargo audit
