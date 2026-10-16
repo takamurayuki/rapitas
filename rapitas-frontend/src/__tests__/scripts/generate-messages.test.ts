@@ -6,18 +6,16 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { writeFile, mkdir, rm, readFile } from 'node:fs/promises';
+import { writeFile, mkdtemp, rm, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { mergeFragments } from '../../../scripts/generate-messages.mjs';
 
 async function makeTmpDir(): Promise<string> {
-  const dir = join(
-    tmpdir(),
-    `generate-messages-test-${Date.now()}-${Math.floor(performance.now())}`,
-  );
-  await mkdir(dir, { recursive: true });
-  return dir;
+  // mkdtemp, not a Date.now()-named directory: the name was predictable, and
+  // two files starting in the same millisecond shared it — a real collision
+  // source now that vitest runs test files in parallel.
+  return mkdtemp(join(tmpdir(), 'generate-messages-test-'));
 }
 
 describe('mergeFragments', () => {

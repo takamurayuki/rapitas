@@ -6,18 +6,16 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { writeFile, mkdir, rm } from 'node:fs/promises';
+import { writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { discoverPanels, renderRegistry } from '../../../scripts/generate-agents-panels.mjs';
 
 async function makeTmpDir(): Promise<string> {
-  const dir = join(
-    tmpdir(),
-    `generate-agents-panels-test-${Date.now()}-${Math.floor(performance.now())}`,
-  );
-  await mkdir(dir, { recursive: true });
-  return dir;
+  // mkdtemp, not a Date.now()-named directory: the name was predictable, and
+  // two files starting in the same millisecond shared it — a real collision
+  // source now that vitest runs test files in parallel.
+  return mkdtemp(join(tmpdir(), 'generate-agents-panels-test-'));
 }
 
 function panelSource(id: string, order: number) {

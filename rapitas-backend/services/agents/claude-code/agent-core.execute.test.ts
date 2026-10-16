@@ -10,6 +10,7 @@
  * モックし、agent-core.ts が組み立てる ResolverContext / checkPlanCreated を検証する。
  */
 import { describe, expect, mock, test } from 'bun:test';
+import { mkdtempSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import type { AgentExecutionResult, AgentTask } from '../base-agent';
@@ -138,7 +139,9 @@ async function waitForRunClaudeExecutionCall(): Promise<void> {
 describe('ClaudeCodeAgent.execute — 作業ディレクトリ検証', () => {
   test('存在しないディレクトリ → 即座に失敗し status が failed になる', async () => {
     const agent = new ClaudeCodeAgent('e1', 'agent-e1');
-    const nonExistent = join(tmpdir(), `agent-core-execute-missing-${Date.now()}`);
+    // A name inside a fresh private directory is absent by construction, and
+    // unlike a Date.now() name cannot collide with a parallel run.
+    const nonExistent = join(mkdtempSync(join(tmpdir(), 'agent-core-execute-')), 'missing');
 
     const result = await agent.execute(makeTask({ workingDirectory: nonExistent }));
 
@@ -150,7 +153,7 @@ describe('ClaudeCodeAgent.execute — 作業ディレクトリ検証', () => {
 
   test('ディレクトリではなくファイル → 即座に失敗する', async () => {
     const fs = await import('fs');
-    const filePath = join(tmpdir(), `agent-core-execute-file-${Date.now()}.txt`);
+    const filePath = join(mkdtempSync(join(tmpdir(), 'agent-core-execute-')), 'not-a-dir.txt');
     fs.writeFileSync(filePath, 'not a dir');
     try {
       const agent = new ClaudeCodeAgent('e2', 'agent-e2');

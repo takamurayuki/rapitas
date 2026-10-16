@@ -8,11 +8,13 @@
  */
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import { join } from 'path';
-import { mkdirSync, writeFileSync, rmSync } from 'fs';
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 
 // Point the cycle-log reader at a scratch dir so tests never touch ~/.rapitas.
-const SCRATCH_DATA_DIR = join(tmpdir(), `rapitas-daily-report-test-${process.pid}`);
+// mkdtempSync: a pid-named directory is predictable and is reused once the OS
+// recycles the pid, so two runs could share this data dir.
+const SCRATCH_DATA_DIR = mkdtempSync(join(tmpdir(), 'rapitas-daily-report-test-'));
 process.env.RAPITAS_DATA_DIR = SCRATCH_DATA_DIR;
 
 // ---------------------------------------------------------------------------

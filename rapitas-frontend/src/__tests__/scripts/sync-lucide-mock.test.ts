@@ -6,19 +6,17 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { writeFile, mkdir, rm } from 'node:fs/promises';
+import { writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { collectUsedIcons, findNonCompliantMocks } from '../../../scripts/sync-lucide-mock.mjs';
 
 /** Creates a temporary directory for each test. */
 async function makeTmpDir(): Promise<string> {
-  const dir = join(
-    tmpdir(),
-    `sync-lucide-mock-test-${Date.now()}-${Math.floor(performance.now())}`,
-  );
-  await mkdir(dir, { recursive: true });
-  return dir;
+  // mkdtemp, not a Date.now()-named directory: the name was predictable, and
+  // two files starting in the same millisecond shared it — a real collision
+  // source now that vitest runs test files in parallel.
+  return mkdtemp(join(tmpdir(), 'sync-lucide-mock-test-'));
 }
 
 describe('collectUsedIcons', () => {
