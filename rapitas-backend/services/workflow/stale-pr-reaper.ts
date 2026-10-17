@@ -16,7 +16,7 @@
  * read the same WorkflowTransition record this module also reads.
  */
 import { existsSync } from 'node:fs';
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
@@ -25,7 +25,7 @@ import { ghPath } from './auto-merge-checks';
 import { submitConcern } from '../memory/concern-backlog-service';
 import type { SubmitConcernInput, ConcernFilingResult } from '../memory/concern-backlog-types';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 const log = createLogger('workflow:stale-pr-reaper');
 
 /** Days a candidate must sit exhausted+unmergeable before it is closed (env-tunable). */
@@ -36,8 +36,12 @@ export const MAX_REAP_PER_TICK = 3;
 
 /** Injectable side effects for unit tests. */
 export interface StalePrReaperDeps {
-  /** Run `gh <args>` in cwd and return stdout. */
-  execGh: (command: string, cwd: string) => Promise<string>;
+  /**
+   * Run gh with an argv array in cwd and return stdout. Never a shell
+   * string: the previous form needed an escaper, and that escaper handled
+   * only `"`.
+   */
+  execGh: (args: string[], cwd: string) => Promise<string>;
   /** Clock (epoch ms). */
   now: () => number;
   /** File a concern for the closed PR (real implementation posts to the concern backlog). */
@@ -45,8 +49,12 @@ export interface StalePrReaperDeps {
 }
 
 const defaultDeps: StalePrReaperDeps = {
-  execGh: async (command, cwd) => {
-    const { stdout } = await execAsync(command, { cwd, encoding: 'utf8', timeout: 15_000 });
+  execGh: async (args, cwd) => {
+    const { stdout } = await execFileAsync(ghPath(), args, {
+      cwd,
+      encoding: 'utf8',
+      timeout: 15_000,
+    });
     return stdout;
   },
   now: () => Date.now(),
@@ -64,11 +72,6 @@ interface StaleCandidateTask {
   description: string | null;
   workingDirectory: string | null;
   theme: { workingDirectory: string | null } | null;
-}
-
-/** Escape `"` so the comment string is safe to embed in a shell command. */
-function escapeForShell(value: string): string {
-  return value.replace(/"/g, '\\"');
 }
 
 /**
@@ -133,7 +136,13 @@ export async function reapStalePrs(
     let headRefOid: string | undefined;
     try {
       const stdout = await execGh(
-        `${ghPath()} pr view ${candidate.prNumber} --json mergeable,mergeStateStatus,headRefOid`,
+        [
+          'pr',
+          'view',
+          String(candidate.prNumber),
+          '--json',
+          'mergeable,mergeStateStatus,headRefOid',
+        ],
         cwd,
       );
       const parsed = JSON.parse(stdout) as {
@@ -156,12 +165,10 @@ export async function reapStalePrs(
     if (mergeable !== 'CONFLICTING' && mergeStateStatus !== 'DIRTY') continue;
 
     const reasonState = mergeStateStatus === 'DIRTY' ? 'DIRTY' : (mergeable ?? 'CONFLICTING');
-    const comment = escapeForShell(
-      `枯渇+${reasonState}+${Math.floor(ageDays)}日経過のため自動close（再挑戦は懸念として起票済み）`,
-    );
+    const comment = `枯渇+${reasonState}+${Math.floor(ageDays)}日経過のため自動close（再挑戦は懸念として起票済み）`;
 
     try {
-      await execGh(`${ghPath()} pr close ${candidate.prNumber} --comment "${comment}"`, cwd);
+      await execGh(['pr', 'close', String(candidate.prNumber), '--comment', comment], cwd);
     } catch (err) {
       log.warn(
         { err, prNumber: candidate.prNumber },

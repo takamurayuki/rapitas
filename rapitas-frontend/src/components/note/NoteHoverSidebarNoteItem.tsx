@@ -20,6 +20,24 @@ export interface NoteHoverSidebarNoteItemProps {
   t: ReturnType<typeof useTranslations<'notes'>>;
 }
 
+/**
+ * Plain-text snippet of note HTML.
+ *
+ * Loops because one pass is not a fixed point: `<scr<x>ipt>` becomes
+ * `<script>`, which would then show up verbatim in the snippet. The result
+ * is only ever rendered as a React text child, so this is about the snippet
+ * reading correctly, not about escaping.
+ */
+function stripTags(html: string): string {
+  let out = html;
+  let previous: string;
+  do {
+    previous = out;
+    out = out.replace(/<[^>]*>/g, '');
+  } while (out !== previous);
+  return out;
+}
+
 /** Single note row rendered at every level of the note tree. */
 export default function NoteHoverSidebarNoteItem({
   note,
@@ -57,7 +75,7 @@ export default function NoteHoverSidebarNoteItem({
             </h4>
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1">
-            {note.content.replace(/<[^>]*>/g, '') || t('hoverSidebar.noContent')}
+            {stripTags(note.content) || t('hoverSidebar.noContent')}
           </p>
           <div className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-500">
             <Calendar className="w-2.5 h-2.5" />
