@@ -48,4 +48,15 @@ export const WORKTREE_SUPPRESSIONS: Suppression[] = [
     because:
       '人間のoverrideが必要な計画を自動承認しなかった設計どおりの保護ガードの記録 — 保留は遷移として記録され初回に通知もされ、24h超は停滞検知が再開する。他の plan-auto-approve の警告は別シグネチャで可視化される',
   },
+  {
+    // ログ出力箇所: agent-crud-router.ts:237 の logger.warn（GET /agents/:id、
+    // parseInt が NaN の分岐）。/agents/undefined 等の非数値idをPrismaに渡す前に
+    // 404へ変換する入力ガードの記録で、フロント側は useAgentSettings.ts:72 の
+    // /^\d+$/ で静的エクスポートの _placeholder id を弾き済み。500やデータ破損は起きない。
+    // 3回/約15時間の低頻度。idは構造化フィールドに残り、404応答もクライアントに返る。
+    test: /^\[agents\] Non-numeric agent id requested$/i,
+    logger: /^routes:agent-crud$/i,
+    because:
+      '非数値の agent id を Prisma 到達前に 404 へ変換する入力ガードの記録 — 500やデータ破損は起きず、フロントは数値のみ送る対策済み。routes:agent-crud の他の警告は別シグネチャで可視化される',
+  },
 ];
