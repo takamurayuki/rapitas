@@ -70,6 +70,28 @@ export const MAX_UNSTARTED_PER_THEME = 3;
 const UNSTARTED_STATUSES = ['todo', 'draft'] as const;
 
 /**
+ * The tasks that count against {@link MAX_UNSTARTED_PER_THEME}.
+ *
+ * `autoRunExcluded` is left out because the cap keeps filing proportional to
+ * THROUGHPUT, and a task auto-run will never select is not in the pipeline —
+ * counting it only removes headroom that never comes back. Measured
+ * 2026-10-17, the first run after screens began gating features: all six of
+ * ContextFlow's unstarted tasks were excluded, so its headroom was
+ * permanently zero and its eight screen tasks could never be filed. The theme
+ * filed nothing at all, with no exit that did not involve a human.
+ *
+ * @param themeId - Theme being scanned / 対象テーマ
+ * @returns The Prisma `where` for the count / 件数クエリの where
+ */
+export function unstartedTaskFilter(themeId: number): {
+  themeId: number;
+  status: { in: string[] };
+  autoRunExcluded: false;
+} {
+  return { themeId, status: { in: [...UNSTARTED_STATUSES] }, autoRunExcluded: false };
+}
+
+/**
  * Root files whose presence means dependencies can be installed here.
  *
  * A project scaffolded as documents-only has none of these, which is the state
@@ -113,8 +135,7 @@ function defaultDeps(): RequirementIntakeDeps {
       const rows = await prisma.task.findMany({ where: { themeId }, select: { title: true } });
       return rows.map((r) => r.title);
     },
-    countUnstartedTasks: (themeId) =>
-      prisma.task.count({ where: { themeId, status: { in: [...UNSTARTED_STATUSES] } } }),
+    countUnstartedTasks: (themeId) => prisma.task.count({ where: unstartedTaskFilter(themeId) }),
     // An unfinished setup task means the theme is legitimately waiting; zero
     // unfinished ones mean the wait has no exit (see requirement-intake-outcome).
     isBootstrapTaskFinished: async (themeId) =>
