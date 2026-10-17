@@ -250,7 +250,7 @@ async function tryAutoAnswerOne(
   // (intake_question/file_saved:question)をここで再実装せず、answer-question
   // ハンドラと同じ resolveExplicitOrDefaultKind/resolveQuestionAnswerStrategy を
   // 共有する。
-  await applyQuestionAnswerByKind({
+  const applied = await applyQuestionAnswerByKind({
     taskId: task.id,
     answer: answerText,
     actor: 'system',
@@ -258,6 +258,17 @@ async function tryAutoAnswerOne(
     selections,
     extraMetadata,
   });
+
+  // NOTE: plan revision only persists research_done; without a re-dispatch the task stalls with
+  // no agent and no queue item (task 1310). Dynamic import keeps services/ from statically
+  // depending on the routes layer's redispatch module.
+  if (applied.kind === 'plan_revision') {
+    await import('../../routes/workflow/handlers/workflow-handlers-resume-redispatch')
+      .then((m) => m.triggerReExecutionAfterAnswer(task.id))
+      .catch((err) => {
+        log.warn({ err, taskId: task.id }, '[reconciler] plan-revision re-dispatch failed');
+      });
+  }
 
   await notifyQuestionAutoAnswered(task.id, task.title, recommendedLabel, elapsedMinutes).catch(
     (err) => {
