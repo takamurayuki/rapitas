@@ -10,7 +10,11 @@
  */
 import { createLogger } from '../../../../config/logger';
 import type { VerificationCheck } from '../automated-verifier';
-import { resolveRuntimeConfig, resolveThemeWorkingDirectory, isScreenTask } from './runtime-config';
+import {
+  resolveRuntimeConfig,
+  resolveThemeWorkingDirectory,
+  taskRequiresFeatureEntries,
+} from './runtime-config';
 import { detectRuntimeHarnessDrift } from './runtime-start-preflight';
 import { applyFeatureReachability } from './feature-reachability';
 import { runBrowserSmoke, type SmokeRunResult } from './browser-smoke';
@@ -284,15 +288,15 @@ export async function runRuntimeSmokeCheck(
       };
     }
 
-    // The screen task is the one that creates the file an entry names, so it
-    // is the only task allowed to be failed for not registering one. Every
-    // other task keeps the note-only pass-through.
+    // Only a task that was ASKED to register an entry may be failed for not
+    // having one — a screen no 画面導線 names is asked for nothing (#1031).
+    // Every other task keeps the note-only pass-through.
     const verdict = await applyFeatureReachability(
       evaluateSmokeFindings(smoke),
       cfg,
       workdir,
       undefined,
-      { requireEntries: await isScreenTask(taskId) },
+      { requireEntries: await taskRequiresFeatureEntries(taskId) },
     );
     if (verdict.ok && !cfg.readySelector) {
       return {
