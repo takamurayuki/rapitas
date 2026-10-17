@@ -18,7 +18,9 @@ import {
   BOOTSTRAP_TASK_PREFIX,
 } from '../organization/project-bootstrap-task';
 import { toSpecGateTaskPayload, SPEC_GATE_TASK_PREFIX } from '../organization/spec-gate-task';
+import { toScreenTaskPayload, screenTaskTitle } from '../organization/screen-task-payload';
 import type { SpecFinding } from '../organization/spec-consistency';
+import type { ScreenTaskSpec } from '../organization/screen-task-plan';
 import type { RequirementIntakeDeps } from './requirement-intake-types';
 
 const log = createLogger('scheduling:requirement-intake');
@@ -137,6 +139,61 @@ export async function fileSpecGateTask(
     log.warn({ err, themeId }, 'Failed to file requirements gap task (non-fatal)');
     return 0;
   }
+}
+
+/**
+ * Screens declared in the document that have no task yet.
+ *
+ * Exported so the job can decide whether to hold the features back using the
+ * SAME title rule this module files with, rather than a second copy of it.
+ *
+ * @param screens - Parsed 画面一覧 / 解析済みの画面一覧
+ * @param existing - Task titles in the theme / 既存タスク名
+ * @returns Screens still to file, in document order / 未起票の画面
+ */
+export function unfiledScreens(
+  screens: readonly ScreenTaskSpec[],
+  existing: readonly string[],
+): ScreenTaskSpec[] {
+  const titles = new Set(existing.map((t) => t.trim()));
+  return screens.filter((s) => !titles.has(screenTaskTitle(s.name)));
+}
+
+/**
+ * File one task per screen, up to `limit`.
+ *
+ * Screens are filed BEFORE any feature, because a feature whose 画面導線 names
+ * a screen that does not exist has to build that screen as a side effect —
+ * and every feature's design legitimately puts the UI outside its own scope
+ * (TempoRaid's design.md:159 lists 「webのログイン画面」 under F-11's 範囲外).
+ * That is how twelve finished features shipped two .tsx files.
+ *
+ * @param themeId - Theme being scanned / 対象テーマ
+ * @param screens - Screens still to file / 未起票の画面
+ * @param outOfScope - Document-level non-goals / スコープ外の項目
+ * @param limit - How many may be filed this run / 今回起票してよい件数
+ * @param deps - Injected collaborators / 注入された依存
+ * @returns How many were filed / 起票した件数
+ */
+export async function fileScreenTasks(
+  themeId: number,
+  screens: readonly ScreenTaskSpec[],
+  outOfScope: readonly string[],
+  limit: number,
+  deps: RequirementIntakeDeps,
+): Promise<number> {
+  let filed = 0;
+  for (const spec of screens.slice(0, Math.max(0, limit))) {
+    try {
+      const task = await deps.createTask(toScreenTaskPayload(spec, { themeId, outOfScope }));
+      if (!task) continue;
+      filed += 1;
+      log.info({ themeId, screen: spec.name }, 'Filed screen task from requirements.md');
+    } catch (err) {
+      log.warn({ err, themeId, screen: spec.name }, 'Failed to file screen task (non-fatal)');
+    }
+  }
+  return filed;
 }
 
 /**
