@@ -31,9 +31,12 @@ import {
 import {
   fileBootstrapTask,
   fileDriftTask,
+  fileScreenTasks,
   fileSpecGateTask,
   hasBootstrapTaskFiled,
+  unfiledScreens,
 } from './requirement-intake-filers';
+import { parseScreenTasks } from '../organization/screen-task-plan';
 import { checkSpecConsistency, specIsImplementable } from '../organization/spec-consistency';
 import { reportIntakeOutcome, type IntakeOutcome } from './requirement-intake-outcome';
 import type { IntakeTheme, RequirementIntakeDeps } from './requirement-intake-types';
@@ -233,6 +236,27 @@ async function intakeTheme(
     };
   }
 
+  // Throttle on the OUTSTANDING backlog, not just on this run's volume: the
+  // auto-run slot is shared across themes, so filing faster than the theme is
+  // worked starves every other project without raising an error anywhere.
+  // Computed before the screen gate so both kinds of filing share one budget.
+  const unstarted = await deps.countUnstartedTasks(themeId);
+  const headroom = Math.max(0, MAX_UNSTARTED_PER_THEME - unstarted);
+  const limit = Math.min(headroom, MAX_FILES_PER_THEME_RUN);
+
+  // Screens before features. A feature whose 画面導線 names a screen that does
+  // not exist has to build it as a side effect, and every feature's design
+  // legitimately puts the UI outside its own scope — TempoRaid's design.md:159
+  // lists 「webのログイン画面」 under F-11's 範囲外. Its 画面一覧 declared seven
+  // screens, none became a task, and twelve finished features shipped two
+  // .tsx files (audit #1244). A document with no 画面一覧 parses to zero
+  // screens and takes the unchanged path.
+  const screensToFile = unfiledScreens(parseScreenTasks(markdown), existing);
+  if (screensToFile.length > 0) {
+    const filed = await fileScreenTasks(themeId, screensToFile, outOfScope, limit, deps);
+    return { themeId, kind: 'screens_pending', filed, pending: screensToFile.length };
+  }
+
   // A reworded heading must not re-file the feature, so an existing title that
   // starts with the same `[F-NN]` label counts as filed.
   const pending = specs
@@ -243,12 +267,6 @@ async function intakeTheme(
       return !existing.some((t) => t.trimStart().startsWith(label));
     });
 
-  // Throttle on the OUTSTANDING backlog, not just on this run's volume: the
-  // auto-run slot is shared across themes, so filing faster than the theme is
-  // worked starves every other project without raising an error anywhere.
-  const unstarted = await deps.countUnstartedTasks(themeId);
-  const headroom = Math.max(0, MAX_UNSTARTED_PER_THEME - unstarted);
-  const limit = Math.min(headroom, MAX_FILES_PER_THEME_RUN);
   const batch = pending.slice(0, limit);
   if (pending.length > batch.length) {
     log.info(
