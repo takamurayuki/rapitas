@@ -155,13 +155,13 @@ tests only, because the project kept finding work.
 
 ---
 
-# A second run: batontime, 2026-10-18
+## A second run: batontime, 2026-10-18
 
 A brand-new project, started to measure the chain rather than to fix anything
 in particular. It never reached a screen task. Both findings are in the first
 task the chain files, and both were invisible to that task's own tests.
 
-## A criterion no one could satisfy
+### A criterion no one could satisfy
 
 `project-bootstrap-task.ts` emitted a constraint and an acceptance criterion
 that contradict each other, in the same payload:
@@ -191,7 +191,7 @@ bounce it for ever. This is the mirror image of a gate that cannot fail, and
 it is just as quiet: a task stuck in `awaiting_question` looks like a task
 making progress.
 
-## A criterion a copy satisfies
+### A criterion a copy satisfies
 
 Unable to install, the implementer copied `node_modules/.pnpm/lock.yaml` to
 `pnpm-lock.yaml` and said so plainly. The criterion asked only that a lockfile
