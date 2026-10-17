@@ -102,6 +102,18 @@
         "insertButton": "Insert",
         "borderLineTitle": "Border line",
         "tableInsertTitle": "Insert table",
+        "tableSizeGridLabel": "Choose table size",
+        "tableSizeCellLabel": "{rows} by {columns}",
+        "tableSizeLabel": "{rows} × {columns}",
+        "tableSizeHint": "Choose a size",
+        "tableEditHeading": "Edit table",
+        "tableInsertRowAbove": "Insert row above",
+        "tableInsertRowBelow": "Insert row below",
+        "tableInsertColumnLeft": "Insert column left",
+        "tableInsertColumnRight": "Insert column right",
+        "tableDeleteRow": "Delete row",
+        "tableDeleteColumn": "Delete column",
+        "tableDeleteTable": "Delete table",
         "diagramInsertTitle": "Insert diagram (Mermaid)",
         "codeBlockInsertTitle": "Insert code block",
         "selectLanguageLabel": "Select a programming language"
@@ -187,9 +199,7 @@
       "diagramLoadingText": "Loading diagram...",
       "diagramSyntaxError": "Syntax error — check your Mermaid notation",
       "linkCopyDoneText": "Copied!",
-      "tableHeading1": "Heading 1",
-      "tableHeading2": "Heading 2",
-      "tableHeading3": "Heading 3"
+      "tableHeading": "Column {n}"
     },
     "aiService": {
       "apiError": "API error: {status} {statusText}",

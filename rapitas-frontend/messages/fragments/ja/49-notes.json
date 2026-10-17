@@ -102,6 +102,18 @@
         "insertButton": "挿入",
         "borderLineTitle": "縦線",
         "tableInsertTitle": "テーブル挿入",
+        "tableSizeGridLabel": "テーブルのサイズを選択",
+        "tableSizeCellLabel": "{rows}行 × {columns}列",
+        "tableSizeLabel": "{rows} × {columns}",
+        "tableSizeHint": "サイズを選択",
+        "tableEditHeading": "表の編集",
+        "tableInsertRowAbove": "行を上に追加",
+        "tableInsertRowBelow": "行を下に追加",
+        "tableInsertColumnLeft": "列を左に追加",
+        "tableInsertColumnRight": "列を右に追加",
+        "tableDeleteRow": "行を削除",
+        "tableDeleteColumn": "列を削除",
+        "tableDeleteTable": "表を削除",
         "diagramInsertTitle": "ダイアグラム挿入（Mermaid）",
         "codeBlockInsertTitle": "コードブロック挿入",
         "selectLanguageLabel": "プログラミング言語を選択"
@@ -187,9 +199,7 @@
       "diagramLoadingText": "ダイアグラムを読み込み中...",
       "diagramSyntaxError": "構文エラー — Mermaidの記法を確認してください",
       "linkCopyDoneText": "コピーしました！",
-      "tableHeading1": "見出し1",
-      "tableHeading2": "見出し2",
-      "tableHeading3": "見出し3"
+      "tableHeading": "列{n}"
     },
     "aiService": {
       "apiError": "APIエラー: {status} {statusText}",

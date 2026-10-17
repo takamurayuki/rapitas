@@ -65,11 +65,10 @@ export function useNoteEditor(note: Note): NoteEditorState {
       loadingText: t('editorDom.diagramLoadingText'),
       syntaxErrorText: t('editorDom.diagramSyntaxError'),
       copyDoneText: t('editorDom.linkCopyDoneText'),
-      tableHeadings: [
-        t('editorDom.tableHeading1'),
-        t('editorDom.tableHeading2'),
-        t('editorDom.tableHeading3'),
-      ],
+      // Numbered rather than three fixed strings: the table's shape is chosen
+      // at insert time and a column can be added later, so a heading has to be
+      // nameable from its position alone.
+      tableHeadingName: (n: number) => t('editorDom.tableHeading', { n }),
     }),
     [t],
   );
@@ -102,6 +101,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
     setShowBlockPicker,
     setShowColorPicker,
     setShowBorderPicker,
+    setShowTablePicker,
     setShowLinkInput,
     setShowCodeInput,
     setShowFontSizePicker,
@@ -387,6 +387,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
     showBlockPicker: popups.showBlockPicker,
     showColorPicker: popups.showColorPicker,
     showBorderPicker: popups.showBorderPicker,
+    showTablePicker: popups.showTablePicker,
     showLinkInput: popups.showLinkInput,
     showCodeInput: popups.showCodeInput,
     showFontSizePicker: popups.showFontSizePicker,
@@ -395,6 +396,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
     setShowBlockPicker,
     setShowColorPicker,
     setShowBorderPicker,
+    setShowTablePicker,
     setShowLinkInput,
     setShowCodeInput,
     setShowFontSizePicker,
@@ -429,6 +431,12 @@ export function useNoteEditor(note: Note): NoteEditorState {
     handleTextColorButtonClick,
     handleResetTextColor,
     insertTable: insertion.insertTable,
+    isCaretInTable: insertion.isCaretInTable,
+    insertTableRow: insertion.insertTableRow,
+    insertTableColumn: insertion.insertTableColumn,
+    deleteTableRow: insertion.deleteTableRow,
+    deleteTableColumn: insertion.deleteTableColumn,
+    deleteCurrentTable: insertion.deleteCurrentTable,
     insertDiagramBlock: insertion.insertDiagramBlock,
     renderDiagramBlock,
     onEditorInput,

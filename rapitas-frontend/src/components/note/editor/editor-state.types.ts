@@ -31,6 +31,7 @@ export interface NoteEditorState {
   showBlockPicker: boolean;
   showColorPicker: boolean;
   showBorderPicker: boolean;
+  showTablePicker: boolean;
   showLinkInput: boolean;
   showCodeInput: boolean;
   showFontSizePicker: boolean;
@@ -39,6 +40,7 @@ export interface NoteEditorState {
   setShowBlockPicker: React.Dispatch<React.SetStateAction<boolean>>;
   setShowColorPicker: React.Dispatch<React.SetStateAction<boolean>>;
   setShowBorderPicker: React.Dispatch<React.SetStateAction<boolean>>;
+  setShowTablePicker: React.Dispatch<React.SetStateAction<boolean>>;
   setShowLinkInput: React.Dispatch<React.SetStateAction<boolean>>;
   setShowCodeInput: React.Dispatch<React.SetStateAction<boolean>>;
   setShowFontSizePicker: React.Dispatch<React.SetStateAction<boolean>>;
@@ -82,7 +84,14 @@ export interface NoteEditorState {
   handleResetTextColor: () => void;
 
   // Table
-  insertTable: () => void;
+  insertTable: (shape: { rows: number; columns: number }) => void;
+  /** Whether the caret currently sits inside a table. / カーソルが表内にあるか */
+  isCaretInTable: () => boolean;
+  insertTableRow: (side: 'above' | 'below') => void;
+  insertTableColumn: (side: 'left' | 'right') => void;
+  deleteTableRow: () => void;
+  deleteTableColumn: () => void;
+  deleteCurrentTable: () => void;
 
   // Diagram
   insertDiagramBlock: () => void;

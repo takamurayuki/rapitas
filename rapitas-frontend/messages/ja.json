@@ -6140,6 +6140,18 @@
         "insertButton": "挿入",
         "borderLineTitle": "縦線",
         "tableInsertTitle": "テーブル挿入",
+        "tableSizeGridLabel": "テーブルのサイズを選択",
+        "tableSizeCellLabel": "{rows}行 × {columns}列",
+        "tableSizeLabel": "{rows} × {columns}",
+        "tableSizeHint": "サイズを選択",
+        "tableEditHeading": "表の編集",
+        "tableInsertRowAbove": "行を上に追加",
+        "tableInsertRowBelow": "行を下に追加",
+        "tableInsertColumnLeft": "列を左に追加",
+        "tableInsertColumnRight": "列を右に追加",
+        "tableDeleteRow": "行を削除",
+        "tableDeleteColumn": "列を削除",
+        "tableDeleteTable": "表を削除",
         "diagramInsertTitle": "ダイアグラム挿入（Mermaid）",
         "codeBlockInsertTitle": "コードブロック挿入",
         "selectLanguageLabel": "プログラミング言語を選択"
@@ -6225,9 +6237,7 @@
       "diagramLoadingText": "ダイアグラムを読み込み中...",
       "diagramSyntaxError": "構文エラー — Mermaidの記法を確認してください",
       "linkCopyDoneText": "コピーしました！",
-      "tableHeading1": "見出し1",
-      "tableHeading2": "見出し2",
-      "tableHeading3": "見出し3"
+      "tableHeading": "列{n}"
     },
     "aiService": {
       "apiError": "APIエラー: {status} {statusText}",
@@ -6632,6 +6642,14 @@
       "failed": "操作に失敗しました。項目を戻しました",
       "reloaded": "再読み込みしました。残り{count}件",
       "empty": "判断待ちはありません"
+    },
+    "timer": {
+      "estimate": "この種の判断は通常約{minutes}分（直近{count}件の中央値）",
+      "insufficient": "記録が{min}件たまると、この種の判断の所要時間の目安を表示します",
+      "start": "判断を開始",
+      "finish": "判断を完了",
+      "discard": "計測を破棄",
+      "elapsed": "経過 {time}"
     },
     "loadFailed": "判断待ちの取得に失敗しました"
   }
