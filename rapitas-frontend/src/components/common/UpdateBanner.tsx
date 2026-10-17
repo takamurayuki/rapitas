@@ -23,6 +23,14 @@ interface PendingUpdate {
 
 const DISMISS_KEY = 'rapitas:update-dismissed-version';
 
+// NOTE: the Tauri updater plugin is removed for now (#978). It is the only
+// dependent of the zip crate, which ships RUSTSEC-2026-0369 (critical 9.1)
+// with no fixed release upstream. Without the plugin, check() rejects and the
+// catch below would log a warn on every launch — which the log-health job
+// turns into an auto-filed concern. Skipping at the source keeps that quiet.
+// Flip this back to true together with the plugin.
+const UPDATER_ENABLED = false;
+
 export default function UpdateBanner() {
   const t = useTranslations('banner');
   const ct = useTranslations('common');
@@ -31,7 +39,7 @@ export default function UpdateBanner() {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
   useEffect(() => {
-    if (!isTauri()) return;
+    if (!UPDATER_ENABLED || !isTauri()) return;
 
     let cancelled = false;
     (async () => {

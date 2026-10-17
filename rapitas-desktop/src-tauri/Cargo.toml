@@ -14,7 +14,14 @@ tauri-build = { version = "2.5", features = [] }
 tauri = { version = "2.10.1", features = ["tray-icon", "image-png", "macos-private-api"] }
 tauri-plugin-shell = "2.3"
 tauri-plugin-global-shortcut = "2.3"
-tauri-plugin-updater = "2.5"
+# NOTE: tauri-plugin-updater is removed, not merely disabled — it is the only
+# dependent of `zip`, which ships RUSTSEC-2026-0369 (critical 9.1),
+# RUSTSEC-2026-0367 and -0368, all fixed in >= 9.0.0. Every published
+# tauri-plugin-updater up to 2.14.0 still requires `zip = "^4"`, a line that
+# is entirely yanked, so no override can reach a fixed version. Restore this
+# together with the capability, the plugins.updater config and the
+# UPDATER_ENABLED flag in UpdateBanner.tsx once upstream builds on zip ^9.
+# See #978.
 tauri-plugin-process = "2.3"
 tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
