@@ -175,6 +175,28 @@ Tracked as issue #1000.
 
 ---
 
+## The mirror image: failing for something that is not a defect
+
+A gate can also be wrong in the other direction, and it ends in the same
+place — people learning to ignore it.
+
+The format check fails on a worktree whose working copy was expanded with
+CRLF, because `prettier`'s default `endOfLine=lf` disagrees with it. The
+**committed** content is LF and correctly formatted; nothing is wrong with
+what ships. Measured on task 1215: nine files reported, run `6b344875`. The
+project has no `.gitattributes` pinning `eol=lf`, so any worktree created
+under `core.autocrlf=true` reproduces it.
+
+Notable for how it was found: the system filed this against itself as a
+concern, which is the behaviour this whole page is asking for.
+
+**Catch it:** a check must read what ships. For anything line-ending or
+encoding sensitive, that means the committed bytes, not the working copy —
+the same rule as "an audit must read the committed lockfile" above, applied
+to a different kind of input.
+
+Tracked as issue #1315.
+
 ## Inputs nobody consumes
 
 The same shape appears without a gate. The generation prompt required a
