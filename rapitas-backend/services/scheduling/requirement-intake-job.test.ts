@@ -5,9 +5,6 @@
  * that are not yet tasks, and skips themes without a readable requirements.md.
  */
 import { describe, it, expect } from 'bun:test';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
 import {
   runRequirementIntakeJob,
   MAX_FILES_PER_THEME_RUN,
@@ -15,16 +12,31 @@ import {
   type RequirementIntakeDeps,
   type IntakeTheme,
 } from './requirement-intake-job';
-import { readRequirementsFile } from './requirements-document-reader';
+
+/**
+ * A document whose every feature satisfies the spec gate. Generated because
+ * the gate is per-feature: a 35-feature throttling fixture needs 35 acceptance
+ * criteria and 35 画面導線 lines, not one of each.
+ *
+ * @param count - How many features to declare / 宣言する機能数
+ * @returns A requirements document with no error-severity finding / 不備の無い要件定義
+ */
+function specCompleteDoc(count: number): string {
+  const ids = Array.from({ length: count }, (_, i) => `F-${String(i + 1).padStart(2, '0')}`);
+  return [
+    '# 機能要件',
+    ...ids.map((id) => `- [${id}] 機能${id}\n  出力: x`),
+    '# 受け入れ基準',
+    ...ids.map((id) => `- [${id}] Given 前提 When 操作する Then 結果が表示される`),
+    '# 画面導線',
+    ...ids.map((id) => `- [${id}] /screen-${id} の実行ボタンを押す → 結果が表示される`),
+    '# 前提と未決事項',
+    '- 同時接続数は未確認。暫定100人とする（決める人: PO）',
+  ].join('\n');
+}
 
 /** More features than either cap, for the throttling tests. */
-const MANY_FEATURES = [
-  '# 機能要件',
-  ...Array.from({ length: MAX_FILES_PER_THEME_RUN + 5 }, (_, i) => {
-    const n = String(i + 1).padStart(2, '0');
-    return `- [F-${n}] 機能${n}\n  出力: x`;
-  }),
-].join('\n');
+const MANY_FEATURES = specCompleteDoc(MAX_FILES_PER_THEME_RUN + 5);
 
 const DOC = [
   '# 機能要件',
@@ -35,6 +47,12 @@ const DOC = [
   '  出力: 一覧',
   '# 受け入れ基準',
   '- [F-01] Given 未ログイン When 認証 Then セッションが作られる',
+  '- [F-02] Given ログイン済み When 一覧を開く Then 一覧が表示される',
+  '# 画面導線',
+  '- [F-01] /login のログインボタンを押す → セッションが作られる',
+  '- [F-02] /list の一覧タブを開く → 一覧が表示される',
+  '# 前提と未決事項',
+  '- 同時接続数は未確認。暫定100人とする（決める人: PO）',
   '# スコープ外',
   '- 決済',
 ].join('\n');
@@ -81,14 +99,17 @@ function makeDeps(opts: {
 }
 
 describe('runRequirementIntakeJob', () => {
-  it('files nothing when every feature already has a task with the same title', async () => {
+  // DOC must carry 前提と未決事項 to clear the spec gate, and a document that
+  // still lists unknowns while every feature is filed is drift by definition.
+  // So these two assert on the FEATURE tasks rather than on a bare count.
+  it('files no feature task when every feature already has one with the same title', async () => {
     const { deps, created } = makeDeps({
       themes: [{ id: 1, workingDirectory: '/proj' }],
       docs: { '/proj': DOC },
       existing: { 1: ['[F-01] ログイン', '[F-02] 一覧表示'] },
     });
-    expect(await runRequirementIntakeJob(deps)).toBe(0);
-    expect(created).toHaveLength(0);
+    await runRequirementIntakeJob(deps);
+    expect(created.filter((c) => c.title.startsWith('[F-'))).toHaveLength(0);
   });
 
   it('treats an existing task with the same [F-NN] prefix as filed even if the title changed', async () => {
@@ -97,8 +118,8 @@ describe('runRequirementIntakeJob', () => {
       docs: { '/proj': DOC },
       existing: { 1: ['[F-01] 認証機能(改題)', '[F-02] 別名'] },
     });
-    expect(await runRequirementIntakeJob(deps)).toBe(0);
-    expect(created).toHaveLength(0);
+    await runRequirementIntakeJob(deps);
+    expect(created.filter((c) => c.title.startsWith('[F-'))).toHaveLength(0);
   });
 
   it('files only the missing features', async () => {
@@ -275,19 +296,5 @@ describe('runRequirementIntakeJob', () => {
     });
     expect(await runRequirementIntakeJob(deps)).toBe(0);
     expect(created).toHaveLength(0);
-  });
-});
-
-describe('readRequirementsFile', () => {
-  it('returns null for a missing file and the content for an existing one', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'req-intake-'));
-    try {
-      expect(await readRequirementsFile(dir)).toBeNull();
-      mkdirSync(join(dir, 'docs'));
-      writeFileSync(join(dir, 'docs', 'requirements.md'), DOC, 'utf8');
-      expect(await readRequirementsFile(dir)).toBe(DOC);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
   });
 });

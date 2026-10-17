@@ -31,8 +31,10 @@ import {
 import {
   fileBootstrapTask,
   fileDriftTask,
+  fileSpecGateTask,
   hasBootstrapTaskFiled,
 } from './requirement-intake-filers';
+import { checkSpecConsistency, specIsImplementable } from '../organization/spec-consistency';
 import { reportIntakeOutcome, type IntakeOutcome } from './requirement-intake-outcome';
 import type { IntakeTheme, RequirementIntakeDeps } from './requirement-intake-types';
 
@@ -208,6 +210,27 @@ async function intakeTheme(
       ? await deps.isBootstrapTaskFinished?.(themeId)
       : undefined;
     return { themeId, kind: 'environment_pending', filed: 0, setupDone };
+  }
+
+  // The checker already decides whether a document can be implemented, but
+  // until now only the wizard asked it — and the wizard stops after two review
+  // rounds (review-prompt.ts shouldReviewAgain) whether or not `implementable`
+  // ever became true, while docs/requirements.md stays an ordinary editable
+  // file afterwards. Measured 2026-10-12 on TempoRaid: a requirements.md with
+  // no `# 画面導線` section filed 12 features, all 12 completed and merged, and
+  // one of the twelve was reachable from the shipped screen (audit #1244).
+  // Holding the features back is the point — a warning would leave that shape
+  // reachable, since the criteria those tasks passed never required a screen.
+  const design = await deps.readDesign(workingDirectory, defaultBranch).catch(() => null);
+  const findings = checkSpecConsistency({ requirements: markdown, design });
+  if (!specIsImplementable(findings)) {
+    const filed = await fileSpecGateTask(themeId, findings, existing, deps);
+    return {
+      themeId,
+      kind: 'spec_incomplete',
+      filed,
+      blocking: findings.filter((f) => f.severity === 'error').length,
+    };
   }
 
   // A reworded heading must not re-file the feature, so an existing title that

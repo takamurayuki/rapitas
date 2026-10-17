@@ -13,14 +13,26 @@ import {
 } from './requirement-intake-job';
 import { BOOTSTRAP_TASK_PREFIX, RUNTIME_CONFIG_FILE } from '../organization/project-bootstrap-task';
 
-/** More features than the per-run cap, so a bootstrap hold is unambiguous. */
-const MANY_FEATURES = [
-  '# 機能要件',
-  ...Array.from({ length: MAX_FILES_PER_THEME_RUN + 5 }, (_, i) => {
-    const n = String(i + 1).padStart(2, '0');
-    return `- [F-${n}] 機能${n}\n  出力: x`;
-  }),
-].join('\n');
+/**
+ * More features than the per-run cap, so a bootstrap hold is unambiguous.
+ *
+ * Every feature carries an acceptance criterion and a 画面導線 line so the spec
+ * gate passes: these tests are about the ENVIRONMENT hold, and a document that
+ * also tripped the spec gate would stop for the wrong reason.
+ */
+const MANY_FEATURES = ((count: number): string => {
+  const ids = Array.from({ length: count }, (_, i) => `F-${String(i + 1).padStart(2, '0')}`);
+  return [
+    '# 機能要件',
+    ...ids.map((id) => `- [${id}] 機能${id}\n  出力: x`),
+    '# 受け入れ基準',
+    ...ids.map((id) => `- [${id}] Given 前提 When 操作する Then 結果が表示される`),
+    '# 画面導線',
+    ...ids.map((id) => `- [${id}] /screen-${id} の実行ボタンを押す → 結果が表示される`),
+    '# 前提と未決事項',
+    '- 同時接続数は未確認。暫定100人とする（決める人: PO）',
+  ].join('\n');
+})(MAX_FILES_PER_THEME_RUN + 5);
 
 function makeDeps(opts: {
   themes: IntakeTheme[];

@@ -53,6 +53,21 @@ afterEach(() => {
 });
 
 describe('readRequirementsFile', () => {
+  // Moved here from requirement-intake-job.test.ts, which had grown past the
+  // line limit and was testing this module rather than its own.
+  test('returns null for a missing file and the content for an existing one', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'req-doc-plain-'));
+    const doc = '# 機能要件\n\n- [F-01] ログイン\n';
+    try {
+      expect(await readRequirementsFile(dir)).toBeNull();
+      mkdirSync(join(dir, 'docs'));
+      writeFileSync(join(dir, 'docs', 'requirements.md'), doc, 'utf8');
+      expect(await readRequirementsFile(dir)).toBe(doc);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test('prefers origin over a working tree that is behind it', () => {
     commitDoc(repo, '# 機能要件\n\n- [F-01] 新しい内容\n', 'new');
     git(repo, ['push', '-u', 'origin', 'develop']);
