@@ -21,6 +21,7 @@ import { AgentOrchestrator } from '../../agents/agent-orchestrator';
 import { WorkflowRunner } from '../workflow-runner';
 import { logCycleEvent } from '../../observability';
 import { realtimeService } from '../../communication/realtime-service';
+import { fastForwardPrimary } from './primary-fast-forward';
 
 const execFileAsync = promisify(execFile);
 const log = createLogger('auto-run:dev-restart');
@@ -220,6 +221,20 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
     diag('rate-limited', { msSinceLast: now - lastAt });
     return false;
   }
+
+  // Bring the checkout up to its remote FIRST. Merges land on origin, and
+  // nothing else fetches this checkout — so without this the HEAD check below
+  // never passes and the self-restart has never had anything to apply
+  // (measured 2026-10-17: eight merges in one session, the backend stayed on
+  // the commit it booted with until an operator pulled by hand).
+  //
+  // It runs here, after the rate-limit gate, for two reasons: a fetch only
+  // happens on a tick where a restart is actually possible, and moving HEAD
+  // before the comparison keeps that comparison honest. Detecting "behind
+  // origin" and restarting WITHOUT moving HEAD would relaunch still behind
+  // and fire again at the next quiet point — a restart loop.
+  const ff = await fastForwardPrimary();
+  if (!ff.moved && ff.reason !== 'up-to-date') diag('fast-forward-skipped', { reason: ff.reason });
 
   // Only restart when there is genuinely something new to apply.
   const current = await headCommit();
