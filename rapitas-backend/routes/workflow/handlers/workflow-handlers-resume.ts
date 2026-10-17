@@ -293,6 +293,9 @@ export async function handleAnswerWorkflowQuestion({
       // sealed the pause shut (task 944). No other caller may pass this.
       stopOverride: true,
     });
+    // NOTE: plan revision only persists research_done; nothing else starts the planner, so the
+    // task would sit with no agent and no queue item (task 1310). Runs outside the task lock.
+    if (result.kind === 'plan_revision') await triggerReExecutionAfterAnswer(result.taskId);
     return {
       taskId: result.taskId,
       ok: true,
