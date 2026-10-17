@@ -9,7 +9,7 @@
  * The primary checkout is never touched (no checkout/stash) — only a temp
  * worktree that is always removed in `finally`.
  */
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -18,7 +18,7 @@ import { createLogger } from '../../config/logger';
 import { checkRequiredWorkflows } from './auto-merge-required-workflows';
 import type { evaluatePrRisk } from '../self-improvement/pr-risk/pr-risk-gate';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 const log = createLogger('workflow:auto-merge-premerge-gate');
 
 /** Blocking-check name used when routing a ratchet violation to CI repair. */
@@ -34,15 +34,20 @@ export type RatchetVerdict =
 
 /** Injectable side effects for tests. */
 export interface RatchetDeps {
-  run: (command: string, cwd: string) => Promise<{ stdout: string }>;
+  /**
+   * Runs one program with an argv array — never a shell string. `refspec`
+   * reaches this from a pull request head, and a branch name may legally
+   * carry shell metacharacters.
+   */
+  run: (file: string, args: string[], cwd: string) => Promise<{ stdout: string }>;
   exists: (p: string) => boolean;
   removeDir: (p: string) => void;
 }
 
 const defaultRatchetDeps: RatchetDeps = {
-  run: async (command, cwd) => {
+  run: async (file, args, cwd) => {
     try {
-      return await execAsync(command, { cwd, encoding: 'utf8', timeout: EXEC_TIMEOUT_MS });
+      return await execFileAsync(file, args, { cwd, encoding: 'utf8', timeout: EXEC_TIMEOUT_MS });
     } catch (err) {
       // The ratchet script exits 1 on violation but still prints its JSON.
       const e = err as { stdout?: string };
@@ -82,10 +87,10 @@ export async function runRatchetAtRef(
   const dir = path.join(tmpdir(), `rapitas-ratchet-${tag}-${process.pid}`);
   let created = false;
   try {
-    await deps.run(`git fetch origin ${refspec}`, cwd);
-    await deps.run(`git worktree add --detach "${dir}" FETCH_HEAD`, cwd);
+    await deps.run('git', ['fetch', 'origin', refspec], cwd);
+    await deps.run('git', ['worktree', 'add', '--detach', dir, 'FETCH_HEAD'], cwd);
     created = true;
-    const { stdout } = await deps.run(`node ${RATCHET_SCRIPT} --json`, dir);
+    const { stdout } = await deps.run('node', [RATCHET_SCRIPT, '--json'], dir);
     const parsed = JSON.parse(stdout) as RatchetJson;
     const grew = parsed.baseline_grew ?? [];
     const added = parsed.baseline_new ?? [];
@@ -100,12 +105,12 @@ export async function runRatchetAtRef(
     return { verdict: 'error', detail: err instanceof Error ? err.message : String(err) };
   } finally {
     if (created) {
-      await deps.run(`git worktree remove --force "${dir}"`, cwd).catch(() => {});
+      await deps.run('git', ['worktree', 'remove', '--force', dir], cwd).catch(() => {});
     }
     // Belt and braces: a failed `worktree remove` must not leave the dir behind.
     try {
       deps.removeDir(dir);
-      await deps.run('git worktree prune', cwd).catch(() => {});
+      await deps.run('git', ['worktree', 'prune'], cwd).catch(() => {});
     } catch {
       /* best effort */
     }
