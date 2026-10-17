@@ -8,6 +8,7 @@
  */
 import { describe, test, expect } from 'bun:test';
 import { toScreenTaskPayload, SCREEN_TASK_PREFIX, screenTaskTitle } from './screen-task-payload';
+import { RUNTIME_CONFIG_FILE } from './project-bootstrap-task';
 import type { ScreenTaskSpec } from './screen-task-plan';
 
 const screen = (over: Partial<ScreenTaskSpec> = {}): ScreenTaskSpec => ({
@@ -73,5 +74,48 @@ describe('toScreenTaskPayload', () => {
   test('carries the document out-of-scope items as constraints', () => {
     const p = toScreenTaskPayload(screen(), { themeId: 1, outOfScope: ['決済'] });
     expect(p.constraints.some((x) => x.includes('決済'))).toBe(true);
+  });
+
+  // runtime-smoke's reachability check reads featureEntries from
+  // rapitas.runtime.json. Nothing wrote one, so evaluateFeatureReachability
+  // returned 'unknown' and applyFeatureReachability passed every verdict
+  // through — the check has been inert for every project. The screen task is
+  // where the entry can be written with a path that actually exists.
+  describe('featureEntries registration', () => {
+    test('asks the screen to register an entry for each feature it hosts', () => {
+      const p = toScreenTaskPayload(screen(), { themeId: 1, outOfScope: [] });
+      const all = [p.description, ...p.goals, ...p.acceptanceCriteria].join('\n');
+      expect(all).toContain('featureEntries');
+      expect(all).toContain(RUNTIME_CONFIG_FILE);
+    });
+
+    test('names the exact feature ids that must appear, not just "the features"', () => {
+      const criteria = toScreenTaskPayload(screen(), {
+        themeId: 1,
+        outOfScope: [],
+      }).acceptanceCriteria.join('\n');
+      expect(criteria).toContain('F-02');
+      expect(criteria).toContain('F-03');
+    });
+
+    test('spells out the entry shape, so the implementer writes valid config', () => {
+      const p = toScreenTaskPayload(screen(), { themeId: 1, outOfScope: [] });
+      expect(p.description).toContain('"id"');
+      expect(p.description).toContain('"file"');
+      expect(p.description).toContain('"marker"');
+    });
+
+    test('forbids dropping entries other screens registered', () => {
+      const c = toScreenTaskPayload(screen(), { themeId: 1, outOfScope: [] }).constraints.join(
+        '\n',
+      );
+      expect(c).toContain('追記');
+    });
+
+    test('asks for nothing when no feature is reached from this screen', () => {
+      const p = toScreenTaskPayload(screen({ featureIds: [] }), { themeId: 1, outOfScope: [] });
+      const all = [p.description, ...p.goals, ...p.acceptanceCriteria, ...p.constraints].join('\n');
+      expect(all).not.toContain('featureEntries');
+    });
   });
 });
