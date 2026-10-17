@@ -5,6 +5,8 @@ let healthy = true;
 let logs: string[] = [];
 let browserAvailable = true;
 let harnessError = false;
+/** Whether the task under verification is the `[UI]` task that owes an entry. */
+let screenTask = false;
 const stop = mock(() => {});
 const launch = mock(async () =>
   healthy
@@ -37,6 +39,10 @@ mock.module('./runtime-config', () => ({
       : null,
   // Not under test here: no theme dir → the harness-drift check stays silent.
   resolveThemeWorkingDirectory: async () => null,
+  // MUST be mirrored: bun's mock.module replaces the whole module, so an
+  // export left out makes every import of it throw and the file stops
+  // silently (measured here — six tests vanished with one unhandled error).
+  isScreenTask: async () => screenTask,
   substitutePort: (s: string) => s,
 }));
 mock.module('./browser-smoke', () => ({
@@ -59,8 +65,25 @@ beforeEach(() => {
   logs = [];
   browserAvailable = true;
   harnessError = false;
+  screenTask = false;
   stop.mockClear();
   launch.mockClear();
+});
+// The config mocked above declares no featureEntries, which is the state every
+// project is in until a screen task registers one. For an ordinary task that
+// stays a note; for the screen task that owes the registration it is a failure.
+test('a screen task that registered no featureEntries fails', async () => {
+  screenTask = true;
+  expect(await runRuntimeSmokeCheck('/screen-task', 'adhoc', 42)).toMatchObject({
+    ran: true,
+    ok: false,
+  });
+});
+test('every other task keeps passing with no featureEntries', async () => {
+  expect(await runRuntimeSmokeCheck('/feature-task', 'adhoc', 42)).toMatchObject({
+    ran: true,
+    ok: true,
+  });
 });
 test('unconfigured projects remain not applicable', async () => {
   configured = false;
