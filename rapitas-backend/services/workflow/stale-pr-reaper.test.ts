@@ -96,7 +96,10 @@ describe('reapStalePrs', () => {
     const deps: Partial<StalePrReaperDeps> = {
       now: () => NOW,
       submitConcern: submitConcernMock,
-      execGh: async (command) => {
+      execGh: async (args: string[]) => {
+        // Joined so the assertions below read as before; the production
+        // path never builds this string.
+        const command = args.join(' ');
         execCalls.push(command);
         if (command.includes('pr view')) {
           return JSON.stringify({
@@ -134,7 +137,7 @@ describe('reapStalePrs', () => {
     const execGh = mock(async () => '');
     const result = await reapStalePrs(prisma, { now: () => NOW, execGh });
     expect(result.closedPrNumbers).toEqual([]);
-    expect(execGh.mock.calls.filter(([c]) => c.includes('pr close')).length).toBe(0);
+    expect(execGh.mock.calls.filter(([a]) => a.join(' ').includes('pr close')).length).toBe(0);
   });
 
   it('skips an exhausted PR whose head SHA has moved (live retry)', async () => {
@@ -143,7 +146,8 @@ describe('reapStalePrs', () => {
       exhaustionRow: makeExhaustionRow('sha-old', SEVEN_DAYS_MS + 1000),
       task: makeTask(),
     });
-    const execGh = mock(async (command: string) => {
+    const execGh = mock(async (args: string[]) => {
+      const command = args.join(' ');
       if (command.includes('pr view')) {
         return JSON.stringify({
           mergeable: 'CONFLICTING',
@@ -155,7 +159,7 @@ describe('reapStalePrs', () => {
     });
     const result = await reapStalePrs(prisma, { now: () => NOW, execGh });
     expect(result.closedPrNumbers).toEqual([]);
-    expect(execGh.mock.calls.filter(([c]) => c.includes('pr close')).length).toBe(0);
+    expect(execGh.mock.calls.filter(([a]) => a.join(' ').includes('pr close')).length).toBe(0);
   });
 
   it('skips an exhausted+head-matched PR that has not aged 7 days yet', async () => {
@@ -178,7 +182,8 @@ describe('reapStalePrs', () => {
       exhaustionRow: makeExhaustionRow('sha-x', SEVEN_DAYS_MS),
       task: makeTask(),
     });
-    const execGh = mock(async (command: string) => {
+    const execGh = mock(async (args: string[]) => {
+      const command = args.join(' ');
       if (command.includes('pr view')) {
         return JSON.stringify({
           mergeable: 'CONFLICTING',
@@ -208,7 +213,8 @@ describe('reapStalePrs', () => {
       exhaustionRow: makeExhaustionRow('sha-x', SEVEN_DAYS_MS + 1000),
       task: makeTask(),
     });
-    const execGh = mock(async (command: string) => {
+    const execGh = mock(async (args: string[]) => {
+      const command = args.join(' ');
       if (command.includes('pr view')) {
         return JSON.stringify({
           mergeable: 'MERGEABLE',
@@ -220,7 +226,7 @@ describe('reapStalePrs', () => {
     });
     const result = await reapStalePrs(prisma, { now: () => NOW, execGh });
     expect(result.closedPrNumbers).toEqual([]);
-    expect(execGh.mock.calls.filter(([c]) => c.includes('pr close')).length).toBe(0);
+    expect(execGh.mock.calls.filter(([a]) => a.join(' ').includes('pr close')).length).toBe(0);
   });
 
   it('does not sync DB/description/concern when `gh pr close` throws (fail-open)', async () => {
@@ -235,7 +241,8 @@ describe('reapStalePrs', () => {
       reason: 'new' as const,
       stored: true,
     }));
-    const execGh = mock(async (command: string) => {
+    const execGh = mock(async (args: string[]) => {
+      const command = args.join(' ');
       if (command.includes('pr view')) {
         return JSON.stringify({
           mergeable: 'CONFLICTING',
@@ -279,7 +286,8 @@ describe('reapStalePrs', () => {
       workflowTransition: { findFirst: workflowTransitionFindFirst },
       task: { findUnique: taskFindUnique, update: taskUpdate },
     } as unknown as PrismaClient;
-    const execGh = mock(async (command: string) => {
+    const execGh = mock(async (args: string[]) => {
+      const command = args.join(' ');
       if (command.includes('pr view')) {
         return JSON.stringify({
           mergeable: 'CONFLICTING',
@@ -303,7 +311,7 @@ describe('reapStalePrs', () => {
     });
 
     expect(result.closedPrNumbers.length).toBe(MAX_REAP_PER_TICK);
-    expect(execGh.mock.calls.filter(([c]) => c.includes('pr close')).length).toBe(
+    expect(execGh.mock.calls.filter(([a]) => a.join(' ').includes('pr close')).length).toBe(
       MAX_REAP_PER_TICK,
     );
   });
@@ -323,7 +331,8 @@ describe('reapStalePrs', () => {
       reason: 'new' as const,
       stored: true,
     }));
-    const execGh = mock(async (command: string) => {
+    const execGh = mock(async (args: string[]) => {
+      const command = args.join(' ');
       if (command.includes('pr view')) {
         return JSON.stringify({
           mergeable: 'CONFLICTING',

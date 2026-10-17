@@ -33,7 +33,11 @@ let _renderId = 0;
 async function getMermaid() {
   const { default: mermaid } = await import('mermaid');
   if (!_mermaidInitialized) {
-    mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
+    // 'strict', matching components/markdown/mermaid-block.tsx: the diagram
+    // source is user content and its SVG goes straight into innerHTML below.
+    // Under 'loose' mermaid leaves HTML in labels unsanitised and honours
+    // click directives, so that sink would mount attacker markup.
+    mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict' });
     _mermaidInitialized = true;
   }
   return mermaid;

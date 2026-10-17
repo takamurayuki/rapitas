@@ -440,6 +440,23 @@ describe('classifyLogSignature', () => {
     ).toBe(false);
   });
 
+  test('"Adversarial diff review FAILED and repairs exhausted" is scoped to routes:workflow:handlers:files and adjacent wording stays visible', () => {
+    // Task 1300: outcome report emitted after writeBlockedTask +
+    // markLatestExecutionFailed (verify-adversarial-review.ts:285-288); the
+    // state is already persisted and an adversarial_review_failed transition
+    // is recorded separately, so the WARN carries no extra signal.
+    const msg =
+      '[Workflow] Adversarial diff review FAILED and repairs exhausted — task stays blocked';
+    expect(classifyLogSignature('routes:workflow:handlers:files', msg).suppressed).toBe(true);
+    expect(classifyLogSignature('some-other-logger', msg).suppressed).toBe(false);
+    expect(
+      classifyLogSignature(
+        'routes:workflow:handlers:files',
+        '[Workflow] Adversarial review FAIL lost the compare-and-swap race',
+      ).suppressed,
+    ).toBe(false);
+  });
+
   test('"verify.md explicitly reports a failed or partial overall verdict" is scoped to the workflow-cli-executor logger only', () => {
     // Task 1049: this WARN is the epilogue's fail-soft observability log for
     // validateVerify's hasNonpassingVerifyVerdict branch — repair/block itself

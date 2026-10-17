@@ -273,6 +273,19 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
       'lightweightタスクが保護パスへの変更を計画していたためstandardモードへ自動昇格しplan.mdで対象ファイルを明記できるようにした — タンパーゲート失敗を未然に防ぐ設計通りの自己防御動作',
   },
   {
+    // ログ出力箇所: workflow/verify-self-repair.ts:243 の log.warn。
+    // detectRepairNonConvergence が cutoff を返した場合だけ到達し、その時点で
+    // escalateBlockedTask と recordTransition（:196-233）まで完了している。
+    // "caller should block" は呼び出し側への契約で障害ではない（タスク#1301、
+    // K-13220）。兄弟の 'Invariant violation not converging'
+    // （verify-invariant-repair.ts:152）と 'Lifetime repair cap exceeded' は
+    // 別文言のため抑制しない。
+    test: /Repair loop not converging — cutting off \(caller should block\)/i,
+    logger: /verify-self-repair/i,
+    because:
+      '修復ループの収束検出が設計通りに打ち切った記録 — blocked エスカレーションと遷移記録は別経路で可視化済みで、ログ経由の起票は二重になる',
+  },
+  {
     // ログ出力箇所: workflow-cli-executor-verify-gate.ts:74-77 の log.warn。
     // hasFreshVerifyRejection（verify-self-repair.ts:340-366）または
     // wasVerifyValidationFailureJustRecorded が真、つまり HTTP の verify 保存
@@ -292,12 +305,25 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
     // verify_done でなくなっている（self-repair等で先へ進んだ）場合だけ発火する
     // (同222-231行)。完了/マージ済みタスクを plan_approved へ巻き戻さない
     // compare-and-swap 防御（task 503）で、ロールバックもtransition記録もスキップする。
-    // 同 logger の 'lost the compare-and-swap race' や 'repairs exhausted' は
-    // 別文言のため抑制しない（#1146）。
+    // 同 logger の 'lost the compare-and-swap race' は別文言のため抑制しない（#1146）。
     test: /Adversarial review FAIL arrived after the workflow moved on — skipping rollback entirely/i,
     logger: /routes:workflow:handlers:files/i,
     because:
-      '古いFAIL判定が先へ進んだタスクを巻き戻さないためのCAS防御が設計通り作動した記録 — 実害のある競合敗北・修復枯渇は別文言で可視のまま',
+      '古いFAIL判定が先へ進んだタスクを巻き戻さないためのCAS防御が設計通り作動した記録 — 実害のある競合敗北は別文言で可視のまま',
+  },
+  {
+    // ログ出力箇所: routes/workflow/handlers/file-save/verify-adversarial-review.ts:285-288
+    // の log.warn。敵対的レビューが FAIL かつ修復枠が尽きた（repair.bounced が偽）場合だけ、
+    // writeBlockedTask と markLatestExecutionFailed で状態を確定した後に出る結果通知。
+    // adversarial_review_failed の WorkflowTransition（invariantViolation: true）も別途記録される
+    // ため、WARN を止めても追跡性は失われない（#1300。#1146 が可視のままとした方針を、
+    // 状態確定済みの結果通知であることを根拠に改める）。同 logger の
+    // 'lost the compare-and-swap race' は別文言のため抑制しない
+    // ('bounced to implementer for self-repair' は汎用の self-repair ルールで抑制済み)。
+    test: /Adversarial diff review FAILED and repairs exhausted — task stays blocked/i,
+    logger: /routes:workflow:handlers:files/i,
+    because:
+      '修復枠が尽きたレビューFAILを blocked/実行失敗として確定した後の結果通知 — 状態とadversarial_review_failed transitionは別経路で記録済みで、競合敗北は別文言で可視のまま',
   },
   {
     // ログ出力箇所: workflow-runner.ts:455 の log.warn（ExecutionCancelledError 捕捉時）。
@@ -393,6 +419,20 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
     logger: /git-operations\/project-dependency-bootstrap/i,
     because:
       'installは成功済みで、ビルドスクリプト承認は生成プロジェクトのonlyBuiltDependencies側の責務(rapitasでは解消不能) — install失敗/fingerprint記録失敗は別文言で可視のまま',
+  },
+  {
+    // ログ出力箇所: services/agents/orchestrator/git-operations/worktree/
+    // project-prisma-client.ts:195 の logger.warn（既存クライアントが残る kept 分岐）。
+    // 稼働中バックエンドが query_engine-windows.dll.node を保持しており、Windows では
+    // generate の rename が EPERM で拒否される。既存クライアントは使われ続け、失敗時は
+    // fingerprint を書かないため次回起動で再試行され、DLL 解放後に自己回復する（#1304、
+    // K-13214 は同一シグネチャ）。回避は 3001 番サーバーへの操作になり CLAUDE.md §1 で禁止。
+    // NOTE: normalizeMessage は 200 文字で切るため EPERM 文言まで届かず、前方プレフィックスで判別する。
+    // クライアント不在の logger.error（:196）はレベルが別で、本ルールは WARN の文言のみ対象。
+    test: /^Command failed: pnpm run prisma:generate /,
+    logger: /^git-operations\/project-prisma-client$/i,
+    because:
+      '稼働中バックエンドがクエリエンジンDLLを握る間のEPERMで、既存クライアントは残り次回起動で再試行され自己回復する(DLLロック回避は3001番サーバー操作で禁止) — 同ロガーの別文言とクライアント不在のERRORは可視のまま',
   },
   {
     // ログ出力箇所: services/workflow/workflow-queue.ts:140 の log.warn
