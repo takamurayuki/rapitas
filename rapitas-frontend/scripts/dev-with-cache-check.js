@@ -98,9 +98,15 @@ function clearNextCache() {
     console.log('🧹 Clearing Turbopack cache...');
     try {
       // Clear only Turbopack/Next.js related caches, preserve deps-hash
-      const hashFileBackup = fs.existsSync(HASH_FILE)
-        ? fs.readFileSync(HASH_FILE, 'utf8')
-        : null;
+      // Read and treat a missing file as "no cached hash", rather than
+      // checking first: the cache is being cleared concurrently right here,
+      // so the file can disappear between the check and the read.
+      let hashFileBackup = null;
+      try {
+        hashFileBackup = fs.readFileSync(HASH_FILE, 'utf8');
+      } catch {
+        // no cached hash yet
+      }
 
       fs.rmSync(TURBO_CACHE, { recursive: true, force: true });
 

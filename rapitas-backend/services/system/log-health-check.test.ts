@@ -284,6 +284,10 @@ describe('readGlobalEntries', () => {
 
 describe('readGlobalEntries — 末尾バイトのみ読む', () => {
   const tmpFiles: string[] = [];
+  // This suite needs its own private directory: the one above is scoped to
+  // the other describe, and a fixed name under os.tmpdir() is both
+  // predictable and shared with whatever else runs in parallel.
+  const tmpRoot = mkdtempSync(join(tmpdir(), 'rapitas-log-health-tail-'));
   afterEach(() => {
     for (const p of tmpFiles.splice(0)) {
       if (existsSync(p)) unlinkSync(p);
@@ -296,7 +300,7 @@ describe('readGlobalEntries — 末尾バイトのみ読む', () => {
 
   it('大きなファイルは末尾のみ読み、先頭の欠けた断片行は捨てる', async () => {
     const lines = Array.from({ length: 200 }, (_, i) => line(i));
-    const p = join(tmpdir(), 'hc-tail.log');
+    const p = join(tmpRoot, 'hc-tail.log');
     writeFileSync(p, lines.join('\n') + '\n', 'utf-8');
     tmpFiles.push(p);
     // 約20行ぶんだけ読ませる: 先頭は行の途中から始まる。
@@ -310,7 +314,7 @@ describe('readGlobalEntries — 末尾バイトのみ読む', () => {
   });
 
   it('小さなファイルは従来どおり全行を返す', async () => {
-    const p = join(tmpdir(), 'hc-small.log');
+    const p = join(tmpRoot, 'hc-small.log');
     writeFileSync(p, [line(1), line(2)].join('\n') + '\n', 'utf-8');
     tmpFiles.push(p);
     const entries = await readGlobalEntries(0, p);
