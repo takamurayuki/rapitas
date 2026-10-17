@@ -25,6 +25,7 @@ import { resolveCliPath } from './types';
 import { buildStructuredPrompt } from './prompt-builder';
 import { parseArtifacts, parseCommits } from './output-parser';
 import { spawnCodexProcess } from './process-runner';
+import { buildSpawnCommand } from './process-runner-args';
 import type { ProcessRunnerState } from './process-runner';
 
 export type { CodexCliAgentConfig } from './types';
@@ -361,18 +362,15 @@ export class CodexCliAgent extends BaseAgent {
       // containing spaces. e.g. ['debug', 'prompt-input', 'health check']
       // becomes the literal command line `codex debug prompt-input health
       // check`, and Codex parses `check` as an extra positional argument
-      // ("unexpected argument 'check' found"). Build the command line
-      // ourselves with proper quoting to avoid this.
-      const quotedCodex = codexPath.includes(' ') ? `"${codexPath}"` : codexPath;
-      const quotedArgs = args
-        .map((arg) =>
-          /[\s"]/.test(arg) ? `"${arg.replace(/"/g, isWindows ? '""' : '\\"')}"` : arg,
-        )
-        .join(' ');
-      const command = `${quotedCodex} ${quotedArgs}`;
+      // ("unexpected argument 'check' found"). buildSpawnCommand is the
+      // escaper the real execution path already uses, verified against a
+      // live cmd.exe in process-runner-args.cmd-roundtrip.test.ts; the
+      // hand-rolled quoting that stood here handled only `"` and left `&`,
+      // `|` and `%` live (CodeQL js/incomplete-sanitization).
+      const [command, commandArgs] = buildSpawnCommand(codexPath, args, isWindows);
 
-      const proc = spawn(command, [], {
-        shell: true,
+      const proc = spawn(command, commandArgs, {
+        shell: isWindows,
         windowsHide: true,
         stdio: ['ignore', 'ignore', 'pipe'],
       });
