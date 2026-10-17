@@ -16,6 +16,7 @@ import {
   getCurrentActiveExecutionIds,
   getLiveTaskIdsForActiveExecutions,
 } from '../../../services/agents/resumable-execution';
+import { buildClaudeProbeSpawn } from './diagnose-command';
 
 const log = createLogger('routes:agent-system');
 
@@ -174,6 +175,7 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
     requireAdmin(headers);
     const { spawn } = await import('child_process');
     const claudePath = process.env.CLAUDE_CODE_PATH || 'claude';
+    const isWindows = process.platform === 'win32';
 
     log.info('[Diagnose] Testing Claude CLI...');
     log.info({ claudePath }, '[Diagnose] Claude path');
@@ -194,7 +196,11 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
       duration: number;
     }>((resolve) => {
       const startTime = Date.now();
-      const proc = spawn(claudePath, ['--version'], { shell: true });
+      // `claudePath` is CLAUDE_CODE_PATH, so the command line is quoted by
+      // buildClaudeProbeSpawn rather than assembled by Node, which does not
+      // quote at all under `shell: true`.
+      const [command, commandArgs] = buildClaudeProbeSpawn(claudePath, ['--version'], isWindows);
+      const proc = spawn(command, commandArgs, { shell: isWindows });
       let stdout = '';
       let stderr = '';
 
@@ -246,21 +252,17 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
       }>((resolve) => {
         const startTime = Date.now();
 
-        const isWindows = process.platform === 'win32';
-        let proc;
-
-        if (isWindows) {
-          const fullCommand = `${claudePath} --dangerously-skip-permissions -p "Say hello"`;
-          log.info({ fullCommand }, '[Diagnose] Windows full command');
-          proc = spawn('cmd.exe', ['/c', fullCommand], {
-            env: { ...process.env, FORCE_COLOR: '0', CI: '1' },
-            windowsHide: true,
-          });
-        } else {
-          proc = spawn(claudePath, ['--dangerously-skip-permissions', '-p', 'Say hello'], {
-            env: { ...process.env, FORCE_COLOR: '0', CI: '1' },
-          });
-        }
+        const [command, commandArgs] = buildClaudeProbeSpawn(
+          claudePath,
+          ['--dangerously-skip-permissions', '-p', 'Say hello'],
+          isWindows,
+        );
+        if (isWindows) log.info({ command }, '[Diagnose] Windows full command');
+        const proc = spawn(command, commandArgs, {
+          env: { ...process.env, FORCE_COLOR: '0', CI: '1' },
+          shell: isWindows,
+          windowsHide: true,
+        });
 
         let stdout = '';
         let stderr = '';
