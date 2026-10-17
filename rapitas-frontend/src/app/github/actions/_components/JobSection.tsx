@@ -57,7 +57,7 @@ export function JobSection({ job, integrationId, isExpanded, onToggle }: JobSect
       setLoadingStep(stepNumber);
       try {
         const res = await fetch(
-          `${API_BASE_URL}/github/integrations/${integrationId}/jobs/${job.databaseId}/log`,
+          `${API_BASE_URL}/github/integrations/${encodeURIComponent(integrationId)}/jobs/${job.databaseId}/log`,
         );
         const data = res.ok ? ((await res.json()) as { sections?: JobLogSection[] }) : null;
         setSections(data?.sections ?? []);
