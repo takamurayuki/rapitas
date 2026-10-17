@@ -273,6 +273,19 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
       'lightweightタスクが保護パスへの変更を計画していたためstandardモードへ自動昇格しplan.mdで対象ファイルを明記できるようにした — タンパーゲート失敗を未然に防ぐ設計通りの自己防御動作',
   },
   {
+    // ログ出力箇所: workflow/verify-self-repair.ts:243 の log.warn。
+    // detectRepairNonConvergence が cutoff を返した場合だけ到達し、その時点で
+    // escalateBlockedTask と recordTransition（:196-233）まで完了している。
+    // "caller should block" は呼び出し側への契約で障害ではない（タスク#1301、
+    // K-13220）。兄弟の 'Invariant violation not converging'
+    // （verify-invariant-repair.ts:152）と 'Lifetime repair cap exceeded' は
+    // 別文言のため抑制しない。
+    test: /Repair loop not converging — cutting off \(caller should block\)/i,
+    logger: /verify-self-repair/i,
+    because:
+      '修復ループの収束検出が設計通りに打ち切った記録 — blocked エスカレーションと遷移記録は別経路で可視化済みで、ログ経由の起票は二重になる',
+  },
+  {
     // ログ出力箇所: workflow-cli-executor-verify-gate.ts:74-77 の log.warn。
     // hasFreshVerifyRejection（verify-self-repair.ts:340-366）または
     // wasVerifyValidationFailureJustRecorded が真、つまり HTTP の verify 保存
