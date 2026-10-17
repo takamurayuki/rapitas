@@ -292,12 +292,25 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
     // verify_done でなくなっている（self-repair等で先へ進んだ）場合だけ発火する
     // (同222-231行)。完了/マージ済みタスクを plan_approved へ巻き戻さない
     // compare-and-swap 防御（task 503）で、ロールバックもtransition記録もスキップする。
-    // 同 logger の 'lost the compare-and-swap race' や 'repairs exhausted' は
-    // 別文言のため抑制しない（#1146）。
+    // 同 logger の 'lost the compare-and-swap race' は別文言のため抑制しない（#1146）。
     test: /Adversarial review FAIL arrived after the workflow moved on — skipping rollback entirely/i,
     logger: /routes:workflow:handlers:files/i,
     because:
-      '古いFAIL判定が先へ進んだタスクを巻き戻さないためのCAS防御が設計通り作動した記録 — 実害のある競合敗北・修復枯渇は別文言で可視のまま',
+      '古いFAIL判定が先へ進んだタスクを巻き戻さないためのCAS防御が設計通り作動した記録 — 実害のある競合敗北は別文言で可視のまま',
+  },
+  {
+    // ログ出力箇所: routes/workflow/handlers/file-save/verify-adversarial-review.ts:285-288
+    // の log.warn。敵対的レビューが FAIL かつ修復枠が尽きた（repair.bounced が偽）場合だけ、
+    // writeBlockedTask と markLatestExecutionFailed で状態を確定した後に出る結果通知。
+    // adversarial_review_failed の WorkflowTransition（invariantViolation: true）も別途記録される
+    // ため、WARN を止めても追跡性は失われない（#1300。#1146 が可視のままとした方針を、
+    // 状態確定済みの結果通知であることを根拠に改める）。同 logger の
+    // 'lost the compare-and-swap race' は別文言のため抑制しない
+    // ('bounced to implementer for self-repair' は汎用の self-repair ルールで抑制済み)。
+    test: /Adversarial diff review FAILED and repairs exhausted — task stays blocked/i,
+    logger: /routes:workflow:handlers:files/i,
+    because:
+      '修復枠が尽きたレビューFAILを blocked/実行失敗として確定した後の結果通知 — 状態とadversarial_review_failed transitionは別経路で記録済みで、競合敗北は別文言で可視のまま',
   },
   {
     // ログ出力箇所: workflow-runner.ts:455 の log.warn（ExecutionCancelledError 捕捉時）。
