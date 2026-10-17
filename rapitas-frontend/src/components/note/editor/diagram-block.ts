@@ -78,12 +78,20 @@ export async function renderMermaidBlock(
   const renderEl = block.querySelector('.diagram-render') as HTMLElement | null;
   if (!source || !renderEl) return;
 
+  const id = `mermaid-${++_renderId}`;
   try {
     const mermaid = await getMermaid();
-    const id = `mermaid-${++_renderId}`;
     const { svg } = await mermaid.render(id, source);
     renderEl.innerHTML = svg;
   } catch {
+    // Mermaid builds the diagram in a `d<id>` element it appends to
+    // document.body, and on a parse error it paints "Syntax error in text"
+    // into it and throws WITHOUT removing it — suppressErrorRendering
+    // defaults to false. Left alone it stays at the end of <body>, outside
+    // the note, once per failure. Same cleanup as components/markdown/
+    // mermaid-block.tsx; `i<id>` is not checked because that name is only
+    // used under securityLevel 'sandbox' and this renderer is 'strict'.
+    document.getElementById(`d${id}`)?.remove();
     renderEl.innerHTML = `<div class="diagram-error">⚠ ${labels.syntaxErrorText}</div>`;
   }
 }
