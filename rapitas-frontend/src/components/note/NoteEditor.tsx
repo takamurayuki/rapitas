@@ -94,6 +94,7 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
         showTextColorPicker={editor.showTextColorPicker}
         showColorPicker={editor.showColorPicker}
         showBorderPicker={editor.showBorderPicker}
+        showTablePicker={editor.showTablePicker}
         showLinkInput={editor.showLinkInput}
         showCodeInput={editor.showCodeInput}
         linkUrl={editor.linkUrl}
@@ -108,6 +109,7 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
         setShowTextColorPicker={editor.setShowTextColorPicker}
         setShowColorPicker={editor.setShowColorPicker}
         setShowBorderPicker={editor.setShowBorderPicker}
+        setShowTablePicker={editor.setShowTablePicker}
         setShowLinkInput={editor.setShowLinkInput}
         setShowCodeInput={editor.setShowCodeInput}
         setLinkUrl={editor.setLinkUrl}
@@ -119,6 +121,12 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
         onApplyFont={editor.onApplyFont}
         onApplyTextColor={editor.applyTextColor}
         onInsertTable={editor.insertTable}
+        isCaretInTable={editor.isCaretInTable}
+        onInsertTableRow={editor.insertTableRow}
+        onInsertTableColumn={editor.insertTableColumn}
+        onDeleteTableRow={editor.deleteTableRow}
+        onDeleteTableColumn={editor.deleteTableColumn}
+        onDeleteTable={editor.deleteCurrentTable}
         onInsertLink={editor.insertLink}
         onInsertCodeBlock={editor.insertCodeBlock}
         onInsertDiagram={editor.insertDiagramBlock}

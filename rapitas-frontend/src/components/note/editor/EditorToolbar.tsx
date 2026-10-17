@@ -7,67 +7,9 @@ import { FontPickerSection } from './toolbar/FontPickerSection';
 import { TextColorSection } from './toolbar/TextColorSection';
 import { HighlightSection } from './toolbar/HighlightSection';
 import { InsertSection } from './toolbar/InsertSection';
-import type { BlockType } from './block-format';
+import type { EditorToolbarProps } from './editor-toolbar.types';
 
-export interface EditorToolbarProps {
-  // Format state
-  currentBlockType: BlockType;
-  currentFont: string;
-  currentFontSize: string;
-  currentTextColor: string;
-  highlightStyleIndex: number;
-
-  // Popup visibility
-  showBlockPicker: boolean;
-  showFontPicker: boolean;
-  showFontSizePicker: boolean;
-  showTextColorPicker: boolean;
-  showColorPicker: boolean;
-  showBorderPicker: boolean;
-  showLinkInput: boolean;
-  showCodeInput: boolean;
-
-  // Link/code input state
-  linkUrl: string;
-  isLinkLoading: boolean;
-  codeLanguage: string;
-
-  // Setters
-  setCurrentFont: (v: string) => void;
-  setCurrentFontSize: (v: string) => void;
-  setCurrentTextColor: (v: string) => void;
-  setHighlightStyleIndex: (v: number) => void;
-  setShowBlockPicker: (v: boolean) => void;
-  setShowFontPicker: (v: boolean) => void;
-  setShowFontSizePicker: (v: boolean) => void;
-  setShowTextColorPicker: (v: boolean) => void;
-  setShowColorPicker: (v: boolean) => void;
-  setShowBorderPicker: (v: boolean) => void;
-  setShowLinkInput: (v: boolean) => void;
-  setShowCodeInput: (v: boolean) => void;
-  setLinkUrl: (v: string) => void;
-  setCodeLanguage: (v: string) => void;
-
-  // Action callbacks
-  onApplyBlockType: (type: BlockType) => void;
-  onApplyFormat: (command: string, value?: string) => void;
-  onApplyHighlight: (color: string) => void;
-  onApplyBorderLine: (color: string) => void;
-  onApplyFontSize: (size: string) => void;
-  onApplyFont: (font: string) => void;
-  onApplyTextColor: (color: string) => void;
-  onInsertTable: () => void;
-  onInsertLink: () => void;
-  onInsertCodeBlock: () => void;
-  onInsertDiagram: () => void;
-  onOpenLinkInput: () => void;
-  onOpenCodeInput: () => void;
-  onResetTextColor: () => void;
-
-  // Helpers
-  closeAllPopups: () => void;
-  onTextColorButtonClick: () => void;
-}
+export type { EditorToolbarProps };
 
 /**
  * Closes all popups except the one identified by `field`, toggling it instead.
@@ -87,6 +29,7 @@ function makeToggle(
     | 'showTextColorPicker'
     | 'showColorPicker'
     | 'showBorderPicker'
+    | 'showTablePicker'
     | 'showLinkInput'
     | 'showCodeInput'
   >,
@@ -98,6 +41,7 @@ function makeToggle(
     showTextColorPicker: props.setShowTextColorPicker,
     showColorPicker: props.setShowColorPicker,
     showBorderPicker: props.setShowBorderPicker,
+    showTablePicker: props.setShowTablePicker,
     showLinkInput: props.setShowLinkInput,
     showCodeInput: props.setShowCodeInput,
   };
@@ -130,6 +74,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
     showTextColorPicker,
     showColorPicker,
     showBorderPicker,
+    showTablePicker,
     showLinkInput,
     showCodeInput,
     linkUrl,
@@ -151,6 +96,12 @@ export default function EditorToolbar(props: EditorToolbarProps) {
     onApplyFont,
     onApplyTextColor,
     onInsertTable,
+    isCaretInTable,
+    onInsertTableRow,
+    onInsertTableColumn,
+    onDeleteTableRow,
+    onDeleteTableColumn,
+    onDeleteTable,
     onInsertLink,
     onInsertCodeBlock,
     onInsertDiagram,
@@ -162,6 +113,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
 
   const toggleColorPicker = makeToggle(props, 'showColorPicker');
   const toggleBorderPicker = makeToggle(props, 'showBorderPicker');
+  const toggleTablePicker = makeToggle(props, 'showTablePicker');
   const toggleBlockPicker = makeToggle(props, 'showBlockPicker');
 
   // NOTE: Formatting buttons must not steal focus from the contentEditable —
@@ -265,6 +217,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
       <InsertSection
         showLinkInput={showLinkInput}
         showBorderPicker={showBorderPicker}
+        showTablePicker={showTablePicker}
         showCodeInput={showCodeInput}
         linkUrl={linkUrl}
         isLinkLoading={isLinkLoading}
@@ -273,7 +226,14 @@ export default function EditorToolbar(props: EditorToolbarProps) {
         setCodeLanguage={setCodeLanguage}
         setShowLinkInput={setShowLinkInput}
         onToggleBorderPicker={toggleBorderPicker}
+        onToggleTablePicker={toggleTablePicker}
         onInsertTable={onInsertTable}
+        isCaretInTable={isCaretInTable}
+        onInsertTableRow={onInsertTableRow}
+        onInsertTableColumn={onInsertTableColumn}
+        onDeleteTableRow={onDeleteTableRow}
+        onDeleteTableColumn={onDeleteTableColumn}
+        onDeleteTable={onDeleteTable}
         onInsertLink={onInsertLink}
         onInsertCodeBlock={onInsertCodeBlock}
         onInsertDiagram={onInsertDiagram}
