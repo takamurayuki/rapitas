@@ -38,7 +38,8 @@ function isFailure(entry: StructuredLogEntry): boolean {
  */
 function toHeadingText(text: string): string {
   let out = text
-    .replace(/<!--|-->/g, ' ') // a stray comment delimiter could swallow or inject Markdown
+    // `--!>` is also a comment terminator; matching only `-->` left it intact.
+    .replace(/<!--|--!?>/g, ' ') // a stray comment delimiter could swallow or inject Markdown
     .replace(/`{3,}|~{3,}/g, ' ') // fence runs would hide later headings from validators/renderers
     .replace(/（成功）|（失敗）/g, ' ') // a forged status suffix must not satisfy the status check
     .replace(/\s+/g, ' ')

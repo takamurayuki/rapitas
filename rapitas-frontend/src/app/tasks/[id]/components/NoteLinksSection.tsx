@@ -38,8 +38,22 @@ function formatDate(d: Date | string): string {
   return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`;
 }
 
+/**
+ * Plain-text preview of note HTML.
+ *
+ * Loops because one pass is not a fixed point: `<scr<x>ipt>` becomes
+ * `<script>`, which would then show up verbatim in the preview. The result
+ * is only ever rendered as a React text child, so this is about the preview
+ * reading correctly, not about escaping.
+ */
 function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, '').trim();
+  let out = html;
+  let previous: string;
+  do {
+    previous = out;
+    out = out.replace(/<[^>]*>/g, '');
+  } while (out !== previous);
+  return out.trim();
 }
 
 /** Relative URL format avoids react-markdown's defaultUrlTransform protocol filter. */
