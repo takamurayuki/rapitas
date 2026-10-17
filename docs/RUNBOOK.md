@@ -25,6 +25,12 @@ commands at the bottom of each section only as a last resort.
 | `make`/`npm` says scripts not found | [§10 Stale node_modules](#10-stale-node_modules-after-package-changes) |
 | API 500 `column ... does not exist` after a schema change | [§11 Dev schema not applied](#11-dev-schema-change-not-applied-column-does-not-exist) |
 | Desktop window shows "can't reach this page" after a restart that followed a `git pull` | [§12 Window left on the error page](#12-desktop-window-left-on-the-error-page-after-a-frontend-recycle) |
+| A merged change has no effect; the backend behaves like the old code | [lessons: merged code is not running code](lessons/dev-loop-hazards.md#merged-code-is-not-running-code) |
+| A check is green and the problem is still there | [lessons: gates that do not measure](lessons/gates-that-do-not-measure.md) |
+
+> This runbook is for failures that announce themselves. For failures that
+> stayed **silent** — a gate that passes without checking, a number reported
+> before it was measured — see [docs/lessons/](lessons/README.md).
 
 ---
 
