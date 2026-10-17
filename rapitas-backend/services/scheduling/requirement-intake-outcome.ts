@@ -46,6 +46,7 @@
 import { createLogger } from '../../config/logger';
 import { logCycleEvent } from '../observability';
 import { notifyOncePerWindow } from '../communication/notify-once-per-window';
+import { SPEC_GATE_TASK_PREFIX } from '../organization/spec-gate-task';
 
 const log = createLogger('scheduling:requirement-intake');
 
@@ -61,6 +62,8 @@ export type IntakeOutcomeKind =
   | 'environment_pending'
   /** Features are waiting only because the outstanding-backlog cap is full. */
   | 'throttled'
+  /** The document still carries an error-severity finding, so nothing may be filed. */
+  | 'spec_incomplete'
   /** Every declared feature already has a task — nothing to do. */
   | 'all_filed';
 
@@ -77,6 +80,8 @@ export interface IntakeOutcome {
   cap?: number;
   /** True when the environment-setup task is already finished. / 環境構築タスクが完了済みか */
   setupDone?: boolean;
+  /** Error-severity spec findings holding the features back. / 起票を止めている不備の件数 */
+  blocking?: number;
 }
 
 /**
@@ -97,6 +102,11 @@ export function isSilentStall(outcome: IntakeOutcome): boolean {
       return true;
     case 'environment_pending':
       return outcome.setupDone === true;
+    case 'spec_incomplete':
+      // Filing the gate task IS the report on the run that creates it. It
+      // becomes a stall on the runs after that, when the task is open and
+      // every feature is still held — the state nobody would otherwise see.
+      return outcome.filed === 0;
     default:
       return false;
   }
@@ -112,6 +122,11 @@ export function describeIntakeOutcome(outcome: IntakeOutcome): string {
       );
     case 'throttled':
       return `未着手タスクが上限（${outcome.unstarted ?? '?'}/${outcome.cap ?? '?'}）に達しているため、${outcome.pending ?? '?'}件の機能タスクを起票できていません。`;
+    case 'spec_incomplete':
+      return (
+        `要件定義書に ${outcome.blocking ?? '?'} 件の不備が残っているため、機能タスクを起票していません。` +
+        `修正タスク（${SPEC_GATE_TASK_PREFIX}）は起票済みです。これが完了するまでこのテーマの実装は進みません。`
+      );
     default:
       return '';
   }
@@ -121,6 +136,7 @@ export function describeIntakeOutcome(outcome: IntakeOutcome): string {
 const TITLES: Partial<Record<IntakeOutcomeKind, string>> = {
   environment_pending: '要件定義からの起票: プレビュー設定が未登録で起票が止まっています',
   throttled: '要件定義からの起票: 未着手の上限で起票を保留しています',
+  spec_incomplete: '要件定義からの起票: 要件定義の不備で起票を止めています',
 };
 
 /**
