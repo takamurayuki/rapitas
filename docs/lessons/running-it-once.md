@@ -105,13 +105,56 @@ shape in the task. An agent will satisfy a goal it can see; left to infer the
 mechanism, it invents one that passes the check without meaning what the check
 assumes it means.
 
+## How the three tasks ended
+
+All three reached `done/completed`. The registered entries, in the order the
+tasks appended them:
+
+```
+login  apps/web/src/app/login/page.tsx      (no marker)   ← the uninstructed one
+F-01   apps/web/src/app/sources/page.tsx    source-connect-slack
+F-02   apps/web/src/app/sources/page.tsx    source-mask-result
+F-09   apps/web/src/app/sources/page.tsx    source-connect-gmail
+F-10   apps/web/src/app/sources/page.tsx    source-connect-drive
+F-03   apps/web/src/app/patterns/page.tsx   pattern-list
+```
+
+Three things worth keeping from that shape:
+
+- **The append constraint held three times running.** No task removed another
+  task's entry, which is the failure mode a shared config file invites.
+- **Every instructed task produced `F-NN` plus a marker.** The one drifting
+  row is the one that was asked for nothing — the same contrast as above, now
+  with a third data point.
+- **Two entries were volunteered.** `[UI] ソース管理` registered F-09 and F-10
+  as well as the F-01 and F-02 it was told about, because it built those
+  inputs while building the screen. The requirements document's flow section
+  never mentions them, so the implementation is now ahead of the document —
+  worth knowing before reading the registered set as a statement of intent.
+
+A `[UI]` task also added a link from the root page to the screen it built,
+satisfying "reachable from a running app" by connecting the route rather than
+by declaring it. That is the behaviour whose absence produced the original
+failure.
+
+## A gate behaving correctly, for contrast
+
+Immediately after the run, the conditions for the self-deploy (#1024) were
+met except one: the backend was mid-execution on the next task. It did not
+fire, and `activeExecutions: 1` is why. In a document full of gates that pass
+without checking, a gate that declines to act while work is in flight is the
+shape to aim for — it refuses on a condition that is actually measured.
+
+Its other half — firing at a genuine quiet point — remains covered by unit
+tests only, because the project kept finding work.
+
 ## What this run did NOT establish
 
 Recorded so a later reader does not over-credit it:
 
-- **The gate was never seen to fail in anger.** `requireEntries` passed both
-  tasks that reached it, because both registered. That it blocks a task that
-  did not register is covered by unit tests only.
+- **The gate was never seen to fail in anger.** `requireEntries` passed every
+  task that reached it, because every instructed one registered. That it
+  blocks a task that did not register is covered by unit tests only.
 - **The prediction that `[UI] ログイン` would fail was never tested.** It was
   interrupted before reaching verify under the old rule, and by the time it
   ran, the fix was live — and the agent had registered an entry regardless, so
