@@ -8,6 +8,7 @@ import {
   createWriteStream,
   existsSync,
   mkdirSync,
+  readdirSync,
   statSync,
   unlinkSync,
   chmodSync,
@@ -206,10 +207,33 @@ async function downloadFile(url: string, destPath: string, expectedSizeMB: numbe
 }
 
 /**
+ * First file with this exact name anywhere under `dir`.
+ *
+ * Replaces a `Get-ChildItem -Recurse` / `find` subprocess: the shell forms
+ * had to interpolate paths into a command string, and this needs no shell.
+ *
+ * @param dir - Directory to walk / 探索するディレクトリ
+ * @param name - Exact file name to match / 一致させるファイル名
+ * @returns Absolute path, or null when absent / 絶対パス、無ければ null
+ */
+function findFileRecursive(dir: string, name: string): string | null {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      const hit = findFileRecursive(full, name);
+      if (hit) return hit;
+    } else if (entry.isFile() && entry.name === name) {
+      return full;
+    }
+  }
+  return null;
+}
+
+/**
  * Extract llama-server from a ZIP archive.
  */
 async function extractLlamaServerFromZip(zipPath: string): Promise<string> {
-  const { execSync } = await import('child_process');
+  const { execFileSync } = await import('child_process');
   const binDir = getBinDir();
   const targetName = LLAMA_SERVER_BINARY;
   const targetPath = join(binDir, targetName);
@@ -220,16 +244,20 @@ async function extractLlamaServerFromZip(zipPath: string): Promise<string> {
     mkdirSync(extractDir, { recursive: true });
 
     try {
-      execSync(
-        `powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${extractDir}' -Force"`,
-        { timeout: 60000 },
+      // Paths travel in the environment, not inside the command text, so
+      // nothing in them can be read as PowerShell syntax.
+      execFileSync(
+        'powershell',
+        [
+          '-NoProfile',
+          '-Command',
+          'Expand-Archive -Path $env:RAPITAS_ZIP -DestinationPath $env:RAPITAS_DEST -Force',
+        ],
+        { timeout: 60000, env: { ...process.env, RAPITAS_ZIP: zipPath, RAPITAS_DEST: extractDir } },
       );
 
-      // Recursively search for llama-server.exe
-      const found = execSync(
-        `powershell -Command "Get-ChildItem -Path '${extractDir}' -Recurse -Filter '${targetName}' | Select-Object -First 1 -ExpandProperty FullName"`,
-        { timeout: 10000, encoding: 'utf-8' },
-      ).trim();
+      // Recursive search in Node — no second subprocess, no quoting.
+      const found = findFileRecursive(extractDir, targetName);
 
       if (!found || !existsSync(found)) {
         throw new Error(`${targetName} not found in archive`);
@@ -275,16 +303,12 @@ async function extractLlamaServerFromZip(zipPath: string): Promise<string> {
     mkdirSync(extractDir, { recursive: true });
 
     try {
-      // Validate paths before shell commands (paths are generated internally, not from user input)
       assertSafePath(binDir, zipPath);
-      // SECURITY: safe - paths are validated above and not from user input
-      execSync(`unzip -o "${zipPath}" -d "${extractDir}"`, { timeout: 60000 });
+      // argv form: the paths are arguments, never part of a command string.
+      execFileSync('unzip', ['-o', zipPath, '-d', extractDir], { timeout: 60000 });
 
-      // SECURITY: safe - extractDir is validated above and not from user input
-      const found = execSync(`find "${extractDir}" -name "llama-server" -type f | head -1`, {
-        timeout: 10000,
-        encoding: 'utf-8',
-      }).trim();
+      // Recursive search in Node — no second subprocess, no quoting.
+      const found = findFileRecursive(extractDir, 'llama-server');
 
       if (!found || !existsSync(found)) {
         throw new Error('llama-server not found in archive');

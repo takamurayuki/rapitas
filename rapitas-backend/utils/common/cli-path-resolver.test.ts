@@ -23,10 +23,18 @@ let existsSyncImpl: (p: string) => boolean = () => true;
 const mockWarn = mock((..._args: unknown[]) => {});
 const mockInfo = mock((..._args: unknown[]) => {});
 
+// NOTE: Mirror every export the module under test imports — bun mock.module is
+// process-global, and a missing one fails the whole file with "Export named
+// 'x' not found". execFile replaced exec here; argv is joined back into one
+// string so the cases below, which match on the command text, read the same.
 mock.module('child_process', () => ({
   exec: (cmd: string, _opts: unknown, cb: ExecCallback) => {
     execCallCount++;
     execImpl(cmd, cb);
+  },
+  execFile: (file: string, args: string[], _opts: unknown, cb: ExecCallback) => {
+    execCallCount++;
+    execImpl([file, ...args].join(' '), cb);
   },
 }));
 
