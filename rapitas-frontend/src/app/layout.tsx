@@ -18,6 +18,7 @@ import { ToastProvider } from '@/components/ui/toast/ToastContainer';
 import { ConfirmDialogProvider } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { PomodoroProvider } from '@/feature/tasks/pomodoro/PomodoroProvider';
 import ExternalLinksProvider from '@/components/providers/ExternalLinksProvider';
+import LinkViewHost from '@/components/link-view/LinkViewHost';
 import CacheWarmupInitializer from '@/components/common/CacheWarmupInitializer';
 import AppVisibilityBridge from '@/components/common/AppVisibilityBridge';
 import SmartCommandBar from '@/components/smart-command-bar/SmartCommandBar';
@@ -184,6 +185,10 @@ export default function RootLayout({
                             <SmartCommandBar />
                           </Suspense>
                           <TerminalProvider />
+                          {/* Main-window-only: the child webview docks into
+                              "main", so a popup window mounting this would
+                              aim the pane at a window it does not own. */}
+                          <LinkViewHost />
                         </MainWindowOnly>
                       </Suspense>
                     </ExternalLinksProvider>

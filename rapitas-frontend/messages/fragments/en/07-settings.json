@@ -7,6 +7,12 @@
     "externalBrowserTitle": "External link browser",
     "externalBrowserDescription": "Browser used to open links (desktop app only)",
     "externalBrowserDefault": "Default browser",
+    "linkOpenModeTitle": "How links open",
+    "linkOpenModeDescription": "Where links in notes and task descriptions open (desktop app only)",
+    "linkOpenModeExternal": "Open in the external browser",
+    "linkOpenModeExternalHint": "The long-standing behaviour. Hands the link to your chosen browser",
+    "linkOpenModeInternal": "Open in a pane inside rapitas",
+    "linkOpenModeInternalHint": "Opens in a pane in the app. Pages load exactly as in a normal browser",
     "displayMode": "Display Mode",
     "displayModeDescription": "Switch displayed navigation items by use case",
     "showAll": "Show all",
@@ -365,5 +371,12 @@
       "testHttpError": "Error: HTTP {status}",
       "connectionFailed": "Connection failed. Please check the URL."
     }
+  },
+  "linkView": {
+    "back": "Back",
+    "forward": "Forward",
+    "reload": "Reload",
+    "openExternally": "Open in the external browser",
+    "close": "Close"
   }
 }

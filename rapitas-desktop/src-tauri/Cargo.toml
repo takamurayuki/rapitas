@@ -11,7 +11,18 @@ tauri-build = { version = "2.5", features = [] }
 [dependencies]
 # macos-private-api: required for WebviewWindowBuilder::transparent() to compile
 # on macOS (tauri gates it behind this feature there; other OSes need no flag).
-tauri = { version = "2.10.1", features = ["tray-icon", "image-png", "macos-private-api"] }
+# unstable: the ONLY way to dock a webview inside an existing window —
+# `Window::add_child` is `#[cfg(all(desktop, feature = "unstable"))]` in tauri
+# 2.10.x. link_webview.rs needs it so a note's link can be read in a pane
+# instead of the external browser; an iframe cannot do that job because sites
+# sending X-Frame-Options render blank. Outside tauri's semver guarantee, so a
+# tauri bump must be checked against link_webview.rs before it lands.
+tauri = { version = "2.10.1", features = [
+  "tray-icon",
+  "image-png",
+  "macos-private-api",
+  "unstable",
+] }
 tauri-plugin-shell = "2.3"
 tauri-plugin-global-shortcut = "2.3"
 # NOTE: tauri-plugin-updater is removed, not merely disabled — it is the only

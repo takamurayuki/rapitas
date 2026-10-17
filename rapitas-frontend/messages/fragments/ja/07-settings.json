@@ -7,6 +7,12 @@
     "externalBrowserTitle": "外部リンクのブラウザ",
     "externalBrowserDescription": "リンクを開くときに使うブラウザ（デスクトップアプリのみ）",
     "externalBrowserDefault": "デフォルトブラウザ",
+    "linkOpenModeTitle": "リンクの開き方",
+    "linkOpenModeDescription": "ノートやタスク説明のリンクをどこで開くか（デスクトップアプリのみ）",
+    "linkOpenModeExternal": "外部ブラウザで開く",
+    "linkOpenModeExternalHint": "これまでどおり。選んだブラウザに渡します",
+    "linkOpenModeInternal": "rapitas 内に分割表示",
+    "linkOpenModeInternalHint": "アプリ内のペインで開きます。読み込みは通常のブラウザと同じです",
     "displayMode": "表示モード",
     "displayModeDescription": "ナビゲーションに表示する項目を用途に応じて切り替えます",
     "showAll": "すべて表示",
@@ -365,5 +371,12 @@
       "testHttpError": "エラー: HTTP {status}",
       "connectionFailed": "接続に失敗しました。URLを確認してください。"
     }
+  },
+  "linkView": {
+    "back": "戻る",
+    "forward": "進む",
+    "reload": "再読み込み",
+    "openExternally": "外部ブラウザで開く",
+    "close": "閉じる"
   }
 }
