@@ -66,6 +66,17 @@ Automatically handles on each start:
 - File size limit: 300–500 lines. Split before adding to an oversized file.
 - Test coverage: new code should ship with tests. **≥ 80% is the long-term target, not an immediate gate** — coverage is raised via the staged ratchet in [ADR-0002](../docs/adr/0002-coverage-gate-staging.md); the enforced floor lives in `rapitas-frontend/vitest.config.ts`. Do not claim 80% is met today; it is not.
 - All public functions require JSDoc/rustdoc. (See COMMENT_POLICY.md)
+- **Adding or changing a gate, check or validator?** Read
+  [docs/lessons/gates-that-do-not-measure.md](../docs/lessons/gates-that-do-not-measure.md)
+  first. Nine gates in this repository have been found running, green and
+  measuring nothing. Before trusting one: confirm it runs (call sites / job
+  names), that it reads what ships (committed lockfile, authoritative branch),
+  and **that it can fail** — break the thing it exists to catch and watch it
+  go red.
+- **Adding an export to a module?** Grep for `mock.module` of that module and
+  mirror it. Bun replaces the whole module, so a missing export makes the
+  mocking test file stop with one error and its tests vanish — watch the pass
+  COUNT, not just pass/fail.
 
 ### Naming conventions
 
