@@ -1136,6 +1136,12 @@
     "externalBrowserTitle": "外部リンクのブラウザ",
     "externalBrowserDescription": "リンクを開くときに使うブラウザ（デスクトップアプリのみ）",
     "externalBrowserDefault": "デフォルトブラウザ",
+    "linkOpenModeTitle": "リンクの開き方",
+    "linkOpenModeDescription": "ノートやタスク説明のリンクをどこで開くか（デスクトップアプリのみ）",
+    "linkOpenModeExternal": "外部ブラウザで開く",
+    "linkOpenModeExternalHint": "これまでどおり。選んだブラウザに渡します",
+    "linkOpenModeInternal": "rapitas 内に分割表示",
+    "linkOpenModeInternalHint": "アプリ内のペインで開きます。読み込みは通常のブラウザと同じです",
     "displayMode": "表示モード",
     "displayModeDescription": "ナビゲーションに表示する項目を用途に応じて切り替えます",
     "showAll": "すべて表示",
@@ -1494,6 +1500,13 @@
       "testHttpError": "エラー: HTTP {status}",
       "connectionFailed": "接続に失敗しました。URLを確認してください。"
     }
+  },
+  "linkView": {
+    "back": "戻る",
+    "forward": "進む",
+    "reload": "再読み込み",
+    "openExternally": "外部ブラウザで開く",
+    "close": "閉じる"
   },
   "shortcuts": {
     "title": "ショートカット設定",
@@ -6632,6 +6645,14 @@
       "failed": "操作に失敗しました。項目を戻しました",
       "reloaded": "再読み込みしました。残り{count}件",
       "empty": "判断待ちはありません"
+    },
+    "timer": {
+      "estimate": "この種の判断は通常約{minutes}分（直近{count}件の中央値）",
+      "insufficient": "記録が{min}件たまると、この種の判断の所要時間の目安を表示します",
+      "start": "判断を開始",
+      "finish": "判断を完了",
+      "discard": "計測を破棄",
+      "elapsed": "経過 {time}"
     },
     "loadFailed": "判断待ちの取得に失敗しました"
   }

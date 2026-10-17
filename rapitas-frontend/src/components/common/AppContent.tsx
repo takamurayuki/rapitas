@@ -20,6 +20,7 @@ import {
   useTaskDetailVisibilityStore,
   TASK_DETAIL_SPLIT_WIDTH_VW,
 } from '@/stores/task-detail-visibility-store';
+import { useLinkViewStore, LINK_VIEW_SPLIT_WIDTH_VW } from '@/stores/link-view-store';
 
 /**
  * @param children - Page content to render / 描画するページコンテンツ
@@ -38,9 +39,13 @@ export default function AppContent({ children }: { children: React.ReactNode }) 
   const taskDetailDockSide = useTaskDetailVisibilityStore((s) => s.dockSide);
   const isTaskSplitOpen = isTaskDetailVisible && taskDetailDisplayMode === 'split';
 
+  // The link pane always docks right; it has no dock-side choice yet.
+  const isLinkViewOpen = useLinkViewStore((s) => s.url !== null);
+
   const reservedVw = (side: 'left' | 'right'): number =>
     (isTerminalSplitOpen && terminalDockSide === side ? terminalSplitWidthPercent : 0) +
-    (isTaskSplitOpen && taskDetailDockSide === side ? TASK_DETAIL_SPLIT_WIDTH_VW : 0);
+    (isTaskSplitOpen && taskDetailDockSide === side ? TASK_DETAIL_SPLIT_WIDTH_VW : 0) +
+    (isLinkViewOpen && side === 'right' ? LINK_VIEW_SPLIT_WIDTH_VW : 0);
   const rightVw = reservedVw('right');
   const leftVw = reservedVw('left');
 

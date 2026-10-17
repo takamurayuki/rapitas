@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { SlidersHorizontal, Globe, ExternalLink } from 'lucide-react';
+import { SlidersHorizontal, Globe, ExternalLink, Columns2 } from 'lucide-react';
 import { useLocaleStore } from '@/stores/locale-store';
 import { locales, type Locale } from '@/i18n/config';
 import { EXTERNAL_BROWSER_KEY } from '@/utils/tauri';
+import { getLinkOpenMode, setLinkOpenMode, type LinkOpenMode } from '@/utils/link-view';
 import BackupCard from '../_components/BackupCard';
 import RecentErrorsCard from '../_components/RecentErrorsCard';
 import Link from 'next/link';
@@ -37,6 +38,17 @@ export default function GeneralSettingsPage() {
     setBrowser(value);
     if (value) localStorage.setItem(EXTERNAL_BROWSER_KEY, value);
     else localStorage.removeItem(EXTERNAL_BROWSER_KEY);
+  };
+
+  // Where links from notes / task descriptions open. Read on mount for the
+  // same reason as the browser above: localStorage is not there during SSR.
+  const [linkMode, setLinkMode] = useState<LinkOpenMode>('external');
+  useEffect(() => {
+    setLinkMode(getLinkOpenMode());
+  }, []);
+  const updateLinkMode = (mode: LinkOpenMode) => {
+    setLinkMode(mode);
+    setLinkOpenMode(mode);
   };
 
   return (
@@ -81,6 +93,58 @@ export default function GeneralSettingsPage() {
                 </option>
               ))}
             </select>
+          </div>
+        </div>
+
+        {/* How links open */}
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+          <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center gap-3">
+              <Columns2 className="w-5 h-5 text-zinc-400" />
+              <div>
+                <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                  {t('linkOpenModeTitle')}
+                </h2>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  {t('linkOpenModeDescription')}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {(['external', 'internal'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => updateLinkMode(mode)}
+                  className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                    linkMode === mode
+                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                      : 'border-zinc-200 dark:border-zinc-700 hover:border-indigo-300 dark:hover:border-indigo-700 bg-white dark:bg-zinc-800'
+                  }`}
+                >
+                  {linkMode === mode && (
+                    <div className="absolute top-2 right-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+                    </div>
+                  )}
+                  <h3
+                    className={`font-medium text-sm ${
+                      linkMode === mode
+                        ? 'text-indigo-700 dark:text-indigo-300'
+                        : 'text-zinc-900 dark:text-zinc-100'
+                    }`}
+                  >
+                    {mode === 'external' ? t('linkOpenModeExternal') : t('linkOpenModeInternal')}
+                  </h3>
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    {mode === 'external'
+                      ? t('linkOpenModeExternalHint')
+                      : t('linkOpenModeInternalHint')}
+                  </p>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
