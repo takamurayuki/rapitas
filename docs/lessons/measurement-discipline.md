@@ -78,6 +78,37 @@ Two habits that cost nothing and prevent re-litigation:
   its absence read as a pass. An unverifiable result is recoverable; a result
   recorded as passing when nothing ran is not.
 
+## Do not state a mechanism from memory without checking it
+
+Auto-run was paused mid-workflow and the user was told "the in-flight cycle
+runs to completion — pause does not stop it". It does stop it: the task sat
+stranded with no agent and no execution record. The claim came from a
+remembered note about a _running queue item holding the concurrency slot_ —
+a true fact about a different thing.
+
+> A remembered mechanism is a hypothesis. State it as one, or spend the one
+> command that settles it. Here `GET /tasks/<id>/executions` returning zero
+> rows would have settled it before the sentence was written.
+
+See [dev-loop-hazards.md](dev-loop-hazards.md) for what `pause` actually does.
+
+## Separate what was measured from what was inferred
+
+A screen task was predicted to fail verification. The asymmetry behind the
+prediction was real and measured — the task asked for no registration while
+the gate demanded one. The failure itself was never observed: the task was
+interrupted before verify, and by the time it ran the fix was live and the
+agent had registered an entry anyway.
+
+> Report the measurement and the inference as two different things. "The
+> conditions disagree, measured" is durable; "it will fail" was a forecast
+> that went untested, and saying so costs nothing.
+
+See [running-it-once.md](running-it-once.md) for the full set of findings
+from that run, including what it did not establish.
+
+---
+
 See [gates-that-do-not-measure.md](gates-that-do-not-measure.md) for the same
 principle applied to the system's own gates rather than to a person's
 reporting.

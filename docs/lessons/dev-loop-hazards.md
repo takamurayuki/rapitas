@@ -105,3 +105,31 @@ indefinitely. That block has previously been misdiagnosed as a product hang.
 Keep dry-run scripts to pure modules. `services/organization/spec-*.ts`,
 `screen-task-*.ts` and `runtime-smoke/feature-reachability.ts` are all safe to
 import this way; anything that touches `prisma` is not.
+
+## `pause` stops the next phase, not just the next task
+
+**Symptom.** A theme's auto-run is paused while a task is mid-workflow. The
+task stays `in-progress` with no agent, no execution record and
+`activeExecutions: 0` — stranded rather than finished.
+
+**Cause.** Pausing stops the loop that dispatches phases, not only the one
+that selects tasks. A task that had completed research sat at
+`in-progress/in_progress` with its implementer never dispatched.
+
+Do not confuse this with the separate, documented behaviour that a _running_
+`WorkflowQueueItem` keeps holding the single concurrency slot. Both are true
+and they are about different things.
+
+**Recovery.** A restart resets the stranded task to `todo` while keeping its
+`workflowStatus`, so it resumes at the phase it reached rather than from the
+beginning. Confirm with:
+
+```bash
+curl -s http://127.0.0.1:3001/agents/system-status   # activeExecutions, runningExecutions
+curl -s http://127.0.0.1:3001/tasks/<id>/executions  # 0 rows means nothing ran
+```
+
+**And:** this makes a pause a reasonable way to stop before an expensive phase
+you know will fail — but only because it stops more than its name suggests.
+Verify the state afterwards rather than assuming which of the two behaviours
+you got.
