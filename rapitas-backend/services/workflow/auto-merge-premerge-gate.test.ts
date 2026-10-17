@@ -26,7 +26,10 @@ function makeDeps(opts: {
     removed,
     exists: () => opts.scriptExists ?? true,
     removeDir: (p) => removed.push(p),
-    run: async (command) => {
+    run: async (file, args) => {
+      // Joined back into one string so the assertions below stay readable;
+      // the production path never builds this string.
+      const command = [file, ...args].join(' ');
       commands.push(command);
       if (opts.failOn && command.includes(opts.failOn)) throw new Error(`boom: ${opts.failOn}`);
       if (command.includes('check-large-files')) return { stdout: opts.stdout ?? '{}' };

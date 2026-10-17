@@ -5,12 +5,12 @@
  * with process-lifetime caching and in-flight de-duplication. Not responsible for
  * spawning or supervising the resolved process — see each provider's process-manager.
  */
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { existsSync } from 'fs';
 import { promisify } from 'util';
 import { createLogger } from '../../config/logger';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 const logger = createLogger('cli-path-resolver');
 
 /** Elapsed resolution time above which a WARN is logged (see event-loop-lag correlation). */
@@ -31,7 +31,9 @@ const inFlight = new Map<string, Promise<string>>();
 /** Runs `where <name>` and returns the first existing resolved path, or null. */
 async function tryWhere(name: string): Promise<string | null> {
   try {
-    const { stdout } = await execAsync(`where ${name}`, {
+    // execFile, not exec: `name` comes from agent configuration, which is
+    // editable, and a shell would treat metacharacters in it as syntax.
+    const { stdout } = await execFileAsync('where', [name], {
       encoding: 'utf8',
       timeout: WHERE_TIMEOUT_MS,
       windowsHide: true,
