@@ -110,8 +110,55 @@ function parseBulletScreens(lines: readonly string[]): Omit<ScreenTaskSpec, 'fea
   return out;
 }
 
+/** The arrow that separates a flow line's action from its result. */
+const FLOW_ARROW = /→|->/;
+
 /**
- * Feature ids whose 画面導線 line mentions the screen's name or route.
+ * The part of a flow line that names where the feature STARTS.
+ *
+ * The documented format is `<画面> の <操作> → <結果>`, and the result names
+ * the DESTINATION. Measured 2026-10-18 on a generated document: matching the
+ * whole line put F-02 on both the screen it starts from and the one it
+ * navigates to, and would have put three more features on the home screen
+ * purely because their results read `→ \`/\``.
+ *
+ * @param text - The flow line after its `[F-NN]` label / ラベル以降の本文
+ * @returns The action clause / 操作句
+ */
+function actionClause(text: string): string {
+  return text.split(FLOW_ARROW)[0] ?? text;
+}
+
+/**
+ * Route-looking tokens to match a screen by, from its route column and from
+ * its name.
+ *
+ * The generated table may carry no route column at all, putting the route and
+ * a label in one cell — `/ (ホーム)` — which no flow line ever writes that
+ * way, so the screen matched nothing (measured 2026-10-18, two features
+ * orphaned).
+ */
+function routeCandidates(screen: { name: string; route?: string }): string[] {
+  const out = new Set<string>();
+  if (screen.route?.startsWith('/')) out.add(screen.route);
+  const inName = screen.name.match(/^\s*(\/\S*)/)?.[1];
+  if (inName) out.add(inName);
+  return [...out];
+}
+
+/**
+ * Whether the clause names this route as a whole path.
+ *
+ * A bare `/` is a substring of every other path, so it must be bounded —
+ * otherwise the home screen claims every feature in the document.
+ */
+function mentionsRoute(clause: string, route: string): boolean {
+  const escaped = route.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`${escaped}(?![A-Za-z0-9/_:-])`).test(clause);
+}
+
+/**
+ * Feature ids whose 画面導線 line STARTS at this screen.
  *
  * A screen nothing routes to gets an empty list rather than a borrowed one: a
  * screen task measured against another screen's features would verify the
@@ -122,12 +169,18 @@ function parseBulletScreens(lines: readonly string[]): Omit<ScreenTaskSpec, 'fea
  * @returns Feature ids in document order / 文書順の機能ID
  */
 function featuresReaching(markdown: string, screen: { name: string; route?: string }): string[] {
-  const needles = [screen.name, screen.route].filter((s): s is string => Boolean(s));
+  const routes = routeCandidates(screen);
+  // A name that is just a route is covered by the bounded route match; keeping
+  // it as a plain substring too would reintroduce the `/` swallowing problem.
+  const names = [screen.name].filter((n) => !n.trimStart().startsWith('/'));
   const out: string[] = [];
   for (const line of sectionLines(markdown, '画面導線')) {
     const m = matchFeatureLine(line);
     if (!m?.text) continue;
-    if (needles.some((n) => m.text.includes(n))) out.push(m.id);
+    const clause = actionClause(m.text);
+    const hit =
+      names.some((n) => clause.includes(n)) || routes.some((r) => mentionsRoute(clause, r));
+    if (hit) out.push(m.id);
   }
   return [...new Set(out)];
 }
