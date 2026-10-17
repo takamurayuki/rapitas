@@ -190,9 +190,31 @@ export function toBootstrapTaskPayload(ctx: BootstrapContext): BootstrapTaskPayl
       // した。バックグラウンドタスクのタイムアウトは直下の子しか殺さない。
       'dev サーバーを手動で起動しない。プロセスの停止は禁止されているため孤児が残り、' +
         'ポートを掴んだまま以降の起動確認を EADDRINUSE で全滅させる。起動確認はハーネスに任せる',
+      // 実測 2026-10-18 (#1058, pnpm 12.9.1): `pnpm run <script> -- --port N` は
+      // `--` ごと script に渡り、`$ vite -- --port N` となってポートが無視される。
+      // `--` 無しなら `$ vite --port N` で正しく転送される。古い pnpm と逆なので
+      // 思い込みで書かず、必ず実機で確かめること。
       `\`start\` はハーネスから渡されたポートを dev サーバー本体まで届ける形にする。` +
-        'pnpm の script 経由では `-- -p {port}` が必要で、素の `-p {port}` は転送されず' +
-        '既定ポートで起動してしまう',
+        '渡っているかは「ポートを指定して起動し、そのポートで応答する」まで確かめる。' +
+        '引数が落ちると dev サーバーは既定ポートで起動し、起動確認は別プロセスを' +
+        '見るか EADDRINUSE で倒れる',
+      // 実測 2026-10-18 (#1058): タスク worktree の node_modules はメインへの
+      // ジャンクションで、pnpm 12 はそれを task run state に使うのを拒否する
+      // (ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH)。TempoRaid は start が
+      // `pnpm --filter web dev` だったため runtime 検証が一度も起動できず、
+      // 11 件が runtime=UNVERIFIED でブロックされた。`pnpm -C <dir> run <script>`
+      // と `pnpm exec` は同じ worktree で動くことを実測済み。
+      '`start` で `pnpm --filter` や `pnpm -r` を使わない。タスク worktree の node_modules は' +
+        'ジャンクションなので、pnpm のワークスペースタスク実行は' +
+        'ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH で必ず失敗する。' +
+        'モノレポなら `pnpm -C <パッケージのパス> run <script>` を使う',
+      // 実測 2026-10-18 (#1058): vite は既定で `localhost` に bind するが、Windows では
+      // それが ::1 (IPv6) に解決される。ハーネスは 127.0.0.1 を叩くため、
+      // 起動ログに `ready in 917 ms` と出ていても 120s タイムアウトする。
+      // `url` のホストを 127.0.0.1 にするだけでは足りない — bind 先を揃える。
+      `dev サーバーを ${REQUIRED_HOST} に bind させる（vite なら \`--host ${REQUIRED_HOST}\`）。` +
+        '既定の localhost は Windows で ::1 に解決され、IPv4 を叩く起動確認からは' +
+        '「起動していない」と見える',
     ],
     acceptanceCriteria: [
       ctx.hasManifest
