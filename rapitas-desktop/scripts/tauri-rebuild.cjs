@@ -34,7 +34,15 @@ const SKIPPED_NO_RUST_CHANGES = 'no-rust-changes';
 const SKIPPED_NO_HEAD = 'no-head';
 const SKIPPED_DISABLED = 'disabled';
 const BUILT = 'built';
+const SKIPPED_IN_FLIGHT = 'in-flight';
 const BUILD_FAILED = 'build-failed';
+
+/**
+ * True while a build is running. dev.js calls this on startup AND after every
+ * backend restart, and a run of crash-restarts would otherwise stack cargo
+ * invocations that all block on the same target-directory lock.
+ */
+let buildInFlight = false;
 
 /**
  * Read the last built commit, tolerating a missing or corrupt file.
@@ -99,6 +107,7 @@ async function maybeRebuildTauri(options) {
   } = options;
 
   if (!enabled) return { action: SKIPPED_DISABLED };
+  if (buildInFlight) return { action: SKIPPED_IN_FLIGHT };
 
   const statePath =
     stateFile || path.join(repoRoot, 'rapitas-desktop', '.data', DEFAULT_STATE_FILE);
@@ -133,7 +142,13 @@ async function maybeRebuildTauri(options) {
   }
 
   log.info('\n🔨 Rust changes detected — rebuilding the Tauri shell in the background...');
-  const build = await run('cargo', ['build'], { cwd: tauriDir, maxBuffer: 32 * 1024 * 1024 });
+  buildInFlight = true;
+  let build;
+  try {
+    build = await run('cargo', ['build'], { cwd: tauriDir, maxBuffer: 32 * 1024 * 1024 });
+  } finally {
+    buildInFlight = false;
+  }
 
   if (build.code !== 0) {
     // Deliberately NOT recorded: an unrecorded failure retries on the next
@@ -155,6 +170,7 @@ async function maybeRebuildTauri(options) {
 
 module.exports = {
   maybeRebuildTauri,
+  SKIPPED_IN_FLIGHT,
   readLastBuiltCommit,
   RUST_PATHS,
   BUILT,

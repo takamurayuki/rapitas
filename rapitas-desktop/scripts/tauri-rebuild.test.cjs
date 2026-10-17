@@ -203,3 +203,45 @@ test('treats a corrupt state file as no record', () => {
   fs.writeFileSync(state.file, '{ not json');
   assert.equal(readLastBuiltCommit(state.file), null);
 });
+
+// dev.js calls this on startup and after every backend restart. A run of
+// crash-restarts would otherwise stack cargo invocations that all queue on
+// the same target-directory lock.
+test('refuses to start a second build while one is running', async () => {
+  const { SKIPPED_IN_FLIGHT } = require('./tauri-rebuild.cjs');
+  const state = tempState();
+  let releaseBuild;
+  const blocked = new Promise((resolve) => {
+    releaseBuild = () => resolve({ code: 0, stdout: '', stderr: '' });
+  });
+  const { run } = fakeRun({ build: blocked });
+
+  const first = maybeRebuildTauri({
+    repoRoot: '/repo',
+    stateFile: state.file,
+    run,
+    log: quietLog,
+  });
+  // Let the first call reach the cargo step before the second one asks.
+  await new Promise((r) => setImmediate(r));
+
+  const second = await maybeRebuildTauri({
+    repoRoot: '/repo',
+    stateFile: state.file,
+    run,
+    log: quietLog,
+  });
+  assert.equal(second.action, SKIPPED_IN_FLIGHT);
+
+  releaseBuild();
+  assert.equal((await first).action, BUILT);
+
+  // The guard must clear, or the shell would never rebuild again.
+  const third = await maybeRebuildTauri({
+    repoRoot: '/repo',
+    stateFile: tempState().file,
+    run,
+    log: quietLog,
+  });
+  assert.equal(third.action, BUILT);
+});
