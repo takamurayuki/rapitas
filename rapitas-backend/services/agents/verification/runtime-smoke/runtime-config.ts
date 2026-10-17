@@ -232,25 +232,48 @@ export async function resolveThemeWorkingDirectory(
 }
 
 /**
- * Whether this task is the screen task that owes a `featureEntries` entry.
+ * Whether this task was asked to register a `featureEntries` entry.
  *
  * Only the `[UI]` task creates the file an entry names, so it is the only one
- * the reachability check may demand a registration from. Every other task
- * keeps the pass-through — failing a feature task for an entry its screen
- * task was supposed to write would punish the wrong change.
+ * the reachability check may demand a registration from — failing a feature
+ * task for an entry its screen task owed would punish the wrong change.
  *
- * Fails CLOSED to `false` on any lookup problem: a database blip must not
- * invent a verification failure.
+ * Being a screen task is necessary and NOT sufficient. A screen that no
+ * 画面導線 line names hosts no feature, so `toScreenTaskPayload` deliberately
+ * asks it for nothing; demanding an entry anyway fails it for work it was
+ * told not to do. Measured 2026-10-17 on ContextFlow's `[UI] ログイン`, whose
+ * eight flow lines never mention `/login` (#1031). So the task's OWN
+ * acceptance criteria decide — the obligation and its enforcement read from
+ * one place, which re-parsing requirements.md here would not achieve.
+ *
+ * Fails CLOSED to `false` on any lookup or parse problem: a database blip
+ * must not invent a verification failure.
  *
  * @param taskId - Task under verification / 検証中のタスク
- * @returns Whether it is a screen task / 画面タスクかどうか
+ * @returns Whether an entry is required of it / entry 登録が求められているか
  */
-export async function isScreenTask(taskId: number | null | undefined): Promise<boolean> {
+export async function taskRequiresFeatureEntries(
+  taskId: number | null | undefined,
+): Promise<boolean> {
   if (taskId == null) return false;
   const task = await prisma.task
-    .findUnique({ where: { id: taskId }, select: { title: true } })
+    .findUnique({ where: { id: taskId }, select: { title: true, acceptanceCriteria: true } })
     .catch(() => null);
-  return typeof task?.title === 'string' && task.title.trimStart().startsWith(SCREEN_TASK_PREFIX);
+
+  const title = typeof task?.title === 'string' ? task.title.trimStart() : '';
+  if (!title.startsWith(SCREEN_TASK_PREFIX)) return false;
+
+  // The task's own criteria are the source of truth. A screen that no 画面導線
+  // names hosts nothing, so toScreenTaskPayload asks it for no registration —
+  // and demanding one anyway fails it for work it was told not to do (#1031,
+  // measured on ContextFlow's `[UI] ログイン`).
+  let criteria: unknown;
+  try {
+    criteria = JSON.parse(String(task?.acceptanceCriteria ?? ''));
+  } catch {
+    return false;
+  }
+  return Array.isArray(criteria) && criteria.some((c) => String(c).includes('featureEntries'));
 }
 
 export type TaskThemeRuntimeConfig =
