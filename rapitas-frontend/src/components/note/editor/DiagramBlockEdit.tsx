@@ -44,7 +44,9 @@ const TEMPLATES = [
 async function renderPreview(source: string, id: string): Promise<string | null> {
   try {
     const { default: mermaid } = await import('mermaid');
-    mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
+    // 'strict' for the same reason as diagram-block.ts: this SVG is mounted
+    // with dangerouslySetInnerHTML, and the source is user content.
+    mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict' });
     const { svg } = await mermaid.render(id, source);
     return svg;
   } catch {
