@@ -9,7 +9,7 @@
 
 import { describe, expect, test, beforeAll, afterAll } from 'bun:test';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
-import { join, dirname, resolve } from 'path';
+import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { tmpdir } from 'os';
 
@@ -339,7 +339,6 @@ describe('formatGuardSource', () => {
   test('formatted output matches on-disk generated file (drift = 0)', async () => {
     // Verify that re-formatting an already-formatted file produces identical output
     const ROOT_DIR2 = join(__dirname, '..');
-    const sourceFile = join(ROOT_DIR2, 'services', 'workflow', 'workflow-types.ts');
     const outputFile = join(
       ROOT_DIR2,
       'services',
@@ -587,7 +586,7 @@ describe('parseFilesArg', () => {
 // ---------------------------------------------------------------------------
 
 describe('scanForSsotFiles — incremental files mode', () => {
-  const tmpDir = join(tmpdir(), `gen-type-guards-scan-${process.pid}`);
+  const tmpDir = mkdtempSync(join(tmpdir(), 'gen-type-guards-scan-'));
   const ssotFile = join(tmpDir, 'my-types.ts');
   const plainFile = join(tmpDir, 'no-ssot.ts');
 
@@ -642,7 +641,7 @@ describe('scanForSsotFiles — incremental files mode', () => {
 // ---------------------------------------------------------------------------
 
 describe('checkDrift — incremental files mode', () => {
-  const tmpDir = join(tmpdir(), `gen-type-guards-drift2-${process.pid}`);
+  const tmpDir = mkdtempSync(join(tmpdir(), 'gen-type-guards-drift2-'));
   const ssotSrc = join(tmpDir, 'drift-types.ts');
   const generatedOut = join(tmpDir, 'drift-types.guards.generated.ts');
 

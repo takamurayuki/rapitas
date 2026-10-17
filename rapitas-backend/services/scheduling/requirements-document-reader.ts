@@ -10,7 +10,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync } from 'fs';
-import { readFile, stat } from 'fs/promises';
+import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { createLogger } from '../../config/logger';
 
@@ -137,11 +137,11 @@ export async function readProjectDoc(
   }
 
   const file = join(workingDirectory, 'docs', fileName);
-  // No existsSync() ahead of the stat: the file can be removed between the
-  // two calls, and a missing file is already handled by the catch below.
+  // One syscall, not three: an existsSync() and a stat() ahead of the read
+  // could each see a different file, and readFile already rejects a missing
+  // path with ENOENT and a directory with EISDIR — the two cases the checks
+  // existed to catch. Both become the same null in the catch below.
   try {
-    const info = await stat(file);
-    if (!info.isFile()) return null;
     const content = await readFile(file, 'utf8');
     log.info(
       { file, fileName, branch: branch ?? '(none)' },
@@ -149,9 +149,11 @@ export async function readProjectDoc(
     );
     return withinSizeLimit(content, file);
   } catch (err) {
-    // A missing document is the normal case for a repo without docs/, and was
-    // silent before this function stopped pre-checking with existsSync.
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    // A missing document is the normal case for a repo without docs/, and a
+    // directory where the file should be is the isFile() check that used to
+    // sit above. Neither is worth a warn.
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' || code === 'EISDIR') return null;
     log.warn({ err, file }, 'requirements.md unreadable — skipping');
     return null;
   }
