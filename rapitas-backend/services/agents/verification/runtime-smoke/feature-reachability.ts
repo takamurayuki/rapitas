@@ -28,6 +28,12 @@ export interface ReachabilityResult {
   present: string[];
   missing: string[];
   reason?: string;
+  /**
+   * Why the verdict is `unknown`. The two causes are not interchangeable:
+   * `undeclared` is something an author can fix, `unreadable` is an
+   * infrastructure problem that must never block a good change.
+   */
+  cause?: 'undeclared' | 'unreadable';
 }
 
 /** Smoke verdict shape that reachability is composed into. */
@@ -100,6 +106,7 @@ export async function evaluateFeatureReachability(
       present: [],
       missing: [],
       reason: entries ? 'featureEntries が 0 件' : 'featureEntries が未宣言',
+      cause: 'undeclared',
     };
   }
   const present: string[] = [];
@@ -119,6 +126,7 @@ export async function evaluateFeatureReachability(
       present,
       missing,
       reason: `入口ファイルを読み出せない: ${errored.join(', ')}`,
+      cause: 'unreadable',
     };
   }
   return { status: 'reachable', present, missing };
@@ -148,10 +156,22 @@ export function createWorkdirReader(workdir: string): EntryReader {
 /**
  * Fold reachability into a smoke verdict. ok is only ever AND-ed down.
  *
+ * `requireEntries` turns an undeclared list from a note into a failure. It is
+ * set for the task whose job it is to register the entry — the `[UI]` screen
+ * task, which creates the file the entry names. Leaving it off everywhere
+ * else is deliberate: a project files its screen tasks before its feature
+ * tasks, so the obligation lands on the one task that can meet it, and no
+ * other task is failed for work that was never assigned to it.
+ *
+ * An UNREADABLE entry stays a pass even under `requireEntries`, on the same
+ * principle as red-state-check: a transient I/O problem must never block a
+ * legitimately good change. Only a confirmed absence is a failure.
+ *
  * @param verdict - Smoke verdict / スモーク判定
  * @param cfg - Runtime config carrying featureEntries / 設定
  * @param workdir - Worktree root / worktree ルート
  * @param reader - Reader override (tests) / テスト用リーダー
+ * @param opts - requireEntries: fail when nothing is declared / 未登録を失敗にするか
  * @returns Composed verdict / 合成後の判定
  */
 export async function applyFeatureReachability(
@@ -159,6 +179,7 @@ export async function applyFeatureReachability(
   cfg: { featureEntries?: FeatureEntry[] },
   workdir: string,
   reader: EntryReader = createWorkdirReader(workdir),
+  opts: { requireEntries?: boolean } = {},
 ): Promise<SmokeVerdict> {
   const r = await evaluateFeatureReachability(cfg.featureEntries, reader);
   if (r.status === 'unreachable') {
@@ -169,6 +190,17 @@ export async function applyFeatureReachability(
     };
   }
   if (r.status === 'unknown') {
+    if (opts.requireEntries && r.cause === 'undeclared') {
+      return {
+        ok: false,
+        errorCount: verdict.errorCount + 1,
+        lines: [
+          ...verdict.lines,
+          `✗ featureEntries が未登録（${r.reason}）。` +
+            'この画面が入口になる機能を rapitas.runtime.json に登録すること。',
+        ],
+      };
+    }
     return { ...verdict, lines: [...verdict.lines, `到達性: 判定不能（${r.reason}）`] };
   }
   const n = r.present.length;
