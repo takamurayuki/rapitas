@@ -10,6 +10,7 @@ import type { RequirementTaskPayload } from '../organization/requirements-task-p
 import type { DriftTaskPayload } from '../organization/spec-drift';
 import type { BootstrapTaskPayload } from '../organization/project-bootstrap-task';
 import type { SpecGateTaskPayload } from '../organization/spec-gate-task';
+import type { ScreenTaskPayload } from '../organization/screen-task-payload';
 
 /** A theme eligible for scanning. */
 export interface IntakeTheme {
@@ -62,6 +63,11 @@ export interface RequirementIntakeDeps {
   isBootstrapTaskFinished?: (themeId: number) => Promise<boolean>;
   /** Files one task; a falsy result means nothing was created. */
   createTask: (
-    payload: RequirementTaskPayload | DriftTaskPayload | BootstrapTaskPayload | SpecGateTaskPayload,
+    payload:
+      | RequirementTaskPayload
+      | DriftTaskPayload
+      | BootstrapTaskPayload
+      | SpecGateTaskPayload
+      | ScreenTaskPayload,
   ) => Promise<unknown>;
 }

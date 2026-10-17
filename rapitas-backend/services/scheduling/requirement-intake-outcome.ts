@@ -64,6 +64,8 @@ export type IntakeOutcomeKind =
   | 'throttled'
   /** The document still carries an error-severity finding, so nothing may be filed. */
   | 'spec_incomplete'
+  /** Declared screens have no task yet, so features are held back this run. */
+  | 'screens_pending'
   /** Every declared feature already has a task — nothing to do. */
   | 'all_filed';
 
@@ -107,6 +109,11 @@ export function isSilentStall(outcome: IntakeOutcome): boolean {
       // becomes a stall on the runs after that, when the task is open and
       // every feature is still held — the state nobody would otherwise see.
       return outcome.filed === 0;
+    case 'screens_pending':
+      // Screens are filed a few per run by design, so a run that filed some is
+      // progress. A run that filed none while screens remain is the cap
+      // holding, which `throttled` already reports for features.
+      return outcome.filed === 0;
     default:
       return false;
   }
@@ -127,6 +134,11 @@ export function describeIntakeOutcome(outcome: IntakeOutcome): string {
         `要件定義書に ${outcome.blocking ?? '?'} 件の不備が残っているため、機能タスクを起票していません。` +
         `修正タスク（${SPEC_GATE_TASK_PREFIX}）は起票済みです。これが完了するまでこのテーマの実装は進みません。`
       );
+    case 'screens_pending':
+      return (
+        `画面一覧に宣言された ${outcome.pending ?? '?'} 画面が未起票で、未着手の上限に当たったため1件も起票できていません。` +
+        '画面タスクが揃うまで機能タスクは起票されません。'
+      );
     default:
       return '';
   }
@@ -137,6 +149,7 @@ const TITLES: Partial<Record<IntakeOutcomeKind, string>> = {
   environment_pending: '要件定義からの起票: プレビュー設定が未登録で起票が止まっています',
   throttled: '要件定義からの起票: 未着手の上限で起票を保留しています',
   spec_incomplete: '要件定義からの起票: 要件定義の不備で起票を止めています',
+  screens_pending: '要件定義からの起票: 画面タスクが未着手の上限で起票できていません',
 };
 
 /**
