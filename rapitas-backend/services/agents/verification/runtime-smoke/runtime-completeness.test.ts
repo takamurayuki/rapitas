@@ -42,7 +42,7 @@ mock.module('./runtime-config', () => ({
   // MUST be mirrored: bun's mock.module replaces the whole module, so an
   // export left out makes every import of it throw and the file stops
   // silently (measured here — six tests vanished with one unhandled error).
-  isScreenTask: async () => screenTask,
+  taskRequiresFeatureEntries: async () => screenTask,
   substitutePort: (s: string) => s,
 }));
 mock.module('./browser-smoke', () => ({
