@@ -51,12 +51,19 @@ function sameBounds(a: LinkViewBounds | null, b: LinkViewBounds): boolean {
 /**
  * Drives the docked link webview.
  *
+ * @param onUnavailable - Called with the URL when it could not be docked, so
+ *   the caller can send it somewhere else / ドックできなかった時の退避先
  * @returns The pane's state and controls / ペインの状態と操作
  */
-export function useLinkView(): UseLinkViewReturn {
+export function useLinkView(onUnavailable?: (url: string) => void): UseLinkViewReturn {
   const [url, setUrl] = useState<string | null>(null);
   const placeholderRef = useRef<HTMLDivElement | null>(null);
   const lastBounds = useRef<LinkViewBounds | null>(null);
+
+  // Held in a ref so a caller passing an inline callback does not re-run the
+  // docking effect — that would reload the page on every render.
+  const onUnavailableRef = useRef(onUnavailable);
+  onUnavailableRef.current = onUnavailable;
 
   const syncBounds = useCallback(() => {
     const el = placeholderRef.current;
@@ -99,7 +106,17 @@ export function useLinkView(): UseLinkViewReturn {
     if (!el) return;
     const bounds = boundsOf(el);
     lastBounds.current = bounds;
-    void openLinkView(url, bounds);
+
+    let cancelled = false;
+    void openLinkView(url, bounds).then((docked) => {
+      // The command is absent until the desktop app is rebuilt with tauri's
+      // `unstable` feature, so a user who picks the in-app pane before that
+      // rebuild would otherwise click a link and watch nothing happen.
+      if (!docked && !cancelled) onUnavailableRef.current?.(url);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [url]);
 
   // Keep the surface on the pane. ResizeObserver catches layout changes the
@@ -109,13 +126,15 @@ export function useLinkView(): UseLinkViewReturn {
     const el = placeholderRef.current;
     if (!el) return;
 
-    const observer = new ResizeObserver(syncBounds);
-    observer.observe(el);
+    // Guarded like TaskDetailQuickNav: jsdom has no ResizeObserver, and the
+    // window listeners below already cover the common case without it.
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(syncBounds);
+    observer?.observe(el);
     window.addEventListener('resize', syncBounds);
     window.addEventListener('scroll', syncBounds, true);
 
     return () => {
-      observer.disconnect();
+      observer?.disconnect();
       window.removeEventListener('resize', syncBounds);
       window.removeEventListener('scroll', syncBounds, true);
     };

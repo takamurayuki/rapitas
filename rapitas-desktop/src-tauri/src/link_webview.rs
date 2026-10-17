@@ -212,7 +212,10 @@ mod tests {
 
     #[test]
     fn accepts_web_urls() {
-        for url in ["http://example.com", "https://github.com/owner/repo/issues/1"] {
+        for url in [
+            "http://example.com",
+            "https://github.com/owner/repo/issues/1",
+        ] {
             assert!(validate_url(url).is_ok(), "{url} should be accepted");
         }
     }

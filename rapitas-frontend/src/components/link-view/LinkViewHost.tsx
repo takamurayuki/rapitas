@@ -7,8 +7,9 @@
  * also when the Tauri child webview is created — no webview exists while the
  * pane is closed.
  */
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useLinkViewStore, LINK_VIEW_SPLIT_WIDTH_VW } from '@/stores/link-view-store';
+import { openExternalUrl } from '@/utils/tauri';
 import { LinkViewPane } from './LinkViewPane';
 import { useLinkView } from './useLinkView';
 
@@ -16,7 +17,20 @@ import { useLinkView } from './useLinkView';
 export default function LinkViewHost() {
   const url = useLinkViewStore((s) => s.url);
   const closeLink = useLinkViewStore((s) => s.closeLink);
-  const view = useLinkView();
+
+  // A link the pane cannot take still has to go somewhere. The usual cause is
+  // a desktop build made before tauri's `unstable` feature was enabled, where
+  // the command simply does not exist — the setting is switchable then, so a
+  // silent no-op would look like a broken link rather than a missing rebuild.
+  const fallBackToBrowser = useCallback(
+    (failed: string) => {
+      closeLink();
+      void openExternalUrl(failed);
+    },
+    [closeLink],
+  );
+
+  const view = useLinkView(fallBackToBrowser);
 
   // The store is the source of truth for what is open; the hook owns the
   // webview. Mirroring one into the other keeps every caller — including
