@@ -21,6 +21,7 @@ import {
   normalizeRuntimeUrlHost,
 } from '../../../organization/runtime-config-contract';
 import { parseFeatureEntries, type FeatureEntry } from './feature-reachability';
+import { SCREEN_TASK_PREFIX } from '../../../organization/screen-task-payload';
 
 /** File name looked up at the worktree root. */
 export const RUNTIME_CONFIG_FILENAME = 'rapitas.runtime.json';
@@ -228,6 +229,28 @@ export async function resolveThemeWorkingDirectory(
     .catch(() => null);
   const dir = task?.theme?.workingDirectory;
   return typeof dir === 'string' && dir.trim() ? dir : null;
+}
+
+/**
+ * Whether this task is the screen task that owes a `featureEntries` entry.
+ *
+ * Only the `[UI]` task creates the file an entry names, so it is the only one
+ * the reachability check may demand a registration from. Every other task
+ * keeps the pass-through — failing a feature task for an entry its screen
+ * task was supposed to write would punish the wrong change.
+ *
+ * Fails CLOSED to `false` on any lookup problem: a database blip must not
+ * invent a verification failure.
+ *
+ * @param taskId - Task under verification / 検証中のタスク
+ * @returns Whether it is a screen task / 画面タスクかどうか
+ */
+export async function isScreenTask(taskId: number | null | undefined): Promise<boolean> {
+  if (taskId == null) return false;
+  const task = await prisma.task
+    .findUnique({ where: { id: taskId }, select: { title: true } })
+    .catch(() => null);
+  return typeof task?.title === 'string' && task.title.trimStart().startsWith(SCREEN_TASK_PREFIX);
 }
 
 export type TaskThemeRuntimeConfig =

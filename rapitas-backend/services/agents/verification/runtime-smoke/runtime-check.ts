@@ -10,7 +10,7 @@
  */
 import { createLogger } from '../../../../config/logger';
 import type { VerificationCheck } from '../automated-verifier';
-import { resolveRuntimeConfig, resolveThemeWorkingDirectory } from './runtime-config';
+import { resolveRuntimeConfig, resolveThemeWorkingDirectory, isScreenTask } from './runtime-config';
 import { detectRuntimeHarnessDrift } from './runtime-start-preflight';
 import { applyFeatureReachability } from './feature-reachability';
 import { runBrowserSmoke, type SmokeRunResult } from './browser-smoke';
@@ -284,7 +284,16 @@ export async function runRuntimeSmokeCheck(
       };
     }
 
-    const verdict = await applyFeatureReachability(evaluateSmokeFindings(smoke), cfg, workdir);
+    // The screen task is the one that creates the file an entry names, so it
+    // is the only task allowed to be failed for not registering one. Every
+    // other task keeps the note-only pass-through.
+    const verdict = await applyFeatureReachability(
+      evaluateSmokeFindings(smoke),
+      cfg,
+      workdir,
+      undefined,
+      { requireEntries: await isScreenTask(taskId) },
+    );
     if (verdict.ok && !cfg.readySelector) {
       return {
         name: 'runtime',

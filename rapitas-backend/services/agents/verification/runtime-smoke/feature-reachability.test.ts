@@ -132,3 +132,62 @@ describe('applyFeatureReachability', () => {
     expect(v.lines.join('\n')).toContain('3/3');
   });
 });
+
+/**
+ * `requireEntries` is set for the task whose job it is to register the entry —
+ * the `[UI]` screen task. Without it, a screen task could register nothing and
+ * still pass, which is the pass-through that kept this whole check inert.
+ */
+describe('applyFeatureReachability with requireEntries', () => {
+  const okVerdict = { ok: true, errorCount: 0, lines: ['✓ /: HTTP 200'] };
+
+  it('fails when nothing is declared', async () => {
+    const v = await applyFeatureReachability(okVerdict, {}, '/w', reader({}), {
+      requireEntries: true,
+    });
+    expect(v.ok).toBe(false);
+    expect(v.errorCount).toBe(1);
+    expect(v.lines.join('\n')).toContain('featureEntries');
+  });
+
+  it('fails when the list is declared but empty', async () => {
+    const v = await applyFeatureReachability(okVerdict, { featureEntries: [] }, '/w', reader({}), {
+      requireEntries: true,
+    });
+    expect(v.ok).toBe(false);
+    expect(v.errorCount).toBe(1);
+  });
+
+  it('still passes when an entry file cannot be read, because that is infrastructure', async () => {
+    // Same principle as red-state-check: a transient I/O problem must never
+    // block a legitimately good change. Only a confirmed absence is a failure.
+    const v = await applyFeatureReachability(
+      okVerdict,
+      { featureEntries: [{ id: 'F-01', file: 'a.tsx' }] },
+      '/w',
+      reader({ 'a.tsx': new Error('EACCES') }),
+      { requireEntries: true },
+    );
+    expect(v.ok).toBe(true);
+    expect(v.lines.join('\n')).toContain('判定不能');
+  });
+
+  it('passes unchanged when the entries are there', async () => {
+    const v = await applyFeatureReachability(
+      okVerdict,
+      { featureEntries: [{ id: 'F-01', file: 'a.tsx' }] },
+      '/w',
+      reader({ 'a.tsx': 'x' }),
+      { requireEntries: true },
+    );
+    expect(v.ok).toBe(true);
+    expect(v.errorCount).toBe(0);
+    expect(v.lines.join('\n')).toContain('1/1');
+  });
+
+  it('leaves every other task on the old pass-through', async () => {
+    const v = await applyFeatureReachability(okVerdict, {}, '/w', reader({}));
+    expect(v.ok).toBe(true);
+    expect(v.errorCount).toBe(0);
+  });
+});
