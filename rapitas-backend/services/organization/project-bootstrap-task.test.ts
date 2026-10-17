@@ -180,8 +180,42 @@ describe('toBootstrapTaskPayload', () => {
     const p = toBootstrapTaskPayload({ themeId: 34, projectName: 'X', design });
     expect(p.acceptanceCriteria.length).toBeGreaterThanOrEqual(4);
     for (const c of p.acceptanceCriteria) {
-      expect(c).toMatch(/exit 0|差分に含まれている|差分に含まれ|HTTP 200/);
+      expect(c).toMatch(
+        /exit 0|差分に含まれている|差分に含まれ|HTTP 200|verify\.md に記録|verify\.md に明記/,
+      );
     }
+  });
+
+  // 実測 2026-10-18 (#1050): batontime の #1331 がここで止まった。
+  // 制約は「worktree では install するな」と言い、受入基準は「install の
+  // exit 0 を記録せよ」と要求していた。実装者は worktree で走るので制約は常に
+  // 発火し、しかも install ガードは生成プロジェクトのルート自体でも拒否するため、
+  // 逃げ道も無い。誰にも満たせない基準は誰も満たさない。
+  test('受入基準は install の実行を要求しない（worktree でもルートでもガードに拒否されるため）', () => {
+    for (const hasManifest of [true, false]) {
+      const p = toBootstrapTaskPayload({ themeId: 34, projectName: 'X', design, hasManifest });
+      const demandsInstall = p.acceptanceCriteria.filter(
+        (c) => /インストール|install/i.test(c) && /exit 0/.test(c),
+      );
+      expect(demandsInstall).toEqual([]);
+    }
+  });
+
+  // コピーした lockfile でも「差分に含まれている」は満たせる。実測: #1331 の実装者は
+  // node_modules/.pnpm/lock.yaml をそのまま pnpm-lock.yaml として置いた。manifest との
+  // 照合を要求しない限り、この基準は何も測っていない。
+  test('lockfile が manifest を網羅していることの照合を受入基準が要求する', () => {
+    const p = toBootstrapTaskPayload({ themeId: 34, projectName: 'X', design, hasManifest: true });
+    const verifies = p.acceptanceCriteria.filter(
+      (c) => /lockfile/.test(c) && /manifest|package\.json/.test(c) && /照合|網羅/.test(c),
+    );
+    expect(verifies.length).toBeGreaterThanOrEqual(1);
+  });
+
+  // コピーで済ませた場合にそれを黙っていられると、検証者は差分だけ見て正しいと判定する。
+  test('lockfile の入手元を明記させる（install 以外で用意した場合の出所を隠さない）', () => {
+    const p = toBootstrapTaskPayload({ themeId: 34, projectName: 'X', design, hasManifest: true });
+    expect(p.acceptanceCriteria.some((c) => /入手元|コピー元/.test(c))).toBe(true);
   });
 
   test('機能実装をしないことが制約に入る（環境構築タスクが機能を作り始めないため）', () => {
