@@ -1,9 +1,10 @@
 /**
  * requirement-intake-filers
  *
- * The two single-task filings the requirement intake performs besides the
+ * The single-task filings the requirement intake performs besides the
  * per-feature ones: the environment setup a documents-only project needs first,
- * and the documentation follow-up when the document has fallen behind the work.
+ * the requirements gap that must be closed before any feature is filed, and the
+ * documentation follow-up when the document has fallen behind the work.
  *
  * Split out of requirement-intake-job.ts to keep that file under the 300-line
  * limit. Not responsible for scanning themes, reading documents, or deciding
@@ -16,6 +17,8 @@ import {
   toBootstrapTaskPayload,
   BOOTSTRAP_TASK_PREFIX,
 } from '../organization/project-bootstrap-task';
+import { toSpecGateTaskPayload, SPEC_GATE_TASK_PREFIX } from '../organization/spec-gate-task';
+import type { SpecFinding } from '../organization/spec-consistency';
 import type { RequirementIntakeDeps } from './requirement-intake-types';
 
 const log = createLogger('scheduling:requirement-intake');
@@ -93,6 +96,45 @@ export async function fileBootstrapTask(
     return 1;
   } catch (err) {
     log.warn({ err, themeId }, 'Failed to file the environment-setup task (non-fatal)');
+    return 0;
+  }
+}
+
+/**
+ * File the requirements gap that blocks every feature in this theme.
+ *
+ * One open gate task at a time: the job runs daily and the work is the same on
+ * every run until an author closes it. Returning 0 for "already filed" is NOT
+ * permission to file features — the caller stops either way, because the
+ * document is still the one the checker rejected.
+ *
+ * @param themeId - Theme being scanned / 対象テーマ
+ * @param findings - Result of checkSpecConsistency / 検査結果
+ * @param existing - Task titles in the theme / 既存タスク名
+ * @param deps - Injected collaborators / 注入された依存
+ * @returns 1 when a task was filed, else 0 / 起票したら 1
+ */
+export async function fileSpecGateTask(
+  themeId: number,
+  findings: readonly SpecFinding[],
+  existing: readonly string[],
+  deps: RequirementIntakeDeps,
+): Promise<number> {
+  if (existing.some((t) => t.trimStart().startsWith(SPEC_GATE_TASK_PREFIX))) return 0;
+
+  const payload = toSpecGateTaskPayload(findings, { themeId });
+  if (!payload) return 0;
+
+  try {
+    const task = await deps.createTask(payload);
+    if (!task) return 0;
+    log.info(
+      { themeId, blocking: findings.filter((f) => f.severity === 'error').length },
+      'Filed requirements gap task; feature filing is held until it is closed',
+    );
+    return 1;
+  } catch (err) {
+    log.warn({ err, themeId }, 'Failed to file requirements gap task (non-fatal)');
     return 0;
   }
 }
