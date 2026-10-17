@@ -421,6 +421,20 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
       'installは成功済みで、ビルドスクリプト承認は生成プロジェクトのonlyBuiltDependencies側の責務(rapitasでは解消不能) — install失敗/fingerprint記録失敗は別文言で可視のまま',
   },
   {
+    // ログ出力箇所: services/agents/orchestrator/git-operations/worktree/
+    // project-prisma-client.ts:195 の logger.warn（既存クライアントが残る kept 分岐）。
+    // 稼働中バックエンドが query_engine-windows.dll.node を保持しており、Windows では
+    // generate の rename が EPERM で拒否される。既存クライアントは使われ続け、失敗時は
+    // fingerprint を書かないため次回起動で再試行され、DLL 解放後に自己回復する（#1304、
+    // K-13214 は同一シグネチャ）。回避は 3001 番サーバーへの操作になり CLAUDE.md §1 で禁止。
+    // NOTE: normalizeMessage は 200 文字で切るため EPERM 文言まで届かず、前方プレフィックスで判別する。
+    // クライアント不在の logger.error（:196）はレベルが別で、本ルールは WARN の文言のみ対象。
+    test: /^Command failed: pnpm run prisma:generate /,
+    logger: /^git-operations\/project-prisma-client$/i,
+    because:
+      '稼働中バックエンドがクエリエンジンDLLを握る間のEPERMで、既存クライアントは残り次回起動で再試行され自己回復する(DLLロック回避は3001番サーバー操作で禁止) — 同ロガーの別文言とクライアント不在のERRORは可視のまま',
+  },
+  {
     // ログ出力箇所: services/workflow/workflow-queue.ts:140 の log.warn
     // （dequeue の候補ループ内 catch）。例外の発生元は
     // queue-dequeue-candidate.ts:171 の Serializable $transaction で、SQLite の
