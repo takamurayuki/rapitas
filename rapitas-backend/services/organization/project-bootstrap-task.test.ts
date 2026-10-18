@@ -218,6 +218,19 @@ describe('toBootstrapTaskPayload', () => {
     expect(p.acceptanceCriteria.some((c) => /入手元|コピー元/.test(c))).toBe(true);
   });
 
+  // 実測 2026-10-18 (#1058): TempoRaid の start が `pnpm --filter web dev` で、
+  // タスク worktree の node_modules がジャンクションだったため pnpm 12 が
+  // ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH で起動を拒否し、runtime 検証が一度も
+  // 走らず 11 件がブロックされた。言っておかなければ同じ start が書かれる。
+  test('start で pnpm のワークスペースタスク実行を使わないよう制約する', () => {
+    const p = toBootstrapTaskPayload({ themeId: 34, projectName: 'X', design });
+    const c = p.constraints.find((x) => x.includes('ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH'));
+    expect(c).toBeDefined();
+    expect(c).toContain('--filter');
+    // 禁止だけでは実装者は代替を探す。動く形を同じ行で示す。
+    expect(c).toContain('pnpm -C');
+  });
+
   test('機能実装をしないことが制約に入る（環境構築タスクが機能を作り始めないため）', () => {
     const p = toBootstrapTaskPayload({ themeId: 34, projectName: 'X', design });
     expect(p.constraints.some((c) => c.includes('機能の実装はしない'))).toBe(true);
