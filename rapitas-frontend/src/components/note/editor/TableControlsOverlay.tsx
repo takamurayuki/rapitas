@@ -17,9 +17,18 @@ import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Trash2 } from 'lucide-react'
 import type { ActiveHandle, UseTableControlsReturn } from './useTableControls';
 import { deletionRemovesTable } from './table-geometry';
 
-/** Thickness of a handle bar, and the gap it sits off the table. */
-const HANDLE = 14;
+/**
+ * Thickness of a handle bar and the gap it sits off the table.
+ *
+ * The pair must stay within the editor's own padding (p-4 = 16px) or the
+ * handles are clipped at the edge of the scroll box. A thin bar was also
+ * hard to hit, so the bar is drawn at HANDLE but given a larger invisible
+ * hit area with padding.
+ */
+const HANDLE = 12;
 const GAP = 2;
+/** Extra clickable margin around each bar, drawn transparent. */
+const HIT = 4;
 
 interface TableControlsOverlayProps {
   controls: UseTableControlsReturn;
@@ -104,7 +113,7 @@ export function TableControlsOverlay({ controls }: TableControlsOverlayProps) {
     active?.axis === axis && active.index === index;
 
   const handleClass = (on: boolean) =>
-    `fixed z-40 rounded-sm border transition-colors ${
+    `absolute z-40 rounded-sm border transition-colors ${
       on
         ? 'border-indigo-500 bg-indigo-400'
         : 'border-zinc-300 bg-zinc-200 hover:bg-indigo-300 dark:border-zinc-600 dark:bg-zinc-700'
@@ -126,7 +135,14 @@ export function TableControlsOverlay({ controls }: TableControlsOverlayProps) {
   const menuAt = menuPosition();
 
   return (
-    <>
+    // One wrapper so the pointer can rest anywhere on the controls without
+    // the editor deciding the table was left. The wrapper itself must not
+    // swallow clicks meant for the text underneath it.
+    <div
+      className="pointer-events-none absolute inset-0"
+      onPointerEnter={controls.hold}
+      onPointerLeave={controls.release}
+    >
       {geometry.columns.map((band) => (
         <button
           key={`col-${band.index}`}
@@ -137,12 +153,15 @@ export function TableControlsOverlay({ controls }: TableControlsOverlayProps) {
           // selection — but the editor would still scroll to the new caret.
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => openMenu({ axis: 'column', index: band.index })}
-          className={handleClass(isActive('column', band.index))}
+          className={`${handleClass(isActive('column', band.index))} pointer-events-auto`}
           style={{
             top: geometry.rect.top - HANDLE - GAP,
             left: band.left,
             width: Math.max(band.width - 1, 4),
             height: HANDLE,
+            // Reach beyond the drawn bar so the pointer does not have to be
+            // precise, without moving where the bar appears.
+            outlineOffset: HIT,
           }}
         />
       ))}
@@ -154,12 +173,13 @@ export function TableControlsOverlay({ controls }: TableControlsOverlayProps) {
           aria-label={t('rowHandle', { index: band.index + 1 })}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => openMenu({ axis: 'row', index: band.index })}
-          className={handleClass(isActive('row', band.index))}
+          className={`${handleClass(isActive('row', band.index))} pointer-events-auto`}
           style={{
             top: band.top,
             left: geometry.rect.left - HANDLE - GAP,
             width: HANDLE,
             height: Math.max(band.height - 1, 4),
+            outlineOffset: HIT,
           }}
         />
       ))}
@@ -173,7 +193,7 @@ export function TableControlsOverlay({ controls }: TableControlsOverlayProps) {
           // add a stop that does nothing.
           tabIndex={-1}
           onMouseDown={(e) => e.preventDefault()}
-          className="fixed z-50 min-w-44 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800"
+          className="pointer-events-auto absolute z-50 min-w-44 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800"
           style={{ top: menuAt.top + HANDLE + GAP, left: menuAt.left }}
         >
           {actionsFor(active).map(({ key, label, icon: Icon, run, danger }) => (
@@ -194,6 +214,6 @@ export function TableControlsOverlay({ controls }: TableControlsOverlayProps) {
           ))}
         </div>
       )}
-    </>
+    </div>
   );
 }

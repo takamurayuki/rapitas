@@ -123,6 +123,43 @@ export function measureTable(
   return { rect: rectOf(table), columns, rows: rowBands };
 }
 
+/** The scroll container's own box and scroll offsets. */
+export interface ContainerOrigin {
+  rect: { top: number; left: number };
+  scrollTop: number;
+  scrollLeft: number;
+}
+
+/**
+ * Convert a viewport-space geometry into the scroll container's space.
+ *
+ * The handles are positioned absolutely inside that container rather than
+ * fixed to the viewport. Measured 2026-10-18 (#1062): the note editor opens
+ * in a modal that sets `will-change: transform` while it is dragged, and
+ * that makes the modal the containing block for fixed descendants — so
+ * viewport coordinates placed the handles somewhere else entirely. Absolute
+ * positioning inside the container is immune to that, and keeps the handles
+ * inside the box that scrolls them.
+ *
+ * @param geometry - Viewport-space measurement / ビューポート基準の計測
+ * @param origin - The container's box and scroll offsets / コンテナの基準
+ * @returns The same bands in container space / コンテナ基準に変換した結果
+ */
+export function toContainerSpace(geometry: TableGeometry, origin: ContainerOrigin): TableGeometry {
+  const dx = origin.scrollLeft - origin.rect.left;
+  const dy = origin.scrollTop - origin.rect.top;
+  return {
+    rect: {
+      top: geometry.rect.top + dy,
+      left: geometry.rect.left + dx,
+      width: geometry.rect.width,
+      height: geometry.rect.height,
+    },
+    columns: geometry.columns.map((c) => ({ ...c, left: c.left + dx })),
+    rows: geometry.rows.map((r) => ({ ...r, top: r.top + dy })),
+  };
+}
+
 /**
  * Whether a table's last deletable row or column is about to go.
  *

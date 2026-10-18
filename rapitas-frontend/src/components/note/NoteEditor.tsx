@@ -1,6 +1,6 @@
 'use client';
 // NoteEditor
-import { useState, useCallback, type ReactNode } from 'react';
+import { useState, useCallback, useRef, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { type Note, useNoteStore } from '@/stores/note-store';
 import { useNoteEditor } from './editor/useNoteEditor';
@@ -33,8 +33,14 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
 
   // Confluence-style handles on the table itself. The toolbar's grid still
   // inserts tables; editing one happens where the table is.
+  // The handles are positioned inside this scrolling box rather than fixed
+  // to the viewport: the note opens in a modal that sets
+  // `will-change: transform` while dragged, which makes it the containing
+  // block for fixed descendants and puts viewport coordinates elsewhere.
+  const editorScrollRef = useRef<HTMLDivElement | null>(null);
   const tableControls = useTableControls(
     editor.contentRef,
+    editorScrollRef,
     (n) => t('editorDom.tableHeading', { n }),
     editor.markDirty,
   );
@@ -142,7 +148,7 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
       />
 
       {children ?? (
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
+        <div ref={editorScrollRef} className="relative flex-1 overflow-y-auto custom-scrollbar">
           <div
             ref={editor.contentRef}
             contentEditable
@@ -159,10 +165,9 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
             onClick={handleEditorClick}
             style={{ lineHeight: '1.8', fontSize: '16px' }}
           />
+          <TableControlsOverlay controls={tableControls} />
         </div>
       )}
-
-      <TableControlsOverlay controls={tableControls} />
 
       <NoteEditorFooter createdAt={note.createdAt} updatedAt={note.updatedAt} />
 

@@ -55,7 +55,8 @@ function setup(table = makeTable(), cols = 2, rows = 3) {
     geometry: geometryFor(cols, rows),
     active: null,
     setActive: vi.fn(),
-    remeasure: vi.fn(),
+    hold: vi.fn(),
+    release: vi.fn(),
     insertAtRow: vi.fn(),
     insertAtColumn: vi.fn(),
     removeRow: vi.fn(),
@@ -147,5 +148,29 @@ describe('TableControlsOverlay', () => {
     };
     render(<TableControlsOverlay controls={controls} />);
     expect(screen.getByText('deleteTableWithLastColumn')).toBeInTheDocument();
+  });
+});
+
+// Reported 2026-10-18: "the handle shows for a moment when hovered and does
+// not stay, so sometimes you cannot select it." Every path from the table to
+// a handle crosses a gap that is not the table, so the controls must be able
+// to say "the pointer is on me" — otherwise they are dismissed mid-approach.
+describe('staying up while the pointer is on them', () => {
+  it('holds when the pointer enters the controls and releases when it leaves', () => {
+    const { controls } = setup();
+    const grid = screen.getByLabelText('columnHandle:1').parentElement!;
+    fireEvent.pointerEnter(grid);
+    expect(controls.hold).toHaveBeenCalled();
+    fireEvent.pointerLeave(grid);
+    expect(controls.release).toHaveBeenCalled();
+  });
+
+  // The wrapper spans the whole editor; if it ate pointer events the text
+  // under it would stop being clickable.
+  it('lets clicks through everywhere except the handles themselves', () => {
+    setup();
+    const wrapper = screen.getByLabelText('columnHandle:1').parentElement!;
+    expect(wrapper.className).toContain('pointer-events-none');
+    expect(screen.getByLabelText('columnHandle:1').className).toContain('pointer-events-auto');
   });
 });
