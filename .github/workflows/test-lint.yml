@@ -368,6 +368,11 @@ jobs:
           src/app/api/generate-claude-md/__tests__/context-rendering.test.ts
           src/app/api/review-spec/__tests__/review-prompt.test.ts
           src/app/backlog/settings/_components/__tests__/backlog-job-meta.test.ts
+          src/stores/__tests__/link-library-store.test.ts
+          src/stores/__tests__/link-view-store.test.ts
+          src/components/link-view/useLinkView.test.ts
+          src/components/link-view/LinkViewPane.test.ts
+          src/components/common/__tests__/shortcut-editable-guard.test.ts
 
   lint:
     name: Lint Code
@@ -521,6 +526,15 @@ jobs:
       # build. ~4s, and it runs before the installer it is testing.
       - name: Test the system-dependency installer
         run: node --test scripts/install-ci-system-deps.test.cjs
+
+      # rapitas-desktop/scripts/*.test.cjs ran in NO workflow until now
+      # (#1074): dev.js's helpers had tests that nothing executed, so they
+      # could rot green. Root scripts/*.test.cjs were already wired; this is
+      # the same for the desktop side, and this job is where it costs ~1s on
+      # every PR rather than only on a release build.
+      - name: Test the desktop dev-server scripts
+        working-directory: rapitas-desktop
+        run: node --test scripts/*.test.cjs
 
       - name: Install system dependencies
         run: |

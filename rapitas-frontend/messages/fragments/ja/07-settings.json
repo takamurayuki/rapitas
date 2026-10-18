@@ -379,6 +379,16 @@
     "openExternally": "外部ブラウザで開く",
     "close": "閉じる",
     "closeTab": "{host} のタブを閉じる",
-    "addressLabel": "アドレス"
+    "addressLabel": "アドレス",
+    "favourites": "お気に入り",
+    "saveToFavourites": "お気に入りに保存",
+    "alreadySaved": "保存済み",
+    "removeFavourite": "お気に入りから削除",
+    "noFavourites": "保存したページはまだありません",
+    "ungrouped": "グループなし",
+    "groupEmpty": "このグループは空です",
+    "newGroupPlaceholder": "グループを追加（Enter）",
+    "moveToGroup": "グループを変更",
+    "newTab": "新しいタブ"
   }
 }
