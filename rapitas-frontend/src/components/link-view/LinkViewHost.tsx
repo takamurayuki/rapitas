@@ -11,7 +11,10 @@
  */
 import { useCallback, useEffect } from 'react';
 import { useLinkViewStore, LINK_VIEW_SPLIT_WIDTH_VW } from '@/stores/link-view-store';
-import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
+import {
+  useTaskDetailVisibilityStore,
+  TASK_DETAIL_SPLIT_WIDTH_VW,
+} from '@/stores/task-detail-visibility-store';
 import { openExternalUrl } from '@/utils/tauri';
 import { LinkViewPane } from './LinkViewPane';
 import { useLinkView } from './useLinkView';
@@ -36,6 +39,21 @@ export function linkPaneSide(
   return taskPanelSide === 'right' ? 'left' : 'right';
 }
 
+/**
+ * How wide the pane is, in vw.
+ *
+ * When the task detail panel tiles beside the page, the pane runs all the
+ * way to it instead of stopping at its default width — otherwise a strip of
+ * the page shows between the two, which is what was reported (#1068). With
+ * no tiled task panel the default width applies.
+ *
+ * @param taskPanelTiled - Whether the task panel reserves width / タスク詳細が領域を占有しているか
+ * @returns The pane width in vw / ペインの幅(vw)
+ */
+export function linkPaneWidthVw(taskPanelTiled: boolean): number {
+  return taskPanelTiled ? 100 - TASK_DETAIL_SPLIT_WIDTH_VW : LINK_VIEW_SPLIT_WIDTH_VW;
+}
+
 /** The docked link pane, or nothing when no link is open. */
 export default function LinkViewHost() {
   const tabs = useLinkViewStore((s) => s.tabs);
@@ -46,7 +64,9 @@ export default function LinkViewHost() {
 
   const taskPanelVisible = useTaskDetailVisibilityStore((s) => s.isTaskDetailVisible);
   const taskPanelSide = useTaskDetailVisibilityStore((s) => s.dockSide);
+  const taskPanelMode = useTaskDetailVisibilityStore((s) => s.displayMode);
   const side = linkPaneSide(taskPanelVisible, taskPanelSide);
+  const widthVw = linkPaneWidthVw(taskPanelVisible && taskPanelMode === 'split');
 
   // A link the pane cannot take still has to go somewhere. The usual cause
   // is a desktop build made before tauri's `unstable` feature was enabled,
@@ -61,6 +81,14 @@ export default function LinkViewHost() {
   );
 
   const view = useLinkView(tabs, activeId, fallBackToBrowser);
+
+  // The webview is an OS surface that only follows the pane when told to.
+  // A dock-side swap moves the pane without changing its size, and a
+  // ResizeObserver never fires for that — the surface stayed where it was,
+  // leaving the page content stranded on the old side (#1068).
+  useEffect(() => {
+    view.resync();
+  }, [side, widthVw, view]);
 
   // Esc closes the active tab, matching the split-view exit the app has.
   useEffect(() => {
@@ -83,7 +111,7 @@ export default function LinkViewHost() {
       className={`fixed bottom-0 top-16 z-[60] bg-white dark:bg-zinc-900 ${
         side === 'right' ? 'right-0' : 'left-0'
       }`}
-      style={{ width: `${LINK_VIEW_SPLIT_WIDTH_VW}vw` }}
+      style={{ width: `${widthVw}vw` }}
     >
       <LinkViewPane
         tabs={tabs}
