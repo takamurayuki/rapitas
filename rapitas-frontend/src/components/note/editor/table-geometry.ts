@@ -58,8 +58,31 @@ export function orderedRows(
   table: HTMLTableElement,
 ): { row: HTMLTableRowElement; isHeader: boolean }[] {
   const head = Array.from(table.tHead?.rows ?? []).map((row) => ({ row, isHeader: true }));
-  const body = Array.from(table.tBodies[0]?.rows ?? []).map((row) => ({ row, isHeader: false }));
+  // Every tbody, not just the first: a pasted table can carry several, and
+  // measuring one section would leave the rest without handles (#1062).
+  const body = Array.from(table.tBodies)
+    .flatMap((section) => Array.from(section.rows))
+    .map((row) => ({ row, isHeader: false }));
   return [...head, ...body];
+}
+
+/**
+ * Whether any cell spans more than one row or column.
+ *
+ * Measured 2026-10-18 (#1062): a table pasted with `colspan` measures the
+ * right number of columns but the operations address cells by `cellIndex`,
+ * which does not count spans — so inserting "to the right of column 2" can
+ * land somewhere else entirely in a spanned row. Handling spans properly
+ * needs a real grid model; until then the controls decline to act rather
+ * than quietly mangling the table.
+ *
+ * @param table - The table to inspect / 対象の表
+ * @returns True when a cell spans / 結合セルがあれば true
+ */
+export function hasSpannedCells(table: HTMLTableElement): boolean {
+  return Array.from(table.rows).some((row) =>
+    Array.from(row.cells).some((cell) => cell.colSpan > 1 || cell.rowSpan > 1),
+  );
 }
 
 /**
@@ -79,6 +102,7 @@ export function measureTable(
 ): TableGeometry | null {
   const rows = orderedRows(table);
   if (rows.length === 0) return null;
+  if (hasSpannedCells(table)) return null;
 
   const widest = rows.reduce(
     (best, r) => (r.row.cells.length > best.row.cells.length ? r : best),
@@ -111,8 +135,9 @@ export function measureTable(
  * @returns True when the deletion would remove the table / 表ごと消えるなら true
  */
 export function deletionRemovesTable(table: HTMLTableElement, axis: 'row' | 'column'): boolean {
-  if (axis === 'row') return (table.tBodies[0]?.rows.length ?? 0) <= 1;
+  const body = Array.from(table.tBodies).flatMap((s) => Array.from(s.rows));
+  if (axis === 'row') return body.length <= 1;
   const header = table.tHead?.rows[0];
-  const widest = header ?? table.tBodies[0]?.rows[0];
+  const widest = header ?? body[0];
   return (widest?.cells.length ?? 0) <= 1;
 }

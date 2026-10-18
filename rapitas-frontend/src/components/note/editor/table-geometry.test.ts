@@ -8,7 +8,13 @@
  * wrong column.
  */
 import { describe, it, expect } from 'vitest';
-import { measureTable, orderedRows, deletionRemovesTable, type RectOf } from './table-geometry';
+import {
+  measureTable,
+  orderedRows,
+  deletionRemovesTable,
+  hasSpannedCells,
+  type RectOf,
+} from './table-geometry';
 
 /** Build a table with `cols` columns, a heading row and `bodyRows` body rows. */
 function makeTable(cols: number, bodyRows: number): HTMLTableElement {
@@ -103,5 +109,59 @@ describe('deletionRemovesTable', () => {
   it('is true when the last column would go', () => {
     expect(deletionRemovesTable(makeTable(1, 2), 'column')).toBe(true);
     expect(deletionRemovesTable(makeTable(2, 2), 'column')).toBe(false);
+  });
+});
+
+/**
+ * Tables that already exist in a note were not built by the inserter: they
+ * come back through innerHTML, or were pasted from elsewhere. Measured
+ * 2026-10-18 — a thead-less table works, two other shapes did not.
+ */
+describe('tables that were not created by the inserter', () => {
+  const fromHtml = (html: string): HTMLTableElement => {
+    const host = document.createElement('div');
+    host.innerHTML = html;
+    document.body.appendChild(host);
+    return host.querySelector('table') as HTMLTableElement;
+  };
+  const flat: RectOf = () => ({ top: 0, left: 0, width: 10, height: 10 });
+
+  // The common pasted/legacy shape. The parser supplies the tbody.
+  it('measures a table with no thead, and calls no row a heading', () => {
+    const t = fromHtml('<table><tr><td>1</td><td>2</td></tr><tr><td>3</td><td>4</td></tr></table>');
+    const g = measureTable(t, flat)!;
+    expect(g.columns).toHaveLength(2);
+    expect(g.rows).toHaveLength(2);
+    expect(g.rows.every((r) => !r.isHeader)).toBe(true);
+  });
+
+  it('measures every tbody, not only the first', () => {
+    const t = fromHtml(
+      '<table><tbody><tr><td>1</td></tr></tbody><tbody><tr><td>2</td></tr></tbody></table>',
+    );
+    expect(measureTable(t, flat)!.rows).toHaveLength(2);
+  });
+
+  it('counts rows across tbodies when deciding a deletion empties the table', () => {
+    const t = fromHtml(
+      '<table><tbody><tr><td>1</td></tr></tbody><tbody><tr><td>2</td></tr></tbody></table>',
+    );
+    expect(deletionRemovesTable(t, 'row')).toBe(false);
+  });
+
+  // cellIndex does not count spans, so an insert addressed by column index
+  // can land elsewhere in a spanned row. Declining beats corrupting.
+  it('offers no handles for a table with merged cells', () => {
+    const t = fromHtml(
+      '<table><thead><tr><th colspan="2">Wide</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table>',
+    );
+    expect(hasSpannedCells(t)).toBe(true);
+    expect(measureTable(t, flat)).toBeNull();
+  });
+
+  it('still offers handles when nothing is merged', () => {
+    const t = fromHtml('<table><tr><td>1</td><td>2</td></tr></table>');
+    expect(hasSpannedCells(t)).toBe(false);
+    expect(measureTable(t, flat)).not.toBeNull();
   });
 });
