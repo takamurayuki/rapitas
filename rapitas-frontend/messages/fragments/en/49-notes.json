@@ -206,6 +206,19 @@
       "communicationError": "An error occurred while communicating with the AI",
       "streamUnavailable": "Could not get the response stream",
       "responseFailed": "Failed to get a response"
+    },
+    "tableControls": {
+      "insertRowAbove": "Insert row above",
+      "insertRowBelow": "Insert row below",
+      "deleteRow": "Delete row",
+      "deleteTableWithLastRow": "Delete row (the last one — this removes the table)",
+      "insertColumnLeft": "Insert column left",
+      "insertColumnRight": "Insert column right",
+      "deleteColumn": "Delete column",
+      "deleteTableWithLastColumn": "Delete column (the last one — this removes the table)",
+      "columnHandle": "Actions for column {index}",
+      "rowHandle": "Actions for row {index}",
+      "menuLabel": "Table row and column actions"
     }
   }
 }

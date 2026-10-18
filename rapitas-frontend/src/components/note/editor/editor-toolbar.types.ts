@@ -56,12 +56,6 @@ export interface EditorToolbarProps {
   onApplyFont: (font: string) => void;
   onApplyTextColor: (color: string) => void;
   onInsertTable: (shape: { rows: number; columns: number }) => void;
-  isCaretInTable: () => boolean;
-  onInsertTableRow: (side: 'above' | 'below') => void;
-  onInsertTableColumn: (side: 'left' | 'right') => void;
-  onDeleteTableRow: () => void;
-  onDeleteTableColumn: () => void;
-  onDeleteTable: () => void;
   onInsertLink: () => void;
   onInsertCodeBlock: () => void;
   onInsertDiagram: () => void;

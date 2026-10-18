@@ -1,19 +1,7 @@
 'use client';
 // InsertSection
 import { useTranslations } from 'next-intl';
-import {
-  TextQuote,
-  Table,
-  Link2,
-  Code2,
-  Loader2,
-  GitBranch,
-  ArrowUp,
-  ArrowDown,
-  ArrowLeft,
-  ArrowRight,
-  Trash2,
-} from 'lucide-react';
+import { TextQuote, Table, Link2, Code2, Loader2, GitBranch } from 'lucide-react';
 import { TableSizePicker } from './TableSizePicker';
 import type { TableShape } from '../table';
 import { borderLineColors, programmingLanguages } from '../constants';
@@ -33,12 +21,6 @@ interface InsertSectionProps {
   onToggleBorderPicker: () => void;
   onToggleTablePicker: () => void;
   onInsertTable: (shape: TableShape) => void;
-  isCaretInTable: () => boolean;
-  onInsertTableRow: (side: 'above' | 'below') => void;
-  onInsertTableColumn: (side: 'left' | 'right') => void;
-  onDeleteTableRow: () => void;
-  onDeleteTableColumn: () => void;
-  onDeleteTable: () => void;
   onInsertLink: () => void;
   onInsertCodeBlock: () => void;
   onInsertDiagram: () => void;
@@ -67,12 +49,6 @@ export function InsertSection({
   onToggleBorderPicker,
   onToggleTablePicker,
   onInsertTable,
-  isCaretInTable,
-  onInsertTableRow,
-  onInsertTableColumn,
-  onDeleteTableRow,
-  onDeleteTableColumn,
-  onDeleteTable,
   onInsertLink,
   onInsertCodeBlock,
   onInsertDiagram,
@@ -81,9 +57,6 @@ export function InsertSection({
   onApplyBorderLine,
 }: InsertSectionProps) {
   const t = useTranslations('notes');
-  // Read once per render while the popup is open: the caret cannot move
-  // while it is, because the popup suppresses the mousedown that would.
-  const inTable = showTablePicker && isCaretInTable();
   return (
     <>
       {/* Link input */}
@@ -174,7 +147,9 @@ export function InsertSection({
         )}
       </div>
 
-      {/* Table — size grid, plus row/column surgery when the caret is in one */}
+      {/* Table — the size grid inserts one; editing an existing table is
+          done with the handles on the table itself (TableControlsOverlay),
+          so there is no second copy of those actions here. */}
       <div className="relative">
         <button
           onClick={onToggleTablePicker}
@@ -198,38 +173,6 @@ export function InsertSection({
                 onToggleTablePicker();
               }}
             />
-            {inTable && (
-              <div className="border-t border-zinc-200 dark:border-zinc-700 p-1">
-                <div className="px-1.5 pb-1 text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
-                  {t('toolbar.insert.tableEditHeading')}
-                </div>
-                {(
-                  [
-                    ['tableInsertRowAbove', () => onInsertTableRow('above'), ArrowUp],
-                    ['tableInsertRowBelow', () => onInsertTableRow('below'), ArrowDown],
-                    ['tableInsertColumnLeft', () => onInsertTableColumn('left'), ArrowLeft],
-                    ['tableInsertColumnRight', () => onInsertTableColumn('right'), ArrowRight],
-                    ['tableDeleteRow', onDeleteTableRow, Trash2],
-                    ['tableDeleteColumn', onDeleteTableColumn, Trash2],
-                    ['tableDeleteTable', onDeleteTable, Trash2],
-                  ] as const
-                ).map(([key, run, Icon]) => (
-                  <button
-                    key={key}
-                    onClick={() => {
-                      run();
-                      onToggleTablePicker();
-                    }}
-                    className="w-full flex items-center gap-2 px-2 py-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors text-left"
-                  >
-                    <Icon className="w-3 h-3 shrink-0 text-zinc-500 dark:text-zinc-400" />
-                    <span className="text-xs text-zinc-700 dark:text-zinc-200 whitespace-nowrap">
-                      {t(`toolbar.insert.${key}`)}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         )}
       </div>

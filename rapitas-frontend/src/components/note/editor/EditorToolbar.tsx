@@ -96,12 +96,6 @@ export default function EditorToolbar(props: EditorToolbarProps) {
     onApplyFont,
     onApplyTextColor,
     onInsertTable,
-    isCaretInTable,
-    onInsertTableRow,
-    onInsertTableColumn,
-    onDeleteTableRow,
-    onDeleteTableColumn,
-    onDeleteTable,
     onInsertLink,
     onInsertCodeBlock,
     onInsertDiagram,
@@ -228,12 +222,6 @@ export default function EditorToolbar(props: EditorToolbarProps) {
         onToggleBorderPicker={toggleBorderPicker}
         onToggleTablePicker={toggleTablePicker}
         onInsertTable={onInsertTable}
-        isCaretInTable={isCaretInTable}
-        onInsertTableRow={onInsertTableRow}
-        onInsertTableColumn={onInsertTableColumn}
-        onDeleteTableRow={onDeleteTableRow}
-        onDeleteTableColumn={onDeleteTableColumn}
-        onDeleteTable={onDeleteTable}
         onInsertLink={onInsertLink}
         onInsertCodeBlock={onInsertCodeBlock}
         onInsertDiagram={onInsertDiagram}
