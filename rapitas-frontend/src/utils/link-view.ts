@@ -89,12 +89,13 @@ async function invokeLinkView(command: string, args?: Record<string, unknown>): 
 /**
  * Show `url` in the docked webview at `bounds`, creating it on first use.
  *
+ * @param tabId - Which tab's webview / 対象タブ
  * @param url - The link to show / 表示するリンク
  * @param bounds - Where the pane sits / ペインの矩形
  * @returns False when the command failed and the caller should fall back / 失敗時 false
  */
-export function openLinkView(url: string, bounds: LinkViewBounds): Promise<boolean> {
-  return invokeLinkView('open_link_webview', { url, bounds });
+export function openLinkView(tabId: string, url: string, bounds: LinkViewBounds): Promise<boolean> {
+  return invokeLinkView('open_link_webview', { tabId, url, bounds });
 }
 
 /**
@@ -102,8 +103,8 @@ export function openLinkView(url: string, bounds: LinkViewBounds): Promise<boole
  *
  * @param bounds - The pane's new rectangle / ペインの新しい矩形
  */
-export function setLinkViewBounds(bounds: LinkViewBounds): Promise<boolean> {
-  return invokeLinkView('set_link_webview_bounds', { bounds });
+export function setLinkViewBounds(tabId: string, bounds: LinkViewBounds): Promise<boolean> {
+  return invokeLinkView('set_link_webview_bounds', { tabId, bounds });
 }
 
 /**
@@ -114,13 +115,13 @@ export function setLinkViewBounds(bounds: LinkViewBounds): Promise<boolean> {
  *
  * @param visible - Whether the webview should be on screen / 表示するか
  */
-export function setLinkViewVisible(visible: boolean): Promise<boolean> {
-  return invokeLinkView('set_link_webview_visible', { visible });
+export function setLinkViewVisible(tabId: string, visible: boolean): Promise<boolean> {
+  return invokeLinkView('set_link_webview_visible', { tabId, visible });
 }
 
 /** Close the docked webview. */
-export function closeLinkView(): Promise<boolean> {
-  return invokeLinkView('close_link_webview');
+export function closeLinkView(tabId: string): Promise<boolean> {
+  return invokeLinkView('close_link_webview', { tabId });
 }
 
 /**
@@ -128,6 +129,9 @@ export function closeLinkView(): Promise<boolean> {
  *
  * @param action - `back`, `forward` or `reload` / 履歴操作
  */
-export function linkViewHistory(action: 'back' | 'forward' | 'reload'): Promise<boolean> {
-  return invokeLinkView('link_webview_history', { action });
+export function linkViewHistory(
+  tabId: string,
+  action: 'back' | 'forward' | 'reload',
+): Promise<boolean> {
+  return invokeLinkView('link_webview_history', { tabId, action });
 }

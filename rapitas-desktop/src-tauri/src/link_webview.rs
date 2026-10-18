@@ -20,7 +20,29 @@
 use tauri::{LogicalPosition, LogicalSize, Manager};
 
 const MAIN_WINDOW_LABEL: &str = "main";
-const LINK_WEBVIEW_LABEL: &str = "link-view";
+/// Label prefix; one webview per tab, suffixed with the tab's id.
+///
+/// A single webview navigated between tabs would be less code, but switching
+/// would reload the page and lose scroll position — which is most of what a
+/// tab is for. Only the active one is shown and positioned; the rest stay
+/// built and hidden.
+const LINK_WEBVIEW_PREFIX: &str = "link-view-";
+
+/// The webview label for a tab id, rejecting ids that are not plain tokens.
+///
+/// The id reaches here from the webview, and a label is an identifier the
+/// runtime looks things up by — so it is constrained rather than trusted.
+fn label_for(tab_id: &str) -> Result<String, String> {
+    if tab_id.is_empty()
+        || tab_id.len() > 32
+        || !tab_id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
+        return Err("Invalid tab id".to_string());
+    }
+    Ok(format!("{LINK_WEBVIEW_PREFIX}{tab_id}"))
+}
 
 /// A rectangle in the main window's logical (CSS-pixel) coordinate space.
 #[derive(serde::Deserialize, Clone, Copy)]
@@ -71,14 +93,16 @@ fn validate_url(url: &str) -> Result<(), String> {
 #[tauri::command]
 pub async fn open_link_webview(
     app: tauri::AppHandle,
+    tab_id: String,
     url: String,
     bounds: Bounds,
 ) -> Result<(), String> {
     validate_url(&url)?;
+    let label = label_for(&tab_id)?;
     let parsed: tauri::Url = url.parse().map_err(|e| format!("Invalid URL: {e}"))?;
     let bounds = bounds.sanitized();
 
-    if let Some(existing) = app.get_webview(LINK_WEBVIEW_LABEL) {
+    if let Some(existing) = app.get_webview(&label) {
         existing
             .navigate(parsed)
             .map_err(|e| format!("Failed to navigate link view: {e}"))?;
@@ -93,10 +117,7 @@ pub async fn open_link_webview(
         .get_window(MAIN_WINDOW_LABEL)
         .ok_or("Main window not found")?;
 
-    let builder = tauri::webview::WebviewBuilder::new(
-        LINK_WEBVIEW_LABEL,
-        tauri::WebviewUrl::External(parsed),
-    );
+    let builder = tauri::webview::WebviewBuilder::new(&label, tauri::WebviewUrl::External(parsed));
 
     window
         .add_child(
@@ -117,8 +138,12 @@ pub async fn open_link_webview(
 /// # Errors
 /// Returns a message when the platform refuses the new geometry.
 #[tauri::command]
-pub async fn set_link_webview_bounds(app: tauri::AppHandle, bounds: Bounds) -> Result<(), String> {
-    let Some(webview) = app.get_webview(LINK_WEBVIEW_LABEL) else {
+pub async fn set_link_webview_bounds(
+    app: tauri::AppHandle,
+    tab_id: String,
+    bounds: Bounds,
+) -> Result<(), String> {
+    let Some(webview) = app.get_webview(&label_for(&tab_id)?) else {
         return Ok(());
     };
     apply_bounds(&webview, bounds.sanitized())
@@ -132,8 +157,12 @@ pub async fn set_link_webview_bounds(app: tauri::AppHandle, bounds: Bounds) -> R
 /// # Errors
 /// Returns a message when the platform refuses the visibility change.
 #[tauri::command]
-pub async fn set_link_webview_visible(app: tauri::AppHandle, visible: bool) -> Result<(), String> {
-    let Some(webview) = app.get_webview(LINK_WEBVIEW_LABEL) else {
+pub async fn set_link_webview_visible(
+    app: tauri::AppHandle,
+    tab_id: String,
+    visible: bool,
+) -> Result<(), String> {
+    let Some(webview) = app.get_webview(&label_for(&tab_id)?) else {
         return Ok(());
     };
     if visible {
@@ -149,8 +178,8 @@ pub async fn set_link_webview_visible(app: tauri::AppHandle, visible: bool) -> R
 /// # Errors
 /// Returns a message when the platform refuses to close it.
 #[tauri::command]
-pub async fn close_link_webview(app: tauri::AppHandle) -> Result<(), String> {
-    let Some(webview) = app.get_webview(LINK_WEBVIEW_LABEL) else {
+pub async fn close_link_webview(app: tauri::AppHandle, tab_id: String) -> Result<(), String> {
+    let Some(webview) = app.get_webview(&label_for(&tab_id)?) else {
         return Ok(());
     };
     webview
@@ -167,8 +196,12 @@ pub async fn close_link_webview(app: tauri::AppHandle) -> Result<(), String> {
 /// # Errors
 /// Returns a message for an unknown action or when the webview rejects it.
 #[tauri::command]
-pub async fn link_webview_history(app: tauri::AppHandle, action: String) -> Result<(), String> {
-    let Some(webview) = app.get_webview(LINK_WEBVIEW_LABEL) else {
+pub async fn link_webview_history(
+    app: tauri::AppHandle,
+    tab_id: String,
+    action: String,
+) -> Result<(), String> {
+    let Some(webview) = app.get_webview(&label_for(&tab_id)?) else {
         return Ok(());
     };
     let script = match action.as_str() {
@@ -233,6 +266,21 @@ mod tests {
         .sanitized();
         assert_eq!((b.x, b.y), (0.0, 0.0));
         assert!(b.width >= 1.0 && b.height >= 1.0);
+    }
+
+    #[test]
+    fn builds_a_label_per_tab() {
+        assert_eq!(label_for("t1").unwrap(), "link-view-t1");
+        assert_ne!(label_for("t1").unwrap(), label_for("t2").unwrap());
+    }
+
+    #[test]
+    fn rejects_tab_ids_that_are_not_plain_tokens() {
+        // The id arrives from the webview and becomes a runtime lookup key.
+        let too_long = "x".repeat(33);
+        for id in ["", "a b", "../x", "t1\n", "t1/../t2", too_long.as_str()] {
+            assert!(label_for(id).is_err(), "{id:?} should be rejected");
+        }
     }
 
     #[test]

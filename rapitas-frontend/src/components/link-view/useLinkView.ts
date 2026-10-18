@@ -2,12 +2,16 @@
 /**
  * useLinkView
  *
- * Owns the docked link webview's lifecycle and, more importantly, its
- * rectangle: the webview is an OS surface laid over the window, so nothing
- * keeps it aligned with the pane unless this hook measures the placeholder
- * and pushes the result down on every change.
+ * Keeps one Tauri child webview per open tab aligned with the pane, and
+ * shows only the active one. The webview is an OS surface laid over the
+ * window, so nothing keeps it on the pane unless this hook measures the
+ * placeholder and pushes the rectangle down on every change.
+ *
+ * One webview per tab rather than one navigated between them: switching
+ * would otherwise reload the page and lose scroll position, which is most
+ * of what a tab is for.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import {
   closeLinkView,
   linkViewHistory,
@@ -16,18 +20,13 @@ import {
   setLinkViewVisible,
   type LinkViewBounds,
 } from '@/utils/link-view';
+import type { LinkTab } from '@/stores/link-view-store';
 
 /** What the pane needs from this hook. */
 export interface UseLinkViewReturn {
-  /** The URL currently docked, or null when the pane is closed. / 表示中のURL */
-  url: string | null;
-  /** Attach to the element whose box the webview should fill. / 矩形の基準要素 */
+  /** Attach to the element the active webview should fill. / 矩形の基準要素 */
   placeholderRef: React.RefObject<HTMLDivElement | null>;
-  /** Dock a URL, opening the pane. / リンクを開く */
-  open: (url: string) => void;
-  /** Close the pane and destroy the webview. / 閉じる */
-  close: () => void;
-  /** Move history or reload. / 履歴操作 */
+  /** Move history or reload the active tab. / 履歴操作 */
   history: (action: 'back' | 'forward' | 'reload') => void;
 }
 
@@ -49,80 +48,112 @@ function sameBounds(a: LinkViewBounds | null, b: LinkViewBounds): boolean {
 }
 
 /**
- * Drives the docked link webview.
+ * Drive the docked webviews for a set of tabs.
  *
- * @param onUnavailable - Called with the URL when it could not be docked, so
- *   the caller can send it somewhere else / ドックできなかった時の退避先
- * @returns The pane's state and controls / ペインの状態と操作
+ * @param tabs - Every open tab, in display order / 開いているタブ
+ * @param activeId - The tab on screen / 表示中のタブ
+ * @param onUnavailable - Called with a URL that could not be docked, so the
+ *   caller can send it elsewhere / ドックできなかった時の退避先
+ * @returns The placeholder ref and history control / 配置基準と履歴操作
  */
-export function useLinkView(onUnavailable?: (url: string) => void): UseLinkViewReturn {
-  const [url, setUrl] = useState<string | null>(null);
+export function useLinkView(
+  tabs: LinkTab[],
+  activeId: string | null,
+  onUnavailable?: (url: string) => void,
+): UseLinkViewReturn {
   const placeholderRef = useRef<HTMLDivElement | null>(null);
   const lastBounds = useRef<LinkViewBounds | null>(null);
+  /** Tabs whose webview has been created, so a re-render does not re-open. */
+  const opened = useRef<Set<string>>(new Set());
 
-  // Held in a ref so a caller passing an inline callback does not re-run the
-  // docking effect — that would reload the page on every render.
   const onUnavailableRef = useRef(onUnavailable);
   onUnavailableRef.current = onUnavailable;
 
   const syncBounds = useCallback(() => {
     const el = placeholderRef.current;
-    if (!el || !url) return;
+    if (!el || !activeId) return;
     const next = boundsOf(el);
     // A collapsed box means the pane is not on screen — hide rather than
     // shrink, because a 0-sized webview is rejected by the platform and a
     // 1px one would still paint over the page.
     if (next.width < 2 || next.height < 2) {
-      void setLinkViewVisible(false);
+      void setLinkViewVisible(activeId, false);
       lastBounds.current = null;
       return;
     }
     if (sameBounds(lastBounds.current, next)) return;
     lastBounds.current = next;
-    void setLinkViewBounds(next);
-    void setLinkViewVisible(true);
-  }, [url]);
+    void setLinkViewBounds(activeId, next);
+    void setLinkViewVisible(activeId, true);
+  }, [activeId]);
 
-  const open = useCallback((next: string) => {
-    setUrl(next);
-  }, []);
+  const history = useCallback(
+    (action: 'back' | 'forward' | 'reload') => {
+      if (activeId) void linkViewHistory(activeId, action);
+    },
+    [activeId],
+  );
 
-  const close = useCallback(() => {
-    setUrl(null);
-    lastBounds.current = null;
-    void closeLinkView();
-  }, []);
-
-  const history = useCallback((action: 'back' | 'forward' | 'reload') => {
-    void linkViewHistory(action);
-  }, []);
-
-  // Dock the URL once the placeholder has a box to measure. Re-running on
-  // `url` alone is deliberate: a second link reuses the same webview so its
-  // back history survives.
+  // Create the active tab's webview the first time it is shown, and move it
+  // onto the pane. Re-running on activeId alone is deliberate: a tab that
+  // was already opened keeps its page.
   useEffect(() => {
-    if (!url) return;
+    if (!activeId) return;
+    const tab = tabs.find((candidate) => candidate.id === activeId);
     const el = placeholderRef.current;
-    if (!el) return;
+    if (!tab || !el) return;
+
     const bounds = boundsOf(el);
     lastBounds.current = bounds;
 
+    if (opened.current.has(tab.id)) {
+      void setLinkViewBounds(tab.id, bounds);
+      void setLinkViewVisible(tab.id, true);
+      return;
+    }
+
+    opened.current.add(tab.id);
     let cancelled = false;
-    void openLinkView(url, bounds).then((docked) => {
+    void openLinkView(tab.id, tab.url, bounds).then((docked) => {
       // The command is absent until the desktop app is rebuilt with tauri's
       // `unstable` feature, so a user who picks the in-app pane before that
       // rebuild would otherwise click a link and watch nothing happen.
-      if (!docked && !cancelled) onUnavailableRef.current?.(url);
+      if (!docked && !cancelled) {
+        opened.current.delete(tab.id);
+        onUnavailableRef.current?.(tab.url);
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, [url]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]);
+
+  // Only the active tab is on screen; the rest stay built and hidden so
+  // their pages survive a switch.
+  useEffect(() => {
+    for (const tab of tabs) {
+      if (tab.id !== activeId && opened.current.has(tab.id)) {
+        void setLinkViewVisible(tab.id, false);
+      }
+    }
+  }, [tabs, activeId]);
+
+  // Destroy the webview of any tab that has gone.
+  useEffect(() => {
+    const live = new Set(tabs.map((tab) => tab.id));
+    for (const id of Array.from(opened.current)) {
+      if (!live.has(id)) {
+        opened.current.delete(id);
+        void closeLinkView(id);
+      }
+    }
+  }, [tabs]);
 
   // Keep the surface on the pane. ResizeObserver catches layout changes the
-  // window-level events miss — a sibling panel collapsing, the nav pinning.
+  // window-level events miss — a sibling panel opening, the nav pinning.
   useEffect(() => {
-    if (!url) return;
+    if (!activeId) return;
     const el = placeholderRef.current;
     if (!el) return;
 
@@ -138,15 +169,17 @@ export function useLinkView(onUnavailable?: (url: string) => void): UseLinkViewR
       window.removeEventListener('resize', syncBounds);
       window.removeEventListener('scroll', syncBounds, true);
     };
-  }, [url, syncBounds]);
+  }, [activeId, syncBounds]);
 
-  // The webview outlives React unless it is told otherwise: nothing destroys
-  // an OS surface when the component that asked for it unmounts.
+  // The webviews outlive React unless told otherwise: nothing destroys an OS
+  // surface when the component that asked for it unmounts.
   useEffect(() => {
+    const createdTabs = opened.current;
     return () => {
-      void closeLinkView();
+      for (const id of Array.from(createdTabs)) void closeLinkView(id);
+      createdTabs.clear();
     };
   }, []);
 
-  return { url, placeholderRef, open, close, history };
+  return { placeholderRef, history };
 }

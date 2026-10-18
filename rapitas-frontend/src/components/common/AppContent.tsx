@@ -21,6 +21,7 @@ import {
   TASK_DETAIL_SPLIT_WIDTH_VW,
 } from '@/stores/task-detail-visibility-store';
 import { useLinkViewStore, LINK_VIEW_SPLIT_WIDTH_VW } from '@/stores/link-view-store';
+import { linkPaneSide } from '@/components/link-view/LinkViewHost';
 
 /**
  * @param children - Page content to render / 描画するページコンテンツ
@@ -39,13 +40,15 @@ export default function AppContent({ children }: { children: React.ReactNode }) 
   const taskDetailDockSide = useTaskDetailVisibilityStore((s) => s.dockSide);
   const isTaskSplitOpen = isTaskDetailVisible && taskDetailDisplayMode === 'split';
 
-  // The link pane always docks right; it has no dock-side choice yet.
-  const isLinkViewOpen = useLinkViewStore((s) => s.url !== null);
+  // The link pane takes the edge the task detail panel is not on, so the
+  // reservation has to follow it rather than assume the right (#1065).
+  const isLinkViewOpen = useLinkViewStore((s) => s.activeId !== null);
+  const linkSide = linkPaneSide(isTaskDetailVisible, taskDetailDockSide);
 
   const reservedVw = (side: 'left' | 'right'): number =>
     (isTerminalSplitOpen && terminalDockSide === side ? terminalSplitWidthPercent : 0) +
     (isTaskSplitOpen && taskDetailDockSide === side ? TASK_DETAIL_SPLIT_WIDTH_VW : 0) +
-    (isLinkViewOpen && side === 'right' ? LINK_VIEW_SPLIT_WIDTH_VW : 0);
+    (isLinkViewOpen && side === linkSide ? LINK_VIEW_SPLIT_WIDTH_VW : 0);
   const rightVw = reservedVw('right');
   const leftVw = reservedVw('left');
 
