@@ -36,6 +36,8 @@ interface LinkViewState {
   activateTab: (id: string) => void;
   /** Close one tab; the pane closes with the last one. / タブを閉じる */
   closeTab: (id: string) => void;
+  /** Point a tab at a different URL. / タブの遷移先を変える */
+  setTabUrl: (id: string, url: string) => void;
   /** Close every tab. / すべて閉じる */
   closeAll: () => void;
 }
@@ -69,6 +71,11 @@ export const useLinkViewStore = create<LinkViewState>((set) => ({
       const next = tabs[index] ?? tabs[index - 1] ?? null;
       return { tabs, activeId: next?.id ?? null };
     }),
+
+  setTabUrl: (id, url) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, url } : tab)),
+    })),
 
   closeAll: () => set({ tabs: [], activeId: null }),
 }));

@@ -9,7 +9,7 @@
  * position every time it is left.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import type { LinkTab } from '@/stores/link-view-store';
 
 const openLinkView = vi.fn();
@@ -61,15 +61,18 @@ function renderWithBox(
   );
 }
 
-describe('useLinkView', () => {
-  beforeEach(() => {
-    openLinkView.mockReset().mockResolvedValue(true);
-    setLinkViewVisible.mockReset().mockResolvedValue(true);
-    setLinkViewBounds.mockReset().mockResolvedValue(true);
-    closeLinkView.mockReset().mockResolvedValue(true);
-    document.body.innerHTML = '';
-  });
+// Module scope on purpose: a beforeEach inside one describe does not reach
+// the others, and counts then accumulate across the file — which is exactly
+// how these tests first went wrong (7 calls where 1 was expected).
+beforeEach(() => {
+  openLinkView.mockReset().mockResolvedValue(true);
+  setLinkViewVisible.mockReset().mockResolvedValue(true);
+  setLinkViewBounds.mockReset().mockResolvedValue(true);
+  closeLinkView.mockReset().mockResolvedValue(true);
+  document.body.innerHTML = '';
+});
 
+describe('useLinkView', () => {
   it('docks the active tab at the placeholder box', async () => {
     const { result } = renderWithBox(TABS, 't1');
     attach(result.current.placeholderRef);
@@ -174,5 +177,44 @@ describe('resync', () => {
 
     result.current.resync();
     await waitFor(() => expect(setLinkViewBounds).toHaveBeenCalledWith('t1', expect.anything()));
+  });
+});
+
+/**
+ * The address bar points a tab somewhere else. The docking effect keys on
+ * activeId alone — deliberately, so returning to a tab does not reload it —
+ * so a URL change needs its own trigger, and a re-render must not fire it.
+ */
+describe('navigating from the address bar', () => {
+  it('navigates when the active tab is pointed at a new URL', async () => {
+    const { rerender } = renderWithBox(TABS, 't1');
+    await waitFor(() => expect(openLinkView).toHaveBeenCalledTimes(1));
+
+    rerender({ t: [{ id: 't1', url: 'https://moved.example' }, TABS[1]], a: 't1' });
+    await waitFor(() =>
+      expect(openLinkView).toHaveBeenCalledWith('t1', 'https://moved.example', expect.anything()),
+    );
+  });
+
+  // Negative assertions: waiting on another mock would pass vacuously if it
+  // is never called, so let the effects run and then look.
+  const settle = () => act(async () => void (await new Promise((r) => setTimeout(r, 20))));
+
+  it('does not re-navigate when nothing changed', async () => {
+    const { rerender } = renderWithBox(TABS, 't1');
+    await waitFor(() => expect(openLinkView).toHaveBeenCalledTimes(1));
+    openLinkView.mockClear();
+    rerender({ t: [...TABS], a: 't1' });
+    await settle();
+    expect(openLinkView).not.toHaveBeenCalled();
+  });
+
+  it('leaves a background tab alone when its URL changes', async () => {
+    const { rerender } = renderWithBox(TABS, 't1');
+    await waitFor(() => expect(openLinkView).toHaveBeenCalledTimes(1));
+    openLinkView.mockClear();
+    rerender({ t: [TABS[0], { id: 't2', url: 'https://other.example' }], a: 't1' });
+    await settle();
+    expect(openLinkView).not.toHaveBeenCalled();
   });
 });

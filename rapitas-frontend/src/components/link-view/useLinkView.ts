@@ -84,8 +84,12 @@ export function useLinkView(
 ): UseLinkViewReturn {
   const placeholderRef = useRef<HTMLDivElement | null>(null);
   const lastBounds = useRef<LinkViewBounds | null>(null);
-  /** Tabs whose webview has been created, so a re-render does not re-open. */
-  const opened = useRef<Set<string>>(new Set());
+  /**
+   * The URL each created webview was last pointed at. Keyed rather than a
+   * plain Set so editing the address bar can be told apart from a re-render
+   * — the first must navigate, the second must not.
+   */
+  const opened = useRef<Map<string, string>>(new Map());
 
   const onUnavailableRef = useRef(onUnavailable);
   onUnavailableRef.current = onUnavailable;
@@ -143,7 +147,7 @@ export function useLinkView(
       return;
     }
 
-    opened.current.add(tab.id);
+    opened.current.set(tab.id, tab.url);
     let cancelled = false;
     void openLinkView(tab.id, tab.url, bounds).then((docked) => {
       // The command is absent until the desktop app is rebuilt with tauri's
@@ -160,6 +164,20 @@ export function useLinkView(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
+  // Navigate when the address bar points a tab somewhere else. The docking
+  // effect above keys on activeId alone — deliberately, so returning to a
+  // tab does not reload it — so a URL change needs its own trigger.
+  useEffect(() => {
+    if (!activeId) return;
+    const tab = tabs.find((candidate) => candidate.id === activeId);
+    const el = placeholderRef.current;
+    if (!tab || !el) return;
+    const shown = opened.current.get(tab.id);
+    if (shown === undefined || shown === tab.url) return;
+    opened.current.set(tab.id, tab.url);
+    void openLinkView(tab.id, tab.url, boundsOf(el));
+  }, [tabs, activeId]);
+
   // Only the active tab is on screen; the rest stay built and hidden so
   // their pages survive a switch.
   useEffect(() => {
@@ -173,7 +191,7 @@ export function useLinkView(
   // Destroy the webview of any tab that has gone.
   useEffect(() => {
     const live = new Set(tabs.map((tab) => tab.id));
-    for (const id of Array.from(opened.current)) {
+    for (const id of Array.from(opened.current.keys())) {
       if (!live.has(id)) {
         opened.current.delete(id);
         void teardownTab(id);
@@ -208,7 +226,7 @@ export function useLinkView(
   useEffect(() => {
     const createdTabs = opened.current;
     return () => {
-      for (const id of Array.from(createdTabs)) void teardownTab(id);
+      for (const id of Array.from(createdTabs.keys())) void teardownTab(id);
       createdTabs.clear();
     };
   }, []);

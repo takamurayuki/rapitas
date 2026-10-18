@@ -378,6 +378,7 @@
     "reload": "再読み込み",
     "openExternally": "外部ブラウザで開く",
     "close": "閉じる",
-    "closeTab": "{host} のタブを閉じる"
+    "closeTab": "{host} のタブを閉じる",
+    "addressLabel": "アドレス"
   }
 }

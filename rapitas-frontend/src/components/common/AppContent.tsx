@@ -22,6 +22,7 @@ import {
 } from '@/stores/task-detail-visibility-store';
 import { useLinkViewStore } from '@/stores/link-view-store';
 import { linkPaneSide, linkPaneWidthVw } from '@/components/link-view/LinkViewHost';
+import { useTaskPanelWidthVw } from '@/components/link-view/useTaskPanelWidth';
 
 /**
  * @param children - Page content to render / 描画するページコンテンツ
@@ -45,8 +46,9 @@ export default function AppContent({ children }: { children: React.ReactNode }) 
   const isLinkViewOpen = useLinkViewStore((s) => s.activeId !== null);
   const linkSide = linkPaneSide(isTaskDetailVisible, taskDetailDockSide);
   // Must match the pane's own width, or the gap it was widened to fill
-  // simply reappears as page padding on the other side.
-  const linkWidthVw = linkPaneWidthVw(isTaskSplitOpen);
+  // simply reappears as page padding on the other side — so it comes from
+  // the same measurement, not a parallel calculation.
+  const linkWidthVw = linkPaneWidthVw(useTaskPanelWidthVw(isTaskDetailVisible));
 
   const reservedVw = (side: 'left' | 'right'): number =>
     (isTerminalSplitOpen && terminalDockSide === side ? terminalSplitWidthPercent : 0) +

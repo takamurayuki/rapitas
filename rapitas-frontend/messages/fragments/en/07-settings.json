@@ -378,6 +378,7 @@
     "reload": "Reload",
     "openExternally": "Open in the external browser",
     "close": "Close",
-    "closeTab": "Close the {host} tab"
+    "closeTab": "Close the {host} tab",
+    "addressLabel": "Address"
   }
 }

@@ -175,6 +175,10 @@ export default function TaskSlidePanel({
           Split mode: fixed 50vw wide (must match TASK_DETAIL_SPLIT_WIDTH_VW —
           AppContent reserves the same as page padding). */}
       <div
+        // Measured by the link pane so it can run up to this edge: the width
+        // here is responsive and mode-dependent, so a constant on the other
+        // side cannot track it (#1072).
+        data-task-slide-panel=""
         className={`fixed top-16 bottom-0 ${dockSide === 'right' ? 'right-0' : 'left-0'} ${
           isSplit ? 'w-full md:w-[50vw]' : 'w-full md:w-3/4 lg:w-2/3 xl:w-1/2'
         } flex flex-col bg-white dark:bg-zinc-950 shadow-2xl z-[70] overflow-hidden`}

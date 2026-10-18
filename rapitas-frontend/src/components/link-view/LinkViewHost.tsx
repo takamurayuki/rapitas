@@ -11,13 +11,11 @@
  */
 import { useCallback, useEffect } from 'react';
 import { useLinkViewStore, LINK_VIEW_SPLIT_WIDTH_VW } from '@/stores/link-view-store';
-import {
-  useTaskDetailVisibilityStore,
-  TASK_DETAIL_SPLIT_WIDTH_VW,
-} from '@/stores/task-detail-visibility-store';
+import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 import { openExternalUrl } from '@/utils/tauri';
 import { LinkViewPane } from './LinkViewPane';
 import { useLinkView } from './useLinkView';
+import { useTaskPanelWidthVw } from './useTaskPanelWidth';
 
 /**
  * The edge the link pane takes.
@@ -42,16 +40,20 @@ export function linkPaneSide(
 /**
  * How wide the pane is, in vw.
  *
- * When the task detail panel tiles beside the page, the pane runs all the
- * way to it instead of stopping at its default width — otherwise a strip of
- * the page shows between the two, which is what was reported (#1068). With
- * no tiled task panel the default width applies.
+ * It runs up to the task detail panel's actual edge rather than stopping at
+ * a default width, because the panel's width is not a constant: tiled it is
+ * 50vw, overlaid it is 75 / 66.7 / 50vw by breakpoint. Widening by the
+ * tiled constant alone (#1068) left the default overlay case still showing
+ * a strip of page between the two (#1072).
  *
- * @param taskPanelTiled - Whether the task panel reserves width / タスク詳細が領域を占有しているか
+ * @param taskPanelVw - The panel's measured width, 0 when absent / パネルの実測幅
  * @returns The pane width in vw / ペインの幅(vw)
  */
-export function linkPaneWidthVw(taskPanelTiled: boolean): number {
-  return taskPanelTiled ? 100 - TASK_DETAIL_SPLIT_WIDTH_VW : LINK_VIEW_SPLIT_WIDTH_VW;
+export function linkPaneWidthVw(taskPanelVw: number): number {
+  if (taskPanelVw <= 0) return LINK_VIEW_SPLIT_WIDTH_VW;
+  // Never collapse to nothing if the panel somehow reports the whole
+  // viewport — a pane with no width would hide the page it is showing.
+  return Math.max(100 - taskPanelVw, 20);
 }
 
 /** The docked link pane, or nothing when no link is open. */
@@ -60,13 +62,14 @@ export default function LinkViewHost() {
   const activeId = useLinkViewStore((s) => s.activeId);
   const activateTab = useLinkViewStore((s) => s.activateTab);
   const closeTab = useLinkViewStore((s) => s.closeTab);
+  const setTabUrl = useLinkViewStore((s) => s.setTabUrl);
   const closeAll = useLinkViewStore((s) => s.closeAll);
 
   const taskPanelVisible = useTaskDetailVisibilityStore((s) => s.isTaskDetailVisible);
   const taskPanelSide = useTaskDetailVisibilityStore((s) => s.dockSide);
-  const taskPanelMode = useTaskDetailVisibilityStore((s) => s.displayMode);
   const side = linkPaneSide(taskPanelVisible, taskPanelSide);
-  const widthVw = linkPaneWidthVw(taskPanelVisible && taskPanelMode === 'split');
+  const taskPanelVw = useTaskPanelWidthVw(taskPanelVisible);
+  const widthVw = linkPaneWidthVw(taskPanelVw);
 
   // A link the pane cannot take still has to go somewhere. The usual cause
   // is a desktop build made before tauri's `unstable` feature was enabled,
@@ -120,6 +123,7 @@ export default function LinkViewHost() {
         onActivate={activateTab}
         onCloseTab={closeTab}
         onHistory={view.history}
+        onNavigate={(url) => setTabUrl(activeId, url)}
       />
     </div>
   );
