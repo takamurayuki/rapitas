@@ -84,3 +84,40 @@ test('a verifier crash (no check evidence) stays retryable: no hold recorded', a
   expect(blockedWrites).toEqual([912]);
   expect(recorded).toHaveLength(0);
 });
+
+// 実測 2026-10-18 (#1058): 保存されるのが名前だけだったため、11 件のタスクが
+// 「runtime=UNVERIFIED」とだけ書かれて滞留し、実際の原因(pnpm が起動を拒否)は
+// どこにも残らなかった。details には起動ログ末尾まで既に入っている。
+test('the hold carries each unverifiable check s details, not just its name', async () => {
+  const launchLog =
+    'Error: ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH\n  x Refusing to use task run state directory';
+  await blockTaskForVerification(912, {
+    ok: false,
+    unverifiable: true,
+    changedFiles: [],
+    summary: 'runtime=UNVERIFIED',
+    checks: [
+      { ...check('lint', true), details: 'lint: ok' },
+      { ...check('runtime', false, true), details: launchLog },
+    ],
+  });
+  const md = recorded[0].metadata as {
+    unverifiableDetails: { name: string; details: string }[];
+  };
+  expect(md.unverifiableDetails).toEqual([{ name: 'runtime', details: launchLog }]);
+});
+
+// 起動ログ末尾は長さが読めない。この行は UI も読むので上限を置く。
+test('long details are truncated so one launch log cannot bloat the row', async () => {
+  await blockTaskForVerification(912, {
+    ok: false,
+    unverifiable: true,
+    changedFiles: [],
+    summary: 'runtime=UNVERIFIED',
+    checks: [{ ...check('runtime', false, true), details: 'x'.repeat(5000) }],
+  });
+  const md = recorded[0].metadata as {
+    unverifiableDetails: { name: string; details: string }[];
+  };
+  expect(md.unverifiableDetails[0].details.length).toBe(2000);
+});

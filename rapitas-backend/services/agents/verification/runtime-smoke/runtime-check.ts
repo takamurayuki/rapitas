@@ -29,9 +29,19 @@ const log = createLogger('runtime-smoke');
  * implementer into an unfixable verify-repair loop (task 536: two wasted
  * repair cycles on an identical environmental failure). These remain
  * unverifiable, withholding completion until the environment is repaired.
+ *
+ * ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH belongs here for the same reason and
+ * was missing: pnpm 12 refuses to use a symlinked `node_modules` as its
+ * task-run-state directory, and every task worktree shares node_modules by
+ * junction, so `pnpm --filter`/`pnpm -r` can never run in one. Measured
+ * 2026-10-18 (#1058): eleven TempoRaid tasks blocked on runtime=UNVERIFIED
+ * because of it, and since the signature was unknown here the failure was
+ * never labelled environmental — losing the clearer message, the launch log
+ * tail, and the cache below that would have stopped re-paying a two-minute
+ * launch timeout on every verification pass.
  */
 export const ENV_FAILURE_RE =
-  /points out of the filesystem root|TurbopackInternalError|Cannot find module '.*node_modules|ENOENT.*node_modules|EPERM.*node_modules|command not found|は、内部コマンドまたは外部コマンド/i;
+  /points out of the filesystem root|TurbopackInternalError|Cannot find module '.*node_modules|ENOENT.*node_modules|EPERM.*node_modules|command not found|は、内部コマンドまたは外部コマンド|ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH|Refusing to use task run state directory/i;
 
 /**
  * Recent environment failures per workdir. An environment failure is a
