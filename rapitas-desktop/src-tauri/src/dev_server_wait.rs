@@ -88,7 +88,10 @@ pub fn reload_main_window_when_dev_server_ready(app: &tauri::AppHandle) {
             // Re-navigate rather than eval a reload: the window is sitting on
             // Chromium's error page, which is not our document and may not run
             // injected script.
-            match tauri::Manager::get_webview_window(&app, "main") {
+            // `get_webview`, not `get_webview_window`: `navigate` is a webview
+            // method, and the WebviewWindow pairing stops resolving once the
+            // link pane docks a child webview into "main" (#1070).
+            match tauri::Manager::get_webview(&app, "main") {
                 Some(window) => {
                     let waited = started.elapsed().as_secs_f32();
                     match DEV_SERVER_URL.parse() {
