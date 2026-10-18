@@ -165,6 +165,30 @@ export function createDiagramBlockNode(
 }
 
 /**
+ * Whether a span still shows something when it holds no text.
+ *
+ * A caret anchor is invisible without its character, so removing it loses
+ * nothing. A border line, a highlight or an outline IS the mark — dropping
+ * one deletes what the user inserted.
+ *
+ * @param span - The span being considered for removal / 判定対象
+ * @returns True when it draws without text / 文字が無くても描画されるなら true
+ */
+function drawsWithoutText(span: HTMLElement): boolean {
+  const s = span.style;
+  return Boolean(
+    s.border ||
+    s.borderLeft ||
+    s.borderRight ||
+    s.borderTop ||
+    s.borderBottom ||
+    s.backgroundColor ||
+    s.background ||
+    s.outline,
+  );
+}
+
+/**
  * Returns the editor innerHTML with Mermaid SVGs stripped from diagram blocks
  * and transient editing artifacts removed.
  * The .diagram-source pre is preserved so diagrams survive the save/load cycle.
@@ -181,10 +205,19 @@ export function getContentWithoutDiagramSvg(container: HTMLElement): string {
   // NOTE: Caret-anchor spans (zero-width space only) are editing aids for
   // font/size/color persistence — they must not leak into stored content,
   // where they would surface as invisible styled characters on reload.
+  //
+  // `drawsWithoutText` is why this is not simply "empty and styled".
+  // Measured 2026-10-18 (#1067): the border-line button with nothing
+  // selected produces an EMPTY styled span on purpose — the vertical rule is
+  // the border, there is no text — and this cleanup deleted it on every
+  // save. The line appeared in the editor and was gone on reopening.
   clone.querySelectorAll('span[style]').forEach((span) => {
+    const el = span as HTMLElement;
     const isAnchorOnly =
-      span.childElementCount === 0 && (span.textContent === '​' || span.textContent === '');
-    if (isAnchorOnly) span.remove();
+      el.childElementCount === 0 &&
+      (el.textContent === '​' || el.textContent === '') &&
+      !drawsWithoutText(el);
+    if (isAnchorOnly) el.remove();
   });
   return clone.innerHTML;
 }
