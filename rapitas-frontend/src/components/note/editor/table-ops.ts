@@ -37,6 +37,20 @@ export function findTableCell(
   return cell as HTMLTableCellElement;
 }
 
+/**
+ * Every body row of a table, across all `tbody` sections.
+ *
+ * Measured 2026-10-18 (#1062): a pasted table can carry more than one
+ * `tbody`, and operating on `tBodies[0]` alone added a cell to the first
+ * section only — leaving rows of different widths.
+ *
+ * @param table - The table to walk / 対象の表
+ * @returns Body rows in document order / 本体行
+ */
+function bodyRows(table: HTMLTableElement): HTMLTableRowElement[] {
+  return Array.from(table.tBodies).flatMap((body) => Array.from(body.rows));
+}
+
 /** The table a cell belongs to. */
 function tableOf(cell: HTMLTableCellElement): HTMLTableElement | null {
   return cell.closest('table');
@@ -77,7 +91,7 @@ export function insertRow(cell: HTMLTableCellElement, side: RowSide): void {
   // A caret in the heading row has no row below it inside tbody, so either
   // side there would land in thead. Put the row at the top of the body.
   if (row.parentElement === table.tHead) {
-    table.tBodies[0]?.prepend(tr);
+    (table.tBodies[0] ?? table).prepend(tr);
     return;
   }
   row.insertAdjacentElement(side === 'above' ? 'beforebegin' : 'afterend', tr);
@@ -104,7 +118,7 @@ export function insertColumn(
     const th = document.createElement('th');
     headRow.insertBefore(th, headRow.cells[at] ?? null);
   }
-  for (const row of Array.from(table.tBodies[0]?.rows ?? [])) {
+  for (const row of bodyRows(table)) {
     row.insertBefore(emptyCell(), row.cells[at] ?? null);
   }
   renumberHeadings(table, name);
@@ -127,8 +141,7 @@ export function deleteRow(cell: HTMLTableCellElement): void {
   const row = cell.closest('tr');
   const table = tableOf(cell);
   if (!row || !table) return;
-  const body = table.tBodies[0];
-  if (!body || body.rows.length <= 1) {
+  if (bodyRows(table).length <= 1) {
     table.remove();
     return;
   }
@@ -144,12 +157,11 @@ export function deleteColumn(cell: HTMLTableCellElement): void {
   const table = tableOf(cell);
   if (!table) return;
   const at = cell.cellIndex;
-  const columns =
-    table.tHead?.rows[0]?.cells.length ?? table.tBodies[0]?.rows[0]?.cells.length ?? 0;
+  const columns = table.tHead?.rows[0]?.cells.length ?? bodyRows(table)[0]?.cells.length ?? 0;
   if (columns <= 1) {
     table.remove();
     return;
   }
   table.tHead?.rows[0]?.cells[at]?.remove();
-  for (const row of Array.from(table.tBodies[0]?.rows ?? [])) row.cells[at]?.remove();
+  for (const row of bodyRows(table)) row.cells[at]?.remove();
 }

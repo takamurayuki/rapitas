@@ -191,3 +191,40 @@ describe('deleteTable', () => {
     expect(host.querySelector('table')).toBeNull();
   });
 });
+
+// 実測 2026-10-18 (#1062): 貼り付けた表は tbody が複数あることがあり、
+// tBodies[0] だけを触ると片方の section にだけセルが増えて表が歪んだ。
+describe('tables with more than one tbody', () => {
+  const fromHtml = (html: string): HTMLTableElement => {
+    const host = document.createElement('div');
+    host.innerHTML = html;
+    document.body.appendChild(host);
+    return host.querySelector('table') as HTMLTableElement;
+  };
+  const twoSections = () =>
+    fromHtml(
+      '<table><tbody><tr><td>1</td><td>2</td></tr></tbody><tbody><tr><td>3</td><td>4</td></tr></tbody></table>',
+    );
+
+  it('widens every section when a column is inserted', () => {
+    const t = twoSections();
+    insertColumn(t.tBodies[0].rows[0].cells[0], 'right', (n) => `C${n}`);
+    expect(t.tBodies[0].rows[0].cells.length).toBe(3);
+    expect(t.tBodies[1].rows[0].cells.length).toBe(3);
+  });
+
+  it('narrows every section when a column is deleted', () => {
+    const t = twoSections();
+    deleteColumn(t.tBodies[0].rows[0].cells[0]);
+    expect(t.tBodies[0].rows[0].cells.length).toBe(1);
+    expect(t.tBodies[1].rows[0].cells.length).toBe(1);
+  });
+
+  // One row per section is two rows, so deleting one must not take the table.
+  it('keeps the table when another section still has a row', () => {
+    const t = twoSections();
+    deleteRow(t.tBodies[0].rows[0].cells[0]);
+    expect(t.isConnected).toBe(true);
+    expect(t.tBodies.length).toBe(2);
+  });
+});

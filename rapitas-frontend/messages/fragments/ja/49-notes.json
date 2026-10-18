@@ -206,6 +206,19 @@
       "communicationError": "AIとの通信中にエラーが発生しました",
       "streamUnavailable": "レスポンスストリームを取得できませんでした",
       "responseFailed": "応答の取得に失敗しました"
+    },
+    "tableControls": {
+      "insertRowAbove": "上に行を追加",
+      "insertRowBelow": "下に行を追加",
+      "deleteRow": "行を削除",
+      "deleteTableWithLastRow": "行を削除（最後の行なので表ごと消えます）",
+      "insertColumnLeft": "左に列を追加",
+      "insertColumnRight": "右に列を追加",
+      "deleteColumn": "列を削除",
+      "deleteTableWithLastColumn": "列を削除（最後の列なので表ごと消えます）",
+      "columnHandle": "{index}列目の操作",
+      "rowHandle": "{index}行目の操作",
+      "menuLabel": "表の行・列操作"
     }
   }
 }

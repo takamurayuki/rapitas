@@ -9,6 +9,8 @@ import NoteEditorFooter from './editor/NoteEditorFooter';
 import EditorToolbar from './editor/EditorToolbar';
 import DiagramBlockEdit from './editor/DiagramBlockEdit';
 import { getDiagramSource, setDiagramSource } from './editor/diagram-block';
+import { useTableControls } from './editor/useTableControls';
+import { TableControlsOverlay } from './editor/TableControlsOverlay';
 
 interface DiagramEditState {
   el: HTMLElement;
@@ -28,6 +30,14 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
   const updateNote = useNoteStore((s) => s.updateNote);
   const setCurrentNote = useNoteStore((s) => s.setCurrentNote);
   const [editingDiagram, setEditingDiagram] = useState<DiagramEditState | null>(null);
+
+  // Confluence-style handles on the table itself. The toolbar's grid still
+  // inserts tables; editing one happens where the table is.
+  const tableControls = useTableControls(
+    editor.contentRef,
+    (n) => t('editorDom.tableHeading', { n }),
+    editor.markDirty,
+  );
 
   const handleEditorClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -121,12 +131,6 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
         onApplyFont={editor.onApplyFont}
         onApplyTextColor={editor.applyTextColor}
         onInsertTable={editor.insertTable}
-        isCaretInTable={editor.isCaretInTable}
-        onInsertTableRow={editor.insertTableRow}
-        onInsertTableColumn={editor.insertTableColumn}
-        onDeleteTableRow={editor.deleteTableRow}
-        onDeleteTableColumn={editor.deleteTableColumn}
-        onDeleteTable={editor.deleteCurrentTable}
         onInsertLink={editor.insertLink}
         onInsertCodeBlock={editor.insertCodeBlock}
         onInsertDiagram={editor.insertDiagramBlock}
@@ -157,6 +161,8 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
           />
         </div>
       )}
+
+      <TableControlsOverlay controls={tableControls} />
 
       <NoteEditorFooter createdAt={note.createdAt} updatedAt={note.updatedAt} />
 
