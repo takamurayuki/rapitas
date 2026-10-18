@@ -94,33 +94,66 @@ export function useLinkView(
   const onUnavailableRef = useRef(onUnavailable);
   onUnavailableRef.current = onUnavailable;
 
-  const syncBounds = useCallback(
-    (force = false) => {
-      const el = placeholderRef.current;
-      if (!el || !activeId) return;
-      const next = boundsOf(el);
-      // A collapsed box means the pane is not on screen — hide rather than
-      // shrink, because a 0-sized webview is rejected by the platform and a
-      // 1px one would still paint over the page.
-      if (next.width < 2 || next.height < 2) {
-        void setLinkViewVisible(activeId, false);
-        lastBounds.current = null;
-        return;
-      }
-      if (!force && sameBounds(lastBounds.current, next)) return;
-      lastBounds.current = next;
-      void setLinkViewBounds(activeId, next);
-      void setLinkViewVisible(activeId, true);
-    },
-    [activeId],
-  );
+  /**
+   * The tab the pane is showing, read at the moment a sync actually runs.
+   *
+   * `syncBounds` used to close over `activeId`, and `resync` defers a second
+   * pass to the next frame — so a pass scheduled while a tab was alive could
+   * land after it was torn down and call `setLinkViewVisible(id, true)`,
+   * putting the page back on screen at the pane's NEW rectangle. That is the
+   * "the ✕ moves it instead of closing it" report (#1076).
+   */
+  const activeIdRef = useRef<string | null>(activeId);
+  activeIdRef.current = activeId;
+
+  /** The deferred pass, so it can be cancelled before it outlives its state. */
+  const pendingFrame = useRef<number | null>(null);
+
+  const syncBounds = useCallback((force = false) => {
+    const el = placeholderRef.current;
+    // Read the current tab, never a captured one: a deferred pass must act
+    // on what is open now, not on what was open when it was scheduled.
+    const id = activeIdRef.current;
+    if (!el || !id) return;
+    // A tab that has been torn down must never be shown again by a sync
+    // that was already in flight.
+    if (!opened.current.has(id)) return;
+
+    const next = boundsOf(el);
+    // A collapsed box means the pane is not on screen — hide rather than
+    // shrink, because a 0-sized webview is rejected by the platform and a
+    // 1px one would still paint over the page.
+    if (next.width < 2 || next.height < 2) {
+      void setLinkViewVisible(id, false);
+      lastBounds.current = null;
+      return;
+    }
+    if (!force && sameBounds(lastBounds.current, next)) return;
+    lastBounds.current = next;
+    void setLinkViewBounds(id, next);
+    void setLinkViewVisible(id, true);
+  }, []);
+
+  /** Drop a deferred pass that has not run yet. */
+  const cancelPending = useCallback(() => {
+    if (pendingFrame.current !== null) {
+      cancelAnimationFrame(pendingFrame.current);
+      pendingFrame.current = null;
+    }
+  }, []);
 
   // The pane may not have been laid out at its new place yet when the side
-  // changes, so measure again on the next frame rather than this one.
+  // changes, so measure again on the next frame rather than this one. Only
+  // one such pass is ever outstanding, and it is cancelled rather than left
+  // to fire against state it no longer matches.
   const resync = useCallback(() => {
     syncBounds(true);
-    requestAnimationFrame(() => syncBounds(true));
-  }, [syncBounds]);
+    cancelPending();
+    pendingFrame.current = requestAnimationFrame(() => {
+      pendingFrame.current = null;
+      syncBounds(true);
+    });
+  }, [syncBounds, cancelPending]);
 
   const history = useCallback(
     (action: 'back' | 'forward' | 'reload') => {
@@ -193,11 +226,14 @@ export function useLinkView(
     const live = new Set(tabs.map((tab) => tab.id));
     for (const id of Array.from(opened.current.keys())) {
       if (!live.has(id)) {
+        // Before the webview goes, drop any deferred sync that could still
+        // fire and put it back on screen.
+        cancelPending();
         opened.current.delete(id);
         void teardownTab(id);
       }
     }
-  }, [tabs]);
+  }, [tabs, cancelPending]);
 
   // Keep the surface on the pane. ResizeObserver catches layout changes the
   // window-level events miss — a sibling panel opening, the nav pinning.
@@ -226,10 +262,13 @@ export function useLinkView(
   useEffect(() => {
     const createdTabs = opened.current;
     return () => {
+      cancelPending();
       for (const id of Array.from(createdTabs.keys())) void teardownTab(id);
       createdTabs.clear();
     };
-  }, []);
+    // cancelPending is a stable useCallback([]); listing it keeps the rule
+    // satisfied without changing when this runs.
+  }, [cancelPending]);
 
   return { placeholderRef, history, resync };
 }

@@ -218,3 +218,89 @@ describe('navigating from the address bar', () => {
     expect(openLinkView).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Reported 2026-10-19 (#1076): with the task detail panel overlaid on the
+ * right, pressing the tab's ✕ did not close the page — it moved to the
+ * right. In split mode it closed correctly.
+ *
+ * That difference is the whole diagnosis. Closing the last tab changes the
+ * measured panel width only in overlay mode (split is a constant 50vw), and
+ * a width change calls `resync`, which defers a second pass to the next
+ * frame. That pass used a captured activeId and ended in
+ * `setLinkViewVisible(id, true)` — so it put the just-destroyed webview
+ * back, at the pane's new rectangle.
+ */
+describe('a deferred resync must not resurrect a closed tab', () => {
+  /** Let real animation frames and microtasks run. */
+  const flushFrames = () => act(async () => void (await new Promise((r) => setTimeout(r, 40))));
+
+  /**
+   * requestAnimationFrame under our control, so the deferred pass can be
+   * made to land AFTER the teardown. Letting the real one fire takes
+   * whichever order the clock happens to give, and the bug only shows in
+   * one of them — a test that cannot choose proves nothing.
+   */
+  function captureFrames() {
+    const queued: FrameRequestCallback[] = [];
+    const realRaf = window.requestAnimationFrame;
+    const realCancel = window.cancelAnimationFrame;
+    window.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+      queued.push(cb);
+      return queued.length;
+    }) as typeof window.requestAnimationFrame;
+    window.cancelAnimationFrame = ((handle: number) => {
+      // Handles are 1-based indices into `queued`.
+      if (handle >= 1 && handle <= queued.length) queued[handle - 1] = () => {};
+    }) as typeof window.cancelAnimationFrame;
+    return {
+      run: () => act(() => queued.splice(0).forEach((cb) => cb(0))),
+      restore: () => {
+        window.requestAnimationFrame = realRaf;
+        window.cancelAnimationFrame = realCancel;
+      },
+    };
+  }
+
+  it('does not show a tab again after it has been torn down', async () => {
+    const frames = captureFrames();
+    try {
+      const { result, rerender } = renderWithBox(TABS, 't1');
+      await waitFor(() => expect(openLinkView).toHaveBeenCalled());
+
+      // The width change that only happens with an overlaid task panel.
+      act(() => result.current.resync());
+      // ...and the close that races it. The deferred pass is still queued.
+      rerender({ t: [], a: null });
+      await waitFor(() => expect(closeLinkView).toHaveBeenCalledWith('t1'));
+
+      setLinkViewVisible.mockClear();
+      await frames.run();
+      expect(setLinkViewVisible).not.toHaveBeenCalledWith('t1', true);
+    } finally {
+      frames.restore();
+    }
+  });
+
+  it('still repositions a tab that is genuinely open', async () => {
+    const { result } = renderWithBox(TABS, 't1');
+    await waitFor(() => expect(openLinkView).toHaveBeenCalled());
+    setLinkViewBounds.mockClear();
+
+    act(() => result.current.resync());
+    await waitFor(() => expect(setLinkViewBounds).toHaveBeenCalledWith('t1', expect.anything()));
+  });
+
+  it('acts on the tab showing now, not the one captured when it was scheduled', async () => {
+    const { result, rerender } = renderWithBox(TABS, 't1');
+    await waitFor(() => expect(openLinkView).toHaveBeenCalled());
+
+    act(() => result.current.resync());
+    rerender({ t: TABS, a: 't2' });
+    setLinkViewBounds.mockClear();
+    await flushFrames();
+
+    const forOldTab = setLinkViewBounds.mock.calls.filter((c) => c[0] === 't1');
+    expect(forOldTab).toEqual([]);
+  });
+});
