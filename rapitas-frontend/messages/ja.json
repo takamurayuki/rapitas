@@ -1506,7 +1506,8 @@
     "forward": "進む",
     "reload": "再読み込み",
     "openExternally": "外部ブラウザで開く",
-    "close": "閉じる"
+    "close": "閉じる",
+    "closeTab": "{host} のタブを閉じる"
   },
   "shortcuts": {
     "title": "ショートカット設定",

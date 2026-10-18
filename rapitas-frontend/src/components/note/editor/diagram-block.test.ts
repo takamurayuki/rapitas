@@ -8,7 +8,12 @@
  * outside the note entirely, at the bottom of whatever page is open.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderMermaidBlock, renderAllDiagrams, type DiagramBlockLabels } from './diagram-block';
+import {
+  renderMermaidBlock,
+  renderAllDiagrams,
+  getContentWithoutDiagramSvg,
+  type DiagramBlockLabels,
+} from './diagram-block';
 
 const labels: DiagramBlockLabels = {
   deleteTitle: 'delete',
@@ -115,5 +120,66 @@ describe('renderMermaidBlock', () => {
 
     expect(strayElements()).toHaveLength(0);
     expect(container.querySelectorAll('.diagram-error')).toHaveLength(3);
+  });
+});
+
+/**
+ * The save path strips caret anchors — editing aids that must not reach
+ * storage. Reported 2026-10-18 (#1067): it was also deleting the border
+ * line, because pressing that button with nothing selected produces an
+ * empty styled span on purpose. The line showed in the editor and was gone
+ * on reopening.
+ */
+describe('getContentWithoutDiagramSvg', () => {
+  const editorWith = (html: string): HTMLElement => {
+    const el = document.createElement('div');
+    el.innerHTML = html;
+    document.body.appendChild(el);
+    return el;
+  };
+
+  it('keeps a border line inserted with nothing selected', () => {
+    const line =
+      '<span style="border-left: 3px solid rgb(239, 68, 68); padding-left: 8px;"></span>';
+    const out = getContentWithoutDiagramSvg(editorWith(`<p>a</p>${line}<p>b</p>`));
+    expect(out).toContain('border-left');
+  });
+
+  it('keeps a border line wrapping selected text', () => {
+    const out = getContentWithoutDiagramSvg(
+      editorWith('<span style="border-left: 3px solid rgb(1, 2, 3);">quoted</span>'),
+    );
+    expect(out).toContain('quoted');
+    expect(out).toContain('border-left');
+  });
+
+  // Anything that paints without text is a mark the user made, not an aid.
+  it('keeps an empty highlight span', () => {
+    const out = getContentWithoutDiagramSvg(
+      editorWith('<span style="background-color: rgb(254, 240, 138);"></span>'),
+    );
+    expect(out).toContain('background-color');
+  });
+
+  it('still strips the zero-width caret anchors it exists for', () => {
+    const out = getContentWithoutDiagramSvg(
+      editorWith('<span style="color: rgb(1, 2, 3);">​</span>'),
+    );
+    expect(out).toBe('');
+  });
+
+  it('still strips an empty colour span, which shows nothing either way', () => {
+    const out = getContentWithoutDiagramSvg(editorWith('<span style="font-size: 24px;"></span>'));
+    expect(out).toBe('');
+  });
+
+  it('leaves the diagram source but clears its rendered SVG', () => {
+    const out = getContentWithoutDiagramSvg(
+      editorWith(
+        '<div class="diagram-block"><pre class="diagram-source">graph TD</pre><div class="diagram-render"><svg></svg></div></div>',
+      ),
+    );
+    expect(out).toContain('graph TD');
+    expect(out).not.toContain('<svg>');
   });
 });

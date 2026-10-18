@@ -79,8 +79,12 @@ export function normalizeLinkCards(
     const anchor = a as HTMLAnchorElement;
 
     const isKnownCard = anchor.dataset.rapitasLinkCard === '1';
+    // Measured 2026-10-18 (#1067): DOMPurify strips `target` on load, so a
+    // check that required `target === '_blank'` could never match saved
+    // content — this fallback, which exists for cards written before the
+    // data attribute, was dead for every card it was meant to catch. The
+    // remaining signals are enough to recognise one.
     const looksLikeCard =
-      anchor.target === '_blank' &&
       anchor.rel.includes('noopener') &&
       anchor.style.display === 'inline-flex' &&
       !!anchor.style.background;
@@ -88,6 +92,9 @@ export function normalizeLinkCards(
     if (!isKnownCard && !looksLikeCard) continue;
 
     anchor.dataset.rapitasLinkCard = '1';
+    // Also stripped by DOMPurify, and nothing else put it back: a card
+    // restored from a saved note would open in place rather than outward.
+    anchor.target = '_blank';
 
     anchor.style.lineHeight = '1';
     anchor.style.height = '1.5em';

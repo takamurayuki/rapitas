@@ -1506,7 +1506,8 @@
     "forward": "Forward",
     "reload": "Reload",
     "openExternally": "Open in the external browser",
-    "close": "Close"
+    "close": "Close",
+    "closeTab": "Close the {host} tab"
   },
   "shortcuts": {
     "title": "Shortcut Settings",
