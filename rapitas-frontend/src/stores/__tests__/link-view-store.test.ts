@@ -108,21 +108,36 @@ describe('linkPaneSide', () => {
 });
 
 /**
- * Reported 2026-10-18 (#1068): a strip of the page showed between the link
- * pane and the task detail panel. The pane kept its default width instead
- * of running up to the panel beside it.
+ * Reported 2026-10-18 (#1068, then again as #1072): a strip of the page
+ * showed between the link pane and the task detail panel. The panel's width
+ * is not a constant — tiled it is 50vw, overlaid it is 75 / 66.7 / 50vw by
+ * breakpoint — so the pane is sized from the panel's measured width.
  */
 describe('linkPaneWidthVw', () => {
-  it('runs up to the task panel when that panel tiles beside the page', () => {
-    // 50vw task panel + 50vw pane leaves nothing showing between them.
-    expect(linkPaneWidthVw(true)).toBe(100 - TASK_DETAIL_SPLIT_WIDTH_VW);
+  it('runs up to a tiled panel', () => {
+    expect(linkPaneWidthVw(TASK_DETAIL_SPLIT_WIDTH_VW)).toBe(100 - TASK_DETAIL_SPLIT_WIDTH_VW);
   });
 
-  it('keeps its default width when no task panel is tiled', () => {
-    expect(linkPaneWidthVw(false)).toBe(LINK_VIEW_SPLIT_WIDTH_VW);
+  // The case #1068 missed: the default display mode is overlay, and there
+  // the panel is wider than the tiled constant at most breakpoints.
+  it.each([75, 66.7, 50])('runs up to an overlay panel of %svw', (panel) => {
+    expect(linkPaneWidthVw(panel)).toBeCloseTo(100 - panel);
   });
 
-  it('never leaves a gap', () => {
-    expect(linkPaneWidthVw(true) + TASK_DETAIL_SPLIT_WIDTH_VW).toBe(100);
+  it('leaves no gap, whatever the panel measures', () => {
+    for (const panel of [50, 66.7, 75]) {
+      expect(linkPaneWidthVw(panel) + panel).toBeCloseTo(100);
+    }
+  });
+
+  it('keeps its default width when no panel is there', () => {
+    expect(linkPaneWidthVw(0)).toBe(LINK_VIEW_SPLIT_WIDTH_VW);
+  });
+
+  // A panel reporting the whole viewport would otherwise leave the pane
+  // with no width at all, hiding the page it exists to show.
+  it('never collapses to nothing', () => {
+    expect(linkPaneWidthVw(100)).toBeGreaterThan(0);
+    expect(linkPaneWidthVw(120)).toBeGreaterThan(0);
   });
 });

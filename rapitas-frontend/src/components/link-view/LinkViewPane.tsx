@@ -10,6 +10,7 @@
  * would be hidden by the webview's own surface, which an OS-level view
  * always paints above regardless of z-index.
  */
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ArrowLeft, ArrowRight, RotateCw, ExternalLink, X } from 'lucide-react';
 import { openExternalUrl } from '@/utils/tauri';
@@ -23,6 +24,8 @@ interface LinkViewPaneProps {
   onActivate: (id: string) => void;
   onCloseTab: (id: string) => void;
   onHistory: (action: 'back' | 'forward' | 'reload') => void;
+  /** Point the active tab at a different URL. / 遷移先の変更 */
+  onNavigate: (url: string) => void;
 }
 
 /** The host of a URL, or the whole string when it will not parse. */
@@ -31,6 +34,27 @@ function hostOf(url: string): string {
     return new URL(url).host;
   } catch {
     return url;
+  }
+}
+
+/**
+ * What someone typed, as a URL the pane can show.
+ *
+ * A bare host is the usual thing to type, and the webview only accepts
+ * http(s) — so the scheme is added rather than the entry rejected.
+ *
+ * @param typed - The address bar's contents / 入力された文字列
+ * @returns A loadable URL, or null when it is not one / 遷移先、不正なら null
+ */
+export function toNavigableUrl(typed: string): string | null {
+  const trimmed = typed.trim();
+  if (!trimmed) return null;
+  const candidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const url = new URL(candidate);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
   }
 }
 
@@ -47,9 +71,24 @@ export function LinkViewPane({
   onActivate,
   onCloseTab,
   onHistory,
+  onNavigate,
 }: LinkViewPaneProps) {
   const t = useTranslations('linkView');
   const active = tabs.find((tab) => tab.id === activeId);
+
+  // Local while typing so the field does not fight the user, and resynced
+  // whenever the tab or its URL changes underneath (a tab switch, a link
+  // followed inside the page).
+  const [draft, setDraft] = useState(active?.url ?? '');
+  useEffect(() => {
+    setDraft(active?.url ?? '');
+  }, [active?.id, active?.url]);
+
+  const submit = () => {
+    const url = toNavigableUrl(draft);
+    if (url) onNavigate(url);
+    else setDraft(active?.url ?? '');
+  };
 
   return (
     <div className="flex h-full min-w-0 flex-col border-l border-zinc-200 dark:border-zinc-700">
@@ -99,12 +138,25 @@ export function LinkViewPane({
           <RotateCw className="h-3.5 w-3.5" />
         </button>
 
-        <span
-          className="mx-1 min-w-0 flex-1 truncate text-xs text-zinc-500 dark:text-zinc-400"
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') submit();
+            // Esc closes the pane at the window level; inside the field it
+            // should only abandon the edit.
+            if (e.key === 'Escape') {
+              e.stopPropagation();
+              setDraft(active?.url ?? '');
+            }
+          }}
+          onBlur={submit}
+          spellCheck={false}
+          aria-label={t('addressLabel')}
           title={active?.url}
-        >
-          {active ? hostOf(active.url) : ''}
-        </span>
+          className="mx-1 min-w-0 flex-1 truncate rounded border border-transparent bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700 outline-none focus:border-indigo-400 focus:bg-white dark:bg-zinc-800 dark:text-zinc-200 dark:focus:bg-zinc-900"
+        />
 
         <button
           onClick={() => active && void openExternalUrl(active.url)}
