@@ -36,7 +36,9 @@ pub async fn open_split_view(
     #[cfg(not(target_os = "windows"))]
     {
         let _ = &browser; // non-Windows split uses the OS default browser
-        if let Some(main_window) = app.get_webview_window("main") {
+                          // `get_window`, not `get_webview_window`: the latter stops resolving
+                          // once the link pane docks a child webview into "main" (#1070).
+        if let Some(main_window) = app.get_window("main") {
             main_window.unmaximize().ok();
             main_window
                 .set_position(tauri::Position::Physical(tauri::PhysicalPosition {
@@ -57,7 +59,9 @@ pub async fn open_split_view(
 
         // Return focus to the main window after the browser opens
         std::thread::sleep(std::time::Duration::from_millis(1000));
-        if let Some(main_window) = app.get_webview_window("main") {
+        // `get_window`, not `get_webview_window`: the latter stops resolving
+        // once the link pane docks a child webview into "main" (#1070).
+        if let Some(main_window) = app.get_window("main") {
             main_window.set_focus().ok();
         }
     }
