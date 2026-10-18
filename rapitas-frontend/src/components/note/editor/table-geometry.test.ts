@@ -13,7 +13,9 @@ import {
   orderedRows,
   deletionRemovesTable,
   hasSpannedCells,
+  toContainerSpace,
   type RectOf,
+  type TableGeometry,
 } from './table-geometry';
 
 /** Build a table with `cols` columns, a heading row and `bodyRows` body rows. */
@@ -163,5 +165,49 @@ describe('tables that were not created by the inserter', () => {
     const t = fromHtml('<table><tr><td>1</td><td>2</td></tr></table>');
     expect(hasSpannedCells(t)).toBe(false);
     expect(measureTable(t, flat)).not.toBeNull();
+  });
+});
+
+describe('toContainerSpace', () => {
+  const viewport: TableGeometry = {
+    rect: { top: 300, left: 200, width: 400, height: 90 },
+    columns: [
+      { index: 0, left: 200, width: 200 },
+      { index: 1, left: 400, width: 200 },
+    ],
+    rows: [{ index: 0, top: 300, height: 30, isHeader: true }],
+  };
+
+  it('subtracts the container box so coordinates are local to it', () => {
+    const g = toContainerSpace(viewport, {
+      rect: { top: 100, left: 50 },
+      scrollTop: 0,
+      scrollLeft: 0,
+    });
+    expect(g.rect).toMatchObject({ top: 200, left: 150 });
+    expect(g.columns.map((c) => c.left)).toEqual([150, 350]);
+    expect(g.rows[0].top).toBe(200);
+  });
+
+  // A scrolled container reports rects that already moved; the scroll offset
+  // puts the handles back on the table rather than where it is drawn.
+  it('adds the scroll offset', () => {
+    const g = toContainerSpace(viewport, {
+      rect: { top: 100, left: 50 },
+      scrollTop: 500,
+      scrollLeft: 20,
+    });
+    expect(g.rect).toMatchObject({ top: 700, left: 170 });
+  });
+
+  it('leaves widths and heights alone', () => {
+    const g = toContainerSpace(viewport, {
+      rect: { top: 10, left: 10 },
+      scrollTop: 5,
+      scrollLeft: 5,
+    });
+    expect(g.columns.map((c) => c.width)).toEqual([200, 200]);
+    expect(g.rows[0].height).toBe(30);
+    expect(g.rows[0].isHeader).toBe(true);
   });
 });
