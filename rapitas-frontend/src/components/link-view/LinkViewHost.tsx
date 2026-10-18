@@ -9,10 +9,11 @@
  * Placement is decided here rather than in the pane: the pane draws, the
  * host decides which edge it may have.
  */
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLinkViewStore, LINK_VIEW_SPLIT_WIDTH_VW } from '@/stores/link-view-store';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 import { openExternalUrl } from '@/utils/tauri';
+import { LinkFavourites } from './LinkFavourites';
 import { LinkViewPane } from './LinkViewPane';
 import { useLinkView } from './useLinkView';
 import { useTaskPanelWidthVw } from './useTaskPanelWidth';
@@ -61,9 +62,13 @@ export default function LinkViewHost() {
   const tabs = useLinkViewStore((s) => s.tabs);
   const activeId = useLinkViewStore((s) => s.activeId);
   const activateTab = useLinkViewStore((s) => s.activateTab);
+  const openLink = useLinkViewStore((s) => s.openLink);
   const closeTab = useLinkViewStore((s) => s.closeTab);
   const setTabUrl = useLinkViewStore((s) => s.setTabUrl);
   const closeAll = useLinkViewStore((s) => s.closeAll);
+  const isOpen = useLinkViewStore((s) => s.isOpen);
+  const setOpen = useLinkViewStore((s) => s.setOpen);
+  const [showFavourites, setShowFavourites] = useState(false);
 
   const taskPanelVisible = useTaskDetailVisibilityStore((s) => s.isTaskDetailVisible);
   const taskPanelSide = useTaskDetailVisibilityStore((s) => s.dockSide);
@@ -83,7 +88,8 @@ export default function LinkViewHost() {
     [closeAll],
   );
 
-  const view = useLinkView(tabs, activeId, fallBackToBrowser);
+  const paneShowsAPage = isOpen && !showFavourites && Boolean(activeId);
+  const view = useLinkView(tabs, paneShowsAPage ? activeId : null, fallBackToBrowser);
 
   // The webview is an OS surface that only follows the pane when told to.
   // A dock-side swap moves the pane without changing its size, and a
@@ -95,15 +101,21 @@ export default function LinkViewHost() {
 
   // Esc closes the active tab, matching the split-view exit the app has.
   useEffect(() => {
-    if (!activeId) return;
+    if (!activeId || !isOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeTab(activeId);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [activeId, closeTab]);
+  }, [activeId, isOpen, closeTab]);
 
-  if (!activeId || tabs.length === 0) return null;
+  // Ctrl+B on an empty pane has nothing to show but the library, which is
+  // where a saved page is picked — so it opens there rather than blank.
+  useEffect(() => {
+    if (isOpen && tabs.length === 0) setShowFavourites(true);
+  }, [isOpen, tabs.length]);
+
+  if (!isOpen) return null;
 
   return (
     // top-16 so the header stays visible and interactive, matching
@@ -116,15 +128,26 @@ export default function LinkViewHost() {
       }`}
       style={{ width: `${widthVw}vw` }}
     >
-      <LinkViewPane
-        tabs={tabs}
-        activeId={activeId}
-        placeholderRef={view.placeholderRef}
-        onActivate={activateTab}
-        onCloseTab={closeTab}
-        onHistory={view.history}
-        onNavigate={(url) => setTabUrl(activeId, url)}
-      />
+      {showFavourites || !activeId ? (
+        <LinkFavourites
+          onOpen={(fav) => {
+            openLink(fav.url);
+            setShowFavourites(false);
+          }}
+          onClose={() => (tabs.length === 0 ? setOpen(false) : setShowFavourites(false))}
+        />
+      ) : (
+        <LinkViewPane
+          tabs={tabs}
+          activeId={activeId}
+          placeholderRef={view.placeholderRef}
+          onActivate={activateTab}
+          onCloseTab={closeTab}
+          onHistory={view.history}
+          onNavigate={(url) => setTabUrl(activeId, url)}
+          onShowFavourites={() => setShowFavourites(true)}
+        />
+      )}
     </div>
   );
 }

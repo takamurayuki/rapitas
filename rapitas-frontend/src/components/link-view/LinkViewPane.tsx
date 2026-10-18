@@ -12,7 +12,17 @@
  */
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { ArrowLeft, ArrowRight, RotateCw, ExternalLink, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  RotateCw,
+  ExternalLink,
+  X,
+  Bookmark,
+  BookmarkPlus,
+} from 'lucide-react';
+import { API_BASE_URL } from '@/utils/api';
+import { useLinkLibraryStore } from '@/stores/link-library-store';
 import { openExternalUrl } from '@/utils/tauri';
 import type { LinkTab } from '@/stores/link-view-store';
 
@@ -26,6 +36,8 @@ interface LinkViewPaneProps {
   onHistory: (action: 'back' | 'forward' | 'reload') => void;
   /** Point the active tab at a different URL. / 遷移先の変更 */
   onNavigate: (url: string) => void;
+  /** Open the saved-pages view. / お気に入りを開く */
+  onShowFavourites: () => void;
 }
 
 /** The host of a URL, or the whole string when it will not parse. */
@@ -72,6 +84,7 @@ export function LinkViewPane({
   onCloseTab,
   onHistory,
   onNavigate,
+  onShowFavourites,
 }: LinkViewPaneProps) {
   const t = useTranslations('linkView');
   const active = tabs.find((tab) => tab.id === activeId);
@@ -83,6 +96,36 @@ export function LinkViewPane({
   useEffect(() => {
     setDraft(active?.url ?? '');
   }, [active?.id, active?.url]);
+
+  const groups = useLinkLibraryStore((s) => s.groups);
+  const addFavourite = useLinkLibraryStore((s) => s.addFavourite);
+  const saved = useLinkLibraryStore((s) => s.favourites.some((f) => f.url === active?.url));
+
+  /**
+   * Save the page, resolving its title and icon first.
+   *
+   * The same endpoint the note editor's link cards use. It falls back to
+   * the host rather than failing: a saved page with a plain title beats a
+   * save that silently did nothing.
+   */
+  const save = async () => {
+    if (!active) return;
+    let title = hostOf(active.url);
+    let favicon = '';
+    try {
+      const res = await fetch(`${API_BASE_URL}/url-metadata`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: active.url }),
+      });
+      const meta = await res.json();
+      title = meta.title || title;
+      favicon = meta.favicon || '';
+    } catch {
+      // Keep the host-derived title.
+    }
+    addFavourite({ url: active.url, title, favicon, groupId: active.groupId ?? null });
+  };
 
   const submit = () => {
     const url = toNavigableUrl(draft);
@@ -96,14 +139,20 @@ export function LinkViewPane({
       <div className="flex shrink-0 items-stretch gap-0.5 overflow-x-auto border-b border-zinc-200 px-1 pt-1 dark:border-zinc-700">
         {tabs.map((tab) => {
           const on = tab.id === activeId;
+          const group = groups.find((g) => g.id === tab.groupId);
           return (
             <div
               key={tab.id}
               className={`group flex min-w-0 max-w-44 items-center gap-1 rounded-t border-b-2 px-2 py-1 text-xs transition-colors ${
                 on
-                  ? 'border-indigo-500 bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100'
-                  : 'border-transparent text-zinc-500 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/60'
+                  ? 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100'
+                  : 'text-zinc-500 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/60'
               }`}
+              // A grouped tab is marked in its group's colour, which is the
+              // same colour the group's heading carries in the library.
+              style={{
+                borderBottomColor: group?.color ?? (on ? '#6366f1' : 'transparent'),
+              }}
             >
               <button
                 type="button"
@@ -158,6 +207,20 @@ export function LinkViewPane({
           className="mx-1 min-w-0 flex-1 truncate rounded border border-transparent bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700 outline-none focus:border-indigo-400 focus:bg-white dark:bg-zinc-800 dark:text-zinc-200 dark:focus:bg-zinc-900"
         />
 
+        <button
+          onClick={() => void save()}
+          title={saved ? t('alreadySaved') : t('saveToFavourites')}
+          className={iconButton}
+        >
+          {saved ? (
+            <Bookmark className="h-3.5 w-3.5 fill-current text-indigo-500" />
+          ) : (
+            <BookmarkPlus className="h-3.5 w-3.5" />
+          )}
+        </button>
+        <button onClick={onShowFavourites} title={t('favourites')} className={iconButton}>
+          <Bookmark className="h-3.5 w-3.5" />
+        </button>
         <button
           onClick={() => active && void openExternalUrl(active.url)}
           title={t('openExternally')}

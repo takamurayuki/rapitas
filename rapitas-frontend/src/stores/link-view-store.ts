@@ -6,11 +6,13 @@
  * task description, a markdown block — while the pane itself is mounted once
  * in the app shell.
  *
- * Deliberately not persisted: a docked page is part of the current session,
- * and restoring a set of them on launch would open network requests nobody
- * asked for.
+ * The tab list IS persisted, so Ctrl+B reopens whatever was there last
+ * time. Nothing is loaded at startup, though: the pane begins closed and a
+ * webview is only created once it opens, which keeps the original reason
+ * this was session-only — no network requests nobody asked for on launch.
  */
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 /**
  * The pane's width, in vw. AppContent reserves exactly this much on the
@@ -24,9 +26,16 @@ export interface LinkTab {
   /** Stable id; also the Tauri webview label suffix. / タブID */
   id: string;
   url: string;
+  /** The group it belongs to, or null. Shared ids with the library. / グループ */
+  groupId?: string | null;
 }
 
 interface LinkViewState {
+  /**
+   * Whether the pane is on screen. Separate from having tabs so Ctrl+B can
+   * hide it and bring the same set back. / ペインの表示状態
+   */
+  isOpen: boolean;
   tabs: LinkTab[];
   /** The tab on screen, or null when the pane is closed. / 表示中のタブ */
   activeId: string | null;
@@ -38,47 +47,72 @@ interface LinkViewState {
   closeTab: (id: string) => void;
   /** Point a tab at a different URL. / タブの遷移先を変える */
   setTabUrl: (id: string, url: string) => void;
+  /** Put a tab in a group, or take it out of one. / タブのグループ変更 */
+  setTabGroup: (id: string, groupId: string | null) => void;
+  /** Show or hide the pane without losing the tabs. / 表示の切り替え */
+  toggleOpen: () => void;
+  setOpen: (open: boolean) => void;
   /** Close every tab. / すべて閉じる */
   closeAll: () => void;
 }
 
 let nextTabId = 0;
 
-export const useLinkViewStore = create<LinkViewState>((set) => ({
-  tabs: [],
-  activeId: null,
+export const useLinkViewStore = create<LinkViewState>()(
+  persist(
+    (set) => ({
+      isOpen: false,
+      tabs: [],
+      activeId: null,
 
-  openLink: (url) =>
-    set((state) => {
-      // Re-opening a link that is already here focuses it rather than
-      // stacking a second copy of the same page.
-      const existing = state.tabs.find((tab) => tab.url === url);
-      if (existing) return { activeId: existing.id };
-      const tab: LinkTab = { id: `t${++nextTabId}`, url };
-      return { tabs: [...state.tabs, tab], activeId: tab.id };
+      openLink: (url) =>
+        set((state) => {
+          // Re-opening a link that is already here focuses it rather than
+          // stacking a second copy of the same page. Opening anything also
+          // shows the pane, so a click still works while it is hidden.
+          const existing = state.tabs.find((tab) => tab.url === url);
+          if (existing) return { activeId: existing.id, isOpen: true };
+          const tab: LinkTab = { id: `t${Date.now().toString(36)}${++nextTabId}`, url };
+          return { tabs: [...state.tabs, tab], activeId: tab.id, isOpen: true };
+        }),
+
+      activateTab: (id) => set({ activeId: id }),
+
+      closeTab: (id) =>
+        set((state) => {
+          const index = state.tabs.findIndex((tab) => tab.id === id);
+          if (index === -1) return state;
+          const tabs = state.tabs.filter((tab) => tab.id !== id);
+          if (state.activeId !== id) return { tabs };
+          // Focus the neighbour the way a browser does: the one to the
+          // right, or the new last tab when the closed one was last.
+          const next = tabs[index] ?? tabs[index - 1] ?? null;
+          return { tabs, activeId: next?.id ?? null };
+        }),
+
+      setTabUrl: (id, url) =>
+        set((state) => ({
+          tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, url } : tab)),
+        })),
+
+      setTabGroup: (id, groupId) =>
+        set((state) => ({
+          tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, groupId } : tab)),
+        })),
+
+      toggleOpen: () => set((state) => ({ isOpen: !state.isOpen })),
+      setOpen: (open) => set({ isOpen: open }),
+
+      closeAll: () => set({ tabs: [], activeId: null, isOpen: false }),
     }),
-
-  activateTab: (id) => set({ activeId: id }),
-
-  closeTab: (id) =>
-    set((state) => {
-      const index = state.tabs.findIndex((tab) => tab.id === id);
-      if (index === -1) return state;
-      const tabs = state.tabs.filter((tab) => tab.id !== id);
-      if (state.activeId !== id) return { tabs };
-      // Focus the neighbour the way a browser does: the one to the right,
-      // or the new last tab when the closed one was last.
-      const next = tabs[index] ?? tabs[index - 1] ?? null;
-      return { tabs, activeId: next?.id ?? null };
-    }),
-
-  setTabUrl: (id, url) =>
-    set((state) => ({
-      tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, url } : tab)),
-    })),
-
-  closeAll: () => set({ tabs: [], activeId: null }),
-}));
+    {
+      name: 'rapitas-link-view',
+      // The tab set is restored so Ctrl+B brings back what was open; the
+      // pane itself is not, so nothing loads until it is asked for.
+      partialize: (state) => ({ tabs: state.tabs, activeId: state.activeId }),
+    },
+  ),
+);
 
 /**
  * Open a URL in the pane from outside React.

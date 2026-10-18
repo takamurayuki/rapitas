@@ -379,6 +379,15 @@
     "openExternally": "Open in the external browser",
     "close": "Close",
     "closeTab": "Close the {host} tab",
-    "addressLabel": "Address"
+    "addressLabel": "Address",
+    "favourites": "Favourites",
+    "saveToFavourites": "Save to favourites",
+    "alreadySaved": "Saved",
+    "removeFavourite": "Remove from favourites",
+    "noFavourites": "Nothing saved yet",
+    "ungrouped": "Ungrouped",
+    "groupEmpty": "This group is empty",
+    "newGroupPlaceholder": "Add a group (Enter)",
+    "moveToGroup": "Move to group"
   }
 }

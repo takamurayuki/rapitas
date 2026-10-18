@@ -13,11 +13,13 @@ import { TASK_DETAIL_SPLIT_WIDTH_VW } from '../task-detail-visibility-store';
 const state = () => useLinkViewStore.getState();
 const urls = () => state().tabs.map((t) => t.url);
 
-describe('link-view-store', () => {
-  beforeEach(() => {
-    useLinkViewStore.setState({ tabs: [], activeId: null });
-  });
+// Module scope: a beforeEach inside one describe does not reach the others,
+// and state then leaks between them.
+beforeEach(() => {
+  useLinkViewStore.setState({ tabs: [], activeId: null, isOpen: false });
+});
 
+describe('link-view-store', () => {
   it('starts closed', () => {
     expect(state().tabs).toEqual([]);
     expect(state().activeId).toBeNull();
@@ -139,5 +141,61 @@ describe('linkPaneWidthVw', () => {
   it('never collapses to nothing', () => {
     expect(linkPaneWidthVw(100)).toBeGreaterThan(0);
     expect(linkPaneWidthVw(120)).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * Ctrl+B hides and shows the pane, and must bring back what was open — so
+ * closing the pane is not the same as closing the tabs (#1074).
+ */
+describe('showing and hiding the pane', () => {
+  it('starts closed', () => {
+    expect(state().isOpen).toBe(false);
+  });
+
+  it('opens when a link is opened, even from hidden', () => {
+    state().openLink('https://a.example');
+    expect(state().isOpen).toBe(true);
+  });
+
+  it('keeps the tabs when hidden, and brings them back', () => {
+    state().openLink('https://a.example');
+    state().openLink('https://b.example');
+    const before = urls();
+    const active = state().activeId;
+
+    state().toggleOpen();
+    expect(state().isOpen).toBe(false);
+    expect(urls()).toEqual(before);
+
+    state().toggleOpen();
+    expect(state().isOpen).toBe(true);
+    expect(urls()).toEqual(before);
+    expect(state().activeId).toBe(active);
+  });
+
+  it('closes the pane along with every tab', () => {
+    state().openLink('https://a.example');
+    state().closeAll();
+    expect(state().isOpen).toBe(false);
+    expect(state().tabs).toEqual([]);
+  });
+});
+
+describe('tab groups', () => {
+  it('puts a tab in a group and takes it out again', () => {
+    state().openLink('https://a.example');
+    const id = state().tabs[0].id;
+    state().setTabGroup(id, 'g1');
+    expect(state().tabs[0].groupId).toBe('g1');
+    state().setTabGroup(id, null);
+    expect(state().tabs[0].groupId).toBeNull();
+  });
+
+  it('leaves other tabs alone', () => {
+    state().openLink('https://a.example');
+    state().openLink('https://b.example');
+    state().setTabGroup(state().tabs[0].id, 'g1');
+    expect(state().tabs[1].groupId).toBeUndefined();
   });
 });
