@@ -388,6 +388,7 @@
     "ungrouped": "Ungrouped",
     "groupEmpty": "This group is empty",
     "newGroupPlaceholder": "Add a group (Enter)",
-    "moveToGroup": "Move to group"
+    "moveToGroup": "Move to group",
+    "newTab": "New tab"
   }
 }

@@ -388,6 +388,7 @@
     "ungrouped": "グループなし",
     "groupEmpty": "このグループは空です",
     "newGroupPlaceholder": "グループを追加（Enter）",
-    "moveToGroup": "グループを変更"
+    "moveToGroup": "グループを変更",
+    "newTab": "新しいタブ"
   }
 }

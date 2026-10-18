@@ -21,6 +21,14 @@ import { persist } from 'zustand/middleware';
  */
 export const LINK_VIEW_SPLIT_WIDTH_VW = 40;
 
+/**
+ * Where a tab opened with "+" starts.
+ *
+ * A search page rather than a blank one: the button exists to go somewhere
+ * new, and a blank tab would need an address typed before it did anything.
+ */
+export const NEW_TAB_URL = 'https://www.google.com/';
+
 /** One page open in the pane. */
 export interface LinkTab {
   /** Stable id; also the Tauri webview label suffix. / タブID */
@@ -41,6 +49,14 @@ interface LinkViewState {
   activeId: string | null;
   /** Open a URL, or focus the tab already showing it. / リンクを開く */
   openLink: (url: string) => void;
+  /**
+   * Open a new tab at {@link NEW_TAB_URL}.
+   *
+   * Always adds one, unlike `openLink`, which focuses an existing tab for
+   * the same URL — pressing "+" twice must give two tabs even though both
+   * start at the same page. / 新しいタブを開く
+   */
+  newTab: () => void;
   /** Bring a tab to the front. / タブを選択 */
   activateTab: (id: string) => void;
   /** Close one tab; the pane closes with the last one. / タブを閉じる */
@@ -73,6 +89,15 @@ export const useLinkViewStore = create<LinkViewState>()(
           const existing = state.tabs.find((tab) => tab.url === url);
           if (existing) return { activeId: existing.id, isOpen: true };
           const tab: LinkTab = { id: `t${Date.now().toString(36)}${++nextTabId}`, url };
+          return { tabs: [...state.tabs, tab], activeId: tab.id, isOpen: true };
+        }),
+
+      newTab: () =>
+        set((state) => {
+          const tab: LinkTab = {
+            id: `t${Date.now().toString(36)}${++nextTabId}`,
+            url: NEW_TAB_URL,
+          };
           return { tabs: [...state.tabs, tab], activeId: tab.id, isOpen: true };
         }),
 

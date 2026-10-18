@@ -6,7 +6,12 @@
  * the pane feel like a browser rather than a list that grows.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useLinkViewStore, openLinkInPane, LINK_VIEW_SPLIT_WIDTH_VW } from '../link-view-store';
+import {
+  useLinkViewStore,
+  openLinkInPane,
+  LINK_VIEW_SPLIT_WIDTH_VW,
+  NEW_TAB_URL,
+} from '../link-view-store';
 import { linkPaneSide, linkPaneWidthVw } from '@/components/link-view/LinkViewHost';
 import { TASK_DETAIL_SPLIT_WIDTH_VW } from '../task-detail-visibility-store';
 
@@ -197,5 +202,40 @@ describe('tab groups', () => {
     state().openLink('https://b.example');
     state().setTabGroup(state().tabs[0].id, 'g1');
     expect(state().tabs[1].groupId).toBeUndefined();
+  });
+});
+
+/**
+ * The "+" button. It must not share openLink's de-duplication: pressing it
+ * twice has to give two tabs even though both start at the same page
+ * (#1074).
+ */
+describe('newTab', () => {
+  it('opens at the default page', () => {
+    state().newTab();
+    expect(state().tabs).toHaveLength(1);
+    expect(state().tabs[0].url).toBe(NEW_TAB_URL);
+    expect(state().activeId).toBe(state().tabs[0].id);
+  });
+
+  it('adds a second one rather than focusing the first', () => {
+    state().newTab();
+    state().newTab();
+    expect(state().tabs).toHaveLength(2);
+    expect(state().tabs[0].id).not.toBe(state().tabs[1].id);
+    expect(state().activeId).toBe(state().tabs[1].id);
+  });
+
+  // Contrast: openLink deliberately does focus an existing tab.
+  it('differs from openLink, which still de-duplicates', () => {
+    state().openLink('https://a.example');
+    state().openLink('https://a.example');
+    expect(state().tabs).toHaveLength(1);
+  });
+
+  it('shows the pane when it was hidden', () => {
+    expect(state().isOpen).toBe(false);
+    state().newTab();
+    expect(state().isOpen).toBe(true);
   });
 });

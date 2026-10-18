@@ -63,6 +63,7 @@ export default function LinkViewHost() {
   const activeId = useLinkViewStore((s) => s.activeId);
   const activateTab = useLinkViewStore((s) => s.activateTab);
   const openLink = useLinkViewStore((s) => s.openLink);
+  const newTab = useLinkViewStore((s) => s.newTab);
   const closeTab = useLinkViewStore((s) => s.closeTab);
   const setTabUrl = useLinkViewStore((s) => s.setTabUrl);
   const closeAll = useLinkViewStore((s) => s.closeAll);
@@ -146,6 +147,7 @@ export default function LinkViewHost() {
           onHistory={view.history}
           onNavigate={(url) => setTabUrl(activeId, url)}
           onShowFavourites={() => setShowFavourites(true)}
+          onNewTab={newTab}
         />
       )}
     </div>

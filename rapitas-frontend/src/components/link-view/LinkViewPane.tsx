@@ -20,6 +20,7 @@ import {
   X,
   Bookmark,
   BookmarkPlus,
+  Plus,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useLinkLibraryStore } from '@/stores/link-library-store';
@@ -38,6 +39,8 @@ interface LinkViewPaneProps {
   onNavigate: (url: string) => void;
   /** Open the saved-pages view. / お気に入りを開く */
   onShowFavourites: () => void;
+  /** Open a new tab at the default page. / 新しいタブ */
+  onNewTab: () => void;
 }
 
 /** The host of a URL, or the whole string when it will not parse. */
@@ -85,6 +88,7 @@ export function LinkViewPane({
   onHistory,
   onNavigate,
   onShowFavourites,
+  onNewTab,
 }: LinkViewPaneProps) {
   const t = useTranslations('linkView');
   const active = tabs.find((tab) => tab.id === activeId);
@@ -173,6 +177,15 @@ export function LinkViewPane({
             </div>
           );
         })}
+        <button
+          type="button"
+          onClick={onNewTab}
+          title={t('newTab')}
+          aria-label={t('newTab')}
+          className="my-0.5 shrink-0 rounded px-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       {/* Address bar for the active tab */}
