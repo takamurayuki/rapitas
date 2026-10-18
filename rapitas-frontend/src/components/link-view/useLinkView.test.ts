@@ -126,3 +126,53 @@ describe('useLinkView', () => {
     await waitFor(() => expect(closeLinkView).toHaveBeenCalledWith('t1'));
   });
 });
+
+/**
+ * Reported 2026-10-18 (#1068): closing a tab left its page on screen — the
+ * chrome went, the content did not. A child webview is an OS surface, so
+ * taking it off screen is its own step from releasing it.
+ */
+describe('tearing a tab down', () => {
+  it('hides the surface before destroying it', async () => {
+    const order: string[] = [];
+    setLinkViewVisible.mockImplementation(async (id: string, visible: boolean) => {
+      if (!visible) order.push(`hide:${id}`);
+      return true;
+    });
+    closeLinkView.mockImplementation(async (id: string) => {
+      order.push(`close:${id}`);
+      return true;
+    });
+
+    const { rerender } = renderWithBox(TABS, 't1');
+    await waitFor(() => expect(openLinkView).toHaveBeenCalled());
+    rerender({ t: [TABS[1]], a: 't2' });
+
+    await waitFor(() => expect(order).toContain('close:t1'));
+    expect(order.indexOf('hide:t1')).toBeLessThan(order.indexOf('close:t1'));
+  });
+
+  it('hides and closes every tab when the pane unmounts', async () => {
+    const { unmount } = renderWithBox(TABS, 't1');
+    await waitFor(() => expect(openLinkView).toHaveBeenCalled());
+    unmount();
+    await waitFor(() => expect(closeLinkView).toHaveBeenCalledWith('t1'));
+    expect(setLinkViewVisible).toHaveBeenCalledWith('t1', false);
+  });
+});
+
+/**
+ * Swapping the task panel's dock side moves the pane without resizing it,
+ * and a ResizeObserver never fires for a move — the surface stayed put and
+ * the page was stranded on the old side (#1068).
+ */
+describe('resync', () => {
+  it('repositions even when the rectangle looks unchanged', async () => {
+    const { result } = renderWithBox(TABS, 't1');
+    await waitFor(() => expect(openLinkView).toHaveBeenCalled());
+    setLinkViewBounds.mockClear();
+
+    result.current.resync();
+    await waitFor(() => expect(setLinkViewBounds).toHaveBeenCalledWith('t1', expect.anything()));
+  });
+});

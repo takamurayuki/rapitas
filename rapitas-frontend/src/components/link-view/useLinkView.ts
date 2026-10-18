@@ -28,12 +28,33 @@ export interface UseLinkViewReturn {
   placeholderRef: React.RefObject<HTMLDivElement | null>;
   /** Move history or reload the active tab. / 履歴操作 */
   history: (action: 'back' | 'forward' | 'reload') => void;
+  /**
+   * Put the active webview back on the pane after a move the observers
+   * cannot see — a dock-side swap changes position, not size, and a
+   * ResizeObserver never fires for that. / 位置だけ変わった時の再同期
+   */
+  resync: () => void;
 }
 
 /** Read an element's position in CSS pixels relative to the window. */
 function boundsOf(el: HTMLElement): LinkViewBounds {
   const r = el.getBoundingClientRect();
   return { x: r.left, y: r.top, width: r.width, height: r.height };
+}
+
+/**
+ * Remove a tab's webview from the screen and then destroy it.
+ *
+ * Hiding first is not redundant. A child webview is an OS surface, and the
+ * reported failure was the page staying painted after its tab closed
+ * (#1068) — the chrome went, the content did not. Hiding is the step that
+ * is certain to take it off screen; closing then releases it.
+ *
+ * @param tabId - The tab being torn down / 破棄するタブ
+ */
+async function teardownTab(tabId: string): Promise<void> {
+  await setLinkViewVisible(tabId, false);
+  await closeLinkView(tabId);
 }
 
 /** Two rectangles close enough that moving the webview would be a no-op. */
@@ -69,23 +90,33 @@ export function useLinkView(
   const onUnavailableRef = useRef(onUnavailable);
   onUnavailableRef.current = onUnavailable;
 
-  const syncBounds = useCallback(() => {
-    const el = placeholderRef.current;
-    if (!el || !activeId) return;
-    const next = boundsOf(el);
-    // A collapsed box means the pane is not on screen — hide rather than
-    // shrink, because a 0-sized webview is rejected by the platform and a
-    // 1px one would still paint over the page.
-    if (next.width < 2 || next.height < 2) {
-      void setLinkViewVisible(activeId, false);
-      lastBounds.current = null;
-      return;
-    }
-    if (sameBounds(lastBounds.current, next)) return;
-    lastBounds.current = next;
-    void setLinkViewBounds(activeId, next);
-    void setLinkViewVisible(activeId, true);
-  }, [activeId]);
+  const syncBounds = useCallback(
+    (force = false) => {
+      const el = placeholderRef.current;
+      if (!el || !activeId) return;
+      const next = boundsOf(el);
+      // A collapsed box means the pane is not on screen — hide rather than
+      // shrink, because a 0-sized webview is rejected by the platform and a
+      // 1px one would still paint over the page.
+      if (next.width < 2 || next.height < 2) {
+        void setLinkViewVisible(activeId, false);
+        lastBounds.current = null;
+        return;
+      }
+      if (!force && sameBounds(lastBounds.current, next)) return;
+      lastBounds.current = next;
+      void setLinkViewBounds(activeId, next);
+      void setLinkViewVisible(activeId, true);
+    },
+    [activeId],
+  );
+
+  // The pane may not have been laid out at its new place yet when the side
+  // changes, so measure again on the next frame rather than this one.
+  const resync = useCallback(() => {
+    syncBounds(true);
+    requestAnimationFrame(() => syncBounds(true));
+  }, [syncBounds]);
 
   const history = useCallback(
     (action: 'back' | 'forward' | 'reload') => {
@@ -145,7 +176,7 @@ export function useLinkView(
     for (const id of Array.from(opened.current)) {
       if (!live.has(id)) {
         opened.current.delete(id);
-        void closeLinkView(id);
+        void teardownTab(id);
       }
     }
   }, [tabs]);
@@ -159,15 +190,16 @@ export function useLinkView(
 
     // Guarded like TaskDetailQuickNav: jsdom has no ResizeObserver, and the
     // window listeners below already cover the common case without it.
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(syncBounds);
+    const onChange = () => syncBounds();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(onChange);
     observer?.observe(el);
-    window.addEventListener('resize', syncBounds);
-    window.addEventListener('scroll', syncBounds, true);
+    window.addEventListener('resize', onChange);
+    window.addEventListener('scroll', onChange, true);
 
     return () => {
       observer?.disconnect();
-      window.removeEventListener('resize', syncBounds);
-      window.removeEventListener('scroll', syncBounds, true);
+      window.removeEventListener('resize', onChange);
+      window.removeEventListener('scroll', onChange, true);
     };
   }, [activeId, syncBounds]);
 
@@ -176,10 +208,10 @@ export function useLinkView(
   useEffect(() => {
     const createdTabs = opened.current;
     return () => {
-      for (const id of Array.from(createdTabs)) void closeLinkView(id);
+      for (const id of Array.from(createdTabs)) void teardownTab(id);
       createdTabs.clear();
     };
   }, []);
 
-  return { placeholderRef, history };
+  return { placeholderRef, history, resync };
 }

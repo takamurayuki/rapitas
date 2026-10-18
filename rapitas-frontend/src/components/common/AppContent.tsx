@@ -20,8 +20,8 @@ import {
   useTaskDetailVisibilityStore,
   TASK_DETAIL_SPLIT_WIDTH_VW,
 } from '@/stores/task-detail-visibility-store';
-import { useLinkViewStore, LINK_VIEW_SPLIT_WIDTH_VW } from '@/stores/link-view-store';
-import { linkPaneSide } from '@/components/link-view/LinkViewHost';
+import { useLinkViewStore } from '@/stores/link-view-store';
+import { linkPaneSide, linkPaneWidthVw } from '@/components/link-view/LinkViewHost';
 
 /**
  * @param children - Page content to render / 描画するページコンテンツ
@@ -44,11 +44,14 @@ export default function AppContent({ children }: { children: React.ReactNode }) 
   // reservation has to follow it rather than assume the right (#1065).
   const isLinkViewOpen = useLinkViewStore((s) => s.activeId !== null);
   const linkSide = linkPaneSide(isTaskDetailVisible, taskDetailDockSide);
+  // Must match the pane's own width, or the gap it was widened to fill
+  // simply reappears as page padding on the other side.
+  const linkWidthVw = linkPaneWidthVw(isTaskSplitOpen);
 
   const reservedVw = (side: 'left' | 'right'): number =>
     (isTerminalSplitOpen && terminalDockSide === side ? terminalSplitWidthPercent : 0) +
     (isTaskSplitOpen && taskDetailDockSide === side ? TASK_DETAIL_SPLIT_WIDTH_VW : 0) +
-    (isLinkViewOpen && side === linkSide ? LINK_VIEW_SPLIT_WIDTH_VW : 0);
+    (isLinkViewOpen && side === linkSide ? linkWidthVw : 0);
   const rightVw = reservedVw('right');
   const leftVw = reservedVw('left');
 

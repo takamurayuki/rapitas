@@ -6,8 +6,9 @@
  * the pane feel like a browser rather than a list that grows.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useLinkViewStore, openLinkInPane } from '../link-view-store';
-import { linkPaneSide } from '@/components/link-view/LinkViewHost';
+import { useLinkViewStore, openLinkInPane, LINK_VIEW_SPLIT_WIDTH_VW } from '../link-view-store';
+import { linkPaneSide, linkPaneWidthVw } from '@/components/link-view/LinkViewHost';
+import { TASK_DETAIL_SPLIT_WIDTH_VW } from '../task-detail-visibility-store';
 
 const state = () => useLinkViewStore.getState();
 const urls = () => state().tabs.map((t) => t.url);
@@ -103,5 +104,25 @@ describe('linkPaneSide', () => {
   it('defaults to the right when no task panel is open', () => {
     expect(linkPaneSide(false, 'right')).toBe('right');
     expect(linkPaneSide(false, 'left')).toBe('right');
+  });
+});
+
+/**
+ * Reported 2026-10-18 (#1068): a strip of the page showed between the link
+ * pane and the task detail panel. The pane kept its default width instead
+ * of running up to the panel beside it.
+ */
+describe('linkPaneWidthVw', () => {
+  it('runs up to the task panel when that panel tiles beside the page', () => {
+    // 50vw task panel + 50vw pane leaves nothing showing between them.
+    expect(linkPaneWidthVw(true)).toBe(100 - TASK_DETAIL_SPLIT_WIDTH_VW);
+  });
+
+  it('keeps its default width when no task panel is tiled', () => {
+    expect(linkPaneWidthVw(false)).toBe(LINK_VIEW_SPLIT_WIDTH_VW);
+  });
+
+  it('never leaves a gap', () => {
+    expect(linkPaneWidthVw(true) + TASK_DETAIL_SPLIT_WIDTH_VW).toBe(100);
   });
 });
