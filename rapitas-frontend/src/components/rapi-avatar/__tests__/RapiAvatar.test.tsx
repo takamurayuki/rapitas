@@ -205,3 +205,66 @@ describe('the dock', () => {
     expect(container.querySelector('svg')?.getAttribute('role')).toBe('img');
   });
 });
+
+/**
+ * A flat disc with a shadow under it still looks flat — what makes a circle
+ * read as a sphere is the shading across its surface. All three layers are
+ * painted OVER the body rather than replacing it, so the token colour stays
+ * the colour.
+ */
+describe('depth', () => {
+  /** Ellipses with no pathLength and no stroke: the shadow and the gloss. */
+  const softShapes = (el: HTMLElement) =>
+    Array.from(el.querySelectorAll('ellipse')).filter(
+      (e) => !e.hasAttribute('pathLength') && !e.getAttribute('stroke'),
+    );
+
+  it('keeps the body its token colour underneath', () => {
+    const { container } = render(<RapiAvatar state="idle" />);
+    expect(container.querySelector('circle')?.getAttribute('fill')).toBe(
+      RAPI_AVATAR_TOKENS.body.light,
+    );
+  });
+
+  it('shades the body on top of that', () => {
+    const { container } = render(<RapiAvatar state="idle" />);
+    const circles = Array.from(container.querySelectorAll('circle'));
+    expect(circles).toHaveLength(2);
+    expect(circles[1].getAttribute('fill')).toMatch(/^url\(#rapi-shade-/);
+  });
+
+  it('casts a shadow below the body', () => {
+    const { container } = render(<RapiAvatar state="idle" />);
+    const cast = softShapes(container).find((e) =>
+      e.getAttribute('fill')?.startsWith('url(#rapi-cast-'),
+    );
+    expect(cast).toBeTruthy();
+    // Below the body: its centre is past the bottom of the circle.
+    expect(Number(cast?.getAttribute('cy'))).toBeGreaterThan(70 + 37);
+  });
+
+  it('puts a highlight where the light is', () => {
+    const { container } = render(<RapiAvatar state="idle" />);
+    const gloss = softShapes(container).find((e) =>
+      e.getAttribute('fill')?.startsWith('url(#rapi-gloss-'),
+    );
+    expect(gloss).toBeTruthy();
+    // Upper left of centre, matching the gradient's light direction.
+    expect(Number(gloss?.getAttribute('cx'))).toBeLessThan(60);
+    expect(Number(gloss?.getAttribute('cy'))).toBeLessThan(70);
+  });
+
+  // Same reason the clipPath is per-instance: two avatars must not share
+  // a gradient id, or the second one paints with the first one's.
+  it('gives each avatar its own gradient ids', () => {
+    const { container } = render(
+      <>
+        <RapiAvatar state="idle" />
+        <RapiAvatar state="idle" />
+      </>,
+    );
+    const ids = Array.from(container.querySelectorAll('radialGradient')).map((g) => g.id);
+    expect(ids).toHaveLength(6);
+    expect(new Set(ids).size).toBe(6);
+  });
+});
