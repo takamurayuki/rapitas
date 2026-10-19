@@ -13,6 +13,7 @@
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { nextTabMeta, type LinkPageChange } from '@/components/link-view/link-tab-meta';
 
 /**
  * The pane's width, in vw. AppContent reserves exactly this much on the
@@ -34,6 +35,12 @@ export interface LinkTab {
   /** Stable id; also the Tauri webview label suffix. / タブID */
   id: string;
   url: string;
+  /**
+   * The page's own title, as the webview reported it. Absent until it
+   * does, and dropped again the moment the tab navigates away — a tab must
+   * never label the page it has left. / ページタイトル
+   */
+  title?: string;
   /** The group it belongs to, or null. Shared ids with the library. / グループ */
   groupId?: string | null;
 }
@@ -63,6 +70,14 @@ interface LinkViewState {
   closeTab: (id: string) => void;
   /** Point a tab at a different URL. / タブの遷移先を変える */
   setTabUrl: (id: string, url: string) => void;
+  /**
+   * Record where a tab actually went, as the webview reported it.
+   *
+   * The counterpart of `setTabUrl`: that one drives the webview, this one
+   * follows it — a search run inside the page moves the tab without anyone
+   * touching the address bar. / webview 側の遷移を取り込む
+   */
+  applyPageChange: (id: string, change: LinkPageChange) => void;
   /** Put a tab in a group, or take it out of one. / タブのグループ変更 */
   setTabGroup: (id: string, groupId: string | null) => void;
   /** Show or hide the pane without losing the tabs. / 表示の切り替え */
@@ -115,9 +130,18 @@ export const useLinkViewStore = create<LinkViewState>()(
           return { tabs, activeId: next?.id ?? null };
         }),
 
+      // The title belongs to the page being left, so it goes with it; the
+      // webview reports the new one a moment later.
       setTabUrl: (id, url) =>
         set((state) => ({
-          tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, url } : tab)),
+          tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, url, title: undefined } : tab)),
+        })),
+
+      applyPageChange: (id, change) =>
+        set((state) => ({
+          tabs: state.tabs.map((tab) =>
+            tab.id === id ? { ...tab, title: undefined, ...nextTabMeta(tab, change) } : tab,
+          ),
         })),
 
       setTabGroup: (id, groupId) =>

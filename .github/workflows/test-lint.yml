@@ -372,6 +372,7 @@ jobs:
           src/stores/__tests__/link-view-store.test.ts
           src/components/link-view/useLinkView.test.ts
           src/components/link-view/LinkViewPane.test.ts
+          src/components/link-view/link-tab-meta.test.ts
           src/components/common/__tests__/shortcut-editable-guard.test.ts
 
   lint:

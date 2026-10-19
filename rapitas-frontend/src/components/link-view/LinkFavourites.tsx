@@ -17,21 +17,13 @@ import {
   useLinkLibraryStore,
   type LinkFavourite,
 } from '@/stores/link-library-store';
+import { hostOf } from './link-tab-meta';
 
 interface LinkFavouritesProps {
   /** Open a saved page in a tab. / タブで開く */
   onOpen: (favourite: LinkFavourite) => void;
   /** Close the favourites view. / 閉じる */
   onClose: () => void;
-}
-
-/** The host of a URL, for the subtitle and the icon fallback. */
-function hostOf(url: string): string {
-  try {
-    return new URL(url).host;
-  } catch {
-    return url;
-  }
 }
 
 /**

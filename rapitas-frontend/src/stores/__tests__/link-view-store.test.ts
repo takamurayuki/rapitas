@@ -239,3 +239,60 @@ describe('newTab', () => {
     expect(state().isOpen).toBe(true);
   });
 });
+
+/**
+ * A tab must describe the page it is on, not the one it was opened at:
+ * "+" starts every tab at Google, and before this the heading and the
+ * address bar both stayed there however far the user searched (#1078).
+ */
+describe('applyPageChange', () => {
+  it('moves the tab to the URL the webview reported', () => {
+    state().newTab();
+    const id = state().tabs[0].id;
+    state().applyPageChange(id, { url: 'https://www.google.com/search?q=rust' });
+    expect(state().tabs[0].url).toBe('https://www.google.com/search?q=rust');
+  });
+
+  it('labels the tab with the page title', () => {
+    state().newTab();
+    const id = state().tabs[0].id;
+    state().applyPageChange(id, { title: 'rust - Google 検索' });
+    expect(state().tabs[0].title).toBe('rust - Google 検索');
+  });
+
+  it('drops a title that described the page just left', () => {
+    state().newTab();
+    const id = state().tabs[0].id;
+    state().applyPageChange(id, { title: 'Google' });
+    state().applyPageChange(id, { url: 'https://example.com/' });
+    expect(state().tabs[0].title).toBeUndefined();
+  });
+
+  it('leaves the other tabs alone', () => {
+    state().openLink('https://a.example');
+    state().openLink('https://b.example');
+    state().applyPageChange(state().tabs[0].id, { title: 'A' });
+    expect(state().tabs[1].title).toBeUndefined();
+  });
+
+  // The webview is torn down asynchronously, so an event can land after
+  // its tab has gone.
+  it('ignores an event for a tab that is no longer open', () => {
+    state().openLink('https://a.example');
+    const id = state().tabs[0].id;
+    state().closeTab(id);
+    expect(() => state().applyPageChange(id, { url: 'https://b.example' })).not.toThrow();
+    expect(state().tabs).toEqual([]);
+  });
+});
+
+describe('setTabUrl', () => {
+  it('clears the title of the page left behind', () => {
+    state().newTab();
+    const id = state().tabs[0].id;
+    state().applyPageChange(id, { title: 'Google' });
+    state().setTabUrl(id, 'https://example.com/');
+    expect(state().tabs[0]).toMatchObject({ url: 'https://example.com/' });
+    expect(state().tabs[0].title).toBeUndefined();
+  });
+});

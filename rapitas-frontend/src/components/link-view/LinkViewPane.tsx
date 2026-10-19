@@ -21,10 +21,12 @@ import {
   Bookmark,
   BookmarkPlus,
   Plus,
+  Globe,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useLinkLibraryStore } from '@/stores/link-library-store';
 import { openExternalUrl } from '@/utils/tauri';
+import { faviconFor, hostOf, tabLabel } from './link-tab-meta';
 import type { LinkTab } from '@/stores/link-view-store';
 
 interface LinkViewPaneProps {
@@ -41,15 +43,6 @@ interface LinkViewPaneProps {
   onShowFavourites: () => void;
   /** Open a new tab at the default page. / 新しいタブ */
   onNewTab: () => void;
-}
-
-/** The host of a URL, or the whole string when it will not parse. */
-function hostOf(url: string): string {
-  try {
-    return new URL(url).host;
-  } catch {
-    return url;
-  }
 }
 
 /**
@@ -144,6 +137,10 @@ export function LinkViewPane({
         {tabs.map((tab) => {
           const on = tab.id === activeId;
           const group = groups.find((g) => g.id === tab.groupId);
+          // The page's own title, so a row of tabs all sitting on the same
+          // host can still be told apart.
+          const label = tabLabel(tab);
+          const icon = faviconFor(tab.url);
           return (
             <div
               key={tab.id}
@@ -161,15 +158,23 @@ export function LinkViewPane({
               <button
                 type="button"
                 onClick={() => onActivate(tab.id)}
-                title={tab.url}
-                className="min-w-0 flex-1 truncate text-left"
+                title={`${label}\n${tab.url}`}
+                className="flex min-w-0 flex-1 items-center gap-1 text-left"
               >
-                {hostOf(tab.url)}
+                {icon ? (
+                  // A 16px favicon from an external host: next/image would
+                  // need remote patterns and would proxy it, for no gain.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={icon} alt="" width={14} height={14} className="h-3.5 w-3.5 shrink-0" />
+                ) : (
+                  <Globe className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
+                )}
+                <span className="min-w-0 flex-1 truncate">{label}</span>
               </button>
               <button
                 type="button"
                 onClick={() => onCloseTab(tab.id)}
-                aria-label={t('closeTab', { host: hostOf(tab.url) })}
+                aria-label={t('closeTab', { host: label })}
                 className="shrink-0 rounded p-0.5 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
               >
                 <X className="h-3 w-3" />

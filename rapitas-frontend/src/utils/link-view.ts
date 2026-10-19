@@ -135,3 +135,40 @@ export function linkViewHistory(
 ): Promise<boolean> {
   return invokeLinkView('link_webview_history', { tabId, action });
 }
+
+/**
+ * A page change the docked webview reported about itself.
+ *
+ * The two things that report one see different halves: a navigation knows
+ * the URL it is heading to, a title change knows the title and re-reads the
+ * URL — which is also how a page that moves through the History API is
+ * noticed at all, since that fires no navigation.
+ */
+export interface LinkViewPageChange {
+  /** Which tab's webview moved. / 対象タブ */
+  tabId: string;
+  url?: string | null;
+  title?: string | null;
+}
+
+/** The Tauri event the Rust side emits for both halves. */
+const PAGE_CHANGED_EVENT = 'link-view://page-changed';
+
+/**
+ * Listen for the docked webviews reporting where they went.
+ *
+ * @param handler - Called for every report, from any tab / 通知のハンドラ
+ * @returns Stop listening / リスナー解除関数
+ */
+export async function onLinkViewPageChanged(
+  handler: (change: LinkViewPageChange) => void,
+): Promise<() => void> {
+  if (!isTauri()) return () => {};
+  try {
+    const { listen } = await import('@tauri-apps/api/event');
+    return await listen<LinkViewPageChange>(PAGE_CHANGED_EVENT, (event) => handler(event.payload));
+  } catch (error) {
+    logger.error('Could not listen for link view navigation:', error);
+    return () => {};
+  }
+}
