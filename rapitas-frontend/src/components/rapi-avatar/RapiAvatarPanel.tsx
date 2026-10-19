@@ -18,6 +18,7 @@ import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { ExecutionItem } from '../resumable-executions/ExecutionItem';
 import type { ResumableExecution } from '../resumable-executions/types';
+import { TaskIntake } from './intake';
 
 interface RapiAvatarPanelProps {
   executions: ResumableExecution[];
@@ -51,6 +52,16 @@ export function RapiAvatarPanel({
   bottomPx,
 }: RapiAvatarPanelProps) {
   const t = useTranslations('banner');
+  const ta = useTranslations('rapiAvatar');
+
+  // With nothing running there is no list to head, so the panel is simply
+  // ラピ. Repeating the intake's own heading here would say it twice.
+  const heading =
+    runningCount > 0
+      ? t('inProgressWork')
+      : interruptedCount > 0
+        ? t('interruptedWork')
+        : ta('name');
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -63,14 +74,12 @@ export function RapiAvatarPanel({
   return (
     <div
       role="dialog"
-      aria-label={runningCount > 0 ? t('inProgressWork') : t('interruptedWork')}
+      aria-label={heading}
       style={{ right: 24, bottom: bottomPx, pointerEvents: 'auto' }}
       className="fixed z-[55] flex max-h-[60vh] w-80 flex-col rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
     >
       <div className="flex shrink-0 items-center gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
-        <h2 className="flex-1 text-xs font-semibold text-zinc-700 dark:text-zinc-200">
-          {runningCount > 0 ? t('inProgressWork') : t('interruptedWork')}
-        </h2>
+        <h2 className="flex-1 text-xs font-semibold text-zinc-700 dark:text-zinc-200">{heading}</h2>
         <span className="text-[11px] text-zinc-400">
           {runningCount > 0 && t('runningCount', { count: runningCount })}
           {runningCount > 0 && interruptedCount > 0 && ' / '}
@@ -86,18 +95,21 @@ export function RapiAvatarPanel({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
-        {executions.map((exec) => (
-          <ExecutionItem
-            key={exec.id}
-            exec={exec}
-            isResuming={resumingIds.has(exec.id)}
-            isDismissing={dismissingIds.has(exec.id)}
-            onResume={onResume}
-            onDismiss={onDismiss}
-            formatTimeAgo={formatTimeAgo}
-          />
-        ))}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <TaskIntake />
+        <div className="space-y-2 p-2">
+          {executions.map((exec) => (
+            <ExecutionItem
+              key={exec.id}
+              exec={exec}
+              isResuming={resumingIds.has(exec.id)}
+              isDismissing={dismissingIds.has(exec.id)}
+              onResume={onResume}
+              onDismiss={onDismiss}
+              formatTimeAgo={formatTimeAgo}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Only offered when there is something to resume — everything

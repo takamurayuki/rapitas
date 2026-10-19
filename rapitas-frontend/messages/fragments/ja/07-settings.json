@@ -418,6 +418,39 @@
       "waiting": "承認待ちのタスクがあります。",
       "done": "タスクが完了しました。",
       "error": "タスクがブロックされました。"
+    },
+    "intake": {
+      "title": "ラピに頼む",
+      "placeholder": "やりたいことを書いてください（例: 緊急 rapitas のアバターを直す 2時間）",
+      "propose": "下書きを作る",
+      "proposing": "読み取っています…",
+      "draftHeading": "この内容で起票しますか",
+      "file": "この内容で起票",
+      "filing": "起票しています…",
+      "filed": "起票しました",
+      "openFiled": "開く",
+      "discard": "やめる",
+      "error": "うまくいきませんでした。もう一度試してください。",
+      "chooseTheme": "テーマを選んでください",
+      "unset": "未設定",
+      "field": {
+        "title": "タイトル",
+        "description": "説明",
+        "theme": "テーマ",
+        "priority": "優先度",
+        "dueDate": "期日",
+        "estimatedHours": "見積もり（時間）"
+      },
+      "reason": {
+        "matchedThemeName": "「{value}」と書かれていたため",
+        "parsedFromText": "文章から読み取りました"
+      },
+      "priority": {
+        "urgent": "緊急",
+        "high": "高",
+        "medium": "中",
+        "low": "低"
+      }
     }
   }
 }
