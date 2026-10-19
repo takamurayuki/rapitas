@@ -379,6 +379,7 @@ jobs:
           src/components/link-view/tab-strip/TabStrip.test.tsx
           src/components/ui/dropdown/__tests__/DropdownMenu.test.tsx
           src/components/common/__tests__/shortcut-editable-guard.test.ts
+          src/components/header/__tests__/task-detail-link.test.ts
           src/components/note/editor/inline-link.test.ts
           src/components/note/editor/useInlineLinks.test.ts
 

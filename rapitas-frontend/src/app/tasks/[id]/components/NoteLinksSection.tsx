@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useNoteStore, type Note } from '@/stores/note-store';
+import { withHeaderVisible } from '@/components/header/task-detail-link';
 
 interface Props {
   taskId: number;
@@ -159,7 +160,7 @@ function NoteRow({
       <div className="flex items-start gap-2.5 p-3">
         <NotebookPen className="mt-0.5 h-4 w-4 shrink-0 text-indigo-500 dark:text-indigo-400" />
         <button
-          onClick={() => router.push(`/tasks/${taskId}?note=${note.id}`)}
+          onClick={() => router.push(withHeaderVisible(`/tasks/${taskId}?note=${note.id}`))}
           className="min-w-0 flex-1 text-left"
         >
           <p className="truncate text-sm font-medium text-gray-800 dark:text-zinc-200">
@@ -172,7 +173,7 @@ function NoteRow({
         </button>
         <div className="flex shrink-0 items-center gap-0.5">
           <button
-            onClick={() => router.push(`/tasks/${taskId}?note=${note.id}`)}
+            onClick={() => router.push(withHeaderVisible(`/tasks/${taskId}?note=${note.id}`))}
             title={t('noteLinksSection.openSplitView')}
             className="rounded p-1 text-gray-300 transition-colors hover:bg-gray-200 hover:text-gray-600 dark:text-zinc-600 dark:hover:bg-zinc-700 dark:hover:text-zinc-300"
           >
