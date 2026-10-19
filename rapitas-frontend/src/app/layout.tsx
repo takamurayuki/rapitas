@@ -7,7 +7,6 @@ import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
 import './globals.css';
 import KeyboardShortcuts from '@/components/common/KeyboardShortcuts';
-import { ResumableExecutionsBanner } from '@/components/common/ResumableExecutionsBanner';
 import ScheduleReminderProvider from '@/components/providers/ScheduleReminderProvider';
 import UsageBudgetPromptProvider from '@/components/providers/UsageBudgetPromptProvider';
 import { NotificationToaster } from '@/components/notifications/notification-toaster';
@@ -166,9 +165,7 @@ export default function RootLayout({
                           <Suspense fallback={null}>
                             <OfflineIndicatorLoader />
                           </Suspense>
-                          <Suspense fallback={null}>
-                            <ResumableExecutionsBanner />
-                          </Suspense>
+                          <Suspense fallback={null}></Suspense>
                           <Suspense fallback={null}>
                             <UpdateBanner />
                           </Suspense>

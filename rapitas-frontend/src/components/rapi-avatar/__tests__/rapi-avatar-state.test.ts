@@ -23,6 +23,7 @@ const quiet = (): AvatarSignals => ({
   errorAt: null,
   doneAt: null,
   activeExecutions: 0,
+  interruptedCount: 0,
 });
 
 describe('applyPhase', () => {
@@ -120,6 +121,7 @@ describe('priority', () => {
         errorAt: NOW,
         doneAt: NOW,
         activeExecutions: 2,
+        interruptedCount: 0,
       },
       NOW,
     ).state;
@@ -133,6 +135,7 @@ describe('priority', () => {
         errorAt: null,
         doneAt: null,
         activeExecutions: 2,
+        interruptedCount: 0,
       },
       NOW,
     ).state;
@@ -168,5 +171,32 @@ describe('how many comets', () => {
   // The avatar only draws up to four; more would be an unreadable smear.
   it('stops at four', () => {
     expect(resolveAvatarState({ ...quiet(), activeExecutions: 9 }, NOW).agents).toBe(4);
+  });
+});
+
+/**
+ * The avatar absorbed the resumable-executions banner, so it is now the
+ * only sign that interrupted work is sitting there. That makes it a job
+ * for the user, like an approval — and it holds until they deal with it.
+ */
+describe('interrupted work', () => {
+  it('waits while something can be resumed', () => {
+    expect(resolveAvatarState({ ...quiet(), interruptedCount: 2 }, NOW).state).toBe('waiting');
+  });
+
+  it('does not wait when there is none', () => {
+    expect(resolveAvatarState({ ...quiet(), interruptedCount: 0 }, NOW).state).toBe('idle');
+  });
+
+  it('still lets a fresh error through first', () => {
+    const signals = { ...quiet(), interruptedCount: 2, errorAt: NOW };
+    expect(resolveAvatarState(signals, NOW).state).toBe('error');
+  });
+
+  // Running work is visible on its own; interrupted work is not, so it
+  // keeps the higher claim on the user's attention.
+  it('outranks work in progress', () => {
+    const signals = { ...quiet(), interruptedCount: 1, activeExecutions: 2 };
+    expect(resolveAvatarState(signals, NOW).state).toBe('waiting');
   });
 });

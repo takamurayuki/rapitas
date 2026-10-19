@@ -1,7 +1,7 @@
 /**
  * resumable-executions/types
  *
- * Shared TypeScript types for the ResumableExecutionsBanner feature.
+ * Shared TypeScript types for resumable executions, shown in the Rapi+ avatar panel.
  * No runtime logic — types only.
  */
 
