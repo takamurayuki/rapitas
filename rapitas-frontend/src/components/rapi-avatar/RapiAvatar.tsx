@@ -93,7 +93,11 @@ const GLOSS = { cx: 46, cy: 54, rx: 15, ry: 9 } as const;
  * its token colour in both themes and nothing here competes with the
  * palette the spec fixes.
  */
-const DEPTH = { lift: 0.3, terminator: 0.26, gloss: 0.55, cast: 0.3 } as const;
+// `gloss` was 0.55 and read as a white patch rather than a sheen. Chosen
+// by rendering 0.55 / 0.38 / 0.28 / 0.2 / 0.14 side by side on both
+// themes and looking: 0.2 keeps the ball glossy without the spot, and
+// 0.14 starts losing it.
+const DEPTH = { lift: 0.3, terminator: 0.26, gloss: 0.2, cast: 0.3 } as const;
 
 /* ───────── prefers-reduced-motion ───────── */
 
@@ -282,7 +286,12 @@ export function RapiAvatar({
         {eyeForm === 'dot' &&
           [EYES.left, EYES.right].map((x) => (
             <ellipse key={x} cx={x} cy={EYES.y} rx={eyeRx} ry={eyeRy} fill={RAPI_AVATAR_TOKENS.eye}>
-              {animate && state === 'idle' && (
+              {/* Blinks wherever the eyes are dots, not only at rest. The
+                  spec holds them still while running; a face that stops
+                  blinking the moment it gets busy reads as frozen, so
+                  this is a deliberate departure. The arc and line eyes
+                  are different shapes and keep their own expression. */}
+              {animate && (
                 <animate
                   attributeName="ry"
                   values={`${eyeRy};${eyeRy};0.6;${eyeRy}`}

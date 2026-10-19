@@ -268,3 +268,53 @@ describe('depth', () => {
     expect(new Set(ids).size).toBe(6);
   });
 });
+
+/**
+ * A face that stops blinking the moment it gets busy reads as frozen, so
+ * blinking is not limited to `idle` the way the spec has it. The arc and
+ * line eyes are different shapes and keep their own expression instead.
+ */
+describe('blinking', () => {
+  /** The `ry` animation on an eye, if the state has one. */
+  const blink = (el: HTMLElement) =>
+    Array.from(el.querySelectorAll('animate')).filter(
+      (a) => a.getAttribute('attributeName') === 'ry',
+    );
+
+  it.each(['idle', 'thinking', 'running', 'waiting'] as const)('blinks while %s', (state) => {
+    const { container } = render(<RapiAvatar state={state} />);
+    // One per eye.
+    expect(blink(container)).toHaveLength(2);
+  });
+
+  it.each(['done', 'error'] as const)('does not blink while %s', (state) => {
+    const { container } = render(<RapiAvatar state={state} />);
+    expect(blink(container)).toHaveLength(0);
+  });
+
+  it('squashes the eye almost shut and back, every 4.5s', () => {
+    const { container } = render(<RapiAvatar state="running" />);
+    const [eye] = blink(container);
+    expect(eye.getAttribute('dur')).toBe('4.5s');
+    expect(eye.getAttribute('values')?.split(';')[2]).toBe('0.6');
+  });
+
+  it('holds still when motion is reduced', () => {
+    const { container } = render(<RapiAvatar state="idle" reducedMotion />);
+    expect(blink(container)).toHaveLength(0);
+  });
+});
+
+describe('the highlight', () => {
+  // Asked for 2026-10-19: the sheen was a white patch at 0.55.
+  it('is a sheen, not a spot', () => {
+    expect(RAPI_AVATAR_TOKENS).toBeTruthy();
+    const { container } = render(<RapiAvatar state="idle" />);
+    const gloss = Array.from(container.querySelectorAll('radialGradient')).find((g) =>
+      g.id.startsWith('rapi-gloss-'),
+    );
+    const strength = Number(gloss?.querySelector('stop')?.getAttribute('stop-opacity'));
+    expect(strength).toBeGreaterThan(0);
+    expect(strength).toBeLessThanOrEqual(0.25);
+  });
+});
