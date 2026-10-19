@@ -403,5 +403,20 @@
     "groupMenu": "Actions for the {name} group",
     "newGroupName": "New group",
     "groupNamePlaceholder": "Group name"
+  },
+  "rapiAvatar": {
+    "idle": "Idle",
+    "thinking": "Thinking",
+    "running": "Running",
+    "waiting": "Awaiting approval",
+    "done": "Done",
+    "error": "Error",
+    "message": {
+      "thinking": "Working out what to do.",
+      "running": "{count, plural, =1 {An agent is running.} other {# agents are running in parallel.}}",
+      "waiting": "A task is waiting for your approval.",
+      "done": "A task just finished.",
+      "error": "A task was blocked."
+    }
   }
 }

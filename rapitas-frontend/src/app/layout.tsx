@@ -19,6 +19,7 @@ import { ConfirmDialogProvider } from '@/components/ui/dialog/ConfirmDialogProvi
 import { PomodoroProvider } from '@/feature/tasks/pomodoro/PomodoroProvider';
 import ExternalLinksProvider from '@/components/providers/ExternalLinksProvider';
 import LinkViewHost from '@/components/link-view/LinkViewHost';
+import RapiAvatarHost from '@/components/rapi-avatar/RapiAvatarHost';
 import CacheWarmupInitializer from '@/components/common/CacheWarmupInitializer';
 import AppVisibilityBridge from '@/components/common/AppVisibilityBridge';
 import SmartCommandBar from '@/components/smart-command-bar/SmartCommandBar';
@@ -189,6 +190,9 @@ export default function RootLayout({
                               "main", so a popup window mounting this would
                               aim the pane at a window it does not own. */}
                           <LinkViewHost />
+                          {/* Main-window-only for the same reason: a popup
+                              window would get its own avatar in the corner. */}
+                          <RapiAvatarHost />
                         </MainWindowOnly>
                       </Suspense>
                     </ExternalLinksProvider>
