@@ -30,6 +30,8 @@ interface Props {
 export function TaskNoteSplitView({ taskId: _taskId, noteId }: Props) {
   const t = useTranslations('task');
   const tc = useTranslations('common');
+  // The same key the slide panel's header uses, so the two read identically.
+  const tPanel = useTranslations('task.taskSlidePanel');
   const router = useRouter();
 
   // NOTE: Prevent the page body from scrolling while the split view is active.
@@ -90,8 +92,23 @@ export function TaskNoteSplitView({ taskId: _taskId, noteId }: Props) {
       </div>
 
       {/* Right pane: task detail */}
-      <div className="flex min-h-0 w-1/2 flex-col overflow-y-auto">
-        <TaskDetailClient />
+      <div className="flex min-h-0 w-1/2 flex-col">
+        {/* Pane header. This view replaces the task detail SLIDE PANEL, which
+            carries a 「タスク詳細」 bar — leaving it out gave the right half no
+            heading at all while the left half had one, so opening a note read
+            as the task detail having lost its title. */}
+        <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900">
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+            {tPanel('title')}
+          </h2>
+        </div>
+
+        {/* The scroll moves here so the header above stays put. The quick-nav
+            finds its scroller with closest(), so the marker has to be on
+            whichever element actually scrolls — the pane root no longer does. */}
+        <div data-task-scroll-container className="min-h-0 flex-1 overflow-y-auto">
+          <TaskDetailClient />
+        </div>
       </div>
     </div>
   );
