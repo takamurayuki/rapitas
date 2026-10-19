@@ -1533,6 +1533,21 @@
     "newGroupName": "新しいグループ",
     "groupNamePlaceholder": "グループ名"
   },
+  "rapiAvatar": {
+    "idle": "待機中",
+    "thinking": "思考中",
+    "running": "実行中",
+    "waiting": "承認待ち",
+    "done": "完了",
+    "error": "エラー",
+    "message": {
+      "thinking": "進め方を検討しています。",
+      "running": "{count, plural, =1 {エージェントが実行中です。} other {#件のエージェントが並列で実行中です。}}",
+      "waiting": "承認待ちのタスクがあります。",
+      "done": "タスクが完了しました。",
+      "error": "タスクがブロックされました。"
+    }
+  },
   "shortcuts": {
     "title": "ショートカット設定",
     "description": "グローバルショートカットとアプリ内ショートカットを管理できます",
