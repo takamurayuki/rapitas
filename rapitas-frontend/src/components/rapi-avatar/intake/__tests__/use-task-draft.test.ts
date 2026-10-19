@@ -53,8 +53,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-/** The requests that would create something. */
-const writes = () => requests.filter((r) => r.method === 'POST' && /\/tasks$/.test(r.url));
+/**
+ * The requests that would create something.
+ *
+ * ラピ files through its own surface, never the general task API — that route
+ * is what checks the act against the capability registry.
+ */
+const writes = () =>
+  requests.filter((r) => r.method === 'POST' && r.url.includes('/assistant/task-create'));
 
 describe('asking for a draft', () => {
   it('creates nothing', async () => {
@@ -102,9 +108,8 @@ describe('filing', () => {
     });
     expect(writes()).toHaveLength(1);
     expect(writes()[0].body).toMatchObject({
-      title: '書き直したタイトル',
-      themeId: 1,
-      status: 'todo',
+      confirmed: true,
+      task: { title: '書き直したタイトル', themeId: 1 },
     });
   });
 
@@ -113,7 +118,18 @@ describe('filing', () => {
     await act(async () => {
       await result.current.file();
     });
-    expect(writes()[0].body?.description).toBe('rapitas のアバターを直す 2時間');
+    expect((writes()[0].body?.task as Record<string, unknown>).description).toBe(
+      'rapitas のアバターを直す 2時間',
+    );
+  });
+
+  // The route refuses without this, so losing it would be a silent break.
+  it('carries the confirmation with the request', async () => {
+    const { result } = await withDraft();
+    await act(async () => {
+      await result.current.file();
+    });
+    expect(writes()[0].body?.confirmed).toBe(true);
   });
 
   it('reports the created task so the UI can link to it', async () => {
@@ -160,7 +176,7 @@ describe('filing', () => {
     await act(async () => {
       await result.current.file();
     });
-    expect(writes()[0].body?.themeId).toBe(2);
+    expect((writes()[0].body?.task as Record<string, unknown>).themeId).toBe(2);
   });
 
   it('refuses when the title has been emptied', async () => {

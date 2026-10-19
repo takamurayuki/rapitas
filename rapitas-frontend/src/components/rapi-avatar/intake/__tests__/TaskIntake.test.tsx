@@ -48,8 +48,8 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
-/** Requests that would create a task. */
-const writes = () => requests.filter((r) => /\/tasks$/.test(r.url));
+/** Requests that would create a task — through ラピ's own surface only. */
+const writes = () => requests.filter((r) => r.url.includes('/assistant/task-create'));
 
 const say = (what: string) => {
   fireEvent.change(screen.getByRole('textbox'), { target: { value: what } });
@@ -93,7 +93,10 @@ describe('confirming', () => {
     expect(writes()).toEqual([]);
     fireEvent.click(screen.getByText('rapiAvatar.intake.file'));
     await waitFor(() => expect(writes()).toHaveLength(1));
-    expect(writes()[0].body).toMatchObject({ title: 'アバターを直す', themeId: 1 });
+    expect(writes()[0].body).toMatchObject({
+      confirmed: true,
+      task: { title: 'アバターを直す', themeId: 1 },
+    });
   });
 
   it('files the correction, not the proposal', async () => {
@@ -103,7 +106,7 @@ describe('confirming', () => {
     });
     fireEvent.click(screen.getByText('rapiAvatar.intake.file'));
     await waitFor(() => expect(writes()).toHaveLength(1));
-    expect(writes()[0].body?.title).toBe('直し直す');
+    expect((writes()[0].body?.task as Record<string, unknown>).title).toBe('直し直す');
   });
 
   it('links to what it created', async () => {
@@ -144,6 +147,6 @@ describe('when ラピ could not pick the theme', () => {
     await waitFor(() => expect(fileButton?.hasAttribute('disabled')).toBe(false));
     fireEvent.click(fileButton!);
     await waitFor(() => expect(writes()).toHaveLength(1));
-    expect(writes()[0].body?.themeId).toBe(2);
+    expect((writes()[0].body?.task as Record<string, unknown>).themeId).toBe(2);
   });
 });

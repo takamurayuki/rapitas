@@ -107,17 +107,22 @@ export function useTaskDraft(): UseTaskDraft {
     setFiling(true);
     setError(false);
     try {
-      const res = await fetch(`${API_BASE_URL}/tasks`, {
+      // Through ラピ's own surface rather than the general task API: that
+      // route checks the act against the capability registry and refuses to
+      // run without the confirmation this flag carries.
+      const res = await fetch(`${API_BASE_URL}/assistant/task-create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: edited.title.trim(),
-          ...(edited.description ? { description: edited.description } : {}),
-          ...(edited.priority ? { priority: edited.priority } : {}),
-          ...(edited.dueDate ? { dueDate: edited.dueDate } : {}),
-          ...(edited.estimatedHours ? { estimatedHours: edited.estimatedHours } : {}),
-          themeId: edited.themeId,
-          status: 'todo',
+          confirmed: true,
+          task: {
+            title: edited.title.trim(),
+            themeId: edited.themeId,
+            ...(edited.description ? { description: edited.description } : {}),
+            ...(edited.priority ? { priority: edited.priority } : {}),
+            ...(edited.dueDate ? { dueDate: edited.dueDate } : {}),
+            ...(edited.estimatedHours ? { estimatedHours: edited.estimatedHours } : {}),
+          },
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
