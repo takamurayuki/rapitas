@@ -11,6 +11,7 @@
  */
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { withHeaderVisible } from '@/components/header/task-detail-link';
 
 const isTauri = (): boolean => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
@@ -23,7 +24,8 @@ export function TaskNavigateListener() {
     import('@tauri-apps/api/event').then(({ listen }) => {
       listen<number>('rapitas:navigate-task', (event) => {
         const taskId = Number(event.payload);
-        if (Number.isFinite(taskId) && taskId > 0) router.push(`/tasks/${taskId}`);
+        if (Number.isFinite(taskId) && taskId > 0)
+          router.push(withHeaderVisible(`/tasks/${taskId}`));
       }).then((fn) => {
         unlisten = fn;
       });
