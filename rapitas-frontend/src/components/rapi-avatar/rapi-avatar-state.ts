@@ -54,6 +54,14 @@ export interface AvatarSignals {
   doneAt: number | null;
   /** Executions running right now, from `/health`. / 実行中の数 */
   activeExecutions: number;
+  /**
+   * Interrupted executions waiting to be resumed.
+   *
+   * Counts as something the user has to deal with, like an approval: the
+   * avatar is now the only sign that any exist, since it absorbed the
+   * banner that used to announce them. / 再開待ちの中断実行
+   */
+  interruptedCount: number;
 }
 
 /** The avatar's state, and how many comets to draw. */
@@ -104,13 +112,15 @@ function anyPhaseIn(phases: TaskPhases, set: Set<string>): boolean {
  * @returns The state and the comet count / 表示状態と彗星の数
  */
 export function resolveAvatarState(signals: AvatarSignals, now: number): ResolvedAvatar {
-  const { phases, errorAt, doneAt, activeExecutions } = signals;
+  const { phases, errorAt, doneAt, activeExecutions, interruptedCount } = signals;
 
   const running = anyPhaseIn(phases, RUNNING_PHASES) || activeExecutions > 0;
   const agents = running ? Math.min(MAX_COMETS, Math.max(1, Math.round(activeExecutions))) : 1;
 
   if (errorAt !== null && now - errorAt < ERROR_HOLD_MS) return { state: 'error', agents };
-  if (anyPhaseIn(phases, WAITING_PHASES)) return { state: 'waiting', agents };
+  if (anyPhaseIn(phases, WAITING_PHASES) || interruptedCount > 0) {
+    return { state: 'waiting', agents };
+  }
   if (running) return { state: 'running', agents };
   if (anyPhaseIn(phases, THINKING_PHASES)) return { state: 'thinking', agents };
   if (doneAt !== null && now - doneAt < DONE_HOLD_MS) return { state: 'done', agents };

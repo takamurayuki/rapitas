@@ -5,37 +5,75 @@
  * Mounts the Rapi+ avatar once, in the app shell, so it is there on every
  * page and survives navigation.
  *
- * It joins what the avatar draws (`RapiAvatarDock`) to what rapitas is
- * doing (`useRapiAvatarState`) and to the theme, and owns one decision of
- * its own: what the bubble says.
+ * It joins what the avatar draws to what rapitas is doing, to the theme,
+ * and to the executions that can be resumed — which it owns so the hook
+ * runs once. That hook used to belong to the resumable-executions banner,
+ * a card parked in this same corner saying what the avatar says; the card
+ * is gone and its contents open from the avatar instead.
  */
-import { useRouter } from 'next/navigation';
+import { useCallback, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useDarkMode } from '@/hooks/useDarkMode';
+import { useResumableExecutions } from '@/components/resumable-executions/useResumableExecutions';
 import { RapiAvatarDock } from './RapiAvatarDock';
+import { RapiAvatarPanel } from './RapiAvatarPanel';
 import { useRapiAvatarState } from './useRapiAvatarState';
 
-/** Where clicking the avatar goes: the page that shows what is running. */
-const DETAIL_ROUTE = '/agents/execution-dashboard';
+/** Where the panel sits: above the avatar, clear of it. */
+const PANEL_BOTTOM_PX = 124;
 
 /** The resident avatar, bottom-right. */
 export default function RapiAvatarHost() {
-  const router = useRouter();
   const t = useTranslations('rapiAvatar');
   const { isDarkMode } = useDarkMode();
-  const { state, agents } = useRapiAvatarState();
+  const [open, setOpen] = useState(false);
+
+  const {
+    executions,
+    resumingIds,
+    dismissingIds,
+    runningCount,
+    interruptedCount,
+    handleResume,
+    handleResumeAll,
+    handleDismiss,
+    formatTimeAgo,
+  } = useResumableExecutions();
+
+  const { state, agents } = useRapiAvatarState(interruptedCount);
+
+  const close = useCallback(() => setOpen(false), []);
 
   // Silent while idle — the bubble is for saying something, and the spec
   // keeps movement and speech for when something is actually happening.
   const message = state === 'idle' ? undefined : t(`message.${state}`, { count: agents });
 
   return (
-    <RapiAvatarDock
-      state={state}
-      agents={agents}
-      theme={isDarkMode ? 'dark' : 'light'}
-      message={message}
-      onClick={() => router.push(DETAIL_ROUTE)}
-    />
+    <>
+      {open && executions.length > 0 && (
+        <RapiAvatarPanel
+          executions={executions}
+          resumingIds={resumingIds}
+          dismissingIds={dismissingIds}
+          runningCount={runningCount}
+          interruptedCount={interruptedCount}
+          onResume={handleResume}
+          onResumeAll={handleResumeAll}
+          onDismiss={handleDismiss}
+          formatTimeAgo={formatTimeAgo}
+          onClose={close}
+          bottomPx={PANEL_BOTTOM_PX}
+        />
+      )}
+      <RapiAvatarDock
+        state={state}
+        agents={agents}
+        theme={isDarkMode ? 'dark' : 'light'}
+        // The bubble steps aside while the panel is up; two things
+        // speaking at once in one corner is what this change removed.
+        message={open ? undefined : message}
+        onClick={() => setOpen((prev) => !prev)}
+      />
+    </>
   );
 }

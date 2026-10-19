@@ -384,6 +384,7 @@ jobs:
           src/components/header/__tests__/task-detail-link.test.ts
           src/components/rapi-avatar/__tests__/rapi-avatar-state.test.ts
           src/components/rapi-avatar/__tests__/RapiAvatar.test.tsx
+          src/components/rapi-avatar/__tests__/RapiAvatarHost.test.tsx
           src/components/note/editor/inline-link.test.ts
           src/components/note/editor/useInlineLinks.test.ts
 

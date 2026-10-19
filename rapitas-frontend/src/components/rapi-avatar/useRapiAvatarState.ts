@@ -49,14 +49,17 @@ interface PhaseEvent {
 /**
  * Follow rapitas and report what the avatar should be showing.
  *
+ * @param interruptedCount - Executions awaiting a resume, which the host
+ *   already knows because it owns that hook / 再開待ちの数
  * @returns The current state and comet count / 表示状態と彗星の数
  */
-export function useRapiAvatarState(): ResolvedAvatar {
+export function useRapiAvatarState(interruptedCount = 0): ResolvedAvatar {
   const [signals, setSignals] = useState<AvatarSignals>({
     phases: {},
     errorAt: null,
     doneAt: null,
     activeExecutions: 0,
+    interruptedCount: 0,
   });
   // Re-resolved on a timer as well as on change, because `error` and `done`
   // expire on their own — nothing else would fire to clear them.
@@ -128,5 +131,5 @@ export function useRapiAvatarState(): ResolvedAvatar {
     };
   }, []);
 
-  return resolveAvatarState(signals, Date.now());
+  return resolveAvatarState({ ...signals, interruptedCount }, Date.now());
 }
