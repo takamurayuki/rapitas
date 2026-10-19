@@ -20,6 +20,7 @@ import { createLogger } from '../../config/logger';
 import { createTask } from '../../services/task/task-mutations';
 import {
   buildTaskDraft,
+  readTaskIntent,
   assertCapabilityAllowed,
   recordAction,
   listRecentActions,
@@ -37,11 +38,19 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
     '/task-draft',
     async ({ body }) => {
       const themes = await prisma.theme.findMany({
-        select: { id: true, name: true },
+        // The description is what lets a theme be chosen by what it is for
+        // rather than by its name appearing in the sentence.
+        select: { id: true, name: true, description: true },
         orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
       });
 
-      const draft = buildTaskDraft(body.text, themes);
+      // Read the intent first. Pattern matching is the fallback, not the
+      // plan: it can only find a theme whose name was said out loud, which
+      // makes it a form with guessed fields rather than an assistant that
+      // understood anything.
+      const understood = await readTaskIntent(body.text, themes);
+      const draft = understood ?? buildTaskDraft(body.text, themes);
+      const source = understood ? 'intent' : 'patterns';
 
       // Recorded although nothing changed. "ラピ suggested this" belongs in
       // the trail, and a proposal the user walked away from leaves no other
@@ -50,10 +59,12 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
         capabilityId: 'task.draft',
         status: 'proposed',
         args: { text: body.text },
-        result: { title: draft.title, themeId: draft.themeId, missing: draft.missing },
+        result: { source, title: draft.title, themeId: draft.themeId, missing: draft.missing },
       });
 
-      return { success: true, draft };
+      // The UI says which reader produced this, because a fallback draft is
+      // visibly weaker and the user should know why before trusting it.
+      return { success: true, source, draft };
     },
     {
       body: t.Object({
@@ -95,6 +106,13 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
           ...(body.task.priority ? { priority: body.task.priority } : {}),
           ...(body.task.dueDate ? { dueDate: body.task.dueDate } : {}),
           ...(body.task.estimatedHours ? { estimatedHours: body.task.estimatedHours } : {}),
+          // What "done" means, as the user approved it. Criteria nobody can
+          // reach are a known source of endless verification bounce-backs, so
+          // these are the ones that survived the confirmation card, not the
+          // ones a model produced unseen.
+          ...(body.task.acceptanceCriteria?.length
+            ? { acceptanceCriteria: body.task.acceptanceCriteria }
+            : {}),
         });
 
         await recordAction({
@@ -130,6 +148,7 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
           priority: t.Optional(t.String({ maxLength: 20 })),
           dueDate: t.Optional(t.String()),
           estimatedHours: t.Optional(t.Number()),
+          acceptanceCriteria: t.Optional(t.Array(t.String({ maxLength: 500 }), { maxItems: 10 })),
         }),
       }),
     },

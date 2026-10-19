@@ -32,16 +32,19 @@ const DRAFT: TaskDraft = {
 
 let requests: { url: string; body: Record<string, unknown> | null }[] = [];
 let draft: TaskDraft = DRAFT;
+let source: 'intent' | 'patterns' = 'intent';
 
 beforeEach(() => {
   requests = [];
   draft = DRAFT;
+  source = 'intent';
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
     requests.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null });
     return Promise.resolve({
       ok: true,
       status: 200,
-      json: () => Promise.resolve(url.includes('/assistant/task-draft') ? { draft } : { id: 7 }),
+      json: () =>
+        Promise.resolve(url.includes('/assistant/task-draft') ? { draft, source } : { id: 7 }),
     } as Response);
   });
 });
@@ -122,6 +125,69 @@ describe('confirming', () => {
     fireEvent.click(screen.getByText('rapiAvatar.intake.discard'));
     await waitFor(() => expect(screen.queryByText('rapiAvatar.intake.draftHeading')).toBeNull());
     expect(writes()).toEqual([]);
+  });
+});
+
+/**
+ * What reading intent added. The theme reasoning is the model's sentence
+ * about this particular utterance, so it is shown as written rather than
+ * mapped onto a catalogue phrase.
+ */
+describe('what the model worked out', () => {
+  beforeEach(() => {
+    draft = {
+      ...DRAFT,
+      themeReason: 'アバターは rapitas 本体の機能のため',
+      acceptanceCriteria: ['長文でも吹き出しの幅を超えない'],
+      unclear: ['いつまでに必要か'],
+    };
+  });
+
+  it('shows why it chose that theme, in its own words', async () => {
+    render(<TaskIntake />);
+    say('アバターの吹き出しが長文だと崩れる');
+    await waitFor(() =>
+      expect(screen.getByText('アバターは rapitas 本体の機能のため')).toBeTruthy(),
+    );
+  });
+
+  it('shows what it could not work out, instead of guessing', async () => {
+    render(<TaskIntake />);
+    say('アバターの吹き出しが長文だと崩れる');
+    await waitFor(() => expect(screen.getByText('いつまでに必要か')).toBeTruthy());
+  });
+
+  // Criteria nobody can reach are a known cause of endless verification
+  // bounce-backs, so they must be editable before the task exists.
+  it('files the criteria as the user left them', async () => {
+    render(<TaskIntake />);
+    say('アバターの吹き出しが長文だと崩れる');
+    const box = await screen.findByDisplayValue('長文でも吹き出しの幅を超えない');
+    fireEvent.change(box, { target: { value: '幅を超えない\n縦にも伸びない' } });
+    fireEvent.click(screen.getByText('rapiAvatar.intake.file'));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect((writes()[0].body?.task as Record<string, unknown>).acceptanceCriteria).toEqual([
+      '幅を超えない',
+      '縦にも伸びない',
+    ]);
+  });
+});
+
+describe('when the model was unavailable', () => {
+  it('warns that the fields were only pattern-matched', async () => {
+    source = 'patterns';
+    render(<TaskIntake />);
+    say('rapitas のアバターを直す');
+    await waitFor(() =>
+      expect(screen.getByText('rapiAvatar.intake.fellBackToPatterns')).toBeTruthy(),
+    );
+  });
+
+  it('says nothing of the sort when the intent was read', async () => {
+    render(<TaskIntake />);
+    say('アバターの吹き出しが崩れる');
+    await waitFor(() => expect(screen.getByText('rapiAvatar.intake.draftHeading')).toBeTruthy());
+    expect(screen.queryByText('rapiAvatar.intake.fellBackToPatterns')).toBeNull();
   });
 });
 

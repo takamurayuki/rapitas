@@ -1568,7 +1568,8 @@
         "theme": "Theme",
         "priority": "Priority",
         "dueDate": "Due",
-        "estimatedHours": "Estimate (hours)"
+        "estimatedHours": "Estimate (hours)",
+        "acceptanceCriteria": "Done when"
       },
       "reason": {
         "matchedThemeName": "you wrote \"{value}\"",
@@ -1579,7 +1580,9 @@
         "high": "High",
         "medium": "Medium",
         "low": "Low"
-      }
+      },
+      "unclear": "Rapi could not work these out",
+      "fellBackToPatterns": "The AI was unavailable, so these fields were pattern-matched. Check them carefully."
     }
   },
   "shortcuts": {

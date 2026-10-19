@@ -48,6 +48,26 @@ const recordingPrisma = new Proxy(
   },
 );
 
+/** What the stand-in model answers, or the error it throws. */
+let modelReply: string | Error = JSON.stringify({
+  title: 'アバターの吹き出しが長文で崩れる問題を修正',
+  summary: '長文で折り返されず崩れる',
+  themeId: 1,
+  themeReason: 'アバターは rapitas 本体の機能のため',
+  priority: 'high',
+  dueDate: null,
+  estimatedHours: 2,
+  acceptanceCriteria: ['長文でも吹き出しの幅を超えない'],
+  unclear: [],
+});
+
+mock.module('../../utils/ai-client', () => ({
+  sendAIMessage: async () => {
+    if (modelReply instanceof Error) throw modelReply;
+    return { content: modelReply, tokensUsed: 0 };
+  },
+}));
+
 mock.module('../../config/database', () => ({
   prisma: recordingPrisma,
   ensureDatabaseConnection: async () => {},
@@ -87,7 +107,11 @@ const WRITE_METHODS = [
 beforeEach(() => {
   calls = [];
   audited = [];
+  modelReply = DEFAULT_MODEL_REPLY;
 });
+
+/** The good answer, restored before each test. */
+const DEFAULT_MODEL_REPLY = modelReply;
 
 describe('POST /assistant/task-draft', () => {
   test('proposes a task', async () => {
@@ -121,6 +145,26 @@ describe('POST /assistant/task-draft', () => {
   test('records the proposal, so a draft the user walked away from still shows', async () => {
     await postDraft({ text: 'rapitas のアバターを直す' });
     expect(audited[0]).toMatchObject({ capabilityId: 'task.draft', status: 'proposed' });
+  });
+
+  // The point of reading intent: the theme is chosen from meaning, and the
+  // reason is the model's own words rather than "the name was in the text".
+  test('reports that it read the intent, and why it chose the theme', async () => {
+    const { json } = await postDraft({ text: 'アバターの吹き出しが長文だと崩れる' });
+    expect(json.source).toBe('intent');
+    expect(json.draft.themeId).toBe(1);
+    expect(json.draft.themeReason).toBe('アバターは rapitas 本体の機能のため');
+    expect(json.draft.acceptanceCriteria).toEqual(['長文でも吹き出しの幅を超えない']);
+  });
+
+  // RAPITAS_AUX_AI=off, no provider, CLI busy. The feature degrades to the
+  // pattern reader instead of failing, and says so.
+  test('falls back to patterns when the model is unavailable, and says so', async () => {
+    modelReply = new Error('補助AI機能は無効化されています (RAPITAS_AUX_AI=off)。');
+    const { status, json } = await postDraft({ text: 'rapitas のアバターを直す 2時間' });
+    expect(status).toBe(200);
+    expect(json.source).toBe('patterns');
+    expect(json.draft.title.length).toBeGreaterThan(0);
   });
 
   test('rejects an empty body', async () => {

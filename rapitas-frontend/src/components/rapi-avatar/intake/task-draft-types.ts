@@ -33,6 +33,13 @@ export interface DraftReason {
   value?: string;
 }
 
+/** Which reader produced a draft. */
+export type DraftSource =
+  /** The model read what the user meant. */
+  | 'intent'
+  /** The model was unavailable; fields were pattern-matched instead. */
+  | 'patterns';
+
 /** A proposed task. Carries no id, because nothing has been created. */
 export interface TaskDraft {
   title: string;
@@ -44,6 +51,17 @@ export interface TaskDraft {
   themeCandidates: DraftThemeRef[];
   missing: DraftField[];
   reasons: Partial<Record<DraftField, DraftReason>>;
+  /**
+   * Why that theme, in the model's own words.
+   *
+   * Free text rather than a translatable code: it is the model's reasoning
+   * about this particular sentence, which no catalogue entry could carry.
+   */
+  themeReason?: string;
+  /** What the model proposes "done" means, for the user to accept or edit. */
+  acceptanceCriteria?: string[];
+  /** What it could not work out and declined to guess. */
+  unclear?: string[];
 }
 
 /**
@@ -54,6 +72,7 @@ export interface TaskDraft {
  */
 export interface EditableDraft {
   title: string;
+  acceptanceCriteria?: string[];
   description?: string;
   priority?: DraftPriority;
   dueDate?: string;
