@@ -6,6 +6,7 @@ import { Activity, Sun, Moon, Clock, X } from 'lucide-react';
 import { useProductivityHeatmap, type HeatmapCellTask } from '../hooks/useIntelligence';
 import Link from 'next/link';
 import { formatTime } from '@/utils/date';
+import { withHeaderVisible } from '@/components/header/task-detail-link';
 
 const HOUR_LABELS = Array.from({ length: 24 }, (_, i) => `${i}`);
 
@@ -231,7 +232,7 @@ export function ProductivityHeatmap() {
                 {popover.tasks.map((task, index) => (
                   <Link
                     key={index}
-                    href={`/tasks/${task.taskId}`}
+                    href={withHeaderVisible(`/tasks/${task.taskId}`)}
                     className="flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors group"
                   >
                     <div className="flex-1 min-w-0">

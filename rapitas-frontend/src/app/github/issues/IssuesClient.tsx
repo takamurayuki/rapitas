@@ -12,6 +12,7 @@ import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import { formatDate } from '@/utils/date';
 import { EmptyState } from '@/components/ui/empty-state';
+import { withHeaderVisible } from '@/components/header/task-detail-link';
 
 const logger = createLogger('IssuesClient');
 
@@ -210,7 +211,7 @@ export default function IssuesPage() {
                   <div className="flex flex-col items-end gap-1.5">
                     {issue.linkedTaskId && (
                       <Link
-                        href={getTaskDetailPath(issue.linkedTaskId)}
+                        href={withHeaderVisible(getTaskDetailPath(issue.linkedTaskId))}
                         className="flex items-center gap-1 px-3 py-1.5 text-sm text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
                       >
                         <ArrowRightCircle className="w-4 h-4" />

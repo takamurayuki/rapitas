@@ -22,6 +22,7 @@ import {
 import { getIconComponent } from '@/components/category/icon-data';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
 import { formatDate } from '@/utils/date';
+import { withHeaderVisible } from '@/components/header/task-detail-link';
 import {
   TYPE_META,
   TYPE_LABEL_KEY,
@@ -98,7 +99,7 @@ export function ConcernCard({
             </span>
             {c.status === 'task_created' && c.createdTaskId && (
               <a
-                href={`/tasks/${c.createdTaskId}`}
+                href={withHeaderVisible(`/tasks/${c.createdTaskId}`)}
                 className="rounded-full bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-600 hover:underline dark:bg-green-900/30 dark:text-green-300"
               >
                 {t('card.taskCreatedBadge', { id: c.createdTaskId })}
@@ -135,7 +136,7 @@ export function ConcernCard({
               </code>
             )}
             {c.originTaskId && (
-              <a href={`/tasks/${c.originTaskId}`} className="hover:underline">
+              <a href={withHeaderVisible(`/tasks/${c.originTaskId}`)} className="hover:underline">
                 {t('card.originLink', { id: c.originTaskId })}
               </a>
             )}
