@@ -28,13 +28,19 @@ const TAG_COLOR: Record<Exclude<RapiAvatarState, 'idle'>, string> = {
 };
 
 export interface RapiAvatarDockProps extends Omit<RapiAvatarProps, 'className' | 'style'> {
+  /**
+   * Extra px above the corner, so the avatar can step over something
+   * already docked there. 0 leaves the spec's resting position.
+   * / 下端からの追加オフセット
+   */
+  liftPx?: number;
   /** 吹き出しの本文。idle のときは表示しない */
   message?: string;
   /** アバタークリック時（詳細パネルを開く等） */
   onClick?: () => void;
 }
 
-export function RapiAvatarDock({ message, onClick, ...avatar }: RapiAvatarDockProps) {
+export function RapiAvatarDock({ message, onClick, liftPx = 0, ...avatar }: RapiAvatarDockProps) {
   const label = useStateLabel();
   const dark = avatar.theme === 'dark';
   const showBubble = avatar.state !== 'idle' && !!message;
@@ -44,7 +50,7 @@ export function RapiAvatarDock({ message, onClick, ...avatar }: RapiAvatarDockPr
       style={{
         position: 'fixed',
         right: 24,
-        bottom: 20,
+        bottom: 20 + liftPx,
         zIndex: 50,
         display: 'flex',
         alignItems: 'flex-end',

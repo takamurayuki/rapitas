@@ -51,7 +51,12 @@ export function ResumableExecutionsBanner() {
     if (isIntentionalRestart || isServerRestarting) return null;
 
     return (
-      <div className="fixed bottom-6 right-6 z-[60] max-w-sm w-full animate-in slide-in-from-right-4 duration-300">
+      <div
+        // Measured by the Rapi+ avatar, which shares this corner and
+        // steps above whatever is already in it.
+        data-bottom-right-dock
+        className="fixed bottom-6 right-6 z-[60] max-w-sm w-full animate-in slide-in-from-right-4 duration-300"
+      >
         <div className="border rounded-2xl shadow-xl overflow-hidden bg-red-50 dark:bg-red-950/95 border-red-200/80 dark:border-red-700/60">
           <div className="px-4 py-3.5">
             <div className="flex items-center gap-3">
@@ -122,7 +127,12 @@ export function ResumableExecutionsBanner() {
   return (
     // bottom-6: the former bottom-20 reserved space for the floating AI icon,
     // which no longer exists.
-    <div className="fixed bottom-6 right-6 z-[60] max-w-sm w-full animate-in slide-in-from-right-4 duration-300">
+    <div
+      // Measured by the Rapi+ avatar, which shares this corner and
+      // steps above whatever is already in it.
+      data-bottom-right-dock
+      className="fixed bottom-6 right-6 z-[60] max-w-sm w-full animate-in slide-in-from-right-4 duration-300"
+    >
       <div className={`border rounded-2xl shadow-xl ${bannerBg}`}>
         {/* Collapsible header */}
         <div

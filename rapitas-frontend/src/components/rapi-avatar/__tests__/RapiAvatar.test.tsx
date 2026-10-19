@@ -205,3 +205,26 @@ describe('the dock', () => {
     expect(container.querySelector('svg')?.getAttribute('role')).toBe('img');
   });
 });
+
+/**
+ * The resumable-executions banner lives in the same corner and appears
+ * exactly when something is running — the avatar's busiest state — and sits
+ * on a higher layer. Found by screenshot after the first merge: the avatar
+ * was in the DOM at the right size and position, and invisible.
+ */
+describe('sharing the corner', () => {
+  it('rests where the spec puts it when the corner is free', () => {
+    const { container } = render(<RapiAvatarDock state="idle" liftPx={0} />);
+    expect((container.firstChild as HTMLElement).style.bottom).toBe('20px');
+  });
+
+  it('steps above whatever is already there', () => {
+    const { container } = render(<RapiAvatarDock state="running" liftPx={96} />);
+    expect((container.firstChild as HTMLElement).style.bottom).toBe('116px');
+  });
+
+  it('needs no lift to be given', () => {
+    const { container } = render(<RapiAvatarDock state="idle" />);
+    expect((container.firstChild as HTMLElement).style.bottom).toBe('20px');
+  });
+});
