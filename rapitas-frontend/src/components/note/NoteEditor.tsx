@@ -11,6 +11,8 @@ import DiagramBlockEdit from './editor/DiagramBlockEdit';
 import { getDiagramSource, setDiagramSource } from './editor/diagram-block';
 import { useTableControls } from './editor/useTableControls';
 import { TableControlsOverlay } from './editor/TableControlsOverlay';
+import { InlineLinkPopup } from './editor/InlineLinkPopup';
+import { useInlineLinks } from './editor/useInlineLinks';
 
 interface DiagramEditState {
   el: HTMLElement;
@@ -67,6 +69,10 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
     },
     [editor],
   );
+
+  // Plain links inside the text: paste to make one, Ctrl+click to follow,
+  // hover for the panel that opens, re-points or removes it.
+  const inlineLinks = useInlineLinks(editor.contentRef, editor.markDirty);
 
   const handleDiagramSave = useCallback(
     async (newSource: string) => {
@@ -162,10 +168,29 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
             onKeyDown={editor.onEditorKeyDown}
             onCompositionStart={editor.onEditorCompositionStart}
             onCompositionEnd={editor.onEditorCompositionEnd}
-            onClick={handleEditorClick}
+            onClick={(e) => {
+              inlineLinks.onClick(e);
+              handleEditorClick(e);
+            }}
+            onPaste={inlineLinks.onPaste}
+            onMouseOver={inlineLinks.onMouseOver}
+            onMouseLeave={inlineLinks.onMouseLeave}
+            onFocus={inlineLinks.onCaretMoved}
+            onKeyUp={inlineLinks.onCaretMoved}
             style={{ lineHeight: '1.8', fontSize: '16px' }}
           />
           <TableControlsOverlay controls={tableControls} />
+          {inlineLinks.popup && (
+            <InlineLinkPopup
+              state={inlineLinks.popup}
+              onOpen={inlineLinks.openPopupLink}
+              onRemove={inlineLinks.removePopupLink}
+              onRetarget={inlineLinks.retargetPopupLink}
+              onDismiss={inlineLinks.dismissPopup}
+              onHold={inlineLinks.holdPopup}
+              onRelease={inlineLinks.releasePopup}
+            />
+          )}
         </div>
       )}
 

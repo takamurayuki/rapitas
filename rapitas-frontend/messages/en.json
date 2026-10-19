@@ -6295,7 +6295,14 @@
       "columnHandle": "Actions for column {index}",
       "rowHandle": "Actions for row {index}",
       "menuLabel": "Table row and column actions"
-    }
+    },
+    "linkOpen": "Open",
+    "linkEdit": "Edit",
+    "linkRemove": "Remove link",
+    "linkDismiss": "Close the link panel",
+    "linkUrlLabel": "Link URL",
+    "linkApply": "Apply",
+    "linkPanelLabel": "Link actions"
   },
   "achievements": {
     "client": {
