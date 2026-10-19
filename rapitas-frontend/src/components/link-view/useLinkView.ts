@@ -15,11 +15,13 @@ import { useCallback, useEffect, useRef } from 'react';
 import {
   closeLinkView,
   linkViewHistory,
+  onLinkViewPageChanged,
   openLinkView,
   setLinkViewBounds,
   setLinkViewVisible,
   type LinkViewBounds,
 } from '@/utils/link-view';
+import type { LinkPageChange } from './link-tab-meta';
 import type { LinkTab } from '@/stores/link-view-store';
 
 /** What the pane needs from this hook. */
@@ -75,12 +77,15 @@ function sameBounds(a: LinkViewBounds | null, b: LinkViewBounds): boolean {
  * @param activeId - The tab on screen / 表示中のタブ
  * @param onUnavailable - Called with a URL that could not be docked, so the
  *   caller can send it elsewhere / ドックできなかった時の退避先
+ * @param onPageChange - Called when a webview reports where it went, so the
+ *   tab can follow it / webview 側の遷移を受け取るコールバック
  * @returns The placeholder ref and history control / 配置基準と履歴操作
  */
 export function useLinkView(
   tabs: LinkTab[],
   activeId: string | null,
   onUnavailable?: (url: string) => void,
+  onPageChange?: (tabId: string, change: LinkPageChange) => void,
 ): UseLinkViewReturn {
   const placeholderRef = useRef<HTMLDivElement | null>(null);
   const lastBounds = useRef<LinkViewBounds | null>(null);
@@ -93,6 +98,9 @@ export function useLinkView(
 
   const onUnavailableRef = useRef(onUnavailable);
   onUnavailableRef.current = onUnavailable;
+
+  const onPageChangeRef = useRef(onPageChange);
+  onPageChangeRef.current = onPageChange;
 
   /**
    * The tab the pane is showing, read at the moment a sync actually runs.
@@ -210,6 +218,37 @@ export function useLinkView(
     opened.current.set(tab.id, tab.url);
     void openLinkView(tab.id, tab.url, boundsOf(el));
   }, [tabs, activeId]);
+
+  // Follow the page wherever it goes inside the webview. A tab opened with
+  // "+" starts at a search page, and everything after that happens in the
+  // webview — without this the tab keeps claiming to be on the page it was
+  // opened at, however far the user has searched (#1078).
+  //
+  // Recording the URL in `opened` BEFORE handing it on is what makes this
+  // safe: the navigation effect above fires whenever a tab's stored URL
+  // stops matching what was last shown, and the store is about to hold
+  // exactly this URL. Without the update, folding the move back in would
+  // read as an address-bar edit and send the page back to where it already
+  // is — a reload on every navigation.
+  useEffect(() => {
+    let stop: (() => void) | null = null;
+    let cancelled = false;
+
+    void onLinkViewPageChanged((change) => {
+      if (!opened.current.has(change.tabId)) return;
+      const url = change.url?.trim() || undefined;
+      if (url) opened.current.set(change.tabId, url);
+      onPageChangeRef.current?.(change.tabId, { url, title: change.title ?? undefined });
+    }).then((unlisten) => {
+      if (cancelled) unlisten();
+      else stop = unlisten;
+    });
+
+    return () => {
+      cancelled = true;
+      stop?.();
+    };
+  }, []);
 
   // Only the active tab is on screen; the rest stay built and hidden so
   // their pages survive a switch.

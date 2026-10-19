@@ -16,6 +16,9 @@ const openLinkView = vi.fn();
 const setLinkViewVisible = vi.fn();
 const setLinkViewBounds = vi.fn();
 const closeLinkView = vi.fn();
+const unlistenPageChanged = vi.fn();
+/** The handler the hook registered, so a test can play the webview. */
+let pageChangedHandler: ((event: LinkViewPageChange) => void) | null = null;
 
 vi.mock('@/utils/link-view', () => ({
   openLinkView: (...args: unknown[]) => openLinkView(...args),
@@ -23,9 +26,15 @@ vi.mock('@/utils/link-view', () => ({
   setLinkViewVisible: (...args: unknown[]) => setLinkViewVisible(...args),
   closeLinkView: (...args: unknown[]) => closeLinkView(...args),
   linkViewHistory: vi.fn().mockResolvedValue(true),
+  onLinkViewPageChanged: (handler: (event: LinkViewPageChange) => void) => {
+    pageChangedHandler = handler;
+    return Promise.resolve(unlistenPageChanged);
+  },
 }));
 
 import { useLinkView } from './useLinkView';
+import type { LinkViewPageChange } from '@/utils/link-view';
+import type { LinkPageChange } from './link-tab-meta';
 
 const TABS: LinkTab[] = [
   { id: 't1', url: 'https://one.example' },
@@ -45,6 +54,7 @@ function renderWithBox(
   tabs: LinkTab[],
   activeId: string | null,
   onUnavailable?: (url: string) => void,
+  onPageChange?: (tabId: string, change: LinkPageChange) => void,
 ) {
   const el = document.createElement('div');
   el.getBoundingClientRect = () => ({ left: 100, top: 50, width: 400, height: 600 }) as DOMRect;
@@ -52,7 +62,7 @@ function renderWithBox(
 
   return renderHook(
     ({ t, a }: { t: LinkTab[]; a: string | null }) => {
-      const view = useLinkView(t, a, onUnavailable);
+      const view = useLinkView(t, a, onUnavailable, onPageChange);
       // The pane assigns this during render; mirror that ordering.
       view.placeholderRef.current = el;
       return view;
@@ -69,6 +79,8 @@ beforeEach(() => {
   setLinkViewVisible.mockReset().mockResolvedValue(true);
   setLinkViewBounds.mockReset().mockResolvedValue(true);
   closeLinkView.mockReset().mockResolvedValue(true);
+  unlistenPageChanged.mockReset();
+  pageChangedHandler = null;
   document.body.innerHTML = '';
 });
 
@@ -302,5 +314,95 @@ describe('a deferred resync must not resurrect a closed tab', () => {
 
     const forOldTab = setLinkViewBounds.mock.calls.filter((c) => c[0] === 't1');
     expect(forOldTab).toEqual([]);
+  });
+});
+
+/**
+ * A tab opened with "+" starts at Google. Everything the user does from
+ * there happens inside the webview, so unless the webview says where it
+ * went, the tab keeps claiming to be on the home page (#1078).
+ */
+describe('following the webview', () => {
+  it('reports where the page went', async () => {
+    const onPageChange = vi.fn();
+    renderWithBox(TABS, 't1', undefined, onPageChange);
+    await waitFor(() => expect(openLinkView).toHaveBeenCalled());
+
+    act(() => {
+      pageChangedHandler?.({ tabId: 't1', url: 'https://one.example/search?q=rust' });
+    });
+    expect(onPageChange).toHaveBeenCalledWith('t1', {
+      url: 'https://one.example/search?q=rust',
+      title: undefined,
+    });
+  });
+
+  it('reports a title that arrives on its own', async () => {
+    const onPageChange = vi.fn();
+    renderWithBox(TABS, 't1', undefined, onPageChange);
+    await waitFor(() => expect(openLinkView).toHaveBeenCalled());
+
+    act(() => {
+      pageChangedHandler?.({ tabId: 't1', title: 'rust - Google 検索' });
+    });
+    expect(onPageChange).toHaveBeenCalledWith('t1', {
+      url: undefined,
+      title: 'rust - Google 検索',
+    });
+  });
+
+  // The hook navigates a tab whenever its stored URL stops matching what
+  // was last shown. Folding the webview's own move back into the store
+  // would otherwise look exactly like an address-bar edit and send the
+  // page straight back to where it already is — a reload per navigation.
+  it('does not navigate the webview back to the page it just reached', async () => {
+    const onPageChange = vi.fn();
+    const { rerender } = renderWithBox(TABS, 't1', undefined, onPageChange);
+    await waitFor(() => expect(openLinkView).toHaveBeenCalledTimes(1));
+
+    const moved = 'https://one.example/search?q=rust';
+    act(() => {
+      pageChangedHandler?.({ tabId: 't1', url: moved });
+    });
+    openLinkView.mockClear();
+
+    // The store now holds what the webview reported, as the host applies it.
+    // The navigation effect runs inside the rerender's act(), so a call
+    // would already be recorded; the flush only settles its promise.
+    rerender({ t: [{ id: 't1', url: moved }, TABS[1]], a: 't1' });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(openLinkView).not.toHaveBeenCalled();
+  });
+
+  // Address-bar navigation still has to work: that URL was never shown.
+  it('still navigates when the address bar points somewhere new', async () => {
+    const { rerender } = renderWithBox(TABS, 't1');
+    await waitFor(() => expect(openLinkView).toHaveBeenCalledTimes(1));
+
+    openLinkView.mockClear();
+    rerender({ t: [{ id: 't1', url: 'https://typed.example' }, TABS[1]], a: 't1' });
+    await waitFor(() =>
+      expect(openLinkView).toHaveBeenCalledWith('t1', 'https://typed.example', expect.anything()),
+    );
+  });
+
+  it('ignores an event for a tab it never built', async () => {
+    const onPageChange = vi.fn();
+    renderWithBox(TABS, 't1', undefined, onPageChange);
+    await waitFor(() => expect(openLinkView).toHaveBeenCalled());
+
+    act(() => {
+      pageChangedHandler?.({ tabId: 'ghost', url: 'https://elsewhere.example' });
+    });
+    expect(onPageChange).not.toHaveBeenCalled();
+  });
+
+  it('stops listening when the pane goes away', async () => {
+    const { unmount } = renderWithBox(TABS, 't1');
+    await waitFor(() => expect(openLinkView).toHaveBeenCalled());
+    unmount();
+    await waitFor(() => expect(unlistenPageChanged).toHaveBeenCalled());
   });
 });

@@ -17,9 +17,11 @@
 //! above all HTML in the window regardless of z-index, so the frontend hides
 //! it whenever a modal or dropdown would overlap its rectangle.
 
-use tauri::{LogicalPosition, LogicalSize, Manager};
+use tauri::{Emitter, LogicalPosition, LogicalSize, Manager};
 
 const MAIN_WINDOW_LABEL: &str = "main";
+/// Event carrying where a docked webview went, so the tab can follow it.
+const PAGE_CHANGED_EVENT: &str = "link-view://page-changed";
 /// Label prefix; one webview per tab, suffixed with the tab's id.
 ///
 /// A single webview navigated between tabs would be less code, but switching
@@ -67,6 +69,28 @@ impl Bounds {
             height: self.height.max(1.0),
         }
     }
+}
+
+/// Where a docked webview has moved to, as reported by the webview itself.
+///
+/// Both fields are optional because the two reporters see different halves:
+/// a navigation knows the URL, a title change knows the title and re-reads
+/// the URL. The frontend keeps whichever half is missing.
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PageChange {
+    tab_id: String,
+    url: Option<String>,
+    title: Option<String>,
+}
+
+/// Whether a URL the webview moved to is worth telling the frontend about.
+///
+/// The address bar shows this, so an `about:blank` between two pages would
+/// blank it for a frame, and the non-web schemes a page may trigger
+/// (`mailto:`, an app handler) are not somewhere the tab went.
+fn reportable_url(url: &str) -> bool {
+    url.starts_with("http://") || url.starts_with("https://")
 }
 
 /// Reject anything that is not a plain web URL.
@@ -117,7 +141,50 @@ pub async fn open_link_webview(
         .get_window(MAIN_WINDOW_LABEL)
         .ok_or("Main window not found")?;
 
-    let builder = tauri::webview::WebviewBuilder::new(&label, tauri::WebviewUrl::External(parsed));
+    // The tab has to follow the page, not just start it: a search run
+    // inside the webview moves it, and nothing in the frontend can see
+    // that happen (#1078).
+    let nav_app = app.clone();
+    let nav_tab = tab_id.clone();
+    let title_app = app.clone();
+    let title_tab = tab_id.clone();
+
+    let builder = tauri::webview::WebviewBuilder::new(&label, tauri::WebviewUrl::External(parsed))
+        .on_navigation(move |url| {
+            let url = url.to_string();
+            if reportable_url(&url) {
+                let _ = nav_app.emit(
+                    PAGE_CHANGED_EVENT,
+                    PageChange {
+                        tab_id: nav_tab.clone(),
+                        url: Some(url),
+                        title: None,
+                    },
+                );
+            }
+            // Report only; deciding what may load is `validate_url`'s job
+            // at the entry point, and refusing here would silently break
+            // navigations that already work.
+            true
+        })
+        // A page that moves through the History API — which is how a lot
+        // of search runs — fires no navigation, so the URL is re-read here
+        // as well rather than only alongside the title.
+        .on_document_title_changed(move |webview, title| {
+            let url = webview
+                .url()
+                .ok()
+                .map(|u| u.to_string())
+                .filter(|u| reportable_url(u));
+            let _ = title_app.emit(
+                PAGE_CHANGED_EVENT,
+                PageChange {
+                    tab_id: title_tab.clone(),
+                    url,
+                    title: Some(title),
+                },
+            );
+        });
 
     window
         .add_child(
@@ -281,6 +348,34 @@ mod tests {
         for id in ["", "a b", "../x", "t1\n", "t1/../t2", too_long.as_str()] {
             assert!(label_for(id).is_err(), "{id:?} should be rejected");
         }
+    }
+
+    #[test]
+    fn reports_only_web_pages_to_the_tab() {
+        // The address bar shows whatever is reported, so a blank page
+        // between two real ones, or a scheme the page merely handed to the
+        // OS, must not overwrite where the tab actually is.
+        for url in ["https://www.google.com/search?q=rust", "http://example.com"] {
+            assert!(reportable_url(url), "{url} should be reported");
+        }
+        for url in ["about:blank", "mailto:a@b.c", "tauri://localhost", ""] {
+            assert!(!reportable_url(url), "{url} should not be reported");
+        }
+    }
+
+    #[test]
+    fn serializes_a_page_change_for_the_frontend() {
+        // The frontend reads tabId/url/title; snake_case would arrive as
+        // undefined and the tab would never move.
+        let json = serde_json::to_string(&PageChange {
+            tab_id: "t1".to_string(),
+            url: Some("https://example.com/".to_string()),
+            title: None,
+        })
+        .unwrap();
+        assert!(json.contains("\"tabId\":\"t1\""), "{json}");
+        assert!(json.contains("\"url\":\"https://example.com/\""), "{json}");
+        assert!(json.contains("\"title\":null"), "{json}");
     }
 
     #[test]

@@ -66,6 +66,7 @@ export default function LinkViewHost() {
   const newTab = useLinkViewStore((s) => s.newTab);
   const closeTab = useLinkViewStore((s) => s.closeTab);
   const setTabUrl = useLinkViewStore((s) => s.setTabUrl);
+  const applyPageChange = useLinkViewStore((s) => s.applyPageChange);
   const closeAll = useLinkViewStore((s) => s.closeAll);
   const isOpen = useLinkViewStore((s) => s.isOpen);
   const setOpen = useLinkViewStore((s) => s.setOpen);
@@ -90,7 +91,12 @@ export default function LinkViewHost() {
   );
 
   const paneShowsAPage = isOpen && !showFavourites && Boolean(activeId);
-  const view = useLinkView(tabs, paneShowsAPage ? activeId : null, fallBackToBrowser);
+  const view = useLinkView(
+    tabs,
+    paneShowsAPage ? activeId : null,
+    fallBackToBrowser,
+    applyPageChange,
+  );
 
   // The webview is an OS surface that only follows the pane when told to.
   // A dock-side swap moves the pane without changing its size, and a
