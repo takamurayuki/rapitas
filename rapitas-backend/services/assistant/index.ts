@@ -27,3 +27,11 @@ export {
   type AssistantCapabilityId,
   type UndoCost,
 } from './capabilities';
+
+export {
+  recordAction,
+  listRecentActions,
+  type AssistantActionStatus,
+  type AssistantActionRecord,
+  type RecordActionInput,
+} from './action-log';

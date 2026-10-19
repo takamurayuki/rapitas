@@ -13,6 +13,9 @@ import { describe, expect, test, beforeEach, mock } from 'bun:test';
 /** Every `prisma.<model>.<method>` touched during a request. */
 let calls: string[] = [];
 
+/** The audit rows the route wrote. */
+let audited: Record<string, unknown>[] = [];
+
 const THEMES = [
   { id: 1, name: 'rapitas' },
   { id: 36, name: '健康' },
@@ -31,8 +34,12 @@ const recordingPrisma = new Proxy(
         {},
         {
           get: (_t, method: string) => {
-            return async () => {
+            return async (args?: { data?: Record<string, unknown> }) => {
               calls.push(`${model}.${String(method)}`);
+              if (model === 'assistantAction' && method === 'create') {
+                audited.push(args?.data ?? {});
+                return { id: audited.length };
+              }
               return model === 'theme' && method === 'findMany' ? THEMES : null;
             };
           },
@@ -60,6 +67,9 @@ async function postDraft(body: unknown) {
   return { status: res.status, json: res.status === 200 ? await res.json() : null };
 }
 
+/** The one write proposing is allowed to make: its own audit record. */
+const AUDIT_WRITE = 'assistantAction.create';
+
 /** The prisma methods that change data. */
 const WRITE_METHODS = [
   'create',
@@ -76,6 +86,7 @@ const WRITE_METHODS = [
 
 beforeEach(() => {
   calls = [];
+  audited = [];
 });
 
 describe('POST /assistant/task-draft', () => {
@@ -92,16 +103,24 @@ describe('POST /assistant/task-draft', () => {
     expect(json.draft.id).toBeUndefined();
   });
 
-  // The one that matters.
-  test('touches no write method on any model', async () => {
+  // The one that matters. Proposing writes exactly one row — its own audit
+  // record — and nothing else. Recording that ラピ suggested something is not
+  // a change to the user's data; a write to any other model would be, so the
+  // exemption is spelled out rather than the assertion relaxed.
+  test('changes nothing of the user own, whatever it understood', async () => {
     await postDraft({ text: 'rapitas のアバターを直す 2時間 緊急 明日まで' });
     const writes = calls.filter((c) => WRITE_METHODS.some((m) => c.endsWith(`.${m}`)));
-    expect(writes).toEqual([]);
+    expect(writes).toEqual([AUDIT_WRITE]);
   });
 
-  test('reads only the themes', async () => {
+  test('reads the themes and writes only its own record', async () => {
     await postDraft({ text: 'rapitas のアバターを直す' });
-    expect(calls).toEqual(['theme.findMany']);
+    expect(calls).toEqual(['theme.findMany', AUDIT_WRITE]);
+  });
+
+  test('records the proposal, so a draft the user walked away from still shows', async () => {
+    await postDraft({ text: 'rapitas のアバターを直す' });
+    expect(audited[0]).toMatchObject({ capabilityId: 'task.draft', status: 'proposed' });
   });
 
   test('rejects an empty body', async () => {

@@ -221,3 +221,27 @@ model SearchMiss {
   @@index([hitCount])
   @@index([themeId])
 }
+
+// Every act ラピ (the resident assistant) took on the user's behalf — including
+// the ones that were only proposed, and the ones that were refused.
+// `capabilityId` names an entry in services/assistant/capabilities.ts, the sole
+// declaration of what ラピ may do; the recorder rejects an id that is not
+// declared there, which is what stops the log drifting away from the registry.
+// Deliberately separate from AgentExecution: this is the user asking ラピ for
+// something, not the workflow running an agent.
+model AssistantAction {
+  id            Int      @id @default(autoincrement())
+  capabilityId  String
+  // proposed | executed | failed | refused
+  status        String
+  // JSON stored as string, following Notification.metadata's convention.
+  argumentsJson String?
+  resultJson    String?
+  errorMessage  String?
+  // Set once an act produced a task, so the record points at what it made.
+  taskId        Int?
+  createdAt     DateTime @default(now())
+
+  @@index([capabilityId, createdAt])
+  @@index([createdAt])
+}

@@ -21,6 +21,8 @@ import { createTask } from '../../services/task/task-mutations';
 import {
   buildTaskDraft,
   assertCapabilityAllowed,
+  recordAction,
+  listRecentActions,
   ASSISTANT_CAPABILITIES,
   ConfirmationRequiredError,
 } from '../../services/assistant';
@@ -41,6 +43,16 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
 
       const draft = buildTaskDraft(body.text, themes);
 
+      // Recorded although nothing changed. "ラピ suggested this" belongs in
+      // the trail, and a proposal the user walked away from leaves no other
+      // trace anywhere.
+      await recordAction({
+        capabilityId: 'task.draft',
+        status: 'proposed',
+        args: { text: body.text },
+        result: { title: draft.title, themeId: draft.themeId, missing: draft.missing },
+      });
+
       return { success: true, draft };
     },
     {
@@ -60,6 +72,14 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
         assertCapabilityAllowed('task.create', { confirmed: body.confirmed });
       } catch (err) {
         if (err instanceof ConfirmationRequiredError) {
+          // The most important row in the log: "ラピ wanted to do this and was
+          // not allowed" exists nowhere else at all.
+          await recordAction({
+            capabilityId: 'task.create',
+            status: 'refused',
+            args: body.task,
+            errorMessage: err.message,
+          });
           set.status = 400;
           return { success: false, error: 'confirmation_required' };
         }
@@ -77,8 +97,22 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
           ...(body.task.estimatedHours ? { estimatedHours: body.task.estimatedHours } : {}),
         });
 
+        await recordAction({
+          capabilityId: 'task.create',
+          status: 'executed',
+          args: body.task,
+          taskId: task?.id,
+          result: { id: task?.id },
+        });
+
         return { success: true, id: task?.id, task };
       } catch (err) {
+        await recordAction({
+          capabilityId: 'task.create',
+          status: 'failed',
+          args: body.task,
+          errorMessage: err instanceof Error ? err.message : String(err),
+        });
         logger.error({ err }, 'assistant task creation failed');
         set.status = 500;
         return { success: false, error: 'create_failed' };
@@ -101,6 +135,13 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
     },
   )
 
-  .get('/capabilities', () => ({ success: true, capabilities: ASSISTANT_CAPABILITIES }));
+  .get('/capabilities', () => ({ success: true, capabilities: ASSISTANT_CAPABILITIES }))
+
+  /** What ラピ has been asked to do lately, so the record is not write-only. */
+  .get('/actions', async ({ query }) => ({
+    success: true,
+    capabilities: ASSISTANT_CAPABILITIES,
+    actions: await listRecentActions(query.limit ? Number(query.limit) : undefined),
+  }));
 
 export default assistantIntakeRoutes;

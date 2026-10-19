@@ -16,8 +16,18 @@ let calls: string[] = [];
 /** Task rows the route asked to create. */
 let created: Record<string, unknown>[] = [];
 
+/** Audit rows the route wrote. */
+let audited: Record<string, unknown>[] = [];
+
 mock.module('../../config/database', () => ({
-  prisma: {},
+  prisma: {
+    assistantAction: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        audited.push(data);
+        return { id: audited.length };
+      },
+    },
+  },
   ensureDatabaseConnection: async () => {},
 }));
 
@@ -47,6 +57,7 @@ async function post(path: string, body: unknown) {
 beforeEach(() => {
   calls = [];
   created = [];
+  audited = [];
 });
 
 describe('POST /assistant/task-create', () => {
@@ -117,6 +128,37 @@ describe('POST /assistant/task-create', () => {
     expect('priority' in created[0]).toBe(false);
     expect('dueDate' in created[0]).toBe(false);
     expect('estimatedHours' in created[0]).toBe(false);
+  });
+});
+
+/**
+ * The trail. A refusal in particular exists nowhere else — nothing was
+ * created, nothing was notified, and without a row there is no way to learn
+ * later that ラピ asked and was told no.
+ */
+describe('what ends up in the log', () => {
+  test('an act that ran is recorded against the task it made', async () => {
+    await post('task-create', { confirmed: true, task: VALID_TASK });
+    expect(audited).toHaveLength(1);
+    expect(audited[0]).toMatchObject({
+      capabilityId: 'task.create',
+      status: 'executed',
+      taskId: 99,
+    });
+  });
+
+  test('an act that was refused is recorded as refused', async () => {
+    await post('task-create', { confirmed: false, task: VALID_TASK });
+    expect(audited).toHaveLength(1);
+    expect(audited[0]).toMatchObject({ capabilityId: 'task.create', status: 'refused' });
+  });
+
+  test('the row keeps what was asked for, not just that something happened', async () => {
+    await post('task-create', { confirmed: true, task: VALID_TASK });
+    expect(JSON.parse(String(audited[0].argumentsJson))).toMatchObject({
+      title: 'アバターを直す',
+      themeId: 1,
+    });
   });
 });
 
