@@ -1481,6 +1481,18 @@ CREATE TABLE "SearchMiss" (
 );
 
 -- CreateTable
+CREATE TABLE "AssistantAction" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "capabilityId" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "argumentsJson" TEXT,
+    "resultJson" TEXT,
+    "errorMessage" TEXT,
+    "taskId" INTEGER,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
 CREATE TABLE "TimeEntry" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "taskId" INTEGER NOT NULL,
@@ -2195,6 +2207,12 @@ CREATE INDEX "SearchMiss_hitCount_idx" ON "SearchMiss"("hitCount");
 
 -- CreateIndex
 CREATE INDEX "SearchMiss_themeId_idx" ON "SearchMiss"("themeId");
+
+-- CreateIndex
+CREATE INDEX "AssistantAction_capabilityId_createdAt_idx" ON "AssistantAction"("capabilityId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "AssistantAction_createdAt_idx" ON "AssistantAction"("createdAt");
 
 -- CreateIndex
 CREATE INDEX "PomodoroSession_status_idx" ON "PomodoroSession"("status");
