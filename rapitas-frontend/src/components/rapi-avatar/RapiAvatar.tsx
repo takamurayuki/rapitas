@@ -81,6 +81,19 @@ const RING = { cx: 60, cy: 70, rx: 54, ry: 17, tilt: -18 } as const;
 const BODY = { cx: 60, cy: 70, r: 37 } as const;
 const EYES = { left: 48, right: 72, y: 72 } as const;
 const PLUS = { x: 84, y: 22, rotate: 15, rotateError: 60, scale: 0.9 } as const;
+/** The contact shadow under the body. Sits inside the viewBox's 120. */
+const SHADOW = { cy: 113, rx: 27, ry: 6 } as const;
+/** The specular highlight, upper-left, where the light is. */
+const GLOSS = { cx: 46, cy: 54, rx: 15, ry: 9 } as const;
+
+/**
+ * How strong each depth layer is.
+ *
+ * White and black overlays rather than new hex colours, so the body keeps
+ * its token colour in both themes and nothing here competes with the
+ * palette the spec fixes.
+ */
+const DEPTH = { lift: 0.3, terminator: 0.26, gloss: 0.55, cast: 0.3 } as const;
 
 /* ───────── prefers-reduced-motion ───────── */
 
@@ -115,7 +128,11 @@ export function RapiAvatar({
   const label = useStateLabel();
   const prefersReduced = usePrefersReducedMotion();
   const animate = !(reducedMotion ?? prefersReduced);
-  const clipId = `rapi-front-${useId().replace(/:/g, '')}`;
+  const uid = useId().replace(/:/g, '');
+  const clipId = `rapi-front-${uid}`;
+  const shadeId = `rapi-shade-${uid}`;
+  const glossId = `rapi-gloss-${uid}`;
+  const castId = `rapi-cast-${uid}`;
 
   const body = RAPI_AVATAR_TOKENS.body[theme];
   const trackOpacity = showTrack ? RAPI_AVATAR_TOKENS.trackOpacity[theme] : 0;
@@ -208,13 +225,48 @@ export function RapiAvatar({
         <clipPath id={clipId} clipPathUnits="userSpaceOnUse">
           <rect x={-30} y={RING.cy} width={180} height={60} />
         </clipPath>
+
+        {/* Depth, painted over the flat body rather than replacing it, so
+            the token colour stays the colour. A circle reads as a sphere
+            because of the shading across it; the cast shadow below only
+            lifts it off the page. Light comes from the upper left, which
+            is also where the "+" sits. */}
+        <radialGradient id={shadeId} cx="0.34" cy="0.3" r="0.78">
+          <stop offset="0" stopColor="#FFFFFF" stopOpacity={DEPTH.lift} />
+          <stop offset="0.52" stopColor="#FFFFFF" stopOpacity="0" />
+          <stop offset="0.82" stopColor="#000000" stopOpacity="0" />
+          <stop offset="1" stopColor="#000000" stopOpacity={DEPTH.terminator} />
+        </radialGradient>
+
+        <radialGradient id={glossId} cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stopColor="#FFFFFF" stopOpacity={DEPTH.gloss} />
+          <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
+        </radialGradient>
+
+        <radialGradient id={castId} cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stopColor="#000000" stopOpacity={DEPTH.cast} />
+          <stop offset="1" stopColor="#000000" stopOpacity="0" />
+        </radialGradient>
       </defs>
+
+      {/* 0. Cast shadow: furthest back, so the ring crosses over it too. */}
+      <ellipse cx={BODY.cx} cy={SHADOW.cy} rx={SHADOW.rx} ry={SHADOW.ry} fill={`url(#${castId})`} />
 
       {/* 1. 環（奥側）: 本体の後ろに描く */}
       {ringLayer(false)}
 
       {/* 2. 本体 */}
       <circle cx={BODY.cx} cy={BODY.cy} r={BODY.r} fill={body} />
+      {/* 2b. Shading over the body: the part that makes it a sphere. */}
+      <circle cx={BODY.cx} cy={BODY.cy} r={BODY.r} fill={`url(#${shadeId})`} />
+      <ellipse
+        cx={GLOSS.cx}
+        cy={GLOSS.cy}
+        rx={GLOSS.rx}
+        ry={GLOSS.ry}
+        fill={`url(#${glossId})`}
+        transform={`rotate(-28 ${GLOSS.cx} ${GLOSS.cy})`}
+      />
 
       {/* 3. 目 */}
       <g>
