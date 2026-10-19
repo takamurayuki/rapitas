@@ -15,7 +15,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
-import { isFileable, type EditableDraft, type TaskDraft } from './task-draft-types';
+import {
+  isFileable,
+  type DraftSource,
+  type EditableDraft,
+  type TaskDraft,
+} from './task-draft-types';
 
 const logger = createLogger('rapi-intake');
 
@@ -28,12 +33,15 @@ function toEditable(draft: TaskDraft): EditableDraft {
     dueDate: draft.dueDate,
     estimatedHours: draft.estimatedHours,
     themeId: draft.themeId,
+    acceptanceCriteria: draft.acceptanceCriteria,
   };
 }
 
 export interface UseTaskDraft {
   /** What was proposed, kept so the UI can show the reasons beside each field. */
   draft: TaskDraft | null;
+  /** Which reader produced it, so a weaker fallback draft can say so. */
+  source: DraftSource | null;
   /** The same draft as the user now has it. */
   edited: EditableDraft | null;
   proposing: boolean;
@@ -55,6 +63,7 @@ export interface UseTaskDraft {
  */
 export function useTaskDraft(): UseTaskDraft {
   const [draft, setDraft] = useState<TaskDraft | null>(null);
+  const [source, setSource] = useState<DraftSource | null>(null);
   const [edited, setEdited] = useState<EditableDraft | null>(null);
   const [proposing, setProposing] = useState(false);
   const [filing, setFiling] = useState(false);
@@ -63,6 +72,7 @@ export function useTaskDraft(): UseTaskDraft {
 
   const reset = useCallback(() => {
     setDraft(null);
+    setSource(null);
     setEdited(null);
     setError(false);
     setFiledTaskId(null);
@@ -80,13 +90,15 @@ export function useTaskDraft(): UseTaskDraft {
         body: JSON.stringify({ text }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as { draft: TaskDraft };
+      const data = (await res.json()) as { draft: TaskDraft; source?: DraftSource };
       setDraft(data.draft);
+      setSource(data.source ?? null);
       setEdited(toEditable(data.draft));
     } catch (err) {
       // Nothing was created, so there is nothing to undo — say so and stop.
       logger.warn({ err }, 'task draft failed');
       setDraft(null);
+      setSource(null);
       setEdited(null);
       setError(true);
     } finally {
@@ -122,6 +134,9 @@ export function useTaskDraft(): UseTaskDraft {
             ...(edited.priority ? { priority: edited.priority } : {}),
             ...(edited.dueDate ? { dueDate: edited.dueDate } : {}),
             ...(edited.estimatedHours ? { estimatedHours: edited.estimatedHours } : {}),
+            ...(edited.acceptanceCriteria?.length
+              ? { acceptanceCriteria: edited.acceptanceCriteria }
+              : {}),
           },
         }),
       });
@@ -140,6 +155,7 @@ export function useTaskDraft(): UseTaskDraft {
 
   return {
     draft,
+    source,
     edited,
     proposing,
     filing,

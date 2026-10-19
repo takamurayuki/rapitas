@@ -1568,7 +1568,8 @@
         "theme": "テーマ",
         "priority": "優先度",
         "dueDate": "期日",
-        "estimatedHours": "見積もり（時間）"
+        "estimatedHours": "見積もり（時間）",
+        "acceptanceCriteria": "完了条件"
       },
       "reason": {
         "matchedThemeName": "「{value}」と書かれていたため",
@@ -1579,7 +1580,9 @@
         "high": "高",
         "medium": "中",
         "low": "低"
-      }
+      },
+      "unclear": "ラピが判断できなかったこと",
+      "fellBackToPatterns": "AIが使えなかったため、文章のパターンから推定しました。内容をよく確認してください。"
     }
   },
   "shortcuts": {

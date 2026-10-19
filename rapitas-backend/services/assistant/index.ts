@@ -16,6 +16,8 @@ export {
   type DraftReason,
 } from './task-draft';
 
+export { readTaskIntent, type IntentDraft, type ThemeChoice } from './intent-reader';
+
 export {
   ASSISTANT_CAPABILITIES,
   assertCapabilityAllowed,

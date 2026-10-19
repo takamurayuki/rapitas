@@ -66,8 +66,15 @@ export function TaskDraftCard({
 }: TaskDraftCardProps) {
   const t = useTranslations('rapiAvatar.intake');
 
-  /** The translated explanation for a field, when ラピ gave one. */
+  /**
+   * The explanation for a field.
+   *
+   * The model's reasoning about the theme is its own sentence about this
+   * particular utterance, so it is shown verbatim; the pattern reader's
+   * reasons are codes and get translated.
+   */
   const reasonFor = (field: DraftField): string | undefined => {
+    if (field === 'theme' && draft.themeReason) return draft.themeReason;
     const reason = draft.reasons[field];
     if (!reason) return undefined;
     return t(`reason.${reason.code}`, { value: reason.value ?? '' });
@@ -148,6 +155,43 @@ export function TaskDraftCard({
           onChange={(e) => onEdit({ dueDate: e.target.value || undefined })}
         />
       </Row>
+
+      {/* What "done" means. Editable as plain lines, because criteria nobody
+          can reach are a known cause of endless verification bounce-backs —
+          the user has to be able to fix them before the task exists. */}
+      {edited.acceptanceCriteria !== undefined && (
+        <Row label={t('field.acceptanceCriteria')}>
+          <textarea
+            rows={Math.min(4, Math.max(2, edited.acceptanceCriteria.length))}
+            className={FIELD_CLASS}
+            aria-label={t('field.acceptanceCriteria')}
+            value={edited.acceptanceCriteria.join('\n')}
+            onChange={(e) =>
+              onEdit({
+                acceptanceCriteria: e.target.value
+                  .split('\n')
+                  .map((line) => line.trim())
+                  .filter(Boolean),
+              })
+            }
+          />
+        </Row>
+      )}
+
+      {draft.unclear !== undefined && draft.unclear.length > 0 && (
+        <div className="rounded-md bg-amber-50 p-2 dark:bg-amber-950/40">
+          <p className="text-[10px] font-medium text-amber-800 dark:text-amber-300">
+            {t('unclear')}
+          </p>
+          <ul className="mt-1 list-inside list-disc space-y-0.5">
+            {draft.unclear.map((item) => (
+              <li key={item} className="text-[10px] text-amber-800 dark:text-amber-300">
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {edited.description && (
         <Row label={t('field.description')}>

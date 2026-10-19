@@ -22,6 +22,7 @@ export function TaskIntake() {
   const [text, setText] = useState('');
   const {
     draft,
+    source,
     edited,
     proposing,
     filing,
@@ -75,6 +76,13 @@ export function TaskIntake() {
             {proposing ? t('proposing') : t('propose')}
           </button>
         </>
+      )}
+
+      {/* A fallback draft is visibly weaker — fields were pattern-matched
+          rather than understood — and the user should know before trusting
+          it. */}
+      {draft && source === 'patterns' && (
+        <p className="text-[10px] text-amber-700 dark:text-amber-400">{t('fellBackToPatterns')}</p>
       )}
 
       {draft && edited && (
