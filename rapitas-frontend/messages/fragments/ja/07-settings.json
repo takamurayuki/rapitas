@@ -405,6 +405,7 @@
     "groupNamePlaceholder": "グループ名"
   },
   "rapiAvatar": {
+    "name": "ラピ",
     "idle": "待機中",
     "thinking": "思考中",
     "running": "実行中",
