@@ -207,64 +207,60 @@ describe('the dock', () => {
 });
 
 /**
- * A flat disc with a shadow under it still looks flat — what makes a circle
- * read as a sphere is the shading across its surface. All three layers are
- * painted OVER the body rather than replacing it, so the token colour stays
- * the colour.
+ * A face that stops blinking the moment it gets busy reads as frozen, so
+ * blinking is not limited to `idle` the way the spec has it. The arc and
+ * line eyes are different shapes and keep their own expression instead.
  */
-describe('depth', () => {
-  /** Ellipses with no pathLength and no stroke: the shadow and the gloss. */
-  const softShapes = (el: HTMLElement) =>
-    Array.from(el.querySelectorAll('ellipse')).filter(
-      (e) => !e.hasAttribute('pathLength') && !e.getAttribute('stroke'),
+describe('blinking', () => {
+  /** The `ry` animation on an eye, if the state has one. */
+  const blink = (el: HTMLElement) =>
+    Array.from(el.querySelectorAll('animate')).filter(
+      (a) => a.getAttribute('attributeName') === 'ry',
     );
 
-  it('keeps the body its token colour underneath', () => {
-    const { container } = render(<RapiAvatar state="idle" />);
-    expect(container.querySelector('circle')?.getAttribute('fill')).toBe(
-      RAPI_AVATAR_TOKENS.body.light,
-    );
+  it.each(['idle', 'thinking', 'running', 'waiting'] as const)('blinks while %s', (state) => {
+    const { container } = render(<RapiAvatar state={state} />);
+    // One per eye.
+    expect(blink(container)).toHaveLength(2);
   });
 
-  it('shades the body on top of that', () => {
+  it.each(['done', 'error'] as const)('does not blink while %s', (state) => {
+    const { container } = render(<RapiAvatar state={state} />);
+    expect(blink(container)).toHaveLength(0);
+  });
+
+  it('squashes the eye almost shut and back, every 4.5s', () => {
+    const { container } = render(<RapiAvatar state="running" />);
+    const [eye] = blink(container);
+    expect(eye.getAttribute('dur')).toBe('4.5s');
+    expect(eye.getAttribute('values')?.split(';')[2]).toBe('0.6');
+  });
+
+  it('holds still when motion is reduced', () => {
+    const { container } = render(<RapiAvatar state="idle" reducedMotion />);
+    expect(blink(container)).toHaveLength(0);
+  });
+});
+
+/**
+ * The depth layers added on 2026-10-19 were taken out again on request:
+ * back to the flat design the reference implementation draws.
+ */
+describe('the body is flat', () => {
+  it('is one circle in its token colour, with nothing painted over it', () => {
     const { container } = render(<RapiAvatar state="idle" />);
     const circles = Array.from(container.querySelectorAll('circle'));
-    expect(circles).toHaveLength(2);
-    expect(circles[1].getAttribute('fill')).toMatch(/^url\(#rapi-shade-/);
+    expect(circles).toHaveLength(1);
+    expect(circles[0].getAttribute('fill')).toBe(RAPI_AVATAR_TOKENS.body.light);
   });
 
-  it('casts a shadow below the body', () => {
+  it('has no gradients and no shadow beneath it', () => {
     const { container } = render(<RapiAvatar state="idle" />);
-    const cast = softShapes(container).find((e) =>
-      e.getAttribute('fill')?.startsWith('url(#rapi-cast-'),
+    expect(container.querySelectorAll('radialGradient')).toHaveLength(0);
+    const soft = Array.from(container.querySelectorAll('ellipse')).filter(
+      (e) => !e.hasAttribute('pathLength') && !e.getAttribute('stroke'),
     );
-    expect(cast).toBeTruthy();
-    // Below the body: its centre is past the bottom of the circle.
-    expect(Number(cast?.getAttribute('cy'))).toBeGreaterThan(70 + 37);
-  });
-
-  it('puts a highlight where the light is', () => {
-    const { container } = render(<RapiAvatar state="idle" />);
-    const gloss = softShapes(container).find((e) =>
-      e.getAttribute('fill')?.startsWith('url(#rapi-gloss-'),
-    );
-    expect(gloss).toBeTruthy();
-    // Upper left of centre, matching the gradient's light direction.
-    expect(Number(gloss?.getAttribute('cx'))).toBeLessThan(60);
-    expect(Number(gloss?.getAttribute('cy'))).toBeLessThan(70);
-  });
-
-  // Same reason the clipPath is per-instance: two avatars must not share
-  // a gradient id, or the second one paints with the first one's.
-  it('gives each avatar its own gradient ids', () => {
-    const { container } = render(
-      <>
-        <RapiAvatar state="idle" />
-        <RapiAvatar state="idle" />
-      </>,
-    );
-    const ids = Array.from(container.querySelectorAll('radialGradient')).map((g) => g.id);
-    expect(ids).toHaveLength(6);
-    expect(new Set(ids).size).toBe(6);
+    // Only the eyes, which are filled white.
+    expect(soft.every((e) => e.getAttribute('fill') === RAPI_AVATAR_TOKENS.eye)).toBe(true);
   });
 });
