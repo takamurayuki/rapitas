@@ -63,3 +63,8 @@ windows = { version = "0.58", features = ["Win32_Foundation", "Win32_UI_WindowsA
 # 本番ビルドでは --features custom-protocol を指定
 default = []
 custom-protocol = ["tauri/custom-protocol"]
+
+[dev-dependencies]
+# Compiling the shipped `plugins > shell > open` validator in a test, the
+# same way tauri-plugin-shell does. Already in the lock via that plugin.
+regex = "1"

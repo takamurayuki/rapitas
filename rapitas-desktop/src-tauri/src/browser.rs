@@ -142,3 +142,78 @@ pub async fn open_url_in_browser(url: String, browser: String) -> Result<(), Str
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use regex::Regex;
+
+    /// The validator the shipped config gives `plugins > shell > open`.
+    ///
+    /// Read from the real file rather than restated here: a copy would
+    /// keep passing while the config that ships says something else.
+    fn shell_open_validator() -> String {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tauri.conf.json");
+        let raw = std::fs::read_to_string(path).expect("read tauri.conf.json");
+        let conf: serde_json::Value = serde_json::from_str(&raw).expect("parse tauri.conf.json");
+        conf["plugins"]["shell"]["open"]
+            .as_str()
+            .expect("plugins.shell.open must be a validator string")
+            .to_string()
+    }
+
+    /// The regex the plugin actually compiles.
+    ///
+    /// tauri-plugin-shell anchors the configured value itself —
+    /// `format!("^{validator}$")`, see its `open_scope`. A config that
+    /// anchors it a second time therefore only matches the anchors.
+    fn compiled() -> Regex {
+        Regex::new(&format!("^{}$", shell_open_validator())).expect("validator must compile")
+    }
+
+    /// The defect, stated directly: `"^https?://"` in the config compiles
+    /// to `^^https?://$`, which matches the scheme and nothing after it,
+    /// so every real link was refused — reported 2026-10-19 as
+    /// "Scoped command argument at position 0 was found, but failed regex
+    /// validation ^^https?://$".
+    #[test]
+    fn the_config_does_not_anchor_what_the_plugin_already_anchors() {
+        let validator = shell_open_validator();
+        assert!(
+            !validator.starts_with('^') && !validator.ends_with('$'),
+            "plugins.shell.open must be the unanchored body, got {validator:?}"
+        );
+    }
+
+    #[test]
+    fn opens_the_links_people_actually_click() {
+        let re = compiled();
+        for url in [
+            "https://example.com",
+            "http://example.com",
+            "https://github.com/owner/repo/issues/1",
+            "https://www.google.com/search?q=rust+regex",
+            "https://example.com/path#fragment",
+        ] {
+            assert!(re.is_match(url), "{url} should be allowed");
+        }
+    }
+
+    #[test]
+    fn refuses_anything_that_is_not_a_web_link() {
+        let re = compiled();
+        // The scheme alone is not a link, and the rest are escalation
+        // sinks the in-app pane rejects too (see link_webview::validate_url).
+        for url in [
+            "https://",
+            "http://",
+            "",
+            "javascript:alert(1)",
+            "file:///C:/Windows/System32/drivers/etc/hosts",
+            "data:text/html,<script>alert(1)</script>",
+            "tauri://localhost",
+            "nothttps://example.com",
+        ] {
+            assert!(!re.is_match(url), "{url} should be refused");
+        }
+    }
+}
