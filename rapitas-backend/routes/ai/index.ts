@@ -10,6 +10,7 @@ import { aiChatRoutes } from './ai-chat';
 import { copilotChatRoutes } from './copilot-chat';
 import { promptsRoutes } from './prompts';
 import { systemPromptsRoutes } from './system-prompts';
+import assistantIntakeRoute from './assistant-intake.routes';
 
 export { aiChatRoutes } from './ai-chat';
 export { copilotChatRoutes } from './copilot-chat';
@@ -20,4 +21,5 @@ export const aiDomainRoutes = new Elysia()
   .use(aiChatRoutes)
   .use(copilotChatRoutes)
   .use(promptsRoutes)
-  .use(systemPromptsRoutes);
+  .use(systemPromptsRoutes)
+  .use(assistantIntakeRoute);
