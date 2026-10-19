@@ -21,7 +21,7 @@ const urls = () => state().tabs.map((t) => t.url);
 // Module scope: a beforeEach inside one describe does not reach the others,
 // and state then leaks between them.
 beforeEach(() => {
-  useLinkViewStore.setState({ tabs: [], activeId: null, isOpen: false });
+  useLinkViewStore.setState({ tabs: [], activeId: null, isOpen: false, view: 'page' });
 });
 
 describe('link-view-store', () => {
@@ -294,5 +294,90 @@ describe('setTabUrl', () => {
     state().setTabUrl(id, 'https://example.com/');
     expect(state().tabs[0]).toMatchObject({ url: 'https://example.com/' });
     expect(state().tabs[0].title).toBeUndefined();
+  });
+});
+
+/**
+ * Closing must mean closing. Reported 2026-10-19: ✕ on the favourites view
+ * fell back to the page, and ✕ on that page's last tab bounced straight
+ * back into the favourites view — the pane could not be dismissed at all.
+ */
+describe('closing the pane', () => {
+  it('closes the pane along with the final tab', () => {
+    state().openLink('https://a.example');
+    expect(state().isOpen).toBe(true);
+    state().closeTab(state().tabs[0].id);
+    expect(state().isOpen).toBe(false);
+  });
+
+  it('stays open while any tab is left', () => {
+    state().openLink('https://a.example');
+    state().openLink('https://b.example');
+    state().closeTab(state().tabs[0].id);
+    expect(state().isOpen).toBe(true);
+  });
+
+  it('comes back on the page, not the library, when tabs survived', () => {
+    state().openLink('https://a.example');
+    state().showLibrary();
+    expect(state().view).toBe('library');
+
+    state().setOpen(false);
+    state().setOpen(true);
+    expect(state().view).toBe('page');
+  });
+});
+
+/**
+ * Which face the pane shows. Ctrl+B with nothing open has no page to show,
+ * so it opens on the library — that is where a saved page is picked (#1074).
+ */
+describe('the pane view', () => {
+  it('starts on the page', () => {
+    expect(state().view).toBe('page');
+  });
+
+  it('opens on the library when there is no tab to show', () => {
+    state().toggleOpen();
+    expect(state().isOpen).toBe(true);
+    expect(state().view).toBe('library');
+  });
+
+  it('opens on the page when a tab is waiting', () => {
+    state().openLink('https://a.example');
+    state().toggleOpen();
+    state().toggleOpen();
+    expect(state().view).toBe('page');
+  });
+
+  it('switches to the library and back', () => {
+    state().openLink('https://a.example');
+    state().showLibrary();
+    expect(state().view).toBe('library');
+    state().showPage();
+    expect(state().view).toBe('page');
+  });
+
+  // Opening a link from a note while the library is showing must show the
+  // page that was asked for.
+  it('returns to the page when a link is opened', () => {
+    state().toggleOpen();
+    expect(state().view).toBe('library');
+    state().openLink('https://a.example');
+    expect(state().view).toBe('page');
+  });
+
+  it('returns to the page when a new tab is opened', () => {
+    state().toggleOpen();
+    state().newTab();
+    expect(state().view).toBe('page');
+  });
+
+  it('is back on the page after everything is closed', () => {
+    state().openLink('https://a.example');
+    state().showLibrary();
+    state().closeAll();
+    expect(state().view).toBe('page');
+    expect(state().isOpen).toBe(false);
   });
 });

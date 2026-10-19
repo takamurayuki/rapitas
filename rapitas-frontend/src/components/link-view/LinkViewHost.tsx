@@ -9,9 +9,10 @@
  * Placement is decided here rather than in the pane: the pane draws, the
  * host decides which edge it may have.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useLinkViewStore, LINK_VIEW_SPLIT_WIDTH_VW } from '@/stores/link-view-store';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
+import { LINK_PANE_Z } from '@/lib/pane-layering';
 import { openExternalUrl } from '@/utils/tauri';
 import { LinkFavourites } from './LinkFavourites';
 import { LinkViewPane } from './LinkViewPane';
@@ -70,7 +71,8 @@ export default function LinkViewHost() {
   const closeAll = useLinkViewStore((s) => s.closeAll);
   const isOpen = useLinkViewStore((s) => s.isOpen);
   const setOpen = useLinkViewStore((s) => s.setOpen);
-  const [showFavourites, setShowFavourites] = useState(false);
+  const paneView = useLinkViewStore((s) => s.view);
+  const showLibrary = useLinkViewStore((s) => s.showLibrary);
 
   const taskPanelVisible = useTaskDetailVisibilityStore((s) => s.isTaskDetailVisible);
   const taskPanelSide = useTaskDetailVisibilityStore((s) => s.dockSide);
@@ -90,8 +92,8 @@ export default function LinkViewHost() {
     [closeAll],
   );
 
-  const paneShowsAPage = isOpen && !showFavourites && Boolean(activeId);
-  const view = useLinkView(
+  const paneShowsAPage = isOpen && paneView === 'page' && Boolean(activeId);
+  const webview = useLinkView(
     tabs,
     paneShowsAPage ? activeId : null,
     fallBackToBrowser,
@@ -103,8 +105,8 @@ export default function LinkViewHost() {
   // ResizeObserver never fires for that — the surface stayed where it was,
   // leaving the page content stranded on the old side (#1068).
   useEffect(() => {
-    view.resync();
-  }, [side, widthVw, view]);
+    webview.resync();
+  }, [side, widthVw, webview]);
 
   // Esc closes the active tab, matching the split-view exit the app has.
   useEffect(() => {
@@ -116,43 +118,37 @@ export default function LinkViewHost() {
     return () => window.removeEventListener('keydown', onKey);
   }, [activeId, isOpen, closeTab]);
 
-  // Ctrl+B on an empty pane has nothing to show but the library, which is
-  // where a saved page is picked — so it opens there rather than blank.
-  useEffect(() => {
-    if (isOpen && tabs.length === 0) setShowFavourites(true);
-  }, [isOpen, tabs.length]);
-
   if (!isOpen) return null;
 
   return (
     // top-16 so the header stays visible and interactive, matching
-    // TaskSlidePanel. z-[60] keeps it under that panel (z-[70]) — docking
-    // opposite means they should not meet, and if they ever do the task
-    // panel is the one that must stay reachable.
+    // TaskSlidePanel. The stacking order lives in `pane-layering` — this
+    // pane has to clear the task panel's overlay or that overlay takes
+    // every click meant for it.
     <div
-      className={`fixed bottom-0 top-16 z-[60] bg-white dark:bg-zinc-900 ${
+      className={`fixed bottom-0 top-16 bg-white dark:bg-zinc-900 ${
         side === 'right' ? 'right-0' : 'left-0'
       }`}
-      style={{ width: `${widthVw}vw` }}
+      style={{ width: `${widthVw}vw`, zIndex: LINK_PANE_Z }}
     >
-      {showFavourites || !activeId ? (
+      {paneView === 'library' || !activeId ? (
         <LinkFavourites
-          onOpen={(fav) => {
-            openLink(fav.url);
-            setShowFavourites(false);
-          }}
-          onClose={() => (tabs.length === 0 ? setOpen(false) : setShowFavourites(false))}
+          onOpen={(fav) => openLink(fav.url)}
+          // ✕ closes the pane. Falling back to the page instead left no
+          // way to dismiss it: closing that page's last tab came straight
+          // back here.
+          onClose={() => setOpen(false)}
         />
       ) : (
         <LinkViewPane
           tabs={tabs}
           activeId={activeId}
-          placeholderRef={view.placeholderRef}
+          placeholderRef={webview.placeholderRef}
           onActivate={activateTab}
           onCloseTab={closeTab}
-          onHistory={view.history}
+          onHistory={webview.history}
           onNavigate={(url) => setTabUrl(activeId, url)}
-          onShowFavourites={() => setShowFavourites(true)}
+          onShowFavourites={showLibrary}
           onNewTab={newTab}
         />
       )}
