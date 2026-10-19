@@ -88,11 +88,15 @@ describe('the corner', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('stays shut when there is nothing to show', () => {
+  // It used to stay shut with nothing running. The panel now carries ラピ's
+  // intake as well as the executions, so there is always something to open.
+  it('opens with nothing running, holding the intake alone', () => {
     executionState = { executions: [], runningCount: 0, interruptedCount: 0 };
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
-    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(screen.getByText('rapiAvatar.intake.title')).toBeTruthy();
+    expect(screen.queryByTestId('exec-1')).toBeNull();
   });
 
   // Two things talking at once in one corner is what this removed.

@@ -1547,6 +1547,39 @@
       "waiting": "A task is waiting for your approval.",
       "done": "A task just finished.",
       "error": "A task was blocked."
+    },
+    "intake": {
+      "title": "Ask Rapi",
+      "placeholder": "Say what you want to do (e.g. urgent fix the rapitas avatar 2 hours)",
+      "propose": "Draft it",
+      "proposing": "Reading that…",
+      "draftHeading": "File this?",
+      "file": "File it",
+      "filing": "Filing…",
+      "filed": "Filed",
+      "openFiled": "Open",
+      "discard": "Discard",
+      "error": "That did not work. Try again.",
+      "chooseTheme": "Choose a theme",
+      "unset": "Not set",
+      "field": {
+        "title": "Title",
+        "description": "Description",
+        "theme": "Theme",
+        "priority": "Priority",
+        "dueDate": "Due",
+        "estimatedHours": "Estimate (hours)"
+      },
+      "reason": {
+        "matchedThemeName": "you wrote \"{value}\"",
+        "parsedFromText": "read from your text"
+      },
+      "priority": {
+        "urgent": "Urgent",
+        "high": "High",
+        "medium": "Medium",
+        "low": "Low"
+      }
     }
   },
   "shortcuts": {

@@ -7,7 +7,9 @@
  *
  * It joins what the avatar draws to what rapitas is doing, to the theme,
  * and to the executions that can be resumed — which it owns so the hook
- * runs once. That hook used to belong to the resumable-executions banner,
+ * runs once. The panel opens whenever ラピ is clicked — it holds the intake
+ * as well as the executions, so there is always something there. That hook
+ * used to belong to the resumable-executions banner,
  * a card parked in this same corner saying what the avatar says; the card
  * is gone and its contents open from the avatar instead.
  */
@@ -50,7 +52,7 @@ export default function RapiAvatarHost() {
 
   return (
     <>
-      {open && executions.length > 0 && (
+      {open && (
         <RapiAvatarPanel
           executions={executions}
           resumingIds={resumingIds}
