@@ -52,6 +52,8 @@ interface LinkLibraryState {
   /** Create a group and return its id. / グループを作成 */
   addGroup: (name: string) => string;
   renameGroup: (id: string, name: string) => void;
+  /** Recolour a group, in the library and the tab strip alike. / 色を変更 */
+  setGroupColor: (id: string, color: string) => void;
   /** Remove a group; its pages and tabs become ungrouped. / グループを削除 */
   removeGroup: (id: string) => void;
   /** Save a page, or update the one already saved for that URL. / 保存 */
@@ -92,6 +94,11 @@ export const useLinkLibraryStore = create<LinkLibraryState>()(
           groups: state.groups.map((g) =>
             g.id === id ? { ...g, name: name.trim() || g.name } : g,
           ),
+        })),
+
+      setGroupColor: (id, color) =>
+        set((state) => ({
+          groups: state.groups.map((g) => (g.id === id ? { ...g, color } : g)),
         })),
 
       // Deleting a group must not delete what is filed under it — the pages

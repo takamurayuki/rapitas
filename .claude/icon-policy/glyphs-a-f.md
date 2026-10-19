@@ -31,3 +31,4 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `ChartScatter`            | 効率フロンティア（ワークフロー実行パラメータの多目標パレート最適化ダッシュボード。nav: /agents/pareto、ページ見出し・空状態 — 同一概念の再利用。注: `ChartNoAxesCombined`＝成長台帳、`ChartSpline`＝単語帳の学習分析とは別概念） |
 | `CalendarSearch`          | カレンダー空き枠スケジューラ（Google カレンダーの空き時間連動の自動実行ゲート。/agents/calendar-slots ページ見出し。注: `CalendarClock`＝バックログ定期ジョブ設定、`CalendarRange`＝スケジュールグループとは別概念） |
 | `Bookmark` / `BookmarkPlus` | アプリ内ブラウザのお気に入り（`LinkFavourites` の見出し・パネルを開くボタン、`LinkViewPane` の保存ボタン。`BookmarkPlus`=未保存、`Bookmark`(fill)=保存済み）。注: `Star`＝カテゴリの既定/推奨は別概念のため流用しない。`category/icons`・`claude-md-generator` のアイコン登録は中立的な再掲で対象外 |
+| `FolderPlus`              | アプリ内ブラウザのグループを作る（`LinkFavourites` のグループ追加欄、`TabStripTab` の「新しいグループに追加」— 同一概念の再利用）。注: `FolderOpen`＝汎用フォルダ、`Folders`＝カテゴリ一覧ページヘッダーとは別概念 |

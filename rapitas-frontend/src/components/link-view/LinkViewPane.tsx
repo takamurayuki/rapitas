@@ -20,13 +20,12 @@ import {
   X,
   Bookmark,
   BookmarkPlus,
-  Plus,
-  Globe,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useLinkLibraryStore } from '@/stores/link-library-store';
 import { openExternalUrl } from '@/utils/tauri';
-import { faviconFor, hostOf, tabLabel } from './link-tab-meta';
+import { hostOf } from './link-tab-meta';
+import { TabStrip } from './tab-strip';
 import type { LinkTab } from '@/stores/link-view-store';
 
 interface LinkViewPaneProps {
@@ -94,7 +93,6 @@ export function LinkViewPane({
     setDraft(active?.url ?? '');
   }, [active?.id, active?.url]);
 
-  const groups = useLinkLibraryStore((s) => s.groups);
   const addFavourite = useLinkLibraryStore((s) => s.addFavourite);
   const saved = useLinkLibraryStore((s) => s.favourites.some((f) => f.url === active?.url));
 
@@ -132,66 +130,13 @@ export function LinkViewPane({
 
   return (
     <div className="flex h-full min-w-0 flex-col border-l border-zinc-200 dark:border-zinc-700">
-      {/* Tab strip */}
-      <div className="flex shrink-0 items-stretch gap-0.5 overflow-x-auto border-b border-zinc-200 px-1 pt-1 dark:border-zinc-700">
-        {tabs.map((tab) => {
-          const on = tab.id === activeId;
-          const group = groups.find((g) => g.id === tab.groupId);
-          // The page's own title, so a row of tabs all sitting on the same
-          // host can still be told apart.
-          const label = tabLabel(tab);
-          const icon = faviconFor(tab.url);
-          return (
-            <div
-              key={tab.id}
-              className={`group flex min-w-0 max-w-44 items-center gap-1 rounded-t border-b-2 px-2 py-1 text-xs transition-colors ${
-                on
-                  ? 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100'
-                  : 'text-zinc-500 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/60'
-              }`}
-              // A grouped tab is marked in its group's colour, which is the
-              // same colour the group's heading carries in the library.
-              style={{
-                borderBottomColor: group?.color ?? (on ? '#6366f1' : 'transparent'),
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => onActivate(tab.id)}
-                title={`${label}\n${tab.url}`}
-                className="flex min-w-0 flex-1 items-center gap-1 text-left"
-              >
-                {icon ? (
-                  // A 16px favicon from an external host: next/image would
-                  // need remote patterns and would proxy it, for no gain.
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={icon} alt="" width={14} height={14} className="h-3.5 w-3.5 shrink-0" />
-                ) : (
-                  <Globe className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
-                )}
-                <span className="min-w-0 flex-1 truncate">{label}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onCloseTab(tab.id)}
-                aria-label={t('closeTab', { host: label })}
-                className="shrink-0 rounded p-0.5 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          );
-        })}
-        <button
-          type="button"
-          onClick={onNewTab}
-          title={t('newTab')}
-          aria-label={t('newTab')}
-          className="my-0.5 shrink-0 rounded px-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
-      </div>
+      <TabStrip
+        tabs={tabs}
+        activeId={activeId}
+        onActivate={onActivate}
+        onCloseTab={onCloseTab}
+        onNewTab={onNewTab}
+      />
 
       {/* Address bar for the active tab */}
       <div className="flex shrink-0 items-center gap-0.5 border-b border-zinc-200 px-2 py-1 dark:border-zinc-700">

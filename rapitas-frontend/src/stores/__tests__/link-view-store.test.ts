@@ -21,7 +21,13 @@ const urls = () => state().tabs.map((t) => t.url);
 // Module scope: a beforeEach inside one describe does not reach the others,
 // and state then leaks between them.
 beforeEach(() => {
-  useLinkViewStore.setState({ tabs: [], activeId: null, isOpen: false, view: 'page' });
+  useLinkViewStore.setState({
+    tabs: [],
+    activeId: null,
+    isOpen: false,
+    view: 'page',
+    collapsedGroupIds: [],
+  });
 });
 
 describe('link-view-store', () => {
@@ -379,5 +385,97 @@ describe('the pane view', () => {
     state().closeAll();
     expect(state().view).toBe('page');
     expect(state().isOpen).toBe(false);
+  });
+});
+
+/**
+ * Browser-style tab groups: a group collapses to its heading, releases its
+ * tabs without closing them, and can be closed whole.
+ */
+describe('tab groups', () => {
+  /** Three tabs, the outer two filed under g1. */
+  const threeTabs = () => {
+    state().openLink('https://a.example');
+    state().openLink('https://b.example');
+    state().openLink('https://c.example');
+    const [a, , c] = state().tabs;
+    state().setTabGroup(a.id, 'g1');
+    state().setTabGroup(c.id, 'g1');
+    return state().tabs.map((t) => t.id);
+  };
+
+  it('starts with every group expanded', () => {
+    expect(state().collapsedGroupIds).toEqual([]);
+  });
+
+  it('collapses a group and expands it again', () => {
+    state().toggleGroupCollapsed('g1');
+    expect(state().collapsedGroupIds).toEqual(['g1']);
+    state().toggleGroupCollapsed('g1');
+    expect(state().collapsedGroupIds).toEqual([]);
+  });
+
+  it('collapses groups independently', () => {
+    state().toggleGroupCollapsed('g1');
+    state().toggleGroupCollapsed('g2');
+    expect(state().collapsedGroupIds.sort()).toEqual(['g1', 'g2']);
+  });
+
+  it('does not collapse the same group twice', () => {
+    state().toggleGroupCollapsed('g1');
+    state().toggleGroupCollapsed('g2');
+    state().toggleGroupCollapsed('g2');
+    expect(state().collapsedGroupIds).toEqual(['g1']);
+  });
+
+  // Releasing a group must not take the pages with it — that is what
+  // closing the group is for.
+  it('ungroups every member without closing anything', () => {
+    threeTabs();
+    state().ungroupTabs('g1');
+    expect(state().tabs).toHaveLength(3);
+    expect(state().tabs.every((t) => !t.groupId)).toBe(true);
+  });
+
+  it('leaves tabs outside the group alone when ungrouping', () => {
+    const [, b] = threeTabs();
+    state().setTabGroup(b, 'g2');
+    state().ungroupTabs('g1');
+    expect(state().tabs.find((t) => t.id === b)?.groupId).toBe('g2');
+  });
+
+  it('forgets a group was collapsed once it is released', () => {
+    threeTabs();
+    state().toggleGroupCollapsed('g1');
+    state().ungroupTabs('g1');
+    expect(state().collapsedGroupIds).toEqual([]);
+  });
+
+  it('closes every tab in a group', () => {
+    const [, b] = threeTabs();
+    state().closeGroup('g1');
+    expect(state().tabs.map((t) => t.id)).toEqual([b]);
+  });
+
+  it('moves off a closed group onto a tab that survived', () => {
+    const [a, b] = threeTabs();
+    state().activateTab(a);
+    state().closeGroup('g1');
+    expect(state().activeId).toBe(b);
+  });
+
+  // Closing the last group is closing the last tab, which closes the pane.
+  it('closes the pane when the group held every tab', () => {
+    state().openLink('https://a.example');
+    state().setTabGroup(state().tabs[0].id, 'g1');
+    state().closeGroup('g1');
+    expect(state().tabs).toEqual([]);
+    expect(state().isOpen).toBe(false);
+  });
+
+  it('does nothing for a group with no tabs', () => {
+    state().openLink('https://a.example');
+    state().closeGroup('g-empty');
+    expect(state().tabs).toHaveLength(1);
   });
 });
