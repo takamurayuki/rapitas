@@ -19,6 +19,17 @@ import {
   type RapiAvatarState,
 } from './RapiAvatar';
 
+/**
+ * How big the avatar is drawn in the corner, overriding the drawing's own
+ * 88px default.
+ *
+ * 88 made the sphere 54px, against a header whose largest button is 40px and
+ * whose icon buttons are 36px — it read as an intruder rather than as part of
+ * the app. At 68 the sphere is 42px, level with those controls, and the orbit
+ * and badge still read at a glance (measured; below ~60 they stop).
+ */
+const DOCK_AVATAR_SIZE = 68;
+
 const TAG_COLOR: Record<Exclude<RapiAvatarState, 'idle'>, string> = {
   thinking: '#6B7280',
   running: '#B45309',
@@ -96,7 +107,7 @@ export function RapiAvatarDock({ message, onClick, ...avatar }: RapiAvatarDockPr
           cursor: onClick ? 'pointer' : 'default',
         }}
       >
-        <RapiAvatar {...avatar} />
+        <RapiAvatar size={DOCK_AVATAR_SIZE} {...avatar} />
       </button>
     </div>
   );
