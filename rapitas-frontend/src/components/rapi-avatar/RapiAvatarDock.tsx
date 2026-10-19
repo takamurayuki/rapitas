@@ -12,8 +12,10 @@
  * shadow — come from `rapi-avatar-spec.md` and are left written out rather
  * than translated to utility classes, so they stay checkable against it.
  */
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   RapiAvatar,
+  STARTLE_DURATION_MS,
   useAvatarName,
   useStateLabel,
   type RapiAvatarProps,
@@ -49,6 +51,30 @@ export interface RapiAvatarDockProps extends Omit<RapiAvatarProps, 'className' |
 export function RapiAvatarDock({ message, onClick, ...avatar }: RapiAvatarDockProps) {
   const label = useStateLabel();
   const name = useAvatarName();
+
+  // ラピ jumps a little when poked. The timing lives here rather than in the
+  // drawing so the drawing stays a pure function of its props.
+  const [startled, setStartled] = useState(false);
+  const [startleKey, setStartleKey] = useState(0);
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (settleTimer.current !== null) clearTimeout(settleTimer.current);
+    },
+    [],
+  );
+
+  const poke = useCallback(() => {
+    if (settleTimer.current !== null) clearTimeout(settleTimer.current);
+    setStartleKey((n) => n + 1);
+    setStartled(true);
+    settleTimer.current = setTimeout(() => {
+      settleTimer.current = null;
+      setStartled(false);
+    }, STARTLE_DURATION_MS);
+    onClick?.();
+  }, [onClick]);
   const dark = avatar.theme === 'dark';
   const showBubble = avatar.state !== 'idle' && !!message;
 
@@ -99,7 +125,7 @@ export function RapiAvatarDock({ message, onClick, ...avatar }: RapiAvatarDockPr
       </div>
       <button
         type="button"
-        onClick={onClick}
+        onClick={poke}
         aria-label={`${name} ${label(avatar.state)}${message ? `: ${message}` : ''}`}
         style={{
           pointerEvents: 'auto',
@@ -109,7 +135,12 @@ export function RapiAvatarDock({ message, onClick, ...avatar }: RapiAvatarDockPr
           cursor: onClick ? 'pointer' : 'default',
         }}
       >
-        <RapiAvatar size={DOCK_AVATAR_SIZE} {...avatar} />
+        <RapiAvatar
+          size={DOCK_AVATAR_SIZE}
+          startled={startled}
+          startleKey={startleKey}
+          {...avatar}
+        />
       </button>
     </div>
   );
