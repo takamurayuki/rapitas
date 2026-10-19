@@ -6295,7 +6295,14 @@
       "columnHandle": "{index}列目の操作",
       "rowHandle": "{index}行目の操作",
       "menuLabel": "表の行・列操作"
-    }
+    },
+    "linkOpen": "開く",
+    "linkEdit": "編集",
+    "linkRemove": "リンクを削除",
+    "linkDismiss": "リンクのパネルを閉じる",
+    "linkUrlLabel": "リンクのURL",
+    "linkApply": "適用",
+    "linkPanelLabel": "リンクの操作"
   },
   "achievements": {
     "client": {

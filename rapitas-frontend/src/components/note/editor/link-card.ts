@@ -1,3 +1,5 @@
+import { styleInlineLink } from './inline-link';
+
 /**
  * Localized strings for link-card DOM behaviour re-wired after loading saved
  * note HTML. Supplied by the React layer (useNoteEditor) via `useTranslations`.
@@ -89,7 +91,13 @@ export function normalizeLinkCards(
       anchor.style.display === 'inline-flex' &&
       !!anchor.style.background;
 
-    if (!isKnownCard && !looksLikeCard) continue;
+    // Not a card, so it is an inline link — restore the look DOMPurify
+    // may have stripped, otherwise a saved link comes back as plain text
+    // with no sign it is clickable.
+    if (!isKnownCard && !looksLikeCard) {
+      if (anchor.getAttribute('href')) styleInlineLink(anchor);
+      continue;
+    }
 
     anchor.dataset.rapitasLinkCard = '1';
     // Also stripped by DOMPurify, and nothing else put it back: a card
