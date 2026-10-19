@@ -1518,7 +1518,20 @@
     "groupEmpty": "This group is empty",
     "newGroupPlaceholder": "Add a group (Enter)",
     "moveToGroup": "Move to group",
-    "newTab": "New tab"
+    "newTab": "New tab",
+    "addToNewGroup": "Add to a new group",
+    "removeFromGroup": "Remove from the group",
+    "editGroup": "Rename and recolour",
+    "ungroup": "Ungroup the tabs",
+    "closeGroup": "Close the group",
+    "deleteGroup": "Delete the group",
+    "collapseGroup": "Click to collapse",
+    "expandGroup": "Click to expand",
+    "rightClickForGroups": "Right-click for group actions",
+    "tabMenu": "Group actions for the {host} tab",
+    "groupMenu": "Actions for the {name} group",
+    "newGroupName": "New group",
+    "groupNamePlaceholder": "Group name"
   },
   "shortcuts": {
     "title": "Shortcut Settings",

@@ -135,3 +135,39 @@ describe('groupFavourites', () => {
     expect(sections.every((s) => s.group !== null)).toBe(true);
   });
 });
+
+/**
+ * A group is shared between the saved pages and the tab strip, so its
+ * colour is part of telling one group from another at a glance.
+ */
+describe('setGroupColor', () => {
+  beforeEach(() => {
+    useLinkLibraryStore.setState({ groups: [], favourites: [] });
+  });
+
+  it('changes the colour of one group', () => {
+    const id = state().addGroup('Design');
+    state().setGroupColor(id, '#ef4444');
+    expect(state().groups[0].color).toBe('#ef4444');
+  });
+
+  it('leaves the other groups alone', () => {
+    const first = state().addGroup('Design');
+    state().addGroup('Docs');
+    const other = state().groups[1].color;
+    state().setGroupColor(first, '#ef4444');
+    expect(state().groups[1].color).toBe(other);
+  });
+
+  it('ignores a group that is not there', () => {
+    state().addGroup('Design');
+    expect(() => state().setGroupColor('gone', '#ef4444')).not.toThrow();
+    expect(state().groups).toHaveLength(1);
+  });
+
+  it('gives consecutive groups different colours to start with', () => {
+    state().addGroup('A');
+    state().addGroup('B');
+    expect(state().groups[0].color).not.toBe(state().groups[1].color);
+  });
+});

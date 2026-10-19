@@ -389,6 +389,19 @@
     "groupEmpty": "このグループは空です",
     "newGroupPlaceholder": "グループを追加（Enter）",
     "moveToGroup": "グループを変更",
-    "newTab": "新しいタブ"
+    "newTab": "新しいタブ",
+    "addToNewGroup": "新しいグループに追加",
+    "removeFromGroup": "グループから削除",
+    "editGroup": "名前と色を変更",
+    "ungroup": "グループを解除",
+    "closeGroup": "グループを閉じる",
+    "deleteGroup": "グループを削除",
+    "collapseGroup": "クリックで折りたたむ",
+    "expandGroup": "クリックで展開",
+    "rightClickForGroups": "右クリックでグループ操作",
+    "tabMenu": "{host} タブのグループ操作",
+    "groupMenu": "グループ「{name}」の操作",
+    "newGroupName": "新しいグループ",
+    "groupNamePlaceholder": "グループ名"
   }
 }

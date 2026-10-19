@@ -11,7 +11,10 @@
  */
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Bookmark, FolderPlus, Globe, Trash2, X } from 'lucide-react';
+import { Bookmark, FolderPlus, Globe, Pencil, Trash2, X } from 'lucide-react';
+import DropdownMenu, { type DropdownMenuItem } from '@/components/ui/dropdown/DropdownMenu';
+import { deleteGroupEverywhere } from './group-actions';
+import { GroupEditor } from './GroupEditor';
 import {
   groupFavourites,
   useLinkLibraryStore,
@@ -34,10 +37,35 @@ export function LinkFavourites({ onOpen, onClose }: LinkFavouritesProps) {
   const groups = useLinkLibraryStore((s) => s.groups);
   const favourites = useLinkLibraryStore((s) => s.favourites);
   const addGroup = useLinkLibraryStore((s) => s.addGroup);
+  const renameGroup = useLinkLibraryStore((s) => s.renameGroup);
+  const setGroupColor = useLinkLibraryStore((s) => s.setGroupColor);
   const removeFavourite = useLinkLibraryStore((s) => s.removeFavourite);
   const setFavouriteGroup = useLinkLibraryStore((s) => s.setFavouriteGroup);
 
   const [newGroup, setNewGroup] = useState('');
+  /** The group whose name-and-colour panel is open, if any. */
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  /** Delete a group, closing its editor first if that is what is open. */
+  const deleteGroup = (id: string) => {
+    setEditingId((open) => (open === id ? null : open));
+    deleteGroupEverywhere(id);
+  };
+
+  /** The group heading's menu: the same actions the tab chip offers. */
+  const groupMenu = (id: string): DropdownMenuItem[] => [
+    {
+      label: t('editGroup'),
+      icon: <Pencil className="h-4 w-4" />,
+      onClick: () => setEditingId(id),
+    },
+    {
+      label: t('deleteGroup'),
+      icon: <Trash2 className="h-4 w-4" />,
+      onClick: () => deleteGroup(id),
+      variant: 'danger',
+    },
+  ];
   const sections = groupFavourites(groups, favourites);
 
   return (
@@ -79,7 +107,7 @@ export function LinkFavourites({ onOpen, onClose }: LinkFavouritesProps) {
 
         {sections.map(({ group, items }) => (
           <section key={group?.id ?? '__loose'} className="mb-3">
-            <div className="mb-1 flex items-center gap-1.5 px-1">
+            <div className="relative mb-1 flex items-center gap-1.5 px-1">
               <span
                 className="h-2 w-2 shrink-0 rounded-full"
                 style={{ backgroundColor: group?.color ?? '#a1a1aa' }}
@@ -87,7 +115,30 @@ export function LinkFavourites({ onOpen, onClose }: LinkFavouritesProps) {
               <h3 className="truncate text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
                 {group?.name ?? t('ungrouped')}
               </h3>
-              <span className="text-[10px] text-zinc-400">{items.length}</span>
+              <span className="flex-1 text-[10px] text-zinc-400">{items.length}</span>
+              {/* The loose section is not a group, so it has nothing to
+                  rename, recolour or delete. */}
+              {group && (
+                <DropdownMenu
+                  items={groupMenu(group.id)}
+                  variant="ghost"
+                  triggerClassName="!p-0.5 !rounded"
+                  triggerLabel={t('groupMenu', { name: group.name })}
+                  menuLabel={t('groupMenu', { name: group.name })}
+                  menuClassName="min-w-[170px] text-xs"
+                />
+              )}
+              {group && editingId === group.id && (
+                <div className="absolute right-0 top-full z-50 mt-1">
+                  <GroupEditor
+                    name={group.name}
+                    color={group.color}
+                    onRename={(name) => renameGroup(group.id, name)}
+                    onRecolor={(color) => setGroupColor(group.id, color)}
+                    onDone={() => setEditingId(null)}
+                  />
+                </div>
+              )}
             </div>
 
             {items.length === 0 ? (

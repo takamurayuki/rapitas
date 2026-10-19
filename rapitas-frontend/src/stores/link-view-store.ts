@@ -64,6 +64,12 @@ interface LinkViewState {
   tabs: LinkTab[];
   /** The open page, or the saved-pages library. / ペインの表示面 */
   view: LinkPaneView;
+  /**
+   * Groups drawn as a heading only, their members hidden. Ids rather than
+   * a flag on the group because collapsing is this pane's state, while a
+   * group itself is shared with the saved-pages library. / 折りたたみ中のグループ
+   */
+  collapsedGroupIds: string[];
   /** The tab on screen, or null when the pane is closed. / 表示中のタブ */
   activeId: string | null;
   /** Open a URL, or focus the tab already showing it. / リンクを開く */
@@ -92,6 +98,12 @@ interface LinkViewState {
   applyPageChange: (id: string, change: LinkPageChange) => void;
   /** Put a tab in a group, or take it out of one. / タブのグループ変更 */
   setTabGroup: (id: string, groupId: string | null) => void;
+  /** Draw a group as a heading only, or show its tabs again. / 折りたたみ切替 */
+  toggleGroupCollapsed: (groupId: string) => void;
+  /** Release every member of a group, keeping the pages open. / グループ解除 */
+  ungroupTabs: (groupId: string) => void;
+  /** Close every tab in a group. / グループのタブをすべて閉じる */
+  closeGroup: (groupId: string) => void;
   /** Show the saved-pages library. / お気に入り一覧を表示 */
   showLibrary: () => void;
   /** Go back to the open page. / 開いているページに戻る */
@@ -122,6 +134,7 @@ export const useLinkViewStore = create<LinkViewState>()(
       tabs: [],
       activeId: null,
       view: 'page',
+      collapsedGroupIds: [],
 
       openLink: (url) =>
         set((state) => {
@@ -193,6 +206,49 @@ export const useLinkViewStore = create<LinkViewState>()(
           tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, groupId } : tab)),
         })),
 
+      toggleGroupCollapsed: (groupId) =>
+        set((state) => ({
+          collapsedGroupIds: state.collapsedGroupIds.includes(groupId)
+            ? state.collapsedGroupIds.filter((id) => id !== groupId)
+            : [...state.collapsedGroupIds, groupId],
+        })),
+
+      // Releasing a group keeps its pages — closing them is `closeGroup`.
+      // The collapsed flag goes with it: there is no heading left to
+      // expand, and a stale id would collapse a group of the same name
+      // created later.
+      ungroupTabs: (groupId) =>
+        set((state) => ({
+          tabs: state.tabs.map((tab) =>
+            tab.groupId === groupId ? { ...tab, groupId: null } : tab,
+          ),
+          collapsedGroupIds: state.collapsedGroupIds.filter((id) => id !== groupId),
+        })),
+
+      closeGroup: (groupId) =>
+        set((state) => {
+          const tabs = state.tabs.filter((tab) => tab.groupId !== groupId);
+          if (tabs.length === state.tabs.length) return state;
+          const collapsedGroupIds = state.collapsedGroupIds.filter((id) => id !== groupId);
+          // Same rule as closing the last tab: nothing left to show means
+          // the pane goes too.
+          if (tabs.length === 0) {
+            return {
+              tabs,
+              activeId: null,
+              isOpen: false,
+              view: 'page' as const,
+              collapsedGroupIds,
+            };
+          }
+          const stillThere = tabs.some((tab) => tab.id === state.activeId);
+          return {
+            tabs,
+            collapsedGroupIds,
+            activeId: stillThere ? state.activeId : tabs[0].id,
+          };
+        }),
+
       showLibrary: () => set({ view: 'library' }),
       showPage: () => set({ view: 'page' }),
 
@@ -210,7 +266,11 @@ export const useLinkViewStore = create<LinkViewState>()(
       name: 'rapitas-link-view',
       // The tab set is restored so Ctrl+B brings back what was open; the
       // pane itself is not, so nothing loads until it is asked for.
-      partialize: (state) => ({ tabs: state.tabs, activeId: state.activeId }),
+      partialize: (state) => ({
+        tabs: state.tabs,
+        activeId: state.activeId,
+        collapsedGroupIds: state.collapsedGroupIds,
+      }),
     },
   ),
 );
