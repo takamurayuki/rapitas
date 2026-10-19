@@ -254,7 +254,7 @@ mod tests {
     fn survives_a_second_recycle() {
         let mut probes: Vec<bool> = Vec::new();
         for _ in 0..2 {
-            probes.extend(std::iter::repeat(false).take(DOWN_PROBES_TO_CONFIRM as usize));
+            probes.extend(std::iter::repeat_n(false, DOWN_PROBES_TO_CONFIRM as usize));
             probes.push(true);
             probes.push(true);
         }
@@ -266,14 +266,17 @@ mod tests {
     #[test]
     fn ignores_probe_flicker_below_the_confirmation_threshold() {
         let mut probes = vec![true];
-        probes.extend(std::iter::repeat(false).take(DOWN_PROBES_TO_CONFIRM as usize - 1));
+        probes.extend(std::iter::repeat_n(
+            false,
+            DOWN_PROBES_TO_CONFIRM as usize - 1,
+        ));
         probes.push(true);
         assert_eq!(run(true, &probes), vec![false; probes.len()]);
     }
 
     #[test]
     fn needs_more_than_one_probe_to_call_it_down() {
-        assert!(DOWN_PROBES_TO_CONFIRM > 1);
+        const { assert!(DOWN_PROBES_TO_CONFIRM > 1) };
     }
 
     #[test]
