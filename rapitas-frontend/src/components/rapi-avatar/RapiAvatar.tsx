@@ -45,6 +45,21 @@ export interface RapiAvatarProps {
   showTrack?: boolean;
   /** 省略時は OS の prefers-reduced-motion に従う */
   reducedMotion?: boolean;
+  /**
+   * Whether ラピ is mid-startle: eyes wide, no blink, body jolting.
+   *
+   * Held by the caller rather than timed here, so the drawing stays a pure
+   * function of its props. / 驚いている最中か
+   */
+  startled?: boolean;
+  /**
+   * Bumped by the caller on every poke.
+   *
+   * SMIL will not replay an animation that is already on the page, so this
+   * keys the group and a second poke replaces the element instead of being
+   * swallowed. / 小突かれるたびに増える値
+   */
+  startleKey?: number;
   className?: string;
   style?: CSSProperties;
 }
@@ -98,6 +113,15 @@ export function useAvatarName(): string {
 const RING = { cx: 60, cy: 70, rx: 54, ry: 17, tilt: -18 } as const;
 const BODY = { cx: 60, cy: 70, r: 37 } as const;
 const EYES = { left: 48, right: 72, y: 72 } as const;
+
+/**
+ * How long the startle lasts.
+ *
+ * Short on purpose: it is a reaction, not a performance, and it sits in the
+ * corner of every page. Exported so the dock's timer and the animation
+ * cannot drift apart.
+ */
+export const STARTLE_DURATION_MS = 420;
 const PLUS = { x: 84, y: 22, rotate: 15, rotateError: 60, scale: 0.9 } as const;
 
 /* ───────── prefers-reduced-motion ───────── */
@@ -127,6 +151,8 @@ export function RapiAvatar({
   accent = 'indigo',
   showTrack = true,
   reducedMotion,
+  startled = false,
+  startleKey = 0,
   className,
   style,
 }: RapiAvatarProps) {
@@ -157,8 +183,12 @@ export function RapiAvatar({
 
   /* 目 */
   const eyeForm = state === 'done' ? 'arc' : state === 'error' ? 'line' : 'dot';
-  const eyeRx = state === 'waiting' ? 5 : 4.3;
-  const eyeRy = state === 'waiting' ? 6.6 : 5.8;
+  const startle = startled && animate;
+
+  // Eyes go wide and the blink stops: being startled is the opposite of a
+  // slow blink, and a face that blinks through a jolt reads as unbothered.
+  const eyeRx = startle ? 5.8 : state === 'waiting' ? 5 : 4.3;
+  const eyeRy = startle ? 7.6 : state === 'waiting' ? 6.6 : 5.8;
 
   /* 「+」の浮遊 */
   const bob =
@@ -232,57 +262,85 @@ export function RapiAvatar({
       {/* 1. 環（奥側）: 本体の後ろに描く */}
       {ringLayer(false)}
 
-      {/* 2. 本体 */}
-      <circle cx={BODY.cx} cy={BODY.cy} r={BODY.r} fill={body} />
-
-      {/* 3. 目 */}
-      <g>
-        {animate && state === 'thinking' && (
+      {/*
+        2-3. 本体と目。
+        The startle wraps these two and not the ring: the orbit carries the
+        comets, which are reporting on real work and should not jump because
+        someone clicked. The character jolts inside its own orbit.
+        Keyed so a second poke replaces the element — SMIL will not replay an
+        animation that is already on the page.
+      */}
+      <g key={`startle-${startleKey}`}>
+        {startle && (
           <animateTransform
+            data-startle="true"
             attributeName="transform"
             type="translate"
-            values="0 0;2.5 -2.5;2.5 -2.5;0 0"
-            dur="3s"
-            repeatCount="indefinite"
+            // Up fast, a small overshoot below the line, then settle.
+            values="0 0;0 -5.5;0 1.8;0 0"
+            keyTimes="0;0.32;0.68;1"
+            dur={STARTLE_DURATION_MS / 1000 + 's'}
+            repeatCount="1"
+            fill="freeze"
           />
         )}
-        {eyeForm === 'dot' &&
-          [EYES.left, EYES.right].map((x) => (
-            <ellipse key={x} cx={x} cy={EYES.y} rx={eyeRx} ry={eyeRy} fill={RAPI_AVATAR_TOKENS.eye}>
-              {/* Blinks wherever the eyes are dots, not only at rest. The
+        <circle cx={BODY.cx} cy={BODY.cy} r={BODY.r} fill={body} />
+
+        <g>
+          {animate && state === 'thinking' && (
+            <animateTransform
+              attributeName="transform"
+              type="translate"
+              values="0 0;2.5 -2.5;2.5 -2.5;0 0"
+              dur="3s"
+              repeatCount="indefinite"
+            />
+          )}
+          {eyeForm === 'dot' &&
+            [EYES.left, EYES.right].map((x) => (
+              <ellipse
+                key={x}
+                cx={x}
+                cy={EYES.y}
+                rx={eyeRx}
+                ry={eyeRy}
+                fill={RAPI_AVATAR_TOKENS.eye}
+              >
+                {/* Blinks wherever the eyes are dots, not only at rest. The
                   spec holds them still while running; a face that stops
                   blinking the moment it gets busy reads as frozen, so
                   this is a deliberate departure. The arc and line eyes
                   are different shapes and keep their own expression. */}
-              {animate && (
-                <animate
-                  attributeName="ry"
-                  values={`${eyeRy};${eyeRy};0.6;${eyeRy}`}
-                  keyTimes="0;0.92;0.96;1"
-                  dur="4.5s"
-                  repeatCount="indefinite"
-                />
-              )}
-            </ellipse>
-          ))}
-        {eyeForm === 'arc' && (
-          <g
-            fill="none"
-            stroke={RAPI_AVATAR_TOKENS.eye}
-            strokeWidth={4}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M42.5 74 Q48 66.5 53.5 74" />
-            <path d="M66.5 74 Q72 66.5 77.5 74" />
-          </g>
-        )}
-        {eyeForm === 'line' && (
-          <g fill="none" stroke={RAPI_AVATAR_TOKENS.eye} strokeWidth={4} strokeLinecap="round">
-            <path d="M42.5 72 L53.5 72" />
-            <path d="M66.5 72 L77.5 72" />
-          </g>
-        )}
+                {animate && !startle && (
+                  <animate
+                    attributeName="ry"
+                    values={`${eyeRy};${eyeRy};0.6;${eyeRy}`}
+                    keyTimes="0;0.92;0.96;1"
+                    dur="4.5s"
+                    repeatCount="indefinite"
+                  />
+                )}
+              </ellipse>
+            ))}
+          {eyeForm === 'arc' && (
+            <g
+              fill="none"
+              stroke={RAPI_AVATAR_TOKENS.eye}
+              strokeWidth={4}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M42.5 74 Q48 66.5 53.5 74" />
+              <path d="M66.5 74 Q72 66.5 77.5 74" />
+            </g>
+          )}
+          {eyeForm === 'line' && (
+            <g fill="none" stroke={RAPI_AVATAR_TOKENS.eye} strokeWidth={4} strokeLinecap="round">
+              <path d="M42.5 72 L53.5 72" />
+              <path d="M66.5 72 L77.5 72" />
+            </g>
+          )}
+        </g>
       </g>
 
       {/* 4. 環（手前側）: 本体の上に、手前半分だけ描く */}
