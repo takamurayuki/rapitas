@@ -2,8 +2,12 @@
 /**
  * RapiAvatar
  *
- * The resident Rapi+ avatar: a face, a tilted ring, and the "+" that gives
- * it its name. Drawn as SVG with SMIL animation.
+ * ラピ (Rapi), the character who lives in the app's corner: a face, a tilted
+ * ring, and a "+" badge. Drawn as SVG with SMIL animation.
+ *
+ * The character is ラピ; the product is Rapi+. The badge is the difference
+ * between the two, which is why it sits on the character's head rather than
+ * anywhere else. The name itself is a catalogue string — see `useAvatarName`.
  *
  * Ported from the design's reference implementation. Every coordinate,
  * colour, duration and amplitude here is from that reference and from
@@ -75,6 +79,20 @@ export function useStateLabel(): (state: RapiAvatarState) => string {
   return (state) => t(state);
 }
 
+/**
+ * The character's name — ラピ in Japanese, Rapi in English.
+ *
+ * It is not the product name. The app is called Rapi+; the character that
+ * lives in its corner is ラピ, and the "+" on its head is what turns the one
+ * into the other. The avatar used to announce itself as "Rapi+ 実行中", which
+ * read as though the application were the thing running.
+ *
+ * @returns The localised character name / ローカライズされたキャラクター名
+ */
+export function useAvatarName(): string {
+  return useTranslations('rapiAvatar')('name');
+}
+
 /* ───────── ジオメトリ（viewBox 0 0 120 120） ───────── */
 
 const RING = { cx: 60, cy: 70, rx: 54, ry: 17, tilt: -18 } as const;
@@ -113,6 +131,7 @@ export function RapiAvatar({
   style,
 }: RapiAvatarProps) {
   const label = useStateLabel();
+  const name = useAvatarName();
   const prefersReduced = usePrefersReducedMotion();
   const animate = !(reducedMotion ?? prefersReduced);
   const clipId = `rapi-front-${useId().replace(/:/g, '')}`;
@@ -199,7 +218,7 @@ export function RapiAvatar({
       height={size}
       viewBox="0 0 120 120"
       role="img"
-      aria-label={`Rapi+ ${label(state)}`}
+      aria-label={`${name} ${label(state)}`}
       className={className}
       style={{ display: 'block', overflow: 'visible', ...style }}
     >

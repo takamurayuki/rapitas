@@ -1,7 +1,7 @@
 /**
  * rapi-avatar
  *
- * The resident Rapi+ avatar and the state it reflects.
+ * ラピ (Rapi), the character resident in the app shell, and the state it reflects.
  */
 export { default as RapiAvatarHost } from './RapiAvatarHost';
 export { RapiAvatar, RAPI_AVATAR_TOKENS, type RapiAvatarState } from './RapiAvatar';

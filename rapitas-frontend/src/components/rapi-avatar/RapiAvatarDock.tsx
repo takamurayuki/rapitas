@@ -14,6 +14,7 @@
  */
 import {
   RapiAvatar,
+  useAvatarName,
   useStateLabel,
   type RapiAvatarProps,
   type RapiAvatarState,
@@ -47,6 +48,7 @@ export interface RapiAvatarDockProps extends Omit<RapiAvatarProps, 'className' |
 
 export function RapiAvatarDock({ message, onClick, ...avatar }: RapiAvatarDockProps) {
   const label = useStateLabel();
+  const name = useAvatarName();
   const dark = avatar.theme === 'dark';
   const showBubble = avatar.state !== 'idle' && !!message;
 
@@ -98,7 +100,7 @@ export function RapiAvatarDock({ message, onClick, ...avatar }: RapiAvatarDockPr
       <button
         type="button"
         onClick={onClick}
-        aria-label={`Rapi+ ${label(avatar.state)}${message ? `: ${message}` : ''}`}
+        aria-label={`${name} ${label(avatar.state)}${message ? `: ${message}` : ''}`}
         style={{
           pointerEvents: 'auto',
           background: 'transparent',

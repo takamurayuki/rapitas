@@ -264,3 +264,36 @@ describe('the body is flat', () => {
     expect(soft.every((e) => e.getAttribute('fill') === RAPI_AVATAR_TOKENS.eye)).toBe(true);
   });
 });
+
+/**
+ * The avatar is a character with a name of its own — ラピ — and the product
+ * it lives in is called Rapi+. It used to introduce itself with the product
+ * name, so a screen reader announced "Rapi+ 実行中", as though the app were
+ * the thing running. The name is a translated string like any other.
+ */
+describe('what it calls itself', () => {
+  const ariaLabel = (el: HTMLElement) =>
+    el.querySelector('svg[viewBox="0 0 120 120"]')?.getAttribute('aria-label') ?? '';
+
+  it('introduces itself by name, not by the product it lives in', () => {
+    const { container } = render(<RapiAvatar state="running" />);
+    expect(ariaLabel(container)).not.toContain('Rapi+');
+  });
+
+  it('takes the name from the catalogue, so it is translated', () => {
+    const { container } = render(<RapiAvatar state="running" />);
+    expect(ariaLabel(container)).toContain('rapiAvatar.name');
+  });
+
+  it('still says what it is doing', () => {
+    const { container } = render(<RapiAvatar state="running" />);
+    expect(ariaLabel(container)).toContain('rapiAvatar.running');
+  });
+
+  it('names itself in the dock too, where the bubble is read with it', () => {
+    const { container } = render(<RapiAvatarDock state="running" message="3件 実行中" />);
+    const label = container.querySelector('button')?.getAttribute('aria-label') ?? '';
+    expect(label).not.toContain('Rapi+');
+    expect(label).toContain('rapiAvatar.name');
+  });
+});

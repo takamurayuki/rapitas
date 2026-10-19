@@ -2,7 +2,7 @@
 /**
  * RapiAvatarHost
  *
- * Mounts the Rapi+ avatar once, in the app shell, so it is there on every
+ * Mounts ラピ (Rapi) once, in the app shell, so it is there on every
  * page and survives navigation.
  *
  * It joins what the avatar draws to what rapitas is doing, to the theme,

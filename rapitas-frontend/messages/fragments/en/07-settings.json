@@ -405,6 +405,7 @@
     "groupNamePlaceholder": "Group name"
   },
   "rapiAvatar": {
+    "name": "Rapi",
     "idle": "Idle",
     "thinking": "Thinking",
     "running": "Running",
