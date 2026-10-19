@@ -284,9 +284,11 @@ pub fn run() {
             }
             // The main window is declared in tauri.conf.json, so it has already
             // navigated to devUrl by the time setup runs — possibly before the
-            // dev server existed. No-op when it was up (see dev_server_wait).
+            // dev server existed. The watch also covers the dev server being
+            // recycled later, under a live window (see dev_server_wait); it
+            // does nothing while :3000 stays up.
             #[cfg(debug_assertions)]
-            crate::dev_server_wait::reload_main_window_when_dev_server_ready(app.handle());
+            crate::dev_server_wait::watch_dev_server_and_reload(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| {
