@@ -5,6 +5,7 @@ import { ArrowLeftRight, Columns2 } from 'lucide-react';
 import TaskDetailClient from '@/app/tasks/[id]/TaskDetailClient';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 import { useTerminalStore } from '@/feature/terminal/terminal-store';
+import { TASK_DETAIL_OVERLAY_Z, TASK_DETAIL_PANEL_Z } from '@/lib/pane-layering';
 
 interface TaskSlidePanelProps {
   taskId: number | null;
@@ -152,15 +153,17 @@ export default function TaskSlidePanel({
   return (
     <>
       {/* Overlay — sits below the header (top-16) so the header stays visible
-          and interactive, matching the side nav's backdrop. z-[65] (above the
-          split-mode terminal panel's z-60) so the terminal dims along with
-          the rest of the page instead of poking out on top of the overlay.
-          Split mode renders no overlay at all — the page must stay clickable. */}
+          and interactive, matching the side nav's backdrop. Its level sits above
+          the terminal panel so the terminal dims along with the rest of the
+          page, and below the link pane, which docks to the opposite edge to
+          be used alongside — see `lib/pane-layering`. Split mode renders no
+          overlay at all: the page must stay clickable. */}
       {!isSplit && (
         <div
-          className="fixed inset-x-0 top-16 bottom-0 z-[65]"
+          className="fixed inset-x-0 top-16 bottom-0"
           onClick={handleClose}
           style={{
+            zIndex: TASK_DETAIL_OVERLAY_Z,
             animation: isClosing
               ? `fadeOut ${ANIMATION_DURATION}ms ease-in forwards`
               : `fadeIn ${ANIMATION_DURATION}ms ease-out forwards`,
@@ -169,8 +172,8 @@ export default function TaskSlidePanel({
       )}
 
       {/* Slide panel — positioned below the header (top-16) like the side nav,
-          so it no longer overlaps the sticky header. z-[70] (above the overlay
-          and the terminal panel's z-60) so the terminal's split mode can
+          so it no longer overlaps the sticky header. Topmost of the docked
+          panels (see `lib/pane-layering`) so the terminal's split mode can
           never hide it — the task panel always wins that stacking fight.
           Split mode: fixed 50vw wide (must match TASK_DETAIL_SPLIT_WIDTH_VW —
           AppContent reserves the same as page padding). */}
@@ -181,8 +184,9 @@ export default function TaskSlidePanel({
         data-task-slide-panel=""
         className={`fixed top-16 bottom-0 ${dockSide === 'right' ? 'right-0' : 'left-0'} ${
           isSplit ? 'w-full md:w-[50vw]' : 'w-full md:w-3/4 lg:w-2/3 xl:w-1/2'
-        } flex flex-col bg-white dark:bg-zinc-950 shadow-2xl z-[70] overflow-hidden`}
+        } flex flex-col bg-white dark:bg-zinc-950 shadow-2xl overflow-hidden`}
         style={{
+          zIndex: TASK_DETAIL_PANEL_Z,
           animation: isClosing
             ? `${slideOutAnim} ${ANIMATION_DURATION}ms ease-in forwards`
             : `${slideInAnim} ${ANIMATION_DURATION}ms ease-out forwards`,
