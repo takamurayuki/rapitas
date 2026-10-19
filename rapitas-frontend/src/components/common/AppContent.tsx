@@ -43,7 +43,15 @@ export default function AppContent({ children }: { children: React.ReactNode }) 
 
   // The link pane takes the edge the task detail panel is not on, so the
   // reservation has to follow it rather than assume the right (#1065).
-  const isLinkViewOpen = useLinkViewStore((s) => s.activeId !== null);
+  //
+  // Keyed on `isOpen`, which is what decides whether the pane is drawn —
+  // not on there being a tab. Hiding the pane deliberately KEEPS the tabs
+  // so Ctrl+B can bring them back, so `activeId !== null` stayed true and
+  // the page kept the padding, leaving the content squeezed against the
+  // far edge with nothing beside it. The same mistake the other way round:
+  // Ctrl+B on an empty pane opens the saved-pages library, which has no
+  // tab and still occupies the width.
+  const isLinkViewOpen = useLinkViewStore((s) => s.isOpen);
   const linkSide = linkPaneSide(isTaskDetailVisible, taskDetailDockSide);
   // Must match the pane's own width, or the gap it was widened to fill
   // simply reappears as page padding on the other side — so it comes from
