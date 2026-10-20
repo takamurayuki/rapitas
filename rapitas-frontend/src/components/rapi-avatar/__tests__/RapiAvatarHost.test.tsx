@@ -134,6 +134,27 @@ describe('the corner', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  // The task assistant moved off the task detail page into her, so the mode
+  // has to exist for the handover to have gone anywhere.
+  it('offers the task assistant as one of her modes', () => {
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    expect(screen.getByText('rapiAvatar.mode.consult')).toBeTruthy();
+  });
+
+  // A conversation with history in a 320px column is unreadable, so that one
+  // mode gets more room than the others.
+  it('widens the bubble for the conversation and not for the rest', () => {
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    const panel = () => screen.getByRole('dialog');
+    const narrow = panel().className;
+    fireEvent.click(screen.getByText('rapiAvatar.mode.consult'));
+    expect(panel().className).not.toBe(narrow);
+    expect(narrow).toContain('w-80');
+    expect(panel().className).not.toContain('w-80');
+  });
+
   // It is ラピ speaking, so it has a tail pointing at her — without one it is
   // a panel that happens to be near her.
   it('speaks in a bubble with a tail', () => {

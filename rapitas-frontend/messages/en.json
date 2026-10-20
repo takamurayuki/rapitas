@@ -1602,8 +1602,15 @@
     "mode": {
       "create": "Add",
       "ask": "Ask",
+      "consult": "Discuss",
       "cleanup": "AI picks",
       "bulk": "By condition"
+    },
+    "consult": {
+      "about": "About “{title}”",
+      "noTask": "Open a task and you can talk about it here.",
+      "loading": "Loading…",
+      "loadFailed": "That task could not be loaded."
     },
     "bulk": {
       "title": "Clear by condition",

@@ -1602,8 +1602,15 @@
     "mode": {
       "create": "作る",
       "ask": "聞く",
+      "consult": "相談",
       "cleanup": "AIで選ぶ",
       "bulk": "条件で選ぶ"
+    },
+    "consult": {
+      "about": "「{title}」について",
+      "noTask": "タスクを開くと、そのタスクについて相談できます。",
+      "loading": "読み込んでいます…",
+      "loadFailed": "タスクを読み込めませんでした。"
     },
     "bulk": {
       "title": "条件で絞って片付ける",
