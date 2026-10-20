@@ -18,7 +18,7 @@ import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { ExecutionItem } from '../resumable-executions/ExecutionItem';
 import type { ResumableExecution } from '../resumable-executions/types';
-import { TaskCleanup, TaskIntake } from './intake';
+import { TaskBulkCleanup, TaskCleanup, TaskIntake } from './intake';
 
 interface RapiAvatarPanelProps {
   executions: ResumableExecution[];
@@ -59,7 +59,7 @@ export function RapiAvatarPanel({
   // whether "重複しているタスク" means add one or delete several is a
   // classification that can be wrong, and being wrong about it deletes
   // things.
-  const [mode, setMode] = useState<'create' | 'cleanup'>('create');
+  const [mode, setMode] = useState<'create' | 'cleanup' | 'bulk'>('create');
 
   // With nothing running there is no list to head, so the panel is simply
   // ラピ. Repeating the intake's own heading here would say it twice.
@@ -104,7 +104,7 @@ export function RapiAvatarPanel({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex gap-1 border-b border-zinc-200 px-2 pt-2 dark:border-zinc-700">
-          {(['create', 'cleanup'] as const).map((value) => (
+          {(['create', 'cleanup', 'bulk'] as const).map((value) => (
             <button
               key={value}
               type="button"
@@ -121,7 +121,9 @@ export function RapiAvatarPanel({
           ))}
         </div>
 
-        {mode === 'create' ? <TaskIntake /> : <TaskCleanup />}
+        {mode === 'create' && <TaskIntake />}
+        {mode === 'cleanup' && <TaskCleanup />}
+        {mode === 'bulk' && <TaskBulkCleanup />}
         <div className="space-y-2 p-2">
           {executions.map((exec) => (
             <ExecutionItem

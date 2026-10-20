@@ -28,6 +28,15 @@ export const ASSISTANT_CAPABILITIES = [
     undo: 'delete-what-was-made',
   },
   {
+    // Lists what a set of conditions matches. The model-driven proposal can
+    // only weigh a window of sixty; on a theme with 719 tasks that is not a
+    // worse answer than a filter, it is the wrong instrument. Reads only.
+    id: 'task.delete-filter',
+    writes: false,
+    requiresConfirmation: false,
+    undo: 'nothing-to-undo',
+  },
+  {
     // Reads tasks and suggests which to remove. It writes nothing, so it
     // needs no confirmation — but what it suggests feeds a capability that
     // does, which is the whole reason the two are separate entries.

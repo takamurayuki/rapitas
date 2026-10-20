@@ -19,6 +19,15 @@ export {
 export { readTaskIntent, type IntentDraft, type ThemeChoice } from './intent-reader';
 
 export {
+  previewDeleteFilter,
+  FILTERABLE_STATUSES,
+  MAX_PREVIEW_ROWS,
+  type DeleteFilterInput,
+  type DeleteFilterResult,
+  type FilterMatch,
+} from './delete-filter';
+
+export {
   proposeDeletions,
   CANDIDATE_WINDOW,
   type DeleteProposal,
