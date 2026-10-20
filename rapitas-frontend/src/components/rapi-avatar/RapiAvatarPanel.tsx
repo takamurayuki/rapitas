@@ -13,12 +13,12 @@
  * Draws only. The data and the actions come from `useResumableExecutions`,
  * which the host owns so it runs once.
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { ExecutionItem } from '../resumable-executions/ExecutionItem';
 import type { ResumableExecution } from '../resumable-executions/types';
-import { TaskIntake } from './intake';
+import { TaskCleanup, TaskIntake } from './intake';
 
 interface RapiAvatarPanelProps {
   executions: ResumableExecution[];
@@ -53,6 +53,13 @@ export function RapiAvatarPanel({
 }: RapiAvatarPanelProps) {
   const t = useTranslations('banner');
   const ta = useTranslations('rapiAvatar');
+  const tm = useTranslations('rapiAvatar.mode');
+
+  // Two explicit modes rather than guessing from the sentence. Working out
+  // whether "重複しているタスク" means add one or delete several is a
+  // classification that can be wrong, and being wrong about it deletes
+  // things.
+  const [mode, setMode] = useState<'create' | 'cleanup'>('create');
 
   // With nothing running there is no list to head, so the panel is simply
   // ラピ. Repeating the intake's own heading here would say it twice.
@@ -96,7 +103,25 @@ export function RapiAvatarPanel({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <TaskIntake />
+        <div className="flex gap-1 border-b border-zinc-200 px-2 pt-2 dark:border-zinc-700">
+          {(['create', 'cleanup'] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setMode(value)}
+              aria-pressed={mode === value}
+              className={`rounded-t-md px-2.5 py-1 text-xs transition-colors ${
+                mode === value
+                  ? 'bg-zinc-100 font-medium text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100'
+                  : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+              }`}
+            >
+              {tm(value)}
+            </button>
+          ))}
+        </div>
+
+        {mode === 'create' ? <TaskIntake /> : <TaskCleanup />}
         <div className="space-y-2 p-2">
           {executions.map((exec) => (
             <ExecutionItem

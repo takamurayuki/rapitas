@@ -28,6 +28,15 @@ export const ASSISTANT_CAPABILITIES = [
     undo: 'delete-what-was-made',
   },
   {
+    // Reads tasks and suggests which to remove. It writes nothing, so it
+    // needs no confirmation — but what it suggests feeds a capability that
+    // does, which is the whole reason the two are separate entries.
+    id: 'task.delete-draft',
+    writes: false,
+    requiresConfirmation: false,
+    undo: 'nothing-to-undo',
+  },
+  {
     // Only declarable because the trash exists. Before it, a deletion
     // cascaded across 43 relations with nothing kept, and this entry would
     // have had to say 'not-yet-possible' — which the roadmap (#1119) treats

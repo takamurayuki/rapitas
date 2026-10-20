@@ -19,6 +19,14 @@ export {
 export { readTaskIntent, type IntentDraft, type ThemeChoice } from './intent-reader';
 
 export {
+  proposeDeletions,
+  CANDIDATE_WINDOW,
+  type DeleteProposal,
+  type DeleteCandidate,
+  type DeleteCandidateInput,
+} from './delete-proposal';
+
+export {
   ASSISTANT_CAPABILITIES,
   assertCapabilityAllowed,
   getCapability,
