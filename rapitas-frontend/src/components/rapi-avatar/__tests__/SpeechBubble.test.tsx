@@ -14,6 +14,15 @@ import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import { SpeechBubble, SPEAK_DURATION_MS, speakOrigin } from '../SpeechBubble';
 
+/**
+ * The syntax a browser drops on the floor, matched so it can be refused.
+ *
+ * `transform-origin` has no four-value form — that is `background-position`
+ * syntax — so a declaration like `right 34px bottom 0` is discarded whole and
+ * the origin silently becomes the centre.
+ */
+const FOUR_VALUE = /(right|bottom)\s+[\d.]+px\s+(bottom|right)/;
+
 const bubble = (el: HTMLElement) => el.querySelector('[data-speech-bubble="true"]') as HTMLElement;
 const tails = (el: HTMLElement) =>
   Array.from(el.querySelectorAll<HTMLElement>('[data-bubble-tail]'));
@@ -94,8 +103,26 @@ describe('the bubble', () => {
   // hands back an empty string either way; that it lands on the element is
   // measured in a real browser.
   it('grows out of the tail it was given', () => {
-    expect(speakOrigin('bottom', 34)).toBe('right 34px bottom 0');
-    expect(speakOrigin('right', 20)).toBe('right 0 bottom 20px');
+    expect(speakOrigin('bottom', 34)).toBe('calc(100% - 34px) 100%');
+    expect(speakOrigin('right', 20)).toBe('100% calc(100% - 20px)');
+  });
+
+  // The bug this guards, exactly: `right 34px bottom 0` reads like it should
+  // work and is `background-position` syntax. `transform-origin` has no
+  // four-value form, so a browser drops the declaration and silently uses
+  // the centre. It shipped that way — measured in Chromium, the origin
+  // computed to `160px 111px` on a 320x222 panel. jsdom hands back an empty
+  // string for both, so only the value itself can be held here.
+  it('does not use the four-value syntax a browser throws away', () => {
+    /** What shipped, kept here so the guard is shown to catch it. */
+    const thrownAway = 'right 34px bottom 0';
+    expect(thrownAway).toMatch(FOUR_VALUE);
+
+    for (const side of ['bottom', 'right'] as const) {
+      const origin = speakOrigin(side, 34);
+      expect(origin).toContain('calc(');
+      expect(origin).not.toMatch(FOUR_VALUE);
+    }
   });
 
   // Not the centre, and not a bare corner — either would read as a popup.

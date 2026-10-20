@@ -99,21 +99,24 @@ const SPEAK_KEYFRAMES = `
 /**
  * Where the bubble grows from: the tail, not the centre or a corner.
  *
- * The edge-offset form rather than `calc(100% - Npx)`: it says what it means
- * (so far in from this edge) and needs no arithmetic against a width the
- * bubble does not know yet.
+ * `calc()`, and specifically NOT the `right 34px bottom 0` edge-offset form.
+ * That form belongs to `background-position`; `transform-origin` has no
+ * four-value syntax, so a browser drops the whole declaration and falls back
+ * to the centre. It shipped that way and the bubble grew from its middle —
+ * measured in Chromium, `transform-origin` computed to `160px 111px`, dead
+ * centre of a 320x222 panel. jsdom reads it back as an empty string either
+ * way and cannot tell the two apart.
  *
- * Exported because jsdom's CSS parser accepts neither form and reads
- * `transformOrigin` back as an empty string, so the only way to hold this
- * under test is to test the value rather than the element. That it actually
- * lands on the element is checked in a real browser.
+ * So the value is built here and tested here, and that it lands is measured
+ * in a real browser: `calc(100% - 34px) 100%` computes to `286px 222px`,
+ * which is the bottom edge, 34px in from the right.
  *
  * @param side - Which edge the tail leaves from / 尻尾が出る辺
  * @param offsetPx - Distance from the far corner of that edge / 角からの距離
  * @returns A CSS transform-origin / CSS の transform-origin
  */
 export function speakOrigin(side: TailSide, offsetPx: number): string {
-  return side === 'bottom' ? `right ${offsetPx}px bottom 0` : `right 0 bottom ${offsetPx}px`;
+  return side === 'bottom' ? `calc(100% - ${offsetPx}px) 100%` : `100% calc(100% - ${offsetPx}px)`;
 }
 
 /**
