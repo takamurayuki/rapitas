@@ -161,28 +161,3 @@ describe('what ends up in the log', () => {
     });
   });
 });
-
-describe('GET /assistant/capabilities', () => {
-  test('reports what ラピ is allowed to do', async () => {
-    const res = await assistantIntakeRoutes.handle(
-      new Request('http://localhost/assistant/capabilities'),
-    );
-    const json = await res.json();
-    const ids = json.capabilities.map((c: { id: string }) => c.id);
-    expect(ids).toContain('task.draft');
-    expect(ids).toContain('task.create');
-  });
-
-  // The surface is meant to be inspectable, not just enforced.
-  test('says of each whether it writes and whether it needs confirming', async () => {
-    const res = await assistantIntakeRoutes.handle(
-      new Request('http://localhost/assistant/capabilities'),
-    );
-    const json = await res.json();
-    for (const capability of json.capabilities) {
-      expect(typeof capability.writes).toBe('boolean');
-      expect(typeof capability.requiresConfirmation).toBe('boolean');
-      expect(typeof capability.undo).toBe('string');
-    }
-  });
-});

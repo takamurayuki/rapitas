@@ -1,41 +1,42 @@
 /**
  * Assistant Intake Routes
  *
- * The surface ラピ acts through. Every route here names a capability declared
- * in `services/assistant/capabilities.ts` and is checked against it before it
- * does anything, so what ラピ can do is a list someone wrote down rather than
- * whatever the REST API happens to expose.
+ * Making tasks: what the user said, read into a proposal, and the confirmed
+ * creation that follows.
  *
- * `POST /assistant/task-draft` proposes, and writes nothing.
- * `POST /assistant/task-create` is the only way ラピ creates a task, and it
- * refuses to run without the user's confirmation carried in the payload —
- * which is why the confirmation is a field rather than an assumption drawn
- * from the fact that a request arrived.
+ * Every route across the assistant names a capability declared in
+ * `services/assistant/capabilities.ts` and is checked against it, so what
+ * ラピ can do is a list someone wrote down rather than whatever the REST API
+ * happens to expose.
  *
- * Not responsible for deciding the draft — see `services/assistant/task-draft`.
+ * `POST /assistant/task-draft` proposes and writes nothing but its own audit
+ * row. `POST /assistant/task-create` is the only way ラピ creates a task, and
+ * refuses without the user's confirmation carried in the payload.
+ *
+ * Clearing tasks away is in `assistant-cleanup.routes.ts`; questions and the
+ * audit trail are in `assistant-query.routes.ts`.
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { createTask } from '../../services/task/task-mutations';
-import { deleteTaskWithTrash } from '../../services/task/task-deletion';
 import {
   buildTaskDraft,
   readTaskIntent,
-  proposeDeletions,
-  previewDeleteFilter,
-  CANDIDATE_WINDOW,
   assertCapabilityAllowed,
   recordAction,
-  listRecentActions,
-  ASSISTANT_CAPABILITIES,
   ConfirmationRequiredError,
 } from '../../services/assistant';
 
 const logger = createLogger('assistant-intake');
 
-/** Keeps a stray paste from turning into a parse of a whole document. */
-const MAX_TEXT_LENGTH = 2000;
+/**
+ * Keeps a stray paste from turning into a parse of a whole document.
+ *
+ * Shared with the other assistant routers, which take free text on the same
+ * terms.
+ */
+export const MAX_TEXT_LENGTH = 2000;
 
 export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
   .post(
@@ -156,144 +157,6 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
         }),
       }),
     },
-  )
-
-  .post(
-    '/delete-filter',
-    async ({ body }) => {
-      const result = await previewDeleteFilter({
-        themeId: body.themeId,
-        statuses: body.statuses,
-        updatedBeforeDays: body.updatedBeforeDays,
-      });
-
-      await recordAction({
-        capabilityId: 'task.delete-filter',
-        status: 'proposed',
-        args: body,
-        result: { total: result.total, returned: result.matches.length },
-      });
-
-      return { success: true, ...result };
-    },
-    {
-      body: t.Object({
-        themeId: t.Optional(t.Number()),
-        statuses: t.Optional(t.Array(t.String({ maxLength: 40 }), { maxItems: 10 })),
-        updatedBeforeDays: t.Optional(t.Number()),
-      }),
-    },
-  )
-
-  .post(
-    '/delete-draft',
-    async ({ body }) => {
-      // A bounded, recently-touched window. There are over a thousand tasks;
-      // a prompt that cannot hold them is a prompt that silently drops some,
-      // and the count goes back to the caller so the UI can say what was
-      // actually weighed rather than implying it covered everything.
-      const tasks = await prisma.task.findMany({
-        orderBy: { updatedAt: 'desc' },
-        take: CANDIDATE_WINDOW,
-        select: { id: true, title: true, status: true, themeId: true, updatedAt: true },
-      });
-
-      const proposal = await proposeDeletions(body.text, tasks);
-
-      await recordAction({
-        capabilityId: 'task.delete-draft',
-        status: 'proposed',
-        args: { text: body.text },
-        result: {
-          considered: proposal?.considered ?? tasks.length,
-          proposed: proposal?.candidates.map((c) => c.id) ?? [],
-        },
-      });
-
-      if (!proposal) {
-        // No model, or nothing usable from it. Saying so beats a confident
-        // empty list, which reads as "there is nothing to clean up".
-        return { success: true, available: false, candidates: [], considered: tasks.length };
-      }
-      return { success: true, available: true, ...proposal };
-    },
-    {
-      body: t.Object({
-        text: t.String({ minLength: 1, maxLength: MAX_TEXT_LENGTH }),
-      }),
-    },
-  )
-
-  .post(
-    '/task-delete',
-    async ({ body, set }) => {
-      try {
-        assertCapabilityAllowed('task.delete', { confirmed: body.confirmed });
-      } catch (err) {
-        if (err instanceof ConfirmationRequiredError) {
-          await recordAction({
-            capabilityId: 'task.delete',
-            status: 'refused',
-            args: { taskIds: body.taskIds },
-            errorMessage: err.message,
-          });
-          set.status = 400;
-          return { success: false, error: 'confirmation_required' };
-        }
-        throw err;
-      }
-
-      // One id at a time, never a filter. ラピ may propose which tasks should
-      // go, but what actually gets deleted is the list the user looked at and
-      // approved — a filter evaluated server-side could match something that
-      // was not on screen when they pressed the button.
-      const results = [];
-      for (const taskId of body.taskIds) {
-        try {
-          const result = await deleteTaskWithTrash(taskId, 'assistant');
-          results.push(result);
-          await recordAction({
-            capabilityId: 'task.delete',
-            status: result.outcome === 'deleted' ? 'executed' : 'refused',
-            args: { taskId },
-            taskId,
-            result,
-            ...(result.outcome === 'deleted' ? {} : { errorMessage: result.outcome }),
-          });
-        } catch (err) {
-          // One task failing must not abandon the rest half-done; the caller
-          // gets a per-task outcome either way.
-          logger.error({ err, taskId }, 'assistant task deletion failed');
-          results.push({ taskId, outcome: 'failed' as const });
-          await recordAction({
-            capabilityId: 'task.delete',
-            status: 'failed',
-            args: { taskId },
-            taskId,
-            errorMessage: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
-
-      return { success: true, results };
-    },
-    {
-      body: t.Object({
-        confirmed: t.Boolean(),
-        // Explicit, bounded, and never empty: there is no "delete everything
-        // matching" shape to get wrong.
-        taskIds: t.Array(t.Number(), { minItems: 1, maxItems: 50 }),
-      }),
-    },
-  )
-
-  .get('/capabilities', () => ({ success: true, capabilities: ASSISTANT_CAPABILITIES }))
-
-  /** What ラピ has been asked to do lately, so the record is not write-only. */
-  .get('/actions', async ({ query }) => ({
-    success: true,
-    capabilities: ASSISTANT_CAPABILITIES,
-    actions: await listRecentActions(query.limit ? Number(query.limit) : undefined),
-  }));
+  );
 
 export default assistantIntakeRoutes;

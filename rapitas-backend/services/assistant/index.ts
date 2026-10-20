@@ -19,6 +19,15 @@ export {
 export { readTaskIntent, type IntentDraft, type ThemeChoice } from './intent-reader';
 
 export {
+  interpretQuestion,
+  runTaskQuery,
+  MAX_ANSWER_ROWS,
+  type TaskQuery,
+  type TaskQueryAnswer,
+  type TaskQueryRow,
+} from './task-query';
+
+export {
   previewDeleteFilter,
   FILTERABLE_STATUSES,
   MAX_PREVIEW_ROWS,
