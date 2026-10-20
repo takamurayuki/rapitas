@@ -132,6 +132,24 @@ describe('when the model answers badly', () => {
   });
 });
 
+describe('the open questions', () => {
+  // Measured on the running system: one sentence produced five, and the last
+  // of them re-asked the theme the model had just chosen with a reason.
+  test('are capped, however many come back', async () => {
+    reply = JSON.stringify({
+      ...JSON.parse(GOOD),
+      unclear: ['一つ目', '二つ目', '三つ目', '四つ目', '五つ目'],
+    });
+    const draft = await readTaskIntent('なにか', THEMES);
+    expect(draft?.unclear).toEqual(['一つ目', '二つ目', '三つ目']);
+  });
+
+  test('are told not to re-ask what was already decided', async () => {
+    await readTaskIntent('なにか', THEMES);
+    expect(sent[0].systemPrompt).toContain('蒸し返さない');
+  });
+});
+
 describe('when the model is unavailable', () => {
   // RAPITAS_AUX_AI=off, no provider configured, CLI slot exhausted — all of
   // these throw, and none of them should take the feature down with them.

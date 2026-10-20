@@ -41,6 +41,16 @@ type Priority = (typeof PRIORITIES)[number];
 const MAX_CRITERIA = 6;
 const MAX_CRITERION_LENGTH = 200;
 
+/**
+ * How many open questions are worth showing.
+ *
+ * Measured on the running system: an unbounded list came back with five
+ * entries for one sentence, which is more than anyone reads in a corner
+ * panel — and the last of them second-guessed the theme the model had just
+ * chosen with a confident reason. Three, most important first.
+ */
+const MAX_UNCLEAR = 3;
+
 const SYSTEM_PROMPT = `あなたは rapitas というタスク管理アプリのアシスタント「ラピ」です。
 ユーザーの発話から「何をしたいのか」を読み取り、1件のタスクの下書きを作ります。
 
@@ -51,7 +61,7 @@ const SYSTEM_PROMPT = `あなたは rapitas というタスク管理アプリの
 4. themeReason には、そのテーマを選んだ理由を日本語で一文で書く。
 5. 発話に書かれていないことを埋めない。優先度・期日・見積もりは、発話から読み取れないなら null にする。
 6. acceptanceCriteria は「何がどうなったら完了か」を検証可能な形で1〜3件。判断材料が無ければ空配列にする。
-7. 判断できなかったことは unclear に日本語で列挙する。
+7. unclear は「ユーザーに聞かないと決まらないこと」だけを重要な順に最大3件。自分で決めた項目（選んだテーマなど）を蒸し返さない。細かすぎる確認は書かない。
 
 JSON の形:
 {
@@ -200,8 +210,13 @@ export async function readTaskIntent(
         .slice(0, MAX_CRITERIA)
     : [];
 
+  // The prompt asks for at most three; this is the backstop for when it
+  // does not listen, which is the case that produced the five-entry list.
   const unclear = Array.isArray(raw.unclear)
-    ? raw.unclear.map((u) => asText(u, 200)).filter((u): u is string => !!u)
+    ? raw.unclear
+        .map((u) => asText(u, 200))
+        .filter((u): u is string => !!u)
+        .slice(0, MAX_UNCLEAR)
     : [];
 
   const summary = asText(raw.summary, 500);
