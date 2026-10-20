@@ -18,6 +18,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { createTask } from '../../services/task/task-mutations';
+import { deleteTaskWithTrash } from '../../services/task/task-deletion';
 import {
   buildTaskDraft,
   readTaskIntent,
@@ -150,6 +151,69 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
           estimatedHours: t.Optional(t.Number()),
           acceptanceCriteria: t.Optional(t.Array(t.String({ maxLength: 500 }), { maxItems: 10 })),
         }),
+      }),
+    },
+  )
+
+  .post(
+    '/task-delete',
+    async ({ body, set }) => {
+      try {
+        assertCapabilityAllowed('task.delete', { confirmed: body.confirmed });
+      } catch (err) {
+        if (err instanceof ConfirmationRequiredError) {
+          await recordAction({
+            capabilityId: 'task.delete',
+            status: 'refused',
+            args: { taskIds: body.taskIds },
+            errorMessage: err.message,
+          });
+          set.status = 400;
+          return { success: false, error: 'confirmation_required' };
+        }
+        throw err;
+      }
+
+      // One id at a time, never a filter. ラピ may propose which tasks should
+      // go, but what actually gets deleted is the list the user looked at and
+      // approved — a filter evaluated server-side could match something that
+      // was not on screen when they pressed the button.
+      const results = [];
+      for (const taskId of body.taskIds) {
+        try {
+          const result = await deleteTaskWithTrash(taskId, 'assistant');
+          results.push(result);
+          await recordAction({
+            capabilityId: 'task.delete',
+            status: result.outcome === 'deleted' ? 'executed' : 'refused',
+            args: { taskId },
+            taskId,
+            result,
+            ...(result.outcome === 'deleted' ? {} : { errorMessage: result.outcome }),
+          });
+        } catch (err) {
+          // One task failing must not abandon the rest half-done; the caller
+          // gets a per-task outcome either way.
+          logger.error({ err, taskId }, 'assistant task deletion failed');
+          results.push({ taskId, outcome: 'failed' as const });
+          await recordAction({
+            capabilityId: 'task.delete',
+            status: 'failed',
+            args: { taskId },
+            taskId,
+            errorMessage: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      return { success: true, results };
+    },
+    {
+      body: t.Object({
+        confirmed: t.Boolean(),
+        // Explicit, bounded, and never empty: there is no "delete everything
+        // matching" shape to get wrong.
+        taskIds: t.Array(t.Number(), { minItems: 1, maxItems: 50 }),
       }),
     },
   )

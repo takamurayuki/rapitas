@@ -7,8 +7,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { AppError, ValidationError } from '../../middleware/error-handler';
 import { createLogger } from '../../config/logger';
-import { snapshotTaskForTrash } from '../../services/task/task-trash';
-import { cleanUpTaskWorktrees } from '../../services/task/task-worktree-cleanup';
+import { deleteTaskWithTrash } from '../../services/task/task-deletion';
 import {
   createTask,
   updateTask,
@@ -407,30 +406,22 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         throw new ValidationError(INVALID_ID);
       }
 
-      // Guard: a protected task is blocked from deletion to prevent accidental
-      // loss. This is the single choke point for ALL manual delete paths (card
-      // context menu, detail page, bulk list delete) since they all hit DELETE
-      // /:id. Checked before any worktree cleanup so we never touch a task we
-      // are not going to delete.
-      const guard = await prisma.task.findUnique({
-        where: { id },
-        select: { isProtected: true },
-      });
-      if (guard?.isProtected) {
+      // The protected-task guard, the worktree cleanup and the trash copy all
+      // live in deleteTaskWithTrash now. This route used to BE the choke point
+      // for every manual delete; ラピ added a caller that is not an HTTP
+      // request, and one guard in two places is a guard that drifts.
+      const result = await deleteTaskWithTrash(id, 'user');
+
+      if (result.outcome === 'protected') {
         set.status = 409;
         return { error: '保護されたタスクは削除できません' };
       }
+      if (result.outcome === 'not_found') {
+        set.status = 404;
+        return { error: TASK_NOT_FOUND };
+      }
 
-      await cleanUpTaskWorktrees(id);
-
-      // Before the delete, because the cascade reaches 43 relations and
-      // afterwards there is nothing left to copy. This is the only record
-      // of the task that survives.
-      await snapshotTaskForTrash(id, 'user');
-
-      return await prisma.task.delete({
-        where: { id },
-      });
+      return { id, trashId: result.trashId };
     },
     {
       params: t.Object({ id: t.String() }),
