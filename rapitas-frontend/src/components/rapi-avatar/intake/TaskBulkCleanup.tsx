@@ -44,6 +44,7 @@ export function TaskBulkCleanup() {
     truncated,
     excludedProtected,
     previewing,
+    previewed,
     removing,
     progress,
     error,
@@ -152,6 +153,17 @@ export function TaskBulkCleanup() {
           >
             {previewing ? t('counting') : t('preview')}
           </button>
+
+          {/*
+            A preview that matched nothing used to change nothing: measured in
+            the running app, the panel was identical before and after the
+            press, which is indistinguishable from a dead button. The
+            conditions stay above this line because loosening them is the only
+            useful next move.
+          */}
+          {previewed && !previewing && (
+            <p className="text-[11px] text-amber-700 dark:text-amber-400">{t('noMatches')}</p>
+          )}
         </div>
       )}
 

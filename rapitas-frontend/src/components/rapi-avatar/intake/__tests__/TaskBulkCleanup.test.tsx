@@ -101,6 +101,37 @@ describe('previewing', () => {
     expect(screen.getByText('rapiAvatar.bulk.truncated:500')).toBeTruthy();
   });
 
+  // Measured in the running app 2026-10-20: with 中止 + 完了 and 180 days the
+  // request went out, came back 200 with total 0, and the panel was identical
+  // before and after — not one character changed. From the outside that is
+  // indistinguishable from a button that does nothing, which is how it was
+  // reported.
+  it('says it found nothing rather than changing nothing', async () => {
+    matches = [];
+    total = 0;
+    render(<TaskBulkCleanup />);
+    fireEvent.click(screen.getByText('rapiAvatar.bulk.preview'));
+    await waitFor(() => expect(screen.getByText('rapiAvatar.bulk.noMatches')).toBeTruthy());
+  });
+
+  // The conditions have to stay on screen: the only useful next move is to
+  // loosen them, and a dead end would mean reopening the panel.
+  it('keeps the conditions on screen when it found nothing', async () => {
+    matches = [];
+    total = 0;
+    render(<TaskBulkCleanup />);
+    fireEvent.click(screen.getByText('rapiAvatar.bulk.preview'));
+    await waitFor(() => expect(screen.getByText('rapiAvatar.bulk.noMatches')).toBeTruthy());
+    expect(screen.getByText('rapiAvatar.bulk.preview')).toBeTruthy();
+    expect(screen.getByLabelText('rapiAvatar.bulk.age')).toBeTruthy();
+  });
+
+  // Before anything has been asked, there is nothing to report.
+  it('says nothing about matches before the first press', () => {
+    render(<TaskBulkCleanup />);
+    expect(screen.queryByText('rapiAvatar.bulk.noMatches')).toBeNull();
+  });
+
   it('says how many protected tasks it left out', async () => {
     excludedProtected = 4;
     render(<TaskBulkCleanup />);
