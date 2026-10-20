@@ -27,6 +27,16 @@ export const ASSISTANT_CAPABILITIES = [
     requiresConfirmation: true,
     undo: 'delete-what-was-made',
   },
+  {
+    // Only declarable because the trash exists. Before it, a deletion
+    // cascaded across 43 relations with nothing kept, and this entry would
+    // have had to say 'not-yet-possible' — which the roadmap (#1119) treats
+    // as a reason not to ship the capability at all.
+    id: 'task.delete',
+    writes: true,
+    requiresConfirmation: true,
+    undo: 'restore-from-trash',
+  },
 ] as const satisfies readonly AssistantCapability[];
 
 /** What undoing a capability takes. */
@@ -35,6 +45,8 @@ export type UndoCost =
   | 'nothing-to-undo'
   /** Reversed by deleting what it produced. */
   | 'delete-what-was-made'
+  /** Reversed by restoring the copy taken before the delete. */
+  | 'restore-from-trash'
   /** Cannot currently be undone — nothing may be declared this way without
       the roadmap (#1119) saying why, because it means a mistake is permanent. */
   | 'not-yet-possible';

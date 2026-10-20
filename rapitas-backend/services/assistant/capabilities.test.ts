@@ -37,9 +37,12 @@ describe('the registry', () => {
   // say so, so the UI can warn and the roadmap can see what is outstanding.
   test('every capability states what undoing it takes', () => {
     for (const capability of ASSISTANT_CAPABILITIES) {
-      expect(['nothing-to-undo', 'delete-what-was-made', 'not-yet-possible']).toContain(
-        capability.undo,
-      );
+      expect([
+        'nothing-to-undo',
+        'delete-what-was-made',
+        'restore-from-trash',
+        'not-yet-possible',
+      ]).toContain(capability.undo);
     }
   });
 
@@ -47,6 +50,24 @@ describe('the registry', () => {
     for (const capability of ASSISTANT_CAPABILITIES.filter((c) => !c.writes)) {
       expect(capability.undo).toBe('nothing-to-undo');
     }
+  });
+});
+
+// Deleting is the first capability whose mistake is not undone by deleting
+// something — it is undone by the trash, and it may only exist because the
+// trash does.
+describe('deleting', () => {
+  test('is declared, and says the trash is what undoes it', () => {
+    const remove = getCapability('task.delete');
+    expect(remove.writes).toBe(true);
+    expect(remove.requiresConfirmation).toBe(true);
+    expect(remove.undo).toBe('restore-from-trash');
+  });
+
+  test('cannot run unconfirmed', () => {
+    expect(() => assertCapabilityAllowed('task.delete', { confirmed: false })).toThrow(
+      ConfirmationRequiredError,
+    );
   });
 });
 
@@ -58,7 +79,7 @@ describe('getCapability', () => {
 
   test('refuses an id nobody declared', () => {
     // @ts-expect-error — the point is the runtime guard, not the type
-    expect(() => getCapability('task.delete')).toThrow(UnknownCapabilityError);
+    expect(() => getCapability('theme.delete')).toThrow(UnknownCapabilityError);
   });
 });
 
@@ -79,7 +100,7 @@ describe('assertCapabilityAllowed', () => {
 
   test('refuses an undeclared capability whatever the confirmation says', () => {
     // @ts-expect-error — runtime guard again
-    expect(() => assertCapabilityAllowed('task.delete', { confirmed: true })).toThrow(
+    expect(() => assertCapabilityAllowed('theme.delete', { confirmed: true })).toThrow(
       UnknownCapabilityError,
     );
   });

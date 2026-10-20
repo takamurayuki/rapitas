@@ -69,7 +69,7 @@ describe('recordAction', () => {
   test('refuses a capability the registry does not declare', async () => {
     await expect(
       // @ts-expect-error — the runtime guard is the point
-      recordAction({ capabilityId: 'task.delete', status: 'executed' }),
+      recordAction({ capabilityId: 'theme.delete', status: 'executed' }),
     ).rejects.toBeInstanceOf(UnknownCapabilityError);
     expect(created).toEqual([]);
   });
