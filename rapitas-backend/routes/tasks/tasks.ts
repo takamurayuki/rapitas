@@ -7,6 +7,8 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { AppError, ValidationError } from '../../middleware/error-handler';
 import { createLogger } from '../../config/logger';
+import { snapshotTaskForTrash } from '../../services/task/task-trash';
+import { cleanUpTaskWorktrees } from '../../services/task/task-worktree-cleanup';
 import {
   createTask,
   updateTask,
@@ -15,8 +17,6 @@ import {
   attachBlockedCauses,
   attachAutoRunCardStatus,
 } from '../../services/task/task-service';
-import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree/worktree-ops';
-import { resolveWorktreeBaseDir } from '../../services/agents/orchestrator/git-operations/core/resolve-worktree-base-dir';
 import { warnIfSubtaskCreatedDuringDisabledSplit } from '../../services/workflow/subtask-split-guard';
 import { getProjectRoot } from '../../config';
 import { cleanupCompletedTasks } from '../../services/task/completed-task-cleanup';
@@ -421,55 +421,12 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         return { error: '保護されたタスクは削除できません' };
       }
 
-      // Clean up any worktrees associated with this task before deletion
-      try {
-        const task = await prisma.task.findUnique({
-          where: { id },
-          select: { workingDirectory: true, theme: { select: { workingDirectory: true } } },
-        });
+      await cleanUpTaskWorktrees(id);
 
-        if (task) {
-          // Find any agent sessions with worktrees for this task
-          const sessionsWithWorktrees = await prisma.agentSession.findMany({
-            where: {
-              worktreePath: { not: null },
-              config: { taskId: id },
-            },
-            select: { id: true, worktreePath: true },
-          });
-
-          const dirs = [task.workingDirectory || task.theme?.workingDirectory, getProjectRoot()];
-
-          for (const session of sessionsWithWorktrees) {
-            if (!session.worktreePath) continue;
-            try {
-              const removed = await removeWorktree(
-                resolveWorktreeBaseDir(session.worktreePath, dirs),
-                session.worktreePath,
-              );
-              if (!removed) {
-                logger.warn(`[tasks] worktree remove refused: task ${id} ${session.worktreePath}`);
-                continue;
-              }
-              await prisma.agentSession.update({
-                where: { id: session.id },
-                data: { worktreePath: null },
-              });
-              logger.info(`[tasks] Cleaned up worktree for task ${id}: ${session.worktreePath}`);
-            } catch (worktreeError) {
-              logger.warn(
-                { err: worktreeError },
-                `[tasks] Failed to clean up worktree for task ${id}: ${session.worktreePath}`,
-              );
-            }
-          }
-        }
-      } catch (cleanupError) {
-        logger.warn(
-          { err: cleanupError },
-          `[tasks] Failed to clean up worktrees for task ${id}, proceeding with deletion`,
-        );
-      }
+      // Before the delete, because the cascade reaches 43 relations and
+      // afterwards there is nothing left to copy. This is the only record
+      // of the task that survives.
+      await snapshotTaskForTrash(id, 'user');
 
       return await prisma.task.delete({
         where: { id },
