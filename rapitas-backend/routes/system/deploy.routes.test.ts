@@ -2,38 +2,45 @@
  * deploy.routes.test
  *
  * The HTTP shape. Two properties matter: a refusal must not come back as a
- * success (anything that only reads the status code would deploy-and-forget
+ * success (anything that reads only the status code would deploy-and-forget
  * on a request that did nothing), and GET must not act — it is the endpoint
- * you use to decide whether to press POST, so it cannot restart anything.
+ * you ask in order to decide whether to press POST, so it cannot restart
+ * anything.
+ *
+ * Nothing is mocked. The router takes its collaborators as arguments for this
+ * reason: `mock.module` on the scheduler replaces it for every other test
+ * file in the run, and measured here it took `index.test.ts` from 45 passing
+ * to 58 failing.
  */
-import { describe, expect, test, beforeEach, mock } from 'bun:test';
+import { describe, expect, test, beforeEach } from 'bun:test';
+import { Elysia } from 'elysia';
+import { createDeployRoutes } from './deploy.routes';
+import type {
+  DeployInspection,
+  DeployNowResult,
+} from '../../services/scheduling/auto-restart-merged-code/deploy-now';
 
 let inspected = 0;
 let deploys = 0;
-let result: Record<string, unknown> = { deployed: true, reason: 'deployed', aheadCount: 2 };
-let inspection: Record<string, unknown> = { ready: true, reason: 'deployed', aheadCount: 2 };
-let seenCommit: unknown;
+let result: DeployNowResult = { deployed: true, reason: 'deployed', aheadCount: 2 };
+let inspection: DeployInspection = { ready: true, reason: 'deployed', aheadCount: 2 };
+let seenCommit: string | null | undefined;
 
-mock.module('../../services/scheduling/auto-restart-merged-code/deploy-now', () => ({
-  deployNow: async (commit: string | null) => {
-    deploys += 1;
-    seenCommit = commit;
-    return result;
-  },
-  inspectDeploy: async (commit: string | null) => {
-    inspected += 1;
-    seenCommit = commit;
-    return inspection;
-  },
-}));
-
-mock.module('../../services/scheduling/auto-restart-merged-code', () => ({
-  getAutoRestartMergedCodeScheduler: () => ({ getStartupCommit: () => 'cafe123' }),
-}));
-
-const deployRoutes = (await import('./deploy.routes')).default;
-const { Elysia } = await import('elysia');
-const app = new Elysia().use(deployRoutes);
+const app = new Elysia().use(
+  createDeployRoutes({
+    startupCommit: () => 'cafe123',
+    deploy: async (commit) => {
+      deploys += 1;
+      seenCommit = commit;
+      return result;
+    },
+    inspect: async (commit) => {
+      inspected += 1;
+      seenCommit = commit;
+      return inspection;
+    },
+  }),
+);
 
 const call = (path: string, method: string) =>
   app.handle(new Request(`http://localhost${path}`, { method }));
@@ -84,5 +91,20 @@ describe('GET /deploy/status', () => {
     expect(res.status).toBe(200);
     expect(deploys).toBe(0);
     expect(inspected).toBe(1);
+  });
+});
+
+// The default export is what the route barrel mounts; if it did not build,
+// the endpoints would not exist no matter how well the factory behaves.
+describe('the mounted router', () => {
+  test('is built with the real collaborators', async () => {
+    const mounted = (await import('./deploy.routes')).default;
+    expect(mounted).toBeDefined();
+    const res = await new Elysia()
+      .use(mounted)
+      .handle(new Request('http://localhost/deploy/status'));
+    // Outside the dev orchestrator there is no startup commit, which is the
+    // guard working rather than a failure.
+    expect(await res.json()).toMatchObject({ ready: false, reason: 'no-startup-commit' });
   });
 });

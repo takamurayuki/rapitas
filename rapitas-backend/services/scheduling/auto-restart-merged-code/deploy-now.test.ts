@@ -8,6 +8,19 @@
  * was touched.
  */
 import { describe, expect, test, beforeEach, mock } from 'bun:test';
+import { join } from 'node:path';
+
+/**
+ * The module's own source, read so the tests below can assert what it does
+ * NOT reach for.
+ *
+ * `import.meta.dir` rather than a file URL: this file first used
+ * `new URL(...).pathname.slice(1)`, which strips the slash before a Windows
+ * drive letter — and turns `/home/runner/...` on Linux into a relative path.
+ * Green locally, ENOENT in CI. `import.meta.dir` is already a native path on
+ * whichever platform is running, so there is nothing to convert.
+ */
+const ownSource = () => Bun.file(join(import.meta.dir, 'deploy-now.ts')).text();
 
 /** What the stand-in git layer reports. */
 let ahead: number | null = 3;
@@ -28,7 +41,13 @@ let pulled = false;
 let shutdown: string | null = null;
 let notified = false;
 
+// All five exports, not the three used here: `mock.module` replaces the whole
+// module process-wide, and `index.test.ts` in the same run imports
+// captureStartupCommit and listChangedPaths. Leaving them out makes that file
+// stop with one error and drop its forty-five tests from the count.
 mock.module('./git-io', () => ({
+  captureStartupCommit: async () => 'abc1234',
+  listChangedPaths: async () => [],
   fetchAndCountAhead: async () => ahead,
   isWorkingTreeClean: async () => clean,
   fastForwardToRemote: async () => {
@@ -102,9 +121,7 @@ describe('deploying on request', () => {
   // not a poll, so none of that is consulted here — there is no clock in this
   // function at all, which is what makes it answerable on demand.
   test('consults no clock: not the last restart, not UI activity', async () => {
-    const source = await Bun.file(
-      new URL('./deploy-now.ts', import.meta.url).pathname.slice(1),
-    ).text();
+    const source = await ownSource();
     expect(source).not.toContain('resolveRestartMinIntervalMs');
     expect(source).not.toContain('resolveRestartUiQuietMs');
     expect(source).not.toContain('getLastUiRequestAt');
@@ -114,9 +131,7 @@ describe('deploying on request', () => {
   // The automatic path is governed by a toggle because it acts on its own. A
   // person asking for it is not that, so the toggle does not apply.
   test('does not consult the auto-restart toggle', async () => {
-    const source = await Bun.file(
-      new URL('./deploy-now.ts', import.meta.url).pathname.slice(1),
-    ).text();
+    const source = await ownSource();
     expect(source).not.toContain('readAutoRestartEnabled');
   });
 

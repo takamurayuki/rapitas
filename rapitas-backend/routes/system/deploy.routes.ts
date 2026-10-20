@@ -16,22 +16,51 @@ import { Elysia } from 'elysia';
 import {
   deployNow,
   inspectDeploy,
+  type DeployNowResult,
+  type DeployInspection,
 } from '../../services/scheduling/auto-restart-merged-code/deploy-now';
 import { getAutoRestartMergedCodeScheduler } from '../../services/scheduling/auto-restart-merged-code';
 
-/** The commit the running process started on. */
-const startupCommit = () => getAutoRestartMergedCodeScheduler().getStartupCommit();
+/**
+ * Collaborators of the router.
+ *
+ * Injected rather than reached for, following `canary.routes.ts`: the tests
+ * would otherwise have to `mock.module` the scheduler, and that replaces it
+ * process-wide for every other test file in the run. Measured here — it took
+ * `index.test.ts` from 45 passing to 58 failing, because its own
+ * `AutoRestartMergedCodeScheduler` had been swapped for the stub.
+ */
+export interface DeployRouteDeps {
+  startupCommit?: () => string | null;
+  deploy?: (startupCommit: string | null) => Promise<DeployNowResult>;
+  inspect?: (startupCommit: string | null) => Promise<DeployInspection>;
+}
 
-const deployRoutes = new Elysia({ prefix: '/deploy' })
-  .get('/status', async () => await inspectDeploy(startupCommit()))
+/**
+ * Build the deploy router.
+ *
+ * @param deps - Stand-ins for the scheduler and the deploy service / 差し替え用の依存
+ * @returns The router / ルーター
+ */
+export function createDeployRoutes(deps: DeployRouteDeps = {}) {
+  const startupCommit =
+    deps.startupCommit ?? (() => getAutoRestartMergedCodeScheduler().getStartupCommit());
+  const runDeploy = deps.deploy ?? deployNow;
+  const runInspect = deps.inspect ?? inspectDeploy;
 
-  .post('/now', async ({ set }) => {
-    const result = await deployNow(startupCommit());
-    // 409 for a refusal: the request was well-formed and the server is simply
-    // not in a state to do it. A 200 with deployed:false would be read as
-    // success by anything that only looks at the status.
-    if (!result.deployed) set.status = 409;
-    return result;
-  });
+  return new Elysia({ prefix: '/deploy' })
+    .get('/status', async () => await runInspect(startupCommit()))
+
+    .post('/now', async ({ set }) => {
+      const result = await runDeploy(startupCommit());
+      // 409 for a refusal: the request was well-formed and the server is
+      // simply not in a state to do it. A 200 with deployed:false would be
+      // read as success by anything that only looks at the status.
+      if (!result.deployed) set.status = 409;
+      return result;
+    });
+}
+
+export const deployRoutes = createDeployRoutes();
 
 export default deployRoutes;
