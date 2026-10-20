@@ -45,6 +45,20 @@ const logger = createLogger('auto-restart-merged-code-scheduler');
 const DEFAULT_INTERVAL_MS = 15 * 60 * 1000;
 // 30 min — flapping guard between two auto-restarts (acceptance criterion 2c).
 const DEFAULT_MIN_RESTART_INTERVAL_MS = 30 * 60 * 1000;
+// 2 polls — roughly half an hour at the default cadence. See
+// `considerIdleBoundary` for why an idle system needs a boundary at all.
+const DEFAULT_IDLE_BOUNDARY_POLLS = 2;
+
+/**
+ * How many consecutive idle polls make a batched merge activate anyway.
+ *
+ * @returns Poll count (RAPITAS_RESTART_IDLE_BOUNDARY_POLLS, default 2) / 必要な連続アイドル回数
+ */
+function resolveIdleBoundaryPolls(): number {
+  const raw = process.env.RAPITAS_RESTART_IDLE_BOUNDARY_POLLS;
+  const parsed = raw ? parseInt(raw, 10) : NaN;
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : DEFAULT_IDLE_BOUNDARY_POLLS;
+}
 
 /**
  * Resolves the fetch/check interval from the environment.
@@ -137,8 +151,70 @@ export class AutoRestartMergedCodeScheduler {
    *
    * @returns True if running / 実行中の場合true
    */
+  /**
+   * Consecutive polls that found a batched merge waiting on an idle system.
+   *
+   * Reset the moment anything is running, so it only ever counts genuine
+   * quiet. See `considerIdleBoundary`.
+   */
+  private idlePollsWithBatchedMerge = 0;
+
   getIsRunning(): boolean {
     return this.isRunning;
+  }
+
+  /**
+   * Decide what to do about a merge that classification sent to the boundary.
+   *
+   * Batching exists so restarts do not churn in the middle of work, and the
+   * boundary it waits for is an auto-run task completing. On a system with
+   * auto-run stopped that boundary never arrives: measured 2026-10-20, four
+   * merges sat unactivated for a day while the poller declined silently every
+   * tick. The quieter the system, the less likely merged code was ever to
+   * run — the opposite of what the gates intend, since idle is the safest
+   * moment there is to restart.
+   *
+   * So sustained idle becomes a boundary in its own right. The decision
+   * itself is still `evaluateBoundaryRestart`'s: this only decides when to
+   * ask it, and asking does not relax a single one of its gates.
+   *
+   * @param aheadCount - Commits waiting to be activated / 未反映コミット数
+   * @param changedFiles - How many files that merge touched / 変更ファイル数
+   * @returns True when a restart was triggered / 再起動を発火したか
+   */
+  private async considerIdleBoundary(aheadCount: number, changedFiles: number): Promise<boolean> {
+    const snapshot = await getAgentSystemSnapshot();
+    const busy =
+      snapshot.isShuttingDown ||
+      snapshot.activeExecutions > 0 ||
+      snapshot.runningExecutions > 0 ||
+      snapshot.queueDepth > 0;
+    if (busy) {
+      this.idlePollsWithBatchedMerge = 0;
+      return false;
+    }
+
+    this.idlePollsWithBatchedMerge += 1;
+    const needed = resolveIdleBoundaryPolls();
+    if (this.idlePollsWithBatchedMerge < needed) {
+      // Warn, not debug: the log keeps warnings and above, and a silent
+      // decline every tick is exactly how this hid for a day. Once per batch,
+      // not once per poll.
+      if (this.idlePollsWithBatchedMerge === 1) {
+        logger.warn(
+          { aheadCount, changedFiles, needed },
+          '[AutoRestartMergedCode] merged code is waiting for a task boundary; it will activate if the system stays idle',
+        );
+      }
+      return false;
+    }
+
+    logger.warn(
+      { aheadCount, idlePolls: this.idlePollsWithBatchedMerge },
+      '[AutoRestartMergedCode] system idle with merged code waiting — treating the idle as the boundary',
+    );
+    this.idlePollsWithBatchedMerge = 0;
+    return this.evaluateBoundaryRestart();
   }
 
   /**
@@ -168,8 +244,11 @@ export class AutoRestartMergedCodeScheduler {
         { aheadCount, changedFiles: changedPaths.length },
         '[AutoRestartMergedCode] Non-machinery merge — batched until next task boundary',
       );
-      return false;
+      return this.considerIdleBoundary(aheadCount, changedPaths.length);
     }
+
+    // A machinery merge fires now, so nothing is left waiting on idle.
+    this.idlePollsWithBatchedMerge = 0;
 
     const snapshot = await getAgentSystemSnapshot();
     if (snapshot.activeExecutionsDegraded) return false;
