@@ -156,3 +156,72 @@ describe('the dock', () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * The cast shadow. ラピ floats over every page, and without something on the
+ * ground beneath her she reads as pasted onto the corner rather than hovering
+ * above it.
+ */
+describe('her shadow', () => {
+  const shadow = (el: HTMLElement) => el.querySelector('[data-shadow="true"]') as SVGElement | null;
+
+  it('is cast beneath her', () => {
+    const { container } = render(<RapiAvatar state="idle" />);
+    expect(shadow(container)).not.toBeNull();
+  });
+
+  // A gap is what says "floating". Touching her underside reads as resting.
+  it('sits clear of her, not against her', () => {
+    const { container } = render(<RapiAvatar state="idle" />);
+    const cy = Number(shadow(container)?.getAttribute('cy'));
+    // The body is a circle at cy 70, r 37, so its underside is 107.
+    expect(cy).toBeGreaterThan(107 + 4);
+  });
+
+  // Narrower than she is, which is what a shadow does at a distance — one as
+  // wide as the object reads as the object sitting on the floor.
+  it('is narrower than she is, and flat', () => {
+    const { container } = render(<RapiAvatar state="idle" />);
+    const rx = Number(shadow(container)?.getAttribute('rx'));
+    const ry = Number(shadow(container)?.getAttribute('ry'));
+    expect(rx).toBeLessThan(37);
+    expect(ry).toBeLessThan(rx / 2);
+  });
+
+  // Hard-edged black would read as a second object, not as a shadow.
+  it('has soft edges', () => {
+    const { container } = render(<RapiAvatar state="idle" />);
+    expect(shadow(container)?.getAttribute('fill')).toContain('url(#');
+    // Lowercase selector: a CSS type selector in an HTML document is matched
+    // case-insensitively against the lowercased name, so `radialGradient`
+    // never matches an SVG element whose localName keeps its capital G.
+    const stops = container.querySelectorAll('stop');
+    expect(stops.length).toBeGreaterThan(2);
+    expect(stops[stops.length - 1].getAttribute('stop-opacity')).toBe('0');
+  });
+
+  // It is on the ground, so it must not stretch with her — and the whole
+  // point of the shadow is undone if it is drawn over her.
+  it('is outside the stretch, and behind her', () => {
+    const { container } = render(<RapiAvatar state="idle" startled startleKey={1} />);
+    const sh = shadow(container)!;
+    expect(container.querySelector('[data-startle="true"]')?.contains(sh)).toBe(false);
+    const body = container.querySelector('circle');
+    // Earlier in document order means painted first, so underneath.
+    expect(sh.compareDocumentPosition(body!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  // She rises when poked, so the shadow shrinks and fades — motion that
+  // tracks a real state change rather than decoration.
+  it('draws back when she rises', () => {
+    const { container } = render(<RapiAvatar state="idle" startled startleKey={1} />);
+    expect(shadow(container)?.getAttribute('style')).toContain('rapi-shadow');
+    const css = container.querySelector('style')?.textContent ?? '';
+    expect(css).toContain('@keyframes rapi-shadow');
+  });
+
+  it('is still when motion is reduced', () => {
+    const { container } = render(<RapiAvatar state="idle" startled startleKey={1} reducedMotion />);
+    expect(shadow(container)?.getAttribute('style') ?? '').not.toContain('rapi-shadow');
+  });
+});

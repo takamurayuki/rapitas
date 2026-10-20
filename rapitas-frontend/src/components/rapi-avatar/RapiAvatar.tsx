@@ -69,6 +69,15 @@ export interface RapiAvatarProps {
 export const RAPI_AVATAR_TOKENS = {
   body: { light: '#6366F1', dark: '#818CF8' }, // indigo-500 / indigo-400
   trackOpacity: { light: 0.22, dark: 0.32 },
+  /**
+   * How dark her cast shadow is.
+   *
+   * Higher in dark mode and still barely visible there: the page behind her
+   * is near-black, so there is almost nothing left to darken. A glow would
+   * read on that background, but a glowing floor is not a shadow, and the
+   * design language rules glows out (tell #3).
+   */
+  shadowOpacity: { light: 0.2, dark: 0.42 },
   comet: '#F59E0B', // amber-500
   eye: '#FFFFFF',
   plus: {
@@ -115,6 +124,20 @@ const BODY = { cx: 60, cy: 70, r: 37 } as const;
 const EYES = { left: 48, right: 72, y: 72 } as const;
 
 /**
+ * The shadow she casts, on the page behind her.
+ *
+ * Below her underside (the body is a circle at cy 70 with r 37, so 107) with
+ * a gap: a shadow touching the object reads as the object resting on the
+ * floor, and the gap is what says it is hovering. Narrower than she is and
+ * very flat, for the same reason — a shadow as wide as its object reads as
+ * the object itself.
+ *
+ * It extends past the 120-unit viewBox, which is why the svg is
+ * `overflow: visible`.
+ */
+const SHADOW = { cx: 60, cy: 118, rx: 26, ry: 6.5 } as const;
+
+/**
  * How long the startle lasts.
  *
  * Short on purpose: it is a reaction, not a performance, and it sits in the
@@ -141,8 +164,15 @@ const STARTLE_KEYFRAMES = `
   68%  { transform: scaleY(0.97); }
   100% { transform: scaleY(1); }
 }
+@keyframes rapi-shadow {
+  0%   { transform: scale(1); opacity: 1; }
+  32%  { transform: scale(0.88); opacity: 0.72; }
+  68%  { transform: scale(1.02); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
 @media (prefers-reduced-motion: reduce) {
   @keyframes rapi-startle { from, to { transform: none; } }
+  @keyframes rapi-shadow { from, to { transform: none; opacity: 1; } }
 }
 `;
 const PLUS = { x: 84, y: 22, rotate: 15, rotateError: 60, scale: 0.9 } as const;
@@ -183,10 +213,13 @@ export function RapiAvatar({
   const name = useAvatarName();
   const prefersReduced = usePrefersReducedMotion();
   const animate = !(reducedMotion ?? prefersReduced);
-  const clipId = `rapi-front-${useId().replace(/:/g, '')}`;
+  const uid = useId().replace(/:/g, '');
+  const clipId = `rapi-front-${uid}`;
+  const shadowId = `rapi-shadow-${uid}`;
 
   const body = RAPI_AVATAR_TOKENS.body[theme];
   const trackOpacity = showTrack ? RAPI_AVATAR_TOKENS.trackOpacity[theme] : 0;
+  const shadowOpacity = RAPI_AVATAR_TOKENS.shadowOpacity[theme];
   const plusColor =
     state === 'idle'
       ? accent === 'amber'
@@ -284,7 +317,43 @@ export function RapiAvatar({
         <clipPath id={clipId} clipPathUnits="userSpaceOnUse">
           <rect x={-30} y={RING.cy} width={180} height={60} />
         </clipPath>
+
+        {/*
+          Soft edges from a gradient rather than a blur filter: a filter on an
+          element that sits over every page in the app is a per-frame cost for
+          something that never changes shape, and the falloff is the only part
+          that matters.
+        */}
+        <radialGradient id={shadowId}>
+          <stop offset="0%" stopColor="#000000" stopOpacity={shadowOpacity} />
+          <stop offset="55%" stopColor="#000000" stopOpacity={shadowOpacity * 0.55} />
+          <stop offset="100%" stopColor="#000000" stopOpacity={0} />
+        </radialGradient>
       </defs>
+
+      {/*
+        0. 影。
+        First, so everything is painted over it, and outside the startle group
+        so it stays on the ground while she rises out of it. When she does, it
+        draws back a little — motion that tracks a real state change.
+      */}
+      <ellipse
+        data-shadow="true"
+        cx={SHADOW.cx}
+        cy={SHADOW.cy}
+        rx={SHADOW.rx}
+        ry={SHADOW.ry}
+        fill={`url(#${shadowId})`}
+        style={
+          startle
+            ? {
+                transformBox: 'fill-box',
+                transformOrigin: 'center',
+                animation: `rapi-shadow ${STARTLE_DURATION_MS}ms cubic-bezier(0.33, 1, 0.68, 1) 1`,
+              }
+            : undefined
+        }
+      />
 
       {/* 1. 環（奥側）: 本体の後ろに描く */}
       {ringLayer(false)}

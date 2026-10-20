@@ -254,14 +254,33 @@ describe('the body is flat', () => {
     expect(circles[0].getAttribute('fill')).toBe(RAPI_AVATAR_TOKENS.body.light);
   });
 
-  it('has no gradients and no shadow beneath it', () => {
+  // This used to assert no gradient anywhere and nothing soft beneath her,
+  // which the cast shadow added on request (2026-10-21) breaks. The two are
+  // not the same thing: the revert was about fake volume ON her — shading
+  // that made a flat circle look like a lit sphere — while a shadow on the
+  // ground is about where she is, not what her surface looks like. So the
+  // guard now holds the part that mattered: nothing is painted onto her.
+  it('paints no gradient onto her, only onto the ground', () => {
     const { container } = render(<RapiAvatar state="idle" />);
-    expect(container.querySelectorAll('radialGradient')).toHaveLength(0);
-    const soft = Array.from(container.querySelectorAll('ellipse')).filter(
-      (e) => !e.hasAttribute('pathLength') && !e.getAttribute('stroke'),
+    // Filtered in JS rather than with an attribute selector: `url(` carries
+    // a bracket, which a CSS attribute selector will not match literally.
+    const gradientFilled = Array.from(container.querySelectorAll('[fill]')).filter((e) =>
+      (e.getAttribute('fill') ?? '').startsWith('url('),
     );
-    // Only the eyes, which are filled white.
-    expect(soft.every((e) => e.getAttribute('fill') === RAPI_AVATAR_TOKENS.eye)).toBe(true);
+    expect(gradientFilled).toHaveLength(1);
+    expect(gradientFilled[0].getAttribute('data-shadow')).toBe('true');
+
+    // Her body and her eyes are flat token colours, as before.
+    expect(container.querySelector('circle')?.getAttribute('fill')).toBe(
+      RAPI_AVATAR_TOKENS.body.light,
+    );
+    const onHer = Array.from(container.querySelectorAll('ellipse')).filter(
+      (e) =>
+        !e.hasAttribute('pathLength') &&
+        !e.getAttribute('stroke') &&
+        e.getAttribute('data-shadow') !== 'true',
+    );
+    expect(onHer.every((e) => e.getAttribute('fill') === RAPI_AVATAR_TOKENS.eye)).toBe(true);
   });
 });
 
