@@ -12,6 +12,8 @@ import { describe, expect, test, beforeEach, mock } from 'bun:test';
 let order: string[] = [];
 /** The task the stand-in database holds, or null. */
 let task: { isProtected: boolean } | null = { isProtected: false };
+/** What the delete throws, when something is meant to go wrong. */
+let deleteThrows: unknown = null;
 
 mock.module('../../config/database', () => ({
   prisma: {
@@ -22,12 +24,20 @@ mock.module('../../config/database', () => ({
       },
       delete: async () => {
         order.push('delete');
+        if (deleteThrows) throw deleteThrows;
         return { id: 1 };
       },
     },
   },
   ensureDatabaseConnection: async () => {},
 }));
+
+/** What Prisma throws when the row a delete named is no longer there. */
+const recordGone = () =>
+  Object.assign(new Error('No record was found for a delete.'), {
+    code: 'P2025',
+    clientVersion: '6.19.3',
+  });
 
 mock.module('./task-worktree-cleanup', () => ({
   cleanUpTaskWorktrees: async () => {
@@ -47,6 +57,7 @@ const { deleteTaskWithTrash } = await import('./task-deletion');
 beforeEach(() => {
   order = [];
   task = { isProtected: false };
+  deleteThrows = null;
 });
 
 describe('deleteTaskWithTrash', () => {
@@ -70,6 +81,26 @@ describe('deleteTaskWithTrash', () => {
     const result = await deleteTaskWithTrash(99, 'assistant');
     expect(result.outcome).toBe('not_found');
     expect(order).toEqual(['guard']);
+  });
+
+  // The guard and the delete are not one atomic step: between them the
+  // worktrees are cleared and 43 relations are copied, which takes long
+  // enough for something else — a parent's cascade, the task list, a backlog
+  // job — to remove the row first. Observed live on task 625: P2025 escaped
+  // as an exception and the user was told the deletion FAILED for a task
+  // that was, in fact, gone.
+  test('treats a task that vanished mid-flight as already gone, not as a failure', async () => {
+    deleteThrows = recordGone();
+    const result = await deleteTaskWithTrash(625, 'assistant');
+    expect(result).toEqual({ taskId: 625, outcome: 'not_found' });
+    expect(order).toEqual(['guard', 'worktrees', 'snapshot', 'delete']);
+  });
+
+  // Only the row-is-gone case is absorbed. A database that is down must not
+  // be reported as "there was nothing with that id".
+  test('still raises a real database failure', async () => {
+    deleteThrows = Object.assign(new Error("Can't reach database server"), { code: 'P1001' });
+    await expect(deleteTaskWithTrash(1, 'user')).rejects.toThrow("Can't reach database server");
   });
 
   // The trash row records who asked, which is the only way to tell an
