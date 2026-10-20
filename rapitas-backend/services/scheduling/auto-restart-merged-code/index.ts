@@ -147,6 +147,18 @@ export class AutoRestartMergedCodeScheduler {
   }
 
   /**
+   * The commit this process started on, which `deploy-now` compares against.
+   *
+   * Null outside the dev orchestrator, since `start()` is a no-op there and
+   * never captures one — which is exactly what makes it a usable guard.
+   *
+   * @returns The startup commit, or null / 起動時のコミット（無ければ null）
+   */
+  getStartupCommit(): string | null {
+    return this.startupCommit;
+  }
+
+  /**
    * Decide what to do about a merge that classification sent to the boundary.
    *
    * Batching exists so restarts do not churn in the middle of work, and the
