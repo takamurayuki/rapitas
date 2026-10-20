@@ -23,6 +23,7 @@ import {
   buildTaskDraft,
   readTaskIntent,
   proposeDeletions,
+  previewDeleteFilter,
   CANDIDATE_WINDOW,
   assertCapabilityAllowed,
   recordAction,
@@ -153,6 +154,33 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
           estimatedHours: t.Optional(t.Number()),
           acceptanceCriteria: t.Optional(t.Array(t.String({ maxLength: 500 }), { maxItems: 10 })),
         }),
+      }),
+    },
+  )
+
+  .post(
+    '/delete-filter',
+    async ({ body }) => {
+      const result = await previewDeleteFilter({
+        themeId: body.themeId,
+        statuses: body.statuses,
+        updatedBeforeDays: body.updatedBeforeDays,
+      });
+
+      await recordAction({
+        capabilityId: 'task.delete-filter',
+        status: 'proposed',
+        args: body,
+        result: { total: result.total, returned: result.matches.length },
+      });
+
+      return { success: true, ...result };
+    },
+    {
+      body: t.Object({
+        themeId: t.Optional(t.Number()),
+        statuses: t.Optional(t.Array(t.String({ maxLength: 40 }), { maxItems: 10 })),
+        updatedBeforeDays: t.Optional(t.Number()),
       }),
     },
   )

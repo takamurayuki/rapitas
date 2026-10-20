@@ -1601,7 +1601,35 @@
     },
     "mode": {
       "create": "Add",
-      "cleanup": "Clear"
+      "cleanup": "AI picks",
+      "bulk": "By condition"
+    },
+    "bulk": {
+      "title": "Clear by condition",
+      "theme": "Theme",
+      "anyTheme": "All themes",
+      "status": "Status",
+      "statusLabel": {
+        "cancelled": "Cancelled",
+        "done": "Done",
+        "blocked": "Blocked",
+        "todo": "To do"
+      },
+      "age": "Last updated",
+      "anyAge": "Any age",
+      "olderThan": "Over {days} days ago",
+      "preview": "Count matches",
+      "counting": "Counting…",
+      "matched": "{total} matched",
+      "truncated": "Showing {shown} of them. Run again after deleting for the rest.",
+      "protectedExcluded": "{count} protected tasks are excluded",
+      "remove": "Delete {count}",
+      "removingBatch": "Deleting… {done}/{of}",
+      "cancel": "Cancel",
+      "removed": "Deleted {count}",
+      "keptBack": "{count} could not be deleted",
+      "undo": "Undo {count}",
+      "error": "That did not work. Try again."
     }
   },
   "shortcuts": {

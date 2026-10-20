@@ -1601,7 +1601,35 @@
     },
     "mode": {
       "create": "作る",
-      "cleanup": "片付ける"
+      "cleanup": "AIで選ぶ",
+      "bulk": "条件で選ぶ"
+    },
+    "bulk": {
+      "title": "条件で絞って片付ける",
+      "theme": "テーマ",
+      "anyTheme": "すべてのテーマ",
+      "status": "状態",
+      "statusLabel": {
+        "cancelled": "中止",
+        "done": "完了",
+        "blocked": "ブロック",
+        "todo": "未着手"
+      },
+      "age": "最終更新",
+      "anyAge": "期間を問わない",
+      "olderThan": "{days}日以上前",
+      "preview": "該当件数を見る",
+      "counting": "数えています…",
+      "matched": "{total}件が該当しました",
+      "truncated": "うち{shown}件を表示しています。残りは削除後にもう一度実行してください。",
+      "protectedExcluded": "保護された{count}件は対象外です",
+      "remove": "{count}件を削除",
+      "removingBatch": "削除中… {done}/{of}",
+      "cancel": "やめる",
+      "removed": "{count}件を削除しました",
+      "keptBack": "{count}件は削除できませんでした",
+      "undo": "{count}件を元に戻す",
+      "error": "うまくいきませんでした。もう一度試してください。"
     }
   },
   "shortcuts": {
