@@ -37,6 +37,21 @@ export interface DeletionResult {
 }
 
 /**
+ * Whether an error is Prisma saying the row a write named no longer exists.
+ *
+ * Matched on the code rather than with `instanceof`: this repository
+ * generates two Prisma clients (postgres and sqlite, see ADR-0006), so there
+ * are two distinct `PrismaClientKnownRequestError` classes and neither one
+ * recognises the other's instances.
+ *
+ * @param err - The thrown value / 投げられた値
+ * @returns True when it is P2025 / P2025 のとき true
+ */
+function isRecordNotFound(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'code' in err && err.code === 'P2025';
+}
+
+/**
  * Delete one task, keeping a copy so it can be brought back.
  *
  * @param taskId - The task to delete / 削除するタスク
@@ -65,7 +80,19 @@ export async function deleteTaskWithTrash(
   // afterwards there is nothing left to copy.
   const trashId = await snapshotTaskForTrash(taskId, source);
 
-  await prisma.task.delete({ where: { id: taskId } });
+  try {
+    await prisma.task.delete({ where: { id: taskId } });
+  } catch (err) {
+    // The guard above and this delete are not one atomic step — clearing
+    // worktrees and copying 43 relations happen in between, which is long
+    // enough for something else to remove the row: a parent's cascade, the
+    // task list, a backlog job. The task is gone, which is what was wanted,
+    // so this is not a failure to report. Only P2025 is absorbed; a database
+    // that is down must not be read as "there was nothing with that id".
+    if (!isRecordNotFound(err)) throw err;
+    logger.info({ taskId, source, trashId }, 'task was already gone by the time we deleted it');
+    return { taskId, outcome: 'not_found' };
+  }
   logger.info({ taskId, source, trashId }, 'task deleted');
 
   return { taskId, outcome: 'deleted', ...(trashId !== null ? { trashId } : {}) };
