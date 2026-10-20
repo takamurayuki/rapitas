@@ -21,6 +21,7 @@ import {
   type RapiAvatarProps,
   type RapiAvatarState,
 } from './RapiAvatar';
+import { RAPI_AVATAR_Z } from '@/lib/pane-layering';
 import { BUBBLE_COLORS, SpeechBubble } from './SpeechBubble';
 
 /**
@@ -106,7 +107,7 @@ export function RapiAvatarDock({ message, onClick, ...avatar }: RapiAvatarDockPr
         position: 'fixed',
         right: 24,
         bottom: 20,
-        zIndex: 50,
+        zIndex: RAPI_AVATAR_Z,
         display: 'flex',
         alignItems: 'flex-end',
         gap: 4,

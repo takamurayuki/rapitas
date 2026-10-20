@@ -26,6 +26,7 @@ import {
   TaskIntake,
   TaskWatch,
 } from './intake';
+import { RAPI_BUBBLE_Z } from '@/lib/pane-layering';
 import { BUBBLE_COLORS, SpeechBubble } from './SpeechBubble';
 
 /**
@@ -138,11 +139,17 @@ export function RapiAvatarPanel({
       tailSide="bottom"
       tailOffsetPx={tailOffsetPx}
       {...BUBBLE_COLORS[dark ? 'dark' : 'light']}
-      style={{ position: 'fixed', right: 24, bottom: bottomPx, pointerEvents: 'auto' }}
+      style={{
+        position: 'fixed',
+        right: 24,
+        bottom: bottomPx,
+        zIndex: RAPI_BUBBLE_Z,
+        pointerEvents: 'auto',
+      }}
       // No radius or border class: the bubble owns both, and its radius is
       // asymmetric where the tail leaves. `shadow-lg` not `shadow-xl` —
       // overlays get one elevation level (docs/design/ui-design-language.md).
-      className={`z-[55] flex max-h-[70vh] flex-col shadow-lg ${wide ? 'w-[34rem]' : 'w-80'}`}
+      className={`flex max-h-[70vh] flex-col shadow-lg ${wide ? 'w-[34rem]' : 'w-80'}`}
     >
       <div className="flex shrink-0 items-center gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
         <h2 className="flex-1 text-xs font-semibold text-zinc-700 dark:text-zinc-200">{heading}</h2>
