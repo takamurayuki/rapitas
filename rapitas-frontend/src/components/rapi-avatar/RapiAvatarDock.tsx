@@ -21,6 +21,7 @@ import {
   type RapiAvatarProps,
   type RapiAvatarState,
 } from './RapiAvatar';
+import { BUBBLE_COLORS, SpeechBubble } from './SpeechBubble';
 
 /**
  * How big the avatar is drawn in the corner, overriding the drawing's own
@@ -32,6 +33,16 @@ import {
  * and badge still read at a glance (measured; below ~60 they stop).
  */
 const DOCK_AVATAR_SIZE = 68;
+
+/**
+ * How far up the bubble's right edge the tail sits.
+ *
+ * Measured at 1400x960: the tip lands 9px above her centre and 6px inside her
+ * left edge — so it touches her, in her upper third. That is deliberate.
+ * Aiming at the geometric centre of a 68px circle points the tail at her
+ * middle; speech comes from a face, and hers is up there.
+ */
+const BUBBLE_TAIL_OFFSET_PX = 18;
 
 const TAG_COLOR: Record<Exclude<RapiAvatarState, 'idle'>, string> = {
   thinking: '#6B7280',
@@ -65,6 +76,17 @@ export function RapiAvatarDock({ message, onClick, ...avatar }: RapiAvatarDockPr
     [],
   );
 
+  // Replays the bubble's entrance whenever what she says changes, so a new
+  // line arrives rather than the text changing in place. Keyed on the text
+  // itself: the state can stay the same while the sentence does not.
+  const [speakKey, setSpeakKey] = useState(0);
+  const lastSpoken = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (message === lastSpoken.current) return;
+    lastSpoken.current = message;
+    if (message) setSpeakKey((n) => n + 1);
+  }, [message]);
+
   const poke = useCallback(() => {
     if (settleTimer.current !== null) clearTimeout(settleTimer.current);
     setStartleKey((n) => n + 1);
@@ -93,13 +115,16 @@ export function RapiAvatarDock({ message, onClick, ...avatar }: RapiAvatarDockPr
     >
       <div aria-live="polite" style={{ marginBottom: 24 }}>
         {showBubble && (
-          <div
+          <SpeechBubble
+            tailSide="right"
+            tailOffsetPx={BUBBLE_TAIL_OFFSET_PX}
+            {...BUBBLE_COLORS[dark ? 'dark' : 'light']}
+            // A new thing to say should look like a new thing being said,
+            // not like the old text swapped out underneath.
+            speakKey={speakKey}
             style={{
               pointerEvents: 'auto',
               maxWidth: 280,
-              background: dark ? '#1F2937' : '#FFFFFF',
-              border: `1px solid ${dark ? '#374151' : '#E5E7EB'}`,
-              borderRadius: '12px 12px 4px 12px',
               padding: '12px 16px',
               boxShadow: '0 6px 20px rgba(17, 24, 39, 0.10)',
               display: 'flex',
@@ -120,12 +145,15 @@ export function RapiAvatarDock({ message, onClick, ...avatar }: RapiAvatarDockPr
             <span style={{ fontSize: 13, lineHeight: 1.6, color: dark ? '#F3F4F6' : '#1F2937' }}>
               {message}
             </span>
-          </div>
+          </SpeechBubble>
         )}
       </div>
       <button
         type="button"
         onClick={poke}
+        // Marked so the panel's close-on-outside-click can skip her: closing
+        // on pointerdown here would be undone by her own toggle on the click.
+        data-rapi-avatar="true"
         aria-label={`${name} ${label(avatar.state)}${message ? `: ${message}` : ''}`}
         style={{
           pointerEvents: 'auto',

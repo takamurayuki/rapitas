@@ -63,8 +63,15 @@ beforeEach(() => {
   executionState = { executions: [exec(1, 'running')], runningCount: 1, interruptedCount: 0 };
 });
 
-/** The avatar's own button, which opens the panel. */
-const avatarButton = () => screen.getAllByRole('button')[0];
+/**
+ * ラピ's own button, by her marker rather than by position.
+ *
+ * `getAllByRole('button')[0]` used to stand in for her, and once the panel is
+ * open that is the panel's close button — it sits earlier in the DOM. Tests
+ * that thought they were clicking her were clicking the X, which closes the
+ * panel too, so they passed while measuring the wrong thing.
+ */
+const avatarButton = () => document.querySelector('[data-rapi-avatar="true"]') as HTMLElement;
 
 describe('the corner', () => {
   // The whole point of the change: nothing is parked there any more.
@@ -97,6 +104,44 @@ describe('the corner', () => {
     expect(screen.getByRole('dialog')).toBeTruthy();
     expect(screen.getByText('rapiAvatar.intake.title')).toBeTruthy();
     expect(screen.queryByTestId('exec-1')).toBeNull();
+  });
+
+  // Dismissing something that reads as speech by hunting for its X is the
+  // wrong shape: you look away and it should stop. Escape already worked and
+  // is keyboard-only.
+  it('closes when something outside it is clicked', () => {
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('stays open while it is being used', () => {
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    fireEvent.pointerDown(screen.getByRole('dialog'));
+    expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+
+  // The avatar is excluded from the outside-click, or its own toggle would
+  // fight it: close on pointerdown, reopen on the click that follows.
+  it('still toggles shut from the avatar rather than reopening', () => {
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    fireEvent.pointerDown(avatarButton());
+    fireEvent.click(avatarButton());
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  // It is ラピ speaking, so it has a tail pointing at her — without one it is
+  // a panel that happens to be near her.
+  it('speaks in a bubble with a tail', () => {
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    const panel = screen.getByRole('dialog');
+    expect(panel.getAttribute('data-speech-bubble')).toBe('true');
+    expect(panel.querySelectorAll('[data-bubble-tail]')).toHaveLength(2);
   });
 
   // Two things talking at once in one corner is what this removed.

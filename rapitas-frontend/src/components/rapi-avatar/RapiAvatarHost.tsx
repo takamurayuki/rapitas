@@ -21,8 +21,22 @@ import { RapiAvatarDock } from './RapiAvatarDock';
 import { RapiAvatarPanel } from './RapiAvatarPanel';
 import { useRapiAvatarState } from './useRapiAvatarState';
 
-/** Where the panel sits: above the avatar, clear of it. */
-const PANEL_BOTTOM_PX = 124;
+/**
+ * Where the panel sits: just above ラピ's head.
+ *
+ * She occupies 20..88 from the bottom (`bottom: 20` plus the 68px drawing),
+ * so 100 leaves her 12px of clearance and the bubble's 11px tail reaches
+ * down to 89 — touching the top of her without covering her.
+ */
+const PANEL_BOTTOM_PX = 100;
+
+/**
+ * How far in from the panel's right edge ラピ's head is.
+ *
+ * Both sit at `right: 24`; the drawing is 68 wide, so her centre is 58 from
+ * the viewport edge and 34 in from the panel's. The tail is aimed there.
+ */
+const PANEL_TAIL_OFFSET_PX = 34;
 
 /** The resident avatar, bottom-right. */
 export default function RapiAvatarHost() {
@@ -65,6 +79,8 @@ export default function RapiAvatarHost() {
           formatTimeAgo={formatTimeAgo}
           onClose={close}
           bottomPx={PANEL_BOTTOM_PX}
+          tailOffsetPx={PANEL_TAIL_OFFSET_PX}
+          dark={isDarkMode}
         />
       )}
       <RapiAvatarDock
