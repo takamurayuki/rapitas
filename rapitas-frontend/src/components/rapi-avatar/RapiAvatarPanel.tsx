@@ -18,8 +18,17 @@ import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { ExecutionItem } from '../resumable-executions/ExecutionItem';
 import type { ResumableExecution } from '../resumable-executions/types';
-import { TaskAsk, TaskBulkCleanup, TaskCleanup, TaskIntake } from './intake';
+import { TaskAsk, TaskBulkCleanup, TaskCleanup, TaskConsult, TaskIntake } from './intake';
 import { BUBBLE_COLORS, SpeechBubble } from './SpeechBubble';
+
+/**
+ * What ラピ can be asked for, in the order the tabs show them.
+ *
+ * `consult` sits with `ask` rather than at the end: both are questions, and
+ * the two cleanup modes belong together after them.
+ */
+const PANEL_MODES = ['create', 'ask', 'consult', 'cleanup', 'bulk'] as const;
+type PanelMode = (typeof PANEL_MODES)[number];
 
 interface RapiAvatarPanelProps {
   executions: ResumableExecution[];
@@ -69,7 +78,12 @@ export function RapiAvatarPanel({
   // whether "重複しているタスク" means add one or delete several is a
   // classification that can be wrong, and being wrong about it deletes
   // things.
-  const [mode, setMode] = useState<'create' | 'ask' | 'cleanup' | 'bulk'>('create');
+  const [mode, setMode] = useState<PanelMode>('create');
+
+  // The consult mode hosts the task assistant that used to be a card on the
+  // task detail page. It needs room the other modes do not: a conversation
+  // with history in a 320px column is unreadable.
+  const wide = mode === 'consult';
 
   // With nothing running there is no list to head, so the panel is simply
   // ラピ. Repeating the intake's own heading here would say it twice.
@@ -118,7 +132,7 @@ export function RapiAvatarPanel({
       // No radius or border class: the bubble owns both, and its radius is
       // asymmetric where the tail leaves. `shadow-lg` not `shadow-xl` —
       // overlays get one elevation level (docs/design/ui-design-language.md).
-      className="z-[55] flex max-h-[60vh] w-80 flex-col shadow-lg"
+      className={`z-[55] flex max-h-[70vh] flex-col shadow-lg ${wide ? 'w-[34rem]' : 'w-80'}`}
     >
       <div className="flex shrink-0 items-center gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
         <h2 className="flex-1 text-xs font-semibold text-zinc-700 dark:text-zinc-200">{heading}</h2>
@@ -139,7 +153,7 @@ export function RapiAvatarPanel({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex gap-1 border-b border-zinc-200 px-2 pt-2 dark:border-zinc-700">
-          {(['create', 'ask', 'cleanup', 'bulk'] as const).map((value) => (
+          {PANEL_MODES.map((value) => (
             <button
               key={value}
               type="button"
@@ -158,6 +172,7 @@ export function RapiAvatarPanel({
 
         {mode === 'create' && <TaskIntake />}
         {mode === 'ask' && <TaskAsk />}
+        {mode === 'consult' && <TaskConsult />}
         {mode === 'cleanup' && <TaskCleanup />}
         {mode === 'bulk' && <TaskBulkCleanup />}
         <div className="space-y-2 p-2">
