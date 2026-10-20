@@ -18,7 +18,7 @@
  * Not responsible for the chat itself — see `components/copilot`.
  */
 import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { apiFetch } from '@/lib/api-client';
 import { createLogger } from '@/lib/logger';
@@ -34,18 +34,31 @@ const logger = createLogger('rapi-consult');
  * is what tells her which task is open. `TaskDetailClient` reads it the same
  * way for the same reason.
  *
+ * Two shapes, because a task is opened two ways: `/tasks/42` is the full
+ * page, and `/?panel=42` is the slide panel over the list, which
+ * `openTaskPanel` writes so a back-navigation can restore it. Reading only
+ * the path left her unable to name the task in the one mode the list uses
+ * most.
+ *
  * @param pathname - The current path / 現在のパス
- * @returns The task id, or null when this is not a task page / タスクID（タスク画面でなければ null）
+ * @param panelParam - The `panel` query parameter, if any / `panel` クエリ
+ * @returns The task id, or null when no task is open / タスクID（開いていなければ null）
  */
-export function taskIdFromPath(pathname: string | null): number | null {
-  const match = pathname?.match(/\/tasks\/(\d+)/);
-  return match ? Number(match[1]) : null;
+export function taskIdFromLocation(
+  pathname: string | null,
+  panelParam: string | null,
+): number | null {
+  const onPage = pathname?.match(/\/tasks\/(\d+)/);
+  if (onPage) return Number(onPage[1]);
+  if (panelParam && /^\d+$/.test(panelParam)) return Number(panelParam);
+  return null;
 }
 
 export function TaskConsult() {
   const t = useTranslations('rapiAvatar.consult');
   const pathname = usePathname();
-  const taskId = taskIdFromPath(pathname);
+  const searchParams = useSearchParams();
+  const taskId = taskIdFromLocation(pathname, searchParams?.get('panel') ?? null);
   const [task, setTask] = useState<Task | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -109,12 +122,13 @@ export function TaskConsult() {
   };
 
   return (
+    // No title line: the task is open on screen beside her, with its name in
+    // the page header and the panel header, and a third copy of it inside a
+    // 544px bubble spent a row saying what the user is already looking at.
     <section className="p-2">
-      <p className="mb-1.5 truncate text-[11px] text-zinc-500 dark:text-zinc-400">
-        {t('about', { title: task.title })}
-      </p>
       <CopilotChatPanel
         embedded
+        compact
         taskId={task.id}
         taskTitle={task.title}
         taskStatus={task.status}

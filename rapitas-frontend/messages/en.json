@@ -6066,7 +6066,7 @@
           "reason": "Close the task once implementation is finished"
         },
         "analyze": {
-          "label": "Analyze with AI",
+          "label": "Analyze this task",
           "reason": "Let AI suggest an approach and subtasks before you start"
         },
         "execute": {

@@ -11,7 +11,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 
-let pathname = '/tasks/42?showHeader=true';
+let pathname = '/tasks/42';
+let search = '';
 let fetched: string[] = [];
 let task: Record<string, unknown> | null = {
   id: 42,
@@ -29,7 +30,10 @@ vi.mock('next-intl', () => ({
   useTranslations: (ns: string) => (key: string, vals?: Record<string, unknown>) =>
     vals ? `${ns}.${key}:${Object.values(vals).join(',')}` : `${ns}.${key}`,
 }));
-vi.mock('next/navigation', () => ({ usePathname: () => pathname }));
+vi.mock('next/navigation', () => ({
+  usePathname: () => pathname,
+  useSearchParams: () => new URLSearchParams(search),
+}));
 vi.mock('@/lib/api-client', () => ({
   apiFetch: async (path: string) => {
     fetched.push(path);
@@ -45,15 +49,17 @@ vi.mock('@/components/copilot', () => ({
       data-testid="copilot"
       data-task-id={String(props.taskId)}
       data-embedded={String(props.embedded)}
+      data-compact={String(props.compact)}
       data-context={JSON.stringify(props.nextActionContext)}
     />
   ),
 }));
 
-import { TaskConsult, taskIdFromPath } from '../TaskConsult';
+import { TaskConsult, taskIdFromLocation } from '../TaskConsult';
 
 beforeEach(() => {
-  pathname = '/tasks/42?showHeader=true';
+  pathname = '/tasks/42';
+  search = '';
   fetched = [];
   shouldFail = false;
   task = {
@@ -70,15 +76,34 @@ beforeEach(() => {
 
 describe('finding the subject', () => {
   it.each([
-    ['/tasks/42', 42],
-    ['/tasks/7?showHeader=true', 7],
-    ['/tasks/1234/anything', 1234],
-    ['/', null],
-    ['/concerns', null],
-    ['/tasks', null],
-    [null, null],
-  ])('reads %s as %s', (path, expected) => {
-    expect(taskIdFromPath(path)).toBe(expected);
+    ['/tasks/42', null, 42],
+    ['/tasks/1234/anything', null, 1234],
+    ['/', null, null],
+    ['/concerns', null, null],
+    ['/tasks', null, null],
+    [null, null, null],
+    // The slide panel over the list, which is how the list opens a task.
+    // Reading only the path left her unable to name it in that mode.
+    ['/', '42', 42],
+    ['/', '7', 7],
+    // The path wins: it is the page you are actually on.
+    ['/tasks/9', '42', 9],
+    ['/', 'nonsense', null],
+    ['/', '', null],
+  ])('reads path %s + panel %s as %s', (path, panel, expected) => {
+    expect(taskIdFromLocation(path, panel)).toBe(expected);
+  });
+});
+
+describe('the slide panel over the list', () => {
+  it('talks about the task the panel is showing', async () => {
+    pathname = '/';
+    search = 'panel=77';
+    render(<TaskConsult />);
+    await screen.findByTestId('copilot');
+    // The id it asked for is the signal; the stub answers with a fixed task
+    // whatever it is asked, so the rendered id proves nothing here.
+    expect(fetched).toEqual(['/tasks/77']);
   });
 });
 
@@ -113,11 +138,20 @@ describe('talking about the open task', () => {
     });
   });
 
-  it('says which task it is talking about', async () => {
+  // The title line was removed: the task is open on screen beside her, with
+  // its name in the page header and the panel header already.
+  it('does not repeat the task title a third time', async () => {
     render(<TaskConsult />);
-    await waitFor(() =>
-      expect(screen.getByText('rapiAvatar.consult.about:影をもう少し離す')).toBeTruthy(),
-    );
+    await screen.findByTestId('copilot');
+    expect(screen.queryByText(/rapiAvatar\.consult\.about/)).toBeNull();
+  });
+
+  // The host is a 544px bubble, so the chat drops its title, its glyph and
+  // the per-action reasons.
+  it('asks the chat for its compact chrome', async () => {
+    render(<TaskConsult />);
+    const chat = await screen.findByTestId('copilot');
+    expect(chat.getAttribute('data-compact')).toBe('true');
   });
 
   // She is on every page, and most of them are not a task.

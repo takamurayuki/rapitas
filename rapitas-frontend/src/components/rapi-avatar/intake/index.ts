@@ -7,7 +7,7 @@ export { TaskIntake } from './TaskIntake';
 export { TaskAsk } from './TaskAsk';
 export { TaskCleanup } from './TaskCleanup';
 export { TaskBulkCleanup } from './TaskBulkCleanup';
-export { TaskConsult, taskIdFromPath } from './TaskConsult';
+export { TaskConsult, taskIdFromLocation } from './TaskConsult';
 export { TaskWatch } from './TaskWatch';
 export { useDeleteFilter, type UseDeleteFilter } from './use-delete-filter';
 export { useDeleteProposal, type UseDeleteProposal } from './use-delete-proposal';

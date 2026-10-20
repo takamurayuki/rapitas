@@ -46,3 +46,23 @@ export const LINK_PANE_Z = 66;
  * stay reachable.
  */
 export const TASK_DETAIL_PANEL_Z = 70;
+
+/**
+ * ラピ, the resident avatar in the bottom-right corner.
+ *
+ * Above the task detail panel, which is the one exception to that panel being
+ * highest. She is reachable from every screen by design, and the task panel
+ * docks to the corner she lives in: underneath it she was simply gone
+ * whenever a task was open as a side panel, which is most of the time. Being
+ * covered by the overlay was worse still — she was visible, dimmed, and
+ * clicking her closed the task instead.
+ */
+export const RAPI_AVATAR_Z = 71;
+
+/**
+ * What ラピ opens: her speech bubble.
+ *
+ * One above her, so the bubble is never drawn behind the character it comes
+ * out of.
+ */
+export const RAPI_BUBBLE_Z = 72;
