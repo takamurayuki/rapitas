@@ -18,6 +18,8 @@ import { decideAutoRestart } from './decision';
 import {
   classifyMergeUrgency,
   decideBoundaryRestart,
+  resolveIdleBoundaryPolls,
+  resolveIntervalMs,
   resolveRestartMinIntervalMs,
   resolveRestartUiQuietMs,
   resolveRestartMaxDeferrals,
@@ -40,36 +42,8 @@ import { getLastUiRequestAt } from './ui-activity-tracker';
 
 const logger = createLogger('auto-restart-merged-code-scheduler');
 
-// 15 min — a modest fetch cadence; the fetch is a small network call but this
-// still runs forever, so keep it slower than the 5s-class pollers.
-const DEFAULT_INTERVAL_MS = 15 * 60 * 1000;
 // 30 min — flapping guard between two auto-restarts (acceptance criterion 2c).
 const DEFAULT_MIN_RESTART_INTERVAL_MS = 30 * 60 * 1000;
-// 2 polls — roughly half an hour at the default cadence. See
-// `considerIdleBoundary` for why an idle system needs a boundary at all.
-const DEFAULT_IDLE_BOUNDARY_POLLS = 2;
-
-/**
- * How many consecutive idle polls make a batched merge activate anyway.
- *
- * @returns Poll count (RAPITAS_RESTART_IDLE_BOUNDARY_POLLS, default 2) / 必要な連続アイドル回数
- */
-function resolveIdleBoundaryPolls(): number {
-  const raw = process.env.RAPITAS_RESTART_IDLE_BOUNDARY_POLLS;
-  const parsed = raw ? parseInt(raw, 10) : NaN;
-  return Number.isFinite(parsed) && parsed >= 1 ? parsed : DEFAULT_IDLE_BOUNDARY_POLLS;
-}
-
-/**
- * Resolves the fetch/check interval from the environment.
- *
- * @returns Interval in milliseconds / チェック間隔（ミリ秒）
- */
-function resolveIntervalMs(): number {
-  const raw = process.env.RAPITAS_AUTO_RESTART_MERGED_CODE_INTERVAL_MS;
-  const parsed = raw ? parseInt(raw, 10) : NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_INTERVAL_MS;
-}
 
 /**
  * Resolves the minimum interval between auto-restarts from the environment.

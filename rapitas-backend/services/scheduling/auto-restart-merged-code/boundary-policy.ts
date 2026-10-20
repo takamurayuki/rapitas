@@ -167,6 +167,32 @@ const DEFAULT_MIN_RESTART_INTERVAL_MS = 10 * 60 * 1000;
 const DEFAULT_UI_QUIET_MS = 3 * 60 * 1000;
 // 5 — deferral ceiling before the restart fires despite UI activity.
 const DEFAULT_MAX_DEFERRALS = 5;
+// 15 min — a modest fetch cadence; the fetch is a small network call but the
+// poller runs forever, so keep it slower than the 5s-class pollers.
+const DEFAULT_INTERVAL_MS = 15 * 60 * 1000;
+// 2 polls — roughly half an hour at the default cadence.
+const DEFAULT_IDLE_BOUNDARY_POLLS = 2;
+
+/**
+ * How often the poller looks for merged code.
+ *
+ * @returns Interval in ms (RAPITAS_AUTO_RESTART_MERGED_CODE_INTERVAL_MS, default 15 min) / チェック間隔
+ */
+export function resolveIntervalMs(): number {
+  return resolvePositiveIntEnv('RAPITAS_AUTO_RESTART_MERGED_CODE_INTERVAL_MS', DEFAULT_INTERVAL_MS);
+}
+
+/**
+ * How many consecutive idle polls make a batched merge activate anyway.
+ *
+ * Lives here with the other restart-timing knobs rather than in the scheduler:
+ * it is a policy number, and that file is at the per-file size limit.
+ *
+ * @returns Poll count (RAPITAS_RESTART_IDLE_BOUNDARY_POLLS, default 2) / 必要な連続アイドル回数
+ */
+export function resolveIdleBoundaryPolls(): number {
+  return resolvePositiveIntEnv('RAPITAS_RESTART_IDLE_BOUNDARY_POLLS', DEFAULT_IDLE_BOUNDARY_POLLS);
+}
 
 /**
  * Resolve the minimum interval between boundary restarts.
