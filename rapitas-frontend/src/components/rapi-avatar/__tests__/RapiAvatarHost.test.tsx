@@ -95,15 +95,23 @@ describe('the corner', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  // It used to stay shut with nothing running. The panel now carries ラピ's
-  // intake as well as the executions, so there is always something to open.
-  it('opens with nothing running, holding the intake alone', () => {
+  // It used to stay shut with nothing running. The panel carries her own
+  // modes as well as the executions, so there is always something to open.
+  //
+  // It opened on the intake until the survey became the default: the first
+  // question when you reach for her is "what needs me", and filing a task is
+  // the second thing. The intake has to stay one tab away, which is the part
+  // this still holds.
+  it('opens with nothing running, on the survey, with the intake one tab away', () => {
     executionState = { executions: [], runningCount: 0, interruptedCount: 0 };
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
     expect(screen.getByRole('dialog')).toBeTruthy();
-    expect(screen.getByText('rapiAvatar.intake.title')).toBeTruthy();
+    expect(screen.getByText('rapiAvatar.watch.title')).toBeTruthy();
     expect(screen.queryByTestId('exec-1')).toBeNull();
+
+    fireEvent.click(screen.getByText('rapiAvatar.mode.create'));
+    expect(screen.getByText('rapiAvatar.intake.title')).toBeTruthy();
   });
 
   // Dismissing something that reads as speech by hunting for its X is the

@@ -18,7 +18,14 @@ import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { ExecutionItem } from '../resumable-executions/ExecutionItem';
 import type { ResumableExecution } from '../resumable-executions/types';
-import { TaskAsk, TaskBulkCleanup, TaskCleanup, TaskConsult, TaskIntake } from './intake';
+import {
+  TaskAsk,
+  TaskBulkCleanup,
+  TaskCleanup,
+  TaskConsult,
+  TaskIntake,
+  TaskWatch,
+} from './intake';
 import { BUBBLE_COLORS, SpeechBubble } from './SpeechBubble';
 
 /**
@@ -27,7 +34,7 @@ import { BUBBLE_COLORS, SpeechBubble } from './SpeechBubble';
  * `consult` sits with `ask` rather than at the end: both are questions, and
  * the two cleanup modes belong together after them.
  */
-const PANEL_MODES = ['create', 'ask', 'consult', 'cleanup', 'bulk'] as const;
+const PANEL_MODES = ['watch', 'create', 'ask', 'consult', 'cleanup', 'bulk'] as const;
 type PanelMode = (typeof PANEL_MODES)[number];
 
 interface RapiAvatarPanelProps {
@@ -78,7 +85,10 @@ export function RapiAvatarPanel({
   // whether "重複しているタスク" means add one or delete several is a
   // classification that can be wrong, and being wrong about it deletes
   // things.
-  const [mode, setMode] = useState<PanelMode>('create');
+  // Opens on the survey rather than on the task form: the first question
+  // when you reach for her is "what needs me", and answering it costs one
+  // read. Filing a task is the second thing, one tab away.
+  const [mode, setMode] = useState<PanelMode>('watch');
 
   // The consult mode hosts the task assistant that used to be a card on the
   // task detail page. It needs room the other modes do not: a conversation
@@ -170,6 +180,7 @@ export function RapiAvatarPanel({
           ))}
         </div>
 
+        {mode === 'watch' && <TaskWatch />}
         {mode === 'create' && <TaskIntake />}
         {mode === 'ask' && <TaskAsk />}
         {mode === 'consult' && <TaskConsult />}

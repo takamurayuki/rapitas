@@ -471,11 +471,36 @@
       "error": "うまくいきませんでした。もう一度試してください。"
     },
     "mode": {
+      "watch": "見る",
       "create": "作る",
       "ask": "聞く",
       "consult": "相談",
       "cleanup": "AIで選ぶ",
       "bulk": "条件で選ぶ"
+    },
+    "watch": {
+      "title": "手当てが要るもの",
+      "looking": "見ています…",
+      "again": "もう一度見る",
+      "failed": "見に行けませんでした。",
+      "allClear": "いま手当てが要るものはありません。",
+      "needHand": "{count}件が手当てを待っています",
+      "waitingDays": "{days}日",
+      "showing": "うち{shown}件を表示",
+      "category": {
+        "held": "自動実行の対象外",
+        "noTheme": "テーマ未設定",
+        "blocked": "ブロック中",
+        "stalled": "進行中のまま停滞",
+        "overdue": "期限切れ"
+      },
+      "why": {
+        "held": "選定されないので、解除するまで動きません",
+        "noTheme": "自動実行から見えないため、永久に選ばれません",
+        "blocked": "設計上ブラインド再試行されず、手動の再試行が脱出口です",
+        "stalled": "進行中ですが、しばらく何も動いていません",
+        "overdue": "期限を過ぎていて、まだ終わっていません"
+      }
     },
     "consult": {
       "about": "「{title}」について",
