@@ -18,6 +18,8 @@ import { decideAutoRestart } from './decision';
 import {
   classifyMergeUrgency,
   decideBoundaryRestart,
+  resolveIdleBoundaryPolls,
+  resolveIntervalMs,
   resolveRestartMinIntervalMs,
   resolveRestartUiQuietMs,
   resolveRestartMaxDeferrals,
@@ -40,36 +42,8 @@ import { getLastUiRequestAt } from './ui-activity-tracker';
 
 const logger = createLogger('auto-restart-merged-code-scheduler');
 
-// 15 min — a modest fetch cadence; the fetch is a small network call but this
-// still runs forever, so keep it slower than the 5s-class pollers.
-const DEFAULT_INTERVAL_MS = 15 * 60 * 1000;
 // 30 min — flapping guard between two auto-restarts (acceptance criterion 2c).
 const DEFAULT_MIN_RESTART_INTERVAL_MS = 30 * 60 * 1000;
-// 2 polls — roughly half an hour at the default cadence. See
-// `considerIdleBoundary` for why an idle system needs a boundary at all.
-const DEFAULT_IDLE_BOUNDARY_POLLS = 2;
-
-/**
- * How many consecutive idle polls make a batched merge activate anyway.
- *
- * @returns Poll count (RAPITAS_RESTART_IDLE_BOUNDARY_POLLS, default 2) / 必要な連続アイドル回数
- */
-function resolveIdleBoundaryPolls(): number {
-  const raw = process.env.RAPITAS_RESTART_IDLE_BOUNDARY_POLLS;
-  const parsed = raw ? parseInt(raw, 10) : NaN;
-  return Number.isFinite(parsed) && parsed >= 1 ? parsed : DEFAULT_IDLE_BOUNDARY_POLLS;
-}
-
-/**
- * Resolves the fetch/check interval from the environment.
- *
- * @returns Interval in milliseconds / チェック間隔（ミリ秒）
- */
-function resolveIntervalMs(): number {
-  const raw = process.env.RAPITAS_AUTO_RESTART_MERGED_CODE_INTERVAL_MS;
-  const parsed = raw ? parseInt(raw, 10) : NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_INTERVAL_MS;
-}
 
 /**
  * Resolves the minimum interval between auto-restarts from the environment.
@@ -151,6 +125,15 @@ export class AutoRestartMergedCodeScheduler {
    *
    * @returns True if running / 実行中の場合true
    */
+  /**
+   * The last reason a boundary restart was declined.
+   *
+   * Kept so the warning is written once per reason rather than once per
+   * poll: the point is that a stuck self-deploy is visible, not that the log
+   * fills up with the same line every fifteen minutes.
+   */
+  private lastBoundaryWaitReason: string | null = null;
+
   /**
    * Consecutive polls that found a batched merge waiting on an idle system.
    *
@@ -375,10 +358,30 @@ export class AutoRestartMergedCodeScheduler {
       });
 
       if (decision.action === 'wait') {
-        logger.debug(
-          { reason: decision.reason, aheadCount },
-          '[AutoRestartMergedCode] Boundary restart gated — retrying at a later boundary',
-        );
+        // Warn, not debug. Measured 2026-10-20: the idle escalation fired
+        // four times, pulled, and then declined here every single time while
+        // the log said nothing — the gate that was holding it could only be
+        // guessed at from the outside. A system-busy wait does not raise the
+        // deferral count either, so this can go on indefinitely; if it does,
+        // the reason has to be readable.
+        if (this.lastBoundaryWaitReason !== decision.reason) {
+          this.lastBoundaryWaitReason = decision.reason;
+          logger.warn(
+            {
+              reason: decision.reason,
+              aheadCount,
+              auxChildren: countLiveTrackedProcesses('cli-agent'),
+              deferCount,
+              msSinceLastUiActivity: lastUiAt === 0 ? null : now - lastUiAt,
+            },
+            '[AutoRestartMergedCode] merged code is pulled but not activated — a gate is holding the restart',
+          );
+        } else {
+          logger.debug(
+            { reason: decision.reason, aheadCount },
+            '[AutoRestartMergedCode] Boundary restart gated — retrying at a later boundary',
+          );
+        }
         return false;
       }
       if (decision.action === 'defer') {
