@@ -22,6 +22,8 @@ import { deleteTaskWithTrash } from '../../services/task/task-deletion';
 import {
   buildTaskDraft,
   readTaskIntent,
+  proposeDeletions,
+  CANDIDATE_WINDOW,
   assertCapabilityAllowed,
   recordAction,
   listRecentActions,
@@ -151,6 +153,45 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
           estimatedHours: t.Optional(t.Number()),
           acceptanceCriteria: t.Optional(t.Array(t.String({ maxLength: 500 }), { maxItems: 10 })),
         }),
+      }),
+    },
+  )
+
+  .post(
+    '/delete-draft',
+    async ({ body }) => {
+      // A bounded, recently-touched window. There are over a thousand tasks;
+      // a prompt that cannot hold them is a prompt that silently drops some,
+      // and the count goes back to the caller so the UI can say what was
+      // actually weighed rather than implying it covered everything.
+      const tasks = await prisma.task.findMany({
+        orderBy: { updatedAt: 'desc' },
+        take: CANDIDATE_WINDOW,
+        select: { id: true, title: true, status: true, themeId: true, updatedAt: true },
+      });
+
+      const proposal = await proposeDeletions(body.text, tasks);
+
+      await recordAction({
+        capabilityId: 'task.delete-draft',
+        status: 'proposed',
+        args: { text: body.text },
+        result: {
+          considered: proposal?.considered ?? tasks.length,
+          proposed: proposal?.candidates.map((c) => c.id) ?? [],
+        },
+      });
+
+      if (!proposal) {
+        // No model, or nothing usable from it. Saying so beats a confident
+        // empty list, which reads as "there is nothing to clean up".
+        return { success: true, available: false, candidates: [], considered: tasks.length };
+      }
+      return { success: true, available: true, ...proposal };
+    },
+    {
+      body: t.Object({
+        text: t.String({ minLength: 1, maxLength: MAX_TEXT_LENGTH }),
       }),
     },
   )

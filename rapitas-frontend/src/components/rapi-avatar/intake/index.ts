@@ -4,6 +4,8 @@
  * ラピ taking input: a proposed task, and the confirmation that files it.
  */
 export { TaskIntake } from './TaskIntake';
+export { TaskCleanup } from './TaskCleanup';
+export { useDeleteProposal, type UseDeleteProposal } from './use-delete-proposal';
 export { TaskDraftCard } from './TaskDraftCard';
 export { useTaskDraft, type UseTaskDraft } from './use-task-draft';
 export {

@@ -1583,6 +1583,25 @@
       },
       "unclear": "ラピが判断できなかったこと",
       "fellBackToPatterns": "AIが使えなかったため、文章のパターンから推定しました。内容をよく確認してください。"
+    },
+    "cleanup": {
+      "title": "不要なタスクを片付ける",
+      "placeholder": "消したいものを書いてください（例: 重複しているタスク、終わった調査タスク）",
+      "propose": "候補を探す",
+      "looking": "探しています…",
+      "weighed": "直近 {considered} 件から選びました",
+      "remove": "{count}件を削除",
+      "removing": "削除しています…",
+      "cancel": "やめる",
+      "removed": "{count}件を削除しました",
+      "keptBack": "{count}件は削除できませんでした（保護されたタスクなど）",
+      "undo": "元に戻す",
+      "unavailable": "AIが使えないため候補を出せませんでした。",
+      "error": "うまくいきませんでした。もう一度試してください。"
+    },
+    "mode": {
+      "create": "作る",
+      "cleanup": "片付ける"
     }
   },
   "shortcuts": {

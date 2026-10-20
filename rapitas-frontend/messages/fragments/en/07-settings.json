@@ -454,6 +454,25 @@
       },
       "unclear": "Rapi could not work these out",
       "fellBackToPatterns": "The AI was unavailable, so these fields were pattern-matched. Check them carefully."
+    },
+    "cleanup": {
+      "title": "Clear tasks away",
+      "placeholder": "Say what to remove (e.g. duplicates, finished investigations)",
+      "propose": "Find candidates",
+      "looking": "Looking…",
+      "weighed": "Chosen from the {considered} most recent",
+      "remove": "Delete {count}",
+      "removing": "Deleting…",
+      "cancel": "Cancel",
+      "removed": "Deleted {count}",
+      "keptBack": "{count} could not be deleted (protected, or already gone)",
+      "undo": "Undo",
+      "unavailable": "The AI was unavailable, so no candidates could be suggested.",
+      "error": "That did not work. Try again."
+    },
+    "mode": {
+      "create": "Add",
+      "cleanup": "Clear"
     }
   }
 }
