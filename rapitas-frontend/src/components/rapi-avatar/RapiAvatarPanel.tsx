@@ -13,12 +13,13 @@
  * Draws only. The data and the actions come from `useResumableExecutions`,
  * which the host owns so it runs once.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { ExecutionItem } from '../resumable-executions/ExecutionItem';
 import type { ResumableExecution } from '../resumable-executions/types';
 import { TaskAsk, TaskBulkCleanup, TaskCleanup, TaskIntake } from './intake';
+import { BUBBLE_COLORS, SpeechBubble } from './SpeechBubble';
 
 interface RapiAvatarPanelProps {
   executions: ResumableExecution[];
@@ -33,6 +34,13 @@ interface RapiAvatarPanelProps {
   onClose: () => void;
   /** Lifted clear of the avatar below it. / アバターの上に出す余白 */
   bottomPx: number;
+  /**
+   * How far in from the panel's right edge ラピ's head is, so the tail can
+   * point at it. / 尻尾をラピに向けるための右端からの距離
+   */
+  tailOffsetPx: number;
+  /** Which surface the bubble is drawn on. / 吹き出しの配色 */
+  dark: boolean;
 }
 
 /**
@@ -50,6 +58,8 @@ export function RapiAvatarPanel({
   formatTimeAgo,
   onClose,
   bottomPx,
+  tailOffsetPx,
+  dark,
 }: RapiAvatarPanelProps) {
   const t = useTranslations('banner');
   const ta = useTranslations('rapiAvatar');
@@ -70,20 +80,45 @@ export function RapiAvatarPanel({
         ? t('interruptedWork')
         : ta('name');
 
+  const bubble = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
+
+    // Looking away should end it. Hunting for an X is the wrong shape for
+    // something that reads as speech, and Escape is keyboard-only.
+    const onOutside = (e: PointerEvent) => {
+      const target = e.target as Node | null;
+      if (!target || bubble.current?.contains(target)) return;
+      // ラピ herself is excluded, or her own toggle would fight this: closed
+      // here on pointerdown, reopened by the click that follows.
+      if (target instanceof Element && target.closest('[data-rapi-avatar="true"]')) return;
+      onClose();
+    };
+
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onOutside);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onOutside);
+    };
   }, [onClose]);
 
   return (
-    <div
+    <SpeechBubble
+      innerRef={bubble}
       role="dialog"
       aria-label={heading}
-      style={{ right: 24, bottom: bottomPx, pointerEvents: 'auto' }}
-      className="fixed z-[55] flex max-h-[60vh] w-80 flex-col rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+      tailSide="bottom"
+      tailOffsetPx={tailOffsetPx}
+      {...BUBBLE_COLORS[dark ? 'dark' : 'light']}
+      style={{ position: 'fixed', right: 24, bottom: bottomPx, pointerEvents: 'auto' }}
+      // No radius or border class: the bubble owns both, and its radius is
+      // asymmetric where the tail leaves. `shadow-lg` not `shadow-xl` —
+      // overlays get one elevation level (docs/design/ui-design-language.md).
+      className="z-[55] flex max-h-[60vh] w-80 flex-col shadow-lg"
     >
       <div className="flex shrink-0 items-center gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
         <h2 className="flex-1 text-xs font-semibold text-zinc-700 dark:text-zinc-200">{heading}</h2>
@@ -153,6 +188,6 @@ export function RapiAvatarPanel({
           </button>
         </div>
       )}
-    </div>
+    </SpeechBubble>
   );
 }
