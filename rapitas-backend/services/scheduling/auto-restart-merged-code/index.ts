@@ -152,6 +152,15 @@ export class AutoRestartMergedCodeScheduler {
    * @returns True if running / 実行中の場合true
    */
   /**
+   * The last reason a boundary restart was declined.
+   *
+   * Kept so the warning is written once per reason rather than once per
+   * poll: the point is that a stuck self-deploy is visible, not that the log
+   * fills up with the same line every fifteen minutes.
+   */
+  private lastBoundaryWaitReason: string | null = null;
+
+  /**
    * Consecutive polls that found a batched merge waiting on an idle system.
    *
    * Reset the moment anything is running, so it only ever counts genuine
@@ -375,10 +384,30 @@ export class AutoRestartMergedCodeScheduler {
       });
 
       if (decision.action === 'wait') {
-        logger.debug(
-          { reason: decision.reason, aheadCount },
-          '[AutoRestartMergedCode] Boundary restart gated — retrying at a later boundary',
-        );
+        // Warn, not debug. Measured 2026-10-20: the idle escalation fired
+        // four times, pulled, and then declined here every single time while
+        // the log said nothing — the gate that was holding it could only be
+        // guessed at from the outside. A system-busy wait does not raise the
+        // deferral count either, so this can go on indefinitely; if it does,
+        // the reason has to be readable.
+        if (this.lastBoundaryWaitReason !== decision.reason) {
+          this.lastBoundaryWaitReason = decision.reason;
+          logger.warn(
+            {
+              reason: decision.reason,
+              aheadCount,
+              auxChildren: countLiveTrackedProcesses('cli-agent'),
+              deferCount,
+              msSinceLastUiActivity: lastUiAt === 0 ? null : now - lastUiAt,
+            },
+            '[AutoRestartMergedCode] merged code is pulled but not activated — a gate is holding the restart',
+          );
+        } else {
+          logger.debug(
+            { reason: decision.reason, aheadCount },
+            '[AutoRestartMergedCode] Boundary restart gated — retrying at a later boundary',
+          );
+        }
         return false;
       }
       if (decision.action === 'defer') {

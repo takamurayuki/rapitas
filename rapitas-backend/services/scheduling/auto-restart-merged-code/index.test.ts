@@ -120,8 +120,19 @@ mock.module('../../../routes/agents/system/agent-system-router', () => ({
   },
 }));
 
+/** Warnings the scheduler wrote, so the visible-decline behaviour is testable. */
+const warnings: { reason?: string; msg: string }[] = [];
+
 mock.module('../../../config/logger', () => ({
-  createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
+  createLogger: () => ({
+    info: () => {},
+    warn: (fields: { reason?: string } | string, msg?: string) =>
+      warnings.push(
+        typeof fields === 'string' ? { msg: fields } : { reason: fields?.reason, msg: msg ?? '' },
+      ),
+    error: () => {},
+    debug: () => {},
+  }),
 }));
 
 const { AutoRestartMergedCodeScheduler } = await import('./index');
@@ -139,6 +150,7 @@ function makeScheduler(startupCommit: string | null = 'startup123'): {
 
 beforeEach(() => {
   callOrder.length = 0;
+  warnings.length = 0;
   enabled = true;
   aheadCount = 3;
   changedPaths = ['rapitas-backend/services/workflow/workflow-runner.ts'];
@@ -230,6 +242,54 @@ describe('runOnce — early-exit gates', () => {
    * day while the poller declined silently every tick. Sustained idle is a
    * boundary too — and the quieter the system, the safer a restart is.
    */
+  /**
+   * Measured 2026-10-20: the idle escalation fired four times, pulled, then
+   * declined here every time while the log said nothing. A system-busy wait
+   * does not raise the deferral count either, so it can go on indefinitely —
+   * if it does, the reason has to be readable.
+   */
+  describe('a held restart says so', () => {
+    const uiOnly = ['rapitas-frontend/src/app/page.tsx'];
+
+    test('warns which gate is holding it', async () => {
+      changedPaths = uiOnly;
+      auxChildren = 1; // a live aux CLI child: a system-busy wait
+      snapshots = [idleSnapshot, idleSnapshot];
+      await makeScheduler().evaluateBoundaryRestart();
+      const held = warnings.filter((w) => w.msg.includes('pulled but not activated'));
+      expect(held).toHaveLength(1);
+      expect(held[0].reason).toBeTruthy();
+    });
+
+    // Once per reason, not once per poll: a stuck deploy should be visible,
+    // not drown the log every fifteen minutes.
+    test('says it once, not on every poll', async () => {
+      changedPaths = uiOnly;
+      auxChildren = 1;
+      snapshots = [idleSnapshot, idleSnapshot, idleSnapshot, idleSnapshot];
+      const scheduler = makeScheduler();
+      await scheduler.evaluateBoundaryRestart();
+      await scheduler.evaluateBoundaryRestart();
+      expect(warnings.filter((w) => w.msg.includes('pulled but not activated'))).toHaveLength(1);
+    });
+
+    test('says it again when a different gate takes over', async () => {
+      changedPaths = uiOnly;
+      snapshots = [idleSnapshot, idleSnapshot, idleSnapshot, idleSnapshot];
+      const scheduler = makeScheduler();
+
+      auxChildren = 1;
+      await scheduler.evaluateBoundaryRestart();
+      auxChildren = 0;
+      isMergingFlag = true;
+      await scheduler.evaluateBoundaryRestart();
+
+      const held = warnings.filter((w) => w.msg.includes('pulled but not activated'));
+      expect(held).toHaveLength(2);
+      expect(held[0].reason).not.toBe(held[1].reason);
+    });
+  });
+
   describe('runOnce — idle counts as a boundary', () => {
     const uiOnly = ['rapitas-frontend/src/app/page.tsx'];
 
