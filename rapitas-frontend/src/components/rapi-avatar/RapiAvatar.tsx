@@ -124,13 +124,27 @@ const EYES = { left: 48, right: 72, y: 72 } as const;
 export const STARTLE_DURATION_MS = 420;
 
 /**
- * The y the stretch is anchored to: the bottom of the body.
+ * The stretch itself.
  *
- * Scaling about the centre would grow ラピ downwards as well, through the
- * front of her own orbit. Anchored at her base she rises out of it, which is
- * what a startle looks like.
+ * Anchored at the bottom (`transform-origin: bottom`) rather than the centre:
+ * scaling about the centre grows ラピ downwards too, through the front of her
+ * own orbit, while from her base she rises out of it.
+ *
+ * Only the y axis moves, so this is a stretch and not a resize. Inline in the
+ * SVG because the whole drawing is self-contained — there is no stylesheet
+ * for this component to live in.
  */
-const STRETCH_ANCHOR_Y = BODY.cy + BODY.r;
+const STARTLE_KEYFRAMES = `
+@keyframes rapi-startle {
+  0%   { transform: scaleY(1); }
+  32%  { transform: scaleY(1.14); }
+  68%  { transform: scaleY(0.97); }
+  100% { transform: scaleY(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes rapi-startle { from, to { transform: none; } }
+}
+`;
 const PLUS = { x: 84, y: 22, rotate: 15, rotateError: 60, scale: 0.9 } as const;
 
 /* ───────── prefers-reduced-motion ───────── */
@@ -263,6 +277,8 @@ export function RapiAvatar({
       className={className}
       style={{ display: 'block', overflow: 'visible', ...style }}
     >
+      <style>{STARTLE_KEYFRAMES}</style>
+
       <defs>
         {/* 回転後の座標系で y>=70 が「環の手前側」 */}
         <clipPath id={clipId} clipPathUnits="userSpaceOnUse">
@@ -275,29 +291,32 @@ export function RapiAvatar({
 
       {/*
         2-3. 本体と目。
-        The startle wraps these two and not the ring: the orbit carries the
-        comets, which are reporting on real work and should not jump because
-        someone clicked. The character jolts inside its own orbit.
-        Keyed so a second poke replaces the element — SMIL will not replay an
-        animation that is already on the page.
+        The stretch wraps these two and not the ring: the orbit carries the
+        comets, which report on real work and should not move because someone
+        clicked. ラピ stretches inside her own orbit.
+
+        CSS, not SMIL. A `<animateTransform>` with no `begin` starts at
+        document time zero, so one inserted into a page that has been open for
+        a few minutes is already over before it exists — it freezes at its end
+        value and nothing happens. That is what shipped, and it never ran once.
+        A CSS animation starts when the element does, and the key below means
+        every poke inserts a new element.
       */}
-      <g key={`startle-${startleKey}`} transform={`translate(${BODY.cx} ${STRETCH_ANCHOR_Y})`}>
+      <g
+        key={`startle-${startleKey}`}
+        data-startle={startle ? 'true' : undefined}
+        style={
+          startle
+            ? {
+                transformBox: 'fill-box',
+                transformOrigin: 'bottom center',
+                animation: `rapi-startle ${STARTLE_DURATION_MS}ms cubic-bezier(0.33, 1, 0.68, 1) 1`,
+              }
+            : undefined
+        }
+      >
         <g>
-          {startle && (
-            <animateTransform
-              data-startle="true"
-              attributeName="transform"
-              type="scale"
-              // Tall fast, a slight squat coming back, then settle. Only the
-              // y axis moves: a stretch, not a resize.
-              values="1 1;1 1.14;1 0.97;1 1"
-              keyTimes="0;0.32;0.68;1"
-              dur={STARTLE_DURATION_MS / 1000 + 's'}
-              repeatCount="1"
-              fill="freeze"
-            />
-          )}
-          <g transform={`translate(${-BODY.cx} ${-STRETCH_ANCHOR_Y})`}>
+          <g>
             <circle cx={BODY.cx} cy={BODY.cy} r={BODY.r} fill={body} />
 
             <g>
