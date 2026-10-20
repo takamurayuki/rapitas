@@ -46,6 +46,15 @@ export interface UseDeleteFilter {
   /** Protected tasks the conditions hit, which will not be removed. */
   excludedProtected: number;
   previewing: boolean;
+  /**
+   * True once a preview has come back, however many it found.
+   *
+   * Needed because "nothing matched" and "nothing has been asked yet" look
+   * identical in the other fields — both are an empty `matches` and a zero
+   * `total`. Without this the zero case changed nothing on screen at all,
+   * which read as a dead button.
+   */
+  previewed: boolean;
   removing: boolean;
   /** How far through the batches, for a clear-out of hundreds. */
   progress: { done: number; of: number } | null;
@@ -71,6 +80,7 @@ export function useDeleteFilter(): UseDeleteFilter {
   const [truncated, setTruncated] = useState(false);
   const [excludedProtected, setExcludedProtected] = useState(0);
   const [previewing, setPreviewing] = useState(false);
+  const [previewed, setPreviewed] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [progress, setProgress] = useState<{ done: number; of: number } | null>(null);
   const [error, setError] = useState(false);
@@ -79,6 +89,7 @@ export function useDeleteFilter(): UseDeleteFilter {
 
   const reset = useCallback(() => {
     setMatches([]);
+    setPreviewed(false);
     setChosen(new Set());
     setTotal(0);
     setTruncated(false);
@@ -91,6 +102,7 @@ export function useDeleteFilter(): UseDeleteFilter {
 
   const preview = useCallback(async (criteria: DeleteFilterCriteria) => {
     setPreviewing(true);
+    setPreviewed(false);
     setError(false);
     setResults(null);
     setUndoable([]);
@@ -113,6 +125,7 @@ export function useDeleteFilter(): UseDeleteFilter {
       setTotal(data.total ?? list.length);
       setTruncated(data.truncated ?? false);
       setExcludedProtected(data.excludedProtected ?? 0);
+      setPreviewed(true);
     } catch (err) {
       logger.warn({ err }, 'delete filter preview failed');
       setMatches([]);
@@ -201,6 +214,7 @@ export function useDeleteFilter(): UseDeleteFilter {
     truncated,
     excludedProtected,
     previewing,
+    previewed,
     removing,
     progress,
     error,
