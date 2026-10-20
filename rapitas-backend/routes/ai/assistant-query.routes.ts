@@ -17,6 +17,7 @@ import {
   runTaskQuery,
   listRecentActions,
   recordAction,
+  surveyBacklog,
   ASSISTANT_CAPABILITIES,
 } from '../../services/assistant';
 import { MAX_TEXT_LENGTH } from './assistant-intake.routes';
@@ -69,6 +70,28 @@ export const assistantQueryRoutes = new Elysia({ prefix: '/assistant' })
       }),
     },
   )
+
+  /**
+   * What in the backlog is waiting for a person.
+   *
+   * No model in the path: every number is a count the database ran, so she
+   * cannot be confidently wrong about how many tasks are stuck. The audit
+   * row is recorded for the same reason the other reads record one — the
+   * surface she is exercising should be visible even when it changes nothing.
+   */
+  .get('/supervision', async () => {
+    const survey = await surveyBacklog();
+    await recordAction({
+      capabilityId: 'task.supervise',
+      status: 'executed',
+      args: {},
+      result: {
+        total: survey.total,
+        byCategory: Object.fromEntries(survey.categories.map((c) => [c.category, c.total])),
+      },
+    });
+    return { success: true, ...survey };
+  })
 
   .get('/capabilities', () => ({ success: true, capabilities: ASSISTANT_CAPABILITIES }))
 

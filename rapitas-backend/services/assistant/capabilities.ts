@@ -65,6 +65,19 @@ export const ASSISTANT_CAPABILITIES = [
     requiresConfirmation: true,
     undo: 'restore-from-trash',
   },
+  {
+    // The first step of giving ラピ a supervisor's job, and deliberately the
+    // only one for now: reading. Her judgement about what needs a hand is
+    // unproven, and read-only is the only way to find out whether it is any
+    // good — if she flags twenty and two get acted on, the conditions are
+    // wrong, not the permissions. Acting on what she finds would also have
+    // to settle who wins when the existing watchers disagree with her, which
+    // is a decision this entry does not need to make.
+    id: 'task.supervise',
+    writes: false,
+    requiresConfirmation: false,
+    undo: 'nothing-to-undo',
+  },
 ] as const satisfies readonly AssistantCapability[];
 
 /** What undoing a capability takes. */

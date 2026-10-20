@@ -45,6 +45,17 @@ export {
 } from './delete-proposal';
 
 export {
+  surveyBacklog,
+  SUPERVISION_CATEGORIES,
+  MAX_SUPERVISION_ROWS,
+  STALLED_AFTER_DAYS,
+  type SupervisionCategory,
+  type SupervisionFinding,
+  type SupervisionSurvey,
+  type SupervisedTask,
+} from './supervision';
+
+export {
   ASSISTANT_CAPABILITIES,
   assertCapabilityAllowed,
   getCapability,
