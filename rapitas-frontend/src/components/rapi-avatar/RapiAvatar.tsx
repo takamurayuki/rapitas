@@ -77,7 +77,7 @@ export const RAPI_AVATAR_TOKENS = {
    * read on that background, but a glowing floor is not a shadow, and the
    * design language rules glows out (tell #3).
    */
-  shadowOpacity: { light: 0.2, dark: 0.42 },
+  shadowOpacity: { light: 0.17, dark: 0.36 },
   comet: '#F59E0B', // amber-500
   eye: '#FFFFFF',
   plus: {
@@ -132,10 +132,16 @@ const EYES = { left: 48, right: 72, y: 72 } as const;
  * very flat, for the same reason — a shadow as wide as its object reads as
  * the object itself.
  *
+ * The first version left 4.5 units of gap, which measured 3px at the docked
+ * size and read as almost touching. It is 14.5 now — a fifth of her
+ * diameter. Moving it away alone would be wrong: something further above its
+ * shadow casts a smaller, fainter one, so the ellipse shrank and the opacity
+ * came down with the distance.
+ *
  * It extends past the 120-unit viewBox, which is why the svg is
  * `overflow: visible`.
  */
-const SHADOW = { cx: 60, cy: 118, rx: 26, ry: 6.5 } as const;
+const SHADOW = { cx: 60, cy: 127, rx: 23, ry: 5.5 } as const;
 
 /**
  * How long the startle lasts.

@@ -170,12 +170,17 @@ describe('her shadow', () => {
     expect(shadow(container)).not.toBeNull();
   });
 
-  // A gap is what says "floating". Touching her underside reads as resting.
-  it('sits clear of her, not against her', () => {
+  // A gap is what says "floating". The first version left 4.5 units, which
+  // measured 3px at the docked size and read as almost touching, so the
+  // floor here is well clear of "technically not overlapping".
+  it('sits well clear of her, not against her', () => {
     const { container } = render(<RapiAvatar state="idle" />);
-    const cy = Number(shadow(container)?.getAttribute('cy'));
+    const sh = shadow(container)!;
+    const cy = Number(sh.getAttribute('cy'));
+    const ry = Number(sh.getAttribute('ry'));
     // The body is a circle at cy 70, r 37, so its underside is 107.
-    expect(cy).toBeGreaterThan(107 + 4);
+    const gap = cy - ry - 107;
+    expect(gap).toBeGreaterThanOrEqual(10);
   });
 
   // Narrower than she is, which is what a shadow does at a distance — one as
