@@ -539,6 +539,19 @@ CREATE TABLE "TaskPrompt" (
 );
 
 -- CreateTable
+CREATE TABLE "DeletedTask" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "originalTaskId" INTEGER NOT NULL,
+    "title" TEXT NOT NULL,
+    "themeId" INTEGER,
+    "snapshotJson" TEXT NOT NULL,
+    "source" TEXT NOT NULL DEFAULT 'user',
+    "deletedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "restoredAt" DATETIME,
+    "restoredTaskId" INTEGER
+);
+
+-- CreateTable
 CREATE TABLE "Experiment" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "taskId" INTEGER,
@@ -1847,6 +1860,12 @@ CREATE UNIQUE INDEX "TaskLabel_taskId_labelId_key" ON "TaskLabel"("taskId", "lab
 
 -- CreateIndex
 CREATE INDEX "TaskPrompt_taskId_idx" ON "TaskPrompt"("taskId");
+
+-- CreateIndex
+CREATE INDEX "DeletedTask_deletedAt_idx" ON "DeletedTask"("deletedAt");
+
+-- CreateIndex
+CREATE INDEX "DeletedTask_originalTaskId_idx" ON "DeletedTask"("originalTaskId");
 
 -- CreateIndex
 CREATE INDEX "Experiment_taskId_idx" ON "Experiment"("taskId");

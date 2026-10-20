@@ -305,3 +305,32 @@ model TaskPrompt {
 
   @@index([taskId])
 }
+
+// A task that was deleted, kept long enough that the deletion can be undone.
+//
+// Deleting a task cascades across 43 relations, so by the time anyone regrets
+// it there is nothing left to read — this snapshot is the only copy. It holds
+// the task's own columns and those of its subtasks as JSON; the executions,
+// pull requests and workflow files that went with it are gone either way.
+//
+// Written only for deletions a person asked for. Automatic housekeeping
+// (completed-task cleanup, orphan subtask cleanup) deletes by policy and does
+// not fill the trash with things nobody will miss.
+model DeletedTask {
+  id             Int       @id @default(autoincrement())
+  originalTaskId Int
+  // Denormalised so the trash list reads without parsing every snapshot.
+  title          String
+  themeId        Int?
+  // The task row plus its subtasks: { task: {...}, subtasks: [{...}] }
+  snapshotJson   String
+  // Who asked: 'user' | 'assistant'
+  source         String    @default("user")
+  deletedAt      DateTime  @default(now())
+  restoredAt     DateTime?
+  // The new task made by restoring. A restore cannot reuse the original id.
+  restoredTaskId Int?
+
+  @@index([deletedAt])
+  @@index([originalTaskId])
+}
