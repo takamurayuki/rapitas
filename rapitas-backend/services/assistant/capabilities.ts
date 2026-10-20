@@ -28,6 +28,16 @@ export const ASSISTANT_CAPABILITIES = [
     undo: 'delete-what-was-made',
   },
   {
+    // Answers questions about the backlog. The model turns the question into
+    // a query and never into an answer, so every number comes from the
+    // database — ラピ can be asked the wrong thing, but not be confidently
+    // wrong about how many there are.
+    id: 'task.query',
+    writes: false,
+    requiresConfirmation: false,
+    undo: 'nothing-to-undo',
+  },
+  {
     // Lists what a set of conditions matches. The model-driven proposal can
     // only weigh a window of sixty; on a theme with 719 tasks that is not a
     // worse answer than a filter, it is the wrong instrument. Reads only.

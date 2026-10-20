@@ -1601,6 +1601,7 @@
     },
     "mode": {
       "create": "作る",
+      "ask": "聞く",
       "cleanup": "AIで選ぶ",
       "bulk": "条件で選ぶ"
     },
@@ -1629,6 +1630,19 @@
       "removed": "{count}件を削除しました",
       "keptBack": "{count}件は削除できませんでした",
       "undo": "{count}件を元に戻す",
+      "error": "うまくいきませんでした。もう一度試してください。"
+    },
+    "ask": {
+      "title": "ラピに聞く",
+      "placeholder": "例: rapitasでブロックされているタスクは？ / 90日触っていない完了タスクは何件？",
+      "ask": "聞く",
+      "asking": "調べています…",
+      "found": "{total}件 見つかりました",
+      "readAs": "条件: {as}",
+      "withinDays": "{days}日以内",
+      "beforeDays": "{days}日以上前",
+      "showing": "うち{shown}件を表示",
+      "unavailable": "AIが使えないため質問を読み取れませんでした。",
       "error": "うまくいきませんでした。もう一度試してください。"
     }
   },

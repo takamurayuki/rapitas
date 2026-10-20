@@ -1,5 +1,5 @@
 /**
- * assistant-intake.delete.test
+ * assistant-cleanup.delete.test
  *
  * The first thing ラピ can do that destroys something. Three properties
  * matter and none of them are about the response body: nothing is deleted
@@ -43,10 +43,10 @@ mock.module('../../utils/ai-client', () => ({
   sendAIMessage: async () => ({ content: '{}', tokensUsed: 0 }),
 }));
 
-const { assistantIntakeRoutes } = await import('./assistant-intake.routes');
+const { assistantCleanupRoutes } = await import('./assistant-cleanup.routes');
 
 async function post(body: unknown) {
-  const res = await assistantIntakeRoutes.handle(
+  const res = await assistantCleanupRoutes.handle(
     new Request('http://localhost/assistant/task-delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

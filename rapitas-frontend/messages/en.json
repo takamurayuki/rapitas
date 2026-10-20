@@ -1601,6 +1601,7 @@
     },
     "mode": {
       "create": "Add",
+      "ask": "Ask",
       "cleanup": "AI picks",
       "bulk": "By condition"
     },
@@ -1629,6 +1630,19 @@
       "removed": "Deleted {count}",
       "keptBack": "{count} could not be deleted",
       "undo": "Undo {count}",
+      "error": "That did not work. Try again."
+    },
+    "ask": {
+      "title": "Ask Rapi",
+      "placeholder": "e.g. what is blocked in rapitas? / how many done tasks are 90 days old?",
+      "ask": "Ask",
+      "asking": "Looking…",
+      "found": "{total} found",
+      "readAs": "Read as: {as}",
+      "withinDays": "within {days} days",
+      "beforeDays": "over {days} days ago",
+      "showing": "showing {shown}",
+      "unavailable": "The AI was unavailable, so the question could not be read.",
       "error": "That did not work. Try again."
     }
   },
