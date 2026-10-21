@@ -29,4 +29,5 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `MoveUp`                  | リスト内の並び順を1つ上げる（AI利用予算の分類ルール一覧 `ClassificationRulesEditor` — 上にあるルールが優先。注: `ChevronUp`＝折りたたみ・優先度、`ArrowUp`＝ディレクトリピッカーの親フォルダへ移動とは別概念） |
 | `GitGraph`                | 失敗の系譜図（nav: /agents/failure-lineage、ページ見出し・空状態。ERROR/WARN ログの推定再発連鎖と根本原因候補の可視化。注: `GitBranch`＝ワークフローセクション/ブランチ名、`GitCompare`＝ドライラン差分比較とは別概念） |
 | `ListFilter`              | ラピの「タスクを探す」モード（`RapiModeTabs` の ask タブ — 条件で絞って数える。注: `Search`＝知識ブラウザ、`ScanSearch`＝検出漏れ兆候とは別概念） |
-| `MessagesSquare`          | ラピの「このタスク」相談モード（`RapiModeTabs` の consult タブ。注: `MessageSquarePlus`＝エージェントへの追加指示とは別概念） |
+| `MessagesSquare`          | ラピの「対話」モード（`RapiModeTabs` の chat タブ — 文章で頼む入口、パネルの既定タブ。2026-10-22 まで consult タブに付いていたが、グリフが「会話」を表していて「開いているタスク」を表していなかったため移設。注: `MessageSquarePlus`＝エージェントへの追加指示とは別概念） |
+| `Locate`                  | ラピの「このタスク」相談モード（`RapiModeTabs` の consult タブ — いま開いている1件に照準を合わせる。注: `Crosshair`＝ウィザードの別用途、`ScanSearch`＝検出漏れ兆候、`Search`＝知識ブラウザとは別概念） |

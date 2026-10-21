@@ -118,14 +118,18 @@ describe('the corner', () => {
   // question when you reach for her is "what needs me", and filing a task is
   // the second thing. The intake has to stay one tab away, which is the part
   // this still holds.
-  it('opens with nothing running, on the survey, with the intake one tab away', () => {
+  it('opens with nothing running, on the conversation, with the rest one tab away', () => {
+    // It used to open on the survey. The conversation is the tab the box at
+    // the bottom belongs to, so that is where it opens now (2026-10-22).
     executionState = { executions: [], runningCount: 0, interruptedCount: 0 };
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
     expect(screen.getByRole('dialog')).toBeTruthy();
-    expect(screen.getByText('rapiAvatar.watch.title')).toBeTruthy();
+    expect(screen.getByText('rapiAvatar.greeting')).toBeTruthy();
     expect(screen.queryByTestId('exec-1')).toBeNull();
 
+    fireEvent.click(screen.getByLabelText('rapiAvatar.mode.watch'));
+    expect(screen.getByText('rapiAvatar.watch.title')).toBeTruthy();
     fireEvent.click(screen.getByLabelText('rapiAvatar.mode.create'));
     expect(screen.getByText('rapiAvatar.intake.title')).toBeTruthy();
   });
@@ -179,18 +183,19 @@ describe('the corner', () => {
     expect(screen.getByLabelText('rapiAvatar.mode.consult')).toBeTruthy();
   });
 
-  // A conversation with history in a 320px column is unreadable, so that one
-  // mode gets more room than the others.
-  it('widens the bubble for the conversation and not for the rest', () => {
+  // It used to widen for `consult` alone, on the argument that a conversation
+  // in a 320px column is unreadable. In use that reads as the panel jumping
+  // size when you press one tab, which is worse than the cramped column it
+  // was avoiding - reported 2026-10-22. One width, every tab.
+  it('keeps one width whichever tab is showing', () => {
     pathname = '/tasks/42';
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
     const panel = () => screen.getByRole('dialog');
-    const narrow = panel().className;
+    const before = panel().className;
     fireEvent.click(screen.getByLabelText('rapiAvatar.mode.consult'));
-    expect(panel().className).not.toBe(narrow);
-    expect(narrow).toContain('w-80');
-    expect(panel().className).not.toContain('w-80');
+    expect(panel().className).toBe(before);
+    expect(panel().className).toContain('w-80');
   });
 
   // One job, described twice, was costing two tabs out of six.
@@ -202,10 +207,12 @@ describe('the corner', () => {
     expect(screen.queryByText('rapiAvatar.mode.bulk')).toBeNull();
   });
 
-  // Four tabs off a task, five on one. The point of the exercise.
+  // Five tabs off a task, six on one: the conversation tab joined them on
+  // 2026-10-22, which is also what let the greeting stop appearing above
+  // every list.
   it.each([
-    ['off a task', '/dashboard', '', 4],
-    ['on a task', '/tasks/42', '', 5],
+    ['off a task', '/dashboard', '', 5],
+    ['on a task', '/tasks/42', '', 6],
   ])('shows %s exactly %i tabs', (_label, path, query, expected) => {
     pathname = path;
     search = query;
@@ -270,7 +277,8 @@ describe('typing at her', () => {
     route({ routed: true, intent: 'ask', reason: '件数を尋ねているため' });
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
-    expect(screen.getByText('rapiAvatar.watch.title')).toBeTruthy();
+    // It opens on the conversation; the point is that a sentence moves it.
+    expect(screen.getByLabelText('rapiAvatar.mode.chat').getAttribute('aria-pressed')).toBe('true');
 
     say('ブロックは何件？');
     await waitFor(() => expect(screen.getByText('rapiAvatar.ask.title')).toBeTruthy());
@@ -297,7 +305,7 @@ describe('typing at her', () => {
     fireEvent.click(avatarButton());
     say('うーん');
     await waitFor(() => expect(screen.getByText('rapiAvatar.prompt.unplaced')).toBeTruthy());
-    expect(screen.getByText('rapiAvatar.watch.title')).toBeTruthy();
+    expect(screen.getByLabelText('rapiAvatar.mode.chat').getAttribute('aria-pressed')).toBe('true');
   });
 });
 
@@ -368,6 +376,9 @@ describe('closing and reopening', () => {
     serve({ total: 7, categories: [{ category: 'blocked', total: 7, tasks: [] }] }, true);
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
+    // The survey is a tab away now that the panel opens on the conversation,
+    // and it is the survey's request this test suspends.
+    fireEvent.click(screen.getByLabelText('rapiAvatar.mode.watch'));
     await waitFor(() => expect(release).not.toBeNull());
 
     // Shut while it is still thinking, then let the answer land.
@@ -378,8 +389,9 @@ describe('closing and reopening', () => {
     await waitFor(() => expect(screen.getByText('rapiAvatar.watch.needHand:7')).toBeTruthy());
   });
 
-  // It opens on the survey, and that costs a request. Doing it before she
-  // has been asked for anything would spend it on every page load.
+  // Opening costs nothing now that the conversation is the first tab — the
+  // survey's request waits until that tab is pressed. Doing any of it before
+  // she has been opened would spend a request on every page load.
   it('asks for nothing until it is first opened', () => {
     const calls: string[] = [];
     vi.stubGlobal('fetch', (url: string) => {

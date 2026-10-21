@@ -33,6 +33,10 @@ interface Props {
 
 /** What each mode draws. Built once, so the map itself is stable. */
 const RENDERERS: Record<PanelMode, (handedOver: Props['handedOver']) => React.ReactNode> = {
+  // The conversation tab draws nothing of its own: the greeting, the history
+  // and the box are the panel's, and a sentence written here leaves for
+  // whichever mode answers it.
+  chat: () => null,
   watch: () => <TaskWatch />,
   create: (h) => <TaskIntake handedOver={h('create')} />,
   ask: (h) => <TaskAsk handedOver={h('ask')} />,

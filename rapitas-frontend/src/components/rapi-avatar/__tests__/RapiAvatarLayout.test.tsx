@@ -111,6 +111,25 @@ describe('what the panel looks like when it opens', () => {
     expect(screen.getByText('rapiAvatar.greeting')).toBeTruthy();
   });
 
+  it('opens on the conversation tab', () => {
+    // Everything else on the bar is a form or a list; this is the one that
+    // answers a sentence, and it is what the box below is for.
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    const chat = screen.getByLabelText('rapiAvatar.mode.chat');
+    expect(chat.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('keeps the introduction to the conversation tab', () => {
+    // It is the conversation's own prompt - it tells you to write in the box
+    // below. On a list of overdue tasks it is just taking the first two
+    // lines of the answer (reported 2026-10-22).
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    fireEvent.click(screen.getByLabelText('rapiAvatar.mode.create'));
+    expect(screen.queryByText('rapiAvatar.greeting')).toBeNull();
+  });
+
   it('puts the box at the bottom, outside the part that scrolls', () => {
     // It sat above the content, where a single line shrank against the list
     // below it and read as a search field.

@@ -471,6 +471,7 @@
       "error": "That did not work. Try again."
     },
     "mode": {
+      "chat": "Talk",
       "watch": "Needs you",
       "create": "Add a task",
       "ask": "Find tasks",
