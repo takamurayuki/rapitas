@@ -50,20 +50,44 @@ const NO_REASON_GIVEN = 'その言い方から判断しました。';
 /** Keeps one chatty answer from filling the bubble. */
 const MAX_REASON = 120;
 
+/**
+ * What the model is told.
+ *
+ * The first version listed the destinations with one example each and
+ * measured 8/10, with both misses in the same place and the same direction:
+ * a sentence describing work to be done went to `consult` whenever a task
+ * happened to be open. Measured directly — "ラピに影を付ける" routes to
+ * `create` with no task open and to `consult` with one. The context line was
+ * swamping the sentence.
+ *
+ * The other miss was "…が崩れるのを直したい" landing on `watch` with no task
+ * open: a stated problem read as a request to see problems.
+ *
+ * So the prompt discriminates rather than describes. `consult` now requires
+ * the sentence to point AT the open task, not merely coexist with one; a
+ * reported defect is something to fix and therefore `create`; and `watch` is
+ * only for asking what needs attention, never for naming something that
+ * does.
+ */
 const SYSTEM_PROMPT = `あなたは rapitas というタスク管理アプリのアシスタント「ラピ」です。
 ユーザーの一文を読み、どの行き先に送るかだけを決めます。処理そのものは行き先が行います。
 
 行き先:
-- watch: いま手当てが要るタスクの一覧。「何かある?」「滞ってるものは」など
-- create: 新しいタスクを起票する。「〜を直したい」「〜を作る」など
-- ask: 既存タスクを検索して件数や一覧を答える。「〜は何件」「〜を探して」など
-- tidy: 不要なタスクを片付ける。「古いのを消して」「整理して」など
-- consult: いま開いているタスクについて相談する。「このタスクを分析して」など
+- watch: 手当てが要るタスクが何かあるかを「尋ねている」とき。例「滞ってるものある?」「何か見るべきものは?」
+- create: これからやること・直したいこと・作りたいことを「述べている」とき。不具合の報告もここ（直す対象だから）。例「〜が崩れるのを直したい」「〜を追加する」
+- ask: 既存タスクの件数や一覧を「尋ねている」とき。例「ブロックは何件?」「〜のタスクを探して」
+- tidy: 不要なタスクを消す・片付ける・整理するとき。例「古いのを消して」「整理したい」
+- consult: 文が「いま開いているタスクそのもの」を指しているとき。例「このタスクを分析して」「これの工数は?」
+
+間違えやすい境目:
+1. タスクが開いていても、文が新しくやることを述べているだけなら create。consult は「このタスク」「これ」「今開いているもの」のように、開いているタスクを指す言葉があるときだけ。
+2. 不具合や不満を述べた文は create。watch ではない。watch は「何かある?」と尋ねる文だけ。
+3. 「〜を探して」「何件」は ask。「〜したい」「〜を直す」は create。
 
 守ること:
 1. 出力は JSON オブジェクトのみ。前後に説明文を付けない。
-2. 行き先を1つだけ選ぶ。迷ったら最もよく当てはまるものを選ぶ。
-3. どの行き先にも当てはまらないと判断したら intent に "unknown" を入れる。無理に選ばない。
+2. 行き先を1つだけ選ぶ。
+3. どの行き先にも当てはまらないなら intent に "unknown" を入れる。無理に選ばない。
 4. reason には「なぜその行き先にしたか」を日本語で1文だけ書く。
 
 JSON の形:
@@ -107,7 +131,7 @@ export async function routeIntent(
   // destination that can fail to exist, and routing to a tab that is not in
   // the bar strands the user on nothing.
   const context = hasOpenTask
-    ? 'いまタスクが開かれています。consult を選べます。'
+    ? 'いまタスクが開かれています。consult を選べますが、文がそのタスクを指している場合だけです。'
     : 'いまタスクは開かれていません。consult は選べません。';
 
   let raw: RawRoute | null = null;
