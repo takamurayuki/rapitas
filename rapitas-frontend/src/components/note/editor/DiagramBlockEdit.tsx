@@ -50,6 +50,18 @@ async function renderPreview(source: string, id: string): Promise<string | null>
     const { svg } = await mermaid.render(id, source);
     return svg;
   } catch {
+    // Mermaid builds the diagram in a `d<id>` element it appends to
+    // document.body, and on a parse error it paints "Syntax error in text"
+    // into it and throws WITHOUT removing it — suppressErrorRendering
+    // defaults to false. `diagram-block.ts` and components/markdown/
+    // mermaid-block.tsx both clean this up; this one did not, and it is the
+    // live preview: it re-renders while you type, so every half-finished
+    // line left another one stacked at the end of <body>. That is where the
+    // wall of "Syntax error in text / mermaid version 11.16.0" came from.
+    //
+    // `i<id>` is not checked because that name is only used under
+    // securityLevel 'sandbox', and this renderer is 'strict'.
+    document.getElementById(`d${id}`)?.remove();
     return null;
   }
 }
