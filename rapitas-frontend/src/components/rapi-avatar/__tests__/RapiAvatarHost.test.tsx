@@ -301,6 +301,126 @@ describe('typing at her', () => {
   });
 });
 
+/**
+ * Closing her is not cancelling her.
+ *
+ * The panel used to be unmounted on close, which threw away two different
+ * things: what was typed or chosen, and any request still in flight. A
+ * roadmap draft takes tens of seconds; closing the bubble while it thought
+ * discarded the answer, with no way back except asking again.
+ */
+describe('closing and reopening', () => {
+  /** Resolved by the test, so a request can still be in flight on close. */
+  let release: (() => void) | null = null;
+
+  const serve = (answer: Record<string, unknown>, hold = false) =>
+    vi.stubGlobal('fetch', (url: string) => {
+      if (hold && String(url).includes('/assistant/supervision')) {
+        return new Promise((resolve) => {
+          release = () =>
+            resolve({ ok: true, status: 200, json: () => Promise.resolve(answer) } as Response);
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(answer),
+      } as Response);
+    });
+
+  afterEach(() => {
+    release = null;
+    vi.unstubAllGlobals();
+  });
+
+  const reopen = () => {
+    fireEvent.click(avatarButton());
+    fireEvent.click(avatarButton());
+  };
+
+  it('keeps the tab you were on', () => {
+    serve({ total: 0, categories: [] });
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    fireEvent.click(screen.getByText('rapiAvatar.mode.create'));
+    expect(screen.getByText('rapiAvatar.intake.title')).toBeTruthy();
+
+    reopen();
+    expect(screen.getByText('rapiAvatar.intake.title')).toBeTruthy();
+  });
+
+  it('keeps what was typed at her', () => {
+    serve({ total: 0, categories: [] });
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    const box = screen.getByLabelText('rapiAvatar.prompt.label');
+    fireEvent.change(box, { target: { value: '書きかけの文' } });
+
+    reopen();
+    expect((screen.getByLabelText('rapiAvatar.prompt.label') as HTMLTextAreaElement).value).toBe(
+      '書きかけの文',
+    );
+  });
+
+  // The expensive half. Work started before the close has to finish, and
+  // its answer has to be there on the way back in.
+  it('finishes work that was still running when it closed', async () => {
+    serve({ total: 7, categories: [{ category: 'blocked', total: 7, tasks: [] }] }, true);
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    await waitFor(() => expect(release).not.toBeNull());
+
+    // Shut while it is still thinking, then let the answer land.
+    fireEvent.click(avatarButton());
+    release!();
+
+    fireEvent.click(avatarButton());
+    await waitFor(() => expect(screen.getByText('rapiAvatar.watch.needHand:7')).toBeTruthy());
+  });
+
+  // It opens on the survey, and that costs a request. Doing it before she
+  // has been asked for anything would spend it on every page load.
+  it('asks for nothing until it is first opened', () => {
+    const calls: string[] = [];
+    vi.stubGlobal('fetch', (url: string) => {
+      calls.push(String(url));
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({}),
+      } as Response);
+    });
+    render(<RapiAvatarHost />);
+    expect(calls).toEqual([]);
+  });
+
+  // The element must NOT be replaced — that is what keeps the typed text,
+  // the chosen tab and the request in flight. `SpeechBubble`'s `speakKey`
+  // would replay the entrance by replacing it, which is why it is not used
+  // here, and this pins that: re-keying the bubble to "fix" the animation
+  // would silently take the state preservation back out.
+  it('reuses the same panel rather than building a new one', () => {
+    serve({ total: 0, categories: [] });
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    const first = screen.getByRole('dialog');
+    reopen();
+    expect(screen.getByRole('dialog')).toBe(first);
+  });
+
+  // So the entrance is restarted in place instead: cleared, reflowed, put
+  // back. Clearing it and forgetting to restore would leave her arriving
+  // with no animation at all, which jsdom can see even though the restart
+  // itself can only be measured in a browser.
+  it('still carries its entrance after reopening', () => {
+    serve({ total: 0, categories: [] });
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    reopen();
+    expect(screen.getByRole('dialog').style.animation).toContain('rapi-speak');
+  });
+});
+
 /** The banner's unique job: it exists nowhere else, so it had to survive. */
 describe('resuming interrupted work', () => {
   beforeEach(() => {
