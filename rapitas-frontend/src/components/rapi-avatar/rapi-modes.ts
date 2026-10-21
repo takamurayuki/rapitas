@@ -37,6 +37,14 @@ const PANEL_MODES = ['watch', 'create', 'ask', 'consult', 'tidy'] as const;
  */
 const TYPED_ONLY_MODES = ['roadmap'] as const;
 
+/**
+ * How many past questions the session history keeps.
+ *
+ * A way back to something, not a transcript: the row it draws is one line
+ * in a 320px panel, and the tab bar was just cut from two rows to one.
+ */
+export const MAX_HISTORY = 8;
+
 export type PanelMode = (typeof PANEL_MODES)[number] | (typeof TYPED_ONLY_MODES)[number];
 
 /**

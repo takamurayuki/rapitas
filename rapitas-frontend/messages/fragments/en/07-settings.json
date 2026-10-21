@@ -500,6 +500,7 @@
       "stoppedAfter": "Stopped after {count}. The rest were not created.",
       "noteWritten": "The assumptions and decisions are in a note."
     },
+    "history": "What you have asked",
     "greeting": "I am ラピ, the agent that works on rapitas with you. What are we doing today? Just write it in the box below.",
     "prompt": {
       "label": "Tell ラピ",
