@@ -37,6 +37,8 @@ const SHAPE = `{
   "themeChoice": { "kind": "existing", "id": number } | { "kind": "new", "name": string, "reason": string },
   "projectChoice": { "kind": "existing", "id": number } | { "kind": "new", "name": string, "reason": string } | { "kind": "none", "reason": string },
   "deadlineInDays": number | null,
+  "assumptions": string[],
+  "comparisonAxes": string[],
   "questions": [{ "question": string, "options": string[], "recommended": string, "recommendedReason": string }],
   "steps": [{ "title": string, "action": string, "done": string[], "dueInDays": number | null }]
 }`;
@@ -57,6 +59,12 @@ const COMMON = `テーマとプロジェクトについて:
 - 日付は書かない。**今日から何日後か**を整数で書く（dueInDays / deadlineInDays）。
 - ユーザーが期限を言っている場合は deadlineInDays にその日数を入れ、各ステップの dueInDays を期限内に収まるよう割り振る。先にやるものを早い日数にする。
 - 期限の指定が無い場合は deadlineInDays と dueInDays をすべて null にする。
+
+ノートに残すこと:
+- assumptions: この計画が前提にしていること。ユーザーの発言から読み取れたこと、こちらが仮に置いたことを書く。0〜6個。
+- comparisonAxes: 複数の候補から選ぶ話のとき、何を見て比べるかの軸（例: 条件の優先順位になる項目）。0〜6個。
+- **候補そのものの事実は書かない。** 会社名・年収・評判・価格・スペックなど、調べなければ分からないことを書くと嘘になる。軸だけ出し、中身はユーザーが埋める。
+- 選ぶ話でなければ comparisonAxes は空配列にする。
 
 守ること:
 1. 出力は JSON オブジェクトのみ。前後に説明文を付けない。`;

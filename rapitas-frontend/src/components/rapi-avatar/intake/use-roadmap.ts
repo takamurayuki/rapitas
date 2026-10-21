@@ -51,6 +51,10 @@ export interface Draft {
   questions: Question[];
   steps: Step[];
   deadline?: string;
+  /** What the plan takes for granted — note material, not task material. */
+  assumptions?: string[];
+  /** What to weigh candidates on, when the goal is a choice. */
+  comparisonAxes?: string[];
 }
 
 /** One question and what the user picked, as the draft call wants it. */
@@ -75,6 +79,7 @@ export interface Committed {
 export function useRoadmap(handedOver?: string) {
   const createNote = useNoteStore((s) => s.createNote);
   const updateNote = useNoteStore((s) => s.updateNote);
+  const linkNoteToTask = useNoteStore((s) => s.linkNoteToTask);
   const currentNoteId = useNoteStore((s) => s.currentNoteId);
 
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -143,8 +148,12 @@ export function useRoadmap(handedOver?: string) {
     void ask(handedOver, decisions());
   };
 
-  /** The note: what was decided and why, beside links to what was made. */
-  const writeNote = (plan: Draft, made: Committed) => {
+  /**
+   * The note: what was decided and why, beside links to what was made.
+   *
+   * @returns The note's id, which the tasks are then attached to / ノートのID
+   */
+  const writeNote = (plan: Draft, made: Committed): string | null => {
     const body = composeRoadmapNote({
       goal: plan.goal,
       decisions: decisions(),
@@ -153,11 +162,50 @@ export function useRoadmap(handedOver?: string) {
       ...(plan.deadline ? { deadline: plan.deadline } : {}),
       steps: plan.steps,
       taskIds: made.taskIds,
+      assumptions: plan.assumptions ?? [],
+      comparisonAxes: plan.comparisonAxes ?? [],
     });
     createNote(plan.goal);
     // `createNote` makes it current, so the id to fill in is the current one.
     const id = useNoteStore.getState().currentNoteId ?? currentNoteId;
     if (id) updateNote(id, { content: body });
+    return id ?? null;
+  };
+
+  /**
+   * Hang the note off every task, both ways.
+   *
+   * The note lists the tasks, but from inside a task the note was invisible:
+   * nothing in the description pointed back at the reasoning. The chip shape
+   * is the app's own — `NoteLinksSection` offers it for pasting — and it
+   * opens the task's split view with the note beside it.
+   *
+   * Best-effort on purpose. The tasks and the note already exist by now, so
+   * a failed description update is a missing shortcut, not a failed roadmap;
+   * reporting it as one would send the user looking for something to redo.
+   *
+   * @param noteId - The note just written / 書いたノートのID
+   * @param plan - The approved plan, for each step's own text / 承認された計画
+   * @param made - What was created / 作成結果
+   */
+  const attachNote = async (noteId: string, plan: Draft, made: Committed) => {
+    for (const [index, taskId] of made.taskIds.entries()) {
+      const step = plan.steps[index];
+      linkNoteToTask(noteId, taskId);
+      const reference = `参考: [${plan.goal}](/rapitas-note/${taskId}/${noteId})`;
+      try {
+        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            description: [step?.description, reference].filter(Boolean).join('\n\n'),
+          }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      } catch (err) {
+        logger.warn({ err, taskId }, 'could not point the task at the note');
+      }
+    }
   };
 
   const commit = async () => {
@@ -179,7 +227,8 @@ export function useRoadmap(handedOver?: string) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const made = (await res.json()) as Committed;
       setCommitted(made);
-      writeNote(draft, made);
+      const noteId = writeNote(draft, made);
+      if (noteId) await attachNote(noteId, draft, made);
     } catch (err) {
       logger.warn({ err }, 'could not create the roadmap');
       setFailed(true);

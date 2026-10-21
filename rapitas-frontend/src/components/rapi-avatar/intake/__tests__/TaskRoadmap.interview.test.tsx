@@ -25,6 +25,10 @@ vi.mock('next-intl', () => ({
 
 let notes: { title?: string; content?: string }[] = [];
 let currentId: string | null = 'note-1';
+/** Which tasks the note was attached to. */
+let linked: { noteId: string; taskId: number }[] = [];
+/** Whether the description updates should fail, to test best-effort. */
+let patchFails = false;
 const noteState = {
   createNote: (title?: string) => {
     notes.push({ title });
@@ -32,6 +36,9 @@ const noteState = {
   },
   updateNote: (_id: string, updates: { content?: string }) => {
     notes[notes.length - 1] = { ...notes[notes.length - 1], ...updates };
+  },
+  linkNoteToTask: (noteId: string, taskId: number) => {
+    linked.push({ noteId, taskId });
   },
   currentNoteId: currentId,
 };
@@ -43,7 +50,7 @@ vi.mock('@/stores/note-store', () => ({
 
 import { TaskRoadmap } from '../TaskRoadmap';
 
-let requests: { url: string; body: Record<string, unknown> }[] = [];
+let requests: { url: string; body: Record<string, unknown>; method?: string }[] = [];
 
 /** Round one: it asks, and the steps it shows are provisional. */
 const ASKED = {
@@ -84,10 +91,19 @@ let rounds: Record<string, unknown>[] = [];
 beforeEach(() => {
   requests = [];
   notes = [];
+  linked = [];
+  patchFails = false;
   currentId = 'note-1';
   rounds = [ASKED, PLANNED];
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
-    requests.push({ url, body: JSON.parse(String(init?.body)) });
+    requests.push({ url, body: JSON.parse(String(init?.body)), method: init?.method });
+    if (init?.method === 'PATCH') {
+      return Promise.resolve({
+        ok: !patchFails,
+        status: patchFails ? 500 : 200,
+        json: () => Promise.resolve({}),
+      } as Response);
+    }
     const body = String(url).includes('/commit')
       ? COMMITTED
       : { available: true, draft: rounds.shift() ?? PLANNED };
@@ -197,5 +213,49 @@ describe('what the reader is shown and left with', () => {
     fireEvent.click(screen.getByText(/roadmap\.create:/));
     await waitFor(() => expect(notes).toHaveLength(1));
     expect(notes[0]?.content ?? '').toContain('2027-01-19');
+  });
+});
+
+describe('the note and the tasks it belongs to', () => {
+  const create = async () => {
+    open();
+    await answerAndRefine();
+    fireEvent.click(screen.getByText(/roadmap\.create:/));
+    await waitFor(() => expect(notes).toHaveLength(1));
+  };
+
+  const patches = () => requests.filter((r) => r.method === 'PATCH');
+
+  it('attaches the note to every task it created', async () => {
+    await create();
+    await waitFor(() => expect(linked).toHaveLength(2));
+    expect(linked.map((l) => l.taskId)).toEqual([301, 302]);
+  });
+
+  it('puts a chip into each description, so the note is reachable from the task', async () => {
+    // The app already has this link shape — NoteLinksSection offers it for
+    // pasting — and it opens the task's split view with the note alongside.
+    await create();
+    await waitFor(() => expect(patches()).toHaveLength(2));
+    expect(patches()[0]?.url).toContain('/tasks/301');
+    expect(String(patches()[0]?.body.description)).toContain('(/rapitas-note/301/note-1)');
+  });
+
+  it('keeps what the task already said, and adds to it', async () => {
+    await create();
+    await waitFor(() => expect(patches()).toHaveLength(2));
+    const written = String(patches()[0]?.body.description);
+    expect(written).toContain('## 完了条件');
+    expect(written.indexOf('## 完了条件')).toBeLessThan(written.indexOf('/rapitas-note/'));
+  });
+
+  it('does not call the whole thing a failure when only the chip fails', async () => {
+    // The tasks and the note exist by then. Saying it failed would send the
+    // user looking for something to redo.
+    patchFails = true;
+    await create();
+    await waitFor(() => expect(patches()).toHaveLength(2));
+    expect(screen.queryByText('rapiAvatar.roadmap.failed')).toBeNull();
+    expect(screen.getByText(/roadmap\.created:/)).toBeTruthy();
   });
 });
