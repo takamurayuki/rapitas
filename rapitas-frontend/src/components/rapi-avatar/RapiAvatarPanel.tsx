@@ -14,17 +14,18 @@
  * which the host owns so it runs once.
  */
 import { useEffect, useRef, useState } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { ExecutionItem } from '../resumable-executions/ExecutionItem';
 import type { ResumableExecution } from '../resumable-executions/types';
 import {
   TaskAsk,
-  TaskBulkCleanup,
-  TaskCleanup,
   TaskConsult,
   TaskIntake,
+  TaskTidy,
   TaskWatch,
+  taskIdFromLocation,
 } from './intake';
 import { RAPI_BUBBLE_Z } from '@/lib/pane-layering';
 import { BUBBLE_COLORS, SpeechBubble } from './SpeechBubble';
@@ -32,11 +33,30 @@ import { BUBBLE_COLORS, SpeechBubble } from './SpeechBubble';
 /**
  * What ラピ can be asked for, in the order the tabs show them.
  *
- * `consult` sits with `ask` rather than at the end: both are questions, and
- * the two cleanup modes belong together after them.
+ * Five, not six: "AIで選ぶ" and "条件で選ぶ" were one job described twice and
+ * are now the two instruments inside `tidy`. And `consult` is only offered
+ * where it can work — it is the one mode that needs a task open, and a tab
+ * whose whole content is "open a task first" spends a fifth of the bar
+ * saying so.
+ *
+ * That is as far as per-page hiding goes, and it is worth being clear about:
+ * four of the five are useful from anywhere, so context cannot be what keeps
+ * this bar short as capabilities are added. What will is a single input that
+ * routes by intent — she already reads intent for filing and for questions.
  */
-const PANEL_MODES = ['watch', 'create', 'ask', 'consult', 'cleanup', 'bulk'] as const;
+const ALWAYS_MODES = ['watch', 'create', 'ask'] as const;
+const PANEL_MODES = ['watch', 'create', 'ask', 'consult', 'tidy'] as const;
 type PanelMode = (typeof PANEL_MODES)[number];
+
+/**
+ * The tabs to show, given whether a task is open.
+ *
+ * @param hasTask - Whether a task is open on the page or in the panel / タスクが開いているか
+ * @returns The modes to offer, in order / 表示するモード
+ */
+export function visibleModes(hasTask: boolean): readonly PanelMode[] {
+  return hasTask ? PANEL_MODES : ([...ALWAYS_MODES, 'tidy'] as const);
+}
 
 interface RapiAvatarPanelProps {
   executions: ResumableExecution[];
@@ -90,6 +110,20 @@ export function RapiAvatarPanel({
   // when you reach for her is "what needs me", and answering it costs one
   // read. Filing a task is the second thing, one tab away.
   const [mode, setMode] = useState<PanelMode>('watch');
+
+  // Which tabs exist right now. ラピ is in the app shell with no props from
+  // the page, so the open task comes from the address bar — `/tasks/42` for
+  // the page and `/?panel=42` for the slide panel over the list.
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const hasTask = taskIdFromLocation(pathname, searchParams?.get('panel') ?? null) !== null;
+  const modes = visibleModes(hasTask);
+
+  // Navigating off a task while reading about it would otherwise leave the
+  // panel on a tab that is no longer in the bar.
+  useEffect(() => {
+    if (!modes.includes(mode)) setMode('watch');
+  }, [modes, mode]);
 
   // The consult mode hosts the task assistant that used to be a card on the
   // task detail page. It needs room the other modes do not: a conversation
@@ -170,7 +204,7 @@ export function RapiAvatarPanel({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex gap-1 border-b border-zinc-200 px-2 pt-2 dark:border-zinc-700">
-          {PANEL_MODES.map((value) => (
+          {modes.map((value) => (
             <button
               key={value}
               type="button"
@@ -191,8 +225,7 @@ export function RapiAvatarPanel({
         {mode === 'create' && <TaskIntake />}
         {mode === 'ask' && <TaskAsk />}
         {mode === 'consult' && <TaskConsult />}
-        {mode === 'cleanup' && <TaskCleanup />}
-        {mode === 'bulk' && <TaskBulkCleanup />}
+        {mode === 'tidy' && <TaskTidy />}
         <div className="space-y-2 p-2">
           {executions.map((exec) => (
             <ExecutionItem
