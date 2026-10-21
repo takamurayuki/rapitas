@@ -1,11 +1,16 @@
 # What running it once found
 
-Three defects shipped through full test suites, code review and a merge, and
-were found within minutes of putting one real task through the pipeline. They
+Five defects shipped through full test suites, code review and a merge, and
+were found within minutes of putting a real project through the pipeline. They
 are collected here because they share a property no amount of reading would
 have surfaced: **every part was correct and the seams were not.**
 
-The run: ContextFlow's auto-run, three `[UI]` screen tasks, 2026-10-17.
+Two runs so far:
+
+- ContextFlow's auto-run, three `[UI]` screen tasks, 2026-10-17 — three
+  defects, below.
+- batontime from scratch, 2026-10-18 — two more, in [the second
+  run](#a-second-run-batontime-2026-10-18). It never reached a screen task.
 
 ---
 
@@ -148,7 +153,65 @@ shape to aim for — it refuses on a condition that is actually measured.
 Its other half — firing at a genuine quiet point — remains covered by unit
 tests only, because the project kept finding work.
 
-## What this run did NOT establish
+---
+
+## A second run: batontime, 2026-10-18
+
+A brand-new project, started to measure the chain rather than to fix anything
+in particular. It never reached a screen task. Both findings are in the first
+task the chain files, and both were invisible to that task's own tests.
+
+### A criterion no one could satisfy
+
+`project-bootstrap-task.ts` emitted a constraint and an acceptance criterion
+that contradict each other, in the same payload:
+
+| Field      | Text                                                                                       |
+| ---------- | ------------------------------------------------------------------------------------------ |
+| constraint | worktree 内で依存インストールを行う場合…禁止される。その場合はプロジェクトルートで用意する |
+| criterion  | 依存インストールのコマンドが exit 0 で完了したことが verify.md に記録されている            |
+
+The implementer runs in a worktree, so the constraint always fires. It raised
+a question and stopped — correctly; recording an exit code it never measured
+would have been a lie. And because `requirement-intake-job.ts` returns
+`environment_pending` and files nothing else until the bootstrap task
+finishes, one unsatisfiable criterion froze the entire project.
+
+Measured, and this is the part reading would not have given: the escape hatch
+the constraint points at is also closed. `pnpm install --lockfile-only` in the
+generated project's **own root** — not a worktree — is refused by the install
+guard with "this checkout shares node_modules with its project root through a
+link". No agent can satisfy that criterion anywhere.
+
+**The check:** for each acceptance criterion, name the command that produces
+its evidence and the directory it runs in. If that command is one the agent is
+forbidden to run, or one only a human can run, the criterion will never go
+green — the verifier will report "unverified" and the integrity gate will
+bounce it for ever. This is the mirror image of a gate that cannot fail, and
+it is just as quiet: a task stuck in `awaiting_question` looks like a task
+making progress.
+
+### A criterion a copy satisfies
+
+Unable to install, the implementer copied `node_modules/.pnpm/lock.yaml` to
+`pnpm-lock.yaml` and said so plainly. The criterion asked only that a lockfile
+「が差分に含まれている」, and nothing compared it against the manifest — so a
+copied, stale or unrelated lockfile passes.
+
+This is [gates-that-do-not-measure.md](gates-that-do-not-measure.md) arriving
+as an acceptance criterion rather than as CI: the artifact's **presence** was
+checked and its **correspondence** was not.
+
+**The check:** when a criterion names an artifact, ask what else would satisfy
+it. If an empty file, a copy, or last month's version passes, the criterion is
+about presence and needs a correspondence clause.
+
+Both fixed in #1050; the affected task's stored criteria were edited to the
+reachable form and the task resumed.
+
+---
+
+## What the first run did NOT establish
 
 Recorded so a later reader does not over-credit it:
 

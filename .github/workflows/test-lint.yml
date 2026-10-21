@@ -264,7 +264,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install pnpm
         run: npm install -g pnpm@10
@@ -368,6 +368,25 @@ jobs:
           src/app/api/generate-claude-md/__tests__/context-rendering.test.ts
           src/app/api/review-spec/__tests__/review-prompt.test.ts
           src/app/backlog/settings/_components/__tests__/backlog-job-meta.test.ts
+          src/stores/__tests__/link-library-store.test.ts
+          src/stores/__tests__/link-view-store.test.ts
+          src/components/link-view/useLinkView.test.ts
+          src/components/link-view/LinkViewPane.test.ts
+          src/components/link-view/link-tab-meta.test.ts
+          src/lib/__tests__/pane-layering.test.ts
+          src/components/link-view/group-actions.test.ts
+          src/components/link-view/tab-strip/tab-arrangement.test.ts
+          src/components/link-view/tab-strip/TabStrip.test.tsx
+          src/components/ui/dropdown/__tests__/DropdownMenu.test.tsx
+          src/components/common/__tests__/AppContent.test.tsx
+          src/components/common/__tests__/shortcut-editable-guard.test.ts
+          src/app/tasks/[id]/components/TaskNoteSplitView.test.tsx
+          src/components/header/__tests__/task-detail-link.test.ts
+          src/components/rapi-avatar/__tests__/rapi-avatar-state.test.ts
+          src/components/rapi-avatar/__tests__/RapiAvatar.test.tsx
+          src/components/rapi-avatar/__tests__/RapiAvatarHost.test.tsx
+          src/components/note/editor/inline-link.test.ts
+          src/components/note/editor/useInlineLinks.test.ts
 
   lint:
     name: Lint Code
@@ -386,7 +405,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -521,6 +540,15 @@ jobs:
       # build. ~4s, and it runs before the installer it is testing.
       - name: Test the system-dependency installer
         run: node --test scripts/install-ci-system-deps.test.cjs
+
+      # rapitas-desktop/scripts/*.test.cjs ran in NO workflow until now
+      # (#1074): dev.js's helpers had tests that nothing executed, so they
+      # could rot green. Root scripts/*.test.cjs were already wired; this is
+      # the same for the desktop side, and this job is where it costs ~1s on
+      # every PR rather than only on a release build.
+      - name: Test the desktop dev-server scripts
+        working-directory: rapitas-desktop
+        run: node --test scripts/*.test.cjs
 
       - name: Install system dependencies
         run: |

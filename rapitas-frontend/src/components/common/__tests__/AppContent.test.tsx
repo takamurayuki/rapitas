@@ -11,6 +11,7 @@ import AppContent from '../AppContent';
 import { useNavStore } from '@/stores/nav-store';
 import { useTerminalStore } from '@/feature/terminal/terminal-store';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
+import { useLinkViewStore } from '@/stores/link-view-store';
 
 function makeTab() {
   return {
@@ -37,6 +38,13 @@ describe('AppContent', () => {
       isTaskDetailVisible: false,
       displayMode: 'overlay',
       dockSide: 'right',
+    });
+    useLinkViewStore.setState({
+      isOpen: false,
+      tabs: [],
+      activeId: null,
+      view: 'page',
+      collapsedGroupIds: [],
     });
   });
 
@@ -166,5 +174,69 @@ describe('AppContent', () => {
     );
     const outer = container.firstChild as HTMLElement;
     expect(outer.style.paddingRight).toBe('');
+  });
+});
+
+/**
+ * The link pane reserves page width so it sits beside the content rather
+ * than over it. Reported 2026-10-19: closing the pane left the content
+ * squeezed against the left edge — the reservation keyed on there being a
+ * TAB, and hiding the pane deliberately keeps the tabs so Ctrl+B can bring
+ * them back. What the page has to follow is whether the pane is on screen.
+ */
+describe('AppContent — link pane', () => {
+  const render1 = () => {
+    const { container } = render(
+      <AppContent>
+        <div>content</div>
+      </AppContent>,
+    );
+    return container.firstChild as HTMLElement;
+  };
+
+  const openPaneWithATab = () =>
+    useLinkViewStore.setState({
+      isOpen: true,
+      tabs: [{ id: 't1', url: 'https://a.example' }],
+      activeId: 't1',
+      view: 'page',
+    });
+
+  it('reserves room while the pane is showing a page', () => {
+    openPaneWithATab();
+    expect(render1().style.paddingRight).not.toBe('');
+  });
+
+  // The defect: hidden pane, tabs kept, page still padded.
+  it('gives the room back when the pane is hidden', () => {
+    openPaneWithATab();
+    useLinkViewStore.setState({ isOpen: false });
+    const outer = render1();
+    expect(outer.style.paddingRight).toBe('');
+    expect(outer.style.paddingLeft).toBe('');
+  });
+
+  it('keeps the tabs while hidden, and reserves again on return', () => {
+    openPaneWithATab();
+    useLinkViewStore.setState({ isOpen: false });
+    expect(render1().style.paddingRight).toBe('');
+
+    useLinkViewStore.setState({ isOpen: true });
+    expect(useLinkViewStore.getState().tabs).toHaveLength(1);
+    expect(render1().style.paddingRight).not.toBe('');
+  });
+
+  // The mirror of the same mistake: Ctrl+B on an empty pane opens the
+  // saved-pages library, which occupies the pane and so needs the room too.
+  it('reserves room for the library, which has no tab at all', () => {
+    useLinkViewStore.setState({ isOpen: true, tabs: [], activeId: null, view: 'library' });
+    expect(render1().style.paddingRight).not.toBe('');
+  });
+
+  it('reserves on the left when the task panel holds the right', () => {
+    useTaskDetailVisibilityStore.setState({ isTaskDetailVisible: true, dockSide: 'right' });
+    openPaneWithATab();
+    const outer = render1();
+    expect(outer.style.paddingLeft).not.toBe('');
   });
 });
