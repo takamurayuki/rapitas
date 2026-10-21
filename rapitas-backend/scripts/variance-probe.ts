@@ -134,6 +134,9 @@ function conforms(text: string): Record<string, boolean> {
 interface ArmSummary {
   arm: string;
   runs: number;
+  /** 90% bootstrap interval for meanLineDistance, resampling RUNS. */
+  lineDistanceLow: number;
+  lineDistanceHigh: number;
   uniqueOutputs: number;
   exactMatchRate: number;
   meanJaccard: number;
@@ -141,6 +144,54 @@ interface ArmSummary {
   conformanceRate: number;
   conformanceByRule: Record<string, number>;
   meanMs: number;
+}
+
+/**
+ * A 90% interval for the mean pairwise distance.
+ *
+ * Resamples the runs, not the pairs: the n(n-1)/2 distances are not
+ * independent — every output appears in n-1 of them — so bootstrapping
+ * pairs would report an interval several times too narrow. Measured at
+ * n=5 and again at n=8, the same arm moved from 0.467 to 0.283, which is
+ * why this interval is printed beside the estimate rather than left out.
+ *
+ * Deterministic: a fixed seed, so re-running on the same outputs gives
+ * the same interval.
+ *
+ * @param outs - Normalised outputs / 正規化済み出力
+ * @returns Low and high bounds / 下限と上限
+ */
+function bootstrapInterval(outs: string[]): { low: number; high: number } {
+  if (outs.length < 3) return { low: 0, high: 1 };
+  let seed = 0x5eed;
+  const next = () => {
+    // xorshift32 — small, fixed, reproducible.
+    seed ^= seed << 13;
+    seed ^= seed >>> 17;
+    seed ^= seed << 5;
+    return Math.abs(seed) / 0x7fffffff;
+  };
+  const means: number[] = [];
+  for (let b = 0; b < 400; b += 1) {
+    const sample = Array.from(
+      { length: outs.length },
+      () => outs[Math.floor(next() * outs.length)],
+    );
+    let total = 0;
+    let pairs = 0;
+    for (let i = 0; i < sample.length; i += 1) {
+      for (let k = i + 1; k < sample.length; k += 1) {
+        total += lineDistance(sample[i], sample[k]);
+        pairs += 1;
+      }
+    }
+    if (pairs) means.push(total / pairs);
+  }
+  means.sort((a, b) => a - b);
+  return {
+    low: means[Math.floor(0.05 * means.length)] ?? 0,
+    high: means[Math.floor(0.95 * means.length)] ?? 1,
+  };
 }
 
 function summarise(runs: Run[]): ArmSummary {
@@ -161,9 +212,12 @@ function summarise(runs: Run[]): ArmSummary {
   for (const rule of ruleNames) {
     byRule[rule] = checks.filter((c) => c[rule]).length / Math.max(1, checks.length);
   }
+  const interval = bootstrapInterval(outs);
   return {
     arm: runs[0]?.arm ?? '?',
     runs: runs.length,
+    lineDistanceLow: interval.low,
+    lineDistanceHigh: interval.high,
     uniqueOutputs: unique,
     exactMatchRate: runs.length > 1 ? 1 - (unique - 1) / (runs.length - 1) : 1,
     meanJaccard: pairs.length ? pairs.reduce((s, p) => s + p.j, 0) / pairs.length : 1,
@@ -203,23 +257,43 @@ async function runArm(arm: Arm, n: number): Promise<Run[]> {
 }
 
 function report(summaries: ArmSummary[]): void {
-  console.log('\nRESULT arm            runs unique exact%  jaccard  lineDist  conform%   mean s');
+  console.log(
+    '\nRESULT arm            runs unique exact%  jaccard  lineDist   90% interval  conform%',
+  );
   for (const s of summaries) {
     console.log(
       `RESULT ${s.arm.padEnd(14)} ${String(s.runs).padStart(4)} ${String(s.uniqueOutputs).padStart(6)} ` +
         `${(100 * s.exactMatchRate).toFixed(0).padStart(6)} ${s.meanJaccard.toFixed(3).padStart(8)} ` +
-        `${s.meanLineDistance.toFixed(3).padStart(9)} ${(100 * s.conformanceRate).toFixed(0).padStart(9)} ` +
-        `${(s.meanMs / 1000).toFixed(1).padStart(7)}`,
+        `${s.meanLineDistance.toFixed(3).padStart(9)}  ` +
+        `${s.lineDistanceLow.toFixed(3)}-${s.lineDistanceHigh.toFixed(3)} ` +
+        `${(100 * s.conformanceRate).toFixed(0).padStart(9)}`,
     );
   }
   const fixed = summaries.find((s) => s.arm === 'fixed');
   const varied = summaries.find((s) => s.arm === 'varied');
+  const frozen = summaries.find((s) => s.arm === 'frozen');
   if (fixed && varied) {
+    const gap = varied.meanLineDistance - fixed.meanLineDistance;
+    // Called separated only when the intervals do not overlap. Below that,
+    // the difference is not distinguishable from run-to-run noise at this n
+    // — measured once at n=5 and once at n=8, this same arm reported 0.467
+    // and then 0.283.
+    const separated = varied.lineDistanceLow > fixed.lineDistanceHigh;
     console.log(
       `\nRESULT model-only line distance   ${fixed.meanLineDistance.toFixed(3)}` +
         `\nRESULT with a moving context      ${varied.meanLineDistance.toFixed(3)}` +
-        `\nRESULT attributable to the prompt ${(varied.meanLineDistance - fixed.meanLineDistance).toFixed(3)}`,
+        `\nRESULT attributable to the prompt ${gap.toFixed(3)}` +
+        `  (${separated ? 'intervals separate' : 'INTERVALS OVERLAP — not resolved at this n'})`,
     );
+    if (frozen) {
+      const moving = varied.meanLineDistance - frozen.meanLineDistance;
+      const presence = frozen.meanLineDistance - fixed.meanLineDistance;
+      const share = gap === 0 ? 0 : moving / gap;
+      console.log(
+        `RESULT   the block MOVING          ${moving.toFixed(3)} (${(100 * share).toFixed(0)}% of the gap)` +
+          `\nRESULT   the block EXISTING        ${presence.toFixed(3)} (${(100 * (1 - share)).toFixed(0)}% of the gap)`,
+      );
+    }
   }
   for (const s of summaries) {
     const failed = Object.entries(s.conformanceByRule).filter(([, rate]) => rate < 1);

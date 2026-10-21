@@ -155,7 +155,8 @@ export async function buildImplementerContext(
   const implementLessons = await observeWorkflowStage(
     taskId,
     'context.buildCriticLessonsSection',
-    () => snapshotSection(taskId, 'lessons', () => buildCriticLessonsSection('implement', language)),
+    () =>
+      snapshotSection(taskId, 'lessons', () => buildCriticLessonsSection('implement', language)),
   );
   if (implementLessons) {
     ctx += `\n\n${implementLessons}`;

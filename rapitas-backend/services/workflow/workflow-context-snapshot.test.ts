@@ -28,7 +28,6 @@ let stored: StoredEvent[] = [];
 let appendFails = false;
 let queryFails = false;
 
-
 mock.module('../memory/timeline', () => ({
   appendEvent: async (event: {
     eventType: string;
