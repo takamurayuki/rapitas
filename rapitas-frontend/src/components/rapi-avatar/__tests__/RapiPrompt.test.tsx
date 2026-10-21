@@ -103,6 +103,106 @@ describe('sending a sentence', () => {
   });
 });
 
+describe('while she is reading it', () => {
+  /** Held open so the request is still in flight during the assertions. */
+  let release: (() => void) | null = null;
+
+  const hold = () =>
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+      requests.push({ url, body: JSON.parse(String(init?.body)) });
+      return new Promise((resolve, reject) => {
+        release = () =>
+          resolve({ ok: true, status: 200, json: () => Promise.resolve(answer) } as Response);
+        init?.signal?.addEventListener('abort', () =>
+          reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+        );
+      });
+    });
+
+  afterEach(() => {
+    release = null;
+  });
+
+  // Editing a sentence that has already gone is editing nothing: what comes
+  // back was routed on what was sent, so a box you can still type into is
+  // telling you otherwise.
+  it('will not let the sentence be edited once it has gone', async () => {
+    hold();
+    mount();
+    type('ブロックは何件？');
+    enter();
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(true);
+  });
+
+  it('offers a way out while it waits', async () => {
+    hold();
+    mount();
+    type('ブロックは何件？');
+    enter();
+    await waitFor(() => expect(screen.getByText('rapiAvatar.prompt.cancel')).toBeTruthy());
+  });
+
+  // The point of cancelling: the request stops, rather than landing later
+  // and dragging the user somewhere they have moved on from.
+  it('drops the answer when cancelled', async () => {
+    hold();
+    mount();
+    type('ブロックは何件？');
+    enter();
+    await waitFor(() => expect(screen.getByText('rapiAvatar.prompt.cancel')).toBeTruthy());
+
+    fireEvent.click(screen.getByText('rapiAvatar.prompt.cancel'));
+    release!();
+    await waitFor(() =>
+      expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false),
+    );
+    expect(routed).toEqual([]);
+  });
+
+  it('gives the sentence back to be reworded after cancelling', async () => {
+    hold();
+    mount();
+    type('ブロックは何件？');
+    enter();
+    await waitFor(() => expect(screen.getByText('rapiAvatar.prompt.cancel')).toBeTruthy());
+    fireEvent.click(screen.getByText('rapiAvatar.prompt.cancel'));
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('ブロックは何件？');
+  });
+
+  // A cancel is not a failure, and saying "I could not tell" about something
+  // the user called off would be a lie.
+  it('says nothing about not understanding', async () => {
+    hold();
+    mount();
+    type('ブロックは何件？');
+    enter();
+    await waitFor(() => expect(screen.getByText('rapiAvatar.prompt.cancel')).toBeTruthy());
+    fireEvent.click(screen.getByText('rapiAvatar.prompt.cancel'));
+    release!();
+    await waitFor(() =>
+      expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false),
+    );
+    expect(screen.queryByText('rapiAvatar.prompt.unplaced')).toBeNull();
+  });
+
+  it('unlocks the box once the answer lands', async () => {
+    hold();
+    mount();
+    type('ブロックは何件？');
+    enter();
+    await waitFor(() => expect(requests).toHaveLength(1));
+    release!();
+    await waitFor(() => expect(routed).toHaveLength(1));
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false);
+  });
+
+  it('offers no way out when nothing is in flight', () => {
+    mount();
+    expect(screen.queryByText('rapiAvatar.prompt.cancel')).toBeNull();
+  });
+});
+
 describe('when she cannot tell', () => {
   // The whole point. A nearest guess sends the user somewhere they did not
   // ask for; a shrug costs one click, because the tabs are right there.
