@@ -57,6 +57,8 @@ export type TimelineEventType =
   | 'context_section_metrics'
   // One task's frozen retrieved section — see workflow-context-snapshot.ts.
   | 'context_snapshot'
+  // One task+role's pinned model choice — see ai/model-route-stability.ts.
+  | 'model_route_pin'
   | 'memory_recall_attempt'
   | 'embedding_reindex'
   // NOTE: task 660 — post-verify automation lifecycle (gate → jury → commit/PR),
