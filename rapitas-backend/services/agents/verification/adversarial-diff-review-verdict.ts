@@ -14,6 +14,8 @@ export type ReviewVerdict = 'pass' | 'fail' | 'unknown';
 /** One juror's independent verdict (provider = model family). */
 export interface JurorVerdict {
   provider: AIProvider;
+  /** The exact model asked — the panel can seat several of one provider. */
+  model?: string;
   verdict: ReviewVerdict;
   severity: number;
   reasons: string[];
