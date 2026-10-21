@@ -17,6 +17,7 @@ import {
   runTaskQuery,
   listRecentActions,
   recordAction,
+  routeIntent,
   surveyBacklog,
   ASSISTANT_CAPABILITIES,
 } from '../../services/assistant';
@@ -92,6 +93,33 @@ export const assistantQueryRoutes = new Elysia({ prefix: '/assistant' })
     });
     return { success: true, ...survey };
   })
+
+  /**
+   * Where a sentence should go.
+   *
+   * Decides only; the destination does the work and asks for its own
+   * confirmation if it needs one. An answer of `routed: false` is a real
+   * answer — she will not guess, and the tabs are still there.
+   */
+  .post(
+    '/route',
+    async ({ body }) => {
+      const routed = await routeIntent(body.text, body.hasOpenTask ?? false);
+      await recordAction({
+        capabilityId: 'assistant.route',
+        status: routed ? 'executed' : 'refused',
+        args: { text: body.text, hasOpenTask: body.hasOpenTask ?? false },
+        ...(routed ? { result: routed } : { errorMessage: 'no destination' }),
+      });
+      return routed ? { success: true, routed: true, ...routed } : { success: true, routed: false };
+    },
+    {
+      body: t.Object({
+        text: t.String({ minLength: 1, maxLength: MAX_TEXT_LENGTH }),
+        hasOpenTask: t.Optional(t.Boolean()),
+      }),
+    },
+  )
 
   .get('/capabilities', () => ({ success: true, capabilities: ASSISTANT_CAPABILITIES }))
 

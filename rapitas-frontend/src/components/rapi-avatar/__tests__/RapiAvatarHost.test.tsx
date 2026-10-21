@@ -6,8 +6,8 @@
  * quiet until asked, and nothing the banner could do was lost — resuming
  * an interrupted execution is reachable nowhere else in the app.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 /** Where the app thinks it is; drives the contextual tab. */
 let pathname = '/dashboard';
@@ -24,8 +24,12 @@ let executionState: {
   interruptedCount: number;
 };
 
+// Interpolated values are rendered too, so an assertion can check WHAT a
+// message said and not merely that it appeared. The note about where a
+// sentence was routed is only useful if it names the destination.
 vi.mock('next-intl', () => ({
-  useTranslations: (ns: string) => (key: string) => `${ns}.${key}`,
+  useTranslations: (ns: string) => (key: string, vals?: Record<string, unknown>) =>
+    vals ? `${ns}.${key}:${Object.values(vals).join(',')}` : `${ns}.${key}`,
 }));
 vi.mock('@/hooks/useDarkMode', () => ({ useDarkMode: () => ({ isDarkMode: false }) }));
 // Which tabs exist depends on whether a task is open, and ラピ learns that
@@ -226,9 +230,74 @@ describe('the corner', () => {
   // Two things talking at once in one corner is what this removed.
   it('hushes the bubble while the panel is up', () => {
     render(<RapiAvatarHost />);
-    expect(screen.getByText('rapiAvatar.message.running')).toBeTruthy();
+    expect(screen.getByText('rapiAvatar.message.running:1')).toBeTruthy();
     fireEvent.click(avatarButton());
-    expect(screen.queryByText('rapiAvatar.message.running')).toBeNull();
+    expect(screen.queryByText('rapiAvatar.message.running:1')).toBeNull();
+  });
+});
+
+/**
+ * The front door: typing instead of choosing.
+ *
+ * The tabs are the fallback, so the thing worth proving is the handover —
+ * that a sentence lands on the right tab with the sentence itself, and that
+ * a refusal leaves the tabs exactly as they were.
+ */
+describe('typing at her', () => {
+  const route = (answer: Record<string, unknown>) =>
+    vi.stubGlobal('fetch', (url: string) =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve(
+            String(url).includes('/assistant/route')
+              ? answer
+              : { total: 0, categories: [], matches: [], results: [] },
+          ),
+      } as Response),
+    );
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  const say = (what: string) => {
+    const box = screen.getByLabelText('rapiAvatar.prompt.label');
+    fireEvent.change(box, { target: { value: what } });
+    fireEvent.keyDown(box, { key: 'Enter', shiftKey: false });
+  };
+
+  it('switches to the tab she routed it to', async () => {
+    route({ routed: true, intent: 'ask', reason: '件数を尋ねているため' });
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    expect(screen.getByText('rapiAvatar.watch.title')).toBeTruthy();
+
+    say('ブロックは何件？');
+    await waitFor(() => expect(screen.getByText('rapiAvatar.ask.title')).toBeTruthy());
+  });
+
+  // Without this a misroute looks like the feature simply doing something
+  // else, rather than like her having misread you.
+  it('says where she took it, and why', async () => {
+    route({ routed: true, intent: 'ask', reason: '件数を尋ねているため' });
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    say('ブロックは何件？');
+    await waitFor(() =>
+      expect(
+        screen.getByText('rapiAvatar.prompt.tookItAs:rapiAvatar.mode.ask,件数を尋ねているため'),
+      ).toBeTruthy(),
+    );
+  });
+
+  // A shrug has to leave everything usable, which means staying put.
+  it('stays where it was when she cannot tell', async () => {
+    route({ routed: false });
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    say('うーん');
+    await waitFor(() => expect(screen.getByText('rapiAvatar.prompt.unplaced')).toBeTruthy());
+    expect(screen.getByText('rapiAvatar.watch.title')).toBeTruthy();
   });
 });
 
@@ -266,6 +335,6 @@ describe('resuming interrupted work', () => {
   // The avatar is now the only sign that interrupted work exists.
   it('shows it as something the user has to deal with', () => {
     render(<RapiAvatarHost />);
-    expect(screen.getByText('rapiAvatar.message.waiting')).toBeTruthy();
+    expect(screen.getByText('rapiAvatar.message.waiting:1')).toBeTruthy();
   });
 });

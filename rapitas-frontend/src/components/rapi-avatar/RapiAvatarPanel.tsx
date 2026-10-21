@@ -28,6 +28,7 @@ import {
   taskIdFromLocation,
 } from './intake';
 import { RAPI_BUBBLE_Z } from '@/lib/pane-layering';
+import { RapiPrompt, type Routed } from './RapiPrompt';
 import { BUBBLE_COLORS, SpeechBubble } from './SpeechBubble';
 
 /**
@@ -125,6 +126,22 @@ export function RapiAvatarPanel({
     if (!modes.includes(mode)) setMode('watch');
   }, [modes, mode]);
 
+  /**
+   * The last sentence she routed, and where it went.
+   *
+   * Kept so the destination can be told what was said — only `create` and
+   * `ask` can use a sentence; `watch`, `tidy` and `consult` are places, not
+   * questions — and so the note can say where it went, which is what makes
+   * a wrong turn visible rather than mysterious.
+   */
+  const [routed, setRouted] = useState<Routed | null>(null);
+  const handleRouted = (next: Routed) => {
+    setRouted(next);
+    setMode(next.intent);
+  };
+  /** Only hand the sentence on while that destination is still showing. */
+  const handedOver = (to: PanelMode) => (routed && routed.intent === to ? routed.text : undefined);
+
   // The consult mode hosts the task assistant that used to be a card on the
   // task detail page. It needs room the other modes do not: a conversation
   // with history in a 320px column is unreadable.
@@ -203,6 +220,18 @@ export function RapiAvatarPanel({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* The front door, above the tabs: typing is the first thing offered
+            and the tabs are the shortcuts beside it. */}
+        <RapiPrompt hasOpenTask={hasTask} onRouted={handleRouted} />
+
+        {/* Where she took it. Without this a misroute looks like the feature
+            simply doing something else. */}
+        {routed && routed.intent === mode && (
+          <p className="px-2 pt-1 text-[10px] text-zinc-400">
+            {ta('prompt.tookItAs', { where: tm(routed.intent), reason: routed.reason })}
+          </p>
+        )}
+
         <div className="flex gap-1 border-b border-zinc-200 px-2 pt-2 dark:border-zinc-700">
           {modes.map((value) => (
             <button
@@ -222,8 +251,8 @@ export function RapiAvatarPanel({
         </div>
 
         {mode === 'watch' && <TaskWatch />}
-        {mode === 'create' && <TaskIntake />}
-        {mode === 'ask' && <TaskAsk />}
+        {mode === 'create' && <TaskIntake handedOver={handedOver('create')} />}
+        {mode === 'ask' && <TaskAsk handedOver={handedOver('ask')} />}
         {mode === 'consult' && <TaskConsult />}
         {mode === 'tidy' && <TaskTidy />}
         <div className="space-y-2 p-2">

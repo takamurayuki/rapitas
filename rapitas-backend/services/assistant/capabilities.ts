@@ -78,6 +78,17 @@ export const ASSISTANT_CAPABILITIES = [
     requiresConfirmation: false,
     undo: 'nothing-to-undo',
   },
+  {
+    // Picks which of her destinations a sentence means. Safe to let a model
+    // decide precisely because every destination is itself a read: the two
+    // that can change anything ask for confirmation after you arrive. So a
+    // wrong turn costs a wasted read, and the router is allowed to refuse —
+    // the tabs still work.
+    id: 'assistant.route',
+    writes: false,
+    requiresConfirmation: false,
+    undo: 'nothing-to-undo',
+  },
 ] as const satisfies readonly AssistantCapability[];
 
 /** What undoing a capability takes. */

@@ -1606,6 +1606,13 @@
       "consult": "This task",
       "tidy": "Tidy up"
     },
+    "prompt": {
+      "label": "Tell ラピ",
+      "placeholder": "Just say what you want to do",
+      "thinking": "Reading that…",
+      "unplaced": "I could not tell what that was about. Pick a tab below.",
+      "tookItAs": "Took that as “{where}” — {reason}"
+    },
     "tidy": {
       "byCondition": "By condition",
       "byJudgement": "Let me pick",
