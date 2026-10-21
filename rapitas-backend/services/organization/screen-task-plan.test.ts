@@ -115,4 +115,53 @@ describe('parseScreenTasks', () => {
       expect(parseScreenTasks(BULLET)[0].featureIds).toEqual([]);
     });
   });
+
+  // Measured 2026-10-18 on a freshly generated document. The flow format is
+  // `<screen> の <action> -> <result>`, and the result names the DESTINATION:
+  // matching the whole line attributed a feature to the screen it navigates to
+  // as well as the one it starts from. The generated screen table also had no
+  // route column, so the home screen's name parsed as "/ (home)" and matched
+  // nothing at all.
+  describe('attribution uses the action clause only', () => {
+    const DOC = [
+      '# 画面一覧',
+      '| 画面 | 目的 | 主要UI | 遷移 |',
+      '|---|---|---|---|',
+      '| /login | ログイン | ボタン | 成功→/ |',
+      '| / (ホーム) | 状況把握 | カード | →/settings |',
+      '| /settings | 設定 | 通知ボタン | →/ |',
+      '# 画面導線',
+      '- [F-01] `/login` の「Googleでログイン」を押す → `/` に遷移する',
+      '- [F-02] `/` のカードの「実施した」を押す → カウントダウンが始まる',
+      '- [F-03] `/settings` の「通知を有効にする」を押す → 「有効」と表示される',
+    ].join('\n');
+
+    const byName = (name: string) => parseScreenTasks(DOC).find((s) => s.name === name);
+
+    test('a feature whose flow STARTS at a screen is attributed to it', () => {
+      expect(byName('/login')?.featureIds).toEqual(['F-01']);
+      expect(byName('/settings')?.featureIds).toEqual(['F-03']);
+    });
+
+    test('a route embedded in the name cell is matched, even with no route column', () => {
+      // "/ (ホーム)" — the generator wrote the route and a label in one cell.
+      expect(byName('/ (ホーム)')?.featureIds).toEqual(['F-02']);
+    });
+
+    test('a feature is NOT attributed to the screen its RESULT names', () => {
+      // F-01 ends "→ `/` に遷移する"; the home screen must not claim it.
+      expect(byName('/ (ホーム)')?.featureIds).not.toContain('F-01');
+    });
+
+    test('a bare / route does not swallow every path', () => {
+      const home = byName('/ (ホーム)')?.featureIds ?? [];
+      expect(home).not.toContain('F-03');
+      expect(home).toHaveLength(1);
+    });
+
+    test('every feature lands on exactly one screen here', () => {
+      const all = parseScreenTasks(DOC).flatMap((s) => s.featureIds);
+      expect(all.sort()).toEqual(['F-01', 'F-02', 'F-03']);
+    });
+  });
 });

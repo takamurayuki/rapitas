@@ -16,6 +16,7 @@ import { taskSuggestionRoutes } from './task-suggestions';
 import { taskQuickCreateRoutes } from './task-quick-create';
 import { taskAutoGenerateRoutes } from './task-auto-generate';
 import failureImpactTreeRoute from './failure-impact-tree.routes';
+import taskTrashRoute from './task-trash.routes';
 
 export { tasksRoutes } from './tasks';
 export { ganttDataRoute } from './gantt-data';
@@ -37,4 +38,5 @@ export const tasksDomainRoutes = new Elysia()
   .use(taskSuggestionRoutes)
   .use(taskQuickCreateRoutes)
   .use(taskAutoGenerateRoutes)
-  .use(failureImpactTreeRoute);
+  .use(failureImpactTreeRoute)
+  .use(taskTrashRoute);

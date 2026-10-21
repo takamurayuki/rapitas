@@ -2,12 +2,15 @@
 // InsertSection
 import { useTranslations } from 'next-intl';
 import { TextQuote, Table, Link2, Code2, Loader2, GitBranch } from 'lucide-react';
+import { TableSizePicker } from './TableSizePicker';
+import type { TableShape } from '../table';
 import { borderLineColors, programmingLanguages } from '../constants';
 import { isImeComposing } from '@/utils/ime';
 
 interface InsertSectionProps {
   showLinkInput: boolean;
   showBorderPicker: boolean;
+  showTablePicker: boolean;
   showCodeInput: boolean;
   linkUrl: string;
   isLinkLoading: boolean;
@@ -16,7 +19,8 @@ interface InsertSectionProps {
   setCodeLanguage: (v: string) => void;
   setShowLinkInput: (v: boolean) => void;
   onToggleBorderPicker: () => void;
-  onInsertTable: () => void;
+  onToggleTablePicker: () => void;
+  onInsertTable: (shape: TableShape) => void;
   onInsertLink: () => void;
   onInsertCodeBlock: () => void;
   onInsertDiagram: () => void;
@@ -34,6 +38,7 @@ interface InsertSectionProps {
 export function InsertSection({
   showLinkInput,
   showBorderPicker,
+  showTablePicker,
   showCodeInput,
   linkUrl,
   isLinkLoading,
@@ -42,6 +47,7 @@ export function InsertSection({
   setCodeLanguage,
   setShowLinkInput,
   onToggleBorderPicker,
+  onToggleTablePicker,
   onInsertTable,
   onInsertLink,
   onInsertCodeBlock,
@@ -141,14 +147,35 @@ export function InsertSection({
         )}
       </div>
 
-      {/* Table */}
-      <button
-        onClick={onInsertTable}
-        className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
-        title={t('toolbar.insert.tableInsertTitle')}
-      >
-        <Table className="w-3.5 h-3.5" />
-      </button>
+      {/* Table — the size grid inserts one; editing an existing table is
+          done with the handles on the table itself (TableControlsOverlay),
+          so there is no second copy of those actions here. */}
+      <div className="relative">
+        <button
+          onClick={onToggleTablePicker}
+          className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
+          title={t('toolbar.insert.tableInsertTitle')}
+          data-popup-trigger="1"
+        >
+          <Table className="w-3.5 h-3.5" />
+        </button>
+        {showTablePicker && (
+          <div
+            className="absolute top-full left-0 mt-1 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-20"
+            // The caret must survive opening the popup: the table operations
+            // act on the cell it sits in, and a mousedown that moves focus out
+            // of the contentEditable would collapse the selection first.
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            <TableSizePicker
+              onPick={(shape) => {
+                onInsertTable(shape);
+                onToggleTablePicker();
+              }}
+            />
+          </div>
+        )}
+      </div>
 
       {/* Diagram block */}
       <button

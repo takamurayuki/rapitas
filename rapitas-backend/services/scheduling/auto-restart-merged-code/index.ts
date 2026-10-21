@@ -18,6 +18,8 @@ import { decideAutoRestart } from './decision';
 import {
   classifyMergeUrgency,
   decideBoundaryRestart,
+  resolveIdleBoundaryPolls,
+  resolveIntervalMs,
   resolveRestartMinIntervalMs,
   resolveRestartUiQuietMs,
   resolveRestartMaxDeferrals,
@@ -40,22 +42,8 @@ import { getLastUiRequestAt } from './ui-activity-tracker';
 
 const logger = createLogger('auto-restart-merged-code-scheduler');
 
-// 15 min — a modest fetch cadence; the fetch is a small network call but this
-// still runs forever, so keep it slower than the 5s-class pollers.
-const DEFAULT_INTERVAL_MS = 15 * 60 * 1000;
 // 30 min — flapping guard between two auto-restarts (acceptance criterion 2c).
 const DEFAULT_MIN_RESTART_INTERVAL_MS = 30 * 60 * 1000;
-
-/**
- * Resolves the fetch/check interval from the environment.
- *
- * @returns Interval in milliseconds / チェック間隔（ミリ秒）
- */
-function resolveIntervalMs(): number {
-  const raw = process.env.RAPITAS_AUTO_RESTART_MERGED_CODE_INTERVAL_MS;
-  const parsed = raw ? parseInt(raw, 10) : NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_INTERVAL_MS;
-}
 
 /**
  * Resolves the minimum interval between auto-restarts from the environment.
@@ -137,8 +125,91 @@ export class AutoRestartMergedCodeScheduler {
    *
    * @returns True if running / 実行中の場合true
    */
+  /**
+   * The last reason a boundary restart was declined.
+   *
+   * Kept so the warning is written once per reason rather than once per
+   * poll: the point is that a stuck self-deploy is visible, not that the log
+   * fills up with the same line every fifteen minutes.
+   */
+  private lastBoundaryWaitReason: string | null = null;
+
+  /**
+   * Consecutive polls that found a batched merge waiting on an idle system.
+   *
+   * Reset the moment anything is running, so it only ever counts genuine
+   * quiet. See `considerIdleBoundary`.
+   */
+  private idlePollsWithBatchedMerge = 0;
+
   getIsRunning(): boolean {
     return this.isRunning;
+  }
+
+  /**
+   * The commit this process started on, which `deploy-now` compares against.
+   *
+   * Null outside the dev orchestrator, since `start()` is a no-op there and
+   * never captures one — which is exactly what makes it a usable guard.
+   *
+   * @returns The startup commit, or null / 起動時のコミット（無ければ null）
+   */
+  getStartupCommit(): string | null {
+    return this.startupCommit;
+  }
+
+  /**
+   * Decide what to do about a merge that classification sent to the boundary.
+   *
+   * Batching exists so restarts do not churn in the middle of work, and the
+   * boundary it waits for is an auto-run task completing. On a system with
+   * auto-run stopped that boundary never arrives: measured 2026-10-20, four
+   * merges sat unactivated for a day while the poller declined silently every
+   * tick. The quieter the system, the less likely merged code was ever to
+   * run — the opposite of what the gates intend, since idle is the safest
+   * moment there is to restart.
+   *
+   * So sustained idle becomes a boundary in its own right. The decision
+   * itself is still `evaluateBoundaryRestart`'s: this only decides when to
+   * ask it, and asking does not relax a single one of its gates.
+   *
+   * @param aheadCount - Commits waiting to be activated / 未反映コミット数
+   * @param changedFiles - How many files that merge touched / 変更ファイル数
+   * @returns True when a restart was triggered / 再起動を発火したか
+   */
+  private async considerIdleBoundary(aheadCount: number, changedFiles: number): Promise<boolean> {
+    const snapshot = await getAgentSystemSnapshot();
+    const busy =
+      snapshot.isShuttingDown ||
+      snapshot.activeExecutions > 0 ||
+      snapshot.runningExecutions > 0 ||
+      snapshot.queueDepth > 0;
+    if (busy) {
+      this.idlePollsWithBatchedMerge = 0;
+      return false;
+    }
+
+    this.idlePollsWithBatchedMerge += 1;
+    const needed = resolveIdleBoundaryPolls();
+    if (this.idlePollsWithBatchedMerge < needed) {
+      // Warn, not debug: the log keeps warnings and above, and a silent
+      // decline every tick is exactly how this hid for a day. Once per batch,
+      // not once per poll.
+      if (this.idlePollsWithBatchedMerge === 1) {
+        logger.warn(
+          { aheadCount, changedFiles, needed },
+          '[AutoRestartMergedCode] merged code is waiting for a task boundary; it will activate if the system stays idle',
+        );
+      }
+      return false;
+    }
+
+    logger.warn(
+      { aheadCount, idlePolls: this.idlePollsWithBatchedMerge },
+      '[AutoRestartMergedCode] system idle with merged code waiting — treating the idle as the boundary',
+    );
+    this.idlePollsWithBatchedMerge = 0;
+    return this.evaluateBoundaryRestart();
   }
 
   /**
@@ -168,8 +239,11 @@ export class AutoRestartMergedCodeScheduler {
         { aheadCount, changedFiles: changedPaths.length },
         '[AutoRestartMergedCode] Non-machinery merge — batched until next task boundary',
       );
-      return false;
+      return this.considerIdleBoundary(aheadCount, changedPaths.length);
     }
+
+    // A machinery merge fires now, so nothing is left waiting on idle.
+    this.idlePollsWithBatchedMerge = 0;
 
     const snapshot = await getAgentSystemSnapshot();
     if (snapshot.activeExecutionsDegraded) return false;
@@ -296,10 +370,30 @@ export class AutoRestartMergedCodeScheduler {
       });
 
       if (decision.action === 'wait') {
-        logger.debug(
-          { reason: decision.reason, aheadCount },
-          '[AutoRestartMergedCode] Boundary restart gated — retrying at a later boundary',
-        );
+        // Warn, not debug. Measured 2026-10-20: the idle escalation fired
+        // four times, pulled, and then declined here every single time while
+        // the log said nothing — the gate that was holding it could only be
+        // guessed at from the outside. A system-busy wait does not raise the
+        // deferral count either, so this can go on indefinitely; if it does,
+        // the reason has to be readable.
+        if (this.lastBoundaryWaitReason !== decision.reason) {
+          this.lastBoundaryWaitReason = decision.reason;
+          logger.warn(
+            {
+              reason: decision.reason,
+              aheadCount,
+              auxChildren: countLiveTrackedProcesses('cli-agent'),
+              deferCount,
+              msSinceLastUiActivity: lastUiAt === 0 ? null : now - lastUiAt,
+            },
+            '[AutoRestartMergedCode] merged code is pulled but not activated — a gate is holding the restart',
+          );
+        } else {
+          logger.debug(
+            { reason: decision.reason, aheadCount },
+            '[AutoRestartMergedCode] Boundary restart gated — retrying at a later boundary',
+          );
+        }
         return false;
       }
       if (decision.action === 'defer') {

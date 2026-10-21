@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, CheckCheck } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { withHeaderVisible } from '@/components/header/task-detail-link';
 
 interface DueTodayTask {
   id: number;
@@ -230,7 +231,7 @@ export default function TodayTaskProgressBarCompact({
                   {popoverTasks.map((tk) => (
                     <li key={tk.id}>
                       <Link
-                        href={`/tasks/${tk.id}`}
+                        href={withHeaderVisible(`/tasks/${tk.id}`)}
                         onClick={() => setIsHovered(false)}
                         className="flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-colors"
                       >
