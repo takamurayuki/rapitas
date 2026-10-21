@@ -42,6 +42,32 @@ export const STALLED_AFTER_DAYS = 2;
 const TERMINAL = ['done', 'cancelled'] as const;
 
 /**
+ * An idea the backlog promoter filed and the system then set aside.
+ *
+ * Measured 2026-10-21: `held` was 22 tasks, and 19 of them were this — the
+ * idea box files a task, nothing can proceed with it, auto-run excludes it,
+ * and it sits. The operator's call is that those are correctly shelved and
+ * do not want a person; what was buried under them were two hand-filed
+ * feature tasks that had been excluded for eight days with nothing saying so.
+ * Reporting 22 to surface 2 is the failure mode this whole category exists
+ * to avoid.
+ *
+ * Both halves on purpose. `autoCreatedFromBacklog` is the robust part — a
+ * real column, written by the promoter for everything it files — but it
+ * covers concerns and bugs as well, and a reported defect set aside is not
+ * the same as a speculative idea set aside. The title prefix narrows it back
+ * to ideas, and is an existing convention rather than a new one:
+ * `idea-promotion-diversity.ts` already queries on it.
+ *
+ * The column's write is best-effort, so an idea that missed it stays in the
+ * report. That is the safe direction to fail in.
+ */
+const AUTO_FILED_IDEA = {
+  autoCreatedFromBacklog: true,
+  title: { startsWith: '[Idea]' },
+} as const;
+
+/**
  * What ラピ looks for, in the order she reports it.
  *
  * Ordered by how silent the state is rather than by severity: `held` and
@@ -115,6 +141,7 @@ function conditionFor(category: SupervisionCategory, now: Date): Record<string, 
         ...common(),
         status: notFinished,
         OR: [{ autoRunExcluded: true }, { workflowDisabled: true }],
+        NOT: AUTO_FILED_IDEA,
       };
     case 'noTheme':
       return { ...common(), status: notFinished, themeId: null };
