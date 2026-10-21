@@ -49,11 +49,19 @@
       "templatesLabel": "テンプレート:",
       "templates": {
         "flowchart": "フローチャート",
+        "mindmap": "マインドマップ",
         "sequence": "シーケンス図",
         "state": "状態遷移図",
+        "journey": "体験の起伏",
+        "quadrant": "4象限で比較",
+        "radar": "軸ごとに比較",
+        "pie": "内訳",
+        "gantt": "Gantt",
+        "timeline": "時系列",
+        "kanban": "かんばん",
+        "ishikawa": "原因分析",
         "er": "ER図",
-        "class": "クラス図",
-        "gantt": "Gantt"
+        "class": "クラス図"
       },
       "sourceLabel": "Mermaid ソース",
       "sourcePlaceholder": "Mermaidコードを入力...",
