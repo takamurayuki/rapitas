@@ -89,6 +89,9 @@ model Task {
   parentId              Int?
   parent                Task?         @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
   subtasks              Task[]        @relation("TaskSubtasks")
+  // Back-relation for notes/NoteTaskLink. Prisma requires both sides, so
+  // moving notes onto the server lands this one line in core.
+  noteLinks             NoteTaskLink[]
   themeId               Int?
   theme                 Theme?        @relation(fields: [themeId], references: [id], onDelete: SetNull)
   projectId             Int?
