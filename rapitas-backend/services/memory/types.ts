@@ -55,6 +55,8 @@ export type TimelineEventType =
   | 'playbook_generated'
   | 'playbook_generation_failed'
   | 'context_section_metrics'
+  // One task's frozen retrieved section — see workflow-context-snapshot.ts.
+  | 'context_snapshot'
   | 'memory_recall_attempt'
   | 'embedding_reindex'
   // NOTE: task 660 — post-verify automation lifecycle (gate → jury → commit/PR),

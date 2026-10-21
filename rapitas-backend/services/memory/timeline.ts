@@ -39,6 +39,26 @@ export async function appendEvent(event: {
 /**
  * タイムラインイベントをクエリ
  */
+/**
+ * Delete every event of one type for one correlation id.
+ *
+ * Narrow on purpose: the two filters together identify a single subject's
+ * records of a single kind, which is the only deletion the timeline needs.
+ * A wider delete would make the log forgettable by accident.
+ *
+ * @param filter - Event type and correlation id, both required / 種別と相関ID（いずれも必須）
+ * @returns How many rows were removed / 削除件数
+ */
+export async function deleteEvents(filter: {
+  eventType: string;
+  correlationId: string;
+}): Promise<number> {
+  const removed = await prisma.timelineEvent.deleteMany({
+    where: { eventType: filter.eventType, correlationId: filter.correlationId },
+  });
+  return removed.count;
+}
+
 export async function queryEvents(options: TimelineQueryOptions = {}) {
   const { eventType, actorType, correlationId, since, until, limit = 50, offset = 0 } = options;
 
