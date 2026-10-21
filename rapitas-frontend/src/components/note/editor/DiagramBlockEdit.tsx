@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { X, Save, GitBranch } from 'lucide-react';
+import { DIAGRAM_TEMPLATES } from './diagram-templates';
 
 interface Props {
   source: string;
@@ -14,32 +15,6 @@ interface Props {
 // NOTE: `labelKey` looks up the display label in the `diagramEdit.templates`
 // i18n namespace; the Mermaid `source` seed content is left untranslated
 // (template body content, not UI chrome).
-const TEMPLATES = [
-  {
-    labelKey: 'flowchart',
-    source: `graph TD\n    A[開始] --> B{条件分岐}\n    B -- はい --> C[処理]\n    B -- いいえ --> D[スキップ]\n    C --> E[終了]\n    D --> E`,
-  },
-  {
-    labelKey: 'sequence',
-    source: `sequenceDiagram\n    participant ユーザー\n    participant システム\n    ユーザー->>システム: リクエスト\n    システム-->>ユーザー: レスポンス`,
-  },
-  {
-    labelKey: 'state',
-    source: `stateDiagram-v2\n    [*] --> 待機\n    待機 --> 処理中 : 開始\n    処理中 --> 完了 : 成功\n    処理中 --> エラー : 失敗\n    完了 --> [*]\n    エラー --> 待機 : リセット`,
-  },
-  {
-    labelKey: 'er',
-    source: `erDiagram\n    USER ||--o{ ORDER : places\n    ORDER ||--|{ LINE_ITEM : contains\n    PRODUCT ||--o{ LINE_ITEM : "ordered in"`,
-  },
-  {
-    labelKey: 'class',
-    source: `classDiagram\n    class Animal{\n        +String name\n        +speak() String\n    }\n    class Dog {\n        +fetch()\n    }\n    Animal <|-- Dog`,
-  },
-  {
-    labelKey: 'gantt',
-    source: `gantt\n    title プロジェクト計画\n    dateFormat YYYY-MM-DD\n    section 設計\n    要件定義 :a1, 2024-01-01, 7d\n    基本設計  :after a1  , 5d\n    section 開発\n    実装      :2024-01-14, 14d`,
-  },
-] as const;
 
 async function renderPreview(source: string, id: string): Promise<string | null> {
   try {
@@ -146,7 +121,7 @@ export default function DiagramBlockEdit({ source, onSave, onCancel }: Props) {
         <span className="text-[11px] text-zinc-500 dark:text-zinc-500 shrink-0">
           {t('diagramEdit.templatesLabel')}
         </span>
-        {TEMPLATES.map((template) => (
+        {DIAGRAM_TEMPLATES.map((template) => (
           <button
             key={template.labelKey}
             onClick={() => handleChange(template.source)}
