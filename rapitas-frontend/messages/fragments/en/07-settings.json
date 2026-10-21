@@ -477,12 +477,27 @@
       "consult": "This task",
       "tidy": "Tidy up"
     },
+    "roadmap": {
+      "title": "Plan it out",
+      "thinking": "Thinking it through…",
+      "unavailable": "I could not put a plan together. Try saying it more concretely.",
+      "failed": "That did not work.",
+      "placement": "Theme: {theme} · Project: {project}",
+      "isNew": " (new)",
+      "noProject": "none",
+      "create": "Create {count} from this plan",
+      "creating": "Creating…",
+      "created": "Created {count}.",
+      "stoppedAfter": "Stopped after {count}. The rest were not created.",
+      "noteWritten": "The assumptions and decisions are in a note."
+    },
     "prompt": {
       "label": "Tell ラピ",
       "placeholder": "Just say what you want to do",
       "thinking": "Reading that…",
       "unplaced": "I could not tell what that was about. Pick a tab below.",
-      "tookItAs": "Took that as “{where}” — {reason}"
+      "tookItAs": "Took that as “{where}” — {reason}",
+      "ratherPlan": "Plan it out instead"
     },
     "tidy": {
       "byCondition": "By condition",

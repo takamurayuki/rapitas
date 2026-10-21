@@ -10,6 +10,7 @@ export { TaskBulkCleanup } from './TaskBulkCleanup';
 export { TaskConsult, taskIdFromLocation } from './TaskConsult';
 export { TaskWatch } from './TaskWatch';
 export { TaskTidy } from './TaskTidy';
+export { TaskRoadmap } from './TaskRoadmap';
 export { useDeleteFilter, type UseDeleteFilter } from './use-delete-filter';
 export { useDeleteProposal, type UseDeleteProposal } from './use-delete-proposal';
 export { TaskDraftCard } from './TaskDraftCard';

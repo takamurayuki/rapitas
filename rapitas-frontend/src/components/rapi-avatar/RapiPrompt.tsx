@@ -30,7 +30,7 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('rapi-prompt');
 
 /** Where a sentence can be sent. Mirrors the server's routable intents. */
-export type PromptDestination = 'watch' | 'create' | 'ask' | 'tidy' | 'consult';
+export type PromptDestination = 'watch' | 'create' | 'ask' | 'tidy' | 'consult' | 'roadmap';
 
 /** What a routed sentence turned into. */
 export interface Routed {

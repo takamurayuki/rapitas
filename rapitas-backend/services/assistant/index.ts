@@ -45,6 +45,25 @@ export {
 } from './delete-proposal';
 
 export {
+  draftRoadmap,
+  MAX_ROADMAP_STEPS,
+  MAX_ROADMAP_QUESTIONS,
+  type RoadmapDraft,
+  type RoadmapStep,
+  type RoadmapQuestion,
+  type Placement,
+  type NamedRef,
+} from './roadmap-draft';
+
+export {
+  commitRoadmap,
+  type ApprovedPlan,
+  type ApprovedPlacement,
+  type ApprovedStep,
+  type RoadmapResult,
+} from './roadmap-commit';
+
+export {
   routeIntent,
   ROUTABLE_INTENTS,
   type RoutableIntent,
