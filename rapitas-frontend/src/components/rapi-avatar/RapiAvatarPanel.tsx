@@ -25,7 +25,8 @@ import { RAPI_BUBBLE_Z } from '@/lib/pane-layering';
 import { type Routed } from './RapiPrompt';
 import { RapiComposer } from './RapiComposer';
 import { RapiModeTabs } from './RapiModeTabs';
-import { reachableModes, visibleModes, type PanelMode } from './rapi-modes';
+import { RapiHistory, type AskedFor } from './RapiHistory';
+import { MAX_HISTORY, reachableModes, visibleModes, type PanelMode } from './rapi-modes';
 
 export { visibleModes, reachableModes, type PanelMode } from './rapi-modes';
 import { BUBBLE_COLORS, SpeechBubble } from './SpeechBubble';
@@ -121,9 +122,17 @@ export function RapiAvatarPanel({
    * a wrong turn visible rather than mysterious.
    */
   const [routed, setRouted] = useState<Routed | null>(null);
+  /**
+   * What has been asked this session, newest first.
+   *
+   * Capped: this is a way back to something, not a transcript, and the row
+   * it draws is one line in a 320px panel.
+   */
+  const [history, setHistory] = useState<AskedFor[]>([]);
   const handleRouted = (next: Routed) => {
     setRouted(next);
     setMode(next.intent);
+    setHistory((prev) => [{ text: next.text, intent: next.intent }, ...prev].slice(0, MAX_HISTORY));
   };
   /** Only hand the sentence on while that destination is still showing. */
   const handedOver = (to: PanelMode) => (routed && routed.intent === to ? routed.text : undefined);
@@ -239,6 +248,11 @@ export function RapiAvatarPanel({
       </div>
 
       <RapiModeTabs modes={modes} mode={mode} onSelect={setMode} />
+
+      {/* Going back to something asked earlier. The mode it went to still
+          holds what it produced, so this is a jump rather than a replay —
+          nothing is asked of the model again. */}
+      <RapiHistory history={history} onPick={(entry) => setMode(entry.intent)} />
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {/* Said once, before anything has been asked for. It is the only
