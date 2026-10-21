@@ -56,6 +56,14 @@ export {
 } from './roadmap-draft';
 
 export {
+  researchCandidates,
+  MAX_CANDIDATES,
+  RESEARCH_TIMEOUT_MS,
+  type Candidate,
+  type ResearchFindings,
+} from './research';
+
+export {
   commitRoadmap,
   type ApprovedPlan,
   type ApprovedPlacement,

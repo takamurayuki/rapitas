@@ -21,9 +21,25 @@ import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import { useNoteStore } from '@/stores/note-store';
 import { composeRoadmapNote } from './roadmap-note';
-import type { Committed, Decision, Draft, Question, RoadmapFailure } from './roadmap.types';
+import type {
+  Committed,
+  Decision,
+  Draft,
+  Findings,
+  Question,
+  RoadmapFailure,
+} from './roadmap.types';
 
-export type { Placement, Question, Step, Draft, Committed, RoadmapFailure } from './roadmap.types';
+export type {
+  Placement,
+  Question,
+  Step,
+  Draft,
+  Committed,
+  RoadmapFailure,
+  Candidate,
+  Findings,
+} from './roadmap.types';
 
 const logger = createLogger('rapi-roadmap');
 
@@ -68,6 +84,8 @@ export function useRoadmap(handedOver?: string) {
    * rather than restarting the interview from the top.
    */
   const lastAsk = useRef<Decision[] | undefined>(undefined);
+  const [findings, setFindings] = useState<Findings | null>(null);
+  const [researching, setResearching] = useState(false);
 
   const ask = useCallback(async (text: string, decisions?: Decision[]) => {
     lastAsk.current = decisions;
@@ -121,6 +139,38 @@ export function useRoadmap(handedOver?: string) {
   const decisions = (): Decision[] =>
     asked.map((q, i) => ({ question: q.question, answer: answers[i] ?? '—' }));
 
+  /**
+   * Look the candidates up, when the goal is a choice between things.
+   *
+   * The only part of this flow that reaches outside the machine, and it is
+   * offered rather than automatic: it takes the better part of a minute,
+   * and a plan that is not about choosing has nothing to search for.
+   *
+   * Failing is not fatal. The plan and the empty comparison table are
+   * useful without it, so a failed search leaves a note saying so instead
+   * of taking the roadmap down with it.
+   */
+  const research = async () => {
+    const axes = draft?.comparisonAxes ?? [];
+    if (!draft || axes.length === 0 || researching) return;
+    setResearching(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/assistant/research`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goal: draft.goal, axes, decisions: decisions() }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { available?: boolean; findings?: Findings };
+      setFindings(data.available && data.findings ? data.findings : null);
+    } catch (err) {
+      logger.warn({ err }, 'could not look the candidates up');
+      setFindings(null);
+    } finally {
+      setResearching(false);
+    }
+  };
+
   /** Ask her to plan again, this time knowing what was chosen. */
   const refine = () => {
     if (!handedOver || drafting) return;
@@ -143,6 +193,8 @@ export function useRoadmap(handedOver?: string) {
       taskIds: made.taskIds,
       assumptions: plan.assumptions ?? [],
       comparisonAxes: plan.comparisonAxes ?? [],
+      candidates: findings?.candidates ?? [],
+      unresolvedAxes: findings?.unresolvedAxes ?? [],
     });
     createNote(plan.goal);
     // `createNote` makes it current, so the id to fill in is the current one.
@@ -246,6 +298,9 @@ export function useRoadmap(handedOver?: string) {
      * round that asked questions has not been planned against yet.
      */
     unanswered: (draft?.questions.length ?? 0) > 0,
+    findings,
+    researching,
+    research,
     refine,
     commit,
     retry,

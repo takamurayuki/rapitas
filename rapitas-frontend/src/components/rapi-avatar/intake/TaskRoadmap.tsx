@@ -51,6 +51,9 @@ export function TaskRoadmap({ handedOver }: TaskRoadmapProps = {}) {
     refine,
     commit,
     retry,
+    findings,
+    researching,
+    research,
   } = useRoadmap(handedOver);
 
   const placement = (p: Placement) =>
@@ -150,6 +153,56 @@ export function TaskRoadmap({ handedOver }: TaskRoadmapProps = {}) {
               </li>
             ))}
           </ul>
+
+          {/* Only when the goal is a choice between things. Searching takes
+              the better part of a minute and reaches outside the machine,
+              so it is offered rather than done automatically. */}
+          {!unanswered && (draft.comparisonAxes?.length ?? 0) > 0 && (
+            <div className="space-y-1 rounded border border-zinc-200 p-1.5 dark:border-zinc-700">
+              {findings ? (
+                <>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                    {t('foundCandidates', { count: findings.candidates.length })}
+                  </p>
+                  <ul className="space-y-0.5">
+                    {findings.candidates.map((c) => (
+                      <li key={c.sourceUrl} className="text-[10px]">
+                        {/* The source is the link itself: a candidate whose
+                            origin cannot be opened is indistinguishable
+                            from one that was invented. */}
+                        <a
+                          href={c.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-indigo-600 hover:underline dark:text-indigo-400"
+                        >
+                          {c.name}
+                        </a>
+                        <span className="text-zinc-400">
+                          {' '}
+                          — {Object.keys(c.values).length}/{draft.comparisonAxes?.length ?? 0}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {findings.unresolvedAxes.length > 0 && (
+                    <p className="text-[10px] text-amber-700 dark:text-amber-400">
+                      {t('unresolvedAxes', { axes: findings.unresolvedAxes.join(' / ') })}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void research()}
+                  disabled={researching}
+                  className="w-full rounded-lg border border-zinc-300 px-2 py-1 text-[11px] text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                >
+                  {researching ? t('researching') : t('research')}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Unanswered questions mean this plan is a sketch. Creating it is
               what made the interview decorative, so that is not offered. */}

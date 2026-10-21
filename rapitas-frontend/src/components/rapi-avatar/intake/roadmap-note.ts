@@ -20,6 +20,15 @@ export interface NoteDecision {
   answer: string;
 }
 
+/** Something the search found, and the page it came from. */
+export interface NoteCandidate {
+  name: string;
+  sourceUrl: string;
+  /** Axis name to what the search established. Missing means not found. */
+  values: Record<string, string>;
+  why: string;
+}
+
 /** A step as the approved plan dated it. */
 export interface NoteStep {
   title: string;
@@ -45,6 +54,10 @@ export function composeRoadmapNote(input: {
   taskIds: number[];
   assumptions?: string[];
   comparisonAxes?: string[];
+  /** What was looked up, if anything was. / 調べた候補 */
+  candidates?: NoteCandidate[];
+  /** Axes the search could not fill for anyone. / 調べても埋まらなかった観点 */
+  unresolvedAxes?: string[];
 }): string {
   const lines: string[] = [`# ${input.goal}`, ''];
 
@@ -55,13 +68,32 @@ export function composeRoadmapNote(input: {
   }
 
   if (input.comparisonAxes && input.comparisonAxes.length > 0) {
-    // Columns, and nothing in them. She cannot look up a salary or a review
-    // from here, so anything filled in would be invented — and an invented
-    // number in a note is read later as a fact.
-    const header = `| 候補 | ${input.comparisonAxes.join(' | ')} |`;
-    const rule = `|${' --- |'.repeat(input.comparisonAxes.length + 1)}`;
-    const blank = `|${'  |'.repeat(input.comparisonAxes.length + 1)}`;
-    lines.push('## 比較', header, rule, blank, blank, '');
+    const axes = input.comparisonAxes;
+    const found = input.candidates ?? [];
+    // A cell is filled only where the search established it. An empty one
+    // is the honest answer: an invented number in a note is read months
+    // later as a fact, and nothing on the page says where it came from.
+    const row = (c: NoteCandidate) =>
+      `| [${c.name}](${c.sourceUrl}) | ${axes.map((a) => c.values[a] ?? '').join(' | ')} |`;
+    const blank = `|${'  |'.repeat(axes.length + 1)}`;
+    lines.push(
+      '## 比較',
+      `| 候補 | ${axes.join(' | ')} |`,
+      `|${' --- |'.repeat(axes.length + 1)}`,
+      ...found.map(row),
+      // Always one empty row: the list is a starting point, not the market.
+      blank,
+      '',
+    );
+    const why = found.filter((c) => c.why);
+    if (why.length > 0) {
+      lines.push(...why.map((c) => `- ${c.name}: ${c.why}`), '');
+    }
+    if (input.unresolvedAxes && input.unresolvedAxes.length > 0) {
+      // Named rather than left as empty columns, so the gap is visibly a
+      // gap and not an oversight.
+      lines.push(`調べても分からなかった観点: ${input.unresolvedAxes.join(' / ')}`, '');
+    }
   }
 
   if (input.decisions.length > 0) {
