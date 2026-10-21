@@ -224,3 +224,79 @@ describe('evaluateAcceptanceSelfCheck', () => {
     ).toBeNull();
   });
 });
+
+/**
+ * Measured on task #1331 (2026-10-19): two of six criteria read "… が
+ * verify.md に記録されている" and were marked ✗ on every pass, because
+ * `verify.md` was taken for a repository path and looked for in the diff.
+ * It is a `WorkflowFile` row — it is never in a diff — so those criteria
+ * could not be satisfied by any change at all, and the task stayed blocked.
+ */
+describe('workflow artifacts are not repository paths', () => {
+  const ARTIFACTS = ['research.md', 'question.md', 'plan.md', 'verify.md'];
+
+  it('does not take a workflow artifact for a path token', () => {
+    for (const artifact of ARTIFACTS) {
+      expect(extractReferenceTokens(`結果が ${artifact} に記録されている`)).toEqual([]);
+      expect(extractReferenceTokens(`結果が \`${artifact}\` に記録されている`)).toEqual([]);
+    }
+  });
+
+  it('leaves such a criterion undeterminable rather than permanently unmet', () => {
+    const [verdict] = matchCriteriaToChanges(
+      ['typecheck・lint・test が exit 0 で完了したことが verify.md に記録されている'],
+      ['src/app.ts'],
+    );
+    expect(verdict.determinable).toBe(false);
+    expect(verdict.matched).toBe(true);
+  });
+
+  // A criterion naming a real file as well is still judged on that file.
+  it('still judges the real paths in the same criterion', () => {
+    expect(
+      extractReferenceTokens('`rapitas.runtime.json` を追加し、その結果を verify.md に書く'),
+    ).toEqual(['rapitas.runtime.json']);
+
+    const [verdict] = matchCriteriaToChanges(
+      ['`rapitas.runtime.json` を追加し、その結果を verify.md に書く'],
+      ['src/app.ts'],
+    );
+    expect(verdict).toEqual({
+      criterion: '`rapitas.runtime.json` を追加し、その結果を verify.md に書く',
+      determinable: true,
+      matched: false,
+    });
+  });
+
+  // A path that merely ends in one of those names is a real file.
+  it('keeps a real file whose name happens to end the same way', () => {
+    expect(extractReferenceTokens('`docs/plan.md` を更新する')).toEqual(['docs/plan.md']);
+  });
+
+  // The gate must still be able to go red: an unmatched real criterion is
+  // what this check exists to catch.
+  it('still fails for a criterion whose real file is absent from the diff', () => {
+    const check = evaluateAcceptanceSelfCheck({
+      criteria: ['`missing.ts` を追加し、結果を verify.md に記録する'],
+      changedFiles: ['src/other.ts'],
+      taskText: 'タスク本文',
+    });
+    expect(check?.ok).toBe(false);
+    expect(check?.errorCount).toBe(1);
+  });
+
+  // #1331's own shape end to end: every real criterion is met, and the
+  // two verify.md-only ones no longer hold the task back.
+  it('passes when the only unmatched criteria were verify.md-only', () => {
+    const check = evaluateAcceptanceSelfCheck({
+      criteria: [
+        '`rapitas.runtime.json` が差分に含まれ、`start` と `url` の両方に {port} がある',
+        'typecheck・lint・test が exit 0 で完了したことが verify.md に記録されている',
+        '起動確認が HTTP 200 を得たことが verify.md に記録されている',
+      ],
+      changedFiles: ['rapitas.runtime.json'],
+      taskText: '[ENV] 環境構築とプレビュー設定',
+    });
+    expect(check?.ok).toBe(true);
+  });
+});

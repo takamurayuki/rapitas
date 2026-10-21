@@ -7,6 +7,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { AppError, ValidationError } from '../../middleware/error-handler';
 import { createLogger } from '../../config/logger';
+import { deleteTaskWithTrash } from '../../services/task/task-deletion';
 import {
   createTask,
   updateTask,
@@ -15,8 +16,6 @@ import {
   attachBlockedCauses,
   attachAutoRunCardStatus,
 } from '../../services/task/task-service';
-import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree/worktree-ops';
-import { resolveWorktreeBaseDir } from '../../services/agents/orchestrator/git-operations/core/resolve-worktree-base-dir';
 import { warnIfSubtaskCreatedDuringDisabledSplit } from '../../services/workflow/subtask-split-guard';
 import { getProjectRoot } from '../../config';
 import { cleanupCompletedTasks } from '../../services/task/completed-task-cleanup';
@@ -407,73 +406,22 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         throw new ValidationError(INVALID_ID);
       }
 
-      // Guard: a protected task is blocked from deletion to prevent accidental
-      // loss. This is the single choke point for ALL manual delete paths (card
-      // context menu, detail page, bulk list delete) since they all hit DELETE
-      // /:id. Checked before any worktree cleanup so we never touch a task we
-      // are not going to delete.
-      const guard = await prisma.task.findUnique({
-        where: { id },
-        select: { isProtected: true },
-      });
-      if (guard?.isProtected) {
+      // The protected-task guard, the worktree cleanup and the trash copy all
+      // live in deleteTaskWithTrash now. This route used to BE the choke point
+      // for every manual delete; ラピ added a caller that is not an HTTP
+      // request, and one guard in two places is a guard that drifts.
+      const result = await deleteTaskWithTrash(id, 'user');
+
+      if (result.outcome === 'protected') {
         set.status = 409;
         return { error: '保護されたタスクは削除できません' };
       }
-
-      // Clean up any worktrees associated with this task before deletion
-      try {
-        const task = await prisma.task.findUnique({
-          where: { id },
-          select: { workingDirectory: true, theme: { select: { workingDirectory: true } } },
-        });
-
-        if (task) {
-          // Find any agent sessions with worktrees for this task
-          const sessionsWithWorktrees = await prisma.agentSession.findMany({
-            where: {
-              worktreePath: { not: null },
-              config: { taskId: id },
-            },
-            select: { id: true, worktreePath: true },
-          });
-
-          const dirs = [task.workingDirectory || task.theme?.workingDirectory, getProjectRoot()];
-
-          for (const session of sessionsWithWorktrees) {
-            if (!session.worktreePath) continue;
-            try {
-              const removed = await removeWorktree(
-                resolveWorktreeBaseDir(session.worktreePath, dirs),
-                session.worktreePath,
-              );
-              if (!removed) {
-                logger.warn(`[tasks] worktree remove refused: task ${id} ${session.worktreePath}`);
-                continue;
-              }
-              await prisma.agentSession.update({
-                where: { id: session.id },
-                data: { worktreePath: null },
-              });
-              logger.info(`[tasks] Cleaned up worktree for task ${id}: ${session.worktreePath}`);
-            } catch (worktreeError) {
-              logger.warn(
-                { err: worktreeError },
-                `[tasks] Failed to clean up worktree for task ${id}: ${session.worktreePath}`,
-              );
-            }
-          }
-        }
-      } catch (cleanupError) {
-        logger.warn(
-          { err: cleanupError },
-          `[tasks] Failed to clean up worktrees for task ${id}, proceeding with deletion`,
-        );
+      if (result.outcome === 'not_found') {
+        set.status = 404;
+        return { error: TASK_NOT_FOUND };
       }
 
-      return await prisma.task.delete({
-        where: { id },
-      });
+      return { id, trashId: result.trashId };
     },
     {
       params: t.Object({ id: t.String() }),

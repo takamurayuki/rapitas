@@ -49,11 +49,19 @@
       "templatesLabel": "Templates:",
       "templates": {
         "flowchart": "Flowchart",
-        "sequence": "Sequence diagram",
-        "state": "State diagram",
-        "er": "ER diagram",
-        "class": "Class diagram",
-        "gantt": "Gantt"
+        "mindmap": "Mind map",
+        "sequence": "Sequence",
+        "state": "State",
+        "journey": "Journey",
+        "quadrant": "Quadrants",
+        "radar": "Radar",
+        "pie": "Pie",
+        "gantt": "Gantt",
+        "timeline": "Timeline",
+        "kanban": "Kanban",
+        "ishikawa": "Cause & effect",
+        "er": "ER",
+        "class": "Class"
       },
       "sourceLabel": "Mermaid source",
       "sourcePlaceholder": "Enter Mermaid code...",
@@ -102,6 +110,18 @@
         "insertButton": "Insert",
         "borderLineTitle": "Border line",
         "tableInsertTitle": "Insert table",
+        "tableSizeGridLabel": "Choose table size",
+        "tableSizeCellLabel": "{rows} by {columns}",
+        "tableSizeLabel": "{rows} × {columns}",
+        "tableSizeHint": "Choose a size",
+        "tableEditHeading": "Edit table",
+        "tableInsertRowAbove": "Insert row above",
+        "tableInsertRowBelow": "Insert row below",
+        "tableInsertColumnLeft": "Insert column left",
+        "tableInsertColumnRight": "Insert column right",
+        "tableDeleteRow": "Delete row",
+        "tableDeleteColumn": "Delete column",
+        "tableDeleteTable": "Delete table",
         "diagramInsertTitle": "Insert diagram (Mermaid)",
         "codeBlockInsertTitle": "Insert code block",
         "selectLanguageLabel": "Select a programming language"
@@ -187,15 +207,33 @@
       "diagramLoadingText": "Loading diagram...",
       "diagramSyntaxError": "Syntax error — check your Mermaid notation",
       "linkCopyDoneText": "Copied!",
-      "tableHeading1": "Heading 1",
-      "tableHeading2": "Heading 2",
-      "tableHeading3": "Heading 3"
+      "tableHeading": "Column {n}"
     },
     "aiService": {
       "apiError": "API error: {status} {statusText}",
       "communicationError": "An error occurred while communicating with the AI",
       "streamUnavailable": "Could not get the response stream",
       "responseFailed": "Failed to get a response"
-    }
+    },
+    "tableControls": {
+      "insertRowAbove": "Insert row above",
+      "insertRowBelow": "Insert row below",
+      "deleteRow": "Delete row",
+      "deleteTableWithLastRow": "Delete row (the last one — this removes the table)",
+      "insertColumnLeft": "Insert column left",
+      "insertColumnRight": "Insert column right",
+      "deleteColumn": "Delete column",
+      "deleteTableWithLastColumn": "Delete column (the last one — this removes the table)",
+      "columnHandle": "Actions for column {index}",
+      "rowHandle": "Actions for row {index}",
+      "menuLabel": "Table row and column actions"
+    },
+    "linkOpen": "Open",
+    "linkEdit": "Edit",
+    "linkRemove": "Remove link",
+    "linkDismiss": "Close the link panel",
+    "linkUrlLabel": "Link URL",
+    "linkApply": "Apply",
+    "linkPanelLabel": "Link actions"
   }
 }

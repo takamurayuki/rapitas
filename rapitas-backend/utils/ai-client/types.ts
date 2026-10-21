@@ -28,6 +28,16 @@ export type AIRequestOptions = {
    * MAX_CLI_TIMEOUT_MS so one caller cannot pin a CLI slot.
    */
   timeoutMs?: number;
+  /**
+   * What this one call may reach outside itself. Omitted means nothing —
+   * no repo, no files, no shell, no network, which is what every caller
+   * before research got and still gets. `'web'` opens search and page
+   * fetching only, for the one job that cannot be done from memory.
+   *
+   * Honoured on the CLI path; the paid-API and local-LLM paths have no
+   * tools to offer and ignore it.
+   */
+  tools?: 'none' | 'web';
 };
 
 export type AIResponse = {
