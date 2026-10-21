@@ -1624,6 +1624,7 @@
       "label": "Tell ラピ",
       "placeholder": "Just say what you want to do",
       "thinking": "Reading that…",
+      "cancel": "Cancel",
       "unplaced": "I could not tell what that was about. Pick a tab below.",
       "tookItAs": "Took that as “{where}” — {reason}",
       "ratherPlan": "Plan it out instead"
