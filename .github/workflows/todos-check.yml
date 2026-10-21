@@ -31,7 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       # Baseline measured 2026-04-08 in ADR-0004.
       # Lower these numbers as the ratchet advances; never raise them.
