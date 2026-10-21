@@ -89,6 +89,27 @@ export const ASSISTANT_CAPABILITIES = [
     requiresConfirmation: false,
     undo: 'nothing-to-undo',
   },
+  {
+    // Turns "I want to do X" into a plan: where it belongs, what it breaks
+    // into, and what she still needs told. Writes nothing, which is what
+    // lets a model shape the whole thing — every part is read before the
+    // commit below creates any of it.
+    id: 'roadmap.draft',
+    writes: false,
+    requiresConfirmation: false,
+    undo: 'nothing-to-undo',
+  },
+  {
+    // Creates the theme, project and tasks the user approved. No model runs
+    // in this half: what is created is exactly what was on screen. Undoing
+    // means removing what was made — the tasks go to the trash, but a theme
+    // or project created here does not, which is why the plan shows what it
+    // intends to create before this runs.
+    id: 'roadmap.commit',
+    writes: true,
+    requiresConfirmation: true,
+    undo: 'delete-what-was-made',
+  },
 ] as const satisfies readonly AssistantCapability[];
 
 /** What undoing a capability takes. */

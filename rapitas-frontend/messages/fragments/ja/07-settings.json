@@ -477,12 +477,27 @@
       "consult": "このタスク",
       "tidy": "片付ける"
     },
+    "roadmap": {
+      "title": "計画を立てる",
+      "thinking": "考えています…",
+      "unavailable": "計画を組めませんでした。もう少し具体的に書いてみてください。",
+      "failed": "うまくいきませんでした。",
+      "placement": "テーマ: {theme} ・ プロジェクト: {project}",
+      "isNew": "（新規）",
+      "noProject": "なし",
+      "create": "この計画で{count}件作る",
+      "creating": "作っています…",
+      "created": "{count}件作りました。",
+      "stoppedAfter": "{count}件までで止まりました。残りは作られていません。",
+      "noteWritten": "前提と決めたことをノートに書きました。"
+    },
     "prompt": {
       "label": "ラピに言う",
       "placeholder": "やりたいことをそのまま書いてください",
       "thinking": "読んでいます…",
       "unplaced": "うまく分かりませんでした。下のタブから選んでください。",
-      "tookItAs": "「{where}」として受け取りました — {reason}"
+      "tookItAs": "「{where}」として受け取りました — {reason}",
+      "ratherPlan": "計画として考える"
     },
     "tidy": {
       "byCondition": "条件で",

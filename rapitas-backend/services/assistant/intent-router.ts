@@ -34,7 +34,7 @@ const logger = createLogger('assistant-router');
  * routed sentence is a tab she switches to — the input is a front door to
  * what is already there, not a second implementation of it.
  */
-export const ROUTABLE_INTENTS = ['watch', 'create', 'ask', 'tidy', 'consult'] as const;
+export const ROUTABLE_INTENTS = ['watch', 'create', 'ask', 'tidy', 'consult', 'roadmap'] as const;
 
 export type RoutableIntent = (typeof ROUTABLE_INTENTS)[number];
 
@@ -74,15 +74,21 @@ const SYSTEM_PROMPT = `あなたは rapitas というタスク管理アプリの
 
 行き先:
 - watch: 手当てが要るタスクが何かあるかを「尋ねている」とき。例「滞ってるものある?」「何か見るべきものは?」
+
 - create: これからやること・直したいこと・作りたいことを「述べている」とき。不具合の報告もここ（直す対象だから）。例「〜が崩れるのを直したい」「〜を追加する」
 - ask: 既存タスクの件数や一覧を「尋ねている」とき。例「ブロックは何件?」「〜のタスクを探して」
 - tidy: 不要なタスクを消す・片付ける・整理するとき。例「古いのを消して」「整理したい」
 - consult: 文が「いま開いているタスクそのもの」を指しているとき。例「このタスクを分析して」「これの工数は?」
+- roadmap: やりたいことが大きく、何から手を付けるか自体を一緒に考えたいとき。例「英語を続けられるようにしたい」「〜を実現したい」「段階的に進めたい」
 
-間違えやすい境目:
-1. タスクが開いていても、文が新しくやることを述べているだけなら create。consult は「このタスク」「これ」「今開いているもの」のように、開いているタスクを指す言葉があるときだけ。
+間違えやすい境目（順に確認すること）:
+1. consult を選んでよいのは、文の中に「このタスク」「これ」「今開いているもの」のように開いているタスクを**指す言葉がある**ときだけ。タスクが開いていても、その言葉が無ければ consult ではない。「ラピに影を付ける」はタスクが開いていても create。
 2. 不具合や不満を述べた文は create。watch ではない。watch は「何かある?」と尋ねる文だけ。
-3. 「〜を探して」「何件」は ask。「〜したい」「〜を直す」は create。
+3. 「〜を探して」「何件」は ask。
+4. create と roadmap の境目:
+   - create = 具体的な1つの変更。「〜を直す」「〜を追加する」「〜を付ける」。やることが1件に収まる。
+   - roadmap = 習慣・能力・状態に到達したい。「〜を続けられるようにしたい」「〜できるようになりたい」「〜を実現したい」「〜を上達させたい」。到達までに複数の段取りが要る。
+   迷ったら「これは1件のタスクで終わるか?」と自問する。終わらないなら roadmap。
 
 守ること:
 1. 出力は JSON オブジェクトのみ。前後に説明文を付けない。
@@ -91,7 +97,7 @@ const SYSTEM_PROMPT = `あなたは rapitas というタスク管理アプリの
 4. reason には「なぜその行き先にしたか」を日本語で1文だけ書く。
 
 JSON の形:
-{ "intent": "watch" | "create" | "ask" | "tidy" | "consult" | "unknown", "reason": string }`;
+{ "intent": "watch" | "create" | "ask" | "tidy" | "consult" | "roadmap" | "unknown", "reason": string }`;
 
 /** What the model returns, before any of it is believed. */
 interface RawRoute {

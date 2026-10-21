@@ -23,6 +23,7 @@ import {
   TaskAsk,
   TaskConsult,
   TaskIntake,
+  TaskRoadmap,
   TaskTidy,
   TaskWatch,
   taskIdFromLocation,
@@ -47,7 +48,18 @@ import { BUBBLE_COLORS, SpeechBubble } from './SpeechBubble';
  */
 const ALWAYS_MODES = ['watch', 'create', 'ask'] as const;
 const PANEL_MODES = ['watch', 'create', 'ask', 'consult', 'tidy'] as const;
-type PanelMode = (typeof PANEL_MODES)[number];
+
+/**
+ * Reachable by typing, but not a tab.
+ *
+ * This is what the single input bought. `roadmap` is a whole mode — a plan
+ * drafted, questioned, then created — and it costs the tab bar nothing,
+ * which is the shape every capability after this one should take. The bar
+ * keeps only the things worth a permanent button.
+ */
+const TYPED_ONLY_MODES = ['roadmap'] as const;
+
+type PanelMode = (typeof PANEL_MODES)[number] | (typeof TYPED_ONLY_MODES)[number];
 
 /**
  * The tabs to show, given whether a task is open.
@@ -57,6 +69,21 @@ type PanelMode = (typeof PANEL_MODES)[number];
  */
 export function visibleModes(hasTask: boolean): readonly PanelMode[] {
   return hasTask ? PANEL_MODES : ([...ALWAYS_MODES, 'tidy'] as const);
+}
+
+/**
+ * Every mode that can be reached right now, tab or not.
+ *
+ * Wider than the bar, because a typed sentence can land somewhere no button
+ * goes. The fallback below has to use this one: falling back merely because
+ * a mode has no tab would bounce the user straight out of the roadmap they
+ * just asked for.
+ *
+ * @param hasTask - Whether a task is open / タスクが開いているか
+ * @returns The modes that can be shown / 表示しうるモード
+ */
+export function reachableModes(hasTask: boolean): readonly PanelMode[] {
+  return [...visibleModes(hasTask), ...TYPED_ONLY_MODES];
 }
 
 interface RapiAvatarPanelProps {
@@ -121,10 +148,15 @@ export function RapiAvatarPanel({
   const modes = visibleModes(hasTask);
 
   // Navigating off a task while reading about it would otherwise leave the
-  // panel on a tab that is no longer in the bar.
+  // panel on a mode that can no longer be reached.
+  //
+  // `reachableModes` is called inside rather than held in a variable: a
+  // fresh array each render is a new dependency each render, which would
+  // re-run this on every one. What matters is whether the current mode is
+  // still in it, and that only changes with `hasTask`.
   useEffect(() => {
-    if (!modes.includes(mode)) setMode('watch');
-  }, [modes, mode]);
+    if (!reachableModes(hasTask).includes(mode)) setMode('watch');
+  }, [hasTask, mode]);
 
   /**
    * The last sentence she routed, and where it went.
@@ -227,9 +259,29 @@ export function RapiAvatarPanel({
         {/* Where she took it. Without this a misroute looks like the feature
             simply doing something else. */}
         {routed && routed.intent === mode && (
-          <p className="px-2 pt-1 text-[10px] text-zinc-400">
-            {ta('prompt.tookItAs', { where: tm(routed.intent), reason: routed.reason })}
-          </p>
+          <div className="flex items-baseline gap-2 px-2 pt-1">
+            <p className="min-w-0 flex-1 text-[10px] text-zinc-400">
+              {ta('prompt.tookItAs', { where: tm(routed.intent), reason: routed.reason })}
+            </p>
+            {/*
+              The one correction worth offering. Routing is a model call and
+              will sometimes be wrong; five of the six destinations are a tab
+              away, so the only one a misroute can strand you from is the
+              roadmap. Measured at 14/15, and the miss was exactly this —
+              "英語を毎日続けられるようにしたい" read as a single task. Chasing the
+              last point of accuracy is worth less than making the miss one
+              click.
+            */}
+            {mode !== 'roadmap' && (
+              <button
+                type="button"
+                onClick={() => handleRouted({ ...routed, intent: 'roadmap' })}
+                className="shrink-0 text-[10px] text-indigo-600 hover:underline dark:text-indigo-400"
+              >
+                {ta('prompt.ratherPlan')}
+              </button>
+            )}
+          </div>
         )}
 
         <div className="flex gap-1 border-b border-zinc-200 px-2 pt-2 dark:border-zinc-700">
@@ -255,6 +307,7 @@ export function RapiAvatarPanel({
         {mode === 'ask' && <TaskAsk handedOver={handedOver('ask')} />}
         {mode === 'consult' && <TaskConsult />}
         {mode === 'tidy' && <TaskTidy />}
+        {mode === 'roadmap' && <TaskRoadmap handedOver={handedOver('roadmap')} />}
         <div className="space-y-2 p-2">
           {executions.map((exec) => (
             <ExecutionItem
