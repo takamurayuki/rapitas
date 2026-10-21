@@ -85,6 +85,17 @@ const panelFor = (mode: string) => document.querySelector(`[data-rapi-mode-panel
 const showing = (mode: string) =>
   !!panelFor(mode) && (panelFor(mode) as HTMLElement).style.display !== 'none';
 const tab = (mode: string) => screen.getByLabelText(`rapiAvatar.mode.${mode}`);
+/**
+ * Open the panel and leave the conversation tab it opens on.
+ *
+ * The panel opens on `chat` since 2026-10-22, so a test about the survey or
+ * about keeping a mode mounted has to go there first — otherwise it is
+ * asserting against a tab that was never pressed.
+ */
+const showOn = (mode: string) => {
+  show();
+  fireEvent.click(tab(mode));
+};
 
 beforeEach(() => {
   pathname = '/dashboard';
@@ -108,7 +119,7 @@ describe('leaving a mode and coming back', () => {
 
   it('hides the ones not showing from assistive tech too', () => {
     // Kept for its state, not to be read out twice.
-    show();
+    showOn('watch');
     fireEvent.click(tab('tidy'));
     expect(panelFor('watch')?.getAttribute('aria-hidden')).toBe('true');
     expect(panelFor('tidy')?.getAttribute('aria-hidden')).toBeNull();
@@ -116,7 +127,7 @@ describe('leaving a mode and coming back', () => {
 
   it('does not start every mode the moment the panel opens', () => {
     // Mounting all of them would set five modes fetching for one glance.
-    show();
+    showOn('watch');
     expect(panelFor('watch')).toBeTruthy();
     expect(panelFor('tidy')).toBeNull();
     expect(panelFor('roadmap')).toBeNull();
@@ -133,6 +144,9 @@ describe('the session history', () => {
     show();
     fireEvent.click(screen.getByText('send-roadmap'));
     fireEvent.click(screen.getByText('send-tidy'));
+    // Routing moved us off the conversation; the list of what was asked
+    // lives there, which is also where the panel opens.
+    fireEvent.click(tab('chat'));
     const chips = Array.from(
       screen.getByLabelText('rapiAvatar.history').querySelectorAll('button'),
     ).map((b) => b.textContent);
@@ -145,6 +159,7 @@ describe('the session history', () => {
     fireEvent.click(screen.getByText('send-tidy'));
     expect(showing('tidy')).toBe(true);
 
+    fireEvent.click(tab('chat'));
     fireEvent.click(screen.getByText('転職の計画'));
     expect(showing('roadmap')).toBe(true);
   });
@@ -156,6 +171,7 @@ describe('the session history', () => {
     fireEvent.click(screen.getByText('send-roadmap'));
     fireEvent.click(tab('watch'));
     const before = panelFor('roadmap');
+    fireEvent.click(tab('chat'));
     fireEvent.click(screen.getByText('転職の計画'));
     expect(panelFor('roadmap')).toBe(before);
   });

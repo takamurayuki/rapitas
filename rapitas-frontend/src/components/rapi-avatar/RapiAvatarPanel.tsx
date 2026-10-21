@@ -26,7 +26,13 @@ import { type Routed } from './RapiPrompt';
 import { RapiComposer } from './RapiComposer';
 import { RapiModeTabs } from './RapiModeTabs';
 import { RapiHistory, type AskedFor } from './RapiHistory';
-import { MAX_HISTORY, reachableModes, visibleModes, type PanelMode } from './rapi-modes';
+import {
+  DEFAULT_MODE,
+  MAX_HISTORY,
+  reachableModes,
+  visibleModes,
+  type PanelMode,
+} from './rapi-modes';
 
 export { visibleModes, reachableModes, type PanelMode } from './rapi-modes';
 import { BUBBLE_COLORS, SpeechBubble } from './SpeechBubble';
@@ -92,7 +98,7 @@ export function RapiAvatarPanel({
   // Opens on the survey rather than on the task form: the first question
   // when you reach for her is "what needs me", and answering it costs one
   // read. Filing a task is the second thing, one tab away.
-  const [mode, setMode] = useState<PanelMode>('watch');
+  const [mode, setMode] = useState<PanelMode>(DEFAULT_MODE);
 
   // Which tabs exist right now. ラピ is in the app shell with no props from
   // the page, so the open task comes from the address bar — `/tasks/42` for
@@ -110,7 +116,7 @@ export function RapiAvatarPanel({
   // re-run this on every one. What matters is whether the current mode is
   // still in it, and that only changes with `hasTask`.
   useEffect(() => {
-    if (!reachableModes(hasTask).includes(mode)) setMode('watch');
+    if (!reachableModes(hasTask).includes(mode)) setMode(DEFAULT_MODE);
   }, [hasTask, mode]);
 
   /**
@@ -140,7 +146,6 @@ export function RapiAvatarPanel({
   // The consult mode hosts the task assistant that used to be a card on the
   // task detail page. It needs room the other modes do not: a conversation
   // with history in a 320px column is unreadable.
-  const wide = mode === 'consult';
 
   // With nothing running there is no list to head, so the panel is simply
   // ラピ. Repeating the intake's own heading here would say it twice.
@@ -226,7 +231,11 @@ export function RapiAvatarPanel({
       // No radius or border class: the bubble owns both, and its radius is
       // asymmetric where the tail leaves. `shadow-lg` not `shadow-xl` —
       // overlays get one elevation level (docs/design/ui-design-language.md).
-      className={`flex max-h-[70vh] flex-col shadow-lg ${wide ? 'w-[34rem]' : 'w-80'}`}
+      // One width for every tab. `consult` used to get w-[34rem] because a
+      // conversation in a 320px column is cramped, but the panel then jumped
+      // size when you pressed that one tab, which reads worse than the
+      // cramped column did (reported 2026-10-22).
+      className="flex max-h-[70vh] w-80 flex-col shadow-lg"
     >
       {/* No name here any more. A bar reading 「ラピ」 above her own speech
           bubble said nothing the bubble did not: she is the thing you just
@@ -251,14 +260,20 @@ export function RapiAvatarPanel({
 
       {/* Going back to something asked earlier. The mode it went to still
           holds what it produced, so this is a jump rather than a replay —
-          nothing is asked of the model again. */}
-      <RapiHistory history={history} onPick={(entry) => setMode(entry.intent)} />
+          nothing is asked of the model again. On the conversation tab only:
+          it is the home of what you have asked, and above a list of overdue
+          tasks it is another bar between you and the answer. */}
+      {mode === 'chat' && (
+        <RapiHistory history={history} onPick={(entry) => setMode(entry.intent)} />
+      )}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {/* Said once, before anything has been asked for. It is the only
-            thing on screen that explains what this panel is; after the first
-            sentence it would just be taking room from the answer. */}
-        {!routed && (
+        {/* The conversation tab's own prompt: it explains what the panel is
+            and tells you to write in the box below. That is only true where
+            writing a sentence is the point, so it stays on this tab —
+            elsewhere it was taking the first two lines of the answer. It
+            still goes once a sentence has been routed. */}
+        {mode === 'chat' && !routed && (
           <p className="px-3 py-2 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
             {ta('greeting')}
           </p>

@@ -12,6 +12,7 @@ import {
   Eraser,
   ListFilter,
   ListPlus,
+  Locate,
   MessagesSquare,
   OctagonAlert,
   Signpost,
@@ -25,8 +26,17 @@ import {
  * whose whole content is "open a task first" spends a fifth of the bar
  * saying so.
  */
-const ALWAYS_MODES = ['watch', 'create', 'ask'] as const;
-const PANEL_MODES = ['watch', 'create', 'ask', 'consult', 'tidy'] as const;
+/**
+ * `chat` leads, and is where the panel opens.
+ *
+ * Everything else on the bar is a form or a list; this one answers a
+ * sentence, which is what the box at the bottom is for. Keeping the
+ * conversation in its own place is what lets the greeting live there too,
+ * instead of taking the first two lines of every list (asked for
+ * 2026-10-22).
+ */
+const ALWAYS_MODES = ['chat', 'watch', 'create', 'ask'] as const;
+const PANEL_MODES = ['chat', 'watch', 'create', 'ask', 'consult', 'tidy'] as const;
 
 /**
  * Reachable by typing, but not a tab.
@@ -57,6 +67,9 @@ export function visibleModes(hasTask: boolean): readonly PanelMode[] {
   return hasTask ? PANEL_MODES : ([...ALWAYS_MODES, 'tidy'] as const);
 }
 
+/** Where the panel opens, and where it falls back to. */
+export const DEFAULT_MODE: PanelMode = 'chat';
+
 /**
  * Every mode that can be reached right now, tab or not.
  *
@@ -81,14 +94,19 @@ export function reachableModes(hasTask: boolean): readonly PanelMode[] {
  * you already know or can hover.
  *
  * `ListPlus` is the app's established 起票 glyph and `OctagonAlert` its
- * 対応待ち one, reused here for the same meanings. The other three are new:
+ * 対応待ち one, reused here for the same meanings. The others are new:
  * see `.claude/icon-policy/`.
+ *
+ * `MessagesSquare` moved from `consult` to `chat` on 2026-10-22: it reads as
+ * "talking", which is what the new tab is, and said nothing about "the task
+ * you have open". `consult` took `Locate` instead — one thing, singled out.
  */
 export const MODE_ICONS: Record<PanelMode, LucideIcon> = {
+  chat: MessagesSquare,
   watch: OctagonAlert,
   create: ListPlus,
   ask: ListFilter,
-  consult: MessagesSquare,
+  consult: Locate,
   tidy: Eraser,
   roadmap: Signpost,
 };
