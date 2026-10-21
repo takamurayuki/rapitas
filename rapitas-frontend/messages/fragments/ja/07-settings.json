@@ -453,7 +453,7 @@
         "low": "低"
       },
       "unclear": "ラピが判断できなかったこと",
-      "fellBackToPatterns": "AIが使えなかったため、文章のパターンから推定しました。内容をよく確認してください。"
+      "fellBackToPatterns": "うまく読み取れなかったので、書き方のパターンから推定しました。内容をよく確認してください。"
     },
     "cleanup": {
       "title": "不要なタスクを片付ける",
@@ -467,16 +467,21 @@
       "removed": "{count}件を削除しました",
       "keptBack": "{count}件は削除できませんでした（保護されたタスクなど）",
       "undo": "元に戻す",
-      "unavailable": "AIが使えないため候補を出せませんでした。",
+      "unavailable": "候補を挙げられませんでした。条件で絞るほうを試してみてください。",
       "error": "うまくいきませんでした。もう一度試してください。"
     },
     "mode": {
-      "watch": "見る",
-      "create": "作る",
-      "ask": "聞く",
-      "consult": "相談",
-      "cleanup": "AIで選ぶ",
-      "bulk": "条件で選ぶ"
+      "watch": "要対応",
+      "create": "タスクを作る",
+      "ask": "タスクを探す",
+      "consult": "このタスク",
+      "tidy": "片付ける"
+    },
+    "tidy": {
+      "byCondition": "条件で",
+      "byJudgement": "おまかせ",
+      "conditionHint": "状態と期間で絞って、一覧から選んで消します。",
+      "judgementHint": "直近のタスクを見て、重複や不要そうなものを挙げます。"
     },
     "watch": {
       "title": "手当てが要るもの",
@@ -546,7 +551,7 @@
       "withinDays": "{days}日以内",
       "beforeDays": "{days}日以上前",
       "showing": "うち{shown}件を表示",
-      "unavailable": "AIが使えないため質問を読み取れませんでした。",
+      "unavailable": "うまく読み取れませんでした。言い方を変えてみてください。",
       "error": "うまくいきませんでした。もう一度試してください。"
     }
   }

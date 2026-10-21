@@ -9,6 +9,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
+/** Where the app thinks it is; drives the contextual tab. */
+let pathname = '/dashboard';
+let search = '';
+
 const handleResume = vi.fn();
 const handleResumeAll = vi.fn();
 const handleDismiss = vi.fn();
@@ -24,6 +28,12 @@ vi.mock('next-intl', () => ({
   useTranslations: (ns: string) => (key: string) => `${ns}.${key}`,
 }));
 vi.mock('@/hooks/useDarkMode', () => ({ useDarkMode: () => ({ isDarkMode: false }) }));
+// Which tabs exist depends on whether a task is open, and ラピ learns that
+// from the address bar — she has no props from the page.
+vi.mock('next/navigation', () => ({
+  usePathname: () => pathname,
+  useSearchParams: () => new URLSearchParams(search),
+}));
 vi.mock('../useRapiAvatarState', () => ({
   useRapiAvatarState: (interrupted: number) => ({
     state: interrupted > 0 ? 'waiting' : 'running',
@@ -57,6 +67,8 @@ const exec = (id: number, status: string) => ({
 });
 
 beforeEach(() => {
+  pathname = '/dashboard';
+  search = '';
   handleResume.mockReset();
   handleResumeAll.mockReset();
   handleDismiss.mockReset();
@@ -143,8 +155,21 @@ describe('the corner', () => {
   });
 
   // The task assistant moved off the task detail page into her, so the mode
-  // has to exist for the handover to have gone anywhere.
-  it('offers the task assistant as one of her modes', () => {
+  // has to exist for the handover to have gone anywhere — but only where it
+  // can work. A tab whose entire content is "open a task first" spends a
+  // fifth of the bar saying so.
+  it('offers the task assistant only where there is a task', () => {
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    expect(screen.queryByText('rapiAvatar.mode.consult')).toBeNull();
+  });
+
+  it.each([
+    ['the task page', '/tasks/42', ''],
+    ['the slide panel over the list', '/', 'panel=42'],
+  ])('offers it on %s', (_label, path, query) => {
+    pathname = path;
+    search = query;
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
     expect(screen.getByText('rapiAvatar.mode.consult')).toBeTruthy();
@@ -153,6 +178,7 @@ describe('the corner', () => {
   // A conversation with history in a 320px column is unreadable, so that one
   // mode gets more room than the others.
   it('widens the bubble for the conversation and not for the rest', () => {
+    pathname = '/tasks/42';
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
     const panel = () => screen.getByRole('dialog');
@@ -161,6 +187,30 @@ describe('the corner', () => {
     expect(panel().className).not.toBe(narrow);
     expect(narrow).toContain('w-80');
     expect(panel().className).not.toContain('w-80');
+  });
+
+  // One job, described twice, was costing two tabs out of six.
+  it('offers one tidy tab rather than two ways of choosing', () => {
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    expect(screen.getByText('rapiAvatar.mode.tidy')).toBeTruthy();
+    expect(screen.queryByText('rapiAvatar.mode.cleanup')).toBeNull();
+    expect(screen.queryByText('rapiAvatar.mode.bulk')).toBeNull();
+  });
+
+  // Four tabs off a task, five on one. The point of the exercise.
+  it.each([
+    ['off a task', '/dashboard', '', 4],
+    ['on a task', '/tasks/42', '', 5],
+  ])('shows %s exactly %i tabs', (_label, path, query, expected) => {
+    pathname = path;
+    search = query;
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    const tabs = Array.from(document.querySelectorAll('button[aria-pressed]')).filter((b) =>
+      (b.textContent ?? '').startsWith('rapiAvatar.mode.'),
+    );
+    expect(tabs).toHaveLength(expected);
   });
 
   // It is ラピ speaking, so it has a tail pointing at her — without one it is

@@ -1582,7 +1582,7 @@
         "low": "Low"
       },
       "unclear": "Rapi could not work these out",
-      "fellBackToPatterns": "The AI was unavailable, so these fields were pattern-matched. Check them carefully."
+      "fellBackToPatterns": "I could not read that properly, so these fields are guessed from how it was written. Check them carefully."
     },
     "cleanup": {
       "title": "Clear tasks away",
@@ -1596,16 +1596,21 @@
       "removed": "Deleted {count}",
       "keptBack": "{count} could not be deleted (protected, or already gone)",
       "undo": "Undo",
-      "unavailable": "The AI was unavailable, so no candidates could be suggested.",
+      "unavailable": "I could not come up with candidates. Try narrowing by condition instead.",
       "error": "That did not work. Try again."
     },
     "mode": {
-      "watch": "Watch",
-      "create": "Add",
-      "ask": "Ask",
-      "consult": "Discuss",
-      "cleanup": "AI picks",
-      "bulk": "By condition"
+      "watch": "Needs you",
+      "create": "Add a task",
+      "ask": "Find tasks",
+      "consult": "This task",
+      "tidy": "Tidy up"
+    },
+    "tidy": {
+      "byCondition": "By condition",
+      "byJudgement": "Let me pick",
+      "conditionHint": "Narrow by status and age, then choose from the list.",
+      "judgementHint": "I look over the recent tasks and point out duplicates and dead weight."
     },
     "watch": {
       "title": "Waiting for you",
@@ -1675,7 +1680,7 @@
       "withinDays": "within {days} days",
       "beforeDays": "over {days} days ago",
       "showing": "showing {shown}",
-      "unavailable": "The AI was unavailable, so the question could not be read.",
+      "unavailable": "I could not make sense of that. Try putting it another way.",
       "error": "That did not work. Try again."
     }
   },
