@@ -117,7 +117,7 @@
     "ws": "^8.21.0",
     "brace-expansion": "^2.1.5",
     "nanoid": "^5.1.16",
-    "qs": "^6.15.2",
+    "qs": "^6.16.0",
     "file-type": "^22.0.1",
     "@opentelemetry/core": "^2.8.0"
   }

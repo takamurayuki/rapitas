@@ -16,11 +16,12 @@ overrides:
   fast-uri@>=3.0.0 <3.1.7: ^3.1.7
   js-yaml@>=4.0.0 <4.3.2: ^4.3.2
   nanoid@>=3.0.0 <3.3.18: ^3.3.18
+  pbkdf2@<3.1.7: ^3.1.7
   postcss@<8.5.10: ^8.5.10
   postcss@<=8.5.11: ^8.5.12
   postcss@<=8.5.17: ^8.5.18
   postcss-selector-parser@>=7.0.0 <7.1.6: ^7.1.6
-  qs@>=6.11.1 <=6.15.1: ^6.15.2
+  qs@>=6.11.1 <6.16.0: ^6.16.0
   sharp@<0.35.0: ^0.35.0
   source-map-js@>=1.0.0 <1.2.2: ^1.2.2
   undici@>=7.0.0 <7.29.1: ^7.29.1
@@ -5346,8 +5347,8 @@ packages:
     resolution: {integrity: sha512-//nshmD55c46FuFw26xV/xFAaB5HF9Xdap7HJBBnrKdAd6/GxDBaNA1870O79+9ueg61cZLSVc+OaFlfmObYVQ==}
     engines: {node: '>= 14.16'}
 
-  pbkdf2@3.1.5:
-    resolution: {integrity: sha512-Q3CG/cYvCO1ye4QKkuH7EXxs3VC/rI1/trd+qX2+PolbaKG0H+bgcZzrTt96mMyRtejk+JMCiLUn3y29W8qmFQ==}
+  pbkdf2@3.1.7:
+    resolution: {integrity: sha512-nS4mvFgVwUrecPTRdpdseM2fwpdfnX0/HibA8DgBRQtihUAzHQYJFU2l+OlEtiXtpqkrMvCPDwyXMUnASDt6Qw==}
     engines: {node: '>= 0.10'}
 
   picocolors@1.1.1:
@@ -5489,8 +5490,8 @@ packages:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
 
-  qs@6.15.3:
-    resolution: {integrity: sha512-O9gl3zCl5h5blw1KGUzQKhA5oUXSl8rwUIM5o0S3nCXMliSvy5Dzx7/DJcI+SwgICv+IneSZwhBh1oSyEHA71A==}
+  qs@6.16.1:
+    resolution: {integrity: sha512-5Px6J7rfHBAGUhNQ3es4YzcOdBBw0SDcVtThJml4RdnKw4tKs2epA0kPZ+K8X+WiHktT93RHVcQ/3ym5aTCgtg==}
     engines: {node: '>=0.6'}
 
   querystring-es3@0.2.1:
@@ -9858,7 +9859,7 @@ snapshots:
       diffie-hellman: 5.0.3
       hash-base: 3.0.5
       inherits: 2.0.4
-      pbkdf2: 3.1.5
+      pbkdf2: 3.1.7
       public-encrypt: 4.0.3
       randombytes: 2.1.0
       randomfill: 1.0.4
@@ -12223,7 +12224,7 @@ snapshots:
       asn1.js: 4.10.1
       browserify-aes: 1.2.0
       evp_bytestokey: 1.0.3
-      pbkdf2: 3.1.5
+      pbkdf2: 3.1.7
       safe-buffer: 5.2.1
 
   parse-entities@4.0.2:
@@ -12277,7 +12278,7 @@ snapshots:
 
   pathval@2.0.1: {}
 
-  pbkdf2@3.1.5:
+  pbkdf2@3.1.7:
     dependencies:
       create-hash: 1.2.0
       create-hmac: 1.1.7
@@ -12419,7 +12420,7 @@ snapshots:
 
   punycode@2.3.1: {}
 
-  qs@6.15.3:
+  qs@6.16.1:
     dependencies:
       es-define-property: 1.0.1
       side-channel: 1.1.1
@@ -13396,7 +13397,7 @@ snapshots:
   url@0.11.4:
     dependencies:
       punycode: 1.4.1
-      qs: 6.15.3
+      qs: 6.16.1
 
   use-intl@4.11.0(react@19.2.0):
     dependencies:
