@@ -46,6 +46,7 @@ import {
   asText,
   dayAfter,
   extractJson,
+  resolveList,
   resolvePlacement,
   resolveQuestions,
   resolveSteps,
@@ -62,6 +63,9 @@ import type {
 } from './roadmap-types';
 
 const logger = createLogger('assistant-roadmap');
+
+/** Most assumptions or comparison axes one plan may carry into the note. */
+const MAX_NOTE_ITEMS = 6;
 
 // Re-exported so every importer still has one place to ask for the roadmap
 // shapes, whichever file now defines them.
@@ -139,6 +143,8 @@ export async function draftRoadmap(
     // screen has no second place to put the questions.
     questions: isFinal ? [] : resolveQuestions(raw.questions),
     steps,
+    assumptions: resolveList(raw.assumptions, MAX_NOTE_ITEMS),
+    comparisonAxes: resolveList(raw.comparisonAxes, MAX_NOTE_ITEMS),
     ...(deadlineInDays !== undefined ? { deadline: dayAfter(today, deadlineInDays) } : {}),
   };
 

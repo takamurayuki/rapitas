@@ -43,10 +43,26 @@ export function composeRoadmapNote(input: {
   deadline?: string;
   steps: NoteStep[];
   taskIds: number[];
+  assumptions?: string[];
+  comparisonAxes?: string[];
 }): string {
   const lines: string[] = [`# ${input.goal}`, ''];
 
   if (input.deadline) lines.push(`期限: ${input.deadline}`, '');
+
+  if (input.assumptions && input.assumptions.length > 0) {
+    lines.push('## 前提', ...input.assumptions.map((a) => `- ${a}`), '');
+  }
+
+  if (input.comparisonAxes && input.comparisonAxes.length > 0) {
+    // Columns, and nothing in them. She cannot look up a salary or a review
+    // from here, so anything filled in would be invented — and an invented
+    // number in a note is read later as a fact.
+    const header = `| 候補 | ${input.comparisonAxes.join(' | ')} |`;
+    const rule = `|${' --- |'.repeat(input.comparisonAxes.length + 1)}`;
+    const blank = `|${'  |'.repeat(input.comparisonAxes.length + 1)}`;
+    lines.push('## 比較', header, rule, blank, blank, '');
+  }
 
   if (input.decisions.length > 0) {
     lines.push('## 決めたこと', ...input.decisions.map((d) => `- ${d.question} → ${d.answer}`), '');

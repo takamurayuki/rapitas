@@ -31,6 +31,8 @@ export interface RawDraft {
   questions?: unknown;
   steps?: unknown;
   deadlineInDays?: unknown;
+  assumptions?: unknown;
+  comparisonAxes?: unknown;
 }
 
 /** Ten years out. Past this a day count is a misread, not a plan. */
@@ -178,6 +180,21 @@ export function resolveSteps(
     })
     .filter((s): s is RoadmapStep => s !== null)
     .slice(0, MAX_ROADMAP_STEPS);
+}
+
+/**
+ * Keep the usable strings out of a list the model returned.
+ *
+ * @param raw - Whatever it put there / モデルの出力
+ * @param max - How many to keep / 残す上限
+ * @returns The non-empty entries, bounded / 空でない項目（上限まで）
+ */
+export function resolveList(raw: unknown, max: number): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => asText(item, MAX_OPTION))
+    .filter((item): item is string => !!item)
+    .slice(0, max);
 }
 
 /** Keep the questions that actually offer a choice. */

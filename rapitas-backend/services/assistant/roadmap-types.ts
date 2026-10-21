@@ -44,6 +44,16 @@ export interface RoadmapDraft {
   steps: RoadmapStep[];
   /** The deadline the request implied, as a date (YYYY-MM-DD). */
   deadline?: string;
+  /** What the plan takes for granted, for the note rather than the tasks. */
+  assumptions: string[];
+  /**
+   * What to weigh the candidates on, when the goal is a choice.
+   *
+   * Axes only, never the candidates' own facts: she cannot look anything up
+   * from here, so a filled-in comparison would be invented. The note gets a
+   * table with these as columns for the user to fill.
+   */
+  comparisonAxes: string[];
 }
 
 /** What the second round needs that the first one did not. */
