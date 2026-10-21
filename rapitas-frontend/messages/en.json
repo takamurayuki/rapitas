@@ -1614,6 +1614,8 @@
       "placement": "Theme: {theme} · Project: {project}",
       "isNew": " (new)",
       "noProject": "none",
+      "refine": "Plan it from these answers",
+      "deadline": "Deadline: {date}",
       "create": "Create {count} from this plan",
       "creating": "Creating…",
       "created": "Created {count}.",

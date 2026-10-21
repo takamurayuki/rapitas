@@ -43,6 +43,8 @@ import { TaskRoadmap } from '../TaskRoadmap';
 
 let requests: { url: string; body: Record<string, unknown> }[] = [];
 let draftAnswer: Record<string, unknown>;
+/** The final round answers with no questions, the way the server does. */
+let refinedAnswer: Record<string, unknown>;
 let commitAnswer: Record<string, unknown>;
 
 const DRAFT = {
@@ -68,13 +70,22 @@ beforeEach(() => {
   notes = [];
   currentId = 'note-1';
   draftAnswer = { available: true, draft: DRAFT };
+  refinedAnswer = { available: true, draft: { ...DRAFT, questions: [] } };
   commitAnswer = { themeId: 100, projectId: 7, taskIds: [201, 202], failedAfter: null };
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
-    requests.push({ url, body: JSON.parse(String(init?.body)) });
+    const body = JSON.parse(String(init?.body));
+    requests.push({ url, body });
+    // The round is told apart the same way the route tells it apart: by
+    // whether answers came with it.
+    const answer = String(url).includes('/commit')
+      ? commitAnswer
+      : body.answers
+        ? refinedAnswer
+        : draftAnswer;
     return Promise.resolve({
       ok: true,
       status: 200,
-      json: () => Promise.resolve(String(url).includes('/commit') ? commitAnswer : draftAnswer),
+      json: () => Promise.resolve(answer),
     } as Response);
   });
 });
@@ -142,8 +153,12 @@ describe('drafting the plan', () => {
 });
 
 describe('creating it', () => {
+  // The questions have to be answered first now: a draft that still carries
+  // them is a sketch, and creating the sketch is what made the interview
+  // decorative. See TaskRoadmap.interview.test.tsx.
   const create = async () => {
     show();
+    fireEvent.click(await screen.findByText('rapiAvatar.roadmap.refine'));
     fireEvent.click(await screen.findByText('rapiAvatar.roadmap.create:2'));
     await waitFor(() => expect(commits()).toHaveLength(1));
   };
@@ -182,6 +197,7 @@ describe('creating it', () => {
 describe('the note it leaves behind', () => {
   const create = async () => {
     show();
+    fireEvent.click(await screen.findByText('rapiAvatar.roadmap.refine'));
     fireEvent.click(await screen.findByText('rapiAvatar.roadmap.create:2'));
     await waitFor(() => expect(notes).toHaveLength(1));
   };
@@ -210,7 +226,8 @@ describe('the note it leaves behind', () => {
   it('records the answer the user chose, not the recommendation', async () => {
     show();
     fireEvent.click(await screen.findByText('5分'));
-    fireEvent.click(screen.getByText('rapiAvatar.roadmap.create:2'));
+    fireEvent.click(screen.getByText('rapiAvatar.roadmap.refine'));
+    fireEvent.click(await screen.findByText('rapiAvatar.roadmap.create:2'));
     await waitFor(() => expect(notes).toHaveLength(1));
     expect(notes[0].content).toContain('→ 5分');
   });
