@@ -29,3 +29,5 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `ShieldHalf`              | PR リスク予測（バックログ定期ジョブ `pr_risk_review` — マージ後72h以内のロールバック/本番重大障害を失敗とするPRリスクスコアの月次精度レビュー。注: `ShieldAlert`＝懸念の種別「セキュリティ」とは別概念） |
 | `PiggyBank`               | AI利用の予算計画（nav: /agents/usage-budget のページ見出し・メトリクス画面からのリンク、予算到達の確認ダイアログ、通知の種別 usage_budget_threshold — 同一概念「AI利用予算」の再利用。注: `src/components/category/icons` のカテゴリアイコンピッカー登録は中立的な再掲で対象外） |
 | `Siren`                   | 通知の種別「カナリアトークン使用検知」（`NotificationBell` の canary_triggered — 隔離環境に置いたダミー認証情報が使われた警報。`TriangleAlert`＝エージェントエラーとは別概念） |
+| `Signpost`                | ラピの「計画を立てる」ロードマップモード（`RapiModeTabs` の roadmap タブ — 入力欄からだけ到達するモード。注: `Milestone`＝学習ロードマップ(nav)とは別概念） |
+| `OctagonAlert`            | 通知の種別「ブロックされたタスク／テーマの対応待ち」（auto_run_all_blocked, blocked_escalation, blocked_escalation_needs_answer）。ラピの「要対応」タブ（`RapiModeTabs` の watch — 手当てが要るバックログの一覧）も同一概念「対応待ち」の再利用。ICON_POLICY.md §3 のインライン表から本ファイルへ移行済み |
