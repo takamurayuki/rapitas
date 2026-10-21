@@ -539,6 +539,19 @@ CREATE TABLE "TaskPrompt" (
 );
 
 -- CreateTable
+CREATE TABLE "DeletedTask" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "originalTaskId" INTEGER NOT NULL,
+    "title" TEXT NOT NULL,
+    "themeId" INTEGER,
+    "snapshotJson" TEXT NOT NULL,
+    "source" TEXT NOT NULL DEFAULT 'user',
+    "deletedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "restoredAt" DATETIME,
+    "restoredTaskId" INTEGER
+);
+
+-- CreateTable
 CREATE TABLE "Experiment" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "taskId" INTEGER,
@@ -1208,6 +1221,29 @@ CREATE TABLE "EpisodeMemory" (
 );
 
 -- CreateTable
+CREATE TABLE "Note" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "title" TEXT NOT NULL,
+    "content" TEXT NOT NULL DEFAULT '',
+    "isPinned" BOOLEAN NOT NULL DEFAULT false,
+    "tags" TEXT NOT NULL DEFAULT '[]',
+    "color" TEXT,
+    "docType" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "NoteTaskLink" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "noteId" TEXT NOT NULL,
+    "taskId" INTEGER NOT NULL,
+    "meta" TEXT,
+    CONSTRAINT "NoteTaskLink_noteId_fkey" FOREIGN KEY ("noteId") REFERENCES "Note" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "NoteTaskLink_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "PrRiskConfig" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "stage" TEXT NOT NULL DEFAULT 'off',
@@ -1477,6 +1513,18 @@ CREATE TABLE "SearchMiss" (
     "themeId" INTEGER,
     "resolvedAt" DATETIME,
     "resolvedResultCount" INTEGER,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "AssistantAction" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "capabilityId" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "argumentsJson" TEXT,
+    "resultJson" TEXT,
+    "errorMessage" TEXT,
+    "taskId" INTEGER,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -1837,6 +1885,12 @@ CREATE UNIQUE INDEX "TaskLabel_taskId_labelId_key" ON "TaskLabel"("taskId", "lab
 CREATE INDEX "TaskPrompt_taskId_idx" ON "TaskPrompt"("taskId");
 
 -- CreateIndex
+CREATE INDEX "DeletedTask_deletedAt_idx" ON "DeletedTask"("deletedAt");
+
+-- CreateIndex
+CREATE INDEX "DeletedTask_originalTaskId_idx" ON "DeletedTask"("originalTaskId");
+
+-- CreateIndex
 CREATE INDEX "Experiment_taskId_idx" ON "Experiment"("taskId");
 
 -- CreateIndex
@@ -2101,6 +2155,18 @@ CREATE INDEX "EpisodeMemory_phase_idx" ON "EpisodeMemory"("phase");
 CREATE INDEX "EpisodeMemory_importance_idx" ON "EpisodeMemory"("importance");
 
 -- CreateIndex
+CREATE INDEX "Note_updatedAt_idx" ON "Note"("updatedAt");
+
+-- CreateIndex
+CREATE INDEX "Note_isPinned_idx" ON "Note"("isPinned");
+
+-- CreateIndex
+CREATE INDEX "NoteTaskLink_taskId_idx" ON "NoteTaskLink"("taskId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "NoteTaskLink_noteId_taskId_key" ON "NoteTaskLink"("noteId", "taskId");
+
+-- CreateIndex
 CREATE INDEX "PrRiskScore_repo_prNumber_idx" ON "PrRiskScore"("repo", "prNumber");
 
 -- CreateIndex
@@ -2195,6 +2261,12 @@ CREATE INDEX "SearchMiss_hitCount_idx" ON "SearchMiss"("hitCount");
 
 -- CreateIndex
 CREATE INDEX "SearchMiss_themeId_idx" ON "SearchMiss"("themeId");
+
+-- CreateIndex
+CREATE INDEX "AssistantAction_capabilityId_createdAt_idx" ON "AssistantAction"("capabilityId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "AssistantAction_createdAt_idx" ON "AssistantAction"("createdAt");
 
 -- CreateIndex
 CREATE INDEX "PomodoroSession_status_idx" ON "PomodoroSession"("status");

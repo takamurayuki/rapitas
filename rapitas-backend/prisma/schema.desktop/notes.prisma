@@ -1,0 +1,56 @@
+// ============================================================================
+// notes.prisma — auto-arranged by scripts/split-prisma-schema.cjs (ADR-0006)
+// Source of truth for the notes sub-domain. Add new models in this file
+// rather than recreating a monolithic schema.prisma.
+// ============================================================================
+
+// A note.
+//
+// Notes lived only in the browser's localStorage until now, which meant they
+// were per-device, invisible to the server, and unwritable by anything that
+// was not a mounted React component. ラピ could only leave a note while her
+// panel happened to be open.
+//
+// The id is a String rather than an autoincrement Int on purpose: every note
+// already in a browser has a string id (`Date.now().toString()`), and task
+// descriptions across the backlog already carry `/rapitas-note/{taskId}/{noteId}`
+// chips pointing at those ids. Importing a local note under its own id keeps
+// every one of those links working; an Int id would break them all.
+model Note {
+  id        String   @id
+  title     String
+  content   String   @default("")
+  isPinned  Boolean  @default(false)
+  tags      String   @default("[]") // JSON array stored as string
+  color     String?
+  docType   String? // "要件定義" | "設計書" | "議事録" | "手順書" | "仕様書" | "メモ"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  taskLinks NoteTaskLink[]
+
+  @@index([updatedAt])
+  @@index([isPinned])
+}
+
+// A note attached to a task.
+//
+// Its own table rather than a JSON column on Note because the question asked
+// in both directions — "which notes does this task have" as much as "which
+// tasks does this note cover" — and the task side is what the task detail
+// page reads.
+model NoteTaskLink {
+  id     Int    @id @default(autoincrement())
+  noteId String
+  taskId Int
+  // Hierarchy metadata captured when the link was made from a task context
+  // (theme, project, parent task). JSON, because it is display context the
+  // link carries rather than anything queried on.
+  meta   String?
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, taskId])
+  @@index([taskId])
+}
