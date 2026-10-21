@@ -248,3 +248,55 @@ describe('when she cannot tell', () => {
     expect(screen.queryByText('rapiAvatar.prompt.unplaced')).toBeNull();
   });
 });
+
+describe('the size of the box', () => {
+  /** jsdom lays nothing out, so the content height is supplied. */
+  const withContentHeight = (px: number) => {
+    const box = screen.getByRole('textbox') as HTMLTextAreaElement;
+    Object.defineProperty(box, 'scrollHeight', { value: px, configurable: true });
+    return box;
+  };
+
+  it('starts as one line', () => {
+    mount();
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).rows).toBe(1);
+  });
+
+  it('grows to fit what was typed', () => {
+    // It was a fixed 30px line that shrank against the list below it; two or
+    // three lines of plain Japanese were never visible at once.
+    mount();
+    const box = withContentHeight(64);
+    fireEvent.change(box, { target: { value: 'ふたつ\nみっつ' } });
+    expect(box.style.height).toBe('64px');
+  });
+
+  it('stops growing before it eats the panel', () => {
+    mount();
+    const box = withContentHeight(400);
+    fireEvent.change(box, { target: { value: 'とても長い文章' } });
+    expect(box.style.height).toBe('108px');
+    expect(box.style.overflowY).toBe('auto');
+  });
+
+  it('measures from scratch, or the box would only ever grow', () => {
+    // The height must be released before scrollHeight is read: held taller,
+    // the element reports the height it is being held at, and the box grows
+    // and never shrinks. jsdom computes no layout, so a stubbed scrollHeight
+    // cannot show that happening — what it can show is the release itself,
+    // so every assignment is recorded instead.
+    mount();
+    const box = screen.getByRole('textbox') as HTMLTextAreaElement;
+    const assigned: string[] = [];
+    Object.defineProperty(box.style, 'height', {
+      configurable: true,
+      get: () => assigned[assigned.length - 1] ?? '',
+      set: (v: string) => {
+        assigned.push(v);
+      },
+    });
+    Object.defineProperty(box, 'scrollHeight', { value: 96, configurable: true });
+    fireEvent.change(box, { target: { value: 'ながい' } });
+    expect(assigned).toEqual(['auto', '96px']);
+  });
+});

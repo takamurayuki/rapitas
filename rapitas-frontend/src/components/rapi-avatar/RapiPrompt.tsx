@@ -21,13 +21,23 @@
  * after you arrive. So the worst a wrong turn does is show you the wrong
  * read, which the note below makes visible.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { isImeComposing } from '@/utils/ime';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('rapi-prompt');
+
+/**
+ * How tall the box may grow, in pixels.
+ *
+ * Five lines at this font. Past that the panel is a text editor and the
+ * answer below it has nowhere left to go, so it scrolls instead — the point
+ * is that two or three lines of plain Japanese are visible at once, which a
+ * fixed single line never was.
+ */
+const MAX_INPUT_PX = 108;
 
 /** Where a sentence can be sent. Mirrors the server's routable intents. */
 export type PromptDestination = 'watch' | 'create' | 'ask' | 'tidy' | 'consult' | 'roadmap';
@@ -63,6 +73,22 @@ export function RapiPrompt({ hasOpenTask, onRouted }: RapiPromptProps) {
    * panel somewhere the user had moved on from.
    */
   const inFlight = useRef<AbortController | null>(null);
+
+  /**
+   * Grow with the content.
+   *
+   * Reset to `auto` first: `scrollHeight` reports the content's height only
+   * when the element is not already being held taller than it, so measuring
+   * without this makes the box grow and never shrink back.
+   */
+  const box = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, MAX_INPUT_PX)}px`;
+    el.style.overflowY = el.scrollHeight > MAX_INPUT_PX ? 'auto' : 'hidden';
+  }, [text]);
 
   const cancel = () => {
     inFlight.current?.abort();
@@ -118,6 +144,7 @@ export function RapiPrompt({ hasOpenTask, onRouted }: RapiPromptProps) {
   return (
     <div className="space-y-1 px-2 pt-2">
       <textarea
+        ref={box}
         rows={1}
         value={text}
         placeholder={t('placeholder')}

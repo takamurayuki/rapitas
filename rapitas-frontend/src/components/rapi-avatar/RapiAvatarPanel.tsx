@@ -19,72 +19,16 @@ import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { ExecutionItem } from '../resumable-executions/ExecutionItem';
 import type { ResumableExecution } from '../resumable-executions/types';
-import {
-  TaskAsk,
-  TaskConsult,
-  TaskIntake,
-  TaskRoadmap,
-  TaskTidy,
-  TaskWatch,
-  taskIdFromLocation,
-} from './intake';
+import { taskIdFromLocation } from './intake';
+import { RapiModeContent } from './RapiModeContent';
 import { RAPI_BUBBLE_Z } from '@/lib/pane-layering';
-import { RapiPrompt, type Routed } from './RapiPrompt';
+import { type Routed } from './RapiPrompt';
+import { RapiComposer } from './RapiComposer';
+import { RapiModeTabs } from './RapiModeTabs';
+import { reachableModes, visibleModes, type PanelMode } from './rapi-modes';
+
+export { visibleModes, reachableModes, type PanelMode } from './rapi-modes';
 import { BUBBLE_COLORS, SpeechBubble } from './SpeechBubble';
-
-/**
- * What ラピ can be asked for, in the order the tabs show them.
- *
- * Five, not six: "AIで選ぶ" and "条件で選ぶ" were one job described twice and
- * are now the two instruments inside `tidy`. And `consult` is only offered
- * where it can work — it is the one mode that needs a task open, and a tab
- * whose whole content is "open a task first" spends a fifth of the bar
- * saying so.
- *
- * That is as far as per-page hiding goes, and it is worth being clear about:
- * four of the five are useful from anywhere, so context cannot be what keeps
- * this bar short as capabilities are added. What will is a single input that
- * routes by intent — she already reads intent for filing and for questions.
- */
-const ALWAYS_MODES = ['watch', 'create', 'ask'] as const;
-const PANEL_MODES = ['watch', 'create', 'ask', 'consult', 'tidy'] as const;
-
-/**
- * Reachable by typing, but not a tab.
- *
- * This is what the single input bought. `roadmap` is a whole mode — a plan
- * drafted, questioned, then created — and it costs the tab bar nothing,
- * which is the shape every capability after this one should take. The bar
- * keeps only the things worth a permanent button.
- */
-const TYPED_ONLY_MODES = ['roadmap'] as const;
-
-type PanelMode = (typeof PANEL_MODES)[number] | (typeof TYPED_ONLY_MODES)[number];
-
-/**
- * The tabs to show, given whether a task is open.
- *
- * @param hasTask - Whether a task is open on the page or in the panel / タスクが開いているか
- * @returns The modes to offer, in order / 表示するモード
- */
-export function visibleModes(hasTask: boolean): readonly PanelMode[] {
-  return hasTask ? PANEL_MODES : ([...ALWAYS_MODES, 'tidy'] as const);
-}
-
-/**
- * Every mode that can be reached right now, tab or not.
- *
- * Wider than the bar, because a typed sentence can land somewhere no button
- * goes. The fallback below has to use this one: falling back merely because
- * a mode has no tab would bounce the user straight out of the roadmap they
- * just asked for.
- *
- * @param hasTask - Whether a task is open / タスクが開いているか
- * @returns The modes that can be shown / 表示しうるモード
- */
-export function reachableModes(hasTask: boolean): readonly PanelMode[] {
-  return [...visibleModes(hasTask), ...TYPED_ONLY_MODES];
-}
 
 interface RapiAvatarPanelProps {
   executions: ResumableExecution[];
@@ -139,7 +83,6 @@ export function RapiAvatarPanel({
 }: RapiAvatarPanelProps) {
   const t = useTranslations('banner');
   const ta = useTranslations('rapiAvatar');
-  const tm = useTranslations('rapiAvatar.mode');
 
   // Two explicit modes rather than guessing from the sentence. Working out
   // whether "重複しているタスク" means add one or delete several is a
@@ -276,9 +219,11 @@ export function RapiAvatarPanel({
       // overlays get one elevation level (docs/design/ui-design-language.md).
       className={`flex max-h-[70vh] flex-col shadow-lg ${wide ? 'w-[34rem]' : 'w-80'}`}
     >
+      {/* No name here any more. A bar reading 「ラピ」 above her own speech
+          bubble said nothing the bubble did not: she is the thing you just
+          clicked. The greeting below says what she is FOR, once. */}
       <div className="flex shrink-0 items-center gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
-        <h2 className="flex-1 text-xs font-semibold text-zinc-700 dark:text-zinc-200">{heading}</h2>
-        <span className="text-[11px] text-zinc-400">
+        <span className="flex-1 text-[11px] text-zinc-400">
           {runningCount > 0 && t('runningCount', { count: runningCount })}
           {runningCount > 0 && interruptedCount > 0 && ' / '}
           {interruptedCount > 0 && t('resumableCount', { count: interruptedCount })}
@@ -293,63 +238,19 @@ export function RapiAvatarPanel({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {/* The front door, above the tabs: typing is the first thing offered
-            and the tabs are the shortcuts beside it. */}
-        <RapiPrompt hasOpenTask={hasTask} onRouted={handleRouted} />
+      <RapiModeTabs modes={modes} mode={mode} onSelect={setMode} />
 
-        {/* Where she took it. Without this a misroute looks like the feature
-            simply doing something else. */}
-        {routed && routed.intent === mode && (
-          <div className="flex items-baseline gap-2 px-2 pt-1">
-            <p className="min-w-0 flex-1 text-[10px] text-zinc-400">
-              {ta('prompt.tookItAs', { where: tm(routed.intent), reason: routed.reason })}
-            </p>
-            {/*
-              The one correction worth offering. Routing is a model call and
-              will sometimes be wrong; five of the six destinations are a tab
-              away, so the only one a misroute can strand you from is the
-              roadmap. Measured at 14/15, and the miss was exactly this —
-              "英語を毎日続けられるようにしたい" read as a single task. Chasing the
-              last point of accuracy is worth less than making the miss one
-              click.
-            */}
-            {mode !== 'roadmap' && (
-              <button
-                type="button"
-                onClick={() => handleRouted({ ...routed, intent: 'roadmap' })}
-                className="shrink-0 text-[10px] text-indigo-600 hover:underline dark:text-indigo-400"
-              >
-                {ta('prompt.ratherPlan')}
-              </button>
-            )}
-          </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* Said once, before anything has been asked for. It is the only
+            thing on screen that explains what this panel is; after the first
+            sentence it would just be taking room from the answer. */}
+        {!routed && (
+          <p className="px-3 py-2 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+            {ta('greeting')}
+          </p>
         )}
 
-        <div className="flex gap-1 border-b border-zinc-200 px-2 pt-2 dark:border-zinc-700">
-          {modes.map((value) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setMode(value)}
-              aria-pressed={mode === value}
-              className={`rounded-t-md px-2.5 py-1 text-xs transition-colors ${
-                mode === value
-                  ? 'bg-zinc-100 font-medium text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100'
-                  : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
-              }`}
-            >
-              {tm(value)}
-            </button>
-          ))}
-        </div>
-
-        {mode === 'watch' && <TaskWatch />}
-        {mode === 'create' && <TaskIntake handedOver={handedOver('create')} />}
-        {mode === 'ask' && <TaskAsk handedOver={handedOver('ask')} />}
-        {mode === 'consult' && <TaskConsult />}
-        {mode === 'tidy' && <TaskTidy />}
-        {mode === 'roadmap' && <TaskRoadmap handedOver={handedOver('roadmap')} />}
+        <RapiModeContent mode={mode} handedOver={handedOver} />
         <div className="space-y-2 p-2">
           {executions.map((exec) => (
             <ExecutionItem
@@ -364,6 +265,8 @@ export function RapiAvatarPanel({
           ))}
         </div>
       </div>
+
+      <RapiComposer routed={routed} mode={mode} hasOpenTask={hasTask} onRouted={handleRouted} />
 
       {/* Only offered when there is something to resume — everything
           running is already on its way. */}

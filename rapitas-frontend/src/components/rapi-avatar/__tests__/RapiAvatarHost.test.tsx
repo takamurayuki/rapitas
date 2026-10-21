@@ -126,7 +126,7 @@ describe('the corner', () => {
     expect(screen.getByText('rapiAvatar.watch.title')).toBeTruthy();
     expect(screen.queryByTestId('exec-1')).toBeNull();
 
-    fireEvent.click(screen.getByText('rapiAvatar.mode.create'));
+    fireEvent.click(screen.getByLabelText('rapiAvatar.mode.create'));
     expect(screen.getByText('rapiAvatar.intake.title')).toBeTruthy();
   });
 
@@ -176,7 +176,7 @@ describe('the corner', () => {
     search = query;
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
-    expect(screen.getByText('rapiAvatar.mode.consult')).toBeTruthy();
+    expect(screen.getByLabelText('rapiAvatar.mode.consult')).toBeTruthy();
   });
 
   // A conversation with history in a 320px column is unreadable, so that one
@@ -187,7 +187,7 @@ describe('the corner', () => {
     fireEvent.click(avatarButton());
     const panel = () => screen.getByRole('dialog');
     const narrow = panel().className;
-    fireEvent.click(screen.getByText('rapiAvatar.mode.consult'));
+    fireEvent.click(screen.getByLabelText('rapiAvatar.mode.consult'));
     expect(panel().className).not.toBe(narrow);
     expect(narrow).toContain('w-80');
     expect(panel().className).not.toContain('w-80');
@@ -197,7 +197,7 @@ describe('the corner', () => {
   it('offers one tidy tab rather than two ways of choosing', () => {
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
-    expect(screen.getByText('rapiAvatar.mode.tidy')).toBeTruthy();
+    expect(screen.getByLabelText('rapiAvatar.mode.tidy')).toBeTruthy();
     expect(screen.queryByText('rapiAvatar.mode.cleanup')).toBeNull();
     expect(screen.queryByText('rapiAvatar.mode.bulk')).toBeNull();
   });
@@ -211,9 +211,9 @@ describe('the corner', () => {
     search = query;
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
-    const tabs = Array.from(document.querySelectorAll('button[aria-pressed]')).filter((b) =>
-      (b.textContent ?? '').startsWith('rapiAvatar.mode.'),
-    );
+    // Counted by accessible name, not by text: only the tab you are in
+    // shows its label now, the rest are their glyph plus a tooltip.
+    const tabs = Array.from(document.querySelectorAll('[data-rapi-mode-tab]'));
     expect(tabs).toHaveLength(expected);
   });
 
@@ -342,7 +342,7 @@ describe('closing and reopening', () => {
     serve({ total: 0, categories: [] });
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
-    fireEvent.click(screen.getByText('rapiAvatar.mode.create'));
+    fireEvent.click(screen.getByLabelText('rapiAvatar.mode.create'));
     expect(screen.getByText('rapiAvatar.intake.title')).toBeTruthy();
 
     reopen();

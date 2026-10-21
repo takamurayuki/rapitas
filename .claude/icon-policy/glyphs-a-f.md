@@ -32,3 +32,4 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `CalendarSearch`          | カレンダー空き枠スケジューラ（Google カレンダーの空き時間連動の自動実行ゲート。/agents/calendar-slots ページ見出し。注: `CalendarClock`＝バックログ定期ジョブ設定、`CalendarRange`＝スケジュールグループとは別概念） |
 | `Bookmark` / `BookmarkPlus` | アプリ内ブラウザのお気に入り（`LinkFavourites` の見出し・パネルを開くボタン、`LinkViewPane` の保存ボタン。`BookmarkPlus`=未保存、`Bookmark`(fill)=保存済み）。注: `Star`＝カテゴリの既定/推奨は別概念のため流用しない。`category/icons`・`claude-md-generator` のアイコン登録は中立的な再掲で対象外 |
 | `FolderPlus`              | アプリ内ブラウザのグループを作る（`LinkFavourites` のグループ追加欄、`TabStripTab` の「新しいグループに追加」— 同一概念の再利用）。注: `FolderOpen`＝汎用フォルダ、`Folders`＝カテゴリ一覧ページヘッダーとは別概念 |
+| `Eraser`                  | ラピの「片付ける」モード（`RapiModeTabs` の tidy タブ — 完了済みタスクの一括整理。注: `Trash2`＝個別削除、`Archive`＝メモリ/KB管理とは別概念。`category/icons` の登録は中立的な再掲で対象外） |
