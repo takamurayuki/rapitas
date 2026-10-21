@@ -106,6 +106,16 @@ interface RapiAvatarPanelProps {
   tailOffsetPx: number;
   /** Which surface the bubble is drawn on. / 吹き出しの配色 */
   dark: boolean;
+  /**
+   * Whether she is showing it.
+   *
+   * Closed means hidden, not gone: the panel stays mounted so that what was
+   * typed, which tab was chosen and any request still in flight all survive.
+   * `display: none` takes it out of the accessibility tree and out of
+   * hit-testing, so hiding is as complete as unmounting from the outside —
+   * it just does not throw the work away.
+   */
+  open: boolean;
 }
 
 /**
@@ -125,6 +135,7 @@ export function RapiAvatarPanel({
   bottomPx,
   tailOffsetPx,
   dark,
+  open,
 }: RapiAvatarPanelProps) {
   const t = useTranslations('banner');
   const ta = useTranslations('rapiAvatar');
@@ -190,7 +201,35 @@ export function RapiAvatarPanel({
 
   const bubble = useRef<HTMLDivElement>(null);
 
+  /**
+   * Replays the entrance on each open, without remounting anything.
+   *
+   * A CSS animation does not run again on an element that already carries
+   * it, so keeping the panel mounted would otherwise have silently killed
+   * the grow-out-of-her-tail that makes this read as ラピ speaking.
+   *
+   * `SpeechBubble`'s `speakKey` would replay it — by giving the bubble a new
+   * element — and that is exactly the wrong tool here: a new element throws
+   * away the typed text, the chosen tab and the request in flight, which is
+   * the whole point of staying mounted. So the animation is restarted in
+   * place: clear it, force a reflow to make the clear take effect, put it
+   * back. The reflow read is load-bearing, not a leftover.
+   */
   useEffect(() => {
+    if (!open) return;
+    const el = bubble.current;
+    if (!el) return;
+    const original = el.style.animation;
+    el.style.animation = 'none';
+    void el.offsetHeight;
+    el.style.animation = original;
+  }, [open]);
+
+  useEffect(() => {
+    // Nothing to dismiss while it is hidden, and the outside-click listener
+    // would otherwise call onClose on every click anywhere in the app.
+    if (!open) return;
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
@@ -212,7 +251,7 @@ export function RapiAvatarPanel({
       window.removeEventListener('keydown', onKey);
       document.removeEventListener('pointerdown', onOutside);
     };
-  }, [onClose]);
+  }, [onClose, open]);
 
   return (
     <SpeechBubble
@@ -228,6 +267,9 @@ export function RapiAvatarPanel({
         bottom: bottomPx,
         zIndex: RAPI_BUBBLE_Z,
         pointerEvents: 'auto',
+        // Hidden rather than removed: out of the accessibility tree and out
+        // of hit-testing, while the state and any request in flight stay.
+        ...(open ? {} : { display: 'none' }),
       }}
       // No radius or border class: the bubble owns both, and its radius is
       // asymmetric where the tail leaves. `shadow-lg` not `shadow-xl` —

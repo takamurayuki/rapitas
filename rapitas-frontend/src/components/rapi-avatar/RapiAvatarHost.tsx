@@ -44,6 +44,24 @@ export default function RapiAvatarHost() {
   const { isDarkMode } = useDarkMode();
   const [open, setOpen] = useState(false);
 
+  /**
+   * Whether she has ever been opened.
+   *
+   * The panel stays mounted once it has been, so closing it keeps what was
+   * typed, which tab was chosen, and — the expensive part — any request
+   * still in flight. A roadmap draft takes tens of seconds; unmounting on
+   * close threw the answer away with no way back but asking again.
+   *
+   * Mounted lazily rather than always, because it opens on the survey and
+   * that costs a request: mounting it up front would spend one on every page
+   * load, before she has been asked for anything.
+   */
+  const [everOpened, setEverOpened] = useState(false);
+  const toggle = useCallback(() => {
+    setEverOpened(true);
+    setOpen((prev) => !prev);
+  }, []);
+
   const {
     executions,
     resumingIds,
@@ -66,8 +84,9 @@ export default function RapiAvatarHost() {
 
   return (
     <>
-      {open && (
+      {everOpened && (
         <RapiAvatarPanel
+          open={open}
           executions={executions}
           resumingIds={resumingIds}
           dismissingIds={dismissingIds}
@@ -90,7 +109,7 @@ export default function RapiAvatarHost() {
         // The bubble steps aside while the panel is up; two things
         // speaking at once in one corner is what this change removed.
         message={open ? undefined : message}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={toggle}
       />
     </>
   );
