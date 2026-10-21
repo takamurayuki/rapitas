@@ -45,11 +45,12 @@ export function TaskRoadmap({ handedOver }: TaskRoadmapProps = {}) {
     drafting,
     committing,
     committed,
-    failed,
+    failure,
     unavailable,
     unanswered,
     refine,
     commit,
+    retry,
   } = useRoadmap(handedOver);
 
   const placement = (p: Placement) =>
@@ -63,7 +64,25 @@ export function TaskRoadmap({ handedOver }: TaskRoadmapProps = {}) {
       {unavailable && (
         <p className="text-[11px] text-amber-700 dark:text-amber-400">{t('unavailable')}</p>
       )}
-      {failed && <p className="text-[11px] text-red-600 dark:text-red-400">{t('failed')}</p>}
+      {/* Which step, and what came back. "It did not work" on its own left
+          a real failure undiagnosable: the server had answered fine. */}
+      {failure && (
+        <div className="space-y-1">
+          <p className="text-[11px] text-red-600 dark:text-red-400">
+            {t(failure.stage === 'creating' ? 'failedCreating' : 'failedDrafting', {
+              detail: failure.detail,
+            })}
+          </p>
+          <button
+            type="button"
+            onClick={retry}
+            disabled={drafting || committing}
+            className="rounded-lg border border-zinc-300 px-2 py-1 text-[11px] text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            {t('retry')}
+          </button>
+        </div>
+      )}
 
       {draft && !committed && (
         <div className="space-y-2">

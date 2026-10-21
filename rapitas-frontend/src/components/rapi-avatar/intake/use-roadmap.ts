@@ -21,53 +21,26 @@ import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import { useNoteStore } from '@/stores/note-store';
 import { composeRoadmapNote } from './roadmap-note';
+import type { Committed, Decision, Draft, Question, RoadmapFailure } from './roadmap.types';
+
+export type { Placement, Question, Step, Draft, Committed, RoadmapFailure } from './roadmap.types';
 
 const logger = createLogger('rapi-roadmap');
 
-export interface Placement {
-  kind: 'existing' | 'new' | 'none';
-  id?: number;
-  name?: string;
-  reason?: string;
-}
-
-export interface Question {
-  question: string;
-  options: string[];
-  recommended?: string;
-  recommendedReason?: string;
-}
-
-export interface Step {
-  title: string;
-  description: string;
-  dueDate?: string;
-}
-
-export interface Draft {
-  goal: string;
-  themeChoice: Placement;
-  projectChoice: Placement;
-  questions: Question[];
-  steps: Step[];
-  deadline?: string;
-  /** What the plan takes for granted — note material, not task material. */
-  assumptions?: string[];
-  /** What to weigh candidates on, when the goal is a choice. */
-  comparisonAxes?: string[];
-}
-
-/** One question and what the user picked, as the draft call wants it. */
-interface Decision {
-  question: string;
-  answer: string;
-}
-
-export interface Committed {
-  themeId: number | null;
-  projectId: number | null;
-  taskIds: number[];
-  failedAfter: number | null;
+/**
+ * What to show about a failure.
+ *
+ * The status for a server that answered and refused, the error's name for
+ * one that never answered — that distinction is the whole point, since a
+ * 422 and a dropped connection need opposite responses.
+ *
+ * @param err - Whatever was thrown / 投げられたもの
+ * @returns A short, specific reason / 短く具体的な理由
+ */
+function describe(err: unknown): string {
+  if (err instanceof Error && err.message.startsWith('HTTP ')) return err.message;
+  if (err instanceof Error && err.name) return err.name;
+  return String(err).slice(0, 60);
 }
 
 /**
@@ -88,12 +61,18 @@ export function useRoadmap(handedOver?: string) {
   const [drafting, setDrafting] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [committed, setCommitted] = useState<Committed | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failure, setFailure] = useState<RoadmapFailure | null>(null);
   const [unavailable, setUnavailable] = useState(false);
+  /**
+   * The answers the last draft call carried, so a retry repeats that call
+   * rather than restarting the interview from the top.
+   */
+  const lastAsk = useRef<Decision[] | undefined>(undefined);
 
   const ask = useCallback(async (text: string, decisions?: Decision[]) => {
+    lastAsk.current = decisions;
     setDrafting(true);
-    setFailed(false);
+    setFailure(null);
     setUnavailable(false);
     setCommitted(null);
     try {
@@ -124,7 +103,7 @@ export function useRoadmap(handedOver?: string) {
       }
     } catch (err) {
       logger.warn({ err }, 'could not draft a roadmap');
-      setFailed(true);
+      setFailure({ stage: 'drafting', detail: describe(err) });
     } finally {
       setDrafting(false);
     }
@@ -211,7 +190,7 @@ export function useRoadmap(handedOver?: string) {
   const commit = async () => {
     if (!draft || committing) return;
     setCommitting(true);
-    setFailed(false);
+    setFailure(null);
     try {
       const res = await fetch(`${API_BASE_URL}/assistant/roadmap/commit`, {
         method: 'POST',
@@ -231,10 +210,25 @@ export function useRoadmap(handedOver?: string) {
       if (noteId) await attachNote(noteId, draft, made);
     } catch (err) {
       logger.warn({ err }, 'could not create the roadmap');
-      setFailed(true);
+      setFailure({ stage: 'creating', detail: describe(err) });
     } finally {
       setCommitting(false);
     }
+  };
+
+  /**
+   * Run the step that failed again — the same one, not the first one.
+   *
+   * Retrying a failed creation by re-interviewing would throw away a plan
+   * the user has already read and agreed to.
+   */
+  const retry = () => {
+    if (!failure) return;
+    if (failure.stage === 'creating') {
+      void commit();
+      return;
+    }
+    if (handedOver) void ask(handedOver, lastAsk.current);
   };
 
   return {
@@ -245,7 +239,7 @@ export function useRoadmap(handedOver?: string) {
     drafting,
     committing,
     committed,
-    failed,
+    failure,
     unavailable,
     /**
      * Whether the plan on screen is still the sketch: true exactly while a
@@ -254,5 +248,6 @@ export function useRoadmap(handedOver?: string) {
     unanswered: (draft?.questions.length ?? 0) > 0,
     refine,
     commit,
+    retry,
   };
 }

@@ -87,6 +87,9 @@ const COMMITTED = { themeId: 100, projectId: null, taskIds: [301, 302], failedAf
 
 /** Each `/draft` call answers with the next round in turn. */
 let rounds: Record<string, unknown>[] = [];
+/** Which call should come back broken, and how. */
+let breakDraft: number | null = null;
+let breakCommit = false;
 
 beforeEach(() => {
   requests = [];
@@ -95,6 +98,8 @@ beforeEach(() => {
   patchFails = false;
   currentId = 'note-1';
   rounds = [ASKED, PLANNED];
+  breakDraft = null;
+  breakCommit = false;
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
     requests.push({ url, body: JSON.parse(String(init?.body)), method: init?.method });
     if (init?.method === 'PATCH') {
@@ -104,9 +109,22 @@ beforeEach(() => {
         json: () => Promise.resolve({}),
       } as Response);
     }
-    const body = String(url).includes('/commit')
-      ? COMMITTED
-      : { available: true, draft: rounds.shift() ?? PLANNED };
+    const isCommit = String(url).includes('/commit');
+    if (isCommit && breakCommit) {
+      return Promise.resolve({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({}),
+      } as Response);
+    }
+    if (!isCommit && breakDraft !== null && drafts().length === breakDraft) {
+      return Promise.resolve({
+        ok: false,
+        status: 503,
+        json: () => Promise.resolve({}),
+      } as Response);
+    }
+    const body = isCommit ? COMMITTED : { available: true, draft: rounds.shift() ?? PLANNED };
     return Promise.resolve({
       ok: true,
       status: 200,
