@@ -70,6 +70,16 @@ const mockPrisma = {
   $transaction: mock(transactionImpl),
 };
 
+/** Task ids the shared deletion path was asked to remove. */
+const deletedTaskIds: number[] = [];
+
+mock.module('../../../services/task/task-deletion', () => ({
+  deleteTaskWithTrash: async (taskId: number) => {
+    deletedTaskIds.push(taskId);
+    return { taskId, outcome: 'deleted', trashId: 1 };
+  },
+}));
+
 mock.module('../../../config/database', () => ({
   prisma: mockPrisma,
   ensureDatabaseConnection: () => Promise.resolve(),
@@ -594,12 +604,17 @@ describe('DELETE /tasks/:id', () => {
   });
 
   test('タスクを削除すること', async () => {
-    mockPrisma.task.delete.mockResolvedValue({ id: 1, title: 'Deleted' });
+    // What deleting means — the protected guard, the worktree cleanup, the
+    // trash copy and the delete itself — moved into deleteTaskWithTrash so
+    // ラピ and this route cannot drift apart. The route's job is to delegate
+    // and map the outcome; the prisma-level assertion lives in
+    // services/task/task-deletion.test.ts now.
+    deletedTaskIds.length = 0;
 
     const res = await app.handle(new Request('http://localhost/tasks/1', { method: 'DELETE' }));
 
     expect(res.status).toBe(200);
-    expect(mockPrisma.task.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+    expect(deletedTaskIds).toEqual([1]);
   });
 
   test('無効なIDでValidationErrorを返すこと', async () => {
