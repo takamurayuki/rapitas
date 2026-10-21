@@ -45,6 +45,13 @@ export {
 } from './delete-proposal';
 
 export {
+  routeIntent,
+  ROUTABLE_INTENTS,
+  type RoutableIntent,
+  type RoutedIntent,
+} from './intent-router';
+
+export {
   surveyBacklog,
   SUPERVISION_CATEGORIES,
   MAX_SUPERVISION_ROWS,

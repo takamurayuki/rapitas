@@ -9,7 +9,7 @@
  * because a misread question is invisible otherwise — you would just get a
  * confident number for something you did not ask.
  */
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { isImeComposing } from '@/utils/ime';
@@ -36,22 +36,27 @@ interface Answer {
 /** Where a task opens from here. Headered, per the task-link rule. */
 const taskHref = (id: number) => `/tasks/${id}?showHeader=true`;
 
-export function TaskAsk() {
+export interface TaskAskProps {
+  /** A question the single input already routed here. / 振り分け済みの質問 */
+  handedOver?: string;
+}
+
+export function TaskAsk({ handedOver }: TaskAskProps = {}) {
   const t = useTranslations('rapiAvatar.ask');
-  const [text, setText] = useState('');
+  const [text, setText] = useState(handedOver ?? '');
   const [asking, setAsking] = useState(false);
   const [answer, setAnswer] = useState<Answer | null>(null);
   const [error, setError] = useState(false);
 
-  const ask = async () => {
-    if (!text.trim()) return;
+  const ask = useCallback(async (question: string) => {
+    if (!question.trim()) return;
     setAsking(true);
     setError(false);
     try {
       const res = await fetch(`${API_BASE_URL}/assistant/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text: question }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setAnswer((await res.json()) as Answer);
@@ -62,7 +67,16 @@ export function TaskAsk() {
     } finally {
       setAsking(false);
     }
-  };
+  }, []);
+
+  // Asked once per handover: the user already pressed Enter on it.
+  const askedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!handedOver || askedFor.current === handedOver) return;
+    askedFor.current = handedOver;
+    setText(handedOver);
+    void ask(handedOver);
+  }, [handedOver, ask]);
 
   /** The conditions, as a short human line. */
   const conditions = (q: Record<string, unknown>): string => {
@@ -90,14 +104,14 @@ export function TaskAsk() {
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e.nativeEvent)) {
             e.preventDefault();
-            void ask();
+            void ask(text);
           }
         }}
         className="w-full resize-none rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-800 placeholder:text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
       />
       <button
         type="button"
-        onClick={() => void ask()}
+        onClick={() => void ask(text)}
         disabled={!text.trim() || asking}
         className="w-full rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
       >

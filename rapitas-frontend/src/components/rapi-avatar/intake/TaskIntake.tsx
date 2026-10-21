@@ -8,7 +8,7 @@
  * Two steps on purpose. Nothing is created by describing something — the
  * draft is a proposal, and `TaskDraftCard` is where it becomes an act.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { isImeComposing } from '@/utils/ime';
 import { TaskDraftCard } from './TaskDraftCard';
@@ -17,9 +17,20 @@ import { useTaskDraft } from './use-task-draft';
 /** Where a freshly filed task can be opened. Headered, per the task-link rule. */
 const filedTaskHref = (id: number) => `/tasks/${id}?showHeader=true`;
 
-export function TaskIntake() {
+export interface TaskIntakeProps {
+  /**
+   * A sentence the single input already routed here.
+   *
+   * Proposed once on arrival rather than left in the box: the user has
+   * already pressed Enter on it, and asking them to press it again is the
+   * click the front door exists to remove.
+   */
+  handedOver?: string;
+}
+
+export function TaskIntake({ handedOver }: TaskIntakeProps = {}) {
   const t = useTranslations('rapiAvatar.intake');
-  const [text, setText] = useState('');
+  const [text, setText] = useState(handedOver ?? '');
   const {
     draft,
     source,
@@ -38,6 +49,16 @@ export function TaskIntake() {
   const submit = async () => {
     await propose(text);
   };
+
+  // Runs once per handover. Keyed on the sentence itself so arriving with
+  // the same words twice re-proposes, while a re-render does not.
+  const proposedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!handedOver || proposedFor.current === handedOver) return;
+    proposedFor.current = handedOver;
+    setText(handedOver);
+    void propose(handedOver);
+  }, [handedOver, propose]);
 
   const discard = () => {
     reset();

@@ -1606,6 +1606,13 @@
       "consult": "このタスク",
       "tidy": "片付ける"
     },
+    "prompt": {
+      "label": "ラピに言う",
+      "placeholder": "やりたいことをそのまま書いてください",
+      "thinking": "読んでいます…",
+      "unplaced": "うまく分かりませんでした。下のタブから選んでください。",
+      "tookItAs": "「{where}」として受け取りました — {reason}"
+    },
     "tidy": {
       "byCondition": "条件で",
       "byJudgement": "おまかせ",
