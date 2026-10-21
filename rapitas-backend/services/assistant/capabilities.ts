@@ -90,6 +90,18 @@ export const ASSISTANT_CAPABILITIES = [
     undo: 'nothing-to-undo',
   },
   {
+    // The one capability that reaches the network. It writes nothing and
+    // needs no confirmation for the same reason the drafting half does not
+    // — it only looks things up — but it is the only place where what comes
+    // back is about the world rather than about this backlog, so every
+    // candidate carries the URL it came from and an unfound value stays
+    // empty. See services/assistant/research.ts.
+    id: 'research.candidates',
+    writes: false,
+    requiresConfirmation: false,
+    undo: 'nothing-to-undo',
+  },
+  {
     // Turns "I want to do X" into a plan: where it belongs, what it breaks
     // into, and what she still needs told. Writes nothing, which is what
     // lets a model shape the whole thing — every part is read before the

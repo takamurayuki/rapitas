@@ -64,6 +64,23 @@ export interface RoadmapFailure {
   detail: string;
 }
 
+/** Something the search found, and the page it came from. */
+export interface Candidate {
+  name: string;
+  sourceUrl: string;
+  /** Axis name to what the search established. Missing means not found. */
+  values: Record<string, string>;
+  why: string;
+}
+
+/** What one search came back with. */
+export interface Findings {
+  query: string;
+  candidates: Candidate[];
+  /** Axes nothing could be found for, named rather than left blank. */
+  unresolvedAxes: string[];
+}
+
 export interface Committed {
   themeId: number | null;
   projectId: number | null;
