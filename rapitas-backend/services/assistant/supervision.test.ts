@@ -78,6 +78,35 @@ describe('what it looks for', () => {
     expect(where.OR).toEqual([{ autoRunExcluded: true }, { workflowDisabled: true }]);
   });
 
+  // Measured on this backlog: 22 held, 19 of them ideas the box had filed and
+  // the system had then set aside. Reporting 22 to surface the 2 that were
+  // hand-filed and genuinely stuck is the burying this category exists to
+  // prevent, and the operator confirmed those ideas are correctly shelved.
+  test('leaves out the ideas the backlog filed and then shelved', async () => {
+    await surveyBacklog();
+    expect(whereFor('held').NOT).toEqual({
+      autoCreatedFromBacklog: true,
+      title: { startsWith: '[Idea]' },
+    });
+  });
+
+  // Both halves, on purpose. The column alone would shelve auto-filed
+  // concerns and bugs too, and a reported defect set aside is not the same
+  // as a speculative idea set aside — one of the 22 was exactly that.
+  test('still reports a concern the backlog filed and shelved', async () => {
+    await surveyBacklog();
+    const not = whereFor('held').NOT as { title?: { startsWith?: string } };
+    expect(not.title?.startsWith).toBe('[Idea]');
+  });
+
+  // A hand-filed task excluded from auto-run is what this category is for:
+  // nothing anywhere in the app says a word about it.
+  test('still reports what was excluded without the backlog filing it', async () => {
+    await surveyBacklog();
+    const not = whereFor('held').NOT as { autoCreatedFromBacklog?: boolean };
+    expect(not.autoCreatedFromBacklog).toBe(true);
+  });
+
   // A task with no theme is invisible to auto-run, which reads as the system
   // having stopped rather than as the task being unreachable.
   test('looks for tasks with no theme to be picked from', async () => {
