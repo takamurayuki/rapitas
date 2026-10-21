@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { CheckSquare, MessageSquare, FileText, StickyNote, ExternalLink } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { SearchResult, SearchResultType } from '@/hooks/search/useGlobalSearch';
+import { withHeaderVisible } from '@/components/header/task-detail-link';
 
 const typeIconConfig: Record<
   SearchResultType,
@@ -54,11 +55,11 @@ function highlightExcerpt(excerpt: string, query: string): React.ReactNode {
 
 function getNavigationPath(result: SearchResult): string {
   if (result.type === 'task') {
-    return `/tasks/${result.id}`;
+    return withHeaderVisible(`/tasks/${result.id}`);
   }
   if (result.type === 'comment' || result.type === 'resource') {
     const taskId = (result.metadata as { taskId?: number })?.taskId;
-    if (taskId) return `/tasks/${taskId}`;
+    if (taskId) return withHeaderVisible(`/tasks/${taskId}`);
   }
   return '#';
 }

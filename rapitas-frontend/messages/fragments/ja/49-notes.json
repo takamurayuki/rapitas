@@ -49,11 +49,19 @@
       "templatesLabel": "テンプレート:",
       "templates": {
         "flowchart": "フローチャート",
+        "mindmap": "マインドマップ",
         "sequence": "シーケンス図",
         "state": "状態遷移図",
+        "journey": "体験の起伏",
+        "quadrant": "4象限で比較",
+        "radar": "軸ごとに比較",
+        "pie": "内訳",
+        "gantt": "Gantt",
+        "timeline": "時系列",
+        "kanban": "かんばん",
+        "ishikawa": "原因分析",
         "er": "ER図",
-        "class": "クラス図",
-        "gantt": "Gantt"
+        "class": "クラス図"
       },
       "sourceLabel": "Mermaid ソース",
       "sourcePlaceholder": "Mermaidコードを入力...",
@@ -102,6 +110,18 @@
         "insertButton": "挿入",
         "borderLineTitle": "縦線",
         "tableInsertTitle": "テーブル挿入",
+        "tableSizeGridLabel": "テーブルのサイズを選択",
+        "tableSizeCellLabel": "{rows}行 × {columns}列",
+        "tableSizeLabel": "{rows} × {columns}",
+        "tableSizeHint": "サイズを選択",
+        "tableEditHeading": "表の編集",
+        "tableInsertRowAbove": "行を上に追加",
+        "tableInsertRowBelow": "行を下に追加",
+        "tableInsertColumnLeft": "列を左に追加",
+        "tableInsertColumnRight": "列を右に追加",
+        "tableDeleteRow": "行を削除",
+        "tableDeleteColumn": "列を削除",
+        "tableDeleteTable": "表を削除",
         "diagramInsertTitle": "ダイアグラム挿入（Mermaid）",
         "codeBlockInsertTitle": "コードブロック挿入",
         "selectLanguageLabel": "プログラミング言語を選択"
@@ -187,15 +207,33 @@
       "diagramLoadingText": "ダイアグラムを読み込み中...",
       "diagramSyntaxError": "構文エラー — Mermaidの記法を確認してください",
       "linkCopyDoneText": "コピーしました！",
-      "tableHeading1": "見出し1",
-      "tableHeading2": "見出し2",
-      "tableHeading3": "見出し3"
+      "tableHeading": "列{n}"
     },
     "aiService": {
       "apiError": "APIエラー: {status} {statusText}",
       "communicationError": "AIとの通信中にエラーが発生しました",
       "streamUnavailable": "レスポンスストリームを取得できませんでした",
       "responseFailed": "応答の取得に失敗しました"
-    }
+    },
+    "tableControls": {
+      "insertRowAbove": "上に行を追加",
+      "insertRowBelow": "下に行を追加",
+      "deleteRow": "行を削除",
+      "deleteTableWithLastRow": "行を削除（最後の行なので表ごと消えます）",
+      "insertColumnLeft": "左に列を追加",
+      "insertColumnRight": "右に列を追加",
+      "deleteColumn": "列を削除",
+      "deleteTableWithLastColumn": "列を削除（最後の列なので表ごと消えます）",
+      "columnHandle": "{index}列目の操作",
+      "rowHandle": "{index}行目の操作",
+      "menuLabel": "表の行・列操作"
+    },
+    "linkOpen": "開く",
+    "linkEdit": "編集",
+    "linkRemove": "リンクを削除",
+    "linkDismiss": "リンクのパネルを閉じる",
+    "linkUrlLabel": "リンクのURL",
+    "linkApply": "適用",
+    "linkPanelLabel": "リンクの操作"
   }
 }

@@ -64,11 +64,30 @@ const GENERIC_TOKENS = new Set([
 const ALGORITHM_TOKEN =
   /^(?:sha|md5|aes|rsa|hmac|jwt|base64|uuid|crc|tls|ssl|gzip|bcrypt|argon2|pbkdf2)(?:[-_.]?\d+)?$/;
 
-/** The `入力` line's enumeration, as written. */
+/**
+ * A parenthetical that LISTS rather than qualifies.
+ *
+ * NOTE: measured 2026-10-18 on a freshly generated document —
+ * 「Googleアカウント（Firebase Authentication のGoogleプロバイダのみ）」 was read
+ * as three integration targets (`google`, `firebase`, `authentication`) and the
+ * gate rejected a document with nothing wrong with it. A parenthetical without
+ * a list separator explains HOW an input is obtained; it does not add targets.
+ * One that separates — `(Slack、Gmail、Drive)` — is an enumeration and stays.
+ */
+const LISTING_PARENTHETICAL = /[、,・/]/;
+
+/** Drop parentheticals that qualify, keeping those that enumerate. */
+function withoutQualifiers(text: string): string {
+  return text.replace(/[（(]([^）)]*)[）)]/g, (whole, inner: string) =>
+    LISTING_PARENTHETICAL.test(inner) ? whole : ' ',
+  );
+}
+
+/** The `入力` line's enumeration, with qualifying parentheticals removed. */
 function inputEnumeration(detail: string): string | null {
   for (const line of detail.split(/\r?\n/)) {
     const m = line.match(/^\s*[-*]?\s*入力\s*[:：]\s*(.+)$/);
-    if (m) return m[1];
+    if (m) return withoutQualifiers(m[1]);
   }
   return null;
 }

@@ -38,6 +38,15 @@ interface NextActionRecommendationsProps {
   onSelect: (action: RecommendedAction) => void;
   /** True while an action is running (disables the cards). */
   isBusy: boolean;
+  /**
+   * Strips it to just the buttons.
+   *
+   * Drops the "next action" heading and each card's reason line, and tightens
+   * the padding and type. The heading named a section nobody had asked for by
+   * name, and the reasons restate what the labels already say — in a 544px
+   * bubble that is two rows of chrome per button.
+   */
+  compact?: boolean;
 }
 
 /**
@@ -51,6 +60,7 @@ export function NextActionRecommendations({
   actions,
   onSelect,
   isBusy,
+  compact = false,
 }: NextActionRecommendationsProps) {
   const t = useTranslations('copilot.nextActionRecommendations');
   // Track which card was clicked so only IT shows a spinner (not all of them).
@@ -68,8 +78,10 @@ export function NextActionRecommendations({
   }
 
   return (
-    <div className="space-y-2">
-      <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-500">{t('heading')}</p>
+    <div className={compact ? 'space-y-1' : 'space-y-2'}>
+      {!compact && (
+        <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-500">{t('heading')}</p>
+      )}
       {actions.map((a) => {
         const Icon = ICONS[a.icon];
         const isPrimary = a.tone === 'primary';
@@ -83,9 +95,9 @@ export function NextActionRecommendations({
               setActiveId(a.id);
               onSelect(a);
             }}
-            className={`flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
-              isBusy && !isActive ? 'opacity-50' : ''
-            } ${
+            className={`flex w-full items-start gap-2 rounded-lg border text-left transition-colors ${
+              compact ? 'px-2 py-1.5' : 'gap-3 px-3 py-2.5'
+            } ${isBusy && !isActive ? 'opacity-50' : ''} ${
               isPrimary
                 ? 'border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/40'
                 : 'border-zinc-200 hover:border-indigo-300 hover:bg-indigo-50/40 dark:border-zinc-700 dark:hover:border-indigo-700 dark:hover:bg-indigo-900/15'
@@ -104,7 +116,7 @@ export function NextActionRecommendations({
             </span>
             <span className="min-w-0">
               <span
-                className={`block text-sm font-medium ${
+                className={`block font-medium ${compact ? 'text-xs' : 'text-sm'} ${
                   isPrimary
                     ? 'text-indigo-800 dark:text-indigo-200'
                     : 'text-zinc-800 dark:text-zinc-200'
@@ -112,9 +124,11 @@ export function NextActionRecommendations({
               >
                 {t(a.labelKey)}
               </span>
-              <span className="block text-xs text-zinc-500 dark:text-zinc-400">
-                {t(a.reasonKey, a.reasonParams)}
-              </span>
+              {!compact && (
+                <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+                  {t(a.reasonKey, a.reasonParams)}
+                </span>
+              )}
             </span>
           </button>
         );

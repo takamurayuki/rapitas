@@ -35,6 +35,7 @@ import { gitCacheMetricsRoutes } from './monitoring/git-cache-metrics';
 import { ciTimingRoutes } from './monitoring/ci-timing';
 import calendarSlotsCalendarSlotsRoute from './calendar-slots/calendar-slots.routes';
 import canaryRoute from './canary.routes';
+import deployRoute from './deploy.routes';
 import outageGuidanceRoute from './outage-guidance.routes';
 
 export { settingsRoutes } from './settings';
@@ -95,4 +96,5 @@ export const systemDomainRoutes = new Elysia()
   .use(ciTimingRoutes)
   .use(calendarSlotsCalendarSlotsRoute)
   .use(canaryRoute)
+  .use(deployRoute)
   .use(outageGuidanceRoute);

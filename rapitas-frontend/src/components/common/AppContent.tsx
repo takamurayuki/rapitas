@@ -20,6 +20,9 @@ import {
   useTaskDetailVisibilityStore,
   TASK_DETAIL_SPLIT_WIDTH_VW,
 } from '@/stores/task-detail-visibility-store';
+import { useLinkViewStore } from '@/stores/link-view-store';
+import { linkPaneSide, linkPaneWidthVw } from '@/components/link-view/LinkViewHost';
+import { useTaskPanelWidthVw } from '@/components/link-view/useTaskPanelWidth';
 
 /**
  * @param children - Page content to render / 描画するページコンテンツ
@@ -38,9 +41,27 @@ export default function AppContent({ children }: { children: React.ReactNode }) 
   const taskDetailDockSide = useTaskDetailVisibilityStore((s) => s.dockSide);
   const isTaskSplitOpen = isTaskDetailVisible && taskDetailDisplayMode === 'split';
 
+  // The link pane takes the edge the task detail panel is not on, so the
+  // reservation has to follow it rather than assume the right (#1065).
+  //
+  // Keyed on `isOpen`, which is what decides whether the pane is drawn —
+  // not on there being a tab. Hiding the pane deliberately KEEPS the tabs
+  // so Ctrl+B can bring them back, so `activeId !== null` stayed true and
+  // the page kept the padding, leaving the content squeezed against the
+  // far edge with nothing beside it. The same mistake the other way round:
+  // Ctrl+B on an empty pane opens the saved-pages library, which has no
+  // tab and still occupies the width.
+  const isLinkViewOpen = useLinkViewStore((s) => s.isOpen);
+  const linkSide = linkPaneSide(isTaskDetailVisible, taskDetailDockSide);
+  // Must match the pane's own width, or the gap it was widened to fill
+  // simply reappears as page padding on the other side — so it comes from
+  // the same measurement, not a parallel calculation.
+  const linkWidthVw = linkPaneWidthVw(useTaskPanelWidthVw(isTaskDetailVisible));
+
   const reservedVw = (side: 'left' | 'right'): number =>
     (isTerminalSplitOpen && terminalDockSide === side ? terminalSplitWidthPercent : 0) +
-    (isTaskSplitOpen && taskDetailDockSide === side ? TASK_DETAIL_SPLIT_WIDTH_VW : 0);
+    (isTaskSplitOpen && taskDetailDockSide === side ? TASK_DETAIL_SPLIT_WIDTH_VW : 0) +
+    (isLinkViewOpen && side === linkSide ? linkWidthVw : 0);
   const rightVw = reservedVw('right');
   const leftVw = reservedVw('left');
 

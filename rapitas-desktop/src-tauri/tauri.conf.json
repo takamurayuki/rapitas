@@ -84,7 +84,7 @@
   },
   "plugins": {
     "shell": {
-      "open": "^https?://"
+      "open": "https?://.+"
     }
   }
 }
