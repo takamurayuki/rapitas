@@ -485,6 +485,8 @@
       "placement": "テーマ: {theme} ・ プロジェクト: {project}",
       "isNew": "（新規）",
       "noProject": "なし",
+      "refine": "この回答で計画を作る",
+      "deadline": "期限: {date}",
       "create": "この計画で{count}件作る",
       "creating": "作っています…",
       "created": "{count}件作りました。",

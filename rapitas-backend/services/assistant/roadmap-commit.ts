@@ -36,6 +36,8 @@ export type ApprovedPlacement =
 export interface ApprovedStep {
   title: string;
   description: string;
+  /** When it should be finished, as the approved plan dated it (YYYY-MM-DD). */
+  dueDate?: string;
 }
 
 export interface ApprovedPlan {
@@ -106,6 +108,9 @@ export async function commitRoadmap(plan: ApprovedPlan): Promise<RoadmapResult> 
       const task = await createTask(prisma, {
         title: step.title,
         description: step.description,
+        // Omitted rather than nulled when the plan carried no date: a null
+        // would be an instruction to clear one, and there is none to clear.
+        ...(step.dueDate ? { dueDate: step.dueDate } : {}),
         ...(themeId !== null ? { themeId } : {}),
         ...(projectId !== null ? { projectId } : {}),
       });

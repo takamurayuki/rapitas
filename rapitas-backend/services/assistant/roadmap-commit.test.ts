@@ -114,6 +114,23 @@ describe('creating what was approved', () => {
   });
 });
 
+describe('the dates the plan carried', () => {
+  test('reach the task, so a deadline is more than a sentence', async () => {
+    await commitRoadmap({
+      ...PLAN,
+      steps: [{ title: '一歩目', description: 'やる', dueDate: '2026-11-20' }],
+    });
+    expect(made('task')[0]?.data.dueDate).toBe('2026-11-20');
+  });
+
+  test('are left off entirely when the plan had none', async () => {
+    await commitRoadmap(PLAN);
+    // Not null: an explicit null would clear a date, and there is nothing
+    // here to clear. The field should simply not be in the write.
+    expect(made('task')[0]?.data).not.toHaveProperty('dueDate');
+  });
+});
+
 describe('when something goes wrong partway', () => {
   // Half a roadmap is worse than none: the user cannot tell which steps are
   // missing without reading the plan against the backlog.
