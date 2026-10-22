@@ -81,6 +81,8 @@ export const INTERVIEW_PROMPT = `あなたは rapitas というタスク管理�
 
 質問の作り方:
 - 計画の中身が変わるようなことだけを聞く。答えても計画が変わらない質問は入れない。
+- **「この人について」に書いてあることは聞かない。** 既に分かっていることを聞き直すのは、
+  ユーザーが一度やった作業をもう一度やらせることになる。書かれていない観点だけを聞く。
 - 次の観点のうち、ユーザーの発言から読み取れないものを優先して聞く:
   現状（今の状況・持っている材料）／ 制約（使える時間・お金・譲れない条件）／
   期限（いつまでに、どの時点で何が必要か）／ 優先順位（何を犠牲にできるか）／
@@ -147,13 +149,22 @@ export function buildRoadmapMessage(input: {
   projects: NamedRef[];
   answers?: RoadmapAnswer[];
   today: Date;
+  /** The standing self-introduction, when one is set. / 自己紹介 */
+  profile?: string | null;
 }): string {
-  const parts = [
-    `今日の日付: ${isoDay(input.today)}`,
+  const parts = [`今日の日付: ${isoDay(input.today)}`];
+  // Before the request, and labelled. Unlabelled, the model reads the
+  // introduction as part of what was asked for and plans a career summary
+  // instead of a job search. Omitted entirely when empty — a heading with
+  // nothing under it reads as "this person has no situation", which is
+  // worse than saying nothing at all.
+  const profile = input.profile?.trim();
+  if (profile) parts.push(`この人について（毎回の前提。聞き直さないこと）:\n${profile}`);
+  parts.push(
     `既存のテーマ:\n${list(input.themes)}`,
     `既存のプロジェクト:\n${list(input.projects)}`,
     `やりたいこと:\n${input.text}`,
-  ];
+  );
   // Only on the second round: the word "回答" appearing at all is what tells
   // the model (and the tests) which round this is.
   if (input.answers && input.answers.length > 0) {

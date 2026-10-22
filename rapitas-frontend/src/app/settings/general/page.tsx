@@ -9,6 +9,7 @@ import { EXTERNAL_BROWSER_KEY } from '@/utils/tauri';
 import { getLinkOpenMode, setLinkOpenMode, type LinkOpenMode } from '@/utils/link-view';
 import BackupCard from '../_components/BackupCard';
 import RecentErrorsCard from '../_components/RecentErrorsCard';
+import RapiProfileCard from '../_components/RapiProfileCard';
 import Link from 'next/link';
 
 const LOCALE_LABELS: Record<Locale, string> = {
@@ -211,6 +212,7 @@ export default function GeneralSettingsPage() {
           </div>
         </div>
 
+        <RapiProfileCard />
         <BackupCard />
         <RecentErrorsCard />
 
