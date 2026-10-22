@@ -150,7 +150,15 @@ export const assistantRoadmapRoutes = new Elysia({ prefix: '/assistant/roadmap' 
             description: t.String({ maxLength: MAX_TEXT_LENGTH }),
             // The shape `dueDate` is stored in, checked here rather than
             // trusted: a malformed date reaches Prisma as an Invalid Date.
-            dueDate: t.Optional(t.String({ pattern: '^\d{4}-\d{2}-\d{2}$' })),
+            //
+            // `[0-9]` rather than `\d`: in a single-quoted TypeScript string
+            // `\d` is just `d`, so this read `^d{4}-d{2}-d{2}$` and rejected
+            // every real date while accepting the literal "dddd-dd-dd".
+            // Every commit carrying a dated step answered 400 — the whole
+            // roadmap flow, once the deadline work started dating them.
+            // Character classes carry no backslash and cannot fail this way,
+            // which is why the rest of the schemas in this repo use them.
+            dueDate: t.Optional(t.String({ pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' })),
           }),
           { minItems: 0, maxItems: 20 },
         ),
