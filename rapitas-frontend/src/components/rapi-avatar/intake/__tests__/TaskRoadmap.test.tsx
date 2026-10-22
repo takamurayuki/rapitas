@@ -139,10 +139,14 @@ describe('drafting the plan', () => {
   });
 
   it('lets the recommendation be overridden', async () => {
+    // Choosing now closes the question and leaves a one-line decision, so
+    // what proves the override is that line reading the chosen option rather
+    // than the recommended one.
     show();
     fireEvent.click(await screen.findByText('5分'));
-    expect(screen.getByText('5分').getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByText('15分').getAttribute('aria-pressed')).toBe('false');
+    const line = document.querySelector('[data-roadmap-answered]');
+    expect(line?.textContent).toContain('5分');
+    expect(line?.textContent).not.toContain('15分');
   });
 
   it('says so rather than showing an empty plan', async () => {

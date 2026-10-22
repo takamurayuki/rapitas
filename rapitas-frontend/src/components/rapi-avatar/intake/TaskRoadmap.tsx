@@ -29,6 +29,7 @@
  */
 import { useTranslations } from 'next-intl';
 import { useRoadmap, type Placement } from './use-roadmap';
+import { RoadmapQuestions } from './RoadmapQuestions';
 
 export interface TaskRoadmapProps {
   /** What the user asked for, handed over by the single input. */
@@ -98,33 +99,7 @@ export function TaskRoadmap({ handedOver }: TaskRoadmapProps = {}) {
             })}
           </p>
 
-          {asked.map((q, i) => (
-            <div key={q.question} className="space-y-1">
-              <p className="text-[11px] text-zinc-700 dark:text-zinc-200">{q.question}</p>
-              <div className="flex flex-wrap gap-1">
-                {q.options.map((o) => (
-                  <button
-                    key={o}
-                    type="button"
-                    onClick={() => setAnswers((prev) => ({ ...prev, [i]: o }))}
-                    aria-pressed={answers[i] === o}
-                    className={`rounded-full px-2 py-0.5 text-[11px] transition-colors ${
-                      answers[i] === o
-                        ? 'bg-zinc-700 text-white dark:bg-zinc-200 dark:text-zinc-900'
-                        : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
-                    }`}
-                  >
-                    {o}
-                  </button>
-                ))}
-              </div>
-              {/* Why she would pick that one. Without it the recommendation
-                  is an assertion rather than an argument. */}
-              {q.recommendedReason && (
-                <p className="text-[10px] text-zinc-400">{q.recommendedReason}</p>
-              )}
-            </div>
-          ))}
+          <RoadmapQuestions questions={asked} answers={answers} setAnswers={setAnswers} />
 
           {/* What she worked back from, when the request named a date. */}
           {draft.deadline && (
