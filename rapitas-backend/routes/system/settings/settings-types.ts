@@ -44,6 +44,8 @@ export interface UserSettingsUpdateBody {
   uiLocale?: 'ja' | 'en';
   /** Standing self-introduction ラピ plans against (file-backed, no DB column). */
   rapiProfile?: string;
+  /** How the user works and what they value; shapes the plan (file-backed). */
+  rapiCharacter?: string;
   defaultAiProvider?: string;
   defaultCategoryId?: number | null;
   activeMode?: string;

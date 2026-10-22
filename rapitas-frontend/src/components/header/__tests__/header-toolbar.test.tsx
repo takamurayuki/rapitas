@@ -187,9 +187,35 @@ describe('HeaderToolbar', () => {
       expect(screen.getByRole('button', { name: 'userMenu' })).toBeInTheDocument();
     });
 
-    it('does not render user menu button when not authenticated', () => {
-      render(<HeaderToolbar {...defaultProps} isAuthenticated={false} />);
-      expect(screen.queryByRole('button', { name: 'userMenu' })).not.toBeInTheDocument();
+    it('still renders the button when nobody is signed in', () => {
+      // It is the way to the profile ラピ plans against, and this app has
+      // no sign-in: gating it on a session nobody has made it unreachable
+      // (reported 2026-10-22). The account rows inside are what the
+      // session gates, not the button.
+      render(<HeaderToolbar {...defaultProps} isAuthenticated={false} user={null} />);
+      expect(screen.getByRole('button', { name: 'userMenu' })).toBeInTheDocument();
+    });
+
+    it('offers the profile whether or not anyone is signed in', () => {
+      render(
+        <HeaderToolbar {...defaultProps} isAuthenticated={false} user={null} isUserMenuOpen />,
+      );
+      expect(screen.getByRole('link', { name: /rapiProfileLink/ })).toBeInTheDocument();
+    });
+
+    it('keeps the account rows for a real session', () => {
+      render(<HeaderToolbar {...defaultProps} isUserMenuOpen />);
+      expect(screen.getByText('TestUser')).toBeInTheDocument();
+      expect(screen.getByText('logout')).toBeInTheDocument();
+    });
+
+    it('shows no account rows when there is no session', () => {
+      // An empty name and a logout button that logs nothing out is worse
+      // than not offering them.
+      render(
+        <HeaderToolbar {...defaultProps} isAuthenticated={false} user={null} isUserMenuOpen />,
+      );
+      expect(screen.queryByText('logout')).not.toBeInTheDocument();
     });
 
     it('does not render user menu button when hasMounted is false', () => {

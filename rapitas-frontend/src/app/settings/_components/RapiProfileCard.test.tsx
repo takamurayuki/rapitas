@@ -24,29 +24,36 @@ vi.mock('next-intl', () => ({
 let requests: { method: string; body: unknown }[] = [];
 /** What GET /settings answers with. */
 let stored: string | null = null;
+let storedCharacter: string | null = null;
 /** Whether PATCH should fail. */
 let patchFails = false;
 
 beforeEach(() => {
   requests = [];
   stored = null;
+  storedCharacter = null;
   patchFails = false;
   vi.stubGlobal('fetch', (_url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET';
     requests.push({ method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
     if (method === 'PATCH') {
       if (patchFails) return Promise.resolve({ ok: false, status: 500 } as Response);
-      stored = (JSON.parse(String(init?.body)) as { rapiProfile: string }).rapiProfile;
+      const body = JSON.parse(String(init?.body)) as {
+        rapiProfile: string;
+        rapiCharacter: string;
+      };
+      stored = body.rapiProfile;
+      storedCharacter = body.rapiCharacter;
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({ rapiProfile: stored }),
+        json: () => Promise.resolve({ rapiProfile: stored, rapiCharacter: storedCharacter }),
       } as Response);
     }
     return Promise.resolve({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ rapiProfile: stored }),
+      json: () => Promise.resolve({ rapiProfile: stored, rapiCharacter: storedCharacter }),
     } as Response);
   });
 });
@@ -55,7 +62,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const box = () => screen.getByRole('textbox') as HTMLTextAreaElement;
+const boxes = () => screen.getAllByRole('textbox') as HTMLTextAreaElement[];
+/** The facts half. */
+const box = () => boxes()[0];
+/** The character half. */
+const characterBox = () => boxes()[1];
 const saves = () => requests.filter((r) => r.method === 'PATCH');
 
 describe('what it shows', () => {
@@ -88,7 +99,10 @@ describe('saving it', () => {
     fireEvent.change(box(), { target: { value: '平日夜と土日しか動けない。' } });
     fireEvent.click(screen.getByRole('button', { name: /save/i }));
     await waitFor(() => expect(saves()).toHaveLength(1));
-    expect(saves()[0]?.body).toEqual({ rapiProfile: '平日夜と土日しか動けない。' });
+    expect(saves()[0]?.body).toEqual({
+      rapiProfile: '平日夜と土日しか動けない。',
+      rapiCharacter: '',
+    });
   });
 
   it('can clear it', async () => {
@@ -98,7 +112,7 @@ describe('saving it', () => {
     fireEvent.change(box(), { target: { value: '' } });
     fireEvent.click(screen.getByRole('button', { name: /save/i }));
     await waitFor(() => expect(saves()).toHaveLength(1));
-    expect(saves()[0]?.body).toEqual({ rapiProfile: '' });
+    expect(saves()[0]?.body).toEqual({ rapiProfile: '', rapiCharacter: '' });
   });
 
   it('says it saved', async () => {
@@ -127,5 +141,38 @@ describe('saving it', () => {
     await waitFor(() => expect(box().value).toBe('同じ文'));
     fireEvent.click(screen.getByRole('button', { name: /save/i }));
     expect(saves()).toHaveLength(0);
+  });
+});
+
+describe('the character half', () => {
+  it('loads what is already stored', async () => {
+    storedCharacter = '納得してから動きたい。';
+    render(<RapiProfileCard />);
+    await waitFor(() => expect(characterBox().value).toBe('納得してから動きたい。'));
+  });
+
+  it('is saved alongside the facts, not instead of them', async () => {
+    // PATCH writes only the keys it is given, so sending one half would
+    // leave the other showing an edit that was never stored.
+    stored = 'エンジニア8年';
+    render(<RapiProfileCard />);
+    await waitFor(() => expect(box().value).toBe('エンジニア8年'));
+    fireEvent.change(characterBox(), { target: { value: '納得してから動きたい' } });
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+    await waitFor(() => expect(saves()).toHaveLength(1));
+    expect(saves()[0]?.body).toEqual({
+      rapiProfile: 'エンジニア8年',
+      rapiCharacter: '納得してから動きたい',
+    });
+  });
+
+  it('counts as a change on its own', async () => {
+    // Editing only this half must still enable the button, or the half
+    // that decides whether a plan is the right one cannot be edited at all.
+    render(<RapiProfileCard />);
+    await waitFor(() => expect(characterBox()).toBeTruthy());
+    fireEvent.change(characterBox(), { target: { value: '納得してから動きたい' } });
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+    await waitFor(() => expect(saves()).toHaveLength(1));
   });
 });

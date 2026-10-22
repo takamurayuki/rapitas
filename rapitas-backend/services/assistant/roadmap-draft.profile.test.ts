@@ -27,6 +27,8 @@ let reply = JSON.stringify({
 });
 /** What the profile store reports. */
 let profile: string | null = null;
+/** What the character half reports. */
+let character: string | null = null;
 
 mock.module('../../utils/ai-client', () => ({
   sendAIMessage: async (o: { systemPrompt?: string; messages: { content: string }[] }) => {
@@ -42,6 +44,8 @@ mock.module('../system/rapi-profile-store', () => ({
   MAX_RAPI_PROFILE_LENGTH: 1200,
   readRapiProfile: () => profile,
   writeRapiProfile: () => {},
+  readRapiCharacter: () => character,
+  writeRapiCharacter: () => {},
 }));
 
 const { draftRoadmap } = await import('./roadmap-draft');
@@ -51,6 +55,7 @@ const WORLD = { themes: [], projects: [] };
 beforeEach(() => {
   sent = [];
   profile = null;
+  character = null;
 });
 
 describe('planning against who the user is', () => {
@@ -97,5 +102,54 @@ describe('planning against who the user is', () => {
       answers: [{ question: '現職を続けますか', answer: '続ける' }],
     });
     expect(sent[0]?.content).toContain('平日夜と土日しか動けない');
+  });
+});
+
+describe('planning around what the person actually wants', () => {
+  /**
+   * The facts say what is feasible; the character says what is right.
+   *
+   * A plan built only from constraints is a plan that could be executed by
+   * anyone with those constraints. Asked for 2026-10-22: ラピ should
+   * understand the essence of what the person wants, which is the half the
+   * interview never reaches.
+   */
+  test('puts the character notes in the message', async () => {
+    character = '納得してから動きたい。人数の多い場が苦手。';
+    await draftRoadmap('3ヶ月後までに転職したい', WORLD);
+    expect(sent[0]?.content).toContain('人数の多い場が苦手');
+  });
+
+  test('labels them apart from the facts', async () => {
+    // Merged into one block they read as more constraints, and a
+    // preference becomes a requirement.
+    profile = 'エンジニア8年';
+    character = '納得してから動きたい';
+    await draftRoadmap('転職したい', WORLD);
+    const message = sent[0]?.content ?? '';
+    expect(message).toContain('この人について');
+    expect(message).toContain('この人の進め方・価値観');
+  });
+
+  test('says nothing when none are written', async () => {
+    await draftRoadmap('転職したい', WORLD);
+    expect(sent[0]?.content).not.toContain('この人の進め方・価値観');
+  });
+
+  test('carries them into the round that plans', async () => {
+    character = '納得してから動きたい';
+    await draftRoadmap('転職したい', WORLD, {
+      answers: [{ question: '現職を続けますか', answer: '続ける' }],
+    });
+    expect(sent[0]?.content).toContain('納得してから動きたい');
+  });
+
+  test('stands on its own when only the character half is written', async () => {
+    // Someone may never fill in the facts. The half they did write still
+    // has to reach the model.
+    character = '納得してから動きたい';
+    await draftRoadmap('転職したい', WORLD);
+    expect(sent[0]?.content).toContain('この人の進め方・価値観');
+    expect(sent[0]?.content).not.toContain('この人について（');
   });
 });

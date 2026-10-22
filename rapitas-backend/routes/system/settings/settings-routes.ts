@@ -28,7 +28,7 @@ import { readRetroReviewEnabled } from '../../../services/workflow/process-retro
 import { readMergeBarrierEnabled } from '../../../services/scheduling/merge-barrier/merge-barrier';
 import { fetchAvailableModels } from './model-fetcher';
 import { readPromptLanguage } from '../../../services/system/prompt-language-store';
-import { readRapiProfile } from '../../../services/system/rapi-profile-store';
+import { readRapiCharacter, readRapiProfile } from '../../../services/system/rapi-profile-store';
 
 const log = createLogger('routes:settings');
 
@@ -51,6 +51,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
       retroReviewEnabled: readRetroReviewEnabled(),
       uiLocale: readPromptLanguage(),
       rapiProfile: readRapiProfile(),
+      rapiCharacter: readRapiCharacter(),
       mergeBarrierEnabled: readMergeBarrierEnabled(),
       claudeApiKeyConfigured: apiKeyConfigured,
       chatgptApiKeyConfigured: chatgptConfigured,

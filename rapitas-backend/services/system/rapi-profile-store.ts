@@ -38,6 +38,39 @@ function profileFile(): string {
   return join(dataDir(), '.rapi-profile');
 }
 
+/**
+ * Where the character half lives.
+ *
+ * A separate file, not a second paragraph in the first one. The facts say
+ * what someone CAN do — the role, the hours, the constraints. The character
+ * says what they actually want out of it, and that is the half that decides
+ * whether a plan is the RIGHT plan rather than merely a feasible one. Apart,
+ * the prompt can label them for what they are, and clearing one cannot take
+ * the other with it.
+ */
+function characterFile(): string {
+  return join(dataDir(), '.rapi-character');
+}
+
+/** Read one of the profile files, bounded and trimmed. */
+function readFile(path: string): string | null {
+  try {
+    return normalise(readFileSync(path, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+/** Write one of the profile files, best-effort. */
+function writeFile(path: string, value: string): void {
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, normalise(value) ?? '');
+  } catch {
+    // Never let a settings write failure crash a request.
+  }
+}
+
 /** Trim the edges, keep the shape, and bound the length. */
 function normalise(value: string): string | null {
   const trimmed = value.trim();
@@ -54,11 +87,25 @@ function normalise(value: string): string | null {
  * @returns The profile, or null when none is set / 自己紹介（未設定なら null）
  */
 export function readRapiProfile(): string | null {
-  try {
-    return normalise(readFileSync(profileFile(), 'utf8'));
-  } catch {
-    return null;
-  }
+  return readFile(profileFile());
+}
+
+/**
+ * Read what kind of person they are, if they have said.
+ *
+ * @returns The character notes, or null when none is set / 人となり（未設定なら null）
+ */
+export function readRapiCharacter(): string | null {
+  return readFile(characterFile());
+}
+
+/**
+ * Persist the character notes. Blank clears them.
+ *
+ * @param value - What the user wrote about how they work / 人となりの本文
+ */
+export function writeRapiCharacter(value: string): void {
+  writeFile(characterFile(), value);
 }
 
 /**
@@ -70,10 +117,5 @@ export function readRapiProfile(): string | null {
  * @param value - What the user wrote about themselves / 自己紹介の本文
  */
 export function writeRapiProfile(value: string): void {
-  try {
-    mkdirSync(dirname(profileFile()), { recursive: true });
-    writeFileSync(profileFile(), normalise(value) ?? '');
-  } catch {
-    // Never let a settings write failure crash a request.
-  }
+  writeFile(profileFile(), value);
 }

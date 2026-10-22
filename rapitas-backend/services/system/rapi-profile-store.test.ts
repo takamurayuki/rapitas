@@ -19,7 +19,13 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { MAX_RAPI_PROFILE_LENGTH, readRapiProfile, writeRapiProfile } from './rapi-profile-store';
+import {
+  MAX_RAPI_PROFILE_LENGTH,
+  readRapiCharacter,
+  readRapiProfile,
+  writeRapiCharacter,
+  writeRapiProfile,
+} from './rapi-profile-store';
 
 let dir: string;
 let previousDataDir: string | undefined;
@@ -98,5 +104,51 @@ describe('writing it', () => {
     rmSync(dir, { recursive: true, force: true });
     writeFileSync(dir, 'not a directory');
     expect(() => writeRapiProfile('書いた')).not.toThrow();
+  });
+});
+
+describe('the second half: what kind of person they are', () => {
+  /**
+   * Facts and character are stored apart on purpose.
+   *
+   * The facts say what someone CAN do — the role, the hours, the
+   * constraints. The character says what they actually want out of it, and
+   * that is the half that decides whether a plan is the RIGHT plan rather
+   * than merely a feasible one. Kept separate so the prompt can label them
+   * separately, and so clearing one never clears the other.
+   */
+  test('is nothing until it is written', () => {
+    expect(readRapiCharacter()).toBeNull();
+  });
+
+  test('round-trips what was written', () => {
+    writeRapiCharacter('納得してから動きたい。人数の多い場が苦手。');
+    expect(readRapiCharacter()).toBe('納得してから動きたい。人数の多い場が苦手。');
+  });
+
+  test('does not share a slot with the facts', () => {
+    writeRapiProfile('エンジニア8年');
+    writeRapiCharacter('納得してから動きたい');
+    expect(readRapiProfile()).toBe('エンジニア8年');
+    expect(readRapiCharacter()).toBe('納得してから動きたい');
+  });
+
+  test('clearing one leaves the other alone', () => {
+    writeRapiProfile('エンジニア8年');
+    writeRapiCharacter('納得してから動きたい');
+    writeRapiCharacter('');
+    expect(readRapiCharacter()).toBeNull();
+    expect(readRapiProfile()).toBe('エンジニア8年');
+  });
+
+  test('is capped the same way', () => {
+    writeRapiCharacter('う'.repeat(MAX_RAPI_PROFILE_LENGTH + 500));
+    expect(readRapiCharacter()?.length).toBe(MAX_RAPI_PROFILE_LENGTH);
+  });
+
+  test('does not throw when it cannot be written', () => {
+    rmSync(dir, { recursive: true, force: true });
+    writeFileSync(dir, 'not a directory');
+    expect(() => writeRapiCharacter('書いた')).not.toThrow();
   });
 });

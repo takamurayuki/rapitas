@@ -27,7 +27,12 @@ import {
   readPromptLanguage,
   writePromptLanguage,
 } from '../../../services/system/prompt-language-store';
-import { readRapiProfile, writeRapiProfile } from '../../../services/system/rapi-profile-store';
+import {
+  readRapiCharacter,
+  readRapiProfile,
+  writeRapiCharacter,
+  writeRapiProfile,
+} from '../../../services/system/rapi-profile-store';
 
 const log = createLogger('routes:settings');
 
@@ -252,5 +257,9 @@ export function applyRapiProfile(
   if (typeof body.rapiProfile === 'string') {
     writeRapiProfile(body.rapiProfile);
   }
+  if (typeof body.rapiCharacter === 'string') {
+    writeRapiCharacter(body.rapiCharacter);
+  }
   settingsRef.rapiProfile = readRapiProfile();
+  settingsRef.rapiCharacter = readRapiCharacter();
 }
