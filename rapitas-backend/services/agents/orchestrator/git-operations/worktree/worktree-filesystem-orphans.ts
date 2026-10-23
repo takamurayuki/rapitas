@@ -136,12 +136,16 @@ export async function sweepFilesystemOrphans(
       } catch (error) {
         if (classifyPreservation(error) === 'nonempty') {
           // Nonempty is usually the safety check working, but one shape of
-          // nonempty is not work at all: the junctions setup-worktree.cjs
-          // left behind, which git never knew about and so never removed.
-          // Those can be detached without touching what they point at, and
-          // without them the directory was unreclaimable forever — measured
-          // 2026-10-22 at 161 of 164 directories under `.worktrees/`.
-          if (removeLinkSkeleton(dirPath)) {
+          // nonempty is not work at all: what the tooling itself provisioned
+          // and git never knew about, so never removed — the junctions from
+          // setup-worktree.cjs and the copied-in verification wrapper. Both
+          // leave the directory unreclaimable forever; measured 2026-10-22 at
+          // 161 of 164 directories under `.worktrees/`.
+          //
+          // baseDir is the checkout those copies came from, so a stray file
+          // is only disregarded when the same bytes are still sitting at the
+          // same relative path here.
+          if (removeLinkSkeleton(dirPath, { repoRoot: baseDir })) {
             cleanedCount++;
             logger.info(
               `[cleanupOrphanedWorktrees] Removed link-skeleton orphan directory: ${dirPath}`,
