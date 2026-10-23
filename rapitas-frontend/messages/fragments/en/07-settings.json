@@ -370,6 +370,14 @@
       "testSent": "Test notification sent",
       "testHttpError": "Error: HTTP {status}",
       "connectionFailed": "Connection failed. Please check the URL."
+    },
+    "rapiProfile": {
+      "title": "What ラピ should know about you",
+      "description": "Write this once and the roadmap stops asking who you are every time. Your role, your experience, the time you actually have, what you will not trade away.",
+      "placeholder": "e.g. Software engineer in my 30s, 8 years on B2B SaaS. Weeknight evenings only, longer stretches at weekends. Not willing to take a pay cut.",
+      "save": "Save",
+      "saved": "Saved",
+      "saveFailed": "Could not save"
     }
   },
   "linkView": {
