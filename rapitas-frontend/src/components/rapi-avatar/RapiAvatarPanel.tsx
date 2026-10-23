@@ -295,7 +295,17 @@ export function RapiAvatarPanel({
         </div>
       </div>
 
-      <RapiComposer routed={routed} mode={mode} hasOpenTask={hasTask} onRouted={handleRouted} />
+      {/* The box belongs to the conversation, and only there. It was shared
+          by every tab because it is the ROUTER — a sentence typed anywhere
+          reaches the mode that answers it, and `roadmap` has no tab of its
+          own to reach. But a form tab with a "write what you want" box under
+          it reads as two ways of doing the same thing, and the conversation
+          is the default tab, so what is lost is one click (asked 2026-10-22).
+          Hidden rather than unmounted: unmounting throws away a half-typed
+          sentence, which is the complaint that put the tabs here. */}
+      <div {...(mode === 'chat' ? {} : { style: { display: 'none' }, 'aria-hidden': true })}>
+        <RapiComposer routed={routed} mode={mode} hasOpenTask={hasTask} onRouted={handleRouted} />
+      </div>
 
       {/* Only offered when there is something to resume — everything
           running is already on its way. */}
