@@ -138,3 +138,78 @@ describe('removing a link skeleton', () => {
     expect(removeLinkSkeleton(join(root, 'absent'))).toBe(false);
   });
 });
+
+describe('the copies the tooling itself leaves behind', () => {
+  /**
+   * Measured 2026-10-23, after the junction handling shipped: the sweep
+   * reclaimed nothing. All 161 leftovers held one real file each, every one
+   * of them `scripts/run-checked.cjs`, and every one byte-identical to the
+   * repository's own copy — provisioned into the worktree by the tooling,
+   * exactly like the junctions, and just as much not anyone's work.
+   *
+   * So "holds no work" cannot mean "holds no files". It means "holds no
+   * content this checkout does not already have", which is a comparison
+   * rather than a guess about filenames: a copy that was edited, or one with
+   * no counterpart, leaves the directory exactly as it was.
+   */
+  let repo: string;
+
+  beforeEach(() => {
+    repo = join(root, 'main-checkout');
+    mkdirSync(join(repo, 'scripts'), { recursive: true });
+    writeFileSync(join(repo, 'scripts', 'run-checked.cjs'), 'the wrapper');
+  });
+
+  /** A leftover holding the provisioned wrapper and nothing else. */
+  function withWrapper(name: string, contents = 'the wrapper'): string {
+    const dir = skeleton(name);
+    writeFileSync(join(dir, 'scripts', 'run-checked.cjs'), contents);
+    return dir;
+  }
+
+  test('ignores a copy identical to the checkout it came from', () => {
+    expect(isLinkSkeleton(withWrapper('task-10-aaa'), { repoRoot: repo })).toBe(true);
+  });
+
+  test('keeps a copy whose contents have been changed', () => {
+    // Different contents is the one thing here that could be someone's work.
+    expect(isLinkSkeleton(withWrapper('task-11-bbb', 'edited'), { repoRoot: repo })).toBe(false);
+  });
+
+  test('keeps a file the checkout has no counterpart for', () => {
+    const dir = withWrapper('task-12-ccc');
+    writeFileSync(join(dir, 'scripts', 'notes.md'), 'mine');
+    expect(isLinkSkeleton(dir, { repoRoot: repo })).toBe(false);
+  });
+
+  test('matches on the path as well as the bytes', () => {
+    // Same contents under a different name is a different file. Comparing
+    // bytes alone would let one identical line of boilerplate vouch for a
+    // file nobody has ever seen.
+    const dir = skeleton('task-13-ddd');
+    writeFileSync(join(dir, 'scripts', 'something-else.cjs'), 'the wrapper');
+    expect(isLinkSkeleton(dir, { repoRoot: repo })).toBe(false);
+  });
+
+  test('keeps everything when given no checkout to compare against', () => {
+    // Without something to compare to there is no evidence, and no evidence
+    // has to go on meaning "leave it alone" — the behaviour before this.
+    expect(isLinkSkeleton(withWrapper('task-14-eee'))).toBe(false);
+  });
+
+  test('removes the copy and leaves the original where it was', () => {
+    const dir = withWrapper('task-15-fff');
+    expect(removeLinkSkeleton(dir, { repoRoot: repo })).toBe(true);
+    expect(existsSync(dir)).toBe(false);
+    expect(existsSync(join(repo, 'scripts', 'run-checked.cjs'))).toBe(true);
+    // And still nothing has reached through the junctions.
+    expect(existsSync(join(shared, 'precious.txt'))).toBe(true);
+  });
+
+  test('refuses one that was edited, and changes nothing', () => {
+    const dir = withWrapper('task-16-ggg', 'edited');
+    expect(removeLinkSkeleton(dir, { repoRoot: repo })).toBe(false);
+    expect(existsSync(join(dir, 'scripts', 'run-checked.cjs'))).toBe(true);
+    expect(existsSync(join(dir, 'node_modules'))).toBe(true);
+  });
+});
