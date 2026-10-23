@@ -21,6 +21,9 @@ import { useId } from 'react';
 import { Loader2, Play, MessageSquarePlus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { isImeComposing } from '@/utils/ime';
+// Shared with idle-execution-form: the two instruction boxes in this panel
+// should grow the same way, or the panel reads as two different controls.
+import { instructionRows } from '@/utils/textarea-rows';
 
 export type ContinuationFormProps = {
   continueInstruction: string;
@@ -28,25 +31,6 @@ export type ContinuationFormProps = {
   onContinueExecution: () => Promise<void>;
   isExecuting: boolean;
 };
-
-/** Visible lines before the box stops growing and starts scrolling. */
-const MIN_ROWS = 2;
-const MAX_ROWS = 8;
-
-/**
- * How tall the box should be for the text currently in it.
- *
- * Counts wrapped lines only as the newlines they contain — a cheap estimate
- * that is right about the common case (short lines) and errs small, which
- * scrolls rather than leaving a wall of empty box.
- *
- * @param value - Current text / 入力中のテキスト
- * @returns Row count between MIN_ROWS and MAX_ROWS / 行数
- */
-function rowsFor(value: string): number {
-  const lines = value.split('\n').length;
-  return Math.min(MAX_ROWS, Math.max(MIN_ROWS, lines));
-}
 
 /**
  * Inline continuation form rendered below completed execution logs.
@@ -77,7 +61,7 @@ export function ContinuationForm({
       <textarea
         id={fieldId}
         value={continueInstruction}
-        rows={rowsFor(continueInstruction)}
+        rows={instructionRows(continueInstruction)}
         onChange={(e) => onSetContinueInstruction(e.target.value)}
         onKeyDown={(e) => {
           // Enter is a newline here. Only the modified Enter runs, and never
