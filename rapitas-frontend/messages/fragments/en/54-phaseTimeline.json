@@ -49,7 +49,6 @@
       "wholeWord": "Match whole word",
       "regex": "Use regular expression"
     },
-    "runDivider": "─────── run {n}/{total} ───────",
-    "notExecutedYet": "Not executed yet"
+    "runDivider": "─────── run {n}/{total} ───────"
   }
 }

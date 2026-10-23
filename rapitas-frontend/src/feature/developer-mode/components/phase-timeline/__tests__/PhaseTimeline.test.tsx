@@ -153,18 +153,21 @@ describe('PhaseTimeline', () => {
     await waitFor(() => expect(screen.getByText(/normal status line/)).toBeInTheDocument());
   });
 
-  it('says a task was never executed instead of spinning as if it were', async () => {
-    // Reported 2026-10-23: on a task that had not been executed, the panel
-    // showed a spinner reading "実行ログを待機中…". Nothing was running and
-    // nothing was coming, so the spinner promised an arrival that would never
-    // happen. No phases, not running, no logs is a finished fact, not a wait.
+  it('draws nothing for a task that has not been executed', async () => {
+    // Reported 2026-10-23: the panel showed a spinner reading
+    // "実行ログを待機中…" here, promising an arrival that was never coming.
+    // It briefly became "まだ実行していません" instead, which the operator
+    // then pointed out is self-evident — the execution button and the
+    // instruction box are sitting right there. So: nothing. No spinner, and
+    // no line of text restating what the surrounding panel already shows.
     mockFetch.mockReturnValue(
       jsonResponse({ success: true, workflowMode: 'standard', phases: [] }),
     );
 
-    render(<PhaseTimeline taskId={1000} isRunning={false} liveLogs={[]} />);
+    const { container } = render(<PhaseTimeline taskId={1000} isRunning={false} liveLogs={[]} />);
 
-    await waitFor(() => expect(screen.getByText('notExecutedYet')).toBeInTheDocument());
+    await waitFor(() => expect(mockFetch).toHaveBeenCalled());
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
     expect(document.querySelector('.animate-spin')).toBeNull();
   });
 });
