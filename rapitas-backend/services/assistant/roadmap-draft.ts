@@ -31,7 +31,7 @@
  * Not responsible for creating anything — see the commit half.
  */
 import { sendAIMessage } from '../../utils/ai-client';
-import { readRapiProfile } from '../system/rapi-profile-store';
+import { readRapiCharacter, readRapiProfile } from '../system/rapi-profile-store';
 import { createLogger } from '../../config/logger';
 import {
   INTERVIEW_PROMPT,
@@ -118,6 +118,7 @@ export async function draftRoadmap(
             // in settings between two roadmaps and expects the next one to
             // know.
             profile: readRapiProfile(),
+            character: readRapiCharacter(),
             ...(isFinal ? { answers } : {}),
           }),
         },

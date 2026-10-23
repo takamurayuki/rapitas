@@ -377,7 +377,10 @@
       "placeholder": "e.g. Software engineer in my 30s, 8 years on B2B SaaS. Weeknight evenings only, longer stretches at weekends. Not willing to take a pay cut.",
       "save": "Save",
       "saved": "Saved",
-      "saveFailed": "Could not save"
+      "saveFailed": "Could not save",
+      "characterTitle": "How you like to work",
+      "characterDescription": "Not the facts — what you consider a good outcome. This is what turns a feasible plan into the right one for you.",
+      "characterPlaceholder": "e.g. I want to be convinced before I move. Small experiments suit me better than big commitments. Crowded rooms drain me. A deadline helps me focus, but an overloaded one stops me."
     }
   },
   "linkView": {

@@ -151,6 +151,8 @@ export function buildRoadmapMessage(input: {
   today: Date;
   /** The standing self-introduction, when one is set. / 自己紹介 */
   profile?: string | null;
+  /** How they work and what they value, when written. / 人となり */
+  character?: string | null;
 }): string {
   const parts = [`今日の日付: ${isoDay(input.today)}`];
   // Before the request, and labelled. Unlabelled, the model reads the
@@ -160,6 +162,16 @@ export function buildRoadmapMessage(input: {
   // worse than saying nothing at all.
   const profile = input.profile?.trim();
   if (profile) parts.push(`この人について（毎回の前提。聞き直さないこと）:\n${profile}`);
+  // Kept as its own section rather than appended to the facts. Merged, it
+  // reads as more constraints and a preference becomes a requirement —
+  // "人数の多い場が苦手" should shape which roles are proposed, not rule
+  // out every step that involves other people.
+  const character = input.character?.trim();
+  if (character) {
+    parts.push(
+      `この人の進め方・価値観（何を良しとするか。計画の形をこれに合わせること）:\n${character}`,
+    );
+  }
   parts.push(
     `既存のテーマ:\n${list(input.themes)}`,
     `既存のプロジェクト:\n${list(input.projects)}`,
