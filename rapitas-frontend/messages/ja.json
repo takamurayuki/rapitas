@@ -5473,10 +5473,12 @@
       "getApiKey": "APIキーを取得"
     },
     "continuationForm": {
-      "placeholder": "継続指示を入力...",
+      "placeholder": "次にやってほしいことを書いてください（改行できます）",
       "inputAria": "継続実行の内容",
       "runAria": "継続実行",
-      "run": "実行"
+      "run": "実行",
+      "label": "追加の指示（前回の出力を引き継いで続きを実行）",
+      "submitHint": "Ctrl / Cmd + Enter で実行"
     },
     "terminalInput": {
       "placeholderWaiting": "回答を入力...",
@@ -5708,8 +5710,7 @@
       "fullText": "全文",
       "repeatCount": "×{count}",
       "copyPath": "パスをコピー",
-      "copied": "コピーしました",
-      "waitingForLogs": "実行ログを待機中..."
+      "copied": "コピーしました"
     },
     "agentExecutionPanel": {
       "unknownError": "不明なErrorが発生しました"
@@ -6660,7 +6661,8 @@
       "wholeWord": "単語単位で検索する",
       "regex": "正規表現を使用する"
     },
-    "runDivider": "─────── 実行 {n}/{total} ───────"
+    "runDivider": "─────── 実行 {n}/{total} ───────",
+    "notExecutedYet": "まだ実行していません"
   },
   "testCorrelation": {
     "pageTitle": "テスト失敗相関ヒートマップ",

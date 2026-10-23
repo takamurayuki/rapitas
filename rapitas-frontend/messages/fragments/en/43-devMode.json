@@ -545,10 +545,12 @@
       "getApiKey": "Get an API key"
     },
     "continuationForm": {
-      "placeholder": "Enter continuation instructions...",
+      "placeholder": "What should it do next? (newlines allowed)",
       "inputAria": "Continuation execution content",
       "runAria": "Continue execution",
-      "run": "Run"
+      "run": "Run",
+      "label": "Follow-up instruction (continues with the previous output as context)",
+      "submitHint": "Ctrl / Cmd + Enter to run"
     },
     "terminalInput": {
       "placeholderWaiting": "Enter your answer...",
@@ -780,8 +782,7 @@
       "fullText": "Full text",
       "repeatCount": "×{count}",
       "copyPath": "Copy path",
-      "copied": "Copied",
-      "waitingForLogs": "Waiting for execution log..."
+      "copied": "Copied"
     },
     "agentExecutionPanel": {
       "unknownError": "An unknown error occurred"
