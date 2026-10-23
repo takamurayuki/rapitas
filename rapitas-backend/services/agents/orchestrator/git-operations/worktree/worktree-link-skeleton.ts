@@ -155,14 +155,54 @@ function matchesCheckout(
 ): boolean {
   if (!repoRoot) return false;
   if (size > MAX_COMPARE_BYTES) return false;
+  const copy = readRegularFile(filePath, size);
+  if (!copy) return false;
+  const original = readRegularFile(join(repoRoot, relative), size);
+  return original !== null && original.equals(copy);
+}
+
+/**
+ * Read a file, having confirmed through the same handle that it is one.
+ *
+ * Statting a path and then reading that path are two separate lookups, and
+ * what answered the first is not necessarily what answers the second. Here
+ * that gap decides whether a file gets deleted, so the descriptor is opened
+ * once and `fstat` interrogates the handle itself: what was checked and what
+ * is read cannot come apart.
+ *
+ * NOTE: open follows a symlink, so this no longer distinguishes a link in
+ * the checkout from the file it points at. That distinction was not worth
+ * the race it cost — planting a link inside the checkout takes write access
+ * to the checkout, and anyone with that can simply write the bytes instead.
+ * The leftover side is unaffected: the walk skips links before reaching
+ * here, and removal is always `unlink`, which never follows one.
+ *
+ * @param path - File to read / 読むファイル
+ * @param size - The size it must still have / 一致すべきサイズ
+ * @returns Its contents, or null when it is not that file / 内容、該当しなければ null
+ */
+function readRegularFile(path: string, size: number): Buffer | null {
+  let fd: number | undefined;
   try {
-    const original = join(repoRoot, relative);
-    // lstat so a link planted in the checkout cannot vouch for anything.
-    const originalStat = fs.lstatSync(original);
-    if (!originalStat.isFile() || originalStat.size !== size) return false;
-    return fs.readFileSync(original).equals(fs.readFileSync(filePath));
+    fd = fs.openSync(path, 'r');
+    const stat = fs.fstatSync(fd);
+    // A directory, a device, or a file that changed size since the walk saw
+    // it is not the thing this was asked about.
+    if (!stat.isFile() || stat.size !== size) return null;
+    const buffer = Buffer.alloc(size);
+    let read = 0;
+    // readSync is free to return a short read; a partial buffer compared as
+    // if it were whole would be zero-padding passing itself off as a match.
+    while (read < size) {
+      const chunk = fs.readSync(fd, buffer, read, size - read, read);
+      if (chunk <= 0) return null;
+      read += chunk;
+    }
+    return buffer;
   } catch {
-    return false;
+    return null;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
   }
 }
 
