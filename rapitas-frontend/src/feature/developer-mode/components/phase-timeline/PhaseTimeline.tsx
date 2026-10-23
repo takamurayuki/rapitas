@@ -214,6 +214,13 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
   // and the pane shows the live stream in real time.
   if (phases.length === 0 && !isRunning) {
     const entries = transformLogsToSimple(liveLogs, tLog);
+    // No phases, nothing running, and no logs is a settled fact rather than a
+    // wait: this task has not been executed, and nothing is on its way. Said
+    // plainly, because the spinner that used to stand here promised an
+    // arrival that would never come (reported 2026-10-23).
+    if (entries.length === 0) {
+      return <div className="px-3 py-4 text-xs text-zinc-500">{t('notExecutedYet')}</div>;
+    }
     return <SimpleLogEntryList entries={entries} />;
   }
 

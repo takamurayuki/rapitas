@@ -152,4 +152,19 @@ describe('PhaseTimeline', () => {
 
     await waitFor(() => expect(screen.getByText(/normal status line/)).toBeInTheDocument());
   });
+
+  it('says a task was never executed instead of spinning as if it were', async () => {
+    // Reported 2026-10-23: on a task that had not been executed, the panel
+    // showed a spinner reading "実行ログを待機中…". Nothing was running and
+    // nothing was coming, so the spinner promised an arrival that would never
+    // happen. No phases, not running, no logs is a finished fact, not a wait.
+    mockFetch.mockReturnValue(
+      jsonResponse({ success: true, workflowMode: 'standard', phases: [] }),
+    );
+
+    render(<PhaseTimeline taskId={1000} isRunning={false} liveLogs={[]} />);
+
+    await waitFor(() => expect(screen.getByText('notExecutedYet')).toBeInTheDocument());
+    expect(document.querySelector('.animate-spin')).toBeNull();
+  });
 });
