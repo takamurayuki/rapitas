@@ -6661,8 +6661,7 @@
       "wholeWord": "単語単位で検索する",
       "regex": "正規表現を使用する"
     },
-    "runDivider": "─────── 実行 {n}/{total} ───────",
-    "notExecutedYet": "まだ実行していません"
+    "runDivider": "─────── 実行 {n}/{total} ───────"
   },
   "testCorrelation": {
     "pageTitle": "テスト失敗相関ヒートマップ",

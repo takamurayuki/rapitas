@@ -214,13 +214,12 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
   // and the pane shows the live stream in real time.
   if (phases.length === 0 && !isRunning) {
     const entries = transformLogsToSimple(liveLogs, tLog);
-    // No phases, nothing running, and no logs is a settled fact rather than a
-    // wait: this task has not been executed, and nothing is on its way. Said
-    // plainly, because the spinner that used to stand here promised an
-    // arrival that would never come (reported 2026-10-23).
-    if (entries.length === 0) {
-      return <div className="px-3 py-4 text-xs text-zinc-500">{t('notExecutedYet')}</div>;
-    }
+    // Nothing at all when there is nothing to show. A spinner used to stand
+    // here promising an arrival that was never coming, and the replacement
+    // line ("まだ実行していません") was redundant: the execution button and
+    // the instruction box are already on screen saying exactly that
+    // (operator feedback, 2026-10-23). The absence is the message.
+    if (entries.length === 0) return null;
     return <SimpleLogEntryList entries={entries} />;
   }
 
