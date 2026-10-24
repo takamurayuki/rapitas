@@ -144,18 +144,21 @@ describe('parseReviewVerdict', () => {
       severity: 0,
       reasons: [],
       judged: false,
+      unknownReason: 'unparsable',
     });
     expect(parseReviewVerdict(undefined)).toEqual({
       verdict: 'unknown',
       severity: 0,
       reasons: [],
       judged: false,
+      unknownReason: 'unparsable',
     });
     expect(parseReviewVerdict('   ')).toEqual({
       verdict: 'unknown',
       severity: 0,
       reasons: [],
       judged: false,
+      unknownReason: 'unparsable',
     });
   });
 
@@ -165,6 +168,7 @@ describe('parseReviewVerdict', () => {
       severity: 0,
       reasons: [],
       judged: false,
+      unknownReason: 'unparsable',
     });
   });
 
@@ -346,7 +350,13 @@ describe('reviewDiffAdversarially', () => {
   it('fails open (unknown, not judged) when disabled via env', async () => {
     process.env.RAPITAS_ADVERSARIAL_REVIEW = '0';
     const r = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
-    expect(r).toEqual({ verdict: 'unknown', severity: 0, reasons: [], judged: false });
+    expect(r).toEqual({
+      verdict: 'unknown',
+      severity: 0,
+      reasons: [],
+      judged: false,
+      unknownReason: 'disabled',
+    });
     expect(getDiff).not.toHaveBeenCalled();
   });
 
@@ -396,7 +406,15 @@ describe('reviewDiffAdversarially', () => {
   it('fails open when the diff-review pipeline throws unexpectedly', async () => {
     getDiff.mockRejectedValue(new Error('git blew up'));
     const r = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
-    expect(r).toEqual({ verdict: 'unknown', severity: 0, reasons: [], judged: false });
+    // 'error', not 'disabled': the gate was on and the pipeline broke. The
+    // whole point of the field is that those two are not the same event.
+    expect(r).toEqual({
+      verdict: 'unknown',
+      severity: 0,
+      reasons: [],
+      judged: false,
+      unknownReason: 'error',
+    });
   });
 
   it('counts a wedged juror as unknown instead of holding the request open', async () => {

@@ -9,6 +9,8 @@ import type { AIProvider } from '../../../utils/ai-client/types';
 import { NON_VERDICT_REASON_RE } from './adversarial-diff-review-prompt';
 import type { BaseSatisfiedFinding } from './base-satisfied-plan-items';
 
+import type { UnknownReason } from './juror-unknown-reason';
+
 export type ReviewVerdict = 'pass' | 'fail' | 'unknown';
 
 /** One juror's independent verdict (provider = model family). */
@@ -19,6 +21,14 @@ export interface JurorVerdict {
   verdict: ReviewVerdict;
   severity: number;
   reasons: string[];
+  /**
+   * Why this juror did not judge. Only set when `verdict` is 'unknown'.
+   *
+   * Four different failures used to land on the same value, so a slide in
+   * the unknown rate could not be attributed to any of them afterwards
+   * (measured 2026-10-24). See juror-unknown-reason.ts.
+   */
+  unknownReason?: UnknownReason;
 }
 
 export interface DiffReviewResult {
@@ -28,6 +38,8 @@ export interface DiffReviewResult {
   severity: number;
   /** Short human-readable reasons (used as self-repair feedback). */
   reasons: string[];
+  /** Why no verdict was reached. Only set when `verdict` is 'unknown'. */
+  unknownReason?: UnknownReason;
   /** True when at least one juror actually evaluated the diff. */
   judged: boolean;
   /** Individual juror verdicts — recorded for future reliability weighting. */
@@ -68,6 +80,7 @@ export function parseReviewVerdict(text: string | null | undefined): DiffReviewR
     severity,
     reasons,
     judged: verdict !== 'unknown',
+    ...(verdict === 'unknown' ? { unknownReason: 'unparsable' as const } : {}),
   });
   if (!text || !text.trim()) return fail('unknown', 0, []);
 
