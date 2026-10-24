@@ -26,6 +26,7 @@ import { getDiff } from '../orchestrator/git-operations/core/diff-structured';
 import { generatedArtifactReason } from './generated-artifact-paths';
 import { sendAIMessage } from '../../../utils/ai-client';
 import { buildPanel, type JurorSpec } from './jury-panel';
+import { summarisePanel, type UnknownReason } from './juror-unknown-reason';
 import { readWorkflowFile } from '../../workflow/workflow-file-utils';
 import { detectHighRisk } from '../../workflow/risk-detection';
 import { appendEvent } from '../../memory/timeline';
@@ -239,7 +240,17 @@ export function recordJurorOutcome(juror: string, timedOut: boolean, nowMs: numb
  */
 async function askJuror(seat: JurorSpec, prompt: string): Promise<JurorVerdict> {
   const { provider, model, label } = seat;
-  const unknown: JurorVerdict = { provider, model, verdict: 'unknown', severity: 0, reasons: [] };
+  // One shape per cause: four different failures used to land on the same
+  // bare 'unknown', which is why a slide in the unknown rate could not be
+  // attributed afterwards (juror-unknown-reason.ts).
+  const unknownFor = (unknownReason: UnknownReason): JurorVerdict => ({
+    provider,
+    model,
+    verdict: 'unknown',
+    severity: 0,
+    reasons: [],
+    unknownReason,
+  });
   const timeoutMs = jurorTimeoutMs();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -253,7 +264,14 @@ async function askJuror(seat: JurorSpec, prompt: string): Promise<JurorVerdict> 
       }).then((res) => {
         const v = parseReviewVerdict(res.content);
         recordJurorOutcome(label, false, Date.now());
-        return { provider, model, verdict: v.verdict, severity: v.severity, reasons: v.reasons };
+        return {
+          provider,
+          model,
+          verdict: v.verdict,
+          severity: v.severity,
+          reasons: v.reasons,
+          ...(v.verdict === 'unknown' ? { unknownReason: 'unparsable' as const } : {}),
+        };
       }),
       new Promise<JurorVerdict>((resolve) => {
         timer = setTimeout(() => {
@@ -262,14 +280,14 @@ async function askJuror(seat: JurorSpec, prompt: string): Promise<JurorVerdict> 
             { juror: label, timeoutMs },
             '[adversarial-review] Juror timed out — counting as unknown',
           );
-          resolve(unknown);
+          resolve(unknownFor('timeout'));
         }, timeoutMs);
       }),
     ]);
     return verdict;
   } catch (err) {
     log.warn({ err, juror: label }, '[adversarial-review] Juror failed');
-    return unknown;
+    return unknownFor('error');
   } finally {
     // Without this the pending timer keeps the event loop (and in tests, the
     // process) alive for the full timeout after a fast juror already answered.
@@ -296,7 +314,13 @@ export async function reviewDiffAdversarially(params: {
 }): Promise<DiffReviewResult> {
   const { taskId, worktreePath, suppressEventLog } = params;
   if (!isAdversarialReviewEnabled() || !worktreePath) {
-    return { verdict: 'unknown', severity: 0, reasons: [], judged: false };
+    return {
+      verdict: 'unknown',
+      severity: 0,
+      reasons: [],
+      judged: false,
+      unknownReason: 'disabled',
+    };
   }
 
   try {
@@ -376,7 +400,21 @@ export async function reviewDiffAdversarially(params: {
             verdict: j.verdict,
             severity: j.severity,
             reasons: j.reasons,
+            unknownReason: j.unknownReason,
           })),
+          // Seats planned vs seats asked. A juror rested after repeated
+          // timeouts is dropped before anyone is asked, so without this the
+          // review reads as a smaller jury that answered in full — which is
+          // exactly how the panel shrank to one voter unnoticed.
+          panel: summarisePanel({
+            planned: order.map((seat) => ({ label: seat.label })),
+            asked: panel.map((seat) => ({ label: seat.label })),
+            jurors: jurors.map((j) => ({
+              label: `${j.provider}:${j.model ?? ''}`,
+              verdict: j.verdict,
+              unknownReason: j.unknownReason,
+            })),
+          }),
         },
         correlationId: `task-${taskId}`,
       }).catch(() => {});
@@ -416,9 +454,12 @@ export async function reviewDiffAdversarially(params: {
       };
     }
     log.warn({ taskId }, '[adversarial-review] Jury unavailable on low-risk change — failing open');
+    // Every juror answered 'unknown'; their own reasons are on the rows.
     return { verdict: 'unknown', severity: 0, reasons: [], judged: false, jurors };
   } catch (err) {
+    // The gate was on and the pipeline broke — distinct from 'disabled',
+    // which is the operator switching it off.
     log.warn({ err, taskId }, '[adversarial-review] Review errored — failing open');
-    return { verdict: 'unknown', severity: 0, reasons: [], judged: false };
+    return { verdict: 'unknown', severity: 0, reasons: [], judged: false, unknownReason: 'error' };
   }
 }
