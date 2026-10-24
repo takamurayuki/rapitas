@@ -23,7 +23,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_WINDOW_DAYS = 365;
 const DEFAULT_WINDOW_DAYS = 90;
 
-export const gatePrecisionRoutes = new Elysia().get(
+const gatePrecisionRoutes = new Elysia().get(
   '/agents/gate-precision',
   async ({ query }) => {
     const requested = query.windowDays !== undefined ? Number(query.windowDays) : NaN;
@@ -48,3 +48,7 @@ export const gatePrecisionRoutes = new Elysia().get(
   },
   { query: t.Object({ windowDays: t.Optional(t.String()) }) },
 );
+
+// Default export: routes/<domain>/index.ts is generated, and the generator
+// discovers *.routes.ts files by default import (generate-route-barrels.cjs).
+export default gatePrecisionRoutes;

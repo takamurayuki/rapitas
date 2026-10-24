@@ -15,13 +15,13 @@ import { providerCooldownsRoutes } from './config/provider-cooldowns';
 import { recoveryMetricsRoutes } from './config/recovery-metrics';
 import { errorDiagnosisRoutes } from './config/error-diagnosis';
 import { probeMetricsRoutes } from './config/probe-metrics';
-import { gatePrecisionRoutes } from './config/gate-precision';
 import { executionLogsRoutes } from './monitoring/execution-logs';
 import { agentMetricsRouter } from './monitoring/agent-metrics';
 import { agentVersionManagementRoutes } from './system/agent-version-management';
 import { smartRouterRoutes } from './system/smart-router-routes';
 import { executionForkRoutes } from './execution-management/execution-fork-routes';
 import { previewRoutes } from './preview/preview-routes';
+import configGatePrecisionRoute from './config/gate-precision.routes';
 import monitoringExecutionLogEntriesRoute from './monitoring/execution-log-entries.routes';
 import monitoringFailureLineageRoute from './monitoring/failure-lineage.routes';
 import supervisionSupervisionRoute from './supervision/supervision.routes';
@@ -44,13 +44,13 @@ export const agentsDomainRoutes = new Elysia()
   .use(recoveryMetricsRoutes)
   .use(errorDiagnosisRoutes)
   .use(probeMetricsRoutes)
-  .use(gatePrecisionRoutes)
   .use(executionLogsRoutes)
   .use(agentMetricsRouter)
   .use(agentVersionManagementRoutes)
   .use(smartRouterRoutes)
   .use(executionForkRoutes)
   .use(previewRoutes)
+  .use(configGatePrecisionRoute)
   .use(monitoringExecutionLogEntriesRoute)
   .use(monitoringFailureLineageRoute)
   .use(supervisionSupervisionRoute);
