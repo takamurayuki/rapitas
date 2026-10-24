@@ -15,6 +15,7 @@ import { providerCooldownsRoutes } from './config/provider-cooldowns';
 import { recoveryMetricsRoutes } from './config/recovery-metrics';
 import { errorDiagnosisRoutes } from './config/error-diagnosis';
 import { probeMetricsRoutes } from './config/probe-metrics';
+import { gatePrecisionRoutes } from './config/gate-precision';
 import { executionLogsRoutes } from './monitoring/execution-logs';
 import { agentMetricsRouter } from './monitoring/agent-metrics';
 import { agentVersionManagementRoutes } from './system/agent-version-management';
@@ -43,6 +44,7 @@ export const agentsDomainRoutes = new Elysia()
   .use(recoveryMetricsRoutes)
   .use(errorDiagnosisRoutes)
   .use(probeMetricsRoutes)
+  .use(gatePrecisionRoutes)
   .use(executionLogsRoutes)
   .use(agentMetricsRouter)
   .use(agentVersionManagementRoutes)
