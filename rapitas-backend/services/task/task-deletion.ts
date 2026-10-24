@@ -17,6 +17,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { cleanUpTaskWorktrees } from './task-worktree-cleanup';
 import { snapshotTaskForTrash, type TrashSource } from './task-trash';
+import { snapshotTaskMeasurements } from './task-measurement-snapshot';
 
 const logger = createLogger('task-deletion');
 
@@ -79,6 +80,11 @@ export async function deleteTaskWithTrash(
   // Before the delete, because the cascade reaches 43 relations and
   // afterwards there is nothing left to copy.
   const trashId = await snapshotTaskForTrash(taskId, source);
+
+  // The trash copy keeps the task; it does not keep what the task cost. The
+  // same cascade takes the executions and the workflow transitions, so the
+  // numbers are copied out separately, to a table the cascade cannot reach.
+  await snapshotTaskMeasurements(taskId, prisma);
 
   try {
     await prisma.task.delete({ where: { id: taskId } });

@@ -4,7 +4,8 @@
  * The one place that decides what deleting a task means, now that ラピ can
  * ask for it too. The order is the substance: refuse protected first so a
  * task that is staying never has its worktrees touched, and snapshot before
- * the delete because the cascade leaves nothing to copy afterwards.
+ * the delete because the cascade leaves nothing to copy afterwards — both the
+ * trash copy of the task and the measurements it is about to lose.
  */
 import { describe, expect, test, beforeEach, mock } from 'bun:test';
 
@@ -52,6 +53,16 @@ mock.module('./task-trash', () => ({
   },
 }));
 
+// The trash copy keeps the task; this keeps what the task cost. Both have to
+// run before the delete, for the same reason: the cascade leaves nothing.
+mock.module('./task-measurement-snapshot', () => ({
+  TASK_MEASUREMENT_EVENT: 'task_measurement_snapshot',
+  snapshotTaskMeasurements: async () => {
+    order.push('measurements');
+    return null;
+  },
+}));
+
 const { deleteTaskWithTrash } = await import('./task-deletion');
 
 beforeEach(() => {
@@ -63,7 +74,7 @@ beforeEach(() => {
 describe('deleteTaskWithTrash', () => {
   test('clears worktrees, snapshots, then deletes — in that order', async () => {
     const result = await deleteTaskWithTrash(1, 'user');
-    expect(order).toEqual(['guard', 'worktrees', 'snapshot', 'delete']);
+    expect(order).toEqual(['guard', 'worktrees', 'snapshot', 'measurements', 'delete']);
     expect(result).toEqual({ taskId: 1, outcome: 'deleted', trashId: 7 });
   });
 
@@ -93,7 +104,7 @@ describe('deleteTaskWithTrash', () => {
     deleteThrows = recordGone();
     const result = await deleteTaskWithTrash(625, 'assistant');
     expect(result).toEqual({ taskId: 625, outcome: 'not_found' });
-    expect(order).toEqual(['guard', 'worktrees', 'snapshot', 'delete']);
+    expect(order).toEqual(['guard', 'worktrees', 'snapshot', 'measurements', 'delete']);
   });
 
   // Only the row-is-gone case is absorbed. A database that is down must not
