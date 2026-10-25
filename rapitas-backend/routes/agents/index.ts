@@ -22,6 +22,7 @@ import { smartRouterRoutes } from './system/smart-router-routes';
 import { executionForkRoutes } from './execution-management/execution-fork-routes';
 import { previewRoutes } from './preview/preview-routes';
 import configGatePrecisionRoute from './config/gate-precision.routes';
+import configPanelHealthRoute from './config/panel-health.routes';
 import monitoringExecutionLogEntriesRoute from './monitoring/execution-log-entries.routes';
 import monitoringFailureLineageRoute from './monitoring/failure-lineage.routes';
 import supervisionSupervisionRoute from './supervision/supervision.routes';
@@ -51,6 +52,7 @@ export const agentsDomainRoutes = new Elysia()
   .use(executionForkRoutes)
   .use(previewRoutes)
   .use(configGatePrecisionRoute)
+  .use(configPanelHealthRoute)
   .use(monitoringExecutionLogEntriesRoute)
   .use(monitoringFailureLineageRoute)
   .use(supervisionSupervisionRoute);
