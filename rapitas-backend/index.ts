@@ -185,7 +185,6 @@ import { initializeMemorySystem, shutdownMemorySystem } from './services/memory'
 import { AIOrchestra } from './services/workflow/ai-orchestra';
 import { migrateLegacyWorkflowFiles } from './services/workflow/workflow-legacy-migrator';
 import { backfillWorkflowFilesToDatabase } from './services/workflow/workflow-db-backfill';
-import { migrateStudyGoals } from './services/learning/study-goal-migration';
 import { startBacklogScheduler } from './services/scheduling/backlog-scheduler';
 import { startEventLoopLagWatchdog } from './services/system/event-loop-lag-watchdog';
 import { startCpuUsageMonitorIfEnabled } from './services/system/cpu-usage-monitor';
@@ -193,7 +192,6 @@ import { startBackupScheduler } from './services/system/backup-scheduler';
 import { startWorktreeCleanupScheduler } from './services/scheduling/worktree-cleanup-scheduler';
 import { startDecisionTraceConsistencyScheduler } from './services/scheduling/decision-trace-consistency-scheduler';
 import { startAutoRestartMergedCodeScheduler } from './services/scheduling/auto-restart-merged-code';
-import { startMemoReminderScheduler } from './services/scheduling/memo-reminder-scheduler';
 import { startWorkerHealthAlertScheduler } from './services/agents/worker-health/worker-health-alert-service';
 import { AutoMergeWatcher } from './services/workflow/auto-merge-watcher';
 import { startWorkflowReconciler } from './services/workflow/workflow-reconciler';
@@ -283,7 +281,6 @@ const runStartupWarmup = async (): Promise<void> => {
     ['ai-orchestra-recovery', () => AIOrchestra.getInstance().recoverOnStartup()],
     ['legacy-workflow-migration', () => migrateLegacyWorkflowFiles()],
     ['workflow-db-backfill', () => backfillWorkflowFilesToDatabase()],
-    ['study-goal-migration', () => migrateStudyGoals()],
     ['agent-worker-manager', () => workerManager.initialize()],
   ]);
   await timed('backlog-scheduler', () => startBacklogScheduler());
@@ -294,7 +291,6 @@ const runStartupWarmup = async (): Promise<void> => {
     ['worktree-cleanup-scheduler', () => startWorktreeCleanupScheduler()],
     ['decision-trace-consistency-scheduler', () => startDecisionTraceConsistencyScheduler()],
     ['auto-restart-merged-code-scheduler', () => startAutoRestartMergedCodeScheduler()],
-    ['memo-reminder-scheduler', () => startMemoReminderScheduler()],
     ['worker-health-alert-scheduler', () => startWorkerHealthAlertScheduler()],
     ['auto-merge-watcher', () => AutoMergeWatcher.getInstance().start()],
     ['workflow-reconciler', () => startWorkflowReconciler()],

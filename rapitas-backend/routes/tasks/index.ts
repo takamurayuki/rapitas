@@ -15,6 +15,7 @@ import { recurringTaskRoutes } from './recurring-tasks';
 import { taskSuggestionRoutes } from './task-suggestions';
 import { taskQuickCreateRoutes } from './task-quick-create';
 import { taskAutoGenerateRoutes } from './task-auto-generate';
+import { resourcesRoutes } from './resources';
 import failureImpactTreeRoute from './failure-impact-tree.routes';
 import taskTrashRoute from './task-trash.routes';
 
@@ -27,6 +28,7 @@ export { recurringTaskRoutes } from './recurring-tasks';
 export { taskSuggestionRoutes } from './task-suggestions';
 export { taskQuickCreateRoutes } from './task-quick-create';
 export { taskAutoGenerateRoutes } from './task-auto-generate';
+export { resourcesRoutes } from './resources';
 
 export const tasksDomainRoutes = new Elysia()
   .use(tasksRoutes)
@@ -38,5 +40,6 @@ export const tasksDomainRoutes = new Elysia()
   .use(taskSuggestionRoutes)
   .use(taskQuickCreateRoutes)
   .use(taskAutoGenerateRoutes)
+  .use(resourcesRoutes)
   .use(failureImpactTreeRoute)
   .use(taskTrashRoute);

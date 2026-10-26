@@ -172,7 +172,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
             theme: true,
             project: true,
             milestone: true,
-            examGoal: true,
             taskLabels: {
               include: {
                 label: true,
@@ -214,7 +213,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         theme: true,
         project: true,
         milestone: true,
-        examGoal: true,
         taskLabels: {
           include: {
             label: true,
@@ -260,7 +258,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         theme: true,
         project: true,
         milestone: true,
-        examGoal: true,
         taskLabels: {
           include: {
             label: true,
@@ -319,7 +316,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         projectId: t.Optional(t.Number()),
         milestoneId: t.Optional(t.Number()),
         themeId: t.Optional(t.Number()),
-        examGoalId: t.Optional(t.Number()),
         isDeveloperMode: t.Optional(t.Boolean()),
         isAiTaskAnalysis: t.Optional(t.Boolean()),
         goals: t.Optional(t.Array(t.String())),
@@ -361,7 +357,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
           subject: t.Optional(t.String({ maxLength: 500 })),
           projectId: t.Optional(t.Number()),
           milestoneId: t.Optional(t.Number()),
-          examGoalId: t.Optional(t.Number()),
           autoApprovePlan: t.Optional(t.Boolean()),
           goals: t.Optional(t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 })),
           constraints: t.Optional(t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 })),

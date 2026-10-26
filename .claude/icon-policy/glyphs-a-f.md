@@ -21,12 +21,6 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `Columns2`                | 画面分割表示への切替（ノートモーダルの分割タブ、統合ターミナルのsplit表示切替、タスク詳細スライドパネルの分割表示トグル — 「サイドバイサイド分割」という共通概念の再利用） |
 | `ArrowLeftRight`          | 左右の位置を入れ替える操作（ノート分割のノート/AI入れ替え、統合ターミナルとタスク詳細スライドパネルのドック位置(左右)入れ替え） |
 | `AppWindow`               | ライブプレビュー概念全般（タスク詳細のライブプレビューセクション見出し、および `SystemStatusPanel` の起動中プレビュー数タイル — 同一概念の正当な再利用） |
-| `ChartSpline`             | 単語帳の学習分析 (/vocabulary/analytics ページヘッダー・一覧からのリンクボタン) |
-| `BookOpenText`            | 単語カードの辞書情報編集（カード行の編集ボタン・エディタモーダルタイトル） |
-| `Equal`                   | 類義語ラベル（単語帳の関係ビジュアル） |
-| `ArrowRightLeft`          | 対義語ラベル（単語帳の関係ビジュアル。注: `ArrowLeftRight`＝ドック左右入れ替えとは別グリフ） |
-| `AlarmClockPlus`          | 学習時間の記録（学習ロードマップの「学習を記録」ボタン・記録モーダル。注: `Timer`＝ポモドーロ/見積時間とは別概念） |
-| `AlarmClock`              | メモのリマインダー（quick-capture / /memos のリマインダー行アイコン・一覧のリマインダーバッジ。注: `AlarmClockPlus`＝学習時間の記録とは別概念） |
 | `ChartNoAxesCombined`     | 自己成長台帳ダッシュボード（nav: /agents/growth。ページ見出し・5指標カードの共通アイコン — 同一ページ内の同一概念として再利用） |
 | `ChartScatter`            | 効率フロンティア（ワークフロー実行パラメータの多目標パレート最適化ダッシュボード。nav: /agents/pareto、ページ見出し・空状態 — 同一概念の再利用。注: `ChartNoAxesCombined`＝成長台帳、`ChartSpline`＝単語帳の学習分析とは別概念） |
 | `CalendarSearch`          | カレンダー空き枠スケジューラ（Google カレンダーの空き時間連動の自動実行ゲート。/agents/calendar-slots ページ見出し。注: `CalendarClock`＝バックログ定期ジョブ設定、`CalendarRange`＝スケジュールグループとは別概念） |

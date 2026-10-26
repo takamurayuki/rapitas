@@ -38,7 +38,6 @@ export const TASK_FULL_INCLUDE = {
   theme: true,
   project: true,
   milestone: true,
-  examGoal: true,
   taskLabels: { include: { label: true } },
 } as const;
 
@@ -58,7 +57,6 @@ export interface CreateTaskInput {
   projectId?: number;
   milestoneId?: number;
   themeId?: number;
-  examGoalId?: number;
   isDeveloperMode?: boolean;
   isAiTaskAnalysis?: boolean;
   /** Structured spec — stored as JSON-array strings (mirrors `labels`). */
@@ -183,7 +181,6 @@ export interface UpdateTaskInput {
   subject?: string;
   projectId?: number;
   milestoneId?: number;
-  examGoalId?: number;
   autoApprovePlan?: boolean;
   goals?: string[];
   constraints?: string[];
@@ -217,17 +214,9 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
   const resumingFromDone = currentTask.status === 'done' && fields.status === 'in-progress';
   const leavingDone = reopening || resumingFromDone;
 
-  // Record streak
-  if (fields.status === 'done') {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    await prisma.studyStreak.upsert({
-      where: { date: today },
-      update: { tasksCompleted: { increment: 1 } },
-      create: { date: today, studyMinutes: 0, tasksCompleted: 1 },
-    });
-  }
-
+  // NOTE: completing a task used to bump the daily StudyStreak row here. The
+  // learning features were removed, and the dashboard counts completions
+  // straight from Task.completedAt rather than from a streak table.
   const updateArgs = {
     where: {
       id: taskId,
@@ -273,7 +262,6 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       ...(fields.subject !== undefined && { subject: fields.subject }),
       ...(fields.projectId !== undefined && { projectId: fields.projectId }),
       ...(fields.milestoneId !== undefined && { milestoneId: fields.milestoneId }),
-      ...(fields.examGoalId !== undefined && { examGoalId: fields.examGoalId }),
       ...(fields.autoApprovePlan !== undefined && { autoApprovePlan: fields.autoApprovePlan }),
       ...(fields.isProtected !== undefined && { isProtected: fields.isProtected }),
       ...(fields.autoRunExcluded !== undefined && { autoRunExcluded: fields.autoRunExcluded }),

@@ -39,7 +39,7 @@ mock.module('../../../config', () => ({
 }));
 
 const { resourcesRoutes, resolveUploadSourcePath } =
-  await import('../../../routes/learning/resources');
+  await import('../../../routes/tasks/resources');
 const { ValidationError } = await import('../../../middleware/error-handler');
 
 function resetAllMocks() {

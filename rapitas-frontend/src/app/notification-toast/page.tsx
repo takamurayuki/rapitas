@@ -11,16 +11,13 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { AlarmClock, Check, HelpCircle, X } from 'lucide-react';
-import { API_BASE_URL } from '@/utils/api';
+import { AlarmClock, HelpCircle, X } from 'lucide-react';
 import { ToastQuestionOptions } from './_components/ToastQuestionOptions';
 
 interface ToastPayload {
   title: string;
   body: string;
   link: string | null;
-  /** Set for memo reminders — enables the mark-done action. */
-  memoId?: number | null;
   /** Set for agent questions — the toast answers them inline. */
   taskId?: number | null;
   /** 'question' marks an agent question (see useBrowserNotifications). */
@@ -171,22 +168,6 @@ export default function NotificationToastPage() {
     await invoke('toast_navigate', { link: payload?.link ?? null }).catch(() => {});
   };
 
-  // Mark the reminder's memo as done straight from the toast, then dismiss.
-  const markDone = async () => {
-    const memoId = payload?.memoId;
-    if (!memoId) return;
-    try {
-      await fetch(`${API_BASE_URL}/memos/${memoId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isDone: true }),
-      });
-    } catch {
-      /* non-critical — the memo stays open and can be completed from /memos */
-    }
-    void hideToastWindow();
-  };
-
   const isQuestion = isQuestionPayload(payload);
 
   // Re-measure whenever a new payload lands (question ↔ reminder heights differ).
@@ -231,15 +212,6 @@ export default function NotificationToastPage() {
           >
             <X className="h-4 w-4" />
           </button>
-          {payload?.memoId != null && (
-            <button
-              onClick={() => void markDone()}
-              className="flex items-center gap-1 rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-100 dark:bg-green-950/40 dark:text-green-400 dark:hover:bg-green-950/60"
-            >
-              <Check className="h-3.5 w-3.5" aria-hidden="true" />
-              {t('markMemoDone')}
-            </button>
-          )}
         </div>
       </div>
       {isQuestion && (
