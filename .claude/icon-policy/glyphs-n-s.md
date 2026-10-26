@@ -20,7 +20,6 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `Settings`                | 設定を開く操作全般（設定ハブnavに加え、`TaskPreviewSection` のプレビュー設定モーダルを開くボタンでの再利用をユーザー承認済み — 同一概念「設定を開く」の正当な拡張。旧・エージェント管理/メモリ管理との3重使用は 2026-07-17 に解消） |
 | `PanelBottom`             | 統合ターミナルを下部パネル表示（overlay）に戻す操作（TerminalTabBar。split表示への切替は `Columns2`） |
 | `Pin` / `PinOff`          | ピン留め＝開いたまま維持（サイドナビの固定、quick-capture のフォーカス喪失時も閉じない — 同一概念の再利用） |
-| `NotepadText`             | メモ（軽量メモ機能。nav: /memos、ページヘッダー、quick-capture のメモモードタブ。注: `NotebookTabs`＝ノート、`StickyNote`＝検索結果のノート種別と混同しないこと） |
 | `Sunrise`                 | 自律活動デイリーレポート（nav: /agents/daily-report。ページ見出し・バックログ定期ジョブ daily_report — 同一概念の再利用。注: /agents/growth＝成長台帳とはルート・グリフとも別） |
 | `ScanSearch`              | 検出漏れ兆候の学習・レビュー（nav: /agents/miss-signatures、ページ見出し、バックログ定期ジョブ miss_ledger — 同一概念の再利用。注: `Search`＝知識ブラウザとは別概念） |
 | `Radar`                   | プリフライトprobeメトリクス（フェーズ遷移前probeのターゲット別成功率・レイテンシ集計。`ProbeMetricsPanel` ヘッダー） |
@@ -29,5 +28,5 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `ShieldHalf`              | PR リスク予測（バックログ定期ジョブ `pr_risk_review` — マージ後72h以内のロールバック/本番重大障害を失敗とするPRリスクスコアの月次精度レビュー。注: `ShieldAlert`＝懸念の種別「セキュリティ」とは別概念） |
 | `PiggyBank`               | AI利用の予算計画（nav: /agents/usage-budget のページ見出し・メトリクス画面からのリンク、予算到達の確認ダイアログ、通知の種別 usage_budget_threshold — 同一概念「AI利用予算」の再利用。注: `src/components/category/icons` のカテゴリアイコンピッカー登録は中立的な再掲で対象外） |
 | `Siren`                   | 通知の種別「カナリアトークン使用検知」（`NotificationBell` の canary_triggered — 隔離環境に置いたダミー認証情報が使われた警報。`TriangleAlert`＝エージェントエラーとは別概念） |
-| `Signpost`                | ラピの「計画を立てる」ロードマップモード（`RapiModeTabs` の roadmap タブ — 入力欄からだけ到達するモード。注: `Milestone`＝学習ロードマップ(nav)とは別概念） |
+| `Signpost`                | ラピの「計画を立てる」ロードマップモード（`RapiModeTabs` の roadmap タブ — 入力欄からだけ到達するモード） |
 | `OctagonAlert`            | 通知の種別「ブロックされたタスク／テーマの対応待ち」（auto_run_all_blocked, blocked_escalation, blocked_escalation_needs_answer）。ラピの「要対応」タブ（`RapiModeTabs` の watch — 手当てが要るバックログの一覧）も同一概念「対応待ち」の再利用。ICON_POLICY.md §3 のインライン表から本ファイルへ移行済み |

@@ -49,7 +49,6 @@ const RESTORABLE_FIELDS = [
   'themeId',
   'projectId',
   'milestoneId',
-  'studyGoalId',
   'isDeveloperMode',
   'isAiTaskAnalysis',
   'agentGenerated',

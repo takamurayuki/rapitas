@@ -133,7 +133,6 @@ fn notify_shortcut_registration_failure(app: &tauri::AppHandle) {
         "title": "ショートカット登録に失敗しました",
         "body": "ショートカットが他プロセスに使用されています。旧インスタンスの終了後に再起動してください。",
         "link": null,
-        "memoId": null,
     });
     if let Some(state) = app.try_state::<crate::toast::PendingToast>() {
         *state.pending.lock().unwrap() = Some(payload);

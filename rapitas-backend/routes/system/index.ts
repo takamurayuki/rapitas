@@ -11,7 +11,6 @@ import { authRoutes } from './auth';
 import { sseRoutes } from './sse';
 import { developerModeRoutes } from './developer-mode';
 import { notificationsRoutes } from './notifications';
-import { memosRoutes } from './memos';
 import { searchRoutes } from './search';
 import { urlMetadataRoutes } from './url-metadata';
 import { directoriesRoutes } from './directories';
@@ -43,7 +42,6 @@ export { authRoutes } from './auth';
 export { sseRoutes } from './sse';
 export { developerModeRoutes } from './developer-mode';
 export { notificationsRoutes } from './notifications';
-export { memosRoutes } from './memos';
 export { searchRoutes } from './search';
 export { urlMetadataRoutes } from './url-metadata';
 export { directoriesRoutes } from './directories';
@@ -72,7 +70,6 @@ export const systemDomainRoutes = new Elysia()
   .use(sseRoutes)
   .use(developerModeRoutes)
   .use(notificationsRoutes)
-  .use(memosRoutes)
   .use(searchRoutes)
   .use(urlMetadataRoutes)
   .use(directoriesRoutes)

@@ -8,11 +8,6 @@
     "taskSettings": "タスク設定",
     "dashboard": "ダッシュボード",
     "calendar": "カレンダー",
-    "learning": "学習",
-    "learningGoals": "学習目標",
-    "examGoals": "試験目標",
-    "learningRoadmap": "学習ロードマップ",
-    "vocabulary": "単語帳",
     "habitsAchievements": "スケジュール",
     "dailySchedule": "一日のスケジュール",
     "weeklyReport": "週次レポート",
@@ -76,7 +71,6 @@
     "concerns": "懸念",
     "hypotheses": "仮説",
     "notes": "ノート",
-    "memos": "メモ",
     "logAnalysis": "ログ分析"
   }
 }

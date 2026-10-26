@@ -13,12 +13,6 @@ const mockPrisma = {
   timeEntry: {
     findMany: mock(() => Promise.resolve([])),
   },
-  examGoal: {
-    findMany: mock(() => Promise.resolve([])),
-  },
-  studyStreak: {
-    findMany: mock(() => Promise.resolve([])),
-  },
 };
 
 mock.module('../../../config/database', () => ({
@@ -49,8 +43,6 @@ function resetAllMocks() {
   mockPrisma.task.count.mockResolvedValue(0);
   mockPrisma.task.findMany.mockResolvedValue([]);
   mockPrisma.timeEntry.findMany.mockResolvedValue([]);
-  mockPrisma.examGoal.findMany.mockResolvedValue([]);
-  mockPrisma.studyStreak.findMany.mockResolvedValue([]);
 }
 
 function createApp() {
@@ -71,11 +63,6 @@ describe('GET /statistics/overview', () => {
       .mockResolvedValueOnce(30) // completedTasks
       .mockResolvedValueOnce(3) // todayCompleted
       .mockResolvedValueOnce(10); // weekCompleted
-    mockPrisma.timeEntry.findMany
-      .mockResolvedValueOnce([{ duration: 5 }, { duration: 3 }]) // weekTimeEntries
-      .mockResolvedValueOnce([{ duration: 20 }]); // monthTimeEntries
-    mockPrisma.examGoal.findMany.mockResolvedValue([]);
-    mockPrisma.studyStreak.findMany.mockResolvedValue([]);
 
     const res = await app.handle(new Request('http://localhost/statistics/overview'));
     const body = await res.json();
@@ -85,38 +72,23 @@ describe('GET /statistics/overview', () => {
     expect(body.tasks.total).toBe(50);
     expect(body.tasks.completed).toBe(30);
     expect(body.tasks.completionRate).toBe(60);
-    expect(body.studyTime).toBeDefined();
-    expect(body.upcomingExams).toBeDefined();
-    expect(body.streakData).toBeDefined();
+    // The learning features were removed: the overview must no longer carry
+    // study hours, exam goals or the streak, and must not query for them.
+    expect(body.studyTime).toBeUndefined();
+    expect(body.upcomingExams).toBeUndefined();
+    expect(body.streakData).toBeUndefined();
+    expect(mockPrisma.timeEntry.findMany).not.toHaveBeenCalled();
   });
 
   test('タスクがゼロの場合completionRateが0であること', async () => {
     mockPrisma.task.count.mockResolvedValue(0);
     mockPrisma.timeEntry.findMany.mockResolvedValue([]);
-    mockPrisma.examGoal.findMany.mockResolvedValue([]);
-    mockPrisma.studyStreak.findMany.mockResolvedValue([]);
 
     const res = await app.handle(new Request('http://localhost/statistics/overview'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(body.tasks.completionRate).toBe(0);
-  });
-
-  test('学習時間を正しく集計すること', async () => {
-    mockPrisma.task.count.mockResolvedValue(0);
-    mockPrisma.timeEntry.findMany
-      .mockResolvedValueOnce([{ duration: 1.5 }, { duration: 2.3 }]) // week
-      .mockResolvedValueOnce([{ duration: 10.5 }]); // month
-    mockPrisma.examGoal.findMany.mockResolvedValue([]);
-    mockPrisma.studyStreak.findMany.mockResolvedValue([]);
-
-    const res = await app.handle(new Request('http://localhost/statistics/overview'));
-    const body = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(body.studyTime.weekHours).toBe(3.8);
-    expect(body.studyTime.monthHours).toBe(10.5);
   });
 });
 

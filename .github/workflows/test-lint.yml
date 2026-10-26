@@ -300,6 +300,14 @@ jobs:
         # NOTE: --coverage makes the vitest.config.ts threshold floor a real,
         # enforced gate (it was previously aspirational — coverage never ran in
         # CI). The floor is calibrated to THIS file list; keep them in sync.
+        #
+        # NOTE: vitest SILENTLY IGNORES a path that does not exist and still
+        # exits 0 — measured 2026-10-26. So deleting a test file named here
+        # does not go red; the gate just quietly runs one file fewer. Two
+        # entries were stale when this was measured: PomodoroTimer.test.tsx
+        # (deleted with the pomodoro checkpoint) and formatLogData.test.ts
+        # (gone for longer, with CI green the whole time). When you remove a
+        # test file, remove its line here too — nothing else will tell you.
         run: >
           bunx vitest run --coverage
           src/components/__tests__/AppIcon.test.tsx
@@ -308,7 +316,6 @@ jobs:
           src/components/__tests__/LanguageSwitcher.test.tsx
           src/components/copilot/__tests__/CopilotChatPanel.test.tsx
           src/feature/tasks/components/__tests__/TaskCard.test.tsx
-          src/feature/tasks/components/timer/PomodoroTimer.test.tsx
           src/app/ideas/_components/__tests__/IdeaBoxHeader.test.tsx
           src/app/ideas/_components/__tests__/IdeasClient.test.tsx
           src/hooks/__tests__/useBackendHealth.test.ts
@@ -363,7 +370,6 @@ jobs:
           src/feature/developer-mode/components/deviation-timeline/DeviationContextDialog.test.tsx
           src/feature/developer-mode/components/deviation-timeline/useDeviationTimeline.test.ts
           src/feature/tasks/components/gantt/gantt-utils.test.ts
-          src/feature/tasks/hooks/__tests__/formatLogData.test.ts
           src/app/api/generate-claude-md/fallback-package.test.ts
           src/app/api/generate-claude-md/__tests__/context-rendering.test.ts
           src/app/api/review-spec/__tests__/review-prompt.test.ts

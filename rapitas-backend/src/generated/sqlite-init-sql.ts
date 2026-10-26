@@ -408,8 +408,6 @@ CREATE TABLE "Task" (
     "themeId" INTEGER,
     "projectId" INTEGER,
     "milestoneId" INTEGER,
-    "examGoalId" INTEGER,
-    "studyGoalId" INTEGER,
     "isDeveloperMode" BOOLEAN NOT NULL DEFAULT false,
     "isAiTaskAnalysis" BOOLEAN NOT NULL DEFAULT false,
     "agentGenerated" BOOLEAN NOT NULL DEFAULT false,
@@ -454,8 +452,6 @@ CREATE TABLE "Task" (
     CONSTRAINT "Task_themeId_fkey" FOREIGN KEY ("themeId") REFERENCES "Theme" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Task_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Task_milestoneId_fkey" FOREIGN KEY ("milestoneId") REFERENCES "Milestone" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
-    CONSTRAINT "Task_examGoalId_fkey" FOREIGN KEY ("examGoalId") REFERENCES "ExamGoal" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
-    CONSTRAINT "Task_studyGoalId_fkey" FOREIGN KEY ("studyGoalId") REFERENCES "StudyGoal" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Task_sourceTaskId_fkey" FOREIGN KEY ("sourceTaskId") REFERENCES "Task" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
@@ -859,171 +855,6 @@ CREATE TABLE "GitRetryMetric" (
 );
 
 -- CreateTable
-CREATE TABLE "StudyGoal" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "type" TEXT NOT NULL DEFAULT 'skill',
-    "title" TEXT NOT NULL,
-    "description" TEXT,
-    "deadline" DATETIME,
-    "status" TEXT NOT NULL DEFAULT 'active',
-    "color" TEXT NOT NULL DEFAULT '#10B981',
-    "icon" TEXT,
-    "dailyMinutes" INTEGER NOT NULL DEFAULT 60,
-    "categoryId" INTEGER,
-    "themeId" INTEGER,
-    "currentLevel" TEXT,
-    "targetLevel" TEXT,
-    "generatedPlan" TEXT,
-    "isApplied" BOOLEAN NOT NULL DEFAULT false,
-    "targetScore" TEXT,
-    "actualScore" TEXT,
-    "legacySource" TEXT,
-    "legacyId" INTEGER,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
-);
-
--- CreateTable
-CREATE TABLE "ExamGoal" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "name" TEXT NOT NULL,
-    "description" TEXT,
-    "examDate" DATETIME NOT NULL,
-    "targetScore" TEXT,
-    "color" TEXT NOT NULL DEFAULT '#10B981',
-    "icon" TEXT,
-    "isCompleted" BOOLEAN NOT NULL DEFAULT false,
-    "actualScore" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
-);
-
--- CreateTable
-CREATE TABLE "StudyStreak" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "date" DATETIME NOT NULL,
-    "studyMinutes" INTEGER NOT NULL DEFAULT 0,
-    "tasksCompleted" INTEGER NOT NULL DEFAULT 0,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
-);
-
--- CreateTable
-CREATE TABLE "StudySession" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "goalId" INTEGER,
-    "minutes" INTEGER NOT NULL,
-    "source" TEXT NOT NULL DEFAULT 'manual',
-    "note" TEXT,
-    "studiedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "pomodoroSessionId" INTEGER
-);
-
--- CreateTable
-CREATE TABLE "LearningGoal" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "title" TEXT NOT NULL,
-    "description" TEXT,
-    "currentLevel" TEXT,
-    "targetLevel" TEXT,
-    "deadline" DATETIME,
-    "dailyHours" REAL NOT NULL DEFAULT 2,
-    "categoryId" INTEGER,
-    "themeId" INTEGER,
-    "status" TEXT NOT NULL DEFAULT 'active',
-    "generatedPlan" TEXT,
-    "isApplied" BOOLEAN NOT NULL DEFAULT false,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
-);
-
--- CreateTable
-CREATE TABLE "Habit" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "name" TEXT NOT NULL,
-    "description" TEXT,
-    "icon" TEXT,
-    "color" TEXT NOT NULL DEFAULT '#10B981',
-    "frequency" TEXT NOT NULL DEFAULT 'daily',
-    "targetCount" INTEGER NOT NULL DEFAULT 1,
-    "isActive" BOOLEAN NOT NULL DEFAULT true,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
-);
-
--- CreateTable
-CREATE TABLE "HabitLog" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "habitId" INTEGER NOT NULL,
-    "date" DATETIME NOT NULL,
-    "count" INTEGER NOT NULL DEFAULT 1,
-    "note" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "HabitLog_habitId_fkey" FOREIGN KEY ("habitId") REFERENCES "Habit" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
-
--- CreateTable
-CREATE TABLE "VocabDeck" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "name" TEXT NOT NULL,
-    "description" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
-);
-
--- CreateTable
-CREATE TABLE "VocabCard" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "deckId" INTEGER NOT NULL,
-    "front" TEXT NOT NULL,
-    "back" TEXT NOT NULL,
-    "note" TEXT,
-    "syllables" TEXT,
-    "pronunciation" TEXT,
-    "partOfSpeech" TEXT,
-    "details" TEXT,
-    "intervalDays" REAL NOT NULL DEFAULT 0,
-    "easeFactor" REAL NOT NULL DEFAULT 2.5,
-    "repetitions" INTEGER NOT NULL DEFAULT 0,
-    "lapses" INTEGER NOT NULL DEFAULT 0,
-    "dueAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "reviewedAt" DATETIME,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "VocabCard_deckId_fkey" FOREIGN KEY ("deckId") REFERENCES "VocabDeck" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
-
--- CreateTable
-CREATE TABLE "VocabReviewLog" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "cardId" INTEGER NOT NULL,
-    "deckId" INTEGER NOT NULL,
-    "grade" TEXT NOT NULL,
-    "elapsedDays" REAL NOT NULL,
-    "intervalDays" REAL NOT NULL,
-    "repetitions" INTEGER NOT NULL,
-    "reviewedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
--- CreateTable
-CREATE TABLE "Resource" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "taskId" INTEGER,
-    "title" TEXT NOT NULL,
-    "url" TEXT,
-    "type" TEXT NOT NULL,
-    "description" TEXT,
-    "filePath" TEXT,
-    "fileName" TEXT,
-    "fileSize" INTEGER,
-    "mimeType" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "Resource_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
-
--- CreateTable
 CREATE TABLE "KnowledgeEntry" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "sourceType" TEXT NOT NULL,
@@ -1319,6 +1150,23 @@ CREATE TABLE "PrRiskThresholdReview" (
 );
 
 -- CreateTable
+CREATE TABLE "Resource" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER,
+    "title" TEXT NOT NULL,
+    "url" TEXT,
+    "type" TEXT NOT NULL,
+    "description" TEXT,
+    "filePath" TEXT,
+    "fileName" TEXT,
+    "fileSize" INTEGER,
+    "mimeType" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "Resource_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "ScheduleEvent" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "title" TEXT NOT NULL,
@@ -1383,17 +1231,6 @@ CREATE TABLE "Notification" (
     "readAt" DATETIME,
     "metadata" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
--- CreateTable
-CREATE TABLE "Memo" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "content" TEXT NOT NULL,
-    "remindAt" DATETIME,
-    "remindedAt" DATETIME,
-    "isDone" BOOLEAN NOT NULL DEFAULT false,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
 );
 
 -- CreateTable
@@ -2023,30 +1860,6 @@ CREATE INDEX "GitRetryMetric_variant_idx" ON "GitRetryMetric"("variant");
 CREATE INDEX "GitRetryMetric_createdAt_idx" ON "GitRetryMetric"("createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "StudyGoal_legacySource_legacyId_key" ON "StudyGoal"("legacySource", "legacyId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "StudyStreak_date_key" ON "StudyStreak"("date");
-
--- CreateIndex
-CREATE UNIQUE INDEX "StudySession_pomodoroSessionId_key" ON "StudySession"("pomodoroSessionId");
-
--- CreateIndex
-CREATE INDEX "StudySession_studiedAt_idx" ON "StudySession"("studiedAt");
-
--- CreateIndex
-CREATE INDEX "StudySession_goalId_studiedAt_idx" ON "StudySession"("goalId", "studiedAt");
-
--- CreateIndex
-CREATE UNIQUE INDEX "HabitLog_habitId_date_key" ON "HabitLog"("habitId", "date");
-
--- CreateIndex
-CREATE INDEX "VocabCard_deckId_dueAt_idx" ON "VocabCard"("deckId", "dueAt");
-
--- CreateIndex
-CREATE INDEX "VocabReviewLog_deckId_reviewedAt_idx" ON "VocabReviewLog"("deckId", "reviewedAt");
-
--- CreateIndex
 CREATE INDEX "KnowledgeEntry_sourceType_sourceId_idx" ON "KnowledgeEntry"("sourceType", "sourceId");
 
 -- CreateIndex
@@ -2207,9 +2020,6 @@ CREATE UNIQUE INDEX "PaidLeaveBalance_userId_fiscalYear_key" ON "PaidLeaveBalanc
 
 -- CreateIndex
 CREATE INDEX "CalendarBusyBlock_startAt_idx" ON "CalendarBusyBlock"("startAt");
-
--- CreateIndex
-CREATE INDEX "Memo_remindAt_idx" ON "Memo"("remindAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "BacklogSchedule_kind_key" ON "BacklogSchedule"("kind");
