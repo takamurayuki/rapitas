@@ -5,80 +5,21 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { ValidationError } from '../../middleware/error-handler';
-import { mkdir, writeFile, unlink, copyFile, stat } from 'fs/promises';
+import { writeFile, unlink, copyFile, stat } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, basename, extname, resolve, sep } from 'path';
 import { tmpdir } from 'os';
 import { getProjectRoot } from '../../config';
+import {
+  ALLOWED_MIME_TYPES,
+  MAX_FILE_SIZE,
+  UPLOAD_DIR,
+  ensureUploadDir,
+  getMimeType,
+  resolveUploadPath,
+} from './resources-upload-support';
 
-// Get MIME type from file extension
-function getMimeType(filePath: string): string {
-  const ext = extname(filePath).toLowerCase().slice(1);
-  const mimeTypes: Record<string, string> = {
-    // Images
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-    gif: 'image/gif',
-    webp: 'image/webp',
-    svg: 'image/svg+xml',
-    bmp: 'image/bmp',
-    ico: 'image/x-icon',
-    // Documents
-    pdf: 'application/pdf',
-    doc: 'application/msword',
-    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    xls: 'application/vnd.ms-excel',
-    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    ppt: 'application/vnd.ms-powerpoint',
-    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    // Text
-    txt: 'text/plain',
-    md: 'text/markdown',
-    csv: 'text/csv',
-    html: 'text/html',
-    css: 'text/css',
-    xml: 'text/xml',
-    yaml: 'text/yaml',
-    yml: 'text/yaml',
-    // Code
-    js: 'application/javascript',
-    ts: 'application/typescript',
-    jsx: 'application/javascript',
-    tsx: 'application/typescript',
-    json: 'application/json',
-    sql: 'application/sql',
-    // Archives
-    zip: 'application/zip',
-    rar: 'application/x-rar-compressed',
-    '7z': 'application/x-7z-compressed',
-    gz: 'application/gzip',
-    tar: 'application/x-tar',
-  };
-  return mimeTypes[ext] || 'application/octet-stream';
-}
 import { randomUUID } from 'crypto';
-
-// Upload directory configuration
-const UPLOAD_DIR = join(process.cwd(), 'uploads');
-
-/**
- * Resolve a request-supplied filename to an absolute path INSIDE UPLOAD_DIR,
- * or throw if it would escape (path traversal). `path.join` alone does not
- * strip `..`, so a raw `:filename` param like `../../.env` would read secrets.
- *
- * @param filename - Untrusted filename from the URL. / URL由来の未検証ファイル名
- * @returns Contained absolute path. / uploads配下に収まる絶対パス
- * @throws {ValidationError} When the path escapes UPLOAD_DIR. / 配下から外れる場合
- */
-function resolveUploadPath(filename: string): string {
-  const resolved = resolve(UPLOAD_DIR, filename);
-  const root = resolve(UPLOAD_DIR);
-  if (resolved !== root && !resolved.startsWith(root + sep)) {
-    throw new ValidationError('ファイルが見つかりません');
-  }
-  return resolved;
-}
 
 // Filenames that must never be copyable through upload-from-path, regardless
 // of which root they resolve under — a stray allowlisted root (e.g. a theme
@@ -133,59 +74,6 @@ export function resolveUploadSourcePath(sourcePath: string): string {
     throw new ValidationError('許可されていない場所のファイルです');
   }
   return resolved;
-}
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ALLOWED_MIME_TYPES = [
-  // Images
-  'image/jpeg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-  'image/svg+xml',
-  'image/bmp',
-  'image/ico',
-  'image/x-icon',
-  // Documents
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  // Text
-  'text/plain',
-  'text/markdown',
-  'text/csv',
-  'text/html',
-  'text/css',
-  'text/javascript',
-  'text/xml',
-  'text/yaml',
-  // Code/Data
-  'application/json',
-  'application/xml',
-  'application/javascript',
-  'application/typescript',
-  'application/x-yaml',
-  'application/sql',
-  // Archives
-  'application/zip',
-  'application/x-zip-compressed',
-  'application/x-rar-compressed',
-  'application/x-7z-compressed',
-  'application/gzip',
-  'application/x-tar',
-  // Other
-  'application/octet-stream', // Generic binary (fallback for unknown types)
-];
-
-// Ensure upload directory exists
-async function ensureUploadDir() {
-  if (!existsSync(UPLOAD_DIR)) {
-    await mkdir(UPLOAD_DIR, { recursive: true });
-  }
 }
 
 export const resourcesRoutes = new Elysia()
@@ -307,15 +195,24 @@ export const resourcesRoutes = new Elysia()
       // NOTE: `file` is intentionally left OUT of this schema (no t.File()).
       // routes/system/transcribe.ts already documents that Elysia's t.File()
       // validator can reject valid multipart FormData; the handler above does
-      // its own File-instance/size/MIME checks. additionalProperties is left
-      // at its default (permissive) so the multipart `file` part still reaches
-      // the handler unvalidated by the framework layer — only the string
-      // fields get framework-level validation here.
-      body: t.Object({
-        taskId: t.Optional(t.String()),
-        title: t.Optional(t.String({ maxLength: 200 })),
-        description: t.Optional(t.String({ maxLength: 5000 })),
-      }),
+      // its own File-instance/size/MIME checks. Only the string fields get
+      // framework-level validation here.
+      //
+      // FIXME: `additionalProperties: true` is load-bearing and must stay.
+      // The default is NOT permissive: Elysia 1.4.30's t.Object validation
+      // STRIPS undeclared properties, so without this the multipart `file`
+      // part never reaches the handler and every upload answers 400
+      // 「ファイルが見つかりません」. Measured 2026-10-26 — the route had been
+      // broken in production while its tests stayed green, because they only
+      // ever exercised resolveUploadSourcePath and never the HTTP path.
+      body: t.Object(
+        {
+          taskId: t.Optional(t.String()),
+          title: t.Optional(t.String({ maxLength: 200 })),
+          description: t.Optional(t.String({ maxLength: 5000 })),
+        },
+        { additionalProperties: true },
+      ),
     },
   )
 
