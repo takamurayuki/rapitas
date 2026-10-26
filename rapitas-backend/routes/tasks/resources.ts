@@ -307,15 +307,24 @@ export const resourcesRoutes = new Elysia()
       // NOTE: `file` is intentionally left OUT of this schema (no t.File()).
       // routes/system/transcribe.ts already documents that Elysia's t.File()
       // validator can reject valid multipart FormData; the handler above does
-      // its own File-instance/size/MIME checks. additionalProperties is left
-      // at its default (permissive) so the multipart `file` part still reaches
-      // the handler unvalidated by the framework layer — only the string
-      // fields get framework-level validation here.
-      body: t.Object({
-        taskId: t.Optional(t.String()),
-        title: t.Optional(t.String({ maxLength: 200 })),
-        description: t.Optional(t.String({ maxLength: 5000 })),
-      }),
+      // its own File-instance/size/MIME checks. Only the string fields get
+      // framework-level validation here.
+      //
+      // FIXME: `additionalProperties: true` is load-bearing and must stay.
+      // The default is NOT permissive: Elysia 1.4.30's t.Object validation
+      // STRIPS undeclared properties, so without this the multipart `file`
+      // part never reaches the handler and every upload answers 400
+      // 「ファイルが見つかりません」. Measured 2026-10-26 — the route had been
+      // broken in production while its tests stayed green, because they only
+      // ever exercised resolveUploadSourcePath and never the HTTP path.
+      body: t.Object(
+        {
+          taskId: t.Optional(t.String()),
+          title: t.Optional(t.String({ maxLength: 200 })),
+          description: t.Optional(t.String({ maxLength: 5000 })),
+        },
+        { additionalProperties: true },
+      ),
     },
   )
 

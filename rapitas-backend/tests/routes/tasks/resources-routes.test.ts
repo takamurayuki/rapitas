@@ -240,3 +240,63 @@ describe('resolveUploadSourcePath (upload-from-path path containment)', () => {
     expect(() => resolveUploadSourcePath(sshKeyInRoot)).toThrow(ValidationError);
   });
 });
+
+// Elysia 1.4.30's t.Object body validation REMOVES properties the schema does
+// not declare. The upload route declared only its string fields and its own
+// comment assumed additionalProperties stayed permissive, so the multipart
+// `file` part was stripped before the handler ran and every upload answered
+// 400「ファイルが見つかりません」. Measured 2026-10-26 against the running
+// server, and reproduced with the route mounted alone — the mounting was not
+// the cause.
+//
+// Nothing above this line went through the HTTP upload path: the existing
+// tests exercise resolveUploadSourcePath, a pure helper, so they stayed green
+// the whole time the route was broken.
+//
+// These post real FormData through the route and stop at a validation branch,
+// so they write nothing to disk or to the database. The point of each is WHICH
+// error comes back: anything other than「ファイルが見つかりません」proves the
+// File arrived.
+describe('POST /resources/upload — the multipart file part reaches the handler', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  function uploadRequest(file?: File): Request {
+    const form = new FormData();
+    form.append('taskId', '1');
+    if (file) form.append('file', file);
+    return new Request('http://localhost/resources/upload', { method: 'POST', body: form });
+  }
+
+  test('a disallowed type is rejected for its TYPE, not as a missing file', async () => {
+    // An executable: ALLOWED_MIME_TYPES is deliberately broad (it even allows
+    // application/octet-stream), so the rejected type has to be a real outlier.
+    const res = await app.handle(
+      uploadRequest(new File(['MZ'], 'probe.exe', { type: 'application/x-msdownload' })),
+    );
+    const body = await res.json();
+
+    expect(body.error).toContain('許可されていないファイル形式です');
+  });
+
+  test('an oversized allowed type is rejected for its SIZE, not as a missing file', async () => {
+    // 11MB against the 10MB cap, so the handler stops before writing.
+    const res = await app.handle(
+      uploadRequest(new File([new Uint8Array(11 * 1024 * 1024)], 'big.png', { type: 'image/png' })),
+    );
+    const body = await res.json();
+
+    expect(body.error).toContain('ファイルサイズ');
+  });
+
+  test('a genuinely absent file part is still rejected as missing', async () => {
+    const res = await app.handle(uploadRequest());
+    const body = await res.json();
+
+    expect(body.error).toContain('ファイルが見つかりません');
+  });
+});
