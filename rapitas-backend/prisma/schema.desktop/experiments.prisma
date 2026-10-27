@@ -7,6 +7,8 @@
 // Experiment log - record all task executions as experiments
 model Experiment {
   id            Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId        Int?
   title         String
   status        String    @default("created") // created, researching, hypothesizing, planning, executing, evaluating, learning, completed, failed
@@ -34,6 +36,7 @@ model Experiment {
   @@index([taskId])
   @@index([status])
   @@index([createdAt])
+  @@index([workspaceId])
 }
 
 // Hypothesis management - track solution hypotheses
@@ -77,6 +80,8 @@ model CriticReview {
 // Learning patterns - record success/failure patterns
 model LearningPattern {
   id            Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   patternType   String    // success_strategy, failure_pattern, optimization, anti_pattern
   category      String    // bug_fix, feature_implementation, refactoring, debugging, testing
   description   String
@@ -92,6 +97,7 @@ model LearningPattern {
   @@index([patternType])
   @@index([category])
   @@index([confidence])
+  @@index([workspaceId])
 }
 
 // Workflow learning records - actual workflow execution data from completed tasks
@@ -153,6 +159,8 @@ model TaskDurationPrediction {
 // Workflow optimization rules - patterns extracted from learning data
 model WorkflowOptimizationRule {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   ruleType          String    // skip_phase, downgrade_mode, upgrade_mode, adjust_time
   condition         String    // JSON: Rule application condition
   recommendation    String    // JSON: Recommended action
@@ -168,6 +176,7 @@ model WorkflowOptimizationRule {
   @@index([ruleType])
   @@index([confidence])
   @@index([isActive])
+  @@index([workspaceId])
 }
 
 // Detection-miss ledger — one row per quality-gate slip-through discovered
@@ -177,6 +186,8 @@ model WorkflowOptimizationRule {
 // bounces are NOT misses — the gate caught those BEFORE completion.
 model DetectionMissCase {
   id           Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId       Int
   /** Which gate the defect slipped past: ci_repair | post_completion_concern */
   gate         String
@@ -193,6 +204,7 @@ model DetectionMissCase {
   @@index([gate])
   @@index([taskId])
   @@index([detectedAt])
+  @@index([workspaceId])
 }
 
 // Gate-precision ledger — one row per verify_repair dispute (the SAME
@@ -206,6 +218,8 @@ model DetectionMissCase {
 // criterion-matchable prose (see identifyIndictedCriteria).
 model GatePrecisionCase {
   id             Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId         Int
   /** Repair gate this dispute came from. v1: always "verify_repair". */
   gate           String
@@ -227,6 +241,7 @@ model GatePrecisionCase {
   @@index([taskId])
   @@index([verdict])
   @@index([detectedAt])
+  @@index([workspaceId])
 }
 
 // Signature suggestions learned from detection-miss cases (task #578).
@@ -238,6 +253,8 @@ model GatePrecisionCase {
 // flips the mode back to manual.
 model MissSignatureSuggestion {
   id          Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   /** Source DetectionMissCase.id; null for signatures without a single case. */
   caseId      Int?
   /** The proposed detection cue (what the next watcher/reviewer should look for). */
@@ -255,6 +272,7 @@ model MissSignatureSuggestion {
   @@index([status])
   @@index([caseId])
   @@index([reviewedAt])
+  @@index([workspaceId])
 }
 
 // Prompt evolution records - history of prompt improvements.

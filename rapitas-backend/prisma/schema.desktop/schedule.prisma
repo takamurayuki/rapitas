@@ -13,6 +13,8 @@ enum ScheduleEventType {
 // Schedule events (calendar schedule with reminder notifications)
 model ScheduleEvent {
   id              Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   title           String
   description     String?
   startAt         DateTime
@@ -37,11 +39,14 @@ model ScheduleEvent {
   @@index([userId])
   @@index([startAt])
   @@index([parentEventId])
+  @@index([workspaceId])
 }
 
 // Paid leave remaining days management
 model PaidLeaveBalance {
   id                    Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   userId                String    @unique @default("default")
   totalDays             Int       @default(20) // Annual granted days
   usedDays              Float     @default(0)  // Used days (Float for half-day leave support)
@@ -54,25 +59,32 @@ model PaidLeaveBalance {
 
   @@unique([userId, fiscalYear])
   @@index([fiscalYear])
+  @@index([workspaceId])
 }
 
 // Google Calendar busy interval for the calendar-aware auto-run gate (task 1174).
 // Times only — no title / attendee / location column, by design (AC1).
 model CalendarBusyBlock {
   id        Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   startAt   DateTime
   endAt     DateTime
   fetchedAt DateTime @default(now())
 
   @@index([startAt])
+  @@index([workspaceId])
 }
 
 // Single-row status of the calendar FreeBusy poller (id = 1). lastError never
 // contains event details; the OAuth token lives in the OS keychain, not here.
 model CalendarSyncState {
   id           Int       @id @default(1)
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   lastSyncedAt DateTime?
   lastStatus   String    @default("never") // never | ok | error
   lastError    String?
   updatedAt    DateTime  @updatedAt
+  @@index([workspaceId])
 }

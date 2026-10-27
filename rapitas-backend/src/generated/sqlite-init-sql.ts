@@ -77,6 +77,7 @@ CREATE TABLE "ApprovalRequest" (
 -- CreateTable
 CREATE TABLE "AIAgentConfig" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "agentType" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "apiKeyEncrypted" TEXT,
@@ -176,6 +177,7 @@ CREATE TABLE "AgentExecutionConfig" (
 -- CreateTable
 CREATE TABLE "SystemPrompt" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "key" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
@@ -190,6 +192,7 @@ CREATE TABLE "SystemPrompt" (
 -- CreateTable
 CREATE TABLE "AgentConfigAuditLog" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "agentConfigId" INTEGER NOT NULL,
     "action" TEXT NOT NULL,
     "changeDetails" TEXT,
@@ -203,6 +206,7 @@ CREATE TABLE "AgentConfigAuditLog" (
 -- CreateTable
 CREATE TABLE "CopilotMessage" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "taskId" INTEGER,
     "role" TEXT NOT NULL,
     "content" TEXT NOT NULL,
@@ -214,6 +218,7 @@ CREATE TABLE "CopilotMessage" (
 -- CreateTable
 CREATE TABLE "AgentDecisionTrace" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "taskId" INTEGER,
     "executionId" INTEGER,
     "sessionId" INTEGER,
@@ -317,6 +322,7 @@ CREATE TABLE "TaskAnalysisConfig" (
 -- CreateTable
 CREATE TABLE "TaskSuggestionCache" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "themeId" INTEGER NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT,
@@ -336,6 +342,7 @@ CREATE TABLE "TaskSuggestionCache" (
 -- CreateTable
 CREATE TABLE "Category" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "name" TEXT NOT NULL,
     "description" TEXT,
     "color" TEXT NOT NULL DEFAULT '#6366F1',
@@ -370,6 +377,7 @@ CREATE TABLE "Theme" (
 -- CreateTable
 CREATE TABLE "Project" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "name" TEXT NOT NULL,
     "description" TEXT,
     "color" TEXT NOT NULL DEFAULT '#3B82F6',
@@ -537,6 +545,7 @@ CREATE TABLE "TaskPrompt" (
 -- CreateTable
 CREATE TABLE "DeletedTask" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "originalTaskId" INTEGER NOT NULL,
     "title" TEXT NOT NULL,
     "themeId" INTEGER,
@@ -550,6 +559,7 @@ CREATE TABLE "DeletedTask" (
 -- CreateTable
 CREATE TABLE "Experiment" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "taskId" INTEGER,
     "title" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'created',
@@ -605,6 +615,7 @@ CREATE TABLE "CriticReview" (
 -- CreateTable
 CREATE TABLE "LearningPattern" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "patternType" TEXT NOT NULL,
     "category" TEXT NOT NULL,
     "description" TEXT NOT NULL,
@@ -663,6 +674,7 @@ CREATE TABLE "TaskDurationPrediction" (
 -- CreateTable
 CREATE TABLE "WorkflowOptimizationRule" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "ruleType" TEXT NOT NULL,
     "condition" TEXT NOT NULL,
     "recommendation" TEXT NOT NULL,
@@ -679,6 +691,7 @@ CREATE TABLE "WorkflowOptimizationRule" (
 -- CreateTable
 CREATE TABLE "DetectionMissCase" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "taskId" INTEGER NOT NULL,
     "gate" TEXT NOT NULL,
     "reason" TEXT NOT NULL DEFAULT '',
@@ -691,6 +704,7 @@ CREATE TABLE "DetectionMissCase" (
 -- CreateTable
 CREATE TABLE "GatePrecisionCase" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "taskId" INTEGER NOT NULL,
     "gate" TEXT NOT NULL,
     "criterionIndex" INTEGER,
@@ -705,6 +719,7 @@ CREATE TABLE "GatePrecisionCase" (
 -- CreateTable
 CREATE TABLE "MissSignatureSuggestion" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "caseId" INTEGER,
     "signature" TEXT NOT NULL,
     "explanation" TEXT NOT NULL DEFAULT '',
@@ -735,6 +750,7 @@ CREATE TABLE "PromptEvolution" (
 -- CreateTable
 CREATE TABLE "GitHubIntegration" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "repositoryUrl" TEXT NOT NULL,
     "repositoryName" TEXT NOT NULL,
     "ownerName" TEXT NOT NULL,
@@ -831,6 +847,7 @@ CREATE TABLE "GitCommit" (
 -- CreateTable
 CREATE TABLE "FavoriteDirectory" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "path" TEXT NOT NULL,
     "name" TEXT,
     "isGitRepo" BOOLEAN NOT NULL DEFAULT false,
@@ -841,6 +858,7 @@ CREATE TABLE "FavoriteDirectory" (
 -- CreateTable
 CREATE TABLE "GitRetryMetric" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "variant" TEXT NOT NULL,
     "command" TEXT NOT NULL,
     "attempts" INTEGER NOT NULL,
@@ -857,6 +875,7 @@ CREATE TABLE "GitRetryMetric" (
 -- CreateTable
 CREATE TABLE "KnowledgeEntry" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "sourceType" TEXT NOT NULL,
     "sourceId" TEXT,
     "title" TEXT NOT NULL,
@@ -888,6 +907,7 @@ CREATE TABLE "KnowledgeEntry" (
 -- CreateTable
 CREATE TABLE "TimelineEvent" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "eventType" TEXT NOT NULL,
     "actorType" TEXT NOT NULL DEFAULT 'system',
     "actorId" TEXT,
@@ -899,6 +919,7 @@ CREATE TABLE "TimelineEvent" (
 -- CreateTable
 CREATE TABLE "ConsolidationRun" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "runDate" DATETIME NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'running',
     "entriesProcessed" INTEGER NOT NULL DEFAULT 0,
@@ -953,6 +974,7 @@ CREATE TABLE "KnowledgeReconsolidation" (
 -- CreateTable
 CREATE TABLE "MemoryTaskQueue" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "taskType" TEXT NOT NULL,
     "payload" TEXT NOT NULL DEFAULT '{}',
     "priority" INTEGER NOT NULL DEFAULT 0,
@@ -970,6 +992,7 @@ CREATE TABLE "MemoryTaskQueue" (
 -- CreateTable
 CREATE TABLE "MemoryJournalEntry" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "operationType" TEXT NOT NULL,
     "targetTable" TEXT NOT NULL,
     "targetId" INTEGER,
@@ -982,6 +1005,7 @@ CREATE TABLE "MemoryJournalEntry" (
 -- CreateTable
 CREATE TABLE "WeeklyReview" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "weekStart" DATETIME NOT NULL,
     "weekEnd" DATETIME NOT NULL,
     "summary" TEXT NOT NULL,
@@ -994,6 +1018,7 @@ CREATE TABLE "WeeklyReview" (
 -- CreateTable
 CREATE TABLE "KnowledgeGraphNode" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "label" TEXT NOT NULL,
     "nodeType" TEXT NOT NULL,
     "description" TEXT,
@@ -1021,6 +1046,7 @@ CREATE TABLE "KnowledgeGraphEdge" (
 -- CreateTable
 CREATE TABLE "DecisionLog" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "decision" TEXT NOT NULL,
     "context" TEXT NOT NULL,
     "rationale" TEXT,
@@ -1054,6 +1080,7 @@ CREATE TABLE "EpisodeMemory" (
 -- CreateTable
 CREATE TABLE "Note" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "workspaceId" INTEGER,
     "title" TEXT NOT NULL,
     "content" TEXT NOT NULL DEFAULT '',
     "isPinned" BOOLEAN NOT NULL DEFAULT false,
@@ -1077,6 +1104,7 @@ CREATE TABLE "NoteTaskLink" (
 -- CreateTable
 CREATE TABLE "PrRiskConfig" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "stage" TEXT NOT NULL DEFAULT 'off',
     "threshold" REAL NOT NULL DEFAULT 0.5,
     "modelJson" TEXT,
@@ -1088,6 +1116,7 @@ CREATE TABLE "PrRiskConfig" (
 -- CreateTable
 CREATE TABLE "PrRiskScore" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "repo" TEXT NOT NULL,
     "prNumber" INTEGER NOT NULL,
     "headSha" TEXT NOT NULL,
@@ -1107,6 +1136,7 @@ CREATE TABLE "PrRiskScore" (
 -- CreateTable
 CREATE TABLE "PrOutcome" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "repo" TEXT NOT NULL,
     "prNumber" INTEGER NOT NULL,
     "mergeSha" TEXT,
@@ -1123,6 +1153,7 @@ CREATE TABLE "PrOutcome" (
 -- CreateTable
 CREATE TABLE "PrRiskMonthlyMetric" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "month" TEXT NOT NULL,
     "sample" INTEGER NOT NULL,
     "tp" INTEGER NOT NULL,
@@ -1140,6 +1171,7 @@ CREATE TABLE "PrRiskMonthlyMetric" (
 -- CreateTable
 CREATE TABLE "PrRiskThresholdReview" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "month" TEXT NOT NULL,
     "previousThreshold" REAL NOT NULL,
     "proposedThreshold" REAL,
@@ -1169,6 +1201,7 @@ CREATE TABLE "Resource" (
 -- CreateTable
 CREATE TABLE "ScheduleEvent" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "title" TEXT NOT NULL,
     "description" TEXT,
     "startAt" DATETIME NOT NULL,
@@ -1192,6 +1225,7 @@ CREATE TABLE "ScheduleEvent" (
 -- CreateTable
 CREATE TABLE "PaidLeaveBalance" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "userId" TEXT NOT NULL DEFAULT 'default',
     "totalDays" INTEGER NOT NULL DEFAULT 20,
     "usedDays" REAL NOT NULL DEFAULT 0,
@@ -1206,6 +1240,7 @@ CREATE TABLE "PaidLeaveBalance" (
 -- CreateTable
 CREATE TABLE "CalendarBusyBlock" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "startAt" DATETIME NOT NULL,
     "endAt" DATETIME NOT NULL,
     "fetchedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -1214,6 +1249,7 @@ CREATE TABLE "CalendarBusyBlock" (
 -- CreateTable
 CREATE TABLE "CalendarSyncState" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT DEFAULT 1,
+    "workspaceId" INTEGER,
     "lastSyncedAt" DATETIME,
     "lastStatus" TEXT NOT NULL DEFAULT 'never',
     "lastError" TEXT,
@@ -1223,6 +1259,7 @@ CREATE TABLE "CalendarSyncState" (
 -- CreateTable
 CREATE TABLE "Notification" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "type" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "message" TEXT NOT NULL,
@@ -1236,6 +1273,7 @@ CREATE TABLE "Notification" (
 -- CreateTable
 CREATE TABLE "UserSettings" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "developerModeDefault" BOOLEAN NOT NULL DEFAULT false,
     "aiTaskAnalysisDefault" BOOLEAN NOT NULL DEFAULT false,
     "autoResumeInterruptedTasks" BOOLEAN NOT NULL DEFAULT false,
@@ -1280,6 +1318,7 @@ CREATE TABLE "UserSettings" (
 -- CreateTable
 CREATE TABLE "BacklogSchedule" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "kind" TEXT NOT NULL,
     "enabled" BOOLEAN NOT NULL DEFAULT false,
     "frequency" TEXT NOT NULL DEFAULT 'weekly',
@@ -1293,6 +1332,7 @@ CREATE TABLE "BacklogSchedule" (
 -- CreateTable
 CREATE TABLE "ThemeBacklogSchedule" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "kind" TEXT NOT NULL,
     "themeId" INTEGER NOT NULL,
     "enabled" BOOLEAN NOT NULL DEFAULT true,
@@ -1342,6 +1382,7 @@ CREATE TABLE "UserSession" (
 -- CreateTable
 CREATE TABLE "SearchMiss" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "query" TEXT NOT NULL,
     "hitCount" INTEGER NOT NULL DEFAULT 0,
     "lastSearchedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1356,6 +1397,7 @@ CREATE TABLE "SearchMiss" (
 -- CreateTable
 CREATE TABLE "AssistantAction" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "capabilityId" TEXT NOT NULL,
     "status" TEXT NOT NULL,
     "argumentsJson" TEXT,
@@ -1363,6 +1405,27 @@ CREATE TABLE "AssistantAction" (
     "errorMessage" TEXT,
     "taskId" INTEGER,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "Workspace" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "slug" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "isDefault" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "WorkspaceMember" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "role" TEXT NOT NULL DEFAULT 'owner',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "WorkspaceMember_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "WorkspaceMember_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -1412,6 +1475,7 @@ CREATE TABLE "ActivityLog" (
 -- CreateTable
 CREATE TABLE "DailyScheduleBlock" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "label" TEXT NOT NULL,
     "startTime" TEXT NOT NULL,
     "endTime" TEXT NOT NULL,
@@ -1427,6 +1491,7 @@ CREATE TABLE "DailyScheduleBlock" (
 -- CreateTable
 CREATE TABLE "UsageBudget" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "unit" TEXT NOT NULL DEFAULT 'tokens',
     "monthlyLimit" INTEGER NOT NULL,
     "snoozedUntil" DATETIME,
@@ -1439,6 +1504,7 @@ CREATE TABLE "UsageBudget" (
 -- CreateTable
 CREATE TABLE "UsageBudgetThemeShare" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "budgetId" INTEGER NOT NULL,
     "themeId" INTEGER NOT NULL,
     "sharePercent" REAL NOT NULL
@@ -1447,6 +1513,7 @@ CREATE TABLE "UsageBudgetThemeShare" (
 -- CreateTable
 CREATE TABLE "UsageClassificationRule" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "themeId" INTEGER NOT NULL,
     "keyword" TEXT NOT NULL,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
@@ -1498,6 +1565,7 @@ CREATE TABLE "WorkflowRoleConfig" (
 -- CreateTable
 CREATE TABLE "WorkflowModeConfig" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "mode" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
@@ -1515,6 +1583,7 @@ CREATE TABLE "WorkflowModeConfig" (
 -- CreateTable
 CREATE TABLE "OrchestraSession" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "status" TEXT NOT NULL DEFAULT 'idle',
     "maxConcurrency" INTEGER NOT NULL DEFAULT 3,
     "totalTasks" INTEGER NOT NULL DEFAULT 0,
@@ -1597,6 +1666,7 @@ CREATE TABLE "RequirementReviewRetryRequest" (
 -- CreateTable
 CREATE TABLE "ThemeAutoRun" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "themeId" INTEGER NOT NULL,
     "enabled" BOOLEAN NOT NULL DEFAULT false,
     "status" TEXT NOT NULL DEFAULT 'idle',
@@ -1615,6 +1685,9 @@ CREATE TABLE "ThemeAutoRun" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "DeveloperModeConfig_taskId_key" ON "DeveloperModeConfig"("taskId");
+
+-- CreateIndex
+CREATE INDEX "AIAgentConfig_workspaceId_idx" ON "AIAgentConfig"("workspaceId");
 
 -- CreateIndex
 CREATE INDEX "AgentExecution_status_heartbeatAt_idx" ON "AgentExecution"("status", "heartbeatAt");
@@ -1638,16 +1711,25 @@ CREATE INDEX "SystemPrompt_key_idx" ON "SystemPrompt"("key");
 CREATE INDEX "SystemPrompt_category_idx" ON "SystemPrompt"("category");
 
 -- CreateIndex
+CREATE INDEX "SystemPrompt_workspaceId_idx" ON "SystemPrompt"("workspaceId");
+
+-- CreateIndex
 CREATE INDEX "AgentConfigAuditLog_agentConfigId_idx" ON "AgentConfigAuditLog"("agentConfigId");
 
 -- CreateIndex
 CREATE INDEX "AgentConfigAuditLog_createdAt_idx" ON "AgentConfigAuditLog"("createdAt");
 
 -- CreateIndex
+CREATE INDEX "AgentConfigAuditLog_workspaceId_idx" ON "AgentConfigAuditLog"("workspaceId");
+
+-- CreateIndex
 CREATE INDEX "CopilotMessage_taskId_createdAt_idx" ON "CopilotMessage"("taskId", "createdAt");
 
 -- CreateIndex
 CREATE INDEX "CopilotMessage_claudeSessionId_idx" ON "CopilotMessage"("claudeSessionId");
+
+-- CreateIndex
+CREATE INDEX "CopilotMessage_workspaceId_idx" ON "CopilotMessage"("workspaceId");
 
 -- CreateIndex
 CREATE INDEX "AgentDecisionTrace_taskId_nodeKey_idx" ON "AgentDecisionTrace"("taskId", "nodeKey");
@@ -1660,6 +1742,9 @@ CREATE INDEX "AgentDecisionTrace_kind_idx" ON "AgentDecisionTrace"("kind");
 
 -- CreateIndex
 CREATE INDEX "AgentDecisionTrace_consistency_idx" ON "AgentDecisionTrace"("consistency");
+
+-- CreateIndex
+CREATE INDEX "AgentDecisionTrace_workspaceId_idx" ON "AgentDecisionTrace"("workspaceId");
 
 -- CreateIndex
 CREATE INDEX "UserBehavior_userId_actionType_idx" ON "UserBehavior"("userId", "actionType");
@@ -1687,6 +1772,15 @@ CREATE INDEX "TaskAnalysisConfig_taskId_idx" ON "TaskAnalysisConfig"("taskId");
 
 -- CreateIndex
 CREATE INDEX "TaskSuggestionCache_themeId_idx" ON "TaskSuggestionCache"("themeId");
+
+-- CreateIndex
+CREATE INDEX "TaskSuggestionCache_workspaceId_idx" ON "TaskSuggestionCache"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "Category_workspaceId_idx" ON "Category"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "Project_workspaceId_idx" ON "Project"("workspaceId");
 
 -- CreateIndex
 CREATE INDEX "Task_status_idx" ON "Task"("status");
@@ -1728,6 +1822,9 @@ CREATE INDEX "DeletedTask_deletedAt_idx" ON "DeletedTask"("deletedAt");
 CREATE INDEX "DeletedTask_originalTaskId_idx" ON "DeletedTask"("originalTaskId");
 
 -- CreateIndex
+CREATE INDEX "DeletedTask_workspaceId_idx" ON "DeletedTask"("workspaceId");
+
+-- CreateIndex
 CREATE INDEX "Experiment_taskId_idx" ON "Experiment"("taskId");
 
 -- CreateIndex
@@ -1735,6 +1832,9 @@ CREATE INDEX "Experiment_status_idx" ON "Experiment"("status");
 
 -- CreateIndex
 CREATE INDEX "Experiment_createdAt_idx" ON "Experiment"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "Experiment_workspaceId_idx" ON "Experiment"("workspaceId");
 
 -- CreateIndex
 CREATE INDEX "Hypothesis_experimentId_idx" ON "Hypothesis"("experimentId");
@@ -1756,6 +1856,9 @@ CREATE INDEX "LearningPattern_category_idx" ON "LearningPattern"("category");
 
 -- CreateIndex
 CREATE INDEX "LearningPattern_confidence_idx" ON "LearningPattern"("confidence");
+
+-- CreateIndex
+CREATE INDEX "LearningPattern_workspaceId_idx" ON "LearningPattern"("workspaceId");
 
 -- CreateIndex
 CREATE INDEX "WorkflowLearningRecord_workflowMode_idx" ON "WorkflowLearningRecord"("workflowMode");
@@ -1794,6 +1897,9 @@ CREATE INDEX "WorkflowOptimizationRule_confidence_idx" ON "WorkflowOptimizationR
 CREATE INDEX "WorkflowOptimizationRule_isActive_idx" ON "WorkflowOptimizationRule"("isActive");
 
 -- CreateIndex
+CREATE INDEX "WorkflowOptimizationRule_workspaceId_idx" ON "WorkflowOptimizationRule"("workspaceId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "DetectionMissCase_dedupKey_key" ON "DetectionMissCase"("dedupKey");
 
 -- CreateIndex
@@ -1804,6 +1910,9 @@ CREATE INDEX "DetectionMissCase_taskId_idx" ON "DetectionMissCase"("taskId");
 
 -- CreateIndex
 CREATE INDEX "DetectionMissCase_detectedAt_idx" ON "DetectionMissCase"("detectedAt");
+
+-- CreateIndex
+CREATE INDEX "DetectionMissCase_workspaceId_idx" ON "DetectionMissCase"("workspaceId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "GatePrecisionCase_dedupKey_key" ON "GatePrecisionCase"("dedupKey");
@@ -1821,6 +1930,9 @@ CREATE INDEX "GatePrecisionCase_verdict_idx" ON "GatePrecisionCase"("verdict");
 CREATE INDEX "GatePrecisionCase_detectedAt_idx" ON "GatePrecisionCase"("detectedAt");
 
 -- CreateIndex
+CREATE INDEX "GatePrecisionCase_workspaceId_idx" ON "GatePrecisionCase"("workspaceId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "MissSignatureSuggestion_dedupKey_key" ON "MissSignatureSuggestion"("dedupKey");
 
 -- CreateIndex
@@ -1831,6 +1943,9 @@ CREATE INDEX "MissSignatureSuggestion_caseId_idx" ON "MissSignatureSuggestion"("
 
 -- CreateIndex
 CREATE INDEX "MissSignatureSuggestion_reviewedAt_idx" ON "MissSignatureSuggestion"("reviewedAt");
+
+-- CreateIndex
+CREATE INDEX "MissSignatureSuggestion_workspaceId_idx" ON "MissSignatureSuggestion"("workspaceId");
 
 -- CreateIndex
 CREATE INDEX "PromptEvolution_category_idx" ON "PromptEvolution"("category");
@@ -1845,6 +1960,9 @@ CREATE INDEX "PromptEvolution_status_idx" ON "PromptEvolution"("status");
 CREATE UNIQUE INDEX "GitHubIntegration_repositoryUrl_key" ON "GitHubIntegration"("repositoryUrl");
 
 -- CreateIndex
+CREATE INDEX "GitHubIntegration_workspaceId_idx" ON "GitHubIntegration"("workspaceId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "GitHubPullRequest_integrationId_prNumber_key" ON "GitHubPullRequest"("integrationId", "prNumber");
 
 -- CreateIndex
@@ -1854,10 +1972,16 @@ CREATE UNIQUE INDEX "GitHubIssue_integrationId_issueNumber_key" ON "GitHubIssue"
 CREATE UNIQUE INDEX "FavoriteDirectory_path_key" ON "FavoriteDirectory"("path");
 
 -- CreateIndex
+CREATE INDEX "FavoriteDirectory_workspaceId_idx" ON "FavoriteDirectory"("workspaceId");
+
+-- CreateIndex
 CREATE INDEX "GitRetryMetric_variant_idx" ON "GitRetryMetric"("variant");
 
 -- CreateIndex
 CREATE INDEX "GitRetryMetric_createdAt_idx" ON "GitRetryMetric"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "GitRetryMetric_workspaceId_idx" ON "GitRetryMetric"("workspaceId");
 
 -- CreateIndex
 CREATE INDEX "KnowledgeEntry_sourceType_sourceId_idx" ON "KnowledgeEntry"("sourceType", "sourceId");
@@ -1881,6 +2005,9 @@ CREATE INDEX "KnowledgeEntry_decayScore_idx" ON "KnowledgeEntry"("decayScore");
 CREATE INDEX "KnowledgeEntry_ideabox_list_idx" ON "KnowledgeEntry"("sourceType", "forgettingStage", "themeId", "confidence", "createdAt");
 
 -- CreateIndex
+CREATE INDEX "KnowledgeEntry_workspaceId_idx" ON "KnowledgeEntry"("workspaceId");
+
+-- CreateIndex
 CREATE INDEX "TimelineEvent_eventType_idx" ON "TimelineEvent"("eventType");
 
 -- CreateIndex
@@ -1890,10 +2017,16 @@ CREATE INDEX "TimelineEvent_correlationId_idx" ON "TimelineEvent"("correlationId
 CREATE INDEX "TimelineEvent_createdAt_idx" ON "TimelineEvent"("createdAt");
 
 -- CreateIndex
+CREATE INDEX "TimelineEvent_workspaceId_idx" ON "TimelineEvent"("workspaceId");
+
+-- CreateIndex
 CREATE INDEX "ConsolidationRun_runDate_idx" ON "ConsolidationRun"("runDate");
 
 -- CreateIndex
 CREATE INDEX "ConsolidationRun_status_idx" ON "ConsolidationRun"("status");
+
+-- CreateIndex
+CREATE INDEX "ConsolidationRun_workspaceId_idx" ON "ConsolidationRun"("workspaceId");
 
 -- CreateIndex
 CREATE INDEX "KnowledgeContradiction_resolution_idx" ON "KnowledgeContradiction"("resolution");
@@ -1917,13 +2050,22 @@ CREATE INDEX "MemoryTaskQueue_taskType_idx" ON "MemoryTaskQueue"("taskType");
 CREATE INDEX "MemoryTaskQueue_scheduledAt_idx" ON "MemoryTaskQueue"("scheduledAt");
 
 -- CreateIndex
+CREATE INDEX "MemoryTaskQueue_workspaceId_idx" ON "MemoryTaskQueue"("workspaceId");
+
+-- CreateIndex
 CREATE INDEX "MemoryJournalEntry_status_idx" ON "MemoryJournalEntry"("status");
 
 -- CreateIndex
 CREATE INDEX "MemoryJournalEntry_createdAt_idx" ON "MemoryJournalEntry"("createdAt");
 
 -- CreateIndex
+CREATE INDEX "MemoryJournalEntry_workspaceId_idx" ON "MemoryJournalEntry"("workspaceId");
+
+-- CreateIndex
 CREATE INDEX "WeeklyReview_generatedAt_idx" ON "WeeklyReview"("generatedAt");
+
+-- CreateIndex
+CREATE INDEX "WeeklyReview_workspaceId_idx" ON "WeeklyReview"("workspaceId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WeeklyReview_weekStart_key" ON "WeeklyReview"("weekStart");
@@ -1933,6 +2075,9 @@ CREATE INDEX "KnowledgeGraphNode_nodeType_idx" ON "KnowledgeGraphNode"("nodeType
 
 -- CreateIndex
 CREATE INDEX "KnowledgeGraphNode_weight_idx" ON "KnowledgeGraphNode"("weight");
+
+-- CreateIndex
+CREATE INDEX "KnowledgeGraphNode_workspaceId_idx" ON "KnowledgeGraphNode"("workspaceId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "KnowledgeGraphNode_label_nodeType_key" ON "KnowledgeGraphNode"("label", "nodeType");
@@ -1959,6 +2104,9 @@ CREATE INDEX "DecisionLog_calibration_idx" ON "DecisionLog"("calibration");
 CREATE INDEX "DecisionLog_themeId_idx" ON "DecisionLog"("themeId");
 
 -- CreateIndex
+CREATE INDEX "DecisionLog_workspaceId_idx" ON "DecisionLog"("workspaceId");
+
+-- CreateIndex
 CREATE INDEX "EpisodeMemory_experimentId_idx" ON "EpisodeMemory"("experimentId");
 
 -- CreateIndex
@@ -1974,13 +2122,22 @@ CREATE INDEX "Note_updatedAt_idx" ON "Note"("updatedAt");
 CREATE INDEX "Note_isPinned_idx" ON "Note"("isPinned");
 
 -- CreateIndex
+CREATE INDEX "Note_workspaceId_idx" ON "Note"("workspaceId");
+
+-- CreateIndex
 CREATE INDEX "NoteTaskLink_taskId_idx" ON "NoteTaskLink"("taskId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "NoteTaskLink_noteId_taskId_key" ON "NoteTaskLink"("noteId", "taskId");
 
 -- CreateIndex
+CREATE INDEX "PrRiskConfig_workspaceId_idx" ON "PrRiskConfig"("workspaceId");
+
+-- CreateIndex
 CREATE INDEX "PrRiskScore_repo_prNumber_idx" ON "PrRiskScore"("repo", "prNumber");
+
+-- CreateIndex
+CREATE INDEX "PrRiskScore_workspaceId_idx" ON "PrRiskScore"("workspaceId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "PrRiskScore_repo_prNumber_headSha_key" ON "PrRiskScore"("repo", "prNumber", "headSha");
@@ -1989,13 +2146,22 @@ CREATE UNIQUE INDEX "PrRiskScore_repo_prNumber_headSha_key" ON "PrRiskScore"("re
 CREATE INDEX "PrOutcome_label_idx" ON "PrOutcome"("label");
 
 -- CreateIndex
+CREATE INDEX "PrOutcome_workspaceId_idx" ON "PrOutcome"("workspaceId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "PrOutcome_repo_prNumber_key" ON "PrOutcome"("repo", "prNumber");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "PrRiskMonthlyMetric_month_key" ON "PrRiskMonthlyMetric"("month");
 
 -- CreateIndex
+CREATE INDEX "PrRiskMonthlyMetric_workspaceId_idx" ON "PrRiskMonthlyMetric"("workspaceId");
+
+-- CreateIndex
 CREATE INDEX "PrRiskThresholdReview_month_idx" ON "PrRiskThresholdReview"("month");
+
+-- CreateIndex
+CREATE INDEX "PrRiskThresholdReview_workspaceId_idx" ON "PrRiskThresholdReview"("workspaceId");
 
 -- CreateIndex
 CREATE INDEX "ScheduleEvent_type_idx" ON "ScheduleEvent"("type");
@@ -2010,10 +2176,16 @@ CREATE INDEX "ScheduleEvent_startAt_idx" ON "ScheduleEvent"("startAt");
 CREATE INDEX "ScheduleEvent_parentEventId_idx" ON "ScheduleEvent"("parentEventId");
 
 -- CreateIndex
+CREATE INDEX "ScheduleEvent_workspaceId_idx" ON "ScheduleEvent"("workspaceId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "PaidLeaveBalance_userId_key" ON "PaidLeaveBalance"("userId");
 
 -- CreateIndex
 CREATE INDEX "PaidLeaveBalance_fiscalYear_idx" ON "PaidLeaveBalance"("fiscalYear");
+
+-- CreateIndex
+CREATE INDEX "PaidLeaveBalance_workspaceId_idx" ON "PaidLeaveBalance"("workspaceId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "PaidLeaveBalance_userId_fiscalYear_key" ON "PaidLeaveBalance"("userId", "fiscalYear");
@@ -2022,7 +2194,25 @@ CREATE UNIQUE INDEX "PaidLeaveBalance_userId_fiscalYear_key" ON "PaidLeaveBalanc
 CREATE INDEX "CalendarBusyBlock_startAt_idx" ON "CalendarBusyBlock"("startAt");
 
 -- CreateIndex
+CREATE INDEX "CalendarBusyBlock_workspaceId_idx" ON "CalendarBusyBlock"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "CalendarSyncState_workspaceId_idx" ON "CalendarSyncState"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "Notification_workspaceId_idx" ON "Notification"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "UserSettings_workspaceId_idx" ON "UserSettings"("workspaceId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "BacklogSchedule_kind_key" ON "BacklogSchedule"("kind");
+
+-- CreateIndex
+CREATE INDEX "BacklogSchedule_workspaceId_idx" ON "BacklogSchedule"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "ThemeBacklogSchedule_workspaceId_idx" ON "ThemeBacklogSchedule"("workspaceId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ThemeBacklogSchedule_kind_themeId_key" ON "ThemeBacklogSchedule"("kind", "themeId");
@@ -2073,10 +2263,28 @@ CREATE INDEX "SearchMiss_hitCount_idx" ON "SearchMiss"("hitCount");
 CREATE INDEX "SearchMiss_themeId_idx" ON "SearchMiss"("themeId");
 
 -- CreateIndex
+CREATE INDEX "SearchMiss_workspaceId_idx" ON "SearchMiss"("workspaceId");
+
+-- CreateIndex
 CREATE INDEX "AssistantAction_capabilityId_createdAt_idx" ON "AssistantAction"("capabilityId", "createdAt");
 
 -- CreateIndex
 CREATE INDEX "AssistantAction_createdAt_idx" ON "AssistantAction"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "AssistantAction_workspaceId_idx" ON "AssistantAction"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Workspace_slug_key" ON "Workspace"("slug");
+
+-- CreateIndex
+CREATE INDEX "Workspace_isDefault_idx" ON "Workspace"("isDefault");
+
+-- CreateIndex
+CREATE INDEX "WorkspaceMember_userId_idx" ON "WorkspaceMember"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkspaceMember_workspaceId_userId_key" ON "WorkspaceMember"("workspaceId", "userId");
 
 -- CreateIndex
 CREATE INDEX "PomodoroSession_status_idx" ON "PomodoroSession"("status");
@@ -2085,7 +2293,19 @@ CREATE INDEX "PomodoroSession_status_idx" ON "PomodoroSession"("status");
 CREATE INDEX "PomodoroSession_taskId_idx" ON "PomodoroSession"("taskId");
 
 -- CreateIndex
+CREATE INDEX "DailyScheduleBlock_workspaceId_idx" ON "DailyScheduleBlock"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "UsageBudget_workspaceId_idx" ON "UsageBudget"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "UsageBudgetThemeShare_workspaceId_idx" ON "UsageBudgetThemeShare"("workspaceId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "UsageBudgetThemeShare_budgetId_themeId_key" ON "UsageBudgetThemeShare"("budgetId", "themeId");
+
+-- CreateIndex
+CREATE INDEX "UsageClassificationRule_workspaceId_idx" ON "UsageClassificationRule"("workspaceId");
 
 -- CreateIndex
 CREATE INDEX "WorkflowFile_fileType_updatedAt_idx" ON "WorkflowFile"("fileType", "updatedAt");
@@ -2106,7 +2326,13 @@ CREATE UNIQUE INDEX "WorkflowModeConfig_mode_key" ON "WorkflowModeConfig"("mode"
 CREATE INDEX "WorkflowModeConfig_mode_idx" ON "WorkflowModeConfig"("mode");
 
 -- CreateIndex
+CREATE INDEX "WorkflowModeConfig_workspaceId_idx" ON "WorkflowModeConfig"("workspaceId");
+
+-- CreateIndex
 CREATE INDEX "OrchestraSession_status_idx" ON "OrchestraSession"("status");
+
+-- CreateIndex
+CREATE INDEX "OrchestraSession_workspaceId_idx" ON "OrchestraSession"("workspaceId");
 
 -- CreateIndex
 CREATE INDEX "WorkflowTransition_taskId_createdAt_idx" ON "WorkflowTransition"("taskId", "createdAt");
@@ -2149,4 +2375,7 @@ CREATE UNIQUE INDEX "ThemeAutoRun_themeId_key" ON "ThemeAutoRun"("themeId");
 
 -- CreateIndex
 CREATE INDEX "ThemeAutoRun_status_idx" ON "ThemeAutoRun"("status");
+
+-- CreateIndex
+CREATE INDEX "ThemeAutoRun_workspaceId_idx" ON "ThemeAutoRun"("workspaceId");
 `;

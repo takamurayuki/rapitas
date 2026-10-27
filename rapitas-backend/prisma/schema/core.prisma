@@ -6,6 +6,8 @@
 
 model Category {
   id          Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   name        String
   description String?
   color       String   @default("#6366F1")
@@ -17,6 +19,7 @@ model Category {
   updatedAt   DateTime @updatedAt
   themes      Theme[]
   labels      Label[]
+  @@index([workspaceId])
 }
 
 model Theme {
@@ -51,6 +54,8 @@ model Theme {
 
 model Project {
   id          Int         @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   name        String
   description String?
   color       String      @default("#3B82F6")
@@ -59,6 +64,7 @@ model Project {
   updatedAt   DateTime    @updatedAt
   tasks       Task[]
   milestones  Milestone[]
+  @@index([workspaceId])
 }
 
 model Milestone {
@@ -315,6 +321,8 @@ model TaskPrompt {
 // not fill the trash with things nobody will miss.
 model DeletedTask {
   id             Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   originalTaskId Int
   // Denormalised so the trash list reads without parsing every snapshot.
   title          String
@@ -330,4 +338,5 @@ model DeletedTask {
 
   @@index([deletedAt])
   @@index([originalTaskId])
+  @@index([workspaceId])
 }

@@ -7,6 +7,8 @@
 // Knowledge entries (core of memory system)
 model KnowledgeEntry {
   id              Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   sourceType      String    // "agent_execution" | "user_learning" | "task_pattern" | "distilled_procedure" | "consolidated"
   sourceId        String?
   title           String
@@ -53,11 +55,14 @@ model KnowledgeEntry {
   // Sort modifiers omitted for cross-provider compatibility (the
   // optimizer picks the right scan direction with ASC indexes too).
   @@index([sourceType, forgettingStage, themeId, confidence, createdAt], map: "KnowledgeEntry_ideabox_list_idx")
+  @@index([workspaceId])
 }
 
 // Timeline events (event log foundation of memory system)
 model TimelineEvent {
   id              Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   eventType       String    // "task_completed" | "agent_execution" | "knowledge_created" | "consolidation" | etc.
   actorType       String    @default("system") // "user" | "agent" | "system"
   actorId         String?
@@ -68,11 +73,14 @@ model TimelineEvent {
   @@index([eventType])
   @@index([correlationId])
   @@index([createdAt])
+  @@index([workspaceId])
 }
 
 // Consolidation execution records (daily knowledge integration process logs)
 model ConsolidationRun {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   runDate           DateTime
   status            String    @default("running") // "running" | "completed" | "failed"
   entriesProcessed  Int       @default(0)
@@ -85,6 +93,7 @@ model ConsolidationRun {
 
   @@index([runDate])
   @@index([status])
+  @@index([workspaceId])
 }
 
 // Knowledge contradiction tracking (management of conflicting entry pairs)
@@ -136,6 +145,8 @@ model KnowledgeReconsolidation {
 // Memory system background job queue
 model MemoryTaskQueue {
   id              Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskType        String    // "embed" | "consolidate" | "validate" | "forget_sweep" | "distill" | "detect_contradiction"
   payload         String    @default("{}") // JSON
   priority        Int       @default(0)    // Higher value = higher priority
@@ -152,11 +163,14 @@ model MemoryTaskQueue {
   @@index([status, priority])
   @@index([taskType])
   @@index([scheduledAt])
+  @@index([workspaceId])
 }
 
 // Memory journal entries (WAL crash resistance)
 model MemoryJournalEntry {
   id              Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   operationType   String    // "create" | "update" | "delete"
   targetTable     String    // "KnowledgeEntry" | "TimelineEvent" | etc.
   targetId        Int?
@@ -167,6 +181,7 @@ model MemoryJournalEntry {
 
   @@index([status])
   @@index([createdAt])
+  @@index([workspaceId])
 }
 
 // AI-generated weekly review (Tier S #3)
@@ -174,6 +189,8 @@ model MemoryJournalEntry {
 // TimeEntry, PomodoroSession, and ActivityLog. One row per ISO week.
 model WeeklyReview {
   id          Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   weekStart   DateTime // Monday 00:00 of the reviewed week
   weekEnd     DateTime // Sunday 23:59:59 of the reviewed week
   summary     String   // AI-generated narrative (Markdown allowed)
@@ -184,11 +201,14 @@ model WeeklyReview {
 
   @@unique([weekStart])
   @@index([generatedAt])
+  @@index([workspaceId])
 }
 
 // Knowledge graph nodes
 model KnowledgeGraphNode {
   id            Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   label         String    // Node name
   nodeType      String    // concept, problem, solution, technology, pattern
   description   String?
@@ -205,6 +225,7 @@ model KnowledgeGraphNode {
   @@unique([label, nodeType])
   @@index([nodeType])
   @@index([weight])
+  @@index([workspaceId])
 }
 
 // Knowledge graph edges
@@ -232,6 +253,8 @@ model KnowledgeGraphEdge {
 // first-class columns here to support "due for review" queries and accuracy stats.
 model DecisionLog {
   id               Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   decision         String    // The decision made (acts as the title)
   context          String    // Situation / why a decision was needed
   rationale        String?   // Reasoning behind the choice
@@ -254,6 +277,7 @@ model DecisionLog {
   // Calibration accuracy aggregation.
   @@index([calibration])
   @@index([themeId])
+  @@index([workspaceId])
 }
 
 // Episodic memory - detailed experiment records

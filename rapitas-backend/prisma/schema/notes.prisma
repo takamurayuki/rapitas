@@ -18,6 +18,8 @@
 // every one of those links working; an Int id would break them all.
 model Note {
   id        String   @id
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   title     String
   content   String   @default("")
   isPinned  Boolean  @default(false)
@@ -31,6 +33,7 @@ model Note {
 
   @@index([updatedAt])
   @@index([isPinned])
+  @@index([workspaceId])
 }
 
 // A note attached to a task.
