@@ -51,13 +51,14 @@ describe('Pattern A honours the same suppression gates as Pattern B', () => {
     expect(detectTriStateDesync(patternA({ taskStatus }))).toBeNull();
   });
 
-  // FIXME: 'failed' is NOT in this module's TERMINAL_TASK_STATUSES, so a failed
+  // NOTE: 'failed' is NOT in this module's TERMINAL_TASK_STATUSES, so a failed
   // task is still subject to detection. Three other definitions of the same
   // concept — resumable-execution-policy.ts, concern-backlog-service.ts,
   // concern-recurrence-policy.ts — all DO include it. Pinned here rather than
   // changed: widening the set would also silence detectStagnation and
   // detectUnansweredQuestion for failed tasks, which may be the opposite of
-  // what their owners want. Found by enumeration 2026-10-28; needs a decision.
+  // what their owners want. Found by enumeration 2026-10-28; the decision is
+  // tracked as concern #14244, so this test is the pin, not the fix.
   it('still detects a failed task — "failed" is absent from this terminal set', () => {
     expect(TERMINAL_TASK_STATUSES.has('failed')).toBe(false);
     expect(detectTriStateDesync(patternA({ taskStatus: 'failed' }))?.kind).toBe(

@@ -272,11 +272,12 @@ export function detectTriStateDesync(
     //   themeAutoRunBusyWithOtherTask — about dispatch order; says nothing
     //     about a stale execution row (see its own doc comment).
     //
-    // FIXME: by that same argument taskHalted and autoRunExcluded do not
+    // NOTE: by that same argument taskHalted and autoRunExcluded do not
     // explain the mismatch either — only manuallyWithdrawn does, since
     // stopping an execution is what leaves a session terminal with its
-    // execution unsettled. Kept at the operator's instruction; revisit if
-    // Pattern A goes quiet on a genuinely stuck row.
+    // execution unsettled. They are here at the operator's instruction, not
+    // because the argument for them is as strong; revisit if Pattern A ever
+    // goes quiet on a genuinely stuck row.
     if (input.taskHalted) return null;
     if (input.autoRunExcluded) return null;
     if (input.manuallyWithdrawn) return null;
