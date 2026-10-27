@@ -10,6 +10,8 @@
 // Single-row (id=1) budget. Missing row = not configured (no alerts).
 model UsageBudget {
   id              Int       @id
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   unit            String    @default("tokens") // tokens | executions
   monthlyLimit    Int
   snoozedUntil    DateTime? // 「後回し」: suppress the prompt until this instant
@@ -17,6 +19,7 @@ model UsageBudget {
   lastNotifiedKey String? // `YYYY-MM:<level>` already notified (CAS target)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  @@index([workspaceId])
 }
 
 // Manual allocation share per theme. themeId is deliberately NOT a foreign key
@@ -24,11 +27,14 @@ model UsageBudget {
 // SQLite treats NULLs as distinct in unique indexes, so NULL cannot be used.
 model UsageBudgetThemeShare {
   id           Int   @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   budgetId     Int
   themeId      Int
   sharePercent Float
 
   @@unique([budgetId, themeId])
+  @@index([workspaceId])
 }
 
 // Aggregation-only re-classification: an execution whose Task.themeId is null
@@ -36,9 +42,12 @@ model UsageBudgetThemeShare {
 // (case-insensitive, first match by sortOrder wins). Never rewrites tasks.
 model UsageClassificationRule {
   id        Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   themeId   Int
   keyword   String
   sortOrder Int      @default(0)
   enabled   Boolean  @default(true)
   createdAt DateTime @default(now())
+  @@index([workspaceId])
 }

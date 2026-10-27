@@ -6,6 +6,8 @@
 
 model Notification {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   type              String
   title             String
   message           String
@@ -14,10 +16,13 @@ model Notification {
   readAt            DateTime?
   metadata          String?   // JSON stored as string
   createdAt         DateTime  @default(now())
+  @@index([workspaceId])
 }
 
 model UserSettings {
   id                          Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   developerModeDefault        Boolean   @default(false)
   aiTaskAnalysisDefault       Boolean   @default(false)
   autoResumeInterruptedTasks  Boolean   @default(false)
@@ -92,6 +97,7 @@ model UserSettings {
   skipAgentPermissionPrompts  Boolean   @default(true)
   createdAt                   DateTime  @default(now())
   updatedAt                   DateTime  @updatedAt
+  @@index([workspaceId])
 }
 
 /**
@@ -103,6 +109,8 @@ model UserSettings {
  */
 model BacklogSchedule {
   id         Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   kind       String    @unique // 'innovation' | 'vuln_scan'
   enabled    Boolean   @default(false)
   frequency  String    @default("weekly") // 'daily' | 'weekly'
@@ -111,6 +119,7 @@ model BacklogSchedule {
   lastRunAt  DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+  @@index([workspaceId])
 }
 
 /**
@@ -125,6 +134,8 @@ model BacklogSchedule {
  */
 model ThemeBacklogSchedule {
   id         Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   kind       String   // 'innovation' | 'vuln_scan' | 'health_check'
   themeId    Int
   enabled    Boolean  @default(true)
@@ -134,6 +145,7 @@ model ThemeBacklogSchedule {
   updatedAt  DateTime @updatedAt
 
   @@unique([kind, themeId])
+  @@index([workspaceId])
 }
 
 // User authentication system
@@ -157,6 +169,8 @@ model User {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   sessions          UserSession[]
+  // Back-relation required by Prisma for WorkspaceMember (tenancy.prisma).
+  workspaces        WorkspaceMember[]
 
   @@index([username])
   @@index([email])
@@ -191,6 +205,8 @@ model UserSession {
  */
 model SearchMiss {
   id                  Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   query               String    @unique
   hitCount            Int       @default(0)
   lastSearchedAt      DateTime  @default(now())
@@ -204,6 +220,7 @@ model SearchMiss {
   @@index([status])
   @@index([hitCount])
   @@index([themeId])
+  @@index([workspaceId])
 }
 
 // Every act ラピ (the resident assistant) took on the user's behalf — including
@@ -215,6 +232,8 @@ model SearchMiss {
 // something, not the workflow running an agent.
 model AssistantAction {
   id            Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   capabilityId  String
   // proposed | executed | failed | refused
   status        String
@@ -228,4 +247,5 @@ model AssistantAction {
 
   @@index([capabilityId, createdAt])
   @@index([createdAt])
+  @@index([workspaceId])
 }

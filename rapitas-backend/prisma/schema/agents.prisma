@@ -82,6 +82,8 @@ model ApprovalRequest {
 
 model AIAgentConfig {
   id              Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   agentType       String
   name            String
   apiKeyEncrypted String?
@@ -101,6 +103,7 @@ model AIAgentConfig {
   taskAnalysisConfigs     TaskAnalysisConfig[]
   agentExecutionConfigs   AgentExecutionConfig[]
   workflowRoles           WorkflowRoleConfig[]
+  @@index([workspaceId])
 }
 
 model AgentExecution {
@@ -211,6 +214,8 @@ model AgentExecutionConfig {
 // System prompt management (manage hardcoded prompts in DB)
 model SystemPrompt {
   id          Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   key         String    @unique   // Unique key (e.g., "task_analysis", "prompt_optimization")
   name        String              // Display name
   description String?             // Prompt description
@@ -223,11 +228,14 @@ model SystemPrompt {
 
   @@index([key])
   @@index([category])
+  @@index([workspaceId])
 }
 
 // AI agent configuration change log
 model AgentConfigAuditLog {
   id              Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   agentConfigId   Int
   action          String    // create, update, delete, api_key_set, api_key_delete, test_connection
   changeDetails   String?   // JSON stored as string - what was changed
@@ -239,11 +247,14 @@ model AgentConfigAuditLog {
 
   @@index([agentConfigId])
   @@index([createdAt])
+  @@index([workspaceId])
 }
 
 // AI Copilot chat messages (Claude Code CLI based, not API)
 model CopilotMessage {
   id              Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId          Int?     // Associated task (null for global chat)
   role            String   // "user" | "assistant"
   content         String   // Message text
@@ -253,6 +264,7 @@ model CopilotMessage {
 
   @@index([taskId, createdAt])
   @@index([claudeSessionId])
+  @@index([workspaceId])
 }
 
 // Structured audit log of critical decision points (API call / parameter
@@ -262,6 +274,8 @@ model CopilotMessage {
 // Task/AgentExecution/AgentSession records, so no cascade may reach them.
 model AgentDecisionTrace {
   id               Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId           Int?
   executionId      Int?
   sessionId        Int?
@@ -284,4 +298,5 @@ model AgentDecisionTrace {
   @@index([executionId])
   @@index([kind])
   @@index([consistency])
+  @@index([workspaceId])
 }

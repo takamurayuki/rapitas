@@ -10,17 +10,22 @@
 // Single-row (id=1) rollout config. Missing row = defaults (stage 'off').
 model PrRiskConfig {
   id             Int       @id
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   stage          String    @default("off") // off | display | hold | auto
   threshold      Float     @default(0.5)
   modelJson      String? // JSON: { baseLogit, weights, means }; null = prior weights
   modelVersion   Int       @default(0) // 0 = untrained (prior weights)
   stageChangedAt DateTime?
   updatedAt      DateTime  @updatedAt
+  @@index([workspaceId])
 }
 
 // One risk score per (repo, PR, head SHA) — reused on every watcher tick.
 model PrRiskScore {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   repo              String
   prNumber          Int
   headSha           String
@@ -38,11 +43,14 @@ model PrRiskScore {
 
   @@unique([repo, prNumber, headSha])
   @@index([repo, prNumber])
+  @@index([workspaceId])
 }
 
 // Post-merge outcome label. failure = rollback within 72h or critical incident.
 model PrOutcome {
   id           Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   repo         String
   prNumber     Int
   mergeSha     String?
@@ -57,11 +65,14 @@ model PrOutcome {
 
   @@unique([repo, prNumber])
   @@index([label])
+  @@index([workspaceId])
 }
 
 // Monthly (UTC YYYY-MM) confusion matrix and derived metrics.
 model PrRiskMonthlyMetric {
   id           Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   month        String   @unique
   sample       Int
   tp           Int
@@ -74,11 +85,14 @@ model PrRiskMonthlyMetric {
   threshold    Float
   modelVersion Int
   createdAt    DateTime @default(now())
+  @@index([workspaceId])
 }
 
 // Audit row for every periodic threshold review (adopted or not).
 model PrRiskThresholdReview {
   id                Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   month             String
   previousThreshold Float
   proposedThreshold Float?
@@ -88,4 +102,5 @@ model PrRiskThresholdReview {
   createdAt         DateTime @default(now())
 
   @@index([month])
+  @@index([workspaceId])
 }

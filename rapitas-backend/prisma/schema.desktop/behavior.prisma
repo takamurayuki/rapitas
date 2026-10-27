@@ -108,6 +108,8 @@ model TaskAnalysisConfig {
 // AI suggestion cache (saved per theme)
 model TaskSuggestionCache {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   themeId           Int
   title             String
   description       String?
@@ -124,4 +126,5 @@ model TaskSuggestionCache {
   createdAt         DateTime  @default(now())
 
   @@index([themeId])
+  @@index([workspaceId])
 }

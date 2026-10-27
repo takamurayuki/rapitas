@@ -6,6 +6,8 @@
 
 model GitHubIntegration {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   repositoryUrl     String    @unique
   repositoryName    String
   ownerName         String
@@ -19,6 +21,7 @@ model GitHubIntegration {
   updatedAt         DateTime  @updatedAt
   pullRequests      GitHubPullRequest[]
   issues            GitHubIssue[]
+  @@index([workspaceId])
 }
 
 model GitHubPullRequest {
@@ -103,15 +106,20 @@ model GitCommit {
 
 model FavoriteDirectory {
   id          Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   path        String    @unique
   name        String?
   isGitRepo   Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  @@index([workspaceId])
 }
 
 model GitRetryMetric {
   id                   Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   variant              String
   command              String
   attempts             Int
@@ -126,4 +134,5 @@ model GitRetryMetric {
 
   @@index([variant])
   @@index([createdAt])
+  @@index([workspaceId])
 }

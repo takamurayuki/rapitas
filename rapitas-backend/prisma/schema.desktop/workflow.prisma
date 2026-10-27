@@ -83,6 +83,8 @@ model WorkflowRoleConfig {
 // Workflow mode settings (step definitions by mode)
 model WorkflowModeConfig {
   id              Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   mode            String    @unique // "lightweight", "standard", "comprehensive"
   name            String    // Display name (e.g., "lightweight", "standard", "detailed")
   description     String?   // Mode description
@@ -97,11 +99,14 @@ model WorkflowModeConfig {
   updatedAt       DateTime  @updatedAt
 
   @@index([mode])
+  @@index([workspaceId])
 }
 
 // Workflow orchestrator sessions
 model OrchestraSession {
   id              Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   status          String    @default("idle") // idle, conducting, paused, completed, error
   maxConcurrency  Int       @default(3)
   totalTasks      Int       @default(0)
@@ -115,6 +120,7 @@ model OrchestraSession {
   queueItems      WorkflowQueueItem[]
 
   @@index([status])
+  @@index([workspaceId])
 }
 
 /**
@@ -234,6 +240,8 @@ model RequirementReviewRetryRequest {
 /// this file — the scheduler always loads themes explicitly by id.
 model ThemeAutoRun {
   id             Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   themeId        Int       @unique
   enabled        Boolean   @default(false)
   status         String    @default("idle") // idle | running | paused | stopping
@@ -256,4 +264,5 @@ model ThemeAutoRun {
   updatedAt      DateTime  @updatedAt
 
   @@index([status])
+  @@index([workspaceId])
 }
