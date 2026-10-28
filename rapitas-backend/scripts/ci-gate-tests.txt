@@ -124,6 +124,13 @@ routes/system/tenancy.routes.test.ts
 tests/schema/workspace-tenancy.test.ts
 tests/schema/prisma-unique-writes.test.ts
 
+# スキーマのリテラルを固定しているドリフトテスト2件。どちらもゲート外で、
+# usage-budget 側は @@unique([budgetId, themeId]) をそのまま固定していたため
+# 本変更で赤になり、気付いたのは advisory の Full Suite だった。
+# .prisma を読むだけなので本番コードを import せず、カバレッジ床に影響しない。
+services/usage-budget/usage-budget-schema-drift.test.ts
+services/self-improvement/pr-risk/pr-risk-schema-drift.test.ts
+
 # ユニーク制約を変えて壊れた「呼び出し元」のテスト16件は、意図的にここへ
 # 入れていない。入れると Test Backend が measure する母数が広がり、行
 # 64.92%→42.16% / 関数 48.73%→47.09% とカバレッジ床（関数50%）を割る。
