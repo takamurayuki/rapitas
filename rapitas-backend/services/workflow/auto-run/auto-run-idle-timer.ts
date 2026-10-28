@@ -290,10 +290,12 @@ export async function attemptCriticalConcernBypass(themeId: number): Promise<boo
 export async function stopThemeForIdleTimeout(themeId: number): Promise<void> {
   const idleStoppedAt = new Date();
   try {
-    await prisma.themeAutoRun.update({
+    // updateMany, because `themeId` is unique only within a workspace now and
+    // nothing here reads the row back.
+    await prisma.themeAutoRun.updateMany({
       where: { themeId },
       data: { enabled: false, idleStoppedAt } as unknown as Parameters<
-        typeof prisma.themeAutoRun.update
+        typeof prisma.themeAutoRun.updateMany
       >[0]['data'],
     });
   } catch (err) {

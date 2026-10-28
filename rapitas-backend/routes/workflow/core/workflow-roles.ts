@@ -194,8 +194,20 @@ export const workflowRolesRoutes = new Elysia()
         updateData.preferredProviderOverride = preferredProviderOverride;
       }
 
-      const updated = await prisma.workflowRoleConfig.update({
+      // `role` is unique only within a workspace now (@@unique([workspaceId,
+      // role])), so it can no longer identify a row on its own. Locate it
+      // first — the find is workspace-scoped — then update it by id.
+      const target = await prisma.workflowRoleConfig.findFirst({
         where: { role },
+        select: { id: true },
+      });
+      if (!target) {
+        set.status = HTTP_STATUS.NOT_FOUND;
+        return { error: `ロール設定 "${role}" が見つかりません` };
+      }
+
+      const updated = await prisma.workflowRoleConfig.update({
+        where: { id: target.id },
         data: updateData,
         include: {
           agentConfig: {

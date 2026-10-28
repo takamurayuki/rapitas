@@ -30,7 +30,7 @@ export async function recordSearchMiss(rawQuery: string): Promise<void> {
     where: { query: normalized },
     select: { id: true },
   });
-  if (found === null) {
+  if (!found) {
     await prisma.searchMiss.create({
       data: { query: normalized, hitCount: 1, lastSearchedAt: new Date() },
     });

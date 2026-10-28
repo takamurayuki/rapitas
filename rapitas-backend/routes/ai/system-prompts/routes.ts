@@ -187,22 +187,21 @@ export const systemPromptsRoutes = new Elysia()
       select: { id: true },
     });
 
-    const updated =
-      existing === null
-        ? await prisma.systemPrompt.create({
-            data: { ...defaultPrompt, isActive: true, isDefault: true },
-          })
-        : await prisma.systemPrompt.update({
-            where: { id: existing.id },
-            data: {
-              content: defaultPrompt.content,
-              name: defaultPrompt.name,
-              description: defaultPrompt.description,
-              category: defaultPrompt.category,
-              isActive: true,
-              isDefault: true,
-            },
-          });
+    const updated = !existing
+      ? await prisma.systemPrompt.create({
+          data: { ...defaultPrompt, isActive: true, isDefault: true },
+        })
+      : await prisma.systemPrompt.update({
+          where: { id: existing.id },
+          data: {
+            content: defaultPrompt.content,
+            name: defaultPrompt.name,
+            description: defaultPrompt.description,
+            category: defaultPrompt.category,
+            isActive: true,
+            isDefault: true,
+          },
+        });
 
     return updated;
   })

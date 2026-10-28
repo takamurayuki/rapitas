@@ -134,26 +134,25 @@ export const paidLeaveRoutes = new Elysia({ prefix: '/paid-leave' })
           where: { userId, fiscalYear: targetYear },
           select: { id: true },
         });
-        const balance =
-          found === null
-            ? await prisma.paidLeaveBalance.create({
-                data: {
-                  userId,
-                  fiscalYear: targetYear,
-                  totalDays: totalDays || 20,
-                  usedDays: 0,
-                  remainingDays: (totalDays || 20) + (carryOverDays || 0),
-                  carryOverDays: carryOverDays || 0,
-                },
-              })
-            : await prisma.paidLeaveBalance.update({
-                where: { id: found.id },
-                data: {
-                  totalDays: totalDays || 20,
-                  carryOverDays: carryOverDays || 0,
-                  lastCalculatedAt: new Date(),
-                },
-              });
+        const balance = !found
+          ? await prisma.paidLeaveBalance.create({
+              data: {
+                userId,
+                fiscalYear: targetYear,
+                totalDays: totalDays || 20,
+                usedDays: 0,
+                remainingDays: (totalDays || 20) + (carryOverDays || 0),
+                carryOverDays: carryOverDays || 0,
+              },
+            })
+          : await prisma.paidLeaveBalance.update({
+              where: { id: found.id },
+              data: {
+                totalDays: totalDays || 20,
+                carryOverDays: carryOverDays || 0,
+                lastCalculatedAt: new Date(),
+              },
+            });
 
         const usedDays = await calculateUsedDays(userId, targetYear);
         const remainingDays = balance.totalDays + balance.carryOverDays - usedDays;

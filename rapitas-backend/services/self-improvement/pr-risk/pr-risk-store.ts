@@ -97,7 +97,7 @@ export async function ensureOutcomeTracked(
   // find-then-create says that directly, and repo+prNumber is unique per
   // workspace now so upsert could not be keyed by it anyway.
   const found = await db.prOutcome.findFirst({ where: { repo, prNumber } });
-  if (found === null) {
+  if (!found) {
     await db.prOutcome.create({ data: { repo, prNumber, label: 'pending' } });
   }
 }
@@ -141,7 +141,7 @@ async function writeOutcome(
   data: Record<string, unknown>,
 ): Promise<void> {
   const found = await db.prOutcome.findFirst({ where: { repo, prNumber } });
-  if (found === null) {
+  if (!found) {
     await db.prOutcome.create({ data: { repo, prNumber, ...data } });
   } else {
     await db.prOutcome.update({ where: { id: found.id }, data });
@@ -262,7 +262,7 @@ export async function upsertMonthlyMetric(db: PrRiskDb, row: MetricRow): Promise
   // find-then-write: `month` is unique per workspace now, so it is not a
   // filter upsert can take.
   const found = await db.prRiskMonthlyMetric.findFirst({ where: { month: row.month } });
-  if (found === null) {
+  if (!found) {
     await db.prRiskMonthlyMetric.create({ data: row });
   } else {
     await db.prRiskMonthlyMetric.update({ where: { id: found.id }, data: row });
