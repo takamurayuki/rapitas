@@ -20,7 +20,9 @@ import {
   RotateCw,
   User,
   UserPen,
+  LogIn,
   LogOut,
+  UserPlus,
 } from 'lucide-react';
 import GlobalPomodoroWidget from '@/feature/tasks/pomodoro/GlobalPomodoroWidget';
 import NotificationBell from '@/components/NotificationBell';
@@ -157,9 +159,12 @@ export function HeaderToolbar({
         </span>
       </button>
 
-      {/* Guest sign-in is still intentionally hidden: an account has no
-          benefit on a local single-user app. Re-add a `/auth/login` link
-          here once cloud sync / sharing makes accounts meaningful.
+      {/* Sign-in is reachable again. It was hidden because an account bought
+          nothing on a local single-user app; workspace tenancy changed that —
+          an account now decides WHICH data you see, so a second one is how you
+          try something without it landing in the real pile. Signing in stays
+          optional: no session means no workspace, which is served unscoped
+          exactly as before.
 
           The button itself is no longer gated on a session, though. It is
           the way to the profile ラピ plans against, and since nothing can
@@ -200,7 +205,7 @@ export function HeaderToolbar({
                 <UserPen className="w-4 h-4" />
                 <span>{t('rapiProfileLink')}</span>
               </Link>
-              {user && (
+              {user ? (
                 <button
                   onClick={handleLogout}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -208,6 +213,25 @@ export function HeaderToolbar({
                   <LogOut className="w-4 h-4" />
                   <span>{t('logout')}</span>
                 </button>
+              ) : (
+                <>
+                  <Link
+                    href="/auth/login"
+                    onClick={() => setIsUserMenuOpen(false)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>{t('login')}</span>
+                  </Link>
+                  <Link
+                    href="/auth/register"
+                    onClick={() => setIsUserMenuOpen(false)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>{t('register')}</span>
+                  </Link>
+                </>
               )}
             </div>
           )}

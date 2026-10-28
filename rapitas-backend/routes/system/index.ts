@@ -36,6 +36,7 @@ import calendarSlotsCalendarSlotsRoute from './calendar-slots/calendar-slots.rou
 import canaryRoute from './canary.routes';
 import deployRoute from './deploy.routes';
 import outageGuidanceRoute from './outage-guidance.routes';
+import tenancyRoute from './tenancy.routes';
 
 export { settingsRoutes } from './settings';
 export { authRoutes } from './auth';
@@ -94,4 +95,5 @@ export const systemDomainRoutes = new Elysia()
   .use(calendarSlotsCalendarSlotsRoute)
   .use(canaryRoute)
   .use(deployRoute)
-  .use(outageGuidanceRoute);
+  .use(outageGuidanceRoute)
+  .use(tenancyRoute);

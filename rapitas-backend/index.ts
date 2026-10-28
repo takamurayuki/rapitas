@@ -53,6 +53,7 @@ import {
   UI_SOURCE_HEADER,
   UI_SOURCE_VALUE,
 } from './services/scheduling/auto-restart-merged-code/ui-activity-tracker';
+import { wrapAppWithWorkspaceScope } from './services/tenancy/workspace-request-wrapper';
 
 const app = new Elysia();
 app.onRequest(apiRecoveryRequestGuard);
@@ -207,7 +208,12 @@ const PORT = parseInt(process.env.PORT || '3001', 10);
 // zombie-socket interference fix intact. Non-loopback requires RAPITAS_BIND_HOST
 // + RAPITAS_API_TOKEN (see middleware/local-auth.ts).
 const BIND_HOST = resolveBindHost();
-app.listen({
+
+// What listens: `app` behind a workspace-resolving front door, so a signed-in
+// request runs inside its own workspace. `app` keeps every route and guard
+// above; workspace-request-wrapper explains why no lifecycle hook can do it.
+const listener = wrapAppWithWorkspaceScope(app);
+listener.listen({
   port: PORT,
   hostname: BIND_HOST,
   idleTimeout: 30, // 30-second idle timeout to prevent CLOSE_WAIT accumulation
@@ -220,7 +226,7 @@ app.listen({
 });
 log.info(`Rapitas backend running on http://${BIND_HOST}:${PORT}`);
 if (isApiRecoveryMode())
-  log.info({ port: app.server?.port, pid: process.pid }, 'api-recovery-listening');
+  log.info({ port: listener.server?.port, pid: process.pid }, 'api-recovery-listening');
 
 // Set server stop callback for proper port release during graceful shutdown.
 // NOTE: stop(true) force-closes ALL active connections, not just the listener.
@@ -234,7 +240,7 @@ if (isApiRecoveryMode())
 // then fire mid-teardown, which is exactly how the connections above got
 // orphaned under a PID that no longer exists.
 setServerStopCallback(async () => {
-  await app.stop(true);
+  await listener.stop(true);
 });
 
 /**
@@ -332,7 +338,7 @@ const handleProcessSignal = async (signal: string) => {
       // process.exit() below before the force-close actually completed (and
       // a rejection here would have been an unhandled promise rejection
       // instead of landing in this catch block).
-      await app.stop(true);
+      await listener.stop(true);
     } catch (error) {
       log.error({ err: error }, 'Error stopping listener');
     }
@@ -417,7 +423,7 @@ process.on('SIGHUP', () => handleProcessSignal('SIGHUP'));
 // on port 3001. Bun's server.stop(true) is synchronous-safe to call here.
 process.on('exit', () => {
   try {
-    app.server?.stop(true);
+    listener.server?.stop(true);
   } catch {
     /* best-effort: nothing more we can do during exit */
   }

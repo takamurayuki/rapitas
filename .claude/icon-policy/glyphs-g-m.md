@@ -30,3 +30,4 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `ListFilter`              | ラピの「タスクを探す」モード（`RapiModeTabs` の ask タブ — 条件で絞って数える。注: `Search`＝知識ブラウザ、`ScanSearch`＝検出漏れ兆候とは別概念） |
 | `MessagesSquare`          | ラピの「対話」モード（`RapiModeTabs` の chat タブ — 文章で頼む入口、パネルの既定タブ。2026-10-22 まで consult タブに付いていたが、グリフが「会話」を表していて「開いているタスク」を表していなかったため移設。注: `MessageSquarePlus`＝エージェントへの追加指示とは別概念） |
 | `Locate`                  | ラピの「このタスク」相談モード（`RapiModeTabs` の consult タブ — いま開いている1件に照準を合わせる。注: `Crosshair`＝ウィザードの別用途、`ScanSearch`＝検出漏れ兆候、`Search`＝知識ブラウザとは別概念） |
+| `LogIn`                   | ログイン（`/auth/login` ページ見出し・送信ボタン、およびヘッダのユーザーメニューからの導線 `header-toolbar` — 同一概念の再利用。既存の `LogOut`＝ログアウトと自然に対になる。ワークスペース分離の導入でアカウントに意味が生まれたため 2026-10-28 にヘッダ導線を復活させ、その際に正式登録） |

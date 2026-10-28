@@ -11,3 +11,4 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `Ungroup`                 | グループからの解放（アプリ内ブラウザのタブグループ: タブ単体の「グループから削除」`TabStripTab`、グループ全体の「グループを解除」`TabGroupChip`。どちらもページは閉じずに所属だけ外す同一概念。注: `Trash2`＝グループ自体の削除、`X`＝グループのタブを閉じる、とは別概念） |
 | `Unlink`                  | 紐づけを外す（ノートとタスクの関連解除 `NoteLinksSection`、依存ツリーの未接続表示 `DependencyViews`、ノート本文のインラインリンク削除 `InlineLinkPopup` — いずれも「結び付きだけを切り、中身は残す」同一概念。既存実装で未登録だったグリフをインラインリンク追加時に正式登録。注: `Ungroup`＝タブ/ページのグループ所属解除、`Link2`＝ハイパーリンク挿入とは別概念） |
 | `Undo2`                   | 直前の破壊的操作を取り消す（ラピのタスク片付けで削除した直後に出る「元に戻す」。ゴミ箱に退避したスナップショットから復元する操作 `TaskCleanup`。注: `Unlink`＝紐づけ解除、`Ungroup`＝グループ所属解除はどちらも「結び付きを外す」操作で、消したものを戻すこの概念とは別。`Trash2`＝削除そのものと対になる） |
+| `UserPlus`                | 新規アカウント作成（`/auth/register` ページ見出し・送信ボタン、およびヘッダのユーザーメニューからの導線 `header-toolbar` — 同一概念の再利用。注: `UserPen`＝ラピに渡す自己紹介の編集、`UserCog`＝エージェント管理とは別概念。カテゴリアイコンピッカー(`navigation-people.ts`)の登録は中立的な再掲で対象外） |

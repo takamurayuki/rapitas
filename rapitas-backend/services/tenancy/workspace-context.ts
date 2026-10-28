@@ -72,3 +72,17 @@ export function currentWorkspaceId(): number | null {
 export async function runAcrossAllWorkspaces<T>(fn: () => Promise<T> | T): Promise<T> {
   return storage.exit(async () => await fn());
 }
+
+/*
+ * NOTE: there is deliberately no `enterWorkspace(id)` built on
+ * `storage.enterWith`. It is the obvious answer for a request hook that has no
+ * callback to wrap, it passes a sequential test, and it is unsound: measured
+ * 2026-10-28 under Bun 1.3.13 in an Elysia `onRequest` hook, five concurrent
+ * requests returned [1, 2, 3, 3, 4] where [1, 2, 3, null, 4] was required —
+ * the cookieless request inherited a scoped neighbour's workspace. That is one
+ * account reading another's data, which is the single thing this layer exists
+ * to prevent, and it is invisible until requests overlap.
+ *
+ * Wrapping the whole request in `runInWorkspace` is the only shape that
+ * survived; see workspace-request-wrapper.
+ */
