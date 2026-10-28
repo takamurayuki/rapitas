@@ -44,6 +44,8 @@ model Note {
 // page reads.
 model NoteTaskLink {
   id     Int    @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   noteId String
   taskId Int
   // Hierarchy metadata captured when the link was made from a task context
@@ -56,4 +58,5 @@ model NoteTaskLink {
 
   @@unique([noteId, taskId])
   @@index([taskId])
+  @@index([workspaceId])
 }

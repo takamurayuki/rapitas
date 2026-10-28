@@ -26,6 +26,8 @@ model GitHubIntegration {
 
 model GitHubPullRequest {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   integrationId     Int
   integration       GitHubIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
   prNumber          Int
@@ -43,6 +45,7 @@ model GitHubPullRequest {
   reviews           GitHubPRReview[]
   comments          GitHubPRComment[]
   @@unique([integrationId, prNumber])
+  @@index([workspaceId])
 }
 
 model GitHubPRReview {
@@ -59,6 +62,8 @@ model GitHubPRReview {
 
 model GitHubPRComment {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   pullRequestId     Int
   pullRequest       GitHubPullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
   commentId         Int
@@ -69,10 +74,14 @@ model GitHubPRComment {
   isFromRapitas     Boolean   @default(false)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+
+  @@index([workspaceId])
 }
 
 model GitHubIssue {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   integrationId     Int
   integration       GitHubIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
   issueNumber       Int
@@ -89,10 +98,13 @@ model GitHubIssue {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   @@unique([integrationId, issueNumber])
+  @@index([workspaceId])
 }
 
 model GitCommit {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   executionId       Int
   execution         AgentExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
   commitHash        String
@@ -102,6 +114,8 @@ model GitCommit {
   additions         Int       @default(0)
   deletions         Int       @default(0)
   createdAt         DateTime  @default(now())
+
+  @@index([workspaceId])
 }
 
 model FavoriteDirectory {
