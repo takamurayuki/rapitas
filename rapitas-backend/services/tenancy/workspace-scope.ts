@@ -76,13 +76,21 @@ const CREATE_OPS = new Set<string>(['create', 'createMany', 'createManyAndReturn
 const RAW_OPS = new Set<string>(['aggregateRaw', 'findRaw']);
 
 /**
- * `upsert` cannot be scoped: its `where` must be a unique filter, so the
- * workspace cannot be added to it, and running it unscoped could update
- * another workspace's row. Rejected loudly instead — there are 7 call sites on
- * owned models (systemPrompt, themeAutoRun, note, usageBudget,
- * workflowModeConfig) and each needs an explicit findFirst + create/update.
+ * `upsert` cannot be run as itself: its `where` takes only unique fields, so
+ * `workspaceId` cannot be added to it, and running it unscoped could update
+ * another workspace's row.
+ *
+ * Stage 2 refused it and left a note saying each of the 7 call sites then on
+ * owned models needed an explicit findFirst + create/update. Two things made
+ * that the wrong place to fix it. The owned set has since grown, so there are
+ * 32 such call sites — among them the workflow artifact save, auto-run
+ * start/stop, the notes service and the whole GitHub sync. And a refusal is
+ * not inert: every one of those throws as soon as a session has a workspace.
+ *
+ * So the find-then-write happens here instead, once, where the workspace is
+ * known and cannot be escaped on any branch. workspace-extension performs it.
  */
-const REJECT_OPS = new Set<string>(['upsert']);
+const EMULATED_OPS = new Set<string>(['upsert']);
 
 /** What the adapter should do with this call. */
 export type ScopeDecision =
@@ -92,6 +100,21 @@ export type ScopeDecision =
   | { kind: 'scoped'; args: Record<string, unknown> }
   /** Run a DIFFERENT operation with these args (findUnique → findFirst). */
   | { kind: 'rewritten'; operation: string; args: Record<string, unknown> }
+  /**
+   * Perform an upsert as three scoped calls: find inside the workspace, then
+   * update that row or create one stamped with the workspace.
+   */
+  | {
+      kind: 'upsert';
+      /** findFirst filter — the caller's, plus the workspace. */
+      where: Record<string, unknown>;
+      /** create data — the caller's, with the workspace stamped on. */
+      create: Record<string, unknown>;
+      /** update data, unchanged: the row found is already in the workspace. */
+      update: Record<string, unknown>;
+      /** The caller's other options (select, include) for the write. */
+      rest: Record<string, unknown>;
+    }
   /** Refuse: scoping is impossible and running it could cross workspaces. */
   | { kind: 'reject'; reason: string };
 
@@ -123,13 +146,17 @@ export function scopeOperation(input: ScopeInput): ScopeDecision {
   if (!ownedModels.has(model)) return { kind: 'passthrough' };
   if (RAW_OPS.has(operation)) return { kind: 'passthrough' };
 
-  if (REJECT_OPS.has(operation)) {
+  if (EMULATED_OPS.has(operation)) {
+    const next = asRecord(args);
+    const { where, create, update, ...rest } = next;
+    // `workspaceId` goes in LAST on both, so a caller that passed one of its
+    // own cannot choose the workspace it reads from or writes to.
     return {
-      kind: 'reject',
-      reason:
-        `${model}.${operation} cannot be workspace-scoped: its where clause takes only ` +
-        `unique fields, so running it would be able to touch another workspace's row. ` +
-        `Replace it with findFirst + create/update.`,
+      kind: 'upsert',
+      where: { ...asRecord(where), workspaceId },
+      create: { ...asRecord(create), workspaceId },
+      update: asRecord(update),
+      rest,
     };
   }
 

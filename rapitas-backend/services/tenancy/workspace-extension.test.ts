@@ -17,20 +17,34 @@ import { runInWorkspace, runAcrossAllWorkspaces } from './workspace-context';
 const OWNED = new Set(['Note', 'Category']);
 const WS = 42;
 
-function harness() {
-  const findFirst = mock((args: unknown) => Promise.resolve({ via: 'base.findFirst', args }));
+/**
+ * Build the adapter over a fake base client.
+ *
+ * @param opts - `found` is what findFirst returns (null = no such row), and
+ *   `createThrows` an error for the create branch to raise / 探索結果と create の例外
+ * @returns The runner and the mocks it drove / 実行関数と各モック
+ */
+function harness(opts: { found?: unknown; createThrows?: unknown } = {}) {
+  const found = 'found' in opts ? opts.found : { via: 'base.findFirst' };
+  const findFirst = mock((args: unknown) =>
+    Promise.resolve(found === null ? null : { ...(found as object), args }),
+  );
   const findFirstOrThrow = mock((args: unknown) =>
     Promise.resolve({ via: 'base.findFirstOrThrow', args }),
   );
-  const base: BaseClientLike = {
-    note: { findFirst, findFirstOrThrow },
-    category: { findFirst, findFirstOrThrow },
-  };
+  const update = mock((args: unknown) => Promise.resolve({ via: 'base.update', args }));
+  const create = mock((args: unknown) =>
+    opts.createThrows === undefined
+      ? Promise.resolve({ via: 'base.create', args })
+      : Promise.reject(opts.createThrows),
+  );
+  const delegate = { findFirst, findFirstOrThrow, update, create };
+  const base: BaseClientLike = { note: delegate, category: delegate };
   const ext = createWorkspaceExtension(OWNED, base);
   const query = mock((args: unknown) => Promise.resolve({ via: 'query', args }));
   const run = (model: string | undefined, operation: string, args: unknown) =>
     ext.query.$allModels.$allOperations({ model, operation, args, query });
-  return { run, query, findFirst, findFirstOrThrow };
+  return { run, query, findFirst, findFirstOrThrow, update, create };
 }
 
 describe('with a workspace in context', () => {
@@ -67,11 +81,80 @@ describe('with a workspace in context', () => {
     expect(out).toEqual({ via: 'query', args: { data: { t: 'x', workspaceId: WS } } });
   });
 
-  it('throws on upsert instead of letting it cross workspaces', async () => {
-    const h = harness();
-    await expect(
-      runInWorkspace(WS, () => h.run('Note', 'upsert', { where: { id: 1 } })),
-    ).rejects.toThrow('[tenancy]');
+  describe('upsert, which Prisma cannot scope and this adapter performs itself', () => {
+    const args = {
+      where: { slug: 'x' },
+      create: { slug: 'x', t: 'new' },
+      update: { t: 'changed' },
+    };
+
+    it('updates the row it finds, by id, never by the caller’s where', async () => {
+      const h = harness({ found: { id: 7 } });
+      const out = await runInWorkspace(WS, () => h.run('Note', 'upsert', args));
+      expect(h.findFirst).toHaveBeenCalledWith({
+        where: { slug: 'x', workspaceId: WS },
+        select: { id: true },
+      });
+      expect(out).toEqual({
+        via: 'base.update',
+        args: { where: { id: 7 }, data: { t: 'changed' } },
+      });
+      expect(h.create).not.toHaveBeenCalled();
+      // Going through `query` would hand Prisma the unscoped upsert back.
+      expect(h.query).not.toHaveBeenCalled();
+    });
+
+    it('creates with the workspace stamped on when nothing is there', async () => {
+      const h = harness({ found: null });
+      const out = await runInWorkspace(WS, () => h.run('Note', 'upsert', args));
+      expect(out).toEqual({
+        via: 'base.create',
+        args: { data: { slug: 'x', t: 'new', workspaceId: WS } },
+      });
+      expect(h.update).not.toHaveBeenCalled();
+    });
+
+    it('turns a lost race into the update branch', async () => {
+      // findFirst saw nothing, then the create hit the unique constraint:
+      // another caller created the row in between. A real upsert updates it,
+      // so this must too rather than surfacing P2002 to the caller.
+      let calls = 0;
+      const h = harness({ found: null, createThrows: { code: 'P2002' } });
+      const findFirst = mock(() => Promise.resolve(calls++ === 0 ? null : { id: 9 }));
+      const base: BaseClientLike = {
+        note: { findFirst, update: h.update, create: h.create },
+      };
+      const ext = createWorkspaceExtension(OWNED, base);
+      const out = await runInWorkspace(WS, () =>
+        ext.query.$allModels.$allOperations({
+          model: 'Note',
+          operation: 'upsert',
+          args,
+          query: h.query,
+        }),
+      );
+      expect(out).toEqual({
+        via: 'base.update',
+        args: { where: { id: 9 }, data: { t: 'changed' } },
+      });
+    });
+
+    it('reports a create failure that is not a lost race', async () => {
+      const h = harness({ found: null, createThrows: new Error('disk on fire') });
+      await expect(runInWorkspace(WS, () => h.run('Note', 'upsert', args))).rejects.toThrow(
+        'disk on fire',
+      );
+    });
+
+    it('reports P2002 as itself when the row is still not in this workspace', async () => {
+      // The constraint fired, but a re-read inside the workspace still finds
+      // nothing: the collision was with a constraint that is not workspace
+      // aware, and pretending it was a race would hide that.
+      const h = harness({ found: null, createThrows: { code: 'P2002' } });
+      await expect(runInWorkspace(WS, () => h.run('Note', 'upsert', args))).rejects.toMatchObject({
+        code: 'P2002',
+      });
+    });
   });
 
   it('leaves a model that inherits through its parent alone', async () => {

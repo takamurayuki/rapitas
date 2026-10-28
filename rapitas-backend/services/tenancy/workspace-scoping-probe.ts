@@ -114,17 +114,40 @@ async function main(): Promise<void> {
        * file is a test harness. That case is covered exhaustively instead by
        * workspace-scope.guards.generated.ts, where it is a pure function.
        */
-      upsertRejected: await runInWorkspace(WS, async () => {
-        try {
-          await prisma.category.upsert({
-            where: { id: 1 },
-            create: { name: 'u', updatedAt: new Date() },
-            update: {},
-          });
-          return false;
-        } catch {
-          return true;
-        }
+      /*
+       * upsert, which Prisma cannot scope. The adapter performs it as a scoped
+       * find-then-write, so the three things worth measuring are: it works at
+       * all, it cannot reach a row outside the workspace, and a second call on
+       * its OWN row updates instead of creating another.
+       *
+       * id 1 is a seeded row with no workspace. Upserting on it from inside WS
+       * must leave it alone and create a row of its own.
+       */
+      ...(await runInWorkspace(WS, async () => {
+        const created = (await prisma.category.upsert({
+          where: { id: 1 },
+          create: { name: 'upserted-in-99', updatedAt: new Date() },
+          update: { name: 'SHOULD-NOT-REACH-THE-SEEDED-ROW' },
+        })) as { id: number; name: string; workspaceId: number | null };
+        const again = (await prisma.category.upsert({
+          where: { id: created.id },
+          create: { name: 'should-not-create-twice', updatedAt: new Date() },
+          update: { name: 'updated-in-99' },
+        })) as { id: number; name: string };
+        return {
+          upsertCreatedWorkspaceId: created.workspaceId,
+          upsertCreatedName: created.name,
+          upsertSecondCallSameRow: again.id === created.id,
+          upsertSecondCallName: again.name,
+          upsertRowsInWorkspace: await prisma.category.count(),
+        };
+      })),
+      // The seeded row the upsert was pointed at: its name must be untouched.
+      seededRowNameAfterUpsert: await runAcrossAllWorkspaces(async () => {
+        const row = (await prisma.category.findFirst({ where: { id: 1 } })) as {
+          name: string;
+        } | null;
+        return row?.name ?? null;
       }),
     };
     writeFileSync(outPath, JSON.stringify(out), 'utf8');

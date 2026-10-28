@@ -40,7 +40,7 @@ describe('nothing owned reaches the database unscoped', () => {
 
   it.each(MODEL_OPERATIONS)('Category.%s is classified', (operation) => {
     const d = decide('Category', operation);
-    expect(['scoped', 'rewritten', 'reject', 'passthrough']).toContain(d.kind);
+    expect(['scoped', 'rewritten', 'upsert', 'reject', 'passthrough']).toContain(d.kind);
   });
 });
 
@@ -103,10 +103,56 @@ describe('writes', () => {
     },
   );
 
-  it('refuses upsert rather than letting it cross workspaces', () => {
-    const d = decide('Note', 'upsert', { where: { id: 1 } });
-    expect(d.kind).toBe('reject');
-    expect((d as { reason: string }).reason).toContain('findFirst');
+  describe('upsert', () => {
+    // Stage 2 refused upsert, because its `where` takes only unique fields and
+    // the workspace cannot be added to one. It left a note saying each of the
+    // (then) 7 call sites needed an explicit findFirst + create/update. There
+    // are 32 now, and a refusal is not inert: it throws for a logged-in user
+    // on the workflow artifact save, auto-run start/stop, notes and the GitHub
+    // sync. Doing the find-then-write HERE instead fixes all 32 at once, and
+    // the workspace cannot be escaped on any of the three branches.
+    const d = decide('Note', 'upsert', {
+      where: { slug: 'x' },
+      create: { slug: 'x', title: 'new' },
+      update: { title: 'changed' },
+      select: { id: true },
+    });
+
+    it('is emulated rather than refused', () => {
+      expect(d.kind).toBe('upsert');
+    });
+
+    it('looks the row up inside the workspace', () => {
+      expect((d as { where: unknown }).where).toEqual({ slug: 'x', workspaceId: WS });
+    });
+
+    it('stamps the workspace on the row it may create', () => {
+      expect((d as { create: unknown }).create).toEqual({
+        slug: 'x',
+        title: 'new',
+        workspaceId: WS,
+      });
+    });
+
+    it('leaves the update data alone — the row is already in the workspace', () => {
+      expect((d as { update: unknown }).update).toEqual({ title: 'changed' });
+    });
+
+    it('carries the caller’s own options through to the write', () => {
+      expect((d as { rest: unknown }).rest).toEqual({ select: { id: true } });
+    });
+
+    it('cannot be told which workspace to write to', () => {
+      // A caller passing someone else's workspace must not reach it, on either
+      // branch. Without this, upsert would be the one hole in the layer.
+      const forged = decide('Note', 'upsert', {
+        where: { slug: 'x', workspaceId: WS + 1 },
+        create: { slug: 'x', workspaceId: WS + 1 },
+        update: {},
+      });
+      expect((forged as { where: { workspaceId: number } }).where.workspaceId).toBe(WS);
+      expect((forged as { create: { workspaceId: number } }).create.workspaceId).toBe(WS);
+    });
   });
 });
 
