@@ -62,7 +62,7 @@ function makePrisma() {
         return {};
       },
     },
-    gitHubIntegration: { findFirst: async () => integration },
+    gitHubIntegration: { findUnique: async () => integration },
   } as unknown as Parameters<typeof reconcilePrStates>[0];
 }
 

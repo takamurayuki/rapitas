@@ -28,7 +28,7 @@ mock.module('util', () => ({
 
 const mockPrisma = {
   gitHubIntegration: {
-    findFirst: mock(() => Promise.resolve(null)),
+    findUnique: mock(() => Promise.resolve(null)),
     findFirst: mock(() => Promise.resolve(null)),
   },
   gitHubPullRequest: {

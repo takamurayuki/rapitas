@@ -126,20 +126,40 @@ describe('isThemeAutoRunActive', () => {
 describe('startAutoRun', () => {
   beforeEach(resetMocks);
 
-  it('upserts with status running', async () => {
+  // No upsert any more: `themeId` is unique only within a workspace, so the
+  // row is located first and then written by id (or created).
+  it('creates with status running when the theme has no row yet', async () => {
     const record = makeRecord({ status: 'running' });
     mockFindUnique.mockResolvedValue(null);
-    mockUpsert.mockResolvedValue(record);
+    mockCreate.mockResolvedValue(record);
 
     const result = await startAutoRun(42);
 
-    expect(mockUpsert).toHaveBeenCalledWith(
+    expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { themeId: 42 },
-        create: expect.objectContaining({ status: 'running' }),
-        update: expect.objectContaining({ status: 'running' }),
+        data: expect.objectContaining({ themeId: 42, status: 'running' }),
       }),
     );
+    expect(mockUpsert).not.toHaveBeenCalled();
+    expect(result.status).toBe('running');
+  });
+
+  it('updates the existing row BY ID, never by themeId', async () => {
+    // The point of the change: a write keyed on themeId would hit whichever
+    // workspace's row the database happened to match first.
+    const idle = makeRecord({ id: 9, status: 'idle' });
+    mockFindUnique.mockResolvedValue(idle);
+    mockUpdate.mockResolvedValue(makeRecord({ id: 9, status: 'running' }));
+
+    const result = await startAutoRun(42);
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 9 },
+        data: expect.objectContaining({ status: 'running' }),
+      }),
+    );
+    expect(mockCreate).not.toHaveBeenCalled();
     expect(result.status).toBe('running');
   });
 
@@ -155,7 +175,7 @@ describe('startAutoRun', () => {
 
   it('clears idleSince/idleStoppedAt (task 784: a start ends any idle-stop timer)', async () => {
     mockFindUnique.mockResolvedValue(null);
-    mockUpsert.mockResolvedValue(makeRecord({ status: 'running' }));
+    mockCreate.mockResolvedValue(makeRecord({ status: 'running' }));
 
     const result = await startAutoRun(42);
 
@@ -172,12 +192,13 @@ describe('pauseAutoRun', () => {
   beforeEach(resetMocks);
 
   it('sets status to paused_user so auto-resume never overrides an explicit pause (task 883)', async () => {
-    mockUpsert.mockResolvedValue(makeRecord({ status: 'paused_user' }));
+    mockFindUnique.mockResolvedValue(makeRecord({ id: 3 }));
+    mockUpdate.mockResolvedValue(makeRecord({ id: 3, status: 'paused_user' }));
     const result = await pauseAutoRun(42);
-    expect(mockUpsert).toHaveBeenCalledWith(
+    expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({ status: 'paused_user' }),
-        update: expect.objectContaining({ status: 'paused_user' }),
+        where: { id: 3 },
+        data: expect.objectContaining({ status: 'paused_user' }),
       }),
     );
     expect(result.status).toBe('paused_user');
@@ -203,11 +224,13 @@ describe('stopAutoRun', () => {
   beforeEach(resetMocks);
 
   it('sets status to stopping', async () => {
-    mockUpsert.mockResolvedValue(makeRecord({ status: 'stopping' }));
+    mockFindUnique.mockResolvedValue(makeRecord({ id: 4 }));
+    mockUpdate.mockResolvedValue(makeRecord({ id: 4, status: 'stopping' }));
     const result = await stopAutoRun(42);
-    expect(mockUpsert).toHaveBeenCalledWith(
+    expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        update: expect.objectContaining({ status: 'stopping' }),
+        where: { id: 4 },
+        data: expect.objectContaining({ status: 'stopping' }),
       }),
     );
     expect(result.status).toBe('stopping');

@@ -197,7 +197,6 @@ function makePrismaMock(overrides: Record<string, unknown> = {}) {
     timeEntry: { findMany: mock(() => Promise.resolve([])) },
     weeklyReview: {
       findFirst: mock(() => Promise.resolve(null)),
-      findFirst: mock(() => Promise.resolve(null)),
       findMany: mock(() => Promise.resolve([])),
       create: mock((args: { data: unknown }) => Promise.resolve({ id: 1, ...args.data })),
       delete: mock(() => Promise.resolve(undefined)),

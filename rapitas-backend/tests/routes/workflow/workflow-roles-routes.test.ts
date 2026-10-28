@@ -153,7 +153,7 @@ describe('GET /workflow-roles/:role', () => {
       agentConfig: null,
     };
     mockPrisma.workflowRoleConfig.findMany.mockResolvedValue([{ role: 'researcher' }]);
-    mockPrisma.workflowRoleConfig.findUnique.mockResolvedValue(config);
+    mockPrisma.workflowRoleConfig.findFirst.mockResolvedValue(config);
 
     const res = await app.handle(new Request('http://localhost/workflow-roles/researcher'));
     const body = await res.json();
@@ -173,7 +173,7 @@ describe('GET /workflow-roles/:role', () => {
 
   test('存在しないロール設定で404を返すこと', async () => {
     mockPrisma.workflowRoleConfig.findMany.mockResolvedValue([{ role: 'researcher' }]);
-    mockPrisma.workflowRoleConfig.findUnique.mockResolvedValue(null);
+    mockPrisma.workflowRoleConfig.findFirst.mockResolvedValue(null);
 
     const res = await app.handle(new Request('http://localhost/workflow-roles/researcher'));
 
@@ -197,6 +197,9 @@ describe('PUT /workflow-roles/:role', () => {
       agentConfig: null,
     };
     mockPrisma.workflowRoleConfig.findMany.mockResolvedValue([{ role: 'researcher' }]);
+    // The handler locates the row by role before updating it by id — `role`
+    // alone is no longer a unique key.
+    mockPrisma.workflowRoleConfig.findFirst.mockResolvedValue({ id: 1 });
     mockPrisma.workflowRoleConfig.update.mockResolvedValue(updated);
 
     const res = await app.handle(
@@ -210,6 +213,24 @@ describe('PUT /workflow-roles/:role', () => {
 
     expect(res.status).toBe(200);
     expect(body.isEnabled).toBe(false);
+  });
+
+  test('ロール設定が存在しない場合は404を返すこと', async () => {
+    // The row has to be located before it can be updated by id, so a missing
+    // one is now answered here rather than as a Prisma P2025 (an opaque 500).
+    mockPrisma.workflowRoleConfig.findMany.mockResolvedValue([{ role: 'researcher' }]);
+    mockPrisma.workflowRoleConfig.findFirst.mockResolvedValue(null);
+
+    const res = await app.handle(
+      new Request('http://localhost/workflow-roles/researcher', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isEnabled: false }),
+      }),
+    );
+
+    expect(res.status).toBe(404);
+    expect(mockPrisma.workflowRoleConfig.update).not.toHaveBeenCalled();
   });
 
   test('無効なロール名で400を返すこと', async () => {

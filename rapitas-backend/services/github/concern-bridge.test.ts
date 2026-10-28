@@ -41,7 +41,7 @@ const mockIssueUpdate = mock(() => Promise.resolve({}));
 mock.module('../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
   prisma: {
-    gitHubIntegration: { findFirst: mockIntegrationFindUnique },
+    gitHubIntegration: { findUnique: mockIntegrationFindUnique },
     gitHubIssue: {
       findFirst: mockIssueFindFirst,
       findUnique: mockIssueFindUnique,
