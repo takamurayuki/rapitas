@@ -314,6 +314,7 @@ jobs:
           src/app/settings/developer-mode/components/AutoRunSettingsCard.test.tsx
           src/components/__tests__/ErrorBoundary.test.tsx
           src/components/__tests__/LanguageSwitcher.test.tsx
+          src/components/__tests__/header-guest-auth-links.test.tsx
           src/components/copilot/__tests__/CopilotChatPanel.test.tsx
           src/feature/tasks/components/__tests__/TaskCard.test.tsx
           src/app/ideas/_components/__tests__/IdeaBoxHeader.test.tsx

@@ -46,6 +46,8 @@
     "admin": "Admin",
     "user": "User",
     "logout": "Logout",
+    "login": "Log in",
+    "register": "Create account",
     "moreMenu": "More menu",
     "closeNoteAI": "Close Note & AI",
     "openNoteAI": "Note & AI (Ctrl+E)",

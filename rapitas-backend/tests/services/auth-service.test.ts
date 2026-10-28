@@ -37,6 +37,16 @@ const mockPrisma = {
     findMany: mock(() => Promise.resolve([])),
     deleteMany: mock(() => Promise.resolve({ count: 1 })),
   },
+  // Register and login provision a workspace before issuing the session: an
+  // account signed in without one resolves to "no workspace" and would see
+  // every workspace's data. Without these the whole route 500s.
+  workspaceMember: {
+    findFirst: mock(() => Promise.resolve(null)),
+  },
+  workspace: {
+    findUnique: mock(() => Promise.resolve(null)),
+    create: mock(() => Promise.resolve({ id: 1, slug: 'testuser', name: 'testuser' })),
+  },
 };
 
 mock.module('../../config/database', () => ({
@@ -126,6 +136,13 @@ function resetAllMocks() {
   mockPrisma.userSession.findFirst.mockResolvedValue(null);
   mockPrisma.userSession.findMany.mockResolvedValue([]);
   mockPrisma.userSession.deleteMany.mockResolvedValue({ count: 1 });
+  // mockReset() above drops the implementation too, and workspace
+  // provisioning runs on both register and login — an unprimed
+  // `workspace.create` returns undefined and the route 500s before it ever
+  // reaches its own assertions.
+  mockPrisma.workspaceMember.findFirst.mockResolvedValue(null);
+  mockPrisma.workspace.findUnique.mockResolvedValue(null);
+  mockPrisma.workspace.create.mockResolvedValue({ id: 1, slug: 'testuser', name: 'testuser' });
 }
 
 function createApp() {
