@@ -33,7 +33,7 @@ model UsageBudgetThemeShare {
   themeId      Int
   sharePercent Float
 
-  @@unique([budgetId, themeId])
+  @@unique([workspaceId, budgetId, themeId])
   @@index([workspaceId])
 }
 

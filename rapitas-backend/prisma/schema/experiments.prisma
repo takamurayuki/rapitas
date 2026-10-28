@@ -207,13 +207,14 @@ model DetectionMissCase {
   /** When the evidence event happened (not when this row was recorded). */
   detectedAt   DateTime @default(now())
   /** miss:<gate>:<taskId>:<discriminator> — absorbs re-scans of the same event. */
-  dedupKey     String   @unique
+  dedupKey     String  
   createdAt    DateTime @default(now())
 
   @@index([gate])
   @@index([taskId])
   @@index([detectedAt])
   @@index([workspaceId])
+  @@unique([workspaceId, dedupKey])
 }
 
 // Gate-precision ledger — one row per verify_repair dispute (the SAME
@@ -243,7 +244,7 @@ model GatePrecisionCase {
   /** When the dispute resolved (or was last observed, for unresolved_blocked). */
   detectedAt     DateTime @default(now())
   /** gate-precision:<taskId>:<criterionIndex>:<lastBounceTransitionId> — absorbs re-scans. */
-  dedupKey       String   @unique
+  dedupKey       String  
   createdAt      DateTime @default(now())
 
   @@index([gate])
@@ -251,6 +252,7 @@ model GatePrecisionCase {
   @@index([verdict])
   @@index([detectedAt])
   @@index([workspaceId])
+  @@unique([workspaceId, dedupKey])
 }
 
 // Signature suggestions learned from detection-miss cases (task #578).
@@ -275,13 +277,14 @@ model MissSignatureSuggestion {
   reviewedBy  String?
   reviewedAt  DateTime?
   /** suggest:<gate>:<signatureKey> — one row per distinct cue. */
-  dedupKey    String    @unique
+  dedupKey    String   
   createdAt   DateTime  @default(now())
 
   @@index([status])
   @@index([caseId])
   @@index([reviewedAt])
   @@index([workspaceId])
+  @@unique([workspaceId, dedupKey])
 }
 
 // Prompt evolution records - history of prompt improvements.

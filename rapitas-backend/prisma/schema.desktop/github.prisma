@@ -8,7 +8,7 @@ model GitHubIntegration {
   id                Int       @id @default(autoincrement())
   /// Owning workspace; NULL = the default one until stage 4 makes this required.
   workspaceId Int?
-  repositoryUrl     String    @unique
+  repositoryUrl     String   
   repositoryName    String
   ownerName         String
   accessTokenEnc    String?
@@ -22,6 +22,7 @@ model GitHubIntegration {
   pullRequests      GitHubPullRequest[]
   issues            GitHubIssue[]
   @@index([workspaceId])
+  @@unique([workspaceId, repositoryUrl])
 }
 
 model GitHubPullRequest {
@@ -122,12 +123,13 @@ model FavoriteDirectory {
   id          Int       @id @default(autoincrement())
   /// Owning workspace; NULL = the default one until stage 4 makes this required.
   workspaceId Int?
-  path        String    @unique
+  path        String   
   name        String?
   isGitRepo   Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   @@index([workspaceId])
+  @@unique([workspaceId, path])
 }
 
 model GitRetryMetric {

@@ -111,7 +111,7 @@ model BacklogSchedule {
   id         Int       @id @default(autoincrement())
   /// Owning workspace; NULL = the default one until stage 4 makes this required.
   workspaceId Int?
-  kind       String    @unique // 'innovation' | 'vuln_scan'
+  kind       String    // 'innovation' | 'vuln_scan'
   enabled    Boolean   @default(false)
   frequency  String    @default("weekly") // 'daily' | 'weekly'
   hour       Int       @default(3) // 0-23, local hour the job fires
@@ -120,6 +120,7 @@ model BacklogSchedule {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   @@index([workspaceId])
+  @@unique([workspaceId, kind])
 }
 
 /**
@@ -144,7 +145,7 @@ model ThemeBacklogSchedule {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  @@unique([kind, themeId])
+  @@unique([workspaceId, kind, themeId])
   @@index([workspaceId])
 }
 
@@ -207,7 +208,7 @@ model SearchMiss {
   id                  Int       @id @default(autoincrement())
   /// Owning workspace; NULL = the default one until stage 4 makes this required.
   workspaceId Int?
-  query               String    @unique
+  query               String   
   hitCount            Int       @default(0)
   lastSearchedAt      DateTime  @default(now())
   status              String    @default("open")
@@ -221,6 +222,7 @@ model SearchMiss {
   @@index([hitCount])
   @@index([themeId])
   @@index([workspaceId])
+  @@unique([workspaceId, query])
 }
 
 // Every act ラピ (the resident assistant) took on the user's behalf — including
