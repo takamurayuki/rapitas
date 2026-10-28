@@ -111,12 +111,12 @@ services/agents/orchestrator/git-operations/worktree/worktree-removal-backoff.te
 # 必須ゲートがテナンシーを1度も実行しないままマージされた。
 # ドリフト検出はマニフェストに書かれたファイルの存在だけを見るので、
 # 層ごと欠けていても気付けない。
+# 統合テスト3件 (workspace-scoping / workspace-request / workspace-backfill)
+# はここに置けない: このゲートのジョブは postgres クライアントしか生成せず、
+# 3件はいずれも generated/prisma-sqlite を読む。sqlite-compat-tests.txt 側に置く。
 services/tenancy/owned-models.test.ts
 services/tenancy/workspace-scope.test.ts
 services/tenancy/workspace-extension.test.ts
 services/tenancy/session-workspace.test.ts
-services/tenancy/workspace-scoping.integration.test.ts
-services/tenancy/workspace-request.integration.test.ts
-services/tenancy/workspace-backfill.integration.test.ts
 routes/system/tenancy.routes.test.ts
 tests/schema/workspace-tenancy.test.ts
