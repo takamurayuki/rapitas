@@ -189,7 +189,7 @@ async function readThemeIdleRow(themeId: number): Promise<{
   lastSelfRefillAt: Date | null;
 } | null> {
   try {
-    const row = await prisma.themeAutoRun.findUnique({ where: { themeId } });
+    const row = await prisma.themeAutoRun.findFirst({ where: { themeId } });
     if (!row) return null;
     const idle = row as { idleSince?: Date | null; lastSelfRefillAt?: Date | null };
     return {

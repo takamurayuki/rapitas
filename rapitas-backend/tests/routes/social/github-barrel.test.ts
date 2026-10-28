@@ -17,7 +17,7 @@ import { Elysia } from 'elysia';
 const mockPrisma = {
   gitHubIntegration: {
     findMany: mock(() => Promise.resolve([])) as any,
-    findUnique: mock(() => Promise.resolve(null)) as any,
+    findFirst: mock(() => Promise.resolve(null)) as any,
     create: mock(() => Promise.resolve({ id: 1 })) as any,
     update: mock(() => Promise.resolve({})) as any,
     delete: mock(() => Promise.resolve({})) as any,

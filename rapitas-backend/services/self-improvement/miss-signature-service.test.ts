@@ -27,12 +27,12 @@ mock.module('../../config/logger', () => ({
 mock.module('../../config/database', () => ({
   prisma: {
     missSignatureSuggestion: {
-      findUnique: suggestionFindUniqueMock,
+      findFirst: suggestionFindUniqueMock,
       findMany: suggestionFindManyMock,
       update: suggestionUpdateMock,
       count: suggestionCountMock,
     },
-    detectionMissCase: { findUnique: caseFindUniqueMock, count: caseCountMock },
+    detectionMissCase: { findFirst: caseFindUniqueMock, count: caseCountMock },
     knowledgeEntry: { findFirst: knowledgeFindFirstMock, create: knowledgeCreateMock },
   },
   ensureDatabaseConnection: () => Promise.resolve(),

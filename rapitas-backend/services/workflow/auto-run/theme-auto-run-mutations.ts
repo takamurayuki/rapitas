@@ -48,7 +48,7 @@ export async function startAutoRun(
   themeId: number,
   order?: 'priority' | 'created',
 ): Promise<ThemeAutoRunState> {
-  const existing = await prisma.themeAutoRun.findUnique({ where: { themeId } });
+  const existing = await prisma.themeAutoRun.findFirst({ where: { themeId } });
 
   if (existing?.status === 'running') {
     log.warn(`[ThemeAutoRunService] Theme ${themeId} is already running`);
@@ -119,7 +119,7 @@ export async function pauseAutoRun(themeId: number): Promise<ThemeAutoRunState> 
  * @returns updated state or null if theme not found / 更新後の状態またはnull
  */
 export async function resumeAutoRun(themeId: number): Promise<ThemeAutoRunState | null> {
-  const existing = await prisma.themeAutoRun.findUnique({ where: { themeId } });
+  const existing = await prisma.themeAutoRun.findFirst({ where: { themeId } });
   if (!existing) return null;
   if (!isAutoResumablePauseStatus(narrowAutoRunStatus(existing.status))) {
     return mapToState(existing);

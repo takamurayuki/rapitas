@@ -118,5 +118,7 @@ services/tenancy/owned-models.test.ts
 services/tenancy/workspace-scope.test.ts
 services/tenancy/workspace-extension.test.ts
 services/tenancy/session-workspace.test.ts
+services/tenancy/workspace-backfill.test.ts
+services/tenancy/workspace-provisioning.test.ts
 routes/system/tenancy.routes.test.ts
 tests/schema/workspace-tenancy.test.ts

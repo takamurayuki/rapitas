@@ -28,7 +28,7 @@ export const systemPromptsRoutes = new Elysia()
 
   .get('/system-prompts/:key', async (context) => {
     const { params } = context;
-    const prompt = await prisma.systemPrompt.findUnique({
+    const prompt = await prisma.systemPrompt.findFirst({
       where: { key: params.key },
     });
 
@@ -55,7 +55,7 @@ export const systemPromptsRoutes = new Elysia()
         throw new ValidationError('key, name, content は必須です');
       }
 
-      const existing = await prisma.systemPrompt.findUnique({
+      const existing = await prisma.systemPrompt.findFirst({
         where: { key },
       });
 
@@ -94,7 +94,7 @@ export const systemPromptsRoutes = new Elysia()
     '/system-prompts/:key',
     async (context) => {
       const { params, body } = context;
-      const existing = await prisma.systemPrompt.findUnique({
+      const existing = await prisma.systemPrompt.findFirst({
         where: { key: params.key },
       });
 
@@ -110,8 +110,10 @@ export const systemPromptsRoutes = new Elysia()
         isActive?: boolean;
       };
 
+      // Keyed by id rather than by key: `key` is unique per workspace now, and
+      // `existing` was already resolved inside this workspace above.
       const updated = await prisma.systemPrompt.update({
-        where: { key: params.key },
+        where: { id: existing.id },
         data: {
           ...(name !== undefined && { name }),
           ...(description !== undefined && { description }),
@@ -145,7 +147,7 @@ export const systemPromptsRoutes = new Elysia()
     '/system-prompts/:key',
     async (context) => {
       const { params } = context;
-      const existing = await prisma.systemPrompt.findUnique({
+      const existing = await prisma.systemPrompt.findFirst({
         where: { key: params.key },
       });
 
@@ -157,8 +159,9 @@ export const systemPromptsRoutes = new Elysia()
         throw new ValidationError('デフォルトプロンプトは削除できません。無効化してください。');
       }
 
+      // By id, for the same reason as the PATCH above.
       await prisma.systemPrompt.delete({
-        where: { key: params.key },
+        where: { id: existing.id },
       });
 
       return { success: true };
@@ -176,22 +179,30 @@ export const systemPromptsRoutes = new Elysia()
       throw new NotFoundError('デフォルトプロンプトが見つかりません');
     }
 
-    const updated = await prisma.systemPrompt.upsert({
+    // find-then-write rather than upsert: `key` alone is no longer a unique
+    // filter, so upsert cannot be keyed by it. The scope layer resolves which
+    // workspace both halves belong to.
+    const existing = await prisma.systemPrompt.findFirst({
       where: { key: params.key },
-      update: {
-        content: defaultPrompt.content,
-        name: defaultPrompt.name,
-        description: defaultPrompt.description,
-        category: defaultPrompt.category,
-        isActive: true,
-        isDefault: true,
-      },
-      create: {
-        ...defaultPrompt,
-        isActive: true,
-        isDefault: true,
-      },
+      select: { id: true },
     });
+
+    const updated =
+      existing === null
+        ? await prisma.systemPrompt.create({
+            data: { ...defaultPrompt, isActive: true, isDefault: true },
+          })
+        : await prisma.systemPrompt.update({
+            where: { id: existing.id },
+            data: {
+              content: defaultPrompt.content,
+              name: defaultPrompt.name,
+              description: defaultPrompt.description,
+              category: defaultPrompt.category,
+              isActive: true,
+              isDefault: true,
+            },
+          });
 
     return updated;
   })
@@ -201,7 +212,7 @@ export const systemPromptsRoutes = new Elysia()
     const results: Array<{ key: string; action: string }> = [];
 
     for (const prompt of DEFAULT_SYSTEM_PROMPTS) {
-      const existing = await prisma.systemPrompt.findUnique({
+      const existing = await prisma.systemPrompt.findFirst({
         where: { key: prompt.key },
       });
 

@@ -196,7 +196,7 @@ function makePrismaMock(overrides: Record<string, unknown> = {}) {
     pomodoroSession: { findMany: mock(() => Promise.resolve([])) },
     timeEntry: { findMany: mock(() => Promise.resolve([])) },
     weeklyReview: {
-      findUnique: mock(() => Promise.resolve(null)),
+      findFirst: mock(() => Promise.resolve(null)),
       findFirst: mock(() => Promise.resolve(null)),
       findMany: mock(() => Promise.resolve([])),
       create: mock((args: { data: unknown }) => Promise.resolve({ id: 1, ...args.data })),
@@ -334,7 +334,7 @@ describe('generateWeeklyReview', () => {
     const existing = { id: 99, weekStart, summary: 'cached' };
     const prisma = makePrismaMock({
       weeklyReview: {
-        findUnique: mock(() => Promise.resolve(existing)),
+        findFirst: mock(() => Promise.resolve(existing)),
         create: mock(() => Promise.reject(new Error('should not be called'))),
       },
     });
@@ -347,7 +347,7 @@ describe('generateWeeklyReview', () => {
     const created: { data?: unknown } = {};
     const prisma = makePrismaMock({
       weeklyReview: {
-        findUnique: mock(() => Promise.resolve(null)),
+        findFirst: mock(() => Promise.resolve(null)),
         create: mock((args: { data: { summary: string; modelUsed: string } }) => {
           created.data = args.data;
           return Promise.resolve({ id: 1, ...args.data });
@@ -383,7 +383,7 @@ describe('generateWeeklyReview', () => {
         ),
       },
       weeklyReview: {
-        findUnique: mock(() => Promise.resolve(null)),
+        findFirst: mock(() => Promise.resolve(null)),
         create: mock((args: { data: unknown }) => {
           created.data = args.data;
           return Promise.resolve({ id: 2, ...args.data });

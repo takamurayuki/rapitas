@@ -7,7 +7,7 @@ import { Elysia } from 'elysia';
 
 const mockPrisma = {
   paidLeaveBalance: {
-    findUnique: mock(() => Promise.resolve(null)),
+    findFirst: mock(() => Promise.resolve(null)),
     create: mock(() => Promise.resolve({ id: 1 })),
     update: mock(() => Promise.resolve({})),
     upsert: mock(() => Promise.resolve({ id: 1 })),

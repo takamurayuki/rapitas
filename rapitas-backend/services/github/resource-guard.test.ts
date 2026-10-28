@@ -17,7 +17,7 @@ mock.module('../../config/database', () => ({
   prisma: {
     gitHubPullRequest: { findUnique: mockFindUniquePr },
     gitHubIssue: { findUnique: mockFindUniqueIssue },
-    gitHubIntegration: { findUnique: mockFindUniqueIntegration },
+    gitHubIntegration: { findFirst: mockFindUniqueIntegration },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
 }));

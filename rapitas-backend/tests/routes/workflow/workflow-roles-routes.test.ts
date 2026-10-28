@@ -8,7 +8,7 @@ import { Elysia } from 'elysia';
 const mockPrisma = {
   workflowRoleConfig: {
     findMany: mock(() => Promise.resolve([])),
-    findUnique: mock(() => Promise.resolve(null)),
+    findFirst: mock(() => Promise.resolve(null)),
     createMany: mock(() => Promise.resolve({ count: 0 })),
     update: mock(() => Promise.resolve({})),
   },
@@ -16,7 +16,7 @@ const mockPrisma = {
     findUnique: mock(() => Promise.resolve(null)),
   },
   systemPrompt: {
-    findUnique: mock(() => Promise.resolve(null)),
+    findFirst: mock(() => Promise.resolve(null)),
   },
 };
 

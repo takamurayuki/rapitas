@@ -28,7 +28,7 @@ mock.module('../../../config/database', () => ({
   prisma: {
     userSettings: { findFirst: mockUserSettingsFindFirst },
     themeAutoRun: {
-      findUnique: mockThemeAutoRunFindUnique,
+      findFirst: mockThemeAutoRunFindUnique,
       update: mockThemeAutoRunUpdate,
       updateMany: mockThemeAutoRunUpdateMany,
     },

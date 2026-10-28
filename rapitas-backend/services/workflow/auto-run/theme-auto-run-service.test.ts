@@ -18,7 +18,7 @@ const mockCreate = mock(() => Promise.resolve({}));
 mock.module('../../../config', () => ({
   prisma: {
     themeAutoRun: {
-      findUnique: mockFindUnique,
+      findFirst: mockFindUnique,
       create: mockCreate,
       upsert: mockUpsert,
       update: mockUpdate,

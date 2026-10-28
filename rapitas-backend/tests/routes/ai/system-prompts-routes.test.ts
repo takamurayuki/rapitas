@@ -8,7 +8,7 @@ import { Elysia } from 'elysia';
 const mockPrisma = {
   systemPrompt: {
     findMany: mock(() => Promise.resolve([])),
-    findUnique: mock(() => Promise.resolve(null)),
+    findFirst: mock(() => Promise.resolve(null)),
     create: mock(() => Promise.resolve({ id: 1 })),
     update: mock(() => Promise.resolve({})),
     delete: mock(() => Promise.resolve({})),

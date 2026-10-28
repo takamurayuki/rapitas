@@ -11,7 +11,7 @@ const mockPrisma = {
     update: mock(() => Promise.resolve({})),
   },
   workflowRoleConfig: {
-    findUnique: mock(() => Promise.resolve(null)),
+    findFirst: mock(() => Promise.resolve(null)),
   },
   developerModeConfig: {
     findUnique: mock(() => Promise.resolve(null)),
@@ -26,7 +26,7 @@ const mockPrisma = {
     update: mock(() => Promise.resolve({})),
   },
   systemPrompt: {
-    findUnique: mock(() => Promise.resolve(null)),
+    findFirst: mock(() => Promise.resolve(null)),
   },
   // NOTE: Added — workflow-orchestrator.ts:342 resolves aIAgentConfig when no role config exists.
   aIAgentConfig: {

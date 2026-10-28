@@ -49,7 +49,7 @@ function makePrisma(overrides?: {
     prisma: {
       gitHubIntegration: {
         findMany: mock(() => Promise.resolve(integrations)),
-        findUnique: mock((args: { where: { id: number } }) => {
+        findFirst: mock((args: { where: { id: number } }) => {
           const row = integrations.find((i) => i.id === args.where.id);
           // A just-provisioned integration is not in `integrations`; answer with
           // the identity ensureIntegrationId would have created it under.

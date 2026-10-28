@@ -48,6 +48,18 @@ const delegateName = (model: string): string => model.charAt(0).toLowerCase() + 
 const BARE_IDENTIFIER = /^[A-Za-z][A-Za-z0-9_]*$/;
 
 /**
+ * The one client method the claim needs.
+ *
+ * Injected rather than reached for, following tenancy.routes.ts: the
+ * alternative is `mock.module` on the Prisma client, which bun applies
+ * process-wide to every other test file in the run. Production passes nothing
+ * and gets the real client.
+ */
+export interface RawExecutor {
+  $executeRawUnsafe: (sql: string) => Promise<number>;
+}
+
+/**
  * Hand every unowned row to `workspaceId`.
  *
  * Raw SQL, not `updateMany`, and that is the point of this function rather
@@ -68,7 +80,10 @@ const BARE_IDENTIFIER = /^[A-Za-z][A-Za-z0-9_]*$/;
  * @returns Per-model counts and any failures / モデル別件数と失敗
  * @throws {Error} When workspaceId is not an integer / workspaceId が整数でない場合
  */
-export async function claimUnownedRows(workspaceId: number): Promise<BackfillResult> {
+export async function claimUnownedRows(
+  workspaceId: number,
+  db: RawExecutor = prisma,
+): Promise<BackfillResult> {
   if (!Number.isInteger(workspaceId)) {
     throw new Error(`[tenancy] refusing to backfill with a non-integer workspace: ${workspaceId}`);
   }
@@ -83,7 +98,7 @@ export async function claimUnownedRows(workspaceId: number): Promise<BackfillRes
       continue;
     }
     try {
-      const claimed = await prisma.$executeRawUnsafe(
+      const claimed = await db.$executeRawUnsafe(
         `UPDATE "${model}" SET "workspaceId" = ${workspaceId} WHERE "workspaceId" IS NULL`,
       );
       if (claimed > 0) models.push({ model, claimed });

@@ -14,6 +14,45 @@ import { runAcrossAllWorkspaces } from './workspace-context';
 
 const log = createLogger('tenancy:provisioning');
 
+/** A workspace as this module reports it. */
+interface WorkspaceRow {
+  id: number;
+  slug: string;
+  name: string;
+}
+
+/**
+ * The client surface provisioning needs.
+ *
+ * Injected rather than reached for, following tenancy.routes.ts: the
+ * alternative is `mock.module` on the Prisma client, which bun applies
+ * process-wide to every other test file in the run. Production passes nothing
+ * and gets the real client.
+ */
+export interface ProvisioningDb {
+  workspace: {
+    findUnique: (a: { where: { slug: string } }) => Promise<{ id: number } | null>;
+    findFirst: (a: {
+      where: { isDefault: boolean };
+      select: { id: true; slug: true };
+    }) => Promise<{ id: number; slug: string } | null>;
+    create: (a: {
+      data: Record<string, unknown>;
+      select: Record<string, true>;
+    }) => Promise<WorkspaceRow>;
+  };
+  workspaceMember: {
+    findFirst: (a: {
+      where: { userId: number };
+      orderBy: { id: 'asc' };
+      select: { workspace: { select: { id: true; slug: true; name: true } } };
+    }) => Promise<{ workspace: WorkspaceRow | null } | null>;
+  };
+}
+
+/** The real client, structurally narrowed to what this module uses. */
+const defaultDb = (): ProvisioningDb => prisma as unknown as ProvisioningDb;
+
 /** Turn a username into a slug that is stable, readable and URL-safe. */
 function slugify(base: string): string {
   const cleaned = base
@@ -29,13 +68,13 @@ function slugify(base: string): string {
  * @param base - Preferred slug / 希望するスラッグ
  * @returns An unused slug / 未使用のスラッグ
  */
-async function uniqueSlug(base: string): Promise<string> {
+async function uniqueSlug(base: string, db: ProvisioningDb): Promise<string> {
   // Unscoped: Workspace is exempt from scoping, but being explicit keeps this
   // correct if that ever changes.
   return runAcrossAllWorkspaces(async () => {
     let candidate = base;
     for (let n = 2; n < 1000; n++) {
-      const taken = await prisma.workspace.findUnique({ where: { slug: candidate } });
+      const taken = await db.workspace.findUnique({ where: { slug: candidate } });
       if (!taken) return candidate;
       candidate = `${base}-${n}`;
     }
@@ -58,17 +97,18 @@ async function uniqueSlug(base: string): Promise<string> {
 export async function ensureWorkspaceForUser(
   userId: number,
   name: string,
+  db: ProvisioningDb = defaultDb(),
 ): Promise<{ id: number; slug: string; name: string }> {
   return runAcrossAllWorkspaces(async () => {
-    const existing = await prisma.workspaceMember.findFirst({
+    const existing = await db.workspaceMember.findFirst({
       where: { userId },
       orderBy: { id: 'asc' },
       select: { workspace: { select: { id: true, slug: true, name: true } } },
     });
     if (existing?.workspace) return existing.workspace;
 
-    const slug = await uniqueSlug(slugify(name));
-    const workspace = await prisma.workspace.create({
+    const slug = await uniqueSlug(slugify(name), db);
+    const workspace = await db.workspace.create({
       data: {
         slug,
         name,
@@ -89,15 +129,17 @@ export async function ensureWorkspaceForUser(
  *
  * @returns The default workspace / 既定ワークスペース
  */
-export async function ensureDefaultWorkspace(): Promise<{ id: number; slug: string }> {
+export async function ensureDefaultWorkspace(
+  db: ProvisioningDb = defaultDb(),
+): Promise<{ id: number; slug: string }> {
   return runAcrossAllWorkspaces(async () => {
-    const found = await prisma.workspace.findFirst({
+    const found = await db.workspace.findFirst({
       where: { isDefault: true },
       select: { id: true, slug: true },
     });
     if (found) return found;
-    const created = await prisma.workspace.create({
-      data: { slug: await uniqueSlug('default'), name: '既定', isDefault: true },
+    const created = await db.workspace.create({
+      data: { slug: await uniqueSlug('default', db), name: '既定', isDefault: true },
       select: { id: true, slug: true },
     });
     log.info({ workspaceId: created.id }, 'created the default workspace');

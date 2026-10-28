@@ -57,13 +57,11 @@ export const paidLeaveRoutes = new Elysia({ prefix: '/paid-leave' })
         const userId = query.userId || 'default';
         const fiscalYear = query.fiscalYear ? parseInt(query.fiscalYear) : getCurrentFiscalYear();
 
-        let balance = await prisma.paidLeaveBalance.findUnique({
-          where: {
-            userId_fiscalYear: {
-              userId,
-              fiscalYear,
-            },
-          },
+        // findFirst, not findUnique: the constraint is now
+        // @@unique([workspaceId, userId, fiscalYear]), and the composite's
+        // workspaceId is supplied by the scope layer rather than by callers.
+        let balance = await prisma.paidLeaveBalance.findFirst({
+          where: { userId, fiscalYear },
         });
 
         if (!balance) {
@@ -128,27 +126,34 @@ export const paidLeaveRoutes = new Elysia({ prefix: '/paid-leave' })
         };
         const targetYear = fiscalYear || getCurrentFiscalYear();
 
-        const balance = await prisma.paidLeaveBalance.upsert({
-          where: {
-            userId_fiscalYear: {
-              userId,
-              fiscalYear: targetYear,
-            },
-          },
-          update: {
-            totalDays: totalDays || 20,
-            carryOverDays: carryOverDays || 0,
-            lastCalculatedAt: new Date(),
-          },
-          create: {
-            userId,
-            fiscalYear: targetYear,
-            totalDays: totalDays || 20,
-            usedDays: 0,
-            remainingDays: (totalDays || 20) + (carryOverDays || 0),
-            carryOverDays: carryOverDays || 0,
-          },
+        // find-then-write rather than upsert: the constraint is now
+        // @@unique([workspaceId, userId, fiscalYear]), so `userId_fiscalYear`
+        // is not a filter upsert can take. The scope layer decides the
+        // workspace for both the read and the create.
+        const found = await prisma.paidLeaveBalance.findFirst({
+          where: { userId, fiscalYear: targetYear },
+          select: { id: true },
         });
+        const balance =
+          found === null
+            ? await prisma.paidLeaveBalance.create({
+                data: {
+                  userId,
+                  fiscalYear: targetYear,
+                  totalDays: totalDays || 20,
+                  usedDays: 0,
+                  remainingDays: (totalDays || 20) + (carryOverDays || 0),
+                  carryOverDays: carryOverDays || 0,
+                },
+              })
+            : await prisma.paidLeaveBalance.update({
+                where: { id: found.id },
+                data: {
+                  totalDays: totalDays || 20,
+                  carryOverDays: carryOverDays || 0,
+                  lastCalculatedAt: new Date(),
+                },
+              });
 
         const usedDays = await calculateUsedDays(userId, targetYear);
         const remainingDays = balance.totalDays + balance.carryOverDays - usedDays;
