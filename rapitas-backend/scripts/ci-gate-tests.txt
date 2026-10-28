@@ -105,3 +105,18 @@ routes/agents/execution/routes/respond-route.test.ts
 services/workflow/halt-release.test.ts
 services/workflow/task-iteration-budget.window-reset-causes.test.ts
 services/agents/orchestrator/git-operations/worktree/worktree-removal-backoff.test.ts
+
+# ===== テナンシー（#1255） =====
+# この層のテストは1件もゲートに入っておらず、stage 1/2/3 はいずれも
+# 必須ゲートがテナンシーを1度も実行しないままマージされた。
+# ドリフト検出はマニフェストに書かれたファイルの存在だけを見るので、
+# 層ごと欠けていても気付けない。
+services/tenancy/owned-models.test.ts
+services/tenancy/workspace-scope.test.ts
+services/tenancy/workspace-extension.test.ts
+services/tenancy/session-workspace.test.ts
+services/tenancy/workspace-scoping.integration.test.ts
+services/tenancy/workspace-request.integration.test.ts
+services/tenancy/workspace-backfill.integration.test.ts
+routes/system/tenancy.routes.test.ts
+tests/schema/workspace-tenancy.test.ts
