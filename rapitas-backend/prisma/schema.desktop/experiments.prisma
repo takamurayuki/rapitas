@@ -42,6 +42,8 @@ model Experiment {
 // Hypothesis management - track solution hypotheses
 model Hypothesis {
   id            Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   experimentId  Int
   experiment    Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   content       String    // Hypothesis content
@@ -56,11 +58,14 @@ model Hypothesis {
 
   @@index([experimentId])
   @@index([status])
+  @@index([workspaceId])
 }
 
 // Critic review - results from independent evaluation agent
 model CriticReview {
   id            Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   experimentId  Int
   experiment    Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   phase         String    // hypothesis, plan, execution
@@ -75,6 +80,7 @@ model CriticReview {
 
   @@index([experimentId])
   @@index([phase])
+  @@index([workspaceId])
 }
 
 // Learning patterns - record success/failure patterns
@@ -103,6 +109,8 @@ model LearningPattern {
 // Workflow learning records - actual workflow execution data from completed tasks
 model WorkflowLearningRecord {
   id                    Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId                Int
   task                  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
   workflowMode          String    // Actually used mode: lightweight, standard, comprehensive
@@ -127,6 +135,7 @@ model WorkflowLearningRecord {
   @@index([categoryId])
   @@index([outcome])
   @@index([createdAt])
+  @@index([workspaceId])
 }
 
 // Task duration predictions - distribution-based duration estimates (median /
@@ -283,6 +292,8 @@ model MissSignatureSuggestion {
 // the prompt pair and performanceDelta once the A/B result lands.
 model PromptEvolution {
   id            Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   experimentId  Int?
   experiment    Experiment? @relation(fields: [experimentId], references: [id], onDelete: SetNull)
   // NOTE: kept non-null with "" default (not nullable) so generated types stay
@@ -302,4 +313,5 @@ model PromptEvolution {
   @@index([category])
   @@index([performanceDelta])
   @@index([status])
+  @@index([workspaceId])
 }

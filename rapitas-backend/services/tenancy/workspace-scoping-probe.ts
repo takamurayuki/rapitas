@@ -96,8 +96,24 @@ async function main(): Promise<void> {
       findUniqueNoWorkspace:
         (await prisma.category.findUnique({ where: { id: 1 } })) === null ? null : 'found',
       createdWorkspaceId: (created as { workspaceId: number | null }).workspaceId,
-      // Task has no workspaceId of its own; it inherits through its FK.
-      countDerivedModel: await runInWorkspace(WS, () => prisma.task.count()),
+      // Whether the GENERATED client is current. The registry is read from its
+      // DMMF, so a stale client silently drops Task from the owned set and the
+      // two counts below stop meaning anything — hence reporting it.
+      taskIsOwned: getOwnedModels().has('Task'),
+      // Task now carries the column, so the seeded unowned row is invisible to
+      // a scoped read. This is the defect stage 1 left behind: the row was
+      // previously returned to every workspace.
+      countTaskInWorkspace: await runInWorkspace(WS, () => prisma.task.count()),
+      // The control: the row is there, the scoped read just cannot see it.
+      countTaskNoWorkspace: await prisma.task.count(),
+      /*
+       * NOTE: there is deliberately no probe here for "a model with no column
+       * is passed through". Reaching one by name from this file would make the
+       * schema guard count it as an application query and demand a column —
+       * correctly, since the guard scans production source and cannot know a
+       * file is a test harness. That case is covered exhaustively instead by
+       * workspace-scope.guards.generated.ts, where it is a pure function.
+       */
       upsertRejected: await runInWorkspace(WS, async () => {
         try {
           await prisma.category.upsert({

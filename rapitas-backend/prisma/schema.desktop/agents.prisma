@@ -6,6 +6,8 @@
 
 model DeveloperModeConfig {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId            Int       @unique
   task              Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
   isEnabled         Boolean   @default(true)
@@ -20,10 +22,14 @@ model DeveloperModeConfig {
 
   agentSessions     AgentSession[]
   approvalRequests  ApprovalRequest[]
+
+  @@index([workspaceId])
 }
 
 model AgentSession {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   configId          Int
   config            DeveloperModeConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
   status            String    @default("pending")
@@ -43,10 +49,14 @@ model AgentSession {
 
   agentActions      AgentAction[]
   agentExecutions   AgentExecution[]
+
+  @@index([workspaceId])
 }
 
 model AgentAction {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   sessionId         Int
   session           AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   actionType        String
@@ -58,10 +68,14 @@ model AgentAction {
   status            String    @default("success")
   errorMessage      String?
   createdAt         DateTime  @default(now())
+
+  @@index([workspaceId])
 }
 
 model ApprovalRequest {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   configId          Int
   config            DeveloperModeConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
   requestType       String
@@ -78,6 +92,8 @@ model ApprovalRequest {
   estimatedChanges  String?   // JSON stored as string
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+
+  @@index([workspaceId])
 }
 
 model AIAgentConfig {
@@ -108,6 +124,8 @@ model AIAgentConfig {
 
 model AgentExecution {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   sessionId         Int
   session           AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   agentConfigId     Int?
@@ -146,10 +164,13 @@ model AgentExecution {
   executionLogs     AgentExecutionLog[]
 
   @@index([status, heartbeatAt])
+  @@index([workspaceId])
 }
 
 model AgentExecutionLog {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   executionId       Int
   execution         AgentExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
   logChunk          String
@@ -159,11 +180,14 @@ model AgentExecutionLog {
   createdAt         DateTime  @default(now())
 
   @@index([executionId, sequenceNumber])
+  @@index([workspaceId])
 }
 
 // Agent execution settings (execution parameters per task)
 model AgentExecutionConfig {
   id                    Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId                Int       @unique
   task                  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
@@ -209,6 +233,7 @@ model AgentExecutionConfig {
   updatedAt             DateTime  @updatedAt
 
   @@index([taskId])
+  @@index([workspaceId])
 }
 
 // System prompt management (manage hardcoded prompts in DB)

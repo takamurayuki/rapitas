@@ -7,6 +7,8 @@
 // Records user behavior data
 model UserBehavior {
   id              Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   userId          Int       @default(1) // For future multi-user support
   actionType      String    // task_created, task_completed, task_started, task_updated, theme_selected, label_used, etc.
   taskId          Int?
@@ -19,11 +21,14 @@ model UserBehavior {
 
   @@index([userId, actionType])
   @@index([createdAt])
+  @@index([workspaceId])
 }
 
 // Records task completion patterns
 model TaskPattern {
   id                    Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   userId                Int       @default(1)
   themeId              Int?
   theme                Theme?    @relation(fields: [themeId], references: [id], onDelete: SetNull)
@@ -43,11 +48,14 @@ model TaskPattern {
 
   @@unique([userId, taskTitle, themeId])
   @@index([userId, themeId])
+  @@index([workspaceId])
 }
 
 // Aggregated data for AI learning
 model UserBehaviorSummary {
   id                    Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   userId                Int       @default(1)
   periodType           String    // daily, weekly, monthly
   periodStart          DateTime
@@ -66,11 +74,14 @@ model UserBehaviorSummary {
 
   @@unique([userId, periodType, periodStart, themeId])
   @@index([userId, periodType, periodStart])
+  @@index([workspaceId])
 }
 
 // Task analysis settings (AI analysis parameters per task)
 model TaskAnalysisConfig {
   id                    Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId                Int       @unique
   task                  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
@@ -103,6 +114,7 @@ model TaskAnalysisConfig {
   updatedAt             DateTime  @updatedAt
 
   @@index([taskId])
+  @@index([workspaceId])
 }
 
 // AI suggestion cache (saved per theme)

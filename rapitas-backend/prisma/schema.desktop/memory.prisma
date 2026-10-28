@@ -99,6 +99,8 @@ model ConsolidationRun {
 // Knowledge contradiction tracking (management of conflicting entry pairs)
 model KnowledgeContradiction {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   entryAId          Int
   entryA            KnowledgeEntry @relation("EntryA", fields: [entryAId], references: [id], onDelete: Cascade)
   entryBId          Int
@@ -124,11 +126,14 @@ model KnowledgeContradiction {
 
   @@unique([entryAId, entryBId])
   @@index([resolution])
+  @@index([workspaceId])
 }
 
 // Knowledge re-consolidation records (knowledge update history based on prediction errors)
 model KnowledgeReconsolidation {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   entryId           Int
   entry             KnowledgeEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
   predictionError   String    // Prediction error content
@@ -140,6 +145,7 @@ model KnowledgeReconsolidation {
 
   @@index([entryId])
   @@index([errorMagnitude])
+  @@index([workspaceId])
 }
 
 // Memory system background job queue
@@ -231,6 +237,8 @@ model KnowledgeGraphNode {
 // Knowledge graph edges
 model KnowledgeGraphEdge {
   id            Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   fromNodeId    Int
   toNodeId      Int
   fromNode      KnowledgeGraphNode @relation("EdgeFrom", fields: [fromNodeId], references: [id], onDelete: Cascade)
@@ -244,6 +252,7 @@ model KnowledgeGraphEdge {
   @@index([fromNodeId])
   @@index([toNodeId])
   @@index([edgeType])
+  @@index([workspaceId])
 }
 
 // Decision Journal — records a deliberate decision with its rationale and a
@@ -283,6 +292,8 @@ model DecisionLog {
 // Episodic memory - detailed experiment records
 model EpisodeMemory {
   id            Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   experimentId  Int
   experiment    Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   phase         String    // research, hypothesis, plan, execute, evaluate, learn
@@ -296,4 +307,5 @@ model EpisodeMemory {
   @@index([experimentId])
   @@index([phase])
   @@index([importance])
+  @@index([workspaceId])
 }

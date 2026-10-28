@@ -61,8 +61,23 @@ describe('the registry reflects the schema', () => {
     }
   });
 
-  it('excludes models that inherit through a parent', () => {
+  it('includes the models stage 1 expected to inherit through a parent', () => {
+    // Stage 1 left these without the column, on the premise that a child
+    // inherits its parent's workspace through the foreign key. Prisma does not
+    // walk a foreign key when it filters, so each of these was read
+    // unscoped — measured with a `Category -> Theme -> Task` chain per
+    // workspace, where a scoped read of Task returned both. They carry their
+    // own column now, and this is the assertion that says so.
     for (const m of ['Task', 'Theme', 'Comment', 'TaskLabel', 'TimeEntry']) {
+      expect(owned.has(m)).toBe(true);
+    }
+  });
+
+  it('still excludes the models nothing queries by name', () => {
+    // No column, and they do not need one: they are reached only through a
+    // parent's include/select, where the parent's filter already decided the
+    // workspace. tests/schema/workspace-tenancy.test.ts pins that list.
+    for (const m of ['GitHubPRReview', 'RequirementReviewClaim', 'TaskDurationPrediction']) {
       expect(owned.has(m)).toBe(false);
     }
   });

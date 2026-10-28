@@ -30,17 +30,17 @@ beforeEach(async () => {
   });
   // Minimal isolated schema for the real Prisma queries; never reads the operational database.
   for (const sql of [
-    'CREATE TABLE Task (id INTEGER PRIMARY KEY, title TEXT, description TEXT, goals TEXT, constraints TEXT, acceptanceCriteria TEXT, status TEXT, workflowStatus TEXT, updatedAt DATETIME, themeId INTEGER)',
-    'CREATE TABLE WorkflowFile (id INTEGER PRIMARY KEY, taskId INTEGER, fileType TEXT, content TEXT, UNIQUE(taskId,fileType))',
-    'CREATE TABLE DeveloperModeConfig (id INTEGER PRIMARY KEY, taskId INTEGER)',
-    'CREATE TABLE AgentSession (id INTEGER PRIMARY KEY, configId INTEGER)',
-    'CREATE TABLE AgentExecution (id INTEGER PRIMARY KEY, sessionId INTEGER, status TEXT, startedAt DATETIME)',
-    'CREATE TABLE ThemeAutoRun (id INTEGER PRIMARY KEY, themeId INTEGER UNIQUE, status TEXT)',
-    'CREATE TABLE WorkflowTransition (id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, fromStatus TEXT, toStatus TEXT, actor TEXT, cause TEXT, phase TEXT, executionId INTEGER, sessionId INTEGER, metadata TEXT DEFAULT "{}", invariantViolation BOOLEAN DEFAULT 0, invariantMessage TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
+    'CREATE TABLE Task (workspaceId INTEGER, id INTEGER PRIMARY KEY, title TEXT, description TEXT, goals TEXT, constraints TEXT, acceptanceCriteria TEXT, status TEXT, workflowStatus TEXT, updatedAt DATETIME, themeId INTEGER)',
+    'CREATE TABLE WorkflowFile (workspaceId INTEGER, id INTEGER PRIMARY KEY, taskId INTEGER, fileType TEXT, content TEXT, UNIQUE(taskId,fileType))',
+    'CREATE TABLE DeveloperModeConfig (workspaceId INTEGER, id INTEGER PRIMARY KEY, taskId INTEGER)',
+    'CREATE TABLE AgentSession (workspaceId INTEGER, id INTEGER PRIMARY KEY, configId INTEGER)',
+    'CREATE TABLE AgentExecution (workspaceId INTEGER, id INTEGER PRIMARY KEY, sessionId INTEGER, status TEXT, startedAt DATETIME)',
+    'CREATE TABLE ThemeAutoRun (workspaceId INTEGER, id INTEGER PRIMARY KEY, themeId INTEGER UNIQUE, status TEXT)',
+    'CREATE TABLE WorkflowTransition (workspaceId INTEGER, id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, fromStatus TEXT, toStatus TEXT, actor TEXT, cause TEXT, phase TEXT, executionId INTEGER, sessionId INTEGER, metadata TEXT DEFAULT "{}", invariantViolation BOOLEAN DEFAULT 0, invariantMessage TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
   ])
     await db.$executeRawUnsafe(sql);
   await db.$executeRawUnsafe(
-    'INSERT INTO Task VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, NULL)',
+    'INSERT INTO Task (id, title, description, goals, constraints, acceptanceCriteria, status, workflowStatus, updatedAt, themeId) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, NULL)',
     snapshot.title,
     snapshot.description,
     '[]',
@@ -51,7 +51,7 @@ beforeEach(async () => {
     now,
   );
   await db.$executeRawUnsafe(
-    'INSERT INTO WorkflowFile VALUES (1,1,?,?), (2,1,?,?)',
+    'INSERT INTO WorkflowFile (id, taskId, fileType, content) VALUES (1,1,?,?), (2,1,?,?)',
     'plan',
     snapshot.plan,
     'verify',
@@ -75,9 +75,12 @@ afterEach(async () => {
 });
 
 async function cancelledExecution() {
-  await db.$executeRawUnsafe('INSERT INTO DeveloperModeConfig VALUES (1,1)');
-  await db.$executeRawUnsafe('INSERT INTO AgentSession VALUES (1,1)');
-  await db.$executeRawUnsafe("INSERT INTO AgentExecution VALUES (1,1,'cancelled',?)", now);
+  await db.$executeRawUnsafe('INSERT INTO DeveloperModeConfig (id, taskId) VALUES (1,1)');
+  await db.$executeRawUnsafe('INSERT INTO AgentSession (id, configId) VALUES (1,1)');
+  await db.$executeRawUnsafe(
+    "INSERT INTO AgentExecution (id, sessionId, status, startedAt) VALUES (1,1,'cancelled',?)",
+    now,
+  );
 }
 
 test('session update failure propagates and durable targets allow a later retry', async () => {
@@ -106,7 +109,10 @@ test('session settlement preserves an active execution sharing the cancelled tar
   await cancelledExecution();
   await db.$executeRawUnsafe("ALTER TABLE AgentSession ADD COLUMN status TEXT DEFAULT 'running'");
   await db.$executeRawUnsafe('ALTER TABLE AgentSession ADD COLUMN updatedAt DATETIME');
-  await db.$executeRawUnsafe("INSERT INTO AgentExecution VALUES (2,1,'running',?)", now);
+  await db.$executeRawUnsafe(
+    "INSERT INTO AgentExecution (id, sessionId, status, startedAt) VALUES (2,1,'running',?)",
+    now,
+  );
   await settleStoppedSessions(db as unknown as PostgresClient, [1]);
   expect(await db.agentSession.findUnique({ where: { id: 1 }, select: { status: true } })).toEqual({
     status: 'running',
@@ -132,7 +138,10 @@ test('stop settlement records task state and stop history atomically', async () 
 
 test('stop settlement preserves a newer execution', async () => {
   await cancelledExecution();
-  await db.$executeRawUnsafe("INSERT INTO AgentExecution VALUES (2,1,'running',?)", now);
+  await db.$executeRawUnsafe(
+    "INSERT INTO AgentExecution (id, sessionId, status, startedAt) VALUES (2,1,'running',?)",
+    now,
+  );
   expect(await settleStoppedTasks(db as unknown as PostgresClient, [1])).toEqual([]);
   expect(await db.workflowTransition.count()).toBe(0);
 });
@@ -215,7 +224,11 @@ test.each([null, 'running', 'failed', 'completed'])(
     await db.$executeRawUnsafe("ALTER TABLE AgentSession ADD COLUMN status TEXT DEFAULT 'failed'");
     await db.$executeRawUnsafe('ALTER TABLE AgentSession ADD COLUMN updatedAt DATETIME');
     if (newer)
-      await db.$executeRawUnsafe('INSERT INTO AgentExecution VALUES (2,1,?,?)', newer, now);
+      await db.$executeRawUnsafe(
+        'INSERT INTO AgentExecution (id, sessionId, status, startedAt) VALUES (2,1,?,?)',
+        newer,
+        now,
+      );
     await settleStoppedSessions(db as unknown as PostgresClient, [1]);
     const session = await db.agentSession.findUnique({
       where: { id: 1 },
@@ -243,7 +256,10 @@ test('manual execution pending session settles only after its execution is cance
 
 test('stop intent batch remains atomic when a later audit row fails', async () => {
   await cancelledExecution();
-  await db.$executeRawUnsafe("INSERT INTO AgentExecution VALUES (2,1,'running',?)", now);
+  await db.$executeRawUnsafe(
+    "INSERT INTO AgentExecution (id, sessionId, status, startedAt) VALUES (2,1,'running',?)",
+    now,
+  );
   await db.$executeRawUnsafe(
     "CREATE TRIGGER reject_second_intent BEFORE INSERT ON WorkflowTransition WHEN NEW.executionId = 2 BEGIN SELECT RAISE(ABORT, 'second audit rejected'); END",
   );

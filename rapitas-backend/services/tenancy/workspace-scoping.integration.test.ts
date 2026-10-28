@@ -33,7 +33,9 @@ interface Probe {
   findUniqueInWorkspace: string | null;
   findUniqueNoWorkspace: string | null;
   createdWorkspaceId: number | null;
-  countDerivedModel: number;
+  taskIsOwned: boolean;
+  countTaskInWorkspace: number;
+  countTaskNoWorkspace: number;
   upsertRejected: boolean;
 }
 
@@ -90,8 +92,23 @@ describe('a real client, scoped', () => {
     expect(probe.upsertRejected).toBe(true);
   });
 
-  test('a model without the column is left alone — it inherits through its FK', () => {
-    expect(probe.countDerivedModel).toBe(1);
+  test('the generated client is current — regenerate it if this is the failure', () => {
+    // The owned-model registry is read from the generated client's DMMF, not
+    // from prisma/schema. After a schema change the client is stale until the
+    // dev server restarts (dev.js runs db:generate) or CI runs prisma
+    // generate, and while it is stale Task is not scoped and the next two
+    // assertions measure nothing. This is the only place that says so.
+    expect(probe.taskIsOwned).toBe(true);
+  });
+
+  test('Task is scoped, so an unowned row is invisible inside a workspace', () => {
+    // Stage 1 gave Task no column on the premise that it inherits its
+    // workspace through Category -> Theme. Prisma does not walk a foreign key
+    // when it filters, so that read returned every workspace's tasks. This is
+    // the assertion that premise failed.
+    expect(probe.countTaskInWorkspace).toBe(0);
+    // The control: the row exists and is readable, just not from in there.
+    expect(probe.countTaskNoWorkspace).toBe(1);
   });
 
   test('runAcrossAllWorkspaces escapes the scope on purpose', () => {

@@ -14,6 +14,8 @@
  */
 model WorkflowFile {
   id        Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId    Int
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   /** "research" | "plan" | "question" | "verify" */
@@ -35,6 +37,7 @@ model WorkflowFile {
 
   @@unique([taskId, fileType])
   @@index([fileType, updatedAt])
+  @@index([workspaceId])
 }
 
 /**
@@ -45,6 +48,8 @@ model WorkflowFile {
  */
 model WorkflowFileVersion {
   id         Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId     Int
   task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   /** "research" | "plan" | "question" | "verify" */
@@ -55,10 +60,13 @@ model WorkflowFileVersion {
   archivedAt DateTime @default(now())
 
   @@index([taskId, fileType, archivedAt])
+  @@index([workspaceId])
 }
 
 model WorkflowRoleConfig {
   id              Int            @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   role            String         @unique
   agentConfigId   Int?
   agentConfig     AIAgentConfig? @relation(fields: [agentConfigId], references: [id], onDelete: SetNull)
@@ -78,6 +86,8 @@ model WorkflowRoleConfig {
   metadata        String         @default("{}")
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+
+  @@index([workspaceId])
 }
 
 // Workflow mode settings (step definitions by mode)
@@ -135,6 +145,8 @@ model OrchestraSession {
  */
 model WorkflowTransition {
   id           Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId       Int
   task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   /** Workflow status before the transition. `null` for the very first row. */
@@ -168,11 +180,14 @@ model WorkflowTransition {
   @@index([taskId, createdAt])
   @@index([cause])
   @@index([executionId])
+  @@index([workspaceId])
 }
 
 // Workflow queue items
 model WorkflowQueueItem {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId            Int
   // Set when the item was enqueued by the per-theme auto-run scheduler, so the
   // scheduler can scope "in-flight for this theme" without a session lookup.
@@ -199,6 +214,7 @@ model WorkflowQueueItem {
   @@index([orchestraSessionId])
   @@index([taskId])
   @@index([themeId, status])
+  @@index([workspaceId])
 }
 
 /// Durable, fail-closed ownership and result record for requirement replan reviews.
@@ -224,6 +240,8 @@ model RequirementReviewClaim {
 /// Idempotent authorization for a user-requested re-evaluation.
 model RequirementReviewRetryRequest {
   id         Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   requestId  String   @unique
   taskId     Int
   task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
@@ -231,6 +249,7 @@ model RequirementReviewRetryRequest {
   createdAt  DateTime @default(now())
 
   @@index([taskId, createdAt])
+  @@index([workspaceId])
 }
 
 /// Per-theme auto-execution state. One row per theme that has had auto-run

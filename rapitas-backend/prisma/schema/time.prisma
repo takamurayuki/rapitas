@@ -6,6 +6,8 @@
 
 model TimeEntry {
   id            Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId        Int
   task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   duration      Float
@@ -15,10 +17,14 @@ model TimeEntry {
   endedAt       DateTime
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([workspaceId])
 }
 
 model PomodoroSession {
   id              Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId          Int?
   task            Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
   status          String    @default("active") // active, paused, completed, cancelled
@@ -35,10 +41,13 @@ model PomodoroSession {
 
   @@index([status])
   @@index([taskId])
+  @@index([workspaceId])
 }
 
 model ActivityLog {
   id        Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId    Int?
   task      Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
   projectId Int?
@@ -46,6 +55,8 @@ model ActivityLog {
   changes   String?  // JSON stored as string
   metadata  String?  // JSON stored as string
   createdAt DateTime @default(now())
+
+  @@index([workspaceId])
 }
 
 model DailyScheduleBlock {
