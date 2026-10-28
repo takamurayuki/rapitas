@@ -120,3 +120,9 @@ services/tenancy/workspace-extension.test.ts
 services/tenancy/session-workspace.test.ts
 routes/system/tenancy.routes.test.ts
 tests/schema/workspace-tenancy.test.ts
+
+# Googleログイン: 未設定時の拒否と、コールバックでのワークスペース付与。
+# このフローは従来テストが1件も無く、ワークスペースを作らないまま
+# セッションを発行していた（＝全ワークスペースのデータが見える）。
+routes/system/auth/google-oauth.test.ts
+tests/routes/system/auth-routes.test.ts
