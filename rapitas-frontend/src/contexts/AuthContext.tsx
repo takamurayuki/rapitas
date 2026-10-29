@@ -4,6 +4,7 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
+import { shouldValidateSession } from '@/utils/auth-session';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('AuthContext');
@@ -122,13 +123,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshSession = async () => {
     // Guest mode (never signed in): skip the /auth/me probe entirely. The
     // backend serves data without a session, so validating one we don't have
-    // would only 401 and log noise on every load.
-    if (!hasSessionHint()) {
+    // would only 401 and log noise on every load. The hint is per-origin, so
+    // the Google return marker has to count too — see utils/auth-session.
+    if (
+      !shouldValidateSession({
+        hasHint: hasSessionHint(),
+        search: typeof window === 'undefined' ? '' : window.location.search,
+      })
+    ) {
       setState({ user: null, isAuthenticated: false, isLoading: false, sessionToken: null });
       return;
     }
     const user = await validateSession();
     if (user) {
+      // The Google return carries its marker exactly once, on the redirect
+      // itself. Persisting the hint here is what keeps the next load on this
+      // origin signed in instead of falling back to the guest short-circuit.
+      setSessionHint(true);
       setState({
         user,
         isAuthenticated: true,
