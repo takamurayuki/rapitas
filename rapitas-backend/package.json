@@ -19,6 +19,7 @@
     "test:integration": "bun test --path-ignore-patterns=\"\" ./tests/integration/",
     "test:all": "bun test --isolate && bun test --path-ignore-patterns=\"\" ./tests/integration/",
     "test:watch": "bun test --watch",
+    "auth:reset-password": "bun run scripts/reset-password.ts",
     "test:sqlite": "bun scripts/run-gate.ts sqlite-tests",
     "test:ci": "bun scripts/run-gate.ts backend-tests",
     "test:coverage": "bun test --coverage --isolate",
