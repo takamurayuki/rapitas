@@ -146,7 +146,10 @@ export async function tryProviderFallback(args: {
   // getStableSmartRoute instead of reusing a pin that is now known-bad (its
   // provider just entered cooldown, or its specific model is unavailable).
   const { invalidateStableRoute } = await import('../ai/model-route-stability');
-  invalidateStableRoute(args.taskId, args.role);
+  // Awaited: the pin is persisted now, and the next retry reads it back. A
+  // floating delete would race that read and hand the retry the very model
+  // that just failed.
+  await invalidateStableRoute(args.taskId, args.role);
 
   // NOTE: model_unavailable = specific model down, not the whole provider.
   // Retry with same agent config but no --model flag (CLI default). Skip cooldown

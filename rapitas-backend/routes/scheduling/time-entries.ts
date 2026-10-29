@@ -5,7 +5,6 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { ValidationError } from '../../middleware/error-handler';
-import { recordTaskWorkStudyTime } from '../../services/learning/study-time';
 
 export const timeEntriesRoutes = new Elysia()
   // Get time entries for a task
@@ -32,13 +31,15 @@ export const timeEntriesRoutes = new Elysia()
         throw new ValidationError('無効なタスクIDです');
       }
 
-      const { duration, breakDuration, note, startedAt, endedAt, source } = body as {
+      // NOTE: `source` is still accepted in the body (callers send it) but no
+      // longer read — it only ever chose whether to double-count the minutes
+      // as study time, and the learning features were removed.
+      const { duration, breakDuration, note, startedAt, endedAt } = body as {
         duration: number;
         breakDuration?: number;
         note?: string;
         startedAt: string;
         endedAt: string;
-        source?: string;
       };
       const entry = await prisma.timeEntry.create({
         data: {
@@ -51,14 +52,9 @@ export const timeEntriesRoutes = new Elysia()
         },
       });
 
-      // NOTE: work time on a study-goal-linked (theme or parent) task counts
-      // as study time automatically. Pomodoro-originated entries are skipped
-      // — the pomodoro session path already recorded the same minutes
-      // (pomodoroSessionId-keyed), and doubling here would inflate streaks.
-      if (source !== 'pomodoro' && duration > 0) {
-        await recordTaskWorkStudyTime({ taskId, durationHours: duration });
-      }
-
+      // NOTE: this used to also record the same minutes as study time against
+      // a study-goal-linked task. The learning features were removed, so a
+      // time entry is now only ever a time entry.
       return entry;
     },
     {

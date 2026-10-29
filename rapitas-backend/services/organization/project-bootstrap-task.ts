@@ -166,8 +166,8 @@ export function toBootstrapTaskPayload(ctx: BootstrapContext): BootstrapTaskPayl
     themeId: ctx.themeId,
     goals: [
       ctx.hasManifest
-        ? '既存の manifest で依存インストールが成功する状態にする（作り直さない）'
-        : '依存関係の manifest と lockfile を作り、インストールが成功する状態にする',
+        ? '既存の manifest と整合する lockfile がある状態にする（作り直さない）'
+        : '依存関係の manifest と、それを網羅する lockfile を用意する',
       'typecheck / lint / test / dev サーバー起動のスクリプトを用意する',
       `${RUNTIME_CONFIG_FILE} を作り、以降の実装タスクで起動確認が走るようにする`,
     ],
@@ -177,8 +177,12 @@ export function toBootstrapTaskPayload(ctx: BootstrapContext): BootstrapTaskPayl
       ...(ctx.hasManifest
         ? ['既存の manifest と雛形ファイルは作り直さない。不足分だけを足す']
         : []),
-      'worktree 内で依存インストールを行う場合、node_modules がリンク共有されている環境では禁止される。' +
-        'その場合はプロジェクトルートで用意する',
+      // 実測 2026-10-18 (#1050): install ガードは worktree だけでなく生成
+      // プロジェクトのルート自体でも install を拒否する。「その場合はルートで
+      // 用意する」と書くと、実装者は逃げ道があると思ってそちらでも拒否されるまで試す。
+      '依存インストールは実行しない。worktree でもプロジェクトルートでも実行ガードに拒否される。' +
+        '既存の node_modules は用意済みなので `pnpm exec` / `npx` でバイナリを直接使う。' +
+        '本当に足りないパッケージがある場合は、その名前と理由を verify.md に事実として書く',
       `${RUNTIME_CONFIG_FILE} でポートを固定しない。ポートは ${PORT_PLACEHOLDER} で受け取り、` +
         `${RESERVED_PORTS.join(' / ')} は rapitas 自身（フロントエンド・バックエンド）が使うため絶対に指定しない`,
       // 実測 2026-10-12 (#1212): 検証者が HTTP 200 を示すために dev サーバーを
@@ -186,15 +190,44 @@ export function toBootstrapTaskPayload(ctx: BootstrapContext): BootstrapTaskPayl
       // した。バックグラウンドタスクのタイムアウトは直下の子しか殺さない。
       'dev サーバーを手動で起動しない。プロセスの停止は禁止されているため孤児が残り、' +
         'ポートを掴んだまま以降の起動確認を EADDRINUSE で全滅させる。起動確認はハーネスに任せる',
+      // 実測 2026-10-18 (#1058, pnpm 12.9.1): `pnpm run <script> -- --port N` は
+      // `--` ごと script に渡り、`$ vite -- --port N` となってポートが無視される。
+      // `--` 無しなら `$ vite --port N` で正しく転送される。古い pnpm と逆なので
+      // 思い込みで書かず、必ず実機で確かめること。
       `\`start\` はハーネスから渡されたポートを dev サーバー本体まで届ける形にする。` +
-        'pnpm の script 経由では `-- -p {port}` が必要で、素の `-p {port}` は転送されず' +
-        '既定ポートで起動してしまう',
+        '渡っているかは「ポートを指定して起動し、そのポートで応答する」まで確かめる。' +
+        '引数が落ちると dev サーバーは既定ポートで起動し、起動確認は別プロセスを' +
+        '見るか EADDRINUSE で倒れる',
+      // 実測 2026-10-18 (#1058): タスク worktree の node_modules はメインへの
+      // ジャンクションで、pnpm 12 はそれを task run state に使うのを拒否する
+      // (ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH)。TempoRaid は start が
+      // `pnpm --filter web dev` だったため runtime 検証が一度も起動できず、
+      // 11 件が runtime=UNVERIFIED でブロックされた。`pnpm -C <dir> run <script>`
+      // と `pnpm exec` は同じ worktree で動くことを実測済み。
+      '`start` で `pnpm --filter` や `pnpm -r` を使わない。タスク worktree の node_modules は' +
+        'ジャンクションなので、pnpm のワークスペースタスク実行は' +
+        'ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH で必ず失敗する。' +
+        'モノレポなら `pnpm -C <パッケージのパス> run <script>` を使う',
+      // 実測 2026-10-18 (#1058): vite は既定で `localhost` に bind するが、Windows では
+      // それが ::1 (IPv6) に解決される。ハーネスは 127.0.0.1 を叩くため、
+      // 起動ログに `ready in 917 ms` と出ていても 120s タイムアウトする。
+      // `url` のホストを 127.0.0.1 にするだけでは足りない — bind 先を揃える。
+      `dev サーバーを ${REQUIRED_HOST} に bind させる（vite なら \`--host ${REQUIRED_HOST}\`）。` +
+        '既定の localhost は Windows で ::1 に解決され、IPv4 を叩く起動確認からは' +
+        '「起動していない」と見える',
     ],
     acceptanceCriteria: [
       ctx.hasManifest
         ? 'プロジェクトルートの manifest から依存を解決した lockfile が差分に含まれている'
         : 'プロジェクトルートに依存関係の manifest と lockfile が差分に含まれている',
-      '依存インストールのコマンドが exit 0 で完了したことが verify.md に記録されている',
+      // 実測 2026-10-18 (#1050): 旧文「依存インストールが exit 0」は同じペイロードの
+      // 制約と矛盾しており、誰にも満たせなかった（#1331 はここで質問を出して停止）。
+      // 代わりに、worktree 内で実行できて、かつコピーした lockfile では通らない照合を要求する。
+      'lockfile が manifest の依存（dependencies / devDependencies）を宣言どおりの' +
+        'バージョンで網羅していることを、worktree 内で実行した照合コマンドの出力と' +
+        'ともに verify.md に記録する',
+      'lockfile を manifest の解決以外の手段で用意した場合、その入手元' +
+        '（コピー元のパス等）を verify.md に明記する',
       'typecheck・lint・test の各コマンドが exit 0 で完了したことが verify.md に記録されている' +
         '（テストが0件の場合は、0件であることと理由を明記する）',
       `${RUNTIME_CONFIG_FILE} が差分に含まれ、\`start\` と \`url\` の両方に ${PORT_PLACEHOLDER} があり、` +

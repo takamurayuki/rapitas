@@ -23,7 +23,7 @@ let activeAgents: Array<{ agentType: string }> = [
 mock.module('../../config/database', () => ({
   prisma: {
     workflowRoleConfig: {
-      findUnique: () => Promise.resolve(roleConfig),
+      findFirst: () => Promise.resolve(roleConfig),
     },
     userSettings: {
       findFirst: () => Promise.resolve(userSettings),

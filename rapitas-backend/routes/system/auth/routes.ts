@@ -12,6 +12,11 @@ import { createLogger } from '../../../config/logger';
 import { checkAuthRateLimit } from './rate-limiter';
 import { resolveSessionByToken } from '../../../services/core/auth-session-resolver';
 import { resolveUserByUsernameOrEmail } from '../../../services/core/user-resolver';
+import { ensureWorkspaceForUser } from '../../../services/tenancy/workspace-provisioning';
+import {
+  clearSessionWorkspaceCache,
+  forgetSessionWorkspace,
+} from '../../../services/tenancy/session-workspace';
 
 const log = createLogger('routes:auth:core');
 
@@ -60,6 +65,11 @@ export const authCoreRoutes = new Elysia()
           data: { username, email, passwordHash: hashedPassword, role: 'user' },
         });
 
+        // Before the session exists, so the account can never be signed in
+        // without a workspace — a user with none resolves to "no workspace",
+        // which means they would see everyone's data instead of their own.
+        const workspace = await ensureWorkspaceForUser(user.id, username);
+
         const token = randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
@@ -86,6 +96,7 @@ export const authCoreRoutes = new Elysia()
             createdAt: user.createdAt.toISOString(),
             lastLoginAt: null,
           },
+          workspace,
         };
       } catch (error) {
         log.error({ err: error }, 'Registration error');
@@ -128,6 +139,12 @@ export const authCoreRoutes = new Elysia()
           return { success: false, message: 'Invalid credentials' };
         }
 
+        // Accounts that predate tenancy have no workspace, and a signed-in
+        // user without one resolves to "no workspace" — which means they see
+        // everyone's data. Provisioning on login closes that for them without
+        // a migration. Idempotent, so an existing member keeps their own.
+        const workspace = await ensureWorkspaceForUser(user.id, user.username);
+
         const token = randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
@@ -148,10 +165,15 @@ export const authCoreRoutes = new Elysia()
           data: { lastLoginAt: new Date() },
         });
 
+        // A token is reused after a logout+login only in tests, but a stale
+        // cached answer would scope the new session to the old workspace.
+        clearSessionWorkspaceCache();
+
         return {
           success: true,
           message: 'Login successful',
           token: token,
+          workspace,
           user: {
             id: user.id,
             username: user.username,
@@ -182,6 +204,11 @@ export const authCoreRoutes = new Elysia()
       if (token) {
         await prisma.userSession.deleteMany({ where: { sessionToken: token } });
         sessionToken.remove();
+        // Otherwise the token keeps resolving to its workspace for up to the
+        // cache TTL after the session row is gone. The cookie value is typed
+        // as `{}` by Elysia without a cookie schema, so narrow it here rather
+        // than widen the cache's signature.
+        if (typeof token === 'string') forgetSessionWorkspace(token);
       }
 
       return { success: true, message: 'Logged out successfully' };

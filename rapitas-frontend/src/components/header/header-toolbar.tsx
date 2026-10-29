@@ -19,7 +19,10 @@ import {
   SquareArrowDown,
   RotateCw,
   User,
+  UserPen,
+  LogIn,
   LogOut,
+  UserPlus,
 } from 'lucide-react';
 import GlobalPomodoroWidget from '@/feature/tasks/pomodoro/GlobalPomodoroWidget';
 import NotificationBell from '@/components/NotificationBell';
@@ -156,37 +159,80 @@ export function HeaderToolbar({
         </span>
       </button>
 
-      {/* Guest sign-in is intentionally hidden: an account has no benefit on a
-          local single-user app. Re-add a `/auth/login` link here once cloud
-          sync / sharing makes accounts meaningful. */}
-      {hasMounted && !isAuthLoading && isAuthenticated && user && (
+      {/* Sign-in is reachable again. It was hidden because an account bought
+          nothing on a local single-user app; workspace tenancy changed that —
+          an account now decides WHICH data you see, so a second one is how you
+          try something without it landing in the real pile. Signing in stays
+          optional: no session means no workspace, which is served unscoped
+          exactly as before.
+
+          The button itself is no longer gated on a session, though. It is
+          the way to the profile ラピ plans against, and since nothing can
+          sign in, gating it meant the icon never appeared at all — the
+          feature was unreachable (reported 2026-10-22). What the session
+          gates is the account rows inside: a blank name and a logout that
+          logs nothing out are worse than not offering them. */}
+      {hasMounted && !isAuthLoading && (
         <div className="relative" ref={userMenuRef}>
           <button
             onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
             className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
             aria-label={t('userMenu')}
-            title={t('userMenuTitle', { username: user.username })}
+            title={user ? t('userMenuTitle', { username: user.username }) : t('userMenu')}
           >
             <User className="w-5 h-5" />
           </button>
           {isUserMenuOpen && (
             <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 z-50">
-              <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">
-                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                  {user.username}
-                </p>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">{user.email}</p>
-                <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1">
-                  {user.role === 'admin' ? t('admin') : t('user')}
-                </p>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              {user && (
+                <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">
+                  <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                    {user.username}
+                  </p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">{user.email}</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1">
+                    {user.role === 'admin' ? t('admin') : t('user')}
+                  </p>
+                </div>
+              )}
+              {/* What ラピ is told about you. The point of the menu on a
+                  machine with no sign-in. */}
+              <Link
+                href="/settings/general#rapi-profile"
+                onClick={() => setIsUserMenuOpen(false)}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
               >
-                <LogOut className="w-4 h-4" />
-                <span>{t('logout')}</span>
-              </button>
+                <UserPen className="w-4 h-4" />
+                <span>{t('rapiProfileLink')}</span>
+              </Link>
+              {user ? (
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>{t('logout')}</span>
+                </button>
+              ) : (
+                <>
+                  <Link
+                    href="/auth/login"
+                    onClick={() => setIsUserMenuOpen(false)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>{t('login')}</span>
+                  </Link>
+                  <Link
+                    href="/auth/register"
+                    onClick={() => setIsUserMenuOpen(false)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>{t('register')}</span>
+                  </Link>
+                </>
+              )}
             </div>
           )}
         </div>

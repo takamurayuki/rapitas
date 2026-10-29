@@ -26,9 +26,6 @@ const mockPrisma = {
     createMany: mock(() => Promise.resolve({ count: 0 })),
     deleteMany: mock(() => Promise.resolve({ count: 0 })),
   },
-  studyStreak: {
-    upsert: mock(() => Promise.resolve({})),
-  },
   taskSuggestionCache: {
     findMany: mock(() => Promise.resolve([])),
     deleteMany: mock(() => Promise.resolve({ count: 0 })),
@@ -69,6 +66,16 @@ const mockPrisma = {
   },
   $transaction: mock(transactionImpl),
 };
+
+/** Task ids the shared deletion path was asked to remove. */
+const deletedTaskIds: number[] = [];
+
+mock.module('../../../services/task/task-deletion', () => ({
+  deleteTaskWithTrash: async (taskId: number) => {
+    deletedTaskIds.push(taskId);
+    return { taskId, outcome: 'deleted', trashId: 1 };
+  },
+}));
 
 mock.module('../../../config/database', () => ({
   prisma: mockPrisma,
@@ -291,7 +298,6 @@ describe('GET /tasks/:id', () => {
       theme: null,
       project: null,
       milestone: null,
-      examGoal: null,
       taskLabels: [],
     };
     mockPrisma.task.findUnique.mockResolvedValue(task);
@@ -375,7 +381,6 @@ describe('POST /tasks', () => {
       theme: null,
       project: null,
       milestone: null,
-      examGoal: null,
       taskLabels: [],
       themeId: null,
       parentId: null,
@@ -404,7 +409,6 @@ describe('POST /tasks', () => {
       theme: null,
       project: null,
       milestone: null,
-      examGoal: null,
       taskLabels: [{ labelId: 1, label: { id: 1, name: 'Bug' } }],
       themeId: null,
       parentId: null,
@@ -436,7 +440,6 @@ describe('POST /tasks', () => {
       theme: null,
       project: null,
       milestone: null,
-      examGoal: null,
       taskLabels: [],
     };
     mockPrisma.task.findUnique.mockResolvedValue(parent);
@@ -489,7 +492,6 @@ describe('PATCH /tasks/:id', () => {
       theme: null,
       project: null,
       milestone: null,
-      examGoal: null,
       taskLabels: [],
     };
     mockPrisma.task.findUnique.mockResolvedValueOnce(current).mockResolvedValueOnce(updated);
@@ -508,7 +510,10 @@ describe('PATCH /tasks/:id', () => {
     expect(body.title).toBe('Updated');
   });
 
-  test('ステータスをdoneに変更時にstudyStreakをupsertすること', async () => {
+  // Completing a task used to also upsert a daily StudyStreak row. The
+  // learning features were removed, so the only side effect left is the task's
+  // own completedAt — which is what the dashboard counts from.
+  test('ステータスをdoneに変更時にcompletedAtを設定すること', async () => {
     const current = { status: 'in_progress', parentId: null };
     const updated = {
       id: 1,
@@ -518,7 +523,6 @@ describe('PATCH /tasks/:id', () => {
       theme: null,
       project: null,
       milestone: null,
-      examGoal: null,
       taskLabels: [],
     };
     mockPrisma.task.findUnique.mockResolvedValueOnce(current).mockResolvedValueOnce(updated);
@@ -537,7 +541,9 @@ describe('PATCH /tasks/:id', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(mockPrisma.studyStreak.upsert).toHaveBeenCalledTimes(1);
+    const call = mockPrisma.task.update.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(call.data.status).toBe('done');
+    expect(call.data.completedAt).toBeInstanceOf(Date);
 
     globalThis.fetch = originalFetch;
   });
@@ -552,7 +558,6 @@ describe('PATCH /tasks/:id', () => {
       theme: null,
       project: null,
       milestone: null,
-      examGoal: null,
       taskLabels: [],
     };
     mockPrisma.task.findUnique.mockResolvedValueOnce(current).mockResolvedValueOnce(updated);
@@ -594,12 +599,17 @@ describe('DELETE /tasks/:id', () => {
   });
 
   test('タスクを削除すること', async () => {
-    mockPrisma.task.delete.mockResolvedValue({ id: 1, title: 'Deleted' });
+    // What deleting means — the protected guard, the worktree cleanup, the
+    // trash copy and the delete itself — moved into deleteTaskWithTrash so
+    // ラピ and this route cannot drift apart. The route's job is to delegate
+    // and map the outcome; the prisma-level assertion lives in
+    // services/task/task-deletion.test.ts now.
+    deletedTaskIds.length = 0;
 
     const res = await app.handle(new Request('http://localhost/tasks/1', { method: 'DELETE' }));
 
     expect(res.status).toBe(200);
-    expect(mockPrisma.task.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+    expect(deletedTaskIds).toEqual([1]);
   });
 
   test('無効なIDでValidationErrorを返すこと', async () => {

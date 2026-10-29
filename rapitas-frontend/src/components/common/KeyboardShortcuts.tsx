@@ -5,6 +5,7 @@ import { X, Keyboard } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useShortcutStore, isTriageShortcutId, type ShortcutId } from '@/stores/shortcut-store';
 import { useNoteStore } from '@/stores/note-store';
+import { useLinkViewStore } from '@/stores/link-view-store';
 import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
 const getIsMac = () => {
@@ -13,6 +14,35 @@ const getIsMac = () => {
 };
 
 export const OPEN_SHORTCUTS_EVENT = 'openKeyboardShortcuts';
+
+/**
+ * Whether the key belongs to whatever has focus rather than to a shortcut.
+ *
+ * contentEditable was missing here (#1074): the note editor body is one, so
+ * every ctrl-letter binding fired while typing a note and `preventDefault()`
+ * ate the native editing command — Ctrl+B would have silently broken bold,
+ * and Ctrl+E (toggleAI) was already hijacking note typing unnoticed.
+ *
+ * Both checks on purpose. `isContentEditable` is authoritative in a browser
+ * (it follows inheritance and designMode) but jsdom does not implement it,
+ * so the attribute lookup is what makes the rule testable — and it covers
+ * nested elements through `closest`.
+ *
+ * @param target - The event target / イベントの対象
+ * @returns True when the key should be left alone / ショートカットを発火させないなら true
+ */
+export function isEditableTarget(target: EventTarget | null): boolean {
+  if (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement
+  ) {
+    return true;
+  }
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  return Boolean(target.closest('[contenteditable=""],[contenteditable="true"]'));
+}
 
 export default function KeyboardShortcuts() {
   const router = useRouter();
@@ -51,17 +81,12 @@ export default function KeyboardShortcuts() {
     commandBar: () => {
       // SmartCommandBar handles its own keyboard shortcut
     },
+    toggleBrowser: () => useLinkViewStore.getState().toggleOpen(),
   };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLSelectElement
-      ) {
-        return;
-      }
+      if (isEditableTarget(e.target)) return;
 
       if (e.key === 'Escape' && showHelp) {
         setShowHelp(false);

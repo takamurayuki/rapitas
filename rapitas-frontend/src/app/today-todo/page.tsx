@@ -15,6 +15,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { X, TrendingUp, Minus, TrendingDown, EyeOff } from 'lucide-react';
 import { isTauri } from '@/utils/tauri';
+import { withHeaderVisible } from '@/components/header/task-detail-link';
 import {
   useSuggestedTasks,
   type TaskSuggestion,
@@ -89,7 +90,7 @@ async function hideTodayTodoWindow(): Promise<void> {
 async function openTaskInMainWindow(taskId: number): Promise<void> {
   if (!isTauri()) return;
   const { invoke } = await import('@tauri-apps/api/core');
-  await invoke('toast_navigate', { link: `/tasks/${taskId}` }).catch(() => {});
+  await invoke('toast_navigate', { link: withHeaderVisible(`/tasks/${taskId}`) }).catch(() => {});
   await hideTodayTodoWindow();
 }
 

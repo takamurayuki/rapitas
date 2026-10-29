@@ -51,6 +51,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { killDeadPidEstablishedPeers } = require('./dev-established-cleanup.cjs');
 const { waitForFrontendReady, DEFAULT_TIMEOUT_MS } = require('./wait-for-frontend-ready.cjs');
+const { maybeRebuildTauri } = require('./tauri-rebuild.cjs');
 
 const BACKEND_PORT = 3001;
 const FRONTEND_PORT = 3000;
@@ -2194,6 +2195,28 @@ async function restartBackendInner(processAlreadyExited) {
       console.error('❌ Frontend recycle failed:', err.message || err),
     );
   }
+
+  // 同じ理由で Rust も見る。exit 75 の自己デプロイは backend の子プロセスを
+  // 撃ち直すだけで dev.js 自身は生き続けるため、main() は二度と走らない。
+  // 起動時だけに置くと、マージで入ってきた Rust 変更が永久に再ビルドされない。
+  kickTauriRebuild('after-backend-restart');
+}
+
+/**
+ * Rust 変更を拾っていたら Tauri シェルを再ビルドする。
+ *
+ * NOTE: await しない。cargo build は分単位でかかり、待つとエージェントの
+ * 生命線である backend の利用開始をその分遅らせる。変更が無ければ
+ * 状態ファイルを見て即座に戻るので、毎回呼んでも安い。
+ *
+ * @param {string} cause - 呼び出し元(ログ用) / 発火元
+ */
+function kickTauriRebuild(cause) {
+  void maybeRebuildTauri({
+    repoRoot: REPO_ROOT,
+    enabled: process.env.RAPITAS_AUTO_REBUILD_TAURI !== '0',
+    log: { info: (m) => console.log(m), warn: (m) => log.warn(m) },
+  }).catch((err) => log.warn(`[tauri-rebuild] (${cause}) unexpected failure: ${err.message}`));
 }
 
 /**
@@ -2691,6 +2714,13 @@ async function main() {
 
   // フロントエンド dev サーバーのメモリ肥大化を監視し、閾値超過で自動リサイクルする
   startFrontendWatchdog();
+
+  // Rust 変更を拾っていたら Tauri シェルを再ビルドする。
+  // NOTE: await しない。cargo build は分単位でかかり、ここで待つと
+  // エージェントの生命線である backend の利用開始をその分遅らせる。
+  // 自己再起動(exit 75)で backend が落ちても dev.js は生き残るので、
+  // 再起動を起こしたそのイベント自体をこのビルドが越えられる。
+  kickTauriRebuild('startup');
 
   // --watch モード時は fs.watch ベースのファイル監視を開始
   if (useWatch) {
