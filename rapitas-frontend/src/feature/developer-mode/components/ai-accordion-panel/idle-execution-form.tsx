@@ -11,6 +11,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Sparkles, GitBranch, ChevronDown, ChevronUp } from 'lucide-react';
+import { instructionRows } from '@/utils/textarea-rows';
 
 export type IdleExecutionFormProps = {
   optimizedPrompt?: string | null;
@@ -43,17 +44,20 @@ export function IdleExecutionForm({
 
   return (
     <div className="space-y-2">
-      {/* Inline instruction input */}
-      <div className="flex items-center gap-1.5">
-        <input
-          type="text"
-          value={instruction}
-          onChange={(e) => onSetInstruction(e.target.value)}
-          placeholder={t('instructionPlaceholder')}
-          className="flex-1 px-2.5 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-xs focus:outline-none focus:border-indigo-400"
-          aria-label={t('instructionAriaLabel')}
-        />
-      </div>
+      {/* Instruction for this run. A textarea rather than an input: this is
+          free-text guidance for an agent, and a one-line box showed about
+          eight characters of it while silently dropping any newline
+          (reported 2026-10-23). Nothing here submits on Enter — the run
+          starts from the section header's button — so Enter is purely
+          content and needs no keyboard guard. */}
+      <textarea
+        value={instruction}
+        rows={instructionRows(instruction)}
+        onChange={(e) => onSetInstruction(e.target.value)}
+        placeholder={t('instructionPlaceholder')}
+        className="w-full resize-y rounded border border-zinc-200 bg-white px-2.5 py-1.5 text-xs leading-relaxed focus:border-indigo-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800"
+        aria-label={t('instructionAriaLabel')}
+      />
 
       {/* Status badges */}
       {optimizedPrompt && (

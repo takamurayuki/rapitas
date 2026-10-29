@@ -23,6 +23,7 @@ import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 import { createLogger } from '@/lib/logger';
 import { Spinner } from '@/components/ui/spinner';
 import AudioWaveform from './AudioWaveform';
+import { withHeaderVisible } from '@/components/header/task-detail-link';
 
 const logger = createLogger('SmartCommandBar');
 
@@ -244,9 +245,9 @@ export default function SmartCommandBar() {
                   const s = suggestions[selectedIndex];
                   setIsOpen(false);
                   if (s.type === 'comment' && s.metadata?.taskId) {
-                    router.push(`/tasks/detail?id=${s.metadata.taskId}`);
+                    router.push(withHeaderVisible(`/tasks/detail?id=${s.metadata.taskId}`));
                   } else {
-                    router.push(`/tasks/detail?id=${s.id}`);
+                    router.push(withHeaderVisible(`/tasks/detail?id=${s.id}`));
                   }
                 } else {
                   handleSubmit();
@@ -334,9 +335,9 @@ export default function SmartCommandBar() {
                 onClick={() => {
                   setIsOpen(false);
                   if (s.type === 'comment' && s.metadata?.taskId) {
-                    router.push(`/tasks/detail?id=${s.metadata.taskId}`);
+                    router.push(withHeaderVisible(`/tasks/detail?id=${s.metadata.taskId}`));
                   } else {
-                    router.push(`/tasks/detail?id=${s.id}`);
+                    router.push(withHeaderVisible(`/tasks/detail?id=${s.id}`));
                   }
                 }}
                 onMouseEnter={() => setSelectedIndex(i)}

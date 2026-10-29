@@ -1,0 +1,52 @@
+// ============================================================================
+// tenancy.prisma — auto-arranged by scripts/split-prisma-schema.cjs (ADR-0006)
+// Source of truth for workspace tenancy. Add new models in this file rather
+// than recreating a monolithic schema.prisma.
+// ============================================================================
+
+// One isolated set of data. Everything a user creates, and everything the
+// agent records while working for them, belongs to exactly one workspace.
+//
+// Why this exists: there was no way to try something without it landing in the
+// real data. 188 tasks, 34 themes, 13,680 knowledge entries and 105,280
+// timeline events all sat in one undivided pile, and logging in as a second
+// account showed the same pile — authentication existed and worked, but no
+// row belonged to anyone.
+//
+// NOTE: `workspaceId` is a plain indexed Int on each root model, with NO
+// foreign key to this table. Declaring the relation would put 49 back-relation
+// lines on this model and add an FK write to every insert across 140k+ rows,
+// for a column whose integrity is enforced at a single chokepoint anyway (the
+// Prisma client extension added in stage 2). The cost is that deleting a
+// workspace does not cascade — it needs an explicit sweep. Same deliberate
+// no-FK pattern as StudySession.goalId was.
+model Workspace {
+  id        Int      @id @default(autoincrement())
+  /// Short stable handle used in logs and the workspace switcher.
+  slug      String   @unique
+  name      String
+  /// The one every pre-tenancy row belongs to; exactly one may be true.
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members WorkspaceMember[]
+
+  @@index([isDefault])
+}
+
+// Which users may see a workspace. Separate from User so one account can hold
+// a real workspace and a throwaway one without duplicating the login.
+model WorkspaceMember {
+  id          Int       @id @default(autoincrement())
+  workspaceId Int
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 'owner' may delete the workspace; 'member' may not.
+  role        String    @default("owner")
+  createdAt   DateTime  @default(now())
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}

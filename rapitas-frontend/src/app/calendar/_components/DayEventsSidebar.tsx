@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import {
   Calendar as CalendarIcon,
-  Target,
   CheckCircle2,
   Circle,
   Plus,
@@ -140,9 +139,7 @@ export function DayEventsSidebar({
                       color: event.color || '#3B82F6',
                     }}
                   >
-                    {event.type === 'exam' ? (
-                      <Target className="w-4 h-4" />
-                    ) : event.type === 'schedule' ? (
+                    {event.type === 'schedule' ? (
                       schedules.find((s) => s.id === event.id)?.type === 'PAID_LEAVE' ? (
                         <Coffee className="w-4 h-4" />
                       ) : (
@@ -160,13 +157,11 @@ export function DayEventsSidebar({
                     </p>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {event.type === 'exam'
-                          ? t('legendExam')
-                          : event.type === 'schedule'
-                            ? schedules.find((s) => s.id === event.id)?.type === 'PAID_LEAVE'
-                              ? t('paidLeaveLabel')
-                              : t('legendSchedule')
-                            : t('legendTask')}
+                        {event.type === 'schedule'
+                          ? schedules.find((s) => s.id === event.id)?.type === 'PAID_LEAVE'
+                            ? t('paidLeaveLabel')
+                            : t('legendSchedule')
+                          : t('legendTask')}
                         {event.status === 'done' && ` ・ ${tc('completed')}`}
                       </p>
                       {event.endDate && (

@@ -27,6 +27,12 @@ import {
   readPromptLanguage,
   writePromptLanguage,
 } from '../../../services/system/prompt-language-store';
+import {
+  readRapiCharacter,
+  readRapiProfile,
+  writeRapiCharacter,
+  writeRapiProfile,
+} from '../../../services/system/rapi-profile-store';
 
 const log = createLogger('routes:settings');
 
@@ -232,4 +238,28 @@ export function applyUiLocale(
     writePromptLanguage(language);
   }
   settingsRef.uiLocale = readPromptLanguage();
+}
+
+/**
+ * Persist the standing self-introduction ラピ plans against, and mirror it back.
+ *
+ * Written only when the key is present: a PATCH that does not mention the
+ * profile must not clear it, and every settings toggle in this app sends a
+ * partial body.
+ *
+ * @param body - PATCH body / PATCHボディ
+ * @param settingsRef - Response object to mirror the value onto / 反映先
+ */
+export function applyRapiProfile(
+  body: UserSettingsUpdateBody,
+  settingsRef: Record<string, unknown>,
+): void {
+  if (typeof body.rapiProfile === 'string') {
+    writeRapiProfile(body.rapiProfile);
+  }
+  if (typeof body.rapiCharacter === 'string') {
+    writeRapiCharacter(body.rapiCharacter);
+  }
+  settingsRef.rapiProfile = readRapiProfile();
+  settingsRef.rapiCharacter = readRapiCharacter();
 }

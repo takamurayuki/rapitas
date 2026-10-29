@@ -6,7 +6,7 @@
  */
 
 import type { Theme, Project, Milestone } from './project.types';
-import type { ExamGoal, TaskLabel } from './learning.types';
+import type { TaskLabel } from './label.types';
 import type { WorkflowStatus, WorkflowMode } from './workflow.types';
 import type { DeveloperModeConfig, TaskAnalysisConfig, AgentExecutionConfig } from './agent.types';
 import type { Priority, Status } from './common.types';
@@ -106,8 +106,6 @@ export type Task = {
   project?: Project | null;
   milestoneId?: number | null;
   milestone?: Milestone | null;
-  examGoalId?: number | null;
-  examGoal?: ExamGoal | null;
   timeEntries?: TimeEntry[];
   comments?: Comment[];
   // Task settings

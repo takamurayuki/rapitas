@@ -69,6 +69,16 @@ describe('SimpleLogEntryList — only the last entry can beacon', () => {
     expect(beaconCount(container)).toBe(1);
   });
 
+  test('draws nothing at all when there are no entries', () => {
+    // It used to show a spinner reading "実行ログを待機中…" for an empty list.
+    // Nothing here knows whether an execution is running, so claiming to be
+    // waiting for one is a guess — and on a task that was never executed it
+    // was simply false (reported 2026-10-23). An empty list has nothing to
+    // say; the caller owns the explanation.
+    const { container } = render(<SimpleLogEntryList entries={[]} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
   test('no beacon at all when the last entry is not a progress entry', () => {
     const { container } = render(<SimpleLogEntryList entries={[PROGRESS_ENTRY, INFO_ENTRY]} />);
     expect(beaconCount(container)).toBe(0);

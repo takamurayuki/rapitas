@@ -103,7 +103,7 @@ export async function checkNoSelectionProgress(
     if (!progressing) {
       // A live agent on a task that is not queued at all (e.g. a manual run) is
       // still the runner being busy — selection waiting behind it is normal.
-      const current = await prisma.themeAutoRun.findUnique({
+      const current = await prisma.themeAutoRun.findFirst({
         where: { themeId },
         select: { currentTaskId: true },
       });

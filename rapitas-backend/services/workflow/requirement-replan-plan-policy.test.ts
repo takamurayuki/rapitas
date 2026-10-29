@@ -53,21 +53,21 @@ beforeEach(async () => {
   });
   // Minimal isolated schema for the real Prisma queries; never reads the operational database.
   for (const sql of [
-    'CREATE TABLE Task (id INTEGER PRIMARY KEY, title TEXT, description TEXT, goals TEXT, constraints TEXT, acceptanceCriteria TEXT, status TEXT, workflowStatus TEXT, updatedAt DATETIME, themeId INTEGER)',
-    'CREATE TABLE WorkflowFile (id INTEGER PRIMARY KEY, taskId INTEGER, fileType TEXT, content TEXT, UNIQUE(taskId,fileType))',
-    'CREATE TABLE DeveloperModeConfig (id INTEGER PRIMARY KEY, taskId INTEGER)',
-    'CREATE TABLE AgentSession (id INTEGER PRIMARY KEY, configId INTEGER)',
-    'CREATE TABLE AgentExecution (id INTEGER PRIMARY KEY, sessionId INTEGER, status TEXT, startedAt DATETIME)',
-    'CREATE TABLE ThemeAutoRun (id INTEGER PRIMARY KEY, themeId INTEGER UNIQUE, status TEXT)',
+    'CREATE TABLE Task (workspaceId INTEGER, id INTEGER PRIMARY KEY, title TEXT, description TEXT, goals TEXT, constraints TEXT, acceptanceCriteria TEXT, status TEXT, workflowStatus TEXT, updatedAt DATETIME, themeId INTEGER)',
+    'CREATE TABLE WorkflowFile (workspaceId INTEGER, id INTEGER PRIMARY KEY, taskId INTEGER, fileType TEXT, content TEXT, UNIQUE(taskId,fileType))',
+    'CREATE TABLE DeveloperModeConfig (workspaceId INTEGER, id INTEGER PRIMARY KEY, taskId INTEGER)',
+    'CREATE TABLE AgentSession (workspaceId INTEGER, id INTEGER PRIMARY KEY, configId INTEGER)',
+    'CREATE TABLE AgentExecution (workspaceId INTEGER, id INTEGER PRIMARY KEY, sessionId INTEGER, status TEXT, startedAt DATETIME)',
+    'CREATE TABLE ThemeAutoRun (workspaceId INTEGER, id INTEGER PRIMARY KEY, themeId INTEGER UNIQUE, status TEXT)',
     // The service acquires a durable review claim before any AI call (task 901
     // claim tables) — the isolated schema must carry them like the commit test.
     'CREATE TABLE RequirementReviewClaim (id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, snapshotDigest TEXT, requestKey TEXT, status TEXT, claimToken TEXT, ownerInstanceId TEXT, heartbeatAt DATETIME, resultJson TEXT, reason TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME, UNIQUE(taskId,snapshotDigest))',
-    'CREATE TABLE RequirementReviewRetryRequest (id INTEGER PRIMARY KEY AUTOINCREMENT, requestId TEXT UNIQUE, taskId INTEGER, consumedAt DATETIME, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
-    'CREATE TABLE WorkflowTransition (id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, fromStatus TEXT, toStatus TEXT, actor TEXT, cause TEXT, phase TEXT, executionId INTEGER, sessionId INTEGER, metadata TEXT DEFAULT "{}", invariantViolation BOOLEAN DEFAULT 0, invariantMessage TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
+    'CREATE TABLE RequirementReviewRetryRequest (workspaceId INTEGER, id INTEGER PRIMARY KEY AUTOINCREMENT, requestId TEXT UNIQUE, taskId INTEGER, consumedAt DATETIME, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
+    'CREATE TABLE WorkflowTransition (workspaceId INTEGER, id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, fromStatus TEXT, toStatus TEXT, actor TEXT, cause TEXT, phase TEXT, executionId INTEGER, sessionId INTEGER, metadata TEXT DEFAULT "{}", invariantViolation BOOLEAN DEFAULT 0, invariantMessage TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
   ])
     await db.$executeRawUnsafe(sql);
   await db.$executeRawUnsafe(
-    'INSERT INTO Task VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, NULL)',
+    'INSERT INTO Task (id, title, description, goals, constraints, acceptanceCriteria, status, workflowStatus, updatedAt, themeId) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, NULL)',
     snapshot.title,
     snapshot.description,
     '[]',
@@ -78,7 +78,7 @@ beforeEach(async () => {
     now,
   );
   await db.$executeRawUnsafe(
-    'INSERT INTO WorkflowFile VALUES (1,1,?,?), (2,1,?,?)',
+    'INSERT INTO WorkflowFile (id, taskId, fileType, content) VALUES (1,1,?,?), (2,1,?,?)',
     'plan',
     snapshot.plan,
     'verify',
@@ -86,7 +86,7 @@ beforeEach(async () => {
   );
   await db.$executeRawUnsafe('ALTER TABLE Task ADD COLUMN workflowMode TEXT');
   await db.$executeRawUnsafe(
-    'CREATE TABLE WorkflowModeConfig (id INTEGER PRIMARY KEY, mode TEXT UNIQUE, stepDefinitions TEXT)',
+    'CREATE TABLE WorkflowModeConfig (workspaceId INTEGER, id INTEGER PRIMARY KEY, mode TEXT UNIQUE, stepDefinitions TEXT)',
   );
 });
 
@@ -135,7 +135,7 @@ test('configured no-plan workflow receives a guarded completion receipt', async 
   await prepareCompletion();
   await db.$executeRawUnsafe("UPDATE Task SET workflowMode = 'standard'");
   await db.$executeRawUnsafe(
-    "INSERT INTO WorkflowModeConfig VALUES (1,'standard',?)",
+    "INSERT INTO WorkflowModeConfig (id, mode, stepDefinitions) VALUES (1,'standard',?)",
     '{"phases":{"includePlan":false}}',
   );
   await db.workflowFile.deleteMany({ where: { fileType: 'plan' } });
@@ -172,7 +172,7 @@ test('required missing plan never reaches the independent reviewer', async () =>
 test('mode setting changed after review invalidates the completion receipt', async () => {
   const receipt = await emptyDiffReceipt();
   await db.$executeRawUnsafe(
-    "INSERT INTO WorkflowModeConfig VALUES (1,'comprehensive',?)",
+    "INSERT INTO WorkflowModeConfig (id, mode, stepDefinitions) VALUES (1,'comprehensive',?)",
     '{"includePlan":false}',
   );
   await expect(assertReviewedTaskCurrent(db as unknown as PostgresClient, receipt)).rejects.toThrow(
