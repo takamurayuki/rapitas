@@ -19,6 +19,48 @@ import {
 
 const log = createLogger('theme-auto-run-service');
 
+type AutoRunCreate = Parameters<typeof prisma.themeAutoRun.create>[0]['data'];
+type AutoRunUpdate = Parameters<typeof prisma.themeAutoRun.update>[0]['data'];
+type AutoRunRow = Awaited<ReturnType<typeof prisma.themeAutoRun.update>>;
+
+/**
+ * Create or update the one ThemeAutoRun row for a theme.
+ *
+ * Replaces `upsert({ where: { themeId } })`, which stopped compiling when the
+ * constraint became `@@unique([workspaceId, themeId])`: an upsert needs a
+ * `where` that identifies a single row, and callers do not know the workspace
+ * — the client extension supplies it. A scoped find-then-write reaches the
+ * same row both inside a request and in a background job, where no workspace
+ * is in context at all.
+ *
+ * @param themeId - Theme whose row to write / 対象テーマID
+ * @param create - Fields used when no row exists yet / 行が無い場合に使う値
+ * @param update - Fields applied to an existing row / 既存行に適用する値
+ * @returns The created or updated row / 作成または更新された行
+ */
+async function writeAutoRun(
+  themeId: number,
+  create: AutoRunCreate,
+  update: AutoRunUpdate,
+): Promise<AutoRunRow> {
+  const found = await prisma.themeAutoRun.findFirst({ where: { themeId }, select: { id: true } });
+  if (found) return prisma.themeAutoRun.update({ where: { id: found.id }, data: update });
+  try {
+    return await prisma.themeAutoRun.create({ data: create });
+  } catch (err) {
+    // P2002 means a concurrent caller created the row between the read and
+    // this write — the one case where retrying as an update is correct, and
+    // the behaviour the replaced upsert had.
+    if ((err as { code?: string }).code !== 'P2002') throw err;
+    const raced = await prisma.themeAutoRun.findFirst({
+      where: { themeId },
+      select: { id: true },
+    });
+    if (!raced) throw err;
+    return prisma.themeAutoRun.update({ where: { id: raced.id }, data: update });
+  }
+}
+
 /** Best-effort write of the idle-timer columns; failures are logged, never thrown. */
 async function writeIdleTimerColumns(
   themeId: number,
@@ -48,23 +90,23 @@ export async function startAutoRun(
   themeId: number,
   order?: 'priority' | 'created',
 ): Promise<ThemeAutoRunState> {
-  const existing = await prisma.themeAutoRun.findUnique({ where: { themeId } });
+  const existing = await prisma.themeAutoRun.findFirst({ where: { themeId } });
 
   if (existing?.status === 'running') {
     log.warn(`[ThemeAutoRunService] Theme ${themeId} is already running`);
     return mapToState(existing);
   }
 
-  const updated = await prisma.themeAutoRun.upsert({
-    where: { themeId },
-    create: {
+  const updated = await writeAutoRun(
+    themeId,
+    {
       themeId,
       enabled: true,
       status: 'running',
       order: order ?? 'priority',
       startedAt: new Date(),
     },
-    update: {
+    {
       enabled: true,
       status: 'running',
       order: order ?? existing?.order ?? 'priority',
@@ -72,7 +114,7 @@ export async function startAutoRun(
       lastError: null,
       // Keep processedCount to track total across restarts
     },
-  });
+  );
 
   // NOTE (task 784): every enabled flip is logged explicitly (silent-flip
   // incident 2026-08-30) — a start always re-arms, so say so.
@@ -100,11 +142,11 @@ export async function startAutoRun(
  * @returns updated state / 更新後の状態
  */
 export async function pauseAutoRun(themeId: number): Promise<ThemeAutoRunState> {
-  const updated = await prisma.themeAutoRun.upsert({
-    where: { themeId },
-    create: { themeId, status: 'paused_user' },
-    update: { status: 'paused_user' },
-  });
+  const updated = await writeAutoRun(
+    themeId,
+    { themeId, status: 'paused_user' },
+    { status: 'paused_user' },
+  );
   log.info(`[ThemeAutoRunService] Paused auto-run for theme ${themeId}`);
   return mapToState(updated);
 }
@@ -119,14 +161,16 @@ export async function pauseAutoRun(themeId: number): Promise<ThemeAutoRunState> 
  * @returns updated state or null if theme not found / 更新後の状態またはnull
  */
 export async function resumeAutoRun(themeId: number): Promise<ThemeAutoRunState | null> {
-  const existing = await prisma.themeAutoRun.findUnique({ where: { themeId } });
+  const existing = await prisma.themeAutoRun.findFirst({ where: { themeId } });
   if (!existing) return null;
   if (!isAutoResumablePauseStatus(narrowAutoRunStatus(existing.status))) {
     return mapToState(existing);
   }
 
+  // `existing` was just read above, so its id addresses the row directly —
+  // `themeId` no longer can.
   const updated = await prisma.themeAutoRun.update({
-    where: { themeId },
+    where: { id: existing.id },
     data: { status: 'running' },
   });
   log.info(`[ThemeAutoRunService] Resumed auto-run for theme ${themeId}`);
@@ -141,11 +185,7 @@ export async function resumeAutoRun(themeId: number): Promise<ThemeAutoRunState 
  * @returns updated state / 更新後の状態
  */
 export async function stopAutoRun(themeId: number): Promise<ThemeAutoRunState> {
-  const updated = await prisma.themeAutoRun.upsert({
-    where: { themeId },
-    create: { themeId, status: 'idle' },
-    update: { status: 'stopping' },
-  });
+  const updated = await writeAutoRun(themeId, { themeId, status: 'idle' }, { status: 'stopping' });
   log.info(`[ThemeAutoRunService] Stopping auto-run for theme ${themeId}`);
   return mapToState(updated);
 }

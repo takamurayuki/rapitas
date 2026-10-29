@@ -44,6 +44,54 @@ export interface WorkspaceExtensionSpec {
 const delegateName = (model: string): string => model.charAt(0).toLowerCase() + model.slice(1);
 
 /**
+ * Whether Prisma refused a write because a unique constraint already held.
+ *
+ * Used to tell "someone else created this row while we were looking" apart
+ * from a real failure — the one case where the emulated upsert retries.
+ */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'P2002'
+  );
+}
+
+/**
+ * Perform an upsert as scoped calls, since Prisma's own cannot take a
+ * workspace. Every owned model has a single scalar `id` (checked against the
+ * schema), so the row found inside the workspace can be re-keyed by it.
+ *
+ * The create branch can lose a race, and the unique constraint is what says
+ * so: `@@unique([workspaceId, ...])` makes a second insert for the same key in
+ * the same workspace fail rather than duplicate. That failure is turned back
+ * into the update branch once — which is the behaviour a real upsert has.
+ *
+ * @param delegate - The UNEXTENDED delegate for this model / 未拡張のデリゲート
+ * @param decision - Where to look, and what to write / 探索条件と書き込み内容
+ * @returns The updated or created row / 更新または作成された行
+ */
+async function runEmulatedUpsert(
+  delegate: Record<string, (args: unknown) => Promise<unknown>>,
+  decision: { where: object; create: object; update: object; rest: object },
+): Promise<unknown> {
+  const locate = { where: decision.where, select: { id: true } };
+  const found = (await delegate.findFirst(locate)) as { id: unknown } | null;
+  if (found !== null) {
+    return delegate.update({ ...decision.rest, where: { id: found.id }, data: decision.update });
+  }
+  try {
+    return await delegate.create({ ...decision.rest, data: decision.create });
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    const raced = (await delegate.findFirst(locate)) as { id: unknown } | null;
+    // The constraint fired but the row is not visible in this workspace, so
+    // the collision was with a global constraint, not with our own row.
+    // Reporting the original error is the honest answer.
+    if (raced === null) throw error;
+    return delegate.update({ ...decision.rest, where: { id: raced.id }, data: decision.update });
+  }
+}
+
+/**
  * Build the extension.
  *
  * `base` must be the UNEXTENDED client. `findUnique`'s `where` accepts only
@@ -102,6 +150,16 @@ export function createWorkspaceExtension(
                 '[tenancy] unique read re-issued with a workspace filter',
               );
               return run.call(delegate, decision.args);
+            }
+            case 'upsert': {
+              const delegate = base[delegateName(model)];
+              if (typeof delegate?.findFirst !== 'function') {
+                throw new Error(
+                  `[tenancy] cannot emulate ${model}.upsert: no findFirst on the base client`,
+                );
+              }
+              log.debug({ model }, '[tenancy] upsert performed as a scoped find-then-write');
+              return runEmulatedUpsert(delegate, decision);
             }
             case 'reject':
               throw new Error(`[tenancy] ${decision.reason}`);

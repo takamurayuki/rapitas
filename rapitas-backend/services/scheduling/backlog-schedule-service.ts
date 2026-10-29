@@ -187,7 +187,15 @@ export async function updateSchedule(
   if (patch.frequency !== undefined) data.frequency = normalizeFrequency(patch.frequency);
   if (patch.hour !== undefined) data.hour = clampHour(patch.hour);
   if (patch.weekday !== undefined) data.weekday = clampWeekday(patch.weekday);
-  const row = await prisma.backlogSchedule.update({ where: { kind }, data });
+  // `kind` is unique per workspace now, so it cannot address a row by itself.
+  // ensureSchedulesSeeded() above guarantees the row exists; the throw states
+  // that assumption rather than letting Prisma report a confusing miss.
+  const target = await prisma.backlogSchedule.findFirst({
+    where: { kind },
+    select: { id: true },
+  });
+  if (!target) throw new Error(`[backlog-schedule] no schedule row for kind ${kind}`);
+  const row = await prisma.backlogSchedule.update({ where: { id: target.id }, data });
   return toConfig(row as ScheduleRow);
 }
 
@@ -198,5 +206,7 @@ export async function updateSchedule(
  * @param at - Run timestamp / 実行時刻
  */
 export async function markScheduleRun(kind: BacklogJobKind, at: Date): Promise<void> {
-  await prisma.backlogSchedule.update({ where: { kind }, data: { lastRunAt: at } });
+  // updateMany, because `kind` alone is no longer a unique key and nothing
+  // here needs the updated row back.
+  await prisma.backlogSchedule.updateMany({ where: { kind }, data: { lastRunAt: at } });
 }
