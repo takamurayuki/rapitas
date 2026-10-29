@@ -51,6 +51,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { killDeadPidEstablishedPeers } = require('./dev-established-cleanup.cjs');
 const { waitForFrontendReady, DEFAULT_TIMEOUT_MS } = require('./wait-for-frontend-ready.cjs');
+const { classifyOccupancy, describePortConflict } = require('./port-ownership.cjs');
 const { maybeRebuildTauri } = require('./tauri-rebuild.cjs');
 
 const BACKEND_PORT = 3001;
@@ -422,6 +423,30 @@ async function ensurePortAvailable(port) {
     console.log(
       `  Found LISTENING process(es) on port ${port}: PID ${[...listeningPids].join(', ')}`,
     );
+  }
+
+  // Say so when the port belongs to another program entirely. Until now
+  // the only hint was forceKillAllOnPort's terse "does not look
+  // rapitas-related" line, buried among the kill retries, so the
+  // 2026-10-29 Rails collision looked like rapitas simply showing another
+  // project. This only reports: the kill decision and its identity guard
+  // are unchanged, because "not confirmed ours" also covers our own
+  // orphaned bun.exe (see port-ownership.cjs).
+  if (listeningPids.size > 0) {
+    const occupants = [...listeningPids].map((pid) => {
+      const procs = queryWin32Processes(`ProcessId=${pid}`);
+      return {
+        pid,
+        name: procs[0] ? procs[0].Name : null,
+        commandLine: procs[0] ? procs[0].CommandLine : null,
+      };
+    });
+    const occupancy = classifyOccupancy({ occupants, isRapitasOwned: isRapitasOwnedProcess });
+    if (occupancy.kind === 'foreign') {
+      for (const line of describePortConflict({ port, foreign: occupancy.foreign })) {
+        console.warn(line);
+      }
+    }
   }
 
   // バックエンドポートの場合、まずエージェント実行中かチェック
