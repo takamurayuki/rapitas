@@ -28,7 +28,7 @@ mock.module('../../../config/database', () => ({
   prisma: {
     userSettings: { findFirst: mockUserSettingsFindFirst },
     themeAutoRun: {
-      findUnique: mockThemeAutoRunFindUnique,
+      findFirst: mockThemeAutoRunFindUnique,
       update: mockThemeAutoRunUpdate,
       updateMany: mockThemeAutoRunUpdateMany,
     },
@@ -362,7 +362,9 @@ describe('stopThemeForIdleTimeout', () => {
   test('sets enabled=false + idleStoppedAt, logs the cycle event, and notifies', async () => {
     await stopThemeForIdleTimeout(7);
 
-    expect(mockThemeAutoRunUpdate).toHaveBeenCalledWith({
+    // updateMany, not update: `themeId` is unique only within a workspace
+    // now, so the write can no longer be keyed on it alone.
+    expect(mockThemeAutoRunUpdateMany).toHaveBeenCalledWith({
       where: { themeId: 7 },
       data: { enabled: false, idleStoppedAt: expect.any(Date) },
     });
@@ -374,7 +376,7 @@ describe('stopThemeForIdleTimeout', () => {
   });
 
   test('a failed update write skips the notification (no false "stopped" signal)', async () => {
-    mockThemeAutoRunUpdate.mockRejectedValue(new Error('db down'));
+    mockThemeAutoRunUpdateMany.mockRejectedValue(new Error('db down'));
 
     await stopThemeForIdleTimeout(7);
 

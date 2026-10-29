@@ -144,18 +144,21 @@ describe('parseReviewVerdict', () => {
       severity: 0,
       reasons: [],
       judged: false,
+      unknownReason: 'unparsable',
     });
     expect(parseReviewVerdict(undefined)).toEqual({
       verdict: 'unknown',
       severity: 0,
       reasons: [],
       judged: false,
+      unknownReason: 'unparsable',
     });
     expect(parseReviewVerdict('   ')).toEqual({
       verdict: 'unknown',
       severity: 0,
       reasons: [],
       judged: false,
+      unknownReason: 'unparsable',
     });
   });
 
@@ -165,6 +168,7 @@ describe('parseReviewVerdict', () => {
       severity: 0,
       reasons: [],
       judged: false,
+      unknownReason: 'unparsable',
     });
   });
 
@@ -270,7 +274,7 @@ describe('isAdversarialReviewEnabled', () => {
 });
 
 describe('reviewDiffAdversarially', () => {
-  it('CLI mode holds high-risk work when the only real provider is unavailable', async () => {
+  it('CLI mode holds high-risk work when the whole panel is unavailable', async () => {
     auxMode = 'cli';
     taskFindUnique.mockResolvedValue({
       title: 'Change login password validation',
@@ -281,42 +285,40 @@ describe('reviewDiffAdversarially', () => {
       const result = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
       expect(result.verdict).toBe('fail');
       expect(result.judged).toBe(false);
-      expect(sendAIMessage).toHaveBeenCalledTimes(1);
+      // Every seat is tried before a high-risk change is held: the panel is
+      // three Claude models now, not one provider with two refusals.
+      expect(sendAIMessage).toHaveBeenCalledTimes(3);
     } finally {
       auxMode = 'api';
     }
   });
 
-  it('CLI mode records unavailable families without making duplicate Claude calls', async () => {
+  it('CLI mode seats three distinct Claude models, so a majority exists', async () => {
+    // Measured 2026-10-21: 209 of 209 October reviews had exactly one real
+    // voter, because the Gemini and OpenAI seats answered "unavailable in
+    // Claude-only auxiliary CLI mode". A panel of one cannot outvote itself,
+    // and 51.4% of that voter's fails were contested wherever a second
+    // opinion existed.
     auxMode = 'cli';
     try {
       const result = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
       expect(result.verdict).toBe('pass');
-      expect(sendAIMessage).toHaveBeenCalledTimes(1);
-      expect(
-        (sendAIMessage.mock.calls as unknown as Array<[{ provider: string }]>)[0][0],
-      ).toMatchObject({ provider: 'claude' });
+      expect(sendAIMessage).toHaveBeenCalledTimes(3);
+      const asked = (
+        sendAIMessage.mock.calls as unknown as Array<[{ provider: string; model: string }]>
+      ).map((c) => c[0]);
+      expect(asked.every((a) => a.provider === 'claude')).toBe(true);
+      expect(new Set(asked.map((a) => a.model)).size).toBe(3);
       const event = (
         appendEventMock.mock.calls as unknown as Array<
-          [{ payload: { jurors: Array<{ provider: string; verdict: string; reasons: string[] }> } }]
+          [{ payload: { jurors: Array<{ provider: string; model?: string; verdict: string }> } }]
         >
       ).at(-1)![0];
-      expect(
-        event.payload.jurors
-          .filter((j) => j.provider !== 'claude')
-          .sort((a, b) => a.provider.localeCompare(b.provider)),
-      ).toEqual([
-        expect.objectContaining({
-          provider: 'chatgpt',
-          verdict: 'unknown',
-          reasons: [expect.stringContaining('unavailable')],
-        }),
-        expect.objectContaining({
-          provider: 'gemini',
-          verdict: 'unknown',
-          reasons: [expect.stringContaining('unavailable')],
-        }),
-      ]);
+      // No placeholder seats: every recorded juror actually voted, so the
+      // contested-fail rate can be read straight off these rows.
+      expect(event.payload.jurors).toHaveLength(3);
+      expect(event.payload.jurors.every((j) => j.verdict === 'pass')).toBe(true);
+      expect(new Set(event.payload.jurors.map((j) => j.model)).size).toBe(3);
     } finally {
       auxMode = 'api';
     }
@@ -348,7 +350,13 @@ describe('reviewDiffAdversarially', () => {
   it('fails open (unknown, not judged) when disabled via env', async () => {
     process.env.RAPITAS_ADVERSARIAL_REVIEW = '0';
     const r = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
-    expect(r).toEqual({ verdict: 'unknown', severity: 0, reasons: [], judged: false });
+    expect(r).toEqual({
+      verdict: 'unknown',
+      severity: 0,
+      reasons: [],
+      judged: false,
+      unknownReason: 'disabled',
+    });
     expect(getDiff).not.toHaveBeenCalled();
   });
 
@@ -398,7 +406,15 @@ describe('reviewDiffAdversarially', () => {
   it('fails open when the diff-review pipeline throws unexpectedly', async () => {
     getDiff.mockRejectedValue(new Error('git blew up'));
     const r = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
-    expect(r).toEqual({ verdict: 'unknown', severity: 0, reasons: [], judged: false });
+    // 'error', not 'disabled': the gate was on and the pipeline broke. The
+    // whole point of the field is that those two are not the same event.
+    expect(r).toEqual({
+      verdict: 'unknown',
+      severity: 0,
+      reasons: [],
+      judged: false,
+      unknownReason: 'error',
+    });
   });
 
   it('counts a wedged juror as unknown instead of holding the request open', async () => {

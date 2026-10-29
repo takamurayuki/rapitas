@@ -1,8 +1,8 @@
 /**
  * DashboardPage
  *
- * Learning dashboard: KPI strip, suggested next tasks (primary zone), study
- * activity + upcoming exams (secondary), and analytics widgets (tertiary).
+ * Task dashboard: KPI strip, suggested next tasks (primary zone), and
+ * analytics widgets (tertiary).
  * Data fetching lives in useDashboardData; each zone is an _components module.
  */
 'use client';
@@ -11,13 +11,11 @@ import BurnupChart from '@/components/widgets/burnup-chart';
 import { SuggestedTasksWidget } from '@/feature/intelligence/components/SuggestedTasksWidget';
 import { ProductivityHeatmap } from '@/feature/intelligence/components/ProductivityHeatmap';
 import { DashboardKpiStrip } from './_components/kpi-strip';
-import { StudyActivityChart } from './_components/study-activity-chart';
-import { UpcomingExamsCard } from './_components/upcoming-exams-card';
 import { useDashboardData } from './_components/use-dashboard-data';
 
 export default function DashboardPage() {
   const t = useTranslations('dashboard');
-  const { overview, dailyStudy, streakInfo, loading } = useDashboardData();
+  const { overview, loading } = useDashboardData();
 
   if (loading) {
     return (
@@ -44,18 +42,12 @@ export default function DashboardPage() {
         <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
       </div>
 
-      <DashboardKpiStrip overview={overview} streakInfo={streakInfo} />
+      <DashboardKpiStrip overview={overview} />
 
       {/* Primary zone — the actionable "what to do next" list leads the page
           (task-first hierarchy; fixes the "equally loud widgets" tell #6). */}
       <div className="mt-6">
         <SuggestedTasksWidget />
-      </div>
-
-      {/* Secondary — recent study activity and exam deadlines. */}
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <StudyActivityChart dailyStudy={dailyStudy} />
-        <UpcomingExamsCard upcomingExams={overview?.upcomingExams ?? []} />
       </div>
 
       {/* Tertiary — analytics, quieter and below the fold. */}

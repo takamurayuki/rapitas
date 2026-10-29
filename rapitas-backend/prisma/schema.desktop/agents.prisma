@@ -6,6 +6,8 @@
 
 model DeveloperModeConfig {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId            Int       @unique
   task              Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
   isEnabled         Boolean   @default(true)
@@ -20,10 +22,14 @@ model DeveloperModeConfig {
 
   agentSessions     AgentSession[]
   approvalRequests  ApprovalRequest[]
+
+  @@index([workspaceId])
 }
 
 model AgentSession {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   configId          Int
   config            DeveloperModeConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
   status            String    @default("pending")
@@ -43,10 +49,14 @@ model AgentSession {
 
   agentActions      AgentAction[]
   agentExecutions   AgentExecution[]
+
+  @@index([workspaceId])
 }
 
 model AgentAction {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   sessionId         Int
   session           AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   actionType        String
@@ -58,10 +68,14 @@ model AgentAction {
   status            String    @default("success")
   errorMessage      String?
   createdAt         DateTime  @default(now())
+
+  @@index([workspaceId])
 }
 
 model ApprovalRequest {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   configId          Int
   config            DeveloperModeConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
   requestType       String
@@ -78,10 +92,14 @@ model ApprovalRequest {
   estimatedChanges  String?   // JSON stored as string
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+
+  @@index([workspaceId])
 }
 
 model AIAgentConfig {
   id              Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   agentType       String
   name            String
   apiKeyEncrypted String?
@@ -101,10 +119,13 @@ model AIAgentConfig {
   taskAnalysisConfigs     TaskAnalysisConfig[]
   agentExecutionConfigs   AgentExecutionConfig[]
   workflowRoles           WorkflowRoleConfig[]
+  @@index([workspaceId])
 }
 
 model AgentExecution {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   sessionId         Int
   session           AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   agentConfigId     Int?
@@ -143,10 +164,13 @@ model AgentExecution {
   executionLogs     AgentExecutionLog[]
 
   @@index([status, heartbeatAt])
+  @@index([workspaceId])
 }
 
 model AgentExecutionLog {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   executionId       Int
   execution         AgentExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
   logChunk          String
@@ -156,11 +180,14 @@ model AgentExecutionLog {
   createdAt         DateTime  @default(now())
 
   @@index([executionId, sequenceNumber])
+  @@index([workspaceId])
 }
 
 // Agent execution settings (execution parameters per task)
 model AgentExecutionConfig {
   id                    Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId                Int       @unique
   task                  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
@@ -206,12 +233,15 @@ model AgentExecutionConfig {
   updatedAt             DateTime  @updatedAt
 
   @@index([taskId])
+  @@index([workspaceId])
 }
 
 // System prompt management (manage hardcoded prompts in DB)
 model SystemPrompt {
   id          Int       @id @default(autoincrement())
-  key         String    @unique   // Unique key (e.g., "task_analysis", "prompt_optimization")
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
+  key         String      // Unique key (e.g., "task_analysis", "prompt_optimization")
   name        String              // Display name
   description String?             // Prompt description
   content     String              // Prompt content
@@ -223,11 +253,15 @@ model SystemPrompt {
 
   @@index([key])
   @@index([category])
+  @@index([workspaceId])
+  @@unique([workspaceId, key])
 }
 
 // AI agent configuration change log
 model AgentConfigAuditLog {
   id              Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   agentConfigId   Int
   action          String    // create, update, delete, api_key_set, api_key_delete, test_connection
   changeDetails   String?   // JSON stored as string - what was changed
@@ -239,11 +273,14 @@ model AgentConfigAuditLog {
 
   @@index([agentConfigId])
   @@index([createdAt])
+  @@index([workspaceId])
 }
 
 // AI Copilot chat messages (Claude Code CLI based, not API)
 model CopilotMessage {
   id              Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId          Int?     // Associated task (null for global chat)
   role            String   // "user" | "assistant"
   content         String   // Message text
@@ -253,6 +290,7 @@ model CopilotMessage {
 
   @@index([taskId, createdAt])
   @@index([claudeSessionId])
+  @@index([workspaceId])
 }
 
 // Structured audit log of critical decision points (API call / parameter
@@ -262,6 +300,8 @@ model CopilotMessage {
 // Task/AgentExecution/AgentSession records, so no cascade may reach them.
 model AgentDecisionTrace {
   id               Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId           Int?
   executionId      Int?
   sessionId        Int?
@@ -284,4 +324,5 @@ model AgentDecisionTrace {
   @@index([executionId])
   @@index([kind])
   @@index([consistency])
+  @@index([workspaceId])
 }

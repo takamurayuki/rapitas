@@ -111,9 +111,6 @@ function createMockPrisma() {
       deleteMany: mock(() => Promise.resolve({ count: 0 })) as ReturnType<typeof mock>,
       createMany: mock(() => Promise.resolve({ count: 0 })) as ReturnType<typeof mock>,
     },
-    studyStreak: {
-      upsert: mock(() => Promise.resolve({})) as ReturnType<typeof mock>,
-    },
   };
 }
 

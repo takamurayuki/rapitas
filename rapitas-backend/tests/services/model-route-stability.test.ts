@@ -6,6 +6,10 @@
  * こと、invalidateStableRoute が指定 taskId:role の全 minTier バリアントだけを消し
  * 他の taskId/role のピンには影響しないこと、_resetStableRouteCache が全消去する
  * ことを検証する。再現性/セキュリティに関わる決定的キャッシュのため厚めに検証する。
+ *
+ * ピンは再起動をまたぐようタイムラインにも書かれるため、ここでは保存先をスタブに
+ * 差し替える。差し替えないと本物の Prisma を叩き、前のテストが書いたピンを次の
+ * テストが読んで「再ルートされるはず」の検証が静かに崩れる（CI で実際に5件落ちた）。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import type { RoutingDecision } from '../../services/ai/smart-model-router';
@@ -37,6 +41,27 @@ mock.module('../../services/ai/smart-model-router', () => ({
   },
 }));
 
+/** Stand-in for the timeline: pins live here instead of the database. */
+let persisted: { correlationId?: string; payload: Record<string, unknown>; createdAt: Date }[] = [];
+
+mock.module('../../services/memory/timeline', () => ({
+  appendEvent: async (event: { correlationId?: string; payload: Record<string, unknown> }) => {
+    persisted.push({ ...event, createdAt: new Date() });
+    return { id: persisted.length };
+  },
+  queryEvents: async (options: { correlationId?: string }) => {
+    const events = persisted.filter(
+      (e) => !options.correlationId || e.correlationId === options.correlationId,
+    );
+    return { events, total: events.length, limit: 50, offset: 0 };
+  },
+  deleteEvents: async (filter: { correlationId: string }) => {
+    const before = persisted.length;
+    persisted = persisted.filter((e) => e.correlationId !== filter.correlationId);
+    return before - persisted.length;
+  },
+}));
+
 const { getStableSmartRoute, invalidateStableRoute, _resetStableRouteCache } =
   await import('../../services/ai/model-route-stability');
 
@@ -44,6 +69,9 @@ beforeEach(() => {
   getSmartRouteCallCount = 0;
   getSmartRouteCalls = [];
   _resetStableRouteCache();
+  // The in-process cache is not the only pin any more; a surviving stored pin
+  // would serve the next test and hide a genuine re-route.
+  persisted = [];
 });
 
 describe('getStableSmartRoute — キャッシュヒット', () => {
@@ -103,7 +131,7 @@ describe('getStableSmartRoute — capTier もキーに含まれる', () => {
 describe('invalidateStableRoute — 指定 taskId:role の全 minTier バリアントのみ消去', () => {
   test('無効化後の再呼び出しは再ルートされる', async () => {
     await getStableSmartRoute(1, 'implementer', {});
-    invalidateStableRoute(1, 'implementer');
+    await invalidateStableRoute(1, 'implementer');
     await getStableSmartRoute(1, 'implementer', {});
     expect(getSmartRouteCallCount).toBe(2);
   });
@@ -113,7 +141,7 @@ describe('invalidateStableRoute — 指定 taskId:role の全 minTier バリア�
     await getStableSmartRoute(1, 'implementer', { minTier: 'premium' });
     expect(getSmartRouteCallCount).toBe(2);
 
-    invalidateStableRoute(1, 'implementer');
+    await invalidateStableRoute(1, 'implementer');
 
     // Both variants must recompute after invalidation — neither pin survives.
     await getStableSmartRoute(1, 'implementer', { minTier: 'standard' });
@@ -125,15 +153,15 @@ describe('invalidateStableRoute — 指定 taskId:role の全 minTier バリア�
     const other = await getStableSmartRoute(2, 'verifier', {});
     await getStableSmartRoute(1, 'implementer', {});
 
-    invalidateStableRoute(1, 'implementer');
+    await invalidateStableRoute(1, 'implementer');
 
     const otherAgain = await getStableSmartRoute(2, 'verifier', {});
     expect(otherAgain).toBe(other); // untouched — still cached
     expect(getSmartRouteCallCount).toBe(2); // only the two initial computations
   });
 
-  test('存在しない taskId:role を無効化してもエラーにならない（no-op）', () => {
-    expect(() => invalidateStableRoute(999, 'nonexistent-role')).not.toThrow();
+  test('存在しない taskId:role を無効化してもエラーにならない（no-op）', async () => {
+    await expect(invalidateStableRoute(999, 'nonexistent-role')).resolves.toBeUndefined();
   });
 });
 
@@ -144,6 +172,9 @@ describe('_resetStableRouteCache — 全消去', () => {
     expect(getSmartRouteCallCount).toBe(2);
 
     _resetStableRouteCache();
+    // _resetStableRouteCache clears the process cache only, by design: it is
+    // test-only and the stored pins belong to the task, not the process.
+    persisted = [];
 
     await getStableSmartRoute(1, 'implementer', {});
     await getStableSmartRoute(2, 'verifier', {});
