@@ -6,7 +6,7 @@
   "build": {
     "beforeBuildCommand": "node scripts/build-all.js",
     "beforeDevCommand": "node scripts/dev.js",
-    "devUrl": "http://localhost:3000",
+    "devUrl": "http://127.0.0.1:3000",
     "frontendDist": "../../rapitas-frontend/.next-tauri"
   },
   "app": {

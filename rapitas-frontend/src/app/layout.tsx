@@ -19,6 +19,7 @@ import { PomodoroProvider } from '@/feature/tasks/pomodoro/PomodoroProvider';
 import ExternalLinksProvider from '@/components/providers/ExternalLinksProvider';
 import LinkViewHost from '@/components/link-view/LinkViewHost';
 import RapiAvatarHost from '@/components/rapi-avatar/RapiAvatarHost';
+import ApiCredentialsInitializer from '@/components/providers/ApiCredentialsInitializer';
 import CacheWarmupInitializer from '@/components/common/CacheWarmupInitializer';
 import AppVisibilityBridge from '@/components/common/AppVisibilityBridge';
 import SmartCommandBar from '@/components/smart-command-bar/SmartCommandBar';
@@ -141,6 +142,10 @@ export default function RootLayout({
         />
       </head>
       <body className={`${GeistSans.variable} ${GeistMono.variable}`}>
+        {/* First, and above AuthProvider: it must be evaluated before anything
+            can fetch, or those requests go out with no session cookie and are
+            served unscoped. */}
+        <ApiCredentialsInitializer />
         <IntlProvider>
           <AuthProvider>
             <PomodoroProvider>
