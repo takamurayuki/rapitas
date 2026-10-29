@@ -214,6 +214,12 @@ export function PhaseTimeline({ taskId, isRunning, liveLogs }: PhaseTimelineProp
   // and the pane shows the live stream in real time.
   if (phases.length === 0 && !isRunning) {
     const entries = transformLogsToSimple(liveLogs, tLog);
+    // Nothing at all when there is nothing to show. A spinner used to stand
+    // here promising an arrival that was never coming, and the replacement
+    // line ("まだ実行していません") was redundant: the execution button and
+    // the instruction box are already on screen saying exactly that
+    // (operator feedback, 2026-10-23). The absence is the message.
+    if (entries.length === 0) return null;
     return <SimpleLogEntryList entries={entries} />;
   }
 

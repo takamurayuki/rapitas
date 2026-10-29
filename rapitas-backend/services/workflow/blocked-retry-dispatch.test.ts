@@ -26,7 +26,7 @@ let runningWithTask = 0;
 
 const fakePrisma = {
   themeAutoRun: {
-    findUnique: (args: { where: { themeId: number } }) =>
+    findFirst: (args: { where: { themeId: number } }) =>
       Promise.resolve(themeRows[args.where.themeId] ?? null),
     count: () => Promise.resolve(runningWithTask),
   },
@@ -119,7 +119,7 @@ describe('ensureRetryDispatch (task 1238)', () => {
   test('DB 読み取り失敗も error（fail-open）', async () => {
     const broken = {
       themeAutoRun: {
-        findUnique: () => Promise.reject(new Error('db down')),
+        findFirst: () => Promise.reject(new Error('db down')),
         count: () => Promise.resolve(0),
       },
     } as never;

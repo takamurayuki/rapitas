@@ -14,6 +14,16 @@ export interface CopilotChatPanelProps {
   onTaskUpdated?: () => void;
   className?: string;
   embedded?: boolean;
+  /**
+   * Strips the chrome down for a tight host.
+   *
+   * Drops the title and its glyph, the "next action" heading and each
+   * recommendation's reason line, and tightens the padding. In ラピ's bubble
+   * the header alone was a `text-lg` title plus `p-4` saying "AIアシスタント"
+   * above a 544px column that is already her — and the reasons repeated what
+   * the labels say.
+   */
+  compact?: boolean;
   /** Task state the "next action" recommender reasons over. */
   nextActionContext?: NextActionContext;
   /** Content rendered below the recommendations, inside the same card (e.g. execution accordion). */

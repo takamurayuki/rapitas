@@ -27,6 +27,7 @@ mod shortcut_config;
 mod app_setup;
 mod browser;
 mod dev_server_wait;
+mod link_webview;
 mod pomodoro_float;
 mod quick_capture;
 mod shortcuts;

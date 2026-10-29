@@ -8,6 +8,7 @@
 import { observeWorkflowStage } from './workflow-stage-timing';
 import { readWorkflowFile } from './workflow-file-utils';
 import { buildMemoryContext } from './workflow-memory-context';
+import { snapshotSection } from './workflow-context-snapshot';
 import { buildRejectedPlanContext } from './workflow-rejected-plan-context';
 import { buildPlanRevisionContext } from './workflow-plan-revision-context';
 import { buildCaseContext } from './workflow-case-context';
@@ -71,13 +72,15 @@ ${planRevision}`;
   }
   // Cross-task learning loop — see the researcher case for rationale.
   const planLessons = await observeWorkflowStage(taskId, 'context.buildCriticLessonsSection', () =>
-    buildCriticLessonsSection('plan', language),
+    snapshotSection(taskId, 'lessons', () => buildCriticLessonsSection('plan', language)),
   );
   if (planLessons) {
     ctx += `\n\n${planLessons}`;
   }
   // Repair-risk tactics — see the researcher context for rationale.
-  const planRepairRisk = await buildRepairRiskTacticSection(taskId, task, 'plan', language);
+  const planRepairRisk = await snapshotSection(taskId, 'repairRisk', () =>
+    buildRepairRiskTacticSection(taskId, task, 'plan', language),
+  );
   if (planRepairRisk) {
     ctx += `\n\n${planRepairRisk}`;
   }
@@ -86,7 +89,7 @@ ${planRevision}`;
   // (or re-violated) at implementation time. Previously only researcher and
   // implementer received memory, so the planner re-decided settled points.
   const plannerMemory = await observeWorkflowStage(taskId, 'context.buildMemoryContext', () =>
-    buildMemoryContext(taskId, task, language),
+    snapshotSection(taskId, 'memory', () => buildMemoryContext(taskId, task, language)),
   );
   if (plannerMemory) {
     ctx += `\n\n${plannerMemory}`;
@@ -107,7 +110,7 @@ ${planRevision}`;
   // CBR (R9): the nearest SOLVED similar task's plan-that-worked — concrete
   // file layout / step ordering to adapt, stronger than abstract lessons.
   const plannerCase = await observeWorkflowStage(taskId, 'context.buildCaseContext', () =>
-    buildCaseContext(taskId, task, language),
+    snapshotSection(taskId, 'case', () => buildCaseContext(taskId, task, language)),
   );
   if (plannerCase) {
     ctx += `\n\n${plannerCase}`;

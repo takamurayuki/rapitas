@@ -22,12 +22,9 @@ import {
   settingsRoutes,
   tasksRoutes,
   ganttDataRoute,
-  examGoalsRoutes,
-  studyStreaksRoutes,
   resourcesRoutes,
   directoriesRoutes,
   statisticsRoutes,
-  habitsRoutes,
   templatesRoutes,
   reportsRoutes,
   promptsRoutes,
@@ -43,7 +40,6 @@ import {
   executionLogsRoutes,
   schedulesRoutes,
   dailyScheduleRoutes,
-  learningGoalsRoutes,
   rateLimitRoutes,
   paidLeaveRoutes,
   urlMetadataRoutes,
@@ -153,12 +149,9 @@ app.use(notificationsRoutes);
 app.use(settingsRoutes);
 app.use(tasksRoutes);
 app.use(ganttDataRoute);
-app.use(examGoalsRoutes);
-app.use(studyStreaksRoutes);
 app.use(resourcesRoutes);
 app.use(directoriesRoutes);
 app.use(statisticsRoutes);
-app.use(habitsRoutes);
 app.use(templatesRoutes);
 app.use(reportsRoutes);
 app.use(promptsRoutes);
@@ -174,7 +167,6 @@ app.use(agentExecutionConfigRoutes);
 app.use(executionLogsRoutes);
 app.use(schedulesRoutes);
 app.use(dailyScheduleRoutes);
-app.use(learningGoalsRoutes);
 app.use(rateLimitRoutes);
 app.use(debugLogsRouter);
 app.use(paidLeaveRoutes);

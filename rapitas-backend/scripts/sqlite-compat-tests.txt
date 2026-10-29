@@ -106,3 +106,11 @@ services/workflow/phase-session-resume.test.ts
 tests/routes/workflow/workflow-routes.test.ts
 services/agents/orchestrator/execution-resume.test.ts
 services/workflow/verify-repair-recovery.test.ts
+
+# ===== テナンシー統合テスト（#1255） =====
+# 本物の Prisma クライアントを使い捨て SQLite に繋いで測る3件。
+# ci-gate-tests.txt には置けない (test-backend ジョブは postgres クライアント
+# しか生成しない)。ライブ環境も SQLite なので、ここが本番と同じ engine。
+services/tenancy/workspace-scoping.integration.test.ts
+services/tenancy/workspace-request.integration.test.ts
+services/tenancy/workspace-backfill.integration.test.ts

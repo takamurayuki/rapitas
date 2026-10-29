@@ -16,6 +16,7 @@ import { createLogger } from '../../config/logger';
 import { removeWorktree } from '../agents/orchestrator/git-operations/worktree/worktree-ops';
 import { resolveWorktreeBaseDir } from '../agents/orchestrator/git-operations/core/resolve-worktree-base-dir';
 import { extractKnowledgeFromTask } from '../memory/task-knowledge-extractor';
+import { snapshotTaskMeasurements } from './task-measurement-snapshot';
 
 const log = createLogger('completed-task-cleanup');
 
@@ -110,7 +111,13 @@ async function deleteTaskWithArtifacts(taskId: number): Promise<void> {
     log.warn({ err, taskId }, '[cleanup] worktree cleanup failed — proceeding');
   }
 
-  // 2. Delete the task row (cascades WorkflowFile / WorkflowFileVersion /
+  // 2. Copy the measurements somewhere the cascade cannot reach. This path
+  //    deleted 921 tasks and kept no trash copy, which is why execution rows
+  //    survive for only 17 of 89 days and the workflow ledger is down to 99
+  //    tasks (measured 2026-10-24).
+  await snapshotTaskMeasurements(taskId, prisma);
+
+  // 3. Delete the task row (cascades WorkflowFile / WorkflowFileVersion /
   //    WorkflowTransition / sessions etc.). KnowledgeEntry.taskId is NOT a FK,
   //    so recorded knowledge survives.
   await prisma.task.delete({ where: { id: taskId } });

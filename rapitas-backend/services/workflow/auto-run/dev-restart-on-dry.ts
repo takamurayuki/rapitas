@@ -22,6 +22,7 @@ import { WorkflowRunner } from '../workflow-runner';
 import { logCycleEvent } from '../../observability';
 import { realtimeService } from '../../communication/realtime-service';
 import { fastForwardPrimary } from './primary-fast-forward';
+import { notifyOncePerWindow } from '../../communication/notify-once-per-window';
 
 const execFileAsync = promisify(execFile);
 const log = createLogger('auto-run:dev-restart');
@@ -234,7 +235,26 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
   // origin" and restarting WITHOUT moving HEAD would relaunch still behind
   // and fire again at the next quiet point — a restart loop.
   const ff = await fastForwardPrimary();
-  if (!ff.moved && ff.reason !== 'up-to-date') diag('fast-forward-skipped', { reason: ff.reason });
+  if (!ff.moved && ff.reason !== 'up-to-date') {
+    diag('fast-forward-skipped', { reason: ff.reason, dirtyPaths: ff.dirtyPaths });
+    // A diag line is not a signal: the sync sat on `dirty` for a whole day
+    // while six merges piled up, and nothing said so anywhere a person looks
+    // (#1060). A refusal to sync means the running code is frozen, which is
+    // worth interrupting for; the window keeps it from becoming noise.
+    if (ff.reason === 'dirty') {
+      await notifyOncePerWindow({
+        title: '自己デプロイが止まっています（作業ツリーが dirty）',
+        message:
+          `primary チェックアウトに未コミットの変更があるため ${ff.branch} へ同期できません。` +
+          `マージ済みのコードは反映されません。対象: ${(ff.dirtyPaths ?? []).slice(0, 5).join(', ')}`,
+        link: '/settings/general',
+        metadata: { reason: ff.reason, branch: ff.branch, dirtyPaths: ff.dirtyPaths },
+      });
+    }
+  }
+  if (ff.restoredGenerated?.length) {
+    diag('fast-forward-restored-generated', { files: ff.restoredGenerated });
+  }
 
   // Only restart when there is genuinely something new to apply.
   const current = await headCommit();
