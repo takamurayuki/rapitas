@@ -120,8 +120,19 @@ mock.module('../../../routes/agents/system/agent-system-router', () => ({
   },
 }));
 
+/** Warnings the scheduler wrote, so the visible-decline behaviour is testable. */
+const warnings: { reason?: string; msg: string }[] = [];
+
 mock.module('../../../config/logger', () => ({
-  createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
+  createLogger: () => ({
+    info: () => {},
+    warn: (fields: { reason?: string } | string, msg?: string) =>
+      warnings.push(
+        typeof fields === 'string' ? { msg: fields } : { reason: fields?.reason, msg: msg ?? '' },
+      ),
+    error: () => {},
+    debug: () => {},
+  }),
 }));
 
 const { AutoRestartMergedCodeScheduler } = await import('./index');
@@ -139,6 +150,7 @@ function makeScheduler(startupCommit: string | null = 'startup123'): {
 
 beforeEach(() => {
   callOrder.length = 0;
+  warnings.length = 0;
   enabled = true;
   aheadCount = 3;
   changedPaths = ['rapitas-backend/services/workflow/workflow-runner.ts'];
@@ -205,14 +217,15 @@ describe('runOnce — early-exit gates', () => {
     expect(callOrder.some((c) => c === 'getAgentSystemSnapshot')).toBe(false);
   });
 
-  test('UI-only merge: batched to the boundary — no snapshot, no pull, no restart', async () => {
+  // It now looks at the system to see whether the idle itself should count
+  // as the boundary, but one poll is not yet enough: still no pull, no restart.
+  test('UI-only merge: batched to the boundary — no pull, no restart', async () => {
     changedPaths = [
       'rapitas-frontend/src/components/task-card/task-card.tsx',
       'rapitas-frontend/src/app/page.tsx',
     ];
     expect(await makeScheduler().runOnce()).toBe(false);
     expect(callOrder.some((c) => c.startsWith('listChangedPaths'))).toBe(true);
-    expect(callOrder.some((c) => c === 'getAgentSystemSnapshot')).toBe(false);
     expect(callOrder.some((c) => c.startsWith('fastForwardToRemote'))).toBe(false);
     expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
   });
@@ -221,6 +234,132 @@ describe('runOnce — early-exit gates', () => {
     changedPaths = [];
     expect(await makeScheduler().runOnce()).toBe(false);
     expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+  });
+
+  /**
+   * Batching waits for an auto-run task to finish. With auto-run stopped that
+   * never happens, and measured on 2026-10-20 four merges sat unactivated for a
+   * day while the poller declined silently every tick. Sustained idle is a
+   * boundary too — and the quieter the system, the safer a restart is.
+   */
+  /**
+   * Measured 2026-10-20: the idle escalation fired four times, pulled, then
+   * declined here every time while the log said nothing. A system-busy wait
+   * does not raise the deferral count either, so it can go on indefinitely —
+   * if it does, the reason has to be readable.
+   */
+  describe('a held restart says so', () => {
+    const uiOnly = ['rapitas-frontend/src/app/page.tsx'];
+
+    test('warns which gate is holding it', async () => {
+      changedPaths = uiOnly;
+      auxChildren = 1; // a live aux CLI child: a system-busy wait
+      snapshots = [idleSnapshot, idleSnapshot];
+      await makeScheduler().evaluateBoundaryRestart();
+      const held = warnings.filter((w) => w.msg.includes('pulled but not activated'));
+      expect(held).toHaveLength(1);
+      expect(held[0].reason).toBeTruthy();
+    });
+
+    // Once per reason, not once per poll: a stuck deploy should be visible,
+    // not drown the log every fifteen minutes.
+    test('says it once, not on every poll', async () => {
+      changedPaths = uiOnly;
+      auxChildren = 1;
+      snapshots = [idleSnapshot, idleSnapshot, idleSnapshot, idleSnapshot];
+      const scheduler = makeScheduler();
+      await scheduler.evaluateBoundaryRestart();
+      await scheduler.evaluateBoundaryRestart();
+      expect(warnings.filter((w) => w.msg.includes('pulled but not activated'))).toHaveLength(1);
+    });
+
+    test('says it again when a different gate takes over', async () => {
+      changedPaths = uiOnly;
+      snapshots = [idleSnapshot, idleSnapshot, idleSnapshot, idleSnapshot];
+      const scheduler = makeScheduler();
+
+      auxChildren = 1;
+      await scheduler.evaluateBoundaryRestart();
+      auxChildren = 0;
+      isMergingFlag = true;
+      await scheduler.evaluateBoundaryRestart();
+
+      const held = warnings.filter((w) => w.msg.includes('pulled but not activated'));
+      expect(held).toHaveLength(2);
+      expect(held[0].reason).not.toBe(held[1].reason);
+    });
+  });
+
+  describe('runOnce — idle counts as a boundary', () => {
+    const uiOnly = ['rapitas-frontend/src/app/page.tsx'];
+
+    test('activates a batched merge once the system has stayed idle', async () => {
+      changedPaths = uiOnly;
+      snapshots = [idleSnapshot, idleSnapshot, idleSnapshot, idleSnapshot];
+      const scheduler = makeScheduler();
+
+      expect(await scheduler.runOnce()).toBe(false); // first idle poll: not yet
+      expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+
+      expect(await scheduler.runOnce()).toBe(true); // second: idle is the boundary
+      expect(callOrder).toContain('scheduleShutdownSequence:[auto-restart-boundary]:75');
+    });
+
+    // The whole point is that it only fires when nothing is happening.
+    test('a busy system resets the count rather than counting toward it', async () => {
+      changedPaths = uiOnly;
+      snapshots = [
+        idleSnapshot,
+        { ...idleSnapshot, runningExecutions: 1 },
+        idleSnapshot,
+        idleSnapshot,
+      ];
+      const scheduler = makeScheduler();
+
+      expect(await scheduler.runOnce()).toBe(false); // idle 1
+      expect(await scheduler.runOnce()).toBe(false); // busy — back to zero
+      expect(await scheduler.runOnce()).toBe(false); // idle 1 again, not 2
+      expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+    });
+
+    test('queued work counts as busy', async () => {
+      changedPaths = uiOnly;
+      snapshots = [
+        { ...idleSnapshot, queueDepth: 2 },
+        { ...idleSnapshot, queueDepth: 2 },
+      ];
+      const scheduler = makeScheduler();
+      expect(await scheduler.runOnce()).toBe(false);
+      expect(await scheduler.runOnce()).toBe(false);
+      expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+    });
+
+    test('how long idle must last is configurable', async () => {
+      process.env.RAPITAS_RESTART_IDLE_BOUNDARY_POLLS = '1';
+      try {
+        changedPaths = uiOnly;
+        snapshots = [idleSnapshot, idleSnapshot, idleSnapshot];
+        expect(await makeScheduler().runOnce()).toBe(true);
+        expect(callOrder).toContain('scheduleShutdownSequence:[auto-restart-boundary]:75');
+      } finally {
+        delete process.env.RAPITAS_RESTART_IDLE_BOUNDARY_POLLS;
+      }
+    });
+
+    // Escalating asks evaluateBoundaryRestart, which keeps every gate it had —
+    // the idle count decides WHEN to ask, never whether the answer is yes.
+    test('escalating still obeys the boundary gates', async () => {
+      process.env.RAPITAS_RESTART_IDLE_BOUNDARY_POLLS = '1';
+      try {
+        changedPaths = uiOnly;
+        auxChildren = 1; // a live aux CLI child: the boundary path must wait
+        snapshots = [idleSnapshot, idleSnapshot, idleSnapshot];
+        expect(await makeScheduler().runOnce()).toBe(false);
+        expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+      } finally {
+        delete process.env.RAPITAS_RESTART_IDLE_BOUNDARY_POLLS;
+      }
+    });
   });
 
   test('machinery merge: fires immediately (classification passes)', async () => {

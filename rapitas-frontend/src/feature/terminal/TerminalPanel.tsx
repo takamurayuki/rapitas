@@ -19,6 +19,7 @@ import { isTauri } from './terminal-ipc';
 import { useNavStore } from '@/stores/nav-store';
 import TerminalTabBar from './TerminalTabBar';
 import TerminalPaneGroup from './TerminalPaneGroup';
+import { TERMINAL_PANEL_Z } from '@/lib/pane-layering';
 
 export default function TerminalPanel() {
   const t = useTranslations('terminal');
@@ -111,10 +112,10 @@ export default function TerminalPanel() {
   return (
     <div
       ref={panelRef}
-      className={`fixed z-60 flex flex-col border-zinc-700 bg-zinc-900 shadow-2xl transition-transform duration-200 ease-out ${
+      className={`fixed flex flex-col border-zinc-700 bg-zinc-900 shadow-2xl transition-transform duration-200 ease-out ${
         isSplit
           ? // top-16 matches the sticky header's h-16 (see TaskSlidePanel) — the
-            // header is z-110, above this panel's z-60, so starting at inset-y-0
+            // header is z-110, above this panel (see `lib/pane-layering`), so inset-y-0
             // (the viewport top) would render the header over the tab bar and
             // top of the terminal, hiding both. Same reasoning for lg:left-72
             // when docked left with the nav pinned (nav is z-100, w-72).
@@ -125,7 +126,10 @@ export default function TerminalPanel() {
             }`
           : 'inset-x-0 bottom-0 border-t'
       } ${isOpen ? 'translate-x-0 translate-y-0' : `${closedTransform} pointer-events-none`}`}
-      style={isSplit ? { width: `${splitWidthPercent}vw` } : { height }}
+      style={{
+        zIndex: TERMINAL_PANEL_Z,
+        ...(isSplit ? { width: `${splitWidthPercent}vw` } : { height }),
+      }}
     >
       {isSplit ? (
         // Inner edge: drag to resize the dock's width.

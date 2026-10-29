@@ -10,7 +10,7 @@ export type CalendarEvent = {
   title: string;
   date: string;
   endDate?: string;
-  type: 'task' | 'exam' | 'schedule';
+  type: 'task' | 'schedule';
   status?: string;
   color?: string;
   time?: string;

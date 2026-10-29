@@ -10,12 +10,27 @@ import { describe, it, expect, mock, beforeEach } from 'bun:test';
 let connectImpl: () => Promise<void> = () => Promise.resolve();
 const connectMock = mock(() => connectImpl());
 
+/**
+ * How many times database.ts wrapped the client in an extension at module
+ * load. Counted here so the fake cannot drift back into being incomplete: a
+ * fake missing `$extends` throws while database.ts is still being imported,
+ * which aborts this whole FILE — four tests disappear and the run still
+ * reports a pass count, just a smaller one.
+ */
+let extendsCalls = 0;
+
 mock.module('./prisma-client-resolver', () => ({
   dbProvider: 'postgres',
   resolvePrismaClientCtor: () =>
     class FakePrismaClient {
       $connect() {
         return connectMock();
+      }
+      // Mirrors the real client: database.ts wraps itself in the workspace
+      // extension as it loads, so this has to exist.
+      $extends(): FakePrismaClient {
+        extendsCalls++;
+        return this;
       }
     },
 }));
@@ -56,5 +71,12 @@ describe('ensureDatabaseConnection', () => {
   it('exports a prisma client instance from the resolved constructor', () => {
     expect(prisma).toBeDefined();
     expect(typeof prisma.$connect).toBe('function');
+  });
+
+  it('wraps the exported client in the workspace extension', () => {
+    // Without this, dropping the $extends call from database.ts would leave
+    // every query unscoped and nothing here would notice — the other tests
+    // only need a client that connects.
+    expect(extendsCalls).toBe(1);
   });
 });

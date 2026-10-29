@@ -72,7 +72,6 @@ const TASK_FULL_INCLUDE = {
   theme: true,
   project: true,
   milestone: true,
-  examGoal: true,
   taskLabels: { include: { label: true } },
 } as const;
 mock.module('./task-mutations', () => ({
@@ -243,19 +242,17 @@ describe('createSubtask', () => {
     expect(callArgs.data.dueDate).toEqual(new Date('2026-01-01'));
   });
 
-  test('themeId/examGoalId が 0 の場合 → undefined チェックのため含まれること', async () => {
+  test('themeId が 0 の場合 → undefined チェックのため含まれること', async () => {
     prisma.task.findUnique.mockResolvedValueOnce({ id: 1 });
     tx.task.findFirst.mockResolvedValueOnce(null);
     tx.task.findUnique.mockResolvedValueOnce({ id: 1 });
 
     await createSubtask(prisma as never, 1, 'child', undefined, {
       themeId: 0,
-      examGoalId: 0,
     });
 
     const callArgs = tx.task.create.mock.calls[0][0] as { data: Record<string, unknown> };
     expect(callArgs.data.themeId).toBe(0);
-    expect(callArgs.data.examGoalId).toBe(0);
   });
 
   test('isDeveloperMode/isAiTaskAnalysis が false の場合 → undefined チェックのため含まれること', async () => {

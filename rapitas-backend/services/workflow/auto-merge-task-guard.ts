@@ -26,7 +26,7 @@ export async function canContinueAutoMerge(taskId: number): Promise<boolean> {
     if (!task || !['in-progress', 'in_progress', 'done', 'completed'].includes(task.status))
       return false;
     if (task.themeId != null) {
-      const run = await prisma.themeAutoRun.findUnique({
+      const run = await prisma.themeAutoRun.findFirst({
         where: { themeId: task.themeId },
         select: { enabled: true, status: true },
       });

@@ -33,9 +33,6 @@ const mockPrisma = {
   notification: {
     create: mock(() => Promise.resolve({ id: 1 })),
   },
-  studyStreak: {
-    upsert: mock(() => Promise.resolve({})),
-  },
   // updateTask releases the theme's currentTaskId in the same transaction (task 1009).
   themeAutoRun: {
     updateMany: mock(() => Promise.resolve({ count: 0 })),
@@ -217,18 +214,6 @@ describe('updateTask', () => {
     expect(mockPrisma.task.update).toHaveBeenCalled();
   });
 
-  test('完了時にストリークを記録すること', async () => {
-    const currentTask = { status: 'todo', parentId: null };
-    const updatedTask = { id: 1, title: 'Task', status: 'done', themeId: 1, parentId: null };
-    mockPrisma.task.findUnique
-      .mockResolvedValueOnce(currentTask)
-      .mockResolvedValueOnce(updatedTask);
-
-    await updateTask(mockPrisma as never, 1, { status: 'done' });
-
-    expect(mockPrisma.studyStreak.upsert).toHaveBeenCalled();
-  });
-
   test.each(['done', 'cancelled'])(
     '%s への変更時、同一 $transaction 内で currentTaskId を CAS 解放すること',
     async (status) => {
@@ -340,7 +325,6 @@ describe('updateTask', () => {
 
     // Verify update and other operations were not called
     expect(mockPrisma.task.update).not.toHaveBeenCalled();
-    expect(mockPrisma.studyStreak.upsert).not.toHaveBeenCalled();
   });
 });
 

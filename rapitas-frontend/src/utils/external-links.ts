@@ -2,6 +2,8 @@
  * External link utility functions
  */
 import { openExternalUrlInSplitView } from '@/utils/tauri';
+import { canShowInLinkView, getLinkOpenMode } from '@/utils/link-view';
+import { openLinkInPane } from '@/stores/link-view-store';
 
 /**
  * Determine if a URL is an external link
@@ -30,10 +32,19 @@ export function isExternalLink(href: string): boolean {
 }
 
 /**
- * Open an external link side-by-side with rapitas (split screen) using the
- * chosen browser (App Settings) on Tauri, or a new tab on the web.
+ * Open an external link where the user asked for it (App Settings → how links
+ * open): in the in-app pane, or side-by-side with rapitas using the chosen
+ * browser. On the web, always a new tab.
+ *
+ * A URL the pane cannot show — anything that is not http(s) — falls through
+ * to the external handler rather than failing, so `mailto:` and friends keep
+ * reaching the OS even with the pane turned on.
  */
 export function openExternalLink(href: string): void {
+  if (getLinkOpenMode() === 'internal' && canShowInLinkView(href)) {
+    openLinkInPane(href);
+    return;
+  }
   void openExternalUrlInSplitView(href);
 }
 
