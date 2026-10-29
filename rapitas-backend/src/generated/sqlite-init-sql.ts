@@ -1282,7 +1282,7 @@ CREATE TABLE "CalendarBusyBlock" (
 
 -- CreateTable
 CREATE TABLE "CalendarSyncState" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT DEFAULT 1,
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "workspaceId" INTEGER,
     "lastSyncedAt" DATETIME,
     "lastStatus" TEXT NOT NULL DEFAULT 'never',
@@ -2343,6 +2343,9 @@ CREATE INDEX "CalendarBusyBlock_workspaceId_idx" ON "CalendarBusyBlock"("workspa
 
 -- CreateIndex
 CREATE INDEX "CalendarSyncState_workspaceId_idx" ON "CalendarSyncState"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "CalendarSyncState_workspaceId_key" ON "CalendarSyncState"("workspaceId");
 
 -- CreateIndex
 CREATE INDEX "Notification_workspaceId_idx" ON "Notification"("workspaceId");

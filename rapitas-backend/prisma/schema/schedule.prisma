@@ -77,15 +77,25 @@ model CalendarBusyBlock {
   @@index([workspaceId])
 }
 
-// Single-row status of the calendar FreeBusy poller (id = 1). lastError never
-// contains event details; the OAuth token lives in the OS keychain, not here.
+// Status of the calendar FreeBusy poller, one row PER WORKSPACE. lastError
+// never contains event details; the OAuth token lives in the OS keychain, not
+// here.
+//
+// NOTE: `id` was `@default(1)` because this was a single-row table addressed
+// as `id: 1`. Once the calendar connection became per-account (2026-10-29)
+// that collided: the scope layer adds `workspaceId` to the where, so a second
+// workspace's write missed and then tried to create id=1 again on top of the
+// first workspace's row. autoincrement + a unique on the owner is what makes
+// "one row per workspace" true rather than hoped-for. Changed while both
+// calendar tables were empty, so no row had to be migrated.
 model CalendarSyncState {
-  id           Int       @id @default(1)
+  id           Int       @id @default(autoincrement())
   /// Owning workspace; NULL = the default one until stage 4 makes this required.
   workspaceId Int?
   lastSyncedAt DateTime?
   lastStatus   String    @default("never") // never | ok | error
   lastError    String?
   updatedAt    DateTime  @updatedAt
+  @@unique([workspaceId])
   @@index([workspaceId])
 }
