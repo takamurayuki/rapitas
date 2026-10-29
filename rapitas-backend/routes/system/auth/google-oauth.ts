@@ -11,6 +11,7 @@ import { randomBytes } from 'crypto';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { ensureWorkspaceForUser } from '../../../services/tenancy/workspace-provisioning';
+import { frontendUrl } from '../../../config/frontend-url';
 
 const log = createLogger('routes:auth:google');
 
@@ -63,7 +64,6 @@ function createOAuthClient() {
 }
 
 /** The frontend origin to hand the browser back to once the cookie is set. */
-const frontendUrl = (): string => process.env.FRONTEND_URL || 'http://localhost:3000';
 
 /**
  * Elysia route group for Google OAuth endpoints.
