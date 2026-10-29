@@ -1766,9 +1766,6 @@ CREATE INDEX "AgentExecutionConfig_taskId_idx" ON "AgentExecutionConfig"("taskId
 CREATE INDEX "AgentExecutionConfig_workspaceId_idx" ON "AgentExecutionConfig"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "SystemPrompt_key_key" ON "SystemPrompt"("key");
-
--- CreateIndex
 CREATE INDEX "SystemPrompt_key_idx" ON "SystemPrompt"("key");
 
 -- CreateIndex
@@ -1776,6 +1773,9 @@ CREATE INDEX "SystemPrompt_category_idx" ON "SystemPrompt"("category");
 
 -- CreateIndex
 CREATE INDEX "SystemPrompt_workspaceId_idx" ON "SystemPrompt"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SystemPrompt_workspaceId_key_key" ON "SystemPrompt"("workspaceId", "key");
 
 -- CreateIndex
 CREATE INDEX "AgentConfigAuditLog_agentConfigId_idx" ON "AgentConfigAuditLog"("agentConfigId");
@@ -2012,9 +2012,6 @@ CREATE INDEX "WorkflowOptimizationRule_isActive_idx" ON "WorkflowOptimizationRul
 CREATE INDEX "WorkflowOptimizationRule_workspaceId_idx" ON "WorkflowOptimizationRule"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "DetectionMissCase_dedupKey_key" ON "DetectionMissCase"("dedupKey");
-
--- CreateIndex
 CREATE INDEX "DetectionMissCase_gate_idx" ON "DetectionMissCase"("gate");
 
 -- CreateIndex
@@ -2027,7 +2024,7 @@ CREATE INDEX "DetectionMissCase_detectedAt_idx" ON "DetectionMissCase"("detected
 CREATE INDEX "DetectionMissCase_workspaceId_idx" ON "DetectionMissCase"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "GatePrecisionCase_dedupKey_key" ON "GatePrecisionCase"("dedupKey");
+CREATE UNIQUE INDEX "DetectionMissCase_workspaceId_dedupKey_key" ON "DetectionMissCase"("workspaceId", "dedupKey");
 
 -- CreateIndex
 CREATE INDEX "GatePrecisionCase_gate_idx" ON "GatePrecisionCase"("gate");
@@ -2045,7 +2042,7 @@ CREATE INDEX "GatePrecisionCase_detectedAt_idx" ON "GatePrecisionCase"("detected
 CREATE INDEX "GatePrecisionCase_workspaceId_idx" ON "GatePrecisionCase"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "MissSignatureSuggestion_dedupKey_key" ON "MissSignatureSuggestion"("dedupKey");
+CREATE UNIQUE INDEX "GatePrecisionCase_workspaceId_dedupKey_key" ON "GatePrecisionCase"("workspaceId", "dedupKey");
 
 -- CreateIndex
 CREATE INDEX "MissSignatureSuggestion_status_idx" ON "MissSignatureSuggestion"("status");
@@ -2060,6 +2057,9 @@ CREATE INDEX "MissSignatureSuggestion_reviewedAt_idx" ON "MissSignatureSuggestio
 CREATE INDEX "MissSignatureSuggestion_workspaceId_idx" ON "MissSignatureSuggestion"("workspaceId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "MissSignatureSuggestion_workspaceId_dedupKey_key" ON "MissSignatureSuggestion"("workspaceId", "dedupKey");
+
+-- CreateIndex
 CREATE INDEX "PromptEvolution_category_idx" ON "PromptEvolution"("category");
 
 -- CreateIndex
@@ -2072,10 +2072,10 @@ CREATE INDEX "PromptEvolution_status_idx" ON "PromptEvolution"("status");
 CREATE INDEX "PromptEvolution_workspaceId_idx" ON "PromptEvolution"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "GitHubIntegration_repositoryUrl_key" ON "GitHubIntegration"("repositoryUrl");
+CREATE INDEX "GitHubIntegration_workspaceId_idx" ON "GitHubIntegration"("workspaceId");
 
 -- CreateIndex
-CREATE INDEX "GitHubIntegration_workspaceId_idx" ON "GitHubIntegration"("workspaceId");
+CREATE UNIQUE INDEX "GitHubIntegration_workspaceId_repositoryUrl_key" ON "GitHubIntegration"("workspaceId", "repositoryUrl");
 
 -- CreateIndex
 CREATE INDEX "GitHubPullRequest_workspaceId_idx" ON "GitHubPullRequest"("workspaceId");
@@ -2096,10 +2096,10 @@ CREATE UNIQUE INDEX "GitHubIssue_integrationId_issueNumber_key" ON "GitHubIssue"
 CREATE INDEX "GitCommit_workspaceId_idx" ON "GitCommit"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "FavoriteDirectory_path_key" ON "FavoriteDirectory"("path");
+CREATE INDEX "FavoriteDirectory_workspaceId_idx" ON "FavoriteDirectory"("workspaceId");
 
 -- CreateIndex
-CREATE INDEX "FavoriteDirectory_workspaceId_idx" ON "FavoriteDirectory"("workspaceId");
+CREATE UNIQUE INDEX "FavoriteDirectory_workspaceId_path_key" ON "FavoriteDirectory"("workspaceId", "path");
 
 -- CreateIndex
 CREATE INDEX "GitRetryMetric_variant_idx" ON "GitRetryMetric"("variant");
@@ -2201,7 +2201,7 @@ CREATE INDEX "WeeklyReview_generatedAt_idx" ON "WeeklyReview"("generatedAt");
 CREATE INDEX "WeeklyReview_workspaceId_idx" ON "WeeklyReview"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "WeeklyReview_weekStart_key" ON "WeeklyReview"("weekStart");
+CREATE UNIQUE INDEX "WeeklyReview_workspaceId_weekStart_key" ON "WeeklyReview"("workspaceId", "weekStart");
 
 -- CreateIndex
 CREATE INDEX "KnowledgeGraphNode_nodeType_idx" ON "KnowledgeGraphNode"("nodeType");
@@ -2213,7 +2213,7 @@ CREATE INDEX "KnowledgeGraphNode_weight_idx" ON "KnowledgeGraphNode"("weight");
 CREATE INDEX "KnowledgeGraphNode_workspaceId_idx" ON "KnowledgeGraphNode"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "KnowledgeGraphNode_label_nodeType_key" ON "KnowledgeGraphNode"("label", "nodeType");
+CREATE UNIQUE INDEX "KnowledgeGraphNode_workspaceId_label_nodeType_key" ON "KnowledgeGraphNode"("workspaceId", "label", "nodeType");
 
 -- CreateIndex
 CREATE INDEX "KnowledgeGraphEdge_fromNodeId_idx" ON "KnowledgeGraphEdge"("fromNodeId");
@@ -2282,7 +2282,7 @@ CREATE INDEX "PrRiskScore_repo_prNumber_idx" ON "PrRiskScore"("repo", "prNumber"
 CREATE INDEX "PrRiskScore_workspaceId_idx" ON "PrRiskScore"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "PrRiskScore_repo_prNumber_headSha_key" ON "PrRiskScore"("repo", "prNumber", "headSha");
+CREATE UNIQUE INDEX "PrRiskScore_workspaceId_repo_prNumber_headSha_key" ON "PrRiskScore"("workspaceId", "repo", "prNumber", "headSha");
 
 -- CreateIndex
 CREATE INDEX "PrOutcome_label_idx" ON "PrOutcome"("label");
@@ -2291,13 +2291,13 @@ CREATE INDEX "PrOutcome_label_idx" ON "PrOutcome"("label");
 CREATE INDEX "PrOutcome_workspaceId_idx" ON "PrOutcome"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "PrOutcome_repo_prNumber_key" ON "PrOutcome"("repo", "prNumber");
-
--- CreateIndex
-CREATE UNIQUE INDEX "PrRiskMonthlyMetric_month_key" ON "PrRiskMonthlyMetric"("month");
+CREATE UNIQUE INDEX "PrOutcome_workspaceId_repo_prNumber_key" ON "PrOutcome"("workspaceId", "repo", "prNumber");
 
 -- CreateIndex
 CREATE INDEX "PrRiskMonthlyMetric_workspaceId_idx" ON "PrRiskMonthlyMetric"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PrRiskMonthlyMetric_workspaceId_month_key" ON "PrRiskMonthlyMetric"("workspaceId", "month");
 
 -- CreateIndex
 CREATE INDEX "PrRiskThresholdReview_month_idx" ON "PrRiskThresholdReview"("month");
@@ -2324,16 +2324,16 @@ CREATE INDEX "ScheduleEvent_parentEventId_idx" ON "ScheduleEvent"("parentEventId
 CREATE INDEX "ScheduleEvent_workspaceId_idx" ON "ScheduleEvent"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "PaidLeaveBalance_userId_key" ON "PaidLeaveBalance"("userId");
-
--- CreateIndex
 CREATE INDEX "PaidLeaveBalance_fiscalYear_idx" ON "PaidLeaveBalance"("fiscalYear");
 
 -- CreateIndex
 CREATE INDEX "PaidLeaveBalance_workspaceId_idx" ON "PaidLeaveBalance"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "PaidLeaveBalance_userId_fiscalYear_key" ON "PaidLeaveBalance"("userId", "fiscalYear");
+CREATE UNIQUE INDEX "PaidLeaveBalance_workspaceId_userId_fiscalYear_key" ON "PaidLeaveBalance"("workspaceId", "userId", "fiscalYear");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PaidLeaveBalance_workspaceId_userId_key" ON "PaidLeaveBalance"("workspaceId", "userId");
 
 -- CreateIndex
 CREATE INDEX "CalendarBusyBlock_startAt_idx" ON "CalendarBusyBlock"("startAt");
@@ -2351,16 +2351,16 @@ CREATE INDEX "Notification_workspaceId_idx" ON "Notification"("workspaceId");
 CREATE INDEX "UserSettings_workspaceId_idx" ON "UserSettings"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "BacklogSchedule_kind_key" ON "BacklogSchedule"("kind");
+CREATE INDEX "BacklogSchedule_workspaceId_idx" ON "BacklogSchedule"("workspaceId");
 
 -- CreateIndex
-CREATE INDEX "BacklogSchedule_workspaceId_idx" ON "BacklogSchedule"("workspaceId");
+CREATE UNIQUE INDEX "BacklogSchedule_workspaceId_kind_key" ON "BacklogSchedule"("workspaceId", "kind");
 
 -- CreateIndex
 CREATE INDEX "ThemeBacklogSchedule_workspaceId_idx" ON "ThemeBacklogSchedule"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ThemeBacklogSchedule_kind_themeId_key" ON "ThemeBacklogSchedule"("kind", "themeId");
+CREATE UNIQUE INDEX "ThemeBacklogSchedule_workspaceId_kind_themeId_key" ON "ThemeBacklogSchedule"("workspaceId", "kind", "themeId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_username_key" ON "User"("username");
@@ -2396,9 +2396,6 @@ CREATE INDEX "UserSession_sessionToken_idx" ON "UserSession"("sessionToken");
 CREATE INDEX "UserSession_expiresAt_idx" ON "UserSession"("expiresAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "SearchMiss_query_key" ON "SearchMiss"("query");
-
--- CreateIndex
 CREATE INDEX "SearchMiss_status_idx" ON "SearchMiss"("status");
 
 -- CreateIndex
@@ -2409,6 +2406,9 @@ CREATE INDEX "SearchMiss_themeId_idx" ON "SearchMiss"("themeId");
 
 -- CreateIndex
 CREATE INDEX "SearchMiss_workspaceId_idx" ON "SearchMiss"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SearchMiss_workspaceId_query_key" ON "SearchMiss"("workspaceId", "query");
 
 -- CreateIndex
 CREATE INDEX "AssistantAction_capabilityId_createdAt_idx" ON "AssistantAction"("capabilityId", "createdAt");
@@ -2456,7 +2456,7 @@ CREATE INDEX "UsageBudget_workspaceId_idx" ON "UsageBudget"("workspaceId");
 CREATE INDEX "UsageBudgetThemeShare_workspaceId_idx" ON "UsageBudgetThemeShare"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "UsageBudgetThemeShare_budgetId_themeId_key" ON "UsageBudgetThemeShare"("budgetId", "themeId");
+CREATE UNIQUE INDEX "UsageBudgetThemeShare_workspaceId_budgetId_themeId_key" ON "UsageBudgetThemeShare"("workspaceId", "budgetId", "themeId");
 
 -- CreateIndex
 CREATE INDEX "UsageClassificationRule_workspaceId_idx" ON "UsageClassificationRule"("workspaceId");
@@ -2477,19 +2477,19 @@ CREATE INDEX "WorkflowFileVersion_taskId_fileType_archivedAt_idx" ON "WorkflowFi
 CREATE INDEX "WorkflowFileVersion_workspaceId_idx" ON "WorkflowFileVersion"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "WorkflowRoleConfig_role_key" ON "WorkflowRoleConfig"("role");
-
--- CreateIndex
 CREATE INDEX "WorkflowRoleConfig_workspaceId_idx" ON "WorkflowRoleConfig"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "WorkflowModeConfig_mode_key" ON "WorkflowModeConfig"("mode");
+CREATE UNIQUE INDEX "WorkflowRoleConfig_workspaceId_role_key" ON "WorkflowRoleConfig"("workspaceId", "role");
 
 -- CreateIndex
 CREATE INDEX "WorkflowModeConfig_mode_idx" ON "WorkflowModeConfig"("mode");
 
 -- CreateIndex
 CREATE INDEX "WorkflowModeConfig_workspaceId_idx" ON "WorkflowModeConfig"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkflowModeConfig_workspaceId_mode_key" ON "WorkflowModeConfig"("workspaceId", "mode");
 
 -- CreateIndex
 CREATE INDEX "OrchestraSession_status_idx" ON "OrchestraSession"("status");
@@ -2534,20 +2534,20 @@ CREATE INDEX "RequirementReviewClaim_taskId_status_idx" ON "RequirementReviewCla
 CREATE UNIQUE INDEX "RequirementReviewClaim_taskId_snapshotDigest_key" ON "RequirementReviewClaim"("taskId", "snapshotDigest");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "RequirementReviewRetryRequest_requestId_key" ON "RequirementReviewRetryRequest"("requestId");
-
--- CreateIndex
 CREATE INDEX "RequirementReviewRetryRequest_taskId_createdAt_idx" ON "RequirementReviewRetryRequest"("taskId", "createdAt");
 
 -- CreateIndex
 CREATE INDEX "RequirementReviewRetryRequest_workspaceId_idx" ON "RequirementReviewRetryRequest"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ThemeAutoRun_themeId_key" ON "ThemeAutoRun"("themeId");
+CREATE UNIQUE INDEX "RequirementReviewRetryRequest_workspaceId_requestId_key" ON "RequirementReviewRetryRequest"("workspaceId", "requestId");
 
 -- CreateIndex
 CREATE INDEX "ThemeAutoRun_status_idx" ON "ThemeAutoRun"("status");
 
 -- CreateIndex
 CREATE INDEX "ThemeAutoRun_workspaceId_idx" ON "ThemeAutoRun"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ThemeAutoRun_workspaceId_themeId_key" ON "ThemeAutoRun"("workspaceId", "themeId");
 `;

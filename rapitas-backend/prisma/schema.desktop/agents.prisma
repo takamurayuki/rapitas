@@ -241,7 +241,7 @@ model SystemPrompt {
   id          Int       @id @default(autoincrement())
   /// Owning workspace; NULL = the default one until stage 4 makes this required.
   workspaceId Int?
-  key         String    @unique   // Unique key (e.g., "task_analysis", "prompt_optimization")
+  key         String      // Unique key (e.g., "task_analysis", "prompt_optimization")
   name        String              // Display name
   description String?             // Prompt description
   content     String              // Prompt content
@@ -254,6 +254,7 @@ model SystemPrompt {
   @@index([key])
   @@index([category])
   @@index([workspaceId])
+  @@unique([workspaceId, key])
 }
 
 // AI agent configuration change log

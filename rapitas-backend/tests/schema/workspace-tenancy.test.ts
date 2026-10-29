@@ -141,64 +141,90 @@ describe('models with no column are only the ones nothing queries by name', () =
   });
 });
 
-describe('uniqueness constraints still unaware of the workspace', () => {
-  // A column unique across the whole table stops the second workspace from
-  // creating its own row. Changing a unique index is a behaviour change, so
-  // the list is pinned instead of fixed. When one is fixed, this goes red;
-  // update the list, which is the record that it happened. Shrinking to [] is
-  // the goal.
-  const PENDING = [
-    'AgentExecutionConfig',
-    'BacklogSchedule',
-    'CommentLink',
-    'DetectionMissCase',
-    'DeveloperModeConfig',
-    'FavoriteDirectory',
-    'GatePrecisionCase',
-    'GitHubIntegration',
-    'GitHubIssue',
-    'GitHubPullRequest',
-    'KnowledgeContradiction',
-    'KnowledgeGraphEdge',
-    'KnowledgeGraphNode',
-    'MissSignatureSuggestion',
-    'NoteTaskLink',
-    'PaidLeaveBalance',
-    'PrOutcome',
-    'PrRiskMonthlyMetric',
-    'PrRiskScore',
-    'RequirementReviewRetryRequest',
-    'SearchMiss',
-    'SystemPrompt',
-    'TaskAnalysisConfig',
-    'TaskLabel',
-    'TaskPattern',
-    'ThemeAutoRun',
-    'ThemeBacklogSchedule',
-    'UsageBudgetThemeShare',
-    'UserBehaviorSummary',
-    'WeeklyReview',
-    'WorkflowFile',
-    'WorkflowModeConfig',
-    'WorkflowQueueItem',
-    'WorkflowRoleConfig',
-  ];
+describe('every uniqueness constraint is reachable by a second workspace', () => {
+  /*
+   * A unique index that does not account for the workspace stops the SECOND
+   * workspace from creating its own row — it is not a filtering problem, it is
+   * an insert that fails. There are two ways to be safe, and both are real:
+   *
+   *   1. the constraint names workspaceId, so each workspace has its own key
+   *      space: @@unique([workspaceId, key])
+   *   2. the constraint is over a foreign key to a model that is itself owned,
+   *      so the parent already decided the workspace: @@unique([taskId, fileType])
+   *      cannot collide, because a Task belongs to one workspace.
+   *
+   * Adding workspaceId to the second kind would be redundant churn, so the
+   * rule accepts both. This used to be a pinned list of 34 names to work
+   * through; 18 constraints across 17 models were made workspace-aware and the
+   * rest were measured as safe by route 2, so the list is gone and the
+   * invariant is enforced instead.
+   */
 
-  const offenders = owned
-    .filter((m) => {
-      const uniques = m.body.split('\n').filter((l) => /@unique|@@unique/.test(l));
-      if (uniques.length === 0) return false;
-      // Already workspace-aware when every unique mentions workspaceId.
-      return !uniques.every((l) => l.includes('workspaceId'));
-    })
-    .map((m) => m.name)
-    .sort();
+  /** The model a scalar field is a foreign key to, or null. */
+  const relationTarget = (body: string, field: string): string | null => {
+    for (const line of body.split('\n')) {
+      if (!line.includes('@relation')) continue;
+      const fieldsPart = line.match(/fields:\s*\[([^\]]+)\]/);
+      if (!fieldsPart) continue;
+      if (
+        !fieldsPart[1]
+          .split(',')
+          .map((x) => x.trim())
+          .includes(field)
+      )
+        continue;
+      const decl = line.trim().match(/^\w+\s+(\w+)/);
+      if (decl) return decl[1];
+    }
+    return null;
+  };
 
-  it('matches the recorded list exactly', () => {
-    expect(offenders).toEqual(PENDING);
+  const ownedNames = new Set(owned.map((m) => m.name));
+
+  interface Constraint {
+    model: string;
+    fields: string[];
+    byWorkspace: boolean;
+    byParent: string | null;
+  }
+
+  const constraints: Constraint[] = [];
+  for (const m of owned) {
+    for (const line of m.body.split('\n')) {
+      if (!/@unique|@@unique/.test(line)) continue;
+      const composite = line.match(/@@unique\(\[([^\]]+)\]/);
+      const fields = composite
+        ? composite[1].split(',').map((x) => x.trim())
+        : [(line.trim().match(/^(\w+)/) ?? [])[1]].filter(Boolean);
+      if (fields.length === 0) continue;
+      const parent =
+        fields.map((f) => relationTarget(m.body, f)).find((t) => t !== null && ownedNames.has(t)) ??
+        null;
+      constraints.push({
+        model: m.name,
+        fields,
+        byWorkspace: fields.includes('workspaceId'),
+        byParent: parent,
+      });
+    }
+  }
+
+  const unsafe = constraints.filter((c) => !c.byWorkspace && c.byParent === null);
+
+  it('found constraints to judge — otherwise this says nothing', () => {
+    // Measured 2026-10-28: 35 constraints on owned models — 21 naming
+    // workspaceId, 14 safe through a parent FK. Floors sit just under those,
+    // so losing a whole route to a refactor fails here rather than passing
+    // vacuously.
+    expect(constraints.length).toBeGreaterThan(30);
+    // Both routes are actually in use, so neither branch of the rule is dead.
+    expect(constraints.filter((c) => c.byWorkspace).length).toBeGreaterThan(18);
+    expect(constraints.filter((c) => !c.byWorkspace && c.byParent !== null).length).toBeGreaterThan(
+      10,
+    );
   });
 
-  it('there is something to fix — otherwise this test means nothing', () => {
-    expect(offenders.length).toBeGreaterThan(0);
+  it('leaves none that a second workspace would collide on', () => {
+    expect(unsafe.map((c) => `${c.model}(${c.fields.join('+')})`).sort()).toEqual([]);
   });
 });

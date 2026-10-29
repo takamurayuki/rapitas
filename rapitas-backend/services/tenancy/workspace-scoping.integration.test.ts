@@ -36,7 +36,12 @@ interface Probe {
   taskIsOwned: boolean;
   countTaskInWorkspace: number;
   countTaskNoWorkspace: number;
-  upsertRejected: boolean;
+  upsertCreatedWorkspaceId: number | null;
+  upsertCreatedName: string;
+  upsertSecondCallSameRow: boolean;
+  upsertSecondCallName: string;
+  upsertRowsInWorkspace: number;
+  seededRowNameAfterUpsert: string | null;
 }
 
 let probe: Probe;
@@ -88,8 +93,25 @@ describe('a real client, scoped', () => {
     expect(probe.createdWorkspaceId).toBe(99);
   });
 
-  test('upsert is refused rather than silently left unscoped', () => {
-    expect(probe.upsertRejected).toBe(true);
+  describe('upsert, performed by the adapter because Prisma cannot scope it', () => {
+    test('it runs, and the row it creates belongs to the workspace', () => {
+      expect(probe.upsertCreatedWorkspaceId).toBe(99);
+      expect(probe.upsertCreatedName).toBe('upserted-in-99');
+    });
+
+    test('it cannot reach a row outside the workspace', () => {
+      // The upsert was pointed at id 1, a seeded row with no workspace, with
+      // update data that would have renamed it. It must have created its own
+      // row instead and left that one alone.
+      expect(probe.seededRowNameAfterUpsert).toBe('alpha');
+    });
+
+    test('a second call on its own row updates it instead of creating another', () => {
+      expect(probe.upsertSecondCallSameRow).toBe(true);
+      expect(probe.upsertSecondCallName).toBe('updated-in-99');
+      // create('made-in-99') plus the upserted row — and nothing else.
+      expect(probe.upsertRowsInWorkspace).toBe(2);
+    });
   });
 
   test('the generated client is current — regenerate it if this is the failure', () => {

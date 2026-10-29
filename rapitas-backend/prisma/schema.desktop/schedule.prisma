@@ -47,7 +47,7 @@ model PaidLeaveBalance {
   id                    Int       @id @default(autoincrement())
   /// Owning workspace; NULL = the default one until stage 4 makes this required.
   workspaceId Int?
-  userId                String    @unique @default("default")
+  userId                String    @default("default")
   totalDays             Int       @default(20) // Annual granted days
   usedDays              Float     @default(0)  // Used days (Float for half-day leave support)
   remainingDays         Float     // Remaining days (actually stored, not a computed field)
@@ -57,9 +57,10 @@ model PaidLeaveBalance {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  @@unique([userId, fiscalYear])
+  @@unique([workspaceId, userId, fiscalYear])
   @@index([fiscalYear])
   @@index([workspaceId])
+  @@unique([workspaceId, userId])
 }
 
 // Google Calendar busy interval for the calendar-aware auto-run gate (task 1174).

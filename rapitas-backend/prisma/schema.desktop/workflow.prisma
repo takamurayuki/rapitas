@@ -67,7 +67,7 @@ model WorkflowRoleConfig {
   id              Int            @id @default(autoincrement())
   /// Owning workspace; NULL = the default one until stage 4 makes this required.
   workspaceId Int?
-  role            String         @unique
+  role            String        
   agentConfigId   Int?
   agentConfig     AIAgentConfig? @relation(fields: [agentConfigId], references: [id], onDelete: SetNull)
   modelId         String?
@@ -88,6 +88,7 @@ model WorkflowRoleConfig {
   updatedAt       DateTime       @updatedAt
 
   @@index([workspaceId])
+  @@unique([workspaceId, role])
 }
 
 // Workflow mode settings (step definitions by mode)
@@ -95,7 +96,7 @@ model WorkflowModeConfig {
   id              Int       @id @default(autoincrement())
   /// Owning workspace; NULL = the default one until stage 4 makes this required.
   workspaceId Int?
-  mode            String    @unique // "lightweight", "standard", "comprehensive"
+  mode            String    // "lightweight", "standard", "comprehensive"
   name            String    // Display name (e.g., "lightweight", "standard", "detailed")
   description     String?   // Mode description
   stepDefinitions String    // JSON: Step definitions [{"status": "draft", "role": "implementer", "nextStatus": "in_progress"}]
@@ -110,6 +111,7 @@ model WorkflowModeConfig {
 
   @@index([mode])
   @@index([workspaceId])
+  @@unique([workspaceId, mode])
 }
 
 // Workflow orchestrator sessions
@@ -242,7 +244,7 @@ model RequirementReviewRetryRequest {
   id         Int      @id @default(autoincrement())
   /// Owning workspace; NULL = the default one until stage 4 makes this required.
   workspaceId Int?
-  requestId  String   @unique
+  requestId  String  
   taskId     Int
   task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   consumedAt DateTime?
@@ -250,6 +252,7 @@ model RequirementReviewRetryRequest {
 
   @@index([taskId, createdAt])
   @@index([workspaceId])
+  @@unique([workspaceId, requestId])
 }
 
 /// Per-theme auto-execution state. One row per theme that has had auto-run
@@ -261,7 +264,7 @@ model ThemeAutoRun {
   id             Int       @id @default(autoincrement())
   /// Owning workspace; NULL = the default one until stage 4 makes this required.
   workspaceId Int?
-  themeId        Int       @unique
+  themeId        Int      
   enabled        Boolean   @default(false)
   status         String    @default("idle") // idle | running | paused | stopping
   order          String    @default("priority") // priority | created
@@ -284,4 +287,5 @@ model ThemeAutoRun {
 
   @@index([status])
   @@index([workspaceId])
+  @@unique([workspaceId, themeId])
 }

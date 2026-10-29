@@ -205,7 +205,7 @@ model WeeklyReview {
   generatedAt DateTime @default(now())
   createdAt   DateTime @default(now())
 
-  @@unique([weekStart])
+  @@unique([workspaceId, weekStart])
   @@index([generatedAt])
   @@index([workspaceId])
 }
@@ -228,7 +228,7 @@ model KnowledgeGraphNode {
   outEdges      KnowledgeGraphEdge[] @relation("EdgeFrom")
   inEdges       KnowledgeGraphEdge[] @relation("EdgeTo")
 
-  @@unique([label, nodeType])
+  @@unique([workspaceId, label, nodeType])
   @@index([nodeType])
   @@index([weight])
   @@index([workspaceId])

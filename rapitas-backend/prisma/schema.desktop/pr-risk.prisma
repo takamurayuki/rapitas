@@ -41,7 +41,7 @@ model PrRiskScore {
   commentPostedAt   DateTime?
   createdAt         DateTime  @default(now())
 
-  @@unique([repo, prNumber, headSha])
+  @@unique([workspaceId, repo, prNumber, headSha])
   @@index([repo, prNumber])
   @@index([workspaceId])
 }
@@ -63,7 +63,7 @@ model PrOutcome {
   labeledAt    DateTime?
   updatedAt    DateTime  @updatedAt
 
-  @@unique([repo, prNumber])
+  @@unique([workspaceId, repo, prNumber])
   @@index([label])
   @@index([workspaceId])
 }
@@ -73,7 +73,7 @@ model PrRiskMonthlyMetric {
   id           Int      @id @default(autoincrement())
   /// Owning workspace; NULL = the default one until stage 4 makes this required.
   workspaceId Int?
-  month        String   @unique
+  month        String  
   sample       Int
   tp           Int
   fp           Int
@@ -86,6 +86,7 @@ model PrRiskMonthlyMetric {
   modelVersion Int
   createdAt    DateTime @default(now())
   @@index([workspaceId])
+  @@unique([workspaceId, month])
 }
 
 // Audit row for every periodic threshold review (adopted or not).
