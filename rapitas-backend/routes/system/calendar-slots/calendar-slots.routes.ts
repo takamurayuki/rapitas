@@ -29,13 +29,13 @@ import {
   type ActivityLogReader,
 } from './calendar-slots-handlers';
 
+import { frontendUrl } from '../../../config/frontend-url';
+
 const log = createLogger('routes:calendar-slots');
 
 // Polling must run whenever the gate is enabled; this module is loaded once
 // at server start via the system route barrel. No-op when the env flag is off.
 void ensureCalendarPollingStarted();
-
-const frontendUrl = () => process.env.FRONTEND_URL || 'http://localhost:3000';
 
 const calendarSlotsRoutes = new Elysia({ prefix: '/calendar-slots' })
   .get('/oauth/url', () => ({

@@ -148,6 +148,11 @@ routes/system/auth/google-oauth.test.ts
 tests/routes/system/auth-routes.test.ts
 tests/services/auth-service.test.ts
 
+# コールバック後の戻り先URL。既定が localhost だと、Cookie は 127.0.0.1 の
+# ホストに紐づくうえ SameSite=Strict がポートを無視してホストで比較するため、
+# Googleから戻った直後の画面がCookieを送らず「ログイン済みなのにゲスト」になる。
+config/frontend-url.test.ts
+
 # パスワードリセット（オーナー復旧手段）。ログインがデータの見え方を決める
 # ようになった結果、パスワードを失ったオーナーは自分のデータを失う。
 # SQL が静かに何もしない事故（列名の打ち間違い）を実DBで捕まえる。
