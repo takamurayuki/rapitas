@@ -126,3 +126,4 @@ tests/schema/workspace-tenancy.test.ts
 # セッションを発行していた（＝全ワークスペースのデータが見える）。
 routes/system/auth/google-oauth.test.ts
 tests/routes/system/auth-routes.test.ts
+tests/services/auth-service.test.ts
