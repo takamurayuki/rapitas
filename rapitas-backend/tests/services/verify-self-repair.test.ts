@@ -64,7 +64,7 @@ const databaseMock = {
   },
   agentExecution: { findFirst: async () => null },
   themeAutoRun: {
-    findUnique: async () =>
+    findFirst: async () =>
       (await isThemeAutoRunActive()) ? { enabled: true, status: 'running' } : null,
   },
   workflowQueueItem: {

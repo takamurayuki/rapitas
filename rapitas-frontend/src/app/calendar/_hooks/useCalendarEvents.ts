@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import type { ExamGoal, ScheduleEvent, ScheduleEventInput, PaidLeaveBalance } from '@/types';
+import type { ScheduleEvent, ScheduleEventInput, PaidLeaveBalance } from '@/types';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
 import { useTaskCacheStore } from '@/stores/task-cache-store';
@@ -30,7 +30,6 @@ export function useCalendarEvents() {
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [exams, setExams] = useState<ExamGoal[]>([]);
   const [schedules, setSchedules] = useState<ScheduleEvent[]>([]);
   const [paidLeaveBalance, setPaidLeaveBalance] = useState<PaidLeaveBalance | null>(null);
 
@@ -50,17 +49,14 @@ export function useCalendarEvents() {
     try {
       const taskFetch = taskCacheInitialized ? fetchTaskUpdates() : fetchAllTasks();
 
-      const [, examsRes, schedulesRes] = await Promise.all([
+      const [, schedulesRes] = await Promise.all([
         taskFetch,
-        fetch(`${API_BASE}/exam-goals`),
         fetch(`${API_BASE}/schedules`),
         fetchPaidLeaveBalance(),
       ]);
 
-      const examsData: ExamGoal[] = examsRes.ok ? await examsRes.json() : [];
       const schedulesData: ScheduleEvent[] = schedulesRes.ok ? await schedulesRes.json() : [];
 
-      setExams(examsData);
       setSchedules(schedulesData);
     } catch (e) {
       logger.error('Failed to fetch events:', e);
@@ -72,7 +68,7 @@ export function useCalendarEvents() {
   // NOTE: Auto-sync keeps calendar in sync when the user switches app focus.
   useTaskAutoSync({ enabled: true, interval: 30000, silent: true });
 
-  // Build CalendarEvent list from cached tasks + local exams/schedules
+  // Build CalendarEvent list from cached tasks + local schedules
   useEffect(() => {
     const taskEvents: CalendarEvent[] = cachedTasks
       .filter((t) => t.dueDate)
@@ -84,14 +80,6 @@ export function useCalendarEvents() {
         status: t.status,
         color: t.theme?.color,
       }));
-
-    const examEvents: CalendarEvent[] = exams.map((e) => ({
-      id: e.id,
-      title: e.name,
-      date: e.examDate.split('T')[0],
-      type: 'exam' as const,
-      color: e.color,
-    }));
 
     const scheduleEvents: CalendarEvent[] = schedules.map((s) => {
       // NOTE: Extract time directly from UTC ISO string to avoid timezone conversion issues.
@@ -118,8 +106,8 @@ export function useCalendarEvents() {
       };
     });
 
-    setEvents([...taskEvents, ...examEvents, ...scheduleEvents]);
-  }, [cachedTasks, exams, schedules]);
+    setEvents([...taskEvents, ...scheduleEvents]);
+  }, [cachedTasks, schedules]);
 
   useEffect(() => {
     fetchEvents();
@@ -243,7 +231,6 @@ export function useCalendarEvents() {
   return {
     events,
     loading,
-    exams,
     schedules,
     paidLeaveBalance,
     fetchTaskUpdates,

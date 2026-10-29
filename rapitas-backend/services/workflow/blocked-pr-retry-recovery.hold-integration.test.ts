@@ -58,7 +58,7 @@ mock.module('../../config/database', () => ({
       },
     },
     themeAutoRun: {
-      findUnique: () => Promise.resolve(themeAutoRunRow),
+      findFirst: () => Promise.resolve(themeAutoRunRow),
     },
     agentExecution: {
       findFirst: () => Promise.resolve(latestExecution),

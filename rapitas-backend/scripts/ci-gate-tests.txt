@@ -105,3 +105,51 @@ routes/agents/execution/routes/respond-route.test.ts
 services/workflow/halt-release.test.ts
 services/workflow/task-iteration-budget.window-reset-causes.test.ts
 services/agents/orchestrator/git-operations/worktree/worktree-removal-backoff.test.ts
+
+# ===== テナンシー（#1255） =====
+# この層のテストは1件もゲートに入っておらず、stage 1/2/3 はいずれも
+# 必須ゲートがテナンシーを1度も実行しないままマージされた。
+# ドリフト検出はマニフェストに書かれたファイルの存在だけを見るので、
+# 層ごと欠けていても気付けない。
+# 統合テスト3件 (workspace-scoping / workspace-request / workspace-backfill)
+# はここに置けない: このゲートのジョブは postgres クライアントしか生成せず、
+# 3件はいずれも generated/prisma-sqlite を読む。sqlite-compat-tests.txt 側に置く。
+services/tenancy/owned-models.test.ts
+services/tenancy/workspace-scope.test.ts
+services/tenancy/workspace-extension.test.ts
+services/tenancy/session-workspace.test.ts
+services/tenancy/workspace-backfill.test.ts
+services/tenancy/workspace-provisioning.test.ts
+routes/system/tenancy.routes.test.ts
+tests/schema/workspace-tenancy.test.ts
+tests/schema/prisma-unique-writes.test.ts
+
+# スキーマのリテラルを固定しているドリフトテスト2件。どちらもゲート外で、
+# usage-budget 側は @@unique([budgetId, themeId]) をそのまま固定していたため
+# 本変更で赤になり、気付いたのは advisory の Full Suite だった。
+# .prisma を読むだけなので本番コードを import せず、カバレッジ床に影響しない。
+services/usage-budget/usage-budget-schema-drift.test.ts
+services/self-improvement/pr-risk/pr-risk-schema-drift.test.ts
+
+# ユニーク制約を変えて壊れた「呼び出し元」のテスト16件は、意図的にここへ
+# 入れていない。入れると Test Backend が measure する母数が広がり、行
+# 64.92%→42.16% / 関数 48.73%→47.09% とカバレッジ床（関数50%）を割る。
+# 正しさのゲートを床の失敗と引き換えにはしない。
+# 代わりに上の prisma-unique-writes.test.ts が原因側を静的に捕まえる
+# （CI の tsc が報告した10件と完全一致することを確認済み）。
+# 症状側（71件の実行時失敗）を捕まえたのは advisory の Full Suite だけで、
+# これはマージをブロックしない。マニフェストは全1375件中180件しか指しておらず、
+# 必須ゲートを広げるにはカバレッジ床の引き上げ計画と併せる必要がある。
+
+# Googleログイン: 未設定時の拒否と、コールバックでのワークスペース付与。
+# このフローは従来テストが1件も無く、ワークスペースを作らないまま
+# セッションを発行していた（＝全ワークスペースのデータが見える）。
+routes/system/auth/google-oauth.test.ts
+tests/routes/system/auth-routes.test.ts
+tests/services/auth-service.test.ts
+
+# パスワードリセット（オーナー復旧手段）。ログインがデータの見え方を決める
+# ようになった結果、パスワードを失ったオーナーは自分のデータを失う。
+# SQL が静かに何もしない事故（列名の打ち間違い）を実DBで捕まえる。
+services/core/password-reset.test.ts
+scripts/reset-password.test.ts

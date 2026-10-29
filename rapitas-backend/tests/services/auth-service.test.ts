@@ -2,7 +2,7 @@
  * Auth Service テスト
  * 認証ルート（register, login, logout, me, sessions）のユニットテスト
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
 import { Elysia } from 'elysia';
 
 // --- mocks ---
@@ -36,6 +36,16 @@ const mockPrisma = {
     findFirst: mock(() => Promise.resolve(null)),
     findMany: mock(() => Promise.resolve([])),
     deleteMany: mock(() => Promise.resolve({ count: 1 })),
+  },
+  // Register and login provision a workspace before issuing the session: an
+  // account signed in without one resolves to "no workspace" and would see
+  // every workspace's data. Without these the whole route 500s.
+  workspaceMember: {
+    findFirst: mock(() => Promise.resolve(null)),
+  },
+  workspace: {
+    findUnique: mock(() => Promise.resolve(null)),
+    create: mock(() => Promise.resolve({ id: 1, slug: 'testuser', name: 'testuser' })),
   },
 };
 
@@ -126,6 +136,13 @@ function resetAllMocks() {
   mockPrisma.userSession.findFirst.mockResolvedValue(null);
   mockPrisma.userSession.findMany.mockResolvedValue([]);
   mockPrisma.userSession.deleteMany.mockResolvedValue({ count: 1 });
+  // mockReset() above drops the implementation too, and workspace
+  // provisioning runs on both register and login — an unprimed
+  // `workspace.create` returns undefined and the route 500s before it ever
+  // reaches its own assertions.
+  mockPrisma.workspaceMember.findFirst.mockResolvedValue(null);
+  mockPrisma.workspace.findUnique.mockResolvedValue(null);
+  mockPrisma.workspace.create.mockResolvedValue({ id: 1, slug: 'testuser', name: 'testuser' });
 }
 
 function createApp() {
@@ -389,13 +406,27 @@ describe('GET /auth/me', () => {
 
 describe('GET /auth/google/url', () => {
   let app: ReturnType<typeof createApp>;
+  const original = {
+    id: process.env.GOOGLE_CLIENT_ID,
+    secret: process.env.GOOGLE_CLIENT_SECRET,
+  };
 
   beforeEach(() => {
     resetAllMocks();
     app = createApp();
   });
 
-  test('Google OAuth URLを返すこと', async () => {
+  afterEach(() => {
+    if (original.id === undefined) delete process.env.GOOGLE_CLIENT_ID;
+    else process.env.GOOGLE_CLIENT_ID = original.id;
+    if (original.secret === undefined) delete process.env.GOOGLE_CLIENT_SECRET;
+    else process.env.GOOGLE_CLIENT_SECRET = original.secret;
+  });
+
+  test('設定済みなら Google OAuth URL を返すこと', async () => {
+    process.env.GOOGLE_CLIENT_ID = 'test-client-id.apps.googleusercontent.com';
+    process.env.GOOGLE_CLIENT_SECRET = 'test-secret';
+
     const res = await app.handle(new Request('http://localhost/auth/google/url'));
     const body = await res.json();
 
@@ -403,5 +434,22 @@ describe('GET /auth/google/url', () => {
     expect(body.success).toBe(true);
     expect(body.url).toBeDefined();
     expect(typeof body.url).toBe('string');
+  });
+
+  test('未設定なら URL を渡さず 503 で理由を返すこと', async () => {
+    // This assertion used to be the opposite: the route answered 200 with a
+    // URL whatever the configuration, and that URL carried `client_id=`.
+    // Google refuses it with a generic blocked-access page naming no cause,
+    // so the only place the real reason could be reported is here.
+    process.env.GOOGLE_CLIENT_ID = '';
+    process.env.GOOGLE_CLIENT_SECRET = '';
+
+    const res = await app.handle(new Request('http://localhost/auth/google/url'));
+    const body = await res.json();
+
+    expect(res.status).toBe(503);
+    expect(body.success).toBe(false);
+    expect(body.url).toBeUndefined();
+    expect(body.message).toContain('GOOGLE_CLIENT_ID');
   });
 });

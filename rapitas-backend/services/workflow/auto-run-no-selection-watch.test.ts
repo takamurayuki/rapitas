@@ -32,7 +32,7 @@ const taskFindManyMock = mock(() =>
 mock.module('../../config/database', () => ({
   prisma: {
     workflowQueueItem: { count: queueCountMock },
-    themeAutoRun: { findUnique: themeFindUniqueMock },
+    themeAutoRun: { findFirst: themeFindUniqueMock },
     notification: { findFirst: notificationFindFirstMock },
     task: { findMany: taskFindManyMock },
   },

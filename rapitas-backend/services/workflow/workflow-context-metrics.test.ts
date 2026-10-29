@@ -28,7 +28,7 @@ mock.module('../../config/logger', () => ({
   getBackendLogFilePath: mock(() => ''),
 }));
 
-const { estimateTokens, computeSectionMetrics, recordContextMetrics } =
+const { estimateTokens, computeSectionMetrics, recordContextMetrics, fingerprint } =
   await import('./workflow-context-metrics');
 
 beforeEach(() => {
@@ -76,8 +76,8 @@ describe('computeSectionMetrics', () => {
   test('per-section chars and totals are consistent', () => {
     const metrics = computeSectionMetrics({ a: 'abcd', b: 'あいうえお' });
     expect(metrics.sections).toEqual([
-      { name: 'a', chars: 4, estTokens: 1 },
-      { name: 'b', chars: 5, estTokens: 5 },
+      { name: 'a', chars: 4, estTokens: 1, hash: fingerprint('abcd') },
+      { name: 'b', chars: 5, estTokens: 5, hash: fingerprint('あいうえお') },
     ]);
     expect(metrics.totalChars).toBe(9);
     expect(metrics.totalEstTokens).toBe(6);
@@ -95,7 +95,15 @@ describe('computeSectionMetrics', () => {
       research: { raw: 'a'.repeat(20), budgeted: 'a'.repeat(8) },
     });
     expect(metrics.sections).toEqual([
-      { name: 'research', chars: 8, estTokens: 2, rawChars: 20, rawEstTokens: 5, clamped: true },
+      {
+        name: 'research',
+        chars: 8,
+        estTokens: 2,
+        rawChars: 20,
+        rawEstTokens: 5,
+        clamped: true,
+        hash: fingerprint('a'.repeat(8)),
+      },
     ]);
     // Total reflects what is actually injected (budgeted), not the raw size.
     expect(metrics.totalChars).toBe(8);
@@ -109,6 +117,7 @@ describe('computeSectionMetrics', () => {
       name: 'research',
       chars: 4,
       estTokens: 1,
+      hash: fingerprint('abcd'),
       rawChars: 4,
       rawEstTokens: 1,
       clamped: false,
@@ -154,5 +163,56 @@ describe('recordContextMetrics', () => {
     await expect(
       recordContextMetrics(632, 'verifier', 'lightweight', { taskInfo: 'abcd' }),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe('the section fingerprint', () => {
+  // The gap this closes, measured 2026-10-21: 206 same-task re-runs of the
+  // same phase appeared to move the retrieved block by 0.2-0.7%, computed
+  // from `chars`. Two different memories of the same length were recorded
+  // identically, so that number could only ever have been a lower bound.
+  test('tells apart two sections of the same length', () => {
+    const a = computeSectionMetrics({ memory: 'AAAA' });
+    const b = computeSectionMetrics({ memory: 'BBBB' });
+    expect(a.sections[0]?.chars).toBe(b.sections[0]?.chars);
+    expect(a.sections[0]?.hash).not.toBe(b.sections[0]?.hash);
+  });
+
+  test('is the same for the same text, so a stable run reads as stable', () => {
+    const a = computeSectionMetrics({ memory: '同じ記憶' });
+    const b = computeSectionMetrics({ memory: '同じ記憶' });
+    expect(a.sections[0]?.hash).toBe(b.sections[0]?.hash);
+  });
+
+  test('covers every recorded section, not just some', () => {
+    const metrics = computeSectionMetrics({
+      taskInfo: 'a',
+      memory: 'b',
+      plan: 'c',
+    });
+    expect(metrics.sections).toHaveLength(3);
+    expect(metrics.sections.every((x) => /^[0-9a-f]{12}$/.test(x.hash))).toBe(true);
+  });
+
+  test('fingerprints what was injected, not what was clamped away', () => {
+    // The model saw the budgeted text. Hashing the raw one would say the
+    // run used content it never got.
+    const clamped = computeSectionMetrics({
+      research: { raw: 'LONG ORIGINAL TEXT', budgeted: 'SHORT' },
+    });
+    expect(clamped.sections[0]?.hash).toBe(fingerprint('SHORT'));
+    expect(clamped.sections[0]?.hash).not.toBe(fingerprint('LONG ORIGINAL TEXT'));
+  });
+
+  test('is short enough to read and long enough to separate', () => {
+    expect(fingerprint('x')).toHaveLength(12);
+    expect(fingerprint('x')).not.toBe(fingerprint('y'));
+  });
+
+  test('does not carry the text itself into the record', () => {
+    // A prompt log would quietly become a second copy of the knowledge base.
+    const secret = '社外秘の記憶の中身';
+    const metrics = computeSectionMetrics({ memory: secret });
+    expect(JSON.stringify(metrics)).not.toContain(secret);
   });
 });

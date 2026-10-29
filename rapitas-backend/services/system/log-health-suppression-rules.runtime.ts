@@ -468,7 +468,7 @@ export const RUNTIME_SUPPRESSIONS: Suppression[] = [
   {
     // ログ出力箇所: routes/workflow/theme-auto-run.ts:90 の log.error
     // （ロガー routes:theme-auto-run、GET /themes/:id/auto-run の catch）。
-    // 例外源は theme-auto-run-queries.ts:25 の prisma.themeAutoRun.findUnique。
+    // 例外源は theme-auto-run-queries.ts:25 の prisma.themeAutoRun.findFirst。
     // 原因は #1284 と同じ: 運用者が稼働中DBの DateTime 列(INTEGER epoch ms)へ TEXT を
     // 手書きした行を Prisma が読めない。アプリ側は TEXT を生成せず、行の修復後に
     // 自然回復する（#1285）。他ロガー/他テーブルの Inconsistent column data は

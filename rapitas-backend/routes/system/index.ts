@@ -11,7 +11,6 @@ import { authRoutes } from './auth';
 import { sseRoutes } from './sse';
 import { developerModeRoutes } from './developer-mode';
 import { notificationsRoutes } from './notifications';
-import { memosRoutes } from './memos';
 import { searchRoutes } from './search';
 import { urlMetadataRoutes } from './url-metadata';
 import { directoriesRoutes } from './directories';
@@ -35,14 +34,15 @@ import { gitCacheMetricsRoutes } from './monitoring/git-cache-metrics';
 import { ciTimingRoutes } from './monitoring/ci-timing';
 import calendarSlotsCalendarSlotsRoute from './calendar-slots/calendar-slots.routes';
 import canaryRoute from './canary.routes';
+import deployRoute from './deploy.routes';
 import outageGuidanceRoute from './outage-guidance.routes';
+import tenancyRoute from './tenancy.routes';
 
 export { settingsRoutes } from './settings';
 export { authRoutes } from './auth';
 export { sseRoutes } from './sse';
 export { developerModeRoutes } from './developer-mode';
 export { notificationsRoutes } from './notifications';
-export { memosRoutes } from './memos';
 export { searchRoutes } from './search';
 export { urlMetadataRoutes } from './url-metadata';
 export { directoriesRoutes } from './directories';
@@ -71,7 +71,6 @@ export const systemDomainRoutes = new Elysia()
   .use(sseRoutes)
   .use(developerModeRoutes)
   .use(notificationsRoutes)
-  .use(memosRoutes)
   .use(searchRoutes)
   .use(urlMetadataRoutes)
   .use(directoriesRoutes)
@@ -95,4 +94,6 @@ export const systemDomainRoutes = new Elysia()
   .use(ciTimingRoutes)
   .use(calendarSlotsCalendarSlotsRoute)
   .use(canaryRoute)
-  .use(outageGuidanceRoute);
+  .use(deployRoute)
+  .use(outageGuidanceRoute)
+  .use(tenancyRoute);

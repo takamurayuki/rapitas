@@ -7,7 +7,7 @@ import { Elysia } from 'elysia';
 
 const mockPrisma = {
   paidLeaveBalance: {
-    findUnique: mock(() => Promise.resolve(null)),
+    findFirst: mock(() => Promise.resolve(null)),
     create: mock(() => Promise.resolve({ id: 1 })),
     update: mock(() => Promise.resolve({})),
     upsert: mock(() => Promise.resolve({ id: 1 })),
@@ -83,7 +83,7 @@ describe('GET /paid-leave/balance', () => {
       remainingDays: 15,
       carryOverDays: 0,
     };
-    mockPrisma.paidLeaveBalance.findUnique.mockResolvedValue(balance);
+    mockPrisma.paidLeaveBalance.findFirst.mockResolvedValue(balance);
     mockPrisma.scheduleEvent.findMany.mockResolvedValue([]);
     mockPrisma.paidLeaveBalance.update.mockResolvedValue({
       ...balance,
@@ -100,7 +100,7 @@ describe('GET /paid-leave/balance', () => {
   });
 
   test('バランスが存在しない場合に新規作成すること', async () => {
-    mockPrisma.paidLeaveBalance.findUnique.mockResolvedValue(null);
+    mockPrisma.paidLeaveBalance.findFirst.mockResolvedValue(null);
     mockPrisma.scheduleEvent.findMany.mockResolvedValue([]);
     const created = {
       id: 1,
@@ -136,7 +136,8 @@ describe('PUT /paid-leave/balance', () => {
       remainingDays: 25,
       carryOverDays: 5,
     };
-    mockPrisma.paidLeaveBalance.upsert.mockResolvedValue(balance);
+    // findFirst returns null here, so the route takes the create half.
+    mockPrisma.paidLeaveBalance.create.mockResolvedValue(balance);
     mockPrisma.scheduleEvent.findMany.mockResolvedValue([]);
     mockPrisma.paidLeaveBalance.update.mockResolvedValue({
       ...balance,
