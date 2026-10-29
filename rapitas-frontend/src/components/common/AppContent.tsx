@@ -14,6 +14,7 @@
  * margin) so it composes with the nav's margin-based offset above without
  * either one fighting the other for the same CSS property.
  */
+import { usePathname } from 'next/navigation';
 import { useNavStore } from '@/stores/nav-store';
 import { useTerminalStore } from '@/feature/terminal/terminal-store';
 import {
@@ -23,12 +24,19 @@ import {
 import { useLinkViewStore } from '@/stores/link-view-store';
 import { linkPaneSide, linkPaneWidthVw } from '@/components/link-view/LinkViewHost';
 import { useTaskPanelWidthVw } from '@/components/link-view/useTaskPanelWidth';
+import { isAppShellHidden } from '@/utils/app-shell';
 
 /**
  * @param children - Page content to render / 描画するページコンテンツ
  */
 export default function AppContent({ children }: { children: React.ReactNode }) {
-  const isMenuPinned = useNavStore((state) => state.isMenuPinned);
+  // The pin flag outlives the nav: it is remembered across navigation, while
+  // the nav itself is not rendered on /auth or in the popup windows. Reserving
+  // its width there left the sign-in form with an empty 18rem column on its
+  // left (2026-10-29), so the offset follows whether the nav is RENDERED.
+  const pathname = usePathname();
+  const hasSideNav = !isAppShellHidden(pathname);
+  const isMenuPinned = useNavStore((state) => state.isMenuPinned) && hasSideNav;
   const terminalIsOpen = useTerminalStore((s) => s.isOpen);
   const terminalDisplayMode = useTerminalStore((s) => s.displayMode);
   const terminalDockSide = useTerminalStore((s) => s.dockSide);

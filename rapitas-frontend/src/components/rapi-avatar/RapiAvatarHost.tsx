@@ -14,12 +14,14 @@
  * is gone and its contents open from the avatar instead.
  */
 import { useCallback, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useResumableExecutions } from '@/components/resumable-executions/useResumableExecutions';
 import { RapiAvatarDock } from './RapiAvatarDock';
 import { RapiAvatarPanel } from './RapiAvatarPanel';
 import { useRapiAvatarState } from './useRapiAvatarState';
+import { isAppShellHidden } from '@/utils/app-shell';
 
 /**
  * Where the panel sits: just above ラピ's head.
@@ -38,8 +40,8 @@ const PANEL_BOTTOM_PX = 100;
  */
 const PANEL_TAIL_OFFSET_PX = 34;
 
-/** The resident avatar, bottom-right. */
-export default function RapiAvatarHost() {
+/** The resident avatar, bottom-right. Mounted only where she belongs. */
+function RapiAvatarResident() {
   const t = useTranslations('rapiAvatar');
   const { isDarkMode } = useDarkMode();
   const [open, setOpen] = useState(false);
@@ -113,4 +115,21 @@ export default function RapiAvatarHost() {
       />
     </>
   );
+}
+
+/**
+ * Keeps ラピ out of the pages that are not the app.
+ *
+ * A separate component rather than an early return inside the one above,
+ * because the gate has to sit AHEAD of the hooks: `useResumableExecutions`
+ * costs a request, and nothing she offers — resuming an execution, filing a
+ * task, the survey — is reachable before signing in. Returning early inside
+ * that component would also change its hook count when the route changes.
+ */
+export default function RapiAvatarHost() {
+  const pathname = usePathname();
+  if (isAppShellHidden(pathname)) {
+    return null;
+  }
+  return <RapiAvatarResident />;
 }
