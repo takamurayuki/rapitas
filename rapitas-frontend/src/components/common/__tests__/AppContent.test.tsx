@@ -13,6 +13,10 @@ import { useTerminalStore } from '@/feature/terminal/terminal-store';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 import { useLinkViewStore } from '@/stores/link-view-store';
 
+/** Where the app thinks it is; decides whether a side nav exists to reserve for. */
+let pathname = '/dashboard';
+vi.mock('next/navigation', () => ({ usePathname: () => pathname }));
+
 function makeTab() {
   return {
     id: 't1',
@@ -238,5 +242,51 @@ describe('AppContent — link pane', () => {
     openPaneWithATab();
     const outer = render1();
     expect(outer.style.paddingLeft).not.toBe('');
+  });
+});
+
+/**
+ * The pinned side nav's width.
+ *
+ * Reported 2026-10-29: the sign-in form sat with an empty column on its left.
+ * The nav is hidden on /auth (conditional-header), but the offset that makes
+ * room for it was keyed only on the pin flag — which survives client-side
+ * navigation out of the app and into /auth/login, e.g. on sign-out. The
+ * reservation has to follow whether the nav is RENDERED.
+ */
+describe('AppContent — pinned side nav', () => {
+  const inner = () => {
+    const { container } = render(
+      <AppContent>
+        <div>content</div>
+      </AppContent>,
+    );
+    return (container.firstChild as HTMLElement).firstElementChild as HTMLElement;
+  };
+
+  afterEach(() => {
+    pathname = '/dashboard';
+  });
+
+  it('offsets the content when the nav is pinned on an app page', () => {
+    useNavStore.setState({ isMenuPinned: true });
+    expect(inner().className).toContain('lg:ml-72');
+  });
+
+  it('does not offset when the nav is unpinned', () => {
+    useNavStore.setState({ isMenuPinned: false });
+    expect(inner().className).not.toContain('lg:ml-72');
+  });
+
+  it('does not offset on the sign-in page, where no nav is rendered', () => {
+    useNavStore.setState({ isMenuPinned: true });
+    pathname = '/auth/login';
+    expect(inner().className).not.toContain('lg:ml-72');
+  });
+
+  it('does not offset in a popup window either', () => {
+    useNavStore.setState({ isMenuPinned: true });
+    pathname = '/quick-capture';
+    expect(inner().className).not.toContain('lg:ml-72');
   });
 });

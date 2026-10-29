@@ -44,16 +44,21 @@ vi.mock('../useRapiAvatarState', () => ({
     agents: 1,
   }),
 }));
+/** How many times the resumable-executions hook ran; it costs a request. */
+let resumableCalls = 0;
 vi.mock('@/components/resumable-executions/useResumableExecutions', () => ({
-  useResumableExecutions: () => ({
-    ...executionState,
-    resumingIds: new Set<number>(),
-    dismissingIds: new Set<number>(),
-    handleResume,
-    handleResumeAll,
-    handleDismiss,
-    formatTimeAgo: () => '1分前',
-  }),
+  useResumableExecutions: () => {
+    resumableCalls += 1;
+    return {
+      ...executionState,
+      resumingIds: new Set<number>(),
+      dismissingIds: new Set<number>(),
+      handleResume,
+      handleResumeAll,
+      handleDismiss,
+      formatTimeAgo: () => '1分前',
+    };
+  },
 }));
 vi.mock('@/components/resumable-executions/ExecutionItem', () => ({
   ExecutionItem: ({ exec }: { exec: { id: number; taskTitle: string } }) => (
@@ -77,6 +82,7 @@ beforeEach(() => {
   handleResumeAll.mockReset();
   handleDismiss.mockReset();
   executionState = { executions: [exec(1, 'running')], runningCount: 1, interruptedCount: 0 };
+  resumableCalls = 0;
 });
 
 /**
@@ -468,5 +474,34 @@ describe('resuming interrupted work', () => {
   it('shows it as something the user has to deal with', () => {
     render(<RapiAvatarHost />);
     expect(screen.getByText('rapiAvatar.message.waiting:1')).toBeTruthy();
+  });
+});
+
+/**
+ * Where ラピ is not.
+ *
+ * Reported 2026-10-29: she stood in the corner of the sign-in page. Nothing
+ * she offers is reachable before signing in — resuming an execution, filing a
+ * task, the survey — and the corner is the app's, not the login form's. Gated
+ * ahead of her hooks, so the page does not spend a request fetching
+ * executions no one can act on.
+ */
+describe('the sign-in page', () => {
+  it('renders nothing on /auth/login', () => {
+    pathname = '/auth/login';
+    render(<RapiAvatarHost />);
+    expect(avatarButton()).toBeNull();
+  });
+
+  it('does not even ask what can be resumed there', () => {
+    pathname = '/auth/login';
+    render(<RapiAvatarHost />);
+    expect(resumableCalls).toBe(0);
+  });
+
+  it('is still there on an app page', () => {
+    render(<RapiAvatarHost />);
+    expect(avatarButton()).toBeTruthy();
+    expect(resumableCalls).toBeGreaterThan(0);
   });
 });

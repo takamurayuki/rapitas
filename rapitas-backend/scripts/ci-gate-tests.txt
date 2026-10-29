@@ -147,3 +147,9 @@ services/self-improvement/pr-risk/pr-risk-schema-drift.test.ts
 routes/system/auth/google-oauth.test.ts
 tests/routes/system/auth-routes.test.ts
 tests/services/auth-service.test.ts
+
+# パスワードリセット（オーナー復旧手段）。ログインがデータの見え方を決める
+# ようになった結果、パスワードを失ったオーナーは自分のデータを失う。
+# SQL が静かに何もしない事故（列名の打ち間違い）を実DBで捕まえる。
+services/core/password-reset.test.ts
+scripts/reset-password.test.ts
