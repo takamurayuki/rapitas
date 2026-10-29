@@ -140,3 +140,10 @@ services/self-improvement/pr-risk/pr-risk-schema-drift.test.ts
 # 症状側（71件の実行時失敗）を捕まえたのは advisory の Full Suite だけで、
 # これはマージをブロックしない。マニフェストは全1375件中180件しか指しておらず、
 # 必須ゲートを広げるにはカバレッジ床の引き上げ計画と併せる必要がある。
+
+# Googleログイン: 未設定時の拒否と、コールバックでのワークスペース付与。
+# このフローは従来テストが1件も無く、ワークスペースを作らないまま
+# セッションを発行していた（＝全ワークスペースのデータが見える）。
+routes/system/auth/google-oauth.test.ts
+tests/routes/system/auth-routes.test.ts
+tests/services/auth-service.test.ts
