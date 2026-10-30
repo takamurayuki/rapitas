@@ -33,6 +33,18 @@ mock.module('../../utils/ai-client', () => ({
   },
 }));
 
+// The profile ラピ plans against lives on a UserSettings row since #1275, so
+// reaching for it here would mean reaching for Postgres. These tests are
+// about the prompt, not the profile: see roadmap-draft.profile.test.ts for
+// the profile reaching the message.
+mock.module('../system/rapi-profile-store', () => ({
+  MAX_RAPI_PROFILE_LENGTH: 1200,
+  readRapiProfile: async () => null,
+  writeRapiProfile: async () => {},
+  readRapiCharacter: async () => null,
+  writeRapiCharacter: async () => {},
+}));
+
 const { draftRoadmap, composeDescription, MAX_ROADMAP_QUESTIONS } = await import('./roadmap-draft');
 
 const WORLD = { themes: [{ id: 1, name: 'rapitas', description: null }], projects: [] };
