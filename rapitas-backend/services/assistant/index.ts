@@ -56,6 +56,16 @@ export {
 } from './roadmap-draft';
 
 export {
+  askProfileQuestions,
+  composeProfile,
+  MAX_PROFILE_QUESTIONS,
+  MAX_PROFILE_ROUNDS,
+  type ProfileAnswer,
+  type ProfileQuestion,
+  type ProfileComposition,
+} from './profile-interview';
+
+export {
   researchCandidates,
   MAX_CANDIDATES,
   RESEARCH_TIMEOUT_MS,
