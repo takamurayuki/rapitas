@@ -1,25 +1,31 @@
 /**
  * RapiProfileStore
  *
- * File-backed persistence for the standing self-introduction ラピ plans
- * against: who the user is, what they do, what constrains them.
+ * The standing self-introduction ラピ plans against — who the user is, what
+ * they do, what constrains them — and its second half, how they like to
+ * work.
  *
- * The roadmap interview asks who you are before it can plan anything, and
- * it asks again on the next roadmap, and the one after. That is work the
- * user already did. A profile answers it once and rides in front of every
- * request instead (asked for 2026-10-22).
+ * The roadmap interview asks who you are before it can plan anything, and it
+ * asks again on the next roadmap, and the one after. That is work the user
+ * already did. A profile answers it once and rides in front of every request
+ * instead (asked for 2026-10-22).
  *
- * Lives in RAPITAS_DATA_DIR (default ~/.rapitas) rather than a Prisma
- * column, the same mechanism as prompt-language-store.ts and
- * auto-restart-merged-code/settings-store.ts: no schema change, so no
- * restart to deploy it.
+ * Kept on the account's own `UserSettings` row. It used to be two files in
+ * RAPITAS_DATA_DIR, which was right while this app had one user and wrong the
+ * moment accounts existed: every account on the install shared one
+ * introduction and whoever saved last overwrote the others (#1275).
+ * `UserSettings` carries `workspaceId` and is in owned-models, so the
+ * workspace extension scopes these reads and writes per account without this
+ * module knowing anything about workspaces.
  *
- * Not responsible for deciding what ラピ does with it — see
- * roadmap-prompts.ts, which places it in the message.
+ * Not responsible for moving the old files onto the row — see
+ * rapi-profile-backfill.ts — nor for deciding what ラピ does with the
+ * profile, which is roadmap-prompts.ts.
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { homedir } from 'os';
-import { dirname, join } from 'path';
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
+
+const log = createLogger('system:rapi-profile');
 
 /**
  * Longest profile that will be stored or read back.
@@ -30,48 +36,48 @@ import { dirname, join } from 'path';
  */
 export const MAX_RAPI_PROFILE_LENGTH = 1200;
 
-function dataDir(): string {
-  return process.env.RAPITAS_DATA_DIR?.trim() || join(homedir(), '.rapitas');
-}
+/** The two columns this module owns. */
+type RapiField = 'rapiProfile' | 'rapiCharacter';
 
-function profileFile(): string {
-  return join(dataDir(), '.rapi-profile');
+/** The part of a `UserSettings` row this module reads. */
+export interface RapiSettingsRow {
+  id: number;
+  rapiProfile?: string | null;
+  rapiCharacter?: string | null;
 }
 
 /**
- * Where the character half lives.
+ * Just enough of the `userSettings` delegate to carry the two fields.
  *
- * A separate file, not a second paragraph in the first one. The facts say
- * what someone CAN do — the role, the hours, the constraints. The character
- * says what they actually want out of it, and that is the half that decides
- * whether a plan is the RIGHT plan rather than merely a feasible one. Apart,
- * the prompt can label them for what they are, and clearing one cannot take
- * the other with it.
+ * Injected rather than reached for so a test can hand over a fake table:
+ * the alternative is `mock.module` on the Prisma client, which bun applies
+ * process-wide to every other test file in the run.
  */
-function characterFile(): string {
-  return join(dataDir(), '.rapi-character');
+export interface SettingsDelegate {
+  findFirst(args?: unknown): Promise<RapiSettingsRow | null>;
+  create(args: unknown): Promise<RapiSettingsRow>;
+  update(args: unknown): Promise<unknown>;
 }
 
-/** Read one of the profile files, bounded and trimmed. */
-function readFile(path: string): string | null {
-  try {
-    return normalise(readFileSync(path, 'utf8'));
-  } catch {
-    return null;
-  }
+/**
+ * The real, workspace-scoped delegate.
+ *
+ * NOTE: cast because the generated Prisma client does not carry
+ * `rapiProfile` / `rapiCharacter` until it is regenerated on the next
+ * backend restart — the same reason settings-extra-fields.ts writes its
+ * pending columns through a cast. Until that restart a read finds no such
+ * key and answers null, and a write is rejected; both are handled below.
+ */
+function settingsDelegate(): SettingsDelegate {
+  return prisma.userSettings as unknown as SettingsDelegate;
 }
 
-/** Write one of the profile files, best-effort. */
-function writeFile(path: string, value: string): void {
-  try {
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, normalise(value) ?? '');
-  } catch {
-    // Never let a settings write failure crash a request.
-  }
-}
-
-/** Trim the edges, keep the shape, and bound the length. */
+/**
+ * Trim the edges, keep the shape, and bound the length.
+ *
+ * @param value - Raw text from the user or the row / 入力または行の生の値
+ * @returns The storable value, or null when it says nothing / 保存可能な値（空なら null）
+ */
 function normalise(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
@@ -79,43 +85,100 @@ function normalise(value: string): string | null {
 }
 
 /**
+ * The settings row this account's profile lives on, lowest id first.
+ *
+ * Within a workspace there is one row, so the ordering only decides which
+ * row wins if a workspace ever ends up with two — and then it should be the
+ * same one every time rather than whichever the database felt like.
+ */
+async function findRow(delegate: SettingsDelegate): Promise<RapiSettingsRow | null> {
+  return delegate.findFirst({ orderBy: { id: 'asc' } });
+}
+
+/**
+ * Read one half of the profile.
+ *
+ * Fails SOFT: a settings page and a roadmap are both more useful without the
+ * introduction than not at all, and between merging the column and the
+ * restart that adds it every read here fails.
+ */
+async function readField(field: RapiField, delegate: SettingsDelegate): Promise<string | null> {
+  try {
+    const row = await findRow(delegate);
+    const value = row?.[field];
+    return typeof value === 'string' ? normalise(value) : null;
+  } catch (err) {
+    log.info({ err, field }, 'self-introduction could not be read');
+    return null;
+  }
+}
+
+/**
+ * Persist one half of the profile, creating the settings row if the account
+ * has none yet.
+ *
+ * Fails LOUD, unlike the file it replaced: the settings card reports success
+ * on a 2xx, so swallowing the failure here makes the card lie about the
+ * profile ラピ is planning against.
+ */
+async function writeField(
+  field: RapiField,
+  value: string,
+  delegate: SettingsDelegate,
+): Promise<void> {
+  const existing = await findRow(delegate);
+  const id = existing?.id ?? (await delegate.create({ data: {} })).id;
+  await delegate.update({ where: { id }, data: { [field]: normalise(value) } });
+}
+
+/**
  * Read the standing self-introduction, if there is one.
  *
- * Capped on the way out as well as in: editing the file by hand is not the
- * supported path, but it must not be able to smuggle an unbounded prompt in.
- *
+ * @param delegate - Settings delegate; defaults to the live one / 設定デリゲート（既定は本番）
  * @returns The profile, or null when none is set / 自己紹介（未設定なら null）
  */
-export function readRapiProfile(): string | null {
-  return readFile(profileFile());
+export function readRapiProfile(
+  delegate: SettingsDelegate = settingsDelegate(),
+): Promise<string | null> {
+  return readField('rapiProfile', delegate);
 }
 
 /**
  * Read what kind of person they are, if they have said.
  *
+ * @param delegate - Settings delegate; defaults to the live one / 設定デリゲート（既定は本番）
  * @returns The character notes, or null when none is set / 人となり（未設定なら null）
  */
-export function readRapiCharacter(): string | null {
-  return readFile(characterFile());
+export function readRapiCharacter(
+  delegate: SettingsDelegate = settingsDelegate(),
+): Promise<string | null> {
+  return readField('rapiCharacter', delegate);
+}
+
+/**
+ * Persist the self-introduction. Blank clears it.
+ *
+ * @param value - What the user wrote about themselves / 自己紹介の本文
+ * @param delegate - Settings delegate; defaults to the live one / 設定デリゲート（既定は本番）
+ * @throws When the row cannot be written / 行を更新できなかった場合
+ */
+export function writeRapiProfile(
+  value: string,
+  delegate: SettingsDelegate = settingsDelegate(),
+): Promise<void> {
+  return writeField('rapiProfile', value, delegate);
 }
 
 /**
  * Persist the character notes. Blank clears them.
  *
  * @param value - What the user wrote about how they work / 人となりの本文
+ * @param delegate - Settings delegate; defaults to the live one / 設定デリゲート（既定は本番）
+ * @throws When the row cannot be written / 行を更新できなかった場合
  */
-export function writeRapiCharacter(value: string): void {
-  writeFile(characterFile(), value);
-}
-
-/**
- * Persist the self-introduction. Blank clears it.
- *
- * Best-effort: a failed write leaves the previous profile in place and never
- * fails the settings request that carried it.
- *
- * @param value - What the user wrote about themselves / 自己紹介の本文
- */
-export function writeRapiProfile(value: string): void {
-  writeFile(profileFile(), value);
+export function writeRapiCharacter(
+  value: string,
+  delegate: SettingsDelegate = settingsDelegate(),
+): Promise<void> {
+  return writeField('rapiCharacter', value, delegate);
 }

@@ -195,10 +195,11 @@ export function HeaderToolbar({
                   </p>
                 </div>
               )}
-              {/* What ラピ is told about you. The point of the menu on a
-                  machine with no sign-in. */}
+              {/* Personal settings: what ラピ is told about you. It lives in
+                  this menu because it is the account's own data, and it is
+                  the point of the menu when nobody is signed in. */}
               <Link
-                href="/settings/general#rapi-profile"
+                href="/settings/personal"
                 onClick={() => setIsUserMenuOpen(false)}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
               >

@@ -1437,6 +1437,7 @@
     },
     "layout": {
       "navAriaLabel": "Settings",
+      "personalTab": "Personal",
       "generalTab": "General",
       "shortcutsTab": "Shortcuts",
       "cliToolsTab": "CLI Tools"
@@ -1497,6 +1498,10 @@
       "testSent": "Test notification sent",
       "testHttpError": "Error: HTTP {status}",
       "connectionFailed": "Connection failed. Please check the URL."
+    },
+    "personal": {
+      "title": "Personal settings",
+      "subtitle": "The settings that are about you. ラピ reads these when she plans."
     },
     "rapiProfile": {
       "title": "What ラピ should know about you",
