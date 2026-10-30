@@ -203,6 +203,19 @@ describe('HeaderToolbar', () => {
       expect(screen.getByRole('link', { name: /rapiProfileLink/ })).toBeInTheDocument();
     });
 
+    it('opens the personal settings page, not an anchor on the general one', () => {
+      // #1275 moved the profile onto its own page. The anchor it used to
+      // jump to (/settings/general#rapi-profile) now lands on a page that
+      // no longer holds the card.
+      render(
+        <HeaderToolbar {...defaultProps} isAuthenticated={false} user={null} isUserMenuOpen />,
+      );
+      expect(screen.getByRole('link', { name: /rapiProfileLink/ })).toHaveAttribute(
+        'href',
+        '/settings/personal',
+      );
+    });
+
     it('keeps the account rows for a real session', () => {
       render(<HeaderToolbar {...defaultProps} isUserMenuOpen />);
       expect(screen.getByText('TestUser')).toBeInTheDocument();

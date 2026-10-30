@@ -247,19 +247,24 @@ export function applyUiLocale(
  * profile must not clear it, and every settings toggle in this app sends a
  * partial body.
  *
+ * Lands on the account's own `UserSettings` row since #1275, so a failure
+ * here fails the PATCH rather than being swallowed — the settings card
+ * reports success on a 2xx.
+ *
  * @param body - PATCH body / PATCHボディ
  * @param settingsRef - Response object to mirror the value onto / 反映先
+ * @throws When the row cannot be written / 行を更新できなかった場合
  */
-export function applyRapiProfile(
+export async function applyRapiProfile(
   body: UserSettingsUpdateBody,
   settingsRef: Record<string, unknown>,
-): void {
+): Promise<void> {
   if (typeof body.rapiProfile === 'string') {
-    writeRapiProfile(body.rapiProfile);
+    await writeRapiProfile(body.rapiProfile);
   }
   if (typeof body.rapiCharacter === 'string') {
-    writeRapiCharacter(body.rapiCharacter);
+    await writeRapiCharacter(body.rapiCharacter);
   }
-  settingsRef.rapiProfile = readRapiProfile();
-  settingsRef.rapiCharacter = readRapiCharacter();
+  settingsRef.rapiProfile = await readRapiProfile();
+  settingsRef.rapiCharacter = await readRapiCharacter();
 }

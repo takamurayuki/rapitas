@@ -50,8 +50,8 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
       autoRestartOnMergedCode: readAutoRestartEnabled(),
       retroReviewEnabled: readRetroReviewEnabled(),
       uiLocale: readPromptLanguage(),
-      rapiProfile: readRapiProfile(),
-      rapiCharacter: readRapiCharacter(),
+      rapiProfile: await readRapiProfile(),
+      rapiCharacter: await readRapiCharacter(),
       mergeBarrierEnabled: readMergeBarrierEnabled(),
       claudeApiKeyConfigured: apiKeyConfigured,
       chatgptApiKeyConfigured: chatgptConfigured,
@@ -199,7 +199,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         applyRetroReviewEnabled(extraBody, settingsRef);
         applyMergeBarrierEnabled(extraBody, settingsRef);
         applyUiLocale(extraBody, settingsRef);
-        applyRapiProfile(extraBody, settingsRef);
+        await applyRapiProfile(extraBody, settingsRef);
 
         return settings;
       } catch (error: unknown) {

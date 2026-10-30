@@ -186,6 +186,7 @@ import { initializeMemorySystem, shutdownMemorySystem } from './services/memory'
 import { AIOrchestra } from './services/workflow/ai-orchestra';
 import { migrateLegacyWorkflowFiles } from './services/workflow/workflow-legacy-migrator';
 import { backfillWorkflowFilesToDatabase } from './services/workflow/workflow-db-backfill';
+import { backfillRapiProfileToDatabase } from './services/system/rapi-profile-backfill';
 import { startBacklogScheduler } from './services/scheduling/backlog-scheduler';
 import { startEventLoopLagWatchdog } from './services/system/event-loop-lag-watchdog';
 import { startCpuUsageMonitorIfEnabled } from './services/system/cpu-usage-monitor';
@@ -287,6 +288,7 @@ const runStartupWarmup = async (): Promise<void> => {
     ['ai-orchestra-recovery', () => AIOrchestra.getInstance().recoverOnStartup()],
     ['legacy-workflow-migration', () => migrateLegacyWorkflowFiles()],
     ['workflow-db-backfill', () => backfillWorkflowFilesToDatabase()],
+    ['rapi-profile-backfill', () => backfillRapiProfileToDatabase()],
     ['agent-worker-manager', () => workerManager.initialize()],
   ]);
   await timed('backlog-scheduler', () => startBacklogScheduler());
