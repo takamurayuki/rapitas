@@ -1499,6 +1499,20 @@
       "testHttpError": "エラー: HTTP {status}",
       "connectionFailed": "接続に失敗しました。URLを確認してください。"
     },
+    "calendarShare": {
+      "title": "カレンダーの共有",
+      "description": "ここに追加した相手は、あなたの月表示カレンダーの「予定」を見られるようになります。読み取り専用で、タスクは共有されません。",
+      "placeholder": "ユーザー名またはメールアドレス",
+      "add": "追加",
+      "revoke": "共有を取り消す",
+      "revokeFor": "{name} への共有を取り消す",
+      "nobody": "まだ誰にも共有していません",
+      "unknownPerson": "そのユーザーは見つかりませんでした",
+      "self": "自分自身には共有できません",
+      "noSession": "ログインが必要です",
+      "addFailed": "共有を追加できませんでした",
+      "loadFailed": "共有の一覧を読み込めませんでした"
+    },
     "personal": {
       "title": "個人設定",
       "subtitle": "あなた自身についての設定。ラピはここを読んで計画を立てます"
@@ -3196,6 +3210,12 @@
     "searching": "検索中..."
   },
   "calendar": {
+    "shared": {
+      "pickerLabel": "表示するカレンダー",
+      "myCalendar": "自分のカレンダー",
+      "notShared": "このカレンダーは共有されていません。相手が共有を取り消した可能性があります。",
+      "readFailed": "共有カレンダーを読み込めませんでした。"
+    },
     "title": "カレンダー",
     "subtitle": "スケジュール・締め切り・試験日を一覧表示",
     "newEvent": "新規イベント",

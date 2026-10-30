@@ -4,6 +4,7 @@ import {
   formatDateStr,
   getEventsForDateStr,
   getMultiDayBars,
+  scheduleToCalendarEvent,
   type CalendarEvent,
 } from '../calendar-helpers';
 
@@ -152,5 +153,50 @@ describe('getMultiDayBars', () => {
     expect(bars[0].span).toBe(2); // Feb 1 - Feb 2
     expect(bars[0].isStart).toBe(false); // real start is in January
     expect(bars[0].isEnd).toBe(true);
+  });
+});
+
+describe('scheduleToCalendarEvent', () => {
+  const base = {
+    id: 7,
+    title: '週会',
+    startAt: '2026-01-05T09:00:00.000Z',
+    endAt: '2026-01-05T10:30:00.000Z',
+    isAllDay: false,
+    color: '#4f46e5',
+  };
+
+  it('keeps the time someone typed instead of converting it', () => {
+    // The stored time is wall-clock. Putting it through a Date would move
+    // every event by the viewer's offset — nine hours, here.
+    const event = scheduleToCalendarEvent(base);
+    expect(event.time).toBe('09:00');
+    expect(event.endTime).toBe('10:30');
+  });
+
+  it('shows no time for an all-day event', () => {
+    const event = scheduleToCalendarEvent({ ...base, isAllDay: true });
+    expect(event.time).toBeUndefined();
+    expect(event.endTime).toBeUndefined();
+  });
+
+  it('sets endDate only when the event really spans days', () => {
+    expect(scheduleToCalendarEvent(base).endDate).toBeUndefined();
+    expect(scheduleToCalendarEvent({ ...base, endAt: '2026-01-07T10:30:00.000Z' }).endDate).toBe(
+      '2026-01-07',
+    );
+  });
+
+  it('survives the narrower shape a shared calendar serves', () => {
+    // No description, no reminderMinutes, no endAt — the shared read omits
+    // them, and the month view must still draw the event.
+    const event = scheduleToCalendarEvent({
+      id: 1,
+      title: '相手の予定',
+      startAt: '2026-01-09T00:00:00.000Z',
+      isAllDay: true,
+      color: '#000000',
+    });
+    expect(event).toMatchObject({ id: 1, title: '相手の予定', date: '2026-01-09' });
   });
 });

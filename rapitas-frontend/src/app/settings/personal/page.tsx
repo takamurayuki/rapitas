@@ -17,6 +17,7 @@ import { useTranslations } from 'next-intl';
 import { UserPen } from 'lucide-react';
 import { requireAuth } from '@/contexts/AuthContext';
 import RapiProfileCard from '../_components/RapiProfileCard';
+import CalendarShareCard from '../_components/CalendarShareCard';
 
 function PersonalSettingsPage() {
   const t = useTranslations('settings');
@@ -37,6 +38,7 @@ function PersonalSettingsPage() {
 
       <div className="space-y-6">
         <RapiProfileCard />
+        <CalendarShareCard />
       </div>
     </div>
   );
