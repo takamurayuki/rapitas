@@ -42,9 +42,24 @@
 use std::net::{SocketAddr, TcpStream};
 use std::time::Duration;
 
-/// Where the dev server listens; matches `devUrl` in tauri.conf.json.
+/// Where the dev server listens. Must equal `devUrl` in tauri.conf.json.
+///
+/// Reaching the same server under a different name is NOT enough, and that is
+/// the whole trap here. Tauri decides whether a webview is local with
+/// `get_app_url().make_relative(current_url)` (`is_local_url`, webview/mod.rs),
+/// which is `None` for a different host — so `localhost` and `127.0.0.1` are
+/// one server and two origins. A window navigated to the other name comes back
+/// as `Origin::Remote`, the `default` capability grants its permissions to
+/// local URLs only, and the window loses EVERY IPC command — the page dies on
+/// `event.listen not allowed on window "main"` with no way back but a restart.
+/// It also re-opens #1264: the session cookie is SameSite on `127.0.0.1`, so
+/// such a window is signed out whatever the caller asks for.
+///
+/// #1255 moved `devUrl` onto the IP literal and left the navigation below on
+/// `localhost`, which broke the app on the first frontend recycle. The test
+/// that reads tauri.conf.json is what notices; keep it. See #1278.
 const DEV_SERVER_ADDR: &str = "127.0.0.1:3000";
-const DEV_SERVER_URL: &str = "http://localhost:3000";
+const DEV_SERVER_URL: &str = "http://127.0.0.1:3000";
 /// Per-probe connect timeout. Short — the target is loopback.
 const PROBE_TIMEOUT: Duration = Duration::from_millis(300);
 /// Gap between probes while waiting.
@@ -189,6 +204,37 @@ pub fn watch_dev_server_and_reload(app: &tauri::AppHandle) {
 mod tests {
     use super::*;
     use std::net::TcpListener;
+
+    /// `devUrl` exactly as the shipped Tauri config declares it.
+    ///
+    /// Read from the file rather than restated, because a copy here would
+    /// drift with the thing it is supposed to pin.
+    fn configured_dev_url() -> String {
+        let conf: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json"))
+            .expect("tauri.conf.json parses");
+        conf["build"]["devUrl"]
+            .as_str()
+            .expect("build.devUrl is a string")
+            .to_string()
+    }
+
+    #[test]
+    fn navigates_to_exactly_the_configured_dev_url() {
+        // Not merely to the same server. Tauri classifies a webview whose URL
+        // is not the configured one as `Remote`, and the `default` capability
+        // grants its permissions to local URLs only, so re-navigating the dev
+        // server under its other name kills every IPC call in the window
+        // ("event.listen not allowed on window \"main\"") with no way back
+        // but a restart.
+        assert_eq!(DEV_SERVER_URL, configured_dev_url());
+    }
+
+    #[test]
+    fn probes_the_host_and_port_it_navigates_to() {
+        let url = configured_dev_url();
+        let origin = url.strip_prefix("http://").expect("devUrl is http in dev");
+        assert_eq!(DEV_SERVER_ADDR, origin.trim_end_matches('/'));
+    }
 
     #[test]
     fn reports_a_bound_port_as_listening() {
