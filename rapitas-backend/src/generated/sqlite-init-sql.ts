@@ -1463,6 +1463,16 @@ CREATE TABLE "WorkspaceMember" (
 );
 
 -- CreateTable
+CREATE TABLE "CalendarShare" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "ownerWorkspaceId" INTEGER NOT NULL,
+    "viewerWorkspaceId" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "CalendarShare_ownerWorkspaceId_fkey" FOREIGN KEY ("ownerWorkspaceId") REFERENCES "Workspace" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "CalendarShare_viewerWorkspaceId_fkey" FOREIGN KEY ("viewerWorkspaceId") REFERENCES "Workspace" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "TimeEntry" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "workspaceId" INTEGER,
@@ -2433,6 +2443,12 @@ CREATE INDEX "WorkspaceMember_userId_idx" ON "WorkspaceMember"("userId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkspaceMember_workspaceId_userId_key" ON "WorkspaceMember"("workspaceId", "userId");
+
+-- CreateIndex
+CREATE INDEX "CalendarShare_viewerWorkspaceId_idx" ON "CalendarShare"("viewerWorkspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "CalendarShare_ownerWorkspaceId_viewerWorkspaceId_key" ON "CalendarShare"("ownerWorkspaceId", "viewerWorkspaceId");
 
 -- CreateIndex
 CREATE INDEX "TimeEntry_workspaceId_idx" ON "TimeEntry"("workspaceId");
