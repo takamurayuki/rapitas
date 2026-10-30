@@ -96,8 +96,19 @@ function isQueriedDirectly(name: string): boolean {
   return new RegExp('(?:prisma|tx|client)\\.' + delegate + '\\.').test(source);
 }
 
-/** Auth and tenancy's own models: scoping these would break logging in. */
-const EXEMPT = new Set(['User', 'UserSession', 'Workspace', 'WorkspaceMember']);
+/**
+ * Auth and tenancy's own models: scoping these would break logging in.
+ *
+ * `CalendarShare` (#1270) is here for the same kind of reason rather than as
+ * an oversight. A grant row names TWO workspaces — `ownerWorkspaceId` and
+ * `viewerWorkspaceId` — and has to be readable from both ends: the owner
+ * lists who they share with, the viewer lists whose calendar they may see. A
+ * `workspaceId` column would make getOwnedModels() filter it by whichever
+ * workspace is current, which answers only one of those two questions. Its
+ * access control is therefore explicit in every `where` instead, driven by
+ * the caller's session in calendar-share-store.
+ */
+const EXEMPT = new Set(['User', 'UserSession', 'Workspace', 'WorkspaceMember', 'CalendarShare']);
 
 const hasColumn = (m: Model): boolean => /^\s*workspaceId\s+Int\??/m.test(m.body);
 
