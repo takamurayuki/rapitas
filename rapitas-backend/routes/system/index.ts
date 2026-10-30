@@ -32,6 +32,7 @@ import { projectHealthRoutes } from './monitoring/project-health';
 import { debugLogsRouter } from './monitoring/debug-logs';
 import { gitCacheMetricsRoutes } from './monitoring/git-cache-metrics';
 import { ciTimingRoutes } from './monitoring/ci-timing';
+import calendarSharesCalendarSharesRoute from './calendar-shares/calendar-shares.routes';
 import calendarSlotsCalendarSlotsRoute from './calendar-slots/calendar-slots.routes';
 import canaryRoute from './canary.routes';
 import deployRoute from './deploy.routes';
@@ -92,6 +93,7 @@ export const systemDomainRoutes = new Elysia()
   .use(debugLogsRouter)
   .use(gitCacheMetricsRoutes)
   .use(ciTimingRoutes)
+  .use(calendarSharesCalendarSharesRoute)
   .use(calendarSlotsCalendarSlotsRoute)
   .use(canaryRoute)
   .use(deployRoute)

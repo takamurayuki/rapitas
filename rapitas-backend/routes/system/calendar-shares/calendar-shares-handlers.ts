@@ -75,9 +75,7 @@ export type AddShareResult =
   | { ok: true; outcome: GrantOutcome; person: SharePerson }
   | { ok: false; reason: ShareRefusal };
 
-export type RemoveShareResult =
-  | { ok: true; removed: number }
-  | { ok: false; reason: 'no_session' };
+export type RemoveShareResult = { ok: true; removed: number } | { ok: false; reason: 'no_session' };
 
 /** Keep only the agreed fields, whatever the reader handed back. */
 function project(event: SharedScheduleEvent): SharedScheduleEvent {

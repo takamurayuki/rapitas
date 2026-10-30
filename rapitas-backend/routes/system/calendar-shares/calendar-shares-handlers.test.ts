@@ -46,8 +46,7 @@ function deps(opts: {
   const matching = (where: Pair) =>
     (opts.rows ?? []).filter(
       (row) =>
-        (where.ownerWorkspaceId === undefined ||
-          row.ownerWorkspaceId === where.ownerWorkspaceId) &&
+        (where.ownerWorkspaceId === undefined || row.ownerWorkspaceId === where.ownerWorkspaceId) &&
         (where.viewerWorkspaceId === undefined ||
           row.viewerWorkspaceId === where.viewerWorkspaceId),
     );
@@ -213,7 +212,9 @@ describe('removeCalendarShare', () => {
   });
 
   it('revokes only a grant the caller owns', async () => {
-    const { d } = deps({ rows: [{ id: 1, ownerWorkspaceId: 5, viewerWorkspaceId: 9, createdAt: new Date() }] });
+    const { d } = deps({
+      rows: [{ id: 1, ownerWorkspaceId: 5, viewerWorkspaceId: 9, createdAt: new Date() }],
+    });
     expect(await removeCalendarShare(d, 5, 9)).toEqual({ ok: true, removed: 1 });
   });
 
