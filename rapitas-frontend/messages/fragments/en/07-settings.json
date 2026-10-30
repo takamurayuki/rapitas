@@ -399,7 +399,24 @@
       "saveFailed": "Could not save",
       "characterTitle": "How you like to work",
       "characterDescription": "Not the facts — what you consider a good outcome. This is what turns a feasible plan into the right one for you.",
-      "characterPlaceholder": "e.g. I want to be convinced before I move. Small experiments suit me better than big commitments. Crowded rooms drain me. A deadline helps me focus, but an overloaded one stops me."
+      "characterPlaceholder": "e.g. I want to be convinced before I move. Small experiments suit me better than big commitments. Crowded rooms drain me. A deadline helps me focus, but an overloaded one stops me.",
+      "interview": {
+        "hint": "ラピ asks with multiple choice. Answer, and she drafts both boxes below from what you picked.",
+        "start": "Let ラピ ask",
+        "asking": "ラピ is working out what to ask…",
+        "composing": "Writing it up from your answers…",
+        "deeper": "Have her dig deeper",
+        "compose": "Draft it from my answers",
+        "again": "Start the interview over",
+        "draftTitle": "What ラピ drafted",
+        "draftProfile": "Facts and constraints",
+        "draftCharacter": "How you work",
+        "replace": "Replace with this",
+        "append": "Add after what I wrote",
+        "applyNote": "Nothing is stored until you press Save.",
+        "unavailable": "ラピ could not be reached. Check that the local LLM is running.",
+        "failed": "The request failed. Please try again."
+      }
     }
   },
   "linkView": {

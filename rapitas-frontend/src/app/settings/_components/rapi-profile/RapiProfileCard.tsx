@@ -11,11 +11,18 @@
  * Stored through PATCH /settings like the other file-backed settings; the
  * backend keeps it in RAPITAS_DATA_DIR rather than a Prisma column, so this
  * needed no schema change.
+ *
+ * Owns the two boxes and the save. The other way to fill them in — ラピ
+ * asking, with choices, and drafting from the answers (#1281) — lives in
+ * RapiProfileInterview; this card only decides what an applied draft does to
+ * the text, which is a question about the boxes and therefore its own.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { UserPen, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import RapiProfileInterview, { type ApplyMode } from './RapiProfileInterview';
+import type { ProfileDraft } from './use-profile-interview';
 
 /** Mirrors MAX_RAPI_PROFILE_LENGTH in the backend's rapi-profile-store. */
 const MAX_LENGTH = 1200;
@@ -62,6 +69,36 @@ export default function RapiProfileCard() {
   }, []);
 
   const dirty = value !== stored || character !== storedCharacter;
+
+  /**
+   * Put a drafted half into a box.
+   *
+   * Absent means she wrote nothing for it, which must leave the box exactly
+   * as it is — an empty string here would clear a paragraph the user typed
+   * by hand. The bound is the store's: it truncates at MAX_LENGTH, so a box
+   * showing more would promise text that is dropped on save.
+   */
+  const merge = useCallback((current: string, drafted: string | undefined, mode: ApplyMode) => {
+    if (!drafted) return current;
+    const kept = current.trim();
+    const next =
+      mode === 'append' && kept
+        ? `${kept}
+${drafted}`
+        : drafted;
+    return next.slice(0, MAX_LENGTH);
+  }, []);
+
+  const onApply = useCallback(
+    (draft: ProfileDraft, mode: ApplyMode) => {
+      setValue((current) => merge(current, draft.profile, mode));
+      setCharacter((current) => merge(current, draft.character, mode));
+      // Applied is not saved, and a leftover "saved" beside new text is the
+      // same lie as a failed save looking fine.
+      setSave('idle');
+    },
+    [merge],
+  );
 
   const onSave = useCallback(async () => {
     if (!dirty) return;
@@ -137,7 +174,11 @@ export default function RapiProfileCard() {
             className="w-full resize-y rounded-lg border border-zinc-200 bg-white p-2 text-sm text-zinc-800 placeholder:text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
           />
 
-          <div className="mt-2 flex items-center gap-3">
+          {/* Between the boxes and the save, because what it produces lands
+              in the boxes and is then saved by the button below it. */}
+          <RapiProfileInterview profile={value} character={character} onApply={onApply} />
+
+          <div className="mt-4 flex items-center gap-3">
             <button
               type="button"
               onClick={() => void onSave()}

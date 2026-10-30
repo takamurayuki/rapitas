@@ -16,7 +16,7 @@
 import { useTranslations } from 'next-intl';
 import { UserPen } from 'lucide-react';
 import { requireAuth } from '@/contexts/AuthContext';
-import RapiProfileCard from '../_components/RapiProfileCard';
+import { RapiProfileCard } from '../_components/rapi-profile';
 import CalendarShareCard from '../_components/CalendarShareCard';
 
 function PersonalSettingsPage() {
