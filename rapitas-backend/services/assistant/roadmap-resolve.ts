@@ -81,15 +81,22 @@ export function composeDescription(action: string, done: string[]): string {
   return parts.join('\n\n');
 }
 
-/** Pull the first JSON object out of a reply that may be fenced or chatty. */
-export function extractJson(text: string): RawDraft | null {
+/**
+ * Pull the first JSON object out of a reply that may be fenced or chatty.
+ *
+ * Parameterised by the shape expected, defaulting to a draft so every
+ * existing caller reads the same. The type is a claim about what was asked
+ * for, never a guarantee about what came back — every field of every shape
+ * this returns is `unknown` for exactly that reason.
+ */
+export function extractJson<T = RawDraft>(text: string): T | null {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const candidate = fenced ? fenced[1] : text;
   const start = candidate.indexOf('{');
   const end = candidate.lastIndexOf('}');
   if (start === -1 || end <= start) return null;
   try {
-    return JSON.parse(candidate.slice(start, end + 1)) as RawDraft;
+    return JSON.parse(candidate.slice(start, end + 1)) as T;
   } catch {
     return null;
   }

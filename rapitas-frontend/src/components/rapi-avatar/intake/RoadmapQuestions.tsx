@@ -33,17 +33,37 @@ export interface RoadmapQuestion {
   recommendedReason?: string;
 }
 
+/**
+ * How much room the asking has.
+ *
+ * `compact` is the avatar panel it was built for: 320px wide, with the plan
+ * these questions are about underneath. `comfortable` is a full-width card
+ * — the settings page asks the same questions about the person themselves
+ * (#1281), and panel-sized type there reads as fine print rather than as a
+ * question someone is being asked.
+ */
+export type QuestionDensity = 'compact' | 'comfortable';
+
 interface Props {
   questions: RoadmapQuestion[];
   /** Answers by question index, as the roadmap holds them. */
   answers: Record<number, string>;
   setAnswers: (update: (prev: Record<number, string>) => Record<number, string>) => void;
+  /** Defaults to the panel it was written for, so its caller is unchanged. */
+  density?: QuestionDensity;
 }
+
+/** The type scale each density uses, keyed the same so neither can drift. */
+const SCALE = {
+  compact: { question: 'text-[11px]', option: 'text-[11px]', aside: 'text-[10px]' },
+  comfortable: { question: 'text-sm', option: 'text-xs', aside: 'text-[11px]' },
+} as const;
 
 /**
  * @param props - The questions, the answers so far, and how to record one
  */
-export function RoadmapQuestions({ questions, answers, setAnswers }: Props) {
+export function RoadmapQuestions({ questions, answers, setAnswers, density = 'compact' }: Props) {
+  const scale = SCALE[density];
   const t = useTranslations('rapiAvatar.roadmap');
   /** A decision reopened for changing; otherwise the flow picks the question. */
   const [editing, setEditing] = useState<number | null>(null);
@@ -78,7 +98,7 @@ export function RoadmapQuestions({ questions, answers, setAnswers }: Props) {
               type="button"
               data-roadmap-answered={q.question}
               onClick={() => setEditing(i)}
-              className="flex w-full items-baseline gap-1.5 rounded px-1 py-0.5 text-left text-[10px] text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              className={`flex w-full items-baseline gap-1.5 rounded px-1 py-0.5 text-left text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 ${scale.aside}`}
             >
               <span className="truncate">{q.question}</span>
               <span className="ml-auto shrink-0 font-medium text-zinc-700 dark:text-zinc-200">
@@ -91,10 +111,10 @@ export function RoadmapQuestions({ questions, answers, setAnswers }: Props) {
         return (
           <div key={q.question} data-roadmap-question={q.question} className="space-y-1">
             <div className="flex items-baseline gap-2">
-              <p className="text-[11px] text-zinc-700 dark:text-zinc-200">{q.question}</p>
+              <p className={`text-zinc-700 dark:text-zinc-200 ${scale.question}`}>{q.question}</p>
               {/* How far through, so a wall of questions is not replaced by a
                   sequence with no end in sight. */}
-              <span className="ml-auto shrink-0 text-[10px] tabular-nums text-zinc-400">
+              <span className={`ml-auto shrink-0 tabular-nums text-zinc-400 ${scale.aside}`}>
                 {t('progress', { current: decided.size + 1, total: questions.length })}
               </span>
             </div>
@@ -105,7 +125,7 @@ export function RoadmapQuestions({ questions, answers, setAnswers }: Props) {
                   type="button"
                   onClick={() => choose(i, o)}
                   aria-pressed={answers[i] === o}
-                  className={`rounded-full px-2 py-0.5 text-[11px] transition-colors ${
+                  className={`rounded-full px-2 py-0.5 transition-colors ${scale.option} ${
                     answers[i] === o
                       ? 'bg-zinc-700 text-white dark:bg-zinc-200 dark:text-zinc-900'
                       : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
@@ -118,7 +138,7 @@ export function RoadmapQuestions({ questions, answers, setAnswers }: Props) {
             {/* Why she would pick that one. Without it the recommendation is
                 an assertion rather than an argument. */}
             {q.recommendedReason && (
-              <p className="text-[10px] text-zinc-400">{q.recommendedReason}</p>
+              <p className={`text-zinc-400 ${scale.aside}`}>{q.recommendedReason}</p>
             )}
           </div>
         );

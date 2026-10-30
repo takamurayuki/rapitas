@@ -15,6 +15,40 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import RapiProfileCard from './RapiProfileCard';
 
+// Stood in for, so the merge below is tested without a model behind it.
+// What the interview itself does with a round is its own test's business.
+vi.mock('./RapiProfileInterview', () => ({
+  default: ({
+    profile,
+    character,
+    onApply,
+  }: {
+    profile: string;
+    character: string;
+    onApply: (draft: { profile?: string; character?: string }, mode: 'replace' | 'append') => void;
+  }) => (
+    <div>
+      <span data-testid="handed-profile">{profile}</span>
+      <span data-testid="handed-character">{character}</span>
+      <button type="button" onClick={() => onApply(DRAFT, 'replace')}>
+        apply-replace
+      </button>
+      <button type="button" onClick={() => onApply(DRAFT, 'append')}>
+        apply-append
+      </button>
+      <button type="button" onClick={() => onApply({ profile: '事実だけ' }, 'replace')}>
+        apply-one-half
+      </button>
+      <button type="button" onClick={() => onApply({ profile: 'あ'.repeat(2000) }, 'append')}>
+        apply-too-long
+      </button>
+    </div>
+  ),
+}));
+
+/** What ラピ drafted, as the stand-in hands it over. */
+const DRAFT = { profile: '30代のエンジニア。', character: '納得してから動きたい。' };
+
 vi.mock('next-intl', () => ({
   useTranslations: () => (key: string, vals?: Record<string, unknown>) =>
     vals ? `${key}:${Object.values(vals).join('/')}` : key,
@@ -174,5 +208,57 @@ describe('the character half', () => {
     fireEvent.change(characterBox(), { target: { value: '納得してから動きたい' } });
     fireEvent.click(screen.getByRole('button', { name: /save/i }));
     await waitFor(() => expect(saves()).toHaveLength(1));
+  });
+});
+
+describe('what ラピ drafted', () => {
+  const apply = (which: string) =>
+    fireEvent.click(screen.getByRole('button', { name: `apply-${which}` }));
+
+  it('hands her what the boxes currently say, unsaved edits included', async () => {
+    stored = 'エンジニア8年';
+    render(<RapiProfileCard />);
+    await waitFor(() => expect(box().value).toBe('エンジニア8年'));
+    fireEvent.change(box(), { target: { value: '去年から訪問看護に移った' } });
+    expect(screen.getByTestId('handed-profile').textContent).toBe('去年から訪問看護に移った');
+  });
+
+  it('puts both halves in the boxes, and saves neither by itself', async () => {
+    render(<RapiProfileCard />);
+    await waitFor(() => expect(box()).toBeTruthy());
+    apply('replace');
+    expect(box().value).toBe(DRAFT.profile);
+    expect(characterBox().value).toBe(DRAFT.character);
+    // The draft is a proposal on screen until the user saves it.
+    expect(saves()).toHaveLength(0);
+  });
+
+  it('appends after what the user wrote rather than over it', async () => {
+    render(<RapiProfileCard />);
+    await waitFor(() => expect(box()).toBeTruthy());
+    fireEvent.change(box(), { target: { value: '手で書いた一文。' } });
+    apply('append');
+    expect(box().value).toContain('手で書いた一文。');
+    expect(box().value).toContain(DRAFT.profile);
+  });
+
+  it('leaves a box alone when she wrote nothing for it', async () => {
+    // A half she did not write must not arrive as empty text: that would
+    // clear a paragraph the user typed by hand.
+    render(<RapiProfileCard />);
+    await waitFor(() => expect(characterBox()).toBeTruthy());
+    fireEvent.change(characterBox(), { target: { value: '人数の多い場は消耗する' } });
+    apply('one-half');
+    expect(box().value).toBe('事実だけ');
+    expect(characterBox().value).toBe('人数の多い場は消耗する');
+  });
+
+  it('never puts in more than the store will keep', async () => {
+    // The backend truncates at 1200, so a box showing more would promise
+    // text that is silently dropped on save.
+    render(<RapiProfileCard />);
+    await waitFor(() => expect(box()).toBeTruthy());
+    apply('too-long');
+    expect(box().value).toHaveLength(1200);
   });
 });

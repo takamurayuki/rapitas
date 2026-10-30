@@ -122,6 +122,25 @@ export const ASSISTANT_CAPABILITIES = [
     requiresConfirmation: true,
     undo: 'delete-what-was-made',
   },
+  {
+    // Asks the user who they are, with choices, a round at a time. Reads
+    // nothing and writes nothing — the answers live on the screen until the
+    // write-up below is applied to the settings card and saved by hand.
+    id: 'profile.interview',
+    writes: false,
+    requiresConfirmation: false,
+    undo: 'nothing-to-undo',
+  },
+  {
+    // Writes the answers up as the introduction every roadmap is planned
+    // against. Separate from the asking so the audit log can tell a round of
+    // questions from the text it produced. Still writes nothing: the draft
+    // is shown, and replacing or appending is the user's own act.
+    id: 'profile.draft',
+    writes: false,
+    requiresConfirmation: false,
+    undo: 'nothing-to-undo',
+  },
 ] as const satisfies readonly AssistantCapability[];
 
 /** What undoing a capability takes. */
