@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Eye, EyeOff, UserPlus, User, Lock, Mail, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Eye, EyeOff, UserPlus, AlertCircle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 
@@ -231,9 +231,6 @@ export default function RegisterPage() {
                 {t('username')}
               </label>
               <div className="mt-1 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
-                </div>
                 <input
                   id="username"
                   name="username"
@@ -242,7 +239,7 @@ export default function RegisterPage() {
                   required
                   value={formData.username}
                   onChange={handleInputChange}
-                  className="appearance-none relative block w-full pl-9 pr-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
+                  className="appearance-none relative block w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
                   placeholder={t('usernamePlaceholder')}
                 />
               </div>
@@ -257,9 +254,6 @@ export default function RegisterPage() {
                 {t('email')}
               </label>
               <div className="mt-1 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
-                </div>
                 <input
                   id="email"
                   name="email"
@@ -268,7 +262,7 @@ export default function RegisterPage() {
                   required
                   value={formData.email}
                   onChange={handleInputChange}
-                  className="appearance-none relative block w-full pl-9 pr-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
+                  className="appearance-none relative block w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
                   placeholder="email@example.com"
                 />
               </div>
@@ -283,9 +277,6 @@ export default function RegisterPage() {
                 {t('password')}
               </label>
               <div className="mt-1 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
-                </div>
                 <input
                   id="password"
                   name="password"
@@ -294,7 +285,7 @@ export default function RegisterPage() {
                   required
                   value={formData.password}
                   onChange={handleInputChange}
-                  className="appearance-none relative block w-full pl-9 pr-9 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
+                  className="appearance-none relative block w-full pl-3 pr-9 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
                   placeholder={t('passwordPlaceholder')}
                 />
                 <button
@@ -355,9 +346,6 @@ export default function RegisterPage() {
                 {t('confirmPassword')}
               </label>
               <div className="mt-1 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
-                </div>
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
@@ -366,7 +354,7 @@ export default function RegisterPage() {
                   required
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
-                  className="appearance-none relative block w-full pl-9 pr-9 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
+                  className="appearance-none relative block w-full pl-3 pr-9 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
                   placeholder={t('confirmPasswordPlaceholder')}
                 />
                 <button

@@ -47,6 +47,32 @@ function comesAfter(earlier: Element, later: Element): boolean {
   return Boolean(earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING);
 }
 
+/** data-testids of the mocked icons rendered inside one field's wrapper. */
+function iconsInside(input: HTMLElement): string[] {
+  const wrapper = input.parentElement;
+  if (!wrapper) return [];
+  return Array.from(wrapper.querySelectorAll('[data-testid$="-icon"]')).map(
+    (el) => el.getAttribute('data-testid') ?? '',
+  );
+}
+
+describe('RegisterPage fields', () => {
+  it.each(['username', 'email'])('starts the text at the left edge of %s', (label) => {
+    // A decorative icon inside the field reserved 40px on the left, so the
+    // text began well away from the edge and the gutter after it read as
+    // empty space. Nothing decorative may sit inside the field any more.
+    render(<RegisterPage />);
+    expect(iconsInside(screen.getByLabelText(label))).toEqual([]);
+  });
+
+  it.each(['password', 'confirmPassword'])('keeps only the show-password toggle in %s', (label) => {
+    // The eye is interactive, not decoration, and it is what the right-hand
+    // padding on these two fields exists for.
+    render(<RegisterPage />);
+    expect(iconsInside(screen.getByLabelText(label))).toEqual(['Eye-icon']);
+  });
+});
+
 describe('RegisterPage layout', () => {
   it('puts the Google button below the create-account button', () => {
     render(<RegisterPage />);
