@@ -185,7 +185,7 @@ import { BehaviorScheduler } from './src/services/behavior-scheduler';
 import { initializeMemorySystem, shutdownMemorySystem } from './services/memory';
 import { AIOrchestra } from './services/workflow/ai-orchestra';
 import { migrateLegacyWorkflowFiles } from './services/workflow/workflow-legacy-migrator';
-import { backfillWorkflowFilesToDatabase } from './services/workflow/workflow-db-backfill';
+import { runStartupBackfills } from './services/system/startup-backfills';
 import { startBacklogScheduler } from './services/scheduling/backlog-scheduler';
 import { startEventLoopLagWatchdog } from './services/system/event-loop-lag-watchdog';
 import { startCpuUsageMonitorIfEnabled } from './services/system/cpu-usage-monitor';
@@ -286,7 +286,7 @@ const runStartupWarmup = async (): Promise<void> => {
     ['memory-system', () => initializeMemorySystem()],
     ['ai-orchestra-recovery', () => AIOrchestra.getInstance().recoverOnStartup()],
     ['legacy-workflow-migration', () => migrateLegacyWorkflowFiles()],
-    ['workflow-db-backfill', () => backfillWorkflowFilesToDatabase()],
+    ['startup-backfills', () => runStartupBackfills()],
     ['agent-worker-manager', () => workerManager.initialize()],
   ]);
   await timed('backlog-scheduler', () => startBacklogScheduler());

@@ -117,8 +117,8 @@ export async function draftRoadmap(
             // Read per request rather than cached: the user can rewrite it
             // in settings between two roadmaps and expects the next one to
             // know.
-            profile: readRapiProfile(),
-            character: readRapiCharacter(),
+            profile: await readRapiProfile(),
+            character: await readRapiCharacter(),
             ...(isFinal ? { answers } : {}),
           }),
         },

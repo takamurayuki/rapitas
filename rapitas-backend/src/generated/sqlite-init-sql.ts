@@ -1345,6 +1345,8 @@ CREATE TABLE "UserSettings" (
     "slackWebhookUrl" TEXT,
     "discordWebhookUrl" TEXT,
     "skipAgentPermissionPrompts" BOOLEAN NOT NULL DEFAULT true,
+    "rapiProfile" TEXT,
+    "rapiCharacter" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );

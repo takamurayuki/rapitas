@@ -1437,6 +1437,7 @@
     },
     "layout": {
       "navAriaLabel": "設定",
+      "personalTab": "個人設定",
       "generalTab": "一般",
       "shortcutsTab": "ショートカット",
       "cliToolsTab": "CLIツール"
@@ -1497,6 +1498,10 @@
       "testSent": "テスト通知を送信しました",
       "testHttpError": "エラー: HTTP {status}",
       "connectionFailed": "接続に失敗しました。URLを確認してください。"
+    },
+    "personal": {
+      "title": "個人設定",
+      "subtitle": "あなた自身についての設定。ラピはここを読んで計画を立てます"
     },
     "rapiProfile": {
       "title": "ラピに渡す自己紹介",

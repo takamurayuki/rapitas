@@ -95,6 +95,13 @@ model UserSettings {
    * before this setting existed.
    */
   skipAgentPermissionPrompts  Boolean   @default(true)
+  /// What ラピ is told about the person she is planning for: the facts
+  /// (rapiProfile) and what they want out of a plan (rapiCharacter). Both
+  /// were files in RAPITAS_DATA_DIR until #1275, which meant one
+  /// introduction shared by every account on the install. See
+  /// rapi-profile-store.ts.
+  rapiProfile                 String?
+  rapiCharacter               String?
   createdAt                   DateTime  @default(now())
   updatedAt                   DateTime  @updatedAt
   @@index([workspaceId])
