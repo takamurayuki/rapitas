@@ -372,6 +372,20 @@
       "testHttpError": "Error: HTTP {status}",
       "connectionFailed": "Connection failed. Please check the URL."
     },
+    "calendarShare": {
+      "title": "Calendar sharing",
+      "description": "Anyone you add here can see the EVENTS on your month calendar. Read-only, and your tasks are not shared.",
+      "placeholder": "Username or email address",
+      "add": "Add",
+      "revoke": "Stop sharing",
+      "revokeFor": "Stop sharing with {name}",
+      "nobody": "Not shared with anyone yet",
+      "unknownPerson": "No such user here",
+      "self": "You cannot share with yourself",
+      "noSession": "Sign in first",
+      "addFailed": "Could not add the share",
+      "loadFailed": "Could not load the share list"
+    },
     "personal": {
       "title": "Personal settings",
       "subtitle": "The settings that are about you. ラピ reads these when she plans."

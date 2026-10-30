@@ -9,7 +9,7 @@ import { API_BASE_URL } from '@/utils/api';
 import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { useTaskAutoSync } from '@/hooks/task/useTaskAutoSync';
 import { createLogger } from '@/lib/logger';
-import type { CalendarEvent } from '../_utils/calendar-helpers';
+import { scheduleToCalendarEvent, type CalendarEvent } from '../_utils/calendar-helpers';
 
 const logger = createLogger('useCalendarEvents');
 const API_BASE = API_BASE_URL;
@@ -81,30 +81,7 @@ export function useCalendarEvents() {
         color: t.theme?.color,
       }));
 
-    const scheduleEvents: CalendarEvent[] = schedules.map((s) => {
-      // NOTE: Extract time directly from UTC ISO string to avoid timezone conversion issues.
-      const extractUTCTime = (isoStr: string) => {
-        const timePart = isoStr.split('T')[1]; // "HH:MM:SS.000Z"
-        if (!timePart) return undefined;
-        return timePart.slice(0, 5); // "HH:MM"
-      };
-      const timeStr = s.isAllDay ? undefined : extractUTCTime(s.startAt);
-      const endTimeStr = s.endAt && !s.isAllDay ? extractUTCTime(s.endAt) : undefined;
-      const startDateStr = s.startAt.split('T')[0];
-      const endDateStr = s.endAt ? s.endAt.split('T')[0] : undefined;
-      return {
-        id: s.id,
-        title: s.title,
-        date: startDateStr,
-        endDate: endDateStr && endDateStr > startDateStr ? endDateStr : undefined,
-        type: 'schedule' as const,
-        color: s.color,
-        time: timeStr,
-        endTime: endTimeStr,
-        reminderMinutes: s.reminderMinutes,
-        description: s.description,
-      };
-    });
+    const scheduleEvents: CalendarEvent[] = schedules.map(scheduleToCalendarEvent);
 
     setEvents([...taskEvents, ...scheduleEvents]);
   }, [cachedTasks, schedules]);

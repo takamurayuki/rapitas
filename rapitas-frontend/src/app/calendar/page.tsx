@@ -10,6 +10,9 @@ import ScheduleEventDialog from '@/feature/calendar/components/ScheduleEventDial
 import PaidLeaveDialog from '@/feature/calendar/components/PaidLeaveDialog';
 import { getHolidaysForMonth, type HolidayLabelKey } from '@/utils/holidays';
 import { useCalendarEvents } from './_hooks/useCalendarEvents';
+import { useCalendarShares } from '@/feature/calendar/hooks';
+import { useSharedSchedules } from './_hooks/useSharedSchedules';
+import { CalendarPersonPicker } from './_components/CalendarPersonPicker';
 import { CalendarGrid } from './_components/CalendarGrid';
 import { DayEventsSidebar } from './_components/DayEventsSidebar';
 import { CreateTaskModal } from './_components/CreateTaskModal';
@@ -23,6 +26,8 @@ export default function CalendarPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showPaidLeaveModal, setShowPaidLeaveModal] = useState(false);
+  /** Whose calendar is on screen; null is my own (#1270). */
+  const [viewing, setViewing] = useState<number | null>(null);
 
   const {
     events,
@@ -34,6 +39,15 @@ export default function CalendarPage() {
     createPaidLeave,
     deleteScheduleEvent,
   } = useCalendarEvents();
+
+  const { sharedWithMe } = useCalendarShares();
+  const shared = useSharedSchedules(viewing, currentDate);
+  const isShared = viewing !== null;
+  // Schedule events only when looking at someone else: the shared endpoint
+  // never returns tasks, and `schedules` is only consulted for the paid-leave
+  // icon, which is not ours to show.
+  const shownEvents = isShared ? shared.events : events;
+  const shownSchedules = isShared ? [] : schedules;
 
   const holidays = useMemo(
     () => getHolidaysForMonth(currentDate.getFullYear(), currentDate.getMonth()),
@@ -77,7 +91,7 @@ export default function CalendarPage() {
     if (ok) setShowPaidLeaveModal(false);
   };
 
-  if (loading) {
+  if (loading || (isShared && shared.loading)) {
     return (
       <div className="max-w-6xl mx-auto p-6">
         <div className="animate-pulse space-y-4">
@@ -100,31 +114,43 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* Paid leave balance */}
-        {paidLeaveBalance && (
-          <PaidLeaveHeaderWidget
-            balance={paidLeaveBalance}
-            onRequest={() => {
-              if (selectedDate) {
-                setShowPaidLeaveModal(true);
-              } else {
-                showToast(t('selectDateForPaidLeave'), 'info');
-              }
-            }}
-            t={t}
-          />
-        )}
+        <div className="flex items-center gap-4">
+          <CalendarPersonPicker people={sharedWithMe} value={viewing} onChange={setViewing} />
+
+          {/* Paid leave balance */}
+          {!isShared && paidLeaveBalance && (
+            <PaidLeaveHeaderWidget
+              balance={paidLeaveBalance}
+              onRequest={() => {
+                if (selectedDate) {
+                  setShowPaidLeaveModal(true);
+                } else {
+                  showToast(t('selectDateForPaidLeave'), 'info');
+                }
+              }}
+              t={t}
+            />
+          )}
+        </div>
       </div>
+
+      {/* Why a shared month is empty, when it is not just an empty month. */}
+      {isShared && shared.refusal && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-200">
+          {t(shared.refusal === 'not_shared' ? 'shared.notShared' : 'shared.readFailed')}
+        </div>
+      )}
 
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <CalendarGrid
           currentDate={currentDate}
-          events={events}
-          schedules={schedules}
+          events={shownEvents}
+          schedules={shownSchedules}
           selectedDate={selectedDate}
           onSelectDate={setSelectedDate}
           onDoubleClickDate={(dateStr) => {
+            if (isShared) return;
             setSelectedDate(dateStr);
             setShowScheduleModal(true);
           }}
@@ -134,9 +160,10 @@ export default function CalendarPage() {
         />
 
         <DayEventsSidebar
+          readOnly={isShared}
           selectedDate={selectedDate}
-          events={events}
-          schedules={schedules}
+          events={shownEvents}
+          schedules={shownSchedules}
           holidayMap={holidayMap}
           onAddSchedule={() => setShowScheduleModal(true)}
           onAddTask={() => {

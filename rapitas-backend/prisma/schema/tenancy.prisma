@@ -32,6 +32,9 @@ model Workspace {
 
   members WorkspaceMember[]
 
+  calendarSharesGranted  CalendarShare[] @relation("CalendarShareOwner")
+  calendarSharesReceived CalendarShare[] @relation("CalendarShareViewer")
+
   @@index([isDefault])
 }
 
@@ -49,4 +52,36 @@ model WorkspaceMember {
 
   @@unique([workspaceId, userId])
   @@index([userId])
+}
+
+// One workspace letting another VIEW its month calendar (schedule events only
+// — never tasks). Read-only by construction: no write path consults this
+// table, so a grant can only ever widen what is readable.
+//
+// NOTE: no field here may be named `workspaceId`. getOwnedModels() derives the
+// scoped set from the generated client by looking for exactly that column, so
+// naming either side `workspaceId` would make the scope layer filter this
+// table by the CURRENT workspace — and a grant has to be readable from both
+// ends: the owner lists what they share, the viewer lists what they may see.
+// The two explicit names are what keep it out of that mechanism, which is why
+// they are not `workspaceId` + `otherWorkspaceId`.
+//
+// Direction matters: a row means ownerWorkspaceId is visible TO
+// viewerWorkspaceId, and says nothing about the reverse.
+//
+// FKs with cascade, unlike the root models' bare `workspaceId` (see the NOTE
+// on Workspace): this is a small tenancy table, and a deleted workspace must
+// not leave a grant pointing at it.
+model CalendarShare {
+  id                Int       @id @default(autoincrement())
+  /// Whose calendar is exposed.
+  ownerWorkspaceId  Int
+  owner             Workspace @relation("CalendarShareOwner", fields: [ownerWorkspaceId], references: [id], onDelete: Cascade)
+  /// Who may read it.
+  viewerWorkspaceId Int
+  viewer            Workspace @relation("CalendarShareViewer", fields: [viewerWorkspaceId], references: [id], onDelete: Cascade)
+  createdAt         DateTime  @default(now())
+
+  @@unique([ownerWorkspaceId, viewerWorkspaceId])
+  @@index([viewerWorkspaceId])
 }
