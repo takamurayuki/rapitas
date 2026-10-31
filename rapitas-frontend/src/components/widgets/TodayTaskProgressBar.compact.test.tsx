@@ -11,10 +11,25 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import TodayTaskProgressBarCompact from './TodayTaskProgressBar.compact';
 
-vi.mock('next-intl', () => ({
-  useTranslations: () => (key: string, values?: Record<string, unknown>) =>
-    values ? `${key}:${JSON.stringify(values)}` : key,
-}));
+vi.mock('next-intl', () => {
+  const t = (key: string, values?: Record<string, unknown>) =>
+    values ? `${key}:${JSON.stringify(values)}` : key;
+  // `rich` calls the tag back, so a test can see whether the component wrapped
+  // a segment at all and what it wrapped it in — which is the point here.
+  t.rich = (key: string, values: Record<string, unknown>) => {
+    const { count, ...tags } = values;
+    const [name, render] = Object.entries(tags)[0] ?? [];
+    return (
+      <>
+        {`${key}:`}
+        {typeof render === 'function'
+          ? (render as (c: React.ReactNode) => React.ReactNode)(`${name}:${String(count)}`)
+          : null}
+      </>
+    );
+  };
+  return { useTranslations: () => t };
+});
 
 vi.mock('framer-motion', () => ({
   motion: {
@@ -61,7 +76,29 @@ describe('a day with nothing due', () => {
 
   it('says what is still past due', () => {
     renderBar({ totalCount: 0, overdueCount: 2 });
-    expect(screen.getByText('noDueTodayWithOverdue:{"count":2}')).toBeTruthy();
+    expect(screen.getByText('overdue:2')).toBeTruthy();
+  });
+
+  // The two halves are not equally interesting: "nothing due" is a status and
+  // "2 overdue" is work being missed — on this machine by three and four
+  // months. Set in the same muted slate, the eye stops at the first half and
+  // the second is why the line was kept at all.
+  it('emphasises only the overdue half, in the attention amber', () => {
+    renderBar({ totalCount: 0, overdueCount: 2 });
+    const emphasised = screen.getByText('overdue:2');
+
+    expect(emphasised.className).toContain('text-amber-600');
+    expect(emphasised.className).toContain('dark:text-amber-400');
+    expect(emphasised.className).toContain('font-semibold');
+    // It wraps a segment, not the whole sentence.
+    expect(emphasised.textContent).not.toContain('noDueTodayWithOverdue');
+  });
+
+  it('leaves the rest of the line in the toolbar’s muted slate', () => {
+    const { container } = renderBar({ totalCount: 0, overdueCount: 2 });
+    const line = container.querySelector('p') as HTMLParagraphElement;
+    expect(line.className).toContain('text-zinc-500');
+    expect(line.className).not.toContain('text-amber');
   });
 
   it('says only that nothing is due when nothing is past due either', () => {
@@ -75,7 +112,9 @@ describe('a day with nothing due', () => {
   // off from the words it belongs to. A sentence sizes itself.
   it('stays on one line, and does not take the bar’s fixed width', () => {
     const { container } = renderBar({ totalCount: 0, overdueCount: 2 });
-    const line = screen.getByText('noDueTodayWithOverdue:{"count":2}');
+    // Queried as the element rather than by its text: the sentence is assembled
+    // from a translation with a tag in it, so it is not one text node.
+    const line = container.querySelector('p') as HTMLParagraphElement;
     expect(line.className).toContain('whitespace-nowrap');
     expect(container.querySelector('.w-60')).toBeNull();
   });

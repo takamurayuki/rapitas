@@ -79,7 +79,17 @@ export default function TodayTaskProgressBarCompact({
       <div className="relative">
         <p className="whitespace-nowrap text-[12px] font-medium tracking-wide text-zinc-500 dark:text-zinc-400">
           {overdueCount > 0
-            ? t('noDueTodayWithOverdue', { count: overdueCount })
+            ? // Only the overdue half is emphasised. "Nothing due" is a status
+              // and "2 overdue" is work being missed — set alike, the eye stops
+              // at the first half and the second is the reason this line exists.
+              // Amber rather than red: the toolbar is a calm strip, and an
+              // overdue task needs attention, it is not an error.
+              t.rich('noDueTodayWithOverdue', {
+                count: overdueCount,
+                overdue: (chunks) => (
+                  <span className="font-semibold text-amber-600 dark:text-amber-400">{chunks}</span>
+                ),
+              })
             : t('noDueTodayTasks')}
         </p>
       </div>
