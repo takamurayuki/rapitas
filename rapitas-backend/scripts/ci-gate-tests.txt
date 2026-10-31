@@ -169,6 +169,10 @@ config/frontend-url.test.ts
 services/core/password-reset.test.ts
 scripts/reset-password.test.ts
 
+# ===== 仮説台帳（#1321: 集計が forgettingStage=active 限定で supported を 0 と報告していた） =====
+services/memory/hypothesis-service.ledger-scope.test.ts
+services/workflow/workflow-hypothesis-context.test.ts
+
 # ===== 添付ファイル配信のセキュリティ（inline 実行・認可・symlink 迂回） =====
 routes/tasks/attachment-serving.test.ts
 routes/tasks/resources-upload-source.test.ts

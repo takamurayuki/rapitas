@@ -19,23 +19,25 @@ import { createHash } from 'crypto';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
-import { narrowEnum } from '../../utils/common/type-guards';
+import { HYPOTHESIS_DOMAINS, normalizeDomain } from './hypothesis-types';
+import type { HypothesisDomain, HypothesisStatus, EvidenceStance } from './hypothesis-types';
+import { HYP_SELECT, parseEvidence, toStatus } from './hypothesis-row';
+import type { HypothesisEntry, HypothesisEvidence } from './hypothesis-row';
+
+// Re-exported so every existing importer keeps its path after the #1321
+// split; the declarations themselves moved to the three sibling modules.
+export { HYPOTHESIS_DOMAINS, normalizeDomain };
+export type { HypothesisDomain, HypothesisStatus, EvidenceStance };
+export type { HypothesisEntry, HypothesisEvidence };
+export {
+  listHypotheses,
+  getHypothesis,
+  setHypothesisStatus,
+  deleteHypothesis,
+  getHypothesisStats,
+} from './hypothesis-queries';
 
 const log = createLogger('memory:hypothesis');
-
-/** Domain a hypothesis is about — bounds the ledger to reasoning-relevant claims. */
-export const HYPOTHESIS_DOMAINS = [
-  'codebase',
-  'agent-behavior',
-  'performance',
-  'architecture',
-  'other',
-] as const;
-export type HypothesisDomain = (typeof HYPOTHESIS_DOMAINS)[number];
-/** Lifecycle: open (untested) → supported / refuted / inconclusive. */
-export type HypothesisStatus = 'open' | 'supported' | 'refuted' | 'inconclusive';
-/** Whether a piece of evidence supports or opposes the hypothesis. */
-export type EvidenceStance = 'for' | 'against';
 
 /** Confidence a brand-new (untested) hypothesis starts at — deliberately low. */
 const INITIAL_CONFIDENCE = 0.2;
@@ -47,37 +49,6 @@ const GRADUATE_AT = 0.8;
 const REFUTE_AT = 0.2;
 /** A statement shorter than this is too vague to be falsifiable. */
 const MIN_STATEMENT_LEN = 12;
-
-/** A single recorded observation bearing on a hypothesis. */
-export interface HypothesisEvidence {
-  stance: EvidenceStance;
-  /** Plain-language observation. / 平易な観察事実 */
-  detail: string;
-  /** Concrete anchor: file:line / test name / measurement / #PR. / 具体的根拠 */
-  artifact: string;
-  /** Task the evidence came from, if any. / 証拠が得られたタスク */
-  taskId: number | null;
-  /** Workflow phase the evidence came from (research/implement/verify). */
-  phase: string | null;
-  /** ISO timestamp the evidence was recorded. */
-  at: string;
-}
-
-export interface HypothesisEntry {
-  id: number;
-  statement: string;
-  rationale: string;
-  domain: HypothesisDomain;
-  status: HypothesisStatus;
-  confidence: number;
-  evidence: HypothesisEvidence[];
-  validationMethod: string | null;
-  validatedAt: Date | null;
-  themeId: number | null;
-  originTaskId: number | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
 
 export interface SubmitHypothesisInput {
   statement: string;
@@ -96,11 +67,6 @@ export interface SubmitHypothesisResult {
   id?: number;
   /** Why the hypothesis was rejected, when ok is false. */
   reason?: string;
-}
-
-/** Coerce an arbitrary value to a valid domain (default 'codebase'). */
-export function normalizeDomain(value: unknown): HypothesisDomain {
-  return narrowEnum(value, HYPOTHESIS_DOMAINS, 'codebase');
 }
 
 function contentHash(input: string): string {
@@ -141,93 +107,6 @@ export function isConcreteArtifact(artifact: string): boolean {
   if (a.length < 3) return false;
   // file:line, path/, #123, a digit (measurement/count), or a test reference.
   return /[:/#]/.test(a) || /\d/.test(a) || /test/i.test(a);
-}
-
-interface HypothesisRow {
-  id: number;
-  title: string;
-  content: string;
-  category: string;
-  tags: string;
-  sourceId: string | null;
-  confidence: number;
-  validationStatus: string;
-  validationMethod: string | null;
-  validatedAt: Date | null;
-  themeId: number | null;
-  taskId: number | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const HYP_SELECT = {
-  id: true,
-  title: true,
-  content: true,
-  category: true,
-  tags: true,
-  sourceId: true,
-  confidence: true,
-  validationStatus: true,
-  validationMethod: true,
-  validatedAt: true,
-  themeId: true,
-  taskId: true,
-  createdAt: true,
-  updatedAt: true,
-} as const;
-
-/** validationStatus (storage) → HypothesisStatus (domain). */
-function toStatus(validationStatus: string): HypothesisStatus {
-  switch (validationStatus) {
-    case 'validated':
-      return 'supported';
-    case 'rejected':
-      return 'refuted';
-    case 'conflict':
-      return 'inconclusive';
-    default:
-      return 'open';
-  }
-}
-
-/** Parse the evidence array stored in the entry's tags JSON (tolerant). */
-function parseEvidence(tags: string): HypothesisEvidence[] {
-  try {
-    const parsed = JSON.parse(tags || '{}') as { evidence?: HypothesisEvidence[] };
-    if (!Array.isArray(parsed.evidence)) return [];
-    // Collapse duplicates already in storage (same task+stance, or identical
-    // artifact+stance) so historical entries — written before the write-side
-    // dedup — no longer show the same evidence two or three times in the UI.
-    const seen = new Set<string>();
-    return parsed.evidence.filter((e) => {
-      const key = `${e.stance}|${e.taskId ?? ''}|${e.artifact ?? ''}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  } catch {
-    return [];
-  }
-}
-
-/** Map a KnowledgeEntry row to a HypothesisEntry. */
-function toHypothesisEntry(row: HypothesisRow): HypothesisEntry {
-  return {
-    id: row.id,
-    statement: row.title,
-    rationale: row.content,
-    domain: normalizeDomain(row.category),
-    status: toStatus(row.validationStatus),
-    confidence: row.confidence,
-    evidence: parseEvidence(row.tags),
-    validationMethod: row.validationMethod,
-    validatedAt: row.validatedAt,
-    themeId: row.themeId,
-    originTaskId: row.taskId,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  };
 }
 
 /**
@@ -440,122 +319,4 @@ export async function addEvidence(
     );
   }
   return { ok: true, confidence, status: toStatus(validationStatus), graduated };
-}
-
-/**
- * Lists hypotheses with optional filters.
- *
- * @param options - Filters (status/domain/theme) + pagination. / フィルタ
- * @returns Hypotheses and total count. / 仮説リストと総数
- */
-export async function listHypotheses(options: {
-  status?: HypothesisStatus | 'all';
-  domain?: HypothesisDomain;
-  themeId?: number;
-  limit?: number;
-  offset?: number;
-}): Promise<{ hypotheses: HypothesisEntry[]; total: number }> {
-  const { status = 'open', domain, themeId, limit = 20, offset = 0 } = options;
-
-  const where: Record<string, unknown> = { sourceType: 'hypothesis', forgettingStage: 'active' };
-  if (domain) where.category = domain;
-  if (themeId) where.themeId = themeId;
-  if (status === 'open') where.validationStatus = 'pending';
-  else if (status === 'supported') where.validationStatus = 'validated';
-  else if (status === 'refuted') where.validationStatus = 'rejected';
-  else if (status === 'inconclusive') where.validationStatus = 'conflict';
-  // status === 'all' → no validationStatus filter.
-
-  const [rows, total] = await Promise.all([
-    prisma.knowledgeEntry.findMany({
-      where,
-      // id tiebreak: confidence/updatedAt ties would otherwise leave paginated
-      // (skip/take) ordering to DB-implementation whim, so the same page can
-      // reshuffle across identical requests.
-      orderBy: [{ confidence: 'desc' }, { updatedAt: 'desc' }, { id: 'asc' }],
-      take: limit,
-      skip: offset,
-      select: HYP_SELECT,
-    }),
-    prisma.knowledgeEntry.count({ where }),
-  ]);
-  return { hypotheses: rows.map(toHypothesisEntry), total };
-}
-
-/**
- * Fetches a single hypothesis by id.
- *
- * @param id - Hypothesis id. / 仮説ID
- * @returns The hypothesis, or null when not found. / 仮説、無ければ null
- */
-export async function getHypothesis(id: number): Promise<HypothesisEntry | null> {
-  const row = await prisma.knowledgeEntry.findFirst({
-    where: { id, sourceType: 'hypothesis' },
-    select: HYP_SELECT,
-  });
-  return row ? toHypothesisEntry(row) : null;
-}
-
-/**
- * Manually overrides a hypothesis's status (e.g. a human marks it inconclusive).
- *
- * @param id - Hypothesis id. / 仮説ID
- * @param status - New status. / 新しい状態
- * @returns True when updated. / 更新できたか
- */
-export async function setHypothesisStatus(id: number, status: HypothesisStatus): Promise<boolean> {
-  const existing = await prisma.knowledgeEntry.findFirst({
-    where: { id, sourceType: 'hypothesis' },
-    select: { id: true },
-  });
-  if (!existing) return false;
-  const validationStatus =
-    status === 'supported'
-      ? 'validated'
-      : status === 'refuted'
-        ? 'rejected'
-        : status === 'inconclusive'
-          ? 'conflict'
-          : 'pending';
-  await prisma.knowledgeEntry.update({
-    where: { id },
-    data: {
-      validationStatus,
-      validatedAt: validationStatus === 'pending' ? null : new Date(),
-    },
-  });
-  log.info({ id, status }, 'Hypothesis status manually set');
-  return true;
-}
-
-/** Deletes a hypothesis. */
-export async function deleteHypothesis(id: number): Promise<boolean> {
-  const existing = await prisma.knowledgeEntry.findFirst({
-    where: { id, sourceType: 'hypothesis' },
-    select: { id: true },
-  });
-  if (!existing) return false;
-  await prisma.knowledgeEntry.delete({ where: { id } });
-  return true;
-}
-
-/**
- * Counts hypotheses by status (for dashboards / stats).
- *
- * @returns Aggregate counts. / 集計
- */
-export async function getHypothesisStats(): Promise<{
-  open: number;
-  supported: number;
-  refuted: number;
-  inconclusive: number;
-}> {
-  const base = { sourceType: 'hypothesis' as const, forgettingStage: 'active' };
-  const [open, supported, refuted, inconclusive] = await Promise.all([
-    prisma.knowledgeEntry.count({ where: { ...base, validationStatus: 'pending' } }),
-    prisma.knowledgeEntry.count({ where: { ...base, validationStatus: 'validated' } }),
-    prisma.knowledgeEntry.count({ where: { ...base, validationStatus: 'rejected' } }),
-    prisma.knowledgeEntry.count({ where: { ...base, validationStatus: 'conflict' } }),
-  ]);
-  return { open, supported, refuted, inconclusive };
 }
