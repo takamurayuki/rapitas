@@ -31,15 +31,32 @@ export interface ExecutionTrendData {
   averageTime: number | null;
 }
 
+/**
+ * Of the tasks that first completed in the window, how many got there with no
+ * verify_repair. The task-level quality counterpart to `overallSuccessRate`,
+ * which only says a CLI process exited cleanly (#1300).
+ */
+export interface FirstPassCompletion {
+  completedTasks: number;
+  repairFreeTasks: number;
+  /** repairFreeTasks ÷ completedTasks; null when nothing completed. */
+  rate: number | null;
+}
+
 export interface MetricsOverview {
   totalExecutions: number;
   totalSuccessful: number;
   totalFailed: number;
+  /** Executions in neither terminal bucket — still running, cancelled or interrupted. */
+  totalUnfinished: number;
+  /** Share of FINISHED executions that exited cleanly. Liveness, not quality. */
   overallSuccessRate: number;
   totalTokensUsed: number;
   totalAgents: number;
   activeAgents: number;
   averageExecutionTime: number | null;
+  /** Optional: a page open across a deploy can be answered by an older build. */
+  firstPassCompletion?: FirstPassCompletion;
 }
 
 export interface AgentPerformanceComparison {

@@ -6,12 +6,16 @@
  * cost optimization, role×model outcomes, and repair-convergence aggregations.
  */
 
+export type { FirstPassTransitionRow, RangeBounds } from './overview';
 export {
   buildDateWhereClause,
+  countFirstPassCompletions,
   getAgentMetrics,
   getExecutionTrends,
+  getFirstPassCompletion,
   getMetricsOverview,
   prisma,
+  resolveRangeBounds,
 } from './overview';
 
 export { getAgentPerformanceComparison } from './performance';

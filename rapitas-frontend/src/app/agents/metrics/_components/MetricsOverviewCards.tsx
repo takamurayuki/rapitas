@@ -9,6 +9,14 @@ interface MetricsOverviewCardsProps {
 }
 
 /**
+ * Below this many completed tasks the first-pass rate is shown without the
+ * confident styling. A trailing week often completes two or three tasks, and
+ * "100.0%" off two is the same false verdict this card replaced; this repo's
+ * own determinism audit found conclusions flipping below twelve samples.
+ */
+const MIN_FIRST_PASS_SAMPLE = 12;
+
+/**
  * Renders the four metrics overview stats as a compact neutral KPI bar.
  *
  * NOTE: Replaced the full-height multi-hue gradient cards with the dashboard's
@@ -19,6 +27,8 @@ interface MetricsOverviewCardsProps {
  */
 export function MetricsOverviewCards({ overview }: MetricsOverviewCardsProps) {
   const t = useTranslations('agents');
+  const firstPass = overview.firstPassCompletion;
+  const thinSample = (firstPass?.completedTasks ?? 0) < MIN_FIRST_PASS_SAMPLE;
 
   return (
     <div className="mb-8 grid grid-cols-2 divide-x divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white md:grid-cols-4 md:divide-y-0 dark:divide-zinc-700 dark:border-zinc-700 dark:bg-zinc-800">
@@ -35,13 +45,34 @@ export function MetricsOverviewCards({ overview }: MetricsOverviewCardsProps) {
         </div>
       </div>
 
+      {/* NOTE: The big number is the TASK-level first-pass rate since #1300.
+          It used to be `overallSuccessRate` under the label 成功率, which is
+          the share of CLI processes that exited 0 — 95.57% while 36-53% of the
+          tasks completed in the same weeks had needed a verify_repair. That
+          rate is a liveness signal, so it keeps the line below but not the
+          figure the eye lands on. */}
       <div className="flex items-center gap-3 px-4 py-3">
         <CheckCircle2 className="h-5 w-5 shrink-0 text-green-500" />
         <div className="min-w-0">
-          <div className="text-xl font-bold leading-tight text-zinc-900 dark:text-zinc-50">
-            {overview.overallSuccessRate.toFixed(1)}%
+          <div
+            className={`text-xl font-bold leading-tight ${
+              thinSample ? 'text-zinc-400 dark:text-zinc-500' : 'text-zinc-900 dark:text-zinc-50'
+            }`}
+          >
+            {/* An em dash, not 0% — an empty denominator is "no data", while 0
+                would read as "every task needed a repair". */}
+            {firstPass?.rate == null ? '—' : `${(firstPass.rate * 100).toFixed(1)}%`}
           </div>
-          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{t('successRate')}</p>
+          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+            {t('firstPassCompletion')} ·{' '}
+            {firstPass?.rate == null
+              ? t('firstPassCompletionEmpty')
+              : t('firstPassCompletionSample', { count: firstPass.completedTasks })}
+            {thinSample && firstPass?.rate != null ? ` · ${t('firstPassCompletionLowSample')}` : ''}
+          </p>
+          <p className="truncate text-[11px] text-zinc-400 dark:text-zinc-500">
+            {t('executionCompletionRate', { rate: overview.overallSuccessRate.toFixed(1) })}
+          </p>
         </div>
       </div>
 

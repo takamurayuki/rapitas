@@ -68,6 +68,11 @@
     "trendDays": "Trend Period (days)",
     "totalExecutions": "Total Executions",
     "successRate": "Success Rate",
+    "firstPassCompletion": "First-pass completion",
+    "firstPassCompletionSample": "{count} completed tasks",
+    "firstPassCompletionEmpty": "No completed tasks",
+    "firstPassCompletionLowSample": "Low sample",
+    "executionCompletionRate": "Exited cleanly {rate}%",
     "totalTokenUsage": "Total Token Usage",
     "activeAgents": "Active Agents",
     "recoveryMetrics": {

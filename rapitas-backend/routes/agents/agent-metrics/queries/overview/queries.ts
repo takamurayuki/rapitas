@@ -216,7 +216,16 @@ export async function getMetricsOverview(dateRange?: DateRange): Promise<Metrics
   const totalExecutions = executions.length;
   const totalSuccessful = executions.filter((e) => e.status === 'completed').length;
   const totalFailed = executions.filter((e) => e.status === 'failed').length;
-  const overallSuccessRate = totalExecutions > 0 ? (totalSuccessful / totalExecutions) * 100 : 0;
+  // NOTE: Divided by FINISHED executions, not every row. `status` is a free
+  // string the orchestrator also sets to running / pending / cancelled /
+  // interrupted, and those sat in the denominator of an outcome they are on
+  // neither side of — 626 + 17 against a denominator of 655 (#1300). The
+  // leftover is returned rather than dropped so the three buckets still
+  // account for every row.
+  const totalUnfinished = totalExecutions - totalSuccessful - totalFailed;
+  const finishedExecutions = totalSuccessful + totalFailed;
+  const overallSuccessRate =
+    finishedExecutions > 0 ? (totalSuccessful / finishedExecutions) * 100 : 0;
 
   const totalTokensUsed = executions.reduce((sum, e) => sum + (e.tokensUsed || 0), 0);
 
@@ -232,6 +241,7 @@ export async function getMetricsOverview(dateRange?: DateRange): Promise<Metrics
     totalExecutions,
     totalSuccessful,
     totalFailed,
+    totalUnfinished,
     overallSuccessRate: Math.round(overallSuccessRate * 100) / 100,
     totalTokensUsed,
     totalAgents,

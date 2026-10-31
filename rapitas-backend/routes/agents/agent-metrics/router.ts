@@ -12,6 +12,7 @@ import { createLogger } from '../../../config/logger';
 import {
   getAgentMetrics,
   getExecutionTrends,
+  getFirstPassCompletion,
   getMetricsOverview,
   getAgentPerformanceComparison,
   getSelfObservationSummary,
@@ -64,8 +65,21 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
 
   .get('/overview', async ({ query }) => {
     try {
-      const overview = await getMetricsOverview(parseDateRange(query));
-      return overview;
+      // The two halves are computed from different tables — executions for
+      // liveness, workflow transitions for quality — but must describe the
+      // same window, so both take the one parsed range.
+      const dateRange = parseDateRange(query);
+      const [overview, firstPassCompletion] = await Promise.all([
+        getMetricsOverview(dateRange),
+        // The quality half must not take the liveness half down with it — it
+        // reads a different table, and an empty result renders as "—" rather
+        // than blanking the whole KPI bar.
+        getFirstPassCompletion(dateRange).catch((error) => {
+          log.error({ err: error }, 'Error computing first-pass completion');
+          return { completedTasks: 0, repairFreeTasks: 0, rate: null };
+        }),
+      ]);
+      return { ...overview, firstPassCompletion };
     } catch (error) {
       log.error({ err: error }, 'Error fetching metrics overview');
       return { error: 'Failed to fetch metrics overview' };

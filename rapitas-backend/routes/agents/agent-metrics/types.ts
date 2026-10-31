@@ -40,15 +40,37 @@ export interface AgentPerformanceComparison {
   totalTokens: number;
 }
 
+/**
+ * Of the tasks that first completed in the window, how many got there with no
+ * verify_repair in their history. The task-level quality counterpart to
+ * `overallSuccessRate`, which only says a CLI process exited cleanly (#1300).
+ */
+export interface FirstPassCompletion {
+  /** Tasks whose FIRST completion falls in the window. */
+  completedTasks: number;
+  /** Of those, the ones with no verify_repair anywhere in their history. */
+  repairFreeTasks: number;
+  /** repairFreeTasks ÷ completedTasks; null when nothing completed. */
+  rate: number | null;
+}
+
 export interface MetricsOverview {
   totalExecutions: number;
   totalSuccessful: number;
   totalFailed: number;
+  /** Executions in neither terminal bucket — still running, cancelled or interrupted. */
+  totalUnfinished: number;
+  /** Share of FINISHED executions that exited cleanly. Liveness, not quality. */
   overallSuccessRate: number;
   totalTokensUsed: number;
   totalAgents: number;
   activeAgents: number;
   averageExecutionTime: number | null;
+}
+
+/** The /agent-metrics/overview payload: execution liveness plus task-level quality. */
+export interface MetricsOverviewResponse extends MetricsOverview {
+  firstPassCompletion: FirstPassCompletion;
 }
 
 export interface DateRange {
