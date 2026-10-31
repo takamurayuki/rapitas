@@ -112,6 +112,26 @@ describe('HomeThemeFilter chip colours', () => {
     expect(chip.style.backgroundColor).toBe('');
   });
 
+  // The row sits directly under the category tabs, and its text was a shade
+  // darker than theirs (`slate-600` against their `slate-500`), which made the
+  // theme row read as heavier than the tabs above it. The chip keeps its own
+  // fill — that part was never the problem — and only the text follows the
+  // tabs now (reported 2026-10-31).
+  it('writes unselected chips in the category tabs’ own slate', () => {
+    renderRow({ themes: [theme(1, 7, 'API')], categoryFilter: 7, themeFilter: null });
+    const chip = chipFor('API');
+    expect(chip.className).toContain('text-slate-500');
+    expect(chip.className).toContain('dark:text-slate-400');
+    expect(chip.className).not.toContain('text-slate-600');
+  });
+
+  it('keeps the chip’s own fill, which was never what read as heavy', () => {
+    renderRow({ themes: [theme(1, 7, 'API')], categoryFilter: 7, themeFilter: null });
+    const chip = chipFor('API');
+    expect(chip.className).toContain('bg-slate-100');
+    expect(chip.className).toContain('dark:bg-slate-800');
+  });
+
   it('keeps every unselected chip identical, whatever colours the themes carry', () => {
     renderRow({
       themes: [theme(1, 7, 'API', '#DC2626'), theme(2, 7, 'UI', '#16A34A')],

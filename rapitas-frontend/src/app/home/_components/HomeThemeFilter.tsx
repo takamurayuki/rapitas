@@ -140,13 +140,19 @@ export function HomeThemeFilter({
                 className={`flex items-center gap-1.5 px-3 py-1.5 font-medium text-xs transition-all whitespace-nowrap shrink-0 rounded-sm ${
                   isActive
                     ? 'shadow-lg font-bold text-white dark:text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200'
                 }`}
                 // Only the selected chip wears its theme's colour. Every chip
                 // used to, selected or not, and a row of them read as scattered
                 // colour the reader had to decode one at a time — while the
                 // selected one, the only thing this row exists to show, stopped
                 // standing out among them (asked for 2026-10-31).
+                //
+                // An unselected chip takes its TEXT from the category tabs
+                // above — `slate-500`, not the `slate-600` it had, which read
+                // heavier than the tabs it sits under (#1289). The chip keeps
+                // its own fill; only the text follows them. Keep the two in
+                // step when either changes.
                 //
                 // `color` is left out rather than set for an inactive chip: an
                 // inline colour would win over the slate class above.
