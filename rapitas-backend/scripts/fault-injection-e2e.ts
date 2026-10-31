@@ -236,7 +236,21 @@ async function main(): Promise<void> {
     const stderrTail = createTailBuffer(MAX_TAP_CHARS);
     void tapStream(proc.stdout, stdoutTail.append);
     void tapStream(proc.stderr, stderrTail.append);
-    const health = await waitForHealth(FAULT_E2E_PORT, HEALTH_TIMEOUT_MS);
+    // NOTE: Waits for READY, not merely healthy (#1000 / #1323). Every
+    // scenario writes, and warm-up runs after the listener opens: measured
+    // 2026-10-31, `/health` reported healthy for 6,474ms while startup-backfills
+    // and the agent worker were still writing the same SQLite file, and writes
+    // arriving there failed with SQLITE_IOERR_SHORT_READ (522). The whole run
+    // takes ~3s, so it fitted entirely inside that window — which is why
+    // duplicate-callback and process-restart failed on 5 of 7 runs with
+    // "HTTP 500: タスクの作成に失敗しました" and no cause in any log.
+    const health = await waitForHealth(
+      FAULT_E2E_PORT,
+      HEALTH_TIMEOUT_MS,
+      undefined,
+      undefined,
+      true,
+    );
     if (!health.ok) {
       // Kill first so the taps see EOF and flush what the child wrote on its
       // way out; killBackend already settles for 300ms afterwards.
