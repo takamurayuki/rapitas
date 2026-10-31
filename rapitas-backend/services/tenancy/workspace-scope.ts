@@ -130,6 +130,54 @@ export interface ScopeInput {
 const asRecord = (v: unknown): Record<string, unknown> =>
   v && typeof v === 'object' && !Array.isArray(v) ? { ...(v as Record<string, unknown>) } : {};
 
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v) && !(v instanceof Date);
+
+/**
+ * Is this `where` entry Prisma's compound-unique shorthand?
+ *
+ * Prisma names a compound unique by joining its field names with `_`, and the
+ * value is an object of exactly those fields. The join order is checked first,
+ * then a sorted comparison for a caller who wrote them in another order. Both
+ * fail when a field name itself contains `_`, and that is deliberate: a wrong
+ * guess here would tear a relation filter or an operator object apart into a
+ * silently different query, whereas declining leaves the loud Prisma error.
+ *
+ * @param key - The `where` key / where のキー
+ * @param value - Its value / その値
+ * @returns True when the pair is a compound-unique shorthand / 複合ユニークならtrue
+ */
+function isCompoundUniqueEntry(key: string, value: unknown): value is Record<string, unknown> {
+  if (!isPlainObject(value)) return false;
+  const fields = Object.keys(value);
+  if (fields.length < 2) return false;
+  if (key === fields.join('_')) return true;
+  const parts = key.split('_');
+  if (parts.length !== fields.length) return false;
+  return [...parts].sort().join('\u0000') === [...fields].sort().join('\u0000');
+}
+
+/**
+ * Flattens any compound-unique shorthand in a `where` into its own fields.
+ *
+ * NOTE: Needed because `findUnique`'s where accepts that shorthand and
+ * `findFirst`'s does not — copying it across made Prisma reject the call with
+ * "Unknown argument `userId_taskTitle_themeId`", which 500'd every task
+ * completion once workspaces went live (#1307). Both places that turn a unique
+ * where into a findFirst filter run this.
+ *
+ * @param where - The caller's unique `where` / 呼び出し側の where
+ * @returns An equivalent filter findFirst accepts / findFirst が受ける同等の filter
+ */
+function flattenUniqueWhere(where: unknown): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(asRecord(where))) {
+    if (isCompoundUniqueEntry(key, value)) Object.assign(out, value);
+    else out[key] = value;
+  }
+  return out;
+}
+
 /**
  * Decide how to rewrite one operation so it stays inside a workspace.
  *
@@ -153,7 +201,9 @@ export function scopeOperation(input: ScopeInput): ScopeDecision {
     // own cannot choose the workspace it reads from or writes to.
     return {
       kind: 'upsert',
-      where: { ...asRecord(where), workspaceId },
+      // The unique `where` becomes a findFirst filter, so the compound-unique
+      // shorthand has to be flattened here too (#1307).
+      where: { ...flattenUniqueWhere(where), workspaceId },
       create: { ...asRecord(create), workspaceId },
       update: asRecord(update),
       rest,
@@ -174,7 +224,7 @@ export function scopeOperation(input: ScopeInput): ScopeDecision {
   const rewritten = UNIQUE_TO_FIRST[operation];
   if (rewritten !== undefined) {
     const next = asRecord(args);
-    next.where = { ...asRecord(next.where), workspaceId };
+    next.where = { ...flattenUniqueWhere(next.where), workspaceId };
     return { kind: 'rewritten', operation: rewritten, args: next };
   }
 
