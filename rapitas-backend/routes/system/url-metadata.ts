@@ -65,20 +65,21 @@ function extractTitle(html: string): string | null {
 export const urlMetadataRoutes = new Elysia().post(
   '/url-metadata',
   async (context) => {
-    const { body, set } = context;
+    const { body } = context;
     const { url } = body as { url: string };
 
     let target: URL;
     try {
       target = await assertFetchableUrl(url);
-    } catch (error) {
-      // A refused URL is the caller's error, and saying so is better than
-      // silently returning the raw string as its own title.
-      set.status = 400;
-      return {
-        error: error instanceof Error ? error.message : 'URLを取得できません',
-        url,
-      };
+    } catch {
+      // NOTE: A refused URL keeps the pre-existing fallback contract — HTTP 200
+      // with the raw string as its own title — instead of becoming a 400. The
+      // security property is that the fetch does not happen, not that an error
+      // is reported, and callers rely on always getting a usable shape back
+      // (pinned by tests/routes/system/url-metadata-routes.test.ts). A URL that
+      // merely times out already behaves this way. Changing it to 400 broke
+      // that test, which the advisory full suite caught.
+      return { title: url, favicon: '', url, domain: '' };
     }
 
     const controller = new AbortController();
