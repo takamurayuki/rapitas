@@ -70,8 +70,14 @@ export default function TodayTaskProgressBarCompact({
   // overdue count — the only number still worth knowing on such a day.
   if (!isLoading && totalCount === 0) {
     return (
-      <div className={`relative ${className}`}>
-        <p className="text-[12px] font-medium tracking-wide text-zinc-500 dark:text-zinc-400">
+      // NOTE: `className` (the bar's fixed width) is deliberately not applied
+      // here. It is narrower than the sentence, which wrapped and left "2件"
+      // alone on a second line — a number cut off from the words it belongs
+      // to. A sentence sizes itself, and staying one line also keeps the
+      // toolbar the same height whether or not anything is due today, so the
+      // task list below does not jump when the theme changes.
+      <div className="relative">
+        <p className="whitespace-nowrap text-[12px] font-medium tracking-wide text-zinc-500 dark:text-zinc-400">
           {overdueCount > 0
             ? t('noDueTodayWithOverdue', { count: overdueCount })
             : t('noDueTodayTasks')}
