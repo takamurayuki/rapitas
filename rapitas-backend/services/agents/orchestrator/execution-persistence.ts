@@ -221,14 +221,8 @@ export async function saveExecutionResult(
         ? toJsonString(result.artifacts)
         : existingData?.artifacts || null,
       completedAt: result.waitingForInput ? null : new Date(),
-      // NOTE: Overwritten, not accumulated (#1302). The count comes from the
-      // CLI's stream-json `result`, whose usage is session-cumulative — the
-      // same message whose total_cost_usd task-spend-rollup.ts documents as
-      // cumulative — so adding snapshots double counted on every resume. This
-      // now matches costUsd and the four per-class columns in `usageUpdate`.
-      // A result with no token value keeps what the earlier save recorded; an
-      // explicit 0 is a measurement and does overwrite. executionTimeMs below
-      // still accumulates, correctly: the resolver measures it per invocation.
+      // NOTE: Overwritten since #1302 — the count comes from the stream-json
+      // `result`, whose usage is session-cumulative like its total_cost_usd.
       tokensUsed: toFiniteNumber(result.tokensUsed) ?? existingData?.tokensUsed ?? 0,
       executionTimeMs: (existingData?.executionTimeMs || 0) + (result.executionTimeMs || 0),
       errorMessage: result.errorMessage,
