@@ -23,6 +23,8 @@ export interface TodayTaskProgressBarCompactProps {
   className: string;
   isLoading: boolean;
   totalCount: number;
+  /** Unfinished tasks already past due — the one number worth saying on an empty day. */
+  overdueCount: number;
   efficiency: number;
   tasks: DueTodayTask[] | undefined;
   isCelebrating: boolean;
@@ -35,6 +37,7 @@ export default function TodayTaskProgressBarCompact({
   className,
   isLoading,
   totalCount,
+  overdueCount,
   efficiency,
   tasks,
   isCelebrating,
@@ -59,19 +62,20 @@ export default function TodayTaskProgressBarCompact({
   const popoverTasks = remaining.slice(0, 6);
   const extraCount = remaining.length - popoverTasks.length;
 
-  // ── 本日期限のタスクがない場合: 無効表示 ──────────────────────────────
+  // ── 本日期限のタスクがない場合: 文字だけ ──────────────────────────────
+  // NOTE: No bar and no card here (asked for 2026-10-31). A thermometer with
+  // nothing due can only ever read 0%, which looks like a day gone badly
+  // rather than a day with nothing on it, and it drew the eye to the one
+  // element carrying no information. What is left is the sentence, plus the
+  // overdue count — the only number still worth knowing on such a day.
   if (!isLoading && totalCount === 0) {
     return (
       <div className={`relative ${className}`}>
-        {/* NOTE: rounded-lg + no shadow + zinc hues — matches the task cards and
-            toolbar controls; the old rounded-xl slate card with shadow-sm floated
-            against its flat neighbours. */}
-        <div className="rounded-lg border border-zinc-200 bg-white px-3 py-2.5 dark:border-zinc-800 dark:bg-indigo-dark-900">
-          <p className="mb-1.5 text-[12px] font-semibold tracking-wide text-zinc-500 dark:text-zinc-400">
-            {t('noDueTodayTasks')}
-          </p>
-          <div className="relative h-4 rounded-full border-2 border-zinc-200 bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800" />
-        </div>
+        <p className="text-[12px] font-medium tracking-wide text-zinc-500 dark:text-zinc-400">
+          {overdueCount > 0
+            ? t('noDueTodayWithOverdue', { count: overdueCount })
+            : t('noDueTodayTasks')}
+        </p>
       </div>
     );
   }
