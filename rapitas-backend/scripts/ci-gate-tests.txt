@@ -177,3 +177,7 @@ services/workflow/workflow-hypothesis-context.test.ts
 routes/tasks/attachment-serving.test.ts
 routes/tasks/resources-upload-source.test.ts
 tests/routes/tasks/resources-routes.test.ts
+
+# ===== 外部URL取得のSSRF対策（アドレス方針・リダイレクト再検査・本文上限） =====
+routes/system/url-fetch-guard.test.ts
+tests/routes/system/url-metadata-routes.test.ts
