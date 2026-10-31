@@ -19,6 +19,18 @@ interface FilterDataState {
 
   // Cache settings
   cacheExpireTime: number; // milliseconds (default: 1 hour)
+
+  /**
+   * Which signed-in user the cached categories/themes belong to.
+   *
+   * NOTE(security): This store persists to localStorage under one fixed key,
+   * and sign-out used to leave the previous user's categories and themes
+   * there for the next session to rehydrate. Recording the owner lets the
+   * cache notice on its own that the subject changed — a crash, a cleared
+   * cookie or an expired session never runs a sign-out handler, so a
+   * logout-driven clear alone would not be enough.
+   */
+  ownerUserId: string | null;
 }
 
 interface FilterDataActions {
@@ -32,6 +44,8 @@ interface FilterDataActions {
 
   // Cache management
   clearCache: () => void;
+  /** Discard the cache when the signed-in user is not the one who filled it. */
+  syncCacheOwner: (userId: string | null) => void;
   isDataFresh: () => boolean;
   shouldBackgroundRefresh: () => boolean;
   backgroundRefresh: () => Promise<void>;
@@ -107,6 +121,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
       isLoading: false,
       error: null,
       cacheExpireTime: DEFAULT_CACHE_EXPIRE_TIME,
+      ownerUserId: null,
 
       initializeData: async () => {
         const state = get();
@@ -223,6 +238,16 @@ export const useFilterDataStore = create<FilterDataStore>()(
         });
       },
 
+      syncCacheOwner: (userId) => {
+        if (get().ownerUserId === userId) return;
+        // A cache persisted before this field existed carries no owner. It
+        // cannot be attributed to anyone, so it is discarded rather than
+        // inherited by whoever signs in next.
+        logger.info('[filterDataStore] cache owner changed; discarding cached data');
+        get().clearCache();
+        set({ ownerUserId: userId });
+      },
+
       // Check data freshness
       isDataFresh: () => {
         const state = get();
@@ -323,6 +348,8 @@ export const useFilterDataStore = create<FilterDataStore>()(
         lastUpdated: state.lastUpdated,
         isInitialized: state.isInitialized,
         cacheExpireTime: state.cacheExpireTime,
+        // Persisted with the data so a reload does not look like a new owner.
+        ownerUserId: state.ownerUserId,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {

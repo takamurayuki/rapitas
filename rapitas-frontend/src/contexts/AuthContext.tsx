@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
 import { shouldValidateSession } from '@/utils/auth-session';
 import { createLogger } from '@/lib/logger';
+import { useFilterDataStore } from '@/stores/filter-data-store';
 
 const logger = createLogger('AuthContext');
 
@@ -305,6 +306,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // NOTE(security): The filter store persists categories and themes to
+  // localStorage under one fixed key, so signing in as a different user in the
+  // same browser used to rehydrate the previous user's data. Driving the guard
+  // off the authenticated subject — rather than off logout() — means it also
+  // fires after a crash, a cleared cookie or an expired session, none of which
+  // run a sign-out handler.
+  const currentUserId = state.user?.id ?? null;
+  useEffect(() => {
+    useFilterDataStore
+      .getState()
+      .syncCacheOwner(currentUserId === null ? null : String(currentUserId));
+  }, [currentUserId]);
 
   const contextValue: AuthContextType = {
     ...state,
