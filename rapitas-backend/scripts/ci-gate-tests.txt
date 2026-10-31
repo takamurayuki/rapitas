@@ -168,3 +168,8 @@ config/frontend-url.test.ts
 # SQL が静かに何もしない事故（列名の打ち間違い）を実DBで捕まえる。
 services/core/password-reset.test.ts
 scripts/reset-password.test.ts
+
+# ===== 添付ファイル配信のセキュリティ（inline 実行・認可・symlink 迂回） =====
+routes/tasks/attachment-serving.test.ts
+routes/tasks/resources-upload-source.test.ts
+tests/routes/tasks/resources-routes.test.ts

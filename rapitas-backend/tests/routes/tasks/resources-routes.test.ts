@@ -5,6 +5,7 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { Elysia } from 'elysia';
 import { tmpdir } from 'os';
+import { realpathSync, rmSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 
 const mockPrisma = {
@@ -216,9 +217,27 @@ describe('DELETE /resources/:id', () => {
 // fix: it must accept paths inside the allowlisted roots and reject both
 // traversal-to-outside and known-sensitive filenames.
 describe('resolveUploadSourcePath (upload-from-path path containment)', () => {
+  // NOTE: The file is created now, and the expectation is the REAL path.
+  // Containment is checked after realpathSync so a symlink inside an
+  // allowlisted root cannot point outside it, which means the path has to
+  // exist to be resolved — and on Windows the temp dir is itself reached
+  // through links, so its lexical and real spellings differ. A missing path is
+  // rejected with the same 'ファイルが見つかりません' the endpoint already
+  // threw a few lines later, so nothing a caller sees changed.
   test('accepts a path inside the OS temp dir (an allowlisted root)', () => {
     const inRoot = join(tmpdir(), 'rapitas-upload-test.txt');
-    expect(resolveUploadSourcePath(inRoot)).toBe(resolve(inRoot));
+    writeFileSync(inRoot, 'test');
+    try {
+      expect(resolveUploadSourcePath(inRoot)).toBe(realpathSync.native(inRoot));
+    } finally {
+      rmSync(inRoot, { force: true });
+    }
+  });
+
+  test('rejects a path that does not exist, since there is nothing to contain', () => {
+    expect(() => resolveUploadSourcePath(join(tmpdir(), 'rapitas-absent-file.txt'))).toThrow(
+      ValidationError,
+    );
   });
 
   test('rejects an absolute path outside every allowlisted root', () => {

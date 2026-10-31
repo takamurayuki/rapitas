@@ -4,9 +4,9 @@
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
-import { ValidationError } from '../../middleware/error-handler';
+import { NotFoundError, ValidationError } from '../../middleware/error-handler';
 import { writeFile, unlink, copyFile, stat } from 'fs/promises';
-import { existsSync } from 'fs';
+import { existsSync, realpathSync } from 'fs';
 import { join, basename, extname, resolve, sep } from 'path';
 import { tmpdir } from 'os';
 import { getProjectRoot } from '../../config';
@@ -18,6 +18,7 @@ import {
   getMimeType,
   resolveUploadPath,
 } from './resources-upload-support';
+import { ATTACHMENT_SECURITY_HEADERS, resolveAttachmentDisposition } from './attachment-serving';
 
 import { randomUUID } from 'crypto';
 
@@ -64,16 +65,82 @@ export function getAllowedUploadSourceRoots(): string[] {
  * @throws {ValidationError} When the path escapes every allowlisted root, or matches a known-sensitive filename
  */
 export function resolveUploadSourcePath(sourcePath: string): string {
-  const resolved = resolve(sourcePath);
-  if (SENSITIVE_UPLOAD_FILENAME_PATTERN.test(resolved)) {
+  const lexical = resolve(sourcePath);
+  // The lexical name is checked too: a link called `.env` is refused on its
+  // own name as well as on its target's.
+  if (SENSITIVE_UPLOAD_FILENAME_PATTERN.test(lexical)) {
     throw new ValidationError('このファイルはアップロードできません');
   }
-  const roots = getAllowedUploadSourceRoots();
-  const contained = roots.some((root) => resolved === root || resolved.startsWith(root + sep));
+
+  // NOTE(security): The REAL path is what the checks below must see. `resolve`
+  // is purely lexical while `copyFile` follows links, so a symlink or a Windows
+  // junction sitting inside an allowlisted root — the OS temp dir is one, and a
+  // Tauri dialog writes there — pointed anywhere on disk and bypassed both the
+  // allowlist and the sensitive-filename rule by naming the link instead of its
+  // target. The roots are resolved the same way, because on Windows the temp
+  // dir itself is reached through links and comparing a real path against a
+  // lexical root would reject legitimate files.
+  let real: string;
+  try {
+    real = realpathSync.native(lexical);
+  } catch {
+    throw new ValidationError('ファイルが見つかりません');
+  }
+  if (SENSITIVE_UPLOAD_FILENAME_PATTERN.test(real)) {
+    throw new ValidationError('このファイルはアップロードできません');
+  }
+
+  const roots = getAllowedUploadSourceRoots().map((root) => {
+    try {
+      return realpathSync.native(root);
+    } catch {
+      // A configured root that does not exist cannot contain anything; keep it
+      // in the list so the comparison simply never matches it.
+      return root;
+    }
+  });
+  const contained = roots.some((root) => real === root || real.startsWith(root + sep));
   if (!contained) {
     throw new ValidationError('許可されていない場所のファイルです');
   }
-  return resolved;
+  return real;
+}
+
+/**
+ * Resolve an attachment request to a file on disk, refusing anything this
+ * workspace does not own.
+ *
+ * NOTE: The Resource row is now REQUIRED, not an optional source of MIME
+ * metadata. It used to be looked up only to decorate the response, so a file
+ * whose row was absent — deleted, or belonging to another workspace, since
+ * `prisma.resource` is workspace-scoped — was still served to anyone who knew
+ * its stored name. Existence on disk was the only check.
+ *
+ * @param filename - Stored filename from the URL / URL 内の保存ファイル名
+ * @returns The contained path and its authorised row / 配信パスと認可済み行
+ * @throws {NotFoundError} When no visible Resource claims the file / 認可された行が無い場合
+ */
+async function resolveAuthorizedAttachment(
+  filename: string,
+): Promise<{ filePath: string; resource: { mimeType: string | null; fileName: string | null } }> {
+  const filePath = resolveUploadPath(filename);
+  const resource = await prisma.resource.findFirst({
+    where: { filePath: filename },
+    select: { mimeType: true, fileName: true },
+  });
+  if (!resource || !existsSync(filePath)) {
+    throw new NotFoundError('ファイルが見つかりません');
+  }
+  return { filePath, resource };
+}
+
+/** `filename*=UTF-8''...` value, escaping what RFC 5987 leaves to the caller. */
+function encodeContentDispositionFilename(name: string): string {
+  return encodeURIComponent(name)
+    .replace(/'/g, '%27')
+    .replace(/\(/g, '%28')
+    .replace(/\)/g, '%29')
+    .replace(/\*/g, '%2A');
 }
 
 export const resourcesRoutes = new Elysia()
@@ -303,69 +370,41 @@ export const resourcesRoutes = new Elysia()
   .get('/resources/file/:filename', async (context) => {
     const { params, set } = context;
     const { filename } = params;
-    const filePath = resolveUploadPath(filename);
+    const { filePath, resource } = await resolveAuthorizedAttachment(filename);
 
-    if (!existsSync(filePath)) {
-      throw new ValidationError('ファイルが見つかりません');
-    }
+    const { contentType, disposition } = resolveAttachmentDisposition(
+      resource.mimeType || getMimeType(filePath),
+      'inline',
+    );
+    set.headers['Content-Type'] = contentType;
+    // Private: this is a per-workspace artifact, not a public asset.
+    set.headers['Cache-Control'] = 'private, max-age=3600';
+    Object.assign(set.headers, ATTACHMENT_SECURITY_HEADERS);
 
-    // Get resource info for MIME type
-    const resource = await prisma.resource.findFirst({
-      where: { filePath: filename },
-    });
+    const name = resource.fileName
+      ? `filename*=UTF-8''${encodeContentDispositionFilename(resource.fileName)}`
+      : `filename="${filename}"`;
+    set.headers['Content-Disposition'] = `${disposition}; ${name}`;
 
-    const file = Bun.file(filePath);
-    const mimeType = resource?.mimeType || getMimeType(filePath);
-
-    set.headers['Content-Type'] = mimeType.includes('text')
-      ? `${mimeType}; charset=utf-8`
-      : mimeType;
-    set.headers['Cache-Control'] = 'public, max-age=3600';
-
-    if (resource?.fileName) {
-      const encodedFilename = encodeURIComponent(resource.fileName)
-        .replace(/'/g, '%27')
-        .replace(/\(/g, '%28')
-        .replace(/\)/g, '%29')
-        .replace(/\*/g, '%2A');
-      set.headers['Content-Disposition'] = `inline; filename*=UTF-8''${encodedFilename}`;
-    } else {
-      set.headers['Content-Disposition'] = `inline; filename="${filename}"`;
-    }
-
-    return file;
+    return Bun.file(filePath);
   })
 
   // Download uploaded file (attachment - for downloading)
   .get('/resources/download/:filename', async (context) => {
     const { params, set } = context;
     const { filename } = params;
-    const filePath = resolveUploadPath(filename);
+    const { filePath, resource } = await resolveAuthorizedAttachment(filename);
 
-    if (!existsSync(filePath)) {
-      throw new ValidationError('ファイルが見つかりません');
-    }
+    const { contentType } = resolveAttachmentDisposition(resource.mimeType, 'attachment');
+    set.headers['Content-Type'] = contentType;
+    Object.assign(set.headers, ATTACHMENT_SECURITY_HEADERS);
 
-    // Get resource info for MIME type and original filename
-    const resource = await prisma.resource.findFirst({
-      where: { filePath: filename },
-    });
+    const name = resource.fileName
+      ? `filename*=UTF-8''${encodeContentDispositionFilename(resource.fileName)}`
+      : `filename="${filename}"`;
+    set.headers['Content-Disposition'] = `attachment; ${name}`;
 
-    const file = Bun.file(filePath);
-    set.headers['Content-Type'] = resource?.mimeType || 'application/octet-stream';
-
-    if (resource?.fileName) {
-      const encodedFilename = encodeURIComponent(resource.fileName)
-        .replace(/'/g, '%27')
-        .replace(/\(/g, '%28')
-        .replace(/\)/g, '%29')
-        .replace(/\*/g, '%2A');
-      set.headers['Content-Disposition'] = `attachment; filename*=UTF-8''${encodedFilename}`;
-    } else {
-      set.headers['Content-Disposition'] = `attachment; filename="${filename}"`;
-    }
-
-    return file;
+    return Bun.file(filePath);
   })
 
   // Delete resource (and file if exists)
