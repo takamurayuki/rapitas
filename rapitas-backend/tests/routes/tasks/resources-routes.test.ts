@@ -5,7 +5,7 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { Elysia } from 'elysia';
 import { tmpdir } from 'os';
-import { realpathSync, rmSync, writeFileSync } from 'fs';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 
 const mockPrisma = {
@@ -225,12 +225,17 @@ describe('resolveUploadSourcePath (upload-from-path path containment)', () => {
   // rejected with the same 'ファイルが見つかりません' the endpoint already
   // threw a few lines later, so nothing a caller sees changed.
   test('accepts a path inside the OS temp dir (an allowlisted root)', () => {
-    const inRoot = join(tmpdir(), 'rapitas-upload-test.txt');
+    // NOTE: mkdtempSync, not a fixed name under tmpdir(). A predictable path in
+    // the shared temp directory is a race another process can win by
+    // pre-creating or symlinking it — which CodeQL flags, and which would be a
+    // poor look in the very change that stops this endpoint following links.
+    const dir = mkdtempSync(join(tmpdir(), 'rapitas-upload-test-'));
+    const inRoot = join(dir, 'source.txt');
     writeFileSync(inRoot, 'test');
     try {
       expect(resolveUploadSourcePath(inRoot)).toBe(realpathSync.native(inRoot));
     } finally {
-      rmSync(inRoot, { force: true });
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 
