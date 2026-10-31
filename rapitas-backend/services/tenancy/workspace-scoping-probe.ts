@@ -44,6 +44,21 @@ function seed(dbPath: string): void {
       raw.run('INSERT INTO "Category" ("name","updatedAt") VALUES (?,?)', [name, now]);
     }
     raw.run('INSERT INTO "Task" ("title","updatedAt") VALUES (?,?)', ['probe', now]);
+    // A model with a COMPOUND unique, which every other probe below lacks:
+    // they all key on the single scalar `id`. findUnique accepts a compound
+    // unique only as a nested shorthand key that findFirst has no equivalent
+    // for, so the rewrite has to flatten it — and because nothing here
+    // exercised that, #1307 shipped and every task completion 500'd. One row
+    // inside the workspace and one outside, so a scoped read has something to
+    // find and something it must not.
+    raw.run(
+      'INSERT INTO "TaskPattern" ("workspaceId","userId","taskTitle","themeId","priority","updatedAt") VALUES (?,?,?,?,?,?)',
+      [WS, 1, 'compound-in-99', 0, 'medium', now],
+    );
+    raw.run(
+      'INSERT INTO "TaskPattern" ("workspaceId","userId","taskTitle","themeId","priority","updatedAt") VALUES (?,?,?,?,?,?)',
+      [null, 1, 'compound-outside', 0, 'medium', now],
+    );
   } finally {
     raw.close();
   }
@@ -149,6 +164,45 @@ async function main(): Promise<void> {
         } | null;
         return row?.name ?? null;
       }),
+      /*
+       * A COMPOUND unique, read through findUnique. Every probe above keys on
+       * the single scalar `id`, which is why none of them caught #1307: the
+       * rewrite to findFirst copied the nested shorthand key across verbatim
+       * and Prisma rejected the whole query with "Unknown argument
+       * `userId_taskTitle_themeId`". A string here instead of a row means the
+       * query was refused, not that the row was missing.
+       */
+      ...(await (async () => {
+        const key = (taskTitle: string) => ({
+          userId_taskTitle_themeId: { userId: 1, taskTitle, themeId: 0 },
+        });
+        const read = async (
+          taskTitle: string,
+          scoped: boolean,
+        ): Promise<string | null | { error: string }> => {
+          const run = async () => {
+            const row = (await prisma.taskPattern.findUnique({ where: key(taskTitle) })) as {
+              taskTitle: string;
+            } | null;
+            return row?.taskTitle ?? null;
+          };
+          try {
+            return scoped ? await runInWorkspace(WS, run) : await run();
+          } catch (error) {
+            return { error: error instanceof Error ? error.message.slice(0, 120) : 'non-error' };
+          }
+        };
+        return {
+          compoundFindUniqueInWorkspace: await read('compound-in-99', true),
+          // The row outside the workspace must be invisible to a scoped read —
+          // null here, and NOT an error.
+          compoundFindUniqueOutsideHidden: await read('compound-outside', true),
+          // Controls: unscoped, both rows are reachable, so a null above means
+          // "scoped away" rather than "this client cannot read".
+          compoundFindUniqueNoWorkspace: await read('compound-in-99', false),
+          compoundFindUniqueOutsideNoWorkspace: await read('compound-outside', false),
+        };
+      })()),
     };
     writeFileSync(outPath, JSON.stringify(out), 'utf8');
   } finally {

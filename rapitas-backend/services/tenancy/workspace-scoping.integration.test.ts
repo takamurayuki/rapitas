@@ -42,6 +42,11 @@ interface Probe {
   upsertSecondCallName: string;
   upsertRowsInWorkspace: number;
   seededRowNameAfterUpsert: string | null;
+  /** A row's taskTitle, null when scoped away, or `{ error }` when refused. */
+  compoundFindUniqueInWorkspace: string | null | { error: string };
+  compoundFindUniqueOutsideHidden: string | null | { error: string };
+  compoundFindUniqueNoWorkspace: string | null | { error: string };
+  compoundFindUniqueOutsideNoWorkspace: string | null | { error: string };
 }
 
 let probe: Probe;
@@ -135,6 +140,25 @@ describe('a real client, scoped', () => {
 
   test('runAcrossAllWorkspaces escapes the scope on purpose', () => {
     expect(probe.countEscaped).toBe(probe.countNoWorkspace);
+  });
+
+  // Every other probe keys on the single scalar `id`, so none of them could
+  // catch #1307: findUnique takes a compound unique only as a nested shorthand
+  // key, the rewrite to findFirst copied it across verbatim, and Prisma
+  // rejected the query — which 500'd every task completion. A `{ error }` here
+  // means the query was refused rather than the row being absent.
+  test('a compound unique survives the rewrite against a real client', () => {
+    expect(probe.compoundFindUniqueInWorkspace).toBe('compound-in-99');
+  });
+
+  test('a compound-unique read still cannot leave the workspace', () => {
+    // null, not an error: the row is there, the scope is what hides it.
+    expect(probe.compoundFindUniqueOutsideHidden).toBeNull();
+  });
+
+  test('the controls prove the compound read works at all', () => {
+    expect(probe.compoundFindUniqueNoWorkspace).toBe('compound-in-99');
+    expect(probe.compoundFindUniqueOutsideNoWorkspace).toBe('compound-outside');
   });
 
   test('no workspace means no change, which is all of stage 2', () => {
