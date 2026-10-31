@@ -173,6 +173,11 @@ scripts/reset-password.test.ts
 services/memory/hypothesis-service.ledger-scope.test.ts
 services/workflow/workflow-hypothesis-context.test.ts
 
+# ===== 添付ファイル配信のセキュリティ（inline 実行・認可・symlink 迂回） =====
+routes/tasks/attachment-serving.test.ts
+routes/tasks/resources-upload-source.test.ts
+tests/routes/tasks/resources-routes.test.ts
+
 # ===== 外部URL取得のSSRF対策（アドレス方針・リダイレクト再検査・本文上限） =====
 routes/system/url-fetch-guard.test.ts
 tests/routes/system/url-metadata-routes.test.ts
