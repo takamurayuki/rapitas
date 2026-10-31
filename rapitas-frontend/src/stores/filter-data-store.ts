@@ -76,6 +76,25 @@ const FETCH_TIMEOUT = 10000; // 10 seconds
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
+ * Whether a response that started under `startedAs` may still be applied now
+ * that the owner is `current`.
+ *
+ * NOTE(security): Clearing on a switch is not enough on its own. A request
+ * started as the previous user resolves AFTERWARDS and writes into the
+ * freshly cleared store, so the data returns without anyone signing in again
+ * (reproduced 2026-10-31). Adopting is not switching, though: at startup a
+ * page can load before the auth effect reports who is signed in, so the owner
+ * goes null -> A while the first request is open. That data is A's, and
+ * discarding it would leave the filters empty on the first view.
+ *
+ * @param startedAs - The owner when the request began / 開始時の所有者
+ * @param current - The owner now / 現在の所有者
+ * @returns true when the result still belongs to the current owner / 適用可否
+ */
+const isStillOurs = (startedAs: string | null, current: string | null): boolean =>
+  startedAs === null || startedAs === current;
+
+/**
  * Fetch function with timeout
  */
 const fetchWithTimeout = async <T>(fetchFn: () => Promise<T>, timeout: number): Promise<T> => {
@@ -138,6 +157,8 @@ export const useFilterDataStore = create<FilterDataStore>()(
         }
 
         logger.info('[filterDataStore] initializeData: Starting initialization');
+        // Remembered before the request opens, and re-checked after it lands.
+        const startedAs = state.ownerUserId;
         set({ isLoading: true, error: null });
 
         try {
@@ -146,6 +167,12 @@ export const useFilterDataStore = create<FilterDataStore>()(
             fetchWithRetry(() => apiFetch<Category[]>('/categories', { cacheTime: 300000 })),
             fetchWithRetry(() => apiFetch<Theme[]>('/themes', { cacheTime: 300000 })),
           ]);
+
+          if (!isStillOurs(startedAs, get().ownerUserId)) {
+            logger.info('[filterDataStore] owner changed mid-request; discarding the response');
+            set({ isLoading: false });
+            return;
+          }
 
           // Process category results
           if (categoriesResult.status === 'fulfilled') {
@@ -284,6 +311,10 @@ export const useFilterDataStore = create<FilterDataStore>()(
       // Background update (transparent to user)
       backgroundRefresh: async () => {
         logger.debug('[filterDataStore] backgroundRefresh: Starting background update');
+        // Same ownership check as initializeData. A background refresh is the
+        // likeliest one to still be open when the subject changes, since
+        // nothing is waiting on it.
+        const startedAs = get().ownerUserId;
 
         try {
           // Fetch categories and themes in parallel (don't change loading state)
@@ -291,6 +322,13 @@ export const useFilterDataStore = create<FilterDataStore>()(
             fetchWithRetry(() => apiFetch<Category[]>('/categories', { cacheTime: 300000 })),
             fetchWithRetry(() => apiFetch<Theme[]>('/themes', { cacheTime: 300000 })),
           ]);
+
+          if (!isStillOurs(startedAs, get().ownerUserId)) {
+            logger.info(
+              '[filterDataStore] owner changed during a background refresh; discarding it',
+            );
+            return;
+          }
 
           let hasUpdates = false;
 

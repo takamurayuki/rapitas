@@ -52,17 +52,100 @@ function isBlockedIPv4(ip: string): boolean {
   return false;
 }
 
+/**
+ * Expand an IPv6 literal to its 16 bytes.
+ *
+ * NOTE(security): Judging the address STRING was the first implementation's
+ * mistake. It matched `::ffff:127.0.0.1` and missed every other spelling of
+ * that same address — reproduced 2026-10-31, 7 of 12 forms got through,
+ * including `::ffff:7f00:1` (hex), `0:0:0:0:0:ffff:127.0.0.1` (uncompressed)
+ * and `::ffff:a9fe:a9fe` (the cloud-metadata address in hex). One address has
+ * many spellings; only the bytes are unambiguous.
+ *
+ * @param ip - An IPv6 literal, already validated by `isIP` / 検証済みの IPv6 リテラル
+ * @returns The 16 bytes, or null when it cannot be expanded / 16バイト、展開不能なら null
+ */
+function ipv6ToBytes(ip: string): Uint8Array | null {
+  const halves = ip.split('::');
+  if (halves.length > 2) return null;
+
+  const expand = (part: string): number[] | null => {
+    if (part === '') return [];
+    const out: number[] = [];
+    const pieces = part.split(':');
+    for (let i = 0; i < pieces.length; i += 1) {
+      const piece = pieces[i];
+      // A trailing dotted quad occupies the last two hextets.
+      if (piece.includes('.')) {
+        if (i !== pieces.length - 1) return null;
+        const octets = piece.split('.').map(Number);
+        if (octets.length !== 4 || octets.some((o) => !Number.isInteger(o) || o < 0 || o > 255)) {
+          return null;
+        }
+        out.push(...octets);
+        continue;
+      }
+      if (!/^[0-9a-f]{1,4}$/i.test(piece)) return null;
+      const value = Number.parseInt(piece, 16);
+      out.push((value >> 8) & 0xff, value & 0xff);
+    }
+    return out;
+  };
+
+  const head = expand(halves[0]);
+  const tail = halves.length === 2 ? expand(halves[1]) : [];
+  if (head === null || tail === null) return null;
+  if (halves.length === 1) return head.length === 16 ? new Uint8Array(head) : null;
+
+  const gap = 16 - head.length - tail.length;
+  if (gap < 0) return null;
+  return new Uint8Array([...head, ...new Array(gap).fill(0), ...tail]);
+}
+
+/** The well-known NAT64 prefix, 64:ff9b::/96, which embeds an IPv4 address. */
+const NAT64_PREFIX = [0x00, 0x64, 0xff, 0x9b, 0, 0, 0, 0, 0, 0, 0, 0];
+
+function startsWithBytes(bytes: Uint8Array, prefix: number[]): boolean {
+  return prefix.every((value, index) => bytes[index] === value);
+}
+
+/** The embedded IPv4 address as dotted quad, for the forms that carry one. */
+function embeddedIPv4(bytes: Uint8Array): string | null {
+  const firstTenZero = bytes.slice(0, 10).every((b) => b === 0);
+  // ::ffff:a.b.c.d — IPv4-mapped.
+  if (firstTenZero && bytes[10] === 0xff && bytes[11] === 0xff) {
+    return `${bytes[12]}.${bytes[13]}.${bytes[14]}.${bytes[15]}`;
+  }
+  // ::a.b.c.d — deprecated IPv4-compatible. Excludes :: and ::1, which are
+  // judged on their own below.
+  if (firstTenZero && bytes[10] === 0 && bytes[11] === 0) {
+    const last = (bytes[12] << 24) | (bytes[13] << 16) | (bytes[14] << 8) | bytes[15];
+    if (last !== 0 && last !== 1) {
+      return `${bytes[12]}.${bytes[13]}.${bytes[14]}.${bytes[15]}`;
+    }
+  }
+  // 64:ff9b::a.b.c.d — NAT64 translation of an IPv4 destination.
+  if (startsWithBytes(bytes, NAT64_PREFIX)) {
+    return `${bytes[12]}.${bytes[13]}.${bytes[14]}.${bytes[15]}`;
+  }
+  return null;
+}
+
 function isBlockedIPv6(ip: string): boolean {
-  const lower = ip.toLowerCase();
-  // An IPv4-mapped address (::ffff:127.0.0.1) reaches the IPv4 stack, so it
-  // has to be judged by the IPv4 rules — not treated as an opaque v6 address.
-  const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) return isBlockedIPv4(mapped[1]);
-  if (lower === '::1' || lower === '::') return true;
-  const head = lower.split(':')[0];
-  if (/^f[cd]/.test(head)) return true; // fc00::/7 unique-local
-  if (/^fe[89ab]/.test(head)) return true; // fe80::/10 link-local
-  if (/^ff/.test(head)) return true; // multicast
+  const bytes = ipv6ToBytes(ip.toLowerCase());
+  if (bytes === null) return true;
+
+  // Any form that carries an IPv4 address reaches the IPv4 stack, so it is
+  // judged by the IPv4 rules rather than treated as an opaque v6 address.
+  const embedded = embeddedIPv4(bytes);
+  if (embedded !== null) return isBlockedIPv4(embedded);
+
+  const allZero = bytes.every((b) => b === 0);
+  if (allZero) return true; // ::
+  if (bytes.slice(0, 15).every((b) => b === 0) && bytes[15] === 1) return true; // ::1
+  if ((bytes[0] & 0xfe) === 0xfc) return true; // fc00::/7 unique-local
+  if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) return true; // fe80::/10 link-local
+  if (bytes[0] === 0xff) return true; // ff00::/8 multicast
   return false;
 }
 

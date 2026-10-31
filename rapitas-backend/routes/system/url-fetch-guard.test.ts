@@ -54,6 +54,34 @@ describe('isBlockedAddress', () => {
     expect(isBlockedAddress(ip)).toBe(false);
   });
 
+  // Reproduced 2026-10-31 by an external review: the first implementation
+  // pattern-matched the address STRING, so it caught `::ffff:127.0.0.1` and
+  // missed every other spelling of the same address. 7 of 12 forms got
+  // through, including the hex form of 127.0.0.1 and of the cloud-metadata
+  // address. The policy has to judge the 16 bytes, not the text.
+  test.each([
+    ['::ffff:7f00:1', 'the hex form of 127.0.0.1'],
+    ['0:0:0:0:0:ffff:127.0.0.1', 'the uncompressed mapped form'],
+    ['0:0:0:0:0:ffff:7f00:1', 'uncompressed and hex'],
+    ['::ffff:a00:1', 'the hex form of 10.0.0.1'],
+    ['::ffff:a9fe:a9fe', 'the hex form of 169.254.169.254'],
+    ['::ffff:c0a8:1', 'the hex form of 192.168.0.1'],
+    ['::127.0.0.1', 'the deprecated IPv4-compatible form'],
+    ['::7f00:1', 'IPv4-compatible, hex'],
+    ['64:ff9b::7f00:1', 'NAT64 carrying 127.0.0.1'],
+    ['64:ff9b::a9fe:a9fe', 'NAT64 carrying the metadata address'],
+    ['::FFFF:7F00:1', 'uppercase hex'],
+  ])('blocks %s (%s)', (ip) => {
+    expect(isBlockedAddress(ip)).toBe(true);
+  });
+
+  test.each([
+    ['64:ff9b::808:808', 'NAT64 carrying 8.8.8.8'],
+    ['::ffff:808:808', 'the mapped form of 8.8.8.8'],
+  ])('still allows %s (%s)', (ip) => {
+    expect(isBlockedAddress(ip)).toBe(false);
+  });
+
   test('treats an unparseable address as blocked', () => {
     // Fail closed: an address this code cannot classify is not one it can vouch
     // for.

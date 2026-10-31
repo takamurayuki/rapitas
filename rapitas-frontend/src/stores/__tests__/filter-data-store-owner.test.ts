@@ -13,8 +13,15 @@
  */
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 
+/** Resolvers for the in-flight fetches, so a switch can land mid-request. */
+let pending: Array<(value: unknown) => void> = [];
 vi.mock('@/lib/api-client', () => ({
-  apiFetch: vi.fn(async () => []),
+  apiFetch: vi.fn(
+    (path: string) =>
+      new Promise((resolve) => {
+        pending.push(() => resolve(path === '/categories' ? [{ id: 9, name: 'from-user-A' }] : []));
+      }),
+  ),
   clearApiCache: vi.fn(),
 }));
 
@@ -40,6 +47,7 @@ function seedFor(owner: string | null) {
 }
 
 beforeEach(() => {
+  pending = [];
   useFilterDataStore.setState({
     categories: [],
     themes: [],
@@ -115,5 +123,62 @@ describe('persisted shape', () => {
     // on every reload and discard a cache its rightful owner could have kept.
     useFilterDataStore.getState().syncCacheOwner('user-A');
     expect(useFilterDataStore.getState().ownerUserId).toBe('user-A');
+  });
+});
+
+// Reproduced 2026-10-31 by an external review: clearing on a switch is not
+// enough, because a fetch started as the previous user resolves AFTERWARDS and
+// writes its result straight into the freshly cleared store. The data comes
+// back without anyone signing in again.
+describe('a response that lands after the switch', () => {
+  it('is discarded instead of repopulating the cache', async () => {
+    useFilterDataStore.getState().syncCacheOwner('user-A');
+    const inFlight = useFilterDataStore.getState().initializeData();
+
+    // The switch happens while the request is still open.
+    useFilterDataStore.getState().syncCacheOwner('user-B');
+    pending.forEach((resolve) => resolve(undefined));
+    await inFlight;
+
+    const state = useFilterDataStore.getState();
+    expect(state.categories).toEqual([]);
+    expect(state.isInitialized).toBe(false);
+    expect(state.ownerUserId).toBe('user-B');
+  });
+
+  it('is discarded when the switch is a sign-out', async () => {
+    useFilterDataStore.getState().syncCacheOwner('user-A');
+    const inFlight = useFilterDataStore.getState().initializeData();
+
+    useFilterDataStore.getState().syncCacheOwner(null);
+    pending.forEach((resolve) => resolve(undefined));
+    await inFlight;
+
+    expect(useFilterDataStore.getState().categories).toEqual([]);
+  });
+
+  // Adopting is not switching. At startup a page can load before the auth
+  // effect reports who is signed in, so the owner goes null -> A while the
+  // first fetch is open. That data belongs to A — discarding it would leave
+  // the filters empty on the first view.
+  it('is kept when the owner was merely unknown when it started', async () => {
+    const inFlight = useFilterDataStore.getState().initializeData();
+
+    useFilterDataStore.getState().syncCacheOwner('user-A');
+    pending.forEach((resolve) => resolve(undefined));
+    await inFlight;
+
+    expect(useFilterDataStore.getState().categories).toHaveLength(1);
+    expect(useFilterDataStore.getState().isInitialized).toBe(true);
+  });
+
+  it('is kept when the owner never changed', async () => {
+    useFilterDataStore.getState().syncCacheOwner('user-A');
+    const inFlight = useFilterDataStore.getState().initializeData();
+
+    pending.forEach((resolve) => resolve(undefined));
+    await inFlight;
+
+    expect(useFilterDataStore.getState().categories).toHaveLength(1);
   });
 });
