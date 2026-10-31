@@ -64,7 +64,7 @@
     "todayTask": "本日のタスク",
     "todayDueTask": "本日期限のタスク",
     "noDueTodayTasks": "本日期限のタスクはありません",
-    "noDueTodayWithOverdue": "本日期限のタスクはありません・期限切れ {count}件",
+    "noDueTodayWithOverdue": "本日期限のタスクはありません・<overdue>期限切れ {count}件</overdue>",
     "allDueTodayDone": "本日期限のタスクすべて完了！",
     "categoryFilter": {
       "addCategory": "カテゴリを追加"

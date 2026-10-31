@@ -383,7 +383,7 @@
     "todayTask": "Today's tasks",
     "todayDueTask": "Tasks due today",
     "noDueTodayTasks": "No tasks due today",
-    "noDueTodayWithOverdue": "No tasks due today · {count} overdue",
+    "noDueTodayWithOverdue": "No tasks due today · <overdue>{count} overdue</overdue>",
     "allDueTodayDone": "All tasks due today completed!",
     "categoryFilter": {
       "addCategory": "Add category"
