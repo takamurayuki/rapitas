@@ -28,11 +28,21 @@ function overview(patch: Partial<MetricsOverview> = {}): MetricsOverview {
     totalFailed: 17,
     totalUnfinished: 12,
     overallSuccessRate: 97.36,
-    totalTokensUsed: 758_399_227,
+    // Equals the tokenBreakdown sum below — the backend totals the same four
+    // columns, so the headline can never disagree with the parts beside it.
+    totalTokensUsed: 294_210_264,
     totalAgents: 8,
     activeAgents: 5,
     averageExecutionTime: 176_297,
     firstPassCompletion: { completedTasks: 25, repairFreeTasks: 16, rate: 0.64 },
+    // The live October shape: cache reads are 94.78% of the volume at about a
+    // tenth the price of a fresh input token (#1302).
+    tokenBreakdown: {
+      input: 3_752,
+      output: 2_001_466,
+      cacheRead: 278_844_586,
+      cacheCreation: 13_360_460,
+    },
     ...patch,
   };
 }
@@ -127,11 +137,42 @@ describe('the quality card', () => {
   });
 });
 
+// One summed "total tokens" said nothing: it mixed four classes whose prices
+// differ by ~10x, and on this machine 94.78% of it is cache reads. The card now
+// says what the volume is made of (#1302).
+describe('the token card', () => {
+  it('names the share of each class that matters', () => {
+    render(<MetricsOverviewCards overview={overview()} />);
+    expect(screen.getByText(/tokenMix:\{"cache":"94.8","output":"0.7"\}/)).toBeTruthy();
+  });
+
+  it('reads the total in millions rather than six digits of thousands', () => {
+    const { container } = render(<MetricsOverviewCards overview={overview()} />);
+    const values = Array.from(container.querySelectorAll('.text-xl')).map((el) => el.textContent);
+    expect(values).toContain('294.2M');
+    // "758399K" was the old render: six digits plus a unit nobody can scan.
+    expect(values.join(' ')).not.toContain('K');
+  });
+
+  // Rows predating the per-class columns report only a total, and a 0/0 mix
+  // must not render as NaN%.
+  it('omits the mix when no class was recorded', () => {
+    render(
+      <MetricsOverviewCards
+        overview={overview({
+          tokenBreakdown: { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 },
+        })}
+      />,
+    );
+    expect(screen.queryByText(/tokenMix/)).toBeNull();
+    expect(screen.queryByText(/NaN/)).toBeNull();
+  });
+});
+
 describe('the rest of the bar', () => {
-  it('keeps the execution, token and agent counts', () => {
+  it('keeps the execution and agent counts', () => {
     render(<MetricsOverviewCards overview={overview()} />);
     expect(screen.getByText('655')).toBeTruthy();
-    expect(screen.getByText('758399K')).toBeTruthy();
     expect(screen.getByText(/5 \/ 8/)).toBeTruthy();
   });
 });

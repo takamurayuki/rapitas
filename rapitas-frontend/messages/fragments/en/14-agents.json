@@ -73,6 +73,7 @@
     "firstPassCompletionEmpty": "No completed tasks",
     "firstPassCompletionLowSample": "Low sample",
     "executionCompletionRate": "Exited cleanly {rate}%",
+    "tokenMix": "{cache}% cache read · {output}% output",
     "totalTokenUsage": "Total Token Usage",
     "activeAgents": "Active Agents",
     "recoveryMetrics": {

@@ -73,6 +73,7 @@
     "firstPassCompletionEmpty": "完了タスクなし",
     "firstPassCompletionLowSample": "標本不足",
     "executionCompletionRate": "実行完了率 {rate}%",
+    "tokenMix": "cache読み {cache}%・出力 {output}%",
     "totalTokenUsage": "総トークン使用量",
     "activeAgents": "アクティブエージェント",
     "recoveryMetrics": {

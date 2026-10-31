@@ -11,6 +11,10 @@ import { Prisma } from '../../../../../generated/prisma-postgres';
 import { prisma } from '../../../../../config/database';
 import type { AgentMetrics, ExecutionTrendData, MetricsOverview, DateRange } from '../../types';
 import { formatAgentDisplayName } from '../../../../../utils/agent/agent-display-name';
+// NOTE: One source of truth for "how many tokens did this row use". It prefers
+// the four per-class columns over `tokensUsed`, which accumulates a
+// session-cumulative source and double counts resumes (#1302). Pure, no I/O.
+import { resolveExecutionTokens } from '../../../../../services/usage-budget/usage-budget-math';
 
 type ExecutionWhereInput = Prisma.AgentExecutionWhereInput;
 
@@ -56,6 +60,10 @@ export async function getAgentMetrics(dateRange?: DateRange): Promise<AgentMetri
           id: true,
           status: true,
           tokensUsed: true,
+          inputTokens: true,
+          outputTokens: true,
+          cacheReadInputTokens: true,
+          cacheCreationInputTokens: true,
           executionTimeMs: true,
           completedAt: true,
           startedAt: true,
@@ -74,7 +82,7 @@ export async function getAgentMetrics(dateRange?: DateRange): Promise<AgentMetri
     ).length;
     const successRate = totalExecutions > 0 ? (successfulExecutions / totalExecutions) * 100 : 0;
 
-    const totalTokens = executions.reduce((sum, e) => sum + (e.tokensUsed || 0), 0);
+    const totalTokens = executions.reduce((sum, e) => sum + resolveExecutionTokens(e), 0);
     const averageTokensPerExecution = totalExecutions > 0 ? totalTokens / totalExecutions : null;
 
     const executionTimes = executions
@@ -135,6 +143,10 @@ export async function getExecutionTrends(
       createdAt: true,
       status: true,
       tokensUsed: true,
+      inputTokens: true,
+      outputTokens: true,
+      cacheReadInputTokens: true,
+      cacheCreationInputTokens: true,
       executionTimeMs: true,
     },
   });
@@ -166,7 +178,7 @@ export async function getExecutionTrends(
       groupedData[date].failed++;
     }
 
-    groupedData[date].totalTokens += execution.tokensUsed || 0;
+    groupedData[date].totalTokens += resolveExecutionTokens(execution);
 
     if (execution.executionTimeMs) {
       groupedData[date].executionTimes.push(execution.executionTimeMs);
@@ -204,6 +216,10 @@ export async function getMetricsOverview(dateRange?: DateRange): Promise<Metrics
       select: {
         status: true,
         tokensUsed: true,
+        inputTokens: true,
+        outputTokens: true,
+        cacheReadInputTokens: true,
+        cacheCreationInputTokens: true,
         executionTimeMs: true,
       },
     }),
@@ -227,7 +243,27 @@ export async function getMetricsOverview(dateRange?: DateRange): Promise<Metrics
   const overallSuccessRate =
     finishedExecutions > 0 ? (totalSuccessful / finishedExecutions) * 100 : 0;
 
-  const totalTokensUsed = executions.reduce((sum, e) => sum + (e.tokensUsed || 0), 0);
+  // NOTE: Broken out by class, and totalled from the per-class columns rather
+  // than from `tokensUsed` (#1302). One figure hid that 94.78% of it was cache
+  // reads — about a tenth the price of fresh input tokens — so it tracked
+  // neither spend nor load. `tokensUsed` additionally accumulated a
+  // session-cumulative source, double counting every resume; the per-class
+  // columns are overwritten with the latest snapshot. resolveExecutionTokens
+  // owns the same precedence (with the pre-per-class fallback) for one row.
+  const tokenBreakdown = executions.reduce(
+    (acc, e) => {
+      acc.input += e.inputTokens || 0;
+      acc.output += e.outputTokens || 0;
+      acc.cacheRead += e.cacheReadInputTokens || 0;
+      acc.cacheCreation += e.cacheCreationInputTokens || 0;
+      return acc;
+    },
+    { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 },
+  );
+  // Totalled per ROW, not per window: resolveExecutionTokens falls back to
+  // `tokensUsed` for rows predating the per-class columns, so a window mixing
+  // old and new rows counts each one by whatever it actually recorded.
+  const totalTokensUsed = executions.reduce((sum, e) => sum + resolveExecutionTokens(e), 0);
 
   const executionTimes = executions
     .filter((e) => e.executionTimeMs && e.executionTimeMs > 0)
@@ -244,6 +280,7 @@ export async function getMetricsOverview(dateRange?: DateRange): Promise<Metrics
     totalUnfinished,
     overallSuccessRate: Math.round(overallSuccessRate * 100) / 100,
     totalTokensUsed,
+    tokenBreakdown,
     totalAgents,
     activeAgents,
     averageExecutionTime: averageExecutionTime ? Math.round(averageExecutionTime) : null,
