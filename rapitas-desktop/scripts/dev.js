@@ -51,8 +51,26 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { killDeadPidEstablishedPeers } = require('./dev-established-cleanup.cjs');
 const { waitForFrontendReady, DEFAULT_TIMEOUT_MS } = require('./wait-for-frontend-ready.cjs');
+const { createDevSessionLog } = require('./dev-session-log.cjs');
 const { classifyOccupancy, describePortConflict } = require('./port-ownership.cjs');
 const { maybeRebuildTauri } = require('./tauri-rebuild.cjs');
+// ─── セッションログ ───
+// NOTE: dev.js の出力は起動したターミナルにしか残らない。2026-10-31、dev.js が
+// 消えたせいで backend の exit 75 自己再起動を拾う相手が居らず両サーバーが停止し、
+// backend 側の pino ログには pid の連鎖(41840 → 15896 → 17184)とその後の「4つ目が
+// 無い」事実だけが残り、dev.js がなぜ死んだかはディスク上のどこにも無かった。
+// console をここで tee してから以降の全出力をファイルにも残す。
+const devSessionLog = createDevSessionLog();
+devSessionLog.wrapConsole(console);
+devSessionLog.appendDevEvent('dev_start', {
+  argv: process.argv.slice(2),
+  node: process.version,
+  cwd: process.cwd(),
+});
+// A hard kill (taskkill /F) runs no handler, so no exit event is ever written
+// for it. A last heartbeat with nothing after it is the only thing that tells
+// "killed" apart from "stopped cleanly". Unref'd, so it cannot hold dev.js open.
+devSessionLog.startHeartbeat();
 
 const BACKEND_PORT = 3001;
 const FRONTEND_PORT = 3000;
@@ -3282,6 +3300,30 @@ function cleanupSync() {
   console.log('  Cleanup completed.');
 }
 
+// NOTE: These only RECORD. The handlers below keep owning the exit, so the
+// cleanup order is unchanged. SIGHUP/SIGBREAK (a closing console window on
+// Windows) had no handler at all, and adding one here would suppress Node's
+// default termination — so each one cleans up and exits exactly like SIGINT.
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => devSessionLog.appendDevEvent('dev_signal', { signal }));
+}
+for (const signal of ['SIGHUP', 'SIGBREAK']) {
+  process.on(signal, () => {
+    devSessionLog.appendDevEvent('dev_signal', { signal });
+    cleanupSync();
+    process.exit(0);
+  });
+}
+// A hard kill runs none of this; the heartbeat is what covers that case.
+process.on('uncaughtException', (err) => {
+  devSessionLog.appendDevEvent('dev_uncaught', {
+    message: String(err && err.message),
+    stack: String(err && err.stack),
+  });
+  console.error('Uncaught exception in dev.js:', err);
+  process.exit(1);
+});
+
 process.on('SIGINT', () => {
   cleanupSync();
   process.exit(0);
@@ -3290,7 +3332,8 @@ process.on('SIGTERM', () => {
   cleanupSync();
   process.exit(0);
 });
-process.on('exit', () => {
+process.on('exit', (code) => {
+  devSessionLog.appendDevEvent('dev_exit', { code });
   // exit イベントでは非同期処理不可なので同期的にクリーンアップ
   // SIGINT/SIGTERM で既にクリーンアップ済みなら isCleaningUp=true でスキップされる
   cleanupSync();
@@ -3298,6 +3341,7 @@ process.on('exit', () => {
 
 // 未処理のPromise拒否でクラッシュしないようにする
 process.on('unhandledRejection', (reason) => {
+  devSessionLog.appendDevEvent('dev_unhandled_rejection', { reason: String(reason) });
   console.error('Unhandled rejection in dev.js:', reason);
   // クラッシュせずにログのみ出力
 });
