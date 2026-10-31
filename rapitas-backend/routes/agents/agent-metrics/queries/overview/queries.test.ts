@@ -21,8 +21,25 @@ mock.module('../../../../../config/database', () => ({
 
 import { getMetricsOverview } from './queries';
 
-function exec(status: string): Record<string, unknown> {
-  return { status, tokensUsed: 0, executionTimeMs: null };
+function exec(status: string, tokens: Partial<TokenColumns> = {}): Record<string, unknown> {
+  return {
+    status,
+    tokensUsed: 0,
+    executionTimeMs: null,
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadInputTokens: 0,
+    cacheCreationInputTokens: 0,
+    ...tokens,
+  };
+}
+
+interface TokenColumns {
+  tokensUsed: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
 }
 
 beforeEach(() => {
@@ -76,5 +93,70 @@ describe('getMetricsOverview', () => {
 
     expect(overview.overallSuccessRate).toBe(0);
     expect(overview.totalUnfinished).toBe(1);
+  });
+});
+
+// One "total tokens" figure hid that 94.78% of it was cache reads, which cost
+// about a tenth of fresh input tokens — so the number scaled with neither spend
+// nor load, and nothing could be decided from it (#1302).
+describe('getMetricsOverview token reporting', () => {
+  test('reports the four token classes separately', async () => {
+    execFind.mockImplementation(() =>
+      Promise.resolve([
+        exec('completed', {
+          inputTokens: 10,
+          outputTokens: 200,
+          cacheReadInputTokens: 30_000,
+          cacheCreationInputTokens: 4_000,
+        }),
+        exec('completed', {
+          inputTokens: 1,
+          outputTokens: 2,
+          cacheReadInputTokens: 3,
+          cacheCreationInputTokens: 4,
+        }),
+      ]),
+    );
+
+    const overview = await getMetricsOverview();
+
+    expect(overview.tokenBreakdown).toEqual({
+      input: 11,
+      output: 202,
+      cacheRead: 30_003,
+      cacheCreation: 4_004,
+    });
+  });
+
+  // The headline total must be the sum of the parts it is shown with, and must
+  // come from the OVERWRITTEN per-class columns rather than the accumulating
+  // `tokensUsed` — otherwise the breakdown and the total disagree on screen.
+  test('totals the per-class columns, not the accumulating tokensUsed column', async () => {
+    execFind.mockImplementation(() =>
+      Promise.resolve([
+        exec('completed', {
+          tokensUsed: 999_999,
+          inputTokens: 10,
+          outputTokens: 20,
+          cacheReadInputTokens: 30,
+          cacheCreationInputTokens: 40,
+        }),
+      ]),
+    );
+
+    const overview = await getMetricsOverview();
+
+    expect(overview.totalTokensUsed).toBe(100);
+    const b = overview.tokenBreakdown;
+    expect(b.input + b.output + b.cacheRead + b.cacheCreation).toBe(overview.totalTokensUsed);
+  });
+
+  // Rows written before the per-class columns existed carry only tokensUsed.
+  test('falls back to tokensUsed for a row with no per-class counts', async () => {
+    execFind.mockImplementation(() => Promise.resolve([exec('completed', { tokensUsed: 500 })]));
+
+    const overview = await getMetricsOverview();
+
+    expect(overview.totalTokensUsed).toBe(500);
   });
 });

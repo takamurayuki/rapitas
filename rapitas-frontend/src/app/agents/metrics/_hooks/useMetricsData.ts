@@ -43,6 +43,18 @@ export interface FirstPassCompletion {
   rate: number | null;
 }
 
+/**
+ * Tokens split by class, because they do not cost the same: a cache read is
+ * about a tenth of a fresh input token, and cache reads are 94.78% of the
+ * volume here — so one summed figure tracked neither spend nor load (#1302).
+ */
+export interface TokenBreakdown {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheCreation: number;
+}
+
 export interface MetricsOverview {
   totalExecutions: number;
   totalSuccessful: number;
@@ -51,7 +63,10 @@ export interface MetricsOverview {
   totalUnfinished: number;
   /** Share of FINISHED executions that exited cleanly. Liveness, not quality. */
   overallSuccessRate: number;
+  /** Sum of `tokenBreakdown`; the legacy column for rows predating it. */
   totalTokensUsed: number;
+  /** Optional: a page open across a deploy can be answered by an older build. */
+  tokenBreakdown?: TokenBreakdown;
   totalAgents: number;
   activeAgents: number;
   averageExecutionTime: number | null;
