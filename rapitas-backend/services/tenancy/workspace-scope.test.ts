@@ -81,6 +81,81 @@ describe('findUnique is rewritten, not filtered', () => {
   });
 });
 
+/**
+ * "findFirst takes the same filter" holds for a plain unique field, but NOT for
+ * a compound unique, which findUnique accepts only as a nested shorthand key —
+ * `{ userId_taskTitle_themeId: { ... } }`. findFirst has no such key, so
+ * copying it across made Prisma reject the whole call:
+ *
+ *   Unknown argument `userId_taskTitle_themeId`
+ *
+ * Observed live 2026-10-31 (#1307): marking a task done 500'd, because
+ * recordTaskCompleted looks a TaskPattern up by that compound key, and the UI
+ * rolled the status back. The shorthand has to be flattened into its fields,
+ * which is exactly the filter findFirst does accept.
+ */
+describe('a compound unique survives the rewrite', () => {
+  it('flattens the shorthand into its own fields', () => {
+    const d = decide('Category', 'findUnique', {
+      where: { userId_taskTitle_themeId: { userId: 1, taskTitle: 'x', themeId: 0 } },
+    });
+    expect(d).toEqual({
+      kind: 'rewritten',
+      operation: 'findFirst',
+      args: { where: { userId: 1, taskTitle: 'x', themeId: 0, workspaceId: WS } },
+    });
+  });
+
+  it('flattens a two-field compound unique as well', () => {
+    const d = decide('Note', 'findUniqueOrThrow', {
+      where: { taskId_slug: { taskId: 4, slug: 'a' } },
+    });
+    expect((d as { args: { where: unknown } }).args.where).toEqual({
+      taskId: 4,
+      slug: 'a',
+      workspaceId: WS,
+    });
+  });
+
+  // The emulated upsert builds a findFirst filter from the same unique where,
+  // so it had the identical defect.
+  it('flattens it for the emulated upsert too', () => {
+    const d = decide('Note', 'upsert', {
+      where: { userId_name: { userId: 2, name: 'n' } },
+      create: { name: 'n' },
+      update: { name: 'n2' },
+    });
+    expect((d as { where: unknown }).where).toEqual({ userId: 2, name: 'n', workspaceId: WS });
+  });
+
+  // Guard the other direction: a nested object that is NOT a compound unique
+  // must be left alone, or a relation filter or an operator object would be
+  // silently torn apart into a wrong query.
+  it('leaves a relation filter untouched', () => {
+    const d = decide('Note', 'findUnique', { where: { task: { is: { id: 9 } } } });
+    expect((d as { args: { where: unknown } }).args.where).toEqual({
+      task: { is: { id: 9 } },
+      workspaceId: WS,
+    });
+  });
+
+  it('leaves a scalar filter object untouched', () => {
+    const d = decide('Note', 'findUnique', { where: { id: { equals: 5 } } });
+    expect((d as { args: { where: unknown } }).args.where).toEqual({
+      id: { equals: 5 },
+      workspaceId: WS,
+    });
+  });
+
+  // A caller's own workspaceId must still lose to the context's, flattened or not.
+  it('still overrides a caller-supplied workspace', () => {
+    const d = decide('Note', 'findUnique', {
+      where: { userId_name: { userId: 2, name: 'n' }, workspaceId: 999 },
+    });
+    expect((d as { args: { where: { workspaceId: number } } }).args.where.workspaceId).toBe(WS);
+  });
+});
+
 describe('writes', () => {
   it('stamps the workspace onto a create', () => {
     const d = decide('Note', 'create', { data: { title: 'x' } });
