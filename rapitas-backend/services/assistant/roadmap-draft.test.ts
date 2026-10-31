@@ -104,9 +104,19 @@ describe('the plan it comes back with', () => {
     expect(out?.steps[0].title).toBe('監督の目を作る');
   });
 
+  // NOTE: Asserted on the final round since #1283. It used to run on the
+  // first round, where it pinned the defect itself: the round still held the
+  // questions the model was asked for, and giving up there threw them away.
+  // Once answered there is nothing left to ask, so an unusable plan really is
+  // the whole answer — which is what this test is for.
   test('gives up when every step was unusable', async () => {
     reply = says({ steps: [{ title: '  ', description: '' }] });
-    expect(await draft()).toBeNull();
+    const answered = await draftRoadmap(
+      'ラピを万能にしたい',
+      { themes: THEMES, projects: PROJECTS },
+      { answers: [{ question: 'どこまで', answer: '読み取りだけ' }] },
+    );
+    expect(answered).toBeNull();
   });
 
   test('caps how many steps one answer can propose', async () => {
@@ -222,5 +232,44 @@ describe('what it will not do', () => {
     await draft();
     expect(sent[0].content).toContain('rapitas');
     expect(sent[0].content).toContain('自己開発');
+  });
+});
+
+// Round one's product is the questions, not the plan: the prompt tells the
+// model so ("steps は暫定で、回答をもらってから作り直します"). Discarding the
+// round because that provisional plan came back empty threw the questions
+// away too, and the screen reported it as "ラピに聞けませんでした" — the
+// first click of every consultation, failing 3 times out of 3 live (#1283).
+describe('a first round that has questions but no plan yet', () => {
+  test('still comes back, because the questions are what it was asked for', async () => {
+    reply = says({ steps: [] });
+    const out = await draft();
+    expect(out).not.toBeNull();
+    expect(out?.questions).toHaveLength(1);
+    expect(out?.steps).toEqual([]);
+  });
+
+  test('survives a plan whose every step was unusable', async () => {
+    reply = says({ steps: [{ description: 'タイトルが無い' }, { title: '' }] });
+    const out = await draft();
+    expect(out?.steps).toEqual([]);
+    expect(out?.questions).toHaveLength(1);
+  });
+
+  test('gives up when it has neither a question nor a step', async () => {
+    reply = says({ steps: [], questions: [] });
+    expect(await draft()).toBeNull();
+  });
+
+  // The final round has already asked everything, so `questions` is always
+  // empty there and must not be what rescues an empty plan.
+  test('does not rescue the final round, which has nothing left to ask', async () => {
+    reply = says({ steps: [] });
+    const answered = await draftRoadmap(
+      'ラピを万能にしたい',
+      { themes: THEMES, projects: PROJECTS },
+      { answers: [{ question: 'どこまで', answer: '読み取りだけ' }] },
+    );
+    expect(answered).toBeNull();
   });
 });

@@ -136,18 +136,24 @@ export async function draftRoadmap(
     today,
     ...(deadlineInDays !== undefined ? { deadlineInDays } : {}),
   });
-  // A plan with nothing to do is not a plan. Better to say nothing came back
-  // than to show an empty roadmap as though it were an answer.
-  if (steps.length === 0) return null;
+  // Asking again once the answers are in is a loop with no exit, and the
+  // screen has no second place to put the questions.
+  const questions = isFinal ? [] : resolveQuestions(raw.questions);
+  // A plan with nothing to do is not a plan — but round one was asked for
+  // questions, not a plan ("steps は暫定" in INTERVIEW_PROMPT), so an empty
+  // provisional plan is not a failure there. Requiring steps discarded the
+  // questions the model had correctly produced and reported the whole round
+  // as unreachable: the first click of every consultation, dead 3 live tries
+  // out of 3 (#1283). The final round has nothing left to ask, so `questions`
+  // is empty there and cannot rescue a plan that really is empty.
+  if (steps.length === 0 && questions.length === 0) return null;
 
   const goal = asText(raw.goal, MAX_TITLE) ?? utterance.slice(0, MAX_TITLE);
   const draft: RoadmapDraft = {
     goal,
     themeChoice: resolvePlacement(raw.themeChoice, world.themes, 'new'),
     projectChoice: resolvePlacement(raw.projectChoice, world.projects, 'none'),
-    // Asking again once the answers are in is a loop with no exit, and the
-    // screen has no second place to put the questions.
-    questions: isFinal ? [] : resolveQuestions(raw.questions),
+    questions,
     steps,
     assumptions: resolveList(raw.assumptions, MAX_NOTE_ITEMS),
     comparisonAxes: resolveList(raw.comparisonAxes, MAX_NOTE_ITEMS),
