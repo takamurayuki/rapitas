@@ -69,6 +69,16 @@ describe('a day with nothing due', () => {
     expect(screen.getByText('noDueTodayTasks')).toBeTruthy();
     expect(screen.queryByText(/noDueTodayWithOverdue/)).toBeNull();
   });
+
+  // It is one sentence, and it wrapped: `w-60` is the bar's width and the
+  // sentence is wider, so "2件" broke onto a line of its own — a number cut
+  // off from the words it belongs to. A sentence sizes itself.
+  it('stays on one line, and does not take the bar’s fixed width', () => {
+    const { container } = renderBar({ totalCount: 0, overdueCount: 2 });
+    const line = screen.getByText('noDueTodayWithOverdue:{"count":2}');
+    expect(line.className).toContain('whitespace-nowrap');
+    expect(container.querySelector('.w-60')).toBeNull();
+  });
 });
 
 describe('a day with something due', () => {
