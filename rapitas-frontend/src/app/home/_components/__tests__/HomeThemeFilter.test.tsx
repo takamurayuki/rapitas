@@ -39,15 +39,22 @@ vi.mock('lucide-react', async (importOriginal) => {
   return buildLucideMock(importOriginal);
 });
 
-const theme = (id: number, categoryId: number, name: string): Theme =>
-  ({ id, categoryId, name, color: '#6366F1', icon: '', isDefault: false }) as unknown as Theme;
+const theme = (id: number, categoryId: number, name: string, color = '#6366F1'): Theme =>
+  ({ id, categoryId, name, color, icon: '', isDefault: false }) as unknown as Theme;
 
-function renderRow(overrides: { themes?: Theme[]; categoryFilter?: number | null }) {
+/** The chip button for a theme, found by its name. */
+const chipFor = (name: string) => screen.getByText(name).closest('button') as HTMLButtonElement;
+
+function renderRow(overrides: {
+  themes?: Theme[];
+  categoryFilter?: number | null;
+  themeFilter?: number | null;
+}) {
   return render(
     <HomeThemeFilter
       themes={overrides.themes ?? []}
       categoryFilter={overrides.categoryFilter ?? null}
-      themeFilter={null}
+      themeFilter={overrides.themeFilter ?? null}
       filter="all"
       priorityFilter={null}
       labels={[]}
@@ -89,5 +96,42 @@ describe('HomeThemeFilter', () => {
     renderRow({ themes: [theme(1, 7, 'API')], categoryFilter: 7 });
     expect(screen.getByText('API')).toBeTruthy();
     expect(screen.getAllByLabelText('addTheme')).toHaveLength(1);
+  });
+});
+
+// Every chip used to wear its own theme colour as its text colour, selected or
+// not. With this many themes the row read as scattered colour and the one that
+// was actually selected stopped standing out — the only thing the row exists to
+// show. Asked for 2026-10-31: one calm colour for the rest, the theme's own
+// colour reserved for the selected chip.
+describe('HomeThemeFilter chip colours', () => {
+  it('leaves an unselected chip without any colour of its own', () => {
+    renderRow({ themes: [theme(1, 7, 'API', '#DC2626')], categoryFilter: 7, themeFilter: null });
+    const chip = chipFor('API');
+    expect(chip.style.color).toBe('');
+    expect(chip.style.backgroundColor).toBe('');
+  });
+
+  it('keeps every unselected chip identical, whatever colours the themes carry', () => {
+    renderRow({
+      themes: [theme(1, 7, 'API', '#DC2626'), theme(2, 7, 'UI', '#16A34A')],
+      categoryFilter: 7,
+      themeFilter: null,
+    });
+    expect(chipFor('UI').className).toBe(chipFor('API').className);
+    expect(chipFor('UI').style.cssText).toBe(chipFor('API').style.cssText);
+  });
+
+  // The point of calming the rest: the selected one is now the only colour in
+  // the row, so it cannot be missed.
+  it('gives the selected chip its theme colour', () => {
+    renderRow({
+      themes: [theme(1, 7, 'API', '#DC2626'), theme(2, 7, 'UI', '#16A34A')],
+      categoryFilter: 7,
+      themeFilter: 1,
+    });
+    expect(chipFor('API').style.backgroundColor).toBe('rgb(220, 38, 38)');
+    expect(chipFor('API').style.color).toBe('rgb(255, 255, 255)');
+    expect(chipFor('UI').style.backgroundColor).toBe('');
   });
 });
