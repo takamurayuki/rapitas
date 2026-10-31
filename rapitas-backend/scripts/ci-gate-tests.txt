@@ -168,3 +168,7 @@ config/frontend-url.test.ts
 # SQL が静かに何もしない事故（列名の打ち間違い）を実DBで捕まえる。
 services/core/password-reset.test.ts
 scripts/reset-password.test.ts
+
+# ===== 仮説台帳（#1321: 集計が forgettingStage=active 限定で supported を 0 と報告していた） =====
+services/memory/hypothesis-service.ledger-scope.test.ts
+services/workflow/workflow-hypothesis-context.test.ts

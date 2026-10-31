@@ -34,7 +34,13 @@ export const hypothesisRoutes = new Elysia()
       const themeId = query.themeId ? parseInt(query.themeId) : undefined;
       const limit = query.limit ? parseInt(query.limit) : 20;
       const offset = query.offset ? parseInt(query.offset) : 0;
-      return listHypotheses({ status, domain, themeId, limit, offset });
+      // NOTE: Spans every forgetting stage (#1321). This endpoint backs the
+      // ledger page, whose counts come from /hypotheses/stats — and those count
+      // the whole ledger. Leaving the list active-only showed 2.1% of it
+      // (44 of 2,100 when measured) and, worse, zero rows under the
+      // "supported" filter while the card above it said 1,509, because
+      // graduation consolidates a hypothesis out of 'active'.
+      return listHypotheses({ status, domain, themeId, stages: 'all', limit, offset });
     },
     {
       query: t.Object({
