@@ -178,27 +178,11 @@ app.get('/health', async () => {
   return handleApiRecoveryHealthCheck();
 });
 
-// Warm-up tasks (schedulers, memory system, worker manager, recovery) are imported here but NOT
-// invoked until AFTER app.listen() — see runStartupWarmup(). Running CPU-heavy init (model loads,
-// recovery scans, child spawns) before listen stalled open pages past the 30s request timeout.
-import { BehaviorScheduler } from './src/services/behavior-scheduler';
-import { initializeMemorySystem, shutdownMemorySystem } from './services/memory';
-import { AIOrchestra } from './services/workflow/ai-orchestra';
-import { migrateLegacyWorkflowFiles } from './services/workflow/workflow-legacy-migrator';
-import { runStartupBackfills } from './services/system/startup-backfills';
-import { startBacklogScheduler } from './services/scheduling/backlog-scheduler';
-import { startEventLoopLagWatchdog } from './services/system/event-loop-lag-watchdog';
-import { startCpuUsageMonitorIfEnabled } from './services/system/cpu-usage-monitor';
-import { startBackupScheduler } from './services/system/backup-scheduler';
-import { startWorktreeCleanupScheduler } from './services/scheduling/worktree-cleanup-scheduler';
-import { startDecisionTraceConsistencyScheduler } from './services/scheduling/decision-trace-consistency-scheduler';
-import { startAutoRestartMergedCodeScheduler } from './services/scheduling/auto-restart-merged-code';
-import { startWorkerHealthAlertScheduler } from './services/agents/worker-health/worker-health-alert-service';
-import { AutoMergeWatcher } from './services/workflow/auto-merge-watcher';
-import { startWorkflowReconciler } from './services/workflow/workflow-reconciler';
-import { startResourceTelemetryIfEnabled } from './services/system/resource-telemetry';
-import { startSupervisionHeartbeatScheduler } from './services/supervision';
-import { startI18nIntegrityScheduler } from './services/scheduling/i18n-integrity-scheduler';
+// Warm-up (schedulers, memory system, worker manager, recovery) runs AFTER
+// app.listen() — see services/system/startup-warmup.ts. Running CPU-heavy init
+// before listen stalled open pages past the 30s request timeout.
+import { startWarmupUnlessRecovering } from './services/system/startup-warmup';
+import { shutdownMemorySystem } from './services/memory';
 
 // Start server
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -243,73 +227,10 @@ setServerStopCallback(async () => {
   await listener.stop(true);
 });
 
-/**
- * Run heavy startup warm-up AFTER the listener is open, one task at a time and
- * yielding to the event loop between each, so the single JS thread stays free
- * to answer requests during boot (fixes the "task-detail page open across a
- * restart hits the 30s request timeout" symptom).
- *
- * Every task is individually timed and logged (`warmupMs`) so a slow/blocking
- * initializer is identifiable from the logs instead of guessed at.
- */
-const runStartupWarmup = async (): Promise<void> => {
-  const yieldToLoop = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
-
-  const timed = async (label: string, fn: () => unknown | Promise<unknown>): Promise<void> => {
-    const startedAt = Date.now();
-    try {
-      await fn();
-      log.info({ warmupMs: Date.now() - startedAt }, `Warm-up: ${label} ready`);
-    } catch (err) {
-      log.error({ err, warmupMs: Date.now() - startedAt }, `Warm-up: ${label} failed`);
-    }
-  };
-
-  // Brief grace so the listener can answer the first in-flight requests
-  // before we start CPU-heavy init on the single JS thread.
-  await new Promise((resolve) => setTimeout(resolve, 250));
-
-  const runWarmupTasks = async (tasks: Array<[string, () => unknown | Promise<unknown>]>) => {
-    for (const [label, fn] of tasks) {
-      await timed(label, fn);
-      await yieldToLoop();
-    }
-  };
-  const recoverRuntimeServerRegistryTask = async () => {
-    const { recoverRuntimeServerRegistry } =
-      await import('./services/agents/verification/runtime-smoke/worktree-server-registry');
-    await recoverRuntimeServerRegistry();
-  };
-  await runWarmupTasks([
-    ['runtime-server-registry-reconcile', recoverRuntimeServerRegistryTask],
-    ['behavior-scheduler', () => BehaviorScheduler.start()],
-    ['memory-system', () => initializeMemorySystem()],
-    ['ai-orchestra-recovery', () => AIOrchestra.getInstance().recoverOnStartup()],
-    ['legacy-workflow-migration', () => migrateLegacyWorkflowFiles()],
-    ['startup-backfills', () => runStartupBackfills()],
-    ['agent-worker-manager', () => workerManager.initialize()],
-  ]);
-  await timed('backlog-scheduler', () => startBacklogScheduler());
-  startEventLoopLagWatchdog();
-  // NOTE(task 966): these previously had no yieldToLoop(), causing restart-adjacent stalls.
-  await runWarmupTasks([
-    ['backup-scheduler', () => startBackupScheduler()],
-    ['worktree-cleanup-scheduler', () => startWorktreeCleanupScheduler()],
-    ['decision-trace-consistency-scheduler', () => startDecisionTraceConsistencyScheduler()],
-    ['auto-restart-merged-code-scheduler', () => startAutoRestartMergedCodeScheduler()],
-    ['worker-health-alert-scheduler', () => startWorkerHealthAlertScheduler()],
-    ['auto-merge-watcher', () => AutoMergeWatcher.getInstance().start()],
-    ['workflow-reconciler', () => startWorkflowReconciler()],
-    ['resource-telemetry', () => startResourceTelemetryIfEnabled()],
-    ['cpu-usage-monitor', () => startCpuUsageMonitorIfEnabled()],
-    ['supervision-heartbeat-scheduler', () => startSupervisionHeartbeatScheduler()],
-    ['i18n-integrity-scheduler', () => startI18nIntegrityScheduler()],
-  ]);
-  log.info('Startup warm-up complete');
-};
-
-// Fire-and-forget: never blocks the listener; each task self-reports timing.
-if (!isApiRecoveryMode()) void runStartupWarmup();
+// Warm-up lives in services/system/startup-warmup.ts: it runs AFTER the
+// listener opens and reports into startup-readiness, so /health can separate
+// listening from ready (#1323).
+startWarmupUnlessRecovering();
 
 // Signal handling from bun --watch (for dev:simple mode)
 // Close SSE connections immediately on SIGTERM/SIGINT to prevent CLOSE_WAIT accumulation
