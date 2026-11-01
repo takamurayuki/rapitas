@@ -186,8 +186,8 @@ export const copilotChatRoutes = new Elysia()
   .get(
     '/copilot/chat/:taskId/history',
     async ({ params }) => {
-      const taskId = parseInt(params.taskId);
-      if (isNaN(taskId)) return { messages: [] };
+      if (!isValidEntityId(params.taskId)) return { messages: [] };
+      const taskId = Number(params.taskId);
       const messages = await getCopilotHistory(taskId);
       return { messages };
     },

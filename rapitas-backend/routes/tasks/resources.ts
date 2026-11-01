@@ -147,8 +147,8 @@ function encodeContentDispositionFilename(name: string): string {
 export const resourcesRoutes = new Elysia()
   // Get resources for a task
   .get('/tasks/:id/resources', async ({ params }) => {
-    const id = parseInt(params.id);
-    if (isNaN(id)) throw new ValidationError('無効なIDです');
+    if (!isValidEntityId(params.id)) throw new ValidationError('無効なIDです');
+    const id = Number(params.id);
 
     return await prisma.resource.findMany({
       where: { taskId: id },

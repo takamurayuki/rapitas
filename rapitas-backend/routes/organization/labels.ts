@@ -50,10 +50,10 @@ export const labelsRoutes = new Elysia({ prefix: '/labels' })
   // Get label by ID
   .get('/:id', async (context) => {
     const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
+    if (!isValidEntityId(params.id)) {
       throw new ValidationError('無効なIDです');
     }
+    const id = Number(params.id);
 
     const label = await prisma.label.findUnique({
       where: { id },

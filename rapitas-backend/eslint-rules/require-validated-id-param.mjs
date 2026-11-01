@@ -2,8 +2,8 @@
  * require-validated-id-param
  *
  * Detects a path parameter being turned into a number without being validated
- * first — `parseInt(params.id)`, `Number(params.id)`, `+params.id` — inside a
- * mutating route handler.
+ * first — `parseInt(params.id)`, `Number(params.id)`, `+params.id` — in any
+ * route handler whose verb the rule can see.
  *
  * Why this is a lint error rather than a convention: `parseInt` stops at the
  * first character it cannot read and returns what it had, so a path segment
@@ -31,13 +31,12 @@
  *   `.delete`/`.put` call is an ancestor of the coercion. `methods` defaults to
  *   the mutating verbs, and a coercion whose verb cannot be determined is left
  *   alone, so this reports what it can prove rather than guessing.
- * - `GET`, until the remaining read routes are migrated (#1349 is staged by
- *   HTTP verb, mutations first). Add 'get' to the `methods` option to widen it;
- *   ~50 read sites still coerce. Doing so needs a fresh ratchet list, because
- *   the rule is an error everywhere now: all 106 mutating sites are migrated,
- *   so id-param-migration-baseline and its test were deleted rather than left
- *   empty (an exemption list with nothing in it cannot fail).
  * - a parameter reached through indexing (`params['id']`) or spread.
+ *
+ * All 163 sites (113 mutating, 50 read) are migrated, with no exemption list:
+ * #1349 ran as five passes by HTTP verb and the ratchet that carried it was
+ * deleted once empty, because an exemption list with nothing in it is a gate
+ * that cannot fail. `methods` stays configurable for a verb this misses.
  */
 
 /** Numeric coercions that silently truncate. `parseId` is the validated one. */
@@ -46,8 +45,8 @@ const COERCERS = new Set(['parseInt', 'parseFloat', 'Number']);
 /** Calls that reject a non-numeric id instead of truncating it. */
 const VALIDATORS = new Set(['isValidEntityId', 'parseId']);
 
-/** Verbs whose handlers write. Overridable via the `methods` option. */
-const DEFAULT_METHODS = ['post', 'patch', 'delete', 'put'];
+/** Verbs the rule covers. Overridable via the `methods` option. */
+const DEFAULT_METHODS = ['get', 'post', 'patch', 'delete', 'put'];
 
 /**
  * Resolves a static property key / member name.

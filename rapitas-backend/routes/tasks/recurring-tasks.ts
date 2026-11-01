@@ -101,7 +101,7 @@ export const recurringTaskRoutes = new Elysia({ prefix: '/tasks' })
   .get(
     '/:id/occurrences',
     async ({ params, query }) => {
-      const taskId = parseInt(params.id);
+      const taskId = parseId(params.id, 'task ID');
       const limit = query.limit ? parseInt(query.limit) : 10;
 
       const task = await prisma.task.findUnique({
@@ -150,7 +150,7 @@ export const recurringTaskRoutes = new Elysia({ prefix: '/tasks' })
   .get(
     '/:id/generated',
     async ({ params, query }) => {
-      const taskId = parseInt(params.id);
+      const taskId = parseId(params.id, 'task ID');
       const limit = query.limit ? parseInt(query.limit) : 50;
       const includeCompleted = query.includeCompleted !== 'false';
 

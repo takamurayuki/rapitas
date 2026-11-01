@@ -46,11 +46,11 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   .get(
     '/:id/terminal-context',
     async ({ params, set }) => {
-      const id = Number(params.id);
       if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { error: 'Invalid task id' };
       }
+      const id = Number(params.id);
       const task = await prisma.task.findUnique({
         where: { id },
         select: {

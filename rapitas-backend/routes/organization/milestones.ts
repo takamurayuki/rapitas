@@ -25,10 +25,10 @@ export const milestonesRoutes = new Elysia({ prefix: '/milestones' })
   // Get milestone by ID
   .get('/:id', async (context) => {
     const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
+    if (!isValidEntityId(params.id)) {
       throw new ValidationError('無効なIDです');
     }
+    const id = Number(params.id);
 
     return await prisma.milestone.findUnique({
       where: { id },

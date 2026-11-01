@@ -10,6 +10,7 @@ import {
   getBudgetStatus,
 } from '../../../services/ai/smart-model-router';
 import { createLogger } from '../../../config/logger';
+import { parseId } from '../../../middleware/error-handler';
 
 const log = createLogger('routes:smart-router');
 
@@ -22,7 +23,7 @@ export const smartRouterRoutes = new Elysia({ prefix: '/smart-router' })
     async (context) => {
       const { params, query } = context;
       try {
-        const taskId = parseInt(params.taskId);
+        const taskId = parseId(params.taskId, 'task ID');
         const budget = query.weeklyBudget ? parseFloat(query.weeklyBudget) : null;
         const decision = await getSmartRoute(taskId, budget);
 

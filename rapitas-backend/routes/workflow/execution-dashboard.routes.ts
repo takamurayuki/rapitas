@@ -19,6 +19,7 @@ import {
   evaluateStall,
   FREQUENT_FAILURE_THRESHOLD,
 } from '../../services/workflow/execution-dashboard-service';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:execution-dashboard');
 
@@ -338,11 +339,11 @@ export const executionDashboardRoutes = new Elysia({ prefix: '/workflow' })
 
   /** Single-task drilldown: derived state plus full chronological transition history. */
   .get('/execution-dashboard/:taskId', async ({ params, set }) => {
-    const taskId = parseInt(params.taskId, 10);
-    if (!Number.isFinite(taskId)) {
+    if (!isValidEntityId(params.taskId)) {
       set.status = 400;
       return { success: false, error: 'invalid taskId' };
     }
+    const taskId = Number(params.taskId);
 
     try {
       const nowMs = Date.now();

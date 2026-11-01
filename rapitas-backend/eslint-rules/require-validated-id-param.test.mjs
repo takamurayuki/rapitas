@@ -60,15 +60,20 @@ describe('require-validated-id-param — reports an unguarded coercion', () => {
       route('const { id: rawId } = params; await stop(Number(rawId));'),
     ],
     ['on context.params', `app.patch('/x/:id', (ctx) => update(parseInt(ctx.params.id)));`],
+    // A GET that truncates reads someone else's row (#1349's read pass).
+    ['in a GET handler', `app.get('/tasks/:id', (ctx) => read(parseInt(ctx.params.id)));`],
   ])('%s', (_label, code) => {
     const msgs = runRule(code);
     expect(msgs).toHaveLength(1);
     expect(msgs[0].messageId).toBe('unvalidatedIdParam');
   });
 
-  it.each([['post'], ['patch'], ['delete'], ['put']])('covers %s by default', (method) => {
-    expect(runRule(route('await stop(parseInt(params.id));', method))).toHaveLength(1);
-  });
+  it.each([['get'], ['post'], ['patch'], ['delete'], ['put']])(
+    'covers %s by default',
+    (method) => {
+      expect(runRule(route('await stop(parseInt(params.id));', method))).toHaveLength(1);
+    },
+  );
 
   it('reports a second parameter in the same handler', () => {
     const msgs = runRule(
@@ -131,8 +136,6 @@ describe('require-validated-id-param — accepts validated code', () => {
 
 describe('require-validated-id-param — leaves non-route code alone', () => {
   it.each([
-    // GET is staged for a later PR; the rule must not report it by default.
-    ['a GET handler', `app.get('/tasks/:id', (ctx) => read(parseInt(ctx.params.id)));`],
     // Not a path parameter at all.
     ['a request body field', route('await stop(parseInt(body.taskId));')],
     ['a query string field', route('await stop(parseInt(query.page));')],
@@ -150,9 +153,11 @@ describe('require-validated-id-param — leaves non-route code alone', () => {
     expect(runRule(code)).toHaveLength(0);
   });
 
-  it('reports a GET handler when get is added to the methods option', () => {
+  it('covers GET by default and goes quiet when methods narrows it away', () => {
+    // #1349's read pass widened the default to every verb. The option remains
+    // so a verb this misses can be added without editing the rule.
     const code = `app.get('/tasks/:id', (ctx) => read(parseInt(ctx.params.id)));`;
-    expect(runRule(code)).toHaveLength(0);
-    expect(runRule(code, { methods: ['get'] })).toHaveLength(1);
+    expect(runRule(code)).toHaveLength(1);
+    expect(runRule(code, { methods: ['post'] })).toHaveLength(0);
   });
 });

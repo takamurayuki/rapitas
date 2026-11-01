@@ -5,6 +5,7 @@
 import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 import { getAgentConfigAuditLogs, getRecentAuditLogs } from '../../../utils/agent/agent-audit-log';
+import { parseId } from '../../../middleware/error-handler';
 
 /**
  * Safe cast type for AgentExecution fields that exist in DB but are not in Prisma's generated types.
@@ -23,7 +24,7 @@ export const agentAuditRouter = new Elysia({ prefix: '/agents' })
     const { id } = params;
     const limit = query.limit ? parseInt(query.limit) : 50;
 
-    const logs = await getAgentConfigAuditLogs(parseInt(id), limit);
+    const logs = await getAgentConfigAuditLogs(parseId(id, 'agent ID'), limit);
     return { logs };
   })
 
@@ -43,7 +44,7 @@ export const taskExecutionLogsRouter = new Elysia({ prefix: '/tasks' })
       executionId?: string;
       afterSequence?: string;
     };
-    const taskId = parseInt(params.id);
+    const taskId = parseId(params.id, 'task ID');
     const executionId = query.executionId ? parseInt(query.executionId) : undefined;
     const afterSequence = query.afterSequence ? parseInt(query.afterSequence) : undefined;
 

@@ -56,10 +56,10 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
   // Get theme by ID
   .get('/:id', async (context) => {
     const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
+    if (!isValidEntityId(params.id)) {
       throw new ValidationError('無効なIDです');
     }
+    const id = Number(params.id);
 
     const theme = await prisma.theme.findUnique({
       where: { id },

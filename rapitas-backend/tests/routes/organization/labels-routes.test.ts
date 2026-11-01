@@ -152,6 +152,20 @@ describe('GET /labels/:id', () => {
 
     expect(res.status).toBe(400);
   });
+
+  // NOTE(#1349): GET も同じ切り捨てをしていた。'5e2' は 5、'0x10' は 16 で
+  // isNaN は false なので、呼び出し元が指していないラベルを返していた。
+  test.each([
+    ['指数表記', '5e2'],
+    ['数値に続く接尾辞', '5abc'],
+    ['16進表記', '0x10'],
+    ['ゼロ', '0'],
+  ])('無効なID(%s: %s)でDBに触れず400を返すこと', async (_label, raw) => {
+    const res = await app.handle(new Request(`http://localhost/labels/${raw}`));
+
+    expect(res.status).toBe(400);
+    expect(mockPrisma.label.findUnique).not.toHaveBeenCalled();
+  });
 });
 
 describe('POST /labels', () => {

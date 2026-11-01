@@ -23,7 +23,7 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
   .get('/sessions/:id', async (context) => {
     const { params } = context;
     return await prisma.agentSession.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id: parseId(params.id, 'session ID') },
       include: {
         agentActions: { orderBy: { createdAt: 'desc' } },
         agentExecutions: {

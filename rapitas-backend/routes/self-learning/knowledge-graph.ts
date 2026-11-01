@@ -15,6 +15,7 @@ import {
   KnowledgeNodeType,
   KnowledgeEdgeType,
 } from '../../services/self-learning';
+import { parseId } from '../../middleware/error-handler';
 
 export const knowledgeGraphRoutes = new Elysia({ prefix: '/knowledge-graph' })
   // --- Nodes ---
@@ -34,7 +35,7 @@ export const knowledgeGraphRoutes = new Elysia({ prefix: '/knowledge-graph' })
   })
 
   .get('/nodes/:id', async ({ params }) => {
-    const node = await getNode(parseInt(params.id));
+    const node = await getNode(parseId(params.id, 'node ID'));
     if (!node) return { error: 'Node not found' };
     return node;
   })
@@ -60,7 +61,7 @@ export const knowledgeGraphRoutes = new Elysia({ prefix: '/knowledge-graph' })
 
   .get('/nodes/:id/related', async ({ params, query }) => {
     const edgeTypes = query.edgeTypes ? (query.edgeTypes as string).split(',') : undefined;
-    return findRelated(parseInt(params.id), edgeTypes as KnowledgeEdgeType[] | undefined);
+    return findRelated(parseId(params.id, 'node ID'), edgeTypes as KnowledgeEdgeType[] | undefined);
   })
 
   // --- Edges ---

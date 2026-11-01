@@ -32,6 +32,7 @@ import {
   handleDryRunDrift,
 } from '../handlers/workflow-handlers-dry-run';
 import { computeRepairIterationMetrics } from '../../../services/workflow/repair-iteration-metrics';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 // Re-export helpers and types for consumers that import from this path
 export {
@@ -177,10 +178,10 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
    */
   .get('/tasks/:taskId/transitions', async (ctx) => {
     const params = ctx.params as { taskId: string };
-    const taskId = parseInt(params.taskId);
-    if (!Number.isFinite(taskId)) {
+    if (!isValidEntityId(params.taskId)) {
       return { success: false, error: 'invalid taskId' };
     }
+    const taskId = Number(params.taskId);
     const rows = await prisma.workflowTransition
       .findMany({
         where: { taskId },
@@ -212,10 +213,10 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
    */
   .get('/tasks/:taskId/repair-iterations', async (ctx) => {
     const params = ctx.params as { taskId: string };
-    const taskId = parseInt(params.taskId);
-    if (!Number.isFinite(taskId)) {
+    if (!isValidEntityId(params.taskId)) {
       return { success: false, error: 'invalid taskId' };
     }
+    const taskId = Number(params.taskId);
     const [transitionRows, commitRows] = await Promise.all([
       prisma.workflowTransition
         .findMany({

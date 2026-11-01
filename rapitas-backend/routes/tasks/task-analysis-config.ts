@@ -61,7 +61,7 @@ export const taskAnalysisConfigRoutes = new Elysia({
     '/:taskId',
     async (context) => {
       const { params, set } = context;
-      const taskId = parseInt(params.taskId);
+      const taskId = parseId(params.taskId, 'task ID');
 
       const config = await prisma.taskAnalysisConfig.findUnique({
         where: { taskId },

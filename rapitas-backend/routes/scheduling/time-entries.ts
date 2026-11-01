@@ -11,10 +11,10 @@ export const timeEntriesRoutes = new Elysia()
   // Get time entries for a task
   .get('/tasks/:id/time-entries', async (context) => {
     const { params } = context;
-    const taskId = parseInt(params.id);
-    if (isNaN(taskId)) {
+    if (!isValidEntityId(params.id)) {
       throw new ValidationError('無効なタスクIDです');
     }
+    const taskId = Number(params.id);
 
     return await prisma.timeEntry.findMany({
       where: { taskId },

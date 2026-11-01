@@ -32,7 +32,7 @@ export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
   })
 
   .get('/:id', async ({ params }) => {
-    const experiment = await getExperiment(parseInt(params.id));
+    const experiment = await getExperiment(parseId(params.id, 'experiment ID'));
     if (!experiment) return { error: 'Experiment not found' };
     return experiment;
   })
@@ -125,12 +125,12 @@ export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
 
   // --- Timeline ---
   .get('/:id/timeline', async ({ params }) => {
-    return getExperimentTimeline(parseInt(params.id));
+    return getExperimentTimeline(parseId(params.id, 'experiment ID'));
   })
 
   // --- Summary ---
   .get('/:id/summary', async ({ params }) => {
-    return summarizeExperiment(parseInt(params.id));
+    return summarizeExperiment(parseId(params.id, 'experiment ID'));
   })
 
   // --- Episodes ---

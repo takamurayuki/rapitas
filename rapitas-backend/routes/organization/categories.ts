@@ -139,10 +139,10 @@ export const categoriesRoutes = new Elysia({ prefix: '/categories' })
   // Get category by ID
   .get('/:id', async (context) => {
     const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
+    if (!isValidEntityId(params.id)) {
       throw new ValidationError('Invalid ID');
     }
+    const id = Number(params.id);
 
     const category = await prisma.category.findUnique({
       where: { id },
