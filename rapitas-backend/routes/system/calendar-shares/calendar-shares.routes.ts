@@ -146,11 +146,21 @@ export function createCalendarShareRoutes(overrides: CalendarShareRouteDeps = {}
         const now = Date.now();
         const result = await readSharedSchedules(deps, {
           viewerWorkspaceId: currentWorkspaceId(),
-          // Not validated here: decideCalendarShareAccess already refuses
-          // anything that is not a positive integer, and it refuses a missing
-          // session FIRST — so a sessionless caller learns nothing from the
-          // shape of the id they guessed.
-          ownerWorkspaceId: Number(params.ownerWorkspaceId),
+          // Still not refused with a 400 HERE: decideCalendarShareAccess
+          // refuses anything that is not a positive integer, and it refuses a
+          // missing session FIRST — so a sessionless caller learns nothing from
+          // the shape of the id they guessed. Throwing from this line would
+          // answer before the 401 and give that away.
+          //
+          // NOTE(#1349): what it could not refuse is a TRUNCATED id, because by
+          // then the id IS a positive integer: Number('9e1') is 90 and
+          // Number('0x9') is 9, so the read ran inside a workspace the caller
+          // never named. isValidEntityId rejects the notation and NaN carries
+          // the refusal downstream, keeping that order intact — which is why
+          // this is a conditional rather than the parseId used everywhere else.
+          ownerWorkspaceId: isValidEntityId(params.ownerWorkspaceId)
+            ? Number(params.ownerWorkspaceId)
+            : NaN,
           from: from ? new Date(from) : new Date(now - DEFAULT_WINDOW_DAYS * 86400000),
           to: to ? new Date(to) : new Date(now + DEFAULT_WINDOW_DAYS * 86400000),
         });

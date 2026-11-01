@@ -20,7 +20,7 @@ export const developerModeConfigRoutes = new Elysia({ prefix: '/developer-mode' 
 
   .get('/config/:taskId', async (context) => {
     const { params } = context;
-    const taskId = parseInt(params.taskId);
+    const taskId = parseId(params.taskId, 'task ID');
     const config = await prisma.developerModeConfig.findUnique({
       where: { taskId },
       include: {
@@ -179,7 +179,7 @@ export const developerModeConfigRoutes = new Elysia({ prefix: '/developer-mode' 
 
   .get('/sessions/:taskId', async (context) => {
     const { params } = context;
-    const taskId = parseInt(params.taskId);
+    const taskId = parseId(params.taskId, 'task ID');
 
     const config = await prisma.developerModeConfig.findUnique({
       where: { taskId },

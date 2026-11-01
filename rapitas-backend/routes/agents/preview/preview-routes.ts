@@ -65,22 +65,22 @@ export const previewRoutes = new Elysia()
   /** Whether a preview is currently running for this task. */
   .get('/tasks/:id/preview/status', (context) => {
     const { params, set } = context;
-    const taskId = parseInt(params.id);
-    if (isNaN(taskId)) {
+    if (!isValidEntityId(params.id)) {
       set.status = HTTP_STATUS.BAD_REQUEST;
       return { error: 'Invalid task id' };
     }
+    const taskId = Number(params.id);
     return getPreviewStatus(taskId);
   })
 
   /** Current screenshot of the running preview (PNG). 404 if no session is active. */
   .get('/tasks/:id/preview/screenshot', async (context) => {
     const { params, set } = context;
-    const taskId = parseInt(params.id);
-    if (isNaN(taskId)) {
+    if (!isValidEntityId(params.id)) {
       set.status = HTTP_STATUS.BAD_REQUEST;
       return { error: 'Invalid task id' };
     }
+    const taskId = Number(params.id);
     const result = await screenshotPreview(taskId);
     if (!result.ok) {
       set.status =
@@ -187,11 +187,11 @@ export const previewRoutes = new Elysia()
   /** Current runtime config (if any) set on the task's theme — for pre-filling the inline task-detail editor. */
   .get('/tasks/:id/preview/runtime-config', async (context) => {
     const { params, set } = context;
-    const taskId = parseInt(params.id);
-    if (isNaN(taskId)) {
+    if (!isValidEntityId(params.id)) {
       set.status = HTTP_STATUS.BAD_REQUEST;
       return { error: 'Invalid task id' };
     }
+    const taskId = Number(params.id);
     const result = await getTaskThemeRuntimeConfigJson(taskId);
     if (result.themeId === null) {
       return { hasTheme: false, runtimeConfigJson: null };

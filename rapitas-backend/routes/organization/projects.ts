@@ -23,10 +23,10 @@ export const projectsRoutes = new Elysia({ prefix: '/projects' })
   // Get project by ID
   .get('/:id', async (context) => {
     const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
+    if (!isValidEntityId(params.id)) {
       throw new ValidationError('無効なIDです');
     }
+    const id = Number(params.id);
 
     return await prisma.project.findUnique({
       where: { id },

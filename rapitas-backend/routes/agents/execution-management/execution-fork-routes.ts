@@ -6,6 +6,7 @@
 import { Elysia, t } from 'elysia';
 import { forkExecution, getForkComparison } from '../../../services/core/execution-fork-service';
 import { createLogger } from '../../../config/logger';
+import { parseId } from '../../../middleware/error-handler';
 
 const log = createLogger('routes:execution-fork');
 
@@ -50,7 +51,7 @@ export const executionForkRoutes = new Elysia({ prefix: '/execution-fork' })
     async (context) => {
       const { params } = context;
       try {
-        const executionId = parseInt(params.executionId);
+        const executionId = parseId(params.executionId, 'execution ID');
         const comparison = await getForkComparison(executionId);
 
         if (!comparison) {

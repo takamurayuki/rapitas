@@ -9,6 +9,7 @@
 import { Elysia } from 'elysia';
 import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 const log = createLogger('routes:execution-log-entries');
 
@@ -20,11 +21,11 @@ const executionLogEntriesRoutes = new Elysia({ prefix: '/agents' }).get(
   async (ctx) => {
     const params = ctx.params as { executionId: string };
     const query = ctx.query as { offset?: string; limit?: string };
-    const executionId = parseInt(params.executionId, 10);
-    if (!Number.isFinite(executionId)) {
+    if (!isValidEntityId(params.executionId)) {
       ctx.set.status = 400;
       return { success: false, error: 'invalid executionId' };
     }
+    const executionId = Number(params.executionId);
     const offset = Math.max(0, parseInt(query.offset ?? '0', 10) || 0);
     const limit = Math.min(
       MAX_LIMIT,

@@ -11,7 +11,7 @@ import { parseId } from '../../middleware/error-handler';
 
 export const promptsRoutes = new Elysia()
   .get('/tasks/:id/prompts', async ({ params }) => {
-    const taskIdNum = parseInt(params.id);
+    const taskIdNum = parseId(params.id, 'task ID');
 
     const task = await prisma.task.findUnique({
       where: { id: taskIdNum },

@@ -30,6 +30,7 @@ import { computeGrowthLedgerMetrics } from '../../../services/self-improvement/g
 import { computeRetroKpiMetrics } from '../../../services/self-improvement/retro-kpi-metrics';
 import { readJudgeEvalResult } from '../../../services/observability/eval-judge-results';
 import type { DateRange } from './types';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 const log = createLogger('routes:agent-metrics');
 
@@ -160,10 +161,10 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
 
   .get('/:agentId', async ({ params, query }) => {
     try {
-      const agentId = parseInt(params.agentId);
-      if (Number.isNaN(agentId)) {
+      if (!isValidEntityId(params.agentId)) {
         return { error: 'Invalid agentId' };
       }
+      const agentId = Number(params.agentId);
       const dateRange = parseDateRange(query);
 
       const whereClause: { createdAt?: { gte?: Date; lte?: Date } } = {};

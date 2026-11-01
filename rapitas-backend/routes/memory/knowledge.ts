@@ -150,11 +150,11 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
   .get(
     '/:id',
     async ({ params, set }) => {
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid ID' };
       }
+      const id = Number(params.id);
       const entry = await prisma.knowledgeEntry.findUnique({
         where: { id },
         include: {

@@ -103,7 +103,7 @@ export const integrationRoutes = new Elysia()
   .get('/integrations/:id', async ({ params }) => {
     const { id } = params;
     return await prisma.gitHubIntegration.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: parseId(id, 'integration ID') },
       include: {
         _count: { select: { pullRequests: true, issues: true } },
       },

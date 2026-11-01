@@ -59,11 +59,11 @@ export const hypothesisRoutes = new Elysia()
 
   /** Fetch one hypothesis (with its evidence trail). */
   .get('/hypotheses/:id', async ({ params, set }) => {
-    const id = parseInt(params.id);
-    if (!Number.isFinite(id)) {
+    if (!isValidEntityId(params.id)) {
       set.status = 400;
       return { error: '無効なIDです' };
     }
+    const id = Number(params.id);
     const hyp = await getHypothesis(id);
     if (!hyp) {
       set.status = 404;

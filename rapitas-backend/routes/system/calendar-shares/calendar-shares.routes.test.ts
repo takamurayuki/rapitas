@@ -109,6 +109,34 @@ describe('reading a shared calendar', () => {
     expect(res.status).toBe(400);
   });
 
+  // NOTE(#1349): 'not-a-number' is the easy half again — Number() makes it NaN,
+  // so even the old code refused it. '9e1' is 90 and '0x9' is 9, both integers
+  // and both positive, so the owner id was accepted and runInWorkspace read
+  // inside a workspace the caller never named. On the read path that is a
+  // disclosure, not a corruption, which is why `ranIn` is the assertion: a 400
+  // that had already read would pass a status-only check.
+  test.each([
+    ['exponent notation', '/9e1/schedules'],
+    ['hex notation', '/0x9/schedules'],
+    ['a trailing suffix', '/9abc/schedules'],
+  ])('refuses %s without reading another workspace', async (_label, path) => {
+    const { app, ranIn } = routes(2, {
+      shares: {
+        // A grant exists whatever owner is asked for, so nothing downstream
+        // refuses this on its own.
+        findFirst: async () => grantRows([{ owner: 90, viewer: 2 }])[0]!,
+        findMany: async () => [],
+        create: async () => grantRows([{ owner: 90, viewer: 2 }])[0]!,
+        deleteMany: async () => ({ count: 0 }),
+      },
+    });
+
+    const res = await get(app, path);
+
+    expect(res.status).toBe(400);
+    expect(ranIn).toEqual([]);
+  });
+
   test('reads inside the owner-s workspace, not the caller-s', async () => {
     const { app, ranIn } = routes(2, {
       shares: {

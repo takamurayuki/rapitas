@@ -75,7 +75,7 @@ export const templatesRoutes = new Elysia({ prefix: '/templates' })
 
   .get('/:id', async (context) => {
     const { params } = context;
-    const id = parseInt(params.id);
+    const id = parseId(params.id, 'template ID');
     const template = await prisma.taskTemplate.findUnique({
       where: { id },
       include: {

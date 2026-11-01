@@ -34,10 +34,10 @@ async function getCommentWithLinks(commentId: number) {
 export const commentsRoutes = new Elysia()
   // Get comments for a task (with replies and links)
   .get('/tasks/:id/comments', async (context) => {
-    const taskId = parseInt(context.params.id);
-    if (isNaN(taskId)) {
+    if (!isValidEntityId(context.params.id)) {
       throw new ValidationError('無効なタスクIDです');
     }
+    const taskId = Number(context.params.id);
 
     return await prisma.comment.findMany({
       where: { taskId },
@@ -260,10 +260,10 @@ export const commentsRoutes = new Elysia()
   // Get all links for a comment
   .get('/comments/:id/links', async (context) => {
     const { params } = context;
-    const commentId = parseInt(params.id);
-    if (isNaN(commentId)) {
+    if (!isValidEntityId(params.id)) {
       throw new ValidationError('無効なコメントIDです');
     }
+    const commentId = Number(params.id);
 
     const comment = await getCommentWithLinks(commentId);
     if (!comment) {
