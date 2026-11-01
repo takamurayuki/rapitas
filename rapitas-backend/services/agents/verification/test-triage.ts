@@ -23,6 +23,16 @@ const log = createLogger('agents:verification:test-triage');
 const TRIAGE_TEST_TIMEOUT_MS = 120_000;
 const TRIAGE_CMD_TIMEOUT_MS = 10_000;
 /**
+ * Budget for a project's own `scripts/setup-worktree.cjs`.
+ *
+ * Generous because it may install dependencies for a whole baseline worktree.
+ * NOTE(#1339): named and injectable rather than an inline `120_000`, because
+ * bun's per-test budget is 5000ms — so a test exercising this path could only
+ * ever fail on the harness, never reach the timeout branch. Tests pass a small
+ * value; nothing in production does.
+ */
+export const SETUP_SCRIPT_TIMEOUT_MS = 120_000;
+/**
  * Baseline worktree create/setup attempts (initial + retries). Dozens of
  * worktrees run concurrently, so a transient git lock / I/O hiccup is the
  * common cause; one retry absorbs it without delaying a genuinely broken
@@ -183,6 +193,23 @@ async function defaultCreateWorktree(
 export async function defaultSetupWorktree(
   baselineDir: string,
   bootstrapFn: typeof bootstrapProjectDependencies = bootstrapProjectDependencies,
+  /** Budget for the project's setup script. */
+  timeoutMs: number = SETUP_SCRIPT_TIMEOUT_MS,
+  /**
+   * How to run the setup script. Injectable so unit tests do not spawn a real
+   * process (#1339).
+   *
+   * Measured reason: these tests created a real `node` through a shell — two
+   * process creations on Windows — and that cost, not the code under test, was
+   * what failed. bun's default 5000ms budget was being exceeded at
+   * 5015-5032ms; raising it to 30s still produced **3/5 green** under two
+   * concurrent typechecks, with the suite taking 122s per run. Process
+   * creation here is pathologically slow under contention, so no budget is
+   * both generous enough to be reliable and tight enough to be a backstop.
+   * The logic is asserted through this seam instead, and one separate test
+   * still spawns for real to pin the command line.
+   */
+  runCmd: typeof runTriageCmd = runTriageCmd,
 ): Promise<boolean | 'no-manifest'> {
   const setupScript = join(baselineDir, 'scripts', 'setup-worktree.cjs');
   if (!existsSync(setupScript)) {
@@ -205,7 +232,7 @@ export async function defaultSetupWorktree(
       return false;
     }
   }
-  const res = await runTriageCmd(`node "${setupScript}"`, baselineDir, 120_000);
+  const res = await runCmd(`node "${setupScript}"`, baselineDir, timeoutMs);
   if (res.code !== 0) {
     log.warn({ err: res.stderr }, 'test-triage: setup-worktree.cjs failed in baseline');
     // runTriageCmd reports a timeout as exit 124
