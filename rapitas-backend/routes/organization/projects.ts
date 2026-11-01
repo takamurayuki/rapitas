@@ -5,6 +5,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { projectSchema } from '../../schemas/project.schema';
 import { ValidationError } from '../../middleware/error-handler';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 export const projectsRoutes = new Elysia({ prefix: '/projects' })
   // Get all projects
@@ -111,10 +112,10 @@ export const projectsRoutes = new Elysia({ prefix: '/projects' })
     '/:id',
     async (context) => {
       const { params } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('無効なIDです');
       }
+      const id = Number(params.id);
 
       return await prisma.project.delete({
         where: { id },

@@ -7,6 +7,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
+import { parseId } from '../../../middleware/error-handler';
 
 const log = createLogger('routes:developer-mode:config');
 
@@ -113,7 +114,7 @@ export const developerModeConfigRoutes = new Elysia({ prefix: '/developer-mode' 
     '/disable/:taskId',
     async (context) => {
       const { params } = context;
-      const taskId = parseInt(params.taskId);
+      const taskId = parseId(params.taskId, 'task ID');
 
       await prisma.task.update({
         where: { id: taskId },

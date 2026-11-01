@@ -6,6 +6,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { ValidationError, NotFoundError } from '../../middleware/error-handler';
 import { getInsensitiveMode } from '../../config/db-provider';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 // Helper to get comment with links
 async function getCommentWithLinks(commentId: number) {
@@ -161,10 +162,10 @@ export const commentsRoutes = new Elysia()
     '/comments/:id',
     async (context) => {
       const params = context.params as { id: string };
-      const commentId = parseInt(params.id);
-      if (isNaN(commentId)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('無効なコメントIDです');
       }
+      const commentId = Number(params.id);
 
       const comment = await prisma.comment.findUnique({
         where: { id: commentId },
@@ -351,10 +352,10 @@ export const commentsRoutes = new Elysia()
     '/comment-links/:id',
     async (context) => {
       const { params } = context;
-      const linkId = parseInt(params.id);
-      if (isNaN(linkId)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('無効なリンクIDです');
       }
+      const linkId = Number(params.id);
 
       const link = await prisma.commentLink.findUnique({
         where: { id: linkId },

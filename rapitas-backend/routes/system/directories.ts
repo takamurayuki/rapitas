@@ -6,6 +6,7 @@ import { prisma } from '../../config/database';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
+import { parseId } from '../../middleware/error-handler';
 
 export const directoriesRoutes = new Elysia({ prefix: '/directories' })
   // Browse directories
@@ -370,7 +371,7 @@ export const directoriesRoutes = new Elysia({ prefix: '/directories' })
     '/favorites/:id',
     async (context) => {
       const { params } = context;
-      const id = parseInt(params.id);
+      const id = parseId(params.id, 'favorite directory ID');
 
       try {
         await prisma.favoriteDirectory.delete({ where: { id } });

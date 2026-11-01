@@ -5,7 +5,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { themeSchema } from '../../schemas/theme.schema';
-import { NotFoundError, ValidationError } from '../../middleware/error-handler';
+import { NotFoundError, ValidationError, parseId } from '../../middleware/error-handler';
 import { parseRuntimeConfig } from '../../services/agents/verification/runtime-smoke/runtime-config';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -214,10 +214,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
     '/:id',
     async (context) => {
       const { params } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
-        throw new ValidationError('無効なIDです');
-      }
+      const id = parseId(params.id, 'theme ID');
 
       return await prisma.theme.delete({
         where: { id },

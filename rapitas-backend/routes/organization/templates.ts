@@ -4,6 +4,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { toJsonString, fromJsonString } from '../../utils/database/db-helpers';
+import { parseId } from '../../middleware/error-handler';
 
 /**
  * Returns the template row with templateData parsed into an object.
@@ -230,7 +231,7 @@ export const templatesRoutes = new Elysia({ prefix: '/templates' })
     '/:id',
     async (context) => {
       const { params } = context;
-      const id = parseInt(params.id);
+      const id = parseId(params.id, 'template ID');
       return await prisma.taskTemplate.delete({ where: { id } });
     },
     {

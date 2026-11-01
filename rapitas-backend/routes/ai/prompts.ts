@@ -7,6 +7,7 @@ import { generateOptimizedPrompt } from '../../services/claude-agent';
 import { getDefaultProvider, getApiKeyForProvider } from '../../utils/ai-client';
 import { getLabelsArray, toJsonString } from '../../utils/database/db-helpers';
 import { TASK_NOT_FOUND } from '../../utils/common/error-messages';
+import { parseId } from '../../middleware/error-handler';
 
 export const promptsRoutes = new Elysia()
   .get('/tasks/:id/prompts', async ({ params }) => {
@@ -145,7 +146,7 @@ export const promptsRoutes = new Elysia()
     '/prompts/:id',
     async (context) => {
       const { params, set } = context;
-      const promptId = parseInt(params.id);
+      const promptId = parseId(params.id, 'prompt ID');
 
       const existing = await prisma.taskPrompt.findUnique({
         where: { id: promptId },

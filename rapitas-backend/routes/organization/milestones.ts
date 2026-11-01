@@ -5,6 +5,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { milestoneSchema } from '../../schemas/milestone.schema';
 import { ValidationError } from '../../middleware/error-handler';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 export const milestonesRoutes = new Elysia({ prefix: '/milestones' })
   // Get all milestones
@@ -110,10 +111,10 @@ export const milestonesRoutes = new Elysia({ prefix: '/milestones' })
     '/:id',
     async (context) => {
       const { params } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('無効なIDです');
       }
+      const id = Number(params.id);
 
       return await prisma.milestone.delete({
         where: { id },

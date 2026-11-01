@@ -15,6 +15,7 @@ import {
   getWeeklyReviews,
   deleteWeeklyReview,
 } from '../../services/ai/weekly-review-service';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:weekly-review');
 
@@ -105,11 +106,11 @@ export const weeklyReviewRoutes = new Elysia()
   .delete(
     '/weekly-reviews/:id',
     async ({ params, set }) => {
-      const id = parseInt(params.id, 10);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { success: false, error: 'Invalid id' };
       }
+      const id = Number(params.id);
       try {
         await deleteWeeklyReview(prisma, id);
         return { success: true };

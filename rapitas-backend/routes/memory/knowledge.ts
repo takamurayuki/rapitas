@@ -23,6 +23,7 @@ import type {
   ForgettingStage,
   ValidationStatus,
 } from '../../services/memory/types';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 // Type definitions for request bodies
 interface CreateKnowledgeBody {
@@ -254,11 +255,11 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
   .delete(
     '/:id',
     async ({ params, set }) => {
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid ID' };
       }
+      const id = Number(params.id);
       const entry = await archiveKnowledgeEntry(id);
       return { success: true, entry };
     },

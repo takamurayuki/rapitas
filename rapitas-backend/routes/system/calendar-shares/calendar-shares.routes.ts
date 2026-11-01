@@ -31,6 +31,7 @@ import {
   type CalendarShareDeps,
   type ShareRefusal,
 } from './calendar-shares-handlers';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 /** How each refusal reaches the browser. */
 const REFUSAL_STATUS: Record<ShareRefusal, number> = {
@@ -126,11 +127,11 @@ export function createCalendarShareRoutes(overrides: CalendarShareRouteDeps = {}
       // settings card may be a tab behind and a 404 would make a revoke that
       // already happened look broken.
       .delete('/:viewerWorkspaceId', async ({ params, set }) => {
-        const viewerWorkspaceId = Number(params.viewerWorkspaceId);
-        if (!Number.isInteger(viewerWorkspaceId) || viewerWorkspaceId <= 0) {
+        if (!isValidEntityId(params.viewerWorkspaceId)) {
           set.status = 400;
           return { reason: 'invalid_viewer' };
         }
+        const viewerWorkspaceId = Number(params.viewerWorkspaceId);
         const result = await removeCalendarShare(deps, currentWorkspaceId(), viewerWorkspaceId);
         if (!result.ok) {
           set.status = REFUSAL_STATUS[result.reason];
