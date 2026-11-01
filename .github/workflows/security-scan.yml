@@ -156,23 +156,28 @@ jobs:
             echo "**緑は「脆弱性なし」ではない。** ゲートは本番依存の critical のみ。"
             echo "以下は dev 依存を含む全件。"
           } >> "$GITHUB_STEP_SUMMARY"
+          # NOTE(#1340): piped through `tee` so the findings land in the step
+          # LOG as well as the summary. Redirecting only into the summary left
+          # no way to confirm from the API that this step had produced anything
+          # — a reporting step whose output cannot be seen is indistinguishable
+          # from one that silently wrote nothing.
           for pkg in rapitas-frontend rapitas-desktop; do
             {
               echo
               echo "### $pkg (pnpm, dev込み)"
               echo '```'
-              (cd "$pkg" && pnpm audit 2>&1) || true
-              echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
+            (cd "$pkg" && pnpm audit 2>&1) | tee -a "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
           done
           {
             echo
             echo "### rapitas-backend (bun, dev込み)"
             echo "NOTE(#1340): このパッケージは監査工程が存在せず、一度も検査されていなかった。"
             echo '```'
-            (cd rapitas-backend && bun audit 2>&1) || true
-            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          (cd rapitas-backend && bun audit 2>&1) | tee -a "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Gate — frontend production criticals
         working-directory: rapitas-frontend
