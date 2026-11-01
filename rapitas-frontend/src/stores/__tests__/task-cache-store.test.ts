@@ -753,6 +753,42 @@ describe('taskCacheStore', () => {
       expect(boundary).toBeLessThan(afterReceive - 20);
     });
 
+    // #1336: #1332 fixed the in-flight race but left the FIRST boundary on the
+    // device clock. A machine whose clock runs ahead of the server starts the
+    // next fetch in the server's future and skips the gap — and clock skew is
+    // not a millisecond problem, an unsynced machine can be minutes out. The
+    // full fetch returns a bare array, so the server sends the cursor as a
+    // header.
+    it("prefers the server's X-Server-Cursor header on a full fetch", async () => {
+      useTaskCacheStore.setState({ tasks: [], lastFetchedAt: null, initialized: false });
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        ok: true,
+        headers: new Headers({ 'X-Server-Cursor': '2026-03-05T00:00:00.000Z' }),
+        json: () => Promise.resolve([{ id: 1, title: 'T1' }]),
+      } as Response);
+
+      await useTaskCacheStore.getState().fetchAll();
+
+      expect(useTaskCacheStore.getState().lastFetchedAt).toBe('2026-03-05T00:00:00.000Z');
+    });
+
+    it('ignores a header that is not a usable date', async () => {
+      // A proxy that mangles the value must not poison the cursor; fall back
+      // to the local pre-request stamp rather than storing garbage.
+      useTaskCacheStore.setState({ tasks: [], lastFetchedAt: null, initialized: false });
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        ok: true,
+        headers: new Headers({ 'X-Server-Cursor': 'not-a-date' }),
+        json: () => Promise.resolve([]),
+      } as Response);
+
+      await useTaskCacheStore.getState().fetchAll();
+
+      const stored = useTaskCacheStore.getState().lastFetchedAt!;
+      expect(Number.isNaN(Date.parse(stored))).toBe(false);
+      expect(stored).not.toBe('not-a-date');
+    });
+
     it('stamps the full fetch before its request too', async () => {
       // fetchAll sets the first boundary; getting it wrong loses everything
       // written while the initial load was running.

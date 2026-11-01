@@ -312,6 +312,53 @@ describe('GET /tasks', () => {
       expect(Date.parse(body.nextSince)).toBeLessThan(Date.parse(stampDuringQuery));
     });
 
+    // #1336: the incremental path got its boundary from the server, but the
+    // FULL fetch — which seeds the very first boundary — still used the
+    // device clock. A client whose clock runs ahead of the server starts the
+    // next fetch in the server's future and skips everything in between.
+    // The full fetch returns a bare array, so the cursor travels as a header.
+    test('全量取得は X-Server-Cursor ヘッダでカーソルを返すこと', async () => {
+      mockPrisma.task.findMany.mockResolvedValue([]);
+
+      const res = await app.handle(new Request('http://localhost/tasks'));
+      const cursor = res.headers.get('x-server-cursor');
+
+      expect(typeof cursor).toBe('string');
+      expect(Number.isNaN(Date.parse(cursor!))).toBe(false);
+    });
+
+    test('そのヘッダもクエリ発行“前”の時刻であること', async () => {
+      let stampDuringQuery = '';
+      mockPrisma.task.findMany.mockImplementation(async () => {
+        await new Promise((r) => setTimeout(r, 15));
+        stampDuringQuery = new Date().toISOString();
+        return [];
+      });
+
+      const res = await app.handle(new Request('http://localhost/tasks'));
+
+      expect(Date.parse(res.headers.get('x-server-cursor')!)).toBeLessThan(
+        Date.parse(stampDuringQuery),
+      );
+    });
+
+    test('ページ指定の全量取得でもヘッダが付くこと', async () => {
+      mockPrisma.task.findMany.mockResolvedValue([]);
+      mockPrisma.task.count.mockResolvedValue(0);
+
+      const res = await app.handle(new Request('http://localhost/tasks?page=1&limit=10'));
+
+      expect(res.headers.get('x-server-cursor')).toBeTruthy();
+    });
+
+    test('全量取得の本文は配列のまま（既存の読み手を壊さない）', async () => {
+      mockPrisma.task.findMany.mockResolvedValue([{ id: 1, title: 'T1', parentId: null }]);
+
+      const res = await app.handle(new Request('http://localhost/tasks'));
+
+      expect(Array.isArray(await res.json())).toBe(true);
+    });
+
     test('使った since はそのまま返し続けること（既存の読み手を壊さない）', async () => {
       const since = '2026-03-01T00:00:00.000Z';
       mockPrisma.task.findMany.mockResolvedValue([]);

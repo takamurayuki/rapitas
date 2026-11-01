@@ -196,3 +196,10 @@ services/task/task-cleanup.test.ts
 services/task/completed-task-cleanup.test.ts
 services/task/task-worktree-cleanup.test.ts
 eslint-rules/no-unguarded-task-delete.test.mjs
+
+# ===== CORS 方針（#1336） =====
+# exposeHeaders は「間違っていても何も起きない」設定。漏れるとフロント(:3000)は
+# :3001 の応答ヘッダを読めず、依存機能(X-Server-Cursor)が静かに無効化される。
+# CSRF ガード(middleware/local-auth.ts)が持っていた許可オリジンの複製も
+# この resolver に寄せたので、空文字 CORS_ORIGIN の扱いの差分もここで固定する。
+config/cors-options.test.ts

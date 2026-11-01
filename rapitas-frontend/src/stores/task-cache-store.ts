@@ -6,6 +6,26 @@ const logger = createLogger('taskCacheStore');
 
 type ConnectionStatus = 'online' | 'offline' | 'reconnecting';
 
+/** Header carrying the cursor the next `GET /tasks` should send (#1336). */
+const SERVER_CURSOR_HEADER = 'X-Server-Cursor';
+
+/**
+ * Read the server's fetch cursor from a response.
+ *
+ * Returns null unless the header is present AND parses as a date: the value
+ * crosses a CORS boundary and a proxy or a misconfigured `exposeHeaders` can
+ * leave it absent or mangled, and storing garbage as the cursor would break
+ * every later fetch rather than just this one.
+ *
+ * @param res - The response to read / 対象のレスポンス
+ * @returns The cursor, or null when unusable / 使えなければ null
+ */
+function serverCursor(res: Response): string | null {
+  const raw = res.headers?.get?.(SERVER_CURSOR_HEADER);
+  if (!raw || Number.isNaN(Date.parse(raw))) return null;
+  return raw;
+}
+
 type TaskCacheState = {
   tasks: Task[];
   lastFetchedAt: string | null;
@@ -132,7 +152,14 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => {
       );
       set({
         tasks: data,
-        lastFetchedAt: requestedAt,
+        // NOTE(#1336): the server's cursor wins over `requestedAt`. The
+        // pre-request stamp fixed the in-flight race (#1332) but still came
+        // from the device clock, and this is the call that seeds the FIRST
+        // boundary — a machine running ahead of the server would start the
+        // next fetch in the server's future and skip the gap. Clock skew is
+        // not a millisecond problem; an unsynced machine can be minutes out.
+        // The header is used because this endpoint returns a bare array.
+        lastFetchedAt: serverCursor(res) ?? requestedAt,
         initialized: true,
         loading: false,
         connectionStatus: 'online',
