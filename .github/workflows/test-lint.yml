@@ -337,7 +337,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: rapitas-frontend
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       # NOTE(#1340 step 1): the Bun setup and `bun install` that used to sit
       # here are gone, and the tests run through pnpm instead.
@@ -512,7 +512,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: rapitas-frontend
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Check backend TypeScript
         working-directory: rapitas-backend

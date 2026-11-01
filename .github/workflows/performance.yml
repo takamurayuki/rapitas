@@ -143,7 +143,12 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          # NOTE(#1340 step 1): was `9`. This job pinned a different pnpm MAJOR
+          # from every other one, and the first version of the drift check only
+          # looked at `npm install -g pnpm@X` so it reported every workflow as
+          # matching. Kept in action-setup form on purpose — the check now reads
+          # this form too, so the two styles cannot diverge again unnoticed.
+          version: 10.34.9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -154,10 +159,23 @@ jobs:
 
       - name: Install dependencies
         working-directory: rapitas-frontend
-        # --no-frozen-lockfile matches the bundle-size + tauri-build jobs; a plain
-        # frozen install fails with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH when the
-        # lockfile's overrides drift from package.json.
-        run: pnpm install --no-frozen-lockfile
+        # NOTE(#1340 step 1): frozen now. This comment used to read:
+        #
+        #   "--no-frozen-lockfile matches the bundle-size + tauri-build jobs; a
+        #    plain frozen install fails with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH
+        #    when the lockfile's overrides drift from package.json."
+        #
+        # That was recorded while this job ran pnpm 9 and the others floated on
+        # pnpm@10. With one pinned pnpm the premise no longer holds: the Frozen
+        # Install Verification job installs all three packages with
+        # --frozen-lockfile on 10.34.9 and passes. A non-frozen install lets the
+        # job resolve its own tree, so what gets measured or shipped is not what
+        # the committed lockfile describes.
+        #
+        # If this does start failing with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH, the
+        # lockfile and package.json genuinely disagree — reconcile them, do not
+        # reintroduce --no-frozen-lockfile to hide it.
+        run: pnpm install --frozen-lockfile
 
       - name: Build frontend
         working-directory: rapitas-frontend
