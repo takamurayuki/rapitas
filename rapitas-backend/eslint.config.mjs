@@ -17,6 +17,25 @@ const localPlugin = {
 };
 
 export default [
+  // NOTE(#1332): A STANDALONE ignores object, which is what makes it global in
+  // flat config. Adding "generated/**" to the `ignores` of the block below
+  // instead only removes those files from THAT block — and that block is what
+  // supplies the TypeScript parser, so the generated .d.ts files fell through
+  // to the `**/*.d.ts` block, got espree, and produced 6 "Parsing error:
+  // Unexpected token" failures in CI. That is the same trap the comment on the
+  // block below records for tests/**; it was walked into anyway.
+  //
+  // Why ignore them at all: `generated/` holds the two Prisma clients, emitted
+  // by `prisma generate`. Linting them says nothing about code anyone wrote,
+  // and a regeneration that happened to emit a violation would redden a
+  // required gate for a reason nobody here controls.
+  //
+  // NOTE: this cannot be verified by running eslint locally in a worktree —
+  // `generated/*` are symlinks to the primary checkout and eslint does not
+  // traverse them, so the directory looks empty here and looks real in CI.
+  // Check it with `npx eslint --print-config generated/prisma-postgres/index.d.ts`,
+  // which reports the file as ignored instead of handing back espree.
+  { ignores: ["generated/**"] },
   {
     files: ["**/*.ts"],
     // NOTE: tests/** must NOT be ignored here — this block supplies the TS parser.
@@ -24,12 +43,7 @@ export default [
     // on TS syntax (`as`, type annotations) with "Parsing error: Unexpected token",
     // producing a phantom lint error that blocked the workflow verification gate on
     // every task that touched a test file. The tests/** block below overrides rules.
-    // NOTE(#1332): `generated/**` is excluded now that CI actually runs ESLint
-    // over this package. It holds the two Prisma clients, which are produced by
-    // `prisma generate` — linting them says nothing about code anyone wrote,
-    // and a regeneration that happened to emit a rule violation would redden a
-    // required gate for a reason no one here controls.
-    ignores: ["node_modules/**", "dist/**", "generated/**"],
+    ignores: ["node_modules/**", "dist/**"],
     languageOptions: {
       parser: tsparser,
       parserOptions: {
