@@ -32,7 +32,11 @@
  *   the mutating verbs, and a coercion whose verb cannot be determined is left
  *   alone, so this reports what it can prove rather than guessing.
  * - `GET`, until the remaining read routes are migrated (#1349 is staged by
- *   HTTP verb, mutations first). Add 'get' to the `methods` option to widen it.
+ *   HTTP verb, mutations first). Add 'get' to the `methods` option to widen it;
+ *   ~50 read sites still coerce. Doing so needs a fresh ratchet list, because
+ *   the rule is an error everywhere now: all 106 mutating sites are migrated,
+ *   so id-param-migration-baseline and its test were deleted rather than left
+ *   empty (an exemption list with nothing in it cannot fail).
  * - a parameter reached through indexing (`params['id']`) or spread.
  */
 

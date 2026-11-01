@@ -53,7 +53,7 @@ export const promptsRoutes = new Elysia()
     '/tasks/:id/prompts',
     async (context) => {
       const { params, body, set } = context;
-      const taskIdNum = parseInt(params.id);
+      const taskIdNum = parseId(params.id, 'task ID');
       const { name, optimizedPrompt, structuredSections, qualityScore, originalDescription } =
         body as {
           name?: string;
@@ -171,7 +171,7 @@ export const promptsRoutes = new Elysia()
   // Bulk prompt optimization for task and all subtasks
   .post('/tasks/:id/prompts/generate-all', async (context) => {
     const { params, set } = context;
-    const taskIdNum = parseInt(params.id);
+    const taskIdNum = parseId(params.id, 'task ID');
 
     const promptProvider = await getDefaultProvider();
     const promptApiKey = await getApiKeyForProvider(promptProvider);

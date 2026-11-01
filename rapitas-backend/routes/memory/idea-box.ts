@@ -228,11 +228,11 @@ export const ideaBoxRoutes = new Elysia()
   .post(
     '/idea-box/:id/convert-to-task',
     async ({ params, body, set }) => {
-      const ideaId = parseInt(params.id);
-      if (isNaN(ideaId)) {
+      if (!isValidEntityId(params.id)) {
         set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid idea ID' };
       }
+      const ideaId = Number(params.id);
 
       try {
         // Get the idea
@@ -378,11 +378,11 @@ export const ideaBoxRoutes = new Elysia()
   .post(
     '/idea-box/:id/convert-to-task-manual',
     async ({ params, body, set }) => {
-      const ideaId = parseInt(params.id);
-      if (isNaN(ideaId)) {
+      if (!isValidEntityId(params.id)) {
         set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid idea ID' };
       }
+      const ideaId = Number(params.id);
 
       try {
         const idea = await prisma.knowledgeEntry.findFirst({

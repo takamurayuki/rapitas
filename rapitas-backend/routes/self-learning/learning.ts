@@ -24,6 +24,7 @@ import { COMPLEXITY_BANDS } from '../../services/self-learning/comparison/prompt
 
 const log = createLogger('routes:learning');
 import { findSimilarEpisodes, getEpisodeStats } from '../../services/self-learning';
+import { parseId } from '../../middleware/error-handler';
 
 export const learningRoutes = new Elysia({ prefix: '/learning' })
   // --- Patterns ---
@@ -67,11 +68,11 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
 
   // --- Analysis ---
   .post('/analyze/failure/:experimentId', async ({ params }) => {
-    return analyzeFailure(parseInt(params.experimentId));
+    return analyzeFailure(parseId(params.experimentId, 'experiment ID'));
   })
 
   .post('/analyze/strategy/:experimentId', async ({ params }) => {
-    return extractStrategy(parseInt(params.experimentId));
+    return extractStrategy(parseId(params.experimentId, 'experiment ID'));
   })
 
   // --- Statistics ---

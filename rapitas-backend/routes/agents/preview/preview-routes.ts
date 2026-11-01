@@ -33,11 +33,11 @@ export const previewRoutes = new Elysia()
     '/tasks/:id/preview/start',
     async (context) => {
       const { params, body, set } = context;
-      const taskId = parseInt(params.id);
-      if (isNaN(taskId)) {
+      if (!isValidEntityId(params.id)) {
         set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid task id' };
       }
+      const taskId = Number(params.id);
       const result = await startPreview(taskId, { headless: body?.headless });
       if (!result.ok) {
         set.status = HTTP_STATUS.UNPROCESSABLE_ENTITY;
@@ -53,11 +53,11 @@ export const previewRoutes = new Elysia()
   /** Stop the task's preview session, if one is running. */
   .post('/tasks/:id/preview/stop', async (context) => {
     const { params, set } = context;
-    const taskId = parseInt(params.id);
-    if (isNaN(taskId)) {
+    if (!isValidEntityId(params.id)) {
       set.status = HTTP_STATUS.BAD_REQUEST;
       return { error: 'Invalid task id' };
     }
+    const taskId = Number(params.id);
     await stopPreview(taskId);
     return { success: true };
   })
@@ -102,11 +102,11 @@ export const previewRoutes = new Elysia()
     '/tasks/:id/preview/interact',
     async (context) => {
       const { params, body, set } = context;
-      const taskId = parseInt(params.id);
-      if (isNaN(taskId)) {
+      if (!isValidEntityId(params.id)) {
         set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid task id' };
       }
+      const taskId = Number(params.id);
       const result = await interactWithPreview(taskId, body);
       if (!result.ok) {
         set.status =
@@ -153,11 +153,11 @@ export const previewRoutes = new Elysia()
     '/tasks/:id/preview/click',
     async (context) => {
       const { params, body, set } = context;
-      const taskId = parseInt(params.id);
-      if (isNaN(taskId)) {
+      if (!isValidEntityId(params.id)) {
         set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid task id' };
       }
+      const taskId = Number(params.id);
       const result = await clickPreview(taskId, body.x, body.y);
       if (!result.ok) {
         set.status =

@@ -253,8 +253,8 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
     '/:id/exception',
     async (context) => {
       const { params, body } = context;
-      const parentId = parseInt(params.id);
-      if (isNaN(parentId)) throw new ValidationError('Invalid ID');
+      if (!isValidEntityId(params.id)) throw new ValidationError('Invalid ID');
+      const parentId = Number(params.id);
 
       const data = body as {
         originalDate: string; // original recurrence date
@@ -298,8 +298,8 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
     '/:id/stop-recurrence',
     async (context) => {
       const { params, body } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) throw new ValidationError('Invalid ID');
+      if (!isValidEntityId(params.id)) throw new ValidationError('Invalid ID');
+      const id = Number(params.id);
 
       const data = body as { stopDate: string };
 
@@ -339,8 +339,8 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
   // Mark reminder as sent
   .post('/reminders/:id/sent', async (context) => {
     const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) throw new ValidationError('Invalid ID');
+    if (!isValidEntityId(params.id)) throw new ValidationError('Invalid ID');
+    const id = Number(params.id);
 
     return await prisma.scheduleEvent.update({
       where: { id },

@@ -155,7 +155,7 @@ export const integrationRoutes = new Elysia()
   // Sync PRs
   .post('/integrations/:id/sync-prs', async ({ params }) => {
     const { id } = params;
-    const count = await githubService.syncPullRequests(parseInt(id));
+    const count = await githubService.syncPullRequests(parseId(id, 'integration ID'));
     return { syncedCount: count };
   })
 

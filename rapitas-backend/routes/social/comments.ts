@@ -86,10 +86,10 @@ export const commentsRoutes = new Elysia()
     async (context) => {
       const params = context.params as { id: string };
       const body = context.body as { content: string; parentId?: number };
-      const taskId = parseInt(params.id);
-      if (isNaN(taskId)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('無効なタスクIDです');
       }
+      const taskId = Number(params.id);
 
       const { content, parentId } = body;
 
@@ -194,10 +194,10 @@ export const commentsRoutes = new Elysia()
   .post(
     '/comments/:id/links',
     async (context) => {
-      const fromCommentId = parseInt(context.params.id);
-      if (isNaN(fromCommentId)) {
+      if (!isValidEntityId(context.params.id)) {
         throw new ValidationError('無効なコメントIDです');
       }
+      const fromCommentId = Number(context.params.id);
 
       const { toCommentId, label } = context.body as { toCommentId: number; label?: string };
 

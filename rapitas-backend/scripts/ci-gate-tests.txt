@@ -219,7 +219,7 @@ utils/common/id-validation.test.ts
 # parseInt は読めない文字で止まるため、/tasks/5abc が行5に届いていた。実機で
 # 再現済み: POST /tasks/1475abc/stop-execution が 200 を返し、行1475の
 # ステータスを todo に戻し executionGenerationId を 0→1 にした。
-# ルール本体のテストと、未移行ファイル一覧(ratchet)のテスト。一覧は縮むだけで、
-# 直したのに残っているエントリはテストが落とす。
+# 変更操作(POST/PATCH/PUT/DELETE)の全106箇所が移行を終えたので、未移行ファイルの
+# ratchet 一覧(id-param-migration-baseline)は撤去した。空の一覧に対するテストは
+# 自明に通るだけで何も測らない。GET を対象に広げるときは同じ形で作り直す。
 eslint-rules/require-validated-id-param.test.mjs
-eslint-rules/id-param-migration-baseline.test.mjs

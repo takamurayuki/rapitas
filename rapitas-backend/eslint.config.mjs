@@ -6,7 +6,6 @@ import noUnscopedPrNumberLookup from "./eslint-rules/no-unscoped-pr-number-looku
 import noUnguardedTaskDelete from "./eslint-rules/no-unguarded-task-delete.mjs";
 import preferTestEachForSimilar from "./eslint-rules/prefer-test-each-for-similar.mjs";
 import requireValidatedIdParam from "./eslint-rules/require-validated-id-param.mjs";
-import { ID_PARAM_MIGRATION_BASELINE } from "./eslint-rules/id-param-migration-baseline.mjs";
 
 /** @type {import('eslint').Linter.Plugin} */
 const localPlugin = {
@@ -66,18 +65,12 @@ export default [
       "local/require-validated-id-param": "error",
     },
   },
-  // NOTE(#1349): the id-validation ratchet. Every file NOT listed here is held
-  // to require-validated-id-param; the listed ones still carry the old
-  // parseInt(params.x) and are being migrated by HTTP verb. The list may only
-  // shrink — id-param-migration-baseline.test.mjs fails on an entry that no
-  // longer violates the rule, so a migrated file cannot sit here unnoticed.
-  {
-    files: ID_PARAM_MIGRATION_BASELINE,
-    plugins: { local: localPlugin },
-    rules: {
-      "local/require-validated-id-param": "off",
-    },
-  },
+  // NOTE(#1349): require-validated-id-param applies everywhere, with no
+  // exemptions. It landed with a ratchet list of the files not yet migrated;
+  // all 106 mutating sites are done, so the list and its test were removed
+  // rather than left empty — an exemption list with nothing in it is a gate
+  // that cannot fail. GET is still outside the rule's `methods`; widening it
+  // needs the same ratchet built again.
   // Exclude the deletion choke point itself — deleteTaskWithTrash() is the one
   // place allowed to remove a Task row, and every other path must call it.
   {

@@ -14,6 +14,7 @@ import {
   getHistory,
 } from '../../services/scheduling/pomodoro-service';
 import { createLogger } from '../../config/logger';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:pomodoro');
 
@@ -66,11 +67,11 @@ export const pomodoroRoutes = new Elysia({ prefix: '/pomodoro' })
 
   .post('/sessions/:id/pause', async ({ params, set }) => {
     try {
-      const sessionId = parseInt(params.id);
-      if (isNaN(sessionId)) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { success: false, error: '無効なセッションIDです' };
       }
+      const sessionId = Number(params.id);
       const session = await pausePomodoro(sessionId);
       return { success: true, session };
     } catch (error) {
@@ -85,11 +86,11 @@ export const pomodoroRoutes = new Elysia({ prefix: '/pomodoro' })
 
   .post('/sessions/:id/resume', async ({ params, set }) => {
     try {
-      const sessionId = parseInt(params.id);
-      if (isNaN(sessionId)) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { success: false, error: '無効なセッションIDです' };
       }
+      const sessionId = Number(params.id);
       const session = await resumePomodoro(sessionId);
       return { success: true, session };
     } catch (error) {
@@ -104,11 +105,11 @@ export const pomodoroRoutes = new Elysia({ prefix: '/pomodoro' })
 
   .post('/sessions/:id/complete', async ({ params, set }) => {
     try {
-      const sessionId = parseInt(params.id);
-      if (isNaN(sessionId)) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { success: false, error: '無効なセッションIDです' };
       }
+      const sessionId = Number(params.id);
       const result = await completePomodoro(sessionId);
       return { success: true, ...result };
     } catch (error) {
@@ -123,11 +124,11 @@ export const pomodoroRoutes = new Elysia({ prefix: '/pomodoro' })
 
   .post('/sessions/:id/cancel', async ({ params, set }) => {
     try {
-      const sessionId = parseInt(params.id);
-      if (isNaN(sessionId)) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { success: false, error: '無効なセッションIDです' };
       }
+      const sessionId = Number(params.id);
       const session = await cancelPomodoro(sessionId);
       return { success: true, session };
     } catch (error) {

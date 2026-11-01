@@ -89,7 +89,7 @@ export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
   .post(
     '/:id/research',
     async ({ params, body }) => {
-      return runResearch(parseInt(params.id), body.query);
+      return runResearch(parseId(params.id, 'experiment ID'), body.query);
     },
     {
       body: t.Object({
@@ -102,7 +102,7 @@ export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
   .post(
     '/:id/evaluate',
     async ({ params, body }) => {
-      return updateExperiment(parseInt(params.id), {
+      return updateExperiment(parseId(params.id, 'experiment ID'), {
         evaluation: {
           ...body,
           testsPassed: 0,
@@ -138,7 +138,7 @@ export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
     '/:id/episodes',
     async ({ params, body }) => {
       return saveEpisode({
-        experimentId: parseInt(params.id),
+        experimentId: parseId(params.id, 'experiment ID'),
         phase: body.phase as EpisodePhase,
         content: body.content,
         context: body.context as Record<string, unknown> | undefined,
