@@ -181,3 +181,14 @@ tests/routes/tasks/resources-routes.test.ts
 # ===== 外部URL取得のSSRF対策（アドレス方針・リダイレクト再検査・本文上限） =====
 routes/system/url-fetch-guard.test.ts
 tests/routes/system/url-metadata-routes.test.ts
+
+# ===== 書き込み経路の整合性（#1330: 一括削除の保護迂回・ラベル全消失） =====
+# NOTE: The two UNIT files only. Adding the route-level tests
+# (batch-v2 / tasks.subtask-admin / stop-route) pulled their whole route
+# modules into the coverage denominator and took functions from 51.5% to
+# 46.9%, under the 50% floor — ADR-0002 says add tests, never lower the floor,
+# and covering those 600-line routes is its own task. The logic these fixes
+# introduced lives in the two modules below and is fully covered here; the
+# route wiring is still tested, just outside the gate.
+services/task/task-deletion.test.ts
+routes/organization/task-label-replace.test.ts

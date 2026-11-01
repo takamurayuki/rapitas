@@ -481,3 +481,48 @@ describe('stop-route worktree cleanup', () => {
     });
   });
 });
+
+// Confirmed 2026-11-01 (#1330): the status reset was wrapped in a try/catch
+// that logged and moved on, and the route then returned `success: true`. So a
+// failed reset left the task in its previous status — in-progress, with no
+// execution behind it — while the caller was told the stop had worked. Seen
+// for real in #1000's CI log: `Failed to reset task 1 status` on a run whose
+// own summary recorded `stop-execution returned HTTP 200`.
+describe('stop-route reports a failed status reset', () => {
+  beforeEach(resetMocks);
+
+  it('does not claim the status was reset when the update throws', async () => {
+    const taskId = 901;
+    mockDb.task.update.mockImplementation((args: { data?: Record<string, unknown> }) => {
+      // Only the status reset fails; the generation bump is a different call.
+      if (args?.data && 'status' in args.data) {
+        return Promise.reject(new Error('disk I/O error'));
+      }
+      return Promise.resolve({ executionGenerationId: 1 });
+    });
+
+    const res = await stopRoute.handle(
+      new Request(`${BASE}/${taskId}/stop-execution`, { method: 'POST' }),
+    );
+    const body = await res.json();
+
+    // The executions really were stopped, so this is not a failed stop — but
+    // it is not a clean one either, and the caller has to be able to tell.
+    expect(body.statusResetFailed).toBe(true);
+    expect(body.message).toContain('ステータス');
+  });
+
+  it('says nothing about a reset failure on the normal path', async () => {
+    // resetMocks clears calls but keeps a mockImplementation, so the throwing
+    // one from the test above would otherwise still be installed.
+    mockDb.task.update.mockImplementation(() => Promise.resolve({ executionGenerationId: 1 }));
+
+    const res = await stopRoute.handle(
+      new Request(`${BASE}/902/stop-execution`, { method: 'POST' }),
+    );
+    const body = await res.json();
+
+    expect(body.success).toBe(true);
+    expect(body.statusResetFailed).toBeUndefined();
+  });
+});

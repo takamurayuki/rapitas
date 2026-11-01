@@ -70,10 +70,24 @@ const mockPrisma = {
 /** Task ids the shared deletion path was asked to remove. */
 const deletedTaskIds: number[] = [];
 
+// NOTE: Both exports are mirrored. bun's mock.module replaces the whole
+// module, so omitting the bulk entry point made this file stop with one
+// "Export named 'deleteTasksWithTrash' not found" and ALL of its tests vanish
+// (CLAUDE.md § Adding an export to a module).
 mock.module('../../../services/task/task-deletion', () => ({
   deleteTaskWithTrash: async (taskId: number) => {
     deletedTaskIds.push(taskId);
     return { taskId, outcome: 'deleted', trashId: 1 };
+  },
+  deleteTasksWithTrash: async (taskIds: number[]) => {
+    const unique = [...new Set(taskIds)];
+    deletedTaskIds.push(...unique);
+    return {
+      deleted: unique,
+      protected: [],
+      notFound: [],
+      trashIds: unique.map(() => 1),
+    };
   },
 }));
 

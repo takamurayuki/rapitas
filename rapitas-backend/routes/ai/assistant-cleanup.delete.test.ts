@@ -18,12 +18,37 @@ let protectedIds: number[] = [];
 /** Ids that make the deletion path throw. */
 let explodingIds: number[] = [];
 
+// NOTE: Both exports are mirrored — mock.module replaces the whole module, so
+// a missing one makes this file stop with "Export named … not found" and its
+// tests vanish rather than fail (CLAUDE.md § Adding an export to a module).
+const deleteOne = async (taskId: number, source: string) => {
+  if (explodingIds.includes(taskId)) throw new Error('boom');
+  if (protectedIds.includes(taskId)) return { taskId, outcome: 'protected' };
+  deleted.push(taskId);
+  return { taskId, outcome: 'deleted', trashId: 100 + taskId, source };
+};
+
 mock.module('../../services/task/task-deletion', () => ({
-  deleteTaskWithTrash: async (taskId: number, source: string) => {
-    if (explodingIds.includes(taskId)) throw new Error('boom');
-    if (protectedIds.includes(taskId)) return { taskId, outcome: 'protected' };
-    deleted.push(taskId);
-    return { taskId, outcome: 'deleted', trashId: 100 + taskId, source };
+  deleteTaskWithTrash: deleteOne,
+  deleteTasksWithTrash: async (taskIds: number[], source: string) => {
+    const result = {
+      deleted: [] as number[],
+      protected: [] as number[],
+      notFound: [] as number[],
+      trashIds: [] as number[],
+    };
+    for (const id of [...new Set(taskIds)]) {
+      const one = await deleteOne(id, source);
+      if (one.outcome === 'deleted') {
+        result.deleted.push(id);
+        if (one.trashId !== undefined) result.trashIds.push(one.trashId);
+      } else if (one.outcome === 'protected') {
+        result.protected.push(id);
+      } else {
+        result.notFound.push(id);
+      }
+    }
+    return result;
   },
 }));
 
