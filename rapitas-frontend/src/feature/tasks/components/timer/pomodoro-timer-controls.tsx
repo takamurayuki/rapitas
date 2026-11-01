@@ -12,7 +12,7 @@
  * wide start button (a lone small icon read as sparse).
  */
 'use client';
-import { Play, Pause, Square, Check, AlarmClockPlus, SkipForward } from 'lucide-react';
+import { Play, Pause, Square, Check, SkipForward } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 interface PomodoroTimerControlsProps {
@@ -25,7 +25,6 @@ interface PomodoroTimerControlsProps {
   onResume: () => void;
   onComplete: () => void;
   onStop: () => void;
-  onCheckpoint: () => void;
   onCutBreak: () => void;
 }
 
@@ -58,7 +57,6 @@ export default function PomodoroTimerControls({
   onResume,
   onComplete,
   onStop,
-  onCheckpoint,
   onCutBreak,
 }: PomodoroTimerControlsProps) {
   const t = useTranslations('pomodoro');
@@ -143,15 +141,6 @@ export default function PomodoroTimerControls({
         title={t('completeTooltip')}
       >
         <Check className="h-5 w-5" />
-      </button>
-      <button
-        type="button"
-        onClick={onCheckpoint}
-        className={`${TINT_BASE} ${TINT_ZINC} p-2.5`}
-        aria-label={t('checkpointButton')}
-        title={t('checkpointTooltip')}
-      >
-        <AlarmClockPlus className="h-5 w-5" />
       </button>
       <button
         type="button"

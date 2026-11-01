@@ -23,4 +23,5 @@ export {
   getCalendarTokenStore,
   getCalendarSyncService,
   ensureCalendarPollingStarted,
+  startCalendarPollingForConnectedWorkspaces,
 } from './calendar-sync-runtime';

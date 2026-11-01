@@ -57,7 +57,7 @@ export async function ensureRetryDispatch(
 ): Promise<RetryDispatchOutcome> {
   try {
     if (task.themeId == null) return 'theme_not_running';
-    const theme = await prisma.themeAutoRun.findUnique({
+    const theme = await prisma.themeAutoRun.findFirst({
       where: { themeId: task.themeId },
       select: { enabled: true, status: true, currentTaskId: true, order: true },
     });
@@ -80,7 +80,7 @@ export async function ensureRetryDispatch(
       new Map(),
     );
 
-    const after = await prisma.themeAutoRun.findUnique({
+    const after = await prisma.themeAutoRun.findFirst({
       where: { themeId: task.themeId },
       select: { currentTaskId: true },
     });

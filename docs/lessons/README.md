@@ -10,7 +10,7 @@ nothing tell us", and each entry ends in a check that would have caught it.
 | Page                                                         | What it covers                                                                        |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
 | [gates-that-do-not-measure.md](gates-that-do-not-measure.md) | Checks that run, report green, and are not measuring the thing they are named after   |
-| [running-it-once.md](running-it-once.md)                     | Three defects that survived full test suites and died within minutes of one real run  |
+| [running-it-once.md](running-it-once.md)                     | Five defects that survived full test suites and died within minutes of a real run     |
 | [measurement-discipline.md](measurement-discipline.md)       | Numbers reported before they were measured, and how each was wrong                    |
 | [dev-loop-hazards.md](dev-loop-hazards.md)                   | Environment traps: stale primary checkout, shell encoding, PowerShell, route prefixes |
 
@@ -41,10 +41,15 @@ The third is the one that gets skipped, and the one that would have paid for
 itself fastest.
 
 There is a fourth that only applies once a pipeline has more than one stage:
-**run one real thing through it end to end.** Three further defects were found
-that way on the same day, each of which had passed its own tests, because each
-was correct and only the seams between them were not —
-[running-it-once.md](running-it-once.md).
+**run one real thing through it end to end.** Five further defects were found
+that way, each of which had passed its own tests, because each was correct and
+only the seams between them were not — [running-it-once.md](running-it-once.md).
+
+A fifth belongs to anything that hands work to an agent: **name the command
+that produces each acceptance criterion's evidence, and the directory it runs
+in.** A criterion whose command the agent is forbidden to run never goes
+green, and a task parked on that question looks exactly like a task making
+progress.
 
 ## How to add to these pages
 

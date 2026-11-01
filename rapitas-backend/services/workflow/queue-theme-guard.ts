@@ -13,7 +13,7 @@ export async function isQueueThemeRunning(
     if (!task || ['blocked', 'failed', 'cancelled', 'canceled', 'canceling'].includes(task.status))
       return false;
     if (task.themeId == null) return true;
-    const run = await db.themeAutoRun.findUnique({
+    const run = await db.themeAutoRun.findFirst({
       where: { themeId: task.themeId },
       select: { enabled: true, status: true },
     });

@@ -17,7 +17,17 @@ let busyRows: Array<{ startAt: Date; endAt: Date }> = [];
 let syncRow: { lastSyncedAt: Date; lastStatus: string; lastError: null } | null = null;
 const mockPrisma = {
   calendarBusyBlock: { findMany: async () => busyRows },
-  calendarSyncState: { findUnique: async () => syncRow },
+  // findFirst, not findUnique: calendar-store stopped addressing this row by
+  // `id: 1` when the sync state became per-workspace. A double that still
+  // stubs only findUnique makes getSyncState() throw, which it catches and
+  // reports as "no sync state" — so the hold silently never fires and this
+  // test fails on `skipped` being undefined rather than on anything about
+  // calendars.
+  calendarSyncState: {
+    findFirst: async () => syncRow,
+    update: async () => ({}),
+    create: async () => ({}),
+  },
   task: { findUnique: async () => ({ workflowStatus: 'plan_approved' }) },
   workflowQueueItem: { findFirst: queueFindFirstMock },
   activityLog: { create: activityCreateMock },

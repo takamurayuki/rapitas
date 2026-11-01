@@ -112,7 +112,11 @@ describe('AgentGrowthPage', () => {
     // Noon UTC keeps the local-time M/D label stable across UTC±11 runners.
     const newest = makeWindow({
       to: '2026-03-20T12:00:00.000Z',
-      autonomy: { completed: 4, autonomous: 3, rate: 0.75 },
+      // NOTE: completed was 4 here, which the sample gate now withholds
+      // (#1304). Raised above the threshold so this test keeps testing what it
+      // is named for — ordering, labels and null passthrough; the gating is
+      // asserted in the describe below.
+      autonomy: { completed: 8, autonomous: 6, rate: 0.75 },
     });
     const oldest = makeWindow({
       to: '2026-03-13T12:00:00.000Z',
@@ -136,5 +140,82 @@ describe('AgentGrowthPage', () => {
 
     const criticChart = chartProps.find((p) => p.title === 'agents.growth.criticFirstPass.title');
     expect(criticChart?.data[0]).toEqual({ weekLabel: '3/13', research: null, plan: null });
+  });
+});
+
+/**
+ * The digest above these charts already dropped thin-sample rates; the charts
+ * did not, so a 1/1 pass plotted as 100% beside a 25-task week (#1304). The
+ * charts are "the evidence for whoever wants to dig", which is exactly the
+ * reader a thin sample misleads.
+ */
+describe('AgentGrowthPage detail chart sample gating', () => {
+  beforeEach(() => {
+    chartProps.length = 0;
+  });
+
+  const dataOf = (key: string) =>
+    chartProps.find((p) => p.title === `agents.growth.${key}.title`)?.data;
+
+  it('withholds every rate whose denominator is too small', () => {
+    setHookState({
+      ledger: {
+        windowDays: 7,
+        windows: [
+          makeWindow({
+            to: '2026-03-20T12:00:00.000Z',
+            autonomy: { completed: 2, autonomous: 1, rate: 0.5 },
+            criticFirstPass: {
+              research: { total: 1, firstPass: 1, rate: 1 },
+              plan: { total: 3, firstPass: 3, rate: 1 },
+            },
+            defectRecurrence: { newConcerns: 3, recurring: 0, rate: 0 },
+            kbQuality: { total: 4, validated: 3, rate: 0.75 },
+            repairEfficiency: { completedTasks: 2, totalRepairs: 4, avgPerTask: 2 },
+          }),
+        ],
+      },
+      loading: false,
+      error: null,
+    });
+    render(<AgentGrowthPage />);
+
+    expect(dataOf('autonomy')).toEqual([{ weekLabel: '3/20', autonomy: null }]);
+    expect(dataOf('criticFirstPass')).toEqual([{ weekLabel: '3/20', research: null, plan: null }]);
+    expect(dataOf('defectRecurrence')).toEqual([{ weekLabel: '3/20', recurrence: null }]);
+    expect(dataOf('kbQuality')).toEqual([{ weekLabel: '3/20', validated: null }]);
+    // An average over a denominator fails the same way a rate does: 2.0 repairs
+    // per task was measured live over 2 tasks.
+    expect(dataOf('repairEfficiency')).toEqual([{ weekLabel: '3/20', avgPerTask: null }]);
+  });
+
+  it('states each rate once its denominator is there', () => {
+    setHookState({
+      ledger: {
+        windowDays: 7,
+        windows: [
+          makeWindow({
+            to: '2026-03-20T12:00:00.000Z',
+            autonomy: { completed: 25, autonomous: 16, rate: 0.64 },
+            criticFirstPass: {
+              research: { total: 20, firstPass: 10, rate: 0.5 },
+              plan: { total: 10, firstPass: 6, rate: 0.6 },
+            },
+            defectRecurrence: { newConcerns: 27, recurring: 7, rate: 0.259 },
+            kbQuality: { total: 8645, validated: 6657, rate: 0.77 },
+            repairEfficiency: { completedTasks: 25, totalRepairs: 14, avgPerTask: 0.56 },
+          }),
+        ],
+      },
+      loading: false,
+      error: null,
+    });
+    render(<AgentGrowthPage />);
+
+    expect(dataOf('autonomy')).toEqual([{ weekLabel: '3/20', autonomy: 0.64 }]);
+    expect(dataOf('criticFirstPass')).toEqual([{ weekLabel: '3/20', research: 0.5, plan: 0.6 }]);
+    expect(dataOf('defectRecurrence')).toEqual([{ weekLabel: '3/20', recurrence: 0.259 }]);
+    expect(dataOf('kbQuality')).toEqual([{ weekLabel: '3/20', validated: 0.77 }]);
+    expect(dataOf('repairEfficiency')).toEqual([{ weekLabel: '3/20', avgPerTask: 0.56 }]);
   });
 });

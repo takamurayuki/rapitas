@@ -76,7 +76,7 @@ export async function commitVerifyRepair(
         const theme =
           task.themeId === null
             ? null
-            : await tx.themeAutoRun.findUnique({
+            : await tx.themeAutoRun.findFirst({
                 where: { themeId: task.themeId },
                 select: { status: true },
               });

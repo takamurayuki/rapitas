@@ -41,7 +41,7 @@ const mockAgentExecutionFindFirst = mock(() => Promise.resolve(latestExecutionRo
 mock.module('../../config/database', () => ({
   prisma: {
     task: { updateMany: mockTaskUpdateMany, findUnique: mockTaskFindUnique },
-    themeAutoRun: { findUnique: mockThemeAutoRunFindUnique },
+    themeAutoRun: { findFirst: mockThemeAutoRunFindUnique },
     agentExecution: { findFirst: mockAgentExecutionFindFirst },
     workflowTransition: { findFirst: async () => null },
   },

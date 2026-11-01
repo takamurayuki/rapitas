@@ -33,8 +33,16 @@ pub fn get_window_decorations(window: tauri::Window) -> Result<serde_json::Value
 ///
 /// On Windows, the hide -> show -> unminimize -> set_focus sequence is required
 /// to reliably bring the window to the foreground.
+///
+/// NOTE: `get_window`, never `get_webview_window`. The latter resolves only
+/// while every webview on the window carries the window's own label
+/// (`Window::is_webview_window`), so the first time the in-app link pane
+/// docks a child webview into "main" it starts returning `None` — and this
+/// whole function silently became a no-op, leaving the window unrecoverable
+/// from the tray once it had been closed (#1070). Nothing here needs the
+/// webview; `Window` carries show/hide/focus and `Emitter` on its own.
 pub fn show_main_window(app: &tauri::AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
+    if let Some(window) = app.get_window("main") {
         let _ = window.hide();
         let _ = window.show();
         let _ = window.unminimize();

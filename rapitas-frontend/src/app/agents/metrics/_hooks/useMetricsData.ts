@@ -31,15 +31,47 @@ export interface ExecutionTrendData {
   averageTime: number | null;
 }
 
+/**
+ * Of the tasks that first completed in the window, how many got there with no
+ * verify_repair. The task-level quality counterpart to `overallSuccessRate`,
+ * which only says a CLI process exited cleanly (#1300).
+ */
+export interface FirstPassCompletion {
+  completedTasks: number;
+  repairFreeTasks: number;
+  /** repairFreeTasks ÷ completedTasks; null when nothing completed. */
+  rate: number | null;
+}
+
+/**
+ * Tokens split by class, because they do not cost the same: a cache read is
+ * about a tenth of a fresh input token, and cache reads are 94.78% of the
+ * volume here — so one summed figure tracked neither spend nor load (#1302).
+ */
+export interface TokenBreakdown {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheCreation: number;
+}
+
 export interface MetricsOverview {
   totalExecutions: number;
   totalSuccessful: number;
   totalFailed: number;
+  /** Executions in neither terminal bucket — still running, cancelled or interrupted. */
+  totalUnfinished: number;
+  /** Share of FINISHED executions that exited cleanly. Liveness, not quality. */
   overallSuccessRate: number;
+  /** Sum of `tokenBreakdown`; the legacy column for rows predating it. */
   totalTokensUsed: number;
+  /** Optional: a page open across a deploy can be answered by an older build. */
+  tokenBreakdown?: TokenBreakdown;
   totalAgents: number;
   activeAgents: number;
   averageExecutionTime: number | null;
+  /** Optional: a page open across a deploy can be answered by an older build. */
+  firstPassCompletion?: FirstPassCompletion;
 }
 
 export interface AgentPerformanceComparison {

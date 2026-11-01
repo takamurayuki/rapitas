@@ -6,6 +6,8 @@
 
 model Category {
   id          Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   name        String
   description String?
   color       String   @default("#6366F1")
@@ -17,10 +19,13 @@ model Category {
   updatedAt   DateTime @updatedAt
   themes      Theme[]
   labels      Label[]
+  @@index([workspaceId])
 }
 
 model Theme {
   id               Int            @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   name             String
   description      String?
   color            String         @default("#8B5CF6")
@@ -47,10 +52,14 @@ model Theme {
   taskPatterns     TaskPattern[]
   behaviorSummaries UserBehaviorSummary[]
   labels           Label[]
+
+  @@index([workspaceId])
 }
 
 model Project {
   id          Int         @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   name        String
   description String?
   color       String      @default("#3B82F6")
@@ -59,10 +68,13 @@ model Project {
   updatedAt   DateTime    @updatedAt
   tasks       Task[]
   milestones  Milestone[]
+  @@index([workspaceId])
 }
 
 model Milestone {
   id          Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   name        String
   description String?
   dueDate     DateTime?
@@ -71,10 +83,14 @@ model Milestone {
   tasks       Task[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId])
 }
 
 model Task {
   id                    Int           @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   title                 String
   description           String?
   status                String        @default("todo")
@@ -89,18 +105,15 @@ model Task {
   parentId              Int?
   parent                Task?         @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
   subtasks              Task[]        @relation("TaskSubtasks")
+  // Back-relation for notes/NoteTaskLink. Prisma requires both sides, so
+  // moving notes onto the server lands this one line in core.
+  noteLinks             NoteTaskLink[]
   themeId               Int?
   theme                 Theme?        @relation(fields: [themeId], references: [id], onDelete: SetNull)
   projectId             Int?
   project               Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
   milestoneId           Int?
   milestone             Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
-  // DEPRECATED: superseded by studyGoalId (unified StudyGoal). Kept so legacy
-  // imports/exports keep working; startup migration copies values over.
-  examGoalId            Int?
-  examGoal              ExamGoal?     @relation(fields: [examGoalId], references: [id], onDelete: SetNull)
-  studyGoalId           Int?
-  studyGoal             StudyGoal?    @relation(fields: [studyGoalId], references: [id], onDelete: SetNull)
   timeEntries           TimeEntry[]
   pomodoroSessions      PomodoroSession[]
   comments              Comment[]
@@ -204,6 +217,7 @@ model Task {
   @@index([parentId])
   @@index([dueDate])
   @@index([isRecurring, nextOccurrence])
+  @@index([workspaceId])
 
   // Workflow markdown artifacts (research/plan/question/verify), DB-backed.
   workflowFiles        WorkflowFile[]
@@ -217,6 +231,8 @@ model Task {
 
 model Comment {
   id        Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId    Int
   task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
   content   String
@@ -228,11 +244,15 @@ model Comment {
   linksTo   CommentLink[] @relation("CommentLinkTo")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+
+  @@index([workspaceId])
 }
 
 // Many-to-many relation table for linking comments
 model CommentLink {
   id            Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   fromCommentId Int
   toCommentId   Int
   fromComment   Comment  @relation("CommentLinkFrom", fields: [fromCommentId], references: [id], onDelete: Cascade)
@@ -243,10 +263,13 @@ model CommentLink {
   @@unique([fromCommentId, toCommentId])
   @@index([fromCommentId])
   @@index([toCommentId])
+  @@index([workspaceId])
 }
 
 model Label {
   id          Int         @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   name        String
   description String?
   color       String      @default("#6366F1")
@@ -263,10 +286,14 @@ model Label {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   tasks       TaskLabel[]
+
+  @@index([workspaceId])
 }
 
 model TaskLabel {
   id        Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId    Int
   labelId   Int
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
@@ -274,10 +301,13 @@ model TaskLabel {
   createdAt DateTime @default(now())
 
   @@unique([taskId, labelId])
+  @@index([workspaceId])
 }
 
 model TaskTemplate {
   id            Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   name          String
   description   String?
   category      String
@@ -288,10 +318,14 @@ model TaskTemplate {
   theme         Theme?   @relation(fields: [themeId], references: [id], onDelete: SetNull)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([workspaceId])
 }
 
 model TaskPrompt {
   id                  Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId              Int
   task                Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
   name                String?
@@ -304,4 +338,37 @@ model TaskPrompt {
   updatedAt           DateTime  @updatedAt
 
   @@index([taskId])
+  @@index([workspaceId])
+}
+
+// A task that was deleted, kept long enough that the deletion can be undone.
+//
+// Deleting a task cascades across 43 relations, so by the time anyone regrets
+// it there is nothing left to read — this snapshot is the only copy. It holds
+// the task's own columns and those of its subtasks as JSON; the executions,
+// pull requests and workflow files that went with it are gone either way.
+//
+// Written only for deletions a person asked for. Automatic housekeeping
+// (completed-task cleanup, orphan subtask cleanup) deletes by policy and does
+// not fill the trash with things nobody will miss.
+model DeletedTask {
+  id             Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
+  originalTaskId Int
+  // Denormalised so the trash list reads without parsing every snapshot.
+  title          String
+  themeId        Int?
+  // The task row plus its subtasks: { task: {...}, subtasks: [{...}] }
+  snapshotJson   String
+  // Who asked: 'user' | 'assistant'
+  source         String    @default("user")
+  deletedAt      DateTime  @default(now())
+  restoredAt     DateTime?
+  // The new task made by restoring. A restore cannot reuse the original id.
+  restoredTaskId Int?
+
+  @@index([deletedAt])
+  @@index([originalTaskId])
+  @@index([workspaceId])
 }

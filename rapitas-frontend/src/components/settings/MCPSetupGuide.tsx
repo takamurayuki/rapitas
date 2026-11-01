@@ -10,24 +10,22 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Plug, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react';
 
-const MCP_CONFIG = `{
+// NOTE: Both snippets below were verified against a real client (#1316) —
+// Claude Code 2.1.316 connects with them and lists all eight rapitas tools.
+// The previous pair could not work: `transport: "http"` is not a recognised
+// key, and a stdio entry running `curl` fails the handshake outright because
+// stdio exchanges JSON-RPC continuously over stdin/stdout while curl prints
+// one response and exits.
+export const MCP_CONFIG = `{
   "mcpServers": {
     "rapitas": {
-      "url": "http://127.0.0.1:3001/mcp",
-      "transport": "http"
+      "type": "http",
+      "url": "http://127.0.0.1:3001/mcp"
     }
   }
 }`;
 
-const CLAUDE_CODE_CONFIG = `// ~/.claude/claude_desktop_config.json
-{
-  "mcpServers": {
-    "rapitas": {
-      "command": "curl",
-      "args": ["-s", "http://127.0.0.1:3001/mcp/tools"]
-    }
-  }
-}`;
+export const CLAUDE_CODE_CONFIG = `claude mcp add --transport http rapitas http://127.0.0.1:3001/mcp`;
 
 export function MCPSetupGuide() {
   const t = useTranslations('settings.mcpSetupGuide');
