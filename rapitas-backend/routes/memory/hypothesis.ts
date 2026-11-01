@@ -154,11 +154,11 @@ export const hypothesisRoutes = new Elysia()
   .put(
     '/hypotheses/:id/status',
     async ({ params, body, set }) => {
-      const id = parseInt(params.id);
-      if (!Number.isFinite(id)) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { error: '無効なIDです' };
       }
+      const id = Number(params.id);
       const ok = await setHypothesisStatus(id, body.status as HypothesisStatus);
       if (!ok) {
         set.status = 404;

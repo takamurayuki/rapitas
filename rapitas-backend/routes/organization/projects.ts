@@ -75,10 +75,10 @@ export const projectsRoutes = new Elysia({ prefix: '/projects' })
     '/:id',
     async (context) => {
       const { params, body } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('無効なIDです');
       }
+      const id = Number(params.id);
 
       const { name, description, color, icon } = body as {
         name?: string;

@@ -131,11 +131,11 @@ export const concernBacklogRoutes = new Elysia()
   .patch(
     '/concerns/:id',
     async ({ params, body, set }) => {
-      const id = parseInt(params.id);
-      if (!Number.isSafeInteger(id) || id <= 0) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { error: 'Invalid ID' };
       }
+      const id = Number(params.id);
       const status = body.status === 'dismissed' ? 'dismissed' : 'open';
       const ok = await setConcernStatus(id, status);
       if (!ok) {

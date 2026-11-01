@@ -19,6 +19,7 @@ import type {
   EpisodeOutcome,
   EmotionalTag,
 } from '../../services/self-learning/types';
+import { parseId } from '../../middleware/error-handler';
 
 export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
   // --- Experiment CRUD ---
@@ -53,7 +54,7 @@ export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
   .put(
     '/:id',
     async ({ params, body }) => {
-      return updateExperiment(parseInt(params.id), {
+      return updateExperiment(parseId(params.id, 'experiment ID'), {
         ...body,
         status: body.status as ExperimentPhase | undefined,
         evaluation: body.evaluation

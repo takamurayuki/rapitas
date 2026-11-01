@@ -279,7 +279,7 @@ export const directoriesRoutes = new Elysia({ prefix: '/directories' })
     '/favorites/:id',
     async (context) => {
       const { params, body } = context;
-      const id = parseInt(params.id);
+      const id = parseId(params.id, 'favorite directory ID');
       const { name } = body as { name?: string };
 
       try {

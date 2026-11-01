@@ -110,10 +110,10 @@ export const labelsRoutes = new Elysia({ prefix: '/labels' })
     '/:id',
     async (context) => {
       const { params, body } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('無効なIDです');
       }
+      const id = Number(params.id);
 
       const { name, description, color, icon, categoryId } = body as {
         name?: string;
@@ -202,10 +202,10 @@ export const taskLabelsRoutes = new Elysia()
     '/tasks/:id/labels',
     async (context) => {
       const { params, body } = context;
-      const taskId = parseInt(params.id);
-      if (isNaN(taskId)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('無効なタスクIDです');
       }
+      const taskId = Number(params.id);
 
       const { labelIds } = body as { labelIds: number[] };
 

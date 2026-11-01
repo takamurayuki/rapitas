@@ -100,7 +100,7 @@ export const promptsRoutes = new Elysia()
   .patch(
     '/prompts/:id',
     async ({ params, body, set }) => {
-      const promptId = parseInt(params.id);
+      const promptId = parseId(params.id, 'prompt ID');
       const { name, optimizedPrompt, isActive } = body as {
         name?: string;
         optimizedPrompt?: string;

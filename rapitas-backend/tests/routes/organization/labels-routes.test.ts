@@ -20,6 +20,11 @@ const mockPrisma = {
   task: {
     findUnique: mock(() => Promise.resolve(null)),
   },
+  // NOTE(#1349): replaceTaskLabels opens a transaction. Without this the bulk
+  // route threw `$transaction is not a function` and answered 500, so the PUT
+  // tests below went red for the wrong reason — they never reached the delete
+  // that a truncated id aims at the wrong task.
+  $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };
 
 mock.module('../../../config/database', () => ({
@@ -35,7 +40,7 @@ mock.module('../../../config/logger', () => ({
   }),
 }));
 
-const { labelsRoutes } = await import('../../../routes/organization/labels');
+const { labelsRoutes, taskLabelsRoutes } = await import('../../../routes/organization/labels');
 const { AppError } = await import('../../../middleware/error-handler');
 
 function resetAllMocks() {
@@ -50,7 +55,12 @@ function resetAllMocks() {
   }
 }
 
-function createApp() {
+// NOTE(#1349): takes the router so the bulk-replacement route can be mounted
+// too. taskLabelsRoutes is a SEPARATE Elysia instance with no /labels prefix —
+// mounting labelsRoutes and asking for /labels/tasks/5e2/labels reaches no
+// handler at all, which is how the first version of the PUT tests below
+// "failed" for the wrong reason.
+function createApp(routes: Parameters<Elysia['use']>[0] = labelsRoutes) {
   return new Elysia()
     .onError(({ code, error, set }) => {
       if (error instanceof AppError) {
@@ -66,7 +76,7 @@ function createApp() {
         error: error instanceof Error ? error.message : 'Server error',
       };
     })
-    .use(labelsRoutes);
+    .use(routes);
 }
 
 describe('GET /labels', () => {
@@ -218,6 +228,69 @@ describe('PATCH /labels/:id', () => {
     );
 
     expect(res.status).toBe(400);
+  });
+
+  // NOTE(#1349): 'abc' 以外は素通りしていた。isNaN は parseInt の結果を見るので
+  // '5e2' → 5 も '5abc' → 5 も false になり、呼び出し元が指していないラベルを
+  // 更新していた。update が呼ばれないことまで見る。
+  test.each([
+    ['指数表記', '5e2'],
+    ['数値に続く接尾辞', '5abc'],
+    ['小数', '5.9'],
+    ['ゼロ', '0'],
+  ])('無効なID(%s: %s)でDBに触れず400を返すこと', async (_label, raw) => {
+    const res = await app.handle(
+      new Request(`http://localhost/labels/${raw}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'test' }),
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(mockPrisma.label.update).not.toHaveBeenCalled();
+  });
+});
+
+// PUT /tasks/:id/labels — a task's labels are REPLACED wholesale, so a
+// truncated id wipes another task's labels. #1330 made the replacement atomic;
+// #1349 is about it running against the right row. There was no test here.
+describe('PUT /tasks/:id/labels', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp(taskLabelsRoutes);
+  });
+
+  const put = (raw: string) =>
+    app.handle(
+      new Request(`http://localhost/tasks/${raw}/labels`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ labelIds: [1] }),
+      }),
+    );
+
+  test.each([
+    ['指数表記', '5e2'],
+    ['数値に続く接尾辞', '5abc'],
+    ['小数', '5.9'],
+    ['ゼロ', '0'],
+  ])('無効なタスクID(%s: %s)で他タスクのラベルを消さないこと', async (_label, raw) => {
+    // The label the body names EXISTS, so nothing downstream refuses the
+    // request on its own: left at the default [], replaceTaskLabels threw on a
+    // missing label id and the test would pass without the truncation ever
+    // reaching the delete.
+    mockPrisma.label.findMany.mockResolvedValue([{ id: 1 }]);
+
+    const res = await put(raw);
+
+    expect(res.status).toBe(400);
+    // What actually matters: the delete is aimed at a taskId the caller never
+    // typed. Before this fix '5e2' reached task 5 and emptied its labels.
+    expect(mockPrisma.taskLabel.deleteMany).not.toHaveBeenCalled();
+    expect(mockPrisma.taskLabel.createMany).not.toHaveBeenCalled();
   });
 });
 

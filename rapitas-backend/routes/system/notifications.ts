@@ -87,10 +87,10 @@ export const notificationsRoutes = new Elysia({ prefix: '/notifications' })
   // Mark as read
   .patch('/:id/read', async (context) => {
     const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
+    if (!isValidEntityId(params.id)) {
       throw new ValidationError(INVALID_ID);
     }
+    const id = Number(params.id);
 
     return await prisma.notification.update({
       where: { id },
