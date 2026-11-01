@@ -54,7 +54,12 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: rapitas-backend
-        run: bun install
+      # NOTE(#1340): --frozen-lockfile. A plain `bun install` re-resolves the tree
+      # against package.json ranges, so a job could run against dependencies the
+      # committed bun.lock never recorded. The dedicated Frozen Install job
+      # proves the lockfile is installable; it cannot stop another job from
+      # resolving something else, which is what the #1349 review pointed out.
+        run: bun install --frozen-lockfile
 
       - name: Setup database
         working-directory: rapitas-backend

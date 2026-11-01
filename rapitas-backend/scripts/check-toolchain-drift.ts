@@ -29,7 +29,49 @@ export interface ToolchainViolation {
   line: number;
   found: string;
   expected: string;
-  tool: 'bun' | 'pnpm' | 'node';
+  tool: 'bun' | 'pnpm' | 'node' | 'lockfile';
+}
+
+/**
+ * Workflows allowed to install without a frozen lockfile.
+ *
+ * Only the lockfile-update job: re-resolving the tree is its entire purpose.
+ */
+const RESOLVING_WORKFLOWS = new Set(['update-lockfiles.yml']);
+
+/** Installs that re-resolve the dependency tree instead of reading the lockfile. */
+const UNFROZEN_INSTALL = /^\s*run:\s*(bun|pnpm|npm)\s+(install|ci|i)\s*$/;
+
+/**
+ * Find installs that would re-resolve the tree rather than read the lockfile.
+ *
+ * Why this is part of the drift check and not left to the Frozen Install job:
+ * that job proves the committed lockfile IS installable. It cannot stop another
+ * job from resolving something else — which is exactly what happened here. Step
+ * 1 froze the pnpm paths and left eleven `bun install` calls untouched, across
+ * the ordinary backend CI and the distribution build, so every one of those
+ * jobs could run against dependencies bun.lock never recorded while the
+ * dedicated job stayed green (#1349 review).
+ *
+ * @param content - The workflow YAML / ワークフローの内容
+ * @param file - Name used in the report / 報告に使うファイル名
+ * @returns One entry per unfrozen install / frozen でない install ごとに1件
+ */
+export function findUnfrozenInstalls(content: string, file: string): ToolchainViolation[] {
+  if (RESOLVING_WORKFLOWS.has(file)) return [];
+  const violations: ToolchainViolation[] = [];
+  content.split(/\r?\n/).forEach((line, index) => {
+    const match = line.match(UNFROZEN_INSTALL);
+    if (!match) return;
+    violations.push({
+      file,
+      line: index + 1,
+      found: match[0].trim(),
+      expected: `${match[1]} install --frozen-lockfile`,
+      tool: 'lockfile',
+    });
+  });
+  return violations;
 }
 
 /**
@@ -119,9 +161,10 @@ export function checkWorkflows(repoRoot: string): ToolchainViolation[] {
   const dir = join(repoRoot, '.github', 'workflows');
   const files = readdirSync(dir).filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'));
 
-  const violations = files.flatMap((f) =>
-    findToolchainViolations(readFileSync(join(dir, f), 'utf8'), f, toolchain),
-  );
+  const violations = files.flatMap((f) => {
+    const content = readFileSync(join(dir, f), 'utf8');
+    return [...findToolchainViolations(content, f, toolchain), ...findUnfrozenInstalls(content, f)];
+  });
 
   // NOTE(#1340 step 1): the distribution build is checked too. It downloaded a
   // hardcoded Bun 1.1.42 — two minor versions behind every gate — so the
