@@ -112,7 +112,6 @@ function createPrisma(themeUpdateMany: ReturnType<typeof mock>) {
         findMany: mock(() => Promise.resolve([])),
       },
       taskLabel: { deleteMany: mock(() => Promise.resolve({ count: 0 })), createMany: mock() },
-      studyStreak: { upsert: mock(() => Promise.resolve({})) },
       themeAutoRun: { updateMany: themeUpdateMany },
     },
   };

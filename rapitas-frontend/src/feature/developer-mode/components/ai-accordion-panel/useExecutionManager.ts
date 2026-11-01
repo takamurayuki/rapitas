@@ -3,11 +3,18 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { API_BASE_URL } from '@/utils/api';
+import { didStop, requestStopExecution } from './stop-execution-request';
+import {
+  fetchBaseBranchOptions,
+  generateBranchName,
+  sendAgentResponse,
+} from './execution-requests';
 import { createLogger } from '@/lib/logger';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { useExecutionPolling, useExecutionStream } from '../../hooks/useExecutionStream';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
 import type {
+  StopNotice,
   UseExecutionManagerOptions,
   UseExecutionManagerResult,
 } from './useExecutionManager.types';
@@ -58,6 +65,10 @@ export function useExecutionManager({
   // NOTE: Start as true — show skeleton until execution state is restored from DB
   const [isRestoring, setIsRestoring] = useState(!executionResult);
   const [continueInstruction, setContinueInstruction] = useState('');
+  // The stop request is awaited now, so the button needs a pending state, and
+  // a stop that only partly worked needs somewhere to say so (#1330 review).
+  const [isStopping, setIsStopping] = useState(false);
+  const [stopNotice, setStopNotice] = useState<StopNotice | null>(null);
   const hasRestoredRef = useRef(false);
   const prevTaskIdRef = useRef(taskId);
   const sendingResponseRef = useRef(false);
@@ -113,16 +124,10 @@ export function useExecutionManager({
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/base-branches`);
-        if (!res.ok) return;
-        const data = (await res.json()) as { branches?: string[]; defaultBranch?: string | null };
-        if (cancelled) return;
-        setBaseBranches(data.branches ?? []);
-        setBaseBranch((prev) => prev || data.defaultBranch || data.branches?.[0] || '');
-      } catch {
-        /* non-critical — the field falls back to the theme default server-side */
-      }
+      const options = await fetchBaseBranchOptions({ taskId, apiBaseUrl: API_BASE_URL });
+      if (cancelled || !options) return;
+      setBaseBranches(options.branches);
+      setBaseBranch((prev) => prev || options.defaultBranch || options.branches[0] || '');
     })();
     return () => {
       cancelled = true;
@@ -314,28 +319,16 @@ export function useExecutionManager({
 
     setIsGeneratingBranchName(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/developer-mode/generate-branch-name`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: taskTitle,
-          description: taskDescription || undefined,
-        }),
+      const outcome = await generateBranchName({
+        title: taskTitle,
+        description: taskDescription,
+        apiBaseUrl: API_BASE_URL,
       });
-
-      const data = await res.json();
-      if (res.ok) {
-        if (data.branchName) {
-          setBranchName(data.branchName);
-        }
+      if (outcome.kind === 'generated') {
+        setBranchName(outcome.branchName);
       } else {
-        logger.error(
-          'Failed to generate branch name:',
-          data.error || data.details || 'Unknown error',
-        );
+        logger.error('Failed to generate branch name:', outcome.reason);
       }
-    } catch (error) {
-      logger.error('Error generating branch name:', error);
     } finally {
       setIsGeneratingBranchName(false);
     }
@@ -353,50 +346,56 @@ export function useExecutionManager({
     setUserResponse('');
 
     try {
-      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/agent-respond`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ response: savedResponse }),
+      const accepted = await sendAgentResponse({
+        taskId,
+        response: savedResponse,
+        apiBaseUrl: API_BASE_URL,
       });
-      // Check the body's own success/error, not just the HTTP status — the
-      // backend used to return 200 even for rejected requests (no active
-      // session, execution not waiting for input, lock contention, etc.),
-      // which this code treated as "resumed" regardless. The backend now sets
-      // real status codes for those cases too, but a body-level check is the
-      // correct source of truth either way.
-      const body = (await res.json().catch(() => null)) as { success?: boolean } | null;
-
-      if (res.ok && body?.success) {
-        // Clear question UI after API confirms receipt
+      if (accepted) {
+        // Clear question UI only after the agent confirms receipt.
         clearPollingQuestion();
       } else {
-        logger.error('Failed to send response:', res.status);
-        // Restore response so the user can retry
+        logger.error('Failed to send response to task', taskId);
+        // Restore the text so the user can retry rather than retype.
         setUserResponse(savedResponse);
       }
-    } catch (error) {
-      logger.error('Error sending response:', error);
-      setUserResponse(savedResponse);
     } finally {
       setIsSendingResponse(false);
       sendingResponseRef.current = false;
     }
   };
 
+  // NOTE(#1330 review): The panel used to cancel polling and report the
+  // execution stopped BEFORE sending the request, read nothing from the reply,
+  // and swallowed a network failure — so it said "stopped" even when the
+  // execution was still running, and the backend's `statusResetFailed` flag
+  // had no reader. The outcome now decides: only a stop that actually happened
+  // leaves the running state, and a partial one surfaces a warning.
   const handleStopExecution = useCallback(async () => {
-    setPollingCancelled();
-    if (onStopExecution) onStopExecution();
-
+    setIsStopping(true);
+    setStopNotice(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/stop-execution`, { method: 'POST' });
+      const outcome = await requestStopExecution({
+        taskId,
+        sessionId,
+        apiBaseUrl: API_BASE_URL,
+      });
 
-      if (!res.ok && sessionId) {
-        await fetch(`${API_BASE_URL}/agents/sessions/${sessionId}/stop`, {
-          method: 'POST',
-        });
+      if (!didStop(outcome)) {
+        logger.error('Stop execution failed for task', taskId);
+        // Polling is deliberately left running: the execution may still be
+        // going, and pretending otherwise is the bug being fixed.
+        setStopNotice({ kind: 'failed' });
+        return;
       }
-    } catch (error) {
-      logger.error('Error stopping execution:', error);
+
+      setPollingCancelled();
+      if (onStopExecution) onStopExecution();
+      if (outcome.kind === 'stopped_with_warning') {
+        setStopNotice({ kind: 'reset_failed', serverMessage: outcome.serverMessage });
+      }
+    } finally {
+      setIsStopping(false);
     }
   }, [taskId, sessionId, setPollingCancelled, onStopExecution]);
 
@@ -462,6 +461,8 @@ export function useExecutionManager({
     sessionId,
     isRestoring,
     isRunning: !!isRunning,
+    isStopping,
+    stopNotice,
     isCompleted,
     isCancelled,
     isFailed,

@@ -3,6 +3,7 @@
  * Validates required environment variables at startup
  */
 import { createLogger } from './logger';
+import { DEFAULT_FRONTEND_URL } from './frontend-url';
 
 const log = createLogger('env-validation');
 
@@ -17,7 +18,7 @@ const ENV_VARS: EnvVar[] = [
   { name: 'PORT', required: false, defaultValue: '3001' },
   { name: 'NODE_ENV', required: false, defaultValue: 'development' },
   { name: 'CORS_ORIGIN', required: false },
-  { name: 'FRONTEND_URL', required: false, defaultValue: 'http://localhost:3000' },
+  { name: 'FRONTEND_URL', required: false, defaultValue: DEFAULT_FRONTEND_URL },
   { name: 'ENCRYPTION_KEY', required: false },
   { name: 'UPLOAD_DIR', required: false, defaultValue: 'uploads' },
 

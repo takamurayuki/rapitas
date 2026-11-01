@@ -97,7 +97,6 @@ mock.module('./task-mutations', () => ({
     theme: true,
     project: true,
     milestone: true,
-    examGoal: true,
     taskLabels: { include: { label: true } },
   },
   createTask: mock(() => Promise.resolve(null)),

@@ -163,3 +163,56 @@ describe('findUncoveredInputs', () => {
     expect(findUncoveredInputs('# 概要\n\nなにもない\n')).toEqual([]);
   });
 });
+
+describe('括弧内の扱い', () => {
+  // 実測 2026-10-18: 生成器が書いた
+  // 「Googleアカウント（Firebase Authentication のGoogleプロバイダのみ）」で
+  // google / firebase / authentication を3つの連携先と誤読し、不備の無い文書を
+  // spec ゲートが拒否した。括弧は「どう」を説明しており「何を」を列挙していない。
+  test('区切りの無い括弧は修飾であって列挙ではない', () => {
+    const doc = `# 機能要件
+
+- [F-01] ログイン
+  - 入力: Googleアカウント（Firebase Authentication のGoogleプロバイダのみ）
+  - 出力: セッション
+
+# 受け入れ基準
+
+- [F-01] Given 未ログイン When Googleでログイン Then セッションが作られる
+`;
+    expect(findUncoveredInputs(doc)).toEqual([]);
+  });
+
+  test('区切りを含む括弧は列挙なので引き続き検出する', () => {
+    const doc = `# 機能要件
+
+- [F-01] 取り込み
+  - 入力: 連携先(Slack、Gmail、Drive)
+  - 出力: 正規化済みメッセージ
+
+# 受け入れ基準
+
+- [F-01] Given Slack When 取り込む Then 正規化される
+`;
+    const found = findUncoveredInputs(doc);
+    expect(found).toHaveLength(1);
+    expect(found[0].covered).toEqual(['slack']);
+    expect(found[0].uncovered.sort()).toEqual(['drive', 'gmail']);
+  });
+
+  test('括弧の外に列挙があれば括弧の有無に関わらず検出する', () => {
+    const doc = `# 機能要件
+
+- [F-01] 取り込み
+  - 入力: Slack、Gmail（いずれも読み取りのみ）
+  - 出力: 正規化済みメッセージ
+
+# 受け入れ基準
+
+- [F-01] Given Slack When 取り込む Then 正規化される
+`;
+    const found = findUncoveredInputs(doc);
+    expect(found).toHaveLength(1);
+    expect(found[0].uncovered).toEqual(['gmail']);
+  });
+});

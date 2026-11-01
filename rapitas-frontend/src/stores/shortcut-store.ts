@@ -11,6 +11,7 @@ export type ShortcutId =
   | 'shortcutHelp'
   | 'toggleAI'
   | 'commandBar'
+  | 'toggleBrowser'
   | 'triageApprove'
   | 'triageDefer'
   | 'triageReject'
@@ -107,6 +108,16 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
     meta: true,
     shift: false,
     ctrl: false,
+  },
+  {
+    // Ctrl+B is also the browser's bold in a contentEditable. The global
+    // handler skips contentEditable targets (#1074), so this never fires
+    // while typing in a note.
+    id: 'toggleBrowser',
+    key: 'B',
+    meta: false,
+    shift: false,
+    ctrl: true,
   },
   { id: 'triageApprove', key: 'A', meta: false, shift: false, ctrl: false },
   { id: 'triageDefer', key: 'H', meta: false, shift: false, ctrl: false },

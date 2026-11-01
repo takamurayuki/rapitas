@@ -21,7 +21,7 @@ import { DEFAULT_SYSTEM_PROMPTS } from '../../routes/ai/system-prompts/default-p
  * record の存在 = DB の意図として尊重するため、存在判定は `null` チェックのみ行う。
  */
 export async function resolveSystemPromptContent(key: string): Promise<string> {
-  const sp = await prisma.systemPrompt.findUnique({ where: { key } });
+  const sp = await prisma.systemPrompt.findFirst({ where: { key } });
   if (sp !== null) return sp.content;
   const defaultEntry = DEFAULT_SYSTEM_PROMPTS.find((p) => p.key === key);
   return defaultEntry?.content ?? '';

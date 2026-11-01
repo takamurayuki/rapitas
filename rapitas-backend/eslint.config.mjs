@@ -3,6 +3,7 @@ import tsparser from "@typescript-eslint/parser";
 import { stagedSeverity } from "../eslint-shared.mjs";
 import noRawPrismaInsensitive from "./eslint-rules/no-raw-prisma-insensitive.mjs";
 import noUnscopedPrNumberLookup from "./eslint-rules/no-unscoped-pr-number-lookup.mjs";
+import noUnguardedTaskDelete from "./eslint-rules/no-unguarded-task-delete.mjs";
 import preferTestEachForSimilar from "./eslint-rules/prefer-test-each-for-similar.mjs";
 
 /** @type {import('eslint').Linter.Plugin} */
@@ -10,11 +11,31 @@ const localPlugin = {
   rules: {
     "no-raw-prisma-insensitive": noRawPrismaInsensitive,
     "no-unscoped-pr-number-lookup": noUnscopedPrNumberLookup,
+    "no-unguarded-task-delete": noUnguardedTaskDelete,
     "prefer-test-each-for-similar": preferTestEachForSimilar,
   },
 };
 
 export default [
+  // NOTE(#1332): A STANDALONE ignores object, which is what makes it global in
+  // flat config. Adding "generated/**" to the `ignores` of the block below
+  // instead only removes those files from THAT block — and that block is what
+  // supplies the TypeScript parser, so the generated .d.ts files fell through
+  // to the `**/*.d.ts` block, got espree, and produced 6 "Parsing error:
+  // Unexpected token" failures in CI. That is the same trap the comment on the
+  // block below records for tests/**; it was walked into anyway.
+  //
+  // Why ignore them at all: `generated/` holds the two Prisma clients, emitted
+  // by `prisma generate`. Linting them says nothing about code anyone wrote,
+  // and a regeneration that happened to emit a violation would redden a
+  // required gate for a reason nobody here controls.
+  //
+  // NOTE: this cannot be verified by running eslint locally in a worktree —
+  // `generated/*` are symlinks to the primary checkout and eslint does not
+  // traverse them, so the directory looks empty here and looks real in CI.
+  // Check it with `npx eslint --print-config generated/prisma-postgres/index.d.ts`,
+  // which reports the file as ignored instead of handing back espree.
+  { ignores: ["generated/**"] },
   {
     files: ["**/*.ts"],
     // NOTE: tests/** must NOT be ignored here — this block supplies the TS parser.
@@ -38,6 +59,16 @@ export default [
       ...stagedSeverity("prod"),
       "local/no-raw-prisma-insensitive": "error",
       "local/no-unscoped-pr-number-lookup": "error",
+      "local/no-unguarded-task-delete": "error",
+    },
+  },
+  // Exclude the deletion choke point itself — deleteTaskWithTrash() is the one
+  // place allowed to remove a Task row, and every other path must call it.
+  {
+    files: ["services/task/task-deletion.ts"],
+    plugins: { local: localPlugin },
+    rules: {
+      "local/no-unguarded-task-delete": "off",
     },
   },
   // Exclude getInsensitiveMode() definition itself — it is the correct reference implementation.
@@ -82,6 +113,9 @@ export default [
       ...stagedSeverity("tests"),
       "local/no-raw-prisma-insensitive": "off",
       "local/no-unscoped-pr-number-lookup": "off",
+      // Tests mock the client and assert on `task.delete` being called (or NOT
+      // called) — those assertions are how the guard is proven.
+      "local/no-unguarded-task-delete": "off",
       "local/prefer-test-each-for-similar": "warn",
     },
   },

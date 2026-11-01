@@ -7,7 +7,6 @@ import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
 import './globals.css';
 import KeyboardShortcuts from '@/components/common/KeyboardShortcuts';
-import { ResumableExecutionsBanner } from '@/components/common/ResumableExecutionsBanner';
 import ScheduleReminderProvider from '@/components/providers/ScheduleReminderProvider';
 import UsageBudgetPromptProvider from '@/components/providers/UsageBudgetPromptProvider';
 import { NotificationToaster } from '@/components/notifications/notification-toaster';
@@ -18,6 +17,9 @@ import { ToastProvider } from '@/components/ui/toast/ToastContainer';
 import { ConfirmDialogProvider } from '@/components/ui/dialog/ConfirmDialogProvider';
 import { PomodoroProvider } from '@/feature/tasks/pomodoro/PomodoroProvider';
 import ExternalLinksProvider from '@/components/providers/ExternalLinksProvider';
+import LinkViewHost from '@/components/link-view/LinkViewHost';
+import RapiAvatarHost from '@/components/rapi-avatar/RapiAvatarHost';
+import ApiCredentialsInitializer from '@/components/providers/ApiCredentialsInitializer';
 import CacheWarmupInitializer from '@/components/common/CacheWarmupInitializer';
 import AppVisibilityBridge from '@/components/common/AppVisibilityBridge';
 import SmartCommandBar from '@/components/smart-command-bar/SmartCommandBar';
@@ -140,6 +142,10 @@ export default function RootLayout({
         />
       </head>
       <body className={`${GeistSans.variable} ${GeistMono.variable}`}>
+        {/* First, and above AuthProvider: it must be evaluated before anything
+            can fetch, or those requests go out with no session cookie and are
+            served unscoped. */}
+        <ApiCredentialsInitializer />
         <IntlProvider>
           <AuthProvider>
             <PomodoroProvider>
@@ -164,9 +170,7 @@ export default function RootLayout({
                           <Suspense fallback={null}>
                             <OfflineIndicatorLoader />
                           </Suspense>
-                          <Suspense fallback={null}>
-                            <ResumableExecutionsBanner />
-                          </Suspense>
+                          <Suspense fallback={null}></Suspense>
                           <Suspense fallback={null}>
                             <UpdateBanner />
                           </Suspense>
@@ -184,6 +188,13 @@ export default function RootLayout({
                             <SmartCommandBar />
                           </Suspense>
                           <TerminalProvider />
+                          {/* Main-window-only: the child webview docks into
+                              "main", so a popup window mounting this would
+                              aim the pane at a window it does not own. */}
+                          <LinkViewHost />
+                          {/* Main-window-only for the same reason: a popup
+                              window would get its own avatar in the corner. */}
+                          <RapiAvatarHost />
                         </MainWindowOnly>
                       </Suspense>
                     </ExternalLinksProvider>

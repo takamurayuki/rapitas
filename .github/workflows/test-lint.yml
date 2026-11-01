@@ -81,6 +81,63 @@ jobs:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
         run: bun run eval:gates
 
+  # Blocking, and deliberately SEPARATE from test-backend: these tests pin that
+  # routes go through their choke points (delete guard, stop reporting, the
+  # incremental-fetch boundary). Putting them in the coverage-measured gate
+  # pulled their 600-line route modules into the denominator and took function
+  # coverage from 51.9% to 46.9%, under its 50% floor (#1330). ADR-0002 says
+  # add tests, never lower the floor — so the wiring is gated here, without
+  # --coverage, where it costs the floor nothing (#1332).
+  route-regression:
+    name: Route Regression
+    runs-on: ubuntu-latest
+    # Hang backstop only; the suite is ~1.3s locally. Same rationale as test-backend.
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: rapitas_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install backend dependencies
+        working-directory: rapitas-backend
+        run: bun install
+
+      - name: Setup test database
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+        run: |
+          bunx prisma db push --skip-generate
+          bunx prisma generate
+
+      - name: Run route regression suite
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+        # NOTE: File list is maintained in scripts/route-regression-tests.txt
+        # (single source of truth). To add/remove files, edit that manifest —
+        # do NOT modify this step.
+        run: bun run test:routes
+
   # Advisory: runs the full test suite in parallel across OS processes.
   # continue-on-error: true — failures are visible in Step Summary but do NOT block merges.
   # See .github/TESTING_POLICY.md §"失敗ティア表" for the rationale.
@@ -264,7 +321,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install pnpm
         run: npm install -g pnpm@10
@@ -300,15 +357,23 @@ jobs:
         # NOTE: --coverage makes the vitest.config.ts threshold floor a real,
         # enforced gate (it was previously aspirational — coverage never ran in
         # CI). The floor is calibrated to THIS file list; keep them in sync.
+        #
+        # NOTE: vitest SILENTLY IGNORES a path that does not exist and still
+        # exits 0 — measured 2026-10-26. So deleting a test file named here
+        # does not go red; the gate just quietly runs one file fewer. Two
+        # entries were stale when this was measured: PomodoroTimer.test.tsx
+        # (deleted with the pomodoro checkpoint) and formatLogData.test.ts
+        # (gone for longer, with CI green the whole time). When you remove a
+        # test file, remove its line here too — nothing else will tell you.
         run: >
           bunx vitest run --coverage
           src/components/__tests__/AppIcon.test.tsx
           src/app/settings/developer-mode/components/AutoRunSettingsCard.test.tsx
           src/components/__tests__/ErrorBoundary.test.tsx
           src/components/__tests__/LanguageSwitcher.test.tsx
+          src/components/__tests__/header-guest-auth-links.test.tsx
           src/components/copilot/__tests__/CopilotChatPanel.test.tsx
           src/feature/tasks/components/__tests__/TaskCard.test.tsx
-          src/feature/tasks/components/timer/PomodoroTimer.test.tsx
           src/app/ideas/_components/__tests__/IdeaBoxHeader.test.tsx
           src/app/ideas/_components/__tests__/IdeasClient.test.tsx
           src/hooks/__tests__/useBackendHealth.test.ts
@@ -363,11 +428,32 @@ jobs:
           src/feature/developer-mode/components/deviation-timeline/DeviationContextDialog.test.tsx
           src/feature/developer-mode/components/deviation-timeline/useDeviationTimeline.test.ts
           src/feature/tasks/components/gantt/gantt-utils.test.ts
-          src/feature/tasks/hooks/__tests__/formatLogData.test.ts
           src/app/api/generate-claude-md/fallback-package.test.ts
           src/app/api/generate-claude-md/__tests__/context-rendering.test.ts
           src/app/api/review-spec/__tests__/review-prompt.test.ts
           src/app/backlog/settings/_components/__tests__/backlog-job-meta.test.ts
+          src/stores/__tests__/link-library-store.test.ts
+          src/stores/__tests__/link-view-store.test.ts
+          src/components/link-view/useLinkView.test.ts
+          src/components/link-view/LinkViewPane.test.ts
+          src/components/link-view/link-tab-meta.test.ts
+          src/lib/__tests__/pane-layering.test.ts
+          src/components/link-view/group-actions.test.ts
+          src/components/link-view/tab-strip/tab-arrangement.test.ts
+          src/components/link-view/tab-strip/TabStrip.test.tsx
+          src/components/ui/dropdown/__tests__/DropdownMenu.test.tsx
+          src/components/common/__tests__/AppContent.test.tsx
+          src/components/common/__tests__/shortcut-editable-guard.test.ts
+          src/app/tasks/[id]/components/TaskNoteSplitView.test.tsx
+          src/components/header/__tests__/task-detail-link.test.ts
+          src/components/rapi-avatar/__tests__/rapi-avatar-state.test.ts
+          src/components/rapi-avatar/__tests__/RapiAvatar.test.tsx
+          src/components/rapi-avatar/__tests__/RapiAvatarHost.test.tsx
+          src/components/note/editor/inline-link.test.ts
+          src/components/note/editor/useInlineLinks.test.ts
+          src/feature/developer-mode/components/ai-accordion-panel/__tests__/stop-execution-request.test.ts
+          src/feature/developer-mode/components/ai-accordion-panel/__tests__/execution-requests.test.ts
+          src/feature/developer-mode/components/ai-accordion-panel/ExecutionSection.stop-notice.test.tsx
 
   lint:
     name: Lint Code
@@ -386,7 +472,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -482,6 +568,21 @@ jobs:
         # builders) without blocking merges. See scripts/check-determinism.cjs.
         run: bun run determinism:check
 
+      # NOTE(#1332): Until this step existed, NO job ran ESLint over the
+      # backend — `Lint Code` only type-checked it — so all three local rules
+      # declared as "error" in eslint.config.mjs had never once been applied
+      # to the code they exist to police:
+      #   local/no-raw-prisma-insensitive
+      #   local/no-unscoped-pr-number-lookup
+      #   local/no-unguarded-task-delete
+      # Their own unit tests were in the gate, which proved the rules work but
+      # not that anything runs them. Exactly docs/lessons/gates-that-do-not-
+      # measure.md. Verified red by reintroducing a raw `prisma.task.delete`.
+      # Warnings do not fail (280 today, same policy as the frontend); errors do.
+      - name: Lint backend code
+        working-directory: rapitas-backend
+        run: bun run lint
+
       - name: Lint frontend code
         working-directory: rapitas-frontend
         run: pnpm lint
@@ -521,6 +622,15 @@ jobs:
       # build. ~4s, and it runs before the installer it is testing.
       - name: Test the system-dependency installer
         run: node --test scripts/install-ci-system-deps.test.cjs
+
+      # rapitas-desktop/scripts/*.test.cjs ran in NO workflow until now
+      # (#1074): dev.js's helpers had tests that nothing executed, so they
+      # could rot green. Root scripts/*.test.cjs were already wired; this is
+      # the same for the desktop side, and this job is where it costs ~1s on
+      # every PR rather than only on a release build.
+      - name: Test the desktop dev-server scripts
+        working-directory: rapitas-desktop
+        run: node --test scripts/*.test.cjs
 
       - name: Install system dependencies
         run: |
