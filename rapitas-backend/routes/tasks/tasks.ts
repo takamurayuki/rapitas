@@ -6,6 +6,12 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { AppError, NotFoundError, ValidationError } from '../../middleware/error-handler';
+// NOTE(#1349): every id guard in this file uses isValidEntityId rather than
+// parseInt + isNaN. parseInt stops at the first character it cannot read, so a
+// path segment naming one row operated on another — reproduced live before the
+// fix: DELETE /tasks/1473abc answered {"id":1473,"trashId":986} and row 1473
+// was gone. Restoring from trash returned it as id 1474, so anything holding
+// the old id (KnowledgeEntry.taskId is not a foreign key) was left dangling.
 import { isValidEntityId } from '../../utils/common/id-validation';
 import { createLogger } from '../../config/logger';
 import { deleteTaskWithTrash, deleteTasksWithTrash } from '../../services/task/task-deletion';
@@ -40,8 +46,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   .get(
     '/:id/terminal-context',
     async ({ params, set }) => {
-      // NOTE(#1349): see the DELETE handler — parseInt truncates, so a path
-      // segment naming one row resolved to another.
       const id = Number(params.id);
       if (!isValidEntityId(params.id)) {
         set.status = 400;
@@ -370,10 +374,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     '/:id',
     async (context) => {
       const { params, body } = context;
-      // NOTE(#1349): isValidEntityId, not parseInt + isNaN. parseInt stops at
-      // the first character it cannot read, so `/tasks/5abc` reached row 5 —
-      // reproduced live: DELETE /tasks/1473abc answered
-      // {"id":1473,"trashId":986} and row 1473 was gone.
       if (!isValidEntityId(params.id)) {
         throw new ValidationError(INVALID_ID);
       }
@@ -424,10 +424,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   // path was manually editing the status — blocked tasks just accumulated.
   .post('/:id/retry', async (context) => {
     const { params, set, headers } = context;
-    // NOTE(#1349): isValidEntityId, not parseInt + isNaN. parseInt stops at
-    // the first character it cannot read, so `/tasks/5abc` reached row 5 —
-    // reproduced live: DELETE /tasks/1473abc answered
-    // {"id":1473,"trashId":986} and row 1473 was gone.
     if (!isValidEntityId(params.id)) {
       throw new ValidationError(INVALID_ID);
     }
@@ -443,10 +439,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     '/:id',
     async (context) => {
       const { params, set } = context;
-      // NOTE(#1349): isValidEntityId, not parseInt + isNaN. parseInt stops at
-      // the first character it cannot read, so `/tasks/5abc` reached row 5 —
-      // reproduced live: DELETE /tasks/1473abc answered
-      // {"id":1473,"trashId":986} and row 1473 was gone.
       if (!isValidEntityId(params.id)) {
         throw new ValidationError(INVALID_ID);
       }
@@ -477,10 +469,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   // Delete duplicate subtasks (under a specific task)
   .post('/:id/cleanup-duplicates', async (context) => {
     const { params } = context;
-    // NOTE(#1349): isValidEntityId, not parseInt + isNaN. parseInt stops at
-    // the first character it cannot read, so `/tasks/5abc` reached row 5 —
-    // reproduced live: DELETE /tasks/1473abc answered
-    // {"id":1473,"trashId":986} and row 1473 was gone.
     if (!isValidEntityId(params.id)) {
       throw new ValidationError(INVALID_ID);
     }
@@ -561,10 +549,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     '/:id/subtasks',
     async (context) => {
       const { params } = context;
-      // NOTE(#1349): isValidEntityId, not parseInt + isNaN. parseInt stops at
-      // the first character it cannot read, so `/tasks/5abc` reached row 5 —
-      // reproduced live: DELETE /tasks/1473abc answered
-      // {"id":1473,"trashId":986} and row 1473 was gone.
       if (!isValidEntityId(params.id)) {
         throw new ValidationError(INVALID_ID);
       }
@@ -620,10 +604,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   .post(
     '/:id/subtasks/delete-selected',
     async ({ params, body }) => {
-      // NOTE(#1349): isValidEntityId, not parseInt + isNaN. parseInt stops at
-      // the first character it cannot read, so `/tasks/5abc` reached row 5 —
-      // reproduced live: DELETE /tasks/1473abc answered
-      // {"id":1473,"trashId":986} and row 1473 was gone.
       if (!isValidEntityId(params.id)) {
         throw new ValidationError(INVALID_ID);
       }
