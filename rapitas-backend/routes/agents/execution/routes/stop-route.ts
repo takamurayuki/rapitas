@@ -219,8 +219,12 @@ export const stopRoute = new Elysia().post(
       // contract any other caller should have to know about.
       //
       // Distinct from a failed status reset: that path keeps its 200, because
-      // the executions genuinely did stop (#1330). Only this one means
-      // nothing happened.
+      // the executions genuinely did stop (#1330). This one means the stop
+      // cannot be reported as complete — NOT that nothing happened. Work
+      // before the throw may well have landed: incrementTaskGenerationId runs
+      // first, and queue withdrawal or worktree cleanup may be partly done.
+      // That is precisely why it cannot be a 200: the caller has no way to
+      // know how far it got, so it must not be told the stop succeeded.
       context.set.status = 500;
       return {
         success: false,

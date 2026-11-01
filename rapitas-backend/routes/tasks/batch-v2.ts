@@ -4,7 +4,7 @@ import { cacheService, CacheKeys } from '../../services/core/cache-service';
 import { PrismaOptimizer, QueryOptimizers } from '../../utils/database/prisma-optimization';
 import { performanceMonitoring } from '../../middleware/performance';
 import { deleteTaskWithTrash } from '../../services/task/task-deletion';
-import { NotFoundError } from '../../middleware/error-handler';
+import { NotFoundError, ValidationError } from '../../middleware/error-handler';
 
 interface BatchResult {
   id: string;
@@ -22,6 +22,27 @@ type HandlerContext = {
 };
 
 const requestHandlers = new Map<string, (params: HandlerContext) => Promise<unknown>>();
+
+/**
+ * Parse a task id from a batch path segment, refusing anything non-numeric.
+ *
+ * NOTE(#1335 review): every id-taking handler here did a bare `parseInt` and
+ * handed the result to Prisma, so `/tasks/abc` sent `NaN` into the query
+ * layer. Prisma rejects that, and the batch API therefore disagreed with the
+ * direct route, which answers 400 from its own `isNaN` check. Validating
+ * before the DB keeps the two consistent and keeps NaN out of the database
+ * layer entirely — a test asserting what NaN *did* downstream was pinning the
+ * defect rather than the contract.
+ *
+ * @param raw - The `:id` path segment / パスの :id 部分
+ * @returns The parsed id / 解析した id
+ * @throws {ValidationError} When it is not a number / 数値でない場合
+ */
+function parseTaskId(raw: string): number {
+  const id = parseInt(raw, 10);
+  if (Number.isNaN(id)) throw new ValidationError(`Invalid task id: ${raw}`);
+  return id;
+}
 
 function registerHandler(pattern: string, handler: (params: HandlerContext) => Promise<unknown>) {
   requestHandlers.set(pattern, handler);
@@ -111,7 +132,7 @@ registerHandler('GET:/tasks', async (context) => {
 
 registerHandler('GET:/tasks/:id', async (context) => {
   const { params } = context;
-  const id = parseInt(params!.id);
+  const id = parseTaskId(params!.id);
   const cacheKey = CacheKeys.task(params!.id);
 
   const cached = await cacheService.get(cacheKey);
@@ -166,7 +187,7 @@ registerHandler('POST:/tasks', async (context) => {
 
 registerHandler('PATCH:/tasks/:id', async (context) => {
   const { params, body } = context;
-  const id = parseInt(params!.id);
+  const id = parseTaskId(params!.id);
   const task = await prisma.task.update({
     where: { id },
     data: body as Parameters<typeof prisma.task.update>[0]['data'],
@@ -183,7 +204,7 @@ registerHandler('PATCH:/tasks/:id', async (context) => {
 
 registerHandler('DELETE:/tasks/:id', async (context) => {
   const { params } = context;
-  const id = parseInt(params!.id);
+  const id = parseTaskId(params!.id);
 
   // NOTE(#1330): Through the choke point, not `prisma.task.delete`. This
   // handler used to delete directly, so a task the single-task route refuses

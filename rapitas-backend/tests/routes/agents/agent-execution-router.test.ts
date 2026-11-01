@@ -201,10 +201,23 @@ describe('Agent Execution Router', () => {
 
       // NOTE(#1335): was `toBeOneOf([200, 404])`, and the 200 it accepted came
       // from the route's catch block swallowing a TypeError from missing
-      // mocks. Asserting the body as well as an exact status is what stops
-      // this passing on an error path again.
+      // mocks — so this never exercised a successful stop.
+      //
+      // Status and body are not enough on their own: the catch path could be
+      // made to return those too. The assertions below check the stop
+      // actually DID something, which is the only thing that distinguishes a
+      // real stop from a well-shaped reply.
       expect(response.status).toBe(200);
       expect((await response.json()).success).toBe(true);
+
+      // Queue items withdrawn, worktree sessions inspected, and the task's
+      // status reset — the three side effects a stop is for.
+      expect(mockPrisma.workflowQueueItem.updateMany).toHaveBeenCalled();
+      expect(mockPrisma.agentSession.findMany).toHaveBeenCalled();
+      const statusReset = mockPrisma.task.update.mock.calls.some(
+        (c) => (c[0] as { data?: { status?: string } })?.data?.status === 'todo',
+      );
+      expect(statusReset).toBe(true);
     });
   });
 

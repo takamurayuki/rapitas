@@ -287,13 +287,59 @@ describe('POST /batch/v2', () => {
     const res = await app.handle(batchRequest([{ id: 'r1', method: 'GET', path: '/tasks/abc' }]));
     const body = await res.json();
 
-    // The point of this test is handler RESOLUTION — that the regex fallback
-    // routes `/tasks/abc` to GET:/tasks/:id and passes the parsed id through.
-    // The status was incidentally 200 only because a missing task used to
-    // answer 200; it is 404 now (#1335). The assertion that matters is below.
-    expect(body.results[0].status).toBe(404);
-    const call = mockPrisma.task.findUnique.mock.calls[0]![0] as { where: { id: number } };
-    expect(Number.isNaN(call.where.id)).toBe(true);
+    // This test is about handler RESOLUTION — that the regex fallback routes
+    // `/tasks/abc` to GET:/tasks/:id at all. Resolution is proven by the 400:
+    // an unresolved path would not produce a validation error from inside the
+    // handler. It must NOT be proven by observing NaN reach Prisma.
+    //
+    // #1335 review: my first version asserted 404 here, which pinned a defect.
+    // The 404 only happened because the mock answers null for id NaN; the real
+    // Prisma rejects NaN, so production took a different path — and it
+    // disagreed with the direct route, which answers 400. The id is validated
+    // before any DB access now.
+    expect(body.results[0].status).toBe(400);
+    expect(mockPrisma.task.findUnique).not.toHaveBeenCalled();
+  });
+
+  // #1335 review: all three id-taking batch handlers did `parseInt` with no
+  // validation and handed the result straight to Prisma. A 400 before the
+  // query matches the direct route and keeps NaN out of the database layer.
+  describe('不正なIDはDBに触れる前に400を返すこと', () => {
+    test('GET は findUnique を呼ばないこと', async () => {
+      const res = await app.handle(batchRequest([{ id: 'r', method: 'GET', path: '/tasks/abc' }]));
+
+      expect((await res.json()).results[0].status).toBe(400);
+      expect(mockPrisma.task.findUnique).not.toHaveBeenCalled();
+    });
+
+    test('PATCH は update を呼ばないこと', async () => {
+      const res = await app.handle(
+        batchRequest([{ id: 'r', method: 'PATCH', path: '/tasks/abc', params: { title: 'x' } }]),
+      );
+
+      expect((await res.json()).results[0].status).toBe(400);
+      expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    });
+
+    test('DELETE は削除 choke point を呼ばないこと', async () => {
+      const res = await app.handle(
+        batchRequest([{ id: 'r', method: 'DELETE', path: '/tasks/abc' }]),
+      );
+
+      expect((await res.json()).results[0].status).toBe(400);
+      expect(chokePointDeletes).toEqual([]);
+    });
+
+    test('有効なIDは引き続き通ること', async () => {
+      // The over-correction guard: validation must not reject real ids.
+      mockPrisma.task.findUnique.mockResolvedValue({ id: 5, title: 'X' });
+
+      const res = await app.handle(batchRequest([{ id: 'r', method: 'GET', path: '/tasks/5' }]));
+
+      expect((await res.json()).results[0].status).toBe(200);
+      const call = mockPrisma.task.findUnique.mock.calls[0]![0] as { where: { id: number } };
+      expect(call.where.id).toBe(5);
+    });
   });
 
   test('GET /statistics/tasksでLONG TTLで保存すること', async () => {
