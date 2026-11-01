@@ -64,7 +64,7 @@ export function findToolchainViolations(
       { re: /^-?\s*bunjs_version:\s*(.+)$/, tool: 'bun', expected: toolchain.bun },
       { re: /^-?\s*bun_version:\s*(.+)$/, tool: 'bun', expected: toolchain.bun },
       { re: /^node-version:\s*(.+)$/, tool: 'node', expected: toolchain.node },
-      // `npm install -g pnpm@X` is how every job installs pnpm here.
+      // `npm install -g pnpm@X` is how most jobs install pnpm here.
       { re: /npm install -g pnpm@(\S+)/, tool: 'pnpm', expected: toolchain.pnpm },
     ];
 
@@ -79,6 +79,28 @@ export function findToolchainViolations(
       }
     }
   });
+
+  // NOTE(#1340 step 1, second pass): `pnpm/action-setup` declares its version
+  // in a nested `with: version:` block, which the line scan above cannot see —
+  // a bare `version:` would also match unrelated keys, so it needs the action
+  // as context. performance.yml was pinned to **pnpm 9** this whole time and
+  // the first version of this check reported every workflow as matching. A
+  // checker that misses a form is a checker that lies about the forms it does
+  // not know, so the form is handled rather than the finding being patched.
+  const ACTION_SETUP = /pnpm\/action-setup@[^\n]*\n(?:[^\n]*\n){0,6}?[ \t]*version:[ \t]*([^\n]+)/g;
+  for (const m of content.matchAll(ACTION_SETUP)) {
+    const found = m[1]!.trim().replace(/^['"]|['"]$/g, '');
+    if (found.includes('${{')) continue;
+    if (found !== toolchain.pnpm) {
+      violations.push({
+        file,
+        line: content.slice(0, m.index).split(/\r?\n/).length,
+        found,
+        expected: toolchain.pnpm,
+        tool: 'pnpm',
+      });
+    }
+  }
 
   return violations;
 }

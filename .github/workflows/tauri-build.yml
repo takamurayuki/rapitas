@@ -138,11 +138,11 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: rapitas-frontend
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Install desktop dependencies
         working-directory: rapitas-desktop
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       # NOTE: the dual-client layout (generated/prisma-postgres +
       # generated/prisma-sqlite) means backend sources import the postgres

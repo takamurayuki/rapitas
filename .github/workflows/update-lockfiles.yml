@@ -58,6 +58,11 @@ jobs:
 
       - name: Update Frontend pnpm lockfile
         working-directory: rapitas-frontend
+        # NOTE(#1340 step 1): --no-frozen-lockfile is correct HERE and nowhere
+        # else. This job's purpose is to reconcile the lockfile with a
+        # package.json change, which a frozen install cannot do by definition.
+        # Every other install in the repository is frozen now, so if you are
+        # copying a line from this file into another job, copy a frozen one.
         run: |
           pnpm install --no-frozen-lockfile
           echo "FRONTEND_UPDATED=$(git diff --quiet pnpm-lock.yaml || echo 'true')" >> $GITHUB_ENV
