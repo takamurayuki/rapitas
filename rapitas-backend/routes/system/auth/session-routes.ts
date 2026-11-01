@@ -8,6 +8,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { resolveSessionByToken } from '../../../services/core/auth-session-resolver';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 const log = createLogger('routes:auth:session');
 
@@ -73,11 +74,11 @@ export const authSessionRoutes = new Elysia()
           return { success: false, message: 'Invalid session' };
         }
 
-        const sessionIdNum = parseInt(sessionId);
-        if (isNaN(sessionIdNum)) {
+        if (!isValidEntityId(sessionId)) {
           set.status = 400;
           return { success: false, message: 'Invalid session ID' };
         }
+        const sessionIdNum = Number(sessionId);
 
         const result = await prisma.userSession.deleteMany({
           where: { id: sessionIdNum, userId: currentSession.user.id },

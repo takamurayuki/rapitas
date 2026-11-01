@@ -21,6 +21,7 @@ import {
 } from '../../services/memory/concern-backlog-service';
 import { searchConcerns } from '../../services/memory/concern-search-service';
 import { closeIssueForConcern } from '../../services/github/concern-bridge';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:concern-backlog');
 
@@ -155,11 +156,11 @@ export const concernBacklogRoutes = new Elysia()
   .delete(
     '/concerns/:id',
     async ({ params, set }) => {
-      const id = parseInt(params.id);
-      if (!Number.isSafeInteger(id) || id <= 0) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { error: 'Invalid ID' };
       }
+      const id = Number(params.id);
       const ok = await deleteConcern(id);
       if (!ok) {
         set.status = 404;

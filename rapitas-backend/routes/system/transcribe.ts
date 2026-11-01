@@ -24,6 +24,7 @@ import {
   ensureDaemon,
 } from '../../services/transcription/whisper-daemon-service';
 import { parseVoiceCommand } from '../../services/transcription/voice-command-parser';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:transcribe');
 
@@ -226,11 +227,11 @@ export const transcribeRouter = new Elysia({ prefix: '/transcribe' })
 
   /** Delete a correction pattern. */
   .delete('/corrections/:id', ({ params, set }) => {
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
+    if (!isValidEntityId(params.id)) {
       set.status = 400;
       return { error: 'Invalid ID' };
     }
+    const id = Number(params.id);
     const deleted = deleteCorrection(id);
     return { success: deleted };
   });

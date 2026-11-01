@@ -21,6 +21,7 @@ import {
   type HypothesisStatus,
   type EvidenceStance,
 } from '../../services/memory/hypothesis-service';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:hypothesis');
 
@@ -172,11 +173,11 @@ export const hypothesisRoutes = new Elysia()
   .delete(
     '/hypotheses/:id',
     async ({ params, set }) => {
-      const id = parseInt(params.id);
-      if (!Number.isFinite(id)) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { error: '無効なIDです' };
       }
+      const id = Number(params.id);
       const ok = await deleteHypothesis(id);
       if (!ok) {
         set.status = 404;

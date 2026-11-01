@@ -46,3 +46,13 @@ tests/routes/tasks/tasks.mutation-errors.test.ts
 # 「DBに触れないこと」を assert する。生成IDの bump は復旧側が走行中セッションを
 # 蘇生するかの判断に使われるので、別タスクに対して走ると実行が死ぬ。
 routes/agents/execution/routes/stop-route.id-validation.test.ts
+
+# ===== 削除経路のid検証（#1349 PR3） =====
+# DELETE 24箇所のうち18箇所は「ガードがあるのに効いていない」状態だった。
+# isNaN / Number.isFinite / Number.isSafeInteger / Number.isInteger はいずれも
+# parseInt が返した切り捨て後の値を受け入れるため、/labels/5e2 はラベル500に、
+# /calendar-shares/5e2 はワークスペース500の共有解除に解決していた。
+# 代表2経路をここで固定する（ステータスではなく「DBに触れないこと」を assert）。
+# 残り22箇所は require-validated-id-param が error として押さえる。
+tests/routes/organization/labels-routes.test.ts
+routes/system/calendar-shares/calendar-shares.routes.test.ts

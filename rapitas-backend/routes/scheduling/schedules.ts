@@ -9,6 +9,7 @@ import { listScheduleEvents } from '../../services/scheduling/schedule-listing';
 import { createLogger } from '../../config/logger';
 import { realtimeService } from '../../services/communication/realtime-service';
 import { syncCalendarToTask } from '../../services/scheduling/task-calendar-sync';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:schedules');
 
@@ -229,8 +230,8 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
     '/:id',
     async (context) => {
       const { params } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) throw new ValidationError('Invalid ID');
+      if (!isValidEntityId(params.id)) throw new ValidationError('Invalid ID');
+      const id = Number(params.id);
 
       const existing = await prisma.scheduleEvent.findUnique({ where: { id } });
       if (!existing) throw new NotFoundError('Schedule event not found');

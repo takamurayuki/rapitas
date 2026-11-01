@@ -19,6 +19,7 @@ import { runInnovationSession } from '../../services/memory/innovation-session';
 import { prisma } from '../../config/database';
 import { createTask } from '../../services/task/task-mutations';
 import { HTTP_STATUS } from '../../utils/common/http-status';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:idea-box');
 
@@ -197,11 +198,11 @@ export const ideaBoxRoutes = new Elysia()
   .delete(
     '/idea-box/:id',
     async ({ params, set }) => {
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { error: 'Invalid ID' };
       }
+      const id = Number(params.id);
 
       try {
         const success = await deleteIdea(id);

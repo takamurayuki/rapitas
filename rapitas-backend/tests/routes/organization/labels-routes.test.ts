@@ -246,4 +246,23 @@ describe('DELETE /labels/:id', () => {
 
     expect(res.status).toBe(400);
   });
+
+  // NOTE(#1349): 'abc' だけを見ていたので、他の無効な id は素通りしていた。
+  // parseInt は読めない文字で止まるため '5e2' は 500、'5abc' は 5 になり、
+  // isNaN が true にならない。呼び出し元が指していないラベルを削除していた。
+  // ステータスだけでなく delete が呼ばれないことを見る。
+  test.each([
+    ['指数表記', '5e2'],
+    ['数値に続く接尾辞', '5abc'],
+    ['小数', '5.9'],
+    ['ゼロ', '0'],
+    ['負の数', '-3'],
+  ])('無効なID(%s: %s)でDBに触れず400を返すこと', async (_label, raw) => {
+    const res = await app.handle(
+      new Request(`http://localhost/labels/${raw}`, { method: 'DELETE' }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(mockPrisma.label.delete).not.toHaveBeenCalled();
+  });
 });

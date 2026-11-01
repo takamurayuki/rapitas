@@ -274,4 +274,35 @@ describe('revoking', () => {
     const res = await del(app, '/not-a-number');
     expect(res.status).toBe(400);
   });
+
+  // NOTE(#1349): 'not-a-number' is the easy half. Number() accepts notations
+  // that resolve to a DIFFERENT workspace — '5e2' is 500 and '0x10' is 16,
+  // both integers and both positive — so the Number.isInteger guard reported
+  // them valid and the revoke ran against that other workspace's grant. The
+  // guard looked strict and was not. Asserting deleteMany is never reached,
+  // because the status alone would pass on a 400 that still deleted.
+  test.each([
+    ['exponent notation', '/5e2'],
+    ['hex notation', '/0x10'],
+    ['a trailing suffix', '/5abc'],
+    ['leading whitespace', '/%205'],
+  ])('refuses %s (%s) rather than revoking another workspace', async (_label, path) => {
+    let revokes = 0;
+    const { app } = routes(2, {
+      shares: {
+        findFirst: async () => null,
+        findMany: async () => [],
+        create: async () => grantRows([{ owner: 2, viewer: 5 }])[0]!,
+        deleteMany: async () => {
+          revokes += 1;
+          return { count: 1 };
+        },
+      },
+    });
+
+    const res = await del(app, path);
+
+    expect(res.status).toBe(400);
+    expect(revokes).toBe(0);
+  });
 });

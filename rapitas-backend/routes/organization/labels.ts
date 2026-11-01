@@ -8,6 +8,7 @@ import { prisma } from '../../config/database';
 import { labelSchema } from '../../schemas/label.schema';
 import { NotFoundError, ValidationError } from '../../middleware/error-handler';
 import { replaceTaskLabels } from '../../services/task/task-label-replace';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 // NOTE: One-shot backfill for the theme→category label migration: theme-scoped
 // labels inherit their theme's category. Idempotent (only rows still missing
@@ -177,10 +178,10 @@ export const labelsRoutes = new Elysia({ prefix: '/labels' })
     '/:id',
     async (context) => {
       const { params } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('無効なIDです');
       }
+      const id = Number(params.id);
 
       return await prisma.label.delete({
         where: { id },

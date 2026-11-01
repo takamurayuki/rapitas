@@ -30,6 +30,7 @@ import {
   MAX_NOTE_CONTENT,
   MAX_NOTE_TAGS,
 } from '../../services/notes/note-service';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 /** An id a browser minted, or a cuid. Bounded so it cannot be a document. */
 const noteId = t.String({ minLength: 1, maxLength: 64 });
@@ -147,11 +148,11 @@ export const notesRoutes = new Elysia({ prefix: '/notes' })
   .delete(
     '/:id/links/:taskId',
     async ({ params, set }) => {
-      const taskId = Number(params.taskId);
-      if (!Number.isFinite(taskId)) {
+      if (!isValidEntityId(params.taskId)) {
         set.status = 400;
         return { success: false, error: 'invalid_task_id' };
       }
+      const taskId = Number(params.taskId);
       const removed = await unlinkNote(prisma, params.id, taskId);
       if (!removed) {
         set.status = 404;

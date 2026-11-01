@@ -6,6 +6,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { categorySchema } from '../../schemas/category.schema';
 import { NotFoundError, ValidationError } from '../../middleware/error-handler';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 // Default category definitions
 const DEFAULT_CATEGORIES = [
@@ -251,10 +252,10 @@ export const categoriesRoutes = new Elysia({ prefix: '/categories' })
     '/:id',
     async (context) => {
       const { params } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('Invalid ID');
       }
+      const id = Number(params.id);
 
       const category = await prisma.category.findUnique({ where: { id } });
       if (!category) {

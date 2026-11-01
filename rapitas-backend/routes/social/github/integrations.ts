@@ -9,6 +9,7 @@ import { prisma } from '../../../config/database';
 import { GitHubService, type GitHubWebhookPayload } from '../../../services/core/github-service';
 import { githubSchemas, githubParamSchemas } from '../../../schemas/github.schema';
 import { makeOwnerRepoString, asOwnerRepoString } from '../../../services/github/owner-repo';
+import { parseId } from '../../../middleware/error-handler';
 
 const githubService = new GitHubService(prisma);
 
@@ -143,7 +144,7 @@ export const integrationRoutes = new Elysia()
     async ({ params }) => {
       const { id } = params;
       return await prisma.gitHubIntegration.delete({
-        where: { id: parseInt(id) },
+        where: { id: parseId(id, 'integration ID') },
       });
     },
     {
