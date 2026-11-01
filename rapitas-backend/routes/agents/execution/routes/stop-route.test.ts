@@ -527,12 +527,17 @@ describe('stop-route reports a failed status reset', () => {
   });
 });
 
-// #1335: the wholesale-failure path answered HTTP 200 with success:false,
-// because the catch returned a body without setting a status. The #1332
-// client now reads the body and is safe either way, but any other caller —
-// including a future one — still gets told "200" for a stop that did not
-// happen. A status code that contradicts its own body is not a contract.
-describe('stop-route status code on a wholesale failure', () => {
+// #1335: the error path answered HTTP 200 with success:false, because the
+// catch returned a body without setting a status. The #1332 client now reads
+// the body and is safe either way, but any other caller — including a future
+// one — was told "200" for a stop that cannot be reported as complete. A
+// status code that contradicts its own body is not a contract.
+//
+// "Cannot be reported as complete", not "nothing happened": work before the
+// throw may have landed (the generation-id bump runs first, and queue
+// withdrawal or worktree cleanup may be partly done). That is the reason it
+// must not be a 200 — the caller cannot tell how far it got.
+describe('stop-route status code when the stop cannot be completed', () => {
   beforeEach(resetMocks);
 
   it('answers 5xx, not 200, when the database fails outright', async () => {
