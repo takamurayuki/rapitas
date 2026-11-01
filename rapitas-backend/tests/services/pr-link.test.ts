@@ -37,7 +37,9 @@ function makePrisma(overrides?: {
   const integrations = overrides?.integrations ?? [
     { id: 7, ownerName: 'takamurayuki', repositoryName: 'rapitas' },
   ];
-  const integrationUpsert: AnyMock = mock(() =>
+  // ensureIntegrationId provisions with create, not upsert: `repositoryUrl` is
+  // unique per workspace now, so it is not a filter upsert can be keyed on.
+  const integrationCreate: AnyMock = mock(() =>
     Promise.resolve({ id: overrides?.newIntegrationId ?? 11 }),
   );
   const upsert: AnyMock = overrides?.upsertThrows
@@ -60,7 +62,10 @@ function makePrisma(overrides?: {
           }
           return Promise.resolve({ ownerName: row.ownerName });
         }),
-        upsert: integrationUpsert,
+        // The repositoryUrl lookup that precedes provisioning: no row, so
+        // ensureIntegrationId goes on to create one.
+        findFirst: mock(() => Promise.resolve(null)),
+        create: integrationCreate,
       },
       gitHubPullRequest: { upsert, findUnique: prFindUnique },
       task: {
@@ -72,7 +77,7 @@ function makePrisma(overrides?: {
     upsert,
     taskUpdate,
     prFindUnique,
-    integrationUpsert,
+    integrationCreate,
   };
 }
 
@@ -116,21 +121,21 @@ describe('linkAutoCreatedPr', () => {
     // Nothing to match against AND nothing to provision: no integration rows and
     // no repository identity. Guessing here would file the PR under a repo it
     // does not belong to.
-    const { prisma, upsert, integrationUpsert } = makePrisma({ integrations: [] });
+    const { prisma, upsert, integrationCreate } = makePrisma({ integrations: [] });
     const id = await linkAutoCreatedPr(prisma, { ...baseParams, repositoryUrl: null });
     expect(id).toBeNull();
     expect(upsert).not.toHaveBeenCalled();
-    expect(integrationUpsert).not.toHaveBeenCalled();
+    expect(integrationCreate).not.toHaveBeenCalled();
   });
 
   test('provisions the integration for a repository that has none yet', async () => {
     // The repo-bootstrap case this fix exists for: a generated project's repo is
     // created without an integration row, so before provisioning the PR was
     // never persisted and auto-merge/ci_repair could not see it.
-    const { prisma, upsert, integrationUpsert } = makePrisma({ integrations: [] });
+    const { prisma, upsert, integrationCreate } = makePrisma({ integrations: [] });
     const id = await linkAutoCreatedPr(prisma, baseParams);
     expect(id).toBe(42);
-    expect(integrationUpsert).toHaveBeenCalledTimes(1);
+    expect(integrationCreate).toHaveBeenCalledTimes(1);
     const upsertArg = upsert.mock.calls[0][0] as {
       where: { integrationId_prNumber: { integrationId: number } };
     };
@@ -145,7 +150,7 @@ describe('linkAutoCreatedPr', () => {
   // row, so before that change linkAutoCreatedPr returned early and the PR was
   // invisible to PR sync and auto-merge.
   test('registers the PR’s own repository instead of borrowing an unrelated integration', async () => {
-    const { prisma, upsert, integrationUpsert } = makePrisma({
+    const { prisma, upsert, integrationCreate } = makePrisma({
       integrations: [{ id: 3, ownerName: 'someone', repositoryName: 'else' }],
       newIntegrationId: 11,
     });
@@ -153,12 +158,11 @@ describe('linkAutoCreatedPr', () => {
     expect(id).toBe(42);
 
     // A new integration was created for the repository the PR actually lives in.
-    const created = integrationUpsert.mock.calls[0][0] as {
-      where: { repositoryUrl: string };
-      create: { ownerName: string; repositoryName: string };
+    const created = integrationCreate.mock.calls[0][0] as {
+      data: { repositoryUrl: string; ownerName: string; repositoryName: string };
     };
-    expect(created.where.repositoryUrl).toBe('https://github.com/takamurayuki/rapitas');
-    expect(created.create).toMatchObject({
+    expect(created.data.repositoryUrl).toBe('https://github.com/takamurayuki/rapitas');
+    expect(created.data).toMatchObject({
       ownerName: 'takamurayuki',
       repositoryName: 'rapitas',
     });
@@ -173,12 +177,12 @@ describe('linkAutoCreatedPr', () => {
   test('still borrows the sole integration when the repository is unknown', async () => {
     // The legitimate half of the old behaviour: with no repository to place the
     // PR in, one configured integration is unambiguous.
-    const { prisma, upsert, integrationUpsert } = makePrisma({
+    const { prisma, upsert, integrationCreate } = makePrisma({
       integrations: [{ id: 3, ownerName: 'someone', repositoryName: 'else' }],
     });
     const id = await linkAutoCreatedPr(prisma, { ...baseParams, repositoryUrl: null });
     expect(id).toBe(42);
-    expect(integrationUpsert).not.toHaveBeenCalled();
+    expect(integrationCreate).not.toHaveBeenCalled();
     const upsertArg = upsert.mock.calls[0][0] as {
       where: { integrationId_prNumber: { integrationId: number } };
     };

@@ -57,19 +57,19 @@ beforeEach(async () => {
   });
   // Minimal isolated schema for the real Prisma queries; never reads the operational database.
   for (const sql of [
-    'CREATE TABLE Task (id INTEGER PRIMARY KEY, title TEXT, description TEXT, goals TEXT, constraints TEXT, acceptanceCriteria TEXT, status TEXT, workflowStatus TEXT, updatedAt DATETIME, themeId INTEGER)',
-    'CREATE TABLE WorkflowFile (id INTEGER PRIMARY KEY, taskId INTEGER, fileType TEXT, content TEXT, UNIQUE(taskId,fileType))',
-    'CREATE TABLE DeveloperModeConfig (id INTEGER PRIMARY KEY, taskId INTEGER)',
-    'CREATE TABLE AgentSession (id INTEGER PRIMARY KEY, configId INTEGER)',
-    'CREATE TABLE AgentExecution (id INTEGER PRIMARY KEY, sessionId INTEGER, status TEXT, startedAt DATETIME)',
-    'CREATE TABLE ThemeAutoRun (id INTEGER PRIMARY KEY, themeId INTEGER UNIQUE, status TEXT)',
-    'CREATE TABLE WorkflowTransition (id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, fromStatus TEXT, toStatus TEXT, actor TEXT, cause TEXT, phase TEXT, executionId INTEGER, sessionId INTEGER, metadata TEXT DEFAULT "{}", invariantViolation BOOLEAN DEFAULT 0, invariantMessage TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
+    'CREATE TABLE Task (workspaceId INTEGER, id INTEGER PRIMARY KEY, title TEXT, description TEXT, goals TEXT, constraints TEXT, acceptanceCriteria TEXT, status TEXT, workflowStatus TEXT, updatedAt DATETIME, themeId INTEGER)',
+    'CREATE TABLE WorkflowFile (workspaceId INTEGER, id INTEGER PRIMARY KEY, taskId INTEGER, fileType TEXT, content TEXT, UNIQUE(taskId,fileType))',
+    'CREATE TABLE DeveloperModeConfig (workspaceId INTEGER, id INTEGER PRIMARY KEY, taskId INTEGER)',
+    'CREATE TABLE AgentSession (workspaceId INTEGER, id INTEGER PRIMARY KEY, configId INTEGER)',
+    'CREATE TABLE AgentExecution (workspaceId INTEGER, id INTEGER PRIMARY KEY, sessionId INTEGER, status TEXT, startedAt DATETIME)',
+    'CREATE TABLE ThemeAutoRun (workspaceId INTEGER, id INTEGER PRIMARY KEY, themeId INTEGER UNIQUE, status TEXT)',
+    'CREATE TABLE WorkflowTransition (workspaceId INTEGER, id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, fromStatus TEXT, toStatus TEXT, actor TEXT, cause TEXT, phase TEXT, executionId INTEGER, sessionId INTEGER, metadata TEXT DEFAULT "{}", invariantViolation BOOLEAN DEFAULT 0, invariantMessage TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
     'CREATE TABLE RequirementReviewClaim (id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, snapshotDigest TEXT, requestKey TEXT, status TEXT, claimToken TEXT, ownerInstanceId TEXT, heartbeatAt DATETIME, resultJson TEXT, reason TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME, UNIQUE(taskId,snapshotDigest))',
-    'CREATE TABLE RequirementReviewRetryRequest (id INTEGER PRIMARY KEY AUTOINCREMENT, requestId TEXT UNIQUE, taskId INTEGER, consumedAt DATETIME, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
+    'CREATE TABLE RequirementReviewRetryRequest (workspaceId INTEGER, id INTEGER PRIMARY KEY AUTOINCREMENT, requestId TEXT UNIQUE, taskId INTEGER, consumedAt DATETIME, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
   ])
     await db.$executeRawUnsafe(sql);
   await db.$executeRawUnsafe(
-    'INSERT INTO Task VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, NULL)',
+    'INSERT INTO Task (id, title, description, goals, constraints, acceptanceCriteria, status, workflowStatus, updatedAt, themeId) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, NULL)',
     snapshot.title,
     snapshot.description,
     '[]',
@@ -80,7 +80,7 @@ beforeEach(async () => {
     now,
   );
   await db.$executeRawUnsafe(
-    'INSERT INTO WorkflowFile VALUES (1,1,?,?), (2,1,?,?)',
+    'INSERT INTO WorkflowFile (id, taskId, fileType, content) VALUES (1,1,?,?), (2,1,?,?)',
     'plan',
     snapshot.plan,
     'verify',
@@ -88,7 +88,7 @@ beforeEach(async () => {
   );
   await db.$executeRawUnsafe('ALTER TABLE Task ADD COLUMN workflowMode TEXT');
   await db.$executeRawUnsafe(
-    'CREATE TABLE WorkflowModeConfig (id INTEGER PRIMARY KEY, mode TEXT UNIQUE, stepDefinitions TEXT)',
+    'CREATE TABLE WorkflowModeConfig (workspaceId INTEGER, id INTEGER PRIMARY KEY, mode TEXT UNIQUE, stepDefinitions TEXT)',
   );
 });
 
@@ -158,9 +158,12 @@ test('completed task cannot be reopened by an earlier review', async () => {
 });
 
 test('cancelled execution blocks replan even when task status remains in progress', async () => {
-  await db.$executeRawUnsafe('INSERT INTO DeveloperModeConfig VALUES (1,1)');
-  await db.$executeRawUnsafe('INSERT INTO AgentSession VALUES (1,1)');
-  await db.$executeRawUnsafe("INSERT INTO AgentExecution VALUES (1,1,'cancelled',?)", now);
+  await db.$executeRawUnsafe('INSERT INTO DeveloperModeConfig (id, taskId) VALUES (1,1)');
+  await db.$executeRawUnsafe('INSERT INTO AgentSession (id, configId) VALUES (1,1)');
+  await db.$executeRawUnsafe(
+    "INSERT INTO AgentExecution (id, sessionId, status, startedAt) VALUES (1,1,'cancelled',?)",
+    now,
+  );
   expect(await commit()).toEqual({ committed: false, reason: 'execution_stopped' });
   expect(await db.workflowTransition.count()).toBe(0);
 });
@@ -333,9 +336,12 @@ test('no-mismatch verdict cannot refer to requirements changed during review', a
 });
 
 test('no-mismatch review cannot pass a cancellation that leaves the task timestamp unchanged', async () => {
-  await db.$executeRawUnsafe('INSERT INTO DeveloperModeConfig VALUES (1,1)');
-  await db.$executeRawUnsafe('INSERT INTO AgentSession VALUES (1,1)');
-  await db.$executeRawUnsafe("INSERT INTO AgentExecution VALUES (1,1,'running',?)", now);
+  await db.$executeRawUnsafe('INSERT INTO DeveloperModeConfig (id, taskId) VALUES (1,1)');
+  await db.$executeRawUnsafe('INSERT INTO AgentSession (id, configId) VALUES (1,1)');
+  await db.$executeRawUnsafe(
+    "INSERT INTO AgentExecution (id, sessionId, status, startedAt) VALUES (1,1,'running',?)",
+    now,
+  );
   const result = await attemptRequirementReplan(db as unknown as PostgresClient, 1, async () => {
     await db.$executeRawUnsafe("UPDATE AgentExecution SET status = 'cancelled' WHERE id = 1");
     return { ...review, verdict: { kind: 'no_mismatch', reason: 'requirements match' } };
@@ -400,9 +406,12 @@ test('a matching review after three replans does not require a fourth attempt', 
 });
 
 test('durable stop intent blocks review admission before process cancellation finishes', async () => {
-  await db.$executeRawUnsafe('INSERT INTO DeveloperModeConfig VALUES (1,1)');
-  await db.$executeRawUnsafe('INSERT INTO AgentSession VALUES (1,1)');
-  await db.$executeRawUnsafe("INSERT INTO AgentExecution VALUES (1,1,'running',?)", now);
+  await db.$executeRawUnsafe('INSERT INTO DeveloperModeConfig (id, taskId) VALUES (1,1)');
+  await db.$executeRawUnsafe('INSERT INTO AgentSession (id, configId) VALUES (1,1)');
+  await db.$executeRawUnsafe(
+    "INSERT INTO AgentExecution (id, sessionId, status, startedAt) VALUES (1,1,'running',?)",
+    now,
+  );
   await db.$executeRawUnsafe(
     "INSERT INTO WorkflowTransition (taskId,actor,cause,createdAt) VALUES (1,'system','theme_stop_execution_requested',?)",
     new Date(now.getTime() + 1000),
@@ -477,9 +486,12 @@ test('new open subtask prevents parent completion', async () => {
 
 test('a new execution after review invalidates the completion receipt', async () => {
   const complete = await prepareCompletion();
-  await db.$executeRawUnsafe('INSERT INTO DeveloperModeConfig VALUES (1,1)');
-  await db.$executeRawUnsafe('INSERT INTO AgentSession VALUES (1,1)');
-  await db.$executeRawUnsafe("INSERT INTO AgentExecution VALUES (1,1,'running',?)", now);
+  await db.$executeRawUnsafe('INSERT INTO DeveloperModeConfig (id, taskId) VALUES (1,1)');
+  await db.$executeRawUnsafe('INSERT INTO AgentSession (id, configId) VALUES (1,1)');
+  await db.$executeRawUnsafe(
+    "INSERT INTO AgentExecution (id, sessionId, status, startedAt) VALUES (1,1,'running',?)",
+    now,
+  );
   expect(await complete()).toEqual({ committed: false, reason: 'execution_superseded' });
 });
 
@@ -598,9 +610,12 @@ test('durable stop intent prevents an empty-diff hold before task cancellation s
 
 test('a new execution invalidates the old empty-diff hold', async () => {
   const receipt = await emptyDiffReceipt();
-  await db.$executeRawUnsafe('INSERT INTO DeveloperModeConfig VALUES (1,1)');
-  await db.$executeRawUnsafe('INSERT INTO AgentSession VALUES (1,1)');
-  await db.$executeRawUnsafe("INSERT INTO AgentExecution VALUES (1,1,'running',?)", new Date());
+  await db.$executeRawUnsafe('INSERT INTO DeveloperModeConfig (id, taskId) VALUES (1,1)');
+  await db.$executeRawUnsafe('INSERT INTO AgentSession (id, configId) VALUES (1,1)');
+  await db.$executeRawUnsafe(
+    "INSERT INTO AgentExecution (id, sessionId, status, startedAt) VALUES (1,1,'running',?)",
+    new Date(),
+  );
   await expect(
     blockReviewedEmptyDiff(db as unknown as PostgresClient, receipt, 'no_changes'),
   ).rejects.toThrow('execution superseded');

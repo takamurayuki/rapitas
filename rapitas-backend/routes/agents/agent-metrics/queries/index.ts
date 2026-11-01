@@ -3,15 +3,19 @@
  *
  * Barrel export for the agent-metrics query modules: overview/trends,
  * performance comparison, self-observation, usage breakdown, utilization,
- * cost optimization, and repair-convergence aggregations.
+ * cost optimization, role×model outcomes, and repair-convergence aggregations.
  */
 
+export type { FirstPassTransitionRow, RangeBounds } from './overview';
 export {
   buildDateWhereClause,
+  countFirstPassCompletions,
   getAgentMetrics,
   getExecutionTrends,
+  getFirstPassCompletion,
   getMetricsOverview,
   prisma,
+  resolveRangeBounds,
 } from './overview';
 
 export { getAgentPerformanceComparison } from './performance';
@@ -48,6 +52,9 @@ export type {
   ParetoFrontierOptions,
 } from './pareto-frontier';
 export { getParetoFrontier, getParetoRecommendation } from './pareto-frontier';
+
+export type { RoleModelOutcomes, RoleModelCell, CombinationCell } from './role-model-outcomes';
+export { getRoleModelOutcomes } from './role-model-outcomes';
 
 export type {
   RepairTransitionRow,

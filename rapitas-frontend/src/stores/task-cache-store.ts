@@ -6,6 +6,26 @@ const logger = createLogger('taskCacheStore');
 
 type ConnectionStatus = 'online' | 'offline' | 'reconnecting';
 
+/** Header carrying the cursor the next `GET /tasks` should send (#1336). */
+const SERVER_CURSOR_HEADER = 'X-Server-Cursor';
+
+/**
+ * Read the server's fetch cursor from a response.
+ *
+ * Returns null unless the header is present AND parses as a date: the value
+ * crosses a CORS boundary and a proxy or a misconfigured `exposeHeaders` can
+ * leave it absent or mangled, and storing garbage as the cursor would break
+ * every later fetch rather than just this one.
+ *
+ * @param res - The response to read / 対象のレスポンス
+ * @returns The cursor, or null when unusable / 使えなければ null
+ */
+function serverCursor(res: Response): string | null {
+  const raw = res.headers?.get?.(SERVER_CURSOR_HEADER);
+  if (!raw || Number.isNaN(Date.parse(raw))) return null;
+  return raw;
+}
+
 type TaskCacheState = {
   tasks: Task[];
   lastFetchedAt: string | null;
@@ -108,6 +128,12 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => {
   const runFullFetch = async () => {
     logger.info('[taskCacheStore] fetchAll: Starting full fetch');
     set({ loading: true });
+    // NOTE(#1332): Stamped BEFORE the request, not when the reply arrives.
+    // See `nextSince` in fetchUpdates for the full reasoning: a boundary taken
+    // at receive time silently skips every row written while the request was
+    // in flight. Stamping early can re-deliver one, which a merge by id
+    // absorbs; skipping one loses it for good.
+    const requestedAt = new Date().toISOString();
     try {
       const res = await fetchWithRetry(`${API_BASE_URL}/tasks`);
       if (!res.ok) {
@@ -126,7 +152,14 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => {
       );
       set({
         tasks: data,
-        lastFetchedAt: new Date().toISOString(),
+        // NOTE(#1336): the server's cursor wins over `requestedAt`. The
+        // pre-request stamp fixed the in-flight race (#1332) but still came
+        // from the device clock, and this is the call that seeds the FIRST
+        // boundary — a machine running ahead of the server would start the
+        // next fetch in the server's future and skip the gap. Clock skew is
+        // not a millisecond problem; an unsynced machine can be minutes out.
+        // The header is used because this endpoint returns a bare array.
+        lastFetchedAt: serverCursor(res) ?? requestedAt,
         initialized: true,
         loading: false,
         connectionStatus: 'online',
@@ -191,6 +224,19 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => {
       if (!silent) {
         set({ loading: true });
       }
+      // NOTE(#1332): The next boundary is decided BEFORE the request goes out,
+      // and the server's own `nextSince` (stamped when it queried) wins when
+      // it is present. This used to be `new Date().toISOString()` at the point
+      // the reply was handled, which meant the next fetch asked for changes
+      // after a moment that had already passed: anything updated between send
+      // and receive was never requested again. Erring early re-delivers a row
+      // at worst — `taskMap.set(id, …)` is idempotent — while erring late
+      // drops it permanently.
+      const requestedAt = new Date().toISOString();
+      /** The server's boundary if it sent one, else the pre-request stamp. */
+      const nextBoundary = (data: { nextSince?: unknown }): string =>
+        typeof data.nextSince === 'string' ? data.nextSince : requestedAt;
+
       try {
         const res = await fetchWithRetry(
           `${API_BASE_URL}/tasks?since=${encodeURIComponent(lastFetchedAt)}`,
@@ -271,7 +317,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => {
           // useFilteredTasks/useTaskSorting to recompute, flickering the list on
           // every poll. Advance lastFetchedAt only so the next fetch stays incremental.
           if (updatedTasks.length === 0 && deletedCount === 0) {
-            set({ lastFetchedAt: new Date().toISOString() });
+            set({ lastFetchedAt: nextBoundary(data) });
             if (!silent) {
               set({ loading: false });
             }
@@ -284,14 +330,15 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => {
           );
           set({
             tasks: merged,
-            lastFetchedAt: new Date().toISOString(),
+            lastFetchedAt: nextBoundary(data),
           });
         } else {
           // Fallback: server returned plain array (shouldn't happen with since param, but handle gracefully)
           logger.debug('[taskCacheStore] fetchUpdates: Received non-incremental response');
           set({
             tasks: data,
-            lastFetchedAt: new Date().toISOString(),
+            // A plain-array reply carries no boundary of its own.
+            lastFetchedAt: requestedAt,
           });
         }
       } catch (e) {

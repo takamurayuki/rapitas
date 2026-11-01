@@ -105,3 +105,101 @@ routes/agents/execution/routes/respond-route.test.ts
 services/workflow/halt-release.test.ts
 services/workflow/task-iteration-budget.window-reset-causes.test.ts
 services/agents/orchestrator/git-operations/worktree/worktree-removal-backoff.test.ts
+
+# ===== テナンシー（#1255） =====
+# この層のテストは1件もゲートに入っておらず、stage 1/2/3 はいずれも
+# 必須ゲートがテナンシーを1度も実行しないままマージされた。
+# ドリフト検出はマニフェストに書かれたファイルの存在だけを見るので、
+# 層ごと欠けていても気付けない。
+# 統合テスト3件 (workspace-scoping / workspace-request / workspace-backfill)
+# はここに置けない: このゲートのジョブは postgres クライアントしか生成せず、
+# 3件はいずれも generated/prisma-sqlite を読む。sqlite-compat-tests.txt 側に置く。
+services/tenancy/owned-models.test.ts
+services/tenancy/workspace-scope.test.ts
+services/tenancy/workspace-extension.test.ts
+services/tenancy/session-workspace.test.ts
+services/tenancy/workspace-backfill.test.ts
+services/tenancy/workspace-provisioning.test.ts
+routes/system/tenancy.routes.test.ts
+tests/schema/workspace-tenancy.test.ts
+tests/schema/prisma-unique-writes.test.ts
+
+# スキーマのリテラルを固定しているドリフトテスト2件。どちらもゲート外で、
+# usage-budget 側は @@unique([budgetId, themeId]) をそのまま固定していたため
+# 本変更で赤になり、気付いたのは advisory の Full Suite だった。
+# .prisma を読むだけなので本番コードを import せず、カバレッジ床に影響しない。
+services/usage-budget/usage-budget-schema-drift.test.ts
+services/self-improvement/pr-risk/pr-risk-schema-drift.test.ts
+
+# ユニーク制約を変えて壊れた「呼び出し元」のテスト16件は、意図的にここへ
+# 入れていない。入れると Test Backend が measure する母数が広がり、行
+# 64.92%→42.16% / 関数 48.73%→47.09% とカバレッジ床（関数50%）を割る。
+# 正しさのゲートを床の失敗と引き換えにはしない。
+# 代わりに上の prisma-unique-writes.test.ts が原因側を静的に捕まえる
+# （CI の tsc が報告した10件と完全一致することを確認済み）。
+# 症状側（71件の実行時失敗）を捕まえたのは advisory の Full Suite だけで、
+# これはマージをブロックしない。マニフェストは全1375件中180件しか指しておらず、
+# 必須ゲートを広げるにはカバレッジ床の引き上げ計画と併せる必要がある。
+
+# Googleログイン: 未設定時の拒否と、コールバックでのワークスペース付与。
+# このフローは従来テストが1件も無く、ワークスペースを作らないまま
+# セッションを発行していた（＝全ワークスペースのデータが見える）。
+routes/system/auth/google-oauth.test.ts
+tests/routes/system/auth-routes.test.ts
+tests/services/auth-service.test.ts
+
+# カレンダー連携のアカウント分離。資格情報はキーチェーンの固定1キーに入って
+# いたため、誰か1人が連携すると全アカウントがそのカレンダーを読んでいた。
+# OAuthコールバックには SameSite=Strict でセッションCookieが届かないので、
+# どのワークスペースの連携かは state で運ぶ必要がある（ここを間違えると
+# 他人のワークスペースにトークンが入る）。
+services/scheduling/calendar-slot/token-store.test.ts
+routes/system/calendar-slots/calendar-slots-handlers.test.ts
+services/scheduling/calendar-slot/calendar-store.test.ts
+services/scheduling/calendar-slot/calendar-sync-service.test.ts
+
+# コールバック後の戻り先URL。既定が localhost だと、Cookie は 127.0.0.1 の
+# ホストに紐づくうえ SameSite=Strict がポートを無視してホストで比較するため、
+# Googleから戻った直後の画面がCookieを送らず「ログイン済みなのにゲスト」になる。
+config/frontend-url.test.ts
+
+# パスワードリセット（オーナー復旧手段）。ログインがデータの見え方を決める
+# ようになった結果、パスワードを失ったオーナーは自分のデータを失う。
+# SQL が静かに何もしない事故（列名の打ち間違い）を実DBで捕まえる。
+services/core/password-reset.test.ts
+scripts/reset-password.test.ts
+
+# ===== 仮説台帳（#1321: 集計が forgettingStage=active 限定で supported を 0 と報告していた） =====
+services/memory/hypothesis-service.ledger-scope.test.ts
+services/workflow/workflow-hypothesis-context.test.ts
+
+# ===== 添付ファイル配信のセキュリティ（inline 実行・認可・symlink 迂回） =====
+routes/tasks/attachment-serving.test.ts
+routes/tasks/resources-upload-source.test.ts
+tests/routes/tasks/resources-routes.test.ts
+
+# ===== 外部URL取得のSSRF対策（アドレス方針・リダイレクト再検査・本文上限） =====
+routes/system/url-fetch-guard.test.ts
+tests/routes/system/url-metadata-routes.test.ts
+
+# ===== 書き込み経路の整合性（#1330: 一括削除の保護迂回・ラベル全消失） =====
+# NOTE: The two UNIT files only. Adding the route-level tests
+# (batch-v2 / tasks.subtask-admin / stop-route) pulled their whole route
+# modules into the coverage denominator and took functions from 51.5% to
+# 46.9%, under the 50% floor — ADR-0002 says add tests, never lower the floor,
+# and covering those 600-line routes is its own task. The logic these fixes
+# introduced lives in the two modules below and is fully covered here; the
+# route wiring is still tested, just outside the gate.
+services/task/task-deletion.test.ts
+services/task/task-label-replace.test.ts
+services/task/task-cleanup.test.ts
+services/task/completed-task-cleanup.test.ts
+services/task/task-worktree-cleanup.test.ts
+eslint-rules/no-unguarded-task-delete.test.mjs
+
+# ===== CORS 方針（#1336） =====
+# exposeHeaders は「間違っていても何も起きない」設定。漏れるとフロント(:3000)は
+# :3001 の応答ヘッダを読めず、依存機能(X-Server-Cursor)が静かに無効化される。
+# CSRF ガード(middleware/local-auth.ts)が持っていた許可オリジンの複製も
+# この resolver に寄せたので、空文字 CORS_ORIGIN の扱いの差分もここで固定する。
+config/cors-options.test.ts

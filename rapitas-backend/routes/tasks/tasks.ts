@@ -7,6 +7,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { AppError, ValidationError } from '../../middleware/error-handler';
 import { createLogger } from '../../config/logger';
+import { deleteTaskWithTrash, deleteTasksWithTrash } from '../../services/task/task-deletion';
 import {
   createTask,
   updateTask,
@@ -15,8 +16,6 @@ import {
   attachBlockedCauses,
   attachAutoRunCardStatus,
 } from '../../services/task/task-service';
-import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree/worktree-ops';
-import { resolveWorktreeBaseDir } from '../../services/agents/orchestrator/git-operations/core/resolve-worktree-base-dir';
 import { warnIfSubtaskCreatedDuringDisabledSplit } from '../../services/workflow/subtask-split-guard';
 import { getProjectRoot } from '../../config';
 import { cleanupCompletedTasks } from '../../services/task/completed-task-cleanup';
@@ -153,6 +152,15 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         throw new ValidationError('Invalid `since` parameter');
       }
 
+      // NOTE(#1332): Stamped BEFORE the query, and returned as `nextSince` so
+      // the client never has to guess the boundary. The client used to advance
+      // to its own receive time, which permanently skipped any row updated
+      // while the request was in flight — the next fetch asked for changes
+      // after a moment that had already passed. Stamping early overlaps
+      // instead: a row written during the query may come back twice, and a
+      // merge by id is idempotent. Only skipping loses data.
+      const nextSince = new Date().toISOString();
+
       const [updated, totalCount, allIds] = await Promise.all([
         prisma.task.findMany({
           where: {
@@ -173,7 +181,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
             theme: true,
             project: true,
             milestone: true,
-            examGoal: true,
             taskLabels: {
               include: {
                 label: true,
@@ -198,6 +205,8 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         totalCount,
         activeIds: allIds.map((t) => t.id), // List of currently active task IDs
         since: sinceDate.toISOString(),
+        /** The boundary the NEXT incremental fetch must send as `since`. */
+        nextSince,
         incremental: true,
       };
     }
@@ -205,6 +214,22 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     // Full fetch (no `since`) — with pagination
     const page = query.page ? parseInt(query.page as string) : undefined;
     const pageSize = query.limit ? Math.min(parseInt(query.limit as string), 500) : undefined;
+
+    // NOTE(#1336): The cursor for the NEXT fetch, stamped before the query for
+    // the same reason as `nextSince` above. It travels as a header because the
+    // unpaginated full fetch returns a bare array — putting it in the body
+    // would break every reader of `GET /tasks`.
+    //
+    // This is what seeds the very FIRST boundary, so getting it from the
+    // device clock was its own bug, separate from the in-flight race #1332
+    // fixed: a client running ahead of the server starts the next fetch in
+    // the server's future and skips everything in between. Clock skew is not
+    // a millisecond problem — an unsynced machine can be minutes out.
+    //
+    // The header is listed in `exposeHeaders` in index.ts's cors(). Without
+    // that it is invisible to the frontend (different origin) and this whole
+    // mechanism silently does nothing — see the test that pins it.
+    context.set.headers['X-Server-Cursor'] = new Date().toISOString();
 
     const tasks = await prisma.task.findMany({
       where: baseWhere,
@@ -215,7 +240,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         theme: true,
         project: true,
         milestone: true,
-        examGoal: true,
         taskLabels: {
           include: {
             label: true,
@@ -261,7 +285,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         theme: true,
         project: true,
         milestone: true,
-        examGoal: true,
         taskLabels: {
           include: {
             label: true,
@@ -320,7 +343,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         projectId: t.Optional(t.Number()),
         milestoneId: t.Optional(t.Number()),
         themeId: t.Optional(t.Number()),
-        examGoalId: t.Optional(t.Number()),
         isDeveloperMode: t.Optional(t.Boolean()),
         isAiTaskAnalysis: t.Optional(t.Boolean()),
         goals: t.Optional(t.Array(t.String())),
@@ -362,7 +384,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
           subject: t.Optional(t.String({ maxLength: 500 })),
           projectId: t.Optional(t.Number()),
           milestoneId: t.Optional(t.Number()),
-          examGoalId: t.Optional(t.Number()),
           autoApprovePlan: t.Optional(t.Boolean()),
           goals: t.Optional(t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 })),
           constraints: t.Optional(t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 })),
@@ -407,73 +428,22 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         throw new ValidationError(INVALID_ID);
       }
 
-      // Guard: a protected task is blocked from deletion to prevent accidental
-      // loss. This is the single choke point for ALL manual delete paths (card
-      // context menu, detail page, bulk list delete) since they all hit DELETE
-      // /:id. Checked before any worktree cleanup so we never touch a task we
-      // are not going to delete.
-      const guard = await prisma.task.findUnique({
-        where: { id },
-        select: { isProtected: true },
-      });
-      if (guard?.isProtected) {
+      // The protected-task guard, the worktree cleanup and the trash copy all
+      // live in deleteTaskWithTrash now. This route used to BE the choke point
+      // for every manual delete; ラピ added a caller that is not an HTTP
+      // request, and one guard in two places is a guard that drifts.
+      const result = await deleteTaskWithTrash(id, 'user');
+
+      if (result.outcome === 'protected') {
         set.status = 409;
         return { error: '保護されたタスクは削除できません' };
       }
-
-      // Clean up any worktrees associated with this task before deletion
-      try {
-        const task = await prisma.task.findUnique({
-          where: { id },
-          select: { workingDirectory: true, theme: { select: { workingDirectory: true } } },
-        });
-
-        if (task) {
-          // Find any agent sessions with worktrees for this task
-          const sessionsWithWorktrees = await prisma.agentSession.findMany({
-            where: {
-              worktreePath: { not: null },
-              config: { taskId: id },
-            },
-            select: { id: true, worktreePath: true },
-          });
-
-          const dirs = [task.workingDirectory || task.theme?.workingDirectory, getProjectRoot()];
-
-          for (const session of sessionsWithWorktrees) {
-            if (!session.worktreePath) continue;
-            try {
-              const removed = await removeWorktree(
-                resolveWorktreeBaseDir(session.worktreePath, dirs),
-                session.worktreePath,
-              );
-              if (!removed) {
-                logger.warn(`[tasks] worktree remove refused: task ${id} ${session.worktreePath}`);
-                continue;
-              }
-              await prisma.agentSession.update({
-                where: { id: session.id },
-                data: { worktreePath: null },
-              });
-              logger.info(`[tasks] Cleaned up worktree for task ${id}: ${session.worktreePath}`);
-            } catch (worktreeError) {
-              logger.warn(
-                { err: worktreeError },
-                `[tasks] Failed to clean up worktree for task ${id}: ${session.worktreePath}`,
-              );
-            }
-          }
-        }
-      } catch (cleanupError) {
-        logger.warn(
-          { err: cleanupError },
-          `[tasks] Failed to clean up worktrees for task ${id}, proceeding with deletion`,
-        );
+      if (result.outcome === 'not_found') {
+        set.status = 404;
+        return { error: TASK_NOT_FOUND };
       }
 
-      return await prisma.task.delete({
-        where: { id },
-      });
+      return { id, trashId: result.trashId };
     },
     {
       params: t.Object({ id: t.String() }),
@@ -581,17 +551,28 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         select: { id: true },
       });
 
-      const deletedCount = subtasks.length;
+      // NOTE(#1330): Through the choke point, not `deleteMany`. A bulk delete
+      // cannot refuse a protected row, write a trash copy, or snapshot
+      // measurements, so this route used to destroy all three for every
+      // subtask it touched.
+      const result = await deleteTasksWithTrash(
+        subtasks.map((s: { id: number }) => s.id),
+        'user',
+      );
+      const deletedCount = result.deleted.length;
 
-      await prisma.task.deleteMany({
-        where: { parentId },
-      });
-
-      logger.info(`[tasks] Deleted all ${deletedCount} subtasks for parent task ${parentId}`);
+      logger.info(
+        { parentId, deletedCount, refused: result.protected.length },
+        '[tasks] Deleted subtasks for parent task',
+      );
 
       return {
         success: true,
         deletedCount,
+        // Reported, not swallowed: a caller that asked for 5 and got 3 needs
+        // to know two were protected rather than see "success".
+        protectedCount: result.protected.length,
+        protectedIds: result.protected,
         message:
           deletedCount > 0
             ? `${deletedCount}件のサブタスクを削除しました`
@@ -641,26 +622,26 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         );
       }
 
-      // Delete only valid subtasks
-      const deleteResult = await prisma.task.deleteMany({
-        where: {
-          id: { in: validIds },
-          parentId,
-        },
-      });
+      // Delete only valid subtasks, through the choke point (#1330) — a
+      // `deleteMany` here skipped the protected-task guard, the trash copy and
+      // the measurement snapshot for every id it was given.
+      const result = await deleteTasksWithTrash(validIds, 'user');
 
       logger.info(
-        `[tasks] Deleted ${deleteResult.count} selected subtasks for parent task ${parentId}`,
+        { parentId, deletedCount: result.deleted.length, refused: result.protected.length },
+        '[tasks] Deleted selected subtasks for parent task',
       );
 
       return {
         success: true,
-        deletedCount: deleteResult.count,
-        deletedIds: validIds,
+        deletedCount: result.deleted.length,
+        deletedIds: result.deleted,
         invalidIds,
+        protectedCount: result.protected.length,
+        protectedIds: result.protected,
         message:
-          deleteResult.count > 0
-            ? `${deleteResult.count}件のサブタスクを削除しました`
+          result.deleted.length > 0
+            ? `${result.deleted.length}件のサブタスクを削除しました`
             : '削除するサブタスクがありませんでした',
       };
     },

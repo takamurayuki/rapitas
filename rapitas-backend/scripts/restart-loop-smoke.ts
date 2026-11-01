@@ -160,10 +160,17 @@ export async function waitForPortFree(
 /**
  * Polls GET /health on the given port until status is "healthy" or timeout.
  *
+ * NOTE: "healthy" means the port answers and the DB connects — NOT that the
+ * server is ready. Warm-up runs after the listener opens, and a write landing
+ * in that window can fail (measured 2026-10-31: a 6,474ms window, and
+ * SQLITE_IOERR_SHORT_READ inside it — #1323). A caller whose next step WRITES
+ * must pass `requireReady`.
+ *
  * @param port - Port to poll / ポーリングするポート番号
  * @param timeoutMs - Max wait in ms / タイムアウト（ミリ秒）
  * @param pollIntervalMs - Polling interval in ms / ポーリング間隔（ミリ秒）
  * @param fetchFn - Injectable fetch for unit tests / テスト用インジェクション可能 fetch
+ * @param requireReady - Also wait for warm-up to finish / ウォームアップ完了も待つ
  * @returns ok flag, elapsed ms, and attempt count / 結果フラグ・経過時間・試行回数
  */
 export async function waitForHealth(
@@ -171,6 +178,7 @@ export async function waitForHealth(
   timeoutMs = HEALTH_TIMEOUT_MS,
   pollIntervalMs = 500,
   fetchFn: typeof fetch = globalThis.fetch,
+  requireReady = false,
 ): Promise<{ ok: boolean; elapsedMs: number; attempts: number }> {
   const start = Date.now();
   let attempts = 0;
@@ -182,8 +190,11 @@ export async function waitForHealth(
         signal: AbortSignal.timeout(2000),
       });
       if (res.ok) {
-        const body = (await res.json()) as { status?: string };
-        if (body.status === 'healthy') {
+        const body = (await res.json()) as { status?: string; ready?: boolean };
+        // `ready` is absent on an older build, so requireReady must not hang
+        // forever against one — treat a missing field as the old contract.
+        const ready = !requireReady || body.ready !== false;
+        if (body.status === 'healthy' && ready) {
           return { ok: true, elapsedMs: Date.now() - start, attempts };
         }
       }

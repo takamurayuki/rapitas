@@ -78,15 +78,10 @@ export default function FocusClient() {
         }
       }
 
-      // Update study statistics
-      await fetch(`${API_BASE_URL}/statistics/daily-study`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          hours: duration,
-          date: new Date().toISOString().split('T')[0],
-        }),
-      });
+      // NOTE: a POST to /statistics/daily-study used to follow here to update
+      // study statistics. No such handler ever existed (the endpoint is
+      // GET-only, so the 404 was swallowed by this catch), and the learning
+      // features it fed are gone.
     } catch (e) {
       logger.error('Failed to save time entry:', e);
     }

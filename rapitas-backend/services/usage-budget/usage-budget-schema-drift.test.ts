@@ -44,7 +44,14 @@ describe.each(['schema', 'schema.desktop'])('usage-budget.prisma in %s', (dir) =
     });
   }
 
-  it('keeps (budgetId, themeId) unique so a theme has one share', () => {
-    expect(modelBody(schema, 'UsageBudgetThemeShare')).toContain('@@unique([budgetId, themeId])');
+  it('keeps a theme to one share per budget, within one workspace', () => {
+    // Was `@@unique([budgetId, themeId])`. The workspace had to join the key
+    // (#1255): without it the FIRST account to configure a theme's share
+    // takes the only row the install can hold, and every later account is
+    // refused. Adding a column only ever WEAKENS a constraint, so "one share
+    // per theme per budget" still holds inside each workspace.
+    expect(modelBody(schema, 'UsageBudgetThemeShare')).toContain(
+      '@@unique([workspaceId, budgetId, themeId])',
+    );
   });
 });

@@ -6,7 +6,9 @@
 
 model GitHubIntegration {
   id                Int       @id @default(autoincrement())
-  repositoryUrl     String    @unique
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
+  repositoryUrl     String   
   repositoryName    String
   ownerName         String
   accessTokenEnc    String?
@@ -19,10 +21,14 @@ model GitHubIntegration {
   updatedAt         DateTime  @updatedAt
   pullRequests      GitHubPullRequest[]
   issues            GitHubIssue[]
+  @@index([workspaceId])
+  @@unique([workspaceId, repositoryUrl])
 }
 
 model GitHubPullRequest {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   integrationId     Int
   integration       GitHubIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
   prNumber          Int
@@ -40,6 +46,7 @@ model GitHubPullRequest {
   reviews           GitHubPRReview[]
   comments          GitHubPRComment[]
   @@unique([integrationId, prNumber])
+  @@index([workspaceId])
 }
 
 model GitHubPRReview {
@@ -56,6 +63,8 @@ model GitHubPRReview {
 
 model GitHubPRComment {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   pullRequestId     Int
   pullRequest       GitHubPullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
   commentId         Int
@@ -66,10 +75,14 @@ model GitHubPRComment {
   isFromRapitas     Boolean   @default(false)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+
+  @@index([workspaceId])
 }
 
 model GitHubIssue {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   integrationId     Int
   integration       GitHubIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
   issueNumber       Int
@@ -86,10 +99,13 @@ model GitHubIssue {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   @@unique([integrationId, issueNumber])
+  @@index([workspaceId])
 }
 
 model GitCommit {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   executionId       Int
   execution         AgentExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
   commitHash        String
@@ -99,19 +115,27 @@ model GitCommit {
   additions         Int       @default(0)
   deletions         Int       @default(0)
   createdAt         DateTime  @default(now())
+
+  @@index([workspaceId])
 }
 
 model FavoriteDirectory {
   id          Int       @id @default(autoincrement())
-  path        String    @unique
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
+  path        String   
   name        String?
   isGitRepo   Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  @@index([workspaceId])
+  @@unique([workspaceId, path])
 }
 
 model GitRetryMetric {
   id                   Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   variant              String
   command              String
   attempts             Int
@@ -126,4 +150,5 @@ model GitRetryMetric {
 
   @@index([variant])
   @@index([createdAt])
+  @@index([workspaceId])
 }

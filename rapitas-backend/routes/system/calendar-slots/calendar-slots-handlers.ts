@@ -136,15 +136,29 @@ export async function listSlotLogs(reader: ActivityLogReader, page: number, limi
   };
 }
 
-// Pending CSRF states for the calendar OAuth flow (single-use, 10-minute TTL).
-const oauthStates = new Map<string, number>();
+/**
+ * Pending states for the calendar OAuth flow (single-use, 10-minute TTL).
+ *
+ * Each one also remembers WHICH workspace started the flow. The callback is a
+ * top-level redirect from accounts.google.com and the session cookie is
+ * SameSite=Strict, so the cookie is not sent and `currentWorkspaceId()` is
+ * null inside that request — the workspace has to be carried from the start.
+ * It is kept here, server-side, rather than in the URL, so a caller cannot
+ * choose which workspace a token lands in.
+ */
+const oauthStates = new Map<string, { expiresAt: number; workspaceId: number | null }>();
 
-/** @returns A fresh single-use OAuth state. / 使い捨ての OAuth state */
-export function createOAuthState(): string {
+/**
+ * A fresh single-use OAuth state bound to one workspace.
+ *
+ * @param workspaceId - Workspace starting the flow / 連携を開始したワークスペース
+ * @returns The state value to send to Google / Google に渡す state
+ */
+export function createOAuthState(workspaceId: number | null): string {
   const now = Date.now();
-  for (const [s, exp] of oauthStates) if (exp < now) oauthStates.delete(s);
+  for (const [s, entry] of oauthStates) if (entry.expiresAt < now) oauthStates.delete(s);
   const state = randomBytes(24).toString('hex');
-  oauthStates.set(state, now + OAUTH_STATE_TTL_MS);
+  oauthStates.set(state, { expiresAt: now + OAUTH_STATE_TTL_MS, workspaceId });
   return state;
 }
 
@@ -160,24 +174,24 @@ export type CalendarOAuthResult = 'connected' | 'invalid_state' | 'no_refresh_to
  * refresh token via the token store (never the DB), then sync once.
  *
  * @param params - code / state query values / コールバックのクエリ
- * @param deps - Token exchange, token store and sync trigger / 依存
+ * @param deps - Token exchange, per-workspace token store and sync trigger / 依存
  * @returns Outcome code / 結果コード
  */
 export async function completeCalendarOAuth(
   params: { code?: string; state?: string },
   deps: {
     exchange: (code: string) => Promise<{ refresh_token?: string | null }>;
-    tokenStore: CalendarTokenStore;
-    triggerSync: () => Promise<void>;
+    tokenStoreFor: (workspaceId: number | null) => CalendarTokenStore;
+    triggerSync: (workspaceId: number | null) => Promise<void>;
   },
 ): Promise<CalendarOAuthResult> {
-  const exp = params.state ? oauthStates.get(params.state) : undefined;
-  if (!params.state || exp === undefined || exp < Date.now()) return 'invalid_state';
+  const entry = params.state ? oauthStates.get(params.state) : undefined;
+  if (!params.state || entry === undefined || entry.expiresAt < Date.now()) return 'invalid_state';
   oauthStates.delete(params.state);
   if (!params.code) return 'error';
   const tokens = await deps.exchange(params.code);
   if (!tokens.refresh_token) return 'no_refresh_token';
-  deps.tokenStore.set(tokens.refresh_token);
-  await deps.triggerSync();
+  deps.tokenStoreFor(entry.workspaceId).set(tokens.refresh_token);
+  await deps.triggerSync(entry.workspaceId);
   return 'connected';
 }
