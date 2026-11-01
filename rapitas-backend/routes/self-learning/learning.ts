@@ -25,6 +25,7 @@ import { COMPLEXITY_BANDS } from '../../services/self-learning/comparison/prompt
 const log = createLogger('routes:learning');
 import { findSimilarEpisodes, getEpisodeStats } from '../../services/self-learning';
 import { parseId } from '../../middleware/error-handler';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 export const learningRoutes = new Elysia({ prefix: '/learning' })
   // --- Patterns ---
@@ -94,12 +95,12 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
 
   /** Approve or reject a proposed role-prompt addendum. */
   .post('/prompt-evolution/:id/review', async ({ params, body, set }) => {
-    const id = parseInt((params as { id: string }).id, 10);
     const approved = (body as { approved?: boolean } | null)?.approved;
-    if (!Number.isInteger(id) || typeof approved !== 'boolean') {
+    if (!isValidEntityId((params as { id: string }).id) || typeof approved !== 'boolean') {
       set.status = 400;
       return { error: 'id and approved (boolean) are required' };
     }
+    const id = Number((params as { id: string }).id);
     const { reviewProposal } = await import('../../services/self-learning/prompt-evolution-worker');
     const ok = await reviewProposal(id, approved);
     if (!ok) {
@@ -117,11 +118,11 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
    * rather than blocking approval.
    */
   .get('/prompt-evolution/:id/comparison', async ({ params, set }) => {
-    const id = parseInt((params as { id: string }).id, 10);
-    if (!Number.isInteger(id)) {
+    if (!isValidEntityId((params as { id: string }).id)) {
       set.status = 400;
       return { error: 'id must be an integer' };
     }
+    const id = Number((params as { id: string }).id);
     const { readComparisonRecord } =
       await import('../../services/self-learning/comparison/prompt-comparison-store');
     return { comparison: readComparisonRecord(id) };
@@ -135,11 +136,11 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
   .post(
     '/prompt-evolution/:id/stage',
     async ({ params, body, set }) => {
-      const id = parseInt((params as { id: string }).id, 10);
-      if (!Number.isInteger(id)) {
+      if (!isValidEntityId((params as { id: string }).id)) {
         set.status = 400;
         return { error: 'id must be an integer' };
       }
+      const id = Number((params as { id: string }).id);
       const { readComparisonRecord, writeComparisonRecord } =
         await import('../../services/self-learning/comparison/prompt-comparison-store');
       const record = readComparisonRecord(id);
@@ -189,11 +190,11 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
   .post(
     '/prompt-evolution/:id/compare',
     async ({ params, body, set }) => {
-      const id = parseInt((params as { id: string }).id, 10);
-      if (!Number.isInteger(id)) {
+      if (!isValidEntityId((params as { id: string }).id)) {
         set.status = 400;
         return { error: 'id must be an integer' };
       }
+      const id = Number((params as { id: string }).id);
       const evolution = await prisma.promptEvolution.findUnique({
         where: { id },
         select: { id: true, status: true, basePromptKey: true, afterPrompt: true },

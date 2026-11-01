@@ -26,6 +26,7 @@ import {
   applyQuestionAnswerByKind,
   type QuestionAnswerKind,
 } from './workflow-handlers-resume-dispatch';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 const log = createLogger('routes:workflow:resume');
 
@@ -205,11 +206,11 @@ export async function handleResumeFromQuestion({ params, set }: ResumeContext): 
   toStatus: WorkflowStatus;
   resolvedKind: QuestionAnswerKind;
 }> {
-  const taskId = parseInt(params.taskId, 10);
-  if (Number.isNaN(taskId)) {
+  if (!isValidEntityId(params.taskId)) {
     set.status = 400;
     throw new ValidationError('Invalid taskId');
   }
+  const taskId = Number(params.taskId);
 
   try {
     const result = await applyResumeFromQuestionAnswer({ taskId, actor: 'user' });

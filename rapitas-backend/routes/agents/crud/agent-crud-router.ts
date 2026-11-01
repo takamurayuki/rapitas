@@ -17,6 +17,7 @@ import {
   saveAgentApiKey,
 } from '../../../utils/common/secret-store';
 import { logAgentConfigChange, calculateChanges } from '../../../utils/agent/agent-audit-log';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 const log = createLogger('routes:agent-crud');
 
@@ -104,11 +105,11 @@ export const agentCrudRouter = new Elysia()
     '/agents/:id',
     async (context) => {
       const { id } = context.params as { id: string };
-      const agentId = parseInt(id, 10);
-      if (Number.isNaN(agentId)) {
+      if (!isValidEntityId(id)) {
         context.set.status = 404;
         return { error: 'Agent not found' };
       }
+      const agentId = Number(id);
       const { name, apiKey, clearApiKey, endpoint, modelId, capabilities, isDefault, isActive } =
         context.body as {
           name?: string;
@@ -228,16 +229,16 @@ export const agentCrudRouter = new Elysia()
     async (context) => {
       const { set } = context;
       const { id } = context.params as { id: string };
-      const agentId = parseInt(id, 10);
       // A non-numeric :id (e.g. /agents/undefined) makes Prisma reject the
       // query with "Argument `id` is missing"; treat it as not found instead.
-      if (Number.isNaN(agentId)) {
+      if (!isValidEntityId(id)) {
         // Logged so any remaining client sending a non-numeric id (the frontend
         // now guards against the static-export `_placeholder` id) is traceable.
         log.warn({ id }, '[agents] Non-numeric agent id requested');
         set.status = 404;
         return { error: 'Agent not found' };
       }
+      const agentId = Number(id);
       const agent = await prisma.aIAgentConfig.findUnique({
         where: { id: agentId },
         include: {
@@ -285,11 +286,11 @@ export const agentCrudRouter = new Elysia()
     '/agents/:id',
     async (context) => {
       const { id } = context.params as { id: string };
-      const agentId = parseInt(id, 10);
-      if (Number.isNaN(agentId)) {
+      if (!isValidEntityId(id)) {
         context.set.status = 404;
         return { error: 'Agent not found' };
       }
+      const agentId = Number(id);
 
       const previous = await prisma.aIAgentConfig.findUnique({
         where: { id: agentId },
