@@ -6,6 +6,12 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { AppError, NotFoundError, ValidationError } from '../../middleware/error-handler';
+// NOTE(#1349): every id guard in this file uses isValidEntityId rather than
+// parseInt + isNaN. parseInt stops at the first character it cannot read, so a
+// path segment naming one row operated on another — reproduced live before the
+// fix: DELETE /tasks/1473abc answered {"id":1473,"trashId":986} and row 1473
+// was gone. Restoring from trash returned it as id 1474, so anything holding
+// the old id (KnowledgeEntry.taskId is not a foreign key) was left dangling.
 import { isValidEntityId } from '../../utils/common/id-validation';
 import { createLogger } from '../../config/logger';
 import { deleteTaskWithTrash, deleteTasksWithTrash } from '../../services/task/task-deletion';
@@ -40,8 +46,8 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   .get(
     '/:id/terminal-context',
     async ({ params, set }) => {
-      const id = parseInt(params.id, 10);
-      if (Number.isNaN(id)) {
+      const id = Number(params.id);
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { error: 'Invalid task id' };
       }
@@ -368,10 +374,10 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     '/:id',
     async (context) => {
       const { params, body } = context;
-      const taskId = parseInt(params.id);
-      if (isNaN(taskId)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError(INVALID_ID);
       }
+      const taskId = Number(params.id);
       return await updateTask(prisma, taskId, body as Parameters<typeof updateTask>[2]);
     },
     {
@@ -418,10 +424,10 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   // path was manually editing the status — blocked tasks just accumulated.
   .post('/:id/retry', async (context) => {
     const { params, set, headers } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
+    if (!isValidEntityId(params.id)) {
       throw new ValidationError(INVALID_ID);
     }
+    const id = Number(params.id);
     const retryRequestId = headers['idempotency-key']?.trim() || crypto.randomUUID();
     set.headers['x-retry-request-id'] = retryRequestId;
     const updated = await retryTask(id, (code) => void (set.status = code), retryRequestId);
@@ -433,10 +439,10 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     '/:id',
     async (context) => {
       const { params, set } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError(INVALID_ID);
       }
+      const id = Number(params.id);
 
       // The protected-task guard, the worktree cleanup and the trash copy all
       // live in deleteTaskWithTrash now. This route used to BE the choke point
@@ -463,10 +469,10 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   // Delete duplicate subtasks (under a specific task)
   .post('/:id/cleanup-duplicates', async (context) => {
     const { params } = context;
-    const parentId = parseInt(params.id);
-    if (isNaN(parentId)) {
+    if (!isValidEntityId(params.id)) {
       throw new ValidationError(INVALID_ID);
     }
+    const parentId = Number(params.id);
 
     const parentTask = await prisma.task.findUnique({ where: { id: parentId } });
     if (!parentTask) {
@@ -543,10 +549,10 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     '/:id/subtasks',
     async (context) => {
       const { params } = context;
-      const parentId = parseInt(params.id);
-      if (isNaN(parentId)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError(INVALID_ID);
       }
+      const parentId = Number(params.id);
 
       const parentTask = await prisma.task.findUnique({
         where: { id: parentId },
@@ -598,10 +604,10 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   .post(
     '/:id/subtasks/delete-selected',
     async ({ params, body }) => {
-      const parentId = parseInt(params.id);
-      if (isNaN(parentId)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError(INVALID_ID);
       }
+      const parentId = Number(params.id);
 
       const { subtaskIds } = body as { subtaskIds: number[] };
 
