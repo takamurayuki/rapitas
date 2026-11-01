@@ -30,7 +30,7 @@ import { ValidationError } from '../../middleware/error-handler';
  * bivariant, which is what lets the real client and a `$transaction` client
  * both be passed without an `as never` at every call site.
  */
-interface LabelWriteClient {
+interface LabelTxClient {
   label: {
     findMany(args: { where: { id: { in: number[] } } }): Promise<Array<{ id: number }>>;
   };
@@ -40,7 +40,21 @@ interface LabelWriteClient {
       data: Array<{ taskId: number; labelId: number }>;
     }): Promise<{ count: number }>;
   };
-  $transaction<T>(fn: (tx: LabelWriteClient) => Promise<T>): Promise<T>;
+}
+
+/**
+ * The client that opens the transaction.
+ *
+ * NOTE: the callback parameter is `LabelTxClient`, NOT this type. Prisma's
+ * transaction client has `$transaction` removed (ITXClientDenyList), so a
+ * self-referential interface here makes the real client unassignable: TS
+ * checks whether Prisma's `fn` accepts our callback, which requires the tx
+ * client to satisfy the whole interface including `$transaction`, and it
+ * cannot. Splitting the two surfaces is what lets `prisma` be passed with no
+ * cast at the call sites.
+ */
+interface LabelWriteClient extends LabelTxClient {
+  $transaction<T>(fn: (tx: LabelTxClient) => Promise<T>): Promise<T>;
 }
 
 /**

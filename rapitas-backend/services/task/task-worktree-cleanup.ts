@@ -40,26 +40,39 @@ export async function cleanUpTaskWorktrees(taskId: number): Promise<void> {
 
     const dirs = [task.workingDirectory || task.theme?.workingDirectory, getProjectRoot()];
 
+    // NOTE: Several AgentSession rows for one task can share a worktree
+    // directory (retries, self-repair bounces), so group by path before
+    // calling removeWorktree — tearing the same directory down once per
+    // session makes every attempt after the first look like a failure. Ported
+    // from completed-task-cleanup's own copy of this loop (#825), which now
+    // delegates here rather than keeping a second version.
+    const sessionIdsByPath = new Map<string, number[]>();
     for (const session of sessionsWithWorktrees) {
       if (!session.worktreePath) continue;
+      const ids = sessionIdsByPath.get(session.worktreePath);
+      if (ids) ids.push(session.id);
+      else sessionIdsByPath.set(session.worktreePath, [session.id]);
+    }
+
+    for (const [worktreePath, sessionIds] of sessionIdsByPath) {
       try {
         const removed = await removeWorktree(
-          resolveWorktreeBaseDir(session.worktreePath, dirs),
-          session.worktreePath,
+          resolveWorktreeBaseDir(worktreePath, dirs),
+          worktreePath,
         );
         if (!removed) {
-          logger.warn(`[tasks] worktree remove refused: task ${taskId} ${session.worktreePath}`);
+          logger.warn(`[tasks] worktree remove refused: task ${taskId} ${worktreePath}`);
           continue;
         }
-        await prisma.agentSession.update({
-          where: { id: session.id },
+        await prisma.agentSession.updateMany({
+          where: { id: { in: sessionIds } },
           data: { worktreePath: null },
         });
-        logger.info(`[tasks] Cleaned up worktree for task ${taskId}: ${session.worktreePath}`);
+        logger.info(`[tasks] Cleaned up worktree for task ${taskId}: ${worktreePath}`);
       } catch (worktreeError) {
         logger.warn(
           { err: worktreeError },
-          `[tasks] Failed to clean up worktree for task ${taskId}: ${session.worktreePath}`,
+          `[tasks] Failed to clean up worktree for task ${taskId}: ${worktreePath}`,
         );
       }
     }
