@@ -33,7 +33,7 @@ export async function prepareAgentAndPrompt(
   currentStatus: WorkflowStatus,
 ) {
   // Get role configuration
-  const roleConfig = await prisma.workflowRoleConfig.findUnique({
+  const roleConfig = await prisma.workflowRoleConfig.findFirst({
     where: { role: transition.role },
     include: { agentConfig: true },
   });

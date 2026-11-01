@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import {
   Calendar as CalendarIcon,
-  Target,
   CheckCircle2,
   Circle,
   Plus,
@@ -30,6 +29,12 @@ type Props = {
   onAddTask: () => void;
   onAddPaidLeave: () => void;
   onDeleteSchedule: (eventId: number) => void;
+  /**
+   * Someone else's shared calendar (#1270): show it, offer nothing that
+   * would write to it. Sharing is read-only by construction on the server
+   * too — this only keeps the UI from offering what it would refuse.
+   */
+  readOnly?: boolean;
 };
 
 /**
@@ -59,6 +64,7 @@ export function DayEventsSidebar({
   onAddTask,
   onAddPaidLeave,
   onDeleteSchedule,
+  readOnly = false,
 }: Props) {
   const router = useRouter();
   const t = useTranslations('calendar');
@@ -87,7 +93,7 @@ export function DayEventsSidebar({
             </p>
           )}
         </div>
-        {selectedDate && (
+        {selectedDate && !readOnly && (
           <div className="flex gap-1 flex-wrap">
             <button
               onClick={onAddSchedule}
@@ -140,9 +146,7 @@ export function DayEventsSidebar({
                       color: event.color || '#3B82F6',
                     }}
                   >
-                    {event.type === 'exam' ? (
-                      <Target className="w-4 h-4" />
-                    ) : event.type === 'schedule' ? (
+                    {event.type === 'schedule' ? (
                       schedules.find((s) => s.id === event.id)?.type === 'PAID_LEAVE' ? (
                         <Coffee className="w-4 h-4" />
                       ) : (
@@ -160,13 +164,11 @@ export function DayEventsSidebar({
                     </p>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {event.type === 'exam'
-                          ? t('legendExam')
-                          : event.type === 'schedule'
-                            ? schedules.find((s) => s.id === event.id)?.type === 'PAID_LEAVE'
-                              ? t('paidLeaveLabel')
-                              : t('legendSchedule')
-                            : t('legendTask')}
+                        {event.type === 'schedule'
+                          ? schedules.find((s) => s.id === event.id)?.type === 'PAID_LEAVE'
+                            ? t('paidLeaveLabel')
+                            : t('legendSchedule')
+                          : t('legendTask')}
                         {event.status === 'done' && ` ・ ${tc('completed')}`}
                       </p>
                       {event.endDate && (
@@ -198,7 +200,7 @@ export function DayEventsSidebar({
                     )}
                   </div>
                 </button>
-                {event.type === 'schedule' && (
+                {event.type === 'schedule' && !readOnly && (
                   <button
                     onClick={() => onDeleteSchedule(event.id)}
                     className="p-1 text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
@@ -216,29 +218,31 @@ export function DayEventsSidebar({
               <CalendarIcon className="w-6 h-6 text-zinc-400 dark:text-zinc-500" />
             </div>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">{t('noEventsOnDay')}</p>
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={onAddSchedule}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors text-sm font-medium"
-              >
-                <Plus className="w-4 h-4" />
-                {t('addSchedule')}
-              </button>
-              <button
-                onClick={onAddPaidLeave}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-sm font-medium"
-              >
-                <Coffee className="w-4 h-4" />
-                {t('paidLeaveRequest')}
-              </button>
-              <button
-                onClick={onAddTask}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 text-zinc-500 dark:text-zinc-400 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700/50 transition-colors text-sm"
-              >
-                <Plus className="w-4 h-4" />
-                {t('addTask')}
-              </button>
-            </div>
+            {!readOnly && (
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={onAddSchedule}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors text-sm font-medium"
+                >
+                  <Plus className="w-4 h-4" />
+                  {t('addSchedule')}
+                </button>
+                <button
+                  onClick={onAddPaidLeave}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-sm font-medium"
+                >
+                  <Coffee className="w-4 h-4" />
+                  {t('paidLeaveRequest')}
+                </button>
+                <button
+                  onClick={onAddTask}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 text-zinc-500 dark:text-zinc-400 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700/50 transition-colors text-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  {t('addTask')}
+                </button>
+              </div>
+            )}
           </div>
         )
       ) : (

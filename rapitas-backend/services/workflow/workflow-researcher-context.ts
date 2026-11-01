@@ -7,6 +7,7 @@
  */
 import { observeWorkflowStage } from './workflow-stage-timing';
 import { buildMemoryContext } from './workflow-memory-context';
+import { snapshotSection } from './workflow-context-snapshot';
 import { buildHypothesisContext } from './workflow-hypothesis-context';
 import { buildPlaybookContext } from '../memory/playbook/playbook-inject';
 import { buildCriticFeedback, buildCriticLessonsSection } from './phase-critic';
@@ -41,12 +42,14 @@ export async function buildResearcherContext(
   // Inject prior knowledge so research starts from what we already learned
   // (similar tasks, past concerns, lessons) instead of a blank slate.
   const memory = await observeWorkflowStage(taskId, 'context.buildMemoryContext', () =>
-    buildMemoryContext(taskId, task, language),
+    snapshotSection(taskId, 'memory', () => buildMemoryContext(taskId, task, language)),
   );
   const memoryBlock = memory ? `\n\n${memory}` : '';
   // Hypothesis ledger: surface open conjectures to test + proven findings, and
   // tell the researcher to record evidence / file new hypotheses as it learns.
-  const hypothesis = await buildHypothesisContext(taskId, language);
+  const hypothesis = await snapshotSection(taskId, 'hypothesis', () =>
+    buildHypothesisContext(taskId, language),
+  );
   const hypothesisBlock = hypothesis ? `\n\n${hypothesis}` : '';
   // On a critic-gate bounce, lead with the issues the prior research missed.
   const critic = await buildCriticFeedback(taskId, 'research', language);
@@ -55,12 +58,14 @@ export async function buildResearcherContext(
   // injected BEFORE generation so known misses are prevented instead of
   // bounced (the gate stays for novel misses).
   const lessons = await observeWorkflowStage(taskId, 'context.buildCriticLessonsSection', () =>
-    buildCriticLessonsSection('research', language),
+    snapshotSection(taskId, 'lessons', () => buildCriticLessonsSection('research', language)),
   );
   const lessonsBlock = lessons ? `\n\n${lessons}` : '';
   // Repair-risk tactics: only when this task's complexity × input length ×
   // phase cell has historically bounced — task-specific, unlike the lessons.
-  const repairRisk = await buildRepairRiskTacticSection(taskId, task, 'research', language);
+  const repairRisk = await snapshotSection(taskId, 'repairRisk', () =>
+    buildRepairRiskTacticSection(taskId, task, 'research', language),
+  );
   const repairRiskBlock = repairRisk ? `\n\n${repairRisk}` : '';
   // Mode-aware framing: in lightweight mode NO plan phase follows, so research
   // must be implementation-ready; in plan modes research can defer detailed

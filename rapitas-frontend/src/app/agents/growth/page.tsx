@@ -6,6 +6,9 @@ import { useTranslations } from 'next-intl';
 import { useGrowthLedgerData } from './useGrowthLedgerData';
 import { WeeklyMetricChart, type WeeklyMetricPoint } from './components/WeeklyMetricChart';
 import { RetroKpiSection } from './components/RetroKpiSection';
+// NOTE: The digest above these charts already withheld thin-sample rates; the
+// charts did not, so a 1/1 pass plotted as 100% beside a 25-task week (#1304).
+import { gatedBySample } from './components/sample-gate';
 import { ImprovementDigest } from './components/ImprovementDigest';
 import { useRetroKpiData } from './useRetroKpiData';
 import type { GrowthLedgerWindow } from './types';
@@ -121,7 +124,9 @@ export default function AgentGrowthPage() {
                 series={[
                   { dataKey: 'autonomy', label: t('autonomy.seriesLabel'), color: '#6366f1' },
                 ]}
-                data={toPoints(windows, (w) => ({ autonomy: w.autonomy.rate }))}
+                data={toPoints(windows, (w) => ({
+                  autonomy: gatedBySample(w.autonomy.rate, w.autonomy.completed),
+                }))}
               />
 
               <WeeklyMetricChart
@@ -141,8 +146,11 @@ export default function AgentGrowthPage() {
                   { dataKey: 'plan', label: t('criticFirstPass.planLabel'), color: '#8b5cf6' },
                 ]}
                 data={toPoints(windows, (w) => ({
-                  research: w.criticFirstPass.research.rate,
-                  plan: w.criticFirstPass.plan.rate,
+                  research: gatedBySample(
+                    w.criticFirstPass.research.rate,
+                    w.criticFirstPass.research.total,
+                  ),
+                  plan: gatedBySample(w.criticFirstPass.plan.rate, w.criticFirstPass.plan.total),
                 }))}
               />
 
@@ -161,7 +169,12 @@ export default function AgentGrowthPage() {
                     color: '#f59e0b',
                   },
                 ]}
-                data={toPoints(windows, (w) => ({ avgPerTask: w.repairEfficiency.avgPerTask }))}
+                data={toPoints(windows, (w) => ({
+                  avgPerTask: gatedBySample(
+                    w.repairEfficiency.avgPerTask,
+                    w.repairEfficiency.completedTasks,
+                  ),
+                }))}
               />
 
               <WeeklyMetricChart
@@ -179,7 +192,12 @@ export default function AgentGrowthPage() {
                     color: '#ef4444',
                   },
                 ]}
-                data={toPoints(windows, (w) => ({ recurrence: w.defectRecurrence.rate }))}
+                data={toPoints(windows, (w) => ({
+                  recurrence: gatedBySample(
+                    w.defectRecurrence.rate,
+                    w.defectRecurrence.newConcerns,
+                  ),
+                }))}
               />
 
               <WeeklyMetricChart
@@ -193,7 +211,9 @@ export default function AgentGrowthPage() {
                 series={[
                   { dataKey: 'validated', label: t('kbQuality.seriesLabel'), color: '#0ea5e9' },
                 ]}
-                data={toPoints(windows, (w) => ({ validated: w.kbQuality.rate }))}
+                data={toPoints(windows, (w) => ({
+                  validated: gatedBySample(w.kbQuality.rate, w.kbQuality.total),
+                }))}
               />
             </div>
           )}

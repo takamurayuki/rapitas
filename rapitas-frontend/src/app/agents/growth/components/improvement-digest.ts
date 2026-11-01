@@ -10,6 +10,7 @@
  */
 import type { GrowthLedgerWindow, ImprovementDirection, RetroKpiWindow } from '../types';
 import type { KpiDiff } from './retro-kpi-points';
+import { gatedBySample, MIN_RATE_SAMPLE } from './sample-gate';
 
 /** Rate metric folded into the index: 0-1, direction says which way is good. */
 export interface DigestRateMetric {
@@ -54,12 +55,11 @@ export interface ImprovementDigest {
 
 /** Index movement (points) below which a week counts as flat. */
 export const FLAT_BAND_POINTS = 2;
-/**
- * A rate whose denominator is below this is dropped from the index. A 1/1
- * plan pass or 0/3 recurrence reads as "100%" and inflated the mean
- * (measured 2026-09-06: two such rates lifted the week from 83 to 86).
- */
-export const MIN_RATE_SAMPLE = 5;
+// NOTE: Re-exported, not defined here, since #1304 — the detail charts and the
+// retro KPI section gate on the same threshold, and two copies would let the
+// same week be qualified in one panel and asserted in another. sample-gate.ts
+// carries the measurement behind the value.
+export { MIN_RATE_SAMPLE };
 
 const rateOf = (v: number | null, direction: ImprovementDirection): number | null =>
   v === null ? null : direction === 'lower_is_better' ? 1 - v : v;
@@ -75,8 +75,7 @@ export function weekRates(
   g: GrowthLedgerWindow,
   r: RetroKpiWindow | undefined,
 ): Array<{ key: DigestRateMetric['key']; direction: ImprovementDirection; value: number | null }> {
-  const gated = (rate: number | null, sample: number): number | null =>
-    sample >= MIN_RATE_SAMPLE ? rate : null;
+  const gated = gatedBySample;
   return [
     {
       key: 'autonomy',

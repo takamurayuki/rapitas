@@ -6,6 +6,7 @@
  */
 import { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
+import { deleteTasksWithTrash } from './task-deletion';
 
 type PrismaInstance = InstanceType<typeof PrismaClient>;
 
@@ -37,21 +38,27 @@ export async function cleanupDuplicateSubtasks(
     titleMap.get(normalized)!.push(subtask);
   }
 
-  const deletedIds: number[] = [];
+  // NOTE(#1330 review): Through the deletion choke point. This used to call
+  // `prisma.task.delete` directly, so a protected duplicate was removed with
+  // no trash copy and no measurement snapshot — the same hole the three bulk
+  // routes had, in a path the review found still open. A duplicate is still a
+  // task. Only ids the guard actually deleted are reported, because a caller
+  // that trusts this list would otherwise believe a task is gone.
+  const candidates: number[] = [];
   for (const [, duplicates] of titleMap) {
     if (duplicates.length > 1) {
-      const toDelete = duplicates.slice(1);
-      for (const subtask of toDelete) {
-        await prisma.task.delete({ where: { id: subtask.id } });
-        deletedIds.push(subtask.id);
-        logger.info(
-          `[task-cleanup] Deleted duplicate subtask: "${subtask.title}" (id: ${subtask.id})`,
-        );
-      }
+      for (const subtask of duplicates.slice(1)) candidates.push(subtask.id);
     }
   }
+  if (candidates.length === 0) return [];
 
-  return deletedIds;
+  const outcome = await deleteTasksWithTrash(candidates, 'user');
+  logger.info(
+    { parentId, deleted: outcome.deleted.length, refused: outcome.protected.length },
+    '[task-cleanup] Removed duplicate subtasks',
+  );
+
+  return outcome.deleted;
 }
 
 /**
@@ -90,22 +97,26 @@ export async function cleanupAllDuplicateSubtasks(
       titleMap.get(normalized)!.push(subtask);
     }
 
-    let parentHadDuplicates = false;
+    // Same choke point as the single-parent sweep (#1330 review).
+    const candidates: number[] = [];
     for (const [, duplicates] of titleMap) {
       if (duplicates.length > 1) {
-        parentHadDuplicates = true;
-        const toDelete = duplicates.slice(1);
-        for (const subtask of toDelete) {
-          await prisma.task.delete({ where: { id: subtask.id } });
-          deletedIds.push(subtask.id);
-          logger.info(
-            `[task-cleanup] Deleted duplicate subtask: "${subtask.title}" (id: ${subtask.id}, parent: ${parentId})`,
-          );
-        }
+        for (const subtask of duplicates.slice(1)) candidates.push(subtask.id);
       }
     }
+    if (candidates.length === 0) continue;
 
-    if (parentHadDuplicates) {
+    const outcome = await deleteTasksWithTrash(candidates, 'user');
+    deletedIds.push(...outcome.deleted);
+    logger.info(
+      { parentId, deleted: outcome.deleted.length, refused: outcome.protected.length },
+      '[task-cleanup] Removed duplicate subtasks',
+    );
+
+    // Marked affected only when something was actually removed: a parent whose
+    // every duplicate was protected has not changed, so nothing downstream
+    // needs to resync it.
+    if (outcome.deleted.length > 0) {
       affectedParents.push(parentId);
     }
   }

@@ -23,8 +23,16 @@ import type { ForgettingStage, KnowledgeCategory } from '../types';
 
 const log = createLogger('memory:recall:hybrid');
 
-/** Where a recall attempt originated — drives the metrics denominator. */
-export type RecallSource = 'workflow' | 'task_rag' | 'api';
+/**
+ * Where a recall attempt originated — drives the metrics denominator.
+ *
+ * NOTE: `mcp` is kept distinct from `api` (#1318). Both arrive over HTTP, but
+ * an MCP recall comes from a session in another repository asking whether this
+ * knowledge base already solved something — the one number that says whether
+ * exposing the base over MCP is used at all. Folding it into `api` would hide
+ * that behind the app's own traffic.
+ */
+export type RecallSource = 'workflow' | 'task_rag' | 'api' | 'mcp';
 
 /** Options for {@link searchKnowledgeHybrid}. */
 export interface HybridSearchOptions {

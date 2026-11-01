@@ -94,7 +94,7 @@ const mockPrisma = {
   task: { findMany: taskFindManyMock },
   workflowFile: { findFirst: fileFindFirstMock },
   workflowTransition: { findFirst: transitionFindFirstMock },
-  themeAutoRun: { findUnique: themeAutoRunFindUniqueMock },
+  themeAutoRun: { findFirst: themeAutoRunFindUniqueMock },
 };
 
 /** Shared discriminator for the 3 distinct `workflowTransition.findFirst` call shapes SUT makes. */

@@ -39,10 +39,18 @@ export async function buildHypothesisContext(
       .catch(() => null);
     const themeId = taskRow?.themeId ?? undefined;
 
+    // NOTE: supported/refuted span every forgetting stage (#1321). A graduated
+    // hypothesis is consolidated OUT of 'active', and measured 2026-10-31 not
+    // one of the ledger's 1,509 validated rows was still active — so the
+    // default active-only scope made `supported` empty on every call, and the
+    // 「立証済み」 section below (gated on a non-empty list) never rendered. An
+    // established finding does not stop being established when it ages.
+    // `open` stays active-only on purpose: that list asks the agent to go
+    // looking for evidence NOW, and an archived conjecture is not that.
     const [open, supported, refuted] = await Promise.all([
       listHypotheses({ status: 'open', themeId, limit: MAX_OPEN }),
-      listHypotheses({ status: 'supported', themeId, limit: MAX_PROVEN }),
-      listHypotheses({ status: 'refuted', themeId, limit: MAX_PROVEN }),
+      listHypotheses({ status: 'supported', themeId, stages: 'all', limit: MAX_PROVEN }),
+      listHypotheses({ status: 'refuted', themeId, stages: 'all', limit: MAX_PROVEN }),
     ]);
 
     const ja = language === 'ja';

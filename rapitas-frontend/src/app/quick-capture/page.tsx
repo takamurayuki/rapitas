@@ -5,21 +5,19 @@
  *
  * Frameless always-on-top capture popup opened by the desktop global shortcut
  * (default Ctrl+Alt+I) or the tray menu. Hosts two capture modes behind tabs —
- * idea (アイデアボックス) and vocabulary (単語帳) — sharing one shortcut; the
+ * idea (アイデアボックス) and task (タスク起票) — sharing one shortcut; the
  * last-used mode is remembered. Ctrl+Tab switches modes, Esc (or focus loss)
  * hides the window. Field logic lives in the per-mode form components.
  */
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Lightbulb, WalletCards, ListPlus, NotepadText, Info, Pin, PinOff } from 'lucide-react';
+import { Lightbulb, ListPlus, Info, Pin, PinOff } from 'lucide-react';
 import { hideCaptureWindow, isTauri } from './_components/capture-window';
 import { IdeaCaptureForm } from './_components/idea-capture-form';
-import { VocabCaptureForm } from './_components/vocab-capture-form';
 import { TaskCaptureForm } from './_components/task-capture-form';
-import { MemoCaptureForm } from './_components/memo-capture-form';
 
-type CaptureMode = 'idea' | 'vocab' | 'task' | 'memo';
-const MODE_ORDER: CaptureMode[] = ['idea', 'vocab', 'task', 'memo'];
+type CaptureMode = 'idea' | 'task';
+const MODE_ORDER: CaptureMode[] = ['idea', 'task'];
 const MODE_KEY = 'rapitas-quick-capture-mode';
 const PIN_KEY = 'rapitas-quick-capture-pinned';
 
@@ -205,17 +203,9 @@ export default function QuickCapturePage() {
           <Lightbulb className="h-3.5 w-3.5" aria-hidden="true" />
           {t('modeIdea')}
         </button>
-        <button onClick={() => switchMode('vocab')} className={tabCls(mode === 'vocab')}>
-          <WalletCards className="h-3.5 w-3.5" aria-hidden="true" />
-          {t('modeVocab')}
-        </button>
         <button onClick={() => switchMode('task')} className={tabCls(mode === 'task')}>
           <ListPlus className="h-3.5 w-3.5" aria-hidden="true" />
           {t('modeTask')}
-        </button>
-        <button onClick={() => switchMode('memo')} className={tabCls(mode === 'memo')}>
-          <NotepadText className="h-3.5 w-3.5" aria-hidden="true" />
-          {t('modeMemo')}
         </button>
         <div data-tauri-drag-region className="h-8 flex-1 cursor-move" />
         {/* Pin: keep the popup open on focus loss (Esc still closes). */}
@@ -235,12 +225,8 @@ export default function QuickCapturePage() {
       </div>
       {mode === 'idea' ? (
         <IdeaCaptureForm key={`idea-${sessionKey}`} savingRef={savingRef} />
-      ) : mode === 'vocab' ? (
-        <VocabCaptureForm key={`vocab-${sessionKey}`} savingRef={savingRef} />
-      ) : mode === 'task' ? (
-        <TaskCaptureForm key={`task-${sessionKey}`} savingRef={savingRef} />
       ) : (
-        <MemoCaptureForm key={`memo-${sessionKey}`} savingRef={savingRef} />
+        <TaskCaptureForm key={`task-${sessionKey}`} savingRef={savingRef} />
       )}
       {/* Hints — hover tooltip anchored to the bottom-right corner. */}
       <div className="group absolute bottom-2.5 right-3">
@@ -249,15 +235,7 @@ export default function QuickCapturePage() {
           aria-label={t('hintAria')}
         />
         <div className="pointer-events-none absolute bottom-full right-0 z-10 mb-1.5 hidden w-72 rounded-lg border border-zinc-200 bg-white p-2.5 text-xs text-zinc-600 shadow-lg group-hover:block dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-          <p>
-            {mode === 'idea'
-              ? t('hint')
-              : mode === 'vocab'
-                ? t('vocabHint')
-                : mode === 'task'
-                  ? t('taskHint')
-                  : t('memoHint')}
-          </p>
+          <p>{mode === 'idea' ? t('hint') : t('taskHint')}</p>
           <p className="mt-1 text-zinc-400 dark:text-zinc-500">{t('modeSwitchHint')}</p>
         </div>
       </div>

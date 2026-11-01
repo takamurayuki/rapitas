@@ -7,7 +7,7 @@
     "predev": "node scripts/generate-messages.mjs && node scripts/generate-agents-panels.mjs",
     "dev": "node scripts/dev-with-cache-check.js",
     "dev:clean": "cross-env FORCE_CLEAN=true node scripts/dev-with-cache-check.js",
-    "dev:no-check": "next dev",
+    "dev:no-check": "next dev --hostname 127.0.0.1",
     "dev:runtime": "cross-env RAPITAS_RUNTIME_PREVIEW=true TAURI_BUILD=false next dev --hostname 127.0.0.1",
     "prebuild": "node scripts/generate-messages.mjs && node scripts/generate-agents-panels.mjs",
     "build": "next build",
@@ -90,7 +90,7 @@
     "storybook": "^8.6.18",
     "tailwindcss": "^4.2.4",
     "typescript": "^5.9.3",
-    "vite": "^7.3.2",
+    "vite": "^7.3.7",
     "vitest": "^4.1.11"
   }
 }

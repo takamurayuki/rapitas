@@ -8,11 +8,6 @@
     "taskSettings": "タスク設定",
     "dashboard": "ダッシュボード",
     "calendar": "カレンダー",
-    "learning": "学習",
-    "learningGoals": "学習目標",
-    "examGoals": "試験目標",
-    "learningRoadmap": "学習ロードマップ",
-    "vocabulary": "単語帳",
     "habitsAchievements": "スケジュール",
     "dailySchedule": "一日のスケジュール",
     "weeklyReport": "週次レポート",
@@ -46,10 +41,13 @@
     "list": "リスト",
     "kanban": "カンバン",
     "userMenu": "ユーザーメニュー",
+    "rapiProfileLink": "ラピに渡す自己紹介",
     "userMenuTitle": "{username} - ユーザーメニュー",
     "admin": "管理者",
     "user": "ユーザー",
     "logout": "ログアウト",
+    "login": "ログイン",
+    "register": "新規アカウント作成",
     "moreMenu": "その他のメニュー",
     "closeNoteAI": "ノート・AIを閉じる",
     "openNoteAI": "ノート・AI (Ctrl+E)",
@@ -75,7 +73,6 @@
     "concerns": "懸念",
     "hypotheses": "仮説",
     "notes": "ノート",
-    "memos": "メモ",
     "logAnalysis": "ログ分析"
   }
 }

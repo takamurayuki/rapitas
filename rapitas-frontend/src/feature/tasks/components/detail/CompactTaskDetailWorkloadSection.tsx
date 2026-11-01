@@ -45,6 +45,14 @@ export default function CompactTaskDetailWorkloadSection({
   const subtaskActualSum = sumSubtaskActualHours(task.subtasks);
   const actualFromSubtasks = subtaskActualSum !== null;
 
+  /**
+   * Store a due date, from the value given rather than from state.
+   *
+   * @param value - `YYYY-MM-DDTHH:mm`, or '' to clear the date / 期限（空文字で解除）
+   */
+  const saveDueDate = (value: string) =>
+    patchTask({ dueDate: value ? new Date(value).toISOString() : null });
+
   // NOTE: Use local input state for the progress bar so it updates on keystroke,
   // not only after the parent re-fetches the task on blur.
   const displayedEst = estHoursInput ? parseFloat(estHoursInput) : null;
@@ -135,11 +143,11 @@ export default function CompactTaskDetailWorkloadSection({
             withTime
             value={dueDateInput}
             onChange={setDueDateInput}
-            onBlur={() =>
-              patchTask({
-                dueDate: dueDateInput ? new Date(dueDateInput).toISOString() : null,
-              })
-            }
+            // Both paths save the value they are handed rather than reading
+            // `dueDateInput`: on a pick that state still holds the previous
+            // render's date, so reading it would store the old one.
+            onCommit={saveDueDate}
+            onBlur={() => saveDueDate(dueDateInput)}
             aria-label={t('dueDate')}
             className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1.5 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
           />

@@ -34,6 +34,60 @@ export interface FastForwardResult {
   reason: FastForwardReason;
   /** The branch that was targeted. */
   branch: string;
+  /**
+   * Generated files restored to let the sync proceed. Empty on every path
+   * that did not have to touch the tree. / 復元した生成物
+   */
+  restoredGenerated?: string[];
+  /** Paths that made the tree dirty, when that is why it stopped. / dirty の内訳 */
+  dirtyPaths?: string[];
+}
+
+/**
+ * Files the dev server rewrites by itself, so a dirty entry for one of them
+ * says nothing about human work in progress.
+ *
+ * `rapitas-frontend`'s `predev` runs `generate-messages.mjs` on every start,
+ * which rewrites these two from `messages/fragments/`. Whenever that output
+ * differs from what was committed, the primary checkout is dirty from the
+ * moment the dev server boots — and the dirty check below then refuses to
+ * sync, for ever. Measured 2026-10-18: the primary sat on the commit it
+ * booted with while six merges landed, held back solely by these two files
+ * carrying content that was already committed upstream (#1060).
+ *
+ * Restoring them loses nothing: they are reproducible from the fragments,
+ * which are themselves committed.
+ */
+export const REGENERABLE_PATHS = [
+  'rapitas-frontend/messages/ja.json',
+  'rapitas-frontend/messages/en.json',
+];
+
+/**
+ * The paths in a `git status --porcelain` listing.
+ *
+ * Porcelain v1 puts two status characters and a space before the path, and
+ * quotes paths needing escapes. A rename reads `old -> new`; the new name is
+ * the one on disk.
+ *
+ * @param status - Raw porcelain output / porcelain の生出力
+ * @returns One path per changed entry / 変更エントリのパス
+ */
+export function parseDirtyPaths(status: string): string[] {
+  return status
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 3)
+    .map((line) => {
+      const path = line.slice(3);
+      const renamed = path.split(' -> ');
+      return (renamed[renamed.length - 1] ?? path).replace(/^"|"$/g, '');
+    });
+}
+
+/** Whether every dirty path is a file the dev server regenerates. */
+export function onlyRegenerable(paths: string[]): boolean {
+  return paths.length > 0 && paths.every((p) => REGENERABLE_PATHS.includes(p));
 }
 
 /** The branch dev.js pins the primary checkout to. */
@@ -81,7 +135,27 @@ export async function fastForwardPrimary(deps: { run?: GitRun } = {}): Promise<F
     log.warn({ err }, '[fast-forward] status failed; leaving the checkout alone');
     return { moved: false, reason: 'status-failed', branch };
   }
-  if (status.trim().length > 0) return { moved: false, reason: 'dirty', branch };
+  const restoredGenerated: string[] = [];
+  const dirtyPaths = parseDirtyPaths(status);
+  if (dirtyPaths.length > 0) {
+    // Only generated files? Restore them and carry on. Anything else is
+    // someone's work in progress and is still left strictly alone.
+    if (!onlyRegenerable(dirtyPaths)) {
+      log.warn({ dirtyPaths, branch }, '[fast-forward] checkout is dirty; leaving it alone');
+      return { moved: false, reason: 'dirty', branch, dirtyPaths };
+    }
+    try {
+      await run(['checkout', '--', ...dirtyPaths]);
+      restoredGenerated.push(...dirtyPaths);
+      log.info(
+        { restoredGenerated, branch },
+        '[fast-forward] restored regenerated files so the sync can proceed',
+      );
+    } catch (err) {
+      log.warn({ err, dirtyPaths }, '[fast-forward] could not restore generated files');
+      return { moved: false, reason: 'dirty', branch, dirtyPaths };
+    }
+  }
 
   try {
     await run(['fetch', 'origin', branch]);
@@ -100,7 +174,8 @@ export async function fastForwardPrimary(deps: { run?: GitRun } = {}): Promise<F
     log.warn({ err, branch }, '[fast-forward] rev-parse failed');
     return { moved: false, reason: 'rev-parse-failed', branch };
   }
-  if (!head || !remote || head === remote) return { moved: false, reason: 'up-to-date', branch };
+  if (!head || !remote || head === remote)
+    return { moved: false, reason: 'up-to-date', branch, restoredGenerated };
 
   // `--is-ancestor` exits non-zero when HEAD is NOT reachable from the remote,
   // which is exactly the diverged case a fast-forward must refuse.
@@ -119,5 +194,5 @@ export async function fastForwardPrimary(deps: { run?: GitRun } = {}): Promise<F
   }
 
   log.info({ branch, from: head.slice(0, 12), to: remote.slice(0, 12) }, '[fast-forward] advanced');
-  return { moved: true, reason: 'fast-forwarded', branch };
+  return { moved: true, reason: 'fast-forwarded', branch, restoredGenerated };
 }

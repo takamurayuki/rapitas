@@ -22,13 +22,13 @@ beforeEach(async () => {
     datasources: { db: { url: `file:${join(directory, 'test.db').replaceAll('\\', '/')}` } },
   });
   await db.$executeRawUnsafe(
-    'CREATE TABLE Task (id INTEGER PRIMARY KEY, status TEXT, workflowStatus TEXT, updatedAt DATETIME)',
+    'CREATE TABLE Task (workspaceId INTEGER, id INTEGER PRIMARY KEY, status TEXT, workflowStatus TEXT, updatedAt DATETIME)',
   );
   await db.$executeRawUnsafe(
-    'CREATE TABLE WorkflowTransition (id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, fromStatus TEXT, toStatus TEXT, actor TEXT, cause TEXT, phase TEXT, executionId INTEGER, sessionId INTEGER, metadata TEXT, invariantViolation BOOLEAN DEFAULT 0, invariantMessage TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
+    'CREATE TABLE WorkflowTransition (workspaceId INTEGER, id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, fromStatus TEXT, toStatus TEXT, actor TEXT, cause TEXT, phase TEXT, executionId INTEGER, sessionId INTEGER, metadata TEXT, invariantViolation BOOLEAN DEFAULT 0, invariantMessage TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
   );
   await db.$executeRawUnsafe(
-    'INSERT INTO Task VALUES (1, ?, ?, ?)',
+    'INSERT INTO Task (id, status, workflowStatus, updatedAt) VALUES (1, ?, ?, ?)',
     'todo',
     task.workflowStatus,
     updatedAt,

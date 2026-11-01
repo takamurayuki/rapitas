@@ -36,6 +36,30 @@ mock.module('../../../config/database', () => ({
   prisma: mockPrisma,
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
+
+/** Ids this batch handler asked the deletion choke point to remove. */
+const chokePointDeletes: number[] = [];
+/** Ids the choke point should refuse as protected. */
+const protectedIds: number[] = [];
+
+// The batch handler delegates deletion instead of calling prisma.task.delete
+// (#1330): deleting directly skipped the protected-task guard, the trash copy
+// and the measurement snapshot. This file tests batch dispatch, so the choke
+// point itself is stubbed — both exports, since mock.module replaces the whole
+// module.
+mock.module('../../../services/task/task-deletion', () => ({
+  deleteTaskWithTrash: async (taskId: number) => {
+    if (protectedIds.includes(taskId)) return { taskId, outcome: 'protected' };
+    chokePointDeletes.push(taskId);
+    return { taskId, outcome: 'deleted', trashId: 42 };
+  },
+  deleteTasksWithTrash: async (taskIds: number[]) => ({
+    deleted: taskIds,
+    protected: [],
+    notFound: [],
+    trashIds: taskIds.map(() => 42),
+  }),
+}));
 mock.module('../../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {} }),
   logger: {
@@ -290,13 +314,36 @@ describe('POST /batch/v2', () => {
   });
 
   test('DELETE /tasks/:idでタスクを削除すること', async () => {
+    chokePointDeletes.length = 0;
+
     const res = await app.handle(batchRequest([{ id: 'r1', method: 'DELETE', path: '/tasks/5' }]));
     const body = await res.json();
 
     expect(body.results[0].status).toBe(200);
-    expect(body.results[0].body).toEqual({ success: true });
-    const deleteCall = mockPrisma.task.delete.mock.calls[0]![0] as { where: { id: number } };
-    expect(deleteCall.where.id).toBe(5);
+    expect(body.results[0].body).toEqual({ success: true, trashId: 42 });
+    // Through the guarded path, so the delete is recoverable from the trash.
+    expect(chokePointDeletes).toEqual([5]);
+    expect(mockPrisma.task.delete).not.toHaveBeenCalled();
+  });
+
+  // The hole this closes: the single-task route refuses a protected task, and
+  // the batch used to delete it anyway.
+  test('保護されたタスクはバッチ経由でも削除されないこと', async () => {
+    chokePointDeletes.length = 0;
+    protectedIds.push(7);
+
+    try {
+      const res = await app.handle(
+        batchRequest([{ id: 'r1', method: 'DELETE', path: '/tasks/7' }]),
+      );
+      const body = await res.json();
+
+      expect(body.results[0].status).not.toBe(200);
+      expect(chokePointDeletes).toEqual([]);
+      expect(mockPrisma.task.delete).not.toHaveBeenCalled();
+    } finally {
+      protectedIds.length = 0;
+    }
   });
 
   test('ハンドラが存在しない場合500を返すこと', async () => {

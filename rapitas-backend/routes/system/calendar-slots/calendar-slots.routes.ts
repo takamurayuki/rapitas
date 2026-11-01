@@ -15,9 +15,9 @@ import {
   createCalendarOAuthClient,
 } from '../../../services/scheduling/calendar-slot/freebusy-client';
 import {
-  ensureCalendarPollingStarted,
   getCalendarSyncService,
   getCalendarTokenStore,
+  startCalendarPollingForConnectedWorkspaces,
 } from '../../../services/scheduling/calendar-slot/calendar-sync-runtime';
 import { requestCalendarGateOverride } from '../../../services/scheduling/calendar-slot/calendar-hold-state';
 import {
@@ -29,17 +29,24 @@ import {
   type ActivityLogReader,
 } from './calendar-slots-handlers';
 
+import { frontendUrl } from '../../../config/frontend-url';
+import { currentWorkspaceId } from '../../../services/tenancy/workspace-context';
+import { ensureCalendarPollingStarted } from '../../../services/scheduling/calendar-slot/calendar-sync-runtime';
+
 const log = createLogger('routes:calendar-slots');
 
 // Polling must run whenever the gate is enabled; this module is loaded once
 // at server start via the system route barrel. No-op when the env flag is off.
-void ensureCalendarPollingStarted();
-
-const frontendUrl = () => process.env.FRONTEND_URL || 'http://localhost:3000';
+// Per workspace since 2026-10-29: the connection is personal, so there is no
+// single timer to start — each connected account gets its own.
+void startCalendarPollingForConnectedWorkspaces();
 
 const calendarSlotsRoutes = new Elysia({ prefix: '/calendar-slots' })
+  // The workspace is bound to the state HERE, where the session cookie still
+  // arrives. It cannot be read in the callback: that is a top-level redirect
+  // from accounts.google.com and the session cookie is SameSite=Strict.
   .get('/oauth/url', () => ({
-    url: buildCalendarAuthUrl(createCalendarOAuthClient(), createOAuthState()),
+    url: buildCalendarAuthUrl(createCalendarOAuthClient(), createOAuthState(currentWorkspaceId())),
   }))
 
   .get(
@@ -52,10 +59,10 @@ const calendarSlotsRoutes = new Elysia({ prefix: '/calendar-slots' })
           { code: query.code, state: query.state },
           {
             exchange: async (code) => (await client.getToken(code)).tokens,
-            tokenStore: getCalendarTokenStore(),
-            triggerSync: async () => {
-              await ensureCalendarPollingStarted();
-              await (await getCalendarSyncService()).syncOnce();
+            tokenStoreFor: getCalendarTokenStore,
+            triggerSync: async (workspaceId) => {
+              await ensureCalendarPollingStarted(workspaceId);
+              await (await getCalendarSyncService(workspaceId)).syncOnce();
             },
           },
         );
@@ -76,7 +83,9 @@ const calendarSlotsRoutes = new Elysia({ prefix: '/calendar-slots' })
 
   .get('/next-runs', () => buildNextRuns(new Date()))
 
-  .get('/sync-state', () => buildSyncState(new Date(), getCalendarTokenStore().get() !== null))
+  .get('/sync-state', () =>
+    buildSyncState(new Date(), getCalendarTokenStore(currentWorkspaceId()).get() !== null),
+  )
 
   .get(
     '/logs',
@@ -89,7 +98,7 @@ const calendarSlotsRoutes = new Elysia({ prefix: '/calendar-slots' })
     { query: t.Object({ page: t.Optional(t.String()), limit: t.Optional(t.String()) }) },
   )
 
-  .post('/sync', async () => (await getCalendarSyncService()).syncOnce())
+  .post('/sync', async () => (await getCalendarSyncService(currentWorkspaceId())).syncOnce())
 
   .post(
     '/override/:themeId',
