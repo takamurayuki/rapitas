@@ -106,19 +106,81 @@ jobs:
       - name: Install pnpm
         run: npm install -g pnpm@10
 
-      - name: Audit frontend dependencies
-        working-directory: rapitas-frontend
-        continue-on-error: true
-        run: |
-          pnpm audit --production
-          pnpm audit --audit-level=high
+      # NOTE(#1340): needed because rapitas-backend uses bun, and this job had
+      # no way to audit it — which is why that package had never been checked.
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
-      - name: Audit desktop dependencies
-        working-directory: rapitas-desktop
+      # `bun audit` reads the installed tree, so without this it reports nothing
+      # and the backend gate would pass by being blind rather than by being clean.
+      - name: Install backend dependencies
+        working-directory: rapitas-backend
+        run: bun install
+
+      # NOTE(#1340): restructured because this job was green while reporting
+      # `##[error]Process completed with exit code 1`, and worse: both steps ran
+      # two commands in one `run:` under `bash -e`, so a non-zero `--production`
+      # ENDED the step and `--audit-level=high` never executed. The command that
+      # exists to catch high findings only ran when nothing had been found.
+      #
+      # Now: REPORT first (always, advisory, into the Step Summary so a green
+      # job can never be read as "no vulnerabilities"), GATE second (its own
+      # step per package, so none can mask another).
+      #
+      # The gate is PRODUCTION + critical. That is a floor that is green today
+      # and can genuinely fail — not an aspiration. It is deliberately not
+      # `high`: the known highs are transitive and real (backend zod via openai
+      # and @elysiajs/swagger, deepmerge-ts via prisma; desktop zod via jimp),
+      # and gating on them today would block every merge on dependency work
+      # that cannot be done from a worktree. Raising this to `high` belongs with
+      # those updates — see #1340. Dev-only findings (the Storybook criticals)
+      # are a developer-machine surface, reported but not merge-blocking.
+      - name: Report all dependency advisories (advisory)
+        if: always()
         continue-on-error: true
         run: |
-          pnpm audit --production
-          pnpm audit --audit-level=high
+          {
+            echo "## 依存脆弱性レポート"
+            echo
+            echo "**緑は「脆弱性なし」ではない。** ゲートは本番依存の critical のみ。"
+            echo "以下は dev 依存を含む全件。"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for pkg in rapitas-frontend rapitas-desktop; do
+            {
+              echo
+              echo "### $pkg (pnpm, dev込み)"
+              echo '```'
+              (cd "$pkg" && pnpm audit 2>&1) || true
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
+          {
+            echo
+            echo "### rapitas-backend (bun, dev込み)"
+            echo "NOTE(#1340): このパッケージは監査工程が存在せず、一度も検査されていなかった。"
+            echo '```'
+            (cd rapitas-backend && bun audit 2>&1) || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Gate — frontend production criticals
+        working-directory: rapitas-frontend
+        run: pnpm audit --production --audit-level=critical
+
+      - name: Gate — desktop production criticals
+        working-directory: rapitas-desktop
+        if: always()
+        run: pnpm audit --production --audit-level=critical
+
+      # bun audit has no --production filter, so this covers dev too. No
+      # critical exists in this package today (12 findings: 2 high, 10
+      # moderate), so a critical appearing here is new and blocks.
+      - name: Gate — backend criticals
+        working-directory: rapitas-backend
+        if: always()
+        run: bun audit --audit-level=critical
 
   codeql:
     name: CodeQL Analysis
