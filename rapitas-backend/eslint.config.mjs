@@ -5,6 +5,8 @@ import noRawPrismaInsensitive from "./eslint-rules/no-raw-prisma-insensitive.mjs
 import noUnscopedPrNumberLookup from "./eslint-rules/no-unscoped-pr-number-lookup.mjs";
 import noUnguardedTaskDelete from "./eslint-rules/no-unguarded-task-delete.mjs";
 import preferTestEachForSimilar from "./eslint-rules/prefer-test-each-for-similar.mjs";
+import requireValidatedIdParam from "./eslint-rules/require-validated-id-param.mjs";
+import { ID_PARAM_MIGRATION_BASELINE } from "./eslint-rules/id-param-migration-baseline.mjs";
 
 /** @type {import('eslint').Linter.Plugin} */
 const localPlugin = {
@@ -13,6 +15,7 @@ const localPlugin = {
     "no-unscoped-pr-number-lookup": noUnscopedPrNumberLookup,
     "no-unguarded-task-delete": noUnguardedTaskDelete,
     "prefer-test-each-for-similar": preferTestEachForSimilar,
+    "require-validated-id-param": requireValidatedIdParam,
   },
 };
 
@@ -60,6 +63,19 @@ export default [
       "local/no-raw-prisma-insensitive": "error",
       "local/no-unscoped-pr-number-lookup": "error",
       "local/no-unguarded-task-delete": "error",
+      "local/require-validated-id-param": "error",
+    },
+  },
+  // NOTE(#1349): the id-validation ratchet. Every file NOT listed here is held
+  // to require-validated-id-param; the listed ones still carry the old
+  // parseInt(params.x) and are being migrated by HTTP verb. The list may only
+  // shrink — id-param-migration-baseline.test.mjs fails on an entry that no
+  // longer violates the rule, so a migrated file cannot sit here unnoticed.
+  {
+    files: ID_PARAM_MIGRATION_BASELINE,
+    plugins: { local: localPlugin },
+    rules: {
+      "local/require-validated-id-param": "off",
     },
   },
   // Exclude the deletion choke point itself — deleteTaskWithTrash() is the one
@@ -116,6 +132,7 @@ export default [
       // Tests mock the client and assert on `task.delete` being called (or NOT
       // called) — those assertions are how the guard is proven.
       "local/no-unguarded-task-delete": "off",
+      "local/require-validated-id-param": "off",
       "local/prefer-test-each-for-similar": "warn",
     },
   },

@@ -4,6 +4,7 @@
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
+import { parseId } from '../../middleware/error-handler';
 
 // Enum schemas mirror the manual `.includes(...)` checks below (kept as
 // defense-in-depth, not a replacement — the manual checks return a
@@ -109,7 +110,7 @@ export const taskAnalysisConfigRoutes = new Elysia({
         autoOptimizePrompt?: boolean;
         notifyOnComplete?: boolean;
       };
-      const taskId = parseInt(params.taskId);
+      const taskId = parseId(params.taskId, 'task ID');
 
       const task = await prisma.task.findUnique({ where: { id: taskId } });
       if (!task) {
@@ -250,7 +251,7 @@ export const taskAnalysisConfigRoutes = new Elysia({
         autoOptimizePrompt?: boolean;
         notifyOnComplete?: boolean;
       };
-      const taskId = parseInt(params.taskId);
+      const taskId = parseId(params.taskId, 'task ID');
 
       const existing = await prisma.taskAnalysisConfig.findUnique({
         where: { taskId },
@@ -344,7 +345,7 @@ export const taskAnalysisConfigRoutes = new Elysia({
     '/:taskId',
     async (context) => {
       const { params, set } = context;
-      const taskId = parseInt(params.taskId);
+      const taskId = parseId(params.taskId, 'task ID');
 
       const existing = await prisma.taskAnalysisConfig.findUnique({
         where: { taskId },

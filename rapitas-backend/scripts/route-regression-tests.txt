@@ -41,3 +41,8 @@ tests/routes/tasks/task-routes.test.ts
 # ステータスだけでなく「DBに触れないこと」を assert するのでここに置く
 # （カバレッジ母数に影響しないゲート）。
 tests/routes/tasks/tasks.mutation-errors.test.ts
+
+# 実行停止が id の示さない行に届かないこと（#1349）。ステータスではなく
+# 「DBに触れないこと」を assert する。生成IDの bump は復旧側が走行中セッションを
+# 蘇生するかの判断に使われるので、別タスクに対して走ると実行が死ぬ。
+routes/agents/execution/routes/stop-route.id-validation.test.ts

@@ -22,6 +22,7 @@ import { removeWorktree } from '../../../../services/agents/orchestrator/git-ope
 import { resolveTaskWorkingDirectory } from '../../../../services/task/task-resolver';
 import { recordTransition } from '../../../../services/workflow/transition-recorder';
 import { MANUAL_STOP_WITHDRAW_CAUSE } from '../../../../services/workflow/incident-signature-detectors';
+import { parseId } from '../../../../middleware/error-handler';
 
 const log = createLogger('routes:agent-execution:stop');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -30,7 +31,13 @@ export const stopRoute = new Elysia().post(
   '/tasks/:id/stop-execution',
   async (context) => {
     const { params, body } = context;
-    const taskId = parseInt(params.id);
+    // NOTE(#1349): parseId rejects a non-numeric id; parseInt returned what
+    // it had read so far. Reproduced on the running server before this fix:
+    // POST /tasks/1475abc/stop-execution answered 200, forced row 1475 from
+    // in_progress to 'todo' and bumped its executionGenerationId 0 -> 1 —
+    // the write that stops a live agent being revived. The suffix was never
+    // reported to the caller.
+    const taskId = parseId(params.id, 'task ID');
     const withdraw = body?.withdraw === true;
 
     try {
