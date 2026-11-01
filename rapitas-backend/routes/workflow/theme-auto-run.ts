@@ -22,6 +22,7 @@ import { ThemeAutoRunScheduler } from '../../services/workflow/auto-run/theme-au
 import { describePauseScope } from '../../services/workflow/auto-run/theme-pause-inflight';
 import { logCycleEvent } from '../../services/observability';
 import { HTTP_STATUS } from '../../utils/common/http-status';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:theme-auto-run');
 
@@ -31,11 +32,11 @@ export const themeAutoRunRoutes = new Elysia()
    * GET /themes/:id/auto-run — return the current auto-run state for a theme.
    */
   .get('/themes/:id/auto-run', async (context) => {
-    const themeId = parseInt((context.params as { id: string }).id);
-    if (!Number.isFinite(themeId)) {
+    if (!isValidEntityId((context.params as { id: string }).id)) {
       context.set.status = HTTP_STATUS.BAD_REQUEST;
       return { success: false, error: 'Invalid theme ID' };
     }
+    const themeId = Number((context.params as { id: string }).id);
 
     try {
       const state = await getOrCreateAutoRun(themeId);
@@ -99,11 +100,11 @@ export const themeAutoRunRoutes = new Elysia()
   .post(
     '/themes/:id/auto-run',
     async (context) => {
-      const themeId = parseInt((context.params as { id: string }).id);
-      if (!Number.isFinite(themeId)) {
+      if (!isValidEntityId((context.params as { id: string }).id)) {
         context.set.status = HTTP_STATUS.BAD_REQUEST;
         return { success: false, error: 'Invalid theme ID' };
       }
+      const themeId = Number((context.params as { id: string }).id);
 
       const body = context.body as { action?: string; order?: string } | null;
       const action = body?.action;

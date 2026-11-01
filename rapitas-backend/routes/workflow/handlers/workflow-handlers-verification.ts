@@ -21,6 +21,7 @@ import {
 } from '../../../services/workflow/verification-job-runner';
 import { prisma } from '../../../config';
 import { isVerificationWorktreeRoot } from '../../../services/workflow/verification-worktree';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 const log = createLogger('routes:workflow:self-verification');
 
@@ -52,11 +53,11 @@ const startingJobs = new Map<
 
 /** Share initialization, including its failure, without exposing an unpersisted placeholder ID. */
 export async function handleRunVerification(ctx: RunVerificationContext) {
-  const taskId = Number(ctx.params.taskId);
-  if (!Number.isSafeInteger(taskId) || taskId <= 0) {
+  if (!isValidEntityId(ctx.params.taskId)) {
     ctx.set.status = 400;
     return { success: false, error: 'invalid taskId' };
   }
+  const taskId = Number(ctx.params.taskId);
   const existing = startingJobs.get(taskId);
   if (existing) {
     const result = await existing;
@@ -76,11 +77,11 @@ export async function handleRunVerification(ctx: RunVerificationContext) {
 }
 
 async function launchVerification(ctx: RunVerificationContext) {
-  const taskId = parseInt(ctx.params.taskId);
-  if (!Number.isFinite(taskId)) {
+  if (!isValidEntityId(ctx.params.taskId)) {
     ctx.set.status = 400;
     return { success: false, error: 'invalid taskId' };
   }
+  const taskId = Number(ctx.params.taskId);
 
   const existingRunId = runningJobs.get(taskId);
   if (existingRunId) {

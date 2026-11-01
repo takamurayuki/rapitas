@@ -16,6 +16,7 @@ import { readWorkflowFile } from '../../../services/workflow/workflow-file-utils
 import { resolvePreferredBaseBranch } from '../../../services/task/task-resolver';
 import { runDryRunVerification } from '../../../services/workflow/dry-run-orchestrator';
 import { execGitReadonly } from '../../../services/agents/orchestrator/git-operations/core/git-exec';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 const log = createLogger('routes:workflow:dry-run');
 
@@ -52,11 +53,11 @@ async function findWorktreePath(taskId: number): Promise<string | null> {
  * @returns The dry-run report, or an error payload. / ドライランレポートまたはエラー
  */
 export async function handleDryRun(ctx: DryRunContext) {
-  const taskId = parseInt(ctx.params.taskId);
-  if (!Number.isFinite(taskId)) {
+  if (!isValidEntityId(ctx.params.taskId)) {
     ctx.set.status = 400;
     return { success: false, error: 'invalid taskId' };
   }
+  const taskId = Number(ctx.params.taskId);
   if (inFlight.has(taskId)) {
     ctx.set.status = 429;
     return {
@@ -120,11 +121,11 @@ export async function handleDryRun(ctx: DryRunContext) {
  * @returns Up to 20 recent `dry_run_executed` timeline events for this task. / 直近のドライラン履歴
  */
 export async function handleDryRunHistory(ctx: DryRunContext) {
-  const taskId = parseInt(ctx.params.taskId);
-  if (!Number.isFinite(taskId)) {
+  if (!isValidEntityId(ctx.params.taskId)) {
     ctx.set.status = 400;
     return { success: false, error: 'invalid taskId' };
   }
+  const taskId = Number(ctx.params.taskId);
 
   const events = await prisma.timelineEvent
     .findMany({
@@ -155,12 +156,12 @@ export async function handleDryRunHistory(ctx: DryRunContext) {
  * @returns Drift comparison result. / ドリフト比較結果
  */
 export async function handleDryRunDrift(ctx: DryRunReportContext) {
-  const taskId = parseInt(ctx.params.taskId);
-  const reportId = parseInt(ctx.params.reportId);
-  if (!Number.isFinite(taskId) || !Number.isFinite(reportId)) {
+  if (!isValidEntityId(ctx.params.taskId) || !isValidEntityId(ctx.params.reportId)) {
     ctx.set.status = 400;
     return { success: false, error: 'invalid taskId or reportId' };
   }
+  const taskId = Number(ctx.params.taskId);
+  const reportId = Number(ctx.params.reportId);
 
   const event = await prisma.timelineEvent
     .findUnique({ where: { id: reportId } })

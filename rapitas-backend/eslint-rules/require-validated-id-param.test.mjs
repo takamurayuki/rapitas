@@ -15,6 +15,7 @@
 
 import { describe, expect, it } from 'bun:test';
 import { Linter } from 'eslint';
+import tsparser from '@typescript-eslint/parser';
 import rule from './require-validated-id-param.mjs';
 
 /**
@@ -31,7 +32,14 @@ function runRule(code, options) {
     rules: {
       'local/require-validated-id-param': options ? ['error', options] : 'error',
     },
-    languageOptions: { ecmaVersion: 2022, sourceType: 'module' },
+    // NOTE(#1349 review): the TypeScript parser, not espree. The rule guards
+    // TypeScript files, and the three sites that slipped past its first version
+    // were all TS-only syntax (`context.params as { id: string }`) which espree
+    // cannot parse at all — so testing on espree could not have caught them.
+    languageOptions: {
+      parser: tsparser,
+      parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
+    },
   });
 }
 
@@ -74,6 +82,40 @@ describe('require-validated-id-param — reports an unguarded coercion', () => {
       expect(runRule(route('await stop(parseInt(params.id));', method))).toHaveLength(1);
     },
   );
+
+  // Each of these hid a real site from the first version of this rule
+  // (#1349 review), and each is TypeScript-only syntax.
+  it.each([
+    [
+      'a destructure through a type assertion',
+      `app.post('/agents/:id/api-key', async (context) => {
+         const { id } = context.params as { id: string };
+         return save(parseInt(id));
+       });`,
+    ],
+    [
+      'a member read through a type assertion',
+      `app.post('/themes/:id/auto-run', async (context) => {
+         const themeId = parseInt((context.params as { id: string }).id);
+         return run(themeId);
+       });`,
+    ],
+    [
+      'a handler extracted into its own exported function',
+      `export async function handleDryRun(ctx: DryRunContext) {
+         const taskId = parseInt(ctx.params.taskId);
+         return dryRun(taskId);
+       }`,
+    ],
+    [
+      'a non-null assertion in the way',
+      `app.patch('/x/:id', (ctx) => update(parseInt(ctx.params!.id)));`,
+    ],
+  ])('%s', (_label, code) => {
+    const msgs = runRule(code);
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].messageId).toBe('unvalidatedIdParam');
+  });
 
   it('reports a second parameter in the same handler', () => {
     const msgs = runRule(
@@ -141,12 +183,6 @@ describe('require-validated-id-param — leaves non-route code alone', () => {
     ['a query string field', route('await stop(parseInt(query.page));')],
     ['an env var', route('await stop(parseInt(process.env.PORT));')],
     ['a plain local', route('const raw = "12"; await stop(parseInt(raw));')],
-    // No verb in the ancestor chain: the handler lives in another module, so
-    // the rule cannot prove it mutates and must stay quiet.
-    [
-      'an extracted handler',
-      `export async function handler({ params }) { await stop(parseInt(params.id)); }`,
-    ],
     // parseInt with a radix on something that is not a param.
     ['a radix parse of a header', route('await stop(parseInt(headers["x-id"], 10));')],
   ])('%s', (_label, code) => {

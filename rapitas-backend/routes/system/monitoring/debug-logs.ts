@@ -7,6 +7,7 @@ import { createLogger } from '../../../config/logger';
 import { listLogThemes, readThemeLogs } from '../../../services/system/theme-log-reader';
 import DebugLogAnalyzer, { AnalyzeOptions } from '../../../utils/debug-log-analyzer';
 import { LogParserFactory } from '../../../utils/common/debug-log-parsers';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 const log = createLogger('routes:debug-logs');
 
@@ -349,11 +350,11 @@ export const debugLogsRouter = new Elysia({ prefix: '/debug-logs' })
   .get(
     '/theme/:themeId/read',
     async (context) => {
-      const themeId = parseInt((context.params as { themeId: string }).themeId, 10);
-      if (Number.isNaN(themeId)) {
+      if (!isValidEntityId((context.params as { themeId: string }).themeId)) {
         context.set.status = 400;
         return { success: false, error: 'invalid themeId' };
       }
+      const themeId = Number((context.params as { themeId: string }).themeId);
       const result = await readThemeLogs(themeId);
       return { success: true, ...result };
     },

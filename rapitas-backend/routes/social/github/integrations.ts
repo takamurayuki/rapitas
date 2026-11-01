@@ -163,7 +163,7 @@ export const integrationRoutes = new Elysia()
   .post('/integrations/:id/sync-issues', async (context) => {
     const { params } = context;
     const { id } = params as { id: string };
-    const count = await githubService.syncIssues(parseInt(id));
+    const count = await githubService.syncIssues(parseId(id, 'integration ID'));
     return { syncedCount: count };
   })
 

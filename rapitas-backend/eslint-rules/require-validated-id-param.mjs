@@ -26,17 +26,19 @@
  *   const { id } = params;      parseInt(id)           // via destructuring
  *   const { id: rawId } = ctx.params;  Number(rawId)   // ...and a rename
  *
- * NOT covered (fail-open by design — a guardrail, not a proof):
- * - a handler extracted into another module, where no `.post`/`.patch`/
- *   `.delete`/`.put` call is an ancestor of the coercion. `methods` defaults to
- *   the mutating verbs, and a coercion whose verb cannot be determined is left
- *   alone, so this reports what it can prove rather than guessing.
- * - a parameter reached through indexing (`params['id']`) or spread.
+ * Covered since the #1349 review, each of which hid a real site:
+ * - a TypeScript assertion in the way (`context.params as { id: string }`),
+ *   stripped by `unwrap`.
+ * - a handler extracted into its own module, where no verb call is an ancestor.
+ *   An unknown verb is now REPORTED; only a verb that is known and excluded by
+ *   `methods` is skipped.
  *
- * All 163 sites (113 mutating, 50 read) are migrated, with no exemption list:
- * #1349 ran as five passes by HTTP verb and the ratchet that carried it was
- * deleted once empty, because an exemption list with nothing in it is a gate
- * that cannot fail. `methods` stays configurable for a verb this misses.
+ * NOT covered (fail-open by design — a guardrail, not a proof):
+ * - a parameter reached through indexing (`params['id']`) or spread.
+ * - a parameter passed as a bare string into another function that coerces it
+ *   there, with no `params` in sight at the call site.
+ *
+ * `methods` stays configurable for narrowing; the default is every verb.
  */
 
 /** Numeric coercions that silently truncate. `parseId` is the validated one. */
@@ -62,12 +64,38 @@ function staticName(node) {
 }
 
 /**
+ * Strips TypeScript wrappers that do not change the value.
+ *
+ * `context.params as { id: string }` is the shape that got three sites past the
+ * first version of this rule (#1349 review): the assertion node sat where the
+ * member expression was expected, so the parameter's origin could not be
+ * resolved and the coercion looked like it read something else.
+ *
+ * @param {import('estree').Node} node - node to unwrap / 対象ノード
+ * @returns {import('estree').Node} the innermost expression / 内側の式
+ */
+function unwrap(node) {
+  let current = node;
+  while (
+    current &&
+    (current.type === 'TSAsExpression' ||
+      current.type === 'TSNonNullExpression' ||
+      current.type === 'TSTypeAssertion' ||
+      current.type === 'TSSatisfiesExpression')
+  ) {
+    current = current.expression;
+  }
+  return current;
+}
+
+/**
  * Whether a node denotes the route's params object (`params`, `ctx.params`).
  *
  * @param {import('estree').Node} node - candidate node / 判定対象
  * @returns {boolean} true when it is the params object / params オブジェクトなら true
  */
-function isParamsObject(node) {
+function isParamsObject(rawNode) {
+  const node = unwrap(rawNode);
   if (!node) return false;
   if (node.type === 'Identifier') return node.name === 'params';
   if (node.type === 'MemberExpression' && !node.computed) {
@@ -102,7 +130,8 @@ function findVariable(scope, name) {
  * @param {number} depth - recursion guard / 再帰の深さ
  * @returns {string | null} canonical origin, or null when not a path param / パスパラメータでなければ null
  */
-function paramsOrigin(node, scope, depth = 0) {
+function paramsOrigin(rawNode, scope, depth = 0) {
+  const node = unwrap(rawNode);
   if (!node || depth > 6) return null;
 
   if (node.type === 'MemberExpression' && !node.computed) {
@@ -249,7 +278,13 @@ const rule = {
         return;
       }
 
-      if (!enclosingRouteMethod(ancestors, methods).matched) return;
+      // An UNKNOWN verb is reported. Only a verb that is known and excluded by
+      // `methods` is skipped. The first version returned here whenever no verb
+      // could be found, which let every handler extracted into its own module
+      // through — workflow-handlers-dry-run.ts among them (#1349 review).
+      // A path parameter being coerced is dangerous wherever it is written.
+      const verb = enclosingRouteMethod(ancestors, methods);
+      if (verb.method !== null && !verb.matched) return;
       coercions.push({ node, origin, coercer: name, fnRange });
     }
 

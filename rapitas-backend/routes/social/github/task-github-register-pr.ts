@@ -14,6 +14,7 @@ import { createLogger } from '../../../config/logger';
 import { GitHubService } from '../../../services/core/github-service';
 import { registerManualPr } from '../../../services/github/manual-pr-link';
 import { recordTransition } from '../../../services/workflow/transition-recorder';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 const log = createLogger('routes:register-github-pr');
 const githubService = new GitHubService(prisma);
@@ -24,11 +25,11 @@ const ALLOWED_SOURCES = new Set(['ui', 'operator']);
 export const registerGithubPrRoutes = new Elysia().post(
   '/tasks/:id/register-github-pr',
   async (ctx) => {
-    const taskId = parseInt((ctx.params as { id: string }).id, 10);
-    if (!Number.isFinite(taskId)) {
+    if (!isValidEntityId((ctx.params as { id: string }).id)) {
       ctx.set.status = 400;
       return { success: false, error: 'invalid task id' };
     }
+    const taskId = Number((ctx.params as { id: string }).id);
 
     const headers = ctx.headers as Record<string, string | undefined> | undefined;
     const rawSource = headers?.['x-rapitas-source'];

@@ -11,6 +11,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config';
 import { resolveStoredSecret } from '../../../utils/common/secret-store';
 import { logAgentConfigChange } from '../../../utils/agent/agent-audit-log';
+import { parseId } from '../../../middleware/error-handler';
 
 /**
  * Spawns a CLI binary with the given args and resolves with success/message.
@@ -71,7 +72,7 @@ export const agentTestRouter = new Elysia()
       const { set } = context;
       const { id } = context.params as { id: string };
       const agent = await prisma.aIAgentConfig.findUnique({
-        where: { id: parseInt(id) },
+        where: { id: parseId(id, 'agent ID') },
       });
 
       if (!agent) {
@@ -196,7 +197,7 @@ export const agentTestRouter = new Elysia()
         }
       } catch (error) {
         await logAgentConfigChange({
-          agentConfigId: parseInt(id),
+          agentConfigId: parseId(id, 'agent ID'),
           action: 'test_connection',
           changeDetails: {
             success: false,
@@ -218,7 +219,7 @@ export const agentTestRouter = new Elysia()
   .post('/agents/:id/test-connection', async (context) => {
     const { id } = context.params as { id: string };
     const agent = await prisma.aIAgentConfig.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: parseId(id, 'agent ID') },
     });
 
     if (!agent) {
