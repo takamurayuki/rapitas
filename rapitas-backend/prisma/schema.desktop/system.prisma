@@ -6,6 +6,8 @@
 
 model Notification {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   type              String
   title             String
   message           String
@@ -14,26 +16,13 @@ model Notification {
   readAt            DateTime?
   metadata          String?   // JSON stored as string
   createdAt         DateTime  @default(now())
-}
-
-// Lightweight memo (quick-capture メモモード): a thing to remember or a tiny
-// record — deliberately smaller than the Notes feature (documents, tags, AI).
-// An optional one-shot reminder is delivered through the Notification pipeline
-// by services/scheduling/memo-reminder-scheduler.ts.
-model Memo {
-  id         Int       @id @default(autoincrement())
-  content    String
-  remindAt   DateTime? // when to notify; null = plain memo
-  remindedAt DateTime? // set once the reminder notification fired (one-shot)
-  isDone     Boolean   @default(false)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-
-  @@index([remindAt])
+  @@index([workspaceId])
 }
 
 model UserSettings {
   id                          Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   developerModeDefault        Boolean   @default(false)
   aiTaskAnalysisDefault       Boolean   @default(false)
   autoResumeInterruptedTasks  Boolean   @default(false)
@@ -106,8 +95,16 @@ model UserSettings {
    * before this setting existed.
    */
   skipAgentPermissionPrompts  Boolean   @default(true)
+  /// What ラピ is told about the person she is planning for: the facts
+  /// (rapiProfile) and what they want out of a plan (rapiCharacter). Both
+  /// were files in RAPITAS_DATA_DIR until #1275, which meant one
+  /// introduction shared by every account on the install. See
+  /// rapi-profile-store.ts.
+  rapiProfile                 String?
+  rapiCharacter               String?
   createdAt                   DateTime  @default(now())
   updatedAt                   DateTime  @updatedAt
+  @@index([workspaceId])
 }
 
 /**
@@ -119,7 +116,9 @@ model UserSettings {
  */
 model BacklogSchedule {
   id         Int       @id @default(autoincrement())
-  kind       String    @unique // 'innovation' | 'vuln_scan'
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
+  kind       String    // 'innovation' | 'vuln_scan'
   enabled    Boolean   @default(false)
   frequency  String    @default("weekly") // 'daily' | 'weekly'
   hour       Int       @default(3) // 0-23, local hour the job fires
@@ -127,6 +126,8 @@ model BacklogSchedule {
   lastRunAt  DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+  @@index([workspaceId])
+  @@unique([workspaceId, kind])
 }
 
 /**
@@ -141,6 +142,8 @@ model BacklogSchedule {
  */
 model ThemeBacklogSchedule {
   id         Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   kind       String   // 'innovation' | 'vuln_scan' | 'health_check'
   themeId    Int
   enabled    Boolean  @default(true)
@@ -149,7 +152,8 @@ model ThemeBacklogSchedule {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  @@unique([kind, themeId])
+  @@unique([workspaceId, kind, themeId])
+  @@index([workspaceId])
 }
 
 // User authentication system
@@ -173,6 +177,8 @@ model User {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   sessions          UserSession[]
+  // Back-relation required by Prisma for WorkspaceMember (tenancy.prisma).
+  workspaces        WorkspaceMember[]
 
   @@index([username])
   @@index([email])
@@ -207,7 +213,9 @@ model UserSession {
  */
 model SearchMiss {
   id                  Int       @id @default(autoincrement())
-  query               String    @unique
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
+  query               String   
   hitCount            Int       @default(0)
   lastSearchedAt      DateTime  @default(now())
   status              String    @default("open")
@@ -220,4 +228,33 @@ model SearchMiss {
   @@index([status])
   @@index([hitCount])
   @@index([themeId])
+  @@index([workspaceId])
+  @@unique([workspaceId, query])
+}
+
+// Every act ラピ (the resident assistant) took on the user's behalf — including
+// the ones that were only proposed, and the ones that were refused.
+// `capabilityId` names an entry in services/assistant/capabilities.ts, the sole
+// declaration of what ラピ may do; the recorder rejects an id that is not
+// declared there, which is what stops the log drifting away from the registry.
+// Deliberately separate from AgentExecution: this is the user asking ラピ for
+// something, not the workflow running an agent.
+model AssistantAction {
+  id            Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
+  capabilityId  String
+  // proposed | executed | failed | refused
+  status        String
+  // JSON stored as string, following Notification.metadata's convention.
+  argumentsJson String?
+  resultJson    String?
+  errorMessage  String?
+  // Set once an act produced a task, so the record points at what it made.
+  taskId        Int?
+  createdAt     DateTime @default(now())
+
+  @@index([capabilityId, createdAt])
+  @@index([createdAt])
+  @@index([workspaceId])
 }

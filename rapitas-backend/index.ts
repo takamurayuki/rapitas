@@ -20,6 +20,7 @@ validateEnvironment();
 
 import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
+import { buildCorsOptions } from './config/cors-options';
 import { swagger } from '@elysiajs/swagger';
 
 // All modular routes are registered via registerAllRoutes() in register-routes.ts.
@@ -53,6 +54,7 @@ import {
   UI_SOURCE_HEADER,
   UI_SOURCE_VALUE,
 } from './services/scheduling/auto-restart-merged-code/ui-activity-tracker';
+import { wrapAppWithWorkspaceScope } from './services/tenancy/workspace-request-wrapper';
 
 const app = new Elysia();
 app.onRequest(apiRecoveryRequestGuard);
@@ -79,38 +81,13 @@ app.onRequest(({ request }) => {
   }
 });
 
-// Apply middleware
-const corsOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',')
-      .map((o) => o.trim())
-      .filter(Boolean)
-  : ['http://localhost:3000', 'http://127.0.0.1:3000', 'tauri://localhost'];
-// NOTE: credentials:true + wildcard origin would let ANY site read
-// authenticated responses (cookies/tokens attach cross-origin). A
-// misconfigured CORS_ORIGIN must fail at startup, not ship silently.
-if (corsOrigins.some((o) => o === '*' || o === 'null')) {
-  throw new Error(
-    'CORS_ORIGIN must not contain "*" or "null" while credentials are enabled — list explicit origins.',
-  );
-}
-app.use(
-  cors({
-    origin: corsOrigins,
-    credentials: true,
-    // NOTE: X-Rapitas-Source lets the (cross-origin) frontend tag user-originated
-    // requests for the UI-quiet restart gate; without it the preflight strips it.
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Rapitas-Source'],
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    // NOTE: Preflight impact assessment for the X-Rapitas-Source rollout (task #570):
-    // the apiClient path already sends Content-Type: application/json on every
-    // request, so it was preflighted before the header existed — zero new OPTIONS
-    // there. Net-new preflights come only from fetchWithRetry GETs that used to be
-    // simple requests. @elysiajs/cors defaults maxAge to 5s, which would re-issue
-    // OPTIONS roughly every 5s for polling GETs (~2x request volume); 7200s is
-    // Chrome's preflight-cache cap and bounds that churn to once per 2h per route.
-    maxAge: 7200,
-  }),
-);
+// Apply middleware.
+// NOTE(#1336): the options moved to config/cors-options.ts so the policy can be
+// tested. `exposeHeaders` is the reason: a response header missing from it is
+// simply unreadable by the frontend (different origin), so whatever depends on
+// it stops working with no error anywhere. That is not something to leave as an
+// untested literal in a 487-line entry point.
+app.use(cors(buildCorsOptions(process.env.CORS_ORIGIN)));
 
 // Ensure all responses are JSON formatted
 app.onBeforeHandle(({ set }) => {
@@ -177,29 +154,11 @@ app.get('/health', async () => {
   return handleApiRecoveryHealthCheck();
 });
 
-// Warm-up tasks (schedulers, memory system, worker manager, recovery) are imported here but NOT
-// invoked until AFTER app.listen() — see runStartupWarmup(). Running CPU-heavy init (model loads,
-// recovery scans, child spawns) before listen stalled open pages past the 30s request timeout.
-import { BehaviorScheduler } from './src/services/behavior-scheduler';
-import { initializeMemorySystem, shutdownMemorySystem } from './services/memory';
-import { AIOrchestra } from './services/workflow/ai-orchestra';
-import { migrateLegacyWorkflowFiles } from './services/workflow/workflow-legacy-migrator';
-import { backfillWorkflowFilesToDatabase } from './services/workflow/workflow-db-backfill';
-import { migrateStudyGoals } from './services/learning/study-goal-migration';
-import { startBacklogScheduler } from './services/scheduling/backlog-scheduler';
-import { startEventLoopLagWatchdog } from './services/system/event-loop-lag-watchdog';
-import { startCpuUsageMonitorIfEnabled } from './services/system/cpu-usage-monitor';
-import { startBackupScheduler } from './services/system/backup-scheduler';
-import { startWorktreeCleanupScheduler } from './services/scheduling/worktree-cleanup-scheduler';
-import { startDecisionTraceConsistencyScheduler } from './services/scheduling/decision-trace-consistency-scheduler';
-import { startAutoRestartMergedCodeScheduler } from './services/scheduling/auto-restart-merged-code';
-import { startMemoReminderScheduler } from './services/scheduling/memo-reminder-scheduler';
-import { startWorkerHealthAlertScheduler } from './services/agents/worker-health/worker-health-alert-service';
-import { AutoMergeWatcher } from './services/workflow/auto-merge-watcher';
-import { startWorkflowReconciler } from './services/workflow/workflow-reconciler';
-import { startResourceTelemetryIfEnabled } from './services/system/resource-telemetry';
-import { startSupervisionHeartbeatScheduler } from './services/supervision';
-import { startI18nIntegrityScheduler } from './services/scheduling/i18n-integrity-scheduler';
+// Warm-up (schedulers, memory system, worker manager, recovery) runs AFTER
+// app.listen() — see services/system/startup-warmup.ts. Running CPU-heavy init
+// before listen stalled open pages past the 30s request timeout.
+import { startWarmupUnlessRecovering } from './services/system/startup-warmup';
+import { shutdownMemorySystem } from './services/memory';
 
 // Start server
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -209,7 +168,12 @@ const PORT = parseInt(process.env.PORT || '3001', 10);
 // zombie-socket interference fix intact. Non-loopback requires RAPITAS_BIND_HOST
 // + RAPITAS_API_TOKEN (see middleware/local-auth.ts).
 const BIND_HOST = resolveBindHost();
-app.listen({
+
+// What listens: `app` behind a workspace-resolving front door, so a signed-in
+// request runs inside its own workspace. `app` keeps every route and guard
+// above; workspace-request-wrapper explains why no lifecycle hook can do it.
+const listener = wrapAppWithWorkspaceScope(app);
+listener.listen({
   port: PORT,
   hostname: BIND_HOST,
   idleTimeout: 30, // 30-second idle timeout to prevent CLOSE_WAIT accumulation
@@ -222,7 +186,7 @@ app.listen({
 });
 log.info(`Rapitas backend running on http://${BIND_HOST}:${PORT}`);
 if (isApiRecoveryMode())
-  log.info({ port: app.server?.port, pid: process.pid }, 'api-recovery-listening');
+  log.info({ port: listener.server?.port, pid: process.pid }, 'api-recovery-listening');
 
 // Set server stop callback for proper port release during graceful shutdown.
 // NOTE: stop(true) force-closes ALL active connections, not just the listener.
@@ -236,78 +200,13 @@ if (isApiRecoveryMode())
 // then fire mid-teardown, which is exactly how the connections above got
 // orphaned under a PID that no longer exists.
 setServerStopCallback(async () => {
-  await app.stop(true);
+  await listener.stop(true);
 });
 
-/**
- * Run heavy startup warm-up AFTER the listener is open, one task at a time and
- * yielding to the event loop between each, so the single JS thread stays free
- * to answer requests during boot (fixes the "task-detail page open across a
- * restart hits the 30s request timeout" symptom).
- *
- * Every task is individually timed and logged (`warmupMs`) so a slow/blocking
- * initializer is identifiable from the logs instead of guessed at.
- */
-const runStartupWarmup = async (): Promise<void> => {
-  const yieldToLoop = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
-
-  const timed = async (label: string, fn: () => unknown | Promise<unknown>): Promise<void> => {
-    const startedAt = Date.now();
-    try {
-      await fn();
-      log.info({ warmupMs: Date.now() - startedAt }, `Warm-up: ${label} ready`);
-    } catch (err) {
-      log.error({ err, warmupMs: Date.now() - startedAt }, `Warm-up: ${label} failed`);
-    }
-  };
-
-  // Brief grace so the listener can answer the first in-flight requests
-  // before we start CPU-heavy init on the single JS thread.
-  await new Promise((resolve) => setTimeout(resolve, 250));
-
-  const runWarmupTasks = async (tasks: Array<[string, () => unknown | Promise<unknown>]>) => {
-    for (const [label, fn] of tasks) {
-      await timed(label, fn);
-      await yieldToLoop();
-    }
-  };
-  const recoverRuntimeServerRegistryTask = async () => {
-    const { recoverRuntimeServerRegistry } =
-      await import('./services/agents/verification/runtime-smoke/worktree-server-registry');
-    await recoverRuntimeServerRegistry();
-  };
-  await runWarmupTasks([
-    ['runtime-server-registry-reconcile', recoverRuntimeServerRegistryTask],
-    ['behavior-scheduler', () => BehaviorScheduler.start()],
-    ['memory-system', () => initializeMemorySystem()],
-    ['ai-orchestra-recovery', () => AIOrchestra.getInstance().recoverOnStartup()],
-    ['legacy-workflow-migration', () => migrateLegacyWorkflowFiles()],
-    ['workflow-db-backfill', () => backfillWorkflowFilesToDatabase()],
-    ['study-goal-migration', () => migrateStudyGoals()],
-    ['agent-worker-manager', () => workerManager.initialize()],
-  ]);
-  await timed('backlog-scheduler', () => startBacklogScheduler());
-  startEventLoopLagWatchdog();
-  // NOTE(task 966): these previously had no yieldToLoop(), causing restart-adjacent stalls.
-  await runWarmupTasks([
-    ['backup-scheduler', () => startBackupScheduler()],
-    ['worktree-cleanup-scheduler', () => startWorktreeCleanupScheduler()],
-    ['decision-trace-consistency-scheduler', () => startDecisionTraceConsistencyScheduler()],
-    ['auto-restart-merged-code-scheduler', () => startAutoRestartMergedCodeScheduler()],
-    ['memo-reminder-scheduler', () => startMemoReminderScheduler()],
-    ['worker-health-alert-scheduler', () => startWorkerHealthAlertScheduler()],
-    ['auto-merge-watcher', () => AutoMergeWatcher.getInstance().start()],
-    ['workflow-reconciler', () => startWorkflowReconciler()],
-    ['resource-telemetry', () => startResourceTelemetryIfEnabled()],
-    ['cpu-usage-monitor', () => startCpuUsageMonitorIfEnabled()],
-    ['supervision-heartbeat-scheduler', () => startSupervisionHeartbeatScheduler()],
-    ['i18n-integrity-scheduler', () => startI18nIntegrityScheduler()],
-  ]);
-  log.info('Startup warm-up complete');
-};
-
-// Fire-and-forget: never blocks the listener; each task self-reports timing.
-if (!isApiRecoveryMode()) void runStartupWarmup();
+// Warm-up lives in services/system/startup-warmup.ts: it runs AFTER the
+// listener opens and reports into startup-readiness, so /health can separate
+// listening from ready (#1323).
+startWarmupUnlessRecovering();
 
 // Signal handling from bun --watch (for dev:simple mode)
 // Close SSE connections immediately on SIGTERM/SIGINT to prevent CLOSE_WAIT accumulation
@@ -336,7 +235,7 @@ const handleProcessSignal = async (signal: string) => {
       // process.exit() below before the force-close actually completed (and
       // a rejection here would have been an unhandled promise rejection
       // instead of landing in this catch block).
-      await app.stop(true);
+      await listener.stop(true);
     } catch (error) {
       log.error({ err: error }, 'Error stopping listener');
     }
@@ -421,7 +320,7 @@ process.on('SIGHUP', () => handleProcessSignal('SIGHUP'));
 // on port 3001. Bun's server.stop(true) is synchronous-safe to call here.
 process.on('exit', () => {
   try {
-    app.server?.stop(true);
+    listener.server?.stop(true);
   } catch {
     /* best-effort: nothing more we can do during exit */
   }

@@ -235,6 +235,7 @@
     "taskSlidePanel": {
       "title": "Task Details",
       "closeTooltip": "Close (Esc)",
+      "closeAria": "Close the task detail",
       "dockLeft": "Dock task details on the left",
       "dockRight": "Dock task details on the right",
       "swapDockSideAria": "Swap left/right",

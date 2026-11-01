@@ -9,6 +9,10 @@ import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { createLogger } from '@/lib/logger';
 import type { ExecutionStatus, ExecutionResult } from '@/types';
 import { safeJsonParse } from './safe-json-parse';
+import {
+  didStop,
+  requestStopExecution,
+} from '../components/ai-accordion-panel/stop-execution-request';
 
 const logger = createLogger('useAgentExecutionActions');
 
@@ -264,21 +268,25 @@ export function useAgentExecutionActions(
    * @returns true if the stop request succeeded / <停止リクエスト成功時true>
    */
   const stopExecution = useCallback(async (): Promise<boolean> => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/stop-execution`, {
-        method: 'POST',
-      });
-      if (res.ok) {
-        setIsExecuting(false);
-        setExecutionStatus('idle');
-        removeExecutingTask(taskId);
-        return true;
-      }
-      return false;
-    } catch (err) {
-      logger.error('Failed to stop execution:', err);
+    // NOTE(#1330 review): through the shared request module rather than a
+    // second fetch of the same endpoint. This copy already waited for the
+    // reply before changing the UI — the panel's did not — but it still read
+    // nothing out of it, so `statusResetFailed` had no reader here either.
+    // One implementation means the next caller cannot reintroduce either bug.
+    const outcome = await requestStopExecution({ taskId, apiBaseUrl: API_BASE_URL });
+    if (!didStop(outcome)) {
+      logger.error('Failed to stop execution for task', taskId);
       return false;
     }
+    if (outcome.kind === 'stopped_with_warning') {
+      // Nothing here renders a notice (no component calls this path today),
+      // so the partial outcome is at least recorded rather than discarded.
+      logger.warn('Execution stopped but the task status was not reset', taskId);
+    }
+    setIsExecuting(false);
+    setExecutionStatus('idle');
+    removeExecutingTask(taskId);
+    return true;
   }, [taskId, setIsExecuting, setExecutionStatus, removeExecutingTask]);
 
   /**

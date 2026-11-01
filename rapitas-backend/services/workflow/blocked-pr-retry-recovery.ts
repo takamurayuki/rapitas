@@ -78,7 +78,7 @@ export async function canReviveBlockedPrRetry(taskId: number): Promise<boolean> 
     // process got there first) is not this function's to revive.
     if (!task || task.status !== 'blocked') return false;
     if (task.themeId != null) {
-      const run = await prisma.themeAutoRun.findUnique({
+      const run = await prisma.themeAutoRun.findFirst({
         where: { themeId: task.themeId },
         select: { enabled: true, status: true },
       });

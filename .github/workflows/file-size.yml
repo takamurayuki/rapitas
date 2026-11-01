@@ -45,7 +45,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       # Pins the ratchet semantics (GREW/NEW only fail) before scanning real
       # files, so a logic regression is caught here rather than as a

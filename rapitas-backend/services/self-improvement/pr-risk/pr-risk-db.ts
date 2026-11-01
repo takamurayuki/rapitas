@@ -76,29 +76,37 @@ export interface PrRiskDb {
       update: Partial<ConfigRow>;
     }): Promise<ConfigRow>;
   };
+  /*
+   * NOTE: repo+prNumber, repo+prNumber+headSha and month are unique WITHIN a
+   * workspace now (`@@unique([workspaceId, ...])`), so none of them is a
+   * filter `findUnique` or `upsert` can take — the workspace half of the key
+   * is supplied by the scope layer, not by callers. These delegates therefore
+   * expose findFirst + create + update, and the store does the find-then-write.
+   */
   prRiskScore: {
-    findUnique(a: {
-      where: { repo_prNumber_headSha: { repo: string; prNumber: number; headSha: string } };
+    findFirst(a: {
+      where: { repo: string; prNumber: number; headSha: string };
     }): Promise<ScoreRow | null>;
     create(a: { data: Omit<ScoreRow, 'id' | 'createdAt'> }): Promise<ScoreRow>;
     update(a: { where: { id: number }; data: Partial<ScoreRow> }): Promise<ScoreRow>;
     findMany(a: FindMany): Promise<ScoreRow[]>;
   };
   prOutcome: {
-    upsert(a: {
-      where: { repo_prNumber: { repo: string; prNumber: number } };
-      create: Partial<OutcomeDbRow> & { repo: string; prNumber: number };
-      update: Where;
+    // Returns the row including its `id`, which is what the find-then-write
+    // re-keys the update by. OutcomeDbRow itself does not declare one.
+    findFirst(a: {
+      where: { repo: string; prNumber: number };
+    }): Promise<(OutcomeDbRow & { id: number }) | null>;
+    create(a: {
+      data: Partial<OutcomeDbRow> & { repo: string; prNumber: number };
     }): Promise<unknown>;
+    update(a: { where: { id: number }; data: Where }): Promise<unknown>;
     findMany(a: FindMany): Promise<OutcomeDbRow[]>;
   };
   prRiskMonthlyMetric: {
-    findUnique(a: { where: { month: string } }): Promise<MetricRow | null>;
-    upsert(a: {
-      where: { month: string };
-      create: MetricRow;
-      update: Partial<MetricRow>;
-    }): Promise<MetricRow>;
+    findFirst(a: { where: { month: string } }): Promise<(MetricRow & { id: number }) | null>;
+    create(a: { data: MetricRow }): Promise<MetricRow>;
+    update(a: { where: { id: number }; data: Partial<MetricRow> }): Promise<MetricRow>;
     findMany(a: FindMany): Promise<MetricRow[]>;
   };
   prRiskThresholdReview: {

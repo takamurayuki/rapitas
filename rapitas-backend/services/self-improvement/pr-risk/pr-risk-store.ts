@@ -93,11 +93,13 @@ export async function ensureOutcomeTracked(
   repo: string,
   prNumber: number,
 ): Promise<void> {
-  await db.prOutcome.upsert({
-    where: { repo_prNumber: { repo, prNumber } },
-    create: { repo, prNumber, label: 'pending' },
-    update: {},
-  });
+  // The update half was empty on purpose — "register unless already there".
+  // find-then-create says that directly, and repo+prNumber is unique per
+  // workspace now so upsert could not be keyed by it anyway.
+  const found = await db.prOutcome.findFirst({ where: { repo, prNumber } });
+  if (!found) {
+    await db.prOutcome.create({ data: { repo, prNumber, label: 'pending' } });
+  }
 }
 
 /**
@@ -117,11 +119,33 @@ export async function upsertOutcome(db: PrRiskDb, row: OutcomeRow, labeledAt: Da
     revertAt: row.revertAt,
     labeledAt: row.label === 'pending' ? null : labeledAt,
   };
-  await db.prOutcome.upsert({
-    where: { repo_prNumber: { repo: row.repo, prNumber: row.prNumber } },
-    create: { repo: row.repo, prNumber: row.prNumber, ...data },
-    update: data,
-  });
+  await writeOutcome(db, row.repo, row.prNumber, data);
+}
+
+/**
+ * Record one outcome, creating its row the first time.
+ *
+ * find-then-write rather than upsert: repo+prNumber is unique WITHIN a
+ * workspace now, so it is not a filter upsert can take — the workspace half of
+ * the key comes from the scope layer, not from here.
+ *
+ * @param db - Database / DB
+ * @param repo - Repository slug / リポジトリ
+ * @param prNumber - PR number / PR番号
+ * @param data - Fields to set on either branch / 設定する項目
+ */
+async function writeOutcome(
+  db: PrRiskDb,
+  repo: string,
+  prNumber: number,
+  data: Record<string, unknown>,
+): Promise<void> {
+  const found = await db.prOutcome.findFirst({ where: { repo, prNumber } });
+  if (!found) {
+    await db.prOutcome.create({ data: { repo, prNumber, ...data } });
+  } else {
+    await db.prOutcome.update({ where: { id: found.id }, data });
+  }
 }
 
 /** Outcomes still worth re-checking: pending, or incidents lacking merge info. */
@@ -208,8 +232,10 @@ export async function findScore(
   prNumber: number,
   headSha: string,
 ): Promise<ScoreRow | null> {
-  return db.prRiskScore.findUnique({
-    where: { repo_prNumber_headSha: { repo, prNumber, headSha } },
+  // findFirst, not findUnique: the constraint carries workspaceId now, which
+  // the scope layer supplies rather than the caller.
+  return db.prRiskScore.findFirst({
+    where: { repo, prNumber, headSha },
   });
 }
 
@@ -228,12 +254,19 @@ export async function markCommentPosted(db: PrRiskDb, id: number, at: Date): Pro
 
 /** Month's metric row, if already recorded. */
 export async function findMonthlyMetric(db: PrRiskDb, month: string): Promise<MetricRow | null> {
-  return db.prRiskMonthlyMetric.findUnique({ where: { month } });
+  return db.prRiskMonthlyMetric.findFirst({ where: { month } });
 }
 
 /** Record (idempotently, keyed by month) a monthly metric row. */
 export async function upsertMonthlyMetric(db: PrRiskDb, row: MetricRow): Promise<void> {
-  await db.prRiskMonthlyMetric.upsert({ where: { month: row.month }, create: row, update: row });
+  // find-then-write: `month` is unique per workspace now, so it is not a
+  // filter upsert can take.
+  const found = await db.prRiskMonthlyMetric.findFirst({ where: { month: row.month } });
+  if (!found) {
+    await db.prRiskMonthlyMetric.create({ data: row });
+  } else {
+    await db.prRiskMonthlyMetric.update({ where: { id: found.id }, data: row });
+  }
 }
 
 /** Append a threshold-review audit row. */
@@ -258,11 +291,7 @@ export async function registerIncident(
     incidentNote: p.note,
     labeledAt: p.now,
   };
-  await db.prOutcome.upsert({
-    where: { repo_prNumber: { repo: p.repo, prNumber: p.prNumber } },
-    create: { repo: p.repo, prNumber: p.prNumber, ...data },
-    update: data,
-  });
+  await writeOutcome(db, p.repo, p.prNumber, data);
 }
 
 /** Last 12 monthly metric rows and last 12 threshold reviews, newest first. */

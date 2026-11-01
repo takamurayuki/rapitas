@@ -10,7 +10,7 @@ export type CalendarEvent = {
   title: string;
   date: string;
   endDate?: string;
-  type: 'task' | 'exam' | 'schedule';
+  type: 'task' | 'schedule';
   status?: string;
   color?: string;
   time?: string;
@@ -168,4 +168,62 @@ export function getMultiDayBars(events: CalendarEvent[], currentDate: Date): Bar
   }
 
   return bars;
+}
+
+/**
+ * A schedule event as the calendar needs to draw it.
+ *
+ * Narrower than the stored `ScheduleEvent` on purpose: a shared calendar
+ * (#1270) serves only these fields, and the grid and the sidebar never
+ * needed the rest.
+ */
+export type SchedulePresentation = {
+  id: number;
+  title: string;
+  startAt: string;
+  endAt?: string | null;
+  isAllDay: boolean;
+  color: string;
+  reminderMinutes?: number | null;
+  description?: string | null;
+};
+
+/**
+ * Read a wall-clock "HH:MM" out of a UTC ISO string.
+ *
+ * Deliberately string surgery rather than a `Date`: this calendar stores and
+ * shows the time someone typed, so putting it through the viewer's timezone
+ * would move every event.
+ */
+function extractUTCTime(isoStr: string): string | undefined {
+  const timePart = isoStr.split('T')[1];
+  if (!timePart) return undefined;
+  return timePart.slice(0, 5);
+}
+
+/**
+ * Convert a schedule event into the shape the grid and the sidebar draw.
+ *
+ * Extracted from useCalendarEvents for #1270: a shared calendar needs the
+ * same mapping, and a second copy would be a second place for the timezone
+ * handling above to drift.
+ *
+ * @param schedule - The schedule event / 予定
+ * @returns The calendar's own event shape / カレンダー用のイベント形
+ */
+export function scheduleToCalendarEvent(schedule: SchedulePresentation): CalendarEvent {
+  const startDateStr = schedule.startAt.split('T')[0];
+  const endDateStr = schedule.endAt ? schedule.endAt.split('T')[0] : undefined;
+  return {
+    id: schedule.id,
+    title: schedule.title,
+    date: startDateStr,
+    endDate: endDateStr && endDateStr > startDateStr ? endDateStr : undefined,
+    type: 'schedule',
+    color: schedule.color,
+    time: schedule.isAllDay ? undefined : extractUTCTime(schedule.startAt),
+    endTime: schedule.endAt && !schedule.isAllDay ? extractUTCTime(schedule.endAt) : undefined,
+    reminderMinutes: schedule.reminderMinutes,
+    description: schedule.description,
+  };
 }

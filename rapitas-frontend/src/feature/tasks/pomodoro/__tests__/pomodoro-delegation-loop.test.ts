@@ -1,17 +1,19 @@
 /**
  * The float window must not handle the delegation event it emits.
  *
- * pomodoro-store.ts runs in every Tauri window. Its checkpoint/cancel delegation
- * listeners were gated only on `'__TAURI_INTERNALS__' in window`, so the float
- * window registered a handler for the very event it emits — and handling it there
- * re-enters the delegation, because a non-owner's checkpoint()/cancel() emits the
- * request rather than calling the backend:
+ * pomodoro-store.ts runs in every Tauri window. Its delegation listeners were
+ * gated only on `'__TAURI_INTERNALS__' in window`, so the float window
+ * registered a handler for the very event it emits — and handling it there
+ * re-enters the delegation, because a non-owner's cancel() emits the request
+ * rather than calling the backend:
  *
- *   float receives → checkpoint() → not owner → delegateToMain() → emits → …
+ *   float receives → cancel() → not owner → delegateToMain() → emits → …
  *
- * One press of the "register work time" button started an unbounded loop:
- * measured 2026-10-06 over CDP, 245 emit_to/s from the float window and 297
- * GET /pomodoro/active per second from main, ~300% of one core.
+ * NOTE: the incident was the since-removed Checkpoint action, which delegated
+ * the same way. One press of its "register work time" button started an
+ * unbounded loop: measured 2026-10-06 over CDP, 245 emit_to/s from the float
+ * window and 297 GET /pomodoro/active per second from main, ~300% of one core.
+ * Cancel has the identical shape, so the gate is still load-bearing.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -69,7 +71,6 @@ describe('ポモドーロ委譲イベントの登録範囲', () => {
   it('main ウィンドウは委譲イベントを受け取る', async () => {
     await loadStoreAt('/');
     const events = listenMock.mock.calls.map((c) => c[0]);
-    expect(events).toContain('pomodoro-float:checkpoint-request');
     expect(events).toContain('pomodoro-float:cancel-request');
   });
 
@@ -77,13 +78,12 @@ describe('ポモドーロ委譲イベントの登録範囲', () => {
   it('float ウィンドウは自分が送出する委譲イベントを受け取らない', async () => {
     await loadStoreAt('/pomodoro-float');
     const events = listenMock.mock.calls.map((c) => c[0]);
-    expect(events).not.toContain('pomodoro-float:checkpoint-request');
     expect(events).not.toContain('pomodoro-float:cancel-request');
   });
 
   it('他の非所有ウィンドウ(通知トースト)も受け取らない', async () => {
     await loadStoreAt('/notification-toast');
     const events = listenMock.mock.calls.map((c) => c[0]);
-    expect(events).not.toContain('pomodoro-float:checkpoint-request');
+    expect(events).not.toContain('pomodoro-float:cancel-request');
   });
 });

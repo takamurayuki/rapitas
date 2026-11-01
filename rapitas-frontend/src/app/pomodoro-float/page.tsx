@@ -8,13 +8,23 @@
  * surface for the time-management panel now that the modal is gone. Reads the
  * same usePomodoroStore instance that main uses (synced via
  * BroadcastChannel/localStorage) — no bespoke state plumbing needed here.
+ *
+ * Because this window is hidden rather than closed, its document outlives
+ * every frontend restart; useStaleDocumentReload reloads it on show once the
+ * frontend it came from is gone.
  */
 import { useEffect } from 'react';
 import PomodoroFloatView from './_components/pomodoro-float-view';
+import { useStaleDocumentReload } from './_hooks/use-stale-document-reload';
 
 const isTauri = (): boolean => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 export default function PomodoroFloatPage() {
+  // Shown-but-blank is this window's signature failure: the webview is never
+  // destroyed, so a document from before the last frontend restart stays
+  // loaded with chunk URLs that no longer resolve.
+  useStaleDocumentReload();
+
   // Theme sync: this window loads once and only shows/hides afterwards, so
   // the load-time theme script goes stale when the user flips the theme in
   // the MAIN window. Re-apply from localStorage on mount and live via the
