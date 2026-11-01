@@ -41,7 +41,7 @@ export const developerModeConfigRoutes = new Elysia({ prefix: '/developer-mode' 
     '/enable/:taskId',
     async (context) => {
       const { params, body } = context;
-      const taskId = parseInt(params.taskId);
+      const taskId = parseId(params.taskId, 'task ID');
       const { autoApprove, maxSubtasks, priority } = body as {
         autoApprove?: boolean;
         maxSubtasks?: number;

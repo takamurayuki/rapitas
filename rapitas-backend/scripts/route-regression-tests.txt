@@ -56,3 +56,12 @@ routes/agents/execution/routes/stop-route.id-validation.test.ts
 # 残り22箇所は require-validated-id-param が error として押さえる。
 tests/routes/organization/labels-routes.test.ts
 routes/system/calendar-shares/calendar-shares.routes.test.ts
+
+# ===== POST 経路のid検証（#1349 PR5） =====
+# これで変更操作(POST/PATCH/PUT/DELETE)の全106箇所が移行完了。
+# ポモドーロの pause/resume/complete/cancel は 4経路すべてが切り捨てた id で
+# 他人のセッションを操作できた（parseInt('1e1')=1、parseInt('0x10')=16 で
+# isNaN は false）。コメント投稿は別タスクにコメントが付いていた。
+# いずれもステータスではなく「サービス/DBを呼ばないこと」を assert する。
+tests/routes/scheduling/pomodoro-routes.test.ts
+tests/routes/social/comments-routes.test.ts

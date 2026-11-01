@@ -229,6 +229,40 @@ describe('POST /pomodoro/sessions/:id/pause', () => {
   });
 });
 
+// NOTE(#1349): 'abc' だけを見ていたので、切り捨てで別のセッションに解決する
+// 入力は素通りしていた。parseInt('1e1') は 1、parseInt('0x10') は 16 で、
+// isNaN はどちらも false。pause/resume/complete/cancel の4経路すべてが
+// 他人のセッションを操作できた。4経路 × 4入力をまとめて固定する。
+describe('POST /pomodoro/sessions/:id/* — 切り捨てで別セッションに届く id', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  const OPS: [string, () => ReturnType<typeof mock>][] = [
+    ['pause', () => mockPausePomodoro],
+    ['resume', () => mockResumePomodoro],
+    ['complete', () => mockCompletePomodoro],
+    ['cancel', () => mockCancelPomodoro],
+  ];
+  const BAD = ['1e1', '1abc', '0x10', '0'];
+  const cases: [string, string, () => ReturnType<typeof mock>][] = OPS.flatMap(([op, getMock]) =>
+    BAD.map((raw): [string, string, () => ReturnType<typeof mock>] => [op, raw, getMock]),
+  );
+
+  test.each(cases)('%s は %s を拒否し、サービスを呼ばないこと', async (op, raw, getMock) => {
+    const res = await app.handle(
+      new Request(`http://localhost/pomodoro/sessions/${raw}/${op}`, { method: 'POST' }),
+    );
+
+    expect(res.status).toBe(400);
+    // ステータスではなくこれが本題: 別セッションへの操作が始まっていない。
+    expect(getMock()).not.toHaveBeenCalled();
+  });
+});
+
 describe('GET /pomodoro/statistics', () => {
   let app: ReturnType<typeof createApp>;
 

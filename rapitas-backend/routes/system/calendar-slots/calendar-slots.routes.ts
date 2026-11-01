@@ -32,6 +32,7 @@ import {
 import { frontendUrl } from '../../../config/frontend-url';
 import { currentWorkspaceId } from '../../../services/tenancy/workspace-context';
 import { ensureCalendarPollingStarted } from '../../../services/scheduling/calendar-slot/calendar-sync-runtime';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 const log = createLogger('routes:calendar-slots');
 
@@ -103,11 +104,11 @@ const calendarSlotsRoutes = new Elysia({ prefix: '/calendar-slots' })
   .post(
     '/override/:themeId',
     ({ params, set }) => {
-      const themeId = Number(params.themeId);
-      if (!Number.isInteger(themeId) || themeId <= 0) {
+      if (!isValidEntityId(params.themeId)) {
         set.status = 400;
         return { error: 'invalid themeId' };
       }
+      const themeId = Number(params.themeId);
       requestCalendarGateOverride(themeId);
       set.status = 204;
     },

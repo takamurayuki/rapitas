@@ -5,6 +5,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { ValidationError } from '../../middleware/error-handler';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 export const timeEntriesRoutes = new Elysia()
   // Get time entries for a task
@@ -26,10 +27,10 @@ export const timeEntriesRoutes = new Elysia()
     '/tasks/:id/time-entries',
     async (context) => {
       const { params, body } = context;
-      const taskId = parseInt(params.id);
-      if (isNaN(taskId)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('無効なタスクIDです');
       }
+      const taskId = Number(params.id);
 
       // NOTE: `source` is still accepted in the body (callers send it) but no
       // longer read — it only ever chose whether to double-count the minutes

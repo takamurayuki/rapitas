@@ -175,11 +175,11 @@ export const concernBacklogRoutes = new Elysia()
   .post(
     '/concerns/:id/convert-to-task',
     async ({ params, set }) => {
-      const id = parseInt(params.id);
-      if (!Number.isSafeInteger(id) || id <= 0) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { error: 'Invalid ID' };
       }
+      const id = Number(params.id);
       try {
         const taskId = await convertConcernToTask(id);
         if (taskId === null) {

@@ -270,11 +270,11 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
   .post(
     '/:id/pin',
     async ({ params, body, set }) => {
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid ID' };
       }
+      const id = Number(params.id);
       const typedBody = body as PinKnowledgeBody;
       const until = new Date(typedBody.until);
       const entry = await pinKnowledgeEntry(id, until);

@@ -111,11 +111,11 @@ export const hypothesisRoutes = new Elysia()
   .post(
     '/hypotheses/:id/evidence',
     async ({ params, body, set }) => {
-      const id = parseInt(params.id);
-      if (!Number.isFinite(id)) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { error: '無効なIDです' };
       }
+      const id = Number(params.id);
       if (!body.detail?.trim() || !body.artifact?.trim()) {
         set.status = 400;
         return { error: '観察 (detail) と具体的根拠 (artifact) は必須です' };
