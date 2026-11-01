@@ -7,13 +7,18 @@
  * 捕まえるべきものを捕まえ、捕まえてはいけないものを見逃すことの両方を固定する。
  */
 import { describe, test, expect } from 'bun:test';
-import { findToolchainViolations } from './check-toolchain-drift';
+import { findToolchainViolations, findUnfrozenInstalls } from './check-toolchain-drift';
 
 const TC = { bun: '1.3.13', pnpm: '10.34.9', node: '24' };
 
 /** Run the checker over a YAML fragment. */
 function check(yaml: string) {
   return findToolchainViolations(yaml, 'w.yml', TC);
+}
+
+/** Run the lockfile checker over a YAML fragment. */
+function checkFrozen(yaml: string, file = 'w.yml') {
+  return findUnfrozenInstalls(yaml, file);
 }
 
 describe('捕まえるべきもの', () => {
@@ -144,5 +149,52 @@ describe('見逃すべきもの', () => {
         '        uses: pnpm/action-setup@v4\n        with:\n          version: ${{ matrix.pnpm }}\n',
       ),
     ).toHaveLength(0);
+  });
+});
+
+// NOTE(#1349 review): the gap this half of the check closes. Step 1 froze the
+// pnpm paths and left eleven `bun install` calls — the ordinary backend CI and
+// the distribution build among them — so those jobs could resolve dependencies
+// the committed bun.lock never recorded while the dedicated Frozen Install job
+// stayed green. That job proves the lockfile is installable; it cannot stop
+// another job from resolving something else.
+describe('frozen install — 捕まえるべきもの', () => {
+  test.each([
+    ['bun', '        run: bun install\n'],
+    ['pnpm', '        run: pnpm install\n'],
+    ['npm', '        run: npm install\n'],
+    ['npm ci', '        run: npm ci\n'],
+    ['bun i', '      run: bun i\n'],
+  ])('%s の非 frozen install', (_label, yaml) => {
+    const found = checkFrozen(yaml);
+    expect(found).toHaveLength(1);
+    expect(found[0]!.tool).toBe('lockfile');
+    expect(found[0]!.expected).toContain('--frozen-lockfile');
+  });
+
+  test('同一ファイル内の複数箇所をすべて報告すること', () => {
+    expect(checkFrozen('        run: bun install\n        run: pnpm install\n')).toHaveLength(2);
+  });
+
+  test('行番号を正しく報告すること', () => {
+    const found = checkFrozen('a\nb\n        run: bun install\n');
+    expect(found[0]!.line).toBe(3);
+  });
+});
+
+describe('frozen install — 見逃すべきもの', () => {
+  test.each([
+    ['frozen 付き bun', '        run: bun install --frozen-lockfile\n'],
+    ['frozen 付き pnpm', '        run: pnpm install --frozen-lockfile\n'],
+    ['パッケージ指定の install', '        run: bun install elysia\n'],
+    ['install を含む別コマンド', '        run: bunx playwright install\n'],
+    ['コメント内の記述', '        # run: bun install\n'],
+    ['echo の中の記述', '        run: echo "cd rapitas-backend && bun install"\n'],
+  ])('%s', (_label, yaml) => {
+    expect(checkFrozen(yaml)).toHaveLength(0);
+  });
+
+  test('lockfile 更新ジョブは対象外（再解決がその目的）', () => {
+    expect(checkFrozen('        run: bun install\n', 'update-lockfiles.yml')).toHaveLength(0);
   });
 });
