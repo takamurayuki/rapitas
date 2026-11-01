@@ -317,3 +317,100 @@ describe('DELETE /tasks/:id 保護ガードとworktreeクリーンアップ', ()
     expect(mockPrisma.task.delete).toHaveBeenCalledWith({ where: { id: 1 } });
   });
 });
+
+// #1349 の最初のPR。レビュー指摘: GET を 400 にしても、変更操作群は依然
+// parseInt の切り捨てで別の行に届く。`DELETE /tasks/5abc` は parseInt が 5 を
+// 返すため、非保護タスクなら **ID 5 の削除処理へ進む**。
+//
+// ステータスだけでは不十分（#1346 で 404 を観測して欠陥を固定した前例がある）。
+// このブロックは「DBに触れていないこと」を assert する。
+describe('変更操作は数字以外を含むidで行5に届かないこと (#1349)', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+    // 行5が実在し、非保護である状況を作る。これが無いと findUnique が null を
+    // 返して 404 で止まり、「行5が削除される」という本題が再現できない
+    // （最初に書いた版はこれを欠いており、400ではなく404を観測していた）。
+    mockPrisma.task.findUnique.mockResolvedValue({ id: 5, title: 'row five', isProtected: false });
+    mockPrisma.task.delete.mockResolvedValue({ id: 5, title: 'row five' });
+    mockPrisma.task.update.mockResolvedValue({ id: 5, title: 'row five' });
+    mockPrisma.task.findMany.mockResolvedValue([]);
+  });
+
+  /** parseInt が 5 / 0 / 不正な整数へ切り詰めていた入力。 */
+  const TRUNCATED = ['5abc', '5e2', '5.9', '0x10', '-3', '0', '99999999999999999999'];
+
+  describe.each(TRUNCATED)('id=%p', (raw) => {
+    test('DELETE /tasks/:id は削除せず400を返すこと', async () => {
+      const res = await app.handle(
+        new Request(`http://localhost/tasks/${raw}`, { method: 'DELETE' }),
+      );
+
+      expect(res.status).toBe(400);
+      // 最重要: 行5の削除処理に入っていないこと。
+      expect(mockPrisma.task.delete).not.toHaveBeenCalled();
+      expect(mockPrisma.task.findUnique).not.toHaveBeenCalled();
+    });
+
+    test('PATCH /tasks/:id は更新せず400を返すこと', async () => {
+      const res = await app.handle(
+        new Request(`http://localhost/tasks/${raw}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'hijacked' }),
+        }),
+      );
+
+      expect(res.status).toBe(400);
+      expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    });
+
+    test('DELETE /tasks/:id/subtasks は削除せず400を返すこと', async () => {
+      const res = await app.handle(
+        new Request(`http://localhost/tasks/${raw}/subtasks`, { method: 'DELETE' }),
+      );
+
+      expect(res.status).toBe(400);
+      expect(mockPrisma.task.findMany).not.toHaveBeenCalled();
+      expect(mockPrisma.task.delete).not.toHaveBeenCalled();
+    });
+
+    test('POST /tasks/:id/subtasks/delete-selected は削除せず400を返すこと', async () => {
+      const res = await app.handle(
+        new Request(`http://localhost/tasks/${raw}/subtasks/delete-selected`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subtaskIds: [1, 2] }),
+        }),
+      );
+
+      expect(res.status).toBe(400);
+      expect(mockPrisma.task.delete).not.toHaveBeenCalled();
+    });
+
+    test('POST /tasks/:id/cleanup-duplicates は削除せず400を返すこと', async () => {
+      const res = await app.handle(
+        new Request(`http://localhost/tasks/${raw}/cleanup-duplicates`, { method: 'POST' }),
+      );
+
+      expect(res.status).toBe(400);
+      expect(mockPrisma.task.findMany).not.toHaveBeenCalled();
+    });
+
+    test('POST /tasks/:id/retry は400を返すこと', async () => {
+      const res = await app.handle(
+        new Request(`http://localhost/tasks/${raw}/retry`, { method: 'POST' }),
+      );
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  // 過剰修正のガードは、このファイル既存の DELETE テスト群が担っている
+  // （`worktreeを持つセッションをクリアしてから削除すること` 等が id=1 で
+  // 200 と `task.delete({ where: { id: 1 } })` を assert している）。
+  // ここで重ねて書くと choke point のモックを二重に用意することになり、
+  // 実際に 500 になって「何を検証しているのか」が曖昧になった。
+});

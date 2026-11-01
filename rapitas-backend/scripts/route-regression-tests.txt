@@ -34,3 +34,10 @@ routes/agents/execution/routes/stop-route.test.ts
 # 差分同期の境界（nextSince）をサーバーが返すこと。これが無いとクライアントは
 # 受信時刻を次の境界にしてしまい、取得中に入った更新を永久に落とす（#1332）。
 tests/routes/tasks/task-routes.test.ts
+
+# ===== 変更操作のid検証（#1349） =====
+# parseInt の切り捨てで /tasks/5abc が行5に届いていた。実機で再現済み:
+# DELETE /tasks/1473abc が {"id":1473,"trashId":986} を返し行1473が消えた。
+# ステータスだけでなく「DBに触れないこと」を assert するのでここに置く
+# （カバレッジ母数に影響しないゲート）。
+tests/routes/tasks/tasks.mutation-errors.test.ts
