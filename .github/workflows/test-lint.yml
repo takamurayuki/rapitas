@@ -115,7 +115,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: '1.3.13'
 
       - name: Install backend dependencies
         working-directory: rapitas-backend
@@ -324,7 +324,7 @@ jobs:
           node-version: '24'
 
       - name: Install pnpm
-        run: npm install -g pnpm@10
+        run: npm install -g pnpm@10.34.9
 
       - name: Setup pnpm cache
         uses: actions/cache@v4
@@ -339,15 +339,20 @@ jobs:
         working-directory: rapitas-frontend
         run: pnpm install --no-frozen-lockfile
 
-      - name: Setup Bun for frontend tests
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.13'
-
-      - name: Install frontend dependencies (bun)
-        working-directory: rapitas-frontend
-        run: bun install
-
+      # NOTE(#1340 step 1): the Bun setup and `bun install` that used to sit
+      # here are gone, and the tests run through pnpm instead.
+      #
+      # `rapitas-frontend/bun.lock` is gitignored — pnpm-lock.yaml is this
+      # package's source of truth. But the job ran `pnpm install` and then
+      # `bun install` in the SAME directory, and with no bun lockfile to read,
+      # bun resolved straight from package.json: newest version satisfying each
+      # range, pnpm-lock.yaml ignored, node_modules mutated after pnpm had
+      # populated it. The frontend gate was therefore testing a tree that the
+      # committed lockfile does not describe.
+      #
+      # Verified the gate's own file list passes under node-run vitest before
+      # removing bun: `vitest run --coverage <the list>` exits 0 with all four
+      # coverage floors met.
       - name: Run TypeScript type check
         working-directory: rapitas-frontend
         run: pnpm tsc --noEmit
@@ -366,7 +371,7 @@ jobs:
         # (gone for longer, with CI green the whole time). When you remove a
         # test file, remove its line here too — nothing else will tell you.
         run: >
-          bunx vitest run --coverage
+          pnpm exec vitest run --coverage
           src/components/__tests__/AppIcon.test.tsx
           src/app/settings/developer-mode/components/AutoRunSettingsCard.test.tsx
           src/components/__tests__/ErrorBoundary.test.tsx
@@ -480,7 +485,7 @@ jobs:
           bun-version: '1.3.13'
 
       - name: Install pnpm
-        run: npm install -g pnpm@10
+        run: npm install -g pnpm@10.34.9
 
       - name: Get pnpm store directory
         shell: bash
@@ -559,6 +564,17 @@ jobs:
         # route-barrel-legacy-manifest.json + *.routes.ts auto-discovery.
         # Run `bun run generate:route-barrels` and commit the updated files.
         run: bun run generate:route-barrels:check
+
+      # NOTE(#1340 step 1): every workflow must install the versions declared in
+      # .github/toolchain.json. Three Bun versions were writing and validating
+      # one bun.lock — 1.3.13 in the gates, 1.3.11 in update-lockfiles AND in
+      # the release build's matrix, 'latest' in seven jobs including the
+      # lockfile bot — and bun 1.3.13 writes lockfileVersion 1 while a newer
+      # bun writes 2. An audit, a test run and a release build cannot be said
+      # to use the same dependencies while the resolver version varies.
+      - name: Check toolchain version drift
+        working-directory: rapitas-backend
+        run: bun run check:toolchain
 
       - name: Check determinism guard (advisory)
         working-directory: rapitas-backend
@@ -689,3 +705,103 @@ jobs:
         env:
           CI: true
         run: cargo test --workspace
+
+  # NOTE(#1340 step 1, criterion 4): proves the committed lockfiles are
+  # authoritative, on a runner that shares nothing with any other job.
+  #
+  # Every other install in this repository uses `--no-frozen-lockfile`, so
+  # until now no path verified that the lockfiles actually describe an
+  # installable tree — they could drift from package.json indefinitely and
+  # nothing would say so. This job installs all three packages frozen and then
+  # runs the required backend gates against that tree, so "the audit, the tests
+  # and the release build use the same dependencies" is a checked claim rather
+  # than an intention.
+  #
+  # It deliberately does NOT use a dependency cache: a warm cache can hide a
+  # lockfile that no longer resolves from the registry.
+  frozen-install:
+    name: Frozen Install Verification
+    runs-on: ubuntu-latest
+    # Hang backstop only.
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: rapitas_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install pnpm
+        run: npm install -g pnpm@10.34.9
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.13'
+
+      - name: Backend — frozen install
+        working-directory: rapitas-backend
+        run: bun install --frozen-lockfile
+
+      - name: Frontend — frozen install
+        working-directory: rapitas-frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Desktop — frozen install
+        working-directory: rapitas-desktop
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup test database
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+        run: |
+          bunx prisma db push --skip-generate
+          bunx prisma generate
+
+      # The gates, against the frozen tree rather than a resolved-fresh one.
+      - name: Backend gate suite
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+        run: bun run test:ci
+
+      - name: Route regression suite
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+        run: bun run test:routes
+
+      - name: Explain a failure
+        if: failure()
+        run: |
+          {
+            echo "## A frozen install or a gate failed on a clean runner"
+            echo
+            echo "This job installs every package with its lockfile held fixed and"
+            echo "no dependency cache. A failure here means one of:"
+            echo
+            echo "- a lockfile no longer satisfies its package.json (reconcile them"
+            echo "  deliberately — do NOT delete the lockfile and reinstall, which"
+            echo "  upgrades everything it can)"
+            echo "- a lockfile references something the registry no longer serves"
+            echo "- the gates pass only against a freshly-resolved tree, which means"
+            echo "  the committed lockfiles are not what is being tested elsewhere"
+          } >> "$GITHUB_STEP_SUMMARY"

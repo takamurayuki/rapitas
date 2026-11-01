@@ -104,14 +104,14 @@ jobs:
           node-version: '24'
 
       - name: Install pnpm
-        run: npm install -g pnpm@10
+        run: npm install -g pnpm@10.34.9
 
       # NOTE(#1340): needed because rapitas-backend uses bun, and this job had
       # no way to audit it — which is why that package had never been checked.
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: '1.3.13'
 
       # `bun audit` reads the installed tree, so without this it reports nothing
       # and the backend gate would pass by being blind rather than by being clean.

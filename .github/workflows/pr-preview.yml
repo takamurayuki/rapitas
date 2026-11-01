@@ -106,7 +106,7 @@ jobs:
       # twice, a third time by Build (ubuntu-latest)'s full Tauri build. What is
       # left (`bun build --compile` and `next build`) needs neither.
       - name: Install pnpm
-        run: npm install -g pnpm@10
+        run: npm install -g pnpm@10.34.9
 
       - name: Install backend dependencies
         working-directory: rapitas-backend
