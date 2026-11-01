@@ -18,6 +18,7 @@ import { Elysia } from 'elysia';
 import { createLogger } from '../../config/logger';
 import { releaseTaskHalt, MIN_HYPOTHESIS_CHARS } from '../../services/workflow/halt-release';
 import { recordTransition } from '../../services/workflow/transition-recorder';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:halt-release');
 
@@ -31,11 +32,11 @@ const haltReleaseRoutes = new Elysia({ prefix: '/workflow' }).post(
   '/tasks/:taskId/release-halt',
   async (ctx) => {
     const params = ctx.params as { taskId: string };
-    const taskId = parseInt(params.taskId, 10);
-    if (!Number.isFinite(taskId)) {
+    if (!isValidEntityId(params.taskId)) {
       ctx.set.status = 400;
       return { success: false, error: 'invalid taskId' };
     }
+    const taskId = Number(params.taskId);
 
     const headers = ctx.headers as Record<string, string | undefined> | undefined;
     const rawSource = headers?.['x-rapitas-source'];

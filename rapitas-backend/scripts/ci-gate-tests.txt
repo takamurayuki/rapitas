@@ -214,3 +214,12 @@ scripts/check-toolchain-drift.test.ts
 # db-helpers.parseId は 37 箇所から使われており、そのテストは 42abc -> 42 を
 # 「意図した挙動」として固定していた。弾くべき入力と通すべき入力の両方を置く。
 utils/common/id-validation.test.ts
+
+# ===== 変更操作のid検証ルール（#1349） =====
+# parseInt は読めない文字で止まるため、/tasks/5abc が行5に届いていた。実機で
+# 再現済み: POST /tasks/1475abc/stop-execution が 200 を返し、行1475の
+# ステータスを todo に戻し executionGenerationId を 0→1 にした。
+# ルール本体のテストと、未移行ファイル一覧(ratchet)のテスト。一覧は縮むだけで、
+# 直したのに残っているエントリはテストが落とす。
+eslint-rules/require-validated-id-param.test.mjs
+eslint-rules/id-param-migration-baseline.test.mjs

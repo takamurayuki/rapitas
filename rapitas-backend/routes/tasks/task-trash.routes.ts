@@ -12,6 +12,7 @@
  */
 import { Elysia, t } from 'elysia';
 import { listTrash, restoreFromTrash, purgeTrash } from '../../services/task/task-trash';
+import { parseId } from '../../middleware/error-handler';
 
 export const taskTrashRoutes = new Elysia({ prefix: '/task-trash' })
   .get('/', async ({ query }) => ({
@@ -22,7 +23,7 @@ export const taskTrashRoutes = new Elysia({ prefix: '/task-trash' })
   .post(
     '/:id/restore',
     async ({ params, set }) => {
-      const restored = await restoreFromTrash(Number(params.id));
+      const restored = await restoreFromTrash(parseId(params.id, 'trash ID'));
       if (!restored) {
         // Missing, already restored, or an unreadable snapshot. All three mean
         // "there is nothing here to bring back", and none should look like a

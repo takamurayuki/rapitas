@@ -21,6 +21,7 @@ import {
 import { ATTACHMENT_SECURITY_HEADERS, resolveAttachmentDisposition } from './attachment-serving';
 
 import { randomUUID } from 'crypto';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 // Filenames that must never be copyable through upload-from-path, regardless
 // of which root they resolve under — a stray allowlisted root (e.g. a theme
@@ -412,8 +413,8 @@ export const resourcesRoutes = new Elysia()
     '/resources/:id',
     async (context) => {
       const { params } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) throw new ValidationError('無効なIDです');
+      if (!isValidEntityId(params.id)) throw new ValidationError('無効なIDです');
+      const id = Number(params.id);
 
       // Get resource to check for file
       const resource = await prisma.resource.findUnique({ where: { id } });
