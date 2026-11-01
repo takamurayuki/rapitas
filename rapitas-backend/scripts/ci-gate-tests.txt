@@ -203,3 +203,9 @@ eslint-rules/no-unguarded-task-delete.test.mjs
 # CSRF ガード(middleware/local-auth.ts)が持っていた許可オリジンの複製も
 # この resolver に寄せたので、空文字 CORS_ORIGIN の扱いの差分もここで固定する。
 config/cors-options.test.ts
+
+# ===== ツールチェーン固定のドリフト検出（#1340 step 1） =====
+# チェック自身が「走っているが何も測っていない」側に落ちないよう、捕まえるべき
+# もの（latest・メジャーのみ・matrix宣言の古い版）と見逃すべきもの（${{ }} 式・
+# コメント）の両方を固定する。
+scripts/check-toolchain-drift.test.ts

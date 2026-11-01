@@ -24,6 +24,7 @@
     "test:ci": "bun scripts/run-gate.ts backend-tests",
     "test:routes": "bun scripts/run-gate.ts route-regression",
     "test:coverage": "bun test --coverage --isolate",
+    "check:toolchain": "bun run scripts/check-toolchain-drift.ts",
     "check:guards": "bun run scripts/check-critical-guards.ts",
     "check:ssot": "bun run scripts/check-ssot-drift.ts --check",
     "check:docs": "bun run scripts/check-docs-health.ts",
