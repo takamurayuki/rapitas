@@ -156,7 +156,9 @@ describe('POST /tasks/:id/cleanup-duplicates', () => {
     expect(res.status).toBe(200);
     expect(body.deletedCount).toBe(1);
     expect(body.deletedIds).toEqual([11]);
-    expect(mockPrisma.task.delete).toHaveBeenCalledWith({ where: { id: 11 } });
+    // Duplicate cleanup goes through the guarded path too (#1330 review).
+    expect(chokePointDeletes).toEqual([11]);
+    expect(mockPrisma.task.delete).not.toHaveBeenCalled();
   });
 
   test('重複が無い場合はメッセージのみ返すこと', async () => {

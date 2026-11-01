@@ -14,6 +14,7 @@ import { notifyTaskCompleted, createNotification } from '../communication/notifi
 import { buildNotificationI18n } from '../communication/notification-i18n';
 import { onGeneratedTaskCompleted } from '../scheduling/recurring-task-service';
 import { createSubtask, createParentTask } from './task-create-helpers';
+import { replaceTaskLabels } from './task-label-replace';
 import { syncParentStatusFromSubtasks } from './task-parent-status-sync';
 import { releaseCurrentArgs, releaseThemeCurrentOnTerminal } from './task-terminal-current-release';
 import { realtimeService } from '../communication/realtime-service';
@@ -289,14 +290,14 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
     await releaseThemeCurrentOnTerminal(prisma, taskId, fields.status);
   }
 
-  // Update labels
+  // Update labels.
+  // NOTE(#1330 review): Through replaceTaskLabels, not a bare deleteMany +
+  // createMany. This path had the SAME unsafe pair as PUT /tasks/:id/labels,
+  // and fixing only that route left the one users actually hit — every task
+  // edit that touches labels — still able to delete every label and then fail
+  // to write the new ones, leaving the task with none.
   if (labelIds !== undefined) {
-    await prisma.taskLabel.deleteMany({ where: { taskId } });
-    if (labelIds.length > 0) {
-      await prisma.taskLabel.createMany({
-        data: labelIds.map((labelId) => ({ taskId, labelId })),
-      });
-    }
+    await replaceTaskLabels(prisma, taskId, labelIds);
   }
 
   const updatedTask = await prisma.task.findUnique({

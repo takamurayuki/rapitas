@@ -107,6 +107,21 @@ function createMockPrisma() {
       deleteMany: mock(() => Promise.resolve({ count: 0 })) as ReturnType<typeof mock>,
       createMany: mock(() => Promise.resolve({ count: 0 })) as ReturnType<typeof mock>,
     },
+    // Label replacement now runs through replaceTaskLabels (#1330 review):
+    // the ids are verified first, then the delete and create happen inside one
+    // transaction. The stand-in resolves every id and runs the callback
+    // against itself, so the assertions below still see the real writes — and
+    // can additionally prove they were wrapped.
+    label: {
+      findMany: mock((args: { where: { id: { in: number[] } } }) =>
+        Promise.resolve(args.where.id.in.map((id) => ({ id }))),
+      ) as ReturnType<typeof mock>,
+    },
+    $transaction: mock((arg: unknown) =>
+      typeof arg === 'function'
+        ? (arg as (tx: unknown) => Promise<unknown>)(mockPrisma)
+        : Promise.resolve([]),
+    ) as ReturnType<typeof mock>,
   };
 }
 

@@ -191,4 +191,5 @@ tests/routes/system/url-metadata-routes.test.ts
 # introduced lives in the two modules below and is fully covered here; the
 # route wiring is still tested, just outside the gate.
 services/task/task-deletion.test.ts
-routes/organization/task-label-replace.test.ts
+services/task/task-label-replace.test.ts
+services/task/task-cleanup.test.ts

@@ -7,7 +7,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { labelSchema } from '../../schemas/label.schema';
 import { NotFoundError, ValidationError } from '../../middleware/error-handler';
-import { replaceTaskLabels } from './task-label-replace';
+import { replaceTaskLabels } from '../../services/task/task-label-replace';
 
 // NOTE: One-shot backfill for the theme→category label migration: theme-scoped
 // labels inherit their theme's category. Idempotent (only rows still missing
@@ -212,7 +212,7 @@ export const taskLabelsRoutes = new Elysia()
       // `deleteMany` followed by a `createMany`, so a failing create left the
       // old labels already deleted and the new ones unwritten — the task ended
       // up with none. Unknown ids are now refused before the delete runs.
-      await replaceTaskLabels(prisma as never, taskId, labelIds);
+      await replaceTaskLabels(prisma, taskId, labelIds);
 
       // Return updated task with labels
       return await prisma.task.findUnique({

@@ -4,30 +4,43 @@
  * Replaces the set of labels attached to one task, atomically.
  * Not responsible for the HTTP shape — the route owns that.
  *
- * Why this is its own module (#1330): the route did the replacement as two
- * loose writes, `deleteMany` then `createMany`. Without a transaction, a
- * failing create — an unknown labelId is a foreign-key violation, and a
- * connection blip does it too — left the old labels already deleted and the
- * new ones never written, so the task came out with NO labels at all. That is
- * data loss, not a partial save, and it happens on an everyday operation.
+ * Why this is its own module (#1330): the replacement was two loose writes,
+ * `deleteMany` then `createMany`. Without a transaction, a failing create — an
+ * unknown labelId is a foreign-key violation, and a connection blip does it
+ * too — left the old labels already deleted and the new ones never written, so
+ * the task came out with NO labels at all. That is data loss, not a partial
+ * save, and it happens on an everyday operation.
+ *
+ * It lives under services/task rather than beside one route because there were
+ * TWO copies of that unsafe pair: `PUT /tasks/:id/labels` and the main
+ * `PATCH /tasks/:id` path in task-mutations. Fixing only the first left the
+ * one users hit far more often still able to wipe a task's labels (#1330
+ * review). A service a route imports is the right direction; a route a
+ * service imports is not.
  */
 import { ValidationError } from '../../middleware/error-handler';
 
-/** The Prisma surface this needs, so a transaction client fits too. */
+/**
+ * The Prisma surface this needs, so a transaction client fits too.
+ *
+ * NOTE: Declared with METHOD shorthand, not arrow properties. Under
+ * `strictFunctionTypes` an arrow property is checked contravariantly, and the
+ * real `PrismaClient` then fails to satisfy this interface because its
+ * `findMany` accepts a far wider generic argument. Method shorthand is
+ * bivariant, which is what lets the real client and a `$transaction` client
+ * both be passed without an `as never` at every call site.
+ */
 interface LabelWriteClient {
   label: {
-    findMany: (args: {
-      where: { id: { in: number[] } };
-      select?: unknown;
-    }) => Promise<Array<{ id: number }>>;
+    findMany(args: { where: { id: { in: number[] } } }): Promise<Array<{ id: number }>>;
   };
   taskLabel: {
-    deleteMany: (args: { where: { taskId: number } }) => Promise<{ count: number }>;
-    createMany: (args: {
+    deleteMany(args: { where: { taskId: number } }): Promise<{ count: number }>;
+    createMany(args: {
       data: Array<{ taskId: number; labelId: number }>;
-    }) => Promise<{ count: number }>;
+    }): Promise<{ count: number }>;
   };
-  $transaction: <T>(fn: (tx: LabelWriteClient) => Promise<T>) => Promise<T>;
+  $transaction<T>(fn: (tx: LabelWriteClient) => Promise<T>): Promise<T>;
 }
 
 /**
