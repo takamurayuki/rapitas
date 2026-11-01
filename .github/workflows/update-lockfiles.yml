@@ -44,8 +44,15 @@ jobs:
 
       - name: Update Bun lockfile
         working-directory: rapitas-backend
+        # NOTE(#1340 step 1): no `rm -f bun.lock` any more. Deleting it first
+        # made every run a fresh resolve — newest version satisfying each
+        # range — so a job meant to reconcile the lockfile with a package.json
+        # change instead proposed a whole-tree upgrade. `bun install` against
+        # the existing lockfile updates only what package.json now requires
+        # and leaves every other recorded version alone, which is what this
+        # job is for. (The 'Fix Bun Lock' workflow had the same defect and is
+        # now a read-only check.)
         run: |
-          rm -f bun.lock
           bun install
           echo "BACKEND_UPDATED=$(git diff --quiet bun.lock || echo 'true')" >> $GITHUB_ENV
 

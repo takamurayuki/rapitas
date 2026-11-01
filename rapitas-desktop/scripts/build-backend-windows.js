@@ -13,7 +13,15 @@ const { pipeline } = require('stream/promises');
 const BACKEND_DIR = path.resolve(__dirname, '../../rapitas-backend');
 const OUTPUT_DIR = path.resolve(__dirname, '../src-tauri/binaries');
 const BUN_DIR = path.resolve(__dirname, '../.bun');
-const BUN_VERSION = '1.1.42';
+
+// NOTE(#1340 step 1): read from .github/toolchain.json, the one place the Bun
+// version is declared. This was a hardcoded '1.1.42' — two minor versions
+// behind the 1.3.13 that every gate runs — so the binary we SHIP was compiled
+// by a Bun that nothing tests against. Pinning the workflows while leaving the
+// distribution path on its own version is the exact gap worth avoiding.
+// scripts/check-toolchain-drift.ts also checks this file.
+const TOOLCHAIN_PATH = path.resolve(__dirname, '../../.github/toolchain.json');
+const BUN_VERSION = JSON.parse(fs.readFileSync(TOOLCHAIN_PATH, 'utf8')).bun;
 
 // プラットフォーム別の出力ファイル名
 const platform = process.platform;

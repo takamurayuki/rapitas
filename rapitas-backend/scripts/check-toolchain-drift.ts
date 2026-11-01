@@ -97,9 +97,30 @@ export function checkWorkflows(repoRoot: string): ToolchainViolation[] {
   const dir = join(repoRoot, '.github', 'workflows');
   const files = readdirSync(dir).filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'));
 
-  return files.flatMap((f) =>
+  const violations = files.flatMap((f) =>
     findToolchainViolations(readFileSync(join(dir, f), 'utf8'), f, toolchain),
   );
+
+  // NOTE(#1340 step 1): the distribution build is checked too. It downloaded a
+  // hardcoded Bun 1.1.42 — two minor versions behind every gate — so the
+  // binary that SHIPS was compiled by a Bun nothing tests against. Pinning the
+  // workflows while leaving the release path on its own version is the gap
+  // this check exists to close, so the file is required to read the version
+  // from toolchain.json rather than to state one.
+  const distBuild = join(repoRoot, 'rapitas-desktop', 'scripts', 'build-backend-windows.js');
+  const dist = readFileSync(distBuild, 'utf8');
+  const literal = dist.match(/const BUN_VERSION\s*=\s*['"]([^'"]+)['"]/);
+  if (literal) {
+    violations.push({
+      file: 'rapitas-desktop/scripts/build-backend-windows.js',
+      line: dist.slice(0, literal.index).split(/\r?\n/).length,
+      found: literal[1]!,
+      expected: `read from .github/toolchain.json (${toolchain.bun})`,
+      tool: 'bun',
+    });
+  }
+
+  return violations;
 }
 
 // Entry point: `bun run scripts/check-toolchain-drift.ts`
