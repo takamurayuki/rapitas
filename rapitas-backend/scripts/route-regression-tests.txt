@@ -80,3 +80,10 @@ tests/routes/social/comments-routes.test.ts
 routes/agents/config/agent-api-key-router.id-validation.test.ts
 routes/workflow/theme-auto-run.id-validation.test.ts
 routes/workflow/handlers/workflow-handlers-dry-run.id-validation.test.ts
+# ===== 読み取り系のHTTP契約（#1349 レビュー） =====
+# transitions / repair-iterations は不正IDでもDB失敗でも 200 を返し、本当の結果は
+# ボディにしか無かった。ステータスだけ読む呼び出し元は成功と受け取る（#1335 で
+# stop-execution について直したのと同じ形）。契約:
+#   不正ID -> 400・DB未到達 / DB失敗 -> 500 / 正常・履歴0件 -> 200 空の履歴
+# 「履歴が空」で 404 にはしない（フロントには「タスクが消えた」と読める）。
+routes/workflow/core/workflow.read-http-contract.test.ts
