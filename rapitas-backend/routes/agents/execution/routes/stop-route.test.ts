@@ -526,3 +526,46 @@ describe('stop-route reports a failed status reset', () => {
     expect(body.statusResetFailed).toBeUndefined();
   });
 });
+
+// #1335: the wholesale-failure path answered HTTP 200 with success:false,
+// because the catch returned a body without setting a status. The #1332
+// client now reads the body and is safe either way, but any other caller —
+// including a future one — still gets told "200" for a stop that did not
+// happen. A status code that contradicts its own body is not a contract.
+describe('stop-route status code on a wholesale failure', () => {
+  beforeEach(resetMocks);
+
+  it('answers 5xx, not 200, when the database fails outright', async () => {
+    // Throws from inside the handler's try, which is the path that reported
+    // success:false with HTTP 200.
+    mockResolveTaskWorkingDirectory.mockImplementation(() =>
+      Promise.reject(new Error('disk I/O error')),
+    );
+
+    const res = await stopRoute.handle(
+      new Request(`${BASE}/903/stop-execution`, { method: 'POST' }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    expect(body.success).toBe(false);
+  });
+
+  it('still answers 200 for a partial stop, which is not a failure', async () => {
+    // The over-correction guard. A failed status reset means the executions
+    // DID stop; turning that into a 5xx would undo #1330's distinction.
+    mockDb.task.update.mockImplementation((args: { data?: Record<string, unknown> }) => {
+      if (args?.data && 'status' in args.data) {
+        return Promise.reject(new Error('disk I/O error'));
+      }
+      return Promise.resolve({ executionGenerationId: 1 });
+    });
+
+    const res = await stopRoute.handle(
+      new Request(`${BASE}/904/stop-execution`, { method: 'POST' }),
+    );
+
+    expect(res.status).toBe(200);
+    expect((await res.json()).statusResetFailed).toBe(true);
+  });
+});

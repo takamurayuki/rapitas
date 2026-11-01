@@ -232,17 +232,40 @@ describe('POST /batch/v2', () => {
     expect(body.results[0].body.nextCursor).toBe('20');
   });
 
-  test('GET /tasks/:idで存在しないタスクは200・body nullを返すこと', async () => {
+  // #1335: was 200 + null body, which disagreed with nothing at the time
+  // because the direct route did the same — and both were wrong. A caller
+  // checking only the status concluded the task existed.
+  test('GET /tasks/:idで存在しないタスクは404を返すこと', async () => {
     mockPrisma.task.findUnique.mockResolvedValue(null);
 
     const res = await app.handle(batchRequest([{ id: 'r1', method: 'GET', path: '/tasks/999' }]));
     const body = await res.json();
 
-    // Regression check for the null.cached crash fixed in batch-v2.ts.
-    expect(body.results[0].status).toBe(200);
-    expect(body.results[0].body).toBeNull();
-    expect(body.results[0].cached).toBe(false);
+    // Per-request status: one missing task must not fail the whole batch.
+    expect(res.status).toBe(200);
+    expect(body.results[0].status).toBe(404);
+    expect(body.results[0].error).toBeTruthy();
+    // Nothing absent gets cached.
     expect(mockCacheService.set).not.toHaveBeenCalled();
+  });
+
+  test('バッチ内の他のリクエストは404に引きずられないこと', async () => {
+    // The dispatcher maps per request; a 404 in one must leave the rest alone.
+    mockPrisma.task.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 5 });
+
+    const res = await app.handle(
+      batchRequest([
+        { id: 'missing', method: 'GET', path: '/tasks/999' },
+        { id: 'present', method: 'GET', path: '/tasks/5' },
+      ]),
+    );
+    const body = await res.json();
+
+    const byId = Object.fromEntries(
+      (body.results as Array<{ id: string; status: number }>).map((r) => [r.id, r.status]),
+    );
+    expect(byId.missing).toBe(404);
+    expect(byId.present).toBe(200);
   });
 
   test('GET /tasks/:idで見つかった場合キャッシュへ保存すること', async () => {
@@ -264,7 +287,11 @@ describe('POST /batch/v2', () => {
     const res = await app.handle(batchRequest([{ id: 'r1', method: 'GET', path: '/tasks/abc' }]));
     const body = await res.json();
 
-    expect(body.results[0].status).toBe(200);
+    // The point of this test is handler RESOLUTION — that the regex fallback
+    // routes `/tasks/abc` to GET:/tasks/:id and passes the parsed id through.
+    // The status was incidentally 200 only because a missing task used to
+    // answer 200; it is 404 now (#1335). The assertion that matters is below.
+    expect(body.results[0].status).toBe(404);
     const call = mockPrisma.task.findUnique.mock.calls[0]![0] as { where: { id: number } };
     expect(Number.isNaN(call.where.id)).toBe(true);
   });
