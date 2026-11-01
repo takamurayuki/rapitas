@@ -273,6 +273,38 @@ describe('GET /tasks', () => {
     expect(res.status).toBe(400);
   });
 
+  // #1335: GET /tasks/:id answered 200 with an EMPTY BODY for an id that does
+  // not exist (`if (!task) return task`). A caller reading only the status
+  // concluded the task was there — I did exactly that while checking whether a
+  // probe task had been deleted. Same family as the stop route reporting
+  // success on a swallowed failure.
+  describe('GET /tasks/:id — a missing task', () => {
+    test('404 と一定のエラー本文を返すこと', async () => {
+      mockPrisma.task.findUnique.mockResolvedValue(null);
+
+      const res = await app.handle(new Request('http://localhost/tasks/999999'));
+
+      expect(res.status).toBe(404);
+      expect(await res.json()).toHaveProperty('error');
+    });
+
+    test('存在するidは引き続き200を返すこと', async () => {
+      // The over-correction guard: a real task must not start 404ing.
+      mockPrisma.task.findUnique.mockResolvedValue({ id: 7, title: 'T7', parentId: null });
+
+      const res = await app.handle(new Request('http://localhost/tasks/7'));
+
+      expect(res.status).toBe(200);
+      expect((await res.json()).id).toBe(7);
+    });
+
+    test('不正なidは引き続き400を返すこと（404ではない）', async () => {
+      const res = await app.handle(new Request('http://localhost/tasks/not-a-number'));
+
+      expect(res.status).toBe(400);
+    });
+  });
+
   // #1332: the response echoed back the `since` it USED and never said what
   // the next boundary should be, so the client advanced to its own receive
   // time and permanently skipped anything updated while the request was in

@@ -5,7 +5,7 @@
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
-import { AppError, ValidationError } from '../../middleware/error-handler';
+import { AppError, NotFoundError, ValidationError } from '../../middleware/error-handler';
 import { createLogger } from '../../config/logger';
 import { deleteTaskWithTrash, deleteTasksWithTrash } from '../../services/task/task-deletion';
 import {
@@ -292,7 +292,12 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         },
       },
     });
-    if (!task) return task;
+    // NOTE(#1335): a missing task is a 404, not a 200 with an empty body.
+    // Returning `null` here meant a caller that checked only the status
+    // concluded the row existed — and `GET /tasks/<deleted id>` answering 200
+    // is exactly the shape that makes "is it gone?" unanswerable without
+    // parsing. The status is part of the answer.
+    if (!task) throw new NotFoundError(`Task ${id} not found`);
 
     // Cumulative active time / current-cycle wall-clock / per-role breakdown
     // (task #560). Additive fields only — existing consumers are unaffected.

@@ -4,6 +4,7 @@ import { cacheService, CacheKeys } from '../../services/core/cache-service';
 import { PrismaOptimizer, QueryOptimizers } from '../../utils/database/prisma-optimization';
 import { performanceMonitoring } from '../../middleware/performance';
 import { deleteTaskWithTrash } from '../../services/task/task-deletion';
+import { NotFoundError } from '../../middleware/error-handler';
 
 interface BatchResult {
   id: string;
@@ -123,10 +124,15 @@ registerHandler('GET:/tasks/:id', async (context) => {
     ...QueryOptimizers.taskWithRelations(),
   } as Parameters<typeof prisma.task.findUnique>[0]);
 
-  if (task) {
-    await cacheService.set(cacheKey, task, CacheKeys.TTL.MEDIUM);
-  }
+  // NOTE(#1335): 404, matching the Elysia route. These are two separate
+  // implementations of `GET /tasks/:id` and both answered 200 with a null
+  // body for a missing id; fixing one and not the other would leave the batch
+  // API disagreeing with the direct route about whether a task exists. The
+  // dispatcher maps a thrown AppError to `status: err.status`, so this
+  // surfaces as a per-request 404 rather than failing the whole batch.
+  if (!task) throw new NotFoundError(`Task ${id} not found`);
 
+  await cacheService.set(cacheKey, task, CacheKeys.TTL.MEDIUM);
   return task;
 });
 
@@ -272,10 +278,15 @@ class BatchProcessor {
         };
       } catch (error: unknown) {
         const executionTime = performance.now() - startTime;
-        const err = error as { status?: number; message?: string };
+        // NOTE(#1335): `statusCode` first. AppError (and so every
+        // ValidationError / NotFoundError in this codebase) carries its status
+        // as `statusCode`; reading only `status` meant EVERY deliberate error
+        // a handler threw was reported as a 500. `status` is kept as a
+        // fallback for plain objects that use that name.
+        const err = error as { statusCode?: number; status?: number; message?: string };
         return {
           id: request.id,
-          status: err.status || 500,
+          status: err.statusCode ?? err.status ?? 500,
           error: err.message || 'Internal server error',
           executionTime,
         };

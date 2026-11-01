@@ -211,6 +211,17 @@ export const stopRoute = new Elysia().post(
     } catch (error) {
       log.error({ err: error }, '[stop-execution] Database error');
       releaseTaskExecutionLock(taskId);
+      // NOTE(#1335): the status is set. This returned a body saying
+      // success:false under HTTP 200, so a caller reading only the status was
+      // told the stop had worked when nothing had been stopped. #1332 taught
+      // the panel to read the body — which is the right place for the
+      // authority — but a status code that contradicts its own body is not a
+      // contract any other caller should have to know about.
+      //
+      // Distinct from a failed status reset: that path keeps its 200, because
+      // the executions genuinely did stop (#1330). Only this one means
+      // nothing happened.
+      context.set.status = 500;
       return {
         success: false,
         error: 'Database error occurred. Failed to stop execution.',
